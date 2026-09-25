@@ -472,6 +472,75 @@ vocabularies, both cross-field refusals, the per-phase presence rules, and the s
 payload shape. The score sits at 0.82 only because `episode_action.go` is dense with
 comparison operators and the mutation engine generates a mutant per operator.
 
+### WU1 slice 4a implementation contract — the read side moves with the write side
+
+**This slice fixes a regression I introduced.** Slice 3 moved the WRITE path to
+`device_telemetry_events` but left the desktop READ path on
+`device_sync_diagnostics`, and a `git grep` finds no production writer for that table any
+more. So `ListDeviceSyncDiagnostics` has been reading a table nothing writes to since
+`2f90928`. Not cleanup: repair.
+
+**Where the reader lives.** `telemetry`, not `syncdiag`. `telemetry` already imports
+`syncdiag` for `Validate`, `FieldError` and `RetentionLimit`, so `syncdiag` importing
+`telemetry` would be an import cycle. The read side belongs with the store anyway.
+
+**Two layers, so the generic reader stays kind-agnostic:**
+
+1. `telemetry/reader.go` — the envelope read. `NewReader(db)` probing the table once
+   (`Available()`, mirroring `eventlog.NewReader` and the retired `syncdiag.NewReader`),
+   and `List(ctx, ReportQuery) ([]StoredEvent, error)` returning newest-first, page-bounded
+   rows of `{DeviceID, ReportedAtMS, Kind, EventID, ObservedAtMS, Degraded, Payload}`. An
+   empty `DeviceID` applies no device predicate; zero or negative `Limit` means the package
+   default clamped to the package maximum, enforced in SQL rather than by post-query
+   truncation. A missing table is NOT an error: `Available()` reports false and every query
+   returns an unavailable envelope, so a database predating the table degrades instead of
+   failing the whole read.
+2. `telemetry/cycle_report_read.go` — the kind's own projection. Unmarshals the stored
+   payload and exposes the fields the desktop DTO needs, including the three that used to be
+   columns and now live inside the `previous_cycle` object
+   (`previous_outcome`, `previous_elapsed_ms`, `previous_error_fingerprint`). A payload that
+   does not unmarshal is a corrupt row, not a crash: it degrades to absent nullable
+   fields.
+
+**Repoint the read surfaces**, keeping the capability name and the DTO shape identical so
+nothing user-visible changes beyond the data becoming live again: `internal/desktop/app.go`,
+`app_defaults.go`, `app_runtime_services.go`, `app_device_sync_diagnostics.go` and its test,
+and `app_observability_facts.go`.
+
+**Rename the store in the catalog and the manifests.** These are names and reasons, not
+logic: `internal/observability/readcap/catalog.go` declares
+`StoreSyncDiagnostics = "device_sync_diagnostics"` and must name the table that now backs
+`list_device_sync_diagnostics`; `internal/mcp/requestcapture/manifest.go` carries the
+mechanical reason the MCP sidecar has no such tool and names the table in its text;
+`internal/api/contracts/capture.go` documents the DTO with the same name. Update each and
+its test.
+
+**Do NOT retire `device_sync_diagnostics` in this slice.** It stays registered and its rows
+stay untouched and unread until slice 4b, so this slice is independently reviewable and
+revertible. Do NOT delete `syncdiag/{schema,reader}.go` here either — 4b owns that.
+
+**Tests required before the production code**:
+
+1. A cycle report stored through the telemetry store is read back through the new reader and mapped into the desktop DTO with every field intact, including the three that moved into `previous_cycle` and an explicitly null `previous_cycle` mapping to absent fields.
+2. The reader is kind-scoped: an `episode_action` row never appears in a cycle-report read.
+3. A device predicate restricts the page; an empty one does not.
+4. The limit is clamped in SQL: a request above the maximum returns exactly the maximum.
+5. A missing table reports unavailable rather than erroring.
+6. A row whose payload does not unmarshal degrades instead of panicking.
+7. Newest-first ordering.
+
+### WU1 slice 4b — retire the legacy table
+
+- Remove `syncdiag.SchemaTables()` from `internal/sync/sqlite_bootstrap.go` so the legacy
+table is never created again, and delete `syncdiag/{schema,schema_test,reader,reader_test}.go`
+with it. Existing rows stay untouched and unread; nothing drops them.
+- `syncdiag.Store` is already unreferenced in production: delete `store.go`/`store_test.go`
+(or keep them only if a real caller exists — check first, and report what you find).
+- **RED: the no-lifecycle-data-migration guard.** Apply the full table set over a database
+holding legacy `device_sync_diagnostics` rows and assert every row is byte-identical
+ afterwards and that the table still exists. That is the machine owner for the owner's rule:
+ the lifecycle creates and adds, it never reshapes or drops.
+
 ### Deferred, needs an explicit owner decision
 
 - [ ] One-off script to reshape historical `device_sync_diagnostics` rows into the new shape. **Only if the owner wants the history**; the data is internal and not in backups, so the default is to leave the old rows in place unread and write no script.

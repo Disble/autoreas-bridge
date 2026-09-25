@@ -166,8 +166,9 @@ type CaptureSummary struct {
 }
 
 // DeviceSyncDiagnosticReport is one attributed device sync diagnostics
-// report, read from device_sync_diagnostics -- the only store that can
-// attribute a report to a device: a diagnostics capture in request_captures
+// report: the cycle_report kind's events inside the kind-discriminated
+// device_telemetry_events store. That store is the only one that can
+// attribute a report to a device -- a diagnostics capture in request_captures
 // carries the report body but not the device, because the
 // POST /api/sync/diagnostics body has no device_id and identity travels
 // only in the Authorization header.

@@ -80,9 +80,14 @@ vocabulary.
 | --- | --- | --- |
 | **Bridge status** | `BridgeStatusCard`, `useBridgeStatusCard` | The bridge's own **SQLite storage** status. No device is involved |
 | **Device sync health** | `device_sync_state` → `notifyDeviceSyncHealth`, notification kind `sync_health_warning` | Device **staleness** — approaching or past the stale window. It drives a notification |
-| **Device sync diagnostics** | `device_sync_diagnostics` (`internal/observability/syncdiag`) | The per-cycle **report a device sends about itself** |
+| **Device sync diagnostics** | `device_telemetry_events`, kind `cycle_report` (`internal/observability/telemetry`) | The per-cycle **report a device sends about itself** |
 
-`device_sync_diagnostics` is **not** health. The schema says so in its own words:
+The kind-discriminated telemetry store replaced the single-shape `device_sync_diagnostics`
+table, so the report lives beside every other telemetry kind and is told apart by its `kind`
+column rather than by its table. The **device sync diagnostics** concept is unchanged: the kind
+is the vocabulary's old report, stored once and read back through the same name.
+
+A sync-cycle report is **not** health. The diagnostics schema says so in its own words:
 `degraded` "is a FIDELITY signal, not a health signal … It reports how complete the
 record is, not how the device is doing." A report can be perfectly complete and describe
 a device that is failing, and a full event ring can ship `degraded = 'events'` for a
@@ -96,7 +101,7 @@ Related schema constraints that follow from the same definition:
   trustworthy discriminator.
 - A diagnostics **capture** in `request_captures` cannot be attributed to a device: the
   report body carries no `device_id` by design, since identity travels only in the
-  Authorization header. Attribution exists only in the `device_sync_diagnostics` row,
+  Authorization header. Attribution exists only in the `device_telemetry_events` row,
   which the ingestion seam fills from the authenticated token.
 
 See [ADR 025: Sanitization is an egress rule, not a display rule](./adr/025-sanitization-is-an-egress-rule.md).

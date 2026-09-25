@@ -23,7 +23,7 @@ import (
 	"autoreas-bridge/internal/notification/center"
 	"autoreas-bridge/internal/observability/eventlog"
 	"autoreas-bridge/internal/observability/requestcapture"
-	"autoreas-bridge/internal/observability/syncdiag"
+	"autoreas-bridge/internal/observability/telemetry"
 	"autoreas-bridge/internal/realtime"
 	"autoreas-bridge/internal/schedule"
 	"autoreas-bridge/internal/season"
@@ -56,7 +56,7 @@ type App struct {
 	newCaptureStore            func(db *sql.DB) requestcapture.Upserter
 	newCaptureQueue            func(db *sql.DB) captureQueue
 	newCaptureReader           func(db *sql.DB) *requestcapture.Reader
-	newSyncDiagReader          func(db *sql.DB) *syncdiag.Reader
+	newSyncDiagReader          func(db *sql.DB) *telemetry.Reader
 	newTrayManager             func() tray.Manager
 	newAutoStartReconciler     func() autoStartReconciler
 	newTracerBulletRunner      func(bus events.Bus, sink tracerbullet.TraceRecorder, loggers ...sharedlogger.Logger) tracerBulletRunner
@@ -74,7 +74,7 @@ type App struct {
 	httpServer                 api.Server
 	captureQueue               captureQueue
 	captureReader              *requestcapture.Reader
-	syncDiagReader             *syncdiag.Reader
+	syncDiagReader             *telemetry.Reader
 	captureStore               requestcapture.Upserter
 	eventSink                  *eventlog.Sink
 	newEventQueue              func(db *sql.DB) eventLogStopper

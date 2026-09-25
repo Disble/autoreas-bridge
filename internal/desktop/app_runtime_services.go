@@ -102,7 +102,7 @@ func (a *App) configureCaptureReader() {
 // never a second SQLite connection. It is the exact mirror of
 // configureCaptureReader: nil-safe when bridgeDB is absent, and a no-op once a
 // reader already exists. The recover mirrors configureEventReader: the
-// constructor probes device_sync_diagnostics, and a bare, unopened *sql.DB{}
+// constructor probes device_telemetry_events, and a bare, unopened *sql.DB{}
 // (as a degraded bootstrap or a unit-test fixture supplies) panics on query
 // rather than erroring. Leaving the reader nil there is the correct
 // degradation -- the bound read already reports a nil reader as Degraded.

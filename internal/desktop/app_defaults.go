@@ -19,7 +19,7 @@ import (
 	"autoreas-bridge/internal/notification"
 	"autoreas-bridge/internal/observability/eventlog"
 	"autoreas-bridge/internal/observability/requestcapture"
-	"autoreas-bridge/internal/observability/syncdiag"
+	"autoreas-bridge/internal/observability/telemetry"
 	"autoreas-bridge/internal/realtime"
 	"autoreas-bridge/internal/schedule"
 	"autoreas-bridge/internal/season"
@@ -162,7 +162,7 @@ func (a *App) ensureCaptureRuntimeDependencies() {
 		a.newCaptureReader = requestcapture.NewReader
 	}
 	if a.newSyncDiagReader == nil {
-		a.newSyncDiagReader = syncdiag.NewReader
+		a.newSyncDiagReader = telemetry.NewReader
 	}
 }
 
