@@ -14,7 +14,6 @@ import (
 	"autoreas-bridge/internal/download/dbschema"
 	"autoreas-bridge/internal/notification/centerschema"
 	"autoreas-bridge/internal/observability/eventlog"
-	"autoreas-bridge/internal/observability/syncdiag"
 	"autoreas-bridge/internal/observability/telemetry"
 	"autoreas-bridge/internal/persistence"
 	"autoreas-bridge/internal/season"
@@ -167,12 +166,12 @@ func initializeBridgeDB(db *sql.DB, dbPath string) error {
 	tables = append(tables, activity.SchemaTables()...)
 	tables = append(tables, season.SchemaTables()...)
 	tables = append(tables, eventlog.SchemaTables()...)
-	tables = append(tables, syncdiag.SchemaTables()...)
-	// The kind-discriminated telemetry store is registered here even though
-	// retiring device_sync_diagnostics from syncdiag.SchemaTables() is a later
-	// slice's job: this is the first slice whose write path targets it, and a
-	// missing table would make every ingested event fail at runtime instead of
-	// at bootstrap.
+	// The kind-discriminated telemetry store is the single home of device
+	// telemetry, and registration follows the write path: without this line
+	// every ingested event fails at runtime instead of at bootstrap.
+	// device_sync_diagnostics is deliberately absent. It is retired, and an
+	// install that still holds it keeps its rows: nothing here drops, renames
+	// or reshapes them, which is why no descriptor for it may return.
 	tables = append(tables, telemetry.SchemaTables()...)
 	tables = append(tables, centerschema.SchemaTables()...)
 	// SDD-69 slice 2: registered here (not in the backfill's own slice)
