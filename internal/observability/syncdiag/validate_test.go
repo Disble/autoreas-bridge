@@ -434,3 +434,33 @@ func TestValidateNativeErrcodeByteBounds(t *testing.T) {
 		})
 	}
 }
+
+// TestStrictDecodeAcceptsDeclaredKindAndStillRejectsUndeclaredKeys asserts
+// both halves of the additive kind seam in one place. WireReport now
+// declares kind, so an explicit kind: "cycle_report" survives the request
+// decode's DisallowUnknownFields instead of drawing the 400 that was making
+// mobile discard its own observations; and declaring it did not open the
+// decode up, since any other undeclared top-level key is still rejected.
+// The legacy default is the absence of the key, so the body without it must
+// keep decoding unchanged.
+func TestStrictDecodeAcceptsDeclaredKindAndStillRejectsUndeclaredKeys(t *testing.T) {
+	body := buildReportJSON(nil)
+
+	withKind := strings.Replace(body, `"cycle_id"`, `"kind": "cycle_report", "cycle_id"`, 1)
+	var wire WireReport
+	decoder := json.NewDecoder(strings.NewReader(withKind))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&wire); err != nil {
+		t.Fatalf("expected an explicit kind key to decode as a declared field, got: %v", err)
+	}
+	if wire.Kind != "cycle_report" {
+		t.Fatalf("expected the declared kind to be decoded, got %q", wire.Kind)
+	}
+
+	undeclared := strings.Replace(body, `"cycle_id"`, `"cycle_kind": "cycle_report", "cycle_id"`, 1)
+	decoder = json.NewDecoder(strings.NewReader(undeclared))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&WireReport{}); err == nil {
+		t.Fatal("expected an undeclared top-level key to still be rejected")
+	}
+}

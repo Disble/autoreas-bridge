@@ -94,9 +94,12 @@ func buildActiveSeasonHandler(h *Handler, config Config) http.Handler {
 
 // buildSyncDiagnosticsHandler creates the sync-diagnostics ingestion handler
 // when configured. A nil seam still builds the handler so it reports 503
-// itself, matching NewSyncDiagnosticsHandler's own nil-safe contract.
+// itself, matching NewSyncDiagnosticsHandler's own nil-safe contract. The kind
+// vocabulary is left unset on purpose: the handler then resolves
+// telemetry.DefaultRegistry(), the single declaration point, instead of a
+// second instance this router built and could drift from.
 func buildSyncDiagnosticsHandler(h *Handler, config Config) http.Handler {
-	return apiHandlers.NewSyncDiagnosticsHandler(apiHandlers.SyncDiagnosticsConfig{Authenticate: h.authenticate, Ingest: config.IngestSyncDiagnostics})
+	return apiHandlers.NewSyncDiagnosticsHandler(apiHandlers.SyncDiagnosticsConfig{Authenticate: h.authenticate, Ingest: config.IngestTelemetryEvent})
 }
 
 // buildHandlerMux registers the bridge API routes on a new multiplexer.

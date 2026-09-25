@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	"autoreas-bridge/internal/observability/readcap"
@@ -39,6 +40,12 @@ func TestManifestMatchesCatalogAndServerRoster(t *testing.T) {
 	}
 	if reason := excluded["list_device_sync_diagnostics"]; reason == "" {
 		t.Fatalf("expected list_device_sync_diagnostics to be excluded with a mechanical reason, got %#v", excluded)
+	} else if !strings.Contains(reason, string(readcap.StoreSyncDiagnostics)) {
+		// The reason is the sidecar's own explanation of why it cannot serve
+		// the capability, and it names the store it would have to read. Tying
+		// the text to the catalog's declared store is what keeps the reason
+		// from outliving the table it names.
+		t.Fatalf("expected the reason to name the catalog's store %q, got %q", readcap.StoreSyncDiagnostics, reason)
 	}
 
 	reader, err := OpenReader(openToolTestDB(t))

@@ -5,7 +5,7 @@ import (
 
 	apiHandlers "autoreas-bridge/internal/api/handlers"
 	sharedlogger "autoreas-bridge/internal/logger"
-	"autoreas-bridge/internal/observability/syncdiag"
+	"autoreas-bridge/internal/observability/telemetry"
 )
 
 // syncDiagnosticsEventDomain is the declared domain for the runtime event the
@@ -19,49 +19,54 @@ const syncDiagnosticsEventDomain = "sync"
 
 // syncDiagnosticsStoredEventType follows the domain.verb shape the emitted
 // event types in this codebase follow (e.g. "websocket.register"): the stored
-// verb names what happened to the report, so Duplicate and Shed outcomes have
+// verb names what happened to the event, so Duplicate and Shed outcomes have
 // no event type to emit under.
 const syncDiagnosticsStoredEventType = "sync.diagnostics_stored"
 
-// ingestSyncDiagnostics is the API seam for mobile-sourced device sync
-// diagnostics ingestion (POST /api/sync/diagnostics). Returns nil when
-// bridge SQLite is unavailable, so the route reports 503 itself.
+// ingestSyncDiagnostics is the API seam for mobile-sourced telemetry ingestion
+// (POST /api/sync/diagnostics). Returns nil when bridge SQLite is unavailable,
+// so the route reports 503 itself.
+//
+// The store is built with telemetry.DefaultRegistry() -- the same single
+// declaration point the handler dispatches against -- because the registry is
+// where the store resolves each kind's retention cap. Two vocabularies would
+// let a kind be servable and unretainable at once, which the store refuses
+// with ErrUndeclaredKind.
 //
 // The returned function emits exactly one runtime event when, and only when,
-// the outcome is Stored. Duplicate (a cycle_id retry) is not new information
+// the outcome is Stored. Duplicate (an event_id retry) is not new information
 // and Shed (a write that did not complete) is not a stored report, so neither
 // emits anything -- the live store's duplicate deliveries outnumber fresh
 // reports, and one event per delivery would amplify the noisiest traffic in
 // the system.
-func (a *App) ingestSyncDiagnostics() apiHandlers.IngestSyncDiagnosticsFunc {
+func (a *App) ingestSyncDiagnostics() apiHandlers.IngestTelemetryEventFunc {
 	if a.bridgeDB == nil {
 		return nil
 	}
-	store := syncdiag.NewStore(a.bridgeDB, syncdiag.StoreConfig{})
-	insert := store.InsertReport
-	return func(ctx context.Context, record syncdiag.Record) (syncdiag.IngestOutcome, error) {
-		outcome, err := insert(ctx, record)
-		if outcome == syncdiag.Stored {
-			a.logSyncDiagnosticsStored(record)
+	store := telemetry.NewStore(a.bridgeDB, telemetry.StoreConfig{Registry: telemetry.DefaultRegistry()})
+	return func(ctx context.Context, event telemetry.Event) (telemetry.IngestOutcome, error) {
+		outcome, err := store.Insert(ctx, event)
+		if outcome == telemetry.Stored {
+			a.logSyncDiagnosticsStored(event)
 		}
 		return outcome, err
 	}
 }
 
 // logSyncDiagnosticsStored emits one info-level runtime event for a stored
-// diagnostics report, mirroring the shared-logger fanout every other runtime
+// telemetry event, mirroring the shared-logger fanout every other runtime
 // event uses: the fanout carries the entry to stdout, the in-memory log (and
 // its observability Wails event) and the persisted event log. The message
-// identifies the cycle and the device without dumping the payload, and
-// EntityID carries the device so the entry is findable by device rather than
-// only by free-text search over its message. Nil-safe: App instances that
+// identifies the kind, the event and the device without dumping the payload,
+// and EntityID carries the device so the entry is findable by device rather
+// than only by free-text search over its message. Nil-safe: App instances that
 // never wire a shared logger (e.g. tests) degrade to a no-op.
-func (a *App) logSyncDiagnosticsStored(record syncdiag.Record) {
+func (a *App) logSyncDiagnosticsStored(event telemetry.Event) {
 	if a.sharedLogger == nil {
 		return
 	}
 	a.sharedLogger.Logf(syncDiagnosticsEventDomain, sharedlogger.LevelInfo, sharedlogger.Fields{
-		EntityID:  record.DeviceID,
+		EntityID:  event.DeviceID,
 		EventType: syncDiagnosticsStoredEventType,
-	}, "stored sync diagnostics report for cycle %s from device %s", record.CycleID, record.DeviceID)
+	}, "stored %s telemetry event %s from device %s", event.Kind, event.Validated.EventID, event.DeviceID)
 }

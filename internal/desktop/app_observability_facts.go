@@ -27,8 +27,12 @@ func (a *App) GetObservabilityFacts() contracts.ObservabilityFacts {
 	return contracts.ObservabilityFacts{
 		Parity: ObservabilityParityFacts(),
 		Retention: contracts.ObservabilityRetentionLimits{
-			CaptureRows:        requestcapture.RetentionLimit(),
-			EventRows:          eventlog.RowCap(),
+			CaptureRows: requestcapture.RetentionLimit(),
+			EventRows:   eventlog.RowCap(),
+			// The cycle_report kind declares its cap by delegating to
+			// syncdiag.RetentionLimit(), so this surface states the same number
+			// from the owner the kind itself names rather than copying it. The
+			// value is unaffected by the store becoming kind-discriminated.
 			SyncDiagnosticRows: syncdiag.RetentionLimit(),
 		},
 		SampleCaps: contracts.ObservabilitySampleCaps{

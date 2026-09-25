@@ -12,55 +12,181 @@ import (
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/observability/obserr"
-	"autoreas-bridge/internal/observability/syncdiag"
+	"autoreas-bridge/internal/observability/telemetry"
 )
+
+// previousCycleSeed is the wire previous_cycle object a seeding helper sends:
+// the three values the desktop DTO exposes, and only them, so a test states
+// exactly which previous-cycle facts the report carried.
+type previousCycleSeed struct {
+	outcome          string
+	elapsedMS        int64
+	errorFingerprint string
+}
+
+// cycleReportBody builds a valid cycle_report wire body. Seeding through the
+// real body keeps the stored payload the payload production stores; a seeded
+// payload built by hand would pin a shape no client can produce.
+func cycleReportBody(t *testing.T, cycleID string, degraded *string, previous *previousCycleSeed) []byte {
+	t.Helper()
+
+	var previousCycle any
+	if previous != nil {
+		object := map[string]any{"outcome": previous.outcome}
+		// A zero elapsed or an empty fingerprint means "not reported" for
+		// this seeding helper: the wire vocabulary rejects an empty
+		// fingerprint, so sending one would make a convenience default look
+		// like a malformed client report.
+		if previous.elapsedMS != 0 {
+			object["elapsed_ms"] = previous.elapsedMS
+		}
+		if previous.errorFingerprint != "" {
+			object["error_fingerprint"] = previous.errorFingerprint
+		}
+		previousCycle = object
+	}
+	body, err := json.Marshal(map[string]any{
+		"cycle_id":       cycleID,
+		"degraded":       degraded,
+		"trigger_source": "foreground_service",
+		"app_state":      "background",
+		"previous_cycle": previousCycle,
+		"counters": map[string]any{
+			"consecutive_unclosed_cycles": 1,
+			"pending_ops_count":           3,
+			"cursor":                      42,
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal cycle report body: %v", err)
+	}
+	return body
+}
+
+// syncDiagTestStore builds the real telemetry write path the desktop read
+// path is the counterpart of, over the app's own bridge database.
+func syncDiagTestStore(db *sql.DB) *telemetry.Store {
+	return telemetry.NewStore(db, telemetry.StoreConfig{Registry: telemetry.DefaultRegistry()})
+}
 
 // seedSyncDiagReport inserts one diagnostics report through the real write
 // path, with explicit degraded and previous-cycle values so tests control
-// exactly which nullable columns land as NULL.
-func seedSyncDiagReport(t *testing.T, store *syncdiag.Store, cycleID string, reportedAtMS int64, deviceID string, degraded *string, previous *syncdiag.PreviousCycle) {
+// exactly which optional values land as NULL.
+func seedSyncDiagReport(t *testing.T, store *telemetry.Store, cycleID string, reportedAtMS int64, deviceID string, degraded *string, previous *previousCycleSeed) {
 	t.Helper()
-	if _, err := store.InsertReport(context.Background(), syncdiag.Record{
-		DeviceID:                  deviceID,
-		ReportedAtMS:              reportedAtMS,
-		CycleID:                   cycleID,
-		Degraded:                  degraded,
-		TriggerSource:             "foreground_service",
-		AppState:                  "background",
-		ConsecutiveUnclosedCycles: 1,
-		PendingOpsCount:           3,
-		Cursor:                    42,
-		PreviousCycle:             previous,
-	}); err != nil {
+
+	validated, err := telemetry.CycleReportKind{}.Decode(cycleReportBody(t, cycleID, degraded, previous))
+	if err != nil {
+		t.Fatalf("decode report %s: %v", cycleID, err)
+	}
+	outcome, err := store.Insert(context.Background(), telemetry.Event{
+		DeviceID:     deviceID,
+		ReportedAtMS: reportedAtMS,
+		Kind:         telemetry.KindCycleReport,
+		Validated:    validated,
+	})
+	if err != nil {
 		t.Fatalf("insert report %s: %v", cycleID, err)
+	}
+	if outcome != telemetry.Stored {
+		t.Fatalf("expected report %s to be Stored, got %v", cycleID, outcome)
+	}
+}
+
+// TestListDeviceSyncDiagnosticsReadsTheTableTheWritePathFills is the
+// regression guard for the write/read split: the ingestion path stores into
+// device_telemetry_events, so the binding must read that same table. The row
+// count is asserted in the new table first, and only then is the binding's
+// answer read back, because a binding still pointed at the retired
+// device_sync_diagnostics table answers an empty page -- which no test
+// asserting "no error" would ever notice.
+func TestListDeviceSyncDiagnosticsReadsTheTableTheWritePathFills(t *testing.T) {
+	t.Parallel()
+
+	db := captureAppTestDB(t)
+	degraded := "events"
+	seedSyncDiagReport(t, syncDiagTestStore(db), "cycle-live", 4000, "device-1", &degraded,
+		&previousCycleSeed{outcome: "failed", elapsedMS: 1500, errorFingerprint: "deadbeef"})
+
+	assertSyncDiagRowCount(t, db, telemetry.KindCycleReport, 1)
+
+	app := &App{bridgeDB: db, syncDiagReader: telemetry.NewReader(db)}
+	result := app.ListDeviceSyncDiagnostics(contracts.DeviceSyncDiagnosticsQuery{DeviceID: "device-1"})
+	if result.Degraded {
+		t.Fatalf("expected a wired read over a live table not to degrade, got %#v", result)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("expected the stored report to be read back through the binding, got %#v", result.Items)
+	}
+	assertLiveSyncDiagItem(t, result.Items[0], degraded)
+}
+
+// assertSyncDiagRowCount fails unless one kind holds exactly want rows, which
+// is what proves the write path and the read path name the same table.
+func assertSyncDiagRowCount(t *testing.T, db *sql.DB, kind telemetry.KindName, want int) {
+	t.Helper()
+
+	var stored int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM device_telemetry_events WHERE kind = ?`, kind).Scan(&stored); err != nil {
+		t.Fatalf("count stored telemetry rows: %v", err)
+	}
+	if stored != want {
+		t.Fatalf("expected the write path to store exactly %d %s rows, got %d", want, kind, stored)
+	}
+}
+
+// assertLiveSyncDiagItem fails unless every DTO field of a stored cycle
+// report is populated, including the three values that moved from their own
+// columns into the stored payload's previous_cycle object.
+func assertLiveSyncDiagItem(t *testing.T, item contracts.DeviceSyncDiagnosticReport, degraded string) {
+	t.Helper()
+
+	if item.DeviceID != "device-1" || item.ReportedAtMS != 4000 || item.CycleID != "cycle-live" {
+		t.Fatalf("expected the envelope's device, clock and cycle identity, got %#v", item)
+	}
+	if item.TriggerSource != "foreground_service" || item.AppState != "background" ||
+		item.ConsecutiveUnclosedCycles != 1 || item.PendingOpsCount != 3 || item.Cursor != 42 {
+		t.Fatalf("expected the payload's scalars to populate the DTO, got %#v", item)
+	}
+	if item.Degraded == nil || *item.Degraded != degraded {
+		t.Fatalf("expected the envelope's degraded column in the DTO, got %v", item.Degraded)
+	}
+	if item.PreviousOutcome == nil || *item.PreviousOutcome != "failed" {
+		t.Fatalf("expected the previous outcome to populate the DTO, got %v", item.PreviousOutcome)
+	}
+	if item.PreviousElapsedMS == nil || *item.PreviousElapsedMS != 1500 {
+		t.Fatalf("expected the previous elapsed to populate the DTO, got %v", item.PreviousElapsedMS)
+	}
+	if item.PreviousErrorFingerprint == nil || *item.PreviousErrorFingerprint != "deadbeef" {
+		t.Fatalf("expected the previous error fingerprint to populate the DTO, got %v", item.PreviousErrorFingerprint)
 	}
 }
 
 // TestListDeviceSyncDiagnosticsPreservesCoreAnswers pins the binding to the
-// core reader's newest-first page over one real temporary database, its
-// device predicate, and its nil round-trip for absent optional columns.
+// kind projection's newest-first page over one real temporary database, its
+// device predicate, and its nil round-trip for absent optional values.
 func TestListDeviceSyncDiagnosticsPreservesCoreAnswers(t *testing.T) {
 	t.Parallel()
 
 	db := captureAppTestDB(t)
-	store := syncdiag.NewStore(db, syncdiag.StoreConfig{})
+	store := syncDiagTestStore(db)
 	seedSyncDiagReport(t, store, "diag-old", 1000, "device-1", nil, nil)
 	degraded := "events"
-	seedSyncDiagReport(t, store, "diag-mid", 2000, "device-2", &degraded, &syncdiag.PreviousCycle{Outcome: "completed"})
+	seedSyncDiagReport(t, store, "diag-mid", 2000, "device-2", &degraded, &previousCycleSeed{outcome: "completed"})
 	seedSyncDiagReport(t, store, "diag-new", 3000, "device-1", nil, nil)
 
-	core := syncdiag.NewReader(db)
+	core := telemetry.NewReader(db)
 	app := &App{bridgeDB: db, syncDiagReader: core}
 	ctx := context.Background()
 
-	coreAll, err := core.List(ctx, syncdiag.ReportQuery{})
+	coreAll, err := core.ListCycleReports(ctx, telemetry.CycleReportQuery{})
 	if err != nil {
 		t.Fatalf("core list: %v", err)
 	}
 	desktopAll := app.ListDeviceSyncDiagnostics(contracts.DeviceSyncDiagnosticsQuery{})
 	assertSyncDiagReportsMatch(t, desktopAll.Items, coreAll)
 
-	coreDevice, err := core.List(ctx, syncdiag.ReportQuery{DeviceID: "device-1"})
+	coreDevice, err := core.ListCycleReports(ctx, telemetry.CycleReportQuery{DeviceID: "device-1"})
 	if err != nil {
 		t.Fatalf("core device list: %v", err)
 	}
@@ -70,8 +196,8 @@ func TestListDeviceSyncDiagnosticsPreservesCoreAnswers(t *testing.T) {
 		t.Fatalf("expected the device predicate to return device-1's 2 reports, got %#v", desktopDevice.Items)
 	}
 
-	// The newest report was seeded bare, so every optional column must
-	// arrive as a nil pointer through the binding, never as a zero value.
+	// The newest report was seeded bare, so every optional value must arrive
+	// as a nil pointer through the binding, never as a zero value.
 	bare := desktopAll.Items[0]
 	if bare.CycleID != "diag-new" || bare.Degraded != nil || bare.PreviousOutcome != nil || bare.PreviousElapsedMS != nil || bare.PreviousErrorFingerprint != nil {
 		t.Fatalf("expected the bare report to round-trip nil optionals, got %#v", bare)
@@ -81,9 +207,64 @@ func TestListDeviceSyncDiagnosticsPreservesCoreAnswers(t *testing.T) {
 	}
 }
 
-// assertSyncDiagReportsMatch compares the bound reports against the core
-// reader's reports field by field.
-func assertSyncDiagReportsMatch(t *testing.T, items []contracts.DeviceSyncDiagnosticReport, core []syncdiag.Report) {
+// TestListDeviceSyncDiagnosticsExcludesAnotherKind asserts the binding reads
+// only cycle reports out of the shared table: an episode_action row is a
+// different kind's data and must never render as a sync-cycle report.
+func TestListDeviceSyncDiagnosticsExcludesAnotherKind(t *testing.T) {
+	t.Parallel()
+
+	db := captureAppTestDB(t)
+	store := syncDiagTestStore(db)
+	seedSyncDiagReport(t, store, "diag-only", 1000, "device-1", nil, nil)
+	if _, err := store.Insert(context.Background(), telemetry.Event{
+		DeviceID: "device-1", ReportedAtMS: 2000, Kind: telemetry.KindEpisodeAction,
+		Validated: telemetry.Validated{EventID: "observation-1", Payload: []byte(`{"action":"episode_plus_one"}`)},
+	}); err != nil {
+		t.Fatalf("insert episode action: %v", err)
+	}
+
+	app := &App{bridgeDB: db, syncDiagReader: telemetry.NewReader(db)}
+	result := app.ListDeviceSyncDiagnostics(contracts.DeviceSyncDiagnosticsQuery{})
+	if len(result.Items) != 1 || result.Items[0].CycleID != "diag-only" {
+		t.Fatalf("expected only the cycle_report row through the binding, got %#v", result.Items)
+	}
+}
+
+// TestListDeviceSyncDiagnosticsReadsACorruptPayloadRow asserts a row whose
+// payload cannot be read is still attributed and still listed, with the
+// unreadable values absent: one unreadable row must not empty a device's
+// diagnostics view, and it must never panic the binding.
+func TestListDeviceSyncDiagnosticsReadsACorruptPayloadRow(t *testing.T) {
+	t.Parallel()
+
+	db := captureAppTestDB(t)
+	// Written without the kind's decoder on purpose: this is the row shape the
+	// write path cannot produce and the read path must still survive.
+	if _, err := db.Exec(`
+		INSERT INTO device_telemetry_events (device_id, reported_at_ms, kind, event_id, payload_json)
+		VALUES ('device-7', 6000, ?, 'cycle-corrupt', '{"cycle_id":')
+	`, telemetry.KindCycleReport); err != nil {
+		t.Fatalf("seed corrupt payload row: %v", err)
+	}
+
+	app := &App{bridgeDB: db, syncDiagReader: telemetry.NewReader(db)}
+	result := app.ListDeviceSyncDiagnostics(contracts.DeviceSyncDiagnosticsQuery{})
+	if len(result.Items) != 1 {
+		t.Fatalf("expected the corrupt row to still be listed, got %#v", result)
+	}
+	item := result.Items[0]
+	if item.DeviceID != "device-7" || item.ReportedAtMS != 6000 || item.CycleID != "cycle-corrupt" {
+		t.Fatalf("expected the envelope's attribution to survive a corrupt payload, got %#v", item)
+	}
+	if item.TriggerSource != "" || item.Cursor != 0 ||
+		item.PreviousOutcome != nil || item.PreviousElapsedMS != nil || item.PreviousErrorFingerprint != nil {
+		t.Fatalf("expected the unreadable payload values to stay absent, got %#v", item)
+	}
+}
+
+// assertSyncDiagReportsMatch compares the bound reports against the kind
+// projection's reports field by field.
+func assertSyncDiagReportsMatch(t *testing.T, items []contracts.DeviceSyncDiagnosticReport, core []telemetry.CycleReport) {
 	t.Helper()
 
 	if len(items) != len(core) {
@@ -103,7 +284,7 @@ func assertSyncDiagReportsMatch(t *testing.T, items []contracts.DeviceSyncDiagno
 		if !syncDiagPointerMatches(items[index].Degraded, core[index].Degraded) ||
 			!syncDiagPointerMatches(items[index].PreviousOutcome, core[index].PreviousOutcome) ||
 			!syncDiagPointerMatches(items[index].PreviousErrorFingerprint, core[index].PreviousErrorFingerprint) {
-			t.Fatalf("report %d nullable columns differ: got %#v want %#v", index, items[index], core[index])
+			t.Fatalf("report %d nullable values differ: got %#v want %#v", index, items[index], core[index])
 		}
 		if !syncDiagInt64PointerMatches(items[index].PreviousElapsedMS, core[index].PreviousElapsedMS) {
 			t.Fatalf("report %d previous elapsed differs: got %#v want %#v", index, items[index].PreviousElapsedMS, core[index].PreviousElapsedMS)
@@ -169,7 +350,7 @@ func TestConfigureSyncDiagReaderIsNilSafeAndBuildsOnce(t *testing.T) {
 	t.Parallel()
 
 	db := captureAppTestDB(t)
-	app, memLogger := newObservableEventReaderApp(&App{bridgeDB: db, newSyncDiagReader: syncdiag.NewReader})
+	app, memLogger := newObservableEventReaderApp(&App{bridgeDB: db, newSyncDiagReader: telemetry.NewReader})
 
 	app.configureSyncDiagReader()
 	if app.syncDiagReader == nil {
@@ -192,7 +373,7 @@ func TestConfigureSyncDiagReaderIsNilSafeAndBuildsOnce(t *testing.T) {
 func TestConfigureSyncDiagReaderNoopWhenBridgeDBNil(t *testing.T) {
 	t.Parallel()
 
-	app := &App{newSyncDiagReader: syncdiag.NewReader}
+	app := &App{newSyncDiagReader: telemetry.NewReader}
 	app.configureSyncDiagReader()
 	if app.syncDiagReader != nil {
 		t.Fatal("expected configureSyncDiagReader to stay nil when bridgeDB is nil")
@@ -219,14 +400,14 @@ func TestConfigureSyncDiagReaderNoopWhenConstructorNil(t *testing.T) {
 }
 
 // TestConfigureSyncDiagReaderSurvivesAnUnusableBridgeHandle mirrors
-// TestConfigureEventReaderSurvivesAnUnusableBridgeHandle: syncdiag.NewReader
-// probes device_sync_diagnostics on construction, and database/sql panics
+// TestConfigureEventReaderSurvivesAnUnusableBridgeHandle: telemetry.NewReader
+// probes device_telemetry_events on construction, and database/sql panics
 // rather than erroring on a bare, unopened handle. The best-effort read path
 // must degrade with exactly one operator warning, never abort the boot.
 func TestConfigureSyncDiagReaderSurvivesAnUnusableBridgeHandle(t *testing.T) {
 	t.Parallel()
 
-	app, memLogger := newObservableEventReaderApp(&App{bridgeDB: &sql.DB{}, newSyncDiagReader: syncdiag.NewReader})
+	app, memLogger := newObservableEventReaderApp(&App{bridgeDB: &sql.DB{}, newSyncDiagReader: telemetry.NewReader})
 
 	app.configureSyncDiagReader()
 	if app.syncDiagReader != nil {
@@ -252,7 +433,7 @@ func TestConfigureSyncDiagReaderSurvivesAnUnusableBridgeHandle(t *testing.T) {
 func TestConfigureSyncDiagReaderSurvivesAnUnusableHandleWithNoLogger(t *testing.T) {
 	t.Parallel()
 
-	app := &App{bridgeDB: &sql.DB{}, newSyncDiagReader: syncdiag.NewReader}
+	app := &App{bridgeDB: &sql.DB{}, newSyncDiagReader: telemetry.NewReader}
 
 	app.configureSyncDiagReader()
 	if app.syncDiagReader != nil {
@@ -274,9 +455,9 @@ func TestEnsureCaptureRuntimeDependenciesWiresTheSyncDiagReaderDefault(t *testin
 	}
 
 	var seamCalled bool
-	app := &App{newSyncDiagReader: func(*sql.DB) *syncdiag.Reader {
+	app := &App{newSyncDiagReader: func(*sql.DB) *telemetry.Reader {
 		seamCalled = true
-		return syncdiag.NewReader(nil)
+		return telemetry.NewReader(nil)
 	}}
 	app.ensureCaptureRuntimeDependencies()
 	_ = app.newSyncDiagReader(nil)
@@ -293,11 +474,11 @@ func TestListDeviceSyncDiagnosticsAppliesCoreLimitContract(t *testing.T) {
 	t.Parallel()
 
 	db := captureAppTestDB(t)
-	store := syncdiag.NewStore(db, syncdiag.StoreConfig{})
+	store := syncDiagTestStore(db)
 	for i := range 150 {
 		seedSyncDiagReport(t, store, fmt.Sprintf("diag-limit-%d", i), int64(1000+i), "device-1", nil, nil)
 	}
-	app := &App{bridgeDB: db, syncDiagReader: syncdiag.NewReader(db)}
+	app := &App{bridgeDB: db, syncDiagReader: telemetry.NewReader(db)}
 
 	assertSyncDiagPageCount(t, app, contracts.DeviceSyncDiagnosticsQuery{}, 25)
 	assertSyncDiagPageCount(t, app, contracts.DeviceSyncDiagnosticsQuery{Limit: 1}, 1)
@@ -319,10 +500,10 @@ func assertSyncDiagPageCount(t *testing.T, app *App, query contracts.DeviceSyncD
 	}
 }
 
-// TestSyncDiagReaderDegradesWithoutTheTable asserts the core reader the
-// desktop wiring hands to the binding reports an absent table as unavailable
-// and answers List with the observability unavailable envelope, never a raw
-// SQL error the binding would have to absorb.
+// TestSyncDiagReaderDegradesWithoutTheTable asserts the reader the desktop
+// wiring hands to the binding reports an absent table as unavailable and
+// answers List with the observability unavailable envelope, never a raw SQL
+// error the binding would have to absorb.
 func TestSyncDiagReaderDegradesWithoutTheTable(t *testing.T) {
 	t.Parallel()
 
@@ -332,25 +513,25 @@ func TestSyncDiagReaderDegradesWithoutTheTable(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 
-	reader := syncdiag.NewReader(db)
+	reader := telemetry.NewReader(db)
 	if reader.Available() {
 		t.Fatal("expected an absent table to leave the reader unavailable")
 	}
-	reports, err := reader.List(context.Background(), syncdiag.ReportQuery{DeviceID: "device-1"})
+	events, err := reader.List(context.Background(), telemetry.ReportQuery{Kind: telemetry.KindCycleReport, DeviceID: "device-1"})
 	if err == nil {
-		t.Fatalf("expected an unavailable error for an absent table, got %#v", reports)
+		t.Fatalf("expected an unavailable error for an absent table, got %#v", events)
 	}
 	assertSyncDiagUnavailableEnvelope(t, err)
 }
 
-// TestSyncDiagNilReaderListDegradesWithoutPanicking asserts a nil core reader
+// TestSyncDiagNilReaderListDegradesWithoutPanicking asserts a nil reader
 // degrades to the unavailable envelope rather than panicking, since the
 // desktop binding can run against an app whose reader was never wired.
 func TestSyncDiagNilReaderListDegradesWithoutPanicking(t *testing.T) {
 	t.Parallel()
 
-	var reader *syncdiag.Reader
-	_, err := reader.List(context.Background(), syncdiag.ReportQuery{})
+	var reader *telemetry.Reader
+	_, err := reader.List(context.Background(), telemetry.ReportQuery{})
 	if err == nil {
 		t.Fatal("expected an unavailable error from a nil reader")
 	}
@@ -358,7 +539,7 @@ func TestSyncDiagNilReaderListDegradesWithoutPanicking(t *testing.T) {
 }
 
 // assertSyncDiagUnavailableEnvelope fails unless err is the observability
-// unavailable envelope the core reader degrades with.
+// unavailable envelope the reader degrades with.
 func assertSyncDiagUnavailableEnvelope(t *testing.T, err error) {
 	t.Helper()
 

@@ -112,6 +112,20 @@ func TestListDeviceSyncDiagnosticsCapability(t *testing.T) {
 	t.Fatal("catalog is missing list_device_sync_diagnostics")
 }
 
+// TestStoreSyncDiagnosticsNamesTheLiveTelemetryTable pins the store string to
+// the table the capability actually reads. The capability name is the
+// adapter-facing contract and must not drift, but the store is the physical
+// table behind it: the discriminated telemetry store replaced the
+// single-shape diagnostics table, so a catalog still naming the retired table
+// would declare a store no query reads.
+func TestStoreSyncDiagnosticsNamesTheLiveTelemetryTable(t *testing.T) {
+	t.Parallel()
+
+	if StoreSyncDiagnostics != Store("device_telemetry_events") {
+		t.Fatalf("StoreSyncDiagnostics = %q, want the table that now backs list_device_sync_diagnostics", StoreSyncDiagnostics)
+	}
+}
+
 // TestAllReturnsFreshSlice ensures a caller cannot mutate the catalog.
 func TestAllReturnsFreshSlice(t *testing.T) {
 	t.Parallel()

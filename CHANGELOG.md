@@ -14,6 +14,22 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.15.0] — 2026-09-25
+
+### Changed
+
+- **Wire-visible, additive**: `POST /api/sync/diagnostics` now accepts more than one kind of report. A body with no `kind` key still means a sync-cycle report, byte-identical to before, so nothing already deployed changes; a body declaring `kind: "episode_action"` is accepted and stored, and every kind keeps its own retention budget so a frequently reported kind can no longer push a rarely reported one out of the retained history.
+- **Wire-visible, additive**: every refusal on that endpoint also carries a `code` field naming why the request was refused. `kind_not_served` is the only recoverable code — it means this bridge does not serve that kind yet, and a later build will — so a client that reads it should keep such a report rather than discard it. Every other code is permanent.
+- The device diagnostics view no longer shows reports stored by an earlier version. They are not deleted and nothing is migrated: they stay unread in the retired table, which the bridge no longer creates on a fresh install. Reintroducing them would be a one-off script, deliberately not part of the app.
+
+### Fixed
+
+- Device diagnostics are readable again. The desktop view had been reading a store the bridge stopped writing to, so it showed only older reports and never a current one.
+
+### Internal
+
+- Sync-cycle diagnostics moved to one store discriminated by `kind`, with a per-kind retention budget and a refusal vocabulary that grows by adding a member rather than a new status code. The reasoning, the alternatives refused and the lifecycle boundary that forbids reshaping an existing row are recorded in `docs/adr/026-diagnostics-kind-store.md`.
+
 ## [1.14.0] — 2026-09-21
 
 ### Added

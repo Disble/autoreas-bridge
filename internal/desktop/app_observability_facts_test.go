@@ -9,6 +9,7 @@ import (
 	"autoreas-bridge/internal/observability/readcap"
 	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/observability/syncdiag"
+	"autoreas-bridge/internal/observability/telemetry"
 )
 
 // wiredObservabilityFactsApp builds an App whose observability read path is
@@ -23,7 +24,7 @@ func wiredObservabilityFactsApp(t *testing.T) *App {
 		bridgeDB:       db,
 		captureReader:  requestcapture.NewReader(db),
 		eventReader:    eventlog.NewReader(db),
-		syncDiagReader: syncdiag.NewReader(db),
+		syncDiagReader: telemetry.NewReader(db),
 	}
 }
 
@@ -102,11 +103,11 @@ func TestGetObservabilityFactsDegradesOnUnwiredReadPath(t *testing.T) {
 	readers := struct {
 		capture  *requestcapture.Reader
 		event    *eventlog.Reader
-		syncDiag *syncdiag.Reader
+		syncDiag *telemetry.Reader
 	}{
 		capture:  requestcapture.NewReader(db),
 		event:    eventlog.NewReader(db),
-		syncDiag: syncdiag.NewReader(db),
+		syncDiag: telemetry.NewReader(db),
 	}
 
 	for _, tc := range []struct {

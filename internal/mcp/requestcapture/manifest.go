@@ -24,6 +24,6 @@ func ExposedCapabilities() []string {
 // the MCP sidecar, each with its mechanical reason.
 func ExcludedCapabilities() map[string]string {
 	return map[string]string{
-		"list_device_sync_diagnostics": "No MCP tool reads the device_sync_diagnostics table, so the sidecar cannot answer a per-device sync diagnostics question.",
+		"list_device_sync_diagnostics": "No MCP tool reads the device_telemetry_events table, so the sidecar cannot answer a per-device sync diagnostics question.",
 	}
 }

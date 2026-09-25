@@ -10,7 +10,7 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/observability/requestcapture"
-	"autoreas-bridge/internal/observability/syncdiag"
+	"autoreas-bridge/internal/observability/telemetry"
 )
 
 // AnimePatch aliases the write contract consumed by handler adapters.
@@ -148,14 +148,16 @@ type RecordSeasonRatingFunc func(ctx context.Context, animeID string, grade int,
 // error is an infrastructure failure (HTTP 500).
 type ActiveSeasonSnapshotFunc func(ctx context.Context) (*ActiveSeasonSnapshot, error)
 
-// IngestSyncDiagnosticsFunc ingests one validated device sync diagnostics
-// report. DeviceID and ReportedAtMS on record are populated by the caller
-// from the authenticated device and the bridge's receipt clock -- Validate
-// deliberately leaves them zero-valued, since neither comes from the wire
-// body. A non-nil error other than syncdiag.ErrWriteBudget is an
-// infrastructure failure (HTTP 500); syncdiag.ErrWriteBudget maps to a 503
-// with Retry-After.
-type IngestSyncDiagnosticsFunc func(ctx context.Context, record syncdiag.Record) (syncdiag.IngestOutcome, error)
+// IngestTelemetryEventFunc ingests one validated telemetry event. DeviceID and
+// ReportedAtMS on the event are populated by the caller from the authenticated
+// device and the bridge's receipt clock; a kind's Decode deliberately produces
+// neither, since neither comes from the wire body. A non-nil error other than
+// telemetry.ErrWriteBudget is an infrastructure failure (HTTP 500);
+// telemetry.ErrWriteBudget maps to a 503 with Retry-After, and
+// telemetry.ErrUndeclaredKind is deliberately not one of those -- a kind the
+// store cannot retain is a wiring bug, and a retryable status would make it a
+// permanent retry loop.
+type IngestTelemetryEventFunc func(ctx context.Context, event telemetry.Event) (telemetry.IngestOutcome, error)
 
 // writeJSONError writes an error message as a JSON response.
 func writeJSONError(w http.ResponseWriter, status int, message string) {

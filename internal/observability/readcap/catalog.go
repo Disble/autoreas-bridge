@@ -11,8 +11,11 @@ const (
 	StoreRequestCaptures Store = "request_captures"
 	// StoreRuntimeEvents stores emitted runtime events.
 	StoreRuntimeEvents Store = "runtime_events"
-	// StoreSyncDiagnostics stores device sync diagnostics.
-	StoreSyncDiagnostics Store = "device_sync_diagnostics"
+	// StoreSyncDiagnostics stores device sync diagnostics: the cycle_report
+	// kind's events inside the kind-discriminated telemetry store. The store
+	// string is the physical table, so it moves with the write path while the
+	// capability name above it stays fixed.
+	StoreSyncDiagnostics Store = "device_telemetry_events"
 )
 
 // Kind classifies the operation a read capability performs.
@@ -52,9 +55,10 @@ func All() []Capability {
 		{Name: "get_correlation_timeline", Store: StoreRuntimeEvents, Kind: KindTimeline},
 		{Name: "summary_events", Store: StoreRuntimeEvents, Kind: KindAggregate},
 		// list_device_sync_diagnostics is the only attributed source of a
-		// device's own sync reports: device_sync_diagnostics is the sole store
+		// device's own sync reports: device_telemetry_events is the sole store
 		// that can attribute a report to a device (the diagnostics capture in
-		// request_captures carries the report but not the device).
+		// request_captures carries the report but not the device), and this
+		// capability reads the cycle_report kind inside it.
 		{Name: "list_device_sync_diagnostics", Store: StoreSyncDiagnostics, Kind: KindQuery},
 	}
 }
