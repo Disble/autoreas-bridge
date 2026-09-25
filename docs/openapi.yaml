@@ -219,6 +219,19 @@ info:
     a floor decision, not a census, since mobile's outbox MAY evict an
     envelope under sustained contention before either surface ever sees it.
 
+    2026-09-25 — diagnostics-kind-store API consumer impact: ADDITIVE, one new
+    request variant on an existing endpoint and no change to any response. The
+    store behind `POST /api/sync/diagnostics` is now discriminated by `kind`,
+    and the endpoint gains the `episode_action` variant (see the `oneOf` and
+    its discriminator on that operation). Nothing already deployed changes: a
+    body with no `kind` key still decodes as `cycle_report` byte-identically,
+    so no shipped mobile build needs an update, and only a client that opts in
+    by sending `kind: "episode_action"` sees anything new. Idempotency for the
+    new kind is keyed on `observation_id` within its own kind, never sharing a
+    namespace with a `cycle_report` `cycle_id`. A shed is still never `204`
+    and `500` still covers an ingestion failure, so existing retry logic stays
+    correct unchanged.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}
@@ -639,6 +652,311 @@ components:
           items:
             type: object
 
+    SyncDiagnosticsCycleReport:
+      type: object
+      required: [cycle_id, degraded, trigger_source, app_state, previous_cycle, counters, recent_events]
+      description: |
+        Property order below mirrors the required wire envelope order:
+        `cycle_id, degraded, trigger_source, app_state, previous_cycle,
+        counters, recent_events`. Every enumerated field is validated
+        against a closed vocabulary and rejected (never coerced) when it
+        is off-list. The request is strict-decoded
+        (`DisallowUnknownFields`); any undeclared key anywhere in the
+        body, including nested inside `previous_cycle`, is rejected.
+      properties:
+        cycle_id:
+          type: string
+          description: |
+            Idempotency key, UNIQUE per stored row. Re-posting an
+            existing value is a no-op that still acks 204 and never
+            creates a second row.
+        degraded:
+          type: string
+          nullable: true
+          enum: [events, error_detail, previous_cycle]
+          description: |
+            A FIDELITY signal, not a health signal: its value is decided
+            by the client's size cap at serialization time, not by
+            anything the cycle observed. A perfectly healthy cycle with a
+            full event ring MAY still report `degraded: "events"` --
+            no reader, dashboard, or consumer of this field may treat
+            `degraded IS NOT NULL` as evidence of a device or cycle
+            health problem.
+
+            Each value implies every LIGHTER piece is ABSENT from this
+            payload -- shed or never present -- it does NOT assert that
+            a lighter piece was dropped. The shed order is a two-sided
+            contract this meaning depends on, from lightest to heaviest:
+            `events` (recent_events is `[]` or truncated; error detail
+            and previous_cycle are still present) → `error_detail`
+            (recent_events is `[]` AND the error-detail fields inside
+            previous_cycle are absent/null; previous_cycle itself, e.g.
+            outcome, is still present) → `previous_cycle` (recent_events
+            is `[]` AND previous_cycle is `null` -- the heaviest shed,
+            implying both lighter sheds too).
+
+            Required and present on every request; a missing key is
+            rejected with `400` naming this field, because the client
+            sheds by assignment, never by omission.
+        trigger_source:
+          type: string
+          enum: [foreground_service, background_task]
+          description: |
+            Which scheduler sent THIS telemetry. Deliberately narrow --
+            only the two headless call sites emit telemetry -- so this
+            is the trustworthy discriminator; `app_state` below is not.
+            A distinctly-named vocabulary from `previous_cycle.trigger_source`:
+            posting the previous-cycle-only value `local_mutation` here
+            is rejected with `400` naming this field, even though it is
+            accepted at `previous_cycle.trigger_source`.
+        app_state:
+          type: string
+          enum: [foreground, background]
+          description: |
+            Stored, but NEVER a filter dimension -- the client hardcodes
+            this to `background` today, so even a `foreground_service`
+            cycle reports `background` here. Use `trigger_source` to
+            discriminate, never this field.
+        previous_cycle:
+          type: object
+          nullable: true
+          required: [outcome]
+          description: |
+            Always present as a key; MAY be explicitly `null`. A missing
+            key is rejected with `400` naming this field -- the client
+            never omits it, so a missing key can only mean a malformed
+            client, never shed data. When non-null, every field is
+            independently nullable except `outcome`, including
+            `cycle_id` -- a previous cycle stored with every optional
+            field null except `outcome` is a valid, accepted payload.
+          properties:
+            cycle_id:
+              type: string
+              nullable: true
+              description: The previous cycle's own idempotency key. No foreign key relates it to this request's cycle_id.
+            trigger_source:
+              type: string
+              nullable: true
+              enum: [bootstrap, manual, app_active, network_regained, local_mutation, local_mutation_write, ws_sync_required, foreground_service, background_task]
+              description: |
+                Which scheduler ran the previous cycle -- a 9-member
+                vocabulary any sync-recording caller writes, including
+                foreground paths that never send telemetry. Distinct
+                from the top-level trigger_source's 2-member vocabulary.
+            outcome:
+              type: string
+              enum: [completed, failed, never_closed]
+              description: The only previous_cycle field required non-null whenever previous_cycle itself is present.
+            last_stage:
+              type: string
+              nullable: true
+              enum: [open, config, attempt_started, cycle_activated, backlog_read, claim_ops, http, parse_response, apply_write, prune, closed]
+            started_at:
+              type: integer
+              format: int64
+              nullable: true
+              description: Epoch milliseconds.
+            elapsed_ms:
+              type: integer
+              format: int64
+              nullable: true
+            error_name:
+              type: string
+              nullable: true
+              enum: [LocalWriteError, BridgeTimeoutError, BridgeUnreachableError, ReconcileHttpError, SchemaValidationError, unknown]
+              description: '`unknown` is a legitimate member, not a rejected value.'
+            native_errcode_byte:
+              type: integer
+              nullable: true
+              minimum: 0
+              maximum: 65535
+              description: |
+                A control-byte char code, NOT a SQLite result code:
+                `5` means the control byte was `0x05`, never
+                `SQLITE_BUSY`. Out-of-range values (e.g. 70000) are
+                rejected with `400` naming `previous_cycle.native_errcode_byte`.
+            error_stage:
+              type: string
+              nullable: true
+              enum: [begin, task, commit, rollback, deadline, unknown]
+            error_cause:
+              type: string
+              nullable: true
+              enum: [closed_resource, lock_contention, disk_full, io_error, timeout, unreachable, unknown]
+            error_fingerprint:
+              type: string
+              nullable: true
+              pattern: '^[0-9a-f]{8}$'
+              description: |
+                FNV-1a rendered as `(hash >>> 0).toString(16).padStart(8, '0')`:
+                exactly 8 lowercase hex characters, fixed length -- not an
+                identifier-shaped pattern, which would reject a
+                digit-leading value such as `"3f2a91b0"`. Non-null only
+                for an unrecognized error class, the one this field
+                exists to group.
+        counters:
+          type: object
+          required: [consecutive_unclosed_cycles, pending_ops_count, cursor]
+          properties:
+            consecutive_unclosed_cycles:
+              type: integer
+            pending_ops_count:
+              type: integer
+            cursor:
+              type: integer
+        recent_events:
+          type: array
+          maxItems: 32
+          description: |
+            Accepted up to 32 entries; 33+ is rejected with `400` naming
+            this field. Re-serialized server-side from validated values
+            before persistence, never copied verbatim from the request.
+          items:
+            type: object
+            required: [source, event, first_at, last_at, count]
+            properties:
+              source:
+                type: string
+                enum: [sync_cycle, websocket, mutation, foreground_resync, background_task, startup, reconcile_conflict]
+              event:
+                type: string
+                enum: [ws_opened, ws_closed, ws_error, ws_reconnect_scheduled, mutation_failed, mutation_sync_failed, resync_failed, write_failed, headless_task_registered, headless_task_missing, conflict_reason_unrecognized, conflict_token_missing, conflict_operation_stalled]
+              cause:
+                type: string
+              first_at:
+                type: integer
+                format: int64
+              last_at:
+                type: integer
+                format: int64
+              count:
+                type: integer
+    SyncDiagnosticsEpisodeAction:
+      type: object
+      required: [kind, observation_id, action, phase, observed_at_ms, correlation_id, duration_ms]
+      description: |
+        The `episode_action` variant: one observable step of a mobile episode
+        action, dispatched by `kind: "episode_action"`. A new kind never rides
+        the absent-`kind` default -- that default is spent on `cycle_report`
+        -- so this variant is reachable only by naming the kind.
+
+        Strict decoding applies (`DisallowUnknownFields`): any undeclared key
+        anywhere in the body is rejected with the generic
+        `{"error":"invalid request body"}` 400 and NO `field` key, including a
+        body-supplied `device_id`, whose authority is the authenticated bearer
+        token. Every rejected field below is answered instead with the
+        which-field shape, `{"error": "<reason>", "field": "<name>"}`.
+
+        `outcome`, `reason`, `cause` and `duration_ms` are gated by `phase`,
+        and the gates are stricter than an enum: a member that is legal for
+        another phase is still rejected here, and a key that must be absent for
+        a phase must stay absent rather than become `null`.
+
+          - `received` and `skipped`: `outcome` MUST be absent.
+          - `skipped`: `reason` is REQUIRED, one of the three reason members.
+          - `finished` and `sync`: `outcome` is REQUIRED, and each phase
+            admits its OWN outcome set -- `finished` accepts `committed` or
+            `failed`, `sync` accepts `ok` or `failed`. `finished` + `ok` and
+            `sync` + `committed` are rejected with `400` naming `outcome`,
+            because each of those values is a legitimate member of the OTHER
+            phase's set.
+          - `finished` with `outcome: failed`: `cause` is REQUIRED.
+          - every other combination, including `finished` + `committed`:
+            `reason` and `cause` MUST be absent.
+          - `duration_ms` is present on EVERY payload. It is a non-null
+            integer on `finished` and an explicit `null` on `received`,
+            `skipped` and `sync`. The key itself is never absent.
+
+        Idempotency is by `observation_id`, scoped to this kind: the stored
+        uniqueness is `(kind, observation_id)`, so an `episode_action` key is
+        never in the same namespace as a `cycle_report` `cycle_id`. Re-posting
+        the same `(kind, observation_id)` acks `204` without a second row.
+
+        The stored payload is a fixed seven-key shape (`action`, `phase`,
+        `correlation_id`, `outcome`, `reason`, `cause`, `duration_ms`), always
+        all present with `null` where the phase carries no value. `kind`,
+        `observation_id` and `observed_at_ms` are NOT repeated in it: the
+        envelope columns own them.
+      properties:
+        kind:
+          type: string
+          enum: [episode_action]
+        observation_id:
+          type: string
+          minLength: 1
+          description: |
+            Idempotency key, unique within this kind. Re-posting an existing
+            value is a no-op that still acks `204` and never creates a second
+            row. Distinct from `correlation_id`: this names the event, that
+            names the user action it belongs to.
+        action:
+          type: string
+          enum: [episode_plus_one, episode_minus_one, episode_plus_half, episode_minus_half]
+          description: |
+            Which episode transition the user requested. The two half-step
+            members exist because mobile's half-step actions are real
+            transitions, not a rounding of the full-step ones.
+        phase:
+          type: string
+          enum: [received, skipped, finished, sync]
+          description: |
+            Which point in the action's lifecycle this event reports.
+            `received` and `skipped` carry no outcome; `finished` and `sync`
+            each carry their own.
+        observed_at_ms:
+          type: integer
+          format: int64
+          minimum: 0
+          description: |
+            Epoch milliseconds of the client event, distinct from the bridge's
+            own receipt clock, which is recorded on the row and never sent on
+            the wire. Required and non-negative: a negative epoch millisecond
+            is not a time.
+        correlation_id:
+          type: string
+          minLength: 1
+          description: |
+            Groups every phase event of one user action. Required and
+            non-empty. Independent of `observation_id`: two events of the same
+            action share a `correlation_id` and never an `observation_id`.
+        outcome:
+          type: string
+          nullable: true
+          enum: [committed, ok, failed]
+          description: |
+            Required on `finished` and `sync`, absent on `received` and
+            `skipped`. The enum is the UNION of the two per-phase sets and is
+            deliberately NOT the rule.
+        reason:
+          type: string
+          nullable: true
+          enum: [in_flight, anime_missing, db_unavailable]
+          description: |
+            Required on `skipped`, absent on every other phase -- including as
+            an explicit `null`, which is a value the client chose to send and
+            is therefore present. A distinctly named vocabulary from `cause`:
+            this explains a deliberate no-op, `cause` explains a failure.
+        cause:
+          type: string
+          nullable: true
+          enum: [closed_resource, lock_contention, disk_full, io_error, timeout, unreachable, unknown]
+          description: |
+            Required on `finished` with `outcome: failed`, absent otherwise --
+            including `finished` with `outcome: committed`, where a cause would
+            describe a failure that did not happen. Its members match
+            `previous_cycle.error_cause` on the `cycle_report` variant, and it
+            is still an independently declared vocabulary: the two describe
+            different observations, and sharing one declaration would let a
+            change to either field silently widen the other.
+        duration_ms:
+          type: integer
+          format: int64
+          nullable: true
+          description: |
+            Present on every payload. Non-null on `finished`; explicitly
+            `null` on `received`, `skipped` and `sync`, never `0`, so a reader
+            cannot mistake "this phase has no duration" for an instantaneous
+            measurement. The key itself is never absent.
 paths:
   /api/devices/pair:
     post:
@@ -1258,184 +1576,14 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [cycle_id, degraded, trigger_source, app_state, previous_cycle, counters, recent_events]
-              description: |
-                Property order below mirrors the required wire envelope order:
-                `cycle_id, degraded, trigger_source, app_state, previous_cycle,
-                counters, recent_events`. Every enumerated field is validated
-                against a closed vocabulary and rejected (never coerced) when it
-                is off-list. The request is strict-decoded
-                (`DisallowUnknownFields`); any undeclared key anywhere in the
-                body, including nested inside `previous_cycle`, is rejected.
-              properties:
-                cycle_id:
-                  type: string
-                  description: |
-                    Idempotency key, UNIQUE per stored row. Re-posting an
-                    existing value is a no-op that still acks 204 and never
-                    creates a second row.
-                degraded:
-                  type: string
-                  nullable: true
-                  enum: [events, error_detail, previous_cycle]
-                  description: |
-                    A FIDELITY signal, not a health signal: its value is decided
-                    by the client's size cap at serialization time, not by
-                    anything the cycle observed. A perfectly healthy cycle with a
-                    full event ring MAY still report `degraded: "events"` --
-                    no reader, dashboard, or consumer of this field may treat
-                    `degraded IS NOT NULL` as evidence of a device or cycle
-                    health problem.
-
-                    Each value implies every LIGHTER piece is ABSENT from this
-                    payload -- shed or never present -- it does NOT assert that
-                    a lighter piece was dropped. The shed order is a two-sided
-                    contract this meaning depends on, from lightest to heaviest:
-                    `events` (recent_events is `[]` or truncated; error detail
-                    and previous_cycle are still present) → `error_detail`
-                    (recent_events is `[]` AND the error-detail fields inside
-                    previous_cycle are absent/null; previous_cycle itself, e.g.
-                    outcome, is still present) → `previous_cycle` (recent_events
-                    is `[]` AND previous_cycle is `null` -- the heaviest shed,
-                    implying both lighter sheds too).
-
-                    Required and present on every request; a missing key is
-                    rejected with `400` naming this field, because the client
-                    sheds by assignment, never by omission.
-                trigger_source:
-                  type: string
-                  enum: [foreground_service, background_task]
-                  description: |
-                    Which scheduler sent THIS telemetry. Deliberately narrow --
-                    only the two headless call sites emit telemetry -- so this
-                    is the trustworthy discriminator; `app_state` below is not.
-                    A distinctly-named vocabulary from `previous_cycle.trigger_source`:
-                    posting the previous-cycle-only value `local_mutation` here
-                    is rejected with `400` naming this field, even though it is
-                    accepted at `previous_cycle.trigger_source`.
-                app_state:
-                  type: string
-                  enum: [foreground, background]
-                  description: |
-                    Stored, but NEVER a filter dimension -- the client hardcodes
-                    this to `background` today, so even a `foreground_service`
-                    cycle reports `background` here. Use `trigger_source` to
-                    discriminate, never this field.
-                previous_cycle:
-                  type: object
-                  nullable: true
-                  required: [outcome]
-                  description: |
-                    Always present as a key; MAY be explicitly `null`. A missing
-                    key is rejected with `400` naming this field -- the client
-                    never omits it, so a missing key can only mean a malformed
-                    client, never shed data. When non-null, every field is
-                    independently nullable except `outcome`, including
-                    `cycle_id` -- a previous cycle stored with every optional
-                    field null except `outcome` is a valid, accepted payload.
-                  properties:
-                    cycle_id:
-                      type: string
-                      nullable: true
-                      description: The previous cycle's own idempotency key. No foreign key relates it to this request's cycle_id.
-                    trigger_source:
-                      type: string
-                      nullable: true
-                      enum: [bootstrap, manual, app_active, network_regained, local_mutation, local_mutation_write, ws_sync_required, foreground_service, background_task]
-                      description: |
-                        Which scheduler ran the previous cycle -- a 9-member
-                        vocabulary any sync-recording caller writes, including
-                        foreground paths that never send telemetry. Distinct
-                        from the top-level trigger_source's 2-member vocabulary.
-                    outcome:
-                      type: string
-                      enum: [completed, failed, never_closed]
-                      description: The only previous_cycle field required non-null whenever previous_cycle itself is present.
-                    last_stage:
-                      type: string
-                      nullable: true
-                      enum: [open, config, attempt_started, cycle_activated, backlog_read, claim_ops, http, parse_response, apply_write, prune, closed]
-                    started_at:
-                      type: integer
-                      format: int64
-                      nullable: true
-                      description: Epoch milliseconds.
-                    elapsed_ms:
-                      type: integer
-                      format: int64
-                      nullable: true
-                    error_name:
-                      type: string
-                      nullable: true
-                      enum: [LocalWriteError, BridgeTimeoutError, BridgeUnreachableError, ReconcileHttpError, SchemaValidationError, unknown]
-                      description: '`unknown` is a legitimate member, not a rejected value.'
-                    native_errcode_byte:
-                      type: integer
-                      nullable: true
-                      minimum: 0
-                      maximum: 65535
-                      description: |
-                        A control-byte char code, NOT a SQLite result code:
-                        `5` means the control byte was `0x05`, never
-                        `SQLITE_BUSY`. Out-of-range values (e.g. 70000) are
-                        rejected with `400` naming `previous_cycle.native_errcode_byte`.
-                    error_stage:
-                      type: string
-                      nullable: true
-                      enum: [begin, task, commit, rollback, deadline, unknown]
-                    error_cause:
-                      type: string
-                      nullable: true
-                      enum: [closed_resource, lock_contention, disk_full, io_error, timeout, unreachable, unknown]
-                    error_fingerprint:
-                      type: string
-                      nullable: true
-                      pattern: '^[0-9a-f]{8}$'
-                      description: |
-                        FNV-1a rendered as `(hash >>> 0).toString(16).padStart(8, '0')`:
-                        exactly 8 lowercase hex characters, fixed length -- not an
-                        identifier-shaped pattern, which would reject a
-                        digit-leading value such as `"3f2a91b0"`. Non-null only
-                        for an unrecognized error class, the one this field
-                        exists to group.
-                counters:
-                  type: object
-                  required: [consecutive_unclosed_cycles, pending_ops_count, cursor]
-                  properties:
-                    consecutive_unclosed_cycles:
-                      type: integer
-                    pending_ops_count:
-                      type: integer
-                    cursor:
-                      type: integer
-                recent_events:
-                  type: array
-                  maxItems: 32
-                  description: |
-                    Accepted up to 32 entries; 33+ is rejected with `400` naming
-                    this field. Re-serialized server-side from validated values
-                    before persistence, never copied verbatim from the request.
-                  items:
-                    type: object
-                    required: [source, event, first_at, last_at, count]
-                    properties:
-                      source:
-                        type: string
-                        enum: [sync_cycle, websocket, mutation, foreground_resync, background_task, startup, reconcile_conflict]
-                      event:
-                        type: string
-                        enum: [ws_opened, ws_closed, ws_error, ws_reconnect_scheduled, mutation_failed, mutation_sync_failed, resync_failed, write_failed, headless_task_registered, headless_task_missing, conflict_reason_unrecognized, conflict_token_missing, conflict_operation_stalled]
-                      cause:
-                        type: string
-                      first_at:
-                        type: integer
-                        format: int64
-                      last_at:
-                        type: integer
-                        format: int64
-                      count:
-                        type: integer
+              oneOf:
+                - $ref: '#/components/schemas/SyncDiagnosticsCycleReport'
+                - $ref: '#/components/schemas/SyncDiagnosticsEpisodeAction'
+              discriminator:
+                propertyName: kind
+                mapping:
+                  cycle_report: '#/components/schemas/SyncDiagnosticsCycleReport'
+                  episode_action: '#/components/schemas/SyncDiagnosticsEpisodeAction'
       responses:
         '204':
           description: |

@@ -13,6 +13,12 @@ type KindName = string
 // must never require its name on the wire.
 const KindCycleReport KindName = "cycle_report"
 
+// KindEpisodeAction is one observable step of a mobile episode action. Unlike
+// KindCycleReport it has no default: absence of the kind key is already spent
+// on the frozen legacy meaning, so a body that means to be an episode_action
+// must name it explicitly.
+const KindEpisodeAction KindName = "episode_action"
+
 // Validated is one kind's contribution to a stored event, produced only by a
 // Kind -- the store accepts no other shape, so an unvalidated payload can
 // never reach the table.
@@ -79,7 +85,7 @@ func NewRegistry(kinds ...Kind) *Registry {
 // wiring site never has to restate the vocabulary. A kind that is not in this
 // list is refused as undeclared rather than served.
 func DefaultRegistry() *Registry {
-	return NewRegistry(CycleReportKind{})
+	return NewRegistry(CycleReportKind{}, EpisodeActionKind{})
 }
 
 // Lookup resolves one wire kind name. A miss is reported as a miss and never

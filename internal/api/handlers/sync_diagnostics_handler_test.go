@@ -2,17 +2,26 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/observability/telemetry"
+	"autoreas-bridge/internal/persistence"
+
+	// Registers the "sqlite" driver with database/sql. Nothing in this file
+	// references the package, so the import exists purely for that init side
+	// effect and removing it turns every sql.Open("sqlite", ...) here into a
+	// runtime error.
+	_ "modernc.org/sqlite"
 )
 
 // stubTelemetryKind is a second declared kind: it proves the endpoint
@@ -281,12 +290,17 @@ func TestSyncDiagnosticsNonStringKindIsRejected(t *testing.T) {
 
 // TestSyncDiagnosticsUnknownKindIsRejected asserts a well-formed but
 // unregistered name is refused, that the refusal names it so a client can
-// diagnose a misspelling, and that nothing is stored under any kind.
+// diagnose a misspelling, and that nothing is stored under any kind. The name
+// used here must stay unregistered: a name that later joins the vocabulary
+// stops exercising this path and starts exercising the kind's own decoder, so
+// it would quietly assert the opposite of what it claims.
 func TestSyncDiagnosticsUnknownKindIsRejected(t *testing.T) {
+	const unregistered = "never_registered_kind"
+
 	stubs := &telemetryHandlerStubs{authOK: true, deviceID: "dev-1", outcome: telemetry.Stored}
-	res := postDiagnostics(t, newDiagnosticsHandler(stubs, nil), bodyWithKindValue(validDiagnosticsBody(), `"episode_action"`))
+	res := postDiagnostics(t, newDiagnosticsHandler(stubs, nil), bodyWithKindValue(validDiagnosticsBody(), `"`+unregistered+`"`))
 	assertKindRejection(t, stubs, res, "unknown kind")
-	if !strings.Contains(res.Body.String(), "episode_action") {
+	if !strings.Contains(res.Body.String(), unregistered) {
 		t.Fatalf("body = %q, want the rejected kind named", res.Body.String())
 	}
 }
@@ -389,6 +403,81 @@ func TestSyncDiagnosticsRejectsBodiesThatAreNotAnObject(t *testing.T) {
 		if stubs.ingestCalls != 0 {
 			t.Fatalf("body %q: ingest must not be called for a body that is not an object", body)
 		}
+	}
+}
+
+// openTelemetryEventsTestDB creates a temporary SQLite database carrying the
+// telemetry schema, so the endpoint can be exercised against the real store
+// instead of a scripted seam. A scripted seam cannot prove idempotency: the
+// whole claim under test is that a second POST reaches the same row, which is
+// only observable in the table.
+func openTelemetryEventsTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "telemetry.db"))
+	if err != nil {
+		t.Fatalf("open sqlite db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	for _, table := range telemetry.SchemaTables() {
+		if err := persistence.EnsureTableSchema(db, table); err != nil {
+			t.Fatalf("ensure %s schema: %v", table.Name, err)
+		}
+	}
+	return db
+}
+
+// countStoredKind returns the stored row count for one kind.
+func countStoredKind(t *testing.T, db *sql.DB, kind telemetry.KindName) int {
+	t.Helper()
+
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM device_telemetry_events WHERE kind = ?`, kind).Scan(&count); err != nil {
+		t.Fatalf("count %s rows: %v", kind, err)
+	}
+	return count
+}
+
+// TestSyncDiagnosticsEpisodeActionStoresOncePerObservationID drives a real
+// episode_action body through the endpoint and into a real store twice. It is
+// the only test that pins the whole slice together: the discriminator selects
+// the new kind, the kind's decoder mints the kind-scoped idempotency key from
+// the wire observation_id, and the store's UNIQUE (kind, event_id) turns the
+// repost into a 204 no-op rather than a second row. A body-supplied device_id
+// stays refused here too, because this is the kind mobile will flip to and the
+// envelope's device column must not become writable from the body on the way.
+func TestSyncDiagnosticsEpisodeActionStoresOncePerObservationID(t *testing.T) {
+	t.Parallel()
+
+	db := openTelemetryEventsTestDB(t)
+	registry := telemetry.DefaultRegistry()
+	store := telemetry.NewStore(db, telemetry.StoreConfig{Registry: registry})
+	stubs := &telemetryHandlerStubs{authOK: true, deviceID: "dev-1"}
+	handler := NewSyncDiagnosticsHandler(SyncDiagnosticsConfig{
+		Authenticate: stubs.authenticate,
+		Ingest:       store.Insert,
+		Kinds:        registry,
+	})
+
+	body := `{"kind":"episode_action","observation_id":"obs-e2e","action":"episode_plus_one","phase":"finished","observed_at_ms":1710000000000,"correlation_id":"corr-e2e","outcome":"committed","duration_ms":137}`
+	for attempt := 0; attempt < 2; attempt++ {
+		res := postDiagnostics(t, handler, body)
+		if res.Code != http.StatusNoContent {
+			t.Fatalf("attempt %d: status = %d, want 204 (body %q)", attempt, res.Code, res.Body.String())
+		}
+	}
+	if got := countStoredKind(t, db, telemetry.KindEpisodeAction); got != 1 {
+		t.Fatalf("stored %s rows = %d, want 1: a reposted observation_id is the same event", telemetry.KindEpisodeAction, got)
+	}
+
+	spoofed := strings.Replace(body, `"correlation_id":"corr-e2e",`, `"correlation_id":"corr-e2e","device_id":"spoofed",`, 1)
+	res := postDiagnostics(t, handler, spoofed)
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for a body-supplied device_id", res.Code)
+	}
+	if got := countStoredKind(t, db, telemetry.KindEpisodeAction); got != 1 {
+		t.Fatalf("stored %s rows = %d, want 1: a rejected body must store nothing", telemetry.KindEpisodeAction, got)
 	}
 }
 

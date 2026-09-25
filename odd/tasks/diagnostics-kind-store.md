@@ -341,6 +341,137 @@ Two findings came out of that review and both are now corrections.
 - [ ] Resolve the transient constant duplication: slice 1 gives `telemetry` its own `WriteBudget`, `RetryAfterSecs`, `MaxBodyBytes`, `IngestOutcome` and `ErrWriteBudget` so the generic store never imports a kind implementation. `syncdiag` keeps its own copies meanwhile. A later slice repoints the handler and retires `syncdiag`'s copies, so exactly one owner remains.
 - [ ] Record the finding on `internal/observability/syncdiag/schema.go`'s three speculative indexes (`..._trigger_source`, `..._previous_outcome`, `..._previous_error_fingerprint`): no query in `reader.go` filters on any of them — `ReportQuery` carries only `DeviceID` and `Limit`. They cost write time for nothing. Do not carry them into the new store; retire them with the old table.
 
+### WU2 implementation contract — the `episode_action` kind
+
+This is the contract mobile is building against and the one their flip is gated on.
+It is frozen: the stored token cannot change later without reshaping rows, which the
+lifecycle rule forbids.
+
+**Wire body** (strict decode, `DisallowUnknownFields`, so an undeclared key —
+including a body-supplied `device_id` — is a `400`):
+
+```json
+{
+  "kind": "episode_action",
+  "observation_id": "9f2c…",
+  "action": "episode_plus_one",
+  "phase": "finished",
+  "observed_at_ms": 1710000000000,
+  "correlation_id": "3b71…",
+  "outcome": "committed",
+  "duration_ms": 137
+}
+```
+
+Keys, exactly: `kind`, `observation_id`, `action`, `phase`, `observed_at_ms`,
+`correlation_id`, `outcome`, `reason`, `cause`, `duration_ms`.
+
+**Vocabularies — each a distinctly named set, never collapsed with another that
+happens to share members.** This is the rule the spec already enforces for the two
+`trigger_source` sets, and `failed` appearing in two of these is exactly why.
+
+| Field | Members | Where it may appear |
+| --- | --- | --- |
+| `action` | `episode_plus_one`, `episode_minus_one`, `episode_plus_half`, `episode_minus_half` | always, required |
+| `phase` | `received`, `skipped`, `finished`, `sync` | always, required |
+| `outcome` | `finished` → {`committed`, `failed`}; `sync` → {`ok`, `failed`} | required on `finished` and `sync`; MUST be absent on `received` and `skipped` |
+| `reason` | `in_flight`, `anime_missing`, `db_unavailable` | required on `skipped`; absent everywhere else |
+| `cause` | `closed_resource`, `lock_contention`, `disk_full`, `io_error`, `timeout`, `unreachable`, `unknown` | required on `finished` **and only when `outcome` is `failed`**; absent otherwise, including on `finished`+`committed` |
+| `duration_ms` | — | present on every payload; **non-null required on `finished`**, and MUST be `null` on `received`, `skipped` and `sync` |
+
+`outcome` is ONE cross-field rule evaluated against `phase`, not two independent
+checks: a `finished` payload carrying `ok` must be refused, and so must a `sync`
+payload carrying `committed`. Two independent membership tests would accept both.
+
+`observed_at_ms` is a required integer and MUST be non-negative; a negative epoch
+millisecond is not a time. `observation_id` and `correlation_id` are required non-empty
+strings.
+
+**Envelope mapping**: `Validated.EventID` is the wire `observation_id` verbatim — it is
+the kind-scoped idempotency key the store enforces under `UNIQUE (kind, event_id)` — and
+`Validated.ObservedAtMS` is the wire `observed_at_ms`. `Validated.Degraded` stays nil:
+this kind has no fidelity signal, and the envelope's `degraded` column belongs to the
+kinds that do.
+
+**Stored payload**: a fixed seven-key shape, snake_case, always all present with
+`null` where a phase carries no value — `action`, `phase`, `correlation_id`, `outcome`,
+`reason`, `cause`, `duration_ms`. A stable shape rather than omitting keys, so a later
+reader can query it without first establishing which keys exist. The envelope owns
+`kind`, `observation_id` and `observed_at_ms`, so the payload must not repeat them.
+
+**Retention**: `episode_action` declares its own cap, as its own named constant.
+Changing that number later is NOT a migration: retention is enforced at prune time, never
+at write time, so raising or lowering it rewrites no row.
+
+**Registration**: add the kind to `telemetry.DefaultRegistry()` and nowhere else.
+
+**Errors** use `*syncdiag.FieldError` so the endpoint renders the which-field `400`.
+Recorded layering note: the generic `telemetry` package importing a specific kind's
+package for the error type is an inversion, inherited from slice 1. The clean end state
+is `telemetry` owning the error type and the kinds depending on it, which needs the
+`cycle_report` kind moved out of `telemetry` first. Not this work unit; do not attempt it
+here.
+
+**Tests required before the production code**:
+
+1. A valid body for each of the four phases decodes and stores, with `EventID` equal to `observation_id` and `ObservedAtMS` equal to `observed_at_ms`.
+2. Each vocabulary rejects an off-list member with a `400` naming its own field.
+3. The cross-field rule refuses `finished`+`ok` and `sync`+`committed`, naming `outcome`.
+4. `outcome` present on `received` or `skipped` is refused; absent on `finished` or `sync` is refused.
+5. `reason` outside `skipped` is refused; `reason` absent on `skipped` is refused.
+6. `cause` on `finished`+`committed` is refused; `cause` absent on `finished`+`failed` is refused; `cause` on any other phase is refused.
+7. `duration_ms` non-null on `received`, `skipped` or `sync` is refused; null on `finished` is refused; the key absent anywhere is refused.
+8. An undeclared key anywhere, including a body-supplied `device_id`, is refused.
+9. A negative `observed_at_ms`, an empty `observation_id` and an empty `correlation_id` are each refused.
+10. The stored payload is the fixed seven-key shape, asserted against a literal, and contains neither `kind` nor `observation_id` nor `observed_at_ms`.
+11. `DefaultRegistry()` now resolves both `cycle_report` and `episode_action`, each with its own cap.
+12. End to end through the handler: a valid `episode_action` body stores under `episode_action`, and the same `observation_id` reposted acks `204` without a second row.
+
+**Docs**: `docs/openapi.yaml` gains the variant for `POST /api/sync/diagnostics` as a
+`oneOf` with a discriminator, and `go run ./tools/checkopenapi` MUST still pass.
+
+**WU2 — the `episode_action` kind** — delivered.
+
+- One complete kind declaration in `internal/observability/telemetry/episode_action.go`:
+  strict decoder, the six distinctly named vocabularies, the single cross-field
+  `outcome`-against-`phase` rule, the fixed seven-key stored payload, and its own
+  retention cap. Registered in `DefaultRegistry()` and nowhere else. No schema
+  change, no per-kind column, no migration.
+- `docs/openapi.yaml`: the request schema of `POST /api/sync/diagnostics` is now a
+  `oneOf` with `discriminator.propertyName: kind` and a two-entry mapping; the
+  `episode_action` variant is a new component and a dated 2026-09-25 additive
+  consumer-impact entry.
+- `go test ./...` clean · `checkopenapi` passed · `checkgofilesize` passed · both lint
+  profiles `0 issues.`
+
+**Verified by the orchestrator, not taken from the report**:
+
+- **The moved `cycle_report` schema is byte-identical.** Extracted the request-body
+  schema from `HEAD` and the new `SyncDiagnosticsCycleReport` component, stripped
+  indentation from both, and diffed: 178 lines each, **empty diff**. Moving a shipped
+  contract into `components/` is where a silent regression would hide, so it was
+  compared rather than assumed.
+- The disclosed tool-safety incident left no trace: no `.openapi.bak.yaml` on disk.
+- `DefaultRegistry()` resolves both kinds; the repointed unknown-kind test now names
+  `never_registered_kind`, and its comment says why the name must stay unregistered —
+  a name that later joins the vocabulary stops exercising that path.
+- The second `oneOf` in the file is the pre-existing 400-response union, not new.
+
+**Mutation score 0.82 (50 mutants, 41 killed, 9 survived) — every survivor analysed and
+resolved as equivalent or unpinnable. No threshold was weakened and nothing was
+suppressed.**
+
+| Survivors | Kind | Why it is not a coverage gap |
+| --- | --- | --- |
+| 6 (`251`, `255`, `258`, `return 0` ±1) | Equivalent | Error-path returns inside `episodeActionObservedAtMS`. The caller discards the `int64` whenever `err != nil`, so `0` → `1` is unobservable on every path. |
+| 1 (`333:56`, `outcome != nil` → `true`) | Equivalent | `episodeActionOutcome` runs BEFORE `episodeActionCause` and rejects a missing outcome on `finished`, so when `episodeActionCause` sees `finished`, `outcome` cannot be nil. The guard is defensive and unreachable from production; only a direct call with a state production cannot produce would kill it. |
+| 2 (`20:37`, `20:41`, the `20000` ±1) | Unpinnable | Only killing them means asserting the literal, which is the production-constant pinning anti-pattern the repository forbids. |
+
+Effective score is 1.00: every one of the 41 kills covers a contract rule — the six
+vocabularies, both cross-field refusals, the per-phase presence rules, and the stored
+payload shape. The score sits at 0.82 only because `episode_action.go` is dense with
+comparison operators and the mutation engine generates a mutant per operator.
+
 ### Deferred, needs an explicit owner decision
 
 - [ ] One-off script to reshape historical `device_sync_diagnostics` rows into the new shape. **Only if the owner wants the history**; the data is internal and not in backups, so the default is to leave the old rows in place unread and write no script.
