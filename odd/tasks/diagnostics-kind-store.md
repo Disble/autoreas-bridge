@@ -531,15 +531,28 @@ revertible. Do NOT delete `syncdiag/{schema,reader}.go` here either — 4b owns 
 
 ### WU1 slice 4b — retire the legacy table
 
-- Remove `syncdiag.SchemaTables()` from `internal/sync/sqlite_bootstrap.go` so the legacy
-table is never created again, and delete `syncdiag/{schema,schema_test,reader,reader_test}.go`
-with it. Existing rows stay untouched and unread; nothing drops them.
-- `syncdiag.Store` is already unreferenced in production: delete `store.go`/`store_test.go`
-(or keep them only if a real caller exists — check first, and report what you find).
+The end state is one store. This slice removes the legacy table from the lifecycle and
+deletes what only existed to serve it.
+
+**Verified before writing this**: `syncdiag.Store` has `0` production callers (the write path
+moved in slice 3), and the legacy table has `0` production writers. These survive the
+slice and MUST NOT be deleted, because live code depends on them:
+`syncdiag.Validate`, `WireReport`, `FieldError`, `Record`, `RecentEvent`, `PreviousCycle`,
+and `RetentionLimit()` — the last one is the `cycle_report` kind's own cap AND the number
+`app_observability_facts.go` reports.
+
+- Remove `syncdiag.SchemaTables()` from `internal/sync/sqlite_bootstrap.go`, so
+`device_sync_diagnostics` is never created again. Existing installs keep the table and
+its rows; nothing drops them, and nothing reads them.
+- Delete `syncdiag/{schema,schema_test,reader,reader_test,store,store_test}.go` with it.
+The DDL and the reader are dead; the store is dead. Confirm each deletion by reporting the
+callers you found rather than asserting there are none.
 - **RED: the no-lifecycle-data-migration guard.** Apply the full table set over a database
-holding legacy `device_sync_diagnostics` rows and assert every row is byte-identical
- afterwards and that the table still exists. That is the machine owner for the owner's rule:
- the lifecycle creates and adds, it never reshapes or drops.
+holding legacy `device_sync_diagnostics` rows, and assert every row is byte-identical
+afterwards, that the table still exists, and that no `Migrate` or `ColumnAdds` hook ran.
+This is the machine owner for the owner's rule — the lifecycle creates and adds, it never
+reshapes and never drops — and it is the only thing that would catch a future slice
+quietly reintroducing one.
 
 ### Deferred, needs an explicit owner decision
 
@@ -612,7 +625,48 @@ as the single vocabulary declaration point, the `IngestTelemetryEventFunc` seam,
   mutant stayed out of the score under the narrower test command, which it then
   widened to reach 1.00) rather than reporting a score that hid it.
 
-**WU1 slice 4 and WU2** — pending.
+**WU1 slice 4a — commit `125f304`** (19 files, 1216 insertions, 80 deletions). The read side
+moves to the store the write side fills, repairing the regression slice 3 introduced.
+
+- The regression was confirmed at `HEAD` rather than assumed: zero production callers of the
+  legacy insert, and the binding reading the legacy table, so it could only ever return
+  history. Verified again after the fix by storing a report through the write path and reading
+  it back through the repointed binding, with the three values that moved inside
+  `previous_cycle` round-tripping: `events`, `failed`, `1500`, `deadbeef`.
+- The capability name and the twelve DTO fields are unchanged; the `contracts` diff is
+  doc-comment only. 2879 tests executed, 0 failed, 3 skipped.
+- Mutation accumulated one package at a time rather than in a single run that can exhaust the
+  machine: telemetry 39 mutants / 36 killed / 0.92, and the other three packages produce none,
+  which is an absence of signal rather than a coverage claim.
+- **The accumulated report found a survivor the writer had called equivalent.**
+  `limit <= 0` mutated to `limit <= 1` changes the reader's answer for `limit == 1`, and the
+  clamp test covered 150/100/10/0/-1 but not 1. Closed with a boundary case, proven by hand:
+  under the mutation it fails with "expected 1 rows for limit 1, got 25".
+
+**WU1 slice 4b — commit `fc206a0`** (10 files, 351 insertions, 1507 deletions). The legacy table
+leaves the lifecycle and the package that served it is trimmed to what live code uses.
+
+- Callers were reported before each deletion, not asserted: `NewStore`, `InsertReport`,
+  `NewReader`, `Report`, `ReportQuery` and `Store` had zero production callers; `SchemaTables`
+  had exactly one, the bootstrap.
+- The guard is two halves, because either alone can be satisfied by the wrong thing: one asserts
+  the retired table is absent after bootstrap **and** the replacement exists, so it cannot pass
+  by bootstrap doing nothing; the other snapshots `sqlite_master`, the index list, the column
+  definitions and every row with its rowid over a real 21-column install, bootstraps, and
+  compares. Rows alone would not be enough — a hook that drops and recreates the table with the
+  same rows keeps those bytes and still replaced the store — and a dropped table is a named
+  failure rather than a comparison of zero bytes.
+- Proof the guard can fail was done by hand, because a deletion and a comment produce no mutants:
+  re-adding a descriptor with a reshaping `Migrate` hook failed both halves; restoring it left
+  the tree byte-identical.
+- Beyond the six enumerated files, the slice deleted `syncdiag`'s copies of `WriteBudget`,
+  `MaxBodyBytes`, `ErrWriteBudget`, `IngestOutcome`, `StoreConfig` and `pruneEvery`. Each has
+  zero references afterwards, the gate forced `pruneEvery` by rejecting it as unused, and this
+  closes the transient-duplication item slice 1 recorded. `RetryAfterSecs` survives because
+  `thumbnail_service.go` calls it.
+
+**WU1 slice 4 and WU2** — delivered. All six slices are committed and gated; the feature is
+complete on the branch and nothing is deployed.
 
 ## Open items carried from coordination
 
