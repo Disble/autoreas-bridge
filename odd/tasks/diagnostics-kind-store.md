@@ -218,6 +218,85 @@ changes.
 Wails binding, and the composition root (`internal/sync/sqlite_bootstrap.go`).
 Slice-1 tests create the schema directly through `EnsureTableSchema`.
 
+### WU1 slice 2-3 implementation contract
+
+The endpoint becomes kind-discriminated on the same path, and the new store becomes
+real at the composition root. This is what lets a registered kind flow at all.
+
+**Kind resolution is the load-bearing part, and it must distinguish absence from an
+explicit null.** Deployed mobile sends no `kind` key, so absence means the frozen
+`cycle_report` default. An explicit `kind: null` is NOT absence and MUST be rejected:
+mobile's own classifier cannot match `undefined` with `null`, so treating null as the
+legacy default would deliver a body neither side agrees on. The repo already has this
+exact pattern — `syncdiag.WireReport.Degraded` and `PreviousCycle` are
+`json.RawMessage` precisely so an absent key and a present `null` stay different
+facts. Reuse it:
+
+```go
+// probeKind reads only the discriminator, tolerantly, so the body can be
+// dispatched before any kind-specific strict decode runs.
+var probe struct {
+    Kind json.RawMessage `json:"kind"`
+}
+```
+
+- probe decode fails → `400 {error}` (the existing generic malformed-body shape).
+- `probe.Kind == nil` → `KindCycleReport` (key absent; the frozen legacy rule).
+- `probe.Kind == []byte("null")` → `400` naming `kind` (present but not a kind name).
+- decodes to a non-string → `400` naming `kind`.
+- decodes to a string → that name; a registry miss is `400` naming `kind`.
+
+**Handler flow** (`internal/api/handlers/sync_diagnostics_handler.go`), preserving the
+shipped contract exactly: method check → authenticate (nil-safe) → ingest seam
+nil-check (`503`) → bound the body with `telemetry.MaxBodyBytes` (`413` when
+oversize) → probe the discriminator → registry lookup → the kind's own `Decode` →
+seam call → outcome switch.
+
+**Error mapping** — the response contract must not change:
+
+| Cause | Response |
+| --- | --- |
+| `*syncdiag.FieldError` (any kind that reuses it) | `400 {error, field}` |
+| decode failure, unknown kind, missing discriminator parse | `400 {error}` or `400 {error, field}` naming `kind` |
+| `telemetry.ErrWriteBudget` | `503` + `Retry-After: 5` |
+| `telemetry.ErrUndeclaredKind` | `500` — a wiring bug, never a retryable shed |
+| any other error | `500` |
+| `Stored`, `Duplicate` | `204` |
+
+A shed is never `204`, and `Duplicate` stays indistinguishable from `Stored` on the
+wire so a blind retry stays correct.
+
+**Seam and config**: `SyncDiagnosticsConfig` gains the kind vocabulary, and the ingest
+seam becomes `IngestTelemetryEventFunc func(ctx, telemetry.Event) (telemetry.IngestOutcome, error)`
+in `handlers/common.go`, replacing `IngestSyncDiagnosticsFunc`. The device id still
+comes only from the authenticated token; the receipt clock is still the bridge's.
+
+**One declaration point for the vocabulary**: `telemetry.DefaultRegistry()` returns
+`NewRegistry(CycleReportKind{})`. Every new kind adds itself there and nowhere else.
+
+**Composition root**: `internal/sync/sqlite_bootstrap.go` appends
+`telemetry.SchemaTables()` to the table set, and `internal/desktop/app_sync_diagnostics.go`
+builds the registry plus the telemetry `Store` and returns the new seam. The old
+`syncdiag.Store` write seam is retired from the wiring here; the `syncdiag` package
+itself stays untouched.
+
+**Tests required before the production code**:
+
+1. An absent `kind` still decodes and stores as `cycle_report` — byte-identical to today's behaviour, asserted through the handler.
+2. An explicit `kind: null` is rejected with `400` naming `kind`, and stores nothing.
+3. A non-string `kind` is rejected with `400` naming `kind`.
+4. An unknown but well-formed `kind` is rejected with `400` naming `kind`, and stores nothing.
+5. A registered kind dispatches to its own validator and stores under its own name.
+6. `ErrUndeclaredKind` maps to `500`, not `503` — the distinction that keeps a wiring bug from becoming a retry loop.
+7. `ErrWriteBudget` still maps to `503` with `Retry-After: 5`, and never to `204`.
+8. `Stored` and `Duplicate` both ack `204`.
+9. An oversize body still reports `413` before any decode.
+10. `telemetry.DefaultRegistry()` contains `cycle_report`.
+
+**Out of scope for this slice**: retiring `device_sync_diagnostics` from the schema
+registry, the reader and Wails repoint, the `episode_action` kind, and the OpenSpec,
+openapi and ADR work.
+
 ### WU2 — `episode_action` kind end-to-end
 
 - [ ] Align final wire field names with mobile before writing: `episode_*` (not `chapter_*`), `observation_id` (not `cycle_id`), `observed_at_ms` (not `at`), `outcome` gated as one cross-field rule against `phase`, `duration_ms` with one direction.
@@ -278,7 +357,62 @@ Two findings came out of that review and both are now corrections.
 
 ## Evidence
 
-- Pending. Record each work-unit commit identity here as tasks close.
+**WU1 slice 1 — commit `5bbcbf3`** (16 files, 1850 insertions, 23 deletions). The
+new `internal/observability/telemetry` package plus the single allowed outside
+change (`kind` declared on `syncdiag.WireReport`) and the stored-payload tag
+contract on `syncdiag.Record` / `syncdiag.PreviousCycle`.
+
+- Pre-commit gate (lefthook, no `--no-verify`): openapi passed · gofmt passed ·
+  go-filesize passed · architecture passed · golangci-lint `0 issues.` on both
+  profiles · go-vet passed · go-cover passed. `telemetry` coverage 90.9%,
+  `syncdiag` 91.3%.
+- `go test ./...` clean; `checkgofilesize` warnings are all pre-existing files in
+  other packages.
+- `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command
+  "go test -count=1 -json ./internal/observability/telemetry/"`: 42 mutants,
+  41 killed, **score 0.98**.
+- **Accepted survivor, deliberately not suppressed**: `store.go:98`
+  `pruneErr != nil` → `== nil`. Its only observable effect is a `log.Printf`, and
+  it mirrors the proven `syncdiag` pattern; killing it needs global `log.SetOutput`
+  capture. The threshold was not weakened to hide it. Revisit only if a prune
+  failure ever needs to be observable to a caller rather than a log.
+- **Payload golden proven to fail**: removing the `json:"-"` tag from
+  `Record.DeviceID` makes two golden tests fail and shows `"DeviceID":""`
+  appearing in the payload. A test that cannot fail is not evidence, so the proof
+  is recorded rather than assumed. The file was restored byte-identically
+  afterwards (`diff` empty).
+- Verified independently by the orchestrator against the running code, not from
+  the writer's report. That review is what found the three defects recorded under
+  "Decided during slice 1 review".
+
+**WU1 slices 2-3** — the endpoint is kind-discriminated on `POST /api/sync/diagnostics`, and
+the discriminated store is real at the composition root.
+
+- Delivered: the `json.RawMessage` discriminator probe, `telemetry.DefaultRegistry()`
+as the single vocabulary declaration point, the `IngestTelemetryEventFunc` seam,
+`telemetry.SchemaTables()` registered in `sqlite_bootstrap.go`, and the store built in
+`app_sync_diagnostics.go` from the same registry the handler dispatches on.
+- `go test ./...` clean; `checkgofilesize` passed; both lint profiles `0 issues.`
+- `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command
+  "go test -count=1 -json ./internal/api/handlers/ ./internal/observability/telemetry/ ./internal/desktop/"`:
+  7 mutants, 7 killed, **score 1.00**.
+- **Sixteenth test review finding, fixed by the orchestrator**: a body that is
+  literally `null` was answered `400 {"error":"missing required key","field":"degraded"}` —
+  blaming a `cycle_report` the body never declared. A JSON `null` decodes into a nil
+  map WITHOUT an error, so it fell through to the frozen absent-key default. Every
+  other non-object (`[1,2,3]`, a string, a number, a boolean) already produced the
+  generic 400, so the endpoint disagreed with itself about what a non-object body is.
+  Probed empirically before fixing, not inferred: the response above was observed.
+  The probe is now a `map[string]json.RawMessage` and a nil map is refused as an
+  unreadable body, which keeps absent-versus-null intact for the discriminator while
+  making every non-object uniform. `{}` is deliberately NOT folded in: an empty object
+  genuinely is a `cycle_report` that omitted a required key, so it keeps the
+  which-field 400 naming `degraded`. Both sides are now pinned by tests.
+- The writer's own report flagged the `ditto` command scoping honestly (a desktop
+  mutant stayed out of the score under the narrower test command, which it then
+  widened to reach 1.00) rather than reporting a score that hid it.
+
+**WU1 slice 4 and WU2** — pending.
 
 ## Open items carried from coordination
 

@@ -40,6 +40,26 @@ func TestRegistryMissesUnregisteredKind(t *testing.T) {
 	}
 }
 
+// TestDefaultRegistryContainsCycleReport asserts the declared vocabulary
+// contains the frozen legacy kind, and reaches it with the cap the kind
+// declares. A future kind that forgets to add itself to DefaultRegistry is
+// therefore the only way this can regress, which is exactly the mistake the
+// single declaration point exists to make visible.
+func TestDefaultRegistryContainsCycleReport(t *testing.T) {
+	t.Parallel()
+
+	kind, ok := DefaultRegistry().Lookup(KindCycleReport)
+	if !ok {
+		t.Fatalf("expected the default vocabulary to declare %s", KindCycleReport)
+	}
+	if got := kind.Name(); got != KindCycleReport {
+		t.Fatalf("expected the %s kind, got %q", KindCycleReport, got)
+	}
+	if got, want := kind.RetentionLimit(), (CycleReportKind{}).RetentionLimit(); got != want {
+		t.Fatalf("expected the declared retention limit %d, got %d", want, got)
+	}
+}
+
 // TestRegistryKeepsFirstDeclarationOnDuplicateName asserts a duplicate
 // registration cannot silently shadow the kind already declared under that
 // name: shadowing would change what is stored for every client that already

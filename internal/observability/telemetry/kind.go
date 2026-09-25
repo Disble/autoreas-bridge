@@ -72,6 +72,16 @@ func NewRegistry(kinds ...Kind) *Registry {
 	return registry
 }
 
+// DefaultRegistry returns the declared kind vocabulary the endpoint
+// dispatches against and the store resolves retention from. It is the single
+// declaration point: every new kind adds itself here and nowhere else, so a
+// kind that only exists in a test registry is unreachable on the wire and a
+// wiring site never has to restate the vocabulary. A kind that is not in this
+// list is refused as undeclared rather than served.
+func DefaultRegistry() *Registry {
+	return NewRegistry(CycleReportKind{})
+}
+
 // Lookup resolves one wire kind name. A miss is reported as a miss and never
 // falls back to a default kind: an absent declaration must not inherit
 // another kind's decoder and retention budget.
