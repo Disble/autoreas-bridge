@@ -38,6 +38,15 @@ type SyncDiagnosticsConfig struct {
 // 413 oversize body · 503 shed under write contention (Retry-After: 5) or
 // ingestion unavailable · 500 a wiring bug, such as a kind the store has no
 // retention cap for.
+//
+// Every refusal this handler emits carries a `code` from the closed RefusalCode
+// vocabulary, because a client cannot decide a row's fate from the status alone:
+// a 400 covers both bytes that will never be accepted and a kind this build
+// simply does not serve yet, and only the second is worth keeping. Branching on
+// the code rather than on the status list is what lets a client's permanence
+// policy survive a class the bridge adds later without either side shipping in
+// lockstep. The 401 is the one refusal this handler does not write itself -- it
+// comes from the shared AuthenticateFunc -- so it carries no code.
 func NewSyncDiagnosticsHandler(config SyncDiagnosticsConfig) http.Handler {
 	kinds := config.Kinds
 	if kinds == nil {
@@ -45,7 +54,7 @@ func NewSyncDiagnosticsHandler(config SyncDiagnosticsConfig) http.Handler {
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
-			writeJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
+			writeRefusal(w, http.StatusMethodNotAllowed, RefusalMethodNotAllowed, "method not allowed", "")
 			return
 		}
 		paired, ok := authenticateSyncDiagnostics(w, r, config.Authenticate)
@@ -53,7 +62,7 @@ func NewSyncDiagnosticsHandler(config SyncDiagnosticsConfig) http.Handler {
 			return
 		}
 		if config.Ingest == nil {
-			writeJSONError(w, http.StatusServiceUnavailable, "sync diagnostics unavailable")
+			writeRefusal(w, http.StatusServiceUnavailable, RefusalIngestUnavailable, "sync diagnostics unavailable", "")
 			return
 		}
 
@@ -109,7 +118,7 @@ func decodeSyncDiagnosticsRequest(w http.ResponseWriter, r *http.Request, kinds 
 		// The name is echoed back because a client that misspells a kind has
 		// nothing else to diagnose it with, and it is not a secret: it is the
 		// value the client just sent.
-		writeTelemetryKindError(w, fmt.Sprintf("unknown kind %q", name))
+		writeRefusal(w, http.StatusBadRequest, RefusalKindNotServed, fmt.Sprintf("unknown kind %q", name), "kind")
 		return telemetry.Validated{}, "", false
 	}
 
@@ -131,10 +140,10 @@ func readSyncDiagnosticsBody(w http.ResponseWriter, r *http.Request) ([]byte, bo
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
-			writeJSONError(w, http.StatusRequestEntityTooLarge, "request body too large")
+			writeRefusal(w, http.StatusRequestEntityTooLarge, RefusalBodyTooLarge, "request body too large", "")
 			return nil, false
 		}
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		writeRefusal(w, http.StatusBadRequest, RefusalBodyUnreadable, "invalid request body", "")
 		return nil, false
 	}
 	return body, true
@@ -166,11 +175,11 @@ func readSyncDiagnosticsBody(w http.ResponseWriter, r *http.Request) ([]byte, bo
 func resolveTelemetryKind(w http.ResponseWriter, body []byte) (telemetry.KindName, bool) {
 	var probe map[string]json.RawMessage
 	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&probe); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		writeRefusal(w, http.StatusBadRequest, RefusalBodyUnreadable, "invalid request body", "")
 		return "", false
 	}
 	if probe == nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		writeRefusal(w, http.StatusBadRequest, RefusalBodyUnreadable, "invalid request body", "")
 		return "", false
 	}
 	raw, present := probe["kind"]
@@ -181,23 +190,87 @@ func resolveTelemetryKind(w http.ResponseWriter, body []byte) (telemetry.KindNam
 	// unmarshalling null into a string is a silent no-op, which is exactly the
 	// coercion that makes absence and null indistinguishable.
 	if bytes.Equal(raw, []byte("null")) {
-		writeTelemetryKindError(w, "kind must be a string")
+		writeRefusal(w, http.StatusBadRequest, RefusalKindMalformed, "kind must be a string", "kind")
 		return "", false
 	}
 	var name telemetry.KindName
 	if err := json.Unmarshal(raw, &name); err != nil {
-		writeTelemetryKindError(w, "kind must be a string")
+		writeRefusal(w, http.StatusBadRequest, RefusalKindMalformed, "kind must be a string", "kind")
 		return "", false
 	}
 	return name, true
 }
 
-// writeTelemetryKindError refuses a request whose discriminator is present but
-// unusable, in the which-field 400 shape rather than the generic one: a client
-// must be able to tell a rejected kind from a rejected cycle field, and
-// "kind" is the field it can point at.
-func writeTelemetryKindError(w http.ResponseWriter, reason string) {
-	writeJSON(w, http.StatusBadRequest, map[string]string{"error": reason, "field": "kind"})
+// RefusalCode classifies why this endpoint refused a request, so a client can
+// branch on the CLASSIFICATION rather than on the status code. It is a closed
+// vocabulary that GROWS: a new refusal class is a new member here, never a new
+// bespoke key and never a new HTTP status.
+//
+// That rule is the whole reason the field exists. A per-case status code spends
+// the status space on something that belongs in the body -- an unserved kind is
+// the first class, not the only one, so a second class would want a `502` and a
+// third still something else. A per-case boolean key has the same defect one
+// level down: it expresses exactly one fact, so the second class needs a second
+// key and the third a third. One vocabulary absorbs every future class without
+// changing a single existing response shape.
+type RefusalCode = string
+
+const (
+	// RefusalKindNotServed means the body is well formed and names a kind this
+	// build does not declare. It is the ONE recoverable refusal: the bytes are
+	// not wrong, this build simply does not serve them, so a forward roll
+	// recovers every row a client kept. That matters because a client's
+	// permanence policy discards on 4xx for good reason, and discarding here
+	// would destroy observations a later build would have accepted -- and the
+	// client's outbox is the only copy.
+	RefusalKindNotServed RefusalCode = "kind_not_served"
+	// RefusalKindMalformed means the discriminator is present but is not a
+	// usable kind name: a null, or a value that is not a string. No build will
+	// ever accept it, so a client may discard it.
+	RefusalKindMalformed RefusalCode = "kind_malformed"
+	// RefusalBodyUnreadable means the bytes are not a JSON object, are not JSON
+	// at all, or carry a key the selected kind does not declare. Permanent for
+	// the same reason as a malformed discriminator.
+	RefusalBodyUnreadable RefusalCode = "body_unreadable"
+	// RefusalFieldRejected means a named field carried an off-vocabulary or
+	// out-of-shape value. The `field` key names it. Permanent.
+	RefusalFieldRejected RefusalCode = "field_rejected"
+	// RefusalBodyTooLarge means the body exceeded telemetry.MaxBodyBytes before
+	// any decode ran. Permanent: shrinking the body is the client's only remedy.
+	RefusalBodyTooLarge RefusalCode = "body_too_large"
+	// RefusalIngestUnavailable means no ingest seam is wired. Not a verdict about
+	// the bytes, and recoverable by a bridge that has one.
+	RefusalIngestUnavailable RefusalCode = "ingest_unavailable"
+	// RefusalWriteBudgetExceeded means the store shed the write under
+	// contention. The body is fine and the retry is expected to succeed, which
+	// is exactly why this one carries Retry-After.
+	RefusalWriteBudgetExceeded RefusalCode = "write_budget_exceeded"
+	// RefusalInternalError means the bridge itself failed. Never a reason for a
+	// client to destroy a row.
+	RefusalInternalError RefusalCode = "internal_error"
+	// RefusalMethodNotAllowed means a routing bug: this client always POSTs.
+	RefusalMethodNotAllowed RefusalCode = "method_not_allowed"
+)
+
+// refusalBody is the shape of every refusal this handler emits. Field is omitted
+// rather than empty when no field was named, which preserves the distinction the
+// shipped contract already draws: a present `field` means a field was named and
+// refused, an absent one means the refusal was never about a field.
+//
+// A struct rather than a map, so the key order is part of the contract instead of
+// following Go's map ordering.
+type refusalBody struct {
+	Error string      `json:"error"`
+	Code  RefusalCode `json:"code"`
+	Field string      `json:"field,omitempty"`
+}
+
+// writeRefusal writes one classified refusal. Every refusal this handler produces
+// goes through here, so a new class cannot be added at a call site that forgets
+// its code, and a client can branch on one field instead of on a status list it
+// has to keep in sync with the bridge.
+func writeRefusal(w http.ResponseWriter, status int, code RefusalCode, reason string, field string) {
+	writeJSON(w, status, refusalBody{Error: reason, Code: code, Field: field})
 }
 
 // writeTelemetryDecodeError maps one kind Decode failure to its response. A
@@ -208,10 +281,10 @@ func writeTelemetryKindError(w http.ResponseWriter, reason string) {
 func writeTelemetryDecodeError(w http.ResponseWriter, err error) {
 	var fieldErr *syncdiag.FieldError
 	if errors.As(err, &fieldErr) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": fieldErr.Reason, "field": fieldErr.Field})
+		writeRefusal(w, http.StatusBadRequest, RefusalFieldRejected, fieldErr.Reason, fieldErr.Field)
 		return
 	}
-	writeJSONError(w, http.StatusBadRequest, "invalid request body")
+	writeRefusal(w, http.StatusBadRequest, RefusalBodyUnreadable, "invalid request body", "")
 }
 
 // writeSyncDiagnosticsOutcome maps one ingest result to its HTTP response.
@@ -229,10 +302,10 @@ func writeSyncDiagnosticsOutcome(w http.ResponseWriter, outcome telemetry.Ingest
 	if err != nil {
 		if errors.Is(err, telemetry.ErrWriteBudget) {
 			w.Header().Set("Retry-After", strconv.Itoa(telemetry.RetryAfterSecs))
-			writeJSONError(w, http.StatusServiceUnavailable, "sync diagnostics write budget exceeded")
+			writeRefusal(w, http.StatusServiceUnavailable, RefusalWriteBudgetExceeded, "sync diagnostics write budget exceeded", "")
 			return
 		}
-		writeJSONError(w, http.StatusInternalServerError, "ingest sync diagnostics failed")
+		writeRefusal(w, http.StatusInternalServerError, RefusalInternalError, "ingest sync diagnostics failed", "")
 		return
 	}
 
@@ -240,6 +313,6 @@ func writeSyncDiagnosticsOutcome(w http.ResponseWriter, outcome telemetry.Ingest
 	case telemetry.Stored, telemetry.Duplicate:
 		w.WriteHeader(http.StatusNoContent)
 	default:
-		writeJSONError(w, http.StatusInternalServerError, "unknown ingest outcome")
+		writeRefusal(w, http.StatusInternalServerError, RefusalInternalError, "unknown ingest outcome", "")
 	}
 }

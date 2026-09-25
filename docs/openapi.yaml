@@ -220,7 +220,7 @@ info:
     envelope under sustained contention before either surface ever sees it.
 
     2026-09-25 — diagnostics-kind-store API consumer impact: ADDITIVE, one new
-    request variant on an existing endpoint and no change to any response. The
+    request variant on an existing endpoint plus one new response key. The
     store behind `POST /api/sync/diagnostics` is now discriminated by `kind`,
     and the endpoint gains the `episode_action` variant (see the `oneOf` and
     its discriminator on that operation). Nothing already deployed changes: a
@@ -231,6 +231,18 @@ info:
     namespace with a `cycle_report` `cycle_id`. A shed is still never `204`
     and `500` still covers an ingestion failure, so existing retry logic stays
     correct unchanged.
+
+    The one response change: every refusal this operation emits now also carries
+    a `code` from `SyncDiagnosticsRefusalCode`, a closed vocabulary that grows --
+    a new member, never a new status code and never a new per-case key. It is
+    additive, since a client that ignores it behaves exactly as before, but it
+    is the key a client SHOULD branch on, because the status alone cannot
+    separate the two `400`s that matter: `kind_not_served` is recoverable by a
+    forward roll, while every other member is permanent. A client whose
+    permanence policy discards on `400` would otherwise destroy observations
+    that a bridge build predating a kind would have accepted later, and the
+    client's outbox is the only copy. `field` stays present only when a field
+    was named and rejected.
 
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
@@ -651,6 +663,29 @@ components:
             field today.
           items:
             type: object
+
+    SyncDiagnosticsRefusalCode:
+      type: string
+      description: |
+        Why `POST /api/sync/diagnostics` refused a request. A client chooses a row's
+        fate from this value, not from the HTTP status: `kind_not_served` is the only
+        RECOVERABLE member, because the bytes are not wrong -- this build simply does
+        not serve that kind -- so a forward roll recovers every row a client kept.
+        Every other member is permanent, and a client may discard the row.
+
+        This is a closed vocabulary that grows. A new refusal class is a new member
+        here, never a new status code and never a new per-case key, so a client's
+        permanence policy keeps working when the bridge adds a class.
+      enum:
+        - kind_not_served
+        - kind_malformed
+        - body_unreadable
+        - field_rejected
+        - body_too_large
+        - ingest_unavailable
+        - write_budget_exceeded
+        - internal_error
+        - method_not_allowed
 
     SyncDiagnosticsCycleReport:
       type: object
@@ -1592,28 +1627,55 @@ paths:
             retry stays correct.
         '400':
           description: |
-            Two distinct rejection shapes exist; a client must handle both.
-            (1) `Validate` rejects an enumerated or shape-constrained field:
-            the response is `{"error": "<reason>", "field": "<dot.path>"}`,
-            e.g. `{"error": "must match ^[0-9a-f]{8}$", "field":
-            "previous_cycle.error_fingerprint"}`. (2) A strict-decode failure
-            at the handler layer -- malformed JSON, or an undeclared field
-            anywhere in the body, including a client-supplied `device_id` --
-            returns the generic `{"error": "invalid request body"}` shape with
-            NO `field` key. This is the existing codebase convention: `field`
-            present means `Validate` ran and named the offender; `field`
-            absent means the handler rejected the body before `Validate` ever
-            ran.
+            Every refusal of this operation carries a machine-readable `code` from a
+            CLOSED vocabulary that grows, and a client MUST branch on the code rather
+            than on the status code. A `400` covers both bytes that will never be
+            accepted and a kind this bridge simply does not serve yet, and only the
+            second is worth keeping; a client that decided a row's fate from the status
+            alone would destroy observations a later build would have accepted.
+
+            Adding a refusal class adds a vocabulary member here -- never a new status
+            code, and never a new per-case key -- so a client's permanence policy
+            survives a class the bridge adds later without either side shipping in
+            lockstep.
+
+            Vocabulary: `kind_not_served` (the body is well formed and names a kind this
+            build does not declare; the ONE recoverable refusal) · `kind_malformed` (the
+            discriminator is present but is a null or a non-string; permanent) ·
+            `body_unreadable` (the bytes are not a JSON object, are not JSON at all, or
+            carry a key the selected kind does not declare; permanent) ·
+            `field_rejected` (a named field carried an off-vocabulary or out-of-shape
+            value; permanent) · `body_too_large` (on the `413`) · `ingest_unavailable` and
+            `write_budget_exceeded` (the two `503` causes) · `internal_error` ·
+            `method_not_allowed`.
+
+            `field` is present only when a field was named and rejected: `field` present
+            means validation named the offender, `field` absent means the refusal was
+            never about a field. The `401` is the one refusal this operation does not
+            write itself -- it comes from the shared authentication layer -- so it
+            carries no `code`.
           content:
             application/json:
               schema:
                 oneOf:
-                  - $ref: '#/components/schemas/ErrorResponse'
                   - type: object
-                    required: [error, field]
+                    description: A refusal that named no field.
+                    required: [error, code]
+                    additionalProperties: false
                     properties:
                       error:
                         type: string
+                      code:
+                        $ref: '#/components/schemas/SyncDiagnosticsRefusalCode'
+                  - type: object
+                    description: A refusal that named the field it rejected.
+                    required: [error, code, field]
+                    additionalProperties: false
+                    properties:
+                      error:
+                        type: string
+                      code:
+                        $ref: '#/components/schemas/SyncDiagnosticsRefusalCode'
                       field:
                         type: string
                         example: previous_cycle.error_fingerprint

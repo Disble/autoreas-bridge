@@ -119,12 +119,12 @@ func assertKindRejection(t *testing.T, stubs *telemetryHandlerStubs, res *httpte
 	if res.Code != http.StatusBadRequest {
 		t.Fatalf("%s: status = %d, want 400", name, res.Code)
 	}
-	var body map[string]string
+	var body map[string]any
 	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
 		t.Fatalf("%s: response body %q is not JSON: %v", name, res.Body.String(), err)
 	}
 	if body["field"] != "kind" {
-		t.Fatalf("%s: field = %q, want %q (body %q)", name, body["field"], "kind", res.Body.String())
+		t.Fatalf("%s: field = %v, want %q (body %q)", name, body["field"], "kind", res.Body.String())
 	}
 	if stubs.ingestCalls != 0 {
 		t.Fatalf("%s: ingest must not be called for a rejected kind", name)
@@ -396,6 +396,9 @@ func TestSyncDiagnosticsRejectsBodiesThatAreNotAnObject(t *testing.T) {
 		}
 		if got["error"] != "invalid request body" {
 			t.Fatalf("body %q: error = %q, want %q (response %q)", body, got["error"], "invalid request body", res.Body.String())
+		}
+		if got["code"] != "body_unreadable" {
+			t.Fatalf("body %q: code = %v, want %q (response %q)", body, got["code"], "body_unreadable", res.Body.String())
 		}
 		if field, namesAField := got["field"]; namesAField {
 			t.Fatalf("body %q: a body with no object has no field to name, but the response named %q", body, field)
