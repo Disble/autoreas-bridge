@@ -27,6 +27,7 @@
 ## Testing and mutation
 
 - Tests follow RED → GREEN → MUTATE → REFACTOR. A test must fail when its relevant guard is removed; coverage alone is not evidence.
+- Run frontend tests with Bun/Vitest: `bun --cwd="frontend" run test -- <path>` for a focused suite, `bun --cwd="frontend" run test` for the full suite. `frontend/scripts/__tests__/*.test.mjs` are Vitest suites too; never use `node --test` for them.
 - For Go changes, stage the production change and run mutation testing against its owning package:
   `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command "go test -count=1 -json ./<owning-package>/"`
   Use `--dry` to inspect scope. Do not use `./...` as the mutation test command. For a direct hand mutation, prove the edit applied before trusting the result.
@@ -40,6 +41,7 @@
 - Use the exact gate command when diagnosing a failure. `golangci-lint run ./...` is not a substitute for the repository lint profiles.
 - The Go size gate is `go run ./tools/checkgofilesize`; frontend `>500` failures are enforced by ESLint and dharness. `tools/checkgofilesize/baseline.yaml` is temporary no-growth debt only and must return to `files: []`.
 - App icons are generated from `build/appicon.png` with `go run ./tools/genicons`; never hand-edit generated `.ico` files.
+- In a fresh worktree, `frontend/node_modules/`, `frontend/dist/`, and `frontend/wailsjs/` are absent because they are ignored. From the worktree root run `bun --cwd="frontend" install --frozen-lockfile` with the Wails CLI available: postinstall creates the ignored `frontend/dist/.keep` embed target when needed, then generates local bindings. Confirm `bun --cwd="frontend" run typecheck` passes and `git diff -- frontend/bun.lock` is empty; never copy generated bindings from a sibling worktree.
 - The frontend generated Wails bindings are untracked. Regenerate them with `bun --cwd="frontend" run generate:bindings` after changing bound Go methods; never edit `frontend/wailsjs/`.
 - Run `bun --cwd="frontend" run fallow ...` for frontend static-analysis work. Treat `frontend/.fallowrc.json` as repository truth and do not add remote configuration inheritance.
 - A merge commit runs `pre-merge-commit`, not `pre-commit`; its checks are whole-tree. Do not assume a fast-forward merge runs a hook.

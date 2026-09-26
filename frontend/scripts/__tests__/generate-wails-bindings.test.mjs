@@ -1,10 +1,14 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { missingBindings, requiredBindings } from '../generate-wails-bindings.mjs';
+import {
+  ensureEmbedTarget,
+  missingBindings,
+  requiredBindings,
+} from '../generate-wails-bindings.mjs';
 
 /**
  * Creates an empty throwaway project root that the caller fills selectively,
@@ -66,6 +70,45 @@ describe('missingBindings', () => {
       // even when it cannot find wails.json, so a partial tree must not read
       // as success.
       expect(missingBindings(root)).toEqual(['frontend/wailsjs/go/models.ts']);
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+});
+
+describe('ensureEmbedTarget', () => {
+  it('creates the placeholder a fresh worktree needs to compile //go:embed all:frontend/dist', () => {
+    const root = makeRoot();
+
+    try {
+      expect(ensureEmbedTarget(root)).toBe(true);
+      expect(existsSync(path.join(root, 'frontend/dist/.keep'))).toBe(true);
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it('fills a present but empty dist, which the embed pattern still rejects', () => {
+    const root = makeRoot();
+
+    try {
+      mkdirSync(path.join(root, 'frontend/dist'), { recursive: true });
+
+      expect(ensureEmbedTarget(root)).toBe(true);
+      expect(existsSync(path.join(root, 'frontend/dist/.keep'))).toBe(true);
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it('leaves a real build output untouched', () => {
+    const root = makeRoot();
+
+    try {
+      place(root, 'frontend/dist/index.html');
+
+      expect(ensureEmbedTarget(root)).toBe(false);
+      expect(readdirSync(path.join(root, 'frontend/dist'))).toEqual(['index.html']);
     } finally {
       rmSync(root, { force: true, recursive: true });
     }
