@@ -3,6 +3,7 @@ package anime
 import (
 	"context"
 
+	"autoreas-bridge/internal/anime/cover"
 	"autoreas-bridge/internal/anime/domain"
 	"autoreas-bridge/internal/anime/store"
 	"autoreas-bridge/internal/api/contracts"
@@ -123,9 +124,19 @@ func (s *QueryService) ListAnimeItems(ctx context.Context) ([]contracts.AnimeLis
 			Genres:          item.Genres,
 			HasDownloadPage: hasNonEmptyLegacyString(item.SourceURL),
 			HasFolder:       hasNonEmptyLegacyString(item.Folder),
+			HasCover:        hasCover(item.Cover),
 		})
 	}
 	return result, nil
+}
+
+// hasCover reports whether a legacy portada value can be resolved into a cover
+// image, reusing the cover pipeline's own string-shape rule so the list
+// projection and the resolver agree on what "has a cover" means. A nil, empty,
+// or literal "null" source reads false; the raw value stays out of the read
+// model, which exposes presence only.
+func hasCover(value *string) bool {
+	return cover.Classify(legacyStringValue(value)) != cover.KindAbsent
 }
 
 // hasNonEmptyLegacyString reports whether a legacy optional string field (e.g.

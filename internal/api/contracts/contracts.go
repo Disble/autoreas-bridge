@@ -103,6 +103,12 @@ type AnimeListItem struct {
 	// Same read-only gap-indicator purpose as HasDownloadPage; deliberately
 	// does NOT expose the raw filesystem path.
 	HasFolder bool `json:"hasFolder"`
+	// HasCover reports whether the cover field carries a usable source, decided
+	// by the cover resolver's own string-shape rule (cover.Classify). It gates
+	// the editor Library thumbnail lookup, so a missing, blank, or literal
+	// "null" source never reaches an image element. Deliberately does NOT
+	// expose the raw cover path or URL.
+	HasCover bool `json:"hasCover"`
 }
 
 // WatchHistoryEntry is one recorded real-watch-history row (Real Watch

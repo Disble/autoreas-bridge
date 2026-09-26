@@ -378,6 +378,50 @@ func TestQueryServiceListAnimeItemsDerivesDownloadGapBooleans(t *testing.T) {
 	assertDownloadGapFlags(t, byID)
 }
 
+// TestQueryServiceListAnimeItemsDerivesCoverPresence guards the editor Library
+// thumbnail gate: the list projection must report cover presence using the same
+// string-shape rule as the cover resolver, so an absent, blank, or literal
+// "null" source never reaches an image element.
+func TestQueryServiceListAnimeItemsDerivesCoverPresence(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshot(t, store, "cover-url", `{"id":"cover-url","name":"Cover URL","episodesWatched":1,"active":true,"cover":{"type":"url","path":"https://cdn.example.com/a.jpg"}}`)
+	seedAnimeSnapshot(t, store, "cover-local", `{"id":"cover-local","name":"Cover Local","episodesWatched":1,"active":true,"cover":{"type":"image","path":"C:/covers/a.jpg"}}`)
+	seedAnimeSnapshot(t, store, "cover-absent", `{"id":"cover-absent","name":"Cover Absent","episodesWatched":1,"active":true}`)
+	seedAnimeSnapshot(t, store, "cover-blank", `{"id":"cover-blank","name":"Cover Blank","episodesWatched":1,"active":true,"cover":{"path":""}}`)
+	seedAnimeSnapshot(t, store, "cover-null", `{"id":"cover-null","name":"Cover Null","episodesWatched":1,"active":true,"cover":{"type":"image","path":"null"}}`)
+
+	service := anime.NewQueryService(store)
+	got, err := service.ListAnimeItems(ctx)
+	if err != nil {
+		t.Fatalf("list anime items: %v", err)
+	}
+
+	byID := make(map[string]contracts.AnimeListItem, len(got))
+	for _, item := range got {
+		byID[item.ID] = item
+	}
+
+	for _, test := range []struct {
+		id   string
+		want bool
+	}{
+		{"cover-url", true},
+		{"cover-local", true},
+		{"cover-absent", false},
+		{"cover-blank", false},
+		{"cover-null", false},
+	} {
+		item, ok := byID[test.id]
+		if !ok {
+			t.Fatalf("expected %s in the list projection", test.id)
+		}
+		if item.HasCover != test.want {
+			t.Fatalf("HasCover for %q = %v, want %v", test.id, item.HasCover, test.want)
+		}
+	}
+}
+
 // assertDownloadGapFlags verifies derived download-gap flags.
 func assertDownloadGapFlags(t *testing.T, byID map[string]contracts.AnimeListItem) {
 	t.Helper()
