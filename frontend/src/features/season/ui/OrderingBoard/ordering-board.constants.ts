@@ -15,3 +15,24 @@ export const RAIL_CONTAINER_ID = '__rail__';
 
 /** Empty board used before the runtime board loads. */
 export const EMPTY_ORDERING_BOARD = { rail: [], grid: [] } as const;
+
+/** Accessible name of the status region shown while a past season's stored board is read. */
+export const ORDERING_BOARD_LOADING_LABEL = 'Loading the recorded ordering board';
+
+/**
+ * Read-only notice while viewing a past season. It must never claim the board
+ * reflects the live schedule: the board shown is the closure snapshot, and it
+ * may even be absent, so the wording stays true in every past-season case.
+ */
+export const ORDERING_PAST_SEASON_NOTICE =
+  'Past season — read-only. This view never reflects the current live schedule; it shows only the board stored when the season closed.';
+
+/** Empty-state title when a past season stored no ordering board. */
+export const ORDERING_NOT_RECORDED_TITLE = 'Ordering board not recorded';
+
+/** Empty-state description when a past season stored no ordering board. */
+export const ORDERING_NOT_RECORDED_DESCRIPTION =
+  'This season was closed before its ordering board was recorded, so there is no stored schedule to show.';
+
+/** Failure message when a past season's stored board could not be read. */
+export const ORDERING_HISTORY_LOAD_ERROR = 'Failed to load the recorded board';

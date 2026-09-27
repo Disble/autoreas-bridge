@@ -10,6 +10,7 @@ import {
   GetSeason,
   GetSeasonAnimes,
   GetSeasonOrderingBoard,
+  GetSeasonOrderingSnapshot,
   ListSeasons,
   PickFolder,
   RecheckSeasonAvailability,
@@ -35,7 +36,7 @@ import {
   SEASON_SEND_UNAVAILABLE,
   SEASON_SOURCE_STATE,
 } from './season-source.constants';
-import type { SeasonSource } from './season-source.types';
+import type { SeasonOrderingSnapshot, SeasonSource } from './season-source.types';
 import { hasGoBinding, invokeGoBinding, waitForBindings } from '../wails-bindings.helpers';
 
 /**
@@ -121,6 +122,9 @@ export function createSeasonSource(): SeasonSource {
     },
     getOrderingBoard() {
       return invokeGoBinding('GetSeasonOrderingBoard', GetSeasonOrderingBoard, () => SEASON_EMPTY_BOARD);
+    },
+    getSeasonOrderingSnapshot(seasonId: string) {
+      return invokeGoBinding<SeasonOrderingSnapshot>('GetSeasonOrderingSnapshot', () => GetSeasonOrderingSnapshot(seasonId), () => ({ recorded: false, rail: [], grid: [] }));
     },
     saveOrderingDraft(draftJson: string) {
       return invokeGoBinding('SaveSeasonOrderingDraft', () => SaveSeasonOrderingDraft(draftJson), () => SEASON_RUNTIME_UNAVAILABLE);

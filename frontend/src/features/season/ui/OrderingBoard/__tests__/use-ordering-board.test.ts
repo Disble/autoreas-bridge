@@ -2,14 +2,17 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DragOverEvent } from '@dnd-kit/react';
 
-import type { OrderingBoard, OrderingCard, SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
-import { ORDERING_AUTOSAVE_DEBOUNCE_MS, ORDERING_DUPLICATE_WEEKDAY_ERROR } from '../ordering-board.constants';
+import type { OrderingBoard, OrderingCard, SeasonOrderingSnapshot, SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
+import { resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
+import { ORDERING_AUTOSAVE_DEBOUNCE_MS, ORDERING_DUPLICATE_WEEKDAY_ERROR, ORDERING_HISTORY_LOAD_ERROR } from '../ordering-board.constants';
 import { useOrderingBoard } from '../use-ordering-board';
 
+/** Builds one ordering card with the fields this suite cares about. */
 function card(overrides: Partial<OrderingCard> = {}): OrderingCard {
   return { animeId: 'a', name: 'A', dia: '', orden: 0, section: 'Visto', isNewcomer: false, ...overrides };
 }
 
+/** Builds a season source whose only board is the given live board, plus any case overrides. */
 function createSource(board: OrderingBoard, overrides: Partial<SeasonSource> = {}): SeasonSource {
   return {
     getSeason: vi.fn().mockResolvedValue(null),
@@ -44,6 +47,7 @@ function createSource(board: OrderingBoard, overrides: Partial<SeasonSource> = {
   };
 }
 
+/** Builds the drag-over event the hook's reshuffle callback receives. */
 function dragOverEvent(sourceId: string, targetId: string): DragOverEvent {
   return {
     preventDefault: vi.fn(),
@@ -63,8 +67,14 @@ function dragOverEvent(sourceId: string, targetId: string): DragOverEvent {
   } as unknown as DragOverEvent;
 }
 
+/** Builds a stored closure snapshot, recorded by default. */
+function snapshot(overrides: Partial<SeasonOrderingSnapshot> = {}): SeasonOrderingSnapshot {
+  return { recorded: true, rail: [], grid: [], ...overrides };
+}
+
 describe('useOrderingBoard', () => {
   afterEach(() => {
+    resetSeasonStore();
     vi.useRealTimers();
     vi.clearAllMocks();
   });
@@ -80,6 +90,26 @@ describe('useOrderingBoard', () => {
     expect(result.current.columns['Jueves'].map((c) => c.animeId)).toEqual(['g']);
     expect(result.current.changeCount).toBe(0);
     expect(result.current.readOnly).toBe(false);
+  });
+
+  it('reports the live board as recorded before AND after its read settles', async () => {
+    let resolveBoard: (value: OrderingBoard) => void = () => undefined;
+    const source = createSource(
+      { rail: [], grid: [] },
+      { getOrderingBoard: vi.fn(() => new Promise<OrderingBoard>((resolve) => { resolveBoard = resolve; })) },
+    );
+
+    const { result } = renderHook(() => useOrderingBoard(source));
+
+    expect(result.current.historicalRecorded).toBe(true);
+    expect(result.current.isHistoricalLoading).toBe(false);
+
+    await act(async () => {
+      resolveBoard({ rail: [card({ animeId: 'live-rail' })], grid: [] });
+    });
+
+    await waitFor(() => expect(result.current.rail.map((instance) => instance.animeId)).toEqual(['live-rail']));
+    expect(result.current.historicalRecorded).toBe(true);
   });
 
   it('duplicate stages a rail copy and removeCard keeps the last card (min-one)', async () => {
@@ -263,5 +293,127 @@ describe('useOrderingBoard', () => {
     await waitFor(() => expect(result.current.readOnly).toBe(false));
     expect(source.reopenOrdering).toHaveBeenCalledTimes(1);
     expect(source.getOrderingBoard).toHaveBeenCalledTimes(2);
+  });
+
+  it('loads the stored snapshot instead of the live board while viewing a past season', async () => {
+    setSeasonStoreState({ viewSeasonId: 'season-old', readOnly: true });
+    const readSnapshot = vi.fn().mockResolvedValue(snapshot({
+      appliedAt: 2,
+      rail: [card({ animeId: 'stored-rail', section: 'Visto' })],
+      grid: [card({ animeId: 'stored-grid', dia: 'Jueves', orden: 1 })],
+    }));
+    const source = createSource(
+      { rail: [card({ animeId: 'live-only' })], grid: [] },
+      { getSeasonOrderingSnapshot: readSnapshot },
+    );
+
+    const { result } = renderHook(() => useOrderingBoard(source));
+
+    await waitFor(() => expect(result.current.rail.map((instance) => instance.animeId)).toEqual(['stored-rail']));
+    expect(result.current.columns['Jueves'].map((instance) => instance.animeId)).toEqual(['stored-grid']);
+    expect(result.current.readOnly).toBe(true);
+    expect(readSnapshot).toHaveBeenCalledWith('season-old');
+    expect(source.getOrderingBoard).not.toHaveBeenCalled();
+  });
+
+  it('reports the stored board as loading until a past season snapshot resolves', async () => {
+    setSeasonStoreState({ viewSeasonId: 'season-old', readOnly: true });
+    let resolveSnapshot: (value: SeasonOrderingSnapshot) => void = () => undefined;
+    const readSnapshot = vi.fn(
+      () => new Promise<SeasonOrderingSnapshot>((resolve) => {
+        resolveSnapshot = resolve;
+      }),
+    );
+    const source = createSource({ rail: [], grid: [] }, { getSeasonOrderingSnapshot: readSnapshot });
+
+    const { result } = renderHook(() => useOrderingBoard(source));
+    expect(result.current.isHistoricalLoading).toBe(true);
+
+    await act(async () => {
+      resolveSnapshot(snapshot({ rail: [card({ animeId: 'stored-rail' })] }));
+    });
+
+    await waitFor(() => expect(result.current.isHistoricalLoading).toBe(false));
+    expect(result.current.historicalRecorded).toBe(true);
+  });
+
+  it('re-reads the stored board when the viewed past season changes', async () => {
+    setSeasonStoreState({ viewSeasonId: 'season-a', readOnly: true });
+    const readSnapshot = vi.fn((seasonId: string) => Promise.resolve(snapshot({ rail: [card({ animeId: `stored-${seasonId}` })] })));
+    const source = createSource({ rail: [], grid: [] }, { getSeasonOrderingSnapshot: readSnapshot });
+
+    const { result } = renderHook(() => useOrderingBoard(source));
+    await waitFor(() => expect(result.current.rail.map((instance) => instance.animeId)).toEqual(['stored-season-a']));
+
+    act(() => setSeasonStoreState({ viewSeasonId: 'season-b' }));
+
+    await waitFor(() => expect(result.current.rail.map((instance) => instance.animeId)).toEqual(['stored-season-b']));
+    expect(readSnapshot).toHaveBeenCalledWith('season-b');
+  });
+
+  it('stops reporting a stored-board load once the view returns to the live board', async () => {
+    setSeasonStoreState({ viewSeasonId: 'season-old', readOnly: true });
+    let resolveLiveBoard: (value: OrderingBoard) => void = () => undefined;
+    const source = createSource(
+      { rail: [], grid: [] },
+      {
+        getSeasonOrderingSnapshot: vi.fn().mockResolvedValue(snapshot({ rail: [card({ animeId: 'stored-rail' })] })),
+        getOrderingBoard: vi.fn(() => new Promise<OrderingBoard>((resolve) => { resolveLiveBoard = resolve; })),
+      },
+    );
+
+    const { result } = renderHook(() => useOrderingBoard(source));
+    await waitFor(() => expect(result.current.isHistoricalLoading).toBe(false));
+
+    act(() => setSeasonStoreState({ viewSeasonId: null }));
+
+    expect(result.current.isHistoricalLoading).toBe(false);
+
+    await act(async () => {
+      resolveLiveBoard({ rail: [], grid: [] });
+    });
+  });
+
+  it('flags an unrecorded stored board when the past season closed before capture', async () => {
+    setSeasonStoreState({ viewSeasonId: 'season-old', readOnly: true });
+    const source = createSource(
+      { rail: [card({ animeId: 'live-only' })], grid: [] },
+      { getSeasonOrderingSnapshot: vi.fn().mockResolvedValue(snapshot({ recorded: false })) },
+    );
+
+    const { result } = renderHook(() => useOrderingBoard(source));
+
+    await waitFor(() => expect(result.current.isHistoricalLoading).toBe(false));
+    expect(result.current.historicalRecorded).toBe(false);
+    expect(result.current.rail).toEqual([]);
+    expect(source.getOrderingBoard).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a stored-board read failure as resolved and unrecorded, without falling back to the live board', async () => {
+    setSeasonStoreState({ viewSeasonId: 'season-old', readOnly: true });
+    const source = createSource(
+      { rail: [card({ animeId: 'live-only' })], grid: [] },
+      { getSeasonOrderingSnapshot: vi.fn().mockRejectedValue(new Error('history read failed')) },
+    );
+
+    const { result } = renderHook(() => useOrderingBoard(source));
+
+    await waitFor(() => expect(result.current.historicalError).toBe('history read failed'));
+    expect(result.current.isHistoricalLoading).toBe(false);
+    expect(result.current.historicalRecorded).toBe(false);
+    expect(result.current.rail).toEqual([]);
+    expect(source.getOrderingBoard).not.toHaveBeenCalled();
+  });
+
+  it('reports an unavailable snapshot read as a failure, never as an unrecorded season', async () => {
+    setSeasonStoreState({ viewSeasonId: 'season-old', readOnly: true });
+    const source = createSource({ rail: [card({ animeId: 'live-only' })], grid: [] });
+
+    const { result } = renderHook(() => useOrderingBoard(source));
+
+    await waitFor(() => expect(result.current.historicalError).toBe(ORDERING_HISTORY_LOAD_ERROR));
+    expect(result.current.historicalRecorded).toBe(false);
+    expect(result.current.rail).toEqual([]);
+    expect(source.getOrderingBoard).not.toHaveBeenCalled();
   });
 });

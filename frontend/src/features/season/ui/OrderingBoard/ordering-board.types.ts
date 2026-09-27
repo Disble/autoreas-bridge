@@ -35,6 +35,19 @@ export interface OrderingCardMeta {
 }
 
 /**
+ * Which board the hook currently holds: the live schedule, or one past season's
+ * stored closure snapshot. The pair is what lets the hook tell "still reading
+ * this season's record" from "the record for this season is loaded" without a
+ * separate loading flag that a fast switch could leave stale.
+ */
+export interface OrderingBoardOrigin {
+  /** The past season whose stored board was read; null when the board is the live schedule. */
+  readonly seasonId: string | null;
+  /** Whether the stored snapshot exists; only meaningful when `seasonId` is set. */
+  readonly recorded: boolean;
+}
+
+/**
  * The board's working state: the shared ordering state specialized to Season's
  * richer card. Declaring it as `OrderingState<OrderingInstance>` rather than a
  * lookalike interface is what lets the shared transitions return Season's own

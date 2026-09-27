@@ -271,3 +271,5 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-09-27]: A shared Zustand store value in a .helpers.ts file violates the helpers-only role gate; move the value and its private command into a .store.ts module while keeping accessors in helpers and guarding store identity.
 - [2026-09-27]: Bare python - can hang under Git Bash on this Windows host; use uv run python for scripts, and bound verifier shell commands so a stuck child cannot hide test results.
 - [2026-09-27]: A nested t.Run table body trips gocognit above 15; extract the case body into an assertX(t, ...) helper so the table stays readable and the lint gate stays green.
+- [2026-09-27]: A stalled delegated worker leaves no edits and no process: diagnose with ps and git status before relaunching, and move slow or hang-prone setup (like Wails binding generation) to the parent so the worker only edits and runs focused tests.
+- [2026-09-27]: dharness mutate reuses per-mutant results from earlier runs, so it can report survivors that a hand check contradicts; re-run the same scope with -fresh before writing tests for them, and the fresh run also refreshes what the gate reads.

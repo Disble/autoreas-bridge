@@ -104,6 +104,39 @@ describe('season-source', () => {
     expect(listSeasonsMock).toHaveBeenCalledTimes(1);
   });
 
+  it('forwards getSeasonOrderingSnapshot to the live Wails binding and preserves the recorded payload', async () => {
+    const snapshot = {
+      recorded: true,
+      capturedAt: 1_700_000_000_000,
+      appliedAt: 1_699_000_000_000,
+      rail: [{ animeId: 'anime-1', name: 'Dandadan', dia: '', orden: 0, section: 'Visto', isNewcomer: true }],
+      grid: [],
+    };
+    const getSnapshotMock = vi.fn().mockResolvedValue(snapshot);
+    window.go = { desktop: { App: { GetSeasonOrderingSnapshot: getSnapshotMock } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const source = createSeasonSource();
+    const readSnapshot = source.getSeasonOrderingSnapshot;
+    expect(readSnapshot).toBeDefined();
+
+    await expect(readSnapshot!('season-2025-fall')).resolves.toEqual(snapshot);
+    expect(getSnapshotMock).toHaveBeenCalledWith('season-2025-fall');
+  });
+
+  it('degrades getSeasonOrderingSnapshot to an unrecorded snapshot when the runtime is unavailable', async () => {
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const source = createSeasonSource();
+    const readSnapshot = source.getSeasonOrderingSnapshot;
+    expect(readSnapshot).toBeDefined();
+
+    const resultPromise = readSnapshot!('season-2025-fall');
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(resultPromise).resolves.toEqual({ recorded: false, rail: [], grid: [] });
+  });
+
   it('uses the shared Wails binding readiness helper instead of local duplicate plumbing', () => {
     const seasonSourcePath = join(process.cwd(), 'src/infrastructure/season-source/season-source.helpers.ts');
     const sourceText = readFileSync(seasonSourcePath, 'utf8');

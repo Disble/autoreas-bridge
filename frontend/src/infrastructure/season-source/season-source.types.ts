@@ -60,6 +60,23 @@ export interface OrderingBoard {
   readonly appliedAt?: number | null;
 }
 
+/**
+ * The ordering board a season stored when it closed. `recorded` is false when no
+ * board was captured — a season that closed before the closure snapshot existed,
+ * or one whose payload could not be read — so history surfaces can tell "nothing
+ * was recorded" apart from a genuinely empty board instead of rendering an empty
+ * rail and grid as if they were the record.
+ */
+export interface SeasonOrderingSnapshot {
+  readonly recorded: boolean;
+  /** Epoch-ms instant the closure snapshot was captured, when recorded. */
+  readonly capturedAt?: number;
+  /** Epoch-ms instant the stored board's schedule was applied, when it had been. */
+  readonly appliedAt?: number;
+  readonly rail: readonly OrderingCard[];
+  readonly grid: readonly OrderingCard[];
+}
+
 /** Result returned after applying the season schedule. */
 export interface ApplyScheduleResult {
   readonly status: string;
@@ -109,6 +126,14 @@ export interface SeasonSource {
   readonly createSeasonAnimes: (rowIds: readonly string[], folders: Readonly<Record<string, string>>) => Promise<string>;
   readonly pickFolder: (title: string) => Promise<string>;
   readonly getOrderingBoard: () => Promise<OrderingBoard>;
+  /**
+   * Reads the ordering board stored when a closed season ended. Optional on the
+   * port so pre-existing partial test doubles and degraded sources stay
+   * assignable; the runtime adapter always provides it. A missing read is an
+   * UNAVAILABLE read, never "this season recorded nothing" — the history surface
+   * reports a failure rather than a historical claim it cannot make.
+   */
+  readonly getSeasonOrderingSnapshot?: (seasonId: string) => Promise<SeasonOrderingSnapshot>;
   readonly saveOrderingDraft: (draftJson: string) => Promise<string>;
   readonly applySchedule: () => Promise<ApplyScheduleResult>;
   readonly reopenOrdering: () => Promise<string>;
