@@ -39,19 +39,33 @@ export interface IntakeRowProps {
   readonly isSelected: boolean;
   readonly folderOverride: string | undefined;
   readonly folderPreview: string | undefined;
-  /** This row's held metadata from its last confirmed lookup, absent until then. */
-  readonly appliedMetadata: AppliedMetadata<IntakeMetadataPatch> | undefined;
+  /** The values this row currently holds, from a session lookup or from storage. */
+  readonly heldMetadata: IntakeMetadataPatch | undefined;
+  /** This row's applied record, absent when it holds nothing. */
+  readonly appliedMetadata: IntakeAppliedMetadata | undefined;
   /** The two Wails-bound MyAnimeList calls this row's lookup modal drives. */
   readonly metadataLookupSource: AnimeMetadataLookupSource;
   /** Attaches one confirmed lookup's selection to this row. */
   readonly onMetadataApplied: (selection: AnimeMetadataSelection) => void;
-  /** Reverts this row's last applied metadata patch. */
+  /** Reverts this row's last applied metadata patch, when this session applied it. */
   readonly onMetadataUndo: () => void;
+  /** Removes this row's metadata, stored and local, when the choice was wrong. */
+  readonly onMetadataClear: () => void;
   readonly onToggleSelect: () => void;
   readonly onPickFolder: () => void;
   readonly onDiscard: () => void;
   readonly onResolve: (pageUrl: string) => void;
   readonly onOpenPage: (pageUrl: string) => void;
+}
+
+/** A row's applied metadata plus whether THIS session holds the undo pre-image. */
+export interface IntakeAppliedMetadata extends AppliedMetadata<IntakeMetadataPatch> {
+  /**
+   * True only when this session applied the patch, so it also holds the pre-image
+   * Undo replays. A record that came from storage has no pre-image: the way to
+   * remove it is the clear action.
+   */
+  readonly canUndo: boolean;
 }
 
 /** Props for one intake row's own MyAnimeList lookup and whatever it attached. */
@@ -60,14 +74,27 @@ export interface IntakeRowMetadataProps {
   readonly rawName: string;
   /** True while the season is read-only; the lookup then renders nothing at all. */
   readonly readOnly: boolean;
-  /** This row's held metadata from its last confirmed lookup, absent until then. */
-  readonly appliedMetadata: AppliedMetadata<IntakeMetadataPatch> | undefined;
+  /** The values this row currently holds, absent when it holds none. */
+  readonly heldMetadata: IntakeMetadataPatch | undefined;
+  /** This row's applied record (fields applied, unfilled, and whether Undo applies). */
+  readonly appliedMetadata: IntakeAppliedMetadata | undefined;
   /** The two Wails-bound MyAnimeList calls this row's lookup modal drives. */
   readonly metadataLookupSource: AnimeMetadataLookupSource;
   /** Attaches one confirmed lookup's selection to this row. */
   readonly onMetadataApplied: (selection: AnimeMetadataSelection) => void;
-  /** Reverts this row's last applied metadata patch. */
+  /** Reverts this row's last applied metadata patch, when this session applied it. */
   readonly onMetadataUndo: () => void;
+  /** Removes this row's metadata, stored and local, when the choice was wrong. */
+  readonly onMetadataClear: () => void;
+}
+
+/** Props for a creatable intake row's availability and folder hints. */
+export interface IntakeRowHintsProps {
+  readonly row: SeasonAnimeRow;
+  /** Whether the row can be created yet; nothing is hinted while it cannot. */
+  readonly creatable: boolean;
+  /** The download folder this row overrides, absent when it inherits the default. */
+  readonly folderOverride: string | undefined;
 }
 
 /** Props for the trailing action cluster (link, folder, discard, indicator) of an intake row. */

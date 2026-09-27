@@ -67,6 +67,7 @@ function makeSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     skipGrading: vi.fn().mockResolvedValue('ok'),
     setConsideration: vi.fn().mockResolvedValue('ok'),
     confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 0, rejected: 0, quotaExceeded: false }),
+    setSeasonAnimeMetadata: vi.fn().mockResolvedValue('ok'),
     createSeasonAnimes: vi.fn().mockResolvedValue('ok'),
     pickFolder: vi.fn().mockResolvedValue(''),
     listSeasons: vi.fn().mockResolvedValue([]),
@@ -278,6 +279,18 @@ describe('useSeasonStore', () => {
     await pending;
     expect(getSeasonStoreState().busyMessage).toBeUndefined();
     expect(getSeasonStoreState().errorMessage).toBe('Failed to create animes');
+  });
+
+
+  it('setSeasonAnimeMetadata delegates the row write and surfaces its own fallback', async () => {
+    const source = makeSource({ setSeasonAnimeMetadata: vi.fn().mockResolvedValue('') });
+
+    await getSeasonStoreState().setSeasonAnimeMetadata(source, 'sa-1', '{kind:0}');
+
+    expect(source.setSeasonAnimeMetadata).toHaveBeenCalledWith('sa-1', '{kind:0}');
+    // An empty status is a failure, so the store must say so rather than leaving
+    // the user believing a wrong lookup was cleared.
+    expect(getSeasonStoreState().errorMessage).toBe('Failed to save metadata');
   });
 
   it('confirmSelection refreshes season + rows and returns the result on success', async () => {

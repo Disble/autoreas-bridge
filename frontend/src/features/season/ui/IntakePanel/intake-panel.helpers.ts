@@ -357,6 +357,68 @@ function splitMetadataList(value: string | undefined): string[] | undefined {
 }
 
 /**
+ * Drops the blank entries of a held metadata patch, so a row that lost every
+ * value (an undo back to nothing, or a lookup that confirmed only blanks) holds
+ * nothing at all instead of a record of empty fields.
+ * @param patch The held metadata patch.
+ * @returns The patch without its blank entries.
+ */
+export function compactMetadataPatch(patch: Readonly<IntakeMetadataPatch>): IntakeMetadataPatch {
+  const out: Record<string, string> = {};
+  for (const [field, value] of Object.entries(patch)) {
+    if (value !== undefined && value !== '') {
+      out[field] = value;
+    }
+  }
+  return out as IntakeMetadataPatch;
+}
+
+/**
+ * Turns a row's STORED metadata back into the display patch the row holds, so a
+ * choice confirmed before the panel was last closed reappears with the same
+ * values. It is the exact inverse of {@link toSeasonCreateMetadata}: numbers
+ * become the strings the panel shows, the lists become comma-joined text, and the
+ * typed cover becomes its URL. A field the stored record does not carry stays
+ * absent, so "not recorded" never becomes an empty value.
+ * @param stored The row's stored metadata, or undefined when it has none.
+ * @returns The display patch for that row, or undefined when nothing is stored.
+ */
+export function toHeldMetadataPatch(stored: SeasonCreateMetadata | undefined): IntakeMetadataPatch | undefined {
+  if (stored === undefined) {
+    return undefined;
+  }
+  return {
+    ...(stored.kind === undefined ? {} : { kind: String(stored.kind) }),
+    ...(stored.totalEpisodes === undefined ? {} : { totalEpisodes: String(stored.totalEpisodes) }),
+    ...(stored.durationMinutes === undefined ? {} : { duration: String(stored.durationMinutes) }),
+    ...(stored.origin === undefined || stored.origin === '' ? {} : { origin: stored.origin }),
+    ...(stored.genres === undefined ? {} : { genres: stored.genres.join(', ') }),
+    ...(stored.studios === undefined ? {} : { studios: stored.studios.join(', ') }),
+    ...(stored.cover === undefined || stored.cover.path === '' ? {} : { coverURL: stored.cover.path }),
+  };
+}
+
+/**
+ * Renders a row's held metadata as the read-only value lines the user needs to
+ * judge the choice: what a lookup attached is otherwise invisible, since the
+ * modal shows the candidate and never the values that will be written.
+ * @param patch The row's held metadata.
+ * @returns One "Label: value" line per held field, in the constants' field order.
+ */
+export function formatMetadataValues(patch: Readonly<IntakeMetadataPatch>): readonly string[] {
+  const fields = Object.keys(INTAKE_METADATA_FIELD_LABELS) as (keyof IntakeMetadataPatch)[];
+  const lines: string[] = [];
+  for (const field of fields) {
+    const value = patch[field];
+    if (value !== undefined && value !== '') {
+      lines.push(`${INTAKE_METADATA_FIELD_LABELS[field]}: ${value}`);
+    }
+  }
+  return lines;
+}
+
+/**
+ * Renders an applied patch's field labels as the row's one-line summary, so the
  * user can read WHICH metadata a lookup attached without the row reprinting
  * every value under it.
  * @param appliedFields The patch's own field names, in the order they were applied.

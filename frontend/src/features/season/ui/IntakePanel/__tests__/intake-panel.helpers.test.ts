@@ -7,15 +7,18 @@ import {
   buildRawText,
   buildSeasonCreateMetadata,
   collectFolderOverrides,
+  compactMetadataPatch,
   countMatchedWaitingForAvailability,
   countUnresolved,
   deriveIntakeDownloadFolder,
   formatAppliedMetadataFields,
   formatCandidateOption,
+  formatMetadataValues,
   getMatchStatusColor,
   getMatchStatusLabel,
   pickRowEntries,
   splitIntakeRows,
+  toHeldMetadataPatch,
   toIntakeMetadataPatch,
   toSeasonCreateMetadata,
   toggleSelection,
@@ -321,6 +324,38 @@ describe('buildSeasonCreateMetadata', () => {
   it('is empty when no picked row ever confirmed a lookup', () => {
     expect(buildSeasonCreateMetadata({}, ['sa-1'])).toEqual({});
     expect(buildSeasonCreateMetadata({ 'sa-2': { origin: 'Fantasy' } }, ['sa-1'])).toEqual({});
+  });
+});
+
+
+describe('toHeldMetadataPatch', () => {
+  it('turns stored metadata back into the values the row shows', () => {
+    expect(
+      toHeldMetadataPatch({ kind: 2, totalEpisodes: 24, durationMinutes: 45, origin: 'Manga', genres: ['Action', 'Fantasy'], studios: ['Madhouse', 'CloverWorks'], cover: { type: 'url', path: 'https://c.jpg' } }),
+    ).toStrictEqual({ kind: '2', totalEpisodes: '24', duration: '45', origin: 'Manga', genres: 'Action, Fantasy', studios: 'Madhouse, CloverWorks', coverURL: 'https://c.jpg' });
+  });
+
+  it('is undefined when the row stored nothing, and omits every blank field', () => {
+    expect(toHeldMetadataPatch(undefined)).toBeUndefined();
+    // toStrictEqual, not toEqual: a blank or absent field must be ABSENT from the
+    // display patch, never present as an empty value.
+    expect(toHeldMetadataPatch({ origin: '', cover: { type: 'url', path: '' } })).toStrictEqual({});
+    expect(toHeldMetadataPatch({ kind: 0 })).toStrictEqual({ kind: '0' });
+    expect(toHeldMetadataPatch({ genres: [] })).toStrictEqual({ genres: '' });
+  });
+});
+
+describe('compactMetadataPatch', () => {
+  it('drops blank and undefined entries and keeps the real values', () => {
+    expect(compactMetadataPatch({ name: 'Dr. Stone', kind: undefined, genres: '', origin: 'Manga' })).toStrictEqual({ name: 'Dr. Stone', origin: 'Manga' });
+    expect(compactMetadataPatch({ name: '', kind: undefined })).toStrictEqual({});
+  });
+});
+
+describe('formatMetadataValues', () => {
+  it('renders one label:value line per held field, skipping blanks', () => {
+    expect(formatMetadataValues({ name: 'Dr. Stone', kind: '0', genres: '' })).toStrictEqual(['Name: Dr. Stone', 'Type: 0']);
+    expect(formatMetadataValues({})).toStrictEqual([]);
   });
 });
 

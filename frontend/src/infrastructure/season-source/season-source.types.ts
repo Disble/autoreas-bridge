@@ -41,6 +41,14 @@ export interface SeasonAnimeRow {
   readonly folderPath?: string;
   /** Source page URL of the created anime; absent/empty when none. */
   readonly pageUrl?: string;
+  /**
+   * The MyAnimeList lookup this row's user confirmed, as stored with the row.
+   * Absent means the row never had one (or its stored payload was unreadable), so
+   * consumers can tell "no record" apart from an empty one. Its fields are the
+   * canonical anime create vocabulary, the same shape {@link SeasonCreateMetadata}
+   * sends when the row is created.
+   */
+  readonly metadata?: SeasonCreateMetadata;
 }
 
 /** One anime card on the season ordering board. */
@@ -164,6 +172,14 @@ export interface SeasonSource {
     folders: Readonly<Record<string, string>>,
     metadata: Readonly<Record<string, SeasonCreateMetadata>>,
   ) => Promise<string>;
+  /**
+   * Stores one row's confirmed MyAnimeList metadata, or clears it when the
+   * payload is empty. Required rather than optional: a source that cannot write
+   * would leave the panel claiming a choice it never persisted, and every
+   * implementation (the runtime adapter and the test doubles) must say what it
+   * does here.
+   */
+  readonly setSeasonAnimeMetadata: (rowId: string, metadataJSON: string) => Promise<string>;
   readonly pickFolder: (title: string) => Promise<string>;
   readonly getOrderingBoard: () => Promise<OrderingBoard>;
   /**

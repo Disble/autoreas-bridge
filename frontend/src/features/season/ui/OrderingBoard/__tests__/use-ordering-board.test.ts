@@ -32,6 +32,7 @@ function createSource(board: OrderingBoard, overrides: Partial<SeasonSource> = {
     skipGrading: vi.fn().mockResolvedValue('ok'),
     setConsideration: vi.fn().mockResolvedValue('ok'),
     confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 0, rejected: 0, quotaExceeded: false }),
+    setSeasonAnimeMetadata: vi.fn().mockResolvedValue('ok'),
     createSeasonAnimes: vi.fn().mockResolvedValue('ok'),
     pickFolder: vi.fn().mockResolvedValue(''),
     listSeasons: vi.fn().mockResolvedValue([]),

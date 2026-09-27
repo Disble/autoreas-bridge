@@ -93,6 +93,7 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     appliedMetadataByRow: {},
     metadataLookupSource: createMetadataSource(),
     onMetadataApplied: vi.fn(),
+    onMetadataClear: vi.fn(),
     onMetadataUndo: vi.fn(),
     availableCount: 0,
     availabilityPendingCount: 0,
@@ -268,26 +269,110 @@ describe('IntakePanel', () => {
 
   it('shows the applied metadata summary, the unfilled report and Undo for the row that has metadata', () => {
     const onMetadataUndo = vi.fn();
+    const onMetadataClear = vi.fn();
     mockHook({
       editableRows: [row({ id: 'sa-1' })],
+      metadataByRow: { 'sa-1': { name: 'Dr. Stone', kind: '0' } },
       appliedMetadataByRow: {
         'sa-1': {
           patch: { name: 'Dr. Stone', kind: '0' },
           previous: {},
+          canUndo: true,
           appliedFields: ['name', 'kind'],
           unfilled: ['Genres'],
         },
       },
       onMetadataUndo,
+      onMetadataClear,
     });
     render(<IntakePanel />);
 
-    expect(screen.getByText('Applied: Name, Type')).toBeInTheDocument();
+    expect(screen.getByText('Applied: 2 fields')).toBeInTheDocument();
     expect(screen.getByText('MyAnimeList did not provide: Genres')).toBeInTheDocument();
+    // The row shows the VALUES, not just the field names: this is the only place
+    // the user can read what the lookup will write into the anime.
+    expect(screen.getByText('Name: Dr. Stone')).toBeInTheDocument();
+    expect(screen.getByText('Type: 0')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Undo autofill' }));
-
     expect(onMetadataUndo).toHaveBeenCalledExactlyOnceWith('sa-1');
+    fireEvent.click(screen.getByRole('button', { name: 'Clear metadata' }));
+    expect(onMetadataClear).toHaveBeenCalledExactlyOnceWith('sa-1');
+  });
+
+  it('hints the available episodes and the folder override only for a creatable row', () => {
+    mockHook({
+      editableRows: [
+        row({ id: 'sa-1', matchStatus: 'matched', availability: 'available', availableEpisodes: 3 }),
+        row({ id: 'sa-2', matchStatus: 'matched', availability: 'available', availableEpisodes: 1 }),
+      ],
+      folderOverrides: { 'sa-2': 'E:/Anime/Bleach' },
+    });
+    render(<IntakePanel />);
+
+    expect(screen.getByText('3 episodes available')).toBeInTheDocument();
+    // One episode reads as singular, not as "1 episodes".
+    expect(screen.getByText('1 episode available')).toBeInTheDocument();
+    // Only the row with an override shows a folder line.
+    expect(screen.getByText('Folder: E:/Anime/Bleach')).toBeInTheDocument();
+    // A creatable row that inherits the default folder must not invent one: the
+    // regex has no trailing space so an empty "Folder:" cannot slip through.
+    expect(screen.getAllByText(/^Folder:/)).toHaveLength(1);
+  });
+
+  it('hints nothing for a row that cannot be created yet', () => {
+    mockHook({ editableRows: [row({ id: 'sa-1', availability: 'waiting', availableEpisodes: 0 })], folderOverrides: {} });
+    render(<IntakePanel />);
+
+    expect(screen.queryByText(/episodes? available/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Folder: /)).not.toBeInTheDocument();
+  });
+
+
+  it('shows a stored lookup one value at a time, with Clear but no Undo', () => {
+    const onMetadataClear = vi.fn();
+    mockHook({
+      editableRows: [row({ id: 'sa-1' })],
+      metadataByRow: { 'sa-1': { kind: '0' } },
+      appliedMetadataByRow: {
+        'sa-1': {
+          patch: { kind: '0' },
+          previous: {},
+          canUndo: false,
+          appliedFields: ['kind'],
+          unfilled: [],
+        },
+      },
+      onMetadataClear,
+    });
+    render(<IntakePanel />);
+
+    // One field reads as singular, and a record with no session pre-image offers
+    // Clear instead of Undo.
+    expect(screen.getByText('Applied: 1 field')).toBeInTheDocument();
+    expect(screen.getByText('Type: 0')).toBeInTheDocument();
+    // The value list holds exactly this one line, not an empty list.
+    expect(screen.getByTestId('intake-metadata-values').children).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Undo autofill' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear metadata' }));
+    expect(onMetadataClear).toHaveBeenCalledExactlyOnceWith('sa-1');
+  });
+
+
+  it('renders no value list for an applied record the row no longer holds values for', () => {
+    // The component's own contract, independent of the hook: a summary with nothing
+    // held must not print a placeholder value or an empty list.
+    mockHook({
+      editableRows: [row({ id: 'sa-1' })],
+      metadataByRow: {},
+      appliedMetadataByRow: {
+        'sa-1': { patch: {}, previous: {}, canUndo: false, appliedFields: [], unfilled: [] },
+      },
+    });
+    render(<IntakePanel />);
+
+    expect(screen.getByText('Applied: 0 fields')).toBeInTheDocument();
+    expect(screen.queryByTestId('intake-metadata-values')).toBeNull();
   });
 
   it('shows no applied summary and no Undo for a row with nothing applied', () => {
@@ -296,15 +381,20 @@ describe('IntakePanel', () => {
 
     expect(screen.queryByText(/^Applied: /)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Undo autofill' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear metadata' })).not.toBeInTheDocument();
+    // A row holding nothing must not render an empty value list either.
+    expect(screen.queryByTestId('intake-metadata-values')).toBeNull();
   });
 
   it('reports no unfilled fields when MyAnimeList filled everything it maps', () => {
     mockHook({
       editableRows: [row({ id: 'sa-1' })],
+      metadataByRow: { 'sa-1': { name: 'Dr. Stone', kind: '0' } },
       appliedMetadataByRow: {
         'sa-1': {
           patch: { name: 'Dr. Stone', kind: '0' },
           previous: {},
+          canUndo: true,
           appliedFields: ['name', 'kind'],
           unfilled: [],
         },
@@ -312,7 +402,7 @@ describe('IntakePanel', () => {
     });
     render(<IntakePanel />);
 
-    expect(screen.getByText('Applied: Name, Type')).toBeInTheDocument();
+    expect(screen.getByText('Applied: 2 fields')).toBeInTheDocument();
     // Nothing was missing, so the row must not invent a "did not provide" line.
     expect(screen.queryByText(/did not provide/)).not.toBeInTheDocument();
   });
@@ -320,10 +410,12 @@ describe('IntakePanel', () => {
   it('joins every unfilled field into the one report line', () => {
     mockHook({
       editableRows: [row({ id: 'sa-1' })],
+      metadataByRow: { 'sa-1': { name: 'Dr. Stone' } },
       appliedMetadataByRow: {
         'sa-1': {
           patch: { name: 'Dr. Stone' },
           previous: {},
+          canUndo: true,
           appliedFields: ['name'],
           unfilled: ['Genres', 'Studios'],
         },

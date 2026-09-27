@@ -17,15 +17,18 @@ import {
   buildRawText,
   buildSeasonCreateMetadata,
   collectFolderOverrides,
+  compactMetadataPatch,
   countMatchedWaitingForAvailability,
   countUnresolved,
   isCreatableRow,
   pickRowEntries,
   splitIntakeRows,
+  toHeldMetadataPatch,
   toIntakeMetadataPatch,
+  toSeasonCreateMetadata,
   toggleSelection,
 } from './intake-panel.helpers';
-import type { IntakeMetadataPatch, IntakeMode } from './intake-panel.types';
+import type { IntakeAppliedMetadata, IntakeMetadataPatch, IntakeMode } from './intake-panel.types';
 
 /**
  * useIntakePanel drives the dual-mode intake editor. Raw mode is a local draft
@@ -75,6 +78,7 @@ export function useIntakePanel(
   const runMatching = useSeasonStore((state) => state.runMatching);
   const resolveMatch = useSeasonStore((state) => state.resolveMatch);
   const discardName = useSeasonStore((state) => state.discardName);
+  const setSeasonAnimeMetadata = useSeasonStore((state) => state.setSeasonAnimeMetadata);
   const createSeasonAnimes = useSeasonStore((state) => state.createSeasonAnimes);
   const recheckAvailability = useSeasonStore((state) => state.recheckAvailability);
 
@@ -88,15 +92,48 @@ export function useIntakePanel(
     [downloadsRoot, editable, folderOverrides],
   );
   const editableIds = useMemo(() => new Set(editable.map((row) => row.id)), [editable]);
+  // What each row STORED from an earlier lookup, so a confirmed choice survives
+  // leaving the Season screen or reopening the app. It is the fallback under the
+  // session's own patch: a lookup confirmed now wins over what was stored, and a
+  // row that never had one contributes nothing.
+  const storedMetadataByRow = useMemo(() => {
+    const out: Record<string, IntakeMetadataPatch> = {};
+    for (const row of editable) {
+      const held = toHeldMetadataPatch(row.metadata);
+      if (held !== undefined) {
+        out[row.id] = held;
+      }
+    }
+    return out;
+  }, [editable]);
+  const heldByRow = useMemo(() => ({ ...storedMetadataByRow, ...metadataByRow }), [storedMetadataByRow, metadataByRow]);
   // Both records are narrowed to the rows still on screen rather than pruned in
   // an effect: a row that is gone cannot display its lookup, and a refresh that
   // keeps the same ids costs no state write at all. The underlying records keep
   // a departed row's entry, so an id that returns shows what it had before.
-  const visibleMetadataByRow = useMemo(() => pickRowEntries(metadataByRow, editableIds), [metadataByRow, editableIds]);
+  const visibleMetadataByRow = useMemo(() => pickRowEntries(heldByRow, editableIds), [heldByRow, editableIds]);
   const visibleAppliedMetadataByRow = useMemo(
     () => pickRowEntries(appliedMetadataByRow, editableIds),
     [appliedMetadataByRow, editableIds],
   );
+  // A row whose metadata came from STORAGE has no session pre-image, so it shows
+  // the applied summary without an Undo: the clear action is how it goes away.
+  const appliedMetadataView = useMemo(() => {
+    const out: Record<string, IntakeAppliedMetadata> = {};
+    for (const [rowId, patch] of Object.entries(visibleMetadataByRow)) {
+      // A row that holds no values has nothing to summarise: an applied record
+      // here would keep showing a chip for metadata the user just undid.
+      if (Object.keys(patch).length === 0) {
+        continue;
+      }
+      const session = visibleAppliedMetadataByRow[rowId];
+      out[rowId] =
+        session === undefined
+          ? { patch, previous: {}, appliedFields: Object.keys(patch) as (keyof IntakeMetadataPatch)[], unfilled: [], canUndo: false }
+          : { ...session, canUndo: true };
+    }
+    return out;
+  }, [visibleMetadataByRow, visibleAppliedMetadataByRow]);
 
   // 6. Callbacks
   const switchMode = useCallback(
@@ -178,9 +215,10 @@ export function useIntakePanel(
    * refused rather than attached to nothing.
    *
    * Re-applying REPLACES the row's applied patch instead of stacking a second
-   * one: the new patch's pre-image is read from what the row currently holds, so
-   * a second Undo steps back to the first apply's values instead of leaving the
-   * first patch behind.
+   * one: the new patch's pre-image is read from what the row currently holds —
+   * including what STORAGE holds — so a second Undo steps back to the first
+   * apply's values instead of leaving the first patch behind. The merged values
+   * are written to the row's own record, so the choice survives the panel.
    */
   const onMetadataApplied = useCallback(
     (rowId: string, selection: AnimeMetadataSelection) => {
@@ -188,10 +226,11 @@ export function useIntakePanel(
         return;
       }
       const patch = toIntakeMetadataPatch(selection);
-      const held: IntakeMetadataPatch = metadataByRow[rowId] ?? {};
+      const held: IntakeMetadataPatch = metadataByRow[rowId] ?? storedMetadataByRow[rowId] ?? {};
       const previous = buildUndoPatch(held, patch);
+      const merged: IntakeMetadataPatch = compactMetadataPatch({ ...held, ...patch });
 
-      setMetadataByRow((current) => ({ ...current, [rowId]: { ...current[rowId], ...patch } }));
+      setMetadataByRow((current) => ({ ...current, [rowId]: merged }));
       setAppliedMetadataByRow((current) => ({
         ...current,
         [rowId]: {
@@ -201,8 +240,29 @@ export function useIntakePanel(
           unfilled: selection.unfilled,
         },
       }));
+      // Persist exactly the fields creation will receive, so what the row shows
+      // and what the anime gets cannot drift. A failure surfaces in the panel's
+      // shared error state through the store.
+      void setSeasonAnimeMetadata(source, rowId, JSON.stringify(toSeasonCreateMetadata(merged)));
     },
-    [editableIds, metadataByRow],
+    [editableIds, metadataByRow, storedMetadataByRow, setSeasonAnimeMetadata, source],
+  );
+  /**
+   * Removes one row's metadata: the stored record and the local state the user
+   * sees. This is the whole point of the clear action — a lookup confirmed on the
+   * wrong anime must be undoable without an editor.
+   */
+  const onMetadataClear = useCallback(
+    (rowId: string) => {
+      if (!editableIds.has(rowId)) {
+        return;
+      }
+      setMetadataByRow((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== rowId)));
+      // The session's applied record needs no removal: the view only summarises rows
+      // that still hold values, so a cleared row stops showing one either way.
+      void setSeasonAnimeMetadata(source, rowId, '');
+    },
+    [editableIds, setSeasonAnimeMetadata, source],
   );
   /**
    * Reverts one row's last applied metadata patch, replaying the recorded
@@ -215,7 +275,12 @@ export function useIntakePanel(
       if (applied === undefined) {
         return;
       }
-      setMetadataByRow((current) => ({ ...current, [rowId]: { ...current[rowId], ...applied.previous } }));
+      // The pre-image restores what applied touched; a field that had no value
+      // before must leave the row holding nothing, not holding an empty string.
+      setMetadataByRow((current) => ({
+        ...current,
+        [rowId]: compactMetadataPatch({ ...current[rowId], ...applied.previous }),
+      }));
       setAppliedMetadataByRow((current) =>
         Object.fromEntries(Object.entries(current).filter(([id]) => id !== rowId)),
       );
@@ -258,10 +323,11 @@ export function useIntakePanel(
     folderPreviews,
     onPickFolder,
     metadataByRow: visibleMetadataByRow,
-    appliedMetadataByRow: visibleAppliedMetadataByRow,
+    appliedMetadataByRow: appliedMetadataView,
     metadataLookupSource: metadataSource,
     onMetadataApplied,
     onMetadataUndo,
+    onMetadataClear,
     availableCount,
     availabilityPendingCount,
     onCreate,

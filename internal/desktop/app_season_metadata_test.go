@@ -5,9 +5,11 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/season"
+	"autoreas-bridge/internal/season/domain"
 )
 
 // ── season metadata → created anime ─────────────────────────────────────────
@@ -261,6 +263,57 @@ func TestSeasonCreateMetadataJSONTagsAreCanonicalSubset(t *testing.T) {
 
 // desktopMetadataJSON is one confirmed lookup as the frontend sends it.
 const desktopMetadataJSON = `{"kind":2,"totalEpisodes":24,"durationMinutes":45,"origin":"Manga","genres":["Adventure"],"studios":["Madhouse"],"cover":{"type":"url","path":"https://cdn.myanimelist.net/images/anime/frieren.jpg"}}`
+
+// TestSeasonAnimeDTOExposesStoredMetadataAsValues proves a row's persisted
+// MyAnimeList lookup reaches the intake read as decoded VALUES, not as the raw
+// stored JSON: the row can then show what will be written to the created anime
+// without the frontend decoding the payload itself.
+func TestSeasonAnimeDTOExposesStoredMetadataAsValues(t *testing.T) {
+	t.Parallel()
+	row := domain.NewSeasonAnime("sa-a", "season-1", "Frieren", time.UnixMilli(0))
+	row.MetadataJSON = desktopMetadataJSON
+
+	metadata := seasonAnimeToDTO(row).Metadata
+	if metadata == nil {
+		t.Fatal("a recorded lookup must reach the DTO")
+	}
+	if metadata.Kind == nil || *metadata.Kind != 2 || metadata.TotalEpisodes == nil || *metadata.TotalEpisodes != 24 || metadata.DurationMinutes == nil || *metadata.DurationMinutes != 45 {
+		t.Fatalf("numbers not decoded: %#v", metadata)
+	}
+	if metadata.Origin != "Manga" || !slices.Equal(metadata.Genres, []string{"Adventure"}) || !slices.Equal(metadata.Studios, []string{"Madhouse"}) {
+		t.Fatalf("origin/lists not decoded: %#v", metadata)
+	}
+	if metadata.Cover == nil || metadata.Cover.Type != "url" || metadata.Cover.Path != "https://cdn.myanimelist.net/images/anime/frieren.jpg" {
+		t.Fatalf("cover not decoded: %#v", metadata.Cover)
+	}
+}
+
+// TestSeasonAnimeDTOMetadataAbsentOrUnreadableIsNil proves "never recorded" and
+// "stored but unreadable" are indistinguishable in the read: both leave the row
+// with no metadata, and neither fails the intake list. The stored payload is a
+// display convenience, so degrading ONE row beats hiding the whole list behind
+// it. The empty string is the storage's own sentinel for "not recorded".
+func TestSeasonAnimeDTOMetadataAbsentOrUnreadableIsNil(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		stored string
+	}{
+		{name: "no lookup was recorded", stored: ""},
+		{name: "the stored payload is not JSON at all", stored: "not json"},
+		{name: "the stored payload is valid JSON but not an object", stored: `"Manga"`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			row := domain.NewSeasonAnime("sa-a", "season-1", "Frieren", time.UnixMilli(0))
+			row.MetadataJSON = test.stored
+			if got := seasonAnimeToDTO(row).Metadata; got != nil {
+				t.Fatalf("metadata = %#v, want nil", got)
+			}
+		})
+	}
+}
 
 // TestSetSeasonAnimeMetadataBindingWritesThroughToRealRecord proves the binding
 // reaches the row SQLite actually holds: it records a confirmed lookup, clears

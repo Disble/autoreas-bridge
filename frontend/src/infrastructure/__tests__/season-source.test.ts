@@ -188,6 +188,37 @@ describe('season-source', () => {
     expect(tags).toEqual(['kind', 'totalEpisodes', 'durationMinutes', 'origin', 'genres', 'studios', 'cover']);
   });
 
+  it('stores or clears one row session metadata through the live binding', async () => {
+    const setMock = vi.fn().mockResolvedValue('ok');
+    window.go = { desktop: { App: { SetSeasonAnimeMetadata: setMock } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const source = createSeasonSource();
+
+    const write = source.setSeasonAnimeMetadata('sa-1', '{"kind":0}');
+    const clear = source.setSeasonAnimeMetadata('sa-1', '');
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(write).resolves.toBe('ok');
+    await expect(clear).resolves.toBe('ok');
+    expect(setMock).toHaveBeenNthCalledWith(1, 'sa-1', '{"kind":0}');
+    // An empty payload is how the row's metadata is cleared, so it must reach Go as empty.
+    expect(setMock).toHaveBeenNthCalledWith(2, 'sa-1', '');
+  });
+
+  it('degrades the metadata write to its runtime-unavailable message when no binding exists', async () => {
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const { SEASON_RUNTIME_UNAVAILABLE } = await import('../season-source/season-source.constants');
+
+    const write = createSeasonSource().setSeasonAnimeMetadata('sa-1', '{"kind":0}');
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    // The store surfaces this message, so a write with no runtime cannot pass as saved.
+    await expect(write).resolves.toBe(SEASON_RUNTIME_UNAVAILABLE);
+  });
+
   it('uses the shared Wails binding readiness helper instead of local duplicate plumbing', () => {
     const seasonSourcePath = join(process.cwd(), 'src/infrastructure/season-source/season-source.helpers.ts');
     const sourceText = readFileSync(seasonSourcePath, 'utf8');

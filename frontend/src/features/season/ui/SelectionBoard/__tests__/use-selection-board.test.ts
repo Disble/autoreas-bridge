@@ -5,6 +5,7 @@ import type { SeasonAnimeRow, SeasonSource } from '../../../../../infrastructure
 import { resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
 import { useSelectionBoard } from '../use-selection-board';
 
+/** Toast spy the hooks under test call for their local feedback. */
 const toastMock = vi.hoisted(() => ({
   success: vi.fn(),
   danger: vi.fn(),
@@ -12,6 +13,7 @@ const toastMock = vi.hoisted(() => ({
   warning: vi.fn(),
 }));
 
+/** Runtime-source spy the hooks under test use for desktop actions. */
 const bridgeRuntimeSourceMock = vi.hoisted(() => ({
   openAnimePage: vi.fn().mockResolvedValue({ status: 'ok' }),
   copyAnimePage: vi.fn().mockResolvedValue({ status: 'ok' }),
@@ -27,6 +29,7 @@ vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-sour
   bridgeRuntimeSource: bridgeRuntimeSourceMock,
 }));
 
+/** Builds the season port this suite drives, overriding only what a case sets. */
 function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
   return {
     getSeason: vi.fn().mockResolvedValue({ id: 's1', name: 'Julio 2026', minApprovalGrade: 4, slots: 12, status: 'open', createdAt: 0 }),
@@ -46,6 +49,7 @@ function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     skipGrading: vi.fn().mockResolvedValue('ok'),
     setConsideration: vi.fn().mockResolvedValue('ok'),
     confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 1, rejected: 1, quotaExceeded: false }),
+    setSeasonAnimeMetadata: vi.fn().mockResolvedValue('ok'),
     createSeasonAnimes: vi.fn().mockResolvedValue('ok'),
     pickFolder: vi.fn().mockResolvedValue(''),
     listSeasons: vi.fn().mockResolvedValue([]),
@@ -61,6 +65,7 @@ function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
   };
 }
 
+/** Builds a created season anime row with one grade. */
 function created(id: string, animeId: string, grade: number): SeasonAnimeRow {
   return {
     id,

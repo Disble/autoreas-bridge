@@ -21,6 +21,31 @@ type SeasonAnimeCandidateDTO struct {
 	Score   float64 `json:"score"`
 }
 
+// SeasonAnimeMetadataCoverDTO is the canonical typed cover ({type, path}) stored
+// with a confirmed lookup, the same shape the anime create contract uses.
+type SeasonAnimeMetadataCoverDTO struct {
+	Type string `json:"type"`
+	Path string `json:"path"`
+}
+
+// SeasonAnimeMetadataDTO is the confirmed MyAnimeList metadata stored for one
+// intake row, in the canonical anime create vocabulary (the same json names
+// internal/season.AnimeCreateMetadata uses). It is a typed projection on
+// purpose: the raw stored JSON never crosses the Wails boundary, and Wails does
+// not register a map[string]Struct value type in its generated models. Every
+// member is optional — an absent value means the user confirmed nothing there.
+// There is deliberately no name: the anime's name is the row's raw name, and a
+// confirmed MyAnimeList title must never rename it.
+type SeasonAnimeMetadataDTO struct {
+	Kind            *int                         `json:"kind,omitempty"`
+	TotalEpisodes   *int                         `json:"totalEpisodes,omitempty"`
+	DurationMinutes *int                         `json:"durationMinutes,omitempty"`
+	Origin          string                       `json:"origin,omitempty"`
+	Genres          []string                     `json:"genres,omitempty"`
+	Studios         []string                     `json:"studios,omitempty"`
+	Cover           *SeasonAnimeMetadataCoverDTO `json:"cover,omitempty"`
+}
+
 // SeasonAnimeDTO is the Wails-facing projection of one intake/matching row.
 // Section is the created anime's current Estrenos section (Sin ver / Ver hoy /
 // Visto) or weekday once its schedule is applied, empty for uncreated rows;
@@ -48,6 +73,9 @@ type SeasonAnimeDTO struct {
 	Consideration     string                    `json:"consideration"`
 	FolderPath        string                    `json:"folderPath"`
 	PageURL           string                    `json:"pageUrl"`
+	// Metadata is the confirmed MyAnimeList lookup stored for this row, or nil
+	// when none was recorded (or its stored payload could not be read).
+	Metadata *SeasonAnimeMetadataDTO `json:"metadata,omitempty"`
 }
 
 // ApplyScheduleDTO is the Wails-facing result of applying the ordering schedule.

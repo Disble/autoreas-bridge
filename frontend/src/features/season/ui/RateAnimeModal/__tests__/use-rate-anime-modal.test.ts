@@ -5,6 +5,7 @@ import type { SeasonSource } from '../../../../../infrastructure/season-source/s
 import { resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
 import { useRateAnimeModal } from '../use-rate-anime-modal';
 
+/** Builds the season port this suite drives, overriding only what a case sets. */
 function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
   return {
     getSeason: vi.fn().mockResolvedValue(null),
@@ -24,6 +25,7 @@ function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     skipGrading: vi.fn().mockResolvedValue('ok'),
     setConsideration: vi.fn().mockResolvedValue('ok'),
     confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 0, rejected: 0, quotaExceeded: false }),
+    setSeasonAnimeMetadata: vi.fn().mockResolvedValue('ok'),
     createSeasonAnimes: vi.fn().mockResolvedValue('ok'),
     pickFolder: vi.fn().mockResolvedValue(''),
     listSeasons: vi.fn().mockResolvedValue([]),

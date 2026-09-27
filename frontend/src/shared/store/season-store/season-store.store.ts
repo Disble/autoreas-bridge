@@ -254,6 +254,11 @@ export const seasonStore = createStore<SeasonStoreState>()((set, get) => ({
   createSeasonAnimes: async (source, rowIds, folders, metadata) => {
     await runIntakeCommand(get, set, () => source.createSeasonAnimes(rowIds, folders, metadata), source, 'Failed to create animes', 'Creating animes…');
   },
+  setSeasonAnimeMetadata: async (source, rowId, metadataJSON) => {
+    // No busy message: the write is a single row update and the panel already
+    // shows the value it just saved. A failure lands in the shared error state.
+    await runIntakeCommand(get, set, () => source.setSeasonAnimeMetadata(rowId, metadataJSON), source, 'Failed to save metadata');
+  },
 
   confirmSelection: async (source) => {
     if (get().readOnly) {

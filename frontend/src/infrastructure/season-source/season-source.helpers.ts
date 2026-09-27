@@ -23,6 +23,7 @@ import {
   SetAnimeDays,
   SetSeasonConsideration,
   SetSeasonGrade,
+  SetSeasonAnimeMetadata,
   SetSeasonMinApprovalGrade,
   SetSeasonSlots,
   SkipSeasonGrading,
@@ -65,6 +66,13 @@ export function createSeasonSource(): SeasonSource {
     },
     getSeasonAnimes() {
       return invokeGoBinding('GetSeasonAnimes', GetSeasonAnimes, () => []);
+    },
+    setSeasonAnimeMetadata(rowId: string, metadataJSON: string) {
+      return invokeGoBinding(
+        'SetSeasonAnimeMetadata',
+        () => SetSeasonAnimeMetadata(rowId, metadataJSON),
+        () => SEASON_RUNTIME_UNAVAILABLE,
+      );
     },
     listSeasons() {
       return invokeGoBinding('ListSeasons', ListSeasons, () => []);

@@ -1,120 +1,11 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonAnimeRow, SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
-import type { AnimeMetadataSelection } from '../../../../../shared/metadata-lookup/metadata-lookup.types';
-import type { AnimeMetadataLookupSource } from '../../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
+import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
 import { getSeasonStoreState, resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
+import { createDownloadsRootSource, createMetadataSource, createSource, createSourceWithRows, seasonRow, selection } from './intake-panel.test-support';
 import { useIntakePanel } from '../use-intake-panel';
 
-/**
- * Builds the preferences port the hook reads the downloads root from, so a case
- * only states the root it cares about.
- * @param root The downloads root the port reports.
- * @returns A preferences port suitable for {@link useIntakePanel}.
- */
-function createDownloadsRootSource(root = 'D:/Anime') {
-  return {
-    getDownloadsRoot: vi.fn().mockResolvedValue(root),
-  };
-}
-
-/**
- * Builds the season port every row mutation goes through, defaulting every call
- * to a benign no-op so a case only overrides the call it exercises.
- * @param overrides Per-test port replacements.
- * @returns A season port suitable for {@link useIntakePanel}.
- */
-function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
-  return {
-    getSeason: vi.fn().mockResolvedValue(null),
-    createSeason: vi.fn().mockResolvedValue('ok'),
-    setMinApprovalGrade: vi.fn().mockResolvedValue('ok'),
-    setSlots: vi.fn().mockResolvedValue('ok'),
-    closeSeason: vi.fn().mockResolvedValue('ok'),
-    getSeasonAnimes: vi.fn().mockResolvedValue([] as SeasonAnimeRow[]),
-    reconcileIntake: vi.fn().mockResolvedValue('ok'),
-    sendToVerHoy: vi.fn().mockResolvedValue('ok'),
-    triggerSeasonDownloads: vi.fn().mockResolvedValue('ok'),
-    runMatching: vi.fn().mockResolvedValue('ok'),
-    resolveMatch: vi.fn().mockResolvedValue('ok'),
-    discardName: vi.fn().mockResolvedValue('ok'),
-    setAnimeDays: vi.fn().mockResolvedValue('ok'),
-    setGrade: vi.fn().mockResolvedValue('ok'),
-    skipGrading: vi.fn().mockResolvedValue('ok'),
-    setConsideration: vi.fn().mockResolvedValue('ok'),
-    confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 0, rejected: 0, quotaExceeded: false }),
-    createSeasonAnimes: vi.fn().mockResolvedValue('ok'),
-    pickFolder: vi.fn().mockResolvedValue(''),
-    listSeasons: vi.fn().mockResolvedValue([]),
-    getPastSeason: vi.fn().mockResolvedValue(null),
-    getPastSeasonAnimes: vi.fn().mockResolvedValue([]),
-    getOrderingBoard: vi.fn().mockResolvedValue({ rail: [], grid: [] }),
-    saveOrderingDraft: vi.fn().mockResolvedValue('ok'),
-    applySchedule: vi.fn().mockResolvedValue({ status: 'ok', applied: 0, failed: [] }),
-    reopenOrdering: vi.fn().mockResolvedValue('ok'),
-    recheckAvailability: vi.fn().mockResolvedValue('ok'),
-    openPage: vi.fn(),
-    ...overrides,
-  };
-}
-
-/**
- * Builds the one MyAnimeList call pair the hook hands each row's lookup modal,
- * resolving with no candidates so no case accidentally drives a real lookup.
- * @returns A fake lookup source suitable for {@link useIntakePanel}.
- */
-function createMetadataSource(): AnimeMetadataLookupSource {
-  return {
-    SearchMyAnimeList: vi.fn().mockResolvedValue({ outcome: 'no_op', message: '', candidates: [] }),
-    GetMyAnimeListDetail: vi.fn().mockResolvedValue({ outcome: 'no_op', message: '' }),
-  };
-}
-
-/**
- * Builds an editable intake row, so a metadata case states only its id and name.
- * @param overrides Per-test row replacements.
- * @returns A pending, uncreated intake row.
- */
-function seasonRow(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
-  return {
-    id: 'sa-1',
-    rawName: 'Dr. Stone',
-    matchStatus: 'pending',
-    matchedSlug: '',
-    candidates: [],
-    availability: 'waiting',
-    availableEpisodes: 0,
-    animeId: '',
-    section: '',
-    sectionOrder: 0,
-    grade: 0,
-    gradeSource: '',
-    skipGrading: false,
-    consideration: 'none',
-    ...overrides,
-  };
-}
-
-/**
- * Builds a confirmed lookup result, carrying the two mapped fields the metadata
- * cases assert on unless a case overrides them (including their removal).
- * @param overrides Per-test selection replacements.
- * @returns A confirmed lookup selection.
- */
-function selection(overrides: Partial<AnimeMetadataSelection> = {}): AnimeMetadataSelection {
-  return { name: 'Dr. Stone', kind: '0', unfilled: [], ...overrides };
-}
-
-/**
- * Builds a source whose intake list holds the given rows, so a case can change
- * the list mid-test and drive a real store refresh.
- * @param rows The rows the season port returns.
- * @returns A season port holding `rows`.
- */
-function createSourceWithRows(rows: readonly SeasonAnimeRow[]): SeasonSource {
-  return createSource({ getSeasonAnimes: vi.fn().mockResolvedValue([...rows]) });
-}
 
 describe('useIntakePanel', () => {
   afterEach(() => {
@@ -297,6 +188,7 @@ describe('useIntakePanel', () => {
       previous: { name: undefined, kind: undefined },
       appliedFields: ['name', 'kind'],
       unfilled: [],
+      canUndo: true,
     });
   });
 
@@ -340,7 +232,93 @@ describe('useIntakePanel', () => {
     expect(result.current.metadataByRow['sa-1']?.name).toBe('Dr. Stone');
     expect(result.current.metadataByRow['sa-1']?.kind).toBe('0');
     expect(result.current.metadataByRow['sa-1']?.genres).toBeUndefined();
+    // The first apply's values are still held, so the summary stays — without an
+    // Undo, because this session no longer holds a pre-image for them.
+    expect(result.current.appliedMetadataByRow['sa-1']?.patch).toEqual({ name: 'Dr. Stone', kind: '0' });
+    expect(result.current.appliedMetadataByRow['sa-1']?.canUndo).toBe(false);
+  });
+
+  it('seeds a row from its STORED metadata, so a saved choice survives a reload', async () => {
+    const source = createSourceWithRows([
+      seasonRow({
+        id: 'sa-1',
+        metadata: { kind: 0, totalEpisodes: 24, durationMinutes: 45, origin: 'Manga', genres: ['Action', 'Fantasy'], studios: ['Madhouse'], cover: { type: 'url', path: 'https://c.jpg' } },
+      }),
+    ]);
+    const { result } = renderHook(() => useIntakePanel(source, createDownloadsRootSource(), createMetadataSource()));
+    await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
+
+    // Nothing was applied in this session, yet the row shows what storage holds.
+    expect(result.current.metadataByRow['sa-1']).toEqual({
+      kind: '0',
+      totalEpisodes: '24',
+      duration: '45',
+      origin: 'Manga',
+      genres: 'Action, Fantasy',
+      studios: 'Madhouse',
+      coverURL: 'https://c.jpg',
+    });
+    expect(result.current.appliedMetadataByRow['sa-1']?.appliedFields).toEqual([
+      'kind',
+      'totalEpisodes',
+      'duration',
+      'origin',
+      'genres',
+      'studios',
+      'coverURL',
+    ]);
+    // Storage holds no pre-image, so the summary offers no Undo — Clear is how it goes.
+    expect(result.current.appliedMetadataByRow['sa-1']?.canUndo).toBe(false);
+    // Nothing came from this session's lookup, so there is no unfilled report.
+    expect(result.current.appliedMetadataByRow['sa-1']?.unfilled).toEqual([]);
+  });
+
+  it('persists the merged metadata when a lookup is confirmed, and clears the stored row too', async () => {
+    const source = createSourceWithRows([seasonRow({ id: 'sa-1' })]);
+    const { result } = renderHook(() => useIntakePanel(source, createDownloadsRootSource(), createMetadataSource()));
+    await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
+
+    act(() => result.current.onMetadataApplied('sa-1', selection({ kind: '0', totalEpisodes: '24', genres: 'Action' })));
+
+    // Exactly the fields creation will receive, so what the row shows and what the
+    // anime gets cannot drift.
+    expect(source.setSeasonAnimeMetadata).toHaveBeenCalledWith('sa-1', '{"kind":0,"totalEpisodes":24,"genres":["Action"]}');
+
+    act(() => result.current.onMetadataClear('sa-1'));
+
+    // Clear removes the stored record AND the local state the user sees.
+    expect(source.setSeasonAnimeMetadata).toHaveBeenLastCalledWith('sa-1', '');
+    expect(result.current.metadataByRow['sa-1']).toBeUndefined();
     expect(result.current.appliedMetadataByRow['sa-1']).toBeUndefined();
+  });
+
+
+  it('clears only the row it was asked for, leaving another row session metadata alone', async () => {
+    const source = createSourceWithRows([seasonRow({ id: 'sa-1' }), seasonRow({ id: 'sa-2', rawName: 'Bleach' })]);
+    const { result } = renderHook(() => useIntakePanel(source, createDownloadsRootSource(), createMetadataSource()));
+    await waitFor(() => expect(result.current.editableRows).toHaveLength(2));
+    act(() => result.current.onMetadataApplied('sa-1', selection()));
+    act(() => result.current.onMetadataApplied('sa-2', selection({ name: 'Bleach' })));
+
+    act(() => result.current.onMetadataClear('sa-1'));
+
+    expect(source.setSeasonAnimeMetadata).toHaveBeenLastCalledWith('sa-1', '');
+    expect(result.current.metadataByRow['sa-1']).toBeUndefined();
+    expect(result.current.appliedMetadataByRow['sa-1']).toBeUndefined();
+    // The other row keeps its metadata AND its session Undo.
+    expect(result.current.metadataByRow['sa-2']?.name).toBe('Bleach');
+    expect(result.current.appliedMetadataByRow['sa-2']?.canUndo).toBe(true);
+  });
+
+  it('refuses to clear metadata for a row the intake list does not show', async () => {
+    const source = createSourceWithRows([seasonRow({ id: 'sa-1' })]);
+    const { result } = renderHook(() => useIntakePanel(source, createDownloadsRootSource(), createMetadataSource()));
+    await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
+
+    act(() => result.current.onMetadataClear('sa-gone'));
+
+    // Nothing was written for a row that is not there.
+    expect(source.setSeasonAnimeMetadata).not.toHaveBeenCalled();
   });
 
   it('undoes nothing for a row with no applied metadata', async () => {
