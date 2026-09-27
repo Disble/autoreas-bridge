@@ -2,6 +2,12 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
+import {
+  METADATA_LOOKUP_CANCEL_LABEL,
+  METADATA_LOOKUP_CONFIRM_LABEL,
+  METADATA_LOOKUP_TRIGGER_LABEL,
+} from '../../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/anime-metadata-lookup.constants';
+import type { AnimeMetadataLookupSource } from '../../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
 import { IntakePanel } from '../IntakePanel';
 import { useIntakePanel } from '../use-intake-panel';
 
@@ -9,9 +15,16 @@ vi.mock('../use-intake-panel', () => ({
   useIntakePanel: vi.fn(),
 }));
 
+/** The mocked panel hook, so a case can state the state it renders. */
 const mockedUseIntakePanel = vi.mocked(useIntakePanel);
+/** Everything the mocked panel hook returns. */
 type HookReturn = ReturnType<typeof useIntakePanel>;
 
+/**
+ * Builds one editable intake row, so a case states only the fields it asserts on.
+ * @param overrides Per-test row replacements.
+ * @returns A pending, uncreated intake row.
+ */
 function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
   return {
     id: 'sa-1',
@@ -29,6 +42,40 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
   };
 }
 
+/**
+ * Builds the two MyAnimeList calls the row lookup modal drives: one search
+ * candidate, and that candidate's detail page once it is confirmed.
+ * @param overrides Per-test call replacements.
+ * @returns A fake lookup source whose calls stay assertable.
+ */
+function createMetadataSource(overrides: Partial<AnimeMetadataLookupSource> = {}): AnimeMetadataLookupSource {
+  return {
+    SearchMyAnimeList: vi.fn().mockResolvedValue({
+      outcome: 'applied',
+      message: 'search ok',
+      candidates: [{ malId: 2, name: 'Bleach' }],
+    }),
+    GetMyAnimeListDetail: vi.fn().mockResolvedValue({
+      outcome: 'applied',
+      message: 'detail ok',
+      title: 'Bleach',
+      type: 'TV',
+      episodes: '366',
+      duration: '24 min.',
+      source: 'Manga',
+      genres: ['Action'],
+      studios: ['Studio Pierrot'],
+    }),
+    ...overrides,
+  };
+}
+
+/**
+ * Builds the panel hook's return value, so a case overrides only the fields it
+ * renders instead of restating the whole contract.
+ * @param overrides Per-test hook-return replacements.
+ * @returns The hook value the mocked hook now returns.
+ */
 function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
   const value: HookReturn = {
     readOnly: false,
@@ -42,6 +89,11 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     folderOverrides: {},
     folderPreviews: {},
     onPickFolder: vi.fn(),
+    metadataByRow: {},
+    appliedMetadataByRow: {},
+    metadataLookupSource: createMetadataSource(),
+    onMetadataApplied: vi.fn(),
+    onMetadataUndo: vi.fn(),
     availableCount: 0,
     availabilityPendingCount: 0,
     onCreate: vi.fn(),
@@ -171,6 +223,115 @@ describe('IntakePanel', () => {
     expect(screen.queryByRole('button', { name: 'Run matching' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Raw' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Discard Dr. Stone' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: METADATA_LOOKUP_TRIGGER_LABEL })).not.toBeInTheDocument();
+  });
+
+  it('offers one lookup per row and attaches a confirmed result to that row only', async () => {
+    const metadataSource = createMetadataSource();
+    const onMetadataApplied = vi.fn();
+    mockHook({
+      editableRows: [row({ id: 'sa-1' }), row({ id: 'sa-2', rawName: 'Bleach' })],
+      metadataLookupSource: metadataSource,
+      onMetadataApplied,
+    });
+    render(<IntakePanel />);
+
+    const triggers = screen.getAllByRole('button', { name: METADATA_LOOKUP_TRIGGER_LABEL });
+    expect(triggers).toHaveLength(2);
+
+    fireEvent.click(triggers[1]);
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'bleach' } });
+    fireEvent.click(await screen.findByRole('button', { name: /Bleach/ }));
+    fireEvent.click(screen.getByRole('button', { name: METADATA_LOOKUP_CONFIRM_LABEL }));
+
+    await vi.waitFor(() => {
+      expect(onMetadataApplied).toHaveBeenCalledExactlyOnceWith(
+        'sa-2',
+        expect.objectContaining({ name: 'Bleach', kind: '0' }),
+      );
+    });
+    expect(metadataSource.GetMyAnimeListDetail).toHaveBeenCalledExactlyOnceWith(2);
+  });
+
+  it('fetches no detail page for a lookup that is only opened and cancelled', () => {
+    const metadataSource = createMetadataSource();
+    const onMetadataApplied = vi.fn();
+    mockHook({ editableRows: [row()], metadataLookupSource: metadataSource, onMetadataApplied });
+    render(<IntakePanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: METADATA_LOOKUP_TRIGGER_LABEL }));
+    fireEvent.click(screen.getByRole('button', { name: METADATA_LOOKUP_CANCEL_LABEL }));
+
+    expect(metadataSource.GetMyAnimeListDetail).not.toHaveBeenCalled();
+    expect(onMetadataApplied).not.toHaveBeenCalled();
+  });
+
+  it('shows the applied metadata summary, the unfilled report and Undo for the row that has metadata', () => {
+    const onMetadataUndo = vi.fn();
+    mockHook({
+      editableRows: [row({ id: 'sa-1' })],
+      appliedMetadataByRow: {
+        'sa-1': {
+          patch: { name: 'Dr. Stone', kind: '0' },
+          previous: {},
+          appliedFields: ['name', 'kind'],
+          unfilled: ['Genres'],
+        },
+      },
+      onMetadataUndo,
+    });
+    render(<IntakePanel />);
+
+    expect(screen.getByText('Applied: Name, Type')).toBeInTheDocument();
+    expect(screen.getByText('MyAnimeList did not provide: Genres')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo autofill' }));
+
+    expect(onMetadataUndo).toHaveBeenCalledExactlyOnceWith('sa-1');
+  });
+
+  it('shows no applied summary and no Undo for a row with nothing applied', () => {
+    mockHook({ editableRows: [row({ id: 'sa-1' })] });
+    render(<IntakePanel />);
+
+    expect(screen.queryByText(/^Applied: /)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Undo autofill' })).not.toBeInTheDocument();
+  });
+
+  it('reports no unfilled fields when MyAnimeList filled everything it maps', () => {
+    mockHook({
+      editableRows: [row({ id: 'sa-1' })],
+      appliedMetadataByRow: {
+        'sa-1': {
+          patch: { name: 'Dr. Stone', kind: '0' },
+          previous: {},
+          appliedFields: ['name', 'kind'],
+          unfilled: [],
+        },
+      },
+    });
+    render(<IntakePanel />);
+
+    expect(screen.getByText('Applied: Name, Type')).toBeInTheDocument();
+    // Nothing was missing, so the row must not invent a "did not provide" line.
+    expect(screen.queryByText(/did not provide/)).not.toBeInTheDocument();
+  });
+
+  it('joins every unfilled field into the one report line', () => {
+    mockHook({
+      editableRows: [row({ id: 'sa-1' })],
+      appliedMetadataByRow: {
+        'sa-1': {
+          patch: { name: 'Dr. Stone' },
+          previous: {},
+          appliedFields: ['name'],
+          unfilled: ['Genres', 'Studios'],
+        },
+      },
+    });
+    render(<IntakePanel />);
+
+    expect(screen.getByText('MyAnimeList did not provide: Genres, Studios')).toBeInTheDocument();
   });
 
   it('surfaces an error message', () => {

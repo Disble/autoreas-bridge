@@ -1,6 +1,7 @@
 import type { SeasonAnimeCandidate, SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
-import { MATCH_STATUS_LABELS } from './intake-panel.constants';
-import type { IntakeChipColor } from './intake-panel.types';
+import type { AnimeMetadataSelection } from '../../../../shared/metadata-lookup/metadata-lookup.types';
+import { INTAKE_METADATA_FIELD_LABELS, MATCH_STATUS_LABELS } from './intake-panel.constants';
+import type { IntakeChipColor, IntakeMetadataPatch } from './intake-panel.types';
 
 /**
  * Strips trailing dots and spaces, which Windows silently drops from a folder
@@ -250,4 +251,62 @@ export function toggleSelection(selected: ReadonlySet<string>, rowId: string): R
     next.add(rowId);
   }
   return next;
+}
+
+/**
+ * Performs hop two of the MAL-to-bridge translation for ONE intake row: turns a
+ * confirmed lookup's neutral {@link AnimeMetadataSelection} into the metadata
+ * that row holds. Every field is read from an explicit allow-list, exactly as
+ * the Create row's own mapper does, so the intake row's protected fields --
+ * download page, download folder, watched episodes, estado, first-watch date --
+ * have no code path into the result at all. The result is neither persisted nor
+ * sent to creation in this slice; it is only shown back to the user.
+ * @param selection The confirmed lookup's normalized, source-agnostic result.
+ * @returns The row's held metadata, holding only the fields `selection` mapped.
+ */
+export function toIntakeMetadataPatch(selection: Readonly<AnimeMetadataSelection>): IntakeMetadataPatch {
+  return {
+    name: selection.name,
+    ...(selection.kind === undefined ? {} : { kind: selection.kind }),
+    ...(selection.totalEpisodes === undefined ? {} : { totalEpisodes: selection.totalEpisodes }),
+    ...(selection.duration === undefined ? {} : { duration: selection.duration }),
+    ...(selection.origin === undefined ? {} : { origin: selection.origin }),
+    ...(selection.genres === undefined ? {} : { genres: selection.genres }),
+    ...(selection.studios === undefined ? {} : { studios: selection.studios }),
+    ...(selection.coverURL === undefined ? {} : { coverURL: selection.coverURL }),
+  };
+}
+
+/**
+ * Renders an applied patch's field labels as the row's one-line summary, so the
+ * user can read WHICH metadata a lookup attached without the row reprinting
+ * every value under it.
+ * @param appliedFields The patch's own field names, in the order they were applied.
+ * @returns Those fields' readable labels joined by ", ".
+ */
+export function formatAppliedMetadataFields(appliedFields: readonly (keyof IntakeMetadataPatch)[]): string {
+  return appliedFields.map((field) => INTAKE_METADATA_FIELD_LABELS[field]).join(', ');
+}
+
+/**
+ * Narrows a row-keyed record of held values (a row's metadata, a row's applied
+ * patch) to the rows the intake list still shows, so one row's lookup result
+ * cannot outlive the row it belongs to. Reordering rows and an unrelated store
+ * refresh change no id: this returns `byRow` itself in that case rather than a
+ * fresh copy, so a refresh with the same rows does not churn the record.
+ * @param byRow Row id -> stored value.
+ * @param rowIds The row ids the intake list currently shows.
+ * @returns `byRow` when every stored row is still shown, else the narrowed copy.
+ */
+export function pickRowEntries<TValue>(
+  byRow: Readonly<Record<string, TValue>>,
+  rowIds: ReadonlySet<string>,
+): Readonly<Record<string, TValue>> {
+  const kept: Record<string, TValue> = {};
+  for (const [rowId, value] of Object.entries(byRow)) {
+    if (rowIds.has(rowId)) {
+      kept[rowId] = value;
+    }
+  }
+  return Object.keys(kept).length === Object.keys(byRow).length ? byRow : kept;
 }

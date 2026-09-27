@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
+import type { AnimeMetadataSelection } from '../../../../../shared/metadata-lookup/metadata-lookup.types';
 import {
   buildFolderPreviews,
   buildRawText,
@@ -8,10 +9,13 @@ import {
   countMatchedWaitingForAvailability,
   countUnresolved,
   deriveIntakeDownloadFolder,
+  formatAppliedMetadataFields,
   formatCandidateOption,
   getMatchStatusColor,
   getMatchStatusLabel,
+  pickRowEntries,
   splitIntakeRows,
+  toIntakeMetadataPatch,
   toggleSelection,
 } from '../intake-panel.helpers';
 
@@ -203,5 +207,92 @@ describe('toggleSelection', () => {
 
     expect(next).not.toBe(previous);
     expect([...previous]).toEqual(['sa-1']);
+  });
+});
+
+/** Every field a confirmed lookup can map, so a case can blank exactly one. */
+const FULL_SELECTION: AnimeMetadataSelection = {
+  name: 'Dr. Stone',
+  kind: '0',
+  totalEpisodes: '24',
+  duration: '24 min.',
+  origin: 'Manga',
+  genres: 'Action, Adventure',
+  studios: 'TMS Entertainment',
+  coverURL: 'https://cdn.myanimelist.net/images/anime/1.jpg',
+  unfilled: ['Studios'],
+};
+
+describe('toIntakeMetadataPatch', () => {
+  it('maps every allow-listed field of a confirmed selection', () => {
+    expect(toIntakeMetadataPatch(FULL_SELECTION)).toEqual({
+      name: 'Dr. Stone',
+      kind: '0',
+      totalEpisodes: '24',
+      duration: '24 min.',
+      origin: 'Manga',
+      genres: 'Action, Adventure',
+      studios: 'TMS Entertainment',
+      coverURL: 'https://cdn.myanimelist.net/images/anime/1.jpg',
+    });
+  });
+
+  it('omits an optional field the lookup did not map instead of defaulting it', () => {
+    expect(toIntakeMetadataPatch({ name: 'Dr. Stone', unfilled: ['Type'] })).toEqual({ name: 'Dr. Stone' });
+  });
+
+  it('has no path into the intake row protected fields, even when the selection carries them', () => {
+    const selectionWithProtectedFields = {
+      ...FULL_SELECTION,
+      pageUrl: 'https://jkanime.net/dr-stone/',
+      folderPath: 'D:/Anime/Dr. Stone',
+      episodesWatched: '5',
+      estado: 'viendo',
+      firstWatchDate: '2024-01-01',
+    } as unknown as AnimeMetadataSelection;
+
+    const patch = toIntakeMetadataPatch(selectionWithProtectedFields);
+
+    expect(Object.keys(patch).sort()).toEqual([
+      'coverURL',
+      'duration',
+      'genres',
+      'kind',
+      'name',
+      'origin',
+      'studios',
+      'totalEpisodes',
+    ]);
+    expect(patch).not.toHaveProperty('pageUrl');
+    expect(patch).not.toHaveProperty('folderPath');
+  });
+});
+
+describe('formatAppliedMetadataFields', () => {
+  it('labels exactly the fields the patch applied, in patch order', () => {
+    expect(formatAppliedMetadataFields(['name', 'kind'])).toBe('Name, Type');
+    expect(formatAppliedMetadataFields(['totalEpisodes', 'genres', 'coverURL'])).toBe('Episodes, Genres, Cover');
+  });
+
+  it('renders nothing for a patch that applied nothing', () => {
+    expect(formatAppliedMetadataFields([])).toBe('');
+  });
+});
+
+describe('pickRowEntries', () => {
+  it('keeps the record itself while every stored row is still shown, whatever the order', () => {
+    const entries = { 'sa-1': 'one', 'sa-2': 'two' };
+
+    expect(pickRowEntries(entries, new Set(['sa-2', 'sa-1', 'sa-3']))).toBe(entries);
+  });
+
+  it('drops the entries whose row left the list and keeps the rest', () => {
+    const entries = { 'sa-1': 'one', 'sa-2': 'two' };
+
+    expect(pickRowEntries(entries, new Set(['sa-2']))).toEqual({ 'sa-2': 'two' });
+  });
+
+  it('narrows every entry away when no row is left', () => {
+    expect(pickRowEntries({ 'sa-1': 'one' }, new Set<string>())).toEqual({});
   });
 });

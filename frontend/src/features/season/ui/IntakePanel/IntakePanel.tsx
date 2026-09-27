@@ -24,6 +24,10 @@ export function IntakePanel() {
     folderOverrides,
     folderPreviews,
     onPickFolder,
+    appliedMetadataByRow,
+    metadataLookupSource,
+    onMetadataApplied,
+    onMetadataUndo,
     availableCount,
     availabilityPendingCount,
     onCreate,
@@ -84,12 +88,16 @@ export function IntakePanel() {
               {editableRows.map((row) => (
                 <IntakeRow
                   key={row.id}
+                  appliedMetadata={appliedMetadataByRow[row.id]}
                   folderOverride={folderOverrides[row.id]}
                   folderPreview={folderPreviews[row.id]}
                   isSelected={selected.has(row.id)}
+                  metadataLookupSource={metadataLookupSource}
                   readOnly={readOnly}
                   row={row}
                   onDiscard={() => onDiscard(row.id)}
+                  onMetadataApplied={(selection) => onMetadataApplied(row.id, selection)}
+                  onMetadataUndo={() => onMetadataUndo(row.id)}
                   onOpenPage={onOpenPage}
                   onPickFolder={() => onPickFolder(row.id)}
                   onResolve={(pageUrl) => onResolve(row.id, pageUrl)}

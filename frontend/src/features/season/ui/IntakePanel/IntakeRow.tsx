@@ -1,14 +1,16 @@
 import { Button, Chip } from '@heroui/react';
-import { LabeledCheckbox } from '../../../../shared/ui/LabeledCheckbox';
-import { IntakeRowActions } from './IntakeRowActions';
 import { formatCandidateOption, getMatchStatusColor, getMatchStatusLabel, isCreatableRow } from './intake-panel.helpers';
+import { IntakeRowActions } from './IntakeRowActions';
+import { IntakeRowMetadata } from './IntakeRowMetadata';
+import { LabeledCheckbox } from '../../../../shared/ui/LabeledCheckbox';
 import type { IntakeRowProps } from './intake-panel.types';
 
 /**
  * IntakeRow renders one editable intake row in List mode: its create checkbox,
- * match-status chip, availability hint, the trailing action cluster, and the
- * candidate picker for unresolved matches. Purely presentational — all
- * selection and I/O callbacks come from the parent panel.
+ * match-status chip, availability hint, the trailing action cluster, the
+ * candidate picker for unresolved matches, and the row's own MyAnimeList lookup
+ * with whatever it attached. Purely presentational -- all selection, lookup and
+ * I/O callbacks come from the parent panel.
  */
 export function IntakeRow({
   row,
@@ -16,6 +18,10 @@ export function IntakeRow({
   isSelected,
   folderOverride,
   folderPreview,
+  appliedMetadata,
+  metadataLookupSource,
+  onMetadataApplied,
+  onMetadataUndo,
   onToggleSelect,
   onPickFolder,
   onDiscard,
@@ -51,6 +57,17 @@ export function IntakeRow({
         {creatable && folderOverride !== undefined && (
           <span className="w-full break-all text-xs text-success">Folder: {folderOverride}</span>
         )}
+        {/* The lookup lives on the row itself, brought in by the panel: no other
+            row's name can reach it, and only a confirmed candidate is fetched.
+            What it attached stays here for the session only. */}
+        <IntakeRowMetadata
+          rawName={row.rawName}
+          readOnly={readOnly}
+          appliedMetadata={appliedMetadata}
+          metadataLookupSource={metadataLookupSource}
+          onMetadataApplied={onMetadataApplied}
+          onMetadataUndo={onMetadataUndo}
+        />
         {!readOnly && row.candidates.length > 0 && row.matchStatus !== 'matched' && (
           <div className="flex w-full flex-wrap gap-2">
             {row.candidates.map((candidate) => (
