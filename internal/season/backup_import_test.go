@@ -60,6 +60,9 @@ func TestImportSeasonsReplacesExistingRows(t *testing.T) {
 	if len(ids) != 1 || ids[0] != "new-season" {
 		t.Fatalf("expected exactly [new-season] after full refresh, got %v", ids)
 	}
+	// A bundle whose record omits closure_json decodes to SQL NULL ("not
+	// captured"), never to an empty snapshot.
+	assertClosureRawNull(t, db, "new-season")
 }
 
 func TestImportSeasonAnimesReplacesExistingRows(t *testing.T) {
@@ -123,6 +126,37 @@ func TestImportSeasonsRoundTripsNullableColumnsAsNull(t *testing.T) {
 	}
 	if selectionConfirmedAt.Valid {
 		t.Fatalf("expected selection_confirmed_at to remain NULL, got %v", selectionConfirmedAt.Int64)
+	}
+	assertClosureRawNull(t, dstDB, "season-1")
+}
+
+// TestImportSeasonsRoundTripsClosureJSONValue proves a captured board survives
+// export→import byte-for-byte, so history is never rebuilt from live data.
+func TestImportSeasonsRoundTripsClosureJSONValue(t *testing.T) {
+	srcDB := openTestSeasonDB(t)
+	const closure = `{"capturedAt":1700000000000,"rail":[],"grid":[{"animeId":"anime-a","dia":"Lunes","orden":3}]}`
+	if _, err := srcDB.Exec(`INSERT INTO seasons
+		(id, name, min_approval_grade, slots, status, closed_at, ordering_draft_json, closure_json, created_at)
+		VALUES ('season-1', 'Julio', 4, 12, 'closed', 2, '', ?, 1)`, closure); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if _, err := ExportSeasons(srcDB)(context.Background(), &buf); err != nil {
+		t.Fatalf("export: %v", err)
+	}
+
+	dstDB := openTestSeasonDB(t)
+	if _, err := ImportSeasons(dstDB)(context.Background(), &buf); err != nil {
+		t.Fatalf("import: %v", err)
+	}
+
+	got, err := NewSQLiteStore(dstDB).SeasonByID(context.Background(), "season-1")
+	if err != nil || got == nil {
+		t.Fatalf("SeasonByID: %v (%+v)", err, got)
+	}
+	if got.ClosureJSON != closure {
+		t.Fatalf("closure_json = %q, want byte-identical %q", got.ClosureJSON, closure)
 	}
 }
 

@@ -52,6 +52,24 @@ func TestSeasonClose(t *testing.T) {
 	}
 }
 
+// TestSeasonCloseLeavesClosureJSONUntouched pins the P3 contract: the closure
+// snapshot is owned by the caller (set before Close), and Close itself only
+// flips status + closed_at.
+func TestSeasonCloseLeavesClosureJSONUntouched(t *testing.T) {
+	s := NewSeason("season-1", "Julio 2026", time.UnixMilli(0))
+	if s.ClosureJSON != "" {
+		t.Fatalf("a new season must not carry a snapshot, got %q", s.ClosureJSON)
+	}
+
+	s.ClosureJSON = `{"grid":[]}`
+	if err := s.Close(time.UnixMilli(1)); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if s.ClosureJSON != `{"grid":[]}` {
+		t.Fatalf("Close must not rewrite the snapshot, got %q", s.ClosureJSON)
+	}
+}
+
 func TestSeasonSetMinApprovalGrade(t *testing.T) {
 	s := NewSeason("s", "n", time.UnixMilli(0))
 

@@ -32,11 +32,13 @@ func (s *SQLiteStore) CreateSeason(ctx context.Context, season domain.Season) er
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO seasons
 			(id, name, min_approval_grade, slots, status,
-			 selection_confirmed_at, applied_at, closed_at, ordering_draft_json, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			 selection_confirmed_at, applied_at, closed_at, ordering_draft_json, closure_json, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		season.ID, season.Name, season.MinApprovalGrade, season.Slots, string(season.Status),
 		millisPtr(season.SelectionConfirmedAt), millisPtr(season.AppliedAt), millisPtr(season.ClosedAt),
-		season.OrderingDraft, season.CreatedAt.UnixMilli(),
+		// A created season has no closure snapshot; ImportSeasons is the only
+		// path that writes a captured one.
+		season.OrderingDraft, nil, season.CreatedAt.UnixMilli(),
 	)
 	if err != nil {
 		return fmt.Errorf("create season %q: %w", season.ID, err)
@@ -48,7 +50,7 @@ func (s *SQLiteStore) CreateSeason(ctx context.Context, season domain.Season) er
 func (s *SQLiteStore) ActiveSeason(ctx context.Context) (*domain.Season, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT id, name, min_approval_grade, slots, status,
-		       selection_confirmed_at, applied_at, closed_at, ordering_draft_json, created_at
+		       selection_confirmed_at, applied_at, closed_at, ordering_draft_json, closure_json, created_at
 		FROM seasons WHERE status = 'open' LIMIT 1`)
 	season, err := scanSeason(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -64,7 +66,7 @@ func (s *SQLiteStore) ActiveSeason(ctx context.Context) (*domain.Season, error) 
 func (s *SQLiteStore) ListSeasons(ctx context.Context) ([]domain.Season, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, name, min_approval_grade, slots, status,
-		       selection_confirmed_at, applied_at, closed_at, ordering_draft_json, created_at
+		       selection_confirmed_at, applied_at, closed_at, ordering_draft_json, closure_json, created_at
 		FROM seasons ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("query seasons: %w", err)
@@ -86,7 +88,7 @@ func (s *SQLiteStore) ListSeasons(ctx context.Context) ([]domain.Season, error) 
 func (s *SQLiteStore) SeasonByID(ctx context.Context, id string) (*domain.Season, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT id, name, min_approval_grade, slots, status,
-		       selection_confirmed_at, applied_at, closed_at, ordering_draft_json, created_at
+		       selection_confirmed_at, applied_at, closed_at, ordering_draft_json, closure_json, created_at
 		FROM seasons WHERE id = ? LIMIT 1`, id)
 	season, err := scanSeason(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -103,11 +105,11 @@ func (s *SQLiteStore) UpdateSeason(ctx context.Context, season domain.Season) er
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE seasons SET
 			name = ?, min_approval_grade = ?, slots = ?, status = ?,
-			selection_confirmed_at = ?, applied_at = ?, closed_at = ?, ordering_draft_json = ?
+			selection_confirmed_at = ?, applied_at = ?, closed_at = ?, ordering_draft_json = ?, closure_json = ?
 		WHERE id = ?`,
 		season.Name, season.MinApprovalGrade, season.Slots, string(season.Status),
 		millisPtr(season.SelectionConfirmedAt), millisPtr(season.AppliedAt), millisPtr(season.ClosedAt),
-		season.OrderingDraft, season.ID,
+		season.OrderingDraft, closureOrNull(season.ClosureJSON), season.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update season %q: %w", season.ID, err)
@@ -317,10 +319,11 @@ func scanSeason(row rowScanner) (*domain.Season, error) {
 		applied       sql.NullInt64
 		closed        sql.NullInt64
 		orderingDraft sql.NullString
+		closureJSON   sql.NullString
 		createdAt     int64
 	)
 	if err := row.Scan(&s.ID, &s.Name, &s.MinApprovalGrade, &s.Slots, &status,
-		&selection, &applied, &closed, &orderingDraft, &createdAt); err != nil {
+		&selection, &applied, &closed, &orderingDraft, &closureJSON, &createdAt); err != nil {
 		return nil, err
 	}
 	s.Status = domain.Status(status)
@@ -328,8 +331,18 @@ func scanSeason(row rowScanner) (*domain.Season, error) {
 	s.AppliedAt = timePtr(applied)
 	s.ClosedAt = timePtr(closed)
 	s.OrderingDraft = orderingDraft.String
+	s.ClosureJSON = closureJSON.String
 	s.CreatedAt = time.UnixMilli(createdAt)
 	return &s, nil
+}
+
+// closureOrNull stores the closure snapshot, or SQL NULL when none was recorded:
+// the domain's empty string means "not captured", not an empty snapshot.
+func closureOrNull(raw string) any {
+	if raw == "" {
+		return nil
+	}
+	return raw
 }
 
 // millisPtr converts an optional time to a nullable epoch-ms argument.

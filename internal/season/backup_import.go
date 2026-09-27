@@ -105,8 +105,8 @@ func beginFullRefreshTx(ctx context.Context, db *sql.DB, deleteSQL, insertSQL st
 
 const insertSeasonSQL = `
 	INSERT INTO seasons (id, name, min_approval_grade, slots, status,
-		selection_confirmed_at, applied_at, closed_at, ordering_draft_json, created_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		selection_confirmed_at, applied_at, closed_at, ordering_draft_json, closure_json, created_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 // ImportSeasons returns a backup import function that replaces every
@@ -124,10 +124,10 @@ func ImportSeasons(db *sql.DB) func(context.Context, io.Reader) (int, error) {
 			_ = stmt.Close()
 		}()
 
-		// A *int64 nullable field binds directly as NULL.
+		// A *int64 / *string nullable field binds directly as NULL.
 		count, err = decodeAndInsertJSONL(ctx, r, stmt, func(rec seasonRecord) []any {
 			return []any{rec.ID, rec.Name, rec.MinApprovalGrade, rec.Slots, rec.Status,
-				rec.SelectionConfirmedAt, rec.AppliedAt, rec.ClosedAt, rec.OrderingDraftJSON, rec.CreatedAt}
+				rec.SelectionConfirmedAt, rec.AppliedAt, rec.ClosedAt, rec.OrderingDraftJSON, rec.ClosureJSON, rec.CreatedAt}
 		})
 		if err != nil {
 			return count, err

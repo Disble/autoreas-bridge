@@ -20,6 +20,7 @@ const (
 			applied_at INTEGER,
 			closed_at INTEGER,
 			ordering_draft_json TEXT NOT NULL DEFAULT '',
+			closure_json TEXT,
 			created_at INTEGER NOT NULL
 		)`
 	// seasonsSingleOpenIndexDDL enforces the aggregate invariant "at most one
@@ -29,6 +30,10 @@ const (
 
 	// SDD-46 added the ordering draft (scratch weekday-placement JSON).
 	seasonsOrderingDraftDDL = `ALTER TABLE seasons ADD COLUMN ordering_draft_json TEXT NOT NULL DEFAULT ''`
+	// P3 added the closure snapshot: the ACTUAL ordering board captured at the
+	// moment a season closes. Nullable on purpose with no default, so a legacy
+	// row stays SQL NULL ("not captured") instead of a false empty snapshot.
+	seasonsClosureDDL = `ALTER TABLE seasons ADD COLUMN closure_json TEXT`
 
 	seasonAnimesDDL = `
 		CREATE TABLE IF NOT EXISTS season_animes (
@@ -140,6 +145,7 @@ func SchemaTables() []persistence.TableSchema {
 			CreateDDL: seasonsDDL,
 			ColumnAdds: []persistence.ColumnMigration{
 				{Column: "ordering_draft_json", AlterDDL: seasonsOrderingDraftDDL},
+				{Column: "closure_json", AlterDDL: seasonsClosureDDL},
 			},
 			Indexes: []string{seasonsSingleOpenIndexDDL},
 		},

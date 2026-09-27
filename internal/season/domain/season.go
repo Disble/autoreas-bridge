@@ -46,7 +46,11 @@ type Season struct {
 	// OrderingDraft is the scratch weekday-placement JSON (SDD-46); applied truth
 	// lives only in the animes' dias. Empty until the user drafts a schedule.
 	OrderingDraft string
-	CreatedAt     time.Time
+	// ClosureJSON is the ordering board captured at close time (P3), stored
+	// verbatim as an opaque string. Empty means no snapshot was recorded (SQL
+	// NULL); history is never reconstructed from live anime data.
+	ClosureJSON string
+	CreatedAt   time.Time
 }
 
 // NewSeason builds an open season with the default cutoff grade and slot cap.
