@@ -74,3 +74,54 @@ func (a *App) captureSeasonClosure() (string, error) {
 	}
 	return string(raw), nil
 }
+
+// decodeSeasonClosureSnapshot decodes a stored closure payload. ok=false means
+// "no board was captured": the payload is absent or blank (every season closed
+// before P3 stores SQL NULL, which reads back empty) or malformed JSON. Reads
+// degrade instead of failing so a broken payload shows as not-recorded rather
+// than as an empty or live board.
+func decodeSeasonClosureSnapshot(raw string) (seasonClosureSnapshotDTO, bool) {
+	var snap seasonClosureSnapshotDTO
+	if err := json.Unmarshal([]byte(raw), &snap); err != nil {
+		return seasonClosureSnapshotDTO{}, false
+	}
+	// A capture instant is what distinguishes a real board from a vacuous
+	// payload: JSON `null` and `{}` both decode successfully into the zero
+	// struct, and neither is a board this bridge recorded.
+	if snap.CapturedAt <= 0 {
+		return seasonClosureSnapshotDTO{}, false
+	}
+	return snap, true
+}
+
+// orderingSnapshotFromClosure maps a stored closure payload into the Wails
+// history read model without consulting live anime data. A missing or malformed
+// payload becomes the explicit not-recorded state.
+func orderingSnapshotFromClosure(raw string) SeasonOrderingSnapshotDTO {
+	snap, ok := decodeSeasonClosureSnapshot(raw)
+	if !ok {
+		return emptySeasonOrderingSnapshot()
+	}
+	return SeasonOrderingSnapshotDTO{
+		Recorded:   true,
+		CapturedAt: &snap.CapturedAt,
+		AppliedAt:  snap.AppliedAt,
+		Rail:       nonNilOrderingCards(snap.Rail),
+		Grid:       nonNilOrderingCards(snap.Grid),
+	}
+}
+
+// emptySeasonOrderingSnapshot is the explicit "no board was ever captured"
+// state: not recorded, null timestamps, and empty non-nil collections.
+func emptySeasonOrderingSnapshot() SeasonOrderingSnapshotDTO {
+	return SeasonOrderingSnapshotDTO{Rail: []OrderingCardDTO{}, Grid: []OrderingCardDTO{}}
+}
+
+// nonNilOrderingCards guarantees a non-nil collection so the frontend never
+// receives a JSON null for rail or grid.
+func nonNilOrderingCards(cards []OrderingCardDTO) []OrderingCardDTO {
+	if cards == nil {
+		return []OrderingCardDTO{}
+	}
+	return cards
+}

@@ -88,6 +88,21 @@ type seasonClosureSnapshotDTO struct {
 	Grid       []OrderingCardDTO `json:"grid"`
 }
 
+// SeasonOrderingSnapshotDTO is the read-only history read of the ordering board
+// a season actually had when it closed, decoded from the payload stored at close
+// time (P3). Recorded is the explicit "a board was captured" state: when it is
+// false the season closed before snapshots existed, or its payload was empty or
+// unreadable, and the collections are empty with null timestamps — never a live
+// or reconstructed board. Rail and Grid are always non-nil so the frontend never
+// receives null collections.
+type SeasonOrderingSnapshotDTO struct {
+	Recorded   bool              `json:"recorded"`
+	CapturedAt *int64            `json:"capturedAt"`
+	AppliedAt  *int64            `json:"appliedAt"`
+	Rail       []OrderingCardDTO `json:"rail"`
+	Grid       []OrderingCardDTO `json:"grid"`
+}
+
 // ConfirmSelectionDTO is the Wails-facing result of confirming the selection:
 // "ok" or an error message, the approved/rejected counts, and a quota-overflow
 // flag so the UI can surface the one hard rule distinctly.

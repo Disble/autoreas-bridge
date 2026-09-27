@@ -23,13 +23,17 @@ func (s *appliedDaysEpisodeService) SetAnimeDays(_ context.Context, cmd anime.Se
 
 // fakeSeasonRepo is an in-memory season.Repository for binding tests.
 type fakeSeasonRepo struct {
-	seasons     map[string]domain.Season
-	order       []string
-	createErr   error
-	activeErr   error
-	animes      map[string]domain.SeasonAnime
-	animesOrder []string
-	animesErr   error
+	seasons   map[string]domain.Season
+	order     []string
+	createErr error
+	activeErr error
+	// seasonByIDErr simulates a repository read that fails after populating its
+	// destination; callers must treat the read as failed and must never surface
+	// the partially-read season.
+	seasonByIDErr error
+	animes        map[string]domain.SeasonAnime
+	animesOrder   []string
+	animesErr     error
 }
 
 // newFakeSeasonRepo creates an in-memory season repository for tests.
@@ -78,6 +82,9 @@ func (r *fakeSeasonRepo) SeasonByID(_ context.Context, id string) (*domain.Seaso
 		return nil, nil
 	}
 	copy := seasonValue
+	if r.seasonByIDErr != nil {
+		return &copy, r.seasonByIDErr
+	}
 	return &copy, nil
 }
 
