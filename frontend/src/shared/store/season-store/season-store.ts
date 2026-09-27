@@ -1,5 +1,5 @@
 import { useStore } from 'zustand';
-import { seasonStore } from './season-store.helpers';
+import { seasonStore } from './season-store.store';
 import type { SeasonStoreState } from './season-store.types';
 
 /** Reads and subscribes to the Season store, optionally through a selector. */

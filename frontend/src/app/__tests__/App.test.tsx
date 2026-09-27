@@ -5,7 +5,7 @@ import App from '../../App';
 import { APP_LAYOUT_NAV_GROUPS } from '../../shared/navigation/app-layout.constants';
 import { flattenNavItems } from '../../shared/navigation/app-layout.helpers';
 import { resetNetworkStore } from '../../shared/store/network-store/network-store.helpers';
-import { seasonStore } from '../../shared/store/season-store/season-store.helpers';
+import { seasonStore } from '../../shared/store/season-store/season-store.store';
 
 describe('App routing', () => {
   beforeEach(() => {
