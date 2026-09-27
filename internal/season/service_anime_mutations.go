@@ -1,7 +1,9 @@
 package season
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 
 	"autoreas-bridge/internal/season/domain"
 )
@@ -89,6 +91,39 @@ func (s *Service) resolveOrCreateSeasonAnime(ctx context.Context, rowID string, 
 		return "", err
 	}
 	return mutation.AnimeID, nil
+}
+
+// SetSeasonAnimeMetadata records (or, with the empty string, clears) the
+// confirmed MyAnimeList lookup for one intake row. The payload is opaque to this
+// context's storage but validated at this write boundary: a non-empty value must
+// be a valid JSON object, so a caller can never persist a malformed payload, and
+// "" is the clear sentinel written as SQL NULL. An unknown row is an error,
+// never a silent no-op. A row whose anime already exists is rejected: its
+// metadata already travelled at creation, so recording another could only
+// diverge the row from the anime. The write touches only the row — never the
+// anime.
+func (s *Service) SetSeasonAnimeMetadata(ctx context.Context, rowID, metadataJSON string) error {
+	if metadataJSON != "" && !validMetadataJSON(metadataJSON) {
+		return ErrInvalidMetadata
+	}
+	return s.mutateSeasonAnime(ctx, rowID, func(sa *domain.SeasonAnime) error {
+		if sa.Availability == domain.AvailabilityCreated {
+			return ErrSeasonAnimeAlreadyCreated
+		}
+		sa.MetadataJSON = metadataJSON
+		return nil
+	})
+}
+
+// validMetadataJSON reports whether raw is a valid JSON object. json.Valid
+// rejects malformed text (including blank input); the trimmed first byte then
+// rejects a valid but non-object payload (array, string, number, null), which is
+// never valid metadata. Valid JSON guarantees the trimmed slice is non-empty.
+func validMetadataJSON(raw string) bool {
+	if !json.Valid([]byte(raw)) {
+		return false
+	}
+	return bytes.TrimSpace([]byte(raw))[0] == '{'
 }
 
 // metadataForRow returns the confirmed metadata held for one intake row, or nil

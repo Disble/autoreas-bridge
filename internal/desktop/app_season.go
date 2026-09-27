@@ -318,6 +318,22 @@ func (a *App) SetSeasonConsideration(rowID, consideration string) string {
 	return "ok"
 }
 
+// SetSeasonAnimeMetadata records (or, with an empty string, clears) the
+// confirmed MyAnimeList lookup for one intake row, so it survives leaving the
+// Season screen and reopening the app. The payload must be a JSON object; the
+// row must exist and must not already be created. This binding starts no network
+// call — the lookup already happened. Returns "ok" or a descriptive error.
+func (a *App) SetSeasonAnimeMetadata(rowID, metadataJSON string) string {
+	if a.seasonService == nil {
+		return seasonServiceUnavailableMessage
+	}
+	if err := a.seasonService.SetSeasonAnimeMetadata(a.seasonCtx(), rowID, metadataJSON); err != nil {
+		return err.Error()
+	}
+	a.broadcastSeasonChanged()
+	return "ok"
+}
+
 // ConfirmSeasonSelection reconciles the open season's verdicts into anime writes
 // (approve → Viendo/active, reject → No me gusto/inactive; soft delete only).
 // Repeatable while the season is open. A quota overflow blocks and is flagged.

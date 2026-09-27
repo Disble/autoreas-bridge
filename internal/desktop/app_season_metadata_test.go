@@ -258,3 +258,45 @@ func TestSeasonCreateMetadataJSONTagsAreCanonicalSubset(t *testing.T) {
 		}
 	}
 }
+
+// desktopMetadataJSON is one confirmed lookup as the frontend sends it.
+const desktopMetadataJSON = `{"kind":2,"totalEpisodes":24,"durationMinutes":45,"origin":"Manga","genres":["Adventure"],"studios":["Madhouse"],"cover":{"type":"url","path":"https://cdn.myanimelist.net/images/anime/frieren.jpg"}}`
+
+// TestSetSeasonAnimeMetadataBindingWritesThroughToRealRecord proves the binding
+// reaches the row SQLite actually holds: it records a confirmed lookup, clears
+// it with the empty string, and reports a malformed payload or an unknown row as
+// an error instead of a silent success. The binding starts no network call.
+func TestSetSeasonAnimeMetadataBindingWritesThroughToRealRecord(t *testing.T) {
+	fixture := newSQLiteSeasonFixture(t)
+	fixture.seedRow(t, "sa-a", "Frieren")
+	ctx := context.Background()
+
+	if got := fixture.app.SetSeasonAnimeMetadata("sa-a", desktopMetadataJSON); got != "ok" {
+		t.Fatalf("SetSeasonAnimeMetadata: %q", got)
+	}
+	recorded, err := fixture.store.SeasonAnimeByID(ctx, "sa-a")
+	if err != nil || recorded == nil {
+		t.Fatalf("SeasonAnimeByID: %v (%+v)", err, recorded)
+	}
+	if recorded.MetadataJSON != desktopMetadataJSON {
+		t.Fatalf("stored metadata = %q, want %q", recorded.MetadataJSON, desktopMetadataJSON)
+	}
+
+	if got := fixture.app.SetSeasonAnimeMetadata("sa-a", ""); got != "ok" {
+		t.Fatalf("clear: %q", got)
+	}
+	cleared, err := fixture.store.SeasonAnimeByID(ctx, "sa-a")
+	if err != nil || cleared == nil {
+		t.Fatalf("SeasonAnimeByID after clear: %v (%+v)", err, cleared)
+	}
+	if cleared.MetadataJSON != "" {
+		t.Fatalf("metadata after clear = %q, want \"\"", cleared.MetadataJSON)
+	}
+
+	if got := fixture.app.SetSeasonAnimeMetadata("sa-a", "not json"); got == "ok" {
+		t.Fatal("a malformed payload must not report success")
+	}
+	if got := fixture.app.SetSeasonAnimeMetadata("missing", desktopMetadataJSON); got == "ok" {
+		t.Fatal("an unknown row must not report success")
+	}
+}

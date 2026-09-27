@@ -46,6 +46,16 @@ var ErrManualGradePresent = errors.New("manual grade present")
 // ErrInvalidConsideration is returned by SetConsideration for an unknown value.
 var ErrInvalidConsideration = errors.New("unknown consideration")
 
+// ErrInvalidMetadata is returned by SetSeasonAnimeMetadata when a non-empty
+// payload is not a valid JSON object; the empty string is the clear sentinel,
+// not an error.
+var ErrInvalidMetadata = errors.New("metadata must be a JSON object")
+
+// ErrSeasonAnimeAlreadyCreated is returned by SetSeasonAnimeMetadata when the
+// row's anime already exists: its metadata travelled at creation, so a later
+// write could only diverge the row from the anime.
+var ErrSeasonAnimeAlreadyCreated = errors.New("season anime already created")
+
 // ErrSelectionDepsUnavailable is returned by ConfirmSelection when the anime
 // gateway is not wired.
 var ErrSelectionDepsUnavailable = errors.New("selection anime gateway unavailable")
@@ -279,8 +289,9 @@ func (s *Service) RecordPremiereGrade(ctx context.Context, animeID string, grade
 // SkipGrading records the explicit "no grade" override for a row (visible at
 // selection; never a lock).
 func (s *Service) SkipGrading(ctx context.Context, rowID string) error {
-	return s.mutateSeasonAnime(ctx, rowID, func(sa *domain.SeasonAnime) {
+	return s.mutateSeasonAnime(ctx, rowID, func(sa *domain.SeasonAnime) error {
 		sa.Skip()
+		return nil
 	})
 }
 
@@ -290,8 +301,9 @@ func (s *Service) SetConsideration(ctx context.Context, rowID string, c domain.C
 	if !validConsideration(c) {
 		return ErrInvalidConsideration
 	}
-	return s.mutateSeasonAnime(ctx, rowID, func(sa *domain.SeasonAnime) {
+	return s.mutateSeasonAnime(ctx, rowID, func(sa *domain.SeasonAnime) error {
 		sa.Consideration = c
+		return nil
 	})
 }
 
@@ -309,21 +321,24 @@ func validConsideration(c domain.Consideration) bool {
 // ResolveMatch manually resolves a row to a page URL (candidate pick or a
 // pasted URL), overriding the automatic classification.
 func (s *Service) ResolveMatch(ctx context.Context, rowID, pageURL string) error {
-	return s.mutateSeasonAnime(ctx, rowID, func(sa *domain.SeasonAnime) {
+	return s.mutateSeasonAnime(ctx, rowID, func(sa *domain.SeasonAnime) error {
 		sa.MatchStatus = domain.MatchMatched
 		sa.MatchedSlug = pageURL
+		return nil
 	})
 }
 
 // DiscardName marks a row discarded (it will not advance to availability).
 func (s *Service) DiscardName(ctx context.Context, rowID string) error {
-	return s.mutateSeasonAnime(ctx, rowID, func(sa *domain.SeasonAnime) {
+	return s.mutateSeasonAnime(ctx, rowID, func(sa *domain.SeasonAnime) error {
 		sa.MatchStatus = domain.MatchDiscarded
+		return nil
 	})
 }
 
-// mutateSeasonAnime loads, mutates, and persists one season anime row.
-func (s *Service) mutateSeasonAnime(ctx context.Context, rowID string, fn func(*domain.SeasonAnime)) error {
+// mutateSeasonAnime loads, mutates, and persists one season anime row. A mutator
+// error aborts before any write.
+func (s *Service) mutateSeasonAnime(ctx context.Context, rowID string, fn func(*domain.SeasonAnime) error) error {
 	sa, err := s.repo.SeasonAnimeByID(ctx, rowID)
 	if err != nil {
 		return err
@@ -331,7 +346,9 @@ func (s *Service) mutateSeasonAnime(ctx context.Context, rowID string, fn func(*
 	if sa == nil {
 		return ErrSeasonAnimeNotFound
 	}
-	fn(sa)
+	if err := fn(sa); err != nil {
+		return err
+	}
 	return s.repo.UpdateSeasonAnime(ctx, *sa)
 }
 

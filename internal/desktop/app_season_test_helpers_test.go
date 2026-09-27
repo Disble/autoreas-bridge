@@ -225,6 +225,40 @@ func (f runtimeSeasonFixture) seedAvailableRow(t *testing.T, rowID, name, pageUR
 	}
 }
 
+// sqliteSeasonFixture is an App whose season repository is the REAL temp-SQLite
+// store, so a binding test reads the row the app actually persists instead of an
+// in-memory map.
+type sqliteSeasonFixture struct {
+	app   *App
+	store season.Repository
+}
+
+// newSQLiteSeasonFixture wires a season service over a real temp-SQLite store
+// (the same bootstrap the app uses), so a binding write is observable on disk.
+func newSQLiteSeasonFixture(t *testing.T) sqliteSeasonFixture {
+	t.Helper()
+	store := season.NewSQLiteStore(openRuntimeBridgeDB(t))
+	return sqliteSeasonFixture{app: newTestSeasonApp(store, nil), store: store}
+}
+
+// seedRow opens the fixture's season and adds one AVAILABLE intake row under it.
+func (f sqliteSeasonFixture) seedRow(t *testing.T, rowID, name string) {
+	t.Helper()
+	if got := f.app.CreateSeason("Julio 2026"); got != "ok" {
+		t.Fatalf("CreateSeason: %q", got)
+	}
+	active, err := f.app.seasonService.ActiveSeason(context.Background())
+	if err != nil || active == nil {
+		t.Fatalf("ActiveSeason: %v, %#v", err, active)
+	}
+	row := domain.NewSeasonAnime(rowID, active.ID, name, time.UnixMilli(1_700_000_000_000))
+	row.MatchStatus = domain.MatchMatched
+	row.Availability = domain.AvailabilityAvailable
+	if err := f.store.CreateSeasonAnime(context.Background(), row); err != nil {
+		t.Fatalf("seed row: %v", err)
+	}
+}
+
 // createdAnimeRecord is the canonical snapshot shape a season create writes,
 // decoded so a test asserts stored values instead of raw JSON keys.
 type createdAnimeRecord struct {
