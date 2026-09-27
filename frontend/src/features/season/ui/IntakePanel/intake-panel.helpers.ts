@@ -1,4 +1,4 @@
-import type { SeasonAnimeCandidate, SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeCandidate, SeasonAnimeRow, SeasonCreateMetadata } from '../../../../infrastructure/season-source/season-source.types';
 import type { AnimeMetadataSelection } from '../../../../shared/metadata-lookup/metadata-lookup.types';
 import { INTAKE_METADATA_FIELD_LABELS, MATCH_STATUS_LABELS } from './intake-panel.constants';
 import type { IntakeChipColor, IntakeMetadataPatch } from './intake-panel.types';
@@ -278,7 +278,86 @@ export function toIntakeMetadataPatch(selection: Readonly<AnimeMetadataSelection
 }
 
 /**
- * Renders an applied patch's field labels as the row's one-line summary, so the
+ * Converts one row's held metadata into the shape the Go side accepts: numbers
+ * become numbers and the comma-joined lists become lists. A value the row does
+ * not hold, or one that does not parse, is simply absent — the created anime
+ * then keeps the value it would have had with no metadata at all. The confirmed
+ * name is carried through for shape parity only; Go never maps it, because the
+ * row's raw name is the name the user typed.
+ * @param held The row's held metadata patch.
+ * @returns The same metadata in the create contract's shape.
+ */
+export function toSeasonCreateMetadata(held: Readonly<IntakeMetadataPatch>): SeasonCreateMetadata {
+  const kind = parseOptionalWholeNumber(held.kind);
+  const totalEpisodes = parseOptionalWholeNumber(held.totalEpisodes);
+  const durationMinutes = parseOptionalWholeNumber(held.duration);
+  const genres = splitMetadataList(held.genres);
+  const studios = splitMetadataList(held.studios);
+  return {
+    ...(held.name === undefined || held.name === '' ? {} : { name: held.name }),
+    ...(kind === undefined ? {} : { kind }),
+    ...(totalEpisodes === undefined ? {} : { totalEpisodes }),
+    ...(durationMinutes === undefined ? {} : { durationMinutes }),
+    ...(held.origin === undefined || held.origin === '' ? {} : { origin: held.origin }),
+    ...(genres === undefined ? {} : { genres }),
+    ...(studios === undefined ? {} : { studios }),
+    ...(held.coverURL === undefined || held.coverURL === '' ? {} : { coverURL: held.coverURL }),
+  };
+}
+
+/**
+ * Converts only the rows that are about to be created, so a lookup attached to a
+ * row the user did not select never travels with the batch.
+ * @param byRow Every row's held metadata, keyed by row id.
+ * @param rowIds The rows this creation will create.
+ * @returns The create metadata for exactly those rows.
+ */
+export function buildSeasonCreateMetadata(
+  byRow: Readonly<Record<string, IntakeMetadataPatch>>,
+  rowIds: readonly string[],
+): Readonly<Record<string, SeasonCreateMetadata>> {
+  const out: Record<string, SeasonCreateMetadata> = {};
+  for (const rowId of rowIds) {
+    const held = byRow[rowId];
+    if (held !== undefined) {
+      out[rowId] = toSeasonCreateMetadata(held);
+    }
+  }
+  return out;
+}
+
+/**
+ * Parses a whole number out of an input string, treating a blank or non-numeric
+ * value as absent rather than as zero.
+ * @param value The input string a lookup filled, or undefined.
+ * @returns The parsed whole number, or undefined when there is nothing to parse.
+ */
+function parseOptionalWholeNumber(value: string | undefined): number | undefined {
+  if (value === undefined || value.trim() === '') {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.trunc(parsed) : undefined;
+}
+
+/**
+ * Splits a lookup's comma-joined list into its entries, treating a blank value as
+ * absent so an unconfirmed list never reaches the create contract as an empty one.
+ * @param value The comma-joined list a lookup filled, or undefined.
+ * @returns The trimmed entries, or undefined when there are none.
+ */
+function splitMetadataList(value: string | undefined): string[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const entries = value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== '');
+  return entries.length === 0 ? undefined : entries;
+}
+
+/**
  * user can read WHICH metadata a lookup attached without the row reprinting
  * every value under it.
  * @param appliedFields The patch's own field names, in the order they were applied.

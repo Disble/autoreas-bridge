@@ -15,6 +15,7 @@ import { INTAKE_FOLDER_PICKER_TITLE, INTAKE_RECONCILE_DEBOUNCE_MS } from './inta
 import {
   buildFolderPreviews,
   buildRawText,
+  buildSeasonCreateMetadata,
   collectFolderOverrides,
   countMatchedWaitingForAvailability,
   countUnresolved,
@@ -160,8 +161,15 @@ export function useIntakePanel(
     const ids = [...selected];
 
     setSelected(new Set());
-    void createSeasonAnimes(source, ids, collectFolderOverrides(ids, folderOverrides));
-  }, [selected, folderOverrides, createSeasonAnimes, source]);
+    // Only the picked rows travel, and each one carries only the metadata the
+    // user confirmed for IT: a lookup attached to an unpicked row stays behind.
+    void createSeasonAnimes(
+      source,
+      ids,
+      collectFolderOverrides(ids, folderOverrides),
+      buildSeasonCreateMetadata(metadataByRow, ids),
+    );
+  }, [selected, folderOverrides, metadataByRow, createSeasonAnimes, source]);
   /**
    * Attaches one confirmed lookup to its own row. The selection goes through
    * {@link toIntakeMetadataPatch}'s allow-list, so this can only ever write the

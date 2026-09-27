@@ -152,7 +152,7 @@ describe('useIntakePanel', () => {
     await act(async () => {
       result.current.onCreate();
     });
-    expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1', 'sa-2'], {});
+    expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1', 'sa-2'], {}, {});
     expect(result.current.selected.size).toBe(0);
   });
 
@@ -170,7 +170,7 @@ describe('useIntakePanel', () => {
     await act(async () => {
       result.current.onCreate();
     });
-    expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1', 'sa-2'], { 'sa-2': 'E:/Custom/Naruto S2' });
+    expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1', 'sa-2'], { 'sa-2': 'E:/Custom/Naruto S2' }, {});
   });
 
   it('exposes the default download folder preview for creatable rows', async () => {
@@ -198,7 +198,27 @@ describe('useIntakePanel', () => {
     await act(async () => {
       result.current.onCreate();
     });
-    expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1'], {});
+    expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1'], {}, {});
+  });
+
+  it('sends the confirmed metadata of exactly the picked rows, converted to the create contract', async () => {
+    const source = createSourceWithRows([seasonRow({ id: 'sa-1' }), seasonRow({ id: 'sa-2', rawName: 'Bleach' })]);
+    const { result } = renderHook(() => useIntakePanel(source, createDownloadsRootSource(), createMetadataSource()));
+    await waitFor(() => expect(result.current.editableRows).toHaveLength(2));
+    act(() => result.current.onMetadataApplied('sa-1', selection({ kind: '0', totalEpisodes: '24', duration: '45', genres: 'Action, Fantasy', studios: 'Madhouse' })));
+    // A lookup attached to a row the user did NOT pick must not travel with the batch.
+    act(() => result.current.onMetadataApplied('sa-2', selection({ name: 'Bleach' })));
+    act(() => result.current.toggleSelect('sa-1'));
+
+    await act(async () => {
+      result.current.onCreate();
+    });
+
+    expect(source.createSeasonAnimes).toHaveBeenCalledWith(
+      ['sa-1'],
+      {},
+      { 'sa-1': { name: 'Dr. Stone', kind: 0, totalEpisodes: 24, durationMinutes: 45, genres: ['Action', 'Fantasy'], studios: ['Madhouse'] } },
+    );
   });
 
   it('switching to raw builds the draft from editable names and switching back flushes', async () => {

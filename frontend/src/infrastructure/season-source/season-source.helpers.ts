@@ -36,7 +36,7 @@ import {
   SEASON_SEND_UNAVAILABLE,
   SEASON_SOURCE_STATE,
 } from './season-source.constants';
-import type { SeasonOrderingSnapshot, SeasonSource } from './season-source.types';
+import type { SeasonCreateMetadata, SeasonOrderingSnapshot, SeasonSource } from './season-source.types';
 import { hasGoBinding, invokeGoBinding, waitForBindings } from '../wails-bindings.helpers';
 
 /**
@@ -114,8 +114,16 @@ export function createSeasonSource(): SeasonSource {
     confirmSelection() {
       return invokeGoBinding('ConfirmSeasonSelection', ConfirmSeasonSelection, () => SEASON_CONFIRM_UNAVAILABLE);
     },
-    createSeasonAnimes(rowIds: readonly string[], folders: Readonly<Record<string, string>>) {
-      return invokeGoBinding('CreateSeasonAnimes', () => CreateSeasonAnimes([...rowIds], { ...folders }), () => SEASON_RUNTIME_UNAVAILABLE);
+    createSeasonAnimes(
+      rowIds: readonly string[],
+      folders: Readonly<Record<string, string>>,
+      metadata: Readonly<Record<string, SeasonCreateMetadata>>,
+    ) {
+      return invokeGoBinding(
+        'CreateSeasonAnimes',
+        () => CreateSeasonAnimes([...rowIds], { ...folders }, { ...metadata }),
+        () => SEASON_RUNTIME_UNAVAILABLE,
+      );
     },
     pickFolder(title: string) {
       return invokeGoBinding('PickFolder', () => PickFolder(title), () => '');

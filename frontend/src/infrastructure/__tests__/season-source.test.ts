@@ -137,6 +137,54 @@ describe('season-source', () => {
     await expect(resultPromise).resolves.toEqual({ recorded: false, rail: [], grid: [] });
   });
 
+  it('forwards the create call with the picked rows, their folders and their metadata', async () => {
+    const createMock = vi.fn().mockResolvedValue('ok');
+    window.go = { desktop: { App: { CreateSeasonAnimes: createMock } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const source = createSeasonSource();
+
+    const resultPromise = source.createSeasonAnimes(['sa-1', 'sa-2'], { 'sa-2': 'E:/Anime/Bleach' }, { 'sa-1': { totalEpisodes: 24, genres: ['Action'] } });
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(resultPromise).resolves.toBe('ok');
+    // The metadata must travel as its own argument: dropping it here would silently
+    // create animes without the fields the user confirmed.
+    expect(createMock).toHaveBeenCalledWith(
+      ['sa-1', 'sa-2'],
+      { 'sa-2': 'E:/Anime/Bleach' },
+      { 'sa-1': { totalEpisodes: 24, genres: ['Action'] } },
+    );
+  });
+
+  it('degrades the create call to its runtime-unavailable message when no binding exists', async () => {
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const { SEASON_RUNTIME_UNAVAILABLE } = await import('../season-source/season-source.constants');
+    const source = createSeasonSource();
+
+    const resultPromise = source.createSeasonAnimes(['sa-1'], {}, { 'sa-1': { totalEpisodes: 24 } });
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    // The caller shows this message: resolving to undefined would report success
+    // for a creation that never happened.
+    await expect(resultPromise).resolves.toBe(SEASON_RUNTIME_UNAVAILABLE);
+  });
+
+  it('agrees with the Go create-metadata contract on every field name it can emit', () => {
+    // Wails never registers a `map[string]Struct` value type in models.ts, and the
+    // generated .d.ts is skipped by skipLibCheck, so nothing machine-checks the two
+    // sides. This reads the Go struct's own json tags: a Go-side rename is exactly
+    // the drift that would silently drop a confirmed field from the created anime.
+    const portsPath = join(process.cwd(), '..', 'internal', 'season', 'ports.go');
+    const portsText = readFileSync(portsPath, 'utf8');
+    const structBody = portsText.slice(portsText.indexOf('type AnimeCreateMetadata struct {'));
+    const tags = [...structBody.slice(0, structBody.indexOf('\n}')).matchAll(/json:"([^",]+)/g)].map((match) => match[1]);
+
+    expect(tags).toEqual(['name', 'kind', 'totalEpisodes', 'durationMinutes', 'origin', 'genres', 'studios', 'coverURL']);
+  });
+
   it('uses the shared Wails binding readiness helper instead of local duplicate plumbing', () => {
     const seasonSourcePath = join(process.cwd(), 'src/infrastructure/season-source/season-source.helpers.ts');
     const sourceText = readFileSync(seasonSourcePath, 'utf8');

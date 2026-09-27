@@ -77,6 +77,26 @@ export interface SeasonOrderingSnapshot {
   readonly grid: readonly OrderingCard[];
 }
 
+/**
+ * The metadata one intake row may carry into the anime it creates, in the shape
+ * the Go side accepts: numbers are numbers, lists are lists, and every member is
+ * optional so a field the user never confirmed is simply absent. Wails does not
+ * register a `map[string]Struct` value type in its generated models, so this
+ * type is declared here rather than imported from `frontend/wailsjs`.
+ */
+export interface SeasonCreateMetadata {
+  /** The confirmed lookup's title. Carried for shape parity; the raw name wins. */
+  readonly name?: string;
+  /** Legacy content type (0 = Serie / Anime TV, 1 = Pelicula, 2 = OVA). */
+  readonly kind?: number;
+  readonly totalEpisodes?: number;
+  readonly durationMinutes?: number;
+  readonly origin?: string;
+  readonly genres?: readonly string[];
+  readonly studios?: readonly string[];
+  readonly coverURL?: string;
+}
+
 /** Result returned after applying the season schedule. */
 export interface ApplyScheduleResult {
   readonly status: string;
@@ -123,7 +143,11 @@ export interface SeasonSource {
   readonly skipGrading: (rowId: string) => Promise<string>;
   readonly setConsideration: (rowId: string, consideration: string) => Promise<string>;
   readonly confirmSelection: () => Promise<ConfirmSelectionResult>;
-  readonly createSeasonAnimes: (rowIds: readonly string[], folders: Readonly<Record<string, string>>) => Promise<string>;
+  readonly createSeasonAnimes: (
+    rowIds: readonly string[],
+    folders: Readonly<Record<string, string>>,
+    metadata: Readonly<Record<string, SeasonCreateMetadata>>,
+  ) => Promise<string>;
   readonly pickFolder: (title: string) => Promise<string>;
   readonly getOrderingBoard: () => Promise<OrderingBoard>;
   /**

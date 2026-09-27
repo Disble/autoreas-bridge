@@ -5,6 +5,7 @@ import type { AnimeMetadataSelection } from '../../../../../shared/metadata-look
 import {
   buildFolderPreviews,
   buildRawText,
+  buildSeasonCreateMetadata,
   collectFolderOverrides,
   countMatchedWaitingForAvailability,
   countUnresolved,
@@ -16,6 +17,7 @@ import {
   pickRowEntries,
   splitIntakeRows,
   toIntakeMetadataPatch,
+  toSeasonCreateMetadata,
   toggleSelection,
 } from '../intake-panel.helpers';
 
@@ -276,6 +278,45 @@ describe('formatAppliedMetadataFields', () => {
 
   it('renders nothing for a patch that applied nothing', () => {
     expect(formatAppliedMetadataFields([])).toBe('');
+  });
+});
+
+describe('toSeasonCreateMetadata', () => {
+  it('converts a held patch into the create contract: numbers parsed, lists split', () => {
+    // toStrictEqual, not toEqual: a field the lookup did not confirm must be ABSENT
+    // from the sent metadata, and toEqual treats { x: undefined } as equal to {}.
+    expect(
+      toSeasonCreateMetadata({ name: 'Dr. Stone', kind: '1', totalEpisodes: '24', duration: '45', origin: 'Manga', genres: 'Action, Fantasy', studios: 'Madhouse', coverURL: 'https://c.jpg' }),
+    ).toStrictEqual({ name: 'Dr. Stone', kind: 1, totalEpisodes: 24, durationMinutes: 45, origin: 'Manga', genres: ['Action', 'Fantasy'], studios: ['Madhouse'], coverURL: 'https://c.jpg' });
+  });
+
+  it('omits a field the lookup did not confirm instead of sending an empty or zero value', () => {
+    expect(toSeasonCreateMetadata({ name: 'Dr. Stone' })).toStrictEqual({ name: 'Dr. Stone' });
+  });
+
+  it('omits a blank name the same way it omits every other blank field', () => {
+    expect(toSeasonCreateMetadata({ name: '' })).toStrictEqual({});
+    expect(toSeasonCreateMetadata({ name: '' , origin: 'Manga' })).toStrictEqual({ origin: 'Manga' });
+  });
+
+  it('drops values that do not parse rather than passing a NaN or a blank through', () => {
+    expect(toSeasonCreateMetadata({ totalEpisodes: 'twenty-four', duration: '   ', genres: ' , ', origin: '', coverURL: '' })).toStrictEqual({});
+    // A blank field must stay absent even when the blank carries whitespace, and a
+    // padded number is still the number it reads as.
+    expect(toSeasonCreateMetadata({ duration: ' 45 ' })).toStrictEqual({ durationMinutes: 45 });
+  });
+});
+
+describe('buildSeasonCreateMetadata', () => {
+  it('keeps only the rows being created', () => {
+    const byRow = { 'sa-1': { name: 'Dr. Stone' }, 'sa-2': { name: 'Bleach' } };
+
+    expect(buildSeasonCreateMetadata(byRow, ['sa-2'])).toEqual({ 'sa-2': { name: 'Bleach' } });
+  });
+
+  it('is empty when no picked row ever confirmed a lookup', () => {
+    expect(buildSeasonCreateMetadata({}, ['sa-1'])).toEqual({});
+    expect(buildSeasonCreateMetadata({ 'sa-2': { name: 'Bleach' } }, ['sa-1'])).toEqual({});
   });
 });
 

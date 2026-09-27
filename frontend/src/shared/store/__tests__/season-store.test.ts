@@ -243,10 +243,10 @@ describe('useSeasonStore', () => {
     expect(source.getSeasonAnimes).toHaveBeenCalled();
   });
 
-  it('createSeasonAnimes delegates the picked rows and refreshes', async () => {
+  it('createSeasonAnimes delegates the picked rows, their metadata and a refresh', async () => {
     const source = makeSource();
-    await getSeasonStoreState().createSeasonAnimes(source, ['sa-1', 'sa-2'], {});
-    expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1', 'sa-2'], {});
+    await getSeasonStoreState().createSeasonAnimes(source, ['sa-1', 'sa-2'], {}, { 'sa-1': { totalEpisodes: 24 } });
+    expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1', 'sa-2'], {}, { 'sa-1': { totalEpisodes: 24 } });
     expect(source.getSeasonAnimes).toHaveBeenCalled();
   });
 
@@ -261,6 +261,23 @@ describe('useSeasonStore', () => {
     resolveRun('ok');
     await pending;
     expect(getSeasonStoreState().busyMessage).toBeUndefined();
+  });
+
+  it('createSeasonAnimes reports the creating state and its own fallback on a silent failure', async () => {
+    let resolveCreate: (value: string) => void = () => {};
+    const createSeasonAnimes = vi.fn(() => new Promise<string>((resolve) => { resolveCreate = resolve; }));
+    const source = makeSource({ createSeasonAnimes });
+
+    const pending = getSeasonStoreState().createSeasonAnimes(source, ['sa-1'], {}, { 'sa-1': { totalEpisodes: 24 } });
+    // The panel shows this while the batch runs; without it a long create looks frozen.
+    expect(getSeasonStoreState().busyMessage).toBe('Creating animes…');
+
+    // An empty status is a failure, so the store must surface its own message
+    // rather than leaving the user with a blank error.
+    resolveCreate('');
+    await pending;
+    expect(getSeasonStoreState().busyMessage).toBeUndefined();
+    expect(getSeasonStoreState().errorMessage).toBe('Failed to create animes');
   });
 
   it('confirmSelection refreshes season + rows and returns the result on success', async () => {
@@ -381,7 +398,7 @@ describe('useSeasonStore', () => {
     const store = getSeasonStoreState();
     await store.runMatching(source);
     await store.discardName(source, 'sa-1');
-    await store.createSeasonAnimes(source, ['sa-1'], {});
+    await store.createSeasonAnimes(source, ['sa-1'], {}, {});
     await store.setGrade(source, 'anime-1', 5);
     await store.setConsideration(source, 'sa-1', 'in');
     await store.recheckAvailability(source);

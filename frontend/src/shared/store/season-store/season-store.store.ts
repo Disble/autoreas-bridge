@@ -251,8 +251,8 @@ export const seasonStore = createStore<SeasonStoreState>()((set, get) => ({
     await runIntakeCommand(get, set, () => source.setConsideration(rowId, consideration), source, 'Failed to set consideration');
   },
 
-  createSeasonAnimes: async (source, rowIds, folders) => {
-    await runIntakeCommand(get, set, () => source.createSeasonAnimes(rowIds, folders), source, 'Failed to create animes', 'Creating animes…');
+  createSeasonAnimes: async (source, rowIds, folders, metadata) => {
+    await runIntakeCommand(get, set, () => source.createSeasonAnimes(rowIds, folders, metadata), source, 'Failed to create animes', 'Creating animes…');
   },
 
   confirmSelection: async (source) => {
