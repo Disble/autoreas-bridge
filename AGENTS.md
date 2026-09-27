@@ -6,7 +6,7 @@
 - Bridge exclusively owns anime state. The embedded SQLite database, especially `anime_snapshots`, is the source of truth; no Legacy Desktop synchronization, file watch, parsing, or writing remains.
 - The codebase and current product documentation are the execution contract. `openspec/` is historical evidence, not an active contract. When they disagree, code wins as runtime truth; record the drift before planning a correction.
 - Make incremental changes and verify each meaningful step. Use the real command and artifact at a boundary, not a convenient equivalent or permissive mock.
-- The orchestrating agent performs final verification. After it passes, create the work-unit commit with its checks and documentation; commit hooks are part of the verification boundary. Do not commit development work directly to `main`.
+- A delegated verify agent owns the final verification pass, not the orchestrating session. After it passes, create the work-unit commit with its checks and documentation; commit hooks are part of the verification boundary. Do not commit development work directly to `main`.
 
 ## Frontend architecture
 
