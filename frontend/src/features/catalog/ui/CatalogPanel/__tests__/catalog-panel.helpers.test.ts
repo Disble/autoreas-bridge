@@ -23,6 +23,7 @@ const baseAnime: Anime = {
   genres: [],
   hasDownloadPage: true,
   hasFolder: true,
+  hasCover: false,
 };
 
 describe('toAnimeStatus', () => {

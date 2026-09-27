@@ -1,3 +1,4 @@
+import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
 import { ANIME_ESTADO_LABELS, ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
 import type { AnimeEditorDraft, AnimeEditorEmptyStateCopy, AnimeEditorStatusOption } from './anime-editor-workspace.types';
 
@@ -84,6 +85,37 @@ export const ANIME_EDITOR_LIST_ROW_CLASS = 'min-h-14 h-auto w-full min-w-0 justi
 
 /** How many placeholder rows the Editor Library draws while its list request is unresolved. */
 export const ANIME_EDITOR_SKELETON_ROW_COUNT = 6;
+
+/**
+ * The one entry that renders the shared cover placeholder. A row that has no
+ * saved cover, and every degraded path (missing binding, failed lookup, failed
+ * decode), resolves to this. Single frozen instance so the cache cannot hand
+ * two rows differently-shaped "no cover" entries.
+ */
+export const ANIME_EDITOR_COVER_PLACEHOLDER: AnimeCoverEntry = { status: 'placeholder' };
+
+/** The entry a target sits in between being requested and resolving. */
+export const ANIME_EDITOR_COVER_LOADING: AnimeCoverEntry = { status: 'loading' };
+
+/**
+ * The rail thumbnail slot (44 px), shared by a real row's cover and the
+ * placeholder skeleton that stands in for it so the two cannot drift. The
+ * slot is fixed-size with the art filling it, so a cover's own aspect ratio
+ * can never change a row's height.
+ */
+export const ANIME_EDITOR_LIST_COVER_CLASS = 'size-11 shrink-0 overflow-hidden rounded-lg';
+
+/**
+ * The selected-record header thumbnail slot (60 px), the header's own size of
+ * the same fixed-slot shape the rail rows use.
+ */
+export const ANIME_EDITOR_HEADER_COVER_CLASS = 'size-[60px] shrink-0 overflow-hidden rounded-xl';
+
+/**
+ * Accessible name of the header thumbnail's loading status region, announcing
+ * the pending cover the way `AnimeDetail`'s hero avatar does.
+ */
+export const ANIME_EDITOR_HEADER_COVER_LOADING_LABEL = 'Loading anime cover...';
 
 /**
  * Copy for each Library empty state. The actual-empty wording states the

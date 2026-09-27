@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import type { AnimeCoverEntry } from '../../../../../shared/anime-cover/use-anime-cover';
 import { ANIME_ESTADO_VALID_VALUES } from '../../../../../shared/constants/anime-estado.constants';
-import { classifyAnimeEditorEmptyState, createAnimeEditorDraft, createAnimeEditorListItems, createAnimeEditorSaveCommand, getAnimeEditorEstadoColor, hasAnimeEditorChanges, isNearListBottom, nextAnimeEditorRenderLimit, premieredDateInputToMs, premieredMsToDateInput, resolveAnimeEditorFeedbackMessage, toAnimeEditorLifecycleConfirmation, validateAnimeEditorDraft } from '../anime-editor-workspace.helpers';
+import type { AnimeEditorRecord } from '../../../../../shared/contracts/anime.types';
+import { classifyAnimeEditorEmptyState, createAnimeEditorDraft, createAnimeEditorListItems, createAnimeEditorSaveCommand, getAnimeEditorEstadoColor, hasAnimeEditorChanges, hasSavedAnimeCover, isNearListBottom, nextAnimeEditorRenderLimit, planAnimeEditorCoverRequests, premieredDateInputToMs, premieredMsToDateInput, resolveAnimeEditorFeedbackMessage, toAnimeEditorCoverEntry, toAnimeEditorCoverTargets, toAnimeEditorLifecycleConfirmation, toAnimeEditorListRowViewModels, validateAnimeEditorDraft } from '../anime-editor-workspace.helpers';
+import type { AnimeEditorCoverResult, AnimeEditorListItemViewModel } from '../anime-editor-workspace.types';
 
 /** Authority fixture every save-command case edits a draft against. */
 const record = {
@@ -139,8 +142,8 @@ describe('anime-editor-workspace.helpers', () => {
 
   it('sorts scheduled (Daily-board) anime first in the "All anime" rail regardless of status', () => {
     const items = createAnimeEditorListItems([
-      { id: 'z', name: 'Zeta', status: 0, episodesWatched: 1, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false },
-      { id: 'p', name: 'Paused', status: 3, episodesWatched: 1, active: 1, days: ['Domingo'], genres: [], hasDownloadPage: false, hasFolder: false },
+      { id: 'z', name: 'Zeta', status: 0, episodesWatched: 1, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false, hasCover: false },
+      { id: 'p', name: 'Paused', status: 3, episodesWatched: 1, active: 1, days: ['Domingo'], genres: [], hasDownloadPage: false, hasFolder: false, hasCover: false },
     ], 'all', '', 'p');
 
     // The paused-but-scheduled anime bubbles above the unscheduled Viendo one.
@@ -148,10 +151,19 @@ describe('anime-editor-workspace.helpers', () => {
     expect(items[1]).toMatchObject({ animeId: 'z' });
   });
 
+  it('marks only the row whose id was selected, leaving every other row unselected', () => {
+    const items = createAnimeEditorListItems([
+      { id: 'a', name: 'A', status: 0, episodesWatched: 1, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false, hasCover: false },
+      { id: 'b', name: 'B', status: 0, episodesWatched: 1, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false, hasCover: false },
+    ], 'all', '', 'b');
+
+    expect(items.map((item) => [item.animeId, item.selected])).toEqual([['a', false], ['b', true]]);
+  });
+
   it('shows a paused-but-scheduled anime under "Watching now" and hides unscheduled ones', () => {
     const items = createAnimeEditorListItems([
-      { id: 'rezero', name: 'ReZero', status: 3, episodesWatched: 11, active: 1, days: ['Domingo'], genres: [], hasDownloadPage: false, hasFolder: false },
-      { id: 'oshi', name: 'Oshi No Ko', status: 1, episodesWatched: 24, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false },
+      { id: 'rezero', name: 'ReZero', status: 3, episodesWatched: 11, active: 1, days: ['Domingo'], genres: [], hasDownloadPage: false, hasFolder: false, hasCover: false },
+      { id: 'oshi', name: 'Oshi No Ko', status: 1, episodesWatched: 24, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false, hasCover: false },
     ], 'watching', '', undefined);
 
     expect(items).toHaveLength(1);
@@ -236,5 +248,167 @@ describe('classifyAnimeEditorEmptyState with visible rows', () => {
 
   it('keeps visible rows out of every empty state even under a non-default filter', () => {
     expect(classifyAnimeEditorEmptyState({ isLoadingList: false, sourceCount: 3, visibleCount: 2, query: '', filter: 'watching' })).toBe('none');
+  });
+});
+
+describe('cover projection', () => {
+  /** Builds one rail row carrying only the fields the cover helpers read. */
+  function row(animeId: string, hasCover: boolean): AnimeEditorListItemViewModel {
+    return { id: animeId, animeId, nombre: animeId, subtitle: '1 watched', selected: false, hasCover };
+  }
+
+  /** Builds one saved editor record, optionally carrying a stored cover source. */
+  function savedRecord(coverPath?: string, animeId = 'anime-1'): AnimeEditorRecord {
+    return {
+      animeId,
+      modifiedAt: 1,
+      frequent: { name: animeId, status: 0, progress: 1, active: true, placements: [] },
+      details: {
+        genres: [],
+        studios: { kind: 'values', values: [] },
+        cover: coverPath === undefined ? undefined : { path: coverPath },
+      },
+    };
+  }
+
+  it('carries the backend cover-presence flag onto each rail row', () => {
+    const items = createAnimeEditorListItems([
+      { id: 'a', name: 'A', status: 0, episodesWatched: 1, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false, hasCover: true },
+      { id: 'b', name: 'B', status: 0, episodesWatched: 1, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false, hasCover: false },
+    ], 'all', '', undefined);
+
+    expect(items.map((item) => [item.animeId, item.hasCover])).toEqual([['a', true], ['b', false]]);
+  });
+
+  it.each<[string, string | undefined, boolean]>([
+    ['a URL cover', 'https://example.com/cover.jpg', true],
+    ['a local Windows cover path', 'D:/covers/frieren.jpg', true],
+    ['a blank path', '', false],
+    ['a whitespace-only path', '   ', false],
+    ['a literal null sentinel', 'null', false],
+    ['an absent cover', undefined, false],
+  ])('reads %s as saved=%s', (_label, coverPath, expected) => {
+    expect(hasSavedAnimeCover(savedRecord(coverPath))).toBe(expected);
+  });
+
+  it('reports no saved cover before any record has loaded', () => {
+    expect(hasSavedAnimeCover(undefined)).toBe(false);
+  });
+
+  it('targets the progressive window rows and nothing past it', () => {
+    const items = [row('a', true), row('b', false), row('c', true)];
+
+    expect(toAnimeEditorCoverTargets(items, 2, undefined)).toEqual([
+      { animeId: 'a', hasCover: true },
+      { animeId: 'b', hasCover: false },
+    ]);
+  });
+
+  it('keeps the selected saved record resolvable when it falls outside the window', () => {
+    const targets = toAnimeEditorCoverTargets([row('a', true)], 1, savedRecord('https://c.jpg', 'z'));
+
+    expect(targets).toEqual([
+      { animeId: 'a', hasCover: true },
+      { animeId: 'z', hasCover: true, coverVersion: 'https://c.jpg' },
+    ]);
+  });
+
+  it('adds the selected record without duplicating or downgrading its window row', () => {
+    const targets = toAnimeEditorCoverTargets([row('a', true)], 1, savedRecord('https://c.jpg', 'a'));
+
+    // The record's saved source replaces the row's presence-only answer, which
+    // is what lets a later A->B save be detectable at all.
+    expect(targets).toEqual([{ animeId: 'a', hasCover: true, coverVersion: 'https://c.jpg' }]);
+  });
+
+  it('drops the selected record to the placeholder once its saved cover is cleared, even while the list still reports one', () => {
+    const targets = toAnimeEditorCoverTargets([row('a', true)], 1, savedRecord(undefined, 'a'));
+
+    expect(targets).toEqual([{ animeId: 'a', hasCover: false }]);
+  });
+
+  it('never widens the window for a selected record whose saved cover is gone', () => {
+    const targets = toAnimeEditorCoverTargets([], 0, savedRecord(undefined, 'z'));
+
+    expect(targets).toEqual([{ animeId: 'z', hasCover: false }]);
+  });
+
+  it('reports the saved source of a local Windows cover path as the row version', () => {
+    const targets = toAnimeEditorCoverTargets([], 0, savedRecord('D:/covers/frieren.jpg', 'z'));
+
+    expect(targets).toEqual([{ animeId: 'z', hasCover: true, coverVersion: 'D:/covers/frieren.jpg' }]);
+  });
+
+  it.each<[string, AnimeEditorCoverResult, AnimeCoverEntry]>([
+    ['a resolved thumbnail', { source: 'cover', dataUrl: 'data:image/jpeg;base64,x' }, { status: 'cover', dataUrl: 'data:image/jpeg;base64,x' }],
+    ['the placeholder signal', { source: 'placeholder', dataUrl: 'data:image/jpeg;base64,x' }, { status: 'placeholder' }],
+    ['a cover result with no bytes', { source: 'cover' }, { status: 'placeholder' }],
+  ])('maps %s into its cache entry', (_label, result, expected) => {
+    expect(toAnimeEditorCoverEntry(result)).toEqual(expected);
+  });
+
+  it('leaves a row whose cover is unresolved on the placeholder', () => {
+    const rows = toAnimeEditorListRowViewModels([row('a', true)], new Map());
+
+    expect(rows).toEqual([{ ...row('a', true), cover: { status: 'placeholder' } }]);
+  });
+
+  it('joins each resolved cover onto its own row', () => {
+    const rows = toAnimeEditorListRowViewModels(
+      [row('a', true), row('b', true)],
+      new Map([['b', { status: 'cover', dataUrl: 'data:image/jpeg;base64,b' }]]),
+    );
+
+    expect(rows.map((item) => item.cover)).toEqual([
+      { status: 'placeholder' },
+      { status: 'cover', dataUrl: 'data:image/jpeg;base64,b' },
+    ]);
+  });
+
+  it('keeps a row the DTO reports as coverless on the placeholder even while the cache still holds its old art', () => {
+    // The removal path: the list reloaded with `hasCover: false` while the
+    // cache still carried the art resolved before the cover was cleared.
+    const rows = toAnimeEditorListRowViewModels([row('a', false)], new Map([['a', { status: 'cover', dataUrl: 'data:image/jpeg;base64,old' }]]));
+
+    expect(rows.map((item) => item.cover)).toEqual([{ status: 'placeholder' }]);
+  });
+});
+
+describe('cover request planning', () => {
+  const NOT_REQUESTED: ReadonlyMap<string, string | undefined> = new Map();
+
+  /** Builds one cover target: presence, plus the saved source when the rail knows it. */
+  function target(hasCover: boolean, coverVersion?: string) {
+    return coverVersion === undefined ? { animeId: 'anime-1', hasCover } : { animeId: 'anime-1', hasCover, coverVersion };
+  }
+
+  it.each<[string, ReturnType<typeof target>, ReadonlyMap<string, string | undefined>, readonly string[], readonly string[], readonly (readonly [string, string | undefined])[]]>([
+    ['a first presence-only row lookup', target(true), NOT_REQUESTED, ['anime-1'], [], [['anime-1', undefined]]],
+    ['no second lookup for an unchanged presence-only row', target(true), new Map([['anime-1', undefined]]), [], [], [['anime-1', undefined]]],
+    ['a first lookup of a known saved source', target(true, 'A'), NOT_REQUESTED, ['anime-1'], [], [['anime-1', 'A']]],
+    ['no second lookup for the same saved source', target(true, 'A'), new Map([['anime-1', 'A']]), [], [], [['anime-1', 'A']]],
+    ['a fresh lookup when the saved source changed A to B', target(true, 'B'), new Map([['anime-1', 'A']]), ['anime-1'], [], [['anime-1', 'B']]],
+    ['no lookup when the saved source merely becomes known', target(true, 'A'), new Map([['anime-1', undefined]]), [], [], [['anime-1', 'A']]],
+    ['no lookup when the saved source becomes unknown again', target(true), new Map([['anime-1', 'A']]), [], [], [['anime-1', 'A']]],
+    ['an invalidation, forgetting the source, when the cover is gone', target(false), new Map([['anime-1', 'A']]), [], ['anime-1'], []],
+    ['an invalidation for a coverless row that was never looked up', target(false), NOT_REQUESTED, [], ['anime-1'], []],
+  ])('plans %s', (_label, coverTarget, requestedVersions, requests, invalidatedIds, versions) => {
+    const plan = planAnimeEditorCoverRequests([coverTarget], requestedVersions);
+
+    expect(plan.requests).toEqual(requests);
+    expect(plan.invalidatedIds).toEqual(invalidatedIds);
+    expect([...plan.requestedVersions]).toEqual(versions);
+  });
+
+  it('looks the anime up again once a cover comes back after an invalidation', () => {
+    const removal = planAnimeEditorCoverRequests([target(false)], new Map([['anime-1', 'A']]));
+
+    expect(planAnimeEditorCoverRequests([target(true, 'A')], removal.requestedVersions).requests).toEqual(['anime-1']);
+  });
+
+  it('leaves the remembered source untouched for the other animes in the plan', () => {
+    const plan = planAnimeEditorCoverRequests([target(true, 'B')], new Map([['anime-1', 'A'], ['anime-2', 'X']]));
+
+    expect([...plan.requestedVersions]).toEqual([['anime-1', 'B'], ['anime-2', 'X']]);
   });
 });

@@ -7,6 +7,7 @@ const { mockSource } = vi.hoisted(() => ({
   mockSource: {
     getAnimes: vi.fn(),
     getAnimeEditorRecord: vi.fn(),
+    getAnimeCover: vi.fn().mockResolvedValue({ source: 'placeholder' }),
     saveAnimeEditor: vi.fn(),
     deactivateAnime: vi.fn(),
     getAnimeEditorScheduleBoard: vi.fn(),
@@ -123,6 +124,23 @@ describe('AnimeEditorListPanel empty states', () => {
 
     await screen.findByRole('status', { name: 'Loading anime list...' });
     expect(screen.getAllByTestId('anime-editor-skeleton-row')).toHaveLength(6);
+    // Each placeholder row carries the same 44px cover slot a real row does,
+    // so the rail does not jump when the covers arrive.
+    expect(screen.getAllByTestId('anime-editor-skeleton-cover')).toHaveLength(6);
+    // jsdom has no layout engine, so the class string IS the horizontal layout
+    // contract: the placeholder row is a flex row like the real row it mirrors.
+    expect(screen.getAllByTestId('anime-editor-skeleton-row')[0]).toHaveClass('flex', 'items-center', 'gap-2');
+  });
+
+  it('renders the shared placeholder, and asks for nothing, for a row with no cover', async () => {
+    mockSource.getAnimes.mockResolvedValue([SCHEDULED_ANIME]);
+
+    renderWorkspace();
+
+    await screen.findByText('Frieren');
+    expect(screen.getByTestId('anime-editor-list-cover-placeholder')).toBeInTheDocument();
+    expect(screen.queryByTestId('anime-editor-list-cover-image')).toBeNull();
+    expect(mockSource.getAnimeCover).not.toHaveBeenCalled();
   });
 
   it('renders no status region and no placeholder once the library request resolved', async () => {

@@ -1,4 +1,5 @@
 import type { AnimeEditorRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
 import type { AnimeEditorRecord, AnimeEditorSaveResult, AnimeEditorScheduleApplyResult, ApplyAnimeScheduleDraftEntry } from '../../../../shared/contracts/anime.types';
 import type { AnimeMetadataSelection, AppliedMetadata } from '../../../../shared/metadata-lookup/metadata-lookup.types';
 import type { AnimeScheduleOrderingTestDriverRef } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
@@ -133,12 +134,104 @@ export interface AnimeEditorListItemViewModel {
   readonly nombre: string;
   readonly subtitle: string;
   readonly selected: boolean;
+  /**
+   * The backend list DTO's own cover-presence signal (`hasCover`). A `false`
+   * row is never asked for a cover at all, so a blank or literal `"null"`
+   * stored source cannot cost a binding call or reach an image element.
+   */
+  readonly hasCover: boolean;
+}
+
+/**
+ * One rail row as the panel renders it: the list view model plus the cover
+ * entry the shared rail cover cache resolved for that anime. Kept separate
+ * from {@link AnimeEditorListItemViewModel} so the list projection (which
+ * knows nothing about covers) stays the single source of the row's identity.
+ */
+export interface AnimeEditorListRowViewModel extends AnimeEditorListItemViewModel {
+  readonly cover: AnimeCoverEntry;
 }
 
 /** Props for one rendered row of the Editor Library's rail. */
 export interface AnimeEditorListRowProps {
-  readonly item: AnimeEditorListItemViewModel;
+  readonly item: AnimeEditorListRowViewModel;
   readonly onSelectAnime: (animeId: string) => void;
+  /** Reports a decoded-cover failure so the owning hook degrades that row to its placeholder. */
+  readonly onCoverImageError: (animeId: string) => void;
+}
+
+/** Props for the editor form header's saved-cover thumbnail slot. */
+export interface AnimeEditorHeaderCoverProps {
+  /**
+   * The selected anime whose saved cover the header shows. Absent when no
+   * record is loaded, in which case the slot renders nothing at all.
+   */
+  readonly animeId?: string;
+  /** The cover entry the rail's shared cache resolved for that anime. */
+  readonly cover: AnimeCoverEntry;
+  /** Reports a decoded-cover failure so the owning hook degrades the header to its placeholder. */
+  readonly onCoverImageError: (animeId: string) => void;
+}
+
+/**
+ * The minimal cover-resolution port the rail depends on, matching
+ * `bridgeRuntimeSource.getAnimeCover`'s shape so a test can inject a fake
+ * without touching the Wails-backed singleton -- the same seam
+ * `NotificationDetailCoverSource` and `EpisodeScheduleSource` already expose.
+ * Optional because a non-Wails (browser/Vite) context has no binding at all,
+ * which degrades to the placeholder instead of throwing.
+ */
+export interface AnimeEditorCoverSource {
+  readonly getAnimeCover?: (animeId: string) => Promise<AnimeEditorCoverResult>;
+}
+
+/** One cover-binding result: a base64 data URL, or the explicit placeholder signal. */
+export interface AnimeEditorCoverResult {
+  readonly dataUrl?: string;
+  readonly source: string;
+}
+
+/**
+ * One anime whose cover the rail may resolve. Deliberately not the full list
+ * row: the rail resolves covers for the progressive window's rows plus the
+ * selected saved record, and both supply the same facts.
+ */
+export interface AnimeEditorCoverTarget {
+  readonly animeId: string;
+  readonly hasCover: boolean;
+  /**
+   * The stored cover source this target resolves when the rail knows it -- the
+   * selected record's saved path or URL -- and absent for a list row, whose DTO
+   * reports presence only (`hasCover`) and never the source itself.
+   *
+   * Two different versions describe two different covers, so the rail must
+   * resolve again; a version that merely becomes known (or unknown again) does
+   * not, because the art already resolved for that anime is still the art of
+   * the source that was saved. This is what makes a saved cover change A->B
+   * refetch while clicking between rows does not.
+   */
+  readonly coverVersion?: string;
+}
+
+/**
+ * What one render of the rail must do about covers: the lookups it owes, the
+ * animes it must drop back to the placeholder, and the source identity it
+ * remembers once the plan is adopted.
+ */
+export interface AnimeEditorCoverRequestPlan {
+  /** The anime ids to look up, each resolved exactly once for the adopted source. */
+  readonly requests: readonly string[];
+  /** Animes whose cover went away, so their cached art (and remembered source) must go too. */
+  readonly invalidatedIds: readonly string[];
+  readonly requestedVersions: ReadonlyMap<string, string | undefined>;
+}
+
+/** The rail's shared cover cache, consumed by both the rows and the detail header. */
+export interface AnimeEditorCoverCache {
+  /** Cover state keyed by anime id: loading, resolved, or placeholder. */
+  readonly covers: ReadonlyMap<string, AnimeCoverEntry>;
+  /** Degrades one anime's resolved cover to the placeholder after a failed image decode. */
+  readonly onCoverImageError: (animeId: string) => void;
 }
 
 /** Inferred view model consumed by the dumb editor components. */

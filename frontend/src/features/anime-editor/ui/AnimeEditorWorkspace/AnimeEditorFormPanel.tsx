@@ -4,6 +4,7 @@ import { AnimeMetadataLookupModal } from '../../../../shared/metadata-lookup/ui/
 import { LabeledSelect } from '../../../../shared/ui/LabeledSelect';
 import { LabeledTextField } from '../../../../shared/ui/LabeledTextField';
 import { PathPickerField } from '../../../../shared/ui/PathPickerField';
+import { AnimeEditorHeaderCover } from './AnimeEditorHeaderCover';
 import { ANIME_EDITOR_COVER_TYPE_OPTIONS, ANIME_EDITOR_KIND_OPTIONS, ANIME_EDITOR_REPEAT_LABEL, ANIME_EDITOR_RESTORE_LABEL, ANIME_EDITOR_STATUS_OPTIONS } from './anime-editor-workspace.constants';
 import { getAnimeEditorEstadoColor, premieredDateInputToMs, premieredMsToDateInput } from './anime-editor-workspace.helpers';
 import type { AnimeEditorFormPanelProps } from './anime-editor-workspace.types';
@@ -14,9 +15,16 @@ export function AnimeEditorFormPanel({ viewModel }: Readonly<AnimeEditorFormPane
   return (
     <Card className="flex max-h-[calc(100dvh-7rem)] min-w-0 flex-col overflow-hidden xl:col-span-2"><Card.Content className="flex min-h-0 min-w-0 flex-col p-0">
       <header className="flex min-w-0 items-start justify-between gap-3 border-b border-divider px-5 py-4">
-        <div className="min-w-0">
-          <Typography truncate type="h4">{record?.frequent.name ?? 'Select an anime'}</Typography>
-          <Typography color="muted" type="body-sm">{viewModel.isDirty ? 'You have unsaved changes.' : 'Selected anime stays highlighted after each refresh.'}</Typography>
+        <div className="flex min-w-0 items-start gap-3">
+          <AnimeEditorHeaderCover
+            animeId={record?.animeId}
+            cover={viewModel.cover}
+            onCoverImageError={viewModel.onCoverImageError}
+          />
+          <div className="min-w-0">
+            <Typography truncate type="h4">{record?.frequent.name ?? 'Select an anime'}</Typography>
+            <Typography color="muted" type="body-sm">{viewModel.isDirty ? 'You have unsaved changes.' : 'Selected anime stays highlighted after each refresh.'}</Typography>
+          </div>
         </div>
         {record !== undefined && (
           <Chip color={getAnimeEditorEstadoColor(viewModel.draft.status)} size="sm" variant="soft">

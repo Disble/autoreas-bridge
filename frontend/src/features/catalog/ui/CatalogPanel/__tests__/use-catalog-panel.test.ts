@@ -16,6 +16,7 @@ const animeA: Anime = {
   genres: [],
   hasDownloadPage: true,
   hasFolder: true,
+  hasCover: false,
 };
 
 /** An inactive record missing its download page. */
@@ -29,6 +30,7 @@ const animeB: Anime = {
   genres: [],
   hasDownloadPage: false,
   hasFolder: true,
+  hasCover: false,
 };
 
 /** Builds a runtime source that resolves the given records, or rejects on demand. */

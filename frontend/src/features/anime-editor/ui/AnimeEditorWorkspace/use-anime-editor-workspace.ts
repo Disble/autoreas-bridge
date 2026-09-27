@@ -2,8 +2,10 @@ import { useCallback, useMemo, useState } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import type { AnimeEditorRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import { metadataLookupSource } from '../../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers';
-import { toAnimeEditorLifecycleConfirmation } from './anime-editor-workspace.helpers';
-import type { AnimeEditorLifecycleAction, AnimeEditorWorkspaceProps } from './anime-editor-workspace.types';
+import { toAnimeEditorLifecycleConfirmation, toAnimeEditorListRowViewModels } from './anime-editor-workspace.helpers';
+import type { AnimeEditorCoverSource, AnimeEditorLifecycleAction, AnimeEditorWorkspaceProps } from './anime-editor-workspace.types';
+import { useAnimeEditorCovers } from './use-anime-editor-covers';
+import { useAnimeEditorCover } from './use-anime-editor-cover';
 import { useAnimeEditorList } from './use-anime-editor-list';
 import { useAnimeEditorListWindow } from './use-anime-editor-list-window';
 import { useAnimeEditorRecord } from './use-anime-editor-record';
@@ -11,7 +13,7 @@ import { useAnimeEditorSchedule } from './use-anime-editor-schedule';
 import { useAnimeEditorTransitions } from './use-anime-editor-transitions';
 
 /** Composes focused record, transition, list, and schedule hooks for the editor workspace. */
-export function useAnimeEditorWorkspace(props: Readonly<AnimeEditorWorkspaceProps>, source: AnimeEditorRuntimeSource = bridgeRuntimeSource) {
+export function useAnimeEditorWorkspace(props: Readonly<AnimeEditorWorkspaceProps>, source: AnimeEditorRuntimeSource & AnimeEditorCoverSource = bridgeRuntimeSource) {
   // 1. Refs
 
   // 2. State
@@ -22,6 +24,7 @@ export function useAnimeEditorWorkspace(props: Readonly<AnimeEditorWorkspaceProp
   const list = useAnimeEditorList({ initialAnimeId: props.initialAnimeId, source });
   const listWindow = useAnimeEditorListWindow(list.items.length);
   const record = useAnimeEditorRecord({ selectedAnimeId: list.selectedAnimeId, source });
+  const coverCache = useAnimeEditorCovers(list.items, listWindow.visibleCount, record.selectedRecord, source);
   const schedule = useAnimeEditorSchedule({ selectedAnimeId: list.selectedAnimeId, source });
   const transitions = useAnimeEditorTransitions({
     selectedAnimeId: list.selectedAnimeId,
@@ -42,6 +45,8 @@ export function useAnimeEditorWorkspace(props: Readonly<AnimeEditorWorkspaceProp
 
   // 5. Derived State (useMemo)
   const lifecycleConfirmation = useMemo(() => (lifecycleAction === undefined ? undefined : toAnimeEditorLifecycleConfirmation(lifecycleAction)), [lifecycleAction]);
+  const items = useMemo(() => toAnimeEditorListRowViewModels(list.items, coverCache.covers), [list.items, coverCache.covers]);
+  const cover = useAnimeEditorCover(record.selectedRecord, coverCache.covers);
 
   // 6. Callbacks (useCallback calling pure helpers)
   const onToggleDetails = useCallback(() => setIsDetailsOpen((current) => !current), []);
@@ -61,8 +66,12 @@ export function useAnimeEditorWorkspace(props: Readonly<AnimeEditorWorkspaceProp
   // 7. Effects
 
   return {
-    query: list.query, filter: list.filter, items: list.items, listEmptyState: list.emptyState, selectedAnimeId: list.selectedAnimeId,
+    query: list.query, filter: list.filter, items, listEmptyState: list.emptyState, selectedAnimeId: list.selectedAnimeId,
     selectedRecord: record.selectedRecord, draft: record.draft,
+    /** The selected anime's saved-cover thumbnail state, rendered in the form header. */
+    cover,
+    /** Degrades one anime's thumbnail to the placeholder after a failed image decode. */
+    onCoverImageError: coverCache.onCoverImageError,
     /** The draft's pending Undo (design D9) -- absent once undone, discarded, or never applied. */
     appliedMetadata: record.appliedMetadata,
     /** The MyAnimeList lookup's two Wails-bound calls, injected into the form's lookup modal. */

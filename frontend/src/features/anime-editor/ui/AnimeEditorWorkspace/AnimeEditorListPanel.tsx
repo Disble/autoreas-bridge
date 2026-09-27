@@ -47,7 +47,7 @@ export function AnimeEditorListPanel({ viewModel }: Readonly<AnimeEditorListPane
         <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto" data-testid="anime-editor-list-scroll" onScroll={onScroll} ref={scrollRef}>
           <div className="flex flex-col gap-0.5">
             {visibleItems.map((item) => (
-              <AnimeEditorListRow item={item} key={item.id} onSelectAnime={viewModel.onSelectAnime} />
+              <AnimeEditorListRow item={item} key={item.id} onCoverImageError={viewModel.onCoverImageError} onSelectAnime={viewModel.onSelectAnime} />
             ))}
           </div>
         </div>

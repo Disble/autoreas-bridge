@@ -16,6 +16,7 @@ function anime(overrides: Partial<Anime> = {}): Anime {
     genres: [],
     hasDownloadPage: false,
     hasFolder: false,
+    hasCover: false,
     ...overrides,
   };
 }

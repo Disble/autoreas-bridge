@@ -1,8 +1,10 @@
+import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
+import { normalizeStoredCoverPath } from '../../../../shared/anime-cover/anime-cover.helpers';
 import type { Anime, AnimeEditorRecord, AnimeEditorSaveResult, SaveAnimeEditorCommand } from '../../../../shared/contracts/anime.types';
 import { isScheduledAnime, isValidAnimeEstado } from '../../../../shared/helpers/anime-estado.helpers';
 import { isValidDownloadPageUrl } from '../../../../shared/helpers/url.helpers';
-import { ANIME_EDITOR_DEFAULT_DRAFT } from './anime-editor-workspace.constants';
-import type { AnimeEditorChipColor, AnimeEditorDraft, AnimeEditorEmptyState, AnimeEditorEmptyStateInput, AnimeEditorFilter, AnimeEditorGuardEvent, AnimeEditorGuardState, AnimeEditorLifecycleAction, AnimeEditorLifecycleConfirmation, AnimeEditorListItemViewModel } from './anime-editor-workspace.types';
+import { ANIME_EDITOR_COVER_PLACEHOLDER, ANIME_EDITOR_DEFAULT_DRAFT } from './anime-editor-workspace.constants';
+import type { AnimeEditorChipColor, AnimeEditorCoverRequestPlan, AnimeEditorCoverResult, AnimeEditorCoverTarget, AnimeEditorDraft, AnimeEditorEmptyState, AnimeEditorEmptyStateInput, AnimeEditorFilter, AnimeEditorGuardEvent, AnimeEditorGuardState, AnimeEditorLifecycleAction, AnimeEditorLifecycleConfirmation, AnimeEditorListItemViewModel, AnimeEditorListRowViewModel } from './anime-editor-workspace.types';
 import { ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
 
 /**
@@ -221,7 +223,141 @@ export function createAnimeEditorListItems(animes: readonly Anime[], filter: Ani
       const scheduledDifference = Number(!isScheduledAnime(left)) - Number(!isScheduledAnime(right));
       return scheduledDifference === 0 ? left.name.localeCompare(right.name) : scheduledDifference;
     })
-    .map((anime) => ({ id: anime.id, animeId: anime.id, nombre: anime.name, subtitle: `${anime.episodesWatched} watched`, selected: anime.id === selectedAnimeId }));
+    .map((anime) => ({ id: anime.id, animeId: anime.id, nombre: anime.name, subtitle: `${anime.episodesWatched} watched`, selected: anime.id === selectedAnimeId, hasCover: anime.hasCover }));
+}
+
+/**
+ * Reports whether the loaded record carries a renderable saved cover. The gate
+ * reads the SAVED record's own cover source through the shared
+ * `normalizeStoredCoverPath` rule (blank, whitespace-only, and the literal
+ * `"null"` sentinel are all "no cover"), so the header thumbnail can never be
+ * driven by an unsaved draft edit and a raw stored path never becomes an image
+ * source by itself. A local Windows path counts as a cover here exactly like a
+ * URL: the binding, not the path, produces the bytes.
+ */
+export function hasSavedAnimeCover(record?: AnimeEditorRecord): boolean {
+  return normalizeStoredCoverPath(record?.details.cover?.path) !== undefined;
+}
+
+/**
+ * Builds the cover targets the rail resolves: every row inside the progressive
+ * visible window, plus the selected saved record. The window is the gate that
+ * keeps an 800-anime library from costing 800 lookups, and the selected record
+ * is added separately because a deep link can select an anime the window has
+ * not grown to yet.
+ *
+ * The record is authoritative for its own anime, which is what makes a saved
+ * cover change visible: its `details.cover.path` is the only place the rail can
+ * learn WHICH source an anime's cover is, so that id carries the saved source
+ * as its version (and reports no cover at all once that source is cleared).
+ * Every other row reports presence only, because the slim list DTO deliberately
+ * never exposes a cover path.
+ */
+export function toAnimeEditorCoverTargets(
+  items: readonly AnimeEditorListItemViewModel[],
+  visibleCount: number,
+  record?: AnimeEditorRecord,
+): readonly AnimeEditorCoverTarget[] {
+  const targetsById = new Map<string, AnimeEditorCoverTarget>();
+  for (const item of items.slice(0, visibleCount)) {
+    targetsById.set(item.animeId, { animeId: item.animeId, hasCover: item.hasCover });
+  }
+  if (record !== undefined) {
+    const savedCover = normalizeStoredCoverPath(record.details.cover?.path);
+    targetsById.set(
+      record.animeId,
+      savedCover === undefined
+        ? { animeId: record.animeId, hasCover: false }
+        : { animeId: record.animeId, coverVersion: savedCover, hasCover: true },
+    );
+  }
+  return [...targetsById.values()];
+}
+
+/**
+ * Plans one render of the rail's cover work: which animes it must look up, which
+ * must fall back to the placeholder, and the source identity it remembers once
+ * the plan is adopted.
+ *
+ * The remembered identity is what keeps the lookup cache honest across the two
+ * flows that can change a cover. A target whose saved source differs from the
+ * one already resolved is a DIFFERENT cover, so it is looked up again -- a saved
+ * A->B on the same anime must not keep showing A. A target whose source merely
+ * becomes known (the record loaded and named the source behind a row that was
+ * already resolved), or unknown again (the record is gone because the user
+ * selected something else), is not: the art already on screen is still the art
+ * of that source, and re-resolving on every click would double the traffic.
+ *
+ * A target without a cover invalidates instead: the entry goes back to the
+ * placeholder and the remembered source is forgotten, so the removed cover's
+ * art cannot linger in a row the list just reloaded as coverless, and a cover
+ * added later is resolved fresh rather than reusing what was there before.
+ */
+export function planAnimeEditorCoverRequests(
+  targets: readonly AnimeEditorCoverTarget[],
+  requestedVersions: ReadonlyMap<string, string | undefined>,
+): AnimeEditorCoverRequestPlan {
+  const nextVersions = new Map(requestedVersions);
+  const requests: string[] = [];
+  const invalidatedIds: string[] = [];
+
+  for (const target of targets) {
+    const { animeId, coverVersion } = target;
+
+    if (!target.hasCover) {
+      nextVersions.delete(animeId);
+      invalidatedIds.push(animeId);
+      continue;
+    }
+
+    if (!nextVersions.has(animeId)) {
+      nextVersions.set(animeId, coverVersion);
+      requests.push(animeId);
+      continue;
+    }
+
+    const requestedVersion = nextVersions.get(animeId);
+
+    if (requestedVersion === coverVersion || coverVersion === undefined) {
+      continue;
+    }
+
+    nextVersions.set(animeId, coverVersion);
+
+    if (requestedVersion !== undefined) {
+      requests.push(animeId);
+    }
+  }
+
+  return { invalidatedIds, requests, requestedVersions: nextVersions };
+}
+
+/**
+ * Maps one cover-binding result onto the cache entry the rail renders. Kept
+ * pure and exported so the "placeholder unless there are real bytes" rule has a
+ * single owner: the binding already degrades its own failures, so a result that
+ * claims a cover but carries no bytes is not trusted.
+ */
+export function toAnimeEditorCoverEntry(result: AnimeEditorCoverResult): AnimeCoverEntry {
+  return result.source === 'cover' && result.dataUrl !== undefined ? { dataUrl: result.dataUrl, status: 'cover' } : ANIME_EDITOR_COVER_PLACEHOLDER;
+}
+
+/**
+ * Joins the rail's cover cache onto each projected list row. A coverless row
+ * renders the shared placeholder even when the cache still holds art for that
+ * id -- a cleared cover leaves the old thumbnail in memory until its entry is
+ * invalidated, and a row the backend reports as coverless must never show it.
+ * An unresolved row falls back to the same placeholder, so the row's geometry
+ * is identical whether the cover is missing, pending, or failed.
+ */
+export function toAnimeEditorListRowViewModels(
+  items: readonly AnimeEditorListItemViewModel[],
+  covers: ReadonlyMap<string, AnimeCoverEntry>,
+): readonly AnimeEditorListRowViewModel[] {
+  return items.map((item) => ({
+    ...item,
+    cover: item.hasCover ? (covers.get(item.animeId) ?? ANIME_EDITOR_COVER_PLACEHOLDER) : ANIME_EDITOR_COVER_PLACEHOLDER,
+  }));
 }
 
 /** Keeps transport feedback string-safe while preserving backend messages verbatim. */

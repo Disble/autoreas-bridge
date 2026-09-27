@@ -16,6 +16,14 @@ export interface Anime {
   readonly hasDownloadPage: boolean;
   /** True when the `folder` (download destination folder) field is present and non-empty. */
   readonly hasFolder: boolean;
+  /**
+   * True when the stored cover carries a usable source, decided by the
+   * backend's own `cover.Classify` rule. It gates the Library thumbnail
+   * lookup, so a missing, blank, or literal `"null"` source never reaches an
+   * image element and never costs a `GetAnimeCover` call. The wire field is a
+   * plain `boolean`.
+   */
+  readonly hasCover: boolean;
 }
 
 /** A single repetition-history entry from the `repetitions` timeline. */
@@ -47,10 +55,14 @@ export interface AnimeDetailDay {
  * slice (encoding/json's `omitempty` treats zero-length slices as empty) --
  * the vast majority of anime have no repetition history, so callers must
  * treat a missing `repetitions` the same as an empty timeline.
+ *
+ * `hasCover` is omitted deliberately: it is the SLIM list DTO's cover-presence
+ * signal (`GetAnimes`), while the detail binding returns `MobileAnime`, whose
+ * `cover` is the raw stored source itself.
  */
 export interface AnimeDetail extends Omit<
   Anime,
-  'id' | 'days' | 'hasDownloadPage' | 'hasFolder'
+  'id' | 'days' | 'hasDownloadPage' | 'hasFolder' | 'hasCover'
 > {
   readonly id: string;
   readonly firstCycle: number;

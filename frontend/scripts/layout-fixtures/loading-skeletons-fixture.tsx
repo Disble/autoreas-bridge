@@ -56,13 +56,15 @@ const CATALOG_ITEM = {
   gapLabel: 'Missing page',
 } as const;
 
-/** An Editor rail row with a name and its watched subtitle. */
+/** An Editor rail row with its cover slot, a name and its watched subtitle. */
 const EDITOR_ITEM = {
   id: 'anime-1',
   animeId: 'anime-1',
   nombre: 'Frieren',
   subtitle: '10 watched',
   selected: false,
+  hasCover: false,
+  cover: { status: 'placeholder' },
 } as const;
 
 /** A Today schedule row with no cover, the placeholder-cover shape. */
@@ -135,7 +137,7 @@ const COMPARISONS: readonly SkeletonComparison[] = [
   {
     subject: 'editor-library',
     rowTestId: 'anime-editor-skeleton-row',
-    real: <AnimeEditorListRow item={EDITOR_ITEM} onSelectAnime={() => undefined} />,
+    real: <AnimeEditorListRow item={EDITOR_ITEM} onCoverImageError={noop} onSelectAnime={() => undefined} />,
     skeleton: <AnimeEditorListSkeleton />,
   },
   {

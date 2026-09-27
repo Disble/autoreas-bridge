@@ -31,11 +31,13 @@ function createViewModel(overrides: Partial<AnimeEditorWorkspaceViewModel> = {})
     selectedRecord: { animeId: 'anime-1', modifiedAt: 1, frequent: { name: 'Frieren', status: 0, progress: 12, totalEpisodes: 28, active: true, kind: 1, page: 'https://x', folder: 'D:/a', placements: [] }, details: { genres: [], studios: { kind: 'values', values: [] }, origin: 'Manga', duration: 24, premieredAt: 1775968858358, cover: { type: 'url', path: 'https://c.jpg' } } } as unknown as AnimeEditorWorkspaceViewModel['selectedRecord'],
     draft: { name: 'Frieren', status: 0, progress: '12', totalEpisodes: '28', kind: '1', page: 'https://x', folder: 'D:/a', premieredAt: '1775968858358', origin: 'Manga', duration: '24', genres: '', studios: '', coverType: 'url', coverPath: 'https://c.jpg' },
     appliedMetadata: undefined,
+    cover: { status: 'placeholder' },
     metadataLookupSource: fakeMetadataLookupSource(),
     isLoadingList: false, isLoadingRecord: false, isSaving: false, isApplyingSchedule: false, isDirty: false,
     isScheduleModalOpen: false, scheduleBoard: undefined, feedback: undefined, validationMessage: undefined, scheduleFeedback: undefined,
     isDetailsOpen: false, isGuardOpen: false, canSave: false,
     onQueryChange: vi.fn(), onFilterChange: vi.fn(), onSelectAnime: vi.fn(), onDraftChange: vi.fn(),
+    onCoverImageError: vi.fn(),
     onToggleDetails: vi.fn(), onDiscardChanges: vi.fn(), onPickFolder: vi.fn(), onSave: vi.fn(), onDeactivate: vi.fn(), onRestore: vi.fn(), onRepeat: vi.fn(),
     lifecycleConfirmation: undefined, onRequestLifecycleAction: vi.fn(), onCancelLifecycleAction: vi.fn(), onConfirmLifecycleAction: vi.fn(),
     onMetadataApplied: vi.fn(), onMetadataUndo: vi.fn(),
@@ -313,5 +315,86 @@ describe('AnimeEditorFormPanel -- MyAnimeList metadata lookup (SDD-70 slice 7)',
         expect.objectContaining({ name: 'Bleach: Sennen Kessen-hen' }),
       );
     });
+  });
+});
+
+describe('AnimeEditorFormPanel saved-cover header', () => {
+  it('renders the selected record cover before the title', () => {
+    const viewModel = createViewModel({ cover: { status: 'cover', dataUrl: 'data:image/jpeg;base64,x' } });
+
+    render(<AnimeEditorFormPanel viewModel={viewModel} />);
+
+    const cover = screen.getByTestId('anime-editor-header-cover-image');
+    expect(cover).toHaveAttribute('src', 'data:image/jpeg;base64,x');
+    // "before title" is a layout claim, so assert the document order.
+    expect(cover.compareDocumentPosition(screen.getByText('Frieren')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('reports a header thumbnail decode failure for the selected anime', () => {
+    const onCoverImageError = vi.fn();
+    const viewModel = createViewModel({ cover: { status: 'cover', dataUrl: 'data:image/jpeg;base64,x' }, onCoverImageError });
+
+    render(<AnimeEditorFormPanel viewModel={viewModel} />);
+    fireEvent.error(screen.getByTestId('anime-editor-header-cover-image'));
+
+    // The workspace owns the degradation: the panel only names the anime whose
+    // thumbnail failed, so a silent handler would leave the broken image up.
+    expect(onCoverImageError).toHaveBeenCalledExactlyOnceWith('anime-1');
+  });
+
+  it('renders the shared placeholder when the selected record has no saved cover', () => {
+    const viewModel = createViewModel();
+
+    render(<AnimeEditorFormPanel viewModel={viewModel} />);
+
+    expect(screen.getByTestId('anime-editor-header-cover-placeholder')).toBeInTheDocument();
+    expect(screen.queryByTestId('anime-editor-header-cover-image')).toBeNull();
+  });
+
+  it('announces a pending cover with a shape-matching skeleton, and never a bare image', () => {
+    const viewModel = createViewModel({ cover: { status: 'loading' } });
+
+    render(<AnimeEditorFormPanel viewModel={viewModel} />);
+
+    expect(screen.getByRole('status', { name: 'Loading anime cover...' })).toBeInTheDocument();
+    expect(screen.queryByTestId('anime-editor-header-cover-image')).toBeNull();
+    expect(screen.queryByTestId('anime-editor-header-cover-placeholder')).toBeNull();
+  });
+
+  it('renders no header cover at all until a record is loaded', () => {
+    const viewModel = createViewModel({ selectedRecord: undefined });
+
+    render(<AnimeEditorFormPanel viewModel={viewModel} />);
+
+    expect(screen.queryByTestId('anime-editor-header-cover')).toBeNull();
+  });
+
+  it('leaves the header thumbnail untouched when the cover source draft changes', () => {
+    // The header shows the SAVED cover: a draft edit must not preview, so the
+    // rendered source stays exactly what the resolved entry carried.
+    const { rerender } = render(<AnimeEditorFormPanel viewModel={createViewModel({ cover: { status: 'cover', dataUrl: 'data:image/jpeg;base64,saved' } })} />);
+
+    rerender(<AnimeEditorFormPanel viewModel={createViewModel({ draft: { ...createViewModel().draft, coverPath: 'D:/covers/other.jpg', coverType: 'image' }, cover: { status: 'cover', dataUrl: 'data:image/jpeg;base64,saved' } })} />);
+
+    expect(screen.getByTestId('anime-editor-header-cover-image')).toHaveAttribute('src', 'data:image/jpeg;base64,saved');
+  });
+});
+
+describe('AnimeEditorFormPanel header title and status line', () => {
+  it('prompts for a selection, as a title, while no anime is selected', () => {
+    render(<AnimeEditorFormPanel viewModel={createViewModel({ selectedRecord: undefined })} />);
+
+    // The empty selection is the only case with no anime name to show, so the
+    // header must fall back to the prompt rather than render a blank heading.
+    expect(screen.getByRole('heading', { name: 'Select an anime' })).toBeInTheDocument();
+  });
+
+  it.each([
+    { isDirty: false, statusLine: 'Selected anime stays highlighted after each refresh.' },
+    { isDirty: true, statusLine: 'You have unsaved changes.' },
+  ])('tells the user whether the selected anime has unsaved edits ($statusLine)', ({ isDirty, statusLine }) => {
+    render(<AnimeEditorFormPanel viewModel={createViewModel({ isDirty })} />);
+
+    expect(screen.getByText(statusLine)).toBeInTheDocument();
   });
 });
