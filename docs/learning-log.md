@@ -270,3 +270,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-09-26]: Fresh worktrees need an ignored frontend/dist embed file before Wails can generate bindings; the Bun postinstall now creates it automatically.
 - [2026-09-27]: A shared Zustand store value in a .helpers.ts file violates the helpers-only role gate; move the value and its private command into a .store.ts module while keeping accessors in helpers and guarding store identity.
 - [2026-09-27]: Bare python - can hang under Git Bash on this Windows host; use uv run python for scripts, and bound verifier shell commands so a stuck child cannot hide test results.
+- [2026-09-27]: A nested t.Run table body trips gocognit above 15; extract the case body into an assertX(t, ...) helper so the table stays readable and the lint gate stays green.
