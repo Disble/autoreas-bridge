@@ -78,23 +78,39 @@ export interface SeasonOrderingSnapshot {
 }
 
 /**
+ * The canonical typed anime cover (`type` + `path`) the anime create contract
+ * uses. A confirmed lookup only has a URL, so a season row carries its cover
+ * with type `'url'` rather than a bare string.
+ */
+export interface SeasonCreateCover {
+  readonly type: string;
+  readonly path: string;
+}
+
+/**
  * The metadata one intake row may carry into the anime it creates, in the shape
- * the Go side accepts: numbers are numbers, lists are lists, and every member is
- * optional so a field the user never confirmed is simply absent. Wails does not
- * register a `map[string]Struct` value type in its generated models, so this
- * type is declared here rather than imported from `frontend/wailsjs`.
+ * the Go side accepts: numbers are numbers, lists are lists, the cover is the
+ * canonical typed shape, and every member is optional so a field the user never
+ * confirmed is simply absent. The names mirror the canonical anime create
+ * vocabulary in `internal/season/ports.go`.
+ *
+ * Wails does not register a `map[string]Struct` value type in its generated
+ * models, so this type is declared here rather than imported from
+ * `frontend/wailsjs`.
+ *
+ * There is deliberately no title member: the anime's name is its identity, not
+ * metadata. The intake row's raw name is what the anime is created with, so a
+ * confirmed MyAnimeList title must never rename it.
  */
 export interface SeasonCreateMetadata {
-  /** The confirmed lookup's title. Carried for shape parity; the raw name wins. */
-  readonly name?: string;
-  /** Legacy content type (0 = Serie / Anime TV, 1 = Pelicula, 2 = OVA). */
+  /** Canonical content type (0 = Anime (TV), 1 = Película, 2 = Especial, 3 = OVA). */
   readonly kind?: number;
   readonly totalEpisodes?: number;
   readonly durationMinutes?: number;
   readonly origin?: string;
   readonly genres?: readonly string[];
   readonly studios?: readonly string[];
-  readonly coverURL?: string;
+  readonly cover?: SeasonCreateCover;
 }
 
 /** Result returned after applying the season schedule. */

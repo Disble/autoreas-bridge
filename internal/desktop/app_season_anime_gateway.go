@@ -48,11 +48,13 @@ func (g seasonAnimeGateway) CreateAnime(ctx context.Context, in season.AnimeCrea
 }
 
 // applyCreateMetadata fills the allow-listed create fields from one row's
-// confirmed MyAnimeList metadata, and nothing else. The metadata title is
-// deliberately NOT mapped: create.Nombre is already the intake row's raw name,
-// which is what the user typed, so the confirmed title never renames the anime.
-// The premiere/first-watch date has no field here at all — it is derived from an
-// observed watched-progress transition, never authored at creation.
+// confirmed MyAnimeList metadata, and nothing else. The title is deliberately
+// absent from the metadata: create.Nombre is already the intake row's raw name,
+// which is what the user typed, so a confirmed MyAnimeList title can never rename
+// the anime. The cover is forwarded in the metadata's own typed {type, path}
+// shape instead of a synthesized one. The premiere/first-watch date has no field
+// here at all — it is derived from an observed watched-progress transition, never
+// authored at creation.
 func applyCreateMetadata(create *contracts.AnimeCreate, metadata *season.AnimeCreateMetadata) {
 	if metadata == nil {
 		return
@@ -69,8 +71,8 @@ func applyCreateMetadata(create *contracts.AnimeCreate, metadata *season.AnimeCr
 	if len(metadata.Studios) > 0 {
 		create.Studios = metadata.Studios
 	}
-	if metadata.CoverURL != "" {
-		create.Cover = &contracts.AnimeCreateCover{Type: "url", Path: metadata.CoverURL}
+	if metadata.Cover != nil && metadata.Cover.Path != "" {
+		create.Cover = &contracts.AnimeCreateCover{Type: metadata.Cover.Type, Path: metadata.Cover.Path}
 	}
 }
 

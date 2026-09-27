@@ -182,7 +182,10 @@ describe('season-source', () => {
     const structBody = portsText.slice(portsText.indexOf('type AnimeCreateMetadata struct {'));
     const tags = [...structBody.slice(0, structBody.indexOf('\n}')).matchAll(/json:"([^",]+)/g)].map((match) => match[1]);
 
-    expect(tags).toEqual(['name', 'kind', 'totalEpisodes', 'durationMinutes', 'origin', 'genres', 'studios', 'coverURL']);
+    // The canonical anime create vocabulary, not the legacy Spanish wire names and
+    // not the intake row's own held shape: the title is identity (never metadata),
+    // and the cover travels as the typed {type, path} shape, so its key is `cover`.
+    expect(tags).toEqual(['kind', 'totalEpisodes', 'durationMinutes', 'origin', 'genres', 'studios', 'cover']);
   });
 
   it('uses the shared Wails binding readiness helper instead of local duplicate plumbing', () => {

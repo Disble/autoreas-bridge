@@ -279,11 +279,11 @@ export function toIntakeMetadataPatch(selection: Readonly<AnimeMetadataSelection
 
 /**
  * Converts one row's held metadata into the shape the Go side accepts: numbers
- * become numbers and the comma-joined lists become lists. A value the row does
- * not hold, or one that does not parse, is simply absent — the created anime
- * then keeps the value it would have had with no metadata at all. The confirmed
- * name is carried through for shape parity only; Go never maps it, because the
- * row's raw name is the name the user typed.
+ * become numbers, the comma-joined lists become lists, and the held cover URL
+ * becomes the canonical typed cover. A value the row does not hold, or one that
+ * does not parse, is simply absent — the created anime then keeps the value it
+ * would have had with no metadata at all. The confirmed title does not travel:
+ * the row's raw name is the name the user typed, so it wins.
  * @param held The row's held metadata patch.
  * @returns The same metadata in the create contract's shape.
  */
@@ -294,14 +294,13 @@ export function toSeasonCreateMetadata(held: Readonly<IntakeMetadataPatch>): Sea
   const genres = splitMetadataList(held.genres);
   const studios = splitMetadataList(held.studios);
   return {
-    ...(held.name === undefined || held.name === '' ? {} : { name: held.name }),
     ...(kind === undefined ? {} : { kind }),
     ...(totalEpisodes === undefined ? {} : { totalEpisodes }),
     ...(durationMinutes === undefined ? {} : { durationMinutes }),
     ...(held.origin === undefined || held.origin === '' ? {} : { origin: held.origin }),
     ...(genres === undefined ? {} : { genres }),
     ...(studios === undefined ? {} : { studios }),
-    ...(held.coverURL === undefined || held.coverURL === '' ? {} : { coverURL: held.coverURL }),
+    ...(held.coverURL === undefined || held.coverURL === '' ? {} : { cover: { type: 'url', path: held.coverURL } }),
   };
 }
 

@@ -282,16 +282,20 @@ describe('formatAppliedMetadataFields', () => {
 });
 
 describe('toSeasonCreateMetadata', () => {
-  it('converts a held patch into the create contract: numbers parsed, lists split', () => {
+  it('converts a held patch into the create contract: numbers parsed, lists split, cover typed', () => {
     // toStrictEqual, not toEqual: a field the lookup did not confirm must be ABSENT
     // from the sent metadata, and toEqual treats { x: undefined } as equal to {}.
     expect(
       toSeasonCreateMetadata({ name: 'Dr. Stone', kind: '1', totalEpisodes: '24', duration: '45', origin: 'Manga', genres: 'Action, Fantasy', studios: 'Madhouse', coverURL: 'https://c.jpg' }),
-    ).toStrictEqual({ name: 'Dr. Stone', kind: 1, totalEpisodes: 24, durationMinutes: 45, origin: 'Manga', genres: ['Action', 'Fantasy'], studios: ['Madhouse'], coverURL: 'https://c.jpg' });
+    ).toStrictEqual({ kind: 1, totalEpisodes: 24, durationMinutes: 45, origin: 'Manga', genres: ['Action', 'Fantasy'], studios: ['Madhouse'], cover: { type: 'url', path: 'https://c.jpg' } });
+  });
+
+  it('never sends the confirmed title: the row raw name is the anime name', () => {
+    expect(toSeasonCreateMetadata({ name: 'Dr. Stone' })).toStrictEqual({});
   });
 
   it('omits a field the lookup did not confirm instead of sending an empty or zero value', () => {
-    expect(toSeasonCreateMetadata({ name: 'Dr. Stone' })).toStrictEqual({ name: 'Dr. Stone' });
+    expect(toSeasonCreateMetadata({ name: 'Dr. Stone', origin: 'Manga' })).toStrictEqual({ origin: 'Manga' });
   });
 
   it('omits a blank name the same way it omits every other blank field', () => {
@@ -309,14 +313,14 @@ describe('toSeasonCreateMetadata', () => {
 
 describe('buildSeasonCreateMetadata', () => {
   it('keeps only the rows being created', () => {
-    const byRow = { 'sa-1': { name: 'Dr. Stone' }, 'sa-2': { name: 'Bleach' } };
+    const byRow = { 'sa-1': { origin: 'Manga' }, 'sa-2': { origin: 'Fantasy' } };
 
-    expect(buildSeasonCreateMetadata(byRow, ['sa-2'])).toEqual({ 'sa-2': { name: 'Bleach' } });
+    expect(buildSeasonCreateMetadata(byRow, ['sa-2'])).toEqual({ 'sa-2': { origin: 'Fantasy' } });
   });
 
   it('is empty when no picked row ever confirmed a lookup', () => {
     expect(buildSeasonCreateMetadata({}, ['sa-1'])).toEqual({});
-    expect(buildSeasonCreateMetadata({ 'sa-2': { name: 'Bleach' } }, ['sa-1'])).toEqual({});
+    expect(buildSeasonCreateMetadata({ 'sa-2': { origin: 'Fantasy' } }, ['sa-1'])).toEqual({});
   });
 });
 

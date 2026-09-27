@@ -75,3 +75,26 @@ Ordered work-unit commits on `feat/preseason-readiness`, each already independen
 | later | P5, P6 | Intake metadata per row; selection-outcome chart replacing the slot meter |
 
 Slice grouping for review once PRs are authorized: commits 1–2 (correctness of Today/open-season), 3–4 (first-watch date), 5–7 (closure snapshot end to end), 8–9 (history honesty), then one slice per remaining task. Every slice must state its predecessor and its follow-up in the PR body, and no slice may exceed the ~400-line review guard without an explicit `size:exception`, because each is meant to be reviewable on its own.
+## P5 rework —decidido en diálogo, 2026-09-27
+
+Contexto: la metadata por fila ya funciona (lookup opt-in, creación la consume). El usuario pidió reestructurar los tipos de anime de la sección Season para que tengan **paridad** con la estructura de anime del resto de la app, y persistir la selección para que sobreviva a salir de la sección o reabrir la app.
+
+Hecho que corrige el modelo mental inicial: **no existe un anime interno de Season ni una segunda versión posterior**. `Service.CreateSeasonAnimes` → `resolveOrCreateSeasonAnime` vincula un anime activo por página (`FindActiveByPagina`, continuación de dos cours) o **crea ya el anime real del bridge** con `Section: Sin venir`, guardando su `animeId` en la fila. Lo «interno» es la fila de intake, no un anime paralelo. Por eso la paridad que hace falta es de **vocabulario**, no de entidades.
+
+Tres vocabularios conviven hoy para los mismos campos: canónico del store/Editor (`kind`, `cover {type,path}`, `durationMinutes`), contrato de creación legacy (`tipo`, `cover`, `durationMinutes`) y el tipo que introdujo P5c (`Kind`, `CoverURL`). Coste real medido en esta misma función: la leyenda de `tipo` estaba **mal en tres comentarios** (`2 = OVA` cuando el canónico es `0=TV, 1=Película, 2=Especial, 3=OVA`; los valores escritos eran correctos, la documentación mentía) y `CoverURL` convertía en texto un campo que la app modela tipado.
+
+Decisiones del usuario (las cuatro recomendaciones aceptadas):
+1. **La paridad y la persistencia van ANTES de abrir los PRs.** El revisor debe ver la forma final en una sola pasada, no una versión y luego su refactor.
+2. **El vocabulario de campos de anime que usa Season se espeja localmente**, sin crear la primera dependencia `internal/season → internal/anime` (el puerto `AnimeCreateInput` existe precisamente para mantener ese desacoplamiento), y el espejo queda amarrado por un **test de contrato que falla si divergen**.
+3. **Persistencia en una columna JSON nullable** (`season_animes.metadata_json`), mismo precedente que `ordering_draft_json` y `closure_json`.
+4. **Punto medio en la fila: limpiar la metadata y MOSTRAR los valores.** Hoy la fila solo nombra los campos («Applied: Name, Type») y el detalle con episodios, duración, origen, géneros y estudios se descarga después de confirmar y nunca se muestra: el modal enseña el candidato (título, tipo, año, nota, miniatura), no los valores que se van a escribir.
+
+Reglas que quedan registradas con la justificación del usuario:
+- **El nombre del anime NUNCA lo escribe MAL.** La búsqueda primaria es de JKAnime; darle a MAL la potestad de cambiar el título sería un conflicto de intereses. Además, **el título es identidad, no metadata**: un título alternativo sí sería metadata, y este producto no maneja ese tipo. Por eso la metadata pierde el campo `Name` que P5c arrastraba sin mapear.
+- **No habrá editor de animes en Seasons.** Va en contra de la filosofía de agilizar el proceso: el usuario revisa el candidato en el componente de MAL, y la edición ocurre cuando el anime ya existe, en el Editor. La metadata no afecta el funcionamiento del bridge y es reemplazable después.
+
+Slices acordados:
+- [x] **P5d (este commit) — vocabulario canónico y test de contrato:** campos con los nombres de la app (`kind`, `totalEpisodes`, `durationMinutes`, `origin`, `genres`, `studios`, `cover {type,path}`), `Name` eliminado, leyenda de `tipo` corregida en Go y frontend, y prueba que compara el espejo de Season contra la estructura canónica del anime (falla si divergen) más el test del frontend contra los json tags del struct Go.
+- [ ] **P5b — persistencia (Go):** columna nullable `metadata_json`, campo de dominio, lectura/escritura en el store, ida y vuelta en el backup, servicio y binding para fijar y limpiar. La metadata pertenece a la fila: sobrevive a salir de la pantalla y a reabrir la app; la semántica de la fila revivida queda resuelta por el botón de limpiar (el usuario decide).
+- [ ] **P5e — frontend:** la fila lee su metadata guardada al cargar, muestra los **valores** que se escribirán y ofrece limpiar. Sin editor.
+- [ ] **P5f — paridad del modelo de lectura:** separar lo almacenado de la proyección viva del anime (`section`, `folderPath`, `pageUrl`, hoy aplanadas y superpuestas desde `animeOverlaysByID`) en un objeto `anime` anidado con los nombres de la app. Es el slice más ancho (lo consumen intake, selección, orden y overview); el tamaño real se reporta antes de tocarlo.

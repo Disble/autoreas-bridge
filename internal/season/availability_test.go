@@ -309,7 +309,7 @@ func TestCreateSeasonAnimesCreatesLinksAndGuards(t *testing.T) {
 		t.Fatalf("exactly one create into Sin ver expected, got %+v", gateway.created)
 	}
 	if gateway.created[0].Tipo == nil || *gateway.created[0].Tipo != 0 {
-		t.Fatalf("created anime must carry default tipo=0 (Serie / Anime TV), got %#v", gateway.created[0].Tipo)
+		t.Fatalf("created anime must carry default tipo=0 (Anime (TV)), got %#v", gateway.created[0].Tipo)
 	}
 	if len(res.Created) != 2 {
 		t.Fatalf("expected 2 created names (A, C), got %v", res.Created)
@@ -393,18 +393,18 @@ func TestCreateSeasonAnimesRequiresGateway(t *testing.T) {
 }
 
 // confirmedAnimeMetadata is one fully-confirmed MyAnimeList lookup: every field
-// an intake row can carry into its new anime.
+// an intake row can carry into its new anime. The title is absent by design — the
+// row's raw name is the anime's name.
 func confirmedAnimeMetadata() AnimeCreateMetadata {
 	kind, total, duration := 2, 24, 45
 	return AnimeCreateMetadata{
-		Name:            "Frieren: Beyond Journey's End",
 		Kind:            &kind,
 		TotalEpisodes:   &total,
 		DurationMinutes: &duration,
 		Origin:          "Manga",
 		Genres:          []string{"Adventure", "Drama"},
 		Studios:         []string{"Madhouse"},
-		CoverURL:        "https://cdn.myanimelist.net/images/anime/frieren.jpg",
+		Cover:           &AnimeCreateCover{Type: "url", Path: "https://cdn.myanimelist.net/images/anime/frieren.jpg"},
 	}
 }
 
@@ -460,8 +460,6 @@ func TestCreateSeasonAnimesWithoutMetadataCreatesUnchangedInput(t *testing.T) {
 // resolved folder always win over anything the lookup confirmed.
 func TestCreateSeasonAnimesCarriesPerRowMetadataToTheGateway(t *testing.T) {
 	confirmed := confirmedAnimeMetadata()
-	wrongTitle := confirmed
-	wrongTitle.Name = "A Different Title From MyAnimeList"
 	emptyMetadata := AnimeCreateMetadata{}
 
 	tests := []struct {
@@ -474,7 +472,6 @@ func TestCreateSeasonAnimesCarriesPerRowMetadataToTheGateway(t *testing.T) {
 		{name: "lookup entry for another row", metadata: map[string]AnimeCreateMetadata{"sa-other": confirmed}},
 		{name: "entry that confirmed nothing for the created row", metadata: map[string]AnimeCreateMetadata{"sa-a": {}}, wantMetadata: &emptyMetadata},
 		{name: "confirmed entry for the created row", metadata: map[string]AnimeCreateMetadata{"sa-a": confirmed}, wantMetadata: &confirmed},
-		{name: "confirmed title that disagrees with the raw name", metadata: map[string]AnimeCreateMetadata{"sa-a": wrongTitle}, wantMetadata: &wrongTitle},
 	}
 
 	for _, test := range tests {

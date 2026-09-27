@@ -217,7 +217,7 @@ describe('useIntakePanel', () => {
     expect(source.createSeasonAnimes).toHaveBeenCalledWith(
       ['sa-1'],
       {},
-      { 'sa-1': { name: 'Dr. Stone', kind: 0, totalEpisodes: 24, durationMinutes: 45, genres: ['Action', 'Fantasy'], studios: ['Madhouse'] } },
+      { 'sa-1': { kind: 0, totalEpisodes: 24, durationMinutes: 45, genres: ['Action', 'Fantasy'], studios: ['Madhouse'] } },
     );
   });
 

@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"autoreas-bridge/internal/anime"
+	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/season/domain"
 	"autoreas-bridge/internal/season/match"
@@ -161,18 +164,18 @@ func (f fakeAppAvailabilityProbe) AvailableEpisodes(_ context.Context, pageURL s
 }
 
 // confirmedSeasonMetadata is one fully-confirmed lookup as the season intake row
-// carries it: every field the frontend can confirm for one row.
+// carries it: every field the frontend can confirm for one row. The title is
+// absent by design — the row's raw name is the anime's name.
 func confirmedSeasonMetadata() season.AnimeCreateMetadata {
 	kind, total, duration := 2, 24, 45
 	return season.AnimeCreateMetadata{
-		Name:            "Frieren: Beyond Journey's End",
 		Kind:            &kind,
 		TotalEpisodes:   &total,
 		DurationMinutes: &duration,
 		Origin:          "Manga",
 		Genres:          []string{"Adventure", "Drama"},
 		Studios:         []string{"Madhouse"},
-		CoverURL:        "https://cdn.myanimelist.net/images/anime/frieren.jpg",
+		Cover:           &season.AnimeCreateCover{Type: "url", Path: "https://cdn.myanimelist.net/images/anime/frieren.jpg"},
 	}
 }
 
@@ -263,4 +266,56 @@ func readCreatedAnime(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeI
 	}
 	_, hasPremiere := keys["premieredAt"]
 	return record, hasPremiere
+}
+
+// seasonAnimeMetadataJSONTags returns the json names of season.AnimeCreateMetadata
+// exactly as Wails publishes them to the frontend.
+func seasonAnimeMetadataJSONTags(t *testing.T) []string {
+	t.Helper()
+	typ := reflect.TypeOf(season.AnimeCreateMetadata{})
+	tags := make([]string, 0, typ.NumField())
+	for i := 0; i < typ.NumField(); i++ {
+		name := strings.Split(typ.Field(i).Tag.Get("json"), ",")[0]
+		if name == "" || name == "-" {
+			t.Fatalf("field %s of season.AnimeCreateMetadata has no json name", typ.Field(i).Name)
+		}
+		tags = append(tags, name)
+	}
+	return tags
+}
+
+// canonicalAnimeCreateJSONKeys builds a canonical anime through the real anime
+// create path with every optional field set and returns the JSON keys it
+// produced. The season metadata names must be a subset of these keys.
+func canonicalAnimeCreateJSONKeys(t *testing.T) map[string]struct{} {
+	t.Helper()
+	write := anime.NewWriteService(nil, nil)
+	write.SetNow(func() time.Time { return time.UnixMilli(1_700_000_000_000) })
+	kind, total, duration := 0, 24, 45
+	operation, _, err := write.BuildCreateOperation(contracts.AnimeCreate{
+		ID:              "created-anime",
+		Nombre:          "Frieren",
+		Pagina:          "https://jkanime.net/frieren/",
+		Dias:            []contracts.Placement{{Day: "Sin ver", Order: 1}},
+		Carpeta:         "D:/Anime/Frieren",
+		Tipo:            &kind,
+		TotalEpisodes:   &total,
+		DurationMinutes: &duration,
+		Origin:          "Manga",
+		Genres:          []string{"Adventure"},
+		Studios:         []string{"Madhouse"},
+		Cover:           &contracts.AnimeCreateCover{Type: "url", Path: "https://cdn.myanimelist.net/images/anime/frieren.jpg"},
+	}, anime.CreateMetadata{})
+	if err != nil {
+		t.Fatalf("BuildCreateOperation: %v", err)
+	}
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(operation.Desired, &keys); err != nil {
+		t.Fatalf("decode canonical create keys: %v", err)
+	}
+	out := make(map[string]struct{}, len(keys))
+	for key := range keys {
+		out[key] = struct{}{}
+	}
+	return out
 }

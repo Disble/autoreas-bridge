@@ -6,7 +6,7 @@ import (
 	"autoreas-bridge/internal/season/domain"
 )
 
-// defaultAnimeType is the legacy tipo value for a TV series ("Serie" / Anime TV).
+// defaultAnimeType is the canonical tipo for a TV series (0 = Anime (TV)).
 const defaultAnimeType = 0
 
 // CreateSeasonAnimes is the explicit, user-initiated creation gate: for each row
