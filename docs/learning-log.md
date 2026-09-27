@@ -268,3 +268,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-09-25]: 'Sin fallos' no es un pass: verificar que los tests corrieron. Es indistinguible de UP-TO-DATE, de un stub (returnDefaultValues) y de un assert circular contra la constante de produccion. Verde porque nada alcanzo la cosa bajo prueba.
 - [2026-09-25]: 1.15.0: el store de diagnosticos pasa a estar discriminado por kind y reemplaza la tabla de forma fija. Wire aditivo, por eso minor. La tabla vieja sale del ciclo de vida sin migrar datos: es interno, fuera de backups, y reescribir filas en el lifecycle esta prohibido.
 - [2026-09-26]: Editor cover thumbnails must invalidate on saved source changes and cover removal; async UI tests must await image state, not just the row.
+- [2026-09-27]: Release 1.16.0 ships Editor cover thumbnails on a new additive hasCover list flag; minor bump because the wire change is backward compatible.

@@ -14,6 +14,13 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.16.0] — 2026-09-27
+
+### Added
+
+- The Editor Library now shows each anime's saved cover next to its name, with the shared placeholder while it loads or when the anime has no cover; the selected anime's header shows the same cover beside its title, and both thumbnails follow a saved cover change or fall back to the placeholder when the cover is removed or fails to load.
+- **Wire-visible, additive**: anime list items now carry a `hasCover` boolean reporting whether the anime has a stored cover, so clients can skip cover fetches for coverless entries; nothing already deployed changes, since the field only adds information to the existing payload.
+
 ## [1.15.0] — 2026-09-25
 
 ### Changed
