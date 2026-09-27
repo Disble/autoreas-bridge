@@ -9,7 +9,9 @@ import (
 // ErrAnimeNotFound indicates that no effective anime exists for an identifier.
 var ErrAnimeNotFound = errors.New("anime not found")
 
-// AnimePatch contains the supported partial anime mutations.
+// AnimePatch contains the supported partial anime mutations. FechaEstreno is
+// accepted for wire compatibility but ignored: the first-watch date is derived
+// from an observed zero-to-positive progress transition, never authored.
 type AnimePatch struct {
 	Estado                *int             `json:"estado,omitempty"`
 	NroCapVisto           *float64         `json:"nrocapvisto,omitempty"`
@@ -53,9 +55,10 @@ type Placement struct {
 	Order int    `json:"order"`
 }
 
-// AnimeCreate is the input for creating a brand-new anime. Premiere date is
-// never user-provided here: it is an auto lifecycle field set only when the
-// first episode is watched (see episode_service.go), never at create time.
+// AnimeCreate is the input for creating a brand-new anime. First-watch date
+// is never user-provided or inferred at creation, even when progress is
+// positive: only a later observed zero-to-positive progress transition can
+// establish that instant (see anime.WriteService.PatchAnime).
 type AnimeCreate struct {
 	ID              string            `json:"id,omitempty"`
 	Nombre          string            `json:"nombre"`

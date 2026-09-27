@@ -182,6 +182,17 @@ func (a Anime) Changes() AnimeChanges {
 	return a.changes
 }
 
+// IsFirstWatchTransition reports whether a progress change is the moment the
+// bridge derives a first-watch (premiere) instant: a still-undated anime
+// crossing from unwatched (<= 0) to watched (> 0). The derivation is
+// deliberately narrow. An already-dated anime keeps its date, a legacy
+// positive record stays undated, and no-op, decrement, status, or schedule
+// changes never fabricate a date. from is the progress before the mutation
+// and to is the progress the mutation requests.
+func IsFirstWatchTransition(from, to float64, premieredAt *time.Time) bool {
+	return premieredAt == nil && from <= 0 && to > 0
+}
+
 // cloneTime returns a UTC copy of the supplied time pointer.
 func cloneTime(value *time.Time) *time.Time {
 	if value == nil {

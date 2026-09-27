@@ -31,7 +31,7 @@ func TestGatewayCurrentBaseFinalizesToSnapshotStoreAndPublishes(t *testing.T) {
 	result, err := gateway.Update(ctx, store.UpdateCommand{
 		AnimeID: "anime-1",
 		Base:    &base,
-		Mutate:  func(value *domain.Anime) { value.SetProgress(3) },
+		Mutate:  func(value *domain.Anime, _ bool) { value.SetProgress(3) },
 	})
 	if err != nil {
 		t.Fatalf("update through gateway: %v", err)
@@ -74,7 +74,7 @@ func TestGatewayExplicitStaleBaseRecordsConflictWithoutFinalizeOrPublish(t *test
 	result, err := gateway.Update(ctx, store.UpdateCommand{
 		AnimeID: "anime-1",
 		Base:    &stale,
-		Mutate:  func(value *domain.Anime) { value.SetProgress(9) },
+		Mutate:  func(value *domain.Anime, _ bool) { value.SetProgress(9) },
 	})
 	if err != nil {
 		t.Fatalf("stale update: %v", err)
@@ -110,7 +110,7 @@ func TestGatewayStaleNoOpDoesNotFinalizeStampConflictOrPublish(t *testing.T) {
 	result, err := gateway.Update(ctx, store.UpdateCommand{
 		AnimeID: "anime-1",
 		Base:    &stale,
-		Mutate:  func(value *domain.Anime) { value.SetProgress(2) },
+		Mutate:  func(value *domain.Anime, _ bool) { value.SetProgress(2) },
 	})
 	if err != nil {
 		t.Fatalf("no-op update: %v", err)
@@ -139,7 +139,7 @@ func TestGatewayBaseLessExistingWriteKeepsLastWriteWinsCompatibility(t *testing.
 
 	result, err := gateway.Update(ctx, store.UpdateCommand{
 		AnimeID: "anime-1",
-		Mutate:  func(value *domain.Anime) { value.SetProgress(7) },
+		Mutate:  func(value *domain.Anime, _ bool) { value.SetProgress(7) },
 	})
 	if err != nil {
 		t.Fatalf("base-less compatibility update: %v", err)
@@ -170,7 +170,7 @@ func TestGatewayRecoveryRetriesFinalizeForAStagedButUnfinalizedWrite(t *testing.
 	_, err := first.Update(ctx, store.UpdateCommand{
 		AnimeID: "anime-1",
 		Base:    &base,
-		Mutate:  func(value *domain.Anime) { value.SetProgress(3) },
+		Mutate:  func(value *domain.Anime, _ bool) { value.SetProgress(3) },
 	})
 	if err == nil {
 		t.Fatal("expected injected finalization failure")

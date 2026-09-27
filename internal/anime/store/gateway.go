@@ -132,12 +132,12 @@ func (g *Gateway) UpdateRaw(ctx context.Context, command UpdateRawCommand) (Anim
 
 // updateOnce applies one domain mutation attempt and persists its merged payload.
 func (g *Gateway) updateOnce(ctx context.Context, command UpdateCommand) (AnimePatchResult, error) {
-	record, raw, value, err := g.loadOrCreate(ctx, command.AnimeID, command.CreateIfMissing)
+	record, raw, value, created, err := g.loadOrCreate(ctx, command.AnimeID, command.CreateIfMissing)
 	if err != nil {
 		return AnimePatchResult{}, err
 	}
 	if command.Mutate != nil {
-		command.Mutate(&value)
+		command.Mutate(&value, created)
 	}
 	merged, err := g.mapper.Merge(raw, value)
 	if err != nil {
@@ -158,7 +158,7 @@ func (g *Gateway) updateOnce(ctx context.Context, command UpdateCommand) (AnimeP
 
 // updateRawOnce applies one raw mutation attempt and persists its validated payload.
 func (g *Gateway) updateRawOnce(ctx context.Context, command UpdateRawCommand) (AnimePatchResult, error) {
-	record, raw, value, err := g.loadOrCreate(ctx, command.AnimeID, command.CreateIfMissing)
+	record, raw, value, _, err := g.loadOrCreate(ctx, command.AnimeID, command.CreateIfMissing)
 	if err != nil {
 		return AnimePatchResult{}, err
 	}
@@ -234,20 +234,21 @@ func (g *Gateway) ApplyBatch(ctx context.Context, operations []BatchOperation) (
 	return AnimePatchResult{AnimeID: last.AnimeID, Outcome: AnimePatchOutcomeApplied, ModifiedAt: last.IntendedModifiedAt}, nil
 }
 
-// loadOrCreate loads an anime or builds an empty legacy record when creation is allowed.
-func (g *Gateway) loadOrCreate(ctx context.Context, animeID string, createIfMissing bool) (Snapshot, AnimeRaw, domain.Anime, error) {
+// loadOrCreate loads an anime or builds an empty legacy record when creation is
+// allowed, reporting whether the record was synthesized.
+func (g *Gateway) loadOrCreate(ctx context.Context, animeID string, createIfMissing bool) (Snapshot, AnimeRaw, domain.Anime, bool, error) {
 	record, raw, value, err := g.load(ctx, animeID)
 	if err == nil || !createIfMissing || !errors.Is(err, contracts.ErrAnimeNotFound) {
-		return record, raw, value, err
+		return record, raw, value, false, err
 	}
 	if err := json.Unmarshal([]byte(`{"id":"`+animeID+`"}`), &raw); err != nil {
-		return Snapshot{}, AnimeRaw{}, domain.Anime{}, err
+		return Snapshot{}, AnimeRaw{}, domain.Anime{}, false, err
 	}
 	value, err = g.mapper.ToDomain(raw)
 	if err != nil {
-		return Snapshot{}, AnimeRaw{}, domain.Anime{}, err
+		return Snapshot{}, AnimeRaw{}, domain.Anime{}, false, err
 	}
 	record = Snapshot{AnimeID: animeID, CanonicalJSON: []byte(`{"id":"` + animeID + `"}`)}
 	record.Hash = hashSnapshot(record.CanonicalJSON)
-	return record, raw, value, nil
+	return record, raw, value, true, nil
 }

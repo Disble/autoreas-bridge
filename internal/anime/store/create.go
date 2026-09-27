@@ -53,8 +53,9 @@ func NewCanonicalCreate(input CanonicalCreateInput) (AnimeRaw, error) {
 		"cover":           canonicalCreateCover(input),
 	}
 	applyOptionalCreateFields(fields, input)
-	// Premiere date is never set at create: it is an auto lifecycle field
-	// stamped only when the first episode is watched (episode_service.go).
+	// First-watch date is never inferred at create, even when progress is
+	// supplied: creation time does not prove when watching began. A later
+	// observed zero-to-positive progress transition stamps it.
 
 	payload, err := json.Marshal(fields)
 	if err != nil {

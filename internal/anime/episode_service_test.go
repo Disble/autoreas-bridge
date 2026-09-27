@@ -62,8 +62,12 @@ func assertEpisodeAdjustmentResult(t *testing.T, ctx context.Context, store *bri
 		t.Fatalf("get snapshot: %v", err)
 	}
 	value := decodeAnimeDomain(t, snapshot.CanonicalJSON)
-	if value.Progress != 3 || value.LastWatchedAt == nil || value.LastWatchedAt.UnixMilli() != 1710000000123 || value.PremieredAt == nil || value.PremieredAt.UnixMilli() != 1710000000123 {
-		t.Fatalf("expected the finalized snapshot to persist progress and timestamps, got %#v", value)
+	if value.Progress != 3 || value.LastWatchedAt == nil || value.LastWatchedAt.UnixMilli() != 1710000000123 {
+		t.Fatalf("expected the finalized snapshot to persist progress and the watch instant, got %#v", value)
+	}
+	// 2.5 -> 3 is positive-to-positive: a legacy positive undated anime stays undated.
+	if value.PremieredAt != nil {
+		t.Fatalf("expected positive-to-positive progress to leave premieredAt nil, got %v", value.PremieredAt)
 	}
 	if len(activityRecorder.records) != 1 {
 		t.Fatalf("expected 1 activity record, got %d", len(activityRecorder.records))

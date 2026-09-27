@@ -90,7 +90,7 @@ func (s *closeAfterStageStore) Stage(ctx context.Context, operation store.WriteO
 
 // updateGatewayProgressCommand creates a progress update command for the fixture anime.
 func updateGatewayProgressCommand(base int64, progress float64) store.UpdateCommand {
-	return store.UpdateCommand{AnimeID: "anime-1", Base: &base, Mutate: func(value *domain.Anime) { value.SetProgress(progress) }}
+	return store.UpdateCommand{AnimeID: "anime-1", Base: &base, Mutate: func(value *domain.Anime, _ bool) { value.SetProgress(progress) }}
 }
 
 type delayFirstStageStore struct {

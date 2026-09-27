@@ -243,7 +243,7 @@ func (s *EpisodeService) AdjustWatchedEpisodes(ctx context.Context, cmd AdjustWa
 	}
 
 	occurredAtMs := s.now().UnixMilli()
-	patchResult, err := s.writer.PatchAnime(ctx, cmd.AnimeID, buildEpisodeProgressPatch(current, nextProgress, occurredAtMs, cmd.Base))
+	patchResult, err := s.writer.PatchAnime(ctx, cmd.AnimeID, buildEpisodeProgressPatch(nextProgress, occurredAtMs, cmd.Base))
 	if err != nil {
 		return EpisodeCommandResult{}, err
 	}
@@ -262,17 +262,16 @@ func (s *EpisodeService) AdjustWatchedEpisodes(ctx context.Context, cmd AdjustWa
 	return episodeCommandResult(patchResult, current.Name, current.Status, nextProgress, occurredAtMs, correlationID), nil
 }
 
-// buildEpisodeProgressPatch creates the anime patch for an episode progress adjustment.
-func buildEpisodeProgressPatch(current *contracts.MobileAnime, nextProgress float64, occurredAtMs int64, base *int64) contracts.AnimePatch {
-	patch := contracts.AnimePatch{
+// buildEpisodeProgressPatch creates the anime patch for an episode progress
+// adjustment. It carries only the explicit progress and its watch instant: the
+// first-watch premiere is derived later by the write service on the real
+// zero-to-positive transition.
+func buildEpisodeProgressPatch(nextProgress float64, occurredAtMs int64, base *int64) contracts.AnimePatch {
+	return contracts.AnimePatch{
 		NroCapVisto:      &nextProgress,
 		FechaUltCapVisto: &occurredAtMs,
 		Base:             base,
 	}
-	if current.PremieredAt == nil && current.LastWatchedAt == nil {
-		patch.FechaEstreno = &occurredAtMs
-	}
-	return patch
 }
 
 // defaultActivitySource returns the desktop source when no activity source is provided.

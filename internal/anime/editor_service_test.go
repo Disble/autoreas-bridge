@@ -48,7 +48,7 @@ func TestEditorServiceSaveAppliesTypedNullableAndStructuredPatchMatrix(t *testin
 	}
 	fields := decodeJSONFields(t, snapshot.CanonicalJSON)
 	assertJSONFieldsEqual(t, fields, map[string]string{
-		"totalEpisodes": "13", "kind": "1", "durationMinutes": "90", "premieredAt": `1710000000123`,
+		"totalEpisodes": "13", "kind": "1", "durationMinutes": "90", "premieredAt": "null",
 		"genres": `["Fantasy"]`, "studios": "null", "days": `[{"day":"Viernes","order":1}]`,
 		"cover": `{"type":"file","path":"new.jpg","future":{"edited":true}}`, "unknown": `{"keep":true}`,
 	})
@@ -106,7 +106,11 @@ func TestEditorServiceSaveCannotReactivateInactiveAnime(t *testing.T) {
 	}
 }
 
-func TestEditorServiceSaveClearsPremiereDateAndCoverWithoutFlatteningCoverObject(t *testing.T) {
+// TestEditorServiceSaveIgnoresPremiereClearAndClearsCoverWithoutFlatteningCoverObject
+// pins that the editor no longer edits premieredAt: a clear mutation is ignored
+// and the recorded date survives, while a cover clear still applies without
+// flattening the cover object.
+func TestEditorServiceSaveIgnoresPremiereClearAndClearsCoverWithoutFlatteningCoverObject(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":2,"active":true,"premieredAt":1710000000123,"cover":{"type":"file","path":"cover.jpg","future":{"keep":true}}}`, 1000)
@@ -125,7 +129,7 @@ func TestEditorServiceSaveClearsPremiereDateAndCoverWithoutFlatteningCoverObject
 	}
 	fields := decodeJSONFields(t, snapshot.CanonicalJSON)
 	assertJSONFieldsEqual(t, fields, map[string]string{
-		"premieredAt": "null",
+		"premieredAt": "1710000000123",
 		"cover":       `{"type":"file","path":"","future":{"keep":true}}`,
 	})
 }

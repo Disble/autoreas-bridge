@@ -208,8 +208,8 @@ func (s *WriteService) PatchAnime(ctx context.Context, id string, patch contract
 		AnimeID:         id,
 		Base:            patch.Base,
 		CreateIfMissing: true,
-		Mutate: func(value *domain.Anime) {
-			applyAnimePatch(value, patch, s.nowFunc())
+		Mutate: func(value *domain.Anime, created bool) {
+			applyAnimePatch(value, patch, s.nowFunc(), created)
 		},
 	})
 	return fromLegacyPatchResult(result), err
@@ -263,12 +263,20 @@ func (s *WriteService) publishCommitted(eventID, id string, payload []byte, chan
 }
 
 // applyAnimePatch applies all fields from an anime patch to a domain value.
-func applyAnimePatch(value *domain.Anime, patch contracts.AnimePatch, now time.Time) {
+// created reports whether the gateway synthesized the record for this write: a
+// first observation of an anime with no local state cannot prove when watching
+// began, so it never derives a first-watch instant.
+func applyAnimePatch(value *domain.Anime, patch contracts.AnimePatch, now time.Time, created bool) {
+	preProgress := value.Progress
+	prePremieredAt := value.PremieredAt
 	stampLastWatched := patchChangesValue(*value, patch)
 	applyAnimeScalarPatch(value, patch)
 	applyAnimeDaysPatch(value, patch)
 	applyAnimeStatePatch(value, patch, now, stampLastWatched)
 	applyAnimeDatePatch(value, patch)
+	if !created {
+		applyFirstWatchPremiere(value, preProgress, prePremieredAt, now)
+	}
 }
 
 // applyAnimeScalarPatch applies scalar fields from an anime patch.
@@ -328,11 +336,10 @@ func applyAnimeStatePatch(value *domain.Anime, patch contracts.AnimePatch, now t
 	}
 }
 
-// applyAnimeDatePatch applies premiere, deletion, and repetition dates.
+// applyAnimeDatePatch applies deletion and repetition dates. Premiere dates
+// are never authored by a patch (premieredAt is a derived first-watch instant),
+// so an explicit FechaEstreno is deliberately ignored.
 func applyAnimeDatePatch(value *domain.Anime, patch contracts.AnimePatch) {
-	if patch.FechaEstreno != nil {
-		value.SetPremieredAt(timeFromMillis(*patch.FechaEstreno))
-	}
 	if patch.FechaEliminacion != nil {
 		value.SetDeletedAt(timeFromMillis(*patch.FechaEliminacion))
 	}
@@ -344,10 +351,21 @@ func applyAnimeDatePatch(value *domain.Anime, patch contracts.AnimePatch) {
 	}
 }
 
+// applyFirstWatchPremiere derives premieredAt at the observation instant when a
+// patch carries a preexisting anime across its first watched episode. from and
+// priorPremieredAt are the aggregate's state before the patch applied.
+func applyFirstWatchPremiere(value *domain.Anime, from float64, priorPremieredAt *time.Time, now time.Time) {
+	if domain.IsFirstWatchTransition(from, value.Progress, priorPremieredAt) {
+		value.SetPremieredAt(&now)
+	}
+}
+
 // patchChangesValue reports whether a patch changes the supplied anime value.
+// An explicit last-watched instant is applied by the state patch itself, and
+// Repeat clears last-watched after this check runs, so neither of those fields
+// can influence the stamp decision and both are deliberately absent here.
 func patchChangesValue(value domain.Anime, patch contracts.AnimePatch) bool {
-	if patch.RepeatAt != nil || patch.FechaUltCapVisto != nil || patch.FechaEstreno != nil ||
-		patch.FechaEliminacion != nil || patch.ClearFechaEliminacion || patch.Dias != nil || patch.DiasOrdered != nil {
+	if patch.FechaEliminacion != nil || patch.ClearFechaEliminacion || patch.Dias != nil || patch.DiasOrdered != nil {
 		return true
 	}
 	if patch.NroCapVisto != nil && *patch.NroCapVisto != value.Progress {
