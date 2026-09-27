@@ -8,9 +8,12 @@ import { useOverviewPanel } from '../use-overview-panel';
 vi.mock('../use-overview-panel', () => ({ useOverviewPanel: vi.fn() }));
 vi.mock('@nivo/bar', () => ({ ResponsiveBar: () => <div data-testid="nivo-bar" /> }));
 
+/** Mocked hook the panel tests drive directly, so each case renders one overview state. */
 const mockedUseOverviewPanel = vi.mocked(useOverviewPanel);
+/** Shape of the hook's return value, so a case can override only what it exercises. */
 type HookReturn = ReturnType<typeof useOverviewPanel>;
 
+/** Builds a complete overview view model the panel can render without a live season. */
 function baseViewModel(): OverviewPanelViewModel {
   return {
     kpi: { intakeTotal: 10, createdCount: 6, ratedCount: 6, ratedTotal: 6, approvedCount: 3, slots: 12 },
@@ -34,6 +37,7 @@ function baseViewModel(): OverviewPanelViewModel {
   };
 }
 
+/** Renders the panel with a stubbed hook, overriding only the fields a case sets. */
 function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
   const value: HookReturn = {
     readOnly: false,
@@ -101,5 +105,16 @@ describe('OverviewPanel', () => {
     render(<OverviewPanel />);
     expect(screen.queryAllByRole('button')).toHaveLength(0);
     expect(screen.queryAllByRole('textbox')).toHaveLength(0);
+  });
+
+  it('shows the pipeline not-recorded state instead of the live-section chart while viewing a past season', () => {
+    mockHook({ readOnly: true, hasCreated: true });
+    render(<OverviewPanel />);
+
+    expect(screen.getByText('Watching pipeline not recorded')).toBeInTheDocument();
+    expect(screen.queryByText(/No created animes yet/)).toBeNull();
+    expect(screen.getAllByTestId('nivo-bar')).toHaveLength(2);
+    expect(screen.getByTestId('intake-health-chart')).toBeInTheDocument();
+    expect(screen.getByTestId('grade-histogram-chart')).toBeInTheDocument();
   });
 });

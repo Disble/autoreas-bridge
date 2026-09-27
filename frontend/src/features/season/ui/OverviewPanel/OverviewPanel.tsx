@@ -15,7 +15,7 @@ import { WatchingPipelineChart } from './WatchingPipelineChart';
  * read-only requirement holds without a `readOnly` branch inside this file.
  */
 export function OverviewPanel() {
-  const { errorMessage, kpi, pipeline, pipelineKeys, intakeHealth, intakeHealthKeys, gradeHistogram, minApprovalGrade, slotsMeter, hasCreated, hasIntake, hasGrades } =
+  const { errorMessage, readOnly, kpi, pipeline, pipelineKeys, intakeHealth, intakeHealthKeys, gradeHistogram, minApprovalGrade, slotsMeter, hasCreated, hasIntake, hasGrades } =
     useOverviewPanel();
 
   return (
@@ -36,7 +36,7 @@ export function OverviewPanel() {
             <Card.Title>Watching pipeline</Card.Title>
           </Card.Header>
           <Card.Content>
-            <WatchingPipelineChart data={pipeline} hasCreated={hasCreated} keys={pipelineKeys} />
+            <WatchingPipelineChart data={pipeline} hasCreated={hasCreated} isHistorical={readOnly} keys={pipelineKeys} />
           </Card.Content>
         </Card>
 

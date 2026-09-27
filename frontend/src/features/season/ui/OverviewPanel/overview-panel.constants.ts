@@ -63,6 +63,17 @@ export const TICK_STEPS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000] as const;
 
 /** Empty-state copy for the watching pipeline chart when there are no created animes yet. */
 export const PIPELINE_EMPTY_MESSAGE = 'No created animes yet — the pipeline fills as animes are created.';
+
+/**
+ * Title of the watching-pipeline state shown while viewing a past season. A
+ * closed season stores its ordering board, not its live Estrenos grouping, so
+ * the chart would otherwise present a live section breakdown as history.
+ */
+export const PIPELINE_NOT_RECORDED_TITLE = 'Watching pipeline not recorded';
+
+/** Explanation shown with the past-season watching-pipeline state. */
+export const PIPELINE_NOT_RECORDED_DESCRIPTION =
+  'A closed season does not store its watching pipeline, so there is no recorded stage breakdown to show for this season.';
 /** Empty-state copy for the intake health chart when there are no intake rows yet. */
 export const INTAKE_HEALTH_EMPTY_MESSAGE = 'No intake rows yet.';
 /** Empty-state copy for the grade histogram when there are no graded animes yet. */

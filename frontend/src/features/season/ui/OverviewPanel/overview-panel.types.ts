@@ -82,6 +82,12 @@ export interface WatchingPipelineChartProps {
   readonly data: readonly PipelineDatum[];
   readonly keys: readonly string[];
   readonly hasCreated: boolean;
+  /**
+   * True while the Overview shows a past season. The pipeline groups rows by
+   * the live Estrenos section, so a past season renders the not-recorded state
+   * instead of presenting current anime data as history.
+   */
+  readonly isHistorical: boolean;
 }
 
 /** Props for the intake health stacked-bar chart. */
