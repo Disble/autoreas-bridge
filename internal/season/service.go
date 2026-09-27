@@ -156,9 +156,15 @@ func (s *Service) SetSlots(ctx context.Context, slots int) error {
 	return s.mutateActive(ctx, func(se *domain.Season) error { return se.SetSlots(slots) })
 }
 
-// CloseSeason transitions the open season to its terminal closed state.
-func (s *Service) CloseSeason(ctx context.Context) error {
-	return s.mutateActive(ctx, func(se *domain.Season) error { return se.Close(s.now()) })
+// CloseSeason transitions the open season to its terminal closed state, recording
+// the ordering board captured at that moment (closureJSON — opaque to this
+// context; "" means no snapshot). Status, closed_at and the snapshot commit in
+// one UpdateSeason statement or not at all.
+func (s *Service) CloseSeason(ctx context.Context, closureJSON string) error {
+	return s.mutateActive(ctx, func(se *domain.Season) error {
+		se.ClosureJSON = closureJSON
+		return se.Close(s.now())
+	})
 }
 
 // ListSeasonAnimes returns a season's intake rows in creation order.

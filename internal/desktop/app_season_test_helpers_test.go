@@ -26,8 +26,10 @@ type fakeSeasonRepo struct {
 	seasons     map[string]domain.Season
 	order       []string
 	createErr   error
+	activeErr   error
 	animes      map[string]domain.SeasonAnime
 	animesOrder []string
+	animesErr   error
 }
 
 // newFakeSeasonRepo creates an in-memory season repository for tests.
@@ -45,6 +47,9 @@ func (r *fakeSeasonRepo) CreateSeason(_ context.Context, seasonValue domain.Seas
 }
 
 func (r *fakeSeasonRepo) ActiveSeason(_ context.Context) (*domain.Season, error) {
+	if r.activeErr != nil {
+		return nil, r.activeErr
+	}
 	for _, id := range r.order {
 		if seasonValue := r.seasons[id]; seasonValue.Status == domain.StatusOpen {
 			copy := seasonValue
@@ -86,6 +91,9 @@ func (r *fakeSeasonRepo) CreateSeasonAnime(_ context.Context, seasonAnime domain
 }
 
 func (r *fakeSeasonRepo) ListSeasonAnimes(_ context.Context, seasonID string) ([]domain.SeasonAnime, error) {
+	if r.animesErr != nil {
+		return nil, r.animesErr
+	}
 	var out []domain.SeasonAnime
 	for _, id := range r.animesOrder {
 		if seasonAnime := r.animes[id]; seasonAnime.SeasonID == seasonID {
@@ -109,7 +117,9 @@ func (r *fakeSeasonRepo) UpdateSeasonAnime(_ context.Context, seasonAnime domain
 	return nil
 }
 
-// newTestSeasonApp creates an application backed by a test season service.
+// newTestSeasonApp creates an application backed by a test season service. An
+// empty anime query is wired by default so board-capturing bindings (CloseSeason)
+// read live data instead of failing; tests needing specific animes overwrite it.
 func newTestSeasonApp(repo season.Repository, hub *stubAppRealtimeHub) *App {
 	fixed := time.UnixMilli(1_700_000_000_000)
 	nextID := 0
@@ -117,7 +127,7 @@ func newTestSeasonApp(repo season.Repository, hub *stubAppRealtimeHub) *App {
 		nextID++
 		return fmt.Sprintf("id-%d", nextID)
 	}, nil)
-	app := &App{ctx: context.Background(), seasonService: service}
+	app := &App{ctx: context.Background(), seasonService: service, animeQuery: &stubAnimeQueryService{}}
 	if hub != nil {
 		app.realtimeHub = hub
 	}

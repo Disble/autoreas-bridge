@@ -72,12 +72,18 @@ func (a *App) SetSeasonSlots(slots int) string {
 	return "ok"
 }
 
-// CloseSeason transitions the open season to its terminal closed state.
+// CloseSeason transitions the open season to its terminal closed state, capturing
+// the ACTUAL ordering board (from live data) into the season in the same write.
+// A failed capture returns the error and leaves the season open with no snapshot.
 func (a *App) CloseSeason() string {
 	if a.seasonService == nil {
 		return seasonServiceUnavailableMessage
 	}
-	if err := a.seasonService.CloseSeason(a.seasonCtx()); err != nil {
+	closureJSON, err := a.captureSeasonClosure()
+	if err != nil {
+		return err.Error()
+	}
+	if err := a.seasonService.CloseSeason(a.seasonCtx(), closureJSON); err != nil {
 		return err.Error()
 	}
 	a.broadcastSeasonChanged()

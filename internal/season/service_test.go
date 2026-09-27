@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"autoreas-bridge/internal/season/domain"
 	"autoreas-bridge/internal/season/match"
@@ -60,7 +61,7 @@ func TestServiceSetParametersAndClose(t *testing.T) {
 		t.Fatalf("params not persisted: %+v", active)
 	}
 
-	if err := svc.CloseSeason(ctx); err != nil {
+	if err := svc.CloseSeason(ctx, ""); err != nil {
 		t.Fatalf("CloseSeason: %v", err)
 	}
 	if after, _ := svc.ActiveSeason(ctx); after != nil {
@@ -73,6 +74,46 @@ func TestServiceSetParametersAndClose(t *testing.T) {
 	}
 }
 
+// TestServiceCloseSeasonPersistsClosureJSONRoundTrip drives the close over real
+// SQLite (not a mock repo) and proves the captured board reads back
+// byte-identical through both season readers.
+func TestServiceCloseSeasonPersistsClosureJSONRoundTrip(t *testing.T) {
+	svc := NewService(NewSQLiteStore(openTestSeasonDB(t)),
+		func() time.Time { return time.UnixMilli(1_700_000_000_000) },
+		func() string { return "season-1" }, nil)
+	ctx := context.Background()
+
+	created, err := svc.CreateSeason(ctx, "Julio 2026")
+	if err != nil {
+		t.Fatalf("CreateSeason: %v", err)
+	}
+
+	// Deliberately non-canonical JSON: whitespace and key order must survive.
+	closure := `{ "capturedAt" : 1700000000000, "rail":[], "grid":[{"animeId":"anime-a","dia":"Lunes","orden":3}] }`
+	if err := svc.CloseSeason(ctx, closure); err != nil {
+		t.Fatalf("CloseSeason: %v", err)
+	}
+
+	byID, err := svc.SeasonByID(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("SeasonByID: %v", err)
+	}
+	if byID == nil || byID.ClosureJSON != closure {
+		t.Fatalf("SeasonByID closure = %q, want byte-identical %q", byID.ClosureJSON, closure)
+	}
+	if !byID.IsClosed() || byID.ClosedAt == nil {
+		t.Fatalf("close must persist status + milestone: %+v", byID)
+	}
+
+	all, err := svc.ListSeasons(ctx)
+	if err != nil {
+		t.Fatalf("ListSeasons: %v", err)
+	}
+	if len(all) != 1 || all[0].ClosureJSON != closure {
+		t.Fatalf("ListSeasons closure = %+v, want byte-identical %q", all, closure)
+	}
+}
+
 func TestServiceMutationsRequireActiveSeason(t *testing.T) {
 	svc := newTestService(newFakeRepo())
 	ctx := context.Background()
@@ -80,7 +121,7 @@ func TestServiceMutationsRequireActiveSeason(t *testing.T) {
 	if err := svc.SetSlots(ctx, 10); !errors.Is(err, ErrNoActiveSeason) {
 		t.Fatalf("expected ErrNoActiveSeason, got %v", err)
 	}
-	if err := svc.CloseSeason(ctx); !errors.Is(err, ErrNoActiveSeason) {
+	if err := svc.CloseSeason(ctx, ""); !errors.Is(err, ErrNoActiveSeason) {
 		t.Fatalf("expected ErrNoActiveSeason, got %v", err)
 	}
 }
@@ -127,7 +168,7 @@ func TestServiceListSeasonsAndSeasonByID(t *testing.T) {
 
 	// A closed "past" season plus a currently-open one.
 	first, _ := svc.CreateSeason(ctx, "Abril 2026")
-	if err := svc.CloseSeason(ctx); err != nil {
+	if err := svc.CloseSeason(ctx, ""); err != nil {
 		t.Fatalf("CloseSeason: %v", err)
 	}
 	second, _ := svc.CreateSeason(ctx, "Julio 2026")

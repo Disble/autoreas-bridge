@@ -1,28 +1,76 @@
 package desktop
 
-// GetSeasonOrderingBoard aggregates the ordering board: the rail is the approved
-// (verdict Aprobado, linked, still in an Estrenos section) season candidates; the
-// grid is every active anime already scheduled on a weekday (continuing titles +
-// placed newcomers). Newcomers (this season's approved) are flagged.
-func (a *App) GetSeasonOrderingBoard() OrderingBoardDTO {
-	empty := OrderingBoardDTO{Rail: []OrderingCardDTO{}, Grid: []OrderingCardDTO{}}
+import (
+	"encoding/json"
+	"errors"
+	"time"
+
+	"autoreas-bridge/internal/season"
+)
+
+// errOrderingBoardUnavailable is the builder's explicit failure when the season
+// service or the anime query is not wired: no board can be read, and a capture
+// must never fabricate an empty one.
+var errOrderingBoardUnavailable = errors.New("ordering board unavailable")
+
+// buildSeasonOrderingBoard aggregates the ordering board and reports every read
+// failure. GetSeasonOrderingBoard keeps its error-swallowing read for the UI;
+// the season-close capture uses this builder so a failed read aborts the close
+// instead of persisting a false empty history.
+func (a *App) buildSeasonOrderingBoard() (OrderingBoardDTO, error) {
 	if a.seasonService == nil || a.animeQuery == nil {
-		return empty
+		return OrderingBoardDTO{}, errOrderingBoardUnavailable
 	}
 	active, err := a.seasonService.ActiveSeason(a.seasonCtx())
-	if err != nil || active == nil {
-		return empty
+	if err != nil {
+		return OrderingBoardDTO{}, err
+	}
+	if active == nil {
+		return OrderingBoardDTO{}, season.ErrNoActiveSeason
 	}
 	rows, err := a.seasonService.ListSeasonAnimes(a.seasonCtx(), active.ID)
 	if err != nil {
-		return empty
+		return OrderingBoardDTO{}, err
 	}
 	approved := approvedSeasonAnimeIDs(rows, active.MinApprovalGrade)
 	animes, err := a.animeQuery.ListMobileAnimes(a.seasonCtx())
 	if err != nil {
-		return empty
+		return OrderingBoardDTO{}, err
 	}
 	board := OrderingBoardDTO{Rail: []OrderingCardDTO{}, Grid: []OrderingCardDTO{}, AppliedAt: millisPtrDTO(active.AppliedAt)}
 	populateOrderingBoard(&board, animes, approved)
+	return board, nil
+}
+
+// GetSeasonOrderingBoard aggregates the ordering board for the UI read: the rail
+// is the approved (verdict Aprobado, linked, still in an Estrenos section) season
+// candidates; the grid is every active anime already scheduled on a weekday
+// (continuing titles + placed newcomers). Newcomers (this season's approved) are
+// flagged. Any read failure degrades to an empty board for the UI.
+func (a *App) GetSeasonOrderingBoard() OrderingBoardDTO {
+	board, err := a.buildSeasonOrderingBoard()
+	if err != nil {
+		return OrderingBoardDTO{Rail: []OrderingCardDTO{}, Grid: []OrderingCardDTO{}}
+	}
 	return board
+}
+
+// captureSeasonClosure builds the board from live data and encodes the closure
+// snapshot. Any failure — a read error or an encode error — returns an error so
+// the caller leaves the season open rather than storing a false snapshot.
+func (a *App) captureSeasonClosure() (string, error) {
+	board, err := a.buildSeasonOrderingBoard()
+	if err != nil {
+		return "", err
+	}
+	raw, err := json.Marshal(seasonClosureSnapshotDTO{
+		CapturedAt: time.Now().UnixMilli(),
+		AppliedAt:  board.AppliedAt,
+		Rail:       board.Rail,
+		Grid:       board.Grid,
+	})
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
 }

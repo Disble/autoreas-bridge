@@ -77,6 +77,17 @@ type OrderingBoardDTO struct {
 	AppliedAt *int64            `json:"appliedAt"`
 }
 
+// seasonClosureSnapshotDTO is the persisted shape of the ordering board captured
+// at the moment a season closes (P3), stored verbatim in seasons.closure_json.
+// The rail and grid reuse OrderingCardDTO so the payload round-trips into the
+// same read model, and every grid card carries the dia+orden actually scheduled.
+type seasonClosureSnapshotDTO struct {
+	CapturedAt int64             `json:"capturedAt"`
+	AppliedAt  *int64            `json:"appliedAt"`
+	Rail       []OrderingCardDTO `json:"rail"`
+	Grid       []OrderingCardDTO `json:"grid"`
+}
+
 // ConfirmSelectionDTO is the Wails-facing result of confirming the selection:
 // "ok" or an error message, the approved/rejected counts, and a quota-overflow
 // flag so the UI can surface the one hard rule distinctly.
