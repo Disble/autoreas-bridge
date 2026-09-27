@@ -76,6 +76,36 @@ type AvailabilityReader interface {
 	AvailableEpisodes(ctx context.Context, pageURL string) (int, error)
 }
 
+// AnimeCreateMetadata is the optional, user-confirmed MyAnimeList metadata one
+// intake row may carry into the anime it creates. Every member is optional: a
+// nil pointer, an empty string or an empty list means "the user confirmed
+// nothing here", and the created anime keeps exactly the value it would have
+// had without any metadata at all.
+//
+// The JSON names are the keys the frontend binding sends (Wails maps struct
+// fields through them), so they mirror the frontend's per-row metadata
+// vocabulary rather than the anime-side contract's.
+type AnimeCreateMetadata struct {
+	// Name is the confirmed lookup's anime title. It is carried only because the
+	// frontend's per-row metadata has it, and it is NEVER mapped into the created
+	// anime: the intake row's raw name is the name the user typed, so it wins even
+	// when the confirmed title disagrees (see AnimeCreateInput.Nombre).
+	Name string `json:"name,omitempty"`
+	// Kind is the legacy content type (0 = Serie / Anime TV, 1 = Pelicula, 2 = OVA).
+	Kind *int `json:"kind,omitempty"`
+	// TotalEpisodes is the announced episode count.
+	TotalEpisodes *int `json:"totalEpisodes,omitempty"`
+	// DurationMinutes is one episode's duration in minutes.
+	DurationMinutes *int `json:"durationMinutes,omitempty"`
+	// Origin is the source work's origin label (manga, novel, original, ...).
+	Origin string `json:"origin,omitempty"`
+	// Genres and Studios are the confirmed lists; nil means none were confirmed.
+	Genres  []string `json:"genres,omitempty"`
+	Studios []string `json:"studios,omitempty"`
+	// CoverURL is the confirmed cover image URL.
+	CoverURL string `json:"coverURL,omitempty"`
+}
+
 // AnimeCreateInput is the season-side projection of what a new anime needs; the
 // AnimeGateway maps it to the anime context's create contract and computes the
 // next free orden within Section (an anime-side concern).
@@ -89,6 +119,10 @@ type AnimeCreateInput struct {
 	// Tipo is the legacy content type (0 = Serie / Anime TV, 1 = Pelicula, 2 = OVA).
 	// Nil omits the field, which is why season creation always sets a default.
 	Tipo *int
+	// Metadata is the optional, user-confirmed MyAnimeList metadata for this row.
+	// Nil (or an all-empty value) creates exactly the anime this input describes
+	// without metadata.
+	Metadata *AnimeCreateMetadata
 }
 
 // AnimeGateway is the narrow port into the anime context: it creates an anime

@@ -273,3 +273,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-09-27]: A nested t.Run table body trips gocognit above 15; extract the case body into an assertX(t, ...) helper so the table stays readable and the lint gate stays green.
 - [2026-09-27]: A stalled delegated worker leaves no edits and no process: diagnose with ps and git status before relaunching, and move slow or hang-prone setup (like Wails binding generation) to the parent so the worker only edits and runs focused tests.
 - [2026-09-27]: dharness mutate reuses per-mutant results from earlier runs, so it can report survivors that a hand check contradicts; re-run the same scope with -fresh before writing tests for them, and the fresh run also refreshes what the gate reads.
+- [2026-09-27]: ditto staged with --include-prefix silently produced zero mutants for the staged Go files; scope staged per package with --exclude-prefix frontend/ and a --test-command naming every owning package instead.

@@ -2,14 +2,17 @@ package desktop
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
+	"testing"
 	"time"
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/season/domain"
 	"autoreas-bridge/internal/season/match"
+	bridgeSync "autoreas-bridge/internal/sync"
 )
 
 type appliedDaysEpisodeService struct {
@@ -155,4 +158,109 @@ type fakeAppAvailabilityProbe struct {
 
 func (f fakeAppAvailabilityProbe) AvailableEpisodes(_ context.Context, pageURL string) (int, error) {
 	return f.episodes[pageURL], nil
+}
+
+// confirmedSeasonMetadata is one fully-confirmed lookup as the season intake row
+// carries it: every field the frontend can confirm for one row.
+func confirmedSeasonMetadata() season.AnimeCreateMetadata {
+	kind, total, duration := 2, 24, 45
+	return season.AnimeCreateMetadata{
+		Name:            "Frieren: Beyond Journey's End",
+		Kind:            &kind,
+		TotalEpisodes:   &total,
+		DurationMinutes: &duration,
+		Origin:          "Manga",
+		Genres:          []string{"Adventure", "Drama"},
+		Studios:         []string{"Madhouse"},
+		CoverURL:        "https://cdn.myanimelist.net/images/anime/frieren.jpg",
+	}
+}
+
+// runtimeSeasonFixture is a season app wired to a REAL temp-SQLite anime store,
+// so a binding test observes the record SQLite actually holds.
+type runtimeSeasonFixture struct {
+	app   *App
+	repo  *fakeSeasonRepo
+	store *bridgeSync.AnimeSnapshotStore
+}
+
+// newRuntimeSeasonFixture wires the real anime create pipeline over a temp SQLite
+// database into a test App whose season gateway carries per-row metadata.
+func newRuntimeSeasonFixture(t *testing.T) runtimeSeasonFixture {
+	t.Helper()
+	store := bridgeSync.NewAnimeSnapshotStore(openRuntimeBridgeDB(t))
+	write := anime.NewWriteService(store, &stubAppUpdateWriter{})
+	write.SetIDGen(func() string { return "created-anime" })
+	write.SetNow(func() time.Time { return time.UnixMilli(1_700_000_000_000).UTC() })
+	creator := anime.NewCreateService(write)
+	readQuery := &stubAnimeReadQuery{}
+	creator.SetQuery(readQuery)
+
+	repo := newFakeSeasonRepo()
+	app := newTestSeasonApp(repo, nil)
+	app.seasonService.SetAvailabilityDeps(nil, seasonAnimeGateway{writer: write, creator: creator, records: readQuery})
+	return runtimeSeasonFixture{app: app, repo: repo, store: store}
+}
+
+// seedAvailableRow opens the fixture's season and adds one AVAILABLE intake row.
+func (f runtimeSeasonFixture) seedAvailableRow(t *testing.T, rowID, name, pageURL string) {
+	t.Helper()
+	if got := f.app.CreateSeason("Julio 2026"); got != "ok" {
+		t.Fatalf("CreateSeason: %q", got)
+	}
+	active, err := f.app.seasonService.ActiveSeason(context.Background())
+	if err != nil || active == nil {
+		t.Fatalf("ActiveSeason: %v, %#v", err, active)
+	}
+	row := domain.NewSeasonAnime(rowID, active.ID, name, time.UnixMilli(0))
+	row.MatchStatus = domain.MatchMatched
+	row.MatchedSlug = pageURL
+	row.Availability = domain.AvailabilityAvailable
+	row.AvailableEpisodes = 1
+	if err := f.repo.CreateSeasonAnime(context.Background(), row); err != nil {
+		t.Fatalf("seed row: %v", err)
+	}
+}
+
+// createdAnimeRecord is the canonical snapshot shape a season create writes,
+// decoded so a test asserts stored values instead of raw JSON keys.
+type createdAnimeRecord struct {
+	Name            string   `json:"name"`
+	SourceURL       string   `json:"sourceUrl"`
+	Folder          string   `json:"folder"`
+	Kind            *int     `json:"kind"`
+	TotalEpisodes   *int     `json:"totalEpisodes"`
+	DurationMinutes *int     `json:"durationMinutes"`
+	Origin          string   `json:"origin"`
+	Genres          []string `json:"genres"`
+	Studios         []string `json:"studios"`
+	EpisodesWatched int      `json:"episodesWatched"`
+	Cover           struct {
+		Type string `json:"type"`
+		Path string `json:"path"`
+	} `json:"cover"`
+	Days []struct {
+		Day   string `json:"day"`
+		Order int    `json:"order"`
+	} `json:"days"`
+}
+
+// readCreatedAnime decodes one persisted anime snapshot and reports whether the
+// stored record carries a premiere/first-watch date at all.
+func readCreatedAnime(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID string) (createdAnimeRecord, bool) {
+	t.Helper()
+	snapshot, err := store.GetSnapshot(context.Background(), animeID)
+	if err != nil {
+		t.Fatalf("GetSnapshot(%s): %v", animeID, err)
+	}
+	var record createdAnimeRecord
+	if err := json.Unmarshal(snapshot.CanonicalJSON, &record); err != nil {
+		t.Fatalf("decode snapshot: %v", err)
+	}
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(snapshot.CanonicalJSON, &keys); err != nil {
+		t.Fatalf("decode snapshot keys: %v", err)
+	}
+	_, hasPremiere := keys["premieredAt"]
+	return record, hasPremiere
 }

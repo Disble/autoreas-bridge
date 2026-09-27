@@ -66,7 +66,7 @@ func TestCreateSeasonAnimesConflictDoesNotMarkRowCreated(t *testing.T) {
 	row.Availability = domain.AvailabilityAvailable
 	_ = repo.CreateSeasonAnime(ctx, row)
 
-	_, err := service.CreateSeasonAnimes(ctx, []string{"sa-1"}, "", nil)
+	_, err := service.CreateSeasonAnimes(ctx, []string{"sa-1"}, "", nil, nil)
 	if !errors.Is(err, ErrAnimeMutationConflict) {
 		t.Fatalf("CreateSeasonAnimes error = %v, want conflict", err)
 	}

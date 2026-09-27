@@ -281,9 +281,12 @@ func (a *App) withActiveSeason(fn func(seasonID string) error) string {
 // soft-delete only), skipping rows that are not available or already created.
 // Each new anime's download folder defaults to the configured downloads root
 // joined with its sanitized name; folders maps a rowID to a user-picked override
-// that wins over that default. No download is triggered — that happens only on
-// Send to Ver hoy.
-func (a *App) CreateSeasonAnimes(rowIDs []string, folders map[string]string) string {
+// that wins over that default. metadata maps a rowID to the MyAnimeList facts the
+// user confirmed for that row (already resolved — this binding starts no network
+// call and no lookup of its own); a row with no entry, an empty map and a nil map
+// all behave exactly as before metadata existed. No download is triggered — that
+// happens only on Send to Ver hoy.
+func (a *App) CreateSeasonAnimes(rowIDs []string, folders map[string]string, metadata map[string]season.AnimeCreateMetadata) string {
 	if a.seasonService == nil {
 		return seasonServiceUnavailableMessage
 	}
@@ -295,7 +298,7 @@ func (a *App) CreateSeasonAnimes(rowIDs []string, folders map[string]string) str
 		}
 		root = r
 	}
-	if _, err := a.seasonService.CreateSeasonAnimes(a.seasonCtx(), rowIDs, root, folders); err != nil {
+	if _, err := a.seasonService.CreateSeasonAnimes(a.seasonCtx(), rowIDs, root, folders, metadata); err != nil {
 		return err.Error()
 	}
 	a.broadcastSeasonChanged()
