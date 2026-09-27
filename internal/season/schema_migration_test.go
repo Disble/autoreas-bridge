@@ -199,6 +199,40 @@ func TestSeasonsClosureJSONAdditiveMigration(t *testing.T) {
 	}
 }
 
+// TestSeasonAnimesMetadataJSONAdditiveMigration proves the P5b metadata column
+// is added by the probe-and-apply path on an install whose season_animes table
+// predates it: an existing row stays SQL NULL (no default), a second run is a
+// no-op, and a fresh install carries the column from CreateDDL.
+func TestSeasonAnimesMetadataJSONAdditiveMigration(t *testing.T) {
+	db := openMigrationTestDB(t, "bridge.db")
+	mustExec(t, db, "create legacy seasons", legacySeasonsDDL)
+	mustExec(t, db, "create legacy season_animes", preEpisodeSeasonAnimesDDL)
+	mustExec(t, db, "seed legacy row", `INSERT INTO season_animes
+		(id, season_id, raw_name, created_at) VALUES ('sa-1', 's-1', 'Anime A', 0)`)
+
+	ensureSeasonSchema(t, db, "first run")
+	cols := mustSeasonAnimesColumns(t, db, "after first run")
+	if !containsColumnName(cols, "metadata_json") {
+		t.Fatalf("metadata_json missing after migration, got columns: %v", cols)
+	}
+	assertMetadataRawNull(t, db, "sa-1")
+
+	// A second run must be a no-op: no error, no duplicate column.
+	ensureSeasonSchema(t, db, "second run")
+	cols = mustSeasonAnimesColumns(t, db, "after second run")
+	if n := countColumnName(cols, "metadata_json"); n != 1 {
+		t.Fatalf("metadata_json must appear exactly once, got %d in %v", n, cols)
+	}
+
+	// A fresh install must have the column from CreateDDL alone.
+	freshDB := openMigrationTestDB(t, "fresh.db")
+	ensureSeasonSchema(t, freshDB, "fresh install")
+	freshCols := mustSeasonAnimesColumns(t, freshDB, "fresh install")
+	if !containsColumnName(freshCols, "metadata_json") {
+		t.Fatalf("fresh install missing metadata_json, got columns: %v", freshCols)
+	}
+}
+
 // openMigrationTestDB opens a temp-dir SQLite database wired for single-conn
 // test use and closed on cleanup.
 func openMigrationTestDB(t *testing.T, name string) *sql.DB {

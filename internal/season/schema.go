@@ -53,6 +53,7 @@ const (
 			rated_at INTEGER,
 			skip_grading INTEGER NOT NULL DEFAULT 0,
 			consideration TEXT NOT NULL DEFAULT 'none',
+			metadata_json TEXT,
 			last_checked_at INTEGER,
 			created_at INTEGER NOT NULL
 		)`
@@ -81,6 +82,11 @@ const (
 	// available_episodes fresh instead (see migrateSeasonAnimes).
 	seasonAnimesAvailableEpisodesDDL      = `ALTER TABLE season_animes RENAME COLUMN available_chapters TO available_episodes`
 	seasonAnimesAvailableEpisodesFreshDDL = `ALTER TABLE season_animes ADD COLUMN available_episodes INTEGER NOT NULL DEFAULT 0`
+
+	// P5b added the per-row confirmed MyAnimeList metadata. Nullable on purpose
+	// with no default, so a row that never had a lookup stays SQL NULL
+	// ("not recorded") instead of a false empty record.
+	seasonAnimesMetadataJSONDDL = `ALTER TABLE season_animes ADD COLUMN metadata_json TEXT`
 )
 
 // seasonAnimesColumnAdds are the additive, order-independent column migrations
@@ -94,6 +100,7 @@ var seasonAnimesColumnAdds = []persistence.ColumnMigration{
 	{Column: "rated_at", AlterDDL: seasonAnimesRatedAtDDL},
 	{Column: "skip_grading", AlterDDL: seasonAnimesSkipGradingDDL},
 	{Column: "consideration", AlterDDL: seasonAnimesConsiderationDDL},
+	{Column: "metadata_json", AlterDDL: seasonAnimesMetadataJSONDDL},
 }
 
 // migrateSeasonAnimes applies season_animes's additive column migrations, then

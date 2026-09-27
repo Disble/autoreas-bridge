@@ -199,6 +199,47 @@ func TestImportSeasonAnimesRoundTripsEveryColumn(t *testing.T) {
 	}
 }
 
+// TestImportSeasonAnimesRoundTripsMetadataJSON proves a confirmed lookup
+// survives export→import byte-for-byte while a row that never had one stays
+// SQL NULL, so the bundle preserves "not recorded" as absent, not as an
+// empty record. The bundle format is unchanged: an absent key decodes to the
+// honest empty string, following the closure_json precedent.
+func TestImportSeasonAnimesRoundTripsMetadataJSON(t *testing.T) {
+	srcDB := openTestSeasonDB(t)
+	if _, err := srcDB.Exec(`INSERT INTO season_animes (id, season_id, raw_name, created_at, metadata_json) VALUES
+		('sa-confirmed', 's1', 'Frieren', 1, ?),
+		('sa-none', 's1', 'Dandadan', 2, NULL)`, confirmedMetadataJSON); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if _, err := ExportSeasonAnimes(srcDB)(context.Background(), &buf); err != nil {
+		t.Fatalf("export: %v", err)
+	}
+
+	dstDB := openTestSeasonDB(t)
+	if _, err := ImportSeasonAnimes(dstDB)(context.Background(), &buf); err != nil {
+		t.Fatalf("import: %v", err)
+	}
+
+	store := NewSQLiteStore(dstDB)
+	confirmed, err := store.SeasonAnimeByID(context.Background(), "sa-confirmed")
+	if err != nil || confirmed == nil {
+		t.Fatalf("SeasonAnimeByID(sa-confirmed): %v (%+v)", err, confirmed)
+	}
+	if confirmed.MetadataJSON != confirmedMetadataJSON {
+		t.Fatalf("metadata = %q, want byte-identical %q", confirmed.MetadataJSON, confirmedMetadataJSON)
+	}
+	none, err := store.SeasonAnimeByID(context.Background(), "sa-none")
+	if err != nil || none == nil {
+		t.Fatalf("SeasonAnimeByID(sa-none): %v (%+v)", err, none)
+	}
+	if none.MetadataJSON != "" {
+		t.Fatalf("unrecorded metadata = %q, want \"\"", none.MetadataJSON)
+	}
+	assertMetadataRawNull(t, dstDB, "sa-none")
+}
+
 func TestSeasonImportDecodesIncrementally(t *testing.T) {
 	db := openTestSeasonDB(t)
 

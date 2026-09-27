@@ -123,12 +123,12 @@ func (s *SQLiteStore) CreateSeasonAnime(ctx context.Context, sa domain.SeasonAni
 		INSERT INTO season_animes
 			(id, season_id, raw_name, match_status, matched_slug,
 			 match_candidates_json, availability, available_episodes, anime_id,
-			 premiere_grade, grade_source, rated_at, skip_grading, consideration, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			 premiere_grade, grade_source, rated_at, skip_grading, consideration, metadata_json, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sa.ID, sa.SeasonID, sa.RawName, string(sa.MatchStatus), sa.MatchedSlug,
 		marshalCandidates(sa.Candidates), string(sa.Availability), sa.AvailableEpisodes, sa.AnimeID,
 		gradePtr(sa.Grade), gradeSourcePtr(sa.GradeSource), millisPtr(sa.RatedAt), boolToInt(sa.SkipGrading),
-		considerationValue(sa.Consideration), sa.CreatedAt.UnixMilli(),
+		considerationValue(sa.Consideration), metadataOrNull(sa.MetadataJSON), sa.CreatedAt.UnixMilli(),
 	)
 	if err != nil {
 		return fmt.Errorf("create season anime %q: %w", sa.ID, err)
@@ -141,7 +141,7 @@ func (s *SQLiteStore) ListSeasonAnimes(ctx context.Context, seasonID string) (ou
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, season_id, raw_name, match_status, matched_slug,
 		       match_candidates_json, availability, available_episodes, anime_id,
-		       premiere_grade, grade_source, rated_at, skip_grading, consideration, created_at
+		       premiere_grade, grade_source, rated_at, skip_grading, consideration, metadata_json, created_at
 		FROM season_animes WHERE season_id = ? ORDER BY created_at, id`, seasonID)
 	if err != nil {
 		return nil, fmt.Errorf("list season animes for %q: %w", seasonID, err)
@@ -171,7 +171,7 @@ func (s *SQLiteStore) SeasonAnimeByID(ctx context.Context, id string) (*domain.S
 	row := s.db.QueryRowContext(ctx, `
 		SELECT id, season_id, raw_name, match_status, matched_slug,
 		       match_candidates_json, availability, available_episodes, anime_id,
-		       premiere_grade, grade_source, rated_at, skip_grading, consideration, created_at
+		       premiere_grade, grade_source, rated_at, skip_grading, consideration, metadata_json, created_at
 		FROM season_animes WHERE id = ?`, id)
 	sa, err := scanSeasonAnime(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -189,12 +189,12 @@ func (s *SQLiteStore) UpdateSeasonAnime(ctx context.Context, sa domain.SeasonAni
 		UPDATE season_animes SET
 			match_status = ?, matched_slug = ?, match_candidates_json = ?,
 			availability = ?, available_episodes = ?, anime_id = ?,
-			premiere_grade = ?, grade_source = ?, rated_at = ?, skip_grading = ?, consideration = ?
+			premiere_grade = ?, grade_source = ?, rated_at = ?, skip_grading = ?, consideration = ?, metadata_json = ?
 		WHERE id = ?`,
 		string(sa.MatchStatus), sa.MatchedSlug, marshalCandidates(sa.Candidates),
 		string(sa.Availability), sa.AvailableEpisodes, sa.AnimeID,
 		gradePtr(sa.Grade), gradeSourcePtr(sa.GradeSource), millisPtr(sa.RatedAt), boolToInt(sa.SkipGrading),
-		considerationValue(sa.Consideration), sa.ID,
+		considerationValue(sa.Consideration), metadataOrNull(sa.MetadataJSON), sa.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update season anime %q: %w", sa.ID, err)
@@ -217,11 +217,12 @@ func scanSeasonAnime(row rowScanner) (*domain.SeasonAnime, error) {
 		ratedAt       sql.NullInt64
 		skipGrading   int64
 		consideration sql.NullString
+		metadataJSON  sql.NullString
 		createdAt     int64
 	)
 	if err := row.Scan(&sa.ID, &sa.SeasonID, &sa.RawName, &matchStatus, &matchedSlug,
 		&candidates, &availability, &availableEp, &animeID,
-		&grade, &gradeSource, &ratedAt, &skipGrading, &consideration, &createdAt); err != nil {
+		&grade, &gradeSource, &ratedAt, &skipGrading, &consideration, &metadataJSON, &createdAt); err != nil {
 		return nil, err
 	}
 	sa.MatchStatus = domain.MatchStatus(matchStatus)
@@ -235,6 +236,7 @@ func scanSeasonAnime(row rowScanner) (*domain.SeasonAnime, error) {
 	sa.RatedAt = timePtr(ratedAt)
 	sa.SkipGrading = skipGrading != 0
 	sa.Consideration = considerationOrDefault(consideration.String)
+	sa.MetadataJSON = metadataJSON.String
 	sa.CreatedAt = time.UnixMilli(createdAt)
 	return &sa, nil
 }
@@ -339,6 +341,15 @@ func scanSeason(row rowScanner) (*domain.Season, error) {
 // closureOrNull stores the closure snapshot, or SQL NULL when none was recorded:
 // the domain's empty string means "not captured", not an empty snapshot.
 func closureOrNull(raw string) any {
+	if raw == "" {
+		return nil
+	}
+	return raw
+}
+
+// metadataOrNull stores the confirmed metadata JSON, or SQL NULL when none was
+// recorded: the domain's empty string means "not recorded", not an empty record.
+func metadataOrNull(raw string) any {
 	if raw == "" {
 		return nil
 	}

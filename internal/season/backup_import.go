@@ -145,8 +145,8 @@ const insertSeasonAnimeSQL = `
 	INSERT INTO season_animes (id, season_id, raw_name, match_status, matched_slug,
 		match_candidates_json, availability, first_available_at, available_episodes,
 		anime_id, premiere_grade, grade_source, post_season_grade, rated_at,
-		skip_grading, consideration, last_checked_at, created_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		skip_grading, consideration, last_checked_at, created_at, metadata_json)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 // ImportSeasonAnimes returns a backup import function that replaces every
@@ -168,7 +168,7 @@ func ImportSeasonAnimes(db *sql.DB) func(context.Context, io.Reader) (int, error
 			return []any{rec.ID, rec.SeasonID, rec.RawName, rec.MatchStatus, rec.MatchedSlug,
 				rec.MatchCandidatesJSON, rec.Availability, rec.FirstAvailableAt, rec.AvailableEpisodes,
 				rec.AnimeID, rec.PremiereGrade, rec.GradeSource, rec.PostSeasonGrade, rec.RatedAt,
-				rec.SkipGrading, rec.Consideration, rec.LastCheckedAt, rec.CreatedAt}
+				rec.SkipGrading, rec.Consideration, rec.LastCheckedAt, rec.CreatedAt, rec.MetadataJSON}
 		})
 		if err != nil {
 			return count, err
