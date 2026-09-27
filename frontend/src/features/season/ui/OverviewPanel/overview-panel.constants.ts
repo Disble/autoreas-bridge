@@ -55,6 +55,33 @@ export const PIPELINE_KEYS = ['Sin ver', 'Ver hoy', 'Visto'] as const;
 /** Fixed workflow order of intake match statuses. */
 export const INTAKE_HEALTH_KEYS = ['pending', 'matched', 'ambiguous', 'not_found', 'discarded'] as const;
 
+/**
+ * Fixed bucket order of the selection outcome chart. Each label doubles as its
+ * nivo key and legend text. The third label is "No grade", not "Not yet
+ * graded": the same panel renders a closed season, where nothing is pending, so
+ * the wording has to be true for a season whose confirmation already applied.
+ */
+export const SELECTION_OUTCOME_KEYS = ['Approved', 'Rejected', 'No grade'] as const;
+
+/**
+ * Selection outcome bucket colors, keyed by their display label. All three are
+ * reused literals from the theme skill's validated chart palette: chart-success
+ * `#17AB55` for approved, danger `#DB3B3E` for rejected, and the chart-tuned
+ * neutral `#71717A` for the no-grade bucket.
+ */
+export const SELECTION_OUTCOME_CHART_COLORS: Readonly<Record<string, string>> = {
+  Approved: '#17AB55',
+  Rejected: '#DB3B3E',
+  'No grade': '#71717A',
+};
+
+/**
+ * Consideration token meaning no override was applied. It is the only token a
+ * still-undecided candidate carries (mirror of the Go domain enum), so the
+ * not-yet-graded bucket requires it.
+ */
+export const CONSIDERATION_NONE = 'none';
+
 /** All supported grade bands, always displayed in ascending order. */
 export const GRADE_BANDS = ['1', '2', '3', '4', '5', '6'] as const;
 
@@ -76,6 +103,21 @@ export const PIPELINE_NOT_RECORDED_DESCRIPTION =
   'A closed season does not store its watching pipeline, so there is no recorded stage breakdown to show for this season.';
 /** Empty-state copy for the intake health chart when there are no intake rows yet. */
 export const INTAKE_HEALTH_EMPTY_MESSAGE = 'No intake rows yet.';
+
+/** Empty-state copy for the selection outcome chart when no candidate has been created. */
+export const SELECTION_OUTCOME_EMPTY_MESSAGE = 'No created candidates yet — the breakdown fills as animes are created.';
+
+/**
+ * Card copy stating what the selection outcome chart counts. The buckets are the
+ * verdicts the confirmation rules with, and a candidate with no grade counts as
+ * rejected — the fact the replaced quota meter never surfaced. The third bucket
+ * is labelled "No grade" rather than "Not yet graded" on purpose: this panel is
+ * shared with a CLOSED season, whose confirmation already ruled, so wording that
+ * implies pending work would be false history there.
+ */
+export const SELECTION_OUTCOME_CARD_DESCRIPTION =
+  'How the confirmation rules on created candidates: approved stays, and a candidate with no grade counts as rejected.';
+
 /** Empty-state copy for the grade histogram when there are no graded animes yet. */
 export const GRADE_HISTOGRAM_EMPTY_MESSAGE = 'No graded animes yet — the histogram fills in as animes are rated.';
 

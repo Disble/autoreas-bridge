@@ -1,5 +1,3 @@
-import type { QuotaStatus } from '../SelectionBoard/selection-board.types';
-
 /** The four KPI stat-tile values derived from the season's intake rows. */
 export interface OverviewKpiSummary {
   /** Every seasonAnimes row, any matchStatus. */
@@ -37,21 +35,27 @@ export interface GradeHistogramDatum {
   readonly emphasis: boolean;
 }
 
-/** The derived model backing the HeroUI Meter for approved-vs-slots. */
-export interface SlotsMeterModel {
-  /** The true approved count (may exceed slots). */
+/**
+ * The three mutually exclusive buckets of the season's created candidates: what
+ * confirming the season applies. `approved` + `rejected` + `notYetGraded` always
+ * equals `createdTotal`, and an ungraded candidate sits in `notYetGraded` here
+ * but is applied as rejected by the backend `ConfirmSelection`.
+ */
+export interface SelectionOutcomeCounts {
+  /** countApproved(rows, minApprovalGrade) — the Selection tab's own decision rule. */
   readonly approved: number;
-  /** Meter maxValue. */
-  readonly slots: number;
-  /** min(approved, slots) — the clamped bar value, never exceeds the track. */
-  readonly meterValue: number;
-  /** True when approved > slots. */
-  readonly isOverQuota: boolean;
-  readonly status: QuotaStatus;
-  /** HeroUI Meter color prop. */
-  readonly color: 'accent' | 'success' | 'danger';
-  /** e.g. "3 / 12" or "14 / 12 · Over quota". */
-  readonly label: string;
+  /** Created candidates confirming applies as rejected. */
+  readonly rejected: number;
+  /** Created candidates with no ruling at all (no grade, not skipped, no consideration). */
+  readonly notYetGraded: number;
+  /** Every created candidate; the three buckets sum to it. */
+  readonly createdTotal: number;
+}
+
+/** One-row horizontal stacked-bar datum for the selection outcome chart. */
+export interface SelectionOutcomeDatum {
+  readonly dim: 'outcome';
+  readonly [bucket: string]: string | number;
 }
 
 /** The full view model consumed by OverviewPanel and its chart children. */
@@ -63,7 +67,8 @@ export interface OverviewPanelViewModel {
   readonly intakeHealthKeys: readonly string[];
   readonly gradeHistogram: readonly GradeHistogramDatum[];
   readonly minApprovalGrade: number;
-  readonly slotsMeter: SlotsMeterModel;
+  readonly selectionOutcome: readonly SelectionOutcomeDatum[];
+  readonly selectionOutcomeKeys: readonly string[];
   /** Pipeline/histogram empty-state predicate. */
   readonly hasCreated: boolean;
   /** Intake-health empty-state predicate. */
@@ -104,9 +109,12 @@ export interface GradeHistogramChartProps {
   readonly hasGrades: boolean;
 }
 
-/** Props for the approved-vs-slots meter. */
-export interface SlotsMeterProps {
-  readonly model: SlotsMeterModel;
+/** Props for the selection outcome stacked-bar chart. */
+export interface SelectionOutcomeChartProps {
+  readonly data: readonly SelectionOutcomeDatum[];
+  readonly keys: readonly string[];
+  /** Created-candidate empty-state predicate; false renders the copy instead of a chart. */
+  readonly hasCreated: boolean;
 }
 
 /**

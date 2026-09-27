@@ -9,12 +9,14 @@ import {
   buildIntegerTicks,
   buildKpiSummary,
   buildOverviewViewModel,
-  buildSlotsMeterModel,
+  buildSelectionOutcomeCounts,
+  buildSelectionOutcomeData,
   buildWatchingPipelineData,
   getIntakeHealthSegmentColor,
   sumStackTotal,
 } from '../overview-panel.helpers';
 
+/** Builds a season intake row for a case, defaulting to an uncreated pending row. */
 function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
   return {
     id: 'sa-1',
@@ -34,6 +36,7 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
   };
 }
 
+/** Builds a created season anime row (availability created and a non-empty animeId) on top of `row`. */
 function createdRow(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
   return row({
     matchStatus: 'matched',
@@ -218,33 +221,91 @@ describe('buildGradeHistogramData', () => {
   });
 });
 
-describe('buildSlotsMeterModel', () => {
-  it('classifies an under-quota approved count', () => {
-    const model = buildSlotsMeterModel([createdRow({ grade: 5 })], 4, 12);
-    expect(model.status).toBe('under');
-    expect(model.color).toBe('accent');
-    expect(model.meterValue).toBe(1);
-    expect(model.isOverQuota).toBe(false);
+/** One selection-outcome bucket case: rows in, the three mutually exclusive buckets out. */
+interface SelectionOutcomeCase {
+  readonly name: string;
+  readonly rows: readonly SeasonAnimeRow[];
+  readonly approved: number;
+  readonly rejected: number;
+  readonly notYetGraded: number;
+  readonly createdTotal: number;
+}
+
+describe('buildSelectionOutcomeCounts', () => {
+  const cases: readonly SelectionOutcomeCase[] = [
+    { name: 'breaks an empty season into three zero buckets', rows: [], approved: 0, rejected: 0, notYetGraded: 0, createdTotal: 0 },
+    {
+      name: 'counts a grade-0 row rescued by a consideration as approved, never not-yet-graded',
+      rows: [createdRow({ grade: 0, consideration: 'temporarily_approved' })],
+      approved: 1, rejected: 0, notYetGraded: 0, createdTotal: 1,
+    },
+    {
+      name: 'counts a skip-graded grade-0 row as rejected',
+      rows: [createdRow({ grade: 0, skipGrading: true })],
+      approved: 0, rejected: 1, notYetGraded: 0, createdTotal: 1,
+    },
+    {
+      name: 'counts a grade-0 row with the insufficient-quota consideration as rejected',
+      rows: [createdRow({ grade: 0, consideration: 'insufficient_quota' })],
+      approved: 0, rejected: 1, notYetGraded: 0, createdTotal: 1,
+    },
+    {
+      name: 'counts a row exactly at minApprovalGrade as approved',
+      rows: [createdRow({ grade: 4 })],
+      approved: 1, rejected: 0, notYetGraded: 0, createdTotal: 1,
+    },
+    {
+      name: 'counts a legacy positive-progress row with no grade into the no-grade bucket',
+      rows: [createdRow({ grade: 0 })],
+      approved: 0, rejected: 0, notYetGraded: 1, createdTotal: 1,
+    },
+    {
+      name: 'counts a grade-1 row as rejected rather than as having no grade',
+      rows: [createdRow({ grade: 1 })],
+      approved: 0, rejected: 1, notYetGraded: 0, createdTotal: 1,
+    },
+    {
+      name: 'ignores an uncreated row that already carries an anime id',
+      rows: [row({ availability: 'matched', animeId: 'anime-linked' })],
+      approved: 0, rejected: 0, notYetGraded: 0, createdTotal: 0,
+    },
+    {
+      name: 'ignores a created row with no linked anime',
+      rows: [row({ availability: 'created', animeId: '' })],
+      approved: 0, rejected: 0, notYetGraded: 0, createdTotal: 0,
+    },
+    {
+      name: 'keeps the buckets mutually exclusive and summing to createdTotal over a mixed season',
+      rows: [
+        createdRow({ id: 'a', grade: 5 }),
+        createdRow({ id: 'b', grade: 0, consideration: 'spare_quota' }),
+        createdRow({ id: 'c', grade: 0, skipGrading: true }),
+        createdRow({ id: 'd', grade: 0, consideration: 'insufficient_quota' }),
+        createdRow({ id: 'e', grade: 2 }),
+        createdRow({ id: 'f', grade: 0 }),
+        row({ id: 'g', matchStatus: 'pending' }),
+      ],
+      approved: 2, rejected: 3, notYetGraded: 1, createdTotal: 6,
+    },
+  ];
+
+  it.each(cases)('$name', ({ rows, approved, rejected, notYetGraded, createdTotal }) => {
+    const counts = buildSelectionOutcomeCounts(rows, 4);
+    expect(counts).toEqual({ approved, rejected, notYetGraded, createdTotal });
+    expect(counts.approved + counts.rejected + counts.notYetGraded).toBe(counts.createdTotal);
+  });
+});
+
+describe('buildSelectionOutcomeData', () => {
+  it('returns no data when no candidate has been created', () => {
+    expect(buildSelectionOutcomeData([row({ matchStatus: 'pending' })], 4).data).toEqual([]);
   });
 
-  it('classifies an at-quota approved count', () => {
-    const rows = Array.from({ length: 2 }, (_, i) => createdRow({ id: `a${i}`, grade: 5 }));
-    const model = buildSlotsMeterModel(rows, 4, 2);
-    expect(model.status).toBe('at');
-    expect(model.color).toBe('success');
-    expect(model.meterValue).toBe(2);
-  });
-
-  it('caps the meter value and flags an over-quota approved count without hiding the true ratio', () => {
-    const rows = Array.from({ length: 14 }, (_, i) => createdRow({ id: `a${i}`, grade: 5 }));
-    const model = buildSlotsMeterModel(rows, 4, 12);
-    expect(model.approved).toBe(14);
-    expect(model.slots).toBe(12);
-    expect(model.meterValue).toBe(12);
-    expect(model.isOverQuota).toBe(true);
-    expect(model.status).toBe('over');
-    expect(model.color).toBe('danger');
-    expect(model.label).toContain('14 / 12');
+  it('returns the single three-bucket stacked datum in fixed bucket order', () => {
+    const rows = [createdRow({ id: 'a', grade: 5 }), createdRow({ id: 'b', grade: 0 })];
+    const { data, keys } = buildSelectionOutcomeData(rows, 4);
+    expect(keys).toEqual(['Approved', 'Rejected', 'No grade']);
+    expect(data).toEqual([{ dim: 'outcome', Approved: 1, Rejected: 0, 'No grade': 1 }]);
   });
 });
 
@@ -254,6 +315,7 @@ describe('buildOverviewViewModel', () => {
     expect(vm.hasCreated).toBe(false);
     expect(vm.hasIntake).toBe(false);
     expect(vm.hasGrades).toBe(false);
+    expect(vm.selectionOutcome).toEqual([]);
   });
 
   it('marks hasGrades true and leaves no ungraded remainder when every created row is graded or skipped', () => {
@@ -267,5 +329,7 @@ describe('buildOverviewViewModel', () => {
     expect(total).toBe(1); // only the graded row contributes a column; the skip-graded row does not
     expect(vm.kpi.ratedCount).toBe(2);
     expect(vm.kpi.ratedTotal).toBe(2);
+    expect(vm.selectionOutcomeKeys).toEqual(['Approved', 'Rejected', 'No grade']);
+    expect(vm.selectionOutcome).toEqual([{ dim: 'outcome', Approved: 1, Rejected: 1, 'No grade': 0 }]);
   });
 });
