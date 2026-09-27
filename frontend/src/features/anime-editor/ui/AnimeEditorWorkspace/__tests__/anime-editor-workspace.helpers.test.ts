@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ANIME_ESTADO_VALID_VALUES } from '../../../../../shared/constants/anime-estado.constants';
-import { classifyAnimeEditorEmptyState, createAnimeEditorDraft, createAnimeEditorListItems, createAnimeEditorSaveCommand, getAnimeEditorEstadoColor, hasAnimeEditorChanges, isNearListBottom, nextAnimeEditorRenderLimit, premieredDateInputToMs, premieredMsToDateInput, resolveAnimeEditorFeedbackMessage, toAnimeEditorLifecycleConfirmation, validateAnimeEditorDraft } from '../anime-editor-workspace.helpers';
+import { classifyAnimeEditorEmptyState, createAnimeEditorDraft, createAnimeEditorListItems, createAnimeEditorSaveCommand, getAnimeEditorEstadoColor, hasAnimeEditorChanges, isNearListBottom, nextAnimeEditorRenderLimit, resolveAnimeEditorFeedbackMessage, toAnimeEditorLifecycleConfirmation, validateAnimeEditorDraft } from '../anime-editor-workspace.helpers';
 
 /** Authority fixture every save-command case edits a draft against. */
 const record = {
@@ -39,18 +39,6 @@ describe('anime-editor-workspace.helpers', () => {
   it('grows the render limit by a batch, capped at the total item count', () => {
     expect(nextAnimeEditorRenderLimit(20, 20, 842)).toBe(40);
     expect(nextAnimeEditorRenderLimit(840, 20, 842)).toBe(842); // never overshoots
-  });
-
-  it('round-trips a premiere date between Unix ms and the date input value', () => {
-    const ms = String(Date.parse('2026-04-01T00:00:00.000Z'));
-    expect(premieredMsToDateInput(ms)).toBe('2026-04-01');
-    expect(premieredDateInputToMs('2026-04-01')).toBe(ms);
-  });
-
-  it('treats empty or invalid premiere values as blank', () => {
-    expect(premieredMsToDateInput('')).toBe('');
-    expect(premieredMsToDateInput('not-a-number')).toBe('');
-    expect(premieredDateInputToMs('')).toBe('');
   });
 
   it('carries the cover source type into the save command when it changes', () => {

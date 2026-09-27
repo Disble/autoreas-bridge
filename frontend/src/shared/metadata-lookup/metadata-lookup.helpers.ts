@@ -230,7 +230,7 @@ function readKind(type: string | undefined, unfilled: string[]): string | undefi
  * `Status:` has no path into the returned selection -- that is what makes
  * the estado mapping trap structurally unavailable rather than merely
  * documented. This function also never reads or writes a download page,
- * folder, watched-episode count, watching estado, or premiere date; those
+ * folder, watched-episode count, watching estado, or first-watch date; those
  * are feature-owned, protected fields no shared hop may touch.
  * @param detail The confirmed candidate's mapped MyAnimeList fields, plus
  * the cover URL merged in from the search payload.

@@ -106,7 +106,6 @@ export interface AnimeEditorDraft {
   readonly kind: string;
   readonly page: string;
   readonly folder: string;
-  readonly premieredAt: string;
   readonly origin: string;
   readonly duration: string;
   readonly genres: string;

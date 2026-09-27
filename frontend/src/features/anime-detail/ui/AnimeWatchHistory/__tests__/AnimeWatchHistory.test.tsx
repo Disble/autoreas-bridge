@@ -245,7 +245,7 @@ describe('AnimeWatchHistory', () => {
     expect(screen.getByTestId('watch-summary-1')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Watch 1/ })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText('Started')).toBeInTheDocument();
-    expect(screen.getByText('Premiere')).toBeInTheDocument();
+    expect(screen.getByText('First watched')).toBeInTheDocument();
     expect(screen.getByText('Last watched')).toBeInTheDocument();
     expect(screen.getByText('Ended')).toBeInTheDocument();
     expect(screen.queryByRole('progressbar', { name: 'Watch 1 progress' })).toBeNull();

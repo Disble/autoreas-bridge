@@ -58,8 +58,12 @@ export const ANIME_WATCH_HISTORY_CURRENT_CHIP_LABEL = 'Current';
 /** Label of the Started row in a pre-log watch summary. */
 export const ANIME_WATCH_SUMMARY_STARTED_LABEL = 'Started';
 
-/** Label of the Premiere row in a pre-log watch summary. */
-export const ANIME_WATCH_SUMMARY_PREMIERE_LABEL = 'Premiere';
+/**
+ * Label of the first-watched row in a pre-log watch summary. The stored instant
+ * behind it is the first observed watched-progress transition, not an air date;
+ * older undated records render the shared no-data fallback instead.
+ */
+export const ANIME_WATCH_SUMMARY_FIRST_WATCHED_LABEL = 'First watched';
 
 /** Label of the Last watched row in a pre-log watch summary. */
 export const ANIME_WATCH_SUMMARY_LAST_WATCHED_LABEL = 'Last watched';

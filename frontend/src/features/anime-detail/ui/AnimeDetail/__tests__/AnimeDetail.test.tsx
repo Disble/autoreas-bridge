@@ -372,6 +372,8 @@ describe('AnimeDetail', () => {
     render(<AnimeDetail animeId="anime-1" />);
 
     expect(screen.getByText('D:/anime/Frieren')).toBeInTheDocument();
+    expect(screen.getByText('First watched')).toBeInTheDocument();
+    expect(screen.queryByText('Premiere date')).not.toBeInTheDocument();
     expect(screen.getByText('September 29, 2023')).toBeInTheDocument();
     expect(screen.getByText('January 1, 2023')).toBeInTheDocument();
     expect(screen.getByText('March 22, 2024')).toBeInTheDocument();

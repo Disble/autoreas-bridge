@@ -41,14 +41,13 @@ describe('toEditorDraftPatch', () => {
     });
   });
 
-  it('never emits Download page, Folder, Watched episodes, the watching estado, or premiere date -- non-negotiable #7, Editor half', () => {
+  it('never emits Download page, Folder, Watched episodes, or the watching estado -- non-negotiable #7, Editor half', () => {
     const patch = toEditorDraftPatch(selection());
 
     expect(patch).not.toHaveProperty('page');
     expect(patch).not.toHaveProperty('folder');
     expect(patch).not.toHaveProperty('progress');
     expect(patch).not.toHaveProperty('status');
-    expect(patch).not.toHaveProperty('premieredAt');
   });
 
   it('leaves kind absent, rather than defaulted, when the selection carries no mapped kind -- non-negotiable #6', () => {

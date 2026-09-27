@@ -225,7 +225,7 @@ describe('toAnimeWatchViewModels', () => {
 
     expect(watches[0].summary).toEqual({
       started: 'Aug 16, 2021',
-      premiere: 'Jul 3, 2021',
+      firstWatched: 'Jul 3, 2021',
       lastWatched: 'Sep 1, 2021',
       ended: 'Sep 8, 2021',
     });

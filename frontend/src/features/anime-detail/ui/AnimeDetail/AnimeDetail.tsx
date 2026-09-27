@@ -152,7 +152,7 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
               <dd className="text-foreground">{detail.carpetaLabel}</dd>
             </div>
             <div>
-              <dt className="text-muted">Premiere date</dt>
+              <dt className="text-muted">First watched</dt>
               <dd className="text-foreground">{detail.estrenoLabel}</dd>
             </div>
             <div>

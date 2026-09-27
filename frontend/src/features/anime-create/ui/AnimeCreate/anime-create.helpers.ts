@@ -176,8 +176,9 @@ export function validateAnimeCreateRows(
 /**
  * Builds the wire-shaped batch-create command from the current rows, their
  * partitioned draft placements, and any changed-existing-neighbor entries.
- * Optional metadata (`folder`/`kind`/`premieredAt`) is included only when the
- * row actually provided it.
+ * Optional metadata (`folder`/`kind`/episode counts) is included only when the
+ * row actually provided it. No first-watch instant is ever authored here: Go
+ * derives it from the animes' own watched-progress transition.
  */
 export function buildAnimeCreateCommand(
   rows: readonly Readonly<AnimeCreateRowDraft>[],

@@ -10,7 +10,6 @@ export const ANIME_EDITOR_DEFAULT_DRAFT: AnimeEditorDraft = {
   kind: '',
   page: '',
   folder: '',
-  premieredAt: '',
   origin: '',
   duration: '',
   genres: '',

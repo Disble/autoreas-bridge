@@ -8,7 +8,7 @@ import { AnimeWatchSummary } from '../AnimeWatchSummary';
 function createSummary(): AnimeWatchSummaryData {
   return {
     started: 'August 16, 2021',
-    premiere: 'July 3, 2021',
+    firstWatched: 'July 3, 2021',
     lastWatched: 'September 1, 2021',
     ended: 'September 8, 2021',
   };
@@ -21,7 +21,7 @@ describe('AnimeWatchSummary', () => {
     expect(screen.getByTestId(`${ANIME_WATCH_SUMMARY_TESTID}-1`)).toBeInTheDocument();
     expect(screen.getByText('Started')).toBeInTheDocument();
     expect(screen.getByText('August 16, 2021')).toBeInTheDocument();
-    expect(screen.getByText('Premiere')).toBeInTheDocument();
+    expect(screen.getByText('First watched')).toBeInTheDocument();
     expect(screen.getByText('July 3, 2021')).toBeInTheDocument();
     expect(screen.getByText('Last watched')).toBeInTheDocument();
     expect(screen.getByText('September 1, 2021')).toBeInTheDocument();

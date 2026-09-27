@@ -51,7 +51,7 @@ export function formatAnimeWatchSummaryDate(millis: number | undefined): string 
 function toAnimeWatchSummary(entry: AnimeRepeticion): AnimeWatchSummary {
   return {
     started: formatAnimeWatchSummaryDate(entry.createdAt),
-    premiere: formatAnimeWatchSummaryDate(entry.premieredAt),
+    firstWatched: formatAnimeWatchSummaryDate(entry.premieredAt),
     lastWatched: formatAnimeWatchSummaryDate(entry.lastWatchedAt),
     ended: formatAnimeWatchSummaryDate(entry.deletedAt),
   };
