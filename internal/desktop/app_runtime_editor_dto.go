@@ -75,7 +75,6 @@ type AnimeEditorPatchDTO struct {
 	Origin        AnimeEditorNullableStringPatchDTO `json:"origin"`
 	Duration      AnimeEditorNullableIntPatchDTO    `json:"duration"`
 	Kind          AnimeEditorNullableIntPatchDTO    `json:"kind"`
-	PremieredAt   AnimeEditorNullableTimePatchDTO   `json:"premieredAt"`
 	Placements    *[]contracts.MobileAnimeDay       `json:"placements,omitempty"`
 	Genres        *[]string                         `json:"genres,omitempty"`
 	Studios       AnimeEditorStudiosPatchDTO        `json:"studios"`
@@ -108,7 +107,7 @@ func (d *AnimeEditorPatchDTO) UnmarshalJSON(data []byte) error {
 	}
 	allowed := map[string]struct{}{
 		"name": {}, "status": {}, "progress": {}, "totalEpisodes": {}, "page": {}, "folder": {}, "origin": {},
-		"duration": {}, "kind": {}, "premieredAt": {}, "placements": {}, "genres": {}, "studios": {}, "cover": {}, "active": {},
+		"duration": {}, "kind": {}, "placements": {}, "genres": {}, "studios": {}, "cover": {}, "active": {},
 	}
 	for key := range fields {
 		if _, exists := allowed[key]; !exists && !editorContainsString(d.forbiddenFields, key) {
@@ -156,7 +155,7 @@ func (d AnimeEditorPatchDTO) toDomain() (anime.EditorPatch, error) {
 		Name: d.Name, Status: d.Status, Progress: d.Progress,
 		TotalEpisodes: d.TotalEpisodes.toDomain(), Kind: d.Kind.toDomain(),
 		Page: d.Page.toDomain(), Folder: d.Folder.toDomain(), Origin: d.Origin.toDomain(),
-		Duration: d.Duration.toDomain(), PremieredAt: d.PremieredAt.toDomain(),
+		Duration:   d.Duration.toDomain(),
 		Placements: d.Placements, Genres: d.Genres,
 		Studios: anime.EditorStudiosPatch{Present: d.Studios.Present, Clear: d.Studios.Clear, Values: studios},
 		Cover:   anime.EditorCoverPatch{Present: d.Cover.Present, Clear: d.Cover.Clear, Type: d.Cover.Type, Path: d.Cover.Path, Raw: coverRaw},
@@ -172,11 +171,6 @@ func (d AnimeEditorNullableStringPatchDTO) toDomain() anime.EditorNullableString
 // toDomain converts a nullable integer patch DTO to its domain value.
 func (d AnimeEditorNullableIntPatchDTO) toDomain() anime.EditorNullableIntPatch {
 	return anime.EditorNullableIntPatch{Present: d.Present, Clear: d.Clear, Value: d.Value}
-}
-
-// toDomain converts a nullable time patch DTO to its domain value.
-func (d AnimeEditorNullableTimePatchDTO) toDomain() anime.EditorNullableTimePatch {
-	return anime.EditorNullableTimePatch{Present: d.Present, Clear: d.Clear, UnixMilli: d.UnixMilli}
 }
 
 // ApplyAnimeScheduleDraftCommandDTO is the wire shape of a whole dragged

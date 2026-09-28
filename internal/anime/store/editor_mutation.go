@@ -56,7 +56,6 @@ type EditorMutation struct {
 	Folder        NullableStringMutation
 	Origin        NullableStringMutation
 	Duration      NullableIntMutation
-	PremieredAt   NullableTimeMutation
 	Genres        *[]string
 	Placements    *[]contracts.MobileAnimeDay
 	Active        *bool

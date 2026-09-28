@@ -132,25 +132,6 @@ func TestAnimeEditorNullableStringDTOEmitsEmptyValue(t *testing.T) {
 	}
 }
 
-// TestAnimeEditorNullableTimeDTOEmitsZeroUnixMilli guards the same boundary for
-// the nullable time field: a value-kind epoch of 0 must serialize explicitly.
-func TestAnimeEditorNullableTimeDTOEmitsZeroUnixMilli(t *testing.T) {
-	dto := AnimeEditorNullableTimeDTO{Kind: AnimeEditorValueKindValue, UnixMilli: 0}
-
-	encoded, err := json.Marshal(dto)
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(encoded, &raw); err != nil {
-		t.Fatalf("unmarshal raw map: %v", err)
-	}
-	if _, ok := raw["unixMilli"]; !ok {
-		t.Fatalf("expected explicit %q key for a value-kind zero epoch, got %s", "unixMilli", encoded)
-	}
-}
-
 func TestAnimeEditorOutcomeContractsCarryAuthorityAndDetails(t *testing.T) {
 	record := &AnimeEditorRecord{AnimeID: "anime-1", ModifiedAt: 22}
 	board := &AnimeEditorScheduleBoard{OriginAnimeID: "anime-1", BoardModifiedAt: 22}

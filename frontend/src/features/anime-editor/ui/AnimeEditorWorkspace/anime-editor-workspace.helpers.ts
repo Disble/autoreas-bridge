@@ -105,6 +105,9 @@ export function validateAnimeEditorDraft(draft: AnimeEditorDraft) {
   if (!isValidAnimeEstado(draft.status)) {
     return 'Status is invalid.';
   }
+  if (draft.duration.trim().length > 0 && (parseNullableInteger(draft.duration) === undefined || Number(draft.duration) < 1)) {
+    return 'Duration must be a positive whole number of minutes.';
+  }
   if (draft.kind.trim().length === 0) {
     return 'Type is required.';
   }

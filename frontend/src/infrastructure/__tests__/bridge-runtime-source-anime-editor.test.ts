@@ -25,7 +25,7 @@ describe('bridge-runtime-source anime editor bindings', () => {
           totalEpisodes: { kind: 'missing' }, kind: { kind: 'missing' }, sourceUrl: { kind: 'missing' }, folder: { kind: 'missing' },
         },
         details: {
-          premieredAt: { kind: 'missing' }, duration: { kind: 'missing' }, origin: { kind: 'missing' },
+          duration: { kind: 'missing' }, origin: { kind: 'missing' },
           genres: { kind: 'value', values: [] }, studios: { kind: 'missing', values: [] }, cover: { kind: 'missing' },
         },
       },
@@ -42,7 +42,7 @@ describe('bridge-runtime-source anime editor bindings', () => {
           totalEpisodes: { kind: 'missing' }, kind: { kind: 'missing' }, sourceUrl: { kind: 'missing' }, folder: { kind: 'missing' },
         },
         details: {
-          premieredAt: { kind: 'missing' }, duration: { kind: 'missing' }, origin: { kind: 'missing' },
+          duration: { kind: 'missing' }, origin: { kind: 'missing' },
           genres: { kind: 'value', values: [] }, studios: { kind: 'missing', values: [] }, cover: { kind: 'missing' },
         },
       },
@@ -177,7 +177,7 @@ describe('bridge-runtime-source anime editor bindings', () => {
           sourceUrl: { kind: 'value', value: 'https://example.test/x' }, folder: { kind: 'value', value: 'D:/Anime/x' },
         },
         details: {
-          premieredAt: { kind: 'value', unixMilli: 0 }, duration: { kind: 'missing' }, origin: { kind: 'missing' },
+          duration: { kind: 'missing' }, origin: { kind: 'missing' },
           genres: { kind: 'value', values: [] }, studios: { kind: 'missing', values: [] }, cover: { kind: 'missing' },
         },
       },

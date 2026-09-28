@@ -11,8 +11,8 @@ import (
 
 // TestEditorServiceSaveDerivesFirstWatchPremiere pins the editor boundary: a
 // save derives premieredAt only when a preexisting, still-undated anime crosses
-// from unwatched to watched. A manual premieredAt (set or cleared) is ignored;
-// the DTO field is retained only until P2b reworks manual editing.
+// from unwatched to watched. The patch cannot carry a premiere at all (P2c
+// removed the field), so there is no manual authoring to ignore.
 func TestEditorServiceSaveDerivesFirstWatchPremiere(t *testing.T) {
 	const stamped = int64(1600000000000)
 
@@ -37,17 +37,6 @@ func TestEditorServiceSaveDerivesFirstWatchPremiere(t *testing.T) {
 			name:          "recorded date is preserved",
 			seed:          `{"id":"anime-editor","name":"Frieren","episodesWatched":3,"active":true,"premieredAt":1600000000000}`,
 			patch:         anime.EditorPatch{Progress: new(4.0)},
-			wantPremiered: new(stamped),
-		},
-		{
-			name:  "manual premieredAt is ignored",
-			seed:  `{"id":"anime-editor","name":"Frieren","episodesWatched":2,"active":true}`,
-			patch: anime.EditorPatch{PremieredAt: anime.EditorNullableTimePatch{Present: true, UnixMilli: 1500000000000}},
-		},
-		{
-			name:          "manual clear cannot remove a recorded date",
-			seed:          `{"id":"anime-editor","name":"Frieren","episodesWatched":3,"active":true,"premieredAt":1600000000000}`,
-			patch:         anime.EditorPatch{Progress: new(4.0), PremieredAt: anime.EditorNullableTimePatch{Present: true, Clear: true}},
 			wantPremiered: new(stamped),
 		},
 	}

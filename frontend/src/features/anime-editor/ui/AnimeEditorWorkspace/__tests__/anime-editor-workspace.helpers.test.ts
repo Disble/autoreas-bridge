@@ -70,6 +70,33 @@ describe('anime-editor-workspace.helpers', () => {
     expect(hasAnimeEditorChanges(record, { ...draft, name: 'Frieren X' })).toBe(true);
   });
 
+  it('rejects a zero or fractional duration so Go and the panel agree on the minimum', () => {
+    // Go rejects duration < 1; without this the panel would let the user type a
+    // value the backend refuses at save time.
+    expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), duration: '0' })).toBe('Duration must be a positive whole number of minutes.');
+    expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), duration: '0.5' })).toBe('Duration must be a positive whole number of minutes.');
+  });
+
+  it('treats a whitespace-only duration as unset and parses a padded number', () => {
+    // The trim is load-bearing: without it a blank string parses to NaN via Number('')
+    // === 0, and a mutant that drops the trim would reject an empty duration.
+    const draft = { ...createAnimeEditorDraft(record), duration: '   ' };
+    expect(validateAnimeEditorDraft(draft)).toBeUndefined();
+    expect(validateAnimeEditorDraft({ ...draft, duration: ' 45 ' })).toBeUndefined();
+  });
+
+  it('rejects a duration that is not a whole number', () => {
+    // parseNullableInteger is load-bearing: Number('abc') < 1 is false, so without
+    // this row a non-numeric duration would reach Go and be refused at save time.
+    expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), duration: 'abc' })).toBe('Duration must be a positive whole number of minutes.');
+  });
+
+  it('accepts one minute and leaves an unset duration alone', () => {
+    const draft = { ...createAnimeEditorDraft(record), duration: '1' };
+    expect(validateAnimeEditorDraft(draft)).toBeUndefined();
+    expect(validateAnimeEditorDraft({ ...draft, duration: '' })).toBeUndefined();
+  });
+
   it('builds a changed-fields-only save command', () => {
     const command = createAnimeEditorSaveCommand(record, { ...createAnimeEditorDraft(record), name: 'Frieren X', studios: 'Madhouse, CloverWorks' });
     expect(command.animeId).toBe('anime-1');

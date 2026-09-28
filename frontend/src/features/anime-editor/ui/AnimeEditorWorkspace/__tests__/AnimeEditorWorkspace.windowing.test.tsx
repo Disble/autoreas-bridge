@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+/** Mock source the editor workspace receives through the vi.mock factory. */
 const { mockSource } = vi.hoisted(() => {
   const animes = Array.from({ length: 842 }, (_, index) => ({
     id: `anime-${index}`, name: `Anime ${String(index).padStart(4, '0')}`, status: 0, active: 1, episodesWatched: index, days: ['Lunes'],
@@ -10,7 +11,7 @@ const { mockSource } = vi.hoisted(() => {
     return {
       animeId: id, modifiedAt: 1,
       frequent: { name: id, status: 0, progress: 1, totalEpisodes: null, active: true, kind: null, page: '', folder: '', placements: [] },
-      details: { genres: [], studios: { kind: 'values', values: [] }, origin: '', duration: null, premieredAt: null, cover: null },
+      details: { genres: [], studios: { kind: 'values', values: [] }, origin: '', duration: null, cover: null },
     };
   }
   return {
@@ -31,6 +32,7 @@ import { AnimeEditorWorkspace } from '../AnimeEditorWorkspace';
 
 afterEach(cleanup);
 
+/** Counts the rendered list rows for the progressive-list assertions. */
 function countRows() {
   return screen.getAllByRole('button', { name: /watched/ }).length;
 }

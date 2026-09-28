@@ -203,12 +203,11 @@ func (s *QueryService) GetAnimeEditorRecord(ctx context.Context, id string) (*co
 			Placements:    cloneMobileDays(item.Days),
 		},
 		Details: contracts.AnimeEditorDetailFields{
-			PremieredAt: editorNullableTimeFromFields(fields, "premieredAt"),
-			Duration:    editorNullableIntFromFields(fields, "durationMinutes"),
-			Origin:      editorNullableStringFromFields(fields, "origin"),
-			Genres:      editorStringListFromFields(fields, "genres"),
-			Studios:     editorStringListFromFields(fields, "studios"),
-			Cover:       editorCoverFromFields(fields),
+			Duration: editorNullableIntFromFields(fields, "durationMinutes"),
+			Origin:   editorNullableStringFromFields(fields, "origin"),
+			Genres:   editorStringListFromFields(fields, "genres"),
+			Studios:  editorStringListFromFields(fields, "studios"),
+			Cover:    editorCoverFromFields(fields),
 		},
 	}
 	return result, nil

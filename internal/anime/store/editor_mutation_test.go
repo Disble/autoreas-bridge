@@ -46,11 +46,6 @@ func TestNewEditorRawMutationDerivesFirstWatchPremiere(t *testing.T) {
 			wantPremiered: new(stamped),
 		},
 		{
-			name:  "manual premieredAt is ignored",
-			seed:  `{"id":"anime-1","episodesWatched":2}`,
-			patch: store.EditorMutation{PremieredAt: store.NullableTimeMutation{Present: true, UnixMilli: 1500000000000}},
-		},
-		{
 			name:       "a nil pre-state cannot derive a date",
 			seed:       `{"id":"anime-1","episodesWatched":0}`,
 			patch:      store.EditorMutation{Progress: new(1.0)},

@@ -10,6 +10,7 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
+	bridgeSync "autoreas-bridge/internal/sync"
 )
 
 func TestEditorServiceSaveAppliesTypedNullableAndStructuredPatchMatrix(t *testing.T) {
@@ -30,7 +31,6 @@ func TestEditorServiceSaveAppliesTypedNullableAndStructuredPatchMatrix(t *testin
 			TotalEpisodes: anime.EditorNullableIntPatch{Present: true, Value: total},
 			Kind:          anime.EditorNullableIntPatch{Present: true, Value: kind},
 			Duration:      anime.EditorNullableIntPatch{Present: true, Value: duration},
-			PremieredAt:   anime.EditorNullableTimePatch{Present: true, UnixMilli: 1710000000123},
 			Genres:        &genres,
 			Studios:       anime.EditorStudiosPatch{Present: true, Clear: true},
 			Cover: anime.EditorCoverPatch{Present: true, Type: "file", Path: "new.jpg", Raw: map[string]json.RawMessage{
@@ -59,14 +59,15 @@ func TestEditorServiceSaveRejectsMalformedPatchShapesAndInvalidValuesBeforeWrite
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":2,"status":0,"active":true,"totalEpisodes":12}`, 1000)
 	tests := []struct {
-		name  string
-		patch anime.EditorPatch
+		name        string
+		patch       anime.EditorPatch
+		wantApplied bool
 	}{
 		{name: "non finite progress", patch: anime.EditorPatch{Progress: new(math.NaN())}},
 		{name: "negative total", patch: anime.EditorPatch{TotalEpisodes: anime.EditorNullableIntPatch{Present: true, Value: -1}}},
 		{name: "unsupported type", patch: anime.EditorPatch{Kind: anime.EditorNullableIntPatch{Present: true, Value: 9}}},
-		{name: "zero duration", patch: anime.EditorPatch{Duration: anime.EditorNullableIntPatch{Present: true, Value: 0}}},
-		{name: "invalid date", patch: anime.EditorPatch{PremieredAt: anime.EditorNullableTimePatch{Present: true, UnixMilli: -1}}},
+		{name: "zero duration is rejected: one minute is the accepted minimum", patch: anime.EditorPatch{Duration: anime.EditorNullableIntPatch{Present: true, Value: 0}}},
+		{name: "one-minute duration applies", patch: anime.EditorPatch{Duration: anime.EditorNullableIntPatch{Present: true, Value: 1}}, wantApplied: true},
 		{name: "clear with value", patch: anime.EditorPatch{TotalEpisodes: anime.EditorNullableIntPatch{Present: true, Clear: true, Value: 12}}},
 		{name: "omitted with value", patch: anime.EditorPatch{Page: anime.EditorNullableStringPatch{Value: "https://example.test"}}},
 		{name: "forbidden ownership", patch: anime.EditorPatch{ForbiddenFields: []string{"modified_at"}}},
@@ -78,14 +79,36 @@ func TestEditorServiceSaveRejectsMalformedPatchShapesAndInvalidValuesBeforeWrite
 	service := anime.NewEditorService(store, writer)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if _, err := service.Save(ctx, anime.SaveAnimeEditorCommand{AnimeID: "anime-editor", BaseModifiedAt: 1000, Patch: test.patch}); err == nil {
-				t.Fatalf("expected %s to be rejected", test.name)
-			}
+			assertEditorSavePatchOutcome(t, service, store, ctx, test.name, test.patch, test.wantApplied)
 		})
 	}
-	current, err := store.GetSnapshot(ctx, "anime-editor")
-	if err != nil || current.ModifiedAt != 1000 {
-		t.Fatalf("invalid editor patches must not finalize a write: %#v, %v", current, err)
+}
+
+// assertEditorSavePatchOutcome runs one save and asserts its accepted/rejected
+// outcome plus its write effect, extracted so the table stays under the
+// cognitive-complexity gate.
+func assertEditorSavePatchOutcome(t *testing.T, service *anime.EditorService, store *bridgeSync.AnimeSnapshotStore, ctx context.Context, name string, patch anime.EditorPatch, wantApplied bool) {
+	t.Helper()
+	before, beforeErr := store.GetSnapshot(ctx, "anime-editor")
+	if beforeErr != nil {
+		t.Fatalf("get pre-write snapshot: %v", beforeErr)
+	}
+	_, err := service.Save(ctx, anime.SaveAnimeEditorCommand{AnimeID: "anime-editor", BaseModifiedAt: 1000, Patch: patch})
+	if wantApplied && err != nil {
+		t.Fatalf("expected %s to be applied, got %v", name, err)
+	}
+	if !wantApplied && err == nil {
+		t.Fatalf("expected %s to be rejected", name)
+	}
+	after, afterErr := store.GetSnapshot(ctx, "anime-editor")
+	if afterErr != nil {
+		t.Fatalf("get post-write snapshot: %v", afterErr)
+	}
+	if wantApplied && after.ModifiedAt == before.ModifiedAt {
+		t.Fatalf("the accepted patch must finalize a write")
+	}
+	if !wantApplied && after.ModifiedAt != before.ModifiedAt {
+		t.Fatalf("a rejected patch must not finalize a write")
 	}
 }
 
@@ -117,8 +140,7 @@ func TestEditorServiceSaveIgnoresPremiereClearAndClearsCoverWithoutFlatteningCov
 	writer := &stubAnimeWriter{}
 	service := anime.NewEditorService(store, writer)
 	result, err := service.Save(ctx, anime.SaveAnimeEditorCommand{AnimeID: "anime-editor", BaseModifiedAt: 1000, Patch: anime.EditorPatch{
-		PremieredAt: anime.EditorNullableTimePatch{Present: true, Clear: true},
-		Cover:       anime.EditorCoverPatch{Present: true, Clear: true},
+		Cover: anime.EditorCoverPatch{Present: true, Clear: true},
 	}})
 	if err != nil || result.Outcome != anime.PatchOutcomeApplied {
 		t.Fatalf("clear editor metadata: result=%+v err=%v", result, err)

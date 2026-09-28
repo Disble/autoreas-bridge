@@ -29,14 +29,6 @@ type AnimeEditorNullableIntDTO struct {
 	Value int `json:"value"`
 }
 
-// AnimeEditorNullableTimeDTO carries a discriminated optional timestamp value.
-type AnimeEditorNullableTimeDTO struct {
-	Kind AnimeEditorValueKind `json:"kind"`
-	// UnixMilli must serialize even when 0 for the same discriminated-union
-	// reason as AnimeEditorNullableIntDTO.Value.
-	UnixMilli int64 `json:"unixMilli"`
-}
-
 // AnimeEditorStringListDTO carries a discriminated optional string slice.
 type AnimeEditorStringListDTO struct {
 	Kind   AnimeEditorValueKind `json:"kind"`
@@ -66,12 +58,11 @@ type AnimeEditorFrequentFields struct {
 
 // AnimeEditorDetailFields groups the editor's detail fields.
 type AnimeEditorDetailFields struct {
-	PremieredAt AnimeEditorNullableTimeDTO   `json:"premieredAt"`
-	Duration    AnimeEditorNullableIntDTO    `json:"duration"`
-	Origin      AnimeEditorNullableStringDTO `json:"origin"`
-	Genres      AnimeEditorStringListDTO     `json:"genres"`
-	Studios     AnimeEditorStringListDTO     `json:"studios"`
-	Cover       AnimeEditorCoverDTO          `json:"cover"`
+	Duration AnimeEditorNullableIntDTO    `json:"duration"`
+	Origin   AnimeEditorNullableStringDTO `json:"origin"`
+	Genres   AnimeEditorStringListDTO     `json:"genres"`
+	Studios  AnimeEditorStringListDTO     `json:"studios"`
+	Cover    AnimeEditorCoverDTO          `json:"cover"`
 }
 
 // AnimeEditorRecord is the full editor read model for one anime.
