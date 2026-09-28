@@ -198,15 +198,18 @@ export function useIntakePanel(
     const ids = [...selected];
 
     setSelected(new Set());
-    // Only the picked rows travel, and each one carries only the metadata the
-    // user confirmed for IT: a lookup attached to an unpicked row stays behind.
+    // Only the picked rows travel, and each one carries only the metadata the user
+    // confirmed for IT: a lookup attached to an unpicked row stays behind. The
+    // values a row HOLDS are what creation receives — whether they came from this
+    // session's lookup or from the record stored in an earlier one — because that
+    // is exactly what the row displays above the Create button.
     void createSeasonAnimes(
       source,
       ids,
       collectFolderOverrides(ids, folderOverrides),
-      buildSeasonCreateMetadata(metadataByRow, ids),
+      buildSeasonCreateMetadata(heldByRow, ids),
     );
-  }, [selected, folderOverrides, metadataByRow, createSeasonAnimes, source]);
+  }, [selected, folderOverrides, heldByRow, createSeasonAnimes, source]);
   /**
    * Attaches one confirmed lookup to its own row. The selection goes through
    * {@link toIntakeMetadataPatch}'s allow-list, so this can only ever write the

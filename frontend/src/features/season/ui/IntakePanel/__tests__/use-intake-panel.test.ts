@@ -6,7 +6,6 @@ import { getSeasonStoreState, resetSeasonStore } from '../../../../../shared/sto
 import { createDownloadsRootSource, createMetadataSource, createSource, createSourceWithRows, seasonRow, selection } from './intake-panel.test-support';
 import { useIntakePanel } from '../use-intake-panel';
 
-
 describe('useIntakePanel', () => {
   afterEach(() => {
     resetSeasonStore();
@@ -90,6 +89,27 @@ describe('useIntakePanel', () => {
       result.current.onCreate();
     });
     expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1'], {}, {});
+  });
+
+  it('sends a row STORED metadata to creation even without re-confirming it this session', async () => {
+    const source = createSourceWithRows([
+      seasonRow({
+        id: 'sa-1',
+        metadata: { kind: 2, totalEpisodes: 12 },
+      }),
+    ]);
+    const { result } = renderHook(() => useIntakePanel(source, createDownloadsRootSource(), createMetadataSource()));
+    await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
+    expect(result.current.metadataByRow['sa-1']?.kind).toBe('2');
+    act(() => result.current.toggleSelect('sa-1'));
+
+    await act(async () => {
+      result.current.onCreate();
+    });
+
+    // The row displays what storage holds, so creation must receive the same
+    // values — otherwise the user creates a different anime than the one shown.
+    expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1'], {}, { 'sa-1': { kind: 2, totalEpisodes: 12 } });
   });
 
   it('sends the confirmed metadata of exactly the picked rows, converted to the create contract', async () => {
@@ -291,7 +311,6 @@ describe('useIntakePanel', () => {
     expect(result.current.metadataByRow['sa-1']).toBeUndefined();
     expect(result.current.appliedMetadataByRow['sa-1']).toBeUndefined();
   });
-
 
   it('clears only the row it was asked for, leaving another row session metadata alone', async () => {
     const source = createSourceWithRows([seasonRow({ id: 'sa-1' }), seasonRow({ id: 'sa-2', rawName: 'Bleach' })]);

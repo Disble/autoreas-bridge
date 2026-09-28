@@ -328,7 +328,6 @@ describe('IntakePanel', () => {
     expect(screen.queryByText(/^Folder: /)).not.toBeInTheDocument();
   });
 
-
   it('shows a stored lookup one value at a time, with Clear but no Undo', () => {
     const onMetadataClear = vi.fn();
     mockHook({
@@ -357,7 +356,6 @@ describe('IntakePanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear metadata' }));
     expect(onMetadataClear).toHaveBeenCalledExactlyOnceWith('sa-1');
   });
-
 
   it('renders no value list for an applied record the row no longer holds values for', () => {
     // The component's own contract, independent of the hook: a summary with nothing
