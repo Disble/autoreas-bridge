@@ -56,7 +56,6 @@ type EditorMutation struct {
 	Folder        NullableStringMutation
 	Origin        NullableStringMutation
 	Duration      NullableIntMutation
-	PremieredAt   NullableTimeMutation
 	Genres        *[]string
 	Placements    *[]contracts.MobileAnimeDay
 	Active        *bool
@@ -65,11 +64,14 @@ type EditorMutation struct {
 }
 
 // NewEditorRawMutation builds a legacy-raw mutator from editor DTO changes.
+// The decoded pre-state (the second argument) is what lets the mutator derive
+// the first-watch premiere from the progress transition.
 func NewEditorRawMutation(patch EditorMutation, now time.Time) func(*AnimeRaw, *domain.Anime) error {
-	return func(raw *AnimeRaw, _ *domain.Anime) error {
+	return func(raw *AnimeRaw, current *domain.Anime) error {
 		applyEditorScalarMutations(raw, patch)
 		applyEditorLifecycleMutations(raw, patch, now)
 		applyEditorCollectionMutations(raw, patch)
+		applyEditorFirstWatchPremiere(raw, patch, current, now)
 		return nil
 	}
 }
@@ -91,7 +93,20 @@ func applyEditorScalarMutations(raw *AnimeRaw, patch EditorMutation) {
 	applyNullableStringMutation(raw, "origin", patch.Origin)
 	applyNullableIntMutation(raw, "durationMinutes", patch.Duration)
 	applyNullableIntMutation(raw, "kind", patch.Kind)
-	applyNullableTimeMutation(raw, "premieredAt", patch.PremieredAt)
+	// patch.PremieredAt is intentionally not applied: premieredAt is a derived
+	// first-watch instant (see applyEditorFirstWatchPremiere), not an authored
+	// field. The DTO field is retained until P2b reworks manual editing.
+}
+
+// applyEditorFirstWatchPremiere derives premieredAt at now when a save moves a
+// preexisting, still-undated anime from unwatched (<= 0) to watched (> 0).
+func applyEditorFirstWatchPremiere(raw *AnimeRaw, patch EditorMutation, current *domain.Anime, now time.Time) {
+	if current == nil || patch.Progress == nil {
+		return
+	}
+	if domain.IsFirstWatchTransition(current.Progress, *patch.Progress, current.PremieredAt) {
+		raw.SetDateField("premieredAt", &now)
+	}
 }
 
 // applyEditorLifecycleMutations applies active-state and deletion-date changes.
@@ -164,19 +179,6 @@ func applyNullableIntMutation(raw *AnimeRaw, key string, patch NullableIntMutati
 	}
 	value := patch.Value
 	raw.SetIntField(key, &value)
-}
-
-// applyNullableTimeMutation applies a present or cleared nullable timestamp field.
-func applyNullableTimeMutation(raw *AnimeRaw, key string, patch NullableTimeMutation) {
-	if !patch.Present {
-		return
-	}
-	if patch.Clear {
-		raw.SetDateField(key, nil)
-		return
-	}
-	value := time.UnixMilli(patch.UnixMilli).UTC()
-	raw.SetDateField(key, &value)
 }
 
 // toRawDays converts mobile schedule placements to raw day records.

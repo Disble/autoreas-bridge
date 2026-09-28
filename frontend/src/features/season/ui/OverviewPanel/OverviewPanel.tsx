@@ -2,21 +2,36 @@ import { Alert, Card } from '@heroui/react';
 import { GradeHistogramChart } from './GradeHistogramChart';
 import { IntakeHealthChart } from './IntakeHealthChart';
 import { OverviewKpiRow } from './OverviewKpiRow';
-import { SlotsMeter } from './SlotsMeter';
+import { SELECTION_OUTCOME_CARD_DESCRIPTION } from './overview-panel.constants';
+import { SelectionOutcomeChart } from './SelectionOutcomeChart';
 import { useOverviewPanel } from './use-overview-panel';
 import { WatchingPipelineChart } from './WatchingPipelineChart';
 
 /**
  * OverviewPanel is the Season Workspace Overview tab: four KPI stat tiles plus
- * the watching-pipeline, intake-health, and grade-histogram charts, and the
- * approved-vs-slots meter. Dumb composition only — all Wails I/O, aggregation,
- * and refetch orchestration live in `useOverviewPanel` / `overview-panel.helpers.ts`.
+ * the watching-pipeline, intake-health, grade-histogram, and selection-outcome
+ * charts. Dumb composition only — all Wails I/O, aggregation, and refetch
+ * orchestration live in `useOverviewPanel` / `overview-panel.helpers.ts`.
  * Display-only by construction (no mutating control), so the past-season
  * read-only requirement holds without a `readOnly` branch inside this file.
  */
 export function OverviewPanel() {
-  const { errorMessage, kpi, pipeline, pipelineKeys, intakeHealth, intakeHealthKeys, gradeHistogram, minApprovalGrade, slotsMeter, hasCreated, hasIntake, hasGrades } =
-    useOverviewPanel();
+  const {
+    errorMessage,
+    readOnly,
+    kpi,
+    pipeline,
+    pipelineKeys,
+    intakeHealth,
+    intakeHealthKeys,
+    gradeHistogram,
+    minApprovalGrade,
+    selectionOutcome,
+    selectionOutcomeKeys,
+    hasCreated,
+    hasIntake,
+    hasGrades,
+  } = useOverviewPanel();
 
   return (
     <section className="flex flex-col gap-6">
@@ -36,7 +51,7 @@ export function OverviewPanel() {
             <Card.Title>Watching pipeline</Card.Title>
           </Card.Header>
           <Card.Content>
-            <WatchingPipelineChart data={pipeline} hasCreated={hasCreated} keys={pipelineKeys} />
+            <WatchingPipelineChart data={pipeline} hasCreated={hasCreated} isHistorical={readOnly} keys={pipelineKeys} />
           </Card.Content>
         </Card>
 
@@ -60,10 +75,11 @@ export function OverviewPanel() {
 
         <Card>
           <Card.Header>
-            <Card.Title>Approved vs slots</Card.Title>
+            <Card.Title>Selection outcome</Card.Title>
+            <Card.Description>{SELECTION_OUTCOME_CARD_DESCRIPTION}</Card.Description>
           </Card.Header>
           <Card.Content>
-            <SlotsMeter model={slotsMeter} />
+            <SelectionOutcomeChart data={selectionOutcome} hasCreated={hasCreated} keys={selectionOutcomeKeys} />
           </Card.Content>
         </Card>
       </div>

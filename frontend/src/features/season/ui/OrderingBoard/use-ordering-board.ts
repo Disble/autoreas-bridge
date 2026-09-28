@@ -10,6 +10,7 @@ import {
   EMPTY_ORDERING_BOARD,
   ORDERING_AUTOSAVE_DEBOUNCE_MS,
   ORDERING_DUPLICATE_WEEKDAY_ERROR,
+  ORDERING_HISTORY_LOAD_ERROR,
   RAIL_CONTAINER_ID,
   WEEKDAYS,
 } from './ordering-board.constants';
@@ -27,7 +28,7 @@ import {
   serializeDraft,
   shouldCancelForbiddenWeekdayHover,
 } from './ordering-board.helpers';
-import type { WorkingState } from './ordering-board.types';
+import type { OrderingBoardOrigin, WorkingState } from './ordering-board.types';
 
 /**
  * useOrderingBoard drives the weekday scheduling board on @dnd-kit/react: it loads the
@@ -40,10 +41,13 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
   // 2. State
   const [board, setBoard] = useState<OrderingBoard>(EMPTY_ORDERING_BOARD);
   const [state, setState] = useState<WorkingState>({ order: {}, instances: {} });
+  const [origin, setOrigin] = useState<OrderingBoardOrigin>({ seasonId: null, recorded: true });
+  const [historicalError, setHistoricalError] = useState<string | undefined>(undefined);
 
   // 3. Context/3rd Party Hooks
   const closeSeason = useSeasonStore((store) => store.closeSeason);
   const isPastSeason = useSeasonStore((store) => store.readOnly);
+  const viewSeasonId = useSeasonStore((store) => store.viewSeasonId);
   const seasonAnimes = useSeasonStore((store) => store.seasonAnimes);
   const ensureAnimesLoaded = useSeasonStore((store) => store.ensureAnimesLoaded);
 
@@ -63,13 +67,41 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
   const hasInvalidWeekdayPlacements = useMemo(() => hasDuplicateWeekdayPlacements(state), [state]);
   // A past season (viewed from history) locks the board just like an applied one.
   const readOnly = typeof board.appliedAt === 'number' || isPastSeason;
+  // The stored board is unresolved until `origin` names the season being viewed,
+  // so a slow read can never show an empty rail/grid as if it were the record.
+  const isHistoricalLoading = viewSeasonId !== null && origin.seasonId !== viewSeasonId;
+  const historicalRecorded = origin.recorded;
 
   // 6. Callbacks
   const load = useCallback(async () => {
-    const loaded = await source.getOrderingBoard();
-    setBoard(loaded);
-    setState(initialWorkingState(loaded));
-  }, [source]);
+    if (viewSeasonId === null) {
+      const loaded = await source.getOrderingBoard();
+      setBoard(loaded);
+      setState(initialWorkingState(loaded));
+      setOrigin({ seasonId: null, recorded: true });
+      setHistoricalError(undefined);
+      return;
+    }
+    try {
+      if (source.getSeasonOrderingSnapshot === undefined) {
+        // A source that cannot read the stored board must not claim this season
+        // recorded nothing: an absent capability is an unavailable read, and the
+        // surface shows a failure instead of a historical statement it cannot make.
+        setOrigin({ seasonId: viewSeasonId, recorded: false });
+        setHistoricalError(ORDERING_HISTORY_LOAD_ERROR);
+        return;
+      }
+      const snapshot = await source.getSeasonOrderingSnapshot(viewSeasonId);
+      const stored: OrderingBoard = { rail: snapshot.rail, grid: snapshot.grid, appliedAt: snapshot.appliedAt };
+      setBoard(stored);
+      setState(initialWorkingState(stored));
+      setOrigin({ seasonId: viewSeasonId, recorded: snapshot.recorded });
+      setHistoricalError(undefined);
+    } catch (error) {
+      setOrigin({ seasonId: viewSeasonId, recorded: false });
+      setHistoricalError(error instanceof Error ? error.message : ORDERING_HISTORY_LOAD_ERROR);
+    }
+  }, [source, viewSeasonId]);
 
   // Live reshuffle while dragging: block forbidden same-anime weekday hovers first, then
   // let `move` project valid targets; applyOrder remains the invariant backstop.
@@ -142,6 +174,9 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
     hasInvalidWeekdayPlacements,
     readOnly,
     isPastSeason,
+    isHistoricalLoading,
+    historicalRecorded,
+    historicalError,
     onDragOver,
     duplicate,
     removeCard,

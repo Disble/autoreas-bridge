@@ -1,17 +1,26 @@
 import { describe, expect, it } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
+import type { AnimeMetadataSelection } from '../../../../../shared/metadata-lookup/metadata-lookup.types';
 import {
   buildFolderPreviews,
   buildRawText,
+  buildSeasonCreateMetadata,
   collectFolderOverrides,
+  compactMetadataPatch,
   countMatchedWaitingForAvailability,
   countUnresolved,
   deriveIntakeDownloadFolder,
+  formatAppliedMetadataFields,
   formatCandidateOption,
+  formatMetadataValues,
   getMatchStatusColor,
   getMatchStatusLabel,
+  pickRowEntries,
   splitIntakeRows,
+  toHeldMetadataPatch,
+  toIntakeMetadataPatch,
+  toSeasonCreateMetadata,
   toggleSelection,
 } from '../intake-panel.helpers';
 
@@ -203,5 +212,167 @@ describe('toggleSelection', () => {
 
     expect(next).not.toBe(previous);
     expect([...previous]).toEqual(['sa-1']);
+  });
+});
+
+/** Every field a confirmed lookup can map, so a case can blank exactly one. */
+const FULL_SELECTION: AnimeMetadataSelection = {
+  name: 'Dr. Stone',
+  kind: '0',
+  totalEpisodes: '24',
+  duration: '24 min.',
+  origin: 'Manga',
+  genres: 'Action, Adventure',
+  studios: 'TMS Entertainment',
+  coverURL: 'https://cdn.myanimelist.net/images/anime/1.jpg',
+  unfilled: ['Studios'],
+};
+
+describe('toIntakeMetadataPatch', () => {
+  it('maps every allow-listed field of a confirmed selection', () => {
+    expect(toIntakeMetadataPatch(FULL_SELECTION)).toEqual({
+      name: 'Dr. Stone',
+      kind: '0',
+      totalEpisodes: '24',
+      duration: '24 min.',
+      origin: 'Manga',
+      genres: 'Action, Adventure',
+      studios: 'TMS Entertainment',
+      coverURL: 'https://cdn.myanimelist.net/images/anime/1.jpg',
+    });
+  });
+
+  it('omits an optional field the lookup did not map instead of defaulting it', () => {
+    expect(toIntakeMetadataPatch({ name: 'Dr. Stone', unfilled: ['Type'] })).toEqual({ name: 'Dr. Stone' });
+  });
+
+  it('has no path into the intake row protected fields, even when the selection carries them', () => {
+    const selectionWithProtectedFields = {
+      ...FULL_SELECTION,
+      pageUrl: 'https://jkanime.net/dr-stone/',
+      folderPath: 'D:/Anime/Dr. Stone',
+      episodesWatched: '5',
+      estado: 'viendo',
+      firstWatchDate: '2024-01-01',
+    } as unknown as AnimeMetadataSelection;
+
+    const patch = toIntakeMetadataPatch(selectionWithProtectedFields);
+
+    expect(Object.keys(patch).sort()).toEqual([
+      'coverURL',
+      'duration',
+      'genres',
+      'kind',
+      'name',
+      'origin',
+      'studios',
+      'totalEpisodes',
+    ]);
+    expect(patch).not.toHaveProperty('pageUrl');
+    expect(patch).not.toHaveProperty('folderPath');
+  });
+});
+
+describe('formatAppliedMetadataFields', () => {
+  it('labels exactly the fields the patch applied, in patch order', () => {
+    expect(formatAppliedMetadataFields(['name', 'kind'])).toBe('Name, Type');
+    expect(formatAppliedMetadataFields(['totalEpisodes', 'genres', 'coverURL'])).toBe('Episodes, Genres, Cover');
+  });
+
+  it('renders nothing for a patch that applied nothing', () => {
+    expect(formatAppliedMetadataFields([])).toBe('');
+  });
+});
+
+describe('toSeasonCreateMetadata', () => {
+  it('converts a held patch into the create contract: numbers parsed, lists split, cover typed', () => {
+    // toStrictEqual, not toEqual: a field the lookup did not confirm must be ABSENT
+    // from the sent metadata, and toEqual treats { x: undefined } as equal to {}.
+    expect(
+      toSeasonCreateMetadata({ name: 'Dr. Stone', kind: '1', totalEpisodes: '24', duration: '45', origin: 'Manga', genres: 'Action, Fantasy', studios: 'Madhouse', coverURL: 'https://c.jpg' }),
+    ).toStrictEqual({ kind: 1, totalEpisodes: 24, durationMinutes: 45, origin: 'Manga', genres: ['Action', 'Fantasy'], studios: ['Madhouse'], cover: { type: 'url', path: 'https://c.jpg' } });
+  });
+
+  it('never sends the confirmed title: the row raw name is the anime name', () => {
+    expect(toSeasonCreateMetadata({ name: 'Dr. Stone' })).toStrictEqual({});
+  });
+
+  it('omits a field the lookup did not confirm instead of sending an empty or zero value', () => {
+    expect(toSeasonCreateMetadata({ name: 'Dr. Stone', origin: 'Manga' })).toStrictEqual({ origin: 'Manga' });
+  });
+
+  it('omits a blank name the same way it omits every other blank field', () => {
+    expect(toSeasonCreateMetadata({ name: '' })).toStrictEqual({});
+    expect(toSeasonCreateMetadata({ name: '' , origin: 'Manga' })).toStrictEqual({ origin: 'Manga' });
+  });
+
+  it('drops values that do not parse rather than passing a NaN or a blank through', () => {
+    expect(toSeasonCreateMetadata({ totalEpisodes: 'twenty-four', duration: '   ', genres: ' , ', origin: '', coverURL: '' })).toStrictEqual({});
+    // A blank field must stay absent even when the blank carries whitespace, and a
+    // padded number is still the number it reads as.
+    expect(toSeasonCreateMetadata({ duration: ' 45 ' })).toStrictEqual({ durationMinutes: 45 });
+  });
+});
+
+describe('buildSeasonCreateMetadata', () => {
+  it('keeps only the rows being created', () => {
+    const byRow = { 'sa-1': { origin: 'Manga' }, 'sa-2': { origin: 'Fantasy' } };
+
+    expect(buildSeasonCreateMetadata(byRow, ['sa-2'])).toEqual({ 'sa-2': { origin: 'Fantasy' } });
+  });
+
+  it('is empty when no picked row ever confirmed a lookup', () => {
+    expect(buildSeasonCreateMetadata({}, ['sa-1'])).toEqual({});
+    expect(buildSeasonCreateMetadata({ 'sa-2': { origin: 'Fantasy' } }, ['sa-1'])).toEqual({});
+  });
+});
+
+
+describe('toHeldMetadataPatch', () => {
+  it('turns stored metadata back into the values the row shows', () => {
+    expect(
+      toHeldMetadataPatch({ kind: 2, totalEpisodes: 24, durationMinutes: 45, origin: 'Manga', genres: ['Action', 'Fantasy'], studios: ['Madhouse', 'CloverWorks'], cover: { type: 'url', path: 'https://c.jpg' } }),
+    ).toStrictEqual({ kind: '2', totalEpisodes: '24', duration: '45', origin: 'Manga', genres: 'Action, Fantasy', studios: 'Madhouse, CloverWorks', coverURL: 'https://c.jpg' });
+  });
+
+  it('is undefined when the row stored nothing, and omits every blank field', () => {
+    expect(toHeldMetadataPatch(undefined)).toBeUndefined();
+    // toStrictEqual, not toEqual: a blank or absent field must be ABSENT from the
+    // display patch, never present as an empty value.
+    expect(toHeldMetadataPatch({ origin: '', cover: { type: 'url', path: '' } })).toStrictEqual({});
+    expect(toHeldMetadataPatch({ kind: 0 })).toStrictEqual({ kind: '0' });
+    expect(toHeldMetadataPatch({ genres: [] })).toStrictEqual({ genres: '' });
+  });
+});
+
+describe('compactMetadataPatch', () => {
+  it('drops blank and undefined entries and keeps the real values', () => {
+    expect(compactMetadataPatch({ name: 'Dr. Stone', kind: undefined, genres: '', origin: 'Manga' })).toStrictEqual({ name: 'Dr. Stone', origin: 'Manga' });
+    expect(compactMetadataPatch({ name: '', kind: undefined })).toStrictEqual({});
+  });
+});
+
+describe('formatMetadataValues', () => {
+  it('renders one label:value line per held field, skipping blanks', () => {
+    expect(formatMetadataValues({ name: 'Dr. Stone', kind: '0', genres: '' })).toStrictEqual(['Name: Dr. Stone', 'Type: 0']);
+    expect(formatMetadataValues({})).toStrictEqual([]);
+  });
+});
+
+describe('pickRowEntries', () => {
+  it('keeps the record itself while every stored row is still shown, whatever the order', () => {
+    const entries = { 'sa-1': 'one', 'sa-2': 'two' };
+
+    expect(pickRowEntries(entries, new Set(['sa-2', 'sa-1', 'sa-3']))).toBe(entries);
+  });
+
+  it('drops the entries whose row left the list and keeps the rest', () => {
+    const entries = { 'sa-1': 'one', 'sa-2': 'two' };
+
+    expect(pickRowEntries(entries, new Set(['sa-2']))).toEqual({ 'sa-2': 'two' });
+  });
+
+  it('narrows every entry away when no row is left', () => {
+    expect(pickRowEntries({ 'sa-1': 'one' }, new Set<string>())).toEqual({});
   });
 });

@@ -25,7 +25,7 @@ describe('bridge-runtime-source anime editor bindings', () => {
           totalEpisodes: { kind: 'missing' }, kind: { kind: 'missing' }, sourceUrl: { kind: 'missing' }, folder: { kind: 'missing' },
         },
         details: {
-          premieredAt: { kind: 'missing' }, duration: { kind: 'missing' }, origin: { kind: 'missing' },
+          duration: { kind: 'missing' }, origin: { kind: 'missing' },
           genres: { kind: 'value', values: [] }, studios: { kind: 'missing', values: [] }, cover: { kind: 'missing' },
         },
       },
@@ -42,7 +42,7 @@ describe('bridge-runtime-source anime editor bindings', () => {
           totalEpisodes: { kind: 'missing' }, kind: { kind: 'missing' }, sourceUrl: { kind: 'missing' }, folder: { kind: 'missing' },
         },
         details: {
-          premieredAt: { kind: 'missing' }, duration: { kind: 'missing' }, origin: { kind: 'missing' },
+          duration: { kind: 'missing' }, origin: { kind: 'missing' },
           genres: { kind: 'value', values: [] }, studios: { kind: 'missing', values: [] }, cover: { kind: 'missing' },
         },
       },
@@ -62,7 +62,6 @@ describe('bridge-runtime-source anime editor bindings', () => {
         origin: { present: false, clear: false, value: '' },
         duration: { present: false, clear: false, value: '' },
         kind: { present: false, clear: false, value: '' },
-        premieredAt: { present: false, clear: false, value: '' },
         cover: { present: false, clear: false, type: '', path: '' },
       },
     });
@@ -100,6 +99,10 @@ describe('bridge-runtime-source anime editor bindings', () => {
       animeId: 'anime-1',
       patch: expect.objectContaining({ page: { present: false, clear: false, value: '' } }),
     }));
+    // The wire DTO must not carry an authored premieredAt at all: the backend
+    // derives it from watched-progress transitions and ignores any writer value.
+    const [wireSaveCommand] = saveAnimeEditorMock.mock.calls[0] as [{ readonly patch: Record<string, unknown> }];
+    expect(wireSaveCommand.patch).not.toHaveProperty('premieredAt');
     expect(deactivateAnimeMock).toHaveBeenCalledWith('anime-1', 100);
     expect(getBoardMock).toHaveBeenCalledWith('anime-1');
     expect(applyBoardMock).toHaveBeenCalledWith({ boardModifiedAt: 123, entries: [] });
@@ -174,7 +177,7 @@ describe('bridge-runtime-source anime editor bindings', () => {
           sourceUrl: { kind: 'value', value: 'https://example.test/x' }, folder: { kind: 'value', value: 'D:/Anime/x' },
         },
         details: {
-          premieredAt: { kind: 'value', unixMilli: 0 }, duration: { kind: 'missing' }, origin: { kind: 'missing' },
+          duration: { kind: 'missing' }, origin: { kind: 'missing' },
           genres: { kind: 'value', values: [] }, studios: { kind: 'missing', values: [] }, cover: { kind: 'missing' },
         },
       },
@@ -189,6 +192,8 @@ describe('bridge-runtime-source anime editor bindings', () => {
     const result = await recordPromise;
     expect(result?.record?.frequent.kind).toBe(0);
     expect(result?.record?.frequent.totalEpisodes).toBe(0);
-    expect(result?.record?.details.premieredAt).toBe(0);
+    // The wire record still carries the key, but the frontend record drops it:
+    // nothing in the editor reads or displays this value anymore.
+    expect(result?.record?.details).not.toHaveProperty('premieredAt');
   });
 });

@@ -105,8 +105,8 @@ func beginFullRefreshTx(ctx context.Context, db *sql.DB, deleteSQL, insertSQL st
 
 const insertSeasonSQL = `
 	INSERT INTO seasons (id, name, min_approval_grade, slots, status,
-		selection_confirmed_at, applied_at, closed_at, ordering_draft_json, created_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		selection_confirmed_at, applied_at, closed_at, ordering_draft_json, closure_json, created_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 // ImportSeasons returns a backup import function that replaces every
@@ -124,10 +124,10 @@ func ImportSeasons(db *sql.DB) func(context.Context, io.Reader) (int, error) {
 			_ = stmt.Close()
 		}()
 
-		// A *int64 nullable field binds directly as NULL.
+		// A *int64 / *string nullable field binds directly as NULL.
 		count, err = decodeAndInsertJSONL(ctx, r, stmt, func(rec seasonRecord) []any {
 			return []any{rec.ID, rec.Name, rec.MinApprovalGrade, rec.Slots, rec.Status,
-				rec.SelectionConfirmedAt, rec.AppliedAt, rec.ClosedAt, rec.OrderingDraftJSON, rec.CreatedAt}
+				rec.SelectionConfirmedAt, rec.AppliedAt, rec.ClosedAt, rec.OrderingDraftJSON, rec.ClosureJSON, rec.CreatedAt}
 		})
 		if err != nil {
 			return count, err
@@ -145,8 +145,8 @@ const insertSeasonAnimeSQL = `
 	INSERT INTO season_animes (id, season_id, raw_name, match_status, matched_slug,
 		match_candidates_json, availability, first_available_at, available_episodes,
 		anime_id, premiere_grade, grade_source, post_season_grade, rated_at,
-		skip_grading, consideration, last_checked_at, created_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		skip_grading, consideration, last_checked_at, created_at, metadata_json)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 // ImportSeasonAnimes returns a backup import function that replaces every
@@ -168,7 +168,7 @@ func ImportSeasonAnimes(db *sql.DB) func(context.Context, io.Reader) (int, error
 			return []any{rec.ID, rec.SeasonID, rec.RawName, rec.MatchStatus, rec.MatchedSlug,
 				rec.MatchCandidatesJSON, rec.Availability, rec.FirstAvailableAt, rec.AvailableEpisodes,
 				rec.AnimeID, rec.PremiereGrade, rec.GradeSource, rec.PostSeasonGrade, rec.RatedAt,
-				rec.SkipGrading, rec.Consideration, rec.LastCheckedAt, rec.CreatedAt}
+				rec.SkipGrading, rec.Consideration, rec.LastCheckedAt, rec.CreatedAt, rec.MetadataJSON}
 		})
 		if err != nil {
 			return count, err

@@ -6,8 +6,8 @@ import type { AnimeScheduleOrderingCreateSubmit, AnimeScheduleOrderingDraftEntry
 /**
  * One batch-create row before submit: primary fields plus optional metadata.
  * Every optional value is held as an input string (`''` means unset) and parsed
- * at command-build time. Premiere date is intentionally absent — it is an auto
- * lifecycle field, never user input.
+ * at command-build time. The first-watch date is intentionally absent — it is an
+ * auto lifecycle field, never user input.
  */
 export interface AnimeCreateRowDraft {
   readonly draftId: string;

@@ -47,3 +47,22 @@ func (a *App) GetPastSeasonAnimes(seasonID string) []SeasonAnimeDTO {
 	}
 	return a.seasonAnimeDTOs(a.seasonCtx(), rows)
 }
+
+// GetSeasonOrderingSnapshot returns the ordering board the season actually had
+// when it closed, decoded from the payload stored at close time (P3). It is a
+// read-only history read: live anime data is never consulted, so a closed
+// season's board is returned even when the live animes have changed since. When
+// no board was captured — an unwired service, an unknown or unreadable season,
+// an empty payload (every season closed before P3), or malformed JSON — it
+// reports Recorded=false with empty collections instead of an error or a
+// fabricated board.
+func (a *App) GetSeasonOrderingSnapshot(seasonID string) SeasonOrderingSnapshotDTO {
+	if a.seasonService == nil {
+		return emptySeasonOrderingSnapshot()
+	}
+	season, err := a.seasonService.SeasonByID(a.seasonCtx(), seasonID)
+	if err != nil || season == nil {
+		return emptySeasonOrderingSnapshot()
+	}
+	return orderingSnapshotFromClosure(season.ClosureJSON)
+}

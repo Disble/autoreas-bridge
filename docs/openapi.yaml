@@ -360,7 +360,7 @@ components:
         premieredAt:
           type: integer
           nullable: true
-          description: Epoch milliseconds, or null (SDD-56 flattened the `$$date` wrapper).
+          description: Epoch milliseconds of the first observed transition from zero to positive watched progress, or null when not recorded. Existing undated progress and creation with progress are not backfilled.
         createdAt:
           type: integer
           nullable: true

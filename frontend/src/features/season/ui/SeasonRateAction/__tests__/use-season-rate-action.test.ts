@@ -1,11 +1,32 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonAnimeRow, SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
-import { resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
+import type {
+  SeasonAnimeRow,
+  SeasonSnapshot,
+  SeasonSource,
+} from '../../../../../infrastructure/season-source/season-source.types';
+import {
+  getSeasonStoreState,
+  resetSeasonStore,
+  setSeasonStoreState,
+} from '../../../../../shared/store/season-store/season-store.helpers';
 import { useSeasonRateAction } from '../use-season-rate-action';
 
-function createSource(rows: readonly SeasonAnimeRow[]): SeasonSource {
+/** Builds the loaded season snapshot the shared store holds, with the status under test. */
+function seasonSnapshot(status: string): SeasonSnapshot {
+  return {
+    id: 'season-1',
+    name: 'Julio 2026',
+    minApprovalGrade: 4,
+    slots: 12,
+    status,
+    createdAt: 1_700_000_000_000,
+  };
+}
+
+/** Builds a Wails-bindings stand-in for the season port, with per-test overrides. */
+function createSource(rows: readonly SeasonAnimeRow[], overrides: Partial<SeasonSource> = {}): SeasonSource {
   return {
     getSeason: vi.fn().mockResolvedValue(null),
     createSeason: vi.fn().mockResolvedValue('ok'),
@@ -24,6 +45,7 @@ function createSource(rows: readonly SeasonAnimeRow[]): SeasonSource {
     skipGrading: vi.fn().mockResolvedValue('ok'),
     setConsideration: vi.fn().mockResolvedValue('ok'),
     confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 0, rejected: 0, quotaExceeded: false }),
+    setSeasonAnimeMetadata: vi.fn().mockResolvedValue('ok'),
     createSeasonAnimes: vi.fn().mockResolvedValue('ok'),
     pickFolder: vi.fn().mockResolvedValue(''),
     listSeasons: vi.fn().mockResolvedValue([]),
@@ -35,9 +57,11 @@ function createSource(rows: readonly SeasonAnimeRow[]): SeasonSource {
     reopenOrdering: vi.fn().mockResolvedValue('ok'),
     recheckAvailability: vi.fn().mockResolvedValue('ok'),
     openPage: vi.fn(),
+    ...overrides,
   };
 }
 
+/** Builds the created season row that makes an anime gradeable from the Episodes card. */
 function created(animeId: string, grade: number): SeasonAnimeRow {
   return {
     id: `sa-${animeId}`,
@@ -60,7 +84,8 @@ describe('useSeasonRateAction', () => {
     vi.clearAllMocks();
   });
 
-  it('loads candidates on mount and resolves the matching candidate', async () => {
+  it('loads candidates on mount and resolves the matching candidate while the season is open', async () => {
+    setSeasonStoreState({ season: seasonSnapshot('open') });
     const source = createSource([created('anime-a', 4)]);
     const { result } = renderHook(() => useSeasonRateAction('anime-a', source));
 
@@ -68,11 +93,26 @@ describe('useSeasonRateAction', () => {
     expect(source.getSeasonAnimes).toHaveBeenCalled();
   });
 
-  it('resolves no candidate for an anime outside the season', async () => {
+  it('resolves no candidate for an anime outside the open season', async () => {
+    setSeasonStoreState({ season: seasonSnapshot('open') });
     const source = createSource([created('anime-a', 4)]);
     const { result } = renderHook(() => useSeasonRateAction('anime-zzz', source));
 
     await waitFor(() => expect(source.getSeasonAnimes).toHaveBeenCalled());
     expect(result.current.candidate).toBeUndefined();
+  });
+
+  it('offers no candidate while a closed historical season is loaded read-only', async () => {
+    const source = createSource([created('anime-a', 4)], {
+      getPastSeason: vi.fn().mockResolvedValue(seasonSnapshot('closed')),
+      getPastSeasonAnimes: vi.fn().mockResolvedValue([created('anime-a', 4)]),
+    });
+    await getSeasonStoreState().viewPastSeason(source, 'season-old');
+
+    const { result } = renderHook(() => useSeasonRateAction('anime-a', source));
+
+    await waitFor(() => expect(getSeasonStoreState().viewSeasonId).toBe('season-old'));
+    expect(result.current.candidate).toBeUndefined();
+    expect(source.getSeasonAnimes).not.toHaveBeenCalled();
   });
 });

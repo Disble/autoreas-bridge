@@ -1,11 +1,13 @@
 import type { SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
 import { getMatchStatusColor } from '../IntakePanel/intake-panel.helpers';
-import { countApproved, quotaStatus } from '../SelectionBoard/selection-board.helpers';
+import { countApproved } from '../SelectionBoard/selection-board.helpers';
 import {
+  CONSIDERATION_NONE,
   GRADE_BANDS,
   INTAKE_HEALTH_CHART_COLORS,
   INTAKE_HEALTH_KEYS,
   PIPELINE_KEYS,
+  SELECTION_OUTCOME_KEYS,
   TICK_STEPS,
 } from './overview-panel.constants';
 import type {
@@ -14,14 +16,15 @@ import type {
   OverviewKpiSummary,
   OverviewPanelViewModel,
   PipelineDatum,
-  SlotsMeterModel,
+  SelectionOutcomeCounts,
+  SelectionOutcomeDatum,
 } from './overview-panel.types';
 
 /**
  * buildKpiSummary derives the four KPI stat-tile values from the season's intake
  * rows. `approvedCount` always delegates to `countApproved` (never a parallel
  * `grade >= minApprovalGrade` check) so it stays consistent with the Selection
- * tab and the slots meter. Rated x/y is created-rows-only: `y` is the created-row
+ * tab and the selection outcome card. Rated x/y is created-rows-only: `y` is the created-row
  * count, `x` is the subset with a resolved grade (graded or explicitly skipped).
  */
 export function buildKpiSummary(rows: readonly SeasonAnimeRow[], minApprovalGrade: number, slots: number): OverviewKpiSummary {
@@ -179,30 +182,58 @@ export function buildIntegerTicks(total: number): number[] {
 }
 
 /**
- * buildSlotsMeterModel derives the approved-vs-slots meter state. `approved`
- * and `status` delegate to `countApproved`/`quotaStatus` (the same derivation as
- * the Approved KPI tile) — `meterValue` clamps to `slots` so the HeroUI Meter
- * fill never exceeds its track, while `label` always shows the true ratio.
+ * isNotYetGraded reports whether a created candidate has no user ruling at all:
+ * no grade, not explicitly skip-graded, and no consideration override. The
+ * consideration clause is what keeps a rescue row OUT of this bucket — such a
+ * row is approved with no grade, and a naive "ungraded" predicate would count
+ * it twice. The caller has already narrowed to created candidates.
  */
-export function buildSlotsMeterModel(rows: readonly SeasonAnimeRow[], minApprovalGrade: number, slots: number): SlotsMeterModel {
+function isNotYetGraded(row: SeasonAnimeRow): boolean {
+  return row.grade < 1 && !row.skipGrading && row.consideration === CONSIDERATION_NONE;
+}
+
+/**
+ * buildSelectionOutcomeCounts derives the three mutually exclusive buckets of
+ * the season's created candidates. `approved` delegates to `countApproved` (the
+ * Selection tab's own decision rule, never a parallel `grade >= min` check) so
+ * the two surfaces cannot drift; `notYetGraded` is every created row with no
+ * ruling at all; and `rejected` is whatever remains. That is exactly the split
+ * the backend `ConfirmSelection` applies, where an ungraded created row is
+ * applied as rejected. The three buckets always sum to `createdTotal`.
+ */
+export function buildSelectionOutcomeCounts(rows: readonly SeasonAnimeRow[], minApprovalGrade: number): SelectionOutcomeCounts {
   const approved = countApproved(rows, minApprovalGrade);
-  const status = quotaStatus(approved, slots);
-  const isOverQuota = approved > slots;
-  let color: SlotsMeterModel['color'] = 'accent';
-  if (status === 'over') {
-    color = 'danger';
-  } else if (status === 'at') {
-    color = 'success';
+  let createdTotal = 0;
+  let notYetGraded = 0;
+  for (const r of rows) {
+    if (r.availability === 'created' && r.animeId !== '') {
+      createdTotal += 1;
+      if (isNotYetGraded(r)) {
+        notYetGraded += 1;
+      }
+    }
   }
-  const label = isOverQuota ? `${approved} / ${slots} · Over quota` : `${approved} / ${slots}`;
+  return { approved, rejected: createdTotal - approved - notYetGraded, notYetGraded, createdTotal };
+}
+
+/**
+ * buildSelectionOutcomeData wraps `buildSelectionOutcomeCounts` into the single
+ * stacked-bar datum the chart renders, plus its fixed key order. Returns an
+ * empty data array when no candidate has been created, so the chart shows its
+ * empty state instead of a zero-height canvas.
+ */
+export function buildSelectionOutcomeData(
+  rows: readonly SeasonAnimeRow[],
+  minApprovalGrade: number,
+): { data: SelectionOutcomeDatum[]; keys: string[] } {
+  const keys = [...SELECTION_OUTCOME_KEYS];
+  const counts = buildSelectionOutcomeCounts(rows, minApprovalGrade);
+  if (counts.createdTotal === 0) {
+    return { data: [], keys };
+  }
   return {
-    approved,
-    slots,
-    meterValue: Math.min(approved, slots),
-    isOverQuota,
-    status,
-    color,
-    label,
+    data: [{ dim: 'outcome', Approved: counts.approved, Rejected: counts.rejected, 'No grade': counts.notYetGraded }],
+    keys,
   };
 }
 
@@ -216,7 +247,7 @@ export function buildOverviewViewModel(rows: readonly SeasonAnimeRow[], minAppro
   const pipeline = buildWatchingPipelineData(rows);
   const intakeHealth = buildIntakeHealthData(rows);
   const gradeHistogram = buildGradeHistogramData(rows, minApprovalGrade);
-  const slotsMeter = buildSlotsMeterModel(rows, minApprovalGrade, slots);
+  const selectionOutcome = buildSelectionOutcomeData(rows, minApprovalGrade);
   return {
     kpi,
     pipeline: pipeline.data,
@@ -225,7 +256,8 @@ export function buildOverviewViewModel(rows: readonly SeasonAnimeRow[], minAppro
     intakeHealthKeys: intakeHealth.keys,
     gradeHistogram,
     minApprovalGrade,
-    slotsMeter,
+    selectionOutcome: selectionOutcome.data,
+    selectionOutcomeKeys: selectionOutcome.keys,
     hasCreated: kpi.createdCount > 0,
     hasIntake: kpi.intakeTotal > 0,
     hasGrades: gradeHistogram.some((d) => d.count > 0),

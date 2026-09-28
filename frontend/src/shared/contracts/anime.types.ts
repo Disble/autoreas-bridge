@@ -174,7 +174,6 @@ export interface AnimeEditorFrequentFields {
 
 /** Secondary anime editor metadata grouped under the details section. */
 export interface AnimeEditorDetailFields {
-  readonly premieredAt?: number;
   readonly duration?: number;
   readonly origin?: string;
   readonly genres: readonly string[];
@@ -285,7 +284,6 @@ export interface AnimeEditorPatch {
   readonly origin: AnimeEditorNullableStringPatch;
   readonly duration: AnimeEditorNullableStringPatch;
   readonly kind: AnimeEditorNullableStringPatch;
-  readonly premieredAt: AnimeEditorNullableStringPatch;
   readonly placements?: readonly AnimeSchedulePlacement[];
   readonly genres?: readonly string[];
   readonly studios?: readonly string[];
@@ -333,8 +331,8 @@ export interface AnimeCreateCover {
 
 /**
  * One new-anime row within a batch create command. Optional metadata mirrors the
- * editor's editable fields; premiere date is deliberately absent because it is an
- * auto lifecycle field (set when the first episode is watched), never user input.
+ * editor's editable fields; a first-watch date is deliberately absent because it
+ * is an auto lifecycle field (set when the first episode is watched), never user input.
  */
 export interface AnimeCreateItem {
   readonly name: string;

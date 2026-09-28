@@ -1,15 +1,37 @@
 import { ResponsiveBar } from '@nivo/bar';
+import todayAirisArtwork from '../../../../assets/airis-empty-states/today.webp';
+import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
 import { buildIntegerTicks, sumStackTotal } from './overview-panel.helpers';
-import { CHART_HEIGHT_SHORT, CHART_SURFACE, NIVO_THEME, PIPELINE_COLORS, PIPELINE_EMPTY_MESSAGE } from './overview-panel.constants';
+import {
+  CHART_HEIGHT_SHORT,
+  CHART_SURFACE,
+  NIVO_THEME,
+  PIPELINE_COLORS,
+  PIPELINE_EMPTY_MESSAGE,
+  PIPELINE_NOT_RECORDED_DESCRIPTION,
+  PIPELINE_NOT_RECORDED_TITLE,
+} from './overview-panel.constants';
 import type { WatchingPipelineChartProps } from './overview-panel.types';
 
 /**
  * WatchingPipelineChart renders created animes grouped by their Estrenos
  * section (Sin ver -> Ver hoy -> Visto) as one horizontal stacked bar, the
  * stages fixed in conveyor order regardless of which has the largest count.
- * Pure props in, no store access.
+ * Pure props in, no store access. While a past season is open (`isHistorical`)
+ * it renders the not-recorded state instead of the chart, because the section
+ * grouping comes from live anime data and would be false history.
  */
-export function WatchingPipelineChart({ data, keys, hasCreated }: Readonly<WatchingPipelineChartProps>) {
+export function WatchingPipelineChart({ data, keys, hasCreated, isHistorical }: Readonly<WatchingPipelineChartProps>) {
+  if (isHistorical) {
+    return (
+      <AirisEmptyState
+        description={PIPELINE_NOT_RECORDED_DESCRIPTION}
+        imageSrc={todayAirisArtwork}
+        title={PIPELINE_NOT_RECORDED_TITLE}
+      />
+    );
+  }
+
   if (!hasCreated) {
     return <p className="text-sm text-muted">{PIPELINE_EMPTY_MESSAGE}</p>;
   }

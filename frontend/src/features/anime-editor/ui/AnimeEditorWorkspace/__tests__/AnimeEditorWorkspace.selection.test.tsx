@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+/** Mock source the editor workspace receives through the vi.mock factory. */
 const { mockSource } = vi.hoisted(() => {
   function makeAnime(id: string, name: string) {
     return { id, name, status: 0, active: 1, episodesWatched: 1, days: ['Lunes'] };
@@ -10,7 +11,7 @@ const { mockSource } = vi.hoisted(() => {
     return {
       animeId: id, modifiedAt: 1,
       frequent: { name, status: 0, progress: 1, totalEpisodes: null, active: true, kind: null, page: '', folder: '', placements: [] },
-      details: { genres: [], studios: { kind: 'values', values: [] }, origin: '', duration: null, premieredAt: null, cover: null },
+      details: { genres: [], studios: { kind: 'values', values: [] }, origin: '', duration: null, cover: null },
     };
   }
   const names: Record<string, string> = { 'anime-1': 'Alpha Show', 'anime-2': 'Beta Show', 'anime-3': 'Gamma Show' };
@@ -32,6 +33,7 @@ import { AnimeEditorWorkspace } from '../AnimeEditorWorkspace';
 
 afterEach(cleanup);
 
+/** Renders the workspace route for one test. */
 function renderWorkspace() {
   return render(
     <MemoryRouter initialEntries={['/editor']}>
@@ -43,6 +45,7 @@ function renderWorkspace() {
   );
 }
 
+/** Scoping helper: queries inside the workspace heading block. */
 function formName() {
   return within(screen.getByRole('heading', { level: 4 }).parentElement as HTMLElement);
 }

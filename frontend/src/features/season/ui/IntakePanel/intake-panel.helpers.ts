@@ -1,6 +1,7 @@
-import type { SeasonAnimeCandidate, SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
-import { MATCH_STATUS_LABELS } from './intake-panel.constants';
-import type { IntakeChipColor } from './intake-panel.types';
+import type { SeasonAnimeCandidate, SeasonAnimeRow, SeasonCreateMetadata } from '../../../../infrastructure/season-source/season-source.types';
+import type { AnimeMetadataSelection } from '../../../../shared/metadata-lookup/metadata-lookup.types';
+import { INTAKE_METADATA_FIELD_LABELS, MATCH_STATUS_LABELS } from './intake-panel.constants';
+import type { IntakeChipColor, IntakeMetadataPatch } from './intake-panel.types';
 
 /**
  * Strips trailing dots and spaces, which Windows silently drops from a folder
@@ -250,4 +251,202 @@ export function toggleSelection(selected: ReadonlySet<string>, rowId: string): R
     next.add(rowId);
   }
   return next;
+}
+
+/**
+ * Performs hop two of the MAL-to-bridge translation for ONE intake row: turns a
+ * confirmed lookup's neutral {@link AnimeMetadataSelection} into the metadata
+ * that row holds. Every field is read from an explicit allow-list, exactly as
+ * the Create row's own mapper does, so the intake row's protected fields --
+ * download page, download folder, watched episodes, estado, first-watch date --
+ * have no code path into the result at all. The result is neither persisted nor
+ * sent to creation in this slice; it is only shown back to the user.
+ * @param selection The confirmed lookup's normalized, source-agnostic result.
+ * @returns The row's held metadata, holding only the fields `selection` mapped.
+ */
+export function toIntakeMetadataPatch(selection: Readonly<AnimeMetadataSelection>): IntakeMetadataPatch {
+  return {
+    name: selection.name,
+    ...(selection.kind === undefined ? {} : { kind: selection.kind }),
+    ...(selection.totalEpisodes === undefined ? {} : { totalEpisodes: selection.totalEpisodes }),
+    ...(selection.duration === undefined ? {} : { duration: selection.duration }),
+    ...(selection.origin === undefined ? {} : { origin: selection.origin }),
+    ...(selection.genres === undefined ? {} : { genres: selection.genres }),
+    ...(selection.studios === undefined ? {} : { studios: selection.studios }),
+    ...(selection.coverURL === undefined ? {} : { coverURL: selection.coverURL }),
+  };
+}
+
+/**
+ * Converts one row's held metadata into the shape the Go side accepts: numbers
+ * become numbers, the comma-joined lists become lists, and the held cover URL
+ * becomes the canonical typed cover. A value the row does not hold, or one that
+ * does not parse, is simply absent — the created anime then keeps the value it
+ * would have had with no metadata at all. The confirmed title does not travel:
+ * the row's raw name is the name the user typed, so it wins.
+ * @param held The row's held metadata patch.
+ * @returns The same metadata in the create contract's shape.
+ */
+export function toSeasonCreateMetadata(held: Readonly<IntakeMetadataPatch>): SeasonCreateMetadata {
+  const kind = parseOptionalWholeNumber(held.kind);
+  const totalEpisodes = parseOptionalWholeNumber(held.totalEpisodes);
+  const durationMinutes = parseOptionalWholeNumber(held.duration);
+  const genres = splitMetadataList(held.genres);
+  const studios = splitMetadataList(held.studios);
+  return {
+    ...(kind === undefined ? {} : { kind }),
+    ...(totalEpisodes === undefined ? {} : { totalEpisodes }),
+    ...(durationMinutes === undefined ? {} : { durationMinutes }),
+    ...(held.origin === undefined || held.origin === '' ? {} : { origin: held.origin }),
+    ...(genres === undefined ? {} : { genres }),
+    ...(studios === undefined ? {} : { studios }),
+    ...(held.coverURL === undefined || held.coverURL === '' ? {} : { cover: { type: 'url', path: held.coverURL } }),
+  };
+}
+
+/**
+ * Converts only the rows that are about to be created, so a lookup attached to a
+ * row the user did not select never travels with the batch.
+ * @param byRow Every row's held metadata, keyed by row id.
+ * @param rowIds The rows this creation will create.
+ * @returns The create metadata for exactly those rows.
+ */
+export function buildSeasonCreateMetadata(
+  byRow: Readonly<Record<string, IntakeMetadataPatch>>,
+  rowIds: readonly string[],
+): Readonly<Record<string, SeasonCreateMetadata>> {
+  const out: Record<string, SeasonCreateMetadata> = {};
+  for (const rowId of rowIds) {
+    const held = byRow[rowId];
+    if (held !== undefined) {
+      out[rowId] = toSeasonCreateMetadata(held);
+    }
+  }
+  return out;
+}
+
+/**
+ * Parses a whole number out of an input string, treating a blank or non-numeric
+ * value as absent rather than as zero.
+ * @param value The input string a lookup filled, or undefined.
+ * @returns The parsed whole number, or undefined when there is nothing to parse.
+ */
+function parseOptionalWholeNumber(value: string | undefined): number | undefined {
+  if (value === undefined || value.trim() === '') {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.trunc(parsed) : undefined;
+}
+
+/**
+ * Splits a lookup's comma-joined list into its entries, treating a blank value as
+ * absent so an unconfirmed list never reaches the create contract as an empty one.
+ * @param value The comma-joined list a lookup filled, or undefined.
+ * @returns The trimmed entries, or undefined when there are none.
+ */
+function splitMetadataList(value: string | undefined): string[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const entries = value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== '');
+  return entries.length === 0 ? undefined : entries;
+}
+
+/**
+ * Drops the blank entries of a held metadata patch, so a row that lost every
+ * value (an undo back to nothing, or a lookup that confirmed only blanks) holds
+ * nothing at all instead of a record of empty fields.
+ * @param patch The held metadata patch.
+ * @returns The patch without its blank entries.
+ */
+export function compactMetadataPatch(patch: Readonly<IntakeMetadataPatch>): IntakeMetadataPatch {
+  const out: Record<string, string> = {};
+  for (const [field, value] of Object.entries(patch)) {
+    if (value !== undefined && value !== '') {
+      out[field] = value;
+    }
+  }
+  return out as IntakeMetadataPatch;
+}
+
+/**
+ * Turns a row's STORED metadata back into the display patch the row holds, so a
+ * choice confirmed before the panel was last closed reappears with the same
+ * values. It is the exact inverse of {@link toSeasonCreateMetadata}: numbers
+ * become the strings the panel shows, the lists become comma-joined text, and the
+ * typed cover becomes its URL. A field the stored record does not carry stays
+ * absent, so "not recorded" never becomes an empty value.
+ * @param stored The row's stored metadata, or undefined when it has none.
+ * @returns The display patch for that row, or undefined when nothing is stored.
+ */
+export function toHeldMetadataPatch(stored: SeasonCreateMetadata | undefined): IntakeMetadataPatch | undefined {
+  if (stored === undefined) {
+    return undefined;
+  }
+  return {
+    ...(stored.kind === undefined ? {} : { kind: String(stored.kind) }),
+    ...(stored.totalEpisodes === undefined ? {} : { totalEpisodes: String(stored.totalEpisodes) }),
+    ...(stored.durationMinutes === undefined ? {} : { duration: String(stored.durationMinutes) }),
+    ...(stored.origin === undefined || stored.origin === '' ? {} : { origin: stored.origin }),
+    ...(stored.genres === undefined ? {} : { genres: stored.genres.join(', ') }),
+    ...(stored.studios === undefined ? {} : { studios: stored.studios.join(', ') }),
+    ...(stored.cover === undefined || stored.cover.path === '' ? {} : { coverURL: stored.cover.path }),
+  };
+}
+
+/**
+ * Renders a row's held metadata as the read-only value lines the user needs to
+ * judge the choice: what a lookup attached is otherwise invisible, since the
+ * modal shows the candidate and never the values that will be written.
+ * @param patch The row's held metadata.
+ * @returns One "Label: value" line per held field, in the constants' field order.
+ */
+export function formatMetadataValues(patch: Readonly<IntakeMetadataPatch>): readonly string[] {
+  const fields = Object.keys(INTAKE_METADATA_FIELD_LABELS) as (keyof IntakeMetadataPatch)[];
+  const lines: string[] = [];
+  for (const field of fields) {
+    const value = patch[field];
+    if (value !== undefined && value !== '') {
+      lines.push(`${INTAKE_METADATA_FIELD_LABELS[field]}: ${value}`);
+    }
+  }
+  return lines;
+}
+
+/**
+ * Renders an applied patch's field labels as the row's one-line summary, so the
+ * user can read WHICH metadata a lookup attached without the row reprinting
+ * every value under it.
+ * @param appliedFields The patch's own field names, in the order they were applied.
+ * @returns Those fields' readable labels joined by ", ".
+ */
+export function formatAppliedMetadataFields(appliedFields: readonly (keyof IntakeMetadataPatch)[]): string {
+  return appliedFields.map((field) => INTAKE_METADATA_FIELD_LABELS[field]).join(', ');
+}
+
+/**
+ * Narrows a row-keyed record of held values (a row's metadata, a row's applied
+ * patch) to the rows the intake list still shows, so one row's lookup result
+ * cannot outlive the row it belongs to. Reordering rows and an unrelated store
+ * refresh change no id: this returns `byRow` itself in that case rather than a
+ * fresh copy, so a refresh with the same rows does not churn the record.
+ * @param byRow Row id -> stored value.
+ * @param rowIds The row ids the intake list currently shows.
+ * @returns `byRow` when every stored row is still shown, else the narrowed copy.
+ */
+export function pickRowEntries<TValue>(
+  byRow: Readonly<Record<string, TValue>>,
+  rowIds: ReadonlySet<string>,
+): Readonly<Record<string, TValue>> {
+  const kept: Record<string, TValue> = {};
+  for (const [rowId, value] of Object.entries(byRow)) {
+    if (rowIds.has(rowId)) {
+      kept[rowId] = value;
+    }
+  }
+  return Object.keys(kept).length === Object.keys(byRow).length ? byRow : kept;
 }

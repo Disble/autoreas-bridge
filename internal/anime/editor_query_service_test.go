@@ -92,14 +92,13 @@ func TestQueryServiceGetAnimeEditorRecordPreservesNullableKinds(t *testing.T) {
 	tests := []struct {
 		name       string
 		fields     string
-		wantDate   contracts.AnimeEditorValueKind
 		wantStudio contracts.AnimeEditorValueKind
 		wantGenres contracts.AnimeEditorValueKind
 		wantCover  contracts.AnimeEditorValueKind
 	}{
-		{name: "missing", fields: "", wantDate: contracts.AnimeEditorValueKindMissing, wantStudio: contracts.AnimeEditorValueKindMissing, wantGenres: contracts.AnimeEditorValueKindMissing, wantCover: contracts.AnimeEditorValueKindMissing},
-		{name: "null", fields: `,"premieredAt":null,"studios":null,"genres":null,"cover":null`, wantDate: contracts.AnimeEditorValueKindNull, wantStudio: contracts.AnimeEditorValueKindNull, wantGenres: contracts.AnimeEditorValueKindNull, wantCover: contracts.AnimeEditorValueKindNull},
-		{name: "empty arrays and object", fields: `,"premieredAt":0,"studios":[],"genres":[],"cover":{"type":"url","path":""}`, wantDate: contracts.AnimeEditorValueKindValue, wantStudio: contracts.AnimeEditorValueKindValue, wantGenres: contracts.AnimeEditorValueKindValue, wantCover: contracts.AnimeEditorValueKindValue},
+		{name: "missing", fields: "", wantStudio: contracts.AnimeEditorValueKindMissing, wantGenres: contracts.AnimeEditorValueKindMissing, wantCover: contracts.AnimeEditorValueKindMissing},
+		{name: "null", fields: `,"premieredAt":null,"studios":null,"genres":null,"cover":null`, wantStudio: contracts.AnimeEditorValueKindNull, wantGenres: contracts.AnimeEditorValueKindNull, wantCover: contracts.AnimeEditorValueKindNull},
+		{name: "empty arrays and object", fields: `,"premieredAt":0,"studios":[],"genres":[],"cover":{"type":"url","path":""}`, wantStudio: contracts.AnimeEditorValueKindValue, wantGenres: contracts.AnimeEditorValueKindValue, wantCover: contracts.AnimeEditorValueKindValue},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -109,7 +108,7 @@ func TestQueryServiceGetAnimeEditorRecordPreservesNullableKinds(t *testing.T) {
 			if err != nil {
 				t.Fatalf("get editor record: %v", err)
 			}
-			if got.Details.PremieredAt.Kind != test.wantDate || got.Details.Studios.Kind != test.wantStudio || got.Details.Genres.Kind != test.wantGenres || got.Details.Cover.Kind != test.wantCover {
+			if got.Details.Studios.Kind != test.wantStudio || got.Details.Genres.Kind != test.wantGenres || got.Details.Cover.Kind != test.wantCover {
 				t.Fatalf("nullable kinds mismatch: %+v", got.Details)
 			}
 		})

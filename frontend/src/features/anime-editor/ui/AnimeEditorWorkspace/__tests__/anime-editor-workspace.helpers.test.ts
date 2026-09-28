@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { AnimeCoverEntry } from '../../../../../shared/anime-cover/use-anime-cover';
-import { ANIME_ESTADO_VALID_VALUES } from '../../../../../shared/constants/anime-estado.constants';
 import type { AnimeEditorRecord } from '../../../../../shared/contracts/anime.types';
-import { classifyAnimeEditorEmptyState, createAnimeEditorDraft, createAnimeEditorListItems, createAnimeEditorSaveCommand, getAnimeEditorEstadoColor, hasAnimeEditorChanges, hasSavedAnimeCover, isNearListBottom, nextAnimeEditorRenderLimit, planAnimeEditorCoverRequests, premieredDateInputToMs, premieredMsToDateInput, resolveAnimeEditorFeedbackMessage, toAnimeEditorCoverEntry, toAnimeEditorCoverTargets, toAnimeEditorLifecycleConfirmation, toAnimeEditorListRowViewModels, validateAnimeEditorDraft } from '../anime-editor-workspace.helpers';
 import type { AnimeEditorCoverResult, AnimeEditorListItemViewModel } from '../anime-editor-workspace.types';
+import { ANIME_ESTADO_VALID_VALUES } from '../../../../../shared/constants/anime-estado.constants';
+import { classifyAnimeEditorEmptyState, createAnimeEditorDraft, createAnimeEditorListItems, createAnimeEditorSaveCommand, getAnimeEditorEstadoColor, hasAnimeEditorChanges, hasSavedAnimeCover, isNearListBottom, nextAnimeEditorRenderLimit, planAnimeEditorCoverRequests, resolveAnimeEditorFeedbackMessage, toAnimeEditorCoverEntry, toAnimeEditorCoverTargets, toAnimeEditorLifecycleConfirmation, toAnimeEditorListRowViewModels, validateAnimeEditorDraft } from '../anime-editor-workspace.helpers';
 
 /** Authority fixture every save-command case edits a draft against. */
 const record = {
@@ -44,18 +44,6 @@ describe('anime-editor-workspace.helpers', () => {
     expect(nextAnimeEditorRenderLimit(840, 20, 842)).toBe(842); // never overshoots
   });
 
-  it('round-trips a premiere date between Unix ms and the date input value', () => {
-    const ms = String(Date.parse('2026-04-01T00:00:00.000Z'));
-    expect(premieredMsToDateInput(ms)).toBe('2026-04-01');
-    expect(premieredDateInputToMs('2026-04-01')).toBe(ms);
-  });
-
-  it('treats empty or invalid premiere values as blank', () => {
-    expect(premieredMsToDateInput('')).toBe('');
-    expect(premieredMsToDateInput('not-a-number')).toBe('');
-    expect(premieredDateInputToMs('')).toBe('');
-  });
-
   it('carries the cover source type into the save command when it changes', () => {
     // toEqual, not toMatchObject: `clear` must stay false here. A cover patch that
     // carries a path while claiming to be a removal is rejected by the backend.
@@ -83,6 +71,33 @@ describe('anime-editor-workspace.helpers', () => {
     const draft = createAnimeEditorDraft(record);
     expect(hasAnimeEditorChanges(record, draft)).toBe(false);
     expect(hasAnimeEditorChanges(record, { ...draft, name: 'Frieren X' })).toBe(true);
+  });
+
+  it('rejects a zero or fractional duration so Go and the panel agree on the minimum', () => {
+    // Go rejects duration < 1; without this the panel would let the user type a
+    // value the backend refuses at save time.
+    expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), duration: '0' })).toBe('Duration must be a positive whole number of minutes.');
+    expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), duration: '0.5' })).toBe('Duration must be a positive whole number of minutes.');
+  });
+
+  it('treats a whitespace-only duration as unset and parses a padded number', () => {
+    // The trim is load-bearing: without it a blank string parses to NaN via Number('')
+    // === 0, and a mutant that drops the trim would reject an empty duration.
+    const draft = { ...createAnimeEditorDraft(record), duration: '   ' };
+    expect(validateAnimeEditorDraft(draft)).toBeUndefined();
+    expect(validateAnimeEditorDraft({ ...draft, duration: ' 45 ' })).toBeUndefined();
+  });
+
+  it('rejects a duration that is not a whole number', () => {
+    // parseNullableInteger is load-bearing: Number('abc') < 1 is false, so without
+    // this row a non-numeric duration would reach Go and be refused at save time.
+    expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), duration: 'abc' })).toBe('Duration must be a positive whole number of minutes.');
+  });
+
+  it('accepts one minute and leaves an unset duration alone', () => {
+    const draft = { ...createAnimeEditorDraft(record), duration: '1' };
+    expect(validateAnimeEditorDraft(draft)).toBeUndefined();
+    expect(validateAnimeEditorDraft({ ...draft, duration: '' })).toBeUndefined();
   });
 
   it('builds a changed-fields-only save command', () => {

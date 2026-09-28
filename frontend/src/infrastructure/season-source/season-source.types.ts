@@ -41,6 +41,14 @@ export interface SeasonAnimeRow {
   readonly folderPath?: string;
   /** Source page URL of the created anime; absent/empty when none. */
   readonly pageUrl?: string;
+  /**
+   * The MyAnimeList lookup this row's user confirmed, as stored with the row.
+   * Absent means the row never had one (or its stored payload was unreadable), so
+   * consumers can tell "no record" apart from an empty one. Its fields are the
+   * canonical anime create vocabulary, the same shape {@link SeasonCreateMetadata}
+   * sends when the row is created.
+   */
+  readonly metadata?: SeasonCreateMetadata;
 }
 
 /** One anime card on the season ordering board. */
@@ -58,6 +66,59 @@ export interface OrderingBoard {
   readonly rail: readonly OrderingCard[];
   readonly grid: readonly OrderingCard[];
   readonly appliedAt?: number | null;
+}
+
+/**
+ * The ordering board a season stored when it closed. `recorded` is false when no
+ * board was captured — a season that closed before the closure snapshot existed,
+ * or one whose payload could not be read — so history surfaces can tell "nothing
+ * was recorded" apart from a genuinely empty board instead of rendering an empty
+ * rail and grid as if they were the record.
+ */
+export interface SeasonOrderingSnapshot {
+  readonly recorded: boolean;
+  /** Epoch-ms instant the closure snapshot was captured, when recorded. */
+  readonly capturedAt?: number;
+  /** Epoch-ms instant the stored board's schedule was applied, when it had been. */
+  readonly appliedAt?: number;
+  readonly rail: readonly OrderingCard[];
+  readonly grid: readonly OrderingCard[];
+}
+
+/**
+ * The canonical typed anime cover (`type` + `path`) the anime create contract
+ * uses. A confirmed lookup only has a URL, so a season row carries its cover
+ * with type `'url'` rather than a bare string.
+ */
+export interface SeasonCreateCover {
+  readonly type: string;
+  readonly path: string;
+}
+
+/**
+ * The metadata one intake row may carry into the anime it creates, in the shape
+ * the Go side accepts: numbers are numbers, lists are lists, the cover is the
+ * canonical typed shape, and every member is optional so a field the user never
+ * confirmed is simply absent. The names mirror the canonical anime create
+ * vocabulary in `internal/season/ports.go`.
+ *
+ * Wails does not register a `map[string]Struct` value type in its generated
+ * models, so this type is declared here rather than imported from
+ * `frontend/wailsjs`.
+ *
+ * There is deliberately no title member: the anime's name is its identity, not
+ * metadata. The intake row's raw name is what the anime is created with, so a
+ * confirmed MyAnimeList title must never rename it.
+ */
+export interface SeasonCreateMetadata {
+  /** Canonical content type (0 = Anime (TV), 1 = Película, 2 = Especial, 3 = OVA). */
+  readonly kind?: number;
+  readonly totalEpisodes?: number;
+  readonly durationMinutes?: number;
+  readonly origin?: string;
+  readonly genres?: readonly string[];
+  readonly studios?: readonly string[];
+  readonly cover?: SeasonCreateCover;
 }
 
 /** Result returned after applying the season schedule. */
@@ -106,9 +167,29 @@ export interface SeasonSource {
   readonly skipGrading: (rowId: string) => Promise<string>;
   readonly setConsideration: (rowId: string, consideration: string) => Promise<string>;
   readonly confirmSelection: () => Promise<ConfirmSelectionResult>;
-  readonly createSeasonAnimes: (rowIds: readonly string[], folders: Readonly<Record<string, string>>) => Promise<string>;
+  readonly createSeasonAnimes: (
+    rowIds: readonly string[],
+    folders: Readonly<Record<string, string>>,
+    metadata: Readonly<Record<string, SeasonCreateMetadata>>,
+  ) => Promise<string>;
+  /**
+   * Stores one row's confirmed MyAnimeList metadata, or clears it when the
+   * payload is empty. Required rather than optional: a source that cannot write
+   * would leave the panel claiming a choice it never persisted, and every
+   * implementation (the runtime adapter and the test doubles) must say what it
+   * does here.
+   */
+  readonly setSeasonAnimeMetadata: (rowId: string, metadataJSON: string) => Promise<string>;
   readonly pickFolder: (title: string) => Promise<string>;
   readonly getOrderingBoard: () => Promise<OrderingBoard>;
+  /**
+   * Reads the ordering board stored when a closed season ended. Optional on the
+   * port so pre-existing partial test doubles and degraded sources stay
+   * assignable; the runtime adapter always provides it. A missing read is an
+   * UNAVAILABLE read, never "this season recorded nothing" — the history surface
+   * reports a failure rather than a historical claim it cannot make.
+   */
+  readonly getSeasonOrderingSnapshot?: (seasonId: string) => Promise<SeasonOrderingSnapshot>;
   readonly saveOrderingDraft: (draftJson: string) => Promise<string>;
   readonly applySchedule: () => Promise<ApplyScheduleResult>;
   readonly reopenOrdering: () => Promise<string>;

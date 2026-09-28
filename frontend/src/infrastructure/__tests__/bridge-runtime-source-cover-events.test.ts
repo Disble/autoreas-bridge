@@ -20,7 +20,7 @@ describe('bridge-runtime-source cover and events', () => {
     const patch = {
       page: { present: false, clear: false, value: '' }, folder: { present: false, clear: false, value: '' },
       origin: { present: false, clear: false, value: '' }, duration: { present: false, clear: false, value: '' },
-      kind: { present: false, clear: false, value: '' }, premieredAt: { present: false, clear: false, value: '' },
+      kind: { present: false, clear: false, value: '' },
       cover: { present: false, clear: false, type: '', path: '' },
     };
     const promises = [

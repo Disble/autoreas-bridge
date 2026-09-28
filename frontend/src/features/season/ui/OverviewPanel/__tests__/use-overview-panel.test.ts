@@ -5,6 +5,7 @@ import type { SeasonAnimeRow, SeasonSource } from '../../../../../infrastructure
 import { resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
 import { useOverviewPanel } from '../use-overview-panel';
 
+/** Builds a full SeasonSource test double, overridable per case. */
 function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
   return {
     getSeason: vi.fn().mockResolvedValue({ id: 's1', name: 'Julio 2026', minApprovalGrade: 4, slots: 12, status: 'open', createdAt: 0 }),
@@ -24,6 +25,7 @@ function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     skipGrading: vi.fn().mockResolvedValue('ok'),
     setConsideration: vi.fn().mockResolvedValue('ok'),
     confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 0, rejected: 0, quotaExceeded: false }),
+    setSeasonAnimeMetadata: vi.fn().mockResolvedValue('ok'),
     createSeasonAnimes: vi.fn().mockResolvedValue('ok'),
     pickFolder: vi.fn().mockResolvedValue(''),
     listSeasons: vi.fn().mockResolvedValue([]),
@@ -39,6 +41,7 @@ function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
   };
 }
 
+/** Builds a created season anime row with the given grade and section. */
 function createdRow(id: string, animeId: string, grade: number, section = 'Visto'): SeasonAnimeRow {
   return {
     id,
@@ -81,6 +84,7 @@ describe('useOverviewPanel', () => {
 
     await waitFor(() => expect(result.current.kpi.createdCount).toBe(2));
     expect(result.current.pipeline).toEqual([{ stage: 'pipeline', 'Sin ver': 1, 'Ver hoy': 1, Visto: 0 }]);
+    expect(result.current.selectionOutcome).toEqual([{ dim: 'outcome', Approved: 1, Rejected: 0, 'No grade': 1 }]);
   });
 
   it('passes readOnly and errorMessage through from the store unchanged', async () => {

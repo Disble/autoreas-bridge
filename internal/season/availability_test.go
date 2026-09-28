@@ -286,7 +286,7 @@ func TestCreateSeasonAnimesCreatesLinksAndGuards(t *testing.T) {
 	seedMatched(t, svc, repo, season.ID, "sa-b", "Anime B", "https://jkanime.net/b/") // waiting
 	mkAvail("sa-c", "Anime C", "https://jkanime.net/c/")
 
-	res, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a", "sa-b", "sa-c"}, "", nil)
+	res, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a", "sa-b", "sa-c"}, "", nil, nil)
 	if err != nil {
 		t.Fatalf("CreateSeasonAnimes: %v", err)
 	}
@@ -309,7 +309,7 @@ func TestCreateSeasonAnimesCreatesLinksAndGuards(t *testing.T) {
 		t.Fatalf("exactly one create into Sin ver expected, got %+v", gateway.created)
 	}
 	if gateway.created[0].Tipo == nil || *gateway.created[0].Tipo != 0 {
-		t.Fatalf("created anime must carry default tipo=0 (Serie / Anime TV), got %#v", gateway.created[0].Tipo)
+		t.Fatalf("created anime must carry default tipo=0 (Anime (TV)), got %#v", gateway.created[0].Tipo)
 	}
 	if len(res.Created) != 2 {
 		t.Fatalf("expected 2 created names (A, C), got %v", res.Created)
@@ -340,7 +340,7 @@ func TestCreateSeasonAnimesDerivesDownloadFolder(t *testing.T) {
 	override := filepath.Join("E:", "Custom", "Naruto S2")
 	overrides := map[string]string{"sa-b": override}
 
-	if _, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a", "sa-b", "sa-c"}, root, overrides); err != nil {
+	if _, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a", "sa-b", "sa-c"}, root, overrides, nil); err != nil {
 		t.Fatalf("CreateSeasonAnimes: %v", err)
 	}
 
@@ -373,10 +373,10 @@ func TestCreateSeasonAnimesIsIdempotent(t *testing.T) {
 	sa.Availability = domain.AvailabilityAvailable
 	_ = repo.CreateSeasonAnime(ctx, sa)
 
-	if _, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a"}, "", nil); err != nil {
+	if _, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a"}, "", nil, nil); err != nil {
 		t.Fatalf("first create: %v", err)
 	}
-	res, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a"}, "", nil)
+	res, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a"}, "", nil, nil)
 	if err != nil {
 		t.Fatalf("second create: %v", err)
 	}
@@ -387,7 +387,170 @@ func TestCreateSeasonAnimesIsIdempotent(t *testing.T) {
 
 func TestCreateSeasonAnimesRequiresGateway(t *testing.T) {
 	svc := newTestService(newFakeRepo())
-	if _, err := svc.CreateSeasonAnimes(context.Background(), []string{"sa-a"}, "", nil); err == nil {
+	if _, err := svc.CreateSeasonAnimes(context.Background(), []string{"sa-a"}, "", nil, nil); err == nil {
 		t.Fatal("CreateSeasonAnimes without a gateway must error")
+	}
+}
+
+// confirmedAnimeMetadata is one fully-confirmed MyAnimeList lookup: every field
+// an intake row can carry into its new anime. The title is absent by design — the
+// row's raw name is the anime's name.
+func confirmedAnimeMetadata() AnimeCreateMetadata {
+	kind, total, duration := 2, 24, 45
+	return AnimeCreateMetadata{
+		Kind:            &kind,
+		TotalEpisodes:   &total,
+		DurationMinutes: &duration,
+		Origin:          "Manga",
+		Genres:          []string{"Adventure", "Drama"},
+		Studios:         []string{"Madhouse"},
+		Cover:           &AnimeCreateCover{Type: "url", Path: "https://cdn.myanimelist.net/images/anime/frieren.jpg"},
+	}
+}
+
+// seedAvailable adds a matched, AVAILABLE intake row (episode 1 is online), the
+// only state CreateSeasonAnimes ever acts on.
+func seedAvailable(t *testing.T, svc *Service, repo *fakeRepo, seasonID, id, name, slug string) {
+	t.Helper()
+	sa := domain.NewSeasonAnime(id, seasonID, name, svc.now())
+	sa.MatchStatus = domain.MatchMatched
+	sa.MatchedSlug = slug
+	sa.Availability = domain.AvailabilityAvailable
+	sa.AvailableEpisodes = 1
+	if err := repo.CreateSeasonAnime(context.Background(), sa); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+}
+
+// Creating a row without confirmed metadata must build exactly the create input
+// this path built before metadata existed: same name, page, section, folder and
+// default tipo, and no metadata pointer at all.
+func TestCreateSeasonAnimesWithoutMetadataCreatesUnchangedInput(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	gateway := &fakeGateway{}
+	svc.SetAvailabilityDeps(&fakeProbe{}, gateway)
+
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+	seedAvailable(t, svc, repo, season.ID, "sa-a", "Frieren", "https://jkanime.net/frieren/")
+
+	if _, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a"}, filepath.Join("D:", "Anime"), nil, nil); err != nil {
+		t.Fatalf("CreateSeasonAnimes: %v", err)
+	}
+
+	if len(gateway.created) != 1 {
+		t.Fatalf("creates = %d, want 1", len(gateway.created))
+	}
+	defaultTipo := defaultAnimeType
+	want := AnimeCreateInput{
+		Nombre:  "Frieren",
+		Pagina:  "https://jkanime.net/frieren/",
+		Section: sinVerSection,
+		Carpeta: filepath.Join("D:", "Anime", "Frieren"),
+		Tipo:    &defaultTipo,
+	}
+	if got := gateway.created[0]; !reflect.DeepEqual(got, want) {
+		t.Fatalf("create input = %#v, want %#v", got, want)
+	}
+}
+
+// Each intake row carries only ITS OWN confirmed metadata, and a row with none
+// creates exactly what it creates today. The row's raw name, matched page and
+// resolved folder always win over anything the lookup confirmed.
+func TestCreateSeasonAnimesCarriesPerRowMetadataToTheGateway(t *testing.T) {
+	confirmed := confirmedAnimeMetadata()
+	emptyMetadata := AnimeCreateMetadata{}
+
+	tests := []struct {
+		name         string
+		metadata     map[string]AnimeCreateMetadata
+		wantMetadata *AnimeCreateMetadata
+	}{
+		{name: "no metadata lookup", metadata: nil},
+		{name: "empty lookup", metadata: map[string]AnimeCreateMetadata{}},
+		{name: "lookup entry for another row", metadata: map[string]AnimeCreateMetadata{"sa-other": confirmed}},
+		{name: "entry that confirmed nothing for the created row", metadata: map[string]AnimeCreateMetadata{"sa-a": {}}, wantMetadata: &emptyMetadata},
+		{name: "confirmed entry for the created row", metadata: map[string]AnimeCreateMetadata{"sa-a": confirmed}, wantMetadata: &confirmed},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assertSeasonAnimeCreateCarriesMetadata(t, test.metadata, test.wantMetadata)
+		})
+	}
+}
+
+// assertSeasonAnimeCreateCarriesMetadata creates the fixture's one available row
+// with the given per-row lookup and asserts the gateway received exactly the
+// expected metadata while the user's own name, page and folder still won.
+func assertSeasonAnimeCreateCarriesMetadata(t *testing.T, metadata map[string]AnimeCreateMetadata, wantMetadata *AnimeCreateMetadata) {
+	t.Helper()
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	gateway := &fakeGateway{}
+	svc.SetAvailabilityDeps(&fakeProbe{}, gateway)
+
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+	seedAvailable(t, svc, repo, season.ID, "sa-a", "Frieren", "https://jkanime.net/frieren/")
+	folderOverride := filepath.Join("E:", "Anime", "Frieren")
+
+	if _, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a"}, "", map[string]string{"sa-a": folderOverride}, metadata); err != nil {
+		t.Fatalf("CreateSeasonAnimes: %v", err)
+	}
+	if len(gateway.created) != 1 {
+		t.Fatalf("creates = %d, want 1", len(gateway.created))
+	}
+	got := gateway.created[0]
+	if !reflect.DeepEqual(got.Metadata, wantMetadata) {
+		t.Fatalf("gateway metadata = %#v, want %#v", got.Metadata, wantMetadata)
+	}
+	if got.Nombre != "Frieren" {
+		t.Fatalf("created name = %q, want the row's raw name", got.Nombre)
+	}
+	if got.Pagina != "https://jkanime.net/frieren/" || got.Section != sinVerSection {
+		t.Fatalf("page/section = %q/%q, want the matched page in %q", got.Pagina, got.Section, sinVerSection)
+	}
+	if got.Carpeta != folderOverride {
+		t.Fatalf("folder = %q, want the user's override %q", got.Carpeta, folderOverride)
+	}
+	if got.Tipo == nil || *got.Tipo != defaultAnimeType {
+		t.Fatalf("tipo = %#v, want the season default %d", got.Tipo, defaultAnimeType)
+	}
+}
+
+// A metadata entry for a row this run does not create (waiting, linked to an
+// existing anime, or an id no row matches) must never leak into the create of a
+// row that IS created.
+func TestCreateSeasonAnimesIgnoresMetadataForRowsItDoesNotCreate(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	gateway := &fakeGateway{existingByPagina: map[string]string{"https://jkanime.net/linked/": "existing-anime"}}
+	svc.SetAvailabilityDeps(&fakeProbe{}, gateway)
+
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+	seedAvailable(t, svc, repo, season.ID, "sa-a", "Frieren", "https://jkanime.net/frieren/")
+	seedMatched(t, svc, repo, season.ID, "sa-waiting", "Dandadan", "https://jkanime.net/dandadan/")
+	seedAvailable(t, svc, repo, season.ID, "sa-linked", "Linked", "https://jkanime.net/linked/")
+
+	metadata := map[string]AnimeCreateMetadata{
+		"sa-waiting": confirmedAnimeMetadata(),
+		"sa-linked":  confirmedAnimeMetadata(),
+		"sa-unknown": confirmedAnimeMetadata(),
+	}
+	if _, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a", "sa-waiting", "sa-linked", "sa-unknown"}, "", nil, metadata); err != nil {
+		t.Fatalf("CreateSeasonAnimes: %v", err)
+	}
+
+	if len(gateway.created) != 1 {
+		t.Fatalf("creates = %d, want only the available unlinked row", len(gateway.created))
+	}
+	if got := gateway.created[0]; got.Pagina != "https://jkanime.net/frieren/" || got.Metadata != nil {
+		t.Fatalf("metadata of a row that was not created leaked into the create: %#v", got)
+	}
+	if linked := findRow(t, svc, season.ID, "sa-linked"); linked.AnimeID != "existing-anime" || linked.Availability != domain.AvailabilityCreated {
+		t.Fatalf("the linked row must keep linking instead of creating: %+v", linked)
 	}
 }

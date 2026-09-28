@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"encoding/json"
 	"time"
 
 	"autoreas-bridge/internal/api/contracts"
@@ -27,7 +28,25 @@ func seasonAnimeToDTO(r domain.SeasonAnime) SeasonAnimeDTO {
 		RatedAt:           millisPtrDTO(r.RatedAt),
 		SkipGrading:       r.SkipGrading,
 		Consideration:     string(r.Consideration),
+		Metadata:          decodeSeasonAnimeMetadata(r.MetadataJSON),
 	}
+}
+
+// decodeSeasonAnimeMetadata projects a row's opaque stored payload into the
+// canonical metadata DTO, or nil when none was recorded (the empty string is the
+// storage's own sentinel) or the payload cannot be read. A corrupt payload
+// degrades THIS row to "not recorded" instead of failing the whole intake read:
+// the stored lookup is a display convenience, and hiding the entire list behind
+// one bad row would cost far more than the values it carries.
+func decodeSeasonAnimeMetadata(stored string) *SeasonAnimeMetadataDTO {
+	if stored == "" {
+		return nil
+	}
+	var decoded SeasonAnimeMetadataDTO
+	if err := json.Unmarshal([]byte(stored), &decoded); err != nil {
+		return nil
+	}
+	return &decoded
 }
 
 // seasonToDTO projects a domain season into the Wails DTO.

@@ -7,8 +7,8 @@ import type { AnimeEditorDraft } from './anime-editor-workspace.types';
  * into a patch against the editor's own draft, applied through the same
  * channel the user's own typing uses. Every field is read from an explicit
  * allow-list, so Download page (`page`), Folder (`folder`), Watched episodes
- * (`progress`), the watching estado (`status`), and premiere date
- * (`premieredAt`) -- the form's five protected fields -- have no code path
+ * (`progress`), and the watching estado (`status`) -- the form's four protected
+ * fields -- have no code path
  * into the returned patch at all (non-negotiable #7, Editor half). MyAnimeList's
  * airing `Status:` never reaches `selection` in the first place -- it is
  * discarded one package upstream, in `internal/myanimelist/detail.go` -- so

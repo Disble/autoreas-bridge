@@ -138,12 +138,15 @@ type AnimePatchResult struct {
 	ConflictID string
 }
 
-// UpdateCommand mutates one decoded domain anime before writeback.
+// UpdateCommand mutates one decoded domain anime before writeback. Mutate
+// receives whether the gateway synthesized a missing record for this write, so
+// a mutation can distinguish a genuine transition from a first observation of
+// an anime that had no local state yet.
 type UpdateCommand struct {
 	AnimeID         string
 	Base            *int64
 	CreateIfMissing bool
-	Mutate          func(*domain.Anime)
+	Mutate          func(*domain.Anime, bool)
 }
 
 // UpdateRawCommand mutates one decoded legacy wire record before writeback.

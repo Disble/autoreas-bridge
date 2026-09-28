@@ -1,17 +1,40 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SeasonSnapshot, SeasonSource } from '../../../infrastructure/season-source/season-source.types';
-import { getSeasonStoreState, resetSeasonStore } from '../season-store/season-store.helpers';
+import { getSeasonStoreState, isSeasonOpen, resetSeasonStore, setSeasonStoreState } from '../season-store/season-store.helpers';
 
-it('keeps the intake helper outside the main store module', async () => {
+/**
+ * Guards the store module boundary: the hook module composes the store through
+ * `useSeasonStore` and declares no intake plumbing of its own, so the plumbing and
+ * the store value stay in the store module they belong to.
+ */
+it('keeps the intake command helper out of the hook module', async () => {
   const { readFileSync } = await import('node:fs');
   const { join } = await import('node:path');
-  const storePath = join(process.cwd(), 'src/shared/store/season-store/season-store.ts');
-  const sourceText = readFileSync(storePath, 'utf8');
+  const hookModulePath = join(process.cwd(), 'src/shared/store/season-store/season-store.ts');
+  const sourceText = readFileSync(hookModulePath, 'utf8');
 
   expect(sourceText).not.toMatch(/async function\s+runIntakeCommand\b/);
 });
 
+/**
+ * Guards the single-instance contract after the store value moved into
+ * `season-store.store.ts`: the helpers accessors must read and write exactly the
+ * instance the store module declares, or subscribers and tests would drift onto
+ * two stores.
+ */
+it('shares one store instance between the store module and the helpers accessors', async () => {
+  const { seasonStore } = await import('../season-store/season-store.store');
+
+  setSeasonStoreState({ hasLoaded: true });
+
+  expect(seasonStore.getState().hasLoaded).toBe(true);
+  expect(getSeasonStoreState()).toBe(seasonStore.getState());
+
+  resetSeasonStore();
+});
+
+/** Builds a season snapshot with the fields under test, open unless overridden. */
 function makeSeason(overrides: Partial<SeasonSnapshot> = {}): SeasonSnapshot {
   return {
     id: 'season-1',
@@ -24,6 +47,7 @@ function makeSeason(overrides: Partial<SeasonSnapshot> = {}): SeasonSnapshot {
   };
 }
 
+/** Builds a season port stand-in whose calls all succeed, with per-test overrides. */
 function makeSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
   return {
     getSeason: vi.fn().mockResolvedValue(makeSeason()),
@@ -43,6 +67,7 @@ function makeSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     skipGrading: vi.fn().mockResolvedValue('ok'),
     setConsideration: vi.fn().mockResolvedValue('ok'),
     confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 0, rejected: 0, quotaExceeded: false }),
+    setSeasonAnimeMetadata: vi.fn().mockResolvedValue('ok'),
     createSeasonAnimes: vi.fn().mockResolvedValue('ok'),
     pickFolder: vi.fn().mockResolvedValue(''),
     listSeasons: vi.fn().mockResolvedValue([]),
@@ -57,6 +82,29 @@ function makeSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     ...overrides,
   };
 }
+
+/** One row of the shared open-season predicate table: snapshot in, answer out. */
+type SeasonOpenCase = {
+  /** Name of the snapshot case the row feeds the predicate. */
+  readonly name: string;
+  /** Snapshot the shared store would hold for that case. */
+  readonly season: SeasonSnapshot | null;
+  /** Answer the shared predicate must give. */
+  readonly expected: boolean;
+};
+
+/** Truth table of the shared open-season predicate, one row per loadable state. */
+const SEASON_OPEN_CASES: readonly SeasonOpenCase[] = [
+  { name: 'the live open season', season: makeSeason(), expected: true },
+  { name: 'a closed historical season', season: makeSeason({ status: 'closed' }), expected: false },
+  { name: 'no loaded snapshot at all', season: null, expected: false },
+];
+
+describe('isSeasonOpen', () => {
+  it.each(SEASON_OPEN_CASES)('reports $name as $expected', ({ season, expected }) => {
+    expect(isSeasonOpen(season)).toBe(expected);
+  });
+});
 
 describe('useSeasonStore', () => {
   beforeEach(() => {
@@ -196,10 +244,10 @@ describe('useSeasonStore', () => {
     expect(source.getSeasonAnimes).toHaveBeenCalled();
   });
 
-  it('createSeasonAnimes delegates the picked rows and refreshes', async () => {
+  it('createSeasonAnimes delegates the picked rows, their metadata and a refresh', async () => {
     const source = makeSource();
-    await getSeasonStoreState().createSeasonAnimes(source, ['sa-1', 'sa-2'], {});
-    expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1', 'sa-2'], {});
+    await getSeasonStoreState().createSeasonAnimes(source, ['sa-1', 'sa-2'], {}, { 'sa-1': { totalEpisodes: 24 } });
+    expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1', 'sa-2'], {}, { 'sa-1': { totalEpisodes: 24 } });
     expect(source.getSeasonAnimes).toHaveBeenCalled();
   });
 
@@ -214,6 +262,35 @@ describe('useSeasonStore', () => {
     resolveRun('ok');
     await pending;
     expect(getSeasonStoreState().busyMessage).toBeUndefined();
+  });
+
+  it('createSeasonAnimes reports the creating state and its own fallback on a silent failure', async () => {
+    let resolveCreate: (value: string) => void = () => {};
+    const createSeasonAnimes = vi.fn(() => new Promise<string>((resolve) => { resolveCreate = resolve; }));
+    const source = makeSource({ createSeasonAnimes });
+
+    const pending = getSeasonStoreState().createSeasonAnimes(source, ['sa-1'], {}, { 'sa-1': { totalEpisodes: 24 } });
+    // The panel shows this while the batch runs; without it a long create looks frozen.
+    expect(getSeasonStoreState().busyMessage).toBe('Creating animes…');
+
+    // An empty status is a failure, so the store must surface its own message
+    // rather than leaving the user with a blank error.
+    resolveCreate('');
+    await pending;
+    expect(getSeasonStoreState().busyMessage).toBeUndefined();
+    expect(getSeasonStoreState().errorMessage).toBe('Failed to create animes');
+  });
+
+
+  it('setSeasonAnimeMetadata delegates the row write and surfaces its own fallback', async () => {
+    const source = makeSource({ setSeasonAnimeMetadata: vi.fn().mockResolvedValue('') });
+
+    await getSeasonStoreState().setSeasonAnimeMetadata(source, 'sa-1', '{kind:0}');
+
+    expect(source.setSeasonAnimeMetadata).toHaveBeenCalledWith('sa-1', '{kind:0}');
+    // An empty status is a failure, so the store must say so rather than leaving
+    // the user believing a wrong lookup was cleared.
+    expect(getSeasonStoreState().errorMessage).toBe('Failed to save metadata');
   });
 
   it('confirmSelection refreshes season + rows and returns the result on success', async () => {
@@ -302,6 +379,10 @@ describe('useSeasonStore', () => {
     expect(state.readOnly).toBe(true);
     expect(state.season?.id).toBe('s-old');
     expect(state.seasonAnimes).toHaveLength(1);
+    // The shared predicate is the contract the Today banner, nav badge and rating
+    // gate read: a season opened from history is loaded, but never open.
+    expect(state.season?.status).toBe('closed');
+    expect(isSeasonOpen(state.season)).toBe(false);
   });
 
   it('while viewing a past season, refresh and refreshAnimes never touch the active season', async () => {
@@ -330,7 +411,7 @@ describe('useSeasonStore', () => {
     const store = getSeasonStoreState();
     await store.runMatching(source);
     await store.discardName(source, 'sa-1');
-    await store.createSeasonAnimes(source, ['sa-1'], {});
+    await store.createSeasonAnimes(source, ['sa-1'], {}, {});
     await store.setGrade(source, 'anime-1', 5);
     await store.setConsideration(source, 'sa-1', 'in');
     await store.recheckAvailability(source);

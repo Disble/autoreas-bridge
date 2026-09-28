@@ -6,7 +6,7 @@ import { LabeledTextField } from '../../../../shared/ui/LabeledTextField';
 import { PathPickerField } from '../../../../shared/ui/PathPickerField';
 import { AnimeEditorHeaderCover } from './AnimeEditorHeaderCover';
 import { ANIME_EDITOR_COVER_TYPE_OPTIONS, ANIME_EDITOR_KIND_OPTIONS, ANIME_EDITOR_REPEAT_LABEL, ANIME_EDITOR_RESTORE_LABEL, ANIME_EDITOR_STATUS_OPTIONS } from './anime-editor-workspace.constants';
-import { getAnimeEditorEstadoColor, premieredDateInputToMs, premieredMsToDateInput } from './anime-editor-workspace.helpers';
+import { getAnimeEditorEstadoColor } from './anime-editor-workspace.helpers';
 import type { AnimeEditorFormPanelProps } from './anime-editor-workspace.types';
 
 /** Renders frequent fields, collapsed metadata, and sticky lifecycle-safe actions. */
@@ -134,7 +134,6 @@ export function AnimeEditorFormPanel({ viewModel }: Readonly<AnimeEditorFormPane
               <Disclosure.Body className="grid gap-4 pt-4 md:grid-cols-2">
                 <LabeledTextField label="Duration" min={1} placeholder="Minutes per episode" type="number" value={viewModel.draft.duration} onChange={(value) => viewModel.onDraftChange('duration', value)} />
                 <LabeledTextField label="Origin" placeholder="e.g. Manga, Light novel" value={viewModel.draft.origin} onChange={(value) => viewModel.onDraftChange('origin', value)} />
-                <LabeledTextField description="When the anime first aired." label="Premiere date" type="date" value={premieredMsToDateInput(viewModel.draft.premieredAt)} onChange={(value) => viewModel.onDraftChange('premieredAt', premieredDateInputToMs(value))} />
                 <div className="grid gap-4 md:col-span-2 md:grid-cols-[10rem_1fr]">
                   <LabeledSelect
                     ariaLabel="Cover source"

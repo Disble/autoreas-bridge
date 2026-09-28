@@ -60,7 +60,6 @@ type EditorPatch struct {
 	Folder          EditorNullableStringPatch
 	Origin          EditorNullableStringPatch
 	Duration        EditorNullableIntPatch
-	PremieredAt     EditorNullableTimePatch
 	Genres          *[]string
 	Placements      *[]contracts.MobileAnimeDay
 	Active          *bool
@@ -180,7 +179,6 @@ func toLegacyEditorMutation(patch EditorPatch) store.EditorMutation {
 		Folder:        toLegacyNullableStringMutation(patch.Folder),
 		Origin:        toLegacyNullableStringMutation(patch.Origin),
 		Duration:      toLegacyNullableIntMutation(patch.Duration),
-		PremieredAt:   store.NullableTimeMutation{Present: patch.PremieredAt.Present, Clear: patch.PremieredAt.Clear, UnixMilli: patch.PremieredAt.UnixMilli},
 		Genres:        patch.Genres,
 		Placements:    patch.Placements,
 		Active:        patch.Active,

@@ -1,6 +1,7 @@
 import type {
   ConfirmSelectionResult,
   SeasonAnimeRow,
+  SeasonCreateMetadata,
   SeasonSnapshot,
   SeasonSource,
   SendToVerHoyResult,
@@ -35,7 +36,9 @@ export type SeasonStoreState = {
     source: SeasonSource,
     rowIds: readonly string[],
     folders: Readonly<Record<string, string>>,
+    metadata: Readonly<Record<string, SeasonCreateMetadata>>,
   ) => Promise<void>;
+  readonly setSeasonAnimeMetadata: (source: SeasonSource, rowId: string, metadataJSON: string) => Promise<void>;
   readonly recheckAvailability: (source: SeasonSource) => Promise<void>;
   readonly viewSeasonId: string | null;
   readonly readOnly: boolean;

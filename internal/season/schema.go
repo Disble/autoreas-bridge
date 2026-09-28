@@ -20,6 +20,7 @@ const (
 			applied_at INTEGER,
 			closed_at INTEGER,
 			ordering_draft_json TEXT NOT NULL DEFAULT '',
+			closure_json TEXT,
 			created_at INTEGER NOT NULL
 		)`
 	// seasonsSingleOpenIndexDDL enforces the aggregate invariant "at most one
@@ -29,6 +30,10 @@ const (
 
 	// SDD-46 added the ordering draft (scratch weekday-placement JSON).
 	seasonsOrderingDraftDDL = `ALTER TABLE seasons ADD COLUMN ordering_draft_json TEXT NOT NULL DEFAULT ''`
+	// P3 added the closure snapshot: the ACTUAL ordering board captured at the
+	// moment a season closes. Nullable on purpose with no default, so a legacy
+	// row stays SQL NULL ("not captured") instead of a false empty snapshot.
+	seasonsClosureDDL = `ALTER TABLE seasons ADD COLUMN closure_json TEXT`
 
 	seasonAnimesDDL = `
 		CREATE TABLE IF NOT EXISTS season_animes (
@@ -48,6 +53,7 @@ const (
 			rated_at INTEGER,
 			skip_grading INTEGER NOT NULL DEFAULT 0,
 			consideration TEXT NOT NULL DEFAULT 'none',
+			metadata_json TEXT,
 			last_checked_at INTEGER,
 			created_at INTEGER NOT NULL
 		)`
@@ -76,6 +82,11 @@ const (
 	// available_episodes fresh instead (see migrateSeasonAnimes).
 	seasonAnimesAvailableEpisodesDDL      = `ALTER TABLE season_animes RENAME COLUMN available_chapters TO available_episodes`
 	seasonAnimesAvailableEpisodesFreshDDL = `ALTER TABLE season_animes ADD COLUMN available_episodes INTEGER NOT NULL DEFAULT 0`
+
+	// P5b added the per-row confirmed MyAnimeList metadata. Nullable on purpose
+	// with no default, so a row that never had a lookup stays SQL NULL
+	// ("not recorded") instead of a false empty record.
+	seasonAnimesMetadataJSONDDL = `ALTER TABLE season_animes ADD COLUMN metadata_json TEXT`
 )
 
 // seasonAnimesColumnAdds are the additive, order-independent column migrations
@@ -89,6 +100,7 @@ var seasonAnimesColumnAdds = []persistence.ColumnMigration{
 	{Column: "rated_at", AlterDDL: seasonAnimesRatedAtDDL},
 	{Column: "skip_grading", AlterDDL: seasonAnimesSkipGradingDDL},
 	{Column: "consideration", AlterDDL: seasonAnimesConsiderationDDL},
+	{Column: "metadata_json", AlterDDL: seasonAnimesMetadataJSONDDL},
 }
 
 // migrateSeasonAnimes applies season_animes's additive column migrations, then
@@ -140,6 +152,7 @@ func SchemaTables() []persistence.TableSchema {
 			CreateDDL: seasonsDDL,
 			ColumnAdds: []persistence.ColumnMigration{
 				{Column: "ordering_draft_json", AlterDDL: seasonsOrderingDraftDDL},
+				{Column: "closure_json", AlterDDL: seasonsClosureDDL},
 			},
 			Indexes: []string{seasonsSingleOpenIndexDDL},
 		},

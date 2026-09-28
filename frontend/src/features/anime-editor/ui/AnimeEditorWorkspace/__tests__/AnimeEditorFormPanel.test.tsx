@@ -28,8 +28,8 @@ function createViewModel(overrides: Partial<AnimeEditorWorkspaceViewModel> = {})
     query: '', filter: 'watching', items: [],
     listWindow: { scrollRef: { current: null }, onScroll: vi.fn(), visibleCount: 0 },
     selectedAnimeId: 'anime-1',
-    selectedRecord: { animeId: 'anime-1', modifiedAt: 1, frequent: { name: 'Frieren', status: 0, progress: 12, totalEpisodes: 28, active: true, kind: 1, page: 'https://x', folder: 'D:/a', placements: [] }, details: { genres: [], studios: { kind: 'values', values: [] }, origin: 'Manga', duration: 24, premieredAt: 1775968858358, cover: { type: 'url', path: 'https://c.jpg' } } } as unknown as AnimeEditorWorkspaceViewModel['selectedRecord'],
-    draft: { name: 'Frieren', status: 0, progress: '12', totalEpisodes: '28', kind: '1', page: 'https://x', folder: 'D:/a', premieredAt: '1775968858358', origin: 'Manga', duration: '24', genres: '', studios: '', coverType: 'url', coverPath: 'https://c.jpg' },
+    selectedRecord: { animeId: 'anime-1', modifiedAt: 1, frequent: { name: 'Frieren', status: 0, progress: 12, totalEpisodes: 28, active: true, kind: 1, page: 'https://x', folder: 'D:/a', placements: [] }, details: { genres: [], studios: { kind: 'values', values: [] }, origin: 'Manga', duration: 24, cover: { type: 'url', path: 'https://c.jpg' } } } as unknown as AnimeEditorWorkspaceViewModel['selectedRecord'],
+    draft: { name: 'Frieren', status: 0, progress: '12', totalEpisodes: '28', kind: '1', page: 'https://x', folder: 'D:/a', origin: 'Manga', duration: '24', genres: '', studios: '', coverType: 'url', coverPath: 'https://c.jpg' },
     appliedMetadata: undefined,
     cover: { status: 'placeholder' },
     metadataLookupSource: fakeMetadataLookupSource(),
@@ -215,6 +215,16 @@ describe('AnimeEditorFormPanel spurious-dirty guard', () => {
     fireEvent.click(screen.getByRole('option', { name: 'Image' }));
 
     expect(onDraftChange).toHaveBeenCalledWith('coverType', 'image');
+  });
+
+  it('never offers a Premiere date input, because the first watch date is derived, never authored', () => {
+    // premieredAt is set by the backend on the first zero-to-positive watched
+    // progress transition; authoring it here would let the UI overwrite it.
+    const viewModel = createViewModel({ isDetailsOpen: true });
+
+    render(<AnimeEditorFormPanel viewModel={viewModel} />);
+
+    expect(screen.queryByLabelText('Premiere date')).not.toBeInTheDocument();
   });
 });
 

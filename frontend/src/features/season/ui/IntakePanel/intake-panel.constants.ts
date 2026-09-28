@@ -1,3 +1,5 @@
+import type { IntakeMetadataPatch } from './intake-panel.types';
+
 /** Readable labels for each intake match status. */
 export const MATCH_STATUS_LABELS: Readonly<Record<string, string>> = {
   pending: 'Pending',
@@ -15,3 +17,19 @@ export const INTAKE_EMPTY_MESSAGE = 'Paste the season intake list to begin.';
 export const INTAKE_RECONCILE_DEBOUNCE_MS = 600;
 /** Native folder-picker dialog title for a per-anime download folder override. */
 export const INTAKE_FOLDER_PICKER_TITLE = 'Choose download folder for this anime';
+/**
+ * Readable labels for the metadata fields a confirmed MyAnimeList lookup can
+ * attach to an intake row, used by the row's one-line applied summary. Typed by
+ * `keyof IntakeMetadataPatch` on purpose: a new field on the held metadata
+ * cannot be added without also deciding how the row words it.
+ */
+export const INTAKE_METADATA_FIELD_LABELS: Readonly<Record<keyof IntakeMetadataPatch, string>> = {
+  name: 'Name',
+  kind: 'Type',
+  totalEpisodes: 'Episodes',
+  duration: 'Duration',
+  origin: 'Origin',
+  genres: 'Genres',
+  studios: 'Studios',
+  coverURL: 'Cover',
+};

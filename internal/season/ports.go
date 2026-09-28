@@ -76,6 +76,47 @@ type AvailabilityReader interface {
 	AvailableEpisodes(ctx context.Context, pageURL string) (int, error)
 }
 
+// AnimeCreateCover is the canonical typed anime cover ({type, path}) the anime
+// create contract uses. A confirmed intake cover travels as this shape instead of
+// a bare URL, so the season gateway forwards the cover's type as-is rather than
+// synthesizing one of its own.
+type AnimeCreateCover struct {
+	Type string `json:"type"`
+	Path string `json:"path"`
+}
+
+// AnimeCreateMetadata is the optional, user-confirmed MyAnimeList metadata one
+// intake row may carry into the anime it creates. Every member is optional: a
+// nil pointer, an empty string or an empty list means "the user confirmed
+// nothing here", and the created anime keeps exactly the value it would have
+// had without any metadata at all.
+//
+// The field names and the cover's typed {type, path} shape are the canonical
+// anime create vocabulary — the same keys
+// internal/anime/store.NewCanonicalCreate writes — so a value confirmed here
+// lands in the created anime unchanged. internal/desktop/app_season_test.go pins
+// that parity, because this package must not import internal/anime.
+//
+// There is deliberately no title member: the anime's name is its identity, not
+// metadata. The intake row's raw name — what the user typed — is what the anime
+// is created with, so a confirmed MyAnimeList title must never rename it.
+type AnimeCreateMetadata struct {
+	// Kind is the canonical content type (0 = Anime (TV), 1 = Película, 2 = Especial, 3 = OVA).
+	Kind *int `json:"kind,omitempty"`
+	// TotalEpisodes is the announced episode count.
+	TotalEpisodes *int `json:"totalEpisodes,omitempty"`
+	// DurationMinutes is one episode's duration in minutes.
+	DurationMinutes *int `json:"durationMinutes,omitempty"`
+	// Origin is the source work's origin label (manga, novel, original, ...).
+	Origin string `json:"origin,omitempty"`
+	// Genres and Studios are the confirmed lists; nil means none were confirmed.
+	Genres  []string `json:"genres,omitempty"`
+	Studios []string `json:"studios,omitempty"`
+	// Cover is the confirmed cover in the canonical typed shape; nil means none
+	// was confirmed.
+	Cover *AnimeCreateCover `json:"cover,omitempty"`
+}
+
 // AnimeCreateInput is the season-side projection of what a new anime needs; the
 // AnimeGateway maps it to the anime context's create contract and computes the
 // next free orden within Section (an anime-side concern).
@@ -86,9 +127,13 @@ type AnimeCreateInput struct {
 	// Carpeta is the absolute download folder for the new anime. Empty means the
 	// record is created without a carpeta (downloads skip it until one is set).
 	Carpeta string
-	// Tipo is the legacy content type (0 = Serie / Anime TV, 1 = Pelicula, 2 = OVA).
-	// Nil omits the field, which is why season creation always sets a default.
+	// Tipo is the canonical content type (0 = Anime (TV), 1 = Película, 2 = Especial,
+	// 3 = OVA). Nil omits the field, which is why season creation always sets a default.
 	Tipo *int
+	// Metadata is the optional, user-confirmed MyAnimeList metadata for this row.
+	// Nil (or an all-empty value) creates exactly the anime this input describes
+	// without metadata.
+	Metadata *AnimeCreateMetadata
 }
 
 // AnimeGateway is the narrow port into the anime context: it creates an anime

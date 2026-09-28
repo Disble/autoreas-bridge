@@ -25,7 +25,7 @@ export interface AnimeWatchEpisodesState {
 /** Dashed pre-log summary dates for one watch that closed before the watch-history log began. */
 export interface AnimeWatchSummary {
   readonly started: string;
-  readonly premiere: string;
+  readonly firstWatched: string;
   readonly lastWatched: string;
   readonly ended: string;
 }

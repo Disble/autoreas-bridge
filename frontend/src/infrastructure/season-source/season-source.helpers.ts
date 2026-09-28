@@ -10,6 +10,7 @@ import {
   GetSeason,
   GetSeasonAnimes,
   GetSeasonOrderingBoard,
+  GetSeasonOrderingSnapshot,
   ListSeasons,
   PickFolder,
   RecheckSeasonAvailability,
@@ -22,6 +23,7 @@ import {
   SetAnimeDays,
   SetSeasonConsideration,
   SetSeasonGrade,
+  SetSeasonAnimeMetadata,
   SetSeasonMinApprovalGrade,
   SetSeasonSlots,
   SkipSeasonGrading,
@@ -35,7 +37,7 @@ import {
   SEASON_SEND_UNAVAILABLE,
   SEASON_SOURCE_STATE,
 } from './season-source.constants';
-import type { SeasonSource } from './season-source.types';
+import type { SeasonCreateMetadata, SeasonOrderingSnapshot, SeasonSource } from './season-source.types';
 import { hasGoBinding, invokeGoBinding, waitForBindings } from '../wails-bindings.helpers';
 
 /**
@@ -64,6 +66,13 @@ export function createSeasonSource(): SeasonSource {
     },
     getSeasonAnimes() {
       return invokeGoBinding('GetSeasonAnimes', GetSeasonAnimes, () => []);
+    },
+    setSeasonAnimeMetadata(rowId: string, metadataJSON: string) {
+      return invokeGoBinding(
+        'SetSeasonAnimeMetadata',
+        () => SetSeasonAnimeMetadata(rowId, metadataJSON),
+        () => SEASON_RUNTIME_UNAVAILABLE,
+      );
     },
     listSeasons() {
       return invokeGoBinding('ListSeasons', ListSeasons, () => []);
@@ -113,14 +122,25 @@ export function createSeasonSource(): SeasonSource {
     confirmSelection() {
       return invokeGoBinding('ConfirmSeasonSelection', ConfirmSeasonSelection, () => SEASON_CONFIRM_UNAVAILABLE);
     },
-    createSeasonAnimes(rowIds: readonly string[], folders: Readonly<Record<string, string>>) {
-      return invokeGoBinding('CreateSeasonAnimes', () => CreateSeasonAnimes([...rowIds], { ...folders }), () => SEASON_RUNTIME_UNAVAILABLE);
+    createSeasonAnimes(
+      rowIds: readonly string[],
+      folders: Readonly<Record<string, string>>,
+      metadata: Readonly<Record<string, SeasonCreateMetadata>>,
+    ) {
+      return invokeGoBinding(
+        'CreateSeasonAnimes',
+        () => CreateSeasonAnimes([...rowIds], { ...folders }, { ...metadata }),
+        () => SEASON_RUNTIME_UNAVAILABLE,
+      );
     },
     pickFolder(title: string) {
       return invokeGoBinding('PickFolder', () => PickFolder(title), () => '');
     },
     getOrderingBoard() {
       return invokeGoBinding('GetSeasonOrderingBoard', GetSeasonOrderingBoard, () => SEASON_EMPTY_BOARD);
+    },
+    getSeasonOrderingSnapshot(seasonId: string) {
+      return invokeGoBinding<SeasonOrderingSnapshot>('GetSeasonOrderingSnapshot', () => GetSeasonOrderingSnapshot(seasonId), () => ({ recorded: false, rail: [], grid: [] }));
     },
     saveOrderingDraft(draftJson: string) {
       return invokeGoBinding('SaveSeasonOrderingDraft', () => SaveSeasonOrderingDraft(draftJson), () => SEASON_RUNTIME_UNAVAILABLE);

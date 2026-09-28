@@ -21,7 +21,7 @@ describe('AnimeEditorWorkspace', () => {
       listWindow: { scrollRef: { current: null }, onScroll: vi.fn(), visibleCount: 1 },
       selectedRecord: { frequent: { name: 'Frieren' } },
       cover: { status: 'placeholder' },
-      draft: { name: 'Frieren', status: 0, progress: '12', totalEpisodes: '28', kind: '', page: '', folder: '', premieredAt: '', origin: '', duration: '', genres: '', studios: '', coverPath: '' },
+      draft: { name: 'Frieren', status: 0, progress: '12', totalEpisodes: '28', kind: '', page: '', folder: '', origin: '', duration: '', genres: '', studios: '', coverPath: '' },
       isLoadingList: false,
       isLoadingRecord: false,
       isSaving: false,

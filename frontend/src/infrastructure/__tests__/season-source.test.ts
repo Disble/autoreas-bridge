@@ -104,6 +104,121 @@ describe('season-source', () => {
     expect(listSeasonsMock).toHaveBeenCalledTimes(1);
   });
 
+  it('forwards getSeasonOrderingSnapshot to the live Wails binding and preserves the recorded payload', async () => {
+    const snapshot = {
+      recorded: true,
+      capturedAt: 1_700_000_000_000,
+      appliedAt: 1_699_000_000_000,
+      rail: [{ animeId: 'anime-1', name: 'Dandadan', dia: '', orden: 0, section: 'Visto', isNewcomer: true }],
+      grid: [],
+    };
+    const getSnapshotMock = vi.fn().mockResolvedValue(snapshot);
+    window.go = { desktop: { App: { GetSeasonOrderingSnapshot: getSnapshotMock } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const source = createSeasonSource();
+    const readSnapshot = source.getSeasonOrderingSnapshot;
+    expect(readSnapshot).toBeDefined();
+
+    await expect(readSnapshot!('season-2025-fall')).resolves.toEqual(snapshot);
+    expect(getSnapshotMock).toHaveBeenCalledWith('season-2025-fall');
+  });
+
+  it('degrades getSeasonOrderingSnapshot to an unrecorded snapshot when the runtime is unavailable', async () => {
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const source = createSeasonSource();
+    const readSnapshot = source.getSeasonOrderingSnapshot;
+    expect(readSnapshot).toBeDefined();
+
+    const resultPromise = readSnapshot!('season-2025-fall');
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(resultPromise).resolves.toEqual({ recorded: false, rail: [], grid: [] });
+  });
+
+  it('forwards the create call with the picked rows, their folders and their metadata', async () => {
+    const createMock = vi.fn().mockResolvedValue('ok');
+    window.go = { desktop: { App: { CreateSeasonAnimes: createMock } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const source = createSeasonSource();
+
+    const resultPromise = source.createSeasonAnimes(['sa-1', 'sa-2'], { 'sa-2': 'E:/Anime/Bleach' }, { 'sa-1': { totalEpisodes: 24, genres: ['Action'] } });
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(resultPromise).resolves.toBe('ok');
+    // The metadata must travel as its own argument: dropping it here would silently
+    // create animes without the fields the user confirmed.
+    expect(createMock).toHaveBeenCalledWith(
+      ['sa-1', 'sa-2'],
+      { 'sa-2': 'E:/Anime/Bleach' },
+      { 'sa-1': { totalEpisodes: 24, genres: ['Action'] } },
+    );
+  });
+
+  it('degrades the create call to its runtime-unavailable message when no binding exists', async () => {
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const { SEASON_RUNTIME_UNAVAILABLE } = await import('../season-source/season-source.constants');
+    const source = createSeasonSource();
+
+    const resultPromise = source.createSeasonAnimes(['sa-1'], {}, { 'sa-1': { totalEpisodes: 24 } });
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    // The caller shows this message: resolving to undefined would report success
+    // for a creation that never happened.
+    await expect(resultPromise).resolves.toBe(SEASON_RUNTIME_UNAVAILABLE);
+  });
+
+  it('agrees with the Go create-metadata contract on every field name it can emit', () => {
+    // Wails never registers a `map[string]Struct` value type in models.ts, and the
+    // generated .d.ts is skipped by skipLibCheck, so nothing machine-checks the two
+    // sides. This reads the Go struct's own json tags: a Go-side rename is exactly
+    // the drift that would silently drop a confirmed field from the created anime.
+    const portsPath = join(process.cwd(), '..', 'internal', 'season', 'ports.go');
+    const portsText = readFileSync(portsPath, 'utf8');
+    const structBody = portsText.slice(portsText.indexOf('type AnimeCreateMetadata struct {'));
+    const tags = [...structBody.slice(0, structBody.indexOf('\n}')).matchAll(/json:"([^",]+)/g)].map((match) => match[1]);
+
+    // The canonical anime create vocabulary, not the legacy Spanish wire names and
+    // not the intake row's own held shape: the title is identity (never metadata),
+    // and the cover travels as the typed {type, path} shape, so its key is `cover`.
+    expect(tags).toEqual(['kind', 'totalEpisodes', 'durationMinutes', 'origin', 'genres', 'studios', 'cover']);
+  });
+
+  it('stores or clears one row session metadata through the live binding', async () => {
+    const setMock = vi.fn().mockResolvedValue('ok');
+    window.go = { desktop: { App: { SetSeasonAnimeMetadata: setMock } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const source = createSeasonSource();
+
+    const write = source.setSeasonAnimeMetadata('sa-1', '{"kind":0}');
+    const clear = source.setSeasonAnimeMetadata('sa-1', '');
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(write).resolves.toBe('ok');
+    await expect(clear).resolves.toBe('ok');
+    expect(setMock).toHaveBeenNthCalledWith(1, 'sa-1', '{"kind":0}');
+    // An empty payload is how the row's metadata is cleared, so it must reach Go as empty.
+    expect(setMock).toHaveBeenNthCalledWith(2, 'sa-1', '');
+  });
+
+  it('degrades the metadata write to its runtime-unavailable message when no binding exists', async () => {
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const { SEASON_RUNTIME_UNAVAILABLE } = await import('../season-source/season-source.constants');
+
+    const write = createSeasonSource().setSeasonAnimeMetadata('sa-1', '{"kind":0}');
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    // The store surfaces this message, so a write with no runtime cannot pass as saved.
+    await expect(write).resolves.toBe(SEASON_RUNTIME_UNAVAILABLE);
+  });
+
   it('uses the shared Wails binding readiness helper instead of local duplicate plumbing', () => {
     const seasonSourcePath = join(process.cwd(), 'src/infrastructure/season-source/season-source.helpers.ts');
     const sourceText = readFileSync(seasonSourcePath, 'utf8');

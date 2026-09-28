@@ -5,6 +5,7 @@ import type { SeasonSnapshot, SeasonSource } from '../../../../../infrastructure
 import { resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
 import { useSeasonWorkspace } from '../use-season-workspace';
 
+/** Builds an open season snapshot, overriding only what a case sets. */
 function makeSeason(overrides: Partial<SeasonSnapshot> = {}): SeasonSnapshot {
   return {
     id: 'season-1',
@@ -17,6 +18,7 @@ function makeSeason(overrides: Partial<SeasonSnapshot> = {}): SeasonSnapshot {
   };
 }
 
+/** Builds the season port this suite drives, overriding only what a case sets. */
 function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
   return {
     getSeason: vi.fn().mockResolvedValue(null),
@@ -36,6 +38,7 @@ function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     skipGrading: vi.fn().mockResolvedValue('ok'),
     setConsideration: vi.fn().mockResolvedValue('ok'),
     confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 0, rejected: 0, quotaExceeded: false }),
+    setSeasonAnimeMetadata: vi.fn().mockResolvedValue('ok'),
     createSeasonAnimes: vi.fn().mockResolvedValue('ok'),
     pickFolder: vi.fn().mockResolvedValue(''),
     listSeasons: vi.fn().mockResolvedValue([]),

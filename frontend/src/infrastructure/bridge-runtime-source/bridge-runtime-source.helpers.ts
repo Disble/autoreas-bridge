@@ -134,13 +134,11 @@ function toAnimeEditorFrequentFields(record: wailsContracts.AnimeEditorRecord): 
  * rule as {@link toAnimeEditorFrequentFields}.
  */
 function toAnimeEditorDetailFields(record: wailsContracts.AnimeEditorRecord): AnimeEditorRecord['details'] {
-  const premieredAt = record.details.premieredAt.kind === 'value' ? record.details.premieredAt.unixMilli : undefined;
   const duration = nullableValue(record.details.duration);
   const origin = nullableValue(record.details.origin);
   return {
     genres: record.details.genres.values,
     studios: { kind: toStudiosKind(record), values: record.details.studios.values },
-    ...(premieredAt === undefined ? {} : { premieredAt }),
     ...(duration === undefined ? {} : { duration }),
     ...(origin === undefined ? {} : { origin }),
     ...(record.details.cover.kind === 'value' ? { cover: { type: record.details.cover.type, path: record.details.cover.path, raw: record.details.cover.raw } } : {}),
@@ -243,11 +241,6 @@ function toSaveAnimeEditorDTO(command: SaveAnimeEditorCommand): wailsDesktop.Sav
       origin: patch.origin,
       duration: numericPatch(patch.duration),
       kind: numericPatch(patch.kind),
-      premieredAt: {
-        present: patch.premieredAt.present,
-        clear: patch.premieredAt.clear,
-        unixMilli: patch.premieredAt.present && !patch.premieredAt.clear ? Number(patch.premieredAt.value) : 0,
-      },
       placements: patch.placements?.map(toWailsSchedulePlacement),
       genres: patch.genres,
       studios: { present: patch.studios !== undefined, clear: patch.studios?.length === 0, values: patch.studios },

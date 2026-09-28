@@ -30,7 +30,6 @@ func validateEditorPatchFields(patch EditorPatch) error {
 		},
 		func() error { return validateNullableIntPatch("type", patch.Kind, true, 0, 3) },
 		func() error { return validateNullableIntPatch("duration", patch.Duration, false, 1, math.MaxInt) },
-		func() error { return validateNullableTimePatch(patch.PremieredAt) },
 		func() error { return validateNullableStringPatch("page", patch.Page) },
 		func() error { return validateNullableStringPatch("folder", patch.Folder) },
 		func() error { return validateNullableStringPatch("origin", patch.Origin) },
@@ -185,20 +184,6 @@ func validateNullableIntPatch(name string, patch EditorNullableIntPatch, allowZe
 	}
 	if patch.Value < minimum || patch.Value > maximum || (!allowZero && patch.Value == 0) {
 		return fmt.Errorf("editor save: invalid %s %d", name, patch.Value)
-	}
-	return nil
-}
-
-// validateNullableTimePatch validates the shape and range of a nullable time patch.
-func validateNullableTimePatch(patch EditorNullableTimePatch) error {
-	if !patch.Present && (patch.Clear || patch.UnixMilli != 0) {
-		return errors.New("editor save: malformed omitted premiere date patch")
-	}
-	if patch.Clear && patch.UnixMilli != 0 {
-		return errors.New("editor save: malformed cleared premiere date patch")
-	}
-	if patch.Present && !patch.Clear && (patch.UnixMilli < 0 || patch.UnixMilli > 253402300799999) {
-		return errors.New("editor save: invalid premiere date")
 	}
 	return nil
 }

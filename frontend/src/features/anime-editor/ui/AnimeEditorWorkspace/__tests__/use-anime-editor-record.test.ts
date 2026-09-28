@@ -29,7 +29,7 @@ function createSource(overrides: Partial<AnimeEditorRuntimeSource>): AnimeEditor
 
 /**
  * Builds one editor record with every never-touched field (Download page,
- * Folder, Watched episodes, the watching estado, premiere date) populated,
+ * Folder, Watched episodes, the watching estado) populated,
  * so a test can assert those survive a metadata autofill byte-identical.
  * @param overrides Per-test field replacements.
  * @returns The record.
@@ -50,7 +50,6 @@ function record(overrides: Partial<AnimeEditorRecord> = {}): AnimeEditorRecord {
       placements: [],
     },
     details: {
-      premieredAt: 1000,
       duration: 24,
       origin: 'Manga',
       genres: [],
@@ -265,7 +264,7 @@ describe('applied/undo state (D9)', () => {
 });
 
 describe('never-touched set -- non-negotiable #7, Editor half', () => {
-  it('leaves Download page, Folder, Watched episodes, the watching estado, and premiere date unchanged after confirming a candidate', async () => {
+  it('leaves Download page, Folder, Watched episodes, and the watching estado unchanged after confirming a candidate', async () => {
     const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok', record: record() }) });
     const { result } = renderHook(() => useAnimeEditorRecord({ source, selectedAnimeId: 'anime-1' }));
     await waitFor(() => expect(result.current.draft.name).toBe('Bleach'));
@@ -287,6 +286,5 @@ describe('never-touched set -- non-negotiable #7, Editor half', () => {
     expect(result.current.draft.folder).toBe('D:/Anime/Bleach');
     expect(result.current.draft.progress).toBe('12');
     expect(result.current.draft.status).toBe(1);
-    expect(result.current.draft.premieredAt).toBe('1000');
   });
 });

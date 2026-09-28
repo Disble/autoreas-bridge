@@ -13,16 +13,17 @@ import (
 // bundle's wire contract. Nullable columns round-trip as pointers so a NULL
 // stays distinguishable from a zero value.
 type seasonRecord struct {
-	ID                   string `json:"id"`
-	Name                 string `json:"name"`
-	MinApprovalGrade     int64  `json:"min_approval_grade"`
-	Slots                int64  `json:"slots"`
-	Status               string `json:"status"`
-	SelectionConfirmedAt *int64 `json:"selection_confirmed_at"`
-	AppliedAt            *int64 `json:"applied_at"`
-	ClosedAt             *int64 `json:"closed_at"`
-	OrderingDraftJSON    string `json:"ordering_draft_json"`
-	CreatedAt            int64  `json:"created_at"`
+	ID                   string  `json:"id"`
+	Name                 string  `json:"name"`
+	MinApprovalGrade     int64   `json:"min_approval_grade"`
+	Slots                int64   `json:"slots"`
+	Status               string  `json:"status"`
+	SelectionConfirmedAt *int64  `json:"selection_confirmed_at"`
+	AppliedAt            *int64  `json:"applied_at"`
+	ClosedAt             *int64  `json:"closed_at"`
+	OrderingDraftJSON    string  `json:"ordering_draft_json"`
+	ClosureJSON          *string `json:"closure_json"`
+	CreatedAt            int64   `json:"created_at"`
 }
 
 // seasonAnimeRecord is the JSONL wire shape for one season_animes row.
@@ -45,6 +46,7 @@ type seasonAnimeRecord struct {
 	Consideration       string  `json:"consideration"`
 	LastCheckedAt       *int64  `json:"last_checked_at"`
 	CreatedAt           int64   `json:"created_at"`
+	MetadataJSON        *string `json:"metadata_json"`
 }
 
 // ExportSeasons returns a backup export function that streams every seasons
@@ -55,7 +57,8 @@ func ExportSeasons(db *sql.DB) func(context.Context, io.Writer) (int, error) {
 	return func(ctx context.Context, w io.Writer) (int, error) {
 		rows, err := db.QueryContext(ctx, `
 			SELECT id, name, min_approval_grade, slots, status,
-			       selection_confirmed_at, applied_at, closed_at, ordering_draft_json, created_at
+			       selection_confirmed_at, applied_at, closed_at, ordering_draft_json,
+			       closure_json, created_at
 			FROM seasons
 			ORDER BY id
 		`)
@@ -74,14 +77,16 @@ func ExportSeasons(db *sql.DB) func(context.Context, io.Writer) (int, error) {
 				selectionConfirmedAt sql.NullInt64
 				appliedAt            sql.NullInt64
 				closedAt             sql.NullInt64
+				closureJSON          sql.NullString
 			)
 			if err := rows.Scan(&rec.ID, &rec.Name, &rec.MinApprovalGrade, &rec.Slots, &rec.Status,
-				&selectionConfirmedAt, &appliedAt, &closedAt, &rec.OrderingDraftJSON, &rec.CreatedAt); err != nil {
+				&selectionConfirmedAt, &appliedAt, &closedAt, &rec.OrderingDraftJSON, &closureJSON, &rec.CreatedAt); err != nil {
 				return count, fmt.Errorf("scan season for export: %w", err)
 			}
 			rec.SelectionConfirmedAt = nullInt64Ptr(selectionConfirmedAt)
 			rec.AppliedAt = nullInt64Ptr(appliedAt)
 			rec.ClosedAt = nullInt64Ptr(closedAt)
+			rec.ClosureJSON = nullStringPtr(closureJSON)
 
 			if err := enc.Encode(rec); err != nil {
 				return count, fmt.Errorf("encode season for export: %w", err)
@@ -105,7 +110,7 @@ func ExportSeasonAnimes(db *sql.DB) func(context.Context, io.Writer) (int, error
 			SELECT id, season_id, raw_name, match_status, matched_slug,
 			       match_candidates_json, availability, first_available_at, available_episodes,
 			       anime_id, premiere_grade, grade_source, post_season_grade, rated_at,
-			       skip_grading, consideration, last_checked_at, created_at
+			       skip_grading, consideration, last_checked_at, created_at, metadata_json
 			FROM season_animes
 			ORDER BY id
 		`)
@@ -130,11 +135,12 @@ func ExportSeasonAnimes(db *sql.DB) func(context.Context, io.Writer) (int, error
 				postSeasonGrade     sql.NullInt64
 				ratedAt             sql.NullInt64
 				lastCheckedAt       sql.NullInt64
+				metadataJSON        sql.NullString
 			)
 			if err := rows.Scan(&rec.ID, &rec.SeasonID, &rec.RawName, &rec.MatchStatus, &matchedSlug,
 				&matchCandidatesJSON, &rec.Availability, &firstAvailableAt, &rec.AvailableEpisodes,
 				&animeID, &premiereGrade, &gradeSource, &postSeasonGrade, &ratedAt,
-				&rec.SkipGrading, &rec.Consideration, &lastCheckedAt, &rec.CreatedAt); err != nil {
+				&rec.SkipGrading, &rec.Consideration, &lastCheckedAt, &rec.CreatedAt, &metadataJSON); err != nil {
 				return count, fmt.Errorf("scan season anime for export: %w", err)
 			}
 			rec.MatchedSlug = nullStringPtr(matchedSlug)
@@ -146,6 +152,7 @@ func ExportSeasonAnimes(db *sql.DB) func(context.Context, io.Writer) (int, error
 			rec.PostSeasonGrade = nullInt64Ptr(postSeasonGrade)
 			rec.RatedAt = nullInt64Ptr(ratedAt)
 			rec.LastCheckedAt = nullInt64Ptr(lastCheckedAt)
+			rec.MetadataJSON = nullStringPtr(metadataJSON)
 
 			if err := enc.Encode(rec); err != nil {
 				return count, fmt.Errorf("encode season anime for export: %w", err)

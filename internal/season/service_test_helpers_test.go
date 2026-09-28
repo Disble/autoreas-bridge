@@ -2,8 +2,10 @@ package season
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"slices"
+	"testing"
 	"time"
 
 	"autoreas-bridge/internal/season/domain"
@@ -127,4 +129,21 @@ func newTestServiceWithSearcher(repo Repository, searcher NameSearcher) *Service
 		n++
 		return "id-" + string(rune('0'+n))
 	}, searcher)
+}
+
+// confirmedMetadataJSON is one fully-confirmed MyAnimeList lookup as the
+// frontend sends it: a JSON object, never a bare scalar or array.
+const confirmedMetadataJSON = `{"kind":2,"totalEpisodes":24,"durationMinutes":45,"origin":"Manga","genres":["Adventure","Drama"],"studios":["Madhouse"],"cover":{"type":"url","path":"https://cdn.myanimelist.net/images/anime/frieren.jpg"}}`
+
+// assertMetadataRawNull asserts metadata_json is SQL NULL for one row, so a test
+// can tell the honest "not recorded" state from an empty string.
+func assertMetadataRawNull(t *testing.T, db *sql.DB, id string) {
+	t.Helper()
+	var raw sql.NullString
+	if err := db.QueryRow(`SELECT metadata_json FROM season_animes WHERE id = ?`, id).Scan(&raw); err != nil {
+		t.Fatalf("select metadata_json: %v", err)
+	}
+	if raw.Valid {
+		t.Fatalf("metadata_json must be SQL NULL, got %q", raw.String)
+	}
 }

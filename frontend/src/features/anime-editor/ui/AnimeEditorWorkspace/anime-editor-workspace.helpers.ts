@@ -78,7 +78,6 @@ export function createAnimeEditorDraft(record?: AnimeEditorRecord): AnimeEditorD
     kind: String(record.frequent.kind ?? ''),
     page: record.frequent.page ?? '',
     folder: record.frequent.folder ?? '',
-    premieredAt: String(record.details.premieredAt ?? ''),
     origin: record.details.origin ?? '',
     duration: String(record.details.duration ?? ''),
     genres: record.details.genres.join(', '),
@@ -86,40 +85,6 @@ export function createAnimeEditorDraft(record?: AnimeEditorRecord): AnimeEditorD
     coverType: record.details.cover?.type ?? 'url',
     coverPath: record.details.cover?.path ?? '',
   };
-}
-
-/**
- * Converts a stored `premieredAt` (Unix milliseconds as a string) into the
- * `YYYY-MM-DD` value a native date input expects. Empty or non-numeric input
- * yields an empty value so the field renders blank rather than "Invalid Date".
- */
-export function premieredMsToDateInput(premieredAt: string): string {
-  const trimmed = premieredAt.trim();
-  if (trimmed.length === 0) {
-    return '';
-  }
-  const ms = Number(trimmed);
-  if (!Number.isFinite(ms)) {
-    return '';
-  }
-  const date = new Date(ms);
-  if (Number.isNaN(date.getTime())) {
-    return '';
-  }
-  return date.toISOString().slice(0, 10);
-}
-
-/**
- * Converts a `YYYY-MM-DD` date-input value back into the Unix-millisecond string
- * the draft persists, anchored to UTC midnight. An empty value clears the field.
- */
-export function premieredDateInputToMs(dateInput: string): string {
-  const trimmed = dateInput.trim();
-  if (trimmed.length === 0) {
-    return '';
-  }
-  const ms = Date.parse(`${trimmed}T00:00:00.000Z`);
-  return Number.isNaN(ms) ? '' : String(ms);
 }
 
 /** Compares a draft with authority so dirty state survives refreshed conflict authority. */
@@ -141,6 +106,9 @@ export function validateAnimeEditorDraft(draft: AnimeEditorDraft) {
   }
   if (!isValidAnimeEstado(draft.status)) {
     return 'Status is invalid.';
+  }
+  if (draft.duration.trim().length > 0 && (parseNullableInteger(draft.duration) === undefined || Number(draft.duration) < 1)) {
+    return 'Duration must be a positive whole number of minutes.';
   }
   if (draft.kind.trim().length === 0) {
     return 'Type is required.';
@@ -193,7 +161,6 @@ export function createAnimeEditorSaveCommand(record: AnimeEditorRecord, draft: A
     origin: nullablePatch(record.details.origin, draft.origin),
     duration: nullablePatch(record.details.duration, draft.duration),
     kind: nullablePatch(record.frequent.kind, draft.kind),
-    premieredAt: nullablePatch(record.details.premieredAt, draft.premieredAt),
     cover: createCoverPatch(record, draft),
   };
   if (record.frequent.name !== draft.name) patch['name'] = draft.name;

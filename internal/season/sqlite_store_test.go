@@ -164,6 +164,192 @@ func TestSQLiteStoreUpdateSeasonPersistsMilestonesAndClose(t *testing.T) {
 	}
 }
 
+// TestSQLiteStoreFreshSeasonClosureJSONIsNull proves the additive column stays
+// SQL NULL for a season that was never captured — never the empty string.
+func TestSQLiteStoreFreshSeasonClosureJSONIsNull(t *testing.T) {
+	db := openTestSeasonDB(t)
+	store := NewSQLiteStore(db)
+	ctx := context.Background()
+
+	now := time.UnixMilli(1_700_000_000_000)
+	if err := store.CreateSeason(ctx, domain.NewSeason("season-1", "Julio 2026", now)); err != nil {
+		t.Fatalf("CreateSeason: %v", err)
+	}
+	assertClosureRawNull(t, db, "season-1")
+
+	got, err := store.SeasonByID(ctx, "season-1")
+	if err != nil || got == nil {
+		t.Fatalf("SeasonByID: %v (%+v)", err, got)
+	}
+	if got.ClosureJSON != "" {
+		t.Fatalf("ClosureJSON = %q, want empty for a NULL column", got.ClosureJSON)
+	}
+
+	// Closing WITHOUT a snapshot must keep the column NULL, not ''.
+	if err := got.Close(now); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if err := store.UpdateSeason(ctx, *got); err != nil {
+		t.Fatalf("UpdateSeason: %v", err)
+	}
+	assertClosureRawNull(t, db, "season-1")
+}
+
+// TestSQLiteStoreClosureJSONValueRoundTrips proves a captured snapshot survives
+// UpdateSeason and comes back byte-identical from every read path, so the close
+// write is the one place that stores it.
+// TestSQLiteStoreSeasonAnimeMetadataRoundTrips proves the row's confirmed
+// metadata is durable at the storage boundary: a fresh row stores SQL NULL, a
+// written value comes back byte-identical from every read path, and it survives
+// a NEW store opened over the same file — which is the "reopen the app" claim.
+func TestSQLiteStoreSeasonAnimeMetadataRoundTrips(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "bridge.db")
+	db := openTestSeasonDBAt(t, dbPath)
+	store := NewSQLiteStore(db)
+	ctx := context.Background()
+	now := time.UnixMilli(1_700_000_000_000)
+
+	if err := store.CreateSeason(ctx, domain.NewSeason("season-1", "Julio 2026", now)); err != nil {
+		t.Fatalf("CreateSeason: %v", err)
+	}
+	if err := store.CreateSeasonAnime(ctx, domain.NewSeasonAnime("sa-1", "season-1", "Frieren", now)); err != nil {
+		t.Fatalf("CreateSeasonAnime: %v", err)
+	}
+	assertSeasonAnimeMetadataRawNull(t, db, "sa-1")
+
+	const confirmed = `{"kind":0,"totalEpisodes":24,"genres":["Action"]}`
+	row, err := store.SeasonAnimeByID(ctx, "sa-1")
+	if err != nil || row == nil {
+		t.Fatalf("SeasonAnimeByID: %v (%+v)", err, row)
+	}
+	row.MetadataJSON = confirmed
+	if err := store.UpdateSeasonAnime(ctx, *row); err != nil {
+		t.Fatalf("UpdateSeasonAnime: %v", err)
+	}
+
+	byID, err := store.SeasonAnimeByID(ctx, "sa-1")
+	if err != nil || byID == nil || byID.MetadataJSON != confirmed {
+		t.Fatalf("SeasonAnimeByID metadata = %q, want %q (%v)", byID.MetadataJSON, confirmed, err)
+	}
+	listed, err := store.ListSeasonAnimes(ctx, "season-1")
+	if err != nil || len(listed) != 1 || listed[0].MetadataJSON != confirmed {
+		t.Fatalf("ListSeasonAnimes metadata = %+v (%v), want %q", listed, err, confirmed)
+	}
+
+	// A brand-new connection over the same file is what "reopen the app" means.
+	after, err := NewSQLiteStore(openTestSeasonDBAt(t, dbPath)).SeasonAnimeByID(ctx, "sa-1")
+	if err != nil || after == nil || after.MetadataJSON != confirmed {
+		t.Fatalf("metadata did not survive the reopen: %+v (%v)", after, err)
+	}
+}
+
+// openTestSeasonDBAt opens the sqlite file at dbPath and applies the season
+// schema, so a test can close one store and open a second over the same file.
+func openTestSeasonDBAt(t *testing.T, dbPath string) *sql.DB {
+	t.Helper()
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	db.SetMaxOpenConns(1)
+	t.Cleanup(func() { _ = db.Close() })
+	for _, tbl := range SchemaTables() {
+		if err := persistence.EnsureTableSchema(db, tbl); err != nil {
+			t.Fatalf("ensure schema %s: %v", tbl.Name, err)
+		}
+	}
+	return db
+}
+
+// assertSeasonAnimeMetadataRawNull asserts metadata_json is SQL NULL for one row,
+// distinguishing the honest "not recorded" state from an empty string.
+func assertSeasonAnimeMetadataRawNull(t *testing.T, db *sql.DB, id string) {
+	t.Helper()
+	var raw sql.NullString
+	if err := db.QueryRow(`SELECT metadata_json FROM season_animes WHERE id = ?`, id).Scan(&raw); err != nil {
+		t.Fatalf("select metadata_json: %v", err)
+	}
+	if raw.Valid {
+		t.Fatalf("metadata_json must be SQL NULL, got %q", raw.String)
+	}
+}
+
+func TestSQLiteStoreClosureJSONValueRoundTrips(t *testing.T) {
+	db := openTestSeasonDB(t)
+	store := NewSQLiteStore(db)
+	ctx := context.Background()
+
+	now := time.UnixMilli(1_700_000_000_000)
+	if err := store.CreateSeason(ctx, domain.NewSeason("season-1", "Julio 2026", now)); err != nil {
+		t.Fatalf("CreateSeason: %v", err)
+	}
+	s, err := store.SeasonByID(ctx, "season-1")
+	if err != nil || s == nil {
+		t.Fatalf("SeasonByID: %v (%+v)", err, s)
+	}
+
+	const captured = `{"capturedAt":1700000000000,"appliedAt":null,"rail":[],"grid":[{"animeId":"anime-1","dia":"Lunes","orden":3}]}`
+	s.ClosureJSON = captured
+	if err := s.Close(now); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if err := store.UpdateSeason(ctx, *s); err != nil {
+		t.Fatalf("UpdateSeason: %v", err)
+	}
+
+	byID, err := store.SeasonByID(ctx, "season-1")
+	if err != nil || byID == nil {
+		t.Fatalf("SeasonByID after capture: %v (%+v)", err, byID)
+	}
+	if byID.ClosureJSON != captured {
+		t.Fatalf("SeasonByID ClosureJSON = %q, want %q", byID.ClosureJSON, captured)
+	}
+
+	listed, err := store.ListSeasons(ctx)
+	if err != nil || len(listed) != 1 {
+		t.Fatalf("ListSeasons: %v (%+v)", err, listed)
+	}
+	if listed[0].ClosureJSON != captured {
+		t.Fatalf("ListSeasons ClosureJSON = %q, want %q", listed[0].ClosureJSON, captured)
+	}
+}
+
+// TestSQLiteStoreLegacyClosedRowReadsEmptyClosure proves a row written before
+// the closure column existed (or closed without a capture) reads back as the
+// empty "not recorded" string, keeping its other milestones.
+func TestSQLiteStoreLegacyClosedRowReadsEmptyClosure(t *testing.T) {
+	db := openTestSeasonDB(t)
+	if _, err := db.Exec(`INSERT INTO seasons
+		(id, name, min_approval_grade, slots, status, closed_at, created_at)
+		VALUES ('legacy-1', 'Abril 2026', 4, 12, 'closed', 1234, 1)`); err != nil {
+		t.Fatalf("seed legacy row: %v", err)
+	}
+
+	got, err := NewSQLiteStore(db).SeasonByID(context.Background(), "legacy-1")
+	if err != nil || got == nil {
+		t.Fatalf("SeasonByID: %v (%+v)", err, got)
+	}
+	if got.ClosureJSON != "" {
+		t.Fatalf("legacy ClosureJSON = %q, want \"\"", got.ClosureJSON)
+	}
+	if !got.IsClosed() || got.ClosedAt == nil {
+		t.Fatalf("legacy row must keep its closed milestone: %+v", got)
+	}
+}
+
+// assertClosureRawNull asserts closure_json is SQL NULL for one seasons row,
+// distinguishing the honest "not captured" state from an empty string.
+func assertClosureRawNull(t *testing.T, db *sql.DB, id string) {
+	t.Helper()
+	var raw sql.NullString
+	if err := db.QueryRow(`SELECT closure_json FROM seasons WHERE id = ?`, id).Scan(&raw); err != nil {
+		t.Fatalf("select closure_json: %v", err)
+	}
+	if raw.Valid {
+		t.Fatalf("closure_json must be SQL NULL, got %q", raw.String)
+	}
+}
+
 func TestSQLiteStoreSeasonAnimeGradeRoundTrip(t *testing.T) {
 	db := openTestSeasonDB(t)
 	store := NewSQLiteStore(db)

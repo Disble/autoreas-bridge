@@ -72,12 +72,18 @@ func (a *App) SetSeasonSlots(slots int) string {
 	return "ok"
 }
 
-// CloseSeason transitions the open season to its terminal closed state.
+// CloseSeason transitions the open season to its terminal closed state, capturing
+// the ACTUAL ordering board (from live data) into the season in the same write.
+// A failed capture returns the error and leaves the season open with no snapshot.
 func (a *App) CloseSeason() string {
 	if a.seasonService == nil {
 		return seasonServiceUnavailableMessage
 	}
-	if err := a.seasonService.CloseSeason(a.seasonCtx()); err != nil {
+	closureJSON, err := a.captureSeasonClosure()
+	if err != nil {
+		return err.Error()
+	}
+	if err := a.seasonService.CloseSeason(a.seasonCtx(), closureJSON); err != nil {
 		return err.Error()
 	}
 	a.broadcastSeasonChanged()
@@ -275,9 +281,12 @@ func (a *App) withActiveSeason(fn func(seasonID string) error) string {
 // soft-delete only), skipping rows that are not available or already created.
 // Each new anime's download folder defaults to the configured downloads root
 // joined with its sanitized name; folders maps a rowID to a user-picked override
-// that wins over that default. No download is triggered — that happens only on
-// Send to Ver hoy.
-func (a *App) CreateSeasonAnimes(rowIDs []string, folders map[string]string) string {
+// that wins over that default. metadata maps a rowID to the MyAnimeList facts the
+// user confirmed for that row (already resolved — this binding starts no network
+// call and no lookup of its own); a row with no entry, an empty map and a nil map
+// all behave exactly as before metadata existed. No download is triggered — that
+// happens only on Send to Ver hoy.
+func (a *App) CreateSeasonAnimes(rowIDs []string, folders map[string]string, metadata map[string]season.AnimeCreateMetadata) string {
 	if a.seasonService == nil {
 		return seasonServiceUnavailableMessage
 	}
@@ -289,7 +298,7 @@ func (a *App) CreateSeasonAnimes(rowIDs []string, folders map[string]string) str
 		}
 		root = r
 	}
-	if _, err := a.seasonService.CreateSeasonAnimes(a.seasonCtx(), rowIDs, root, folders); err != nil {
+	if _, err := a.seasonService.CreateSeasonAnimes(a.seasonCtx(), rowIDs, root, folders, metadata); err != nil {
 		return err.Error()
 	}
 	a.broadcastSeasonChanged()
@@ -303,6 +312,22 @@ func (a *App) SetSeasonConsideration(rowID, consideration string) string {
 		return seasonServiceUnavailableMessage
 	}
 	if err := a.seasonService.SetConsideration(a.seasonCtx(), rowID, domain.Consideration(consideration)); err != nil {
+		return err.Error()
+	}
+	a.broadcastSeasonChanged()
+	return "ok"
+}
+
+// SetSeasonAnimeMetadata records (or, with an empty string, clears) the
+// confirmed MyAnimeList lookup for one intake row, so it survives leaving the
+// Season screen and reopening the app. The payload must be a JSON object; the
+// row must exist and must not already be created. This binding starts no network
+// call — the lookup already happened. Returns "ok" or a descriptive error.
+func (a *App) SetSeasonAnimeMetadata(rowID, metadataJSON string) string {
+	if a.seasonService == nil {
+		return seasonServiceUnavailableMessage
+	}
+	if err := a.seasonService.SetSeasonAnimeMetadata(a.seasonCtx(), rowID, metadataJSON); err != nil {
 		return err.Error()
 	}
 	a.broadcastSeasonChanged()

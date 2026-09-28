@@ -131,6 +131,39 @@ func TestExportSeasonAnimesEmitsOneLinePerRow(t *testing.T) {
 	}
 }
 
+// TestExportSeasonAnimesEmitsMetadataJSONField proves the bundle carries the
+// confirmed lookup as its own nullable field: a recorded value exports as that
+// value and an unrecorded row exports as null, never as an empty record.
+func TestExportSeasonAnimesEmitsMetadataJSONField(t *testing.T) {
+	db := openTestSeasonDB(t)
+	if _, err := db.Exec(`INSERT INTO season_animes (id, season_id, raw_name, created_at, metadata_json) VALUES
+		('sa-confirmed', 's1', 'Frieren', 1, ?),
+		('sa-none', 's1', 'Dandadan', 2, NULL)`, confirmedMetadataJSON); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if _, err := ExportSeasonAnimes(db)(context.Background(), &buf); err != nil {
+		t.Fatalf("export: %v", err)
+	}
+
+	byID := map[string]*string{}
+	dec := json.NewDecoder(&buf)
+	for dec.More() {
+		var rec seasonAnimeRecord
+		if err := dec.Decode(&rec); err != nil {
+			t.Fatalf("decode exported line: %v", err)
+		}
+		byID[rec.ID] = rec.MetadataJSON
+	}
+	if got, ok := byID["sa-confirmed"]; !ok || got == nil || *got != confirmedMetadataJSON {
+		t.Fatalf("sa-confirmed metadata = %v, want %q", got, confirmedMetadataJSON)
+	}
+	if got, ok := byID["sa-none"]; !ok || got != nil {
+		t.Fatalf("sa-none metadata = %v, want null", got)
+	}
+}
+
 // countingSeasonWriter records how many times Write was called, so
 // TestSeasonExportWritesIncrementally can assert one call per record instead
 // of one call for the whole document.

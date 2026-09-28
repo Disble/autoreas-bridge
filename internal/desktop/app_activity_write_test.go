@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"autoreas-bridge/internal/activity"
 	"autoreas-bridge/internal/anime"
@@ -289,4 +290,64 @@ func assertActivityPatchOutcome(t *testing.T, got contracts.AnimePatchResult, er
 	if got != want {
 		t.Fatalf("result = %#v, want %#v", got, want)
 	}
+}
+
+// TestActivityAnimeWriteServiceDerivesFirstWatchPremiereOnMobileProgress pins
+// the mobile/desktop write funnel end-to-end: the first watched episode derives
+// premieredAt at the bridge's observation instant, and a later positive step
+// keeps it.
+func TestActivityAnimeWriteServiceDerivesFirstWatchPremiereOnMobileProgress(t *testing.T) {
+	ctx := context.Background()
+	db := openRuntimeBridgeDB(t)
+	store := bridgeSync.NewAnimeSnapshotStore(db)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":0,"status":0,"active":true}`, 1000)
+
+	writer := anime.NewWriteService(store, &stubAppUpdateWriter{})
+	writer.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
+	service := activityAnimeWriteService{
+		query:    anime.NewQueryService(store),
+		writer:   writer,
+		recorder: activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(db))},
+		source:   anime.ActivitySourceMobile,
+		now:      func() int64 { return 1710000000123 },
+	}
+
+	progress := 1.0
+	base := int64(1000)
+	if _, err := service.PatchAnime(ctx, "anime-1", contracts.AnimePatch{NroCapVisto: &progress, Base: &base}); err != nil {
+		t.Fatalf("patch anime: %v", err)
+	}
+	if got := storedPremieredAt(t, ctx, store); got == nil || *got != 1710000000123 {
+		t.Fatalf("expected the first watched episode to derive premieredAt 1710000000123, got %v", got)
+	}
+
+	progress = 2
+	if _, err := service.PatchAnime(ctx, "anime-1", contracts.AnimePatch{NroCapVisto: &progress}); err != nil {
+		t.Fatalf("second patch anime: %v", err)
+	}
+	if got := storedPremieredAt(t, ctx, store); got == nil || *got != 1710000000123 {
+		t.Fatalf("expected the recorded premieredAt to survive a later step, got %v", got)
+	}
+}
+
+// storedPremieredAt reads the persisted premieredAt instant for anime-1.
+func storedPremieredAt(t *testing.T, ctx context.Context, store *bridgeSync.AnimeSnapshotStore) *int64 {
+	t.Helper()
+	snapshot, err := store.GetSnapshot(ctx, "anime-1")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(snapshot.CanonicalJSON, &fields); err != nil {
+		t.Fatalf("unmarshal snapshot: %v", err)
+	}
+	raw, ok := fields["premieredAt"]
+	if !ok || string(raw) == "null" {
+		return nil
+	}
+	var millis int64
+	if err := json.Unmarshal(raw, &millis); err != nil {
+		t.Fatalf("unmarshal premieredAt %s: %v", raw, err)
+	}
+	return &millis
 }

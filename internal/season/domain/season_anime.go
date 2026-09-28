@@ -74,7 +74,14 @@ type SeasonAnime struct {
 	SkipGrading bool
 	// Consideration is the selection override lever (SDD-45); defaults to none.
 	Consideration Consideration
-	CreatedAt     time.Time
+	// MetadataJSON is the confirmed MyAnimeList lookup for this row, held as an
+	// opaque JSON object so the season context stores it without owning the wire
+	// shape. The empty string means "not recorded" (SQL NULL): a row whose lookup
+	// confirmed nothing reads back as absent, never as an empty record. The season
+	// package owns the shape (AnimeCreateMetadata) and validates it at the write
+	// boundary.
+	MetadataJSON string
+	CreatedAt    time.Time
 }
 
 // NewSeasonAnime builds a pending, ungraded intake row for a raw name.

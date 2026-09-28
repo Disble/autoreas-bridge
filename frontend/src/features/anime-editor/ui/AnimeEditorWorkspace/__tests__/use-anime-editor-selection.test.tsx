@@ -25,7 +25,7 @@ function makeRecord(id: string) {
     animeId: id,
     modifiedAt: 1,
     frequent: { name: `Name ${id}`, status: 0, progress: 1, totalEpisodes: null, active: true, kind: null, page: '', folder: '', placements: [] },
-    details: { genres: [], studios: { kind: 'values', values: [] }, origin: '', duration: null, premieredAt: null, cover: null },
+    details: { genres: [], studios: { kind: 'values', values: [] }, origin: '', duration: null, cover: null },
   };
 }
 
