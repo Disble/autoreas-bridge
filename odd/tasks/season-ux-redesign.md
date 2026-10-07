@@ -66,7 +66,18 @@ Route: every task is **delegated direct** (one bounded writer, then one verifier
   - One shared season thumbnail (44px rounded-lg, `AnimeCoverPlaceholder` fallback, loading skeleton).
   - Cover sources: a created row resolves through `getAnimeCover(animeId)` with caching (reuse the existing cover hooks/patterns from Today/Editor where possible); an intake row uses its applied metadata cover URL.
   - No per-render refetch storms.
-- [ ] **T3 Intake list rows.**
+- [x] **T3 Intake list rows.** Delegated writer, then an independent verifier: PASS with one note, fixed by the parent.
+  - Shared `AnimeMetadataLookupModal` gained an additive `triggerVariant` ('text' default | 'icon') through a new `AnimeMetadataLookupTrigger`. The Editor and Create callers are unchanged and their suites pass.
+  - `IntakeRowMetadata` was split into the summary line (`formatMetadataSummary`, kind label via `getAnimeTipoLabel`), `IntakeRowMoreMenu` (HeroUI Dropdown: Undo when `canUndo`, Clear when applied, Discard), `IntakeRowFolderButton` and `IntakeRowAvailabilityDot`.
+  - The match chip renders only when the status is not matched. The "Folder:" hint is dropped because the path stays in the folder tooltip.
+  - Accepted presentation change: the cover and summary also render on read-only seasons. Editing actions stay hidden there.
+  - Verifier note: Create had switched to hiding on `availableCount===0`, while before it was disabled only on an empty selection. The selection is never pruned, so a stale pick used to keep Create pressable. The parent restored identical behavior: Create is hidden only when `availableCount===0 && selected.size===0`.
+    - A new test covers the stale pick. Hand-reverting the guard fails it (1 failed / 22); restored: 22/22.
+  - Writer evidence:
+    - RED: 23 failing. GREEN: 36 files, 463 tests (IntakePanel, metadata-lookup, anime-editor, anime-create).
+    - Typecheck 0. ESLint clean. Fallow audit exit 0: duplicate groups 63 → 62, no introduced complexity.
+    - Staged mutation 114 killed / 0 survived, after 24 initial survivors in moved code were killed with behavior tests.
+  - Original scope:
   - Each row: thumbnail; a one-line metadata summary (kind · eps · duration · studio) once metadata is applied.
   - Actions are round icons in order: metadata lookup (magic stick), page, folder, ⋯. The ⋯ menu holds Undo autofill / Clear metadata / Discard.
   - The match chip shows only for states that need attention (Ambiguous, Not found, Pending, Discarded); Matched shows no chip.

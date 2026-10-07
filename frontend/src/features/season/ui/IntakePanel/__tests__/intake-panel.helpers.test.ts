@@ -13,7 +13,7 @@ import {
   deriveIntakeDownloadFolder,
   formatAppliedMetadataFields,
   formatCandidateOption,
-  formatMetadataValues,
+  formatMetadataSummary,
   getMatchStatusColor,
   getMatchStatusLabel,
   pickRowEntries,
@@ -352,10 +352,18 @@ describe('compactMetadataPatch', () => {
   });
 });
 
-describe('formatMetadataValues', () => {
-  it('renders one label:value line per held field, skipping blanks', () => {
-    expect(formatMetadataValues({ name: 'Dr. Stone', kind: '0', genres: '' })).toStrictEqual(['Name: Dr. Stone', 'Type: 0']);
-    expect(formatMetadataValues({})).toStrictEqual([]);
+describe('formatMetadataSummary', () => {
+  it.each([
+    {
+      patch: { name: 'Dr. Stone', kind: '0', totalEpisodes: '12', duration: '24', genres: 'Action', studios: 'TMS' },
+      summary: 'Anime (TV) · 12 eps · 24 min · TMS',
+    },
+    { patch: { kind: '3', duration: '45' }, summary: 'OVA · 45 min' },
+    { patch: { kind: '7', totalEpisodes: '1' }, summary: '7 · 1 eps' },
+    { patch: { totalEpisodes: '', studios: '' }, summary: '' },
+    { patch: { name: 'Dr. Stone', origin: 'Manga' }, summary: '' },
+  ])('summarizes $patch as "$summary"', ({ patch, summary }) => {
+    expect(formatMetadataSummary(patch)).toBe(summary);
   });
 });
 

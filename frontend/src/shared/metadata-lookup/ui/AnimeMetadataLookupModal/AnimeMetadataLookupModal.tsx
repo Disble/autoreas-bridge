@@ -13,6 +13,8 @@ import {
 } from './anime-metadata-lookup.constants';
 import { AnimeMetadataLookupCandidate } from './AnimeMetadataLookupCandidate';
 import { AnimeMetadataLookupCandidateSkeleton } from './AnimeMetadataLookupCandidateSkeleton';
+import { AnimeMetadataLookupTrigger } from './AnimeMetadataLookupTrigger';
+import type { AnimeMetadataLookupTriggerVariant } from './anime-metadata-lookup.types';
 import type { AnimeMetadataLookupSource } from './use-anime-metadata-lookup';
 import { useAnimeMetadataLookup } from './use-anime-metadata-lookup';
 
@@ -29,6 +31,8 @@ export interface AnimeMetadataLookupModalProps {
    * knows no feature type.
    */
   readonly onConfirm: (selection: AnimeMetadataSelection) => void;
+  /** How the trigger renders: the visible text button (default) or a round icon button. */
+  readonly triggerVariant?: AnimeMetadataLookupTriggerVariant;
 }
 
 /**
@@ -40,7 +44,12 @@ export interface AnimeMetadataLookupModalProps {
  * detail page and reports a mapped selection back to the caller. Cancel
  * closes the modal and calls `onConfirm` with nothing.
  */
-export function AnimeMetadataLookupModal({ name, source, onConfirm }: Readonly<AnimeMetadataLookupModalProps>) {
+export function AnimeMetadataLookupModal({
+  name,
+  source,
+  onConfirm,
+  triggerVariant = 'text',
+}: Readonly<AnimeMetadataLookupModalProps>) {
   const [isOpen, setIsOpen] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const {
@@ -88,9 +97,7 @@ export function AnimeMetadataLookupModal({ name, source, onConfirm }: Readonly<A
     <Modal isOpen={isOpen} onOpenChange={handleOpenChange}>
       {/* HeroUI's Modal treats this Button as its own trigger and calls
           onOpenChange when it is pressed -- no onPress handler needed here. */}
-      <Button isDisabled={name === ''} variant="tertiary">
-        {METADATA_LOOKUP_TRIGGER_LABEL}
-      </Button>
+      <AnimeMetadataLookupTrigger isDisabled={name === ''} variant={triggerVariant} />
       <Modal.Backdrop variant="blur">
         <Modal.Container>
           <Modal.Dialog className="sm:max-w-lg">

@@ -1,5 +1,6 @@
 import type { SeasonAnimeCandidate, SeasonAnimeRow, SeasonCreateMetadata } from '../../../../infrastructure/season-source/season-source.types';
 import type { AnimeMetadataSelection } from '../../../../shared/metadata-lookup/metadata-lookup.types';
+import { getAnimeTipoLabel } from '../../../../shared/helpers/anime-tipo.helpers';
 import { INTAKE_METADATA_FIELD_LABELS, MATCH_STATUS_LABELS } from './intake-panel.constants';
 import type { IntakeChipColor, IntakeMetadataPatch } from './intake-panel.types';
 
@@ -399,22 +400,23 @@ export function toHeldMetadataPatch(stored: SeasonCreateMetadata | undefined): I
 }
 
 /**
- * Renders a row's held metadata as the read-only value lines the user needs to
- * judge the choice: what a lookup attached is otherwise invisible, since the
- * modal shows the candidate and never the values that will be written.
+ * Summarizes a row's held metadata as the one muted line under its name:
+ * kind, episode count, minutes per episode and studios, in that order, each
+ * only when held. The kind reads as its label, or as its raw value when the
+ * label is unknown.
  * @param patch The row's held metadata.
- * @returns One "Label: value" line per held field, in the constants' field order.
+ * @returns The " · "-joined summary, or `''` when none of the four is held.
  */
-export function formatMetadataValues(patch: Readonly<IntakeMetadataPatch>): readonly string[] {
-  const fields = Object.keys(INTAKE_METADATA_FIELD_LABELS) as (keyof IntakeMetadataPatch)[];
-  const lines: string[] = [];
-  for (const field of fields) {
-    const value = patch[field];
-    if (value !== undefined && value !== '') {
-      lines.push(`${INTAKE_METADATA_FIELD_LABELS[field]}: ${value}`);
-    }
-  }
-  return lines;
+export function formatMetadataSummary(patch: Readonly<IntakeMetadataPatch>): string {
+  const parts: readonly { value: string | undefined; format: (value: string) => string }[] = [
+    { value: patch.kind, format: (kind) => getAnimeTipoLabel(Number(kind)) },
+    { value: patch.totalEpisodes, format: (episodes) => `${episodes} eps` },
+    { value: patch.duration, format: (minutes) => `${minutes} min` },
+    { value: patch.studios, format: (studios) => studios },
+  ];
+  return parts
+    .flatMap(({ value, format }) => (value === undefined || value === '' ? [] : [format(value)]))
+    .join(' · ');
 }
 
 /**
