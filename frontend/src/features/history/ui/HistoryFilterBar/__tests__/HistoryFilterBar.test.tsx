@@ -145,12 +145,19 @@ describe('HistoryFilterBar', () => {
     });
 
     it('opens a calendar with day cells and weekday headers', () => {
-      const { container } = render(<HistoryFilterBar {...props()} />);
+      // Without a range the calendar opens on the current month, so pin the clock.
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date(2026, 8, 15));
+      try {
+        const { container } = render(<HistoryFilterBar {...props()} />);
 
-      openCalendar(container);
+        openCalendar(container);
 
-      expect(screen.getByRole('button', { name: /september 1, 2026/i })).toBeInTheDocument();
-      expect(screen.getByText('Sun')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /september 1, 2026/i })).toBeInTheDocument();
+        expect(screen.getByText('Sun')).toBeInTheDocument();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('opens a year picker naming years', () => {
