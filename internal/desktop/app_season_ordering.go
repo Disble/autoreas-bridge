@@ -5,7 +5,9 @@ import (
 	"errors"
 	"time"
 
+	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/season"
+	"autoreas-bridge/internal/season/domain"
 )
 
 // errOrderingBoardUnavailable is the builder's explicit failure when the season
@@ -18,28 +20,51 @@ var errOrderingBoardUnavailable = errors.New("ordering board unavailable")
 // the season-close capture uses this builder so a failed read aborts the close
 // instead of persisting a false empty history.
 func (a *App) buildSeasonOrderingBoard() (OrderingBoardDTO, error) {
+	inputs, err := a.readSeasonBoardInputs()
+	if err != nil {
+		return OrderingBoardDTO{}, err
+	}
+	return inputs.orderingBoard(), nil
+}
+
+// seasonBoardInputs is one consistent read of everything the season boards are
+// built from: the open season, its intake rows and every live anime.
+type seasonBoardInputs struct {
+	active *domain.Season
+	rows   []domain.SeasonAnime
+	animes []contracts.MobileAnime
+}
+
+// readSeasonBoardInputs reads the open season, its rows and the live animes,
+// reporting every failure so a capture never builds a board from a failed read.
+func (a *App) readSeasonBoardInputs() (seasonBoardInputs, error) {
 	if a.seasonService == nil || a.animeQuery == nil {
-		return OrderingBoardDTO{}, errOrderingBoardUnavailable
+		return seasonBoardInputs{}, errOrderingBoardUnavailable
 	}
 	active, err := a.seasonService.ActiveSeason(a.seasonCtx())
 	if err != nil {
-		return OrderingBoardDTO{}, err
+		return seasonBoardInputs{}, err
 	}
 	if active == nil {
-		return OrderingBoardDTO{}, season.ErrNoActiveSeason
+		return seasonBoardInputs{}, season.ErrNoActiveSeason
 	}
 	rows, err := a.seasonService.ListSeasonAnimes(a.seasonCtx(), active.ID)
 	if err != nil {
-		return OrderingBoardDTO{}, err
+		return seasonBoardInputs{}, err
 	}
-	approved := approvedSeasonAnimeIDs(rows, active.MinApprovalGrade)
 	animes, err := a.animeQuery.ListMobileAnimes(a.seasonCtx())
 	if err != nil {
-		return OrderingBoardDTO{}, err
+		return seasonBoardInputs{}, err
 	}
-	board := OrderingBoardDTO{Rail: []OrderingCardDTO{}, Grid: []OrderingCardDTO{}, AppliedAt: millisPtrDTO(active.AppliedAt)}
-	populateOrderingBoard(&board, animes, approved)
-	return board, nil
+	return seasonBoardInputs{active: active, rows: rows, animes: animes}, nil
+}
+
+// orderingBoard builds the ordering board from one read of the board inputs.
+func (in seasonBoardInputs) orderingBoard() OrderingBoardDTO {
+	approved := approvedSeasonAnimeIDs(in.rows, in.active.MinApprovalGrade)
+	board := OrderingBoardDTO{Rail: []OrderingCardDTO{}, Grid: []OrderingCardDTO{}, AppliedAt: millisPtrDTO(in.active.AppliedAt)}
+	populateOrderingBoard(&board, in.animes, approved)
+	return board
 }
 
 // GetSeasonOrderingBoard aggregates the ordering board for the UI read: the rail
@@ -55,19 +80,22 @@ func (a *App) GetSeasonOrderingBoard() OrderingBoardDTO {
 	return board
 }
 
-// captureSeasonClosure builds the board from live data and encodes the closure
-// snapshot. Any failure — a read error or an encode error — returns an error so
-// the caller leaves the season open rather than storing a false snapshot.
+// captureSeasonClosure builds the ordering and Daily boards from one live read
+// and encodes the closure snapshot. Any failure — a read error or an encode
+// error — returns an error so the caller leaves the season open rather than
+// storing a false snapshot.
 func (a *App) captureSeasonClosure() (string, error) {
-	board, err := a.buildSeasonOrderingBoard()
+	inputs, err := a.readSeasonBoardInputs()
 	if err != nil {
 		return "", err
 	}
+	board := inputs.orderingBoard()
 	raw, err := json.Marshal(seasonClosureSnapshotDTO{
 		CapturedAt: time.Now().UnixMilli(),
 		AppliedAt:  board.AppliedAt,
 		Rail:       board.Rail,
 		Grid:       board.Grid,
+		DailyBoard: dailyBoardEntries(inputs.rows, inputs.animes),
 	})
 	if err != nil {
 		return "", err
@@ -108,13 +136,14 @@ func orderingSnapshotFromClosure(raw string) SeasonOrderingSnapshotDTO {
 		AppliedAt:  snap.AppliedAt,
 		Rail:       nonNilOrderingCards(snap.Rail),
 		Grid:       nonNilOrderingCards(snap.Grid),
+		DailyBoard: dailyBoardSnapshot(snap.DailyBoard),
 	}
 }
 
 // emptySeasonOrderingSnapshot is the explicit "no board was ever captured"
 // state: not recorded, null timestamps, and empty non-nil collections.
 func emptySeasonOrderingSnapshot() SeasonOrderingSnapshotDTO {
-	return SeasonOrderingSnapshotDTO{Rail: []OrderingCardDTO{}, Grid: []OrderingCardDTO{}}
+	return SeasonOrderingSnapshotDTO{Rail: []OrderingCardDTO{}, Grid: []OrderingCardDTO{}, DailyBoard: dailyBoardSnapshot(nil)}
 }
 
 // nonNilOrderingCards guarantees a non-nil collection so the frontend never

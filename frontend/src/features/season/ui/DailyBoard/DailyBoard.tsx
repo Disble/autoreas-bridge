@@ -2,10 +2,19 @@ import linkIcon from '@iconify-icons/solar/link-round-broken';
 import { Icon } from '@iconify/react';
 import { Alert, Button, Tooltip } from '@heroui/react';
 import { LabeledCheckbox } from '../../../../shared/ui/LabeledCheckbox';
+import { LoadingBars } from '../../../../shared/ui/LoadingBars/LoadingBars';
 import { getGradeChip } from '../EvaluationPanel/evaluation-panel.helpers';
 import { SeasonCoverThumb } from '../SeasonCoverThumb/SeasonCoverThumb';
-import { DAILY_BOARD_SECTION_COPY, VER_HOY_LIST_CLASS, VISTO_LIST_CLASS } from './daily-board.constants';
-import { formatAvailableEpisodes, getScheduledDayChip, hasBoardRows, isDailyBoardSectionShown } from './daily-board.helpers';
+import {
+  DAILY_BOARD_LOADING_LABEL,
+  DAILY_BOARD_SECTION_COPY,
+  DAILY_BOARD_SKELETON_BAR_CLASS,
+  DAILY_BOARD_SKELETON_ROW_COUNT,
+  VER_HOY_LIST_CLASS,
+  VISTO_LIST_CLASS,
+} from './daily-board.constants';
+import { formatAvailableEpisodes, hasBoardRows, isDailyBoardSectionShown } from './daily-board.helpers';
+import { DailyBoardPlainCard } from './DailyBoardPlainCard';
 import { DailyBoardSectionCard } from './DailyBoardSectionCard';
 import { DailyBoardWatchList } from './DailyBoardWatchList';
 import { useDailyBoard } from './use-daily-board';
@@ -20,7 +29,14 @@ import { useDailyBoard } from './use-daily-board';
  * one with its compact empty state. Sections never collapse, so a top-to-bottom
  * scan finds every anime, and every row shows the anime's cover.
  *
- * Ver hoy rows carry their weekday chip; Visto rows carry their first-episode
+ * A closed season's history is immutable: its sections come from the Daily
+ * board stored at close, never from live sections. While that read is in flight
+ * a placeholder replaces the board; a failed read shows its alert; a season
+ * that closed before the board was recorded shows one plain list of its animes
+ * (`DailyBoardPlainCard`) and claims no section.
+ *
+ * Ver hoy rows carry their weekday chip in an open season only (it reads the
+ * live section); Visto rows carry their first-episode
  * grade state instead, because Visto means "ready for evaluation" and whether
  * an anime is graded yet is the datum worth scanning for (the grade is
  * season-owned data, while the weekday derives from the live section and
@@ -38,7 +54,10 @@ import { useDailyBoard } from './use-daily-board';
 export function DailyBoard() {
   const {
     readOnly,
+    boardMode,
     sections,
+    plainRows,
+    historyError,
     selected,
     toggleSelect,
     onSendToVerHoy,
@@ -48,6 +67,7 @@ export function DailyBoard() {
     onRecheck,
     errorMessage,
     getCoverThumb,
+    getVerHoyRowChip,
   } = useDailyBoard();
 
   return (
@@ -79,6 +99,24 @@ export function DailyBoard() {
         </Alert>
       )}
 
+      {historyError !== undefined && (
+        <Alert status="danger">
+          <Alert.Content>
+            <Alert.Description>{historyError}</Alert.Description>
+          </Alert.Content>
+        </Alert>
+      )}
+
+      {boardMode === 'loading' && (
+        <LoadingBars
+          barClassName={DAILY_BOARD_SKELETON_BAR_CLASS}
+          count={DAILY_BOARD_SKELETON_ROW_COUNT}
+          label={DAILY_BOARD_LOADING_LABEL}
+        />
+      )}
+
+      {boardMode === 'plain' && <DailyBoardPlainCard getCoverThumb={getCoverThumb} rows={plainRows} />}
+
       {!readOnly && hasBoardRows(sections) && (
         <div className="flex items-center gap-3">
           <Button variant="tertiary" onPress={onRecheck}>
@@ -87,7 +125,7 @@ export function DailyBoard() {
         </div>
       )}
 
-      {isDailyBoardSectionShown(readOnly, sections.sinVer.length) && (
+      {isDailyBoardSectionShown(boardMode, readOnly, sections.sinVer.length) && (
         <DailyBoardSectionCard
           copy={DAILY_BOARD_SECTION_COPY.sinVer}
           count={sections.sinVer.length}
@@ -140,17 +178,17 @@ export function DailyBoard() {
         </DailyBoardSectionCard>
       )}
 
-      {isDailyBoardSectionShown(readOnly, sections.verHoy.length) && (
+      {isDailyBoardSectionShown(boardMode, readOnly, sections.verHoy.length) && (
         <DailyBoardSectionCard
           copy={DAILY_BOARD_SECTION_COPY.verHoy}
           count={sections.verHoy.length}
           countColor="accent"
         >
-          <DailyBoardWatchList getCoverThumb={getCoverThumb} getRowChip={getScheduledDayChip} label="Ver hoy" listClassName={VER_HOY_LIST_CLASS} rows={sections.verHoy} />
+          <DailyBoardWatchList getCoverThumb={getCoverThumb} getRowChip={getVerHoyRowChip} label="Ver hoy" listClassName={VER_HOY_LIST_CLASS} rows={sections.verHoy} />
         </DailyBoardSectionCard>
       )}
 
-      {isDailyBoardSectionShown(readOnly, sections.visto.length) && (
+      {isDailyBoardSectionShown(boardMode, readOnly, sections.visto.length) && (
         <DailyBoardSectionCard
           copy={DAILY_BOARD_SECTION_COPY.visto}
           count={sections.visto.length}

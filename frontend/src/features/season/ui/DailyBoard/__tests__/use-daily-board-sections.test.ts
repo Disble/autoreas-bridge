@@ -19,7 +19,7 @@ describe('useDailyBoardSections', () => {
     const source = coverSource();
     const { result } = renderHook(() => useDailyBoardSections(rows('Sin ver', 'a'), source));
 
-    expect(result.current.sections.sinVer.map((row) => row.animeId)).toEqual(['a']);
+    expect(result.current.view.sections.sinVer.map((row) => row.animeId)).toEqual(['a']);
     expect(result.current.getCoverThumb('a')).toEqual({ coverSrc: undefined, isLoading: true });
     await waitFor(() => expect(result.current.getCoverThumb('a')).toEqual({ coverSrc: 'data:a', isLoading: false }));
   });

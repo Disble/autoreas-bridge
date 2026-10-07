@@ -6,6 +6,8 @@ import {
   getScheduledDay,
   getScheduledDayChip,
   groupCreatedBySection,
+  isDailyBoardSectionShown,
+  selectVerHoyRowChip,
 } from '../daily-board.helpers';
 
 /** Builds a created Sin ver season row with the given overrides. */
@@ -99,5 +101,27 @@ describe('getScheduledDayChip', () => {
     { name: 'an unscheduled row', section: 'Ver hoy', sectionOrder: 0, expected: null },
   ])('maps $name to its weekday chip', ({ section, sectionOrder, expected }) => {
     expect(getScheduledDayChip(row({ section, sectionOrder }))).toEqual(expected);
+  });
+});
+
+describe('selectVerHoyRowChip', () => {
+  it.each([
+    { name: 'an open season shows the weekday chip', readOnly: false, expected: { label: 'Jueves - 3', color: 'accent' } },
+    { name: 'a closed season shows no live weekday chip', readOnly: true, expected: null },
+  ])('$name', ({ readOnly, expected }) => {
+    expect(selectVerHoyRowChip(readOnly)(row({ section: 'Jueves', sectionOrder: 3 }))).toEqual(expected);
+  });
+});
+
+describe('isDailyBoardSectionShown', () => {
+  it.each([
+    { boardMode: 'sections', readOnly: false, count: 0, shown: false },
+    { boardMode: 'sections', readOnly: false, count: 1, shown: true },
+    { boardMode: 'sections', readOnly: true, count: 0, shown: true },
+    { boardMode: 'plain', readOnly: true, count: 1, shown: false },
+    { boardMode: 'loading', readOnly: true, count: 0, shown: false },
+    { boardMode: 'failed', readOnly: true, count: 0, shown: false },
+  ] as const)('$boardMode, read-only $readOnly, $count rows → $shown', ({ boardMode, readOnly, count, shown }) => {
+    expect(isDailyBoardSectionShown(boardMode, readOnly, count)).toBe(shown);
   });
 });

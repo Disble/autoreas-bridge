@@ -1,6 +1,6 @@
 import type { SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
 import { WEEKDAY_SECTIONS } from './daily-board.constants';
-import type { BoardSections, DailyBoardRowChip } from './daily-board.types';
+import type { BoardSections, DailyBoardMode, DailyBoardRowChip } from './daily-board.types';
 
 /**
  * Groups the CREATED season animes by their live Estrenos section. Only created
@@ -79,14 +79,17 @@ export function listBoardAnimeIds(sections: BoardSections): string[] {
 /**
  * Whether a conveyor section card renders: an open season shows a section only
  * once it holds an anime, so the board grows as the season progresses; a
- * read-only season always shows all three, so nothing feels hidden.
+ * read-only season always shows all three, so nothing feels hidden. No section
+ * renders unless the board is in its sections mode (a closed season still
+ * loading, failed, or showing its plain list has no sections to claim).
  *
+ * @param boardMode Which board renders.
  * @param readOnly Whether the season is closed (read-only).
  * @param count How many rows the section holds.
  * @returns Whether to render the section's card.
  */
-export function isDailyBoardSectionShown(readOnly: boolean, count: number): boolean {
-  return readOnly || count > 0;
+export function isDailyBoardSectionShown(boardMode: DailyBoardMode, readOnly: boolean, count: number): boolean {
+  return boardMode === 'sections' && (readOnly || count > 0);
 }
 
 /**
@@ -97,4 +100,25 @@ export function isDailyBoardSectionShown(readOnly: boolean, count: number): bool
  */
 export function hasBoardRows(sections: BoardSections): boolean {
   return sections.sinVer.length + sections.verHoy.length + sections.visto.length > 0;
+}
+
+/**
+ * The trailing chip of a Ver hoy row: its weekday chip in an open season, none
+ * in a read-only one, because the weekday reads the anime's live section and a
+ * closed season's history must not follow live data.
+ *
+ * @param readOnly Whether the season is closed (read-only).
+ * @returns The chip getter the Ver hoy list renders with.
+ */
+export function selectVerHoyRowChip(readOnly: boolean): (row: SeasonAnimeRow) => DailyBoardRowChip | null {
+  return readOnly ? listRowWithoutChip : getScheduledDayChip;
+}
+
+/**
+ * The chip getter of a list whose rows carry no chip.
+ *
+ * @returns Always null.
+ */
+export function listRowWithoutChip(): DailyBoardRowChip | null {
+  return null;
 }

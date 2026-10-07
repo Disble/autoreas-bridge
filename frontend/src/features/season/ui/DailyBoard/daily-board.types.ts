@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow, SeasonDailyBoardEntry } from '../../../../infrastructure/season-source/season-source.types';
 import type { SeasonCoverThumbProps } from '../SeasonCoverThumb/season-cover-thumb.types';
 
 /**
@@ -61,4 +61,52 @@ export interface DailyBoardRowChip {
   readonly label: string;
   /** The chip's semantic color. */
   readonly color: 'accent' | 'success' | 'default' | 'warning';
+}
+
+/**
+ * Where a closed season's Daily board read stands. `live` is an open season
+ * (the board follows live sections); a closed season is `loading` until its
+ * closure snapshot is read, then `recorded` with the stored entries,
+ * `unrecorded` when it closed before the Daily board was captured, or `failed`.
+ */
+export type DailyBoardHistory =
+  | { readonly status: 'live' }
+  | { readonly status: 'loading' }
+  | { readonly status: 'failed'; readonly errorMessage: string }
+  | { readonly status: 'recorded'; readonly entries: readonly SeasonDailyBoardEntry[] }
+  | { readonly status: 'unrecorded' };
+
+/** A settled closure-snapshot read, tagged with the season it belongs to. */
+export interface LoadedDailyBoardHistory {
+  /** The season the read was for. */
+  readonly seasonId: string;
+  /** The settled outcome of that read. */
+  readonly history: DailyBoardHistory;
+}
+
+/**
+ * What the board renders: the three conveyor sections, one plain list of the
+ * season's animes (a closed season that recorded no Daily board), the loading
+ * placeholder, or the read failure.
+ */
+export type DailyBoardMode = 'sections' | 'plain' | 'loading' | 'failed';
+
+/** The board's render model, derived from the season rows and the history read. */
+export interface DailyBoardView {
+  /** Which board renders. */
+  readonly mode: DailyBoardMode;
+  /** The conveyor sections; empty unless the mode is `sections`. */
+  readonly sections: BoardSections;
+  /** The season's created animes in row order; empty unless the mode is `plain`. */
+  readonly plainRows: readonly SeasonAnimeRow[];
+  /** Why the closure snapshot could not be read, in the `failed` mode. */
+  readonly historyError?: string;
+}
+
+/** Inputs of the plain list a closed season shows when it recorded no Daily board. */
+export interface DailyBoardPlainCardProps {
+  /** The season's created animes, in row order. */
+  readonly rows: readonly SeasonAnimeRow[];
+  /** Resolves an anime id to its thumbnail props. */
+  readonly getCoverThumb: (animeId: string) => SeasonCoverThumbProps;
 }

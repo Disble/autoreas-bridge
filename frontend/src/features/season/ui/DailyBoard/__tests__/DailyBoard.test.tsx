@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
 import { DailyBoard } from '../DailyBoard';
+import { getScheduledDayChip } from '../daily-board.helpers';
 import { useDailyBoard } from '../use-daily-board';
 
 vi.mock('../use-daily-board', () => ({
@@ -43,6 +44,9 @@ function created(id: string, animeId: string, section: string, sectionOrder = 0)
 function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
   const value: HookReturn = {
     readOnly: false,
+    boardMode: 'sections',
+    plainRows: [],
+    historyError: undefined,
     sections: { sinVer: [], verHoy: [], visto: [] },
     selected: new Set<string>(),
     toggleSelect: vi.fn(),
@@ -53,6 +57,7 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     onRecheck: vi.fn(),
     errorMessage: undefined,
     getCoverThumb: vi.fn(() => ({ coverSrc: undefined, isLoading: false })),
+    getVerHoyRowChip: getScheduledDayChip,
     ...overrides,
   };
   mockedUseDailyBoard.mockReturnValue(value);
@@ -221,5 +226,50 @@ describe('DailyBoard', () => {
     render(<DailyBoard />);
     expect(screen.getByText(text)).toBeInTheDocument();
     expect(screen.queryByLabelText(dotLabel)).not.toBeInTheDocument();
+  });
+
+  /** Every card heading on screen, in order. */
+  const cardHeadings = () => screen.queryAllByRole('heading', { level: 3 }).map((heading) => heading.textContent);
+
+  it('lists a closed season that recorded no Daily board as one plain card: cover and name, no section, count or chip', () => {
+    const getCoverThumb = vi.fn((animeId: string) => ({ coverSrc: `data:${animeId}`, isLoading: false }));
+    mockHook({
+      readOnly: true,
+      boardMode: 'plain',
+      plainRows: [{ ...created('a', 'anime-a', 'Jueves', 3), grade: 4 }, created('b', 'anime-b', 'Ver hoy')],
+      getCoverThumb,
+    });
+    const { container } = render(<DailyBoard />);
+
+    expect(cardHeadings()).toEqual(['Season animes']);
+    expect(screen.getByText('The daily board state was not recorded when this season closed.')).toBeInTheDocument();
+    const items = within(screen.getByRole('list', { name: 'Season animes' })).getAllByRole('listitem');
+    expect(items.map((item) => [item.textContent, item.children.length])).toEqual([['A', 2], ['B', 2]]);
+    expect(within(items[0]).getByTestId('season-cover-thumb-image')).toHaveAttribute('src', 'data:anime-a');
+    expect(container.querySelector('[data-slot="chip"]')).toBeNull();
+    expect(container.querySelector('[data-slot="alert-root"]')).toBeNull();
+  });
+
+  it('shows the compact empty state when a closed season with no recorded board created no anime', () => {
+    mockHook({ readOnly: true, boardMode: 'plain' });
+    render(<DailyBoard />);
+    expect(cardHeadings()).toEqual(['Season animes', 'No animes created.']);
+    expect(screen.queryByRole('list')).toBeNull();
+  });
+
+  it('replaces the board with a status placeholder while a closed season’s board is read', () => {
+    mockHook({ readOnly: true, boardMode: 'loading' });
+    render(<DailyBoard />);
+    const status = screen.getByRole('status', { name: 'Loading the daily board' });
+    expect(within(status).getAllByTestId('loading-bars-bar')).toHaveLength(3);
+    expect(cardHeadings()).toEqual([]);
+  });
+
+  it('shows the failed read instead of any board', () => {
+    mockHook({ readOnly: true, boardMode: 'failed', historyError: 'read failed' });
+    render(<DailyBoard />);
+    expect(screen.getByText('read failed')).toBeInTheDocument();
+    expect(cardHeadings()).toEqual([]);
+    expect(screen.queryByRole('status')).toBeNull();
   });
 });

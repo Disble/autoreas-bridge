@@ -132,9 +132,27 @@ Route: every task is **delegated direct** (one bounded writer, then one verifier
     - Three gate runs on dharness 1.10.0 failed at the low-priority related step. dharness 1.10.1 (released, related step at normal priority) was installed with the user's approval.
     - A second blocker was then found and fixed in its own commit `74fbfbc`. `AnimeEditorWorkspace.windowing` reproducibly took 5.6s under `vitest.mutation.mts` beside the 40-file related set. With 1.4s alone, it ran on a 150-item catalog: 1.4s in the same related run, still asserting 20 → 40 → 60 rows < total. No timeout changed.
     - Full-suite timeouts in `AnimeEditorWorkspace.covers` and `TransactionPanel.windowing` were load, not flakiness. A `vite` dev server was holding about one core; the user closed it. The three tests passed 3/3 alone (max 3.0s).
-- [ ] **T4c Closed-season Daily board from the closure snapshot.** User (2026-10-07): the closure "screenshot" exists exactly so history is immutable, as with Ordering.
+- [x] **T4c Closed-season Daily board from the closure snapshot.** Delegated writer, then an independent verifier: PASS with notes.
+  - The user approved adding `frontend/src/infrastructure/season-source/season-source.types.ts` to the surface.
+  - Backend: the closure snapshot gained an additive `dailyBoard` field with entries `rowId`, `animeId`, `section` and `order`. It is written in `app_season_closure_daily.go` using the same section rule as the frontend `groupCreatedBySection`.
+    - A missing or `null` field reads as not recorded; `[]` reads as recorded and empty.
+    - The open-season board and close-failure behaviour are unchanged; a shared read was refactored, and a read failure still aborts the close.
+    - The field is desktop-only, so `docs/openapi.yaml` is unchanged; backup carries `closure_json` as an opaque string.
+    - `TestCloseSeasonDailyBoardRoundTripsThroughSQLite` closes a season through real SQLite and reads it back. A hand mutation (`DailyBoard: nil`) fails it.
+  - Frontend, closed season:
+    - When recorded, the three sections are always shown from the snapshot. Visto keeps its grade chip; Ver hoy has no live weekday chip.
+    - When not recorded, a plain "Season animes" card shows cover and name only.
+    - Loading uses `LoadingBars` and failure uses an Alert.
+    - The open season is unchanged.
+  - Process note: the frontend RED was not observed because tests were written after the code. dharness staged mutation found 138/138 killed instead.
+  - Evidence:
+    - Go: ditto 1.00 (15/15); go test, vet, lint profile, gofmt and filesize pass.
+    - Frontend: season and infrastructure 567/567 tests; typecheck 0; ESLint clean on touched files; Fallow exit 0.
+    - Verifier hand mutations: 9/9 killed.
+  - Follow-up, pre-existing P3 behaviour left unchanged: a failed SQLite season read in `GetSeasonOrderingSnapshot` degrades to "not recorded" instead of an error (`app_season_history.go:63-66`). The Alert only fires when the IPC call throws.
+- **T4c original definition.** User (2026-10-07): the closure "screenshot" exists exactly so history is immutable, as with Ordering.
   - Extend `seasonClosureSnapshotDTO` additively with each season anime's daily section and order at close. A closed season's Daily board reads that, not live sections.
-  - Open decision (asked, unanswered): what a season closed before this change shows. The options are "not recorded" (recommended) or the live state.
+  - Decision (user, 2026-10-07): a season closed before this change shows its Daily board as a plain list of the season's animes, with no section grouping and no tags or chips. Seasons closed afterwards read the section and order from the snapshot.
 - [x] **T5 Evaluation.** Delegated writer, then an independent verifier: PASS with notes.
   - The writer was blocked once on edit surfaces. The user approved adding `RateAnimeModal/**` and the DailyBoard cover helper, type and hook files.
   - The cover seam was extracted from DailyBoard into `SeasonCoverThumb/use-season-covers.ts`, with its helpers and types under generic names; DailyBoard uses it. No copy remains.
@@ -157,6 +175,11 @@ Route: every task is **delegated direct** (one bounded writer, then one verifier
     - Fallow audit exit 0. There are 63 clone groups; the new one is store-selector lines only (verified).
     - Hand mutations: the writer's 17/17 and the verifier's 5/5 were killed.
   - Open: the Evaluation list is not windowed, because candidates stay well under 100.
+  - Committed as `ef9a680`. Full gate green: Stryker 185.7s, frontend-mutation passed.
+    - Attempt 1: an unrelated full-suite timeout in `TransactionPanel.windowing` ("a live pushed capture…", 6.2s) on an idle machine. It is a recurring borderline test, and it passed on retry.
+    - Attempt 2: 3 boundary survivors.
+      - `grade < 1` and `currentGrade >= 1` were killed by grade-1 tests (proven by hand mutation, 2 failed).
+      - The equivalent `triggerVariant = 'grade'` default was removed: `RateAnimeModalTriggerProps.variant` is optional and falls through to the grade button.
   - Original scope:
   - Covers. Ungraded rows first, with Rate (secondary) and Skip (ghost) visible.
   - Graded/skipped rows: grade chip plus a round icon that opens the existing rate modal.
@@ -189,3 +212,4 @@ Route: every task is **delegated direct** (one bounded writer, then one verifier
 ## Progress
 - 2026-10-06: branch created; task document written. Next: T1.
 - 2026-10-07: T1–T4 committed (`9b98aed`, `9153d96`, `76f6d52`, `5cad652`) plus gate fixes `689430b`, `e68f206`, `74fbfbc`. Next: T5. T4c waits on the pre-change closed-season decision.
+- 2026-10-07: T5 committed `ef9a680`. T4c decided (legacy closed seasons get a plain list). Next: T4c, then T6.

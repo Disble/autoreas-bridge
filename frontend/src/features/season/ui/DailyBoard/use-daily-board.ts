@@ -4,14 +4,17 @@ import { seasonSource } from '../../../../infrastructure/season-source/season-so
 import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
 import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
 import type { SeasonCoverSource } from '../SeasonCoverThumb/season-cover-thumb.types';
-import { useDailyBoardSections } from './use-daily-board-sections';
+import { selectVerHoyRowChip } from './daily-board.helpers';
+import { useDailyBoardView } from './use-daily-board-view';
 
 /**
  * useDailyBoard drives the conveyor: created animes grouped by section, a
  * multi-select over the Sin ver pool to send today's batch to Ver hoy (which
  * downloads automatically), and an on-demand availability recheck. Season I/O
- * flows through the season store; `useDailyBoardSections` groups the rows and
- * resolves every board row's cover.
+ * flows through the season store; `useDailyBoardView` groups the rows and
+ * resolves every board row's cover; a closed season's board comes from its
+ * closure snapshot (`useDailyBoardView`), never from live sections: the
+ * stored sections, or a plain list when the season recorded none.
  *
  * @param source The season port the store reads and writes through.
  * @param coverSource The port each row's cover is resolved through.
@@ -31,7 +34,8 @@ export function useDailyBoard(source: SeasonSource = seasonSource, coverSource: 
   const recheckAvailability = useSeasonStore((state) => state.recheckAvailability);
 
   // 5. Derived State (useMemo)
-  const { sections, getCoverThumb } = useDailyBoardSections(seasonAnimes, coverSource);
+  const { view, getCoverThumb } = useDailyBoardView(seasonAnimes, source, coverSource);
+  const getVerHoyRowChip = selectVerHoyRowChip(readOnly);
 
   // 6. Callbacks
   const toggleSelect = useCallback((animeId: string) => {
@@ -73,7 +77,10 @@ export function useDailyBoard(source: SeasonSource = seasonSource, coverSource: 
 
   return {
     readOnly,
-    sections,
+    boardMode: view.mode,
+    sections: view.sections,
+    plainRows: view.plainRows,
+    historyError: view.historyError,
     selected,
     toggleSelect,
     onSendToVerHoy,
@@ -83,5 +90,6 @@ export function useDailyBoard(source: SeasonSource = seasonSource, coverSource: 
     onRecheck,
     errorMessage,
     getCoverThumb,
+    getVerHoyRowChip,
   };
 }
