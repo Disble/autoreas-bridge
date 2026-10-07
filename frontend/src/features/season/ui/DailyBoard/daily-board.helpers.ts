@@ -52,15 +52,3 @@ export function getScheduledDay(row: SeasonAnimeRow): string | null {
 export function formatAvailableEpisodes(count: number): string {
   return `${count} episode${count === 1 ? '' : 's'} available`;
 }
-
-/**
- * The availability indicator for an already-created Sin-ver row: 'success'
- * (green) once at least one episode is online, 'danger' (red) while none are.
- * Distinct from IntakePanel's indicator (ADR-2): these rows are already
- * created, so "Available to create" / "Waiting for episode 1" wording is wrong.
- */
-export function getSinVerAvailabilityIndicator(row: SeasonAnimeRow): { color: 'success' | 'danger'; label: string } {
-  return row.availableEpisodes >= 1
-    ? { color: 'success', label: formatAvailableEpisodes(row.availableEpisodes) }
-    : { color: 'danger', label: 'No episodes online yet' };
-}

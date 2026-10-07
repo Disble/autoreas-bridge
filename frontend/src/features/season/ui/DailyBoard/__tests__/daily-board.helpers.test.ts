@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
-import { formatAvailableEpisodes, getScheduledDay, getSinVerAvailabilityIndicator, groupCreatedBySection } from '../daily-board.helpers';
+import { formatAvailableEpisodes, getScheduledDay, groupCreatedBySection } from '../daily-board.helpers';
 
+/** Builds a created Sin ver season row with the given overrides. */
 function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
   return {
     id: 'sa',
@@ -84,21 +85,5 @@ describe('formatAvailableEpisodes', () => {
 
   it('pluralizes "episodes" for more than one', () => {
     expect(formatAvailableEpisodes(5)).toBe('5 episodes available');
-  });
-});
-
-describe('getSinVerAvailabilityIndicator', () => {
-  it('is success with an episodes-available label when episodes are online', () => {
-    expect(getSinVerAvailabilityIndicator(row({ availableEpisodes: 3 }))).toEqual({
-      color: 'success',
-      label: '3 episodes available',
-    });
-  });
-
-  it('is danger when no episodes are online yet', () => {
-    expect(getSinVerAvailabilityIndicator(row({ availableEpisodes: 0 }))).toEqual({
-      color: 'danger',
-      label: 'No episodes online yet',
-    });
   });
 });
