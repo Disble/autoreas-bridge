@@ -11,7 +11,7 @@ import { useDailyBoardSections } from './use-daily-board-sections';
  * multi-select over the Sin ver pool to send today's batch to Ver hoy (which
  * downloads automatically), and an on-demand availability recheck. Season I/O
  * flows through the season store; `useDailyBoardSections` groups the rows and
- * resolves the Sin ver and Ver hoy rows' covers.
+ * resolves every board row's cover.
  *
  * @param source The season port the store reads and writes through.
  * @param coverSource The port each row's cover is resolved through.

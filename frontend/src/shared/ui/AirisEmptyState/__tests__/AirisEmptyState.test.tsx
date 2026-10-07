@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AirisEmptyState } from '../AirisEmptyState';
+import { AIRIS_ARTWORK_CLASS, AIRIS_COMPACT_ARTWORK_CLASS } from '../airis-empty-state.constants';
 
 /** Removes rendered empty-state DOM after each scenario. */
 afterEach(() => {
@@ -77,5 +78,35 @@ describe('AirisEmptyState artwork failure', () => {
     expect(document.querySelector('img')).toBeNull();
     expect(screen.getByText('Nothing scheduled today')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create an anime' })).toBeInTheDocument();
+  });
+});
+
+describe('AirisEmptyState size', () => {
+  it.each([
+    { size: undefined, hasCard: true, artworkClass: AIRIS_ARTWORK_CLASS },
+    { size: 'default' as const, hasCard: true, artworkClass: AIRIS_ARTWORK_CLASS },
+    { size: 'compact' as const, hasCard: false, artworkClass: AIRIS_COMPACT_ARTWORK_CLASS },
+  ])('renders the $size layout with the same heading and description', ({ size, hasCard, artworkClass }) => {
+    const { container } = render(
+      <AirisEmptyState imageSrc="/airis-today.webp" title="Nothing left" description="All placed." size={size} />,
+    );
+
+    expect(container.querySelector('[data-slot="card"]') !== null).toBe(hasCard);
+    expect(document.querySelector('img')).toHaveAttribute('class', artworkClass);
+    expect(screen.getByRole('heading', { level: 3, name: 'Nothing left' })).toBeInTheDocument();
+    expect(screen.getByText('All placed.')).toBeInTheDocument();
+  });
+
+  it('keeps the compact action and drops its failed artwork', () => {
+    const onPress = vi.fn();
+    render(
+      <AirisEmptyState imageSrc="/missing.webp" title="Nothing left" description="All placed." size="compact" action={{ label: 'Retry', onPress }} />,
+    );
+
+    fireEvent.error(document.querySelector('img') as HTMLImageElement);
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(document.querySelector('img')).toBeNull();
+    expect(onPress).toHaveBeenCalledTimes(1);
   });
 });

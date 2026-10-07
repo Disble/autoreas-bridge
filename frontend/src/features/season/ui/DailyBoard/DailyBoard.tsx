@@ -1,18 +1,39 @@
 import linkIcon from '@iconify-icons/solar/link-round-broken';
 import { Icon } from '@iconify/react';
-import { Alert, Button, Card, Chip, Tooltip } from '@heroui/react';
+import { Alert, Button, Tooltip } from '@heroui/react';
 import { LabeledCheckbox } from '../../../../shared/ui/LabeledCheckbox';
+import { getGradeChip } from '../EvaluationPanel/evaluation-panel.helpers';
 import { SeasonCoverThumb } from '../SeasonCoverThumb/SeasonCoverThumb';
-import { DAILY_BOARD_EMPTY_MESSAGE } from './daily-board.constants';
-import { formatAvailableEpisodes, getScheduledDay } from './daily-board.helpers';
+import { DAILY_BOARD_SECTION_COPY, VER_HOY_LIST_CLASS, VISTO_LIST_CLASS } from './daily-board.constants';
+import { formatAvailableEpisodes, getScheduledDayChip, hasBoardRows, isDailyBoardSectionShown } from './daily-board.helpers';
+import { DailyBoardSectionCard } from './DailyBoardSectionCard';
+import { DailyBoardWatchList } from './DailyBoardWatchList';
 import { useDailyBoard } from './use-daily-board';
 
 /**
- * DailyBoard is the conveyor: created animes grouped by section. Pick from the
- * Sin ver pool which to watch today → Ver hoy (auto-downloads); Ver hoy drains
- * automatically as episodes are watched; Visto flows on to evaluation. Sin ver
- * and Ver hoy rows show the anime's cover. All Wails I/O and state live in the
- * colocated `useDailyBoard` hook.
+ * DailyBoard is the conveyor below the intake: created animes grouped by
+ * section. Pick from the Sin ver pool which to watch today → Ver hoy
+ * (auto-downloads); Ver hoy drains automatically as episodes are watched; Visto
+ * flows on to evaluation. Each section is the same card (`DailyBoardSectionCard`).
+ * An open season renders a section only once it holds an anime, so the board
+ * grows with the season; a read-only season always renders all three, an empty
+ * one with its compact empty state. Sections never collapse, so a top-to-bottom
+ * scan finds every anime, and every row shows the anime's cover.
+ *
+ * Ver hoy rows carry their weekday chip; Visto rows carry their first-episode
+ * grade state instead, because Visto means "ready for evaluation" and whether
+ * an anime is graded yet is the datum worth scanning for (the grade is
+ * season-owned data, while the weekday derives from the live section and
+ * belongs to Selection and Ordering).
+ *
+ * "Re-check now" shows whenever a section does (never read-only): it re-probes
+ * availability for the uncreated intake rows and refreshes the Sin ver rows'
+ * episode counts. All Wails I/O and state live in the colocated `useDailyBoard`
+ * hook.
+ *
+ * No list here renders progressively: a season's intake is a few dozen animes
+ * (Visto peaks around 30), far below the ~100 rows the progressive-list rule
+ * targets.
  */
 export function DailyBoard() {
   const {
@@ -28,12 +49,6 @@ export function DailyBoard() {
     errorMessage,
     getCoverThumb,
   } = useDailyBoard();
-  const isEmpty = sections.sinVer.length === 0 && sections.verHoy.length === 0 && sections.visto.length === 0;
-
-  const readonlyGroups = [
-    { title: 'Ver hoy — watching (drains as you watch)', color: 'accent' as const, rows: sections.verHoy, showCover: true },
-    { title: 'Visto — watched, ready for evaluation', color: 'success' as const, rows: sections.visto, showCover: false },
-  ];
 
   return (
     <section className="flex flex-col gap-4">
@@ -64,7 +79,7 @@ export function DailyBoard() {
         </Alert>
       )}
 
-      {!readOnly && (
+      {!readOnly && hasBoardRows(sections) && (
         <div className="flex items-center gap-3">
           <Button variant="tertiary" onPress={onRecheck}>
             Re-check now
@@ -72,100 +87,77 @@ export function DailyBoard() {
         </div>
       )}
 
-      {isEmpty ? (
-        <p className="text-sm text-muted">{DAILY_BOARD_EMPTY_MESSAGE}</p>
-      ) : (
-        <div className="flex flex-col gap-4">
-          <Card>
-            <Card.Header>
-              <Card.Title>Sin ver — pick what you watch today</Card.Title>
-              <Card.Description>
-                Sent animes download at the daily scheduled time — or manually if that window has already passed.
-              </Card.Description>
-            </Card.Header>
-            <Card.Content>
-              {sections.sinVer.length === 0 ? (
-                <p className="text-sm text-muted">Nothing left to schedule.</p>
-              ) : (
-                <ul className="flex flex-col gap-2">
-                  {sections.sinVer.map((row) => (
-                    <li key={row.id} className="flex flex-wrap items-center gap-3">
-                      <SeasonCoverThumb {...getCoverThumb(row.animeId)} />
-                      {readOnly ? (
-                        <span className="text-sm text-foreground">{row.rawName}</span>
-                      ) : (
-                        <LabeledCheckbox
-                          isSelected={selected.has(row.animeId)}
-                          onChange={() => toggleSelect(row.animeId)}
-                        >
-                          {row.rawName}
-                        </LabeledCheckbox>
-                      )}
-                      <span className="text-xs text-muted">{formatAvailableEpisodes(row.availableEpisodes)}</span>
-                      <div className="ml-auto flex items-center gap-2">
-                        {row.matchedSlug !== '' && (
-                          <Tooltip>
-                            <a
-                              aria-label={`Open the page for ${row.rawName}`}
-                              className="inline-flex size-8 items-center justify-center rounded-md text-muted hover:text-accent"
-                              href={row.matchedSlug}
-                              rel="noreferrer"
-                              target="_blank"
-                            >
-                              <Icon className="size-4" icon={linkIcon} />
-                            </a>
-                            <Tooltip.Content showArrow>
-                              <Tooltip.Arrow />
-                              Open page
-                            </Tooltip.Content>
-                          </Tooltip>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {!readOnly && (
-                <div className="mt-3 flex items-center gap-3">
-                  <Button isDisabled={selected.size === 0} variant="primary" onPress={onSendToVerHoy}>
-                    Send to Ver hoy
-                  </Button>
-                  <span className="text-sm text-muted">{selected.size} selected for today</span>
+      {isDailyBoardSectionShown(readOnly, sections.sinVer.length) && (
+        <DailyBoardSectionCard
+          copy={DAILY_BOARD_SECTION_COPY.sinVer}
+          count={sections.sinVer.length}
+          countColor="default"
+          footer={
+            readOnly ? null : (
+              <div className="mt-3 flex items-center gap-3">
+                <Button isDisabled={selected.size === 0} variant="primary" onPress={onSendToVerHoy}>
+                  Send to Ver hoy
+                </Button>
+                <span className="text-sm text-muted">{selected.size} selected for today</span>
+              </div>
+            )
+          }
+        >
+          <ul aria-label="Sin ver" className="flex flex-col gap-2">
+            {sections.sinVer.map((row) => (
+              <li key={row.id} className="flex flex-wrap items-center gap-3">
+                <SeasonCoverThumb {...getCoverThumb(row.animeId)} />
+                {readOnly ? (
+                  <span className="text-sm text-foreground">{row.rawName}</span>
+                ) : (
+                  <LabeledCheckbox isSelected={selected.has(row.animeId)} onChange={() => toggleSelect(row.animeId)}>
+                    {row.rawName}
+                  </LabeledCheckbox>
+                )}
+                <span className="text-xs text-muted">{formatAvailableEpisodes(row.availableEpisodes)}</span>
+                <div className="ml-auto flex items-center gap-2">
+                  {row.matchedSlug !== '' && (
+                    <Tooltip>
+                      <a
+                        aria-label={`Open the page for ${row.rawName}`}
+                        className="inline-flex size-8 items-center justify-center rounded-md text-muted hover:text-accent"
+                        href={row.matchedSlug}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        <Icon className="size-4" icon={linkIcon} />
+                      </a>
+                      <Tooltip.Content showArrow>
+                        <Tooltip.Arrow />
+                        Open page
+                      </Tooltip.Content>
+                    </Tooltip>
+                  )}
                 </div>
-              )}
-            </Card.Content>
-          </Card>
+              </li>
+            ))}
+          </ul>
+        </DailyBoardSectionCard>
+      )}
 
-          {readonlyGroups.map(
-            (group) =>
-              group.rows.length > 0 && (
-                <div key={group.title} className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold text-foreground">{group.title}</h3>
-                    <Chip color={group.color} size="sm" variant="soft">
-                      {group.rows.length}
-                    </Chip>
-                  </div>
-                  <ul className="flex flex-col gap-1">
-                    {group.rows.map((row) => {
-                      const scheduledDay = getScheduledDay(row);
-                      return (
-                        <li key={row.id} className="flex items-center gap-2 text-sm text-foreground">
-                          {group.showCover && <SeasonCoverThumb {...getCoverThumb(row.animeId)} />}
-                          {row.rawName}
-                          {scheduledDay !== null && (
-                            <Chip color="accent" size="sm" variant="soft">
-                              {scheduledDay}
-                            </Chip>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              ),
-          )}
-        </div>
+      {isDailyBoardSectionShown(readOnly, sections.verHoy.length) && (
+        <DailyBoardSectionCard
+          copy={DAILY_BOARD_SECTION_COPY.verHoy}
+          count={sections.verHoy.length}
+          countColor="accent"
+        >
+          <DailyBoardWatchList getCoverThumb={getCoverThumb} getRowChip={getScheduledDayChip} label="Ver hoy" listClassName={VER_HOY_LIST_CLASS} rows={sections.verHoy} />
+        </DailyBoardSectionCard>
+      )}
+
+      {isDailyBoardSectionShown(readOnly, sections.visto.length) && (
+        <DailyBoardSectionCard
+          copy={DAILY_BOARD_SECTION_COPY.visto}
+          count={sections.visto.length}
+          countColor="success"
+        >
+          <DailyBoardWatchList getCoverThumb={getCoverThumb} getRowChip={getGradeChip} label="Visto" listClassName={VISTO_LIST_CLASS} rows={sections.visto} />
+        </DailyBoardSectionCard>
       )}
     </section>
   );

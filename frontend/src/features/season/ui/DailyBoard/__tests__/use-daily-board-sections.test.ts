@@ -27,19 +27,19 @@ describe('useDailyBoardSections', () => {
     await waitFor(() => expect(result.current.getCoverThumb('a')).toEqual({ coverSrc: 'data:a', isLoading: false }));
   });
 
-  it('requests each non-empty Sin ver and Ver hoy id once, across duplicates and re-renders', async () => {
+  it('requests each non-empty board id once, across sections, duplicates and re-renders', async () => {
     const source = coverSource();
     const { result, rerender } = renderHook(({ board }) => useDailyBoardSections(board, source), {
       initialProps: { board: [...rows('Sin ver', 'a', 'a', ''), ...rows('Visto', 'v')] },
     });
     await waitFor(() => expect(result.current.getCoverThumb('a').coverSrc).toBe('data:a'));
 
-    rerender({ board: [...rows('Sin ver', 'a'), ...rows('Ver hoy', 'b')] });
-    rerender({ board: [...rows('Sin ver', 'b'), ...rows('Ver hoy', 'a')] });
+    rerender({ board: [...rows('Sin ver', 'a'), ...rows('Ver hoy', 'b'), ...rows('Visto', 'v')] });
+    rerender({ board: [...rows('Sin ver', 'b'), ...rows('Lunes', 'a'), ...rows('Ver hoy', 'v')] });
     await waitFor(() => expect(result.current.getCoverThumb('b').coverSrc).toBe('data:b'));
 
-    expect(source.getAnimeCover.mock.calls).toEqual([['a'], ['b']]);
-    expect(result.current.getCoverThumb('v')).toEqual(PLACEHOLDER);
+    expect(source.getAnimeCover.mock.calls).toEqual([['a'], ['v'], ['b']]);
+    expect(result.current.getCoverThumb('v')).toEqual({ coverSrc: 'data:v', isLoading: false });
   });
 
   it('degrades a placeholder answer to the placeholder', async () => {

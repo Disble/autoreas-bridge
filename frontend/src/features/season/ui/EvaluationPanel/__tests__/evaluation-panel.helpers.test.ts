@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
 import type { EvaluationRow } from '../evaluation-panel.types';
-import { countUngraded, formatRatedAt, getGradeSourceLabel, toEvaluationRows } from '../evaluation-panel.helpers';
+import { countUngraded, formatRatedAt, getGradeChip, getGradeSourceLabel, toEvaluationRows } from '../evaluation-panel.helpers';
 
+/** Builds a created season row with the given overrides. */
 function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
   return {
     id: 'sa-1',
@@ -21,6 +22,7 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
   };
 }
 
+/** Builds an Evaluation row with the given overrides. */
 function evalRow(overrides: Partial<EvaluationRow> = {}): EvaluationRow {
   return { id: 'e', animeId: 'a', rawName: 'A', grade: 0, gradeSource: '', skipGrading: false, ...overrides };
 }
@@ -68,5 +70,16 @@ describe('getGradeSourceLabel', () => {
     expect(getGradeSourceLabel('mobile_sync')).toBe('Mobile');
     expect(getGradeSourceLabel('manual')).toBe('Manual');
     expect(getGradeSourceLabel('')).toBe('');
+  });
+});
+
+describe('getGradeChip', () => {
+  it.each([
+    { grade: 5, skipGrading: false, expected: { label: 'Grade 5', color: 'success' } },
+    { grade: 1, skipGrading: true, expected: { label: 'Grade 1', color: 'success' } },
+    { grade: 0, skipGrading: true, expected: { label: 'Skipped', color: 'default' } },
+    { grade: 0, skipGrading: false, expected: { label: 'No grade', color: 'warning' } },
+  ])('maps grade $grade (skipped: $skipGrading) to its chip', ({ grade, skipGrading, expected }) => {
+    expect(getGradeChip({ grade, skipGrading })).toEqual(expected);
   });
 });

@@ -28,3 +28,10 @@ export const AIRIS_CLEAR_CRITERIA_LABEL = 'Clear search and filters';
  * the Editor rail's narrow column.
  */
 export const AIRIS_ARTWORK_CLASS = 'h-auto w-40 max-w-full';
+
+/**
+ * Display size for the artwork of the compact, one-row variant: a 40px square
+ * beside the copy, the height of the title and description it sits next to.
+ * `shrink-0` keeps a long description from squeezing it.
+ */
+export const AIRIS_COMPACT_ARTWORK_CLASS = 'size-10 shrink-0';

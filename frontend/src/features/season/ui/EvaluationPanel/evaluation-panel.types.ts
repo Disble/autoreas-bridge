@@ -15,3 +15,11 @@ export interface EvaluationRow {
   /** Explicit "no grade" override. */
   readonly skipGrading: boolean;
 }
+
+/** The chip a candidate's first-episode grade state renders: its label and semantic color. */
+export interface GradeChip {
+  /** "Grade N", "Skipped" or "No grade". */
+  readonly label: string;
+  /** success when graded, default when skipped, warning when still ungraded. */
+  readonly color: 'success' | 'default' | 'warning';
+}

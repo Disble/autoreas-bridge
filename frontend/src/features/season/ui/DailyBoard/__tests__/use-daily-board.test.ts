@@ -143,7 +143,7 @@ describe('useDailyBoard', () => {
     expect(source.sendToVerHoy).not.toHaveBeenCalled();
   });
 
-  it('resolves covers for the Sin ver and Ver hoy rows only', async () => {
+  it('resolves a cover for every board row, Visto included', async () => {
     const rows = [createdRow('a', 'anime-a', 'Sin ver'), createdRow('b', 'anime-b', 'Ver hoy'), createdRow('c', 'anime-c', 'Visto')];
     const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const getAnimeCover = vi.fn((animeId: string) => Promise.resolve({ source: 'cover', dataUrl: `data:${animeId}` }));
@@ -151,8 +151,8 @@ describe('useDailyBoard', () => {
 
     await waitFor(() => expect(result.current.getCoverThumb('anime-b')).toEqual({ coverSrc: 'data:anime-b', isLoading: false }));
     expect(result.current.getCoverThumb('anime-a')).toEqual({ coverSrc: 'data:anime-a', isLoading: false });
-    expect(result.current.getCoverThumb('anime-c')).toEqual({ coverSrc: undefined, isLoading: false });
-    expect(getAnimeCover.mock.calls).toEqual([['anime-a'], ['anime-b']]);
+    expect(result.current.getCoverThumb('anime-c')).toEqual({ coverSrc: 'data:anime-c', isLoading: false });
+    expect(getAnimeCover.mock.calls).toEqual([['anime-a'], ['anime-b'], ['anime-c']]);
   });
 
   it('onRecheck triggers an availability recheck', async () => {

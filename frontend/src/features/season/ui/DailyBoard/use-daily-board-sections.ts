@@ -7,7 +7,7 @@ import type { BoardSections, DailyBoardCoverSource } from './daily-board.types';
 
 /**
  * Groups the season's created rows into the board's sections and resolves one
- * cover per Sin ver and Ver hoy anime, at most once per mount, handing back the
+ * cover per board anime, at most once per mount, handing back the
  * sections and the lookup each row's thumbnail renders from.
  *
  * Mirrors `useEpisodeCovers`' fetch, degrade and placeholder shape. A season

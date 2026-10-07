@@ -77,6 +77,10 @@ Route: every task is **delegated direct** (one bounded writer, then one verifier
     - RED: 23 failing. GREEN: 36 files, 463 tests (IntakePanel, metadata-lookup, anime-editor, anime-create).
     - Typecheck 0. ESLint clean. Fallow audit exit 0: duplicate groups 63 → 62, no introduced complexity.
     - Staged mutation 114 killed / 0 survived, after 24 initial survivors in moved code were killed with behavior tests.
+  - Committed as `76f6d52`. Final staged mutation 118/118.
+    - Attempt 1: hung for about 46 minutes inside `dharness check`, on `bunx add fallow@latest --force`. Most likely the running `fallow-mcp` servers lock `fallow.exe` in the same bunx temp dir. The stuck bunx was killed.
+    - Attempt 2: Stryker's dry run timed out (5s) on the heavy `AnimeEditorWorkspace` 842-item test under machine load.
+    - Attempt 3: passed with nothing else running. No threshold or timeout was changed.
   - Original scope:
   - Each row: thumbnail; a one-line metadata summary (kind · eps · duration · studio) once metadata is applied.
   - Actions are round icons in order: metadata lookup (magic stick), page, folder, ⋯. The ⋯ menu holds Undo autofill / Clear metadata / Discard.
@@ -84,11 +88,46 @@ Route: every task is **delegated direct** (one bounded writer, then one verifier
   - The availability dot stays at the far right.
   - Footer actions render only when actionable: Run matching, Check availability, Create n.
   - Raw/List toggle, candidates, reconcile and read-only behavior unchanged.
-- [ ] **T4 Daily board.**
+- [x] **T4 Daily board.** Delegated writer, then an independent verifier: PASS.
+  - Visto is a HeroUI `Disclosure` (`DailyBoardVistoDisclosure`, state in `use-daily-board-visto`), collapsed by default.
+    - When expanded, the pure `groupVistoByWeekday` groups rows Lunes→Domingo by `sectionOrder`, with "Not scheduled yet" last.
+    - Each row shows the cover and the name only. No row is lost or duplicated.
+  - The cover seam now includes Visto ids, still one request per id.
+  - Shared `AirisEmptyState` gained an additive `size: 'compact'` early-return branch. Its 11 callers keep byte-identical default markup.
+  - Sin ver resolved-empty uses the compact variant.
+  - Observation, unchanged: the Ver hoy weekday chip never renders with real data, because Ver hoy rows always carry section `'Ver hoy'`. This is pre-existing.
+  - Evidence:
+    - Tests: 56/56 for DailyBoard and AirisEmptyState; 774 across every AirisEmptyState caller folder.
+    - Typecheck 0, ESLint clean, Fallow audit exit 0 (62 duplicate groups, unchanged).
+    - Staged mutation 54 killed / 0 survived / 5 ignored (static strings). Survivors from earlier runs were killed by behavior tests or by removing equivalent code: a useless `useMemo` and the `size='default'` default.
+  - Original scope:
   - Sin ver: rows with covers and no dot; when empty, a compact one-line resolved-empty state.
   - Ver hoy: rows with a cover and the weekday chip.
   - Visto: a disclosure, collapsed by default, showing its count; when expanded, rows are grouped by weekday (ordered by section order, no position numbers), plus a "Not scheduled yet" group.
   - Download notice, Re-check and Send to Ver hoy unchanged.
+- [ ] **T4b Past-season Daily board integrity.** User feedback (2026-10-07): in a closed (read-only) season, Sin ver / Ver hoy / Visto, and now the T4 weekday grouping, are derived from each anime's LIVE section. That is the current Today state, not the state the season ended in.
+  - History is immutable. If the board followed live data, it would keep changing as later seasons move the same animes.
+  - The closure snapshot (P3/P4 in `preseason-readiness`) stores the ordering board only. The watching pipeline is never recorded, and the precedent (P4 slice 2) renders an explicit "not recorded" state for the historical Overview pipeline.
+  - Fix: a past season's Daily board renders the same honest "not recorded" treatment instead of live sections. The open season is unchanged. Pre-existing bug, surfaced by T4.
+  - SUPERSEDED (user, 2026-10-07): a closed season ALWAYS shows all three daily sections, whatever they contain, so nothing feels hidden.
+    - Visto rows now carry the season-owned grade state instead of the live weekday chip, which removes the live weekday leak.
+    - Residual, recorded rather than fixed: section MEMBERSHIP in a closed season still derives from each anime's live section, because the closure snapshot does not record the pipeline.
+- **T4 rework (user, 2026-10-07)**
+  - Visto: always visible (no disclosure), shown as a compact scannable grid of cover + name + grade-state chip ("Grade N" / "Skipped" / "No grade", the same states as Evaluation), in place of the live weekday chip. Rationale: Visto means "watched, ready for evaluation", and the passed/day question now belongs to Selection and Ordering.
+  - Open season: Intake is always shown, and Sin ver / Ver hoy / Visto render only once they hold at least 1 anime.
+  - Closed season: all sections always render, with compact empty states.
+  - Sin ver, Ver hoy and Visto share one card format with the Intake list.
+  - Implemented (same writer), then a second independent verifier: PASS on all 7 points.
+    - New `DailyBoardSectionCard` and `DailyBoardWatchList` (shared by Ver hoy and Visto). Visibility rule `isDailyBoardSectionShown(readOnly, n) = readOnly || n > 0`.
+    - Shared `getGradeChip` was extracted into `evaluation-panel.helpers.ts`. EvaluationPanel markup is unchanged.
+    - Re-check now stays a standalone button, shown only when not read-only and at least one section has rows. It calls the same `recheckAvailability` as the intake's Check availability, so nothing is lost when it hides.
+    - The disclosure, the weekday grouping and the "No created animes yet" line are deleted.
+    - Visible additions: Sin ver count chip, short Ver hoy/Visto descriptions, Ver hoy names truncate with a tooltip.
+    - Tests 73/73 (DailyBoard, EvaluationPanel, AirisEmptyState). Typecheck 0. ESLint clean. Fallow audit exit 0 with no dead exports.
+  - Gate blocker found and fixed in its own commit `e68f206`.
+    - Cause: dharness runs the related-test step at low priority, and an unrelated `AnimeEditorWorkspace.covers` test took 5.2s against the 5s limit there. It is pulled in through AirisEmptyState callers.
+    - Fix: the test now uses a 3-anime catalog. 2.4s → 0.7s, every assertion kept, discrimination proven by two hand mutations. No timeout changed.
+    - Reported to the dharness peer session.
 - [ ] **T5 Evaluation.**
   - Covers. Ungraded rows first, with Rate (secondary) and Skip (ghost) visible.
   - Graded/skipped rows: grade chip plus a round icon that opens the existing rate modal.

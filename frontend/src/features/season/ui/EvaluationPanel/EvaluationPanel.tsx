@@ -1,7 +1,7 @@
 import { Alert, Button, Chip } from '@heroui/react';
 import { RateAnimeModal } from '../RateAnimeModal/RateAnimeModal';
 import { EVALUATION_EMPTY_MESSAGE } from './evaluation-panel.constants';
-import { formatRatedAt, getGradeSourceLabel } from './evaluation-panel.helpers';
+import { formatRatedAt, getGradeChip, getGradeSourceLabel } from './evaluation-panel.helpers';
 import { useEvaluationPanel } from './use-evaluation-panel';
 
 /**
@@ -38,25 +38,7 @@ export function EvaluationPanel() {
       ) : (
         <ul className="flex flex-col gap-2">
           {rows.map((row) => {
-            let gradeChip = (
-              <Chip color="warning" size="sm" variant="soft">
-                No grade
-              </Chip>
-            );
-
-            if (row.grade >= 1) {
-              gradeChip = (
-                <Chip color="success" size="sm" variant="soft">
-                  Grade {row.grade}
-                </Chip>
-              );
-            } else if (row.skipGrading) {
-              gradeChip = (
-                <Chip size="sm" variant="soft">
-                  Skipped
-                </Chip>
-              );
-            }
+            const gradeChip = getGradeChip(row);
 
             return (
               <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3">
@@ -68,7 +50,9 @@ export function EvaluationPanel() {
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  {gradeChip}
+                  <Chip color={gradeChip.color} size="sm" variant="soft">
+                    {gradeChip.label}
+                  </Chip>
                 {!readOnly && (
                   <>
                     <RateAnimeModal

@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
-import { formatAvailableEpisodes, getScheduledDay, groupCreatedBySection, toDailyBoardCoverEntry, toSeasonCoverThumbProps } from '../daily-board.helpers';
+import {
+  formatAvailableEpisodes,
+  getScheduledDay,
+  getScheduledDayChip,
+  groupCreatedBySection,
+  toDailyBoardCoverEntry,
+  toSeasonCoverThumbProps,
+} from '../daily-board.helpers';
 
 /** Builds a created Sin ver season row with the given overrides. */
 function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
@@ -106,5 +113,14 @@ describe('toDailyBoardCoverEntry', () => {
     { name: 'a placeholder carrying data', result: { source: 'placeholder', dataUrl: 'data:a' }, expected: { status: 'placeholder' } },
   ])('maps $name to its cache entry', ({ result, expected }) => {
     expect(toDailyBoardCoverEntry(result)).toEqual(expected);
+  });
+});
+
+describe('getScheduledDayChip', () => {
+  it.each([
+    { name: 'a scheduled row', section: 'Jueves', sectionOrder: 3, expected: { label: 'Jueves - 3', color: 'accent' } },
+    { name: 'an unscheduled row', section: 'Ver hoy', sectionOrder: 0, expected: null },
+  ])('maps $name to its weekday chip', ({ section, sectionOrder, expected }) => {
+    expect(getScheduledDayChip(row({ section, sectionOrder }))).toEqual(expected);
   });
 });

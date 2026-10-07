@@ -1,5 +1,5 @@
 import type { SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
-import type { EvaluationRow } from './evaluation-panel.types';
+import type { EvaluationRow, GradeChip } from './evaluation-panel.types';
 
 /**
  * toEvaluationRows narrows the season rows to created candidates (an anime was
@@ -55,4 +55,17 @@ export function getGradeSourceLabel(gradeSource: string): string {
     return 'Manual';
   }
   return '';
+}
+
+/**
+ * getGradeChip maps a candidate's first-episode grade state to its chip: a grade
+ * (1–6) wins over a skip, a skip reads as "Skipped", anything else is still
+ * ungraded. Shared by the Evaluation list and the Daily board's Visto rows so
+ * the two never disagree.
+ */
+export function getGradeChip({ grade, skipGrading }: Pick<EvaluationRow, 'grade' | 'skipGrading'>): GradeChip {
+  if (grade >= 1) {
+    return { label: `Grade ${grade}`, color: 'success' };
+  }
+  return skipGrading ? { label: 'Skipped', color: 'default' } : { label: 'No grade', color: 'warning' };
 }

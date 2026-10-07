@@ -2,7 +2,7 @@ import type { SeasonAnimeRow } from '../../../../infrastructure/season-source/se
 import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
 import type { SeasonCoverThumbProps } from '../SeasonCoverThumb/season-cover-thumb.types';
 import { WEEKDAY_SECTIONS } from './daily-board.constants';
-import type { BoardSections, DailyBoardCoverResult } from './daily-board.types';
+import type { BoardSections, DailyBoardCoverResult, DailyBoardRowChip } from './daily-board.types';
 
 /**
  * Groups the CREATED season animes by their live Estrenos section. Only created
@@ -48,6 +48,18 @@ export function getScheduledDay(row: SeasonAnimeRow): string | null {
 }
 
 /**
+ * The accent weekday chip a Ver hoy row renders ("Jueves - 3"), or null while
+ * the row is not scheduled on a weekday.
+ *
+ * @param row The Ver hoy row.
+ * @returns The chip, or null for none.
+ */
+export function getScheduledDayChip(row: SeasonAnimeRow): DailyBoardRowChip | null {
+  const scheduledDay = getScheduledDay(row);
+  return scheduledDay === null ? null : { label: scheduledDay, color: 'accent' };
+}
+
+/**
  * Formats a Sin-ver row's available episode count for display, singularizing
  * "episode" for a count of exactly one.
  */
@@ -56,17 +68,16 @@ export function formatAvailableEpisodes(count: number): string {
 }
 
 /**
- * Picks the anime ids whose covers still need a lookup: the Sin ver and Ver
- * hoy rows' ids (Visto rows render no cover), each non-empty id once, skipping
- * every id already requested. A row without an anime id has nothing to resolve
- * and keeps the placeholder.
+ * Picks the anime ids whose covers still need a lookup: every section's row
+ * ids, each non-empty id once, skipping every id already requested. A row
+ * without an anime id has nothing to resolve and keeps the placeholder.
  *
  * @param sections The board's created rows, grouped by section.
  * @param requested The ids a lookup was already started for.
  * @returns The ids to request now, in render order and without duplicates.
  */
 export function planDailyBoardCoverRequests(sections: BoardSections, requested: ReadonlySet<string>): string[] {
-  const animeIds = new Set([...sections.sinVer, ...sections.verHoy].map((row) => row.animeId));
+  const animeIds = new Set([...sections.sinVer, ...sections.verHoy, ...sections.visto].map((row) => row.animeId));
 
   return [...animeIds].filter((animeId) => animeId !== '' && !requested.has(animeId));
 }
@@ -94,4 +105,27 @@ export function toSeasonCoverThumbProps(entry: AnimeCoverEntry | undefined): Sea
     coverSrc: entry?.status === 'cover' ? entry.dataUrl : undefined,
     isLoading: entry?.status === 'loading',
   };
+}
+
+/**
+ * Whether a conveyor section card renders: an open season shows a section only
+ * once it holds an anime, so the board grows as the season progresses; a
+ * read-only season always shows all three, so nothing feels hidden.
+ *
+ * @param readOnly Whether the season is closed (read-only).
+ * @param count How many rows the section holds.
+ * @returns Whether to render the section's card.
+ */
+export function isDailyBoardSectionShown(readOnly: boolean, count: number): boolean {
+  return readOnly || count > 0;
+}
+
+/**
+ * Whether any created anime reached the board, in any section.
+ *
+ * @param sections The board's created rows, grouped by section.
+ * @returns Whether at least one section holds a row.
+ */
+export function hasBoardRows(sections: BoardSections): boolean {
+  return sections.sinVer.length + sections.verHoy.length + sections.visto.length > 0;
 }
