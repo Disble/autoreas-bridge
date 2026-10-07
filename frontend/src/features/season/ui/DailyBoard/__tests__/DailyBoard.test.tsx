@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
@@ -45,6 +45,7 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     onDismissNotice: vi.fn(),
     onRecheck: vi.fn(),
     errorMessage: undefined,
+    getCoverThumb: vi.fn(() => ({ coverSrc: undefined, isLoading: false })),
     ...overrides,
   };
   mockedUseDailyBoard.mockReturnValue(value);
@@ -139,6 +140,25 @@ describe('DailyBoard', () => {
     expect(screen.getByText('0 episodes available')).toBeInTheDocument();
     // Query by label: an anchor rendered with an empty href has no link role, so a role query could never see it.
     expect(screen.queryByLabelText(/Open the page for A/)).not.toBeInTheDocument();
+  });
+
+  it('renders each Sin ver and Ver hoy row its own cover thumbnail, and none on Visto rows', () => {
+    const getCoverThumb = vi.fn((animeId: string) => ({ coverSrc: `data:${animeId}`, isLoading: false }));
+    mockHook({
+      sections: {
+        sinVer: [created('a', 'anime-a', 'Sin ver')],
+        verHoy: [created('b', 'anime-b', 'Ver hoy')],
+        visto: [created('c', 'anime-c', 'Visto')],
+      },
+      getCoverThumb,
+    });
+    render(<DailyBoard />);
+
+    /** The list row that renders the given anime name. */
+    const rowOf =(name: string) => screen.getByText(name).closest('li') as HTMLElement;
+    expect(within(rowOf('A')).getByTestId('season-cover-thumb-image')).toHaveAttribute('src', 'data:anime-a');
+    expect(within(rowOf('B')).getByTestId('season-cover-thumb-image')).toHaveAttribute('src', 'data:anime-b');
+    expect(within(rowOf('C')).queryByTestId('season-cover-thumb')).not.toBeInTheDocument();
   });
 
   // The availability dot belongs to the Intake list only; in Sin ver it duplicated the episode text.

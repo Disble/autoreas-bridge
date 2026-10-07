@@ -1,6 +1,8 @@
 import type { SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
+import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
+import type { SeasonCoverThumbProps } from '../SeasonCoverThumb/season-cover-thumb.types';
 import { WEEKDAY_SECTIONS } from './daily-board.constants';
-import type { BoardSections } from './daily-board.types';
+import type { BoardSections, DailyBoardCoverResult } from './daily-board.types';
 
 /**
  * Groups the CREATED season animes by their live Estrenos section. Only created
@@ -51,4 +53,45 @@ export function getScheduledDay(row: SeasonAnimeRow): string | null {
  */
 export function formatAvailableEpisodes(count: number): string {
   return `${count} episode${count === 1 ? '' : 's'} available`;
+}
+
+/**
+ * Picks the anime ids whose covers still need a lookup: the Sin ver and Ver
+ * hoy rows' ids (Visto rows render no cover), each non-empty id once, skipping
+ * every id already requested. A row without an anime id has nothing to resolve
+ * and keeps the placeholder.
+ *
+ * @param sections The board's created rows, grouped by section.
+ * @param requested The ids a lookup was already started for.
+ * @returns The ids to request now, in render order and without duplicates.
+ */
+export function planDailyBoardCoverRequests(sections: BoardSections, requested: ReadonlySet<string>): string[] {
+  const animeIds = new Set([...sections.sinVer, ...sections.verHoy].map((row) => row.animeId));
+
+  return [...animeIds].filter((animeId) => animeId !== '' && !requested.has(animeId));
+}
+
+/**
+ * Maps one `getAnimeCover` answer to its cache entry: a cover only when the
+ * binding returned one with data, the placeholder otherwise.
+ *
+ * @param result The binding's answer.
+ * @returns The cover entry to cache for that anime.
+ */
+export function toDailyBoardCoverEntry(result: DailyBoardCoverResult): AnimeCoverEntry {
+  return result.source === 'cover' && result.dataUrl !== undefined ? { status: 'cover', dataUrl: result.dataUrl } : { status: 'placeholder' };
+}
+
+/**
+ * Maps an anime's cached cover entry to the props its thumbnail renders. An id
+ * with no entry yet renders the placeholder, never a skeleton.
+ *
+ * @param entry The cached entry, when a lookup was started for that anime.
+ * @returns The thumbnail's source and loading flag.
+ */
+export function toSeasonCoverThumbProps(entry: AnimeCoverEntry | undefined): SeasonCoverThumbProps {
+  return {
+    coverSrc: entry?.status === 'cover' ? entry.dataUrl : undefined,
+    isLoading: entry?.status === 'loading',
+  };
 }

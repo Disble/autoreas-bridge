@@ -2,6 +2,7 @@ import linkIcon from '@iconify-icons/solar/link-round-broken';
 import { Icon } from '@iconify/react';
 import { Alert, Button, Card, Chip, Tooltip } from '@heroui/react';
 import { LabeledCheckbox } from '../../../../shared/ui/LabeledCheckbox';
+import { SeasonCoverThumb } from '../SeasonCoverThumb/SeasonCoverThumb';
 import { DAILY_BOARD_EMPTY_MESSAGE } from './daily-board.constants';
 import { formatAvailableEpisodes, getScheduledDay } from './daily-board.helpers';
 import { useDailyBoard } from './use-daily-board';
@@ -9,17 +10,29 @@ import { useDailyBoard } from './use-daily-board';
 /**
  * DailyBoard is the conveyor: created animes grouped by section. Pick from the
  * Sin ver pool which to watch today → Ver hoy (auto-downloads); Ver hoy drains
- * automatically as episodes are watched; Visto flows on to evaluation. All Wails
- * I/O and state live in the colocated `useDailyBoard` hook.
+ * automatically as episodes are watched; Visto flows on to evaluation. Sin ver
+ * and Ver hoy rows show the anime's cover. All Wails I/O and state live in the
+ * colocated `useDailyBoard` hook.
  */
 export function DailyBoard() {
-  const { readOnly, sections, selected, toggleSelect, onSendToVerHoy, downloadNotice, onDownloadNow, onDismissNotice, onRecheck, errorMessage } =
-    useDailyBoard();
+  const {
+    readOnly,
+    sections,
+    selected,
+    toggleSelect,
+    onSendToVerHoy,
+    downloadNotice,
+    onDownloadNow,
+    onDismissNotice,
+    onRecheck,
+    errorMessage,
+    getCoverThumb,
+  } = useDailyBoard();
   const isEmpty = sections.sinVer.length === 0 && sections.verHoy.length === 0 && sections.visto.length === 0;
 
   const readonlyGroups = [
-    { key: 'verHoy', title: 'Ver hoy — watching (drains as you watch)', color: 'accent' as const, rows: sections.verHoy },
-    { key: 'visto', title: 'Visto — watched, ready for evaluation', color: 'success' as const, rows: sections.visto },
+    { title: 'Ver hoy — watching (drains as you watch)', color: 'accent' as const, rows: sections.verHoy, showCover: true },
+    { title: 'Visto — watched, ready for evaluation', color: 'success' as const, rows: sections.visto, showCover: false },
   ];
 
   return (
@@ -77,6 +90,7 @@ export function DailyBoard() {
                 <ul className="flex flex-col gap-2">
                   {sections.sinVer.map((row) => (
                     <li key={row.id} className="flex flex-wrap items-center gap-3">
+                      <SeasonCoverThumb {...getCoverThumb(row.animeId)} />
                       {readOnly ? (
                         <span className="text-sm text-foreground">{row.rawName}</span>
                       ) : (
@@ -125,7 +139,7 @@ export function DailyBoard() {
           {readonlyGroups.map(
             (group) =>
               group.rows.length > 0 && (
-                <div key={group.key} className="flex flex-col gap-2">
+                <div key={group.title} className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-semibold text-foreground">{group.title}</h3>
                     <Chip color={group.color} size="sm" variant="soft">
@@ -137,6 +151,7 @@ export function DailyBoard() {
                       const scheduledDay = getScheduledDay(row);
                       return (
                         <li key={row.id} className="flex items-center gap-2 text-sm text-foreground">
+                          {group.showCover && <SeasonCoverThumb {...getCoverThumb(row.animeId)} />}
                           {row.rawName}
                           {scheduledDay !== null && (
                             <Chip color="accent" size="sm" variant="soft">

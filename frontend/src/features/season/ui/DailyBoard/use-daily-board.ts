@@ -1,16 +1,22 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
 import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
 import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
-import { groupCreatedBySection } from './daily-board.helpers';
+import type { DailyBoardCoverSource } from './daily-board.types';
+import { useDailyBoardSections } from './use-daily-board-sections';
 
 /**
  * useDailyBoard drives the conveyor: created animes grouped by section, a
  * multi-select over the Sin ver pool to send today's batch to Ver hoy (which
- * downloads automatically), and an on-demand availability recheck. All Wails I/O
- * flows through the season store.
+ * downloads automatically), and an on-demand availability recheck. Season I/O
+ * flows through the season store; `useDailyBoardSections` groups the rows and
+ * resolves the Sin ver and Ver hoy rows' covers.
+ *
+ * @param source The season port the store reads and writes through.
+ * @param coverSource The port each row's cover is resolved through.
  */
-export function useDailyBoard(source: SeasonSource = seasonSource) {
+export function useDailyBoard(source: SeasonSource = seasonSource, coverSource: DailyBoardCoverSource = bridgeRuntimeSource) {
   // 2. State
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   // Set when a batch is sent after the daily auto-download window: prompts a manual download.
@@ -25,7 +31,7 @@ export function useDailyBoard(source: SeasonSource = seasonSource) {
   const recheckAvailability = useSeasonStore((state) => state.recheckAvailability);
 
   // 5. Derived State (useMemo)
-  const sections = useMemo(() => groupCreatedBySection(seasonAnimes), [seasonAnimes]);
+  const { sections, getCoverThumb } = useDailyBoardSections(seasonAnimes, coverSource);
 
   // 6. Callbacks
   const toggleSelect = useCallback((animeId: string) => {
@@ -76,5 +82,6 @@ export function useDailyBoard(source: SeasonSource = seasonSource) {
     onDismissNotice,
     onRecheck,
     errorMessage,
+    getCoverThumb,
   };
 }

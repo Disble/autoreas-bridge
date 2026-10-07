@@ -49,7 +49,20 @@ Route: every task is **delegated direct** (one bounded writer, then one verifier
     - Cause: the existing "no matched slug" test queried `role=link`, but an anchor with an empty href has no link role, so the query could never see it.
     - Fix: the test now queries by label.
     - Hand-applying both mutants (`true &&` and the string literal) now fails the test (1 failed / 9). Restored: 29/29.
-- [ ] **T2 Season cover seam.**
+  - Committed as `9b98aed`. Full gate green; staged mutation 5/5 killed.
+- [x] **T2 Season cover seam, wired into Daily board Sin ver and Ver hoy rows.** Re-scoped because an unused component or export would fail the Fallow/dharness dead-code gate. The rest of T4 stays in T4.
+  - Delegated writer, then an independent verifier: PASS.
+  - New dumb `SeasonCoverThumb` ({coverSrc, isLoading}), mirroring the Editor list thumb.
+  - New `DailyBoard/use-daily-board-sections.ts`: groups rows by section and requests `getAnimeCover` once per created id (ref-tracked) for Sin ver and Ver hoy, with placeholder fallback on a missing binding, a rejection, or a non-cover answer.
+  - `shared/anime-cover` resolves a single cover only, and Editor/Episodes each keep their own batch caches, so the seam stays season-local and the shared code is untouched.
+  - RED: 6 failing tests plus 2 unresolved suites. GREEN: 6 files, 47 tests.
+  - Four hand mutations each failed the tests: empty-id guard, `source === 'cover'` guard, Visto `showCover`, Visto requests.
+  - Typecheck 0. Fallow audit and dead-code: nothing introduced.
+  - A first attempt added a hook call to `useDailyBoard`, which raised cognitive complexity from 15 to 16 and failed the audit. It was resolved by extraction (lesson logged).
+  - First commit attempt: staged mutation reported 6 survivors. Each was killed by simplifying production code, with no constant pins and no disables:
+    - Group React keys: the groups are now keyed by their visible title.
+    - Placeholder literals: the no-binding branch leaves ids uncached, and a rejection removes its pending entry through `withoutCoverEntry`. A new two-id rejection test proves only the failed entry is dropped.
+  - Final staged mutation: 82 killed / 0 survived / 6 timeouts.
   - One shared season thumbnail (44px rounded-lg, `AnimeCoverPlaceholder` fallback, loading skeleton).
   - Cover sources: a created row resolves through `getAnimeCover(animeId)` with caching (reuse the existing cover hooks/patterns from Today/Editor where possible); an intake row uses its applied metadata cover URL.
   - No per-render refetch storms.
