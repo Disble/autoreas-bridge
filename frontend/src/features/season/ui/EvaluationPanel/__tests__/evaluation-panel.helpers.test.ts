@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
 import type { EvaluationRow } from '../evaluation-panel.types';
-import { countUngraded, formatRatedAt, getGradeChip, getGradeSourceLabel, toEvaluationRows } from '../evaluation-panel.helpers';
+import {
+  countUngraded,
+  formatRatedAt,
+  getGradeChip,
+  getGradeSourceLabel,
+  toEvaluationListItems,
+  toEvaluationRows,
+} from '../evaluation-panel.helpers';
 
 /** Builds a created season row with the given overrides. */
 function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
@@ -49,6 +56,7 @@ describe('countUngraded', () => {
       evalRow({ grade: 0, skipGrading: false }),
       evalRow({ grade: 0, skipGrading: true }), // skipped, excluded
       evalRow({ grade: 5, skipGrading: false }), // graded, excluded
+      evalRow({ grade: 1, skipGrading: false }), // lowest grade still counts as graded
     ];
     expect(countUngraded(rows)).toBe(1);
   });
@@ -81,5 +89,39 @@ describe('getGradeChip', () => {
     { grade: 0, skipGrading: false, expected: { label: 'No grade', color: 'warning' } },
   ])('maps grade $grade (skipped: $skipGrading) to its chip', ({ grade, skipGrading, expected }) => {
     expect(getGradeChip({ grade, skipGrading })).toEqual(expected);
+  });
+});
+
+describe('toEvaluationListItems', () => {
+  it('lists ungraded rows first, keeping the relative order of each group', () => {
+    const rows = [
+      evalRow({ id: 'graded', grade: 4 }),
+      evalRow({ id: 'pending-1' }),
+      evalRow({ id: 'skipped', skipGrading: true }),
+      evalRow({ id: 'pending-2' }),
+      evalRow({ id: 'graded-skipped', grade: 2, skipGrading: true }),
+    ];
+
+    const items = toEvaluationListItems(rows);
+
+    expect(items.map((item) => [item.row.id, item.isPending])).toEqual([
+      ['pending-1', true],
+      ['pending-2', true],
+      ['graded', false],
+      ['skipped', false],
+      ['graded-skipped', false],
+    ]);
+  });
+
+  it.each([
+    { name: 'an ungraded row', row: evalRow({ gradeSource: 'manual', ratedAt: 1 }), meta: 'Not rated yet' },
+    { name: 'a mobile grade', row: evalRow({ grade: 5, gradeSource: 'mobile_sync', ratedAt: 1_751_500_000_000 }), meta: `Mobile · ${formatRatedAt(1_751_500_000_000)}` },
+    { name: 'a manual grade', row: evalRow({ grade: 3, gradeSource: 'manual', ratedAt: 1_751_500_000_000 }), meta: `Manual · ${formatRatedAt(1_751_500_000_000)}` },
+    { name: 'a sourceless skip', row: evalRow({ skipGrading: true }), meta: '—' },
+  ])('describes $name with its meta line and grade chip', ({ row, meta }) => {
+    const [item] = toEvaluationListItems([row]);
+
+    expect(item.meta).toBe(meta);
+    expect(item.chip).toEqual(getGradeChip(row));
   });
 });

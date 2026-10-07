@@ -14,9 +14,6 @@ function coverSource() {
   return { getAnimeCover: vi.fn((animeId: string) => Promise.resolve({ source: 'cover', dataUrl: `data:${animeId}` })) };
 }
 
-/** The thumbnail props of an anime with no cover. */
-const PLACEHOLDER = { coverSrc: undefined, isLoading: false };
-
 describe('useDailyBoardSections', () => {
   it('groups the rows and shows a requested cover loading, then resolved', async () => {
     const source = coverSource();
@@ -40,28 +37,5 @@ describe('useDailyBoardSections', () => {
 
     expect(source.getAnimeCover.mock.calls).toEqual([['a'], ['v'], ['b']]);
     expect(result.current.getCoverThumb('v')).toEqual({ coverSrc: 'data:v', isLoading: false });
-  });
-
-  it('degrades a placeholder answer to the placeholder', async () => {
-    const getAnimeCover = () => Promise.resolve({ source: 'placeholder' });
-    const { result } = renderHook(() => useDailyBoardSections(rows('Sin ver', 'a'), { getAnimeCover }));
-
-    await waitFor(() => expect(result.current.getCoverThumb('a')).toEqual(PLACEHOLDER));
-  });
-
-  it('degrades only the rejected lookup to the placeholder, keeping the other covers', async () => {
-    /** Resolves `a` to a cover and rejects every other id. */
-    const getAnimeCover = (animeId: string) =>
-      animeId === 'a' ? Promise.resolve({ source: 'cover', dataUrl: 'data:a' }) : Promise.reject(new Error('boom'));
-    const { result } = renderHook(() => useDailyBoardSections(rows('Sin ver', 'a', 'b'), { getAnimeCover }));
-
-    await waitFor(() => expect(result.current.getCoverThumb('b')).toEqual(PLACEHOLDER));
-    expect(result.current.getCoverThumb('a')).toEqual({ coverSrc: 'data:a', isLoading: false });
-  });
-
-  it('degrades every id to the placeholder when the binding is absent', () => {
-    const { result } = renderHook(() => useDailyBoardSections(rows('Sin ver', 'a'), {}));
-
-    expect(result.current.getCoverThumb('a')).toEqual(PLACEHOLDER);
   });
 });

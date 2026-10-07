@@ -1,5 +1,6 @@
 import type { SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
-import type { EvaluationRow, GradeChip } from './evaluation-panel.types';
+import { EVALUATION_NOT_RATED_META } from './evaluation-panel.constants';
+import type { EvaluationListItem, EvaluationRow, EvaluationView, GradeChip } from './evaluation-panel.types';
 
 /**
  * toEvaluationRows narrows the season rows to created candidates (an anime was
@@ -29,7 +30,7 @@ export function toEvaluationRows(rows: readonly SeasonAnimeRow[]): EvaluationRow
  * explicitly skipped — the number that would derive as not-approved at selection.
  */
 export function countUngraded(rows: readonly EvaluationRow[]): number {
-  return rows.filter((r) => r.grade < 1 && !r.skipGrading).length;
+  return rows.filter(isPendingGrade).length;
 }
 
 /**
@@ -68,4 +69,56 @@ export function getGradeChip({ grade, skipGrading }: Pick<EvaluationRow, 'grade'
     return { label: `Grade ${grade}`, color: 'success' };
   }
   return skipGrading ? { label: 'Skipped', color: 'default' } : { label: 'No grade', color: 'warning' };
+}
+
+/**
+ * Projects the candidates into the rows the Evaluation list renders, ungraded
+ * ones first so what still needs a grade leads the list. Each group keeps the
+ * order it arrived in.
+ *
+ * @param rows The created candidates, in season order.
+ * @returns The list rows: pending first, then graded or skipped.
+ */
+export function toEvaluationListItems(rows: readonly EvaluationRow[]): EvaluationListItem[] {
+  const items = rows.map((row): EvaluationListItem => {
+    const isPending = isPendingGrade(row);
+    return { row, isPending, meta: isPending ? EVALUATION_NOT_RATED_META : formatGradeMeta(row), chip: getGradeChip(row) };
+  });
+  return [...items.filter((item) => item.isPending), ...items.filter((item) => !item.isPending)];
+}
+
+/**
+ * Derives the Evaluation list from the season rows: the created candidates as
+ * list rows (ungraded first), the ungraded count, and the cover ids.
+ *
+ * @param seasonAnimes The season's rows, as the season store holds them.
+ * @returns The list rows, the ungraded count and the anime ids to cover.
+ */
+export function buildEvaluationView(seasonAnimes: readonly SeasonAnimeRow[]): EvaluationView {
+  const rows = toEvaluationRows(seasonAnimes);
+  const items = toEvaluationListItems(rows);
+  return { items, ungradedCount: countUngraded(rows), animeIds: items.map((item) => item.row.animeId) };
+}
+
+/**
+ * Whether a candidate still lacks a grade and was not explicitly skipped.
+ *
+ * @param row The candidate.
+ * @returns True while the candidate would derive as not-approved at selection.
+ */
+function isPendingGrade(row: EvaluationRow): boolean {
+  return row.grade < 1 && !row.skipGrading;
+}
+
+/**
+ * The meta line of a graded or skipped candidate: its capture source, when
+ * known, then the grade date.
+ *
+ * @param row The candidate.
+ * @returns "Source · date", or the date alone when there is no source.
+ */
+function formatGradeMeta(row: EvaluationRow): string {
+  const sourceLabel = getGradeSourceLabel(row.gradeSource);
+  const ratedAt = formatRatedAt(row.ratedAt);
+  return sourceLabel === '' ? ratedAt : `${sourceLabel} · ${ratedAt}`;
 }

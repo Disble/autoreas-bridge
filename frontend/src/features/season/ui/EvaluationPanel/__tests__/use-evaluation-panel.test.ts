@@ -67,16 +67,28 @@ describe('useEvaluationPanel', () => {
   it('loads candidates on mount and counts the ungraded ones', async () => {
     const rows = [created('a', 'anime-a', 0), created('b', 'anime-b', 5)];
     const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
-    const { result } = renderHook(() => useEvaluationPanel(source));
+    const { result } = renderHook(() => useEvaluationPanel(source, {}));
 
-    await waitFor(() => expect(result.current.rows).toHaveLength(2));
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
     expect(result.current.ungradedCount).toBe(1);
     expect(source.getSeasonAnimes).toHaveBeenCalled();
   });
 
+  it('lists ungraded candidates first and resolves each candidate cover once', async () => {
+    const rows = [created('a', 'anime-a', 5), created('b', 'anime-b', 0), created('c', 'anime-c', 0, true)];
+    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const getAnimeCover = vi.fn((animeId: string) => Promise.resolve({ source: 'cover', dataUrl: `data:${animeId}` }));
+    const { result } = renderHook(() => useEvaluationPanel(source, { getAnimeCover }));
+
+    await waitFor(() => expect(result.current.getCoverThumb('anime-c')).toEqual({ coverSrc: 'data:anime-c', isLoading: false }));
+    expect(result.current.items.map((item) => item.row.id)).toEqual(['b', 'a', 'c']);
+    expect(result.current.getCoverThumb('anime-a')).toEqual({ coverSrc: 'data:anime-a', isLoading: false });
+    expect(getAnimeCover.mock.calls).toEqual([['anime-b'], ['anime-a'], ['anime-c']]);
+  });
+
   it('onSkip records the override for a row', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useEvaluationPanel(source));
+    const { result } = renderHook(() => useEvaluationPanel(source, {}));
 
     await act(async () => {
       result.current.onSkip('sa-1');

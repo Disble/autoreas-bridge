@@ -128,7 +128,36 @@ Route: every task is **delegated direct** (one bounded writer, then one verifier
     - Cause: dharness runs the related-test step at low priority, and an unrelated `AnimeEditorWorkspace.covers` test took 5.2s against the 5s limit there. It is pulled in through AirisEmptyState callers.
     - Fix: the test now uses a 3-anime catalog. 2.4s → 0.7s, every assertion kept, discrimination proven by two hand mutations. No timeout changed.
     - Reported to the dharness peer session.
-- [ ] **T5 Evaluation.**
+  - Committed as `5cad652` after the full gate (related 38.6s, Stryker 417.9s, frontend-mutation green).
+    - Three gate runs on dharness 1.10.0 failed at the low-priority related step. dharness 1.10.1 (released, related step at normal priority) was installed with the user's approval.
+    - A second blocker was then found and fixed in its own commit `74fbfbc`. `AnimeEditorWorkspace.windowing` reproducibly took 5.6s under `vitest.mutation.mts` beside the 40-file related set. With 1.4s alone, it ran on a 150-item catalog: 1.4s in the same related run, still asserting 20 → 40 → 60 rows < total. No timeout changed.
+    - Full-suite timeouts in `AnimeEditorWorkspace.covers` and `TransactionPanel.windowing` were load, not flakiness. A `vite` dev server was holding about one core; the user closed it. The three tests passed 3/3 alone (max 3.0s).
+- [ ] **T4c Closed-season Daily board from the closure snapshot.** User (2026-10-07): the closure "screenshot" exists exactly so history is immutable, as with Ordering.
+  - Extend `seasonClosureSnapshotDTO` additively with each season anime's daily section and order at close. A closed season's Daily board reads that, not live sections.
+  - Open decision (asked, unanswered): what a season closed before this change shows. The options are "not recorded" (recommended) or the live state.
+- [x] **T5 Evaluation.** Delegated writer, then an independent verifier: PASS with notes.
+  - The writer was blocked once on edit surfaces. The user approved adding `RateAnimeModal/**` and the DailyBoard cover helper, type and hook files.
+  - The cover seam was extracted from DailyBoard into `SeasonCoverThumb/use-season-covers.ts`, with its helpers and types under generic names; DailyBoard uses it. No copy remains.
+  - `RateAnimeModal` gained an additive `triggerVariant` through `RateAnimeModalTrigger`:
+    - `'grade'` is the default and byte-identical, so the Episodes card is unchanged;
+    - `'rate'` is a secondary button;
+    - `'icon'` is the Solar star "Change grade" button.
+  - Evaluation rows:
+    - Rows show a cover, with ungraded rows first.
+    - Ungraded rows have Rate and Skip, and the meta line "Not rated yet".
+    - Graded or skipped rows have the star icon and the meta line "Source · date".
+    - Every row ends in a fixed-width chip.
+  - Accepted functional changes (user, 2026-10-07):
+    - Skipped rows no longer render a disabled Skip button.
+    - Graded rows no longer render an enabled Skip button. It only set `SkipGrading`, which is hidden by the grade chip and cleared by re-grading.
+  - Verifier note fixed by the parent: `divide-white/10` became `divide-separator`.
+    - HeroUI v3 has no `divider` token, so `AppLayout`'s `border-divider/60` and the theme skill are stale. This is a follow-up outside this feature.
+  - Evidence:
+    - season 389/389 tests; anime-editor + shared 1027/1027; typecheck 0; ESLint clean.
+    - Fallow audit exit 0. There are 63 clone groups; the new one is store-selector lines only (verified).
+    - Hand mutations: the writer's 17/17 and the verifier's 5/5 were killed.
+  - Open: the Evaluation list is not windowed, because candidates stay well under 100.
+  - Original scope:
   - Covers. Ungraded rows first, with Rate (secondary) and Skip (ghost) visible.
   - Graded/skipped rows: grade chip plus a round icon that opens the existing rate modal.
   - The source · date line stays. The warning alert stays.
@@ -159,3 +188,4 @@ Route: every task is **delegated direct** (one bounded writer, then one verifier
 
 ## Progress
 - 2026-10-06: branch created; task document written. Next: T1.
+- 2026-10-07: T1–T4 committed (`9b98aed`, `9153d96`, `76f6d52`, `5cad652`) plus gate fixes `689430b`, `e68f206`, `74fbfbc`. Next: T5. T4c waits on the pre-change closed-season decision.

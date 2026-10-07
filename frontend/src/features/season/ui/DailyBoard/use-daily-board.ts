@@ -3,7 +3,7 @@ import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-s
 import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
 import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
 import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
-import type { DailyBoardCoverSource } from './daily-board.types';
+import type { SeasonCoverSource } from '../SeasonCoverThumb/season-cover-thumb.types';
 import { useDailyBoardSections } from './use-daily-board-sections';
 
 /**
@@ -16,7 +16,7 @@ import { useDailyBoardSections } from './use-daily-board-sections';
  * @param source The season port the store reads and writes through.
  * @param coverSource The port each row's cover is resolved through.
  */
-export function useDailyBoard(source: SeasonSource = seasonSource, coverSource: DailyBoardCoverSource = bridgeRuntimeSource) {
+export function useDailyBoard(source: SeasonSource = seasonSource, coverSource: SeasonCoverSource = bridgeRuntimeSource) {
   // 2. State
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   // Set when a batch is sent after the daily auto-download window: prompts a manual download.

@@ -1,31 +1,59 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { RateAnimeModalProps } from '../../RateAnimeModal/rate-anime-modal.types';
 import { EvaluationPanel } from '../EvaluationPanel';
+import { toEvaluationListItems } from '../evaluation-panel.helpers';
 import type { EvaluationRow } from '../evaluation-panel.types';
 import { useEvaluationPanel } from '../use-evaluation-panel';
 
 vi.mock('../use-evaluation-panel', () => ({ useEvaluationPanel: vi.fn() }));
-vi.mock('../../RateAnimeModal/RateAnimeModal', () => ({ RateAnimeModal: () => <div data-testid="rate-modal" /> }));
+vi.mock('../../RateAnimeModal/RateAnimeModal', () => ({
+  /** Stands in for the shared modal, exposing the props the row hands it. */
+  RateAnimeModal: (props: RateAnimeModalProps) => (
+    <div
+      data-anime={props.animeId}
+      data-grade={props.currentGrade}
+      data-name={props.rawName}
+      data-source={props.gradeSource}
+      data-testid="rate-modal"
+      data-variant={props.triggerVariant}
+    />
+  ),
+}));
 
+/** The hook double every case configures. */
 const mockedUseEvaluationPanel = vi.mocked(useEvaluationPanel);
+/** What the panel's hook returns. */
 type HookReturn = ReturnType<typeof useEvaluationPanel>;
 
+/** Builds an ungraded Evaluation row with the given overrides. */
 function evalRow(overrides: Partial<EvaluationRow> = {}): EvaluationRow {
   return { id: 'e', animeId: 'a', rawName: 'Anime A', grade: 0, gradeSource: '', skipGrading: false, ...overrides };
 }
 
-function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
+/** Configures the hook double with the given rows and overrides, and returns its value. */
+function mockHook(rows: readonly EvaluationRow[] = [], overrides: Partial<HookReturn> = {}): HookReturn {
   const value: HookReturn = {
     readOnly: false,
-    rows: [],
+    items: toEvaluationListItems(rows),
     ungradedCount: 0,
     errorMessage: undefined,
     onSkip: vi.fn(),
+    getCoverThumb: () => ({ coverSrc: undefined, isLoading: false }),
     ...overrides,
   };
   mockedUseEvaluationPanel.mockReturnValue(value);
   return value;
+}
+
+/** Returns the list row that shows the given anime name. */
+function getRow(name: string): HTMLElement {
+  const row = screen.getByText(name).closest('li');
+  if (row === null) {
+    throw new Error(`no row for ${name}`);
+  }
+  return row;
 }
 
 describe('EvaluationPanel', () => {
@@ -34,32 +62,99 @@ describe('EvaluationPanel', () => {
     vi.clearAllMocks();
   });
 
-  it('shows the empty state when there are no candidates', () => {
+  it('shows the empty state and no list when there are no candidates', () => {
     mockHook();
     render(<EvaluationPanel />);
     expect(screen.getByText(/No created candidates yet/)).toBeInTheDocument();
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
   });
 
-  it('renders a graded candidate with its grade and a rate trigger', () => {
-    mockHook({ rows: [evalRow({ grade: 5, gradeSource: 'manual' })] });
-    render(<EvaluationPanel />);
-    expect(screen.getByText('Anime A')).toBeInTheDocument();
-    expect(screen.getByText('Grade 5')).toBeInTheDocument();
-    expect(screen.getByTestId('rate-modal')).toBeInTheDocument();
-  });
-
-  it('flags an ungraded candidate and shows the ungraded banner', () => {
-    mockHook({ rows: [evalRow({ grade: 0 })], ungradedCount: 1 });
-    render(<EvaluationPanel />);
-    expect(screen.getByText('No grade')).toBeInTheDocument();
-    expect(screen.getByText(/1 ungraded/)).toBeInTheDocument();
-  });
-
-  it('skips grading for a row', () => {
+  it('gives an ungraded row its meta, chip, a rate button and a skip button', () => {
     const onSkip = vi.fn();
-    mockHook({ rows: [evalRow({ id: 'row-1' })], onSkip });
+    mockHook([evalRow({ id: 'row-1', animeId: 'anime-1' })], { onSkip });
     render(<EvaluationPanel />);
-    fireEvent.click(screen.getByRole('button', { name: 'Skip' }));
+    const row = within(getRow('Anime A'));
+
+    expect(row.getByText('Not rated yet')).toBeInTheDocument();
+    expect(row.getByText('No grade')).toBeInTheDocument();
+    const modal = row.getByTestId('rate-modal');
+    expect(modal).toHaveAttribute('data-variant', 'rate');
+    expect(modal).toHaveAttribute('data-anime', 'anime-1');
+    expect(modal).toHaveAttribute('data-name', 'Anime A');
+    expect(modal).toHaveAttribute('data-grade', '0');
+
+    const skip = row.getByRole('button', { name: 'Skip' });
+    expect(skip.className).toContain('button--ghost');
+    fireEvent.click(skip);
     expect(onSkip).toHaveBeenCalledWith('row-1');
+  });
+
+  it.each([
+    { name: 'a graded row', row: evalRow({ grade: 5, gradeSource: 'manual', ratedAt: 1_751_500_000_000 }), chip: 'Grade 5' },
+    { name: 'a skipped row', row: evalRow({ skipGrading: true }), chip: 'Skipped' },
+  ])('gives $name its chip and the change-grade trigger, without a skip button', ({ row, chip }) => {
+    mockHook([row]);
+    render(<EvaluationPanel />);
+    const listRow = within(getRow('Anime A'));
+
+    expect(listRow.getByText(chip)).toBeInTheDocument();
+    const modal = listRow.getByTestId('rate-modal');
+    expect(modal).toHaveAttribute('data-variant', 'icon');
+    expect(modal).toHaveAttribute('data-grade', String(row.grade));
+    expect(modal).toHaveAttribute('data-source', row.gradeSource);
+    expect(listRow.queryByRole('button', { name: 'Skip' })).not.toBeInTheDocument();
+    expect(listRow.queryByText('Not rated yet')).not.toBeInTheDocument();
+  });
+
+  it('shows the source and date of a graded row', () => {
+    mockHook([evalRow({ grade: 4, gradeSource: 'mobile_sync', ratedAt: 1_751_500_000_000 })]);
+    render(<EvaluationPanel />);
+    expect(within(getRow('Anime A')).getByText(/^Mobile · /)).toBeInTheDocument();
+  });
+
+  it('hides every rate and skip action on a read-only season, keeping the chips', () => {
+    mockHook([evalRow({ id: 'p', rawName: 'Pending' }), evalRow({ id: 'g', rawName: 'Graded', grade: 3 })], { readOnly: true });
+    render(<EvaluationPanel />);
+
+    expect(screen.queryByTestId('rate-modal')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Skip' })).not.toBeInTheDocument();
+    expect(within(getRow('Pending')).getByText('No grade')).toBeInTheDocument();
+    expect(within(getRow('Graded')).getByText('Grade 3')).toBeInTheDocument();
+  });
+
+  it('renders the rows in the order the hook hands them', () => {
+    mockHook([evalRow({ id: 'g', rawName: 'Graded', grade: 3 }), evalRow({ id: 'p', rawName: 'Pending' })]);
+    render(<EvaluationPanel />);
+    expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      expect.stringContaining('Pending'),
+      expect.stringContaining('Graded'),
+    ]);
+  });
+
+  it('renders each row cover from its anime id', () => {
+    mockHook([evalRow({ animeId: 'anime-1' })], {
+      getCoverThumb: (animeId) => ({ coverSrc: `data:${animeId}`, isLoading: false }),
+    });
+    render(<EvaluationPanel />);
+    expect(screen.getByTestId('season-cover-thumb-image')).toHaveAttribute('src', 'data:anime-1');
+  });
+
+  it.each([
+    { ungradedCount: 1, shown: true },
+    { ungradedCount: 0, shown: false },
+  ])('shows the ungraded warning only when candidates are ungraded ($ungradedCount)', ({ ungradedCount, shown }) => {
+    mockHook([evalRow()], { ungradedCount });
+    render(<EvaluationPanel />);
+    expect(screen.queryByText(/1 ungraded/) !== null).toBe(shown);
+    expect(screen.queryByText(/derive as not approved at selection/) !== null).toBe(shown);
+  });
+
+  it.each([
+    { errorMessage: 'Grading failed', shown: true },
+    { errorMessage: undefined, shown: false },
+  ])('shows the error alert only when there is an error ($errorMessage)', ({ errorMessage, shown }) => {
+    mockHook([], { errorMessage });
+    render(<EvaluationPanel />);
+    expect(screen.queryByText('Grading failed') !== null).toBe(shown);
   });
 });

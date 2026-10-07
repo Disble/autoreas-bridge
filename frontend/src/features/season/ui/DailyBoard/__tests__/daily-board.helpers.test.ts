@@ -6,8 +6,6 @@ import {
   getScheduledDay,
   getScheduledDayChip,
   groupCreatedBySection,
-  toDailyBoardCoverEntry,
-  toSeasonCoverThumbProps,
 } from '../daily-board.helpers';
 
 /** Builds a created Sin ver season row with the given overrides. */
@@ -92,27 +90,6 @@ describe('formatAvailableEpisodes', () => {
 
   it('pluralizes "episodes" for more than one', () => {
     expect(formatAvailableEpisodes(5)).toBe('5 episodes available');
-  });
-});
-
-describe('toSeasonCoverThumbProps', () => {
-  it.each([
-    { name: 'an unrequested id', entry: undefined, expected: { coverSrc: undefined, isLoading: false } },
-    { name: 'a pending lookup', entry: { status: 'loading' } as const, expected: { coverSrc: undefined, isLoading: true } },
-    { name: 'a resolved cover', entry: { status: 'cover', dataUrl: 'data:a' } as const, expected: { coverSrc: 'data:a', isLoading: false } },
-    { name: 'a placeholder', entry: { status: 'placeholder' } as const, expected: { coverSrc: undefined, isLoading: false } },
-  ])('maps $name to the thumbnail props', ({ entry, expected }) => {
-    expect(toSeasonCoverThumbProps(entry)).toEqual(expected);
-  });
-});
-
-describe('toDailyBoardCoverEntry', () => {
-  it.each([
-    { name: 'a cover with data', result: { source: 'cover', dataUrl: 'data:a' }, expected: { status: 'cover', dataUrl: 'data:a' } },
-    { name: 'a cover without data', result: { source: 'cover' }, expected: { status: 'placeholder' } },
-    { name: 'a placeholder carrying data', result: { source: 'placeholder', dataUrl: 'data:a' }, expected: { status: 'placeholder' } },
-  ])('maps $name to its cache entry', ({ result, expected }) => {
-    expect(toDailyBoardCoverEntry(result)).toEqual(expected);
   });
 });
 
