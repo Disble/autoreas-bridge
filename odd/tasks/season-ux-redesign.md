@@ -150,6 +150,7 @@ Route: every task is **delegated direct** (one bounded writer, then one verifier
     - Frontend: season and infrastructure 567/567 tests; typecheck 0; ESLint clean on touched files; Fallow exit 0.
     - Verifier hand mutations: 9/9 killed.
   - Follow-up, pre-existing P3 behaviour left unchanged: a failed SQLite season read in `GetSeasonOrderingSnapshot` degrades to "not recorded" instead of an error (`app_season_history.go:63-66`). The Alert only fires when the IPC call throws.
+  - Committed as `fc67727`. Attempt 1 hit full-suite timeouts in `HistoryFilterBar` and `TransactionPanel.windowing`, caused by Go coverage running in parallel with the frontend suite. Both passed 2/2 alone (0.5s and 1.2s), and the retry was green.
 - **T4c original definition.** User (2026-10-07): the closure "screenshot" exists exactly so history is immutable, as with Ordering.
   - Extend `seasonClosureSnapshotDTO` additively with each season anime's daily section and order at close. A closed season's Daily board reads that, not live sections.
   - Decision (user, 2026-10-07): a season closed before this change shows its Daily board as a plain list of the season's animes, with no section grouping and no tags or chips. Seasons closed afterwards read the section and order from the snapshot.
@@ -184,7 +185,23 @@ Route: every task is **delegated direct** (one bounded writer, then one verifier
   - Covers. Ungraded rows first, with Rate (secondary) and Skip (ghost) visible.
   - Graded/skipped rows: grade chip plus a round icon that opens the existing rate modal.
   - The source · date line stays. The warning alert stays.
-- [ ] **T6 Selection.**
+- [x] **T6 Selection.** Delegated writer, then an independent verifier: PASS with notes. No behavior changed or lost.
+  - The Verdict table became one card with "Approved · N" then "Rejected · N" groups. Each group is a `ul` labelled by its heading, and keeps HEAD's order inside the group.
+  - New `SelectionCandidateRow`:
+    - cover, a truncated name with tooltip, and the consideration select (plain text when read-only);
+    - desktop actions and a fixed-width grade slot, all always visible.
+  - New `useSelectionCandidates` sub-hook builds the groups and covers through the shared `useSeasonCovers`. It kept `useSelectionBoard` at HEAD complexity (cognitive 25).
+  - New helpers: `groupSelectionRows`, `getQuotaColor`, `formatSelectionGrade` and `toConsiderationToken` (the moved `?? 'none'`).
+  - Presentation choices:
+    - The grade stays plain text (`5` / `—`) as on the canvas, not `getGradeChip`, to avoid a new "Skipped" state.
+    - Rejected rows are not dimmed, so their controls don't look disabled.
+    - The list is not windowed (well under 100).
+  - Decision (user, 2026-10-07): an empty group is always omitted. The Daily board rule (closed season shows every section) applies to the Daily board only.
+  - Evidence:
+    - season 455/455 tests; typecheck 0; ESLint clean.
+    - Fallow exit 0: 60 clone groups, 0% dead exports.
+    - Writer's dharness staged mutation 53/0. The verifier's hand mutations 5/5 were killed, and the restore was proven by md5.
+  - Original scope:
   - Covers. Rows grouped as Approved / Rejected, replacing the Verdict column.
   - Consideration select and desktop actions stay visible.
   - Rules header (steppers, quota, confirmation, Confirm modal) unchanged in behavior.

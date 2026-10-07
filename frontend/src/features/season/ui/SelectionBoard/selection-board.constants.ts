@@ -1,7 +1,10 @@
-import type { ConsiderationOption } from './selection-board.types';
+import type { ConsiderationOption, Verdict } from './selection-board.types';
+
+/** The candidate list's groups, in display order: approved first, rejected after. */
+export const SELECTION_GROUP_VERDICTS: readonly Verdict[] = ['approved', 'rejected'];
 
 /** Consideration token: no override (mirror of the Go domain enum). */
-const CONSIDERATION_NONE = 'none';
+export const CONSIDERATION_NONE = 'none';
 /** Consideration token: reject a passing anime for lack of quota. */
 export const CONSIDERATION_INSUFFICIENT_QUOTA = 'insufficient_quota';
 /** Consideration token: approve a failing anime temporarily. */

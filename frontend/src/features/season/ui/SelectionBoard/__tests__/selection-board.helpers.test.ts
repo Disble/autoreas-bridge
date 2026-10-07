@@ -7,10 +7,14 @@ import {
   decideVerdict,
   formatConfirmSuccess,
   formatSelectionConfirmedLabel,
+  formatSelectionGrade,
   getConsiderationLabel,
+  getQuotaColor,
   getVerdictLabel,
+  groupSelectionRows,
   quotaStatus,
   runDesktopAction,
+  toConsiderationToken,
   toSelectionRows,
 } from '../selection-board.helpers';
 
@@ -59,6 +63,7 @@ describe('decideVerdict (Excel-parity twin)', () => {
   }
 });
 
+/** Builds a created, graded season anime row, overriding only what a case sets. */
 function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
   return {
     id: 'sa',
@@ -125,6 +130,66 @@ describe('quotaStatus', () => {
     expect(quotaStatus(9, 12)).toBe('under');
     expect(quotaStatus(12, 12)).toBe('at');
     expect(quotaStatus(13, 12)).toBe('over');
+  });
+});
+
+describe('getQuotaColor', () => {
+  it.each([
+    ['under', 'success'],
+    ['at', 'warning'],
+    ['over', 'danger'],
+  ] as const)('colors a quota %s the cap as %s', (quota, color) => {
+    expect(getQuotaColor(quota)).toBe(color);
+  });
+});
+
+describe('formatSelectionGrade', () => {
+  it.each([
+    [6, '6'],
+    [1, '1'],
+    [0, '—'],
+  ])('shows grade %i as %s', (grade, label) => {
+    expect(formatSelectionGrade(grade)).toBe(label);
+  });
+});
+
+describe('toConsiderationToken', () => {
+  it.each([
+    ['spare_quota', 'spare_quota'],
+    [null, 'none'],
+  ])('stores the Select value %s as %s', (value, token) => {
+    expect(toConsiderationToken(value)).toBe(token);
+  });
+});
+
+describe('groupSelectionRows', () => {
+  /** Builds a projected selection row with one id and verdict. */
+  function selectionRow(id: string, verdict: 'approved' | 'rejected') {
+    return { ...toSelectionRows([row({ id, animeId: `anime-${id}` })], 4)[0], verdict };
+  }
+
+  it('splits the rows into an Approved then a Rejected group, keeping each group in row order', () => {
+    const rows = [selectionRow('a1', 'approved'), selectionRow('a2', 'approved'), selectionRow('r1', 'rejected'), selectionRow('r2', 'rejected')];
+
+    const groups = groupSelectionRows(rows);
+
+    expect(groups.map((group) => [group.verdict, group.label, group.rows.map((r) => r.id)])).toEqual([
+      ['approved', 'Approved', ['a1', 'a2']],
+      ['rejected', 'Rejected', ['r1', 'r2']],
+    ]);
+  });
+
+  it.each([
+    ['approved', 'Approved'],
+    ['rejected', 'Rejected'],
+  ] as const)('leaves out the empty group when every row is %s', (verdict, label) => {
+    const groups = groupSelectionRows([selectionRow('x', verdict)]);
+
+    expect(groups.map((group) => group.label)).toEqual([label]);
+  });
+
+  it('returns no group for no rows', () => {
+    expect(groupSelectionRows([])).toEqual([]);
   });
 });
 

@@ -1,20 +1,16 @@
-import { Alert, Button, Card, Chip, Label, ListBox, Modal, Select, Table } from '@heroui/react';
-import { AnimeDesktopActions } from '../../../../shared/ui/AnimeDesktopActions';
-import {
-  CONSIDERATION_OPTIONS,
-  MAX_GRADE,
-  MIN_GRADE,
-  SELECTION_EMPTY_MESSAGE,
-} from './selection-board.constants';
-import { formatSelectionConfirmedLabel, getConsiderationLabel, getVerdictLabel } from './selection-board.helpers';
+import { Alert, Button, Card, Chip, Modal } from '@heroui/react';
+import { MAX_GRADE, MIN_GRADE, SELECTION_EMPTY_MESSAGE } from './selection-board.constants';
+import { formatSelectionConfirmedLabel, getQuotaColor } from './selection-board.helpers';
+import { SelectionCandidateRow } from './SelectionCandidateRow';
 import { useSelectionBoard } from './use-selection-board';
 
 /**
  * SelectionBoard is the native replacement for the 10-year selection Excel: a
  * decision header (minimum approval grade + slots steppers, live quota meter) over
- * a data table of created candidates whose verdicts derive live, and a confirm
- * action that reconciles the verdicts into anime writes. All Wails I/O, state, and
- * derivation live in the colocated `useSelectionBoard` hook and pure helpers.
+ * the created candidates, grouped as Approved then Rejected by their live verdict,
+ * and a confirm action that reconciles the verdicts into anime writes. All Wails
+ * I/O, state, and derivation live in the colocated `useSelectionBoard` hook and
+ * pure helpers.
  */
 export function SelectionBoard() {
   const {
@@ -22,6 +18,7 @@ export function SelectionBoard() {
     minApprovalGrade,
     slots,
     rows,
+    groups,
     approvedCount,
     quota,
     selectionConfirmedAt,
@@ -34,15 +31,8 @@ export function SelectionBoard() {
     onCopyPage,
     onOpenFolder,
     onCopyFolder,
+    getCoverThumb,
   } = useSelectionBoard();
-
-  let quotaColor: 'danger' | 'warning' | 'success' = 'success';
-
-  if (quota === 'over') {
-    quotaColor = 'danger';
-  } else if (quota === 'at') {
-    quotaColor = 'warning';
-  }
 
   const rejectedCount = rows.length - approvedCount;
 
@@ -103,7 +93,7 @@ export function SelectionBoard() {
               </div>
             </div>
 
-            <Chip color={quotaColor} variant="soft">
+            <Chip color={getQuotaColor(quota)} variant="soft">
               {approvedCount} / {slots} approved
             </Chip>
 
@@ -151,75 +141,32 @@ export function SelectionBoard() {
       {rows.length === 0 ? (
         <p className="text-sm text-muted">{SELECTION_EMPTY_MESSAGE}</p>
       ) : (
-        <Table aria-label="Season selection" variant="secondary">
-          <Table.ScrollContainer>
-            <Table.Content aria-label="Season selection" className="w-full table-fixed">
-              <Table.Header>
-                <Table.Column isRowHeader>Name</Table.Column>
-                <Table.Column className="w-[100px]">Grade</Table.Column>
-                <Table.Column className="w-[220px]">Consideration</Table.Column>
-                <Table.Column className="w-[120px]">Verdict</Table.Column>
-                <Table.Column className="w-[100px]">Actions</Table.Column>
-              </Table.Header>
-              <Table.Body>
-                {rows.map((row) => (
-                  <Table.Row id={row.id} key={row.id}>
-                    <Table.Cell>{row.rawName}</Table.Cell>
-                    <Table.Cell>{row.grade >= 1 ? row.grade : '—'}</Table.Cell>
-                    <Table.Cell>
-                      {readOnly ? (
-                        <span className="text-sm text-foreground">{getConsiderationLabel(row.consideration)}</span>
-                      ) : (
-                        <Select
-                          aria-label={`Consideration for ${row.rawName}`}
-                          value={row.consideration}
-                          onChange={(value) => onSetConsideration(row.id, value?.toString() ?? 'none')}
-                        >
-                          <Label className="sr-only">Consideration</Label>
-                          <Select.Trigger>
-                            <Select.Value>{getConsiderationLabel(row.consideration)}</Select.Value>
-                            <Select.Indicator />
-                          </Select.Trigger>
-                          <Select.Popover>
-                            <ListBox>
-                              {CONSIDERATION_OPTIONS.map((option) => (
-                                <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
-                                  {option.label}
-                                  <ListBox.ItemIndicator />
-                                </ListBox.Item>
-                              ))}
-                            </ListBox>
-                          </Select.Popover>
-                        </Select>
-                      )}
-                    </Table.Cell>
-                    <Table.Cell>
-                      <Chip color={row.verdict === 'approved' ? 'success' : 'default'} size="sm" variant="soft">
-                        {getVerdictLabel(row.verdict)}
-                      </Chip>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <div className="flex items-center gap-2">
-                        <AnimeDesktopActions
-                          animeId={row.animeId}
-                          name={row.rawName}
-                          hasPage={row.hasPage}
-                          hasFolder={row.hasFolder}
-                          pageUrl={row.pageUrl}
-                          folderPath={row.folderPath}
-                          onOpenPage={onOpenPage}
-                          onCopyPage={onCopyPage}
-                          onOpenFolder={onOpenFolder}
-                          onCopyFolder={onCopyFolder}
-                        />
-                      </div>
-                    </Table.Cell>
-                  </Table.Row>
-                ))}
-              </Table.Body>
-            </Table.Content>
-          </Table.ScrollContainer>
-        </Table>
+        <Card>
+          <Card.Content className="flex flex-col gap-2">
+            {groups.map((group) => (
+              <div key={group.verdict} className="flex flex-col">
+                <p className="px-1 pt-1 text-xs font-semibold text-muted" id={`selection-group-${group.verdict}`}>
+                  {group.label} · {group.rows.length}
+                </p>
+                <ul aria-labelledby={`selection-group-${group.verdict}`} className="flex flex-col divide-y divide-separator">
+                  {group.rows.map((row) => (
+                    <SelectionCandidateRow
+                      key={row.id}
+                      coverThumb={getCoverThumb(row.animeId)}
+                      readOnly={readOnly}
+                      row={row}
+                      onCopyFolder={onCopyFolder}
+                      onCopyPage={onCopyPage}
+                      onOpenFolder={onOpenFolder}
+                      onOpenPage={onOpenPage}
+                      onSetConsideration={onSetConsideration}
+                    />
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </Card.Content>
+        </Card>
       )}
     </section>
   );

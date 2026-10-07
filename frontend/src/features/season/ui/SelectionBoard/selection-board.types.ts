@@ -1,3 +1,6 @@
+import type { AnimeDesktopActionsProps } from '../../../../shared/ui/AnimeDesktopActions.types';
+import type { SeasonCoverThumbProps } from '../SeasonCoverThumb/season-cover-thumb.types';
+
 /** A verdict token, mirrored from the Go domain (never stored, always derived). */
 export type Verdict = 'approved' | 'rejected';
 
@@ -30,6 +33,34 @@ export interface SelectionRow {
 
 /** One option in the consideration Select. */
 export interface ConsiderationOption {
+  /** The consideration token the Select stores. */
   readonly value: string;
+  /** The English label the Select shows. */
   readonly label: string;
+}
+
+/** What one candidate row of the selection list renders and the edits it offers. */
+export interface SelectionCandidateRowProps
+  extends Pick<AnimeDesktopActionsProps, 'onOpenPage' | 'onCopyPage' | 'onOpenFolder' | 'onCopyFolder'> {
+  /** The candidate. */
+  readonly row: SelectionRow;
+  /** Whether the season is closed: the consideration shows as text instead of a select. */
+  readonly readOnly: boolean;
+  /** The candidate's cover thumbnail. */
+  readonly coverThumb: SeasonCoverThumbProps;
+  /** Stores a new consideration token for a season_anime row. */
+  readonly onSetConsideration: (rowId: string, consideration: string) => void;
+}
+
+/** The HeroUI Chip color the quota meter renders for a quota status. */
+export type QuotaColor = 'danger' | 'warning' | 'success';
+
+/** One verdict group of the candidate list: its rows keep the board's order. */
+export interface SelectionGroup {
+  /** The verdict every row in the group derives. */
+  readonly verdict: Verdict;
+  /** The group's English heading. */
+  readonly label: string;
+  /** The group's rows, in board order. */
+  readonly rows: readonly SelectionRow[];
 }

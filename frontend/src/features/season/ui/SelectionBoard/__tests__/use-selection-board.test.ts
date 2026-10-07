@@ -19,6 +19,7 @@ const bridgeRuntimeSourceMock = vi.hoisted(() => ({
   copyAnimePage: vi.fn().mockResolvedValue({ status: 'ok' }),
   openAnimeFolder: vi.fn().mockResolvedValue({ status: 'ok' }),
   copyAnimeFolder: vi.fn().mockResolvedValue({ status: 'ok' }),
+  getAnimeCover: vi.fn().mockResolvedValue({ source: 'placeholder' }),
 }));
 
 vi.mock('@heroui/react', () => ({
@@ -128,6 +129,20 @@ describe('useSelectionBoard', () => {
     expect(result.current.slots).toBe(12);
     expect(result.current.quota).toBe('under');
     expect(result.current.rows[0].verdict).toBe('approved'); // grouped approved-first
+  });
+
+  it('groups the rows by verdict and resolves one cover per candidate', async () => {
+    const rows = [created('a', 'anime-a', 5), created('b', 'anime-b', 2), created('c', 'anime-c', 6)];
+    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const getAnimeCover = vi.fn((animeId: string) => Promise.resolve({ source: 'cover', dataUrl: `data:${animeId}` }));
+    const { result } = renderHook(() => useSelectionBoard(source, { getAnimeCover }));
+
+    await waitFor(() => expect(result.current.getCoverThumb('anime-c').coverSrc).toBe('data:anime-c'));
+    expect(result.current.groups.map((group) => [group.label, group.rows.map((row) => row.id)])).toEqual([
+      ['Approved', ['a', 'c']],
+      ['Rejected', ['b']],
+    ]);
+    expect(getAnimeCover.mock.calls).toEqual([['anime-a'], ['anime-c'], ['anime-b']]);
   });
 
   it('exposes the selection-confirmed milestone from the season snapshot', async () => {
