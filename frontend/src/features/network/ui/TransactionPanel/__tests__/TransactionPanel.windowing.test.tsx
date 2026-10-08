@@ -171,14 +171,23 @@ describe('TransactionPanel virtual window (live rail)', () => {
     // A keystroke lands as a store filter change; the re-render it causes
     // must not scale with the loaded rows. The query itself now waits for the
     // app-wide debounce window, so the settled state is one window plus the
-    // async passes — a real (not faked) single wait, then the usual settles.
-    act(() => {
-      getTransactionStoreState().setFilters({ route: '/api/sync' });
-    });
+    // async passes. Only the timer pair is faked, and only around the
+    // debounce: promises and microtasks stay real, so the page the settled
+    // query resolves still lands through the usual settles below.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, TRANSACTION_FILTER_DEBOUNCE_MS));
-    });
+    try {
+      act(() => {
+        getTransactionStoreState().setFilters({ route: '/api/sync' });
+      });
+
+      act(() => {
+        vi.advanceTimersByTime(TRANSACTION_FILTER_DEBOUNCE_MS);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
     await settleAsyncPasses(2);
 
     expect(screen.getByText('/api/animes/anime-9000')).toBeInTheDocument();

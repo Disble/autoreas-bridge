@@ -4,11 +4,12 @@ import type { CaptureRuntimeSource } from '../../../../infrastructure/capture-ru
 import { createCaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.helpers';
 import type { CaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.types';
 import { DEFAULT_TRANSACTION_PAGE_LIMIT } from './transaction-panel.constants';
-import { toStatusFilterInput, toTransactionDetail, toTransactionRow } from './transaction-panel.helpers';
+import { toStatusFilterInput, toTransactionDetail } from './transaction-panel.helpers';
 import type { TransactionDetailTab } from './transaction-panel.types';
 import { useTransactionFilterCallbacks } from './use-transaction-filter-callbacks';
 import { useTransactionPanelSync } from './use-transaction-panel-sync';
 import { useTransactionPanelWindow } from './use-transaction-panel-window';
+import { useTransactionRowViewModels } from './use-transaction-row-view-models';
 import { useTransactionStoreBindings } from './use-transaction-store-bindings';
 
 /**
@@ -54,14 +55,9 @@ export function useTransactionPanel(
     items: store.items,
     onReachEnd,
   });
-  // No clock here, deliberately. This mapping used to take a ticking `now`, so
-  // twice a second it rebuilt every visible row's view-model, handed React Aria
-  // a table of fresh element identities, and rebuilt the whole collection — cost
-  // linear in the rows the user had paged in, at a fixed tick rate, for one
-  // outstanding request. A row's live elapsed indicator is derived where it is
-  // shown instead (`use-transaction-row-live`), so these rows keep their
-  // identity for as long as the store does.
-  const rows = useMemo(() => windowedRows.map((row) => toTransactionRow(row)), [windowedRows]);
+  // Clock-free and identity-stable per store row, so a scroll or a push renders
+  // only the rows that entered the window (`use-transaction-row-view-models`).
+  const rows = useTransactionRowViewModels(windowedRows);
   const detailViewModel = useMemo(
     () => (store.selectedDetail === null ? null : toTransactionDetail(store.selectedDetail)),
     [store.selectedDetail],
