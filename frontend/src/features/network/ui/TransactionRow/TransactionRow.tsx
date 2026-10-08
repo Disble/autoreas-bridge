@@ -8,11 +8,14 @@ import { TransactionRowLiveOutcome } from './TransactionRowLiveOutcome';
 /**
  * One dense DevTools-Network table row.
  *
- * Memoized because a row that has not changed has no work to do: the rail
- * accumulates rows and never unmounts them (ADR-012), so anything that
- * re-renders the table — a pushed capture, a selection, the next page — would
- * otherwise re-run every loaded row. The view model is settled and stable, so
- * the identity check is a real skip rather than a permanently-missed one.
+ * Memoized because a row that has not changed has no work to do: anything that
+ * re-renders the virtualized table — a scroll, a pushed capture, a selection,
+ * the next page — would otherwise re-run every row in the window. The skip
+ * only works because the panel keeps each `row` view model identity-stable per
+ * store row (`use-transaction-row-view-models`, `toCachedTransactionRows`);
+ * mapping the window into fresh objects would turn the identity check into a
+ * permanent miss, as it was until the cache existed.
+ * `TransactionPanel.row-identity.test.tsx` guards that contract.
  *
  * The two clock-dependent columns of a transport-only arrival row (`OUTCOME`,
  * `DURATION`) delegate to their own live cells, which is why this component
