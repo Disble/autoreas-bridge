@@ -241,6 +241,40 @@ export function toTransactionRow(row: Readonly<CaptureRow>): TransactionRowViewM
 }
 
 /**
+ * Maps the window's store rows to their settled view-models through `cache`,
+ * returning the SAME object for the same store row on every call.
+ *
+ * The virtual window hands the table a fresh slice on every scroll and push, so
+ * mapping it with `toTransactionRow` gave every visible row a new `row` prop and
+ * defeated `TransactionRow`'s memo: one scroll re-rendered the whole window,
+ * not the one or two rows that entered it. The store replaces a row object when
+ * the row changes (an in-place terminal delta), so a cache keyed by object
+ * identity can never serve a stale view-model, and `toTransactionRow` reads no
+ * clock, so the mapping is a pure function of that object. The cache is weak,
+ * so a row the store drops frees its view-model.
+ * @param rows The store rows in the window.
+ * @param cache View-models already mapped, keyed by their store row.
+ * @returns One view-model per row: the cached one, or a freshly mapped and cached one.
+ */
+export function toCachedTransactionRows(
+  rows: readonly Readonly<CaptureRow>[],
+  cache: WeakMap<Readonly<CaptureRow>, TransactionRowViewModel>,
+): readonly TransactionRowViewModel[] {
+  return rows.map((row) => {
+    const cached = cache.get(row);
+
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const viewModel = toTransactionRow(row);
+    cache.set(row, viewModel);
+
+    return viewModel;
+  });
+}
+
+/**
  * Resolves the two time-dependent columns of a transport-only arrival row at
  * `now`: the live `now - capturedAtMs` elapsed duration and the in-flight
  * outcome chip.

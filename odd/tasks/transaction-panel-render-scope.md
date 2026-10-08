@@ -32,7 +32,34 @@ Route: delegated direct (writer, then verifier). Trigger evidence: T2 touches 2+
   - Two hand mutations each failed the test with "Unable to find …anime-9000": a debounce +1ms, and `settledFilters` dropped from the re-query dependencies.
   - Timing pinned to P-cores, 5 runs: "typing a filter" went from 802ms to 410ms; the whole file from 2241ms to 1946ms.
   - Network tests 435/435; staged mutation 2/2.
-- [ ] **T2 Scope scroll and push re-renders to the table subtree.** Scrolling and live pushes must no longer re-render the filter bar, the preset control or the detail pane.
+  - Committed as `76d1660`. `1c833a4` (cherry-pick of `689430b`, the HistoryFilterBar clock pin) unblocked the gate on this `dev`-based branch.
+- [x] **T2 dropped (user, 2026-10-08): its premise was refuted by measurement.**
+  - Memoizing the filter bar and detail pane did isolate them: a render-count test went RED at 8 vs 5, then GREEN.
+  - It gave no measurable time gain. Pinned to P-cores over 100 scrolls / 100 pushes: 4873/8317ms with T2 vs 4981/8059ms before.
+  - The table subtree itself is the cost: about 48ms per scroll and 82ms per push in jsdom.
+  - The code was discarded.
+- [x] **T3 Make the table's scroll and push render cheaper.** New task (user, 2026-10-08). The delegated writer profiled first and returned a partial result; the user approved committing the fix.
+  - Found: `TransactionRow`'s `memo` never skipped.
+    - `use-transaction-panel.ts` mapped the window into fresh view models on every render, so about 27 rows re-rendered per scroll and per push. The comment claiming rows kept their identity was false.
+    - Fix: `toCachedTransactionRows` caches one view model per store row object in a WeakMap held by the new `use-transaction-row-view-models.ts`.
+    - RED: 27 vs 1, and 27 vs 0. GREEN: 1.2 rows per scroll, 1.0 per push.
+  - Remaining cost is inside react-aria-components 1.19 and out of scope:
+    - `TableInner` renders twice per window change.
+    - `useTableState` returns a fresh state object through context, so every Row and Cell re-renders (about 400 components per scroll).
+    - Removing rows at the head re-indexes the collection.
+  - Pinned P-core results:
+    - 100 scrolls: 4240 → 4114ms (−3%). 100 pushes: 3675 → 3518ms (−4%).
+    - "live pushed capture": 493 → 478ms.
+    - The windowing timeout risk on E-cores is therefore NOT eliminated.
+  - Evidence: network 436/436, typecheck clean, ESLint clean, Fallow exit 0, staged mutation 10/10, render smoke OK.
+  - Follow-up (needs user approval): replace the table's windowing with react-aria's `Virtualizer`+`TableLayout` or a non-react-aria body. This would rework the spacers, load-more and prepend compensation.
+  - Find out why one scroll or push re-renders the virtualized table at about 48ms or 82ms in jsdom, then reduce it with behavior identical.
+    - Check row memoization and stable row props.
+    - Check whether the windowed rows array is re-created on each scroll.
+    - Check the React Aria Table collection rebuild cost.
+    - Check whether pushed rows force every visible row to re-render.
+  - Prove it with a deterministic test plus pinned before/after timings for "live pushed capture" and the scroll tests.
+- **T2 original definition (superseded).** Scrolling and live pushes must no longer re-render the filter bar, the preset control or the detail pane.
   - Behavior is identical: window bounds, spacers, load-more, scroll compensation on prepend, selection.
   - Add a deterministic test proving the isolation, for example a render-count probe or a stable-props check.
   - Measure the before/after per-test timings with the same pinning method.
