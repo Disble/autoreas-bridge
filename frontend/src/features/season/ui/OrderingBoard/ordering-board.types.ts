@@ -56,30 +56,97 @@ export interface OrderingBoardOrigin {
  */
 export type WorkingState = OrderingState<OrderingInstance>;
 
+/** The card actions and metadata every ordering container hands down to its cards. */
+interface OrderingCardActions {
+  /** True on a past or applied season: cards are locked and their actions disabled. */
+  readonly readOnly: boolean;
+  /** Grade plus desktop-action metadata per anime id; absent entries render a bare card. */
+  readonly meta: Readonly<Record<string, OrderingCardMeta>>;
+  /** How many cards each anime holds, so the last one can never be removed. */
+  readonly counts: Readonly<Record<string, number>>;
+  /** Adds another card for the anime to the rail. */
+  readonly onDuplicate: (animeId: string) => void;
+  /** Removes one card by its instance key. */
+  readonly onRemove: (key: string) => void;
+  /** Opens the anime's page in the browser. */
+  readonly onOpenPage: (animeId: string) => void;
+  /** Copies the anime's page URL. */
+  readonly onCopyPage: (animeId: string) => void;
+  /** Opens the anime's download folder. */
+  readonly onOpenFolder: (animeId: string) => void;
+  /** Copies the anime's download folder path. */
+  readonly onCopyFolder: (animeId: string) => void;
+}
+
+/** Props for one droppable ordering container (and its lane): the rail, or one weekday column. */
+export interface OrderingContainerProps extends OrderingCardActions {
+  /** The dnd-kit droppable container id (a weekday name or `RAIL_CONTAINER_ID`). */
+  readonly containerId: string;
+  /** The lane heading, which also names the drop zone: the weekday, or the rail's title. */
+  readonly label: string;
+  /** Layout of the card list: a weekday's vertical stack, or the rail's wrapping grid. */
+  readonly listClassName: string;
+  /** Copy shown inside the container while it holds no cards. */
+  readonly emptyMessage: string;
+  /** True on weekday lanes: newcomer cards carry the muted New tag. Every rail card is a newcomer, so the rail never does. */
+  readonly showNewcomerTag: boolean;
+  /** The cards this container holds, in board order. */
+  readonly cards: readonly OrderingInstance[];
+}
+
+/** Props for one ordering container's ordered list of draggable cards. */
+export interface OrderingCardListProps extends OrderingCardActions {
+  /** The dnd-kit container id the cards live in (a weekday or `RAIL_CONTAINER_ID`). */
+  readonly container: string;
+  /** Layout classes of the list element. */
+  readonly className: string;
+  /** Whether newcomer cards show the muted New tag (weekday lanes only). */
+  readonly showNewcomerTag: boolean;
+  /** The cards to render, in board order. */
+  readonly cards: readonly OrderingInstance[];
+}
+
 /** Props for a single draggable ordering card (a rail candidate or a placed weekday clone). */
 export interface OrderingItemProps {
+  /** The card being rendered. */
   readonly instance: OrderingInstance;
   /** The dnd-kit container id this card currently lives in (a weekday or RAIL_CONTAINER_ID). */
   readonly container: string;
+  /** The card's sortable position within its container. */
   readonly index: number;
+  /** True when the board is locked: no drag, Duplicate or Remove. */
   readonly readOnly: boolean;
+  /** Whether a newcomer card shows the muted New tag (weekday lanes only). */
+  readonly showNewcomerTag: boolean;
   /** False disables Delete — the anime's last card can never be removed. */
   readonly canRemove: boolean;
   /** Grade + desktop-action metadata for this card's anime; absent when unavailable. */
   readonly meta?: OrderingCardMeta;
-  /** Present on weekday clones: stages a logical copy to drag onto another day. */
-  readonly onDuplicate?: () => void;
+  /** Stages a logical copy of this card's anime to drag onto another day (rail and weekday cards alike). */
+  readonly onDuplicate: () => void;
+  /** Removes this card. */
   readonly onRemove: () => void;
+  /** Opens the anime's page in the browser. */
   readonly onOpenPage: (animeId: string) => void;
+  /** Copies the anime's page URL. */
   readonly onCopyPage: (animeId: string) => void;
+  /** Opens the anime's download folder. */
   readonly onOpenFolder: (animeId: string) => void;
+  /** Copies the anime's download folder path. */
   readonly onCopyFolder: (animeId: string) => void;
 }
+
+/** Props for the always-visible action row of one ordering card. */
+export type OrderingCardActionRowProps = Omit<OrderingItemProps, 'container' | 'index'>;
 
 /** Props for a droppable column (a weekday, or the rail) that accepts dropped cards. */
 export interface OrderingColumnProps {
   /** The dnd-kit droppable container id (a weekday name or RAIL_CONTAINER_ID). */
   readonly containerId: string;
+  /** Accessible name of the drop zone (the weekday, or the rail's title). */
+  readonly label: string;
+  /** Extra classes for the drop zone. */
   readonly className?: string;
+  /** The zone's content: its card list or empty state. */
   readonly children: ReactNode;
 }

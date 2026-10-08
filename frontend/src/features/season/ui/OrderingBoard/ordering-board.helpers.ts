@@ -11,7 +11,7 @@ import {
 import {
   createAnimeScheduleOrderingState,
 } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.helpers';
-import { RAIL_CONTAINER_ID, WEEKDAYS } from './ordering-board.constants';
+import { ORDERING_LAST_CARD_TOOLTIP, ORDERING_REMOVE_TOOLTIP, RAIL_CONTAINER_ID, WEEKDAYS } from './ordering-board.constants';
 import type { DraftPlacement, OrderingCardMeta, OrderingInstance, WorkingState } from './ordering-board.types';
 import { buildAnimeScheduleDraftPlacements, validateAnimeScheduleDraft } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-payload.helpers';
 
@@ -193,4 +193,15 @@ export function countChanges(board: OrderingBoard, state: WorkingState): number 
   const after = buildDraft(state);
   const ids = new Set([...Object.keys(before), ...Object.keys(after)]);
   return [...ids].filter((animeId) => placementKey(before[animeId] ?? []) !== placementKey(after[animeId] ?? [])).length;
+}
+
+/**
+ * The tooltip of a card's Remove button: what Remove does, or why it is locked while
+ * the card is its anime's last one.
+ *
+ * @param canRemove Whether the anime holds more than one card.
+ * @returns The tooltip copy for the Remove button.
+ */
+export function getRemoveTooltip(canRemove: boolean): string {
+  return canRemove ? ORDERING_REMOVE_TOOLTIP : ORDERING_LAST_CARD_TOOLTIP;
 }

@@ -4,6 +4,15 @@ export const WEEKDAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', '
 /** Empty-state message when no approved candidate awaits placement. */
 export const ORDERING_EMPTY_MESSAGE = 'No approved animes to place yet — confirm the selection first.';
 
+/** Heading and drop-zone name of the rail of approved animes awaiting a weekday. */
+export const ORDERING_RAIL_LABEL = 'Approved to place';
+
+/** Tooltip of a card's Remove button while the anime holds more than one card. */
+export const ORDERING_REMOVE_TOOLTIP = 'Remove';
+
+/** Tooltip of a card's locked Remove button: the anime's last card can never be removed. */
+export const ORDERING_LAST_CARD_TOOLTIP = 'An anime must stay on at least one day';
+
 /** Debounce (ms) before autosaving the working ordering draft. */
 export const ORDERING_AUTOSAVE_DEBOUNCE_MS = 600;
 

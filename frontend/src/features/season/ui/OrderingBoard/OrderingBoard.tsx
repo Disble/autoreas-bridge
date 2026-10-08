@@ -1,10 +1,11 @@
 import { DragDropProvider, DragOverlay } from '@dnd-kit/react';
-import { Alert, Button, Card, Chip } from '@heroui/react';
-import { OrderingContainer } from './OrderingContainer';
+import { Alert, Button } from '@heroui/react';
 import { OrderingHistoryStates } from './OrderingHistoryStates';
+import { OrderingLane } from './OrderingLane';
 import { OrderingReadOnlyNotice } from './OrderingReadOnlyNotice';
 import {
   ORDERING_EMPTY_MESSAGE,
+  ORDERING_RAIL_LABEL,
   RAIL_CONTAINER_ID,
   WEEKDAYS,
 } from './ordering-board.constants';
@@ -12,8 +13,9 @@ import { useOrderingBoard } from './use-ordering-board';
 import { ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.constants';
 
 /**
- * OrderingBoard is the OrderGrid replacement, built on @dnd-kit/react: a left rail of
- * approved animes awaiting a weekday and seven weekday columns. Dragging a card sets
+ * OrderingBoard is the OrderGrid replacement, built on @dnd-kit/react: seven weekday
+ * columns in one full-width row, each headed outside its drop zone, with the rail of
+ * approved animes awaiting a weekday below them. Dragging a card sets
  * BOTH its day and its order (keyboard-accessible, animated, live reshuffle). An anime
  * can air on several days: Duplicate stages a logical copy (same anime, never a second
  * DB row) to drag onto another day; Delete removes a copy but never the last; no two
@@ -103,46 +105,33 @@ export function OrderingBoard() {
           </Alert>
         )}
 
-        <div className="flex flex-col gap-4 lg:flex-row">
-          <Card className="lg:w-56 lg:shrink-0">
-            <Card.Header>
-              <Card.Title>Approved to place ({rail.length})</Card.Title>
-            </Card.Header>
-            <Card.Content>
-              <OrderingContainer
-                containerId={RAIL_CONTAINER_ID}
-                className="min-h-16 rounded-lg border border-border/70 p-2 bg-zinc-800"
-                emptyMessage={ORDERING_EMPTY_MESSAGE}
-                cards={rail}
+        <div className="overflow-x-auto pb-1">
+          <div className="grid grid-cols-[repeat(7,minmax(8.5rem,1fr))] gap-2">
+            {WEEKDAYS.map((day) => (
+              <OrderingLane
+                key={day}
+                containerId={day}
+                label={day}
+                listClassName="flex flex-col gap-1.5"
+                emptyMessage={ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE}
+                showNewcomerTag
+                cards={columns[day] ?? []}
                 {...containerActions}
               />
-            </Card.Content>
-          </Card>
-
-          <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-4">
-            {WEEKDAYS.map((day) => {
-              const dayCards = columns[day] ?? [];
-              return (
-                <Card key={day} className="min-w-0">
-                  <Card.Header>
-                    <Card.Title>{day}</Card.Title>
-                    <Chip size="sm" variant="soft">
-                      {dayCards.length}
-                    </Chip>
-                  </Card.Header>
-                  <Card.Content>
-                    <OrderingContainer
-                      containerId={day}
-                      className="flex min-h-24 min-w-0 flex-col gap-2 rounded-lg border border-border/70 p-2 bg-zinc-800"
-                      emptyMessage={ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE}
-                      cards={dayCards}
-                      {...containerActions}
-                    />
-                  </Card.Content>
-                </Card>
-              );
-            })}
+            ))}
           </div>
+        </div>
+
+        <div className="max-w-xl">
+          <OrderingLane
+            containerId={RAIL_CONTAINER_ID}
+            label={ORDERING_RAIL_LABEL}
+            listClassName="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-1.5"
+            emptyMessage={ORDERING_EMPTY_MESSAGE}
+            showNewcomerTag={false}
+            cards={rail}
+            {...containerActions}
+          />
         </div>
 
         {!isPastSeason && (
@@ -165,7 +154,7 @@ export function OrderingBoard() {
 
       <DragOverlay>
         {(source) => (
-          <div className="rounded-md border border-accent bg-surface p-2 text-xs text-foreground shadow-lg">
+          <div className="rounded-xl border border-accent bg-default px-2.5 py-2 text-sm font-semibold text-foreground shadow-lg">
             {instances[String(source.id)]?.name}
           </div>
         )}

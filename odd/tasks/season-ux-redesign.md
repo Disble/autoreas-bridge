@@ -205,7 +205,30 @@ Route: every task is **delegated direct** (one bounded writer, then one verifier
   - Covers. Rows grouped as Approved / Rejected, replacing the Verdict column.
   - Consideration select and desktop actions stay visible.
   - Rules header (steppers, quota, confirmation, Confirm modal) unchanged in behavior.
-- [ ] **T7 Ordering.**
+- T6 committed as `0811c5f`. Attempt 1 failed on the recurring `TransactionPanel.windowing` full-suite timeout; the retry was green.
+- [x] **T7 Ordering.** Delegated writer, then an independent verifier: PASS. Behaviour is unchanged.
+  - Layout:
+    - Seven weekday lanes sit in one full-width row, horizontally scrollable when narrow, with a header and muted count above each drop zone (`OrderingLane`).
+    - The "Approved to place" rail sits below as a wrapping grid.
+    - Each drop zone is a labelled group.
+  - Cards:
+    - The name is clamped to 2 lines with the full-name tooltip; there are no position numbers.
+    - The grade chip has a fixed width and still appears only for grade ≥1.
+    - An always-visible `OrderingCardActionRow` holds desktop actions, Duplicate and Remove.
+    - A muted "New" tag appears on weekday newcomer cards only.
+  - Tokens: `bg-zinc-*` became `bg-surface`, `bg-default` and `border-separator`.
+  - Three no-op `onPointerDown` stopPropagation handlers were removed. The verifier confirmed from the `@dnd-kit/dom` 0.5.0 source:
+    - The PointerSensor binds a native bubble listener on the draggable `<li>` (`index.js:1974-1985`), which runs before React's root-delegated handlers.
+    - `preventActivation` (`:1923-1933`) already refuses enabled interactive elements.
+    - Runtime drag behaviour is identical.
+    - Follow-up: `.claude/skills/dnd-kit/SKILL.md:66` and `AnimeScheduleOrderingCard.tsx:43,49` still prescribe the no-op pattern.
+  - Parent fix: added the missing member JSDoc on the new props types.
+  - Evidence:
+    - Tests: season 473/473, typecheck 0, ESLint clean.
+    - Gates: Fallow exit 0 (60 clone groups, advisory CSS drift only); layout and render smoke pass.
+    - Mutation: dharness staged 24/0; the verifier's hand mutations 4/4 killed, with restore proven by md5.
+  - Kept as before: cards without a grade show no chip (the canvas shows "—"). A disabled Remove tooltip is unreachable by keyboard, as it already was.
+  - Original scope:
   - Seven weekday columns in one row, with headers outside the columns, allowed to use the full available width.
   - "Approved to place" area below the columns.
   - Cards: the name clamped to 2 lines with the full name as a tooltip; a fixed-width grade chip; an always-visible action row (desktop actions, Duplicate, Remove); a muted "New" text only on weekday cards for newcomers.
