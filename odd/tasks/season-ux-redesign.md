@@ -277,3 +277,10 @@ Route: every task is **delegated direct** (one bounded writer, then one verifier
 - 2026-10-06: branch created; task document written. Next: T1.
 - 2026-10-07: T1–T4 committed (`9b98aed`, `9153d96`, `76f6d52`, `5cad652`) plus gate fixes `689430b`, `e68f206`, `74fbfbc`. Next: T5. T4c waits on the pre-change closed-season decision.
 - 2026-10-07: T5 committed `ef9a680`. T4c decided (legacy closed seasons get a plain list). Next: T4c, then T6.
+- 2026-10-07: T4c `fc67727`, T6 `0811c5f`, T7 `7f25eba`, T8 `dae5566`. Every task is done. Integration into `dev` is the user's call.
+- Follow-ups outside this feature:
+  - HeroUI v3 has no `divider` token. `AppLayout`'s `border-divider/60` is a no-op, and the `autoreas-theme` skill lists `divider`.
+  - The `dnd-kit` skill (`SKILL.md:66`) and `AnimeScheduleOrderingCard.tsx:43,49` prescribe a no-op `onPointerDown` stopPropagation.
+  - `TransactionPanel.windowing` is a recurring full-suite timeout (5s budget, already consolidated).
+  - `GetSeasonOrderingSnapshot` turns a SQLite read failure into "not recorded".
+  - Stryker's dry run still runs at low priority in dharness 1.10.1.
