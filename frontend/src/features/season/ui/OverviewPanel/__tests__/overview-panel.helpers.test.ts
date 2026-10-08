@@ -8,10 +8,12 @@ import {
   buildIntakeHealthData,
   buildIntegerTicks,
   buildKpiSummary,
+  buildOutcomeFunnelSteps,
   buildOverviewViewModel,
   buildSelectionOutcomeCounts,
   buildSelectionOutcomeData,
   buildWatchingPipelineData,
+  formatOutcomeMeta,
   getIntakeHealthSegmentColor,
   sumStackTotal,
 } from '../overview-panel.helpers';
@@ -331,5 +333,38 @@ describe('buildOverviewViewModel', () => {
     expect(vm.kpi.ratedTotal).toBe(2);
     expect(vm.selectionOutcomeKeys).toEqual(['Approved', 'Rejected', 'No grade']);
     expect(vm.selectionOutcome).toEqual([{ dim: 'outcome', Approved: 1, Rejected: 1, 'No grade': 0 }]);
+  });
+});
+
+describe('buildOutcomeFunnelSteps', () => {
+  it('walks intake, created, rated and approved against the slots, in that order', () => {
+    const kpi = { intakeTotal: 22, createdCount: 19, ratedCount: 18, ratedTotal: 19, approvedCount: 9, slots: 12 };
+
+    expect(buildOutcomeFunnelSteps(kpi)).toEqual([
+      { label: 'Intake', value: '22', suffix: '' },
+      { label: 'Created', value: '19', suffix: '' },
+      { label: 'Rated', value: '18', suffix: '' },
+      { label: 'Approved', value: '9', suffix: '/ 12 slots' },
+    ]);
+  });
+});
+
+describe('formatOutcomeMeta', () => {
+  /** A KPI summary with the given intake and created totals. */
+  function kpiWith(intakeTotal: number, createdCount: number) {
+    return { intakeTotal, createdCount, ratedCount: 0, ratedTotal: createdCount, approvedCount: 0, slots: 12 };
+  }
+
+  it.each([
+    { name: 'every intake name created', createdLabel: 'July 8, 2026', kpi: kpiWith(3, 3), want: 'Created July 8, 2026 · Minimum approval grade 4' },
+    {
+      name: 'one intake name never created',
+      createdLabel: 'July 8, 2026',
+      kpi: kpiWith(3, 2),
+      want: 'Created July 8, 2026 · Minimum approval grade 4 · 1 intake name never created',
+    },
+    { name: 'two intake names never created', createdLabel: '', kpi: kpiWith(3, 1), want: 'Minimum approval grade 4 · 2 intake names never created' },
+  ])('describes a season with $name', ({ createdLabel, kpi, want }) => {
+    expect(formatOutcomeMeta(createdLabel, 4, kpi)).toBe(want);
   });
 });

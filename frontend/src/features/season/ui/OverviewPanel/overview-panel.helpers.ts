@@ -14,6 +14,7 @@ import type {
   GradeHistogramDatum,
   IntakeHealthDatum,
   OverviewKpiSummary,
+  OutcomeFunnelStep,
   OverviewPanelViewModel,
   PipelineDatum,
   SelectionOutcomeCounts,
@@ -262,4 +263,34 @@ export function buildOverviewViewModel(rows: readonly SeasonAnimeRow[], minAppro
     hasIntake: kpi.intakeTotal > 0,
     hasGrades: gradeHistogram.some((d) => d.count > 0),
   };
+}
+
+/**
+ * buildOutcomeFunnelSteps walks a closed season's outcome in workflow order:
+ * every intake name, the animes created from them, those rated, and those
+ * approved against the season's slots. Every count comes from the season's own
+ * rows (the KPI summary), never from live anime state.
+ */
+export function buildOutcomeFunnelSteps(kpi: OverviewKpiSummary): OutcomeFunnelStep[] {
+  return [
+    { label: 'Intake', value: String(kpi.intakeTotal), suffix: '' },
+    { label: 'Created', value: String(kpi.createdCount), suffix: '' },
+    { label: 'Rated', value: String(kpi.ratedCount), suffix: '' },
+    { label: 'Approved', value: String(kpi.approvedCount), suffix: `/ ${kpi.slots} slots` },
+  ];
+}
+
+/**
+ * formatOutcomeMeta writes the muted line under a closed season's funnel: when
+ * it was created (omitted for a missing date), its minimum approval grade, and
+ * how many intake names never became an anime (omitted when none).
+ */
+export function formatOutcomeMeta(createdLabel: string, minApprovalGrade: number, kpi: OverviewKpiSummary): string {
+  const neverCreated = kpi.intakeTotal - kpi.createdCount;
+  const parts = [
+    createdLabel === '' ? '' : `Created ${createdLabel}`,
+    `Minimum approval grade ${minApprovalGrade}`,
+    neverCreated > 0 ? `${neverCreated} intake ${neverCreated === 1 ? 'name' : 'names'} never created` : '',
+  ];
+  return parts.filter((part) => part !== '').join(' · ');
 }

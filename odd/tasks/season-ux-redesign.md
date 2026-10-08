@@ -234,7 +234,31 @@ Route: every task is **delegated direct** (one bounded writer, then one verifier
   - Cards: the name clamped to 2 lines with the full name as a tooltip; a fixed-width grade chip; an always-visible action row (desktop actions, Duplicate, Remove); a muted "New" text only on weekday cards for newcomers.
   - Raw `bg-zinc-*` replaced with tokens.
   - Drag and drop, read-only rules, history states, autosave and Apply/Reset unchanged.
-- [ ] **T8 Overview and shell.**
+- T7 committed as `7f25eba`; the full gate was green on the first attempt.
+- [x] **T8 Overview and shell.** Delegated writer, then an independent verifier: PASS with notes. No behavior was lost.
+  - Open season:
+    - The new `SeasonOverviewCard` shows Created, Minimum approval grade and Slots, the season-mode text, and Close season.
+    - The shell's accent season-mode alert and its "Created · Slots" line are gone. The season-mode text now shows only on the Overview, as the design intended.
+  - Read-only shell: the Closed chip, a muted "Read-only — editing is disabled." and Back to history replace the warning alert.
+  - Closed Overview:
+    - `OverviewOutcomeFunnel` (Intake → Created → Rated → Approved / N slots) reads `buildKpiSummary` and `countApproved`.
+    - The grade histogram and the selection outcome stay.
+    - `OverviewFinalLineup` reads the closure snapshot `grid`/`rail` through `getSeasonOrderingSnapshot`, with grades joined from the season rows. It has exclusive loading, failed, not-recorded, empty and lineup states, and drops stale reads.
+    - The pipeline, intake-health and KPI tiles are omitted.
+    - No closed-view value reads live state (verified).
+  - Dead code removed: `isHistorical`, `PIPELINE_NOT_RECORDED_*`, and the not-recorded branch of `WatchingPipelineChart`.
+  - Parent-requested fix: JSDoc on every member of the touched type files.
+  - Not done (product/data):
+    - The canvas "Recorded ordering" link was not added, because it would be a new behavior with uncontrolled tabs.
+    - "N intake names never created" replaces the canvas's "discarded or never aired", which the data cannot split.
+    - "Rated" includes skipped animes, matching the KPI.
+  - Evidence:
+    - season 516/516 (110/110 after the JSDoc pass); typecheck 0; ESLint clean on touched files.
+    - Fallow exit 0, 61 clone groups (likely the 3 near-identical chart bodies).
+    - render and layout smoke pass.
+    - Staged mutation 188/0. Verifier hand mutations 6/6 killed, restore proven.
+  - Pre-existing and left alone: `season-workspace.helpers.test.ts:7` `require-jsdoc`.
+  - Original scope:
   - Open season: the season-mode explanation moves into an Overview season card next to Close season.
   - Read-only shell: the Closed chip plus a muted "Read-only — editing is disabled." line and Back to history, instead of the warning alert.
   - Closed Overview: an outcome funnel (intake → created → rated → approved/slots), grade histogram, selection outcome, and a final lineup from the recorded ordering snapshot (with covers and grades).
