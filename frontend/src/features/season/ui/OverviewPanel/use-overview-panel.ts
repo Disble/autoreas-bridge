@@ -2,17 +2,18 @@ import { useEffect, useMemo } from 'react';
 import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
 import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
 import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
+import { formatSeasonCreatedLabel } from '../SeasonWorkspace/season-workspace.helpers';
 import { DEFAULT_MIN_APPROVAL_GRADE, DEFAULT_SLOTS } from '../SelectionBoard/selection-board.constants';
-import { buildOverviewViewModel } from './overview-panel.helpers';
+import { buildOutcomeFunnelSteps, buildOverviewViewModel, formatOutcomeMeta } from './overview-panel.helpers';
 
 /**
  * useOverviewPanel drives the Overview tab: KPI tiles, the watching-pipeline and
- * intake-health charts, the grade histogram, and the slots meter, all derived
- * from the season store. There is no WebSocket/polling channel behind this data
- * — the real mechanism is refetch-on-mount (this hook's effect) plus
- * refetch-after-mutation (every store command already refetches on success), so
- * re-entering the Overview tab after a change elsewhere shows current data
- * because HeroUI Tabs remount inactive panels.
+ * intake-health charts, the grade histogram, the selection outcome, and a closed
+ * season's outcome funnel, all derived from the season store. There is no
+ * WebSocket/polling channel behind this data — the real mechanism is
+ * refetch-on-mount (this hook's effect) plus refetch-after-mutation (every store
+ * command already refetches on success), so re-entering the Overview tab after a
+ * change elsewhere shows current data because HeroUI Tabs remount inactive panels.
  */
 export function useOverviewPanel(source: SeasonSource = seasonSource) {
   // 3. Context/3rd Party Hooks
@@ -26,10 +27,13 @@ export function useOverviewPanel(source: SeasonSource = seasonSource) {
   // 5. Derived State (useMemo)
   const minApprovalGrade = season?.minApprovalGrade ?? DEFAULT_MIN_APPROVAL_GRADE;
   const slots = season?.slots ?? DEFAULT_SLOTS;
+  const createdLabel = formatSeasonCreatedLabel(season?.createdAt ?? 0);
   const viewModel = useMemo(
     () => buildOverviewViewModel(seasonAnimes, minApprovalGrade, slots),
     [seasonAnimes, minApprovalGrade, slots],
   );
+  const outcomeSteps = useMemo(() => buildOutcomeFunnelSteps(viewModel.kpi), [viewModel]);
+  const outcomeMeta = formatOutcomeMeta(createdLabel, minApprovalGrade, viewModel.kpi);
 
   // 7. Effects
   useEffect(() => {
@@ -42,6 +46,8 @@ export function useOverviewPanel(source: SeasonSource = seasonSource) {
   return {
     readOnly,
     errorMessage,
+    outcomeSteps,
+    outcomeMeta,
     ...viewModel,
   };
 }

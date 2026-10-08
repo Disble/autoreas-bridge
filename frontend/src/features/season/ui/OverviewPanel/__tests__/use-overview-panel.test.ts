@@ -87,6 +87,18 @@ describe('useOverviewPanel', () => {
     expect(result.current.selectionOutcome).toEqual([{ dim: 'outcome', Approved: 1, Rejected: 0, 'No grade': 1 }]);
   });
 
+  it('derives the outcome funnel and its meta line from the season and its rows', async () => {
+    const uncreated = { ...createdRow('c', '', 0), availability: 'pending' };
+    const source = createSource({
+      getSeason: vi.fn().mockResolvedValue({ id: 's1', name: 'Julio 2026', minApprovalGrade: 4, slots: 12, status: 'open', createdAt: new Date(2026, 6, 8, 12).getTime() }),
+      getSeasonAnimes: vi.fn().mockResolvedValue([createdRow('a', 'anime-a', 5), createdRow('b', 'anime-b', 0), uncreated]),
+    });
+    const { result } = renderHook(() => useOverviewPanel(source));
+
+    await waitFor(() => expect(result.current.outcomeMeta).toBe('Created July 8, 2026 · Minimum approval grade 4 · 1 intake name never created'));
+    expect(result.current.outcomeSteps.map((step) => step.value)).toEqual(['3', '2', '1', '1']);
+  });
+
   it('passes readOnly and errorMessage through from the store unchanged', async () => {
     const source = createSource();
     const { result } = renderHook(() => useOverviewPanel(source));

@@ -83,6 +83,32 @@ export interface SeasonOrderingSnapshot {
   readonly appliedAt?: number;
   readonly rail: readonly OrderingCard[];
   readonly grid: readonly OrderingCard[];
+  /**
+   * The Daily board stored with the same closure payload. Absent when the read
+   * degraded before reaching Go; `recorded` is false when the season closed
+   * before the Daily board was captured.
+   */
+  readonly dailyBoard?: SeasonDailyBoardSnapshot;
+}
+
+/** One created season anime on the Daily board when its season closed. */
+export interface SeasonDailyBoardEntry {
+  /** The season row id the entry belongs to. */
+  readonly rowId: string;
+  /** The created anime's id. */
+  readonly animeId: string;
+  /** Its daily section: "Sin ver", "Ver hoy" or "Visto" (Spanish data literals). */
+  readonly section: string;
+  /** Its 1-based order within that section. */
+  readonly order: number;
+}
+
+/** The Daily board a closed season stored, and whether one was recorded. */
+export interface SeasonDailyBoardSnapshot {
+  /** False when the season closed before the Daily board was captured. */
+  readonly recorded: boolean;
+  /** The recorded entries, empty when not recorded. */
+  readonly entries: readonly SeasonDailyBoardEntry[];
 }
 
 /**

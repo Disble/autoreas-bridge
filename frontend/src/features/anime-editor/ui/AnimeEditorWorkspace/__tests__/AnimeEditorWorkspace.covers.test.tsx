@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * tagged with a per-anime revision, so a refetch after a saved cover change is
  * observable in the rendered `src`.
  */
-const { mockSource, resetMockSource } = vi.hoisted(() => {
+const { buildAnimes, mockSource, resetMockSource } = vi.hoisted(() => {
   /** The catalog id of one index. */
   function animeId(index: number) {
     return `anime-${String(index).padStart(3, '0')}`;
@@ -22,9 +22,9 @@ const { mockSource, resetMockSource } = vi.hoisted(() => {
   /** Art revision per anime, bumped on every saved cover write. */
   const coverRevisionById = new Map<string, number>();
 
-  /** Builds the catalog the backend list binding returns. */
-  function buildAnimes() {
-    return Array.from({ length: 150 }, (_, index) => ({
+  /** Builds the catalog the backend list binding returns, 150 animes unless told fewer. */
+  function buildAnimes(length = 150) {
+    return Array.from({ length }, (_, index) => ({
       id: animeId(index),
       name: `Anime ${String(index).padStart(3, '0')}`,
       status: 0,
@@ -103,7 +103,7 @@ const { mockSource, resetMockSource } = vi.hoisted(() => {
     source.pickFolder.mockReset().mockResolvedValue('');
   }
 
-  return { mockSource: source, resetMockSource };
+  return { buildAnimes, mockSource: source, resetMockSource };
 });
 
 vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
@@ -235,6 +235,11 @@ describe('AnimeEditorWorkspace cover thumbnails', () => {
   });
 
   it('refetches a saved cover change for the same anime, and drops both thumbnails when it is removed', async () => {
+    // Three rows are enough here -- coverless `anime-000`, the edited
+    // `anime-001`, and covered `anime-002` as the bystander that must keep its
+    // art -- and each save re-renders the whole rail several times, so a full
+    // 20-row window only adds render cost, not coverage.
+    mockSource.getAnimes.mockResolvedValue(buildAnimes(3));
     renderWorkspace();
 
     await screen.findByText('Anime 000');
@@ -257,6 +262,7 @@ describe('AnimeEditorWorkspace cover thumbnails', () => {
 
     await waitFor(() => expect(screen.getByTestId('anime-editor-header-cover-placeholder')).toBeInTheDocument());
     expect(railCoverImagesWith('anime-001')).toHaveLength(0);
-    expect(screen.getAllByTestId('anime-editor-list-cover-placeholder')).toHaveLength(5);
+    expect(screen.getAllByTestId('anime-editor-list-cover-placeholder')).toHaveLength(2);
+    expect(railCoverImagesWith('anime-002#0')).toHaveLength(1);
   });
 });

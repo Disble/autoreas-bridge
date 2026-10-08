@@ -109,11 +109,33 @@ type OrderingBoardDTO struct {
 // at the moment a season closes (P3), stored verbatim in seasons.closure_json.
 // The rail and grid reuse OrderingCardDTO so the payload round-trips into the
 // same read model, and every grid card carries the dia+orden actually scheduled.
+// DailyBoard is the Daily board at close (T4c), always written as a non-nil
+// array; a payload stored before it existed decodes it as nil (not recorded).
 type seasonClosureSnapshotDTO struct {
-	CapturedAt int64             `json:"capturedAt"`
-	AppliedAt  *int64            `json:"appliedAt"`
-	Rail       []OrderingCardDTO `json:"rail"`
-	Grid       []OrderingCardDTO `json:"grid"`
+	CapturedAt int64                      `json:"capturedAt"`
+	AppliedAt  *int64                     `json:"appliedAt"`
+	Rail       []OrderingCardDTO          `json:"rail"`
+	Grid       []OrderingCardDTO          `json:"grid"`
+	DailyBoard []SeasonDailyBoardEntryDTO `json:"dailyBoard"`
+}
+
+// SeasonDailyBoardEntryDTO is one created season anime on the Daily board when
+// its season closed: the season row and anime it is, its daily section ("Sin
+// ver", "Ver hoy" or "Visto", Spanish data literals) and its 1-based order
+// within that section, in the board's row order.
+type SeasonDailyBoardEntryDTO struct {
+	RowID   string `json:"rowId"`
+	AnimeID string `json:"animeId"`
+	Section string `json:"section"`
+	Order   int    `json:"order"`
+}
+
+// SeasonDailyBoardSnapshotDTO is the read-only history read of the Daily board
+// a season had when it closed. Recorded is false when the season closed before
+// the board was captured; Entries is then empty. Entries is never nil.
+type SeasonDailyBoardSnapshotDTO struct {
+	Recorded bool                       `json:"recorded"`
+	Entries  []SeasonDailyBoardEntryDTO `json:"entries"`
 }
 
 // SeasonOrderingSnapshotDTO is the read-only history read of the ordering board
@@ -122,13 +144,16 @@ type seasonClosureSnapshotDTO struct {
 // false the season closed before snapshots existed, or its payload was empty or
 // unreadable, and the collections are empty with null timestamps — never a live
 // or reconstructed board. Rail and Grid are always non-nil so the frontend never
-// receives null collections.
+// receives null collections. DailyBoard is the Daily board decoded from the same
+// closure payload, with its own recorded state: a board captured before the
+// Daily board was recorded still reports Recorded=true here.
 type SeasonOrderingSnapshotDTO struct {
-	Recorded   bool              `json:"recorded"`
-	CapturedAt *int64            `json:"capturedAt"`
-	AppliedAt  *int64            `json:"appliedAt"`
-	Rail       []OrderingCardDTO `json:"rail"`
-	Grid       []OrderingCardDTO `json:"grid"`
+	Recorded   bool                        `json:"recorded"`
+	CapturedAt *int64                      `json:"capturedAt"`
+	AppliedAt  *int64                      `json:"appliedAt"`
+	Rail       []OrderingCardDTO           `json:"rail"`
+	Grid       []OrderingCardDTO           `json:"grid"`
+	DailyBoard SeasonDailyBoardSnapshotDTO `json:"dailyBoard"`
 }
 
 // ConfirmSelectionDTO is the Wails-facing result of confirming the selection:

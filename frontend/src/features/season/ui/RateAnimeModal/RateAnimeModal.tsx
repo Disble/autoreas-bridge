@@ -1,24 +1,30 @@
 import { Button, Modal, Typography } from '@heroui/react';
 import { GRADE_OPTIONS } from './rate-anime-modal.constants';
-import { formatGradeLabel, getGradeSourceNote } from './rate-anime-modal.helpers';
+import { RateAnimeModalTrigger } from './RateAnimeModalTrigger';
+import { getGradeSourceNote } from './rate-anime-modal.helpers';
 import type { RateAnimeModalProps } from './rate-anime-modal.types';
 import { useRateAnimeModal } from './use-rate-anime-modal';
 
 /**
  * RateAnimeModal is the shared grade-capture modal: a trigger showing the current
  * grade opens a dialog with a 1–6 picker. Picking a grade records it manually.
- * Two entry points reuse it (the Episodes card and the Evaluation panel). All
+ * Two entry points reuse it (the Episodes card and the Evaluation panel), each
+ * picking its trigger through `triggerVariant`. All
  * Wails I/O and state live in the colocated `useRateAnimeModal` hook.
  */
-export function RateAnimeModal({ animeId, rawName, currentGrade, gradeSource }: Readonly<RateAnimeModalProps>) {
+export function RateAnimeModal({
+  animeId,
+  rawName,
+  currentGrade,
+  gradeSource,
+  triggerVariant,
+}: Readonly<RateAnimeModalProps>) {
   const { onSelectGrade } = useRateAnimeModal(animeId);
   const sourceNote = getGradeSourceNote(gradeSource);
 
   return (
     <Modal>
-      <Button aria-label={`Rate ${rawName}`} className="hover:text-accent" size="sm" variant="tertiary">
-        {currentGrade >= 1 ? `Grade ${formatGradeLabel(currentGrade)}` : 'Rate'}
-      </Button>
+      <RateAnimeModalTrigger currentGrade={currentGrade} rawName={rawName} variant={triggerVariant} />
       <Modal.Backdrop variant="blur">
         <Modal.Container>
           <Modal.Dialog className="sm:max-w-[420px]">

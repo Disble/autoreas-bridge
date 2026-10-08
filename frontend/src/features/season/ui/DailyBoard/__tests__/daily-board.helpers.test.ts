@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
-import { formatAvailableEpisodes, getScheduledDay, getSinVerAvailabilityIndicator, groupCreatedBySection } from '../daily-board.helpers';
+import {
+  formatAvailableEpisodes,
+  getScheduledDay,
+  getScheduledDayChip,
+  groupCreatedBySection,
+  isDailyBoardSectionShown,
+  selectVerHoyRowChip,
+} from '../daily-board.helpers';
 
+/** Builds a created Sin ver season row with the given overrides. */
 function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
   return {
     id: 'sa',
@@ -87,18 +95,33 @@ describe('formatAvailableEpisodes', () => {
   });
 });
 
-describe('getSinVerAvailabilityIndicator', () => {
-  it('is success with an episodes-available label when episodes are online', () => {
-    expect(getSinVerAvailabilityIndicator(row({ availableEpisodes: 3 }))).toEqual({
-      color: 'success',
-      label: '3 episodes available',
-    });
+describe('getScheduledDayChip', () => {
+  it.each([
+    { name: 'a scheduled row', section: 'Jueves', sectionOrder: 3, expected: { label: 'Jueves - 3', color: 'accent' } },
+    { name: 'an unscheduled row', section: 'Ver hoy', sectionOrder: 0, expected: null },
+  ])('maps $name to its weekday chip', ({ section, sectionOrder, expected }) => {
+    expect(getScheduledDayChip(row({ section, sectionOrder }))).toEqual(expected);
   });
+});
 
-  it('is danger when no episodes are online yet', () => {
-    expect(getSinVerAvailabilityIndicator(row({ availableEpisodes: 0 }))).toEqual({
-      color: 'danger',
-      label: 'No episodes online yet',
-    });
+describe('selectVerHoyRowChip', () => {
+  it.each([
+    { name: 'an open season shows the weekday chip', readOnly: false, expected: { label: 'Jueves - 3', color: 'accent' } },
+    { name: 'a closed season shows no live weekday chip', readOnly: true, expected: null },
+  ])('$name', ({ readOnly, expected }) => {
+    expect(selectVerHoyRowChip(readOnly)(row({ section: 'Jueves', sectionOrder: 3 }))).toEqual(expected);
+  });
+});
+
+describe('isDailyBoardSectionShown', () => {
+  it.each([
+    { boardMode: 'sections', readOnly: false, count: 0, shown: false },
+    { boardMode: 'sections', readOnly: false, count: 1, shown: true },
+    { boardMode: 'sections', readOnly: true, count: 0, shown: true },
+    { boardMode: 'plain', readOnly: true, count: 1, shown: false },
+    { boardMode: 'loading', readOnly: true, count: 0, shown: false },
+    { boardMode: 'failed', readOnly: true, count: 0, shown: false },
+  ] as const)('$boardMode, read-only $readOnly, $count rows → $shown', ({ boardMode, readOnly, count, shown }) => {
+    expect(isDailyBoardSectionShown(boardMode, readOnly, count)).toBe(shown);
   });
 });

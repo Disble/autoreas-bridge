@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SeasonWorkspace } from '../SeasonWorkspace';
@@ -32,9 +32,25 @@ vi.mock('../../OverviewPanel/OverviewPanel', () => ({
   OverviewPanel: () => <div>overview panel</div>,
 }));
 
+/** Mocked hook each case drives to one workspace state. */
 const mockedUseSeasonWorkspace = vi.mocked(useSeasonWorkspace);
+/** Shape of the hook's return value, so a case can override only what it exercises. */
 type HookReturn = ReturnType<typeof useSeasonWorkspace>;
 
+/** The open season and its overview view model. */
+const OPEN_SEASON: Partial<HookReturn> = {
+  season: { id: 'season-1', name: 'Julio 2026', minApprovalGrade: 4, slots: 12, status: 'open', createdAt: Date.UTC(2026, 6, 6) },
+  overview: { title: 'Julio 2026', statusLabel: 'Open', statusColor: 'success', createdLabel: 'July 6, 2026', minApprovalGrade: 4, slots: 12 },
+};
+
+/** A past season viewed read-only, and its overview view model. */
+const PAST_SEASON: Partial<HookReturn> = {
+  readOnly: true,
+  season: { id: 's-old', name: 'Abril 2026', minApprovalGrade: 4, slots: 12, status: 'closed', createdAt: Date.UTC(2026, 3, 6) },
+  overview: { title: 'Abril 2026', statusLabel: 'Closed', statusColor: 'default', createdLabel: 'April 6, 2026', minApprovalGrade: 4, slots: 12 },
+};
+
+/** The section tabs the shell renders. */
 const SECTIONS: HookReturn['sections'] = [
   { id: 'overview', label: 'Overview', available: true },
   { id: 'intake', label: 'Intake & Daily', available: false },
@@ -43,6 +59,7 @@ const SECTIONS: HookReturn['sections'] = [
   { id: 'ordering', label: 'Ordering', available: false },
 ];
 
+/** Stubs the hook with an idle no-season state, overriding only the fields a case sets. */
 function mockHook(overrides: Partial<HookReturn> = {}): void {
   mockedUseSeasonWorkspace.mockReturnValue({
     season: null,
@@ -86,24 +103,7 @@ describe('SeasonWorkspace', () => {
   });
 
   it('renders the overview and section tabs for an open season', () => {
-    mockHook({
-      season: {
-        id: 'season-1',
-        name: 'Julio 2026',
-        minApprovalGrade: 4,
-        slots: 12,
-        status: 'open',
-        createdAt: Date.UTC(2026, 6, 6),
-      },
-      overview: {
-        title: 'Julio 2026',
-        statusLabel: 'Open',
-        statusColor: 'success',
-        createdLabel: 'July 6, 2026',
-        minApprovalGrade: 4,
-        slots: 12,
-      },
-    });
+    mockHook(OPEN_SEASON);
     render(<SeasonWorkspace />);
 
     expect(screen.getByRole('heading', { name: 'Julio 2026' })).toBeInTheDocument();
@@ -116,25 +116,7 @@ describe('SeasonWorkspace', () => {
 
   it('close season delegates to the hook callback', () => {
     const onCloseSeason = vi.fn();
-    mockHook({
-      season: {
-        id: 'season-1',
-        name: 'Julio 2026',
-        minApprovalGrade: 4,
-        slots: 12,
-        status: 'open',
-        createdAt: Date.UTC(2026, 6, 6),
-      },
-      overview: {
-        title: 'Julio 2026',
-        statusLabel: 'Open',
-        statusColor: 'success',
-        createdLabel: 'July 6, 2026',
-        minApprovalGrade: 4,
-        slots: 12,
-      },
-      onCloseSeason,
-    });
+    mockHook({ ...OPEN_SEASON, onCloseSeason });
     render(<SeasonWorkspace />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Close season' }));
@@ -156,34 +138,57 @@ describe('SeasonWorkspace', () => {
     expect(onViewPastSeason).toHaveBeenCalledWith('s-old');
   });
 
-  it('shows a read-only banner and a back button (and hides Close season) for a past season', () => {
+  it('shows the Closed chip, a muted read-only line and a back button (and hides Close season) for a past season', () => {
     const onExitPastSeason = vi.fn();
-    mockHook({
-      readOnly: true,
-      season: {
-        id: 's-old',
-        name: 'Abril 2026',
-        minApprovalGrade: 4,
-        slots: 12,
-        status: 'closed',
-        createdAt: Date.UTC(2026, 3, 6),
-      },
-      overview: {
-        title: 'Abril 2026',
-        statusLabel: 'Closed',
-        statusColor: 'default',
-        createdLabel: 'April 6, 2026',
-        minApprovalGrade: 4,
-        slots: 12,
-      },
-      onExitPastSeason,
-    });
+    mockHook({ ...PAST_SEASON, onExitPastSeason });
     render(<SeasonWorkspace />);
 
-    expect(screen.getByText('Read-only')).toBeInTheDocument();
+    expect(screen.getByText('Closed')).toBeInTheDocument();
+    expect(screen.getByText('Read-only — editing is disabled.')).toBeInTheDocument();
+    expect(screen.queryByText('Read-only')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Close season' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Season mode/)).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Season' })).toBeNull();
+    expect(screen.getByText('overview panel')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Back to history' }));
     expect(onExitPastSeason).toHaveBeenCalled();
+  });
+
+  it('puts the season facts, the season-mode explanation and Close season in one Overview season card', () => {
+    mockHook(OPEN_SEASON);
+    render(<SeasonWorkspace />);
+
+    const card = screen.getByRole('region', { name: 'Season' });
+    expect(within(card).getByText('July 6, 2026')).toBeInTheDocument();
+    expect(within(card).getByText('Minimum approval grade').nextSibling).toHaveTextContent('4');
+    expect(within(card).getByText('Slots').nextSibling).toHaveTextContent('12');
+    expect(within(card).getByText('Season mode stays on until you close the season.')).toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: 'Close season' })).toBeInTheDocument();
+    expect(screen.queryByText('Read-only — editing is disabled.')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Back to history' })).toBeNull();
+  });
+
+  it('shows only the loading status while the season loads', () => {
+    mockHook({ ...OPEN_SEASON, isLoading: true });
+    render(<SeasonWorkspace />);
+
+    expect(screen.getByRole('status', { name: 'Loading season' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Season' })).toBeNull();
+    expect(screen.queryByText('overview panel')).toBeNull();
+  });
+
+  it.each([
+    { name: 'a trimmed typed name', typed: '  Agosto 2026  ', want: 'Agosto 2026' },
+    { name: 'the suggested name for a blank one', typed: '   ', want: 'Julio 2026' },
+  ])('creates the season with $name', ({ typed, want }) => {
+    const onCreateSeason = vi.fn();
+    mockHook({ onCreateSeason });
+    render(<SeasonWorkspace />);
+
+    fireEvent.change(screen.getByDisplayValue('Julio 2026'), { target: { value: typed } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create season' }));
+
+    expect(onCreateSeason).toHaveBeenCalledWith(want);
   });
 
   it('renders an error alert when the hook returns an error message', () => {

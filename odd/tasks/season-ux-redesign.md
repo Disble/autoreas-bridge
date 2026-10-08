@@ -1,0 +1,286 @@
+# Season UX redesign
+
+## Objective and scope
+Implement the user-approved (2026-10-06) Season workspace UX redesign from the canvas https://claude.ai/artifact/LhPPQvPkeVGBgLG1VFJTYD (v4, 7 artboards). **Functionality stays exactly the same**: every existing action, guard, state and data path is preserved. Only presentation and UX change. Branch `feat/season-ux-redesign` from `dev` (`7f236db`).
+
+## Problem, decisions, and constraints
+- The current Season UI shows too much at once (status chips everywhere, long text, plain-text lists) and ignores the real workflow: intake is one-off, the 2-week daily loop is frequent, grading is ~98% on mobile, Selection/Ordering are one-off.
+- User design rules from the review rounds (engram #11426, #11431, #11439, #11440, #11442):
+  - Less is more. Reduce noise by removing redundant elements or by structure, **never by hiding actions behind hover**.
+  - Use bridge's real visual language only:
+    - HeroUI `Tabs` and `ToggleButtonGroup`;
+    - pill buttons; round tertiary icon buttons with Solar bold-duotone icons via `@iconify-icons/solar`;
+    - 44px rounded-lg mini covers with the `AnimeCoverPlaceholder` fallback;
+    - semantic tokens only.
+  - Every action in a row action group is an icon button. The metadata lookup trigger is a round icon (Solar `magic-stick-3-bold-duotone`).
+  - The availability dot belongs to the Intake list row only (meaning: episode 1 exists, ready to create). Remove it from Sin ver. This supersedes SDD-44's dot parity; the user confirmed it.
+  - Ordering: anime names must be readable. No redundant position numbers. The grade chip has a fixed width. The newcomer marker is meaningless in the rail (every item there is a newcomer). Follow `shared/ordering/ui/AnimeScheduleOrdering` (the Editor schedule, the direct evolution of the season board) without reusing it.
+  - Overview differs by state:
+    - **Open season** answers "how am I doing".
+    - **Closed (read-only) season** answers "what came out of it": outcome funnel, grade histogram, selection outcome, final lineup. No empty watching-pipeline card.
+- Repository rules (`CLAUDE.md`):
+  - dumb feature `.tsx`; hook order; colocated folders; no barrels;
+  - readonly Props and JSDoc on every declaration;
+  - ≤500 effective lines per file;
+  - lists that may reach 100 rows render progressively;
+  - loading, empty and failure states are exclusive;
+  - English code and UI copy, with Spanish data literals kept;
+  - `@dnd-kit/react` only.
+- TDD: RED → GREEN → MUTATE → REFACTOR.
+  - Focused runner: `bun --cwd="frontend" run test -- <path>`.
+  - `lefthook` pre-commit (lint, dharness/Fallow, typecheck, full suite, render smoke, layout smoke, staged frontend mutation) is the verification boundary. Never use `--no-verify`.
+  - A delegated verify agent owns the final verification of each task before the parent commits.
+- RDD is off (global): delivery is `disabled/unmanaged`. No PRs. Integration is a local merge into `dev`, decided by the user.
+
+## Tasks
+Route: every task is **delegated direct** (one bounded writer, then one verifier). Trigger evidence: each task touches 2+ non-trivial files (component, hook/helpers, tests), and the reading that prepares each write belongs to its writer.
+
+- [x] **T1 Sin ver dot removal.** Sin ver rows in `DailyBoard` lose the availability dot; their episode-count text stays. Remove `getSinVerAvailabilityIndicator` if it becomes unused, along with its tests.
+  - Delegated writer, then an independent verifier: PASS.
+  - Diff: 4 files under `DailyBoard/`, +49/−75. `getSinVerAvailabilityIndicator` had a single caller and was deleted together with its tests.
+  - RED: the new `it.each` (5 episodes and 0 episodes) failed with "expected document not to contain element, found <span" (2 failed / 8 passed). GREEN: 4 files, 29 tests.
+  - `bun --cwd="frontend" run typecheck` exit 0. `bunx eslint` on the touched files is clean.
+  - The verifier confirmed the label query would catch the dot if it came back.
+  - Note: "No episodes online yet" existed only as the dot's aria-label/tooltip. The visible text was and remains "0 episodes available".
+  - The pre-existing `dharness/require-jsdoc` error in the untouched `DailyBoard.checkbox.test.tsx:12` is left alone.
+  - Review: RDD off, so disabled/unmanaged.
+  - Commit gate, first attempt: an unrelated, date-dependent `HistoryFilterBar` calendar test failed because the real date moved into October. It was fixed in its own commit `689430b` (`Date` pinned with `toFake: ['Date']`), and that commit passed the full gate.
+  - Commit gate, second attempt: staged mutation found 2 survivors on the re-indented `row.matchedSlug !== ''` guard.
+    - Cause: the existing "no matched slug" test queried `role=link`, but an anchor with an empty href has no link role, so the query could never see it.
+    - Fix: the test now queries by label.
+    - Hand-applying both mutants (`true &&` and the string literal) now fails the test (1 failed / 9). Restored: 29/29.
+  - Committed as `9b98aed`. Full gate green; staged mutation 5/5 killed.
+- [x] **T2 Season cover seam, wired into Daily board Sin ver and Ver hoy rows.** Re-scoped because an unused component or export would fail the Fallow/dharness dead-code gate. The rest of T4 stays in T4.
+  - Delegated writer, then an independent verifier: PASS.
+  - New dumb `SeasonCoverThumb` ({coverSrc, isLoading}), mirroring the Editor list thumb.
+  - New `DailyBoard/use-daily-board-sections.ts`: groups rows by section and requests `getAnimeCover` once per created id (ref-tracked) for Sin ver and Ver hoy, with placeholder fallback on a missing binding, a rejection, or a non-cover answer.
+  - `shared/anime-cover` resolves a single cover only, and Editor/Episodes each keep their own batch caches, so the seam stays season-local and the shared code is untouched.
+  - RED: 6 failing tests plus 2 unresolved suites. GREEN: 6 files, 47 tests.
+  - Four hand mutations each failed the tests: empty-id guard, `source === 'cover'` guard, Visto `showCover`, Visto requests.
+  - Typecheck 0. Fallow audit and dead-code: nothing introduced.
+  - A first attempt added a hook call to `useDailyBoard`, which raised cognitive complexity from 15 to 16 and failed the audit. It was resolved by extraction (lesson logged).
+  - First commit attempt: staged mutation reported 6 survivors. Each was killed by simplifying production code, with no constant pins and no disables:
+    - Group React keys: the groups are now keyed by their visible title.
+    - Placeholder literals: the no-binding branch leaves ids uncached, and a rejection removes its pending entry through `withoutCoverEntry`. A new two-id rejection test proves only the failed entry is dropped.
+  - Final staged mutation: 82 killed / 0 survived / 6 timeouts.
+  - One shared season thumbnail (44px rounded-lg, `AnimeCoverPlaceholder` fallback, loading skeleton).
+  - Cover sources: a created row resolves through `getAnimeCover(animeId)` with caching (reuse the existing cover hooks/patterns from Today/Editor where possible); an intake row uses its applied metadata cover URL.
+  - No per-render refetch storms.
+- [x] **T3 Intake list rows.** Delegated writer, then an independent verifier: PASS with one note, fixed by the parent.
+  - Shared `AnimeMetadataLookupModal` gained an additive `triggerVariant` ('text' default | 'icon') through a new `AnimeMetadataLookupTrigger`. The Editor and Create callers are unchanged and their suites pass.
+  - `IntakeRowMetadata` was split into the summary line (`formatMetadataSummary`, kind label via `getAnimeTipoLabel`), `IntakeRowMoreMenu` (HeroUI Dropdown: Undo when `canUndo`, Clear when applied, Discard), `IntakeRowFolderButton` and `IntakeRowAvailabilityDot`.
+  - The match chip renders only when the status is not matched. The "Folder:" hint is dropped because the path stays in the folder tooltip.
+  - Accepted presentation change: the cover and summary also render on read-only seasons. Editing actions stay hidden there.
+  - Verifier note: Create had switched to hiding on `availableCount===0`, while before it was disabled only on an empty selection. The selection is never pruned, so a stale pick used to keep Create pressable. The parent restored identical behavior: Create is hidden only when `availableCount===0 && selected.size===0`.
+    - A new test covers the stale pick. Hand-reverting the guard fails it (1 failed / 22); restored: 22/22.
+  - Writer evidence:
+    - RED: 23 failing. GREEN: 36 files, 463 tests (IntakePanel, metadata-lookup, anime-editor, anime-create).
+    - Typecheck 0. ESLint clean. Fallow audit exit 0: duplicate groups 63 → 62, no introduced complexity.
+    - Staged mutation 114 killed / 0 survived, after 24 initial survivors in moved code were killed with behavior tests.
+  - Committed as `76f6d52`. Final staged mutation 118/118.
+    - Attempt 1: hung for about 46 minutes inside `dharness check`, on `bunx add fallow@latest --force`. Most likely the running `fallow-mcp` servers lock `fallow.exe` in the same bunx temp dir. The stuck bunx was killed.
+    - Attempt 2: Stryker's dry run timed out (5s) on the heavy `AnimeEditorWorkspace` 842-item test under machine load.
+    - Attempt 3: passed with nothing else running. No threshold or timeout was changed.
+  - Original scope:
+  - Each row: thumbnail; a one-line metadata summary (kind · eps · duration · studio) once metadata is applied.
+  - Actions are round icons in order: metadata lookup (magic stick), page, folder, ⋯. The ⋯ menu holds Undo autofill / Clear metadata / Discard.
+  - The match chip shows only for states that need attention (Ambiguous, Not found, Pending, Discarded); Matched shows no chip.
+  - The availability dot stays at the far right.
+  - Footer actions render only when actionable: Run matching, Check availability, Create n.
+  - Raw/List toggle, candidates, reconcile and read-only behavior unchanged.
+- [x] **T4 Daily board.** Delegated writer, then an independent verifier: PASS.
+  - Visto is a HeroUI `Disclosure` (`DailyBoardVistoDisclosure`, state in `use-daily-board-visto`), collapsed by default.
+    - When expanded, the pure `groupVistoByWeekday` groups rows Lunes→Domingo by `sectionOrder`, with "Not scheduled yet" last.
+    - Each row shows the cover and the name only. No row is lost or duplicated.
+  - The cover seam now includes Visto ids, still one request per id.
+  - Shared `AirisEmptyState` gained an additive `size: 'compact'` early-return branch. Its 11 callers keep byte-identical default markup.
+  - Sin ver resolved-empty uses the compact variant.
+  - Observation, unchanged: the Ver hoy weekday chip never renders with real data, because Ver hoy rows always carry section `'Ver hoy'`. This is pre-existing.
+  - Evidence:
+    - Tests: 56/56 for DailyBoard and AirisEmptyState; 774 across every AirisEmptyState caller folder.
+    - Typecheck 0, ESLint clean, Fallow audit exit 0 (62 duplicate groups, unchanged).
+    - Staged mutation 54 killed / 0 survived / 5 ignored (static strings). Survivors from earlier runs were killed by behavior tests or by removing equivalent code: a useless `useMemo` and the `size='default'` default.
+  - Original scope:
+  - Sin ver: rows with covers and no dot; when empty, a compact one-line resolved-empty state.
+  - Ver hoy: rows with a cover and the weekday chip.
+  - Visto: a disclosure, collapsed by default, showing its count; when expanded, rows are grouped by weekday (ordered by section order, no position numbers), plus a "Not scheduled yet" group.
+  - Download notice, Re-check and Send to Ver hoy unchanged.
+- [ ] **T4b Past-season Daily board integrity.** User feedback (2026-10-07): in a closed (read-only) season, Sin ver / Ver hoy / Visto, and now the T4 weekday grouping, are derived from each anime's LIVE section. That is the current Today state, not the state the season ended in.
+  - History is immutable. If the board followed live data, it would keep changing as later seasons move the same animes.
+  - The closure snapshot (P3/P4 in `preseason-readiness`) stores the ordering board only. The watching pipeline is never recorded, and the precedent (P4 slice 2) renders an explicit "not recorded" state for the historical Overview pipeline.
+  - Fix: a past season's Daily board renders the same honest "not recorded" treatment instead of live sections. The open season is unchanged. Pre-existing bug, surfaced by T4.
+  - SUPERSEDED (user, 2026-10-07): a closed season ALWAYS shows all three daily sections, whatever they contain, so nothing feels hidden.
+    - Visto rows now carry the season-owned grade state instead of the live weekday chip, which removes the live weekday leak.
+    - Residual, recorded rather than fixed: section MEMBERSHIP in a closed season still derives from each anime's live section, because the closure snapshot does not record the pipeline.
+- **T4 rework (user, 2026-10-07)**
+  - Visto: always visible (no disclosure), shown as a compact scannable grid of cover + name + grade-state chip ("Grade N" / "Skipped" / "No grade", the same states as Evaluation), in place of the live weekday chip. Rationale: Visto means "watched, ready for evaluation", and the passed/day question now belongs to Selection and Ordering.
+  - Open season: Intake is always shown, and Sin ver / Ver hoy / Visto render only once they hold at least 1 anime.
+  - Closed season: all sections always render, with compact empty states.
+  - Sin ver, Ver hoy and Visto share one card format with the Intake list.
+  - Implemented (same writer), then a second independent verifier: PASS on all 7 points.
+    - New `DailyBoardSectionCard` and `DailyBoardWatchList` (shared by Ver hoy and Visto). Visibility rule `isDailyBoardSectionShown(readOnly, n) = readOnly || n > 0`.
+    - Shared `getGradeChip` was extracted into `evaluation-panel.helpers.ts`. EvaluationPanel markup is unchanged.
+    - Re-check now stays a standalone button, shown only when not read-only and at least one section has rows. It calls the same `recheckAvailability` as the intake's Check availability, so nothing is lost when it hides.
+    - The disclosure, the weekday grouping and the "No created animes yet" line are deleted.
+    - Visible additions: Sin ver count chip, short Ver hoy/Visto descriptions, Ver hoy names truncate with a tooltip.
+    - Tests 73/73 (DailyBoard, EvaluationPanel, AirisEmptyState). Typecheck 0. ESLint clean. Fallow audit exit 0 with no dead exports.
+  - Gate blocker found and fixed in its own commit `e68f206`.
+    - Cause: dharness runs the related-test step at low priority, and an unrelated `AnimeEditorWorkspace.covers` test took 5.2s against the 5s limit there. It is pulled in through AirisEmptyState callers.
+    - Fix: the test now uses a 3-anime catalog. 2.4s → 0.7s, every assertion kept, discrimination proven by two hand mutations. No timeout changed.
+    - Reported to the dharness peer session.
+  - Committed as `5cad652` after the full gate (related 38.6s, Stryker 417.9s, frontend-mutation green).
+    - Three gate runs on dharness 1.10.0 failed at the low-priority related step. dharness 1.10.1 (released, related step at normal priority) was installed with the user's approval.
+    - A second blocker was then found and fixed in its own commit `74fbfbc`. `AnimeEditorWorkspace.windowing` reproducibly took 5.6s under `vitest.mutation.mts` beside the 40-file related set. With 1.4s alone, it ran on a 150-item catalog: 1.4s in the same related run, still asserting 20 → 40 → 60 rows < total. No timeout changed.
+    - Full-suite timeouts in `AnimeEditorWorkspace.covers` and `TransactionPanel.windowing` were load, not flakiness. A `vite` dev server was holding about one core; the user closed it. The three tests passed 3/3 alone (max 3.0s).
+- [x] **T4c Closed-season Daily board from the closure snapshot.** Delegated writer, then an independent verifier: PASS with notes.
+  - The user approved adding `frontend/src/infrastructure/season-source/season-source.types.ts` to the surface.
+  - Backend: the closure snapshot gained an additive `dailyBoard` field with entries `rowId`, `animeId`, `section` and `order`. It is written in `app_season_closure_daily.go` using the same section rule as the frontend `groupCreatedBySection`.
+    - A missing or `null` field reads as not recorded; `[]` reads as recorded and empty.
+    - The open-season board and close-failure behaviour are unchanged; a shared read was refactored, and a read failure still aborts the close.
+    - The field is desktop-only, so `docs/openapi.yaml` is unchanged; backup carries `closure_json` as an opaque string.
+    - `TestCloseSeasonDailyBoardRoundTripsThroughSQLite` closes a season through real SQLite and reads it back. A hand mutation (`DailyBoard: nil`) fails it.
+  - Frontend, closed season:
+    - When recorded, the three sections are always shown from the snapshot. Visto keeps its grade chip; Ver hoy has no live weekday chip.
+    - When not recorded, a plain "Season animes" card shows cover and name only.
+    - Loading uses `LoadingBars` and failure uses an Alert.
+    - The open season is unchanged.
+  - Process note: the frontend RED was not observed because tests were written after the code. dharness staged mutation found 138/138 killed instead.
+  - Evidence:
+    - Go: ditto 1.00 (15/15); go test, vet, lint profile, gofmt and filesize pass.
+    - Frontend: season and infrastructure 567/567 tests; typecheck 0; ESLint clean on touched files; Fallow exit 0.
+    - Verifier hand mutations: 9/9 killed.
+  - Follow-up, pre-existing P3 behaviour left unchanged: a failed SQLite season read in `GetSeasonOrderingSnapshot` degrades to "not recorded" instead of an error (`app_season_history.go:63-66`). The Alert only fires when the IPC call throws.
+  - Committed as `fc67727`. Attempt 1 hit full-suite timeouts in `HistoryFilterBar` and `TransactionPanel.windowing`, caused by Go coverage running in parallel with the frontend suite. Both passed 2/2 alone (0.5s and 1.2s), and the retry was green.
+- **T4c original definition.** User (2026-10-07): the closure "screenshot" exists exactly so history is immutable, as with Ordering.
+  - Extend `seasonClosureSnapshotDTO` additively with each season anime's daily section and order at close. A closed season's Daily board reads that, not live sections.
+  - Decision (user, 2026-10-07): a season closed before this change shows its Daily board as a plain list of the season's animes, with no section grouping and no tags or chips. Seasons closed afterwards read the section and order from the snapshot.
+- [x] **T5 Evaluation.** Delegated writer, then an independent verifier: PASS with notes.
+  - The writer was blocked once on edit surfaces. The user approved adding `RateAnimeModal/**` and the DailyBoard cover helper, type and hook files.
+  - The cover seam was extracted from DailyBoard into `SeasonCoverThumb/use-season-covers.ts`, with its helpers and types under generic names; DailyBoard uses it. No copy remains.
+  - `RateAnimeModal` gained an additive `triggerVariant` through `RateAnimeModalTrigger`:
+    - `'grade'` is the default and byte-identical, so the Episodes card is unchanged;
+    - `'rate'` is a secondary button;
+    - `'icon'` is the Solar star "Change grade" button.
+  - Evaluation rows:
+    - Rows show a cover, with ungraded rows first.
+    - Ungraded rows have Rate and Skip, and the meta line "Not rated yet".
+    - Graded or skipped rows have the star icon and the meta line "Source · date".
+    - Every row ends in a fixed-width chip.
+  - Accepted functional changes (user, 2026-10-07):
+    - Skipped rows no longer render a disabled Skip button.
+    - Graded rows no longer render an enabled Skip button. It only set `SkipGrading`, which is hidden by the grade chip and cleared by re-grading.
+  - Verifier note fixed by the parent: `divide-white/10` became `divide-separator`.
+    - HeroUI v3 has no `divider` token, so `AppLayout`'s `border-divider/60` and the theme skill are stale. This is a follow-up outside this feature.
+  - Evidence:
+    - season 389/389 tests; anime-editor + shared 1027/1027; typecheck 0; ESLint clean.
+    - Fallow audit exit 0. There are 63 clone groups; the new one is store-selector lines only (verified).
+    - Hand mutations: the writer's 17/17 and the verifier's 5/5 were killed.
+  - Open: the Evaluation list is not windowed, because candidates stay well under 100.
+  - Committed as `ef9a680`. Full gate green: Stryker 185.7s, frontend-mutation passed.
+    - Attempt 1: an unrelated full-suite timeout in `TransactionPanel.windowing` ("a live pushed capture…", 6.2s) on an idle machine. It is a recurring borderline test, and it passed on retry.
+    - Attempt 2: 3 boundary survivors.
+      - `grade < 1` and `currentGrade >= 1` were killed by grade-1 tests (proven by hand mutation, 2 failed).
+      - The equivalent `triggerVariant = 'grade'` default was removed: `RateAnimeModalTriggerProps.variant` is optional and falls through to the grade button.
+  - Original scope:
+  - Covers. Ungraded rows first, with Rate (secondary) and Skip (ghost) visible.
+  - Graded/skipped rows: grade chip plus a round icon that opens the existing rate modal.
+  - The source · date line stays. The warning alert stays.
+- [x] **T6 Selection.** Delegated writer, then an independent verifier: PASS with notes. No behavior changed or lost.
+  - The Verdict table became one card with "Approved · N" then "Rejected · N" groups. Each group is a `ul` labelled by its heading, and keeps HEAD's order inside the group.
+  - New `SelectionCandidateRow`:
+    - cover, a truncated name with tooltip, and the consideration select (plain text when read-only);
+    - desktop actions and a fixed-width grade slot, all always visible.
+  - New `useSelectionCandidates` sub-hook builds the groups and covers through the shared `useSeasonCovers`. It kept `useSelectionBoard` at HEAD complexity (cognitive 25).
+  - New helpers: `groupSelectionRows`, `getQuotaColor`, `formatSelectionGrade` and `toConsiderationToken` (the moved `?? 'none'`).
+  - Presentation choices:
+    - The grade stays plain text (`5` / `—`) as on the canvas, not `getGradeChip`, to avoid a new "Skipped" state.
+    - Rejected rows are not dimmed, so their controls don't look disabled.
+    - The list is not windowed (well under 100).
+  - Decision (user, 2026-10-07): an empty group is always omitted. The Daily board rule (closed season shows every section) applies to the Daily board only.
+  - Evidence:
+    - season 455/455 tests; typecheck 0; ESLint clean.
+    - Fallow exit 0: 60 clone groups, 0% dead exports.
+    - Writer's dharness staged mutation 53/0. The verifier's hand mutations 5/5 were killed, and the restore was proven by md5.
+  - Original scope:
+  - Covers. Rows grouped as Approved / Rejected, replacing the Verdict column.
+  - Consideration select and desktop actions stay visible.
+  - Rules header (steppers, quota, confirmation, Confirm modal) unchanged in behavior.
+- T6 committed as `0811c5f`. Attempt 1 failed on the recurring `TransactionPanel.windowing` full-suite timeout; the retry was green.
+- [x] **T7 Ordering.** Delegated writer, then an independent verifier: PASS. Behaviour is unchanged.
+  - Layout:
+    - Seven weekday lanes sit in one full-width row, horizontally scrollable when narrow, with a header and muted count above each drop zone (`OrderingLane`).
+    - The "Approved to place" rail sits below as a wrapping grid.
+    - Each drop zone is a labelled group.
+  - Cards:
+    - The name is clamped to 2 lines with the full-name tooltip; there are no position numbers.
+    - The grade chip has a fixed width and still appears only for grade ≥1.
+    - An always-visible `OrderingCardActionRow` holds desktop actions, Duplicate and Remove.
+    - A muted "New" tag appears on weekday newcomer cards only.
+  - Tokens: `bg-zinc-*` became `bg-surface`, `bg-default` and `border-separator`.
+  - Three no-op `onPointerDown` stopPropagation handlers were removed. The verifier confirmed from the `@dnd-kit/dom` 0.5.0 source:
+    - The PointerSensor binds a native bubble listener on the draggable `<li>` (`index.js:1974-1985`), which runs before React's root-delegated handlers.
+    - `preventActivation` (`:1923-1933`) already refuses enabled interactive elements.
+    - Runtime drag behaviour is identical.
+    - Follow-up: `.claude/skills/dnd-kit/SKILL.md:66` and `AnimeScheduleOrderingCard.tsx:43,49` still prescribe the no-op pattern.
+  - Parent fix: added the missing member JSDoc on the new props types.
+  - Evidence:
+    - Tests: season 473/473, typecheck 0, ESLint clean.
+    - Gates: Fallow exit 0 (60 clone groups, advisory CSS drift only); layout and render smoke pass.
+    - Mutation: dharness staged 24/0; the verifier's hand mutations 4/4 killed, with restore proven by md5.
+  - Kept as before: cards without a grade show no chip (the canvas shows "—"). A disabled Remove tooltip is unreachable by keyboard, as it already was.
+  - Original scope:
+  - Seven weekday columns in one row, with headers outside the columns, allowed to use the full available width.
+  - "Approved to place" area below the columns.
+  - Cards: the name clamped to 2 lines with the full name as a tooltip; a fixed-width grade chip; an always-visible action row (desktop actions, Duplicate, Remove); a muted "New" text only on weekday cards for newcomers.
+  - Raw `bg-zinc-*` replaced with tokens.
+  - Drag and drop, read-only rules, history states, autosave and Apply/Reset unchanged.
+- T7 committed as `7f25eba`; the full gate was green on the first attempt.
+- [x] **T8 Overview and shell.** Delegated writer, then an independent verifier: PASS with notes. No behavior was lost.
+  - Open season:
+    - The new `SeasonOverviewCard` shows Created, Minimum approval grade and Slots, the season-mode text, and Close season.
+    - The shell's accent season-mode alert and its "Created · Slots" line are gone. The season-mode text now shows only on the Overview, as the design intended.
+  - Read-only shell: the Closed chip, a muted "Read-only — editing is disabled." and Back to history replace the warning alert.
+  - Closed Overview:
+    - `OverviewOutcomeFunnel` (Intake → Created → Rated → Approved / N slots) reads `buildKpiSummary` and `countApproved`.
+    - The grade histogram and the selection outcome stay.
+    - `OverviewFinalLineup` reads the closure snapshot `grid`/`rail` through `getSeasonOrderingSnapshot`, with grades joined from the season rows. It has exclusive loading, failed, not-recorded, empty and lineup states, and drops stale reads.
+    - The pipeline, intake-health and KPI tiles are omitted.
+    - No closed-view value reads live state (verified).
+  - Dead code removed: `isHistorical`, `PIPELINE_NOT_RECORDED_*`, and the not-recorded branch of `WatchingPipelineChart`.
+  - Parent-requested fix: JSDoc on every member of the touched type files.
+  - Not done (product/data):
+    - The canvas "Recorded ordering" link was not added, because it would be a new behavior with uncontrolled tabs.
+    - "N intake names never created" replaces the canvas's "discarded or never aired", which the data cannot split.
+    - "Rated" includes skipped animes, matching the KPI.
+  - Evidence:
+    - season 516/516 (110/110 after the JSDoc pass); typecheck 0; ESLint clean on touched files.
+    - Fallow exit 0, 61 clone groups (likely the 3 near-identical chart bodies).
+    - render and layout smoke pass.
+    - Staged mutation 188/0. Verifier hand mutations 6/6 killed, restore proven.
+  - Pre-existing and left alone: `season-workspace.helpers.test.ts:7` `require-jsdoc`.
+  - Original scope:
+  - Open season: the season-mode explanation moves into an Overview season card next to Close season.
+  - Read-only shell: the Closed chip plus a muted "Read-only — editing is disabled." line and Back to history, instead of the warning alert.
+  - Closed Overview: an outcome funnel (intake → created → rated → approved/slots), grade histogram, selection outcome, and a final lineup from the recorded ordering snapshot (with covers and grades).
+  - When closed, the watching-pipeline, intake-health and KPI tiles are omitted.
+
+## Acceptance
+- Every existing handler, guard, disabled/hidden condition, toast and modal still behaves as before (tests prove it), except the documented presentation changes above.
+- No hover-only action anywhere.
+- Gates green per commit. Render smoke passes.
+
+## Delivery
+- Forecast: about 2,500–3,500 authored changed lines across 8 units. This is above the ~400 heuristic, which is advisory.
+- Strategy: feature-branch work-unit commits, no PRs, local merge into `dev` when the user decides (the user's correction recorded in `preseason-readiness`).
+
+## Progress
+- 2026-10-06: branch created; task document written. Next: T1.
+- 2026-10-07: T1–T4 committed (`9b98aed`, `9153d96`, `76f6d52`, `5cad652`) plus gate fixes `689430b`, `e68f206`, `74fbfbc`. Next: T5. T4c waits on the pre-change closed-season decision.
+- 2026-10-07: T5 committed `ef9a680`. T4c decided (legacy closed seasons get a plain list). Next: T4c, then T6.
+- 2026-10-07: T4c `fc67727`, T6 `0811c5f`, T7 `7f25eba`, T8 `dae5566`. Every task is done. Integration into `dev` is the user's call.
+- Follow-ups outside this feature:
+  - HeroUI v3 has no `divider` token. `AppLayout`'s `border-divider/60` is a no-op, and the `autoreas-theme` skill lists `divider`.
+  - The `dnd-kit` skill (`SKILL.md:66`) and `AnimeScheduleOrderingCard.tsx:43,49` prescribe a no-op `onPointerDown` stopPropagation.
+  - `TransactionPanel.windowing` is a recurring full-suite timeout (5s budget, already consolidated).
+  - `GetSeasonOrderingSnapshot` turns a SQLite read failure into "not recorded".
+  - Stryker's dry run still runs at low priority in dharness 1.10.1.

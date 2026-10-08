@@ -1,3 +1,5 @@
+import type { OverviewLineupState } from './overview-panel.types';
+
 /**
  * Literal hex chart palette + nivo theme for OverviewPanel. nivo cannot consume
  * Tailwind classes or HeroUI `color` props — it needs literal color strings.
@@ -91,16 +93,22 @@ export const TICK_STEPS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000] as const;
 /** Empty-state copy for the watching pipeline chart when there are no created animes yet. */
 export const PIPELINE_EMPTY_MESSAGE = 'No created animes yet — the pipeline fills as animes are created.';
 
-/**
- * Title of the watching-pipeline state shown while viewing a past season. A
- * closed season stores its ordering board, not its live Estrenos grouping, so
- * the chart would otherwise present a live section breakdown as history.
- */
-export const PIPELINE_NOT_RECORDED_TITLE = 'Watching pipeline not recorded';
+/** Failure message when a closed season's recorded lineup could not be read. */
+export const OVERVIEW_LINEUP_LOAD_ERROR = 'Failed to load the recorded lineup';
 
-/** Explanation shown with the past-season watching-pipeline state. */
-export const PIPELINE_NOT_RECORDED_DESCRIPTION =
-  'A closed season does not store its watching pipeline, so there is no recorded stage breakdown to show for this season.';
+/** Accessible name of the status region while the recorded lineup is read. */
+export const OVERVIEW_LINEUP_LOADING_LABEL = 'Loading final lineup';
+
+/** Copy of a closed season's final lineup card and its honest empty states. */
+export const OVERVIEW_LINEUP_COPY = {
+  title: 'Final lineup',
+  notRecordedTitle: 'Final lineup not recorded',
+  notRecordedDescription: 'This season was closed before its ordering board was recorded, so there is no stored lineup to show.',
+  emptyTitle: 'No anime was scheduled',
+  emptyDescription: 'The ordering board recorded at close had no anime on a weekday.',
+  noGradeLabel: 'No grade',
+  regionLabel: 'Recorded lineup',
+} as const;
 /** Empty-state copy for the intake health chart when there are no intake rows yet. */
 export const INTAKE_HEALTH_EMPTY_MESSAGE = 'No intake rows yet.';
 
@@ -151,3 +159,6 @@ export const NIVO_THEME = {
     },
   },
 } as const;
+
+/** The lineup read before it settles for the viewed season. */
+export const OVERVIEW_LINEUP_LOADING_STATE: OverviewLineupState = { status: 'loading' };

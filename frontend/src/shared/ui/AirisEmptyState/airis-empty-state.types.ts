@@ -16,4 +16,13 @@ export interface AirisEmptyStateProps {
   readonly description: string;
   /** Optional feature-owned recovery action. */
   readonly action?: AirisEmptyStateAction;
+  /** Layout; `default` (a standalone card) when omitted. */
+  readonly size?: AirisEmptyStateSize;
 }
+
+/**
+ * Layout of an Airis empty state: `default` is a standalone card with the
+ * 160px artwork; `compact` is one row inside its host card, for a section that
+ * is empty while its surface is not.
+ */
+export type AirisEmptyStateSize = 'default' | 'compact';

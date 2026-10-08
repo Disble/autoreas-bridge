@@ -1,16 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
 import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
 import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
-import { groupCreatedBySection } from './daily-board.helpers';
+import type { SeasonCoverSource } from '../SeasonCoverThumb/season-cover-thumb.types';
+import { selectVerHoyRowChip } from './daily-board.helpers';
+import { useDailyBoardView } from './use-daily-board-view';
 
 /**
  * useDailyBoard drives the conveyor: created animes grouped by section, a
  * multi-select over the Sin ver pool to send today's batch to Ver hoy (which
- * downloads automatically), and an on-demand availability recheck. All Wails I/O
- * flows through the season store.
+ * downloads automatically), and an on-demand availability recheck. Season I/O
+ * flows through the season store; `useDailyBoardView` groups the rows and
+ * resolves every board row's cover; a closed season's board comes from its
+ * closure snapshot (`useDailyBoardView`), never from live sections: the
+ * stored sections, or a plain list when the season recorded none.
+ *
+ * @param source The season port the store reads and writes through.
+ * @param coverSource The port each row's cover is resolved through.
  */
-export function useDailyBoard(source: SeasonSource = seasonSource) {
+export function useDailyBoard(source: SeasonSource = seasonSource, coverSource: SeasonCoverSource = bridgeRuntimeSource) {
   // 2. State
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   // Set when a batch is sent after the daily auto-download window: prompts a manual download.
@@ -25,7 +34,8 @@ export function useDailyBoard(source: SeasonSource = seasonSource) {
   const recheckAvailability = useSeasonStore((state) => state.recheckAvailability);
 
   // 5. Derived State (useMemo)
-  const sections = useMemo(() => groupCreatedBySection(seasonAnimes), [seasonAnimes]);
+  const { view, getCoverThumb } = useDailyBoardView(seasonAnimes, source, coverSource);
+  const getVerHoyRowChip = selectVerHoyRowChip(readOnly);
 
   // 6. Callbacks
   const toggleSelect = useCallback((animeId: string) => {
@@ -67,7 +77,10 @@ export function useDailyBoard(source: SeasonSource = seasonSource) {
 
   return {
     readOnly,
-    sections,
+    boardMode: view.mode,
+    sections: view.sections,
+    plainRows: view.plainRows,
+    historyError: view.historyError,
     selected,
     toggleSelect,
     onSendToVerHoy,
@@ -76,5 +89,7 @@ export function useDailyBoard(source: SeasonSource = seasonSource) {
     onDismissNotice,
     onRecheck,
     errorMessage,
+    getCoverThumb,
+    getVerHoyRowChip,
   };
 }

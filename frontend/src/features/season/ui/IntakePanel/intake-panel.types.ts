@@ -68,43 +68,52 @@ export interface IntakeAppliedMetadata extends AppliedMetadata<IntakeMetadataPat
   readonly canUndo: boolean;
 }
 
-/** Props for one intake row's own MyAnimeList lookup and whatever it attached. */
-export interface IntakeRowMetadataProps {
-  /** The row's raw name, the only query this lookup may send. */
-  readonly rawName: string;
-  /** True while the season is read-only; the lookup then renders nothing at all. */
-  readonly readOnly: boolean;
-  /** The values this row currently holds, absent when it holds none. */
-  readonly heldMetadata: IntakeMetadataPatch | undefined;
-  /** This row's applied record (fields applied, unfilled, and whether Undo applies). */
-  readonly appliedMetadata: IntakeAppliedMetadata | undefined;
-  /** The two Wails-bound MyAnimeList calls this row's lookup modal drives. */
-  readonly metadataLookupSource: AnimeMetadataLookupSource;
-  /** Attaches one confirmed lookup's selection to this row. */
-  readonly onMetadataApplied: (selection: AnimeMetadataSelection) => void;
-  /** Reverts this row's last applied metadata patch, when this session applied it. */
-  readonly onMetadataUndo: () => void;
-  /** Removes this row's metadata, stored and local, when the choice was wrong. */
-  readonly onMetadataClear: () => void;
-}
-
-/** Props for a creatable intake row's availability and folder hints. */
+/** Props for the muted lines under an intake row's name. */
 export interface IntakeRowHintsProps {
   readonly row: SeasonAnimeRow;
-  /** Whether the row can be created yet; nothing is hinted while it cannot. */
+  /** Whether the row can be created yet; its episode count is hinted only then. */
   readonly creatable: boolean;
-  /** The download folder this row overrides, absent when it inherits the default. */
-  readonly folderOverride: string | undefined;
+  /** The values this row currently holds, summarized in one line when present. */
+  readonly heldMetadata: IntakeMetadataPatch | undefined;
 }
 
-/** Props for the trailing action cluster (link, folder, discard, indicator) of an intake row. */
-export interface IntakeRowActionsProps {
-  readonly row: SeasonAnimeRow;
-  readonly readOnly: boolean;
+/**
+ * Props for the trailing action group of an intake row: metadata lookup, page,
+ * folder, the more-actions menu, and the availability dot.
+ */
+export interface IntakeRowActionsProps
+  extends Omit<IntakeRowProps, 'isSelected' | 'heldMetadata' | 'onToggleSelect' | 'onResolve'> {
+  /** Whether the row can be created yet; only then can its folder be picked. */
   readonly creatable: boolean;
+}
+
+/** Props for an intake row's download-folder picker button. */
+export interface IntakeRowFolderButtonProps {
+  /** The row's raw name, which names the button. */
+  readonly rawName: string;
+  /** The download folder this row overrides, absent when it inherits the default. */
   readonly folderOverride: string | undefined;
+  /** The folder creation will use, shown as the tooltip; absent when none resolves. */
   readonly folderPreview: string | undefined;
+  /** Opens the native folder picker for this row. */
   readonly onPickFolder: () => void;
+}
+
+/** Props for a matched intake row's availability dot. */
+export interface IntakeRowAvailabilityDotProps {
+  readonly row: SeasonAnimeRow;
+}
+
+/** Props for an intake row's "More actions" menu. */
+export interface IntakeRowMoreMenuProps {
+  /** The row's raw name, which names the menu trigger. */
+  readonly rawName: string;
+  /** This row's applied record; Undo and Clear are offered only while it exists. */
+  readonly appliedMetadata: IntakeAppliedMetadata | undefined;
+  /** Reverts this row's last applied metadata patch. */
+  readonly onMetadataUndo: () => void;
+  /** Removes this row's metadata, stored and local. */
+  readonly onMetadataClear: () => void;
+  /** Discards the row's name from the intake list. */
   readonly onDiscard: () => void;
-  readonly onOpenPage: (pageUrl: string) => void;
 }

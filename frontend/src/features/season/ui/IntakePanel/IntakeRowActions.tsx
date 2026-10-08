@@ -1,31 +1,35 @@
-import closeIcon from '@iconify-icons/solar/close-circle-broken';
-import folderIcon from '@iconify-icons/solar/folder-with-files-broken';
-import linkIcon from '@iconify-icons/solar/link-round-broken';
+import linkIcon from '@iconify-icons/solar/link-round-bold-duotone';
 import { Icon } from '@iconify/react';
 import { Button, Tooltip } from '@heroui/react';
-import { getAvailabilityIndicator } from './intake-panel.helpers';
+import { AnimeMetadataLookupModal } from '../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/AnimeMetadataLookupModal';
+import { IntakeRowAvailabilityDot } from './IntakeRowAvailabilityDot';
+import { IntakeRowFolderButton } from './IntakeRowFolderButton';
+import { IntakeRowMoreMenu } from './IntakeRowMoreMenu';
 import type { IntakeRowActionsProps } from './intake-panel.types';
 
 /**
- * The trailing action cluster for an intake row: open-page link, per-row
- * download-folder picker, discard, and the availability dot. Each control is
- * gated independently (matched slug, creatable, read-only), so this stays a
- * pure presentational fan-out of the row's current state.
+ * The trailing action group for an intake row, all round icon buttons in a fixed
+ * order: the row's own MyAnimeList lookup, open page, the per-row download-folder
+ * picker, and the "More actions" menu, followed by the availability dot. Each
+ * control is gated independently (matched slug, creatable, read-only) and is
+ * always visible while it applies, so this stays a pure presentational fan-out
+ * of the row's current state.
  */
-export function IntakeRowActions({
-  row,
-  readOnly,
-  creatable,
-  folderOverride,
-  folderPreview,
-  onPickFolder,
-  onDiscard,
-  onOpenPage,
-}: Readonly<IntakeRowActionsProps>) {
-  const indicator = getAvailabilityIndicator(row);
+export function IntakeRowActions(props: Readonly<IntakeRowActionsProps>) {
+  const { row, readOnly } = props;
 
   return (
     <div className="ml-auto flex items-center gap-2">
+      {/* The lookup lives on the row itself: no other row's name can reach it,
+          and only a confirmed candidate is fetched. */}
+      {!readOnly && (
+        <AnimeMetadataLookupModal
+          name={row.rawName}
+          source={props.metadataLookupSource}
+          triggerVariant="icon"
+          onConfirm={props.onMetadataApplied}
+        />
+      )}
       {row.matchedSlug !== '' && (
         <Tooltip>
           <Button
@@ -34,7 +38,7 @@ export function IntakeRowActions({
             className="hover:text-accent"
             size="sm"
             variant="tertiary"
-            onPress={() => onOpenPage(row.matchedSlug)}
+            onPress={() => props.onOpenPage(row.matchedSlug)}
           >
             <Icon className="size-4" icon={linkIcon} />
           </Button>
@@ -44,56 +48,24 @@ export function IntakeRowActions({
           </Tooltip.Content>
         </Tooltip>
       )}
-      {creatable && !readOnly && (
-        <Tooltip>
-          <span title={folderPreview ?? 'Default download folder'}>
-            <Button
-              isIconOnly
-              aria-label={`Set download folder for ${row.rawName}`}
-              className={folderOverride === undefined ? 'hover:text-success' : 'text-success'}
-              size="sm"
-              variant="tertiary"
-              onPress={onPickFolder}
-            >
-              <Icon className="size-4" icon={folderIcon} />
-            </Button>
-          </span>
-          <Tooltip.Content showArrow>
-            <Tooltip.Arrow />
-            {folderPreview ?? 'Default download folder'}
-          </Tooltip.Content>
-        </Tooltip>
+      {props.creatable && !readOnly && (
+        <IntakeRowFolderButton
+          folderOverride={props.folderOverride}
+          folderPreview={props.folderPreview}
+          rawName={row.rawName}
+          onPickFolder={props.onPickFolder}
+        />
       )}
       {!readOnly && (
-        <Tooltip>
-          <Button
-            isIconOnly
-            aria-label={`Discard ${row.rawName}`}
-            className="hover:text-danger"
-            size="sm"
-            variant="tertiary"
-            onPress={onDiscard}
-          >
-            <Icon className="size-4" icon={closeIcon} />
-          </Button>
-          <Tooltip.Content showArrow>
-            <Tooltip.Arrow />
-            Discard
-          </Tooltip.Content>
-        </Tooltip>
+        <IntakeRowMoreMenu
+          appliedMetadata={props.appliedMetadata}
+          rawName={row.rawName}
+          onDiscard={props.onDiscard}
+          onMetadataClear={props.onMetadataClear}
+          onMetadataUndo={props.onMetadataUndo}
+        />
       )}
-      {indicator !== null && (
-        <Tooltip>
-          <span
-            aria-label={indicator.label}
-            className={`size-2.5 shrink-0 rounded-full ${indicator.color === 'success' ? 'bg-success' : 'bg-danger'}`}
-          />
-          <Tooltip.Content showArrow>
-            <Tooltip.Arrow />
-            {indicator.label}
-          </Tooltip.Content>
-        </Tooltip>
-      )}
+      <IntakeRowAvailabilityDot row={row} />
     </div>
   );
 }

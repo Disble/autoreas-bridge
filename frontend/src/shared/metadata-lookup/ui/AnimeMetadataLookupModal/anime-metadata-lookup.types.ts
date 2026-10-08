@@ -45,3 +45,17 @@ export interface AnimeMetadataLookupSource {
   readonly SearchMyAnimeList: (query: string) => Promise<MyAnimeListSearchResultDTO>;
   readonly GetMyAnimeListDetail: (malId: number) => Promise<MyAnimeListDetailResultDTO>;
 }
+
+/**
+ * How the lookup's trigger presents itself: the visible "Fetch metadata" text
+ * button forms use, or the round icon-only button a dense row action group uses.
+ */
+export type AnimeMetadataLookupTriggerVariant = 'text' | 'icon';
+
+/** Props for the button that opens the lookup modal. */
+export interface AnimeMetadataLookupTriggerProps {
+  /** Which presentation to render; both open the same modal. */
+  readonly variant: AnimeMetadataLookupTriggerVariant;
+  /** True while there is no name to search for. */
+  readonly isDisabled: boolean;
+}

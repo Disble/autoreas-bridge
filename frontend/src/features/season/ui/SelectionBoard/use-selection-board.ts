@@ -5,15 +5,21 @@ import { seasonSource } from '../../../../infrastructure/season-source/season-so
 import type { ConfirmSelectionResult, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
 import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
 import { DEFAULT_MIN_APPROVAL_GRADE, DEFAULT_SLOTS, SELECTION_CONFIRM_ERROR_MESSAGE } from './selection-board.constants';
-import { countApproved, formatConfirmSuccess, quotaStatus, runDesktopAction, toSelectionRows } from './selection-board.helpers';
+import type { SeasonCoverSource } from '../SeasonCoverThumb/season-cover-thumb.types';
+import { countApproved, formatConfirmSuccess, quotaStatus, runDesktopAction } from './selection-board.helpers';
+import { useSelectionCandidates } from './use-selection-candidates';
 
 /**
  * useSelectionBoard drives the Excel-replacement decision board: it derives live
- * verdicts, the approved count, and the quota status from the season store, and
- * exposes the parameter/consideration edits plus the confirm action. All
- * derivation is pure (helpers) and all Wails I/O flows through the store.
+ * verdicts, the Approved/Rejected groups, the approved count, and the quota
+ * status from the season store, resolves one cover per candidate, and exposes
+ * the parameter/consideration edits plus the confirm action. All derivation is
+ * pure (helpers) and all Wails I/O flows through the store.
+ *
+ * @param source The season port the store reads and writes through.
+ * @param coverSource The port each candidate's cover is resolved through.
  */
-export function useSelectionBoard(source: SeasonSource = seasonSource) {
+export function useSelectionBoard(source: SeasonSource = seasonSource, coverSource: SeasonCoverSource = bridgeRuntimeSource) {
   // 3. Context/3rd Party Hooks
   const season = useSeasonStore((state) => state.season);
   const seasonAnimes = useSeasonStore((state) => state.seasonAnimes);
@@ -30,7 +36,7 @@ export function useSelectionBoard(source: SeasonSource = seasonSource) {
   const minApprovalGrade = season?.minApprovalGrade ?? DEFAULT_MIN_APPROVAL_GRADE;
   const slots = season?.slots ?? DEFAULT_SLOTS;
   const selectionConfirmedAt = season?.selectionConfirmedAt;
-  const rows = useMemo(() => toSelectionRows(seasonAnimes, minApprovalGrade), [seasonAnimes, minApprovalGrade]);
+  const { rows, groups, getCoverThumb } = useSelectionCandidates(seasonAnimes, minApprovalGrade, coverSource);
   const approvedCount = useMemo(() => countApproved(seasonAnimes, minApprovalGrade), [seasonAnimes, minApprovalGrade]);
   const quota = useMemo(() => quotaStatus(approvedCount, slots), [approvedCount, slots]);
 
@@ -70,6 +76,7 @@ export function useSelectionBoard(source: SeasonSource = seasonSource) {
     minApprovalGrade,
     slots,
     rows,
+    groups,
     approvedCount,
     quota,
     selectionConfirmedAt,
@@ -82,5 +89,6 @@ export function useSelectionBoard(source: SeasonSource = seasonSource) {
     onCopyPage,
     onOpenFolder,
     onCopyFolder,
+    getCoverThumb,
   };
 }

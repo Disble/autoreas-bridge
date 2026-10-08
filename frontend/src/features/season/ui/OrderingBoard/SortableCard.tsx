@@ -1,32 +1,16 @@
-import copyIcon from '@iconify-icons/solar/copy-bold-duotone';
-import trashIcon from '@iconify-icons/solar/trash-bin-2-bold-duotone';
 import { useSortable } from '@dnd-kit/react/sortable';
-import { Button, Chip, Tooltip } from '@heroui/react';
-import { Icon } from '@iconify/react';
-import { AnimeDesktopActions } from '../../../../shared/ui/AnimeDesktopActions';
+import { Chip } from '@heroui/react';
+import { OrderingCardActionRow } from './OrderingCardActionRow';
 import type { OrderingItemProps } from './ordering-board.types';
 
 /**
  * SortableCard is one draggable ordering card (@dnd-kit/react sortable). Dragging it
- * sets both its day (which column it lands in) and its order (its position). A weekday
- * clone also carries Duplicate (stage a logical copy to drag onto another day) and
- * Delete (never the anime's last card); a rail card carries Delete only. Icon buttons
- * announce their action via tooltip — no selectors, no arrows.
+ * sets both its day (which column it lands in) and its order (its position). The name
+ * leads: clamped to two lines, the full name as its tooltip, beside a fixed-width grade
+ * chip. Below it sits the always-visible action row (desktop actions, Duplicate to
+ * stage a logical copy for another day, Remove never the anime's last card).
  */
-export function SortableCard({
-  instance,
-  container,
-  index,
-  readOnly,
-  canRemove,
-  meta,
-  onDuplicate,
-  onRemove,
-  onOpenPage,
-  onCopyPage,
-  onOpenFolder,
-  onCopyFolder,
-}: Readonly<OrderingItemProps>) {
+export function SortableCard({ instance, container, index, readOnly, meta, ...actionProps }: Readonly<OrderingItemProps>) {
   const { ref, isDragging } = useSortable({
     id: instance.key,
     index,
@@ -47,71 +31,19 @@ export function SortableCard({
     <li
       ref={ref}
       style={{ touchAction: 'none', opacity: isDragging ? 0.4 : 1 }}
-      className={`flex min-w-0 flex-col gap-1 rounded-md border border-border bg-zinc-900 p-2 ${cursorClassName}`}
+      className={`flex min-w-0 flex-col gap-1.5 rounded-xl bg-default pb-1.5 pl-2.5 pr-2 pt-2 ${cursorClassName}`}
     >
-      <div className="flex min-w-0 items-center gap-1 text-xs text-foreground">
-        {instance.isNewcomer && <span className="size-1.5 shrink-0 rounded-full bg-success" />}
-        <span className="min-w-0 flex-1 truncate">{instance.name}</span>
+      <div className="flex min-w-0 items-start gap-1.5">
+        <span className="line-clamp-2 min-w-0 flex-1 text-sm font-semibold leading-snug text-foreground [overflow-wrap:anywhere]" title={instance.name}>
+          {instance.name}
+        </span>
         {meta !== undefined && meta.grade >= 1 && (
-          <Chip aria-label={`Approval grade ${meta.grade}`} className="shrink-0" size="sm" variant="soft">
+          <Chip aria-label={`Approval grade ${meta.grade}`} className="w-8 shrink-0 justify-center" size="sm" variant="soft">
             {meta.grade}
           </Chip>
         )}
       </div>
-      <div className="flex items-center gap-1">
-        {meta !== undefined && (
-          <span onPointerDown={(event) => event.stopPropagation()} className="flex items-center gap-1">
-            <AnimeDesktopActions
-              animeId={instance.animeId}
-              name={instance.name}
-              hasPage={meta.hasPage}
-              hasFolder={meta.hasFolder}
-              pageUrl={meta.pageUrl}
-              folderPath={meta.folderPath}
-              onOpenPage={onOpenPage}
-              onCopyPage={onCopyPage}
-              onOpenFolder={onOpenFolder}
-              onCopyFolder={onCopyFolder}
-            />
-          </span>
-        )}
-        {onDuplicate !== undefined && (
-          <Tooltip delay={0}>
-            <Button
-              isIconOnly
-              isDisabled={readOnly}
-              aria-label={`Duplicate ${instance.name} to another day`}
-              size="sm"
-              variant="tertiary"
-              onPointerDown={(event) => event.stopPropagation()}
-              onPress={onDuplicate}
-            >
-              <Icon icon={copyIcon} className="size-4" />
-            </Button>
-            <Tooltip.Content showArrow>
-              <Tooltip.Arrow />
-              Duplicate to another day
-            </Tooltip.Content>
-          </Tooltip>
-        )}
-        <Tooltip delay={0}>
-          <Button
-            isIconOnly
-            isDisabled={readOnly || !canRemove}
-            aria-label={`Remove ${instance.name}`}
-            size="sm"
-            variant="tertiary"
-            onPointerDown={(event) => event.stopPropagation()}
-            onPress={onRemove}
-          >
-            <Icon icon={trashIcon} className="size-4" />
-          </Button>
-          <Tooltip.Content showArrow>
-            <Tooltip.Arrow />
-            {canRemove ? 'Remove' : 'An anime must stay on at least one day'}
-          </Tooltip.Content>
-        </Tooltip>
-      </div>
+      <OrderingCardActionRow instance={instance} readOnly={readOnly} meta={meta} {...actionProps} />
     </li>
   );
 }

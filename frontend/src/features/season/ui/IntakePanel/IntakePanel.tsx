@@ -8,7 +8,8 @@ import { useIntakePanel } from './use-intake-panel';
  * anime is created. Raw mode edits the uncreated names as plain text (debounced
  * reconcile); List mode shows each name's match + availability, and lets the user
  * PICK the available ones and explicitly Create them (creation is irreversible,
- * so it is never automatic). Created animes leave this view for the Daily Board.
+ * so it is never automatic). Footer actions render only while they can act.
+ * Created animes leave this view for the Daily Board.
  * All Wails I/O and state live in the colocated `useIntakePanel` hook.
  */
 export function IntakePanel() {
@@ -114,15 +115,21 @@ export function IntakePanel() {
           <div className="mt-3 flex flex-wrap items-center gap-3">
             {!readOnly && (
               <>
-                <Button isDisabled={editableRows.length === 0} variant="secondary" onPress={onRunMatching}>
-                  Run matching
-                </Button>
-                <Button isDisabled={availabilityPendingCount === 0} variant="secondary" onPress={onRecheckAvailability}>
-                  Check availability
-                </Button>
-                <Button isDisabled={selected.size === 0} variant="primary" onPress={onCreate}>
-                  Create {selected.size > 0 ? selected.size : ''}
-                </Button>
+                {editableRows.length === 0 ? null : (
+                  <Button variant="secondary" onPress={onRunMatching}>
+                    Run matching
+                  </Button>
+                )}
+                {availabilityPendingCount === 0 ? null : (
+                  <Button variant="secondary" onPress={onRecheckAvailability}>
+                    Check availability
+                  </Button>
+                )}
+                {availableCount === 0 && selected.size === 0 ? null : (
+                  <Button isDisabled={selected.size === 0} variant="primary" onPress={onCreate}>
+                    Create {selected.size > 0 ? selected.size : ''}
+                  </Button>
+                )}
               </>
             )}
             <span className="text-sm text-muted">

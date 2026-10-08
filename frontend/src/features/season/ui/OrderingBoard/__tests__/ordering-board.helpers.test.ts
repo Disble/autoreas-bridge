@@ -2,7 +2,7 @@ import type { DragOverEvent } from '@dnd-kit/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { OrderingBoard, OrderingCard, SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
-import { RAIL_CONTAINER_ID } from '../ordering-board.constants';
+import { ORDERING_LAST_CARD_TOOLTIP, ORDERING_REMOVE_TOOLTIP, RAIL_CONTAINER_ID } from '../ordering-board.constants';
 import {
   applyOrder,
   buildDraft,
@@ -10,6 +10,7 @@ import {
   cardCounts,
   countChanges,
   duplicate,
+  getRemoveTooltip,
   hasDuplicateWeekdayPlacements,
   initialWorkingState,
   instancesIn,
@@ -19,14 +20,17 @@ import {
   shouldCancelForbiddenWeekdayHover,
 } from '../ordering-board.helpers';
 
+/** Builds one stored ordering card, overriding only the fields a case sets. */
 function card(overrides: Partial<OrderingCard> = {}): OrderingCard {
   return { animeId: 'a', name: 'A', dia: '', orden: 0, section: 'Visto', isNewcomer: false, ...overrides };
 }
 
+/** Builds a stored ordering board, overriding only the fields a case sets. */
 function board(overrides: Partial<OrderingBoard> = {}): OrderingBoard {
   return { rail: [], grid: [], ...overrides };
 }
 
+/** Builds a minimal dnd-kit drag-over event from one card onto one target. */
 function dragOverEvent(sourceId: string, targetId: string): DragOverEvent {
   return {
     preventDefault: vi.fn(),
@@ -260,6 +264,7 @@ describe('countChanges + scheduledCount', () => {
   });
 });
 
+/** Builds one season anime row, overriding only the fields a case sets. */
 function animeRow(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
   return {
     id: 'row-1',
@@ -295,5 +300,14 @@ describe('buildOrderingCardMeta', () => {
     const meta = buildOrderingCardMeta([animeRow({ animeId: '' })]);
 
     expect(meta).toEqual({});
+  });
+});
+
+describe('getRemoveTooltip', () => {
+  it.each([
+    { canRemove: true, tooltip: ORDERING_REMOVE_TOOLTIP },
+    { canRemove: false, tooltip: ORDERING_LAST_CARD_TOOLTIP },
+  ])('explains the Remove button when canRemove is $canRemove', ({ canRemove, tooltip }) => {
+    expect(getRemoveTooltip(canRemove)).toBe(tooltip);
   });
 });

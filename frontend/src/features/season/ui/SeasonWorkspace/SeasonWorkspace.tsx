@@ -4,9 +4,10 @@ import { LoadingBars } from '../../../../shared/ui/LoadingBars/LoadingBars';
 import {
   SEASON_WORKSPACE_EMPTY_MESSAGE,
   SEASON_WORKSPACE_EMPTY_TITLE,
-  SEASON_WORKSPACE_SEASON_MODE_MESSAGE,
+  SEASON_WORKSPACE_READ_ONLY_MESSAGE,
   SEASON_WORKSPACE_TITLE,
 } from './season-workspace.constants';
+import { SeasonOverviewCard } from './SeasonOverviewCard';
 import { DailyBoard } from '../DailyBoard/DailyBoard';
 import { EvaluationPanel } from '../EvaluationPanel/EvaluationPanel';
 import { IntakePanel } from '../IntakePanel/IntakePanel';
@@ -113,34 +114,22 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {readOnly && (
-            <Alert status="warning">
-              <Alert.Content>
-                <Alert.Title>Read-only</Alert.Title>
-                <Alert.Description>You are viewing a past season. Editing is disabled.</Alert.Description>
-              </Alert.Content>
-            </Alert>
-          )}
-
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-xl font-semibold text-foreground">{overview.title}</h2>
             <Chip color={overview.statusColor} size="sm" variant="soft">
               {overview.statusLabel}
             </Chip>
             {readOnly && (
-              <Button className="ml-auto" variant="secondary" onPress={onExitPastSeason}>
-                Back to history
-              </Button>
+              <>
+                <Typography color="muted" type="body-sm">
+                  {SEASON_WORKSPACE_READ_ONLY_MESSAGE}
+                </Typography>
+                <Button className="ml-auto" variant="secondary" onPress={onExitPastSeason}>
+                  Back to history
+                </Button>
+              </>
             )}
           </div>
-
-          {!readOnly && (
-            <Alert status="accent">
-              <Alert.Content>
-                <Alert.Description>{SEASON_WORKSPACE_SEASON_MODE_MESSAGE}</Alert.Description>
-              </Alert.Content>
-            </Alert>
-          )}
 
           <Tabs defaultSelectedKey="overview">
             <Tabs.ListContainer>
@@ -175,17 +164,9 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
 
             <Tabs.Panel id="overview">
               <div className="flex flex-col gap-4">
-                <p className="text-sm text-muted">
-                  Created {overview.createdLabel} · Minimum approval grade {overview.minApprovalGrade} · Slots {overview.slots}
-                </p>
+                {!readOnly && <SeasonOverviewCard overview={overview} onCloseSeason={onCloseSeason} />}
 
                 <OverviewPanel />
-
-                {!readOnly && (
-                  <Button className="self-start" variant="secondary" onPress={onCloseSeason}>
-                    Close season
-                  </Button>
-                )}
               </div>
             </Tabs.Panel>
           </Tabs>

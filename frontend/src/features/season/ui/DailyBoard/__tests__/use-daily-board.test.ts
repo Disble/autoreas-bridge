@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SeasonAnimeRow, SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
-import { resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
+import { getSeasonStoreState, resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
 import { useDailyBoard } from '../use-daily-board';
 
 /** Builds the season port this suite drives, overriding only what a case sets. */
@@ -143,6 +143,18 @@ describe('useDailyBoard', () => {
     expect(source.sendToVerHoy).not.toHaveBeenCalled();
   });
 
+  it('resolves a cover for every board row, Visto included', async () => {
+    const rows = [createdRow('a', 'anime-a', 'Sin ver'), createdRow('b', 'anime-b', 'Ver hoy'), createdRow('c', 'anime-c', 'Visto')];
+    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const getAnimeCover = vi.fn((animeId: string) => Promise.resolve({ source: 'cover', dataUrl: `data:${animeId}` }));
+    const { result } = renderHook(() => useDailyBoard(source, { getAnimeCover }));
+
+    await waitFor(() => expect(result.current.getCoverThumb('anime-b')).toEqual({ coverSrc: 'data:anime-b', isLoading: false }));
+    expect(result.current.getCoverThumb('anime-a')).toEqual({ coverSrc: 'data:anime-a', isLoading: false });
+    expect(result.current.getCoverThumb('anime-c')).toEqual({ coverSrc: 'data:anime-c', isLoading: false });
+    expect(getAnimeCover.mock.calls).toEqual([['anime-a'], ['anime-b'], ['anime-c']]);
+  });
+
   it('onRecheck triggers an availability recheck', async () => {
     const source = createSource();
     const { result } = renderHook(() => useDailyBoard(source));
@@ -150,5 +162,92 @@ describe('useDailyBoard', () => {
       result.current.onRecheck();
     });
     expect(source.recheckAvailability).toHaveBeenCalled();
+  });
+
+  /** Opens the given closed season read-only through the season store, as the history view does. */
+  async function viewClosedSeason(source: SeasonSource, seasonId = 's1'): Promise<void> {
+    await act(async () => {
+      await getSeasonStoreState().viewPastSeason(source, seasonId);
+    });
+  }
+
+  /** A stored closure snapshot carrying the given Daily board. */
+  function storedSnapshot(dailyBoard: { readonly recorded: boolean; readonly entries: readonly unknown[] }) {
+    return { recorded: true, rail: [], grid: [], dailyBoard };
+  }
+
+  it('builds a closed season’s sections from its stored Daily board, never from live sections', async () => {
+    const rows = [createdRow('a', 'anime-a', 'Visto'), createdRow('b', 'anime-b', 'Jueves'), createdRow('c', 'anime-c', 'Sin ver')];
+    const entries = [
+      { rowId: 'b', animeId: 'anime-b', section: 'Ver hoy', order: 1 },
+      { rowId: 'gone', animeId: 'anime-gone', section: 'Ver hoy', order: 2 },
+      { rowId: 'a', animeId: 'anime-a', section: 'Sin ver', order: 1 },
+    ];
+    const source = createSource({
+      getPastSeasonAnimes: vi.fn().mockResolvedValue(rows),
+      getSeasonOrderingSnapshot: vi.fn().mockResolvedValue(storedSnapshot({ recorded: true, entries })),
+    });
+    await viewClosedSeason(source);
+    const { result } = renderHook(() => useDailyBoard(source));
+
+    expect(result.current.boardMode).toBe('loading');
+    await waitFor(() => expect(result.current.boardMode).toBe('sections'));
+    const { sinVer, verHoy, visto } = result.current.sections;
+    expect([sinVer, verHoy, visto].map((section) => section.map((row) => row.id))).toEqual([['a'], ['b'], []]);
+    expect(source.getSeasonOrderingSnapshot).toHaveBeenCalledWith('s1');
+    expect(result.current.getVerHoyRowChip(rows[1])).toBeNull();
+  });
+
+  it('lists a closed season that recorded no Daily board as one plain list', async () => {
+    const rows = [createdRow('a', 'anime-a', 'Visto'), createdRow('b', 'anime-b', 'Ver hoy')];
+    const source = createSource({
+      getPastSeasonAnimes: vi.fn().mockResolvedValue(rows),
+      getSeasonOrderingSnapshot: vi.fn().mockResolvedValue(storedSnapshot({ recorded: false, entries: [] })),
+    });
+    await viewClosedSeason(source);
+    const { result } = renderHook(() => useDailyBoard(source));
+
+    await waitFor(() => expect(result.current.boardMode).toBe('plain'));
+    expect(result.current.plainRows.map((row) => row.id)).toEqual(['a', 'b']);
+    expect(result.current.sections.visto).toHaveLength(0);
+  });
+
+  it('reports a failed closed-season read instead of a board', async () => {
+    const source = createSource({ getSeasonOrderingSnapshot: vi.fn().mockRejectedValue(new Error('read failed')) });
+    await viewClosedSeason(source);
+    const { result } = renderHook(() => useDailyBoard(source));
+
+    await waitFor(() => expect(result.current.boardMode).toBe('failed'));
+    expect(result.current.historyError).toBe('read failed');
+  });
+
+  it('never reads the closure snapshot for the open season, and keeps the live weekday chip', async () => {
+    const rows = [createdRow('a', 'anime-a', 'Ver hoy')];
+    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows), getSeasonOrderingSnapshot: vi.fn() });
+    const { result } = renderHook(() => useDailyBoard(source));
+
+    await waitFor(() => expect(result.current.sections.verHoy).toHaveLength(1));
+    expect([result.current.boardMode, result.current.historyError]).toEqual(['sections', undefined]);
+    expect(source.getSeasonOrderingSnapshot).not.toHaveBeenCalled();
+    expect(result.current.getVerHoyRowChip({ ...rows[0], section: 'Jueves', sectionOrder: 3 })).toEqual({ label: 'Jueves - 3', color: 'accent' });
+  });
+
+  it('drops a closed-season read that settles after the viewed season changed', async () => {
+    /** Settles the first (stale) read once the second season is on screen. */
+    let settleFirst: (value: unknown) => void = () => undefined;
+    const getSeasonOrderingSnapshot = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise((resolve) => { settleFirst = resolve; }))
+      .mockResolvedValue(storedSnapshot({ recorded: false, entries: [] }));
+    const source = createSource({ getSeasonOrderingSnapshot });
+    await viewClosedSeason(source);
+    const { result } = renderHook(() => useDailyBoard(source));
+    await viewClosedSeason(source, 's2');
+    await waitFor(() => expect(result.current.boardMode).toBe('plain'));
+
+    await act(async () => {
+      settleFirst(storedSnapshot({ recorded: true, entries: [] }));
+    });
+    expect(result.current.boardMode).toBe('plain');
   });
 });

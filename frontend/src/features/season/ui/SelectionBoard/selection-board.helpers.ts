@@ -2,11 +2,13 @@ import { toast } from '@heroui/react';
 import type { SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
 import {
   CONSIDERATION_INSUFFICIENT_QUOTA,
+  CONSIDERATION_NONE,
   CONSIDERATION_OPTIONS,
   CONSIDERATION_SPARE_QUOTA,
   CONSIDERATION_TEMPORARILY_APPROVED,
+  SELECTION_GROUP_VERDICTS,
 } from './selection-board.constants';
-import type { QuotaStatus, SelectionRow, Verdict } from './selection-board.types';
+import type { QuotaColor, QuotaStatus, SelectionGroup, SelectionRow, Verdict } from './selection-board.types';
 
 /**
  * decideVerdict is the drift-proof twin of the Go domain `Decision` (the 10-year
@@ -73,6 +75,32 @@ export function quotaStatus(approved: number, slots: number): QuotaStatus {
   return approved === slots ? 'at' : 'under';
 }
 
+/** getQuotaColor maps the quota meter state to its chip color: over is danger, at is warning, under is success. */
+export function getQuotaColor(quota: QuotaStatus): QuotaColor {
+  if (quota === 'over') {
+    return 'danger';
+  }
+  return quota === 'at' ? 'warning' : 'success';
+}
+
+/** formatSelectionGrade shows a candidate's first-episode grade, or a dash while it is ungraded (below 1). */
+export function formatSelectionGrade(grade: number): string {
+  return grade >= 1 ? String(grade) : '—';
+}
+
+/**
+ * groupSelectionRows splits the candidate rows into an Approved group then a
+ * Rejected group, each keeping the rows' own order. A group with no rows is
+ * left out, so the list never shows an empty heading.
+ */
+export function groupSelectionRows(rows: readonly SelectionRow[]): SelectionGroup[] {
+  return SELECTION_GROUP_VERDICTS.map((verdict) => ({
+    verdict,
+    label: getVerdictLabel(verdict),
+    rows: rows.filter((row) => row.verdict === verdict),
+  })).filter((group) => group.rows.length > 0);
+}
+
 /** formatConfirmSuccess builds the success toast copy for an applied reconciliation. */
 export function formatConfirmSuccess(approved: number, rejected: number): string {
   return `Reconciliation applied — ${approved} approved, ${rejected} rejected.`;
@@ -93,6 +121,14 @@ export function formatSelectionConfirmedLabel(confirmedAtMs?: number): string {
 /** getVerdictLabel maps a verdict token to its English display label. */
 export function getVerdictLabel(verdict: Verdict): string {
   return verdict === 'approved' ? 'Approved' : 'Rejected';
+}
+
+/**
+ * toConsiderationToken reads the consideration Select's new value as the token
+ * to store, falling back to "none" when the Select reports no selection.
+ */
+export function toConsiderationToken(value: string | number | null): string {
+  return value?.toString() ?? CONSIDERATION_NONE;
 }
 
 /** getConsiderationLabel maps a consideration token to its English display label. */
