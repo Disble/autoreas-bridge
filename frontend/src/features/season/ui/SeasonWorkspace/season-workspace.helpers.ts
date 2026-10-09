@@ -1,6 +1,14 @@
+import type { Key } from 'react';
 import type { SeasonSnapshot } from '../../../../infrastructure/season-source/season-source.types';
-import { SEASON_MONTHS_ES } from './season-workspace.constants';
-import type { PastSeasonEntry, SeasonOverview } from './season-workspace.types';
+import { SEASON_MONTHS_ES, SEASON_SECTION_TABS } from './season-workspace.constants';
+import type { PastSeasonEntry, SeasonOverview, SeasonSectionId } from './season-workspace.types';
+
+/**
+ * Narrows a HeroUI selection key to a tab identifier declared by this workspace.
+ */
+export function narrowSeasonSectionId(key: Key): SeasonSectionId | undefined {
+  return SEASON_SECTION_TABS.find((section) => section.id === key)?.id;
+}
 
 /**
  * Derives the suggested season name from a date using the 10-year Excel-sheet

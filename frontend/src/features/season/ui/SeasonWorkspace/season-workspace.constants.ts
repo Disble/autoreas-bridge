@@ -1,4 +1,4 @@
-import type { SeasonOverview } from './season-workspace.types';
+import type { SeasonOverview, SeasonSectionId } from './season-workspace.types';
 
 /**
  * Spanish month names, used to derive the suggested season name (the Excel-sheet
@@ -18,9 +18,6 @@ export const SEASON_MONTHS_ES = [
   'Noviembre',
   'Diciembre',
 ] as const;
-
-/** Section identifiers for the Season Workspace tab shell. */
-export type SeasonSectionId = 'overview' | 'intake' | 'daily' | 'evaluation' | 'selection' | 'ordering';
 
 /**
  * Route-tab contract for the Season Workspace sections shown in the shell.

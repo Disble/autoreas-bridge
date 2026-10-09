@@ -53,10 +53,10 @@ const PAST_SEASON: Partial<HookReturn> = {
 /** The section tabs the shell renders. */
 const SECTIONS: HookReturn['sections'] = [
   { id: 'overview', label: 'Overview', available: true },
-  { id: 'intake', label: 'Intake & Daily', available: false },
-  { id: 'evaluation', label: 'Evaluation', available: false },
-  { id: 'selection', label: 'Selection', available: false },
-  { id: 'ordering', label: 'Ordering', available: false },
+  { id: 'intake', label: 'Intake & Daily', available: true },
+  { id: 'evaluation', label: 'Evaluation', available: true },
+  { id: 'selection', label: 'Selection', available: true },
+  { id: 'ordering', label: 'Ordering', available: true },
 ];
 
 /** Stubs the hook with an idle no-season state, overriding only the fields a case sets. */
@@ -68,6 +68,8 @@ function mockHook(overrides: Partial<HookReturn> = {}): void {
     readOnly: false,
     overview: null,
     sections: SECTIONS,
+    activeTab: 'overview',
+    selectTab: vi.fn(),
     suggestedName: 'Julio 2026',
     pastSeasonEntries: [],
     onCreateSeason: vi.fn(),
@@ -112,6 +114,16 @@ describe('SeasonWorkspace', () => {
     expect(screen.getByText('overview panel')).toBeInTheDocument();
     expect(screen.getByText('Selection')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Close season' })).toBeInTheDocument();
+  });
+
+  it('shows the hook-selected panel and delegates tab selection to the hook', () => {
+    const selectTab = vi.fn();
+    mockHook({ ...OPEN_SEASON, activeTab: 'selection', selectTab });
+    render(<SeasonWorkspace />);
+
+    expect(screen.getByText('selection board')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Evaluation' }));
+    expect(selectTab).toHaveBeenCalledWith('evaluation');
   });
 
   it('close season delegates to the hook callback', () => {

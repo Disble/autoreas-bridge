@@ -1,3 +1,24 @@
+import type { SeasonStoreState } from '../../../../shared/store/season-store/season-store.types';
+
+/** Section identifiers for the Season Workspace tab shell. */
+export type SeasonSectionId = 'overview' | 'intake' | 'daily' | 'evaluation' | 'selection' | 'ordering';
+
+/** Season store values and actions consumed by the Season Workspace. */
+export type SeasonWorkspaceStoreBindings = Pick<
+  SeasonStoreState,
+  | 'season'
+  | 'hasLoaded'
+  | 'errorMessage'
+  | 'readOnly'
+  | 'pastSeasons'
+  | 'refresh'
+  | 'createSeason'
+  | 'closeSeason'
+  | 'loadPastSeasons'
+  | 'viewPastSeason'
+  | 'exitPastSeason'
+>;
+
 /** Derived view model for the Overview section of a season. */
 export interface SeasonOverview {
   /** The season's name. */

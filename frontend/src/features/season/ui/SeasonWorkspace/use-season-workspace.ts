@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
 import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
-import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
 import { SEASON_SECTION_TABS } from './season-workspace.constants';
 import { buildPastSeasonEntries, buildSeasonOverview, suggestSeasonName } from './season-workspace.helpers';
+import { useSeasonWorkspaceStoreBindings } from './use-season-workspace-store-bindings';
+import { useSeasonWorkspaceTab } from './use-season-workspace-tab';
 
 /**
  * useSeasonWorkspace loads the active season on mount and exposes the Overview
@@ -12,18 +13,10 @@ import { buildPastSeasonEntries, buildSeasonOverview, suggestSeasonName } from '
  * flows through the season store; SeasonWorkspace.tsx is purely presentational.
  */
 export function useSeasonWorkspace(source: SeasonSource = seasonSource) {
-  // 3. Context/3rd Party Hooks
-  const season = useSeasonStore((state) => state.season);
-  const hasLoaded = useSeasonStore((state) => state.hasLoaded);
-  const errorMessage = useSeasonStore((state) => state.errorMessage);
-  const readOnly = useSeasonStore((state) => state.readOnly);
-  const pastSeasons = useSeasonStore((state) => state.pastSeasons);
-  const refresh = useSeasonStore((state) => state.refresh);
-  const createSeason = useSeasonStore((state) => state.createSeason);
-  const closeSeason = useSeasonStore((state) => state.closeSeason);
-  const loadPastSeasons = useSeasonStore((state) => state.loadPastSeasons);
-  const viewPastSeason = useSeasonStore((state) => state.viewPastSeason);
-  const exitPastSeason = useSeasonStore((state) => state.exitPastSeason);
+  // 2. State and 3. Context/3rd Party Hooks
+  const store = useSeasonWorkspaceStoreBindings();
+  const { activeTab, selectTab } = useSeasonWorkspaceTab();
+  const { season, hasLoaded, errorMessage, readOnly, pastSeasons, refresh, createSeason, closeSeason, loadPastSeasons, viewPastSeason, exitPastSeason } = store;
 
   // 5. Derived State (useMemo)
   const isLoading = !hasLoaded;
@@ -71,6 +64,8 @@ export function useSeasonWorkspace(source: SeasonSource = seasonSource) {
     readOnly,
     overview,
     sections: SEASON_SECTION_TABS,
+    activeTab,
+    selectTab,
     suggestedName,
     pastSeasonEntries,
     onCreateSeason,

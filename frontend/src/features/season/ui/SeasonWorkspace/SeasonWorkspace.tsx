@@ -29,6 +29,8 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
     readOnly,
     overview,
     sections,
+    activeTab,
+    selectTab,
     suggestedName,
     pastSeasonEntries,
     onCreateSeason,
@@ -131,7 +133,7 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
             )}
           </div>
 
-          <Tabs defaultSelectedKey="overview">
+          <Tabs selectedKey={activeTab} onSelectionChange={selectTab}>
             <Tabs.ListContainer>
               <Tabs.List aria-label="Season workflow">
                 {sections.map((tab) => (

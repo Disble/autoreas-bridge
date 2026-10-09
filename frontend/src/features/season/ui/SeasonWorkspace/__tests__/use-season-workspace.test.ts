@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SeasonSnapshot, SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
-import { resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
+import { resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
 import { useSeasonWorkspace } from '../use-season-workspace';
 
 /** Builds an open season snapshot, overriding only what a case sets. */
@@ -58,6 +58,37 @@ describe('useSeasonWorkspace', () => {
   afterEach(() => {
     resetSeasonStore();
     vi.clearAllMocks();
+  });
+
+  it('starts on overview and changes the active tab when selected', () => {
+    const { result } = renderHook(() => useSeasonWorkspace(createSource()));
+
+    expect(result.current.activeTab).toBe('overview');
+    act(() => result.current.selectTab('evaluation'));
+    expect(result.current.activeTab).toBe('evaluation');
+  });
+
+  it('keeps the active tab when the selected key is not a declared tab', () => {
+    const { result } = renderHook(() => useSeasonWorkspace(createSource()));
+
+    act(() => result.current.selectTab('evaluation'));
+    act(() => result.current.selectTab('not-a-tab'));
+    expect(result.current.activeTab).toBe('evaluation');
+  });
+
+  it('exposes store status and delegates past-season actions', () => {
+    const source = createSource();
+    const viewPastSeason = vi.fn();
+    const exitPastSeason = vi.fn();
+    setSeasonStoreState({ errorMessage: 'Season unavailable', readOnly: true, viewPastSeason, exitPastSeason });
+    const { result } = renderHook(() => useSeasonWorkspace(source));
+
+    expect(result.current.errorMessage).toBe('Season unavailable');
+    expect(result.current.readOnly).toBe(true);
+    act(() => result.current.onViewPastSeason('past-season'));
+    act(() => result.current.onExitPastSeason());
+    expect(viewPastSeason).toHaveBeenCalledWith(source, 'past-season');
+    expect(exitPastSeason).toHaveBeenCalledWith(source);
   });
 
   it('refreshes on mount and exposes a null overview when no season is open', async () => {
