@@ -1,15 +1,21 @@
 import { DragDropProvider, DragOverlay } from '@dnd-kit/react';
 import { Alert, Button } from '@heroui/react';
+import seasonAirisArtwork from '../../../../assets/airis-empty-states/season.webp';
+import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
 import { OrderingHistoryStates } from './OrderingHistoryStates';
 import { OrderingLane } from './OrderingLane';
 import { OrderingReadOnlyNotice } from './OrderingReadOnlyNotice';
 import {
+  ORDERING_EMPTY_ACTION_LABEL,
+  ORDERING_EMPTY_DESCRIPTION,
   ORDERING_EMPTY_MESSAGE,
+  ORDERING_EMPTY_TITLE,
   ORDERING_RAIL_LABEL,
   RAIL_CONTAINER_ID,
   WEEKDAYS,
 } from './ordering-board.constants';
 import { useOrderingBoard } from './use-ordering-board';
+import type { OrderingBoardProps } from './ordering-board.types';
 import { ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.constants';
 
 /**
@@ -28,7 +34,7 @@ import { ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE } from '../../../../shared/orderi
  * that does not exist. This component stays presentational: the notice, the history
  * states, and each container are colocated child components of their own.
  */
-export function OrderingBoard() {
+export function OrderingBoard({ onNavigate }: Readonly<OrderingBoardProps>) {
   const {
     rail,
     columns,
@@ -128,6 +134,17 @@ export function OrderingBoard() {
             label={ORDERING_RAIL_LABEL}
             listClassName="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-1.5"
             emptyMessage={ORDERING_EMPTY_MESSAGE}
+            emptyState={
+              isPastSeason ? undefined : (
+                <AirisEmptyState
+                  action={{ label: ORDERING_EMPTY_ACTION_LABEL, onPress: () => onNavigate('selection') }}
+                  description={ORDERING_EMPTY_DESCRIPTION}
+                  imageSrc={seasonAirisArtwork}
+                  size="compact"
+                  title={ORDERING_EMPTY_TITLE}
+                />
+              )
+            }
             showNewcomerTag={false}
             cards={rail}
             {...containerActions}

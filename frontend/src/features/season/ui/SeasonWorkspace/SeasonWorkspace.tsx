@@ -161,7 +161,7 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
             </Tabs.Panel>
 
             <Tabs.Panel id="ordering">
-              <OrderingBoard />
+              <OrderingBoard onNavigate={selectTab} />
             </Tabs.Panel>
 
             <Tabs.Panel id="overview">

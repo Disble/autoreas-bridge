@@ -1,8 +1,17 @@
 /** The seven weekday columns, Lunes→Domingo (Spanish data literals — they ARE the `dias` values). */
 export const WEEKDAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'] as const;
 
-/** Empty-state message when no approved candidate awaits placement. */
+/** Plain rail message when no approved candidate awaits placement on a past season's stored board. */
 export const ORDERING_EMPTY_MESSAGE = 'No approved animes to place yet — confirm the selection first.';
+
+/** Empty-state title of the live board's rail when no approved candidate awaits placement. */
+export const ORDERING_EMPTY_TITLE = 'No approved animes to place yet';
+
+/** Empty-state description of the live board's rail, pointing at the step that fills it. */
+export const ORDERING_EMPTY_DESCRIPTION = 'Confirm the selection to bring approved animes here.';
+
+/** Label of the rail empty state's action that opens the Selection section. */
+export const ORDERING_EMPTY_ACTION_LABEL = 'Go to Selection';
 
 /** Heading and drop-zone name of the rail of approved animes awaiting a weekday. */
 export const ORDERING_RAIL_LABEL = 'Approved to place';

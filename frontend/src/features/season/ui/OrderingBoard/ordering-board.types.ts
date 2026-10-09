@@ -1,6 +1,13 @@
 import type { ReactNode } from 'react';
+import type { SeasonSectionId } from '../SeasonWorkspace/season-workspace.types';
 import type { OrderingState } from '../../../../shared/ordering/ordering.types';
 import type { AnimeScheduleOrderingInstance } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
+
+/** Props for the Ordering board's cross-section recovery action. */
+export interface OrderingBoardProps {
+  /** Navigates to another season workflow section. */
+  readonly onNavigate: (section: SeasonSectionId) => void;
+}
 
 /** One anime's intended placement — a weekday+position or its Estrenos section. */
 export interface DraftPlacement {
@@ -88,6 +95,8 @@ export interface OrderingContainerProps extends OrderingCardActions {
   readonly listClassName: string;
   /** Copy shown inside the container while it holds no cards. */
   readonly emptyMessage: string;
+  /** Rich empty state shown instead of `emptyMessage` while the container holds no cards. */
+  readonly emptyState?: ReactNode;
   /** True on weekday lanes: newcomer cards carry the muted New tag. Every rail card is a newcomer, so the rail never does. */
   readonly showNewcomerTag: boolean;
   /** The cards this container holds, in board order. */

@@ -58,9 +58,9 @@ describe('OrderingBoard', () => {
     vi.clearAllMocks();
   });
 
-  it('shows the empty rail message and the seven weekday columns', () => {
+  it('shows the empty rail state and the seven weekday columns', () => {
     mockHook();
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
     expect(screen.getByText(/No approved animes to place yet/)).toBeInTheDocument();
     for (const day of ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']) {
       expect(screen.getByText(day)).toBeInTheDocument();
@@ -76,7 +76,7 @@ describe('OrderingBoard', () => {
       changeCount: 1,
       duplicate,
     });
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
     expect(screen.getByText('To Place')).toBeInTheDocument();
     expect(screen.getByText('On Thursday')).toBeInTheDocument();
     expect(screen.getByText('1 changes')).toBeInTheDocument();
@@ -95,7 +95,7 @@ describe('OrderingBoard', () => {
       onOpenPage,
       onOpenFolder,
     });
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
 
     expect(screen.getByText('6')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Open page for To Place/ }));
@@ -114,7 +114,7 @@ describe('OrderingBoard', () => {
       counts: { r: 3 },
     });
 
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
 
     expect(screen.getAllByText('To Place')).toHaveLength(3);
   });
@@ -122,7 +122,7 @@ describe('OrderingBoard', () => {
   it('applies the schedule', () => {
     const onApply = vi.fn().mockResolvedValue({ status: 'ok', applied: 1, failed: [] });
     mockHook({ columns: { Lunes: [card({ key: 'g#0', animeId: 'g', orden: 1 })] }, counts: { g: 1 }, changeCount: 1, onApply });
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Apply schedule' }));
     expect(onApply).toHaveBeenCalled();
   });
@@ -135,7 +135,7 @@ describe('OrderingBoard', () => {
       hasInvalidWeekdayPlacements: true,
     });
 
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
 
     expect(screen.getByRole('button', { name: 'Apply schedule' })).toBeDisabled();
   });
@@ -144,7 +144,7 @@ describe('OrderingBoard', () => {
     const onCloseSeason = vi.fn();
     const onReopen = vi.fn();
     mockHook({ readOnly: true, scheduledCount: 12, onCloseSeason, onReopen });
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
     const summary = screen.getByText(/12 animes scheduled/);
     expect(summary).toBeInTheDocument();
     expect(summary.closest('[data-slot="alert-root"]')).toHaveClass('alert--success');
@@ -162,7 +162,7 @@ describe('OrderingBoard', () => {
       rail: [card({ key: 'r#0', animeId: 'r', name: 'Stored Rail Card' })],
       counts: { r: 1 },
     });
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
 
     expect(screen.getByText('Stored Rail Card')).toBeInTheDocument();
     const notice = screen.getByText(ORDERING_PAST_SEASON_NOTICE);
@@ -183,7 +183,7 @@ describe('OrderingBoard', () => {
       rail: [card({ key: 'r#0', animeId: 'r', name: 'Stale Rail Card' })],
       counts: { r: 1 },
     });
-    const { container } = render(<OrderingBoard />);
+    const { container } = render(<OrderingBoard onNavigate={vi.fn()} />);
 
     expect(screen.getByRole('status', { name: /recorded ordering board/i })).toBeInTheDocument();
     expect(screen.queryByText(ORDERING_NOT_RECORDED_TITLE)).toBeNull();
@@ -194,7 +194,7 @@ describe('OrderingBoard', () => {
 
   it('shows ONLY the not-recorded empty state when the past season closed before its board was recorded', () => {
     mockHook({ readOnly: true, isPastSeason: true, historicalRecorded: false });
-    const { container } = render(<OrderingBoard />);
+    const { container } = render(<OrderingBoard onNavigate={vi.fn()} />);
 
     expect(screen.getByText(ORDERING_NOT_RECORDED_TITLE)).toBeInTheDocument();
     expect(screen.getByText(/closed before its ordering board was recorded/)).toBeInTheDocument();
@@ -206,7 +206,7 @@ describe('OrderingBoard', () => {
 
   it('shows ONLY a failure alert instead of the board when the past-season snapshot read fails', () => {
     mockHook({ readOnly: true, isPastSeason: true, historicalError: 'history read failed', historicalRecorded: false });
-    const { container } = render(<OrderingBoard />);
+    const { container } = render(<OrderingBoard onNavigate={vi.fn()} />);
 
     expect(screen.getByText('history read failed')).toBeInTheDocument();
     expect(container.querySelector('.alert--danger')).not.toBeNull();
@@ -219,7 +219,7 @@ describe('OrderingBoard', () => {
     // The component's contract is that a failed read wins: an error must never be
     // hidden behind a board, whatever a caller passes in `historicalRecorded`.
     mockHook({ readOnly: true, isPastSeason: true, historicalError: 'history read failed', historicalRecorded: true });
-    const { container } = render(<OrderingBoard />);
+    const { container } = render(<OrderingBoard onNavigate={vi.fn()} />);
 
     expect(screen.getByText('history read failed')).toBeInTheDocument();
     expect(container.querySelector('.alert--danger')).not.toBeNull();
@@ -235,7 +235,7 @@ describe('OrderingBoard', () => {
       counts: { a: 2 },
       removeCard,
     });
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
 
     // Six of the seven weekdays hold no card, and each says so instead of rendering a
     // phantom one: a placeholder card here would silently invent a scheduled anime.
@@ -253,7 +253,7 @@ describe('OrderingBoard', () => {
     { scenario: 'has no card count', counts: {} },
   ])('disables Remove while an anime $scenario', ({ counts }) => {
     mockHook({ columns: { Lunes: [card({ key: 'a#0', animeId: 'a', name: 'Anime A' })] }, counts });
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
 
     expect(screen.getByRole('button', { name: 'Remove Anime A' })).toBeDisabled();
   });
@@ -264,7 +264,7 @@ describe('OrderingBoard', () => {
       columns: { Jueves: [card({ key: 'g#0', animeId: 'g', name: 'On Thursday' })] },
       counts: { r: 1, s: 1, g: 1 },
     });
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
 
     const thursdayHeader = screen.getByRole('heading', { name: 'Jueves' }).parentElement;
     expect(thursdayHeader).toHaveTextContent(/^Jueves1$/);
@@ -284,7 +284,7 @@ describe('OrderingBoard', () => {
       },
       counts: { r: 1, n: 1, o: 1 },
     });
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
 
     expect(within(screen.getByRole('group', { name: 'Lunes' })).getByText('New')).toBeInTheDocument();
     expect(within(screen.getByRole('group', { name: 'Martes' })).queryByText('New')).toBeNull();
@@ -294,7 +294,7 @@ describe('OrderingBoard', () => {
   it('shows the full anime name as the card tooltip', () => {
     const name = 'Honzuki no Gekokujou: Shisho ni Naru Tame ni wa Shudan wo Erandeiraremasen';
     mockHook({ columns: { Domingo: [card({ key: 'h#0', animeId: 'h', name })] }, counts: { h: 1 } });
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
 
     expect(screen.getByText(name)).toHaveAttribute('title', name);
   });
@@ -308,14 +308,14 @@ describe('OrderingBoard', () => {
       counts: { a: 1 },
       meta: { a: { grade, hasPage: true, hasFolder: false, pageUrl: 'https://x', folderPath: '' } },
     });
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
 
     expect(screen.queryAllByLabelText(/^Approval grade/).map((element) => element.getAttribute('aria-label'))).toEqual(chip === undefined ? [] : [chip]);
   });
 
   it('renders a bare card without grade or desktop actions when the anime has no metadata', () => {
     mockHook({ columns: { Lunes: [card({ key: 'a#0', animeId: 'a', name: 'Anime A' })] }, counts: { a: 1 } });
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
 
     expect(screen.queryByLabelText(/^Approval grade/)).toBeNull();
     expect(screen.queryByRole('button', { name: /Open (page|folder) for Anime A/ })).toBeNull();
@@ -329,7 +329,7 @@ describe('OrderingBoard', () => {
       counts: { a: 2 },
       changeCount: 3,
     });
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
 
     expect(screen.getByRole('button', { name: 'Duplicate Anime A to another day' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Remove Anime A' })).toBeDisabled();
@@ -343,7 +343,7 @@ describe('OrderingBoard', () => {
   ])('enables Reset and Apply only with pending changes (changeCount $changeCount)', ({ changeCount, enabled }) => {
     const onReset = vi.fn();
     mockHook({ changeCount, onReset });
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
 
     const reset = screen.getByRole('button', { name: 'Reset draft' });
     expect(reset.hasAttribute('disabled')).toBe(!enabled);
@@ -357,7 +357,7 @@ describe('OrderingBoard', () => {
     { scenario: 'a read-only board', readOnly: true, shown: false },
   ])('shows the duplicate-weekday alert only on $scenario', ({ readOnly, shown }) => {
     mockHook({ readOnly, hasInvalidWeekdayPlacements: true });
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
 
     expect(screen.queryByText(/one card per anime/) !== null).toBe(shown);
   });
@@ -367,14 +367,14 @@ describe('OrderingBoard', () => {
     { scenario: 'a read-only', readOnly: true, cursor: 'cursor-default' },
   ])('gives cards on $scenario board the $cursor cursor', ({ readOnly, cursor }) => {
     mockHook({ readOnly, columns: { Lunes: [card({ key: 'a#0', animeId: 'a', name: 'Anime A' })] }, counts: { a: 1 } });
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
 
     expect(screen.getByText('Anime A').closest('li')).toHaveClass(cursor);
   });
 
   it('explains Remove in its tooltip once the button takes keyboard focus', () => {
     mockHook({ columns: { Lunes: [card({ key: 'a#0', animeId: 'a', name: 'Anime A' })] }, counts: { a: 2 } });
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
     const remove = screen.getByRole('button', { name: 'Remove Anime A' });
 
     fireEvent.keyDown(document.body, { key: 'Tab' });
@@ -385,7 +385,7 @@ describe('OrderingBoard', () => {
 
   it('offers no draft controls and no reopen or close actions on a recorded past season', () => {
     mockHook({ readOnly: true, isPastSeason: true, historicalRecorded: true, changeCount: 2 });
-    render(<OrderingBoard />);
+    render(<OrderingBoard onNavigate={vi.fn()} />);
 
     expect(screen.getByRole('heading', { name: 'Lunes' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Apply schedule' })).toBeNull();
