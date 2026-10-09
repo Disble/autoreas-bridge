@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 /** Resolves this script's directory for stable package-local asset paths. */
 const scriptsDirectory = path.dirname(fileURLToPath(import.meta.url));
 /** Lists the complete production artwork set this check enforces. */
-const assetNames = ['today.webp', 'editor-library.webp', 'catalog.webp'];
+const assetNames = ['today.webp', 'editor-library.webp', 'catalog.webp', 'season.webp'];
 /** Holds the exact dimensions every empty-state asset must expose. */
 const assetDimension = 512;
 

@@ -1,0 +1,27 @@
+# Season empty states
+
+## Objective and scope
+Replace the plain-text empty states of the Season workspace tabs with `AirisEmptyState`, each with an action that leads to the step that unblocks it (Intake → Evaluation → Selection → Ordering), and give Overview a single conservative empty state when the season has no intake rows. Ship a dedicated `season.webp` artwork for these states. Out of scope: Selection `Confirmed 12/31/1969` bug, a first-steps checklist in Overview, Daily Board empty states (already Airis), redesigning the Season header card.
+
+## Constraints and approach
+- Branch: `feat/season-empty-states`, stacked on `feat/airis-dark-artwork` (needs the character reference and the redrawn art). Neither is merged into `dev` yet.
+- Feature `.tsx` stays dumb: navigation is a callback owned by `useSeasonWorkspace` and passed down as a prop; panels never decide where to go.
+- Loading, empty and failure are exclusive (AGENTS.md): when a panel has an error, render only the `Alert`.
+- TDD: RED → GREEN → MUTATE → REFACTOR with `bun --cwd="frontend" run test -- <path>`; frontend mutation runs in the `frontend-mutation` pre-commit job.
+- Size: `OrderingBoard.test.tsx` is 397 lines (warning threshold 400) — new Ordering tests go to a new colocated test file.
+- Artwork: generated from `docs/design/airis/character.md` with native transparency; two-step WebP conversion; background alpha 0 verified.
+
+## Tasks
+- [x] SES-1 — Generate `season.webp` (Airis with a clipboard checklist) and add it to the `check-airis-assets` asset list. Route: inline generation + inline script edit. Acceptance: four assets validated; background alpha 0; reads at 160/40 px on dark and light. Checks: `check:airis-assets`, its Vitest suite.
+- [ ] SES-2 — Control the active Season tab from `useSeasonWorkspace` and expose a navigation callback to the panels. Route: delegated writer. Acceptance: tabs use `selectedKey`/`onSelectionChange`; a panel-invoked navigate switches the visible tab; hook and workspace tests prove it. Checks: focused Vitest, typecheck.
+- [ ] SES-3 — Intake, Evaluation and Selection empty states with actions ("Paste list" → Raw mode; "Go to Intake"; "Go to Evaluation") and error/empty exclusivity. Route: delegated writer. Acceptance: each empty state renders `AirisEmptyState` with `season.webp`, action invokes the right callback, error hides the empty state; negative case (rows present) has no empty state. Checks: focused Vitest, typecheck.
+- [ ] SES-4 — Ordering pending rail compact empty state with "Go to Selection". Route: delegated writer. Acceptance: compact `AirisEmptyState` in the rail when nothing is approved; action navigates; weekday lanes unchanged. Checks: focused Vitest (new test file), typecheck.
+- [ ] SES-5 — Overview: one `AirisEmptyState` with "Start with Intake" when the season has no intake rows, replacing the empty charts. Route: delegated writer. Acceptance: no charts rendered when empty; charts render when intake exists; action navigates to Intake; error is exclusive. Checks: focused Vitest, typecheck, `layout:smoke`, `render:smoke`.
+
+## Progress and evidence
+- Exploration (delegated): tabs are uncontrolled (`SeasonWorkspace.tsx:134`, `defaultSelectedKey="overview"`), panels mounted without props; empty states at `IntakePanel.tsx:89`, `EvaluationPanel.tsx:38`, `SelectionBoard.tsx:141`, `OrderingBoard.tsx:128` → `OrderingContainer.tsx:14`; error and empty coexist in Intake/Evaluation/Selection/Overview; existing Season Airis usages import `today.webp` and pass no action. Intake's empty message shows only in List mode; Raw mode via `switchMode('raw')`.
+- User decisions: conservative Overview (single empty state, no checklist); generate `season.webp` in this change.
+- SES-1: `season.webp` generated from the model sheet with native transparency (Airis holding a clipboard checklist and a cyan pen), two-step WebP conversion; alpha-0 pixels 122815/262144, 2-px border max alpha 2; checked at 160/40 px on dark and full size on light. `check:airis-assets` → "Validated 4 transparent 512x512 WebP Airis assets."; its Vitest suite 2/2. Hand mutation: with `season.webp` removed the gate fails (`season.webp: could not decode WebP metadata or alpha`, exit 1). Committed as `feat(ui): add the Season Airis empty-state artwork`.
+
+## Next step
+SES-2.
