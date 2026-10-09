@@ -88,6 +88,16 @@ Every layer needs a physical reason to hang where it does.
 - Generate with a fully transparent background requested in the prompt and PNG
   output, then convert to 512x512 WebP. Do not remove a chroma-key background
   locally: despill turns the cyan glows grey.
+- Convert in two steps and check that the background is still alpha 0:
+
+  ```bash
+  ffmpeg -i source.png -vf "scale=512:512:flags=area" -c:v png scene-512.png
+  ffmpeg -i scene-512.png -vf format=yuva420p -c:v libwebp -quality 90 scene.webp
+  ```
+
+  A single-pass conversion with `-compression_level 6` left the background at
+  alpha 1–39, which shows as a faint square on a light surface while still
+  passing `check:airis-assets`.
 - State the construction and rendering style in every prompt. Chained edits
   drift and accumulate texture; restart from the model sheet when they do.
 - Turnaround generators mirror profiles. Say on which side each asymmetric
