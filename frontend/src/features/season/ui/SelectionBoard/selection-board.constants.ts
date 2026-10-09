@@ -20,8 +20,12 @@ export const CONSIDERATION_OPTIONS: readonly ConsiderationOption[] = [
   { value: CONSIDERATION_SPARE_QUOTA, label: 'Spare quota' },
 ];
 
-/** Empty-state message when no candidate has been created yet. */
-export const SELECTION_EMPTY_MESSAGE = 'No created candidates yet — the selection table fills as animes are created.';
+/** Heading shown when there are no candidates to select. */
+export const SELECTION_EMPTY_TITLE = 'No candidates to select yet';
+/** Guidance shown when there are no candidates to select. */
+export const SELECTION_EMPTY_DESCRIPTION = 'Rate the created animes in Evaluation; the selection table fills as they are created.';
+/** Recovery action label shown when there are no candidates to select. */
+export const SELECTION_EMPTY_ACTION_LABEL = 'Go to Evaluation';
 
 /** Fallback error toast message when confirming the selection fails without a specific status. */
 export const SELECTION_CONFIRM_ERROR_MESSAGE = 'Failed to apply reconciliation.';

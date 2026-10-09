@@ -87,39 +87,63 @@ describe('SelectionBoard', () => {
 
   it('shows the empty state, no candidate group, and a disabled confirm when there are no candidates', () => {
     mockHook();
-    render(<SelectionBoard />);
-    expect(screen.getByText(/No created candidates yet/)).toBeInTheDocument();
+    render(<SelectionBoard onNavigate={vi.fn()} />);
+    expect(screen.getByText('No candidates to select yet')).toBeInTheDocument();
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Confirm selection' })).toBeDisabled();
   });
 
+  it('offers navigation to Evaluation while keeping the selection controls', () => {
+    const onNavigate = vi.fn();
+    mockHook();
+    render(<SelectionBoard onNavigate={onNavigate} />);
+    expect(screen.getByText('Minimum approval grade')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Go to Evaluation' }));
+    expect(onNavigate).toHaveBeenCalledWith('evaluation');
+  });
+
   it('shows the store error only when there is one', () => {
     mockHook({ errorMessage: 'season load failed' });
-    render(<SelectionBoard />);
+    render(<SelectionBoard onNavigate={vi.fn()} />);
     expect(screen.getByText('season load failed')).toBeInTheDocument();
+    expect(screen.queryByText('No candidates to select yet')).not.toBeInTheDocument();
     cleanup();
 
     mockHook();
-    render(<SelectionBoard />);
+    render(<SelectionBoard onNavigate={vi.fn()} />);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('shows only the error, with no empty candidates card, when there are no rows and an error', () => {
+    mockHook({ errorMessage: 'season load failed' });
+    render(<SelectionBoard onNavigate={vi.fn()} />);
+    expect(screen.getByText('season load failed')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Selection candidates' })).not.toBeInTheDocument();
+  });
+
+  it('keeps populated rows visible and suppresses the empty state when an action error exists', () => {
+    mockHook({ rows: [selRow()], errorMessage: 'selection save failed' });
+    render(<SelectionBoard onNavigate={vi.fn()} />);
+    expect(screen.getByText('Anime A')).toBeInTheDocument();
+    expect(screen.queryByText('No candidates to select yet')).not.toBeInTheDocument();
   });
 
   it('renders the decision header with grade, slots and quota', () => {
     mockHook({ approvedCount: 9, rows: [selRow()] });
-    render(<SelectionBoard />);
+    render(<SelectionBoard onNavigate={vi.fn()} />);
     expect(screen.getByText('9 / 12 approved')).toBeInTheDocument();
   });
 
   it('shows "Not confirmed yet" when the selection was never confirmed', () => {
     mockHook({ rows: [selRow()], approvedCount: 1, selectionConfirmedAt: undefined });
-    render(<SelectionBoard />);
+    render(<SelectionBoard onNavigate={vi.fn()} />);
     expect(screen.getByText('Not confirmed yet')).toBeInTheDocument();
   });
 
   it('shows the persistent confirmed-at label when the milestone exists', () => {
     const ms = 1_753_000_000_000;
     mockHook({ rows: [selRow()], approvedCount: 1, selectionConfirmedAt: ms });
-    render(<SelectionBoard />);
+    render(<SelectionBoard onNavigate={vi.fn()} />);
     expect(screen.getByText(`Confirmed ${new Date(ms).toLocaleString()}`)).toBeInTheDocument();
   });
 
@@ -130,7 +154,7 @@ describe('SelectionBoard', () => {
     ['Increase slots', 'onSetSlots', 13],
   ] as const)('%s steps its rule by one', (name, handler, next) => {
     const hook = mockHook({ rows: [selRow()] });
-    render(<SelectionBoard />);
+    render(<SelectionBoard onNavigate={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name }));
     expect(hook[handler]).toHaveBeenCalledWith(next);
   });
@@ -144,20 +168,20 @@ describe('SelectionBoard', () => {
     ['two slots', 4, 2, [false, false, false, false]],
   ])('disables only the steppers that would leave the range at %s', (_case, minApprovalGrade, slots, disabled) => {
     mockHook({ rows: [selRow()], minApprovalGrade, slots });
-    render(<SelectionBoard />);
+    render(<SelectionBoard onNavigate={vi.fn()} />);
     expect(stepperDisabledStates()).toEqual(disabled);
   });
 
   it('locks every stepper and hides confirm on a read-only season', () => {
     mockHook({ rows: [selRow()], readOnly: true });
-    render(<SelectionBoard />);
+    render(<SelectionBoard onNavigate={vi.fn()} />);
     expect(stepperDisabledStates()).toEqual([true, true, true, true]);
     expect(screen.queryByRole('button', { name: 'Confirm selection' })).not.toBeInTheDocument();
   });
 
   it('confirms through the modal, summarizing approved and rejected counts', async () => {
     const hook = mockHook({ rows: MIXED_ROWS, approvedCount: 2, quota: 'under' });
-    render(<SelectionBoard />);
+    render(<SelectionBoard onNavigate={vi.fn()} />);
     const dialog = await openConfirmDialog();
     expect(within(dialog).getByText(/^2 approved · 1 rejected\./)).toBeInTheDocument();
     expect(within(dialog).queryByText(/Over quota/)).not.toBeInTheDocument();
@@ -168,21 +192,21 @@ describe('SelectionBoard', () => {
 
   it.each(['under', 'at'] as const)('keeps the over-quota warning out of the modal when the quota is %s', async (quota) => {
     mockHook({ rows: MIXED_ROWS, approvedCount: 2, slots: 2, quota });
-    render(<SelectionBoard />);
+    render(<SelectionBoard onNavigate={vi.fn()} />);
     const dialog = await openConfirmDialog();
     expect(within(dialog).queryByText(/Over quota/)).not.toBeInTheDocument();
   });
 
   it('warns in the modal when the approved count is over quota', async () => {
     mockHook({ rows: MIXED_ROWS, approvedCount: 2, slots: 1, quota: 'over' });
-    render(<SelectionBoard />);
+    render(<SelectionBoard onNavigate={vi.fn()} />);
     const dialog = await openConfirmDialog();
     expect(within(dialog).getByText(/Over quota \(2 \/ 1\)/)).toBeInTheDocument();
   });
 
   it('groups the candidates under Approved and Rejected with their counts, each in row order', () => {
     mockHook({ rows: MIXED_ROWS, approvedCount: 2 });
-    render(<SelectionBoard />);
+    render(<SelectionBoard onNavigate={vi.fn()} />);
     const approved = screen.getByRole('list', { name: 'Approved · 2' });
     const rejected = screen.getByRole('list', { name: 'Rejected · 1' });
     expect(within(approved).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
@@ -195,7 +219,7 @@ describe('SelectionBoard', () => {
 
   it('shows each candidate cover and grade, with a dash for an ungraded one', () => {
     mockHook({ rows: MIXED_ROWS, approvedCount: 2 });
-    render(<SelectionBoard />);
+    render(<SelectionBoard onNavigate={vi.fn()} />);
     const items = screen.getAllByRole('listitem');
     expect(items.map((item) => item.querySelector('img')?.getAttribute('src'))).toEqual(['data:anime-a1', 'data:anime-a2', 'data:anime-r1']);
     expect(items.map((item) => within(item).getByTestId('selection-grade').textContent)).toEqual(['6', '1', '—']);
@@ -203,7 +227,7 @@ describe('SelectionBoard', () => {
 
   it('edits a candidate consideration through its select', () => {
     const hook = mockHook({ rows: [DR_STONE], approvedCount: 1 });
-    render(<SelectionBoard />);
+    render(<SelectionBoard onNavigate={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /Consideration for Dr\. Stone/ }));
     fireEvent.click(screen.getByRole('option', { name: 'Spare quota' }));
     expect(hook.onSetConsideration).toHaveBeenCalledWith('r-1', 'spare_quota');
@@ -211,14 +235,14 @@ describe('SelectionBoard', () => {
 
   it('shows the consideration as plain text, without a select, on a read-only season', () => {
     mockHook({ rows: [selRow({ rawName: 'Dr. Stone', consideration: 'insufficient_quota' })], readOnly: true });
-    render(<SelectionBoard />);
+    render(<SelectionBoard onNavigate={vi.fn()} />);
     expect(screen.getByText('Insufficient quota')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Consideration for/ })).not.toBeInTheDocument();
   });
 
   it.each([false, true])('opens the page and folder through the desktop actions (read-only: %s)', (readOnly) => {
     const hook = mockHook({ rows: [DR_STONE], approvedCount: 1, readOnly });
-    render(<SelectionBoard />);
+    render(<SelectionBoard onNavigate={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /open page/i }));
     expect(hook.onOpenPage).toHaveBeenCalledWith('anime-1');
     fireEvent.click(screen.getByRole('button', { name: /open folder/i }));
@@ -227,7 +251,7 @@ describe('SelectionBoard', () => {
 
   it('hides the desktop actions for a candidate without a page or folder', () => {
     mockHook({ rows: [selRow({ rawName: 'No Path Anime', hasPage: false, hasFolder: false })], approvedCount: 1 });
-    render(<SelectionBoard />);
+    render(<SelectionBoard onNavigate={vi.fn()} />);
     expect(screen.queryByRole('button', { name: /open page/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /open folder/i })).not.toBeInTheDocument();
   });

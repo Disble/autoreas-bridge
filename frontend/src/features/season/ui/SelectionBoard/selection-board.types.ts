@@ -1,5 +1,12 @@
+import type { SeasonSectionId } from '../SeasonWorkspace/season-workspace.types';
 import type { AnimeDesktopActionsProps } from '../../../../shared/ui/AnimeDesktopActions.types';
 import type { SeasonCoverThumbProps } from '../SeasonCoverThumb/season-cover-thumb.types';
+
+/** Props for the Selection board's cross-section recovery action. */
+export interface SelectionBoardProps {
+  /** Navigates to another season workflow section. */
+  readonly onNavigate: (section: SeasonSectionId) => void;
+}
 
 /** A verdict token, mirrored from the Go domain (never stored, always derived). */
 export type Verdict = 'approved' | 'rejected';

@@ -11,8 +11,12 @@ export const MATCH_STATUS_LABELS: Readonly<Record<string, string>> = {
 
 /** Placeholder for the intake paste textarea. */
 export const INTAKE_PASTE_PLACEHOLDER = 'One anime name per line…';
-/** Empty-state message when the intake list has no rows yet. */
-export const INTAKE_EMPTY_MESSAGE = 'Paste the season intake list to begin.';
+/** Heading shown when the intake list has no rows. */
+export const INTAKE_EMPTY_TITLE = 'No intake rows yet';
+/** Guidance shown while the intake list is empty. */
+export const INTAKE_EMPTY_DESCRIPTION = 'Paste the season list to start planning this season.';
+/** Recovery action label shown while the intake list is empty. */
+export const INTAKE_EMPTY_ACTION_LABEL = 'Paste list';
 /** Debounce (ms) before a raw-text edit reconciles into the intake rows. */
 export const INTAKE_RECONCILE_DEBOUNCE_MS = 600;
 /** Native folder-picker dialog title for a per-anime download folder override. */

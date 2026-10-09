@@ -1,7 +1,14 @@
 import { Alert, Button, Card, Chip } from '@heroui/react';
+import seasonAirisArtwork from '../../../../assets/airis-empty-states/season.webp';
+import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
 import { RateAnimeModal } from '../RateAnimeModal/RateAnimeModal';
 import { SeasonCoverThumb } from '../SeasonCoverThumb/SeasonCoverThumb';
-import { EVALUATION_EMPTY_MESSAGE } from './evaluation-panel.constants';
+import {
+  EVALUATION_EMPTY_ACTION_LABEL,
+  EVALUATION_EMPTY_DESCRIPTION,
+  EVALUATION_EMPTY_TITLE,
+} from './evaluation-panel.constants';
+import type { EvaluationPanelProps } from './evaluation-panel.types';
 import { useEvaluationPanel } from './use-evaluation-panel';
 
 /**
@@ -12,7 +19,7 @@ import { useEvaluationPanel } from './use-evaluation-panel';
  * RateAnimeModal (same component the Episodes card uses). All Wails I/O and
  * state live in the colocated `useEvaluationPanel` hook.
  */
-export function EvaluationPanel() {
+export function EvaluationPanel({ onNavigate }: Readonly<EvaluationPanelProps>) {
   const { readOnly, items, ungradedCount, errorMessage, onSkip, getCoverThumb } = useEvaluationPanel();
 
   return (
@@ -35,9 +42,14 @@ export function EvaluationPanel() {
         </Alert>
       )}
 
-      {items.length === 0 ? (
-        <p className="text-sm text-muted">{EVALUATION_EMPTY_MESSAGE}</p>
-      ) : (
+      {items.length === 0 && errorMessage === undefined ? (
+        <AirisEmptyState
+          action={{ label: EVALUATION_EMPTY_ACTION_LABEL, onPress: () => onNavigate('intake') }}
+          description={EVALUATION_EMPTY_DESCRIPTION}
+          imageSrc={seasonAirisArtwork}
+          title={EVALUATION_EMPTY_TITLE}
+        />
+      ) : items.length > 0 ? (
         <Card>
           <Card.Content>
             <ul aria-label="Candidates" className="flex flex-col divide-y divide-separator">
@@ -74,7 +86,7 @@ export function EvaluationPanel() {
             </ul>
           </Card.Content>
         </Card>
-      )}
+      ) : null}
     </section>
   );
 }

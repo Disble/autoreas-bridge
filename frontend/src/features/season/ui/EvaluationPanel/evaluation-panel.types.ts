@@ -1,3 +1,11 @@
+import type { SeasonSectionId } from '../SeasonWorkspace/season-workspace.types';
+
+/** Props for the Evaluation panel's cross-section recovery action. */
+export interface EvaluationPanelProps {
+  /** Navigates to another season workflow section. */
+  readonly onNavigate: (section: SeasonSectionId) => void;
+}
+
 /** One created season candidate as shown in the Evaluation progress list. */
 export interface EvaluationRow {
   /** The season_anime row id (skip grading targets the row). */

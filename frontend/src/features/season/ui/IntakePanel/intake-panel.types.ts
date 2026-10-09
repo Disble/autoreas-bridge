@@ -117,3 +117,34 @@ export interface IntakeRowMoreMenuProps {
   /** Discards the row's name from the intake list. */
   readonly onDiscard: () => void;
 }
+
+/**
+ * Props for the intake card body: the raw textarea, the empty state, or the row
+ * list, chosen from the mode and the rows. Every per-row callback takes the row id
+ * so the body binds it to each row.
+ */
+export interface IntakePanelBodyProps {
+  readonly mode: IntakeMode;
+  readonly readOnly: boolean;
+  readonly rawDraft: string;
+  readonly editableRows: readonly SeasonAnimeRow[];
+  /** The load/action error; with it present the empty state is withheld. */
+  readonly errorMessage: string | undefined;
+  readonly selected: ReadonlySet<string>;
+  readonly folderOverrides: Readonly<Record<string, string | undefined>>;
+  readonly folderPreviews: Readonly<Record<string, string | undefined>>;
+  readonly metadataByRow: Readonly<Record<string, IntakeMetadataPatch | undefined>>;
+  readonly appliedMetadataByRow: Readonly<Record<string, IntakeAppliedMetadata | undefined>>;
+  readonly metadataLookupSource: AnimeMetadataLookupSource;
+  /** Switches between Raw and List; the empty state's action opens Raw. */
+  readonly switchMode: (mode: IntakeMode) => void;
+  readonly onRawChange: (value: string) => void;
+  readonly toggleSelect: (rowId: string) => void;
+  readonly onPickFolder: (rowId: string) => void;
+  readonly onDiscard: (rowId: string) => void;
+  readonly onResolve: (rowId: string, pageUrl: string) => void;
+  readonly onOpenPage: (pageUrl: string) => void;
+  readonly onMetadataApplied: (rowId: string, selection: AnimeMetadataSelection) => void;
+  readonly onMetadataUndo: (rowId: string) => void;
+  readonly onMetadataClear: (rowId: string) => void;
+}

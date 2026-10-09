@@ -153,11 +153,11 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
             </Tabs.Panel>
 
             <Tabs.Panel id="evaluation">
-              <EvaluationPanel />
+              <EvaluationPanel onNavigate={selectTab} />
             </Tabs.Panel>
 
             <Tabs.Panel id="selection">
-              <SelectionBoard />
+              <SelectionBoard onNavigate={selectTab} />
             </Tabs.Panel>
 
             <Tabs.Panel id="ordering">

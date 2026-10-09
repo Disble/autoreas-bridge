@@ -1,8 +1,11 @@
 import { Alert, Button, Card, Chip, Modal } from '@heroui/react';
-import { MAX_GRADE, MIN_GRADE, SELECTION_EMPTY_MESSAGE } from './selection-board.constants';
+import seasonAirisArtwork from '../../../../assets/airis-empty-states/season.webp';
+import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
+import { MAX_GRADE, MIN_GRADE, SELECTION_EMPTY_ACTION_LABEL, SELECTION_EMPTY_DESCRIPTION, SELECTION_EMPTY_TITLE } from './selection-board.constants';
 import { formatSelectionConfirmedLabel, getQuotaColor } from './selection-board.helpers';
 import { SelectionCandidateRow } from './SelectionCandidateRow';
 import { useSelectionBoard } from './use-selection-board';
+import type { SelectionBoardProps } from './selection-board.types';
 
 /**
  * SelectionBoard is the native replacement for the 10-year selection Excel: a
@@ -12,7 +15,7 @@ import { useSelectionBoard } from './use-selection-board';
  * I/O, state, and derivation live in the colocated `useSelectionBoard` hook and
  * pure helpers.
  */
-export function SelectionBoard() {
+export function SelectionBoard({ onNavigate }: Readonly<SelectionBoardProps>) {
   const {
     readOnly,
     minApprovalGrade,
@@ -138,10 +141,15 @@ export function SelectionBoard() {
         </Card.Content>
       </Card>
 
-      {rows.length === 0 ? (
-        <p className="text-sm text-muted">{SELECTION_EMPTY_MESSAGE}</p>
-      ) : (
-        <Card>
+      {rows.length === 0 && errorMessage === undefined ? (
+        <AirisEmptyState
+          action={{ label: SELECTION_EMPTY_ACTION_LABEL, onPress: () => onNavigate('evaluation') }}
+          description={SELECTION_EMPTY_DESCRIPTION}
+          imageSrc={seasonAirisArtwork}
+          title={SELECTION_EMPTY_TITLE}
+        />
+      ) : rows.length > 0 ? (
+        <Card aria-label="Selection candidates" role="region">
           <Card.Content className="flex flex-col gap-2">
             {groups.map((group) => (
               <div key={group.verdict} className="flex flex-col">
@@ -167,7 +175,7 @@ export function SelectionBoard() {
             ))}
           </Card.Content>
         </Card>
-      )}
+      ) : null}
     </section>
   );
 }

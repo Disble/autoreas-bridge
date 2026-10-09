@@ -1,6 +1,5 @@
-import { Alert, Button, Card, Label, TextArea, TextField } from '@heroui/react';
-import { IntakeRow } from './IntakeRow';
-import { INTAKE_EMPTY_MESSAGE, INTAKE_PASTE_PLACEHOLDER } from './intake-panel.constants';
+import { Alert, Button, Card } from '@heroui/react';
+import { IntakePanelBody } from './IntakePanelBody';
 import { useIntakePanel } from './use-intake-panel';
 
 /**
@@ -80,37 +79,29 @@ export function IntakePanel() {
             )}
           </div>
 
-          {mode === 'raw' ? (
-            <TextField value={rawDraft} onChange={onRawChange}>
-              <Label className="sr-only">Intake names</Label>
-              <TextArea placeholder={INTAKE_PASTE_PLACEHOLDER} rows={8} />
-            </TextField>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {editableRows.length === 0 && <li className="text-sm text-muted">{INTAKE_EMPTY_MESSAGE}</li>}
-              {editableRows.map((row) => (
-                <IntakeRow
-                  key={row.id}
-                  appliedMetadata={appliedMetadataByRow[row.id]}
-                  heldMetadata={metadataByRow[row.id]}
-                  folderOverride={folderOverrides[row.id]}
-                  folderPreview={folderPreviews[row.id]}
-                  isSelected={selected.has(row.id)}
-                  metadataLookupSource={metadataLookupSource}
-                  readOnly={readOnly}
-                  row={row}
-                  onDiscard={() => onDiscard(row.id)}
-                  onMetadataApplied={(selection) => onMetadataApplied(row.id, selection)}
-                  onMetadataUndo={() => onMetadataUndo(row.id)}
-                  onMetadataClear={() => onMetadataClear(row.id)}
-                  onOpenPage={onOpenPage}
-                  onPickFolder={() => onPickFolder(row.id)}
-                  onResolve={(pageUrl) => onResolve(row.id, pageUrl)}
-                  onToggleSelect={() => toggleSelect(row.id)}
-                />
-              ))}
-            </ul>
-          )}
+          <IntakePanelBody
+            appliedMetadataByRow={appliedMetadataByRow}
+            editableRows={editableRows}
+            errorMessage={errorMessage}
+            folderOverrides={folderOverrides}
+            folderPreviews={folderPreviews}
+            metadataByRow={metadataByRow}
+            metadataLookupSource={metadataLookupSource}
+            mode={mode}
+            rawDraft={rawDraft}
+            readOnly={readOnly}
+            selected={selected}
+            switchMode={switchMode}
+            toggleSelect={toggleSelect}
+            onDiscard={onDiscard}
+            onMetadataApplied={onMetadataApplied}
+            onMetadataClear={onMetadataClear}
+            onMetadataUndo={onMetadataUndo}
+            onOpenPage={onOpenPage}
+            onPickFolder={onPickFolder}
+            onRawChange={onRawChange}
+            onResolve={onResolve}
+          />
 
           <div className="mt-3 flex flex-wrap items-center gap-3">
             {!readOnly && (
@@ -132,9 +123,11 @@ export function IntakePanel() {
                 )}
               </>
             )}
-            <span className="text-sm text-muted">
-              {unresolvedCount} unresolved · {availabilityPendingCount} waiting · {availableCount} available to create
-            </span>
+            {editableRows.length > 0 && (
+              <span className="text-sm text-muted">
+                {unresolvedCount} unresolved · {availabilityPendingCount} waiting · {availableCount} available to create
+              </span>
+            )}
           </div>
         </Card.Content>
       </Card>
