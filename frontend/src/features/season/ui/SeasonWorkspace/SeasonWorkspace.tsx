@@ -168,7 +168,7 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
               <div className="flex flex-col gap-4">
                 {!readOnly && <SeasonOverviewCard overview={overview} onCloseSeason={onCloseSeason} />}
 
-                <OverviewPanel />
+                <OverviewPanel onNavigate={selectTab} />
               </div>
             </Tabs.Panel>
           </Tabs>

@@ -35,7 +35,9 @@ vi.mock('../../OrderingBoard/OrderingBoard', () => ({
 }));
 
 vi.mock('../../OverviewPanel/OverviewPanel', () => ({
-  OverviewPanel: () => <div>overview panel</div>,
+  OverviewPanel: (props: { readonly onNavigate: (section: string) => void }) => (
+    <button onClick={() => props.onNavigate('intake')}>overview panel</button>
+  ),
 }));
 
 /** Mocked hook each case drives to one workspace state. */
@@ -132,12 +134,18 @@ describe('SeasonWorkspace', () => {
     expect(selectTab).toHaveBeenCalledWith('evaluation');
   });
 
-  it('passes the hook tab selector to Evaluation, Selection and Ordering navigation actions', () => {
+  it('passes the hook tab selector to Overview, Evaluation, Selection and Ordering navigation actions', () => {
     const selectTab = vi.fn();
-    mockHook({ ...OPEN_SEASON, activeTab: 'evaluation', selectTab });
+    mockHook({ ...OPEN_SEASON, activeTab: 'overview', selectTab });
     const { rerender } = render(<SeasonWorkspace />);
-    fireEvent.click(screen.getByRole('button', { name: 'evaluation panel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'overview panel' }));
     expect(selectTab).toHaveBeenCalledWith('intake');
+
+    mockHook({ ...OPEN_SEASON, activeTab: 'evaluation', selectTab });
+    rerender(<SeasonWorkspace />);
+    fireEvent.click(screen.getByRole('button', { name: 'evaluation panel' }));
+    expect(selectTab).toHaveBeenCalledTimes(2);
+    expect(selectTab).toHaveBeenLastCalledWith('intake');
 
     mockHook({ ...OPEN_SEASON, activeTab: 'selection', selectTab });
     rerender(<SeasonWorkspace />);

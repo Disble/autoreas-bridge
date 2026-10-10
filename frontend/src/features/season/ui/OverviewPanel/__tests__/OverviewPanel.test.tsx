@@ -1,6 +1,7 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { IntakeHealthChart } from '../IntakeHealthChart';
 import type { OverviewPanelViewModel } from '../overview-panel.types';
 import { OverviewPanel } from '../OverviewPanel';
 import { useOverviewPanel } from '../use-overview-panel';
@@ -56,10 +57,13 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
   return value;
 }
 
-/** Renders the panel under the stubbed hook. */
-function renderPanel() {
-  return render(<OverviewPanel />);
+/** Renders the panel under the stubbed hook, with a spy for the empty-state navigation. */
+function renderPanel(onNavigate = vi.fn()) {
+  return render(<OverviewPanel onNavigate={onNavigate} />);
 }
+
+/** The empty state's title, shown when the season has no intake rows. */
+const EMPTY_TITLE = 'This season has no animes yet';
 
 describe('OverviewPanel', () => {
   afterEach(() => {
@@ -82,6 +86,7 @@ describe('OverviewPanel', () => {
     expect(screen.getAllByTestId('nivo-bar')).toHaveLength(4);
     expect(screen.getByTestId('watching-pipeline-chart')).toBeInTheDocument();
     expect(screen.queryByText('final lineup')).toBeNull();
+    expect(screen.queryByText(EMPTY_TITLE)).toBeNull();
   });
 
   it('shows the pipeline empty state instead of a chart when hasCreated is false', () => {
@@ -99,9 +104,8 @@ describe('OverviewPanel', () => {
   });
 
   it('shows the intake health empty state instead of a chart when hasIntake is false', () => {
-    mockHook({ hasIntake: false, intakeHealth: [] });
-    renderPanel();
-    expect(screen.getAllByTestId('nivo-bar')).toHaveLength(3);
+    render(<IntakeHealthChart data={[]} hasIntake={false} keys={[]} />);
+    expect(screen.queryAllByTestId('nivo-bar')).toHaveLength(0);
     expect(screen.getByText(/No intake rows yet/)).toBeInTheDocument();
   });
 
@@ -158,6 +162,50 @@ describe('OverviewPanel', () => {
     expect(screen.queryByText('Watching pipeline')).toBeNull();
     expect(screen.queryByText('Intake health')).toBeNull();
     expect(screen.queryByText('Intake rows total')).toBeNull();
+  });
+
+  it('shows one empty state instead of the KPIs, charts and lineup when the season has no intake rows', () => {
+    const onNavigate = vi.fn();
+    mockHook({ hasIntake: false });
+    renderPanel(onNavigate);
+
+    expect(screen.getByText(EMPTY_TITLE)).toBeInTheDocument();
+    expect(screen.getByText('Paste the season list in Intake to start. The overview fills in as you evaluate, select and order.')).toBeInTheDocument();
+    expect(screen.queryByText('Intake rows total')).toBeNull();
+    expect(screen.queryAllByTestId('nivo-bar')).toHaveLength(0);
+    expect(screen.queryByText('Grade histogram')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start with Intake' }));
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+    expect(onNavigate).toHaveBeenCalledWith('intake');
+  });
+
+  it('shows a closed season with no intake rows the empty state without an action, funnel or lineup', () => {
+    mockHook({ hasIntake: false, readOnly: true });
+    renderPanel();
+
+    expect(screen.getByText(EMPTY_TITLE)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Start with Intake' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Season outcome' })).toBeNull();
+    expect(screen.queryByText('final lineup')).toBeNull();
+  });
+
+  it('shows only the error alert, with no empty state or charts, when the read failed and there are no intake rows', () => {
+    mockHook({ hasIntake: false, errorMessage: 'season read failed' });
+    renderPanel();
+
+    expect(screen.getByText('season read failed')).toBeInTheDocument();
+    expect(screen.queryByText(EMPTY_TITLE)).toBeNull();
+    expect(screen.queryAllByTestId('nivo-bar')).toHaveLength(0);
+  });
+
+  it('keeps the charts under the error alert when intake rows are loaded', () => {
+    mockHook({ errorMessage: 'season read failed' });
+    renderPanel();
+
+    expect(screen.getByText('season read failed')).toBeInTheDocument();
+    expect(screen.queryByText(EMPTY_TITLE)).toBeNull();
+    expect(screen.getAllByTestId('nivo-bar')).toHaveLength(4);
   });
 
   it('keeps the open season free of the closed-season funnel', () => {

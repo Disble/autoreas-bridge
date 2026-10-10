@@ -1,44 +1,29 @@
-import { Alert, Card } from '@heroui/react';
-import { GradeHistogramChart } from './GradeHistogramChart';
-import { IntakeHealthChart } from './IntakeHealthChart';
-import { OverviewFinalLineup } from './OverviewFinalLineup';
-import { OverviewKpiRow } from './OverviewKpiRow';
-import { OverviewOutcomeFunnel } from './OverviewOutcomeFunnel';
-import { SELECTION_OUTCOME_CARD_DESCRIPTION } from './overview-panel.constants';
-import { SelectionOutcomeChart } from './SelectionOutcomeChart';
+import { Alert } from '@heroui/react';
+import seasonAirisArtwork from '../../../../assets/airis-empty-states/season.webp';
+import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
+import { OverviewCharts } from './OverviewCharts';
+import {
+  OVERVIEW_EMPTY_ACTION_LABEL,
+  OVERVIEW_EMPTY_DESCRIPTION,
+  OVERVIEW_EMPTY_TITLE,
+} from './overview-panel.constants';
+import type { OverviewPanelProps } from './overview-panel.types';
 import { useOverviewPanel } from './use-overview-panel';
-import { WatchingPipelineChart } from './WatchingPipelineChart';
 
 /**
- * OverviewPanel is the Season Workspace Overview tab, and it answers a
- * different question per season state. An open season answers "how am I
- * doing": four KPI stat tiles plus the watching-pipeline, intake-health,
- * grade-histogram and selection-outcome charts. A closed season answers "what
- * came out of it": the outcome funnel, the grade histogram, the selection
- * outcome and the final lineup the season recorded; the live watching
- * pipeline, intake health and KPI tiles are omitted. Dumb composition only —
+ * OverviewPanel is the Season Workspace Overview tab. A season with no intake
+ * rows shows one Airis empty state in place of the KPIs, charts and lineup;
+ * its Intake action is offered only while the season is open, since a closed
+ * season has nothing to start. Once rows exist, OverviewCharts answers a
+ * different question per season state (how am I doing / what came out of it).
+ * A store error renders alone when there is nothing loaded, and above the
+ * charts when it is an action error over loaded data. Dumb composition only —
  * all Wails I/O, aggregation, and refetch orchestration live in the hooks and
  * helpers. Display-only by construction (no mutating control).
  */
-export function OverviewPanel() {
-  const {
-    errorMessage,
-    readOnly,
-    kpi,
-    outcomeSteps,
-    outcomeMeta,
-    pipeline,
-    pipelineKeys,
-    intakeHealth,
-    intakeHealthKeys,
-    gradeHistogram,
-    minApprovalGrade,
-    selectionOutcome,
-    selectionOutcomeKeys,
-    hasCreated,
-    hasIntake,
-    hasGrades,
-  } = useOverviewPanel();
+export function OverviewPanel({ onNavigate }: Readonly<OverviewPanelProps>) {
+  const { errorMessage, ...overview } = useOverviewPanel();
+  const { readOnly, hasIntake } = overview;
 
   return (
     <section className="flex flex-col gap-6">
@@ -50,52 +35,16 @@ export function OverviewPanel() {
         </Alert>
       )}
 
-      {readOnly ? <OverviewOutcomeFunnel meta={outcomeMeta} steps={outcomeSteps} /> : <OverviewKpiRow kpi={kpi} />}
+      {hasIntake ? <OverviewCharts {...overview} /> : null}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {readOnly ? null : (
-          <Card>
-            <Card.Header>
-              <Card.Title>Watching pipeline</Card.Title>
-            </Card.Header>
-            <Card.Content>
-              <WatchingPipelineChart data={pipeline} hasCreated={hasCreated} keys={pipelineKeys} />
-            </Card.Content>
-          </Card>
-        )}
-
-        {readOnly ? null : (
-          <Card>
-            <Card.Header>
-              <Card.Title>Intake health</Card.Title>
-            </Card.Header>
-            <Card.Content>
-              <IntakeHealthChart data={intakeHealth} hasIntake={hasIntake} keys={intakeHealthKeys} />
-            </Card.Content>
-          </Card>
-        )}
-
-        <Card>
-          <Card.Header>
-            <Card.Title>Grade histogram</Card.Title>
-          </Card.Header>
-          <Card.Content>
-            <GradeHistogramChart data={gradeHistogram} hasGrades={hasGrades} minApprovalGrade={minApprovalGrade} />
-          </Card.Content>
-        </Card>
-
-        <Card>
-          <Card.Header>
-            <Card.Title>Selection outcome</Card.Title>
-            <Card.Description>{SELECTION_OUTCOME_CARD_DESCRIPTION}</Card.Description>
-          </Card.Header>
-          <Card.Content>
-            <SelectionOutcomeChart data={selectionOutcome} hasCreated={hasCreated} keys={selectionOutcomeKeys} />
-          </Card.Content>
-        </Card>
-      </div>
-
-      {readOnly ? <OverviewFinalLineup /> : null}
+      {!hasIntake && errorMessage === undefined && (
+        <AirisEmptyState
+          action={readOnly ? undefined : { label: OVERVIEW_EMPTY_ACTION_LABEL, onPress: () => onNavigate('intake') }}
+          description={OVERVIEW_EMPTY_DESCRIPTION}
+          imageSrc={seasonAirisArtwork}
+          title={OVERVIEW_EMPTY_TITLE}
+        />
+      )}
     </section>
   );
 }

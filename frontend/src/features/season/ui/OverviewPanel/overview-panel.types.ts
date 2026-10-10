@@ -1,4 +1,5 @@
 import type { OrderingCard } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonSectionId } from '../SeasonWorkspace/season-workspace.types';
 
 /** The four KPI stat-tile values derived from the season's intake rows. */
 export interface OverviewKpiSummary {
@@ -240,4 +241,20 @@ export interface GradeBandScale {
   readonly bandwidth: () => number;
   /** Rules out a callable scale, so only the band surface matches. */
   readonly call?: never;
+}
+
+/** Props for the Overview panel's cross-section recovery action. */
+export interface OverviewPanelProps {
+  /** Navigates to another season workflow section. */
+  readonly onNavigate: (section: SeasonSectionId) => void;
+}
+
+/** Props for the KPI/funnel, chart cards and final lineup shown once the season has intake rows. */
+export interface OverviewChartsProps extends OverviewPanelViewModel {
+  /** True for a closed season: funnel, outcome charts and the recorded lineup instead of the live tiles. */
+  readonly readOnly: boolean;
+  /** The closed season's outcome funnel steps. */
+  readonly outcomeSteps: readonly OutcomeFunnelStep[];
+  /** The muted line under the closed season's funnel. */
+  readonly outcomeMeta: string;
 }

@@ -162,3 +162,13 @@ export const NIVO_THEME = {
 
 /** The lineup read before it settles for the viewed season. */
 export const OVERVIEW_LINEUP_LOADING_STATE: OverviewLineupState = { status: 'loading' };
+
+/** Title of the Overview empty state shown while the season has no intake rows. */
+export const OVERVIEW_EMPTY_TITLE = 'This season has no animes yet';
+
+/** Guidance of the Overview empty state: where the season list comes from and what fills the overview. */
+export const OVERVIEW_EMPTY_DESCRIPTION =
+  'Paste the season list in Intake to start. The overview fills in as you evaluate, select and order.';
+
+/** Label of the Overview empty state's action, which opens the Intake section. */
+export const OVERVIEW_EMPTY_ACTION_LABEL = 'Start with Intake';
