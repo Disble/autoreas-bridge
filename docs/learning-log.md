@@ -281,3 +281,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-10-09]: Airis WebP conversion can pass check:airis-assets yet leave the background at alpha 1-39 (a faint square on light surfaces); scale to PNG first, encode with libwebp -quality 90, and verify the background alpha is 0.
 - [2026-10-10]: Ordering empty-state guards must read global season-store errors: null means intentionally no empty content, while undefined preserves the plain-text fallback; keep populated cards during errors.
 - [2026-10-10]: Six Ordering useCallback dependency-array mutants are proven equivalent and carry narrow Stryker ArrayDeclaration annotations under explicit user authorization; the store-driven metadata memo stays enforced with a mounted refresh test.
+- [2026-10-10]: Nullable Wails DTO timestamps without omitempty arrive as null; missing confirmation guards must handle null as well as undefined and zero.

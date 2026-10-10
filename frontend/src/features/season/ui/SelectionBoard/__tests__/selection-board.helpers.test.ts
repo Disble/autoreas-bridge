@@ -25,9 +25,8 @@ describe('formatConfirmSuccess', () => {
 });
 
 describe('formatSelectionConfirmedLabel', () => {
-  it('reports "Not confirmed yet" when the milestone was never stamped', () => {
-    expect(formatSelectionConfirmedLabel(undefined)).toBe('Not confirmed yet');
-    expect(formatSelectionConfirmedLabel(0)).toBe('Not confirmed yet');
+  it.each([undefined, null, 0])('reports "Not confirmed yet" when the milestone is absent (%s)', (absent) => {
+    expect(formatSelectionConfirmedLabel(absent)).toBe('Not confirmed yet');
   });
 
   it('reports a localized "Confirmed <time>" label when the milestone exists', () => {

@@ -7,7 +7,8 @@ export interface SeasonSnapshot {
   readonly minApprovalGrade: number;
   readonly slots: number;
   readonly status: string;
-  readonly selectionConfirmedAt?: number;
+  /** Confirmation time in epoch ms; Wails sends the nullable Go `*int64` as `null` when never confirmed. */
+  readonly selectionConfirmedAt?: number | null;
   readonly appliedAt?: number;
   readonly closedAt?: number;
   readonly createdAt: number;

@@ -108,11 +108,12 @@ export function formatConfirmSuccess(approved: number, rejected: number): string
 
 /**
  * formatSelectionConfirmedLabel builds the persistent header label showing whether
- * the current selection has ever been confirmed, and when. `undefined`/`0` means the
- * milestone was never stamped for this season.
+ * the current selection has ever been confirmed, and when. `undefined`/`null`/`0` means
+ * the milestone was never stamped for this season (Wails sends the nullable Go
+ * `*int64` as `null`).
  */
-export function formatSelectionConfirmedLabel(confirmedAtMs?: number): string {
-  if (confirmedAtMs === undefined || confirmedAtMs === 0) {
+export function formatSelectionConfirmedLabel(confirmedAtMs?: number | null): string {
+  if (confirmedAtMs === undefined || confirmedAtMs === null || confirmedAtMs === 0) {
     return 'Not confirmed yet';
   }
   return `Confirmed ${new Date(confirmedAtMs).toLocaleString()}`;

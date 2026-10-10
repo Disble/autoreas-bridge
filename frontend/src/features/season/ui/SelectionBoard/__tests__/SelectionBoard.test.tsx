@@ -134,10 +134,12 @@ describe('SelectionBoard', () => {
     expect(screen.getByText('9 / 12 approved')).toBeInTheDocument();
   });
 
-  it('shows "Not confirmed yet" when the selection was never confirmed', () => {
-    mockHook({ rows: [selRow()], approvedCount: 1, selectionConfirmedAt: undefined });
+  it.each([undefined, null, 0])('shows "Not confirmed yet" without a date when the confirmation is absent (%s)', (absent) => {
+    mockHook({ rows: [selRow()], approvedCount: 1, selectionConfirmedAt: absent });
     render(<SelectionBoard onNavigate={vi.fn()} />);
     expect(screen.getByText('Not confirmed yet')).toBeInTheDocument();
+    expect(screen.queryByText(/^Confirmed /)).not.toBeInTheDocument();
+    expect(screen.getByText('Not confirmed yet').closest('.chip')).toHaveClass('chip--default');
   });
 
   it('shows the persistent confirmed-at label when the milestone exists', () => {
@@ -145,6 +147,7 @@ describe('SelectionBoard', () => {
     mockHook({ rows: [selRow()], approvedCount: 1, selectionConfirmedAt: ms });
     render(<SelectionBoard onNavigate={vi.fn()} />);
     expect(screen.getByText(`Confirmed ${new Date(ms).toLocaleString()}`)).toBeInTheDocument();
+    expect(screen.getByText(`Confirmed ${new Date(ms).toLocaleString()}`).closest('.chip')).toHaveClass('chip--success');
   });
 
   it.each([
