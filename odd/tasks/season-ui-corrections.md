@@ -58,5 +58,7 @@ All functional checks already passed on the full candidate; per-slice normal hoo
 
 - SUI-2 (+Overview SUI-5a refactor): `cda2c21` — `fix(season): keep the Overview metadata card content-sized`. Normal pre-commit PASS (130s), including actual staged dharness, frontend test/typecheck/lint/layout/render; mutation job found0eligiblemutants in CSS-only production change. Real browser geometry remains its behavior guard. Five paths, final fixture + exact registration slice + flex-axis lesson and record.
 
+- SUI-3 (+Raw SUI-5a refactor): `faedecc` — `fix(season): give Raw intake an accessible dashed border`. Normal pre-commit PASS (131s), including staged dharness, frontend test/typecheck/lint/layout/render; mutation job found0eligiblemutants in CSS-only production change. Both-theme3:1 browser guards passed. Five paths, final fixture + registration + field-boundary lesson and record.
+
 ## Next step
-Commit Intake and Ordering with their fixtures/registration/docs through normal hooks, then confirm committed frontend bytes equal the independently verified candidate. Do not push or merge.
+Commit Ordering with its real grid/fixture/tests/registration/docs through normal hooks, then confirm committed frontend bytes equal the independently verified candidate and record final hashes. Do not push or merge.

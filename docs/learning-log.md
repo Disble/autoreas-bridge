@@ -284,3 +284,5 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-10-10]: Nullable Wails DTO timestamps without omitempty arrive as null; missing confirmation guards must handle null as well as undefined and zero.
 - [2026-10-10]: HeroUI Card.Content defaults to flex-col: horizontal basis utilities become heights unless flex-row is explicit; prove sizing with real dt/dd browser measurements.
 - [2026-10-10]: HeroUI textarea border defaults to zero/transparent; set explicit semantic border width/style and verify computed resize and focus ring after utility overrides.
+- [2026-10-10]: Use available-container-width auto-fit tracks with min(100%, minimum) for responsive ordering; guard card/lane comfort and containment, because wrapping-count checks can pass vacuously.
+- [2026-10-10]: A visible textarea edit-region border must meet 3:1 identification contrast in both themes; a permissive smoke floor is not accessibility evidence.

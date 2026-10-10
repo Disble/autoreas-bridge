@@ -7,6 +7,7 @@ import { ActivityDetailFixture } from './activity-detail-fixture';
 import { AirisEmptyStatesFixture } from './airis-empty-states-fixture';
 import { LoadingSkeletonsFixture } from './loading-skeletons-fixture';
 import { SeasonIntakeRawFixture } from './season-intake-raw-fixture';
+import { SeasonOrderingFixture } from './season-ordering-fixture';
 import { SeasonOverviewFixture } from './season-overview-fixture';
 import { checkThePage, measureWhenReady, VerdictReport, type Check } from './verdict';
 import '../../src/style.css';
@@ -236,6 +237,7 @@ function LayoutFixtures() {
       <ActivityDetailFixture />
       <AirisEmptyStatesFixture />
       <LoadingSkeletonsFixture />
+      <SeasonOrderingFixture />
       <SeasonOverviewFixture />
       <SeasonIntakeRawFixture />
     </>

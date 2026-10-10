@@ -5,6 +5,7 @@ import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmpt
 import { OrderingHistoryStates } from './OrderingHistoryStates';
 import { OrderingLane } from './OrderingLane';
 import { OrderingReadOnlyNotice } from './OrderingReadOnlyNotice';
+import { OrderingWeekdayGrid } from './OrderingWeekdayGrid';
 import {
   ORDERING_EMPTY_ACTION_LABEL,
   ORDERING_EMPTY_DESCRIPTION,
@@ -12,16 +13,14 @@ import {
   ORDERING_EMPTY_TITLE,
   ORDERING_RAIL_LABEL,
   RAIL_CONTAINER_ID,
-  WEEKDAYS,
 } from './ordering-board.constants';
 import { useOrderingBoard } from './use-ordering-board';
 import type { OrderingBoardProps } from './ordering-board.types';
-import { ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.constants';
 
 /**
  * OrderingBoard is the OrderGrid replacement, built on @dnd-kit/react: seven weekday
- * columns in one full-width row, each headed outside its drop zone, with the rail of
- * approved animes awaiting a weekday below them. Dragging a card sets
+ * lanes in a grid that wraps to the room the container leaves, each headed outside its drop
+ * zone, with the rail of approved animes awaiting a weekday below them. Dragging a card sets
  * BOTH its day and its order (keyboard-accessible, animated, live reshuffle). An anime
  * can air on several days: Duplicate stages a logical copy (same anime, never a second
  * DB row) to drag onto another day; Delete removes a copy but never the last; no two
@@ -126,22 +125,7 @@ export function OrderingBoard({ onNavigate }: Readonly<OrderingBoardProps>) {
           </Alert>
         )}
 
-        <div className="overflow-x-auto pb-1">
-          <div className="grid grid-cols-[repeat(7,minmax(8.5rem,1fr))] gap-2">
-            {WEEKDAYS.map((day) => (
-              <OrderingLane
-                key={day}
-                containerId={day}
-                label={day}
-                listClassName="flex flex-col gap-1.5"
-                emptyMessage={ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE}
-                showNewcomerTag
-                cards={columns[day] ?? []}
-                {...containerActions}
-              />
-            ))}
-          </div>
-        </div>
+        <OrderingWeekdayGrid columns={columns} {...containerActions} />
 
         <div className="max-w-xl">
           <OrderingLane
