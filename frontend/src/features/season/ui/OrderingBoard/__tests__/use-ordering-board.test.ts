@@ -1,77 +1,11 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { DragOverEvent } from '@dnd-kit/react';
 
-import type { OrderingBoard, OrderingCard, SeasonOrderingSnapshot, SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
+import type { OrderingBoard, SeasonOrderingSnapshot, SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
 import { resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
 import { ORDERING_AUTOSAVE_DEBOUNCE_MS, ORDERING_DUPLICATE_WEEKDAY_ERROR, ORDERING_HISTORY_LOAD_ERROR } from '../ordering-board.constants';
 import { useOrderingBoard } from '../use-ordering-board';
-
-/** Builds one ordering card with the fields this suite cares about. */
-function card(overrides: Partial<OrderingCard> = {}): OrderingCard {
-  return { animeId: 'a', name: 'A', dia: '', orden: 0, section: 'Visto', isNewcomer: false, ...overrides };
-}
-
-/** Builds a season source whose only board is the given live board, plus any case overrides. */
-function createSource(board: OrderingBoard, overrides: Partial<SeasonSource> = {}): SeasonSource {
-  return {
-    getSeason: vi.fn().mockResolvedValue(null),
-    createSeason: vi.fn().mockResolvedValue('ok'),
-    setMinApprovalGrade: vi.fn().mockResolvedValue('ok'),
-    setSlots: vi.fn().mockResolvedValue('ok'),
-    closeSeason: vi.fn().mockResolvedValue('ok'),
-    getSeasonAnimes: vi.fn().mockResolvedValue([]),
-    reconcileIntake: vi.fn().mockResolvedValue('ok'),
-    sendToVerHoy: vi.fn().mockResolvedValue({ status: 'ok', pastDownloadTime: false, downloadTime: '' }),
-    triggerSeasonDownloads: vi.fn().mockResolvedValue('ok'),
-    runMatching: vi.fn().mockResolvedValue('ok'),
-    resolveMatch: vi.fn().mockResolvedValue('ok'),
-    discardName: vi.fn().mockResolvedValue('ok'),
-    setAnimeDays: vi.fn().mockResolvedValue('ok'),
-    setGrade: vi.fn().mockResolvedValue('ok'),
-    skipGrading: vi.fn().mockResolvedValue('ok'),
-    setConsideration: vi.fn().mockResolvedValue('ok'),
-    confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 0, rejected: 0, quotaExceeded: false }),
-    setSeasonAnimeMetadata: vi.fn().mockResolvedValue('ok'),
-    createSeasonAnimes: vi.fn().mockResolvedValue('ok'),
-    pickFolder: vi.fn().mockResolvedValue(''),
-    listSeasons: vi.fn().mockResolvedValue([]),
-    getPastSeason: vi.fn().mockResolvedValue(null),
-    getPastSeasonAnimes: vi.fn().mockResolvedValue([]),
-    getOrderingBoard: vi.fn().mockResolvedValue(board),
-    saveOrderingDraft: vi.fn().mockResolvedValue('ok'),
-    applySchedule: vi.fn().mockResolvedValue({ status: 'ok', applied: 1, failed: [] }),
-    reopenOrdering: vi.fn().mockResolvedValue('ok'),
-    recheckAvailability: vi.fn().mockResolvedValue('ok'),
-    openPage: vi.fn(),
-    ...overrides,
-  };
-}
-
-/** Builds the drag-over event the hook's reshuffle callback receives. */
-function dragOverEvent(sourceId: string, targetId: string): DragOverEvent {
-  return {
-    preventDefault: vi.fn(),
-    operation: {
-      canceled: false,
-      source: {
-        id: sourceId,
-        manager: {
-          dragOperation: {
-            shape: null,
-            position: { current: { y: 0 } },
-          },
-        },
-      },
-      target: { id: targetId },
-    },
-  } as unknown as DragOverEvent;
-}
-
-/** Builds a stored closure snapshot, recorded by default. */
-function snapshot(overrides: Partial<SeasonOrderingSnapshot> = {}): SeasonOrderingSnapshot {
-  return { recorded: true, rail: [], grid: [], ...overrides };
-}
+import { card, createSource, dragOverEvent, snapshot } from './ordering-board.test-support';
 
 describe('useOrderingBoard', () => {
   afterEach(() => {
@@ -91,6 +25,18 @@ describe('useOrderingBoard', () => {
     expect(result.current.columns['Jueves'].map((c) => c.animeId)).toEqual(['g']);
     expect(result.current.changeCount).toBe(0);
     expect(result.current.readOnly).toBe(false);
+  });
+
+  it.each([
+    ['exposes the season store error message', 'animes failed to load', 'animes failed to load'],
+    ['leaves it undefined when the store holds no error', undefined, undefined],
+  ])('%s', async (_name, errorMessage, expected) => {
+    setSeasonStoreState({ errorMessage });
+    const source = createSource({ rail: [card({ animeId: 'r' })], grid: [] });
+    const { result } = renderHook(() => useOrderingBoard(source));
+
+    await waitFor(() => expect(result.current.rail).toHaveLength(1));
+    expect(result.current.errorMessage).toBe(expected);
   });
 
   it('reports the live board as recorded before AND after its read settles', async () => {

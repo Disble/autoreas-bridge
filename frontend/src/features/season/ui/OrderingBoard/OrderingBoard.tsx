@@ -49,6 +49,7 @@ export function OrderingBoard({ onNavigate }: Readonly<OrderingBoardProps>) {
     isHistoricalLoading,
     historicalRecorded,
     historicalError,
+    errorMessage,
     onDragOver,
     duplicate,
     removeCard,
@@ -81,6 +82,20 @@ export function OrderingBoard({ onNavigate }: Readonly<OrderingBoardProps>) {
     onOpenFolder,
     onCopyFolder,
   };
+
+  // A failed request shows the workspace Alert and never an empty state: `null` tells the
+  // container to render nothing for an empty rail, `undefined` keeps its plain message.
+  const liveRailEmptyState = (
+    <AirisEmptyState
+      action={{ label: ORDERING_EMPTY_ACTION_LABEL, onPress: () => onNavigate('selection') }}
+      description={ORDERING_EMPTY_DESCRIPTION}
+      imageSrc={seasonAirisArtwork}
+      size="compact"
+      title={ORDERING_EMPTY_TITLE}
+    />
+  );
+  const pastRailEmptyState = isPastSeason ? undefined : liveRailEmptyState;
+  const railEmptyState = errorMessage === undefined ? pastRailEmptyState : null;
 
   // Covers the read in flight, the read that failed, and the season that stored no
   // board; all three must keep the live/stored board off the screen.
@@ -134,17 +149,7 @@ export function OrderingBoard({ onNavigate }: Readonly<OrderingBoardProps>) {
             label={ORDERING_RAIL_LABEL}
             listClassName="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-1.5"
             emptyMessage={ORDERING_EMPTY_MESSAGE}
-            emptyState={
-              isPastSeason ? undefined : (
-                <AirisEmptyState
-                  action={{ label: ORDERING_EMPTY_ACTION_LABEL, onPress: () => onNavigate('selection') }}
-                  description={ORDERING_EMPTY_DESCRIPTION}
-                  imageSrc={seasonAirisArtwork}
-                  size="compact"
-                  title={ORDERING_EMPTY_TITLE}
-                />
-              )
-            }
+            emptyState={railEmptyState}
             showNewcomerTag={false}
             cards={rail}
             {...containerActions}

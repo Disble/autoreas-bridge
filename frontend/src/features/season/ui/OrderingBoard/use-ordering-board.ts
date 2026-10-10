@@ -1,34 +1,21 @@
 import type { DragOverEvent } from '@dnd-kit/react';
 import { move } from '@dnd-kit/helpers';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
+import { useCallback, useEffect } from 'react';
 import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
-import type { ApplyScheduleResult, OrderingBoard, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
-import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
-import { runDesktopAction } from '../SelectionBoard/selection-board.helpers';
-import {
-  EMPTY_ORDERING_BOARD,
-  ORDERING_AUTOSAVE_DEBOUNCE_MS,
-  ORDERING_DUPLICATE_WEEKDAY_ERROR,
-  ORDERING_HISTORY_LOAD_ERROR,
-  RAIL_CONTAINER_ID,
-  WEEKDAYS,
-} from './ordering-board.constants';
+import type { ApplyScheduleResult, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import { ORDERING_AUTOSAVE_DEBOUNCE_MS, ORDERING_DUPLICATE_WEEKDAY_ERROR } from './ordering-board.constants';
 import {
   applyOrder,
-  buildOrderingCardMeta,
-  cardCounts,
-  countChanges,
   duplicate as applyDuplicate,
   hasDuplicateWeekdayPlacements,
-  initialWorkingState,
-  instancesIn,
   removeCard as applyRemoveCard,
-  scheduledCount as computeScheduled,
   serializeDraft,
   shouldCancelForbiddenWeekdayHover,
 } from './ordering-board.helpers';
-import type { OrderingBoardOrigin, WorkingState } from './ordering-board.types';
+import { useOrderingBoardDerived } from './use-ordering-board-derived';
+import { useOrderingBoardDesktopActions } from './use-ordering-board-desktop-actions';
+import { useOrderingBoardLoad } from './use-ordering-board-load';
+import { useOrderingBoardStoreBindings } from './use-ordering-board-store-bindings';
 
 /**
  * useOrderingBoard drives the weekday scheduling board on @dnd-kit/react: it loads the
@@ -38,71 +25,25 @@ import type { OrderingBoardOrigin, WorkingState } from './ordering-board.types';
  * the schedule; Reopen makes an applied board editable again. All derivation is pure.
  */
 export function useOrderingBoard(source: SeasonSource = seasonSource) {
-  // 2. State
-  const [board, setBoard] = useState<OrderingBoard>(EMPTY_ORDERING_BOARD);
-  const [state, setState] = useState<WorkingState>({ order: {}, instances: {} });
-  const [origin, setOrigin] = useState<OrderingBoardOrigin>({ seasonId: null, recorded: true });
-  const [historicalError, setHistoricalError] = useState<string | undefined>(undefined);
-
   // 3. Context/3rd Party Hooks
-  const closeSeason = useSeasonStore((store) => store.closeSeason);
-  const isPastSeason = useSeasonStore((store) => store.readOnly);
-  const viewSeasonId = useSeasonStore((store) => store.viewSeasonId);
-  const seasonAnimes = useSeasonStore((store) => store.seasonAnimes);
-  const ensureAnimesLoaded = useSeasonStore((store) => store.ensureAnimesLoaded);
+  const {
+    closeSeason,
+    readOnly: isPastSeason,
+    viewSeasonId,
+    seasonAnimes,
+    ensureAnimesLoaded,
+    errorMessage,
+  } = useOrderingBoardStoreBindings();
+  const { board, state, setState, isHistoricalLoading, historicalRecorded, historicalError, load } = useOrderingBoardLoad({ source, viewSeasonId });
+  const { meta, rail, columns, counts, changeCount, scheduledCount, hasInvalidWeekdayPlacements } =
+    useOrderingBoardDerived({ board, state, seasonAnimes });
+  const desktopActions = useOrderingBoardDesktopActions();
 
-  // 5. Derived State (useMemo)
-  const meta = useMemo(() => buildOrderingCardMeta(seasonAnimes), [seasonAnimes]);
-  const rail = useMemo(() => instancesIn(state, RAIL_CONTAINER_ID), [state]);
-  const columns = useMemo(() => {
-    const grouped: Record<string, ReturnType<typeof instancesIn>> = {};
-    for (const day of WEEKDAYS) {
-      grouped[day] = instancesIn(state, day);
-    }
-    return grouped;
-  }, [state]);
-  const counts = useMemo(() => cardCounts(state), [state]);
-  const changeCount = useMemo(() => countChanges(board, state), [board, state]);
-  const scheduledCount = useMemo(() => computeScheduled(state), [state]);
-  const hasInvalidWeekdayPlacements = useMemo(() => hasDuplicateWeekdayPlacements(state), [state]);
+  // 5. Derived State
   // A past season (viewed from history) locks the board just like an applied one.
   const readOnly = typeof board.appliedAt === 'number' || isPastSeason;
-  // The stored board is unresolved until `origin` names the season being viewed,
-  // so a slow read can never show an empty rail/grid as if it were the record.
-  const isHistoricalLoading = viewSeasonId !== null && origin.seasonId !== viewSeasonId;
-  const historicalRecorded = origin.recorded;
 
   // 6. Callbacks
-  const load = useCallback(async () => {
-    if (viewSeasonId === null) {
-      const loaded = await source.getOrderingBoard();
-      setBoard(loaded);
-      setState(initialWorkingState(loaded));
-      setOrigin({ seasonId: null, recorded: true });
-      setHistoricalError(undefined);
-      return;
-    }
-    try {
-      if (source.getSeasonOrderingSnapshot === undefined) {
-        // A source that cannot read the stored board must not claim this season
-        // recorded nothing: an absent capability is an unavailable read, and the
-        // surface shows a failure instead of a historical statement it cannot make.
-        setOrigin({ seasonId: viewSeasonId, recorded: false });
-        setHistoricalError(ORDERING_HISTORY_LOAD_ERROR);
-        return;
-      }
-      const snapshot = await source.getSeasonOrderingSnapshot(viewSeasonId);
-      const stored: OrderingBoard = { rail: snapshot.rail, grid: snapshot.grid, appliedAt: snapshot.appliedAt };
-      setBoard(stored);
-      setState(initialWorkingState(stored));
-      setOrigin({ seasonId: viewSeasonId, recorded: snapshot.recorded });
-      setHistoricalError(undefined);
-    } catch (error) {
-      setOrigin({ seasonId: viewSeasonId, recorded: false });
-      setHistoricalError(error instanceof Error ? error.message : ORDERING_HISTORY_LOAD_ERROR);
-    }
-  }, [source, viewSeasonId]);
-
   // Live reshuffle while dragging: block forbidden same-anime weekday hovers first, then
   // let `move` project valid targets; applyOrder remains the invariant backstop.
   const onDragOver = useCallback((event: DragOverEvent) => {
@@ -111,13 +52,18 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
       return;
     }
     setState((current) => applyOrder(current, move(current.order as Record<string, string[]>, event)));
-  }, [state]);
+  }, [state, setState]);
+  // Stryker disable ArrayDeclaration: these deps arrays are mutation-equivalent to `[]`: both
+  // closures capture only the stable `useState` setter from use-ordering-board-load.ts plus their
+  // own argument via functional updates, and `[setState]` never changes because the setter
+  // identity is stable, so it behaves exactly like `[]` and no test can observe the difference.
   const duplicate = useCallback((animeId: string) => {
     setState((current) => applyDuplicate(current, animeId));
-  }, []);
+  }, [setState]);
   const removeCard = useCallback((key: string) => {
     setState((current) => applyRemoveCard(current, key));
-  }, []);
+  }, [setState]);
+  // Stryker restore ArrayDeclaration
   const onApply = useCallback(async (): Promise<ApplyScheduleResult> => {
     if (hasDuplicateWeekdayPlacements(state)) {
       return { status: ORDERING_DUPLICATE_WEEKDAY_ERROR, applied: 0, failed: [] };
@@ -137,16 +83,8 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
   const onCloseSeason = useCallback(() => {
     void closeSeason(source);
   }, [closeSeason, source]);
-  const onOpenPage = useCallback((animeId: string) => void runDesktopAction(bridgeRuntimeSource.openAnimePage, animeId), []);
-  const onCopyPage = useCallback((animeId: string) => void runDesktopAction(bridgeRuntimeSource.copyAnimePage, animeId, 'Page URL copied to clipboard'), []);
-  const onOpenFolder = useCallback((animeId: string) => void runDesktopAction(bridgeRuntimeSource.openAnimeFolder, animeId), []);
-  const onCopyFolder = useCallback((animeId: string) => void runDesktopAction(bridgeRuntimeSource.copyAnimeFolder, animeId, 'Folder path copied to clipboard'), []);
 
   // 7. Effects
-  useEffect(() => {
-    void load();
-  }, [load]);
-
   // Grade + desktop actions come from the season selection rows; load them once.
   useEffect(() => {
     void ensureAnimesLoaded(source);
@@ -177,6 +115,7 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
     isHistoricalLoading,
     historicalRecorded,
     historicalError,
+    errorMessage,
     onDragOver,
     duplicate,
     removeCard,
@@ -184,9 +123,6 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
     onReset,
     onReopen,
     onCloseSeason,
-    onOpenPage,
-    onCopyPage,
-    onOpenFolder,
-    onCopyFolder,
+    ...desktopActions,
   };
 }

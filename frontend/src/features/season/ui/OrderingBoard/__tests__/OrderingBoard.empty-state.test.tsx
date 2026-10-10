@@ -39,6 +39,7 @@ function mockHook(overrides: Partial<HookReturn> = {}): void {
     isHistoricalLoading: false,
     historicalRecorded: true,
     historicalError: undefined,
+    errorMessage: undefined,
     ...overrides,
   } as HookReturn);
 }
@@ -99,5 +100,26 @@ describe('OrderingBoard empty states', () => {
     expect(screen.getByText(ORDERING_EMPTY_MESSAGE)).toBeInTheDocument();
     expect(screen.queryByText(ORDERING_EMPTY_TITLE)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Go to Selection' })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['live', { isPastSeason: false }],
+    ['past', { isPastSeason: true, readOnly: true }],
+  ])('renders no rail empty content on a %s board while the season store holds an error', (_name, overrides) => {
+    mockHook({ ...overrides, errorMessage: 'animes failed to load' });
+    render(<OrderingBoard onNavigate={vi.fn()} />);
+
+    expect(screen.queryByText(ORDERING_EMPTY_TITLE)).not.toBeInTheDocument();
+    expect(screen.queryByText(ORDERING_EMPTY_DESCRIPTION)).not.toBeInTheDocument();
+    expect(screen.queryByText(ORDERING_EMPTY_MESSAGE)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Go to Selection' })).not.toBeInTheDocument();
+    expect(screen.getAllByText(ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE)).toHaveLength(7);
+  });
+
+  it('still renders the rail cards while the season store holds an error', () => {
+    mockHook({ rail: [card()], counts: { r: 1 }, errorMessage: 'animes failed to load' });
+    render(<OrderingBoard onNavigate={vi.fn()} />);
+
+    expect(screen.getByText('To Place')).toBeInTheDocument();
   });
 });

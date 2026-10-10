@@ -1,4 +1,6 @@
-import type { ReactNode } from 'react';
+import type { Dispatch, ReactNode, SetStateAction } from 'react';
+import type { OrderingBoard, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonStoreState } from '../../../../shared/store/season-store/season-store.types';
 import type { SeasonSectionId } from '../SeasonWorkspace/season-workspace.types';
 import type { OrderingState } from '../../../../shared/ordering/ordering.types';
 import type { AnimeScheduleOrderingInstance } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
@@ -95,7 +97,7 @@ export interface OrderingContainerProps extends OrderingCardActions {
   readonly listClassName: string;
   /** Copy shown inside the container while it holds no cards. */
   readonly emptyMessage: string;
-  /** Rich empty state shown instead of `emptyMessage` while the container holds no cards. */
+  /** Rich empty state shown instead of `emptyMessage` while the container holds no cards; `null` renders nothing at all. */
   readonly emptyState?: ReactNode;
   /** True on weekday lanes: newcomer cards carry the muted New tag. Every rail card is a newcomer, so the rail never does. */
   readonly showNewcomerTag: boolean;
@@ -158,4 +160,76 @@ export interface OrderingColumnProps {
   readonly className?: string;
   /** The zone's content: its card list or empty state. */
   readonly children: ReactNode;
+}
+
+/** Season store values and actions consumed by the ordering board hook. */
+export type OrderingBoardStoreBindings = Pick<
+  SeasonStoreState,
+  'closeSeason' | 'readOnly' | 'viewSeasonId' | 'seasonAnimes' | 'ensureAnimesLoaded' | 'errorMessage'
+>;
+
+/** Inputs of the hook that loads the live or stored board into the working state. */
+export interface OrderingBoardLoadParams {
+  /** The season source the board is read from. */
+  readonly source: SeasonSource;
+  /** The past season being viewed, or null for the live schedule. */
+  readonly viewSeasonId: string | null;
+}
+
+/** What the board load hook holds and exposes to the ordering board hook. */
+export interface OrderingBoardLoadResult {
+  /** The last loaded board, the baseline the change count compares against. */
+  readonly board: OrderingBoard;
+  /** The editable working state. */
+  readonly state: WorkingState;
+  /** Replaces the working state (drag, duplicate, remove). */
+  readonly setState: Dispatch<SetStateAction<WorkingState>>;
+  /** True while the viewed past season's stored board is still unresolved. */
+  readonly isHistoricalLoading: boolean;
+  /** Whether the stored board exists; true for the live schedule. */
+  readonly historicalRecorded: boolean;
+  /** The failure message of the last stored-board read, when it failed. */
+  readonly historicalError: string | undefined;
+  /** Re-reads the board for the current view and resets the working state. */
+  readonly load: () => Promise<void>;
+}
+
+/** Inputs of the hook that derives the board's render model from its working state. */
+export interface OrderingBoardDerivedParams {
+  /** The last loaded board. */
+  readonly board: OrderingBoard;
+  /** The editable working state. */
+  readonly state: WorkingState;
+  /** The season selection rows that card metadata is joined from. */
+  readonly seasonAnimes: SeasonStoreState['seasonAnimes'];
+}
+
+/** The pure render model derived from the board's working state. */
+export interface OrderingBoardDerived {
+  /** Grade + desktop-action metadata keyed by anime id. */
+  readonly meta: Readonly<Record<string, OrderingCardMeta>>;
+  /** The rail's cards, in board order. */
+  readonly rail: readonly OrderingInstance[];
+  /** Each weekday's cards, in board order. */
+  readonly columns: Readonly<Record<string, readonly OrderingInstance[]>>;
+  /** How many cards each anime holds. */
+  readonly counts: Readonly<Record<string, number>>;
+  /** How many placements differ from the loaded board. */
+  readonly changeCount: number;
+  /** How many cards sit on a weekday. */
+  readonly scheduledCount: number;
+  /** True when one anime holds two cards on the same weekday. */
+  readonly hasInvalidWeekdayPlacements: boolean;
+}
+
+/** The anime page and folder desktop actions the ordering cards expose. */
+export interface OrderingBoardDesktopActions {
+  /** Opens the anime's page in the browser. */
+  readonly onOpenPage: (animeId: string) => void;
+  /** Copies the anime's page URL. */
+  readonly onCopyPage: (animeId: string) => void;
+  /** Opens the anime's download folder. */
+  readonly onOpenFolder: (animeId: string) => void;
+  /** Copies the anime's download folder path. */
+  readonly onCopyFolder: (animeId: string) => void;
 }
