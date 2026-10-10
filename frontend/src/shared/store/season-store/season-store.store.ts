@@ -1,7 +1,7 @@
 import { createStore } from 'zustand/vanilla';
 import { seasonSource } from '../../../infrastructure/season-source/season-source.helpers';
 import type { SeasonSource } from '../../../infrastructure/season-source/season-source.types';
-import type { SeasonStoreState } from './season-store.types';
+import type { AnimesLoadState, SeasonStoreState } from './season-store.types';
 
 /**
  * Runs one intake command behind the store's read-only guard, surfacing the command's
@@ -39,6 +39,16 @@ async function runIntakeCommand(
   }
 }
 
+/** Starts an animes request: an already `loaded` list keeps its rows instead of regressing to `loading`. */
+function startAnimesLoad(current: AnimesLoadState): AnimesLoadState {
+  return current === 'loaded' ? 'loaded' : 'loading';
+}
+
+/** Fails an animes request: an already `loaded` list stays `loaded` so its rows remain on screen. */
+function failAnimesLoad(current: AnimesLoadState): AnimesLoadState {
+  return current === 'loaded' ? 'loaded' : 'failed';
+}
+
 /**
  * Vanilla backing store for the shared Season read-model.
  *
@@ -51,6 +61,7 @@ export const seasonStore = createStore<SeasonStoreState>()((set, get) => ({
   seasonAnimes: [],
   hasLoaded: false,
   hasLoadedAnimes: false,
+  animesLoadState: 'idle',
   errorMessage: undefined,
   busyMessage: undefined,
   viewSeasonId: null,
@@ -108,6 +119,7 @@ export const seasonStore = createStore<SeasonStoreState>()((set, get) => ({
         readOnly: true,
         hasLoaded: true,
         hasLoadedAnimes: true,
+        animesLoadState: 'loaded',
         errorMessage: undefined,
       });
     } catch (error) {
@@ -116,7 +128,7 @@ export const seasonStore = createStore<SeasonStoreState>()((set, get) => ({
   },
 
   exitPastSeason: async (source = seasonSource) => {
-    set({ viewSeasonId: null, readOnly: false, season: null, seasonAnimes: [], hasLoadedAnimes: false });
+    set({ viewSeasonId: null, readOnly: false, season: null, seasonAnimes: [], hasLoadedAnimes: false, animesLoadState: 'idle' });
     await get().refresh(source);
     await get().loadPastSeasons(source);
   },
@@ -175,11 +187,15 @@ export const seasonStore = createStore<SeasonStoreState>()((set, get) => ({
     if (get().viewSeasonId !== null) {
       return;
     }
+    set({ animesLoadState: startAnimesLoad(get().animesLoadState) });
     try {
       const seasonAnimes = await source.getSeasonAnimes();
-      set({ seasonAnimes, errorMessage: undefined });
+      set({ seasonAnimes, animesLoadState: 'loaded', errorMessage: undefined });
     } catch (error) {
-      set({ errorMessage: error instanceof Error ? error.message : 'Failed to load intake rows' });
+      set({
+        animesLoadState: failAnimesLoad(get().animesLoadState),
+        errorMessage: error instanceof Error ? error.message : 'Failed to load intake rows',
+      });
     }
   },
 
@@ -187,12 +203,16 @@ export const seasonStore = createStore<SeasonStoreState>()((set, get) => ({
     if (get().hasLoadedAnimes || get().viewSeasonId !== null) {
       return;
     }
-    set({ hasLoadedAnimes: true });
+    set({ hasLoadedAnimes: true, animesLoadState: startAnimesLoad(get().animesLoadState) });
     try {
       const seasonAnimes = await source.getSeasonAnimes();
-      set({ seasonAnimes });
+      set({ seasonAnimes, animesLoadState: 'loaded' });
     } catch {
-      set({ hasLoadedAnimes: false });
+      set({
+        hasLoadedAnimes: false,
+        animesLoadState: failAnimesLoad(get().animesLoadState),
+        errorMessage: 'Failed to load intake rows',
+      });
     }
   },
 

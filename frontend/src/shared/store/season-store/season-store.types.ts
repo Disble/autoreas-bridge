@@ -7,12 +7,16 @@ import type {
   SendToVerHoyResult,
 } from '../../../infrastructure/season-source/season-source.types';
 
+/** Request state of the open season's animes: `loaded` rows stay on screen across refetches. */
+export type AnimesLoadState = 'idle' | 'loading' | 'loaded' | 'failed';
+
 /** Zustand state contract for the shared Season read-model. */
 export type SeasonStoreState = {
   readonly season: SeasonSnapshot | null;
   readonly seasonAnimes: readonly SeasonAnimeRow[];
   readonly hasLoaded: boolean;
   readonly hasLoadedAnimes: boolean;
+  readonly animesLoadState: AnimesLoadState;
   readonly errorMessage?: string;
   readonly busyMessage?: string;
   readonly refresh: (source?: SeasonSource) => Promise<void>;

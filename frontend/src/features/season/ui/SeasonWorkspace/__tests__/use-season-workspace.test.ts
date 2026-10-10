@@ -111,6 +111,86 @@ describe('useSeasonWorkspace', () => {
     expect(result.current.overview?.minApprovalGrade).toBe(4);
   });
 
+  it('stays loading while the season request is unresolved and requests no animes', () => {
+    const source = createSource({ getSeason: vi.fn().mockReturnValue(new Promise(() => undefined)) });
+    const { result } = renderHook(() => useSeasonWorkspace(source));
+
+    expect(result.current.isLoading).toBe(true);
+    expect(source.getSeasonAnimes).not.toHaveBeenCalled();
+  });
+
+  it('keeps loading until the open season animes resolve, requesting them once', async () => {
+    let settle: (rows: []) => void = () => undefined;
+    const getSeasonAnimes = vi.fn().mockReturnValue(new Promise<[]>((resolve) => (settle = resolve)));
+    const source = createSource({ getSeason: vi.fn().mockResolvedValue(makeSeason()), getSeasonAnimes });
+    const { result } = renderHook(() => useSeasonWorkspace(source));
+
+    await waitFor(() => expect(getSeasonAnimes).toHaveBeenCalledTimes(1));
+    expect(result.current.overview).not.toBeNull();
+    expect(result.current.isLoading).toBe(true);
+
+    await act(async () => settle([]));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(getSeasonAnimes).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops loading and shows the error when the open season animes fail', async () => {
+    const getSeasonAnimes = vi.fn().mockRejectedValue(new Error('animes down'));
+    const source = createSource({ getSeason: vi.fn().mockResolvedValue(makeSeason()), getSeasonAnimes });
+    const { result } = renderHook(() => useSeasonWorkspace(source));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.errorMessage).toBe('Failed to load intake rows');
+    expect(getSeasonAnimes).toHaveBeenCalledTimes(1);
+  });
+
+  /** One preset animes request state, with whether it gates the workspace and whether it triggers a load. */
+  type AnimesGateCase = {
+    /** Store fields the case presets before mount. */
+    readonly preset: Parameters<typeof setSeasonStoreState>[0];
+    /** Whether the workspace stays gated. */
+    readonly isLoading: boolean;
+    /** Number of animes requests the mount must issue. */
+    readonly requests: number;
+  };
+
+  it.each<AnimesGateCase>([
+    { preset: { animesLoadState: 'loading' }, isLoading: true, requests: 0 },
+    { preset: { animesLoadState: 'failed' }, isLoading: false, requests: 0 },
+    { preset: { animesLoadState: 'loaded' }, isLoading: false, requests: 0 },
+    { preset: { animesLoadState: 'idle', readOnly: true, viewSeasonId: 'past' }, isLoading: false, requests: 0 },
+    { preset: { animesLoadState: 'idle', season: makeSeason({ status: 'closed' }) }, isLoading: false, requests: 0 },
+  ])('gates on $preset with $requests animes requests', async ({ preset, isLoading, requests }) => {
+    const season = preset.season ?? makeSeason();
+    const source = createSource({ getSeason: vi.fn().mockResolvedValue(season), getSeasonAnimes: vi.fn().mockReturnValue(new Promise(() => undefined)) });
+    setSeasonStoreState({ season, hasLoaded: true, ...preset });
+    const { result } = renderHook(() => useSeasonWorkspace(source));
+
+    await act(async () => undefined);
+    expect(result.current.isLoading).toBe(isLoading);
+    expect(source.getSeasonAnimes).toHaveBeenCalledTimes(requests);
+  });
+
+  it('stays gated while an open season animes are idle and the load has not moved the state yet', async () => {
+    const ensureAnimesLoaded = vi.fn().mockResolvedValue(undefined);
+    const source = createSource({ getSeason: vi.fn().mockResolvedValue(makeSeason()) });
+    setSeasonStoreState({ season: makeSeason(), hasLoaded: true, ensureAnimesLoaded });
+    const { result } = renderHook(() => useSeasonWorkspace(source));
+
+    await act(async () => undefined);
+    expect(result.current.isLoading).toBe(true);
+    expect(ensureAnimesLoaded).toHaveBeenCalledTimes(1);
+    expect(ensureAnimesLoaded).toHaveBeenCalledWith(source);
+  });
+
+  it('requests no animes when no season is open', async () => {
+    const source = createSource();
+    const { result } = renderHook(() => useSeasonWorkspace(source));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(source.getSeasonAnimes).not.toHaveBeenCalled();
+  });
+
   it('exposes a date-derived suggested name', () => {
     const source = createSource();
     const { result } = renderHook(() => useSeasonWorkspace(source));

@@ -219,6 +219,8 @@ describe('SeasonWorkspace', () => {
     expect(screen.getByRole('status', { name: 'Loading season' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Season' })).toBeNull();
     expect(screen.queryByText('overview panel')).toBeNull();
+    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Season' })).toBeNull();
   });
 
   it.each([

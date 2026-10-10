@@ -8,10 +8,12 @@ import type { SeasonWorkspaceStoreBindings } from './season-workspace.types';
 export function useSeasonWorkspaceStoreBindings(): SeasonWorkspaceStoreBindings {
   const season = useSeasonStore((state) => state.season);
   const hasLoaded = useSeasonStore((state) => state.hasLoaded);
+  const animesLoadState = useSeasonStore((state) => state.animesLoadState);
   const errorMessage = useSeasonStore((state) => state.errorMessage);
   const readOnly = useSeasonStore((state) => state.readOnly);
   const pastSeasons = useSeasonStore((state) => state.pastSeasons);
   const refresh = useSeasonStore((state) => state.refresh);
+  const ensureAnimesLoaded = useSeasonStore((state) => state.ensureAnimesLoaded);
   const createSeason = useSeasonStore((state) => state.createSeason);
   const closeSeason = useSeasonStore((state) => state.closeSeason);
   const loadPastSeasons = useSeasonStore((state) => state.loadPastSeasons);
@@ -21,10 +23,12 @@ export function useSeasonWorkspaceStoreBindings(): SeasonWorkspaceStoreBindings 
   return {
     season,
     hasLoaded,
+    animesLoadState,
     errorMessage,
     readOnly,
     pastSeasons,
     refresh,
+    ensureAnimesLoaded,
     createSeason,
     closeSeason,
     loadPastSeasons,

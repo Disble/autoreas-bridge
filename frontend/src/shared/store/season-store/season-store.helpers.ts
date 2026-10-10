@@ -33,6 +33,7 @@ export function resetSeasonStore(): void {
     seasonAnimes: [],
     hasLoaded: false,
     hasLoadedAnimes: false,
+    animesLoadState: 'idle',
     errorMessage: undefined,
     busyMessage: undefined,
     viewSeasonId: null,

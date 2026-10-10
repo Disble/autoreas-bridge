@@ -3,6 +3,7 @@ import { seasonSource } from '../../../../infrastructure/season-source/season-so
 import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
 import { SEASON_SECTION_TABS } from './season-workspace.constants';
 import { buildPastSeasonEntries, buildSeasonOverview, suggestSeasonName } from './season-workspace.helpers';
+import { useSeasonWorkspaceAnimesLoad } from './use-season-workspace-animes-load';
 import { useSeasonWorkspaceStoreBindings } from './use-season-workspace-store-bindings';
 import { useSeasonWorkspaceTab } from './use-season-workspace-tab';
 
@@ -17,9 +18,16 @@ export function useSeasonWorkspace(source: SeasonSource = seasonSource) {
   const store = useSeasonWorkspaceStoreBindings();
   const { activeTab, selectTab } = useSeasonWorkspaceTab();
   const { season, hasLoaded, errorMessage, readOnly, pastSeasons, refresh, createSeason, closeSeason, loadPastSeasons, viewPastSeason, exitPastSeason } = store;
+  const isAwaitingAnimes = useSeasonWorkspaceAnimesLoad({
+    season,
+    readOnly,
+    animesLoadState: store.animesLoadState,
+    ensureAnimesLoaded: store.ensureAnimesLoaded,
+    source,
+  });
 
   // 5. Derived State (useMemo)
-  const isLoading = !hasLoaded;
+  const isLoading = !hasLoaded || isAwaitingAnimes;
   const overview = useMemo(() => (season ? buildSeasonOverview(season) : null), [season]);
   const suggestedName = useMemo(() => suggestSeasonName(new Date()), []);
   const pastSeasonEntries = useMemo(() => buildPastSeasonEntries(pastSeasons), [pastSeasons]);
