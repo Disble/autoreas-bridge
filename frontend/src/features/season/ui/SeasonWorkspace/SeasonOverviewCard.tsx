@@ -10,7 +10,7 @@ import type { SeasonOverviewCardProps } from './season-workspace.types';
 export function SeasonOverviewCard({ overview, onCloseSeason }: Readonly<SeasonOverviewCardProps>) {
   return (
     <Card aria-label="Season" role="region">
-      <Card.Content className="flex flex-wrap items-center gap-6">
+      <Card.Content className="flex-row flex-wrap items-center gap-6">
         <dl className="flex min-w-0 flex-1 basis-104 flex-wrap gap-8">
           {SEASON_OVERVIEW_FACTS.map((fact) => (
             <div key={fact.field}>

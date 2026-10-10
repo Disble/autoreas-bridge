@@ -53,5 +53,8 @@ User authorized local commits only. SUI-6 is in progress. Slice the verified can
 4. Ordering responsive weekdays — pure production grid extraction/types/test, real fixture/data/registration and container-width lesson. Rollback grid substitution/new files + fixture registration/data.
 All functional checks already passed on the full candidate; per-slice normal hooks must pass. Records update with actual commit identities, never planned hashes.
 
+## Work-unit commits
+- SUI-1: `93f3088` — `fix(season): handle absent selection confirmation timestamps`. Normal pre-commit PASS (211s); mutation11killed/0survived, frontend test/typecheck/lint/dharness/layout/render PASS. Six paths, helper/type/tests/timestamp lesson and task record.
+
 ## Next step
-Create the four work-unit commits on `feat/season-empty-states` with normal hooks, then record hashes and confirm the committed frontend bytes equal the independently verified candidate. Do not push or merge.
+Commit Overview, Intake and Ordering with their fixtures/registration/docs through normal hooks, then confirm committed frontend bytes equal the independently verified candidate. Do not push or merge.
