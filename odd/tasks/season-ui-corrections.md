@@ -16,7 +16,7 @@ Fix four screenshot-reported Season defects on `feat/season-empty-states`: an ov
 - [x] SUI-4 — Make Ordering weekday columns responsive rather than narrow/horizontally clipped. Use Anime schedule's spacious wrapping as a reference, adapt wide breakpoint to actual available width. Checks: actual production grid/card geometry at screenshot window width plus narrow/wide, all seven stable lanes, existing drag helper/hook/UI tests.
 - [x] SUI-5a — Simplify the four blocked fixture functions by responsibility without removing checks or relaxing complexity/coverage thresholds. Checks: exact configured complete staged dharness, same geometry/failure evidence, focused browser fixture checks and typecheck. Preserve pending/missing-DOM failures.
 - [x] SUI-5 — Final delegated complete-candidate verification. Checks: configured staged dharness, exact staged mutation, full frontend tests, typecheck, layout/render smoke, whitespace/source restoration. Record unavailable checks honestly.
-- [ ] SUI-6 — Obtain explicit commit instruction and close work units with normal hooks. Keep coherent fixes with their tests and docs; record commit identities. No push or merge without separate instruction.
+- [x] SUI-6 — Obtain explicit commit instruction and close work units with normal hooks. Keep coherent fixes with their tests and docs; record commit identities. No push or merge without separate instruction.
 
 ## Exploration evidence
 - Selection helper guards undefined/zero but not null; Go SelectionConfirmedAt is nullable, SQLite stores NULL. Investigate and model the frontend boundary rather than masking only JSX.
@@ -25,7 +25,7 @@ Fix four screenshot-reported Season defects on `feat/season-empty-states`: an ov
 - OrderingBoard uses repeat(7,minmax(8.5rem,1fr)), which forces scrolling/narrow cards below broad widths. AnimeScheduleOrdering has md three-column wrapping; ids and behavior must remain unchanged.
 - Existing layout gate has no Season fixture; add production-bound measurement coverage, not a copied layout.
 
-## Progress and verification
+## Historical progress and verification
 - Read-only exploration and layout-gate mapping complete. Initial flex-wrap height explanation withdrawn; inspect computed flex direction and the `basis-104` axis before choosing the minimum correction. HeroUI Card.Content defaults to a flex column.
 - SUI-1 implemented by `mv1udx1b-m-e9ib`: helper handles null/undefined/zero; SeasonSnapshot confirmation type includes null. Observed RED (2 failures/82 tests), GREEN (3 files/82 tests), typecheck PASS. Five applied hand mutants killed and restored via cmp. No live Wails/SQLite round-trip claimed. Production files <=225 lines; tests <=261. Full/staged checks and commit closure belong to SUI-5.
 - Post-writer ASSESS: unassessable due to untracked task record, RDD off. Treat as high risk: independent verifier required, scheduled for full candidate. No review authority created.
@@ -43,15 +43,15 @@ Fix four screenshot-reported Season defects on `feat/season-empty-states`: an ov
 - Independent exact-production-module in-memory negative builds after refactor: original Overviewclass yields520px/10failedchecks; Raw/50yields2.67dark/1.98light/4failures; original7grid yieldscrampingoverflow/10failures. Fixtures untouched and no ambient source writes. Evidence `C:/Users/User/AppData/Local/Temp/sui5-final-verification-r2/production-negative-results.json`.
 - Native Wails pointer gesture, SQLite/Wails round-trip and narrow-window whole-app behavior not verified; no behavioral/backend code changed at these boundaries. Wrapper widths are not whole-app narrow viewport evidence. Two duplication advisories and grid-token drift remain nonblocking; no thresholds or suppressions changed.
 - Parent spot check: typecheck, source/index equality and staged whitespace PASS. This final task-record update occurs after the verified candidate and changes documentation only.
-- Commit hooks not run; no commit, push or merge performed. Implementation/check checkboxes do not claim work-unit commit closure; SUI-6 remains open.
+- At independent verification time commit hooks had not run. User subsequently authorized local commits; all four work units below now passed normal hooks. No push or merge performed.
 
 ## Commit plan and rollback boundaries
-User authorized local commits only. SUI-6 is in progress. Slice the verified candidate into four coherent work units without changing production bytes:
+User authorized local commits only. SUI-6 is complete. The verified candidate was sliced into four coherent work units without changing production bytes:
 1. Selection absent confirmation — helper, nullable wire type, colocated tests and timestamp lesson. Rollback only these four frontend paths.
 2. Overview compact metadata — Card direction, real Overview fixture and its registration, flex-axis lesson. Rollback Card change + fixture registration/file.
 3. Intake accessible Raw border — TextArea class, both-theme fixture and registration, border/focus/contrast lessons. Rollback class + fixture registration/file.
 4. Ordering responsive weekdays — pure production grid extraction/types/test, real fixture/data/registration and container-width lesson. Rollback grid substitution/new files + fixture registration/data.
-All functional checks already passed on the full candidate; per-slice normal hooks must pass. Records update with actual commit identities, never planned hashes.
+All functional checks passed on the full candidate and all four per-slice normal hooks passed. Commit identities below are observed, not planned.
 
 ## Work-unit commits
 - SUI-1: `93f3088` — `fix(season): handle absent selection confirmation timestamps`. Normal pre-commit PASS (211s); mutation11killed/0survived, frontend test/typecheck/lint/dharness/layout/render PASS. Six paths, helper/type/tests/timestamp lesson and task record.
@@ -60,5 +60,9 @@ All functional checks already passed on the full candidate; per-slice normal hoo
 
 - SUI-3 (+Raw SUI-5a refactor): `faedecc` — `fix(season): give Raw intake an accessible dashed border`. Normal pre-commit PASS (131s), including staged dharness, frontend test/typecheck/lint/layout/render; mutation job found0eligiblemutants in CSS-only production change. Both-theme3:1 browser guards passed. Five paths, final fixture + registration + field-boundary lesson and record.
 
+- SUI-4 (+Ordering SUI-5a refactor): `5b57e65` — `fix(season): wrap Ordering weekdays to available space`. Normal pre-commit PASS (167s), including staged dharness, frontend test/typecheck/lint/layout/render; mutation4killed/0survived/ignored/errors. Nine paths, production grid/types/UI substitution, colocated test, actual fixture/data/registration, remaining lessons and record.
+- All15 frontend blob identities equal the independently verified candidate after the four commits, including fixture registrations. Worktree clean before this documentation-only close-out. No hook bypasses, suppressed survivors or changed thresholds.
+- Per-slice hooks passed first attempt: Selection211s, Overview130s, Intake131s, Ordering167s. CSS-only slices had0eligibleStryker mutants but real browser regression guards, including independently proven exact negative substitutions.
+
 ## Next step
-Commit Ordering with its real grid/fixture/tests/registration/docs through normal hooks, then confirm committed frontend bytes equal the independently verified candidate and record final hashes. Do not push or merge.
+Await user direction for push or merge. Optional manual follow-up: native Wails pointer gestures and whole-app narrow-window behavior; neither is claimed verified. No further implementation or required functional checks pending.
