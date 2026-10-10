@@ -23,7 +23,7 @@ export function IntakePanelBody(props: Readonly<IntakePanelBodyProps>) {
     return (
       <TextField value={rawDraft} onChange={props.onRawChange}>
         <Label className="sr-only">Intake names</Label>
-        <TextArea placeholder={INTAKE_PASTE_PLACEHOLDER} rows={8} />
+        <TextArea className="border border-dashed border-muted" placeholder={INTAKE_PASTE_PLACEHOLDER} rows={8} />
       </TextField>
     );
   }

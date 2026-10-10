@@ -56,5 +56,7 @@ All functional checks already passed on the full candidate; per-slice normal hoo
 ## Work-unit commits
 - SUI-1: `93f3088` — `fix(season): handle absent selection confirmation timestamps`. Normal pre-commit PASS (211s); mutation11killed/0survived, frontend test/typecheck/lint/dharness/layout/render PASS. Six paths, helper/type/tests/timestamp lesson and task record.
 
+- SUI-2 (+Overview SUI-5a refactor): `cda2c21` — `fix(season): keep the Overview metadata card content-sized`. Normal pre-commit PASS (130s), including actual staged dharness, frontend test/typecheck/lint/layout/render; mutation job found0eligiblemutants in CSS-only production change. Real browser geometry remains its behavior guard. Five paths, final fixture + exact registration slice + flex-axis lesson and record.
+
 ## Next step
-Commit Overview, Intake and Ordering with their fixtures/registration/docs through normal hooks, then confirm committed frontend bytes equal the independently verified candidate. Do not push or merge.
+Commit Intake and Ordering with their fixtures/registration/docs through normal hooks, then confirm committed frontend bytes equal the independently verified candidate. Do not push or merge.

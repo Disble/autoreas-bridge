@@ -6,6 +6,7 @@ import { renderAppNotificationToast } from '../../src/features/notifications/ui/
 import { ActivityDetailFixture } from './activity-detail-fixture';
 import { AirisEmptyStatesFixture } from './airis-empty-states-fixture';
 import { LoadingSkeletonsFixture } from './loading-skeletons-fixture';
+import { SeasonIntakeRawFixture } from './season-intake-raw-fixture';
 import { SeasonOverviewFixture } from './season-overview-fixture';
 import { checkThePage, measureWhenReady, VerdictReport, type Check } from './verdict';
 import '../../src/style.css';
@@ -236,6 +237,7 @@ function LayoutFixtures() {
       <AirisEmptyStatesFixture />
       <LoadingSkeletonsFixture />
       <SeasonOverviewFixture />
+      <SeasonIntakeRawFixture />
     </>
   );
 }

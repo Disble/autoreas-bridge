@@ -283,3 +283,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-10-10]: Six Ordering useCallback dependency-array mutants are proven equivalent and carry narrow Stryker ArrayDeclaration annotations under explicit user authorization; the store-driven metadata memo stays enforced with a mounted refresh test.
 - [2026-10-10]: Nullable Wails DTO timestamps without omitempty arrive as null; missing confirmation guards must handle null as well as undefined and zero.
 - [2026-10-10]: HeroUI Card.Content defaults to flex-col: horizontal basis utilities become heights unless flex-row is explicit; prove sizing with real dt/dd browser measurements.
+- [2026-10-10]: HeroUI textarea border defaults to zero/transparent; set explicit semantic border width/style and verify computed resize and focus ring after utility overrides.
