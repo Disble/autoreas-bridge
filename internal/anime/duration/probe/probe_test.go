@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -71,6 +72,42 @@ func TestParseDuration(t *testing.T) {
 			t.Parallel()
 
 			assertParseDuration(t, tc)
+		})
+	}
+}
+
+// TestParseDurationErrorReasons pins the human-readable rejection reason for
+// each rejection branch: a non-finite reading is rejected as not finite,
+// while a finite non-positive reading is rejected as not positive. In
+// particular negative infinity must report "not finite"; a mutant that
+// narrows the finiteness guard to positive infinity misreports it as
+// "not positive" and must fail this test.
+func TestParseDurationErrorReasons(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		output string
+		reason string
+	}{
+		{name: "negative infinity is not finite", output: `{"format": {"duration": "-Inf"}}`, reason: "not finite"},
+		{name: "zero is not positive", output: `{"format": {"duration": "0.000000"}}`, reason: "not positive"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := parseDurationJSON([]byte(tc.output))
+			if err == nil {
+				t.Fatalf("parseDurationJSON(%q) = %v, want error containing %q", tc.output, got, tc.reason)
+			}
+			if got != 0 {
+				t.Fatalf("parseDurationJSON(%q) = %v with error, want no fabricated duration", tc.output, got)
+			}
+			if !strings.Contains(err.Error(), tc.reason) {
+				t.Fatalf("parseDurationJSON(%q) error = %q, want reason %q", tc.output, err.Error(), tc.reason)
+			}
 		})
 	}
 }
