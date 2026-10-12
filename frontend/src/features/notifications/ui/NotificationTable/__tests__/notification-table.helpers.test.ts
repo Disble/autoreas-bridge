@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { NotificationRow } from '../../../../../shared/contracts/notification-center.types';
 import {
+  formatNotificationBody,
   formatNotificationRowCount,
   formatNotificationSubjects,
   isNotificationRowUnread,
@@ -49,6 +50,25 @@ describe('formatNotificationSubjects', () => {
   it('drops blank names instead of rendering a stray separator', () => {
     expect(formatNotificationSubjects(buildRow({ subjects: ['Frieren', ''] }))).toBe('Frieren');
     expect(formatNotificationSubjects(buildRow({ subjects: ['', ''] }))).toBeUndefined();
+  });
+});
+
+describe('formatNotificationBody', () => {
+  it('returns the body carrying the notification’s own facts', () => {
+    expect(formatNotificationBody(buildRow({ body: 'Episodio 7 · 45 minutos' }))).toBe('Episodio 7 · 45 minutos');
+  });
+
+  it('returns undefined when the record carries no body, so no empty line renders', () => {
+    expect(formatNotificationBody(buildRow())).toBeUndefined();
+    expect(formatNotificationBody(buildRow({ body: '' }))).toBeUndefined();
+  });
+
+  it('treats a whitespace-only body as carrying nothing', () => {
+    expect(formatNotificationBody(buildRow({ body: '   ' }))).toBeUndefined();
+  });
+
+  it('trims a padded body rather than rendering its stray whitespace', () => {
+    expect(formatNotificationBody(buildRow({ body: '  Stopped by request  ' }))).toBe('Stopped by request');
   });
 });
 
