@@ -59,6 +59,133 @@ func TestParseName(t *testing.T) {
 	}
 }
 
+// TestWordByteExhaustive pins the word-continuation predicate over every
+// byte value, so each clause of the compound condition earns its kills in
+// one loop instead of eighteen rows. The expectation is the ASCII word-char
+// definition (letters, digits, underscore), computed independently of the
+// production predicate it checks.
+func TestWordByteExhaustive(t *testing.T) {
+	t.Parallel()
+	for c := 0; c < 256; c++ {
+		b := byte(c)
+		want := b == '_' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= '0' && b <= '9'
+		if got := wordByte(b); got != want {
+			t.Errorf("wordByte(%d) = %v, want %v", c, got, want)
+		}
+	}
+}
+
+// TestStripExtension pins the stem split: only the final dot suffix goes,
+// so dotted prefixes survive and a leading dot leaves an empty stem.
+func TestStripExtension(t *testing.T) {
+	t.Parallel()
+	rows := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "drops the final suffix", in: "Show - 13.mp4", want: "Show - 13"},
+		{name: "no dot is unchanged", in: "Show - 13", want: "Show - 13"},
+		{name: "drops only the final suffix", in: "archive.tar.mp4", want: "archive.tar"},
+		{name: "trailing dot is dropped", in: "Show.", want: "Show"},
+		{name: "leading dot leaves empty stem", in: ".mp4", want: ""},
+	}
+	for _, tc := range rows {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := stripExtension(tc.in); got != tc.want {
+				t.Errorf("stripExtension(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestDelimitedStart pins where a range/multi span may begin: stem start,
+// whitespace, or a bracket-like delimiter — never mid-word, and the rune
+// before the span is the last one even behind multibyte prefixes.
+func TestDelimitedStart(t *testing.T) {
+	t.Parallel()
+	rows := []struct {
+		name string
+		s    string
+		idx  int
+		want bool
+	}{
+		{name: "stem start delimits", s: "07-08", idx: 0, want: true},
+		{name: "space delimits", s: "Show 01-02", idx: 5, want: true},
+		{name: "hyphen delimits", s: "Show-01-02", idx: 5, want: true},
+		{name: "letter does not delimit", s: "abc4+5", idx: 3, want: false},
+		{name: "multibyte prefix reads last rune", s: "é 01-02", idx: 3, want: true},
+	}
+	for _, tc := range rows {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := delimitedStart(tc.s, tc.idx); got != tc.want {
+				t.Errorf("delimitedStart(%q, %d) = %v, want %v", tc.s, tc.idx, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestInsideSpan pins the marker-span membership: the span start belongs,
+// the span end does not, and an empty span contains nothing.
+func TestInsideSpan(t *testing.T) {
+	t.Parallel()
+	rows := []struct {
+		name  string
+		spans [][2]int
+		start int
+		want  bool
+	}{
+		{name: "span start is inside", spans: [][2]int{{3, 8}}, start: 3, want: true},
+		{name: "span middle is inside", spans: [][2]int{{3, 8}}, start: 5, want: true},
+		{name: "span end is outside", spans: [][2]int{{3, 8}}, start: 8, want: false},
+		{name: "before span is outside", spans: [][2]int{{3, 8}}, start: 2, want: false},
+		{name: "after span is outside", spans: [][2]int{{3, 8}}, start: 9, want: false},
+		{name: "empty spans contain nothing", spans: nil, start: 3, want: false},
+	}
+	for _, tc := range rows {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := insideSpan(tc.spans, tc.start); got != tc.want {
+				t.Errorf("insideSpan(%v, %d) = %v, want %v", tc.spans, tc.start, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestNoiseReason pins why a trailing number is not an ordinal: a year
+// inside 1900..2100, a resolution, a codec token with h or x nearby (and
+// only then — the conjunction needs both halves), or a version suffix.
+func TestNoiseReason(t *testing.T) {
+	t.Parallel()
+	rows := []struct {
+		name  string
+		s     string
+		raw   string
+		start int
+		want  string
+	}{
+		{name: "year", s: "Show 2024", raw: "2024", start: 5, want: "year"},
+		{name: "below year window claims", s: "Show 1899", raw: "1899", start: 5, want: ""},
+		{name: "above year window claims", s: "Show 2101", raw: "2101", start: 5, want: ""},
+		{name: "resolution", s: "Show - 1080", raw: "1080", start: 7, want: "resolution"},
+		{name: "codec with x nearby", s: "xh 264", raw: "264", start: 3, want: "codec"},
+		{name: "codec prefix without h or x claims", s: "avc264", raw: "264", start: 3, want: ""},
+		{name: "nearby x without codec prefix claims", s: " x.264", raw: "264", start: 3, want: ""},
+		{name: "ordinary number claims", s: "Show - 13", raw: "13", start: 7, want: ""},
+		{name: "version suffix", s: "Show v 2", raw: "2", start: 7, want: "version"},
+	}
+	for _, tc := range rows {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := noiseReason(tc.s, tc.raw, tc.start); got != tc.want {
+				t.Errorf("noiseReason(%q, %q, %d) = %q, want %q", tc.s, tc.raw, tc.start, got, tc.want)
+			}
+		})
+	}
+}
+
 // TestTagOrd pins explicit tag claims: an optional episode keyword plus 1-3
 // digits, nothing else.
 func TestTagOrd(t *testing.T) {

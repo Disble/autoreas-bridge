@@ -2,6 +2,7 @@ package identity
 
 import (
 	"math"
+	"math/big"
 	"slices"
 	"testing"
 )
@@ -89,6 +90,223 @@ func TestContextShapes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			assertContextRow(t, tc)
+		})
+	}
+}
+
+// TestUsableProgressBoundaries pins the progress token edges: zero and one
+// are exact usable integers, the bound itself stays usable, and anything
+// fractional, negative, out of range, or unset never truncates into one.
+func TestUsableProgressBoundaries(t *testing.T) {
+	t.Parallel()
+	rows := []struct {
+		name string
+		ctx  Context
+		want int
+		ok   bool
+	}{
+		{name: "zero is usable", ctx: Context{ProgressSet: true, Progress: 0}, want: 0, ok: true},
+		{name: "one is usable", ctx: Context{ProgressSet: true, Progress: 1}, want: 1, ok: true},
+		{name: "bound is usable", ctx: Context{ProgressSet: true, Progress: 1 << 30}, want: 1 << 30, ok: true},
+		{name: "past bound is unusable", ctx: Context{ProgressSet: true, Progress: 1<<30 + 1}, ok: false},
+		{name: "fractional is unusable", ctx: Context{ProgressSet: true, Progress: 12.5}, ok: false},
+		{name: "negative is unusable", ctx: Context{ProgressSet: true, Progress: -1}, ok: false},
+		{name: "unset is unusable", ctx: Context{}, ok: false},
+	}
+	for _, tc := range rows {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got, ok := usableProgress(tc.ctx); got != tc.want || ok != tc.ok {
+				t.Errorf("usableProgress(%+v) = %v/%v, want %v/%v", tc.ctx, got, ok, tc.want, tc.ok)
+			}
+		})
+	}
+}
+
+// TestUsableExpectedBoundaries pins the expected-next token edges: one is
+// the smallest usable value, zero never qualifies, and fractional, NaN
+// (the string-token encoding), or unset tokens stay disclosed but unusable.
+func TestUsableExpectedBoundaries(t *testing.T) {
+	t.Parallel()
+	rows := []struct {
+		name string
+		ctx  Context
+		want int
+		ok   bool
+	}{
+		{name: "one is usable", ctx: Context{ExpectedNextSet: true, ExpectedNext: 1}, want: 1, ok: true},
+		{name: "zero is unusable", ctx: Context{ExpectedNextSet: true, ExpectedNext: 0}, ok: false},
+		{name: "negative is unusable", ctx: Context{ExpectedNextSet: true, ExpectedNext: -3}, ok: false},
+		{name: "fractional is unusable", ctx: Context{ExpectedNextSet: true, ExpectedNext: 12.5}, ok: false},
+		{name: "string token is unusable", ctx: Context{ExpectedNextSet: true, ExpectedNext: math.NaN()}, ok: false},
+		{name: "unset is unusable", ctx: Context{}, ok: false},
+	}
+	for _, tc := range rows {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got, ok := usableExpected(tc.ctx); got != tc.want || ok != tc.ok {
+				t.Errorf("usableExpected(%+v) = %v/%v, want %v/%v", tc.ctx, got, ok, tc.want, tc.ok)
+			}
+		})
+	}
+}
+
+// TestUsableNextShapes pins the aim: a usable expected-next wins,
+// otherwise exact integer progress implies progress+1, and an unusable
+// expected token falls back to progress instead of abstaining.
+func TestUsableNextShapes(t *testing.T) {
+	t.Parallel()
+	rows := []struct {
+		name string
+		ctx  Context
+		want int
+		ok   bool
+	}{
+		{name: "expected wins", ctx: Context{ProgressSet: true, Progress: 5, ExpectedNextSet: true, ExpectedNext: 8}, want: 8, ok: true},
+		{name: "progress implies next", ctx: Context{ProgressSet: true, Progress: 2}, want: 3, ok: true},
+		{name: "zero progress implies one", ctx: Context{ProgressSet: true, Progress: 0}, want: 1, ok: true},
+		{name: "unusable expected falls back to progress", ctx: Context{ProgressSet: true, Progress: 12, ExpectedNextSet: true, ExpectedNext: math.NaN()}, want: 13, ok: true},
+		{name: "nothing usable abstains", ctx: Context{}, ok: false},
+		{name: "fractional progress abstains", ctx: Context{ProgressSet: true, Progress: 12.5}, ok: false},
+	}
+	for _, tc := range rows {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got, ok := usableNext(tc.ctx); got != tc.want || ok != tc.ok {
+				t.Errorf("usableNext(%+v) = %v/%v, want %v/%v", tc.ctx, got, ok, tc.want, tc.ok)
+			}
+		})
+	}
+}
+
+// TestUsableOrdinalBoundaries pins the shared validator: non-finite and
+// fractional readings never convert, and the minimum and the bound are
+// inclusive on both sides.
+func TestUsableOrdinalBoundaries(t *testing.T) {
+	t.Parallel()
+	rows := []struct {
+		name string
+		f    float64
+		min  int
+		want int
+		ok   bool
+	}{
+		{name: "minimum is usable", f: 1, min: 1, want: 1, ok: true},
+		{name: "below minimum is unusable", f: 0, min: 1, ok: false},
+		{name: "zero minimum admits zero", f: 0, min: 0, want: 0, ok: true},
+		{name: "bound is usable", f: 1 << 30, min: 0, want: 1 << 30, ok: true},
+		{name: "past bound is unusable", f: 1<<30 + 1, min: 0, ok: false},
+		{name: "fractional is unusable", f: 1.5, min: 0, ok: false},
+		{name: "NaN is unusable", f: math.NaN(), min: 0, ok: false},
+		{name: "positive infinity is unusable", f: math.Inf(1), min: 0, ok: false},
+		{name: "negative infinity is unusable", f: math.Inf(-1), min: 0, ok: false},
+	}
+	for _, tc := range rows {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got, ok := usableOrdinal(tc.f, tc.min); got != tc.want || ok != tc.ok {
+				t.Errorf("usableOrdinal(%v, %d) = %v/%v, want %v/%v", tc.f, tc.min, got, ok, tc.want, tc.ok)
+			}
+		})
+	}
+}
+
+// TestFractionalProgressShapes pins the fractional abstention sentence
+// guard: only a set, finite, non-integer reading earns it.
+func TestFractionalProgressShapes(t *testing.T) {
+	t.Parallel()
+	rows := []struct {
+		name string
+		ctx  Context
+		want bool
+	}{
+		{name: "fractional earns it", ctx: Context{ProgressSet: true, Progress: 12.5}, want: true},
+		{name: "integer does not", ctx: Context{ProgressSet: true, Progress: 12}, want: false},
+		{name: "zero does not", ctx: Context{ProgressSet: true, Progress: 0}, want: false},
+		{name: "NaN does not", ctx: Context{ProgressSet: true, Progress: math.NaN()}, want: false},
+		{name: "infinity does not", ctx: Context{ProgressSet: true, Progress: math.Inf(1)}, want: false},
+		{name: "unset does not", ctx: Context{}, want: false},
+	}
+	for _, tc := range rows {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := fractionalProgress(tc.ctx); got != tc.want {
+				t.Errorf("fractionalProgress(%+v) = %v, want %v", tc.ctx, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestParseNsShapes pins the timestamp reader: empty, malformed, and
+// negative readings are unavailable, while zero and beyond-int64 readings
+// stay exact big integers, never zero-filled and never a crash.
+func TestParseNsShapes(t *testing.T) {
+	t.Parallel()
+	rows := []struct {
+		name string
+		in   string
+		want string
+		ok   bool
+	}{
+		{name: "empty is unavailable", in: "", ok: false},
+		{name: "zero is available", in: "0", want: "0", ok: true},
+		{name: "one is available", in: "1", want: "1", ok: true},
+		{name: "negative is unavailable", in: "-5", ok: false},
+		{name: "malformed is unavailable", in: "abc", ok: false},
+		{name: "beyond int64 stays exact", in: "170141183460469231731687303715884105730", want: "170141183460469231731687303715884105730", ok: true},
+	}
+	for _, tc := range rows {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := parseNs(tc.in)
+			if ok != tc.ok {
+				t.Fatalf("parseNs(%q) ok = %v, want %v", tc.in, ok, tc.ok)
+			}
+			if ok && got.String() != tc.want {
+				t.Errorf("parseNs(%q) = %v, want %v", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+// mustNs parses a decimal reading for chronology fixtures; the inputs are
+// literals the table owns, so a failure is a table bug, not a decision.
+func mustNs(s string) *big.Int {
+	v, ok := new(big.Int).SetString(s, 10)
+	if !ok {
+		panic("bad timestamp literal " + s)
+	}
+	return v
+}
+
+// TestChronologyOrderShapes pins exact big-integer chronology: a lone file
+// never orders, equal births or equal mtimes abstain, and a single
+// nanosecond — even beyond int64 — decides earliest-first.
+func TestChronologyOrderShapes(t *testing.T) {
+	t.Parallel()
+	rows := []struct {
+		name   string
+		stamps []stamp
+		want   []int
+		ok     bool
+	}{
+		{name: "empty abstains", stamps: nil, ok: false},
+		{name: "single abstains", stamps: []stamp{{birth: mustNs("1"), mtime: mustNs("2")}}, ok: false},
+		{name: "equal births abstain", stamps: []stamp{{birth: mustNs("1"), mtime: mustNs("2")}, {birth: mustNs("1"), mtime: mustNs("3")}}, ok: false},
+		{name: "equal mtimes abstain", stamps: []stamp{{birth: mustNs("1"), mtime: mustNs("5")}, {birth: mustNs("3"), mtime: mustNs("5")}}, ok: false},
+		{name: "one nanosecond decides", stamps: []stamp{{birth: mustNs("101"), mtime: mustNs("201")}, {birth: mustNs("100"), mtime: mustNs("200")}}, want: []int{1, 0}, ok: true},
+		{name: "beyond int64 stays exact", stamps: []stamp{{birth: mustNs("340282366920938463463374607431768211457"), mtime: mustNs("340282366920938463463374607431768211460")}, {birth: mustNs("340282366920938463463374607431768211456"), mtime: mustNs("340282366920938463463374607431768211458")}}, want: []int{1, 0}, ok: true},
+	}
+	for _, tc := range rows {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := chronologyOrder(tc.stamps)
+			if ok != tc.ok {
+				t.Fatalf("chronologyOrder ok = %v, want %v", ok, tc.ok)
+			}
+			if ok && !slices.Equal(got, tc.want) {
+				t.Errorf("chronologyOrder = %v, want %v", got, tc.want)
+			}
 		})
 	}
 }

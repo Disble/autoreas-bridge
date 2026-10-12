@@ -40,6 +40,16 @@ func TestNameShapes(t *testing.T) {
 		{name: "special followed by letter is plain", basename: "Show specials 05.mp4", wantOrds: []int{5}},
 		{name: "bare special", basename: "Show SP.mp4", wantAmbig: AmbiguitySpecial},
 		{name: "unnumbered opaque", basename: "Evening Becomes Night finale.mp4"},
+		{name: "multi at stem start", basename: "10+11.mp4", wantAmbig: AmbiguityMulti},
+		{name: "range after hyphen", basename: "Show-01-02.mp4", wantAmbig: AmbiguityRange},
+		{name: "special followed by zero", basename: "Show SP0.mp4", wantOrds: []int{0}, wantAmbig: AmbiguitySpecial},
+		{name: "special followed by nine", basename: "Show SP9.mp4", wantOrds: []int{9}, wantAmbig: AmbiguitySpecial},
+		{name: "bare v prefix suppresses fractional", basename: "v1.2.mp4", wantOrds: []int{2}},
+		{name: "spaced v suppresses fractional", basename: "Show v 1.2.mp4", wantOrds: []int{2}},
+		{name: "uppercase version prefix", basename: "Show V1.2.mp4", wantOrds: []int{2}},
+		{name: "ver glued to digits is a version", basename: "aver1.2.mp4", wantOrds: []int{2}},
+		{name: "v spaced from digits is version noise", basename: "Show v 2.mp4"},
+		{name: "trailing digits after ep prefix", basename: "Show ep264.mp4", wantOrds: []int{264}},
 	}
 	for _, tc := range rows {
 		t.Run(tc.name, func(t *testing.T) {
