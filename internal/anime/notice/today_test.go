@@ -35,7 +35,7 @@ func TestTodayMarksRefusesADecisionThatFlagsItsOwnAmbiguity(t *testing.T) {
 		episodeRow(folderWith(t, "Show - 02.mp4"), tv(), 1),
 	})
 
-	if len(marks) != 1 || marks[0] {
+	if len(marks) != 1 || marks[0] != nil {
 		t.Fatalf("a decision that flags its own doubt must not be marked: %v", marks)
 	}
 }
@@ -67,6 +67,15 @@ func TestHasAmbiguityReadsTheWholeFactSet(t *testing.T) {
 			}
 		})
 	}
+}
+
+// equalMark reports whether two marks carry the same fact: two absences are equal, and two marks
+// are equal only when both the episode and the minutes agree, so neither fact can drift alone.
+func equalMark(got, want *Mark) bool {
+	if got == nil || want == nil {
+		return got == want
+	}
+	return *got == *want
 }
 
 // probesInFlightBound is the bound the scope promises, written as a literal on purpose: a test that
@@ -149,6 +158,9 @@ func TestTodayMarksMarksOnlyALongNextEpisode(t *testing.T) {
 
 	notTV := 3
 	twoEpisodes := func(t *testing.T) string { return folderWith(t, "Show - 01.mp4", "Show - 02.mp4") }
+	threeEpisodes := func(t *testing.T) string {
+		return folderWith(t, "Show - 01.mp4", "Show - 02.mp4", "Show - 03.mp4")
+	}
 
 	for _, tc := range []struct {
 		name       string
@@ -156,11 +168,11 @@ func TestTodayMarksMarksOnlyALongNextEpisode(t *testing.T) {
 		kind       *int
 		progress   float64
 		prober     *proberAnswers
-		want       bool
+		want       *Mark
 		wantProbes int
 	}{
-		{name: "a long next episode is marked", folder: twoEpisodes, kind: tv(), progress: 1,
-			prober: &proberAnswers{runtime: 45 * time.Minute}, want: true, wantProbes: 1},
+		{name: "a long next episode is marked", folder: threeEpisodes, kind: tv(), progress: 2,
+			prober: &proberAnswers{runtime: 45 * time.Minute}, want: &Mark{Episode: 3, Minutes: 45}, wantProbes: 1},
 		{name: "an ordinary next episode is not marked", folder: twoEpisodes, kind: tv(), progress: 1,
 			prober: &proberAnswers{runtime: 24 * time.Minute}, wantProbes: 1},
 		{name: "a short next episode is not marked", folder: twoEpisodes, kind: tv(), progress: 1,
@@ -185,7 +197,7 @@ func TestTodayMarksMarksOnlyALongNextEpisode(t *testing.T) {
 					episodeRow(tc.folder(t), tc.kind, tc.progress),
 				})
 
-			if len(marks) != 1 || marks[0] != tc.want {
+			if len(marks) != 1 || !equalMark(marks[0], tc.want) {
 				t.Fatalf("want [%v], got %v", tc.want, marks)
 			}
 			if len(tc.prober.paths) != tc.wantProbes {
@@ -205,26 +217,26 @@ func TestTodayMarksKeepsOneMarkPerRowInOrder(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		rows []TodayEpisode
-		want []bool
+		want []*Mark
 	}{
 		{name: "the long row is the first one",
 			rows: []TodayEpisode{episodeRow(long, tv(), 1), episodeRow(ordinary, tv(), 1), episodeRow(unreadable, tv(), 1)},
-			want: []bool{true, false, false}},
+			want: []*Mark{{Episode: 2, Minutes: 50}, nil, nil}},
 		{name: "the long row is the last one",
 			rows: []TodayEpisode{episodeRow(unreadable, tv(), 1), episodeRow(ordinary, tv(), 1), episodeRow(long, tv(), 1)},
-			want: []bool{false, false, true}},
+			want: []*Mark{nil, nil, {Episode: 2, Minutes: 50}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			prober := &perFileRuntime{long: 45 * time.Minute, ordinary: 24 * time.Minute}
+			prober := &perFileRuntime{long: 50 * time.Minute, ordinary: 24 * time.Minute}
 			marks := newCoordinator(t, prober, &notifierRecords{}).TodayMarks(context.Background(), tc.rows)
 
 			if len(marks) != len(tc.want) {
 				t.Fatalf("one mark per row: want %d, got %d", len(tc.want), len(marks))
 			}
 			for index, want := range tc.want {
-				if marks[index] != want {
+				if !equalMark(marks[index], want) {
 					t.Errorf("row %d: want %v, got %v (all marks %v)", index, want, marks[index], marks)
 				}
 			}
@@ -242,7 +254,7 @@ func TestTodayMarksHoldsTheBoundAndMeasuresEveryRow(t *testing.T) {
 
 	prober := newGatedProber()
 	coordinator := newCoordinator(t, prober, &notifierRecords{})
-	done := make(chan []bool, 1)
+	done := make(chan []*Mark, 1)
 	go func() { done <- coordinator.TodayMarks(context.Background(), rows) }()
 
 	// Every slot is taken and none is exceeded: a bound of five would announce a fifth probe here, and
@@ -263,9 +275,10 @@ func TestTodayMarksHoldsTheBoundAndMeasuresEveryRow(t *testing.T) {
 	prober.open()
 
 	marks := <-done
+	want := &Mark{Episode: 2, Minutes: 45}
 	for index, mark := range marks {
-		if !mark {
-			t.Fatalf("every row must be measured, row %d was not: %v", index, marks)
+		if !equalMark(mark, want) {
+			t.Fatalf("every row must be measured, row %d carries %v, want %v", index, mark, want)
 		}
 	}
 	if highest, admits := prober.stats(); highest != probesInFlightBound || admits != len(rows) {

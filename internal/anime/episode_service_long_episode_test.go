@@ -81,8 +81,17 @@ func episodeFolder(t *testing.T, names ...string) string {
 	return folder
 }
 
+// equalMark reports whether two marks carry the same fact: two absences are equal, and two marks
+// are equal only when both the episode and the minutes agree, so neither fact can drift alone.
+func equalMark(got, want *notice.Mark) bool {
+	if got == nil || want == nil {
+		return got == want
+	}
+	return *got == *want
+}
+
 // markedRows is the schedule of the day under test, and the mark each of its rows must carry.
-func markedRows(t *testing.T) ([]contracts.MobileAnime, map[string]bool) {
+func markedRows(t *testing.T) ([]contracts.MobileAnime, map[string]*notice.Mark) {
 	t.Helper()
 
 	tv := 0
@@ -91,7 +100,7 @@ func markedRows(t *testing.T) ([]contracts.MobileAnime, map[string]bool) {
 		dayAnime("Short", episodeFolder(t, "Short - 01.mp4", "Short - 02.mp4"), 1, &tv),
 		dayAnime("Gone", filepath.Join(t.TempDir(), "gone"), 1, &tv),
 		dayAnime("Empty", episodeFolder(t), 1, &tv),
-	}, map[string]bool{"Long": true, "Short": false, "Gone": false, "Empty": false}
+	}, map[string]*notice.Mark{"Long": {Episode: 2, Minutes: 45}}
 }
 
 func TestListEpisodeScheduleMarksOnlyTheRowWhoseNextEpisodeRunsLong(t *testing.T) {
@@ -112,7 +121,7 @@ func TestListEpisodeScheduleMarksOnlyTheRowWhoseNextEpisodeRunsLong(t *testing.T
 		t.Fatalf("one row per active anime: want %d, got %d", len(animes), len(items))
 	}
 	for _, item := range items {
-		if item.LongNextEpisode != want[item.AnimeID] {
+		if !equalMark(item.LongNextEpisode, want[item.AnimeID]) {
 			t.Errorf("%s: want mark %v, got %v", item.AnimeID, want[item.AnimeID], item.LongNextEpisode)
 		}
 	}
@@ -129,7 +138,7 @@ func TestListEpisodeScheduleWithoutCoordinationMarksNothingAndFailsNothing(t *te
 		t.Fatalf("an unwired coordination must not fail the read: %v", err)
 	}
 	for _, item := range items {
-		if item.LongNextEpisode {
+		if item.LongNextEpisode != nil {
 			t.Errorf("%s: nothing can be marked without a coordination", item.AnimeID)
 		}
 	}
@@ -151,8 +160,8 @@ func TestListEpisodeScheduleMeasuresTheNextEpisodeAndWritesNothing(t *testing.T)
 	if err != nil {
 		t.Fatalf("list schedule: %v", err)
 	}
-	if len(items) != 1 || !items[0].LongNextEpisode {
-		t.Fatalf("want one marked row, got %v", items)
+	if len(items) != 1 || !equalMark(items[0].LongNextEpisode, &notice.Mark{Episode: 2, Minutes: 45}) {
+		t.Fatalf("want one row marked Ep. 2, 45 min, got %v", items)
 	}
 	if len(prober.asked) != 1 || !strings.HasSuffix(prober.asked[0], "Show - 02.mp4") {
 		t.Errorf("only the next episode may be measured, got %v", prober.asked)
@@ -221,8 +230,8 @@ func TestListEpisodeScheduleCostWithRealProbes(t *testing.T) {
 	elapsed := time.Since(started)
 
 	for _, item := range items {
-		if !item.LongNextEpisode {
-			t.Fatalf("%s: a real thirty-one minute episode must be marked, got %v", item.AnimeID, items)
+		if !equalMark(item.LongNextEpisode, &notice.Mark{Episode: 2, Minutes: 31}) {
+			t.Fatalf("%s: a real thirty-one minute episode must be marked Ep. 2, 31 min, got %v", item.AnimeID, items)
 		}
 	}
 	t.Logf("dia con %d filas, ffprobe real: %v en total (%v por fila)",

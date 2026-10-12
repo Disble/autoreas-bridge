@@ -25,14 +25,24 @@ type TodayEpisode struct {
 	Progress float64
 }
 
-// TodayMarks answers one mark per episode, in the same order as the input: true when that anime's next
-// episode runs long.
+// Mark is one Today mark: the NEXT episode number and its measured runtime in whole minutes.
+//
+// A single value rather than two independent fields, so the episode and the minutes can never
+// disagree: presence is the mark and absence is silence. The ODD 4 Today surface renders it as one
+// chip reading "Ep. 7 · 45 min".
+type Mark struct {
+	Episode int
+	Minutes int
+}
+
+// TodayMarks answers one mark per episode, in the same order as the input: a mark when that anime's
+// next episode runs long, nil when it does not.
 //
 // Every row is recomputed from its folder on every call, because the filesystem belongs to the user and
 // can change at any moment; nothing is remembered between calls. Rows are measured in parallel within
 // maxProbesInFlight, so one slow folder cannot hold up the rest of the day.
-func (c *Coordinator) TodayMarks(ctx context.Context, episodes []TodayEpisode) []bool {
-	marks := make([]bool, len(episodes))
+func (c *Coordinator) TodayMarks(ctx context.Context, episodes []TodayEpisode) []*Mark {
+	marks := make([]*Mark, len(episodes))
 	inFlight := make(chan struct{}, maxProbesInFlight)
 
 	var running sync.WaitGroup
@@ -54,29 +64,33 @@ func (c *Coordinator) TodayMarks(ctx context.Context, episodes []TodayEpisode) [
 
 // markOne decides whether one anime of the day deserves a mark.
 //
-// Every reason not to mark ends the same way, in false and never in an error: a type that cannot
+// Every reason not to mark ends the same way, in nil and never in an error: a type that cannot
 // qualify, a folder nobody can read, an identity that abstains, an identity that names a file while
-// flagging its own doubt, a probe that cannot read the file, and a runtime that is not long.
-func (c *Coordinator) markOne(ctx context.Context, episode TodayEpisode) bool {
+// flagging its own doubt, a probe that cannot read the file, and a runtime that is not long. A mark
+// carries the episode number from the identity selection, never from progress arithmetic.
+func (c *Coordinator) markOne(ctx context.Context, episode TodayEpisode) *Mark {
 	if !isTV(episode.Kind) {
-		return false
+		return nil
 	}
 
 	entries, err := c.inventory.Capture(episode.Folder)
 	if err != nil {
-		return false
+		return nil
 	}
 
 	next, ok := c.nextEpisode(entries, episode.Progress)
 	if !ok {
-		return false
+		return nil
 	}
 
 	runtime, err := c.prober.Probe(ctx, filepath.Join(episode.Folder, next.Basename))
 	if err != nil {
-		return false
+		return nil
 	}
-	return duration.Classify(runtime) == duration.KindLong
+	if duration.Classify(runtime) != duration.KindLong {
+		return nil
+	}
+	return &Mark{Episode: next.Episode, Minutes: int(minutes(runtime))}
 }
 
 // nextEpisode asks the identity decision which file is next, and refuses an answer that arrived with

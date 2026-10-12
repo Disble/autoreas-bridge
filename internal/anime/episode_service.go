@@ -97,8 +97,9 @@ type EpisodeServiceDeps struct {
 }
 
 // EpisodeDurationMarks answers one mark per anime of the day, in the same order as the requests.
+// A nil mark means that anime's next episode is not long.
 type EpisodeDurationMarks interface {
-	TodayMarks(ctx context.Context, episodes []notice.TodayEpisode) []bool
+	TodayMarks(ctx context.Context, episodes []notice.TodayEpisode) []*notice.Mark
 }
 
 // EpisodeScheduleQuery filters episode schedule items by day/section.
@@ -119,9 +120,11 @@ type EpisodeScheduleItem struct {
 	FolderPath  string
 	PageURL     string
 	HasCover    bool
-	// LongNextEpisode marks the anime whose next episode runs long. The coordination fills it on
-	// every read; the folder it was measured from belongs to the user and can change at any moment.
-	LongNextEpisode bool
+	// LongNextEpisode marks the anime whose next episode runs long: the next episode number and its
+	// measured whole minutes in one value, so the two facts cannot disagree. The coordination fills
+	// it on every read; the folder it was measured from belongs to the user and can change at any
+	// moment. Nil means unmarked, which the contract omits.
+	LongNextEpisode *notice.Mark
 	LastWatched     *int64
 	FirstWatched    *int64
 }
