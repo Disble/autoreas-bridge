@@ -33,6 +33,25 @@ export function isNotificationRowUnread(row: Readonly<NotificationRow>): boolean
 }
 
 /**
+ * Returns a row's own facts for the line stating WHAT the record is about --
+ * the `body` the producer wrote for the notification itself, trimmed of stray
+ * whitespace. `undefined` when the record carries none, so the row renders no
+ * body line at all instead of an empty one; the subject line beside it is
+ * untouched either way.
+ *
+ * Deliberately producer-blind: it reads only `body`, never `source` or
+ * `kind`, so every producer's sentence reaches the list through this one
+ * seam -- the run counts no less than the episode minutes.
+ */
+export function formatNotificationBody(row: Readonly<NotificationRow>): string | undefined {
+  const body = row.body.trim();
+  if (body === '') {
+    return undefined;
+  }
+  return body;
+}
+
+/**
  * Joins a row's bounded subject excerpt into the line naming WHICH things the
  * record is about -- the master list's answer to the Anatomy artboard's
  * argument that "a count answers 'how many'. Nobody asks that."

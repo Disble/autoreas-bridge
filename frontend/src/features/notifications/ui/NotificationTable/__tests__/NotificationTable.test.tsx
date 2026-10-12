@@ -43,6 +43,107 @@ describe('NotificationTable', () => {
     expect(whenColumnHeader).toHaveAttribute('aria-sort', 'descending');
   });
 
+  it('renders a notification’s own body line when the record carries one', () => {
+    // The duration-notice shape: a title stating the fact, a body stating the
+    // numbers, and one anime row behind them. The list used to paint only the
+    // title and the subject, so the numbers never reached the reader here.
+    const row: NotificationRow = {
+      id: 3,
+      createdAtMs: 1_700_000_200_000,
+      title: 'Capítulo largo',
+      body: 'Episodio 7 · 45 minutos',
+      level: 'info',
+      source: 'anime',
+      actionCount: 0,
+      subjects: ['Bleach Sennen Kessen-hen'],
+    };
+    render(
+      <NotificationTable
+        onScroll={vi.fn()}
+        onSelectionChange={vi.fn()}
+        renderEmptyState={() => <span>Empty</span>}
+        rows={[row]}
+        selectedKeys={new Set()}
+      />,
+    );
+
+    expect(screen.getByTestId('notification-table-body')).toHaveTextContent('Episodio 7 · 45 minutos');
+  });
+
+  it('clips a long body inside its column with the title line’s own shrink discipline', () => {
+    // jsdom has no layout engine, so this pins the guard rather than the
+    // boxes: the body line must carry the same `min-w-0` + `truncate`
+    // discipline as the title line, or a long body widens the row instead of
+    // clipping inside its column. Removing either class must fail this test;
+    // the boxes themselves are the layout gate’s job, which mounts no table.
+    const row: NotificationRow = {
+      id: 5,
+      createdAtMs: 1_700_000_400_000,
+      title: 'Capítulo largo',
+      body: `Episodio 7 · ${'x'.repeat(500)}`,
+      level: 'info',
+      source: 'anime',
+      actionCount: 0,
+    };
+    render(
+      <NotificationTable
+        onScroll={vi.fn()}
+        onSelectionChange={vi.fn()}
+        renderEmptyState={() => <span>Empty</span>}
+        rows={[row]}
+        selectedKeys={new Set()}
+      />,
+    );
+
+    const bodyLine = screen.getByTestId('notification-table-body');
+    expect(bodyLine).toHaveTextContent(row.body);
+    expect(bodyLine).toHaveClass('truncate');
+    expect(bodyLine).toHaveClass('min-w-0');
+  });
+
+  it('renders the body beside the subjects rather than instead of them', () => {
+    // The run-notification shape: its own sentence AND the anime it is about.
+    // Showing the body must not cost the subject line the row already had.
+    const row: NotificationRow = {
+      id: 4,
+      createdAtMs: 1_700_000_300_000,
+      title: 'Download run stopped',
+      body: 'Stopped by request -- 2 episode(s) downloaded.',
+      level: 'warning',
+      source: 'download',
+      actionCount: 0,
+      subjects: ['Frieren', 'Eureka'],
+    };
+    render(
+      <NotificationTable
+        onScroll={vi.fn()}
+        onSelectionChange={vi.fn()}
+        renderEmptyState={() => <span>Empty</span>}
+        rows={[row]}
+        selectedKeys={new Set()}
+      />,
+    );
+
+    expect(screen.getByTestId('notification-table-body')).toHaveTextContent('Stopped by request -- 2 episode(s) downloaded.');
+    expect(screen.getByTestId('notification-table-subjects')).toHaveTextContent('Frieren · Eureka');
+  });
+
+  it('grows no body line for a record carrying none, leaving its row exactly as today', () => {
+    // Element-presence check: an empty <p> and no <p> at all look identical
+    // to a text query, and every existing producer row takes this branch.
+    render(
+      <NotificationTable
+        onScroll={vi.fn()}
+        onSelectionChange={vi.fn()}
+        renderEmptyState={() => <span>Empty</span>}
+        rows={ROWS}
+        selectedKeys={new Set()}
+      />,
+    );
+
+    expect(screen.queryByTestId('notification-table-body')).not.toBeInTheDocument();
+  });
+
   it('renders the caller-provided empty state when there are no rows', () => {
     render(
       <NotificationTable

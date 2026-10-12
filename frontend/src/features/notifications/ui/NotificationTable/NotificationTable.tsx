@@ -4,6 +4,7 @@ import { formatRelativeTimeAgo } from '../../../../shared/datetime/datetime.help
 import { formatDetailWhenLabel, formatLevelLabel, resolveLevelChipColor } from '../NotificationDetail/notification-detail.helpers';
 import {
   NOTIFICATION_TABLE_ARIA_LABEL,
+  NOTIFICATION_TABLE_BODY_TESTID,
   NOTIFICATION_TABLE_DEFAULT_SORT,
   NOTIFICATION_TABLE_LEVEL_CHIP_TESTID,
   NOTIFICATION_TABLE_READ_TITLE_CLASS,
@@ -16,6 +17,7 @@ import {
   NOTIFICATION_TABLE_WHEN_COLUMN_WIDTH,
 } from './notification-table.constants';
 import {
+  formatNotificationBody,
   formatNotificationRowCount,
   formatNotificationSubjects,
   formatNotificationWhen,
@@ -159,7 +161,18 @@ function NotificationTableWhenCell({ createdAtMs }: Readonly<{ createdAtMs: numb
  * The "Notification" cell -- the one the Main artboard turned from a bare
  * title into a block. Line one carries the unread dot, the
  * truncation-tooltipped title, the severity chip and the count badge; line
- * two names the things the record is about.
+ * two carries the notification's own facts when it wrote any (`body`), and
+ * the last line names the things the record is about (`subjects`).
+ *
+ * The body line is producer-blind: whatever sentence a producer put on the
+ * record -- a run's counts, an episode's minutes -- reaches the list through
+ * this one seam, and a record that carried none grows no line at all.
+ *
+ * The body line carries the same shrink discipline as the title line
+ * (`min-w-0` + `truncate`): a long body clips inside its own column
+ * instead of widening the row and, with it, the page. jsdom cannot prove
+ * that -- it has no layout engine -- so the contract test below pins the
+ * guard classes rather than the boxes; the boxes are the layout gate's job.
  *
  * The unread mark is HeroUI's own `Badge`, which renders as a dot exactly
  * when its children are omitted. `Badge` is always absolutely positioned --
@@ -190,6 +203,7 @@ function NotificationTableWhenCell({ createdAtMs }: Readonly<{ createdAtMs: numb
 function NotificationTableNotificationCell({ row }: Readonly<{ row: NotificationRow }>) {
   const { isDisabled, ref } = useTruncationTooltip();
   const isUnread = isNotificationRowUnread(row);
+  const body = formatNotificationBody(row);
   const subjects = formatNotificationSubjects(row);
   const rowCount = formatNotificationRowCount(row);
 
@@ -221,6 +235,11 @@ function NotificationTableNotificationCell({ row }: Readonly<{ row: Notification
         </div>
         {isUnread ? <Badge aria-label={NOTIFICATION_TABLE_UNREAD_LABEL} color="accent" placement="top-left" role="img" size="sm" /> : null}
       </Badge.Anchor>
+      {body === undefined ? null : (
+        <p className="min-w-0 truncate pl-3.5 text-xs text-default-600" data-testid={NOTIFICATION_TABLE_BODY_TESTID}>
+          {body}
+        </p>
+      )}
       {subjects === undefined ? null : (
         <p className="truncate pl-3.5 text-xs text-default-500" data-testid={NOTIFICATION_TABLE_SUBJECTS_TESTID}>
           {subjects}

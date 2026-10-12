@@ -291,10 +291,13 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 		MaxConcurrentAnimes: jdMaxConcurrentAnimes,
 		Store:               a.downloadStore,
 		Notifier:            a.notifier,
-		Bus:                 a.eventBus,
-		Logger:              a.sharedLogger,
-		JDDeviceName:        a.downloadJDDeviceName(ctx),
-		SeasonMode:          a.seasonModeReader(),
+		// The notice coordinates the landed episode against the runtime rule. Built here, from the
+		// pipeline's own extension set, so nothing about it reaches outside this composition root.
+		EpisodeDurationNotice: newEpisodeDurationNotice(a.notifier),
+		Bus:                   a.eventBus,
+		Logger:                a.sharedLogger,
+		JDDeviceName:          a.downloadJDDeviceName(ctx),
+		SeasonMode:            a.seasonModeReader(),
 		// Read per episode rather than captured here, so toggling the setting takes
 		// effect on the next download instead of the next Bridge restart.
 		RenameEpisodes: a.episodeRenameEnabled,

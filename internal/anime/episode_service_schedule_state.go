@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"autoreas-bridge/internal/anime/cover"
+	"autoreas-bridge/internal/anime/notice"
 	"autoreas-bridge/internal/api/contracts"
 )
 
@@ -16,6 +17,9 @@ func (s *EpisodeService) ListEpisodeSchedule(ctx context.Context, query EpisodeS
 	}
 
 	result := make([]EpisodeScheduleItem, 0, len(items))
+	// One request per row, in the order the rows are built, so the marks can be written back by
+	// position. The type travels here and nowhere else: the read model does not carry it.
+	requests := make([]notice.TodayEpisode, 0, len(items))
 	for _, item := range items {
 		if item.Active == 0 {
 			continue
@@ -43,7 +47,14 @@ func (s *EpisodeService) ListEpisodeSchedule(ctx context.Context, query EpisodeS
 			LastWatched:  item.LastWatchedAt,
 			FirstWatched: item.PremieredAt,
 		})
+		requests = append(requests, notice.TodayEpisode{
+			Folder:   legacyStringValue(item.Folder),
+			Kind:     item.Kind,
+			Progress: item.EpisodesWatched,
+		})
 	}
+
+	s.applyLongEpisodeMarks(ctx, result, requests)
 
 	sort.SliceStable(result, func(i, j int) bool {
 		if result[i].DayOrder == result[j].DayOrder {
@@ -52,6 +63,20 @@ func (s *EpisodeService) ListEpisodeSchedule(ctx context.Context, query EpisodeS
 		return result[i].DayOrder < result[j].DayOrder
 	})
 	return result, nil
+}
+
+// applyLongEpisodeMarks asks the duration coordination which rows carry a next episode that runs
+// long, and records the answer on the read model.
+//
+// The coordination is optional and answers exactly one mark per request, in the same order. Every row
+// is recomputed on every call, because the folder belongs to the user and can change at any moment.
+func (s *EpisodeService) applyLongEpisodeMarks(ctx context.Context, items []EpisodeScheduleItem, requests []notice.TodayEpisode) {
+	if s.marks == nil {
+		return
+	}
+	for index, mark := range s.marks.TodayMarks(ctx, requests) {
+		items[index].LongNextEpisode = mark
+	}
 }
 
 // SetAnimeState updates one anime estado and records activity when the write applies.

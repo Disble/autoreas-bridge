@@ -411,6 +411,13 @@ func toWatchHistoryEntries(items []watchhistory.Entry) []contracts.WatchHistoryE
 func toEpisodeScheduleContracts(items []anime.EpisodeScheduleItem) []contracts.EpisodeScheduleItem {
 	result := make([]contracts.EpisodeScheduleItem, 0, len(items))
 	for _, item := range items {
+		var mark *contracts.LongEpisodeMark
+		if item.LongNextEpisode != nil {
+			mark = &contracts.LongEpisodeMark{
+				Episode: item.LongNextEpisode.Episode,
+				Minutes: item.LongNextEpisode.Minutes,
+			}
+		}
 		result = append(result, contracts.EpisodeScheduleItem{
 			AnimeID:         item.AnimeID,
 			AnimeName:       item.AnimeName,
@@ -423,6 +430,7 @@ func toEpisodeScheduleContracts(items []anime.EpisodeScheduleItem) []contracts.E
 			FolderPath:      item.FolderPath,
 			PageURL:         item.PageURL,
 			HasCover:        item.HasCover,
+			LongNextEpisode: mark,
 			LastWatched:     item.LastWatched,
 			FirstWatched:    item.FirstWatched,
 		})

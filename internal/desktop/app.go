@@ -308,6 +308,9 @@ func (a *App) wireEpisodeServiceWithWriter(writer contracts.AnimePatcher) {
 	deps := anime.EpisodeServiceDeps{
 		Query:  a.animeQuery,
 		Writer: writer,
+		// The same stateless coordination the download side uses, built from the pipeline's
+		// extension set, so a row can be marked with the runtime of its own next episode.
+		Marks: newEpisodeDurationNotice(a.notifier),
 	}
 	if a.bridgeDB != nil {
 		deps.Activity = activityRecorderAdapter{

@@ -1,0 +1,1687 @@
+{
+  "snapshots": [
+    {
+      "sample": "slime",
+      "dir": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season",
+      "snapshot": {
+        "source": "live",
+        "capturedAt": "2026-10-11T00:30:26.521Z",
+        "entries": [
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 01.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 01.mp4",
+            "sizeBytes": "278028340",
+            "birthNs": "1776480502887909000",
+            "mtimeNs": "1776480514112000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 02.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 02.mp4",
+            "sizeBytes": "309218014",
+            "birthNs": "1776480658791097400",
+            "mtimeNs": "1776480671308000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 03.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 03.mp4",
+            "sizeBytes": "425694606",
+            "birthNs": "1776480672973664200",
+            "mtimeNs": "1776480689270000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 04.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 04.mp4",
+            "sizeBytes": "275846967",
+            "birthNs": "1777083687424867000",
+            "mtimeNs": "1777083698532000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 05.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 05.mp4",
+            "sizeBytes": "245022424",
+            "birthNs": "1778299964414889200",
+            "mtimeNs": "1778299978698000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 06.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 06.mp4",
+            "sizeBytes": "315003580",
+            "birthNs": "1778902767630476500",
+            "mtimeNs": "1778902779870000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 07.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 07.mp4",
+            "sizeBytes": "259738326",
+            "birthNs": "1779508032486298500",
+            "mtimeNs": "1779508033441291900"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 08.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 08.mp4",
+            "sizeBytes": "243807509",
+            "birthNs": "1780113637700513600",
+            "mtimeNs": "1780113648263000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 09.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 09.mp4",
+            "sizeBytes": "366266094",
+            "birthNs": "1780718770809216800",
+            "mtimeNs": "1780718790045000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 10.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 10.mp4",
+            "sizeBytes": "472909989",
+            "birthNs": "1781320934401311000",
+            "mtimeNs": "1781320951210000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 11.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 11.mp4",
+            "sizeBytes": "451065103",
+            "birthNs": "1781928163883610700",
+            "mtimeNs": "1781928240127000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 12.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 12.mp4",
+            "sizeBytes": "262894032",
+            "birthNs": "1782491036614436800",
+            "mtimeNs": "1782491049000000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 13.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 13.mp4",
+            "sizeBytes": "328619976",
+            "birthNs": "1783135272727606400",
+            "mtimeNs": "1783135300322000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 14.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 14.mp4",
+            "sizeBytes": "404541813",
+            "birthNs": "1783830108317576900",
+            "mtimeNs": "1783830132000000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 15.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 15.mp4",
+            "sizeBytes": "252349690",
+            "birthNs": "1785101146835926800",
+            "mtimeNs": "1785101159811000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 16.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 16.mp4",
+            "sizeBytes": "310483627",
+            "birthNs": "1785101209319701200",
+            "mtimeNs": "1785101235875000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 17.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 17.mp4",
+            "sizeBytes": "345131613",
+            "birthNs": "1786334599602308100",
+            "mtimeNs": "1786334610787000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 18.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 18.mp4",
+            "sizeBytes": "290953944",
+            "birthNs": "1786935750449267400",
+            "mtimeNs": "1786935763706000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 19.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 19.mp4",
+            "sizeBytes": "429741378",
+            "birthNs": "1787540546391601500",
+            "mtimeNs": "1787540557000000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 20.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 20.mp4",
+            "sizeBytes": "257171587",
+            "birthNs": "1788145300773102500",
+            "mtimeNs": "1788145309217000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 21.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 21.mp4",
+            "sizeBytes": "252827584",
+            "birthNs": "1788751207537815200",
+            "mtimeNs": "1788751214718000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 22.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 22.mp4",
+            "sizeBytes": "433950394",
+            "birthNs": "1789354902043357000",
+            "mtimeNs": "1789354914266000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\Tensei shitara Slime Datta Ken 4th Season - 23.mp4",
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 23.mp4",
+            "sizeBytes": "434192500",
+            "birthNs": "1789962330179346100",
+            "mtimeNs": "1789962341003000000"
+          },
+          {
+            "path": "D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season\\teeennnseiishitaaaraaslimeedattaakenn4thseasonsss-24.mp4",
+            "basename": "teeennnseiishitaaaraaslimeedattaakenn4thseasonsss-24.mp4",
+            "sizeBytes": "505318620",
+            "birthNs": "1790564488316396200",
+            "mtimeNs": "1790564502765000000"
+          }
+        ],
+        "convention": null,
+        "context": {
+          "animeTitle": "Tensei shitara Slime Datta Ken 4th Season",
+          "expectedNext": 24,
+          "progress": 23,
+          "note": "historical supplied demo context, not live DB"
+        },
+        "notes": "live capture of D:\\Anime\\Tensei shitara Slime Datta Ken 4th Season; no diagnostics; hypothetical-prefix reading (NOT asserted): 24/24 corroborated, 0 conditional, 0 conflicting under a user-declared prefix convention"
+      },
+      "result": {
+        "scenarioId": "live-slime",
+        "verdicts": [
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 01.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              1
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 1",
+              "creation rank 1 (ns=1776480502887909000)",
+              "modification rank 1 (ns=1776480514112000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 1",
+            "mtimeRank": "rank 1",
+            "labelSummary": "ordinal:- 01"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 02.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              2
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 2",
+              "creation rank 2 (ns=1776480658791097400)",
+              "modification rank 2 (ns=1776480671308000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 2",
+            "mtimeRank": "rank 2",
+            "labelSummary": "ordinal:- 02"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 03.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              3
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 3",
+              "creation rank 3 (ns=1776480672973664200)",
+              "modification rank 3 (ns=1776480689270000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 3",
+            "mtimeRank": "rank 3",
+            "labelSummary": "ordinal:- 03"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 04.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              4
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 4",
+              "creation rank 4 (ns=1777083687424867000)",
+              "modification rank 4 (ns=1777083698532000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 4",
+            "mtimeRank": "rank 4",
+            "labelSummary": "ordinal:- 04"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 05.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              5
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 5",
+              "creation rank 5 (ns=1778299964414889200)",
+              "modification rank 5 (ns=1778299978698000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 5",
+            "mtimeRank": "rank 5",
+            "labelSummary": "ordinal:- 05"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 06.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              6
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 6",
+              "creation rank 6 (ns=1778902767630476500)",
+              "modification rank 6 (ns=1778902779870000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 6",
+            "mtimeRank": "rank 6",
+            "labelSummary": "ordinal:- 06"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 07.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              7
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 7",
+              "creation rank 7 (ns=1779508032486298500)",
+              "modification rank 7 (ns=1779508033441291900)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 7",
+            "mtimeRank": "rank 7",
+            "labelSummary": "ordinal:- 07"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 08.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              8
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 8",
+              "creation rank 8 (ns=1780113637700513600)",
+              "modification rank 8 (ns=1780113648263000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 8",
+            "mtimeRank": "rank 8",
+            "labelSummary": "ordinal:- 08"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 09.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              9
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 9",
+              "creation rank 9 (ns=1780718770809216800)",
+              "modification rank 9 (ns=1780718790045000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 9",
+            "mtimeRank": "rank 9",
+            "labelSummary": "ordinal:- 09"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 10.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              10
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 10",
+              "creation rank 10 (ns=1781320934401311000)",
+              "modification rank 10 (ns=1781320951210000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 10",
+            "mtimeRank": "rank 10",
+            "labelSummary": "ordinal:- 10"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 11.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              11
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 11",
+              "creation rank 11 (ns=1781928163883610700)",
+              "modification rank 11 (ns=1781928240127000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 11",
+            "mtimeRank": "rank 11",
+            "labelSummary": "ordinal:- 11"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 12.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              12
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 12",
+              "creation rank 12 (ns=1782491036614436800)",
+              "modification rank 12 (ns=1782491049000000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 12",
+            "mtimeRank": "rank 12",
+            "labelSummary": "ordinal:- 12"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 13.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              13
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 13",
+              "creation rank 13 (ns=1783135272727606400)",
+              "modification rank 13 (ns=1783135300322000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 13",
+            "mtimeRank": "rank 13",
+            "labelSummary": "ordinal:- 13"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 14.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              14
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 14",
+              "creation rank 14 (ns=1783830108317576900)",
+              "modification rank 14 (ns=1783830132000000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 14",
+            "mtimeRank": "rank 14",
+            "labelSummary": "ordinal:- 14"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 15.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              15
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 15",
+              "creation rank 15 (ns=1785101146835926800)",
+              "modification rank 15 (ns=1785101159811000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 15",
+            "mtimeRank": "rank 15",
+            "labelSummary": "ordinal:- 15"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 16.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              16
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 16",
+              "creation rank 16 (ns=1785101209319701200)",
+              "modification rank 16 (ns=1785101235875000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 16",
+            "mtimeRank": "rank 16",
+            "labelSummary": "ordinal:- 16"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 17.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              17
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 17",
+              "creation rank 17 (ns=1786334599602308100)",
+              "modification rank 17 (ns=1786334610787000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 17",
+            "mtimeRank": "rank 17",
+            "labelSummary": "ordinal:- 17"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 18.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              18
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 18",
+              "creation rank 18 (ns=1786935750449267400)",
+              "modification rank 18 (ns=1786935763706000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 18",
+            "mtimeRank": "rank 18",
+            "labelSummary": "ordinal:- 18"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 19.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              19
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 19",
+              "creation rank 19 (ns=1787540546391601500)",
+              "modification rank 19 (ns=1787540557000000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 19",
+            "mtimeRank": "rank 19",
+            "labelSummary": "ordinal:- 19"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 20.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              20
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 20",
+              "creation rank 20 (ns=1788145300773102500)",
+              "modification rank 20 (ns=1788145309217000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 20",
+            "mtimeRank": "rank 20",
+            "labelSummary": "ordinal:- 20"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 21.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              21
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 21",
+              "creation rank 21 (ns=1788751207537815200)",
+              "modification rank 21 (ns=1788751214718000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 21",
+            "mtimeRank": "rank 21",
+            "labelSummary": "ordinal:- 21"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 22.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              22
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 22",
+              "creation rank 22 (ns=1789354902043357000)",
+              "modification rank 22 (ns=1789354914266000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 22",
+            "mtimeRank": "rank 22",
+            "labelSummary": "ordinal:- 22"
+          },
+          {
+            "basename": "Tensei shitara Slime Datta Ken 4th Season - 23.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              23
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 23",
+              "creation rank 23 (ns=1789962330179346100)",
+              "modification rank 23 (ns=1789962341003000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 23",
+            "mtimeRank": "rank 23",
+            "labelSummary": "ordinal:- 23"
+          },
+          {
+            "basename": "teeennnseiishitaaaraaslimeedattaakenn4thseasonsss-24.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              24
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 24",
+              "creation rank 24 (ns=1790564488316396200)",
+              "modification rank 24 (ns=1790564502765000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 24",
+            "mtimeRank": "rank 24",
+            "labelSummary": "ordinal:-24"
+          }
+        ],
+        "globalNotes": [
+          "context expected-next 24 defines what the user expects; it is not evidence that any file IS it"
+        ],
+        "globalAssumptions": [
+          "collection convention unknown: rank=>episode mapping is disabled; ranks are hypotheses only"
+        ],
+        "assignments": {},
+        "pendingCompatibility": [
+          "expected-next 24 has no accepted assignment in this snapshot",
+          "progress marker 23 is historical supplied context, not live truth"
+        ]
+      }
+    },
+    {
+      "sample": "mushoku",
+      "dir": "D:\\Anime\\Mushoku Tensei III Isekai Ittara Honki Dasu",
+      "snapshot": {
+        "source": "live",
+        "capturedAt": "2026-10-11T00:30:26.524Z",
+        "entries": [
+          {
+            "path": "D:\\Anime\\Mushoku Tensei III Isekai Ittara Honki Dasu\\Mushoku Tensei III Isekai Ittara Honki Dasu - 01.mp4",
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 01.mp4",
+            "sizeBytes": "296976052",
+            "birthNs": "1784433650981073300",
+            "mtimeNs": "1784433666888000000"
+          },
+          {
+            "path": "D:\\Anime\\Mushoku Tensei III Isekai Ittara Honki Dasu\\Mushoku Tensei III Isekai Ittara Honki Dasu - 02.mp4",
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 02.mp4",
+            "sizeBytes": "275368068",
+            "birthNs": "1784433702358968000",
+            "mtimeNs": "1784433724399000000"
+          },
+          {
+            "path": "D:\\Anime\\Mushoku Tensei III Isekai Ittara Honki Dasu\\Mushoku Tensei III Isekai Ittara Honki Dasu - 03.mp4",
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 03.mp4",
+            "sizeBytes": "225303570",
+            "birthNs": "1784433744714795800",
+            "mtimeNs": "1784433769137000000"
+          },
+          {
+            "path": "D:\\Anime\\Mushoku Tensei III Isekai Ittara Honki Dasu\\Mushoku Tensei III Isekai Ittara Honki Dasu - 04.mp4",
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 04.mp4",
+            "sizeBytes": "336441566",
+            "birthNs": "1784950230512582200",
+            "mtimeNs": "1784950256436000000"
+          },
+          {
+            "path": "D:\\Anime\\Mushoku Tensei III Isekai Ittara Honki Dasu\\Mushoku Tensei III Isekai Ittara Honki Dasu - 05.mp4",
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 05.mp4",
+            "sizeBytes": "284176629",
+            "birthNs": "1785554143496072900",
+            "mtimeNs": "1785554168730000000"
+          },
+          {
+            "path": "D:\\Anime\\Mushoku Tensei III Isekai Ittara Honki Dasu\\Mushoku Tensei III Isekai Ittara Honki Dasu - 06.mp4",
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 06.mp4",
+            "sizeBytes": "280680584",
+            "birthNs": "1786124808104937800",
+            "mtimeNs": "1786124825172000000"
+          },
+          {
+            "path": "D:\\Anime\\Mushoku Tensei III Isekai Ittara Honki Dasu\\Mushoku Tensei III Isekai Ittara Honki Dasu - 07.mp4",
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 07.mp4",
+            "sizeBytes": "257075535",
+            "birthNs": "1786762905725066700",
+            "mtimeNs": "1786762920000000000"
+          },
+          {
+            "path": "D:\\Anime\\Mushoku Tensei III Isekai Ittara Honki Dasu\\Mushoku Tensei III Isekai Ittara Honki Dasu - 08.mp4",
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 08.mp4",
+            "sizeBytes": "277418477",
+            "birthNs": "1787367761474624400",
+            "mtimeNs": "1787367770327000000"
+          },
+          {
+            "path": "D:\\Anime\\Mushoku Tensei III Isekai Ittara Honki Dasu\\Mushoku Tensei III Isekai Ittara Honki Dasu - 09.mp4",
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 09.mp4",
+            "sizeBytes": "231472919",
+            "birthNs": "1787977546244777100",
+            "mtimeNs": "1787977552589000000"
+          },
+          {
+            "path": "D:\\Anime\\Mushoku Tensei III Isekai Ittara Honki Dasu\\Mushoku Tensei III Isekai Ittara Honki Dasu - 10.mp4",
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 10.mp4",
+            "sizeBytes": "354908818",
+            "birthNs": "1789831606581130900",
+            "mtimeNs": "1788577299000000000"
+          },
+          {
+            "path": "D:\\Anime\\Mushoku Tensei III Isekai Ittara Honki Dasu\\Mushoku Tensei III Isekai Ittara Honki Dasu - 11.mp4",
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 11.mp4",
+            "sizeBytes": "198619112",
+            "birthNs": "1789184327568152800",
+            "mtimeNs": "1789184334269000000"
+          },
+          {
+            "path": "D:\\Anime\\Mushoku Tensei III Isekai Ittara Honki Dasu\\Mushoku Tensei III Isekai Ittara Honki Dasu - 12.mp4",
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 12.mp4",
+            "sizeBytes": "182570366",
+            "birthNs": "1789786932102782200",
+            "mtimeNs": "1789786940000000000"
+          },
+          {
+            "path": "D:\\Anime\\Mushoku Tensei III Isekai Ittara Honki Dasu\\mushoookuuutennnseiiiseason3isekaihonkidasuss-14.mp4",
+            "basename": "mushoookuuutennnseiiiseason3isekaihonkidasuss-14.mp4",
+            "sizeBytes": "194398409",
+            "birthNs": "1790996431671607300",
+            "mtimeNs": "1790996438055000000"
+          },
+          {
+            "path": "D:\\Anime\\Mushoku Tensei III Isekai Ittara Honki Dasu\\muushookuuutenseiiiisekaiithonkidasuusss-13.mp4",
+            "basename": "muushookuuutenseiiiisekaiithonkidasuusss-13.mp4",
+            "sizeBytes": "256338084",
+            "birthNs": "1790391657334743900",
+            "mtimeNs": "1790391726335000000"
+          }
+        ],
+        "convention": null,
+        "context": {
+          "animeTitle": "Mushoku Tensei III",
+          "progress": 12,
+          "note": "historical supplied demo context, not live DB"
+        },
+        "notes": "live capture of D:\\Anime\\Mushoku Tensei III Isekai Ittara Honki Dasu; no diagnostics; hypothetical-prefix reading (NOT asserted): 11/14 corroborated, 1 conditional, 2 conflicting under a user-declared prefix convention"
+      },
+      "result": {
+        "scenarioId": "live-mushoku",
+        "verdicts": [
+          {
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 01.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              1
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 1",
+              "creation rank 1 (ns=1784433650981073300)",
+              "modification rank 1 (ns=1784433666888000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 1",
+            "mtimeRank": "rank 1",
+            "labelSummary": "ordinal:- 01"
+          },
+          {
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 02.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              2
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 2",
+              "creation rank 2 (ns=1784433702358968000)",
+              "modification rank 2 (ns=1784433724399000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 2",
+            "mtimeRank": "rank 2",
+            "labelSummary": "ordinal:- 02"
+          },
+          {
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 03.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              3
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 3",
+              "creation rank 3 (ns=1784433744714795800)",
+              "modification rank 3 (ns=1784433769137000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 3",
+            "mtimeRank": "rank 3",
+            "labelSummary": "ordinal:- 03"
+          },
+          {
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 04.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              4
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 4",
+              "creation rank 4 (ns=1784950230512582200)",
+              "modification rank 4 (ns=1784950256436000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 4",
+            "mtimeRank": "rank 4",
+            "labelSummary": "ordinal:- 04"
+          },
+          {
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 05.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              5
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 5",
+              "creation rank 5 (ns=1785554143496072900)",
+              "modification rank 5 (ns=1785554168730000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 5",
+            "mtimeRank": "rank 5",
+            "labelSummary": "ordinal:- 05"
+          },
+          {
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 06.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              6
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 6",
+              "creation rank 6 (ns=1786124808104937800)",
+              "modification rank 6 (ns=1786124825172000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 6",
+            "mtimeRank": "rank 6",
+            "labelSummary": "ordinal:- 06"
+          },
+          {
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 07.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              7
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 7",
+              "creation rank 7 (ns=1786762905725066700)",
+              "modification rank 7 (ns=1786762920000000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 7",
+            "mtimeRank": "rank 7",
+            "labelSummary": "ordinal:- 07"
+          },
+          {
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 08.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              8
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 8",
+              "creation rank 8 (ns=1787367761474624400)",
+              "modification rank 8 (ns=1787367770327000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 8",
+            "mtimeRank": "rank 8",
+            "labelSummary": "ordinal:- 08"
+          },
+          {
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 09.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              9
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 9",
+              "creation rank 9 (ns=1787977546244777100)",
+              "modification rank 9 (ns=1787977552589000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 9",
+            "mtimeRank": "rank 9",
+            "labelSummary": "ordinal:- 09"
+          },
+          {
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 10.mp4",
+            "verdict": "conflicting",
+            "alternatives": [
+              10,
+              12
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 10",
+              "creation rank 12 (ns=1789831606581130900)",
+              "modification rank 10 (ns=1788577299000000000)"
+            ],
+            "contradictions": [
+              "creation rank 12 disagrees with modification rank 10; competing timelines stay visible",
+              "label ordinal 10 cannot arbitrate between the two timelines alone"
+            ],
+            "assumptions": [],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 12",
+            "mtimeRank": "rank 10",
+            "labelSummary": "ordinal:- 10"
+          },
+          {
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 11.mp4",
+            "verdict": "conflicting",
+            "alternatives": [
+              10,
+              11
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 11",
+              "creation rank 10 (ns=1789184327568152800)",
+              "modification rank 11 (ns=1789184334269000000)"
+            ],
+            "contradictions": [
+              "creation rank 10 disagrees with modification rank 11; competing timelines stay visible",
+              "label ordinal 11 cannot arbitrate between the two timelines alone"
+            ],
+            "assumptions": [],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 10",
+            "mtimeRank": "rank 11",
+            "labelSummary": "ordinal:- 11"
+          },
+          {
+            "basename": "Mushoku Tensei III Isekai Ittara Honki Dasu - 12.mp4",
+            "verdict": "conflicting",
+            "alternatives": [
+              11,
+              12
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 12",
+              "creation rank 11 (ns=1789786932102782200)",
+              "modification rank 12 (ns=1789786940000000000)"
+            ],
+            "contradictions": [
+              "creation rank 11 disagrees with modification rank 12; competing timelines stay visible",
+              "label ordinal 12 cannot arbitrate between the two timelines alone"
+            ],
+            "assumptions": [],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 11",
+            "mtimeRank": "rank 12",
+            "labelSummary": "ordinal:- 12"
+          },
+          {
+            "basename": "mushoookuuutennnseiiiseason3isekaihonkidasuss-14.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              14
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 14",
+              "creation rank 14 (ns=1790996431671607300)",
+              "modification rank 14 (ns=1790996438055000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 14",
+            "mtimeRank": "rank 14",
+            "labelSummary": "ordinal:-14"
+          },
+          {
+            "basename": "muushookuuutenseiiiisekaiithonkidasuusss-13.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              13
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 13",
+              "creation rank 13 (ns=1790391657334743900)",
+              "modification rank 13 (ns=1790391726335000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 13",
+            "mtimeRank": "rank 13",
+            "labelSummary": "ordinal:-13"
+          }
+        ],
+        "globalNotes": [],
+        "globalAssumptions": [
+          "collection convention unknown: rank=>episode mapping is disabled; ranks are hypotheses only"
+        ],
+        "assignments": {},
+        "pendingCompatibility": [
+          "expected-next unavailable: no explicit integer context (fractional progress never truncates)",
+          "progress marker 12 is historical supplied context, not live truth"
+        ]
+      }
+    },
+    {
+      "sample": "yani",
+      "dir": "D:\\Anime\\Yani Neko",
+      "snapshot": {
+        "source": "live",
+        "capturedAt": "2026-10-11T00:30:26.524Z",
+        "entries": [
+          {
+            "path": "D:\\Anime\\Yani Neko\\Yani Neko - 01.mp4",
+            "basename": "Yani Neko - 01.mp4",
+            "sizeBytes": "309472114",
+            "birthNs": "1784003446169581600",
+            "mtimeNs": "1784003595000000000"
+          },
+          {
+            "path": "D:\\Anime\\Yani Neko\\Yani Neko - 02.mp4",
+            "basename": "Yani Neko - 02.mp4",
+            "sizeBytes": "412745645",
+            "birthNs": "1784003758424594300",
+            "mtimeNs": "1784004155674000000"
+          },
+          {
+            "path": "D:\\Anime\\Yani Neko\\Yani Neko - 03.mp4",
+            "basename": "Yani Neko - 03.mp4",
+            "sizeBytes": "327766279",
+            "birthNs": "1785039906061636400",
+            "mtimeNs": "1785040021489353000"
+          },
+          {
+            "path": "D:\\Anime\\Yani Neko\\Yani Neko - 04.mp4",
+            "basename": "Yani Neko - 04.mp4",
+            "sizeBytes": "308764779",
+            "birthNs": "1785124409360932100",
+            "mtimeNs": "1785124463548314300"
+          },
+          {
+            "path": "D:\\Anime\\Yani Neko\\Yani Neko - 05.mp4",
+            "basename": "Yani Neko - 05.mp4",
+            "sizeBytes": "415978794",
+            "birthNs": "1785639679914715400",
+            "mtimeNs": "1785639714053000000"
+          },
+          {
+            "path": "D:\\Anime\\Yani Neko\\Yani Neko - 06.mp4",
+            "basename": "Yani Neko - 06.mp4",
+            "sizeBytes": "321068801",
+            "birthNs": "1786244597296612400",
+            "mtimeNs": "1786244629656428600"
+          },
+          {
+            "path": "D:\\Anime\\Yani Neko\\Yani Neko - 07.mp4",
+            "basename": "Yani Neko - 07.mp4",
+            "sizeBytes": "351647834",
+            "birthNs": "1786849267850931300",
+            "mtimeNs": "1786849289560000000"
+          },
+          {
+            "path": "D:\\Anime\\Yani Neko\\Yani Neko - 08.mp4",
+            "basename": "Yani Neko - 08.mp4",
+            "sizeBytes": "335532536",
+            "birthNs": "1787454056939193200",
+            "mtimeNs": "1787454067210000000"
+          },
+          {
+            "path": "D:\\Anime\\Yani Neko\\Yani Neko - 09.mp4",
+            "basename": "Yani Neko - 09.mp4",
+            "sizeBytes": "393101028",
+            "birthNs": "1788663635063932000",
+            "mtimeNs": "1788663659954000000"
+          },
+          {
+            "path": "D:\\Anime\\Yani Neko\\Yani Neko - 10.mp4",
+            "basename": "Yani Neko - 10.mp4",
+            "sizeBytes": "388578588",
+            "birthNs": "1789884375918508500",
+            "mtimeNs": "1789268692000000000"
+          },
+          {
+            "path": "D:\\Anime\\Yani Neko\\Yani Neko - 11.mp4",
+            "basename": "Yani Neko - 11.mp4",
+            "sizeBytes": "411480244",
+            "birthNs": "1789873284528379300",
+            "mtimeNs": "1789873294895000000"
+          },
+          {
+            "path": "D:\\Anime\\Yani Neko\\Yani Neko - 12.mp4",
+            "basename": "Yani Neko - 12.mp4",
+            "sizeBytes": "399550054",
+            "birthNs": "1790478198480978600",
+            "mtimeNs": "1790478268357000000"
+          }
+        ],
+        "convention": null,
+        "context": {
+          "animeTitle": "Yani Neko (resolved by unique prefix)",
+          "note": "current progress unknown; not invented"
+        },
+        "notes": "live capture of D:\\Anime\\Yani Neko; no diagnostics; hypothetical-prefix reading (NOT asserted): 10/12 corroborated, 1 conditional, 1 conflicting under a user-declared prefix convention"
+      },
+      "result": {
+        "scenarioId": "live-yani",
+        "verdicts": [
+          {
+            "basename": "Yani Neko - 01.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              1
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 1",
+              "creation rank 1 (ns=1784003446169581600)",
+              "modification rank 1 (ns=1784003595000000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 1",
+            "mtimeRank": "rank 1",
+            "labelSummary": "ordinal:- 01"
+          },
+          {
+            "basename": "Yani Neko - 02.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              2
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 2",
+              "creation rank 2 (ns=1784003758424594300)",
+              "modification rank 2 (ns=1784004155674000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 2",
+            "mtimeRank": "rank 2",
+            "labelSummary": "ordinal:- 02"
+          },
+          {
+            "basename": "Yani Neko - 03.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              3
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 3",
+              "creation rank 3 (ns=1785039906061636400)",
+              "modification rank 3 (ns=1785040021489353000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 3",
+            "mtimeRank": "rank 3",
+            "labelSummary": "ordinal:- 03"
+          },
+          {
+            "basename": "Yani Neko - 04.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              4
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 4",
+              "creation rank 4 (ns=1785124409360932100)",
+              "modification rank 4 (ns=1785124463548314300)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 4",
+            "mtimeRank": "rank 4",
+            "labelSummary": "ordinal:- 04"
+          },
+          {
+            "basename": "Yani Neko - 05.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              5
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 5",
+              "creation rank 5 (ns=1785639679914715400)",
+              "modification rank 5 (ns=1785639714053000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 5",
+            "mtimeRank": "rank 5",
+            "labelSummary": "ordinal:- 05"
+          },
+          {
+            "basename": "Yani Neko - 06.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              6
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 6",
+              "creation rank 6 (ns=1786244597296612400)",
+              "modification rank 6 (ns=1786244629656428600)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 6",
+            "mtimeRank": "rank 6",
+            "labelSummary": "ordinal:- 06"
+          },
+          {
+            "basename": "Yani Neko - 07.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              7
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 7",
+              "creation rank 7 (ns=1786849267850931300)",
+              "modification rank 7 (ns=1786849289560000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 7",
+            "mtimeRank": "rank 7",
+            "labelSummary": "ordinal:- 07"
+          },
+          {
+            "basename": "Yani Neko - 08.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              8
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 8",
+              "creation rank 8 (ns=1787454056939193200)",
+              "modification rank 8 (ns=1787454067210000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 8",
+            "mtimeRank": "rank 8",
+            "labelSummary": "ordinal:- 08"
+          },
+          {
+            "basename": "Yani Neko - 09.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              9
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 9",
+              "creation rank 9 (ns=1788663635063932000)",
+              "modification rank 9 (ns=1788663659954000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 9",
+            "mtimeRank": "rank 9",
+            "labelSummary": "ordinal:- 09"
+          },
+          {
+            "basename": "Yani Neko - 10.mp4",
+            "verdict": "conflicting",
+            "alternatives": [
+              10,
+              11
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 10",
+              "creation rank 11 (ns=1789884375918508500)",
+              "modification rank 10 (ns=1789268692000000000)"
+            ],
+            "contradictions": [
+              "creation rank 11 disagrees with modification rank 10; competing timelines stay visible",
+              "label ordinal 10 cannot arbitrate between the two timelines alone"
+            ],
+            "assumptions": [],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 11",
+            "mtimeRank": "rank 10",
+            "labelSummary": "ordinal:- 10"
+          },
+          {
+            "basename": "Yani Neko - 11.mp4",
+            "verdict": "conflicting",
+            "alternatives": [
+              10,
+              11
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 11",
+              "creation rank 10 (ns=1789873284528379300)",
+              "modification rank 11 (ns=1789873294895000000)"
+            ],
+            "contradictions": [
+              "creation rank 10 disagrees with modification rank 11; competing timelines stay visible",
+              "label ordinal 11 cannot arbitrate between the two timelines alone"
+            ],
+            "assumptions": [],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 10",
+            "mtimeRank": "rank 11",
+            "labelSummary": "ordinal:- 11"
+          },
+          {
+            "basename": "Yani Neko - 12.mp4",
+            "verdict": "unresolved",
+            "alternatives": [
+              12
+            ],
+            "support": [
+              "label: delimited trailing token yields ordinal candidate 12",
+              "creation rank 12 (ns=1790478198480978600)",
+              "modification rank 12 (ns=1790478268357000000)"
+            ],
+            "contradictions": [],
+            "assumptions": [
+              "unknown/partial collection: named candidate kept, no rank mapping"
+            ],
+            "sources": [
+              "filename label grammar",
+              "creation order",
+              "modification order"
+            ],
+            "birthRank": "rank 12",
+            "mtimeRank": "rank 12",
+            "labelSummary": "ordinal:- 12"
+          }
+        ],
+        "globalNotes": [],
+        "globalAssumptions": [
+          "collection convention unknown: rank=>episode mapping is disabled; ranks are hypotheses only"
+        ],
+        "assignments": {},
+        "pendingCompatibility": [
+          "expected-next unavailable: no explicit integer context (fractional progress never truncates)"
+        ]
+      }
+    },
+    {
+      "sample": "datealive",
+      "dir": null,
+      "snapshot": {
+        "source": "live",
+        "capturedAt": "2026-10-11T00:30:26.525Z",
+        "entries": [],
+        "convention": null,
+        "context": {
+          "animeTitle": "Date a Live III (resolved uniquely)",
+          "progress": 13,
+          "note": "historical supplied demo context, not live DB"
+        },
+        "notes": "Date a Live III ambiguous/missing (candidates: none)"
+      },
+      "result": {
+        "scenarioId": "live-datealive",
+        "verdicts": [],
+        "globalNotes": [],
+        "globalAssumptions": [
+          "collection convention unknown: rank=>episode mapping is disabled; ranks are hypotheses only"
+        ],
+        "assignments": {},
+        "pendingCompatibility": [
+          "expected-next unavailable: no explicit integer context (fractional progress never truncates)",
+          "progress marker 13 is historical supplied context, not live truth"
+        ]
+      }
+    }
+  ]
+}

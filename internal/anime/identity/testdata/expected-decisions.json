@@ -1,0 +1,109 @@
+{
+  "generatedBy": "internal/anime/identity/testdata/gen-parity-fixture.sh <prototype root as the first argument>",
+  "splits": {
+    "dev": [
+      {
+        "id": "dev-mushoku13-reversed-creation",
+        "episode": 13,
+        "basename": "Mushoku Tensei III 13.mp4"
+      },
+      {
+        "id": "dev-nodash-heterostem8",
+        "episode": 8,
+        "basename": "Harbor Lights 08.mp4"
+      },
+      {
+        "id": "dev-elimination-unnumbered",
+        "episode": 13,
+        "basename": "Evening Becomes Night finale.mp4"
+      },
+      {
+        "id": "dev-opaque-chronology",
+        "episode": 13,
+        "basename": "north-cut.mp4"
+      },
+      {
+        "id": "dev-slime-distorted24",
+        "episode": 24,
+        "basename": "teeennnseiishitaaaraaslimeedattaakenn4thseasonsss-24.mp4"
+      },
+      {
+        "id": "dev-mushoku-actual-proxy",
+        "episode": 13,
+        "basename": "muushookuuutenseiiiisekaiithonkidasuusss-13.mp4"
+      },
+      {
+        "id": "dev-rewatch-01",
+        "episode": 1,
+        "basename": "Harbor Lights Rewatch - 01.mp4"
+      },
+      {
+        "id": "dev-neg-paren01-24",
+        "episode": null,
+        "basename": null
+      },
+      {
+        "id": "dev-neg-range",
+        "episode": null,
+        "basename": null
+      },
+      {
+        "id": "dev-neg-multi",
+        "episode": null,
+        "basename": null
+      },
+      {
+        "id": "dev-neg-special",
+        "episode": null,
+        "basename": null
+      },
+      {
+        "id": "dev-neg-fractional-progress",
+        "episode": null,
+        "basename": null
+      },
+      {
+        "id": "dev-neg-duplicate13",
+        "episode": null,
+        "basename": null
+      },
+      {
+        "id": "dev-neg-tag-conflict",
+        "episode": null,
+        "basename": null
+      },
+      {
+        "id": "dev-neg-unstable-next",
+        "episode": null,
+        "basename": null
+      },
+      {
+        "id": "dev-assoc-yani1011",
+        "episode": null,
+        "basename": null
+      }
+    ],
+    "supplemental": [
+      {
+        "id": "supp-slime-full24",
+        "episode": 24,
+        "basename": "teeennnseiishitaaaraaslimeedattaakenn4thseasonsss-24.mp4"
+      },
+      {
+        "id": "supp-mushoku-full14",
+        "episode": 13,
+        "basename": "muushookuuutenseiiiisekaiithonkidasuusss-13.mp4"
+      },
+      {
+        "id": "supp-mushoku-masked1314",
+        "episode": 13,
+        "basename": "amber-cut.mp4"
+      },
+      {
+        "id": "supp-slime-rewatch01",
+        "episode": 1,
+        "basename": "Tensei shitara Slime Datta Ken 4th Season - 01.mp4"
+      }
+    ]
+  }
+}

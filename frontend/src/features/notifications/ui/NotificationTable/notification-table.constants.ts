@@ -42,6 +42,14 @@ export const NOTIFICATION_TABLE_ROW_COUNT_SUFFIX = '×';
  */
 export const NOTIFICATION_TABLE_SUBJECTS_TESTID = 'notification-table-subjects';
 
+/**
+ * `data-testid` for a row's body line -- the notification's own facts, carried
+ * on `NotificationRow.body`. Element-presence check for the same reason as
+ * the subject line above: an empty `<p>` and no `<p>` at all look identical
+ * to a text query.
+ */
+export const NOTIFICATION_TABLE_BODY_TESTID = 'notification-table-body';
+
 /** `data-testid` for a row's count badge, for the same element-presence reason as the subject line above. */
 export const NOTIFICATION_TABLE_ROW_COUNT_TESTID = 'notification-table-row-count';
 

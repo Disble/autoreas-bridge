@@ -1,0 +1,51 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Episode Identity Triage: Proposal / not implemented",
+    "locale": "en",
+    "animation": "none",
+    "quality_profile": "showcase",
+    "views": [
+      { "id": "identity-rail", "label": "Identity audit", "focus": ["s1_observe", "s2_extract", "s3_folder", "s4_audit", "s5_chrono", "s6_verdict"], "note": "S1 to S6: ordered hierarchical audit that ends in one categorical verdict per file." },
+      { "id": "abstention", "label": "Abstention", "focus": ["s4_audit", "x1_abstain", "s6_verdict"], "note": "Conflicts, ties, ranges and insufficient evidence keep the candidate set instead of choosing." },
+      { "id": "chronology", "label": "Chronology is secondary", "focus": ["s4_audit", "s5_chrono", "s6_verdict"], "note": "S5 reports diagnostics and intervals; it never vetoes a coherent explicit label." },
+      { "id": "duration", "label": "Duration is separate", "focus": ["s1_observe", "d1_reference", "d2_test", "d3_finding"], "note": "D1 to D3 need no episode number and never wait for the identity verdict." }
+    ]
+  },
+  "lanes": [
+    { "id": "identity", "label": "Identity audit (S)" },
+    { "id": "abstain", "label": "Abstention", "variant": "exception" },
+    { "id": "duration", "label": "Duration finding (D)" }
+  ],
+  "mainPath": ["s1_observe", "s2_extract", "s3_folder", "s4_audit", "s5_chrono", "s6_verdict"],
+  "nodes": [
+    { "id": "s1_observe", "lane": "identity", "col": 0, "type": "external", "label": "S1 Observe", "sublabel": "root listing + metadata", "tag": "not atomic" },
+    { "id": "s2_extract", "lane": "identity", "col": 1, "type": "backend", "label": "S2 Candidates", "sublabel": "typed number grammar" },
+    { "id": "s3_folder", "lane": "identity", "col": 2, "type": "backend", "label": "S3 Folder", "sublabel": "count bound + prefix" },
+    { "id": "s4_audit", "lane": "identity", "col": 3, "type": "security", "label": "S4 Label audit", "sublabel": "ordered rules", "tag": "hierarchical" },
+    { "id": "s5_chrono", "lane": "identity", "col": 4, "type": "messagebus", "label": "S5 Chronology", "sublabel": "diagnostics + rank", "tag": "secondary" },
+    { "id": "s6_verdict", "lane": "identity", "col": 5, "type": "frontend", "label": "S6 Verdict", "sublabel": "category + reasons" },
+    { "id": "x1_abstain", "lane": "abstain", "col": 3, "type": "security", "label": "X1 UNRESOLVED", "sublabel": "candidate set + reasons" },
+    { "id": "d1_reference", "lane": "duration", "col": 1, "type": "database", "label": "D1 Reference", "sublabel": "nominal, median or none" },
+    { "id": "d2_test", "lane": "duration", "col": 2, "type": "backend", "label": "D2 Test", "sublabel": "ratio and excess" },
+    { "id": "d3_finding", "lane": "duration", "col": 3, "type": "frontend", "label": "D3 Finding", "sublabel": "LONG or NOT_LONG" }
+  ],
+  "edges": [
+    { "from": "s1_observe", "to": "s2_extract" },
+    { "from": "s2_extract", "to": "s3_folder" },
+    { "from": "s3_folder", "to": "s4_audit" },
+    { "from": "s4_audit", "to": "s5_chrono", "variant": "emphasis" },
+    { "from": "s5_chrono", "to": "s6_verdict" },
+    { "from": "s4_audit", "to": "x1_abstain", "label": "conflict or tie", "variant": "security", "role": "error" },
+    { "from": "x1_abstain", "to": "s6_verdict", "label": "reported", "variant": "dashed", "role": "return" },
+    { "from": "s1_observe", "to": "d1_reference", "label": "durations", "variant": "dashed", "role": "branch" },
+    { "from": "d1_reference", "to": "d2_test" },
+    { "from": "d2_test", "to": "d3_finding" }
+  ],
+  "cards": [
+    { "dot": "amber", "title": "Proposal status", "items": ["Proposed v1 policy; no runtime behavior is implemented", "Guarantees end at the observation, not at the filesystem"] },
+    { "dot": "cyan", "title": "Two independent findings", "items": ["Identity (S1 to S6) is a categorical verdict, never a probability", "Duration (D1 to D3) works without an episode number"] },
+    { "dot": "rose", "title": "Abstention", "items": ["Conflicts, duplicates, ranges and ties keep the candidate set", "Missing optional evidence is neutral, not negative"] }
+  ]
+}

@@ -74,8 +74,11 @@ type ServiceDeps struct {
 	Renamer       filesystem.Renamer
 	Store         Store
 	Notifier      notification.Notifier
-	Bus           events.Bus
-	Logger        logger.Logger
+	// EpisodeDurationNotice is where a landed episode is offered to the duration notice. Nil means
+	// no notice is ever raised. See EpisodeDurationNotice for why the interface is declared here.
+	EpisodeDurationNotice EpisodeDurationNotice
+	Bus                   events.Bus
+	Logger                logger.Logger
 	// MaxConcurrentAnimes caps how many animes are processed at once, so Bridge never hands
 	// JDownloader more transfers than its maxsimultanedownloads setting will actually run.
 	// The surplus would otherwise sit queued, write no .part file and report nothing running,

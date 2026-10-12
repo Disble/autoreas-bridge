@@ -11,6 +11,14 @@ import (
 	"strings"
 )
 
+// maxCommandLineBytes bounds the characters handed to one gofmt invocation.
+//
+// Windows caps a command line at roughly 32 KiB, and this repository passed 32,770 characters of Go
+// paths in one call — except that the call never started, so the formatting gate failed with "The
+// filename or extension is too long" instead of checking anything. The bound is deliberately far
+// below the cap so quoting and the toolchain path still fit.
+const maxCommandLineBytes = 8000
+
 func main() {
 	root, err := os.Getwd()
 	if err != nil {
@@ -27,24 +35,71 @@ func main() {
 		return
 	}
 
-	// NOSONAR go:S4036 -- gofmt has to come from the toolchain that is building
-	// this repository, which is exactly what PATH resolves. It is a repo-owned
-	// build tool run by the pre-commit gate, not shipped code, and there is no
-	// absolute path for gofmt that holds across a developer machine and CI.
-	cmd := exec.Command("gofmt", append([]string{"-l"}, files...)...) // NOSONAR
-	cmd.Dir = root
-	output, err := cmd.CombinedOutput()
+	unformatted, err := lint(root, files)
 	if err != nil {
-		fail(fmt.Sprintf("run gofmt -l: %s", bytes.TrimSpace(output)), err)
+		fail("run gofmt -l", err)
 	}
 
-	trimmed := strings.TrimSpace(string(output))
-	if trimmed != "" {
-		fmt.Fprintf(os.Stderr, "Unformatted Go files detected:\n%s\n", trimmed)
+	if unformatted != "" {
+		fmt.Fprintf(os.Stderr, "Unformatted Go files detected:\n%s\n", unformatted)
 		os.Exit(1)
 	}
 
 	fmt.Println("Go formatting check passed.")
+}
+
+// lint runs gofmt over every file and returns the unformatted ones, one per line, in walk order.
+//
+// The files are checked in batches rather than in one call: the check must be able to grow with the
+// repository instead of failing once the list of paths outgrows what an operating system will accept
+// as arguments.
+func lint(root string, files []string) (string, error) {
+	unformatted := make([]string, 0)
+
+	for _, batch := range batches(files, maxCommandLineBytes) {
+		// NOSONAR go:S4036 -- gofmt has to come from the toolchain that is building
+		// this repository, which is exactly what PATH resolves. It is a repo-owned
+		// build tool run by the pre-commit gate, not shipped code, and there is no
+		// absolute path for gofmt that holds across a developer machine and CI.
+		cmd := exec.Command("gofmt", append([]string{"-l"}, batch...)...) // NOSONAR
+		cmd.Dir = root
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return "", fmt.Errorf("%w (%s)", err, bytes.TrimSpace(output))
+		}
+		for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+			if line = strings.TrimSpace(line); line != "" {
+				unformatted = append(unformatted, line)
+			}
+		}
+	}
+
+	return strings.Join(unformatted, "\n"), nil
+}
+
+// batches groups files so that no single invocation receives more characters than limit. A path
+// longer than the limit still gets a batch of its own, so the split always terminates.
+func batches(files []string, limit int) [][]string {
+	groups := make([][]string, 0)
+	current := make([]string, 0, len(files))
+	size := 0
+
+	for _, file := range files {
+		// +1 accounts for the separator the argument list needs between two paths.
+		if len(current) > 0 && size+len(file)+1 > limit {
+			groups = append(groups, current)
+			current = make([]string, 0, len(files))
+			size = 0
+		}
+		current = append(current, file)
+		size += len(file) + 1
+	}
+
+	if len(current) > 0 {
+		groups = append(groups, current)
+	}
+
+	return groups
 }
 
 // collectGoFiles walks the repository and returns Go source paths.

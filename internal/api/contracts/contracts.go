@@ -228,9 +228,22 @@ type EpisodeScheduleItem struct {
 	PageURL    string `json:"pageUrl,omitempty"`
 	// HasCover gates the frontend's lazy GetAnimeCover call: true when the
 	// anime's portada classifies as anything other than cover.KindAbsent.
-	HasCover     bool   `json:"hasCover"`
-	LastWatched  *int64 `json:"lastWatched,omitempty"`
-	FirstWatched *int64 `json:"firstWatched,omitempty"`
+	HasCover bool `json:"hasCover"`
+	// LongNextEpisode marks the anime whose next episode runs long. The ODD 4 Today surface is its
+	// consumer; nil is omitted because an absent mark and an unmarked row are the same fact.
+	LongNextEpisode *LongEpisodeMark `json:"longNextEpisode,omitempty"`
+	LastWatched     *int64           `json:"lastWatched,omitempty"`
+	FirstWatched    *int64           `json:"firstWatched,omitempty"`
+}
+
+// LongEpisodeMark carries one Today mark: the NEXT episode number and its measured runtime in
+// whole minutes, in one value so a mark carries both facts and an absent mark carries neither.
+// That co-presence is the whole guarantee, never a proof that the two values agree with each
+// other. The ODD 4 Today surface is its consumer; nil is omitted because an absent mark and an
+// unmarked row are the same fact.
+type LongEpisodeMark struct {
+	Episode int `json:"episode"`
+	Minutes int `json:"minutes"`
 }
 
 // CoverSourceCover/CoverSourcePlaceholder are the two values AnimeCover.Source

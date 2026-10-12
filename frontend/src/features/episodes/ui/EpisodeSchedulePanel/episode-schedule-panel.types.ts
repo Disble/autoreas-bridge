@@ -31,6 +31,31 @@ export interface EpisodeScheduleSource {
   readonly subscribeAnimeChanges: (listener: () => void) => () => void;
 }
 
+/**
+ * One Today mark: the NEXT episode number and its measured runtime in whole
+ * minutes, in one value so the two facts cannot disagree. Absent means the
+ * row is unmarked and carries no chip; nil is omitted on the wire for the
+ * same reason. Mirrors the generated `LongEpisodeMark` contract.
+ */
+export interface LongEpisodeMark {
+  /** The NEXT episode number, taken from the identity selection, never from progress arithmetic. */
+  readonly episode: number;
+  /** The measured runtime in whole minutes. */
+  readonly minutes: number;
+}
+
+/**
+ * The view-ready Today chip of a row whose next episode runs long: the NEXT
+ * episode number and whole minutes as one label, with the whole sentence as
+ * its tooltip. Computed by the row mapper so the card stays dumb.
+ */
+export interface LongEpisodeChip {
+  /** The chip text, e.g. `Ep. 7 · 45 min`. */
+  readonly label: string;
+  /** The tooltip sentence, e.g. `El próximo capítulo dura 45 minutos`. */
+  readonly tooltip: string;
+}
+
 /** Wails-facing schedule item returned by the backend episode command service. */
 export type EpisodeScheduleItem = Pick<
   Anime,
@@ -44,6 +69,11 @@ export type EpisodeScheduleItem = Pick<
   readonly folderPath?: string;
   readonly pageUrl?: string;
   readonly hasCover: boolean;
+  /**
+   * Marks the anime whose next episode runs long. Absent when unmarked, so
+   * the row renders exactly as it does today, with no chip and no placeholder.
+   */
+  readonly longNextEpisode?: LongEpisodeMark;
   readonly lastWatched?: number;
   readonly firstWatched?: number;
 };
@@ -81,6 +111,11 @@ export interface EpisodeScheduleRow {
   readonly name: string;
   readonly stateLabel: string;
   readonly isProgressBlocked: boolean;
+  /**
+   * The long-episode chip to render beside the status chip, or undefined
+   * when the row has no mark: no chip, no placeholder, no layout shift.
+   */
+  readonly longEpisodeChip?: LongEpisodeChip;
   readonly watchedLabel: string;
   readonly remainingLabel: string;
   readonly progressTitle: string;

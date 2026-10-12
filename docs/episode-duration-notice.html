@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aviso de duración especial — diagrama de componentes</title>
+<style>
+  :root { --ink:#0f172a; --muted:#475569; --line:#94a3b8; --box:#f8fafc; --borda:#0ea5e9; --bordb:#8b5cf6; --note:#f1f5f9; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:32px; font-family:"Segoe UI",system-ui,-apple-system,sans-serif; color:var(--ink); background:#fff; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  h2 { font-size:16px; margin:32px 0 8px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  p { margin:6px 0; line-height:1.5; }
+  .lead { color:var(--muted); max-width:900px; }
+  svg { display:block; width:100%; height:auto; margin-top:8px; }
+  .box { fill:var(--box); stroke:var(--line); stroke-width:1.5; }
+  .boxa { fill:#f0f9ff; stroke:var(--borda); stroke-width:1.8; }
+  .boxb { fill:#f5f3ff; stroke:var(--bordb); stroke-width:1.8; }
+  .arw { stroke:#64748b; stroke-width:1.6; fill:none; }
+  .lbl { font-size:12.5px; fill:var(--ink); }
+  .sub { font-size:10.5px; fill:#64748b; }
+  .elbl { font-size:10.5px; fill:#475569; }
+  .note { background:var(--note); border-left:3px solid var(--borda); padding:12px 16px; margin-top:12px; border-radius:0 6px 6px 0; max-width:900px; }
+  table { border-collapse:collapse; margin-top:8px; font-size:13.5px; max-width:960px; }
+  th,td { border:1px solid #e2e8f0; padding:6px 10px; text-align:left; }
+  th { background:#f8fafc; font-weight:600; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+</style>
+</head>
+<body>
+
+<h1>Aviso de duración especial — diagrama de componentes</h1>
+<p class="lead">Propuesta. Sin código de producción escrito. El algoritmo es autocontenido: no consulta
+MyAnimeList y no calcula nada a partir de la carpeta. El umbral es una constante.</p>
+<p class="lead">Detalle técnico: <code>docs/episode-duration-notice.md</code>. Seguimiento: <code>odd/tasks/episode-duration-notice.md</code>.</p>
+
+<h2>Ruta A — cuando termina una descarga</h2>
+<p class="lead">Solo interesa si ese capítulo se sale de lo habitual. El número de capítulo no importa.</p>
+<svg viewBox="0 0 1040 150" role="img" aria-label="Ruta A: la descarga se valida por duración y avisa si es larga">
+  <defs><marker id="ah" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="#64748b"/></marker></defs>
+
+  <rect class="box" x="10" y="45" width="170" height="62" rx="10"/>
+  <text class="lbl" x="26" y="70">Descarga completada</text>
+  <text class="sub" x="26" y="88">el evento ya nombra el archivo</text>
+
+  <line class="arw" x1="180" y1="76" x2="215" y2="76" marker-end="url(#ah)"/>
+
+  <rect class="box boxa" x="217" y="45" width="160" height="62" rx="10"/>
+  <text class="lbl" x="233" y="70">Coordinador A</text>
+  <text class="sub" x="233" y="88">valida ese archivo</text>
+
+  <line class="arw" x1="377" y1="76" x2="412" y2="76" marker-end="url(#ah)"/>
+
+  <rect class="box" x="414" y="45" width="160" height="62" rx="10"/>
+  <text class="lbl" x="430" y="70">Sonda de duración</text>
+  <text class="sub" x="430" y="88">duración real del archivo</text>
+
+  <line class="arw" x1="574" y1="76" x2="609" y2="76" marker-end="url(#ah)"/>
+
+  <rect class="box" x="611" y="45" width="190" height="62" rx="10"/>
+  <text class="lbl" x="627" y="70">Hallazgo de duración</text>
+  <text class="sub" x="627" y="88">contra la constante 20–30</text>
+
+  <line class="arw" x1="801" y1="76" x2="836" y2="76" marker-end="url(#ah)"/>
+  <text class="elbl" x="806" y="66">solo si LARGO</text>
+
+  <rect class="box" x="838" y="45" width="185" height="62" rx="10"/>
+  <text class="lbl" x="854" y="70">Aviso informativo</text>
+  <text class="sub" x="854" y="88">al centro de notificaciones</text>
+</svg>
+
+<h2>Ruta B — cuando abres Today</h2>
+<p class="lead">Aquí sí importa cuál es el capítulo: primero se identifica, después se valida su duración.</p>
+<svg viewBox="0 0 1500 250" role="img" aria-label="Ruta B: al abrir Today se identifica el próximo pendiente y se valida su duración">
+  <defs><marker id="ah2" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="#64748b"/></marker></defs>
+
+  <rect class="box" x="10" y="70" width="150" height="62" rx="10"/>
+  <text class="lbl" x="26" y="95">Abres Today</text>
+  <text class="sub" x="26" y="113">se calcula al vuelo</text>
+
+  <line class="arw" x1="160" y1="101" x2="195" y2="101" marker-end="url(#ah2)"/>
+
+  <rect class="box boxb" x="197" y="70" width="160" height="62" rx="10"/>
+  <text class="lbl" x="213" y="95">Coordinador B</text>
+  <text class="sub" x="213" y="113">resuelve y valida</text>
+
+  <line class="arw" x1="357" y1="101" x2="392" y2="101" marker-end="url(#ah2)"/>
+
+  <rect class="box" x="394" y="70" width="170" height="62" rx="10"/>
+  <text class="lbl" x="410" y="95">Observador de carpeta</text>
+  <text class="sub" x="410" y="113">nombres y fechas de Windows</text>
+
+  <line class="arw" x1="564" y1="101" x2="599" y2="101" marker-end="url(#ah2)"/>
+
+  <rect class="box" x="601" y="70" width="200" height="62" rx="10"/>
+  <text class="lbl" x="617" y="95">Identidad</text>
+  <text class="sub" x="617" y="113">¿cuál archivo es el próximo pendiente?</text>
+
+  <line class="arw" x1="801" y1="101" x2="836" y2="101" marker-end="url(#ah2)"/>
+
+  <rect class="box" x="838" y="70" width="150" height="62" rx="10"/>
+  <text class="lbl" x="854" y="95">Sonda de duración</text>
+  <text class="sub" x="854" y="113">ese archivo</text>
+
+  <line class="arw" x1="988" y1="101" x2="1023" y2="101" marker-end="url(#ah2)"/>
+
+  <rect class="box" x="1025" y="70" width="190" height="62" rx="10"/>
+  <text class="lbl" x="1041" y="95">Hallazgo de duración</text>
+  <text class="sub" x="1041" y="113">contra la constante 20–30</text>
+
+  <line class="arw" x1="1215" y1="101" x2="1250" y2="101" marker-end="url(#ah2)"/>
+
+  <rect class="box" x="1252" y="70" width="170" height="62" rx="10"/>
+  <text class="lbl" x="1268" y="95">Marca en Today</text>
+  <text class="sub" x="1268" y="113">solo si la identidad es confiable</text>
+
+  <rect class="box" x="394" y="185" width="230" height="52" rx="10"/>
+  <text class="lbl" x="410" y="206">SQLite anime_snapshots</text>
+  <text class="sub" x="410" y="224">progreso · carpeta · tipo de anime</text>
+
+  <path class="arw" d="M470 185 L470 138" marker-end="url(#ah2)"/>
+  <path class="arw" d="M624 185 L680 185 L680 138" marker-end="url(#ah2)"/>
+  <text class="elbl" x="692" y="180">progreso</text>
+</svg>
+
+<div class="note">
+  <strong>La constante.</strong> De <strong>20 a 30 minutos</strong> es el rango normal y no avisa · avisa solo por
+  encima de <strong>30 minutos</strong>. Nada se calcula desde la carpeta y nada se consulta fuera.
+</div>
+
+<h2>Componentes</h2>
+<table>
+  <tr><th>Componente</th><th>Qué hace</th><th>¿Existe hoy?</th></tr>
+  <tr><td>Observador de carpeta</td><td>Lista los vídeos con tamaño y fechas de Windows; informa carpeta ausente o ilegible en vez de devolver ceros</td><td>No. El contador actual solo cuenta números, ignora fechas y devuelve 0 ante error</td></tr>
+  <tr><td>Sonda de duración</td><td>Obtiene la duración real de un archivo</td><td>No</td></tr>
+  <tr><td>Identidad</td><td>Decide qué archivo es el próximo pendiente, o se abstiene</td><td><strong>Prototipo probado</strong></td></tr>
+  <tr><td>Hallazgo de duración</td><td>Compara un archivo contra la constante y emite LARGO / NO / NO DISPONIBLE</td><td>No</td></tr>
+  <tr><td>Coordinador A</td><td>Reacciona a la descarga, valida el archivo y envía el aviso</td><td>No</td></tr>
+  <tr><td>Coordinador B</td><td>Al abrir Today resuelve el próximo pendiente y lo valida en vivo</td><td>No</td></tr>
+  <tr><td>Aviso / marca</td><td>El aviso informativo y la marca en Today</td><td>Parcial: el centro de notificaciones ya existe</td></tr>
+</table>
+
+<h2>Sin persistencia</h2>
+<p class="lead">No hay registro de hallazgos. La notificación de la Ruta A es su propio registro y envejece sola.
+La Ruta B se recalcula cada vez que abres Today, así que siempre refleja la carpeta tal como está:
+si renombras o borras un archivo, Today dice la verdad de inmediato.</p>
+
+<h2>Unidades de trabajo (ODDs)</h2>
+<p class="lead">Cada unidad responde una pregunta y entrega algo observable. ODD 1 y ODD 2 son
+independientes entre sí y pueden ir en paralelo; ODD 3 necesita a las dos, y ODD 4 necesita la forma
+que produce ODD 3.</p>
+<svg viewBox="0 0 1040 330" role="img" aria-label="Unidades de trabajo: ODD 1 y ODD 2 en paralelo alimentan ODD 3, que alimenta ODD 4">
+  <defs><marker id="ah3" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="#64748b"/></marker></defs>
+
+  <rect class="box boxa" x="10" y="20" width="270" height="96" rx="12"/>
+  <text class="lbl" x="26" y="44">ODD 1 · Duración</text>
+  <text class="sub" x="26" y="64">Sonda de duración y hallazgo contra la constante.</text>
+  <text class="sub" x="26" y="82">Entrega: este archivo, ¿pasa de 30 min?</text>
+  <text class="elbl" x="26" y="104">Se hace primero: es lo único nuevo.</text>
+
+  <rect class="box boxb" x="10" y="180" width="270" height="96" rx="12"/>
+  <text class="lbl" x="26" y="204">ODD 2 · Identidad</text>
+  <text class="sub" x="26" y="224">Motor en Go con paridad y observador de carpeta.</text>
+  <text class="sub" x="26" y="242">Entrega: ¿cuál archivo es el próximo pendiente?</text>
+  <text class="elbl" x="26" y="264">Independiente: puede ir en paralelo.</text>
+
+  <path class="arw" d="M280 68 L340 68 L340 150 L368 150" marker-end="url(#ah3)"/>
+  <path class="arw" d="M280 228 L340 228 L340 176 L368 176" marker-end="url(#ah3)"/>
+
+  <rect class="box" x="370" y="112" width="270" height="96" rx="12"/>
+  <text class="lbl" x="386" y="136">ODD 3 · Coordinación</text>
+  <text class="sub" x="386" y="156">Coordinadores A y B, compuerta y decisión de aviso.</text>
+  <text class="sub" x="386" y="174">Entrega: ¿cuándo y a quién se avisa?</text>
+  <text class="elbl" x="386" y="196">Sin persistencia.</text>
+
+  <path class="arw" d="M640 160 L718 160" marker-end="url(#ah3)"/>
+
+  <rect class="box" x="720" y="112" width="270" height="96" rx="12"/>
+  <text class="lbl" x="736" y="136">ODD 4 · Superficies</text>
+  <text class="sub" x="736" y="156">El aviso informativo y la marca en Today.</text>
+  <text class="sub" x="736" y="174">Entrega: ¿qué ve el usuario?</text>
+  <text class="elbl" x="736" y="196">Necesita la forma que produce ODD 3.</text>
+</svg>
+
+</body>
+</html>
