@@ -12,6 +12,34 @@ import (
 	"autoreas-bridge/internal/anime/identity"
 )
 
+// fixedIdentifier states a decision the real algorithm cannot produce today: a file named while the
+// decision flags its own ambiguity. Over the 20 curated corpora cases and every crafted entry set
+// tried, ambiguity appears only where the algorithm ABSTAINS, so the confidence gate's refusal has no
+// real input to run against; stating the input is the only way to observe that refusal.
+type fixedIdentifier struct{ result identity.Result }
+
+// Identify returns the stated decision and ignores the request.
+func (f fixedIdentifier) Identify(identity.Request) identity.Result { return f.result }
+
+func TestTodayMarksRefusesADecisionThatFlagsItsOwnAmbiguity(t *testing.T) {
+	t.Parallel()
+
+	coordinator := newCoordinator(t, &proberAnswers{runtime: 45 * time.Minute}, &notifierRecords{})
+	coordinator.identifier = fixedIdentifier{result: identity.Result{
+		Next:        &identity.Selection{Episode: 2, Basename: "Show - 02.mp4"},
+		Basis:       identity.BasisDirectNumber,
+		Diagnostics: []identity.Diagnostic{{Kind: identity.DiagnosticAmbiguity}},
+	}}
+
+	marks := coordinator.TodayMarks(context.Background(), []TodayEpisode{
+		episodeRow(folderWith(t, "Show - 02.mp4"), tv(), 1),
+	})
+
+	if len(marks) != 1 || marks[0] {
+		t.Fatalf("a decision that flags its own doubt must not be marked: %v", marks)
+	}
+}
+
 func TestHasAmbiguityReadsTheWholeFactSet(t *testing.T) {
 	t.Parallel()
 
