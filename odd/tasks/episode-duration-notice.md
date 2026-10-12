@@ -169,8 +169,32 @@ untracked-file collision.
   authorized the work-unit commits and the merges. Reference material is untracked in the main
   worktree, so writers read the design and the prototype by absolute path.
 
+## ODD 3 — coordination, delivered as two units
+
+Agreed with the user on 2026-10-12. The scope record with the reasons, the evidence and the rejected
+options is `docs/episode-duration-notice-scope.md`; the diagram form is
+`docs/episode-duration-notice-odd3.html`. Do not re-derive any of it from this file.
+
+| Unit | Trigger | Delivers |
+|---|---|---|
+| **3.1 Downloads** | a download completes | `MediaInventory`, the type gate, the finding, Coordinator A and the notice |
+| **3.2 Today** | Today opens | Coordinator B, the confidence gate, the read contract, the type in Today's data |
+
+Shared pieces ship in 3.1 so the dependency runs one way. 3.1's work units, each closing with its own
+work-unit commit and its test first:
+
+- [ ] U1 — `MediaInventory` at `internal/anime/media/`: one-level listing, the injected extension set,
+  Windows creation and modification times, a per-file failure, and an absent or unreadable folder
+  reported instead of zeros. KISS: built for this case only, and it classifies nothing.
+- [ ] U2 — the finding: one duration reading to LONG / normal / unavailable, consuming `duration.Classify`
+- [ ] U3 — the narrow port declared in `internal/download`, Coordinator A, and the type gate (`Kind == 0`)
+- [ ] U4 — the composition-root wiring and the notice body
+- [ ] U5 — the Path A acceptance cases: 1, 2, 3, and the shared 6, 7, 8
+
 ## Open decisions
 
-Tracked in §7 of `docs/episode-duration-notice.md`; notice wording and placement, the Today mark
-location, behaviour when a runtime cannot be read, and whether the fixed-constant threshold
-deserves an ADR.
+- ODD 3 scope questions are closed and recorded in `docs/episode-duration-notice-scope.md`.
+- For 3.2: how many probes run in parallel (a number; propose 4), and how the anime type reaches
+  Today's data — `contracts.EpisodeScheduleItem` does not carry it today.
+- Still open from the design: the exact notice wording and placement, and whether the fixed-constant
+  threshold deserves an ADR.

@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ODD 3 — Coordinación: alcance y componentes</title>
+<style>
+  :root { --ink:#0f172a; --muted:#475569; --line:#94a3b8; --box:#f8fafc;
+          --nuevo:#0ea5e9; --entregado:#16a34a; --existe:#64748b; --superficie:#8b5cf6; --ausente:#dc2626; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:32px; font-family:"Segoe UI",system-ui,-apple-system,sans-serif; color:var(--ink); background:#fff; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  h2 { font-size:16px; margin:34px 0 8px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  h3 { font-size:14px; margin:22px 0 6px; color:var(--ink); }
+  p { margin:6px 0; line-height:1.5; }
+  .lead { color:var(--muted); max-width:980px; }
+  svg { display:block; width:100%; height:auto; margin-top:8px; }
+  .box { fill:var(--box); stroke:var(--line); stroke-width:1.5; }
+  .nuevo { fill:#f0f9ff; stroke:var(--nuevo); stroke-width:1.8; }
+  .entregado { fill:#f0fdf4; stroke:var(--entregado); stroke-width:1.8; }
+  .existe { fill:#f8fafc; stroke:var(--existe); stroke-width:1.5; }
+  .superficie { fill:#f5f3ff; stroke:var(--superficie); stroke-width:1.8; stroke-dasharray:5 3; }
+  .ausente { fill:#fef2f2; stroke:var(--ausente); stroke-width:1.8; stroke-dasharray:5 3; }
+  .banda { fill:#fcfdff; stroke:#e2e8f0; stroke-width:1; }
+  .arw { stroke:#64748b; stroke-width:1.6; fill:none; }
+  .lbl { font-size:12.5px; fill:var(--ink); }
+  .sub { font-size:10.5px; fill:#64748b; }
+  .elbl { font-size:10.5px; fill:#475569; }
+  .paso { font-size:11px; fill:#0369a1; font-weight:600; }
+  .note { background:#f1f5f9; border-left:3px solid var(--nuevo); padding:12px 16px; margin-top:12px; border-radius:0 6px 6px 0; max-width:980px; }
+  .tag { fill:#e0f2fe; stroke:var(--nuevo); stroke-width:1; }
+  .tagt { font-size:10.5px; fill:#0369a1; font-weight:600; }
+  .warn { background:#fef2f2; border-left:3px solid var(--ausente); padding:12px 16px; margin-top:12px; border-radius:0 6px 6px 0; max-width:980px; }
+  table { border-collapse:collapse; margin-top:8px; font-size:13.5px; max-width:1000px; }
+  th,td { border:1px solid #e2e8f0; padding:6px 10px; text-align:left; vertical-align:top; }
+  th { background:#f8fafc; font-weight:600; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+  .k { display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:6px; vertical-align:middle; border:1.5px solid; }
+  .k-nuevo { background:#f0f9ff; border-color:var(--nuevo); }
+  .k-entregado { background:#f0fdf4; border-color:var(--entregado); }
+  .k-existe { background:#f8fafc; border-color:var(--existe); }
+  .k-superficie { background:#f5f3ff; border-color:var(--superficie); border-style:dashed; }
+</style>
+</head>
+<body>
+
+<h1>ODD 3 — Coordinación: alcance y componentes</h1>
+<p class="lead">Definición de alcance, para discusión. No hay código de producción escrito todavía.
+Coordinación es la capa que <strong>decide cuándo preguntar</strong> y <strong>qué hacer con la respuesta</strong>;
+no decide identidad ni duración, que ya están entregadas y probadas.</p>
+<p class="lead">Diseño: <code>docs/episode-duration-notice.md</code>. Alcance, decisiones y evidencia:
+<code>docs/episode-duration-notice-scope.md</code>. Seguimiento: <code>odd/tasks/episode-duration-notice.md</code>.</p>
+<p class="lead">
+  <span class="k k-nuevo"></span>se construye en ODD 3
+  &nbsp;&nbsp;<span class="k k-entregado"></span>ya entregado (ODD 1 · ODD 2)
+  &nbsp;&nbsp;<span class="k k-existe"></span>ya existe en el repositorio
+  &nbsp;&nbsp;<span class="k k-superficie"></span>ODD 4 (superficie)
+</p>
+
+<h2>Diagrama de componentes</h2>
+<svg viewBox="0 0 1240 880" role="img"
+     aria-label="Componentes de coordinación: dos rutas de entrada, las compuertas, las piezas puras entregadas, la entrega y lo que no existe a propósito">
+
+  <defs>
+    <marker id="ah" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0 0 L9 4.5 L0 9 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <!-- ===================== RUTA A ===================== -->
+  <rect class="banda" x="10" y="60" width="1220" height="190" rx="12"/>
+  <text class="lbl" x="26" y="84" font-weight="600">RUTA A · unidad 3.1 — termina una descarga</text>
+  <text class="sub" x="26" y="100">El número de capítulo no importa: solo si ese archivo se sale de lo habitual.</text>
+
+  <rect class="existe" x="30" y="120" width="170" height="64" rx="10"/>
+  <text class="lbl" x="44" y="146">Descarga completada</text>
+  <text class="sub" x="44" y="163">el archivo que acaba de llegar</text>
+
+  <line class="arw" x1="200" y1="152" x2="232" y2="152" marker-end="url(#ah)"/>
+
+  <rect class="nuevo" x="234" y="120" width="180" height="64" rx="10"/>
+  <text class="paso" x="248" y="140">1</text>
+  <text class="lbl" x="262" y="140">Coordinador A</text>
+  <text class="sub" x="248" y="157">escucha la finalización</text>
+  <text class="sub" x="248" y="172">de la corrida de descarga</text>
+
+  <line class="arw" x1="414" y1="152" x2="446" y2="152" marker-end="url(#ah)"/>
+
+  <rect class="nuevo" x="448" y="120" width="180" height="64" rx="10"/>
+  <text class="paso" x="462" y="140">2</text>
+  <text class="lbl" x="476" y="140">Compuerta de tipo</text>
+  <text class="sub" x="462" y="157">solo TV · Tipo 0</text>
+  <text class="sub" x="462" y="172">el resto calla</text>
+
+  <line class="arw" x1="628" y1="152" x2="660" y2="152" marker-end="url(#ah)"/>
+
+  <rect class="entregado" x="662" y="120" width="180" height="64" rx="10"/>
+  <text class="paso" x="676" y="140">3</text>
+  <text class="lbl" x="690" y="140">Sonda de duración</text>
+  <text class="sub" x="676" y="157">ffprobe, un archivo</text>
+  <text class="sub" x="676" y="172">entrega lo que lee</text>
+
+  <line class="arw" x1="842" y1="152" x2="874" y2="152" marker-end="url(#ah)"/>
+
+  <rect class="nuevo" x="876" y="120" width="180" height="64" rx="10"/>
+  <text class="paso" x="890" y="140">4</text>
+  <text class="lbl" x="904" y="140">Hallazgo</text>
+  <text class="sub" x="890" y="157">LARGO · normal ·</text>
+  <text class="sub" x="890" y="172">no disponible</text>
+
+  <line class="arw" x1="1056" y1="152" x2="1088" y2="152" marker-end="url(#ah)"/>
+  <text class="elbl" x="1038" y="114">solo LARGO</text>
+
+  <rect class="existe" x="1090" y="120" width="126" height="64" rx="10"/>
+  <text class="lbl" x="1104" y="146">Notifier</text>
+  <text class="sub" x="1104" y="163">aviso transitorio</text>
+
+  <!-- ===================== RUTA B ===================== -->
+  <rect class="banda" x="10" y="270" width="1220" height="330" rx="12"/>
+  <text class="lbl" x="26" y="294" font-weight="600">RUTA B · unidad 3.2 — se abre Today</text>
+  <text class="sub" x="26" y="310">Necesita identidad primero y duración después. Se recalcula en vivo: nada se guarda.</text>
+
+  <rect class="existe" x="30" y="330" width="170" height="64" rx="10"/>
+  <text class="lbl" x="44" y="356">Se abre Today</text>
+  <text class="sub" x="44" y="373">pantalla, no evento</text>
+
+  <line class="arw" x1="200" y1="362" x2="232" y2="362" marker-end="url(#ah)"/>
+
+  <rect class="nuevo" x="234" y="330" width="180" height="64" rx="10"/>
+  <text class="paso" x="248" y="350">1</text>
+  <text class="lbl" x="262" y="350">Coordinador B</text>
+  <text class="sub" x="248" y="367">resuelve cuál es el</text>
+  <text class="sub" x="248" y="382">próximo pendiente</text>
+
+  <line class="arw" x1="414" y1="362" x2="446" y2="362" marker-end="url(#ah)"/>
+
+  <rect class="nuevo" x="448" y="330" width="180" height="64" rx="10"/>
+  <text class="paso" x="462" y="350">2</text>
+  <text class="lbl" x="476" y="350">Inventario de medios</text>
+  <text class="sub" x="462" y="367">lista plana, solo lectura</text>
+  <text class="sub" x="462" y="382">fecha real de Windows</text>
+
+  <line class="arw" x1="628" y1="362" x2="660" y2="362" marker-end="url(#ah)"/>
+
+  <rect class="entregado" x="662" y="330" width="180" height="64" rx="10"/>
+  <text class="paso" x="676" y="350">3</text>
+  <text class="lbl" x="690" y="350">Identidad</text>
+  <text class="sub" x="676" y="367">decide o se abstiene</text>
+  <text class="sub" x="676" y="382">con un motivo</text>
+
+  <line class="arw" x1="842" y1="362" x2="874" y2="362" marker-end="url(#ah)"/>
+
+  <rect class="nuevo" x="876" y="330" width="180" height="64" rx="10"/>
+  <text class="paso" x="890" y="350">4</text>
+  <text class="lbl" x="904" y="350">Compuerta de confianza</text>
+  <text class="sub" x="890" y="367">sin confianza, se calla</text>
+  <text class="sub" x="890" y="382">no adivina el capítulo</text>
+
+  <!-- retorno -->
+  <line class="arw" x1="966" y1="394" x2="966" y2="486" marker-end="url(#ah)"/>
+
+  <rect class="entregado" x="876" y="488" width="180" height="64" rx="10"/>
+  <text class="paso" x="890" y="508">5</text>
+  <text class="lbl" x="904" y="508">Sonda de duración</text>
+  <text class="sub" x="890" y="525">la misma pieza</text>
+  <text class="sub" x="890" y="540">de la ruta A</text>
+
+  <line class="arw" x1="876" y1="520" x2="844" y2="520" marker-end="url(#ah)"/>
+
+  <rect class="nuevo" x="664" y="488" width="180" height="64" rx="10"/>
+  <text class="paso" x="678" y="508">6</text>
+  <text class="lbl" x="692" y="508">Hallazgo</text>
+  <text class="sub" x="678" y="525">usa la regla 20–30</text>
+  <text class="sub" x="678" y="540">de ODD 1, ya entregada</text>
+
+  <line class="arw" x1="664" y1="520" x2="632" y2="520" marker-end="url(#ah)"/>
+
+  <rect class="superficie" x="452" y="488" width="180" height="64" rx="10"/>
+  <text class="lbl" x="466" y="508">Contrato de lectura</text>
+  <text class="sub" x="466" y="525">lo que la superficie</text>
+  <text class="sub" x="466" y="540">necesita saber</text>
+
+  <line class="arw" x1="452" y1="520" x2="420" y2="520" marker-end="url(#ah)"/>
+
+  <rect class="superficie" x="240" y="488" width="180" height="64" rx="10"/>
+  <text class="lbl" x="254" y="514">Marca en Today</text>
+  <text class="sub" x="254" y="531">ODD 4</text>
+
+  <!-- ===================== LECTURAS ===================== -->
+  <rect class="existe" x="30" y="680" width="200" height="76" rx="10"/>
+  <text class="lbl" x="44" y="706">Estado que ya existe</text>
+  <text class="sub" x="44" y="723">progreso (NroCapVisto)</text>
+  <text class="sub" x="44" y="738">carpeta (FolderPath) · tipo</text>
+
+  <path class="arw" d="M 230 690 L 222 690 L 222 362 L 232 362" marker-end="url(#ah)"/>
+  <text class="elbl" x="238" y="676">se lee, no se infiere</text>
+
+  <!-- ===================== SIN DUPLICAR PIEZAS ===================== -->
+  <rect class="existe" x="520" y="680" width="230" height="76" rx="10"/>
+  <text class="lbl" x="534" y="706">Sin cajas repetidas</text>
+  <text class="sub" x="534" y="723">la identidad aparece una sola vez,</text>
+  <text class="sub" x="534" y="738">dentro de la ruta donde se usa</text>
+
+  <!-- ===================== AUSENTE ===================== -->
+  <rect class="ausente" x="800" y="680" width="420" height="76" rx="10"/>
+  <text class="lbl" x="814" y="706" fill="#b91c1c">Ausente a propósito</text>
+  <text class="sub" x="814" y="723">ningún almacén de hallazgos · nada que archivar · ninguna consulta a MyAnimeList</text>
+  <text class="sub" x="814" y="738">la ruta B recalcula siempre, así que un archivo renombrado o borrado se refleja al abrir</text>
+
+  <text class="sub" x="26" y="580">los componentes azules son la capa de coordinación de ODD 3</text>
+</svg>
+
+<div class="note">
+  <p><strong>Identidad aparece una sola vez</strong>, como paso 3 de la ruta B. Es la misma pieza verde que
+  ya está entregada: no hay un «motor» aparte. Igual la regla de duración, que vive dentro del hallazgo.</p>
+  <p>El <strong>inventario de medios</strong> es lo que convierte una carpeta en la lista de archivos que la
+  identidad consume. La identidad no puede leer el disco —es pura a propósito—, así que alguien tiene que
+  listar los archivos y sus fechas y entregárselos. En el prototipo eso era <code>captureDir</code>; en Go
+  todavía no existe.</p>
+</div>
+
+<h2>Componentes</h2>
+<table>
+  <thead>
+    <tr><th>Componente</th><th>Responsabilidad</th><th>Existe hoy</th><th>Nivel</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Inventario de medios</td>
+      <td>Listar los archivos de video inmediatos de una carpeta con su fecha real de creación y su modificación; informar carpeta ausente o ilegible en vez de ceros. Solo lectura, sin recursión.</td>
+      <td><strong>No</strong>. <code>internal/download/filesystem/counter.go</code> solo cuenta y devuelve <code>0</code> ante error, así que no se reutiliza.</td>
+      <td>CORE · es la entrada de la que depende toda decisión</td>
+    </tr>
+    <tr>
+      <td>Coordinador A</td>
+      <td>Reaccionar a una descarga terminada, validar ese archivo y avisar si es largo. Sin identidad y sin enumerar la carpeta.</td>
+      <td>No</td>
+      <td>CORE · decide si el usuario se enteró</td>
+    </tr>
+    <tr>
+      <td>Coordinador B</td>
+      <td>Al abrir Today, resolver el próximo pendiente y validarlo en vivo, sin guardar nada.</td>
+      <td>No</td>
+      <td>CORE</td>
+    </tr>
+    <tr>
+      <td>Compuerta de tipo</td>
+      <td>Dejar pasar solo anime de TV (<code>Tipo 0</code>). Películas, OVA y especiales quedan en silencio.</td>
+      <td>El dato existe (<code>ContentType</code> en <code>internal/anime/domain/anime.go</code>); la compuerta no.</td>
+      <td>CORE · decide a quién se le habla</td>
+    </tr>
+    <tr>
+      <td>Compuerta de confianza</td>
+      <td>En la ruta B, si la identidad no es concluyente, callar en vez de nombrar el capítulo equivocado.</td>
+      <td>La señal existe en <code>identity.Result</code>; la compuerta no.</td>
+      <td>CORE · un nombre equivocado es peor que el silencio</td>
+    </tr>
+    <tr>
+      <td>Hallazgo</td>
+      <td>Convertir la duración en una decisión: largo, normal o no disponible, con su evidencia.</td>
+      <td><code>duration.Classify</code> existe (ODD 1); el hallazgo como valor, no.</td>
+      <td>CORE</td>
+    </tr>
+    <tr>
+      <td>Contrato de lectura</td>
+      <td>Lo que la superficie necesita saber, sin exponer la maquinaria interna.</td>
+      <td>No</td>
+      <td>INFRAESTRUCTURA · forma de datos</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Brechas reales detectadas al dibujar esto</h2>
+<div class="warn">
+  <p><strong>1. Nadie produce las entradas que la identidad consume.</strong> El puerto de identidad recibe una
+  lista de <code>Entry</code>, y hoy ninguna pieza del repositorio lista archivos de una carpeta. Sin el
+  inventario, la ruta B no puede funcionar de punta a punta.</p>
+  <p><strong>2. El tipo no está en el dato que Today ya trae.</strong> <code>contracts.EpisodeScheduleItem</code>
+  no expone <code>Tipo</code>, así que la compuerta de tipo necesita una lectura adicional o un campo nuevo.
+  Cuál de las dos cosas es una decisión, no un detalle.</p>
+  <p><strong>3. <code>ffprobe</code> es un binario externo</strong> que el usuario final puede no tener. Si falta,
+  el hallazgo es <em>no disponible</em> y no pasa nada más: no hay aviso y no hay error visible.</p>
+  <p><strong>4. Qué significa un tipo ausente.</strong> Está documentado que <code>Tipo 0</code> es TV; no está
+  documentado qué hacer cuando el anime no tiene tipo guardado. Eso se decide, no se inventa.</p>
+</div>
+
+<h2>¿Dónde vive el inventario de medios?</h2>
+<p class="lead">El inventario es el único adaptador nuevo: convierte una carpeta en la lista de archivos que
+la identidad consume. Las dos opciones lo colocan en el mismo lugar del flujo; cambia de quién es la
+responsabilidad de entregarlo y verificarlo.</p>
+
+<svg viewBox="0 0 1240 470" role="img"
+     aria-label="Comparación de dos ubicaciones posibles para el inventario de medios">
+  <defs>
+    <marker id="ah2" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0 0 L9 4.5 L0 9 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <!-- ===== OPCIÓN A ===== -->
+  <text class="lbl" x="24" y="30" font-weight="600">Opción A — el inventario vive dentro de ODD 3</text>
+  <rect class="banda" x="10" y="42" width="1220" height="172" rx="12"/>
+
+  <rect class="existe" x="30" y="70" width="170" height="70" rx="10"/>
+  <text class="lbl" x="44" y="98">Carpeta del anime</text>
+  <text class="sub" x="44" y="115">sistema de archivos</text>
+
+  <line class="arw" x1="200" y1="105" x2="246" y2="105" marker-end="url(#ah2)"/>
+
+  <rect class="nuevo" x="250" y="70" width="170" height="70" rx="10"/>
+  <text class="lbl" x="264" y="98">Inventario de medios</text>
+  <text class="sub" x="264" y="115">solo lectura</text>
+  <rect class="tag" x="250" y="148" width="70" height="20" rx="5"/>
+  <text class="tagt" x="262" y="162">ODD 3</text>
+
+  <line class="arw" x1="420" y1="105" x2="466" y2="105" marker-end="url(#ah2)"/>
+
+  <rect class="entregado" x="470" y="70" width="170" height="70" rx="10"/>
+  <text class="lbl" x="484" y="98">Identidad</text>
+  <text class="sub" x="484" y="115">decide o se abstiene</text>
+  <rect class="tag" x="470" y="148" width="70" height="20" rx="5"/>
+  <text class="tagt" x="482" y="162">ODD 2</text>
+
+  <line class="arw" x1="640" y1="105" x2="686" y2="105" marker-end="url(#ah2)"/>
+
+  <rect class="nuevo" x="690" y="70" width="170" height="70" rx="10"/>
+  <text class="lbl" x="704" y="98">Coordinador B</text>
+  <text class="sub" x="704" y="115">resuelve y consulta</text>
+  <rect class="tag" x="690" y="148" width="70" height="20" rx="5"/>
+  <text class="tagt" x="702" y="162">ODD 3</text>
+
+  <line class="arw" x1="860" y1="105" x2="906" y2="105" marker-end="url(#ah2)"/>
+
+  <rect class="superficie" x="910" y="70" width="170" height="70" rx="10"/>
+  <text class="lbl" x="924" y="98">Marca en Today</text>
+  <text class="sub" x="924" y="115">lo que ve el usuario</text>
+  <rect class="tag" x="910" y="148" width="70" height="20" rx="5"/>
+  <text class="tagt" x="922" y="162">ODD 4</text>
+
+  <text class="sub" x="30" y="198">Una sola unidad: la observación se entrega y se verifica junto con la coordinación.</text>
+
+  <!-- ===== OPCIÓN B ===== -->
+  <text class="lbl" x="24" y="262" font-weight="600">Opción B — el inventario es una unidad propia</text>
+  <rect class="banda" x="10" y="274" width="1220" height="172" rx="12"/>
+
+  <rect class="existe" x="30" y="302" width="170" height="70" rx="10"/>
+  <text class="lbl" x="44" y="330">Carpeta del anime</text>
+  <text class="sub" x="44" y="347">sistema de archivos</text>
+
+  <line class="arw" x1="200" y1="337" x2="246" y2="337" marker-end="url(#ah2)"/>
+
+  <rect class="nuevo" x="250" y="302" width="170" height="70" rx="10"/>
+  <text class="lbl" x="264" y="330">Inventario de medios</text>
+  <text class="sub" x="264" y="347">solo lectura</text>
+  <rect class="tag" x="250" y="380" width="80" height="20" rx="5"/>
+  <text class="tagt" x="262" y="394">ODD 2.5</text>
+
+  <line class="arw" x1="420" y1="337" x2="466" y2="337" marker-end="url(#ah2)"/>
+
+  <rect class="entregado" x="470" y="302" width="170" height="70" rx="10"/>
+  <text class="lbl" x="484" y="330">Identidad</text>
+  <text class="sub" x="484" y="347">decide o se abstiene</text>
+  <rect class="tag" x="470" y="380" width="70" height="20" rx="5"/>
+  <text class="tagt" x="482" y="394">ODD 2</text>
+
+  <line class="arw" x1="640" y1="337" x2="686" y2="337" marker-end="url(#ah2)"/>
+
+  <rect class="nuevo" x="690" y="302" width="170" height="70" rx="10"/>
+  <text class="lbl" x="704" y="330">Coordinador B</text>
+  <text class="sub" x="704" y="347">resuelve y consulta</text>
+  <rect class="tag" x="690" y="380" width="70" height="20" rx="5"/>
+  <text class="tagt" x="702" y="394">ODD 3</text>
+
+  <line class="arw" x1="860" y1="337" x2="906" y2="337" marker-end="url(#ah2)"/>
+
+  <rect class="superficie" x="910" y="302" width="170" height="70" rx="10"/>
+  <text class="lbl" x="924" y="330">Marca en Today</text>
+  <text class="sub" x="924" y="347">lo que ve el usuario</text>
+  <rect class="tag" x="910" y="380" width="70" height="20" rx="5"/>
+  <text class="tagt" x="922" y="394">ODD 4</text>
+
+  <text class="sub" x="30" y="430">Dos unidades: la observación se entrega y se verifica aislada, con su propio contrato, antes de coordinar.</text>
+</svg>
+
+<div class="note">
+  <p>En las dos opciones el inventario es <strong>solo lectura</strong>: lista los archivos de video
+  inmediatos de la carpeta con su fecha real de creación de Windows, y cuando la carpeta falta o no se
+  puede leer lo dice, en vez de devolver ceros. Nunca escribe, nunca borra y no decide nada.</p>
+</div>
+
+<h2>3.1 — Descargas</h2>
+<p class="lead">Al terminar, si una descarga deja un capítulo que se sale de lo habitual, sale <strong>un aviso</strong>.
+El número de capítulo no importa. La carpeta se lee en el momento en que el archivo ya existe, y nada se guarda.</p>
+
+<table>
+  <thead><tr><th>#</th><th>Caso</th><th>Resultado esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Una descarga deja un capítulo de más de 30 min (anime de TV)</td><td>Un aviso, una sola vez</td></tr>
+    <tr><td>2</td><td>La descarga deja un capítulo normal o corto</td><td>Silencio</td></tr>
+    <tr><td>3</td><td>El anime no es de TV, o no tiene tipo guardado</td><td>Silencio</td></tr>
+  </tbody>
+</table>
+
+<h2>3.2 — Today</h2>
+<p class="lead">Al abrir Today, cada anime del día cuya próxima emisión se sale de lo habitual <strong>queda marcado</strong>.
+Se recalcula en vivo: si el usuario renombra o borra un archivo, la marca lo refleja al abrir.</p>
+
+<table>
+  <thead><tr><th>#</th><th>Caso</th><th>Resultado esperado</th></tr></thead>
+  <tbody>
+    <tr><td>4</td><td>Today, con el próximo capítulo largo</td><td>La marca, con el archivo correcto</td></tr>
+    <tr><td>5</td><td>La identidad no es concluyente</td><td>Silencio, sin nombrar ningún capítulo</td></tr>
+  </tbody>
+</table>
+
+<h2>Casos transversales a las dos unidades</h2>
+<table>
+  <thead><tr><th>#</th><th>Caso</th><th>Resultado esperado</th></tr></thead>
+  <tbody>
+    <tr><td>6</td><td>La carpeta no existe o no se puede leer</td><td>Silencio, sin ceros y sin excepción</td></tr>
+    <tr><td>7</td><td><code>ffprobe</code> no está instalado</td><td>Silencio</td></tr>
+    <tr><td>8</td><td>Después de usar la función</td><td>Cero escrituras, cero archivos nuevos, cero filas</td></tr>
+  </tbody>
+</table>
+
+<h2>Qué unidad entrega cada pieza</h2>
+<table>
+  <thead><tr><th>Pieza</th><th>Unidad</th></tr></thead>
+  <tbody>
+    <tr><td><code>MediaInventory</code></td><td><strong>3.1</strong> · compartida con 3.2</td></tr>
+    <tr><td>Compuerta de tipo</td><td><strong>3.1</strong> · compartida con 3.2</td></tr>
+    <tr><td>Hallazgo (sonda + regla + es-largo)</td><td><strong>3.1</strong> · compartida con 3.2</td></tr>
+    <tr><td>Coordinador A y el aviso</td><td>3.1</td></tr>
+    <tr><td>Coordinador B</td><td>3.2</td></tr>
+    <tr><td>Compuerta de confianza</td><td>3.2</td></tr>
+    <tr><td>Contrato de lectura, y el tipo en el dato que Today ya trae</td><td>3.2</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <p>Lo compartido va en la <strong>primera</strong> unidad, así que la dependencia tiene una sola dirección: 3.2 consume
+  lo que entrega 3.1. Sin ciclos.</p>
+  <p><strong>La condición para que el corte no se rompa:</strong> el inventario devuelve <em>el inventario completo</em>,
+  no «el video más nuevo» — elegir el archivo es decisión del coordinador, no del inventario. Y el hallazgo no lleva
+  texto de aviso: comparte el veredicto, no la presentación.</p>
+  <p><strong>La ruta A no necesita a nadie más.</strong> El path de la carpeta ya está guardado por anime, y el path del
+  archivo sale de listar la carpeta <em>en el momento en que el archivo ya existe</em>. Sin preguntarle a JDownloader,
+  sin el nombre del hoster y sin comparar antes y después.</p>
+  <p><strong>Fuera de las dos:</strong> el algoritmo de identidad (ODD 2, entregado), la regla y la sonda (ODD 1,
+  entregadas), la superficie visual (ODD 4) y cualquier cambio al pipeline de descarga.</p>
+</div>
+
+<h2>Decisiones abiertas</h2>
+<table>
+  <thead><tr><th>#</th><th>Decisión</th><th>Por qué importa</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Confirmar el alcance de 3.1 antes de escribir código</td><td>Es la unidad que entrega las piezas compartidas; su forma la hereda 3.2</td></tr>
+    <tr><td>2</td><td>Cuántos sondeos en paralelo</td><td>Es un número, y solo afecta a 3.2: en 3.1 se sondea archivo por archivo</td></tr>
+  </tbody>
+</table>
+
+</body>
+</html>

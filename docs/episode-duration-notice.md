@@ -13,6 +13,10 @@ entry path, plus the work-unit (ODD) dependency diagram.
 
 **Task tracking:** `odd/tasks/episode-duration-notice.md`.
 
+**Scope, decisions and evidence:** [`episode-duration-notice-scope.md`](episode-duration-notice-scope.md)
+— why ODD 3 splits into 3.1 (downloads) and 3.2 (Today), which unit delivers each piece, the
+measurements behind the rejected options, and the drift record. Read it before planning a later unit.
+
 ## 1. Problem
 
 Anime episodes are downloaded automatically. Occasionally one episode is exceptionally long — a
@@ -28,6 +32,17 @@ Deciding which file is the next episode is a **precondition of one path**, not t
 The episode number is irrelevant: the download pipeline already works and is not changed; this
 path only adds a validation step after the file lands. Identity is not needed and the folder is
 not enumerated, because the download event already names the file.
+
+> **Known drift, recorded 2026-10-12 — the last clause is false.**
+> `DownloadEpisodeDownloadedEvent` (`internal/events/event.go:179`) carries `RunID`, `AnimeID`,
+> `Episode` and `CorrelationID` only: no path, no basename. The pipeline confirms the landing by
+> a filesystem **count** poll (`episodeEnqueueResult.baseline` -> `observed`,
+> `internal/download/service_pipeline.go:259`), and that struct's own comment forbids `observed`
+> entering any branch, verdict **or event payload**. The file name does exist inside the flow —
+> JDownloader reports it (`DownloadLink.Name *string`), Bridge reads it at `rename.go:57`, and
+> `newestFinishedLink` (`rename.go:89`) is already documented as "the episode that just landed" —
+> but it never leaves the rename step, which runs only when the rename setting is on. **Path A's
+> file acquisition is therefore an open scope decision for ODD 3, not an inherited fact.**
 
 **Path B — the user opens Today.** Here it matters whether the episode about to be watched runs
 long, so both pieces are needed: identity first, to know which file is the next pending episode,
@@ -47,7 +62,7 @@ then duration for that file.
 
 | Component | Responsibility | Exists today |
 |---|---|---|
-| Folder observer | List immediate video files with size and Windows creation/modification times; report absent or unreadable folders instead of zeros | No. `internal/download/filesystem/counter.go` counts numbers only, ignores timestamps and returns `0` on error, so it cannot be reused |
+| Media inventory (`MediaInventory`) | Capture the media files of one folder with their Windows creation and modification times, and prepare them in the shape the identity algorithm consumes. Read-only: it lists and filters video files, reports an absent or unreadable folder instead of zeros, and classifies nothing | No. `internal/download/filesystem/counter.go` counts numbers only, ignores timestamps and returns `0` on error, so it cannot be reused |
 | Media duration probe | Obtain the real runtime of one file | No |
 | Identity | Decide which file is the next pending episode, or abstain with a reason | **Prototyped and proven** |
 | Duration finding | Compare one file's runtime against the constant and emit LONG / NOT_LONG / UNAVAILABLE with evidence | No |
