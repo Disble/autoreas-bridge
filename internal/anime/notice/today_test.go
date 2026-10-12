@@ -8,7 +8,38 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"autoreas-bridge/internal/anime/identity"
 )
+
+func TestHasAmbiguityReadsTheWholeFactSet(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name        string
+		diagnostics []identity.Diagnostic
+		want        bool
+	}{
+		{name: "no diagnostics at all", want: false},
+		{name: "another kind of doubt is not ambiguity",
+			diagnostics: []identity.Diagnostic{{Kind: identity.DiagnosticInversion}}, want: false},
+		{name: "unusable context is not ambiguity",
+			diagnostics: []identity.Diagnostic{{Kind: identity.DiagnosticUnusableContext}}, want: false},
+		{name: "an ambiguity is found",
+			diagnostics: []identity.Diagnostic{{Kind: identity.DiagnosticAmbiguity}}, want: true},
+		{name: "an ambiguity behind another kind is still found",
+			diagnostics: []identity.Diagnostic{{Kind: identity.DiagnosticInversion}, {Kind: identity.DiagnosticAmbiguity}},
+			want:        true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := hasAmbiguity(tc.diagnostics); got != tc.want {
+				t.Errorf("want %v, got %v", tc.want, got)
+			}
+		})
+	}
+}
 
 // probesInFlightBound is the bound the scope promises, written as a literal on purpose: a test that
 // expects maxProbesInFlight cannot see that constant change.
