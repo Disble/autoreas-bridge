@@ -239,7 +239,9 @@ separate deliverable.
 - [ ] U4 — Coordinator B: the Today decision (inventory, identity, the confidence gate, the type gate,
   the probe and the finding), producing a mark value, with a probe bound of 4 (`min(4, N)`). Provable
   with fakes. The type comes from `MobileAnime.Kind`, which `ListEpisodeSchedule` already reads, so no
-  contract change is needed for it.
+  contract change is needed for it. The confidence gate is measured in
+  `docs/episode-duration-notice-scope.md` section 10: refuse when an ambiguity diagnostic accompanies
+  the selection, which costs nothing over every real case we have.
 - [ ] U5 — the delivery: the mark in the schedule read model and in the contract (one field, whose named
   consumer is the ODD 4 surface), the mapping, the contract tests, the regenerated bindings, and the
   acceptance cases 4, 5 and the shared 6, 7, 8.

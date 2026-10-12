@@ -151,6 +151,29 @@ Two work units, fewer than 3.1 because it reuses the adapter, the finding and th
 - **U5 — The delivery.** The mark in the schedule read model and in the contract, the mapping, the contract
   tests, the regenerated bindings, and the acceptance cases 4, 5 and the shared 6, 7, 8.
 
+**The confidence gate has a measured answer.** The port carries no confidence field by design — no
+calibrated probabilities — and its only documented invariant is "BasisNone always pairs with a nil
+Next". The gate is therefore a rule to write, not a fact to inherit, and two candidates existed: accept
+any non-nil `Next`, or accept one only when no ambiguity diagnostic accompanies it.
+
+Measured over the real corpora (`internal/anime/identity/pairing_test.go`, which now gives the
+invariant a machine owner and re-logs this tally):
+
+| Split | Cases | Decided | Abstained | Decided **with** ambiguity |
+|---|---|---|---|---|
+| dev | 16 | 7 | 9 | **0** |
+| supplemental | 4 | 4 | 0 | **0** |
+
+The two rules are **identical on every case we have**, so the stricter one costs nothing today and keeps
+the design's fail-closed stance for a folder nobody has seen yet: **accept a non-nil `Next`, and refuse
+when an ambiguity diagnostic is present.** Basis distribution over the same corpora: dev direct-number
+5, elimination 1, chronology 1, none 9; supplemental direct-number 3, chronology 1.
+
+**Where the mark is computed is also open.** `EpisodeService` does not know the coordination today, and
+adding it touches its constructor and its tests; enriching in the `internal/desktop` mapping would leave
+the service alone but put a per-row rule in the layer meant to compose and not decide. The anime context
+owns the decision, so the service is the intended home — at the cost of one dependency.
+
 **The type needs no contract change.** `EpisodeService.ListEpisodeSchedule` already reads
 `s.query.ListMobileAnimes`, and `MobileAnime.Kind *int` is right there, so the type gate takes its value
 from the same pass. Putting the type on `EpisodeScheduleItem` would add a field no consumer needs — the
