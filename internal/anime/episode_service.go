@@ -121,7 +121,7 @@ type EpisodeScheduleItem struct {
 	PageURL     string
 	HasCover    bool
 	// LongNextEpisode marks the anime whose next episode runs long: the next episode number and its
-	// measured whole minutes in one value, so the two facts cannot disagree. The coordination fills
+	// measured whole minutes in one value, the mark guarantees that the episode and the minutes travel together or not at all, never that they agree with each other. The coordination fills
 	// it on every read; the folder it was measured from belongs to the user and can change at any
 	// moment. Nil means unmarked, which the contract omits.
 	LongNextEpisode *notice.Mark

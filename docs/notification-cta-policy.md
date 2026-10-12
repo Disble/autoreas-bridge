@@ -73,6 +73,7 @@ Every row below is what ships today. What each one replaced is recorded under
 | `season.past_download_window` | A "Ver hoy" batch landed after the auto-download; **it will not download today** | warning | `Download now` → `season.download_now` | — no rows |
 | `sync_health_warning` | A paired device's sync has degraded | warning | `Open Devices` → `/devices` | — no rows |
 | `device.paired` | A mobile device completed pairing | success | `Open Devices` → `/devices` | — no rows |
+| `anime.episode_long` | A downloaded episode runs longer than the ordinary band | info | **none — see the exception below** | identity only, no CTA |
 | `missed_schedule` | A selected day never ran because Bridge was closed | warning | `Run now` + `Ignore` | — no rows |
 
 † `run_started` fires before the run produces any `animeRunOutcome`, so its rows
@@ -299,3 +300,24 @@ the only way to fix it.
    `season.anime_available` both do.
 3. Give a row an L2 only when *that row* has a next step its siblings do not
    share. Otherwise the action belongs at L1.
+
+### The exception: a pure notice offers nothing
+
+A notification whose subject is information rather than an outcome is the one case where a producer
+gives its notification no action at all, and it has to be declared here rather than left implicit. The
+duration notice is that case, by the owner's decision on 2026-10-12, in their words: *"esto es
+información, no lanza una acción y no bloquea bajo ningún sentido a los demás workflows"*.
+
+It reports that a downloaded episode runs longer than the ordinary twenty-to-thirty-minute band. It
+launches no operation. Today and Downloads keep working whether the notice is read or ignored, and
+nothing waits on it. The rule above asks what the user wants to do NOW given the outcome; here there is
+no outcome to consume, no failure to retry and no blocker to reach, so there is no answer to give.
+
+The reason this is worth writing down instead of assuming: the first CTA a reader would reach for is
+"watch it", and the episode is already downloaded and waiting in Today — the same inversion the
+`run_completed` defect above was written to prevent, where a finished notification offered to run the
+work again. The absence of a button is the decision, not an omission.
+
+What it costs: a reader who wants that episode has no route from the notification itself. What it does
+not cost: an intent registered for nobody, a second path to Today, or a button whose only sensible action
+is the inverse of the outcome it reports.
