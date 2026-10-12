@@ -2,19 +2,24 @@ package identity
 
 import "math"
 
-// maxExactOrdinal is the largest context ordinal this port admits: 2^53 - 1.
-// The prototype (pending.ts integerProgress/usableNext) imposes no upper bound,
-// so this is a Go-specific guard, not ported semantics.
+// maxExactOrdinal bounds the ordinal the decision may AIM AT: an inferred or
+// expected next must satisfy next <= 2^53 - 1. The prototype (pending.ts
+// integerProgress/usableNext) imposes no bound, so this is a Go-specific
+// guard rather than ported semantics.
 //
-// The bound is set one below the largest consecutive float64 integer on
-// purpose. At 2^53 a float64 still represents the value exactly, but the
-// prototype derives the next episode by adding one in float64, where 2^53 + 1
-// rounds straight back to 2^53; Go's exact integer arithmetic would instead
-// answer 2^53 + 1. Admitting 2^53 would therefore make the two disagree at the
-// very boundary the guard admits. Admitting at most 2^53 - 1 keeps progress + 1
-// exactly representable, so the guard removes the divergence instead of
-// hiding one behind it. Readings above fail closed as unusable context, never
-// truncated into an ordinal.
+// The bound is on the requested NEXT, not on the context value and not on the
+// end of the assignment range, because only a collision at the requested next
+// can change the decision. The prototype derives candidates in float64, where
+// 2^53 + 1 rounds back onto 2^53: with next == 2^53 the first two claimants
+// land on one value, reconciliation suspends both, and the prototype abstains
+// while exact integer arithmetic would select the earliest. Collisions later
+// in a long pending list suspend files that were never going to be selected,
+// so they do not affect the outcome and need no guard. Admitting at most
+// 2^53 - 1 therefore removes the divergence exactly where it can occur.
+//
+// Integer progress is admitted up to 2^53 - 2 so that progress + 1 stays inside
+// this bound; a reading that would push the next past it yields no usable next
+// and the decision abstains. Readings above fail closed, never truncated.
 const maxExactOrdinal = 1<<53 - 1
 
 // usableProgress reports exact integer progress >= 0. Fractional, negative,
@@ -34,29 +39,18 @@ func usableExpected(c Context) (int, bool) {
 	return usableOrdinal(c.ExpectedNext, 1)
 }
 
-// horizonUsable is the fail-closed inference-horizon guard: the widest
-// inference (pending chronology) assigns the consecutive ordinals
-// next..next+pendingCount-1, and the prototype computes each of those steps
-// in float64, where 2^53+1 rounds back to 2^53 and two candidates collide
-// into a reconciled abstention that exact integer arithmetic never sees.
-// Requiring next+pendingCount itself to stay inside the admitted exact range
-// keeps one spare ordinal of headroom past the widest assignment, so every
-// float64 step the prototype takes lands on consecutive integers and the two
-// agree. Past the horizon the context is unusable for inference: the caller
-// abstains instead of inferring rounded ordinals. Written as a subtraction
-// comparison so the addition itself cannot overflow.
-func horizonUsable(next, pendingCount int) bool {
-	return next <= maxExactOrdinal-pendingCount
-}
-
 // usableNext is the ordinal the decision aims at: an explicit usable
 // expected-next wins, otherwise exact integer progress implies progress+1.
-// Anything else yields no ordinal.
+// Anything else yields no ordinal, including a progress whose derived next
+// would leave the admitted range.
 func usableNext(c Context) (int, bool) {
 	if e, ok := usableExpected(c); ok {
 		return e, true
 	}
 	if p, ok := usableProgress(c); ok {
+		if p+1 > maxExactOrdinal {
+			return 0, false
+		}
 		return p + 1, true
 	}
 	return 0, false

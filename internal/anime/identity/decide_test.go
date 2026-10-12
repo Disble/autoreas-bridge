@@ -77,6 +77,29 @@ func TestSelect(t *testing.T) {
 		{name: "representable horizon still selects", entries: []Entry{mk("a-cut", "1", "2"), mk("b-cut", "3", "4")},
 			ctx:    Context{ProgressSet: true, Progress: 1<<53 - 4},
 			wantEp: 1<<53 - 3, wantBase: "a-cut", wantBasis: BasisChronology, wantP: 2},
+		// The bound is on the requested NEXT, not on the end of the assignment
+		// range: only a collision AT the requested next can lift the winner, so
+		// these two independently executed prototype cases must still SELECT
+		// even though the second assignment walks past the float64 exact range.
+		// Prototype oracle: progress 2^53-3 selects a-cut at 2^53-2, and
+		// progress 2^53-2 selects a-cut at 2^53-1.
+		{name: "next inside the bound selects", entries: []Entry{mk("a-cut", "1", "2"), mk("b-cut", "3", "4")},
+			ctx:    Context{ProgressSet: true, Progress: 1<<53 - 3},
+			wantEp: 1<<53 - 2, wantBase: "a-cut", wantBasis: BasisChronology, wantP: 2},
+		{name: "next at the bound still selects", entries: []Entry{mk("a-cut", "1", "2"), mk("b-cut", "3", "4")},
+			ctx:    Context{ProgressSet: true, Progress: 1<<53 - 2},
+			wantEp: 1<<53 - 1, wantBase: "a-cut", wantBasis: BasisChronology, wantP: 2},
+		// Later assignments walking past the float64 exact range must not refuse
+		// the decision: only a collision at the REQUESTED next can lift the
+		// winner, so longer lists still select the earliest file. Prototype
+		// oracle: four opaques at progress 2^53-3 select a-cut at 2^53-2, and
+		// three opaques at progress 2^53-2 select a-cut at 2^53-1.
+		{name: "later collisions do not refuse a four-file list", entries: []Entry{mk("a-cut", "1", "2"), mk("b-cut", "3", "4"), mk("c-cut", "5", "6"), mk("d-cut", "7", "8")},
+			ctx:    Context{ProgressSet: true, Progress: 1<<53 - 3},
+			wantEp: 1<<53 - 2, wantBase: "a-cut", wantBasis: BasisChronology, wantP: 4},
+		{name: "later collisions do not refuse a three-file list", entries: []Entry{mk("a-cut", "1", "2"), mk("b-cut", "3", "4"), mk("c-cut", "5", "6")},
+			ctx:    Context{ProgressSet: true, Progress: 1<<53 - 2},
+			wantEp: 1<<53 - 1, wantBase: "a-cut", wantBasis: BasisChronology, wantP: 3},
 		{name: "tied births select cleanly", entries: []Entry{mk("Show - 12.mp4", "5", "4"), mk("Show - 13.mp4", "5", "6"), mk("Show - 14.mp4", "5", "7")},
 			ctx:    Context{ProgressSet: true, Progress: 12, ExpectedNextSet: true, ExpectedNext: 13},
 			wantEp: 13, wantBase: "Show - 13.mp4", wantBasis: BasisDirectNumber, wantW: 1, wantP: 2},

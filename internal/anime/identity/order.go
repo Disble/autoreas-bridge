@@ -13,13 +13,14 @@ type stamp struct {
 
 // parseNs parses decimal nanoseconds. An empty reading means no timestamp
 // was captured and maps to the prototype null, exactly as BigInt input
-// stays absent there. A non-empty reading that is not a decimal integer
-// has no prototype encoding (capture only ever produces decimal strings or
-// null), so failing closed as unavailable is a Go-specific guard: never
-// zero-filled and never a crash. The two branches stay separate so a
-// missing reading remains distinguishable from a corrupt one. Negative
-// readings compare as exact signed big integers, exactly as the prototype
-// BigInt comparison accepts them.
+// stays absent there. A non-empty reading that is not a decimal integer has
+// no prototype encoding (capture only ever produces decimal strings or null),
+// so it is a Go-specific guard: never zero-filled and never a crash. Both
+// branches report the same (nil, false) unavailable reading on purpose; a
+// caller that needs to tell a missing capture from a corrupt one must get that
+// distinction from the diagnostic that reports the file, not from here.
+// Negative readings compare as exact signed big integers, exactly as the
+// prototype BigInt comparison accepts them.
 func parseNs(s string) (*big.Int, bool) {
 	if s == "" {
 		return nil, false
