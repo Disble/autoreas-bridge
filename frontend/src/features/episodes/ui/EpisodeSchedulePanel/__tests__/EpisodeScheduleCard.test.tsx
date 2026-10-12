@@ -9,6 +9,10 @@ vi.mock('../../../../season/ui/SeasonRateAction/SeasonRateAction', () => ({
   SeasonRateAction: () => null,
 }));
 
+/**
+ * Builds one schedule row carrying every field the card reads, with any override applied on top, so a
+ * test states only the fact it is about.
+ */
 function createRow(overrides: Partial<EpisodeScheduleRow> = {}): EpisodeScheduleRow {
   return {
     id: 'anime-1',
@@ -30,6 +34,7 @@ function createRow(overrides: Partial<EpisodeScheduleRow> = {}): EpisodeSchedule
   };
 }
 
+/** Builds the callback set the card calls, each one a spy resolving immediately. */
 function createCallbacks() {
   return {
     adjustWatchedEpisodes: vi.fn().mockResolvedValue(undefined),
@@ -167,5 +172,33 @@ describe('EpisodeScheduleCard', () => {
 
     expect(screen.getByRole('button', { name: 'Add one episode for Frieren. Secondary click adds half episode.' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Subtract one episode for Frieren. Secondary click subtracts half episode.' })).toBeDisabled();
+  });
+});
+
+// The Today long-episode mark (ODD 4 U1c): the chip sits next to the anime
+// name beside the status chip; a row with no mark renders exactly as before.
+describe('EpisodeScheduleCard long-episode chip', () => {
+  it('renders the NEXT-episode chip beside the status chip when the mark is present', () => {
+    const row = createRow({ longEpisodeChip: { label: 'Ep. 7 · 45 min', tooltip: 'El próximo capítulo dura 45 minutos' } });
+    render(<EpisodeScheduleCard row={row} {...createCallbacks()} />);
+
+    expect(screen.getByText('Ep. 7 · 45 min')).toBeInTheDocument();
+    expect(screen.getByText('Viendo')).toBeInTheDocument();
+  });
+
+  it('reveals the whole-sentence tooltip on focus of the long-episode chip', async () => {
+    const row = createRow({ longEpisodeChip: { label: 'Ep. 7 · 45 min', tooltip: 'El próximo capítulo dura 45 minutos' } });
+    render(<EpisodeScheduleCard row={row} {...createCallbacks()} />);
+
+    screen.getByLabelText('El próximo capítulo dura 45 minutos').focus();
+    expect(await screen.findByText('El próximo capítulo dura 45 minutos')).toBeInTheDocument();
+  });
+
+  it('renders no chip, placeholder or extra label when the mark is absent', () => {
+    const { container } = render(<EpisodeScheduleCard row={createRow()} {...createCallbacks()} />);
+
+    expect(screen.queryByText(/Ep\.\s?\d/)).not.toBeInTheDocument();
+    expect(screen.getByText('Viendo')).toBeInTheDocument();
+    expect(container.querySelectorAll('[data-slot="chip"]')).toHaveLength(1);
   });
 });

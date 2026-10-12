@@ -2,7 +2,7 @@ import plusIcon from '@iconify-icons/tabler/plus';
 import menuIcon from '@iconify-icons/solar/menu-dots-bold';
 import minusIcon from '@iconify-icons/tabler/minus';
 import { Icon } from '@iconify/react';
-import { Button, Card, Chip, Modal, Typography } from '@heroui/react';
+import { Button, Card, Chip, Modal, Tooltip, Typography } from '@heroui/react';
 import type { MouseEvent } from 'react';
 import { AnimeDesktopActions } from '../../../../shared/ui/AnimeDesktopActions';
 import { CoverPlaceholderScene } from '../../../../shared/ui/CoverPlaceholderScene';
@@ -12,7 +12,8 @@ import type { EpisodeScheduleCardProps } from './episode-schedule-panel.types';
 
 /**
  * Renders one episode-schedule row: cover slot, watched/remaining hover-swap,
- * danger-colored minus, primary plus, real-path tooltips, and the status modal.
+ * danger-colored minus, primary plus, real-path tooltips, the long-episode
+ * chip beside the status chip when the next episode runs long, and the status modal.
  */
 export function EpisodeScheduleCard(props: Readonly<EpisodeScheduleCardProps>) {
   const { adjustWatchedEpisodes, copyAnimeFolder, copyAnimePage, openAnimeFolder, openAnimePage, row, setAnimeState } = props;
@@ -39,6 +40,19 @@ export function EpisodeScheduleCard(props: Readonly<EpisodeScheduleCardProps>) {
               <Chip className="shrink-0" size="sm" color={row.isProgressBlocked ? 'warning' : 'success'} variant="soft">
                 {row.stateLabel}
               </Chip>
+              {row.longEpisodeChip !== undefined && (
+                <Tooltip delay={0}>
+                  <Tooltip.Trigger aria-label={row.longEpisodeChip.tooltip} className="shrink-0">
+                    <Chip size="sm" color="accent" variant="soft">
+                      {row.longEpisodeChip.label}
+                    </Chip>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content showArrow placement="bottom">
+                    <Tooltip.Arrow />
+                    {row.longEpisodeChip.tooltip}
+                  </Tooltip.Content>
+                </Tooltip>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
               <AnimeDesktopActions

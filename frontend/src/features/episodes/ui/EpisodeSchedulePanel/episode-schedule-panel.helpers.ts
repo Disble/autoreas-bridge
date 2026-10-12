@@ -10,7 +10,7 @@ import {
 import { animeRuntimeSource } from '../../../../infrastructure/anime-runtime-source/anime-runtime-source.helpers';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
-import type { AnimeCover, EpisodeDayCount, EpisodeEmptyStateCopy, EpisodeScheduleItem, EpisodeScheduleRow, EpisodeScheduleSource, EpisodeViewLens, CoverEntry, InitialEpisodeSelectionInput } from './episode-schedule-panel.types';
+import type { AnimeCover, EpisodeDayCount, EpisodeEmptyStateCopy, EpisodeScheduleItem, EpisodeScheduleRow, EpisodeScheduleSource, EpisodeViewLens, CoverEntry, InitialEpisodeSelectionInput, LongEpisodeChip, LongEpisodeMark } from './episode-schedule-panel.types';
 
 /**
  * Returns an injected schedule source when supplied, otherwise assembles the
@@ -62,6 +62,7 @@ export function toEpisodeScheduleRows(
       name: item.animeName,
       stateLabel: EPISODE_STATE_LABELS[item.status] ?? 'Unknown',
       isProgressBlocked: item.status > 0,
+      longEpisodeChip: toLongEpisodeChip(item.longNextEpisode),
       watchedLabel,
       remainingLabel,
       progressTitle: `${watchedLabel} ${totalLabel} · ${remainingLabel}`,
@@ -75,6 +76,43 @@ export function toEpisodeScheduleRows(
       showCoverPlaceholder: !hasResolvedCover,
     };
   });
+}
+
+/**
+ * Formats the Today long-episode chip label from its mark: the NEXT episode
+ * number and the whole minutes as one label. It names the next episode,
+ * never the current progress, because the card already shows progress and
+ * the two must not be confusable.
+ *
+ * @param mark The row's long-episode mark.
+ * @returns The chip label, e.g. `Ep. 7 · 45 min`.
+ */
+export function formatLongEpisodeChipLabel(mark: LongEpisodeMark): string {
+  return `Ep. ${mark.episode} · ${mark.minutes} min`;
+}
+
+/**
+ * Formats the Today long-episode chip tooltip from its mark: the whole
+ * sentence with the measured minutes.
+ *
+ * @param mark The row's long-episode mark.
+ * @returns The tooltip sentence, e.g. `El próximo capítulo dura 45 minutos`.
+ */
+export function formatLongEpisodeChipTooltip(mark: LongEpisodeMark): string {
+  return `El próximo capítulo dura ${mark.minutes} minutos`;
+}
+
+/**
+ * Maps an optional wire mark to its view-ready chip, or undefined when the
+ * row is unmarked so the card renders exactly as it does today.
+ *
+ * @param mark The row's long-episode mark, if any.
+ * @returns The chip, or undefined for none.
+ */
+function toLongEpisodeChip(mark: LongEpisodeMark | undefined): LongEpisodeChip | undefined {
+  return mark === undefined
+    ? undefined
+    : { label: formatLongEpisodeChipLabel(mark), tooltip: formatLongEpisodeChipTooltip(mark) };
 }
 
 /**

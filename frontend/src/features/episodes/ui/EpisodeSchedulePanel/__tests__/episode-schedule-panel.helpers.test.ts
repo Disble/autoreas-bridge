@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createEpisodeScheduleSource, dayBadge, episodeDayLabel, getEpisodeEmptyStateCopy, getEpisodeFilterOptions, getDefaultEpisodeDay, getDefaultLensSelection, getInitialEpisodeSelection, toEpisodeScheduleRows, toEpisodeViewLens } from '../episode-schedule-panel.helpers';
+import { createEpisodeScheduleSource, dayBadge, episodeDayLabel, formatLongEpisodeChipLabel, formatLongEpisodeChipTooltip, getEpisodeEmptyStateCopy, getEpisodeFilterOptions, getDefaultEpisodeDay, getDefaultLensSelection, getInitialEpisodeSelection, toEpisodeScheduleRows, toEpisodeViewLens } from '../episode-schedule-panel.helpers';
 import type { EpisodeDayCount, EpisodeScheduleItem, EpisodeScheduleSource, CoverEntry } from '../episode-schedule-panel.types';
 
 describe('toEpisodeScheduleRows', () => {
@@ -240,5 +240,59 @@ describe('getEpisodeEmptyStateCopy', () => {
       title: 'Nothing in Ver hoy',
       description: 'No anime are grouped under Ver hoy right now. Create one to start tracking it here.',
     });
+  });
+});
+
+// The Today long-episode mark (ODD 4 U1c): the chip names the NEXT episode
+// with its whole minutes as one label, beside the status chip, with the
+// whole sentence as its tooltip; a row with no mark carries no chip at all.
+describe('formatLongEpisodeChipLabel', () => {
+  it('names the NEXT episode with its whole minutes as one label', () => {
+    expect(formatLongEpisodeChipLabel({ episode: 7, minutes: 45 })).toBe('Ep. 7 · 45 min');
+  });
+});
+
+describe('formatLongEpisodeChipTooltip', () => {
+  it('carries the whole sentence with the measured minutes', () => {
+    expect(formatLongEpisodeChipTooltip({ episode: 7, minutes: 45 })).toBe('El próximo capítulo dura 45 minutos');
+  });
+});
+
+describe('toEpisodeScheduleRows long-episode mark', () => {
+  it('maps a marked row to the NEXT-episode chip, never the current progress', () => {
+    const items: readonly EpisodeScheduleItem[] = [
+      {
+        animeId: 'anime-1',
+        animeName: 'Bleach',
+        day: 'Lunes',
+        dayOrder: 1,
+        status: 0,
+        hasCover: false,
+        modified_at: 1000,
+        episodesWatched: 6,
+        longNextEpisode: { episode: 7, minutes: 45 },
+      },
+    ];
+
+    expect(toEpisodeScheduleRows(items)[0]).toMatchObject({
+      longEpisodeChip: { label: 'Ep. 7 · 45 min', tooltip: 'El próximo capítulo dura 45 minutos' },
+    });
+  });
+
+  it('leaves no chip on a row with no mark', () => {
+    const items: readonly EpisodeScheduleItem[] = [
+      {
+        animeId: 'anime-1',
+        animeName: 'One Piece',
+        day: 'Lunes',
+        dayOrder: 1,
+        status: 0,
+        hasCover: false,
+        modified_at: 1000,
+        episodesWatched: 28,
+      },
+    ];
+
+    expect(toEpisodeScheduleRows(items)[0]?.longEpisodeChip).toBeUndefined();
   });
 });
