@@ -266,6 +266,29 @@ separate deliverable.
   consumer is the ODD 4 surface), the mapping, the contract tests, the regenerated bindings, and the
   acceptance cases 4, 5 and the shared 6, 7, 8.
 
+## Closure — 2026-10-12
+
+Delivered and accepted. Four units, all merged into `dev` at `6c250331`: the duration rule and its
+probe, the identity decision that names the next episode, the coordination for both entry paths, and the
+two surfaces that show the result.
+
+**Accepted by the owner in the running application, not from a harness.** Today, on a weekday with rows
+carrying `Finalizado` and `Viendo`, showed a row reading 18 watched with `Ep. 19 · 41 min` beside both
+chips: the mark named the NEXT episode and its real measured runtime, from the real library. That is the
+whole chain — inventory, identity, probe, constant rule, contract, surface — answering with data nobody
+fabricated.
+
+**Evidence on `dev`**: `go build ./...` clean, 51 Go packages pass, the frontend typechecks and runs
+3669 tests across 366 files, and `ffprobe` is on PATH, so the notice path was live rather than degraded.
+
+**Retired on the way out**: the disposable demo harness and its screenshots, 63 branches already merged
+into `dev`, and three worktrees whose work was delivered. Two worktree directories kept a file locked by
+another process and delete themselves once it is released.
+
+**Open, deliberately**: the notice carries no CTA, by the owner's decision and recorded in
+`docs/notification-cta-policy.md`; the duration cache stays rejected, by measurement; and anything the
+owner finds from here is a separate bugfix rather than a reopened unit.
+
 ## Open decisions
 
 - ODD 3 scope questions are closed and recorded in `docs/episode-duration-notice-scope.md`.
