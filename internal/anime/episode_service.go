@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/activity"
+	"autoreas-bridge/internal/anime/notice"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/watchhistory"
@@ -89,6 +90,15 @@ type EpisodeServiceDeps struct {
 	Watch    WatchRecorder
 	Logger   logger.Logger
 	Now      func() time.Time
+	// Marks answers which rows of a day carry a next episode that runs long. It is optional:
+	// without it every row is simply unmarked, which is the same degradation the download side
+	// takes when its own seam is unwired.
+	Marks EpisodeDurationMarks
+}
+
+// EpisodeDurationMarks answers one mark per anime of the day, in the same order as the requests.
+type EpisodeDurationMarks interface {
+	TodayMarks(ctx context.Context, episodes []notice.TodayEpisode) []bool
 }
 
 // EpisodeScheduleQuery filters episode schedule items by day/section.
@@ -98,19 +108,22 @@ type EpisodeScheduleQuery struct {
 
 // EpisodeScheduleItem is the read model returned by ListEpisodeSchedule.
 type EpisodeScheduleItem struct {
-	AnimeID      string
-	AnimeName    string
-	Estado       int
-	NroCapVisto  float64
-	TotalCap     *int
-	Day          string
-	DayOrder     int
-	ModifiedAt   int64
-	FolderPath   string
-	PageURL      string
-	HasCover     bool
-	LastWatched  *int64
-	FirstWatched *int64
+	AnimeID     string
+	AnimeName   string
+	Estado      int
+	NroCapVisto float64
+	TotalCap    *int
+	Day         string
+	DayOrder    int
+	ModifiedAt  int64
+	FolderPath  string
+	PageURL     string
+	HasCover    bool
+	// LongNextEpisode marks the anime whose next episode runs long. The coordination fills it on
+	// every read; the folder it was measured from belongs to the user and can change at any moment.
+	LongNextEpisode bool
+	LastWatched     *int64
+	FirstWatched    *int64
 }
 
 // EpisodeService owns episode progress and related lifecycle mutations.
@@ -121,6 +134,7 @@ type EpisodeService struct {
 	watch    WatchRecorder
 	logger   logger.Logger
 	now      func() time.Time
+	marks    EpisodeDurationMarks
 }
 
 // AdjustWatchedEpisodesCommand increments or decrements watched progress.
@@ -220,6 +234,7 @@ func NewEpisodeService(deps EpisodeServiceDeps) *EpisodeService {
 		watch:    deps.Watch,
 		logger:   deps.Logger,
 		now:      now,
+		marks:    deps.Marks,
 	}
 }
 

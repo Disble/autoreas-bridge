@@ -423,6 +423,7 @@ func toEpisodeScheduleContracts(items []anime.EpisodeScheduleItem) []contracts.E
 			FolderPath:      item.FolderPath,
 			PageURL:         item.PageURL,
 			HasCover:        item.HasCover,
+			LongNextEpisode: item.LongNextEpisode,
 			LastWatched:     item.LastWatched,
 			FirstWatched:    item.FirstWatched,
 		})

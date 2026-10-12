@@ -228,9 +228,12 @@ type EpisodeScheduleItem struct {
 	PageURL    string `json:"pageUrl,omitempty"`
 	// HasCover gates the frontend's lazy GetAnimeCover call: true when the
 	// anime's portada classifies as anything other than cover.KindAbsent.
-	HasCover     bool   `json:"hasCover"`
-	LastWatched  *int64 `json:"lastWatched,omitempty"`
-	FirstWatched *int64 `json:"firstWatched,omitempty"`
+	HasCover bool `json:"hasCover"`
+	// LongNextEpisode marks the anime whose next episode runs long. The ODD 4 Today surface is its
+	// consumer; false is omitted because an absent mark and an unmarked row are the same fact.
+	LongNextEpisode bool   `json:"longNextEpisode,omitempty"`
+	LastWatched     *int64 `json:"lastWatched,omitempty"`
+	FirstWatched    *int64 `json:"firstWatched,omitempty"`
 }
 
 // CoverSourceCover/CoverSourcePlaceholder are the two values AnimeCover.Source
