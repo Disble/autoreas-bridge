@@ -155,6 +155,14 @@ untracked-file collision.
 
 ## Evidence and progress
 
+- 2026-10-12 — 3.1 U2 delivered: `internal/anime/notice` (Coordinator A) and the consumer-declared
+  seam in `internal/download`. The gate order is part of the decision and is asserted: a type that
+  cannot qualify stops the work before any file is read, while an ordinary runtime is only known after
+  measuring. When the newest file cannot be trusted the coordinator stays SILENT rather than falling
+  back to the next newest, which would measure a different episode and announce the wrong one. A
+  failing notifier is discarded, never propagated to the run. The seam is declared and called in the
+  same unit, so no field enters `ServiceDeps` without a consumer.
+
 - 2026-10-11 — design agreed with the user: two entry paths, no persistence, fixed threshold
   constant of 20–30 min, notice above 30. Architecture moved from this
   folder to `docs/episode-duration-notice.md`, with the diagram in
@@ -199,9 +207,10 @@ separate deliverable.
 - [x] U1 — `MediaInventory` at `internal/anime/media/`: one-level listing, the injected extension set,
   Windows creation and modification times, a per-file failure, and an absent or unreadable folder
   reported instead of zeros. KISS: built for this case only, and it classifies nothing.
-- [ ] U2 — the coordination decision: the finding (one duration reading to LONG / normal / unavailable,
+- [x] U2 — the coordination decision: the finding (one duration reading to LONG / normal / unavailable,
   consuming `duration.Classify`), the narrow port declared in `internal/download`, Coordinator A, and
-  the type gate (`Kind == 0`). Provable with fakes, with no wiring yet.
+  the type gate (`Kind == 0`). Provable with fakes. The finding needed no type of its own:
+  `duration.Kind` already is that mapping, and a second enum would have had no consumer.
 - [ ] U3 — the delivery: composition-root wiring, the notice body, and the Path A acceptance cases
   (1, 2, 3, and the shared 6, 7, 8). This is where the notice actually appears.
 
