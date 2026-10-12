@@ -162,6 +162,12 @@ untracked-file collision.
   back to the next newest, which would measure a different episode and announce the wrong one. A
   failing notifier is discarded, never propagated to the run. The seam is declared and called in the
   same unit, so no field enters `ServiceDeps` without a consumer.
+  - Mutation found five survivors. Four were test gaps: the constant `TVKind` was used as its own
+    expectation in the tests, a tie between two identical timestamps was untested, and the largest
+    representable reading was untested. The fifth was a real defect: `newestNs <= 0` rejected a file
+    dated before 1970, re-introducing the invented negative-timestamp rejection already corrected once
+    in ODD 2. It is now a `found` boolean, and the table pins the epoch, a pre-epoch reading and the
+    largest representable reading as valid readings.
 
 - 2026-10-11 — design agreed with the user: two entry paths, no persistence, fixed threshold
   constant of 20–30 min, notice above 30. Architecture moved from this

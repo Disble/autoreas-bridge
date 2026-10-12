@@ -99,21 +99,24 @@ func isTV(kind *int) bool {
 // that changed while it was being listed — because falling back to the next newest file would
 // measure a different episode and announce the wrong one.
 func landedMedia(entries []identity.Entry) (identity.Entry, bool) {
-	var newest identity.Entry
-	var newestNs int64
+	var (
+		newest   identity.Entry
+		newestNs int64
+		found    bool
+	)
 	for _, entry := range entries {
 		ns, err := strconv.ParseInt(entry.MtimeNs, 10, 64)
 		if err != nil {
 			continue
 		}
-		if ns > newestNs {
-			newest, newestNs = entry, ns
+		// A tie goes to the first entry in name order, which is what the folder listing already
+		// guarantees. `found` rather than a sentinel value: a reading before the epoch is an exact
+		// signed instant and rejecting it would be inventing a rule the filesystem never had.
+		if !found || ns > newestNs {
+			newest, newestNs, found = entry, ns, true
 		}
 	}
-	if newestNs <= 0 {
-		return identity.Entry{}, false
-	}
-	if newest.Err != "" || newest.Changed {
+	if !found || newest.Err != "" || newest.Changed {
 		return identity.Entry{}, false
 	}
 	return newest, true

@@ -60,9 +60,11 @@ func touchedLast(t *testing.T, folder, name string) {
 	}
 }
 
-// tv is the stored type of an Anime (TV).
+// tv is the stored type of an Anime (TV). It deliberately passes the literal 0 the contract
+// documents (tipo=0, "Anime (TV)") instead of the package constant, so that changing the constant
+// cannot silently change what these tests believe the stored contract says.
 func tv() *int {
-	kind := TVKind
+	kind := 0
 	return &kind
 }
 
@@ -177,12 +179,24 @@ func TestLandedMediaRefusesWhatItCannotTrust(t *testing.T) {
 			{Basename: "Show - 01.mp4", MtimeNs: ""},
 			{Basename: "Show - 02.mp4", MtimeNs: "200"},
 		}, want: "Show - 02.mp4"},
+		{name: "a time that is not a number is not a candidate", entries: []identity.Entry{
+			{Basename: "Show - 01.mp4", MtimeNs: "not-a-number"},
+			{Basename: "Show - 02.mp4", MtimeNs: "200"},
+		}, want: "Show - 02.mp4"},
+		{name: "a tie goes to the first in name order", entries: []identity.Entry{
+			{Basename: "Show - 01.mp4", MtimeNs: "200"},
+			{Basename: "Show - 02.mp4", MtimeNs: "200"},
+		}, want: "Show - 01.mp4"},
 		{name: "a file that could not be described is never used", entries: entries("200",
 			func(e *identity.Entry) { e.Err = "access denied" }), want: ""},
 		{name: "a file that changed while being listed is never used", entries: entries("200",
 			func(e *identity.Entry) { e.Changed = true }), want: ""},
 		{name: "an empty folder offers nothing", entries: nil, want: ""},
-		{name: "an entry at the epoch is not a real reading", entries: entries("0"), want: ""},
+		{name: "a reading at the epoch is still a reading", entries: entries("0"), want: "Show - 01.mp4"},
+		{name: "a reading before the epoch is still a reading", entries: entries("-1000000000"),
+			want: "Show - 01.mp4"},
+		{name: "the largest representable reading is still a reading", entries: entries("9223372036854775807"),
+			want: "Show - 01.mp4"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
