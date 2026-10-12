@@ -31,9 +31,39 @@
 - For Go changes, stage the production change and run mutation testing against its owning package:
   `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command "go test -count=1 -json ./<owning-package>/"`
   Use `--dry` to inspect scope. Do not use `./...` as the mutation test command. For a direct hand mutation, prove the edit applied before trusting the result.
+- The mutation bar is applied TIER BY TIER, never as one global number. Survivors in CORE code are
+  killed or proven equivalent. Survivors in IMPORTANT code may be skipped with a recorded reason when
+  the only observable difference is prose or a diagnostic nothing surfaces. INFRASTRUCTURE code stays
+  out of the mutation scope entirely. Deciding what deserves the resource and what is better skipped
+  is part of scoping the unit, and every skip is recorded with its justification next to the evidence.
 - Frontend staged mutation testing is automated through the `frontend-mutation` lefthook job. Do not weaken it, suppress a survivor, or replace behavior scenarios with tests that pin production constants.
 - Use real stored-shape fixtures in `internal/anime/store/testdata` for storage codec validation. Copy fixtures to temporary locations; never mutate them in place.
 - At SQLite, Windows filesystem, and Wails CLI boundaries, a passing unit/gate suite is provisional. Run the appropriate real integration or build verification before claiming that boundary works.
+
+### Coverage tiers (business impact)
+
+Every new feature is assessed against the coverage tiers in `docs/coverage-tiers.md` before deciding
+how much test coverage it gets. The governing question is which code can break the business.
+
+| Tier | Question | Target | Examples |
+|---|---|---|---|
+| CORE | If it fails, do we lose money directly? | 100% | Money calculations, payment processing, data validation |
+| IMPORTANT | If it fails, are users frustrated? | 80% | UI components, user interactions |
+| INFRASTRUCTURE | Is it validated automatically? | 0% | Types, constants |
+
+- Declare the tier of each piece when scoping a feature. CORE is the decision logic and the data
+  validation it depends on; IMPORTANT is what the user sees and touches; INFRASTRUCTURE is types,
+  constants and plain wiring the compiler already guarantees.
+- CORE gets full coverage, and every mutation survivor there is either killed or proven equivalent.
+- IMPORTANT gets behaviour coverage of what the user sees and does. Assert on structure and outcomes;
+  do not pin prose or formatting that nothing observes.
+- INFRASTRUCTURE gets no tests and no mutation chasing, and infrastructure-only files stay out of the
+  mutation scope so the denominator reflects real risk.
+- This is guidance applied when a unit is scoped, NOT a machine-enforced gate. Do not build a bespoke
+  checker for it: a previous attempt was discarded because it carried fail-open paths and a test that
+  could exhaust a developer's machine, and a more reliable enforcement process is expected from
+  dharness in a future release.
+- This policy is not retroactive: existing code keeps its recorded evidence until its own next unit.
 
 ## Quality gates and generated artifacts
 
@@ -71,6 +101,7 @@
 ## References
 
 - `docs/architecture.md`
+- `docs/coverage-tiers.md`
 - `docs/file-size-policy.md`
 - `docs/mutation-testing.md`
 - `docs/fallow-usage.md`
