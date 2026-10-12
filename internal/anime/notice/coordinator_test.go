@@ -83,7 +83,7 @@ func TestEpisodeLandedNotifiesOnceForALongTVEpisode(t *testing.T) {
 
 	prober := &proberAnswers{runtime: 45 * time.Minute}
 	notifier := &notifierRecords{}
-	newCoordinator(t, prober, notifier).EpisodeLanded(context.Background(), folder, tv())
+	newCoordinator(t, prober, notifier).EpisodeLanded(context.Background(), folder, tv(), 2, "anime-1", "Show")
 
 	if len(notifier.got) != 1 {
 		t.Fatalf("a long episode is exactly one notice, got %d (%v)", len(notifier.got), notifier.got)
@@ -92,8 +92,11 @@ func TestEpisodeLandedNotifiesOnceForALongTVEpisode(t *testing.T) {
 	if got.Title == "" {
 		t.Error("the notice must carry a title")
 	}
-	if !strings.Contains(got.Body, "Show - 02.mp4") {
-		t.Errorf("the notice must name the file that landed, got %q", got.Body)
+	if len(got.Rows) != 1 || got.Rows[0].Name != "Show" || got.Rows[0].RefID != "anime-1" {
+		t.Errorf("the notice must carry the anime as a row, got %v", got.Rows)
+	}
+	if !strings.Contains(got.Body, "Episodio 2") {
+		t.Errorf("the body must name the episode, got %q", got.Body)
 	}
 	if !strings.Contains(got.Body, "45") {
 		t.Errorf("the notice must carry the measured runtime, got %q", got.Body)
@@ -141,7 +144,7 @@ func TestEpisodeLandedStaysSilent(t *testing.T) {
 			t.Parallel()
 
 			notifier := &notifierRecords{}
-			newCoordinator(t, tc.prober, notifier).EpisodeLanded(context.Background(), tc.folder(t), tc.kind)
+			newCoordinator(t, tc.prober, notifier).EpisodeLanded(context.Background(), tc.folder(t), tc.kind, 8, "anime-1", "Show")
 
 			if len(notifier.got) != 0 {
 				t.Fatalf("expected silence, got %v", notifier.got)
@@ -221,7 +224,7 @@ func TestEpisodeLandedSurvivesAWiredNotifierThatFails(t *testing.T) {
 	folder := folderWith(t, "Show - 01.mp4")
 	notifier := failingNotifier{}
 	newCoordinator(t, &proberAnswers{runtime: 45 * time.Minute}, notifier).
-		EpisodeLanded(context.Background(), folder, tv())
+		EpisodeLanded(context.Background(), folder, tv(), 8, "anime-1", "Show")
 }
 
 // failingNotifier reports a delivery failure, which must never reach the download run.

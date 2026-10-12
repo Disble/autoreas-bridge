@@ -107,8 +107,8 @@ func runPathACase(t *testing.T, tc pathACase) {
 	if len(notifier.got) != tc.wantNotices {
 		t.Fatalf("want %d notices, got %d (%v)", tc.wantNotices, len(notifier.got), notifier.got)
 	}
-	if tc.wantNotices == 1 && !strings.Contains(notifier.got[0].Body, "Show - 08.mp4") {
-		t.Errorf("the notice must name the file that landed, got %q", notifier.got[0].Body)
+	if tc.wantNotices == 1 && (len(notifier.got[0].Rows) != 1 || notifier.got[0].Rows[0].Name != "Show") {
+		t.Errorf("the notice must carry the anime as a row, got %v", notifier.got[0].Rows)
 	}
 	if len(tc.prober.paths) != tc.wantProbes {
 		t.Errorf("want %d probes, got %d (%v)", tc.wantProbes, len(tc.prober.paths), tc.prober.paths)

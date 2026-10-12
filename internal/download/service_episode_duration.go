@@ -17,9 +17,11 @@ import (
 // A nil seam means no notice is ever raised — the same degradation every optional dependency in
 // ServiceDeps takes.
 type EpisodeDurationNotice interface {
-	// EpisodeLanded reports the folder one episode just landed in, and the anime's stored type as
-	// it is stored (nil meaning the type was never recorded).
-	EpisodeLanded(ctx context.Context, folder string, kind *int)
+	// EpisodeLanded reports the folder one episode just landed in, the anime's stored type as it is
+	// stored (nil meaning the type was never recorded), the episode number, and the identity of the
+	// anime it belongs to. Primitives rather than a shared struct: this context states what it knows
+	// without importing, or being imported by, the anime context.
+	EpisodeLanded(ctx context.Context, folder string, kind *int, episode int, animeID, animeName string)
 }
 
 // noticeEpisodeDuration offers a landed episode to the duration notice, after the rename and the
@@ -29,9 +31,9 @@ type EpisodeDurationNotice interface {
 // the notice reads the folder at the moment the file exists instead of trusting a name this run
 // never had. It is best-effort by construction: an unwired seam, an anime without a folder and an
 // empty folder all mean the same thing, that there is nothing to offer.
-func (s *Service) noticeEpisodeDuration(ctx context.Context, anime contracts.MobileAnime) {
+func (s *Service) noticeEpisodeDuration(ctx context.Context, anime contracts.MobileAnime, episode int) {
 	if s.deps.EpisodeDurationNotice == nil || anime.Folder == nil || *anime.Folder == "" {
 		return
 	}
-	s.deps.EpisodeDurationNotice.EpisodeLanded(ctx, *anime.Folder, anime.Kind)
+	s.deps.EpisodeDurationNotice.EpisodeLanded(ctx, *anime.Folder, anime.Kind, episode, anime.ID, anime.Name)
 }

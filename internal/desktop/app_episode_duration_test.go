@@ -54,13 +54,13 @@ func TestTheWiredNoticeSpeaksForARealLongEpisode(t *testing.T) {
 	notifier := &noticesSeen{}
 	tv := 0
 
-	newEpisodeDurationNotice(notifier).EpisodeLanded(context.Background(), folder, &tv)
+	newEpisodeDurationNotice(notifier).EpisodeLanded(context.Background(), folder, &tv, 8, "anime-1", "Show")
 
 	if len(notifier.got) != 1 {
 		t.Fatalf("a real long episode is exactly one notice, got %d (%v)", len(notifier.got), notifier.got)
 	}
-	if !strings.Contains(notifier.got[0].Body, "Show - 08.mp4") {
-		t.Errorf("the notice must name the file that landed, got %q", notifier.got[0].Body)
+	if len(notifier.got[0].Rows) != 1 || notifier.got[0].Rows[0].Name != "Show" {
+		t.Errorf("the notice must carry the anime as a row, got %v", notifier.got[0].Rows)
 	}
 	if !strings.Contains(notifier.got[0].Body, "31") {
 		t.Errorf("the notice must carry the measured runtime, got %q", notifier.got[0].Body)
@@ -76,7 +76,7 @@ func TestTheWiredNoticeIgnoresARealFileThatIsNotOnThePath(t *testing.T) {
 
 	missing := notice.New(media.New(config.VideoFileExtensions),
 		probe.NewFFProbe("definitely-not-an-ffprobe-binary"), notifier)
-	missing.EpisodeLanded(context.Background(), folder, &tv)
+	missing.EpisodeLanded(context.Background(), folder, &tv, 8, "anime-1", "Show")
 
 	if len(notifier.got) != 0 {
 		t.Fatalf("without a probe there is no reading and no notice, got %v", notifier.got)

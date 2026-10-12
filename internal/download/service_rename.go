@@ -19,7 +19,7 @@ func (s *Service) completeDownloadedEpisode(ctx context.Context, runID string, a
 	s.renameDownloadedEpisode(ctx, runID, anime, episode)
 	s.flattenDownloadFolder(ctx, runID, anime)
 	// Last, because a notice about a file the run is still moving would measure the wrong thing.
-	s.noticeEpisodeDuration(ctx, anime)
+	s.noticeEpisodeDuration(ctx, anime, episode)
 }
 
 // renameDownloadedEpisode gives the episode that just landed a parseable name

@@ -13,7 +13,7 @@ type noticeCalls struct {
 	kinds   []*int
 }
 
-func (n *noticeCalls) EpisodeLanded(_ context.Context, folder string, kind *int) {
+func (n *noticeCalls) EpisodeLanded(_ context.Context, folder string, kind *int, _ int, _, _ string) {
 	n.folders = append(n.folders, folder)
 	n.kinds = append(n.kinds, kind)
 }
@@ -26,7 +26,7 @@ func TestNoticeEpisodeDurationHandsTheFolderAndTheStoredTypeOver(t *testing.T) {
 	calls := &noticeCalls{}
 	anime := contracts.MobileAnime{Folder: &folder, Kind: &kind}
 
-	NewService(ServiceDeps{EpisodeDurationNotice: calls}).noticeEpisodeDuration(context.Background(), anime)
+	NewService(ServiceDeps{EpisodeDurationNotice: calls}).noticeEpisodeDuration(context.Background(), anime, 8)
 
 	if len(calls.folders) != 1 {
 		t.Fatalf("the landed episode is handed over exactly once, got %d", len(calls.folders))
@@ -63,7 +63,7 @@ func TestNoticeEpisodeDurationStaysSilentWithoutAWiringOrAFolder(t *testing.T) {
 			t.Parallel()
 
 			calls := &noticeCalls{}
-			NewService(tc.deps(calls)).noticeEpisodeDuration(context.Background(), tc.anime)
+			NewService(tc.deps(calls)).noticeEpisodeDuration(context.Background(), tc.anime, 8)
 
 			if len(calls.folders) != 0 {
 				t.Errorf("nothing may be handed over here, got %v", calls.folders)

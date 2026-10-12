@@ -28,6 +28,10 @@ const TVKind = 0
 // KindEpisodeLong names this notice within the anime source.
 const KindEpisodeLong = "anime.episode_long"
 
+// animeRefType is the reference kind this notice attaches to the anime it concerns. It is the same
+// free-form token the download producer uses, so one anime is one reference across both.
+const animeRefType = "anime"
+
 // sourceAnime is the bounded context this notice belongs to.
 const sourceAnime = "anime"
 
@@ -54,12 +58,13 @@ func New(inventory *media.Inventory, prober Prober, notifier notification.Notifi
 }
 
 // EpisodeLanded reports one episode that just landed in folder, for the anime whose stored type is
-// kind. It implements the seam the download context declares.
+// kind, together with the episode number and the identity of the anime it belongs to. It implements
+// the seam the download context declares.
 //
 // It returns nothing and never fails: every reason not to speak — a type that cannot qualify, a
 // folder nobody can read, a file that cannot be trusted, a missing or unreadable probe — is a
 // silence, not an error the caller has to handle.
-func (c *Coordinator) EpisodeLanded(ctx context.Context, folder string, kind *int) {
+func (c *Coordinator) EpisodeLanded(ctx context.Context, folder string, kind *int, episode int, animeID, animeName string) {
 	if !isTV(kind) {
 		return
 	}
@@ -84,7 +89,7 @@ func (c *Coordinator) EpisodeLanded(ctx context.Context, folder string, kind *in
 		return
 	}
 
-	c.notify(ctx, landed.Basename, runtime)
+	c.notify(ctx, episode, animeID, animeName, runtime)
 }
 
 // isTV reports whether a stored type qualifies for the notice.
@@ -127,16 +132,28 @@ func landedMedia(entries []identity.Entry) (identity.Entry, bool) {
 // notify delivers the one notice this package raises. A delivery failure is discarded, never
 // propagated: the notifier's own contract isolates adapters, and a notice that could not be shown
 // must never fail the download run that produced it.
-func (c *Coordinator) notify(ctx context.Context, basename string, runtime time.Duration) {
+func (c *Coordinator) notify(ctx context.Context, episode int, animeID, animeName string, runtime time.Duration) {
 	if c.notifier == nil {
 		return
 	}
+
+	// The title states the fact and the body states the numbers; the anime travels as a row, which is
+	// what lets the notification centre draw its card and link the anime. A notice is read without
+	// context, so the anime must be somewhere in it: the body alone would say "a chapter", of nothing.
+	measured := minutes(runtime)
 	_ = c.notifier.Notify(ctx, notification.Notification{
-		Title:  "Capítulo inusualmente largo",
-		Body:   fmt.Sprintf("%s dura %d minutos", basename, minutes(runtime)),
+		Title:  "Capítulo largo",
+		Body:   fmt.Sprintf("Episodio %d · %d minutos", episode, measured),
 		Level:  notification.LevelInfo,
 		Source: sourceAnime,
 		Kind:   KindEpisodeLong,
+		Rows: []notification.DetailItem{{
+			RefType: animeRefType,
+			RefID:   animeID,
+			Name:    animeName,
+			Status:  "descargado",
+			Detail:  fmt.Sprintf("El próximo capítulo dura %d minutos", measured),
+		}},
 	})
 }
 
