@@ -107,8 +107,9 @@ func TestUsableProgressBoundaries(t *testing.T) {
 	}{
 		{name: "zero is usable", ctx: Context{ProgressSet: true, Progress: 0}, want: 0, ok: true},
 		{name: "one is usable", ctx: Context{ProgressSet: true, Progress: 1}, want: 1, ok: true},
-		{name: "bound is usable", ctx: Context{ProgressSet: true, Progress: 1 << 30}, want: 1 << 30, ok: true},
-		{name: "past bound is unusable", ctx: Context{ProgressSet: true, Progress: 1<<30 + 1}, ok: false},
+		{name: "large exact integer is usable", ctx: Context{ProgressSet: true, Progress: 1 << 30}, want: 1 << 30, ok: true},
+		{name: "exact-integer ceiling is usable", ctx: Context{ProgressSet: true, Progress: 1 << 53}, want: 1 << 53, ok: true},
+		{name: "past exact-integer range is unusable", ctx: Context{ProgressSet: true, Progress: 1<<53 + 2}, ok: false},
 		{name: "fractional is unusable", ctx: Context{ProgressSet: true, Progress: 12.5}, ok: false},
 		{name: "negative is unusable", ctx: Context{ProgressSet: true, Progress: -1}, ok: false},
 		{name: "unset is unusable", ctx: Context{}, ok: false},
@@ -194,8 +195,9 @@ func TestUsableOrdinalBoundaries(t *testing.T) {
 		{name: "minimum is usable", f: 1, min: 1, want: 1, ok: true},
 		{name: "below minimum is unusable", f: 0, min: 1, ok: false},
 		{name: "zero minimum admits zero", f: 0, min: 0, want: 0, ok: true},
-		{name: "bound is usable", f: 1 << 30, min: 0, want: 1 << 30, ok: true},
-		{name: "past bound is unusable", f: 1<<30 + 1, min: 0, ok: false},
+		{name: "large exact integer is usable", f: 1 << 30, min: 0, want: 1 << 30, ok: true},
+		{name: "exact-integer ceiling is usable", f: 1 << 53, min: 0, want: 1 << 53, ok: true},
+		{name: "past exact-integer range is unusable", f: 1<<53 + 2, min: 0, ok: false},
 		{name: "fractional is unusable", f: 1.5, min: 0, ok: false},
 		{name: "NaN is unusable", f: math.NaN(), min: 0, ok: false},
 		{name: "positive infinity is unusable", f: math.Inf(1), min: 0, ok: false},
@@ -237,9 +239,10 @@ func TestFractionalProgressShapes(t *testing.T) {
 	}
 }
 
-// TestParseNsShapes pins the timestamp reader: empty, malformed, and
-// negative readings are unavailable, while zero and beyond-int64 readings
-// stay exact big integers, never zero-filled and never a crash.
+// TestParseNsShapes pins the timestamp reader: empty and malformed
+// readings are unavailable (a Go-specific fail-closed guard with no
+// prototype encoding), while zero, negative, and beyond-int64 readings
+// stay exact signed big integers, never zero-filled and never a crash.
 func TestParseNsShapes(t *testing.T) {
 	t.Parallel()
 	rows := []struct {
@@ -251,7 +254,8 @@ func TestParseNsShapes(t *testing.T) {
 		{name: "empty is unavailable", in: "", ok: false},
 		{name: "zero is available", in: "0", want: "0", ok: true},
 		{name: "one is available", in: "1", want: "1", ok: true},
-		{name: "negative is unavailable", in: "-5", ok: false},
+		{name: "negative stays signed", in: "-5", want: "-5", ok: true},
+		{name: "negative zero stays signed", in: "-7", want: "-7", ok: true},
 		{name: "malformed is unavailable", in: "abc", ok: false},
 		{name: "beyond int64 stays exact", in: "170141183460469231731687303715884105730", want: "170141183460469231731687303715884105730", ok: true},
 	}

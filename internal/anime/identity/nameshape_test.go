@@ -50,6 +50,10 @@ func TestNameShapes(t *testing.T) {
 		{name: "ver glued to digits is a version", basename: "aver1.2.mp4", wantOrds: []int{2}},
 		{name: "v spaced from digits is version noise", basename: "Show v 2.mp4"},
 		{name: "trailing digits after ep prefix", basename: "Show ep264.mp4", wantOrds: []int{264}},
+		{name: "single-letter multi stays opaque", basename: "a4+5.mp4"},
+		{name: "stem-beginning ordinal claims", basename: "13.mp4", wantOrds: []int{13}},
+		{name: "narrow version gap suppresses fractional", basename: "Show v   1.2.mp4", wantOrds: []int{2}},
+		{name: "wide version gap is fractional", basename: "Show v    1.2.mp4", wantAmbig: AmbiguityFractional},
 	}
 	for _, tc := range rows {
 		t.Run(tc.name, func(t *testing.T) {

@@ -2,9 +2,16 @@ package identity
 
 import "math"
 
-// progressBound caps usable progress; larger readings are unusable context,
-// never ordinals.
-const progressBound = 1 << 30
+// maxExactOrdinal is the largest float64 consecutive integer: 2^53. The
+// prototype (pending.ts integerProgress/usableNext) imposes no upper bound,
+// so this is a Go-specific guard, not ported semantics. Beyond 2^53 a
+// float64 no longer represents consecutive integers (spacing grows to 2
+// and doubles from there), so the integer check and the progress+1/next
+// arithmetic stop being exact; converting such a value with int(f) is
+// additionally outside the exactly convertible range and yields an
+// implementation-defined result. Readings above fail closed as unusable
+// context, never truncated into an ordinal.
+const maxExactOrdinal = 1 << 53
 
 // usableProgress reports exact integer progress >= 0. Fractional, negative,
 // or out-of-range readings never truncate into an ordinal.
@@ -41,7 +48,7 @@ func usableOrdinal(f float64, min int) (int, bool) {
 	if f != math.Trunc(f) {
 		return 0, false
 	}
-	if f < float64(min) || f > progressBound {
+	if f < float64(min) || f > maxExactOrdinal {
 		return 0, false
 	}
 	return int(f), true

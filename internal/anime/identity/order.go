@@ -11,14 +11,21 @@ type stamp struct {
 	mtime *big.Int
 }
 
-// parseNs parses decimal nanoseconds. Empty, malformed, or negative readings
-// are unavailable, never zero-filled and never a crash.
+// parseNs parses decimal nanoseconds. An empty reading means no timestamp
+// was captured and maps to the prototype null, exactly as BigInt input
+// stays absent there. A non-empty reading that is not a decimal integer
+// has no prototype encoding (capture only ever produces decimal strings or
+// null), so failing closed as unavailable is a Go-specific guard: never
+// zero-filled and never a crash. The two branches stay separate so a
+// missing reading remains distinguishable from a corrupt one. Negative
+// readings compare as exact signed big integers, exactly as the prototype
+// BigInt comparison accepts them.
 func parseNs(s string) (*big.Int, bool) {
 	if s == "" {
 		return nil, false
 	}
 	v, ok := new(big.Int).SetString(s, 10)
-	if !ok || v.Sign() < 0 {
+	if !ok {
 		return nil, false
 	}
 	return v, true
