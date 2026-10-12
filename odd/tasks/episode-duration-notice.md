@@ -163,6 +163,12 @@ untracked-file collision.
   rule that the algorithm must not query MyAnimeList. Both are now recorded.
 - 2026-10-11 — delegation incident: both first attempts stopped before writing anything because I injected a global path for the `lean-tests` skill, which is project-local. Correct path is `<worktree>/.agents/skills/lean-tests/SKILL.md`. No repository changes were made by either attempt; both were relaunched with the corrected path. Lesson: verify every injected skill path exists before delegating.
 - 2026-10-11 — environment precondition discovered by the ODD 2 writer: a fresh worktree cannot pass the commit gate for ANY Go change because `main.go` embeds `frontend/dist`, which is ignored and absent after `git worktree add`. The parent ran the repository-documented setup in both worktrees (`bun --cwd="frontend" install --frozen-lockfile`), which created the ignored `frontend/dist/.keep` and the local bindings, left `frontend/bun.lock` byte-unchanged, and made `go build ./...` pass. Environment setup therefore belongs in the delegation preconditions, not in a writer's scope.
+- 2026-10-12 — 3.1 U1 delivered: `internal/anime/media`, 350 lines with its tests. Read-only, one
+  level, injected extension set, real Windows creation and modification times, a file reported when
+  it cannot be described or changed while being listed, and an absent or unlistable folder returning
+  an error rather than an empty list. It classifies nothing. The real-creation-time test asserts an
+  mtime set to a fixed past date is not what the creation time reports, so substituting one for the
+  other fails.
 - 2026-10-11 — execution plan confirmed by the user: ODD 1 and ODD 2 run in parallel in isolated
   worktrees, both cut from `dev`; each closes with its own work-unit commits and an independent
   verification; both merge before ODD 3 starts; ODD 4 follows ODD 3. The user explicitly
@@ -180,16 +186,29 @@ options is `docs/episode-duration-notice-scope.md`; the diagram form is
 | **3.1 Downloads** | a download completes | `MediaInventory`, the type gate, the finding, Coordinator A and the notice |
 | **3.2 Today** | Today opens | Coordinator B, the confidence gate, the read contract, the type in Today's data |
 
-Shared pieces ship in 3.1 so the dependency runs one way. 3.1's work units, each closing with its own
-work-unit commit and its test first:
+Shared pieces ship in 3.1 so the dependency runs one way. 3.1 is **three** work units, each closing with
+its own work-unit commit and its test first. It is not five: the finding is a handful of lines, the
+wiring is not a behaviour on its own, and the acceptance cases are the proof of the coordination, not a
+separate deliverable.
 
-- [ ] U1 — `MediaInventory` at `internal/anime/media/`: one-level listing, the injected extension set,
+- [x] U1 — `MediaInventory` at `internal/anime/media/`: one-level listing, the injected extension set,
   Windows creation and modification times, a per-file failure, and an absent or unreadable folder
   reported instead of zeros. KISS: built for this case only, and it classifies nothing.
-- [ ] U2 — the finding: one duration reading to LONG / normal / unavailable, consuming `duration.Classify`
-- [ ] U3 — the narrow port declared in `internal/download`, Coordinator A, and the type gate (`Kind == 0`)
-- [ ] U4 — the composition-root wiring and the notice body
-- [ ] U5 — the Path A acceptance cases: 1, 2, 3, and the shared 6, 7, 8
+- [ ] U2 — the coordination decision: the finding (one duration reading to LONG / normal / unavailable,
+  consuming `duration.Classify`), the narrow port declared in `internal/download`, Coordinator A, and
+  the type gate (`Kind == 0`). Provable with fakes, with no wiring yet.
+- [ ] U3 — the delivery: composition-root wiring, the notice body, and the Path A acceptance cases
+  (1, 2, 3, and the shared 6, 7, 8). This is where the notice actually appears.
+
+**3.2 is two work units**, fewer because it reuses the adapter, the finding and the type gate:
+
+- [ ] U4 — Coordinator B: the Today decision (inventory, identity, the confidence gate, the type gate,
+  the probe and the finding), producing a mark value, with a probe bound of 4 (`min(4, N)`). Provable
+  with fakes. The type comes from `MobileAnime.Kind`, which `ListEpisodeSchedule` already reads, so no
+  contract change is needed for it.
+- [ ] U5 — the delivery: the mark in the schedule read model and in the contract (one field, whose named
+  consumer is the ODD 4 surface), the mapping, the contract tests, the regenerated bindings, and the
+  acceptance cases 4, 5 and the shared 6, 7, 8.
 
 ## Open decisions
 

@@ -140,11 +140,23 @@ false and the document records the refutation with file and line evidence. `Down
 carries `RunID`, `AnimeID`, `Episode`, `CorrelationID` only, and the landing is confirmed by a filesystem
 **count** poll. Path A's file acquisition is D7 above.
 
-## 10. Open for later units
+## 10. 3.2 — Today: shape and remaining numbers
 
-- **3.2**: how many probes in parallel (a number, propose 4).
-- **3.2**: the anime type is not in `contracts.EpisodeScheduleItem`. Adding it is a contract change,
-  which is real work with contract tests and generated bindings — the reason 3.2 is a unit of its own.
+Two work units, fewer than 3.1 because it reuses the adapter, the finding and the type gate:
+
+- **U4 — Coordinator B.** The decision: inventory, identity, the confidence gate, the type gate, the probe
+  and the finding, producing a mark value. Provable with fakes. Probes run in parallel with a bound of
+  **4** (`min(4, N)`): measured 8 files at `-P8` in 261-304 ms against 511-631 ms sequential, and a low
+  bound keeps a slow or network disk from thrashing.
+- **U5 — The delivery.** The mark in the schedule read model and in the contract, the mapping, the contract
+  tests, the regenerated bindings, and the acceptance cases 4, 5 and the shared 6, 7, 8.
+
+**The type needs no contract change.** `EpisodeService.ListEpisodeSchedule` already reads
+`s.query.ListMobileAnimes`, and `MobileAnime.Kind *int` is right there, so the type gate takes its value
+from the same pass. Putting the type on `EpisodeScheduleItem` would add a field no consumer needs — the
+frontend never reads the type — which the "no field without a named consumer" rule forbids.
+
+**The only contract change is the mark**: one field, whose named consumer is the ODD 4 surface.
 
 ## 11. Process lessons from this scoping
 
