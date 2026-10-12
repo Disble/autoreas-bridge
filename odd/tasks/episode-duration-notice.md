@@ -155,6 +155,16 @@ untracked-file collision.
 
 ## Evidence and progress
 
+- 2026-10-12 — 3.2 U4 delivered: `notice.TodayMarks` decides one mark per anime of the day, in order,
+  recomputed from the folder on every call and remembering nothing. Two measurements carry it. First,
+  the confidence gate: over the 20 curated interview cases (11 of them decided) **no decision ever
+  arrived with an ambiguity diagnostic**, so refusing ambiguity costs nothing while keeping the
+  fail-closed stance. Second, the cursor convention: `identity.ContextForProgress` gives progress-plus-one
+  one implementation, owned by the port's own package, and over the 19 curated cases that carry a
+  progress it **moves no recorded decision**; a fractional progress leaves the expectation unset rather
+  than rounding it into a claim. Rows are measured in parallel within a bound of four, asserted with a
+  barrier prober that fails rather than hangs if the fan-out is ever serialised.
+
 - 2026-10-12 — 3.1 U3 delivered: the notice is wired and live. `newEpisodeDurationNotice` in
   `internal/desktop` builds the coordination from the pipeline's own extension set and ffprobe from
   PATH, and `ServiceDeps.EpisodeDurationNotice` receives it, so a landed episode whose runtime really
@@ -236,7 +246,7 @@ separate deliverable.
 
 **3.2 is two work units**, fewer because it reuses the adapter, the finding and the type gate:
 
-- [ ] U4 — Coordinator B: the Today decision (inventory, identity, the confidence gate, the type gate,
+- [x] U4 — Coordinator B: the Today decision (inventory, identity, the confidence gate, the type gate,
   the probe and the finding), producing a mark value, with a probe bound of 4 (`min(4, N)`). Provable
   with fakes. The type comes from `MobileAnime.Kind`, which `ListEpisodeSchedule` already reads, so no
   contract change is needed for it. The confidence gate is measured in

@@ -1,0 +1,199 @@
+package notice
+
+import (
+	"context"
+	"errors"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+)
+
+// barrierProber answers only once maxProbesInFlight probes are in flight at the same time, and records
+// the highest number it ever saw. A serialised implementation never reaches the barrier, so it times
+// out and fails the test instead of hanging.
+type barrierProber struct {
+	mu      sync.Mutex
+	running int
+	highest int
+	arrived int
+	ready   chan struct{}
+}
+
+// newBarrierProber returns a prober whose barrier is the coordination's own bound.
+func newBarrierProber() *barrierProber {
+	return &barrierProber{ready: make(chan struct{})}
+}
+
+func (p *barrierProber) Probe(ctx context.Context, _ string) (time.Duration, error) {
+	p.mu.Lock()
+	p.running++
+	p.arrived++
+	if p.running > p.highest {
+		p.highest = p.running
+	}
+	reached := p.arrived >= maxProbesInFlight
+	if reached {
+		select {
+		case <-p.ready:
+		default:
+			close(p.ready)
+		}
+	}
+	p.mu.Unlock()
+
+	select {
+	case <-p.ready:
+	case <-time.After(2 * time.Second):
+		p.release()
+		return 0, errors.New("probes never ran concurrently")
+	case <-ctx.Done():
+		p.release()
+		return 0, ctx.Err()
+	}
+
+	p.release()
+	return 45 * time.Minute, nil
+}
+
+// release records that one probe finished.
+func (p *barrierProber) release() {
+	p.mu.Lock()
+	p.running--
+	p.mu.Unlock()
+}
+
+// highWater returns the highest number of probes seen at once.
+func (p *barrierProber) highWater() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.highest
+}
+
+// perFileRuntime answers by the file it was handed, so two rows in one call can disagree.
+type perFileRuntime struct {
+	long     time.Duration
+	ordinary time.Duration
+}
+
+func (p *perFileRuntime) Probe(_ context.Context, path string) (time.Duration, error) {
+	if strings.HasPrefix(filepath.Base(path), "Long") {
+		return p.long, nil
+	}
+	return p.ordinary, nil
+}
+
+// episodeRow is one anime of the day as the coordination receives it.
+func episodeRow(folder string, kind *int, progress float64) TodayEpisode {
+	return TodayEpisode{Folder: folder, Kind: kind, Progress: progress}
+}
+
+func TestTodayMarksMarksOnlyALongNextEpisode(t *testing.T) {
+	t.Parallel()
+
+	notTV := 3
+	twoEpisodes := func(t *testing.T) string { return folderWith(t, "Show - 01.mp4", "Show - 02.mp4") }
+
+	for _, tc := range []struct {
+		name       string
+		folder     func(*testing.T) string
+		kind       *int
+		progress   float64
+		prober     *proberAnswers
+		want       bool
+		wantProbes int
+	}{
+		{name: "a long next episode is marked", folder: twoEpisodes, kind: tv(), progress: 1,
+			prober: &proberAnswers{runtime: 45 * time.Minute}, want: true, wantProbes: 1},
+		{name: "an ordinary next episode is not marked", folder: twoEpisodes, kind: tv(), progress: 1,
+			prober: &proberAnswers{runtime: 24 * time.Minute}, wantProbes: 1},
+		{name: "a short next episode is not marked", folder: twoEpisodes, kind: tv(), progress: 1,
+			prober: &proberAnswers{runtime: 12 * time.Minute}, wantProbes: 1},
+		{name: "an anime that is not TV is never measured", folder: twoEpisodes, kind: &notTV, progress: 1,
+			prober: &proberAnswers{runtime: 45 * time.Minute}},
+		{name: "an anime with no stored type is never measured", folder: twoEpisodes, kind: nil, progress: 1,
+			prober: &proberAnswers{runtime: 45 * time.Minute}},
+		{name: "a folder nobody can read is not marked",
+			folder: func(t *testing.T) string { return filepath.Join(t.TempDir(), "gone") },
+			kind:   tv(), progress: 1, prober: &proberAnswers{runtime: 45 * time.Minute}},
+		{name: "a folder with no media is not marked", folder: func(t *testing.T) string { return t.TempDir() },
+			kind: tv(), progress: 1, prober: &proberAnswers{runtime: 45 * time.Minute}},
+		{name: "a probe that cannot read the file is not marked", folder: twoEpisodes, kind: tv(), progress: 1,
+			prober: &proberAnswers{err: errors.New("ffprobe: not found")}, wantProbes: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			marks := newCoordinator(t, tc.prober, &notifierRecords{}).
+				TodayMarks(context.Background(), []TodayEpisode{
+					episodeRow(tc.folder(t), tc.kind, tc.progress),
+				})
+
+			if len(marks) != 1 || marks[0] != tc.want {
+				t.Fatalf("want [%v], got %v", tc.want, marks)
+			}
+			if len(tc.prober.paths) != tc.wantProbes {
+				t.Errorf("want %d probes, got %d (%v)", tc.wantProbes, len(tc.prober.paths), tc.prober.paths)
+			}
+		})
+	}
+}
+
+func TestTodayMarksKeepsOneMarkPerRowInOrder(t *testing.T) {
+	t.Parallel()
+
+	long := folderWith(t, "Long - 01.mp4", "Long - 02.mp4")
+	ordinary := folderWith(t, "Short - 01.mp4", "Short - 02.mp4")
+	unreadable := filepath.Join(t.TempDir(), "gone")
+
+	for _, tc := range []struct {
+		name string
+		rows []TodayEpisode
+		want []bool
+	}{
+		{name: "the long row is the first one",
+			rows: []TodayEpisode{episodeRow(long, tv(), 1), episodeRow(ordinary, tv(), 1), episodeRow(unreadable, tv(), 1)},
+			want: []bool{true, false, false}},
+		{name: "the long row is the last one",
+			rows: []TodayEpisode{episodeRow(unreadable, tv(), 1), episodeRow(ordinary, tv(), 1), episodeRow(long, tv(), 1)},
+			want: []bool{false, false, true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			prober := &perFileRuntime{long: 45 * time.Minute, ordinary: 24 * time.Minute}
+			marks := newCoordinator(t, prober, &notifierRecords{}).TodayMarks(context.Background(), tc.rows)
+
+			if len(marks) != len(tc.want) {
+				t.Fatalf("one mark per row: want %d, got %d", len(tc.want), len(marks))
+			}
+			for index, want := range tc.want {
+				if marks[index] != want {
+					t.Errorf("row %d: want %v, got %v (all marks %v)", index, want, marks[index], marks)
+				}
+			}
+		})
+	}
+}
+
+func TestTodayMarksBoundedConcurrencyMeasuresEveryRow(t *testing.T) {
+	t.Parallel()
+
+	rows := make([]TodayEpisode, 0, 8)
+	for i := 0; i < 8; i++ {
+		rows = append(rows, episodeRow(folderWith(t, "Show - 01.mp4", "Show - 02.mp4"), tv(), 1))
+	}
+
+	prober := newBarrierProber()
+	marks := newCoordinator(t, prober, &notifierRecords{}).TodayMarks(context.Background(), rows)
+
+	for index, mark := range marks {
+		if !mark {
+			t.Fatalf("every row must be measured, row %d was not: %v", index, marks)
+		}
+	}
+	if got := prober.highWater(); got != maxProbesInFlight {
+		t.Errorf("want exactly %d probes in flight, saw %d", maxProbesInFlight, got)
+	}
+}

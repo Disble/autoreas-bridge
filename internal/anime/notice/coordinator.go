@@ -38,17 +38,19 @@ type Prober interface {
 	Probe(ctx context.Context, path string) (time.Duration, error)
 }
 
-// Coordinator turns one episode that just landed into at most one notice.
+// Coordinator turns one episode that just landed, and one day of Today, into at most one notice and
+// one mark per anime.
 type Coordinator struct {
-	inventory *media.Inventory
-	prober    Prober
-	notifier  notification.Notifier
+	inventory  *media.Inventory
+	identifier identity.Identifier
+	prober     Prober
+	notifier   notification.Notifier
 }
 
-// New returns a Coordinator that reads folders with inventory, measures with prober and delivers
-// with notifier.
+// New returns a Coordinator that reads folders with inventory, decides with the identity algorithm,
+// measures with prober and delivers with notifier.
 func New(inventory *media.Inventory, prober Prober, notifier notification.Notifier) *Coordinator {
-	return &Coordinator{inventory: inventory, prober: prober, notifier: notifier}
+	return &Coordinator{inventory: inventory, identifier: identity.New(), prober: prober, notifier: notifier}
 }
 
 // EpisodeLanded reports one episode that just landed in folder, for the anime whose stored type is

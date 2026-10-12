@@ -1,5 +1,7 @@
 package identity
 
+import "math"
+
 // Basis names how the next-episode decision was reached. It is shown in the
 // interface next to Reason so a conditional inference (elimination or
 // chronology) is never mistaken for a clear file number.
@@ -97,6 +99,26 @@ type Selection struct {
 type Request struct {
 	Entries []Entry
 	Context Context
+}
+
+// ContextForProgress builds the request context from the progress the application already stores.
+//
+// Progress is always known in production: zero means nothing has been watched and the next episode is
+// the first. The expected next is the cursor convention "progress plus one", offered as a LABELLED
+// HYPOTHESIS and never as authority, so a convention that turns out to be wrong can be detected
+// instead of trusted. A fractional progress names no whole next episode, so the expectation is left
+// unset rather than rounded into a claim.
+//
+// Provenance: every curated interview case that carries an expectation uses exactly progress plus one,
+// and the ones that carry none have a fractional or an absent progress. Over all twenty curated cases
+// this derivation moves no recorded decision, which is asserted rather than assumed.
+func ContextForProgress(progress float64) Context {
+	built := Context{ProgressSet: true, Progress: progress}
+	if progress == math.Trunc(progress) {
+		built.ExpectedNextSet = true
+		built.ExpectedNext = progress + 1
+	}
+	return built
 }
 
 // Result is the whole decision the application needs back. Next is nil when
