@@ -286,3 +286,13 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-10-10]: HeroUI textarea border defaults to zero/transparent; set explicit semantic border width/style and verify computed resize and focus ring after utility overrides.
 - [2026-10-10]: Use available-container-width auto-fit tracks with min(100%, minimum) for responsive ordering; guard card/lane comfort and containment, because wrapping-count checks can pass vacuously.
 - [2026-10-10]: A visible textarea edit-region border must meet 3:1 identification contrast in both themes; a permissive smoke floor is not accessibility evidence.
+- [2026-10-11]: Recognition triage must reconcile all file proposals before publishing; demo checks must observe changed data and exact restoration, not status labels or numbered mask aliases (tools/episode-triage-poc).
+- [2026-10-11]: A verification probe whose own scenario id contains the asserted keywords passes vacuously; assert against a neutral id.
+- [2026-10-11]: An in-memory probe must be written against the real result shape, not an assumed field: rows live under verdicts, so r.entries silently proved nothing.
+- [2026-10-12]: A float-exactness guard must bound the quantity that changes the outcome; only a collision at the requested next lifts the winner, and bounding the context value instead cost three wrong revisions.
+- [2026-10-12]: ditto writes its mutation sandbox from the INDEX, so a run before committing silently scores the previous tree; commit the change first and measure after.
+- [2026-10-12]: A test that invokes git must isolate GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE, GIT_CONFIG_GLOBAL and GIT_CONFIG_SYSTEM into its temp directory; one test wrote a worktree setting into the real shared config and broke git repo-wide.
+- [2026-10-12]: Untracked reference material in the main worktree is absent from a fresh worktree, so the path must be stated; a writer that searched only its own tree concluded the prototype was missing and derived expectations from the code under test.
+- [2026-10-12]: A port must not carry a field or a branch without a named consumer: copying the prototype report surface wholesale produced 340 mutation survivors in machinery nothing consumed.
+- [2026-10-12]: When a survivor changes only which fact the user is told, assert the FACT and never the wording; a blanket never-pin-prose rule hid a false explanation rather than suppressing a decorative test.
+- [2026-10-12]: Cancelling a delegated agent does not kill its child processes; orphans keep running and hold directory handles, which is how a killed test binary stayed alive and a worktree refused deletion.

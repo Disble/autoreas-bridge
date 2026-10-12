@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aviso de duración especial — flujo de usuario (propuesta)</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, sans-serif; margin: 0 auto; max-width: 760px; padding: 24px 16px 48px; }
+  h1 { font-size: 1.4rem; }
+  .tag { display: inline-block; font-size: .8rem; border: 1px solid currentColor; border-radius: 999px; padding: 2px 10px; margin-bottom: 8px; }
+  svg { width: 100%; height: auto; display: block; }
+  .box { fill: none; stroke-width: 2; }
+  .actor-user { stroke: #2563eb; }
+  .actor-bridge { stroke: #059669; }
+  .actor-decision { stroke: #d97706; }
+  text { font-family: system-ui, sans-serif; fill: currentColor; }
+  .step { font-size: 15px; font-weight: 700; }
+  .desc { font-size: 12.5px; }
+  .who { font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+  .arrow { stroke: #666; stroke-width: 2; }
+  footer { margin-top: 24px; font-size: .85rem; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #111; color: #eee; }
+    .arrow { stroke: #aaa; }
+  }
+</style>
+</head>
+<body>
+<p class="tag">Propuesta · no implementado</p>
+<h1>Aviso de duración especial — flujo de usuario</h1>
+<p>Si en la carpeta de un anime hay un vídeo mucho más largo que los demás,
+Bridge te lo cuenta con un aviso informativo.</p>
+
+<svg viewBox="0 0 720 945" role="img" aria-label="Flujo: carpeta, medición, duración habitual, decisión, aviso informativo y lectura al abrir el anime">
+  <defs>
+    <marker id="ah" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#666"></path>
+    </marker>
+  </defs>
+
+  <!-- 1 -->
+  <rect class="box actor-user" x="110" y="10" width="500" height="96" rx="14"></rect>
+  <text class="who" x="130" y="36" fill="#2563eb">TÚ · PASO 1</text>
+  <text class="step" x="130" y="60">Tienes la carpeta del anime</text>
+  <text class="desc" x="130" y="82">Da igual su origen: Bridge, otro descargador o una copia.</text>
+
+  <line class="arrow" x1="360" y1="106" x2="360" y2="132" marker-end="url(#ah)"></line>
+
+  <!-- 2 -->
+  <rect class="box actor-bridge" x="110" y="132" width="500" height="96" rx="14"></rect>
+  <text class="who" x="130" y="158" fill="#059669">BRIDGE · PASO 2</text>
+  <text class="step" x="130" y="182">Mide cada vídeo</text>
+  <text class="desc" x="130" y="204">Lee la duración de cada archivo, sin mover ni renombrar nada.</text>
+
+  <line class="arrow" x1="360" y1="228" x2="360" y2="254" marker-end="url(#ah)"></line>
+
+  <!-- 3 -->
+  <rect class="box actor-bridge" x="110" y="254" width="500" height="96" rx="14"></rect>
+  <text class="who" x="130" y="280" fill="#059669">BRIDGE · PASO 3</text>
+  <text class="step" x="130" y="304">Calcula la duración habitual</text>
+  <text class="desc" x="130" y="326">Catálogo TV (23–25 min) o mayoría de la carpeta.</text>
+
+  <line class="arrow" x1="360" y1="350" x2="360" y2="376" marker-end="url(#ah)"></line>
+
+  <!-- 4 decision -->
+  <path class="box actor-decision" d="M360 376 L610 452 L360 528 L110 452 Z"></path>
+  <text class="who" x="330" y="436" fill="#d97706">PASO 4</text>
+  <text class="step" x="272" y="460">¿Hay uno mucho más largo?</text>
+  <text class="desc" x="300" y="482">Ejemplo: ~41 min frente a ~24 min.</text>
+  <text class="desc" x="478" y="420">No → nada</text>
+  <text class="desc" x="478" y="500">Sí ↓</text>
+
+  <line class="arrow" x1="360" y1="528" x2="360" y2="554" marker-end="url(#ah)"></line>
+
+  <!-- 5 -->
+  <rect class="box actor-bridge" x="110" y="554" width="500" height="116" rx="14"></rect>
+  <text class="who" x="130" y="580" fill="#059669">BRIDGE · PASO 5</text>
+  <text class="step" x="130" y="604">Te avisa (informativo, no error)</text>
+  <text class="desc" x="130" y="626">Por el canal de notificaciones: toast</text>
+  <text class="desc" x="130" y="644">y queda guardado en el historial.</text>
+
+  <line class="arrow" x1="360" y1="670" x2="360" y2="696" marker-end="url(#ah)"></line>
+
+  <!-- 6 -->
+  <rect class="box actor-user" x="110" y="696" width="500" height="116" rx="14"></rect>
+  <text class="who" x="130" y="722" fill="#2563eb">TÚ · PASO 6</text>
+  <text class="step" x="130" y="746">Te avisa al llegar al cap. anterior</text>
+  <text class="desc" x="130" y="768">“El siguiente dura ~40 min.” Solo</text>
+  <text class="desc" x="130" y="786">con identificación de alta confianza.</text>
+
+  <!-- limits -->
+  <rect class="box" x="110" y="832" width="500" height="100" rx="14" stroke="#999" stroke-dasharray="6 4"></rect>
+  <text class="desc" x="130" y="858">Límites: no identifica capítulos, no sabe qué verás,</text>
+  <text class="desc" x="130" y="878">no observa la reproducción, lo ilegible se ignora</text>
+  <text class="desc" x="130" y="898">y solo aplica a anime TV (películas y OVAs fuera).</text>
+</svg>
+
+<footer>
+  Detalle formal (respaldo):
+  <a href="episode-identity-triage.md">algoritmo</a> ·
+  <a href="episode-identity-triage.html">diagrama técnico</a>
+</footer>
+</body>
+</html>
