@@ -155,6 +155,20 @@ untracked-file collision.
 
 ## Evidence and progress
 
+- 2026-10-12 — 3.1 U3 delivered: the notice is wired and live. `newEpisodeDurationNotice` in
+  `internal/desktop` builds the coordination from the pipeline's own extension set and ffprobe from
+  PATH, and `ServiceDeps.EpisodeDurationNotice` receives it, so a landed episode whose runtime really
+  is long now produces one notice. Acceptance for the path is driven from `completeDownloadedEpisode`
+  over the real inventory and the real coordinator: cases 1, 2, 3, 6, 7 and 8, with the folder listing
+  compared before and after to prove the feature reads and speaks but writes nothing. The strongest
+  case generates a real thirty-one minute video with ffmpeg, measures it with the real ffprobe and
+  asserts exactly one notice — the one gap no earlier unit could close, since every previous long
+  reading was a number handed to a fake.
+- **Debt recorded for ODD 4**: `docs/notification-cta-policy.md` says a new producer gives its
+  notification an L1 action, and the notice currently carries none. Adding one needs an intent
+  registered on the frontend, which is surface work; ODD 4 also owns the final wording and Table A's
+  new row for this kind.
+
 - 2026-10-12 — 3.1 U2 delivered: `internal/anime/notice` (Coordinator A) and the consumer-declared
   seam in `internal/download`. The gate order is part of the decision and is asserted: a type that
   cannot qualify stops the work before any file is read, while an ordinary runtime is only known after
@@ -217,7 +231,7 @@ separate deliverable.
   consuming `duration.Classify`), the narrow port declared in `internal/download`, Coordinator A, and
   the type gate (`Kind == 0`). Provable with fakes. The finding needed no type of its own:
   `duration.Kind` already is that mapping, and a second enum would have had no consumer.
-- [ ] U3 — the delivery: composition-root wiring, the notice body, and the Path A acceptance cases
+- [x] U3 — the delivery: composition-root wiring, the notice body, and the Path A acceptance cases
   (1, 2, 3, and the shared 6, 7, 8). This is where the notice actually appears.
 
 **3.2 is two work units**, fewer because it reuses the adapter, the finding and the type gate:
