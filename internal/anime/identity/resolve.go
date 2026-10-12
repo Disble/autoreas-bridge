@@ -43,6 +43,15 @@ func decide(req Request) Result {
 	progress, hasProgress := usableProgress(req.Context)
 	next, hasNext := usableNext(req.Context)
 	partitionWatched(rows, progress, hasProgress)
+	// Single choke point for the inference horizon: every pass below infers
+	// from next (opaque-sibling elimination, single-pending elimination,
+	// pending chronology), so gating hasNext here fail-closes all of them
+	// together instead of scattering checks. Past the horizon the context is
+	// unusable and the decision abstains, matching the prototype's
+	// collision-and-suspend abstention.
+	if hasNext && !horizonUsable(next, len(pendingRows(rows, byName))) {
+		hasNext = false
+	}
 	eliminateOpaqueSibling(rows, byName, next, hasNext)
 	eliminateSinglePending(rows, byName, req.Context, progress, hasProgress, next, hasNext)
 	assignPendingChronology(rows, byName, next, hasNext)

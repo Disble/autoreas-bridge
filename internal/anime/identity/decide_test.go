@@ -70,6 +70,13 @@ func TestSelect(t *testing.T) {
 		{name: "pending chronology", entries: []Entry{mk("north-cut.mp4", "1", "2"), mk("south-cut.mp4", "3", "4")},
 			ctx:    Context{ProgressSet: true, Progress: 12, ExpectedNextSet: true, ExpectedNext: 13},
 			wantEp: 13, wantBase: "north-cut.mp4", wantBasis: BasisChronology, wantP: 2},
+		// Prototype oracle: progress 2^53-4 infers next 2^53-3 with horizon
+		// next+2 exactly at the admitted exact range (probed with bun:
+		// selects a-cut at 9007199254740989 with both assignments kept),
+		// so the horizon guard must still select here, not blanket-refuse.
+		{name: "representable horizon still selects", entries: []Entry{mk("a-cut", "1", "2"), mk("b-cut", "3", "4")},
+			ctx:    Context{ProgressSet: true, Progress: 1<<53 - 4},
+			wantEp: 1<<53 - 3, wantBase: "a-cut", wantBasis: BasisChronology, wantP: 2},
 		{name: "tied births select cleanly", entries: []Entry{mk("Show - 12.mp4", "5", "4"), mk("Show - 13.mp4", "5", "6"), mk("Show - 14.mp4", "5", "7")},
 			ctx:    Context{ProgressSet: true, Progress: 12, ExpectedNextSet: true, ExpectedNext: 13},
 			wantEp: 13, wantBase: "Show - 13.mp4", wantBasis: BasisDirectNumber, wantW: 1, wantP: 2},
@@ -155,6 +162,8 @@ func TestAbstain(t *testing.T) {
 		wantP     int
 		wantDiags []Diagnostic
 	}{
+		{name: "episode zero breaks the watched prefix", entries: []Entry{mk("Show - 00.mp4", "1", "2"), mk("Show - 02.mp4", "3", "4"), mk("Show - 03.mp4", "5", "6"), mk("finale.mp4", "7", "8")},
+			ctx: Context{ProgressSet: true, Progress: 3}, wantW: 3, wantP: 1},
 		{name: "fractional label", entries: []Entry{mk("Show - 10.5.mp4", "1", "2")},
 			ctx: Context{ProgressSet: true, Progress: 10, ExpectedNextSet: true, ExpectedNext: 11}, wantP: 1,
 			wantDiags: []Diagnostic{{Kind: DiagnosticAmbiguity, Basename: "Show - 10.5.mp4", Detail: "fractional"}}},
@@ -243,6 +252,15 @@ func TestAbstain(t *testing.T) {
 			ctx: Context{ProgressSet: true, Progress: 12, ExpectedNextSet: true, ExpectedNext: 13}, wantP: 1},
 		{name: "watched target never reselects", entries: []Entry{mk("Show - 01.mp4", "1", "2")},
 			ctx: Context{ProgressSet: true, Progress: 5, ExpectedNextSet: true, ExpectedNext: 1}, wantW: 1},
+		// Prototype oracle: two opaque files a-cut (birth 1, mtime 2) and
+		// b-cut (birth 3, mtime 4) with progress 2^53-1 and no expected next
+		// infers next 2^53 in float64, where 2^53+1 rounds back to 2^53, so
+		// both candidates collide and analyze abstains with Next null and
+		// empty assignments (probed with bun); exact integer arithmetic
+		// would instead assign distinct ordinals and select, so the horizon
+		// guard must abstain here.
+		{name: "inference horizon past exact range abstains", entries: []Entry{mk("a-cut", "1", "2"), mk("b-cut", "3", "4")},
+			ctx: Context{ProgressSet: true, Progress: 1<<53 - 1}, wantP: 2},
 		// Prototype oracle: analyze over Show-01..05 all watched (progress 5,
 		// expected-next 6) abstains with no selection (probed with bun); the
 		// single-pending gate must not index an empty pending list.
