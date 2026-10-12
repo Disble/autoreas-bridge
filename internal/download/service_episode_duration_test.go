@@ -9,13 +9,20 @@ import (
 
 // noticeCalls records what the duration-notice seam was handed.
 type noticeCalls struct {
-	folders []string
-	kinds   []*int
+	folders  []string
+	kinds    []*int
+	episodes []int
+	ids      []string
+	names    []string
 }
 
-func (n *noticeCalls) EpisodeLanded(_ context.Context, folder string, kind *int, _ int, _, _ string) {
+// EpisodeLanded records one handover of a landed episode to the duration notice.
+func (n *noticeCalls) EpisodeLanded(_ context.Context, folder string, kind *int, episode int, animeID, animeName string) {
 	n.folders = append(n.folders, folder)
 	n.kinds = append(n.kinds, kind)
+	n.episodes = append(n.episodes, episode)
+	n.ids = append(n.ids, animeID)
+	n.names = append(n.names, animeName)
 }
 
 func TestNoticeEpisodeDurationHandsTheFolderAndTheStoredTypeOver(t *testing.T) {
@@ -24,7 +31,7 @@ func TestNoticeEpisodeDurationHandsTheFolderAndTheStoredTypeOver(t *testing.T) {
 	folder := `D:\Anime\Show`
 	kind := 0
 	calls := &noticeCalls{}
-	anime := contracts.MobileAnime{Folder: &folder, Kind: &kind}
+	anime := contracts.MobileAnime{ID: "anime-1", Name: "Show", Folder: &folder, Kind: &kind}
 
 	NewService(ServiceDeps{EpisodeDurationNotice: calls}).noticeEpisodeDuration(context.Background(), anime, 8)
 
@@ -36,6 +43,15 @@ func TestNoticeEpisodeDurationHandsTheFolderAndTheStoredTypeOver(t *testing.T) {
 	}
 	if calls.kinds[0] == nil || *calls.kinds[0] != kind {
 		t.Errorf("the stored type must travel as it is stored, got %v", calls.kinds[0])
+	}
+	if calls.episodes[0] != 8 {
+		t.Errorf("the episode number must travel as it was reported, got %d", calls.episodes[0])
+	}
+	if calls.ids[0] != "anime-1" {
+		t.Errorf("the anime id must travel as it is stored, got %q", calls.ids[0])
+	}
+	if calls.names[0] != "Show" {
+		t.Errorf("the anime name must travel as it is stored, got %q", calls.names[0])
 	}
 }
 

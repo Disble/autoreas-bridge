@@ -89,11 +89,17 @@ func TestEpisodeLandedNotifiesOnceForALongTVEpisode(t *testing.T) {
 		t.Fatalf("a long episode is exactly one notice, got %d (%v)", len(notifier.got), notifier.got)
 	}
 	got := notifier.got[0]
-	if got.Title == "" {
-		t.Error("the notice must carry a title")
+	if got.Title != "Capítulo largo" {
+		t.Errorf("the title must state the fact, got %q", got.Title)
 	}
 	if len(got.Rows) != 1 || got.Rows[0].Name != "Show" || got.Rows[0].RefID != "anime-1" {
 		t.Errorf("the notice must carry the anime as a row, got %v", got.Rows)
+	}
+	if got.Rows[0].RefType != "anime" {
+		t.Errorf("the row must reference the anime, got RefType %q", got.Rows[0].RefType)
+	}
+	if got.Rows[0].Detail != "El capítulo descargado dura 45 minutos" {
+		t.Errorf("the row must state the measured runtime, got %q", got.Rows[0].Detail)
 	}
 	if !strings.Contains(got.Body, "Episodio 2") {
 		t.Errorf("the body must name the episode, got %q", got.Body)

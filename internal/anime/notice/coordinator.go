@@ -140,6 +140,8 @@ func (c *Coordinator) notify(ctx context.Context, episode int, animeID, animeNam
 	// The title states the fact and the body states the numbers; the anime travels as a row, which is
 	// what lets the notification centre draw its card and link the anime. A notice is read without
 	// context, so the anime must be somewhere in it: the body alone would say "a chapter", of nothing.
+	// The row states what this path measured — the file that just landed — and never calls it the next
+	// chapter, which only the Today surface establishes.
 	measured := minutes(runtime)
 	_ = c.notifier.Notify(ctx, notification.Notification{
 		Title:  "Capítulo largo",
@@ -152,13 +154,13 @@ func (c *Coordinator) notify(ctx context.Context, episode int, animeID, animeNam
 			RefID:   animeID,
 			Name:    animeName,
 			Status:  "descargado",
-			Detail:  fmt.Sprintf("El próximo capítulo dura %d minutos", measured),
+			Detail:  fmt.Sprintf("El capítulo descargado dura %d minutos", measured),
 		}},
 	})
 }
 
-// minutes rounds one measured runtime down to whole minutes, which is the only precision a notice
-// needs.
+// minutes rounds one measured runtime to the nearest whole minute, which is the only precision a
+// notice needs.
 func minutes(runtime time.Duration) int64 {
 	return int64(runtime.Round(time.Minute) / time.Minute)
 }

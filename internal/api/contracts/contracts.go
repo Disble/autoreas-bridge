@@ -237,8 +237,10 @@ type EpisodeScheduleItem struct {
 }
 
 // LongEpisodeMark carries one Today mark: the NEXT episode number and its measured runtime in
-// whole minutes, in one value so the two facts cannot disagree. The ODD 4 Today surface is its
-// consumer; nil is omitted because an absent mark and an unmarked row are the same fact.
+// whole minutes, in one value so a mark carries both facts and an absent mark carries neither.
+// That co-presence is the whole guarantee, never a proof that the two values agree with each
+// other. The ODD 4 Today surface is its consumer; nil is omitted because an absent mark and an
+// unmarked row are the same fact.
 type LongEpisodeMark struct {
 	Episode int `json:"episode"`
 	Minutes int `json:"minutes"`

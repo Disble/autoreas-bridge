@@ -152,6 +152,44 @@ func TestAnimeEditorOutcomeContractsCarryAuthorityAndDetails(t *testing.T) {
 	}
 }
 
+// TestEpisodeScheduleItemLongMarkIsPresentWhenSetAndOmittedWhenAbsent pins the optional mark on
+// the Today contract: a row that carries one serializes it with its episode and minutes, and a row
+// that carries none leaves the key out entirely instead of emitting a null.
+func TestEpisodeScheduleItemLongMarkIsPresentWhenSetAndOmittedWhenAbsent(t *testing.T) {
+	t.Parallel()
+
+	marked := EpisodeScheduleItem{AnimeID: "marked", AnimeName: "Marked",
+		LongNextEpisode: &LongEpisodeMark{Episode: 7, Minutes: 45}}
+	encoded, err := json.Marshal(marked)
+	if err != nil {
+		t.Fatalf("marshal marked row: %v", err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &raw); err != nil {
+		t.Fatalf("unmarshal marked row: %v", err)
+	}
+	markJSON, ok := raw["longNextEpisode"]
+	if !ok {
+		t.Fatalf("a set mark must be present, got %s", encoded)
+	}
+	var decoded LongEpisodeMark
+	if err := json.Unmarshal(markJSON, &decoded); err != nil {
+		t.Fatalf("unmarshal mark: %v", err)
+	}
+	if decoded != (LongEpisodeMark{Episode: 7, Minutes: 45}) {
+		t.Errorf("the mark must round-trip its episode and minutes, got %+v", decoded)
+	}
+
+	plain := EpisodeScheduleItem{AnimeID: "plain", AnimeName: "Plain"}
+	encoded, err = json.Marshal(plain)
+	if err != nil {
+		t.Fatalf("marshal unmarked row: %v", err)
+	}
+	if containsJSONKey(encoded, "longNextEpisode") {
+		t.Errorf("an absent mark must stay omitted, got %s", encoded)
+	}
+}
+
 // containsJSONKey reports whether a JSON object contains the requested key.
 func containsJSONKey(payload []byte, key string) bool {
 	var fields map[string]json.RawMessage

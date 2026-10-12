@@ -40,6 +40,29 @@ func TestTodayMarksRefusesADecisionThatFlagsItsOwnAmbiguity(t *testing.T) {
 	}
 }
 
+// TestTodayMarksTakesTheEpisodeFromTheSelection pins where the mark's episode comes from: the
+// identity selection, never progress arithmetic. The real identifier only ever aims at progress plus
+// one — selectWinner publishes the usable next — so no real folder can separate the two, and stating
+// the selection is the only way to observe the sourcing. A mark built from int(progress)+1 would read
+// Ep. 2 here instead of Ep. 9.
+func TestTodayMarksTakesTheEpisodeFromTheSelection(t *testing.T) {
+	t.Parallel()
+
+	coordinator := newCoordinator(t, &proberAnswers{runtime: 45 * time.Minute}, &notifierRecords{})
+	coordinator.identifier = fixedIdentifier{result: identity.Result{
+		Next:  &identity.Selection{Episode: 9, Basename: "Show - 09.mp4"},
+		Basis: identity.BasisDirectNumber,
+	}}
+
+	marks := coordinator.TodayMarks(context.Background(), []TodayEpisode{
+		episodeRow(folderWith(t, "Show - 09.mp4"), tv(), 1),
+	})
+
+	if len(marks) != 1 || !equalMark(marks[0], &Mark{Episode: 9, Minutes: 45}) {
+		t.Fatalf("the mark must carry the selected episode, want [Ep. 9, 45 min], got %v", marks)
+	}
+}
+
 func TestHasAmbiguityReadsTheWholeFactSet(t *testing.T) {
 	t.Parallel()
 

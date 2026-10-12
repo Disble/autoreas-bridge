@@ -8,12 +8,42 @@ import (
 	"strings"
 	"testing"
 
+	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/anime/duration/probe"
 	"autoreas-bridge/internal/anime/media"
 	"autoreas-bridge/internal/anime/notice"
 	"autoreas-bridge/internal/download/config"
 	"autoreas-bridge/internal/notification"
 )
+
+// TestToEpisodeScheduleContractsCarriesTheMark pins the mapping of the Today mark onto the
+// contract: the episode and the minutes travel as they were measured, and an unmarked row stays
+// absent instead of becoming an empty mark.
+func TestToEpisodeScheduleContractsCarriesTheMark(t *testing.T) {
+	t.Parallel()
+
+	marked := anime.EpisodeScheduleItem{AnimeID: "marked", AnimeName: "Marked",
+		LongNextEpisode: &notice.Mark{Episode: 7, Minutes: 45}}
+	unmarked := anime.EpisodeScheduleItem{AnimeID: "plain", AnimeName: "Plain"}
+
+	got := toEpisodeScheduleContracts([]anime.EpisodeScheduleItem{marked, unmarked})
+
+	if len(got) != 2 {
+		t.Fatalf("one contract per row: want 2, got %d", len(got))
+	}
+	if got[0].LongNextEpisode == nil {
+		t.Fatalf("a marked row must carry its mark, got %+v", got[0])
+	}
+	if got[0].LongNextEpisode.Episode != 7 {
+		t.Errorf("the episode must travel as measured, got %d", got[0].LongNextEpisode.Episode)
+	}
+	if got[0].LongNextEpisode.Minutes != 45 {
+		t.Errorf("the minutes must travel as measured, got %d", got[0].LongNextEpisode.Minutes)
+	}
+	if got[1].LongNextEpisode != nil {
+		t.Errorf("an unmarked row must stay absent, got %+v", got[1].LongNextEpisode)
+	}
+}
 
 // noticesSeen records every notice the wired coordination raised.
 type noticesSeen struct{ got []notification.Notification }

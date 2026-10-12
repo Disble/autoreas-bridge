@@ -27,9 +27,9 @@ type TodayEpisode struct {
 
 // Mark is one Today mark: the NEXT episode number and its measured runtime in whole minutes.
 //
-// A single value rather than two independent fields, so the episode and the minutes can never
-// disagree: presence is the mark and absence is silence. The ODD 4 Today surface renders it as one
-// chip reading "Ep. 7 · 45 min".
+// One value so the two facts travel together: a mark carries both, and nil carries neither. That
+// co-presence is the whole guarantee, never a proof that the two values agree with each other. The
+// ODD 4 Today surface renders it as one chip reading "Ep. 7 · 45 min".
 type Mark struct {
 	Episode int
 	Minutes int
