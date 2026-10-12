@@ -52,6 +52,22 @@ func TestReasonFacts(t *testing.T) {
 			ctx:          Context{ProgressSet: true, Progress: 12.5},
 			wantFraction: true,
 		},
+		{
+			// R2: reconciliation suspends the claims of episodes 3 and 4 while
+			// leaving them watched, and it suspends the opaque pair as well. The
+			// requested ordinal 3 has no accepted file: its claim was suspended,
+			// so saying "already watched" states a false fact. A mutant that
+			// treats the suspended claimant as an accepted watched target names
+			// the wrong explanation.
+			name: "suspended watched target is not accepted",
+			entries: []Entry{
+				mk("Show - 01.mp4", "1", "2"), mk("Show - 02.mp4", "3", "4"),
+				mk("Show - 03.mp4", "5", "6"), mk("Show - 04.mp4", "7", "8"),
+				mk("Show - 05.mp4", "9", "10"),
+				mk("a-cut.mp4", "11", "12"), mk("b-cut.mp4", "13", "14"),
+			},
+			ctx: Context{ProgressSet: true, Progress: 5, ExpectedNextSet: true, ExpectedNext: 3},
+		},
 	}
 
 	for _, tc := range rows {
