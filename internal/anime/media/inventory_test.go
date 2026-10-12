@@ -61,6 +61,9 @@ func TestCaptureListsOnlyTheCandidatesInNameOrder(t *testing.T) {
 	writeFile(t, folder, "notes.txt", "not a candidate")
 	writeFile(t, folder, "README", "no extension")
 	writeFile(t, folder, ".hidden", "dotfile")
+	if err := os.Mkdir(filepath.Join(folder, "AAA - 00.mp4"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
 	if err := os.Mkdir(filepath.Join(folder, "Show - 05.mp4"), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -149,6 +152,38 @@ func TestCaptureReadsTheRealTimesAndNeverSubstitutesThem(t *testing.T) {
 	}
 	if got.errText != "" {
 		t.Errorf("a readable file must carry no error, got %q", got.errText)
+	}
+}
+
+func TestCaptureReportsACandidateItCannotDescribeAndKeepsListingTheRest(t *testing.T) {
+	t.Parallel()
+
+	folder := t.TempDir()
+	writeFile(t, folder, "Show - 01.mp4", "a")
+	writeFile(t, folder, "Show - 02.mp4", "b")
+	writeFile(t, folder, "Show - 03.mp4", "c")
+
+	inventory := New(extensions())
+	real := inventory.stat
+	inventory.stat = func(path string) (os.FileInfo, error) {
+		if filepath.Base(path) == "Show - 02.mp4" {
+			return nil, os.ErrPermission
+		}
+		return real(path)
+	}
+
+	got, err := inventory.Capture(folder)
+	if err != nil {
+		t.Fatalf("capture: %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("every candidate must still be reported, got %d (%v)", len(got), got)
+	}
+	if got[1].Basename != "Show - 02.mp4" || got[1].Err == "" {
+		t.Errorf("the undescribable candidate must carry its reason, got %+v", got[1])
+	}
+	if got[2].Basename != "Show - 03.mp4" {
+		t.Errorf("the listing must continue past a failure, next entry is %q", got[2].Basename)
 	}
 }
 

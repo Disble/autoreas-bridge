@@ -30,12 +30,16 @@ var errNoCreationTime = errors.New("creation time unavailable on this filesystem
 // Inventory captures the media files of a folder.
 type Inventory struct {
 	extensions map[string]bool
+	// stat describes one path. It is a field rather than a direct os.Stat call so that the branch
+	// reporting a candidate the filesystem refuses to describe is reachable from a test, instead of
+	// depending on a permission the machine happens to grant.
+	stat func(string) (os.FileInfo, error)
 }
 
 // New returns an Inventory that considers a file a candidate when the lowercased extension of its
 // name is a key in extensions. The map is read and never written.
 func New(extensions map[string]bool) *Inventory {
-	return &Inventory{extensions: extensions}
+	return &Inventory{extensions: extensions, stat: os.Stat}
 }
 
 // Capture lists the immediate media files of folder and returns one entry per candidate, in the name
@@ -57,10 +61,11 @@ func (i *Inventory) Capture(folder string) ([]identity.Entry, error) {
 		}
 
 		path := filepath.Join(folder, name)
-		info, err := os.Stat(path)
+		info, err := i.stat(path)
 		if err != nil {
 			// A candidate the filesystem refuses to describe still exists as a name. Reporting it
-			// keeps the reason visible instead of pretending the folder is smaller than it is.
+			// keeps the reason visible instead of pretending the folder is smaller than it is, and
+			// the listing continues: one unreadable file never hides the rest.
 			entries = append(entries, identity.Entry{Basename: name, Err: err.Error()})
 			continue
 		}
@@ -70,7 +75,7 @@ func (i *Inventory) Capture(folder string) ([]identity.Entry, error) {
 			continue
 		}
 
-		entries = append(entries, describe(name, path, info))
+		entries = append(entries, i.describe(name, path, info))
 	}
 	return entries, nil
 }
@@ -82,9 +87,9 @@ func (i *Inventory) isCandidate(name string) bool {
 }
 
 // describe builds the entry for one readable regular file.
-func describe(name, path string, info os.FileInfo) identity.Entry {
+func (i *Inventory) describe(name, path string, info os.FileInfo) identity.Entry {
 	first := readingOf(info)
-	again, statErr := os.Stat(path)
+	again, statErr := i.stat(path)
 
 	entry := identity.Entry{
 		Basename: name,

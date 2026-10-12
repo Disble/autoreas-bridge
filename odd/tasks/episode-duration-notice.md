@@ -169,6 +169,11 @@ untracked-file collision.
   an error rather than an empty list. It classifies nothing. The real-creation-time test asserts an
   mtime set to a fixed past date is not what the creation time reports, so substituting one for the
   other fails.
+  - Mutation found two real survivors, both `continue → break`: with `break`, one file that cannot be
+    described silently drops every candidate after it. Killed by putting a directory that sorts before
+    the candidates in the ordering test, and by making the stat-failure branch reachable through an
+    injected stat instead of a permission the machine happens to grant. Each mutant was also applied by
+    hand and observed to fail the suite before the fix was trusted.
 - 2026-10-11 — execution plan confirmed by the user: ODD 1 and ODD 2 run in parallel in isolated
   worktrees, both cut from `dev`; each closes with its own work-unit commits and an independent
   verification; both merge before ODD 3 starts; ODD 4 follows ODD 3. The user explicitly
