@@ -243,6 +243,11 @@ func TestAbstain(t *testing.T) {
 			ctx: Context{ProgressSet: true, Progress: 12, ExpectedNextSet: true, ExpectedNext: 13}, wantP: 1},
 		{name: "watched target never reselects", entries: []Entry{mk("Show - 01.mp4", "1", "2")},
 			ctx: Context{ProgressSet: true, Progress: 5, ExpectedNextSet: true, ExpectedNext: 1}, wantW: 1},
+		// Prototype oracle: analyze over Show-01..05 all watched (progress 5,
+		// expected-next 6) abstains with no selection (probed with bun); the
+		// single-pending gate must not index an empty pending list.
+		{name: "fully watched prefix abstains", entries: []Entry{mk("Show - 01.mp4", "1", "2"), mk("Show - 02.mp4", "3", "4"), mk("Show - 03.mp4", "5", "6"), mk("Show - 04.mp4", "7", "8"), mk("Show - 05.mp4", "9", "10")},
+			ctx: Context{ProgressSet: true, Progress: 5, ExpectedNextSet: true, ExpectedNext: 6}, wantW: 5},
 	}
 	for _, tc := range rows {
 		t.Run(tc.name, func(t *testing.T) {

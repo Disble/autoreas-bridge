@@ -37,6 +37,9 @@ func TestParseName(t *testing.T) {
 		{name: "codec is noise", basename: "Show x264.mp4"},
 		{name: "opaque label", basename: "Evening Becomes Night finale.mp4"},
 		{name: "opaque cut", basename: "north-cut.mp4"},
+		// Prototype oracle: parseLabel("e-2.mp4") yields ordinal [2] with no
+		// marker (probed with bun); the start-2 lookbehind must clamp to 0.
+		{name: "short stem clamps lookbehind", basename: "e-2.mp4", wantOrds: []int{2}},
 	}
 	for _, tc := range rows {
 		t.Run(tc.name, func(t *testing.T) {
