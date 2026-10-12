@@ -155,6 +155,16 @@ untracked-file collision.
 
 ## Evidence and progress
 
+- 2026-10-12 — 3.2 U5 delivered, and with it ODD 3 is complete. `EpisodeService.ListEpisodeSchedule`
+  asks the coordination for one mark per row and records it on the read model, which carries it to the
+  contract as `longNextEpisode`. Acceptance over real folders with real names: the long row marked, the
+  ordinary, unreadable and empty ones not, an unwired coordination marking nothing and failing nothing,
+  only the next episode measured, and the folder untouched. **Measured cost with the real probe: a day of
+  eight rows takes 114 ms in total, about 14 ms per row**, so the duration cache rejected in the scope
+  record is now settled by a number rather than by an argument.
+  - Pending for ODD 4: the mark on the surface. `docs/notification-cta-policy.md` asks a new producer for
+    an L1 action and the notice still carries none; the wording and Table A's row are also ODD 4's.
+
 - 2026-10-12 — 3.2 U4 delivered: `notice.TodayMarks` decides one mark per anime of the day, in order,
   recomputed from the folder on every call and remembering nothing. Two measurements carry it. First,
   the confidence gate: over the 20 curated interview cases (11 of them decided) **no decision ever
@@ -252,7 +262,7 @@ separate deliverable.
   contract change is needed for it. The confidence gate is measured in
   `docs/episode-duration-notice-scope.md` section 10: refuse when an ambiguity diagnostic accompanies
   the selection, which costs nothing over every real case we have.
-- [ ] U5 — the delivery: the mark in the schedule read model and in the contract (one field, whose named
+- [x] U5 — the delivery: the mark in the schedule read model and in the contract (one field, whose named
   consumer is the ODD 4 surface), the mapping, the contract tests, the regenerated bindings, and the
   acceptance cases 4, 5 and the shared 6, 7, 8.
 
