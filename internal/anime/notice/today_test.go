@@ -10,65 +10,61 @@ import (
 	"time"
 )
 
-// barrierProber answers only once maxProbesInFlight probes are in flight at the same time, and records
-// the highest number it ever saw. A serialised implementation never reaches the barrier, so it times
-// out and fails the test instead of hanging.
-type barrierProber struct {
+// probesInFlightBound is the bound the scope promises, written as a literal on purpose: a test that
+// expects maxProbesInFlight cannot see that constant change.
+const probesInFlightBound = 4
+
+// gatedProber admits a probe, announces it, and then waits for the test to open the gate. Holding every
+// admitted probe makes the bound deterministic: while the gate is shut, no probe can finish, so the
+// pool cannot admit one more than it is allowed.
+type gatedProber struct {
+	arrival chan string
+	gate    chan struct{}
+
 	mu      sync.Mutex
 	running int
 	highest int
-	arrived int
-	ready   chan struct{}
+	admits  int
 }
 
-// newBarrierProber returns a prober whose barrier is the coordination's own bound.
-func newBarrierProber() *barrierProber {
-	return &barrierProber{ready: make(chan struct{})}
+// newGatedProber returns a prober with a shut gate and room for the arrivals a test expects.
+func newGatedProber() *gatedProber {
+	return &gatedProber{arrival: make(chan string, 64), gate: make(chan struct{})}
 }
 
-func (p *barrierProber) Probe(ctx context.Context, _ string) (time.Duration, error) {
+func (p *gatedProber) Probe(ctx context.Context, path string) (time.Duration, error) {
 	p.mu.Lock()
 	p.running++
-	p.arrived++
+	p.admits++
 	if p.running > p.highest {
 		p.highest = p.running
 	}
-	reached := p.arrived >= maxProbesInFlight
-	if reached {
-		select {
-		case <-p.ready:
-		default:
-			close(p.ready)
-		}
-	}
 	p.mu.Unlock()
 
+	p.arrival <- path
+
 	select {
-	case <-p.ready:
-	case <-time.After(2 * time.Second):
-		p.release()
-		return 0, errors.New("probes never ran concurrently")
+	case <-p.gate:
 	case <-ctx.Done():
-		p.release()
 		return 0, ctx.Err()
 	}
 
-	p.release()
-	return 45 * time.Minute, nil
-}
-
-// release records that one probe finished.
-func (p *barrierProber) release() {
 	p.mu.Lock()
 	p.running--
 	p.mu.Unlock()
+	return 45 * time.Minute, nil
 }
 
-// highWater returns the highest number of probes seen at once.
-func (p *barrierProber) highWater() int {
+// open lets every admitted probe finish.
+func (p *gatedProber) open() {
+	close(p.gate)
+}
+
+// stats returns the highest number of probes seen at once and how many were admitted in total.
+func (p *gatedProber) stats() (highest, admits int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.highest
+	return p.highest, p.admits
 }
 
 // perFileRuntime answers by the file it was handed, so two rows in one call can disagree.
@@ -177,7 +173,7 @@ func TestTodayMarksKeepsOneMarkPerRowInOrder(t *testing.T) {
 	}
 }
 
-func TestTodayMarksBoundedConcurrencyMeasuresEveryRow(t *testing.T) {
+func TestTodayMarksHoldsTheBoundAndMeasuresEveryRow(t *testing.T) {
 	t.Parallel()
 
 	rows := make([]TodayEpisode, 0, 8)
@@ -185,15 +181,36 @@ func TestTodayMarksBoundedConcurrencyMeasuresEveryRow(t *testing.T) {
 		rows = append(rows, episodeRow(folderWith(t, "Show - 01.mp4", "Show - 02.mp4"), tv(), 1))
 	}
 
-	prober := newBarrierProber()
-	marks := newCoordinator(t, prober, &notifierRecords{}).TodayMarks(context.Background(), rows)
+	prober := newGatedProber()
+	coordinator := newCoordinator(t, prober, &notifierRecords{})
+	done := make(chan []bool, 1)
+	go func() { done <- coordinator.TodayMarks(context.Background(), rows) }()
 
+	// Every slot is taken and none is exceeded: a bound of five would announce a fifth probe here, and
+	// a bound of three could not announce the fourth.
+	for admitted := 0; admitted < probesInFlightBound; admitted++ {
+		select {
+		case <-prober.arrival:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("only %d probes were admitted, the bound admits %d", admitted, probesInFlightBound)
+		}
+	}
+	select {
+	case <-prober.arrival:
+		t.Fatalf("a probe was admitted past the bound of %d", probesInFlightBound)
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	prober.open()
+
+	marks := <-done
 	for index, mark := range marks {
 		if !mark {
 			t.Fatalf("every row must be measured, row %d was not: %v", index, marks)
 		}
 	}
-	if got := prober.highWater(); got != maxProbesInFlight {
-		t.Errorf("want exactly %d probes in flight, saw %d", maxProbesInFlight, got)
+	if highest, admits := prober.stats(); highest != probesInFlightBound || admits != len(rows) {
+		t.Errorf("want %d in flight and %d admitted, got %d and %d",
+			probesInFlightBound, len(rows), highest, admits)
 	}
 }
