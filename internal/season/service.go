@@ -219,8 +219,12 @@ func (s *Service) AddIntakeName(ctx context.Context, seasonID, name string) (boo
 }
 
 // RunMatching searches and resolves every pending row, persisting the outcome
-// (matched slug, ambiguous candidates, or not_found). Rows already resolved or
-// discarded are left untouched.
+// (matched slug, ambiguous candidates, or not_found). A per-name search
+// failure marks only that row as search_failed — clearing any stale slug and
+// candidates — and the run continues with the remaining rows. Rows already in
+// search_failed are attempted again; rows already resolved or discarded are
+// left untouched. Infrastructure failures (listing or persisting rows) still
+// abort the run with an error.
 func (s *Service) RunMatching(ctx context.Context, seasonID string) error {
 	if s.searcher == nil {
 		return ErrSearcherUnavailable
@@ -230,12 +234,18 @@ func (s *Service) RunMatching(ctx context.Context, seasonID string) error {
 		return err
 	}
 	for _, row := range rows {
-		if row.MatchStatus != domain.MatchPending {
+		if row.MatchStatus != domain.MatchPending && row.MatchStatus != domain.MatchSearchFailed {
 			continue
 		}
 		candidates, err := s.searcher.Search(ctx, row.RawName)
 		if err != nil {
-			return err
+			row.MatchStatus = domain.MatchSearchFailed
+			row.MatchedSlug = ""
+			row.Candidates = nil
+			if uerr := s.repo.UpdateSeasonAnime(ctx, row); uerr != nil {
+				return uerr
+			}
+			continue
 		}
 		res := match.Resolve(row.RawName, candidates)
 		row.MatchStatus = toMatchStatus(res.Status)

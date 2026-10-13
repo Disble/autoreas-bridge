@@ -105,3 +105,42 @@ Related schema constraints that follow from the same definition:
   which the ingestion seam fills from the authenticated token.
 
 See [ADR 025: Sanitization is an egress rule, not a display rule](./adr/025-sanitization-is-an-egress-rule.md).
+
+## Episode availability vs. creation readiness — two questions about one anime
+
+A matched intake row needs two different facts before it becomes something the user watches, and the
+bridge names them with words that read as near-synonyms.
+
+**Episode availability** is a fact about the **site**: does the episode source already serve at least
+one episode for this anime? It is recorded on the season row (`Availability`, `available_episodes`,
+`first_available_at`) and it is the gate behind the season list's "available to create". It is checked
+**again** (`RecheckAvailability`) rather than once, because the answer changes on its own: an anime
+whose first episode has not aired yet is `waiting` today and `available` tomorrow. That is why the
+season list runs the check as a standing job and not only on demand.
+
+**Creation readiness** is a fact about the **local installation**: can Bridge create this anime here and
+then download it, with this downloads root, these hosters, and this configuration?
+(`download.ReadinessService`, `DownloadReadinessSnapshot`, the local readiness workflow ADR-014
+separates from creation.) It does not change because an episode aired, and it says nothing about the
+site.
+
+| Term | Fact about | Surface |
+| --- | --- | --- |
+| Episode availability | The site: is an episode served yet | `SeasonAnime.Availability` (`waiting` / `available` / `created`), `available_episodes`, UI copy "Check availability" |
+| Creation readiness | The local installation: can it create and download here | `download.ReadinessService`, `DownloadReadinessSnapshot` |
+| Premiere grade | **The user's own** verdict on episode 1 | `premiere_grade`, `grade_source` — an opinion, not a catalog fact |
+
+**Write "availability check" for the operation, never "probe" and never "the probe of the slug".** The
+probe is the mechanism — one HTTP read of the episode count through `Service.probe` — and a mechanism
+word in domain prose hides the question being asked. Keep `probe` only where the Go adapter that
+performs it is named. `RecheckAvailability` is spelled the way it is for the same reason: the prefix
+names the fact that the answer expires.
+
+A matching run has two phases, and both have names: **name matching** (resolve each intake name to a
+page URL) and the **availability check** (decide which of those pages already serve an episode). The
+run's product is a **triage of the list**, and every row it leaves behind has exactly one action:
+create it, wait for the episode check to find it, pick a candidate, fix the name, retry a failed
+search, or nothing. UI copy may say a row is **ready to watch** once it is matched *and* available; that
+is a phrase for the reading surface, not a domain type.
+
+See [ADR 014: Anime creation stores the page; download execution interprets it](./adr/014-anime-creation-download-readiness-boundary.md).
