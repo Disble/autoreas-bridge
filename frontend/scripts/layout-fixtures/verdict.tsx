@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react';
+
 /**
  * The little bit of plumbing every layout fixture on the page shares: the shape
  * of one measured assertion, the node `layout-smoke.mjs` reads its verdict back
@@ -69,6 +71,19 @@ function resolveVerdict(checks: readonly Check[] | undefined): 'pending' | 'pass
 }
 
 /**
+ * Keeps a report from widening the page it reports on.
+ *
+ * A check detail can run to hundreds of characters (a focused button's
+ * `box-shadow` alone is one), and a `<pre>` neither wraps nor clips by default:
+ * one such line made `documentElement.scrollWidth` 5173px on a 1561px viewport,
+ * permanently. Every fixture measures that same document element, so an
+ * unwrapped report is not cosmetic -- it is the harness reporting its own text
+ * as a page overflow and failing whichever fixture happened to measure last.
+ * That is what shipped as an intermittent 1600x1000 failure.
+ */
+const REPORT_WRAP_STYLE: CSSProperties = { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' };
+
+/**
  * The node `layout-smoke.mjs` reads back with `--dump-dom`.
  *
  * `pending` (nothing measured yet) is deliberately its own value rather than a
@@ -79,7 +94,7 @@ export function VerdictReport({ checks }: Readonly<{ checks: readonly Check[] | 
   const verdict = resolveVerdict(checks);
 
   return (
-    <pre data-layout-verdict={verdict}>
+    <pre data-layout-verdict={verdict} style={REPORT_WRAP_STYLE}>
       {(checks ?? []).map((check) => `${check.ok ? 'ok  ' : 'FAIL'} ${check.name} — ${check.detail}`).join('\n')}
     </pre>
   );

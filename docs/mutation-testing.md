@@ -1,4 +1,13 @@
-# Mutation Testing (Go)
+# Mutation Testing
+
+## Current frontend execution policy
+
+Automatic frontend mutation runs daily on `dev` and manually in GitHub Actions,
+not in local hooks or required PR checks. Review its reports retrospectively.
+Targeted development validation remains `bun --cwd="frontend" run test:mutation:staged`
+through dharness, with the existing staged source scope and strict survivor policy.
+See [local validation](local-validation.md) for prerequisites and report handling.
+The retired frontend guard below is historical, not the current hook contract.
 
 Mutation testing answers the one question the coverage number cannot: *if this
 code were broken, would any test notice?*
@@ -265,11 +274,11 @@ It shared one trap with ooze, worth remembering for any third tool: an
 exclusion option that filters *mutant selection* but not the *file-tree copy* is
 useless on this repo, because the copy is what costs.
 
-## The frontend guard, and the day it was found doing nothing
+## Historical frontend guard, and the day it was found doing nothing
 
 **Retired 2026-09-13 (SDD-71).** The hand-rolled runner described in this
-section, `frontend/scripts/dlinter-mutation-staged.mjs`, is deleted. The
-`lefthook.yml` job is now `frontend-mutation`, running upstream `dharness
+section, `frontend/scripts/dlinter-mutation-staged.mjs`, is deleted. At that time, the
+`lefthook.yml` job was `frontend-mutation`, running upstream `dharness
 mutate --staged --concurrency 4` against `frontend/stryker.config.json`
 (renamed from `stryker.dlinter.json`). Its `--exclude-prefix` list, `src/test/`,
 `scripts/` and the four root config files by exact name, keeps the retired

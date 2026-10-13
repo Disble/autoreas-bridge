@@ -14,6 +14,15 @@ describe('readVerdict', () => {
     expect(readVerdict(dom)).toStrictEqual({ verdict: 'pass', report: 'ok   the surface stays put — 460px' });
   });
 
+  // The node carries its own presentation -- the wrap that keeps a 588-character
+  // detail line from widening the page it reports on -- so the parser cannot
+  // assume `data-layout-verdict` is the last attribute before `>`.
+  it('reads a report whose node carries other attributes', () => {
+    const dom = '<pre data-layout-verdict="pass" style="white-space: pre-wrap">ok   it wraps — 1 line</pre>';
+
+    expect(readVerdict(dom)).toStrictEqual({ verdict: 'pass', report: 'ok   it wraps — 1 line' });
+  });
+
   it('carries a failing verdict through with the lines behind it', () => {
     const dom = '<pre data-layout-verdict="fail">FAIL a long title wraps — 1 line(s)</pre>';
 

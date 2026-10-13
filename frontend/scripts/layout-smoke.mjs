@@ -193,7 +193,10 @@ function renderFixtures(edge, profileDir, url, viewport) {
  * @returns {{verdict: string, report: string}} The verdict and the per-check lines behind it.
  */
 export function readVerdict(dom) {
-  const matches = [...dom.matchAll(/data-layout-verdict="([^"]*)">([\s\S]*?)<\/pre>/g)];
+  // `[^>]*` rather than a bare `>`: the report node carries a `style` attribute
+  // of its own, and a parser that assumed the verdict attribute came last
+  // reported a page full of reports as "no verdict at all".
+  const matches = [...dom.matchAll(/data-layout-verdict="([^"]*)"[^>]*>([\s\S]*?)<\/pre>/g)];
   if (matches.length === 0) {
     return { verdict: 'missing', report: 'the fixture page rendered no verdict at all' };
   }
