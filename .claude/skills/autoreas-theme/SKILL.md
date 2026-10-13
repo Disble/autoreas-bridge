@@ -3,7 +3,7 @@ name: autoreas-theme
 description: "Living design-system guide for the autoreas-bridge frontend. Use BEFORE building or refactoring ANY UI under frontend/src — it tells you which HeroUI v3 component to use instead of hand-rolling divs/buttons/tables, the project's semantic color tokens, and the domain/level color conventions. Keywords: theme, design system, UI, rebrand, restyle, frontend component, HeroUI, Tailwind, styling, feature UI."
 metadata:
   author: autoreas-bridge
-  version: "1.1.1"
+  version: "1.1.2"
   scope: project
   updates: living
 ---
@@ -127,6 +127,40 @@ placeholder's **height** a contract, not a detail:
 `getByRole('status', { name })` while loading, the placeholder count, and that **neither the region
 nor the placeholder survives** once the request settles — success or failure. Asserting the visible
 loading text is weaker: it proves the words are on screen but not that anything announces them.
+
+### Empty state inside a section: the side-by-side layout
+
+`AirisEmptyState` has two sizes today. The default stacks the artwork over the copy, centered,
+inside a `Card` of its own; `compact` is one 40px row. Neither suits an empty state that fills a
+**section inside a wider card** (an Editor form section, a panel body). There the default size reads
+as a tall, narrow column floating in empty width, and the user rejected it as unbalanced. `compact`
+is too small to carry the mascot. This was seen on the Episodes-section mockup (2026-10-13), not
+measured in the app.
+
+Use the split-panel idea from "Filling horizontal space" for this case:
+
+```tsx
+<div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-5 rounded-3xl bg-surface-secondary py-4 pr-6 pl-4">
+  <img alt="" aria-hidden="true" className="size-32 object-contain" src={artwork} />
+  <div className="flex min-w-0 flex-col items-start gap-2">
+    <Typography type="h3">{title}</Typography>
+    <Typography color="muted" type="body-sm">{description}</Typography>
+    <Button className="mt-1" variant="primary" onPress={action.onPress}>{action.label}</Button>
+  </div>
+</div>
+```
+
+- The **artwork sits on the left at `size-32` (128px)** in an intrinsic `auto` column. The **copy
+  and the one action sit on the right, left-aligned**, in a `minmax(0,1fr)` column. Never a bare
+  `1fr` track (see Containment).
+- The block is **short and wide**, so its height is in proportion with the section's other states
+  (table, alert). That proportion is the whole point of the layout.
+- It is still the resolved-empty state: the same three-states rule applies. At most one recovery
+  action, `variant="primary"`, and no mascot while loading or on failure.
+- **Do not hand-roll it in a feature.** The first real use should add it to `AirisEmptyState` as a
+  third size (for example `size="inline"`), next to `compact`, with its own artwork class in
+  `airis-empty-state.constants.ts` and a case in `airis-empty-states-fixture.tsx`. The mockup that
+  set this pattern is the Editor "Episodes" section (artifact "Editor — Episode metadata").
 
 ## Color conventions (semantic, NOT raw colors)
 
@@ -279,6 +313,7 @@ Containment and fill are the same mechanism from opposite ends, and a card needs
 This is a **living** document. When you establish a new UI convention, adopt a new HeroUI component, change a token mapping, or hit a non-obvious React-Aria gotcha — **update this file** and bump `version`. Add a line to the changelog.
 
 ### Changelog
+- `1.1.2` — Added "Empty state inside a section: the side-by-side layout". The default `AirisEmptyState` is centered and stacked, and inside a section of a wider card it reads as a tall, narrow column with empty width on both sides; the user rejected it as unbalanced while reviewing the Editor Episodes-section mockup. The accepted layout puts the mascot on the left at 128px and the copy plus one primary action on the right, left-aligned, in an `auto`/`minmax(0,1fr)` grid. It is recorded as the future third size of `AirisEmptyState`, not as markup to copy into features.
 - `1.1.1` — Added "The states are EXCLUSIVE" to the mandatory loading section, after a user screenshotted a block of skeletons stacked directly on top of the real anime cards on Today. The placeholder REPLACES the content; it is not a block added above it. The trap is that a refetching surface keeps its previous rows in state, so `isLoading` and `rows.length > 0` are both true — on first mount they never are, which is why it is invisible until someone switches a day, filter or tab. Three surfaces shipped with it (`EpisodeSchedulePanel` mapped rows unconditionally, `SoloAnimeDownloadPanel` gated on `options.length > 0` alone, `ActivityOverview`'s sample list mapped unconditionally). The root cause was in the TESTS, not the markup: they asserted the skeleton appears and later disappears, and never that real content is absent while loading — which passes happily while both blocks render. Every loading test now asserts that negative.
 - `1.1.0` — Loading and empty states became **mandatory** rather than conventional, after three changes shipped three different answers across nine surfaces: a sentence, a lone `Spinner`, and a silent skeleton. The rule is three states to three components — a shape-mirroring skeleton for unresolved, `AirisEmptyState` for resolved-empty, the surface's error `Alert` for failed — plus `LoadingBars` (`shared/ui/LoadingBars/`) for the uniform-bar placeholder that had been copied seven times, each copy carrying the same announcement gap because the markup was the same. Two findings are recorded in full because each cost a cycle. **`role="status"` takes its accessible name from the author**, so a region named only by an inner `sr-only` span computes `""` and `getByRole('status', { name })` fails — `aria-labelledby` is required, and the span must still be there because that is what a polite live region announces. And **a placeholder's height is a contract**: the row-shape class is shared with the real row so the two cannot drift, and `loading-skeletons-fixture.tsx` measures them against each other in headless Edge, because jsdom has no layout engine and passes a half-height placeholder. Tables get skeleton `Table.Row`s as `Table.Body` children, never the pre-table branch `HistoryTable` used — that one loses the header, so the columns resize when data lands.
 - `1.0.19` — Current-day marker on the Today weekday tabs: a `size-1.5 rounded-full bg-current` dot plus an `sr-only` phrase, so the tab strip always says which day is today even while another day is selected. `bg-current` is the load-bearing choice — `.toggle-button` sets `color` explicitly in BOTH states (`--toggle-button-fg: currentColor` unselected, `--accent-soft-foreground` selected), so a fixed `bg-accent` would vanish on the selected tab while `currentColor` never does. Two testing gotchas recorded above: the accessible name concatenates sibling text with no separator (`Sundaytoday`), and a today marker turns any exact weekday-name query into a date-dependent test.
