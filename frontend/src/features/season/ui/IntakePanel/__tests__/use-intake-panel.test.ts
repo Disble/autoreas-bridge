@@ -32,6 +32,19 @@ describe('useIntakePanel', () => {
     expect(result.current.availableCount).toBe(1); // b available
   });
 
+  it('surfaces a failed search as its own counter, outside the unresolved count', async () => {
+    const rows: SeasonAnimeRow[] = [
+      { id: 'a', rawName: 'A', matchStatus: 'search_failed', matchedSlug: '', candidates: [], availability: 'waiting', availableEpisodes: 0, animeId: '', section: '', sectionOrder: 0, grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
+      { id: 'b', rawName: 'B', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', availableEpisodes: 0, animeId: '', section: '', sectionOrder: 0, grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
+    ];
+    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const { result } = renderHook(() => useIntakePanel(source));
+
+    await waitFor(() => expect(result.current.editableRows).toHaveLength(2));
+    expect(result.current.searchFailedCount).toBe(1);
+    expect(result.current.unresolvedCount).toBe(1); // the failed search is not pending work
+  });
+
   it('toggleSelect then onCreate creates the picked rows and clears the selection', async () => {
     const source = createSource();
     const { result } = renderHook(() => useIntakePanel(source));

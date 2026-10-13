@@ -99,6 +99,7 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     availabilityPendingCount: 0,
     onCreate: vi.fn(),
     unresolvedCount: 0,
+    searchFailedCount: 0,
     errorMessage: undefined,
     busyMessage: undefined,
     onRunMatching: vi.fn(),
@@ -124,6 +125,20 @@ describe('IntakePanel', () => {
     expect(screen.getByText('Dr. Stone')).toBeInTheDocument();
     expect(screen.getByText('Ambiguous')).toBeInTheDocument();
     expect(screen.getByText(/1 unresolved/)).toBeInTheDocument();
+  });
+
+  it('surfaces a failed search as its own footer counter', () => {
+    mockHook({ editableRows: [row({ matchStatus: 'search_failed' })], unresolvedCount: 0, searchFailedCount: 1 });
+    render(<IntakePanel />);
+    expect(screen.getByText('Search failed')).toBeInTheDocument();
+    expect(screen.getByText(/1 search failed/)).toBeInTheDocument();
+  });
+
+  it('hides the search-failed suffix while every search succeeded', () => {
+    mockHook({ editableRows: [row()], unresolvedCount: 1, searchFailedCount: 0 });
+    render(<IntakePanel />);
+    expect(screen.getByText(/1 unresolved/)).toBeInTheDocument();
+    expect(screen.queryByText(/search failed/)).not.toBeInTheDocument();
   });
 
   it('shows the raw textarea in raw mode', () => {

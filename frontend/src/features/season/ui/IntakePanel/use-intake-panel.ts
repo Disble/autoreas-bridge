@@ -1,34 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
 import { metadataLookupSource } from '../../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers';
 import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
 import type { PreferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.types';
 import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
 import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
-import { buildUndoPatch } from '../../../../shared/metadata-lookup/metadata-lookup.helpers';
-import type {
-  AnimeMetadataSelection,
-  AppliedMetadata,
-} from '../../../../shared/metadata-lookup/metadata-lookup.types';
 import type { AnimeMetadataLookupSource } from '../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
-import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
-import { INTAKE_FOLDER_PICKER_TITLE, INTAKE_RECONCILE_DEBOUNCE_MS } from './intake-panel.constants';
-import {
-  buildFolderPreviews,
-  buildRawText,
-  buildSeasonCreateMetadata,
-  collectFolderOverrides,
-  compactMetadataPatch,
-  countMatchedWaitingForAvailability,
-  countUnresolved,
-  isCreatableRow,
-  pickRowEntries,
-  splitIntakeRows,
-  toHeldMetadataPatch,
-  toIntakeMetadataPatch,
-  toSeasonCreateMetadata,
-  toggleSelection,
-} from './intake-panel.helpers';
-import type { IntakeAppliedMetadata, IntakeMetadataPatch, IntakeMode } from './intake-panel.types';
+import { useIntakeCreationCallbacks } from './use-intake-creation-callbacks';
+import { useIntakeEditorState } from './use-intake-editor-state';
+import { useIntakeMetadataApply } from './use-intake-metadata-apply';
+import { useIntakeMetadataRevert } from './use-intake-metadata-revert';
+import { useIntakeMetadataView } from './use-intake-metadata-view';
+import { useIntakeModeCallbacks } from './use-intake-mode-callbacks';
+import { useIntakeRowCallbacks } from './use-intake-row-callbacks';
+import { useIntakeRows } from './use-intake-rows';
+import { useIntakeStoreSlice } from './use-intake-store-slice';
+import { useIntakeSyncEffects } from './use-intake-sync-effects';
 
 /**
  * useIntakePanel drives the dual-mode intake editor. Raw mode is a local draft
@@ -47,6 +32,10 @@ import type { IntakeAppliedMetadata, IntakeMetadataPatch, IntakeMode } from './i
  * lookup that id already had, which is a display concern only while nothing is
  * persisted. Persisting these values, and deciding what a revived row may keep,
  * belongs to the storage work unit.
+ *
+ * The hook itself only composes the colocated slices below: editor state, the
+ * Season store slice, the row and metadata derivations, the callback groups,
+ * and the sync effects. Its returned object is the panel's whole contract.
  * @param source The season port every row mutation goes through.
  * @param downloadsRootSource The port that supplies the configured downloads root.
  * @param metadataSource The two MyAnimeList calls each row's lookup modal drives.
@@ -58,289 +47,50 @@ export function useIntakePanel(
   metadataSource: AnimeMetadataLookupSource = metadataLookupSource,
 ) {
   // 2. State
-  const [mode, setMode] = useState<IntakeMode>('list');
-  const [rawDraft, setRawDraft] = useState('');
-  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
-  const [folderOverrides, setFolderOverrides] = useState<Readonly<Record<string, string>>>({});
-  const [downloadsRoot, setDownloadsRoot] = useState('');
-  const [metadataByRow, setMetadataByRow] = useState<Readonly<Record<string, IntakeMetadataPatch>>>({});
-  const [appliedMetadataByRow, setAppliedMetadataByRow] = useState<
-    Readonly<Record<string, AppliedMetadata<IntakeMetadataPatch>>>
-  >({});
-
+  const editor = useIntakeEditorState();
   // 3. Context/3rd Party Hooks
-  const seasonAnimes = useSeasonStore((state) => state.seasonAnimes);
-  const readOnly = useSeasonStore((state) => state.readOnly);
-  const errorMessage = useSeasonStore((state) => state.errorMessage);
-  const busyMessage = useSeasonStore((state) => state.busyMessage);
-  const refreshAnimes = useSeasonStore((state) => state.refreshAnimes);
-  const reconcileIntake = useSeasonStore((state) => state.reconcileIntake);
-  const runMatching = useSeasonStore((state) => state.runMatching);
-  const resolveMatch = useSeasonStore((state) => state.resolveMatch);
-  const discardName = useSeasonStore((state) => state.discardName);
-  const setSeasonAnimeMetadata = useSeasonStore((state) => state.setSeasonAnimeMetadata);
-  const createSeasonAnimes = useSeasonStore((state) => state.createSeasonAnimes);
-  const recheckAvailability = useSeasonStore((state) => state.recheckAvailability);
-
-  // 5. Derived State (useMemo)
-  const { editable } = useMemo(() => splitIntakeRows(seasonAnimes), [seasonAnimes]);
-  const unresolvedCount = useMemo(() => countUnresolved(editable), [editable]);
-  const availableCount = useMemo(() => editable.filter(isCreatableRow).length, [editable]);
-  const availabilityPendingCount = useMemo(() => countMatchedWaitingForAvailability(editable), [editable]);
-  const folderPreviews = useMemo(
-    () => buildFolderPreviews(downloadsRoot, editable, folderOverrides),
-    [downloadsRoot, editable, folderOverrides],
-  );
-  const editableIds = useMemo(() => new Set(editable.map((row) => row.id)), [editable]);
-  // What each row STORED from an earlier lookup, so a confirmed choice survives
-  // leaving the Season screen or reopening the app. It is the fallback under the
-  // session's own patch: a lookup confirmed now wins over what was stored, and a
-  // row that never had one contributes nothing.
-  const storedMetadataByRow = useMemo(() => {
-    const out: Record<string, IntakeMetadataPatch> = {};
-    for (const row of editable) {
-      const held = toHeldMetadataPatch(row.metadata);
-      if (held !== undefined) {
-        out[row.id] = held;
-      }
-    }
-    return out;
-  }, [editable]);
-  const heldByRow = useMemo(() => ({ ...storedMetadataByRow, ...metadataByRow }), [storedMetadataByRow, metadataByRow]);
-  // Both records are narrowed to the rows still on screen rather than pruned in
-  // an effect: a row that is gone cannot display its lookup, and a refresh that
-  // keeps the same ids costs no state write at all. The underlying records keep
-  // a departed row's entry, so an id that returns shows what it had before.
-  const visibleMetadataByRow = useMemo(() => pickRowEntries(heldByRow, editableIds), [heldByRow, editableIds]);
-  const visibleAppliedMetadataByRow = useMemo(
-    () => pickRowEntries(appliedMetadataByRow, editableIds),
-    [appliedMetadataByRow, editableIds],
-  );
-  // A row whose metadata came from STORAGE has no session pre-image, so it shows
-  // the applied summary without an Undo: the clear action is how it goes away.
-  const appliedMetadataView = useMemo(() => {
-    const out: Record<string, IntakeAppliedMetadata> = {};
-    for (const [rowId, patch] of Object.entries(visibleMetadataByRow)) {
-      // A row that holds no values has nothing to summarise: an applied record
-      // here would keep showing a chip for metadata the user just undid.
-      if (Object.keys(patch).length === 0) {
-        continue;
-      }
-      const session = visibleAppliedMetadataByRow[rowId];
-      out[rowId] =
-        session === undefined
-          ? { patch, previous: {}, appliedFields: Object.keys(patch) as (keyof IntakeMetadataPatch)[], unfilled: [], canUndo: false }
-          : { ...session, canUndo: true };
-    }
-    return out;
-  }, [visibleMetadataByRow, visibleAppliedMetadataByRow]);
-
-  // 6. Callbacks
-  const switchMode = useCallback(
-    (next: IntakeMode) => {
-      if (next === mode) {
-        return;
-      }
-      if (next === 'list' && mode === 'raw') {
-        void reconcileIntake(source, rawDraft); // flush the draft before rendering
-      }
-      if (next === 'raw') {
-        setRawDraft(buildRawText(seasonAnimes));
-      }
-      setMode(next);
-    },
-    [mode, rawDraft, seasonAnimes, reconcileIntake, source],
-  );
-  const onRawChange = useCallback((text: string) => {
-    setRawDraft(text);
-  }, []);
-  const onRunMatching = useCallback(() => {
-    void runMatching(source);
-  }, [runMatching, source]);
-  const onRecheckAvailability = useCallback(() => {
-    void recheckAvailability(source);
-  }, [recheckAvailability, source]);
-  const onResolve = useCallback(
-    (rowId: string, pageUrl: string) => {
-      void resolveMatch(source, rowId, pageUrl);
-    },
-    [resolveMatch, source],
-  );
-  const onDiscard = useCallback(
-    (rowId: string) => {
-      void discardName(source, rowId);
-    },
-    [discardName, source],
-  );
-  const onOpenPage = useCallback(
-    (pageUrl: string) => {
-      source.openPage(pageUrl);
-    },
-    [source],
-  );
-  const toggleSelect = useCallback((rowId: string) => {
-    setSelected((prev) => toggleSelection(prev, rowId));
-  }, []);
-  const onPickFolder = useCallback(
-    (rowId: string) => {
-      void source.pickFolder(INTAKE_FOLDER_PICKER_TITLE).then((picked) => {
-        if (picked !== '') {
-          setFolderOverrides((prev) => ({ ...prev, [rowId]: picked }));
-        }
-      });
-    },
-    [source],
-  );
-  const onCreate = useCallback(() => {
-    if (selected.size === 0) {
-      return;
-    }
-    const ids = [...selected];
-
-    setSelected(new Set());
-    // Only the picked rows travel, and each one carries only the metadata the user
-    // confirmed for IT: a lookup attached to an unpicked row stays behind. The
-    // values a row HOLDS are what creation receives — whether they came from this
-    // session's lookup or from the record stored in an earlier one — because that
-    // is exactly what the row displays above the Create button.
-    void createSeasonAnimes(
-      source,
-      ids,
-      collectFolderOverrides(ids, folderOverrides),
-      buildSeasonCreateMetadata(heldByRow, ids),
-    );
-  }, [selected, folderOverrides, heldByRow, createSeasonAnimes, source]);
-  /**
-   * Attaches one confirmed lookup to its own row. The selection goes through
-   * {@link toIntakeMetadataPatch}'s allow-list, so this can only ever write the
-   * row's metadata -- never its download page, folder, watched episodes, estado
-   * or first-watch date. A lookup for a row the intake list no longer shows is
-   * refused rather than attached to nothing.
-   *
-   * Re-applying REPLACES the row's applied patch instead of stacking a second
-   * one: the new patch's pre-image is read from what the row currently holds —
-   * including what STORAGE holds — so a second Undo steps back to the first
-   * apply's values instead of leaving the first patch behind. The merged values
-   * are written to the row's own record, so the choice survives the panel.
-   */
-  const onMetadataApplied = useCallback(
-    (rowId: string, selection: AnimeMetadataSelection) => {
-      if (!editableIds.has(rowId)) {
-        return;
-      }
-      const patch = toIntakeMetadataPatch(selection);
-      const held: IntakeMetadataPatch = metadataByRow[rowId] ?? storedMetadataByRow[rowId] ?? {};
-      const previous = buildUndoPatch(held, patch);
-      const merged: IntakeMetadataPatch = compactMetadataPatch({ ...held, ...patch });
-
-      setMetadataByRow((current) => ({ ...current, [rowId]: merged }));
-      setAppliedMetadataByRow((current) => ({
-        ...current,
-        [rowId]: {
-          patch,
-          previous,
-          appliedFields: Object.keys(patch) as (keyof IntakeMetadataPatch)[],
-          unfilled: selection.unfilled,
-        },
-      }));
-      // Persist exactly the fields creation will receive, so what the row shows
-      // and what the anime gets cannot drift. A failure surfaces in the panel's
-      // shared error state through the store.
-      void setSeasonAnimeMetadata(source, rowId, JSON.stringify(toSeasonCreateMetadata(merged)));
-    },
-    [editableIds, metadataByRow, storedMetadataByRow, setSeasonAnimeMetadata, source],
-  );
-  /**
-   * Removes one row's metadata: the stored record and the local state the user
-   * sees. This is the whole point of the clear action — a lookup confirmed on the
-   * wrong anime must be undoable without an editor.
-   */
-  const onMetadataClear = useCallback(
-    (rowId: string) => {
-      if (!editableIds.has(rowId)) {
-        return;
-      }
-      setMetadataByRow((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== rowId)));
-      // The session's applied record needs no removal: the view only summarises rows
-      // that still hold values, so a cleared row stops showing one either way.
-      void setSeasonAnimeMetadata(source, rowId, '');
-    },
-    [editableIds, setSeasonAnimeMetadata, source],
-  );
-  /**
-   * Reverts one row's last applied metadata patch, replaying the recorded
-   * pre-image into the row's held metadata and dropping the row's Undo. A no-op
-   * for a row with nothing applied.
-   */
-  const onMetadataUndo = useCallback(
-    (rowId: string) => {
-      const applied = appliedMetadataByRow[rowId];
-      if (applied === undefined) {
-        return;
-      }
-      // The pre-image restores what applied touched; a field that had no value
-      // before must leave the row holding nothing, not holding an empty string.
-      setMetadataByRow((current) => ({
-        ...current,
-        [rowId]: compactMetadataPatch({ ...current[rowId], ...applied.previous }),
-      }));
-      setAppliedMetadataByRow((current) =>
-        Object.fromEntries(Object.entries(current).filter(([id]) => id !== rowId)),
-      );
-    },
-    [appliedMetadataByRow],
-  );
-
+  const store = useIntakeStoreSlice();
+  // 5. Derived State (useMemo in colocated hooks)
+  const rows = useIntakeRows({ store, editor });
+  const metadata = useIntakeMetadataView({ rows, editor });
+  // 6. Callbacks (useCallback in colocated hooks)
+  const modes = useIntakeModeCallbacks({ editor, store, source });
+  const rowActions = useIntakeRowCallbacks({ store, editor, source });
+  const creation = useIntakeCreationCallbacks({ editor, metadata, store, source });
+  const applied = useIntakeMetadataApply({ rows, editor, metadata, store, source });
+  const reverted = useIntakeMetadataRevert({ rows, editor, store, source });
   // 7. Effects
-  useEffect(() => {
-    void refreshAnimes(source);
-  }, [refreshAnimes, source]);
-
-  useEffect(() => {
-    void downloadsRootSource.getDownloadsRoot().then((root) => {
-      setDownloadsRoot(root);
-    });
-  }, [downloadsRootSource]);
-
-  // Debounced reconcile while editing the raw draft.
-  useEffect(() => {
-    if (mode !== 'raw') {
-      return undefined;
-    }
-    const timer = setTimeout(() => {
-      void reconcileIntake(source, rawDraft);
-    }, INTAKE_RECONCILE_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [mode, rawDraft, reconcileIntake, source]);
+  useIntakeSyncEffects({ editor, store, source, downloadsRootSource });
 
   return {
-    readOnly,
-    mode,
-    switchMode,
-    rawDraft,
-    onRawChange,
-    editableRows: editable,
-    selected,
-    toggleSelect,
-    folderOverrides,
-    folderPreviews,
-    onPickFolder,
-    metadataByRow: visibleMetadataByRow,
-    appliedMetadataByRow: appliedMetadataView,
+    readOnly: store.readOnly,
+    mode: editor.mode,
+    switchMode: modes.switchMode,
+    rawDraft: editor.rawDraft,
+    onRawChange: modes.onRawChange,
+    editableRows: rows.editable,
+    selected: editor.selected,
+    toggleSelect: rowActions.toggleSelect,
+    folderOverrides: editor.folderOverrides,
+    folderPreviews: rows.folderPreviews,
+    onPickFolder: creation.onPickFolder,
+    metadataByRow: metadata.visibleMetadataByRow,
+    appliedMetadataByRow: metadata.appliedMetadataView,
     metadataLookupSource: metadataSource,
-    onMetadataApplied,
-    onMetadataUndo,
-    onMetadataClear,
-    availableCount,
-    availabilityPendingCount,
-    onCreate,
-    unresolvedCount,
-    errorMessage,
-    busyMessage,
-    onRunMatching,
-    onRecheckAvailability,
-    onResolve,
-    onDiscard,
-    onOpenPage,
+    onMetadataApplied: applied.onMetadataApplied,
+    onMetadataUndo: reverted.onMetadataUndo,
+    onMetadataClear: reverted.onMetadataClear,
+    availableCount: rows.availableCount,
+    availabilityPendingCount: rows.availabilityPendingCount,
+    onCreate: creation.onCreate,
+    unresolvedCount: rows.unresolvedCount,
+    searchFailedCount: rows.searchFailedCount,
+    errorMessage: store.errorMessage,
+    busyMessage: store.busyMessage,
+    onRunMatching: rowActions.onRunMatching,
+    onRecheckAvailability: rowActions.onRecheckAvailability,
+    onResolve: rowActions.onResolve,
+    onDiscard: rowActions.onDiscard,
+    onOpenPage: rowActions.onOpenPage,
   };
 }

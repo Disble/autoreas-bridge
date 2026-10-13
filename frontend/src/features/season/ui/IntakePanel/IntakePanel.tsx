@@ -34,6 +34,7 @@ export function IntakePanel() {
     availabilityPendingCount,
     onCreate,
     unresolvedCount,
+    searchFailedCount,
     errorMessage,
     busyMessage,
     onRunMatching,
@@ -126,6 +127,7 @@ export function IntakePanel() {
             {editableRows.length > 0 && (
               <span className="text-sm text-muted">
                 {unresolvedCount} unresolved · {availabilityPendingCount} waiting · {availableCount} available to create
+                {searchFailedCount > 0 ? ` · ${searchFailedCount} search failed` : null}
               </span>
             )}
           </div>

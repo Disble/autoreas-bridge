@@ -80,7 +80,7 @@ export function buildWatchingPipelineData(rows: readonly SeasonAnimeRow[]): {
 
 /**
  * buildIntakeHealthData groups ALL intake rows (created and uncreated) by
- * `matchStatus` across the five workflow statuses. Returns an empty data array
+ * `matchStatus` across the six workflow statuses. Returns an empty data array
  * when there are no rows at all.
  */
 export function buildIntakeHealthData(rows: readonly SeasonAnimeRow[]): {
@@ -91,7 +91,7 @@ export function buildIntakeHealthData(rows: readonly SeasonAnimeRow[]): {
   if (rows.length === 0) {
     return { data: [], keys };
   }
-  const counts: Record<string, number> = { pending: 0, matched: 0, ambiguous: 0, not_found: 0, discarded: 0 };
+  const counts: Record<string, number> = { pending: 0, search_failed: 0, matched: 0, ambiguous: 0, not_found: 0, discarded: 0 };
   for (const r of rows) {
     if (r.matchStatus in counts) {
       counts[r.matchStatus] += 1;

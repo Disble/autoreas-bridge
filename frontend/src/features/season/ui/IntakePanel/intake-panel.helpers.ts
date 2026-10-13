@@ -44,7 +44,7 @@ export function getMatchStatusLabel(status: string): string {
 
 /**
  * Semantic chip color per match status: matched=success, ambiguous=warning,
- * not_found=danger, everything else neutral.
+ * not_found and search_failed=danger, everything else neutral.
  */
 export function getMatchStatusColor(status: string): IntakeChipColor {
   switch (status) {
@@ -53,6 +53,7 @@ export function getMatchStatusColor(status: string): IntakeChipColor {
     case 'ambiguous':
       return 'warning';
     case 'not_found':
+    case 'search_failed':
       return 'danger';
     default:
       return 'default';
@@ -73,6 +74,15 @@ export function formatCandidateOption(candidate: SeasonAnimeCandidate): string {
  */
 export function countUnresolved(rows: readonly SeasonAnimeRow[]): number {
   return rows.filter((row) => row.matchStatus === 'pending' || row.matchStatus === 'ambiguous').length;
+}
+
+/**
+ * Counts intake rows whose last search failed. A failed search is an adapter
+ * signal, not pending work, so it stays out of `countUnresolved` and gets its
+ * own footer counter instead.
+ */
+export function countSearchFailed(rows: readonly SeasonAnimeRow[]): number {
+  return rows.filter((row) => row.matchStatus === 'search_failed').length;
 }
 
 /**
