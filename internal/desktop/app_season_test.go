@@ -3,12 +3,14 @@ package desktop
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
 	"autoreas-bridge/internal/anime"
 	animeDomain "autoreas-bridge/internal/anime/domain"
 	"autoreas-bridge/internal/download"
+	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/season"
 	seasonDomain "autoreas-bridge/internal/season/domain"
 	"autoreas-bridge/internal/season/match"
@@ -165,6 +167,64 @@ func TestRunSeasonMatchingRefreshesAvailabilityForNewMatches(t *testing.T) {
 	}
 	if rows[0].MatchStatus != "matched" || rows[0].Availability != "available" || rows[0].AvailableEpisodes != 1 {
 		t.Fatalf("matching must immediately expose creatable rows, got %+v", rows[0])
+	}
+}
+
+// TestRunSeasonMatchingOrdersFinishedAfterBothPhases pins the S5 run order on
+// one chronological tape: every name-matching progress, then the availability
+// check progress, then the terminal signal. The companion boundary test
+// collects one slice per event type, so emitting finished before the
+// availability phase completes would still pass there; on this tape finished
+// would no longer be last, so that regression fails here.
+func TestRunSeasonMatchingOrdersFinishedAfterBothPhases(t *testing.T) {
+	t.Parallel()
+
+	bus := events.NewBus()
+	var order []string
+	bus.Subscribe(events.EventNameSeasonMatchingProgress, func(e events.Event) {
+		if p, ok := e.(events.SeasonMatchingProgressEvent); ok {
+			order = append(order, "progress:"+p.Phase)
+		}
+	})
+	bus.Subscribe(events.EventNameSeasonMatchingFinished, func(e events.Event) {
+		if _, ok := e.(events.SeasonMatchingFinishedEvent); ok {
+			order = append(order, "finished")
+		}
+	})
+
+	repo := newFakeSeasonRepo()
+	nextID := 0
+	svc := season.NewService(repo, time.Now, func() string {
+		nextID++
+		return fmt.Sprintf("id-%d", nextID)
+	}, fakeAppNameSearcher{byQuery: map[string][]match.Candidate{
+		"Good Anime": {{Title: "Good Anime", PageURL: "https://jkanime.net/good-anime/"}},
+	}})
+	svc.SetAvailabilityDeps(
+		fakeAppAvailabilityProbe{episodes: map[string]int{"https://jkanime.net/good-anime/": 2}},
+		nil,
+	)
+	svc.SetEventBus(bus)
+	app := &App{ctx: context.Background(), seasonService: svc, eventBus: bus}
+
+	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+		t.Fatalf("CreateSeason: %q", got)
+	}
+	if got := app.ImportSeasonIntake("Good Anime\nTypo Anime"); got != "ok" {
+		t.Fatalf("ImportSeasonIntake: %q", got)
+	}
+	if got := app.RunSeasonMatching(); got != "ok" {
+		t.Fatalf("RunSeasonMatching: %q", got)
+	}
+
+	want := []string{
+		"progress:" + events.SeasonMatchingPhaseMatching,
+		"progress:" + events.SeasonMatchingPhaseMatching,
+		"progress:" + events.SeasonMatchingPhaseAvailabilityCheck,
+		"finished",
+	}
+	if !slices.Equal(order, want) {
+		t.Fatalf("run order = %q, want %q", order, want)
 	}
 }
 

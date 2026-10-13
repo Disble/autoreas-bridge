@@ -128,7 +128,7 @@ describe('buildIntakeHealthData', () => {
     expect(buildIntakeHealthData([]).data).toEqual([]);
   });
 
-  it('counts every row across all five statuses regardless of creation state', () => {
+  it('counts every row across all six statuses regardless of creation state', () => {
     const rows = [
       row({ id: 'p1', matchStatus: 'pending' }),
       row({ id: 'p2', matchStatus: 'pending' }),
@@ -137,13 +137,15 @@ describe('buildIntakeHealthData', () => {
       createdRow({ id: 'm3', matchStatus: 'matched' }),
       row({ id: 'a1', matchStatus: 'ambiguous' }),
       row({ id: 'n1', matchStatus: 'not_found' }),
+      row({ id: 's1', matchStatus: 'search_failed' }),
       row({ id: 'd1', matchStatus: 'discarded' }),
     ];
     const { data, keys } = buildIntakeHealthData(rows);
-    expect(keys).toEqual(['pending', 'matched', 'ambiguous', 'not_found', 'discarded']);
+    expect(keys).toEqual(['pending', 'search_failed', 'matched', 'ambiguous', 'not_found', 'discarded']);
     const total = Object.values(data[0]).reduce<number>((sum, v) => (typeof v === 'number' ? sum + v : sum), 0);
-    expect(total).toBe(8);
+    expect(total).toBe(9);
     expect(data[0].matched).toBe(3);
+    expect(data[0].search_failed).toBe(1);
   });
 });
 

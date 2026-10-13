@@ -14,6 +14,9 @@ const (
 	MatchAmbiguous MatchStatus = "ambiguous"
 	// MatchNotFound means no suitable candidate was found.
 	MatchNotFound MatchStatus = "not_found"
+	// MatchSearchFailed means the name search itself failed (adapter error),
+	// so the row was never classified. It is retried by the next run.
+	MatchSearchFailed MatchStatus = "search_failed"
 	// MatchDiscarded means the row was intentionally removed from flow.
 	MatchDiscarded MatchStatus = "discarded"
 )

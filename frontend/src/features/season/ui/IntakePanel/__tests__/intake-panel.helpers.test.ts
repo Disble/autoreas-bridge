@@ -9,7 +9,9 @@ import {
   collectFolderOverrides,
   compactMetadataPatch,
   countMatchedWaitingForAvailability,
+  countSearchFailed,
   countUnresolved,
+  isCreatableRow,
   deriveIntakeDownloadFolder,
   formatAppliedMetadataFields,
   formatCandidateOption,
@@ -48,6 +50,7 @@ describe('getMatchStatusLabel', () => {
     expect(getMatchStatusLabel('not_found')).toBe('Not found');
     expect(getMatchStatusLabel('pending')).toBe('Pending');
     expect(getMatchStatusLabel('discarded')).toBe('Discarded');
+    expect(getMatchStatusLabel('search_failed')).toBe('Search failed');
     expect(getMatchStatusLabel('weird')).toBe('weird');
   });
 });
@@ -59,6 +62,29 @@ describe('getMatchStatusColor', () => {
     expect(getMatchStatusColor('not_found')).toBe('danger');
     expect(getMatchStatusColor('pending')).toBe('default');
     expect(getMatchStatusColor('discarded')).toBe('default');
+    expect(getMatchStatusColor('search_failed')).toBe('danger');
+  });
+});
+
+describe('countSearchFailed', () => {
+  it('counts only the rows whose search failed', () => {
+    const rows = [
+      row({ matchStatus: 'search_failed' }),
+      row({ matchStatus: 'pending' }),
+      row({ matchStatus: 'ambiguous' }),
+      row({ matchStatus: 'not_found' }),
+      row({ matchStatus: 'search_failed' }),
+    ];
+    expect(countSearchFailed(rows)).toBe(2);
+  });
+});
+
+describe('isCreatableRow', () => {
+  it('is false for a search_failed row: only a matched row with episode 1 online can be created', () => {
+    expect(isCreatableRow(row({ matchStatus: 'search_failed', availability: 'available' }))).toBe(false);
+    expect(
+      isCreatableRow(row({ matchStatus: 'matched', availability: 'available', availableEpisodes: 1 })),
+    ).toBe(true);
   });
 });
 
@@ -113,6 +139,7 @@ describe('countUnresolved', () => {
       row({ matchStatus: 'matched' }),
       row({ matchStatus: 'discarded' }),
       row({ matchStatus: 'not_found' }),
+      row({ matchStatus: 'search_failed' }),
     ];
     expect(countUnresolved(rows)).toBe(2);
   });

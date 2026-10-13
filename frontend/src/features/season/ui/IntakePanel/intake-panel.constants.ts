@@ -7,6 +7,7 @@ export const MATCH_STATUS_LABELS: Readonly<Record<string, string>> = {
   ambiguous: 'Ambiguous',
   not_found: 'Not found',
   discarded: 'Discarded',
+  search_failed: 'Search failed',
 };
 
 /** Placeholder for the intake paste textarea. */

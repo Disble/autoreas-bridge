@@ -54,8 +54,14 @@ export const THRESHOLD_MARKER_INK = CHART_INK.muted;
 /** Fixed conveyor order of the watching pipeline stages. */
 export const PIPELINE_KEYS = ['Sin ver', 'Ver hoy', 'Visto'] as const;
 
-/** Fixed workflow order of intake match statuses. */
-export const INTAKE_HEALTH_KEYS = ['pending', 'matched', 'ambiguous', 'not_found', 'discarded'] as const;
+/**
+ * Fixed workflow order of intake match statuses: the two states a row can be
+ * re-attempted from first, then the verdicts, then the state that leaves the
+ * flow. `search_failed` sits next to `pending` because both mean the row was
+ * never classified, and it shares the danger role with `not_found` — the chart
+ * legend is what separates them, since the validated palette has no sixth hue.
+ */
+export const INTAKE_HEALTH_KEYS = ['pending', 'search_failed', 'matched', 'ambiguous', 'not_found', 'discarded'] as const;
 
 /**
  * Fixed bucket order of the selection outcome chart. Each label doubles as its

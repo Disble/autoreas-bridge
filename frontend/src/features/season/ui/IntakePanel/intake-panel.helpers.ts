@@ -1,4 +1,5 @@
 import type { SeasonAnimeCandidate, SeasonAnimeRow, SeasonCreateMetadata } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonMatchingRun } from '../../../../shared/store/season-store/season-store.types';
 import type { AnimeMetadataSelection } from '../../../../shared/metadata-lookup/metadata-lookup.types';
 import { getAnimeTipoLabel } from '../../../../shared/helpers/anime-tipo.helpers';
 import { INTAKE_METADATA_FIELD_LABELS, MATCH_STATUS_LABELS } from './intake-panel.constants';
@@ -44,7 +45,7 @@ export function getMatchStatusLabel(status: string): string {
 
 /**
  * Semantic chip color per match status: matched=success, ambiguous=warning,
- * not_found=danger, everything else neutral.
+ * not_found and search_failed=danger, everything else neutral.
  */
 export function getMatchStatusColor(status: string): IntakeChipColor {
   switch (status) {
@@ -53,6 +54,7 @@ export function getMatchStatusColor(status: string): IntakeChipColor {
     case 'ambiguous':
       return 'warning';
     case 'not_found':
+    case 'search_failed':
       return 'danger';
     default:
       return 'default';
@@ -68,11 +70,39 @@ export function formatCandidateOption(candidate: SeasonAnimeCandidate): string {
 }
 
 /**
+ * Names the in-flight matching run's progress after its current phase, so
+ * the screen never claims to be matching while it is really checking
+ * episodes. Name matching counts against the run total; the availability
+ * check counts resolutions only, since it probes a subset the started event
+ * never totaled.
+ * @param run The ephemeral run state, or null while no run is in flight.
+ * @returns The phase-named progress line, or undefined with no run.
+ */
+export function formatMatchingProgress(run: SeasonMatchingRun | null): string | undefined {
+  if (run === null) {
+    return undefined;
+  }
+  if (run.phase === 'availability_check') {
+    return `Checking episode availability… ${run.resolvedInPhase} checked`;
+  }
+  return `Matching names… ${run.resolvedInPhase} of ${run.total}`;
+}
+
+/**
  * Counts intake rows still needing attention (pending or ambiguous), used to
  * surface how much of the list is unresolved.
  */
 export function countUnresolved(rows: readonly SeasonAnimeRow[]): number {
   return rows.filter((row) => row.matchStatus === 'pending' || row.matchStatus === 'ambiguous').length;
+}
+
+/**
+ * Counts intake rows whose last search failed. A failed search is an adapter
+ * signal, not pending work, so it stays out of `countUnresolved` and gets its
+ * own footer counter instead.
+ */
+export function countSearchFailed(rows: readonly SeasonAnimeRow[]): number {
+  return rows.filter((row) => row.matchStatus === 'search_failed').length;
 }
 
 /**
