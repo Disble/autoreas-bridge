@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/activity"
-	"autoreas-bridge/internal/anime/notice"
+	"autoreas-bridge/internal/anime/lengths"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/watchhistory"
@@ -90,16 +90,15 @@ type EpisodeServiceDeps struct {
 	Watch    WatchRecorder
 	Logger   logger.Logger
 	Now      func() time.Time
-	// Marks answers which rows of a day carry a next episode that runs long. It is optional:
-	// without it every row is simply unmarked, which is the same degradation the download side
-	// takes when its own seam is unwired.
+	// Marks answers which rows of a day carry a next episode that runs long, from stored durations.
+	// It is optional: without it every row is simply unmarked.
 	Marks EpisodeDurationMarks
 }
 
 // EpisodeDurationMarks answers one mark per anime of the day, in the same order as the requests.
-// A nil mark means that anime's next episode is not long.
+// A nil mark means that anime's next episode is not long, or has no stored duration.
 type EpisodeDurationMarks interface {
-	TodayMarks(ctx context.Context, episodes []notice.TodayEpisode) []*notice.Mark
+	TodayMarks(ctx context.Context, episodes []lengths.Request) []*lengths.Mark
 }
 
 // EpisodeScheduleQuery filters episode schedule items by day/section.
@@ -121,10 +120,10 @@ type EpisodeScheduleItem struct {
 	PageURL     string
 	HasCover    bool
 	// LongNextEpisode marks the anime whose next episode runs long: the next episode number and its
-	// measured whole minutes in one value, the mark guarantees that the episode and the minutes travel together or not at all, never that they agree with each other. The coordination fills
-	// it on every read; the folder it was measured from belongs to the user and can change at any
-	// moment. Nil means unmarked, which the contract omits.
-	LongNextEpisode *notice.Mark
+	// stored whole minutes in one value, so the episode and the minutes travel together or not at
+	// all. It is read from the stored durations on every read. Nil means unmarked, which the
+	// contract omits.
+	LongNextEpisode *lengths.Mark
 	LastWatched     *int64
 	FirstWatched    *int64
 }

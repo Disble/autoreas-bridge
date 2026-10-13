@@ -5,7 +5,7 @@ import (
 	"sort"
 
 	"autoreas-bridge/internal/anime/cover"
-	"autoreas-bridge/internal/anime/notice"
+	"autoreas-bridge/internal/anime/lengths"
 	"autoreas-bridge/internal/api/contracts"
 )
 
@@ -19,7 +19,7 @@ func (s *EpisodeService) ListEpisodeSchedule(ctx context.Context, query EpisodeS
 	result := make([]EpisodeScheduleItem, 0, len(items))
 	// One request per row, in the order the rows are built, so the marks can be written back by
 	// position. The type travels here and nowhere else: the read model does not carry it.
-	requests := make([]notice.TodayEpisode, 0, len(items))
+	requests := make([]lengths.Request, 0, len(items))
 	for _, item := range items {
 		if item.Active == 0 {
 			continue
@@ -47,8 +47,8 @@ func (s *EpisodeService) ListEpisodeSchedule(ctx context.Context, query EpisodeS
 			LastWatched:  item.LastWatchedAt,
 			FirstWatched: item.PremieredAt,
 		})
-		requests = append(requests, notice.TodayEpisode{
-			Folder:   legacyStringValue(item.Folder),
+		requests = append(requests, lengths.Request{
+			AnimeID:  item.ID,
 			Kind:     item.Kind,
 			Progress: item.EpisodesWatched,
 		})
@@ -65,12 +65,12 @@ func (s *EpisodeService) ListEpisodeSchedule(ctx context.Context, query EpisodeS
 	return result, nil
 }
 
-// applyLongEpisodeMarks asks the duration coordination which rows carry a next episode that runs
-// long, and records the answer on the read model.
+// applyLongEpisodeMarks asks the stored durations which rows carry a next episode that runs long,
+// and records the answer on the read model.
 //
-// The coordination is optional and answers exactly one mark per request, in the same order. Every row
-// is recomputed on every call, because the folder belongs to the user and can change at any moment.
-func (s *EpisodeService) applyLongEpisodeMarks(ctx context.Context, items []EpisodeScheduleItem, requests []notice.TodayEpisode) {
+// The marks source is optional and answers exactly one mark per request, in the same order. It reads
+// stored durations only, so opening Today never reads a folder or measures a file (analysis D7).
+func (s *EpisodeService) applyLongEpisodeMarks(ctx context.Context, items []EpisodeScheduleItem, requests []lengths.Request) {
 	if s.marks == nil {
 		return
 	}

@@ -3,8 +3,8 @@
 // It decides when an episode is worth measuring and what to do with the answer, and it owns no rule
 // of its own: the duration rule lives in internal/anime/duration, the folder reading in
 // internal/anime/media, and the delivery in internal/notification. Everything it does is triggered
-// from outside — a download that completes, a screen that opens — and nothing is remembered between
-// triggers, because the folder belongs to the user and can change at any moment.
+// from outside by a download that completes. Today's marks are not computed here: they are read from
+// stored durations through internal/anime/lengths.
 package notice
 
 import (
@@ -16,14 +16,16 @@ import (
 
 	"autoreas-bridge/internal/anime/duration"
 	"autoreas-bridge/internal/anime/identity"
+	"autoreas-bridge/internal/anime/lengths"
 	"autoreas-bridge/internal/anime/media"
 	"autoreas-bridge/internal/notification"
 )
 
 // TVKind is the stored anime type meaning "Anime (TV)". Every other value, including no stored value
 // at all, stays silent: an anime whose type is unknown could be a movie, and announcing a movie as a
-// long episode is worse than saying nothing.
-const TVKind = 0
+// long episode is worse than saying nothing. It is the read model's own value, so the notice and the
+// Today mark agree on which anime can run long.
+const TVKind = lengths.TVKind
 
 // KindEpisodeLong names this notice within the anime source.
 const KindEpisodeLong = "anime.episode_long"
@@ -42,14 +44,13 @@ type Prober interface {
 	Probe(ctx context.Context, path string) (time.Duration, error)
 }
 
-// Coordinator turns one episode that just landed, and one day of Today, into at most one notice and
-// one mark per anime.
+// Coordinator turns one episode that just landed into at most one notice, and offers its reading to
+// the recorder.
 type Coordinator struct {
-	inventory  *media.Inventory
-	identifier identity.Identifier
-	assigner   identity.Assigner
-	prober     Prober
-	notifier   notification.Notifier
+	inventory *media.Inventory
+	assigner  identity.Assigner
+	prober    Prober
+	notifier  notification.Notifier
 	// recorder stores the landed reading as episode data; nil stores nothing (see WithRecorder).
 	recorder Recorder
 }
@@ -57,7 +58,7 @@ type Coordinator struct {
 // New returns a Coordinator that reads folders with inventory, decides with the identity algorithm,
 // measures with prober and delivers with notifier.
 func New(inventory *media.Inventory, prober Prober, notifier notification.Notifier) *Coordinator {
-	return &Coordinator{inventory: inventory, identifier: identity.New(), assigner: identity.NewAssigner(), prober: prober, notifier: notifier}
+	return &Coordinator{inventory: inventory, assigner: identity.NewAssigner(), prober: prober, notifier: notifier}
 }
 
 // EpisodeLanded reports one episode that just landed in folder, for the anime whose stored type is
@@ -167,8 +168,8 @@ func (c *Coordinator) notify(ctx context.Context, episode int, animeID, animeNam
 	})
 }
 
-// minutes rounds one measured runtime to the nearest whole minute, which is the only precision a
-// notice needs.
+// minutes rounds one measured runtime to the nearest whole minute with the read model's rounding, so
+// the notice and the Today mark show the same minutes for the same episode.
 func minutes(runtime time.Duration) int64 {
-	return int64(runtime.Round(time.Minute) / time.Minute)
+	return int64(lengths.WholeMinutes(runtime))
 }

@@ -11,6 +11,7 @@ import (
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/anime/duration/probe"
 	"autoreas-bridge/internal/anime/episodes"
+	"autoreas-bridge/internal/anime/lengths"
 	"autoreas-bridge/internal/anime/media"
 	"autoreas-bridge/internal/anime/notice"
 	"autoreas-bridge/internal/download/config"
@@ -25,7 +26,7 @@ func TestToEpisodeScheduleContractsCarriesTheMark(t *testing.T) {
 	t.Parallel()
 
 	marked := anime.EpisodeScheduleItem{AnimeID: "marked", AnimeName: "Marked",
-		LongNextEpisode: &notice.Mark{Episode: 7, Minutes: 45}}
+		LongNextEpisode: &lengths.Mark{Episode: 7, Minutes: 45}}
 	unmarked := anime.EpisodeScheduleItem{AnimeID: "plain", AnimeName: "Plain"}
 
 	got := toEpisodeScheduleContracts([]anime.EpisodeScheduleItem{marked, unmarked})

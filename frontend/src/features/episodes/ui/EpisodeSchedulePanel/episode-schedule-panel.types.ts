@@ -32,15 +32,15 @@ export interface EpisodeScheduleSource {
 }
 
 /**
- * One Today mark: the NEXT episode number and its measured runtime in whole
+ * One Today mark: the NEXT episode number and its stored runtime in whole
  * minutes, in one value so the two facts cannot disagree. Absent means the
  * row is unmarked and carries no chip; nil is omitted on the wire for the
  * same reason. Mirrors the generated `LongEpisodeMark` contract.
  */
 export interface LongEpisodeMark {
-  /** The NEXT episode number, taken from the identity selection, never from progress arithmetic. */
+  /** The NEXT episode number: watched progress + 1, looked up in the stored durations. */
   readonly episode: number;
-  /** The measured runtime in whole minutes. */
+  /** The stored runtime in whole minutes. */
   readonly minutes: number;
 }
 

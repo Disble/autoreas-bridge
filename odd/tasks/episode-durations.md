@@ -72,7 +72,7 @@ production, tests and docs.
 | ODD 1 | **Storage.** `internal/anime/episodes` (or equivalent) package: schema descriptor, store with the S3/S6 write rules (insert-if-absent, manual upsert, measured upsert skipping manual, delete), `durations_pending_announce` written in the same transaction, backup group with footprint test, `checkarchitecture` ownership rule. | S2–S6, S13 (table) | none | delegated, parallel with ODD 2 (writer trigger a) | ~400 (actual well above: package, failure tests, plus the L7 transaction extension) | High: item 1 (new persisted data and backup format). Independent verifier: PASS. | done (L8) | see L8 |
 | ODD 2 | **Identity, whole folder.** New exported function returning every confidently assigned `(episode, basename)` plus skipped files with their reason (fractional, duplicate, ambiguity, unreadable). Parity with existing `Identify` decisions. | S5, S10 (re-analysis input) | none | delegated, parallel with ODD 1 (writer trigger a) | ~250 (actual +256/−29) | Item 6 guarded by parity tests; medium | done: `identity.Assigner` (`Assign(Request) Assignment`); TestParity dev 16/16 and supplemental 4/4 unchanged; ditto 3/3 killed (1.00) after a real gap at `diagnostics.go:53` was closed | `9663f03e` |
 | ODD 3 | **Measurement.** Download landed writes the reading (insert-if-absent). Background backfill with the three S7 triggers, single-flight with one queued repeat, active anime only, confidence gate, all anime types. | S6, S7, S9 | ODD 1, ODD 2 | inline | ~450 | High: item 4 (concurrency of the backfill). Independent verifier. | done (ditto 60/60; verifier PASS, L10) | see L10 |
-| ODD 4 | **Shared read model and Today.** Pure `EpisodeLengths` and `LongNextEpisode` in the anime context; Today's binding reads the table in one query; remove TodayMarks probing. Today output unchanged (regression tests on `LongNextEpisode`). | S1, S8, S9 | ODD 1, ODD 3 | inline | ~300 (net, includes removals) | Item 3 (Wails contract kept identical); medium | pending | — |
+| ODD 4 | **Shared read model and Today.** Pure `EpisodeLengths` and `LongNextEpisode` in the anime context; Today's binding reads the table in one query; remove TodayMarks probing. Today output unchanged (regression tests on `LongNextEpisode`). | S1, S8, S9 | ODD 1, ODD 3 | inline | ~300 (net, includes removals) | Item 3 (Wails contract kept identical); medium | done (ditto 27/27, L11) | see L11 |
 | ODD 5 | **Sync to Mobile.** Announcer and `episode.durations_changed`; changelog-recorder and WebSocket-hub subscriptions; serve-time join in `toAnimeChanges` and `GET /api/animes` through `EpisodeLengths`; guard tests (anime edit unchanged, duration save publishes no `AnimeChangedEvent`, `modified_at` unchanged); `docs/openapi.yaml`. | S11–S14 | ODD 1, ODD 4 | inline | ~450 | High: items 3 and 4 (contract Mobile consumes, event ordering). Independent verifier. | pending | — |
 | ODD 6a | **Editor backend.** Wails bindings: list rows (stored plus derived "Not measured"), edit, Add episode, Clear, re-analysis preview, and confirm (manual kept). Writes go through the ODD 1 store, so they mark pending. Folder change triggers the S7 backfill. | S10 | ODD 1, ODD 2, ODD 3 | inline, or parallel with ODD 4–5 (disjoint surface) | ~400 | Item 3 (new bindings only, additive); medium | pending | — |
 | ODD 6b | **Editor UI.** "Episodes" accordion per the approved guide; `AirisEmptyState` `inline` size with a layout fixture; skeleton/empty/alert states; hooks with colocated tests; progressive list rule. | S10 | ODD 6a | inline | ~800 (frontend, split into two commits) | Item 6 covered by Vitest and the layout fixture; medium | pending | — |
@@ -166,4 +166,21 @@ parallel with ODD 4–5 on a disjoint edit surface; ODD 6b follows 6a.
     - The landed probe also runs for non-TV episodes, as S6 intends.
   - **Verifier lesson:** the run took 3 hours because it had no per-command limit. Future verifiers get
     `go test -timeout 60s` and `timeout 10m` per command.
-- **Next step:** ODD 4 (shared read model, Today reads the table).
+- **L11 (2026-10-13):** ODD 4 evidence (route: inline).
+  - **New package `internal/anime/lengths`:**
+    - pure `EpisodeLengths` and `LongNextEpisode`, plus `WholeMinutes`;
+    - `TVKind`, now the single home of the TV rule (`notice.TVKind` aliases it, and the notice rounds minutes with
+      `WholeMinutes`);
+    - `Today`, the adapter that reads the day in one `ByAnimeIDs` query.
+  - **Today reads only the table.** `notice/today.go` (folder, identity, ffprobe) is removed. The desktop wires Marks
+    only when a bridge DB exists. The Wails contract (`EpisodeScheduleItem.longNextEpisode`) is unchanged.
+  - **Tests:**
+    - Ported cases: long, ordinary, short, not TV, no type, order kept per row.
+    - New cases: lookup by number, fractional progress, the 30 min boundary, a failed read leaves every row unmarked,
+      an empty day reads nothing, and a real-SQLite store read.
+    - D7 guard: a long file in the folder with no stored row gives no mark.
+  - **Checks:**
+    - `go build ./...` passes.
+    - Tests in anime, desktop and download all pass.
+    - Ditto on `lengths`: 27/27 after one kill (the stored TV type `0` pinned as data).
+- **Next step:** ODD 5 (sync: pending announcer, `episode.durations_changed`, `MobileAnime.episodes`, openapi).
