@@ -128,3 +128,14 @@ and candidate validation. Per the current policy these are resolved retrospectiv
 it is operational, not by blocking this change. Explicitly not verified anywhere: a real Wails run, a live site
 request, whole-tree Fallow cleanliness, and the production build smokes on the current tip. Its tier audit also
 corrected this record, see the table above.
+
+**L9** (delivery): the owner validated it working in the real application before authorizing delivery. The run
+completed, the rows carried their per-row verdict and episode count with no manual reload, the availability phase
+populated the episodes, the available-to-create notice fired with its own rows, and the footer's derived counters
+matched what was on screen. The Ranma 1/2 row resolved to ambiguous with its single 82 percent candidate, which is
+the designed outcome for a title jkanime spells with the half glyph, not an accident. That closes the real-Wails-run
+item on L8's not-verified list, on the owner's observation rather than on a command of ours. Delivered to dev as
+ef6baa74, a real merge commit whose whole-tree gate ran 208.11 seconds with every job green and none skipped. Still
+unverified, exactly as L8 records: a live site request, whole-tree Fallow cleanliness, the production build smokes on
+this tip, and the mutation evidence for the new frontend CORE surface, which stays open for retrospective resolution.
+The branch fix/season-matching-resilience is delivered, and nothing is pushed.
