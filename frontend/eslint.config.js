@@ -16,7 +16,7 @@ import tsParser from '@typescript-eslint/parser';
 import reactDoctor from 'eslint-plugin-react-doctor';
 // dharness:eslint-import begin — rewritten by `dharness sync`; edits here are lost.
 import dharnessPlugin from "dharness-eslint-plugin";
-import dharnessLayer from "../.dharness/eslint.config.js";
+import dharnessLayer from "../.dharness/eslint.config.mjs";
 // dharness:eslint-import end
 
 export default [

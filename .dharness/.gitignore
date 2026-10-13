@@ -8,3 +8,4 @@
 !rules.json
 !evidence.json
 !eslint.config.js
+!eslint.config.mjs

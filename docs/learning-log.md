@@ -299,3 +299,9 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-10-12]: ffprobe costs 64-86 ms per file and the cost is PROCESS CREATION, not reading: it is flat across a 4.5 GB folder, the OS file cache barely helps, and ffprobe refuses more than one input per invocation. Parallel probing beats caching: no state, no key, no lifetime, no per-episode record.
 - [2026-10-12]: A component that lives only in my own documentation is not a requirement until the user accepts it or a measurement demands it. See docs/episode-duration-notice-scope.md section 11.
 - [2026-10-12]: On Windows a command line caps near 32 KiB. The gofmt gate handed all 797 Go paths to one invocation and reached 32770 characters, so it failed with 'The filename or extension is too long' and blocked every commit while checking nothing. Batch the argument list.
+- [2026-10-12]: Keep targeted staged mutation in development while moving automatic audits to CI; offloading enforcement must retain dependency guards, strict findings and failed-run reports.
+- [2026-10-12]: Bun on Windows installs .exe binary shims; preflight checks must recognize them and reject package-only installations instead of silently skipping staged lint.
+- [2026-10-13]: A conflicting stash apply can stage restored changes even when the original index was empty; preserve both sides, keep the stash and restore the index without changing working files.
+- [2026-10-13]: Use observable UI/state waits and React-wrapped interactions instead of guessed settling passes; a passing gate does not prove timeout root cause or permanent flake elimination.
+- [2026-10-13]: A passing merge gate does not prove staged quality; config must be coherent in the index, and --no-auto-install does not prevent tool registry resolution.
+- [2026-10-13]: A genuine responsibility split can retain above-threshold private-helper complexity: verify native Fallow findings, not only exported functions or a passing ESLint run.

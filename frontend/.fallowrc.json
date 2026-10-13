@@ -5,6 +5,10 @@
   // reference so `dharness sync` can rewrite them without touching this file.
   "extends": ["../.dharness/fallow.jsonc"],
   "entry": [
+    // Explicit tooling entries: the audit config and node-project script suites.
+    "stryker.audit.config.mjs",
+    "scripts/__tests__/check-staged-quality.test.mjs",
+    "scripts/__tests__/summarize-mutation-audit.test.mjs",
     "src/main.{ts,tsx,js,jsx}",
     "src/test/setup.ts",
     // Vitest discovers this ESM script test, but Fallow does not infer it as

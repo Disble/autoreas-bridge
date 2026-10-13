@@ -1,5 +1,6 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { HISTORY_FILTER_BAR_RANGE_ARIA_LABEL } from '../history-filter-bar.constants';
 import { HistoryFilterBar } from '../HistoryFilterBar';
 import type { HistoryDateRange, HistoryFilterBarProps } from '../history-filter-bar.types';
 
@@ -95,15 +96,23 @@ describe('HistoryFilterBar', () => {
 
   describe('watched range', () => {
     /**
+     * Finds the range trigger inside its own bar by accessible name, so the
+     * lookup stays scoped to this widget instead of scanning the document.
+     * @param container The rendered bar's container.
+     * @returns The range trigger button.
+     */
+    function rangeTrigger(container: HTMLElement): HTMLElement {
+      return within(container).getByRole('button', {
+        name: (accessibleName) => accessibleName.startsWith(HISTORY_FILTER_BAR_RANGE_ARIA_LABEL),
+      });
+    }
+
+    /**
      * Opens the range calendar from its trigger.
      * @param container The rendered bar's container.
      */
     function openCalendar(container: HTMLElement): void {
-      const trigger = container.querySelector('button[data-slot="date-range-picker-trigger"]');
-      if (trigger === null) {
-        throw new Error('range trigger not rendered');
-      }
-      fireEvent.click(trigger);
+      fireEvent.click(rangeTrigger(container));
     }
 
     it.each<[string, HistoryDateRange | undefined, string]>([
@@ -112,7 +121,7 @@ describe('HistoryFilterBar', () => {
     ])('shows %s on the trigger', (_case, range, expected) => {
       const { container } = render(<HistoryFilterBar {...props({ range })} />);
 
-      expect(container.querySelector('button[data-slot="date-range-picker-trigger"]')).toHaveTextContent(expected);
+      expect(rangeTrigger(container)).toHaveTextContent(expected);
     });
 
     it('reports a calendar pick as one complete {from, to} write', () => {

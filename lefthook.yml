@@ -1,173 +1,28 @@
-# Pre-commit gate.
-#
-# ── Concurrency budget ───────────────────────────────────────────────────────
-# Go tools default their internal parallelism to the logical CPU count (20 on
-# the reference machine: i7-12700K, 12 cores / 20 threads). Under the previous
-# flat `parallel: true` across 14 jobs, `go vet ./...`, `go test ./...` and two
-# golangci-lint passes EACH claimed all 20 threads at the same time — 60+
-# CPU-bound threads on a 20-thread box. Nothing was left to redraw the desktop,
-# so the machine appeared frozen until the gate finished. Measured proof from
-# that era: `frontend-filesize-warning`, a script that only reads file lengths,
-# took 34s because it never got scheduled.
-#
-# The shape below is: one parallel group of cheap checks, plus exactly two
-# piped lanes for the genuinely expensive work. Peak is ~2 heavy tools x 4
-# threads, leaving most of the machine responsive. Every Go job pins `-p`
-# (package build/test parallelism) and GOMAXPROCS to 4.
-#
-# Do not restore a flat `parallel: true`, do not remove the `-p=4` / GOMAXPROCS
-# pins, and do not move a cheap job into a piped lane — serialising cheap work
-# behind vitest cost 110s in testing for no benefit.
-# See docs/pre-commit-performance.md for the before/after measurements.
-#
-# ── Job selection ────────────────────────────────────────────────────────────
-# Jobs are globbed to the files they actually judge. A docs-only commit no
-# longer compiles and tests the whole Go module, and a Go-only commit no longer
-# runs vitest. This does not weaken the gate: unchanged Go source cannot change
-# the Go verdict. Keep the glob lists in sync when a checker gains a new input.
-#
-# Job ORDER inside `quick` is asserted by tools/checkgofilesize/hook_order_test.go
-# and repository_policy_test.go, which flatten these groups: gofmt runs
-# immediately before go-filesize and go-filesize before golangci-lint, so the
-# cheapest signal always lands first.
-#
-# ── What dharness owns ───────────────────────────────────────────────────────
-# The `dharness` command merged in from .dharness/lefthook.yml runs react-doctor
-# over the staged change and then fallow. Three jobs were removed on 2026-08-11
-# because they duplicated it: frontend-filesize-warning, frontend-fallow and
-# frontend-fallow-dupes. `bun --cwd="frontend" run filesize:warning` still
-# exists as a manual command; it is simply no longer part of the gate.
-#
-# Note what did NOT survive the swap: frontend-fallow-dupes ran
-# `fallow dupes --fail-on-regression --tolerance 0` against
-# .fallow/baselines/dupes.json. `dharness check` runs `fallow audit`, which
-# reads audit.dupesBaseline but is not the same zero-tolerance regression gate.
-# Duplication regressions are now reported, not blocked.
-
-extends:
-  - .dharness/lefthook.yml
-
-# -- pre-merge-commit ---------------------------------------------------------
-# A merge commit does NOT run pre-commit. Git runs `pre-merge-commit` instead,
-# and until 2026-09-02 nothing was installed there, so every merge landed
-# unchecked. That is the one place two independently green branches produce a
-# broken tree: a changed signature on one side and a new caller on the other
-# each pass their own gate and only fail together. Measured on the
-# internal/desktop migration -- merging dev put 104 moved files against three
-# refactored `internal/` signatures, and nothing automated would have looked.
-#
-# This gate asks a DIFFERENT question from pre-commit. pre-commit judges a diff
-# and scopes most jobs to `{staged_files}`; a merge produces a tree. So every
-# job here is whole-tree and none is globbed -- a glob would compare against a
-# merge's own (empty) file list and skip.
-#
-# Two pre-commit jobs are deliberately absent. `frontend-lint` lints
-# `{staged_files}` because JSDoc adoption is incremental by construction (390
-# findings tree-wide, measured 2026-08-13), so a whole-tree run would fail every
-# merge and get removed within a week. `frontend-mutation` measures staged
-# lines, and a merge contributes none of its own.
-#
-# A fast-forward merge writes no commit and runs no hook. Nothing to check: the
-# commits it moves already passed pre-commit individually, and no new tree
-# exists.
-#
-# Git's hook-bypass flag skips this like any other hook. Reach for it only when
-# the merge is already known-good and re-proving it is pure cost, never to get
-# past a red job.
-pre-merge-commit:
-  parallel: true
-  jobs:
-    # Same three-lane shape as pre-commit so a failure reads the same way.
-    - name: quick
-      group:
-        parallel: true
-        jobs:
-          - name: gofmt
-            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
-            run: go run ./tools/checkgofmt
-
-          - name: go-filesize
-            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
-            run: go run ./tools/checkgofilesize
-
-          - name: architecture
-            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
-            run: go run ./tools/checkarchitecture
-
-          # -Profile all, not a bare `golangci-lint run`: the gate carries two
-          # profiles and the second (.golangci.dlinter.yml, custom-built) is the
-          # one holding revive. A bare run exercises only the first and reports
-          # clean -- it hid 36 findings once already.
-          - name: golangci-lint
-            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
-            run: powershell -ExecutionPolicy Bypass -File scripts/lint.ps1 -Profile all
-
-          # Cross-file pairings a merge can break without either side noticing:
-          # the OpenAPI contract against the router and the icons against their
-          # master.
-          - name: openapi
-            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
-            run: go run ./tools/checkopenapi
-
-          - name: app-icons
-            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
-            run: go run ./tools/genicons -check
-
-
-          - name: frontend-typecheck
-            run: bun --cwd="frontend" run typecheck
-
-    - name: go-heavy
-      group:
-        piped: true
-        jobs:
-          - name: go-vet
-            env: {GOMAXPROCS: "4"}
-            run: go vet -p 4 ./...
-
-          - name: go-cover
-            env: {GOMAXPROCS: "4"}
-            run: go test ./... -cover -p 4 -parallel 4
-
-    - name: frontend-heavy
-      group:
-        piped: true
-        jobs:
-          - name: frontend-test
-            run: bun --cwd="frontend" run test
-
-          # Both branches can pass jsdom and still merge into a blank window:
-          # these two mount the real production bundle in headless Edge.
-          - name: frontend-render-smoke
-            run: bun --cwd="frontend" run render:smoke
-
-          - name: frontend-layout-smoke
-            run: bun --cwd="frontend" run layout:smoke
+# Local checks share commands and per-process Go limits, not scope.
+# Keep cheap checks parallel and heavy work in two sequential lanes.
+# No automatic hook inheritance: dharness check is explicit in frontend-heavy.
+# Generated ESLint/Fallow config still comes from .dharness/.
+# Mutation is a development command and a daily/manual CI audit, not a local gate.
 
 pre-commit:
   parallel: true
   jobs:
-    # Cheap checks — seconds each, safe to run together.
     - name: quick
       group:
         parallel: true
         jobs:
           - name: gofmt
             glob: "*.go"
-            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
-            run: go run ./tools/checkgofmt
-
+            env: &go-limits {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
+            run: &gofmt go run ./tools/checkgofmt
           - name: go-filesize
             glob: "*.go"
-            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
-            run: go run ./tools/checkgofilesize
-
+            env: *go-limits
+            run: &go-filesize go run ./tools/checkgofilesize
           - name: architecture
             glob: "*.go"
-            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
-            run: go run ./tools/checkarchitecture
-
-          # ~2s now that scripts/lint.ps1 caches both linter binaries.
+            env: *go-limits
+            run: &architecture go run ./tools/checkarchitecture
           - name: golangci-lint
             glob:
               - "*.go"
@@ -178,120 +33,106 @@ pre-commit:
               - ".custom-gcl.yml"
               - "lefthook.yml"
               - "scripts/lint.ps1"
-            env: {GOMAXPROCS: "4"}
-            run: powershell -ExecutionPolicy Bypass -File scripts/lint.ps1 -Profile all
-
-          # The .ico files are generated, never hand-edited. This is what stops
-          # them drifting off build/appicon.png the way resources/tray-icon.ico
-          # did, which kept the pre-rebrand artwork for months without failing
-          # anything.
+            env: *go-limits
+            run: &golangci-lint powershell -ExecutionPolicy Bypass -File scripts/lint.ps1 -Profile all
           - name: app-icons
             glob:
               - "build/appicon.png"
               - "build/windows/icon.ico"
               - "internal/tray/tray-icon.ico"
               - "tools/genicons/**"
-            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
-            run: go run ./tools/genicons -check
-
-
+            env: *go-limits
+            run: &app-icons go run ./tools/genicons -check
           - name: openapi
             glob:
               - "*.go"
               - "docs/openapi.yaml"
-            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
-            run: go run ./tools/checkopenapi
+            env: *go-limits
+            run: &openapi go run ./tools/checkopenapi
 
-          - name: frontend-lint
-            run: bun x eslint {staged_files}
-            root: frontend
-            glob: "**/*.{js,cjs,mjs,ts,tsx,mts,cts}"
-
-    # Heavy lane 1: the Go module. Piped so vet and the test run never overlap.
     - name: go-heavy
       glob:
         - "*.go"
         - "go.mod"
         - "go.sum"
-        # Changing the gate itself re-proves the gate.
         - "lefthook.yml"
         - "scripts/lint.ps1"
       group:
         piped: true
         jobs:
           - name: go-vet
-            env: {GOMAXPROCS: "4"}
-            run: go vet -p 4 ./...
-
+            env: *go-limits
+            run: &go-vet go vet -p 4 ./...
           - name: go-cover
-            env: {GOMAXPROCS: "4"}
-            run: go test ./... -cover -p 4 -parallel 4
+            env: *go-limits
+            run: &go-cover go test ./... -cover -p 4 -parallel 4
 
-    # Heavy lane 2: the frontend suite. Runs concurrently with lane 1.
     - name: frontend-heavy
       glob:
         - "frontend/**"
-        # Changing the gate itself re-proves the gate.
+        - ".dharness/**"
         - "lefthook.yml"
       group:
         piped: true
         jobs:
-          # Moved out of `quick` on 2026-09-11. `tsc` is a 25-second
-          # single-threaded CPU job, not a cheap check, and sitting in `quick`
-          # it ran head-to-head with vitest -- which schedules its HEAVIEST
-          # files FIRST, because Vitest sorts by cached duration. The two
-          # *.windowing.test.tsx rails measure 454ms standalone (the whole
-          # 2525-test suite's slowest test is 1088ms) yet inflated to
-          # 5711-6099ms in that window, blowing Vitest's 5s per-test budget on
-          # three consecutive commit attempts while passing standalone every
-          # time, each attempt taking a different victim from the same burst.
-          #
-          # Raising the budget is not available, and should not be: both the
-          # global and the per-test escape are `no-restricted-syntax` errors in
-          # frontend/eslint.config.js, which names contention as a root cause
-          # to FIX rather than absorb. deps.optimizer and plugin scoping, the
-          # other two fixes that rule prescribes, were already in place.
-          #
-          # Piped first, so the cheapest signal still lands before the 81s
-          # suite. Costs the gate ~20s of critical path and buys a gate that
-          # does not fail on contention -- the same trade the `maxWorkers` cap
-          # in frontend/vite.config.ts already made for the same reason.
-          # pre-merge-commit still has tsc in `quick`; it is rarer and was not
-          # measured here.
+          - name: frontend-quality
+            run: bun --cwd="frontend" run check:staged
           - name: frontend-typecheck
-            run: bun --cwd="frontend" run typecheck
-
+            run: &frontend-typecheck bun --cwd="frontend" run typecheck
           - name: frontend-test
-            run: bun --cwd="frontend" run test
-
-          # Renders the real production bundle in headless Edge (the same
-          # Chromium engine WebView2 runs) and fails if the app paints nothing.
-          # Every other frontend job runs source through Vite in jsdom, so a
-          # blank window ships green -- 1.2.0 did exactly that.
+            run: &frontend-test bun --cwd="frontend" run test
           - name: frontend-render-smoke
-            run: bun --cwd="frontend" run render:smoke
-
-          # Mounts the real notification toast in the same headless browser and
-          # fails when its BOXES are wrong. render-smoke above proves the app
-          # paints; this proves what it paints is not overflowing. jsdom has no
-          # layout engine, so a title that ran off the toast and buttons that
-          # took half the card both shipped through a fully green suite.
+            run: &frontend-render-smoke bun --cwd="frontend" run render:smoke
           - name: frontend-layout-smoke
-            run: bun --cwd="frontend" run layout:smoke
+            run: &frontend-layout-smoke bun --cwd="frontend" run layout:smoke
 
-          # Runs upstream dharness's own staged-scope mutation check, which
-          # reads the git index directly instead of a `{staged_files}`
-          # substitution -- the previous hand-rolled script resolved
-          # `--show-toplevel` to `frontend/` inside a linked worktree and
-          # silently skipped every production file before the staged runner replaced it.
-          #
-          # The exclusions keep that script's scope, `src/` only. dharness
-          # counts every JS/TS file under frontend/ as source, but the
-          # mutation suite (vitest.mutation.mts) runs only `src/**`
-          # tests, so a staged line in scripts/ or a root config file has no
-          # related test and fails with "No tests were found". Name a new root
-          # config file here exactly; a broad prefix like `vite` would also
-          # hide any future path that happens to start with it.
-          - name: frontend-mutation
-            run: dharness mutate --staged --exclude-prefix src/test/ --exclude-prefix scripts/ --exclude-prefix eslint.config.js --exclude-prefix vite.config.ts --exclude-prefix vite.layout.config.ts --exclude-prefix vitest.mutation.mts --concurrency 4
-            root: frontend
+# A merge judges the whole tree, so no jobs or groups here have file globs.
+# Staged quality is omitted: repository JSDoc adoption is incremental.
+# Typecheck precedes tests in this lane too, avoiding the old merge contention.
+pre-merge-commit:
+  parallel: true
+  jobs:
+    - name: quick
+      group:
+        parallel: true
+        jobs:
+          - name: gofmt
+            env: *go-limits
+            run: *gofmt
+          - name: go-filesize
+            env: *go-limits
+            run: *go-filesize
+          - name: architecture
+            env: *go-limits
+            run: *architecture
+          - name: golangci-lint
+            env: *go-limits
+            run: *golangci-lint
+          - name: openapi
+            env: *go-limits
+            run: *openapi
+          - name: app-icons
+            env: *go-limits
+            run: *app-icons
+    - name: go-heavy
+      group:
+        piped: true
+        jobs:
+          - name: go-vet
+            env: *go-limits
+            run: *go-vet
+          - name: go-cover
+            env: *go-limits
+            run: *go-cover
+    - name: frontend-heavy
+      group:
+        piped: true
+        jobs:
+          - name: frontend-typecheck
+            run: *frontend-typecheck
+          - name: frontend-test
+            run: *frontend-test
+          - name: frontend-render-smoke
+            run: *frontend-render-smoke
+          - name: frontend-layout-smoke
+            run: *frontend-layout-smoke
