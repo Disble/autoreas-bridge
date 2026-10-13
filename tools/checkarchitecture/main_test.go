@@ -7,10 +7,10 @@ import (
 )
 
 // TestRun covers every owned-table boundary rule as one table over run():
-// activity_log and watch_history each rejected outside their owning
-// context and allowed inside it, a comment-only reference still caught by
-// the raw substring scan, the retired legacy boundary, and the
-// generated-file exemption.
+// activity_log, watch_history and the two episode-duration tables each
+// rejected outside their owning context and allowed inside it, a
+// comment-only reference still caught by the raw substring scan, the retired
+// legacy boundary, and the generated-file exemption.
 func TestRun(t *testing.T) {
 	t.Parallel()
 
@@ -67,9 +67,32 @@ func ensureWatchHistoryBackfill() {}
 		},
 		{
 			name: "watch_history reference inside watchhistory context is allowed",
-			path: "internal/watchhistory/store.go",
+			path: "internal/watchhistory/store_page.go",
 			content: `package watchhistory
 const query = "INSERT INTO watch_history DEFAULT VALUES"
+`,
+		},
+		{
+			name: "anime_episode_durations reference outside episodes context is rejected",
+			path: "internal/anime/notice/today.go",
+			content: `package notice
+const query = "SELECT duration_ms FROM anime_episode_durations"
+`,
+			wantErr: true,
+		},
+		{
+			name: "durations_pending_announce reference outside episodes context is rejected",
+			path: "internal/sync/changelog_recorder.go",
+			content: `package sync
+const query = "DELETE FROM durations_pending_announce"
+`,
+			wantErr: true,
+		},
+		{
+			name: "episode duration tables inside episodes context are allowed",
+			path: "internal/anime/episodes/store.go",
+			content: `package episodes
+const query = "INSERT INTO anime_episode_durations DEFAULT VALUES; DELETE FROM durations_pending_announce"
 `,
 		},
 		{
@@ -150,5 +173,32 @@ func writeFile(t *testing.T, root, name, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write file: %v", err)
+	}
+}
+
+// TestIsEpisodesBoundaryFile exercises each of the four OR terms in
+// isolation, including the tools/checkarchitecture self-exemption the checker
+// needs because its own source carries both episode-duration table names.
+func TestIsEpisodesBoundaryFile(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{name: "nested episodes path matches Contains", path: "vendor/internal/anime/episodes/store.go", want: true},
+		{name: "top-level episodes path matches HasPrefix", path: "internal/anime/episodes/store.go", want: true},
+		{name: "nested checkarchitecture path matches Contains", path: "vendor/tools/checkarchitecture/main.go", want: true},
+		{name: "top-level checkarchitecture path matches HasPrefix", path: "tools/checkarchitecture/main.go", want: true},
+		{name: "a sibling anime path matches none of the terms", path: "internal/anime/episode_service.go", want: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := isEpisodesBoundaryFile(tc.path); got != tc.want {
+				t.Fatalf("isEpisodesBoundaryFile(%q) = %v, want %v", tc.path, got, tc.want)
+			}
+		})
 	}
 }

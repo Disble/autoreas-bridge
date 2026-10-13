@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"autoreas-bridge/internal/anime/episodes"
 	"autoreas-bridge/internal/backup"
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/settings"
@@ -38,6 +39,7 @@ func (a *App) importGroups() []backup.ImportGroup {
 		{Name: "seasons", Validate: season.ValidateSeasons(), Import: season.ImportSeasons(a.bridgeDB)},
 		{Name: "season_animes", Validate: season.ValidateSeasonAnimes(), Import: season.ImportSeasonAnimes(a.bridgeDB)},
 		{Name: "watched_episodes", Validate: watchhistory.ValidateWatchHistory(), Import: watchhistory.ImportWatchHistory(a.bridgeDB)},
+		{Name: "episode_durations", Validate: episodes.ValidateEpisodeDurations(), Import: episodes.ImportEpisodeDurations(a.bridgeDB)},
 		{Name: "keyboard_keymap", Validate: settings.ValidateKeymap(), Import: settings.ImportKeymap(a.bridgeDB)},
 	}
 }

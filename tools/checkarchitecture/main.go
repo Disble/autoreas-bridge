@@ -32,6 +32,8 @@ type ownedTableRule struct {
 var ownedTableRules = []ownedTableRule{
 	{literal: "activity_log", isBoundaryFile: isActivityBoundaryFile},
 	{literal: "watch_history", isBoundaryFile: isWatchHistoryBoundaryFile},
+	{literal: "anime_episode_durations", isBoundaryFile: isEpisodesBoundaryFile},
+	{literal: "durations_pending_announce", isBoundaryFile: isEpisodesBoundaryFile},
 }
 
 func main() {
@@ -55,6 +57,7 @@ func runWithArchitectureFS(root string, source architectureFS) error {
 			return err
 		}
 		violations = append(violations, ownedTableViolations(normalized, string(content))...)
+		violations = append(violations, transactionViolations(normalized, string(content))...)
 		return nil
 	})
 	if err != nil {
@@ -107,6 +110,17 @@ func isActivityBoundaryFile(path string) bool {
 func isWatchHistoryBoundaryFile(path string) bool {
 	return strings.Contains(path, "/internal/watchhistory/") ||
 		strings.HasPrefix(path, "internal/watchhistory/") ||
+		strings.Contains(path, "/tools/checkarchitecture/") ||
+		strings.HasPrefix(path, "tools/checkarchitecture/")
+}
+
+// isEpisodesBoundaryFile reports whether access to the episode-duration
+// tables (anime_episode_durations, durations_pending_announce) is allowed by
+// policy. Like watch_history, no sync-bootstrap exception exists: the
+// bootstrap registers both through episodes.SchemaTables().
+func isEpisodesBoundaryFile(path string) bool {
+	return strings.Contains(path, "/internal/anime/episodes/") ||
+		strings.HasPrefix(path, "internal/anime/episodes/") ||
 		strings.Contains(path, "/tools/checkarchitecture/") ||
 		strings.HasPrefix(path, "tools/checkarchitecture/")
 }

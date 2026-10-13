@@ -69,8 +69,8 @@ production, tests and docs.
 
 | ID | Unit | Specs | Depends on | Route | Est. lines | Risk | Status | Commit |
 |---|---|---|---|---|---|---|---|---|
-| ODD 1 | **Storage.** `internal/anime/episodes` (or equivalent) package: schema descriptor, store with the S3/S6 write rules (insert-if-absent, manual upsert, measured upsert skipping manual, delete), `durations_pending_announce` written in the same transaction, backup group with footprint test, `checkarchitecture` ownership rule. | S2–S6, S13 (table) | none | delegated, parallel with ODD 2 (writer trigger a) | ~400 | High: item 1 (new persisted data and backup format). Independent verifier. | pending | — |
-| ODD 2 | **Identity, whole folder.** New exported function returning every confidently assigned `(episode, basename)` plus skipped files with their reason (fractional, duplicate, ambiguity, unreadable). Parity with existing `Identify` decisions. | S5, S10 (re-analysis input) | none | delegated, parallel with ODD 1 (writer trigger a) | ~250 | Item 6 guarded by parity tests; medium | pending | — |
+| ODD 1 | **Storage.** `internal/anime/episodes` (or equivalent) package: schema descriptor, store with the S3/S6 write rules (insert-if-absent, manual upsert, measured upsert skipping manual, delete), `durations_pending_announce` written in the same transaction, backup group with footprint test, `checkarchitecture` ownership rule. | S2–S6, S13 (table) | none | delegated, parallel with ODD 2 (writer trigger a) | ~400 (actual well above: package, failure tests, plus the L7 transaction extension) | High: item 1 (new persisted data and backup format). Independent verifier: PASS. | done (L8) | see L8 |
+| ODD 2 | **Identity, whole folder.** New exported function returning every confidently assigned `(episode, basename)` plus skipped files with their reason (fractional, duplicate, ambiguity, unreadable). Parity with existing `Identify` decisions. | S5, S10 (re-analysis input) | none | delegated, parallel with ODD 1 (writer trigger a) | ~250 (actual +256/−29) | Item 6 guarded by parity tests; medium | done: `identity.Assigner` (`Assign(Request) Assignment`); TestParity dev 16/16 and supplemental 4/4 unchanged; ditto 3/3 killed (1.00) after a real gap at `diagnostics.go:53` was closed | `9663f03e` |
 | ODD 3 | **Measurement.** Download landed writes the reading (insert-if-absent). Background backfill with the three S7 triggers, single-flight with one queued repeat, active anime only, confidence gate, all anime types. | S6, S7, S9 | ODD 1, ODD 2 | inline | ~450 | High: item 4 (concurrency of the backfill). Independent verifier. | pending | — |
 | ODD 4 | **Shared read model and Today.** Pure `EpisodeLengths` and `LongNextEpisode` in the anime context; Today's binding reads the table in one query; remove TodayMarks probing. Today output unchanged (regression tests on `LongNextEpisode`). | S1, S8, S9 | ODD 1, ODD 3 | inline | ~300 (net, includes removals) | Item 3 (Wails contract kept identical); medium | pending | — |
 | ODD 5 | **Sync to Mobile.** Announcer and `episode.durations_changed`; changelog-recorder and WebSocket-hub subscriptions; serve-time join in `toAnimeChanges` and `GET /api/animes` through `EpisodeLengths`; guard tests (anime edit unchanged, duration save publishes no `AnimeChangedEvent`, `modified_at` unchanged); `docs/openapi.yaml`. | S11–S14 | ODD 1, ODD 4 | inline | ~450 | High: items 3 and 4 (contract Mobile consumes, event ordering). Independent verifier. | pending | — |
@@ -103,4 +103,32 @@ parallel with ODD 4–5 on a disjoint edit surface; ODD 6b follows 6a.
   chain strategy for the ~3,050-line forecast, `stacked-to-dev` or `feature-branch-chain`.
 - **L5 (2026-10-13, user, verbatim):** "feature-branch-chain, todo en local, y aprobado." The plan is approved. Each ODD
   closes with local work-unit commits on `feat/episode-durations`; nothing is pushed and no PR is opened.
-- **Next step:** commit the planning docs, then ODD 1 and ODD 2 in parallel.
+- **L6 (2026-10-13):** planning committed as `d77e1f9b`. ODD 1 and ODD 2 ran as parallel writers on disjoint surfaces.
+  ODD 2 design: `Assign` takes the same `Request` as `Identify`, where an empty Context assigns clear numbers only.
+  ODD 3's backfill will pass `Context{}`, because automatic paths never overwrite a stored value. Separate `Assigner`
+  port, so the existing `Identifier` test fakes are untouched. The new kinds `unreadable` and `unnumbered` never appear
+  in `Identify`, guarded by `TestIdentifyNeverEmitsAssignKinds`. The parent updated two desktop tests that pin the
+  backup group list (Five → Six) and fixed staticcheck S1016 in `episodes/backup.go`. That fix was needed because
+  golangci-lint in pre-commit lints the whole tree, including unstaged files.
+- **L7 (2026-10-13):** ODD 1 ditto runs took over an hour. Production opens SQLite with `SetMaxOpenConns(1)`
+  (`sqlite_bootstrap.go:146`), so a mutant that leaves a transaction open blocks every later query in the
+  `database/sql` pool. `busy_timeout` does not help there, and each such mutant hung until go test's 10-minute
+  default. Rerun with `-timeout 30s`: 83 mutants, 81 killed (0.98). The 2 survivors at `store_read.go:28` were sent
+  back to the writer. User, verbatim: "trata de pensar en una solución transversal en lugar de un parche" and
+  "apruebo ese cambio, asegurate que no afecte los procesos en backgrounde de bridge nomás". ODD 1 gains three things:
+  `persistence.InTx`, with an unconditional rollback; a `tools/checkarchitecture` rule forbidding `BeginTx` outside
+  `internal/persistence`, with a no-growth baseline of the 23 existing files (19 production plus 4 `_test.go`; the
+  first count of 20 was wrong); and a `testsupport` SQLite helper that
+  fails on leaked connections. Only `internal/anime/episodes` adopts them now; no existing transaction file is
+  modified. Migrating the 20 baseline files is a separate later unit (high risk: concurrency and data).
+- **L8 (2026-10-13):** ODD 1 closed. Ditto on `internal/anime/episodes` (without `schema.go`, which is
+  INFRASTRUCTURE) plus `internal/persistence/tx.go`: 72 mutants, 72 killed (1.00). The independent verifier returned
+  PASS for S2, S3, S4, S5, S6, the S13 table, the L7 extension and the background-process requirement, with no
+  blockers. Its probes ran on real SQLite through `sync.OpenBridgeDB`. The `sync` and `desktop` suites pass at baseline
+  (721 tests) and staged (722). Advisories carried forward:
+  - **For ODD 5 to decide on purpose:** a backup import fully refreshes durations but marks nothing pending, so Mobile
+    is not told after a restore.
+  - **Rule limits, documented in the code:** it matches the `.Begin(`/`.BeginTx(` substring, cannot tell a `*sql.DB`
+    from other receivers, and misses calls split across lines.
+  - **Footprint markers:** they use byte sums, so two markers could collide in theory.
+- **Next step:** ODD 3 (measurement), which now has both of its dependencies, ODD 1 and ODD 2.

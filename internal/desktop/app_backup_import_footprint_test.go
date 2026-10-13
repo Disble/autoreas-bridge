@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/anime"
+	"autoreas-bridge/internal/anime/episodes"
 	"autoreas-bridge/internal/backup"
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/season/domain"
@@ -26,11 +27,12 @@ import (
 // app.importGroups() with no entry here fails the guard -- proven by
 // TestUndeclaredImportGroupFailsTheFootprintGuard's deliberate inversion.
 var declaredImportGroupFootprints = map[string]string{
-	"anime_snapshots":  "anime_snapshots",
-	"seasons":          "seasons",
-	"season_animes":    "season_animes",
-	"watched_episodes": "watched_episodes",
-	"keyboard_keymap":  "keyboard.keymap",
+	"anime_snapshots":   "anime_snapshots",
+	"seasons":           "seasons",
+	"season_animes":     "season_animes",
+	"watched_episodes":  "watched_episodes",
+	"episode_durations": "episode_durations",
+	"keyboard_keymap":   "keyboard.keymap",
 }
 
 // footprintSnapshot is a comparable dump of every table and app_settings key
@@ -42,6 +44,7 @@ type footprintSnapshot struct {
 	seasons              string
 	seasonAnimes         string
 	watchedEpisodes      string
+	episodeDurations     string
 	settingsExceptKeymap map[string]string
 	keymap               string
 }
@@ -55,6 +58,7 @@ func footprintFields(snap footprintSnapshot) map[string]string {
 		"seasons":                    snap.seasons,
 		"season_animes":              snap.seasonAnimes,
 		"watched_episodes":           snap.watchedEpisodes,
+		"episode_durations":          snap.episodeDurations,
 		"app_settings_except_keymap": encodeSettingsSnapshot(snap.settingsExceptKeymap),
 		"keyboard.keymap":            snap.keymap,
 	}
@@ -135,6 +139,7 @@ func snapshotFootprintState(t *testing.T, db *sql.DB) footprintSnapshot {
 		seasons:              dumpTable(t, db, "seasons"),
 		seasonAnimes:         dumpTable(t, db, "season_animes"),
 		watchedEpisodes:      dumpWatchedEpisodes(t, db),
+		episodeDurations:     dumpEpisodeDurations(t, db),
 		settingsExceptKeymap: snapshotAppSettingsExcludingKeymap(t, db),
 		keymap:               keymap,
 	}
@@ -149,10 +154,10 @@ type footprintFixtureIDs struct {
 }
 
 // seedFootprintFixture creates one row for every import-group footprint --
-// anime_snapshots, seasons, season_animes, watched episodes, and
-// app_settings["keyboard.keymap"] -- all tagged with marker, and returns the
-// season/season-anime ids so a later mutateFootprintFixture
-// call updates these SAME rows rather than adding new ones.
+// anime_snapshots, seasons, season_animes, watched episodes, episode
+// durations, and app_settings["keyboard.keymap"] -- all tagged with
+// marker, and returns the season/season-anime ids so a later
+// mutateFootprintFixture call updates these SAME rows rather than adding new ones.
 func seedFootprintFixture(t *testing.T, db *sql.DB, marker string) footprintFixtureIDs {
 	t.Helper()
 	ctx := context.Background()
@@ -173,6 +178,7 @@ func seedFootprintFixture(t *testing.T, db *sql.DB, marker string) footprintFixt
 	}
 
 	setWatchedEpisodeMarker(t, db, marker)
+	setEpisodeDurationMarker(t, db, marker)
 
 	if err := settings.NewSQLiteStore(db).SetKeymap(ctx, marker); err != nil {
 		t.Fatalf("seed keymap: %v", err)
@@ -234,6 +240,7 @@ func mutateFootprintFixture(t *testing.T, db *sql.DB, ids footprintFixtureIDs, m
 	}
 
 	setWatchedEpisodeMarker(t, db, marker)
+	setEpisodeDurationMarker(t, db, marker)
 
 	if err := settings.NewSQLiteStore(db).SetKeymap(ctx, marker); err != nil {
 		t.Fatalf("mutate keymap: %v", err)
@@ -382,4 +389,35 @@ func TestUndeclaredImportGroupFailsTheFootprintGuard(t *testing.T) {
 	if len(undeclared) != 1 || undeclared[0] != "synthetic_undeclared_group" {
 		t.Fatalf(`expected exactly ["synthetic_undeclared_group"] reported undeclared, got %v`, undeclared)
 	}
+}
+
+// setEpisodeDurationMarker writes the single footprint-owned episode
+// duration (footprint-anime, episode 1) as a manual value derived from
+// marker, so seeding and mutating touch the SAME row. It goes through the
+// owning package's store: tools/checkarchitecture confines the table name
+// to internal/anime/episodes.
+func setEpisodeDurationMarker(t *testing.T, db *sql.DB, marker string) {
+	t.Helper()
+
+	var durationMS int64
+	for _, b := range []byte(marker) {
+		durationMS += int64(b)
+	}
+	store := episodes.NewStore(db, func() time.Time { return time.UnixMilli(1_700_000_000_000) })
+	if err := store.SetManual(context.Background(), "footprint-anime", 1, durationMS); err != nil {
+		t.Fatalf("set episode duration marker: %v", err)
+	}
+}
+
+// dumpEpisodeDurations returns a deterministic dump of every stored episode
+// duration, read through the owning package's exporter for the same
+// boundary reason as setEpisodeDurationMarker.
+func dumpEpisodeDurations(t *testing.T, db *sql.DB) string {
+	t.Helper()
+
+	var sb strings.Builder
+	if _, err := episodes.ExportEpisodeDurations(db)(context.Background(), &sb); err != nil {
+		t.Fatalf("dump episode durations: %v", err)
+	}
+	return sb.String()
 }

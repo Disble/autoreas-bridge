@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"autoreas-bridge/internal/anime/episodes"
 	"autoreas-bridge/internal/backup"
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/settings"
@@ -37,7 +38,8 @@ var errExportBackupUnavailable = errors.New("backup export unavailable: bridge d
 // is not an error.
 //
 // Scope is enforced by exactly which groups are in this slice: only
-// anime_snapshots, seasons, season_animes, watched_episodes, and the
+// anime_snapshots, seasons, season_animes, watched_episodes,
+// episode_durations (never its pending-announcement queue), and the
 // keyboard_keymap group -- the single app_settings["keyboard.keymap"] value,
 // promoted out of the machine-local exclusion below -- are exported. Every
 // other table -- secrets (download_jd_config), every other app_settings key,
@@ -63,6 +65,7 @@ func (a *App) ExportBackup() (BackupExportResult, error) {
 		{Name: "seasons", Export: season.ExportSeasons(a.bridgeDB)},
 		{Name: "season_animes", Export: season.ExportSeasonAnimes(a.bridgeDB)},
 		{Name: "watched_episodes", Export: watchhistory.ExportWatchHistory(a.bridgeDB)},
+		{Name: "episode_durations", Export: episodes.ExportEpisodeDurations(a.bridgeDB)},
 		{Name: "keyboard_keymap", Export: settings.ExportKeymap(a.bridgeDB)},
 	}
 

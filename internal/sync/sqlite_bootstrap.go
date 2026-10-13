@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"autoreas-bridge/internal/activity"
+	"autoreas-bridge/internal/anime/episodes"
 	downloadconfig "autoreas-bridge/internal/download/config"
 	"autoreas-bridge/internal/download/dbschema"
 	"autoreas-bridge/internal/notification/centerschema"
@@ -180,6 +181,7 @@ func initializeBridgeDB(db *sql.DB, dbPath string) error {
 	// would hit "no such table" and D4 would silently warn-log it away.
 	// tasks.md 3.3.3 notes the move.
 	tables = append(tables, watchhistory.SchemaTables()...)
+	tables = append(tables, episodes.SchemaTables()...)
 	for _, t := range tables {
 		if err := persistence.EnsureTableSchema(db, t); err != nil {
 			return err
