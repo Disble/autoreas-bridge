@@ -67,16 +67,18 @@ describe('TransactionPanel virtual window (live rail)', () => {
 
     render(<TransactionPanel source={source} />);
 
-    // One settled pass and a single DOM query: the 150-row page is a
-    // resolved mock, so no polling budget is spent waiting for it.
-    await settleAsyncPasses();
+    // The 150-row page is a resolved mock: wait for the rows themselves,
+    // not an arbitrary microtask budget. The console spy is restored
+    // unconditionally, so a failure here cannot leak it into other tests.
+    try {
+      await screen.findByText('/api/animes/anime-0');
 
-    expect(screen.getByText('/api/animes/anime-0')).toBeInTheDocument();
-    errorSpy.mockRestore();
-
-    // Property 1 — bounded first window. React Aria must not complain about
-    // the spacer rows or window churn.
-    expect(consoleErrors).toEqual([]);
+      // Property 1 — bounded first window. React Aria must not complain about
+      // the spacer rows or window churn.
+      expect(consoleErrors).toEqual([]);
+    } finally {
+      errorSpy.mockRestore();
+    }
     expect(countRenderedRows()).toBeLessThanOrEqual(MOUNTED_ROW_CEILING);
     expect(screen.queryByText(`/api/animes/anime-${LOADED_ROW_COUNT - 1}`)).not.toBeInTheDocument();
 
@@ -156,11 +158,9 @@ describe('TransactionPanel virtual window (live rail)', () => {
 
     render(<TransactionPanel source={source} />);
 
-    // One settled pass and a single DOM query: the 150-row page is a
-    // resolved mock, so no polling budget is spent waiting for it.
-    await settleAsyncPasses();
-
-    expect(screen.getByText('/api/animes/anime-0')).toBeInTheDocument();
+    // The 150-row page is a resolved mock: wait for the rows themselves,
+    // not an arbitrary microtask budget.
+    await screen.findByText('/api/animes/anime-0');
 
     for (let step = 1; step <= 4; step += 1) {
       scrollToOffset(step * 25 * ROW_HEIGHT_PX);
@@ -169,11 +169,9 @@ describe('TransactionPanel virtual window (live rail)', () => {
     expect(countRenderedRows()).toBeLessThanOrEqual(MOUNTED_ROW_CEILING);
 
     // A keystroke lands as a store filter change; the re-render it causes
-    // must not scale with the loaded rows. The query itself now waits for the
-    // app-wide debounce window, so the settled state is one window plus the
-    // async passes. Only the timer pair is faked, and only around the
-    // debounce: promises and microtasks stay real, so the page the settled
-    // query resolves still lands through the usual settles below.
+    // must not scale with the loaded rows. Only the timer pair is faked, and
+    // only around the debounce: the async advance flushes the debounced query
+    // inside act, and the assertion below waits for its real result.
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 
     try {
@@ -181,16 +179,14 @@ describe('TransactionPanel virtual window (live rail)', () => {
         getTransactionStoreState().setFilters({ route: '/api/sync' });
       });
 
-      act(() => {
-        vi.advanceTimersByTime(TRANSACTION_FILTER_DEBOUNCE_MS);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TRANSACTION_FILTER_DEBOUNCE_MS);
       });
     } finally {
       vi.useRealTimers();
     }
 
-    await settleAsyncPasses(2);
-
-    expect(screen.getByText('/api/animes/anime-9000')).toBeInTheDocument();
+    await screen.findByText('/api/animes/anime-9000');
 
     expect(countRenderedRows()).toBeLessThanOrEqual(MOUNTED_ROW_CEILING);
     expect(listTransactions).toHaveBeenLastCalledWith(
@@ -214,18 +210,20 @@ describe('TransactionPanel virtual window (live rail)', () => {
 
     render(<TransactionPanel runtimeSource={runtimeSource} source={source} />);
 
-    // One settled pass and a single DOM query replace findByText polling:
-    // the source is a resolved mock, so the rows are deterministic.
-    await settleAsyncPasses();
-
-    expect(screen.getByText('/api/animes/anime-0')).toBeInTheDocument();
+    // The source is a resolved mock: wait for the rows themselves, not an
+    // arbitrary microtask budget.
+    await screen.findByText('/api/animes/anime-0');
 
     const geometry = scrollToOffset(800);
 
-    screen.getByText('/api/animes/anime-22').closest('tr')?.click();
-    await settleAsyncPasses();
-
-    expect(getTransactionStoreState().selectedId).toBe('req-22');
+    const selectedRow = screen.getByText('/api/animes/anime-22').closest('tr');
+    if (selectedRow === null) {
+      throw new Error('expected the scrolled window to mount row anime-22');
+    }
+    fireEvent.click(selectedRow);
+    await waitFor(() => {
+      expect(getTransactionStoreState().selectedId).toBe('req-22');
+    });
 
     const before = renderedRoutes();
 
@@ -266,7 +264,11 @@ describe('TransactionPanel virtual window (live rail)', () => {
 
     // req-3 and req-5 both sit inside the at-rest window, so no scroll is
     // needed: the delta updates the row in place.
-    screen.getByText('/api/animes/anime-3').closest('tr')?.click();
+    const targetRow = screen.getByText('/api/animes/anime-3').closest('tr');
+    if (targetRow === null) {
+      throw new Error('expected the at-rest window to mount row anime-3');
+    }
+    fireEvent.click(targetRow);
     await waitFor(() => {
       expect(getTransactionStoreState().selectedId).toBe('req-3');
     });
@@ -301,7 +303,11 @@ describe('TransactionPanel virtual window (live rail)', () => {
 
     await screen.findByText('/api/animes/anime-0');
 
-    screen.getByText('/api/animes/anime-5').closest('tr')?.click();
+    const doomedRow = screen.getByText('/api/animes/anime-5').closest('tr');
+    if (doomedRow === null) {
+      throw new Error('expected the at-rest window to mount row anime-5');
+    }
+    fireEvent.click(doomedRow);
     await waitFor(() => {
       expect(getTransactionStoreState().selectedId).toBe('req-5');
     });

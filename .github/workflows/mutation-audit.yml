@@ -1,0 +1,85 @@
+# Install this workflow on the default branch to enable schedule/dispatch.
+# The audited bytes are always dev, not the default branch's GITHUB_SHA.
+name: Mutation audit
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # Daily at 03:00 UTC; GitHub may delay scheduled jobs.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mutation-audit-dev
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  BUN_VERSION: "1.3.11"
+
+jobs:
+  audit:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - name: Check out the audited branch
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: dev
+          persist-credentials: false
+
+      - name: Set up Go for fresh Wails bindings
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up the locked Bun version
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install the Wails CLI pinned by go.mod
+        run: |
+          version=$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)
+          test -n "$version"
+          go install "github.com/wailsapp/wails/v2/cmd/wails@$version"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Install dependencies and generate local bindings
+        run: bun --cwd="frontend" install --frozen-lockfile
+
+      - name: Audit all production frontend source
+        id: audit
+        run: |
+          mkdir -p frontend/reports/mutation
+          set -o pipefail
+          bun --cwd="frontend" run test:mutation:audit 2>&1 | tee frontend/reports/mutation/execution.log
+
+      - name: Record actual audited commit and execution outcome
+        if: always()
+        env:
+          AUDIT_OUTCOME: ${{ steps.audit.outcome }}
+        run: |
+          mkdir -p frontend/reports/mutation
+          git rev-parse HEAD > frontend/reports/mutation/commit.txt
+          printf '%s\n' "$AUDIT_OUTCOME" > frontend/reports/mutation/execution-status.txt
+
+      - name: Reject missing or incomplete reports and summarize findings
+        if: always() && (steps.audit.outcome == 'success' || steps.audit.outcome == 'failure')
+        run: |
+          cd frontend
+          node scripts/summarize-mutation-audit.mjs > reports/mutation/summary.json
+
+      - name: Retain reports even when the audit fails
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: mutation-audit-dev-${{ github.run_id }}-${{ github.run_attempt }}
+          path: frontend/reports/mutation/
+          if-no-files-found: error
+          retention-days: 14
