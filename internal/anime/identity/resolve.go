@@ -36,6 +36,17 @@ func eligible(r *file) bool {
 // selection. That order is the ported semantics; the steps below only name
 // it, never reorder it.
 func decide(req Request) Result {
+	rows, byName, next, hasNext := resolveRows(req)
+	winner := selectWinner(rows, byName, next, hasNext)
+	watched := countWatched(rows)
+	return assembleResult(req, rows, byName, winner, next, hasNext, watched)
+}
+
+// resolveRows runs every pass up to and including global reconciliation and
+// returns the published rows, their basename order, and the usable next. Both
+// the next-episode decision and the whole-folder assignment read these rows,
+// so they can never disagree on a file.
+func resolveRows(req Request) ([]file, []int, int, bool) {
 	rows := initRows(req)
 	byName := orderByName(rows)
 	counts := proposeOrdinals(rows, byName)
@@ -47,9 +58,7 @@ func decide(req Request) Result {
 	eliminateSinglePending(rows, byName, req.Context, progress, hasProgress, next, hasNext)
 	assignPendingChronology(rows, byName, next, hasNext)
 	reconcileDuplicates(rows)
-	winner := selectWinner(rows, byName, next, hasNext)
-	watched := countWatched(rows)
-	return assembleResult(req, rows, byName, winner, next, hasNext, watched)
+	return rows, byName, next, hasNext
 }
 
 // initRows copies the request entries into working rows, marking which rows

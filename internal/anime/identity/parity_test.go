@@ -161,16 +161,9 @@ func TestParity(t *testing.T) {
 	files := map[string]string{"dev": "interview-eval-dev.json", "supplemental": "interview-eval-supplemental.json"}
 	id := New()
 	for split, file := range files {
-		raw, err := os.ReadFile(filepath.Join("testdata", file))
-		if err != nil {
-			t.Fatalf("read corpus %s: %v", split, err)
-		}
-		var corpus corpusFile
-		if err := json.Unmarshal(raw, &corpus); err != nil {
-			t.Fatalf("decode corpus %s: %v", split, err)
-		}
-		byID := make(map[string]corpusCase, len(corpus.Cases))
-		for _, c := range corpus.Cases {
+		cases := readCorpus(t, file)
+		byID := make(map[string]corpusCase, len(cases))
+		for _, c := range cases {
 			byID[c.ID] = c
 		}
 		matched := 0
@@ -181,6 +174,20 @@ func TestParity(t *testing.T) {
 		}
 		t.Logf("parity %s: %d/%d matched", split, matched, len(fixture.Splits[split]))
 	}
+}
+
+// readCorpus decodes one interview corpus from testdata.
+func readCorpus(t *testing.T, file string) []corpusCase {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("testdata", file))
+	if err != nil {
+		t.Fatalf("read corpus %s: %v", file, err)
+	}
+	var corpus corpusFile
+	if err := json.Unmarshal(raw, &corpus); err != nil {
+		t.Fatalf("decode corpus %s: %v", file, err)
+	}
+	return corpus.Cases
 }
 
 // intPtrEqual reports whether two optional ordinals agree.

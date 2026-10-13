@@ -208,6 +208,13 @@ func TestAbstain(t *testing.T) {
 				{Kind: DiagnosticDuplicate, Basename: "Harbor Lights - 13.mp4", Episode: 13},
 				{Kind: DiagnosticDuplicate, Basename: "Harbor Lights EP13.mp4", Episode: 13},
 			}},
+		{name: "ambiguity after a duplicate in name order", entries: []Entry{mk("A - 05.mp4", "1", "2"), mk("B - 05.mp4", "3", "4"), mk("C - 10.5.mp4", "5", "6")},
+			ctx: Context{ProgressSet: true, Progress: 4, ExpectedNextSet: true, ExpectedNext: 5}, wantP: 3,
+			wantDiags: []Diagnostic{
+				{Kind: DiagnosticDuplicate, Basename: "A - 05.mp4", Episode: 5},
+				{Kind: DiagnosticDuplicate, Basename: "B - 05.mp4", Episode: 5},
+				{Kind: DiagnosticAmbiguity, Basename: "C - 10.5.mp4", Detail: "fractional"},
+			}},
 		{name: "duplicate watched prefix blocks elimination", entries: []Entry{mk("Show - 01.mp4", "1", "2"), mk("Show - 02.mp4", "3", "4"), mk("Show EP02.mp4", "5", "6"), mk("finale.mp4", "7", "8")},
 			ctx: Context{ProgressSet: true, Progress: 2, ExpectedNextSet: true, ExpectedNext: 3}, wantW: 1, wantP: 3,
 			wantDiags: []Diagnostic{

@@ -33,7 +33,9 @@ const (
 // A surface shows Reason; an operator inspects Diagnostics.
 type DiagnosticKind string
 
-// Bounded diagnostic taxonomy. No other kind is ever emitted.
+// Bounded diagnostic taxonomy. No other kind is ever emitted. Identify emits
+// the first four; Assign reports skipped files with duplicate, ambiguity,
+// unreadable and unnumbered.
 const (
 	// DiagnosticInversion keeps a creation-date inversion the clear number
 	// beat. Detail names the counterpart basename (the file itself when its
@@ -49,13 +51,20 @@ const (
 	// DiagnosticDuplicate records a claimant suspended by one-to-one
 	// reconciliation. Episode is the contested ordinal.
 	DiagnosticDuplicate DiagnosticKind = "duplicate"
+	// DiagnosticUnreadable records a file whose capture failed or that
+	// changed between stats, so no assignment is trusted. Only Assign emits
+	// it.
+	DiagnosticUnreadable DiagnosticKind = "unreadable"
+	// DiagnosticUnnumbered records a file that carries no episode number and
+	// took no inferred one. Only Assign emits it.
+	DiagnosticUnnumbered DiagnosticKind = "unnumbered"
 )
 
 // Diagnostic is one typed fact worth keeping. Field use per kind:
 // inversion: Basename and Detail (counterpart); unusable-context: Detail
 // ("progress"/"expected-next"); ambiguity: Basename, Episode when a single
 // ordinal was redefined, Detail (ambiguity kind); duplicate: Basename and
-// Episode (contested ordinal).
+// Episode (contested ordinal); unreadable and unnumbered: Basename only.
 type Diagnostic struct {
 	Kind     DiagnosticKind
 	Basename string
@@ -138,4 +147,26 @@ type Result struct {
 // the next pending episode, or abstain with a reason.
 type Identifier interface {
 	Identify(Request) Result
+}
+
+// Assignment is the whole-folder outcome: every file the decision confidently
+// assigns to a whole episode, ordered by episode, and every other file with
+// the reason it was left out, in basename order. Both are empty for an empty
+// folder.
+type Assignment struct {
+	Assigned []Selection
+	Skipped  []Diagnostic
+}
+
+// Assigner is the port for whole-folder assignment, consumed by the duration
+// backfill and the Editor re-analysis. It runs the same decision passes as
+// Identify, so a non-abstaining Identify on the same request always appears
+// in Assigned.
+type Assigner interface {
+	// Assign returns every file of req.Entries either assigned or skipped.
+	// With an empty Context it assigns clear file numbers only. With a
+	// progress context (ContextForProgress) it also returns the pairs
+	// inferred by elimination and chronology, exactly those Identify would
+	// select. Which mode a caller uses is the caller's decision.
+	Assign(Request) Assignment
 }

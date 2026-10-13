@@ -34,27 +34,41 @@ func appendContextDiagnostics(out []Diagnostic, c Context) []Diagnostic {
 func appendDuplicateDiagnostics(out []Diagnostic, rows []file, byName []int) []Diagnostic {
 	for _, i := range byName {
 		if rows[i].hasDupEp {
-			out = append(out, Diagnostic{Kind: DiagnosticDuplicate, Basename: rows[i].entry.Basename, Episode: rows[i].dupEp})
+			out = append(out, duplicateOf(&rows[i]))
 		}
 	}
 	return out
 }
 
+// duplicateOf is the duplicate fact of a suspended claimant.
+func duplicateOf(r *file) Diagnostic {
+	return Diagnostic{Kind: DiagnosticDuplicate, Basename: r.entry.Basename, Episode: r.dupEp}
+}
+
 // appendAmbiguityDiagnostics keeps the abstention-forcing ambiguities on
-// rows no duplicate diagnostic already covers: conflicts plus typed markers,
-// with the single redefined ordinal when one exists.
+// rows no duplicate diagnostic already covers.
 func appendAmbiguityDiagnostics(out []Diagnostic, rows []file, byName []int) []Diagnostic {
 	for _, i := range byName {
-		switch {
-		case rows[i].hasDupEp:
-		case rows[i].conflict:
-			out = append(out, Diagnostic{Kind: DiagnosticAmbiguity, Basename: rows[i].entry.Basename, Detail: string(AmbiguityConflict)})
-		case rows[i].hasAmbig:
-			ep := ambiguityEpisode(&rows[i])
-			out = append(out, Diagnostic{Kind: DiagnosticAmbiguity, Basename: rows[i].entry.Basename, Episode: ep, Detail: string(rows[i].ambig)})
+		if rows[i].hasDupEp {
+			continue
+		}
+		if d, ok := ambiguityOf(&rows[i]); ok {
+			out = append(out, d)
 		}
 	}
 	return out
+}
+
+// ambiguityOf returns a row's abstention-forcing ambiguity: a conflict, or a
+// typed marker with the single redefined ordinal when one exists.
+func ambiguityOf(r *file) (Diagnostic, bool) {
+	switch {
+	case r.conflict:
+		return Diagnostic{Kind: DiagnosticAmbiguity, Basename: r.entry.Basename, Detail: string(AmbiguityConflict)}, true
+	case r.hasAmbig:
+		return Diagnostic{Kind: DiagnosticAmbiguity, Basename: r.entry.Basename, Episode: ambiguityEpisode(r), Detail: string(r.ambig)}, true
+	}
+	return Diagnostic{}, false
 }
 
 // ambiguityEpisode returns the single ordinal a marker redefined, or zero
