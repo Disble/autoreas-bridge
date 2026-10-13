@@ -134,18 +134,6 @@ type App struct {
 const observabilityEventName = "observability.log"
 const pairingTokenConsumedEventName = "pairing.token-consumed"
 
-var downloadRuntimeEventNames = [...]string{
-	events.EventNameDownloadRunStarted,
-	events.EventNameDownloadRunProgress,
-	events.EventNameDownloadRunFinished,
-	events.EventNameDownloadEpisodeAvailable,
-	events.EventNameDownloadEpisodeDownloaded,
-	events.EventNameDownloadFailed,
-	events.EventNameDownloadSkipped,
-	events.EventNameDownloadJDStatus,
-	events.EventNameDownloadEpisodeDownloading,
-}
-
 type tracerBulletRunner interface {
 	Start()
 }
@@ -245,6 +233,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 	a.ensureRuntimeDependencies()
 	a.registerDownloadRuntimeEventBridge(ctx)
+	a.registerSeasonRuntimeEventBridge(ctx)
 	a.registerAnimeRuntimeEventBridge(ctx)
 	a.registerDeviceSyncRuntimeEventBridge(ctx)
 	a.tracerBulletRunner = a.newTracerBulletRunner(a.eventBus, a.newTracerBulletSink(), a.sharedLogger)
@@ -258,6 +247,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 	a.ensureDownloadStore()
 	a.configureRuntimeServices(ctx)
+	a.wireSeasonMatchingEventBus()
 	// Only a fatal failure stops startup. A failed HTTP bind is reported through
 	// startupErr but must not abort the rest: the server serves mobile sync,
 	// while readiness, the download service and the scheduler are local. When a

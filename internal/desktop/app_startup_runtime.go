@@ -411,6 +411,28 @@ func (a *App) registerDeviceSyncRuntimeEventBridge(ctx context.Context) {
 	})
 }
 
+// registerSeasonRuntimeEventBridge forwards season matching run events to
+// the frontend, mirroring registerDownloadRuntimeEventBridge: the Season panel
+// follows a matching run live (per-row progress plus the terminal signal)
+// instead of reloading rows only when the command returns ok.
+func (a *App) registerSeasonRuntimeEventBridge(ctx context.Context) {
+	if a.eventBus == nil || a.emitFn == nil {
+		return
+	}
+	for _, eventName := range seasonRuntimeEventNames {
+		a.eventBus.Subscribe(eventName, func(event events.Event) {
+			emitCtx := a.ctx
+			if emitCtx == nil {
+				emitCtx = ctx
+			}
+			if emitCtx == nil || a.emitFn == nil {
+				return
+			}
+			a.emitFn(emitCtx, event.Name(), event)
+		})
+	}
+}
+
 // registerDownloadRuntimeEventBridge forwards download events to the frontend.
 func (a *App) registerDownloadRuntimeEventBridge(ctx context.Context) {
 	if a.eventBus == nil || a.emitFn == nil {

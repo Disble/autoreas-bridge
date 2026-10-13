@@ -2,10 +2,14 @@ package desktop
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/events"
+	"autoreas-bridge/internal/season"
+	"autoreas-bridge/internal/season/match"
 )
 
 func TestRegisterDownloadRuntimeEventBridgeEmitsRunLifecycleEventsToWailsRuntime(t *testing.T) {
@@ -359,4 +363,151 @@ func TestAppShutdownStopsHTTPServer(t *testing.T) {
 	if !server.stopped {
 		t.Fatal("expected shutdown to stop http server")
 	}
+}
+
+// TestRegisterSeasonRuntimeEventBridgeEmitsMatchingLifecycleToWailsRuntime pins
+// the desktop half of the season matching realtime fix: the bridge forwards
+// the raw season matching events (started/progress/finished), mirroring
+// registerDownloadRuntimeEventBridge's shape -- the panel derives its own
+// counters from the rows, so the events carry run facts only.
+func TestRegisterSeasonRuntimeEventBridgeEmitsMatchingLifecycleToWailsRuntime(t *testing.T) {
+	t.Parallel()
+
+	type emittedEvent struct {
+		name    string
+		payload any
+	}
+
+	emitted := []emittedEvent{}
+	bus := events.NewBus()
+	app := &App{
+		ctx:      context.Background(),
+		eventBus: bus,
+		emitFn: func(_ context.Context, eventName string, optionalData ...any) {
+			var payload any
+			if len(optionalData) > 0 {
+				payload = optionalData[0]
+			}
+			emitted = append(emitted, emittedEvent{name: eventName, payload: payload})
+		},
+	}
+
+	app.registerSeasonRuntimeEventBridge(context.Background())
+
+	started := events.SeasonMatchingStartedEvent{SeasonID: "season-1", Total: 2}
+	progress := events.SeasonMatchingProgressEvent{
+		SeasonID:    "season-1",
+		Phase:       events.SeasonMatchingPhaseMatching,
+		RowID:       "row-1",
+		RawName:     "Good Anime",
+		MatchStatus: "matched",
+		MatchedSlug: "https://jkanime.net/good-anime/",
+	}
+	finished := events.SeasonMatchingFinishedEvent{SeasonID: "season-1"}
+	bus.Publish(started)
+	bus.Publish(progress)
+	bus.Publish(finished)
+
+	if len(emitted) != 3 {
+		t.Fatalf("expected 3 runtime events, got %d: %#v", len(emitted), emitted)
+	}
+	if emitted[0].name != events.EventNameSeasonMatchingStarted {
+		t.Fatalf("expected first event %q, got %q", events.EventNameSeasonMatchingStarted, emitted[0].name)
+	}
+	if got, ok := emitted[0].payload.(events.SeasonMatchingStartedEvent); !ok || got != started {
+		t.Fatalf("expected started payload %#v, got %#v", started, emitted[0].payload)
+	}
+	if emitted[1].name != events.EventNameSeasonMatchingProgress {
+		t.Fatalf("expected second event %q, got %q", events.EventNameSeasonMatchingProgress, emitted[1].name)
+	}
+	if got, ok := emitted[1].payload.(events.SeasonMatchingProgressEvent); !ok || got.SeasonID != progress.SeasonID || got.Phase != progress.Phase || got.RowID != progress.RowID || got.RawName != progress.RawName || got.MatchStatus != progress.MatchStatus || got.MatchedSlug != progress.MatchedSlug || len(got.Candidates) != 0 {
+		t.Fatalf("expected progress payload %#v, got %#v", progress, emitted[1].payload)
+	}
+	if emitted[2].name != events.EventNameSeasonMatchingFinished {
+		t.Fatalf("expected third event %q, got %q", events.EventNameSeasonMatchingFinished, emitted[2].name)
+	}
+	if got, ok := emitted[2].payload.(events.SeasonMatchingFinishedEvent); !ok || got != finished {
+		t.Fatalf("expected finished payload %#v, got %#v", finished, emitted[2].payload)
+	}
+}
+
+// TestRunSeasonMatchingPublishesExactlyOneFinished pins the run boundary
+// ownership: the desktop RunSeasonMatching sequences both phases (name
+// matching + availability check), so it emits the terminal signal exactly
+// once, after both phases have completed. The service owns started and the
+// per-row progress; the desktop owns finished.
+func TestRunSeasonMatchingPublishesExactlyOneFinished(t *testing.T) {
+	t.Parallel()
+
+	bus := events.NewBus()
+	var started []events.SeasonMatchingStartedEvent
+	var progress []events.SeasonMatchingProgressEvent
+	var finished []events.SeasonMatchingFinishedEvent
+	bus.Subscribe(events.EventNameSeasonMatchingStarted, func(e events.Event) {
+		if s, ok := e.(events.SeasonMatchingStartedEvent); ok {
+			started = append(started, s)
+		}
+	})
+	bus.Subscribe(events.EventNameSeasonMatchingProgress, func(e events.Event) {
+		if p, ok := e.(events.SeasonMatchingProgressEvent); ok {
+			progress = append(progress, p)
+		}
+	})
+	bus.Subscribe(events.EventNameSeasonMatchingFinished, func(e events.Event) {
+		if f, ok := e.(events.SeasonMatchingFinishedEvent); ok {
+			finished = append(finished, f)
+		}
+	})
+
+	repo := newFakeSeasonRepo()
+	nextID := 0
+	svc := season.NewService(repo, time.Now, func() string {
+		nextID++
+		return fmt.Sprintf("id-%d", nextID)
+	}, fakeAppNameSearcher{byQuery: map[string][]match.Candidate{
+		"Good Anime": {{Title: "Good Anime", PageURL: "https://jkanime.net/good-anime/"}},
+	}})
+	svc.SetAvailabilityDeps(
+		fakeAppAvailabilityProbe{episodes: map[string]int{"https://jkanime.net/good-anime/": 2}},
+		nil,
+	)
+	svc.SetEventBus(bus)
+	app := &App{ctx: context.Background(), seasonService: svc, eventBus: bus}
+
+	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+		t.Fatalf("CreateSeason: %q", got)
+	}
+	if got := app.ImportSeasonIntake("Good Anime\nTypo Anime"); got != "ok" {
+		t.Fatalf("ImportSeasonIntake: %q", got)
+	}
+	if got := app.RunSeasonMatching(); got != "ok" {
+		t.Fatalf("RunSeasonMatching: %q", got)
+	}
+
+	if len(started) != 1 || started[0].Total != 2 {
+		t.Fatalf("expected 1 started event with Total 2, got %+v", started)
+	}
+	// Good Anime matches and is then probed; Typo Anime finds no candidate.
+	// No per-state counters travel: 2 matching + 1 availability progress.
+	if len(progress) != 3 {
+		t.Fatalf("expected 3 progress events, got %+v", progress)
+	}
+	if progress[0].Phase != events.SeasonMatchingPhaseMatching ||
+		progress[1].Phase != events.SeasonMatchingPhaseMatching ||
+		progress[2].Phase != events.SeasonMatchingPhaseAvailabilityCheck {
+		t.Fatalf("expected the matching phase then the availability check, got %+v", progress)
+	}
+	if len(finished) != 1 {
+		t.Fatalf("expected exactly 1 finished event, got %+v", finished)
+	}
+}
+
+// TestPublishSeasonMatchingFinishedWithNilBusStaysSilent pins the nil
+// degradation at the run boundary: without a bus the terminal signal is
+// dropped, never panicked on.
+func TestPublishSeasonMatchingFinishedWithNilBusStaysSilent(t *testing.T) {
+	t.Parallel()
+
+	app := &App{ctx: context.Background(), eventBus: nil}
+	app.publishSeasonMatchingFinished("season-1")
 }

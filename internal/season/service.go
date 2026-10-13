@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/season/domain"
 	"autoreas-bridge/internal/season/match"
 )
@@ -98,7 +99,8 @@ type CreateResult struct {
 
 // Service is the season application service. Time and id generation are injected
 // so the service is deterministic under test; the NameSearcher may be nil (then
-// RunMatching errors, but every other operation still works).
+// RunMatching errors, but every other operation still works). The event bus is
+// optional (SetEventBus): a nil bus degrades to silence, never a panic.
 type Service struct {
 	repo     Repository
 	now      func() time.Time
@@ -106,6 +108,53 @@ type Service struct {
 	searcher NameSearcher
 	probe    AvailabilityReader
 	gateway  AnimeGateway
+	bus      events.Bus
+}
+
+// SetEventBus wires the optional event bus the service publishes season
+// matching run facts on (started total + per-row progress), mirroring
+// download.ServiceDeps.Bus. A nil bus degrades to silence, never a panic.
+func (s *Service) SetEventBus(bus events.Bus) {
+	s.bus = bus
+}
+
+// publish fans one season matching run fact out to the bus. A nil bus
+// degrades silently rather than panicking, like the download service.
+func (s *Service) publish(event events.Event) {
+	if s.bus == nil {
+		return
+	}
+	s.bus.Publish(event)
+}
+
+// seasonMatchingProgressEvent projects one resolved row into its progress
+// payload for the given phase, so both phases (name matching and the
+// availability check) update the panel from the same row shape.
+func seasonMatchingProgressEvent(seasonID, phase string, row domain.SeasonAnime) events.SeasonMatchingProgressEvent {
+	return events.SeasonMatchingProgressEvent{
+		SeasonID:          seasonID,
+		Phase:             phase,
+		RowID:             row.ID,
+		RawName:           row.RawName,
+		MatchStatus:       string(row.MatchStatus),
+		MatchedSlug:       row.MatchedSlug,
+		Candidates:        toEventCandidates(row.Candidates),
+		Availability:      string(row.Availability),
+		AvailableEpisodes: row.AvailableEpisodes,
+	}
+}
+
+// toEventCandidates converts domain candidates to event candidates,
+// keeping the nil-for-empty shape the domain conversion uses.
+func toEventCandidates(cs []domain.MatchCandidate) []events.SeasonMatchingCandidate {
+	if len(cs) == 0 {
+		return nil
+	}
+	out := make([]events.SeasonMatchingCandidate, 0, len(cs))
+	for _, c := range cs {
+		out = append(out, events.SeasonMatchingCandidate{Title: c.Title, PageURL: c.PageURL, Score: c.Score})
+	}
+	return out
 }
 
 // SetAvailabilityDeps wires the availability probe + anime gateway (SDD-43).
@@ -219,12 +268,15 @@ func (s *Service) AddIntakeName(ctx context.Context, seasonID, name string) (boo
 }
 
 // RunMatching searches and resolves every pending row, persisting the outcome
-// (matched slug, ambiguous candidates, or not_found). A per-name search
-// failure marks only that row as search_failed — clearing any stale slug and
-// candidates — and the run continues with the remaining rows. Rows already in
+// (matched slug, ambiguous candidates, or not_found) and publishing one
+// progress event per attempted row in the matching phase, including rows whose
+// search failed. A per-name search failure marks only that row as
+// search_failed — clearing any stale slug and candidates — and the run continues with the remaining rows. Rows already in
 // search_failed are attempted again; rows already resolved or discarded are
 // left untouched. Infrastructure failures (listing or persisting rows) still
-// abort the run with an error.
+// abort the run with an error. The run opens with the RUN TOTAL (how many rows
+// it will attempt); the terminal signal belongs to the run boundary that
+// sequences both phases (desktop RunSeasonMatching), not to this method.
 func (s *Service) RunMatching(ctx context.Context, seasonID string) error {
 	if s.searcher == nil {
 		return ErrSearcherUnavailable
@@ -233,10 +285,15 @@ func (s *Service) RunMatching(ctx context.Context, seasonID string) error {
 	if err != nil {
 		return err
 	}
+	attempted := make([]domain.SeasonAnime, 0, len(rows))
 	for _, row := range rows {
 		if row.MatchStatus != domain.MatchPending && row.MatchStatus != domain.MatchSearchFailed {
 			continue
 		}
+		attempted = append(attempted, row)
+	}
+	s.publish(events.SeasonMatchingStartedEvent{SeasonID: seasonID, Total: len(attempted)})
+	for _, row := range attempted {
 		candidates, err := s.searcher.Search(ctx, row.RawName)
 		if err != nil {
 			row.MatchStatus = domain.MatchSearchFailed
@@ -245,6 +302,7 @@ func (s *Service) RunMatching(ctx context.Context, seasonID string) error {
 			if uerr := s.repo.UpdateSeasonAnime(ctx, row); uerr != nil {
 				return uerr
 			}
+			s.publish(seasonMatchingProgressEvent(seasonID, events.SeasonMatchingPhaseMatching, row))
 			continue
 		}
 		res := match.Resolve(row.RawName, candidates)
@@ -254,6 +312,7 @@ func (s *Service) RunMatching(ctx context.Context, seasonID string) error {
 		if err := s.repo.UpdateSeasonAnime(ctx, row); err != nil {
 			return err
 		}
+		s.publish(seasonMatchingProgressEvent(seasonID, events.SeasonMatchingPhaseMatching, row))
 	}
 	return nil
 }

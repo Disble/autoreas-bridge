@@ -46,6 +46,37 @@ const (
 	EventNameDownloadEpisodeDownloading = "download.episode_downloading"
 )
 
+// season.* event names (season-matching-resilience T3). These are domain events
+// on the backend<->backend Bus, mirroring the download.* family above: the
+// season service publishes per-row facts, the desktop run boundary publishes
+// the terminal signal, and the desktop bridge forwards all three to the
+// WebView so the Season panel follows a run live without a manual reload.
+// Like the download family, a backend event is not a user notification.
+const (
+	// EventNameSeasonMatchingStarted identifies season matching run start events.
+	EventNameSeasonMatchingStarted = "season.matching_started"
+	// EventNameSeasonMatchingProgress identifies per-row season matching events.
+	EventNameSeasonMatchingProgress = "season.matching_progress"
+	// EventNameSeasonMatchingFinished identifies terminal season matching run events.
+	EventNameSeasonMatchingFinished = "season.matching_finished"
+)
+
+// Season matching run phases (docs/ubiquitous-language.md: "name matching"
+// and the "availability check"). A run is ONE run with TWO phases, and every
+// progress event names the phase its row just resolved in, so the panel never
+// claims to be matching while it is really checking episodes.
+const (
+	// SeasonMatchingPhaseMatching marks rows resolved by name matching
+	// (each intake name resolved to a page URL).
+	// The value mirrors the registered vocabulary's phase name, "name
+	// matching": a phase called plain "matching" would not be distinguishable
+	// from the matching RUN the phase belongs to.
+	SeasonMatchingPhaseMatching = "name_matching"
+	// SeasonMatchingPhaseAvailabilityCheck marks rows resolved by the
+	// availability check (deciding which pages already serve an episode).
+	SeasonMatchingPhaseAvailabilityCheck = "availability_check"
+)
+
 // Event is the base contract for all bridge bus events.
 type Event interface { // NOSONAR godre:S8196 -- Event is the domain concept the whole bus is built on, implemented by every concrete event and named in the spec, docs and wire payloads. The agent noun for its Name() method is "Namer", which describes the accessor rather than the thing.
 	Name() string
@@ -245,4 +276,65 @@ type DownloadJDStatusEvent struct {
 // Name returns the bus event name for DownloadJDStatusEvent.
 func (e DownloadJDStatusEvent) Name() string {
 	return EventNameDownloadJDStatus
+}
+
+// SeasonMatchingStartedEvent is published when a season matching run opens:
+// it carries the RUN TOTAL (how many rows this run will attempt), a run fact
+// a screen that mounts mid-run cannot derive from the rows. It carries NO
+// per-state counters -- the panel derives those from the rows it already
+// holds, and repeating them would create a second source of truth. Nothing
+// about the run is persisted: it is ephemeral, session only, no history row.
+type SeasonMatchingStartedEvent struct {
+	SeasonID string
+	Total    int
+}
+
+// Name returns the bus event name for SeasonMatchingStartedEvent.
+func (e SeasonMatchingStartedEvent) Name() string {
+	return EventNameSeasonMatchingStarted
+}
+
+// SeasonMatchingCandidate is one retained candidate for a season intake row,
+// mirroring domain.MatchCandidate without importing the season domain (the
+// season service already imports this package for the Bus -- the reverse edge
+// would be an import cycle).
+type SeasonMatchingCandidate struct {
+	Title   string
+	PageURL string
+	Score   float64
+}
+
+// SeasonMatchingProgressEvent is published once per attempted row, in the
+// phase the row just resolved in -- including rows whose search FAILED (they
+// become search_failed and the UI updates them live). It carries THE ROW
+// (id, raw name, resulting match status, matched slug, candidates, plus the
+// availability the row currently records) and NO per-state counters.
+type SeasonMatchingProgressEvent struct {
+	SeasonID          string
+	Phase             string
+	RowID             string
+	RawName           string
+	MatchStatus       string
+	MatchedSlug       string
+	Candidates        []SeasonMatchingCandidate
+	Availability      string
+	AvailableEpisodes int
+}
+
+// Name returns the bus event name for SeasonMatchingProgressEvent.
+func (e SeasonMatchingProgressEvent) Name() string {
+	return EventNameSeasonMatchingProgress
+}
+
+// SeasonMatchingFinishedEvent is the TERMINAL SIGNAL of a season matching
+// run, published once by the desktop run boundary after BOTH phases (name
+// matching and the availability check) have completed. It carries no
+// counters and no history: the season's own rows are the record.
+type SeasonMatchingFinishedEvent struct {
+	SeasonID string
+}
+
+// Name returns the bus event name for SeasonMatchingFinishedEvent.
+func (e SeasonMatchingFinishedEvent) Name() string {
+	return EventNameSeasonMatchingFinished
 }

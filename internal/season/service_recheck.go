@@ -3,6 +3,7 @@ package season
 import (
 	"context"
 
+	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/season/domain"
 )
 
@@ -58,6 +59,9 @@ func (s *Service) lookupCreatedPlacements(ctx context.Context, rows []domain.Sea
 }
 
 // recheckCreateCandidate checks whether a row can be created in the anime store.
+// Every probed row publishes one progress event in the availability-check phase
+// -- including rows whose check failed and left the row unchanged -- so the
+// panel follows the second phase live, row by row.
 func (s *Service) recheckCreateCandidate(ctx context.Context, row domain.SeasonAnime, res *RecheckResult) (bool, error) {
 	if row.MatchStatus != domain.MatchMatched || row.Availability == domain.AvailabilityCreated {
 		return false, nil
@@ -65,6 +69,7 @@ func (s *Service) recheckCreateCandidate(ctx context.Context, row domain.SeasonA
 	res.Checked++
 	episodes, probeErr := s.probe.AvailableEpisodes(ctx, row.MatchedSlug)
 	if probeErr != nil {
+		s.publish(seasonMatchingProgressEvent(row.SeasonID, events.SeasonMatchingPhaseAvailabilityCheck, row))
 		return true, nil
 	}
 	wasAvailable := row.Availability == domain.AvailabilityAvailable
@@ -78,7 +83,11 @@ func (s *Service) recheckCreateCandidate(ctx context.Context, row domain.SeasonA
 		row.Availability = domain.AvailabilityWaiting
 		row.AvailableEpisodes = 0
 	}
-	return true, s.repo.UpdateSeasonAnime(ctx, row)
+	if err := s.repo.UpdateSeasonAnime(ctx, row); err != nil {
+		return true, err
+	}
+	s.publish(seasonMatchingProgressEvent(row.SeasonID, events.SeasonMatchingPhaseAvailabilityCheck, row))
+	return true, nil
 }
 
 // refreshCreatedPlacementAvailability updates availability for created placements.
@@ -92,10 +101,15 @@ func (s *Service) refreshCreatedPlacementAvailability(ctx context.Context, row d
 	res.Checked++
 	episodes, probeErr := s.probe.AvailableEpisodes(ctx, row.MatchedSlug)
 	if probeErr != nil {
+		s.publish(seasonMatchingProgressEvent(row.SeasonID, events.SeasonMatchingPhaseAvailabilityCheck, row))
 		return nil
 	}
 	row.AvailableEpisodes = episodes
-	return s.repo.UpdateSeasonAnime(ctx, row)
+	if err := s.repo.UpdateSeasonAnime(ctx, row); err != nil {
+		return err
+	}
+	s.publish(seasonMatchingProgressEvent(row.SeasonID, events.SeasonMatchingPhaseAvailabilityCheck, row))
+	return nil
 }
 
 // isPlacedInSinVer reports whether placements include the unseen queue.
