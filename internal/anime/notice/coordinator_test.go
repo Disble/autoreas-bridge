@@ -5,13 +5,17 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"autoreas-bridge/internal/anime/episodes"
 	"autoreas-bridge/internal/anime/identity"
 	"autoreas-bridge/internal/anime/media"
 	"autoreas-bridge/internal/notification"
+	"autoreas-bridge/internal/testsupport/sqlitedb"
 )
 
 // proberAnswers is a Prober that records what it was asked and answers with a fixed reading.
@@ -238,4 +242,159 @@ type failingNotifier struct{}
 
 func (failingNotifier) Notify(context.Context, notification.Notification) error {
 	return errors.New("notification adapter down")
+}
+
+// openDurations returns a duration store over a fresh production-shaped database.
+func openDurations(t *testing.T) *episodes.Store {
+	t.Helper()
+
+	return episodes.NewStore(sqlitedb.Open(t, episodes.SchemaTables()...), func() time.Time { return time.UnixMilli(1) })
+}
+
+// storedReadings returns one anime's stored episodes and durations, in episode order.
+func storedReadings(t *testing.T, store *episodes.Store, animeID string) []episodes.Reading {
+	t.Helper()
+
+	rows, err := store.ByAnime(context.Background(), animeID)
+	if err != nil {
+		t.Fatalf("read durations: %v", err)
+	}
+	got := []episodes.Reading{}
+	for _, row := range rows {
+		got = append(got, episodes.Reading{Episode: row.Episode, DurationMS: row.DurationMS})
+	}
+	return got
+}
+
+// TestEpisodeLandedStoresTheReadingOfEveryType pins S9 and the all-types rule: every successful
+// reading of the landed file is stored for its episode, whatever the anime type, while the notice
+// itself stays TV-only and a failed reading stores nothing.
+func TestEpisodeLandedStoresTheReadingOfEveryType(t *testing.T) {
+	t.Parallel()
+
+	movie := 3
+	for _, tc := range []struct {
+		name        string
+		kind        *int
+		prober      *proberAnswers
+		want        []episodes.Reading
+		wantNotices int
+	}{
+		{name: "a long TV episode", kind: tv(), prober: &proberAnswers{runtime: 45 * time.Minute},
+			want: []episodes.Reading{{Episode: 8, DurationMS: 2_700_000}}, wantNotices: 1},
+		{name: "an ordinary TV episode", kind: tv(), prober: &proberAnswers{runtime: 24 * time.Minute},
+			want: []episodes.Reading{{Episode: 8, DurationMS: 1_440_000}}},
+		{name: "an anime that is not TV", kind: &movie, prober: &proberAnswers{runtime: 45 * time.Minute},
+			want: []episodes.Reading{{Episode: 8, DurationMS: 2_700_000}}},
+		{name: "an anime with no stored type", kind: nil, prober: &proberAnswers{runtime: 90 * time.Second},
+			want: []episodes.Reading{{Episode: 8, DurationMS: 90_000}}},
+		{name: "a probe that cannot read the file", kind: &movie,
+			prober: &proberAnswers{err: errors.New("ffprobe: not found")}, want: []episodes.Reading{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := openDurations(t)
+			notifier := &notifierRecords{}
+			newCoordinator(t, tc.prober, notifier).WithRecorder(store).
+				EpisodeLanded(context.Background(), folderWith(t, "Show - 08.mp4"), tc.kind, 8, "anime-1", "Show")
+
+			if got := storedReadings(t, store, "anime-1"); !slices.Equal(got, tc.want) {
+				t.Errorf("stored readings: want %v, got %v", tc.want, got)
+			}
+			if len(notifier.got) != tc.wantNotices {
+				t.Errorf("want %d notices, got %d (%v)", tc.wantNotices, len(notifier.got), notifier.got)
+			}
+		})
+	}
+}
+
+// TestEpisodeLandedNeverOverwritesAStoredEpisode pins S6: the landed reading only fills a gap, so
+// an episode that already has a row keeps it, and the notice still speaks from the file it measured.
+func TestEpisodeLandedNeverOverwritesAStoredEpisode(t *testing.T) {
+	t.Parallel()
+
+	store := openDurations(t)
+	if _, err := store.FillGaps(context.Background(), "anime-1", []episodes.Reading{{Episode: 8, DurationMS: 1_000}}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	notifier := &notifierRecords{}
+	newCoordinator(t, &proberAnswers{runtime: 45 * time.Minute}, notifier).WithRecorder(store).
+		EpisodeLanded(context.Background(), folderWith(t, "Show - 08.mp4"), tv(), 8, "anime-1", "Show")
+
+	if got, want := storedReadings(t, store, "anime-1"), []episodes.Reading{{Episode: 8, DurationMS: 1_000}}; !slices.Equal(got, want) {
+		t.Errorf("a stored episode must stay as it was: want %v, got %v", want, got)
+	}
+	if len(notifier.got) != 1 {
+		t.Errorf("the notice must still speak for the long file it measured, got %d", len(notifier.got))
+	}
+}
+
+// failingRecorder refuses every write, which must never reach the notice or the download run.
+type failingRecorder struct{ calls int }
+
+// FillGaps records the call and fails it.
+func (r *failingRecorder) FillGaps(context.Context, string, []episodes.Reading) (int, error) {
+	r.calls++
+	return 0, errors.New("database locked")
+}
+
+// TestEpisodeLandedSurvivesARecorderThatFails pins that a failed write is swallowed like a failed
+// delivery: the notice is raised exactly as it would be without a recorder.
+func TestEpisodeLandedSurvivesARecorderThatFails(t *testing.T) {
+	t.Parallel()
+
+	folder := folderWith(t, "Show - 08.mp4")
+	without, with := &notifierRecords{}, &notifierRecords{}
+	recorder := &failingRecorder{}
+	newCoordinator(t, &proberAnswers{runtime: 45 * time.Minute}, without).
+		EpisodeLanded(context.Background(), folder, tv(), 8, "anime-1", "Show")
+	newCoordinator(t, &proberAnswers{runtime: 45 * time.Minute}, with).WithRecorder(recorder).
+		EpisodeLanded(context.Background(), folder, tv(), 8, "anime-1", "Show")
+
+	if recorder.calls != 1 {
+		t.Errorf("the reading must be offered once, got %d", recorder.calls)
+	}
+	if !reflect.DeepEqual(with.got, without.got) || len(with.got) != 1 {
+		t.Errorf("a failed write must not change the notice: want %v, got %v", without.got, with.got)
+	}
+}
+
+// TestEpisodeLandedRecordsOnlyAConfidentPair pins the confidence gate (analysis section 3): the
+// landed reading is stored only when the identity assignment gives the landed file exactly the
+// episode the download reported, because an automatic write is never overwritten. The notice does
+// not depend on the gate and speaks for the long file it measured in every case.
+func TestEpisodeLandedRecordsOnlyAConfidentPair(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		files []string
+		want  []episodes.Reading
+	}{
+		{name: "the file carries the reported episode", files: []string{"Show - 07.mp4", "Show - 08.mp4"},
+			want: []episodes.Reading{{Episode: 8, DurationMS: 2_700_000}}},
+		{name: "the file carries another episode", files: []string{"Show - 09.mp4"}, want: []episodes.Reading{}},
+		{name: "the file carries no number", files: []string{"Show.mp4"}, want: []episodes.Reading{}},
+		{name: "the file carries a fractional number", files: []string{"Show - 08.5.mp4"}, want: []episodes.Reading{}},
+		{name: "two files claim the episode", files: []string{"A - 08.mp4", "B - 08.mp4"}, want: []episodes.Reading{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			folder := folderWith(t, tc.files...)
+			touchedLast(t, folder, tc.files[len(tc.files)-1])
+			store := openDurations(t)
+			notifier := &notifierRecords{}
+			newCoordinator(t, &proberAnswers{runtime: 45 * time.Minute}, notifier).WithRecorder(store).
+				EpisodeLanded(context.Background(), folder, tv(), 8, "anime-1", "Show")
+
+			if got := storedReadings(t, store, "anime-1"); !slices.Equal(got, tc.want) {
+				t.Errorf("stored readings: want %v, got %v", tc.want, got)
+			}
+			if len(notifier.got) != 1 {
+				t.Errorf("the notice is unchanged by the gate: want 1, got %d", len(notifier.got))
+			}
+		})
+	}
 }

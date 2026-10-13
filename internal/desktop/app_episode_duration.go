@@ -1,7 +1,11 @@
 package desktop
 
 import (
+	"database/sql"
+	"time"
+
 	"autoreas-bridge/internal/anime/duration/probe"
+	"autoreas-bridge/internal/anime/episodes"
 	"autoreas-bridge/internal/anime/media"
 	"autoreas-bridge/internal/anime/notice"
 	"autoreas-bridge/internal/download/config"
@@ -21,4 +25,15 @@ import (
 // single value serves both.
 func newEpisodeDurationNotice(notifier notification.Notifier) *notice.Coordinator {
 	return notice.New(media.New(config.VideoFileExtensions), probe.NewFFProbe(""), notifier)
+}
+
+// newLandedEpisodeNotice builds the coordination the download run offers every landed episode. Besides
+// the notice, it stores each reading of a landed file as that episode's duration when the episode has
+// none yet (analysis D3). Without a database it is the notice alone.
+func newLandedEpisodeNotice(notifier notification.Notifier, db *sql.DB) *notice.Coordinator {
+	coordinator := newEpisodeDurationNotice(notifier)
+	if db == nil {
+		return coordinator
+	}
+	return coordinator.WithRecorder(episodes.NewStore(db, time.Now))
 }

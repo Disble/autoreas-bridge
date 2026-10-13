@@ -139,8 +139,11 @@ the background but normally restarts once a day, so that file waits at most unti
 anime, or a re-analysis.
 
 Shared rules: one pass runs at a time, and a trigger that arrives during a pass queues one repeat. The pass is skipped
-silently when ffprobe is missing. A pass announces each anime it changed once (section 5). The first pass costs about
-231 files × 64–86 ms ÷ 4 in parallel, which is a few seconds; after that it only measures new gaps.
+silently when ffprobe is missing. A pass announces each anime it changed once (section 5). It probes at most 2 files
+at a time, which is deliberately gentle because Bridge runs other background work on the same machine. The first pass
+costs about 231 files × 64–86 ms ÷ 2, roughly 10 seconds; after that it only measures new gaps. ffprobe never runs
+inside a database transaction: with `SetMaxOpenConns(1)`, a transaction held open while probing would block every other
+Bridge query.
 
 ### Rules every measurement path shares
 

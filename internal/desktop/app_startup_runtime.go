@@ -291,9 +291,10 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 		MaxConcurrentAnimes: jdMaxConcurrentAnimes,
 		Store:               a.downloadStore,
 		Notifier:            a.notifier,
-		// The notice coordinates the landed episode against the runtime rule. Built here, from the
-		// pipeline's own extension set, so nothing about it reaches outside this composition root.
-		EpisodeDurationNotice: newEpisodeDurationNotice(a.notifier),
+		// The notice coordinates the landed episode against the runtime rule and stores its reading.
+		// Built here, from the pipeline's own extension set, so nothing about it reaches outside this
+		// composition root.
+		EpisodeDurationNotice: newLandedEpisodeNotice(a.notifier, a.bridgeDB),
 		Bus:                   a.eventBus,
 		Logger:                a.sharedLogger,
 		JDDeviceName:          a.downloadJDDeviceName(ctx),

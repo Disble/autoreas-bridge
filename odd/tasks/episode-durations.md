@@ -71,7 +71,7 @@ production, tests and docs.
 |---|---|---|---|---|---|---|---|---|
 | ODD 1 | **Storage.** `internal/anime/episodes` (or equivalent) package: schema descriptor, store with the S3/S6 write rules (insert-if-absent, manual upsert, measured upsert skipping manual, delete), `durations_pending_announce` written in the same transaction, backup group with footprint test, `checkarchitecture` ownership rule. | S2–S6, S13 (table) | none | delegated, parallel with ODD 2 (writer trigger a) | ~400 (actual well above: package, failure tests, plus the L7 transaction extension) | High: item 1 (new persisted data and backup format). Independent verifier: PASS. | done (L8) | see L8 |
 | ODD 2 | **Identity, whole folder.** New exported function returning every confidently assigned `(episode, basename)` plus skipped files with their reason (fractional, duplicate, ambiguity, unreadable). Parity with existing `Identify` decisions. | S5, S10 (re-analysis input) | none | delegated, parallel with ODD 1 (writer trigger a) | ~250 (actual +256/−29) | Item 6 guarded by parity tests; medium | done: `identity.Assigner` (`Assign(Request) Assignment`); TestParity dev 16/16 and supplemental 4/4 unchanged; ditto 3/3 killed (1.00) after a real gap at `diagnostics.go:53` was closed | `9663f03e` |
-| ODD 3 | **Measurement.** Download landed writes the reading (insert-if-absent). Background backfill with the three S7 triggers, single-flight with one queued repeat, active anime only, confidence gate, all anime types. | S6, S7, S9 | ODD 1, ODD 2 | inline | ~450 | High: item 4 (concurrency of the backfill). Independent verifier. | pending | — |
+| ODD 3 | **Measurement.** Download landed writes the reading (insert-if-absent). Background backfill with the three S7 triggers, single-flight with one queued repeat, active anime only, confidence gate, all anime types. | S6, S7, S9 | ODD 1, ODD 2 | inline | ~450 | High: item 4 (concurrency of the backfill). Independent verifier. | done (ditto 60/60; verifier PASS, L10) | see L10 |
 | ODD 4 | **Shared read model and Today.** Pure `EpisodeLengths` and `LongNextEpisode` in the anime context; Today's binding reads the table in one query; remove TodayMarks probing. Today output unchanged (regression tests on `LongNextEpisode`). | S1, S8, S9 | ODD 1, ODD 3 | inline | ~300 (net, includes removals) | Item 3 (Wails contract kept identical); medium | pending | — |
 | ODD 5 | **Sync to Mobile.** Announcer and `episode.durations_changed`; changelog-recorder and WebSocket-hub subscriptions; serve-time join in `toAnimeChanges` and `GET /api/animes` through `EpisodeLengths`; guard tests (anime edit unchanged, duration save publishes no `AnimeChangedEvent`, `modified_at` unchanged); `docs/openapi.yaml`. | S11–S14 | ODD 1, ODD 4 | inline | ~450 | High: items 3 and 4 (contract Mobile consumes, event ordering). Independent verifier. | pending | — |
 | ODD 6a | **Editor backend.** Wails bindings: list rows (stored plus derived "Not measured"), edit, Add episode, Clear, re-analysis preview, and confirm (manual kept). Writes go through the ODD 1 store, so they mark pending. Folder change triggers the S7 backfill. | S10 | ODD 1, ODD 2, ODD 3 | inline, or parallel with ODD 4–5 (disjoint surface) | ~400 | Item 3 (new bindings only, additive); medium | pending | — |
@@ -131,4 +131,39 @@ parallel with ODD 4–5 on a disjoint edit surface; ODD 6b follows 6a.
   - **Rule limits, documented in the code:** it matches the `.Begin(`/`.BeginTx(` substring, cannot tell a `*sql.DB`
     from other receivers, and misses calls split across lines.
   - **Footprint markers:** they use byte sums, so two markers could collide in theory.
-- **Next step:** ODD 3 (measurement), which now has both of its dependencies, ODD 1 and ODD 2.
+- **L9 (2026-10-13):** ODD 3 writer handoff (route: delegated, parent context backstop). Parent review decisions:
+  - **Recovered panics in the background pass must be logged, never swallowed silently.**
+  - **The confidence gate applies to the landed recording too.** A reading is stored only when `Assign(Context{})`
+    maps the landed file to the download's episode number. The notice itself is unchanged.
+  - **Concurrency of 2 probes,** gentler than the analysis's 4. The analysis doc is updated.
+
+  Recorded, not changed:
+  - `AnimeChangedEvent` publishers leave `ChangeType` empty, so a create is detected through the `folder` / `active`
+    changed fields.
+  - An active true→false change triggers a pass that skips the anime, which is harmless.
+  - Backfill and landed writes already mark pending for ODD 5.
+
+  Hooks:
+  - **After a download run:** `DownloadEpisodeDownloadedEvent` collects ids per run, and `DownloadRunFinishedEvent`
+    triggers them.
+  - **Startup and shutdown:** startup triggers All; shutdown stops the backfill before the DB closes.
+  - **Anime changes:** the `AnimeChangedEvent` subscriber is read-only.
+- **L10 (2026-10-13):** ODD 3 evidence.
+  - **Mutation:** ditto on backfill and notice (desktop wiring excluded as IMPORTANT, 5 conditions hand-mutated):
+    60/60 killed, score 1.00.
+  - **Independent verifier:** PASS on S6, S7 and S9 with no blockers. Probes ran on real SQLite through
+    `sync.OpenBridgeDB`:
+    - 2 probes peak and no connection held while probing, with 317 concurrent transactions;
+    - a storm of 50 triggers runs exactly 2 passes, and `Stop` is immediate;
+    - the notice is byte-identical for TV;
+    - nothing changed under download, sync, schedule or season;
+    - those suites went from 1114 to 1137 passing tests with 0 failures, and `-race` is clean.
+  - **Advisories applied:** two doc comments corrected. The package doc now describes the L9 logging. The
+    `probeUnavailable` doc notes that a Windows absolute path with an extension fails per file. That form is never
+    configured in production, and nothing is stored when it happens.
+  - **Advisories recorded, not changed:**
+    - `landedByRun` keeps the ids of a run that never finishes; this is bounded by the number of runs.
+    - The landed probe also runs for non-TV episodes, as S6 intends.
+  - **Verifier lesson:** the run took 3 hours because it had no per-command limit. Future verifiers get
+    `go test -timeout 60s` and `timeout 10m` per command.
+- **Next step:** ODD 4 (shared read model, Today reads the table).

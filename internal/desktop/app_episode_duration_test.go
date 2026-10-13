@@ -10,10 +10,12 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/anime/duration/probe"
+	"autoreas-bridge/internal/anime/episodes"
 	"autoreas-bridge/internal/anime/media"
 	"autoreas-bridge/internal/anime/notice"
 	"autoreas-bridge/internal/download/config"
 	"autoreas-bridge/internal/notification"
+	"autoreas-bridge/internal/testsupport/sqlitedb"
 )
 
 // TestToEpisodeScheduleContractsCarriesTheMark pins the mapping of the Today mark onto the
@@ -110,5 +112,28 @@ func TestTheWiredNoticeIgnoresARealFileThatIsNotOnThePath(t *testing.T) {
 
 	if len(notifier.got) != 0 {
 		t.Fatalf("without a probe there is no reading and no notice, got %v", notifier.got)
+	}
+}
+
+// TestTheWiredLandedNoticeStoresARealReading drives the download-side wiring with a recorder against
+// a real file of an anime that is not TV: the reading is stored for its episode and no notice is
+// raised, because the notice stays TV-only while the duration is episode data for every type.
+func TestTheWiredLandedNoticeStoresARealReading(t *testing.T) {
+	folder := realEpisode(t, 90, "Movie - 01.mp4")
+	db := sqlitedb.Open(t, episodes.SchemaTables()...)
+	notifier := &noticesSeen{}
+	movie := 3
+
+	newLandedEpisodeNotice(notifier, db).EpisodeLanded(context.Background(), folder, &movie, 1, "anime-1", "Movie")
+
+	rows, err := episodes.NewStore(db, nil).ByAnime(context.Background(), "anime-1")
+	if err != nil {
+		t.Fatalf("read durations: %v", err)
+	}
+	if len(rows) != 1 || rows[0].Episode != 1 || rows[0].DurationMS < 89_000 || rows[0].DurationMS > 91_000 {
+		t.Errorf("want episode 1 at about 90 s, got %+v", rows)
+	}
+	if len(notifier.got) != 0 {
+		t.Errorf("a non-TV anime raises no notice, got %v", notifier.got)
 	}
 }

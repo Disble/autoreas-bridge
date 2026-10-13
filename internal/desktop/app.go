@@ -107,6 +107,7 @@ type App struct {
 	downloadService            *download.Service
 	readinessService           *download.ReadinessService
 	downloadScheduler          schedule.Scheduler
+	episodeBackfill            episodeBackfiller
 	soloDownloadMu             sync.Mutex
 	soloDownloadCancelMu       sync.Mutex
 	soloDownloadCancel         context.CancelFunc
@@ -269,6 +270,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 	a.reconcileAutoStart(ctx)
 	a.startDownloadOrchestration(ctx)
+	a.startEpisodeBackfill()
 	a.wireNotificationCenterIntentExecutor()
 	// After the executor, so the two tokens this record carries already have their handlers
 	// registered by the time it can be pressed -- and once only, because startup is the single
@@ -383,6 +385,10 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 	if a.downloadScheduler != nil {
 		a.downloadScheduler.Stop()
+	}
+	// Before the database closes: a pass in flight still reads and writes durations.
+	if a.episodeBackfill != nil {
+		a.episodeBackfill.Stop()
 	}
 	if a.httpServer != nil {
 		_ = a.httpServer.Shutdown(ctx)

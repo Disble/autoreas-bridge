@@ -47,14 +47,17 @@ type Prober interface {
 type Coordinator struct {
 	inventory  *media.Inventory
 	identifier identity.Identifier
+	assigner   identity.Assigner
 	prober     Prober
 	notifier   notification.Notifier
+	// recorder stores the landed reading as episode data; nil stores nothing (see WithRecorder).
+	recorder Recorder
 }
 
 // New returns a Coordinator that reads folders with inventory, decides with the identity algorithm,
 // measures with prober and delivers with notifier.
 func New(inventory *media.Inventory, prober Prober, notifier notification.Notifier) *Coordinator {
-	return &Coordinator{inventory: inventory, identifier: identity.New(), prober: prober, notifier: notifier}
+	return &Coordinator{inventory: inventory, identifier: identity.New(), assigner: identity.NewAssigner(), prober: prober, notifier: notifier}
 }
 
 // EpisodeLanded reports one episode that just landed in folder, for the anime whose stored type is
@@ -64,8 +67,12 @@ func New(inventory *media.Inventory, prober Prober, notifier notification.Notifi
 // It returns nothing and never fails: every reason not to speak — a type that cannot qualify, a
 // folder nobody can read, a file that cannot be trusted, a missing or unreadable probe — is a
 // silence, not an error the caller has to handle.
+//
+// Every successful reading is also offered to the recorder, when one is wired, for every anime type:
+// the duration is episode data, and only the notice is limited to TV.
 func (c *Coordinator) EpisodeLanded(ctx context.Context, folder string, kind *int, episode int, animeID, animeName string) {
-	if !isTV(kind) {
+	tv := isTV(kind)
+	if !tv && c.recorder == nil {
 		return
 	}
 
@@ -85,7 +92,8 @@ func (c *Coordinator) EpisodeLanded(ctx context.Context, folder string, kind *in
 	if err != nil {
 		return
 	}
-	if duration.Classify(runtime) != duration.KindLong {
+	c.record(ctx, animeID, episode, runtime, entries, landed.Basename)
+	if !tv || duration.Classify(runtime) != duration.KindLong {
 		return
 	}
 
