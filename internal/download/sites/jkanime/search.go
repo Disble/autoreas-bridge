@@ -44,11 +44,28 @@ func newSearcherWithBaseURL(client *http.Client, baseURL string) *Searcher {
 	return &Searcher{client: client, baseURL: strings.TrimRight(baseURL, "/")}
 }
 
+// searchQuerySeparator replaces a name's own path separator before the query is
+// escaped into the single path segment the /buscar/ route owns. Escaping the
+// separator is NOT enough: the site decodes %2F and routes on hierarchy, so
+// /buscar/Ranma%201%2F2%20.../ answers 404 without ever reaching the search
+// (validated live 2026-10-13, where the same name with a space returned the
+// correct entry). Escaping guarantees syntax, not meaning, so the separator is
+// removed from the query instead of escaped. match.Normalize drops every
+// non-alphanumeric character before scoring, so the rewrite costs the matcher
+// nothing.
+const searchQuerySeparator = " "
+
+// toSearchQuery folds a raw name into a query safe to sit inside one path
+// segment.
+func toSearchQuery(query string) string {
+	return strings.ReplaceAll(query, "/", searchQuerySeparator)
+}
+
 // Search fetches the `/buscar/{query}/` page and returns the parsed results in
 // document order. An empty result set (no matches) is returned as an empty
 // slice, not an error.
 func (s *Searcher) Search(ctx context.Context, query string) (results []SearchResult, err error) {
-	searchURL := fmt.Sprintf("%s/buscar/%s/", s.baseURL, url.PathEscape(query))
+	searchURL := fmt.Sprintf("%s/buscar/%s/", s.baseURL, url.PathEscape(toSearchQuery(query)))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, searchURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build jkanime search request: %w", err)

@@ -98,3 +98,33 @@ func TestSearcherEscapesQueryInURL(t *testing.T) {
 		t.Fatalf("unexpected search path: %s", gotPath)
 	}
 }
+
+// TestSearcherNeverPutsAPathSeparatorInTheQuery pins the live failure: a name
+// whose own separator was escaped into a single path segment made the site
+// answer 404 without ever reaching its search (validated live 2026-10-13). The
+// route owns exactly three separators, so the query must arrive with none of its
+// own, and the name itself must survive the rewrite.
+func TestSearcherNeverPutsAPathSeparatorInTheQuery(t *testing.T) {
+	var gotRequestURI, gotPath string
+	srv := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotRequestURI, gotPath = r.RequestURI, r.URL.Path
+		_, _ = w.Write([]byte(`<html></html>`))
+	}))
+	t.Cleanup(srv.Close)
+	searcher := newSearcherWithBaseURL(srv.Client(), srv.URL)
+
+	if _, err := searcher.Search(context.Background(), "Ranma 1/2 (2024) 3rd Season"); err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+
+	if strings.Contains(strings.ToLower(gotRequestURI), "%2f") {
+		t.Fatalf("search request still carries an escaped path separator: %s", gotRequestURI)
+	}
+	// The exact decoded path is pinned because it is the form validated live
+	// against the site. Replacing the separator with nothing instead of a space
+	// would join the name's digits into a query nobody has ever verified, so
+	// changing this string must be a deliberate act.
+	if want := "/buscar/Ranma 1 2 (2024) 3rd Season/"; gotPath != want {
+		t.Fatalf("unexpected decoded search path: got %q want %q", gotPath, want)
+	}
+}
