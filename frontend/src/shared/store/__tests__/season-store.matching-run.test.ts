@@ -206,6 +206,38 @@ describe('season store matching run', () => {
     expect(getSeasonStoreState().seasonAnimes).toBe(rows);
   });
 
+  /**
+   * Guards S9 (nothing about a run is persisted): applying one progress event
+   * issues no source call at all, and the terminal signal issues only the one
+   * authoritative row reload. It exists to catch a future persistent side effect
+   * added to the lifecycle handlers — for example re-invoking `runMatching` or
+   * writing the run through another source method — which the teardown test
+   * below would not detect, since the run state it drops is ephemeral by design.
+   */
+  it('writes nothing about the run while progress lands or the terminal signal resolves', async () => {
+    const source = createMatchingSource({
+      reconcileIntake: vi.fn().mockResolvedValue('ok'),
+      recheckAvailability: vi.fn().mockResolvedValue('ok'),
+    });
+    const listeners = connectListeners(source);
+    setSeasonStoreState({ seasonAnimes: [intakeRow()] });
+    startTrackedRun(listeners);
+
+    listeners.progress(progressNotice());
+
+    expect(source.runMatching).not.toHaveBeenCalled();
+    expect(source.getSeasonAnimes).not.toHaveBeenCalled();
+    expect(source.reconcileIntake).not.toHaveBeenCalled();
+    expect(source.recheckAvailability).not.toHaveBeenCalled();
+
+    listeners.finished({ seasonId: 'season-1' });
+    await vi.waitFor(() => expect(source.getSeasonAnimes).toHaveBeenCalledTimes(1));
+
+    expect(source.runMatching).not.toHaveBeenCalled();
+    expect(source.reconcileIntake).not.toHaveBeenCalled();
+    expect(source.recheckAvailability).not.toHaveBeenCalled();
+  });
+
   it('leaves the progress state when the matching command returns something other than ok', async () => {
     const source = createMatchingSource({ runMatching: vi.fn().mockResolvedValue('searcher unavailable') });
     setSeasonStoreState({ matchingRun: { total: 2, resolvedInPhase: 1, phase: 'name_matching' } });

@@ -454,6 +454,54 @@ func TestSQLiteStoreSeasonAnimeRoundTrip(t *testing.T) {
 	}
 }
 
+// TestSQLiteStoreSearchFailedStatusSurvivesReopen proves the search_failed
+// intake state is durable at the SQLite boundary: a row the run marked
+// search_failed reads back with that status from every read path and survives
+// a NEW store opened over the same file — which is the "reopen the app" claim.
+// The resilience suite pins the transition against an in-memory repository, so
+// without this test a write/read asymmetry at the real adapter (a dropped or
+// filtered status value) would pass unnoticed.
+func TestSQLiteStoreSearchFailedStatusSurvivesReopen(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "bridge.db")
+	db := openTestSeasonDBAt(t, dbPath)
+	store := NewSQLiteStore(db)
+	ctx := context.Background()
+	now := time.UnixMilli(1_700_000_000_000)
+
+	if err := store.CreateSeason(ctx, domain.NewSeason("season-1", "Julio 2026", now)); err != nil {
+		t.Fatalf("CreateSeason: %v", err)
+	}
+	if err := store.CreateSeasonAnime(ctx, domain.NewSeasonAnime("sa-1", "season-1", "Typo Anime", now)); err != nil {
+		t.Fatalf("CreateSeasonAnime: %v", err)
+	}
+
+	// The run marks the row search_failed through the update path, as the live
+	// run does when a name search fails.
+	row, err := store.SeasonAnimeByID(ctx, "sa-1")
+	if err != nil || row == nil {
+		t.Fatalf("SeasonAnimeByID: %v (%+v)", err, row)
+	}
+	row.MatchStatus = domain.MatchSearchFailed
+	if err := store.UpdateSeasonAnime(ctx, *row); err != nil {
+		t.Fatalf("UpdateSeasonAnime: %v", err)
+	}
+
+	byID, err := store.SeasonAnimeByID(ctx, "sa-1")
+	if err != nil || byID == nil || byID.MatchStatus != domain.MatchSearchFailed {
+		t.Fatalf("SeasonAnimeByID status = %+v (%v), want %q", byID, err, domain.MatchSearchFailed)
+	}
+	listed, err := store.ListSeasonAnimes(ctx, "season-1")
+	if err != nil || len(listed) != 1 || listed[0].MatchStatus != domain.MatchSearchFailed {
+		t.Fatalf("ListSeasonAnimes status = %+v (%v), want %q", listed, err, domain.MatchSearchFailed)
+	}
+
+	// A brand-new connection over the same file is what "reopen the app" means.
+	after, err := NewSQLiteStore(openTestSeasonDBAt(t, dbPath)).SeasonAnimeByID(ctx, "sa-1")
+	if err != nil || after == nil || after.MatchStatus != domain.MatchSearchFailed {
+		t.Fatalf("search_failed did not survive the reopen: %+v (%v)", after, err)
+	}
+}
+
 func TestSQLiteStoreSeasonAnimeByIDMissing(t *testing.T) {
 	db := openTestSeasonDB(t)
 	store := NewSQLiteStore(db)
