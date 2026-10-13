@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { PreferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.types';
 import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import { connectSeasonMatchingStore, disconnectSeasonMatchingStore } from '../../../../shared/store/season-store/season-store.helpers';
 import { INTAKE_RECONCILE_DEBOUNCE_MS } from './intake-panel.constants';
 import type { useIntakeEditorState } from './use-intake-editor-state';
 import type { useIntakeStoreSlice } from './use-intake-store-slice';
@@ -18,20 +19,33 @@ interface IntakeSyncEffectsInput {
 }
 
 /**
- * useIntakeSyncEffects owns the intake panel's three effects: the initial row
- * refresh on mount, the configured downloads-root load, and the debounced
- * reconcile while editing the raw draft.
+ * useIntakeSyncEffects owns the intake panel's four effects: the initial row
+ * refresh on mount, the configured downloads-root load, the debounced
+ * reconcile while editing the raw draft, and the live matching-run
+ * subscription. The subscription stays out of the read-only history view --
+ * its rows belong to a closed season, so a live run must never banner over
+ * them -- and dropping it on unmount drops the ephemeral run with it.
  * @param input The editor state, store slice, and both sources.
  */
 export function useIntakeSyncEffects(input: Readonly<IntakeSyncEffectsInput>): void {
   const { editor, store, source, downloadsRootSource } = input;
   const { mode, rawDraft, setDownloadsRoot } = editor;
-  const { refreshAnimes, reconcileIntake } = store;
+  const { readOnly, refreshAnimes, reconcileIntake } = store;
 
   // 7. Effects
   useEffect(() => {
     void refreshAnimes(source);
   }, [refreshAnimes, source]);
+
+  useEffect(() => {
+    if (readOnly) {
+      return undefined;
+    }
+    connectSeasonMatchingStore(source);
+    return () => {
+      disconnectSeasonMatchingStore();
+    };
+  }, [readOnly, source]);
 
   useEffect(() => {
     void downloadsRootSource.getDownloadsRoot().then((root) => {

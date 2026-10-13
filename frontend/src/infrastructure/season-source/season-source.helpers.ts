@@ -29,16 +29,83 @@ import {
   SkipSeasonGrading,
   TriggerSeasonDownloads,
 } from '../../../wailsjs/go/desktop/App';
+import { EventsOn } from '../../../wailsjs/runtime/runtime';
 import {
   SEASON_APPLY_UNAVAILABLE,
   SEASON_CONFIRM_UNAVAILABLE,
   SEASON_EMPTY_BOARD,
+  SEASON_MATCHING_FINISHED_EVENT_NAME,
+  SEASON_MATCHING_PHASE_AVAILABILITY_CHECK,
+  SEASON_MATCHING_PHASE_MATCHING,
+  SEASON_MATCHING_PROGRESS_EVENT_NAME,
+  SEASON_MATCHING_STARTED_EVENT_NAME,
   SEASON_RUNTIME_UNAVAILABLE,
   SEASON_SEND_UNAVAILABLE,
   SEASON_SOURCE_STATE,
 } from './season-source.constants';
-import type { SeasonCreateMetadata, SeasonOrderingSnapshot, SeasonSource } from './season-source.types';
-import { hasGoBinding, invokeGoBinding, waitForBindings } from '../wails-bindings.helpers';
+import type {
+  SeasonCreateMetadata,
+  SeasonMatchingFinishedNotice,
+  SeasonMatchingFinishedWire,
+  SeasonMatchingPhase,
+  SeasonMatchingProgressCandidate,
+  SeasonMatchingProgressNotice,
+  SeasonMatchingProgressWire,
+  SeasonMatchingStartedNotice,
+  SeasonMatchingStartedWire,
+  SeasonOrderingSnapshot,
+  SeasonSource,
+} from './season-source.types';
+import { createRuntimeSubscription, hasGoBinding, invokeGoBinding, waitForBindings } from '../wails-bindings.helpers';
+
+/**
+ * Narrows a backend matching phase onto the closed frontend union, throwing
+ * on an unknown one rather than widening the union silently. The panel names
+ * its progress after this phase, so an unknown value must surface instead of
+ * letting the screen claim to be matching while it is really checking.
+ */
+function mapSeasonMatchingPhase(phase: string): SeasonMatchingPhase {
+  switch (phase) {
+    case SEASON_MATCHING_PHASE_MATCHING:
+    case SEASON_MATCHING_PHASE_AVAILABILITY_CHECK:
+      return phase;
+    default:
+      throw new Error(`Unknown season matching phase: ${phase}`);
+  }
+}
+
+/** Maps the started wire payload onto the run total the panel counts against. */
+function mapSeasonMatchingStartedNotice(wire: SeasonMatchingStartedWire): SeasonMatchingStartedNotice {
+  return { seasonId: wire.SeasonID, total: wire.Total };
+}
+
+/**
+ * Maps one wire progress row onto the patched-row shape the store applies. A
+ * null candidate list (the Go nil slice for a row that retained none) reads
+ * as empty so the row still patches.
+ */
+function mapSeasonMatchingProgressNotice(wire: SeasonMatchingProgressWire): SeasonMatchingProgressNotice {
+  return {
+    seasonId: wire.SeasonID,
+    phase: mapSeasonMatchingPhase(wire.Phase),
+    rowId: wire.RowID,
+    rawName: wire.RawName,
+    matchStatus: wire.MatchStatus,
+    matchedSlug: wire.MatchedSlug,
+    candidates: (wire.Candidates ?? []).map((candidate) => ({
+      title: candidate.Title,
+      pageUrl: candidate.PageURL,
+      score: candidate.Score,
+    })),
+    availability: wire.Availability,
+    availableEpisodes: wire.AvailableEpisodes,
+  };
+}
+
+/** Maps the finished wire payload onto the run's terminal signal. */
+function mapSeasonMatchingFinishedNotice(wire: SeasonMatchingFinishedWire): SeasonMatchingFinishedNotice {
+  return { seasonId: wire.SeasonID };
+}
 
 /**
  * Creates the singleton runtime-backed season source with browser-safe degraded fallbacks.
@@ -47,6 +114,18 @@ export function createSeasonSource(): SeasonSource {
   if (SEASON_SOURCE_STATE.sharedSource !== null) {
     return SEASON_SOURCE_STATE.sharedSource;
   }
+
+  const matchingStartedSubscription = createRuntimeSubscription<SeasonMatchingStartedNotice>((emit) => {
+    return EventsOn(SEASON_MATCHING_STARTED_EVENT_NAME, (wire: SeasonMatchingStartedWire) => emit(mapSeasonMatchingStartedNotice(wire)));
+  });
+
+  const matchingProgressSubscription = createRuntimeSubscription<SeasonMatchingProgressNotice>((emit) => {
+    return EventsOn(SEASON_MATCHING_PROGRESS_EVENT_NAME, (wire: SeasonMatchingProgressWire) => emit(mapSeasonMatchingProgressNotice(wire)));
+  });
+
+  const matchingFinishedSubscription = createRuntimeSubscription<SeasonMatchingFinishedNotice>((emit) => {
+    return EventsOn(SEASON_MATCHING_FINISHED_EVENT_NAME, (wire: SeasonMatchingFinishedWire) => emit(mapSeasonMatchingFinishedNotice(wire)));
+  });
 
   SEASON_SOURCE_STATE.sharedSource = {
     getSeason() {
@@ -153,6 +232,15 @@ export function createSeasonSource(): SeasonSource {
     },
     recheckAvailability() {
       return invokeGoBinding('RecheckSeasonAvailability', RecheckSeasonAvailability, () => SEASON_RUNTIME_UNAVAILABLE);
+    },
+    subscribeMatchingStarted(listener) {
+      return matchingStartedSubscription.subscribe(listener);
+    },
+    subscribeMatchingProgress(listener) {
+      return matchingProgressSubscription.subscribe(listener);
+    },
+    subscribeMatchingFinished(listener) {
+      return matchingFinishedSubscription.subscribe(listener);
     },
     openPage(url: string) {
       if (url === '' || typeof window.runtime?.BrowserOpenURL !== 'function') {

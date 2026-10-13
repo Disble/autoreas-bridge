@@ -17,6 +17,7 @@ describe('useIntakeStoreSlice', () => {
       readOnly: true,
       errorMessage: 'no active season',
       busyMessage: 'Checking episode availability…',
+      matchingRun: { total: 2, resolvedInPhase: 1, phase: 'name_matching' },
     });
     const { result } = renderHook(() => useIntakeStoreSlice());
 
@@ -24,6 +25,7 @@ describe('useIntakeStoreSlice', () => {
     expect(result.current.readOnly).toBe(true);
     expect(result.current.errorMessage).toBe('no active season');
     expect(result.current.busyMessage).toBe('Checking episode availability…');
+    expect(result.current.matchingRun).toEqual({ total: 2, resolvedInPhase: 1, phase: 'name_matching' });
   });
 
   it('exposes every store action the panel drives', () => {

@@ -37,6 +37,8 @@ export function IntakePanel() {
     searchFailedCount,
     errorMessage,
     busyMessage,
+    matchingRun,
+    matchingProgressMessage,
     onRunMatching,
     onRecheckAvailability,
     onResolve,
@@ -46,7 +48,17 @@ export function IntakePanel() {
 
   return (
     <section className="flex flex-col gap-4">
-      {busyMessage !== undefined && (
+      {matchingProgressMessage !== undefined && (
+        <output
+          aria-live="polite"
+          className="flex items-center gap-3 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-foreground"
+        >
+          <span className="size-4 shrink-0 animate-spin rounded-full border-2 border-muted border-t-accent" />
+          {matchingProgressMessage}
+        </output>
+      )}
+
+      {busyMessage !== undefined && matchingRun === null && (
         <output
           aria-live="polite"
           className="flex items-center gap-3 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-foreground"

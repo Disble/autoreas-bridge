@@ -13,6 +13,7 @@ export function useIntakeStoreSlice() {
   const readOnly = useSeasonStore((state) => state.readOnly);
   const errorMessage = useSeasonStore((state) => state.errorMessage);
   const busyMessage = useSeasonStore((state) => state.busyMessage);
+  const matchingRun = useSeasonStore((state) => state.matchingRun);
   const refreshAnimes = useSeasonStore((state) => state.refreshAnimes);
   const reconcileIntake = useSeasonStore((state) => state.reconcileIntake);
   const runMatching = useSeasonStore((state) => state.runMatching);
@@ -27,6 +28,7 @@ export function useIntakeStoreSlice() {
     readOnly,
     errorMessage,
     busyMessage,
+    matchingRun,
     refreshAnimes,
     reconcileIntake,
     runMatching,

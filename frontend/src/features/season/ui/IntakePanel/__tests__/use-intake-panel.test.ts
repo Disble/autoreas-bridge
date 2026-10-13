@@ -1,13 +1,19 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
-import { getSeasonStoreState, resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
+import type {
+  SeasonAnimeRow,
+  SeasonMatchingFinishedNotice,
+  SeasonMatchingProgressNotice,
+  SeasonMatchingStartedNotice,
+} from '../../../../../infrastructure/season-source/season-source.types';
+import { disconnectSeasonMatchingStore, getSeasonStoreState, resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
 import { createDownloadsRootSource, createMetadataSource, createSource, createSourceWithRows, seasonRow, selection } from './intake-panel.test-support';
 import { useIntakePanel } from '../use-intake-panel';
 
 describe('useIntakePanel', () => {
   afterEach(() => {
+    disconnectSeasonMatchingStore();
     resetSeasonStore();
     vi.clearAllMocks();
   });
@@ -43,6 +49,50 @@ describe('useIntakePanel', () => {
     await waitFor(() => expect(result.current.editableRows).toHaveLength(2));
     expect(result.current.searchFailedCount).toBe(1);
     expect(result.current.unresolvedCount).toBe(1); // the failed search is not pending work
+  });
+
+  it('follows a matching run live: progress names its phase and patches its row', async () => {
+    const subscribeStarted = vi.fn().mockReturnValue(() => undefined);
+    const subscribeProgress = vi.fn().mockReturnValue(() => undefined);
+    const subscribeFinished = vi.fn().mockReturnValue(() => undefined);
+    const source = createSource({
+      getSeasonAnimes: vi.fn().mockResolvedValue([seasonRow({ id: 'sa-1', rawName: 'Good Anime' })]),
+      subscribeMatchingStarted: subscribeStarted,
+      subscribeMatchingProgress: subscribeProgress,
+      subscribeMatchingFinished: subscribeFinished,
+    });
+    const { result } = renderHook(() => useIntakePanel(source));
+    await waitFor(() => expect(source.getSeasonAnimes).toHaveBeenCalledTimes(1));
+    const started = subscribeStarted.mock.calls[0][0] as (notice: SeasonMatchingStartedNotice) => void;
+    const progress = subscribeProgress.mock.calls[0][0] as (notice: SeasonMatchingProgressNotice) => void;
+    const finished = subscribeFinished.mock.calls[0][0] as (notice: SeasonMatchingFinishedNotice) => void;
+
+    act(() => {
+      started({ seasonId: 'season-1', total: 1 });
+    });
+    expect(result.current.matchingProgressMessage).toBe('Matching names… 0 of 1');
+
+    act(() => {
+      progress({
+        seasonId: 'season-1',
+        phase: 'name_matching',
+        rowId: 'sa-1',
+        rawName: 'Good Anime',
+        matchStatus: 'matched',
+        matchedSlug: 'https://jkanime.net/good-anime/',
+        candidates: [],
+        availability: 'waiting',
+        availableEpisodes: 0,
+      });
+    });
+    expect(result.current.matchingProgressMessage).toBe('Matching names… 1 of 1');
+    expect(result.current.editableRows[0]).toMatchObject({ matchStatus: 'matched' });
+
+    act(() => {
+      finished({ seasonId: 'season-1' });
+    });
+    expect(result.current.matchingProgressMessage).toBeUndefined();
+    await waitFor(() => expect(source.getSeasonAnimes).toHaveBeenCalledTimes(2));
   });
 
   it('toggleSelect then onCreate creates the picked rows and clears the selection', async () => {

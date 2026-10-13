@@ -6,6 +6,7 @@ import type { SeasonSource } from '../../../../infrastructure/season-source/seas
 import type { AnimeMetadataLookupSource } from '../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
 import { useIntakeCreationCallbacks } from './use-intake-creation-callbacks';
 import { useIntakeEditorState } from './use-intake-editor-state';
+import { useIntakeMatchingProgress } from './use-intake-matching-progress';
 import { useIntakeMetadataApply } from './use-intake-metadata-apply';
 import { useIntakeMetadataRevert } from './use-intake-metadata-revert';
 import { useIntakeMetadataView } from './use-intake-metadata-view';
@@ -52,6 +53,7 @@ export function useIntakePanel(
   const store = useIntakeStoreSlice();
   // 5. Derived State (useMemo in colocated hooks)
   const rows = useIntakeRows({ store, editor });
+  const progress = useIntakeMatchingProgress({ store });
   const metadata = useIntakeMetadataView({ rows, editor });
   // 6. Callbacks (useCallback in colocated hooks)
   const modes = useIntakeModeCallbacks({ editor, store, source });
@@ -87,6 +89,8 @@ export function useIntakePanel(
     searchFailedCount: rows.searchFailedCount,
     errorMessage: store.errorMessage,
     busyMessage: store.busyMessage,
+    matchingRun: store.matchingRun,
+    matchingProgressMessage: progress.matchingProgressMessage,
     onRunMatching: rowActions.onRunMatching,
     onRecheckAvailability: rowActions.onRecheckAvailability,
     onResolve: rowActions.onResolve,

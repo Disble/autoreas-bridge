@@ -1,7 +1,8 @@
 import { createStore } from 'zustand/vanilla';
+import { SEASON_MATCHING_PHASE_MATCHING } from '../../../infrastructure/season-source/season-source.constants';
 import { seasonSource } from '../../../infrastructure/season-source/season-source.helpers';
-import type { SeasonSource } from '../../../infrastructure/season-source/season-source.types';
-import type { AnimesLoadState, SeasonStoreState } from './season-store.types';
+import type { SeasonAnimeRow, SeasonMatchingProgressNotice, SeasonSource } from '../../../infrastructure/season-source/season-source.types';
+import type { AnimesLoadState, SeasonMatchingRun, SeasonStoreState } from './season-store.types';
 
 /**
  * Runs one intake command behind the store's read-only guard, surfacing the command's
@@ -50,6 +51,40 @@ function failAnimesLoad(current: AnimesLoadState): AnimesLoadState {
 }
 
 /**
+ * Patches one intake row with its resolved progress facts, keeping every
+ * field the event does not carry. The payload carries no counters, so none
+ * are stored here either.
+ */
+function patchRowWithProgress(row: SeasonAnimeRow, notice: SeasonMatchingProgressNotice): SeasonAnimeRow {
+  return {
+    ...row,
+    rawName: notice.rawName,
+    matchStatus: notice.matchStatus,
+    matchedSlug: notice.matchedSlug,
+    candidates: [...notice.candidates],
+    availability: notice.availability,
+    availableEpisodes: notice.availableEpisodes,
+  };
+}
+
+/**
+ * Advances the ephemeral run count for one resolved row: within the same
+ * phase the count grows, and a phase flip restarts it under the new phase so
+ * the panel never counts availability resolutions against the name total.
+ * Without a run in flight (the scheduled availability refresh) there is
+ * nothing to advance.
+ */
+function advanceMatchingRun(run: SeasonMatchingRun | null, notice: SeasonMatchingProgressNotice): SeasonMatchingRun | null {
+  if (run === null) {
+    return null;
+  }
+  if (notice.phase !== run.phase) {
+    return { total: run.total, resolvedInPhase: 1, phase: notice.phase };
+  }
+  return { total: run.total, resolvedInPhase: run.resolvedInPhase + 1, phase: run.phase };
+}
+
+/**
  * Vanilla backing store for the shared Season read-model.
  *
  * This module owns the store value and the intake command plumbing it calls; the
@@ -64,6 +99,19 @@ export const seasonStore = createStore<SeasonStoreState>()((set, get) => ({
   animesLoadState: 'idle',
   errorMessage: undefined,
   busyMessage: undefined,
+  matchingRun: null,
+  beginMatchingRun: (total) => {
+    set({ matchingRun: { total, resolvedInPhase: 0, phase: SEASON_MATCHING_PHASE_MATCHING } });
+  },
+  applyMatchingProgress: (notice) => {
+    set((state) => ({
+      seasonAnimes: state.seasonAnimes.map((row) => (row.id === notice.rowId ? patchRowWithProgress(row, notice) : row)),
+      matchingRun: advanceMatchingRun(state.matchingRun, notice),
+    }));
+  },
+  finishMatchingRun: () => {
+    set({ matchingRun: null });
+  },
   viewSeasonId: null,
   readOnly: false,
   pastSeasons: [],
@@ -221,7 +269,30 @@ export const seasonStore = createStore<SeasonStoreState>()((set, get) => ({
   },
 
   runMatching: async (source) => {
-    await runIntakeCommand(get, set, () => source.runMatching(), source, 'Failed to run matching', 'Matching names against jkanime…');
+    // Matching owns its own plumbing instead of `runIntakeCommand`: the live
+    // run reports through the matching events, so the terminal signal -- not
+    // the command result -- owns the authoritative reload. An infrastructure
+    // abort emits no finished event, so a non-`ok` result also drops the run
+    // state here, or the progress would hang forever.
+    if (get().readOnly) {
+      return;
+    }
+    set({ busyMessage: 'Matching names against jkanime…' });
+    try {
+      const result = await source.runMatching();
+      if (result !== 'ok') {
+        set({ errorMessage: result || 'Failed to run matching', matchingRun: null });
+        return;
+      }
+      set({ errorMessage: undefined });
+      if (get().matchingRun === null) {
+        await get().refreshAnimes(source);
+      }
+    } catch (error) {
+      set({ errorMessage: error instanceof Error ? error.message : 'Failed to run matching', matchingRun: null });
+    } finally {
+      set({ busyMessage: undefined });
+    }
   },
 
   resolveMatch: async (source, rowId, pageUrl) => {
