@@ -4,6 +4,10 @@ import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { AnimeEditorRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import { useAnimeEditorWorkspace } from '../use-anime-editor-workspace';
+import { createEmptyEpisodeDurationSource } from './episode-duration-source.test-support';
+
+/** The Episodes section's in-memory source, so no render waits on a Wails binding. */
+const episodeSource = createEmptyEpisodeDurationSource();
 
 /**
  * Builds one rail-list anime fixture.
@@ -53,7 +57,7 @@ const wrapper = ({ children }: { children: ReactNode }) => <MemoryRouter>{childr
 describe('anime editor selection is not locked after the first pick', () => {
   it('changes the loaded record on each consecutive selection', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source), { wrapper });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource), { wrapper });
 
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
@@ -71,7 +75,7 @@ describe('deactivate confirmation flow', () => {
   it('opens confirmation, runs deactivate only on confirm, then closes', async () => {
     const source = createSource();
     (source.deactivateAnime as ReturnType<typeof vi.fn>).mockResolvedValue({ outcome: 'applied', record: undefined });
-    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source), { wrapper });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource), { wrapper });
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
     expect(result.current.lifecycleConfirmation).toBeUndefined();
@@ -86,7 +90,7 @@ describe('deactivate confirmation flow', () => {
 
   it('closes without deactivating when cancelled', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source), { wrapper });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource), { wrapper });
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
     act(() => result.current.onRequestLifecycleAction('deactivate'));
@@ -101,7 +105,7 @@ describe('restore confirmation flow', () => {
   it('opens confirmation, runs restore (not deactivate) only on confirm, then closes', async () => {
     const source = createSource();
     (source.restoreAnime as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok' });
-    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source), { wrapper });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource), { wrapper });
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
     expect(result.current.lifecycleConfirmation).toBeUndefined();
@@ -120,7 +124,7 @@ describe('repeat confirmation flow', () => {
   it('opens confirmation, runs repeat (not restore) only on confirm, then reloads the rail', async () => {
     const source = createSource();
     (source.repeatAnime as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok' });
-    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source), { wrapper });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource), { wrapper });
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
     expect(result.current.lifecycleConfirmation).toBeUndefined();

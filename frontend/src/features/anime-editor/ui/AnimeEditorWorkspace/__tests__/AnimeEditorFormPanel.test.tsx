@@ -43,6 +43,8 @@ function createViewModel(overrides: Partial<AnimeEditorWorkspaceViewModel> = {})
     onMetadataApplied: vi.fn(), onMetadataUndo: vi.fn(),
     onOpenSchedule: vi.fn(), onCloseSchedule: vi.fn(), onApplySchedule: vi.fn(),
     onStayWithCurrentEditor: vi.fn(), onDiscardAndContinue: vi.fn(), onSaveAndContinue: vi.fn(),
+    // The Episodes section has its own suite; idle renders nothing here.
+    episodes: { view: 'idle' } as unknown as AnimeEditorWorkspaceViewModel['episodes'],
     ...overrides,
   } as unknown as AnimeEditorWorkspaceViewModel;
 }

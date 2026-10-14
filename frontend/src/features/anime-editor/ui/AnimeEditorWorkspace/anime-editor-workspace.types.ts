@@ -1,6 +1,7 @@
 import type { AnimeEditorRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import type { EpisodeDurationRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
 import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
-import type { AnimeEditorRecord, AnimeEditorSaveResult, AnimeEditorScheduleApplyResult, ApplyAnimeScheduleDraftEntry } from '../../../../shared/contracts/anime.types';
+import type { AnimeEditorRecord, AnimeEditorSaveResult, AnimeEditorScheduleApplyResult, ApplyAnimeScheduleDraftEntry, EpisodeDurationEdit } from '../../../../shared/contracts/anime.types';
 import type { AnimeMetadataSelection, AppliedMetadata } from '../../../../shared/metadata-lookup/metadata-lookup.types';
 import type { AnimeScheduleOrderingTestDriverRef } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
 
@@ -8,6 +9,8 @@ import type { AnimeScheduleOrderingTestDriverRef } from '../../../../shared/orde
 export interface AnimeEditorWorkspaceProps {
   readonly initialAnimeId?: string;
   readonly scheduleTestDriverRef?: AnimeScheduleOrderingTestDriverRef;
+  /** The Episodes section's source; production omits it and gets the Wails runtime source. */
+  readonly episodeSource?: EpisodeDurationRuntimeSource;
 }
 
 /** Filter lenses supported by the left editor rail. */
@@ -119,6 +122,13 @@ export interface AnimeEditorDraft {
 export interface AnimeEditorRecordState {
   readonly selectedRecord?: AnimeEditorRecord;
   readonly draft: AnimeEditorDraft;
+  /**
+   * The draft's unsaved episode-duration edits (Episodes section). They join the
+   * draft, so Save writes them and Discard changes drops them (Log L15).
+   */
+  readonly episodeEdits: readonly EpisodeDurationEdit[];
+  /** Bumped after each applied save, so the Episodes section reads the stored durations again. */
+  readonly episodeRevision: number;
   readonly isLoadingRecord: boolean;
   readonly isSaving: boolean;
   readonly feedback?: string;

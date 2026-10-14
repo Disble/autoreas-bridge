@@ -10,6 +10,7 @@ import type { AnimeEditorRecord } from '../../../../../shared/contracts/anime.ty
 // with an empty Type, showed "Type is required", and looped on "save made no
 // changes" because the zero was dropped at the serialization boundary.
 
+/** The faked bridge source the composed workspace reads, and the record mock each test programs. */
 const { fakeSource, getAnimeEditorRecordMock } = vi.hoisted(() => {
   const getAnimeEditorRecordMock = vi.fn();
   const noop = () => Promise.resolve(undefined);
@@ -38,7 +39,12 @@ vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-sour
 }));
 
 import { AnimeEditorWorkspace } from '../AnimeEditorWorkspace';
+import { createEmptyEpisodeDurationSource } from './episode-duration-source.test-support';
 
+/** The Episodes section's in-memory source, so no render waits on a Wails binding. */
+const episodeSource = createEmptyEpisodeDurationSource();
+
+/** Builds the editor record of anime-1 with the given stored type, or none. */
 function recordWithKind(kind: number | undefined): AnimeEditorRecord {
   return {
     animeId: 'anime-1',
@@ -69,7 +75,7 @@ describe('AnimeEditorWorkspace Type field (e2e)', () => {
   it('treats a concrete tipo=0 as a satisfied Type — no "Type is required" alarm', async () => {
     getAnimeEditorRecordMock.mockResolvedValue({ outcome: 'applied', message: 'loaded', record: recordWithKind(0) });
 
-    render(<MemoryRouter><AnimeEditorWorkspace /></MemoryRouter>);
+    render(<MemoryRouter><AnimeEditorWorkspace episodeSource={episodeSource} /></MemoryRouter>);
 
     // Wait for the record to finish loading into the form.
     expect(await screen.findByDisplayValue('BanG Dream! Yume∞Mita')).toBeInTheDocument();
@@ -81,7 +87,7 @@ describe('AnimeEditorWorkspace Type field (e2e)', () => {
   it('still demands a Type for an anime that genuinely has none (contrast)', async () => {
     getAnimeEditorRecordMock.mockResolvedValue({ outcome: 'applied', message: 'loaded', record: recordWithKind(undefined) });
 
-    render(<MemoryRouter><AnimeEditorWorkspace /></MemoryRouter>);
+    render(<MemoryRouter><AnimeEditorWorkspace episodeSource={episodeSource} /></MemoryRouter>);
 
     // A truly absent type is the ONLY case that should surface the requirement,
     // proving the fix distinguishes a real 0 from a missing value.

@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AirisEmptyState } from '../AirisEmptyState';
-import { AIRIS_ARTWORK_CLASS, AIRIS_COMPACT_ARTWORK_CLASS } from '../airis-empty-state.constants';
+import { AIRIS_ARTWORK_CLASS, AIRIS_COMPACT_ARTWORK_CLASS, AIRIS_INLINE_ARTWORK_CLASS } from '../airis-empty-state.constants';
 
 /** Removes rendered empty-state DOM after each scenario. */
 afterEach(() => {
@@ -95,6 +95,40 @@ describe('AirisEmptyState size', () => {
     expect(document.querySelector('img')).toHaveAttribute('class', artworkClass);
     expect(screen.getByRole('heading', { level: 3, name: 'Nothing left' })).toBeInTheDocument();
     expect(screen.getByText('All placed.')).toBeInTheDocument();
+  });
+
+  it('renders the inline layout without a card: 128px artwork beside left-aligned copy and one primary action', () => {
+    const onPress = vi.fn();
+    const { container } = render(
+      <AirisEmptyState imageSrc="/editor.webp" title="No episode durations yet" description="Add one by hand." size="inline" action={{ label: 'Add episode', onPress }} />,
+    );
+
+    expect(container.querySelector('[data-slot="card"]')).toBeNull();
+    expect(document.querySelector('img')).toHaveAttribute('class', AIRIS_INLINE_ARTWORK_CLASS);
+    expect(container.firstElementChild).toHaveClass('grid-cols-[auto_minmax(0,1fr)]');
+    expect(screen.getByRole('heading', { level: 3, name: 'No episode durations yet' })).toBeInTheDocument();
+    expect(screen.getByText('Add one by hand.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add episode' }));
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the inline copy without a button when no action is provided', () => {
+    render(<AirisEmptyState imageSrc="/editor.webp" title="No episode durations yet" description="Add one by hand." size="inline" />);
+
+    expect(screen.getByRole('heading', { level: 3, name: 'No episode durations yet' })).toBeInTheDocument();
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('keeps the inline copy and action when its artwork fails', () => {
+    render(
+      <AirisEmptyState imageSrc="/missing.webp" title="Nothing measured" description="Add by hand." size="inline" action={{ label: 'Add episode', onPress: vi.fn() }} />,
+    );
+
+    fireEvent.error(document.querySelector('img') as HTMLImageElement);
+
+    expect(document.querySelector('img')).toBeNull();
+    expect(screen.getByRole('heading', { level: 3, name: 'Nothing measured' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add episode' })).toBeInTheDocument();
   });
 
   it('keeps the compact action and drops its failed artwork', () => {

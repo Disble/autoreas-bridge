@@ -75,8 +75,9 @@ production, tests and docs.
 | ODD 4 | **Shared read model and Today.** Pure `EpisodeLengths` and `LongNextEpisode` in the anime context; Today's binding reads the table in one query; remove TodayMarks probing. Today output unchanged (regression tests on `LongNextEpisode`). | S1, S8, S9 | ODD 1, ODD 3 | inline | ~300 (net, includes removals) | Item 3 (Wails contract kept identical); medium | done (ditto 27/27, L11) | see L11 |
 | ODD 5 | **Sync to Mobile.** Announcer and `episode.durations_changed`; changelog-recorder and WebSocket-hub subscriptions; serve-time join in `toAnimeChanges` and `GET /api/animes` through `EpisodeLengths`; guard tests (anime edit unchanged, duration save publishes no `AnimeChangedEvent`, `modified_at` unchanged); `docs/openapi.yaml`. | S11–S14 | ODD 1, ODD 4 | inline | ~450 | High: items 3 and 4 (contract Mobile consumes, event ordering). Independent verifier. | done (verifier PASS after B1 fix, L13–L14) | see L14 |
 | ODD 6a | **Editor backend.** Wails bindings: list rows (stored plus derived "Not measured"), edit, Add episode, Clear, re-analysis preview, and confirm (manual kept). Writes go through the ODD 1 store, so they mark pending. Folder change triggers the S7 backfill. | S10 | ODD 1, ODD 2, ODD 3 | inline, or parallel with ODD 4–5 (disjoint surface) | ~400 | Item 3 (new bindings only, additive); medium | done (ditto 16/16, 64/66 with 2 equivalent; L16) | see L16 |
-| ODD 6b | **Editor UI.** "Episodes" accordion per the approved guide; `AirisEmptyState` `inline` size with a layout fixture; skeleton/empty/alert states; hooks with colocated tests; progressive list rule. | S10 | ODD 6a | inline | ~800 (frontend, split into two commits) | Item 6 covered by Vitest and the layout fixture; medium | pending | — |
-| ODD 7 | **Mobile handoff.** Send the `openapi.yaml` contract and the analysis to the Mobile team; answer their questions. No Bridge code. | S14 | ODD 5 | inline | ~0 | none | pending | — |
+| ODD 6b | **Editor UI.** "Episodes" accordion per the approved guide; `AirisEmptyState` `inline` size with a layout fixture; skeleton/empty/alert states; hooks with colocated tests; progressive list rule. | S10 | ODD 6a | inline | ~800 (frontend, split into two commits) | Item 6 covered by Vitest and the layout fixture; medium | done (staged mutation 1191 killed, 0 survived, 0 no-coverage; dharness check clean; L17, L27) | see L27 |
+| ODD 7 | **Mobile handoff.** Send the `openapi.yaml` contract and the analysis to the Mobile team; answer their questions. No Bridge code. | S14 | ODD 5 | inline | ~0 | none | sent 2026-10-14 to mobile-team; awaiting questions (L18) | — |
+| ODD 5b | **Changelog order fix (B2, from Mobile).** Every changelog row reads the current snapshot inside its insert transaction, stamps `changed_at_ms` past the anime's last row, and skips a non-delete row of a vanished anime. | S11, S14 | ODD 5 | inline | ~250 | Item 4 (concurrency) and item 3 (row semantics Mobile consumes); high: independent verifier with `-race` | in progress (L24) | — |
 
 **Order and parallelism:** ODD 1 ∥ ODD 2 → ODD 3 → ODD 4 → ODD 5 → ODD 7. ODD 6a can start after ODD 3 and run in
 parallel with ODD 4–5 on a disjoint edit surface; ODD 6b follows 6a.
@@ -282,4 +283,62 @@ parallel with ODD 4–5 on a disjoint edit surface; ODD 6b follows 6a.
     - Lint 0, size and architecture gates pass, `-race` passes on desktop and `anime/...`.
     - Wails bindings regenerate and the frontend typecheck passes.
     - Feature-end independent verifier: after ODD 6b.
-- **Next step:** ODD 6b (Editor UI).
+- **L17 (2026-10-14):** ODD 6b Editor UI. Route: delegated, with a bounded writer for the context backstop, plus a
+  second writer, limited to tests, after the first ran out of session.
+  - **Built:**
+    - The Episodes `Disclosure` after "More details". Its trigger shows "N of M measured" and "N long" while closed.
+    - The table, the guide's ten states, the progress bar with Cancel, and the Edit, Add and Review modals.
+    - Episode edits in the Editor draft. Dirty tracking, Save and Discard cover them, and an applied save reloads
+      the section.
+    - The `AirisEmptyState` `inline` size, with layout-fixture cases.
+    - A separate injected `EpisodeDurationRuntimeSource`, memoized; workspace tests inject a fake.
+  - **Parent correction batch:**
+    - Removed an added `eslint-disable dharness/role-file-shape`.
+    - Workspace tests had fallen through to the binding's offline wait, which made Stryker's initial run time out.
+    - Two missing test JSDoc comments.
+  - **Stryker** on the three new helper files: 89.16% → 97.65%.
+    - 60 survivors killed by behaviour tests.
+    - 17 equivalent, each with a recorded proof: chip ids used only as React keys, guarded optional chaining, a
+      `NaN` comparison, and an unreachable `?? false`.
+  - **Checks:**
+    - Typecheck passes.
+    - 426 tests pass across anime-editor, infrastructure and AirisEmptyState.
+    - Scoped eslint is clean on every touched file.
+    - Layout smoke and render smoke pass. Disabling the inline branch was confirmed to fail the smoke.
+  - **Advisory:** four files already over 400 lines grew by 2–8 lines; all stay under the 500 hard limit.
+  - **UI choices made where the guide is silent or ambiguous, pending user confirmation:**
+    1. Cancelling a re-analysis closes quietly, with no review.
+    2. Busy and error results show the review with Close only, using writer-chosen copy.
+    3. The progress text reads "Measuring episode 17 · 5 of 12", because the episode number and the file position
+       can differ.
+    4. The mockup's per-row "Measuring…" and "Waiting" labels are not implemented; they are not in the guide.
+    5. Writer-chosen copy: the empty state for a found folder with no files and no total, "Not measured yet", and
+       the interrupted-review description.
+    6. The Add modal's long hint shows for TV only. The guide states it unconditionally, but long applies to TV
+       only.
+    7. Clear is disabled on a row with no value. Clearing an unsaved-only value drops the edit.
+    8. A confirmed review never replaces an unsaved manual edit.
+    9. A review whose only differences are manual-kept rows shows the table with Close.
+    10. The Tooltip trigger wrapper is `role="presentation"`, and a disabled button keeps its reason in
+        `aria-label`.
+- **Next step:** commit ODD 6b, then the feature-end independent verifier, then ODD 7.
+
+- **L18 (2026-10-14) — ODD 7 handoff sent.** User: "Ya envialo, igual estoy corriendo esta rama por si necesitas probar endpoints. Eso no es problema." Sent the final contract (`MobileAnime.episodes`, `EpisodeLength`, the six rules and `docs/openapi.yaml` at `f436964d`) to the mobile-team session; it supersedes the earlier endpoint design. Open: answer their questions; offer a live endpoint check against the branch the user is running.
+
+- **L19 (2026-10-14) — Mobile reply.** Mobile accepts `MobileAnime.episodes`; old Mobile builds drop the field safely (zod ignores it; `changed_fields: [episodes]` normalizes to []), so Bridge can ship first; Mobile handles the backfill with a full resync on update. Confirmed to them: reconcile `bridge_changes` goes through the decorated `SyncTrigger.ListChangesAfterID` (router.go:70), same snapshot as /changes. Blocking question: Mobile drops a change whose `timestamp` <= the last applied one for that anime (tie keeps local). Finding: `timestamp` = recorder wall clock `time.Now().UnixMilli()` (changelog_recorder.go:88), new per row but NOT strictly increasing per anime (same-ms rows, clock going back). Pre-existing for every row, made likelier by the Editor save (episodes row async, possibly with the pre-patch snapshot, then the patch row). Proposed fix: per-anime strictly increasing `ChangedAtMs` in the recorder. Pending user decision.
+
+- **L20 (2026-10-14) — Blocker B2 from Mobile (ODD 5 reopened).** Installed Mobile builds normalize `changed_fields: [episodes]` to [] and then diff the WHOLE snapshot (deriveChangedFields), so an episodes row carrying a pre-patch snapshot REVERTS the patch silently; strict timestamps make it happen always, not only on ms ties. Verified race: announce.go:106 reads the snapshot, then publishes; InsertPending runs separately, so a patch can commit in between. Invariant: for one anime, a row snapshot is never older than an earlier row. Chosen fix (variant of their option a; b is insufficient because download/backfill announcements race any patch): the episodes row reads the current snapshot inside the same transaction as its insert, and every row gets `changed_at_ms` = max(now, last for the anime + 1) in that transaction. Serving keeps the recorded snapshot and only re-joins `episodes`. Told Mobile; implementation pending user confirmation.
+
+- **L21 (2026-10-14) — Mobile widens B2 to every row.** Mobile accepts the fix only if the invariant holds for ALL rows: patch rows also publish `anime.changed` after their commit (write_service.go:255 publishCommitted; editor_service.go:208; schedule_service.go:218; writer.go:164/195) and the recorder inserts in a separate transaction, so the reverse race exists. Agreed rule for the changelog writer, every row, inside the insert transaction: store the CURRENT snapshot (event payload only when the anime is gone) and `changed_at_ms` = max(now, last for the anime + 1). `changed_fields` unchanged. Acceptance: for any two rows of one anime, id(A) < id(B) implies ts(A) < ts(B) and snapshot(B) is not older; tests cover episodes-vs-patch, patch-vs-episodes, and the general id invariant. Pending user confirmation.
+
+- **L22 (2026-10-14) — Missing-anime rule.** Mobile: a non-delete row stored after the anime vanished makes installed builds upsert it back (resurrection). Verified: Bridge deletion is logical (Deactivate keeps the row); no production code emits `delete` rows; the only physical removal is the backup import full refresh (backup_import.go:96), which writes no delete rows. Final rule: inside the insert transaction, a non-delete row whose anime no longer exists is not stored; a delete row keeps the event snapshot. Pending user confirmation.
+
+- **L23 (2026-10-14) — Contract closed with Mobile.** Mobile confirms the final rule and waits for the commit. Advisory A4 (pre-existing, out of scope): a backup import removes animes physically and records no delete rows, so Mobile never learns of them; unverified whether a full resync cleans them. To be handled separately.
+
+- **L24 (2026-10-14) — ODD 5b implemented, unverified.** User: "Dale, ya lo aceptaste, así que ahora haste responsable." `ChangelogStore.InsertPending` now runs in `persistence.InTx`: a non-delete row takes `anime_snapshots.snapshot_json` (no row when the anime is gone), `changed_at_ms` = max(given, MAX for the anime + 1), then the insert. RED observed on 5 new tests in `internal/sync/changelog_order_test.go` (both Mobile orders, per-anime clock, vanished anime, 4x10 concurrent writers with stale payloads and equal clocks); GREEN with sync, api/..., anime/..., desktop, and `-race` on sync. Existing tests now seed the anime they record (`insertWithAnime`, `seedAnimeSnapshot`); the e2e sync test expects the stored snapshot (661), and the malformed-row test writes its row straight into the table. `docs/openapi.yaml` documents the snapshot and timestamp guarantees on `AnimeChange`. Pending: ditto on internal/sync (waiting for the running Stryker), lint, independent verifier, commit.
+
+- **L25 (2026-10-14) — Unknown changes are rejected, by Mobile.** User: "un evento que no se reconoce debe ser rechazado, ahora, queda a decisión de mobile si ellos internamente lo rechazan silenciosamente o explicitamente." Sent to Mobile as a finding for their next version: ignore an unknown `changed_fields` name instead of falling back to a whole-snapshot diff, keep that diff for the legacy empty-list case only, and still acknowledge the row. A version/ignored-fields report to Bridge diagnostics was proposed and withdrawn. User: "no es algo a lo que deberíamos darle prioridad ni de cerca."
+
+- **L26 (2026-10-14) — Empty changed_fields deleted (coordinated with Mobile).** User, relayed by Mobile: "¿Qué se hace con el legacy? Se depreca y se borra. Yo diría que ahorita ya pasamos la parte de deprecación porque ya estamos usando una API bastante estable. Por lo tanto, ¿qué es lo que toca ahorita? Borrar. Y no es solo tu trabajo. Es trabajo de ambos en coordinación." Explorer map (spot-checked changed_fields.go:24 and gateway.go:150): the Legacy watcher is gone (SDD-55); every production write derives changed_fields in the outbox finalize; writer.go:195 processUpdate (nil fields) is unreachable in production; tracerbullet never makes a row. Edge cases that could yield []: bytes changed but parsed JSON equal, outbox rows older than the changed_fields_json column, rows migrated from the payload-only schema. Live DB (read-only): changelog has 0 rows. Bridge part, added to ODD 5b: InsertPending stores no create/update row with empty changed_fields (delete exempt); RED then GREEN (`TestARowWithoutChangedFieldsIsNotStored`); fixtures given fields; openapi documents the guarantee. Order agreed: Bridge ships first, then the Mobile build that rejects empty lists. Mobile keeps the full resync on app open.
+
+- **L27 (2026-10-14) — ODD 6b gates fixed.** First commit attempt was blocked by lefthook (5 complexity findings; staged mutation 143 survived, 16 no coverage). The odd6b-mutants writer split the complex helpers and hooks (`toStoredRowView`/`toEditedRowView`, `toEpisodeDurationsOverview`, `episode-duration-forms.helpers.ts`, fixture helpers), added component and hook tests, and restructured sources to remove equivalent mutants. Reported: typecheck exit 0; 45 files / 458 tests pass; layout:smoke exit 0; `dharness check` exit 0 (complexity 0; one non-blocking react-doctor warning on `AnimeEditorFormPanel.tsx:14`, not caused by ODD 6b); staged mutation 1191 killed, 0 survived, 0 no coverage. Six equivalent-mutant disables, each with its proof: four `ArrayDeclaration` ranges on setter-only callback deps (restored), two `StringLiteral` lines in the runtime-source constants that `narrow` already falls back to. Parent check: the staged files stay inside the allowed surfaces. Lesson: `dharness mutate --staged` mutates working-tree sources in place, so no source may be edited while it runs.

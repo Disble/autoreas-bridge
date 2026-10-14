@@ -4,6 +4,7 @@ import { AnimeMetadataLookupModal } from '../../../../shared/metadata-lookup/ui/
 import { LabeledSelect } from '../../../../shared/ui/LabeledSelect';
 import { LabeledTextField } from '../../../../shared/ui/LabeledTextField';
 import { PathPickerField } from '../../../../shared/ui/PathPickerField';
+import { EpisodeDurationsSection } from '../EpisodeDurationsSection/EpisodeDurationsSection';
 import { AnimeEditorHeaderCover } from './AnimeEditorHeaderCover';
 import { ANIME_EDITOR_COVER_TYPE_OPTIONS, ANIME_EDITOR_KIND_OPTIONS, ANIME_EDITOR_REPEAT_LABEL, ANIME_EDITOR_RESTORE_LABEL, ANIME_EDITOR_STATUS_OPTIONS } from './anime-editor-workspace.constants';
 import { getAnimeEditorEstadoColor } from './anime-editor-workspace.helpers';
@@ -164,6 +165,8 @@ export function AnimeEditorFormPanel({ viewModel }: Readonly<AnimeEditorFormPane
               </Disclosure.Body>
             </Disclosure.Content>
           </Disclosure>
+
+          <EpisodeDurationsSection viewModel={viewModel.episodes} />
         </>}
       </div>
 

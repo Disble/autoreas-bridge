@@ -48,6 +48,10 @@ vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-sour
 }));
 
 import { AnimeEditorWorkspace } from '../AnimeEditorWorkspace';
+import { createEmptyEpisodeDurationSource } from './episode-duration-source.test-support';
+
+/** The Episodes section's in-memory source, so no render waits on a Wails binding. */
+const episodeSource = createEmptyEpisodeDurationSource();
 
 /**
  * Builds the editor record the workspace loads under test.
@@ -207,7 +211,7 @@ describe('AnimeEditorWorkspace schedule feedback (integration)', () => {
       .mockResolvedValueOnce({ outcome: 'conflict', message: 'board changed', modifiedAt: 301, board: conflictBoard })
       .mockResolvedValueOnce({ outcome: 'applied', message: 'apply_schedule applied', modifiedAt: 302, board: appliedBoard });
 
-    render(<MemoryRouter><AnimeEditorWorkspace scheduleTestDriverRef={scheduleTestDriverRef} /></MemoryRouter>);
+    render(<MemoryRouter><AnimeEditorWorkspace episodeSource={episodeSource} scheduleTestDriverRef={scheduleTestDriverRef} /></MemoryRouter>);
 
     // This is the workspace's whole async bootstrap -- list fetch, selection,
     // then the detail form -- landing behind one assertion. The default second

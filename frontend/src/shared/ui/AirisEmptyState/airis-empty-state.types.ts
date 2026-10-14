@@ -23,6 +23,7 @@ export interface AirisEmptyStateProps {
 /**
  * Layout of an Airis empty state: `default` is a standalone card with the
  * 160px artwork; `compact` is one row inside its host card, for a section that
- * is empty while its surface is not.
+ * is empty while its surface is not; `inline` puts the 128px artwork beside the
+ * copy and one action, for an empty state that fills a section of a wider card.
  */
-export type AirisEmptyStateSize = 'default' | 'compact';
+export type AirisEmptyStateSize = 'default' | 'compact' | 'inline';

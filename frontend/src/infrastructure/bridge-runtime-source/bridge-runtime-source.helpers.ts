@@ -219,7 +219,8 @@ function toAnimeEditorScheduleApplyResult(result: wailsContracts.AnimeEditorSche
 /**
  * Converts a save command into its wire DTO. Numeric patches are re-encoded
  * from their string form, and an absent or cleared patch sends 0 alongside the
- * flags that say so -- the flags, not the value, carry the intent.
+ * flags that say so -- the flags, not the value, carry the intent. Episode
+ * edits travel beside the patch, and only when the draft has any.
  */
 function toSaveAnimeEditorDTO(command: SaveAnimeEditorCommand): wailsDesktop.SaveAnimeEditorCommandDTO {
   const patch = command.patch;
@@ -253,6 +254,7 @@ function toSaveAnimeEditorDTO(command: SaveAnimeEditorCommand): wailsDesktop.Sav
       },
       active: patch.active,
     },
+    ...(command.episodes === undefined ? {} : { episodes: command.episodes.map((edit) => ({ ...edit })) }),
   } as unknown as wailsDesktop.SaveAnimeEditorCommandDTO;
 }
 

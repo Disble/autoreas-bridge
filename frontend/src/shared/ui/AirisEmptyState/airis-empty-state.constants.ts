@@ -35,3 +35,19 @@ export const AIRIS_ARTWORK_CLASS = 'h-auto w-40 max-w-full';
  * `shrink-0` keeps a long description from squeezing it.
  */
 export const AIRIS_COMPACT_ARTWORK_CLASS = 'size-10 shrink-0';
+
+/**
+ * Display size for the artwork of the inline, side-by-side variant: 128px on
+ * the left of the copy, for an empty state that fills a section inside a wider
+ * card (see the `autoreas-theme` skill, "Empty state inside a section").
+ * `object-contain` keeps the square art undistorted and `shrink-0` stops long
+ * copy from squeezing it.
+ */
+export const AIRIS_INLINE_ARTWORK_CLASS = 'size-32 shrink-0 object-contain';
+
+/**
+ * Shell of the inline variant: an intrinsic artwork column beside a bounded
+ * `minmax(0,1fr)` copy column (never a bare `1fr`, which grows past its card),
+ * short and wide so its height matches the section's other states.
+ */
+export const AIRIS_INLINE_SHELL_CLASS = 'grid grid-cols-[auto_minmax(0,1fr)] items-center gap-5 rounded-3xl bg-surface-secondary py-4 pr-6 pl-4';

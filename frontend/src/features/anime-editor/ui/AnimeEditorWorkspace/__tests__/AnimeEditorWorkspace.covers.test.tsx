@@ -111,6 +111,10 @@ vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-sour
 }));
 
 import { AnimeEditorWorkspace } from '../AnimeEditorWorkspace';
+import { createEmptyEpisodeDurationSource } from './episode-duration-source.test-support';
+
+/** The Episodes section's in-memory source, so no render waits on a Wails binding. */
+const episodeSource = createEmptyEpisodeDurationSource();
 
 beforeEach(resetMockSource);
 
@@ -121,8 +125,8 @@ function renderWorkspace(entry = '/editor') {
   return render(
     <MemoryRouter initialEntries={[entry]}>
       <Routes>
-        <Route element={<AnimeEditorWorkspace />} path="/editor" />
-        <Route element={<AnimeEditorWorkspace />} path="/editor/:id" />
+        <Route element={<AnimeEditorWorkspace episodeSource={episodeSource} />} path="/editor" />
+        <Route element={<AnimeEditorWorkspace episodeSource={episodeSource} />} path="/editor/:id" />
       </Routes>
     </MemoryRouter>,
   );

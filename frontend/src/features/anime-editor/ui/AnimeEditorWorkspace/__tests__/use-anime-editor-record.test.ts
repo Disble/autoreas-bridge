@@ -288,3 +288,60 @@ describe('never-touched set -- non-negotiable #7, Editor half', () => {
     expect(result.current.draft.status).toBe(1);
   });
 });
+
+describe('editor record episode edits', () => {
+  /** Authority fixture whose draft starts clean. */
+  const selectedRecord = record();
+  /** One unsaved manual duration for episode 4. */
+  const edits = [{ episode: 4, durationMs: 2_760_000, source: 'manual' as const, clear: false }];
+
+  it('makes an episodes-only draft dirty and savable, sends the edits, then clears them and bumps the revision', async () => {
+    const saveAnimeEditor = vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord });
+    const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }), saveAnimeEditor });
+    const { result } = renderHook(() => useAnimeEditorRecord({ selectedAnimeId: 'anime-1', source }));
+    await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
+    expect(result.current.isDirty).toBe(false);
+
+    act(() => result.current.onEpisodeEditsChange(edits));
+    expect(result.current.isDirty).toBe(true);
+    expect(result.current.canSave).toBe(true);
+    await act(async () => { await result.current.onSave(); });
+
+    expect(saveAnimeEditor).toHaveBeenCalledWith(expect.objectContaining({ animeId: 'anime-1', episodes: edits }));
+    expect(result.current.episodeEdits).toEqual([]);
+    expect(result.current.episodeRevision).toBe(1);
+    expect(result.current.isDirty).toBe(false);
+    expect(result.current.feedback).toBe('Changes saved.');
+  });
+
+  it('keeps the episode edits when the save is not applied', async () => {
+    const source = createSource({
+      getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }),
+      saveAnimeEditor: vi.fn().mockResolvedValue({ outcome: 'conflict', message: 'stale' }),
+    });
+    const { result } = renderHook(() => useAnimeEditorRecord({ selectedAnimeId: 'anime-1', source }));
+    await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
+
+    act(() => result.current.onEpisodeEditsChange(edits));
+    await act(async () => { await result.current.onSave(); });
+
+    expect(result.current.episodeEdits).toEqual(edits);
+    expect(result.current.episodeRevision).toBe(0);
+    expect(result.current.isDirty).toBe(true);
+  });
+
+  it('drops the episode edits on Discard changes and when another record loads', async () => {
+    const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }) });
+    const { result, rerender } = renderHook((props: { readonly id: string }) => useAnimeEditorRecord({ selectedAnimeId: props.id, source }), { initialProps: { id: 'anime-1' } });
+    await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
+
+    act(() => result.current.onEpisodeEditsChange(edits));
+    act(() => result.current.onDiscardChanges());
+    expect(result.current.episodeEdits).toEqual([]);
+    expect(result.current.isDirty).toBe(false);
+
+    act(() => result.current.onEpisodeEditsChange(edits));
+    rerender({ id: 'anime-2' });
+    await waitFor(() => expect(result.current.episodeEdits).toEqual([]));
+  });
+});

@@ -21,6 +21,10 @@ vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-sour
 }));
 
 import { AnimeEditorWorkspace } from '../AnimeEditorWorkspace';
+import { createEmptyEpisodeDurationSource } from './episode-duration-source.test-support';
+
+/** The Episodes section's in-memory source, so no render waits on a Wails binding. */
+const episodeSource = createEmptyEpisodeDurationSource();
 
 /** One scheduled anime, so the default "Watching now" rail shows it. */
 const SCHEDULED_ANIME = { id: 'anime-1', name: 'Frieren', status: 0, active: 1, episodesWatched: 3, days: ['Lunes'] };
@@ -40,8 +44,8 @@ function renderWorkspace() {
   return render(
     <MemoryRouter initialEntries={['/editor']}>
       <Routes>
-        <Route element={<AnimeEditorWorkspace />} path="/editor" />
-        <Route element={<AnimeEditorWorkspace />} path="/editor/:id" />
+        <Route element={<AnimeEditorWorkspace episodeSource={episodeSource} />} path="/editor" />
+        <Route element={<AnimeEditorWorkspace episodeSource={episodeSource} />} path="/editor/:id" />
         <Route element={<h2>Create workspace</h2>} path="/editor/create" />
       </Routes>
     </MemoryRouter>,

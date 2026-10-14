@@ -1,6 +1,6 @@
 import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
 import { normalizeStoredCoverPath } from '../../../../shared/anime-cover/anime-cover.helpers';
-import type { Anime, AnimeEditorRecord, AnimeEditorSaveResult, SaveAnimeEditorCommand } from '../../../../shared/contracts/anime.types';
+import type { Anime, AnimeEditorRecord, AnimeEditorSaveResult, EpisodeDurationEdit, SaveAnimeEditorCommand } from '../../../../shared/contracts/anime.types';
 import { isScheduledAnime, isValidAnimeEstado } from '../../../../shared/helpers/anime-estado.helpers';
 import { isValidDownloadPageUrl } from '../../../../shared/helpers/url.helpers';
 import { ANIME_EDITOR_COVER_PLACEHOLDER, ANIME_EDITOR_DEFAULT_DRAFT } from './anime-editor-workspace.constants';
@@ -152,8 +152,11 @@ function createCoverPatch(record: AnimeEditorRecord, draft: AnimeEditorDraft) {
   };
 }
 
-/** Builds the English changed-fields-only DTO consumed by the Wails adapter. */
-export function createAnimeEditorSaveCommand(record: AnimeEditorRecord, draft: AnimeEditorDraft): SaveAnimeEditorCommand {
+/**
+ * Builds the English changed-fields-only DTO consumed by the Wails adapter. The
+ * draft's episode edits travel beside the patch, and only when there are any.
+ */
+export function createAnimeEditorSaveCommand(record: AnimeEditorRecord, draft: AnimeEditorDraft, episodes: readonly EpisodeDurationEdit[] = []): SaveAnimeEditorCommand {
   const patch: Record<string, unknown> = {
     totalEpisodes: nullablePatch(record.frequent.totalEpisodes, draft.totalEpisodes),
     page: nullablePatch(record.frequent.page, draft.page),
@@ -171,7 +174,10 @@ export function createAnimeEditorSaveCommand(record: AnimeEditorRecord, draft: A
   if (JSON.stringify(genres) !== JSON.stringify(record.details.genres)) patch['genres'] = genres;
   const studios = parseList(draft.studios);
   if (JSON.stringify(studios) !== JSON.stringify(record.details.studios.values)) patch['studios'] = studios;
-  return { animeId: record.animeId, baseModifiedAt: record.modifiedAt, patch: patch as unknown as SaveAnimeEditorCommand['patch'] };
+  return {
+    animeId: record.animeId, baseModifiedAt: record.modifiedAt, patch: patch as unknown as SaveAnimeEditorCommand['patch'],
+    ...(episodes.length === 0 ? {} : { episodes }),
+  };
 }
 
 /**

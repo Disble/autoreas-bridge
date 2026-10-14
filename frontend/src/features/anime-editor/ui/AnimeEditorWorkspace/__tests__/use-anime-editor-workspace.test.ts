@@ -4,6 +4,10 @@ import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { AnimeEditorRecord, AnimeEditorSaveResult } from '../../../../../shared/contracts/anime.types';
 import { useAnimeEditorWorkspace } from '../use-anime-editor-workspace';
+import { createEmptyEpisodeDurationSource } from './episode-duration-source.test-support';
+
+/** The Episodes section's in-memory source, so no render waits on a Wails binding. */
+const episodeSource = createEmptyEpisodeDurationSource();
 
 /** Router context the hook needs, since it reads and writes navigation state. */
 const wrapper = ({ children }: Readonly<{ children: React.ReactNode }>) => createElement(MemoryRouter, undefined, children);
@@ -75,7 +79,7 @@ function createSource() {
  * @returns The render result plus the source it was given.
  */
 async function loadHook(source = createSource()) {
-  const rendered = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-1' }, source as never), { wrapper });
+  const rendered = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-1' }, source as never, episodeSource), { wrapper });
   await waitFor(() => expect(rendered.result.current.selectedRecord?.animeId).toBe('anime-1'));
   return { ...rendered, source };
 }
@@ -83,8 +87,17 @@ async function loadHook(source = createSource()) {
 describe('useAnimeEditorWorkspace', () => {
   it('loads the requested deep-link anime', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-2' }, source as never), { wrapper });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-2' }, source as never, episodeSource), { wrapper });
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-2'));
+  });
+
+  it('reads the Episodes section for the loaded anime and its draft', async () => {
+    const reads = createEmptyEpisodeDurationSource();
+    const source = createSource();
+    const { result } = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-2' }, source as never, reads), { wrapper });
+
+    await waitFor(() => expect(reads.getEpisodeDurationSection).toHaveBeenCalledWith(expect.objectContaining({ animeId: 'anime-2' })));
+    expect(result.current.episodes.view).not.toBe('idle');
   });
 
   it('keeps the attempted draft and refreshed authority separate after conflict', async () => {
@@ -188,7 +201,7 @@ describe('useAnimeEditorWorkspace', () => {
     vi.mocked(source.getAnimeEditorRecord)
       .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
       .mockResolvedValueOnce({ outcome: 'applied', message: 'loaded', record: record('anime-2', 'Newest') });
-    const { result } = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-1' }, source as never), { wrapper });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-1' }, source as never, episodeSource), { wrapper });
     await waitFor(() => expect(source.getAnimeEditorRecord).toHaveBeenCalledWith('anime-1'));
     act(() => result.current.onSelectAnime('anime-2'));
     await waitFor(() => expect(result.current.selectedRecord?.frequent.name).toBe('Newest'));

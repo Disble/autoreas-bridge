@@ -55,6 +55,7 @@ describe('AnimeEditorWorkspace', () => {
       onStayWithCurrentEditor: vi.fn(),
       onDiscardAndContinue: vi.fn(),
       onSaveAndContinue: vi.fn(),
+      episodes: { view: 'idle' },
     });
 
     render(<MemoryRouter><AnimeEditorWorkspace /></MemoryRouter>);

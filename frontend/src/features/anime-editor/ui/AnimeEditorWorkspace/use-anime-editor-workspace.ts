@@ -1,7 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import type { AnimeEditorRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import type { EpisodeDurationRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
 import { metadataLookupSource } from '../../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers';
+import { useEpisodeDurationsSection } from '../EpisodeDurationsSection/use-episode-durations-section';
 import { toAnimeEditorLifecycleConfirmation, toAnimeEditorListRowViewModels } from './anime-editor-workspace.helpers';
 import type { AnimeEditorCoverSource, AnimeEditorLifecycleAction, AnimeEditorWorkspaceProps } from './anime-editor-workspace.types';
 import { useAnimeEditorCovers } from './use-anime-editor-covers';
@@ -13,7 +15,11 @@ import { useAnimeEditorSchedule } from './use-anime-editor-schedule';
 import { useAnimeEditorTransitions } from './use-anime-editor-transitions';
 
 /** Composes focused record, transition, list, and schedule hooks for the editor workspace. */
-export function useAnimeEditorWorkspace(props: Readonly<AnimeEditorWorkspaceProps>, source: AnimeEditorRuntimeSource & AnimeEditorCoverSource = bridgeRuntimeSource) {
+export function useAnimeEditorWorkspace(
+  props: Readonly<AnimeEditorWorkspaceProps>,
+  source: AnimeEditorRuntimeSource & AnimeEditorCoverSource = bridgeRuntimeSource,
+  episodeSource: EpisodeDurationRuntimeSource | undefined = props.episodeSource,
+) {
   // 1. Refs
 
   // 2. State
@@ -26,6 +32,15 @@ export function useAnimeEditorWorkspace(props: Readonly<AnimeEditorWorkspaceProp
   const record = useAnimeEditorRecord({ selectedAnimeId: list.selectedAnimeId, source });
   const coverCache = useAnimeEditorCovers(list.items, listWindow.visibleCount, record.selectedRecord, source);
   const schedule = useAnimeEditorSchedule({ selectedAnimeId: list.selectedAnimeId, source });
+  const episodes = useEpisodeDurationsSection({
+    animeId: record.selectedRecord?.animeId,
+    folder: record.draft.folder,
+    totalEpisodes: record.draft.totalEpisodes,
+    kind: record.draft.kind,
+    edits: record.episodeEdits,
+    revision: record.episodeRevision,
+    onEditsChange: record.onEpisodeEditsChange,
+  }, episodeSource);
   const transitions = useAnimeEditorTransitions({
     selectedAnimeId: list.selectedAnimeId,
     loadItems: list.loadItems,
@@ -50,7 +65,6 @@ export function useAnimeEditorWorkspace(props: Readonly<AnimeEditorWorkspaceProp
 
   // 6. Callbacks (useCallback calling pure helpers)
   const onToggleDetails = useCallback(() => setIsDetailsOpen((current) => !current), []);
-  const onRequestLifecycleAction = useCallback((action: AnimeEditorLifecycleAction) => setLifecycleAction(action), []);
   const onCancelLifecycleAction = useCallback(() => setLifecycleAction(undefined), []);
   const onConfirmLifecycleAction = useCallback(async () => {
     setLifecycleAction(undefined);
@@ -74,6 +88,8 @@ export function useAnimeEditorWorkspace(props: Readonly<AnimeEditorWorkspaceProp
     onCoverImageError: coverCache.onCoverImageError,
     /** The draft's pending Undo (design D9) -- absent once undone, discarded, or never applied. */
     appliedMetadata: record.appliedMetadata,
+    /** The Episodes section: its durations, re-analysis and modals, writing into the draft. */
+    episodes,
     /** The MyAnimeList lookup's two Wails-bound calls, injected into the form's lookup modal. */
     metadataLookupSource,
     isLoadingList: list.isLoadingList, isLoadingRecord: record.isLoadingRecord, isSaving: record.isSaving,
@@ -87,7 +103,9 @@ export function useAnimeEditorWorkspace(props: Readonly<AnimeEditorWorkspaceProp
     onMetadataApplied: record.onMetadataApplied,
     /** Reverts the draft's last applied metadata patch (design D9). */
     onMetadataUndo: record.onMetadataUndo,
-    onRequestLifecycleAction, onCancelLifecycleAction, onConfirmLifecycleAction,
+    /** Asks to confirm a lifecycle action; the state setter is stable, so it needs no callback of its own. */
+    onRequestLifecycleAction: setLifecycleAction as (action: AnimeEditorLifecycleAction) => void,
+    onCancelLifecycleAction, onConfirmLifecycleAction,
     onOpenSchedule: transitions.onOpenSchedule, onCloseSchedule: schedule.onCloseSchedule, onApplySchedule: transitions.onApplySchedule,
     onStayWithCurrentEditor: transitions.onStayWithCurrentEditor, onDiscardAndContinue: transitions.onDiscardAndContinue,
     onSaveAndContinue: transitions.onSaveAndContinue,

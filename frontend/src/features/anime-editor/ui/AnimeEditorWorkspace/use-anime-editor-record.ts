@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { AnimeEditorSaveResult } from '../../../../shared/contracts/anime.types';
+import type { AnimeEditorSaveResult, EpisodeDurationEdit } from '../../../../shared/contracts/anime.types';
 import { ANIME_EDITOR_DEFAULT_DRAFT } from './anime-editor-workspace.constants';
 import { createAnimeEditorDraft, createAnimeEditorSaveCommand, hasAnimeEditorChanges, isIntentionalEditorOutcome, resolveAnimeEditorFeedbackMessage, toEditorErrorMessage, validateAnimeEditorDraft } from './anime-editor-workspace.helpers';
 import type { AnimeEditorDraft, AnimeEditorRecordState, UseAnimeEditorRecordOptions } from './anime-editor-workspace.types';
@@ -16,6 +16,8 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
   // 2. State
   const [state, setState] = useState<AnimeEditorRecordState>({
     draft: ANIME_EDITOR_DEFAULT_DRAFT,
+    episodeEdits: [],
+    episodeRevision: 0,
     isLoadingRecord: false,
     isSaving: false,
     retainsAttemptedDraft: false,
@@ -39,7 +41,10 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
 
   // 5. Derived State (useMemo)
   const validationMessage = useMemo(() => state.selectedRecord === undefined ? undefined : validateAnimeEditorDraft(state.draft), [state.draft, state.selectedRecord]);
-  const isDirty = useMemo(() => state.retainsAttemptedDraft || hasAnimeEditorChanges(state.selectedRecord, state.draft), [state.draft, state.retainsAttemptedDraft, state.selectedRecord]);
+  const isDirty = useMemo(
+    () => state.retainsAttemptedDraft || state.episodeEdits.length > 0 || hasAnimeEditorChanges(state.selectedRecord, state.draft),
+    [state.draft, state.episodeEdits, state.retainsAttemptedDraft, state.selectedRecord],
+  );
   const canSave = useMemo(() => state.selectedRecord !== undefined && isDirty && validationMessage === undefined, [isDirty, state.selectedRecord, validationMessage]);
 
   // 6. Callbacks (useCallback calling pure helpers)
@@ -54,6 +59,7 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
         ...current,
         selectedRecord: result.record,
         draft: createAnimeEditorDraft(result.record),
+        episodeEdits: [],
         retainsAttemptedDraft: false,
         feedback: result.outcome === 'error' ? resolveAnimeEditorFeedbackMessage(result, 'The editor record could not be loaded.') : undefined,
       }));
@@ -72,9 +78,18 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
     patchDraft({ [field]: field === 'status' ? Number(value) : value } as Partial<AnimeEditorDraft>);
   }, [patchDraft]);
   const onDiscardChanges = useCallback(() => {
-    setState((current) => ({ ...current, draft: createAnimeEditorDraft(current.selectedRecord), retainsAttemptedDraft: false, feedback: undefined }));
+    setState((current) => ({ ...current, draft: createAnimeEditorDraft(current.selectedRecord), episodeEdits: [], retainsAttemptedDraft: false, feedback: undefined }));
     metadataPatch.resetAppliedMetadata();
   }, [metadataPatch.resetAppliedMetadata]);
+  // Stryker disable ArrayDeclaration: this deps array is mutation-equivalent whether it is `[]`
+  // or a fixed literal such as `["Stryker was here"]`: React compares dependency arrays element by
+  // element with `Object.is`, and the callback closes over a state setter only, so its identity
+  // stays stable across rerenders under either one and no test can observe the difference.
+  /** Replaces the draft's episode edits; the Episodes section computes the full list. */
+  const onEpisodeEditsChange = useCallback((episodeEdits: readonly EpisodeDurationEdit[]) => {
+    setState((current) => ({ ...current, episodeEdits }));
+  }, []);
+  // Stryker restore ArrayDeclaration
   const onSave = useCallback(async (): Promise<AnimeEditorSaveResult | undefined> => {
     if (state.selectedRecord === undefined) return undefined;
     const validation = validateAnimeEditorDraft(state.draft);
@@ -84,10 +99,13 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
     }
     setState((current) => ({ ...current, isSaving: true, feedback: undefined }));
     try {
-      const result = await source.saveAnimeEditor(createAnimeEditorSaveCommand(state.selectedRecord, state.draft));
+      const result = await source.saveAnimeEditor(createAnimeEditorSaveCommand(state.selectedRecord, state.draft, state.episodeEdits));
       if (isIntentionalEditorOutcome(result)) {
         const authority = result.record ?? (await source.getAnimeEditorRecord(state.selectedRecord.animeId)).record;
-        setState((current) => ({ ...current, selectedRecord: authority, draft: createAnimeEditorDraft(authority), retainsAttemptedDraft: false, feedback: resolveAnimeEditorFeedbackMessage(result, 'Changes saved.') }));
+        setState((current) => ({
+          ...current, selectedRecord: authority, draft: createAnimeEditorDraft(authority), episodeEdits: [], episodeRevision: current.episodeRevision + 1,
+          retainsAttemptedDraft: false, feedback: resolveAnimeEditorFeedbackMessage(result, 'Changes saved.'),
+        }));
       } else {
         setState((current) => ({ ...current, selectedRecord: result.record ?? current.selectedRecord, retainsAttemptedDraft: true, feedback: resolveAnimeEditorFeedbackMessage(result, 'No changes were applied.') }));
       }
@@ -99,7 +117,7 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
     } finally {
       setState((current) => ({ ...current, isSaving: false }));
     }
-  }, [source, state.draft, state.selectedRecord]);
+  }, [source, state.draft, state.episodeEdits, state.selectedRecord]);
   const lifecycle = useAnimeEditorLifecycleActions(source, state.selectedRecord, setState, loadRecord);
 
   // 7. Effects
@@ -114,7 +132,7 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
   return {
     ...state,
     appliedMetadata: metadataPatch.appliedMetadata,
-    validationMessage, isDirty, canSave, onDraftChange, onDiscardChanges,
+    validationMessage, isDirty, canSave, onDraftChange, onDiscardChanges, onEpisodeEditsChange,
     onMetadataApplied: metadataPatch.onMetadataApplied,
     onMetadataUndo: metadataPatch.onMetadataUndo,
     onPickFolder: draftPickers.onPickFolder,

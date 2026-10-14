@@ -107,6 +107,14 @@ describe('anime-editor-workspace.helpers', () => {
     expect(command.patch.studios).toEqual(['Madhouse', 'CloverWorks']);
   });
 
+  it('sends the draft episode edits beside the patch, and no episodes key without edits', () => {
+    const edits = [{ episode: 4, durationMs: 2_760_000, source: 'manual' as const, clear: false }];
+
+    expect(createAnimeEditorSaveCommand(record, createAnimeEditorDraft(record), edits).episodes).toEqual(edits);
+    expect(createAnimeEditorSaveCommand(record, createAnimeEditorDraft(record), [])).not.toHaveProperty('episodes');
+    expect(createAnimeEditorSaveCommand(record, createAnimeEditorDraft(record))).not.toHaveProperty('episodes');
+  });
+
   it('omits empty unchanged nullable fields instead of marking them as cleared', () => {
     const emptyRecord = {
       ...record,

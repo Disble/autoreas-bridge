@@ -3,6 +3,7 @@ import catalogArtwork from '../../src/assets/airis-empty-states/catalog.webp';
 import editorLibraryArtwork from '../../src/assets/airis-empty-states/editor-library.webp';
 import todayArtwork from '../../src/assets/airis-empty-states/today.webp';
 import { ANIME_EDITOR_EMPTY_STATE_COPY } from '../../src/features/anime-editor/ui/AnimeEditorWorkspace/anime-editor-workspace.constants';
+import { EPISODE_ADD_LABEL, EPISODE_DURATIONS_EMPTY_COPY } from '../../src/features/anime-editor/ui/EpisodeDurationsSection/episode-durations-section.constants';
 import { CATALOG_PANEL_EMPTY_STATE_COPY } from '../../src/features/catalog/ui/CatalogPanel/catalog-panel.constants';
 import { AirisEmptyState } from '../../src/shared/ui/AirisEmptyState/AirisEmptyState';
 import { AIRIS_CREATE_ANIME_LABEL } from '../../src/shared/ui/AirisEmptyState/airis-empty-state.constants';
@@ -61,12 +62,30 @@ const ASPECT_TOLERANCE_PX = 1;
  */
 const RAIL_CONTAINER_WIDTH_PX = 320;
 
+/** The inline artwork's specified display size: 128px beside the copy. */
+const INLINE_ARTWORK_PX = 128;
+
+/** How far the inline artwork may drift from its specified size. */
+const INLINE_ARTWORK_TOLERANCE_PX = 1;
+
+/**
+ * The tallest the inline block may grow. It exists to be short and wide, in
+ * proportion with a section's table and alert; a block that wraps into a tall
+ * column has lost the point of the layout.
+ */
+const MAX_INLINE_HEIGHT_PX = 200;
+
+/** The Editor form column the Episodes section sits in, narrower than the page. */
+const SECTION_CONTAINER_WIDTH_PX = 560;
+
 /** One composition under measurement: its subject name, artwork, and copy. */
 interface AirisComposition {
   readonly subject: string;
   readonly imageSrc: string;
   readonly title: string;
   readonly description: string;
+  /** The recovery action's label; the create-anime action when omitted. */
+  readonly actionLabel?: string;
 }
 
 /** Every scoped surface's real artwork and real production copy. */
@@ -102,7 +121,7 @@ const COMPOSITIONS: readonly AirisComposition[] = [
  * @param subject Which composition is being measured, for the report.
  * @returns Every check this composition must pass.
  */
-function measureComposition(root: HTMLElement | null, subject: string, maxCardHeightPx: number): readonly Check[] {
+function measureComposition(root: HTMLElement | null, subject: string, maxCardHeightPx: number, size: AirisPlacement['size']): readonly Check[] {
   const card = queryCard(root);
   const image = queryImage(root);
 
@@ -116,8 +135,53 @@ function measureComposition(root: HTMLElement | null, subject: string, maxCardHe
   return [
     checkTheDecode(image, subject),
     ...checkTheBox(imageBox, cardBox, subject),
-    ...checkTheScale(imageBox, cardBox, subject, maxCardHeightPx),
+    ...(size === 'inline' ? checkTheInlineLayout(imageBox, cardBox, root, subject) : checkTheScale(imageBox, cardBox, subject, maxCardHeightPx)),
     checkThePage(subject),
+  ];
+}
+
+/** The inline block's heading box, or nothing when the block rendered no heading. */
+function headingBoxOf(root: HTMLElement | null): DOMRect | null {
+  const heading = root === null ? null : root.querySelector('h3');
+  return heading === null ? null : heading.getBoundingClientRect();
+}
+
+/** Whether the inline block's copy sits beside the artwork rather than under it. */
+function checkTheCopyBesideTheArtwork(imageBox: DOMRect, root: HTMLElement | null, subject: string): Check {
+  const name = `${subject}: the copy sits beside the artwork, not under it`;
+  const headingBox = headingBoxOf(root);
+  if (headingBox === null) return { name, ok: false, detail: 'heading absent' };
+  return {
+    name,
+    ok: headingBox.left >= imageBox.right && headingBox.top < imageBox.bottom,
+    detail: `heading at ${Math.round(headingBox.left)},${Math.round(headingBox.top)}; image right ${Math.round(imageBox.right)}, bottom ${Math.round(imageBox.bottom)}`,
+  };
+}
+
+/**
+ * The side-by-side layout's own proportions: the mascot at 128px on the left,
+ * the copy beside it rather than under it, and a block that stays short.
+ * The stacked layout's artwork-share rule does not apply: in a short, wide
+ * block the artwork is most of the height by design.
+ */
+function checkTheInlineLayout(imageBox: DOMRect, cardBox: DOMRect, root: HTMLElement | null, subject: string): readonly Check[] {
+  return [
+    {
+      name: `${subject}: the artwork renders at 128px`,
+      ok: Math.abs(imageBox.width - INLINE_ARTWORK_PX) <= INLINE_ARTWORK_TOLERANCE_PX,
+      detail: `${Math.round(imageBox.width)}px wide`,
+    },
+    {
+      name: `${subject}: the artwork keeps its square aspect`,
+      ok: Math.abs(imageBox.width - imageBox.height) <= ASPECT_TOLERANCE_PX,
+      detail: `${Math.round(imageBox.width)}x${Math.round(imageBox.height)}`,
+    },
+    checkTheCopyBesideTheArtwork(imageBox, root, subject),
+    {
+      name: `${subject}: the inline block stays short`,
+      ok: cardBox.height <= MAX_INLINE_HEIGHT_PX,
+      detail: `block ${Math.round(cardBox.height)}px tall, cap ${MAX_INLINE_HEIGHT_PX}px`,
+    },
   ];
 }
 
@@ -228,24 +292,25 @@ function isInside(inner: DOMRect, outer: DOMRect): boolean {
  */
 function CompositionFixture({ placement }: Readonly<{ placement: AirisPlacement }>) {
   const [checks, setChecks] = useState<readonly Check[] | undefined>();
-  const { composition, subject, widthPx, maxCardHeightPx } = placement;
+  const { composition, subject, widthPx, maxCardHeightPx, size } = placement;
 
   useEffect(() => {
     const root = document.querySelector<HTMLElement>(`[data-airis-fixture="${subject}"]`);
 
     return measureWhenReady(
       () => hasDecodedImage(root),
-      () => setChecks(measureComposition(root, subject, maxCardHeightPx)),
+      () => setChecks(measureComposition(root, subject, maxCardHeightPx, size)),
     );
-  }, [maxCardHeightPx, subject]);
+  }, [maxCardHeightPx, size, subject]);
 
   return (
     <>
       <div data-airis-fixture={subject} style={widthPx === undefined ? undefined : { width: `${widthPx}px` }}>
         <AirisEmptyState
-          action={{ label: AIRIS_CREATE_ANIME_LABEL, onPress: () => undefined }}
+          action={{ label: composition.actionLabel ?? AIRIS_CREATE_ANIME_LABEL, onPress: () => undefined }}
           description={composition.description}
           imageSrc={composition.imageSrc}
+          size={size}
           title={composition.title}
         />
       </div>
@@ -262,7 +327,27 @@ interface AirisPlacement {
   readonly widthPx?: number;
   /** The height budget for this geometry — a wrapping column earns more room. */
   readonly maxCardHeightPx: number;
+  /** The `AirisEmptyState` size under measurement; undefined is the stacked default. */
+  readonly size?: 'inline';
 }
+
+/** The Editor Episodes section's empty state, the first user of the side-by-side size. */
+const EPISODES_COMPOSITION: AirisComposition = {
+  subject: 'editor-episodes inline',
+  imageSrc: editorLibraryArtwork,
+  title: EPISODE_DURATIONS_EMPTY_COPY.none.title,
+  description: EPISODE_DURATIONS_EMPTY_COPY.none.description,
+  actionLabel: EPISODE_ADD_LABEL,
+};
+
+/**
+ * The inline size at full width and in the Editor form's column: the copy must
+ * stay beside the mascot in both, and the block must stay short.
+ */
+const INLINE_PLACEMENTS: readonly AirisPlacement[] = [
+  { composition: EPISODES_COMPOSITION, subject: EPISODES_COMPOSITION.subject, maxCardHeightPx: MAX_INLINE_HEIGHT_PX, size: 'inline' },
+  { composition: EPISODES_COMPOSITION, subject: `${EPISODES_COMPOSITION.subject} in a section`, widthPx: SECTION_CONTAINER_WIDTH_PX, maxCardHeightPx: MAX_INLINE_HEIGHT_PX, size: 'inline' },
+];
 
 /**
  * Every composition twice: once at full width, as Today and Catalog render it,
@@ -279,7 +364,7 @@ const PLACEMENTS: readonly AirisPlacement[] = COMPOSITIONS.flatMap((composition)
 export function AirisEmptyStatesFixture() {
   return (
     <>
-      {PLACEMENTS.map((placement) => (
+      {[...PLACEMENTS, ...INLINE_PLACEMENTS].map((placement) => (
         <CompositionFixture key={placement.subject} placement={placement} />
       ))}
     </>
