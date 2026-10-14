@@ -82,7 +82,7 @@ export function useAnimeEditorTransitions(options: Readonly<UseAnimeEditorTransi
     options.discardEpisodes();
   }, executePendingAction), [executePendingAction, guard, options]);
   /** "Save and continue": each dirty card saves on its own, and the action continues only if all saved (S15). */
-  const onSaveAndContinue = useCallback(() => guard.continueWithSave((): Promise<AnimeEditorSaveResult | undefined> => saveDirtyCards([
+  const onSaveAndContinue = useCallback(() => options.isGuardSaveBlocked ? Promise.resolve() : guard.continueWithSave((): Promise<AnimeEditorSaveResult | undefined> => saveDirtyCards([
     { isDirty: options.isRecordDirty, save: onSave },
     { isDirty: options.isEpisodesDirty, save: async () => toEpisodesGuardResult(await options.saveEpisodes()) },
   ]), executePendingAction), [executePendingAction, guard, onSave, options]);

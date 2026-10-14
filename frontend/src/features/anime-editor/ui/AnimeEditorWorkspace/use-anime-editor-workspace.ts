@@ -58,6 +58,7 @@ export function useAnimeEditorWorkspace(
     isDirty,
     isRecordDirty: record.isDirty,
     isEpisodesDirty: episodes.isDirty,
+    isGuardSaveBlocked: episodes.isReanalyzing,
   });
 
   // 4. Queries/Mutations
@@ -106,6 +107,8 @@ export function useAnimeEditorWorkspace(
     isRecordDirty: record.isDirty,
     /** Whether any card save is in flight, which the guard's buttons wait for. */
     isGuardSaving: isAnyCard(record.isSaving, episodes.isSaving),
+    /** Whether the guard's Save and continue is blocked: a re-analysis must finish or be cancelled first. */
+    isGuardSaveBlocked: episodes.isReanalyzing,
     isScheduleModalOpen: schedule.isScheduleModalOpen, scheduleBoard: schedule.scheduleBoard,
     feedback: record.feedback, validationMessage: record.validationMessage, scheduleFeedback: schedule.scheduleFeedback,
     isDetailsOpen, isGuardOpen: transitions.isGuardOpen, canSave: record.canSave, listWindow, lifecycleConfirmation,

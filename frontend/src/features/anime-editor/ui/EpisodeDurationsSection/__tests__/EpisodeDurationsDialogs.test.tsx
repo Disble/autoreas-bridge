@@ -29,7 +29,7 @@ const ROWS = toEpisodeDurationRowViews({
 function viewModel(overrides: Partial<EpisodeDurationsSectionViewModel> = {}): EpisodeDurationsSectionViewModel {
   return {
     isOpen: true, toggleLabel: 'Hide episodes', view: 'table', summary: undefined, banner: undefined, notes: [],
-    isDirty: false, isSaving: false, saveError: undefined,
+    isDirty: false, isSaving: false, isReanalyzing: false, saveError: undefined,
     footer: { isVisible: true, unsavedLabel: 'No unsaved changes', canSave: false, canDiscard: false },
     onSave: vi.fn().mockResolvedValue(undefined), onDiscard: vi.fn(),
     reanalyzeButton: { isDisabled: false, ariaLabel: 'Re-analyze folder', tooltip: 'Re-analyze folder' },

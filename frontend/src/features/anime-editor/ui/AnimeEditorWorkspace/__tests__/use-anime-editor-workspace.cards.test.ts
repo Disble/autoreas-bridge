@@ -376,6 +376,25 @@ describe('useAnimeEditorWorkspace independent cards', () => {
     expect(result.current.episodes.isDirty).toBe(true);
   });
 
+  it('blocks Save and continue while a re-analysis runs, and saves nothing', async () => {
+    const episodeSource = createEmptyEpisodeDurationSource();
+    const analysis = deferred<Awaited<ReturnType<EpisodeDurationRuntimeSource['reanalyzeEpisodeDurations']>>>();
+    vi.mocked(episodeSource.reanalyzeEpisodeDurations).mockReturnValueOnce(analysis.promise);
+    const { result, source } = await loadHook(episodeSource);
+    addEpisode(result);
+    act(() => void result.current.episodes.onReanalyze());
+    act(() => result.current.onSelectAnime('anime-2'));
+
+    expect(result.current.isGuardSaveBlocked).toBe(true);
+    await act(() => result.current.onSaveAndContinue());
+
+    expect(episodeSource.saveEpisodeDurations).not.toHaveBeenCalled();
+    expect(source.saveAnimeEditor).not.toHaveBeenCalled();
+    expect(result.current.selectedAnimeId).toBe('anime-1');
+    await act(async () => analysis.resolve({ outcome: 'ok', status: 'no_folder', filesRecognized: 0, rows: [] }));
+    expect(result.current.isGuardSaveBlocked).toBe(false);
+  });
+
   it('Save and continue stays when the anime save fails, even after the Episodes card saved', async () => {
     const { result, source, episodeSource } = await loadHook();
     vi.mocked(source.saveAnimeEditor).mockResolvedValueOnce({ outcome: 'conflict', message: 'stale', modifiedAt: 0 });

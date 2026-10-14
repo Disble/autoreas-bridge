@@ -70,6 +70,8 @@ export function useEpisodeDurationsSection(options: Readonly<UseEpisodeDurations
     /** Whether the card holds unsaved edits; the Editor's unsaved-changes guard reads it. */
     isDirty: draft.isDirty,
     isSaving: draft.isSaving,
+    /** Whether a re-analysis runs; the guard blocks Save and continue meanwhile (L33). */
+    isReanalyzing: isRunning,
     /** Why the last episodes save failed, shown in the card until the next save or Discard changes. */
     saveError: draft.saveError,
     footer,

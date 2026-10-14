@@ -288,6 +288,8 @@ export interface UseAnimeEditorTransitionsOptions {
   readonly isRecordDirty: boolean;
   /** Whether the Episodes card is dirty. */
   readonly isEpisodesDirty: boolean;
+  /** Whether the guard's Save and continue is blocked, as it is while a re-analysis runs. */
+  readonly isGuardSaveBlocked: boolean;
 }
 
 /** Which Library empty state a resolved request produced, if any. */

@@ -12,7 +12,7 @@ afterEach(cleanup);
  */
 function createViewModel(overrides: Partial<AnimeEditorWorkspaceViewModel> = {}): AnimeEditorWorkspaceViewModel {
   return {
-    isGuardOpen: true, isGuardSaving: false, isSaving: false, lifecycleConfirmation: undefined, isScheduleModalOpen: false, scheduleBoard: undefined,
+    isGuardOpen: true, isGuardSaving: false, isGuardSaveBlocked: false, isSaving: false, lifecycleConfirmation: undefined, isScheduleModalOpen: false, scheduleBoard: undefined,
     onStayWithCurrentEditor: vi.fn(), onDiscardAndContinue: vi.fn(), onSaveAndContinue: vi.fn(),
     onCancelLifecycleAction: vi.fn(), onConfirmLifecycleAction: vi.fn(), onCloseSchedule: vi.fn(), onApplySchedule: vi.fn(),
     ...overrides,
@@ -30,6 +30,14 @@ describe('AnimeEditorDialogs unsaved-changes guard', () => {
 
     expect(viewModel.onDiscardAndContinue).toHaveBeenCalledTimes(1);
     expect(viewModel.onSaveAndContinue).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks only Save and continue while a re-analysis runs', async () => {
+    render(<AnimeEditorDialogs viewModel={createViewModel({ isGuardSaveBlocked: true })} />);
+
+    expect(await screen.findByRole('button', { name: 'Save and continue' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Stay' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Discard changes' })).toBeEnabled();
   });
 
   it('waits on any card save in flight, the Episodes card included', async () => {
