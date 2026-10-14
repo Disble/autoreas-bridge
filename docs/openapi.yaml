@@ -443,10 +443,28 @@ components:
           type: array
           items:
             type: string
+          description: |
+            The top-level snapshot fields this change wrote. Never empty for a
+            `create` or `update`: a write that changed no field records no
+            change. A client applies only the fields it knows and ignores the
+            rest; an empty list is not a request to compare the whole snapshot.
         snapshot:
           $ref: '#/components/schemas/Anime'
+          description: |
+            The anime as stored when this change was recorded, never an older
+            copy: for one anime, a later change (higher changelog id) never
+            carries an older snapshot than an earlier change. An update or create
+            is not recorded once the anime no longer exists. Only `episodes` is
+            read again when the change is served.
         timestamp:
           type: integer
+          description: |
+            When the change was recorded, in Unix milliseconds. For one anime it
+            is stamped past the anime's last change still in the changelog, so
+            it strictly increases with the changelog id even when two changes
+            are recorded in the same millisecond or the clock went back. Once
+            every paired device has acknowledged and the rows are pruned, the
+            next change starts again from the bridge clock.
 
     AppliedOperation:
       type: object

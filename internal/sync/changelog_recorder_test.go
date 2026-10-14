@@ -163,6 +163,7 @@ func TestChangelogRowRecordsDerivedChangedFieldsEndToEnd(t *testing.T) {
 	db := openTestBridgeDB(t)
 	bus := events.NewBus()
 	store := NewChangelogStore(NewSQLiteProvider(db))
+	seedAnimeSnapshot(t, db, "anime-endtoend", `{"id":"anime-endtoend"}`)
 	recorder := NewChangelogRecorder(bus, store, &recordingSyncLogger{})
 	ctx := t.Context()
 	recorder.Start(ctx)

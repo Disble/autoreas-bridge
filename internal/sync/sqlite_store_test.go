@@ -23,7 +23,7 @@ func TestSQLiteProviderReusesBootstrappedHandle(t *testing.T) {
 		SnapshotJSON:  []byte(`{"id":"anime-provider","name":"Provider"}`),
 		ChangedAtMs:   1710000000123,
 	}
-	if err := store.InsertPending(context.Background(), entry); err != nil {
+	if err := insertWithAnime(context.Background(), db, store, entry); err != nil {
 		t.Fatalf("insert pending through shared provider: %v", err)
 	}
 

@@ -18,6 +18,7 @@ type syncE2EHTTPEndpointEnv struct {
 	handler        http.Handler
 	snapshotStore  *bridgeSync.AnimeSnapshotStore
 	changelogStore *bridgeSync.ChangelogStore
+	db             *sql.DB
 }
 
 // newSyncE2EHTTPEndpointEnv creates the HTTP-only sync test environment.
@@ -42,6 +43,7 @@ func newSyncE2EHTTPEndpointEnv(t *testing.T) *syncE2EHTTPEndpointEnv {
 		handler:        handler,
 		snapshotStore:  snapshotStore,
 		changelogStore: changelogStore,
+		db:             db,
 	}
 }
 

@@ -12,6 +12,7 @@ func TestChangelogRecorderDeduplicatesStableAnimeChangedEventID(t *testing.T) {
 
 	db := openTestBridgeDB(t)
 	store := NewChangelogStore(NewSQLiteProvider(db))
+	seedAnimeSnapshot(t, db, "anime-1", `{"id":"anime-1"}`)
 	bus := events.NewBus()
 	recorder := NewChangelogRecorder(bus, store)
 	ctx := context.Background()
@@ -19,9 +20,10 @@ func TestChangelogRecorderDeduplicatesStableAnimeChangedEventID(t *testing.T) {
 	t.Cleanup(recorder.Stop)
 
 	event := events.AnimeChangedEvent{
-		EventID: "operation-replayed",
-		AnimeID: "anime-1",
-		Payload: []byte(`{"id":"anime-1"}`),
+		EventID:       "operation-replayed",
+		AnimeID:       "anime-1",
+		Payload:       []byte(`{"id":"anime-1"}`),
+		ChangedFields: []string{"episodesWatched"},
 	}
 	bus.Publish(event)
 	bus.Publish(event)

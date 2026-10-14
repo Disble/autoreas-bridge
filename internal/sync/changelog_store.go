@@ -4,7 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+
+	"autoreas-bridge/internal/persistence"
 )
 
 // ChangelogStore persists anime changelog rows and device acknowledgement state.
@@ -18,21 +21,84 @@ func NewChangelogStore(provider SQLiteProvider) *ChangelogStore {
 }
 
 // InsertPending stores a changelog row that still needs to reach paired devices.
+//
+// Installed Mobile builds diff a row's whole snapshot when its changed fields are unknown to them,
+// and drop a row whose timestamp is not above the last one applied for that anime. So, for one
+// anime, a row with a higher id must carry a higher timestamp and a snapshot no older than an
+// earlier row's. A writer's event can be read long before its row is stored, so inside one
+// transaction the row takes the anime's current stored snapshot instead of the event's, and a
+// timestamp past the anime's last row. A row of an anime that no longer exists is not stored,
+// unless it is a delete, which keeps the event's snapshot: a late update would bring the anime back
+// on a phone. Every update or create names the fields it changed: a write that changed none is
+// nothing a phone can apply, so it is not stored. A delete names no field.
 func (s *ChangelogStore) InsertPending(ctx context.Context, entry ChangelogEntry) error {
 	entry = normalizePendingChangelogEntry(entry)
+	if entry.ChangeType != ChangelogTypeDelete && len(entry.ChangedFields) == 0 {
+		return nil
+	}
 
-	if _, err := s.execContext(ctx, `
+	err := persistence.InTx(ctx, s.provider.DB(), func(tx *sql.Tx) error {
+		return insertPendingTx(ctx, tx, entry)
+	})
+	if err != nil {
+		return fmt.Errorf("insert changelog pending for %q: %w", entry.AnimeID, err)
+	}
+	return nil
+}
+
+// insertPendingTx stores entry inside tx with the anime's current snapshot and a timestamp past the
+// anime's last row. A create or update of an anime that no longer exists stores nothing.
+func insertPendingTx(ctx context.Context, tx *sql.Tx, entry ChangelogEntry) error {
+	if entry.ChangeType != ChangelogTypeDelete {
+		current, found, err := currentAnimeSnapshot(ctx, tx, entry.AnimeID)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return nil
+		}
+		entry.SnapshotJSON = current
+	}
+	stampedMs, err := pastLastRow(ctx, tx, entry.AnimeID, entry.ChangedAtMs)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `
 		INSERT INTO changelog (
 			anime_id, change_type, changed_fields_json, snapshot_json,
 			source_event_id, status, changed_at_ms
 		)
 		VALUES (?, ?, ?, ?, NULLIF(?, ''), ?, ?)
 		ON CONFLICT(source_event_id) WHERE source_event_id IS NOT NULL DO NOTHING
-	`, entry.AnimeID, entry.ChangeType, marshalChangedFields(entry.ChangedFields), string(entry.SnapshotJSON), entry.SourceEventID, entry.Status, entry.ChangedAtMs); err != nil {
-		return fmt.Errorf("insert changelog pending for %q: %w", entry.AnimeID, err)
-	}
+	`, entry.AnimeID, entry.ChangeType, marshalChangedFields(entry.ChangedFields), string(entry.SnapshotJSON), entry.SourceEventID, entry.Status, stampedMs)
+	return err
+}
 
-	return nil
+// pastLastRow returns changedAtMs, raised to one past the anime's last stored row when it does not
+// already pass it. An anime with no stored row keeps changedAtMs.
+func pastLastRow(ctx context.Context, tx *sql.Tx, animeID string, changedAtMs int64) (stampedMs int64, err error) {
+	var lastMs sql.NullInt64
+	if err = tx.QueryRowContext(ctx, `SELECT MAX(changed_at_ms) FROM changelog WHERE anime_id = ?`, animeID).Scan(&lastMs); err != nil {
+		return stampedMs, err
+	}
+	if lastMs.Valid && changedAtMs <= lastMs.Int64 {
+		return lastMs.Int64 + 1, nil
+	}
+	return changedAtMs, nil
+}
+
+// currentAnimeSnapshot returns the stored snapshot of animeID inside tx; found is false when the
+// anime no longer exists.
+func currentAnimeSnapshot(ctx context.Context, tx *sql.Tx, animeID string) (snapshot []byte, found bool, err error) {
+	var stored string
+	err = tx.QueryRowContext(ctx, `SELECT snapshot_json FROM anime_snapshots WHERE anime_id = ?`, animeID).Scan(&stored)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return []byte(stored), true, nil
 }
 
 // ListSinceTimestamp returns changelog rows newer than the given timestamp.

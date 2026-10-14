@@ -23,7 +23,7 @@ func TestSQLiteChangelogStoreInsertsPendingRow(t *testing.T) {
 		ChangedAtMs:   1710000000123,
 	}
 
-	if err := store.InsertPending(ctx, entry); err != nil {
+	if err := insertWithAnime(ctx, db, store, entry); err != nil {
 		t.Fatalf("insert pending changelog: %v", err)
 	}
 
@@ -84,7 +84,7 @@ func TestSQLiteChangelogStoreHandles100ConcurrentPendingInserts(t *testing.T) {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
-			errCh <- store.InsertPending(ctx, ChangelogEntry{
+			errCh <- insertWithAnime(ctx, db, store, ChangelogEntry{
 				AnimeID:       fmt.Sprintf("anime-%03d", index),
 				ChangeType:    ChangelogTypeUpdate,
 				ChangedFields: []string{"nrocapvisto"},
@@ -125,7 +125,7 @@ func TestSQLiteChangelogStoreListsChangesSinceTimestamp(t *testing.T) {
 		{AnimeID: "anime-3", ChangeType: ChangelogTypeDelete, ChangedFields: nil, SnapshotJSON: nil, ChangedAtMs: 300},
 	}
 	for _, entry := range entries {
-		if err := store.InsertPending(ctx, entry); err != nil {
+		if err := insertWithAnime(ctx, db, store, entry); err != nil {
 			t.Fatalf("insert pending changelog: %v", err)
 		}
 	}
@@ -167,10 +167,10 @@ func TestSQLiteChangelogStoreListsChangesAfterID(t *testing.T) {
 
 	first := ChangelogEntry{AnimeID: "anime-1", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"estado"}, SnapshotJSON: []byte(`{"id":"anime-1"}`), ChangedAtMs: 100}
 	second := ChangelogEntry{AnimeID: "anime-2", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"nrocapvisto"}, SnapshotJSON: []byte(`{"id":"anime-2"}`), ChangedAtMs: 200}
-	if err := store.InsertPending(ctx, first); err != nil {
+	if err := insertWithAnime(ctx, db, store, first); err != nil {
 		t.Fatalf("insert first changelog: %v", err)
 	}
-	if err := store.InsertPending(ctx, second); err != nil {
+	if err := insertWithAnime(ctx, db, store, second); err != nil {
 		t.Fatalf("insert second changelog: %v", err)
 	}
 
@@ -201,10 +201,10 @@ func TestSQLiteChangelogStoreListsOnlyPendingRowsNewestFirst(t *testing.T) {
 	store := NewChangelogStore(NewSQLiteProvider(db))
 	ctx := context.Background()
 
-	if err := store.InsertPending(ctx, ChangelogEntry{AnimeID: "anime-1", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"estado"}, SnapshotJSON: []byte(`{"id":"anime-1"}`), ChangedAtMs: 100}); err != nil {
+	if err := insertWithAnime(ctx, db, store, ChangelogEntry{AnimeID: "anime-1", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"estado"}, SnapshotJSON: []byte(`{"id":"anime-1"}`), ChangedAtMs: 100}); err != nil {
 		t.Fatalf("insert first pending changelog: %v", err)
 	}
-	if err := store.InsertPending(ctx, ChangelogEntry{AnimeID: "anime-2", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"nrocapvisto"}, SnapshotJSON: []byte(`{"id":"anime-2"}`), ChangedAtMs: 300}); err != nil {
+	if err := insertWithAnime(ctx, db, store, ChangelogEntry{AnimeID: "anime-2", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"nrocapvisto"}, SnapshotJSON: []byte(`{"id":"anime-2"}`), ChangedAtMs: 300}); err != nil {
 		t.Fatalf("insert second pending changelog: %v", err)
 	}
 	if _, err := db.ExecContext(ctx, `
@@ -245,7 +245,7 @@ func TestSQLiteChangelogStoreUpsertsDeviceAckAndPrunesForActiveDevices(t *testin
 	ctx := context.Background()
 
 	for i := 1; i <= 3; i++ {
-		if err := store.InsertPending(ctx, ChangelogEntry{
+		if err := insertWithAnime(ctx, db, store, ChangelogEntry{
 			AnimeID:       fmt.Sprintf("anime-%d", i),
 			ChangeType:    ChangelogTypeUpdate,
 			ChangedFields: []string{"nrocapvisto"},
@@ -288,10 +288,11 @@ func TestSQLiteChangelogStoreIgnoresStaleDevicesWhenPruning(t *testing.T) {
 	ctx := context.Background()
 
 	for i := 1; i <= 3; i++ {
-		if err := store.InsertPending(ctx, ChangelogEntry{
-			AnimeID:      fmt.Sprintf("anime-%d", i),
-			SnapshotJSON: []byte(fmt.Sprintf(`{"id":"anime-%d"}`, i)),
-			ChangedAtMs:  int64(100 + i),
+		if err := insertWithAnime(ctx, db, store, ChangelogEntry{
+			AnimeID:       fmt.Sprintf("anime-%d", i),
+			ChangedFields: []string{"nrocapvisto"},
+			SnapshotJSON:  []byte(fmt.Sprintf(`{"id":"anime-%d"}`, i)),
+			ChangedAtMs:   int64(100 + i),
 		}); err != nil {
 			t.Fatalf("insert changelog %d: %v", i, err)
 		}

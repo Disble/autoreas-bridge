@@ -43,8 +43,8 @@ func TestSyncEndpointsHandleCapPlusAndIncrementalChangesWithout500(t *testing.T)
 	if len(changesPayload.Changes) != 1 || changesPayload.Changes[0].Snapshot == nil {
 		t.Fatalf("expected one serialized change with snapshot, got %#v", changesPayload)
 	}
-	if changesPayload.Changes[0].Snapshot.EpisodesWatched != 664 {
-		t.Fatalf("expected change snapshot nrocapvisto 664, got %v", changesPayload.Changes[0].Snapshot.EpisodesWatched)
+	if changesPayload.Changes[0].Snapshot.EpisodesWatched != 661 {
+		t.Fatalf("expected change snapshot nrocapvisto 661 (the stored anime), got %v", changesPayload.Changes[0].Snapshot.EpisodesWatched)
 	}
 
 	postReq := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"device_id":"device-1","last_changelog_id":0,"pending_operations":[{"anime_id":"anime-1","operation":"cap_plus","payload":{},"created_at":1710000000456},{"anime_id":"anime-1","operation":"cap_minus","payload":{},"created_at":1710000000457}]}`))
@@ -65,8 +65,8 @@ func TestSyncEndpointsHandleCapPlusAndIncrementalChangesWithout500(t *testing.T)
 	if reconcilePayload.LastChangelogID <= 0 {
 		t.Fatalf("expected positive last_changelog_id, got %d", reconcilePayload.LastChangelogID)
 	}
-	if reconcilePayload.BridgeChanges[0].Snapshot == nil || reconcilePayload.BridgeChanges[0].Snapshot.EpisodesWatched != 664 {
-		t.Fatalf("expected reconcile bridge change snapshot nrocapvisto 664, got %#v", reconcilePayload.BridgeChanges[0].Snapshot)
+	if reconcilePayload.BridgeChanges[0].Snapshot == nil || reconcilePayload.BridgeChanges[0].Snapshot.EpisodesWatched != 661 {
+		t.Fatalf("expected reconcile bridge change snapshot nrocapvisto 661 (the stored anime), got %#v", reconcilePayload.BridgeChanges[0].Snapshot)
 	}
 }
 
@@ -74,13 +74,10 @@ func TestSyncEndpointsIgnoreMalformedChangelogSnapshotInsteadOfReturning500(t *t
 	t.Parallel()
 
 	env := newSyncE2EHTTPEndpointEnv(t)
-	if err := env.changelogStore.InsertPending(env.ctx, bridgeSync.ChangelogEntry{
-		AnimeID:       "broken-1",
-		ChangeType:    events.AnimeChangeTypeUpdate,
-		ChangedFields: []string{"nrocapvisto"},
-		SnapshotJSON:  []byte(`{"name":"broken"`),
-		ChangedAtMs:   1710000000122,
-	}); err != nil {
+	// The store only writes the anime's stored snapshot, so a malformed row can only predate it: it
+	// is written straight into the table.
+	if _, err := env.db.ExecContext(env.ctx, `INSERT INTO changelog (anime_id, change_type, changed_fields_json, snapshot_json, status, changed_at_ms)
+		VALUES ('broken-1', 'update', '["nrocapvisto"]', '{"name":"broken"', 'pending', 1710000000122)`); err != nil {
 		t.Fatalf("insert malformed changelog row: %v", err)
 	}
 	if err := env.changelogStore.InsertPending(env.ctx, bridgeSync.ChangelogEntry{
