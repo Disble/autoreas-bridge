@@ -168,28 +168,70 @@ describe('episode-duration runtime source', () => {
   });
 });
 
-describe('bridge-runtime-source editor save with episodes', () => {
+describe('episode-duration runtime source save', () => {
   useIsolatedWailsRuntime();
 
-  it('sends the draft episode edits beside the patch, and none when the draft has none', async () => {
+  /** Two unsaved edits of the Episodes card: a hand value and a clear. */
+  const EDITS = [
+    { episode: 4, durationMs: 2_760_000, source: 'manual' as const, clear: false },
+    { episode: 5, durationMs: 0, source: 'manual' as const, clear: true },
+  ];
+
+  it('saves the card edits for the anime through their own binding', async () => {
+    const { createEpisodeDurationRuntimeSource } = await import('../bridge-runtime-source/episode-duration-runtime-source.helpers');
+    const save = vi.fn().mockResolvedValue({ outcome: 'applied', changed: 2 });
+    const pending = createEpisodeDurationRuntimeSource().saveEpisodeDurations('anime-1', EDITS);
+
+    await attachBindings({ SaveEpisodeDurations: save });
+
+    await expect(pending).resolves.toStrictEqual({ outcome: 'applied', changed: 2 });
+    expect(save).toHaveBeenCalledWith('anime-1', EDITS);
+  });
+
+  it('keeps a no-op and an error with its message, and reads an unknown outcome as an error', async () => {
+    const { createEpisodeDurationRuntimeSource } = await import('../bridge-runtime-source/episode-duration-runtime-source.helpers');
+    const save = vi.fn()
+      .mockResolvedValueOnce({ outcome: 'no_op', changed: 0 })
+      .mockResolvedValueOnce({ outcome: 'error', message: 'disk full', changed: 0 })
+      .mockResolvedValueOnce({ outcome: 'later', changed: 3 });
+    const source = createEpisodeDurationRuntimeSource();
+    const noOp = source.saveEpisodeDurations('anime-1', EDITS);
+    const failed = source.saveEpisodeDurations('anime-1', EDITS);
+    const unknown = source.saveEpisodeDurations('anime-1', EDITS);
+
+    await attachBindings({ SaveEpisodeDurations: save });
+
+    await expect(noOp).resolves.toStrictEqual({ outcome: 'no_op', changed: 0 });
+    await expect(failed).resolves.toStrictEqual({ outcome: 'error', message: 'disk full', changed: 0 });
+    await expect(unknown).resolves.toStrictEqual({ outcome: 'error', changed: 3 });
+  });
+
+  it('fails closed with an error save while the runtime is absent', async () => {
+    const { createEpisodeDurationRuntimeSource } = await import('../bridge-runtime-source/episode-duration-runtime-source.helpers');
+    const { WAILS_BINDINGS_TIMEOUT_MS } = await import('../wails-bindings.helpers');
+    const pending = createEpisodeDurationRuntimeSource().saveEpisodeDurations('anime-1', EDITS);
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_TIMEOUT_MS + 100);
+
+    await expect(pending).resolves.toStrictEqual({ outcome: 'error', message: 'runtime unavailable', changed: 0 });
+  });
+});
+
+describe('bridge-runtime-source editor save without episodes', () => {
+  useIsolatedWailsRuntime();
+
+  it('never sends episode edits with the anime save, even from a stale command that carries them', async () => {
     const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const save = vi.fn().mockResolvedValue({ animeId: 'anime-1', outcome: 'applied', message: 'saved', modifiedAt: 100 });
-    const source = createBridgeRuntimeSource();
     const emptyPatch = { cover: { present: false, clear: false, type: '', path: '' } };
-    const edits = [
-      { episode: 4, durationMs: 2_760_000, source: 'manual' as const, clear: false },
-      { episode: 5, durationMs: 0, source: 'manual' as const, clear: true },
-    ];
-    const withEpisodes = source.saveAnimeEditor({ animeId: 'anime-1', baseModifiedAt: 100, patch: emptyPatch as never, episodes: edits });
-    const withoutEpisodes = source.saveAnimeEditor({ animeId: 'anime-1', baseModifiedAt: 100, patch: emptyPatch as never });
+    const stale = { animeId: 'anime-1', baseModifiedAt: 100, patch: emptyPatch, episodes: [{ episode: 4, durationMs: 1, source: 'manual', clear: false }] };
+    const pending = createBridgeRuntimeSource().saveAnimeEditor(stale as never);
 
     await attachBindings({ SaveAnimeEditor: save });
-    await withEpisodes;
-    await withoutEpisodes;
+    await pending;
 
-    const [first] = save.mock.calls[0] as [Record<string, unknown>];
-    const [second] = save.mock.calls[1] as [Record<string, unknown>];
-    expect(first['episodes']).toEqual(edits);
-    expect(second).not.toHaveProperty('episodes');
+    const [sent] = save.mock.calls[0] as [Record<string, unknown>];
+    expect(sent).not.toHaveProperty('episodes');
+    expect(sent).toEqual(expect.objectContaining({ animeId: 'anime-1', baseModifiedAt: 100 }));
   });
 });

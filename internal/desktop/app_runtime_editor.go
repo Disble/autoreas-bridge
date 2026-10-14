@@ -2,7 +2,6 @@ package desktop
 
 import (
 	"fmt"
-	"reflect"
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
@@ -27,14 +26,9 @@ func (a *App) GetAnimeEditorRecord(animeID string) contracts.AnimeEditorRecordRe
 	return contracts.AnimeEditorRecordResult{Outcome: contracts.AnimePatchOutcomeApplied, Message: "anime editor record loaded", Details: editorDetails("get_record"), Record: record}
 }
 
-// SaveAnimeEditor applies an editor patch and the draft's episode-duration
-// changes. The DTO is converted to the domain command first, so a malformed
-// patch fails before touching either store.
-//
-// The episode changes are saved first, in their own transaction: they are
-// idempotent, so a retry after an anime conflict re-applies them as a no-op.
-// A save that carries only episode changes never touches the anime, so a
-// stale base cannot block it and modified_at does not move.
+// SaveAnimeEditor applies an editor patch. The DTO is converted to the domain
+// command first, so a malformed patch fails before touching the store. Episode
+// durations are saved apart, through SaveEpisodeDurations.
 func (a *App) SaveAnimeEditor(command SaveAnimeEditorCommandDTO) contracts.AnimeEditorSaveResult {
 	if a.animeEditorWrite == nil {
 		return editorSaveError("save", "anime editor service unavailable")
@@ -43,32 +37,11 @@ func (a *App) SaveAnimeEditor(command SaveAnimeEditorCommandDTO) contracts.Anime
 	if err != nil {
 		return editorSaveError("save", fmt.Sprintf("save anime editor: %v", err))
 	}
-	changedEpisodes, err := a.saveEpisodeEdits(command.AnimeID, command.Episodes)
-	if err != nil {
-		return editorSaveError("save", fmt.Sprintf("save episode durations: %v", err))
-	}
-	if len(command.Episodes) > 0 && reflect.ValueOf(domainCommand.Patch).IsZero() {
-		return a.editorSaveResult("save", episodesOnlyResult(command, changedEpisodes))
-	}
 	result, err := a.animeEditorWrite.Save(a.appContext(), domainCommand)
 	if err != nil {
 		return editorSaveError("save", fmt.Sprintf("save anime editor: %v", err))
 	}
-	if result.Outcome == contracts.AnimePatchOutcomeNoOp && changedEpisodes > 0 {
-		result.Outcome = contracts.AnimePatchOutcomeApplied
-	}
 	return a.editorSaveResult("save", result)
-}
-
-// episodesOnlyResult is the outcome of a save that changed episode durations
-// only: applied when a row changed, no-op otherwise, with the anime's version
-// untouched.
-func episodesOnlyResult(command SaveAnimeEditorCommandDTO, changed int) anime.PatchResult {
-	outcome := contracts.AnimePatchOutcomeNoOp
-	if changed > 0 {
-		outcome = contracts.AnimePatchOutcomeApplied
-	}
-	return anime.PatchResult{Outcome: outcome, AnimeID: command.AnimeID, ModifiedAt: command.BaseModifiedAt}
 }
 
 // DeactivateAnime takes an anime out of the active rotation, under

@@ -5,9 +5,9 @@ import type { EpisodeAnalysisState, EpisodeOpenReview, UseEpisodeReanalysisOptio
 import { shouldOpenEpisodeReview, toEpisodeReviewEdits, toEpisodeReviewView } from './episode-reanalysis-review.helpers';
 
 /**
- * Runs one re-analysis of the draft's folder, follows its progress, and holds
- * the review the user confirms into the draft (Log L15). Re-analysis writes
- * nothing; confirming only replaces the draft's episode edits. A run started
+ * Runs one re-analysis of the saved folder, follows its progress, and holds
+ * the review the user confirms into the card draft (Log L15). Re-analysis writes
+ * nothing; confirming only replaces the card's episode edits. A run started
  * for one anime never lands on another: moving the Editor to another anime
  * cancels it and drops its answer.
  */

@@ -1,7 +1,7 @@
 import type { AnimeEditorRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
-import type { EpisodeDurationRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
+import type { EpisodeDurationRuntimeSource, EpisodeDurationSaveResult } from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
 import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
-import type { AnimeEditorRecord, AnimeEditorSaveResult, AnimeEditorScheduleApplyResult, ApplyAnimeScheduleDraftEntry, EpisodeDurationEdit } from '../../../../shared/contracts/anime.types';
+import type { AnimeEditorRecord, AnimeEditorSaveResult, AnimeEditorScheduleApplyResult, ApplyAnimeScheduleDraftEntry } from '../../../../shared/contracts/anime.types';
 import type { AnimeMetadataSelection, AppliedMetadata } from '../../../../shared/metadata-lookup/metadata-lookup.types';
 import type { AnimeScheduleOrderingTestDriverRef } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
 
@@ -9,7 +9,7 @@ import type { AnimeScheduleOrderingTestDriverRef } from '../../../../shared/orde
 export interface AnimeEditorWorkspaceProps {
   readonly initialAnimeId?: string;
   readonly scheduleTestDriverRef?: AnimeScheduleOrderingTestDriverRef;
-  /** The Episodes section's source; production omits it and gets the Wails runtime source. */
+  /** The Episodes card's source; production omits it and gets the Wails runtime source. */
   readonly episodeSource?: EpisodeDurationRuntimeSource;
 }
 
@@ -121,14 +121,8 @@ export interface AnimeEditorDraft {
 /** Cohesive record-editing state updated atomically by the focused record hook. */
 export interface AnimeEditorRecordState {
   readonly selectedRecord?: AnimeEditorRecord;
+  /** The anime data draft only; the Episodes card keeps its own draft (S15). */
   readonly draft: AnimeEditorDraft;
-  /**
-   * The draft's unsaved episode-duration edits (Episodes section). They join the
-   * draft, so Save writes them and Discard changes drops them (Log L15).
-   */
-  readonly episodeEdits: readonly EpisodeDurationEdit[];
-  /** Bumped after each applied save, so the Episodes section reads the stored durations again. */
-  readonly episodeRevision: number;
   readonly isLoadingRecord: boolean;
   readonly isSaving: boolean;
   readonly feedback?: string;
@@ -262,6 +256,12 @@ export interface AnimeEditorDialogsProps {
   readonly scheduleTestDriverRef?: AnimeScheduleOrderingTestDriverRef;
 }
 
+/** One card the guard's "Save and continue" may save: whether it is dirty, and how it saves. */
+export interface AnimeEditorGuardCardSave {
+  readonly isDirty: boolean;
+  readonly save: () => Promise<AnimeEditorSaveResult | undefined>;
+}
+
 /** Collaborators consumed by guarded editor transition orchestration. */
 export interface UseAnimeEditorTransitionsOptions {
   readonly selectedAnimeId?: string;
@@ -272,10 +272,22 @@ export interface UseAnimeEditorTransitionsOptions {
   readonly deactivateRecord: () => Promise<AnimeEditorSaveResult | undefined>;
   readonly restoreRecord: () => Promise<{ readonly status: string } | undefined>;
   readonly repeatRecord: () => Promise<{ readonly status: string } | undefined>;
+  /** Discards the anime data draft; the guard's "Discard changes" drops it with the episodes draft. */
   readonly discardRecord: () => void;
+  /** Discards the Episodes card's own draft. */
+  readonly discardEpisodes: () => void;
   readonly applySchedule: (entries: readonly ApplyAnimeScheduleDraftEntry[]) => Promise<AnimeEditorScheduleApplyResult | undefined>;
   readonly openSchedule: () => Promise<void>;
+  /** Reads the schedule board again after an anime save. */
+  readonly reloadSchedule: () => Promise<void>;
+  /** Saves the Episodes card's own draft. */
+  readonly saveEpisodes: () => Promise<EpisodeDurationSaveResult | undefined>;
+  /** Whether either card is dirty; the one unsaved-changes guard covers both drafts (S15). */
   readonly isDirty: boolean;
+  /** Whether the anime data card is dirty. */
+  readonly isRecordDirty: boolean;
+  /** Whether the Episodes card is dirty. */
+  readonly isEpisodesDirty: boolean;
 }
 
 /** Which Library empty state a resolved request produced, if any. */

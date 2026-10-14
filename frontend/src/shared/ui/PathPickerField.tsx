@@ -1,4 +1,5 @@
 import { Button, Description, Input, Label, TextField } from '@heroui/react';
+import { HelpTooltip } from './HelpTooltip/HelpTooltip';
 import type { PathPickerFieldProps } from './PathPickerField.types';
 
 /**
@@ -18,11 +19,17 @@ export function PathPickerField({
   browseLabel,
   mono,
   isDisabled,
+  labelHelp,
   ...rest
 }: Readonly<PathPickerFieldProps>) {
   return (
     <TextField>
-      <Label>{label}</Label>
+      {labelHelp === undefined ? <Label>{label}</Label> : (
+        <div className="flex items-center gap-1">
+          <Label>{label}</Label>
+          <HelpTooltip label={labelHelp.label} message={labelHelp.message} />
+        </div>
+      )}
       <div className="flex items-center gap-2">
         <Input
           {...rest}

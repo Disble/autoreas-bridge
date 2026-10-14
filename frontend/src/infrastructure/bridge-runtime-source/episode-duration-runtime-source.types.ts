@@ -1,4 +1,6 @@
-/** What the Editor draft says about the anime: its id and the folder, total and type it shows now. */
+import type { EpisodeDurationEdit } from '../../shared/contracts/anime.types';
+
+/** The saved anime the Episodes card reads: its id and its saved folder, total and type. */
 export interface EpisodeDurationRequest {
   readonly animeId: string;
   readonly folder: string;
@@ -70,10 +72,22 @@ export interface EpisodeReanalysisProgress {
   readonly episode: number;
 }
 
+/** How saving the Episodes card ended: written, nothing to write, or refused. */
+export type EpisodeDurationSaveOutcome = 'applied' | 'no_op' | 'error';
+
+/** The answer to saving the Episodes card's edits: the outcome, why it failed, and how many rows changed. */
+export interface EpisodeDurationSaveResult {
+  readonly outcome: EpisodeDurationSaveOutcome;
+  readonly message?: string;
+  readonly changed: number;
+}
+
 /** Port for the Editor's episode-duration bindings and the re-analysis progress stream. */
 export interface EpisodeDurationRuntimeSource {
   readonly getEpisodeDurationSection: (request: EpisodeDurationRequest) => Promise<EpisodeDurationSection>;
   readonly reanalyzeEpisodeDurations: (request: EpisodeDurationRequest) => Promise<EpisodeReanalysisReview>;
   readonly cancelEpisodeReanalysis: () => Promise<void>;
+  /** Saves the Episodes card's own draft, apart from the anime data. */
+  readonly saveEpisodeDurations: (animeId: string, edits: readonly EpisodeDurationEdit[]) => Promise<EpisodeDurationSaveResult>;
   readonly onEpisodeReanalysisProgress: (listener: (progress: EpisodeReanalysisProgress) => void) => () => void;
 }

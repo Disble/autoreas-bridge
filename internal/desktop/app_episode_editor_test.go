@@ -40,16 +40,14 @@ func storedEpisodes(t *testing.T, app *App) []episodes.Duration {
 	return got
 }
 
-func TestSaveAnimeEditorWithOnlyEpisodesNeverTouchesTheAnime(t *testing.T) {
+func TestSaveEpisodeDurationsStoresTheEditsAndNeverTouchesTheAnime(t *testing.T) {
 	app, store := editorEpisodeApp(t)
+	edit := EpisodeDurationEditDTO{Episode: 3, DurationMs: (46 * time.Minute).Milliseconds(), Source: episodes.SourceManual}
 
-	// A stale base: an episodes-only save must not be blocked by it, nor move modified_at.
-	got := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 99, Episodes: []EpisodeDurationEditDTO{
-		{Episode: 3, DurationMs: (46 * time.Minute).Milliseconds(), Source: episodes.SourceManual},
-	}})
+	got := app.SaveEpisodeDurations("anime-1", []EpisodeDurationEditDTO{edit})
 
-	if got.Outcome != contracts.AnimePatchOutcomeApplied || got.Record == nil || got.Record.ModifiedAt != 100 {
-		t.Fatalf("want applied with the untouched record, got %#v", got)
+	if got.Outcome != contracts.AnimePatchOutcomeApplied || got.Changed != 1 {
+		t.Fatalf("want applied with one changed row, got %#v", got)
 	}
 	if rows := storedEpisodes(t, app); len(rows) != 1 || rows[0].Episode != 3 || rows[0].Source != episodes.SourceManual {
 		t.Fatalf("want episode 3 stored by hand, got %+v", rows)
@@ -58,85 +56,57 @@ func TestSaveAnimeEditorWithOnlyEpisodesNeverTouchesTheAnime(t *testing.T) {
 		t.Fatalf("the anime must be untouched, got %+v (%v)", record, err)
 	}
 
-	again := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 100, Episodes: []EpisodeDurationEditDTO{
-		{Episode: 3, DurationMs: (46 * time.Minute).Milliseconds(), Source: episodes.SourceManual},
-	}})
-	if again.Outcome != contracts.AnimePatchOutcomeNoOp {
-		t.Fatalf("an identical episodes-only save is a no-op, got %#v", again)
+	if again := app.SaveEpisodeDurations("anime-1", []EpisodeDurationEditDTO{edit}); again.Outcome != contracts.AnimePatchOutcomeNoOp || again.Changed != 0 {
+		t.Fatalf("an identical save is a no-op, got %#v", again)
 	}
 }
 
-func TestSaveAnimeEditorSavesThePatchAndTheEpisodesTogether(t *testing.T) {
+func TestSaveEpisodeDurationsWithNoEditsIsANoOp(t *testing.T) {
 	app, _ := editorEpisodeApp(t)
-	name := "Frieren X"
 
-	got := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 100,
-		Patch:    AnimeEditorPatchDTO{Name: &name},
-		Episodes: []EpisodeDurationEditDTO{{Episode: 1, DurationMs: 60_000, Source: episodes.SourceMeasured}},
-	})
-
-	if got.Outcome != contracts.AnimePatchOutcomeApplied || got.ModifiedAt != 200 {
-		t.Fatalf("want the patch applied, got %#v", got)
-	}
-	if rows := storedEpisodes(t, app); len(rows) != 1 || rows[0].Source != episodes.SourceMeasured {
-		t.Fatalf("want the confirmed reading stored, got %+v", rows)
+	if got := app.SaveEpisodeDurations("anime-1", nil); got.Outcome != contracts.AnimePatchOutcomeNoOp {
+		t.Fatalf("want a no-op, got %#v", got)
 	}
 }
 
-func TestSaveAnimeEditorPatchNoOpWithChangedEpisodesIsApplied(t *testing.T) {
+func TestSaveEpisodeDurationsRefusesABadEditAndSavesNothing(t *testing.T) {
 	app, _ := editorEpisodeApp(t)
-	same := "Frieren"
 
-	got := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 100,
-		Patch:    AnimeEditorPatchDTO{Name: &same},
-		Episodes: []EpisodeDurationEditDTO{{Episode: 1, DurationMs: 60_000, Source: episodes.SourceManual}},
+	got := app.SaveEpisodeDurations("anime-1", []EpisodeDurationEditDTO{
+		{Episode: 1, DurationMs: 60_000, Source: episodes.SourceManual},
+		{Episode: 0, DurationMs: 60_000, Source: episodes.SourceManual},
 	})
 
-	if got.Outcome != contracts.AnimePatchOutcomeApplied {
-		t.Fatalf("a no-op patch with a changed episode is applied, got %#v", got)
-	}
-}
-
-func TestSaveAnimeEditorRefusesABadEpisodeEditAndSavesNothing(t *testing.T) {
-	app, store := editorEpisodeApp(t)
-	name := "Frieren X"
-
-	got := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 100,
-		Patch:    AnimeEditorPatchDTO{Name: &name},
-		Episodes: []EpisodeDurationEditDTO{{Episode: 0, DurationMs: 60_000, Source: episodes.SourceManual}},
-	})
-
-	if got.Outcome != contracts.AnimePatchOutcomeError {
-		t.Fatalf("a bad episode edit must fail the save, got %#v", got)
+	if got.Outcome != contracts.AnimePatchOutcomeError || got.Message == "" {
+		t.Fatalf("a bad edit must fail the save with a reason, got %#v", got)
 	}
 	if rows := storedEpisodes(t, app); len(rows) != 0 {
 		t.Fatalf("nothing may be stored, got %+v", rows)
 	}
-	if record, err := store.GetSnapshot(context.Background(), "anime-1"); err != nil || record.ModifiedAt != 100 {
-		t.Fatalf("the anime must be untouched, got %+v (%v)", record, err)
+}
+
+func TestSaveEpisodeDurationsWithoutADatabaseFails(t *testing.T) {
+	app, _ := editorEpisodeApp(t)
+	app.bridgeDB = nil
+
+	got := app.SaveEpisodeDurations("anime-1", []EpisodeDurationEditDTO{{Episode: 1, DurationMs: 60_000, Source: episodes.SourceManual}})
+
+	if got.Outcome != contracts.AnimePatchOutcomeError {
+		t.Fatalf("want an error without a database, got %#v", got)
 	}
 }
 
-func TestSaveAnimeEditorWithoutEpisodesKeepsItsConflict(t *testing.T) {
+func TestSaveAnimeEditorStaleBaseConflictsAndStoresNoDuration(t *testing.T) {
 	app, _ := editorEpisodeApp(t)
 	name := "Stale"
 
 	got := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 99, Patch: AnimeEditorPatchDTO{Name: &name}})
 
 	if got.Outcome != contracts.AnimePatchOutcomeConflict {
-		t.Fatalf("an anime-only stale save still conflicts, got %#v", got)
+		t.Fatalf("a stale save conflicts, got %#v", got)
 	}
-}
-
-func TestSaveAnimeEditorEpisodesWithoutADatabaseFail(t *testing.T) {
-	app, _ := editorEpisodeApp(t)
-	app.bridgeDB = nil
-
-	got := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 100,
-		Episodes: []EpisodeDurationEditDTO{{Episode: 1, DurationMs: 60_000, Source: episodes.SourceManual}}})
-
-	if got.Outcome != contracts.AnimePatchOutcomeError {
-		t.Fatalf("want an error without a database, got %#v", got)
+	if rows := storedEpisodes(t, app); len(rows) != 0 {
+		t.Fatalf("an anime save never writes durations, got %+v", rows)
 	}
 }
 

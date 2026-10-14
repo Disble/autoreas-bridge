@@ -12,13 +12,29 @@ skill). When this file and the canvas disagree, ask before picking one.
 ## 1. Where it lives
 
 - The Editor is the only place where episode durations are edited, like every other anime field.
-- The section is an **accordion named "Episodes"**, built the same way as "More details": a
-  full-width secondary trigger.
-- **The trigger shows a summary even when closed:** "N of M measured" plus a warning chip
-  "1 long" when a long episode exists.
-- Inside the accordion, the section does not repeat its title or draw its own border.
-- Episode edits join the Editor draft, so **Save** and **Discard changes** cover them like every
-  other field. An edited row carries an "Unsaved" chip until then.
+- The Editor's right column holds **three independent cards**: the anime data card, the
+  **Episodes** card and the **Schedule** card. Each saves only its own data.
+- **The Episodes card** has the title "Episodes" and the description "Duration of each episode.
+  Saved on its own, apart from the anime data." Its header shows a soft success chip
+  "N of M measured" (plus a warning chip "1 long" when a long episode exists), a
+  **Re-analyze folder** button, and a **Show episodes / Hide episodes** toggle with
+  `aria-expanded`. The table is collapsed by default.
+- **The Episodes card keeps its own draft.** An edited row carries an "Unsaved" chip; the card's
+  footer shows "N unsaved change(s)", **Discard changes** and **Save episodes** (disabled while the
+  draft is empty or a re-analysis runs). Hiding the table never discards the draft. Saving calls
+  `SaveEpisodeDurations`: on `applied` or `no_op` the draft clears and the card reloads; on an
+  error the draft stays and the card shows the message. The anime data card's **Save** and
+  **Discard changes** never touch episode durations.
+- The Episodes card reads the **saved** anime (folder, total episodes, type), never the anime
+  card's unsaved draft, and reloads after an anime save.
+- **A folder change does not re-measure.** The Folder field carries a "(?)" help that says so and
+  points to **Re-analyze folder** in the Episodes card.
+- One unsaved-changes guard covers both drafts when switching anime, opening the schedule editor
+  or closing the window. Its **Discard changes** drops both; **Save and continue** saves each dirty
+  card and stays when any save does not end `applied` or `no_op`, with that card's error visible.
+- **The Schedule card** ("Days this anime airs. The editor arranges every active anime and applies
+  on its own.") holds the **Open schedule editor** button and a 7-day week strip: a scheduled day
+  shows "N of M" (its position among that day's anime), other days are dimmed.
 
 ## 2. The section
 
@@ -27,7 +43,7 @@ skill). When this file and the canvas disagree, ask before picking one.
   - **Source:** `Measured`, `Manual`, `Not measured`, `Not measured · file found` or
     `Manual · no file yet`.
   - **Edit:** an icon-only pencil that opens the edit modal for that episode.
-- **Re-analyze folder:** an icon-only button in the section header. Its label and any disabled
+- **Re-analyze folder:** a button with a refresh icon in the card header. Its label and any disabled
   reason ("Folder not found", "Set a folder first", "Analyzing…") are a **tooltip** and live in the
   `aria-label`. A disabled button gets no hover, so the HeroUI `Tooltip` wraps a container around the
   button, not the button itself.

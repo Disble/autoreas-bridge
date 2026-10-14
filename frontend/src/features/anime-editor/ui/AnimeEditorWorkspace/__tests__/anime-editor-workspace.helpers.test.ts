@@ -3,7 +3,7 @@ import type { AnimeCoverEntry } from '../../../../../shared/anime-cover/use-anim
 import type { AnimeEditorRecord } from '../../../../../shared/contracts/anime.types';
 import type { AnimeEditorCoverResult, AnimeEditorListItemViewModel } from '../anime-editor-workspace.types';
 import { ANIME_ESTADO_VALID_VALUES } from '../../../../../shared/constants/anime-estado.constants';
-import { classifyAnimeEditorEmptyState, createAnimeEditorDraft, createAnimeEditorListItems, createAnimeEditorSaveCommand, getAnimeEditorEstadoColor, hasAnimeEditorChanges, hasSavedAnimeCover, isNearListBottom, nextAnimeEditorRenderLimit, planAnimeEditorCoverRequests, resolveAnimeEditorFeedbackMessage, toAnimeEditorCoverEntry, toAnimeEditorCoverTargets, toAnimeEditorLifecycleConfirmation, toAnimeEditorListRowViewModels, validateAnimeEditorDraft } from '../anime-editor-workspace.helpers';
+import { classifyAnimeEditorEmptyState, createAnimeEditorDraft, createAnimeEditorListItems, createAnimeEditorSaveCommand, getAnimeEditorEstadoColor, hasAnimeEditorChanges, hasSavedAnimeCover, isNearListBottom, nextAnimeEditorRenderLimit, planAnimeEditorCoverRequests, resolveAnimeEditorFeedbackMessage, toAnimeEditorCoverEntry, toAnimeEditorCoverTargets, toAnimeEditorLifecycleConfirmation, toAnimeEditorListRowViewModels, toEpisodeDurationsSavedAnime, validateAnimeEditorDraft } from '../anime-editor-workspace.helpers';
 
 /** Authority fixture every save-command case edits a draft against. */
 const record = {
@@ -107,12 +107,24 @@ describe('anime-editor-workspace.helpers', () => {
     expect(command.patch.studios).toEqual(['Madhouse', 'CloverWorks']);
   });
 
-  it('sends the draft episode edits beside the patch, and no episodes key without edits', () => {
-    const edits = [{ episode: 4, durationMs: 2_760_000, source: 'manual' as const, clear: false }];
+  it('hands the Episodes card the saved record fields, never the unsaved draft, and nothing without a record', () => {
+    expect(toEpisodeDurationsSavedAnime(record)).toEqual({
+      animeId: record.animeId,
+      folder: createAnimeEditorDraft(record).folder,
+      totalEpisodes: createAnimeEditorDraft(record).totalEpisodes,
+      kind: createAnimeEditorDraft(record).kind,
+    });
+    expect(toEpisodeDurationsSavedAnime({ ...record, frequent: { ...record.frequent, folder: 'D:/Saved', totalEpisodes: 13, kind: 2 } })).toEqual(
+      expect.objectContaining({ folder: 'D:/Saved', totalEpisodes: '13', kind: '2' }),
+    );
+    expect(toEpisodeDurationsSavedAnime(undefined)).toEqual({ animeId: undefined, folder: '', totalEpisodes: '', kind: '' });
+  });
 
-    expect(createAnimeEditorSaveCommand(record, createAnimeEditorDraft(record), edits).episodes).toEqual(edits);
-    expect(createAnimeEditorSaveCommand(record, createAnimeEditorDraft(record), [])).not.toHaveProperty('episodes');
-    expect(createAnimeEditorSaveCommand(record, createAnimeEditorDraft(record))).not.toHaveProperty('episodes');
+  it('builds an anime-only save command: id, base stamp and patch, never episode durations', () => {
+    const command = createAnimeEditorSaveCommand(record, createAnimeEditorDraft(record));
+
+    expect(Object.keys(command).sort()).toEqual(['animeId', 'baseModifiedAt', 'patch']);
+    expect(command).not.toHaveProperty('episodes');
   });
 
   it('omits empty unchanged nullable fields instead of marking them as cleared', () => {

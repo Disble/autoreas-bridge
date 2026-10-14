@@ -16,9 +16,6 @@ type SaveAnimeEditorCommandDTO struct {
 	AnimeID        string              `json:"animeId"`
 	BaseModifiedAt int64               `json:"baseModifiedAt"`
 	Patch          AnimeEditorPatchDTO `json:"patch"`
-	// Episodes are the draft's episode-duration changes. They live in their own table, so they are
-	// saved beside the patch, never inside it, and never move modified_at.
-	Episodes []EpisodeDurationEditDTO `json:"episodes,omitempty"`
 }
 
 // AnimeEditorNullableStringPatchDTO carries a nullable string patch. The

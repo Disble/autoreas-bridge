@@ -37,33 +37,23 @@ func subscribedTriggers() (*events.MemoryBus, *backfillTriggers) {
 	return bus, triggers
 }
 
-func TestEpisodeBackfillTriggersAnAnimeThatMayHaveGainedFiles(t *testing.T) {
+// TestEpisodeBackfillIgnoresAnimeEdits pins S7 as rewritten in L29: a duration does not change
+// with the folder, so no anime edit measures anything; process start and download runs do.
+func TestEpisodeBackfillIgnoresAnimeEdits(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range []struct {
-		name  string
-		event events.AnimeChangedEvent
-		want  []backfill.Scope
-	}{
-		{name: "a created anime", event: events.AnimeChangedEvent{AnimeID: "a", ChangeType: events.AnimeChangeTypeCreate},
-			want: []backfill.Scope{backfill.Only("a")}},
-		{name: "a folder edit", event: events.AnimeChangedEvent{AnimeID: "a", ChangedFields: []string{"days", "folder"}},
-			want: []backfill.Scope{backfill.Only("a")}},
-		{name: "an activation", event: events.AnimeChangedEvent{AnimeID: "a", ChangedFields: []string{"active"}},
-			want: []backfill.Scope{backfill.Only("a")}},
-		{name: "a progress edit", event: events.AnimeChangedEvent{AnimeID: "a", ChangeType: events.AnimeChangeTypeUpdate,
-			ChangedFields: []string{"episodesWatched", "lastWatchedAt"}}},
+	bus, triggers := subscribedTriggers()
+	for _, edit := range []events.AnimeChangedEvent{
+		{AnimeID: "a", ChangeType: events.AnimeChangeTypeCreate},
+		{AnimeID: "a", ChangedFields: []string{"days", "folder"}},
+		{AnimeID: "a", ChangedFields: []string{"active"}},
+		{AnimeID: "a", ChangeType: events.AnimeChangeTypeUpdate, ChangedFields: []string{"episodesWatched"}},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+		bus.Publish(edit)
+	}
 
-			bus, triggers := subscribedTriggers()
-			bus.Publish(tc.event)
-
-			if !reflect.DeepEqual(triggers.scopes, tc.want) {
-				t.Errorf("want %v, got %v", tc.want, triggers.scopes)
-			}
-		})
+	if len(triggers.scopes) != 0 {
+		t.Errorf("an anime edit must trigger no measurement, got %v", triggers.scopes)
 	}
 }
 

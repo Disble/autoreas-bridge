@@ -122,17 +122,18 @@ flowchart LR
 |---|---|---|---|---|
 | Download landed | `EpisodeLanded`, which already probes the file | The landed file | No (D3) | Exists; add the write |
 | Today read | Opening Today | Nothing. Today only reads the table (D7). | n/a | Probing removed |
-| Backfill | Process start, after each download run, and when an anime gains a folder or becomes active (D5) | Every recognised file of active anime with no row | No | New, required by D7 |
+| Backfill | Process start and after each download run (D5). Anime edits trigger nothing. | Every recognised file of active anime with no row | No | New, required by D7 |
 | Editor re-analysis | The user presses the button | Every recognised file in the folder | Yes, after the review, never a manual value | New |
 
 ### Backfill (D5)
 
 The backfill is required by D7: it is the only way episodes downloaded before this feature get a duration, and Mobile
-depends on it to stay correct offline. It runs in the background, for active anime only, on three triggers:
+depends on it to stay correct offline. It runs in the background, for active anime only, on two triggers:
 
 1. **Process start:** one pass. It covers the first run after installing the feature and every restart.
 2. **After each download run:** only the anime that run touched.
-3. **When an anime gains a folder or becomes active:** create, restore, or Folder edited in the Editor. Only that anime.
+
+Anime edits trigger nothing (revised 2026-10-14): a duration does not change with the folder, so creating an anime, restoring it or editing its Folder measures nothing until the next start, a download, or "Re-analyze folder" in the Editor.
 
 There is no periodic timer. The only case one would cover is a file dropped into a folder by hand. Bridge usually runs in
 the background but normally restarts once a day, so that file waits at most until the next start, a download of that
@@ -340,7 +341,7 @@ That is why the pending mark is saved in the same transaction as the duration.
 | D2 | What happens to durations on a soft delete or a backup import? | **Resolved by evidence.** Bridge only soft-deletes, so durations stay. A backup import replaces them from the bundle, like `anime_snapshots`. |
 | D3 | A download lands a file for an episode that already has a value. Overwrite it? | **Decided.** No. A different reading is corrected through re-analysis. |
 | D4 | Accept the UI change D0 implies? | **Decided.** Yes. The edit modal shows the current source ("Measured from the file" / "Set by hand") instead of "Last measured". Applied to the canvas and the UI spec. |
-| D5 | When does the backfill run? | **Decided.** At process start, after each download run, and when an anime gains a folder or becomes active. No periodic timer. |
+| D5 | When does the backfill run? | **Decided.** At process start and after each download run. No periodic timer. Revised 2026-10-14: a folder change, creation or activation triggers nothing, since a duration does not change with the folder; "Re-analyze folder" measures on demand. |
 | D6 | How does Mobile learn about duration changes? | **Verified.** Option B: own event `episode.durations_changed` with its own pending table. `AnimeChangedEvent` and the anime outbox stay untouched. Durations are joined when serving. |
 | D7 | Does Today read only the table, with no probing when it opens? | **Decided.** Yes. Cost: a file dropped into a folder by hand gets no mark until the next start (normally within a day), a download of that anime, or a re-analysis. |
 

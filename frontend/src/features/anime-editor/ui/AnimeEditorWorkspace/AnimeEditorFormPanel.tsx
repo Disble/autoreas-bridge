@@ -4,17 +4,20 @@ import { AnimeMetadataLookupModal } from '../../../../shared/metadata-lookup/ui/
 import { LabeledSelect } from '../../../../shared/ui/LabeledSelect';
 import { LabeledTextField } from '../../../../shared/ui/LabeledTextField';
 import { PathPickerField } from '../../../../shared/ui/PathPickerField';
-import { EpisodeDurationsSection } from '../EpisodeDurationsSection/EpisodeDurationsSection';
 import { AnimeEditorHeaderCover } from './AnimeEditorHeaderCover';
-import { ANIME_EDITOR_COVER_TYPE_OPTIONS, ANIME_EDITOR_KIND_OPTIONS, ANIME_EDITOR_REPEAT_LABEL, ANIME_EDITOR_RESTORE_LABEL, ANIME_EDITOR_STATUS_OPTIONS } from './anime-editor-workspace.constants';
+import { ANIME_EDITOR_COVER_TYPE_OPTIONS, ANIME_EDITOR_FOLDER_HELP, ANIME_EDITOR_KIND_OPTIONS, ANIME_EDITOR_REPEAT_LABEL, ANIME_EDITOR_RESTORE_LABEL, ANIME_EDITOR_STATUS_OPTIONS } from './anime-editor-workspace.constants';
 import { getAnimeEditorEstadoColor } from './anime-editor-workspace.helpers';
 import type { AnimeEditorFormPanelProps } from './anime-editor-workspace.types';
 
-/** Renders frequent fields, collapsed metadata, and sticky lifecycle-safe actions. */
+/**
+ * Renders the anime data card: frequent fields, collapsed metadata, and sticky
+ * lifecycle-safe actions. Its dirty state, Discard changes and Save cover the
+ * anime fields only; the Episodes and Schedule cards stand on their own (S15).
+ */
 export function AnimeEditorFormPanel({ viewModel }: Readonly<AnimeEditorFormPanelProps>) {
   const record = viewModel.selectedRecord;
   return (
-    <Card className="flex max-h-[calc(100dvh-7rem)] min-w-0 flex-col overflow-hidden xl:col-span-2"><Card.Content className="flex min-h-0 min-w-0 flex-col p-0">
+    <Card className="flex max-h-[calc(100dvh-7rem)] min-w-0 flex-col overflow-hidden"><Card.Content className="flex min-h-0 min-w-0 flex-col p-0">
       <header className="flex min-w-0 items-start justify-between gap-3 border-b border-divider px-5 py-4">
         <div className="flex min-w-0 items-start gap-3">
           <AnimeEditorHeaderCover
@@ -24,7 +27,7 @@ export function AnimeEditorFormPanel({ viewModel }: Readonly<AnimeEditorFormPane
           />
           <div className="min-w-0">
             <Typography truncate type="h4">{record?.frequent.name ?? 'Select an anime'}</Typography>
-            <Typography color="muted" type="body-sm">{viewModel.isDirty ? 'You have unsaved changes.' : 'Selected anime stays highlighted after each refresh.'}</Typography>
+            <Typography color="muted" type="body-sm">{viewModel.isRecordDirty ? 'You have unsaved changes.' : 'Selected anime stays highlighted after each refresh.'}</Typography>
           </div>
         </div>
         {record !== undefined && (
@@ -114,6 +117,7 @@ export function AnimeEditorFormPanel({ viewModel }: Readonly<AnimeEditorFormPane
             <PathPickerField
               description="Pick a folder from your system, or type the path directly."
               label="Folder"
+              labelHelp={ANIME_EDITOR_FOLDER_HELP}
               mono
               placeholder="D:\\Anime\\..."
               value={viewModel.draft.folder}
@@ -121,8 +125,6 @@ export function AnimeEditorFormPanel({ viewModel }: Readonly<AnimeEditorFormPane
               onChange={(value) => viewModel.onDraftChange('folder', value)}
             />
           </div>
-
-          <Button className="self-start py-2" variant="secondary" onPress={() => void viewModel.onOpenSchedule()}>Open schedule editor</Button>
 
           <Disclosure isExpanded={viewModel.isDetailsOpen} onExpandedChange={viewModel.onToggleDetails}>
             <Disclosure.Heading>
@@ -165,8 +167,6 @@ export function AnimeEditorFormPanel({ viewModel }: Readonly<AnimeEditorFormPane
               </Disclosure.Body>
             </Disclosure.Content>
           </Disclosure>
-
-          <EpisodeDurationsSection viewModel={viewModel.episodes} />
         </>}
       </div>
 
@@ -188,7 +188,7 @@ export function AnimeEditorFormPanel({ viewModel }: Readonly<AnimeEditorFormPane
         ) : (
           <Button className="text-danger hover:text-danger" isDisabled={record === undefined || viewModel.isSaving} variant="tertiary" onPress={() => viewModel.onRequestLifecycleAction('deactivate')}>Deactivate anime</Button>
         )}
-        <Button className="ml-auto" isDisabled={!viewModel.isDirty || viewModel.isSaving} variant="tertiary" onPress={viewModel.onDiscardChanges}>Discard changes</Button>
+        <Button className="ml-auto" isDisabled={!viewModel.isRecordDirty || viewModel.isSaving} variant="tertiary" onPress={viewModel.onDiscardChanges}>Discard changes</Button>
         <Button isDisabled={!viewModel.canSave || viewModel.isSaving} isPending={viewModel.isSaving} variant="primary" onPress={() => void viewModel.onSave()}>Save</Button>
       </div></footer>
     </Card.Content></Card>

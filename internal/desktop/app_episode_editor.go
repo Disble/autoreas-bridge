@@ -11,6 +11,7 @@ import (
 	"autoreas-bridge/internal/anime/episodes"
 	"autoreas-bridge/internal/anime/identity"
 	"autoreas-bridge/internal/anime/media"
+	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/download/config"
 )
 
@@ -74,6 +75,14 @@ type EpisodeDurationReviewResult struct {
 	Rows            []EpisodeDurationReviewRowDTO `json:"rows"`
 }
 
+// EpisodeDurationSaveResult is the outcome of saving the Episodes card: applied when a row
+// changed, no-op when nothing did, error with its reason otherwise.
+type EpisodeDurationSaveResult struct {
+	Outcome contracts.AnimePatchOutcome `json:"outcome"`
+	Message string                      `json:"message,omitempty"`
+	Changed int                         `json:"changed"`
+}
+
 // EpisodeDurationReanalysisProgress is the payload of one progress event.
 type EpisodeDurationReanalysisProgress struct {
 	AnimeID string `json:"animeId"`
@@ -82,7 +91,7 @@ type EpisodeDurationReanalysisProgress struct {
 	Episode int    `json:"episode"`
 }
 
-// EpisodeDurationEditDTO is one Editor change to one episode, saved with SaveAnimeEditor. Clear
+// EpisodeDurationEditDTO is one Editor change to one episode, saved with SaveEpisodeDurations. Clear
 // deletes the duration; otherwise source is "manual" or "measured" (a confirmed re-analysis).
 type EpisodeDurationEditDTO struct {
 	Episode    int    `json:"episode"`
@@ -173,6 +182,19 @@ func (a *App) CancelEpisodeReanalysis() {
 	if state.cancel != nil {
 		state.cancel()
 	}
+}
+
+// SaveEpisodeDurations saves the Episodes card on its own, in one transaction: either every edit
+// is stored or none is. It never touches the anime, so its modified_at does not move.
+func (a *App) SaveEpisodeDurations(animeID string, edits []EpisodeDurationEditDTO) EpisodeDurationSaveResult {
+	changed, err := a.saveEpisodeEdits(animeID, edits)
+	if err != nil {
+		return EpisodeDurationSaveResult{Outcome: contracts.AnimePatchOutcomeError, Message: fmt.Sprintf("save episode durations: %v", err)}
+	}
+	if changed == 0 {
+		return EpisodeDurationSaveResult{Outcome: contracts.AnimePatchOutcomeNoOp}
+	}
+	return EpisodeDurationSaveResult{Outcome: contracts.AnimePatchOutcomeApplied, Changed: changed}
 }
 
 // saveEpisodeEdits stores the Editor's episode changes in one write, waking the announcer.

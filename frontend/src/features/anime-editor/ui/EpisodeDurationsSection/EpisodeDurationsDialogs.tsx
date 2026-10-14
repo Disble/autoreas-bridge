@@ -7,7 +7,7 @@ import { EpisodeReanalysisReviewModal } from './EpisodeReanalysisReviewModal';
  * Renders the Episodes section's modals: Edit episode (Minutes, who set the
  * value, Clear duration, Cancel, Apply), Add episode (a prefilled number and
  * Minutes, with the inline duplicate error and the long hint), and the
- * re-analysis review. Each writes to the Editor draft only.
+ * re-analysis review. Each writes to the Episodes card's own draft only.
  */
 export function EpisodeDurationsDialogs({ viewModel }: Readonly<EpisodeDurationsDialogsProps>) {
   const edit = viewModel.editView;

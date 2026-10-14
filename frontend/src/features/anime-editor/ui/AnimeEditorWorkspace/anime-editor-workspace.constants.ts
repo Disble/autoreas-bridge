@@ -2,6 +2,12 @@ import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-c
 import { ANIME_ESTADO_LABELS, ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
 import type { AnimeEditorDraft, AnimeEditorEmptyStateCopy, AnimeEditorStatusOption } from './anime-editor-workspace.types';
 
+/** The Folder field's "(?)" help (S17): a folder change does not re-measure episode durations. */
+export const ANIME_EDITOR_FOLDER_HELP = {
+  label: 'About the folder and episode durations',
+  message: 'Changing the folder does not recalculate episode durations. To measure them again, use "Re-analyze folder" in the Episodes card.',
+} as const;
+
 /** Default empty draft used before the first editor record loads. */
 export const ANIME_EDITOR_DEFAULT_DRAFT: AnimeEditorDraft = {
   name: '',

@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { EpisodeDurationRuntimeSource, EpisodeDurationSection } from '../../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
-import type { UseEpisodeDurationsSectionOptions } from '../episode-durations-section.types';
+import type { UseEpisodeDurationsLoadOptions } from '../episode-durations-section.types';
 import { useEpisodeDurationsLoad } from '../use-episode-durations-load';
 
 /** A found-folder TV section with one measured episode. */
@@ -16,16 +16,16 @@ const SECTION: EpisodeDurationSection = {
  * @returns The source.
  */
 function createSource(getEpisodeDurationSection: EpisodeDurationRuntimeSource['getEpisodeDurationSection']): EpisodeDurationRuntimeSource {
-  return { getEpisodeDurationSection, reanalyzeEpisodeDurations: vi.fn(), cancelEpisodeReanalysis: vi.fn(), onEpisodeReanalysisProgress: vi.fn(() => () => undefined) };
+  return { getEpisodeDurationSection, reanalyzeEpisodeDurations: vi.fn(), cancelEpisodeReanalysis: vi.fn(), saveEpisodeDurations: vi.fn(), onEpisodeReanalysisProgress: vi.fn(() => () => undefined) };
 }
 
 /**
- * Builds the draft inputs of the section.
+ * Builds the saved-anime inputs of the card read, with no edits.
  * @param overrides Fields to replace.
  * @returns The options.
  */
-function options(overrides: Partial<UseEpisodeDurationsSectionOptions> = {}): UseEpisodeDurationsSectionOptions {
-  return { animeId: 'anime-1', folder: 'D:/Anime/Frieren', totalEpisodes: '12', kind: '0', edits: [], revision: 0, onEditsChange: vi.fn(), ...overrides };
+function options(overrides: Partial<UseEpisodeDurationsLoadOptions> = {}): UseEpisodeDurationsLoadOptions {
+  return { animeId: 'anime-1', folder: 'D:/Anime/Frieren', totalEpisodes: '12', kind: '0', edits: [], revision: 0, ...overrides };
 }
 
 describe('useEpisodeDurationsLoad', () => {
@@ -52,13 +52,13 @@ describe('useEpisodeDurationsLoad', () => {
     expect(getSection).not.toHaveBeenCalled();
   });
 
-  it('follows an unsaved folder edit with one read once typing settles, and drops the stale answer', async () => {
+  it('follows a saved folder change with one read once it settles, and drops the stale answer', async () => {
     let resolveFirst: (section: EpisodeDurationSection) => void = () => undefined;
     const getSection = vi.fn()
       .mockImplementationOnce(() => new Promise<EpisodeDurationSection>((resolve) => { resolveFirst = resolve; }))
       .mockResolvedValue({ ...SECTION, folderStatus: 'missing' });
     const source = createSource(getSection);
-    const { result, rerender } = renderHook((props: UseEpisodeDurationsSectionOptions) => useEpisodeDurationsLoad(props, source), { initialProps: options() });
+    const { result, rerender } = renderHook((props: UseEpisodeDurationsLoadOptions) => useEpisodeDurationsLoad(props, source), { initialProps: options() });
     await waitFor(() => expect(getSection).toHaveBeenCalledTimes(1));
 
     rerender(options({ folder: 'D:/Anime/F' }));
@@ -78,7 +78,7 @@ describe('useEpisodeDurationsLoad', () => {
       .mockImplementationOnce(() => new Promise<EpisodeDurationSection>((_resolve, reject) => { rejectFirst = reject; }))
       .mockResolvedValue(SECTION);
     const source = createSource(getSection);
-    const { result, rerender } = renderHook((props: UseEpisodeDurationsSectionOptions) => useEpisodeDurationsLoad(props, source), { initialProps: options() });
+    const { result, rerender } = renderHook((props: UseEpisodeDurationsLoadOptions) => useEpisodeDurationsLoad(props, source), { initialProps: options() });
     await waitFor(() => expect(getSection).toHaveBeenCalledTimes(1));
 
     rerender(options({ folder: 'D:/Anime/Fr' }));
@@ -92,7 +92,7 @@ describe('useEpisodeDurationsLoad', () => {
   it('reloads after a save bumps the revision', async () => {
     const getSection = vi.fn().mockResolvedValue(SECTION);
     const source = createSource(getSection);
-    const { result, rerender } = renderHook((props: UseEpisodeDurationsSectionOptions) => useEpisodeDurationsLoad(props, source), { initialProps: options() });
+    const { result, rerender } = renderHook((props: UseEpisodeDurationsLoadOptions) => useEpisodeDurationsLoad(props, source), { initialProps: options() });
     await waitFor(() => expect(result.current.load.status).toBe('ready'));
 
     rerender(options({ revision: 1 }));

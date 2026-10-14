@@ -33,7 +33,7 @@ function createViewModel(overrides: Partial<AnimeEditorWorkspaceViewModel> = {})
     appliedMetadata: undefined,
     cover: { status: 'placeholder' },
     metadataLookupSource: fakeMetadataLookupSource(),
-    isLoadingList: false, isLoadingRecord: false, isSaving: false, isApplyingSchedule: false, isDirty: false,
+    isLoadingList: false, isLoadingRecord: false, isSaving: false, isApplyingSchedule: false, isDirty: false, isRecordDirty: false,
     isScheduleModalOpen: false, scheduleBoard: undefined, feedback: undefined, validationMessage: undefined, scheduleFeedback: undefined,
     isDetailsOpen: false, isGuardOpen: false, canSave: false,
     onQueryChange: vi.fn(), onFilterChange: vi.fn(), onSelectAnime: vi.fn(), onDraftChange: vi.fn(),
@@ -43,8 +43,6 @@ function createViewModel(overrides: Partial<AnimeEditorWorkspaceViewModel> = {})
     onMetadataApplied: vi.fn(), onMetadataUndo: vi.fn(),
     onOpenSchedule: vi.fn(), onCloseSchedule: vi.fn(), onApplySchedule: vi.fn(),
     onStayWithCurrentEditor: vi.fn(), onDiscardAndContinue: vi.fn(), onSaveAndContinue: vi.fn(),
-    // The Episodes section has its own suite; idle renders nothing here.
-    episodes: { view: 'idle' } as unknown as AnimeEditorWorkspaceViewModel['episodes'],
     ...overrides,
   } as unknown as AnimeEditorWorkspaceViewModel;
 }
@@ -402,11 +400,44 @@ describe('AnimeEditorFormPanel header title and status line', () => {
   });
 
   it.each([
-    { isDirty: false, statusLine: 'Selected anime stays highlighted after each refresh.' },
-    { isDirty: true, statusLine: 'You have unsaved changes.' },
-  ])('tells the user whether the selected anime has unsaved edits ($statusLine)', ({ isDirty, statusLine }) => {
-    render(<AnimeEditorFormPanel viewModel={createViewModel({ isDirty })} />);
+    { isRecordDirty: false, statusLine: 'Selected anime stays highlighted after each refresh.' },
+    { isRecordDirty: true, statusLine: 'You have unsaved changes.' },
+  ])('tells the user whether the selected anime has unsaved edits ($statusLine)', ({ isRecordDirty, statusLine }) => {
+    render(<AnimeEditorFormPanel viewModel={createViewModel({ isRecordDirty })} />);
 
     expect(screen.getByText(statusLine)).toBeInTheDocument();
+  });
+});
+
+describe('AnimeEditorFormPanel anime data card only', () => {
+  it('reads only the anime data draft: episode edits elsewhere neither mark it unsaved nor enable its Discard changes', () => {
+    render(<AnimeEditorFormPanel viewModel={createViewModel({ isDirty: true, isRecordDirty: false })} />);
+
+    expect(screen.getByText('Selected anime stays highlighted after each refresh.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Discard changes' })).toBeDisabled();
+  });
+
+  it('enables its Discard changes for its own unsaved fields and discards through its own handler', () => {
+    const onDiscardChanges = vi.fn();
+    render(<AnimeEditorFormPanel viewModel={createViewModel({ isRecordDirty: true, onDiscardChanges })} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
+
+    expect(onDiscardChanges).toHaveBeenCalledTimes(1);
+  });
+
+  it('holds neither the schedule button nor the Episodes card', () => {
+    render(<AnimeEditorFormPanel viewModel={createViewModel()} />);
+
+    expect(screen.queryByRole('button', { name: 'Open schedule editor' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Show episodes' })).toBeNull();
+  });
+
+  it('explains next to the Folder label that a folder change does not re-measure episode durations', async () => {
+    render(<AnimeEditorFormPanel viewModel={createViewModel()} />);
+
+    screen.getByRole('button', { name: 'About the folder and episode durations' }).focus();
+
+    expect(await screen.findByText('Changing the folder does not recalculate episode durations. To measure them again, use "Re-analyze folder" in the Episodes card.')).toBeInTheDocument();
   });
 });

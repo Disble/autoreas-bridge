@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from 'react-router';
 import { useCallback, useEffect, useRef } from 'react';
-import type { ApplyAnimeScheduleDraftEntry } from '../../../../shared/contracts/anime.types';
+import type { AnimeEditorSaveResult, ApplyAnimeScheduleDraftEntry } from '../../../../shared/contracts/anime.types';
+import { saveDirtyCards, toEpisodesGuardResult } from './anime-editor-guard.helpers';
 import { isIntentionalEditorOutcome } from './anime-editor-workspace.helpers';
 import type { AnimeEditorPendingAction, UseAnimeEditorTransitionsOptions } from './anime-editor-workspace.types';
 import { useAnimeEditorGuard } from './use-anime-editor-guard';
@@ -24,7 +25,11 @@ export function useAnimeEditorTransitions(options: Readonly<UseAnimeEditorTransi
   // 6. Callbacks (useCallback calling pure helpers)
   const onSave = useCallback(async () => {
     const result = await options.saveRecord();
-    if (result !== undefined && isIntentionalEditorOutcome(result)) await options.loadItems();
+    if (result !== undefined && isIntentionalEditorOutcome(result)) {
+      await options.loadItems();
+      // A saved anime may have moved on the board, so the Schedule card's week strip reads it again.
+      await options.reloadSchedule();
+    }
     return result;
   }, [options]);
   const onDeactivate = useCallback(async () => {
@@ -71,8 +76,16 @@ export function useAnimeEditorTransitions(options: Readonly<UseAnimeEditorTransi
     const action = { type: 'schedule' as const };
     return guard.requestAction(action) ? executePendingAction(action) : Promise.resolve();
   }, [executePendingAction, guard]);
-  const onDiscardAndContinue = useCallback(() => guard.continueWithDiscard(options.discardRecord, executePendingAction), [executePendingAction, guard, options.discardRecord]);
-  const onSaveAndContinue = useCallback(() => guard.continueWithSave(onSave, executePendingAction), [executePendingAction, guard, onSave]);
+  /** The guard's "Discard changes" drops both drafts, then continues. */
+  const onDiscardAndContinue = useCallback(() => guard.continueWithDiscard(() => {
+    options.discardRecord();
+    options.discardEpisodes();
+  }, executePendingAction), [executePendingAction, guard, options]);
+  /** "Save and continue": each dirty card saves on its own, and the action continues only if all saved (S15). */
+  const onSaveAndContinue = useCallback(() => guard.continueWithSave((): Promise<AnimeEditorSaveResult | undefined> => saveDirtyCards([
+    { isDirty: options.isRecordDirty, save: onSave },
+    { isDirty: options.isEpisodesDirty, save: async () => toEpisodesGuardResult(await options.saveEpisodes()) },
+  ]), executePendingAction), [executePendingAction, guard, onSave, options]);
 
   // 7. Effects
   // Sync selection ONLY from real URL changes (deep-link / browser back), never

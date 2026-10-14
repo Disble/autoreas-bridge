@@ -22,19 +22,57 @@ export interface EpisodeReanalysisResultView {
   readonly color: EpisodeChipColor;
 }
 
-/** What the Editor draft hands the Episodes section, saved or not. */
+/**
+ * What the Editor hands the Episodes card: the SAVED anime record's folder,
+ * total and type, never the anime card's unsaved draft (S15).
+ */
 export interface UseEpisodeDurationsSectionOptions {
   /** The loaded record's anime; absent while no record is loaded, which loads nothing. */
   readonly animeId?: string;
   readonly folder: string;
   readonly totalEpisodes: string;
   readonly kind: string;
-  /** The draft's unsaved episode edits. */
+}
+
+/** What the card's section read needs: the saved anime, the card's own draft edits, and its save revision. */
+export interface UseEpisodeDurationsLoadOptions extends UseEpisodeDurationsSectionOptions {
+  /** The card's unsaved episode edits. */
   readonly edits: readonly EpisodeDurationEdit[];
-  /** Bumped by the record hook after a save that wrote episode edits, so the section reloads. */
+  /** Bumped after each successful episodes save, so the card reads the stored durations again. */
   readonly revision: number;
-  /** Replaces the draft's episode edits. */
-  readonly onEditsChange: (edits: readonly EpisodeDurationEdit[]) => void;
+}
+
+/** Collaborators of the card's own draft hook. */
+export interface UseEpisodeDurationsDraftOptions {
+  /** The saved anime; switching to another one starts an empty draft. */
+  readonly animeId?: string;
+  readonly source: EpisodeDurationRuntimeSource;
+}
+
+/** The Episodes card's own draft: its edits, save revision, save in flight and last save failure. */
+export interface EpisodeDurationsDraftState {
+  readonly edits: readonly EpisodeDurationEdit[];
+  readonly revision: number;
+  readonly isSaving: boolean;
+  /** Why the last save failed; cleared by the next save or by Discard changes. */
+  readonly saveError?: string;
+}
+
+/** What the footer helper reads: how many edits, whether the table shows, and what runs. */
+export interface EpisodeDurationsFooterInput {
+  readonly changes: number;
+  readonly isOpen: boolean;
+  readonly isRunning: boolean;
+  readonly isSaving: boolean;
+}
+
+/** The card footer: whether it shows, its unsaved count and which actions are enabled. */
+export interface EpisodeDurationsFooterView {
+  readonly isVisible: boolean;
+  /** "1 unsaved change", "3 unsaved changes" or "No unsaved changes". */
+  readonly unsavedLabel: string;
+  readonly canSave: boolean;
+  readonly canDiscard: boolean;
 }
 
 /** Collaborators of the section's focused re-analysis hook. */
@@ -223,7 +261,7 @@ export interface EpisodeAddFormView {
 /** Inferred view model the dumb section components render. */
 export type EpisodeDurationsSectionViewModel = ReturnType<typeof import('./use-episode-durations-section').useEpisodeDurationsSection>;
 
-/** Props for the Episodes disclosure and its body. */
+/** Props for the Episodes card and its body. */
 export interface EpisodeDurationsSectionProps {
   readonly viewModel: EpisodeDurationsSectionViewModel;
 }

@@ -56,6 +56,7 @@ describe('AnimeEditorWorkspace', () => {
       onDiscardAndContinue: vi.fn(),
       onSaveAndContinue: vi.fn(),
       episodes: { view: 'idle' },
+      scheduleWeek: { status: 'ready', days: [{ id: 'Lunes', label: 'Lunes', position: { order: 1, total: 2 }, ariaLabel: 'Lunes: 1 of 2' }] },
     });
 
     render(<MemoryRouter><AnimeEditorWorkspace /></MemoryRouter>);
@@ -63,5 +64,8 @@ describe('AnimeEditorWorkspace', () => {
     expect(screen.getByRole('heading', { name: 'Editor' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Discard changes' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Deactivate anime' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Schedule' })).toBeInTheDocument();
+    expect(screen.getByRole('listitem', { name: 'Lunes: 1 of 2' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open schedule editor' })).toBeInTheDocument();
   });
 });

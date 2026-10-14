@@ -289,59 +289,42 @@ describe('never-touched set -- non-negotiable #7, Editor half', () => {
   });
 });
 
-describe('editor record episode edits', () => {
+describe('editor record saves anime data only', () => {
   /** Authority fixture whose draft starts clean. */
   const selectedRecord = record();
-  /** One unsaved manual duration for episode 4. */
-  const edits = [{ episode: 4, durationMs: 2_760_000, source: 'manual' as const, clear: false }];
 
-  it('makes an episodes-only draft dirty and savable, sends the edits, then clears them and bumps the revision', async () => {
-    const saveAnimeEditor = vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord });
+  it('sends an anime-only command, clears dirty after an applied save, and exposes no episode draft', async () => {
+    const saveAnimeEditor = vi.fn().mockResolvedValue({ outcome: 'applied', record: { ...selectedRecord, frequent: { ...selectedRecord.frequent, name: 'Bleach TYBW' } } });
     const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }), saveAnimeEditor });
     const { result } = renderHook(() => useAnimeEditorRecord({ selectedAnimeId: 'anime-1', source }));
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
-    expect(result.current.isDirty).toBe(false);
 
-    act(() => result.current.onEpisodeEditsChange(edits));
+    act(() => result.current.onDraftChange('name', 'Bleach TYBW'));
     expect(result.current.isDirty).toBe(true);
-    expect(result.current.canSave).toBe(true);
     await act(async () => { await result.current.onSave(); });
 
-    expect(saveAnimeEditor).toHaveBeenCalledWith(expect.objectContaining({ animeId: 'anime-1', episodes: edits }));
-    expect(result.current.episodeEdits).toEqual([]);
-    expect(result.current.episodeRevision).toBe(1);
+    const [command] = saveAnimeEditor.mock.calls[0] as [Record<string, unknown>];
+    expect(command).not.toHaveProperty('episodes');
+    expect(command).toEqual(expect.objectContaining({ animeId: 'anime-1', patch: expect.objectContaining({ name: 'Bleach TYBW' }) }));
     expect(result.current.isDirty).toBe(false);
     expect(result.current.feedback).toBe('Changes saved.');
+    expect(result.current).not.toHaveProperty('episodeEdits');
+    expect(result.current).not.toHaveProperty('onEpisodeEditsChange');
   });
 
-  it('keeps the episode edits when the save is not applied', async () => {
-    const source = createSource({
-      getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }),
-      saveAnimeEditor: vi.fn().mockResolvedValue({ outcome: 'conflict', message: 'stale' }),
-    });
+  it('Discard changes restores the saved fields and clears a rejected save, its message included', async () => {
+    const saveAnimeEditor = vi.fn().mockResolvedValue({ outcome: 'conflict', message: 'stale', modifiedAt: 0 });
+    const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }), saveAnimeEditor });
     const { result } = renderHook(() => useAnimeEditorRecord({ selectedAnimeId: 'anime-1', source }));
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
-
-    act(() => result.current.onEpisodeEditsChange(edits));
+    act(() => result.current.onDraftChange('name', 'Bleach TYBW'));
     await act(async () => { await result.current.onSave(); });
+    expect(result.current.feedback).toBe('stale');
 
-    expect(result.current.episodeEdits).toEqual(edits);
-    expect(result.current.episodeRevision).toBe(0);
-    expect(result.current.isDirty).toBe(true);
-  });
-
-  it('drops the episode edits on Discard changes and when another record loads', async () => {
-    const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }) });
-    const { result, rerender } = renderHook((props: { readonly id: string }) => useAnimeEditorRecord({ selectedAnimeId: props.id, source }), { initialProps: { id: 'anime-1' } });
-    await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
-
-    act(() => result.current.onEpisodeEditsChange(edits));
     act(() => result.current.onDiscardChanges());
-    expect(result.current.episodeEdits).toEqual([]);
-    expect(result.current.isDirty).toBe(false);
 
-    act(() => result.current.onEpisodeEditsChange(edits));
-    rerender({ id: 'anime-2' });
-    await waitFor(() => expect(result.current.episodeEdits).toEqual([]));
+    expect(result.current.draft.name).toBe('Bleach');
+    expect(result.current.isDirty).toBe(false);
+    expect(result.current.feedback).toBeUndefined();
   });
 });

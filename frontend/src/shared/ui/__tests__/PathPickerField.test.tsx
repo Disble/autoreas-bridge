@@ -43,6 +43,17 @@ describe('PathPickerField', () => {
     expect(screen.getByText('Local image file on disk.')).toBeInTheDocument();
   });
 
+  it('shows a "(?)" help beside the label only when the caller asks for one', async () => {
+    const { rerender } = render(<PathPickerField label="Folder" value="" onBrowse={vi.fn()} onChange={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'About the folder' })).toBeNull();
+
+    rerender(<PathPickerField label="Folder" labelHelp={{ label: 'About the folder', message: 'Folder changes do not re-measure.' }} value="" onBrowse={vi.fn()} onChange={vi.fn()} />);
+    screen.getByRole('button', { name: 'About the folder' }).focus();
+
+    expect(await screen.findByText('Folder changes do not re-measure.')).toBeInTheDocument();
+    expect(screen.getByRole('textbox')).toBeInTheDocument();
+  });
+
   it('keeps its props contract in a colocated types file with a readonly boundary', () => {
     const sourceText = readFileSync(join(process.cwd(), 'src/shared/ui/PathPickerField.tsx'), 'utf8');
 

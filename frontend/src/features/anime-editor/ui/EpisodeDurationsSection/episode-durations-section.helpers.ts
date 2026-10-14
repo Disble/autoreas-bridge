@@ -37,16 +37,16 @@ export function parsePositiveWholeNumber(text: string): number | undefined {
   return value > 0 ? value : undefined;
 }
 
-/** Parses a whole number of zero or more, the shape of the draft's Total episodes and Type. */
+/** Parses a whole number of zero or more, the shape of the saved Total episodes and Type as the form shows them. */
 function parseWholeNumber(text: string): number | undefined {
   const trimmed = text.trim();
   return /^\d+$/.test(trimmed) ? Number(trimmed) : undefined;
 }
 
 /**
- * Builds the section request from what the draft shows now, saved or not, so the
- * section follows unsaved edits of the folder, the total and the type. Nothing
- * is requested until a record is loaded.
+ * Builds the section request from the SAVED anime's folder, total and type,
+ * never from the anime card's unsaved draft (S15). Nothing is requested until a
+ * record is loaded.
  */
 export function toEpisodeDurationRequest(animeId: string | undefined, folder: string, totalEpisodes: string, kind: string): EpisodeDurationRequest | undefined {
   if (animeId === undefined) return undefined;
@@ -215,7 +215,7 @@ export function toEpisodeDurationsNotes(section: EpisodeDurationSection, request
   ];
 }
 
-/** The banner and footer notes, which need both a read section and the draft's request. */
+/** The banner and footer notes, which need both a read section and the saved anime's request. */
 function toSectionNotices(
   section: EpisodeDurationSection | undefined,
   rows: readonly EpisodeDurationRowView[],

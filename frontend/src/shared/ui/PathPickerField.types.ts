@@ -1,4 +1,5 @@
 import type { InputProps } from '@heroui/react';
+import type { HelpTooltipProps } from './HelpTooltip/help-tooltip.types';
 
 /**
  * Props for the reusable filesystem path picker field. The field is
@@ -33,4 +34,6 @@ export interface PathPickerFieldProps
   readonly mono?: boolean;
   /** Disables both the input and the Browse button when true. */
   readonly isDisabled?: boolean;
+  /** Optional "(?)" help beside the label, explaining what the field does and does not do. */
+  readonly labelHelp?: HelpTooltipProps;
 }

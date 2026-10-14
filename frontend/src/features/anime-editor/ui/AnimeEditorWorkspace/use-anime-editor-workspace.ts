@@ -4,7 +4,8 @@ import type { AnimeEditorRuntimeSource } from '../../../../infrastructure/bridge
 import type { EpisodeDurationRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
 import { metadataLookupSource } from '../../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers';
 import { useEpisodeDurationsSection } from '../EpisodeDurationsSection/use-episode-durations-section';
-import { toAnimeEditorLifecycleConfirmation, toAnimeEditorListRowViewModels } from './anime-editor-workspace.helpers';
+import { isAnyCard } from './anime-editor-guard.helpers';
+import { toAnimeEditorLifecycleConfirmation, toAnimeEditorListRowViewModels, toEpisodeDurationsSavedAnime } from './anime-editor-workspace.helpers';
 import type { AnimeEditorCoverSource, AnimeEditorLifecycleAction, AnimeEditorWorkspaceProps } from './anime-editor-workspace.types';
 import { useAnimeEditorCovers } from './use-anime-editor-covers';
 import { useAnimeEditorCover } from './use-anime-editor-cover';
@@ -14,7 +15,11 @@ import { useAnimeEditorRecord } from './use-anime-editor-record';
 import { useAnimeEditorSchedule } from './use-anime-editor-schedule';
 import { useAnimeEditorTransitions } from './use-anime-editor-transitions';
 
-/** Composes focused record, transition, list, and schedule hooks for the editor workspace. */
+/**
+ * Composes the editor workspace: the list, and three independent cards (S15,
+ * S16) -- anime data, Episodes and Schedule -- each saving only its own data,
+ * plus one unsaved-changes guard that covers both drafts.
+ */
 export function useAnimeEditorWorkspace(
   props: Readonly<AnimeEditorWorkspaceProps>,
   source: AnimeEditorRuntimeSource & AnimeEditorCoverSource = bridgeRuntimeSource,
@@ -32,15 +37,9 @@ export function useAnimeEditorWorkspace(
   const record = useAnimeEditorRecord({ selectedAnimeId: list.selectedAnimeId, source });
   const coverCache = useAnimeEditorCovers(list.items, listWindow.visibleCount, record.selectedRecord, source);
   const schedule = useAnimeEditorSchedule({ selectedAnimeId: list.selectedAnimeId, source });
-  const episodes = useEpisodeDurationsSection({
-    animeId: record.selectedRecord?.animeId,
-    folder: record.draft.folder,
-    totalEpisodes: record.draft.totalEpisodes,
-    kind: record.draft.kind,
-    edits: record.episodeEdits,
-    revision: record.episodeRevision,
-    onEditsChange: record.onEpisodeEditsChange,
-  }, episodeSource);
+  // The Episodes card reads the SAVED record, never the anime card's unsaved draft (S15).
+  const episodes = useEpisodeDurationsSection(toEpisodeDurationsSavedAnime(record.selectedRecord), episodeSource);
+  const isDirty = isAnyCard(record.isDirty, episodes.isDirty);
   const transitions = useAnimeEditorTransitions({
     selectedAnimeId: list.selectedAnimeId,
     loadItems: list.loadItems,
@@ -51,9 +50,14 @@ export function useAnimeEditorWorkspace(
     restoreRecord: record.onRestore,
     repeatRecord: record.onRepeat,
     discardRecord: record.onDiscardChanges,
+    discardEpisodes: episodes.onDiscard,
     applySchedule: schedule.onApplySchedule,
     openSchedule: schedule.openSchedule,
-    isDirty: record.isDirty,
+    reloadSchedule: schedule.reloadBoard,
+    saveEpisodes: episodes.onSave,
+    isDirty,
+    isRecordDirty: record.isDirty,
+    isEpisodesDirty: episodes.isDirty,
   });
 
   // 4. Queries/Mutations
@@ -88,12 +92,20 @@ export function useAnimeEditorWorkspace(
     onCoverImageError: coverCache.onCoverImageError,
     /** The draft's pending Undo (design D9) -- absent once undone, discarded, or never applied. */
     appliedMetadata: record.appliedMetadata,
-    /** The Episodes section: its durations, re-analysis and modals, writing into the draft. */
+    /** The Episodes card: its durations, re-analysis, modals and its own draft, Save and Discard. */
     episodes,
+    /** The Schedule card's week strip for the selected anime. */
+    scheduleWeek: schedule.scheduleWeek,
     /** The MyAnimeList lookup's two Wails-bound calls, injected into the form's lookup modal. */
     metadataLookupSource,
     isLoadingList: list.isLoadingList, isLoadingRecord: record.isLoadingRecord, isSaving: record.isSaving,
-    isApplyingSchedule: schedule.isApplyingSchedule, isDirty: record.isDirty,
+    isApplyingSchedule: schedule.isApplyingSchedule,
+    /** Whether either card holds unsaved changes; the header chip and the guard read it. */
+    isDirty,
+    /** Whether the anime data card holds unsaved changes; its own Discard and Save read it. */
+    isRecordDirty: record.isDirty,
+    /** Whether any card save is in flight, which the guard's buttons wait for. */
+    isGuardSaving: isAnyCard(record.isSaving, episodes.isSaving),
     isScheduleModalOpen: schedule.isScheduleModalOpen, scheduleBoard: schedule.scheduleBoard,
     feedback: record.feedback, validationMessage: record.validationMessage, scheduleFeedback: schedule.scheduleFeedback,
     isDetailsOpen, isGuardOpen: transitions.isGuardOpen, canSave: record.canSave, listWindow, lifecycleConfirmation,

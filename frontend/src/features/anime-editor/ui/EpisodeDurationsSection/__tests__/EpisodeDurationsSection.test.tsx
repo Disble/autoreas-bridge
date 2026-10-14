@@ -3,11 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
   EpisodeDurationRow,
   EpisodeDurationRuntimeSource,
+  EpisodeDurationSaveResult,
   EpisodeDurationSection,
   EpisodeReanalysisProgress,
   EpisodeReanalysisReview,
 } from '../../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
-import type { EpisodeDurationEdit } from '../../../../../shared/contracts/anime.types';
 import { EPISODE_DURATIONS_LOADING_LABEL, EPISODE_DURATIONS_SKELETON_ROW_COUNT } from '../episode-durations-section.constants';
 import type { UseEpisodeDurationsSectionOptions } from '../episode-durations-section.types';
 import { EpisodeDurationsSection } from '../EpisodeDurationsSection';
@@ -42,12 +42,16 @@ interface FakeSource {
 }
 
 /**
- * Builds a source whose section read uses `getSection` and whose re-analysis
- * stays pending until the test settles it.
+ * Builds a source whose section read uses `getSection`, whose re-analysis
+ * stays pending until the test settles it, and whose save answers with `save`.
  * @param getSection The section binding.
+ * @param save The save binding; defaults to an applied save.
  * @returns The fake source.
  */
-function createFakeSource(getSection: EpisodeDurationRuntimeSource['getEpisodeDurationSection']): FakeSource {
+function createFakeSource(
+  getSection: EpisodeDurationRuntimeSource['getEpisodeDurationSection'],
+  save: EpisodeDurationRuntimeSource['saveEpisodeDurations'] = vi.fn().mockResolvedValue({ outcome: 'applied', changed: 1 } satisfies EpisodeDurationSaveResult),
+): FakeSource {
   let listener: (progress: EpisodeReanalysisProgress) => void = () => undefined;
   let settle: (review: EpisodeReanalysisReview) => void = () => undefined;
   return {
@@ -55,6 +59,7 @@ function createFakeSource(getSection: EpisodeDurationRuntimeSource['getEpisodeDu
       getEpisodeDurationSection: getSection,
       reanalyzeEpisodeDurations: vi.fn(() => new Promise<EpisodeReanalysisReview>((resolve) => { settle = resolve; })),
       cancelEpisodeReanalysis: vi.fn().mockResolvedValue(undefined),
+      saveEpisodeDurations: save,
       onEpisodeReanalysisProgress: vi.fn((next: (progress: EpisodeReanalysisProgress) => void) => { listener = next; return () => undefined; }),
     },
     emitProgress: (progress) => listener(progress),
@@ -62,7 +67,7 @@ function createFakeSource(getSection: EpisodeDurationRuntimeSource['getEpisodeDu
   };
 }
 
-/** Props of the test harness: the draft inputs and the fake source. */
+/** Props of the test harness: the saved anime and the fake source. */
 interface HarnessProps {
   readonly options: UseEpisodeDurationsSectionOptions;
   readonly source: EpisodeDurationRuntimeSource;
@@ -70,8 +75,8 @@ interface HarnessProps {
 
 /**
  * Renders the real section hook into the real component.
- * @param props The draft inputs and the source.
- * @returns The section.
+ * @param props The saved anime and the source.
+ * @returns The card.
  */
 function Harness({ options, source }: Readonly<HarnessProps>) {
   const viewModel = useEpisodeDurationsSection(options, source);
@@ -79,39 +84,65 @@ function Harness({ options, source }: Readonly<HarnessProps>) {
 }
 
 /**
- * Renders the section for one draft.
+ * Renders the card for one saved anime.
  * @param fake The fake source.
- * @param overrides Draft fields to replace.
- * @returns The render result and the edits spy.
+ * @param overrides Saved fields to replace.
+ * @returns The render result.
  */
 function renderSection(fake: FakeSource, overrides: Partial<UseEpisodeDurationsSectionOptions> = {}) {
-  const onEditsChange = vi.fn();
-  const options: UseEpisodeDurationsSectionOptions = {
-    animeId: 'anime-1', folder: 'D:/Anime/Oshi no Ko', totalEpisodes: '12', kind: '0', edits: [], revision: 0, onEditsChange, ...overrides,
-  };
-  const view = render(<Harness options={options} source={fake.source} />);
-  return { ...view, onEditsChange, options };
+  const options: UseEpisodeDurationsSectionOptions = { animeId: 'anime-1', folder: 'D:/Anime/Oshi no Ko', totalEpisodes: '12', kind: '0', ...overrides };
+  return render(<Harness options={options} source={fake.source} />);
 }
 
-/** Opens the Episodes disclosure. */
+/** Shows the Episodes table. */
 function expand(): void {
-  fireEvent.click(screen.getByRole('button', { name: /^Episodes/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Show episodes' }));
 }
 
-describe('EpisodeDurationsSection trigger', () => {
-  it('summarizes measured and long episodes on the closed trigger', async () => {
+/**
+ * Sets episode 3 to `minutes` through the Edit modal.
+ * @param minutes The minutes typed.
+ */
+async function editEpisodeThree(minutes: string): Promise<void> {
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit episode 3 duration' }));
+  const dialog = await screen.findByRole('dialog');
+  fireEvent.change(within(dialog).getByLabelText('Minutes'), { target: { value: minutes } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
+}
+
+describe('EpisodeDurationsSection card header', () => {
+  it('shows the title, the description, the measured and long chips, and a collapsed Show episodes toggle', async () => {
     renderSection(createFakeSource(vi.fn().mockResolvedValue(section())));
 
-    const trigger = await screen.findByRole('button', { name: /^Episodes/ });
-    await waitFor(() => expect(within(trigger).getByText('3 of 3 measured')).toBeInTheDocument());
-    expect(within(trigger).getByText('1 long')).toBeInTheDocument();
-    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('heading', { name: 'Episodes' })).toBeInTheDocument();
+    expect(screen.getByText('Duration of each episode. Saved on its own, apart from the anime data.')).toBeInTheDocument();
+    expect(await screen.findByText('3 of 3 measured')).toBeInTheDocument();
+    expect(screen.getByText('1 long')).toBeInTheDocument();
+    const toggle = screen.getByRole('button', { name: 'Show episodes' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('grid')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Save episodes' })).toBeNull();
+  });
+
+  it('shows and hides the table with an expanded state on the toggle', async () => {
+    renderSection(createFakeSource(vi.fn().mockResolvedValue(section())));
+
+    expand();
+    const hide = screen.getByRole('button', { name: 'Hide episodes' });
+    expect(hide).toHaveAttribute('aria-expanded', 'true');
+    expect(hide).toHaveAttribute('aria-controls', 'episode-durations-body');
+    await waitFor(() => expect(screen.getAllByTestId('episode-durations-row')).toHaveLength(3));
+    fireEvent.click(hide);
+
+    expect(screen.queryAllByTestId('episode-durations-row')).toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Show episodes' })).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('renders nothing while no record is loaded', () => {
     renderSection(createFakeSource(vi.fn()), { animeId: undefined });
 
-    expect(screen.queryByRole('button', { name: /^Episodes/ })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Episodes' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Show episodes' })).toBeNull();
   });
 });
 
@@ -200,10 +231,10 @@ describe('EpisodeDurationsSection progressive table', () => {
   });
 });
 
-describe('EpisodeDurationsSection edits', () => {
-  it('applies a hand edit into the draft and marks the row Unsaved', async () => {
+describe('EpisodeDurationsSection own draft', () => {
+  it('keeps a hand edit in the card draft, marks the row Unsaved and counts it in the footer', async () => {
     const fake = createFakeSource(vi.fn().mockResolvedValue(section()));
-    const { onEditsChange, rerender, options } = renderSection(fake);
+    renderSection(fake);
     expand();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Edit episode 3 duration' }));
@@ -213,19 +244,66 @@ describe('EpisodeDurationsSection edits', () => {
     fireEvent.change(within(dialog).getByLabelText('Minutes'), { target: { value: '46' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
 
-    const edits: readonly EpisodeDurationEdit[] = [{ episode: 3, durationMs: 46 * 60_000, source: 'manual', clear: false }];
-    expect(onEditsChange).toHaveBeenCalledWith(edits);
-    rerender(<Harness options={{ ...options, edits }} source={fake.source} />);
-    const edited = screen.getAllByTestId('episode-durations-row')[2];
-    expect(edited).toBeDefined();
-    expect(within(edited as HTMLElement).getByText('Unsaved')).toBeInTheDocument();
-    expect(within(edited as HTMLElement).getByText('Long')).toBeInTheDocument();
+    const edited = screen.getAllByTestId('episode-durations-row')[2] as HTMLElement;
+    expect(within(edited).getByText('Unsaved')).toBeInTheDocument();
+    expect(within(edited).getByText('Long')).toBeInTheDocument();
+    expect(screen.getByText('1 unsaved change')).toBeInTheDocument();
+    expect(fake.source.saveEpisodeDurations).not.toHaveBeenCalled();
   });
 
-  it('runs a re-analysis with progress and Cancel, locks row edits, then confirms the review into the draft', async () => {
-    const fake = createFakeSource(vi.fn().mockResolvedValue(section()));
-    const { onEditsChange } = renderSection(fake);
+  it('saves the card edits through their own binding, clears the draft and reads the rows again', async () => {
+    const getSection = vi.fn().mockResolvedValue(section());
+    const fake = createFakeSource(getSection);
+    renderSection(fake);
     expand();
+    await editEpisodeThree('46');
+    await waitFor(() => expect(getSection).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save episodes' }));
+
+    await waitFor(() => expect(getSection).toHaveBeenCalledTimes(2));
+    expect(fake.source.saveEpisodeDurations).toHaveBeenCalledWith('anime-1', [{ episode: 3, durationMs: 46 * 60_000, source: 'manual', clear: false }]);
+    expect(screen.queryByText('Unsaved')).toBeNull();
+    expect(screen.getByText('No unsaved changes')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save episodes' })).toBeDisabled();
+    expect(screen.queryByText('Episode durations were not saved.')).toBeNull();
+  });
+
+  it('keeps the draft and shows the save failure in the card', async () => {
+    const fake = createFakeSource(vi.fn().mockResolvedValue(section()), vi.fn().mockResolvedValue({ outcome: 'error', message: 'disk full', changed: 0 }));
+    renderSection(fake);
+    expand();
+    await editEpisodeThree('46');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save episodes' }));
+
+    expect(await screen.findByText('Episode durations were not saved.')).toBeInTheDocument();
+    expect(screen.getByText('disk full')).toBeInTheDocument();
+    expect(screen.getByText('1 unsaved change')).toBeInTheDocument();
+    expect(screen.getByText('Unsaved')).toBeInTheDocument();
+  });
+
+  it('keeps the draft and its footer when the table is hidden, and Discard changes drops it', async () => {
+    renderSection(createFakeSource(vi.fn().mockResolvedValue(section())));
+    expand();
+    await editEpisodeThree('46');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide episodes' }));
+    expect(screen.getByText('1 unsaved change')).toBeInTheDocument();
+    expand();
+    expect(screen.getByText('Unsaved')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
+
+    expect(screen.queryByText('Unsaved')).toBeNull();
+    expect(screen.getByText('No unsaved changes')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Discard changes' })).toBeDisabled();
+  });
+
+  it('runs a re-analysis with progress and Cancel, locks row edits and Save, then confirms the review into the card draft', async () => {
+    const fake = createFakeSource(vi.fn().mockResolvedValue(section()));
+    renderSection(fake);
+    expand();
+    await editEpisodeThree('30');
     await waitFor(() => expect(screen.getAllByTestId('episode-durations-row')).toHaveLength(3));
 
     fireEvent.click(screen.getByRole('button', { name: 'Re-analyze folder' }));
@@ -233,11 +311,12 @@ describe('EpisodeDurationsSection edits', () => {
     expect(screen.getByText('Measuring episode 2 · 2 of 3')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Edit episode 1 duration' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Re-analyze folder (Analyzing…)' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save episodes' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(fake.source.cancelEpisodeReanalysis).toHaveBeenCalledTimes(1);
     await act(async () => fake.settleReview({
       outcome: 'ok', status: 'ok', filesRecognized: 3,
-      rows: [{ episode: 3, basename: 'e03.mkv', currentMs: 23 * 60_000, currentMinutes: 23, currentSource: 'measured', measuredMs: 46 * 60_000, measuredMinutes: 46, result: 'update' }],
+      rows: [{ episode: 2, basename: 'e02.mkv', currentMs: 24 * 60_000, currentMinutes: 24, currentSource: 'measured', measuredMs: 46 * 60_000, measuredMinutes: 46, result: 'update' }],
     }));
 
     const dialog = await screen.findByRole('dialog');
@@ -245,18 +324,34 @@ describe('EpisodeDurationsSection edits', () => {
     expect(within(dialog).getByText('Will update')).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm 1 change' }));
 
-    expect(onEditsChange).toHaveBeenCalledWith([{ episode: 3, durationMs: 46 * 60_000, source: 'measured', clear: false }]);
+    expect(screen.getByText('2 unsaved changes')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Edit episode 1 duration' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Save episodes' })).toBeEnabled();
+    expect(fake.source.saveEpisodeDurations).not.toHaveBeenCalled();
+  });
+
+  it('shows the analysis progress even while the table is hidden', async () => {
+    const fake = createFakeSource(vi.fn().mockResolvedValue(section()));
+    renderSection(fake);
+    await screen.findByText('3 of 3 measured');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Re-analyze folder' }));
+    act(() => fake.emitProgress({ animeId: 'anime-1', index: 1, total: 3, episode: 1 }));
+
+    expect(screen.getByText('Measuring episode 1 · 1 of 3')).toBeInTheDocument();
+    expect(screen.queryAllByTestId('episode-durations-row')).toHaveLength(0);
   });
 });
 
 describe('useEpisodeDurationsSection', () => {
-  it('lists no review rows and no progress before a re-analysis', () => {
+  it('lists no review rows and no progress before a re-analysis, and starts clean and collapsed', () => {
     const fake = createFakeSource(vi.fn().mockResolvedValue(section()));
-    const options: UseEpisodeDurationsSectionOptions = { animeId: 'anime-1', folder: 'D:/x', totalEpisodes: '12', kind: '0', edits: [], revision: 0, onEditsChange: vi.fn() };
+    const options: UseEpisodeDurationsSectionOptions = { animeId: 'anime-1', folder: 'D:/x', totalEpisodes: '12', kind: '0' };
     const { result } = renderHook(() => useEpisodeDurationsSection(options, fake.source));
 
     expect(result.current.visibleReviewRows).toEqual([]);
     expect(result.current.progress).toBeUndefined();
+    expect(result.current.isDirty).toBe(false);
+    expect(result.current.isOpen).toBe(false);
   });
 });

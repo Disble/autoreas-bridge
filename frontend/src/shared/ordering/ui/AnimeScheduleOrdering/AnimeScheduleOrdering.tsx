@@ -1,7 +1,6 @@
-import questionIcon from '@iconify-icons/tabler/question-mark';
-import { Icon } from '@iconify/react';
 import { DragDropProvider, DragOverlay } from '@dnd-kit/react';
-import { Alert, Button, Card, Chip, ScrollShadow, Tooltip, Typography } from '@heroui/react';
+import { Alert, Button, Card, Chip, ScrollShadow, Typography } from '@heroui/react';
+import { HelpTooltip } from '../../../ui/HelpTooltip/HelpTooltip';
 import { AnimeScheduleOrderingCard } from './AnimeScheduleOrderingCard';
 import { AnimeScheduleOrderingColumn } from './AnimeScheduleOrderingColumn';
 import {
@@ -107,15 +106,7 @@ export function AnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingProps
               <Card.Header>
                 <div className="flex items-center gap-2">
                   <Card.Title>{ANIME_SCHEDULE_STAGING_LABEL}</Card.Title>
-                  <Tooltip delay={0}>
-                    <Button aria-label={ANIME_SCHEDULE_STAGING_HELP_LABEL} isIconOnly className="size-5" variant="tertiary">
-                      <Icon className="size-4" icon={questionIcon} />
-                    </Button>
-                    <Tooltip.Content showArrow className="max-w-72">
-                      <Tooltip.Arrow />
-                      {ANIME_SCHEDULE_STAGING_HELP_MESSAGE}
-                    </Tooltip.Content>
-                  </Tooltip>
+                  <HelpTooltip label={ANIME_SCHEDULE_STAGING_HELP_LABEL} message={ANIME_SCHEDULE_STAGING_HELP_MESSAGE} />
                 </div>
                 <Chip color="warning" size="sm" variant="soft">{stagingCards.length}</Chip>
               </Card.Header>

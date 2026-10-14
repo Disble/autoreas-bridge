@@ -1,6 +1,6 @@
 import type { EpisodeDurationRowSource } from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
 import type { EpisodeReanalysisReview } from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
-import type { EpisodeAnalysisState, EpisodeDurationsEmptyCopy, EpisodeDurationsLoad, EpisodeReanalysisResultView } from './episode-durations-section.types';
+import type { EpisodeAnalysisState, EpisodeDurationsDraftState, EpisodeDurationsEmptyCopy, EpisodeDurationsLoad, EpisodeReanalysisResultView } from './episode-durations-section.types';
 
 /** One minute in milliseconds: durations are stored in ms and edited in whole minutes. */
 export const EPISODE_MINUTE_MS = 60_000;
@@ -9,8 +9,8 @@ export const EPISODE_MINUTE_MS = 60_000;
 export const EPISODE_LONG_THRESHOLD_MS = 30 * EPISODE_MINUTE_MS;
 
 /**
- * How long the section waits after the draft's folder, total or type changes
- * before it asks again, so typing a folder path reads the disk once, not per key.
+ * How long the section waits after the saved folder, total or type changes
+ * before it asks again, so a burst of record reloads reads the disk once.
  */
 export const EPISODE_DURATIONS_RELOAD_DELAY_MS = 250;
 
@@ -32,10 +32,34 @@ export const EPISODE_DURATIONS_ROW_CLASS = 'h-11';
 /** Accessible name of the loading status region. */
 export const EPISODE_DURATIONS_LOADING_LABEL = 'Loading episode durations';
 
-/** Accessible name and visible label of the Episodes disclosure. */
+/** Title of the Episodes card. */
 export const EPISODE_DURATIONS_TITLE = 'Episodes';
 
-/** Label of the icon-only re-analysis button; a disabled reason is appended to it. */
+/** Description under the Episodes card title. */
+export const EPISODE_DURATIONS_DESCRIPTION = 'Duration of each episode. Saved on its own, apart from the anime data.';
+
+/** Toggle label while the table is hidden. */
+export const EPISODE_DURATIONS_SHOW_LABEL = 'Show episodes';
+
+/** Toggle label while the table shows. */
+export const EPISODE_DURATIONS_HIDE_LABEL = 'Hide episodes';
+
+/** Id of the card body the Show/Hide toggle controls. */
+export const EPISODE_DURATIONS_BODY_ID = 'episode-durations-body';
+
+/** Label of the card's own save action. */
+export const EPISODE_DURATIONS_SAVE_LABEL = 'Save episodes';
+
+/** Alert title of a failed episodes save. */
+export const EPISODE_DURATIONS_SAVE_FAILED_TITLE = 'Episode durations were not saved.';
+
+/** Message of a failed episodes save whose answer carries none. */
+export const EPISODE_DURATIONS_SAVE_FAILED_MESSAGE = 'Episode durations could not be saved. Your changes are kept.';
+
+/** The card's draft before any edit, and after another anime is selected. */
+export const EPISODE_DURATIONS_EMPTY_DRAFT: EpisodeDurationsDraftState = { edits: [], revision: 0, isSaving: false };
+
+/** Label of the re-analysis button; a disabled reason is appended to its accessible name. */
 export const EPISODE_REANALYZE_LABEL = 'Re-analyze folder';
 
 /** Label of the Add episode action, in the table's last row and in the empty state. */

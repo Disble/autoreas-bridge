@@ -42,6 +42,7 @@ function createHarness(): Harness {
     getEpisodeDurationSection: vi.fn(),
     reanalyzeEpisodeDurations: vi.fn(() => new Promise<EpisodeReanalysisReview>((resolve) => { settle = resolve; })),
     cancelEpisodeReanalysis: vi.fn().mockResolvedValue(undefined),
+    saveEpisodeDurations: vi.fn(),
     onEpisodeReanalysisProgress: vi.fn((next: (progress: EpisodeReanalysisProgress) => void) => { listener = next; return unsubscribe; }),
   };
   return { source, settle: (review) => settle(review), emit: (progress) => listener(progress), unsubscribe };
@@ -184,6 +185,7 @@ function createRunsSource(): { readonly source: EpisodeDurationRuntimeSource; re
     onEpisodeReanalysisProgress: vi.fn((next: (progress: EpisodeReanalysisProgress) => void) => { listener = next; return () => undefined; }),
     reanalyzeEpisodeDurations: vi.fn(() => new Promise<EpisodeReanalysisReview>((resolve, reject) => { runs.push({ settle: resolve, reject, emit: listener }); })),
     cancelEpisodeReanalysis: vi.fn().mockResolvedValue(undefined),
+    saveEpisodeDurations: vi.fn(),
   };
   return { source, runs };
 }

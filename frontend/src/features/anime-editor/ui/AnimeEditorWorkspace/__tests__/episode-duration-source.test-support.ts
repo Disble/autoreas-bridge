@@ -13,6 +13,7 @@ export function createEmptyEpisodeDurationSource(): EpisodeDurationRuntimeSource
     getEpisodeDurationSection: vi.fn().mockResolvedValue({ outcome: 'ok', folderStatus: 'none', rows: [], beyondTotal: [], tv: false }),
     reanalyzeEpisodeDurations: vi.fn().mockResolvedValue({ outcome: 'ok', status: 'no_folder', filesRecognized: 0, rows: [] }),
     cancelEpisodeReanalysis: vi.fn().mockResolvedValue(undefined),
+    saveEpisodeDurations: vi.fn().mockResolvedValue({ outcome: 'applied', changed: 0 }),
     onEpisodeReanalysisProgress: vi.fn(() => () => undefined),
   };
 }

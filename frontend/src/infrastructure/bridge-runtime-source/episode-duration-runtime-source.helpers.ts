@@ -1,14 +1,16 @@
-import { CancelEpisodeReanalysis, GetEpisodeDurationSection, ReanalyzeEpisodeDurations } from '../../../wailsjs/go/desktop/App';
+import { CancelEpisodeReanalysis, GetEpisodeDurationSection, ReanalyzeEpisodeDurations, SaveEpisodeDurations } from '../../../wailsjs/go/desktop/App';
 import type { desktop as wailsDesktop } from '../../../wailsjs/go/models';
 import { EventsOn } from '../../../wailsjs/runtime/runtime';
 import { createRuntimeSubscription, invokeGoBinding } from '../wails-bindings.helpers';
 import {
   EPISODE_DURATION_ROW_SOURCES,
+  EPISODE_DURATION_SAVE_OUTCOMES,
   EPISODE_DURATION_RUNTIME_SOURCE_STATE,
   EPISODE_REANALYSIS_PROGRESS_EVENT_NAME,
   EPISODE_REANALYSIS_RESULTS,
   EPISODE_REANALYSIS_STATUSES,
   RUNTIME_UNAVAILABLE_EPISODE_REVIEW,
+  RUNTIME_UNAVAILABLE_EPISODE_SAVE,
   RUNTIME_UNAVAILABLE_EPISODE_SECTION,
 } from './episode-duration-runtime-source.constants';
 import type {
@@ -16,6 +18,7 @@ import type {
   EpisodeDurationRequest,
   EpisodeDurationRow,
   EpisodeDurationRuntimeSource,
+  EpisodeDurationSaveResult,
   EpisodeDurationSection,
   EpisodeReanalysisProgress,
   EpisodeReanalysisReview,
@@ -84,7 +87,16 @@ function toReview(result: wailsDesktop.EpisodeDurationReviewResult): EpisodeRean
   };
 }
 
-/** Converts the draft's view of the anime into its wire DTO. */
+/** Maps the save answer, reading an unknown outcome as an error. */
+function toSaveResult(result: wailsDesktop.EpisodeDurationSaveResult): EpisodeDurationSaveResult {
+  return {
+    outcome: narrow(result.outcome, EPISODE_DURATION_SAVE_OUTCOMES, 'error'),
+    ...(result.message === undefined ? {} : { message: result.message }),
+    changed: result.changed,
+  };
+}
+
+/** Converts the saved anime the card reads into its wire DTO. */
 function toRequestDTO(request: EpisodeDurationRequest): wailsDesktop.EpisodeDurationAnimeDTO {
   return { ...request } as wailsDesktop.EpisodeDurationAnimeDTO;
 }
@@ -114,6 +126,10 @@ export function createEpisodeDurationRuntimeSource(): EpisodeDurationRuntimeSour
     },
     cancelEpisodeReanalysis() {
       return invokeGoBinding('CancelEpisodeReanalysis', CancelEpisodeReanalysis, () => undefined);
+    },
+    saveEpisodeDurations(animeId, edits) {
+      const dto = edits.map((edit) => ({ ...edit }) as wailsDesktop.EpisodeDurationEditDTO);
+      return invokeGoBinding('SaveEpisodeDurations', () => SaveEpisodeDurations(animeId, dto), () => RUNTIME_UNAVAILABLE_EPISODE_SAVE).then(toSaveResult);
     },
     onEpisodeReanalysisProgress(listener) {
       return progressSubscription.subscribe(listener);

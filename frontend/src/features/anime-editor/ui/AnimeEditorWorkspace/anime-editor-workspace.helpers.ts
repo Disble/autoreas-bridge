@@ -1,11 +1,12 @@
 import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
 import { normalizeStoredCoverPath } from '../../../../shared/anime-cover/anime-cover.helpers';
-import type { Anime, AnimeEditorRecord, AnimeEditorSaveResult, EpisodeDurationEdit, SaveAnimeEditorCommand } from '../../../../shared/contracts/anime.types';
+import type { Anime, AnimeEditorRecord, AnimeEditorSaveResult, SaveAnimeEditorCommand } from '../../../../shared/contracts/anime.types';
 import { isScheduledAnime, isValidAnimeEstado } from '../../../../shared/helpers/anime-estado.helpers';
 import { isValidDownloadPageUrl } from '../../../../shared/helpers/url.helpers';
 import { ANIME_EDITOR_COVER_PLACEHOLDER, ANIME_EDITOR_DEFAULT_DRAFT } from './anime-editor-workspace.constants';
 import type { AnimeEditorChipColor, AnimeEditorCoverRequestPlan, AnimeEditorCoverResult, AnimeEditorCoverTarget, AnimeEditorDraft, AnimeEditorEmptyState, AnimeEditorEmptyStateInput, AnimeEditorFilter, AnimeEditorGuardEvent, AnimeEditorGuardState, AnimeEditorLifecycleAction, AnimeEditorLifecycleConfirmation, AnimeEditorListItemViewModel, AnimeEditorListRowViewModel } from './anime-editor-workspace.types';
 import { ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
+import type { UseEpisodeDurationsSectionOptions } from '../EpisodeDurationsSection/episode-durations-section.types';
 
 /**
  * Progressive-rail geometry now lives in `shared/helpers/progressive-list.helpers`
@@ -63,6 +64,15 @@ export function getAnimeEditorEstadoColor(status: number): AnimeEditorChipColor 
     [ANIME_ESTADO_VALID_VALUES[3]]: 'warning',
   };
   return colorByStatus[status] ?? 'default';
+}
+
+/**
+ * What the Episodes card reads: the SAVED record's id, folder, total and type,
+ * in the form's string shape, never the anime card's unsaved draft (S15).
+ */
+export function toEpisodeDurationsSavedAnime(record: AnimeEditorRecord | undefined): UseEpisodeDurationsSectionOptions {
+  const saved = createAnimeEditorDraft(record);
+  return { animeId: record?.animeId, folder: saved.folder, totalEpisodes: saved.totalEpisodes, kind: saved.kind };
 }
 
 /** Creates a controlled draft from bridge-owned authority. */
@@ -153,10 +163,10 @@ function createCoverPatch(record: AnimeEditorRecord, draft: AnimeEditorDraft) {
 }
 
 /**
- * Builds the English changed-fields-only DTO consumed by the Wails adapter. The
- * draft's episode edits travel beside the patch, and only when there are any.
+ * Builds the English changed-fields-only DTO consumed by the Wails adapter. It
+ * carries anime fields only; the Episodes card saves its durations on its own.
  */
-export function createAnimeEditorSaveCommand(record: AnimeEditorRecord, draft: AnimeEditorDraft, episodes: readonly EpisodeDurationEdit[] = []): SaveAnimeEditorCommand {
+export function createAnimeEditorSaveCommand(record: AnimeEditorRecord, draft: AnimeEditorDraft): SaveAnimeEditorCommand {
   const patch: Record<string, unknown> = {
     totalEpisodes: nullablePatch(record.frequent.totalEpisodes, draft.totalEpisodes),
     page: nullablePatch(record.frequent.page, draft.page),
@@ -174,10 +184,7 @@ export function createAnimeEditorSaveCommand(record: AnimeEditorRecord, draft: A
   if (JSON.stringify(genres) !== JSON.stringify(record.details.genres)) patch['genres'] = genres;
   const studios = parseList(draft.studios);
   if (JSON.stringify(studios) !== JSON.stringify(record.details.studios.values)) patch['studios'] = studios;
-  return {
-    animeId: record.animeId, baseModifiedAt: record.modifiedAt, patch: patch as unknown as SaveAnimeEditorCommand['patch'],
-    ...(episodes.length === 0 ? {} : { episodes }),
-  };
+  return { animeId: record.animeId, baseModifiedAt: record.modifiedAt, patch: patch as unknown as SaveAnimeEditorCommand['patch'] };
 }
 
 /**

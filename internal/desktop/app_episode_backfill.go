@@ -18,13 +18,6 @@ import (
 	"autoreas-bridge/internal/logger"
 )
 
-// Snapshot fields whose change may give an anime files to measure. They are the top-level keys of
-// anime_snapshots.snapshot_json, which is what AnimeChangedEvent.ChangedFields names.
-const (
-	snapshotFieldFolder = "folder"
-	snapshotFieldActive = "active"
-)
-
 // episodeBackfiller is the seam the App drives: the triggers and the shutdown stop.
 type episodeBackfiller interface {
 	Trigger(scope backfill.Scope)
@@ -95,15 +88,11 @@ func (a *App) runEpisodeBackfill(runner episodeBackfiller) {
 	runner.Trigger(backfill.All())
 }
 
-// subscribeEpisodeBackfill wires the two event triggers of the backfill: an anime that may have
-// gained files, and a finished download run, for the anime whose episodes landed during it. The
-// subscribers only read events; they publish nothing, and Trigger never blocks the publisher.
+// subscribeEpisodeBackfill wires the download trigger of the backfill: a finished download run
+// fills the anime whose episodes landed during it. Anime edits trigger nothing (S7, L29): a
+// duration does not change with the folder, and a re-analysis is the user's call. The subscribers
+// only read events; they publish nothing, and Trigger never blocks the publisher.
 func subscribeEpisodeBackfill(bus events.Bus, runner episodeBackfiller) {
-	bus.Subscribe(events.EventNameAnimeChanged, func(event events.Event) {
-		if changed, ok := event.(events.AnimeChangedEvent); ok && gainsEpisodeFiles(changed) {
-			runner.Trigger(backfill.Only(changed.AnimeID))
-		}
-	})
 	landed := &landedByRun{byRun: map[string][]string{}}
 	bus.Subscribe(events.EventNameDownloadEpisodeDownloaded, func(event events.Event) {
 		if downloaded, ok := event.(events.DownloadEpisodeDownloadedEvent); ok {
@@ -119,15 +108,6 @@ func subscribeEpisodeBackfill(bus events.Bus, runner episodeBackfiller) {
 			runner.Trigger(backfill.Only(ids...))
 		}
 	})
-}
-
-// gainsEpisodeFiles reports whether an anime change may have given the anime files to measure: it
-// was created, its folder changed, or its active flag changed. Publishers leave ChangeType empty
-// today, so a create is recognised by its changed fields as well.
-func gainsEpisodeFiles(changed events.AnimeChangedEvent) bool {
-	return changed.ChangeType == events.AnimeChangeTypeCreate ||
-		slices.Contains(changed.ChangedFields, snapshotFieldFolder) ||
-		slices.Contains(changed.ChangedFields, snapshotFieldActive)
 }
 
 // landedByRun collects, per download run, the anime whose episodes landed during it.

@@ -292,7 +292,8 @@ export interface AnimeEditorPatch {
 }
 
 /**
- * One Editor change to one episode's duration, saved with the anime. `clear`
+ * One Editor change to one episode's duration, saved by the Episodes card on
+ * its own, apart from the anime data (`SaveEpisodeDurations`). `clear`
  * deletes the stored duration; otherwise `source` says who set the value:
  * `manual` for a hand edit, `measured` for a confirmed re-analysis.
  */
@@ -308,8 +309,6 @@ export interface SaveAnimeEditorCommand {
   readonly animeId: string;
   readonly baseModifiedAt: number;
   readonly patch: AnimeEditorPatch;
-  /** The draft's episode-duration changes, saved beside the patch; absent when there are none. */
-  readonly episodes?: readonly EpisodeDurationEdit[];
 }
 
 /** One changed-anime schedule entry within a whole-draft apply command. */

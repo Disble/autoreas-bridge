@@ -1,5 +1,5 @@
 import type { desktop as wailsDesktop } from '../../../wailsjs/go/models';
-import type { EpisodeDurationRowSource, EpisodeReanalysisResult, EpisodeReanalysisStatus, EpisodeDurationRuntimeSource } from './episode-duration-runtime-source.types';
+import type { EpisodeDurationRowSource, EpisodeDurationSaveOutcome, EpisodeReanalysisResult, EpisodeReanalysisStatus, EpisodeDurationRuntimeSource } from './episode-duration-runtime-source.types';
 
 /** Event a running re-analysis emits before each file it measures. */
 export const EPISODE_REANALYSIS_PROGRESS_EVENT_NAME = 'episode.durations_reanalysis_progress';
@@ -22,6 +22,13 @@ export const RUNTIME_UNAVAILABLE_EPISODE_REVIEW = {
   filesRecognized: 0,
   rows: [],
 } as unknown as wailsDesktop.EpisodeDurationReviewResult;
+
+/** Fail-closed save served when the Go bindings are unreachable: nothing was written. */
+export const RUNTIME_UNAVAILABLE_EPISODE_SAVE = {
+  outcome: 'error',
+  message: 'runtime unavailable',
+  changed: 0,
+} as unknown as wailsDesktop.EpisodeDurationSaveResult;
 
 /** Every row source the section can carry; anything else reads as not measured. */
 export const EPISODE_DURATION_ROW_SOURCES: readonly EpisodeDurationRowSource[] = [
@@ -46,6 +53,14 @@ export const EPISODE_REANALYSIS_RESULTS: readonly EpisodeReanalysisResult[] = [
   'skipped',
   'unreadable',
   'not_reached',
+];
+
+/** Every save outcome; anything else reads as an error, so a new backend outcome never clears the draft. */
+export const EPISODE_DURATION_SAVE_OUTCOMES: readonly EpisodeDurationSaveOutcome[] = [
+  'applied',
+  'no_op',
+  // Stryker disable next-line StringLiteral: equivalent: `narrow` maps an unknown outcome to 'error', so leaving it out of this list still reads it as itself.
+  'error',
 ];
 
 /** Module-local singleton container for the shared episode-duration source. */
