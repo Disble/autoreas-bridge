@@ -464,3 +464,19 @@ func TestStrictDecodeAcceptsDeclaredKindAndStillRejectsUndeclaredKeys(t *testing
 		t.Fatal("expected an undeclared top-level key to still be rejected")
 	}
 }
+
+// TestValidateAcceptsTheRecentEventsMobileReports pins the event names Mobile
+// sends: an off-vocabulary event refuses the whole report, so a missing name
+// loses every diagnostic of that cycle.
+func TestValidateAcceptsTheRecentEventsMobileReports(t *testing.T) {
+	for _, event := range []string{"native_module_unavailable", "remote_change_rejected"} {
+		wire := decodeReport(t, buildReportJSON(map[string]string{"EVENT_TYPE": event}))
+		record, err := Validate(wire)
+		if err != nil {
+			t.Fatalf("expected acceptance for recent_events.event=%s, got error: %v", event, err)
+		}
+		if len(record.RecentEvents) != 1 || record.RecentEvents[0].Event != event {
+			t.Errorf("recent event %s not preserved: %+v", event, record.RecentEvents)
+		}
+	}
+}

@@ -126,6 +126,8 @@ var recentEventTypes = map[string]struct{}{
 	"conflict_reason_unrecognized": {},
 	"conflict_token_missing":       {},
 	"conflict_operation_stalled":   {},
+	"native_module_unavailable":    {},
+	"remote_change_rejected":       {},
 }
 
 // degradedReasons gates the top-level degraded field. Each value implies
