@@ -22,6 +22,8 @@ import (
 type episodeDurationsRuntime struct {
 	backfill  episodeBackfiller
 	announcer atomic.Pointer[announce.Announcer]
+	// reanalysis serialises the Editor's re-analyses and holds the running one's cancel.
+	reanalysis episodeReanalysis
 	// offline keeps both background parts from starting. It is the test seam of the shared startup
 	// test app, whose bare &sql.DB{} panics on any query: a background pass would recover and log
 	// that panic while the test is still reading what startup logged.

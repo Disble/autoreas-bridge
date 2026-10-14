@@ -11,6 +11,7 @@ package probe
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os/exec"
@@ -129,4 +130,13 @@ func parseDurationJSON(out []byte) (time.Duration, error) {
 		return 0, fmt.Errorf("parse ffprobe duration %q: not positive", report.Format.Duration)
 	}
 	return time.Duration(seconds * float64(time.Second)), nil
+}
+
+// Unavailable reports whether a probe failed because its binary could not be resolved, which
+// os/exec reports as *exec.Error for a name missing from PATH, the only form production
+// configures. Such a failure concerns every file, not the one probed, so a caller stops instead
+// of probing the rest. Any other failure concerns one file only.
+func Unavailable(err error) bool {
+	var execErr *exec.Error
+	return errors.As(err, &execErr)
 }

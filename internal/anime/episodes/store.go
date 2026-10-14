@@ -28,6 +28,9 @@ var (
 	ErrInvalidEpisode = errors.New("episodes: episode must be at least 1")
 	// ErrInvalidDuration rejects a duration that is not positive.
 	ErrInvalidDuration = errors.New("episodes: duration must be positive")
+	// ErrInvalidSource rejects an edit whose source is neither SourceManual
+	// nor SourceMeasured.
+	ErrInvalidSource = errors.New("episodes: source must be measured or manual")
 )
 
 // Reading is one episode's duration as a writer offers it.
@@ -147,6 +150,65 @@ func (s *Store) Clear(ctx context.Context, animeID string, episode int) error {
 		return execAffected(ctx, tx, changed, clearSQL, animeID, episode)
 	})
 	return err
+}
+
+// Edit is one Editor change to one episode's duration, saved with the Editor's
+// Save. Clear deletes the row; otherwise DurationMS is stored with Source:
+// SourceManual for a value set by hand, SourceMeasured for a confirmed
+// re-analysis reading, which never overwrites a manual row.
+type Edit struct {
+	Episode    int
+	DurationMS int64
+	Source     string
+	Clear      bool
+}
+
+// ApplyEdits stores every Editor change to one anime in one transaction and
+// marks the anime pending once. Every edit is validated before any is
+// written, so a bad edit saves nothing. It returns how many rows changed.
+func (s *Store) ApplyEdits(ctx context.Context, animeID string, edits []Edit) (int, error) {
+	for _, edit := range edits {
+		if err := validateEdit(animeID, edit); err != nil {
+			return 0, err
+		}
+	}
+	return s.write(ctx, animeID, func(tx *sql.Tx, nowMS int64, changed *int64) error {
+		for _, edit := range edits {
+			if err := execEdit(ctx, tx, changed, animeID, edit, nowMS); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// validateEdit checks one edit against the invariants the schema enforces.
+func validateEdit(animeID string, edit Edit) error {
+	if err := validateTarget(animeID, edit.Episode); err != nil {
+		return err
+	}
+	if edit.Clear {
+		return nil
+	}
+	if edit.DurationMS <= 0 {
+		return fmt.Errorf("%w: episode %d has %d ms", ErrInvalidDuration, edit.Episode, edit.DurationMS)
+	}
+	if edit.Source != SourceManual && edit.Source != SourceMeasured {
+		return fmt.Errorf("%w: episode %d has source %q", ErrInvalidSource, edit.Episode, edit.Source)
+	}
+	return nil
+}
+
+// execEdit runs the one statement that stores edit.
+func execEdit(ctx context.Context, tx *sql.Tx, changed *int64, animeID string, edit Edit, nowMS int64) error {
+	switch {
+	case edit.Clear:
+		return execAffected(ctx, tx, changed, clearSQL, animeID, edit.Episode)
+	case edit.Source == SourceManual:
+		return execAffected(ctx, tx, changed, setManualSQL, animeID, edit.Episode, edit.DurationMS, SourceManual, nowMS)
+	default:
+		return execAffected(ctx, tx, changed, confirmMeasuredSQL, animeID, edit.Episode, edit.DurationMS, SourceMeasured, nowMS)
+	}
 }
 
 // upsertReadings validates every reading before writing any, then runs

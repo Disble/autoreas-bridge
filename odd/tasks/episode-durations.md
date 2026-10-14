@@ -74,7 +74,7 @@ production, tests and docs.
 | ODD 3 | **Measurement.** Download landed writes the reading (insert-if-absent). Background backfill with the three S7 triggers, single-flight with one queued repeat, active anime only, confidence gate, all anime types. | S6, S7, S9 | ODD 1, ODD 2 | inline | ~450 | High: item 4 (concurrency of the backfill). Independent verifier. | done (ditto 60/60; verifier PASS, L10) | see L10 |
 | ODD 4 | **Shared read model and Today.** Pure `EpisodeLengths` and `LongNextEpisode` in the anime context; Today's binding reads the table in one query; remove TodayMarks probing. Today output unchanged (regression tests on `LongNextEpisode`). | S1, S8, S9 | ODD 1, ODD 3 | inline | ~300 (net, includes removals) | Item 3 (Wails contract kept identical); medium | done (ditto 27/27, L11) | see L11 |
 | ODD 5 | **Sync to Mobile.** Announcer and `episode.durations_changed`; changelog-recorder and WebSocket-hub subscriptions; serve-time join in `toAnimeChanges` and `GET /api/animes` through `EpisodeLengths`; guard tests (anime edit unchanged, duration save publishes no `AnimeChangedEvent`, `modified_at` unchanged); `docs/openapi.yaml`. | S11–S14 | ODD 1, ODD 4 | inline | ~450 | High: items 3 and 4 (contract Mobile consumes, event ordering). Independent verifier. | done (verifier PASS after B1 fix, L13–L14) | see L14 |
-| ODD 6a | **Editor backend.** Wails bindings: list rows (stored plus derived "Not measured"), edit, Add episode, Clear, re-analysis preview, and confirm (manual kept). Writes go through the ODD 1 store, so they mark pending. Folder change triggers the S7 backfill. | S10 | ODD 1, ODD 2, ODD 3 | inline, or parallel with ODD 4–5 (disjoint surface) | ~400 | Item 3 (new bindings only, additive); medium | pending | — |
+| ODD 6a | **Editor backend.** Wails bindings: list rows (stored plus derived "Not measured"), edit, Add episode, Clear, re-analysis preview, and confirm (manual kept). Writes go through the ODD 1 store, so they mark pending. Folder change triggers the S7 backfill. | S10 | ODD 1, ODD 2, ODD 3 | inline, or parallel with ODD 4–5 (disjoint surface) | ~400 | Item 3 (new bindings only, additive); medium | done (ditto 16/16, 64/66 with 2 equivalent; L16) | see L16 |
 | ODD 6b | **Editor UI.** "Episodes" accordion per the approved guide; `AirisEmptyState` `inline` size with a layout fixture; skeleton/empty/alert states; hooks with colocated tests; progressive list rule. | S10 | ODD 6a | inline | ~800 (frontend, split into two commits) | Item 6 covered by Vitest and the layout fixture; medium | pending | — |
 | ODD 7 | **Mobile handoff.** Send the `openapi.yaml` contract and the analysis to the Mobile team; answer their questions. No Bridge code. | S14 | ODD 5 | inline | ~0 | none | pending | — |
 
@@ -240,4 +240,46 @@ parallel with ODD 4–5 on a disjoint edit surface; ODD 6b follows 6a.
     - A2 kept: any other recorder insert failure loses the announcement. This is the same design as the anime outbox.
     - A3 kept: the cover route now also reads durations through the decorator, and a durations read fails only when
       the DB is broken, which already fails the cover.
-- **Next step:** ODD 6a (Editor backend).
+- **L15 (2026-10-14):** User decision. On "Confirm N changes" in the re-analysis review, do the changes save at once
+  or join the Editor draft? Answer: "Al borrador (Recommended)". Confirm moves the reviewed readings into the draft as
+  "Unsaved" rows; Save writes them and Discard changes drops them. There is one save path for the whole Editor.
+- **L16 (2026-10-14):** ODD 6a Editor backend (route: inline, with one read-only explorer for the Editor save flow).
+  - **`episodes.Store.ApplyEdits`:** applies every Editor edit to one anime in one transaction and marks the anime
+    pending once.
+    - A manual edit replaces the stored value.
+    - A measured edit (a confirmed re-analysis) never overwrites a manual row.
+    - A clear deletes the row.
+    - Every edit is validated before any is written; `ErrInvalidSource` is new.
+  - **`internal/anime/durationedit`:**
+    - `Section` builds the union of stored durations, assigned files (`Context{}`) and episodes 1..Total. Each row
+      gets its source: measured, manual, `manual_no_file` (only with a found folder), not measured, or
+      `not_measured_file_found`. The section also reports the folder status, the episodes beyond Total, and whether
+      the anime is TV.
+    - `Reanalyze` probes the recognized files in order with progress, compares each against the stored value in
+      whole minutes, and writes nothing.
+      - Row results: unchanged, update, add, manual_kept, skipped (with the identity detail), unreadable,
+        not_reached.
+      - Statuses: ok, no_folder, folder_missing, no_files, probe_unavailable, interrupted (the folder stopped
+        responding), cancelled.
+  - **`probe.Unavailable`:** the missing-binary check now lives in the probe package, and the backfill uses it too.
+  - **Desktop bindings:**
+    - `GetEpisodeDurationSection(draft)`.
+    - `ReanalyzeEpisodeDurations(draft)`: one at a time, returns "busy" otherwise, and emits
+      `episode.durations_reanalysis_progress` before each file.
+    - `CancelEpisodeReanalysis()`.
+    - `SaveAnimeEditor` gained `episodes []EpisodeDurationEditDTO` (L15).
+      - Episode edits are saved first, in their own transaction, and are idempotent on retry.
+      - An episodes-only save never calls the anime write, so a stale base cannot block it and `modified_at` does
+        not move.
+      - A no-op patch with changed episodes is reported as applied.
+      - A bad episode edit fails the whole save before anything is written.
+  - **S7:** a folder change still triggers the backfill through the ODD 3 `AnimeChangedEvent` subscriber.
+  - **Checks:**
+    - Ditto on episodes: 16/16.
+    - Ditto on durationedit: 64/66. The 2 survivors are `<` to `<=` in sorts over unique episodes (rows are keyed
+      by episode; `Assign` sends duplicates to `Skipped`), so they are equivalent.
+    - Desktop bindings: IMPORTANT tier, covered by behaviour tests at real SQLite.
+    - Lint 0, size and architecture gates pass, `-race` passes on desktop and `anime/...`.
+    - Wails bindings regenerate and the frontend typecheck passes.
+    - Feature-end independent verifier: after ODD 6b.
+- **Next step:** ODD 6b (Editor UI).

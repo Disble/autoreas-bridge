@@ -2,12 +2,11 @@ package backfill
 
 import (
 	"context"
-	"errors"
-	"os/exec"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
 
+	"autoreas-bridge/internal/anime/duration/probe"
 	"autoreas-bridge/internal/anime/episodes"
 	"autoreas-bridge/internal/anime/identity"
 	"autoreas-bridge/internal/logger"
@@ -100,12 +99,10 @@ func (b *Backfill) measure(ctx context.Context, folder string, targets []identit
 	return readings, !unavailable.Load()
 }
 
-// probeUnavailable reports whether a probe failed because its binary could not be resolved,
-// which os/exec reports as *exec.Error for a name missing from PATH, the only form production
-// configures. On Windows an absolute path that already has an extension fails as *fs.PathError
-// instead and is treated as a per-file failure: the pass probes every file and stores nothing.
-// Any other failure concerns one file only.
+// probeUnavailable reports whether a probe failed because its binary could not be resolved (see
+// probe.Unavailable). On Windows an absolute path that already has an extension fails as
+// *fs.PathError instead and is treated as a per-file failure: the pass probes every file and stores
+// nothing.
 func probeUnavailable(err error) bool {
-	var execErr *exec.Error
-	return errors.As(err, &execErr)
+	return probe.Unavailable(err)
 }
