@@ -120,7 +120,7 @@ func TestTheWiredBackfillStoresARealEpisode(t *testing.T) {
 	inactive := folder
 	list := listedAnime{{ID: "on", Active: 1, Folder: &folder}, {ID: "off", Active: 0, Folder: &inactive}}
 
-	newEpisodeBackfill(db, list, nil).Run(context.Background(), backfill.All())
+	newEpisodeBackfill(db, list, nil, nil).Run(context.Background(), backfill.All())
 
 	store := episodes.NewStore(db, nil)
 	on, err := store.ByAnime(context.Background(), "on")

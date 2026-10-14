@@ -42,6 +42,9 @@ func newAppTestApp(t *testing.T) *App {
 		newCaptureQueue:  func(*sql.DB) captureQueue { return &stubCaptureQueue{} },
 		newCaptureReader: func(*sql.DB) *requestcapture.Reader { return nil },
 		newEventQueue:    func(*sql.DB) eventLogStopper { return &stubEventLogQueue{} },
+		// The bare &sql.DB{} above panics on any query; the duration passes would recover and log
+		// it in the background while a test reads what startup logged.
+		episodeDurations: episodeDurationsRuntime{offline: true},
 	}
 }
 

@@ -33,10 +33,10 @@ func newTodayMarks(db *sql.DB) *lengths.Today {
 // newLandedEpisodeNotice builds the coordination the download run offers every landed episode. Besides
 // the notice, it stores each reading of a landed file as that episode's duration when the episode has
 // none yet (analysis D3). Without a database it is the notice alone.
-func newLandedEpisodeNotice(notifier notification.Notifier, db *sql.DB) *notice.Coordinator {
+func newLandedEpisodeNotice(notifier notification.Notifier, db *sql.DB, wake func()) *notice.Coordinator {
 	coordinator := newEpisodeDurationNotice(notifier)
 	if db == nil {
 		return coordinator
 	}
-	return coordinator.WithRecorder(episodes.NewStore(db, time.Now))
+	return coordinator.WithRecorder(episodes.NewStore(db, time.Now).OnPendingMarked(wake))
 }

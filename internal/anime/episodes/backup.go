@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"autoreas-bridge/internal/persistence"
 )
@@ -25,9 +26,18 @@ type durationRecord struct {
 	UpdatedAtMS int64  `json:"updated_at_ms"`
 }
 
-const insertDurationBackupSQL = `
+const (
+	insertDurationBackupSQL = `
 	INSERT INTO anime_episode_durations (anime_id, episode, duration_ms, source, updated_at_ms)
 	VALUES (?, ?, ?, ?, ?)`
+	// markStoredPendingSQL marks every anime that has a stored duration, with
+	// the same renewal rule as markPendingSQL. "WHERE true" lets SQLite parse
+	// an upsert whose source is a SELECT.
+	markStoredPendingSQL = `
+	INSERT INTO durations_pending_announce (anime_id, marked_at_ms)
+	SELECT DISTINCT anime_id, ? FROM anime_episode_durations WHERE true
+	ON CONFLICT(anime_id) DO UPDATE SET marked_at_ms = MAX(excluded.marked_at_ms, marked_at_ms + 1)`
+)
 
 // ExportEpisodeDurations returns a backup export function that streams every
 // stored duration as one JSONL line, ordered by (anime_id, episode) for a
@@ -63,14 +73,20 @@ func ValidateEpisodeDurations() func(context.Context, io.Reader) (int, error) {
 
 // ImportEpisodeDurations returns a backup import function that replaces every
 // stored duration with the stream's records in one transaction (a full
-// refresh, like anime_snapshots). Pending announcement marks are left as
-// they are. Every statement runs on tx: the bridge DB has one connection.
-// On a failed record the count of records applied before it is returned
-// with the error, and nothing is kept.
-func ImportEpisodeDurations(db *sql.DB) func(context.Context, io.Reader) (int, error) {
+// refresh, like anime_snapshots). Every anime whose durations were stored
+// before or after the refresh is marked pending announce in the same
+// transaction, so Mobile learns of the restored durations, and of the ones
+// the bundle dropped (L12); now supplies the marks. Every statement runs on
+// tx: the bridge DB has one connection. On a failed record the count of
+// records applied before it is returned with the error, and nothing is kept.
+func ImportEpisodeDurations(db *sql.DB, now func() time.Time) func(context.Context, io.Reader) (int, error) {
 	return func(ctx context.Context, r io.Reader) (int, error) {
 		count := 0
+		nowMS := now().UnixMilli()
 		err := persistence.InTx(ctx, db, func(tx *sql.Tx) error {
+			if _, err := tx.ExecContext(ctx, markStoredPendingSQL, nowMS); err != nil {
+				return fmt.Errorf("mark replaced episode durations pending announce: %w", err)
+			}
 			if _, err := tx.ExecContext(ctx, `DELETE FROM anime_episode_durations`); err != nil {
 				return fmt.Errorf("delete episode durations for full refresh: %w", err)
 			}
@@ -80,7 +96,13 @@ func ImportEpisodeDurations(db *sql.DB) func(context.Context, io.Reader) (int, e
 					rec.AnimeID, rec.Episode, rec.DurationMS, rec.Source, rec.UpdatedAtMS)
 				return execErr
 			})
-			return err
+			if err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, markStoredPendingSQL, nowMS); err != nil {
+				return fmt.Errorf("mark imported episode durations pending announce: %w", err)
+			}
+			return nil
 		})
 		if err != nil {
 			return count, fmt.Errorf("import episode durations: %w", err)

@@ -228,6 +228,7 @@ func (a *App) configureRealtimeHub(ctx context.Context) {
 		}
 		a.realtimeHub.BroadcastAnimeChanged(ctx, changed)
 	})
+	subscribeHubToEpisodeDurations(ctx, a.eventBus, a.realtimeHub)
 }
 
 // configureAnimeApplicationServices constructs the anime application services.

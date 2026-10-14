@@ -125,7 +125,7 @@ func TestTheWiredLandedNoticeStoresARealReading(t *testing.T) {
 	notifier := &noticesSeen{}
 	movie := 3
 
-	newLandedEpisodeNotice(notifier, db).EpisodeLanded(context.Background(), folder, &movie, 1, "anime-1", "Movie")
+	newLandedEpisodeNotice(notifier, db, nil).EpisodeLanded(context.Background(), folder, &movie, 1, "anime-1", "Movie")
 
 	rows, err := episodes.NewStore(db, nil).ByAnime(context.Background(), "anime-1")
 	if err != nil {

@@ -73,7 +73,7 @@ production, tests and docs.
 | ODD 2 | **Identity, whole folder.** New exported function returning every confidently assigned `(episode, basename)` plus skipped files with their reason (fractional, duplicate, ambiguity, unreadable). Parity with existing `Identify` decisions. | S5, S10 (re-analysis input) | none | delegated, parallel with ODD 1 (writer trigger a) | ~250 (actual +256/−29) | Item 6 guarded by parity tests; medium | done: `identity.Assigner` (`Assign(Request) Assignment`); TestParity dev 16/16 and supplemental 4/4 unchanged; ditto 3/3 killed (1.00) after a real gap at `diagnostics.go:53` was closed | `9663f03e` |
 | ODD 3 | **Measurement.** Download landed writes the reading (insert-if-absent). Background backfill with the three S7 triggers, single-flight with one queued repeat, active anime only, confidence gate, all anime types. | S6, S7, S9 | ODD 1, ODD 2 | inline | ~450 | High: item 4 (concurrency of the backfill). Independent verifier. | done (ditto 60/60; verifier PASS, L10) | see L10 |
 | ODD 4 | **Shared read model and Today.** Pure `EpisodeLengths` and `LongNextEpisode` in the anime context; Today's binding reads the table in one query; remove TodayMarks probing. Today output unchanged (regression tests on `LongNextEpisode`). | S1, S8, S9 | ODD 1, ODD 3 | inline | ~300 (net, includes removals) | Item 3 (Wails contract kept identical); medium | done (ditto 27/27, L11) | see L11 |
-| ODD 5 | **Sync to Mobile.** Announcer and `episode.durations_changed`; changelog-recorder and WebSocket-hub subscriptions; serve-time join in `toAnimeChanges` and `GET /api/animes` through `EpisodeLengths`; guard tests (anime edit unchanged, duration save publishes no `AnimeChangedEvent`, `modified_at` unchanged); `docs/openapi.yaml`. | S11–S14 | ODD 1, ODD 4 | inline | ~450 | High: items 3 and 4 (contract Mobile consumes, event ordering). Independent verifier. | pending | — |
+| ODD 5 | **Sync to Mobile.** Announcer and `episode.durations_changed`; changelog-recorder and WebSocket-hub subscriptions; serve-time join in `toAnimeChanges` and `GET /api/animes` through `EpisodeLengths`; guard tests (anime edit unchanged, duration save publishes no `AnimeChangedEvent`, `modified_at` unchanged); `docs/openapi.yaml`. | S11–S14 | ODD 1, ODD 4 | inline | ~450 | High: items 3 and 4 (contract Mobile consumes, event ordering). Independent verifier. | done (verifier PASS after B1 fix, L13–L14) | see L14 |
 | ODD 6a | **Editor backend.** Wails bindings: list rows (stored plus derived "Not measured"), edit, Add episode, Clear, re-analysis preview, and confirm (manual kept). Writes go through the ODD 1 store, so they mark pending. Folder change triggers the S7 backfill. | S10 | ODD 1, ODD 2, ODD 3 | inline, or parallel with ODD 4–5 (disjoint surface) | ~400 | Item 3 (new bindings only, additive); medium | pending | — |
 | ODD 6b | **Editor UI.** "Episodes" accordion per the approved guide; `AirisEmptyState` `inline` size with a layout fixture; skeleton/empty/alert states; hooks with colocated tests; progressive list rule. | S10 | ODD 6a | inline | ~800 (frontend, split into two commits) | Item 6 covered by Vitest and the layout fixture; medium | pending | — |
 | ODD 7 | **Mobile handoff.** Send the `openapi.yaml` contract and the analysis to the Mobile team; answer their questions. No Bridge code. | S14 | ODD 5 | inline | ~0 | none | pending | — |
@@ -183,4 +183,61 @@ parallel with ODD 4–5 on a disjoint edit surface; ODD 6b follows 6a.
     - `go build ./...` passes.
     - Tests in anime, desktop and download all pass.
     - Ditto on `lengths`: 27/27 after one kill (the stored TV type `0` pinned as data).
-- **Next step:** ODD 5 (sync: pending announcer, `episode.durations_changed`, `MobileAnime.episodes`, openapi).
+- **L12 (2026-10-13):** User decision on the ODD 1 advisory (backup import and Mobile): "si, deberia avisar a Mobile".
+  A backup import marks every anime with restored durations as pending announce in the same transaction, so Mobile
+  receives them after a restore.
+- **L13 (2026-10-13):** ODD 5 implementation (route: inline, with one read-only explorer for the sync map).
+  - **Contract:** `MobileAnime.episodes: [{episode, minutes, long}]`, omitempty. It is joined at serve time by
+    `lengths.AttachEpisodes`, wrapped around Mobile's two read ports (`episodeAnimeQuery`, `episodeSyncTrigger` in
+    desktop), so in-process `ListMobileAnimes` callers pay no join. A failed join fails the request, because serving
+    no episodes would tell Mobile they are gone. `docs/openapi.yaml` documents `episodes` and `EpisodeLength`.
+  - **Event:** `events.EpisodeDurationsChangedEvent` (`episode.durations_changed`) with
+    `EventID = episode.durations_changed:<anime>:<marked_at_ms>`, so the changelog's unique `source_event_id`
+    deduplicates a repeat after a crash.
+  - **Announcer:** `internal/anime/announce`. Single-flight with one queued repeat. Started after the changelog recorder
+    and the hub subscribe; stopped after the backfill, before the DB closes.
+    - Missing anime: the mark is cleared and no event is sent.
+    - Other read failure: the mark is kept and a warning is logged.
+  - **Wake-up:** `Store.OnPendingMarked(wake)` on the landed and backfill stores. The announcer sits behind an atomic
+    pointer, because the download run can write before it starts; its first pass catches any mark left behind.
+  - **Subscribers:**
+    - The `ChangelogRecorder` has a second subscription, which records an `update` row with `changed_fields
+      ["episodes"]` and the current snapshot.
+    - The hub sends the same `anime_changed` message an edit sends.
+    - `AnimeChangedEvent`, its outbox and its four subscribers are untouched.
+  - **Backup import (L12):** marks pending every anime with durations before or after the full refresh, in the same
+    transaction. `ImportEpisodeDurations` now takes `now`.
+  - **S13 guard (real SQLite):** a duration write produces one update row `[episodes]` with the unchanged snapshot,
+    no `AnimeChangedEvent`, and the same `modified_at`. The changes feed serves the episodes.
+  - **Found and fixed: the ODD 3 race.** `go test -race ./internal/desktop/` passes at `e60ec9d5` and fails at
+    `514502f3`. Startup tests use a bare `&sql.DB{}`; the background backfill (and now the announcer) recovers its
+    panic and logs it while the test reads unsynchronised variables. The fix follows the existing seam pattern:
+    `episodeDurationsRuntime.offline`, set in `newAppTestApp`. Lesson: verifiers run `-race` on every package the
+    change wires into, not only the new ones.
+  - **Checks:**
+    - `-race` passes on desktop, anime and sync.
+    - Ditto results: announce 9/9, lengths 10/10, episodes 10/10, changelog recorder 4/4 (two killed: the ids
+      requested, the recorder clock).
+    - Lint `-Profile all` reports 0 issues.
+    - checkarchitecture, checkgofilesize and checkopenapi all pass.
+    - The desktop decorators and wiring are IMPORTANT tier (behaviour tests, no mutation).
+- **L14 (2026-10-13):** ODD 5 independent verifier.
+  - **Verdicts:**
+    - S11, S13, L12, the wiring and the background processes all PASS. Per-package test counts are identical to
+      55bf00df for download (459), schedule (41), season (187), api (242), realtime (25) and events (15).
+    - **Blocker B1:** shutdown cancels `catchUpContext`, which the changelog recorder writes under, before it stops
+      the announcer. A pass in that window published, the recorder's insert failed, and `ClearPending` still
+      succeeded, so the announcement was lost for good.
+  - **Fix:** a new `announce.Deps.Parent`, and desktop passes `catchUpContext`, so the insert and the clear fail
+    together. Regression test: `TestAMarkSurvivesAShutdownBetweenPublishAndClear`. It fails with the fix removed by
+    hand.
+  - **Recheck (B1 only): CLOSED.** At real SQLite the mark is kept on cancel (0 rows, 1 pending). The next start
+    announces it exactly once (1 row, 0 pending).
+  - **Advisories:**
+    - A4 fixed: openapi now covers fractional progress and that `minutes: 30` can come with `long: true`.
+    - A1 kept: a re-mark in the same ms as a cleared mark reuses the event id, and the changelog drops it. The stable
+      id is what dedupes a crash re-announce.
+    - A2 kept: any other recorder insert failure loses the announcement. This is the same design as the anime outbox.
+    - A3 kept: the cover route now also reads durations through the decorator, and a durations read fails only when
+      the DB is broken, which already fails the cover.
+- **Next step:** ODD 6a (Editor backend).

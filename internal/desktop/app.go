@@ -107,7 +107,7 @@ type App struct {
 	downloadService            *download.Service
 	readinessService           *download.ReadinessService
 	downloadScheduler          schedule.Scheduler
-	episodeBackfill            episodeBackfiller
+	episodeDurations           episodeDurationsRuntime
 	soloDownloadMu             sync.Mutex
 	soloDownloadCancelMu       sync.Mutex
 	soloDownloadCancel         context.CancelFunc
@@ -384,10 +384,9 @@ func (a *App) shutdown(ctx context.Context) {
 	if a.downloadScheduler != nil {
 		a.downloadScheduler.Stop()
 	}
-	// Before the database closes: a pass in flight still reads and writes durations.
-	if a.episodeBackfill != nil {
-		a.episodeBackfill.Stop()
-	}
+	// Before the database closes: a pass in flight still reads and writes durations, and an
+	// announcement still records changelog rows.
+	a.episodeDurations.stop()
 	if a.httpServer != nil {
 		_ = a.httpServer.Shutdown(ctx)
 	}

@@ -387,6 +387,25 @@ components:
         durationMinutes:
           type: integer
           nullable: true
+        episodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/EpisodeLength'
+          description: |
+            Every episode of this anime with a stored duration, ordered by
+            episode. Served by `GET /api/animes`, `GET /api/animes/{id}` and in
+            every `AnimeChange.snapshot` of the changes feed, always read from
+            the current stored durations when served. Omitted when the anime
+            has no stored duration: an absent field means "no durations", so a
+            client replaces its copy instead of merging. `long` is decided by
+            Bridge; the client computes nothing. The Today mark is the entry
+            whose `episode` is `episodesWatched + 1` with `long: true`; a
+            fractional `episodesWatched` names no next episode and gives no
+            mark. `long` compares the exact stored runtime, so an entry may
+            read `minutes: 30` with `long: true` (for example 30 min 20 s).
+            A change that only touched durations arrives as an ordinary
+            `update` with `changed_fields: [episodes]`; it never moves
+            `modified_at`.
         modified_at:
           type: integer
           description: |
@@ -394,6 +413,22 @@ components:
             token (SDD-30). Echo this value back as `base` on the next patch
             for this anime so the bridge can fast-forward instead of treating
             the write as a divergent conflict.
+
+    EpisodeLength:
+      type: object
+      required: [episode, minutes, long]
+      properties:
+        episode:
+          type: integer
+          minimum: 1
+          description: The whole episode number.
+        minutes:
+          type: integer
+          minimum: 0
+          description: The stored runtime rounded to the nearest whole minute.
+        long:
+          type: boolean
+          description: True when the anime is TV (`kind` 0) and the episode runs over 30 minutes.
 
     AnimeChange:
       type: object

@@ -6,16 +6,18 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"autoreas-bridge/internal/anime/episodes"
 )
 
-// TestBackupRoundTripReplacesEveryDurationAndLeavesMarksAlone exports one
-// database and imports the bundle into another: the target's durations
+// TestBackupRoundTripReplacesEveryDurationAndMarksEveryAffectedAnime exports
+// one database and imports the bundle into another: the target's durations
 // become exactly the source's (value, source and updated_at_ms), its own
-// rows are gone (full refresh), and its pending marks are untouched because
-// the announcement queue is not part of a backup.
-func TestBackupRoundTripReplacesEveryDurationAndLeavesMarksAlone(t *testing.T) {
+// rows are gone (full refresh), and every anime with durations before or
+// after the import is marked pending announce with a renewed mark, so Mobile
+// hears about restored and dropped durations alike (L12).
+func TestBackupRoundTripReplacesEveryDurationAndMarksEveryAffectedAnime(t *testing.T) {
 	ctx := context.Background()
 	clock := &testClock{ms: 1}
 	sourceDB := openTestDB(t)
@@ -39,7 +41,7 @@ func TestBackupRoundTripReplacesEveryDurationAndLeavesMarksAlone(t *testing.T) {
 	marks, err := target.PendingAnnounce(ctx)
 	must(t, err)
 
-	imported, err := episodes.ImportEpisodeDurations(targetDB)(ctx, bytes.NewReader(bundle.Bytes()))
+	imported, err := episodes.ImportEpisodeDurations(targetDB, clock.now)(ctx, bytes.NewReader(bundle.Bytes()))
 	if err != nil || imported != 3 {
 		t.Fatalf("import = (%d, %v), want (3, nil)", imported, err)
 	}
@@ -52,8 +54,47 @@ func TestBackupRoundTripReplacesEveryDurationAndLeavesMarksAlone(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("imported durations = %+v, want %+v", got, want)
 	}
-	if after, err := target.PendingAnnounce(ctx); err != nil || !reflect.DeepEqual(after, marks) {
-		t.Fatalf("pending after import = (%+v, %v), want %+v", after, err, marks)
+	if len(marks) != 1 || marks[0].AnimeID != "stale" {
+		t.Fatalf("pending before import = %+v, want only stale", marks)
+	}
+	after, err := target.PendingAnnounce(ctx)
+	must(t, err)
+	byAnime := map[string]int64{}
+	for _, p := range after {
+		byAnime[p.AnimeID] = p.MarkedAtMS
+	}
+	if len(after) != 3 || byAnime["a"] == 0 || byAnime["b"] == 0 {
+		t.Fatalf("pending after import = %+v, want a, b and stale", after)
+	}
+	if byAnime["stale"] <= marks[0].MarkedAtMS {
+		t.Fatalf("the dropped anime's mark must be renewed past %d, got %d", marks[0].MarkedAtMS, byAnime["stale"])
+	}
+}
+
+// TestImportOfAnEmptyBundleMarksEveryDroppedAnime proves the mark taken before
+// the delete: a bundle with no durations still tells Mobile that the ones it
+// had are gone.
+func TestImportOfAnEmptyBundleMarksEveryDroppedAnime(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	clock := &testClock{ms: 1}
+	s := episodes.NewStore(db, clock.now)
+	_, err := s.FillGaps(ctx, "gone", []episodes.Reading{{Episode: 1, DurationMS: 1000}})
+	must(t, err)
+	before, err := s.PendingAnnounce(ctx)
+	must(t, err)
+	must(t, s.ClearPending(ctx, before[0]))
+
+	clock.ms = 7
+	if _, err := episodes.ImportEpisodeDurations(db, clock.now)(ctx, strings.NewReader("")); err != nil {
+		t.Fatalf("import an empty bundle: %v", err)
+	}
+
+	assertRows(t, s, "gone", nil)
+	after, err := s.PendingAnnounce(ctx)
+	must(t, err)
+	if len(after) != 1 || after[0] != (episodes.Pending{AnimeID: "gone", MarkedAtMS: 7}) {
+		t.Fatalf("pending after an empty import = %+v, want gone marked at 7", after)
 	}
 }
 
@@ -66,7 +107,7 @@ func TestImportFailureLeavesExistingDurations(t *testing.T) {
 	must(t, s.SetManual(ctx, "a", 1, 1000))
 
 	bundle := `{"anime_id":"b","episode":1,"duration_ms":2000,"source":"measured","updated_at_ms":1}` + "\nnot json\n"
-	if _, err := episodes.ImportEpisodeDurations(db)(ctx, strings.NewReader(bundle)); err == nil {
+	if _, err := episodes.ImportEpisodeDurations(db, time.Now)(ctx, strings.NewReader(bundle)); err == nil {
 		t.Fatal("import accepted a malformed line")
 	}
 	assertRows(t, s, "a", []episodes.Duration{row("a", 1, 1000, episodes.SourceManual, 1)})

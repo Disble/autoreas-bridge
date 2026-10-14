@@ -58,21 +58,23 @@ func (c animeCatalog) ListAnime(ctx context.Context) ([]backfill.Anime, error) {
 
 // newEpisodeBackfill builds the duration backfill from the same parts the download notice uses:
 // the pipeline's extension set, the identity assigner and ffprobe as found on PATH. log may be nil.
-func newEpisodeBackfill(db *sql.DB, query mobileAnimeLister, log logger.Logger) *backfill.Backfill {
+func newEpisodeBackfill(db *sql.DB, query mobileAnimeLister, log logger.Logger, wake func()) *backfill.Backfill {
 	return backfill.New(backfill.Deps{
 		Catalog:   animeCatalog{query: query},
 		Inventory: media.New(config.VideoFileExtensions),
 		Assigner:  identity.NewAssigner(),
 		Prober:    probe.NewFFProbe(""),
-		Store:     episodes.NewStore(db, time.Now),
+		Store:     episodes.NewStore(db, time.Now).OnPendingMarked(wake),
 		Logger:    log,
 	})
 }
 
-// startEpisodeBackfill starts the duration backfill once the bridge database and the anime query
-// are ready. Every pass runs in the background, so startup is never delayed.
+// startEpisodeBackfill starts the durations announcer, then the duration backfill once the bridge
+// database and the anime query are ready. Every pass runs in the background, so startup is never
+// delayed.
 func (a *App) startEpisodeBackfill() {
-	if a.bridgeDB == nil || a.animeQuery == nil {
+	a.startEpisodeAnnouncer()
+	if a.episodeDurations.offline || a.bridgeDB == nil || a.animeQuery == nil {
 		return
 	}
 	// A nil *FanoutLogger must stay a nil interface, or the backfill would call through it.
@@ -80,13 +82,13 @@ func (a *App) startEpisodeBackfill() {
 	if a.sharedLogger != nil {
 		log = a.sharedLogger
 	}
-	a.runEpisodeBackfill(newEpisodeBackfill(a.bridgeDB, a.animeQuery, log))
+	a.runEpisodeBackfill(newEpisodeBackfill(a.bridgeDB, a.animeQuery, log, a.episodeDurations.wake))
 }
 
 // runEpisodeBackfill keeps runner for shutdown, wires its triggers, and starts the process-start
 // pass over every active anime (analysis D5).
 func (a *App) runEpisodeBackfill(runner episodeBackfiller) {
-	a.episodeBackfill = runner
+	a.episodeDurations.backfill = runner
 	if a.eventBus != nil {
 		subscribeEpisodeBackfill(a.eventBus, runner)
 	}

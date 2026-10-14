@@ -173,12 +173,14 @@ func (a *App) prepareAnimeRuntime(ctx context.Context) {
 
 // buildHTTPServer creates the configured bridge HTTP server.
 func (a *App) buildHTTPServer(deviceService device.AuthService, animeWrite contracts.AnimePatcher, conflictService *bridgeSync.ConflictStore, statusService *bridgeSync.StatusService, syncTrigger *bridgeSync.TriggerService) api.Server {
+	// Mobile's two anime read ports serve each anime with its stored episode durations (S11).
+	animeQuery, syncPort := withEpisodeDurations(a.bridgeDB, a.animeQuery, syncTrigger)
 	return a.newHTTPServer(api.Config{
 		Addr:                   a.resolveAPIAddr(),
 		DeviceService:          deviceService,
-		AnimeQuery:             a.animeQuery,
+		AnimeQuery:             animeQuery,
 		AnimeWrite:             animeWrite,
-		SyncTrigger:            syncTrigger,
+		SyncTrigger:            syncPort,
 		Status:                 statusService,
 		DeviceAdmin:            deviceService.(device.AdminService),
 		Conflicts:              conflictService,
@@ -294,7 +296,7 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 		// The notice coordinates the landed episode against the runtime rule and stores its reading.
 		// Built here, from the pipeline's own extension set, so nothing about it reaches outside this
 		// composition root.
-		EpisodeDurationNotice: newLandedEpisodeNotice(a.notifier, a.bridgeDB),
+		EpisodeDurationNotice: newLandedEpisodeNotice(a.notifier, a.bridgeDB, a.episodeDurations.wake),
 		Bus:                   a.eventBus,
 		Logger:                a.sharedLogger,
 		JDDeviceName:          a.downloadJDDeviceName(ctx),

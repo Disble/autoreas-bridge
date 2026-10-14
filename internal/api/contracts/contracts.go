@@ -52,6 +52,11 @@ type MobileAnime struct {
 	// mobile feed. Detail-only concern: NOT surfaced on the slim
 	// AnimeListItem.
 	Repetitions []MobileRepeticion `json:"repetitions,omitempty"`
+	// Episodes lists every episode with a stored duration, ordered by episode, joined from the
+	// durations table when the anime is served to Mobile (GET /api/animes, GET /api/animes/{id}
+	// and the changes feed). Long is decided by Bridge, so Mobile computes nothing. omitempty: an
+	// anime with no stored duration omits the field, and an absent field means "no durations".
+	Episodes []EpisodeLength `json:"episodes,omitempty"`
 	// ModifiedAt echoes the bridge-private OCC version token (SDD-30
 	// ADR-30-1/30-5) so the mobile client can round-trip it back as
 	// AnimePatch.Base on its next write. Always present (not a pointer):
@@ -234,6 +239,14 @@ type EpisodeScheduleItem struct {
 	LongNextEpisode *LongEpisodeMark `json:"longNextEpisode,omitempty"`
 	LastWatched     *int64           `json:"lastWatched,omitempty"`
 	FirstWatched    *int64           `json:"firstWatched,omitempty"`
+}
+
+// EpisodeLength is one episode of MobileAnime.Episodes: its number, its stored runtime in whole
+// minutes, and whether it runs long, as decided by Bridge.
+type EpisodeLength struct {
+	Episode int  `json:"episode"`
+	Minutes int  `json:"minutes"`
+	Long    bool `json:"long"`
 }
 
 // LongEpisodeMark carries one Today mark: the NEXT episode number and its measured runtime in

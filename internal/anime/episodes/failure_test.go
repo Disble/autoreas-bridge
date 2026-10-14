@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"strings"
 	"testing"
+	"time"
 
 	"autoreas-bridge/internal/anime/episodes"
 )
@@ -43,7 +44,7 @@ func exportAll(ctx context.Context, db *sql.DB) (int, error) {
 // importOne runs the backup import over db with one valid record.
 func importOne(ctx context.Context, db *sql.DB) (int, error) {
 	line := `{"anime_id":"a","episode":1,"duration_ms":1000,"source":"measured","updated_at_ms":1}` + "\n"
-	return episodes.ImportEpisodeDurations(db)(ctx, strings.NewReader(line))
+	return episodes.ImportEpisodeDurations(db, time.Now)(ctx, strings.NewReader(line))
 }
 
 // TestDatabaseFailuresReturnAnErrorAndAZeroCount forces each real SQLite

@@ -66,12 +66,24 @@ type Pending struct {
 type Store struct {
 	db  *sql.DB
 	now func() time.Time
+	// onMarked runs after a committed write that marked an anime pending; nil
+	// runs nothing (see OnPendingMarked).
+	onMarked func()
 }
 
 // NewStore builds a SQLite-backed duration store; now supplies every
 // updated_at_ms and marked_at_ms the store writes.
 func NewStore(db *sql.DB, now func() time.Time) *Store {
 	return &Store{db: db, now: now}
+}
+
+// OnPendingMarked returns a copy of the store that calls fn after every
+// committed write that marked an anime pending announce, outside the
+// transaction. fn must not block: it is meant to wake the announcer.
+func (s *Store) OnPendingMarked(fn func()) *Store {
+	hooked := *s
+	hooked.onMarked = fn
+	return &hooked
 }
 
 const (
@@ -179,6 +191,9 @@ func (s *Store) write(ctx context.Context, animeID string, apply func(*sql.Tx, i
 	})
 	if err != nil {
 		return 0, fmt.Errorf("episode duration write for %q: %w", animeID, err)
+	}
+	if n > 0 && s.onMarked != nil {
+		s.onMarked()
 	}
 	return int(n), nil
 }

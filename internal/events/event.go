@@ -11,6 +11,8 @@ const (
 	EventNameSyncRequested = "sync.requested"
 	// EventNameSyncDeviceAcknowledged identifies device changelog-acknowledgment events.
 	EventNameSyncDeviceAcknowledged = "sync.device_acknowledged"
+	// EventNameEpisodeDurationsChanged identifies episode-duration announcement events.
+	EventNameEpisodeDurationsChanged = "episode.durations_changed"
 
 	// AnimeChangeTypeCreate marks a newly created anime snapshot.
 	AnimeChangeTypeCreate = "create"
@@ -64,6 +66,25 @@ type AnimeChangedEvent struct {
 // Name returns the bus event name for AnimeChangedEvent.
 func (e AnimeChangedEvent) Name() string {
 	return EventNameAnimeChanged
+}
+
+// EpisodeDurationsChangedEvent announces that the stored episode durations of one anime changed.
+//
+// It is NOT an anime write: the anime snapshot and its modified_at are untouched, so it never goes
+// through anime_changed_outbox and never reaches the AnimeChangedEvent subscribers (analysis D6).
+// Only the sync changelog recorder and the WebSocket hub subscribe to it. Payload is the anime's
+// current snapshot, the same bytes an AnimeChangedEvent carries, so the changelog row it produces is
+// an ordinary update row. EventID is deterministic per pending mark, so a re-announcement after a
+// crash is deduplicated by the changelog's unique source_event_id.
+type EpisodeDurationsChangedEvent struct {
+	EventID string
+	AnimeID string
+	Payload []byte
+}
+
+// Name returns the bus event name for EpisodeDurationsChangedEvent.
+func (e EpisodeDurationsChangedEvent) Name() string {
+	return EventNameEpisodeDurationsChanged
 }
 
 // AnimeUpdateRequestedEvent requests a write-back into the legacy anime store.

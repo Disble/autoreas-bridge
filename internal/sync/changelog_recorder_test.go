@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
@@ -185,5 +186,78 @@ func TestChangelogRowRecordsDerivedChangedFieldsEndToEnd(t *testing.T) {
 	}
 	if stored != `["cover","days"]` {
 		t.Fatalf("expected %s, got %s", `["cover","days"]`, stored)
+	}
+}
+
+func TestChangelogRecorderRecordsEpisodeDurationsAsAnOrdinaryUpdateRow(t *testing.T) {
+	t.Parallel()
+
+	bus := events.NewBus()
+	store := &stubChangelogStore{}
+	recorder := NewChangelogRecorder(bus, store)
+	recorder.Start(t.Context())
+
+	event := events.EpisodeDurationsChangedEvent{
+		EventID: "episode.durations_changed:anime-1:42",
+		AnimeID: "anime-1",
+		Payload: []byte(`{"_id":"anime-1"}`),
+	}
+	bus.Publish(event)
+
+	if store.insertCalls != 1 {
+		t.Fatalf("expected one changelog row, got %d", store.insertCalls)
+	}
+	got := store.lastEvent
+	if got.SourceEventID != event.EventID || got.AnimeID != event.AnimeID {
+		t.Fatalf("expected source event %q for %q, got %q for %q",
+			event.EventID, event.AnimeID, got.SourceEventID, got.AnimeID)
+	}
+	if got.ChangeType != ChangelogTypeUpdate || got.Status != "pending" || got.ChangedAtMs == 0 {
+		t.Fatalf("expected a stamped pending update row, got %+v", got)
+	}
+	if len(got.ChangedFields) != 1 || got.ChangedFields[0] != "episodes" {
+		t.Fatalf("expected changed fields [episodes], got %v", got.ChangedFields)
+	}
+	if string(got.SnapshotJSON) != string(event.Payload) {
+		t.Fatalf("expected the current snapshot %s, got %s", event.Payload, got.SnapshotJSON)
+	}
+
+	recorder.Stop()
+	bus.Publish(event)
+	if store.insertCalls != 1 {
+		t.Fatalf("expected no row after Stop, got %d", store.insertCalls)
+	}
+}
+
+func TestChangelogRecorderStopUnsubscribesAnimeChanges(t *testing.T) {
+	t.Parallel()
+
+	bus := events.NewBus()
+	store := &stubChangelogStore{}
+	recorder := NewChangelogRecorder(bus, store)
+	recorder.Start(t.Context())
+	recorder.Stop()
+
+	bus.Publish(events.AnimeChangedEvent{AnimeID: "anime-1", Payload: []byte(`{}`)})
+
+	if store.insertCalls != 0 {
+		t.Fatalf("expected no row after Stop, got %d", store.insertCalls)
+	}
+}
+
+func TestChangelogRecorderStampsRowsWithItsClock(t *testing.T) {
+	t.Parallel()
+
+	bus := events.NewBus()
+	store := &stubChangelogStore{}
+	recorder := NewChangelogRecorder(bus, store)
+	recorder.now = func() time.Time { return time.UnixMilli(1234) }
+	recorder.Start(t.Context())
+	t.Cleanup(recorder.Stop)
+
+	bus.Publish(events.EpisodeDurationsChangedEvent{EventID: "e-1", AnimeID: "anime-1"})
+
+	if store.lastEvent.ChangedAtMs != 1234 {
+		t.Fatalf("expected the recorder clock to stamp the row, got %d", store.lastEvent.ChangedAtMs)
 	}
 }
