@@ -34,7 +34,7 @@ This is the project's UI source of truth. **The mandate: never hand-roll a `<div
 | Card / panel container | `Card` (`.Content`) or `Surface` (`variant="default\|secondary\|tertiary"`) | bordered `<div>` |
 | Inline status banner | `Alert` (`status="default\|accent\|success\|warning\|danger"`, `.Indicator/.Content/.Title/.Description`) | colored `<div>` |
 | Dismiss / close | `CloseButton` (`onPress`, `aria-label`) | `<button>×` |
-| Tag / badge | `Chip` (`color=... size="sm" variant="soft\|tertiary"`, plain text child) | styled `<span>` |
+| Tag / badge | `Chip` with `variant="soft"` (see **Chips** below) | styled `<span>`; a bordered or outlined pill |
 | Scrollable region | `ScrollShadow` or `Table.ScrollContainer` | `overflow-auto` div (unless you need raw scroll control) |
 | Large **static** list (100s+ rows; count changes only on filter/search) | **`useProgressiveListWindow`** (`shared/hooks/use-progressive-list-window.ts`) → `{ scrollRef, onScroll, visibleCount }`; render `items.slice(0, visibleCount)` of selectable `Button` rows in a height-bounded `overflow-y-auto` div (short scrollbar that *grows*) | re-implementing the window per feature; a full mapped `Button` column (renders all 800); **ListBox + `Virtualizer`/`ListLayout` windowing** — tried and rejected here (see changelog `1.0.11`) |
 | Large **live** list (an event stream pushes items into a store) | The panel's own window reconciliation + **only** `isNearListBottom` from `shared/helpers/progressive-list.helpers.ts` for the scroll trigger (`RunHistoryPanel` is the reference) | `useProgressiveListWindow` — its render-phase reset snaps the user back to the first batch every time an event lands. See `docs/adr/012-progressive-list-rendering.md` |
@@ -161,6 +161,30 @@ Use the split-panel idea from "Filling horizontal space" for this case:
   third size (for example `size="inline"`), next to `compact`, with its own artwork class in
   `airis-empty-state.constants.ts` and a case in `airis-empty-states-fixture.tsx`. The mockup that
   set this pattern is the Editor "Episodes" section (artifact "Editor — Episode metadata").
+
+## Chips — one style: `soft`
+
+Every chip is HeroUI's **`variant="soft"`**: a tinted background (`--<color>-soft`) with its matching
+text (`--<color>-soft-foreground`) and **no border**. Pick the semantic `color` for the role
+(`accent`, `success`, `warning`, `danger`, `default`) and `size="sm"` by default.
+
+```tsx
+<Chip color="accent" size="sm" variant="soft">Unsaved</Chip>
+
+{/* With an icon, when the case calls for one */}
+<Chip color="accent" size="sm" variant="soft">
+  <Icon aria-hidden="true" className="size-3.5" icon={checkIcon} />
+  <Chip.Label>Origin</Chip.Label>
+</Chip>
+```
+
+- **The icon is optional, decided per case.** Add one at the start or the end only when it carries
+  meaning the text does not; decorative icons are `aria-hidden`. With an icon, wrap the text in
+  `Chip.Label` so the spacing is HeroUI's.
+- **Never** a bordered pill, an outline in the text color, or a hand-styled `<span>` that imitates a
+  chip. A mockup must draw chips the same way, so the reviewed design is the one that ships.
+- Do not use `primary` (solid), `secondary` or `tertiary` for new chips. This rule is not retroactive:
+  chips that use another variant, or none, move to `soft` in the unit that next touches their file.
 
 ## Color conventions (semantic, NOT raw colors)
 
