@@ -35,7 +35,7 @@ export function OverviewFinalLineup() {
         {view.display === 'unrecorded' ? (
           <AirisEmptyState
             description={OVERVIEW_LINEUP_COPY.notRecordedDescription}
-            imageSrc={todayAirisArtwork}
+            kind="caught-up"
             size="row"
             title={OVERVIEW_LINEUP_COPY.notRecordedTitle}
           />
@@ -45,6 +45,7 @@ export function OverviewFinalLineup() {
           <AirisEmptyState
             description={OVERVIEW_LINEUP_COPY.emptyDescription}
             imageSrc={todayAirisArtwork}
+            kind="waiting-on-step"
             size="row"
             title={OVERVIEW_LINEUP_COPY.emptyTitle}
           />

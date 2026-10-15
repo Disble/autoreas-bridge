@@ -1,4 +1,5 @@
 import { Card, Chip } from '@heroui/react';
+import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
 import type { SyncingAnimePanelProps } from './syncing-anime-panel.types';
 import {
   SYNCING_ANIME_PANEL_CARD_CLASS,
@@ -32,10 +33,7 @@ export function SyncingAnimePanel(props: Readonly<SyncingAnimePanelProps>) {
         ) : null}
 
         {isEmpty ? (
-          <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-5 py-8 text-center">
-            <p className="text-sm font-medium text-foreground">{SYNCING_ANIME_PANEL_EMPTY_TITLE}</p>
-            <p className="mt-2 text-sm text-muted">{SYNCING_ANIME_PANEL_EMPTY_DESCRIPTION}</p>
-          </div>
+          <AirisEmptyState description={SYNCING_ANIME_PANEL_EMPTY_DESCRIPTION} kind="caught-up" size="section" title={SYNCING_ANIME_PANEL_EMPTY_TITLE} />
         ) : null}
 
         {!isLoading && !isEmpty ? (

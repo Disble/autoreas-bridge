@@ -149,6 +149,7 @@ describe('DailyBoard', () => {
       [VER_HOY_HEADING, 'Nothing being watched.'],
       [VISTO_HEADING, 'Nothing watched yet.'],
     ]);
+    expect(container.querySelectorAll('[data-airis-icon="caught-up"]')).toHaveLength(3);
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
@@ -254,6 +255,7 @@ describe('DailyBoard', () => {
     mockHook({ readOnly: true, boardMode: 'plain' });
     render(<DailyBoard />);
     expect(cardHeadings()).toEqual(['Season animes', 'No animes created.']);
+    expect(document.querySelector('[data-airis-icon="caught-up"]')).not.toBeNull();
     expect(screen.queryByRole('list')).toBeNull();
   });
 

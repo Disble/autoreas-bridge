@@ -48,7 +48,8 @@ describe('SyncingAnimePanel', () => {
 
     render(<SyncingAnimePanel refreshToken={0} />);
 
-    expect(screen.getByText('Nothing is syncing right now.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: 'Nothing is syncing right now.' })).toBeInTheDocument();
+    expect(document.querySelector('[data-airis-icon="caught-up"]')).not.toBeNull();
   });
 
   it('announces loading through a named status region', () => {

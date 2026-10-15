@@ -63,6 +63,15 @@ describe('OverviewFinalLineup', () => {
     expect(visibleStates()).toEqual(want);
   });
 
+  it.each([
+    { display: 'unrecorded' as const, kind: 'caught-up' },
+    { display: 'empty' as const, kind: 'waiting-on-step' },
+  ])('draws the $display lineup as a $kind row', ({ display, kind }) => {
+    renderWith({ display });
+
+    expect(document.querySelector(`[data-airis-icon="${kind}"]`)).not.toBeNull();
+  });
+
   it('shows the read failure message', () => {
     renderWith({ display: 'failed', errorMessage: 'boom' });
 

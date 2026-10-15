@@ -1,5 +1,4 @@
 import { Card, Chip } from '@heroui/react';
-import todayAirisArtwork from '../../../../assets/airis-empty-states/today.webp';
 import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
 import type { DailyBoardSectionCardProps } from './daily-board.types';
 
@@ -22,7 +21,7 @@ export function DailyBoardSectionCard({ copy, count, countColor, children, foote
         <Card.Description>{copy.description}</Card.Description>
       </Card.Header>
       <Card.Content>
-        {count === 0 ? <AirisEmptyState description={copy.emptyDescription} imageSrc={todayAirisArtwork} size="row" title={copy.emptyTitle} /> : children}
+        {count === 0 ? <AirisEmptyState description={copy.emptyDescription} kind="caught-up" size="row" title={copy.emptyTitle} /> : children}
         {footer}
       </Card.Content>
     </Card>

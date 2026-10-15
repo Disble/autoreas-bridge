@@ -199,6 +199,8 @@ describe('OrderingBoard', () => {
 
     expect(screen.getByText(ORDERING_NOT_RECORDED_TITLE)).toBeInTheDocument();
     expect(screen.getByText(/closed before its ordering board was recorded/)).toBeInTheDocument();
+    expect(container.querySelector('[data-airis-icon="caught-up"]')).not.toBeNull();
+    expect(container.querySelector('img[aria-hidden="true"]')).toBeNull();
     expect(screen.queryByRole('status')).toBeNull();
     expect(container.querySelector('.alert--danger')).toBeNull();
     expect(screen.queryByText('Lunes')).toBeNull();

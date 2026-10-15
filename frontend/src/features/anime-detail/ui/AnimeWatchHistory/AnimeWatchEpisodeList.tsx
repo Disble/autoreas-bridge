@@ -61,7 +61,7 @@ export function AnimeWatchEpisodeList(props: Readonly<AnimeWatchEpisodeListProps
         <AirisEmptyState
           description={props.isPastWatch === true ? ANIME_WATCH_HISTORY_UNRECORDED_DESCRIPTION : ANIME_WATCH_HISTORY_EMPTY_DESCRIPTION}
           imageSrc={historyAirisArtwork}
-          size="section"
+          size={isTagged ? 'section' : 'row'}
           title={props.isPastWatch === true ? ANIME_WATCH_HISTORY_UNRECORDED_TITLE : ANIME_WATCH_HISTORY_EMPTY_TITLE}
         />
       ) : null}

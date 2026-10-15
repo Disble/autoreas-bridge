@@ -1,5 +1,4 @@
 import { Alert } from '@heroui/react';
-import todayAirisArtwork from '../../../../assets/airis-empty-states/today.webp';
 import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
 import { LoadingBars } from '../../../../shared/ui/LoadingBars/LoadingBars';
 import {
@@ -43,7 +42,7 @@ export function OrderingHistoryStates({ isHistoricalLoading, historicalRecorded,
       {!isHistoricalLoading && historicalError === undefined && !historicalRecorded ? (
         <AirisEmptyState
           description={ORDERING_NOT_RECORDED_DESCRIPTION}
-          imageSrc={todayAirisArtwork}
+          kind="caught-up"
           title={ORDERING_NOT_RECORDED_TITLE}
         />
       ) : null}

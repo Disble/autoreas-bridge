@@ -121,6 +121,14 @@ describe('AnimeWatchEpisodeList', () => {
     expect(screen.queryByRole('status')).toBeNull();
   });
 
+  it('draws a single watch empty list as a row without the mascot, since several watches can be open at once', () => {
+    renderList(1, { entries: [] });
+
+    expect(screen.getByText('No episode history yet')).toBeInTheDocument();
+    expect(document.querySelector('img[aria-hidden="true"]')).toBeNull();
+    expect(document.querySelector('[data-airis-icon="first-run"]')).not.toBeNull();
+  });
+
   it('shows the surface error alert, never a skeleton or empty state, when the request fails', () => {
     renderList(undefined, { entries: [entry({})], error: new Error('episode history service unavailable') });
 
