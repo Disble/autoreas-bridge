@@ -244,6 +244,22 @@ info:
     client's outbox is the only copy. `field` stays present only when a field
     was named and rejected.
 
+    2026-10-15 — library-root API consumer impact: ADDITIVE, one new optional
+    field on `MobileAnime`. `folderRelative` is the anime's `folder` below the
+    bridge's library root (ADR 027), `/`-separated, for example
+    `Date a Live/Date a Live II`. It is computed every time an anime is served
+    (`GET /api/animes`, `GET /api/animes/{id}`, and every `snapshot` of
+    `GET /api/animes/changes`) and never stored, so a snapshot always carries
+    the value for its current `folder`. It is omitted when the root is unset,
+    when `folder` is absent or empty, equal to the root, or outside it.
+    Matching ignores case and treats `\` and `/` alike, and cuts only at a
+    folder boundary. Known limitation: an inactive anime whose `folder` still
+    names a previous root stops carrying `folderRelative` on a later full
+    fetch; incremental changes never re-send it. Clients that ignore the field
+    behave exactly as before. The bridge's own settings key moved from
+    `downloads.root` to `library.root`, which is internal and never on the
+    wire.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}
@@ -378,6 +394,13 @@ components:
         folder:
           type: string
           nullable: true
+        folderRelative:
+          type: string
+          description: |
+            `folder` below the bridge's library root, `/`-separated (ADR 027).
+            Computed when served, never stored; omitted when `folder` is not
+            strictly inside the library root.
+          example: Date a Live/Date a Live II
         studios:
           type: string
           nullable: true

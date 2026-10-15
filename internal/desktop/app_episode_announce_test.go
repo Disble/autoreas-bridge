@@ -58,7 +58,7 @@ func TestEpisodeDurationReachesMobileWithoutTouchingTheAnime(t *testing.T) {
 		t.Errorf("the anime must be untouched: before %+v, after %+v", before, after)
 	}
 
-	_, feed := withEpisodeDurations(db, nil, bridgeSync.NewTriggerService(bus, changelog))
+	_, feed := withMobileProjection(db, nil, nil, bridgeSync.NewTriggerService(bus, changelog))
 	changes, _, err := feed.ListChangesAfterID(ctx, 0)
 	if err != nil {
 		t.Fatalf("changes feed: %v", err)

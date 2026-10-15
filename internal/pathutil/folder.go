@@ -21,6 +21,19 @@ func SanitizeFolderName(name string) string {
 	return strings.TrimRight(strings.Join(strings.Fields(b.String()), " "), ". ")
 }
 
+// RelativeFolder returns folder below root, `/`-separated, or "" when it is
+// not strictly inside root (ADR 027). Matching ignores case and treats `\`
+// and `/` alike, and it cuts only at a segment boundary, so `D:\Anime` never
+// claims `D:\Anime2\X`. Nested subfolders are kept whole.
+func RelativeFolder(root, folder string) string {
+	base := strings.TrimRight(strings.ReplaceAll(strings.TrimSpace(root), `\`, "/"), "/")
+	path := strings.ReplaceAll(strings.TrimSpace(folder), `\`, "/")
+	if base == "" || len(path) <= len(base) || path[len(base)] != '/' || !strings.EqualFold(path[:len(base)], base) {
+		return ""
+	}
+	return strings.Trim(path[len(base):], "/")
+}
+
 // DeriveFolder joins a configured root with a sanitized name without touching the filesystem.
 func DeriveFolder(root, name string) string {
 	if strings.TrimSpace(root) == "" {

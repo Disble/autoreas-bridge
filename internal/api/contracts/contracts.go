@@ -43,9 +43,13 @@ type MobileAnime struct {
 	Cover           *string          `json:"cover,omitempty"`
 	SourceURL       *string          `json:"sourceUrl,omitempty"`
 	Folder          *string          `json:"folder,omitempty"`
-	Studios         *string          `json:"studios,omitempty"`
-	Origin          *string          `json:"origin,omitempty"`
-	DurationMinutes *int             `json:"durationMinutes,omitempty"`
+	// FolderRelative is Folder below the library root, `/`-separated
+	// (ADR 027). It is computed whenever the anime is served to Mobile and
+	// never stored; omitted when Folder is not inside the library root.
+	FolderRelative  *string `json:"folderRelative,omitempty"`
+	Studios         *string `json:"studios,omitempty"`
+	Origin          *string `json:"origin,omitempty"`
+	DurationMinutes *int    `json:"durationMinutes,omitempty"`
 	// Repetitions is the typed repetition-history timeline (Anime Detail
 	// spec, "AnimeDetail DTO and GetAnimeDetail Binding"). omitempty keeps
 	// the majority of records (no repetition history) byte-identical on the
