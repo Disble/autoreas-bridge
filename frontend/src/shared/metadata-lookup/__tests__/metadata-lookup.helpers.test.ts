@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildUndoPatch,
+  formatCandidateSubtitle,
   meetsMinimumQueryLength,
   normalizeLookupQuery,
   rankCandidates,
+  rankLookupCandidates,
   toAnimeMetadataSelection,
 } from '../metadata-lookup.helpers';
 import type { AnimeMetadataCandidate, AnimeMetadataDetail } from '../metadata-lookup.types';
@@ -147,6 +149,26 @@ describe('rankCandidates', () => {
     const ranked = rankCandidates([unrelatedSameLength, exactSuffix], 'naruto');
 
     expect(ranked.map((entry) => entry.malId)).toEqual([1, 2]);
+  });
+});
+
+describe('rankLookupCandidates', () => {
+  it('orders any candidate shape by the title its getter reads', () => {
+    const pages = [
+      { pageURL: 'https://jkanime.net/starmyu-2/', label: 'Starmyu 2nd Season' },
+      { pageURL: 'https://jkanime.net/ao-ashi-2/', label: 'Ao Ashi Season 2' },
+    ];
+
+    const ranked = rankLookupCandidates(pages, 'Ao Ashi 2nd Season', (page) => page.label);
+
+    expect(ranked.map((page) => page.pageURL)).toEqual(['https://jkanime.net/ao-ashi-2/', 'https://jkanime.net/starmyu-2/']);
+  });
+});
+
+describe('formatCandidateSubtitle', () => {
+  it('joins the reported parts and skips the missing or empty ones', () => {
+    expect(formatCandidateSubtitle({ ...candidate(1, 'Ao Ashi'), mediaType: 'TV', startYear: 2022, score: '' })).toBe('TV · 2022');
+    expect(formatCandidateSubtitle(candidate(2, 'Ao Ashi'))).toBe('');
   });
 });
 

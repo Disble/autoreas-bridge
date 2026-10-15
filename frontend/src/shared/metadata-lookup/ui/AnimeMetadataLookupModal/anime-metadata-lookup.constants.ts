@@ -1,3 +1,5 @@
+import type { LookupModalCopy } from '../../../ui/LookupModal/lookup-modal.types';
+
 /**
  * Accessible name of the "Fetch metadata" action (`anime-metadata-autofill`
  * spec, "Fetch-metadata action availability"). One constant so Create and
@@ -32,19 +34,19 @@ export const METADATA_LOOKUP_CONFIRM_LABEL = 'Use this match';
 export const METADATA_LOOKUP_CANCEL_LABEL = 'Cancel';
 
 /**
- * Shape shared by the real `AnimeMetadataLookupCandidate` row and its
- * `AnimeMetadataLookupCandidateSkeleton` placeholder, so the two cannot
- * drift apart silently (design D8, mirroring `CATALOG_LIST_ROW_CLASS`).
+ * Every string the MyAnimeList lookup hands the shared `LookupModal` shell,
+ * composed from the named constants above so tests and sibling features keep
+ * importing those.
  */
-export const METADATA_LOOKUP_CANDIDATE_ROW_CLASS =
-  'min-h-14 h-auto flex w-full items-center justify-start gap-3 rounded-2xl border border-white/10 bg-white/[0.02] px-3 py-1.5 text-left transition-colors hover:bg-white/[0.04]';
-
-/**
- * The cover slot every candidate row reserves, real or placeholder. Fixed on
- * BOTH axes and `overflow-hidden` so the artwork fills it rather than sizing
- * it: MyAnimeList returns covers at whatever aspect ratio the title has, and
- * sizing the `<img>` itself let those ratios set each row's thumbnail width,
- * which pushed every title to a different left edge.
- */
-export const METADATA_LOOKUP_CANDIDATE_COVER_SLOT_CLASS =
-  'size-10 shrink-0 overflow-hidden rounded';
+export const METADATA_LOOKUP_COPY: LookupModalCopy = {
+  heading: METADATA_LOOKUP_TRIGGER_LABEL,
+  searchLabel: 'Search MyAnimeList',
+  searchPlaceholder: 'Search MyAnimeList...',
+  loadingLabel: METADATA_LOOKUP_LOADING_LABEL,
+  errorTitle: METADATA_LOOKUP_ERROR_TITLE,
+  emptyTitle: (query) => `No MyAnimeList matches for "${query}"`,
+  emptyDescription: 'Try a shorter title or a different romanization in the search field above.',
+  listLabel: 'MyAnimeList candidates',
+  confirmLabel: METADATA_LOOKUP_CONFIRM_LABEL,
+  cancelLabel: METADATA_LOOKUP_CANCEL_LABEL,
+};

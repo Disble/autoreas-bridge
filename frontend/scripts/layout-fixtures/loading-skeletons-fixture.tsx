@@ -10,7 +10,7 @@ import { NetworkTable } from '../../src/features/network/ui/NetworkTable/Network
 import { KeymapBindingRow } from '../../src/shared/keyboard/ui/KeymapBindingRow/KeymapBindingRow';
 import { KeymapPanelSkeleton } from '../../src/shared/keyboard/ui/KeymapPanel/KeymapPanelSkeleton';
 import { AnimeMetadataLookupCandidate } from '../../src/shared/metadata-lookup/ui/AnimeMetadataLookupModal/AnimeMetadataLookupCandidate';
-import { AnimeMetadataLookupCandidateSkeleton } from '../../src/shared/metadata-lookup/ui/AnimeMetadataLookupModal/AnimeMetadataLookupCandidateSkeleton';
+import { LookupCandidateSkeleton } from '../../src/shared/ui/LookupModal/LookupCandidateSkeleton';
 import { checkThePage, measureWhenReady, VerdictReport, type Check } from './verdict';
 
 /**
@@ -142,7 +142,7 @@ const COMPARISONS: readonly SkeletonComparison[] = [
   },
   {
     subject: 'metadata-lookup',
-    rowTestId: 'metadata-lookup-skeleton-row',
+    rowTestId: 'lookup-skeleton-row',
     real: (
       <AnimeMetadataLookupCandidate
         candidate={METADATA_LOOKUP_CANDIDATE}
@@ -150,7 +150,7 @@ const COMPARISONS: readonly SkeletonComparison[] = [
         onSelect={() => undefined}
       />
     ),
-    skeleton: <AnimeMetadataLookupCandidateSkeleton />,
+    skeleton: <LookupCandidateSkeleton />,
   },
   {
     subject: 'today',

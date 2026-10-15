@@ -1,3 +1,5 @@
+import type { LookupModalState } from '../ui/LookupModal/lookup-modal.types';
+
 /**
  * One MyAnimeList search result rendered as a candidate card, in
  * MyAnimeList's own vocabulary. The MAL-to-bridge translation happens only
@@ -42,7 +44,7 @@ export interface AnimeMetadataSelection {
  * four values is active at any time, so no reachable state renders two of
  * the modal's mutually exclusive branches together.
  */
-export type LookupState = 'idle' | 'loading' | 'resolved' | 'failed';
+export type LookupState = LookupModalState;
 
 /**
  * The confirmed candidate's full known MyAnimeList data -- the detail page's

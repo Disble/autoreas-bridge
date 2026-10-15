@@ -1,18 +1,11 @@
-import { Alert, Button, Modal, SearchField } from '@heroui/react';
+import magicStickIcon from '@iconify-icons/solar/magic-stick-3-bold-duotone';
 import { useState } from 'react';
-import { AirisEmptyState } from '../../../ui/AirisEmptyState/AirisEmptyState';
+import { LookupModal } from '../../../ui/LookupModal/LookupModal';
+import { LookupTrigger } from '../../../ui/LookupModal/LookupTrigger';
 import { rankCandidates } from '../../metadata-lookup.helpers';
 import type { AnimeMetadataSelection } from '../../metadata-lookup.types';
-import {
-  METADATA_LOOKUP_CANCEL_LABEL,
-  METADATA_LOOKUP_CONFIRM_LABEL,
-  METADATA_LOOKUP_ERROR_TITLE,
-  METADATA_LOOKUP_LOADING_LABEL,
-  METADATA_LOOKUP_TRIGGER_LABEL,
-} from './anime-metadata-lookup.constants';
+import { METADATA_LOOKUP_COPY, METADATA_LOOKUP_TRIGGER_LABEL } from './anime-metadata-lookup.constants';
 import { AnimeMetadataLookupCandidate } from './AnimeMetadataLookupCandidate';
-import { AnimeMetadataLookupCandidateSkeleton } from './AnimeMetadataLookupCandidateSkeleton';
-import { AnimeMetadataLookupTrigger } from './AnimeMetadataLookupTrigger';
 import type { AnimeMetadataLookupTriggerVariant } from './anime-metadata-lookup.types';
 import type { AnimeMetadataLookupSource } from './use-anime-metadata-lookup';
 import { useAnimeMetadataLookup } from './use-anime-metadata-lookup';
@@ -93,94 +86,36 @@ export function AnimeMetadataLookupModal({
   }
 
   return (
-    <Modal isOpen={isOpen} onOpenChange={handleOpenChange}>
-      {/* HeroUI's Modal treats this Button as its own trigger and calls
-          onOpenChange when it is pressed -- no onPress handler needed here. */}
-      <AnimeMetadataLookupTrigger isDisabled={name === ''} variant={triggerVariant} />
-      <Modal.Backdrop variant="blur">
-        <Modal.Container>
-          <Modal.Dialog className="sm:max-w-lg">
-            <Modal.Header>
-              <Modal.Heading>{METADATA_LOOKUP_TRIGGER_LABEL}</Modal.Heading>
-            </Modal.Header>
-            <Modal.Body className="flex flex-col gap-4">
-              <SearchField aria-label="Search MyAnimeList" fullWidth onChange={onQueryChange} value={query}>
-                <SearchField.Group>
-                  <SearchField.SearchIcon />
-                  <SearchField.Input placeholder="Search MyAnimeList..." />
-                  <SearchField.ClearButton />
-                </SearchField.Group>
-              </SearchField>
-
-              {state === 'loading' ? (
-                <div
-                  aria-labelledby="metadata-lookup-loading-label"
-                  aria-live="polite"
-                  className="flex flex-col gap-2"
-                  role="status"
-                >
-                  <span className="sr-only" id="metadata-lookup-loading-label">
-                    {METADATA_LOOKUP_LOADING_LABEL}
-                  </span>
-                  <AnimeMetadataLookupCandidateSkeleton />
-                </div>
-              ) : null}
-
-              {state === 'failed' ? (
-                <Alert status="danger">
-                  <Alert.Content>
-                    <Alert.Title>{METADATA_LOOKUP_ERROR_TITLE}</Alert.Title>
-                    <Alert.Description>{errorMessage}</Alert.Description>
-                  </Alert.Content>
-                </Alert>
-              ) : null}
-
-              {state === 'resolved' && rankedCandidates.length === 0 ? (
-                <AirisEmptyState
-                  description="Try a shorter title or a different romanization in the search field above."
-                  kind="filtered"
-                  title={`No MyAnimeList matches for "${query}"`}
-                />
-              ) : null}
-
-              {state === 'resolved' && rankedCandidates.length > 0 ? (
-                <div aria-label="MyAnimeList candidates" className="flex max-h-96 flex-col gap-2 overflow-y-auto pr-1">
-                  {rankedCandidates.map((candidate) => (
-                    <AnimeMetadataLookupCandidate
-                      candidate={candidate}
-                      isSelected={candidate.malId === selectedMalId}
-                      key={candidate.malId}
-                      onSelect={onSelectCandidate}
-                    />
-                  ))}
-                </div>
-              ) : null}
-
-              {confirmError === '' ? null : (
-                <Alert status="danger">
-                  <Alert.Content>
-                    <Alert.Title>{METADATA_LOOKUP_ERROR_TITLE}</Alert.Title>
-                    <Alert.Description>{confirmError}</Alert.Description>
-                  </Alert.Content>
-                </Alert>
-              )}
-            </Modal.Body>
-            <Modal.Footer>
-              <Button variant="tertiary" onPress={() => handleOpenChange(false)}>
-                {METADATA_LOOKUP_CANCEL_LABEL}
-              </Button>
-              <Button
-                isDisabled={selectedMalId === null}
-                isPending={isConfirming}
-                variant="primary"
-                onPress={() => void handleConfirm()}
-              >
-                {METADATA_LOOKUP_CONFIRM_LABEL}
-              </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+    <LookupModal
+      confirmError={confirmError}
+      copy={METADATA_LOOKUP_COPY}
+      errorMessage={errorMessage}
+      hasCandidates={rankedCandidates.length > 0}
+      isConfirmDisabled={selectedMalId === null}
+      isConfirming={isConfirming}
+      isOpen={isOpen}
+      query={query}
+      state={state}
+      trigger={
+        <LookupTrigger
+          icon={magicStickIcon}
+          isDisabled={name === ''}
+          label={METADATA_LOOKUP_TRIGGER_LABEL}
+          variant={triggerVariant}
+        />
+      }
+      onConfirm={() => void handleConfirm()}
+      onOpenChange={handleOpenChange}
+      onQueryChange={onQueryChange}
+    >
+      {rankedCandidates.map((candidate) => (
+        <AnimeMetadataLookupCandidate
+          candidate={candidate}
+          isSelected={candidate.malId === selectedMalId}
+          key={candidate.malId}
+          onSelect={onSelectCandidate}
+        />
+      ))}
+    </LookupModal>
   );
 }

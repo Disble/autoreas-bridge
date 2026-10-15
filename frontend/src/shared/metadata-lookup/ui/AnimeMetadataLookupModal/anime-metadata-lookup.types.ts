@@ -1,4 +1,5 @@
 import type { AnimeMetadataCandidate } from '../../metadata-lookup.types';
+import type { LookupTriggerVariant } from '../../../ui/LookupModal/lookup-modal.types';
 
 /**
  * One `SearchMyAnimeList` result exactly as the Wails binding returns it
@@ -50,12 +51,14 @@ export interface AnimeMetadataLookupSource {
  * How the lookup's trigger presents itself: the visible "Fetch metadata" text
  * button forms use, or the round icon-only button a dense row action group uses.
  */
-export type AnimeMetadataLookupTriggerVariant = 'text' | 'icon';
+export type AnimeMetadataLookupTriggerVariant = LookupTriggerVariant;
 
-/** Props for the button that opens the lookup modal. */
-export interface AnimeMetadataLookupTriggerProps {
-  /** Which presentation to render; both open the same modal. */
-  readonly variant: AnimeMetadataLookupTriggerVariant;
-  /** True while there is no name to search for. */
-  readonly isDisabled: boolean;
+/** Presentation-only inputs for one MyAnimeList candidate row in the lookup modal's list. */
+export interface AnimeMetadataLookupCandidateProps {
+  /** The MyAnimeList search result this row renders, in its own vocabulary. */
+  readonly candidate: AnimeMetadataCandidate;
+  /** Whether this is the row the user has currently highlighted. */
+  readonly isSelected: boolean;
+  /** Invoked with the candidate's `malId` when the row is pressed. */
+  readonly onSelect: (malId: number) => void;
 }

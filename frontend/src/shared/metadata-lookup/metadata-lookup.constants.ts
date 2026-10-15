@@ -37,13 +37,6 @@ export const METADATA_LOOKUP_KIND_MAP: Readonly<Record<string, string>> = {
 };
 
 /**
- * How many placeholder rows the lookup modal's loading skeleton renders
- * (design D8), mirroring the row count of sibling list skeletons in this
- * repository (e.g. `HISTORY_TABLE_SKELETON_ROW_COUNT`).
- */
-export const METADATA_LOOKUP_SKELETON_ROW_COUNT = 5;
-
-/**
  * MyAnimeList's literal `Episodes:` text for an anime that has not aired
  * long enough to report a count -- a legitimate absence, not a parse
  * failure (design's Field Mapping table). `internal/myanimelist/detail.go`

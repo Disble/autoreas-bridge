@@ -96,13 +96,38 @@ function similarityRatio(title: string, query: string): number {
 }
 
 /**
- * Re-scores MyAnimeList's own search results by string similarity to the
- * typed query, for presentation order only (design D11). MyAnimeList's own
- * ranking is Elasticsearch-backed and can rank a same-franchise sequel
- * above the title the user actually typed; the user always confirms one
- * candidate, so this never changes which candidates are offered -- only
- * where the eye lands first. `AnimeMetadataCandidate` carries exactly one
- * title-bearing field today (`name`); this is the only variant scored.
+ * Re-scores any lookup's search results by string similarity between each
+ * candidate's title and the typed query, for presentation order only (design
+ * D11). A source's own ranking can place a same-franchise sequel above the
+ * title the user actually typed; the user always confirms one candidate, so
+ * this never changes which candidates are offered -- only where the eye
+ * lands first. Equal scores keep the source's own order (stable sort).
+ * @param candidates The candidates in the source's own order.
+ * @param query The query the user typed (raw or normalized).
+ * @param getTitle Reads the one title-bearing field of a candidate.
+ * @returns A new array holding the same candidates, most similar first.
+ */
+export function rankLookupCandidates<TCandidate>(
+  candidates: readonly TCandidate[],
+  query: string,
+  getTitle: (candidate: TCandidate) => string,
+): readonly TCandidate[] {
+  const foldedQuery = foldForComparison(query);
+
+  const scored = candidates.map((candidate) => ({
+    candidate,
+    score: similarityRatio(foldForComparison(getTitle(candidate)), foldedQuery),
+  }));
+
+  scored.sort((left, right) => right.score - left.score);
+
+  return scored.map((entry) => entry.candidate);
+}
+
+/**
+ * Ranks MyAnimeList's own search results by their one title-bearing field
+ * (`name`) through {@link rankLookupCandidates}. MyAnimeList's ranking is
+ * Elasticsearch-backed and can rank a sequel above the typed title.
  * @param candidates The candidates in MyAnimeList's own order.
  * @param query The query the user typed (raw or normalized).
  * @returns A new array holding the same candidates, most similar first.
@@ -111,16 +136,21 @@ export function rankCandidates(
   candidates: readonly AnimeMetadataCandidate[],
   query: string,
 ): readonly AnimeMetadataCandidate[] {
-  const foldedQuery = foldForComparison(query);
+  return rankLookupCandidates(candidates, query, (candidate) => candidate.name);
+}
 
-  const scored = candidates.map((candidate) => ({
-    candidate,
-    score: similarityRatio(foldForComparison(candidate.name), foldedQuery),
-  }));
-
-  scored.sort((left, right) => right.score - left.score);
-
-  return scored.map((entry) => entry.candidate);
+/**
+ * Formats a MyAnimeList candidate's subtitle line -- format, year, and score
+ * -- from fields the search payload alone already carries, so a row never
+ * needs a detail-page fetch to render (design's Field Mapping table:
+ * `mediaType`, `startYear` and `score` all come from `prefix.json`).
+ * @param candidate The candidate whose subtitle is being built.
+ * @returns The parts joined by " · ", or `''` when MyAnimeList reported none of them.
+ */
+export function formatCandidateSubtitle(candidate: AnimeMetadataCandidate): string {
+  return [candidate.mediaType, candidate.startYear?.toString(), candidate.score]
+    .filter((part): part is string => part !== undefined && part !== '')
+    .join(' · ');
 }
 
 /**
