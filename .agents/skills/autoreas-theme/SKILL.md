@@ -1,338 +1,115 @@
 ---
 name: autoreas-theme
-description: "Living design-system guide for the autoreas-bridge frontend. Use BEFORE building or refactoring ANY UI under frontend/src — it tells you which HeroUI v3 component to use instead of hand-rolling divs/buttons/tables, the project's semantic color tokens, and the domain/level color conventions. Keywords: theme, design system, UI, rebrand, restyle, frontend component, HeroUI, Tailwind, styling, feature UI."
+description: "Design-system fundamentals for the autoreas-bridge frontend, with an index into docs/design for the detail. Use BEFORE building or refactoring ANY UI under frontend/src: which HeroUI v3 component to use instead of hand-rolling divs/buttons/tables, semantic color tokens, chips, the loading/empty/error states, empty-state kinds and the mascot, and mockup fidelity and pricing. Keywords: theme, design system, UI, rebrand, restyle, frontend component, HeroUI, Tailwind, styling, feature UI, empty state, skeleton, mockup."
 metadata:
   author: autoreas-bridge
-  version: "1.3.0"
+  version: "2.0.0"
   scope: project
   updates: living
 ---
 
-# autoreas-bridge — Theme & Design System (living)
+# autoreas-bridge — design system fundamentals
 
-This is the project's UI source of truth. **The mandate: never hand-roll a `<div>`/`<button>`/`<table>`/`<input>` when a HeroUI v3 primitive exists.** HeroUI runs on React Aria — you get focus management, keyboard nav, and ARIA for free. Rebuilding that by hand is a regression, not a redesign.
+This skill holds only the rules every UI change must know. The detail lives in `docs/design/`
+(index: `docs/design/README.md`). When code and docs disagree, the code wins; fix the doc in the
+same unit.
 
-> Cautionary tale: the `network` feature was originally built with raw HTML and had **1/8** components on HeroUI while the rest of the app used it in 18 files. It was migrated to **8/8**. Do NOT recreate that drift. If you find a feature on raw HTML, prefer migrating it to HeroUI.
+## 1. HeroUI first
 
-## Stack (verified)
+Never hand-roll a `<div>` / `<button>` / `<table>` / `<input>` when a HeroUI v3 primitive exists.
+HeroUI runs on React Aria; rebuilding focus, keyboard and ARIA by hand is a regression. Use compound
+components (`Card.Content`, `Tabs.Tab`) and `onPress`, not `onClick`. No provider is needed. The
+installed package wins over docs: verify exports in `node_modules` when versions drift.
 
-- **HeroUI v3** (`@heroui/react`, `@heroui/styles` — `^3.2.x`) on **Tailwind CSS v4** + **React Aria**.
-- `frontend/src/style.css` is just: `@import "tailwindcss";` then `@import "@heroui/styles";` (order matters). **No theme overrides** — tokens are HeroUI defaults.
-- **No provider** needed (v3). Use **compound components** (`Card.Content`, `Tabs.Tab`, `Table.Row`). Use **`onPress`**, not `onClick`, on HeroUI interactive components.
-- For exact component APIs, fetch live docs via the `heroui-react` skill (`node scripts/get_component_docs.mjs <Component>`). The repo version may be ahead of that skill's cache — **code/docs of the installed version win**.
-
-## Component mapping — what to reach for
-
-| Need | Use (HeroUI v3) | Do NOT |
-|------|-----------------|--------|
-| Heading / body text | Installed `@heroui/react@3.2.1` exports `Typography` (`type="h1".."h6" \| "body" \| "body-sm" \| "code"`, `color="muted"`). Verify `node_modules` exports when package versions drift. | raw `<h1>/<p>` or unverified stale-node_modules imports |
-| Text / search filter | `SearchField` (`.Group/.SearchIcon/.Input/.ClearButton`) or `Input` | raw `<input>` |
-| Single-select filter row | `ToggleButtonGroup` + `ToggleButton` (renders a **radiogroup** → `role="radio"`, `disallowEmptySelection`) | rows of `<button>` pills |
-| Dropdown select | `Select` + `ListBox` + `ListBox.Item` | raw `<select>` |
-| Tabbed sections | `Tabs` (`.ListContainer/.List/.Tab/.Panel`, `selectedKey`/`onSelectionChange`) | `<button>` tab strip |
-| Data grid / log table | `Table` (`.ScrollContainer/.Content/.Header/.Column/.Body/.Row/.Cell`) | raw `<table>` |
-| Card / panel container | `Card` (`.Content`) or `Surface` (`variant="default\|secondary\|tertiary"`) | bordered `<div>` |
-| Inline status banner | `Alert` (`status="default\|accent\|success\|warning\|danger"`, `.Indicator/.Content/.Title/.Description`) | colored `<div>` |
-| Dismiss / close | `CloseButton` (`onPress`, `aria-label`) | `<button>×` |
-| Tag / badge | `Chip` (`color=... size="sm" variant="soft\|tertiary"`, plain text child) | styled `<span>` |
-| Scrollable region | `ScrollShadow` or `Table.ScrollContainer` | `overflow-auto` div (unless you need raw scroll control) |
-| Large **static** list (100s+ rows; count changes only on filter/search) | **`useProgressiveListWindow`** (`shared/hooks/use-progressive-list-window.ts`) → `{ scrollRef, onScroll, visibleCount }`; render `items.slice(0, visibleCount)` of selectable `Button` rows in a height-bounded `overflow-y-auto` div (short scrollbar that *grows*) | re-implementing the window per feature; a full mapped `Button` column (renders all 800); **ListBox + `Virtualizer`/`ListLayout` windowing** — tried and rejected here (see changelog `1.0.11`) |
-| Large **live** list (an event stream pushes items into a store) | The panel's own window reconciliation + **only** `isNearListBottom` from `shared/helpers/progressive-list.helpers.ts` for the scroll trigger (`RunHistoryPanel` is the reference) | `useProgressiveListWindow` — its render-phase reset snaps the user back to the first batch every time an event lands. See `docs/adr/012-progressive-list-rendering.md` |
-| Status column in a list row | One `shrink-0` fixed-width slot + `min-w-0 flex-1` name, with a **one-word** tag | a full sentence inline next to the name — it makes row width track the message and repeats identically on every row |
-| **Unresolved request, nothing loaded yet** | A shape-mirroring **skeleton** in a status region, or **`LoadingBars`** (`shared/ui/LoadingBars/`) when the placeholder is a stack of uniform bars. See the mandatory section below | a sentence like "Loading animes…", a lone `Spinner`, or a skeleton with no `role="status"` |
-| **Refetching with rows already on screen** | **Keep the rows**: `aria-busy` plus a discreet visible hint in the surface's own status line (Activity rails: `TRANSACTION_UPDATING_STATE_MESSAGE` / `NETWORK_UPDATING_STATE_MESSAGE`) | swapping a skeleton in on every keystroke — the 2026-09-21 flicker report, and on a table the all-disabled collection that wedges React Aria |
-| **Resolved-empty result** | **`AirisEmptyState`** (`shared/ui/AirisEmptyState/`) with surface-owned copy and at most one recovery action | a bare "No results" line, or an empty state that renders while the request is still unresolved |
-
-## Loading and empty states — MANDATORY
-
-Four states, one answer each, no exceptions — the fourth was added 2026-09-21 after the Activity
-flicker report. A surface that shows a sentence while it loads, or a spinner alone, is not finished.
-
-| State | What to render |
-|-------|----------------|
-| Request unresolved, nothing loaded yet | A **skeleton mirroring the shape of the content that will replace it**, inside a status region |
-| Refetching while rows are already on screen | **The rows themselves** — `aria-busy` plus a discreet visible hint in the surface's status line, and no skeleton. See "Settle the typing before you query" below |
-| Request resolved, nothing to show | **`AirisEmptyState`** — artwork, surface-owned copy, at most one recovery action |
-| Request failed | The surface's error `Alert`. Never an empty state, never a skeleton |
-
-### The states are EXCLUSIVE — this is the one that gets missed
-
-The placeholder **replaces** the content. It is not a block you add above it. Gate the content branch
-on the request, never on the collection alone:
-
-```tsx
-{/* WRONG — both blocks render together on any reload that keeps prior data */}
-{isLoading ? <XSkeleton /> : null}
-<div>{rows.map(renderRow)}</div>
-
-{/* WRONG for the same reason — `rows.length > 0` is true while reloading */}
-{rows.length > 0 ? <div>{rows.map(renderRow)}</div> : null}
-
-{/* RIGHT */}
-{isLoading ? <XSkeleton /> : null}
-<div>{isLoading ? null : rows.map(renderRow)}</div>
-```
-
-Why it slips through: a surface that refetches keeps the previous rows in state while the next request
-is in flight, so `isLoading` and `rows.length > 0` are BOTH true. On first mount they never are, so the
-bug is invisible until someone switches a filter, a day, or a tab. It shipped on three surfaces here
-before a user screenshotted a skeleton block stacked on top of the real cards.
-
-Nuance (2026-09-21, owner decision): "exclusive" bans a placeholder rendered ON TOP OF real content. It
-does not require a placeholder to appear at all. When a refetch runs while rows are already on screen,
-the correct shape is **the rows plus `aria-busy` plus a discreet visible hint** in the surface's own
-status line — the skeleton belongs to a surface that has nothing to show yet. The Activity rails do
-this with two flags (`isLoading` → skeleton, `isUpdating` → rows plus hint) so that no keystroke can
-flash a skeleton.
-
-**Every loading test must assert the negative**, or it will not catch this:
-
-```ts
-expect(await screen.findByRole('status', { name: LABEL })).toBeInTheDocument();
-expect(screen.queryByRole('heading', { name: 'A real row' })).toBeNull(); // ← the half that matters
-```
-
-Asserting only that the skeleton appears, and that it disappears once resolved, passes happily while
-both blocks render at once. That exact gap is how this shipped.
-
-### The status region — copy this exactly
-
-```tsx
-<div aria-labelledby="x-loading-label" aria-live="polite" role="status">
-  <span className="sr-only" id="x-loading-label">{LOADING_LABEL}</span>
-  {placeholder}
-</div>
-```
-
-Both halves are load-bearing, and the reason is not obvious:
-
-- The `sr-only` span is what a polite live region **announces**. A `Skeleton` is a decorative `div`
-  and contributes no text, so a region holding only skeletons announces nothing.
-- **`aria-labelledby` is required, not optional.** `role="status"` takes its accessible name from the
-  author; ARIA's name-from-content allowlist excludes it. A region named only by its contents computes
-  an accessible name of `""`, and `getByRole('status', { name })` fails against it. This cost a full
-  RED→GREEN cycle to discover — do not re-derive it.
-
-Tables cannot nest that region inside table markup: put a visually hidden status region **beside** the
-table and set `aria-busy` on the table while loading.
-
-### Shape-mirroring, and why it is the whole point
-
-A skeleton beats a spinner only because it stops the content jumping when it arrives. That makes the
-placeholder's **height** a contract, not a detail:
-
-- Share ONE row-shape class between the real row and its placeholder so the two cannot drift
-  (`CATALOG_LIST_ROW_CLASS`, `ANIME_EDITOR_LIST_ROW_CLASS`, `EPISODE_COVER_SLOT_CLASS`).
-- Render **more than one** placeholder row for list- and table-shaped content, from a named
-  `*_SKELETON_ROW_COUNT` constant.
-- For tables, render the placeholder as a **plain `<table>` INSTEAD of the React Aria `Table` — never
-  as `Table.Row`s inside `Table.Body`**. Keep the header (that half of the old rule still holds) by
-  rendering the placeholder's own `<th>` header from the SAME column descriptor module the real header
-  maps over, so labels and widths cannot drift. Putting placeholders INTO the collection is worse than
-  losing the header: React Aria's `useGridState` focus-fixup scan has no iteration bound, and a
-  collection in which every row is skippable — skeleton rows carry `isDisabled`, and `disabledBehavior`
-  defaults to `"all"` — makes it oscillate forever. That is the 2026-09-21 Activity freeze: one core
-  pinned for 35+ minutes, memory climbing to 2.8 GB, the skeleton frozen on screen and no error
-  anywhere. `TransactionTableSkeleton` / `NetworkTableSkeleton` are the reference implementations.
-  Two measured details ride along: the placeholder ROW carries the real row's height (`h-9`, the 36 px
-  band on these rails; the fixture allows 6 px of drift), and a placeholder `<th>` needs an EXPLICIT
-  `role="columnheader"`, because `loading-skeletons-fixture.tsx` matches `[role="columnheader"]` by
-  CSS attribute selector and an implicit `<th>` role does not match an attribute selector.
-- Prove it: `scripts/layout-fixtures/loading-skeletons-fixture.tsx` measures each placeholder against
-  its real row in headless Edge. jsdom has no layout engine, so a half-height placeholder passes every
-  unit test in the suite.
-
-### Settle the typing before you query
-
-A query driven by typed text must be built from the SETTLED text, through the app-wide `useDebounce`
-(`shared/hooks/use-debounce.ts`): 300 ms on History, Notifications and the Activity filters, 200 ms on
-Catalog. The input's own text stays immediate — the store updates per keystroke and only the query
-waits — and the surface keeps its rows (see above), so nothing flickers. One typing burst must cost
-exactly one query; without the debounce the surface enters its loading state on every letter, which is
-both the flicker the owner reported and one more pass through the all-disabled collection described
-above. Debounce the WHOLE filters object: the stores rebuild it only when a filter actually changes, so
-its identity is stable across unrelated renders, and debouncing fields one by one silently drops every
-field you forgot to list.
-
-### What the tests must assert
-
-`getByRole('status', { name })` while loading, the placeholder count, and that **neither the region
-nor the placeholder survives** once the request settles — success or failure. Asserting the visible
-loading text is weaker: it proves the words are on screen but not that anything announces them.
-
-## Color conventions (semantic, NOT raw colors)
-
-Semantic tokens in use: `accent`, `success`, `warning`, `danger`, `default`, plus `foreground`, `muted`, `default-400/500`, `content1`, `divider`. Soft variants exist (`*-soft`). Always pass `color="success"` etc. to HeroUI components — never hardcode hex/oklch. White-alpha utilities (`bg-white/[0.03]`) are used for subtle hover/surfaces.
-
-**Log LEVEL → color** (mirror across the app — `ObservabilityPanel` and `network`):
-`info → success` · `warn → warning` · `error → danger` · `debug → accent` · default → `default`.
-
-**Runtime DOMAIN → color**:
-`anime → success` · `sync → accent` · `websocket → warning` · `api → danger` · `bus → default` · default → `default`.
-
-These mappings live in `*-panel.helpers.ts` (`getNetworkLevelColor`, `getNetworkDomainColor`, etc.). Reuse the helper; don't re-derive the switch.
-
-**Anime `estado` → canonical LABELS** (Legacy domain vocabulary, Spanish data literals like "Sin ver"/"Ver hoy"/"Visto"): `0 → Viendo · 1 → Finalizado · 2 → No me gusto · 3 → En pausa`. The wording lives in ONE place — `frontend/src/shared/constants/anime-estado.ts` (`ANIME_ESTADO_LABELS`, `getAnimeEstadoLabel`, `ANIME_ESTADO_FILTER_ENTRIES`). Import labels from there; **never re-hardcode estado wording in a feature** (History, Catalog, AnimeDetail, Chapters all consume this module — a deliberate, scoped exception to per-feature colocation so a rewording is a one-file change). This corrected a three-way drift where estado 2/3 were mislabeled "Abandonado"/"Pendiente" (ES) and "Dropped"/"Paused" (EN). **Estado COLORS stay feature-local** (presentation, not vocabulary): the established mapping is `Viendo → accent · Finalizado → success · No me gusto → danger · En pausa → warning`.
-
-## Brand & action hierarchy (bridge's OWN theme — never Legacy's colors)
-
-The bridge's brand colors are HeroUI's token pair, NOT Legacy's Materialize red/blue:
-
-- **Primary action** = `Button variant="primary"` → `--accent` (oklch(0.6204 0.195 253.83), the brand blue). One per action cluster: the action the user came to perform (e.g. Chapters "+").
-- **Secondary action** = `Button variant="secondary"` → `--default` surface with `--accent-soft-foreground` text. The counterpart of the primary in a paired control (e.g. Chapters "−").
-- **Utility actions** = `variant="tertiary"` icons that TINT with intent on hover via Tailwind semantic utilities: folder → `hover:text-success`, page/link → `hover:text-accent`, status → `hover:text-warning`. Color-on-interaction is a UX signal (Legacy did this with green/blue/yellow); port the *pattern* with bridge tokens, never Legacy's literal hues.
-- Rule of thumb when porting Legacy UI: ask "what ROLE does this color play?" and map the role to a bridge token. Copying Legacy hex/danger-for-red is a regression (user-rejected in the SDD-38→hotfix cycle).
-
-## Chart palette (nivo, literal hex)
-
-`@nivo/bar` (the only charting dependency, SDD-47) cannot consume Tailwind classes or HeroUI `color` props — it needs literal color strings, because HeroUI v3 exposes no readable CSS variable for it. Every chart color below is a literal hex constant in `frontend/src/features/season/ui/OverviewPanel/overview-panel.constants.ts`, sourced from the HeroUI dark tokens actually in effect and validated against the active dark surface (`--surface #18181B`).
-
-**Surface & ink (chart chrome):**
-
-| Role | hex | source |
+| Need | Use | Do NOT |
 |---|---|---|
-| Chart surface (Card bg) | `#18181B` | `--surface` (dark) |
-| Page plane behind cards | `#09090B` | `--background` (dark) |
-| Primary ink (labels/values) | `#FCFCFC` | `--foreground`/`--snow` |
-| Muted ink (axis/ticks) | `#9F9FA9` | `--muted` |
-| Gridline / hairline | `#27272A` | `--border` |
+| Text | `Typography` (`color` is only `default` or `muted`) | raw `<h1>` / `<p>` |
+| Search / filter | `SearchField`, `Input`; `ToggleButtonGroup` for a single-select row | raw `<input>`, `<button>` pills |
+| Select / tabs | `Select` + `ListBox`; `Tabs` | raw `<select>`, a `<button>` tab strip |
+| Table | `Table` | raw `<table>` (except a loading placeholder) |
+| Container | `Card` or `Surface` | a bordered `<div>` |
+| Banner / error | `Alert` | a colored `<div>` |
+| Tag / badge | `Chip variant="soft"` | a styled `<span>`, an outlined pill |
+| Long list | `useProgressiveListWindow` (static) or `isNearListBottom` (live) | rendering every row |
+| Loading | shape-mirroring skeleton in a status region, or `LoadingBars` | a "Loading…" sentence, a lone `Spinner` |
+| Resolved empty | `AirisEmptyState` | a bare "No results" line |
+| Detail pane, nothing selected | `AwaitingSelectionPane` | the mascot, skeleton shapes |
 
-**Semantic status set** (effective dark tokens): accent `#0385F7` · success `#17C964` · warning `#F7B750` · danger `#DB3B3E`.
+## 2. Semantic colors, never raw values
 
-**Chart-tuned neutrals** — the HeroUI `--default` dark token (`#27272A`) is only one lightness step off the `#18181B` card surface and is **invisible as a chart bar fill**; charts use lifted zinc-hue grays instead (same hue, snapped into the dark lightness band): neutral/in-progress `#71717A` (zinc-500) · de-emphasis `#62626C`.
+Pass `color="accent" | "success" | "warning" | "danger" | "default"` to HeroUI components; use
+semantic utilities (`text-warning`) elsewhere. No hex or oklch in components; the nivo chart palette
+is the only literal-hex exception. Reuse the helper that owns a mapping (level, domain, `estado`)
+instead of re-deriving it. Port Legacy's intent, never its colors. Primary action = `accent`, one per
+cluster; secondary for the paired counterpart or an undo.
 
-**Categorical set — intake health** (5-segment stacked bar, workflow order; HeroUI chip tokens FAILED the dark-mode lightness band as bar fills — these are chart-grade steps of the same hues, hold hue / move lightness):
+## 3. Chips are soft
 
-| segment | role | hex |
-|---|---|---|
-| pending | neutral in-progress | `#71717A` |
-| matched | chart-success | `#17AB55` |
-| ambiguous | chart-warning | `#C58703` |
-| not_found | danger | `#DB3B3E` |
-| discarded | de-emphasis | `#62626C` |
+Every chip is `variant="soft"`, `size="sm"`, semantic `color`, no border. An icon only when it
+carries meaning, with `Chip.Label`. Other variants move to `soft` when their file is next touched.
 
-Colors resolve through `getIntakeHealthSegmentColor` (`overview-panel.helpers.ts`), which delegates the semantic role to `getMatchStatusColor` (`intake-panel.helpers.ts`) and never re-derives it — `discarded` is the one exception, since `getMatchStatusColor('discarded')` resolves to the same `default` role as `pending` but the validated palette gives it its own de-emphasis gray. The `discarded` segment's contrast lands at 2.94:1 (WARN) — relief is the legend + per-segment tooltip counts, which are OBLIGATORY on this chart (never drop them).
+## 4. Loading, empty and error are exclusive
 
-**Ordinal set — watching pipeline** (Sin ver → Ver hoy → Visto; a light→dark single-hue ramp of the accent blue, NOT the estado status mapping — these are conveyor *stages*, not good/bad statuses): Sin ver `#5CA7FF` → Ver hoy `#0385F7` (the accent) → Visto `#0061C0`.
+| State | Render |
+|---|---|
+| Unresolved, nothing loaded | Skeleton mirroring the content's shape, in `role="status"` with `aria-live="polite"` and `aria-labelledby` an `sr-only` label |
+| Refetching with rows on screen | The rows, `aria-busy`, a discreet hint |
+| Resolved empty | An empty-state kind (below) |
+| Failed | The surface's `Alert` |
 
-**Emphasis pair — grade histogram** (at/above `minApprovalGrade` vs below it — emphasis highlights the relevant side rather than implying pass/fail per bar): emphasis `#0385F7` · de-emphasis `#62626C` · threshold hairline + "Min N" label ink `#9F9FA9` (muted), drawn as a custom nivo layer at the band boundary.
+The placeholder replaces the content; gate content on the request, not on `rows.length`. Every
+loading test asserts the negative (real rows absent while loading). Table placeholders are a plain
+`<table>`, never rows inside a React Aria `Table`.
 
-**Bucket set — selection outcome** (approved / rejected / no grade; the three buckets confirming the season applies, `SelectionOutcomeChart`): approved `#17AB55` · rejected `#DB3B3E` · no grade `#71717A`. No new hex — the trio reuses the intake-health success/danger literals and the chart-tuned neutral, which is the one gray that stays visible as a fill on the `#18181B` surface. Resolved by the literal lookup in `SELECTION_OUTCOME_CHART_COLORS` (`overview-panel.constants.ts`), not by a semantic-role helper: the buckets are keyed by their display labels, not by a backend status. The legend is the second identification channel for the neutral segment.
+## 5. Empty-state kinds
 
-## Card cover slot pattern (full-bleed edge image)
+| Kind | When | Art | Action |
+|---|---|---|---|
+| `first-run` | Nothing exists yet | mascot | primary, creates the first thing |
+| `waiting-on-step` | An earlier step has produced nothing | mascot, smaller | primary, opens that step |
+| `filtered` | Search or filters hide every row | icon | secondary "Clear", only if a reset exists |
+| `caught-up` | Empty means done | success icon | usually none |
+| `awaiting-selection` | Detail pane before a pick | `AwaitingSelectionPane` | none |
 
-`.card` (HeroUI) has `p-4` and `border-radius: min(32px, var(--radius-3xl))`. For an edge-flowing image column inside a Card (Chapters schedule): give the Card `overflow-hidden`, and the slot `relative -my-4 -ml-4 w-24 shrink-0 self-stretch overflow-hidden` — the negative margins bleed through the padding and the Card clips the corners. Put the art `absolute inset-0 size-full object-cover` (or an SVG with `preserveAspectRatio="xMidYMid slice"`) so the source aspect ratio can NEVER change the card height. Add `gap-4 min-h-24` on the flex row for breathing room and consistent card presence. Default cover art is `shared/ui/CoverPlaceholderScene.tsx` (night bridge scene) — full-bleed, not an icon centered in a gray box.
+`size` is placement (`card`, `section`, `row`); the art size follows the container. One alignment
+axis: art left, copy left-aligned. **At most one mascot per screen**; rows always use an icon. Copy
+never repeats the chrome, and the action is the real next step through a callback the surface
+already has.
 
-## Multi-column card packing (masonry-lite)
+## 6. Mockups are faithful and priced
 
-For any page of **variable-height cards**, a plain `grid grid-cols-2` locks every row to the tallest card in it — short cards leave dead vertical space beside a tall neighbor. The fix is CSS **multi-column**, NOT a masonry library:
+Mockups copy the real UI: real chips, labels and controls with their real meaning. Never invent a
+case by copying badly; anything new is labelled as an improvement proposal. Price every behavior
+change: `$` UI only · `$$` rewire an existing callback · `$$$` new logic (TDD + mutation) · `$$$$`
+new contract (navigation, keyboard registry, Go/Wails).
 
-```tsx
-<div className="min-w-0 columns-1 gap-4 lg:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
-  <Card>…</Card> {/* repeat */}
-</div>
-```
+## 7. Prove layout in a browser
 
-- **Why not native CSS masonry?** This app runs in **Wails → WebView2 → Chromium stable**, which has **not** shipped `grid-template-rows: masonry` (spec still unsettled between `masonry` and `item-flow`). So `@supports (grid-template-rows: masonry)` is always false here — never write that branch; it's dead code. Multi-column is the portable path.
-- **Why not `react-masonry-css`?** Not worth a dependency for a handful of settings cards. Only reach for it if strict left-to-right (row-major) reading order is a hard requirement.
-- **Gotchas:**
-  - `columns` gap between stacked items needs **`[&>*]:mb-4`** (the `gap`/`columns` shorthand only sets the *column* gap, not vertical rhythm within a column).
-  - Every child needs **`break-inside-avoid`** or a card can split across the column boundary.
-  - **Cards flow DOWN each column, not across rows** — accepted trade-off. Order in the JSX controls which card lands where; balance uneven column heights by reordering.
-  - **A full-width card cannot live inside a multi-column container** (multi-column has no column-span). Pull it OUT as a sibling below the packed block. Do NOT try `col-span-2` — that's grid-only.
-- **`columns` vs `grid` — pick by container:** use `columns-*` (masonry-lite) for free-standing variable-height cards where down-column order is fine. Use a **responsive `grid` (`grid-cols-1 xl:grid-cols-2`)** when the tiles live **inside a fixed-height `overflow-y-auto` scroller** or when **row-major reading order matters** — `columns` fills column 1 to the container's max-height before wrapping, which fights a vertical scroller; grid keeps order and wraps cleanly. Grid costs a little row-height gap, negligible when tiles are near-uniform.
-- **When NOT to use EITHER:** a page's top-level stack of full-bleed *sections* stays one section per row. Pack cards *within* a section; don't columnize whole sections — that makes a clean page ragged.
+jsdom has no layout engine. Layout claims go through `bun --cwd="frontend" run layout:smoke`
+(fixtures in `frontend/scripts/layout-fixtures/`); render claims through `render:smoke`.
 
-## Filling horizontal space on wide screens (split-panel cards)
+## Read next
 
-Distinct from masonry: the wide-screen complaint is often **horizontal whitespace inside a single full-width card**, not vertical row-gaps. A card whose content stacks vertically (a centered image with empty flanks, a form hugging the left edge) wastes the width. Fix with an **internal responsive split**, not by columnizing the page:
+- `docs/design/README.md` — the index, naming convention and how to add to the design system.
+- `docs/design/foundations/color-tokens.md` — semantic tokens, level/domain/`estado` maps, brand and action hierarchy.
+- `docs/design/foundations/chart-palette.md` — literal hex for `@nivo/bar` charts.
+- `docs/design/foundations/typography.md` — `Typography`, text color, hidden-text naming.
+- `docs/design/foundations/layout.md` — containment, filling height, masonry-lite, split panels, cover slots.
+- `docs/design/components/heroui-mapping.md` — the full "what to reach for" table, stack, toasts.
+- `docs/design/components/tables.md` — `Table` width, scrolling and stick-to-bottom.
+- `docs/design/components/chips.md` — chip rules and examples.
+- `docs/design/components/airis-empty-state.md` — `AirisEmptyState` API, sizes, container sizing.
+- `docs/design/components/awaiting-selection-pane.md` — the pane before a selection, and where it is used.
+- `docs/design/patterns/loading-empty-error.md` — the states in full: status region, skeletons, debounce, tests.
+- `docs/design/patterns/empty-states.md` — choosing a kind, copy, actions, the mascot catalog and adding a pose.
+- `docs/design/patterns/lists.md` — progressive windows (static vs live) and status columns.
+- `docs/design/process/mockup-fidelity-and-pricing.md` — drawing and pricing a proposal.
+- `docs/design/process/verifying-design-claims.md` — layout fixtures, smoke runs, jsdom testing notes.
+- `docs/design/process/changelog.md` — why each rule exists.
+- `docs/design/airis/character.md` — the Airis character contract for new artwork.
 
-```tsx
-<Card.Content className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:gap-8">
-  <div className="flex min-w-0 flex-col gap-4">{/* text / fields fill the flexible column */}</div>
-  <div className="flex justify-center lg:justify-end">{/* media pins to the intrinsic column */}</div>
-</Card.Content>
-```
+## Keeping it alive
 
-- `grid-cols-[minmax(0,1fr)_auto]`: flexible content column + intrinsic-width media column. `minmax(0,1fr)` (not bare `1fr`) so the left column can shrink and its children can `truncate` instead of overflowing.
-- Collapses to `flex flex-col` below the breakpoint — single stacked column on narrow windows.
-- Let media grow with the space it earns (e.g. `size-40 lg:size-48`) rather than sitting fixed-small in a now-roomy card.
-
-## Toast feedback
-
-`toast` from `@heroui/react` (`toast.success/danger/warning/info`). Backend notifications flow through `use-notification-toasts` (the only `notification.push` subscriber). For LOCAL imperative feedback (e.g. clipboard copy confirmations), hooks call `toast.success(...)` directly in the mutation callback — English copy, e.g. "Folder path copied to clipboard". Mock pattern for hook tests: `vi.hoisted` toast object + `vi.mock('@heroui/react', () => ({ toast: toastMock }))` (see `use-chapter-schedule-panel.test.ts`).
-
-## Architecture constraints (from CLAUDE.md — enforced)
-
-- `.tsx` under `features/` are **dumb UI only**: no Wails calls, no `useEffect`, no business logic. Logic goes in `use-*.ts` hooks (strict anatomy) and pure `*.helpers.ts` (every exported helper has JSDoc).
-- Every prop in `*Props` interfaces is `readonly`. Routes/`app/**` are composition-only.
-- **TDD is mandatory** for helpers and hooks (colocated `__tests__/`). Files over 500 lines get refactored.
-
-## Testing notes (React Aria in jsdom)
-
-- React Aria `usePress` **responds to native `.click()` / `fireEvent.click`** (virtual press) — selection, tab change, and `CloseButton.onPress` fire without `@testing-library/user-event` (not installed).
-- A single-select `ToggleButtonGroup` exposes its options as **`role="radio"`**, not `role="button"`. Query accordingly.
-- **An `sr-only` suffix inside a control joins the visible label with NO separator.** The accessible name concatenates sibling text nodes, so `Sunday` + `<span class="sr-only">today</span>` announces as `Sundaytoday` — in a real screen reader, not just in a test query. Give the hidden phrase its own leading punctuation (`', today'`) instead of relying on JSX whitespace, which the formatter can eat.
-- **A weekday-dependent query makes the suite date-dependent.** Once a tab carries a today marker, `getByRole('radio', { name: 'Friday' })` breaks every Friday. Pin the clock (`vi.useFakeTimers({ shouldAdvanceTime: true })` + `vi.setSystemTime`) in any test that asserts an exact weekday tab name.
-### HeroUI Table sizing & scrolling — verified facts
-
-- **App shell uses PAGE-level scroll.** `AppLayout`'s `<main>` has no `overflow`; the root is `min-h-screen`, so the window scrolls. No app-level internal scroll container.
-- **`.table-root` is `display:grid` with `grid-template-columns: minmax(0,1fr)` — a hard width boundary.** If table content is wider than the boundary it overflows; `Table.ScrollContainer` (`overflow-x-auto`) then shows a horizontal scrollbar. **Setting `overflow-x-clip` on it instead CLIPS the last column (data loss) — verified, do NOT do that.**
-  - **Fix: make the table fit.** `Table.Content` → `className="w-full table-fixed"` and give each `Table.Column` an explicit width (e.g. `w-[92px]`), leaving the one flexible column (Message) widthless to take the remainder. Cells truncate with `block truncate` (no `max-w` needed under `table-fixed`). Result: no horizontal scrollbar, no clipping.
-- **`Table.ScrollContainer` scrolls HORIZONTALLY only** (`@apply overflow-x-auto`) and is a plain function component (no `forwardRef`). For a vertical/live feed, wrap `Table` in your own `max-h-… overflow-y-auto` div and keep `scrollRef` on THAT div (it is the vertical scroller — confirmed by an internal scrollbar in the running app).
-- **Stick-to-bottom (CURRENT approach, pending final runtime confirmation):** in a `useLayoutEffect` on `[rows]`, set `wrapper.scrollTop = wrapper.scrollHeight` both synchronously and inside one `requestAnimationFrame` (to survive any post-render scroll reset). A jsdom regression test mocks geometry via `Object.defineProperty(node,'scrollHeight'|'clientHeight'|'scrollTop', …)` and asserts `scrollTop` reaches `scrollHeight`.
-- **What did NOT work (do NOT retry):** `scrollTop` on the wrapper **while guarded by a `pinned` flag updated from `onScroll`** (the guard was false when entries arrived, blocking every scroll — this was the real cause of the failures, not the scroll mechanism); `bottom sentinel + scrollIntoView({block:'nearest'})`; `overflow-x-hidden` on `ScrollContainer` (CSS promotes Y to `auto`, creating a competing scroller); `overflow-x-clip` (clips the last column); `[scrollbar-gutter:stable]` alone for the header-corner overlap; resolving the scroll node via `querySelector('[data-slot="table-scroll-container"]')`.
-
-## Containment: a card must never widen the page
-
-`AppLayout`'s `<main>` has no `overflow` and the root is `min-h-screen`, so **the window is the scroller**. Nothing upstream contains an over-wide child for you — a single unbroken URL deep inside a card gives the whole application a horizontal scrollbar. Measured 2026-08-30 on the Activity detail card: 40 trace siblings carrying a JDownloader URL produced 2950px of content inside a 471px card and a 3719px document against a 1241px viewport.
-
-Rules, in the order they bite:
-
-- **Never write a bare `1fr` grid track.** `1fr` is `minmax(auto, 1fr)`, and that `auto` minimum is content-based, so the track grows past its own container. Write `minmax(0,1fr)`. Same for the implicit single-column case: `grid-cols-1` (which Tailwind expands to `repeat(1, minmax(0,1fr))`), never a bare `grid`.
-- **`min-w-0` on the grid/flex ITEM as well.** A bounded track does not stop an item whose own `min-width` is `auto` from overflowing it. The Activity rails' shared arrangement lives in one place for exactly this reason: `ACTIVITY_MASTER_DETAIL_CLASS` (`features/network/ui/ActivityView/activity-view.constants.ts`), used by both `NetworkPanel` and `TransactionPanel`.
-- **Prose wraps; only code scrolls.** Trace messages, header values and identifiers get `break-all` — the user has to read the end of a token, and an ellipsis hides exactly the part that distinguishes one from another. Keep horizontal scroll for a `<pre>` of real code, where wrapping changes what the text says, and bound it — but bound it at the CARD, not at the pane (see the next section).
-- **`truncate` was already containing things, quietly.** It sets `overflow: hidden`, which zeroes a grid/flex item's automatic minimum size. So swapping `truncate` for `break-all` REMOVES a containment you may not have known you had — add the `minmax(0, …)` track in the same edit.
-- **A scroll container does not leak its width.** Measured: a `<pre class="overflow-auto">` held a 7973px unbroken line inside a 391px pane with no `min-w-0` anywhere above it. `min-w-0` on such a wrapper is hardening, not the fix — do not write a comment claiming otherwise.
-
-**Verify it in a browser, not in vitest.** jsdom has no layout engine, so `toHaveClass('break-all')` proves the string is present and nothing about whether anything wrapped. `bun --cwd="frontend" run layout:smoke` renders the real components in headless Edge and reads a verdict the page writes into `data-layout-verdict`; it runs in the pre-commit gate as `frontend-layout-smoke`. It now carries two fixtures (notification toasts, Activity detail cards), each writing its own verdict node, and the run passes only when all of them pass. Fixtures **import** the components and the class constants rather than restating their markup — a fixture holding its own copy of the layout keeps passing after the component regresses. Add a fixture in `frontend/scripts/layout-fixtures/`, and prove it non-vacuous by reverting the fix and watching it fail.
-
-**It renders at TWO viewports** (`1280x900` and `1600x1000`), and that is not redundancy: the Activity cards change height budget at `2xl`, and at 1280 the Transactions body pane comes out at 166px, so a re-added `max-h-64` cap on it is *inert* and unmeasurable there. At 1600 the same pane fills 294px and the cap bites. When a component changes size at a breakpoint, a gate pinned to one width cannot see the other.
-
-## Filling the height: the vertical mirror of `min-w-0`
-
-Containment and fill are the same mechanism from opposite ends, and a card needs both. Measured 2026-08-30 on the same Activity cards: bounding the panes with a fixed `max-h-64` contained them and left **261px of empty card** under the Trace list and 165px under the body pane, because the grid stretches the detail card to the rail beside it and a fixed cap cannot grow into that.
-
-- **Cap the CARD, fill the panes.** The pane gets `flex-1 min-h-0 overflow-auto`; the card carries the height budget (`ACTIVITY_RAIL_HEIGHT_CLASS`, the same `max-h-[32rem] 2xl:max-h-[40rem]` figure as the rail it sits beside). Both halves are load-bearing: a `flex-basis: 0` item still contributes its CONTENT height to its container's intrinsic size, so an uncapped card holding a filling pane grows to the full height of a 6916px trace list and takes the grid row with it. Capping the card is what turns "grow to content" into "fill the box".
-- **`min-h-0` at EVERY level, or the chain does nothing.** A flex item's default `min-height: auto` refuses to shrink below its content, exactly like `min-width: auto` horizontally. The chain here is card → `Card.Content` → `Tabs` → `Tabs.Panel` → the pane; miss one level and the inner scroller never engages. HeroUI helps only partway: `.card` is already `flex flex-col` and `.card__content` already `flex-1`, but neither releases the automatic minimum size, and `.tabs__panel` is a plain block that needs `flex flex-col` before a child can fill it.
-- **A filling pane takes the REMAINDER, so bound what sits above it.** A `flex-1` pane with basis 0 gets only what its siblings leave: a headers block of `break-all` JDownloader URLs left the body pane **22px of a 512px card**. Give such a block `min-h-0 overflow-y-auto` so it can give room back, and give the pane a floor (`min-h-40` on `CodeBlock`'s wrapper). The floor belongs on the item that competes in the parent's flex line — on the `<pre>` itself it did nothing at all, because its `min-h-0` wrapper simply let it overflow instead of pushing back.
-- **Measure the dead band, not the cap.** The deterministic check is "how many pixels sit unused between the pane's bottom and the card's", summed one ancestor at a time (direct children only — a scroller's rows have boxes far past their clipped container). A fill fixture also needs ORDINARY chrome: with hostile content the card's own header eats the room, the pane never reaches the old cap, and the guard passes on the broken layout. Both are in `activity-detail-fixture.tsx`.
-
-## Keeping this skill alive
-
-This is a **living** document. When you establish a new UI convention, adopt a new HeroUI component, change a token mapping, or hit a non-obvious React-Aria gotcha — **update this file** and bump `version`. Add a line to the changelog.
-
-### Changelog
-- `1.3.0` — Added the selection-outcome bucket set to the chart palette (approved `#17AB55` · rejected `#DB3B3E` · no grade `#71717A`), consumed by the Overview's new `SelectionOutcomeChart`, which replaced the approved-vs-slots HeroUI `Meter`. No new hex: the trio reuses the validated intake-health/chart-neutral literals, but the palette section now names the pairing so the next chart finds it instead of re-deriving. The presentation rule that rides with it: the buckets are what confirming the season applies, and the backend applies an ungraded created candidate as rejected — so the card states that in visible copy, and a candidate with no grade must never be folded into approved. Its bucket is labelled "No grade" rather than "Not yet graded" because the same card renders a CLOSED season, where nothing is pending.
-- `1.2.0` — Corrected the loading rules after the Activity freeze, and recorded the debounce rule. **The instruction repaired here:** `1.1.0` told authors to render table placeholders as `Table.Row`s inside `Table.Body`. A collection in which every row is skippable (skeleton rows carry `isDisabled`, and `disabledBehavior` defaults to `"all"`) makes React Aria's `useGridState` focus-fixup scan — an unbounded `while (index >= 0)` — oscillate forever, so a focused row plus any reload pinned one core for 35+ minutes with the skeleton frozen on screen and no error anywhere. Table placeholders now render as a plain `<table>` instead of the React Aria `Table`, from ONE column descriptor module shared with the real header, with the placeholder row carrying the real row's height (`h-9`) and an explicit `role="columnheader"` on its `<th>` (the layout fixture matches that role by CSS attribute selector, and an implicit `<th>` role does not match one). Also new: the fourth loading state — a refetch with rows on screen keeps the rows and shows a discreet hint instead of a skeleton — and the rule that a query built from typed text runs on the SETTLED text through `useDebounce` (300 ms), so one typing burst is one query and no keystroke can flash a skeleton.
-- `1.1.1` — Added "The states are EXCLUSIVE" to the mandatory loading section, after a user screenshotted a block of skeletons stacked directly on top of the real anime cards on Today. The placeholder REPLACES the content; it is not a block added above it. The trap is that a refetching surface keeps its previous rows in state, so `isLoading` and `rows.length > 0` are both true — on first mount they never are, which is why it is invisible until someone switches a day, filter or tab. Three surfaces shipped with it (`EpisodeSchedulePanel` mapped rows unconditionally, `SoloAnimeDownloadPanel` gated on `options.length > 0` alone, `ActivityOverview`'s sample list mapped unconditionally). The root cause was in the TESTS, not the markup: they asserted the skeleton appears and later disappears, and never that real content is absent while loading — which passes happily while both blocks render. Every loading test now asserts that negative.
-- `1.1.0` — Loading and empty states became **mandatory** rather than conventional, after three changes shipped three different answers across nine surfaces: a sentence, a lone `Spinner`, and a silent skeleton. The rule is three states to three components — a shape-mirroring skeleton for unresolved, `AirisEmptyState` for resolved-empty, the surface's error `Alert` for failed — plus `LoadingBars` (`shared/ui/LoadingBars/`) for the uniform-bar placeholder that had been copied seven times, each copy carrying the same announcement gap because the markup was the same. Two findings are recorded in full because each cost a cycle. **`role="status"` takes its accessible name from the author**, so a region named only by an inner `sr-only` span computes `""` and `getByRole('status', { name })` fails — `aria-labelledby` is required, and the span must still be there because that is what a polite live region announces. And **a placeholder's height is a contract**: the row-shape class is shared with the real row so the two cannot drift, and `loading-skeletons-fixture.tsx` measures them against each other in headless Edge, because jsdom has no layout engine and passes a half-height placeholder. Tables get skeleton placeholders. **Superseded 2026-09-21 by `1.2.0`:** this entry originally said to render them as `Table.Row`s inside `Table.Body`, which is the instruction that later wedged the renderer — a placeholder must never enter a React Aria collection. The header is still kept, by rendering the placeholder's own header from the shared column descriptors. The pre-table branch `HistoryTable` used still loses the header, so the columns resize when data lands.
-- `1.0.19` — Current-day marker on the Today weekday tabs: a `size-1.5 rounded-full bg-current` dot plus an `sr-only` phrase, so the tab strip always says which day is today even while another day is selected. `bg-current` is the load-bearing choice — `.toggle-button` sets `color` explicitly in BOTH states (`--toggle-button-fg: currentColor` unselected, `--accent-soft-foreground` selected), so a fixed `bg-accent` would vanish on the selected tab while `currentColor` never does. Two testing gotchas recorded above: the accessible name concatenates sibling text with no separator (`Sundaytoday`), and a today marker turns any exact weekday-name query into a date-dependent test.
-- `1.0.18` — Added "Filling the height: the vertical mirror of `min-w-0`" after the `1.0.17` containment fix left both Activity detail cards with a wide empty band (measured: 261px under the Trace list, 165px under the body pane). The rule that matters is **cap the CARD, fill the panes**: a fixed `max-h-64` on a pane contains it but cannot grow into a card the grid stretched, while a `flex-1 min-h-0` pane needs the card capped or it grows the grid row to the height of a 6916px list — a `flex-basis: 0` item still contributes its content height to its container's intrinsic size. Three measured corrections: `min-h-0` is needed at EVERY level (HeroUI's `.card`/`.card__content` bring `flex flex-col` and `flex-1` but never release the automatic minimum size, and `.tabs__panel` is a plain block); a filling pane takes only the REMAINDER, so an unbounded headers block starved it to 22px of a 512px card, fixed with a scroller on the block and a floor on `CodeBlock`'s **wrapper** (on the `<pre>` the floor did nothing — its `min-h-0` wrapper let it overflow instead of pushing back); and a fill guard needs ORDINARY chrome plus a **second viewport**, because with hostile content the pane never reaches the old cap and at 1280 a re-added `max-h-64` is inert. `layout:smoke` now renders at 1280x900 and 1600x1000 and carries an ordinary-chrome pair beside the hostile one.
-- `1.0.17` — Added the "Containment: a card must never widen the page" section after the Activity detail card gave the whole window a horizontal scrollbar (measured: 2950px of content in a 471px card, 3719px document at a 1241px viewport). The rule that matters is **never a bare `1fr` track** — `minmax(auto, 1fr)` is content-based and grows past its container — plus `min-w-0` on the item, since a bounded track alone does not hold it. Two measured corrections to the folklore: a `<pre class="overflow-auto">` does NOT leak its width (7973px line, 391px pane, contained with no `min-w-0` above it), so `min-w-0` on such a wrapper is hardening rather than the fix; and `truncate` was silently containing content all along via `overflow: hidden`, so replacing it with `break-all` gives up a containment and must be paired with `minmax(0, …)`. `layout-smoke` now carries two fixtures with one verdict node each and passes only when all pass.
-- `1.0.16` — Promoted progressive rails to a documented project pattern in `docs/adr/012-progressive-list-rendering.md`, mirrored as rule 12 in both `AGENTS.md` and `CLAUDE.md`. The decision that matters is the **static vs live** split now in the mapping table: `useProgressiveListWindow` does a render-phase reset when `itemCount` changes, which is correct for filter/search-driven lists (Editor, solo download, Catalog) and a silent regression for store/event-fed ones (Run history), where it would discard the user's scroll position on every incoming event. Also recorded there: there is deliberately **no lint rule** — "this list can get long" is not statically decidable and `no-restricted-syntax` cannot express the container/slice relationship — so the deterministic guard is a per-rail DOM-count test in the shape of `AnimeEditorWorkspace.windowing.test.tsx`.
-- `1.0.15` — Promoted the progressive rail to a shared primitive and recorded the row-layout rule it came with. `useAnimeEditorListWindow` was feature-local, so the Downloads rail could not reuse it without importing across feature boundaries; the hook now lives at `shared/hooks/use-progressive-list-window.ts` with its geometry in `shared/helpers/progressive-list.helpers.ts` (`isNearListBottom`, `nextRenderLimit`) and its batch sizes in `shared/constants/progressive-list.constants.ts`. The Editor hook is a thin alias, so its existing tests prove behaviour is unchanged. Two gotchas worth keeping: **`Typography` only accepts `color="default" | "muted"`** — semantic color goes through a Tailwind utility (`className="text-warning"`), and `color="warning"` is a typecheck error; and **root-level exported consts in a hook file fail `dlinter/strict-colocation`** (governed main modules must be named function declarations), which is why the batch sizes moved to a constants file rather than living beside the hook. Row rule added to the mapping table: a repeated status *sentence* inline with the name makes every row a different width — use a `shrink-0` fixed-width slot with a one-word tag and keep the full sentence for the selection `Alert`.
-- `1.0.14` — Made the layout sections **view-agnostic**: removed the per-screen bindings (which card lives where, named feature files as "references") from the masonry-lite and split-panel guidance. The technique is described by content *shape* (variable-height cards, tiles in a scroller, image-with-empty-flanks), not by which view currently uses it — views churn, the pattern doesn't. Changelog keeps its historical view names as a record of what prompted each entry.
-- `1.0.13` — Reconciled Devices "use the full-screen width" work with the masonry-lite rule. Two new distinctions: (1) `columns` vs `grid` — use a responsive `grid-cols-1 xl:grid-cols-2` (not `columns`) when tiles live inside a fixed-height `overflow-y-auto` scroller or when row order matters (SyncingAnimePanel's list); `columns` fills to the container max-height before wrapping and fights a vertical scroller. (2) New "Filling horizontal space on wide screens (split-panel cards)" section: the wide-screen problem is often horizontal whitespace *inside* one full-width card, fixed with an internal `lg:grid-cols-[minmax(0,1fr)_auto]` split (info left, media right; media grows `size-40 lg:size-48`) — PairingPanel. Clarified the earlier "Devices stays single-column" note: it means top-level *sections* don't columnize, NOT that a section's internals can't use the width.
-- `1.0.12` — Added the "Multi-column card packing (masonry-lite)" section after converting the Downloads route off `grid grid-cols-2` (short cards like "Manual check" left dead space beside tall neighbors). Pattern: `columns-1 lg:columns-2 gap-4 [&>*]:mb-4 [&>*]:break-inside-avoid` on the variable-height config cards, with the full-width "Run history" card pulled OUT as a sibling below (multi-column has no column-span). Documented WHY native CSS masonry is dead code here (WebView2/Chromium stable hasn't shipped `grid-template-rows: masonry`), why `react-masonry-css` isn't worth it for a few settings cards, the down-column flow trade-off, and that full-bleed section stacks (Devices) must stay single-column.
-- `1.0.11` — Settled the large-rail rendering strategy for the Anime Editor left list (800+ animes) on **progressive loading**, and recorded two rejected paths so nobody re-treads them. Approach: render `items.slice(0, renderLimit)` of selectable `Button` rows (`onPress` → select) inside an `overflow-y-auto` div; `renderLimit` starts at 20 and grows by a batch when `isNearListBottom` fires on scroll; reset to 20 on filter/search change via a render-phase reset (`if (itemCount !== seen) { setSeen(itemCount); setRenderLimit(initial) }`, not an effect — dodges `react-doctor/no-derived-state-effect`). The scrollbar starts short and grows, so users don't read it as "everything loaded". **Rejected #1: `ListBox` + `Virtualizer`/`ListLayout` windowing** — DOM stays small but the full-height padded scrollbar reads as "all 842 loaded", and worse, `ListBox` with `selectionMode="single"` fires `onAction` only on **double-click** (single-click just selects), so click-to-navigate silently broke. **Rejected #2: fixed-height windowing** (`slice(start,end)` + top/bottom spacer padding) — same "scrollbar looks full" perception problem. **Bug fixed alongside:** selection locked after the first pick because a `params.id → selectedAnimeId` sync effect reverted the choice during the async-`navigate` intermediate render (stale `params.id`); guard the effect with a previous-param ref so it only reacts to real URL changes. Validate row count with a DOM-count test (`AnimeEditorWorkspace.windowing.test.tsx`), not just the pure math. Also: `bg-accent-soft` is NOT a valid utility here — use `bg-accent/10`.
-- `1.0.9` — Added the "Chart palette (nivo, literal hex)" section (SDD-47, `OverviewPanel`'s watching-pipeline/intake-health/grade-histogram charts): the surface/ink neutrals, the semantic status set, the chart-tuned neutrals, the validated categorical intake set (with its `getMatchStatusColor`-role mapping and the `discarded`-gray exception), the ordinal pipeline ramp, and the histogram emphasis pair. Documented the `--default`-dark-invisible-as-bar gotcha: HeroUI's `--default` dark token (`#27272A`) is one lightness step off the `#18181B` card surface and disappears as a bar fill, so charts use lifted zinc-hue grays (`#71717A`/`#62626C`) instead.
-- `1.0.8` — Added the canonical anime `estado` vocabulary rule (SDD-40): labels live in `shared/constants/anime-estado.ts`, imported everywhere (scoped exception to per-feature colocation); colors stay feature-local. Fixed the three-way label drift (2/3 were "Abandonado"/"Pendiente" and "Dropped"/"Paused"; Legacy truth is "No me gusto"/"En pausa").
-- `1.0.7` — Added the brand & action hierarchy section (primary=accent / secondary=default+accent-soft; hover intent tints for utility icons), the full-bleed card cover slot pattern (negative-margin bleed + absolute art, aspect-ratio-proof), and the toast feedback convention — all from the Chapters card hotfix after the user rejected Legacy-literal red/blue.
-- `1.0.6` — Corrected the main-worktree package reality: `@heroui/react@3.2.1` exports `Typography`. A stale Codex worktree had `3.0.2` exports (`Text`), which broke `wails dev` on real `main`; always verify against the target worktree's installed package.
-- `1.0.5` — Corrected the text primitive for the installed package: `@heroui/react@3.0.2` exports `Text`, not `Typography`. Newer docs mention `Typography`, but installed code wins; verify exports before importing docs-only components.
-- `1.0.4` — Root-caused the scroll failures: the `pinned` guard (updated from `onScroll`) was false when entries arrived, blocking every auto-scroll regardless of mechanism. Removed the guard (feed always sticks to bottom for now) and reverted to `scrollTop` (sync + rAF). Fixed column clipping with `table-fixed` + per-column widths (replacing the harmful `overflow-x-clip`). Removed the sentinel/`scrollIntoView` approach and its jsdom stub. Autoscroll pending final user confirmation.
-- `1.0.3` — (superseded) Claimed a bottom sentinel + `scrollIntoView` fixed stick-to-bottom. It did NOT; see 1.0.4.
-- `1.0.2` — (superseded) Claimed `overflow-x-clip` + `[scrollbar-gutter:stable]` fixed stick-to-bottom. It did NOT; see 1.0.3.
-- `1.0.1` — (superseded) Claimed an `overflow-y-auto` wrapper with `scrollTop` fixed stick-to-bottom. It did NOT; see 1.0.3.
-- `1.0.0` — Initial guide. Captured stack, component mapping, level/domain color conventions, and React-Aria-in-jsdom testing notes after the `network` feature migration to HeroUI (1/8 → 8/8).
+A new convention goes into `docs/design/` first. Add a line here only if every UI change must know
+it; keep this file and `.agents/skills/autoreas-theme/SKILL.md` byte-identical, bump `version`, and
+log the change in `docs/design/process/changelog.md`.
