@@ -16,6 +16,7 @@ function renderPanel(ui: ReactElement) {
       <Routes>
         <Route element={ui} path="/today" />
         <Route element={<h2>Create workspace</h2>} path="/editor/create" />
+        <Route element={<h2>Season workspace</h2>} path="/season" />
       </Routes>
     </MemoryRouter>,
   );
@@ -251,7 +252,17 @@ describe('EpisodeSchedulePanel resolved-empty guidance', () => {
 
     renderPanel(<EpisodeSchedulePanel source={source} />);
 
-    expect(await screen.findByText('Nothing in Ver hoy')).toBeInTheDocument();
+    expect(await screen.findByText('Nothing being watched today')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create an anime' })).toBeNull();
+  });
+
+  it('sends the season lens to Season, where Ver hoy is filled, when Go to Season is pressed', async () => {
+    const source = createSource({ getSeasonMode: vi.fn().mockResolvedValue(true) });
+
+    renderPanel(<EpisodeSchedulePanel source={source} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Go to Season' }));
+
+    expect(await screen.findByRole('heading', { name: 'Season workspace' })).toBeInTheDocument();
   });
 
   it('navigates to the Create workspace when Create an anime is pressed', async () => {

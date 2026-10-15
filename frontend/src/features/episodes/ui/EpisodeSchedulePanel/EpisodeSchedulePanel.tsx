@@ -1,13 +1,11 @@
 import { Alert, Chip, ToggleButton, ToggleButtonGroup, Typography } from '@heroui/react';
 import { useNavigate } from 'react-router';
 import todayAirisArtwork from '../../../../assets/airis-empty-states/today.webp';
-import { ANIME_CREATE_ROUTE } from '../../../../shared/navigation/app-layout.constants';
 import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
-import { AIRIS_CREATE_ANIME_LABEL } from '../../../../shared/ui/AirisEmptyState/airis-empty-state.constants';
 import { EpisodeScheduleCard } from './EpisodeScheduleCard';
 import { EpisodeScheduleSkeleton } from './EpisodeScheduleSkeleton';
 import { EPISODE_LENS_OPTIONS, EPISODE_LENS_TOGGLE_LABEL, EPISODE_TODAY_DOT_CLASS, EPISODE_TODAY_MARKER_LABEL, EPISODES_LOADING_MESSAGE } from './episode-schedule-panel.constants';
-import { dayBadge, episodeDayLabel, toEpisodeViewLens } from './episode-schedule-panel.helpers';
+import { dayBadge, episodeDayLabel, getEpisodeEmptyStateNavigation, toEpisodeViewLens } from './episode-schedule-panel.helpers';
 import type { EpisodeSchedulePanelProps } from './episode-schedule-panel.types';
 import { useEpisodeSchedulePanel } from './use-episode-schedule-panel';
 
@@ -17,6 +15,7 @@ import { useEpisodeSchedulePanel } from './use-episode-schedule-panel';
 export function EpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProps>) {
   const { adjustWatchedEpisodes, copyAnimeFolder, copyAnimePage, dayCounts, emptyStateCopy, errorMessage, filterOptions, isLoadingSchedule, lens, openAnimeFolder, openAnimePage, rows, selectDay, selectLens, selectedDay, setAnimeState, todayDay } = useEpisodeSchedulePanel(props);
   const navigate = useNavigate();
+  const emptyNavigation = getEpisodeEmptyStateNavigation(emptyStateCopy.action);
 
   if (errorMessage !== '') {
     return (
@@ -73,9 +72,10 @@ export function EpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProps>)
 
       {!isLoadingSchedule && rows.length === 0 ? (
         <AirisEmptyState
-          action={{ label: AIRIS_CREATE_ANIME_LABEL, onPress: () => void navigate(ANIME_CREATE_ROUTE) }}
+          action={{ label: emptyNavigation.label, onPress: () => void navigate(emptyNavigation.route) }}
           description={emptyStateCopy.description}
           imageSrc={todayAirisArtwork}
+          kind={emptyStateCopy.kind}
           title={emptyStateCopy.title}
         />
       ) : null}
