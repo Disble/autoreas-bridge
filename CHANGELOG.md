@@ -14,6 +14,34 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+<!-- Draft for the episode durations work (feat/episode-durations, merged to dev 2026-10-15). It may change before the release. -->
+
+### Added
+
+- Bridge now remembers how long each episode runs. Every episode a download lands is measured once and stored, and when the app starts it fills in, in the background, the episodes of active anime that do not have a duration yet. A stored duration belongs to the episode, not to the file: moving or renaming the folder keeps it.
+- The Editor has an **Episodes** card to correct those durations: re-analyze the folder and review what changed before confirming it (a value you set by hand is kept), edit an episode's minutes, add an episode, or clear a duration. The card saves on its own with its own **Save episodes** and **Discard changes**, and opens and closes with **Show episodes** / **Hide episodes** without losing what you edited.
+- The Editor has a **Schedule** card that shows at a glance the days the anime airs and its place on each one ("3 of 3"), and holds the **Open schedule editor** button.
+- A "(?)" next to the Editor's **Folder** field explains that changing the folder does not recalculate episode durations, and that **Re-analyze folder** in the Episodes card does.
+- Backups now include the episode durations: an export carries them and an import restores them exactly.
+- **Wire-visible, additive**: anime served by `GET /api/animes`, `GET /api/animes/{id}` and every snapshot of the changes feed carry an optional `episodes` list — `episode`, `minutes` and `long` — so Mobile can show the same long-episode mark as Today without measuring anything. The field is omitted when an anime has no stored duration, and a change that only touched durations arrives as an ordinary `update` with `changed_fields: [episodes]` that never moves `modified_at`.
+
+### Changed
+
+- The Editor is now three independent cards — the anime data, Episodes and Schedule — and each one saves only its own data. Saving the anime no longer saves episode durations, and the Episodes card always works from the saved anime, never from unsaved edits in the anime card. The unsaved-changes prompt still covers both: **Discard changes** drops both drafts, and **Save and continue** saves each card that has changes and only moves on if every save succeeded. While a re-analysis runs, **Save and continue** waits until it finishes or is cancelled.
+- Today's long-episode mark now comes from the stored durations, so opening Today no longer measures any file. An episode copied into a folder by hand gets its mark at the next start, after a download of that anime, or with **Re-analyze folder**.
+- **Wire-visible, behaviour**: the changes feed is stricter for Mobile. For one anime, a later change never carries an older snapshot than an earlier one, its `timestamp` always rises — even within the same millisecond, if the clock goes back, or after acknowledged changes are pruned — a `create` or `update` always names the fields it changed, and no change is recorded for an anime that no longer exists. The payload shape is unchanged.
+
+### Fixed
+
+- An edit made on the desktop could be undone on a phone. When two changes to the same anime were recorded close together, the phone could receive a later change carrying an older copy of the anime and silently revert the edit; every change now carries the anime as stored at that moment.
+- After every paired device acknowledged its changes, a new edit could get the same timestamp as one a phone had already applied, so the phone could skip it. The last change of each anime is now kept as the floor for the next one, and the Devices **Syncing Now** panel still clears once every device is up to date.
+- Sync diagnostics from current Mobile builds are accepted again: reports carrying the `native_module_unavailable` or `remote_change_rejected` events were refused with a 400.
+
+### Internal
+
+- Episode durations live in their own table, `anime_episode_durations`, and reach Mobile through their own `episode.durations_changed` event and pending-announce table, so the anime write path, its outbox and `modified_at` are untouched. Recognising an episode number from a file name is one shared assigner used by downloads, the backfill and the Editor. The design, the decisions taken with Mobile and the verification evidence are recorded in `docs/episode-durations-analysis.md`, `docs/episode-durations-editor-ui.md` and `odd/tasks/episode-durations.md`.
+- The theme skill now states that every chip uses HeroUI's `soft` variant, with an optional icon.
+
 ## [1.16.0] — 2026-09-27
 
 ### Added
