@@ -31,3 +31,16 @@ export interface NotificationEmptyStateConditions {
 
 /** Props for the dumb `NotificationEmptyState` render. */
 export type NotificationEmptyStateProps = NotificationEmptyStateConditions;
+
+/**
+ * How a notification-list rendering is drawn: an empty-state kind of the shared
+ * shell, or `failure` for an unreachable service, which is an Alert.
+ */
+export type NotificationEmptyStateKind = 'first-run' | 'filtered' | 'caught-up' | 'failure';
+
+/** One rendering's kind and title/description copy. */
+export interface NotificationEmptyStateCopy {
+  readonly kind: NotificationEmptyStateKind;
+  readonly title: string;
+  readonly description: string;
+}

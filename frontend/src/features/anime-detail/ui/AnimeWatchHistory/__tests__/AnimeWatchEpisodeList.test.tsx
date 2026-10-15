@@ -108,6 +108,9 @@ describe('AnimeWatchEpisodeList', () => {
     renderList(undefined, { entries: [] });
 
     expect(screen.getByText('No episode history yet')).toBeInTheDocument();
+    // A section of the detail page, not a card of its own inside it.
+    expect(document.querySelector('[data-slot="card"]')).toBeNull();
+    expect(document.querySelector('img[aria-hidden="true"]')).not.toBeNull();
     expect(
       screen.getByText('Watch history starts 2026-07-05. Episodes you watch from now on will appear here.'),
     ).toBeInTheDocument();

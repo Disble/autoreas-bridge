@@ -1,48 +1,40 @@
-import type { IconifyIcon } from '@iconify/react';
-import archiveIcon from '@iconify-icons/solar/archive-bold-duotone';
-import checkCircleIcon from '@iconify-icons/solar/check-circle-bold-duotone';
-import cloudCrossIcon from '@iconify-icons/solar/cloud-cross-bold-duotone';
-import inboxArchiveIcon from '@iconify-icons/solar/inbox-archive-bold-duotone';
-import magniferIcon from '@iconify-icons/solar/magnifer-bold-duotone';
-import bellBingIcon from '@iconify-icons/solar/bell-bing-bold-duotone';
-import type { NotificationEmptyStateId } from './notification-empty-state.types';
+import type { NotificationEmptyStateCopy, NotificationEmptyStateId } from './notification-empty-state.types';
 
-/** One empty state's icon + title/description copy. */
-export interface NotificationEmptyStateCopy {
-  readonly icon: IconifyIcon;
-  readonly title: string;
-  readonly description: string;
-}
-
-/** Icon + copy for every notification empty-state rendering (design.md §9.3). */
+/**
+ * Kind and copy for every notification-list rendering (design.md §9.3), on the
+ * shared empty-state shell (docs/design/patterns/empty-states.md). Only a list
+ * that has never received anything shows the mascot; a filtered or archived
+ * view shows the search icon, good news shows the success check, and an
+ * unreachable service is a failure, rendered as an Alert.
+ */
 export const NOTIFICATION_EMPTY_STATE_COPY: Readonly<Record<NotificationEmptyStateId, NotificationEmptyStateCopy>> = {
   'never-recorded': {
-    icon: bellBingIcon,
+    kind: 'first-run',
     title: 'Nothing here yet',
     description: 'Notifications will show up here once something happens.',
   },
   'filters-empty': {
-    icon: magniferIcon,
+    kind: 'filtered',
     title: 'No matches',
     description: 'No notification matches the current search or filters.',
   },
   'active-all-archived': {
-    icon: inboxArchiveIcon,
+    kind: 'caught-up',
     title: 'All archived',
     description: 'Every notification has been archived. Switch to the archived view to see them.',
   },
   'unread-none': {
-    icon: checkCircleIcon,
+    kind: 'caught-up',
     title: 'All caught up',
     description: 'There are no unread notifications.',
   },
   'archived-empty': {
-    icon: archiveIcon,
+    kind: 'filtered',
     title: 'Nothing archived yet',
     description: 'Notifications you archive will show up here.',
   },
   unavailable: {
-    icon: cloudCrossIcon,
+    kind: 'failure',
     title: 'Notifications unavailable',
     description: 'The notification service could not be reached. Try again later.',
   },

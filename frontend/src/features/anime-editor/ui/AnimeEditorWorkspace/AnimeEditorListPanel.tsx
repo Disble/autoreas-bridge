@@ -33,14 +33,20 @@ export function AnimeEditorListPanel({ viewModel }: Readonly<AnimeEditorListPane
           <AnimeEditorListSkeleton />
         </div>
       )}
-      {emptyState !== 'none' && (
+      {emptyState === 'actual' && (
         <AirisEmptyState
-          action={emptyState === 'actual'
-            ? { label: AIRIS_CREATE_ANIME_LABEL, onPress: () => void navigate(ANIME_CREATE_ROUTE) }
-            : { label: AIRIS_CLEAR_CRITERIA_LABEL, onPress: viewModel.onClearCriteria }}
-          description={ANIME_EDITOR_EMPTY_STATE_COPY[emptyState].description}
+          action={{ label: AIRIS_CREATE_ANIME_LABEL, onPress: () => void navigate(ANIME_CREATE_ROUTE) }}
+          description={ANIME_EDITOR_EMPTY_STATE_COPY.actual.description}
           imageSrc={editorLibraryAirisArtwork}
-          title={ANIME_EDITOR_EMPTY_STATE_COPY[emptyState].title}
+          title={ANIME_EDITOR_EMPTY_STATE_COPY.actual.title}
+        />
+      )}
+      {emptyState === 'criteria' && (
+        <AirisEmptyState
+          action={{ label: AIRIS_CLEAR_CRITERIA_LABEL, onPress: viewModel.onClearCriteria }}
+          description={ANIME_EDITOR_EMPTY_STATE_COPY.criteria.description}
+          kind="filtered"
+          title={ANIME_EDITOR_EMPTY_STATE_COPY.criteria.title}
         />
       )}
       {!viewModel.isLoadingList && viewModel.items.length > 0 && (

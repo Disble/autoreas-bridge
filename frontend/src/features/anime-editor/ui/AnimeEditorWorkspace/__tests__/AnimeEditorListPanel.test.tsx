@@ -93,6 +93,8 @@ describe('AnimeEditorListPanel empty states', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search anime editor list' }), { target: { value: 'nothing-matches-this' } });
 
     expect(await screen.findByText('No anime match your criteria')).toBeInTheDocument();
+    expect(document.querySelector('img[aria-hidden="true"]')).toBeNull();
+    expect(document.querySelector('[data-airis-icon="filtered"]')).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Clear search and filters' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create an anime' })).toBeNull();
     expect(screen.queryByText('Your library is empty')).toBeNull();
