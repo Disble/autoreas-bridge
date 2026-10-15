@@ -11,7 +11,7 @@ import type { IntakeRowHintsProps } from './intake-panel.types';
 export function IntakeRowHints({ row, creatable, heldMetadata }: Readonly<IntakeRowHintsProps>) {
   const summary = heldMetadata === undefined ? '' : formatMetadataSummary(heldMetadata);
   return (
-    <div className="flex flex-wrap gap-x-3 pl-7 text-xs">
+    <div className="flex flex-wrap gap-x-3 text-xs">
       {summary === '' ? null : (
         <span className="text-muted" data-testid="intake-row-summary">
           {summary}

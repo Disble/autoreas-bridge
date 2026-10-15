@@ -172,11 +172,13 @@ describe('IntakeRow', () => {
     expect(props[callback]).toHaveBeenCalledOnce();
   });
 
-  it('lets a creatable row be picked for creation', () => {
+  it('lets a creatable row be picked for creation from the checkbox leading the row', () => {
     const props = renderRow({ row: seasonRow(CREATABLE) });
+    const checkbox = screen.getByRole('checkbox', { name: 'Dr. Stone' });
 
-    expect(screen.getByRole('checkbox')).toBeEnabled();
-    fireEvent.click(screen.getByRole('checkbox'));
+    expect(checkbox.compareDocumentPosition(screen.getByTestId('season-cover-thumb-placeholder')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(checkbox).toBeEnabled();
+    fireEvent.click(checkbox);
 
     expect(props.onToggleSelect).toHaveBeenCalledOnce();
   });

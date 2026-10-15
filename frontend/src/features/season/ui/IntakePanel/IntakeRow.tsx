@@ -7,9 +7,10 @@ import { LabeledCheckbox } from '../../../../shared/ui/LabeledCheckbox';
 import type { IntakeRowProps } from './intake-panel.types';
 
 /**
- * IntakeRow renders one editable intake row in List mode: the cover a lookup
- * attached, its create checkbox with the name and the muted summary line under
- * it, a match-status chip only while the match needs attention, the trailing
+ * IntakeRow renders one editable intake row in List mode: the create checkbox
+ * leading the row (named by the visible anime name through `aria-labelledby`),
+ * the cover a lookup attached, the name with the muted summary line under it,
+ * a match-status chip only while the match needs attention, the trailing
  * action group, and the candidate picker for unresolved matches. Purely
  * presentational -- all selection, lookup and I/O callbacks come from the
  * parent panel, and the action group receives them as they arrive.
@@ -17,15 +18,22 @@ import type { IntakeRowProps } from './intake-panel.types';
 export function IntakeRow(props: Readonly<IntakeRowProps>) {
   const { row, readOnly, heldMetadata } = props;
   const creatable = isCreatableRow(row);
+  const nameId = `intake-row-name-${row.id}`;
 
   return (
     <li>
       <div className="flex flex-wrap items-center gap-3 border-b border-divider py-2">
+        <LabeledCheckbox
+          aria-labelledby={nameId}
+          isDisabled={!creatable || readOnly}
+          isSelected={props.isSelected}
+          onChange={props.onToggleSelect}
+        >
+          {null}
+        </LabeledCheckbox>
         <SeasonCoverThumb coverSrc={heldMetadata?.coverURL} isLoading={false} />
         <div className="flex min-w-0 flex-col gap-0.5">
-          <LabeledCheckbox isDisabled={!creatable || readOnly} isSelected={props.isSelected} onChange={props.onToggleSelect}>
-            <span className="font-medium text-foreground">{row.rawName}</span>
-          </LabeledCheckbox>
+          <span className="font-medium text-foreground" id={nameId}>{row.rawName}</span>
           <IntakeRowHints creatable={creatable} heldMetadata={heldMetadata} row={row} />
         </div>
         {row.matchStatus === 'matched' ? null : (
