@@ -15,7 +15,7 @@
 ## Context
 
 ADR-010 and ADR-020 both treat `app_settings` as machine-local and excluded from backup bundles —
-correct for five of its six keys (a downloads root, a login-launch flag, an API address, an
+correct for five of its six keys (a library root — the downloads root before ADR 027 — a login-launch flag, an API address, an
 episode-rename toggle, and an observability debug flag are all genuinely tied to one machine). The
 keymap is different: it is a user's deliberate customization, not a machine fact, and a user who
 restores a backup on a new machine reasonably expects their rebinds to come with it. SDD-67 promotes

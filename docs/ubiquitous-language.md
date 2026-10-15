@@ -119,7 +119,7 @@ whose first episode has not aired yet is `waiting` today and `available` tomorro
 season list runs the check as a standing job and not only on demand.
 
 **Creation readiness** is a fact about the **local installation**: can Bridge create this anime here and
-then download it, with this downloads root, these hosters, and this configuration?
+then download it, with this library root, these hosters, and this configuration?
 (`download.ReadinessService`, `DownloadReadinessSnapshot`, the local readiness workflow ADR-014
 separates from creation.) It does not change because an episode aired, and it says nothing about the
 site.
@@ -144,3 +144,31 @@ search, or nothing. UI copy may say a row is **ready to watch** once it is match
 is a phrase for the reading surface, not a domain type.
 
 See [ADR 014: Anime creation stores the page; download execution interprets it](./adr/014-anime-creation-download-readiness-boundary.md).
+
+## Library root vs. anime folder vs. relative folder — three paths, one anime
+
+An anime's files live in one folder, and Bridge names three paths around it.
+
+**Library root** is the single folder on this computer where the anime library lives (`app_settings`
+key `library.root`, Options › Library). There is exactly one per computer. Older drive prefixes in the
+data (`E:\Anime`) are history from earlier computers, not additional roots. It was called the
+*downloads root* until ADR 027; that name is retired.
+
+**Anime folder** is the absolute path stored on each anime (`folder`). It is the source of truth: desktop
+opens it, downloads into it and validates it. When an anime is created, its folder defaults to the library
+root plus the sanitized anime name; Intake and the editor can pick any other folder, which is how
+sequels, side stories, films and OVAs end up nested under their parent show.
+
+**Relative folder** (`folderRelative` on the mobile wire) is the anime folder with the library root
+removed, for example `Date a Live/Date a Live II`. It is computed whenever an anime is sent to mobile and
+never stored; it is absent when the folder is outside the library root.
+
+| Term | Stored? | Surface |
+| --- | --- | --- |
+| Library root | Yes, one value per computer | `settings.LibraryRoot`, `GetLibraryRoot` / `SetLibraryRoot`, Options › Library |
+| Anime folder | Yes, per anime, absolute | `folder` in `anime_snapshots.snapshot_json`, `MobileAnime.folder` |
+| Relative folder | No, computed on read | `MobileAnime.folderRelative` |
+
+Changing the library root rewrites the anime folder of **active** animes under the old root, after the user
+confirms; inactive history keeps its stored folder. See
+[ADR 027: One library root per computer](./adr/027-one-library-root-per-computer.md).

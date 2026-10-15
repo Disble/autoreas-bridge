@@ -42,7 +42,7 @@ before doing runtime work.
 | Whether a page is required or syntactically acceptable for creation | Anime form/domain validation — independent of adapter support and of the network |
 | Source adapter compatibility | Download — `SiteRegistry.Resolve`, at readiness and at runtime |
 | List available episodes | Download — only during an explicit or scheduled run |
-| Derive an effective destination | Download — explicit folder, else downloads root plus sanitized name |
+| Derive an effective destination | Download — explicit folder, else library root (ADR 027) plus sanitized name |
 | Create or use a destination directory | Download/JDownloader/filesystem adapters — absence is a normal execution state |
 | Report why a download cannot start | Download — stable reason codes; the frontend maps them to copy |
 
@@ -114,7 +114,7 @@ the UI says "Ready for download check" and not "will download".
 - **Type-based blocking.** Movie/OVA classification does not determine whether
   a registered adapter can supply downloadable content.
 - **Stored folder presence as the destination rule.** A deterministic
-  destination is derivable from the global downloads root, and a missing
+  destination is derivable from the global library root (ADR 027), and a missing
   directory is already tolerated by the filesystem adapters.
 - **Hide blocked Solo results.** Hidden entries read as missing catalog data
   and prevent the user from seeing what needs correcting.
