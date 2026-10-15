@@ -462,9 +462,10 @@ components:
             When the change was recorded, in Unix milliseconds. For one anime it
             is stamped past the anime's last change still in the changelog, so
             it strictly increases with the changelog id even when two changes
-            are recorded in the same millisecond or the clock went back. Once
-            every paired device has acknowledged and the rows are pruned, the
-            next change starts again from the bridge clock.
+            are recorded in the same millisecond or the clock went back. A
+            prune of acknowledged rows keeps the last row of every anime that
+            still exists, so the guarantee also holds after a prune: an anime's
+            next change is always later than any change a device applied for it.
 
     AppliedOperation:
       type: object

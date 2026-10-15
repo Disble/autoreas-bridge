@@ -246,10 +246,10 @@ func TestSQLiteChangelogStoreUpsertsDeviceAckAndPrunesForActiveDevices(t *testin
 
 	for i := 1; i <= 3; i++ {
 		if err := insertWithAnime(ctx, db, store, ChangelogEntry{
-			AnimeID:       fmt.Sprintf("anime-%d", i),
+			AnimeID:       "anime-1", // one anime: its last row survives a prune
 			ChangeType:    ChangelogTypeUpdate,
 			ChangedFields: []string{"nrocapvisto"},
-			SnapshotJSON:  []byte(fmt.Sprintf(`{"id":"anime-%d"}`, i)),
+			SnapshotJSON:  []byte(`{"id":"anime-1"}`),
 			ChangedAtMs:   int64(100 + i),
 		}); err != nil {
 			t.Fatalf("insert changelog %d: %v", i, err)
@@ -289,9 +289,9 @@ func TestSQLiteChangelogStoreIgnoresStaleDevicesWhenPruning(t *testing.T) {
 
 	for i := 1; i <= 3; i++ {
 		if err := insertWithAnime(ctx, db, store, ChangelogEntry{
-			AnimeID:       fmt.Sprintf("anime-%d", i),
+			AnimeID:       "anime-1", // one anime: its last row survives a prune
 			ChangedFields: []string{"nrocapvisto"},
-			SnapshotJSON:  []byte(fmt.Sprintf(`{"id":"anime-%d"}`, i)),
+			SnapshotJSON:  []byte(`{"id":"anime-1"}`),
 			ChangedAtMs:   int64(100 + i),
 		}); err != nil {
 			t.Fatalf("insert changelog %d: %v", i, err)
@@ -312,8 +312,8 @@ func TestSQLiteChangelogStoreIgnoresStaleDevicesWhenPruning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prune acknowledged changelog: %v", err)
 	}
-	if pruned != 3 {
-		t.Fatalf("expected stale device not to block pruning, got %d pruned rows", pruned)
+	if pruned != 2 {
+		t.Fatalf("expected stale device not to block pruning (rows 1 and 2; 3 is the anime's last), got %d pruned rows", pruned)
 	}
 }
 

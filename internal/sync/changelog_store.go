@@ -129,14 +129,17 @@ func (s *ChangelogStore) ListAfterID(ctx context.Context, lastID int64) ([]Chang
 	return scanAndCloseChangelogEntries(rows)
 }
 
-// ListPending returns all changelog rows that still await device delivery.
+// ListPending returns the changelog rows that still await delivery to some active device. A row
+// every active device acknowledged is delivered even when the prune keeps it as its anime's clock
+// floor, so it is left out, exactly as the prune would have removed it.
 func (s *ChangelogStore) ListPending(ctx context.Context) ([]ChangelogEntry, error) {
 	rows, err := s.provider.DB().QueryContext(ctx, `
 		SELECT id, anime_id, change_type, changed_fields_json, snapshot_json, source_event_id, status, changed_at_ms
 		FROM changelog
 		WHERE status = ?
+		  AND id > COALESCE((SELECT MIN(last_ack_changelog_id) FROM device_sync_state WHERE sync_status = ?), 0)
 		ORDER BY changed_at_ms DESC, id DESC
-	`, changelogStatusPending)
+	`, changelogStatusPending, DeviceSyncStatusActive)
 	if err != nil {
 		return nil, fmt.Errorf("list pending changelog rows: %w", err)
 	}
@@ -224,7 +227,11 @@ func (s *ChangelogStore) MarkDeviceRevoked(ctx context.Context, deviceID string,
 	return nil
 }
 
-// PruneAcknowledgedChangelog deletes changelog rows acknowledged by every active device.
+// PruneAcknowledgedChangelog deletes changelog rows acknowledged by every active device, except
+// the last row of each anime that still exists: that row is the floor insertPendingTx stamps the
+// anime's next change past, so a prune never lets a new change tie or fall behind a timestamp a
+// device already applied. Every row of an anime that is gone is deleted, so none is left to
+// resurrect it.
 func (s *ChangelogStore) PruneAcknowledgedChangelog(ctx context.Context) (int64, error) {
 	var minAck sql.NullInt64
 	if err := s.provider.DB().QueryRowContext(ctx, `
@@ -237,7 +244,15 @@ func (s *ChangelogStore) PruneAcknowledgedChangelog(ctx context.Context) (int64,
 	if !minAck.Valid || minAck.Int64 <= 0 {
 		return 0, nil
 	}
-	result, err := s.execContext(ctx, `DELETE FROM changelog WHERE id <= ?`, minAck.Int64)
+	result, err := s.execContext(ctx, `
+		DELETE FROM changelog
+		WHERE id <= ?
+		  AND id NOT IN (
+			SELECT MAX(c.id) FROM changelog c
+			JOIN anime_snapshots a ON a.anime_id = c.anime_id
+			GROUP BY c.anime_id
+		  )
+	`, minAck.Int64)
 	if err != nil {
 		return 0, fmt.Errorf("prune acknowledged changelog <= %d: %w", minAck.Int64, err)
 	}
