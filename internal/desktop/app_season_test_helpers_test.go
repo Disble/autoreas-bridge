@@ -147,11 +147,18 @@ func newTestSeasonApp(repo season.Repository, hub *stubAppRealtimeHub) *App {
 	return app
 }
 
+// fakeAppNameSearcher answers a name search from canned candidates per query,
+// or fails with err when it is set.
 type fakeAppNameSearcher struct {
 	byQuery map[string][]match.Candidate
+	err     error
 }
 
+// Search returns the canned candidates for query, or the configured error.
 func (f fakeAppNameSearcher) Search(_ context.Context, query string) ([]match.Candidate, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
 	return f.byQuery[query], nil
 }
 

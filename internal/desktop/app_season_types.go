@@ -165,3 +165,20 @@ type ConfirmSelectionDTO struct {
 	Rejected      int    `json:"rejected"`
 	QuotaExceeded bool   `json:"quotaExceeded"`
 }
+
+// SeasonProviderPageDTO is one anime page a download provider returned for
+// the intake's manual "Find on provider" search, tagged with that provider's
+// name (its site descriptor name, e.g. "jkanime").
+type SeasonProviderPageDTO struct {
+	Title    string `json:"title"`
+	PageURL  string `json:"pageUrl"`
+	Provider string `json:"provider"`
+}
+
+// SeasonProviderSearchDTO is the Wails-facing result of a provider search:
+// Status is "ok" or an error message, and Pages is every page the providers
+// returned, ranked by similarity to the query. Pages is never nil.
+type SeasonProviderSearchDTO struct {
+	Status string                  `json:"status"`
+	Pages  []SeasonProviderPageDTO `json:"pages"`
+}

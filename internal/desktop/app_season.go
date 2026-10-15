@@ -192,7 +192,11 @@ func (a *App) wireSeasonMatchingEventBus() {
 	a.seasonService.SetEventBus(a.eventBus)
 }
 
-// ResolveSeasonMatch manually resolves an intake row to a page URL.
+// ResolveSeasonMatch manually resolves an intake row to a page URL (an
+// Ambiguous candidate or a "Find on provider" pick), then rechecks that row's
+// availability on the spot so it can become available without another
+// matching run. The recheck is best effort: it never undoes or fails the
+// resolve (see recheckResolvedRow).
 func (a *App) ResolveSeasonMatch(rowID, pageURL string) string {
 	if a.seasonService == nil {
 		return seasonServiceUnavailableMessage
@@ -200,8 +204,28 @@ func (a *App) ResolveSeasonMatch(rowID, pageURL string) string {
 	if err := a.seasonService.ResolveMatch(a.seasonCtx(), rowID, pageURL); err != nil {
 		return err.Error()
 	}
+	a.recheckResolvedRow(rowID)
 	a.broadcastSeasonChanged()
 	return "ok"
+}
+
+// recheckResolvedRow probes the just-resolved row's availability and raises
+// the "Available to create" notification when it newly became available.
+// Unwired availability deps are tolerated like RunSeasonMatching does; any
+// other failure leaves the row's previous availability in place (the next
+// matching run or daily recheck probes it again), is logged as a warning and
+// notifies nothing, since the availability it found was never saved.
+func (a *App) recheckResolvedRow(rowID string) {
+	res, err := a.seasonService.RecheckRowAvailability(a.seasonCtx(), rowID)
+	if err != nil {
+		if !errors.Is(err, season.ErrAvailabilityDepsUnavailable) && a.sharedLogger != nil {
+			a.sharedLogger.Warnf("season", "availability recheck after resolving row %s failed: %v", rowID, err)
+		}
+		return
+	}
+	if len(res.Available) > 0 {
+		a.notifySeasonAvailable(a.seasonCtx(), res.Available)
+	}
 }
 
 // DiscardSeasonName marks an intake row discarded.

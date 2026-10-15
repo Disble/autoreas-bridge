@@ -195,7 +195,9 @@ func (a *App) startSyncChangelogRecorder() {
 func (a *App) configureBridgeDeviceServices(ctx context.Context) (device.AuthService, *bridgeSync.ChangelogStore) {
 	deviceStore := a.newDeviceStore(a.bridgeDB)
 	a.deviceStore = deviceStore
-	a.seasonService = season.NewService(a.newSeasonStore(a.bridgeDB), time.Now, func() string { return uuid.New().String() }, newJkanimeNameSearcher())
+	jkanimeSearcher := newJkanimeNameSearcher()
+	a.seasonService = season.NewService(a.newSeasonStore(a.bridgeDB), time.Now, func() string { return uuid.New().String() }, jkanimeSearcher)
+	a.seasonService.SetProviderSearchers(newSeasonProviderSearchers(jkanimeSearcher))
 	a.settingsStore = settings.NewSQLiteStore(a.bridgeDB)
 	deviceService := a.newDeviceService(deviceStore)
 	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(a.bridgeDB))

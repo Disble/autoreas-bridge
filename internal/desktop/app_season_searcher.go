@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"autoreas-bridge/internal/download/sites/jkanime"
+	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/season/match"
 )
 
@@ -31,4 +32,33 @@ func (a jkanimeNameSearcher) Search(ctx context.Context, query string) ([]match.
 		out = append(out, match.Candidate{Title: r.Title, PageURL: r.PageURL})
 	}
 	return out, nil
+}
+
+// newSeasonProviderSearchers lists the download providers the intake's manual
+// "Find on provider" search asks, each named by its site descriptor so the
+// frontend shows the same name the download registry uses. jkanime is the
+// only provider today; a new site adds its own entry here.
+func newSeasonProviderSearchers(jkanimeSearcher season.NameSearcher) []season.ProviderSearcher {
+	return []season.ProviderSearcher{
+		{Provider: jkanime.New(nil).Descriptor().Name, Searcher: jkanimeSearcher},
+	}
+}
+
+// SearchSeasonProviders searches every download provider for query and
+// returns every page they returned, ranked by similarity and tagged with
+// their provider. Status is "ok" or the failure message; Pages is never nil.
+// A read: it changes nothing and broadcasts nothing.
+func (a *App) SearchSeasonProviders(query string) SeasonProviderSearchDTO {
+	if a.seasonService == nil {
+		return SeasonProviderSearchDTO{Status: seasonServiceUnavailableMessage, Pages: []SeasonProviderPageDTO{}}
+	}
+	pages, err := a.seasonService.SearchProviders(a.seasonCtx(), query)
+	if err != nil {
+		return SeasonProviderSearchDTO{Status: err.Error(), Pages: []SeasonProviderPageDTO{}}
+	}
+	out := make([]SeasonProviderPageDTO, 0, len(pages))
+	for _, p := range pages {
+		out = append(out, SeasonProviderPageDTO{Title: p.Title, PageURL: p.PageURL, Provider: p.Provider})
+	}
+	return SeasonProviderSearchDTO{Status: "ok", Pages: out}
 }

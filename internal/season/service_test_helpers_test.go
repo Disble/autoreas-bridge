@@ -103,13 +103,17 @@ func (r *fakeRepo) SeasonByID(_ context.Context, id string) (*domain.Season, err
 	return &cp, nil
 }
 
-// fakeSearcher is an in-memory NameSearcher keyed by exact query.
+// fakeSearcher is an in-memory NameSearcher keyed by exact query. It counts
+// every request so a test can prove a search was never sent.
 type fakeSearcher struct {
 	byQuery map[string][]match.Candidate
 	err     error
+	calls   int
 }
 
+// Search returns the canned candidates for query, or the configured error.
 func (f *fakeSearcher) Search(_ context.Context, query string) ([]match.Candidate, error) {
+	f.calls++
 	if f.err != nil {
 		return nil, f.err
 	}

@@ -43,6 +43,28 @@ func (s *Service) RecheckAvailability(ctx context.Context, seasonID string) (Rec
 	return res, nil
 }
 
+// RecheckRowAvailability probes episode availability for ONE row, the one a
+// manual resolve just matched, with exactly the rules RecheckAvailability
+// applies to a create candidate: a matched, uncreated row records its
+// availability and publishes one availability-check progress event; a probe
+// failure leaves it unchanged; any other row is neither probed nor reported.
+// It never creates an anime and never touches another row.
+func (s *Service) RecheckRowAvailability(ctx context.Context, rowID string) (RecheckResult, error) {
+	if s.probe == nil {
+		return RecheckResult{}, ErrAvailabilityDepsUnavailable
+	}
+	row, err := s.repo.SeasonAnimeByID(ctx, rowID)
+	if err != nil {
+		return RecheckResult{}, err
+	}
+	if row == nil {
+		return RecheckResult{}, ErrSeasonAnimeNotFound
+	}
+	var res RecheckResult
+	_, err = s.recheckCreateCandidate(ctx, *row, &res)
+	return res, err
+}
+
 // lookupCreatedPlacements loads schedule placements for created anime rows.
 func (s *Service) lookupCreatedPlacements(ctx context.Context, rows []domain.SeasonAnime) map[string][]domain.Placement {
 	createdAnimeIDs := make([]string, 0)

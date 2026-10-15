@@ -106,9 +106,11 @@ type Service struct {
 	now      func() time.Time
 	newID    func() string
 	searcher NameSearcher
-	probe    AvailabilityReader
-	gateway  AnimeGateway
-	bus      events.Bus
+	// providers is the manual provider search's list (SetProviderSearchers).
+	providers []ProviderSearcher
+	probe     AvailabilityReader
+	gateway   AnimeGateway
+	bus       events.Bus
 }
 
 // SetEventBus wires the optional event bus the service publishes season
