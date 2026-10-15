@@ -36,7 +36,7 @@ export function OverviewFinalLineup() {
           <AirisEmptyState
             description={OVERVIEW_LINEUP_COPY.notRecordedDescription}
             imageSrc={todayAirisArtwork}
-            size="compact"
+            size="row"
             title={OVERVIEW_LINEUP_COPY.notRecordedTitle}
           />
         ) : null}
@@ -45,7 +45,7 @@ export function OverviewFinalLineup() {
           <AirisEmptyState
             description={OVERVIEW_LINEUP_COPY.emptyDescription}
             imageSrc={todayAirisArtwork}
-            size="compact"
+            size="row"
             title={OVERVIEW_LINEUP_COPY.emptyTitle}
           />
         ) : null}

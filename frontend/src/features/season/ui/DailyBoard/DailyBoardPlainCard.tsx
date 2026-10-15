@@ -23,7 +23,7 @@ export function DailyBoardPlainCard({ rows, getCoverThumb }: Readonly<DailyBoard
           <AirisEmptyState
             description={DAILY_BOARD_PLAIN_COPY.emptyDescription}
             imageSrc={todayAirisArtwork}
-            size="compact"
+            size="row"
             title={DAILY_BOARD_PLAIN_COPY.emptyTitle}
           />
         ) : (

@@ -1,0 +1,41 @@
+# Empty states v2 and the Bridge design system
+
+Objective: replace the single centered Airis empty-state shape with five kinds of emptiness sized by their container, and move the Bridge design system's detail into `docs/design/` with a slim `autoreas-theme` skill that references it.
+Branch: `feat/empty-states-v2` (from `dev`). Delivery strategy: `ask-on-risk` → chain strategy `feature-branch-chain` (user, 2026-10-15): work-unit commits land on `feat/empty-states-v2`; one PR to `dev` at the end. Test runner: `bun --cwd="frontend" run test -- <path>`; frontend mutation `bun --cwd="frontend" run test:mutation:staged`. RDD: off (global).
+
+## Specs
+
+- **S1 — Approved redesign (base package).** User: "Apruebo el ODD con esta propuesta." The proposal is the artifact "Airis Empty States v2" (https://claude.ai/artifact/9spubEorFcWmZdZ8tnTPz5, version 7). Its base package:
+  - Shared shell with five kinds (`first-run`, `waiting-on-step`, `filtered`, `caught-up`, `awaiting-selection`) and size taken from the container (container queries) instead of a prop; only `size="row"` stays explicit. One alignment axis: art left, copy and actions left-aligned right; stacked fallback left-aligned.
+  - At most one mascot per screen; `filtered` and `awaiting-selection` never show the mascot; rows use a neutral icon instead of the 40px mascot.
+  - Copy does not repeat the chrome; the action leads to the real next step with a callback the surface already has.
+  - Today, Season lens, empty tab: copy reuses the Daily board wording ("Today's batch", leaves Ver hoy on its own as you watch); action "Go to Season" via `navigate('/season')`; Daily lens keeps "Create an anime".
+  - Selection: grade and slots stay; "0 / 12 approved", "Not confirmed yet" and Confirm render only when there are rows.
+  - Loading → skeleton, resolved-empty → this shell, failure → Alert stays unchanged.
+  - Assumption: the enhancements priced $$$/$$$$ in the artifact (Intake "n ready" count, removable filter chips, opening a specific Season tab, keyboard hints, tab counts, dashed preview) are OUT of scope.
+- **S2 — Awaiting-selection panes.** The History inspector uses the artifact v3/v7 layout (cover circle, "No episode selected" + one line, real field labels Watched / Last watched / Added dimmed with dashes, "RECENT EPISODES" label, footer line). User on Notifications: "Sí, mejor, para casos donde no conviene usar nuestra mascota placeholder." Notifications detail uses the same composition with its real fields (Level, Source, When, MESSAGE, footer naming Archive / Mark unread). The other plain-text detail panes (Run history, Transaction, Event) move to the same pattern with their own real labels.
+- **S3 — Mascot variety stays open.** User: "pienso que podemos dejar abierto la posibilidad de tener más variedad de imagenes de nuestra mascota para placeholders futuros, pero de momento está bien así." No new artwork now; the design system documents how a new pose is added.
+- **S4 — Design system home.** User: "Además del ODD, esto debe formar parte de nuestro design system. El design system debería estar en /docs/design, y allí debería estar el grueso del detalle del design system que rigue Bridge."
+- **S5 — Skill keeps the fundamentals.** User: "La skill (.claude/.agents) por supuesto también debe ser actualizada, sin embargo, allí debe ir lo más importante y fundamental, el resto de detalle fino deberán ir a una estructura de documentación de design system en la carpeta antes mencionada. No tiene por qué ser un solo .md, pueden ser varios bien estructurado, con nomenclatura y referenciados en la skill para mayor interoperatibilidad."
+- **S6 — Fidelity.** User: "Tened cuidado al copia la UI de Bridge, no podemos crear casuisticas que no existian por copiar mal un chip; a menos que sea una propuesta de mejora, eso es otra cosa." and "debes también poner el precio del cambio que estás proponiendo si tu nueva UI incluye cambios de comportamiento en código." Applies to the design-system docs: proposals are labelled and priced.
+
+## Tasks
+
+| ID | Specs | Route | Status | Evidence / commit |
+|---|---|---|---|---|
+| T1 | S1 | inline | implemented, not committed | Shell: `kind`, container sizing, row icon; layout fixture; tests. RED 6/15 → GREEN 24/24; typecheck, ESLint clean; affected suites 178 files / 2158 tests; layout:smoke green; hand mutation (drop `@xl:size-36`) → 4 FAIL, restored |
+| T2 | S2 | inline | pending | Awaiting-selection pane: History, Notifications, Run history, Transaction, Event |
+| T3 | S1 | inline | pending | Today copy per lens + Season-lens action |
+| T4 | S1 | inline | pending | Season Overview/Intake/Evaluation/Selection/Ordering migration + Selection status gating |
+| T5 | S1 | inline | pending | first-run / filtered migrations: Catalog, Editor rail, History timeline, watch history, MAL modal, Keymap, Notifications list |
+| T6 | S1 | inline | pending | Rows / caught-up: DailyBoard, Overview lineup, Ordering history, Syncing Now |
+
+Companion, outside the ODD tasks ("Además del ODD"; Engram `odd/documentation-outside-feature-slices`): DOC — `docs/design/` structure and the slim `autoreas-theme` skill in `.claude` and `.agents` (byte-identical), covering S3–S6. Its own commit; it is not a feature milestone.
+
+## Log
+
+- **L1 (2026-10-15, user, verbatim):** "Sí, mejor, para casos donde no conviene usar nuestra mascota placeholder. Bueno, pienso que podemos dejar abierto la posibilidad de tener más variedad de imagenes de nuestra mascota para placeholders futuros, pero de momento está bien así. Apruebo el ODD con esta propuesta. Además del ODD, esto debe formar parte de nuestro design system. El design system debería estar en /docs/design, y allí debería estar el grueso del detalle del design system que rigue Bridge. La skill (.claude/.agents) por supuesto también debe ser actualizada, sin embargo, allí debe ir lo más importante y fundamental, el resto de detalle fino deberán ir a una estructura de documentación de design system en la carpeta antes mencionada. No tiene por qué ser un solo .md, pueden ser varios bien estructurado, con nomenclatura y referenciados en la skill para mayor interoperatibilidad."
+- **L2 (2026-10-14/15, earlier decisions):** tab counts discarded (the Today badge is Legacy `buscarMedalla`: active anime with `estado > 0`, hidden at 0); History inspector v3 restored on request; Notifications detail aligned with History.
+- **L3 (discovery):** `.claude/skills/autoreas-theme/SKILL.md` (v1.1.2, 361 lines) and `.agents/skills/autoreas-theme/SKILL.md` (v1.3.0, 338 lines) have drifted: 113 differing lines; each holds content the other lacks (soft chips + inline empty state vs refetching state + "Settle the typing"). T7 merges both into `docs/design/` and makes the two skills identical. `skills/frontend-theme/SKILL.md` is a third theming skill; left untouched unless decided otherwise.
+- **L5 (T1 decision):** the shell keeps one explicit placement prop, `size: 'card' | 'section' | 'row'` (was `default | inline | compact`). Card vs section is about the surface (own card vs the secondary surface of a host card), not size; the artwork SIZE follows the container through Tailwind v4 container queries (`@xs` 20rem split, `@xl` 36rem wide art): 88 / 104 / 144px for first-run, 88 / 104 / 120px for waiting-on-step. `filtered` and `caught-up` take no `imageSrc` (type-enforced) and show an icon; `row` always shows an icon. Callers renamed mechanically (`inline` → `section`, `compact` → `row`); their kinds are set in T3–T6. The layout fixture now measures split vs stacked geometry and the per-container artwork size; Catalog's measured composition moved from the criteria copy (now `filtered`, no art) to the actual-empty copy.
+- **L4 (forecast):** well above 400 authored changed lines (19+ call sites, tests, docs). `ask-on-risk`: chain strategy asked once before the first commit.
