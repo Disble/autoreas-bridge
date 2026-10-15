@@ -56,10 +56,14 @@ func (a *App) libraryRoot(ctx context.Context) (string, error) {
 
 // SetLibraryRoot persists the global library root — the base folder joined
 // with a sanitized anime name to form a newly-created season anime's default
-// download folder. Returns "ok" or an error string.
+// download folder. The active animes under the previous root first follow it (ADR 027 D4); if
+// any cannot, the root is kept. Returns "ok" or an error string.
 func (a *App) SetLibraryRoot(path string) string {
 	if a.settingsStore == nil {
 		return "settings store unavailable"
+	}
+	if err := a.rebaseActiveFolders(a.seasonCtx(), path); err != nil {
+		return err.Error()
 	}
 	if err := a.settingsStore.SetLibraryRoot(a.seasonCtx(), path); err != nil {
 		return err.Error()

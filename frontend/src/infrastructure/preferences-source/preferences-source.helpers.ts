@@ -4,12 +4,13 @@ import {
   GetKeymap,
   GetSeasonMode,
   PickFolder,
+  PreviewLibraryRootChange,
   SetAutoStartEnabled,
   SetLibraryRoot,
   SetKeymap,
 } from '../../../wailsjs/go/desktop/App';
 import { PREFERENCES_SOURCE_STATE } from './preferences-source.constants';
-import type { PreferencesSource } from './preferences-source.types';
+import type { LibraryRootChangePreview, PreferencesSource } from './preferences-source.types';
 import { hasGoBinding, waitForBindings } from '../wails-bindings.helpers';
 
 /**
@@ -34,6 +35,13 @@ export function createPreferencesSource(): PreferencesSource {
     setLibraryRoot(path: string) {
       return waitForBindings(() => hasGoBinding('SetLibraryRoot')).then((isReady) => {
         return isReady ? SetLibraryRoot(path) : Promise.resolve('runtime unavailable');
+      });
+    },
+    previewLibraryRootChange(path: string) {
+      return waitForBindings(() => hasGoBinding('PreviewLibraryRootChange')).then((isReady): Promise<LibraryRootChangePreview> => {
+        return isReady
+          ? PreviewLibraryRootChange(path)
+          : Promise.resolve({ oldRoot: '', moves: [], kept: [], message: 'runtime unavailable' });
       });
     },
     pickFolder(title: string) {

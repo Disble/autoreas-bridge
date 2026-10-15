@@ -18,6 +18,7 @@ function createSource(overrides: Partial<PreferencesSource> = {}): PreferencesSo
     getSeasonMode: vi.fn().mockResolvedValue(false),
     getLibraryRoot: vi.fn().mockResolvedValue(''),
     setLibraryRoot: vi.fn().mockResolvedValue('ok'),
+    previewLibraryRootChange: vi.fn().mockResolvedValue({ oldRoot: '', moves: [], kept: [] }),
     pickFolder: vi.fn().mockResolvedValue(''),
     getAutoStartEnabled: vi.fn().mockResolvedValue(true),
     setAutoStartEnabled: vi.fn().mockResolvedValue('ok'),

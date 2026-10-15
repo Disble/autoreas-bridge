@@ -7,11 +7,14 @@ import {
   LIBRARY_ROOT_SAVED_MESSAGE,
 } from './library-root-panel.constants';
 import type { LibraryRootPanelProps, LibraryRootSource } from './library-root-panel.types';
+import { useLibraryRootChange } from './use-library-root-change';
 
 /**
  * useLibraryRootPanel drives the Options "Library" tab: it loads the current
  * global library root, lets the user edit it by hand or via the native folder
- * picker, and persists it. Wails I/O flows through the injectable preferences
+ * picker, and persists it. Saving first previews the change through
+ * useLibraryRootChange, which waits for confirmation when active animes would
+ * follow the new root. Wails I/O flows through the injectable preferences
  * source; the field is "dirty" until a load or a successful save re-baselines it.
  */
 export function useLibraryRootPanel(props: Readonly<LibraryRootPanelProps> = {}) {
@@ -38,28 +41,33 @@ export function useLibraryRootPanel(props: Readonly<LibraryRootPanelProps> = {})
     });
   }, [source]);
 
-  const onSave = useCallback(() => {
+  const fail = useCallback((message: string) => {
+    setErrorMessage(message);
+    toast.danger(LIBRARY_ROOT_ERROR_MESSAGE);
+  }, []);
+
+  const persist = useCallback(() => {
     setIsSaving(true);
     setErrorMessage('');
     return source
       .setLibraryRoot(root)
       .then((status) => {
         if (status !== 'ok') {
-          setErrorMessage(status);
-          toast.danger(LIBRARY_ROOT_ERROR_MESSAGE);
+          fail(status);
           return;
         }
         setInitialRoot(root);
         toast.success(LIBRARY_ROOT_SAVED_MESSAGE);
       })
       .catch(() => {
-        setErrorMessage(LIBRARY_ROOT_ERROR_MESSAGE);
-        toast.danger(LIBRARY_ROOT_ERROR_MESSAGE);
+        fail(LIBRARY_ROOT_ERROR_MESSAGE);
       })
       .finally(() => {
         setIsSaving(false);
       });
-  }, [root, source]);
+  }, [fail, root, source]);
+
+  const change = useLibraryRootChange({ source, root, persist, fail, setIsSaving });
 
   // 7. Effects
   useEffect(() => {
@@ -73,9 +81,9 @@ export function useLibraryRootPanel(props: Readonly<LibraryRootPanelProps> = {})
     root,
     onRootChange,
     onBrowse,
-    onSave,
     isDirty,
     isSaving,
     errorMessage,
+    ...change,
   };
 }
