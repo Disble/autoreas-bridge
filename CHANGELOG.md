@@ -42,6 +42,21 @@ called out explicitly under its release.
 - Episode durations live in their own table, `anime_episode_durations`, and reach Mobile through their own `episode.durations_changed` event and pending-announce table, so the anime write path, its outbox and `modified_at` are untouched. Recognising an episode number from a file name is one shared assigner used by downloads, the backfill and the Editor. The design, the decisions taken with Mobile and the verification evidence are recorded in `docs/episode-durations-analysis.md`, `docs/episode-durations-editor-ui.md` and `odd/tasks/episode-durations.md`.
 - The theme skill now states that every chip uses HeroUI's `soft` variant, with an optional icon.
 
+<!-- Draft for the intake provider search work (feat/intake-provider-search and fix/intake-checkbox-first, merged to dev 2026-10-15). It may change before the release. Fold its sections into the ones above when the release is written. -->
+
+### Added
+
+- Intake rows that are **Pending**, **Not found**, **Ambiguous** or **Search failed** have a **Find on provider** button next to **Fetch metadata**, so a row the matcher cannot resolve, or one sent back from Raw, no longer needs another **Run matching**. The modal starts with the row's name, searches every download provider while you type, and lists each page with its cover, as "Provider · page URL", ranked by how close its title is. **Use this page** resolves the row to that page.
+
+### Changed
+
+- Resolving an intake row, from a candidate or from **Find on provider**, now rechecks that row's availability right away, so its availability dot is up to date without waiting for the next check.
+- Each intake row now starts with its create checkbox, before the cover, and the checkbox is named after the anime.
+
+### Internal
+
+- The MyAnimeList lookup modal is drawn from presentation-only parts under `shared/ui` (modal shell, candidate row, trigger and skeleton) that **Find on provider** reuses; its behaviour and copy are unchanged. The provider search is a Wails-only method, so no REST or WS contract changes. The specs, decisions and verification evidence are recorded in `odd/tasks/intake-provider-search.md`.
+
 ## [1.16.0] — 2026-09-27
 
 ### Added
