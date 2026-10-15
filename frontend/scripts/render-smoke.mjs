@@ -44,8 +44,22 @@ const VIRTUAL_TIME_BUDGET_MS = 10000;
 /** Markers that only exist once React has mounted the shell and its navigation. */
 const REQUIRED_MARKERS = ['Today', 'Catalog', 'Downloads'];
 
-/** Route-specific markers, proving the route actually rendered its own content. */
+/** Edge attempts per route; only a timeout earns the second one (see renderRouteWithRetry). */
+const RENDER_ATTEMPTS = 2;
+
+/**
+ * Route-specific markers, proving the route actually rendered its own content.
+ * Every route the rail navigates to is listed, and the keys are the routes this
+ * run visits. Each marker is static header or empty-state copy, never data: no
+ * Wails runtime backs this static-served bundle, so every binding degrades.
+ */
 const ROUTE_MARKERS = {
+  '/': ['anime progress without opening Legacy'],
+  '/#/catalog': ['Browse the synchronized anime inventory'],
+  '/#/season': ['Run the new-season anime selection workflow.'],
+  '/#/devices': ['Pair devices and manage desktop'],
+  // The default Settings tab is Library, so its field proves the tab body rendered.
+  '/#/settings': ['Configure application behavior', 'Library root'],
   '/#/downloads': ['Configuration', 'Manual check'],
   // No Wails runtime backs this static-served bundle, so every notification
   // center binding degrades and the panel settles on the "unavailable"
@@ -127,11 +141,13 @@ function startServer() {
 }
 
 /**
- * Renders one URL in headless Edge and resolves with the serialized DOM.
+ * Renders one URL in headless Edge and resolves with the serialized DOM and the
+ * browser log. `--enable-logging=stderr` makes Edge print every console message,
+ * including `Uncaught` errors and rejections, without a CDP port.
  * @param {string} edge Path to the Edge binary.
  * @param {string} profileDir Throwaway user-data dir, so runs never share state.
  * @param {string} url Absolute URL to load.
- * @returns {Promise<string>} The dumped DOM.
+ * @returns {Promise<{dom: string, log: string}>} The dumped DOM and stderr log.
  */
 function renderRoute(edge, profileDir, url) {
   return new Promise((resolve, reject) => {
@@ -143,6 +159,8 @@ function renderRoute(edge, profileDir, url) {
         '--no-sandbox',
         '--no-first-run',
         '--disable-extensions',
+        '--enable-logging=stderr',
+        '--v=0',
         `--virtual-time-budget=${VIRTUAL_TIME_BUDGET_MS}`,
         `--user-data-dir=${profileDir}`,
         '--dump-dom',
@@ -152,12 +170,16 @@ function renderRoute(edge, profileDir, url) {
     );
 
     let dom = '';
+    let log = '';
     child.stdout.on('data', (chunk) => {
       dom += chunk.toString();
     });
+    child.stderr.on('data', (chunk) => {
+      log += chunk.toString();
+    });
     const timer = setTimeout(() => {
       child.kill();
-      reject(new Error(`headless render timed out after ${RENDER_TIMEOUT_MS}ms`));
+      reject(new RenderTimeoutError(`headless render timed out after ${RENDER_TIMEOUT_MS}ms`));
     }, RENDER_TIMEOUT_MS);
     child.on('error', (error) => {
       clearTimeout(timer);
@@ -165,9 +187,52 @@ function renderRoute(edge, profileDir, url) {
     });
     child.on('close', () => {
       clearTimeout(timer);
-      resolve(dom);
+      resolve({ dom, log });
     });
   });
+}
+
+/** A render that never finished, as opposed to one that finished blank. */
+class RenderTimeoutError extends Error {}
+
+/**
+ * Renders a route, retrying once only when Edge times out. A loaded machine can
+ * stall the browser launch itself (seen while the full pre-commit gate ran),
+ * but a blank bundle never times out: it returns at once with an empty #root,
+ * which checkDom fails. So the retry cannot hide the defect this gate exists for.
+ * @param {string} edge Path to the Edge binary.
+ * @param {string} profileDir Throwaway user-data dir.
+ * @param {string} url Absolute URL to load.
+ * @returns {Promise<{dom: string, log: string}>} The dumped DOM and stderr log.
+ */
+async function renderRouteWithRetry(edge, profileDir, url) {
+  for (let attempt = 1; attempt < RENDER_ATTEMPTS; attempt += 1) {
+    try {
+      return await renderRoute(edge, profileDir, url);
+    } catch (error) {
+      if (!(error instanceof RenderTimeoutError)) {
+        throw error;
+      }
+      console.warn(`render-smoke: ${url} timed out on attempt ${attempt}; retrying once.`);
+    }
+  }
+  return renderRoute(edge, profileDir, url);
+}
+
+/**
+ * Reports every uncaught error or rejection the page logged. These leave the
+ * page painted -- an effect or a promise that throws does not unmount React --
+ * so the DOM markers alone would pass a route that is broken at runtime.
+ * Extension pages Edge runs on its own are not the app and are ignored.
+ * @param {string} log Edge stderr for the route.
+ * @param {string} route Route label used in failure messages.
+ * @returns {string[]} Human-readable failures; empty means nothing threw.
+ */
+function uncaughtErrorFailures(log, route) {
+  return log
+    .split(/\r?\n/)
+    .filter((line) => line.includes(':CONSOLE') && line.includes('"Uncaught') && !line.includes('chrome-extension://'))
+    .map((line) => `${route}: ${line.slice(line.indexOf('"Uncaught'))}`);
 }
 
 /**
@@ -229,9 +294,9 @@ try {
   // Requesting "/downloads" would silently serve index.html with an empty hash
   // and render the default route instead -- a check that looks like it covers
   // Downloads while never leaving Today.
-  for (const route of ['/', '/#/downloads', '/#/notifications', '/#/activity', '/#/activity/runtime-events', '/#/editor/create', '/#/history']) {
-    const dom = await renderRoute(edge, profileDir, `http://127.0.0.1:${port}${route}`);
-    failures.push(...checkDom(dom, route));
+  for (const route of Object.keys(ROUTE_MARKERS)) {
+    const { dom, log } = await renderRouteWithRetry(edge, profileDir, `http://127.0.0.1:${port}${route}`);
+    failures.push(...checkDom(dom, route), ...uncaughtErrorFailures(log, route));
   }
 } finally {
   server.close();
