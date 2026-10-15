@@ -8,97 +8,74 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// The frontend-filesize-warning job was removed from the gate on 2026-08-11:
-// dharness runs react-doctor, whose max-file-lines rule covers the staged
-// change. What must not disappear is the hard-fail path, which is ESLint's
-// max-lines rule reached through the frontend-lint job. The advisory script
-// survives as a manual command and is asserted separately by
-// TestRepositoryFrontendFileSizePolicyWiresWarningAndFailurePaths.
-func TestRepositoryHookKeepsFrontendLintAsTheFileSizeFailurePath(t *testing.T) {
+// TestRepositoryHookUsesSingleStagedQualityEntry protects the single lint owner.
+// dharness loads the repository ESLint config; a separate ESLint job pays twice.
+func TestRepositoryHookUsesSingleStagedQualityEntry(t *testing.T) {
 	t.Parallel()
-
-	root := repoRootFromTest(t)
-	content := readRepoFile(t, root, "lefthook.yml")
-
-	var config lefthookConfig
-	if err := yaml.Unmarshal(content, &config); err != nil {
-		t.Fatalf("yaml.Unmarshal() error = %v", err)
-	}
-
+	config := loadLefthookConfig(t)
 	jobs := flattenJobs(config.PreCommit.Jobs)
-	lintIndex := -1
-	for index, job := range jobs {
-		if job.Name == "frontend-lint" {
-			lintIndex = index
-		}
+	if _, found := jobIndex(jobs, "frontend-lint"); found {
+		t.Fatal("standalone frontend-lint duplicates dharness ESLint")
 	}
-
-	if lintIndex == -1 {
-		t.Fatal("lefthook.yml is missing pre-commit job frontend-lint")
+	heavy := groupJobs(t, config.PreCommit.Jobs, "frontend-heavy")
+	index, found := jobIndex(heavy, "frontend-quality")
+	if !found || heavy[index].Run != "bun --cwd=\"frontend\" run check:staged" {
+		t.Fatal("frontend-heavy must invoke the guarded staged quality entry")
+	}
+	if countRunsContaining(jobs, "check:staged") != 1 {
+		t.Fatal("staged quality must run exactly once")
+	}
+	typecheck, found := jobIndex(heavy, "frontend-typecheck")
+	if !found || index >= typecheck {
+		t.Fatal("quality must precede typecheck in the frontend lane")
+	}
+	var raw map[string]any
+	if err := yaml.Unmarshal(readRepoFile(t, repoRootFromTest(t), "lefthook.yml"), &raw); err != nil {
+		t.Fatal(err)
+	}
+	if raw["extends"] != nil {
+		t.Fatal("automatic hook inheritance can reintroduce a second dharness check")
 	}
 }
 
-// TestRepositoryHookRunsStagedMutationAfterFrontendTests pins the frontend
-// staged-mutation gate (SDD-71): `dharness mutate --staged` replaced the
-// hand-rolled `test:mutation:staged` script, which silently skipped every
-// production file from a linked worktree because its `--show-toplevel`
-// resolved to `frontend/` rather than the repository root.
-//
-// The exclusions keep the scope the retired script had, `src/` only. dharness
-// treats any JS or TS file under frontend/ as source, but the mutation runner's
-// suite (frontend/vitest.mutation.mts) includes only `src/**` tests and
-// excludes `scripts/**`, so a staged line outside `src/` can never have a
-// related test there and fails with "No tests were found". 50 of the last 266
-// frontend commits touched such a file, not counting the since-untracked
-// wailsjs/ bindings (measured 2026-09-13). Each config file
-// is named exactly: a broad prefix such as `vite` would silently exclude a
-// future source directory with that prefix.
-func TestRepositoryHookRunsStagedMutationAfterFrontendTests(t *testing.T) {
+// TestRepositoryHookOffloadsMutation keeps automatic mutation outside local hooks.
+func TestRepositoryHookOffloadsMutation(t *testing.T) {
 	t.Parallel()
-
-	config := loadLefthookConfig(t)
-	heavyJobs := groupJobs(t, config.PreCommit.Jobs, "frontend-heavy")
-
-	wantRun := "dharness mutate --staged" +
-		" --exclude-prefix src/test/" +
-		" --exclude-prefix scripts/" +
-		" --exclude-prefix eslint.config.js" +
-		" --exclude-prefix vite.config.ts" +
-		" --exclude-prefix vite.layout.config.ts" +
-		" --exclude-prefix vitest.mutation.mts" +
-		" --concurrency 4"
-
-	if _, retired := jobIndex(heavyJobs, "test:mutation:staged"); retired {
-		t.Fatal("lefthook.yml frontend-heavy still declares the retired test:mutation:staged job")
-	}
-	mutationIndex, found := jobIndex(heavyJobs, "frontend-mutation")
-	if !found {
-		t.Fatal("lefthook.yml frontend-heavy is missing job frontend-mutation")
-	}
-	testIndex, found := jobIndex(heavyJobs, "frontend-test")
-	if !found {
-		t.Fatal("lefthook.yml frontend-heavy is missing job frontend-test")
-	}
-
-	mutation := heavyJobs[mutationIndex]
-	if mutation.Run != wantRun {
-		t.Fatalf("frontend-mutation run = %q, want %q", mutation.Run, wantRun)
-	}
-	if mutation.Root != "frontend" {
-		t.Fatalf("frontend-mutation root = %q, want %q", mutation.Root, "frontend")
-	}
-	if mutationIndex < testIndex {
-		t.Fatalf("frontend-mutation index = %d, want after frontend-test index = %d", mutationIndex, testIndex)
-	}
-
-	if runs := countRunsContaining(flattenJobs(config.PreCommit.Jobs), "dharness mutate"); runs != 1 {
-		t.Fatalf("pre-commit declares %d job(s) running %q, want exactly 1", runs, "dharness mutate")
-	}
-	for _, job := range parseMergeGate(t) {
-		if strings.Contains(job.Run, "dharness mutate") {
-			t.Fatalf("pre-merge-commit job %q runs %q; a merge has no staged-line scope", job.Name, job.Run)
+	jobs := flattenJobs(loadLefthookConfig(t).PreCommit.Jobs)
+	for _, job := range jobs {
+		if strings.Contains(job.Run, "mutate") || strings.Contains(job.Name, "mutation") {
+			t.Fatalf("local pre-commit still runs mutation: %s", job.Name)
 		}
 	}
+	for _, job := range parseMergeGate(t) {
+		if strings.Contains(job.Run, "mutate") || strings.Contains(job.Name, "mutation") {
+			t.Fatalf("local pre-merge still runs mutation: %s", job.Name)
+		}
+	}
+}
+
+// TestRepositoryFrontendLanesSerializeTypecheckBeforeTests keeps both hooks alike.
+func TestRepositoryFrontendLanesSerializeTypecheckBeforeTests(t *testing.T) {
+	t.Parallel()
+	commit := groupJobs(t, loadLefthookConfig(t).PreCommit.Jobs, "frontend-heavy")
+	typecheck, ok := jobIndex(commit, "frontend-typecheck")
+	tests, found := jobIndex(commit, "frontend-test")
+	if !ok || !found || typecheck >= tests {
+		t.Fatal("pre-commit must typecheck before tests")
+	}
+	var merge mergeGateConfig
+	if err := yaml.Unmarshal(readRepoFile(t, repoRootFromTest(t), "lefthook.yml"), &merge); err != nil {
+		t.Fatal(err)
+	}
+	for _, lane := range merge.PreMergeCommit.Jobs {
+		if lane.Name == "frontend-heavy" && lane.Group != nil {
+			if len(lane.Group.Jobs) < 2 || lane.Group.Jobs[0].Name != "frontend-typecheck" || lane.Group.Jobs[1].Name != "frontend-test" {
+				t.Fatal("pre-merge must serialize typecheck before tests in frontend-heavy")
+			}
+			return
+		}
+	}
+	t.Fatal("pre-merge frontend-heavy is missing")
 }
 
 // loadLefthookConfig parses the repository's lefthook.yml.

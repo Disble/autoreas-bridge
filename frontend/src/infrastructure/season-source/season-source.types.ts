@@ -162,6 +162,98 @@ export interface SendToVerHoyResult {
   readonly downloadTime: string;
 }
 
+/**
+ * One matching phase the run names on every progress event
+ * (`internal/events/event.go`: the run is one run with two phases, so the
+ * panel never claims to be matching while it is really checking episodes).
+ */
+export type SeasonMatchingPhase = 'name_matching' | 'availability_check';
+
+/**
+ * Run total carried by the `season.matching_started` runtime event: how many
+ * rows this run will attempt. It carries no per-state counters -- the panel
+ * derives those from the rows it already holds.
+ */
+export interface SeasonMatchingStartedNotice {
+  readonly seasonId: string;
+  readonly total: number;
+}
+
+/** One retained candidate carried by a matching progress event. */
+export interface SeasonMatchingProgressCandidate {
+  readonly title: string;
+  readonly pageUrl: string;
+  readonly score: number;
+}
+
+/**
+ * One resolved row carried by the `season.matching_progress` runtime event,
+ * in the phase the row just resolved in -- including rows whose search
+ * failed. It carries the row and no per-state counters.
+ */
+export interface SeasonMatchingProgressNotice {
+  readonly seasonId: string;
+  readonly phase: SeasonMatchingPhase;
+  readonly rowId: string;
+  readonly rawName: string;
+  readonly matchStatus: string;
+  readonly matchedSlug: string;
+  readonly candidates: readonly SeasonMatchingProgressCandidate[];
+  readonly availability: string;
+  readonly availableEpisodes: number;
+}
+
+/**
+ * Terminal signal carried by the `season.matching_finished` runtime event,
+ * published once after both phases have completed. It carries no counters
+ * and no history: the season's own rows are the record.
+ */
+export interface SeasonMatchingFinishedNotice {
+  readonly seasonId: string;
+}
+
+/**
+ * Wire shape of the `season.matching_started` payload as the desktop bridge
+ * forwards it: the raw Go event struct, which carries no `json` tags, so its
+ * field names arrive capitalized.
+ */
+export interface SeasonMatchingStartedWire {
+  readonly SeasonID: string;
+  readonly Total: number;
+}
+
+/** One retained candidate in the wire progress payload, with Go field names. */
+export interface SeasonMatchingCandidateWire {
+  readonly Title: string;
+  readonly PageURL: string;
+  readonly Score: number;
+}
+
+/**
+ * Wire shape of the `season.matching_progress` payload as the desktop bridge
+ * forwards it: the raw Go event struct with capitalized field names, and a
+ * null candidate list when the row retained none (Go nil slice).
+ */
+export interface SeasonMatchingProgressWire {
+  readonly SeasonID: string;
+  readonly Phase: string;
+  readonly RowID: string;
+  readonly RawName: string;
+  readonly MatchStatus: string;
+  readonly MatchedSlug: string;
+  readonly Candidates: readonly SeasonMatchingCandidateWire[] | null;
+  readonly Availability: string;
+  readonly AvailableEpisodes: number;
+}
+
+/**
+ * Wire shape of the `season.matching_finished` payload as the desktop bridge
+ * forwards it: the raw Go event struct with capitalized field names.
+ */
+export interface SeasonMatchingFinishedWire {
+  readonly SeasonID: string;
+}
+
 /** Result returned after confirming the season selection reconciliation. */
 export interface ConfirmSelectionResult {
   readonly status: string;
@@ -222,4 +314,26 @@ export interface SeasonSource {
   readonly reopenOrdering: () => Promise<string>;
   readonly recheckAvailability: () => Promise<string>;
   readonly openPage: (url: string) => void;
+  /**
+   * Fires when a matching run opens, carrying the run total. Optional on the
+   * port so pre-existing partial test doubles and degraded sources stay
+   * assignable -- like `getSeasonOrderingSnapshot` above -- the runtime
+   * adapter always provides it. A missing subscription is a silent run, never
+   * a broken command: the rows still reload when the command returns `ok`.
+   */
+  readonly subscribeMatchingStarted?: (listener: (notice: SeasonMatchingStartedNotice) => void) => () => void;
+  /**
+   * Fires once per attempted row, in the phase the row just resolved in.
+   * Optional for the same reason as `subscribeMatchingStarted`: without it
+   * the rows update only when the command returns.
+   */
+  readonly subscribeMatchingProgress?: (listener: (notice: SeasonMatchingProgressNotice) => void) => () => void;
+  /**
+   * Fires once when a matching run reaches its terminal signal, after both
+   * phases have completed. Optional for the same reason as
+   * `subscribeMatchingStarted`. An infrastructure abort emits no finished
+   * event, so the panel also leaves its progress state when the command
+   * returns something other than `ok`.
+   */
+  readonly subscribeMatchingFinished?: (listener: (notice: SeasonMatchingFinishedNotice) => void) => () => void;
 }

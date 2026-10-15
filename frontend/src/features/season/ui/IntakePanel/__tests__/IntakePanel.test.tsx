@@ -99,8 +99,11 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     availabilityPendingCount: 0,
     onCreate: vi.fn(),
     unresolvedCount: 0,
+    searchFailedCount: 0,
     errorMessage: undefined,
     busyMessage: undefined,
+    matchingRun: null,
+    matchingProgressMessage: undefined,
     onRunMatching: vi.fn(),
     onRecheckAvailability: vi.fn(),
     onResolve: vi.fn(),
@@ -124,6 +127,20 @@ describe('IntakePanel', () => {
     expect(screen.getByText('Dr. Stone')).toBeInTheDocument();
     expect(screen.getByText('Ambiguous')).toBeInTheDocument();
     expect(screen.getByText(/1 unresolved/)).toBeInTheDocument();
+  });
+
+  it('surfaces a failed search as its own footer counter', () => {
+    mockHook({ editableRows: [row({ matchStatus: 'search_failed' })], unresolvedCount: 0, searchFailedCount: 1 });
+    render(<IntakePanel />);
+    expect(screen.getByText('Search failed')).toBeInTheDocument();
+    expect(screen.getByText(/1 search failed/)).toBeInTheDocument();
+  });
+
+  it('hides the search-failed suffix while every search succeeded', () => {
+    mockHook({ editableRows: [row()], unresolvedCount: 1, searchFailedCount: 0 });
+    render(<IntakePanel />);
+    expect(screen.getByText(/1 unresolved/)).toBeInTheDocument();
+    expect(screen.queryByText(/search failed/)).not.toBeInTheDocument();
   });
 
   it('shows the raw textarea in raw mode', () => {
@@ -352,5 +369,34 @@ describe('IntakePanel', () => {
     mockHook({ busyMessage: 'Checking episode availability…' });
     render(<IntakePanel />);
     expect(screen.getByRole('status')).toHaveTextContent('Checking episode availability…');
+  });
+
+  it('names the matching phase with its counts while a run is in flight', () => {
+    mockHook({
+      matchingRun: { total: 4, resolvedInPhase: 1, phase: 'name_matching' },
+      matchingProgressMessage: 'Matching names… 1 of 4',
+    });
+    render(<IntakePanel />);
+    expect(screen.getByRole('status')).toHaveTextContent('Matching names… 1 of 4');
+  });
+
+  it('names the availability check instead of the matching while episodes are checked', () => {
+    mockHook({
+      matchingRun: { total: 4, resolvedInPhase: 2, phase: 'availability_check' },
+      matchingProgressMessage: 'Checking episode availability… 2 checked',
+    });
+    render(<IntakePanel />);
+    expect(screen.getByRole('status')).toHaveTextContent('Checking episode availability… 2 checked');
+  });
+
+  it('shows the run progress instead of the generic busy indicator while a run is in flight', () => {
+    mockHook({
+      busyMessage: 'Matching names against jkanime…',
+      matchingRun: { total: 4, resolvedInPhase: 1, phase: 'name_matching' },
+      matchingProgressMessage: 'Matching names… 1 of 4',
+    });
+    render(<IntakePanel />);
+    expect(screen.getByRole('status')).toHaveTextContent('Matching names… 1 of 4');
+    expect(screen.queryByText('Matching names against jkanime…')).not.toBeInTheDocument();
   });
 });

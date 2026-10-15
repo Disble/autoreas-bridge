@@ -2,6 +2,8 @@ import type {
   ConfirmSelectionResult,
   SeasonAnimeRow,
   SeasonCreateMetadata,
+  SeasonMatchingPhase,
+  SeasonMatchingProgressNotice,
   SeasonSnapshot,
   SeasonSource,
   SendToVerHoyResult,
@@ -9,6 +11,21 @@ import type {
 
 /** Request state of the open season's animes: `loaded` rows stay on screen across refetches. */
 export type AnimesLoadState = 'idle' | 'loading' | 'loaded' | 'failed';
+
+/**
+ * Ephemeral matching-run progress: the run total plus how many rows resolved
+ * in the current phase. Session-only by an explicit decision -- never
+ * persisted, never written to the backend, gone when the panel goes away --
+ * and carrying no per-state counters, which stay derived from the rows.
+ */
+export interface SeasonMatchingRun {
+  /** How many rows this run will attempt, from the started event. */
+  readonly total: number;
+  /** How many rows resolved in the current phase so far. */
+  readonly resolvedInPhase: number;
+  /** The phase the latest resolved row belongs to, naming the progress. */
+  readonly phase: SeasonMatchingPhase;
+}
 
 /** Zustand state contract for the shared Season read-model. */
 export type SeasonStoreState = {
@@ -19,6 +36,18 @@ export type SeasonStoreState = {
   readonly animesLoadState: AnimesLoadState;
   readonly errorMessage?: string;
   readonly busyMessage?: string;
+  /** Ephemeral matching-run progress, null while no run is in flight. */
+  readonly matchingRun: SeasonMatchingRun | null;
+  /** Records the run total a started event opened, resetting the phase count. */
+  readonly beginMatchingRun: (total: number) => void;
+  /**
+   * Patches the resolved row in place and advances the phase count while a
+   * run is in flight. A progress event with no run around it (the scheduled
+   * availability refresh) patches the row but starts no run.
+   */
+  readonly applyMatchingProgress: (notice: SeasonMatchingProgressNotice) => void;
+  /** Drops the ephemeral run state, e.g. on the terminal signal. */
+  readonly finishMatchingRun: () => void;
   readonly refresh: (source?: SeasonSource) => Promise<void>;
   readonly ensureAnimesLoaded: (source?: SeasonSource) => Promise<void>;
   readonly createSeason: (source: SeasonSource, name: string) => Promise<void>;

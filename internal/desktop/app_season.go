@@ -7,6 +7,7 @@ import (
 
 	"autoreas-bridge/internal/api/contracts"
 	apiHandlers "autoreas-bridge/internal/api/handlers"
+	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/season/domain"
 )
@@ -144,7 +145,15 @@ func (a *App) ReconcileSeasonIntake(rawText string) string {
 	})
 }
 
-// RunSeasonMatching resolves every pending intake row against jkanime.
+// RunSeasonMatching resolves every pending intake row against jkanime, then
+// rechecks episode availability for the matched rows: ONE run with TWO phases
+// (name matching, then the availability check). The service publishes the run
+// total and one progress event per attempted row; this boundary publishes the
+// terminal signal exactly once, after both phases have completed -- including
+// when the availability deps are unwired (that tolerated skip still ends the
+// run, so the panel must still hear it end). An infrastructure failure in
+// either phase aborts with the error string and no terminal signal: the caller
+// learns the run ended from the command result itself.
 func (a *App) RunSeasonMatching() string {
 	return a.withActiveSeason(func(seasonID string) error {
 		if err := a.seasonService.RunMatching(a.seasonCtx(), seasonID); err != nil {
@@ -157,8 +166,30 @@ func (a *App) RunSeasonMatching() string {
 		if len(res.Available) > 0 {
 			a.notifySeasonAvailable(a.seasonCtx(), res.Available)
 		}
+		a.publishSeasonMatchingFinished(seasonID)
 		return nil
 	})
+}
+
+// publishSeasonMatchingFinished emits the run's terminal signal on the shared
+// bus (forwarded to the WebView by registerSeasonRuntimeEventBridge). A nil
+// bus degrades to silence, never a panic.
+func (a *App) publishSeasonMatchingFinished(seasonID string) {
+	if a.eventBus == nil {
+		return
+	}
+	a.eventBus.Publish(events.SeasonMatchingFinishedEvent{SeasonID: seasonID})
+}
+
+// wireSeasonMatchingEventBus connects the season service to the shared event
+// bus so its per-row run facts reach the desktop bridge. Called once from
+// startup after the service exists; nil-tolerant on both sides (a test App or
+// a degraded bootstrap may have neither).
+func (a *App) wireSeasonMatchingEventBus() {
+	if a.seasonService == nil || a.eventBus == nil {
+		return
+	}
+	a.seasonService.SetEventBus(a.eventBus)
 }
 
 // ResolveSeasonMatch manually resolves an intake row to a page URL.

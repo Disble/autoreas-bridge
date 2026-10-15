@@ -47,10 +47,9 @@ func flattenMergeGateJobs(jobs []mergeGateJob) []mergeGateJob {
 // scoped to the staged set: the question is whether the merged TREE still
 // works, not whether a diff is clean.
 //
-// The two pre-commit jobs missing from this list are missing on purpose.
-// frontend-lint lints {staged_files} because JSDoc adoption is incremental, so
-// a whole-tree run would fail every merge; frontend-mutation measures staged
-// lines, of which a merge has none.
+// Staged frontend quality is missing on purpose: JSDoc adoption is incremental,
+// so a whole-tree lint would fail every merge. Automatic mutation is periodic CI
+// work; targeted staged mutation remains a development command, not a hook.
 var mergeGateWholeTreeJobs = map[string]string{
 	"gofmt":                 "go run ./tools/checkgofmt",
 	"go-filesize":           "go run ./tools/checkgofilesize",

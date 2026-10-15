@@ -36,7 +36,7 @@
   the only observable difference is prose or a diagnostic nothing surfaces. INFRASTRUCTURE code stays
   out of the mutation scope entirely. Deciding what deserves the resource and what is better skipped
   is part of scoping the unit, and every skip is recorded with its justification next to the evidence.
-- Frontend staged mutation testing is automated through the `frontend-mutation` lefthook job. Do not weaken it, suppress a survivor, or replace behavior scenarios with tests that pin production constants.
+- Run targeted frontend mutation with `bun --cwd="frontend" run test:mutation:staged` during development. Automatic mutation runs daily on `dev` and manually in `.github/workflows/mutation-audit.yml`, not in local hooks or required PR checks. Review failed audit reports retrospectively; do not suppress survivors or replace behavior scenarios with tests that pin production constants.
 - Use real stored-shape fixtures in `internal/anime/store/testdata` for storage codec validation. Copy fixtures to temporary locations; never mutate them in place.
 - At SQLite, Windows filesystem, and Wails CLI boundaries, a passing unit/gate suite is provisional. Run the appropriate real integration or build verification before claiming that boundary works.
 

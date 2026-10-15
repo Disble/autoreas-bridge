@@ -223,12 +223,51 @@ function ToastFixture() {
 }
 
 /**
+ * Whether every verdict node on the page has been written by its own fixture.
+ *
+ * The guard below renders no node until it measures, so it is not part of what
+ * it waits for.
+ *
+ * @returns True once at least one report exists and none of them is empty.
+ */
+function allReportsWritten(): boolean {
+  const reports = [...document.querySelectorAll('pre[data-layout-verdict]')];
+  return reports.length > 0 && reports.every((report) => report.textContent !== '');
+}
+
+/**
+ * Fails when the fixture page itself scrolls sideways once every report is in.
+ *
+ * The per-fixture page checks measure whenever their own subject becomes ready,
+ * which races against the other fixtures sharing the page. This one waits until
+ * every other verdict node has been written and then measures the settled
+ * document, so the invariant that actually broke -- a report node widening the
+ * page it reports on -- has one deterministic owner instead of surfacing as an
+ * intermittent failure in whichever fixture happened to measure last.
+ *
+ * Renders nothing until it has measured, so it adds no empty node the smoke
+ * reader would treat as a fixture that never measured.
+ *
+ * @returns The page verdict, or null while the other fixtures are still running.
+ */
+function FixturePageGuard() {
+  const [checks, setChecks] = useState<readonly Check[] | undefined>();
+
+  useEffect(() => measureWhenReady(allReportsWritten, () => setChecks([checkThePage('the fixture page')])), []);
+
+  return checks === undefined ? null : <VerdictReport checks={checks} />;
+}
+
+/**
  * Every fixture on the page, in one render.
  *
  * They share a page rather than a page each because `layout-smoke.mjs` renders
  * one URL: a second page would double the build, the serve and the headless
  * render for a guard whose subjects do not interact -- the toast is a fixed
  * overlay and the Activity cards are ordinary flow.
+ *
+ * `FixturePageGuard` is last on purpose: it measures the page the other
+ * fixtures produced, and the reports it waits for are the ones above it.
  */
 function LayoutFixtures() {
   return (
@@ -240,6 +279,7 @@ function LayoutFixtures() {
       <SeasonOrderingFixture />
       <SeasonOverviewFixture />
       <SeasonIntakeRawFixture />
+      <FixturePageGuard />
     </>
   );
 }
