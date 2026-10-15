@@ -20,11 +20,13 @@ type ProviderSearcher struct {
 }
 
 // ProviderPage is one anime page a provider returned for a manual search,
-// tagged with the provider that returned it.
+// tagged with the provider that returned it. ImageURL is the cover the
+// provider showed for it, empty when it had none.
 type ProviderPage struct {
 	Title    string
 	PageURL  string
 	Provider string
+	ImageURL string
 }
 
 // SetProviderSearchers wires the providers SearchProviders asks, in display
@@ -56,7 +58,7 @@ func (s *Service) SearchProviders(ctx context.Context, query string) ([]Provider
 			continue
 		}
 		for _, c := range candidates {
-			pages = append(pages, ProviderPage{Title: c.Title, PageURL: c.PageURL, Provider: provider.Provider})
+			pages = append(pages, ProviderPage{Title: c.Title, PageURL: c.PageURL, Provider: provider.Provider, ImageURL: c.ImageURL})
 		}
 	}
 	if len(failures) == len(s.providers) {

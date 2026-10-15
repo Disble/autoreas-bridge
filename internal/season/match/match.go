@@ -22,10 +22,12 @@ const (
 	StatusNotFound Status = "not_found"
 )
 
-// Candidate is one search result to match against.
+// Candidate is one search result to match against. ImageURL is the cover the
+// search page showed for it, empty when it had none; matching ignores it.
 type Candidate struct {
-	Title   string
-	PageURL string
+	Title    string
+	PageURL  string
+	ImageURL string
 }
 
 // ScoredCandidate is a candidate with its similarity score (0..1).

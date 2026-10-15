@@ -31,7 +31,7 @@ func page(title, pageURL, provider string) ProviderPage {
 func TestServiceSearchProviders(t *testing.T) {
 	t.Parallel()
 	starmyu := match.Candidate{Title: "Starmyu 2nd Season", PageURL: "https://jkanime.net/starmyu-2/"}
-	aoAshi2 := match.Candidate{Title: "Ao Ashi Season 2", PageURL: "https://jkanime.net/ao-ashi-2/"}
+	aoAshi2 := match.Candidate{Title: "Ao Ashi Season 2", PageURL: "https://jkanime.net/ao-ashi-2/", ImageURL: "https://cdn.example/ao-ashi-2.jpg"}
 	aoAshi := match.Candidate{Title: "Ao Ashi", PageURL: "https://other.example/ao-ashi/"}
 	twin := match.Candidate{Title: "Ao Ashi", PageURL: "https://jkanime.net/ao-ashi/"}
 	cases := []struct {
@@ -51,7 +51,7 @@ func TestServiceSearchProviders(t *testing.T) {
 			},
 			want: []ProviderPage{
 				page("Ao Ashi", "https://other.example/ao-ashi/", "other"),
-				page("Ao Ashi Season 2", "https://jkanime.net/ao-ashi-2/", "jkanime"),
+				{Title: "Ao Ashi Season 2", PageURL: "https://jkanime.net/ao-ashi-2/", Provider: "jkanime", ImageURL: "https://cdn.example/ao-ashi-2.jpg"},
 				page("Starmyu 2nd Season", "https://jkanime.net/starmyu-2/", "jkanime"),
 			},
 			wantCalls: 2,
@@ -76,7 +76,7 @@ func TestServiceSearchProviders(t *testing.T) {
 				providerFake("broken", "Ao Ashi", errProviderDown),
 				providerFake("jkanime", "Ao Ashi", nil, aoAshi2),
 			},
-			want:      []ProviderPage{page("Ao Ashi Season 2", "https://jkanime.net/ao-ashi-2/", "jkanime")},
+			want:      []ProviderPage{{Title: "Ao Ashi Season 2", PageURL: "https://jkanime.net/ao-ashi-2/", Provider: "jkanime", ImageURL: "https://cdn.example/ao-ashi-2.jpg"}},
 			wantCalls: 2,
 		},
 		{

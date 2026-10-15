@@ -40,17 +40,17 @@ describe('intake provider lookup helpers', () => {
     expect(view.subtitle).toBe(subtitle);
   });
 
-  it('ranks the pages by title against the query and marks only the selected one', () => {
+  it('ranks the pages by title against the query, keeps each cover, and marks only the selected one', () => {
     const pages = [
-      page({ title: 'Starmyu 2nd Season', pageUrl: 'https://jkanime.net/starmyu-2/' }),
-      page({ title: 'Ao Ashi Season 2', pageUrl: 'https://jkanime.net/ao-ashi-2/' }),
+      page({ title: 'Starmyu 2nd Season', pageUrl: 'https://jkanime.net/starmyu-2/', imageUrl: '' }),
+      page({ title: 'Ao Ashi Season 2', pageUrl: 'https://jkanime.net/ao-ashi-2/', imageUrl: 'https://cdn.jkdesa.com/ao-ashi-2.jpg' }),
     ];
 
     const views = toProviderPageViews(pages, 'Ao Ashi Season 2', 'https://jkanime.net/starmyu-2/');
 
-    expect(views.map((view) => [view.title, view.isSelected])).toStrictEqual([
-      ['Ao Ashi Season 2', false],
-      ['Starmyu 2nd Season', true],
+    expect(views.map((view) => [view.title, view.image, view.isSelected])).toStrictEqual([
+      ['Ao Ashi Season 2', 'https://cdn.jkdesa.com/ao-ashi-2.jpg', false],
+      ['Starmyu 2nd Season', undefined, true],
     ]);
   });
 

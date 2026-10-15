@@ -35,6 +35,7 @@ export function IntakeProviderLookup({ rawName, source, onResolve }: Readonly<In
       {lookup.pages.map((page) => (
         <LookupCandidateRow
           key={page.pageUrl}
+          image={page.image}
           isSelected={page.isSelected}
           subtitle={page.subtitle}
           title={page.title}

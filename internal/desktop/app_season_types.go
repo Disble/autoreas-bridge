@@ -168,11 +168,13 @@ type ConfirmSelectionDTO struct {
 
 // SeasonProviderPageDTO is one anime page a download provider returned for
 // the intake's manual "Find on provider" search, tagged with that provider's
-// name (its site descriptor name, e.g. "jkanime").
+// name (its site descriptor name, e.g. "jkanime"). ImageURL is the cover the
+// provider showed for it, empty when it had none.
 type SeasonProviderPageDTO struct {
 	Title    string `json:"title"`
 	PageURL  string `json:"pageUrl"`
 	Provider string `json:"provider"`
+	ImageURL string `json:"imageUrl"`
 }
 
 // SeasonProviderSearchDTO is the Wails-facing result of a provider search:

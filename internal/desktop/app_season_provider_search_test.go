@@ -20,7 +20,7 @@ func TestSearchSeasonProvidersBinding(t *testing.T) {
 	t.Parallel()
 	pages := map[string][]match.Candidate{"Ao Ashi": {
 		{Title: "Starmyu 2nd Season", PageURL: "https://jkanime.net/starmyu-2/"},
-		{Title: "Ao Ashi", PageURL: "https://jkanime.net/ao-ashi/"},
+		{Title: "Ao Ashi", PageURL: "https://jkanime.net/ao-ashi/", ImageURL: "https://cdn.example/ao-ashi.jpg"},
 	}}
 	cases := []struct {
 		name      string
@@ -32,7 +32,7 @@ func TestSearchSeasonProvidersBinding(t *testing.T) {
 			name:      "ranked pages carry their provider",
 			providers: []season.ProviderSearcher{{Provider: "jkanime", Searcher: fakeAppNameSearcher{byQuery: pages}}},
 			want: SeasonProviderSearchDTO{Status: "ok", Pages: []SeasonProviderPageDTO{
-				{Title: "Ao Ashi", PageURL: "https://jkanime.net/ao-ashi/", Provider: "jkanime"},
+				{Title: "Ao Ashi", PageURL: "https://jkanime.net/ao-ashi/", Provider: "jkanime", ImageURL: "https://cdn.example/ao-ashi.jpg"},
 				{Title: "Starmyu 2nd Season", PageURL: "https://jkanime.net/starmyu-2/", Provider: "jkanime"},
 			}},
 		},
@@ -87,8 +87,8 @@ func TestSeasonProviderSearchDTOJSONFields(t *testing.T) {
 	for key := range decoded.Pages[0] {
 		keys = append(keys, key)
 	}
-	if slices.Sort(keys); !slices.Equal(keys, []string{"pageUrl", "provider", "title"}) {
-		t.Fatalf("page fields = %q, want pageUrl, provider, title", keys)
+	if slices.Sort(keys); !slices.Equal(keys, []string{"imageUrl", "pageUrl", "provider", "title"}) {
+		t.Fatalf("page fields = %q, want imageUrl, pageUrl, provider, title", keys)
 	}
 }
 

@@ -67,6 +67,7 @@ export function toProviderPageViews(
     pageUrl: page.pageUrl,
     title: page.title,
     subtitle: formatProviderPageSubtitle(page),
+    image: page.imageUrl || undefined,
     isSelected: page.pageUrl === selectedPageUrl,
   }));
 }

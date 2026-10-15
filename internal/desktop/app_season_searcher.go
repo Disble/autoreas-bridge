@@ -29,7 +29,7 @@ func (a jkanimeNameSearcher) Search(ctx context.Context, query string) ([]match.
 	}
 	out := make([]match.Candidate, 0, len(results))
 	for _, r := range results {
-		out = append(out, match.Candidate{Title: r.Title, PageURL: r.PageURL})
+		out = append(out, match.Candidate{Title: r.Title, PageURL: r.PageURL, ImageURL: r.ImageURL})
 	}
 	return out, nil
 }
@@ -58,7 +58,7 @@ func (a *App) SearchSeasonProviders(query string) SeasonProviderSearchDTO {
 	}
 	out := make([]SeasonProviderPageDTO, 0, len(pages))
 	for _, p := range pages {
-		out = append(out, SeasonProviderPageDTO{Title: p.Title, PageURL: p.PageURL, Provider: p.Provider})
+		out = append(out, SeasonProviderPageDTO{Title: p.Title, PageURL: p.PageURL, Provider: p.Provider, ImageURL: p.ImageURL})
 	}
 	return SeasonProviderSearchDTO{Status: "ok", Pages: out}
 }

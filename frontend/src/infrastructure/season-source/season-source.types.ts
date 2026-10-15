@@ -257,9 +257,9 @@ export interface SeasonMatchingFinishedWire {
 /**
  * One download-provider page a free-text provider search returned: a match
  * candidate's title and page URL, unscored, plus the provider's own name
- * (e.g. `jkanime`).
+ * (e.g. `jkanime`) and the cover it showed (empty or absent when none).
  */
-export type SeasonProviderPage = Omit<SeasonAnimeCandidate, 'score'> & Readonly<{ provider: string }>;
+export type SeasonProviderPage = Omit<SeasonAnimeCandidate, 'score'> & Readonly<{ provider: string; imageUrl?: string }>;
 
 /**
  * Result of searching every download provider by free text. `status` is `ok`

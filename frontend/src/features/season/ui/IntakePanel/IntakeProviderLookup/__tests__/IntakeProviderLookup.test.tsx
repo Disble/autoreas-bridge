@@ -5,7 +5,12 @@ import type { SeasonProviderSearchResult } from '../../../../../../infrastructur
 import { IntakeProviderLookup } from '../IntakeProviderLookup';
 
 /** The one page the fake provider search returns by default. */
-const AO_ASHI = { title: 'Ao Ashi Season 2', pageUrl: 'https://jkanime.net/ao-ashi-2/', provider: 'jkanime' };
+const AO_ASHI = {
+  title: 'Ao Ashi Season 2',
+  pageUrl: 'https://jkanime.net/ao-ashi-2/',
+  provider: 'jkanime',
+  imageUrl: 'https://cdn.jkdesa.com/ao-ashi-2.jpg',
+};
 
 /**
  * Mounts the lookup for the row "Ao Ashi" over a fake provider search and
@@ -42,13 +47,15 @@ describe('IntakeProviderLookup', () => {
     expect(await screen.findByRole('status', { name: 'Searching providers...' })).toBeInTheDocument();
   });
 
-  it('lists each provider page by title, with its provider label and schemeless URL', async () => {
+  it('lists each provider page by title and cover, with its provider label and schemeless URL', async () => {
     openLookup();
 
     const list = await screen.findByLabelText('Provider pages');
 
     expect(list).toHaveTextContent('Ao Ashi Season 2');
     expect(list).toHaveTextContent('JKAnime · jkanime.net/ao-ashi-2/');
+    // The cover is decorative (`alt=""`), so it has no accessible img role.
+    expect(list.querySelector('img')).toHaveAttribute('src', 'https://cdn.jkdesa.com/ao-ashi-2.jpg');
   });
 
   it.each([

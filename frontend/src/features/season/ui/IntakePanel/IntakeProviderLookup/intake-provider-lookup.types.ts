@@ -18,11 +18,11 @@ export interface ProviderLookupSnapshot {
 
 /**
  * One provider page ready to render as a candidate row: its title and URL, a
- * `<provider label> · <page URL without its scheme>` subtitle, and whether it
- * is the highlighted page.
+ * `<provider label> · <page URL without its scheme>` subtitle, its cover when
+ * the provider showed one, and whether it is the highlighted page.
  */
 export type ProviderPageView = Pick<SeasonProviderPage, 'pageUrl' | 'title'> &
-  Readonly<{ subtitle: string; isSelected: boolean }>;
+  Readonly<{ subtitle: string; image: string | undefined; isSelected: boolean }>;
 
 /** Inputs of one intake row's "Find on provider" lookup. */
 export interface IntakeProviderLookupProps {

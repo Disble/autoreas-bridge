@@ -30,8 +30,9 @@ shell one `LookupModalCopy` constant.
 | Fetch metadata (MyAnimeList) | `shared/metadata-lookup/ui/AnimeMetadataLookupModal/` | `METADATA_LOOKUP_COPY` | "Use this match" fetches the detail page, then maps it |
 | Find on provider | `features/season/ui/IntakePanel/IntakeProviderLookup/` | `PROVIDER_LOOKUP_COPY` | "Use this page" resolves the intake row to the page URL |
 
-Find on provider appears beside Fetch metadata only on intake rows whose match is `not_found`,
-`ambiguous` or `search_failed`, never in read-only. Its rows have no cover (placeholder), and the
+Find on provider appears beside Fetch metadata only on intake rows whose match is `pending`,
+`not_found`, `ambiguous` or `search_failed`, never in read-only. Each row shows the cover the
+provider's search page already carried (no extra request; the placeholder when it had none), and the
 subtitle is `<provider label> · <page URL without scheme>` (`JKAnime` for `jkanime`, otherwise the
 raw provider name). A provider search returns one result page, so the list renders whole rather than
 through a progressive window.

@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -42,8 +43,12 @@ func TestSearcherParsesResultTitlesAndURLs(t *testing.T) {
 	}
 
 	// First result is the base entry; the franchise family must all appear.
-	if results[0].Title != "Dr. Stone" || results[0].PageURL != "https://jkanime.net/dr-stone/" {
+	if results[0].Title != "Dr. Stone" || results[0].PageURL != "https://jkanime.net/dr-stone/" ||
+		results[0].ImageURL != "https://cdn.jkdesa.com/assets/images/animes/image/dr-stone.jpg" {
 		t.Fatalf("unexpected first result: %+v", results[0])
+	}
+	if last := results[len(results)-1]; last.ImageURL == "" || last.ImageURL == results[0].ImageURL {
+		t.Fatalf("every result carries its own cover, got last %+v", last)
 	}
 
 	wantURL := map[string]bool{
@@ -63,6 +68,34 @@ func TestSearcherParsesResultTitlesAndURLs(t *testing.T) {
 		if !seen {
 			t.Fatalf("expected result URL not found: %s", u)
 		}
+	}
+}
+
+// TestSearcherPairsEachCoverWithItsOwnResult proves a result without a cover
+// gets none rather than its neighbour's, and that a cover never leaks into the
+// next result.
+func TestSearcherPairsEachCoverWithItsOwnResult(t *testing.T) {
+	const page = `<div class="anime__item"><a href="https://jkanime.net/a/"><div data-setbg="https://cdn.example/a.jpg"></div></a>` +
+		`<h5><a href="https://jkanime.net/a/">A</a></h5></div>` +
+		`<div class="anime__item"><h5><a href="https://jkanime.net/b/">B</a></h5></div>` +
+		`<div class="anime__item"><div data-setbg=" https://cdn.example/c.jpg "></div><h5><a href="https://jkanime.net/c/">C</a></h5></div>`
+	srv := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(page))
+	}))
+	t.Cleanup(srv.Close)
+	searcher := newSearcherWithBaseURL(srv.Client(), srv.URL)
+
+	results, err := searcher.Search(context.Background(), "a")
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+
+	got := make([]string, 0, len(results))
+	for _, r := range results {
+		got = append(got, r.Title+"="+r.ImageURL)
+	}
+	if want := []string{"A=https://cdn.example/a.jpg", "B=", "C=https://cdn.example/c.jpg"}; !slices.Equal(got, want) {
+		t.Fatalf("covers = %q, want %q", got, want)
 	}
 }
 

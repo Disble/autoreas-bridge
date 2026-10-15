@@ -16,10 +16,16 @@ import (
 // Isolated as a package-level regex so a future template change updates one place.
 var searchResultPattern = regexp.MustCompile(`(?s)<h5>\s*<a\s+href="([^"]+)"\s*>(.*?)</a>\s*</h5>`)
 
-// SearchResult is one anime returned by a jkanime name search.
+// searchCoverPattern matches a result's cover, which jkanime lazy-loads from
+// `data-setbg="{imageURL}"` on the picture ahead of the result's `<h5>`.
+var searchCoverPattern = regexp.MustCompile(`data-setbg="([^"]*)"`)
+
+// SearchResult is one anime returned by a jkanime name search. ImageURL is
+// empty when the result carries no cover.
 type SearchResult struct {
-	Title   string
-	PageURL string
+	Title    string
+	PageURL  string
+	ImageURL string
 }
 
 // Searcher performs name→anime-page lookups against jkanime's `/buscar/` page.
@@ -91,17 +97,36 @@ func (s *Searcher) Search(ctx context.Context, query string) (results []SearchRe
 		return nil, fmt.Errorf("read jkanime search body: %w", err)
 	}
 
-	matches := searchResultPattern.FindAllStringSubmatch(string(body), -1)
-	results = make([]SearchResult, 0, len(matches))
+	return parseSearchResults(string(body)), nil
+}
+
+// parseSearchResults reads every result in document order. A result's cover is
+// the last one between the previous result's title and its own, so a result
+// without a cover never borrows a neighbour's.
+func parseSearchResults(page string) []SearchResult {
+	matches := searchResultPattern.FindAllStringSubmatchIndex(page, -1)
+	results := make([]SearchResult, 0, len(matches))
+	previousEnd := 0
 	for _, m := range matches {
-		title := strings.TrimSpace(m[2])
-		pageURL := strings.TrimSpace(m[1])
+		imageURL := lastCover(page[previousEnd:m[0]])
+		previousEnd = m[1]
+		title := strings.TrimSpace(page[m[4]:m[5]])
+		pageURL := strings.TrimSpace(page[m[2]:m[3]])
 		if title == "" || pageURL == "" {
 			continue
 		}
-		results = append(results, SearchResult{Title: title, PageURL: pageURL})
+		results = append(results, SearchResult{Title: title, PageURL: pageURL, ImageURL: imageURL})
 	}
-	return results, nil
+	return results
+}
+
+// lastCover returns the last cover URL in segment, or "" when it has none.
+func lastCover(segment string) string {
+	covers := searchCoverPattern.FindAllStringSubmatch(segment, -1)
+	if len(covers) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(covers[len(covers)-1][1])
 }
 
 // searchUserAgent is a desktop UA; jkanime's search page is server-rendered and
