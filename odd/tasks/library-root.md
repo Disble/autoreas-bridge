@@ -16,12 +16,12 @@ Branch: `feat/library-root` (worktree `autoreas-bridge-worktrees/library-root`, 
 
 | ID | Specs | Route | Status | Evidence |
 |---|---|---|---|---|
-| T1 | S1 | inline | pending | |
+| T1 | S1 | inline | done | 1e878a8c |
 | T2 | S2, S6 | inline (committed with T3: the Wails binding rename spans both) | done | RED store_test legacy-key reopen → GREEN; ditto sync migration 3/3 killed; 15 rename-only download/desktop mutants skipped (identifier rename, behavior unchanged and covered by existing suites) |
 | T3 | S3, S6 | inline | done | typecheck ok; 82 files / 808 tests green in touched frontend suites; tests renamed, none added |
 | T4 | S4, S6 | inline | done | RED compile (decorator signature) → GREEN; existing decorator tests extended with real-path rows (nested, `/`, case, outside root, prefix sibling, root itself, empty, nil, UNC); ditto desktop+pathutil 34/36, survivors :44 and :123 are pre-existing duration code moved by the file rename (not retroactive); one equivalent mutant removed by simplifying the cut; openapi gate ok |
 | T5 | S5, S6 | inline | done | RED compile (plan, bindings) + 4 hook/modal tests → GREEN; new tests for the new rebase behavior (S6 per L8), existing panel/source tests extended; ditto anime+desktop 39/39 after killing 3 survivors (equal-name order, failure count, nothing-to-move without editor); typecheck ok; panel+infra 30 files green |
-| T6 | S1–S6 | delegated verifier (high risk: persisted key rename, bulk folder write) | pending | |
+| T6 | S1–S6 | delegated verifier (high risk: persisted key rename, bulk folder write) | done | independent verifier: S1-S6 pass, 0 blockers; real-DB copy: migration idempotent (839 snapshots, hash unchanged), 744/95 folderRelative, plan 12 moves, SetLibraryRoot moves 12 and leaves 827 byte-identical, UNC failure keeps root and hash |
 
 ## Log
 
@@ -33,3 +33,4 @@ Branch: `feat/library-root` (worktree `autoreas-bridge-worktrees/library-root`, 
 - L6 (2026-10-15, user): approved mockup. Worktree created; RDD off (global).
 - L7 (2026-10-15): T1 1e878a8c, T2+T3 442a90e9, T4 c6f85392 committed through the full lefthook gate. T5 paused: the rebase is new CORE behavior (writes stored folders) with no existing Go test that covers the library-root bindings, so S6 requires asking the user before adding one. Plan: pure `anime.PlanLibraryRootChange` + `PreviewLibraryRootChange`/`ApplyLibraryRootChange` bindings writing through `EditorService.Save` (OCC base per anime); frontend modal extends the existing LibraryRootPanel tests.
 - L8 (2026-10-15) user: "Para funcionalidades nuevas, obviamente tienes que agregar tests nuevo, esa regla era para funcionalidades modificadas." S6 rewritten; T5 resumes with new tests for the rebase plan and bindings.
+- L9 (2026-10-15): T5 6a51c1ea. T6 verifier passed S1–S6 with 0 blockers; parent spot check re-ran the Go suites (anime, desktop, settings, sync: ok). Advisories recorded, not fixed: (1) the rebase saves one anime at a time, so a mid-run failure leaves the moved animes on the new root while the root stays old; retrying the same root converges; (2) SetLibraryRoot re-plans instead of applying the confirmed preview; (3) no test asserts "Left unchanged" is absent when kept is empty; (4) pathutil.RelativeFolder is tested only through its callers. Next: notify mobile-folders; push/merge are the user's call.
