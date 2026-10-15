@@ -89,7 +89,8 @@ export function OrderingBoard({ onNavigate }: Readonly<OrderingBoardProps>) {
       action={{ label: ORDERING_EMPTY_ACTION_LABEL, onPress: () => onNavigate('selection') }}
       description={ORDERING_EMPTY_DESCRIPTION}
       imageSrc={seasonAirisArtwork}
-      size="row"
+      kind="waiting-on-step"
+      size="section"
       title={ORDERING_EMPTY_TITLE}
     />
   );

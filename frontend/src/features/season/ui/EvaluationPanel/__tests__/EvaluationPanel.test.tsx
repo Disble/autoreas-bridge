@@ -7,6 +7,7 @@ import type { SeasonSectionId } from '../../SeasonWorkspace/season-workspace.typ
 import { toEvaluationListItems } from '../evaluation-panel.helpers';
 import type { EvaluationRow } from '../evaluation-panel.types';
 import { useEvaluationPanel } from '../use-evaluation-panel';
+import { AIRIS_WAITING_ARTWORK_CLASS } from '../../../../../shared/ui/AirisEmptyState/airis-empty-state.constants';
 
 vi.mock('../use-evaluation-panel', () => ({ useEvaluationPanel: vi.fn() }));
 vi.mock('../../RateAnimeModal/RateAnimeModal', () => ({
@@ -65,8 +66,9 @@ describe('EvaluationPanel', () => {
 
   it('shows the empty state and no list when there are no candidates', () => {
     mockHook();
-    render(<EvaluationPanel onNavigate={vi.fn()} />);
+    const { container } = render(<EvaluationPanel onNavigate={vi.fn()} />);
     expect(screen.getByText('No candidates to evaluate yet')).toBeInTheDocument();
+    expect(container.querySelector('img')?.className).toContain(AIRIS_WAITING_ARTWORK_CLASS);
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
   });
 

@@ -38,6 +38,7 @@ export function SelectionBoard({ onNavigate }: Readonly<SelectionBoardProps>) {
   } = useSelectionBoard();
 
   const rejectedCount = rows.length - approvedCount;
+  const hasRows = rows.length > 0;
 
   return (
     <section className="flex flex-col gap-4">
@@ -96,18 +97,23 @@ export function SelectionBoard({ onNavigate }: Readonly<SelectionBoardProps>) {
               </div>
             </div>
 
-            <Chip color={getQuotaColor(quota)} variant="soft">
-              {approvedCount} / {slots} approved
-            </Chip>
+            {/* The status reads as a verdict on candidates; with none there is nothing to report or confirm. */}
+            {hasRows ? (
+              <Chip color={getQuotaColor(quota)} variant="soft">
+                {approvedCount} / {slots} approved
+              </Chip>
+            ) : null}
 
-            <Chip color={selectionConfirmedAt ? 'success' : 'default'} variant="soft">
-              {formatSelectionConfirmedLabel(selectionConfirmedAt)}
-            </Chip>
+            {hasRows ? (
+              <Chip color={selectionConfirmedAt ? 'success' : 'default'} variant="soft">
+                {formatSelectionConfirmedLabel(selectionConfirmedAt)}
+              </Chip>
+            ) : null}
 
-            {!readOnly && (
+            {!readOnly && hasRows && (
               <div className="ml-auto">
                 <Modal>
-                  <Button isDisabled={rows.length === 0} variant="primary">
+                  <Button variant="primary">
                     Confirm selection
                   </Button>
                   <Modal.Backdrop variant="blur">
@@ -146,6 +152,7 @@ export function SelectionBoard({ onNavigate }: Readonly<SelectionBoardProps>) {
           action={{ label: SELECTION_EMPTY_ACTION_LABEL, onPress: () => onNavigate('evaluation') }}
           description={SELECTION_EMPTY_DESCRIPTION}
           imageSrc={seasonAirisArtwork}
+          kind="waiting-on-step"
           title={SELECTION_EMPTY_TITLE}
         />
       ) : rows.length > 0 ? (
