@@ -1,4 +1,7 @@
 import { Card } from '@heroui/react';
+import bellIcon from '@iconify-icons/solar/bell-bold-duotone';
+import { AwaitingSelectionPane } from '../../../../shared/ui/AwaitingSelectionPane/AwaitingSelectionPane';
+import { NOTIFICATION_DETAIL_AWAITING } from './notification-detail.constants';
 import { resolveNotificationActions } from './notification-detail.helpers';
 import { NotificationDetailFooter } from './NotificationDetailFooter';
 import { NotificationDetailHeader } from './NotificationDetailHeader';
@@ -25,8 +28,15 @@ export function NotificationDetail({ detail, onReadStateChanged, source }: Reado
   if (detail === null) {
     return (
       <Card>
-        <Card.Content className="p-4 text-center text-default-400">
-          <span className="text-sm">Select a notification to see its details.</span>
+        <Card.Content className="p-4">
+          <AwaitingSelectionPane
+            description={NOTIFICATION_DETAIL_AWAITING.description}
+            fields={NOTIFICATION_DETAIL_AWAITING.fields}
+            footer={NOTIFICATION_DETAIL_AWAITING.footer}
+            icon={bellIcon}
+            sectionLabel={NOTIFICATION_DETAIL_AWAITING.sectionLabel}
+            title={NOTIFICATION_DETAIL_AWAITING.title}
+          />
         </Card.Content>
       </Card>
     );

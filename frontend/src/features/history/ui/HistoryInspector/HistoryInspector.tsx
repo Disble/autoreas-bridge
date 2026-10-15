@@ -1,9 +1,9 @@
 import { Alert, Button, Chip, Link, ProgressBar, Skeleton } from "@heroui/react";
-import historyAirisArtwork from "../../../../assets/airis-empty-states/today.webp";
+import tvIcon from "@iconify-icons/solar/tv-bold-duotone";
 import { getAnimeEstadoLabel } from "../../../../shared/helpers/anime-estado.helpers";
 import { getAnimeTipoLabel } from "../../../../shared/helpers/anime-tipo.helpers";
-import { AirisEmptyState } from "../../../../shared/ui/AirisEmptyState/AirisEmptyState";
 import { AnimeCoverPlaceholder } from "../../../../shared/ui/AnimeCoverPlaceholder";
+import { AwaitingSelectionPane } from "../../../../shared/ui/AwaitingSelectionPane/AwaitingSelectionPane";
 import { formatEpisodeCount, formatRowShortDateTime } from "../../../../shared/watch-history/watch-history.helpers";
 import { getHistoryStatusColor } from "../HistoryTimeline/history-timeline.helpers";
 import {
@@ -15,6 +15,7 @@ import {
   HISTORY_INSPECTOR_OPEN_LABEL,
   HISTORY_INSPECTOR_PROGRESS_LABEL,
   HISTORY_INSPECTOR_PROMPT_DESCRIPTION,
+  HISTORY_INSPECTOR_PROMPT_FOOTER,
   HISTORY_INSPECTOR_PROMPT_TITLE,
   HISTORY_INSPECTOR_RECENT_TITLE,
   HISTORY_INSPECTOR_WATCHED_LABEL,
@@ -33,9 +34,9 @@ import { useHistoryInspector } from "./use-history-inspector";
  * and the "Open anime detail" button are the two ways into Anime Detail.
  * Owns its data via `useHistoryInspector`, keyed by the URL `animeId`.
  *
- * Renders exactly one of four exclusive states: the Airis empty state when
- * no row is selected (autoreas-theme: an empty surface shows artwork, never a
- * bare sentence), a
+ * Renders exactly one of four exclusive states: the awaiting-selection pane
+ * when no row is selected (the inspector's own labels, dimmed, so a selection
+ * fills the same slots), a
  * shape-mirroring skeleton while the detail is unresolved, the surface error
  * `Alert` when it failed, or the content. Content and placeholder never
  * render together: the content branch is gated on the resolved `detail`,
@@ -46,9 +47,14 @@ export function HistoryInspector({ animeId, onOpenAnime }: HistoryInspectorProps
 
   if (status === "prompt") {
     return (
-      <div className="flex flex-1 flex-col justify-center">
-        <AirisEmptyState description={HISTORY_INSPECTOR_PROMPT_DESCRIPTION} imageSrc={historyAirisArtwork} title={HISTORY_INSPECTOR_PROMPT_TITLE} />
-      </div>
+      <AwaitingSelectionPane
+        description={HISTORY_INSPECTOR_PROMPT_DESCRIPTION}
+        fields={[HISTORY_INSPECTOR_WATCHED_LABEL, HISTORY_INSPECTOR_LAST_WATCHED_LABEL, HISTORY_INSPECTOR_ADDED_LABEL]}
+        footer={HISTORY_INSPECTOR_PROMPT_FOOTER}
+        icon={tvIcon}
+        sectionLabel={HISTORY_INSPECTOR_RECENT_TITLE}
+        title={HISTORY_INSPECTOR_PROMPT_TITLE}
+      />
     );
   }
 

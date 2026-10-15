@@ -27,9 +27,14 @@ function buildDetail(overrides: Partial<NotificationDetailDTO> = {}): Notificati
 
 describe('NotificationDetail', () => {
   it('prompts to select a notification when detail is null', () => {
-    render(<NotificationDetail detail={null} />);
+    const { container } = render(<NotificationDetail detail={null} />);
 
-    expect(screen.getByText('Select a notification to see its details.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: 'No notification selected' })).toBeInTheDocument();
+    expect(screen.getByText('Pick one on the left to read it.')).toBeInTheDocument();
+    const preview = container.querySelector('[data-awaiting-preview]');
+    expect(Array.from(preview?.querySelectorAll('dt') ?? []).map((node) => node.textContent)).toEqual(['Level', 'Source', 'When']);
+    expect(preview).toHaveTextContent('Message');
+    expect(screen.queryByRole('toolbar', { name: 'Notification actions' })).toBeNull();
   });
 
   it('renders the header and the row-list block for a present detail', () => {

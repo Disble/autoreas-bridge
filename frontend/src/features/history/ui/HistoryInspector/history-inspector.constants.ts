@@ -2,7 +2,10 @@
 export const HISTORY_INSPECTOR_PROMPT_TITLE = "No episode selected";
 
 /** Description of the inspector's empty state, naming the gesture that fills it. */
-export const HISTORY_INSPECTOR_PROMPT_DESCRIPTION = "Select an episode to see its anime.";
+export const HISTORY_INSPECTOR_PROMPT_DESCRIPTION = "Pick a row on the left to inspect its anime.";
+
+/** Footer of the inspector's empty state, naming what opens in the pane and where its button goes. */
+export const HISTORY_INSPECTOR_PROMPT_FOOTER = "Name, status and progress open here. Open anime detail goes to the full page.";
 
 /** Accessible label for the inspector loading region. */
 export const HISTORY_INSPECTOR_LOADING_LABEL = "Loading anime detail";

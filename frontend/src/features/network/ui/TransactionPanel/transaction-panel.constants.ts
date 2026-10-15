@@ -109,3 +109,9 @@ export const TRANSACTION_SYNC_DIAGNOSTICS_FILTER_LABEL = 'Sync diagnostics repor
 export const TRANSACTION_DIAGNOSTICS_NO_REPORT_NOTICE =
   'The captured body could not be read as a sync diagnostics report.';
 
+
+/** The detail inspector's awaiting-selection copy. */
+export const TRANSACTION_DETAIL_AWAITING = {
+  title: 'No transaction selected',
+  description: 'Pick one in the list to see its request and response.',
+} as const;

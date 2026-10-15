@@ -1,4 +1,7 @@
 import { Chip } from '@heroui/react';
+import historyIcon from '@iconify-icons/solar/history-bold-duotone';
+import { AwaitingSelectionPane } from '../../../../shared/ui/AwaitingSelectionPane/AwaitingSelectionPane';
+import { RUN_HISTORY_DETAIL_AWAITING } from './run-history-panel.constants';
 import { pendingEpisodesLabel } from './run-history-panel.helpers';
 import type { RunHistoryDetailPaneProps } from './run-history-panel.types';
 import { RunHistoryManualLinks } from './RunHistoryManualLinks';
@@ -11,7 +14,15 @@ import { RunProgressBar } from './RunProgressBar';
  */
 export function RunHistoryDetailPane({ selectedRun }: Readonly<RunHistoryDetailPaneProps>) {
   if (selectedRun === undefined) {
-    return <p className="text-sm text-muted">Select a run to see its details.</p>;
+    return (
+      <AwaitingSelectionPane
+        description={RUN_HISTORY_DETAIL_AWAITING.description}
+        fields={RUN_HISTORY_DETAIL_AWAITING.fields}
+        icon={historyIcon}
+        sectionLabel={RUN_HISTORY_DETAIL_AWAITING.sectionLabel}
+        title={RUN_HISTORY_DETAIL_AWAITING.title}
+      />
+    );
   }
 
   const isRunning = selectedRun.status === 'running';

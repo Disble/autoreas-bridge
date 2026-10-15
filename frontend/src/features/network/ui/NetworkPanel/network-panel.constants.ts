@@ -131,8 +131,11 @@ export const NETWORK_EMPTY_STATE_MESSAGE = 'No runtime events captured yet.';
 /** Copy shown while the initial replay fetch has not resolved. */
 export const NETWORK_LOADING_STATE_MESSAGE = 'Loading persisted runtime events…';
 
-/** Copy shown in the detail panel when no row is selected. */
-export const NETWORK_DETAIL_EMPTY_MESSAGE = 'Select an event to inspect its details.';
+/** The detail inspector's awaiting-selection copy. */
+export const NETWORK_DETAIL_AWAITING = {
+  title: 'No event selected',
+  description: 'Pick one in the list to see its metadata and trace.',
+} as const;
 
 /** Placeholder shown in the NetworkFilterBar free-text input. */
 export const NETWORK_FILTER_PLACEHOLDER = 'Filter by event, message, or domain…';

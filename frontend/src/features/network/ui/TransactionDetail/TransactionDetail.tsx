@@ -1,6 +1,8 @@
 import { Card, Chip, CloseButton, Tabs } from '@heroui/react';
+import transferIcon from '@iconify-icons/solar/transfer-horizontal-bold-duotone';
+import { AwaitingSelectionPane } from '../../../../shared/ui/AwaitingSelectionPane/AwaitingSelectionPane';
 import { ACTIVITY_RAIL_HEIGHT_CLASS } from '../ActivityView/activity-view.constants';
-import { TRANSACTION_DETAIL_TAB_LABELS, TRANSACTION_EMPTY_LABEL } from '../TransactionPanel/transaction-panel.constants';
+import { TRANSACTION_DETAIL_AWAITING, TRANSACTION_DETAIL_TAB_LABELS, TRANSACTION_EMPTY_LABEL } from '../TransactionPanel/transaction-panel.constants';
 import type { TransactionDetailProps } from '../TransactionPanel/transaction-panel.types';
 import { TransactionDetailGeneral } from './TransactionDetailGeneral';
 import { TransactionDetailRequest } from './TransactionDetailRequest';
@@ -15,8 +17,8 @@ export function TransactionDetail({ detail, detailTab, onDetailTabChange, onClos
   if (detail === null) {
     return (
       <Card>
-        <Card.Content className="p-4 text-center text-default-400">
-          <span className="text-sm">Select a transaction to inspect its details.</span>
+        <Card.Content className="p-4">
+          <AwaitingSelectionPane description={TRANSACTION_DETAIL_AWAITING.description} icon={transferIcon} title={TRANSACTION_DETAIL_AWAITING.title} />
         </Card.Content>
       </Card>
     );

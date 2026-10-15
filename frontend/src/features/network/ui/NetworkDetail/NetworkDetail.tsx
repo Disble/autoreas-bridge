@@ -1,6 +1,8 @@
 import { Card, Chip, CloseButton, Tabs } from '@heroui/react';
+import pulseIcon from '@iconify-icons/solar/pulse-bold-duotone';
+import { AwaitingSelectionPane } from '../../../../shared/ui/AwaitingSelectionPane/AwaitingSelectionPane';
 import { ACTIVITY_RAIL_HEIGHT_CLASS } from '../ActivityView/activity-view.constants';
-import { NETWORK_DETAIL_EMPTY_MESSAGE, NETWORK_DETAIL_TAB_LABELS } from '../NetworkPanel/network-panel.constants';
+import { NETWORK_DETAIL_AWAITING, NETWORK_DETAIL_TAB_LABELS } from '../NetworkPanel/network-panel.constants';
 import { getNetworkDomainColor, getNetworkLevelColor } from '../NetworkPanel/network-panel.helpers';
 import type { NetworkDetailProps, NetworkDetailTab } from '../NetworkPanel/network-panel.types';
 import { NetworkDetailGeneral } from './NetworkDetailGeneral';
@@ -12,8 +14,8 @@ export function NetworkDetail({ detail, detailTab, onDetailTabChange, onClose }:
   if (detail === null) {
     return (
       <Card>
-        <Card.Content className="p-4 text-center text-default-400">
-          <span className="text-sm">{NETWORK_DETAIL_EMPTY_MESSAGE}</span>
+        <Card.Content className="p-4">
+          <AwaitingSelectionPane description={NETWORK_DETAIL_AWAITING.description} icon={pulseIcon} title={NETWORK_DETAIL_AWAITING.title} />
         </Card.Content>
       </Card>
     );
