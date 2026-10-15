@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react';
 import catalogArtwork from '../../src/assets/airis-empty-states/catalog.webp';
 import editorLibraryArtwork from '../../src/assets/airis-empty-states/editor-library.webp';
+import seasonArtwork from '../../src/assets/airis-empty-states/season.webp';
 import todayArtwork from '../../src/assets/airis-empty-states/today.webp';
 import { ANIME_EDITOR_EMPTY_STATE_COPY } from '../../src/features/anime-editor/ui/AnimeEditorWorkspace/anime-editor-workspace.constants';
 import { EPISODE_ADD_LABEL, EPISODE_DURATIONS_EMPTY_COPY } from '../../src/features/anime-editor/ui/EpisodeDurationsSection/episode-durations-section.constants';
 import { CATALOG_PANEL_EMPTY_STATE_COPY } from '../../src/features/catalog/ui/CatalogPanel/catalog-panel.constants';
+import {
+  EVALUATION_EMPTY_ACTION_LABEL,
+  EVALUATION_EMPTY_DESCRIPTION,
+  EVALUATION_EMPTY_TITLE,
+} from '../../src/features/season/ui/EvaluationPanel/evaluation-panel.constants';
 import { AirisEmptyState } from '../../src/shared/ui/AirisEmptyState/AirisEmptyState';
 import { AIRIS_CREATE_ANIME_LABEL } from '../../src/shared/ui/AirisEmptyState/airis-empty-state.constants';
 import { checkThePage, measureWhenReady, VerdictReport, type Check } from './verdict';
@@ -42,6 +48,9 @@ const AXIS_TOLERANCE_PX = 1;
 /** Artwork on a wide container (`@xl`, 36rem and up). */
 const WIDE_ARTWORK_PX = 144;
 
+/** The waiting pose on a wide container: one step smaller, so it reads as a pause, not a welcome. */
+const WAITING_WIDE_ARTWORK_PX = 120;
+
 /** Artwork beside the copy on a medium container (`@xs` to `@xl`). */
 const MEDIUM_ARTWORK_PX = 104;
 
@@ -72,6 +81,8 @@ interface AirisComposition {
   readonly description: string;
   /** The recovery action's label; the create-anime action when omitted. */
   readonly actionLabel?: string;
+  /** The mascot kind; `first-run` when omitted. */
+  readonly kind?: 'waiting-on-step';
 }
 
 /** One measured placement: a composition rendered at one container width. */
@@ -119,6 +130,16 @@ const EPISODES_COMPOSITION: AirisComposition = {
   title: EPISODE_DURATIONS_EMPTY_COPY.none.title,
   description: EPISODE_DURATIONS_EMPTY_COPY.none.description,
   actionLabel: EPISODE_ADD_LABEL,
+};
+
+/** Season Evaluation's empty state, the reference user of the `waiting-on-step` mascot. */
+const EVALUATION_COMPOSITION: AirisComposition = {
+  subject: 'evaluation waiting',
+  imageSrc: seasonArtwork,
+  title: EVALUATION_EMPTY_TITLE,
+  description: EVALUATION_EMPTY_DESCRIPTION,
+  actionLabel: EVALUATION_EMPTY_ACTION_LABEL,
+  kind: 'waiting-on-step',
 };
 
 /**
@@ -302,6 +323,7 @@ function PlacementFixture({ placement }: Readonly<{ placement: AirisPlacement }>
           action={{ label: composition.actionLabel ?? AIRIS_CREATE_ANIME_LABEL, onPress: () => undefined }}
           description={composition.description}
           imageSrc={composition.imageSrc}
+          kind={composition.kind}
           size={size}
           title={composition.title}
         />
@@ -346,11 +368,27 @@ const SECTION_PLACEMENTS: readonly AirisPlacement[] = [
   },
 ];
 
+/**
+ * The waiting pose at full width, where it must stop one step short of the
+ * first-run size, and in a rail, where both kinds share the narrow size.
+ */
+const WAITING_PLACEMENTS: readonly AirisPlacement[] = [
+  { composition: EVALUATION_COMPOSITION, subject: EVALUATION_COMPOSITION.subject, geometry: 'split', artworkPx: WAITING_WIDE_ARTWORK_PX, maxHeightPx: MAX_SPLIT_HEIGHT_PX },
+  {
+    composition: EVALUATION_COMPOSITION,
+    subject: `${EVALUATION_COMPOSITION.subject} in a rail`,
+    widthPx: RAIL_CONTAINER_WIDTH_PX,
+    geometry: 'stacked',
+    artworkPx: NARROW_ARTWORK_PX,
+    maxHeightPx: MAX_STACKED_HEIGHT_PX,
+  },
+];
+
 /** Every Airis placement on the shared fixture page, measured independently. */
 export function AirisEmptyStatesFixture() {
   return (
     <>
-      {[...CARD_PLACEMENTS, ...SECTION_PLACEMENTS].map((placement) => (
+      {[...CARD_PLACEMENTS, ...SECTION_PLACEMENTS, ...WAITING_PLACEMENTS].map((placement) => (
         <PlacementFixture key={placement.subject} placement={placement} />
       ))}
     </>

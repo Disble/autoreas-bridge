@@ -66,7 +66,9 @@ Labels are Legacy domain vocabulary (Spanish data literals, like "Sin ver", "Ver
 Bridge's brand is HeroUI's token pair, never Legacy's Materialize red/blue.
 
 - **Primary action** — `Button variant="primary"` → `--accent` (`oklch(0.6204 0.195 253.83)`, the
-  brand blue). One per action cluster: the action the user came to perform (for example Chapters "+").
+  brand blue). The value is HeroUI's, not ours: `@heroui/styles` 3.2.4 defines `--accent` once, on
+  `:root` in `dist/themes/default/variables.css`, and its `.dark` block does not override it, so the
+  dark app (`<html class="dark">`) uses the same blue. `style.css` sets no tokens. One per action cluster: the action the user came to perform (for example Chapters "+").
 - **Secondary action** — `Button variant="secondary"` → the `--default` surface with
   `--accent-soft-foreground` text. The counterpart of the primary in a paired control (Chapters "−"),
   and the weight of an action that undoes something the user did (clearing filters).

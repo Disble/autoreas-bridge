@@ -84,8 +84,9 @@ to Vite (`frontend:dev:serverUrl: "auto"`), and requests made while Vite restart
 
 `frontend/scripts/layout-fixtures/airis-empty-states-fixture.tsx` mounts the production shell with
 production copy and real asset bytes in headless Edge and measures, per placement: the decoded
-512px intrinsic size, the 88 / 104 / 144px display size per container width, square aspect, art
-inside the card, copy beside the art (split) or on the art's left axis (stacked), and a height budget
-(240px split, 480px stacked). It covers the Today, Editor Library and Catalog compositions and the
-Editor Episodes `section`. It measures `first-run` art only; the 120px `waiting-on-step` step is not
-measured there.
+512px intrinsic size, the display size per container width (88 / 104 / 144px for `first-run`,
+120px wide and 88px in a rail for `waiting-on-step`), square aspect, art inside the card, copy beside
+the art (split) or on the art's left axis (stacked), and a height budget (240px split, 480px
+stacked). It covers the Today, Editor Library and Catalog compositions, the Editor Episodes
+`section`, and Season Evaluation as the `waiting-on-step` reference. Setting the waiting class to
+the first-run `@xl:size-36` makes the Evaluation check fail at 144px, so the 120px step is guarded.
