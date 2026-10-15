@@ -92,6 +92,7 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     metadataByRow: {},
     appliedMetadataByRow: {},
     metadataLookupSource: createMetadataSource(),
+    providerSearchSource: {},
     onMetadataApplied: vi.fn(),
     onMetadataClear: vi.fn(),
     onMetadataUndo: vi.fn(),

@@ -2,6 +2,7 @@ import type {
   ApplyScheduleResult,
   ConfirmSelectionResult,
   OrderingBoard,
+  SeasonProviderSearchResult,
   SeasonSource,
   SendToVerHoyResult,
 } from './season-source.types';
@@ -22,6 +23,12 @@ export const SEASON_SEND_UNAVAILABLE: SendToVerHoyResult = {
   status: SEASON_RUNTIME_UNAVAILABLE,
   pastDownloadTime: false,
   downloadTime: '',
+};
+
+/** Safe degraded provider-search result returned when Wails is unavailable. */
+export const SEASON_PROVIDER_SEARCH_UNAVAILABLE: SeasonProviderSearchResult = {
+  status: SEASON_RUNTIME_UNAVAILABLE,
+  pages: [],
 };
 
 /** Empty ordering board used while runtime bindings are unavailable. */

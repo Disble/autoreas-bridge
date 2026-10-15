@@ -254,6 +254,22 @@ export interface SeasonMatchingFinishedWire {
   readonly SeasonID: string;
 }
 
+/**
+ * One download-provider page a free-text provider search returned: a match
+ * candidate's title and page URL, unscored, plus the provider's own name
+ * (e.g. `jkanime`).
+ */
+export type SeasonProviderPage = Omit<SeasonAnimeCandidate, 'score'> & Readonly<{ provider: string }>;
+
+/**
+ * Result of searching every download provider by free text. `status` is `ok`
+ * or the failure's message; `pages` is empty, never null, when nothing matched.
+ */
+export interface SeasonProviderSearchResult {
+  readonly status: string;
+  readonly pages: readonly SeasonProviderPage[];
+}
+
 /** Result returned after confirming the season selection reconciliation. */
 export interface ConfirmSelectionResult {
   readonly status: string;
@@ -278,6 +294,14 @@ export interface SeasonSource {
   readonly reconcileIntake: (rawText: string) => Promise<string>;
   readonly runMatching: () => Promise<string>;
   readonly resolveMatch: (rowId: string, pageUrl: string) => Promise<string>;
+  /**
+   * Searches every download provider by free text, for the intake's "Find on
+   * provider" lookup. Optional on the port, like `getSeasonOrderingSnapshot`,
+   * so pre-existing partial test doubles stay assignable; the runtime adapter
+   * always provides it, and a missing search reads as unavailable, never as
+   * "no pages".
+   */
+  readonly searchProviders?: (query: string) => Promise<SeasonProviderSearchResult>;
   readonly discardName: (rowId: string) => Promise<string>;
   readonly setAnimeDays: (animeId: string, dias: readonly string[]) => Promise<string>;
   readonly sendToVerHoy: (animeIds: readonly string[]) => Promise<SendToVerHoyResult>;

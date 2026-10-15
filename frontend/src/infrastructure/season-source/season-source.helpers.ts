@@ -19,6 +19,7 @@ import {
   ResolveSeasonMatch,
   RunSeasonMatching,
   SaveSeasonOrderingDraft,
+  SearchSeasonProviders,
   SendSeasonAnimesToVerHoy,
   SetAnimeDays,
   SetSeasonConsideration,
@@ -39,6 +40,7 @@ import {
   SEASON_MATCHING_PHASE_MATCHING,
   SEASON_MATCHING_PROGRESS_EVENT_NAME,
   SEASON_MATCHING_STARTED_EVENT_NAME,
+  SEASON_PROVIDER_SEARCH_UNAVAILABLE,
   SEASON_RUNTIME_UNAVAILABLE,
   SEASON_SEND_UNAVAILABLE,
   SEASON_SOURCE_STATE,
@@ -54,6 +56,7 @@ import type {
   SeasonMatchingStartedNotice,
   SeasonMatchingStartedWire,
   SeasonOrderingSnapshot,
+  SeasonProviderSearchResult,
   SeasonSource,
 } from './season-source.types';
 import { createRuntimeSubscription, hasGoBinding, invokeGoBinding, waitForBindings } from '../wails-bindings.helpers';
@@ -170,6 +173,13 @@ export function createSeasonSource(): SeasonSource {
     },
     resolveMatch(rowId: string, pageUrl: string) {
       return invokeGoBinding('ResolveSeasonMatch', () => ResolveSeasonMatch(rowId, pageUrl), () => SEASON_RUNTIME_UNAVAILABLE);
+    },
+    searchProviders(query: string) {
+      return invokeGoBinding<SeasonProviderSearchResult>(
+        'SearchSeasonProviders',
+        () => SearchSeasonProviders(query),
+        () => SEASON_PROVIDER_SEARCH_UNAVAILABLE,
+      );
     },
     discardName(rowId: string) {
       return invokeGoBinding('DiscardSeasonName', () => DiscardSeasonName(rowId), () => SEASON_RUNTIME_UNAVAILABLE);

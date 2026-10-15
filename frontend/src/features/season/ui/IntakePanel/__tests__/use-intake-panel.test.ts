@@ -256,12 +256,13 @@ describe('useIntakePanel', () => {
     expect(source.recheckAvailability).toHaveBeenCalled();
   });
 
-  it('holds one confirmed lookup per row and hands the rows the injected lookup source', async () => {
+  it('holds one confirmed lookup per row and hands the rows the injected lookup and provider search sources', async () => {
     const metadataSource = createMetadataSource();
     const source = createSourceWithRows([seasonRow({ id: 'sa-1' }), seasonRow({ id: 'sa-2', rawName: 'Bleach' })]);
     const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), metadataSource));
     await waitFor(() => expect(result.current.editableRows).toHaveLength(2));
     expect(result.current.metadataLookupSource).toBe(metadataSource);
+    expect(result.current.providerSearchSource).toBe(source);
 
     act(() => result.current.onMetadataApplied('sa-1', selection()));
 

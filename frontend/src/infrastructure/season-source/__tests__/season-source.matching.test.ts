@@ -161,4 +161,27 @@ describe('season matching source seam', () => {
     expect(() => unsubscribeProgress?.()).not.toThrow();
     expect(() => unsubscribeFinished?.()).not.toThrow();
   });
+
+  it('searches every provider through the live binding with the typed query', async () => {
+    const page = { title: 'Ao Ashi Season 2', pageUrl: 'https://jkanime.net/ao-ashi-2/', provider: 'jkanime' };
+    const searchMock = vi.fn().mockResolvedValue({ status: 'ok', pages: [page] });
+    window.go = { desktop: { App: { SearchSeasonProviders: searchMock } } } as never;
+    const { createSeasonSource } = await import('../season-source.helpers');
+
+    const search = createSeasonSource().searchProviders?.('Ao Ashi');
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(search).resolves.toEqual({ status: 'ok', pages: [page] });
+    expect(searchMock).toHaveBeenCalledExactlyOnceWith('Ao Ashi');
+  });
+
+  it('degrades the provider search to an unavailable status with no pages when no binding exists', async () => {
+    const { createSeasonSource } = await import('../season-source.helpers');
+    const { SEASON_RUNTIME_UNAVAILABLE } = await import('../season-source.constants');
+
+    const search = createSeasonSource().searchProviders?.('Ao Ashi');
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(search).resolves.toEqual({ status: SEASON_RUNTIME_UNAVAILABLE, pages: [] });
+  });
 });

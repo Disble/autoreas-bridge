@@ -22,7 +22,7 @@ function renderTwoRows(shape: Parameters<typeof seasonRow>[0]): HookReturn {
   const value = {
     readOnly: false, mode: 'list', switchMode: vi.fn(), rawDraft: '', onRawChange: vi.fn(), selected: new Set(), toggleSelect: vi.fn(),
     editableRows: [seasonRow({ id: 'row-1', rawName: 'First', ...shape }), seasonRow({ id: 'row-2', rawName: 'Second', ...shape })],
-    folderOverrides: {}, folderPreviews: {}, onPickFolder: vi.fn(), metadataByRow: {}, appliedMetadataByRow: {}, metadataLookupSource: {},
+    folderOverrides: {}, folderPreviews: {}, onPickFolder: vi.fn(), metadataByRow: {}, appliedMetadataByRow: {}, metadataLookupSource: {}, providerSearchSource: {},
     onMetadataApplied: vi.fn(), onMetadataClear: vi.fn(), onMetadataUndo: vi.fn(), availableCount: 0, availabilityPendingCount: 0, onCreate: vi.fn(),
     unresolvedCount: 0, searchFailedCount: 0, errorMessage: undefined, busyMessage: undefined, onRunMatching: vi.fn(), onRecheckAvailability: vi.fn(), onResolve: vi.fn(),
     onDiscard: vi.fn(), onOpenPage: vi.fn(),

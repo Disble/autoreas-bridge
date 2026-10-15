@@ -56,6 +56,7 @@ export function createSource(overrides: Partial<SeasonSource> = {}): SeasonSourc
     applySchedule: vi.fn().mockResolvedValue({ status: 'ok', applied: 0, failed: [] }),
     reopenOrdering: vi.fn().mockResolvedValue('ok'),
     recheckAvailability: vi.fn().mockResolvedValue('ok'),
+    searchProviders: vi.fn().mockResolvedValue({ status: 'ok', pages: [] }),
     openPage: vi.fn(),
     ...overrides,
   };

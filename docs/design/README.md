@@ -17,6 +17,7 @@ everything else. When the two disagree, the code wins; fix the document in the s
 | `components/tables.md` | Sizing, scrolling or sticking a HeroUI `Table` to the bottom |
 | `components/chips.md` | Rendering a tag, badge or status chip |
 | `components/airis-empty-state.md` | Using `AirisEmptyState`: kinds, sizes, container sizing, actions |
+| `components/lookup-modal.md` | Building a search-and-pick modal on the shared `LookupModal` parts |
 | `components/awaiting-selection-pane.md` | A master/detail pane before a row is selected |
 | `patterns/loading-empty-error.md` | Any surface that loads data: the exclusive states, the status region, skeletons, debounce, tests |
 | `patterns/empty-states.md` | Deciding which kind of emptiness a surface shows, its copy and action, and the mascot catalog |

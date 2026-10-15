@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { IntakeRow } from '../IntakeRow';
 import type { IntakeAppliedMetadata, IntakeRowProps } from '../intake-panel.types';
-import { createMetadataSource, seasonRow } from './intake-panel.test-support';
+import { createMetadataSource, createSource, seasonRow } from './intake-panel.test-support';
 
 /** A matched row whose episode 1 is online, so every row action applies to it. */
 const CREATABLE = { matchStatus: 'matched', matchedSlug: 'https://jkanime.net/dr-stone/', availability: 'available' };
@@ -33,6 +33,7 @@ function renderRow(overrides: Partial<IntakeRowProps> = {}): IntakeRowProps {
     heldMetadata: undefined,
     appliedMetadata: undefined,
     metadataLookupSource: createMetadataSource(),
+    providerSearchSource: createSource(),
     onMetadataApplied: vi.fn(),
     onMetadataUndo: vi.fn(),
     onMetadataClear: vi.fn(),
@@ -133,21 +134,35 @@ describe('IntakeRow', () => {
     ]);
   });
 
-  it('offers no page or folder action to an unmatched row', () => {
-    renderRow();
+  it.each(['pending', 'not_found', 'ambiguous', 'search_failed'])('offers Find on provider right after Fetch metadata, and no page or folder action, on a %s row', (matchStatus) => {
+    renderRow({ row: seasonRow({ matchStatus }) });
 
     expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toStrictEqual([
       'Fetch metadata',
+      'Find on provider',
       'More actions for Dr. Stone',
     ]);
   });
 
-  it('keeps only the page action while the season is read-only', () => {
-    renderRow({ row: seasonRow(CREATABLE), readOnly: true, appliedMetadata: applied(true) });
+  it.each([
+    { row: seasonRow(CREATABLE), actions: ['Open the page for Dr. Stone'] },
+    { row: seasonRow({ matchStatus: 'not_found' }), actions: [] },
+  ])('keeps only $actions while the season is read-only', ({ row, actions }) => {
+    renderRow({ row, readOnly: true, appliedMetadata: applied(true) });
 
-    expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toStrictEqual([
-      'Open the page for Dr. Stone',
-    ]);
+    expect(screen.queryAllByRole('button').map((button) => button.getAttribute('aria-label'))).toStrictEqual(actions);
+  });
+
+  it('resolves the row to the page picked in Find on provider', async () => {
+    const pageUrl = 'https://jkanime.net/dr-stone/';
+    const searchProviders = vi.fn().mockResolvedValue({ status: 'ok', pages: [{ title: 'Dr. Stone', pageUrl, provider: 'jkanime' }] });
+    const props = renderRow({ row: seasonRow({ matchStatus: 'not_found' }), providerSearchSource: { searchProviders } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Find on provider' }));
+    fireEvent.click(await screen.findByRole('button', { name: /jkanime\.net\/dr-stone/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Use this page' }));
+
+    expect(props.onResolve).toHaveBeenCalledExactlyOnceWith(pageUrl);
   });
 
   it.each([

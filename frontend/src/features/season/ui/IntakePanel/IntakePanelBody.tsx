@@ -50,6 +50,7 @@ export function IntakePanelBody(props: Readonly<IntakePanelBodyProps>) {
           folderPreview={props.folderPreviews[row.id]}
           isSelected={selected.has(row.id)}
           metadataLookupSource={props.metadataLookupSource}
+          providerSearchSource={props.providerSearchSource}
           readOnly={props.readOnly}
           row={row}
           onDiscard={() => props.onDiscard(row.id)}
