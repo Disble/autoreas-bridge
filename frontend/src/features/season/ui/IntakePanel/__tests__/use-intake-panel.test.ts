@@ -8,7 +8,7 @@ import type {
   SeasonMatchingStartedNotice,
 } from '../../../../../infrastructure/season-source/season-source.types';
 import { disconnectSeasonMatchingStore, getSeasonStoreState, resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
-import { createDownloadsRootSource, createMetadataSource, createSource, createSourceWithRows, seasonRow, selection } from './intake-panel.test-support';
+import { createLibraryRootSource, createMetadataSource, createSource, createSourceWithRows, seasonRow, selection } from './intake-panel.test-support';
 import { useIntakePanel } from '../use-intake-panel';
 
 describe('useIntakePanel', () => {
@@ -131,10 +131,10 @@ describe('useIntakePanel', () => {
       { id: 'sa-1', rawName: 'Re:Zero', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'available', availableEpisodes: 1, animeId: '', section: '', sectionOrder: 0, grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
     ];
     const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
-    const downloadsRootSource = createDownloadsRootSource('D:/Anime');
-    const { result } = renderHook(() => useIntakePanel(source, downloadsRootSource));
+    const libraryRootSource = createLibraryRootSource('D:/Anime');
+    const { result } = renderHook(() => useIntakePanel(source, libraryRootSource));
 
-    await waitFor(() => expect(downloadsRootSource.getDownloadsRoot).toHaveBeenCalled());
+    await waitFor(() => expect(libraryRootSource.getLibraryRoot).toHaveBeenCalled());
     expect(result.current.folderPreviews['sa-1']).toBe('D:/Anime/Re Zero');
   });
 
@@ -161,7 +161,7 @@ describe('useIntakePanel', () => {
         metadata: { kind: 2, totalEpisodes: 12 },
       }),
     ]);
-    const { result } = renderHook(() => useIntakePanel(source, createDownloadsRootSource(), createMetadataSource()));
+    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
     await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
     expect(result.current.metadataByRow['sa-1']?.kind).toBe('2');
     act(() => result.current.toggleSelect('sa-1'));
@@ -177,7 +177,7 @@ describe('useIntakePanel', () => {
 
   it('sends the confirmed metadata of exactly the picked rows, converted to the create contract', async () => {
     const source = createSourceWithRows([seasonRow({ id: 'sa-1' }), seasonRow({ id: 'sa-2', rawName: 'Bleach' })]);
-    const { result } = renderHook(() => useIntakePanel(source, createDownloadsRootSource(), createMetadataSource()));
+    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
     await waitFor(() => expect(result.current.editableRows).toHaveLength(2));
     act(() => result.current.onMetadataApplied('sa-1', selection({ kind: '0', totalEpisodes: '24', duration: '45', genres: 'Action, Fantasy', studios: 'Madhouse' })));
     // A lookup attached to a row the user did NOT pick must not travel with the batch.
@@ -259,7 +259,7 @@ describe('useIntakePanel', () => {
   it('holds one confirmed lookup per row and hands the rows the injected lookup source', async () => {
     const metadataSource = createMetadataSource();
     const source = createSourceWithRows([seasonRow({ id: 'sa-1' }), seasonRow({ id: 'sa-2', rawName: 'Bleach' })]);
-    const { result } = renderHook(() => useIntakePanel(source, createDownloadsRootSource(), metadataSource));
+    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), metadataSource));
     await waitFor(() => expect(result.current.editableRows).toHaveLength(2));
     expect(result.current.metadataLookupSource).toBe(metadataSource);
 
@@ -277,7 +277,7 @@ describe('useIntakePanel', () => {
 
   it('refuses a lookup for a row the intake list no longer shows', async () => {
     const source = createSourceWithRows([seasonRow({ id: 'sa-1' })]);
-    const { result } = renderHook(() => useIntakePanel(source, createDownloadsRootSource(), createMetadataSource()));
+    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
     await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
 
     act(() => result.current.onMetadataApplied('sa-9', selection()));
@@ -290,7 +290,7 @@ describe('useIntakePanel', () => {
 
   it('replaces the applied patch on a second apply instead of stacking it, and undo steps back one apply', async () => {
     const source = createSourceWithRows([seasonRow({ id: 'sa-1' })]);
-    const { result } = renderHook(() => useIntakePanel(source, createDownloadsRootSource(), createMetadataSource()));
+    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
     await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
 
     act(() => result.current.onMetadataApplied('sa-1', selection()));
@@ -330,7 +330,7 @@ describe('useIntakePanel', () => {
         metadata: { kind: 0, totalEpisodes: 24, durationMinutes: 45, origin: 'Manga', genres: ['Action', 'Fantasy'], studios: ['Madhouse'], cover: { type: 'url', path: 'https://c.jpg' } },
       }),
     ]);
-    const { result } = renderHook(() => useIntakePanel(source, createDownloadsRootSource(), createMetadataSource()));
+    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
     await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
 
     // Nothing was applied in this session, yet the row shows what storage holds.
@@ -360,7 +360,7 @@ describe('useIntakePanel', () => {
 
   it('persists the merged metadata when a lookup is confirmed, and clears the stored row too', async () => {
     const source = createSourceWithRows([seasonRow({ id: 'sa-1' })]);
-    const { result } = renderHook(() => useIntakePanel(source, createDownloadsRootSource(), createMetadataSource()));
+    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
     await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
 
     act(() => result.current.onMetadataApplied('sa-1', selection({ kind: '0', totalEpisodes: '24', genres: 'Action' })));
@@ -379,7 +379,7 @@ describe('useIntakePanel', () => {
 
   it('clears only the row it was asked for, leaving another row session metadata alone', async () => {
     const source = createSourceWithRows([seasonRow({ id: 'sa-1' }), seasonRow({ id: 'sa-2', rawName: 'Bleach' })]);
-    const { result } = renderHook(() => useIntakePanel(source, createDownloadsRootSource(), createMetadataSource()));
+    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
     await waitFor(() => expect(result.current.editableRows).toHaveLength(2));
     act(() => result.current.onMetadataApplied('sa-1', selection()));
     act(() => result.current.onMetadataApplied('sa-2', selection({ name: 'Bleach' })));
@@ -396,7 +396,7 @@ describe('useIntakePanel', () => {
 
   it('refuses to clear metadata for a row the intake list does not show', async () => {
     const source = createSourceWithRows([seasonRow({ id: 'sa-1' })]);
-    const { result } = renderHook(() => useIntakePanel(source, createDownloadsRootSource(), createMetadataSource()));
+    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
     await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
 
     act(() => result.current.onMetadataClear('sa-gone'));
@@ -407,7 +407,7 @@ describe('useIntakePanel', () => {
 
   it('undoes nothing for a row with no applied metadata', async () => {
     const source = createSourceWithRows([seasonRow({ id: 'sa-1' })]);
-    const { result } = renderHook(() => useIntakePanel(source, createDownloadsRootSource(), createMetadataSource()));
+    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
     await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
 
     act(() => result.current.onMetadataUndo('sa-1'));
@@ -417,7 +417,7 @@ describe('useIntakePanel', () => {
 
   it('refuses to attach metadata to a row the intake list does not show', async () => {
     const source = createSourceWithRows([seasonRow({ id: 'sa-1' })]);
-    const { result } = renderHook(() => useIntakePanel(source, createDownloadsRootSource(), createMetadataSource()));
+    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
     await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
 
     act(() => result.current.onMetadataApplied('sa-2', selection()));
@@ -440,7 +440,7 @@ describe('useIntakePanel', () => {
   it('undoes only the row it was asked for, leaving another row\'s applied metadata in place', async () => {
     const rows = [seasonRow({ id: 'sa-1' }), seasonRow({ id: 'sa-2', rawName: 'Bleach' })];
     const source = createSourceWithRows(rows);
-    const { result } = renderHook(() => useIntakePanel(source, createDownloadsRootSource(), createMetadataSource()));
+    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
     await waitFor(() => expect(result.current.editableRows).toHaveLength(2));
     act(() => result.current.onMetadataApplied('sa-1', selection()));
     act(() => result.current.onMetadataApplied('sa-2', selection({ name: 'Bleach', kind: undefined })));
@@ -460,7 +460,7 @@ describe('useIntakePanel', () => {
   it('keeps the metadata across a refreshed, reordered list and drops it with the row that left', async () => {
     const rows = [seasonRow({ id: 'sa-1' }), seasonRow({ id: 'sa-2', rawName: 'Bleach' }) ];
     const source = createSourceWithRows(rows);
-    const { result } = renderHook(() => useIntakePanel(source, createDownloadsRootSource(), createMetadataSource()));
+    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
     await waitFor(() => expect(result.current.editableRows).toHaveLength(2));
     act(() => result.current.onMetadataApplied('sa-1', selection()));
 

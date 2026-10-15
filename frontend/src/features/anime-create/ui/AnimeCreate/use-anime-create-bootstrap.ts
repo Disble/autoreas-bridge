@@ -6,15 +6,15 @@ import type { AnimeEditorScheduleBoard } from '../../../../shared/contracts/anim
 
 /**
  * Loads the two things the create form needs before it can be used: the shared
- * schedule board and the configured downloads root. Split out of
+ * schedule board and the configured library root. Split out of
  * `useAnimeCreate` on 2026-08-14 so its mount-time I/O does not share a hook
  * budget with the row editing and the submit.
  * @param setBoard Receives the fetched schedule board.
- * @param setDownloadsRoot Receives the configured downloads root.
+ * @param setLibraryRoot Receives the configured library root.
  */
 export function useAnimeCreateBootstrap(
   setBoard: Dispatch<SetStateAction<AnimeEditorScheduleBoard | undefined>>,
-  setDownloadsRoot: Dispatch<SetStateAction<string>>,
+  setLibraryRoot: Dispatch<SetStateAction<string>>,
 ): void {
   useEffect(() => {
     let cancelled = false;
@@ -28,6 +28,6 @@ export function useAnimeCreateBootstrap(
     };
   }, [setBoard]);
   useEffect(() => {
-    void preferencesSource.getDownloadsRoot().then(setDownloadsRoot);
-  }, [setDownloadsRoot]);
+    void preferencesSource.getLibraryRoot().then(setLibraryRoot);
+  }, [setLibraryRoot]);
 }

@@ -33,35 +33,35 @@ func (a *App) seasonModeReader() func(context.Context) bool {
 	}
 }
 
-// GetDownloadsRoot returns the configured global downloads root, or "" when it
+// GetLibraryRoot returns the configured global library root, or "" when it
 // has never been set. It degrades to "" when the settings store is unavailable.
-func (a *App) GetDownloadsRoot() string {
+func (a *App) GetLibraryRoot() string {
 	if a.settingsStore == nil {
 		return ""
 	}
-	root, err := a.settingsStore.DownloadsRoot(a.seasonCtx())
+	root, err := a.settingsStore.LibraryRoot(a.seasonCtx())
 	if err != nil {
 		return ""
 	}
 	return root
 }
 
-// downloadsRoot is the download-context settings seam used by readiness and execution.
-func (a *App) downloadsRoot(ctx context.Context) (string, error) {
+// libraryRoot is the download-context settings seam used by readiness and execution.
+func (a *App) libraryRoot(ctx context.Context) (string, error) {
 	if a.settingsStore == nil {
 		return "", settings.ErrDatabaseUnavailable
 	}
-	return a.settingsStore.DownloadsRoot(ctx)
+	return a.settingsStore.LibraryRoot(ctx)
 }
 
-// SetDownloadsRoot persists the global downloads root — the base folder joined
+// SetLibraryRoot persists the global library root — the base folder joined
 // with a sanitized anime name to form a newly-created season anime's default
 // download folder. Returns "ok" or an error string.
-func (a *App) SetDownloadsRoot(path string) string {
+func (a *App) SetLibraryRoot(path string) string {
 	if a.settingsStore == nil {
 		return "settings store unavailable"
 	}
-	if err := a.settingsStore.SetDownloadsRoot(a.seasonCtx(), path); err != nil {
+	if err := a.settingsStore.SetLibraryRoot(a.seasonCtx(), path); err != nil {
 		return err.Error()
 	}
 	return "ok"
@@ -158,7 +158,7 @@ func (a *App) SetKeymap(document string) string {
 
 // PickFolder opens the native directory picker and returns the chosen absolute
 // path, or "" when the user cancels (or no runtime is available). Shared by the
-// Options downloads-root setting and the per-anime folder override in intake.
+// Options library-root setting and the per-anime folder override in intake.
 func (a *App) PickFolder(title string) string {
 	if a.pickFolder == nil {
 		return ""

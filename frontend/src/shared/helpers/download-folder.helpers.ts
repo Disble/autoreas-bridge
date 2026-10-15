@@ -29,7 +29,7 @@ function trimTrailingPathSeparators(value: string): string {
 /**
  * Mirrors the backend's default download-folder derivation so any surface (season
  * intake, manual create) can preview the exact folder creation will request:
- * downloads root plus a Windows-safe anime-name segment. Returns `''` when the
+ * library root plus a Windows-safe anime-name segment. Returns `''` when the
  * root is empty or the name sanitizes to nothing.
  */
 export function deriveDownloadFolder(root: string, name: string): string {

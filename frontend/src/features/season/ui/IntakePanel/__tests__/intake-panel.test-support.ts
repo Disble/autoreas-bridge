@@ -9,14 +9,14 @@ import type { AnimeMetadataLookupSource } from '../../../../../shared/metadata-l
  * suite so both drive the hook with the SAME rows, ports and selections.
  */
 /**
- * Builds the preferences port the hook reads the downloads root from, so a case
+ * Builds the preferences port the hook reads the library root from, so a case
  * only states the root it cares about.
- * @param root The downloads root the port reports.
+ * @param root The library root the port reports.
  * @returns A preferences port suitable for {@link useIntakePanel}.
  */
-export function createDownloadsRootSource(root = 'D:/Anime') {
+export function createLibraryRootSource(root = 'D:/Anime') {
   return {
-    getDownloadsRoot: vi.fn().mockResolvedValue(root),
+    getLibraryRoot: vi.fn().mockResolvedValue(root),
   };
 }
 

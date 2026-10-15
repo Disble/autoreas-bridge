@@ -72,13 +72,13 @@ export function applyRowFolder(
 /**
  * Applies a field patch to one row. Editing the folder marks it manual (and an
  * emptied folder reverts to auto). While the folder is still auto, a name edit
- * re-derives the folder from `downloadsRoot`, mirroring the season workspace.
+ * re-derives the folder from `libraryRoot`, mirroring the season workspace.
  */
 export function applyRowPatch(
   rows: readonly AnimeCreateRowDraft[],
   draftId: string,
   patch: AnimeCreateRowPatch,
-  downloadsRoot: string,
+  libraryRoot: string,
 ): readonly AnimeCreateRowDraft[] {
   return rows.map((row) => {
     if (row.draftId !== draftId) {
@@ -89,7 +89,7 @@ export function applyRowPatch(
       return { ...next, folderManual: patch.folder.trim() !== '' };
     }
     if (patch.name !== undefined && !row.folderManual) {
-      return { ...next, folder: deriveDownloadFolder(downloadsRoot, next.name) };
+      return { ...next, folder: deriveDownloadFolder(libraryRoot, next.name) };
     }
     return next;
   });

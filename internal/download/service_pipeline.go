@@ -51,16 +51,16 @@ func progressEmitter(progress []func(animeProgressDelta)) func(animeProgressDelt
 // prepareAnimeDownload evaluates an anime and prepares its episode source and listing.
 func (s *Service) prepareAnimeDownload(ctx context.Context, runID string, anime contracts.MobileAnime, emitProgress func(animeProgressDelta)) (animeDownloadPreparation, animeRunOutcome, bool) {
 	root := ""
-	if strings.TrimSpace(derefOrEmpty(anime.Folder)) == "" && s.deps.DownloadsRoot != nil {
+	if strings.TrimSpace(derefOrEmpty(anime.Folder)) == "" && s.deps.LibraryRoot != nil {
 		var err error
-		root, err = s.deps.DownloadsRoot(ctx)
+		root, err = s.deps.LibraryRoot(ctx)
 		if err != nil {
 			return animeDownloadPreparation{}, s.configurationFailure(runID, anime, err, emitProgress), true
 		}
 	}
 	decision := EvaluateAnimeForDownload(AnimeDownloadCandidate{
 		Name: anime.Name, Tipo: anime.Kind, Pagina: anime.SourceURL, Carpeta: anime.Folder,
-		DownloadsRoot: root, Sites: s.deps.Sites,
+		LibraryRoot: root, Sites: s.deps.Sites,
 	})
 	if decision.Skip {
 		s.logf(logger.LevelInfo, runID, anime.ID, "download.skipped", map[string]any{"reason": string(decision.SkipReason)}, "anime %s skipped: %s", anime.Name, decision.SkipReason)

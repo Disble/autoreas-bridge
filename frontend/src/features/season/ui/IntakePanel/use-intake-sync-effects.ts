@@ -8,19 +8,19 @@ import type { useIntakeStoreSlice } from './use-intake-store-slice';
 
 /** Everything the intake sync effects read from their caller. */
 interface IntakeSyncEffectsInput {
-  /** The editor state holding the mode, draft, and downloads-root setter. */
+  /** The editor state holding the mode, draft, and library-root setter. */
   readonly editor: ReturnType<typeof useIntakeEditorState>;
   /** The Season store slice holding the refresh and reconcile actions. */
   readonly store: ReturnType<typeof useIntakeStoreSlice>;
   /** The season port every row mutation goes through. */
   readonly source: SeasonSource;
-  /** The port that supplies the configured downloads root. */
-  readonly downloadsRootSource: Pick<PreferencesSource, 'getDownloadsRoot'>;
+  /** The port that supplies the configured library root. */
+  readonly libraryRootSource: Pick<PreferencesSource, 'getLibraryRoot'>;
 }
 
 /**
  * useIntakeSyncEffects owns the intake panel's four effects: the initial row
- * refresh on mount, the configured downloads-root load, the debounced
+ * refresh on mount, the configured library-root load, the debounced
  * reconcile while editing the raw draft, and the live matching-run
  * subscription. The subscription stays out of the read-only history view --
  * its rows belong to a closed season, so a live run must never banner over
@@ -28,8 +28,8 @@ interface IntakeSyncEffectsInput {
  * @param input The editor state, store slice, and both sources.
  */
 export function useIntakeSyncEffects(input: Readonly<IntakeSyncEffectsInput>): void {
-  const { editor, store, source, downloadsRootSource } = input;
-  const { mode, rawDraft, setDownloadsRoot } = editor;
+  const { editor, store, source, libraryRootSource } = input;
+  const { mode, rawDraft, setLibraryRoot } = editor;
   const { readOnly, refreshAnimes, reconcileIntake } = store;
 
   // 7. Effects
@@ -48,10 +48,10 @@ export function useIntakeSyncEffects(input: Readonly<IntakeSyncEffectsInput>): v
   }, [readOnly, source]);
 
   useEffect(() => {
-    void downloadsRootSource.getDownloadsRoot().then((root) => {
-      setDownloadsRoot(root);
+    void libraryRootSource.getLibraryRoot().then((root) => {
+      setLibraryRoot(root);
     });
-  }, [downloadsRootSource]);
+  }, [libraryRootSource]);
 
   // Debounced reconcile while editing the raw draft.
   useEffect(() => {

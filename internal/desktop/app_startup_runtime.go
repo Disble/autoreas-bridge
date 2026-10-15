@@ -280,14 +280,14 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 		return entries
 	})
 	a.downloadService = a.newDownloadService(download.ServiceDeps{
-		Animes:        a.animeQuery,
-		Sites:         registry,
-		DownloadsRoot: a.downloadsRoot,
-		Hosters:       hosterResolver,
-		JD:            newReconfigurableJDClient(a.downloadStore),
-		Counter:       filesystem.NewEpisodeCounter(),
-		Flattener:     filesystem.NewFlattener(),
-		Renamer:       filesystem.NewRenamer(),
+		Animes:      a.animeQuery,
+		Sites:       registry,
+		LibraryRoot: a.libraryRoot,
+		Hosters:     hosterResolver,
+		JD:          newReconfigurableJDClient(a.downloadStore),
+		Counter:     filesystem.NewEpisodeCounter(),
+		Flattener:   filesystem.NewFlattener(),
+		Renamer:     filesystem.NewRenamer(),
 		// Read JD's own "Max. simultaneous Downloads" per run rather than once at startup,
 		// so changing it in JDownloader takes effect without restarting Bridge.
 		MaxConcurrentAnimes: jdMaxConcurrentAnimes,
@@ -311,11 +311,11 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 		Readiness: a.downloadReadinessSnapshot,
 	})
 	a.readinessService = download.NewReadinessService(download.ReadinessServiceDeps{
-		Animes:        a.animeQuery,
-		DownloadsRoot: a.downloadsRoot,
-		Sites:         registry,
-		Clock:         time.Now,
-		SeasonMode:    a.seasonModeReader(),
+		Animes:      a.animeQuery,
+		LibraryRoot: a.libraryRoot,
+		Sites:       registry,
+		Clock:       time.Now,
+		SeasonMode:  a.seasonModeReader(),
 	})
 	if _, err := a.downloadStore.ReconcileInterruptedRuns(ctx, time.Now().UnixMilli()); err != nil && a.sharedLogger != nil {
 		a.sharedLogger.Warnf("download", "failed to reconcile interrupted download runs at startup: %v", err)

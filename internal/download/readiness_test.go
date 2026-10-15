@@ -44,9 +44,9 @@ func TestReadinessSnapshotClassifiesLocalBlockersAndScheduleTotals(t *testing.T)
 			{ID: "ready", Name: "Ready: Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: today}}, SourceURL: &validPage},
 			{ID: "movie", Name: "Inactive Movie", Active: 0, Kind: new(1), SourceURL: &validPage, Folder: new("D:/movie")},
 		}},
-		DownloadsRoot: func(context.Context) (string, error) { return root, nil },
-		Sites:         registry,
-		Clock:         baseReadinessClock,
+		LibraryRoot: func(context.Context) (string, error) { return root, nil },
+		Sites:       registry,
+		Clock:       baseReadinessClock,
 	})
 
 	snapshot, err := service.BuildSnapshot(context.Background())
@@ -78,9 +78,9 @@ func TestReadinessSnapshotClassifiesLocalBlockersAndScheduleTotals(t *testing.T)
 
 func TestReadinessSnapshotSerializesEmptyArraysAndPropagatesQueryFailures(t *testing.T) {
 	empty := NewReadinessService(ReadinessServiceDeps{
-		Animes:        &svcFakeAnimeQuery{},
-		DownloadsRoot: func(context.Context) (string, error) { return "D:/Downloads", nil },
-		Sites:         &readinessRegistry{resolve: func(string) (sites.EpisodeSource, error) { return nil, ErrSiteUnsupported }},
+		Animes:      &svcFakeAnimeQuery{},
+		LibraryRoot: func(context.Context) (string, error) { return "D:/Downloads", nil },
+		Sites:       &readinessRegistry{resolve: func(string) (sites.EpisodeSource, error) { return nil, ErrSiteUnsupported }},
 	})
 	snapshot, err := empty.BuildSnapshot(context.Background())
 	if err != nil {
@@ -96,9 +96,9 @@ func TestReadinessSnapshotSerializesEmptyArraysAndPropagatesQueryFailures(t *tes
 
 	failure := errors.New("catalog unavailable")
 	failed := NewReadinessService(ReadinessServiceDeps{
-		Animes:        &svcFakeAnimeQuery{err: failure},
-		DownloadsRoot: func(context.Context) (string, error) { return "D:/Downloads", nil },
-		Sites:         &readinessRegistry{resolve: func(string) (sites.EpisodeSource, error) { return nil, ErrSiteUnsupported }},
+		Animes:      &svcFakeAnimeQuery{err: failure},
+		LibraryRoot: func(context.Context) (string, error) { return "D:/Downloads", nil },
+		Sites:       &readinessRegistry{resolve: func(string) (sites.EpisodeSource, error) { return nil, ErrSiteUnsupported }},
 	})
 	if _, err := failed.BuildSnapshot(context.Background()); !errors.Is(err, failure) {
 		t.Fatalf("catalog error = %v, want %v", err, failure)

@@ -76,7 +76,7 @@ func TestEvaluateAnimeForDownloadReturnsCanonicalReasonsInOrder(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			decision := EvaluateAnimeForDownload(AnimeDownloadCandidate{
-				Name: "Anime", Pagina: tt.page, Carpeta: tt.folder, DownloadsRoot: tt.root, Sites: tt.registry,
+				Name: "Anime", Pagina: tt.page, Carpeta: tt.folder, LibraryRoot: tt.root, Sites: tt.registry,
 			})
 			if !decision.Skip || !errors.Is(decision.Err, tt.wantErr) {
 				t.Fatalf("decision = %#v, want blocked by %v", decision, tt.wantErr)

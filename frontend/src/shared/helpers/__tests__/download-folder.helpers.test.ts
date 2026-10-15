@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { deriveDownloadFolder } from '../download-folder.helpers';
 
 describe('deriveDownloadFolder', () => {
-  it('joins the downloads root and a sanitized name segment', () => {
+  it('joins the library root and a sanitized name segment', () => {
     expect(deriveDownloadFolder('D:\\Anime', 'Frieren')).toBe('D:\\Anime\\Frieren');
     expect(deriveDownloadFolder('/mnt/anime', 'Frieren')).toBe('/mnt/anime/Frieren');
   });

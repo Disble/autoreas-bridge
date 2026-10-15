@@ -1,15 +1,15 @@
 import { Alert, Button, Input, Label, TextField } from '@heroui/react';
-import { DOWNLOADS_ROOT_DESCRIPTION, DOWNLOADS_ROOT_LABEL } from './downloads-root-panel.constants';
-import type { DownloadsRootPanelProps } from './downloads-root-panel.types';
-import { useDownloadsRootPanel } from './use-downloads-root-panel';
+import { LIBRARY_ROOT_DESCRIPTION, LIBRARY_ROOT_LABEL } from './library-root-panel.constants';
+import type { LibraryRootPanelProps } from './library-root-panel.types';
+import { useLibraryRootPanel } from './use-library-root-panel';
 
 /**
- * DownloadsRootPanel is the Options "Downloads" tab body: it shows and edits the
- * global downloads root. Presentation-only — all I/O and state live in the
- * colocated useDownloadsRootPanel hook.
+ * LibraryRootPanel is the Options "Library" tab body: it shows and edits the
+ * global library root. Presentation-only — all I/O and state live in the
+ * colocated useLibraryRootPanel hook.
  */
-export function DownloadsRootPanel(props: Readonly<DownloadsRootPanelProps>) {
-  const { root, onRootChange, onBrowse, onSave, isDirty, isSaving, errorMessage } = useDownloadsRootPanel(props);
+export function LibraryRootPanel(props: Readonly<LibraryRootPanelProps>) {
+  const { root, onRootChange, onBrowse, onSave, isDirty, isSaving, errorMessage } = useLibraryRootPanel(props);
 
   return (
     <div className="flex flex-col gap-3">
@@ -22,11 +22,11 @@ export function DownloadsRootPanel(props: Readonly<DownloadsRootPanelProps>) {
       )}
 
       <TextField value={root} onChange={onRootChange}>
-        <Label>{DOWNLOADS_ROOT_LABEL}</Label>
+        <Label>{LIBRARY_ROOT_LABEL}</Label>
         <Input placeholder="D:\Anime" />
       </TextField>
 
-      <p className="text-sm text-muted">{DOWNLOADS_ROOT_DESCRIPTION}</p>
+      <p className="text-sm text-muted">{LIBRARY_ROOT_DESCRIPTION}</p>
 
       <div className="flex gap-2">
         <Button variant="secondary" onPress={() => void onBrowse()}>

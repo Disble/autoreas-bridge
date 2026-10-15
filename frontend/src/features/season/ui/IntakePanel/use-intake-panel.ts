@@ -38,13 +38,13 @@ import { useIntakeSyncEffects } from './use-intake-sync-effects';
  * Season store slice, the row and metadata derivations, the callback groups,
  * and the sync effects. Its returned object is the panel's whole contract.
  * @param source The season port every row mutation goes through.
- * @param downloadsRootSource The port that supplies the configured downloads root.
+ * @param libraryRootSource The port that supplies the configured library root.
  * @param metadataSource The two MyAnimeList calls each row's lookup modal drives.
  * @returns The panel's state, its derived counts and previews, and its callbacks.
  */
 export function useIntakePanel(
   source: SeasonSource = seasonSource,
-  downloadsRootSource: Pick<PreferencesSource, 'getDownloadsRoot'> = preferencesSource,
+  libraryRootSource: Pick<PreferencesSource, 'getLibraryRoot'> = preferencesSource,
   metadataSource: AnimeMetadataLookupSource = metadataLookupSource,
 ) {
   // 2. State
@@ -62,7 +62,7 @@ export function useIntakePanel(
   const applied = useIntakeMetadataApply({ rows, editor, metadata, store, source });
   const reverted = useIntakeMetadataRevert({ rows, editor, store, source });
   // 7. Effects
-  useIntakeSyncEffects({ editor, store, source, downloadsRootSource });
+  useIntakeSyncEffects({ editor, store, source, libraryRootSource });
 
   return {
     readOnly: store.readOnly,

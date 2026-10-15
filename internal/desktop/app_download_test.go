@@ -110,9 +110,9 @@ func TestListDownloadRunsReturnsEmptyWhenStoreNil(t *testing.T) {
 
 func TestListDownloadReadinessReturnsEmptyArraysForEmptyCatalog(t *testing.T) {
 	service := download.NewReadinessService(download.ReadinessServiceDeps{
-		Animes:        &stubAnimeQueryService{},
-		DownloadsRoot: func(context.Context) (string, error) { return "D:/Downloads", nil },
-		Sites:         download.NewStaticRegistry(),
+		Animes:      &stubAnimeQueryService{},
+		LibraryRoot: func(context.Context) (string, error) { return "D:/Downloads", nil },
+		Sites:       download.NewStaticRegistry(),
 	})
 	app := &App{ctx: context.Background(), readinessService: service}
 
@@ -129,9 +129,9 @@ func TestListDownloadReadinessReturnsEmptyArraysForEmptyCatalog(t *testing.T) {
 func TestListDownloadReadinessReturnsQueryErrorWithoutFabricatingSnapshot(t *testing.T) {
 	queryErr := errors.New("catalog unavailable")
 	service := download.NewReadinessService(download.ReadinessServiceDeps{
-		Animes:        &stubAnimeQueryService{err: queryErr},
-		DownloadsRoot: func(context.Context) (string, error) { return "D:/Downloads", nil },
-		Sites:         download.NewStaticRegistry(),
+		Animes:      &stubAnimeQueryService{err: queryErr},
+		LibraryRoot: func(context.Context) (string, error) { return "D:/Downloads", nil },
+		Sites:       download.NewStaticRegistry(),
 	})
 	app := &App{ctx: context.Background(), readinessService: service}
 

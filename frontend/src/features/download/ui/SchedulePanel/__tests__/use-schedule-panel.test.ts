@@ -56,8 +56,8 @@ function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadR
 function createPreferencesSource(overrides: Partial<PreferencesSource> = {}): PreferencesSource {
   return {
     getSeasonMode: vi.fn().mockResolvedValue(false),
-    getDownloadsRoot: vi.fn().mockResolvedValue(''),
-    setDownloadsRoot: vi.fn().mockResolvedValue('ok'),
+    getLibraryRoot: vi.fn().mockResolvedValue(''),
+    setLibraryRoot: vi.fn().mockResolvedValue('ok'),
     pickFolder: vi.fn().mockResolvedValue(''),
     getAutoStartEnabled: vi.fn().mockResolvedValue(true),
     setAutoStartEnabled: vi.fn().mockResolvedValue('ok'),

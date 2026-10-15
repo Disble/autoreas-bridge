@@ -9,7 +9,7 @@ import { BackupImportSection } from '../BackupImportSection/BackupImportSection'
  * and its outcome, plus the import section below a divider. Presentation-
  * only -- the Preferences route already wraps every tab panel in its own
  * Card with the tab's title and description, so this renders bare content,
- * matching DownloadsRootPanel.
+ * matching LibraryRootPanel.
  */
 export function BackupPanel() {
   const { status, result, errorMessage, onExport } = useBackupPanel();

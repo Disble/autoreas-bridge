@@ -11,7 +11,7 @@ describe('useIntakeEditorState', () => {
     expect(result.current.rawDraft).toBe('');
     expect(result.current.selected.size).toBe(0);
     expect(result.current.folderOverrides).toEqual({});
-    expect(result.current.downloadsRoot).toBe('');
+    expect(result.current.libraryRoot).toBe('');
     expect(result.current.metadataByRow).toEqual({});
     expect(result.current.appliedMetadataByRow).toEqual({});
   });

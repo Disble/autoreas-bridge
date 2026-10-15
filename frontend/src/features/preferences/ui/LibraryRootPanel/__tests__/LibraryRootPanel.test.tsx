@@ -1,7 +1,7 @@
 import { toast } from '@heroui/react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DownloadsRootPanel } from '../DownloadsRootPanel';
+import { LibraryRootPanel } from '../LibraryRootPanel';
 
 // Spy instead of vi.mock: @heroui/react is pre-bundled by deps.optimizer,
 // which does not support importOriginal-based partial mocks.
@@ -15,36 +15,36 @@ afterEach(() => {
   cleanup();
 });
 
-describe('DownloadsRootPanel', () => {
+describe('LibraryRootPanel', () => {
   it('shows the loaded root and persists an edit on Save', async () => {
     const source = {
-      getDownloadsRoot: vi.fn().mockResolvedValue('D:/Anime'),
-      setDownloadsRoot: vi.fn().mockResolvedValue('ok'),
+      getLibraryRoot: vi.fn().mockResolvedValue('D:/Anime'),
+      setLibraryRoot: vi.fn().mockResolvedValue('ok'),
       pickFolder: vi.fn(),
     };
 
-    render(<DownloadsRootPanel source={source} />);
+    render(<LibraryRootPanel source={source} />);
 
-    const input = await screen.findByLabelText('Downloads root');
+    const input = await screen.findByLabelText('Library root');
     await waitFor(() => expect(input).toHaveValue('D:/Anime'));
 
     fireEvent.change(input, { target: { value: 'E:/Media/Anime' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-    await waitFor(() => expect(source.setDownloadsRoot).toHaveBeenCalledWith('E:/Media/Anime'));
+    await waitFor(() => expect(source.setLibraryRoot).toHaveBeenCalledWith('E:/Media/Anime'));
   });
 
   it('fills the root from the folder picker', async () => {
     const source = {
-      getDownloadsRoot: vi.fn().mockResolvedValue(''),
-      setDownloadsRoot: vi.fn().mockResolvedValue('ok'),
+      getLibraryRoot: vi.fn().mockResolvedValue(''),
+      setLibraryRoot: vi.fn().mockResolvedValue('ok'),
       pickFolder: vi.fn().mockResolvedValue('F:/Chosen'),
     };
 
-    render(<DownloadsRootPanel source={source} />);
+    render(<LibraryRootPanel source={source} />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Browse' }));
 
-    await waitFor(() => expect(screen.getByLabelText('Downloads root')).toHaveValue('F:/Chosen'));
+    await waitFor(() => expect(screen.getByLabelText('Library root')).toHaveValue('F:/Chosen'));
   });
 });

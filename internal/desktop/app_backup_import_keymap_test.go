@@ -53,8 +53,8 @@ func TestImportingKeymapOnlyBundleLeavesOtherAppSettingsKeysUntouched(t *testing
 	ctx := context.Background()
 	store := settings.NewSQLiteStore(app.bridgeDB)
 
-	if err := store.SetDownloadsRoot(ctx, "marker-downloads-root"); err != nil {
-		t.Fatalf("seed downloads root: %v", err)
+	if err := store.SetLibraryRoot(ctx, "marker-library-root"); err != nil {
+		t.Fatalf("seed library root: %v", err)
 	}
 	if err := store.SetAutoStartEnabled(ctx, true); err != nil {
 		t.Fatalf("seed auto start: %v", err)

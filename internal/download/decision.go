@@ -56,12 +56,12 @@ const (
 // It deliberately mirrors only the fields relevant to EvaluateAnimeForDownload so this file
 // has no dependency on the contracts package.
 type AnimeDownloadCandidate struct {
-	Name          string
-	Tipo          *int // retained for read compatibility; type never blocks download readiness
-	Pagina        *string
-	Carpeta       *string
-	DownloadsRoot string
-	Sites         SiteRegistry
+	Name        string
+	Tipo        *int // retained for read compatibility; type never blocks download readiness
+	Pagina      *string
+	Carpeta     *string
+	LibraryRoot string
+	Sites       SiteRegistry
 }
 
 // AnimeDownloadDecision is the pure gating outcome for one anime candidate. When Skip is
@@ -97,7 +97,7 @@ func EvaluateAnimeForDownload(candidate AnimeDownloadCandidate) AnimeDownloadDec
 			}
 		}
 	}
-	destination := ResolveDestination(candidate.Carpeta, candidate.DownloadsRoot, candidate.Name)
+	destination := ResolveDestination(candidate.Carpeta, candidate.LibraryRoot, candidate.Name)
 	if destination == "" {
 		reasons = append(reasons, DownloadReadinessDestinationUnresolved)
 	}

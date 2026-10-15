@@ -28,11 +28,11 @@ type AnimeDownloadReadiness = contracts.AnimeDownloadReadiness
 
 // ReadinessServiceDeps supplies the local catalog, settings, adapters, and schedule clock.
 type ReadinessServiceDeps struct {
-	Animes        contracts.AnimeQueryService
-	DownloadsRoot func(context.Context) (string, error)
-	Sites         SiteRegistry
-	Clock         func() time.Time
-	SeasonMode    func(context.Context) bool
+	Animes      contracts.AnimeQueryService
+	LibraryRoot func(context.Context) (string, error)
+	Sites       SiteRegistry
+	Clock       func() time.Time
+	SeasonMode  func(context.Context) bool
 }
 
 // ReadinessService builds catalog-wide local readiness without runtime side effects.
@@ -53,16 +53,16 @@ func NewReadinessService(deps ReadinessServiceDeps) *ReadinessService {
 
 // BuildSnapshot evaluates every catalog anime using only local data and adapter matching.
 func (s *ReadinessService) BuildSnapshot(ctx context.Context) (contracts.DownloadReadinessSnapshot, error) {
-	if s == nil || s.deps.Animes == nil || s.deps.DownloadsRoot == nil || s.deps.Sites == nil {
+	if s == nil || s.deps.Animes == nil || s.deps.LibraryRoot == nil || s.deps.Sites == nil {
 		return contracts.DownloadReadinessSnapshot{}, fmt.Errorf("download readiness dependencies unavailable")
 	}
 	animes, err := s.deps.Animes.ListMobileAnimes(ctx)
 	if err != nil {
 		return contracts.DownloadReadinessSnapshot{}, fmt.Errorf("list anime catalog for download readiness: %w", err)
 	}
-	root, err := s.deps.DownloadsRoot(ctx)
+	root, err := s.deps.LibraryRoot(ctx)
 	if err != nil {
-		return contracts.DownloadReadinessSnapshot{}, fmt.Errorf("read downloads root for readiness: %w", err)
+		return contracts.DownloadReadinessSnapshot{}, fmt.Errorf("read library root for readiness: %w", err)
 	}
 	target := config.WeekdayName(s.deps.Clock())
 	if s.deps.SeasonMode(ctx) {
@@ -71,7 +71,7 @@ func (s *ReadinessService) BuildSnapshot(ctx context.Context) (contracts.Downloa
 	snapshot := contracts.DownloadReadinessSnapshot{Items: make([]contracts.AnimeDownloadReadiness, 0, len(animes))}
 	for _, anime := range animes {
 		decision := EvaluateAnimeForDownload(AnimeDownloadCandidate{
-			Name: anime.Name, Pagina: anime.SourceURL, Carpeta: anime.Folder, DownloadsRoot: root, Sites: s.deps.Sites,
+			Name: anime.Name, Pagina: anime.SourceURL, Carpeta: anime.Folder, LibraryRoot: root, Sites: s.deps.Sites,
 		})
 		item := contracts.AnimeDownloadReadiness{
 			AnimeID: anime.ID, Name: anime.Name, Ready: !decision.Skip,

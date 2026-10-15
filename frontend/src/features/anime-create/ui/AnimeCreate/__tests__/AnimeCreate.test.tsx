@@ -13,7 +13,7 @@ vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-sour
 }));
 
 vi.mock('../../../../../infrastructure/preferences-source/preferences-source.helpers', () => ({
-  preferencesSource: { getDownloadsRoot: vi.fn().mockResolvedValue('D:\\Anime') },
+  preferencesSource: { getLibraryRoot: vi.fn().mockResolvedValue('D:\\Anime') },
 }));
 
 /** A loaded schedule board with one weekday and no existing entries, so the cases

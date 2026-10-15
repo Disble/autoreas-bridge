@@ -1,24 +1,25 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useDownloadsRootPanel } from '../use-downloads-root-panel';
+import { useLibraryRootPanel } from '../use-library-root-panel';
 
+/** HeroUI toast stand-in, hoisted so the module mock below can return it. */
 const toastMock = vi.hoisted(() => ({ success: vi.fn(), danger: vi.fn() }));
 vi.mock('@heroui/react', () => ({ toast: toastMock }));
 
-describe('useDownloadsRootPanel', () => {
+describe('useLibraryRootPanel', () => {
   beforeEach(() => {
     toastMock.success.mockClear();
     toastMock.danger.mockClear();
   });
 
-  it('loads the current downloads root from the source', async () => {
+  it('loads the current library root from the source', async () => {
     const source = {
-      getDownloadsRoot: vi.fn().mockResolvedValue('D:/Anime'),
-      setDownloadsRoot: vi.fn(),
+      getLibraryRoot: vi.fn().mockResolvedValue('D:/Anime'),
+      setLibraryRoot: vi.fn(),
       pickFolder: vi.fn(),
     };
 
-    const { result } = renderHook(() => useDownloadsRootPanel({ source }));
+    const { result } = renderHook(() => useLibraryRootPanel({ source }));
 
     await waitFor(() => expect(result.current.root).toBe('D:/Anime'));
     expect(result.current.isDirty).toBe(false);
@@ -26,12 +27,12 @@ describe('useDownloadsRootPanel', () => {
 
   it('marks the form dirty on change and persists the new root on save', async () => {
     const source = {
-      getDownloadsRoot: vi.fn().mockResolvedValue('D:/Anime'),
-      setDownloadsRoot: vi.fn().mockResolvedValue('ok'),
+      getLibraryRoot: vi.fn().mockResolvedValue('D:/Anime'),
+      setLibraryRoot: vi.fn().mockResolvedValue('ok'),
       pickFolder: vi.fn(),
     };
 
-    const { result } = renderHook(() => useDownloadsRootPanel({ source }));
+    const { result } = renderHook(() => useLibraryRootPanel({ source }));
     await waitFor(() => expect(result.current.root).toBe('D:/Anime'));
 
     act(() => result.current.onRootChange('E:/Media/Anime'));
@@ -41,20 +42,20 @@ describe('useDownloadsRootPanel', () => {
       await result.current.onSave();
     });
 
-    expect(source.setDownloadsRoot).toHaveBeenCalledWith('E:/Media/Anime');
+    expect(source.setLibraryRoot).toHaveBeenCalledWith('E:/Media/Anime');
     expect(toastMock.success).toHaveBeenCalled();
     expect(result.current.isDirty).toBe(false);
   });
 
   it('fills the root from the folder picker', async () => {
     const source = {
-      getDownloadsRoot: vi.fn().mockResolvedValue(''),
-      setDownloadsRoot: vi.fn(),
+      getLibraryRoot: vi.fn().mockResolvedValue(''),
+      setLibraryRoot: vi.fn(),
       pickFolder: vi.fn().mockResolvedValue('F:/Chosen'),
     };
 
-    const { result } = renderHook(() => useDownloadsRootPanel({ source }));
-    await waitFor(() => expect(source.getDownloadsRoot).toHaveBeenCalled());
+    const { result } = renderHook(() => useLibraryRootPanel({ source }));
+    await waitFor(() => expect(source.getLibraryRoot).toHaveBeenCalled());
 
     await act(async () => {
       await result.current.onBrowse();
@@ -66,12 +67,12 @@ describe('useDownloadsRootPanel', () => {
 
   it('ignores a cancelled folder picker', async () => {
     const source = {
-      getDownloadsRoot: vi.fn().mockResolvedValue('D:/Anime'),
-      setDownloadsRoot: vi.fn(),
+      getLibraryRoot: vi.fn().mockResolvedValue('D:/Anime'),
+      setLibraryRoot: vi.fn(),
       pickFolder: vi.fn().mockResolvedValue(''),
     };
 
-    const { result } = renderHook(() => useDownloadsRootPanel({ source }));
+    const { result } = renderHook(() => useLibraryRootPanel({ source }));
     await waitFor(() => expect(result.current.root).toBe('D:/Anime'));
 
     await act(async () => {
@@ -84,12 +85,12 @@ describe('useDownloadsRootPanel', () => {
 
   it('surfaces an error and does not clear dirty when the save fails', async () => {
     const source = {
-      getDownloadsRoot: vi.fn().mockResolvedValue('D:/Anime'),
-      setDownloadsRoot: vi.fn().mockResolvedValue('disk full'),
+      getLibraryRoot: vi.fn().mockResolvedValue('D:/Anime'),
+      setLibraryRoot: vi.fn().mockResolvedValue('disk full'),
       pickFolder: vi.fn(),
     };
 
-    const { result } = renderHook(() => useDownloadsRootPanel({ source }));
+    const { result } = renderHook(() => useLibraryRootPanel({ source }));
     await waitFor(() => expect(result.current.root).toBe('D:/Anime'));
 
     act(() => result.current.onRootChange('E:/x'));

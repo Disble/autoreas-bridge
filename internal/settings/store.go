@@ -1,8 +1,8 @@
 // Package settings is a thin accessor over the generic app_settings key/value
 // table (bootstrapped by internal/sync). It holds user-facing global
-// preferences that are not owned by any single bounded context — today just the
-// global downloads root that the season context reads to derive a new anime's
-// default download folder.
+// preferences that are not owned by any single bounded context, such as the
+// library root: the one folder on this computer where the anime library lives
+// (ADR 027).
 package settings
 
 import (
@@ -13,11 +13,13 @@ import (
 	"strings"
 )
 
-// keyDownloadsRoot is the app_settings key holding the global downloads root:
-// the base folder joined with a sanitized anime name to form a newly-created
-// season anime's default carpeta.
+// keyLibraryRoot is the app_settings key holding the library root (ADR 027):
+// the one folder on this computer where the anime library lives, joined with
+// a sanitized anime name to form a new anime's default folder. Databases
+// written before ADR 027 hold it under "downloads.root"; internal/sync
+// migrates that key on bootstrap.
 const (
-	keyDownloadsRoot = "downloads.root"
+	keyLibraryRoot   = "library.root"
 	keyAutoStart     = "system.auto_start"
 	keyEpisodeRename = "downloads.rename_episodes"
 	keyAPIAddr       = "api.addr"
@@ -67,14 +69,14 @@ func (s *SQLiteStore) Set(ctx context.Context, key, value string) error {
 	return nil
 }
 
-// DownloadsRoot returns the configured global downloads root, or "" when unset.
-func (s *SQLiteStore) DownloadsRoot(ctx context.Context) (string, error) {
-	return s.Get(ctx, keyDownloadsRoot)
+// LibraryRoot returns the configured library root, or "" when unset.
+func (s *SQLiteStore) LibraryRoot(ctx context.Context) (string, error) {
+	return s.Get(ctx, keyLibraryRoot)
 }
 
-// SetDownloadsRoot persists the global downloads root.
-func (s *SQLiteStore) SetDownloadsRoot(ctx context.Context, path string) error {
-	return s.Set(ctx, keyDownloadsRoot, path)
+// SetLibraryRoot persists the library root.
+func (s *SQLiteStore) SetLibraryRoot(ctx context.Context, path string) error {
+	return s.Set(ctx, keyLibraryRoot, path)
 }
 
 // AutoStartEnabled returns the login-launch preference. Missing settings default

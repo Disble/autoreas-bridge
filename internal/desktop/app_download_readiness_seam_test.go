@@ -43,9 +43,9 @@ func TestDownloadReadinessSeamResolvesAtCallTime(t *testing.T) {
 	}
 
 	app.readinessService = download.NewReadinessService(download.ReadinessServiceDeps{
-		Animes:        &stubAnimeQueryService{},
-		DownloadsRoot: func(context.Context) (string, error) { return "D:/Downloads", nil },
-		Sites:         download.NewStaticRegistry(),
+		Animes:      &stubAnimeQueryService{},
+		LibraryRoot: func(context.Context) (string, error) { return "D:/Downloads", nil },
+		Sites:       download.NewStaticRegistry(),
 	})
 
 	got, err := app.downloadReadinessSnapshot(context.Background())
@@ -67,9 +67,9 @@ func TestDownloadReadinessSeamPropagatesAFailedQuery(t *testing.T) {
 	app := &App{
 		ctx: context.Background(),
 		readinessService: download.NewReadinessService(download.ReadinessServiceDeps{
-			Animes:        &stubAnimeQueryService{err: queryErr},
-			DownloadsRoot: func(context.Context) (string, error) { return "D:/Downloads", nil },
-			Sites:         download.NewStaticRegistry(),
+			Animes:      &stubAnimeQueryService{err: queryErr},
+			LibraryRoot: func(context.Context) (string, error) { return "D:/Downloads", nil },
+			Sites:       download.NewStaticRegistry(),
 		}),
 	}
 
@@ -95,8 +95,8 @@ func TestDownloadReadinessSeamHonorsTheCallersContext(t *testing.T) {
 			Animes: &contextRecordingAnimeQuery{stubAnimeQueryService: &stubAnimeQueryService{}, onList: func(ctx context.Context) {
 				seen = ctx
 			}},
-			DownloadsRoot: func(context.Context) (string, error) { return "D:/Downloads", nil },
-			Sites:         download.NewStaticRegistry(),
+			LibraryRoot: func(context.Context) (string, error) { return "D:/Downloads", nil },
+			Sites:       download.NewStaticRegistry(),
 		}),
 	}
 

@@ -26,10 +26,10 @@ export function useAnimeCreate(): AnimeCreateViewModel {
   const [feedback, setFeedback] = useState<string>();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBoardOpen, setIsBoardOpen] = useState(false);
-  const [downloadsRoot, setDownloadsRoot] = useState('');
+  const [libraryRoot, setLibraryRoot] = useState('');
 
   // 3. Context/3rd Party Hooks
-  const rowState = useAnimeCreateRows(downloadsRoot);
+  const rowState = useAnimeCreateRows(libraryRoot);
   const { rows, resetRows } = rowState;
   const { nameConflicts, hasNameConflict } = useAnimeCreateNameConflicts(rows);
 
@@ -81,7 +81,7 @@ export function useAnimeCreate(): AnimeCreateViewModel {
   }, [resetRows, rows]);
 
   // 7. Effects
-  useAnimeCreateBootstrap(setBoard, setDownloadsRoot);
+  useAnimeCreateBootstrap(setBoard, setLibraryRoot);
 
   return {
     rows,

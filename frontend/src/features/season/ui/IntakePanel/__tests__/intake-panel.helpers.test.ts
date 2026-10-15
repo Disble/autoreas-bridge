@@ -158,7 +158,7 @@ describe('countMatchedWaitingForAvailability', () => {
 });
 
 describe('deriveIntakeDownloadFolder', () => {
-  it('previews the backend default folder using the configured downloads root and sanitized anime name', () => {
+  it('previews the backend default folder using the configured library root and sanitized anime name', () => {
     expect(deriveIntakeDownloadFolder('D:/Anime', 'Re:Zero')).toBe('D:/Anime/Re Zero');
     expect(deriveIntakeDownloadFolder('D:\\Anime', 'Fate/stay night')).toBe('D:\\Anime\\Fate stay night');
     expect(deriveIntakeDownloadFolder('D:/Anime///', '  Steins;Gate...  ')).toBe('D:/Anime/Steins;Gate');

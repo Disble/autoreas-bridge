@@ -17,8 +17,8 @@ Branch: `feat/library-root` (worktree `autoreas-bridge-worktrees/library-root`, 
 | ID | Specs | Route | Status | Evidence |
 |---|---|---|---|---|
 | T1 | S1 | inline | pending | |
-| T2 | S2, S6 | inline | pending | |
-| T3 | S3, S6 | inline | pending | |
+| T2 | S2, S6 | inline (committed with T3: the Wails binding rename spans both) | done | RED store_test legacy-key reopen → GREEN; ditto sync migration 3/3 killed; 15 rename-only download/desktop mutants skipped (identifier rename, behavior unchanged and covered by existing suites) |
+| T3 | S3, S6 | inline | done | typecheck ok; 82 files / 808 tests green in touched frontend suites; tests renamed, none added |
 | T4 | S4, S6 | inline | pending | |
 | T5 | S5, S6 | inline | pending | |
 | T6 | S1–S6 | delegated verifier (high risk: persisted key rename, bulk folder write) | pending | |

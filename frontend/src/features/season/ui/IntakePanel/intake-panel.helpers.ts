@@ -116,7 +116,7 @@ export function countMatchedWaitingForAvailability(rows: readonly SeasonAnimeRow
 
 /**
  * Mirrors the backend's default season download-folder derivation so the UI can
- * preview the exact folder that creation will request: downloads root plus a
+ * preview the exact folder that creation will request: library root plus a
  * Windows-safe anime-name segment.
  */
 export function deriveIntakeDownloadFolder(root: string, name: string): string {
@@ -247,19 +247,19 @@ export function collectFolderOverrides(
  * there is one, otherwise the same default the backend would derive. A row
  * appears in the result only when one of the two resolves, so the UI shows no
  * preview rather than an empty one.
- * @param downloadsRoot Configured downloads root; `''` disables defaults.
+ * @param libraryRoot Configured library root; `''` disables defaults.
  * @param rows Editable intake rows.
  * @param overrides Row id -> folder chosen through the picker.
  * @returns Row id -> folder to preview.
  */
 export function buildFolderPreviews(
-  downloadsRoot: string,
+  libraryRoot: string,
   rows: readonly SeasonAnimeRow[],
   overrides: Readonly<Record<string, string>>,
 ): Record<string, string> {
   const previews: Record<string, string> = {};
   for (const row of rows) {
-    const preview = resolveFolderOverride(overrides, row.id) || deriveIntakeDownloadFolder(downloadsRoot, row.rawName);
+    const preview = resolveFolderOverride(overrides, row.id) || deriveIntakeDownloadFolder(libraryRoot, row.rawName);
     if (preview !== '') {
       previews[row.id] = preview;
     }

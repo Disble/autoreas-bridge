@@ -15,7 +15,7 @@ export function PreferencesRoute() {
         </Typography>
       </header>
 
-      <Tabs defaultSelectedKey="downloads">
+      <Tabs defaultSelectedKey="library">
         <Tabs.ListContainer>
           <Tabs.List aria-label="Options categories">
             {PREFERENCES_ROUTE_TABS.map((tab) => (

@@ -64,16 +64,16 @@ const (
 // has NO write dependency on the anime context (download-orchestration spec "No Write-Back to
 // the Anime Context", ADR-5).
 type ServiceDeps struct {
-	Animes        contracts.AnimeQueryService
-	Sites         SiteRegistry
-	DownloadsRoot func(context.Context) (string, error)
-	Hosters       HosterResolver
-	JD            jdownloader.JDClient
-	Counter       filesystem.EpisodeCounter
-	Flattener     filesystem.Flattener
-	Renamer       filesystem.Renamer
-	Store         Store
-	Notifier      notification.Notifier
+	Animes      contracts.AnimeQueryService
+	Sites       SiteRegistry
+	LibraryRoot func(context.Context) (string, error)
+	Hosters     HosterResolver
+	JD          jdownloader.JDClient
+	Counter     filesystem.EpisodeCounter
+	Flattener   filesystem.Flattener
+	Renamer     filesystem.Renamer
+	Store       Store
+	Notifier    notification.Notifier
 	// EpisodeDurationNotice is where a landed episode is offered to the duration notice. Nil means
 	// no notice is ever raised. See EpisodeDurationNotice for why the interface is declared here.
 	EpisodeDurationNotice EpisodeDurationNotice

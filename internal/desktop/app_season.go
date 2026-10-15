@@ -310,7 +310,7 @@ func (a *App) withActiveSeason(fn func(seasonID string) error) string {
 // CreateSeasonAnimes is the explicit, user-initiated creation gate: it creates
 // the anime(s) for the given AVAILABLE intake rows into "Sin ver" (irreversible,
 // soft-delete only), skipping rows that are not available or already created.
-// Each new anime's download folder defaults to the configured downloads root
+// Each new anime's download folder defaults to the configured library root
 // joined with its sanitized name; folders maps a rowID to a user-picked override
 // that wins over that default. metadata maps a rowID to the MyAnimeList facts the
 // user confirmed for that row (already resolved — this binding starts no network
@@ -323,7 +323,7 @@ func (a *App) CreateSeasonAnimes(rowIDs []string, folders map[string]string, met
 	}
 	root := ""
 	if a.settingsStore != nil {
-		r, err := a.settingsStore.DownloadsRoot(a.seasonCtx())
+		r, err := a.settingsStore.LibraryRoot(a.seasonCtx())
 		if err != nil {
 			return err.Error()
 		}

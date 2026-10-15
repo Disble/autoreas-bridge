@@ -15,11 +15,11 @@ import type { AnimeCreateRowDraft, AnimeCreateRowPatch } from './anime-create.ty
  * Split out of `useAnimeCreate` on 2026-08-14, where these three state slices
  * and eight callbacks were eleven of its twenty-four hook calls. Nothing here
  * knows about the schedule board or the submit; the only thing it needs from
- * outside is the downloads root a folder patch is resolved against.
- * @param downloadsRoot The configured downloads root, used to resolve folders.
+ * outside is the library root a folder patch is resolved against.
+ * @param libraryRoot The configured library root, used to resolve folders.
  * @returns The rows plus every editing callback and a reset for after submit.
  */
-export function useAnimeCreateRows(downloadsRoot: string) {
+export function useAnimeCreateRows(libraryRoot: string) {
   const [rows, setRows] = useState<readonly AnimeCreateRowDraft[]>(() => [createAnimeCreateRow(1)]);
   const [nextRowIndex, setNextRowIndex] = useState(2);
   const [pendingRemoveId, setPendingRemoveId] = useState<string>();
@@ -52,8 +52,8 @@ export function useAnimeCreateRows(downloadsRoot: string) {
   }, [pendingRemoveId, removeRowNow]);
   const onCancelRemove = useCallback(() => setPendingRemoveId(undefined), []);
   const onRowChange = useCallback((draftId: string, patch: AnimeCreateRowPatch) => {
-    setRows((current) => applyRowPatch(current, draftId, patch, downloadsRoot));
-  }, [downloadsRoot]);
+    setRows((current) => applyRowPatch(current, draftId, patch, libraryRoot));
+  }, [libraryRoot]);
   /**
    * Applies a confirmed MyAnimeList selection to one row (design D9). Maps
    * the selection through {@link toCreateRowPatch} and applies it through

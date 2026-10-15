@@ -15,7 +15,7 @@ func sanitizeFolderName(name string) string {
 }
 
 // deriveDownloadFolder builds the DEFAULT absolute download folder for a
-// newly-created season anime: the configured downloads root joined with the
+// newly-created season anime: the configured library root joined with the
 // sanitized anime name. It returns "" (no default) when the root is not
 // configured or the name sanitizes to empty, so the caller leaves the anime's
 // carpeta absent rather than fabricating an invalid path. A user-picked override

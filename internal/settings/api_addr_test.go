@@ -87,11 +87,11 @@ func TestAPIAddrIsIndependentOfTheOtherPreferences(t *testing.T) {
 		t.Fatal("writing the api address changed the auto-start preference")
 	}
 
-	root, err := store.DownloadsRoot(ctx)
+	root, err := store.LibraryRoot(ctx)
 	if err != nil {
-		t.Fatalf("DownloadsRoot: %v", err)
+		t.Fatalf("LibraryRoot: %v", err)
 	}
 	if root != "" {
-		t.Fatalf("writing the api address leaked into the downloads root: %q", root)
+		t.Fatalf("writing the api address leaked into the library root: %q", root)
 	}
 }

@@ -1,15 +1,15 @@
 import { BackupPanel } from '../../features/backup/ui/BackupPanel/BackupPanel';
 import { AutoStartPanel } from '../../features/preferences/ui/AutoStartPanel/AutoStartPanel';
-import { DownloadsRootPanel } from '../../features/preferences/ui/DownloadsRootPanel/DownloadsRootPanel';
+import { LibraryRootPanel } from '../../features/preferences/ui/LibraryRootPanel/LibraryRootPanel';
 import { KeymapPanel } from '../keyboard/ui/KeymapPanel/KeymapPanel';
 
 /** Options category registry rendered by the Preferences route tab workspace. */
 export const PREFERENCES_ROUTE_TABS = [
   {
-    id: 'downloads',
-    label: 'Downloads',
-    description: 'Configure where new season animes are downloaded.',
-    Panel: DownloadsRootPanel,
+    id: 'library',
+    label: 'Library',
+    description: 'Set where your anime library lives on this computer.',
+    Panel: LibraryRootPanel,
   },
   {
     id: 'backup',

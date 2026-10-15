@@ -17,7 +17,7 @@ func schemaTables() []persistence.TableSchema {
 		createOnlyTable("devices", devicesDDL),
 		createOnlyTable("conflicts", conflictsDDL),
 		changelogTable(),
-		createOnlyTable("app_settings", appSettingsDDL),
+		{Name: "app_settings", CreateDDL: appSettingsDDL, Migrate: migrateAppSettings},
 		createOnlyTable("device_sync_state", deviceSyncStateDDL),
 		animeWriteOperationsTable(),
 		animeChangedOutboxTable(),

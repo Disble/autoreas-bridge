@@ -14,7 +14,7 @@ import type { useIntakeStoreSlice } from './use-intake-store-slice';
 interface IntakeRowsInput {
   /** The Season store slice holding the rows. */
   readonly store: ReturnType<typeof useIntakeStoreSlice>;
-  /** The editor state holding the downloads root and folder overrides. */
+  /** The editor state holding the library root and folder overrides. */
   readonly editor: ReturnType<typeof useIntakeEditorState>;
 }
 
@@ -31,7 +31,7 @@ interface IntakeRowsInput {
 export function useIntakeRows(input: Readonly<IntakeRowsInput>) {
   const { store, editor } = input;
   const { seasonAnimes } = store;
-  const { downloadsRoot, folderOverrides } = editor;
+  const { libraryRoot, folderOverrides } = editor;
 
   // 5. Derived State (useMemo)
   const { editable } = useMemo(() => splitIntakeRows(seasonAnimes), [seasonAnimes]);
@@ -40,8 +40,8 @@ export function useIntakeRows(input: Readonly<IntakeRowsInput>) {
   const availableCount = useMemo(() => editable.filter(isCreatableRow).length, [editable]);
   const availabilityPendingCount = useMemo(() => countMatchedWaitingForAvailability(editable), [editable]);
   const folderPreviews = useMemo(
-    () => buildFolderPreviews(downloadsRoot, editable, folderOverrides),
-    [downloadsRoot, editable, folderOverrides],
+    () => buildFolderPreviews(libraryRoot, editable, folderOverrides),
+    [libraryRoot, editable, folderOverrides],
   );
   const editableIds = useMemo(() => new Set(editable.map((row) => row.id)), [editable]);
 

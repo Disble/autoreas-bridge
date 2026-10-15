@@ -220,7 +220,7 @@ func TestProcessAnimeUsesDerivedDestinationWithoutPersistingIt(t *testing.T) {
 	flattener := &svcFakeFlattener{}
 	deps := baseDeps(t)
 	deps.Sites = &spySiteRegistry{source: source}
-	deps.DownloadsRoot = func(context.Context) (string, error) { return root, nil }
+	deps.LibraryRoot = func(context.Context) (string, error) { return root, nil }
 	deps.Counter = &svcFakeCounter{atRoot: map[string]int{destination: 0}, recursive: map[string]int{destination: 0}}
 	deps.Flattener = flattener
 	anime := contracts.MobileAnime{ID: "derived", Name: "Ready: Anime", SourceURL: new("https://supported.example/ready")}
@@ -241,7 +241,7 @@ func TestProcessAnimeFailsWhenDerivedDestinationSettingsCannotBeRead(t *testing.
 	deps := baseDeps(t)
 	registry := &spySiteRegistry{source: &spyEpisodeSource{}}
 	deps.Sites = registry
-	deps.DownloadsRoot = func(context.Context) (string, error) {
+	deps.LibraryRoot = func(context.Context) (string, error) {
 		return "", errors.New("settings unavailable")
 	}
 	anime := contracts.MobileAnime{
