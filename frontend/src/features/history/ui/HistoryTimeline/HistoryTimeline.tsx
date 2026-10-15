@@ -92,12 +92,11 @@ export function HistoryTimeline() {
           </Alert>
         )}
 
-        {isEmpty ? (
-          <AirisEmptyState
-            description={isFiltered ? HISTORY_TIMELINE_FILTERED_EMPTY_DESCRIPTION : HISTORY_TIMELINE_EMPTY_DESCRIPTION}
-            imageSrc={historyAirisArtwork}
-            title={isFiltered ? HISTORY_TIMELINE_FILTERED_EMPTY_TITLE : HISTORY_TIMELINE_EMPTY_TITLE}
-          />
+        {isEmpty && !isFiltered ? (
+          <AirisEmptyState description={HISTORY_TIMELINE_EMPTY_DESCRIPTION} imageSrc={historyAirisArtwork} title={HISTORY_TIMELINE_EMPTY_TITLE} />
+        ) : null}
+        {isEmpty && isFiltered ? (
+          <AirisEmptyState description={HISTORY_TIMELINE_FILTERED_EMPTY_DESCRIPTION} kind="filtered" title={HISTORY_TIMELINE_FILTERED_EMPTY_TITLE} />
         ) : null}
 
         {isLoading || error !== undefined || isEmpty ? null : (

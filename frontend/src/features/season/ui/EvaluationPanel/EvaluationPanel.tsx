@@ -47,6 +47,7 @@ export function EvaluationPanel({ onNavigate }: Readonly<EvaluationPanelProps>) 
           action={{ label: EVALUATION_EMPTY_ACTION_LABEL, onPress: () => onNavigate('intake') }}
           description={EVALUATION_EMPTY_DESCRIPTION}
           imageSrc={seasonAirisArtwork}
+          kind="waiting-on-step"
           title={EVALUATION_EMPTY_TITLE}
         />
       ) : items.length > 0 ? (

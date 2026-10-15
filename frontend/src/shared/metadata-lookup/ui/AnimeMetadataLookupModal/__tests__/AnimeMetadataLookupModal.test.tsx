@@ -166,6 +166,8 @@ describe('AnimeMetadataLookupModal', () => {
       typeQuery('shokuguemi no soma');
 
       expect(await screen.findByText('No MyAnimeList matches for "shokuguemi no soma"')).toBeInTheDocument();
+      expect(document.querySelector('img[aria-hidden="true"]')).toBeNull();
+      expect(document.querySelector('[data-airis-icon="filtered"]')).not.toBeNull();
       expect(screen.queryByRole('status')).toBeNull();
       expect(screen.queryByText(METADATA_LOOKUP_ERROR_TITLE)).toBeNull();
       expect(screen.queryByLabelText('MyAnimeList candidates')).toBeNull();

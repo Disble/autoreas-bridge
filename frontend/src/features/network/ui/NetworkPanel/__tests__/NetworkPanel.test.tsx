@@ -60,7 +60,7 @@ describe('NetworkPanel', () => {
 
     await screen.findByText('syncing catalogue');
 
-    expect(screen.getByText('Select an event to inspect its details.')).toBeInTheDocument();
+    expect(screen.getByText('No event selected')).toBeInTheDocument();
   });
 
   it('renders the selected event detail (General tab) after a row is clicked', async () => {
@@ -74,7 +74,7 @@ describe('NetworkPanel', () => {
     row.closest('tr')?.click();
 
     expect(await screen.findByRole('tab', { name: 'General' })).toBeInTheDocument();
-    expect(screen.queryByText('Select an event to inspect its details.')).not.toBeInTheDocument();
+    expect(screen.queryByText('No event selected')).not.toBeInTheDocument();
   });
 
   it('shows the bottom status bar with entry, error, and shown counts', async () => {
@@ -106,7 +106,7 @@ describe('NetworkPanel', () => {
     const closeButton = await screen.findByRole('button', { name: 'Close detail inspector' });
     closeButton.click();
 
-    expect(await screen.findByText('Select an event to inspect its details.')).toBeInTheDocument();
+    expect(await screen.findByText('No event selected')).toBeInTheDocument();
   });
 
   it('offers a domain the deleted hardcoded list never contained, derived from the store aggregate', async () => {

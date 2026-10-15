@@ -108,6 +108,9 @@ describe('AnimeWatchEpisodeList', () => {
     renderList(undefined, { entries: [] });
 
     expect(screen.getByText('No episode history yet')).toBeInTheDocument();
+    // A section of the detail page, not a card of its own inside it.
+    expect(document.querySelector('[data-slot="card"]')).toBeNull();
+    expect(document.querySelector('img[aria-hidden="true"]')).not.toBeNull();
     expect(
       screen.getByText('Watch history starts 2026-07-05. Episodes you watch from now on will appear here.'),
     ).toBeInTheDocument();
@@ -116,6 +119,14 @@ describe('AnimeWatchEpisodeList', () => {
       screen.queryByText('Episodes from this watch were not recorded. That does not mean none were watched.'),
     ).toBeNull();
     expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('draws a single watch empty list as a row without the mascot, since several watches can be open at once', () => {
+    renderList(1, { entries: [] });
+
+    expect(screen.getByText('No episode history yet')).toBeInTheDocument();
+    expect(document.querySelector('img[aria-hidden="true"]')).toBeNull();
+    expect(document.querySelector('[data-airis-icon="first-run"]')).not.toBeNull();
   });
 
   it('shows the surface error alert, never a skeleton or empty state, when the request fails', () => {

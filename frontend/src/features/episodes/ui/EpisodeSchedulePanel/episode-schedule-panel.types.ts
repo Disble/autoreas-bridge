@@ -147,10 +147,20 @@ export interface EpisodeScheduleCardProps {
   readonly copyAnimeFolder: (animeID: string) => Promise<void>;
 }
 
+/**
+ * Where the Today empty state's one action goes: the Create workspace when a
+ * weekday has nothing scheduled, or Season, where a season section is filled.
+ */
+export type EpisodeEmptyStateAction = 'create' | 'season';
+
 /** Contextual Today empty-state wording naming the day or lens that resolved empty. */
 export interface EpisodeEmptyStateCopy {
   readonly title: string;
   readonly description: string;
+  /** `waiting-on-step` when another screen fills the section; `first-run` when creating an anime does. */
+  readonly kind: 'first-run' | 'waiting-on-step';
+  /** Where the empty state's one action sends the user. */
+  readonly action: EpisodeEmptyStateAction;
 }
 
 /** Collaborators the Today write commands need, and nothing more. */

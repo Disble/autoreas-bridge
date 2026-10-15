@@ -52,7 +52,7 @@ describe("HistoryInspector", () => {
     vi.useRealTimers();
   });
 
-  it("renders the Airis empty state with artwork without an animeId", () => {
+  it("renders the awaiting-selection pane with the inspector's own labels and no mascot without an animeId", () => {
     vi.spyOn(useHistoryInspectorModule, "useHistoryInspector").mockReturnValue({
       status: "prompt",
       detail: undefined,
@@ -65,9 +65,12 @@ describe("HistoryInspector", () => {
     const { container } = render(<HistoryInspector animeId={undefined} onOpenAnime={vi.fn()} />);
 
     expect(screen.getByRole("heading", { name: "No episode selected" })).toBeDefined();
-    expect(screen.getByText("Select an episode to see its anime.")).toBeDefined();
-    expect(container.querySelector('img[aria-hidden="true"]')).not.toBeNull();
-    expect(screen.queryByRole("img", { name: "No cover art" })).toBeNull();
+    expect(screen.getByText("Pick a row on the left to inspect its anime.")).toBeDefined();
+    expect(container.querySelector("img")).toBeNull();
+    const preview = container.querySelector("[data-awaiting-preview]");
+    expect(Array.from(preview?.querySelectorAll("dt") ?? []).map((node) => node.textContent)).toEqual(["Watched", "Last watched", "Added"]);
+    expect(preview).toHaveTextContent("Recent episodes");
+    expect(screen.queryByRole("button", { name: "Open anime detail" })).toBeNull();
   });
 
   it("renders a shape-mirroring skeleton while the detail is unresolved", () => {

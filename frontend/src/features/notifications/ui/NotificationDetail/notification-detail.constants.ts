@@ -79,3 +79,12 @@ export const NOTIFICATION_DETAIL_SHOW_ALL_LABEL = 'show all in Downloads';
  * line to be sent somewhere wrong.
  */
 export const NOTIFICATION_DETAIL_SHOW_ALL_ROUTE = '/downloads';
+
+/** The detail pane's awaiting-selection copy and the real labels it previews dimmed. */
+export const NOTIFICATION_DETAIL_AWAITING = {
+  title: 'No notification selected',
+  description: 'Pick one on the left to read it.',
+  fields: ['Level', 'Source', 'When'],
+  sectionLabel: 'Message',
+  footer: 'Its anime and actions open here, with Archive and Mark unread.',
+} as const;

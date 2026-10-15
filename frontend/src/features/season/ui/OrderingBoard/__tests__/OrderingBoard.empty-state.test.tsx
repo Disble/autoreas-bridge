@@ -10,6 +10,7 @@ import {
 import type { OrderingInstance } from '../ordering-board.types';
 import { OrderingBoard } from '../OrderingBoard';
 import { useOrderingBoard } from '../use-ordering-board';
+import { AIRIS_WAITING_ARTWORK_CLASS } from '../../../../../shared/ui/AirisEmptyState/airis-empty-state.constants';
 
 vi.mock('../use-ordering-board', () => ({ useOrderingBoard: vi.fn() }));
 
@@ -50,7 +51,7 @@ describe('OrderingBoard empty states', () => {
     vi.clearAllMocks();
   });
 
-  it('shows the compact Airis empty state in the empty rail and navigates to Selection', () => {
+  it('shows the waiting Airis section in the empty rail and navigates to Selection', () => {
     const onNavigate = vi.fn();
     mockHook();
     const { container } = render(<OrderingBoard onNavigate={onNavigate} />);
@@ -59,6 +60,7 @@ describe('OrderingBoard empty states', () => {
     expect(screen.getByText(ORDERING_EMPTY_DESCRIPTION)).toBeInTheDocument();
     expect(screen.queryByText(ORDERING_EMPTY_MESSAGE)).not.toBeInTheDocument();
     expect(container.querySelector('[data-slot="card"]')).toBeNull();
+    expect(container.querySelector('img')?.className).toContain(AIRIS_WAITING_ARTWORK_CLASS);
     expect(onNavigate).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Go to Selection' }));

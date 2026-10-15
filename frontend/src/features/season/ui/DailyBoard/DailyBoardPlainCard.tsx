@@ -1,5 +1,4 @@
 import { Card } from '@heroui/react';
-import todayAirisArtwork from '../../../../assets/airis-empty-states/today.webp';
 import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
 import { DAILY_BOARD_PLAIN_COPY, DAILY_BOARD_PLAIN_LIST_LABEL, VISTO_LIST_CLASS } from './daily-board.constants';
 import { listRowWithoutChip } from './daily-board.helpers';
@@ -22,8 +21,8 @@ export function DailyBoardPlainCard({ rows, getCoverThumb }: Readonly<DailyBoard
         {rows.length === 0 ? (
           <AirisEmptyState
             description={DAILY_BOARD_PLAIN_COPY.emptyDescription}
-            imageSrc={todayAirisArtwork}
-            size="compact"
+            kind="caught-up"
+            size="row"
             title={DAILY_BOARD_PLAIN_COPY.emptyTitle}
           />
         ) : (

@@ -1,6 +1,5 @@
 import { Alert, Button, Modal, SearchField } from '@heroui/react';
 import { useState } from 'react';
-import metadataLookupEmptyArtwork from '../../../../assets/airis-empty-states/catalog.webp';
 import { AirisEmptyState } from '../../../ui/AirisEmptyState/AirisEmptyState';
 import { rankCandidates } from '../../metadata-lookup.helpers';
 import type { AnimeMetadataSelection } from '../../metadata-lookup.types';
@@ -139,7 +138,7 @@ export function AnimeMetadataLookupModal({
               {state === 'resolved' && rankedCandidates.length === 0 ? (
                 <AirisEmptyState
                   description="Try a shorter title or a different romanization in the search field above."
-                  imageSrc={metadataLookupEmptyArtwork}
+                  kind="filtered"
                   title={`No MyAnimeList matches for "${query}"`}
                 />
               ) : null}

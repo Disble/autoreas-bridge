@@ -3,14 +3,19 @@ import {
   EPISODE_DAY_OPTIONS,
   EPISODE_RUNTIME_UNAVAILABLE_RESULT,
   EPISODE_SCHEDULE_EMPTY_COVERS,
+  EPISODE_GO_TO_SEASON_LABEL,
+  EPISODE_SEASON_EMPTY_COPY,
+  EPISODE_SEASON_ROUTE,
   EPISODE_SCHEDULE_WEEKDAY_FORMATTER,
   EPISODE_SEASON_OPTIONS,
   EPISODE_STATE_LABELS,
 } from './episode-schedule-panel.constants';
 import { animeRuntimeSource } from '../../../../infrastructure/anime-runtime-source/anime-runtime-source.helpers';
+import { ANIME_CREATE_ROUTE } from '../../../../shared/navigation/app-layout.constants';
+import { AIRIS_CREATE_ANIME_LABEL } from '../../../../shared/ui/AirisEmptyState/airis-empty-state.constants';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
-import type { AnimeCover, EpisodeDayCount, EpisodeEmptyStateCopy, EpisodeScheduleItem, EpisodeScheduleRow, EpisodeScheduleSource, EpisodeViewLens, CoverEntry, InitialEpisodeSelectionInput, LongEpisodeChip, LongEpisodeMark } from './episode-schedule-panel.types';
+import type { AnimeCover, EpisodeDayCount, EpisodeEmptyStateAction, EpisodeEmptyStateCopy, EpisodeScheduleItem, EpisodeScheduleRow, EpisodeScheduleSource, EpisodeViewLens, CoverEntry, InitialEpisodeSelectionInput, LongEpisodeChip, LongEpisodeMark } from './episode-schedule-panel.types';
 
 /**
  * Returns an injected schedule source when supplied, otherwise assembles the
@@ -195,13 +200,27 @@ function formatEpisodeNumber(value: number): string {
 export function getEpisodeEmptyStateCopy(lens: EpisodeViewLens, selectedDay: string): EpisodeEmptyStateCopy {
   const context = episodeDayLabel(selectedDay);
   if (lens === 'season') {
-    return {
-      title: `Nothing in ${context}`,
-      description: `No anime are grouped under ${context} right now. Create one to start tracking it here.`,
+    const sectionCopy = EPISODE_SEASON_EMPTY_COPY[selectedDay] ?? {
+      title: 'Nothing here right now',
+      description: `No anime are set to ${context} right now.`,
     };
+    return { ...sectionCopy, kind: 'waiting-on-step', action: 'season' };
   }
   return {
     title: `Nothing scheduled for ${context}`,
     description: `No active anime are scheduled for ${context}. Create one to put it on your schedule.`,
+    kind: 'first-run',
+    action: 'create',
   };
+}
+
+/**
+ * Resolves the Today empty state's action to its label and route: Create for a
+ * weekday with nothing scheduled, Season for a season section, which is filled
+ * there and never by creating an anime.
+ */
+export function getEpisodeEmptyStateNavigation(action: EpisodeEmptyStateAction): { readonly label: string; readonly route: string } {
+  return action === 'season'
+    ? { label: EPISODE_GO_TO_SEASON_LABEL, route: EPISODE_SEASON_ROUTE }
+    : { label: AIRIS_CREATE_ANIME_LABEL, route: ANIME_CREATE_ROUTE };
 }

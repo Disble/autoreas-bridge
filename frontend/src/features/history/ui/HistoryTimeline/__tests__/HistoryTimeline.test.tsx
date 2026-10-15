@@ -234,7 +234,17 @@ describe('HistoryTimeline', () => {
     renderTimeline({ groups: [] }, '/history?type=1');
 
     expect(screen.getByText('No episodes match these filters')).toBeInTheDocument();
+    expect(document.querySelector('img[aria-hidden="true"]')).toBeNull();
+    expect(document.querySelector('[data-airis-icon="filtered"]')).not.toBeNull();
     expect(screen.queryByText('No watch history yet')).toBeNull();
+  });
+
+  it('shows the rows and no empty state when a filter still matches some', () => {
+    renderTimeline({ groups: twoRows }, '/history?type=1');
+
+    expect(screen.getByRole('option', { name: /Frieren/ })).toBeInTheDocument();
+    expect(screen.queryByText('No episodes match these filters')).toBeNull();
+    expect(document.querySelector('[data-airis-icon]')).toBeNull();
   });
 
   it('shows the surface error alert, never a skeleton or empty state, when the request fails', () => {

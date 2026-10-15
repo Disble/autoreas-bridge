@@ -5,6 +5,7 @@ import { SelectionBoard } from '../SelectionBoard';
 import { groupSelectionRows } from '../selection-board.helpers';
 import type { SelectionRow } from '../selection-board.types';
 import { useSelectionBoard } from '../use-selection-board';
+import { AIRIS_WAITING_ARTWORK_CLASS } from '../../../../../shared/ui/AirisEmptyState/airis-empty-state.constants';
 
 vi.mock('../use-selection-board', () => ({ useSelectionBoard: vi.fn() }));
 
@@ -85,12 +86,17 @@ describe('SelectionBoard', () => {
     vi.clearAllMocks();
   });
 
-  it('shows the empty state, no candidate group, and a disabled confirm when there are no candidates', () => {
+  it('shows the waiting empty state and hides the status chips and confirm while there are no candidates', () => {
     mockHook();
-    render(<SelectionBoard onNavigate={vi.fn()} />);
+    const { container } = render(<SelectionBoard onNavigate={vi.fn()} />);
     expect(screen.getByText('No candidates to select yet')).toBeInTheDocument();
+    expect(container.querySelector('img')?.className).toContain(AIRIS_WAITING_ARTWORK_CLASS);
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Confirm selection' })).toBeDisabled();
+    expect(screen.queryByText(/approved$/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Not confirmed yet')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Confirm selection' })).not.toBeInTheDocument();
+    expect(screen.getByText('Minimum approval grade')).toBeInTheDocument();
+    expect(screen.getByText('Slots')).toBeInTheDocument();
   });
 
   it('offers navigation to Evaluation while keeping the selection controls', () => {

@@ -37,7 +37,9 @@ describe('TransactionDetail', () => {
   it('renders the empty prompt when nothing is selected', () => {
     render(<TransactionDetail detail={null} detailTab="general" onClose={vi.fn()} onDetailTabChange={vi.fn()} />);
 
-    expect(screen.getByText('Select a transaction to inspect its details.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: 'No transaction selected' })).toBeInTheDocument();
+    expect(screen.getByText('Pick one in the list to see its request and response.')).toBeInTheDocument();
+    expect(screen.queryByRole('tablist')).toBeNull();
   });
 
   it('renders General/Request/Response tabs when a transaction is selected', () => {

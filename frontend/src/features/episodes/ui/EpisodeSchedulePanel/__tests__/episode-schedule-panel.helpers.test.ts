@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createEpisodeScheduleSource, dayBadge, episodeDayLabel, formatLongEpisodeChipLabel, formatLongEpisodeChipTooltip, getEpisodeEmptyStateCopy, getEpisodeFilterOptions, getDefaultEpisodeDay, getDefaultLensSelection, getInitialEpisodeSelection, toEpisodeScheduleRows, toEpisodeViewLens } from '../episode-schedule-panel.helpers';
+import { createEpisodeScheduleSource, dayBadge, episodeDayLabel, formatLongEpisodeChipLabel, formatLongEpisodeChipTooltip, getEpisodeEmptyStateCopy, getEpisodeEmptyStateNavigation, getEpisodeFilterOptions, getDefaultEpisodeDay, getDefaultLensSelection, getInitialEpisodeSelection, toEpisodeScheduleRows, toEpisodeViewLens } from '../episode-schedule-panel.helpers';
 import type { EpisodeDayCount, EpisodeScheduleItem, EpisodeScheduleSource, CoverEntry } from '../episode-schedule-panel.types';
 
 describe('toEpisodeScheduleRows', () => {
@@ -232,14 +232,15 @@ describe('getEpisodeEmptyStateCopy', () => {
     expect(getEpisodeEmptyStateCopy('daily', 'Viernes')).toEqual({
       title: 'Nothing scheduled for Friday',
       description: 'No active anime are scheduled for Friday. Create one to put it on your schedule.',
+      kind: 'first-run',
+      action: 'create',
     });
   });
 
-  it('names the selected season lens in both the season title and description', () => {
-    expect(getEpisodeEmptyStateCopy('season', 'Ver hoy')).toEqual({
-      title: 'Nothing in Ver hoy',
-      description: 'No anime are grouped under Ver hoy right now. Create one to start tracking it here.',
-    });
+  it.each([
+    ['Ver hoy', 'Nothing being watched today', "Ver hoy is today's batch. Pick it from Sin ver in Season, Intake & Daily. Each anime leaves Ver hoy on its own as you watch its episodes."],
+  ])('explains the empty %s season section without repeating its name in the title, and points to Season', (section, title, description) => {
+    expect(getEpisodeEmptyStateCopy('season', section)).toEqual({ title, description, kind: 'waiting-on-step', action: 'season' });
   });
 });
 
@@ -294,5 +295,25 @@ describe('toEpisodeScheduleRows long-episode mark', () => {
     ];
 
     expect(toEpisodeScheduleRows(items)[0]?.longEpisodeChip).toBeUndefined();
+  });
+});
+
+describe('getEpisodeEmptyStateCopy neutral season sections', () => {
+  it.each(['Sin ver', 'Visto'])('describes %s neutrally: its raw grouping differs from the Daily board, so it claims nothing about how it fills', (section) => {
+    expect(getEpisodeEmptyStateCopy('season', section)).toEqual({
+      title: 'Nothing here right now',
+      description: `No anime are set to ${section} right now.`,
+      kind: 'waiting-on-step',
+      action: 'season',
+    });
+  });
+});
+
+describe('getEpisodeEmptyStateNavigation', () => {
+  it.each([
+    ['season', 'Go to Season', '/season'],
+    ['create', 'Create an anime', '/editor/create'],
+  ] as const)('sends the %s action to its label and route', (action, label, route) => {
+    expect(getEpisodeEmptyStateNavigation(action)).toEqual({ label, route });
   });
 });

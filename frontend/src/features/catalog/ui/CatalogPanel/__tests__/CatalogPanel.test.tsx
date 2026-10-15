@@ -121,6 +121,9 @@ describe('CatalogPanel', () => {
 
     expect(screen.getByText('No anime match your criteria')).toBeInTheDocument();
     expect(screen.queryByText('Your catalog is empty')).toBeNull();
+    expect(document.querySelector('img')).toBeNull();
+    expect(document.querySelector('[data-airis-icon="filtered"]')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Clear search and filters' })).toHaveClass('button--secondary');
     expect(screen.queryByRole('button', { name: 'Create an anime' })).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Clear search and filters' }));

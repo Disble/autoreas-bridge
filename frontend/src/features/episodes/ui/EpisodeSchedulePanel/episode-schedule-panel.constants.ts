@@ -90,3 +90,24 @@ export const EPISODE_TODAY_DOT_CLASS = 'size-1.5 shrink-0 rounded-full bg-curren
  * text with no separator: without it the tab announces "Sundaytoday".
  */
 export const EPISODE_TODAY_MARKER_LABEL = ', today';
+
+/**
+ * The season lens's empty copy per section. The title says what is missing
+ * without repeating the selected tab; the description says how the section is
+ * filled, in the Daily board's own words. Only Ver hoy has a reliable story:
+ * Sin ver and Visto here read the raw `Dias` value, which the Daily board does
+ * not (it counts graduated weekday anime as Visto), so they use the neutral
+ * fallback in `getEpisodeEmptyStateCopy` instead of claiming how they fill.
+ */
+export const EPISODE_SEASON_EMPTY_COPY: Readonly<Record<string, { readonly title: string; readonly description: string }>> = {
+  'Ver hoy': {
+    title: 'Nothing being watched today',
+    description: "Ver hoy is today's batch. Pick it from Sin ver in Season, Intake & Daily. Each anime leaves Ver hoy on its own as you watch its episodes.",
+  },
+};
+
+/** The season lens's empty-state action label. */
+export const EPISODE_GO_TO_SEASON_LABEL = 'Go to Season';
+
+/** The Season workspace route the season lens's empty state sends the user to. */
+export const EPISODE_SEASON_ROUTE = '/season';

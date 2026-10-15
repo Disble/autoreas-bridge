@@ -77,7 +77,7 @@ describe('NotificationCenterPanel -> NotificationDetail (integration)', () => {
   it('prompts for a selection before any record has been opened', () => {
     render(<NotificationCenterPanel source={makeSource()} />);
 
-    expect(screen.getByText('Select a notification to see its details.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: 'No notification selected' })).toBeInTheDocument();
   });
 
   it('keeps selecting a row and opening it as separate intents', async () => {

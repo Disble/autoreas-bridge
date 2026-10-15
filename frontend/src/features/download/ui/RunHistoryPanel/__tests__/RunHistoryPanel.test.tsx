@@ -253,7 +253,7 @@ describe('RunHistoryPanel', () => {
 
     render(<RunHistoryPanel />, { wrapper: atRoute() });
 
-    expect(screen.getByText(/select a run/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: 'No run selected' })).toBeInTheDocument();
   });
 
   it('reveals older runs by scrolling the rail, with no load-more control', () => {

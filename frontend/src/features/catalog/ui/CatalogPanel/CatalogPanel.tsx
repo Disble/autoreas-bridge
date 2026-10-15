@@ -76,16 +76,22 @@ export function CatalogPanel(props: Readonly<CatalogPanelProps>) {
           </Alert>
         )}
 
-        {emptyState === 'none' ? null : (
+        {emptyState === 'actual' ? (
           <AirisEmptyState
-            action={emptyState === 'actual'
-              ? { label: AIRIS_CREATE_ANIME_LABEL, onPress: () => void navigate(ANIME_CREATE_ROUTE) }
-              : { label: AIRIS_CLEAR_CRITERIA_LABEL, onPress: onClearCriteria }}
-            description={CATALOG_PANEL_EMPTY_STATE_COPY[emptyState].description}
+            action={{ label: AIRIS_CREATE_ANIME_LABEL, onPress: () => void navigate(ANIME_CREATE_ROUTE) }}
+            description={CATALOG_PANEL_EMPTY_STATE_COPY.actual.description}
             imageSrc={catalogAirisArtwork}
-            title={CATALOG_PANEL_EMPTY_STATE_COPY[emptyState].title}
+            title={CATALOG_PANEL_EMPTY_STATE_COPY.actual.title}
           />
-        )}
+        ) : null}
+        {emptyState === 'criteria' ? (
+          <AirisEmptyState
+            action={{ label: AIRIS_CLEAR_CRITERIA_LABEL, onPress: onClearCriteria }}
+            description={CATALOG_PANEL_EMPTY_STATE_COPY.criteria.description}
+            kind="filtered"
+            title={CATALOG_PANEL_EMPTY_STATE_COPY.criteria.title}
+          />
+        ) : null}
 
         {!isLoading && emptyState === 'none' && error === undefined ? (
           <menu

@@ -36,7 +36,7 @@ export function EpisodeDurationsBody({ viewModel }: Readonly<EpisodeDurationsSec
           action={viewModel.isEditingLocked ? undefined : { label: EPISODE_ADD_LABEL, onPress: viewModel.onOpenAdd }}
           description={viewModel.emptyCopy.description}
           imageSrc={editorArtwork}
-          size="inline"
+          size="section"
           title={viewModel.emptyCopy.title}
         />
       )}
