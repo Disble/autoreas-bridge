@@ -68,9 +68,10 @@ describe('useActivityOverview', () => {
   });
 
   it('reports an unavailable event store instead of presenting its zeroed counts as a measurement', async () => {
+    const captureSource = createFakeCaptureSource();
     const eventSource = createFakeEventSource(eventSummary({ available: false, degraded: false }));
 
-    const { result } = renderHook(() => useActivityOverview(createFakeCaptureSource(), eventSource));
+    const { result } = renderHook(() => useActivityOverview(captureSource, eventSource));
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -81,9 +82,10 @@ describe('useActivityOverview', () => {
   });
 
   it('keeps a failed event read distinct from an absent event store', async () => {
+    const captureSource = createFakeCaptureSource();
     const eventSource = createFakeEventSource(eventSummary({ available: true, degraded: true }));
 
-    const { result } = renderHook(() => useActivityOverview(createFakeCaptureSource(), eventSource));
+    const { result } = renderHook(() => useActivityOverview(captureSource, eventSource));
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -95,8 +97,9 @@ describe('useActivityOverview', () => {
 
   it('discloses a failed request read rather than showing an empty table', async () => {
     const captureSource = createFakeCaptureSource(requestSummary({ degraded: true }));
+    const eventSource = createFakeEventSource();
 
-    const { result } = renderHook(() => useActivityOverview(captureSource, createFakeEventSource()));
+    const { result } = renderHook(() => useActivityOverview(captureSource, eventSource));
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -133,7 +136,10 @@ describe('useActivityOverview', () => {
   });
 
   it('shows the healthy empty copy when both aggregations resolve with nothing', async () => {
-    const { result } = renderHook(() => useActivityOverview(createFakeCaptureSource(), createFakeEventSource()));
+    const captureSource = createFakeCaptureSource();
+    const eventSource = createFakeEventSource();
+
+    const { result } = renderHook(() => useActivityOverview(captureSource, eventSource));
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
