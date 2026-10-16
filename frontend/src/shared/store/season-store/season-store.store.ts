@@ -103,6 +103,7 @@ export const seasonStore = createStore<SeasonStoreState>()((set, get) => ({
   errorMessage: undefined,
   busyMessage: undefined,
   matchingRun: null,
+  lastDiscard: null,
   beginMatchingRun: (total) => {
     set({ matchingRun: { total, resolvedInPhase: 0, phase: SEASON_MATCHING_PHASE_MATCHING } });
   },
@@ -302,7 +303,14 @@ export const seasonStore = createStore<SeasonStoreState>()((set, get) => ({
     await runIntakeCommand(get, set, () => source.resolveMatch(rowId, pageUrl), source, 'Failed to resolve match');
   },
 
-  discardName: (source, rowId) => runIntakeCommand(get, set, () => source.discardName(rowId), source, 'Failed to discard name'),
+  discardName: async (source, rowId) => {
+    const rawName = get().seasonAnimes.find((row) => row.id === rowId)?.rawName ?? '';
+    const discarded = await runIntakeCommand(get, set, () => source.discardName(rowId), source, 'Failed to discard name');
+    if (discarded) {
+      set({ lastDiscard: { rowId, rawName, sequence: (get().lastDiscard?.sequence ?? 0) + 1 } });
+    }
+    return discarded;
+  },
 
   restoreName: (source, rowId) => runIntakeCommand(get, set, () => source.restoreName(rowId), source, 'Failed to restore name'),
 

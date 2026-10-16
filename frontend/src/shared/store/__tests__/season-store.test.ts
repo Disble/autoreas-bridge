@@ -47,6 +47,9 @@ function makeSeason(overrides: Partial<SeasonSnapshot> = {}): SeasonSnapshot {
   };
 }
 
+/** The intake row `sa-1` the discard cases name in their notice. */
+const ROW_SA1 = { id: 'sa-1', rawName: 'Dr. Stone', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', availableEpisodes: 0, animeId: '', section: '', sectionOrder: 0, grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' } as const;
+
 /** Builds a season port stand-in whose calls all succeed, with per-test overrides. */
 function makeSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
   return {
@@ -212,11 +215,23 @@ describe('useSeasonStore', () => {
     expect(source.getSeasonAnimes).toHaveBeenCalled();
   });
 
-  it.each(['discardName', 'restoreName'] as const)('%s delegates, refreshes and reports the success', async (action) => {
+  it.each([
+    { action: 'discardName', lastDiscard: { rowId: 'sa-1', rawName: 'Dr. Stone', sequence: 1 } },
+    { action: 'restoreName', lastDiscard: null },
+  ] as const)('$action delegates, refreshes, reports the success and records $lastDiscard', async ({ action, lastDiscard }) => {
+    setSeasonStoreState({ seasonAnimes: [{ ...ROW_SA1, id: 'sa-0', rawName: 'Other' }, { ...ROW_SA1 }] });
     const source = makeSource();
     await expect(getSeasonStoreState()[action](source, 'sa-1')).resolves.toBe(true);
     expect(source[action]).toHaveBeenCalledWith('sa-1');
     expect(source.getSeasonAnimes).toHaveBeenCalled();
+    expect(getSeasonStoreState().lastDiscard).toEqual(lastDiscard);
+  });
+
+  it('numbers each successful discard, even of a row no longer in the list', async () => {
+    const source = makeSource();
+    await getSeasonStoreState().discardName(source, 'sa-1');
+    await getSeasonStoreState().discardName(source, 'sa-9');
+    expect(getSeasonStoreState().lastDiscard).toEqual({ rowId: 'sa-9', rawName: '', sequence: 2 });
   });
 
   it.each([
@@ -230,6 +245,7 @@ describe('useSeasonStore', () => {
     await expect(getSeasonStoreState()[action](source, 'sa-1')).resolves.toBe(false);
     expect(getSeasonStoreState().errorMessage).toBe(message);
     expect(source.getSeasonAnimes).not.toHaveBeenCalled();
+    expect(getSeasonStoreState().lastDiscard).toBeNull();
   });
 
   it('setGrade delegates the manual grade and refreshes the rows', async () => {
@@ -427,6 +443,7 @@ describe('useSeasonStore', () => {
     const store = getSeasonStoreState();
     await store.runMatching(source);
     await expect(store.discardName(source, 'sa-1')).resolves.toBe(false);
+    expect(getSeasonStoreState().lastDiscard).toBeNull();
     await expect(store.restoreName(source, 'sa-1')).resolves.toBe(false);
     await store.createSeasonAnimes(source, ['sa-1'], {}, {});
     await store.setGrade(source, 'anime-1', 5);

@@ -39,6 +39,7 @@ export function resetSeasonStore(): void {
     errorMessage: undefined,
     busyMessage: undefined,
     matchingRun: null,
+    lastDiscard: null,
     viewSeasonId: null,
     readOnly: false,
     pastSeasons: [],

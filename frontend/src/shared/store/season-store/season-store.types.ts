@@ -27,6 +27,20 @@ export interface SeasonMatchingRun {
   readonly phase: SeasonMatchingPhase;
 }
 
+/**
+ * The latest successful intake discard, so the notification pipeline can offer
+ * its Undo. Session-only; `sequence` grows with every discard, so discarding the
+ * same row twice still reads as a new notice.
+ */
+export interface SeasonDiscardNotice {
+  /** The discarded intake row. */
+  readonly rowId: string;
+  /** The row's name when it was discarded; empty when the row was not in the list. */
+  readonly rawName: string;
+  /** 1 for the session's first discard, then one more for each. */
+  readonly sequence: number;
+}
+
 /** Zustand state contract for the shared Season read-model. */
 export type SeasonStoreState = {
   readonly season: SeasonSnapshot | null;
@@ -38,6 +52,8 @@ export type SeasonStoreState = {
   readonly busyMessage?: string;
   /** Ephemeral matching-run progress, null while no run is in flight. */
   readonly matchingRun: SeasonMatchingRun | null;
+  /** The latest successful intake discard, null until one succeeds. */
+  readonly lastDiscard: SeasonDiscardNotice | null;
   /** Records the run total a started event opened, resetting the phase count. */
   readonly beginMatchingRun: (total: number) => void;
   /**

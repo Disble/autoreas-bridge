@@ -3,6 +3,7 @@ import { renderAppToastContent } from './app-notification.helpers';
 import { appToastQueue } from './app-toast-queue';
 import { useAppToastController } from './use-app-toast-controller';
 import { useBackendEventResolver } from './use-backend-event-resolver';
+import { useIntakeDiscardResolver } from './use-intake-discard-resolver';
 import { useMissedScheduleResolver } from './use-missed-schedule-resolver';
 
 /**
@@ -18,6 +19,7 @@ export function NotificationToasts() {
 
   useBackendEventResolver(push, remove);
   useMissedScheduleResolver(push, remove);
+  useIntakeDiscardResolver(push, remove);
 
   return (
     <ToastProvider placement="top end" queue={appToastQueue}>
