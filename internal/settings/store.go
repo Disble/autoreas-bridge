@@ -24,6 +24,7 @@ const (
 	keyEpisodeRename = "downloads.rename_episodes"
 	keyAPIAddr       = "api.addr"
 	keyKeymap        = "keyboard.keymap"
+	keyCheckTime     = "season.availability_check_time"
 )
 
 // ErrDatabaseUnavailable reports that the settings accessor has no database.
@@ -142,6 +143,19 @@ func (s *SQLiteStore) Keymap(ctx context.Context) (string, error) {
 // is the deterministic guard against this prohibition drifting.
 func (s *SQLiteStore) SetKeymap(ctx context.Context, document string) error {
 	return s.Set(ctx, keyKeymap, document)
+}
+
+// SeasonCheckTime returns the stored local HH:MM of the daily season
+// availability check, or "" when nobody has chosen one. Like APIAddr, empty
+// means "use the shipped default", so the default is never frozen into the
+// database; the caller owns validation and the fallback.
+func (s *SQLiteStore) SeasonCheckTime(ctx context.Context) (string, error) {
+	return s.Get(ctx, keyCheckTime)
+}
+
+// SetSeasonCheckTime persists the daily season availability check time.
+func (s *SQLiteStore) SetSeasonCheckTime(ctx context.Context, hhmm string) error {
+	return s.Set(ctx, keyCheckTime, hhmm)
 }
 
 // formatBool renders a preference as the canonical "true"/"false" text stored in

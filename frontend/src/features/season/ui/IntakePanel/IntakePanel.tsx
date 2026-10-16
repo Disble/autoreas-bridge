@@ -1,4 +1,5 @@
 import { Alert, Button, Card } from '@heroui/react';
+import { IntakeCheckTime } from './IntakeCheckTime/IntakeCheckTime';
 import { IntakePanelBody } from './IntakePanelBody';
 import { useIntakePanel } from './use-intake-panel';
 
@@ -82,7 +83,8 @@ export function IntakePanel() {
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground">Intake list</h3>
             {!readOnly && (
-              <div className="flex gap-1">
+              <div className="flex items-center gap-1">
+                <IntakeCheckTime />
                 <Button size="sm" variant={mode === 'raw' ? 'primary' : 'tertiary'} onPress={() => switchMode('raw')}>
                   Raw
                 </Button>

@@ -153,6 +153,8 @@ type appSettingsStore interface {
 	SetAPIAddr(ctx context.Context, addr string) error
 	Keymap(ctx context.Context) (string, error)
 	SetKeymap(ctx context.Context, document string) error
+	SeasonCheckTime(ctx context.Context) (string, error)
+	SetSeasonCheckTime(ctx context.Context, hhmm string) error
 }
 
 // autoStartReconciler synchronizes the Bridge-owned Windows Run value.

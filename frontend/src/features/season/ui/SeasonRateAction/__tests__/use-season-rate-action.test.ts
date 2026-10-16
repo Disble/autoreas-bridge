@@ -56,6 +56,8 @@ function createSource(rows: readonly SeasonAnimeRow[], overrides: Partial<Season
     applySchedule: vi.fn().mockResolvedValue({ status: 'ok', applied: 0, failed: [] }),
     reopenOrdering: vi.fn().mockResolvedValue('ok'),
     recheckAvailability: vi.fn().mockResolvedValue('ok'),
+    getCheckTime: vi.fn().mockResolvedValue('21:00'),
+    setCheckTime: vi.fn().mockResolvedValue('ok'),
     openPage: vi.fn(),
     ...overrides,
   };
