@@ -1,0 +1,31 @@
+# Intake discarded view
+
+Objective: make discarded intake rows visible and restorable (Active / Discarded toggle, Restore icon, Undo toast) and explain Discard in its menu, keeping the Raw-retype revive as is.
+Branch: `feat/intake-discarded-view` from `dev` (`ca9ca9af`). Delivery: `single-pr` (work-unit commits, merged into `dev` like previous features). Runners: `go test`, `ditto staged`, `bun --cwd="frontend" run test`. Approved mockups: https://claude.ai/artifact/TFwyWuyYisSUUzp1rVkF2F (A, C, C·step 1, C·step 2, D).
+
+## Specs
+
+- **S1 — Explain Discard (proposal A).** The Discard item of the intake row's ⋯ menu shows the description "Moves it to Discarded. Restore it there, or type the same name in Raw again." User: "Yo también agregaría la A como explicación hacia el usuario. Y sobre todo porque me gusta la funcionalidad de recuperar un anime volviéndolo a escribir en RAW. Así que yo no tocaría eso. Pero sí hay que explicar que existe." Checks: IntakeRow/IntakeRowMoreMenu test asserts the description.
+- **S2 — Toggle only when discards exist (proposal C).** An Active / Discarded toggle next to the "Intake list" title. User: "esos tabs deberían funcionar o deberían aparecer solo cuando realmente tengamos discarded reales. En otras palabras, si tenemos solo actives, pues que no salga nada. Solo sale el title de intake list y ya. Pero si de pronto hay discards, ah, se activa los tabs." Each option carries its row count (mockup). The Discarded view lists only discarded rows and hides Run matching, Create and the footer counters (mockup C note). Checks: panel tests for zero discards (no toggle) and with discards (toggle, Discarded view).
+- **S3 — Fall back to Active.** When the last discarded row is restored while the Discarded view is shown, the view returns to Active (agreed edge case, drawn in C·step 2: "Undo puts it back and, as the last discard, hides the toggle again"). Checks: hook/panel test.
+- **S4 — Restore as an icon button, no delete.** Each discarded row has one icon-only Restore button with a tooltip. User: "me gustaría que ambos sean iconos. Botones, iconos." and, about delete, "Yes, quítala." Restore brings the row back as it was, keeping its matched page (approved in proposal B/C notes), unlike the Raw revive. Backend: discard only overwrites `MatchStatus`, so restore derives it: `MatchedSlug != ""` → matched, else candidates → ambiguous, else pending. Checks: Go service + desktop binding tests, ditto mutation on `internal/season`, store test, row test.
+- **S5 — Undo toast (proposal D).** Right after a successful Discard, an app toast "Discarded" with the anime name and an "Undo" action that restores the row. Checks: test that a discard pushes the toast and Undo calls restore; a failed discard pushes none.
+- **S6 — Raw revive unchanged.** `reviveDiscardedSeasonAnime` keeps its behavior (retyping the name in Raw resets to pending). User: "yo no tocaría eso". Checks: existing revive test stays green, untouched.
+
+## Tasks
+
+| ID | Specs | Route | Status | Evidence |
+|---|---|---|---|---|
+| T1 | S4 (backend), S6 | inline | done | `Service.RestoreName` + `App.RestoreSeasonName`; RED (undefined), GREEN, ditto 6/6 killed; verifier PASS S4/S6 |
+| T2 | S4 (source + store), S5 (discard result) | inline | pending | |
+| T3 | S1, S2, S3, S4 (UI) | inline | pending | |
+| T4 | S5 | inline | pending | |
+
+Route evidence: no Writer trigger (units are sequential: T2 needs T1's binding, T3/T4 need T2's store action). Per project CLAUDE.md a delegated verify agent runs before each work-unit commit. RDD: off (global).
+
+## Log
+
+- L1 (2026-10-16, user, original request): "Listo, con eso yo apruebo un ODD y que se haga." — approving proposals A + C + D as refined on the canvas.
+- L2 (exploration, delegated): discard path `App.DiscardSeasonName` (`internal/desktop/app_season.go:232`) → `Service.DiscardName` (`internal/season/service.go:403`) overwrites only `MatchStatus`; previous status is not stored. No backend closed-season guard (frontend `readOnly` only) — restore keeps parity with discard. Desktop refresh is the store's `runIntakeCommand` → `refreshAnimes`. Discard is not exposed to mobile HTTP/WS. App toasts render only through `appToastQueue` (`features/notifications/ui/NotificationToasts/`), not HeroUI's `toast` singleton (spot-checked). HeroUI 3.2.4 `Dropdown.Item` accepts `Description`; two-option toggle precedent `AnimeEditorListPanel.tsx:27`. Near-limit files: `intake-panel.helpers.ts` 484, `service.go` 483, `use-intake-panel.test.ts` 481.
+- L4 (T1): restore lives in `internal/season/service_restore.go` (`service.go` is 483 lines). A non-discarded row is left unchanged so a double Undo is harmless; a row that was not_found/search_failed before the discard comes back pending (previous status is not stored). Tests: `TestServiceRestoreName` (table, 4 cases + missing row), `TestResolveAndDiscardSeasonRows` extended and renamed `TestResolveDiscardAndRestoreSeasonRows`. First ditto run showed 0/6 because the test file was not staged (ditto measures the index); staged → 6/6 killed. Desktop binding is plain wiring (INFRASTRUCTURE), outside the mutation scope; covered by the desktop test. Verifier: go test, vet, gofmt, checkgofilesize, ditto all pass; advisory "restored row could be missing silently" fixed in the desktop test.
+- L3: forecast ~700 authored lines with tests; repository practice is one feature branch merged into `dev`, so `single-pr` was chosen.

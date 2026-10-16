@@ -133,6 +133,17 @@ func (r *fakeSeasonRepo) UpdateSeasonAnime(_ context.Context, seasonAnime domain
 // newTestSeasonApp creates an application backed by a test season service. An
 // empty anime query is wired by default so board-capturing bindings (CloseSeason)
 // read live data instead of failing; tests needing specific animes overwrite it.
+// seasonRowsByID indexes the app's current intake rows by row ID.
+func seasonRowsByID(app *App) map[string]SeasonAnimeDTO {
+	byID := map[string]SeasonAnimeDTO{}
+	for _, row := range app.GetSeasonAnimes() {
+		byID[row.ID] = row
+	}
+	return byID
+}
+
+// newTestSeasonApp builds an App over a season service backed by repo, with a fixed
+// clock and sequential IDs; a non-nil hub receives the realtime broadcasts.
 func newTestSeasonApp(repo season.Repository, hub *stubAppRealtimeHub) *App {
 	fixed := time.UnixMilli(1_700_000_000_000)
 	nextID := 0
