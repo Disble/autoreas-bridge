@@ -29,6 +29,7 @@ for free. Rebuilding them by hand is a regression, not a redesign.
 | Data grid / log table | `Table` (`.ScrollContainer/.Content/.Header/.Column/.Body/.Row/.Cell`); see `tables.md` | raw `<table>` (except the loading placeholder, `patterns/loading-empty-error.md`) |
 | Card / panel container | `Card` (`.Content`) or `Surface` (`variant="default\|secondary\|tertiary"`) | a bordered `<div>` |
 | Inline status banner | `Alert` (`status="default\|accent\|success\|warning\|danger"`, `.Indicator/.Content/.Title/.Description`) | a colored `<div>` |
+| Action button | an icon-only `Button` (`isIconOnly`, `aria-label`) inside a `Tooltip` that names the action (see below) | a text-only button with no icon |
 | Dismiss / close | `CloseButton` (`onPress`, `aria-label`) | `<button>×` |
 | Tag / badge | `Chip variant="soft"` (`chips.md`) | a styled `<span>`; a bordered or outlined pill |
 | Scrollable region | `ScrollShadow` or `Table.ScrollContainer` | an `overflow-auto` div, unless you need raw scroll control |
@@ -40,6 +41,17 @@ for free. Rebuilding them by hand is a regression, not a redesign.
 | Resolved-empty result | `AirisEmptyState` (`airis-empty-state.md`) | a bare "No results" line; an empty state while the request is unresolved |
 | Detail pane before a selection | `AwaitingSelectionPane` (`awaiting-selection-pane.md`) | the mascot; skeleton shapes; a plain sentence |
 | Failed request | the surface's error `Alert` | an empty state or a skeleton |
+
+## Icon-only buttons with a tooltip
+
+This project prefers an icon-only button with a tooltip over a button with text and no icon. Icons
+keep action groups compact and rows aligned, and the tooltip carries the words.
+
+- `Button isIconOnly` with an `aria-label` that names the action and its target
+  (`More actions for Dr. Stone`), so screen readers and tests get the full name.
+- Wrap it in `Tooltip` with `Tooltip.Content showArrow` + `Tooltip.Arrow`; the tooltip text is the
+  short action name (`More actions`). Reference: `IntakeRowMoreMenu.tsx`.
+- The icon comes from the `@iconify/react` set the surface already uses.
 
 ## Toast feedback
 

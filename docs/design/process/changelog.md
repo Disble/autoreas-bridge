@@ -5,6 +5,11 @@ whose `.claude` (`1.1.2`) and `.agents` (`1.3.0`) copies had drifted; both histo
 Entries name the views that prompted them as a historical record; the rules themselves live in the
 files of `docs/design/`. Superseded entries are kept and marked.
 
+- `2.1.0` — Made the button preference explicit: an icon-only `Button` (`isIconOnly`, `aria-label`)
+  inside a `Tooltip` is preferred over a text-only button with no icon. The user asked for it while
+  reviewing the Intake "Discarded" mockups, where Restore and Delete were redrawn as icon buttons to
+  match the row's existing action group. Added to the HeroUI mapping table with its own section, and
+  to the skill's table.
 - `2.0.0` — Moved the design system into `docs/design/` (foundations, components, patterns, process)
   and reduced the `autoreas-theme` skill to its fundamentals plus a "Read next" index; the `.claude`
   and `.agents` copies are byte-identical again. Merged the drifted content: soft chips and the
