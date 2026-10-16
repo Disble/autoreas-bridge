@@ -145,6 +145,51 @@ describe('useDailyBoard', () => {
     expect(source.sendToVerHoy).not.toHaveBeenCalled();
   });
 
+  it('onSendAndDownload sends the selection, clears it, then starts the season download and drops a late-send notice', async () => {
+    const source = createSource({
+      sendToVerHoy: vi.fn().mockResolvedValue({ status: 'ok', pastDownloadTime: true, downloadTime: '21:00' }),
+    });
+    const { result } = renderHook(() => useDailyBoard(source));
+    act(() => result.current.toggleSelect('anime-b'));
+    await act(async () => {
+      result.current.onSendToVerHoy();
+    });
+    expect(result.current.downloadNotice).toEqual({ downloadTime: '21:00' });
+    act(() => result.current.toggleSelect('anime-a'));
+
+    await act(async () => {
+      result.current.onSendAndDownload();
+    });
+
+    expect(source.sendToVerHoy).toHaveBeenLastCalledWith(['anime-a']);
+    expect(source.triggerSeasonDownloads).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(source.sendToVerHoy).mock.invocationCallOrder[1]).toBeLessThan(
+      vi.mocked(source.triggerSeasonDownloads).mock.invocationCallOrder[0],
+    );
+    expect(result.current.selected.size).toBe(0);
+    expect(result.current.downloadNotice).toBeNull();
+  });
+
+  it.each([
+    { name: 'an empty selection', selection: [], sendStatus: 'ok' },
+    { name: 'a failed send', selection: ['anime-a'], sendStatus: 'send failed' },
+  ])('onSendAndDownload starts no download after $name', async ({ selection, sendStatus }) => {
+    const source = createSource({
+      sendToVerHoy: vi.fn().mockResolvedValue({ status: sendStatus, pastDownloadTime: false, downloadTime: '' }),
+    });
+    const { result } = renderHook(() => useDailyBoard(source));
+    for (const animeId of selection) {
+      act(() => result.current.toggleSelect(animeId));
+    }
+
+    await act(async () => {
+      result.current.onSendAndDownload();
+    });
+
+    expect(source.sendToVerHoy).toHaveBeenCalledTimes(selection.length);
+    expect(source.triggerSeasonDownloads).not.toHaveBeenCalled();
+  });
+
   it('resolves a cover for every board row, Visto included', async () => {
     const rows = [createdRow('a', 'anime-a', 'Sin ver'), createdRow('b', 'anime-b', 'Ver hoy'), createdRow('c', 'anime-c', 'Visto')];
     const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });

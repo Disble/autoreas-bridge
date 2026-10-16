@@ -51,6 +51,7 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     selected: new Set<string>(),
     toggleSelect: vi.fn(),
     onSendToVerHoy: vi.fn(),
+    onSendAndDownload: vi.fn(),
     downloadNotice: null,
     onDownloadNow: vi.fn(),
     onDismissNotice: vi.fn(),
@@ -93,6 +94,27 @@ describe('DailyBoard', () => {
     render(<DailyBoard />);
     fireEvent.click(screen.getByRole('button', { name: 'Send to Ver hoy' }));
     expect(onSendToVerHoy).toHaveBeenCalled();
+  });
+
+  it('Send & download now delegates when a selection exists', () => {
+    const onSendAndDownload = vi.fn();
+    mockHook({
+      sections: { sinVer: [created('a', 'anime-a', 'Sin ver')], verHoy: [], visto: [] },
+      selected: new Set(['anime-a']),
+      onSendAndDownload,
+    });
+    render(<DailyBoard />);
+    fireEvent.click(screen.getByRole('button', { name: 'Send & download now' }));
+    expect(onSendAndDownload).toHaveBeenCalled();
+  });
+
+  it('Download now on the Ver hoy card starts the season download', () => {
+    const onDownloadNow = vi.fn();
+    mockHook({ sections: { sinVer: [], verHoy: [created('b', 'anime-b', 'Ver hoy')], visto: [] }, onDownloadNow });
+    render(<DailyBoard />);
+    const card = screen.getByRole('list', { name: 'Ver hoy' }).closest('[data-slot="card"]') as HTMLElement;
+    fireEvent.click(within(card).getByRole('button', { name: 'Download now' }));
+    expect(onDownloadNow).toHaveBeenCalled();
   });
 
   it('renders every Ver hoy row in board order with its count and scheduled-day chip', () => {

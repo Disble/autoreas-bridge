@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
 import { resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
@@ -9,6 +9,17 @@ import { DailyBoard } from '../DailyBoard';
 // (no hook mock) — this is the test that catches "the checkbox renders no
 // clickable control": a bug a hook-only test structurally cannot see.
 
+// The real hook refreshes the rows on mount through the season port. Keep that
+// read pending so it can never replace the rows each case seeds in the store.
+vi.mock('../../../../../infrastructure/season-source/season-source.helpers', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../../../infrastructure/season-source/season-source.helpers')>();
+  return {
+    ...actual,
+    seasonSource: { ...actual.seasonSource, getSeasonAnimes: () => new Promise<never>(() => undefined) },
+  };
+});
+
+/** Builds a created Sin ver row for the real store. */
 function createdRow(id: string, animeId: string): SeasonAnimeRow {
   return {
     id,
@@ -41,16 +52,20 @@ describe('DailyBoard Sin ver checkboxes (real component)', () => {
     expect(boxes).toHaveLength(2);
   });
 
-  it('selecting a checkbox updates the "selected for today" count and enables Send', () => {
+  it('selecting a checkbox enables both send actions, with no selected-count text', () => {
     setSeasonStoreState({ seasonAnimes: [createdRow('a', 'anime-a')] });
     render(<DailyBoard />);
 
-    expect(screen.getByText('0 selected for today')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Send to Ver hoy' })).toBeDisabled();
+    /** The two Sin ver send actions, in footer order. */
+    const sendButtons = () => [
+      screen.getByRole('button', { name: 'Send to Ver hoy' }),
+      screen.getByRole('button', { name: 'Send & download now' }),
+    ];
+    sendButtons().forEach((button) => expect(button).toBeDisabled());
 
     fireEvent.click(screen.getByRole('checkbox'));
 
-    expect(screen.getByText('1 selected for today')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Send to Ver hoy' })).toBeEnabled();
+    sendButtons().forEach((button) => expect(button).toBeEnabled());
+    expect(screen.queryByText(/selected for today/)).toBeNull();
   });
 });

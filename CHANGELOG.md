@@ -77,6 +77,17 @@ called out explicitly under its release.
 
 - The intake rows and the **Sin ver** rows share one `OpenPageButton` under `shared/ui`; the intake button's behaviour and copy are unchanged.
 
+<!-- Draft for the Daily board download buttons. It may change before the release. Fold its sections into the ones above when the release is written. -->
+
+### Added
+
+- **Sin ver** has a **Send & download now** button beside **Send to Ver hoy**: it sends the checked animes to **Ver hoy** and starts the season download right away, instead of waiting for the daily auto-download.
+- **Ver hoy** always shows a **Download now** button, so you can start the season download at any time, for example to fetch an episode released after today's run. The download reports its progress through its usual notifications.
+
+### Changed
+
+- **Sin ver** no longer shows the "N selected for today" count; the checkboxes already show what is selected.
+
 ## [1.16.0] — 2026-09-27
 
 ### Added

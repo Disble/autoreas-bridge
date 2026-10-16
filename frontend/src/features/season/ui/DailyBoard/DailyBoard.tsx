@@ -34,6 +34,10 @@ import { useDailyBoard } from './use-daily-board';
  * that closed before the board was recorded shows one plain list of its animes
  * (`DailyBoardPlainCard`) and claims no section.
  *
+ * Sin ver offers "Send & download now" beside "Send to Ver hoy" to skip the wait
+ * for the scheduled run, and Ver hoy always offers "Download now" (never
+ * disabled: it also fetches episodes released since the last run).
+ *
  * Ver hoy rows carry their weekday chip in an open season only (it reads the
  * live section); Visto rows carry their first-episode
  * grade state instead, because Visto means "ready for evaluation" and whether
@@ -60,6 +64,7 @@ export function DailyBoard() {
     selected,
     toggleSelect,
     onSendToVerHoy,
+    onSendAndDownload,
     downloadNotice,
     onDownloadNow,
     onDismissNotice,
@@ -132,11 +137,13 @@ export function DailyBoard() {
           countColor="default"
           footer={
             readOnly ? null : (
-              <div className="mt-3 flex items-center gap-3">
+              <div className="mt-3 flex flex-wrap items-center gap-3">
                 <Button isDisabled={selected.size === 0} variant="primary" onPress={onSendToVerHoy}>
                   Send to Ver hoy
                 </Button>
-                <span className="text-sm text-muted">{selected.size} selected for today</span>
+                <Button isDisabled={selected.size === 0} variant="secondary" onPress={onSendAndDownload}>
+                  Send &amp; download now
+                </Button>
               </div>
             )
           }
@@ -169,6 +176,15 @@ export function DailyBoard() {
           copy={DAILY_BOARD_SECTION_COPY.verHoy}
           count={sections.verHoy.length}
           countColor="accent"
+          footer={
+            readOnly ? null : (
+              <div className="mt-3 flex items-center gap-3">
+                <Button variant="primary" onPress={onDownloadNow}>
+                  Download now
+                </Button>
+              </div>
+            )
+          }
         >
           <DailyBoardWatchList getCoverThumb={getCoverThumb} getRowChip={getVerHoyRowChip} label="Ver hoy" listClassName={VER_HOY_LIST_CLASS} rows={sections.verHoy} />
         </DailyBoardSectionCard>
