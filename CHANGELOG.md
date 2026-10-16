@@ -14,79 +14,61 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
-<!-- Draft for the episode durations work (feat/episode-durations, merged to dev 2026-10-15). It may change before the release. -->
+## [1.17.0] — 2026-10-16
 
 ### Added
 
-- Bridge now remembers how long each episode runs. Every episode a download lands is measured once and stored, and when the app starts it fills in, in the background, the episodes of active anime that do not have a duration yet. A stored duration belongs to the episode, not to the file: moving or renaming the folder keeps it.
-- The Editor has an **Episodes** card to correct those durations: re-analyze the folder and review what changed before confirming it (a value you set by hand is kept), edit an episode's minutes, add an episode, or clear a duration. The card saves on its own with its own **Save episodes** and **Discard changes**, and opens and closes with **Show episodes** / **Hide episodes** without losing what you edited.
+- Bridge now remembers how long each episode runs. Every episode a download lands is measured once and stored, and when the app starts it fills in, in the background, the episodes of active anime that do not have a duration yet. A stored duration belongs to the episode, not to the file: moving or renaming the folder keeps it. Measuring needs `ffprobe` on the PATH; without it nothing is measured and nothing fails.
+- **Today** marks a row whose next episode runs long (over 30 minutes) with a chip such as **Ep. 7 · 45 min**, and a download that lands a long episode raises a **Capítulo largo** notification. The mark comes from the stored durations, so opening Today measures no file; an episode copied into a folder by hand gets its mark at the next start, after a download of that anime, or with **Re-analyze folder**.
+- The Editor has an **Episodes** card to correct those durations: re-analyze the folder and review what changed before confirming it (a value you set by hand is kept), edit an episode's minutes, add an episode, or clear a duration. It opens and closes with **Show episodes** / **Hide episodes** without losing what you edited, and a "(?)" next to **Folder** explains that changing the folder does not recalculate durations.
 - The Editor has a **Schedule** card that shows at a glance the days the anime airs and its place on each one ("3 of 3"), and holds the **Open schedule editor** button.
-- A "(?)" next to the Editor's **Folder** field explains that changing the folder does not recalculate episode durations, and that **Re-analyze folder** in the Episodes card does.
 - Backups now include the episode durations: an export carries them and an import restores them exactly.
-- **Wire-visible, additive**: anime served by `GET /api/animes`, `GET /api/animes/{id}` and every snapshot of the changes feed carry an optional `episodes` list — `episode`, `minutes` and `long` — so Mobile can show the same long-episode mark as Today without measuring anything. The field is omitted when an anime has no stored duration, and a change that only touched durations arrives as an ordinary `update` with `changed_fields: [episodes]` that never moves `modified_at`.
+- Closing a season now records its ordering board and Daily board. A past season's **Ordering** and Daily board show what was recorded, read-only, and its **Overview** shows an outcome funnel, the grade histogram, the selection outcome and the final lineup. Seasons closed earlier show that the board was not recorded.
+- Each intake row can look up its anime on MyAnimeList (**Fetch metadata**, then **Use this match**). The confirmed type, episodes, duration, origin, genres, studios and cover are kept on the row and applied when the anime is created; the anime name always stays the one you entered.
+- Intake rows that are **Pending**, **Not found**, **Ambiguous** or **Search failed** have a **Find on provider** button: it searches every download provider while you type and lists each page with its cover, as "Provider · page URL", ranked by how close its title is. **Use this page** resolves the row to that page.
+- Discarded intake rows are kept in their own view: an **Active / Discarded** toggle appears next to the **Intake list** title when there are discarded rows, each one has a **Restore** button, and discarding a row shows a toast with **Undo**.
+- The intake list updates live while **Run matching** runs, row by row, with a progress line that names the phase ("Matching names… N of M", then "Checking episode availability… N checked").
+- The daily availability check of an open season, which used to run at a fixed 21:00, now runs at a time you choose from the **Daily check 21:00** button in the **Intake list** header. **Save** applies it right away, without restarting Bridge.
+- **Sin ver** has a **Send & download now** button beside **Send to Ver hoy** that sends the checked animes and starts the season download right away, and **Ver hoy** has a **Download now** button whenever it lists animes, for example to fetch an episode released after today's run.
+- Saving a different **Library root** first opens **Change library root?**, listing the active animes that will be updated and those left unchanged, then points the affected animes' folders at the new root. Files on disk are not moved, and inactive history is never touched.
+- **Wire-visible, additive**: anime served by `GET /api/animes`, `GET /api/animes/{id}` and every snapshot of the changes feed carry an optional `episodes` list — `episode`, `minutes` and `long` — so Mobile can show the same long-episode mark as Today. It is omitted when an anime has no stored duration, and a change that only touched durations arrives as an ordinary `update` with `changed_fields: [episodes]` that never moves `modified_at`.
+- **Wire-visible, additive**: the same anime payloads carry `folderRelative`, the anime's folder below the library root with `/` separators. It is computed when served, never stored, and omitted when the folder is not inside the root; incremental changes of an inactive anime still pointing at an old root do not resend it.
 
 ### Changed
 
-- The Editor is now three independent cards — the anime data, Episodes and Schedule — and each one saves only its own data. Saving the anime no longer saves episode durations, and the Episodes card always works from the saved anime, never from unsaved edits in the anime card. The unsaved-changes prompt still covers both: **Discard changes** drops both drafts, and **Save and continue** saves each card that has changes and only moves on if every save succeeded. While a re-analysis runs, **Save and continue** waits until it finishes or is cancelled.
-- Today's long-episode mark now comes from the stored durations, so opening Today no longer measures any file. An episode copied into a folder by hand gets its mark at the next start, after a download of that anime, or with **Re-analyze folder**.
+- The Editor is now three independent cards — the anime data, Episodes and Schedule — and each one saves only its own data (the Episodes card with **Save episodes**), and the Episodes card always works from the saved anime, never from unsaved edits. The unsaved-changes prompt still covers all of them: **Discard changes** drops every draft, and **Save and continue** saves each card that has changes and only moves on if every save succeeded (it waits while a re-analysis runs).
+- The first-watch date is now set automatically the first time an anime's watched progress goes from zero to more than zero. It can no longer be edited in the Editor, the anime detail shows it as **First watched** instead of **Premiere**, and older anime without a date are not backfilled.
+- **Wire-visible, behaviour**: `PATCH` on an anime still accepts `fechaEstreno` but ignores it, and `premieredAt` now means the first observed zero-to-positive progress instant; creating an anime that already has progress leaves it null. The payload shape is unchanged.
+- The Season workspace is redesigned. **Intake & Daily** rows show covers and round icon buttons (metadata, page, folder and a ⋯ menu), the match chip appears only when a row needs attention, and **Sin ver**, **Ver hoy** and **Visto** use the same card format, with a grade chip on Visto. **Evaluation** lists ungraded anime first with **Rate** and **Skip**, **Selection** groups candidates under "Approved · N" and "Rejected · N", and **Ordering** shows the weekdays in one row that wraps to the available width.
+- The open-season **Overview** has a season card with its creation date, minimum approval grade, slots and **Close season**, and a selection outcome chart (Approved / Rejected / No grade) replaces the approved-vs-slots meter. A closed season shows a **Closed** chip and "Read-only — editing is disabled."
+- Empty states are redesigned: they adapt to the space they sit in, a screen shows Airis at most once, an empty Season tab says which step fills it and links there, and a search or filter with no results shows a search icon with the clear action. Inspectors and detail panes (**History**, **Notifications**, **Run history**, **Transaction**, **Event**) show a "No … selected" pane with their fields dimmed until you pick a row.
+- Options: the **Downloads** tab is now **Library**, and **Downloads root** is now **Library root**, the one folder on this computer where your anime library lives. The existing value carries over automatically.
+- Each intake row now starts with its create checkbox, named after the anime; long names are truncated with the full name on hover instead of pushing the actions onto a new line; and resolving a row, from a candidate or from **Find on provider**, rechecks its availability right away.
+- **Sin ver** no longer shows the "N selected for today" count; the checkboxes already show what is selected.
+- The **Activity** transaction list re-renders less while scrolling and while live updates arrive.
 - **Wire-visible, behaviour**: the changes feed is stricter for Mobile. For one anime, a later change never carries an older snapshot than an earlier one, its `timestamp` always rises — even within the same millisecond, if the clock goes back, or after acknowledged changes are pruned — a `create` or `update` always names the fields it changed, and no change is recorded for an anime that no longer exists. The payload shape is unchanged.
 
 ### Fixed
 
-- An edit made on the desktop could be undone on a phone. When two changes to the same anime were recorded close together, the phone could receive a later change carrying an older copy of the anime and silently revert the edit; every change now carries the anime as stored at that moment.
-- After every paired device acknowledged its changes, a new edit could get the same timestamp as one a phone had already applied, so the phone could skip it. The last change of each anime is now kept as the floor for the next one, and the Devices **Syncing Now** panel still clears once every device is up to date.
+- An edit made on the desktop could be undone on a phone: when two changes to the same anime were recorded close together, the phone could receive a later change carrying an older copy of the anime. Every change now carries the anime as stored at that moment.
+- After every paired device acknowledged its changes, a new edit could get the same timestamp as one a phone had already applied, so the phone could skip it. The last change of each anime is now kept as the floor for the next one.
+- **Wire-visible, behaviour**: a newly created anime now reaches the changes feed (`GET /api/animes/changes`, reconcile `bridge_changes`) as `change_type: create` instead of `update`, and is broadcast over WebSocket as `anime_created` instead of `anime_changed`. Changes recorded earlier are still served as `update`.
 - Sync diagnostics from current Mobile builds are accepted again: reports carrying the `native_module_unavailable` or `remote_change_rejected` events were refused with a 400.
+- One failed name search no longer stops **Run matching**: that row is marked **Search failed**, the rest keep matching, and the next run tries it again. Names containing `/` (such as *Ranma 1/2*) are found on jkanime again.
+- Viewing a closed season no longer makes **Today** and the **Season** badge act as if a season were open.
+- Season tabs no longer flash their empty state while the season is loading or next to a load error, **Selection** no longer shows a 1970 date for a selection that was never confirmed, the **Overview** metadata card is sized to its content again, and the **Raw** intake box has a visible border in both themes.
+- If the notification service cannot be reached, **Notifications** shows an alert instead of an empty list.
+- The **Open page** button on **Sin ver** rows now opens the anime's page in your browser; before, it did nothing.
+- The desktop app no longer receives a fake change notice for a nonexistent anime at startup.
 
 ### Internal
 
-- Episode durations live in their own table, `anime_episode_durations`, and reach Mobile through their own `episode.durations_changed` event and pending-announce table, so the anime write path, its outbox and `modified_at` are untouched. Recognising an episode number from a file name is one shared assigner used by downloads, the backfill and the Editor. The design, the decisions taken with Mobile and the verification evidence are recorded in `docs/episode-durations-analysis.md`, `docs/episode-durations-editor-ui.md` and `odd/tasks/episode-durations.md`.
-- The theme skill now states that every chip uses HeroUI's `soft` variant, with an optional icon.
-
-<!-- Draft for the intake provider search work (feat/intake-provider-search and fix/intake-checkbox-first, merged to dev 2026-10-15). It may change before the release. Fold its sections into the ones above when the release is written. -->
-
-### Added
-
-- Intake rows that are **Pending**, **Not found**, **Ambiguous** or **Search failed** have a **Find on provider** button next to **Fetch metadata**, so a row the matcher cannot resolve, or one sent back from Raw, no longer needs another **Run matching**. The modal starts with the row's name, searches every download provider while you type, and lists each page with its cover, as "Provider · page URL", ranked by how close its title is. **Use this page** resolves the row to that page.
-
-### Changed
-
-- Resolving an intake row, from a candidate or from **Find on provider**, now rechecks that row's availability right away, so its availability dot is up to date without waiting for the next check.
-- Each intake row now starts with its create checkbox, before the cover, and the checkbox is named after the anime.
-
-### Internal
-
-- The MyAnimeList lookup modal is drawn from presentation-only parts under `shared/ui` (modal shell, candidate row, trigger and skeleton) that **Find on provider** reuses; its behaviour and copy are unchanged. The provider search is a Wails-only method, so no REST or WS contract changes. The specs, decisions and verification evidence are recorded in `odd/tasks/intake-provider-search.md`.
-
-<!-- Draft for the season check time work (feat/season-check-time). It may change before the release. Fold its sections into the ones above when the release is written. -->
-
-### Added
-
-- The daily availability check of an open season, which used to run at a fixed 21:00, now runs at a time you choose. The **Intake list** header shows a quiet **Daily check 21:00** button; it opens a small popover with the time, and **Save** applies the new time right away, without restarting Bridge. The check still runs every day, and only while a season is open.
-
-### Internal
-
-- The time is stored in `app_settings` under `season.availability_check_time`. An unset, unreadable or malformed value falls back to 21:00, so a settings problem never stops the daily check. It is read and written through two Wails-only methods, `GetSeasonCheckTime` and `SetSeasonCheckTime`, so no REST or WS contract changes, and backups do not carry it.
-
-<!-- Draft for the Daily board open-page fix (fix/daily-board-open-page). It may change before the release. Fold its sections into the ones above when the release is written. -->
-
-### Fixed
-
-- The **Open page** button on the Daily board's **Sin ver** rows now opens the anime's page in your browser, like the one on the intake rows; before, it did nothing. It also now looks the same as the other row buttons.
-
-### Internal
-
-- The intake rows and the **Sin ver** rows share one `OpenPageButton` under `shared/ui`; the intake button's behaviour and copy are unchanged.
-
-<!-- Draft for the Daily board download buttons. It may change before the release. Fold its sections into the ones above when the release is written. -->
-
-### Added
-
-- **Sin ver** has a **Send & download now** button beside **Send to Ver hoy**: it sends the checked animes to **Ver hoy** and starts the season download right away, instead of waiting for the daily auto-download.
-- **Ver hoy** always shows a **Download now** button, so you can start the season download at any time, for example to fetch an episode released after today's run. The download reports its progress through its usual notifications.
-
-### Changed
-
-- **Sin ver** no longer shows the "N selected for today" count; the checkboxes already show what is selected.
+- Episode durations live in their own table, `anime_episode_durations`, and reach Mobile through their own `episode.durations_changed` event, so the anime write path, its outbox and `modified_at` are untouched. Deciding which file is which episode is one shared Go component (`internal/anime/identity`), ported from the prototype and checked against its decisions on real folders; it refuses to guess rather than assign a doubtful file.
+- Only committed writes announce `anime.changed`: the legacy queued update path is removed, and the outbox drain is the only publisher.
+- The library root setting moves from `downloads.root` to `library.root` with an automatic migration; the season check time is stored as `season.availability_check_time` (falling back to 21:00) and is not carried by backups. Season backups carry the new closure and intake-metadata columns.
+- The provider search, the season check time and the matching progress events are Wails-only, so they add no REST or WS contract.
+- Shared presentation parts under `shared/ui` (the lookup modal pieces and `OpenPageButton`) replace per-feature copies; the design system now lives in `docs/design/`, with new Airis artwork and the chip and icon-button rules.
+- The render smoke test covers every rail route and fails on uncaught errors; the local gate is simpler and mutation audits run in CI; new worktrees generate their Wails bindings on their own.
 
 ## [1.16.0] — 2026-09-27
 
