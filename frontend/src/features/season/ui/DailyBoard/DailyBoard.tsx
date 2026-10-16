@@ -1,7 +1,6 @@
-import linkIcon from '@iconify-icons/solar/link-round-broken';
-import { Icon } from '@iconify/react';
-import { Alert, Button, Tooltip } from '@heroui/react';
+import { Alert, Button } from '@heroui/react';
 import { LabeledCheckbox } from '../../../../shared/ui/LabeledCheckbox';
+import { OpenPageButton } from '../../../../shared/ui/OpenPageButton';
 import { LoadingBars } from '../../../../shared/ui/LoadingBars/LoadingBars';
 import { getGradeChip } from '../EvaluationPanel/evaluation-panel.helpers';
 import { SeasonCoverThumb } from '../SeasonCoverThumb/SeasonCoverThumb';
@@ -65,6 +64,7 @@ export function DailyBoard() {
     onDownloadNow,
     onDismissNotice,
     onRecheck,
+    onOpenPage,
     errorMessage,
     getCoverThumb,
     getVerHoyRowChip,
@@ -155,21 +155,7 @@ export function DailyBoard() {
                 <span className="text-xs text-muted">{formatAvailableEpisodes(row.availableEpisodes)}</span>
                 <div className="ml-auto flex items-center gap-2">
                   {row.matchedSlug !== '' && (
-                    <Tooltip>
-                      <a
-                        aria-label={`Open the page for ${row.rawName}`}
-                        className="inline-flex size-8 items-center justify-center rounded-md text-muted hover:text-accent"
-                        href={row.matchedSlug}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        <Icon className="size-4" icon={linkIcon} />
-                      </a>
-                      <Tooltip.Content showArrow>
-                        <Tooltip.Arrow />
-                        Open page
-                      </Tooltip.Content>
-                    </Tooltip>
+                    <OpenPageButton name={row.rawName} pageUrl={row.matchedSlug} onOpen={onOpenPage} />
                   )}
                 </div>
               </li>

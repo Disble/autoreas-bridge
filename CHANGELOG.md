@@ -67,6 +67,16 @@ called out explicitly under its release.
 
 - The time is stored in `app_settings` under `season.availability_check_time`. An unset, unreadable or malformed value falls back to 21:00, so a settings problem never stops the daily check. It is read and written through two Wails-only methods, `GetSeasonCheckTime` and `SetSeasonCheckTime`, so no REST or WS contract changes, and backups do not carry it.
 
+<!-- Draft for the Daily board open-page fix (fix/daily-board-open-page). It may change before the release. Fold its sections into the ones above when the release is written. -->
+
+### Fixed
+
+- The **Open page** button on the Daily board's **Sin ver** rows now opens the anime's page in your browser, like the one on the intake rows; before, it did nothing. It also now looks the same as the other row buttons.
+
+### Internal
+
+- The intake rows and the **Sin ver** rows share one `OpenPageButton` under `shared/ui`; the intake button's behaviour and copy are unchanged.
+
 ## [1.16.0] — 2026-09-27
 
 ### Added

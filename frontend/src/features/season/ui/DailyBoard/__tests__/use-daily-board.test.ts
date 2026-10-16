@@ -166,6 +166,15 @@ describe('useDailyBoard', () => {
     expect(source.recheckAvailability).toHaveBeenCalled();
   });
 
+  it('onOpenPage opens the page through the source (the external browser)', () => {
+    const source = createSource();
+    const { result } = renderHook(() => useDailyBoard(source));
+    act(() => {
+      result.current.onOpenPage('https://example.com/a');
+    });
+    expect(source.openPage).toHaveBeenCalledWith('https://example.com/a');
+  });
+
   /** Opens the given closed season read-only through the season store, as the history view does. */
   async function viewClosedSeason(source: SeasonSource, seasonId = 's1'): Promise<void> {
     await act(async () => {
