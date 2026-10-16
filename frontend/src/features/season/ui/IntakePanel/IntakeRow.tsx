@@ -32,8 +32,8 @@ export function IntakeRow(props: Readonly<IntakeRowProps>) {
           {null}
         </LabeledCheckbox>
         <SeasonCoverThumb coverSrc={heldMetadata?.coverURL} isLoading={false} />
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="font-medium text-foreground" id={nameId}>{row.rawName}</span>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="truncate font-medium text-foreground" id={nameId} title={row.rawName}>{row.rawName}</span>
           <IntakeRowHints creatable={creatable} heldMetadata={heldMetadata} row={row} />
         </div>
         {row.matchStatus === 'matched' ? null : (

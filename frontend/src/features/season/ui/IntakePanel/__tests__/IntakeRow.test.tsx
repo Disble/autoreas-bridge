@@ -105,12 +105,15 @@ describe('IntakeRow', () => {
     expect(screen.getByTestId('season-cover-thumb-placeholder')).toBeInTheDocument();
   });
 
-  it('summarizes the held metadata in one muted line under the name', () => {
+  it('summarizes the held metadata in one muted line under the truncated name', () => {
     renderRow({
       heldMetadata: { name: 'Dr. Stone', kind: '0', totalEpisodes: '24', duration: '23', studios: 'TMS' },
       appliedMetadata: applied(true),
     });
 
+    const name = screen.getByTitle('Dr. Stone');
+    expect(name).toHaveClass('truncate');
+    expect(name.parentElement).toHaveClass('min-w-0', 'flex-1');
     expect(screen.getByText('Anime (TV) · 24 eps · 23 min · TMS')).toBeInTheDocument();
   });
 
