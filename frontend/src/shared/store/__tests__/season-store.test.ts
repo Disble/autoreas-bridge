@@ -62,6 +62,7 @@ function makeSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     runMatching: vi.fn().mockResolvedValue('ok'),
     resolveMatch: vi.fn().mockResolvedValue('ok'),
     discardName: vi.fn().mockResolvedValue('ok'),
+    restoreName: vi.fn().mockResolvedValue('ok'),
     setAnimeDays: vi.fn().mockResolvedValue('ok'),
     setGrade: vi.fn().mockResolvedValue('ok'),
     skipGrading: vi.fn().mockResolvedValue('ok'),
@@ -211,11 +212,24 @@ describe('useSeasonStore', () => {
     expect(source.getSeasonAnimes).toHaveBeenCalled();
   });
 
-  it('discardName delegates and refreshes', async () => {
+  it.each(['discardName', 'restoreName'] as const)('%s delegates, refreshes and reports the success', async (action) => {
     const source = makeSource();
-    await getSeasonStoreState().discardName(source, 'sa-1');
-    expect(source.discardName).toHaveBeenCalledWith('sa-1');
+    await expect(getSeasonStoreState()[action](source, 'sa-1')).resolves.toBe(true);
+    expect(source[action]).toHaveBeenCalledWith('sa-1');
     expect(source.getSeasonAnimes).toHaveBeenCalled();
+  });
+
+  it.each([
+    { action: 'discardName', command: vi.fn().mockResolvedValue('season anime not found'), message: 'season anime not found' },
+    { action: 'restoreName', command: vi.fn().mockResolvedValue('season anime not found'), message: 'season anime not found' },
+    { action: 'discardName', command: vi.fn().mockResolvedValue(''), message: 'Failed to discard name' },
+    { action: 'restoreName', command: vi.fn().mockResolvedValue(''), message: 'Failed to restore name' },
+    { action: 'restoreName', command: vi.fn().mockRejectedValue(new Error('runtime gone')), message: 'runtime gone' },
+  ] as const)('$action reports "$message" for a failed command without refreshing', async ({ action, command, message }) => {
+    const source = makeSource({ [action]: command });
+    await expect(getSeasonStoreState()[action](source, 'sa-1')).resolves.toBe(false);
+    expect(getSeasonStoreState().errorMessage).toBe(message);
+    expect(source.getSeasonAnimes).not.toHaveBeenCalled();
   });
 
   it('setGrade delegates the manual grade and refreshes the rows', async () => {
@@ -412,7 +426,8 @@ describe('useSeasonStore', () => {
 
     const store = getSeasonStoreState();
     await store.runMatching(source);
-    await store.discardName(source, 'sa-1');
+    await expect(store.discardName(source, 'sa-1')).resolves.toBe(false);
+    await expect(store.restoreName(source, 'sa-1')).resolves.toBe(false);
     await store.createSeasonAnimes(source, ['sa-1'], {}, {});
     await store.setGrade(source, 'anime-1', 5);
     await store.setConsideration(source, 'sa-1', 'in');
@@ -425,6 +440,7 @@ describe('useSeasonStore', () => {
     for (const fn of [
       source.runMatching,
       source.discardName,
+      source.restoreName,
       source.createSeasonAnimes,
       source.setGrade,
       source.setConsideration,

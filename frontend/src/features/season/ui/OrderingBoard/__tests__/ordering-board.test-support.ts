@@ -27,6 +27,7 @@ export function createSource(board: OrderingBoard, overrides: Partial<SeasonSour
     runMatching: vi.fn().mockResolvedValue('ok'),
     resolveMatch: vi.fn().mockResolvedValue('ok'),
     discardName: vi.fn().mockResolvedValue('ok'),
+    restoreName: vi.fn().mockResolvedValue('ok'),
     setAnimeDays: vi.fn().mockResolvedValue('ok'),
     setGrade: vi.fn().mockResolvedValue('ok'),
     skipGrading: vi.fn().mockResolvedValue('ok'),
