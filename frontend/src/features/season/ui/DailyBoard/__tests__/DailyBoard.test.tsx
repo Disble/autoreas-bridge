@@ -55,6 +55,7 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     onDownloadNow: vi.fn(),
     onDismissNotice: vi.fn(),
     onRecheck: vi.fn(),
+    onOpenPage: vi.fn(),
     errorMessage: undefined,
     getCoverThumb: vi.fn(() => ({ coverSrc: undefined, isLoading: false })),
     getVerHoyRowChip: getScheduledDayChip,
@@ -181,21 +182,22 @@ describe('DailyBoard', () => {
     expect(onRecheck).toHaveBeenCalled();
   });
 
-  it('shows episode count and an open-page link for a Sin-ver row', () => {
+  it('shows episode count and an open-page button that opens the Sin-ver row page', () => {
     const row = created('a', 'anime-a', 'Sin ver');
-    mockHook({ sections: { sinVer: [{ ...row, availableEpisodes: 5, matchedSlug: 'https://example.com/a' }], verHoy: [], visto: [] } });
+    const onOpenPage = vi.fn();
+    mockHook({ onOpenPage, sections: { sinVer: [{ ...row, availableEpisodes: 5, matchedSlug: 'https://example.com/a' }], verHoy: [], visto: [] } });
     render(<DailyBoard />);
     expect(screen.getByText('5 episodes available')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Open the page for A/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open the page for A' }));
+    expect(onOpenPage).toHaveBeenCalledWith('https://example.com/a');
   });
 
-  it('does not render an open-page link when the Sin-ver row has no matched slug', () => {
+  it('does not render an open-page button when the Sin-ver row has no matched slug', () => {
     const row = created('a', 'anime-a', 'Sin ver');
     mockHook({ sections: { sinVer: [{ ...row, availableEpisodes: 0, matchedSlug: '' }], verHoy: [], visto: [] } });
     render(<DailyBoard />);
     expect(screen.getByText('0 episodes available')).toBeInTheDocument();
-    // Query by label: an anchor rendered with an empty href has no link role, so a role query could never see it.
-    expect(screen.queryByLabelText(/Open the page for A/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open the page for A' })).not.toBeInTheDocument();
   });
 
   it('renders each Sin ver, Ver hoy and Visto row its own cover thumbnail', () => {

@@ -36,6 +36,8 @@ export function useDailyBoard(source: SeasonSource = seasonSource, coverSource: 
   // 5. Derived State (useMemo)
   const { view, getCoverThumb } = useDailyBoardView(seasonAnimes, source, coverSource);
   const getVerHoyRowChip = selectVerHoyRowChip(readOnly);
+  // A plain arrow, not a useCallback: the button is not memoized, so a stable identity buys nothing.
+  const onOpenPage = (pageUrl: string) => source.openPage(pageUrl);
 
   // 6. Callbacks
   const toggleSelect = useCallback((animeId: string) => {
@@ -88,6 +90,7 @@ export function useDailyBoard(source: SeasonSource = seasonSource, coverSource: 
     onDownloadNow,
     onDismissNotice,
     onRecheck,
+    onOpenPage,
     errorMessage,
     getCoverThumb,
     getVerHoyRowChip,
