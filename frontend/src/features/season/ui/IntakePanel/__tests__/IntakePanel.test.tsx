@@ -110,7 +110,7 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     onResolve: vi.fn(),
     onDiscard: vi.fn(),
     onOpenPage: vi.fn(),
-    discardedRows: [],
+    discardedRows: [], discardedMetadataByRow: {},
     view: 'active',
     onViewChange: vi.fn(),
     onRestore: vi.fn(),

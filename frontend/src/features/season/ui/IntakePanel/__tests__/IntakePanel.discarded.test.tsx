@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { IntakePanel } from '../IntakePanel';
 import { useIntakePanel } from '../use-intake-panel';
@@ -21,7 +21,7 @@ const ACTIVE_ROWS = [seasonRow({ id: 'row-1', rawName: 'Romeria Senki' }), seaso
 function renderPanel(overrides: Partial<Record<keyof HookReturn, unknown>> = {}): HookReturn {
   const value = {
     readOnly: false, mode: 'list', switchMode: vi.fn(), rawDraft: '', onRawChange: vi.fn(), selected: new Set(), toggleSelect: vi.fn(),
-    editableRows: ACTIVE_ROWS, discardedRows: [], view: 'active', onViewChange: vi.fn(), onRestore: vi.fn(),
+    editableRows: ACTIVE_ROWS, discardedRows: [], discardedMetadataByRow: {}, view: 'active', onViewChange: vi.fn(), onRestore: vi.fn(),
     folderOverrides: {}, folderPreviews: {}, onPickFolder: vi.fn(), metadataByRow: {}, appliedMetadataByRow: {}, metadataLookupSource: {}, providerSearchSource: {},
     onMetadataApplied: vi.fn(), onMetadataClear: vi.fn(), onMetadataUndo: vi.fn(), availableCount: 0, availabilityPendingCount: 0, onCreate: vi.fn(),
     unresolvedCount: 2, searchFailedCount: 0, errorMessage: undefined, busyMessage: undefined, onRunMatching: vi.fn(), onRecheckAvailability: vi.fn(), onResolve: vi.fn(),
@@ -54,12 +54,22 @@ describe('IntakePanel discarded view', () => {
     expect(hook.onViewChange).toHaveBeenCalledExactlyOnceWith('discarded');
   });
 
-  it('lists only the discarded rows with a Restore button, and no matching or creation controls', () => {
+  it('lists only the discarded rows like active rows, with a Restore button and no matching or creation controls', () => {
     const hook = renderPanel({
       view: 'discarded',
-      discardedRows: [seasonRow({ id: 'row-3', rawName: 'Zombie Sagashitemasu', matchStatus: 'discarded' })],
+      discardedRows: [
+        seasonRow({ id: 'row-3', rawName: 'Zombie Sagashitemasu', matchStatus: 'discarded', matchedSlug: 'https://jkanime.net/zombie/' }),
+        seasonRow({ id: 'row-4', rawName: 'Zombie Sagashitemsu', matchStatus: 'discarded' }),
+      ],
+      discardedMetadataByRow: { 'row-3': { totalEpisodes: '12', studios: 'Studio Comet' } },
     });
 
+    const [matched, typo] = screen.getAllByRole('listitem');
+    expect(within(matched).getByTestId('intake-row-summary')).toHaveTextContent('Studio Comet');
+    expect(within(matched).queryByText(/Pending|Matched|available/)).toBeNull();
+    expect(within(typo).queryByTestId('intake-row-summary')).toBeNull();
+    expect(within(typo).getByTestId('season-cover-thumb-placeholder')).toBeInTheDocument();
+    expect(within(typo).getByText('Pending')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Restore Zombie Sagashitemasu' }));
 
     expect(hook.onRestore).toHaveBeenCalledExactlyOnceWith('row-3');

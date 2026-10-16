@@ -22,6 +22,7 @@ export function IntakePanel() {
     onRawChange,
     editableRows,
     discardedRows,
+    discardedMetadataByRow,
     view,
     onViewChange,
     onRestore,
@@ -97,6 +98,7 @@ export function IntakePanel() {
 
           <IntakePanelBody
             appliedMetadataByRow={appliedMetadataByRow}
+            discardedMetadataByRow={discardedMetadataByRow}
             discardedRows={discardedRows}
             editableRows={editableRows}
             errorMessage={errorMessage}

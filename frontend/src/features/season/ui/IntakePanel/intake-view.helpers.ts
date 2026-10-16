@@ -1,4 +1,19 @@
+import type { SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
 import type { IntakeMode, IntakeView } from './intake-panel.types';
+
+/**
+ * Names the match status a discarded row returns to when restored, the same
+ * derivation the backend's restore uses (the previous status is not stored): a
+ * matched page wins, then candidates, otherwise the row is pending again.
+ * @param row The discarded row.
+ * @returns The status the row will show once restored.
+ */
+export function getRestoredMatchStatus(row: SeasonAnimeRow): string {
+  if (row.matchedSlug !== '') {
+    return 'matched';
+  }
+  return row.candidates.length > 0 ? 'ambiguous' : 'pending';
+}
 
 /**
  * Resolves the view the panel shows. The Discarded view exists only in List mode

@@ -14,12 +14,14 @@ describe('useIntakePanel discarded rows', () => {
 
   it('keeps discarded rows apart, restores one, and returns to the active rows once none is left', async () => {
     const active = seasonRow({ id: 'a', rawName: 'A' });
-    const discarded = seasonRow({ id: 'd', rawName: 'D', matchStatus: 'discarded', matchedSlug: 'https://jkanime.net/d/' });
+    const discarded = seasonRow({ id: 'd', rawName: 'D', matchStatus: 'discarded', matchedSlug: 'https://jkanime.net/d/', metadata: { kind: 2, totalEpisodes: 12 } });
     const getSeasonAnimes = vi.fn().mockResolvedValue([active, discarded]);
     const source = createSource({ getSeasonAnimes });
     const { result } = renderHook(() => useIntakePanel(source));
     await waitFor(() => expect(result.current.discardedRows.map((row) => row.id)).toEqual(['d']));
     expect(result.current.editableRows.map((row) => row.id)).toEqual(['a']);
+    expect(Object.keys(result.current.discardedMetadataByRow)).toEqual(['d']);
+    expect(result.current.discardedMetadataByRow.d).toMatchObject({ totalEpisodes: '12' });
 
     act(() => {
       result.current.onViewChange('discarded');

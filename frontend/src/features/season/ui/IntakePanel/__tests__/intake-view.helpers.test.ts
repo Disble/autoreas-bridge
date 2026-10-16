@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
-import { narrowIntakeView, resolveIntakeView } from '../intake-view.helpers';
+import { getRestoredMatchStatus, narrowIntakeView, resolveIntakeView } from '../intake-view.helpers';
+import { seasonRow } from './intake-panel.test-support';
+
+describe('getRestoredMatchStatus', () => {
+  it.each([
+    { scenario: 'a matched page', row: { matchedSlug: 'https://jkanime.net/x/', candidates: [{ title: 'X', pageUrl: 'p', score: 0.9 }] }, expected: 'matched' },
+    { scenario: 'candidates only', row: { candidates: [{ title: 'X', pageUrl: 'p', score: 0.9 }] }, expected: 'ambiguous' },
+    { scenario: 'nothing found', row: {}, expected: 'pending' },
+  ] as const)('restores a discarded row with $scenario as $expected', ({ row, expected }) => {
+    expect(getRestoredMatchStatus(seasonRow({ ...row, matchStatus: 'discarded' }))).toBe(expected);
+  });
+});
 
 describe('resolveIntakeView', () => {
   it.each([

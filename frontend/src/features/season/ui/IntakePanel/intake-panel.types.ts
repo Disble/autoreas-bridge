@@ -159,6 +159,8 @@ export interface IntakePanelBodyProps {
   readonly view: IntakeView;
   /** The discarded rows, shown only in the Discarded view. */
   readonly discardedRows: readonly SeasonAnimeRow[];
+  /** The metadata each discarded row stored, for its cover and summary line. */
+  readonly discardedMetadataByRow: Readonly<Record<string, IntakeMetadataPatch | undefined>>;
   /** Brings one discarded row back to the active intake. */
   readonly onRestore: (rowId: string) => void;
 }
@@ -201,6 +203,10 @@ export interface IntakeViewToggleProps {
 
 /** Props for one row of the Discarded view. */
 export interface IntakeDiscardedRowProps {
+  /** The discarded row. */
   readonly row: SeasonAnimeRow;
+  /** The metadata the row stored, for its cover and summary line. */
+  readonly heldMetadata: IntakeMetadataPatch | undefined;
+  /** Brings this row back to the active intake. */
   readonly onRestore: () => void;
 }

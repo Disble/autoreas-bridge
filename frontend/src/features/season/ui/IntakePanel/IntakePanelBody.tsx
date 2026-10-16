@@ -33,7 +33,12 @@ export function IntakePanelBody(props: Readonly<IntakePanelBodyProps>) {
     return (
       <ul className="flex flex-col gap-2">
         {props.discardedRows.map((row) => (
-          <IntakeDiscardedRow key={row.id} row={row} onRestore={() => props.onRestore(row.id)} />
+          <IntakeDiscardedRow
+            key={row.id}
+            heldMetadata={props.discardedMetadataByRow[row.id]}
+            row={row}
+            onRestore={() => props.onRestore(row.id)}
+          />
         ))}
       </ul>
     );

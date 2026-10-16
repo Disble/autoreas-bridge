@@ -77,6 +77,7 @@ export function useIntakePanel(
     onRawChange: modes.onRawChange,
     editableRows: rows.editable,
     discardedRows: rows.discarded,
+    discardedMetadataByRow: metadata.discardedMetadataByRow,
     view: view.view,
     onViewChange: view.onViewChange,
     onRestore: rowActions.onRestore,
