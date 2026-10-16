@@ -22,7 +22,7 @@ func TestApplyAnimeEditorScheduleMovesBanGDreamSayonaraLaraAndYaniNekoToVistoAnd
 	// anymore (ADR-55-3), so there is no backing file to seed here.
 	query := anime.NewQueryService(store)
 	publisher := &runtimeSchedulePublisher{}
-	service := anime.NewScheduleService(query, &stubAppUpdateWriter{})
+	service := anime.NewScheduleService(query, &stubAppCommittedPublisher{})
 	service.SetDeps(anime.WriteServiceDeps{Publisher: publisher})
 	app := &App{
 		ctx:                      context.Background(),

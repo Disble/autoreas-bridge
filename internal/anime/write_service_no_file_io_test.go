@@ -12,17 +12,16 @@ import (
 // the bridge-native-persistence spec's "write patch finalizes to
 // anime_snapshots with zero file I/O" scenario.
 //
-// SDD-55 Slice A (ADR-55-1) proved this by wiring a no-op AppendLine that
-// still got exercised. SDD-55 Slice B goes further: the Append/FilePath
-// write-through-writer port is deleted entirely (ADR-55-3) -- persist()
-// finalizes straight into SQLite and never calls the writer at all anymore.
-// This double fails the test outright if anything ever asks it for a real
-// file path or invokes it.
+// SDD-55 Slice B deleted the file-append writer port (ADR-55-3), and the queued
+// writer that outlived it is gone too: the service receives only a committed
+// publisher, so there is no writer left that could touch a file. The write
+// must finalize into anime_snapshots and be announced exactly once, as the
+// create it is, by the outbox drain.
 func TestWriteServiceCreateAnimeFinalizesToSnapshotStoreWithZeroFileIO(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	writer := &fileIOAssertingWriter{t: t}
-	service := anime.NewWriteService(store, writer)
+	publisher := &stubCommittedPublisher{}
+	service := anime.NewWriteService(store, publisher)
 	service.SetIDGen(func() string { return "zero-file-io-anime" })
 
 	id, err := service.CreateAnime(ctx, api.AnimeCreate{
@@ -42,21 +41,10 @@ func TestWriteServiceCreateAnimeFinalizesToSnapshotStoreWithZeroFileIO(t *testin
 	if len(snapshot.CanonicalJSON) == 0 {
 		t.Fatal("expected the write to finalize a canonical snapshot into anime_snapshots")
 	}
-	if writer.requestWriteCalled {
-		t.Fatal("expected zero writer invocations: persist() finalizes straight into SQLite (ADR-55-1/ADR-55-3)")
+	if len(publisher.published) != 1 {
+		t.Fatalf("expected the create to be announced once, got %d events", len(publisher.published))
 	}
-}
-
-// fileIOAssertingWriter is a Writer double that fails the test outright if
-// anything ever calls it or asks it for a real file path.
-type fileIOAssertingWriter struct {
-	t                  *testing.T
-	requestWriteCalled bool
-}
-
-func (w *fileIOAssertingWriter) RequestWrite(context.Context, string, []byte) error {
-	w.t.Helper()
-	w.requestWriteCalled = true
-	w.t.Fatal("unexpected RequestWrite call: persist() must never route through the writer anymore")
-	return nil
+	if event := publisher.published[0]; event.AnimeID != id || event.ChangeType != "create" {
+		t.Fatalf("expected a create event for %q, got %#v", id, event)
+	}
 }

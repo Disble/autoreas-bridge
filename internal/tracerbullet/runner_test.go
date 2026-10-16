@@ -44,7 +44,7 @@ func TestRunnerIgnoresDifferentEventNamesForWebSocketTrace(t *testing.T) {
 	runner := NewRunner(bus, sink)
 
 	runner.StartSubscriptions()
-	bus.Publish(events.AnimeUpdateRequestedEvent{AnimeID: "tablet"})
+	bus.Publish(events.DownloadRunFinishedEvent{RunID: "tablet"})
 
 	for _, msg := range sink.Messages() {
 		if strings.Contains(msg, "websocket:") {

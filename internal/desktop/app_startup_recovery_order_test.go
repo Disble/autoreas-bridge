@@ -11,6 +11,7 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/anime/store"
+	"autoreas-bridge/internal/events"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
@@ -51,18 +52,17 @@ func TestAppStartupRecoversStagedWritesBeforeEvents(t *testing.T) {
 		t.Fatalf("stage startup operation: %v", err)
 	}
 	order := &startupRecoveryOrder{db: db, operationID: "startup-operation"}
-	writer := &startupRecoveryWriter{order: order}
+	publisher := &startupRecoveryPublisher{order: order}
 	app := newAppTestApp(t)
 	app.bootstrapBridgeDB = func() (*sql.DB, error) { return db, nil }
-	app.newUpdateWriter = func(anime.UpdateWriterConfig) anime.UpdateWriter { return writer }
+	app.newCommittedPublisher = func(events.Bus) anime.CommittedPublisher { return publisher }
 	app.startup(ctx)
 	if app.startupErr != nil {
 		t.Fatalf("startup: %v", app.startupErr)
 	}
-	want := []string{
-		"writer-started",
-		"event-after-committed-pending1",
-	}
+	// Recovery publishes once, after the staged write committed and while its
+	// outbox row is still pending: the row is marked only after the publish.
+	want := []string{"event-after-committed-pending1"}
 	if got := order.values(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("startup recovery order mismatch:\nwant %v\n got %v", want, got)
 	}
@@ -79,11 +79,9 @@ type startupRecoveryOrder struct {
 func (o *startupRecoveryOrder) record(prefix string) {
 	status := ""
 	_ = o.db.QueryRow(`SELECT status FROM anime_write_operations WHERE operation_id = ?`, o.operationID).Scan(&status)
-	if prefix != "writer-started" {
-		pending := -1
-		_ = o.db.QueryRow(`SELECT COUNT(*) FROM anime_changed_outbox WHERE status = 'pending'`).Scan(&pending)
-		prefix = fmt.Sprintf("%s-%s-pending%d", prefix, status, pending)
-	}
+	pending := -1
+	_ = o.db.QueryRow(`SELECT COUNT(*) FROM anime_changed_outbox WHERE status = 'pending'`).Scan(&pending)
+	prefix = fmt.Sprintf("%s-%s-pending%d", prefix, status, pending)
 	o.mu.Lock()
 	o.steps = append(o.steps, prefix)
 	o.mu.Unlock()
@@ -96,14 +94,12 @@ func (o *startupRecoveryOrder) values() []string {
 	return append([]string(nil), o.steps...)
 }
 
-type startupRecoveryWriter struct {
+// startupRecoveryPublisher records the persistence state each time startup
+// recovery publishes a drained outbox event.
+type startupRecoveryPublisher struct {
 	order *startupRecoveryOrder
 }
 
-func (w *startupRecoveryWriter) StartAsync(context.Context)                       { w.order.record("writer-started") }
-func (*startupRecoveryWriter) Wait()                                              {}
-func (*startupRecoveryWriter) Err() error                                         { return nil }
-func (*startupRecoveryWriter) RequestWrite(context.Context, string, []byte) error { return nil }
-func (w *startupRecoveryWriter) PublishCommitted(anime.ChangedOutboxEvent) {
-	w.order.record("event-after")
+func (p *startupRecoveryPublisher) PublishCommitted(anime.ChangedOutboxEvent) {
+	p.order.record("event-after")
 }

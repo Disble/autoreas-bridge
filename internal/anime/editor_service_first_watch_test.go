@@ -56,7 +56,7 @@ func assertEditorSaveFirstWatchPremiere(t *testing.T, seed string, patch anime.E
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", seed, 1000)
-	service := anime.NewEditorService(store, &stubAnimeWriter{})
+	service := anime.NewEditorService(store, &stubCommittedPublisher{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
 	if _, err := service.Save(ctx, anime.SaveAnimeEditorCommand{AnimeID: "anime-editor", BaseModifiedAt: 1000, Patch: patch}); err != nil {

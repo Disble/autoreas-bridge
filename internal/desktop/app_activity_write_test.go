@@ -41,7 +41,7 @@ func TestActivityAnimeWriteServiceRecordsMobilePatch(t *testing.T) {
 	store := bridgeSync.NewAnimeSnapshotStore(db)
 	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":1,"status":0,"active":true}`, 1000)
 
-	writer := anime.NewWriteService(store, &stubAppUpdateWriter{})
+	writer := anime.NewWriteService(store, &stubAppCommittedPublisher{})
 	recorder := activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(db))}
 	watchRecorder := &stubWatchRecorder{}
 	service := activityAnimeWriteService{
@@ -122,7 +122,7 @@ func TestActivityAnimeWriteServiceRecordsMobileSoftDelete(t *testing.T) {
 	store := bridgeSync.NewAnimeSnapshotStore(db)
 	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":1,"status":0,"active":true}`, 1000)
 
-	writer := anime.NewWriteService(store, &stubAppUpdateWriter{})
+	writer := anime.NewWriteService(store, &stubAppCommittedPublisher{})
 	recorder := activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(db))}
 	service := activityAnimeWriteService{
 		query:    anime.NewQueryService(store),
@@ -162,7 +162,7 @@ func TestActivityAnimeWriteServiceRecordsMobileRepeat(t *testing.T) {
 	store := bridgeSync.NewAnimeSnapshotStore(db)
 	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":10.5,"status":1,"active":false,"createdAt":1600000000000}`, 1000)
 
-	writer := anime.NewWriteService(store, &stubAppUpdateWriter{})
+	writer := anime.NewWriteService(store, &stubAppCommittedPublisher{})
 	recorder := activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(db))}
 	watchRecorder := &stubWatchRecorder{}
 	service := activityAnimeWriteService{
@@ -302,7 +302,7 @@ func TestActivityAnimeWriteServiceDerivesFirstWatchPremiereOnMobileProgress(t *t
 	store := bridgeSync.NewAnimeSnapshotStore(db)
 	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":0,"status":0,"active":true}`, 1000)
 
-	writer := anime.NewWriteService(store, &stubAppUpdateWriter{})
+	writer := anime.NewWriteService(store, &stubAppCommittedPublisher{})
 	writer.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 	service := activityAnimeWriteService{
 		query:    anime.NewQueryService(store),

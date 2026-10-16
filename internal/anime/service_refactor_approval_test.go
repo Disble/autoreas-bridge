@@ -13,7 +13,7 @@ func TestWriteServicePatchAnimePreservesLegacyFieldsAcrossDayPatch(t *testing.T)
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-preserve", `{"id":"anime-preserve","name":"Keep","episodesWatched":2,"status":2,"sourceUrl":"Netflix","folder":"C:/Anime/Keep","day":"Lunes","order":1}`)
 
-	service := anime.NewWriteService(store, &stubAnimeWriter{})
+	service := anime.NewWriteService(store, &stubCommittedPublisher{})
 
 	if _, err := service.PatchAnime(ctx, "anime-preserve", api.AnimePatch{Dias: []string{"Martes", "Jueves"}, Base: new(int64(0))}); err != nil {
 		t.Fatalf("patch anime: %v", err)

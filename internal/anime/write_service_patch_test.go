@@ -16,7 +16,7 @@ func TestWriteServicePatchAnimePublishesMergedSnapshotWithFractionalProgress(t *
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Cowboy Bebop","episodesWatched":2,"status":2,"totalEpisodes":26,"active":true,"sourceUrl":"netflix"}`)
 
-	service := anime.NewWriteService(store, &stubAnimeWriter{})
+	service := anime.NewWriteService(store, &stubCommittedPublisher{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
 	patch := api.AnimePatch{NroCapVisto: new(10.5), Base: new(int64(0))}
@@ -53,7 +53,7 @@ func TestWriteServicePatchAnimeForcesEstadoFinalizado(t *testing.T) {
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":11,"status":2,"totalEpisodes":12}`)
 
-	service := anime.NewWriteService(store, &stubAnimeWriter{})
+	service := anime.NewWriteService(store, &stubCommittedPublisher{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000456).UTC() })
 
 	patch := api.AnimePatch{NroCapVisto: new(float64(12)), Base: new(int64(0))}
@@ -76,7 +76,7 @@ func TestWriteServicePatchAnimeUsesClientFechaUltCapVistoWhenProvided(t *testing
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"One Piece","episodesWatched":661,"status":2,"totalEpisodes":1200,"active":true}`)
 
-	service := anime.NewWriteService(store, &stubAnimeWriter{})
+	service := anime.NewWriteService(store, &stubCommittedPublisher{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000999).UTC() })
 
 	clientTs := int64(1710000000123)
@@ -101,7 +101,7 @@ func TestWriteServicePatchAnimeStampsModifiedAtOnConfirmedSnapshot(t *testing.T)
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"totalEpisodes":12}`, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewWriteService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
@@ -200,7 +200,7 @@ func assertPatchFirstWatchPremiere(t *testing.T, seed string, patch api.AnimePat
 	// A non-UTC clock proves the derived instant is the observation instant,
 	// not the wall location it was read in.
 	now := time.UnixMilli(1710000000123).In(time.FixedZone("UTC-05", -5*60*60))
-	service := anime.NewWriteService(store, &stubAnimeWriter{})
+	service := anime.NewWriteService(store, &stubCommittedPublisher{})
 	service.SetNow(func() time.Time { return now })
 
 	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
@@ -232,7 +232,7 @@ func TestWriteServicePatchAnimeIgnoresExplicitPremiere(t *testing.T) {
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Fresh","episodesWatched":0,"status":0,"active":true}`)
 
-	service := anime.NewWriteService(store, &stubAnimeWriter{})
+	service := anime.NewWriteService(store, &stubCommittedPublisher{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
 	result, err := service.PatchAnime(ctx, "anime-1", api.AnimePatch{FechaEstreno: new(int64(1500000000000))})
@@ -271,7 +271,7 @@ func TestWriteServicePatchAnimeStampsLastWatchedOnExplicitChanges(t *testing.T) 
 			ctx := context.Background()
 			store := openAnimeServiceTestStore(t)
 			seedAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Fresh","episodesWatched":0,"status":0,"active":true}`)
-			service := anime.NewWriteService(store, &stubAnimeWriter{})
+			service := anime.NewWriteService(store, &stubCommittedPublisher{})
 			now := time.UnixMilli(1710000000123).UTC()
 			service.SetNow(func() time.Time { return now })
 
@@ -299,7 +299,7 @@ func TestWriteServicePatchAnimeStampsLastWatchedOnExplicitChanges(t *testing.T) 
 func TestWriteServicePatchAnimeDoesNotDeriveFirstWatchForASynthesizedRecord(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	service := anime.NewWriteService(store, &stubAnimeWriter{})
+	service := anime.NewWriteService(store, &stubCommittedPublisher{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
 	result, err := service.PatchAnime(ctx, "anime-new", api.AnimePatch{NroCapVisto: new(5.0)})
@@ -333,7 +333,7 @@ func TestWriteServicePatchAnimeUsesLatestConfirmedStateAcrossSequentialWrites(t 
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"totalEpisodes":12,"days":[{"day":"Lunes","order":1}]}`)
 
-	service := anime.NewWriteService(store, &stubAnimeWriter{})
+	service := anime.NewWriteService(store, &stubCommittedPublisher{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
 	if _, err := service.PatchAnime(ctx, "anime-1", api.AnimePatch{NroCapVisto: new(float64(5)), Base: new(int64(0))}); err != nil {

@@ -108,12 +108,12 @@ func TestStartupWiresActivityRecorderIntoEpisodeService(t *testing.T) {
 	store := bridgeSync.NewAnimeSnapshotStore(db)
 	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":1,"status":0,"active":true}`, 1000)
 
-	writer := &stubAppUpdateWriter{}
+	writer := &stubAppCommittedPublisher{}
 	app := newAppTestApp(t)
 	app.ctx = ctx
 	app.bridgeDB = db
 	app.animeQuery = anime.NewQueryService(store)
-	app.animeUpdateWriter = writer
+	app.animeChangedPublisher = writer
 	app.wireEpisodeService(bridgeSync.NewConflictStore(db))
 
 	result := app.AdjustWatchedEpisodes("anime-1", 1, 1000)

@@ -37,7 +37,7 @@ func TestSaveAnimeEditorDelegatesToEditorService(t *testing.T) {
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
 	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2}`, 100)
-	writer := &stubAppUpdateWriter{}
+	writer := &stubAppCommittedPublisher{}
 	service := anime.NewEditorService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(200).UTC() })
 	app := &App{ctx: context.Background(), animeEditorWrite: service}
@@ -90,7 +90,7 @@ func TestSaveAnimeEditorReturnsErrorOutcomeForValidationFailure(t *testing.T) {
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
 	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2}`, 100)
-	writer := &stubAppUpdateWriter{}
+	writer := &stubAppCommittedPublisher{}
 	service := anime.NewEditorService(store, writer)
 	app := &App{ctx: context.Background(), animeEditorWrite: service, animeEditorQuery: anime.NewQueryService(store)}
 	blank := " "
@@ -104,7 +104,7 @@ func TestSaveAnimeEditorReturnsConflictWithRefreshedRecord(t *testing.T) {
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
 	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2}`, 100)
-	service := anime.NewEditorService(store, &stubAppUpdateWriter{})
+	service := anime.NewEditorService(store, &stubAppCommittedPublisher{})
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: bridgeSync.NewConflictStore(db)})
 	app := &App{ctx: context.Background(), animeEditorWrite: service, animeEditorQuery: anime.NewQueryService(store)}
 	name := "Stale"
@@ -118,7 +118,7 @@ func TestSaveAnimeEditorRejectsMalformedNumericAndForbiddenOwnershipWithExplicit
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
 	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2}`, 100)
-	service := anime.NewEditorService(store, &stubAppUpdateWriter{})
+	service := anime.NewEditorService(store, &stubAppCommittedPublisher{})
 	app := &App{ctx: context.Background(), animeEditorWrite: service, animeEditorQuery: anime.NewQueryService(store)}
 	requests := []string{
 		`{"animeId":"anime-1","baseModifiedAt":100,"patch":{"totalEpisodes":{"present":true,"value":"twelve"}}}`,
@@ -143,7 +143,7 @@ func TestDeactivateAnimeReturnsAppliedAuthority(t *testing.T) {
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
 	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"active":true}`, 100)
-	service := anime.NewEditorService(store, &stubAppUpdateWriter{})
+	service := anime.NewEditorService(store, &stubAppCommittedPublisher{})
 	service.SetNow(func() time.Time { return time.UnixMilli(200).UTC() })
 	app := &App{ctx: context.Background(), animeEditorWrite: service, animeEditorQuery: anime.NewQueryService(store)}
 	got := app.DeactivateAnime("anime-1", 100)
@@ -158,7 +158,7 @@ func TestApplyAnimeEditorScheduleReturnsConflictWithRefreshedBoard(t *testing.T)
 	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"active":true,"days":[{"day":"Lunes","order":1}]}`, 100)
 	query := anime.NewQueryService(store)
 	app := &App{
-		ctx: context.Background(), animeEditorScheduleWrite: anime.NewScheduleService(query, &stubAppUpdateWriter{}),
+		ctx: context.Background(), animeEditorScheduleWrite: anime.NewScheduleService(query, &stubAppCommittedPublisher{}),
 		animeEditorScheduleQuery: anime.NewScheduleQueryService(query),
 	}
 	got := app.ApplyAnimeEditorSchedule(ApplyAnimeScheduleDraftCommandDTO{BoardModifiedAt: 99, Entries: []ApplyAnimeScheduleDraftEntryDTO{{AnimeID: "anime-1", BaseModifiedAt: 100, Placements: []contracts.MobileAnimeDay{{Day: "Viernes", Order: 1}}}}})
@@ -173,7 +173,7 @@ func TestApplyAnimeEditorScheduleReturnsValidationErrorWithRefreshedBoard(t *tes
 	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"active":true,"days":[{"day":"Lunes","order":1}]}`, 100)
 	query := anime.NewQueryService(store)
 	app := &App{
-		ctx: context.Background(), animeEditorScheduleWrite: anime.NewScheduleService(query, &stubAppUpdateWriter{}),
+		ctx: context.Background(), animeEditorScheduleWrite: anime.NewScheduleService(query, &stubAppCommittedPublisher{}),
 		animeEditorScheduleQuery: anime.NewScheduleQueryService(query),
 	}
 	got := app.ApplyAnimeEditorSchedule(ApplyAnimeScheduleDraftCommandDTO{BoardModifiedAt: 100, Entries: []ApplyAnimeScheduleDraftEntryDTO{{AnimeID: "anime-1", BaseModifiedAt: 100, Placements: []contracts.MobileAnimeDay{{Day: "Unsafe", Order: 1}}}}})
@@ -188,7 +188,7 @@ func TestApplyAnimeEditorScheduleRejectsMalformedSundayPayloadWithoutWrite(t *te
 	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"active":true,"days":[{"day":"Domingo","order":1}]}`, 100)
 	query := anime.NewQueryService(store)
 	app := &App{
-		ctx: context.Background(), animeEditorScheduleWrite: anime.NewScheduleService(query, &stubAppUpdateWriter{}),
+		ctx: context.Background(), animeEditorScheduleWrite: anime.NewScheduleService(query, &stubAppCommittedPublisher{}),
 		animeEditorScheduleQuery: anime.NewScheduleQueryService(query),
 	}
 

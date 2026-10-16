@@ -45,8 +45,3 @@ type SnapshotStore interface {
 type EventPublisher interface {
 	Publish(event events.Event)
 }
-
-// WarningLogger records non-fatal boundary warnings.
-type WarningLogger interface {
-	Warnf(format string, args ...any)
-}

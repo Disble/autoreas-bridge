@@ -3,8 +3,6 @@ package events
 const (
 	// EventNameAnimeChanged identifies anime change events.
 	EventNameAnimeChanged = "anime.changed"
-	// EventNameAnimeUpdateRequested identifies requested anime write events.
-	EventNameAnimeUpdateRequested = "anime.update_requested"
 	// EventNameAnimeWriteFailed identifies anime write failure events.
 	EventNameAnimeWriteFailed = "anime.write.failed"
 	// EventNameSyncRequested identifies sync-request events.
@@ -116,18 +114,6 @@ type EpisodeDurationsChangedEvent struct {
 // Name returns the bus event name for EpisodeDurationsChangedEvent.
 func (e EpisodeDurationsChangedEvent) Name() string {
 	return EventNameEpisodeDurationsChanged
-}
-
-// AnimeUpdateRequestedEvent requests a write-back into the legacy anime store.
-type AnimeUpdateRequestedEvent struct {
-	AnimeID       string
-	Payload       []byte
-	CorrelationID string
-}
-
-// Name returns the bus event name for AnimeUpdateRequestedEvent.
-func (e AnimeUpdateRequestedEvent) Name() string {
-	return EventNameAnimeUpdateRequested
 }
 
 // AnimeWriteFailedEvent reports a failed anime write attempt.

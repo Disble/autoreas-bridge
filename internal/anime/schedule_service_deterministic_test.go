@@ -44,7 +44,7 @@ func newDeterministicScheduleTestEnv(t *testing.T) deterministicScheduleTestEnv 
 		seedAnimeSnapshotWithModifiedAt(t, store, animeIDFromSchedulePayload(t, payload), payload, int64(101+index))
 	}
 	publisher := &editorRecordingPublisher{}
-	service := anime.NewScheduleService(anime.NewQueryService(store), &stubAnimeWriter{})
+	service := anime.NewScheduleService(anime.NewQueryService(store), &stubCommittedPublisher{})
 	service.SetDeps(anime.WriteServiceDeps{Publisher: publisher})
 	return deterministicScheduleTestEnv{store: store, service: service, publisher: publisher}
 }

@@ -14,7 +14,7 @@ func TestEditorServiceSavePublishesExactlyOnceOnlyAfterAcceptedWrite(t *testing.
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":2,"active":true}`, 1000)
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	publisher := &editorRecordingPublisher{}
 	service := anime.NewEditorService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(2000).UTC() })
@@ -52,7 +52,7 @@ func TestEditorServiceSaveInfrastructureFailureDoesNotPublish(t *testing.T) {
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":2,"active":true}`, 1000)
 	failing := &failingFinalizeStore{WriteBaseStore: store.WriteBaseStore(), err: errors.New("disk unavailable")}
 	publisher := &editorRecordingPublisher{}
-	service := anime.NewEditorService(store, &stubAnimeWriter{})
+	service := anime.NewEditorService(store, &stubCommittedPublisher{})
 	service.SetDeps(anime.WriteServiceDeps{Publisher: publisher, WriteBases: failing})
 	name := "Frieren Beyond"
 	if _, err := service.Save(ctx, anime.SaveAnimeEditorCommand{AnimeID: "anime-editor", BaseModifiedAt: 1000, Patch: anime.EditorPatch{Name: &name}}); err == nil {

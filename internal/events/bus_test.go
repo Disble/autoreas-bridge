@@ -59,15 +59,15 @@ func TestBusUnsubscribeStopsOnlyRemovedSubscriber(t *testing.T) {
 	removed := make(chan Event, 1)
 	active := make(chan Event, 1)
 
-	unsubscribe := bus.Subscribe(EventNameAnimeUpdateRequested, func(event Event) {
+	unsubscribe := bus.Subscribe(EventNameAnimeChanged, func(event Event) {
 		removed <- event
 	})
-	bus.Subscribe(EventNameAnimeUpdateRequested, func(event Event) {
+	bus.Subscribe(EventNameAnimeChanged, func(event Event) {
 		active <- event
 	})
 
 	unsubscribe()
-	bus.Publish(AnimeUpdateRequestedEvent{AnimeID: "one-piece"})
+	bus.Publish(AnimeChangedEvent{AnimeID: "one-piece"})
 
 	select {
 	case event := <-removed:
@@ -77,9 +77,9 @@ func TestBusUnsubscribeStopsOnlyRemovedSubscriber(t *testing.T) {
 
 	select {
 	case event := <-active:
-		update, ok := event.(AnimeUpdateRequestedEvent)
+		update, ok := event.(AnimeChangedEvent)
 		if !ok {
-			t.Fatalf("expected AnimeUpdateRequestedEvent, got %T", event)
+			t.Fatalf("expected AnimeChangedEvent, got %T", event)
 		}
 
 		if update.AnimeID != "one-piece" {

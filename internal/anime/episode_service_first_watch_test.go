@@ -17,7 +17,7 @@ func TestEpisodeServiceRepeatThenFirstWatchDerivesFreshPremiere(t *testing.T) {
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":5,"status":1,"active":true,"premieredAt":1600000000000}`, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	writeService := anime.NewWriteService(store, writer)
 	freshWatch := int64(1710000000777)
 	clock := int64(1710000000000)

@@ -25,7 +25,7 @@ func TestEpisodeServiceAdjustWatchedEpisodesWritesProgressAndRecordsActivity(t *
 		1000,
 	)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	writeService := anime.NewWriteService(store, writer)
 	writeService.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 	activityRecorder := &stubEpisodeActivityRecorder{}
@@ -126,7 +126,7 @@ func assertRecordWatchLoggingGuard(t *testing.T, watchErr error, wireLogger bool
 		1000,
 	)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	writeService := anime.NewWriteService(store, writer)
 	writeService.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 	deps := anime.EpisodeServiceDeps{
@@ -176,7 +176,7 @@ func TestEpisodeServiceAdjustWatchedEpisodesRejectsBlockedStates(t *testing.T) {
 		1000,
 	)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
 		Query:  anime.NewQueryService(store),
 		Writer: anime.NewWriteService(store, writer),
@@ -207,7 +207,7 @@ func TestEpisodeServiceAdjustWatchedEpisodesRejectsNegativeProgress(t *testing.T
 		1000,
 	)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
 		Query:  anime.NewQueryService(store),
 		Writer: anime.NewWriteService(store, writer),
@@ -238,7 +238,7 @@ func TestEpisodeServiceSetAnimeDaysWritesDias(t *testing.T) {
 		1000,
 	)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	watchRecorder := &stubWatchRecorder{}
 	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
 		Query:  anime.NewQueryService(store),
@@ -280,7 +280,7 @@ func TestEpisodeServiceSetAnimeStateWritesStateAndRecordsActivity(t *testing.T) 
 		1000,
 	)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	writeService := anime.NewWriteService(store, writer)
 	activityRecorder := &stubEpisodeActivityRecorder{}
 	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
@@ -335,7 +335,7 @@ func TestEpisodeServiceSoftDeleteAnimeWritesInactiveDeletionDateAndRecordsActivi
 		1000,
 	)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	writeService := anime.NewWriteService(store, writer)
 	activityRecorder := &stubEpisodeActivityRecorder{}
 	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{

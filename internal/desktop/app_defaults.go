@@ -75,12 +75,9 @@ func (a *App) ensureAnimeRuntimeDependencies() {
 	if a.bootstrapBridgeDB == nil {
 		a.bootstrapBridgeDB = bridgeSync.BootstrapBridgeDB
 	}
-	if a.newSelfEchoRegistry == nil {
-		a.newSelfEchoRegistry = anime.NewSelfEchoRegistry
-	}
-	if a.newUpdateWriter == nil {
-		a.newUpdateWriter = func(config anime.UpdateWriterConfig) anime.UpdateWriter {
-			return anime.NewUpdateWriter(config)
+	if a.newCommittedPublisher == nil {
+		a.newCommittedPublisher = func(bus events.Bus) anime.CommittedPublisher {
+			return anime.NewCommittedPublisher(bus)
 		}
 	}
 }
