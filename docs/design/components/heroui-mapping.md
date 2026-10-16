@@ -29,7 +29,8 @@ for free. Rebuilding them by hand is a regression, not a redesign.
 | Data grid / log table | `Table` (`.ScrollContainer/.Content/.Header/.Column/.Body/.Row/.Cell`); see `tables.md` | raw `<table>` (except the loading placeholder, `patterns/loading-empty-error.md`) |
 | Card / panel container | `Card` (`.Content`) or `Surface` (`variant="default\|secondary\|tertiary"`) | a bordered `<div>` |
 | Inline status banner | `Alert` (`status="default\|accent\|success\|warning\|danger"`, `.Indicator/.Content/.Title/.Description`) | a colored `<div>` |
-| Action button | an icon-only `Button` (`isIconOnly`, `aria-label`) inside a `Tooltip` that names the action (see below) | a text-only button with no icon |
+| Secondary or per-row action | an icon-only `Button` (`isIconOnly`, `aria-label`) inside a `Tooltip` that names the action (see below) | a text-only button repeated on every row |
+| Primary action (Create, Save, Submit) | a `Button` with its text, an icon optional | hiding the main action behind an icon |
 | Dismiss / close | `CloseButton` (`onPress`, `aria-label`) | `<button>×` |
 | Tag / badge | `Chip variant="soft"` (`chips.md`) | a styled `<span>`; a bordered or outlined pill |
 | Scrollable region | `ScrollShadow` or `Table.ScrollContainer` | an `overflow-auto` div, unless you need raw scroll control |
@@ -44,8 +45,12 @@ for free. Rebuilding them by hand is a regression, not a redesign.
 
 ## Icon-only buttons with a tooltip
 
-This project prefers an icon-only button with a tooltip over a button with text and no icon. Icons
-keep action groups compact and rows aligned, and the tooltip carries the words.
+This is a preference with nuance, not an absolute rule. Secondary actions, especially the ones that
+repeat on every row or sit together in a group (folder, restore, more actions), work better as an
+icon-only button with a tooltip: icons keep the group compact and the rows aligned, and the tooltip
+carries the words. Primary actions keep their text, because the user must find them without
+hovering: Create, Save, Submit, a login button. An icon may sit next to that text. Existing text
+buttons are not converted retroactively; apply this when a surface is designed or touched.
 
 - `Button isIconOnly` with an `aria-label` that names the action and its target
   (`More actions for Dr. Stone`), so screen readers and tests get the full name.

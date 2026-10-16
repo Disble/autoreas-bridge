@@ -3,7 +3,7 @@ name: autoreas-theme
 description: "Design-system fundamentals for the autoreas-bridge frontend, with an index into docs/design for the detail. Use BEFORE building or refactoring ANY UI under frontend/src: which HeroUI v3 component to use instead of hand-rolling divs/buttons/tables, semantic color tokens, chips, the loading/empty/error states, empty-state kinds and the mascot, and mockup fidelity and pricing. Keywords: theme, design system, UI, rebrand, restyle, frontend component, HeroUI, Tailwind, styling, feature UI, empty state, skeleton, mockup."
 metadata:
   author: autoreas-bridge
-  version: "2.1.0"
+  version: "2.1.1"
   scope: project
   updates: living
 ---
@@ -34,9 +34,11 @@ installed package wins over docs: verify exports in `node_modules` when versions
 | Loading | shape-mirroring skeleton in a status region, or `LoadingBars` | a "Loading…" sentence, a lone `Spinner` |
 | Resolved empty | `AirisEmptyState` | a bare "No results" line |
 | Detail pane, nothing selected | `AwaitingSelectionPane` | the mascot, skeleton shapes |
-| Action button | icon-only `Button` (`isIconOnly`, `aria-label`) inside a `Tooltip` naming the action | a text-only button with no icon |
+| Secondary / per-row action | icon-only `Button` (`isIconOnly`, `aria-label`) inside a `Tooltip` naming the action | a text-only button repeated on every row |
+| Primary action (Create, Save) | `Button` with its text, an icon optional | hiding it behind an icon |
 
-Prefer icon-only buttons with a tooltip over text-only buttons (`components/heroui-mapping.md`).
+Secondary actions prefer icon-only buttons with a tooltip; primary actions keep their text. A
+preference, not a retroactive rule (`components/heroui-mapping.md`).
 
 ## 2. Semantic colors, never raw values
 

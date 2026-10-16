@@ -19,7 +19,7 @@ Branch: `feat/intake-discarded-view` from `dev` (`ca9ca9af`). Delivery: `single-
 | T1 | S4 (backend), S6 | inline | done | `50418422`; RED (undefined), GREEN, ditto 6/6 killed; verifier PASS S4/S6 |
 | T2 | S4 (source + store), S5 (discard result) | inline | done | `72b91492`; RED 5 failures; GREEN 71 files / 961 tests; staged mutation 12/14, 2 static-arrow survivors proven killed by hand mutation; verifier PASS S4/S5 |
 | T3 | S1, S2, S3, S4 (UI) | inline | done | `4cb882f0`; RED 9 failures; GREEN 23 files / 257 tests; staged mutation 140/140, 3 ignored (2 static constants, 1 equivalent deps array); verifier PASS S1-S4; footer extracted to IntakePanelFooter after the fallow complexity gate (IntakePanel cognitive 18) |
-| T4 | S5 | inline | done | RED 8 failures + resolver missing; GREEN 64 files / 660 tests (store + notifications); staged mutation 35/35, 1 static constant ignored; verifier PASS S1-S6, full suite 411 files / 4137 tests, render:smoke ok |
+| T4 | S5 | inline | done | `d4e1e8eb`; RED 8 failures + resolver missing; GREEN 64 files / 660 tests (store + notifications); staged mutation 35/35, 1 static constant ignored; verifier PASS S1-S6, full suite 411 files / 4137 tests, render:smoke ok |
 
 Route evidence: no Writer trigger (units are sequential: T2 needs T1's binding, T3/T4 need T2's store action). Per project CLAUDE.md a delegated verify agent runs before each work-unit commit. RDD: off (global).
 
