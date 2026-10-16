@@ -16,6 +16,7 @@ import { useIntakeRowCallbacks } from './use-intake-row-callbacks';
 import { useIntakeRows } from './use-intake-rows';
 import { useIntakeStoreSlice } from './use-intake-store-slice';
 import { useIntakeSyncEffects } from './use-intake-sync-effects';
+import { useIntakeView } from './use-intake-view';
 
 /**
  * useIntakePanel drives the dual-mode intake editor. Raw mode is a local draft
@@ -58,6 +59,7 @@ export function useIntakePanel(
   const rows = useIntakeRows({ store, editor });
   const progress = useIntakeMatchingProgress({ store });
   const metadata = useIntakeMetadataView({ rows, editor });
+  const view = useIntakeView(rows.discarded.length, editor.mode);
   // 6. Callbacks (useCallback in colocated hooks)
   const modes = useIntakeModeCallbacks({ editor, store, source });
   const rowActions = useIntakeRowCallbacks({ store, editor, source });
@@ -74,6 +76,10 @@ export function useIntakePanel(
     rawDraft: editor.rawDraft,
     onRawChange: modes.onRawChange,
     editableRows: rows.editable,
+    discardedRows: rows.discarded,
+    view: view.view,
+    onViewChange: view.onViewChange,
+    onRestore: rowActions.onRestore,
     selected: editor.selected,
     toggleSelect: rowActions.toggleSelect,
     folderOverrides: editor.folderOverrides,

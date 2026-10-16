@@ -10,6 +10,10 @@ export const MATCH_STATUS_LABELS: Readonly<Record<string, string>> = {
   search_failed: 'Search failed',
 };
 
+/** Explains, under the Discard menu item, where a discarded row goes and the two ways back. */
+export const INTAKE_DISCARD_DESCRIPTION = 'Moves it to Discarded. Restore it there, or type the same name in Raw again.';
+/** Accessible name of the Active / Discarded toggle next to the intake title. */
+export const INTAKE_VIEW_TOGGLE_LABEL = 'Intake view';
 /** Placeholder for the intake paste textarea. */
 export const INTAKE_PASTE_PLACEHOLDER = 'One anime name per line…';
 /** Heading shown when the intake list has no rows. */

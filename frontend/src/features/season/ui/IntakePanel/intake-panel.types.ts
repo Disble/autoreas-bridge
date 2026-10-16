@@ -9,6 +9,9 @@ import type { ProviderSearchPort } from './IntakeProviderLookup/intake-provider-
 /** The two intake editing modes: plain-text draft vs rendered rows. */
 export type IntakeMode = 'raw' | 'list';
 
+/** Which rows List mode shows: the active intake or the discarded rows. */
+export type IntakeView = 'active' | 'discarded';
+
 /** Semantic HeroUI chip colors used by the intake status chips. */
 export type IntakeChipColor = 'success' | 'warning' | 'danger' | 'default';
 
@@ -152,4 +155,52 @@ export interface IntakePanelBodyProps {
   readonly onMetadataApplied: (rowId: string, selection: AnimeMetadataSelection) => void;
   readonly onMetadataUndo: (rowId: string) => void;
   readonly onMetadataClear: (rowId: string) => void;
+  /** Which rows List mode shows; the Discarded view lists `discardedRows` instead. */
+  readonly view: IntakeView;
+  /** The discarded rows, shown only in the Discarded view. */
+  readonly discardedRows: readonly SeasonAnimeRow[];
+  /** Brings one discarded row back to the active intake. */
+  readonly onRestore: (rowId: string) => void;
+}
+
+/** Props for the intake card header: the title, the view toggle and the mode buttons. */
+export interface IntakePanelHeaderProps {
+  readonly readOnly: boolean;
+  readonly mode: IntakeMode;
+  readonly switchMode: (mode: IntakeMode) => void;
+  readonly view: IntakeView;
+  readonly activeCount: number;
+  /** The number of discarded rows; the view toggle renders only while it is above zero. */
+  readonly discardedCount: number;
+  /** Receives the pressed toggle key, narrowed by the hook. */
+  readonly onViewChange: (key: string | number) => void;
+}
+
+/** Props for the active intake's action row and counters. */
+export interface IntakePanelFooterProps {
+  readonly readOnly: boolean;
+  readonly editableRowCount: number;
+  readonly unresolvedCount: number;
+  readonly searchFailedCount: number;
+  readonly availabilityPendingCount: number;
+  readonly availableCount: number;
+  /** How many rows are picked for creation. */
+  readonly selectedCount: number;
+  readonly onRunMatching: () => void;
+  readonly onRecheckAvailability: () => void;
+  readonly onCreate: () => void;
+}
+
+/** Props for the Active / Discarded toggle next to the intake title. */
+export interface IntakeViewToggleProps {
+  readonly view: IntakeView;
+  readonly activeCount: number;
+  readonly discardedCount: number;
+  readonly onViewChange: (key: string | number) => void;
+}
+
+/** Props for one row of the Discarded view. */
+export interface IntakeDiscardedRowProps {
+  readonly row: SeasonAnimeRow;
+  readonly onRestore: () => void;
 }

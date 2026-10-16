@@ -1,6 +1,7 @@
 import { Label, TextArea, TextField } from '@heroui/react';
 import seasonAirisArtwork from '../../../../assets/airis-empty-states/season.webp';
 import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
+import { IntakeDiscardedRow } from './IntakeDiscardedRow';
 import { IntakeRow } from './IntakeRow';
 import {
   INTAKE_EMPTY_ACTION_LABEL,
@@ -12,8 +13,8 @@ import type { IntakePanelBodyProps } from './intake-panel.types';
 
 /**
  * IntakePanelBody is the intake card's content switch: the raw-names textarea in
- * Raw mode, the Airis empty state when List mode has no rows and no error, and
- * otherwise the editable row list. Presentation only; `IntakePanel` passes the
+ * Raw mode, the discarded rows in the Discarded view, the Airis empty state when
+ * List mode has no rows and no error, and otherwise the editable row list. Presentation only; `IntakePanel` passes the
  * hook's state down.
  */
 export function IntakePanelBody(props: Readonly<IntakePanelBodyProps>) {
@@ -25,6 +26,16 @@ export function IntakePanelBody(props: Readonly<IntakePanelBodyProps>) {
         <Label className="sr-only">Intake names</Label>
         <TextArea className="border border-dashed border-muted" placeholder={INTAKE_PASTE_PLACEHOLDER} rows={8} />
       </TextField>
+    );
+  }
+
+  if (props.view === 'discarded') {
+    return (
+      <ul className="flex flex-col gap-2">
+        {props.discardedRows.map((row) => (
+          <IntakeDiscardedRow key={row.id} row={row} onRestore={() => props.onRestore(row.id)} />
+        ))}
+      </ul>
     );
   }
 

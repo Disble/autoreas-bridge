@@ -17,6 +17,8 @@ interface RowActionSpies {
   readonly resolveMatch: ReturnType<typeof vi.fn>;
   /** The discard spy. */
   readonly discardName: ReturnType<typeof vi.fn>;
+  /** The restore spy. */
+  readonly restoreName: ReturnType<typeof vi.fn>;
 }
 
 /**
@@ -28,7 +30,8 @@ function createRowSpies(): RowActionSpies {
     runMatching: vi.fn().mockResolvedValue('ok'),
     recheckAvailability: vi.fn().mockResolvedValue('ok'),
     resolveMatch: vi.fn().mockResolvedValue('ok'),
-    discardName: vi.fn().mockResolvedValue('ok'),
+    discardName: vi.fn().mockResolvedValue(true),
+    restoreName: vi.fn().mockResolvedValue(true),
   };
 }
 
@@ -47,6 +50,7 @@ function renderRowCallbacks(source: SeasonSource, spies: RowActionSpies) {
       recheckAvailability: spies.recheckAvailability,
       resolveMatch: spies.resolveMatch,
       discardName: spies.discardName,
+      restoreName: spies.restoreName,
     } as unknown as ReturnType<typeof useIntakeStoreSlice>;
     const callbacks = useIntakeRowCallbacks({ store, editor, source: currentSource });
     return { editor, callbacks };
@@ -90,16 +94,19 @@ describe('useIntakeRowCallbacks', () => {
     expect(spies.resolveMatch).toHaveBeenCalledWith(source, 'sa-1', 'https://jkanime.net/dr-stone/');
   });
 
-  it('discards one row', async () => {
+  it.each([
+    { callback: 'onDiscard', action: 'discardName' },
+    { callback: 'onRestore', action: 'restoreName' },
+  ] as const)('$callback sends one row to $action', async ({ callback, action }) => {
     const spies = createRowSpies();
     const source = createSource();
     const { result } = renderRowCallbacks(source, spies);
 
     await act(async () => {
-      result.current.callbacks.onDiscard('sa-2');
+      result.current.callbacks[callback]('sa-2');
     });
 
-    expect(spies.discardName).toHaveBeenCalledWith(source, 'sa-2');
+    expect(spies[action]).toHaveBeenCalledExactlyOnceWith(source, 'sa-2');
   });
 
   it('opens the matched page in the system browser', () => {
@@ -147,6 +154,9 @@ describe('useIntakeRowCallbacks', () => {
     await act(async () => {
       result.current.callbacks.onDiscard('sa-2');
     });
+    await act(async () => {
+      result.current.callbacks.onRestore('sa-3');
+    });
     act(() => {
       result.current.callbacks.onOpenPage('https://jkanime.net/dr-stone/');
     });
@@ -155,6 +165,7 @@ describe('useIntakeRowCallbacks', () => {
     expect(spies.recheckAvailability).toHaveBeenCalledWith(nextSource);
     expect(spies.resolveMatch).toHaveBeenCalledWith(nextSource, 'sa-1', 'https://jkanime.net/dr-stone/');
     expect(spies.discardName).toHaveBeenCalledWith(nextSource, 'sa-2');
+    expect(spies.restoreName).toHaveBeenCalledWith(nextSource, 'sa-3');
     expect(nextSource.openPage).toHaveBeenCalledWith('https://jkanime.net/dr-stone/');
     expect(firstSource.openPage).not.toHaveBeenCalled();
   });

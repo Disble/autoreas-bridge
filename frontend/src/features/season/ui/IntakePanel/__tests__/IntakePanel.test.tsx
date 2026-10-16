@@ -110,6 +110,10 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     onResolve: vi.fn(),
     onDiscard: vi.fn(),
     onOpenPage: vi.fn(),
+    discardedRows: [],
+    view: 'active',
+    onViewChange: vi.fn(),
+    onRestore: vi.fn(),
     ...overrides,
   };
   mockedUseIntakePanel.mockReturnValue(value);
@@ -152,12 +156,18 @@ describe('IntakePanel', () => {
     expect((textarea as HTMLTextAreaElement).value).toBe('Anime A\nAnime B');
   });
 
-  it('the mode toggle switches to raw', () => {
+  it.each([
+    { mode: 'list', other: 'raw' },
+    { mode: 'raw', other: 'list' },
+  ] as const)('the mode toggle marks $mode as current and switches to $other', ({ mode, other }) => {
     const switchMode = vi.fn();
-    mockHook({ switchMode });
+    mockHook({ mode, switchMode });
     render(<IntakePanel />);
-    fireEvent.click(screen.getByRole('button', { name: 'Raw' }));
-    expect(switchMode).toHaveBeenCalledWith('raw');
+    const label = (key: string) => (key === 'raw' ? 'Raw' : 'List');
+    expect(screen.getByRole('button', { name: label(mode) })).toHaveClass('button--primary');
+    expect(screen.getByRole('button', { name: label(other) })).toHaveClass('button--tertiary');
+    fireEvent.click(screen.getByRole('button', { name: label(other) }));
+    expect(switchMode).toHaveBeenCalledExactlyOnceWith(other);
   });
 
   it('shows an available row with its episode count and a create checkbox', () => {

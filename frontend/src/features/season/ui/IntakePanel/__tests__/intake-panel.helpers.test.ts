@@ -119,15 +119,16 @@ describe('buildRawText', () => {
 });
 
 describe('splitIntakeRows', () => {
-  it('separates editable from created and drops discarded', () => {
+  it('separates editable, created and discarded rows', () => {
     const rows = [
       row({ id: 'a', rawName: 'A' }),
       row({ id: 'b', rawName: 'B', availability: 'created', availableEpisodes: 0, animeId: 'x' }),
       row({ id: 'c', rawName: 'C', matchStatus: 'discarded' }),
     ];
-    const { editable, created } = splitIntakeRows(rows);
+    const { editable, created, discarded } = splitIntakeRows(rows);
     expect(editable.map((r) => r.id)).toEqual(['a']);
     expect(created.map((r) => r.id)).toEqual(['b']);
+    expect(discarded.map((r) => r.id)).toEqual(['c']);
   });
 });
 

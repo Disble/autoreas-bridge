@@ -185,23 +185,28 @@ export function buildRawText(rows: readonly SeasonAnimeRow[]): string {
 }
 
 /**
- * Splits intake rows for the List view: editable rows (still names) and created
- * rows (read-only, shown for the global picture). Discarded rows are dropped.
+ * Splits intake rows for the List view: editable rows (still names), created
+ * rows (read-only, shown for the global picture), and discarded rows (the
+ * Discarded view, where they can be restored).
  */
 export function splitIntakeRows(rows: readonly SeasonAnimeRow[]): {
   editable: readonly SeasonAnimeRow[];
   created: readonly SeasonAnimeRow[];
+  discarded: readonly SeasonAnimeRow[];
 } {
   const editable: SeasonAnimeRow[] = [];
   const created: SeasonAnimeRow[] = [];
+  const discarded: SeasonAnimeRow[] = [];
   for (const row of rows) {
     if (row.availability === 'created') {
       created.push(row);
-    } else if (row.matchStatus !== 'discarded') {
+    } else if (row.matchStatus === 'discarded') {
+      discarded.push(row);
+    } else {
       editable.push(row);
     }
   }
-  return { editable, created };
+  return { editable, created, discarded };
 }
 
 /**

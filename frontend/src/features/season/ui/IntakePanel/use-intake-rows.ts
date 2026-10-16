@@ -19,7 +19,7 @@ interface IntakeRowsInput {
 }
 
 /**
- * useIntakeRows derives the row-level view model: the editable rows, the footer
+ * useIntakeRows derives the row-level view model: the editable and discarded rows, the footer
  * counters (unresolved, search-failed, available, availability-pending), the
  * per-row folder previews, and the editable id set the metadata guards read.
  * Every memo is a one-line pure-helper call, so this hook adds no complexity of
@@ -34,7 +34,7 @@ export function useIntakeRows(input: Readonly<IntakeRowsInput>) {
   const { libraryRoot, folderOverrides } = editor;
 
   // 5. Derived State (useMemo)
-  const { editable } = useMemo(() => splitIntakeRows(seasonAnimes), [seasonAnimes]);
+  const { editable, discarded } = useMemo(() => splitIntakeRows(seasonAnimes), [seasonAnimes]);
   const unresolvedCount = useMemo(() => countUnresolved(editable), [editable]);
   const searchFailedCount = useMemo(() => countSearchFailed(editable), [editable]);
   const availableCount = useMemo(() => editable.filter(isCreatableRow).length, [editable]);
@@ -47,6 +47,7 @@ export function useIntakeRows(input: Readonly<IntakeRowsInput>) {
 
   return {
     editable,
+    discarded,
     unresolvedCount,
     searchFailedCount,
     availableCount,
