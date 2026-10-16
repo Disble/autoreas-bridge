@@ -8,7 +8,6 @@ import (
 
 	"autoreas-bridge/internal/anime/store"
 	"autoreas-bridge/internal/api/contracts"
-	"autoreas-bridge/internal/events"
 )
 
 // ApplyAnimeScheduleDraftEntry captures one moved card in a schedule draft.
@@ -213,13 +212,13 @@ func (s *ScheduleService) gateway() *store.Gateway {
 }
 
 // publishCommitted publishes a committed schedule change.
-func (s *ScheduleService) publishCommitted(eventID, id string, payload []byte, changedFields []string) {
+func (s *ScheduleService) publishCommitted(event ChangedOutboxEvent) {
 	if s.deps.Publisher != nil {
-		s.deps.Publisher.Publish(events.AnimeChangedEvent{EventID: eventID, AnimeID: id, Payload: append([]byte(nil), payload...), ChangedFields: append([]string(nil), changedFields...)})
+		s.deps.Publisher.Publish(newAnimeChangedEvent(event))
 		return
 	}
 	if publisher, ok := s.writer.(committedAnimePublisher); ok {
-		publisher.PublishCommitted(eventID, id, payload, changedFields)
+		publisher.PublishCommitted(event)
 	}
 }
 

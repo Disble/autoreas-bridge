@@ -1,6 +1,9 @@
 package anime
 
-import "autoreas-bridge/internal/anime/store"
+import (
+	"autoreas-bridge/internal/anime/store"
+	"autoreas-bridge/internal/events"
+)
 
 // Write-base store errors are re-exported from the legacy adapter for package
 // callers that work through the anime boundary.
@@ -51,6 +54,19 @@ type WriteBaseStore = store.WriteBaseStore
 
 // ChangedOutboxEvent stores one deferred anime.changed publication.
 type ChangedOutboxEvent = store.AnimeChangedOutboxEvent
+
+// newAnimeChangedEvent builds the bus event for one drained outbox row. It is
+// the single place a committed write becomes an anime.changed event, so the
+// derived change type and changed fields travel together to every subscriber.
+func newAnimeChangedEvent(event ChangedOutboxEvent) events.AnimeChangedEvent {
+	return events.AnimeChangedEvent{
+		EventID:       event.EventID,
+		AnimeID:       event.AnimeID,
+		Payload:       append([]byte(nil), event.Payload...),
+		ChangeType:    event.ChangeType,
+		ChangedFields: append([]string(nil), event.ChangedFields...),
+	}
+}
 
 // ChangedOutboxStore persists deferred anime.changed publications.
 type ChangedOutboxStore = store.AnimeChangedOutboxStore

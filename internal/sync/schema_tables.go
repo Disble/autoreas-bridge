@@ -54,12 +54,18 @@ func animeChangedOutboxTable() persistence.TableSchema {
 // (ADD COLUMN only -- non-destructive). It is nullable on purpose: rows written
 // before this change carry no derivation, and the reader treats NULL as an
 // empty list, which is exactly the behaviour they already had.
+//
+// The derived change_type column follows the same rule: nullable, ADD COLUMN
+// only, and a NULL reads as an empty change type, which the changelog recorder
+// keeps recording as an update -- exactly what those rows already were.
 func migrateAnimeChangedOutboxSchema(db *sql.DB, cols []string) error {
-	if containsSchemaColumn(cols, "changed_fields_json") {
-		return nil
-	}
-	if _, err := db.Exec(`ALTER TABLE anime_changed_outbox ADD COLUMN changed_fields_json TEXT`); err != nil {
-		return fmt.Errorf("add anime_changed_outbox changed_fields_json: %w", err)
+	for _, column := range []string{"changed_fields_json", "change_type"} {
+		if containsSchemaColumn(cols, column) {
+			continue
+		}
+		if _, err := db.Exec(`ALTER TABLE anime_changed_outbox ADD COLUMN ` + column + ` TEXT`); err != nil { // NOSONAR go:S2077 -- column is a compile-time literal from the list above.
+			return fmt.Errorf("add anime_changed_outbox %s: %w", column, err)
+		}
 	}
 	return nil
 }

@@ -233,6 +233,10 @@ func (s *WriteBaseStore) transitionFromStaged(ctx context.Context, operationID s
 
 // finalizeWriteOperation persists the desired snapshot and publication outbox row.
 func finalizeWriteOperation(ctx context.Context, tx *sql.Tx, operation anime.WriteOperation, committedAtMs int64) (anime.WriteOperationStatus, error) {
+	changeType, err := deriveChangeType(ctx, tx, operation.AnimeID)
+	if err != nil {
+		return "", fmt.Errorf("derive change type for write operation %q: %w", operation.OperationID, err)
+	}
 	result, err := tx.ExecContext(ctx, `
 		INSERT INTO anime_snapshots (anime_id, snapshot_json, snapshot_hash, modified_at)
 		VALUES (?, ?, ?, ?)
@@ -270,7 +274,7 @@ func finalizeWriteOperation(ctx context.Context, tx *sql.Tx, operation anime.Wri
 		return "", err
 	}
 	if status == anime.WriteOperationStatusCommitted {
-		if err := insertAnimeChangedOutbox(ctx, tx, operation, committedAtMs); err != nil {
+		if err := insertAnimeChangedOutbox(ctx, tx, operation, changeType, committedAtMs); err != nil {
 			return "", err
 		}
 	}

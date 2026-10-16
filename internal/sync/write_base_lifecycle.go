@@ -191,7 +191,7 @@ func (s *WriteBaseStore) MarkBatchSuperseded(ctx context.Context, batchID string
 // ListPendingAnimeChanged returns unpublished anime.changed outbox rows in publish order.
 func (s *WriteBaseStore) ListPendingAnimeChanged(ctx context.Context) (events []anime.ChangedOutboxEvent, err error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT event_id, operation_id, anime_id, payload_json, changed_fields_json, created_at_ms
+		SELECT event_id, operation_id, anime_id, payload_json, changed_fields_json, COALESCE(change_type, ''), created_at_ms
 		FROM anime_changed_outbox
 		WHERE status = 'pending'
 		ORDER BY created_at_ms ASC, event_id ASC
@@ -210,7 +210,7 @@ func (s *WriteBaseStore) ListPendingAnimeChanged(ctx context.Context) (events []
 		var event anime.ChangedOutboxEvent
 		var payload string
 		var changedFields sql.NullString
-		if err := rows.Scan(&event.EventID, &event.OperationID, &event.AnimeID, &payload, &changedFields, &event.CreatedAtMs); err != nil {
+		if err := rows.Scan(&event.EventID, &event.OperationID, &event.AnimeID, &payload, &changedFields, &event.ChangeType, &event.CreatedAtMs); err != nil {
 			return nil, fmt.Errorf("scan pending anime.changed outbox: %w", err)
 		}
 		event.Payload = []byte(payload)

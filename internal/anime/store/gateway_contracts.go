@@ -172,7 +172,7 @@ type GatewayConfig struct {
 	Operations     WriteBaseStore
 	Outbox         AnimeChangedOutboxStore
 	Conflicts      ConflictWriter
-	PublishChanged func(eventID, animeID string, payload []byte, changedFields []string)
+	PublishChanged func(event AnimeChangedOutboxEvent)
 	Now            func() time.Time
 	NewOperationID func() string
 }
