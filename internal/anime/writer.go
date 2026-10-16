@@ -157,11 +157,11 @@ func (w *updateWriter) request(ctx context.Context, animeID string, payload []by
 	}
 }
 
-func (w *updateWriter) PublishCommitted(eventID, animeID string, payload []byte, changedFields []string) {
+func (w *updateWriter) PublishCommitted(event ChangedOutboxEvent) {
 	if w.publisher == nil {
 		return
 	}
-	w.publisher.Publish(events.AnimeChangedEvent{EventID: eventID, AnimeID: animeID, Payload: append([]byte(nil), payload...), ChangedFields: append([]string(nil), changedFields...)})
+	w.publisher.Publish(newAnimeChangedEvent(event))
 }
 
 // run processes queued writer operations serially.

@@ -123,6 +123,69 @@ func TestWriteOperationFinalizeDerivesChangedFieldsOntoOutbox(t *testing.T) {
 	}
 }
 
+// TestWriteOperationFinalizeDerivesChangeTypeOntoOutbox pins the other half of
+// the derivation seam: whether the anime existed before the write is only known
+// inside the finalize transaction, so the outbox row records "create" for a
+// first write and "update" for every later one. No producer declares it.
+func TestWriteOperationFinalizeDerivesChangeTypeOntoOutbox(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		seeded bool
+		want   string
+	}{
+		{name: "first write creates the anime", seeded: false, want: "create"},
+		{name: "write over a stored anime updates it", seeded: true, want: "update"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			listed, stored := finalizedChangeType(t, tc.seeded)
+			if listed != tc.want {
+				t.Fatalf("expected change type %q, got %q", tc.want, listed)
+			}
+			if stored != tc.want {
+				t.Fatalf("expected stored change type %q, got %q", tc.want, stored)
+			}
+		})
+	}
+}
+
+// finalizedChangeType stages and finalizes one write, over a stored anime when
+// seeded and against an empty store otherwise, and returns the change type the
+// pending outbox lists and the one stored in its column.
+func finalizedChangeType(t *testing.T, seeded bool) (listed, stored string) {
+	t.Helper()
+	db := openTestBridgeDB(t)
+	store := NewWriteBaseStore(db)
+	ctx := context.Background()
+	operation := writeOperationFixture("operation-change-type", "anime-change-type", 100, 200)
+	if seeded {
+		seedWriteOperationBase(t, db, operation)
+	} else {
+		// A create stages against the empty store, so its base token is zero.
+		operation.BaseModifiedAt = 0
+	}
+	if err := store.Stage(ctx, operation); err != nil {
+		t.Fatalf("stage write operation: %v", err)
+	}
+	if err := store.Finalize(ctx, operation.OperationID, 300); err != nil {
+		t.Fatalf("finalize write operation: %v", err)
+	}
+	pending, err := store.ListPendingAnimeChanged(ctx)
+	if err != nil {
+		t.Fatalf("list pending anime.changed outbox: %v", err)
+	}
+	if len(pending) != 1 {
+		t.Fatalf("expected one pending outbox event, got %#v", pending)
+	}
+	if err := db.QueryRow(`SELECT change_type FROM anime_changed_outbox WHERE event_id = ?`, operation.OperationID).Scan(&stored); err != nil {
+		t.Fatalf("read stored change type: %v", err)
+	}
+	return pending[0].ChangeType, stored
+}
+
 // TestWriteOperationFinalizeNamesAnEmptiedCollection is the incident shape at
 // the storage seam: a write whose intent was the cover also emptied the
 // schedule, and the outbox row must name both rather than record an empty list.
@@ -209,7 +272,7 @@ func TestWriteOperationOutboxReadsPreMigrationRowAsEmptyList(t *testing.T) {
 		t.Fatalf("finalize write operation: %v", err)
 	}
 	// Return the row to its pre-migration shape.
-	if _, err := db.Exec(`UPDATE anime_changed_outbox SET changed_fields_json = NULL WHERE event_id = ?`, operation.OperationID); err != nil {
+	if _, err := db.Exec(`UPDATE anime_changed_outbox SET changed_fields_json = NULL, change_type = NULL WHERE event_id = ?`, operation.OperationID); err != nil {
 		t.Fatalf("blank the derived column: %v", err)
 	}
 
@@ -225,5 +288,10 @@ func TestWriteOperationOutboxReadsPreMigrationRowAsEmptyList(t *testing.T) {
 	}
 	if len(pending[0].ChangedFields) != 0 {
 		t.Fatalf("expected no changed fields, got %v", pending[0].ChangedFields)
+	}
+	// A pre-migration row carries no change type; the changelog recorder keeps
+	// recording it as an update, which is what such rows always were.
+	if pending[0].ChangeType != "" {
+		t.Fatalf("expected a pre-migration NULL change type to read as empty, got %q", pending[0].ChangeType)
 	}
 }

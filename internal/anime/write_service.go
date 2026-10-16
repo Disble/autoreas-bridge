@@ -9,7 +9,6 @@ import (
 	"autoreas-bridge/internal/anime/domain"
 	"autoreas-bridge/internal/anime/store"
 	"autoreas-bridge/internal/api/contracts"
-	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
 )
@@ -47,7 +46,7 @@ type writeBaseStoreProvider interface {
 }
 
 type committedAnimePublisher interface {
-	PublishCommitted(eventID, animeID string, payload []byte, changedFields []string)
+	PublishCommitted(event ChangedOutboxEvent)
 }
 
 // WriteServiceDeps carries optional collaborators for write flows.
@@ -252,13 +251,13 @@ func (s *WriteService) gateway() *store.Gateway {
 }
 
 // publishCommitted publishes a committed anime change when a publisher is configured.
-func (s *WriteService) publishCommitted(eventID, id string, payload []byte, changedFields []string) {
+func (s *WriteService) publishCommitted(event ChangedOutboxEvent) {
 	if s.deps.Publisher != nil {
-		s.deps.Publisher.Publish(events.AnimeChangedEvent{EventID: eventID, AnimeID: id, Payload: append([]byte(nil), payload...), ChangedFields: append([]string(nil), changedFields...)})
+		s.deps.Publisher.Publish(newAnimeChangedEvent(event))
 		return
 	}
 	if publisher, ok := s.writer.(committedAnimePublisher); ok {
-		publisher.PublishCommitted(eventID, id, payload, changedFields)
+		publisher.PublishCommitted(event)
 	}
 }
 

@@ -148,6 +148,7 @@ const (
 			anime_id TEXT NOT NULL,
 			payload_json TEXT NOT NULL,
 			changed_fields_json TEXT,
+			change_type TEXT,
 			status TEXT NOT NULL CHECK (status IN ('pending', 'published')),
 			created_at_ms INTEGER NOT NULL,
 			published_at_ms INTEGER,

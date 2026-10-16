@@ -17,7 +17,13 @@ type AnimeChangedOutboxEvent struct {
 	// existed and none of them ever set it, so every changelog row recorded an
 	// empty list while real fields were rewritten.
 	ChangedFields []string
-	CreatedAtMs   int64
+	// ChangeType is "create" when this write stored an anime the database did
+	// not hold yet, and "update" otherwise. It is DERIVED in the same finalize
+	// transaction as ChangedFields: no publisher ever set it, so every create
+	// reached the changelog and Mobile as an update. Empty only for rows written
+	// before the column existed, which the changelog keeps recording as updates.
+	ChangeType  string
+	CreatedAtMs int64
 }
 
 // AnimeChangedOutboxStore persists pending anime.changed publications.
@@ -41,7 +47,9 @@ func (g *Gateway) DrainOutbox(ctx context.Context) error {
 		return fmt.Errorf("list pending anime.changed outbox: %w", err)
 	}
 	for _, event := range pending {
-		g.config.PublishChanged(event.EventID, event.AnimeID, append([]byte(nil), event.Payload...), append([]string(nil), event.ChangedFields...))
+		event.Payload = append([]byte(nil), event.Payload...)
+		event.ChangedFields = append([]string(nil), event.ChangedFields...)
+		g.config.PublishChanged(event)
 		// Detached from ctx on purpose. The in-memory publish on the line above has
 		// already happened; if the caller cancels here the row must still be marked,
 		// or the event republishes on the next drain. That is the at-least-once

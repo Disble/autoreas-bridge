@@ -104,6 +104,6 @@ func (w *startupRecoveryWriter) StartAsync(context.Context)                     
 func (*startupRecoveryWriter) Wait()                                              {}
 func (*startupRecoveryWriter) Err() error                                         { return nil }
 func (*startupRecoveryWriter) RequestWrite(context.Context, string, []byte) error { return nil }
-func (w *startupRecoveryWriter) PublishCommitted(string, string, []byte, []string) {
+func (w *startupRecoveryWriter) PublishCommitted(anime.ChangedOutboxEvent) {
 	w.order.record("event-after")
 }

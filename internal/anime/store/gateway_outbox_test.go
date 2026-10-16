@@ -3,9 +3,11 @@ package store_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"autoreas-bridge/internal/anime"
+	"autoreas-bridge/internal/anime/domain"
 	"autoreas-bridge/internal/anime/store"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
@@ -191,6 +193,37 @@ func stageGatewayOperation(t *testing.T, writeBases *bridgeSync.WriteBaseStore, 
 	})
 	if err != nil {
 		t.Fatalf("stage gateway operation %s: %v", op.operationID, err)
+	}
+}
+
+// TestGatewayPublishesCreateForTheFirstWriteAndUpdateAfterwards is the root of
+// the "every create reaches Mobile as an update" defect: the change type was
+// never derived, so all publishers sent an empty one. The first write of an
+// anime the store has never held must publish "create"; the next one "update".
+func TestGatewayPublishesCreateForTheFirstWriteAndUpdateAfterwards(t *testing.T) {
+	ctx := context.Background()
+	db := openGatewayDB(t)
+	published := []string{}
+	write := func(progress float64) {
+		t.Helper()
+		gateway := newGateway(t, gatewayConfig{
+			db: db, clock: int64(200 * progress), operationID: "operation-" + jsonNumber(progress),
+			publishChangeType: func(_ string, changeType string) { published = append(published, changeType) },
+		})
+		if _, err := gateway.Update(ctx, store.UpdateCommand{
+			AnimeID:         "anime-created",
+			CreateIfMissing: true,
+			Mutate:          func(value *domain.Anime, _ bool) { value.SetProgress(progress) },
+		}); err != nil {
+			t.Fatalf("write through gateway: %v", err)
+		}
+	}
+
+	write(1)
+	write(2)
+
+	if want := []string{"create", "update"}; strings.Join(published, ",") != strings.Join(want, ",") {
+		t.Fatalf("expected change types %v, got %v", want, published)
 	}
 }
 

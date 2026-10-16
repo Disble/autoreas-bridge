@@ -216,8 +216,10 @@ type gatewayConfig struct {
 	// publishFields captures the derived changed-field list a drain delivers,
 	// which is the whole point of widening PublishChanged.
 	publishFields func(string, []string)
-	load          func(context.Context, string) (store.Snapshot, error)
-	operationID   string
+	// publishChangeType captures the derived change type a drain delivers.
+	publishChangeType func(string, string)
+	load              func(context.Context, string) (store.Snapshot, error)
+	operationID       string
 }
 
 // newGateway constructs a gateway with test defaults and dependencies.
@@ -257,15 +259,18 @@ func newGateway(t *testing.T, config gatewayConfig) *store.Gateway {
 		Operations: operations,
 		Outbox:     outbox,
 		Conflicts:  bridgeSync.NewConflictStore(db),
-		PublishChanged: func(eventID string, animeID string, payload []byte, changedFields []string) {
+		PublishChanged: func(event store.AnimeChangedOutboxEvent) {
 			if config.publishEvent != nil {
-				config.publishEvent(eventID, animeID, payload)
+				config.publishEvent(event.EventID, event.AnimeID, event.Payload)
 			}
 			if config.publish != nil {
-				config.publish(animeID, payload)
+				config.publish(event.AnimeID, event.Payload)
 			}
 			if config.publishFields != nil {
-				config.publishFields(eventID, changedFields)
+				config.publishFields(event.EventID, event.ChangedFields)
+			}
+			if config.publishChangeType != nil {
+				config.publishChangeType(event.EventID, event.ChangeType)
 			}
 		},
 		Now:            func() time.Time { return time.UnixMilli(config.clock).UTC() },

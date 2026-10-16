@@ -9,7 +9,6 @@ import (
 
 	"autoreas-bridge/internal/anime/store"
 	"autoreas-bridge/internal/api/contracts"
-	"autoreas-bridge/internal/events"
 )
 
 // EditorNullableStringPatch carries an optional string field mutation.
@@ -203,13 +202,13 @@ func (s *EditorService) gateway() *store.Gateway {
 }
 
 // EditorService.publishCommitted publishes a committed anime change through the configured publisher.
-func (s *EditorService) publishCommitted(eventID, id string, payload []byte, changedFields []string) {
+func (s *EditorService) publishCommitted(event ChangedOutboxEvent) {
 	if s.deps.Publisher != nil {
-		s.deps.Publisher.Publish(events.AnimeChangedEvent{EventID: eventID, AnimeID: id, Payload: append([]byte(nil), payload...), ChangedFields: append([]string(nil), changedFields...)})
+		s.deps.Publisher.Publish(newAnimeChangedEvent(event))
 		return
 	}
 	if publisher, ok := s.writer.(committedAnimePublisher); ok {
-		publisher.PublishCommitted(eventID, id, payload, changedFields)
+		publisher.PublishCommitted(event)
 	}
 }
 

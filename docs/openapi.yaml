@@ -260,6 +260,20 @@ info:
     `downloads.root` to `library.root`, which is internal and never on the
     wire.
 
+    2026-10-16 — create change type consumer impact: BEHAVIOR FIX, no schema
+    change. A write that stores an anime the bridge did not hold yet now
+    reaches the changes feed (`GET /api/animes/changes` and reconcile
+    `bridge_changes`) as `change_type: create`, as `AnimeChange` always
+    documented. Until now every create arrived as `update`: the change type
+    was never derived, so publishers sent none and the changelog defaulted it.
+    A create row carries the full `snapshot`, and `changed_fields` names every
+    field it wrote. Every later write of that anime stays `update`. Over
+    WebSocket a create now broadcasts `anime_created` (no payload) instead of
+    `anime_changed`. Clients that already upsert an `update` for an unknown
+    record keep working; a client must still accept `update` for a record it
+    has never seen, because changes written before this fix, and creates
+    behind a pruned changelog, are served as `update`.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}
