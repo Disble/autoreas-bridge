@@ -27,7 +27,7 @@ type TraceRecorder interface {
 	Record(message string)
 }
 
-// Runner publishes the tracer-bullet event sequence.
+// Runner traces the anime.changed events that really cross the bus.
 type Runner struct {
 	bus  events.Bus
 	sink TraceRecorder
@@ -47,12 +47,14 @@ func NewRunner(bus events.Bus, sink TraceRecorder, loggers ...sharedlogger.Logge
 
 }
 
-// Start subscribes the runner and publishes its demonstration event.
+// Start subscribes the runner so it traces the changes that really happen.
+//
+// It publishes nothing: anime.changed means a committed row, and the
+// demonstration event it used to publish for a nonexistent anime reached the
+// desktop as a real change notice.
 func (r *Runner) Start() {
 	r.StartSubscriptions()
 	r.record("system", "tracer bullet ready")
-	r.record("anime", "publishing anime.changed for "+tracerAnimeID)
-	r.bus.Publish(events.AnimeChangedEvent{AnimeID: tracerAnimeID})
 }
 
 // StartSubscriptions installs the tracer-bullet event handlers.

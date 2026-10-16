@@ -162,8 +162,8 @@ func snapshotTableRowCounts(t *testing.T, db *sql.DB) map[string]int {
 }
 
 // TestEarlyBootEventsSurviveUntilQueueBinding is the regression test for
-// docs/mcp-event-visibility-report.md. Startup emits the whole tracer-bullet
-// flow at app.go:199, while the only Sink.Bind call is reached at app.go:208
+// docs/mcp-event-visibility-report.md. Startup emits the tracer-bullet ready
+// entry at app.go:199, while the only Sink.Bind call is reached at app.go:208
 // via configureRuntimeServices -> configureEventLogQueue. Those entries used
 // to drop, so runtime_events (the MCP sidecar's only source) disagreed with
 // the in-memory feed the UI reads and the flow was invisible to the MCP.

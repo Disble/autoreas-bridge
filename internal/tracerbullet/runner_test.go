@@ -9,20 +9,30 @@ import (
 	sharedlogger "autoreas-bridge/internal/logger"
 )
 
-func TestRunnerRecordsFullDummyEventFlow(t *testing.T) {
+// TestRunnerTracesRealChangesWithoutPublishingAFakeOne pins that starting the
+// tracer bullet announces nothing: anime.changed must only ever mean a committed
+// row, so the runner traces the changes that really happen instead of
+// inventing one for an anime that does not exist.
+func TestRunnerTracesRealChangesWithoutPublishingAFakeOne(t *testing.T) {
 	t.Parallel()
 
 	sink := &memorySink{}
-	runner := NewRunner(events.NewBus(), sink)
+	bus := events.NewBus()
+	announced := 0
+	bus.Subscribe(events.EventNameAnimeChanged, func(events.Event) { announced++ })
+	runner := NewRunner(bus, sink)
 
 	runner.Start()
+	if announced != 0 {
+		t.Fatalf("expected starting the tracer bullet to publish no anime.changed, got %d", announced)
+	}
+	bus.Publish(events.AnimeChangedEvent{AnimeID: "anime-1"})
 
 	got := sink.Messages()
 	want := []string{
 		"system: tracer bullet ready",
-		"anime: publishing anime.changed for tracer-bullet-anime",
-		"sync: received anime.changed for tracer-bullet-anime",
-		"websocket: forwarded anime.changed for tracer-bullet-anime",
+		"sync: received anime.changed for anime-1",
+		"websocket: forwarded anime.changed for anime-1",
 	}
 
 	if len(got) != len(want) {
