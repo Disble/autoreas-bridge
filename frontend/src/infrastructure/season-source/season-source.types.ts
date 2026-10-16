@@ -302,7 +302,10 @@ export interface SeasonSource {
    * "no pages".
    */
   readonly searchProviders?: (query: string) => Promise<SeasonProviderSearchResult>;
+  /** Marks an intake row discarded; "ok" or an error message. */
   readonly discardName: (rowId: string) => Promise<string>;
+  /** Brings a discarded intake row back with its matched page; "ok" or an error message. */
+  readonly restoreName: (rowId: string) => Promise<string>;
   readonly setAnimeDays: (animeId: string, dias: readonly string[]) => Promise<string>;
   readonly sendToVerHoy: (animeIds: readonly string[]) => Promise<SendToVerHoyResult>;
   readonly triggerSeasonDownloads: () => Promise<string>;

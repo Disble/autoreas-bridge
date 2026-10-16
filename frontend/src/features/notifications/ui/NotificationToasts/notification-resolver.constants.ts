@@ -20,6 +20,9 @@ export const MISSED_DECISION_TOAST_ID = 'missed-schedule-decision';
 /** Deduplication key for the missed-schedule failure toast. */
 export const MISSED_FAILURE_TOAST_ID = 'missed-schedule-failure';
 
+/** Deduplication key prefix for an intake discard's Undo toast; the discard's sequence follows it. */
+export const INTAKE_DISCARD_TOAST_ID_PREFIX = 'intake-discard-';
+
 /**
  * Backend notification kinds a dedicated resolver already renders, which
  * `useBackendEventResolver` therefore must not render a second time.

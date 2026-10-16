@@ -338,3 +338,39 @@ func TestServiceDiscardName(t *testing.T) {
 		t.Fatalf("discard did not set status: %+v", got)
 	}
 }
+
+func TestServiceRestoreName(t *testing.T) {
+	const slug = "https://jkanime.net/some-anime/"
+	candidates := []domain.MatchCandidate{{Title: "Some Anime", PageURL: slug, Score: 0.7}}
+	cases := []struct {
+		name       string
+		row        domain.SeasonAnime
+		wantStatus domain.MatchStatus
+	}{
+		{"matched page comes back matched", domain.SeasonAnime{MatchStatus: domain.MatchDiscarded, MatchedSlug: slug, Candidates: candidates}, domain.MatchMatched},
+		{"candidates without a page come back ambiguous", domain.SeasonAnime{MatchStatus: domain.MatchDiscarded, Candidates: candidates}, domain.MatchAmbiguous},
+		{"nothing found comes back pending", domain.SeasonAnime{MatchStatus: domain.MatchDiscarded}, domain.MatchPending},
+		{"a row that is not discarded is left alone", domain.SeasonAnime{MatchStatus: domain.MatchNotFound}, domain.MatchNotFound},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			svc := newTestService(repo)
+			ctx := context.Background()
+			tc.row.ID = "row-1"
+			tc.row.Availability = domain.AvailabilityAvailable
+			_ = repo.CreateSeasonAnime(ctx, tc.row)
+
+			if err := svc.RestoreName(ctx, "row-1"); err != nil {
+				t.Fatalf("RestoreName: %v", err)
+			}
+			got, _ := repo.SeasonAnimeByID(ctx, "row-1")
+			if got.MatchStatus != tc.wantStatus || got.MatchedSlug != tc.row.MatchedSlug || len(got.Candidates) != len(tc.row.Candidates) || got.Availability != domain.AvailabilityAvailable {
+				t.Fatalf("restore = %+v, want status %q with slug, candidates and availability kept", got, tc.wantStatus)
+			}
+		})
+	}
+	if err := newTestService(newFakeRepo()).RestoreName(context.Background(), "missing"); !errors.Is(err, ErrSeasonAnimeNotFound) {
+		t.Fatalf("RestoreName(missing) = %v, want ErrSeasonAnimeNotFound", err)
+	}
+}

@@ -62,12 +62,12 @@ function openMoreMenu(): HTMLElement {
 }
 
 /**
- * Reads the accessible names of the menu's items, in order.
+ * Reads the labels of the menu's items, in order, leaving out any item description.
  * @param menu The opened menu.
- * @returns Each item's text.
+ * @returns Each item's label text.
  */
-function menuItemNames(menu: HTMLElement): readonly string[] {
-  return within(menu).getAllByRole('menuitem').map((item) => item.textContent);
+function menuItemNames(menu: HTMLElement): readonly (string | undefined)[] {
+  return within(menu).getAllByRole('menuitem').map((item) => item.querySelector('[data-slot="label"]')?.textContent);
 }
 
 describe('IntakeRow', () => {
@@ -172,10 +172,14 @@ describe('IntakeRow', () => {
     { appliedMetadata: applied(true), items: ['Undo autofill', 'Clear metadata', 'Discard'] },
     { appliedMetadata: applied(false), items: ['Clear metadata', 'Discard'] },
     { appliedMetadata: undefined, items: ['Discard'] },
-  ])('offers $items in the more-actions menu', ({ appliedMetadata, items }) => {
+  ])('offers $items in the more-actions menu, explaining where a discard goes', ({ appliedMetadata, items }) => {
     renderRow({ appliedMetadata });
+    const menu = openMoreMenu();
 
-    expect(menuItemNames(openMoreMenu())).toStrictEqual(items);
+    expect(menuItemNames(menu)).toStrictEqual(items);
+    expect(within(menu).getByRole('menuitem', { name: 'Discard' })).toHaveAccessibleDescription(
+      'Moves it to Discarded. Restore it there, or type the same name in Raw again.',
+    );
   });
 
   it.each([

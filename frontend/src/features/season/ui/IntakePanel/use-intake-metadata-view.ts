@@ -19,17 +19,19 @@ interface IntakeMetadataViewInput {
  * chip reads. Both records are narrowed rather than pruned in an effect: a row
  * that is gone cannot display its lookup, and a refresh that keeps the same ids
  * costs no state write at all. The underlying records keep a departed row's
- * entry, so an id that returns shows what it had before.
+ * entry, so an id that returns shows what it had before. The discarded rows get
+ * their own stored record, so the Discarded view shows each row's cover and summary.
  * @param input The row derivations and editor state the view reads.
  * @returns The stored merge, the visible records, and the applied summary.
  */
 export function useIntakeMetadataView(input: Readonly<IntakeMetadataViewInput>) {
   const { rows, editor } = input;
-  const { editable, editableIds } = rows;
+  const { editable, editableIds, discarded } = rows;
   const { metadataByRow, appliedMetadataByRow } = editor;
 
   // 5. Derived State (useMemo)
   const storedMetadataByRow = useMemo(() => buildStoredMetadataByRow(editable), [editable]);
+  const discardedMetadataByRow = useMemo(() => buildStoredMetadataByRow(discarded), [discarded]);
   const heldByRow = useMemo(() => ({ ...storedMetadataByRow, ...metadataByRow }), [storedMetadataByRow, metadataByRow]);
   const visibleMetadataByRow = useMemo(() => pickRowEntries(heldByRow, editableIds), [heldByRow, editableIds]);
   const visibleAppliedMetadataByRow = useMemo(
@@ -47,5 +49,6 @@ export function useIntakeMetadataView(input: Readonly<IntakeMetadataViewInput>) 
     visibleMetadataByRow,
     visibleAppliedMetadataByRow,
     appliedMetadataView,
+    discardedMetadataByRow,
   };
 }

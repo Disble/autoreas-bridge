@@ -175,6 +175,28 @@ describe('season matching source seam', () => {
     expect(searchMock).toHaveBeenCalledExactlyOnceWith('Ao Ashi');
   });
 
+  it('restores a discarded row through the live binding with its row id', async () => {
+    const restoreMock = vi.fn().mockResolvedValue('ok');
+    window.go = { desktop: { App: { RestoreSeasonName: restoreMock } } } as never;
+    const { createSeasonSource } = await import('../season-source.helpers');
+
+    const restore = createSeasonSource().restoreName('row-1');
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(restore).resolves.toBe('ok');
+    expect(restoreMock).toHaveBeenCalledExactlyOnceWith('row-1');
+  });
+
+  it('degrades a restore to the unavailable message when no binding exists', async () => {
+    const { createSeasonSource } = await import('../season-source.helpers');
+    const { SEASON_RUNTIME_UNAVAILABLE } = await import('../season-source.constants');
+
+    const restore = createSeasonSource().restoreName('row-1');
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(restore).resolves.toBe(SEASON_RUNTIME_UNAVAILABLE);
+  });
+
   it('degrades the provider search to an unavailable status with no pages when no binding exists', async () => {
     const { createSeasonSource } = await import('../season-source.helpers');
     const { SEASON_RUNTIME_UNAVAILABLE } = await import('../season-source.constants');

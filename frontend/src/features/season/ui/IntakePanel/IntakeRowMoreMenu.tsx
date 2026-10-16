@@ -1,13 +1,14 @@
 import menuDotsIcon from '@iconify-icons/solar/menu-dots-bold';
 import { Icon } from '@iconify/react';
-import { Button, Dropdown, Label, Tooltip } from '@heroui/react';
+import { Button, Description, Dropdown, Label, Tooltip } from '@heroui/react';
+import { INTAKE_DISCARD_DESCRIPTION } from './intake-panel.constants';
 import type { IntakeRowMoreMenuProps } from './intake-panel.types';
 
 /**
  * IntakeRowMoreMenu is the round "⋯" button that ends an editable intake row's
  * action group. Its menu holds the row's less frequent actions: Undo autofill
  * while this session holds the pre-image, Clear metadata while the row holds
- * any, and Discard. Purely presentational: every action is a parent callback.
+ * any, and Discard, whose description says where the row goes. Purely presentational: every action is a parent callback.
  */
 export function IntakeRowMoreMenu({
   rawName,
@@ -39,8 +40,10 @@ export function IntakeRowMoreMenu({
               <Label>Clear metadata</Label>
             </Dropdown.Item>
           )}
-          <Dropdown.Item id="discard" textValue="Discard" variant="danger" onAction={onDiscard}>
+          {/* HeroUI's Label fills no menu-item label slot, so the name is explicit and the Description stays the description. */}
+          <Dropdown.Item aria-label="Discard" id="discard" textValue="Discard" variant="danger" onAction={onDiscard}>
             <Label>Discard</Label>
+            <Description>{INTAKE_DISCARD_DESCRIPTION}</Description>
           </Dropdown.Item>
         </Dropdown.Menu>
       </Dropdown.Popover>

@@ -228,7 +228,7 @@ func TestRunSeasonMatchingOrdersFinishedAfterBothPhases(t *testing.T) {
 	}
 }
 
-func TestResolveAndDiscardSeasonRows(t *testing.T) {
+func TestResolveDiscardAndRestoreSeasonRows(t *testing.T) {
 	t.Parallel()
 	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
 	_ = app.CreateSeason("Julio 2026")
@@ -245,13 +245,23 @@ func TestResolveAndDiscardSeasonRows(t *testing.T) {
 		t.Fatalf("DiscardSeasonName: %q", got)
 	}
 
-	after := app.GetSeasonAnimes()
-	status := map[string]string{}
-	for _, r := range after {
-		status[r.ID] = r.MatchStatus
+	after := seasonRowsByID(app)
+	if after[rows[0].ID].MatchStatus != "matched" || after[rows[1].ID].MatchStatus != "discarded" {
+		t.Fatalf("unexpected rows: %+v", after)
 	}
-	if status[rows[0].ID] != "matched" || status[rows[1].ID] != "discarded" {
-		t.Fatalf("unexpected statuses: %+v", status)
+
+	if got := app.DiscardSeasonName(rows[0].ID); got != "ok" {
+		t.Fatalf("DiscardSeasonName(matched): %q", got)
+	}
+	if got := app.RestoreSeasonName(rows[0].ID); got != "ok" {
+		t.Fatalf("RestoreSeasonName: %q", got)
+	}
+	if got := app.RestoreSeasonName("missing"); got == "ok" {
+		t.Fatalf("RestoreSeasonName(missing) = %q, want an error", got)
+	}
+	restored, ok := seasonRowsByID(app)[rows[0].ID]
+	if !ok || restored.MatchStatus != "matched" || restored.MatchedSlug != "https://jkanime.net/anime-uno/" {
+		t.Fatalf("restored row = %+v (found %v), want matched with its page", restored, ok)
 	}
 }
 

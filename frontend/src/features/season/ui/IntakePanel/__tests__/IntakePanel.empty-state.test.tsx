@@ -22,7 +22,8 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     readOnly: false, mode: 'list', switchMode: vi.fn(), rawDraft: '', onRawChange: vi.fn(), editableRows: [], selected: new Set(), toggleSelect: vi.fn(),
     folderOverrides: {}, folderPreviews: {}, onPickFolder: vi.fn(), metadataByRow: {}, appliedMetadataByRow: {}, metadataLookupSource: {} as HookReturn['metadataLookupSource'], providerSearchSource: {},
     onMetadataApplied: vi.fn(), onMetadataClear: vi.fn(), onMetadataUndo: vi.fn(), availableCount: 0, availabilityPendingCount: 0, onCreate: vi.fn(), unresolvedCount: 0, searchFailedCount: 0,
-    errorMessage: undefined, busyMessage: undefined, matchingRun: null, matchingProgressMessage: undefined, onRunMatching: vi.fn(), onRecheckAvailability: vi.fn(), onResolve: vi.fn(), onDiscard: vi.fn(), onOpenPage: vi.fn(), ...overrides,
+    errorMessage: undefined, busyMessage: undefined, matchingRun: null, matchingProgressMessage: undefined, onRunMatching: vi.fn(), onRecheckAvailability: vi.fn(), onResolve: vi.fn(), onDiscard: vi.fn(), onOpenPage: vi.fn(),
+    discardedRows: [], discardedMetadataByRow: {}, view: 'active', onViewChange: vi.fn(), onRestore: vi.fn(), ...overrides,
   };
   mockedUseIntakePanel.mockReturnValue(value);
   return value;

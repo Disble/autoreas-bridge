@@ -47,6 +47,9 @@ function makeSeason(overrides: Partial<SeasonSnapshot> = {}): SeasonSnapshot {
   };
 }
 
+/** The intake row `sa-1` the discard cases name in their notice. */
+const ROW_SA1 = { id: 'sa-1', rawName: 'Dr. Stone', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', availableEpisodes: 0, animeId: '', section: '', sectionOrder: 0, grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' } as const;
+
 /** Builds a season port stand-in whose calls all succeed, with per-test overrides. */
 function makeSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
   return {
@@ -62,6 +65,7 @@ function makeSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     runMatching: vi.fn().mockResolvedValue('ok'),
     resolveMatch: vi.fn().mockResolvedValue('ok'),
     discardName: vi.fn().mockResolvedValue('ok'),
+    restoreName: vi.fn().mockResolvedValue('ok'),
     setAnimeDays: vi.fn().mockResolvedValue('ok'),
     setGrade: vi.fn().mockResolvedValue('ok'),
     skipGrading: vi.fn().mockResolvedValue('ok'),
@@ -211,11 +215,37 @@ describe('useSeasonStore', () => {
     expect(source.getSeasonAnimes).toHaveBeenCalled();
   });
 
-  it('discardName delegates and refreshes', async () => {
+  it.each([
+    { action: 'discardName', lastDiscard: { rowId: 'sa-1', rawName: 'Dr. Stone', sequence: 1 } },
+    { action: 'restoreName', lastDiscard: null },
+  ] as const)('$action delegates, refreshes, reports the success and records $lastDiscard', async ({ action, lastDiscard }) => {
+    setSeasonStoreState({ seasonAnimes: [{ ...ROW_SA1, id: 'sa-0', rawName: 'Other' }, { ...ROW_SA1 }] });
+    const source = makeSource();
+    await expect(getSeasonStoreState()[action](source, 'sa-1')).resolves.toBe(true);
+    expect(source[action]).toHaveBeenCalledWith('sa-1');
+    expect(source.getSeasonAnimes).toHaveBeenCalled();
+    expect(getSeasonStoreState().lastDiscard).toEqual(lastDiscard);
+  });
+
+  it('numbers each successful discard, even of a row no longer in the list', async () => {
     const source = makeSource();
     await getSeasonStoreState().discardName(source, 'sa-1');
-    expect(source.discardName).toHaveBeenCalledWith('sa-1');
-    expect(source.getSeasonAnimes).toHaveBeenCalled();
+    await getSeasonStoreState().discardName(source, 'sa-9');
+    expect(getSeasonStoreState().lastDiscard).toEqual({ rowId: 'sa-9', rawName: '', sequence: 2 });
+  });
+
+  it.each([
+    { action: 'discardName', command: vi.fn().mockResolvedValue('season anime not found'), message: 'season anime not found' },
+    { action: 'restoreName', command: vi.fn().mockResolvedValue('season anime not found'), message: 'season anime not found' },
+    { action: 'discardName', command: vi.fn().mockResolvedValue(''), message: 'Failed to discard name' },
+    { action: 'restoreName', command: vi.fn().mockResolvedValue(''), message: 'Failed to restore name' },
+    { action: 'restoreName', command: vi.fn().mockRejectedValue(new Error('runtime gone')), message: 'runtime gone' },
+  ] as const)('$action reports "$message" for a failed command without refreshing', async ({ action, command, message }) => {
+    const source = makeSource({ [action]: command });
+    await expect(getSeasonStoreState()[action](source, 'sa-1')).resolves.toBe(false);
+    expect(getSeasonStoreState().errorMessage).toBe(message);
+    expect(source.getSeasonAnimes).not.toHaveBeenCalled();
+    expect(getSeasonStoreState().lastDiscard).toBeNull();
   });
 
   it('setGrade delegates the manual grade and refreshes the rows', async () => {
@@ -412,7 +442,9 @@ describe('useSeasonStore', () => {
 
     const store = getSeasonStoreState();
     await store.runMatching(source);
-    await store.discardName(source, 'sa-1');
+    await expect(store.discardName(source, 'sa-1')).resolves.toBe(false);
+    expect(getSeasonStoreState().lastDiscard).toBeNull();
+    await expect(store.restoreName(source, 'sa-1')).resolves.toBe(false);
     await store.createSeasonAnimes(source, ['sa-1'], {}, {});
     await store.setGrade(source, 'anime-1', 5);
     await store.setConsideration(source, 'sa-1', 'in');
@@ -425,6 +457,7 @@ describe('useSeasonStore', () => {
     for (const fn of [
       source.runMatching,
       source.discardName,
+      source.restoreName,
       source.createSeasonAnimes,
       source.setGrade,
       source.setConsideration,

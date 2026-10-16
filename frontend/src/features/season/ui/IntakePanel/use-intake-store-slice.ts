@@ -19,6 +19,7 @@ export function useIntakeStoreSlice() {
   const runMatching = useSeasonStore((state) => state.runMatching);
   const resolveMatch = useSeasonStore((state) => state.resolveMatch);
   const discardName = useSeasonStore((state) => state.discardName);
+  const restoreName = useSeasonStore((state) => state.restoreName);
   const setSeasonAnimeMetadata = useSeasonStore((state) => state.setSeasonAnimeMetadata);
   const createSeasonAnimes = useSeasonStore((state) => state.createSeasonAnimes);
   const recheckAvailability = useSeasonStore((state) => state.recheckAvailability);
@@ -34,6 +35,7 @@ export function useIntakeStoreSlice() {
     runMatching,
     resolveMatch,
     discardName,
+    restoreName,
     setSeasonAnimeMetadata,
     createSeasonAnimes,
     recheckAvailability,

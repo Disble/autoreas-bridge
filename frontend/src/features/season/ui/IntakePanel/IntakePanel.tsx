@@ -1,6 +1,7 @@
-import { Alert, Button, Card } from '@heroui/react';
-import { IntakeCheckTime } from './IntakeCheckTime/IntakeCheckTime';
+import { Alert, Card } from '@heroui/react';
 import { IntakePanelBody } from './IntakePanelBody';
+import { IntakePanelFooter } from './IntakePanelFooter';
+import { IntakePanelHeader } from './IntakePanelHeader';
 import { useIntakePanel } from './use-intake-panel';
 
 /**
@@ -20,6 +21,11 @@ export function IntakePanel() {
     rawDraft,
     onRawChange,
     editableRows,
+    discardedRows,
+    discardedMetadataByRow,
+    view,
+    onViewChange,
+    onRestore,
     selected,
     toggleSelect,
     folderOverrides,
@@ -80,23 +86,20 @@ export function IntakePanel() {
 
       <Card>
         <Card.Content>
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-foreground">Intake list</h3>
-            {!readOnly && (
-              <div className="flex items-center gap-1">
-                <IntakeCheckTime />
-                <Button size="sm" variant={mode === 'raw' ? 'primary' : 'tertiary'} onPress={() => switchMode('raw')}>
-                  Raw
-                </Button>
-                <Button size="sm" variant={mode === 'list' ? 'primary' : 'tertiary'} onPress={() => switchMode('list')}>
-                  List
-                </Button>
-              </div>
-            )}
-          </div>
+          <IntakePanelHeader
+            activeCount={editableRows.length}
+            discardedCount={discardedRows.length}
+            mode={mode}
+            readOnly={readOnly}
+            switchMode={switchMode}
+            view={view}
+            onViewChange={onViewChange}
+          />
 
           <IntakePanelBody
             appliedMetadataByRow={appliedMetadataByRow}
+            discardedMetadataByRow={discardedMetadataByRow}
+            discardedRows={discardedRows}
             editableRows={editableRows}
             errorMessage={errorMessage}
             folderOverrides={folderOverrides}
@@ -118,35 +121,24 @@ export function IntakePanel() {
             onPickFolder={onPickFolder}
             onRawChange={onRawChange}
             onResolve={onResolve}
+            onRestore={onRestore}
+            view={view}
           />
 
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            {!readOnly && (
-              <>
-                {editableRows.length === 0 ? null : (
-                  <Button variant="secondary" onPress={onRunMatching}>
-                    Run matching
-                  </Button>
-                )}
-                {availabilityPendingCount === 0 ? null : (
-                  <Button variant="secondary" onPress={onRecheckAvailability}>
-                    Check availability
-                  </Button>
-                )}
-                {availableCount === 0 && selected.size === 0 ? null : (
-                  <Button isDisabled={selected.size === 0} variant="primary" onPress={onCreate}>
-                    Create {selected.size > 0 ? selected.size : ''}
-                  </Button>
-                )}
-              </>
-            )}
-            {editableRows.length > 0 && (
-              <span className="text-sm text-muted">
-                {unresolvedCount} unresolved · {availabilityPendingCount} waiting · {availableCount} available to create
-                {searchFailedCount > 0 ? ` · ${searchFailedCount} search failed` : null}
-              </span>
-            )}
-          </div>
+          {view === 'discarded' ? null : (
+            <IntakePanelFooter
+              availabilityPendingCount={availabilityPendingCount}
+              availableCount={availableCount}
+              editableRowCount={editableRows.length}
+              readOnly={readOnly}
+              searchFailedCount={searchFailedCount}
+              selectedCount={selected.size}
+              unresolvedCount={unresolvedCount}
+              onCreate={onCreate}
+              onRecheckAvailability={onRecheckAvailability}
+              onRunMatching={onRunMatching}
+            />
+          )}
         </Card.Content>
       </Card>
     </section>

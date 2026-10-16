@@ -240,6 +240,18 @@ func (a *App) DiscardSeasonName(rowID string) string {
 	return "ok"
 }
 
+// RestoreSeasonName brings a discarded intake row back with its matched page.
+func (a *App) RestoreSeasonName(rowID string) string {
+	if a.seasonService == nil {
+		return seasonServiceUnavailableMessage
+	}
+	if err := a.seasonService.RestoreName(a.seasonCtx(), rowID); err != nil {
+		return err.Error()
+	}
+	a.broadcastSeasonChanged()
+	return "ok"
+}
+
 // SetSeasonGrade records a MANUAL first-episode grade (1–6) for an anime in the
 // active season — the Episodes card / Evaluation panel rate action. Manual always
 // wins over a mobile grade. Returns "ok" or a descriptive error string.

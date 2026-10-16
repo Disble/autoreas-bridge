@@ -18,6 +18,7 @@ import {
   ReconcileSeasonIntake,
   ReopenSeasonOrdering,
   ResolveSeasonMatch,
+  RestoreSeasonName,
   RunSeasonMatching,
   SaveSeasonOrderingDraft,
   SearchSeasonProviders,
@@ -185,6 +186,9 @@ export function createSeasonSource(): SeasonSource {
     },
     discardName(rowId: string) {
       return invokeGoBinding('DiscardSeasonName', () => DiscardSeasonName(rowId), () => SEASON_RUNTIME_UNAVAILABLE);
+    },
+    restoreName(rowId: string) {
+      return invokeGoBinding('RestoreSeasonName', () => RestoreSeasonName(rowId), () => SEASON_RUNTIME_UNAVAILABLE);
     },
     setAnimeDays(animeId: string, dias: readonly string[]) {
       return waitForBindings(() => hasGoBinding('SetAnimeDays')).then((isReady) => {

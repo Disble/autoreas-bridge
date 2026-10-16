@@ -8,6 +8,7 @@ import type { AnimesLoadState, SeasonMatchingRun, SeasonStoreState } from './sea
  * Runs one intake command behind the store's read-only guard, surfacing the command's
  * failure message on the state and refreshing the intake rows after a success. Shared by
  * every season workflow action so no caller repeats the busy/error plumbing.
+ * @returns Whether the command ran and succeeded (false when blocked as read-only or failed).
  */
 async function runIntakeCommand(
   get: () => SeasonStoreState,
@@ -16,9 +17,9 @@ async function runIntakeCommand(
   source: SeasonSource,
   fallbackMessage: string,
   busyMessage?: string,
-): Promise<void> {
+): Promise<boolean> {
   if (get().readOnly) {
-    return;
+    return false;
   }
   if (busyMessage !== undefined) {
     set({ busyMessage });
@@ -27,12 +28,14 @@ async function runIntakeCommand(
     const result = await command();
     if (result !== 'ok') {
       set({ errorMessage: result || fallbackMessage });
-      return;
+      return false;
     }
     set({ errorMessage: undefined });
     await get().refreshAnimes(source);
+    return true;
   } catch (error) {
     set({ errorMessage: error instanceof Error ? error.message : fallbackMessage });
+    return false;
   } finally {
     if (busyMessage !== undefined) {
       set({ busyMessage: undefined });
@@ -100,6 +103,7 @@ export const seasonStore = createStore<SeasonStoreState>()((set, get) => ({
   errorMessage: undefined,
   busyMessage: undefined,
   matchingRun: null,
+  lastDiscard: null,
   beginMatchingRun: (total) => {
     set({ matchingRun: { total, resolvedInPhase: 0, phase: SEASON_MATCHING_PHASE_MATCHING } });
   },
@@ -300,8 +304,15 @@ export const seasonStore = createStore<SeasonStoreState>()((set, get) => ({
   },
 
   discardName: async (source, rowId) => {
-    await runIntakeCommand(get, set, () => source.discardName(rowId), source, 'Failed to discard name');
+    const rawName = get().seasonAnimes.find((row) => row.id === rowId)?.rawName ?? '';
+    const discarded = await runIntakeCommand(get, set, () => source.discardName(rowId), source, 'Failed to discard name');
+    if (discarded) {
+      set({ lastDiscard: { rowId, rawName, sequence: (get().lastDiscard?.sequence ?? 0) + 1 } });
+    }
+    return discarded;
   },
+
+  restoreName: (source, rowId) => runIntakeCommand(get, set, () => source.restoreName(rowId), source, 'Failed to restore name'),
 
   setAnimeDays: async (source, animeId, dias) => {
     await runIntakeCommand(get, set, () => source.setAnimeDays(animeId, dias), source, 'Failed to move anime');

@@ -5,7 +5,12 @@ whose `.claude` (`1.1.2`) and `.agents` (`1.3.0`) copies had drifted; both histo
 Entries name the views that prompted them as a historical record; the rules themselves live in the
 files of `docs/design/`. Superseded entries are kept and marked.
 
-- `2.1.0` — Made the button preference explicit: an icon-only `Button` (`isIconOnly`, `aria-label`)
+- `2.1.1` — Gave the button preference its nuance: icon-only buttons with a tooltip are for
+  secondary and per-row actions, while primary actions (Create, Save, Submit) keep their text. The
+  user agreed it should not be absolute, both because primary actions have always been text and
+  because converting the existing text buttons retroactively would be costly. Supersedes the
+  absolute wording of `2.1.0`.
+- `2.1.0` — (Superseded by `2.1.1`.) Made the button preference explicit: an icon-only `Button` (`isIconOnly`, `aria-label`)
   inside a `Tooltip` is preferred over a text-only button with no icon. The user asked for it while
   reviewing the Intake "Discarded" mockups, where Restore and Delete were redrawn as icon buttons to
   match the row's existing action group. Added to the HeroUI mapping table with its own section, and

@@ -3,7 +3,7 @@ name: app-notification-pipeline
 description: "Global app notification pipeline using Chain of Responsibility. Use when adding a new notification source (backend push events, store-driven notices, etc.), modifying the toast controller, or debugging why a notification does not appear. Keywords: notification, toast, resolver, AppNotification, push, remove, pipeline, chain of responsibility, missed schedule, backend event."
 metadata:
   author: autoreas-bridge
-  version: "1.0.0"
+  version: "1.1.0"
   scope: project
   updates: living
 ---
@@ -50,15 +50,20 @@ export function useMyNotificationResolver: AppNotificationResolver = (push, remo
 };
 ```
 
-2. Add it to the resolver array in `NotificationToasts.tsx`:
+2. Call it at the top of `NotificationToasts.tsx`, next to the other resolvers:
 
 ```tsx
-const useResolvers = [
-  useBackendEventResolver,
-  useMissedScheduleResolver,
-  useMyNotificationResolver, // ← one line
-];
+const { push, remove } = useAppToastController();
+
+useBackendEventResolver(push, remove);
+useMissedScheduleResolver(push, remove);
+useIntakeDiscardResolver(push, remove);
+useMyNotificationResolver(push, remove); // ← one line
 ```
+
+A feature never imports this folder. It exposes its notice through shared state (a shared store field or a shared hook), and the resolver reads it there, like `useIntakeDiscardResolver` reads the season store's `lastDiscard`.
+
+Pressing a toast action does not close the toast. An action that resolves the notice (Undo, Run now) calls `remove(key)` itself.
 
 3. Write a colocated test verifying push/remove calls.
 
@@ -105,6 +110,7 @@ A hook that receives stable `push` and `remove` callbacks. Called once at the to
 | `features/notifications/ui/NotificationToasts/NotificationToasts.tsx` | Controller: wires resolvers into `ToastProvider` |
 | `features/notifications/ui/NotificationToasts/use-backend-event-resolver.ts` | Resolver: `notification.push` events → ephemeral toasts |
 | `features/notifications/ui/NotificationToasts/use-missed-schedule-resolver.ts` | Resolver: `useMissedScheduleNotice` store state → decision/failure toasts |
+| `features/notifications/ui/NotificationToasts/use-intake-discard-resolver.ts` | Resolver: season store `lastDiscard` → intake discard Undo toast |
 | `features/notifications/ui/NotificationToasts/notification-resolver.constants.ts` | Shared constants (LEVEL_TO_SEVERITY, toast IDs) |
 
 ## Constraints

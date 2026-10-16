@@ -16,14 +16,14 @@ interface IntakeRowCallbacksInput {
 
 /**
  * useIntakeRowCallbacks owns the thin per-row and footer actions: running
- * matching, rechecking availability, resolving or discarding one row, opening a
+ * matching, rechecking availability, resolving, discarding or restoring one row, opening a
  * match page, and flipping one row's creation selection.
  * @param input The store slice, editor state, and season source.
  * @returns The row actions and the selection toggle.
  */
 export function useIntakeRowCallbacks(input: Readonly<IntakeRowCallbacksInput>) {
   const { store, editor, source } = input;
-  const { runMatching, recheckAvailability, resolveMatch, discardName } = store;
+  const { runMatching, recheckAvailability, resolveMatch, discardName, restoreName } = store;
   const { setSelected } = editor;
 
   // 6. Callbacks
@@ -45,6 +45,12 @@ export function useIntakeRowCallbacks(input: Readonly<IntakeRowCallbacksInput>) 
     },
     [discardName, source],
   );
+  const onRestore = useCallback(
+    (rowId: string) => {
+      void restoreName(source, rowId);
+    },
+    [restoreName, source],
+  );
   const onOpenPage = useCallback(
     (pageUrl: string) => {
       source.openPage(pageUrl);
@@ -61,5 +67,5 @@ export function useIntakeRowCallbacks(input: Readonly<IntakeRowCallbacksInput>) 
   }, []);
   // Stryker restore ArrayDeclaration
 
-  return { onRunMatching, onRecheckAvailability, onResolve, onDiscard, onOpenPage, toggleSelect };
+  return { onRunMatching, onRecheckAvailability, onResolve, onDiscard, onRestore, onOpenPage, toggleSelect };
 }
