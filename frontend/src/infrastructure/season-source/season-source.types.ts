@@ -337,6 +337,10 @@ export interface SeasonSource {
   readonly applySchedule: () => Promise<ApplyScheduleResult>;
   readonly reopenOrdering: () => Promise<string>;
   readonly recheckAvailability: () => Promise<string>;
+  /** Reads the local HH:MM of the daily availability check; `''` when the runtime is unavailable. */
+  readonly getCheckTime: () => Promise<string>;
+  /** Saves the local HH:MM of the daily availability check; resolves `'ok'` or the failure message. */
+  readonly setCheckTime: (hhmm: string) => Promise<string>;
   readonly openPage: (url: string) => void;
   /**
    * Fires when a matching run opens, carrying the run total. Optional on the

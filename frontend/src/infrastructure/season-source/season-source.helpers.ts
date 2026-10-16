@@ -9,6 +9,7 @@ import {
   GetPastSeasonAnimes,
   GetSeason,
   GetSeasonAnimes,
+  GetSeasonCheckTime,
   GetSeasonOrderingBoard,
   GetSeasonOrderingSnapshot,
   ListSeasons,
@@ -25,6 +26,7 @@ import {
   SetSeasonConsideration,
   SetSeasonGrade,
   SetSeasonAnimeMetadata,
+  SetSeasonCheckTime,
   SetSeasonMinApprovalGrade,
   SetSeasonSlots,
   SkipSeasonGrading,
@@ -242,6 +244,12 @@ export function createSeasonSource(): SeasonSource {
     },
     recheckAvailability() {
       return invokeGoBinding('RecheckSeasonAvailability', RecheckSeasonAvailability, () => SEASON_RUNTIME_UNAVAILABLE);
+    },
+    getCheckTime() {
+      return invokeGoBinding('GetSeasonCheckTime', GetSeasonCheckTime, () => '');
+    },
+    setCheckTime(hhmm: string) {
+      return invokeGoBinding('SetSeasonCheckTime', () => SetSeasonCheckTime(hhmm), () => SEASON_RUNTIME_UNAVAILABLE);
     },
     subscribeMatchingStarted(listener) {
       return matchingStartedSubscription.subscribe(listener);

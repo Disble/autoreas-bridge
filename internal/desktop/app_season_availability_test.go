@@ -295,14 +295,3 @@ func TestNotifySeasonAvailableNamesAnimesAndTruncatesPastTheLimit(t *testing.T) 
 		}
 	})
 }
-
-func TestSeasonScheduleStoreFixedConfig(t *testing.T) {
-	store := &seasonScheduleStore{}
-	cfg, err := store.GetScheduleConfig(context.Background())
-	if err != nil {
-		t.Fatalf("GetScheduleConfig: %v", err)
-	}
-	if cfg.DailyTimeHHMM != "21:00" || !cfg.Enabled || cfg.EnabledWeekdays != 0x7F {
-		t.Fatalf("unexpected fixed config: %+v", cfg)
-	}
-}

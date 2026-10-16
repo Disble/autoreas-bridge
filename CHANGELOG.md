@@ -57,6 +57,16 @@ called out explicitly under its release.
 
 - The MyAnimeList lookup modal is drawn from presentation-only parts under `shared/ui` (modal shell, candidate row, trigger and skeleton) that **Find on provider** reuses; its behaviour and copy are unchanged. The provider search is a Wails-only method, so no REST or WS contract changes. The specs, decisions and verification evidence are recorded in `odd/tasks/intake-provider-search.md`.
 
+<!-- Draft for the season check time work (feat/season-check-time). It may change before the release. Fold its sections into the ones above when the release is written. -->
+
+### Added
+
+- The daily availability check of an open season, which used to run at a fixed 21:00, now runs at a time you choose. The **Intake list** header shows a quiet **Daily check 21:00** button; it opens a small popover with the time, and **Save** applies the new time right away, without restarting Bridge. The check still runs every day, and only while a season is open.
+
+### Internal
+
+- The time is stored in `app_settings` under `season.availability_check_time`. An unset, unreadable or malformed value falls back to 21:00, so a settings problem never stops the daily check. It is read and written through two Wails-only methods, `GetSeasonCheckTime` and `SetSeasonCheckTime`, so no REST or WS contract changes, and backups do not carry it.
+
 ## [1.16.0] — 2026-09-27
 
 ### Added

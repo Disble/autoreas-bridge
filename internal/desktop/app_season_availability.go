@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"autoreas-bridge/internal/anime"
@@ -18,9 +17,6 @@ import (
 	"autoreas-bridge/internal/notification/center"
 	"autoreas-bridge/internal/schedule"
 )
-
-const seasonCheckDailyTimeHHMM = "21:00" // local time; the user runs in GMT-5.
-const allWeekdaysMask byte = 0x7F        // bits 0..6 = Sunday..Saturday, every day enabled.
 
 // siteResolver is the narrow read seam the probe needs (Resolve only), so a
 // test fake need not implement the full download.SiteRegistry.
@@ -49,45 +45,6 @@ func (p seasonAvailabilityProbe) AvailableEpisodes(ctx context.Context, pageURL 
 		return 0, nil
 	}
 	return listing.LatestEpisode, nil
-}
-
-// seasonScheduleStore is a fixed schedule.ConfigStore for the daily availability
-// job: it runs every day at 21:00 local (SDD-43). Run bookkeeping is kept in
-// memory (the season job needs no persisted schedule config yet).
-type seasonScheduleStore struct {
-	mu         sync.Mutex
-	lastAtMs   int64
-	lastStatus string
-	nextAtMs   int64
-}
-
-func (s *seasonScheduleStore) GetScheduleConfig(_ context.Context) (download.ScheduleConfig, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return download.ScheduleConfig{
-		Mode:            "daily",
-		DailyTimeHHMM:   seasonCheckDailyTimeHHMM,
-		Enabled:         true,
-		EnabledWeekdays: allWeekdaysMask,
-		LastRunAtMs:     s.lastAtMs,
-		LastRunStatus:   s.lastStatus,
-		NextRunAtMs:     s.nextAtMs,
-	}, nil
-}
-
-func (s *seasonScheduleStore) MarkScheduleRun(_ context.Context, lastAtMs int64, status string, nextAtMs int64) error {
-	s.mu.Lock()
-	s.lastAtMs, s.lastStatus, s.nextAtMs = lastAtMs, status, nextAtMs
-	s.mu.Unlock()
-	return nil
-}
-
-func (s *seasonScheduleStore) ApplyScheduleSettlement(_ context.Context, req download.ScheduleSettlementRequest) (download.ScheduleSettlementResult, error) {
-	return download.ScheduleSettlementResult{Outcome: download.ScheduleSettlementApplied}, nil
-}
-
-func (s *seasonScheduleStore) RecordMissedStartupAttempt(_ context.Context, localDate, status string) error {
-	return nil
 }
 
 // readRecordLister returns the anime query service's record-listing capability.
@@ -183,7 +140,7 @@ func (a *App) startSeasonAvailability(ctx context.Context) {
 	)
 
 	a.seasonScheduler = schedule.NewScheduler(schedule.Deps{
-		Store: &seasonScheduleStore{},
+		Store: &seasonScheduleStore{checkTime: a.seasonCheckTime},
 		Clock: schedule.NewRealClock(),
 		Run:   a.runSeasonAvailability,
 		Log:   a.sharedLogger,
