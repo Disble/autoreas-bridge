@@ -15,7 +15,7 @@ import (
 func TestWriteServiceCreateAnimeWritesAValidSinVerRecord(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	service := anime.NewWriteService(store, &stubAnimeWriter{})
+	service := anime.NewWriteService(store, &stubCommittedPublisher{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1_700_000_000_000).UTC() })
 	service.SetIDGen(func() string { return "seasonanime01" })
 
@@ -61,7 +61,7 @@ func TestWriteServiceCreateAnimeWritesAValidSinVerRecord(t *testing.T) {
 func TestWriteServiceCreateAnimeWritesCarpeta(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	service := anime.NewWriteService(store, &stubAnimeWriter{})
+	service := anime.NewWriteService(store, &stubCommittedPublisher{})
 	service.SetIDGen(func() string { return "with-folder" })
 
 	if _, err := service.CreateAnime(ctx, api.AnimeCreate{
@@ -93,7 +93,7 @@ func TestWriteServiceCreateAnimeWritesCarpeta(t *testing.T) {
 func TestWriteServiceCreateAnimeGeneratesIDWhenBlank(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	service := anime.NewWriteService(store, &stubAnimeWriter{})
+	service := anime.NewWriteService(store, &stubCommittedPublisher{})
 	service.SetIDGen(func() string { return "generated-id" })
 
 	id, err := service.CreateAnime(ctx, api.AnimeCreate{Nombre: "X", Pagina: "p", Dias: []api.Placement{{Day: "Sin ver", Order: 1}}})
@@ -147,7 +147,7 @@ func TestWriteServiceCreateAnimeRejectsInvalidCanonicalStructureBeforeOwnershipO
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			store := openAnimeServiceTestStore(t)
-			service := anime.NewWriteService(store, &stubAnimeWriter{})
+			service := anime.NewWriteService(store, &stubCommittedPublisher{})
 			service.SetIDGen(func() string { return test.newID })
 
 			result, err := service.CreateAnimeResult(context.Background(), test.create)
@@ -175,7 +175,7 @@ func TestWriteServiceCreateAnimeRejectsInvalidCanonicalStructureBeforeOwnershipO
 func TestWriteServiceCreateAnimeAppliesUserOptionalFieldsAndNeverSetsPremiere(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	service := anime.NewWriteService(store, &stubAnimeWriter{})
+	service := anime.NewWriteService(store, &stubCommittedPublisher{})
 	service.SetIDGen(func() string { return "user-optional-fields" })
 
 	watched, total, duration := 5, 24, 23
@@ -228,7 +228,7 @@ func assertWriteServiceJSONField(t *testing.T, fields map[string]json.RawMessage
 
 func TestWriteServiceCreateAnimeCanonicalReturnsAuthoritativeToken(t *testing.T) {
 	const modifiedAt = int64(1_700_000_000_123)
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	store := openAnimeServiceTestStore(t)
 	service := anime.NewWriteService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(modifiedAt).UTC() })

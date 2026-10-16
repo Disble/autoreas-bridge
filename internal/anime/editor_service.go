@@ -77,15 +77,16 @@ type SaveAnimeEditorCommand struct {
 // EditorService applies anime-editor mutations through the legacy gateway.
 type EditorService struct {
 	store      snapshotLookup
-	writer     Writer
+	publisher  CommittedPublisher
 	writeBases WriteBaseStore
 	now        func() time.Time
 	deps       WriteServiceDeps
 }
 
-// NewEditorService builds an editor service over the shared snapshot store and writer.
-func NewEditorService(store snapshotLookup, writer Writer) *EditorService {
-	service := &EditorService{store: store, writer: writer, now: time.Now}
+// NewEditorService builds an editor service over the shared snapshot store and
+// the publisher that announces its committed writes (nil publishes nothing).
+func NewEditorService(store snapshotLookup, publisher CommittedPublisher) *EditorService {
+	service := &EditorService{store: store, publisher: publisher, now: time.Now}
 	if provider, ok := store.(writeBaseStoreProvider); ok {
 		service.writeBases = provider.WriteBaseStore()
 	}
@@ -207,8 +208,8 @@ func (s *EditorService) publishCommitted(event ChangedOutboxEvent) {
 		s.deps.Publisher.Publish(newAnimeChangedEvent(event))
 		return
 	}
-	if publisher, ok := s.writer.(committedAnimePublisher); ok {
-		publisher.PublishCommitted(event)
+	if s.publisher != nil {
+		s.publisher.PublishCommitted(event)
 	}
 }
 

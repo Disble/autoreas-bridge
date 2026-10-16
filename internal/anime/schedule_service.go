@@ -27,15 +27,16 @@ type ApplyAnimeScheduleDraftCommand struct {
 type ScheduleService struct {
 	query      *QueryService
 	store      snapshotLookup
-	writer     Writer
+	publisher  CommittedPublisher
 	writeBases WriteBaseStore
 	now        func() time.Time
 	deps       WriteServiceDeps
 }
 
-// NewScheduleService builds a schedule mutation service over query and writer seams.
-func NewScheduleService(query *QueryService, writer Writer) *ScheduleService {
-	service := &ScheduleService{query: query, store: query.store, writer: writer, now: time.Now}
+// NewScheduleService builds a schedule mutation service over the query seam and
+// the publisher that announces its committed writes (nil publishes nothing).
+func NewScheduleService(query *QueryService, publisher CommittedPublisher) *ScheduleService {
+	service := &ScheduleService{query: query, store: query.store, publisher: publisher, now: time.Now}
 	if provider, ok := query.store.(writeBaseStoreProvider); ok {
 		service.writeBases = provider.WriteBaseStore()
 	}
@@ -217,8 +218,8 @@ func (s *ScheduleService) publishCommitted(event ChangedOutboxEvent) {
 		s.deps.Publisher.Publish(newAnimeChangedEvent(event))
 		return
 	}
-	if publisher, ok := s.writer.(committedAnimePublisher); ok {
-		publisher.PublishCommitted(event)
+	if s.publisher != nil {
+		s.publisher.PublishCommitted(event)
 	}
 }
 

@@ -102,23 +102,10 @@ func newWebSocketWriteEnvironment(t *testing.T) (*bridgeSync.AnimeSnapshotStore,
 	})
 	store := bridgeSync.NewAnimeSnapshotStore(db)
 	seedWebSocketAnimeSnapshot(t, store, "anime-1", seed)
-	bus := events.NewBus()
-	// Deferring cancel here would kill the context when this helper RETURNS,
-	// before the test that owns it runs. It is cancelled in the t.Cleanup below,
-	// ordered ahead of writer.Wait() on purpose.
-	ctx, cancel := context.WithCancel(context.Background()) // NOSONAR godre:S8188
-	writer := anime.NewUpdateWriter(anime.UpdateWriterConfig{Bus: bus, Publisher: bus, Logger: websocketWarningLogger{}, SelfEchoRegistry: anime.NewSelfEchoRegistry()})
-	writer.StartAsync(ctx)
-	t.Cleanup(func() { cancel(); writer.Wait() })
-	write := anime.NewWriteService(store, writer)
+	write := anime.NewWriteService(store, anime.NewCommittedPublisher(events.NewBus()))
 	write.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 	return store, anime.NewQueryService(store), write
 }
-
-// websocketWarningLogger discards warning logs for websocket tests.
-type websocketWarningLogger struct{}
-
-func (websocketWarningLogger) Warnf(string, ...any) {}
 
 // stubWebSocketAnimeWrite is a stub anime write service for websocket tests.
 type stubWebSocketAnimeWrite struct{ err error }

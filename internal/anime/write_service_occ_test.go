@@ -15,7 +15,7 @@ func TestWriteServicePatchAnimeFastForwardsWhenBaseMatchesCurrent(t *testing.T) 
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"totalEpisodes":12}`, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	conflicts := &stubConflictWriter{}
 	service := anime.NewWriteService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
@@ -45,7 +45,7 @@ func TestWriteServicePatchAnimeDoesNotClobberOnDivergentBase(t *testing.T) {
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"totalEpisodes":12}`, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	conflicts := &stubConflictWriter{}
 	service := anime.NewWriteService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
@@ -75,7 +75,7 @@ func TestWriteServicePatchAnimeNoOpsWhenDesiredValueAlreadyMatchesCurrent(t *tes
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":5,"status":2,"totalEpisodes":12}`, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewWriteService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
@@ -97,7 +97,7 @@ func TestWriteServicePatchAnimeCreatesWhenBaseNilAndRecordIsNew(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewWriteService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
@@ -120,7 +120,7 @@ func TestWriteServicePatchAnimeSafePathWhenBaseNilButRecordExists(t *testing.T) 
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"totalEpisodes":12}`, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewWriteService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
@@ -148,7 +148,7 @@ func TestWriteServicePatchAnimeExplicitStaleFailsWhenConflictCannotBeRecorded(t 
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"totalEpisodes":12}`, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewWriteService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
@@ -164,7 +164,7 @@ func TestWriteServicePatchAnimeDivergenceInsertsConflictAndNotifies(t *testing.T
 	currentJSON := `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"totalEpisodes":12}`
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", currentJSON, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	conflicts := &stubConflictWriter{}
 	notifier := &stubNotifier{}
 	service := anime.NewWriteService(store, writer)
@@ -206,7 +206,7 @@ func TestWriteServicePatchAnimePropagatesConflictWriterFailure(t *testing.T) {
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"totalEpisodes":12}`, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	conflicts := &stubConflictWriter{err: errors.New("insert failed")}
 	notifier := &stubNotifier{}
 	service := anime.NewWriteService(store, writer)
@@ -224,7 +224,7 @@ func TestWriteServicePatchAnimeIsolatesNotifierFailure(t *testing.T) {
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"totalEpisodes":12}`, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	conflicts := &stubConflictWriter{}
 	notifier := &stubNotifier{err: errors.New("notify failed")}
 	service := anime.NewWriteService(store, writer)
@@ -245,7 +245,7 @@ func TestWriteServicePatchAnimeObserveOnlyStillEnforcesExplicitStaleBase(t *test
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"totalEpisodes":12}`, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	conflicts := &stubConflictWriter{}
 	notifier := &stubNotifier{}
 	service := anime.NewWriteService(store, writer)
@@ -273,7 +273,7 @@ func TestWriteServiceOCCExplicitStaleReturnsConflictAndCurrentToken(t *testing.T
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"active":true}`, 200)
 	conflicts := &stubConflictWriter{}
-	service := anime.NewWriteService(store, &stubAnimeWriter{})
+	service := anime.NewWriteService(store, &stubCommittedPublisher{})
 	service.SetNow(func() time.Time { return time.UnixMilli(300).UTC() })
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts, OCCObserveOnly: true})
 	stale := int64(100)
@@ -295,7 +295,7 @@ func TestWriteServiceOCCBaseLessExistingWriteReturnsAppliedWithoutConflict(t *te
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"active":true}`, 200)
 	conflicts := &stubConflictWriter{}
-	service := anime.NewWriteService(store, &stubAnimeWriter{})
+	service := anime.NewWriteService(store, &stubCommittedPublisher{})
 	service.SetNow(func() time.Time { return time.UnixMilli(300).UTC() })
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts})
 
@@ -316,7 +316,7 @@ func TestWriteServiceOCCStaleNoOpReturnsNoOpWithoutSideEffects(t *testing.T) {
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"active":true}`, 200)
 	conflicts := &stubConflictWriter{}
-	service := anime.NewWriteService(store, &stubAnimeWriter{})
+	service := anime.NewWriteService(store, &stubCommittedPublisher{})
 	service.SetNow(func() time.Time { return time.UnixMilli(300).UTC() })
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts})
 	stale := int64(100)

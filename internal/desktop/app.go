@@ -44,8 +44,7 @@ type App struct {
 	memLogger                  *sharedlogger.MemLogger
 	syncTrigger                *bridgeSync.TriggerService
 	bootstrapBridgeDB          func() (*sql.DB, error)
-	newSelfEchoRegistry        func() anime.SelfEchoRegistry
-	newUpdateWriter            func(config anime.UpdateWriterConfig) anime.UpdateWriter
+	newCommittedPublisher      func(bus events.Bus) anime.CommittedPublisher
 	newChangelogStore          func(db *sql.DB) changelogPendingInserter
 	newChangelogRecorder       func(bus events.Bus, store changelogPendingInserter, loggers ...sharedlogger.Logger) changelogRecorder
 	newDeviceStore             func(db *sql.DB) device.Store
@@ -67,7 +66,7 @@ type App struct {
 	unminimiseWindow           func(context.Context)
 	quitApp                    func(context.Context)
 	eventBus                   events.Bus
-	animeUpdateWriter          anime.UpdateWriter
+	animeChangedPublisher      anime.CommittedPublisher
 	episodeService             episodeCommandService
 	syncChangelogRecorder      changelogRecorder
 	realtimeHub                realtime.Hub
@@ -85,7 +84,6 @@ type App struct {
 	tracerBulletRunner         tracerBulletRunner
 	catchUpContext             context.Context // NOSONAR godre:S8242 -- a lifetime, not a request scope: WithCancel(ctx) in startup, cancelled by catchUpCancel in shutdown.
 	catchUpCancel              context.CancelFunc
-	animeSelfEchoRegistry      anime.SelfEchoRegistry
 	deviceStore                device.Store
 	newToken                   func() (string, error)
 	animeQuery                 contracts.AnimeQueryService
@@ -316,11 +314,11 @@ func (a *App) wireEpisodeServiceWithWriter(writer contracts.AnimePatcher) {
 
 // wireEpisodeService constructs the episode service and its write dependencies.
 func (a *App) wireEpisodeService(conflictWriter anime.ConflictWriter) {
-	if a.bridgeDB == nil || a.animeUpdateWriter == nil {
+	if a.bridgeDB == nil || a.animeChangedPublisher == nil {
 		return
 	}
 	snapshotStore := bridgeSync.NewAnimeSnapshotStore(a.bridgeDB)
-	writer := anime.NewWriteService(snapshotStore, a.animeUpdateWriter)
+	writer := anime.NewWriteService(snapshotStore, a.animeChangedPublisher)
 	if conflictWriter != nil {
 		writer.SetDeps(anime.WriteServiceDeps{
 			Conflicts:      conflictWriter,
@@ -402,9 +400,6 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 	if a.eventQueue != nil {
 		_ = a.eventQueue.Stop(ctx)
-	}
-	if a.animeUpdateWriter != nil {
-		a.animeUpdateWriter.Wait()
 	}
 	if a.bridgeDBCloser != nil {
 		_ = a.bridgeDBCloser.Close()

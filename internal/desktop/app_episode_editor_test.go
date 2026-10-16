@@ -22,7 +22,7 @@ func editorEpisodeApp(t *testing.T) (*App, *bridgeSync.AnimeSnapshotStore) {
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
 	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2}`, 100)
-	service := anime.NewEditorService(store, &stubAppUpdateWriter{})
+	service := anime.NewEditorService(store, &stubAppCommittedPublisher{})
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: bridgeSync.NewConflictStore(db)})
 	service.SetNow(func() time.Time { return time.UnixMilli(200).UTC() })
 	return &App{ctx: context.Background(), bridgeDB: db, animeEditorWrite: service,

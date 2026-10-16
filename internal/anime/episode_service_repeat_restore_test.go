@@ -23,7 +23,7 @@ func TestEpisodeServiceRestoreAnimeWritesActiveAndClearsDeletionDate(t *testing.
 		1000,
 	)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	writeService := anime.NewWriteService(store, writer)
 	activity := &stubEpisodeActivityRecorder{}
 	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
@@ -84,7 +84,7 @@ func TestEpisodeServiceRepeatAnimeSnapshotsCurrentCycleAndResetsState(t *testing
 		1000,
 	)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	writeService := anime.NewWriteService(store, writer)
 	activity := &stubEpisodeActivityRecorder{}
 	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
@@ -168,7 +168,7 @@ func TestEpisodeServiceRepeatAnimeRecordsCycleResetAndLeavesWatchHistoryUnchange
 	watchRecorder := &watchStoreRecorder{store: watchStore}
 	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
 		Query:  anime.NewQueryService(store),
-		Writer: anime.NewWriteService(store, &stubAnimeWriter{}),
+		Writer: anime.NewWriteService(store, &stubCommittedPublisher{}),
 		Watch:  watchRecorder,
 		Now:    func() time.Time { return time.UnixMilli(1710000001111).UTC() },
 	})

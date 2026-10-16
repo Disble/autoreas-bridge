@@ -18,7 +18,7 @@ func TestEditorServiceSaveAppliesTypedNullableAndStructuredPatchMatrix(t *testin
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":2,"status":0,"active":true,"totalEpisodes":12,"kind":0,"sourceUrl":"https://example.test/old","folder":"C:/Anime/Frieren","premieredAt":null,"durationMinutes":24,"origin":"manga","genres":null,"studios":null,"days":[{"day":"Lunes","order":1}],"cover":{"type":"url","path":"old.jpg","future":{"keep":true}},"unknown":{"keep":true}}`, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewEditorService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(2000).UTC() })
 	total := 13
@@ -75,7 +75,7 @@ func TestEditorServiceSaveRejectsMalformedPatchShapesAndInvalidValuesBeforeWrite
 		{name: "non positive schedule order", patch: anime.EditorPatch{Placements: &[]contracts.MobileAnimeDay{{Day: "Lunes", Order: 0}}}},
 		{name: "duplicate schedule placement", patch: anime.EditorPatch{Placements: &[]contracts.MobileAnimeDay{{Day: "Lunes", Order: 1}, {Day: "Lunes", Order: 1}}}},
 	}
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewEditorService(store, writer)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -116,7 +116,7 @@ func TestEditorServiceSaveCannotReactivateInactiveAnime(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":2,"active":false}`, 1000)
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewEditorService(store, writer)
 	active := true
 	_, err := service.Save(ctx, anime.SaveAnimeEditorCommand{AnimeID: "anime-editor", BaseModifiedAt: 1000, Patch: anime.EditorPatch{Active: &active}})
@@ -137,7 +137,7 @@ func TestEditorServiceSaveIgnoresPremiereClearAndClearsCoverWithoutFlatteningCov
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":2,"active":true,"premieredAt":1710000000123,"cover":{"type":"file","path":"cover.jpg","future":{"keep":true}}}`, 1000)
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewEditorService(store, writer)
 	result, err := service.Save(ctx, anime.SaveAnimeEditorCommand{AnimeID: "anime-editor", BaseModifiedAt: 1000, Patch: anime.EditorPatch{
 		Cover: anime.EditorCoverPatch{Present: true, Clear: true},
@@ -182,7 +182,7 @@ func TestEditorServiceSavePreservesUnknownFieldsAndStructuredMetadata(t *testing
 		"future":{"nested":true}
 	}`, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewEditorService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
@@ -229,7 +229,7 @@ func TestEditorServiceSaveReturnsConflictWithoutWriteOnStaleBase(t *testing.T) {
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":12.5}`, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	conflicts := &stubConflictWriter{}
 	service := anime.NewEditorService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
@@ -261,7 +261,7 @@ func TestEditorServiceSaveRejectsBlankTitleWithoutWrite(t *testing.T) {
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":12.5}`, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewEditorService(store, writer)
 	blank := "   "
 	_, err := service.Save(ctx, anime.SaveAnimeEditorCommand{
@@ -283,7 +283,7 @@ func TestEditorServiceSaveRejectsUnsupportedStatusWithoutWrite(t *testing.T) {
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":12.5}`, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewEditorService(store, writer)
 	status := 9
 	_, err := service.Save(ctx, anime.SaveAnimeEditorCommand{AnimeID: "anime-editor", BaseModifiedAt: 1000, Patch: anime.EditorPatch{Status: &status}})
@@ -301,7 +301,7 @@ func TestEditorServiceSaveRejectsNegativeProgressWithoutWrite(t *testing.T) {
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":12.5}`, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewEditorService(store, writer)
 	progress := -1.0
 	_, err := service.Save(ctx, anime.SaveAnimeEditorCommand{AnimeID: "anime-editor", BaseModifiedAt: 1000, Patch: anime.EditorPatch{Progress: &progress}})
@@ -319,7 +319,7 @@ func TestEditorServiceSaveRejectsUnsafeURLAndFolderWithoutWrite(t *testing.T) {
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":12.5}`, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewEditorService(store, writer)
 	_, err := service.Save(ctx, anime.SaveAnimeEditorCommand{
 		AnimeID:        "anime-editor",
@@ -343,7 +343,7 @@ func TestEditorServiceDeactivateWritesActivoFalseWithoutDeletingRecord(t *testin
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":12.5,"status":0,"active":true}`, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewEditorService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
@@ -378,7 +378,7 @@ func TestEditorServiceSaveWithoutPlacementsPreservesScheduleDays(t *testing.T) {
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":2,"status":0,"active":true,"days":[{"day":"Lunes","order":2},{"day":"Martes","order":1}],"cover":{"type":"url","path":""}}`, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewEditorService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(2000).UTC() })
 	result, err := service.Save(ctx, anime.SaveAnimeEditorCommand{
@@ -408,7 +408,7 @@ func TestEditorServiceSaveWithEmptyPlacementsClearsScheduleDays(t *testing.T) {
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":2,"status":0,"active":true,"days":[{"day":"Lunes","order":2}]}`, 1000)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewEditorService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(2000).UTC() })
 	result, err := service.Save(ctx, anime.SaveAnimeEditorCommand{

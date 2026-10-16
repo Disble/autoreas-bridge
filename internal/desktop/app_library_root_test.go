@@ -37,7 +37,7 @@ func libraryRootApp(t *testing.T) (*App, *bridgeSync.AnimeSnapshotStore) {
 		ctx:              context.Background(),
 		settingsStore:    settingsStore,
 		animeQuery:       anime.NewQueryService(store),
-		animeEditorWrite: anime.NewEditorService(store, &stubAppUpdateWriter{}),
+		animeEditorWrite: anime.NewEditorService(store, &stubAppCommittedPublisher{}),
 	}
 	return app, store
 }

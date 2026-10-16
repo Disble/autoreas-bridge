@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
@@ -144,13 +143,11 @@ func (a *App) configureTray(ctx context.Context) bool {
 	return true
 }
 
-// prepareAnimeRuntime initializes the anime writer and its startup context.
+// prepareAnimeRuntime initializes the anime publisher and its startup context.
 //
-// SDD-55 Slice B (ADR-55-1/ADR-55-3): the file-append channel is deleted
-// entirely (no `AppendLine` seam left to wire) -- persist() finalizes
-// straight into SQLite. The writer still publishes committed anime.changed
-// events on the shared event bus (PublishCommitted) for the SQLite outbox
-// drain.
+// Writes finalize straight into SQLite (ADR-55-1/ADR-55-3); the committed
+// publisher is the only way their anime.changed events reach the shared bus,
+// once the outbox drains. There is no queued writer to start or wait for.
 func (a *App) prepareAnimeRuntime(ctx context.Context) {
 	catchUpContext, catchUpCancel := context.WithCancel(ctx)
 	a.catchUpContext = catchUpContext
@@ -160,15 +157,7 @@ func (a *App) prepareAnimeRuntime(ctx context.Context) {
 		a.notificationCenterStore = center.NewStore(a.bridgeDB, center.StoreConfig{})
 		a.notifier = center.Wrap(a.notifier, a.notificationCenterStore)
 	}
-	a.animeSelfEchoRegistry = a.newSelfEchoRegistry()
-	a.animeUpdateWriter = a.newUpdateWriter(anime.UpdateWriterConfig{
-		Bus:              a.eventBus,
-		Publisher:        a.eventBus,
-		Logger:           anime.NewStdLogger(),
-		SharedLogger:     a.sharedLogger,
-		SelfEchoRegistry: a.animeSelfEchoRegistry,
-	})
-	a.animeUpdateWriter.StartAsync(catchUpContext)
+	a.animeChangedPublisher = a.newCommittedPublisher(a.eventBus)
 }
 
 // buildHTTPServer creates the configured bridge HTTP server.

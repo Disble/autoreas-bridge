@@ -100,7 +100,7 @@ func TestAppStartupInitializesDownloadStoreBeforeHTTPServerFailure(t *testing.T)
 	}
 }
 
-func TestAppStartupBootstrapsSQLiteAndWiresUpdateWriter(t *testing.T) {
+func TestAppStartupBootstrapsSQLiteAndWiresCommittedPublisher(t *testing.T) {
 	t.Parallel()
 
 	wantDB := &sql.DB{}
@@ -201,10 +201,15 @@ func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 	var receivedBus events.Bus
 	var receivedSink tracerbullet.TraceRecorder
 	runner := &stubTracerBulletRunner{}
-	updateWriter := &stubAppUpdateWriter{}
+	var publisherBus events.Bus
 	recorder := &stubAppChangelogRecorder{}
 	app := newAppTestApp(t)
-	app.newUpdateWriter = func(anime.UpdateWriterConfig) anime.UpdateWriter { return updateWriter }
+	app.newCommittedPublisher = func(bus events.Bus) anime.CommittedPublisher {
+		publisherBus = bus
+		// Nil keeps startup recovery off this test's placeholder database;
+		// TestAppStartupRecoversStagedWritesBeforeEvents covers a real publisher.
+		return nil
+	}
 	app.newChangelogRecorder = func(events.Bus, changelogPendingInserter, ...sharedlogger.Logger) changelogRecorder {
 		return recorder
 	}
@@ -229,8 +234,8 @@ func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 	if app.tracerBulletRunner != runner {
 		t.Fatal("expected app to retain tracer bullet runner")
 	}
-	if !updateWriter.started {
-		t.Fatal("expected startup to start update writer")
+	if publisherBus == nil || publisherBus != receivedBus {
+		t.Fatal("expected startup to build the committed publisher over the shared event bus")
 	}
 	if !recorder.started {
 		t.Fatal("expected startup to start changelog recorder")

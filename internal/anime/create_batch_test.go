@@ -17,7 +17,7 @@ import (
 func TestCreateServiceCreateBatchPersistsOneCreateAtomically(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	write := anime.NewWriteService(store, &stubAnimeWriter{})
+	write := anime.NewWriteService(store, &stubCommittedPublisher{})
 	write.SetIDGen(func() string { return "batch-anime-1" })
 	write.SetNow(func() time.Time { return time.UnixMilli(1_700_000_000_000).UTC() })
 	service := anime.NewCreateService(write)
@@ -53,7 +53,7 @@ func TestCreateServiceCreateBatchReflowsNeighborsAlongsideCreates(t *testing.T) 
 	seedAnimeSnapshotWithModifiedAt(t, store, "neighbor-a",
 		`{"id":"neighbor-a","name":"Neighbor A","active":true,"days":[{"day":"Sin ver","order":1}]}`, 500)
 
-	write := anime.NewWriteService(store, &stubAnimeWriter{})
+	write := anime.NewWriteService(store, &stubCommittedPublisher{})
 	write.SetIDGen(func() string { return "batch-anime-2" })
 	write.SetNow(func() time.Time { return time.UnixMilli(1_700_000_000_100).UTC() })
 	service := anime.NewCreateService(write)
@@ -106,7 +106,7 @@ func TestCreateServiceCreateBatchRejectsWholeBatchOnStaleNeighborBase(t *testing
 	seedAnimeSnapshotWithModifiedAt(t, store, "neighbor-b",
 		`{"id":"neighbor-b","name":"Neighbor B","active":true,"days":[{"day":"Sin ver","order":1}]}`, 900)
 
-	write := anime.NewWriteService(store, &stubAnimeWriter{})
+	write := anime.NewWriteService(store, &stubCommittedPublisher{})
 	write.SetIDGen(func() string { return "batch-anime-3" })
 	service := anime.NewCreateService(write)
 	service.SetQuery(anime.NewQueryService(store))
@@ -150,7 +150,7 @@ func TestCreateServiceCreateBatchSkipsNeighborsWhoseReflowIsANoOp(t *testing.T) 
 	seedAnimeSnapshotWithModifiedAt(t, store, "neighbor-d",
 		`{"id":"neighbor-d","name":"Neighbor D","active":true,"days":[{"day":"Sin ver","order":3}]}`, 700)
 
-	write := anime.NewWriteService(store, &stubAnimeWriter{})
+	write := anime.NewWriteService(store, &stubCommittedPublisher{})
 	write.SetIDGen(func() string { return "batch-anime-5" })
 	write.SetNow(func() time.Time { return time.UnixMilli(1_700_000_000_200).UTC() })
 	service := anime.NewCreateService(write)
@@ -210,7 +210,7 @@ func TestCreateServiceCreateBatchSkipsNeighborsWhoseReflowIsANoOp(t *testing.T) 
 func TestCreateServiceCreateBatchCreatesNeverTriggerStaleBaseRejection(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	write := anime.NewWriteService(store, &stubAnimeWriter{})
+	write := anime.NewWriteService(store, &stubCommittedPublisher{})
 	write.SetIDGen(func() string { return "batch-anime-4" })
 	service := anime.NewCreateService(write)
 

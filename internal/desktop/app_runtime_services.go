@@ -249,10 +249,10 @@ func (a *App) configureAnimeApplicationServices() *bridgeSync.ConflictStore {
 	}
 	a.watchHistoryQuery = watchhistory.NewStore(a.bridgeDB)
 	conflictService := bridgeSync.NewConflictStore(a.bridgeDB)
-	a.animeWrite = anime.NewWriteService(snapshotStore, a.animeUpdateWriter)
-	a.animeEditorWrite = anime.NewEditorService(snapshotStore, a.animeUpdateWriter)
+	a.animeWrite = anime.NewWriteService(snapshotStore, a.animeChangedPublisher)
+	a.animeEditorWrite = anime.NewEditorService(snapshotStore, a.animeChangedPublisher)
 	a.animeEditorScheduleQuery = anime.NewScheduleQueryService(a.animeEditorQuery)
-	a.animeEditorScheduleWrite = anime.NewScheduleService(a.animeEditorQuery, a.animeUpdateWriter)
+	a.animeEditorScheduleWrite = anime.NewScheduleService(a.animeEditorQuery, a.animeChangedPublisher)
 	deps := a.newAnimeWriteDeps(conflictService)
 	a.animeWrite.SetDeps(deps)
 	a.animeEditorWrite.SetDeps(deps)

@@ -22,7 +22,7 @@ func TestStartupWiresWatchRecorderIntoMobileWriteService(t *testing.T) {
 	app := newAppTestApp(t)
 	app.bridgeDB = db
 	app.animeQuery = anime.NewQueryService(store)
-	app.animeWrite = anime.NewWriteService(store, &stubAppUpdateWriter{})
+	app.animeWrite = anime.NewWriteService(store, &stubAppCommittedPublisher{})
 
 	progress := 2.0
 	base := int64(1000)

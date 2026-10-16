@@ -18,7 +18,7 @@ func namedCreateService(t *testing.T, ids ...string) *anime.CreateService {
 	t.Helper()
 
 	store := openAnimeServiceTestStore(t)
-	write := anime.NewWriteService(store, &stubAnimeWriter{})
+	write := anime.NewWriteService(store, &stubCommittedPublisher{})
 	next := 0
 	write.SetIDGen(func() string {
 		id := ids[next]
@@ -130,7 +130,7 @@ func TestCreateBatchRejectsACreateCollidingWithTheStoredCatalogue(t *testing.T) 
 
 func TestCreateServiceCreatesWithoutTheNameCheckWhenNoCatalogueIsWired(t *testing.T) {
 	store := openAnimeServiceTestStore(t)
-	write := anime.NewWriteService(store, &stubAnimeWriter{})
+	write := anime.NewWriteService(store, &stubCommittedPublisher{})
 	write.SetIDGen(func() string { return "unwired" })
 	write.SetNow(func() time.Time { return time.UnixMilli(1_700_000_000_000).UTC() })
 

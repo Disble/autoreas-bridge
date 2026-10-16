@@ -130,30 +130,15 @@ func seedAnimeSnapshotWithModifiedAt(t *testing.T, store *bridgeSync.AnimeSnapsh
 	}
 }
 
-// stubAnimeWriter is the Writer test double.
-//
-// SDD-55 Slice B: the gateway no longer routes writes through Writer at all
-// (persist() finalizes straight into SQLite -- ADR-55-1/ADR-55-3), so
-// RequestWrite is never called by production code anymore. Tests that used
-// to assert `.calls`/`.payload`/`.animeID` after a write now assert against
-// the SQLite snapshot store instead (see openAnimeServiceTestStore /
-// seedAnimeSnapshot and the per-test snapshot lookups).
-type stubAnimeWriter struct {
-	animeID string
-	payload []byte
-	err     error
-	calls   int
-	onWrite func()
+// stubCommittedPublisher is the CommittedPublisher test double. It records
+// every drained outbox event it was asked to publish; writes themselves are
+// asserted against the SQLite snapshot store (see openAnimeServiceTestStore).
+type stubCommittedPublisher struct {
+	published []anime.ChangedOutboxEvent
 }
 
-func (s *stubAnimeWriter) RequestWrite(_ context.Context, animeID string, payload []byte) error {
-	if s.onWrite != nil {
-		s.onWrite()
-	}
-	s.calls++
-	s.animeID = animeID
-	s.payload = append([]byte(nil), payload...)
-	return s.err
+func (s *stubCommittedPublisher) PublishCommitted(event anime.ChangedOutboxEvent) {
+	s.published = append(s.published, event)
 }
 
 // stubWatchRecorder is the anime.WatchRecorder test double.

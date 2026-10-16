@@ -28,14 +28,6 @@ const (
 // PatchResult mirrors the public write result contract.
 type PatchResult = contracts.AnimePatchResult
 
-// Writer publishes committed anime.changed events after a write finalizes.
-// SDD-55 Slice B: the file-append port is gone -- RequestWrite is retained
-// for source compatibility only (some doubles still implement it), but the
-// gateway no longer calls it; persist() finalizes straight into SQLite.
-type Writer interface {
-	RequestWrite(context.Context, string, []byte) error
-}
-
 // ConflictWriter persists OCC conflicts for later review.
 type ConflictWriter interface {
 	InsertConflict(context.Context, contracts.ConflictRecord) error
@@ -43,10 +35,6 @@ type ConflictWriter interface {
 
 type writeBaseStoreProvider interface {
 	WriteBaseStore() WriteBaseStore
-}
-
-type committedAnimePublisher interface {
-	PublishCommitted(event ChangedOutboxEvent)
 }
 
 // WriteServiceDeps carries optional collaborators for write flows.
@@ -64,16 +52,17 @@ type WriteServiceDeps struct {
 // WriteService applies canonical create and patch mutations through the legacy gateway.
 type WriteService struct {
 	store      snapshotLookup
-	writer     Writer
+	publisher  CommittedPublisher
 	now        func() time.Time
 	newID      func() string
 	writeBases WriteBaseStore
 	deps       WriteServiceDeps
 }
 
-// NewWriteService builds a write service over the shared snapshot store and writer.
-func NewWriteService(store snapshotLookup, writer Writer) *WriteService {
-	service := &WriteService{store: store, writer: writer, now: time.Now, newID: defaultAnimeID}
+// NewWriteService builds a write service over the shared snapshot store and
+// the publisher that announces its committed writes (nil publishes nothing).
+func NewWriteService(store snapshotLookup, publisher CommittedPublisher) *WriteService {
+	service := &WriteService{store: store, publisher: publisher, now: time.Now, newID: defaultAnimeID}
 	if provider, ok := store.(writeBaseStoreProvider); ok {
 		service.writeBases = provider.WriteBaseStore()
 	}
@@ -229,19 +218,13 @@ func (s *WriteService) RecoverWrites(ctx context.Context) error {
 }
 
 // RecoveryConfigured reports whether the service has a real write-base store
-// AND a production-wired writer, so recovery can safely replay any
-// staged-but-not-finalized SQLite write left by a prior crash. SDD-55 Slice B:
-// recovery no longer needs a file path -- SQLite is the only durable write
-// step (ADR-55-1) -- but it still gates on `committedAnimePublisher` to avoid
-// running against an App-level test double's placeholder database (many
-// startup tests wire a real snapshot store over a non-functional *sql.DB{}
-// precisely because their writer double is not production-shaped).
+// AND a committed publisher, so recovery can safely replay any
+// staged-but-not-finalized SQLite write left by a prior crash and announce it.
+// SQLite is the only durable write step (ADR-55-1); the publisher gate keeps
+// recovery off an App-level test double's placeholder database, because those
+// startup tests wire no publisher.
 func (s *WriteService) RecoveryConfigured() bool {
-	if s.writeBases == nil {
-		return false
-	}
-	_, ok := s.writer.(committedAnimePublisher)
-	return ok
+	return s.writeBases != nil && s.publisher != nil
 }
 
 // gateway builds the store gateway used by write operations.
@@ -256,8 +239,8 @@ func (s *WriteService) publishCommitted(event ChangedOutboxEvent) {
 		s.deps.Publisher.Publish(newAnimeChangedEvent(event))
 		return
 	}
-	if publisher, ok := s.writer.(committedAnimePublisher); ok {
-		publisher.PublishCommitted(event)
+	if s.publisher != nil {
+		s.publisher.PublishCommitted(event)
 	}
 }
 

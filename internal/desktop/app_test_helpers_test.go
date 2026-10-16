@@ -28,10 +28,10 @@ func newAppTestApp(t *testing.T) *App {
 	t.Helper()
 
 	return &App{
-		bootstrapBridgeDB:   func() (*sql.DB, error) { return &sql.DB{}, nil },
-		newSelfEchoRegistry: anime.NewSelfEchoRegistry,
-		newUpdateWriter:     func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
-		newChangelogStore:   func(*sql.DB) changelogPendingInserter { return &stubAppChangelogStore{} },
+		bootstrapBridgeDB: func() (*sql.DB, error) { return &sql.DB{}, nil },
+		// No committed publisher: startup recovery stays off the placeholder DB.
+		newCommittedPublisher: func(events.Bus) anime.CommittedPublisher { return nil },
+		newChangelogStore:     func(*sql.DB) changelogPendingInserter { return &stubAppChangelogStore{} },
 		newChangelogRecorder: func(events.Bus, changelogPendingInserter, ...sharedlogger.Logger) changelogRecorder {
 			return &stubAppChangelogRecorder{}
 		},
@@ -97,11 +97,9 @@ func newTrayLifecycleTestApp(t *testing.T, manager *tray.MockTrayManager) *trayL
 
 type stubTracerBulletRunner struct{ started bool }
 
-type stubAppUpdateWriter struct {
-	started    bool
-	waitCalled bool
-	onWait     func()
-}
+// stubAppCommittedPublisher is the anime.CommittedPublisher test double; it
+// discards the drained outbox events it is asked to publish.
+type stubAppCommittedPublisher struct{}
 
 type stubAppChangelogStore struct{}
 
@@ -368,17 +366,7 @@ type stubAppChangelogRecorder struct {
 	onStop  func()
 }
 
-func (s *stubAppUpdateWriter) StartAsync(context.Context) { s.started = true }
-func (s *stubAppUpdateWriter) Wait() {
-	s.waitCalled = true
-	if s.onWait != nil {
-		s.onWait()
-	}
-}
-func (s *stubAppUpdateWriter) Err() error { return nil }
-func (s *stubAppUpdateWriter) RequestWrite(context.Context, string, []byte) error {
-	return nil
-}
+func (*stubAppCommittedPublisher) PublishCommitted(anime.ChangedOutboxEvent) {}
 
 func (s *stubAppChangelogRecorder) Start(context.Context) { s.started = true }
 func (s *stubAppChangelogRecorder) Stop() {

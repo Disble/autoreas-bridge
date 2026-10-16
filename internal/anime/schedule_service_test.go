@@ -16,7 +16,7 @@ func TestScheduleServiceRejectsWholeDraftWhenAnyBaseIsStale(t *testing.T) {
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-a", `{"id":"anime-a","name":"A","active":true,"days":[{"day":"Lunes","order":1}]}`, 101)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-b", `{"id":"anime-b","name":"B","active":true,"days":[{"day":"Martes","order":1}]}`, 202)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	conflicts := &stubConflictWriter{}
 	service := anime.NewScheduleService(anime.NewQueryService(store), writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
@@ -49,7 +49,7 @@ func TestScheduleServiceRejectsWholeDraftWhenUnchangedBoardMemberAdvances(t *tes
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-a", payloadA, 101)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-b", payloadB, 203)
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	conflicts := &stubConflictWriter{}
 	service := anime.NewScheduleService(anime.NewQueryService(store), writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
@@ -83,7 +83,7 @@ func TestScheduleServiceApplyDoesNotPartiallyWriteWhenBatchReplacementFails(t *t
 	// (ADR-55-3) -- a FinalizeBatch failure must leave every snapshot in the
 	// batch untouched (all-or-nothing), which is what this test now proves.
 	failing := &failingFinalizeBatchStore{WriteBaseStore: store.WriteBaseStore()}
-	service := anime.NewScheduleService(anime.NewQueryService(store), &stubAnimeWriter{})
+	service := anime.NewScheduleService(anime.NewQueryService(store), &stubCommittedPublisher{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 	service.SetDeps(anime.WriteServiceDeps{WriteBases: failing})
 
@@ -116,7 +116,7 @@ func TestScheduleServiceApplyAcceptsValidPartialDraftIntoPopulatedWeekday(t *tes
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-b", payloadB, 102)
 
 	publisher := &editorRecordingPublisher{}
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewScheduleService(anime.NewQueryService(store), writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 	service.SetDeps(anime.WriteServiceDeps{Publisher: publisher})
@@ -147,7 +147,7 @@ func TestScheduleServiceApplyTwoAnimeDraftProducesAppliedOutcomeAndExactPublicat
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-b", payloadB, 102)
 
 	publisher := &editorRecordingPublisher{}
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewScheduleService(anime.NewQueryService(store), writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 	service.SetDeps(anime.WriteServiceDeps{Publisher: publisher})
@@ -196,7 +196,7 @@ func TestScheduleServiceApplyAcceptsTopInsertedSpecialQueueDraftWithUntouchedSpa
 		seedAnimeSnapshotWithModifiedAt(t, store, animeIDFromSchedulePayload(t, payload), payload, int64(101+index))
 	}
 
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	publisher := &editorRecordingPublisher{}
 	service := anime.NewScheduleService(anime.NewQueryService(store), writer)
 	service.SetDeps(anime.WriteServiceDeps{Publisher: publisher})
@@ -248,7 +248,7 @@ func TestScheduleServiceApplyReordersEveryCardAfterAnInColumnMove(t *testing.T) 
 	}
 
 	publisher := &editorRecordingPublisher{}
-	service := anime.NewScheduleService(anime.NewQueryService(store), &stubAnimeWriter{})
+	service := anime.NewScheduleService(anime.NewQueryService(store), &stubCommittedPublisher{})
 	service.SetDeps(anime.WriteServiceDeps{Publisher: publisher})
 	result, err := service.Apply(ctx, anime.ApplyAnimeScheduleDraftCommand{BoardModifiedAt: 104, Entries: []anime.ApplyAnimeScheduleDraftEntry{{
 		AnimeID:        "futsutsuka",
@@ -296,7 +296,7 @@ func TestScheduleServiceApplyReflowsSourceQueueAfterTwoCardsMoveToVisto(t *testi
 		seedAnimeSnapshotWithModifiedAt(t, store, animeIDFromSchedulePayload(t, payload), payload, int64(101+index))
 	}
 
-	service := anime.NewScheduleService(anime.NewQueryService(store), &stubAnimeWriter{})
+	service := anime.NewScheduleService(anime.NewQueryService(store), &stubCommittedPublisher{})
 	result, err := service.Apply(ctx, anime.ApplyAnimeScheduleDraftCommand{BoardModifiedAt: 108, Entries: []anime.ApplyAnimeScheduleDraftEntry{
 		{AnimeID: "sayonara-lara", BaseModifiedAt: 101, Placements: []contracts.MobileAnimeDay{{Day: "Visto", Order: 1}}},
 		{AnimeID: "bang-dream", BaseModifiedAt: 104, Placements: []contracts.MobileAnimeDay{{Day: "Visto", Order: 2}}},
@@ -339,7 +339,7 @@ func TestScheduleServiceRejectsInvalidScheduleDraftsBeforeWrite(t *testing.T) {
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-a", payloadA, 101)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-b", payloadB, 102)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-c", payloadC, 103)
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewScheduleService(anime.NewQueryService(store), writer)
 
 	tests := []anime.ApplyAnimeScheduleDraftCommand{
@@ -364,7 +364,7 @@ func TestScheduleServiceRejectsExplicitNonContiguousSundayPayload(t *testing.T) 
 	store := openAnimeServiceTestStore(t)
 	payload := `{"id":"domingo-explicit","name":"Sunday Explicit","active":true,"days":[{"day":"Domingo","order":1}]}`
 	seedAnimeSnapshotWithModifiedAt(t, store, "domingo-explicit", payload, 101)
-	writer := &stubAnimeWriter{}
+	writer := &stubCommittedPublisher{}
 	service := anime.NewScheduleService(anime.NewQueryService(store), writer)
 
 	_, err := service.Apply(ctx, anime.ApplyAnimeScheduleDraftCommand{BoardModifiedAt: 101, Entries: []anime.ApplyAnimeScheduleDraftEntry{{

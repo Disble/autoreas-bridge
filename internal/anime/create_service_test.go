@@ -37,7 +37,7 @@ func TestCreateServicePersistsUnsupportedDownloadPageWithoutLookup(t *testing.T)
 func configuredCreateWriteService(t *testing.T, id string, modifiedAt int64) (*bridgeSync.AnimeSnapshotStore, *anime.WriteService) {
 	t.Helper()
 	store := openAnimeServiceTestStore(t)
-	write := anime.NewWriteService(store, &stubAnimeWriter{})
+	write := anime.NewWriteService(store, &stubCommittedPublisher{})
 	write.SetIDGen(func() string { return id })
 	write.SetNow(func() time.Time { return time.UnixMilli(modifiedAt).UTC() })
 	return store, write

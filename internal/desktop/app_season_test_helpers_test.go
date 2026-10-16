@@ -199,7 +199,7 @@ type runtimeSeasonFixture struct {
 func newRuntimeSeasonFixture(t *testing.T) runtimeSeasonFixture {
 	t.Helper()
 	store := bridgeSync.NewAnimeSnapshotStore(openRuntimeBridgeDB(t))
-	write := anime.NewWriteService(store, &stubAppUpdateWriter{})
+	write := anime.NewWriteService(store, &stubAppCommittedPublisher{})
 	write.SetIDGen(func() string { return "created-anime" })
 	write.SetNow(func() time.Time { return time.UnixMilli(1_700_000_000_000).UTC() })
 	creator := anime.NewCreateService(write)

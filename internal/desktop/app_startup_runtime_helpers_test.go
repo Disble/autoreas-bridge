@@ -13,11 +13,12 @@ import (
 func configureStartupRuntimeDependencies(t *testing.T, app *App, wantDB *sql.DB) {
 	t.Helper()
 	app.bootstrapBridgeDB = func() (*sql.DB, error) { return wantDB, nil }
-	app.newUpdateWriter = func(config anime.UpdateWriterConfig) anime.UpdateWriter {
-		if config.Bus == nil {
-			t.Fatal("expected update writer config to include event bus")
+	app.newCommittedPublisher = func(bus events.Bus) anime.CommittedPublisher {
+		if bus == nil {
+			t.Fatal("expected the committed publisher to receive the event bus")
 		}
-		return &stubAppUpdateWriter{}
+		// No publisher: startup recovery stays off this test's database.
+		return nil
 	}
 	app.newChangelogStore = func(db *sql.DB) changelogPendingInserter {
 		if db == nil {
