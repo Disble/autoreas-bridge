@@ -90,7 +90,9 @@ func (a *App) SetAutoStartEnabled(enabled bool) string {
 	if err := a.settingsStore.SetAutoStartEnabled(a.seasonCtx(), enabled); err != nil {
 		return err.Error()
 	}
-	if a.newAutoStartReconciler == nil {
+	// A data directory copy is a development build: the registry belongs to the
+	// everyday bridge, so the copy only records the preference.
+	if a.newAutoStartReconciler == nil || a.dataDirOverridden() {
 		return "ok"
 	}
 	if err := a.newAutoStartReconciler().Reconcile(enabled); err != nil {
@@ -100,9 +102,11 @@ func (a *App) SetAutoStartEnabled(enabled bool) string {
 }
 
 // reconcileAutoStart makes registration best effort so registry access can
-// never prevent the resident tray application from starting.
+// never prevent the resident tray application from starting. A data directory
+// copy never reconciles: its copied preference would otherwise overwrite the
+// everyday bridge's login entry with a development build.
 func (a *App) reconcileAutoStart(ctx context.Context) {
-	if a.settingsStore == nil || a.newAutoStartReconciler == nil {
+	if a.settingsStore == nil || a.newAutoStartReconciler == nil || a.dataDirOverridden() {
 		return
 	}
 	enabled, err := a.autoStartEnabled(ctx)
