@@ -45,7 +45,7 @@ existing paths only, and today the feature has none: the old `features/network` 
 |---|---|---|---|---|
 | T0 | S1, S4, S5 | ADR-028 and `docs/observability/` | inline | done |
 | T1 | S5 | new Activity UI canvas from the UX brief | inline | done: approved, `docs/observability/activity-ui-design.md` |
-| T2 | S4 | data-directory override and copy refresh | inline | done: `bea6bc75`, `c46fcf49`, tool commit |
+| T2 | S4 | data-directory override and copy refresh | inline | done: `bea6bc75`, `c46fcf49`, `fd09052c` |
 | T3 | S1 | stage 1: record quality and the H1 read by id (lanes A and B) | to plan | pending |
 | T4 | S6 | stage 2: mobile correlation header | to plan | pending |
 | T5 | S1 | stage 3: ledger | to plan | pending |
@@ -66,3 +66,20 @@ existing paths only, and today the feature has none: the old `features/network` 
   open an incident.
 - L5 (2026-10-17): "Ok, puedo dar por aprobado esa UI. También bájala directo hacia los documentos." The UI is
   approved. Its spec is in `docs/observability/activity-ui-design.md`.
+- L6 (2026-10-17): S7, no legacy, recorded in `rollout.md` (`2686da17`).
+- L7 (2026-10-17): T2 done (`bea6bc75`, `c46fcf49`, `fd09052c`).
+  - Mutation:
+    - `internal/sync` 8/8.
+    - `tools/devdata/copy.go` 9/9.
+    - `internal/desktop` 9/10. The survivor is `app_preferences.go:109:5` (`settingsStore == nil` →
+      false), which is equivalent: `autoStartEnabled` recovers the nil-store panic and returns silently.
+    - `tools/devdata/main.go` is INFRASTRUCTURE and stays out of scope.
+  - Real boundary: copying the live DB took 1.7 s. The live file's hash was unchanged.
+  - Flake: one `internal/desktop` failure seen once, when go-cover blocked the first commit attempt.
+    It was not reproduced in 10 later runs, and its name was not captured. Watch for it.
+  - Finding: `PRAGMA integrity_check` on the live DB reports "row 335 missing from index
+    idx_anime_snapshots_name_key" (`date a live ⅲ`). The copy has it too. It predates this feature and is
+    not fixed here.
+- L8 (2026-10-17): S8. dharness tier coverage was **not** configured: there is no `coverage-tiers.json`,
+  `dharness policy` reports `active:false`, and `@vitest/coverage-v8` is not installed (vitest 4.1.6).
+  The declaration waits for T7 (see "Coverage tiers").
