@@ -22,6 +22,22 @@ nothing reaches `dev` until the whole feature is done and reviewed. Runners: `go
 - S7: "Todo lo que es features antiguas de Activity y toda su UI, nada de legacy. Eso anótalo incluso en
   la documentación. No legacy. Todo se borra. No se deja rastro de eso." Scope: `docs/observability/rollout.md`,
   "No legacy".
+- S8: "actualmente estamos en la última versión de dharness … tier coverage … haz uso de esa funcionalidad.
+  Marca tu feature en el archivo que corresponde y pues que sea lo que dharness quiera." Scope: the
+  `debug-capture` feature in `coverage-tiers.json` (see "Coverage tiers" below).
+
+## Coverage tiers
+
+Each unit declares its tiers (`docs/coverage-tiers.md`). dharness v1.13.1 resolves `coverage-tiers.json`
+for JS/TS sources only. Go tiers are recorded here and applied through ditto.
+
+| Unit | CORE | IMPORTANT | INFRASTRUCTURE |
+|---|---|---|---|
+| T2 | `internal/sync/sqlite_bootstrap_datadir.go` (the live-file guard); `tools/devdata/copy.go` (refuses the live dir, read-only source) | `internal/desktop/app_datadir.go`, the auto-start guards in `app_preferences.go`, the lock id in `options.go` | `tools/devdata/main.go` (flags and exit codes) |
+
+`coverage-tiers.json` is declared when the first frontend path of the feature exists (T7). dharness accepts
+existing paths only, and today the feature has none: the old `features/network` is deleted, not adopted
+(S7).
 
 ## Tasks
 
@@ -29,7 +45,7 @@ nothing reaches `dev` until the whole feature is done and reviewed. Runners: `go
 |---|---|---|---|---|
 | T0 | S1, S4, S5 | ADR-028 and `docs/observability/` | inline | done |
 | T1 | S5 | new Activity UI canvas from the UX brief | inline | done: approved, `docs/observability/activity-ui-design.md` |
-| T2 | S4 | data-directory override and copy refresh | inline | pending |
+| T2 | S4 | data-directory override and copy refresh | inline | done: `bea6bc75`, `c46fcf49`, tool commit |
 | T3 | S1 | stage 1: record quality and the H1 read by id (lanes A and B) | to plan | pending |
 | T4 | S6 | stage 2: mobile correlation header | to plan | pending |
 | T5 | S1 | stage 3: ledger | to plan | pending |
