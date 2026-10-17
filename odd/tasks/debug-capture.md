@@ -25,7 +25,7 @@ nothing reaches `dev` until the whole feature is done and reviewed. Runners: `go
 | ID | Specs | Task | Route | Status |
 |---|---|---|---|---|
 | T0 | S1, S4, S5 | ADR-028 and `docs/observability/` | inline | done |
-| T1 | S5 | new Activity UI canvas from the UX brief | inline | in progress |
+| T1 | S5 | new Activity UI canvas from the UX brief | inline | done: approved, `docs/observability/activity-ui-design.md` |
 | T2 | S4 | data-directory override and copy refresh | inline | pending |
 | T3 | S1 | stage 1: record quality and the H1 read by id (lanes A and B) | to plan | pending |
 | T4 | S6 | stage 2: mobile correlation header | to plan | pending |
@@ -43,3 +43,7 @@ nothing reaches `dev` until the whole feature is done and reviewed. Runners: `go
   and is not part of the delivery.
 - L3: T1 draft published in the canvas "Activity 2026" (https://claude.ai/artifact/7jLTYCTy8WUFqCUrKkD1X8).
   It has four artboards: Now, Incident, History and States. It is waiting for the owner's review.
+- L4 (2026-10-17): "Si eso es lo que los datos te han recomendado, entonces que así se haga." Only errors
+  open an incident.
+- L5 (2026-10-17): "Ok, puedo dar por aprobado esa UI. También bájala directo hacia los documentos." The UI is
+  approved. Its spec is in `docs/observability/activity-ui-design.md`.
