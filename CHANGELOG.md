@@ -14,6 +14,12 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.17.1] — 2026-10-17
+
+### Fixed
+
+- The tray icon no longer stops responding after the app has been running for a while. Before, the icon could stay visible but ignore every click, so **Abrir** and **Salir** did nothing and the only way out was to end the process, even though the app itself kept working.
+
 ## [1.17.0] — 2026-10-16
 
 ### Added
