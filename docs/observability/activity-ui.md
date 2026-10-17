@@ -56,8 +56,11 @@ The questions Activity must answer, taken from the 92 resolved issues:
 Internal bridge work is a first-class source, not an API detail. Incidents and History filter by where
 something happened: phone and sync, downloads, editor, schedule or season. An internal story reads its
 steps from one correlation id and shows its metadata as labelled fields, with the raw JSON one click
-away. A warning that recovered on its own appears in History with a "Recovered" mark. Only errors open an
-incident.
+away.
+
+Decision (owner, 2026-10-17): **only errors open an incident.** A warning that recovers on its own appears
+in History with a "Recovered" mark. In the measured week the bridge logged 10 warnings and 0 errors, so
+opening an incident for every warning would mostly raise false alarms.
 
 Design principles, agreed with the owner:
 

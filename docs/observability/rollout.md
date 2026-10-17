@@ -12,7 +12,7 @@ Sub-worktrees for parallel lanes branch from `feat/debug-capture` and return to 
 | # | Stage | Delivers | Status |
 |---|---|---|---|
 | 0 | Docs and development database | this section, ADR-028, the data-directory override | docs written 2026-10-17 |
-| 1 | Record quality | P1 error cause, P2 ms time, P3 correlation, P7 frontend errors, 4xx triggers, incremental vacuum, the detail read by id (H1) | pending |
+| 1 | Record quality | P1 error cause, P2 ms time, P3 correlation, P7 frontend errors, 4xx triggers, incremental vacuum, the detail read by id (H1), a metadata audit of internal events (130 of 173 carried metadata in the measured week), a test that an internal error event opens an incident | pending |
 | 2 | Mobile correlation | the phone sends its id in an optional header; the bridge reads it when present | pending: proposal not sent |
 | 3 | Ledger | write journal, event and WS ledger, hourly rollup, response versions, alongside the old tables | pending |
 | 4 | Recorder and incidents | the 2-hour recorder and 90-day incidents replace the row caps | pending: the only stage that deletes data |

@@ -30,7 +30,10 @@ A trigger pins the recorder window from **2 minutes before to 30 seconds after**
 - a request slower than 1,000 ms
 - a mobile failure report (sync cycle failed, write failed)
 - an internal bridge error event from any domain (downloads, editor, schedule, season, sync), with its
-  metadata; 16 of the 92 resolved issues were internal and never touched the API
+  metadata. The simulator modelled this trigger from the start. The measured week had 0 error-level
+  events, though, so real data has never exercised it. The 48 internal issues in the battery (no phone
+  involved) pass through the 90-day event ledger, not through incidents. Rerun 2026-10-17: 92/92,
+  13.00 MB, unchanged
 - a manual "pin this moment" from the UI
 
 Windows are grouped by fingerprint. Per fingerprint the first and the latest occurrences are kept, so a
