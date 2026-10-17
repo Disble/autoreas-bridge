@@ -1,6 +1,9 @@
 package tray
 
-import "sync"
+import (
+	"runtime"
+	"sync"
+)
 
 type menuItem interface { // NOSONAR godre:S8196 -- Clicked() hands back a channel; the item does not click, it is clicked. "Clicker" would name the wrong actor, and the systray binding this abstracts really is a menu item.
 	Clicked() <-chan struct{}
@@ -32,6 +35,24 @@ var (
 	addMenuItem func(string, string) menuItem = func(string, string) menuItem { return nil }
 	quit        func()                        = func() { /* no tray on this build */ }
 )
+
+// lockOSThread pins the calling goroutine to its OS thread; tests swap it.
+var lockOSThread = runtime.LockOSThread
+
+// runOnLockedThread starts loop on a new goroutine pinned to one OS thread.
+//
+// A Win32 message queue belongs to the thread that created the window. The
+// tray window is created and pumped by the same blocking loop, so if the Go
+// scheduler moved that goroutine to another thread, GetMessage would read an
+// empty queue and the icon would stop answering clicks while the rest of the
+// app kept working. The thread is never unlocked: it is discarded when the
+// loop returns.
+func runOnLockedThread(loop func()) {
+	go func() {
+		lockOSThread()
+		loop()
+	}()
+}
 
 // SystrayManager implements Manager with the native system tray.
 type SystrayManager struct {
