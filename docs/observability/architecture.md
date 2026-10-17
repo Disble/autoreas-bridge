@@ -29,6 +29,8 @@ A trigger pins the recorder window from **2 minutes before to 30 seconds after**
 - an HTTP 5xx, a 4xx or a rejected request
 - a request slower than 1,000 ms
 - a mobile failure report (sync cycle failed, write failed)
+- an internal bridge error event from any domain (downloads, editor, schedule, season, sync), with its
+  metadata; 16 of the 92 resolved issues were internal and never touched the API
 - a manual "pin this moment" from the UI
 
 Windows are grouped by fingerprint. Per fingerprint the first and the latest occurrences are kept, so a
@@ -40,7 +42,7 @@ startup never count as new.
 | Part | Keeps | Answers |
 |---|---|---|
 | Write journal | every state-changing request, with its body | "my change was not saved" |
-| Event and WebSocket ledger | non-noise bridge events, WS connects, disconnects and broadcasts | "what was the bridge doing?" |
+| Event and WebSocket ledger | non-noise bridge events with their full `metadata_json`, WS connects, disconnects and broadcasts | "what was the bridge doing?" |
 | Hourly rollup | per hour, route template, device and status class: count and max duration | "when did sync stop?" |
 | Response versions | each distinct response body once, per route | "what did the bridge answer the phone?" |
 

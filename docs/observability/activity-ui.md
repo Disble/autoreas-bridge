@@ -51,6 +51,13 @@ The questions Activity must answer, taken from the 92 resolved issues:
 | What did the bridge answer the phone? | the cursor reset to 0 | response versions |
 | When did it stop, and for how long? | the phone was silent for 43 h | rollup, lifecycle |
 | What did the phone see? | late sync-cycle reports | mobile reports |
+| What did the bridge do inside, step by step? | a hoster declared dead, a stranded editor write | event ledger with metadata, grouped by correlation id (a download run, an editor save) |
+
+Internal bridge work is a first-class source, not an API detail. Incidents and History filter by where
+something happened: phone and sync, downloads, editor, schedule or season. An internal story reads its
+steps from one correlation id and shows its metadata as labelled fields, with the raw JSON one click
+away. A warning that recovered on its own appears in History with a "Recovered" mark. Only errors open an
+incident.
 
 Design principles, agreed with the owner:
 
