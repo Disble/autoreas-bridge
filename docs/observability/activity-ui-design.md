@@ -25,7 +25,9 @@ Activity ── Tabs: Now · Incidents · History        [Pin this moment]
                     └─ links into Incidents, History and the 2-hour recorder
 ```
 
-The Activity route stays. The three tabs replace Overview, Transactions and Runtime Events. "Pin this
+The Activity route stays. The three tabs replace Overview, Transactions and Runtime Events, and the old
+screen is deleted entirely: no code, tests, stores or bindings of it remain ("No legacy" in `rollout.md`).
+The new UI is built fresh. It does not adapt the old components. "Pin this
 moment" is a secondary `Button` with an icon. The tab strip is HeroUI `Tabs`, and each filter is a
 `ToggleButtonGroup`.
 

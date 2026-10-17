@@ -19,6 +19,9 @@ nothing reaches `dev` until the whole feature is done and reviewed. Runners: `go
   `docs/observability/activity-ui.md`.
 - S6: no mobile contract change ships without an announcement in `docs/openapi.yaml`; the header proposal
   is shown to the owner before it is sent.
+- S7: "Todo lo que es features antiguas de Activity y toda su UI, nada de legacy. Eso anótalo incluso en
+  la documentación. No legacy. Todo se borra. No se deja rastro de eso." Scope: `docs/observability/rollout.md`,
+  "No legacy".
 
 ## Tasks
 
