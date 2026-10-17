@@ -6,7 +6,7 @@ import "github.com/getlantern/systray"
 
 func init() {
 	runWithExternalLoop = func(onReady, onExit func()) {
-		go systray.Run(onReady, onExit)
+		runOnLockedThread(func() { systray.Run(onReady, onExit) })
 	}
 	setIcon = systray.SetIcon
 	setTooltip = systray.SetTooltip

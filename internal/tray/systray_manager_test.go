@@ -89,6 +89,37 @@ func TestSystrayManagerStopIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestRunOnLockedThreadPinsTheLoopWithoutBlockingTheCaller(t *testing.T) {
+	originalLock := lockOSThread
+	defer func() { lockOSThread = originalLock }()
+
+	events := make(chan string, 2)
+	release := make(chan struct{})
+	defer close(release)
+	lockOSThread = func() { events <- "lock" }
+
+	returned := make(chan struct{})
+	go func() {
+		runOnLockedThread(func() {
+			events <- "loop"
+			<-release
+		})
+		close(returned)
+	}()
+	assertSignal(t, returned, "runOnLockedThread to return while the loop is still running")
+
+	for _, want := range []string{"lock", "loop"} {
+		select {
+		case got := <-events:
+			if got != want {
+				t.Fatalf("expected %q next, got %q", want, got)
+			}
+		case <-time.After(200 * time.Millisecond):
+			t.Fatalf("expected %q to happen", want)
+		}
+	}
+}
+
 // stubSystrayPrimitives replaces native tray operations with test doubles.
 func stubSystrayPrimitives() func() {
 	originalRun := runWithExternalLoop
