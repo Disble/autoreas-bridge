@@ -38,31 +38,25 @@ const (
 )
 
 // SQLiteBootstrap wires the injectable helpers used by tests (userConfigDir, mkdirAll,
-// openDB). Zero-value uses the real OS implementations.
+// openDB, getenv). Zero-value uses the real OS implementations.
 type SQLiteBootstrap struct {
 	userConfigDir func() (string, error)
 	mkdirAll      func(path string, perm os.FileMode) error
 	openDB        func(driverName string, dataSourceName string) (*sql.DB, error)
+	getenv        func(string) string
 }
 
 // ResolveBridgeDBPath resolves the platform-safe path for the bridge SQLite database.
 func (b SQLiteBootstrap) ResolveBridgeDBPath() (string, error) {
-	userConfigDir := b.userConfigDir
-	if userConfigDir == nil {
-		userConfigDir = os.UserConfigDir
-	}
-
 	mkdirAll := b.mkdirAll
 	if mkdirAll == nil {
 		mkdirAll = os.MkdirAll
 	}
 
-	baseDir, err := userConfigDir()
+	dataDir, err := b.dataDir()
 	if err != nil {
 		return "", err
 	}
-
-	dataDir := filepath.Join(baseDir, bridgeDataDirName, bridgeDataSubdir)
 	if err := mkdirAll(dataDir, 0o755); err != nil {
 		return "", err
 	}
@@ -72,15 +66,11 @@ func (b SQLiteBootstrap) ResolveBridgeDBPath() (string, error) {
 
 // ResolveExistingBridgeDBPath resolves the platform-safe bridge DB path without creating directories and requires the file to exist.
 func (b SQLiteBootstrap) ResolveExistingBridgeDBPath() (string, error) {
-	userConfigDir := b.userConfigDir
-	if userConfigDir == nil {
-		userConfigDir = os.UserConfigDir
-	}
-	baseDir, err := userConfigDir()
+	dataDir, err := b.dataDir()
 	if err != nil {
 		return "", err
 	}
-	path := filepath.Join(baseDir, bridgeDataDirName, bridgeDataSubdir, bridgeDBName)
+	path := filepath.Join(dataDir, bridgeDBName)
 	if _, err := os.Stat(path); err != nil {
 		return "", fmt.Errorf("bridge db missing at %q: %w", path, err)
 	}
