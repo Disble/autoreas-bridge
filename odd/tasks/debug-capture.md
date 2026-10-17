@@ -41,3 +41,5 @@ nothing reaches `dev` until the whole feature is done and reviewed. Runners: `go
   canvas nuevo con la nueva propuesta de UI."
 - L2: worktree created from `dev` at `b6cd5eea`. Docs written. The POC stays on `poc/retention-sim`
   and is not part of the delivery.
+- L3: T1 draft published in the canvas "Activity 2026" (https://claude.ai/artifact/7jLTYCTy8WUFqCUrKkD1X8).
+  It has four artboards: Now, Incident, History and States. It is waiting for the owner's review.
