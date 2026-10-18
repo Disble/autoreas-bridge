@@ -121,3 +121,12 @@ Checklist for T7, in the first commit that creates the new Activity folder:
     - Every response echoes the id.
     - The WS field is dropped.
     - Announced in `docs/openapi.yaml` before code.
+- L11 (2026-10-17): the owner flagged the parent context at 80% and asked for subagents ("el verifier también
+  es un subagente especializado", "hay un workflow específico para el ODD").
+  - Routes from here on:
+    - T3d2, T3e and T3g are delegated to parallel writers with disjoint surfaces, launched together.
+    - The writers run no ditto, lint, build or git.
+    - An independent verifier subagent checks Risk-item units (T3d2; T3f later) and runs mutation
+      sequentially.
+    - The parent commits.
+  - T3a–T3d committed through `7a4a7587` (correlation helper moved to the leaf package `internal/correlation`).
