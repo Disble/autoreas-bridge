@@ -274,6 +274,21 @@ info:
     has never seen, because changes written before this fix, and creates
     behind a pruned changelog, are served as `update`.
 
+    2026-10-17 — request correlation consumer impact: ADDITIVE, one optional
+    request header and one response header on every HTTP endpoint (agreed
+    with autoreas-mobile, ADR-028 P3).
+    - Request: `X-Autoreas-Request-Id: <cycleId>:<n>`, where `cycleId` is the
+      client's sync-cycle id and `n` is the request's sequence inside that
+      cycle. The bridge accepts a value matching
+      `^[A-Za-z0-9._-]{1,48}:[0-9]{1,9}$` and records it as the request's
+      correlation id.
+    - An absent or non-matching value is ignored, and the bridge mints its
+      own id, as before. A bad header never fails a request, and nothing is
+      required from existing clients.
+    - Response: every HTTP response carries `X-Autoreas-Request-Id`, with the
+      client's accepted value or the bridge's own id. Clients may log it.
+    - WebSocket is unchanged: the phone sends no frames.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}

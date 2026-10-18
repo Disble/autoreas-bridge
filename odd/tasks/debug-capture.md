@@ -62,7 +62,7 @@ Checklist for T7, in the first commit that creates the new Activity folder:
 | T3 | S1 | stage 1: record quality and the H1 read by id (lanes A and B) | split below | in progress |
 | T3a | S1 | H1: `Reader.Get` reads one row by primary key instead of scanning the table (`reader_search.go:122`) | inline | done: 44 ms → 53 µs on the dev copy, mutation 4/4 |
 | T3b | S1 | P2: logger timestamps in ms; all 20,001 `runtime_events` rows on the dev copy sit on whole seconds (`logger.go:57`, `sink.go:169`) | inline | done: ditto 0 mutants (constant only); hand mutation = the observed RED |
-| T3c | S1 | P1: `error_message` on `request_captures`; the WS path keeps the `err` it already has; middleware records the cause for 4xx/5xx | inline | pending |
+| T3c | S1 | P1: `error_message` on `request_captures`; the WS path keeps the `err` it already has; middleware records the cause for 4xx/5xx | inline | done: `d7be2d38`, `871e2608`; mutation 1/1, 6/6, 1/1; migration verified on a dev-copy duplicate (5,008 rows); schema version kept at 5 so an older MCP build still reads the table |
 | T3d | S1, S6 | P3: request id in context, read/echo `X-Autoreas-Request-Id`, logger and activity pick it up; `docs/openapi.yaml` announcement first | inline | pending |
 | T3e | S1 | P7: Wails binding plus global `error`/`unhandledrejection` handler and an error boundary | inline | pending |
 | T3f | S1 | incremental vacuum (`auto_vacuum=INCREMENTAL`, one-time `VACUUM`, periodic `incremental_vacuum`) | inline | pending: Risk item 1 (storage layout) |
