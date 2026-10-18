@@ -33,7 +33,7 @@
         "@types/react-dom": "19.2.3",
         "@typescript-eslint/parser": "^8.63.0",
         "@vitejs/plugin-react": "6.0.1",
-        "dharness-eslint-plugin": "^0.3.0",
+        "dharness-eslint-plugin": "^0.4.0",
         "eslint": "^9",
         "eslint-plugin-react-doctor": "^0.9.11",
         "fallow": "^3.3.0",
@@ -669,7 +669,7 @@
 
     "detect-libc": ["detect-libc@2.1.2", "", {}, "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="],
 
-    "dharness-eslint-plugin": ["dharness-eslint-plugin@0.3.0", "", { "peerDependencies": { "eslint": ">=9" }, "optionalPeers": ["eslint"] }, "sha512-XhE0ZD47BJg0Lpkuu/o6wuGLD3eCwEsHlJDcSn47CTZrwDhVpXJbCI472dHChMGxapJZXYveLf3ZNxVyl7HWtg=="],
+    "dharness-eslint-plugin": ["dharness-eslint-plugin@0.4.0", "", { "peerDependencies": { "eslint": ">=9" }, "optionalPeers": ["eslint"] }, "sha512-SawUAs0XlSuoAtEau+wcmxzKMGZ/UzKIG9cIM+C9Ke4b9N7Y8NJzq0jiSXj5uhxrZ0URQ+cZ5pVy4SeRXW4m6A=="],
 
     "diff-match-patch": ["diff-match-patch@1.0.5", "", {}, "sha512-IayShXAgj/QMXgB0IWmKx+rOPuGMhqm5w6jvFxmVenXKIzRqTAAsbBPT3kWQeGANj3jGgvcvv4yK6SxqYmikgw=="],
 

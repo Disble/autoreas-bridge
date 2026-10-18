@@ -55,7 +55,7 @@
     "@types/react-dom": "19.2.3",
     "@typescript-eslint/parser": "^8.63.0",
     "@vitejs/plugin-react": "6.0.1",
-    "dharness-eslint-plugin": "^0.3.0",
+    "dharness-eslint-plugin": "^0.4.0",
     "eslint": "^9",
     "eslint-plugin-react-doctor": "^0.9.11",
     "fallow": "^3.3.0",
