@@ -127,7 +127,7 @@ func handleIncomingWebSocketMessage(ctx context.Context, device device.PairedDev
 		if config.RecordSeasonRating == nil {
 			return nil
 		}
-		_, err := config.RecordSeasonRating(ctx, message.AnimeID, message.Grade, message.RatedAt)
+		_, err := config.RecordSeasonRating(ctx, message.AnimeID, message.Grade, message.RatedAt, "")
 		return err
 	}
 

@@ -45,7 +45,7 @@ func TestRecordSeasonRatingRecordsAndBroadcasts(t *testing.T) {
 	hub := &stubAppRealtimeHub{seasonChanges: make(chan string, 2)}
 	app := seedRatingApp(t, hub)
 
-	res, err := app.recordSeasonRating()(context.Background(), "anime-a", 4, 1_751_500_000_000)
+	res, err := app.recordSeasonRating()(context.Background(), "anime-a", 4, 1_751_500_000_000, "")
 	if err != nil {
 		t.Fatalf("record: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestRecordSeasonRatingMapsManualConflict(t *testing.T) {
 		t.Fatalf("seed manual grade: %v", err)
 	}
 
-	res, err := app.recordSeasonRating()(context.Background(), "anime-a", 2, 2)
+	res, err := app.recordSeasonRating()(context.Background(), "anime-a", 2, 2, "")
 	if err != nil {
 		t.Fatalf("record: %v", err)
 	}
@@ -80,12 +80,17 @@ func TestRecordSeasonRatingMapsNotCandidateAndInvalid(t *testing.T) {
 	t.Parallel()
 	app := seedRatingApp(t, nil)
 
-	res, _ := app.recordSeasonRating()(context.Background(), "ghost", 4, 1)
+	res, _ := app.recordSeasonRating()(context.Background(), "ghost", 4, 1, "")
 	if res.Outcome != apiHandlers.SeasonRatingNotCandidate {
 		t.Fatalf("unknown anime: outcome = %v, want notCandidate", res.Outcome)
 	}
 
-	res, _ = app.recordSeasonRating()(context.Background(), "anime-a", 9, 1)
+	res, _ = app.recordSeasonRating()(context.Background(), "anime-a", 4, 1, "another-season")
+	if res.Outcome != apiHandlers.SeasonRatingNotCandidate {
+		t.Fatalf("rating for another season: outcome = %v, want notCandidate", res.Outcome)
+	}
+
+	res, _ = app.recordSeasonRating()(context.Background(), "anime-a", 9, 1, "")
 	if res.Outcome != apiHandlers.SeasonRatingInvalidGrade {
 		t.Fatalf("grade 9: outcome = %v, want invalidGrade", res.Outcome)
 	}

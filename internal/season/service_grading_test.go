@@ -47,6 +47,35 @@ func TestRecordPremiereGradeRecordsMobileGrade(t *testing.T) {
 	}
 }
 
+func TestRecordPremiereGradeInSeasonRecordsOnlyForTheOpenSeason(t *testing.T) {
+	cases := []struct {
+		name     string
+		seasonID func(open string) string
+		wantErr  error
+	}{
+		{name: "the open season", seasonID: func(open string) string { return open }},
+		{name: "any open season", seasonID: func(string) string { return "" }},
+		{name: "another season", seasonID: func(string) string { return "closed-season" }, wantErr: ErrNotSeasonCandidate},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			svc := newTestService(repo)
+			open, _ := seedCreatedCandidate(t, repo, svc, "anime-a")
+
+			_, err := svc.RecordPremiereGradeInSeason(context.Background(), tc.seasonID(open), "anime-a", 4, domain.GradeSourceMobileSync, time.Now())
+
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			}
+			rows, _ := repo.ListSeasonAnimes(context.Background(), open)
+			if graded := rows[0].Grade == 4; graded != (tc.wantErr == nil) {
+				t.Fatalf("grade persisted = %v, want %v", graded, tc.wantErr == nil)
+			}
+		})
+	}
+}
+
 func TestRecordPremiereGradeRejectsOutOfRange(t *testing.T) {
 	repo := newFakeRepo()
 	svc := newTestService(repo)

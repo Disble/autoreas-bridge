@@ -12,7 +12,7 @@ func TestWebSocketDispatchesSeasonRating(t *testing.T) {
 	var gotNota int
 	var gotRatedAt int64
 	config := WebSocketHandlerConfig{
-		RecordSeasonRating: func(_ context.Context, animeID string, grade int, ratedAtMs int64) (SeasonRatingResult, error) {
+		RecordSeasonRating: func(_ context.Context, animeID string, grade int, ratedAtMs int64, _ string) (SeasonRatingResult, error) {
 			gotID, gotNota, gotRatedAt = animeID, grade, ratedAtMs
 			return SeasonRatingResult{Outcome: SeasonRatingRecorded}, nil
 		},
@@ -30,7 +30,7 @@ func TestWebSocketDispatchesSeasonRating(t *testing.T) {
 func TestWebSocketSeasonRatingDoesNotTriggerReconcile(t *testing.T) {
 	reconcileCalls := 0
 	config := WebSocketHandlerConfig{
-		RecordSeasonRating: func(context.Context, string, int, int64) (SeasonRatingResult, error) {
+		RecordSeasonRating: func(context.Context, string, int, int64, string) (SeasonRatingResult, error) {
 			return SeasonRatingResult{Outcome: SeasonRatingRecorded}, nil
 		},
 		TriggerReconcile: func(context.Context) error { reconcileCalls++; return nil },

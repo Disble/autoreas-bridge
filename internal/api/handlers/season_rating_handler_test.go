@@ -19,6 +19,7 @@ type seasonRatingStubs struct {
 	gotAnimeID  string
 	gotGrade    int
 	gotRatedAt  int64
+	gotSeason   string
 }
 
 // authenticate returns the configured season-rating authentication result.
@@ -31,9 +32,9 @@ func (s *seasonRatingStubs) authenticate(w http.ResponseWriter, r *http.Request)
 }
 
 // record captures a season rating request and returns its configured result.
-func (s *seasonRatingStubs) record(_ context.Context, animeID string, grade int, ratedAtMs int64) (SeasonRatingResult, error) {
+func (s *seasonRatingStubs) record(_ context.Context, animeID string, grade int, ratedAtMs int64, seasonID string) (SeasonRatingResult, error) {
 	s.recordCalls++
-	s.gotAnimeID, s.gotGrade, s.gotRatedAt = animeID, grade, ratedAtMs
+	s.gotAnimeID, s.gotGrade, s.gotRatedAt, s.gotSeason = animeID, grade, ratedAtMs, seasonID
 	return s.result, s.recordErr
 }
 
@@ -81,8 +82,16 @@ func TestSeasonRatingRecorded(t *testing.T) {
 	if res.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204", res.Code)
 	}
-	if stubs.gotAnimeID != "anime-a" || stubs.gotGrade != 4 || stubs.gotRatedAt != 1751500000000 {
-		t.Fatalf("payload not forwarded: id=%q grade=%d ratedAt=%d", stubs.gotAnimeID, stubs.gotGrade, stubs.gotRatedAt)
+	if stubs.gotAnimeID != "anime-a" || stubs.gotGrade != 4 || stubs.gotRatedAt != 1751500000000 || stubs.gotSeason != "" {
+		t.Fatalf("payload not forwarded: id=%q grade=%d ratedAt=%d season=%q", stubs.gotAnimeID, stubs.gotGrade, stubs.gotRatedAt, stubs.gotSeason)
+	}
+}
+
+func TestSeasonRatingForwardsTheOptionalSeasonID(t *testing.T) {
+	stubs := &seasonRatingStubs{authOK: true, result: SeasonRatingResult{Outcome: SeasonRatingRecorded}}
+	res := postRating(t, newRatingHandler(stubs), `{"anime_id":"anime-a","grade":4,"rated_at":1,"season_id":"season-1"}`)
+	if res.Code != http.StatusNoContent || stubs.gotSeason != "season-1" {
+		t.Fatalf("status = %d season = %q, want 204 forwarding season-1", res.Code, stubs.gotSeason)
 	}
 }
 

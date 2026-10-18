@@ -141,7 +141,7 @@ type SeasonRatingResult struct {
 // RecordSeasonRatingFunc ingests one mobile-sourced grade for an anime in the
 // active season. ratedAtMs is the epoch-ms watch/grade moment. A non-nil error is
 // an infrastructure failure (HTTP 500); domain outcomes ride SeasonRatingResult.
-type RecordSeasonRatingFunc func(ctx context.Context, animeID string, grade int, ratedAtMs int64) (SeasonRatingResult, error)
+type RecordSeasonRatingFunc func(ctx context.Context, animeID string, grade int, ratedAtMs int64, seasonID string) (SeasonRatingResult, error)
 
 // ActiveSeasonSnapshotFunc returns the current active-season snapshot for mobile,
 // or (nil, nil) when no season is open (the handler maps nil to HTTP 404). A non-nil

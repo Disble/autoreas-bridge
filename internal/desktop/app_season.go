@@ -428,8 +428,8 @@ func (a *App) recordSeasonRating() apiHandlers.RecordSeasonRatingFunc {
 	if a.seasonService == nil {
 		return nil
 	}
-	return func(ctx context.Context, animeID string, grade int, ratedAtMs int64) (apiHandlers.SeasonRatingResult, error) {
-		row, err := a.seasonService.RecordPremiereGrade(ctx, animeID, grade, domain.GradeSourceMobileSync, time.UnixMilli(ratedAtMs))
+	return func(ctx context.Context, animeID string, grade int, ratedAtMs int64, seasonID string) (apiHandlers.SeasonRatingResult, error) {
+		row, err := a.seasonService.RecordPremiereGradeInSeason(ctx, seasonID, animeID, grade, domain.GradeSourceMobileSync, time.UnixMilli(ratedAtMs))
 		switch {
 		case err == nil:
 			a.broadcastSeasonChanged()
