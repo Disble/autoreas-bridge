@@ -97,6 +97,20 @@ func (e AnimeChangedEvent) Name() string {
 	return EventNameAnimeChanged
 }
 
+// EventCorrelationID returns the id of the write operation that caused the change.
+func (e AnimeChangedEvent) EventCorrelationID() string {
+	return e.CorrelationID
+}
+
+// CorrelatedEvent is an Event that carries a correlation id, which the
+// instrumented bus records on its publish log line (P3).
+type CorrelatedEvent interface {
+	Event
+	EventCorrelationID() string
+}
+
+var _ CorrelatedEvent = AnimeChangedEvent{}
+
 // EpisodeDurationsChangedEvent announces that the stored episode durations of one anime changed.
 //
 // It is NOT an anime write: the anime snapshot and its modified_at are untouched, so it never goes

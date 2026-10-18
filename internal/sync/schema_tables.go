@@ -327,6 +327,9 @@ func migrateAnimeWriteOperationsSchema(db *sql.DB, cols []string) error {
 		{name: "batch_id", ddl: `ALTER TABLE anime_write_operations ADD COLUMN batch_id TEXT NOT NULL DEFAULT ''`},
 		{name: "batch_order", ddl: `ALTER TABLE anime_write_operations ADD COLUMN batch_order INTEGER NOT NULL DEFAULT 0`},
 		{name: "batch_size", ddl: `ALTER TABLE anime_write_operations ADD COLUMN batch_size INTEGER NOT NULL DEFAULT 1`},
+		// request_id joins a write to the bridge request that caused it (P3);
+		// '' marks a write no request caused.
+		{name: "request_id", ddl: `ALTER TABLE anime_write_operations ADD COLUMN request_id TEXT NOT NULL DEFAULT ''`},
 	} {
 		if containsSchemaColumn(cols, column.name) {
 			continue

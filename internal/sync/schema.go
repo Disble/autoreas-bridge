@@ -125,7 +125,8 @@ const (
 			desired_hash TEXT NOT NULL,
 			status TEXT NOT NULL CHECK (status IN ('staged', 'committed', 'aborted', 'superseded')),
 			created_at_ms INTEGER NOT NULL,
-			committed_at_ms INTEGER
+			committed_at_ms INTEGER,
+			request_id TEXT NOT NULL DEFAULT ''
 		)`
 
 	animeWriteOperationsAnimeTokenIndexDDL = `
