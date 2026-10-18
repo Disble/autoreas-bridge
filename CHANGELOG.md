@@ -14,6 +14,13 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.17.2] — 2026-10-17
+
+### Fixed
+
+- Cover images in **Fetch metadata** and in the season provider search no longer show up broken. MyAnimeList's small preview images were failing to load, so the results now use the full-size cover, and any cover that still fails to load shows the anime placeholder instead of a broken-image icon.
+- Anime created from a MyAnimeList match now keep a sharper cover, because the full-size image is saved instead of MyAnimeList's 116×180 preview. Covers you already have are unchanged.
+
 ## [1.17.1] — 2026-10-17
 
 ### Fixed
