@@ -69,7 +69,7 @@ Checklist for T7, in the first commit that creates the new Activity folder:
 | T3f | S1 | incremental vacuum (`auto_vacuum=INCREMENTAL`, one-time `VACUUM`, periodic `incremental_vacuum`) | delegated (writer) | done: `1fc502da`, verifier pass |
 | T3g | S1 | trigger classifier (pure): 5xx, 4xx, rejected, >1,000 ms, mobile failure report, internal error event; consumed by stage 4 | delegated (parallel writer) | done: `e2e5d534`, verifier pass |
 | T3h | S1 | metadata audit of internal events (17 `Metadata:` sites in 10 files) | delegated (explorer + writer) | done: `df9ae784`, verifier pass |
-| T4 | S6 | stage 2: mobile correlation header | to plan | pending |
+| T4 | S6 | stage 2: mobile correlation header | covered by T3d (`ce561e39`, `11400406`, openapi `0f7591e2`) | done: the phone side is mobile's, no APK change (S4) |
 | T5 | S1 | stage 3: ledger | to plan | pending |
 | T6 | S1 | stage 4: recorder and incidents replace the row caps | to plan | pending |
 | T7 | S2, S5 | stage 5: MCP tools and Activity UI | to plan | pending |
@@ -175,3 +175,13 @@ Checklist for T7, in the first commit that creates the new Activity folder:
   - T3h: the "130 of 173" figure in rollout.md does not reproduce on the dev copy, where 921 of 1,666
     non-noise rows carry metadata. The figure came from another week or another database.
   - Stage 1 (T3) is complete.
+- L14 (2026-10-17): owner handover: "desde ahora tendrás que continuar con el resto por tu cuenta porque no
+  estaré disponible … cuidado con la sobreingeniería y sobredimensionalización … Los huecos son tu peor
+  enemigo porque los llenarán con sobredimensionamiento … la decisiones delicadas se las toma midiendo, y
+  probando hipótesis falsables … Tu reporte final será en un artifact después de haber terminado con todo
+  el ODD."
+  - Rules applied from here on:
+    - Every writer prompt closes its gaps with an exact scope and explicit non-goals.
+    - Every verifier also checks for unrequested scope.
+    - Each delicate decision is logged with the measurement that settled it.
+  - T4 closed: T3d already delivers the bridge side of stage 2.
