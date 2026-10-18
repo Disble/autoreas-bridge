@@ -23,6 +23,8 @@ func schemaTables() []persistence.TableSchema {
 		animeChangedOutboxTable(),
 		requestCapturesTable(),
 		createOnlyTable("request_capture_metadata", requestCaptureMetadataDDL),
+		createOnlyTable("request_rollup_hourly", requestRollupHourlyDDL),
+		createOnlyTable("response_versions", responseVersionsDDL),
 		createOnlyTable("schema_migration_markers", schemaMigrationMarkersDDL),
 		// animeSnapshotsTable is last: its Migrate hook drives the SDD-56
 		// cross-table vocabulary migration (ensureVocabularyMigration), which
@@ -307,6 +309,9 @@ func migrateRequestCapturesSchema(db *sql.DB, cols []string) error {
 		{name: "duration_ms", ddl: `ALTER TABLE request_captures ADD COLUMN duration_ms INTEGER`},
 		{name: "error_message", ddl: `ALTER TABLE request_captures ADD COLUMN error_message TEXT NOT NULL DEFAULT ''`},
 		{name: "client_request_id", ddl: `ALTER TABLE request_captures ADD COLUMN client_request_id TEXT NOT NULL DEFAULT ''`},
+		// response_hash names the row's response_versions entry; '' for rows
+		// written before it existed.
+		{name: "response_hash", ddl: `ALTER TABLE request_captures ADD COLUMN response_hash TEXT NOT NULL DEFAULT ''`},
 	} {
 		if containsSchemaColumn(cols, column.name) {
 			continue

@@ -28,7 +28,7 @@ var captureBaseColumns = []string{
 
 // optionalCaptureColumns are the additive (version-2) telemetry columns. Order
 // matters: it is the fixed order appended to captureBaseColumns whenever present.
-var optionalCaptureColumns = []string{"request_body", "request_body_state", "response_body", "response_body_state", "request_headers", "response_headers", "duration_ms", "error_message", "client_request_id"}
+var optionalCaptureColumns = []string{"request_body", "request_body_state", "response_body", "response_body_state", "request_headers", "response_headers", "duration_ms", "error_message", "client_request_id", "response_hash"}
 
 // captureTables names the capture objects for one schema generation. The
 // table/key names are interpolated directly into SQL strings because SQLite
@@ -95,6 +95,7 @@ type optionalColumns struct {
 	durationMS        bool
 	errorMessage      bool
 	clientRequestID   bool
+	responseHash      bool
 }
 
 // present reports whether the named optional column was detected.
@@ -118,6 +119,8 @@ func (o optionalColumns) present(name string) bool {
 		return o.errorMessage
 	case "client_request_id":
 		return o.clientRequestID
+	case "response_hash":
+		return o.responseHash
 	default:
 		return false
 	}
@@ -203,6 +206,7 @@ func detectOptionalColumns(db *sql.DB, tables captureTables) optionalColumns {
 		durationMS:        present["duration_ms"],
 		errorMessage:      present["error_message"],
 		clientRequestID:   present["client_request_id"],
+		responseHash:      present["response_hash"],
 	}
 }
 
@@ -318,6 +322,7 @@ type captureRowScan struct {
 	durationMS        sql.NullInt64
 	errorMessage      sql.NullString
 	clientRequestID   sql.NullString
+	responseHash      sql.NullString
 }
 
 // buildCaptureScanDest builds the ordered Scan() destination slice for one
@@ -349,6 +354,8 @@ func buildCaptureScanDest(record *CaptureRecord, scan *captureRowScan, columns [
 			dest = append(dest, &scan.errorMessage)
 		case "client_request_id":
 			dest = append(dest, &scan.clientRequestID)
+		case "response_hash":
+			dest = append(dest, &scan.responseHash)
 		}
 	}
 	return dest
@@ -409,6 +416,9 @@ func applyOptionalCaptureFields(record *CaptureRecord, scan captureRowScan) {
 	}
 	if scan.clientRequestID.Valid {
 		record.ClientRequestID = scan.clientRequestID.String
+	}
+	if scan.responseHash.Valid {
+		record.ResponseHash = scan.responseHash.String
 	}
 }
 

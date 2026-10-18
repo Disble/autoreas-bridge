@@ -2,6 +2,7 @@ package sync
 
 import (
 	"database/sql"
+	"path/filepath"
 	"testing"
 )
 
@@ -303,7 +304,7 @@ func TestCaptureAdditiveColumnsPresent(t *testing.T) {
 
 	db := openTestBridgeDB(t)
 	columns := readTableColumns(t, db, "request_captures")
-	for _, required := range []string{"request_body", "request_body_state", "response_body", "response_body_state", "request_headers", "response_headers", "duration_ms", "error_message", "client_request_id"} {
+	for _, required := range []string{"request_body", "request_body_state", "response_body", "response_body_state", "request_headers", "response_headers", "duration_ms", "error_message", "client_request_id", "response_hash"} {
 		if !containsString(columns, required) {
 			t.Fatalf("expected request_captures to contain additive column %q, got %#v", required, columns)
 		}
@@ -415,5 +416,67 @@ func TestCaptureAdditiveColumnsMigrationIsIdempotent(t *testing.T) {
 
 	if len(before) != len(after) {
 		t.Fatalf("expected additive columns migration to be idempotent, before=%#v after=%#v", before, after)
+	}
+}
+
+func TestBootstrapCreatesRequestLedgerTables(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+	for table, required := range map[string][]string{
+		"request_rollup_hourly": {"hour_ms", "route_template", "status_class", "device_id", "request_count", "max_duration_ms"},
+		"response_versions":     {"route_template", "body_hash", "body", "first_seen_ms", "last_seen_ms", "seen_count"},
+	} {
+		columns := readTableColumns(t, db, table)
+		if len(columns) != len(required) {
+			t.Fatalf("expected %s columns %#v, got %#v", table, required, columns)
+		}
+		for _, column := range required {
+			if !containsString(columns, column) {
+				t.Fatalf("expected %s to contain column %q, got %#v", table, column, columns)
+			}
+		}
+	}
+}
+
+func TestResponseHashMigrationKeepsExistingCaptureRows(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "bridge.db")
+	legacyDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open legacy sqlite db: %v", err)
+	}
+	if _, err := legacyDB.Exec(`
+		CREATE TABLE request_captures (
+			request_id TEXT PRIMARY KEY, captured_at_ms INTEGER NOT NULL, kind TEXT NOT NULL, route TEXT NOT NULL,
+			transport TEXT NOT NULL, device_id TEXT NOT NULL, device_name TEXT NOT NULL, outcome TEXT NOT NULL,
+			anime_id TEXT, http_status INTEGER, payload_json TEXT NOT NULL, correlation_json TEXT NOT NULL,
+			error_code TEXT NOT NULL DEFAULT '', request_body TEXT, request_body_state TEXT NOT NULL DEFAULT '',
+			response_body TEXT, response_body_state TEXT NOT NULL DEFAULT '', request_headers TEXT, response_headers TEXT,
+			duration_ms INTEGER, error_message TEXT NOT NULL DEFAULT '', client_request_id TEXT NOT NULL DEFAULT ''
+		);
+		INSERT INTO request_captures (request_id, captured_at_ms, kind, route, transport, device_id, device_name, outcome, payload_json, correlation_json, response_body)
+		VALUES ('req-old', 7, 'get', '/api/animes', 'http', 'd1', 'Phone', 'accepted', '{}', '{"operation_refs":[]}', '{"ok":true}');
+	`); err != nil {
+		closeTestDB(t, legacyDB)
+		t.Fatalf("seed pre-response_hash request_captures: %v", err)
+	}
+	if err := legacyDB.Close(); err != nil {
+		t.Fatalf("close legacy sqlite db: %v", err)
+	}
+
+	db, err := OpenBridgeDB(dbPath)
+	if err != nil {
+		t.Fatalf("open bridge db with migration: %v", err)
+	}
+	defer closeTestDB(t, db)
+
+	var body, hash string
+	if err := db.QueryRow(`SELECT response_body, response_hash FROM request_captures WHERE request_id = 'req-old'`).Scan(&body, &hash); err != nil {
+		t.Fatalf("read migrated capture row: %v", err)
+	}
+	if body != `{"ok":true}` || hash != "" {
+		t.Fatalf("expected the old row kept with an empty response_hash, got body %q hash %q", body, hash)
 	}
 }

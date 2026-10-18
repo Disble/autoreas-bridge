@@ -173,7 +173,7 @@ func joinConditions(conditions []string) string {
 // additive telemetry columns the list (summary) projection reads. Body and
 // header blobs are excluded: list pages never display them and they dominate
 // the read cost.
-var summaryOptionalColumns = []string{"request_body_state", "response_body_state", "duration_ms"}
+var summaryOptionalColumns = []string{"request_body_state", "response_body_state", "duration_ms", "response_hash"}
 
 // selectSummaryColumns returns the list (summary) SELECT column list: the
 // fixed base columns followed by whichever state/duration columns are

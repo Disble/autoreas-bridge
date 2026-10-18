@@ -68,6 +68,10 @@ type CaptureRecord struct {
 	// ClientRequestID is the client's accepted X-Autoreas-Request-Id, `<cycleId>:<n>`.
 	// It joins a phone log line to this row; RequestID stays the bridge's own key.
 	ClientRequestID string `json:"client_request_id,omitempty"`
+	// ResponseHash is the lowercase hex sha256 of the stored response body, the
+	// key of its response_versions row. The store computes it on write; empty
+	// when the row has no response body.
+	ResponseHash string `json:"response_hash,omitempty"`
 }
 
 // DeviceIdentity is the trusted authenticated device projection.

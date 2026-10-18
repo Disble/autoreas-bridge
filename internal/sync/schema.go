@@ -183,7 +183,8 @@ const (
 			response_headers TEXT,
 			duration_ms INTEGER,
 			error_message TEXT NOT NULL DEFAULT '',
-			client_request_id TEXT NOT NULL DEFAULT ''
+			client_request_id TEXT NOT NULL DEFAULT '',
+			response_hash TEXT NOT NULL DEFAULT ''
 		)`
 
 	requestCapturesTimeIndexDDL = `
@@ -210,6 +211,33 @@ const (
 		CREATE TABLE IF NOT EXISTS request_capture_metadata (
 			key TEXT PRIMARY KEY,
 			value TEXT NOT NULL
+		)`
+
+	// requestRollupHourlyDDL is the ledger's hourly rollup (ADR-028 D3): one
+	// row per hour, route template, status class (http_status/100, 0 when
+	// absent) and device ('' when absent), upserted once per terminal capture.
+	requestRollupHourlyDDL = `
+		CREATE TABLE IF NOT EXISTS request_rollup_hourly (
+			hour_ms INTEGER NOT NULL,
+			route_template TEXT NOT NULL,
+			status_class INTEGER NOT NULL,
+			device_id TEXT NOT NULL,
+			request_count INTEGER NOT NULL,
+			max_duration_ms INTEGER NOT NULL,
+			PRIMARY KEY (hour_ms, route_template, status_class, device_id)
+		)`
+
+	// responseVersionsDDL stores each distinct response body once per route
+	// template, keyed by its sha256; request_captures.response_hash refers to it.
+	responseVersionsDDL = `
+		CREATE TABLE IF NOT EXISTS response_versions (
+			route_template TEXT NOT NULL,
+			body_hash TEXT NOT NULL,
+			body TEXT NOT NULL,
+			first_seen_ms INTEGER NOT NULL,
+			last_seen_ms INTEGER NOT NULL,
+			seen_count INTEGER NOT NULL,
+			PRIMARY KEY (route_template, body_hash)
 		)`
 )
 
