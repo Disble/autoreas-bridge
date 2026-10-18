@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"autoreas-bridge/internal/correlation"
 	"autoreas-bridge/internal/observability/requestcapture"
 )
 
@@ -32,7 +33,7 @@ func TestCaptureMiddlewareCorrelatesTheClientRequestID(t *testing.T) {
 			}
 			var seen string
 			inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				seen = requestcapture.RequestIDFromContext(r.Context())
+				seen = correlation.RequestIDFromContext(r.Context())
 			})
 			req := httptest.NewRequest(http.MethodGet, "/api/status", nil)
 			if tc.header != "" {
@@ -77,7 +78,7 @@ func TestCaptureMiddlewareCorrelatesWithoutACaptureSink(t *testing.T) {
 
 	var seen string
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		seen = requestcapture.RequestIDFromContext(r.Context())
+		seen = correlation.RequestIDFromContext(r.Context())
 	})
 	req := httptest.NewRequest(http.MethodGet, "/api/status", nil)
 	req.Header.Set(requestcapture.ClientRequestIDHeader, "cycle-7:4")

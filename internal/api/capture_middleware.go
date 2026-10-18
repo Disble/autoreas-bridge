@@ -13,6 +13,7 @@ import (
 	"uuid"
 
 	apiHandlers "autoreas-bridge/internal/api/handlers"
+	"autoreas-bridge/internal/correlation"
 	"autoreas-bridge/internal/observability/requestcapture"
 )
 
@@ -325,5 +326,5 @@ func correlateRequest(w http.ResponseWriter, r *http.Request) (*http.Request, re
 		echo = ids.bridge
 	}
 	w.Header().Set(requestcapture.ClientRequestIDHeader, echo)
-	return r.WithContext(requestcapture.WithRequestID(r.Context(), ids.bridge)), ids
+	return r.WithContext(correlation.WithRequestID(r.Context(), ids.bridge)), ids
 }
