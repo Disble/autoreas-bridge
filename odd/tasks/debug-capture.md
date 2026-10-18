@@ -243,3 +243,24 @@ Checklist for T7, in the first commit that creates the new Activity folder:
     - The non-noise count of 1,842 confirms L15 D-b.
     - No `editor` domain exists, so Editor = desktop rows of the domain history plus `anime` events.
   - T6b: delegated.
+- L17 (2026-10-18): T7a, the read service, committed as `83374025` after an independent verifier passed it.
+  - Verifier fixes:
+    - History restated WebSocket and diagnostics events beside their captures (125 connects against 250
+      register events). `restatingEventFilter` removes the restatement: All went from 2,827 to 2,018 lines.
+    - The domain-history doubling scan became a keyset read in `internal/activity`. The worst page went
+      from 61 ms to 4.6 ms, and a full scroll from 3.1 s to 0.31 s.
+  - Mutation: 343/394 killed.
+    - 39 equivalent.
+    - 12 skipped: unnamed safety limits (page, story, run and window caps).
+  - Every call takes ≤ 11 ms on the dev copy.
+  - Gaps accepted as advisories:
+    - No bridge-stop event, so there is no "Unclean stop" mark and no labelled off-span. Data gaps still
+      render as gaps.
+    - `device_sync_diagnostics` has not been written since `2f909283` and ages out of the window on its own.
+    - Occurrence counts cover kept rows only.
+  - T6b measured: the journal predicate selects 77 rows. L15's 78 was a miscount: the parent confirmed that
+    no reconcile carries operations without an `anime_id`.
+    - The sweep on a dev-copy duplicate: captures 5,008 → 629, events 20,001 → 1,984, in 119 ms.
+    - Non-observability tables are unchanged.
+    - T6b is under an independent verifier.
+  - T7b (MCP) is delegated.
