@@ -303,7 +303,7 @@ func TestCaptureAdditiveColumnsPresent(t *testing.T) {
 
 	db := openTestBridgeDB(t)
 	columns := readTableColumns(t, db, "request_captures")
-	for _, required := range []string{"request_body", "request_body_state", "response_body", "response_body_state", "request_headers", "response_headers", "duration_ms", "error_message"} {
+	for _, required := range []string{"request_body", "request_body_state", "response_body", "response_body_state", "request_headers", "response_headers", "duration_ms", "error_message", "client_request_id"} {
 		if !containsString(columns, required) {
 			t.Fatalf("expected request_captures to contain additive column %q, got %#v", required, columns)
 		}

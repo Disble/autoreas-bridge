@@ -181,7 +181,8 @@ const (
 			request_headers TEXT,
 			response_headers TEXT,
 			duration_ms INTEGER,
-			error_message TEXT NOT NULL DEFAULT ''
+			error_message TEXT NOT NULL DEFAULT '',
+			client_request_id TEXT NOT NULL DEFAULT ''
 		)`
 
 	requestCapturesTimeIndexDDL = `

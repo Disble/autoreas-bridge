@@ -114,6 +114,7 @@ func TestUpsertCaptureWritesTelemetryColumns(t *testing.T) {
 	record.ResponseBodyState = CaptureStateTruncated
 	record.RequestHeaders = map[string]string{"Content-Type": "application/json"}
 	record.ErrorMessage = "anime anime-1 not found"
+	record.ClientRequestID = "cycle-1:4"
 	record.ResponseHeaders = map[string]string{"Content-Type": "application/json"}
 
 	if err := store.UpsertCapture(context.Background(), record); err != nil {
@@ -122,6 +123,9 @@ func TestUpsertCaptureWritesTelemetryColumns(t *testing.T) {
 	got, err := NewReader(db).Get(context.Background(), record.RequestID)
 	if err != nil || got.Item.ErrorMessage != record.ErrorMessage {
 		t.Fatalf("error message round trip = %q (%v), want %q", got.Item.ErrorMessage, err, record.ErrorMessage)
+	}
+	if got.Item.ClientRequestID != record.ClientRequestID {
+		t.Fatalf("client request id round trip = %q, want %q", got.Item.ClientRequestID, record.ClientRequestID)
 	}
 
 	assertTelemetryRow(t, readTelemetryRow(t, db, record.RequestID), telemetryRow{

@@ -65,6 +65,9 @@ type CaptureRecord struct {
 	// ErrorMessage is the failure cause (P1): the handler's own cause, a panic
 	// value, or the JSON "error" of a failed response. Empty on success.
 	ErrorMessage string `json:"error_message,omitempty"`
+	// ClientRequestID is the client's accepted X-Autoreas-Request-Id, `<cycleId>:<n>`.
+	// It joins a phone log line to this row; RequestID stays the bridge's own key.
+	ClientRequestID string `json:"client_request_id,omitempty"`
 }
 
 // DeviceIdentity is the trusted authenticated device projection.

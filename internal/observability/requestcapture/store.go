@@ -132,8 +132,8 @@ func (s *SQLiteStore) UpsertCapture(ctx context.Context, record CaptureRecord) e
 			INSERT INTO request_captures (
 				request_id, captured_at_ms, kind, route, transport, device_id, device_name, outcome,
 				anime_id, http_status, payload_json, correlation_json, error_code,
-				request_body, request_body_state, response_body, response_body_state, request_headers, response_headers, duration_ms, error_message
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				request_body, request_body_state, response_body, response_body_state, request_headers, response_headers, duration_ms, error_message, client_request_id
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(request_id) DO UPDATE SET
 				kind = excluded.kind,
 				route = excluded.route,
@@ -153,10 +153,11 @@ func (s *SQLiteStore) UpsertCapture(ctx context.Context, record CaptureRecord) e
 				request_headers = excluded.request_headers,
 				response_headers = excluded.response_headers,
 				duration_ms = excluded.duration_ms,
-				error_message = excluded.error_message
+				error_message = excluded.error_message,
+				client_request_id = excluded.client_request_id
 				WHERE NOT (request_captures.outcome <> 'pending' AND excluded.outcome = 'pending')
 		`, record.RequestID, record.CapturedAtMS, record.Kind, record.Route, record.Transport, record.Device.DeviceID, record.Device.Name, record.Outcome, record.AnimeID, record.HTTPStatus, args.payloadJSON, args.correlationJSON, record.ErrorCode,
-		record.RequestBody, record.RequestBodyState, record.ResponseBody, record.ResponseBodyState, args.requestHeadersJSON, args.responseHeadersJSON, record.DurationMS, record.ErrorMessage)
+		record.RequestBody, record.RequestBodyState, record.ResponseBody, record.ResponseBodyState, args.requestHeadersJSON, args.responseHeadersJSON, record.DurationMS, record.ErrorMessage, record.ClientRequestID)
 	if err != nil {
 		return err
 	}
