@@ -78,8 +78,6 @@ func TestGetObservabilityFactsReportsEachStoreRetention(t *testing.T) {
 		accessor int
 		want     int
 	}{
-		{"capture rows", facts.Retention.CaptureRows, requestcapture.RetentionLimit(), 5000},
-		{"event rows", facts.Retention.EventRows, eventlog.RowCap(), 20000},
 		{"sync diagnostic rows", facts.Retention.SyncDiagnosticRows, syncdiag.RetentionLimit(), 5000},
 		{"event summary samples", facts.SampleCaps.EventSamples, eventlog.SummarySampleCap(), 5},
 		{"capture summary error samples", facts.SampleCaps.CaptureErrorSamples, requestcapture.SummaryErrorSampleLimit(), 5},

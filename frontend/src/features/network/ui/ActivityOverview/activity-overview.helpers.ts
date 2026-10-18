@@ -184,8 +184,8 @@ export function toOverviewParityNote(facts: ObservabilityFacts | null): string {
 }
 
 /**
- * Derives the overview's retention line from the adapter's facts: the row
- * caps of the two stores this tab summarizes, plus each summary's bounded
+ * Derives the overview's retention line from the adapter's facts: the time-based
+ * retention of the two stores this tab summarizes, plus each summary's bounded
  * sample size. An unavailable read renders the unavailable copy instead of a
  * zero presented as a measurement.
  * @param facts The adapter's facts, or null while unavailable.
@@ -196,6 +196,6 @@ export function toOverviewLimitsNote(facts: ObservabilityFacts | null): string {
     return OVERVIEW_LIMITS_UNAVAILABLE_NOTE;
   }
 
-  return `The request-capture store retains the most recent ${facts.retention.captureRows} rows; the runtime-event store retains the most recent ${facts.retention.eventRows} rows. Summaries show at most ${facts.sampleCaps.eventSamples} newest events and at most ${facts.sampleCaps.captureErrorSamples} latest error samples per group.`;
+  return `The request-capture and runtime-event stores keep the last 2 hours, plus changes, connections and incident windows for 90 days. Summaries show at most ${facts.sampleCaps.eventSamples} newest events and at most ${facts.sampleCaps.captureErrorSamples} latest error samples per group.`;
 }
 

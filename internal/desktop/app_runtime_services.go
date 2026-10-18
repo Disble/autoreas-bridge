@@ -14,6 +14,7 @@ import (
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/observability/eventlog"
 	"autoreas-bridge/internal/observability/requestcapture"
+	"autoreas-bridge/internal/observability/retention"
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/settings"
 	bridgeSync "autoreas-bridge/internal/sync"
@@ -31,6 +32,7 @@ func (a *App) configureRuntimeServices(ctx context.Context) {
 	a.prepareAnimeRuntime(ctx)
 	a.startSyncChangelogRecorder()
 	a.startIncrementalVacuumLoop(bridgeSync.IncrementalVacuumInterval)
+	a.startRetentionSweepLoop(retention.SweepInterval)
 	deviceService, changelogStore := a.configureBridgeDeviceServices(ctx)
 	a.configureRealtimeHub(ctx)
 	conflictService := a.configureAnimeApplicationServices()
@@ -212,6 +214,34 @@ func (a *App) startIncrementalVacuumLoop(interval time.Duration) {
 	go bridgeSync.RunIncrementalVacuumLoop(a.catchUpContext, a.bridgeDB, interval, func(format string, args ...any) {
 		a.sharedLogger.Warnf("sync", format, args...)
 	})
+}
+
+// startRetentionSweepLoop applies ADR-028 time retention: one sweep right after
+// bootstrap, then one every interval until shutdown cancels the catch-up
+// context. interval is retention.SweepInterval in production.
+func (a *App) startRetentionSweepLoop(interval time.Duration) {
+	if a.bridgeDB == nil {
+		return
+	}
+	warn := func(format string, args ...any) {
+		a.sharedLogger.Warnf("sync", format, args...)
+	}
+	a.sweepRetentionOnce(warn)
+	go retention.RunLoop(a.catchUpContext, a.bridgeDB, interval, warn)
+}
+
+// sweepRetentionOnce runs the start-up sweep. Like sweepOrphanedCaptures, it
+// survives the bare, unopened *sql.DB{} some unit tests and degraded bootstraps
+// wire, which panics on query instead of erroring.
+func (a *App) sweepRetentionOnce(warn func(string, ...any)) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			warn("retention sweep: %v", recovered)
+		}
+	}()
+	if _, err := retention.Sweep(a.catchUpContext, a.bridgeDB, time.Now()); err != nil {
+		warn("retention sweep: %v", err)
+	}
 }
 
 // configureBridgeDeviceServices wires device authentication and changelog services.

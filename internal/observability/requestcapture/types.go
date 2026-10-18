@@ -3,10 +3,8 @@ package requestcapture
 import "autoreas-bridge/internal/observability/obserr"
 
 const (
-	defaultRetentionLimit = 5000
-	defaultPruneEvery     = 100
-	defaultSearchLimit    = 25
-	maxSearchLimit        = 100
+	defaultSearchLimit = 25
+	maxSearchLimit     = 100
 	// MaxCapturedBodyBytes bounds any single captured request/response body so
 	// heap, queue, and SQLite growth stay finite under abuse while ordinary JSON
 	// traffic below this budget still preserves every byte exactly.

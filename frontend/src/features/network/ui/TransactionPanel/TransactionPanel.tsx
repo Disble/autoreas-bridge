@@ -82,7 +82,7 @@ export function TransactionPanel({
         {`Showing ${DEFAULT_TRANSACTION_PAGE_LIMIT} captured transactions per page; `}
         {facts === null
           ? TRANSACTION_RETENTION_UNAVAILABLE_NOTE
-          : `the capture store retains the most recent ${facts.retention.captureRows} rows.`}
+          : 'the capture store keeps the last 2 hours plus changes, connections and incident windows for 90 days.'}
         {/* Discreet updating hint inside the existing status line: no grid
             item and no extra line, so the layout gate's height budget holds. */}
         {isUpdating ? <span className="text-muted">{` · ${TRANSACTION_UPDATING_STATE_MESSAGE}`}</span> : null}

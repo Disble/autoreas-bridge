@@ -71,7 +71,7 @@ export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
         {`Showing ${EVENT_PAGE_SIZE} events per page; `}
         {facts === null
           ? NETWORK_EVENTS_RETENTION_UNAVAILABLE_NOTE
-          : `the event store retains the most recent ${facts.retention.eventRows} rows.`}
+          : 'the event store keeps the last 2 hours plus incident windows.'}
         {/* Discreet updating hint inside the existing status line: no grid
             item and no extra line, so the layout gate's height budget holds. */}
         {isUpdating ? <span className="text-default-400">{` · ${NETWORK_UPDATING_STATE_MESSAGE}`}</span> : null}

@@ -95,7 +95,7 @@ describe('ActivityOverview', () => {
       visible: [
         /Activity exposes 7 of 8 catalog read capabilities/,
         /get_correlation_timeline: The merged request\+event timeline is excluded because the two stores are keyed on different values, so its request side would render empty by construction/,
-        'The request-capture store retains the most recent 5000 rows; the runtime-event store retains the most recent 20000 rows. Summaries show at most 5 newest events and at most 5 latest error samples per group.',
+        'The request-capture and runtime-event stores keep the last 2 hours, plus changes, connections and incident windows for 90 days. Summaries show at most 5 newest events and at most 5 latest error samples per group.',
       ] as const,
       absent: [OVERVIEW_PARITY_NOTE, OVERVIEW_LIMITS_UNAVAILABLE_NOTE] as const,
     },
@@ -174,7 +174,7 @@ describe('TransactionPanel', () => {
     {
       description: 'the real binding payload',
       facts: factsFixture(),
-      visible: ['Showing 25 captured transactions per page; the capture store retains the most recent 5000 rows.'],
+      visible: ['Showing 25 captured transactions per page; the capture store keeps the last 2 hours plus changes, connections and incident windows for 90 days.'],
       absent: ["the capture store's retention limit is currently unavailable."] as const,
     },
     {
@@ -208,7 +208,7 @@ describe('NetworkPanel', () => {
     {
       description: 'the real binding payload',
       facts: factsFixture(),
-      visible: ['Showing 20 events per page; the event store retains the most recent 20000 rows.'],
+      visible: ['Showing 20 events per page; the event store keeps the last 2 hours plus incident windows.'],
       absent: ["the event store's retention limit is currently unavailable."] as const,
     },
     {

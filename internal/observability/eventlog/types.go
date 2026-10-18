@@ -10,12 +10,6 @@ const (
 	// defaultSummarySampleCap bounds the newest samples returned per summary
 	// group, matching the existing summary_requests precedent.
 	defaultSummarySampleCap = 5
-	// defaultRowCap and defaultPruneEvery are the retention constants:
-	// events fire one to two orders of magnitude more often than captured
-	// requests, so the row cap is proportionally larger; pruning runs on a
-	// write-count cadence rather than a timer so cost scales with traffic.
-	defaultRowCap     = 20000
-	defaultPruneEvery = 200
 	// maxMetadataBytes bounds metadata_json: anything past this is a caller
 	// bug and should be visible as one, so overflow stores a marker object
 	// rather than truncated (unparseable) JSON.
@@ -93,18 +87,9 @@ type SinkConfig struct {
 	Now func() int64
 }
 
-// EventStoreConfig defines persistence policy for the event store.
-type EventStoreConfig struct {
-	RowCap     int
-	PruneEvery int
-}
-
-// RowCap returns the event store's retention limit: the row cap enforced by
-// pruning (defaultRowCap). It is exposed so a surface can state how much
-// history the store keeps without copying the constant.
-func RowCap() int {
-	return defaultRowCap
-}
+// EventStoreConfig defines persistence policy for the event store. It carries
+// no field: retention is time-based and owned by the retention sweeper.
+type EventStoreConfig struct{}
 
 // SummarySampleCap returns the runtime-event summary's bounded newest-sample
 // count per group (defaultSummarySampleCap), the cap behind the summary's

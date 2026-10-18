@@ -1,16 +1,16 @@
 # Debug capture architecture
 
-Status: **decided, not built**. The current code still uses row caps (`requestcapture` keeps 5,000
-captures, `eventlog` keeps 20,000 events). This page describes the target. `rollout.md` tracks how the
-code gets there.
+Status: **in progress**. Time retention is built: the sweeper in `internal/observability/retention`
+replaced the row caps, and the readers are still the old ones. `rollout.md` tracks how the code gets
+to the rest of this page.
 
 ## Sources
 
 | Source | Today | Target |
 |---|---|---|
-| HTTP requests from the phone | `request_captures`, full bodies, 5,000 rows | recorder, incidents, write journal, rollup, response versions |
+| HTTP requests from the phone | `request_captures`, full bodies | recorder, incidents, write journal, rollup, response versions |
 | WebSocket lifecycle and broadcasts | `request_captures` (`ws_*` kinds) | recorder, ledger |
-| Bridge runtime events | `runtime_events`, 20,000 rows | recorder, ledger (non-noise events only) |
+| Bridge runtime events | `runtime_events` | recorder, ledger (non-noise events only) |
 | Mobile telemetry and sync diagnostics | `device_telemetry_events`, `device_sync_diagnostics` | unchanged tables; a failure report triggers an incident |
 | Frontend and WebView errors | not captured | bridge events (prerequisite P7) |
 | Domain history | `anime_write_operations`, `activity_log`, outbox | unchanged: months deep in every design |

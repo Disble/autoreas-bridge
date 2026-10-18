@@ -3,35 +3,8 @@ package requestcapture
 import (
 	"context"
 	"database/sql"
-	"strings"
 	"testing"
 )
-
-func TestRetentionPrunesOldestAuxiliaryRowsOnly(t *testing.T) {
-	t.Parallel()
-
-	db := openCaptureTestDB(t)
-	store := NewStore(db, StoreConfig{RetentionLimit: 3, PruneEvery: 1})
-
-	for index := 1; index <= 5; index++ {
-		record := NewCaptureRecord("patch", "device")
-		record.RequestID = requestID(index)
-		record.CapturedAtMS = int64(index)
-		animeID := "anime-1"
-		record.AnimeID = &animeID
-		if err := store.UpsertCapture(context.Background(), record); err != nil {
-			t.Fatalf("insert capture %d: %v", index, err)
-		}
-	}
-
-	ids := readCaptureIDs(t, db)
-	if got := strings.Join(ids, ","); got != "req-3,req-4,req-5" {
-		t.Fatalf("expected newest three request ids, got %s", got)
-	}
-	if got := countRows(t, db, "anime_snapshots"); got != 0 {
-		t.Fatalf("expected canonical anime rows untouched, got %d", got)
-	}
-}
 
 func TestStoreSkipsMalformedHistoricalRowsWithWarnings(t *testing.T) {
 	t.Parallel()

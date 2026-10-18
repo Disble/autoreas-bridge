@@ -7,11 +7,9 @@ import (
 	"fmt"
 )
 
-// StoreConfig defines persistence policy.
-type StoreConfig struct {
-	RetentionLimit int
-	PruneEvery     int
-}
+// StoreConfig defines persistence policy. It carries no field: retention is
+// time-based and owned by the retention sweeper, not by the write path.
+type StoreConfig struct{}
 
 // SQLiteStore persists captures into bridge SQLite. Unlike Reader/ReadOnlyDB,
 // it is a write path used only by the already-bootstrapped app, so it targets
@@ -19,23 +17,12 @@ type StoreConfig struct {
 // by the time this store is constructed, initializeBridgeDB has already
 // renamed any previous-generation table in place.
 type SQLiteStore struct {
-	db             *sql.DB
-	retentionLimit int
-	pruneEvery     int
-	successful     int
+	db *sql.DB
 }
 
 // NewStore builds a SQLite-backed capture store.
-func NewStore(db *sql.DB, config StoreConfig) *SQLiteStore {
-	retentionLimit := config.RetentionLimit
-	if retentionLimit <= 0 {
-		retentionLimit = defaultRetentionLimit
-	}
-	pruneEvery := config.PruneEvery
-	if pruneEvery <= 0 {
-		pruneEvery = defaultPruneEvery
-	}
-	return &SQLiteStore{db: db, retentionLimit: retentionLimit, pruneEvery: pruneEvery}
+func NewStore(db *sql.DB, _ StoreConfig) *SQLiteStore {
+	return &SQLiteStore{db: db}
 }
 
 // marshalNullableHeaders JSON-encodes a header map, returning a nil *string
@@ -88,24 +75,6 @@ func buildCaptureInsertArgs(record CaptureRecord) (captureInsertArgs, error) {
 	}, nil
 }
 
-// pruneOldestBeyondRetention deletes the oldest capture rows past the
-// configured retention limit, called every pruneEvery successful write.
-func (s *SQLiteStore) pruneOldestBeyondRetention(ctx context.Context, tx *sql.Tx) error {
-	s.successful++
-	if s.successful%s.pruneEvery != 0 {
-		return nil
-	}
-	_, err := tx.ExecContext(ctx, `
-		DELETE FROM request_captures
-		WHERE request_id IN (
-			SELECT request_id FROM request_captures
-			ORDER BY captured_at_ms DESC, request_id DESC
-			LIMIT -1 OFFSET ?
-		)
-	`, s.retentionLimit)
-	return err
-}
-
 // UpsertCapture stores one capture, inserting it on first write (e.g. an
 // arrival row) and updating every semantic/telemetry column in place on a
 // later write sharing the same request_id (e.g. the terminal write following
@@ -148,9 +117,6 @@ func (s *SQLiteStore) UpsertCapture(ctx context.Context, record CaptureRecord) e
 		if err = recordLedger(ctx, tx, record, prior, hash); err != nil {
 			return err
 		}
-	}
-	if err = s.pruneOldestBeyondRetention(ctx, tx); err != nil {
-		return err
 	}
 	return tx.Commit()
 }
