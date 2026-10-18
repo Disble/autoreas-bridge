@@ -66,9 +66,9 @@ Checklist for T7, in the first commit that creates the new Activity folder:
 | T3d | S1, S6 | P3: request id in context, read/echo `X-Autoreas-Request-Id`; `docs/openapi.yaml` announcement first | inline | done: `0f7591e2`, `11400406`, `ce561e39`; the bridge keeps its own `request_id` as the row key (a client id as key could overwrite another row), the client id goes to `client_request_id`; mutation 3/3 plus two hand mutations of the pattern |
 | T3d2 | S1 | P3 propagation: join a request to the write it caused. Today nothing links them: `operation_refs` holds anime/operation/outcome but no operation id, `newAnimeChangedEvent` drops `OperationID`, and `AnimeChangedEvent.CorrelationID` is never set. Plan: the write operation records the bridge request id from the context; the capture row's operation refs gain the operation id (additive JSON field); `anime.changed` carries the operation id as its correlation id; the instrumented bus logs it | delegated (parallel writer) | done: `4722804a`, verifier pass |
 | T3e | S1 | P7: Wails binding plus global `error`/`unhandledrejection` handler and an error boundary | delegated (parallel writer) | done: `0b3137aa`, verifier pass |
-| T3f | S1 | incremental vacuum (`auto_vacuum=INCREMENTAL`, one-time `VACUUM`, periodic `incremental_vacuum`) | inline | pending: Risk item 1 (storage layout) |
+| T3f | S1 | incremental vacuum (`auto_vacuum=INCREMENTAL`, one-time `VACUUM`, periodic `incremental_vacuum`) | delegated (writer) | done: `1fc502da`, verifier pass |
 | T3g | S1 | trigger classifier (pure): 5xx, 4xx, rejected, >1,000 ms, mobile failure report, internal error event; consumed by stage 4 | delegated (parallel writer) | done: `e2e5d534`, verifier pass |
-| T3h | S1 | metadata audit of internal events (17 `Metadata:` sites in 10 files) | inline | pending |
+| T3h | S1 | metadata audit of internal events (17 `Metadata:` sites in 10 files) | delegated (explorer + writer) | done: `df9ae784`, verifier pass |
 | T4 | S6 | stage 2: mobile correlation header | to plan | pending |
 | T5 | S1 | stage 3: ledger | to plan | pending |
 | T6 | S1 | stage 4: recorder and incidents replace the row caps | to plan | pending |
@@ -156,3 +156,22 @@ Checklist for T7, in the first commit that creates the new Activity folder:
     - The T3g reading "slow during startup never triggers" stands until stage 4 says otherwise.
   - Flake identified: `TestLoggedEventSurvivesBridgeRestart` in `internal/desktop`. It predates this work:
     it reproduced at baseline in 1 of 8 runs. A nil `bridgeDB` panic at `app.go:405` masks its startup error.
+- L13 (2026-10-17): an independent verifier passed T3f and T3h. Commits: `df9ae784` (T3h), `1fc502da` (T3f).
+  The final tree is byte-identical to the verified tree.
+  - T3f probe on a live-size copy, made through `VACUUM INTO` from a read-only open of the live DB:
+    - The copy was 36.1 MB with 4,786 free pages.
+    - The conversion took 141 ms, and the file shrank to 14.8 MB with 0 free pages.
+    - All 31 tables match a control copy.
+    - The `anime_snapshots` hash is unchanged.
+    - A second open runs no VACUUM.
+  - The rootpage guard in the retired-diagnostics test was kept by creating its install already
+    incremental, instead of dropping the comparison.
+  - Advisory: an external reader holding a transaction during the conversion blocks startup for about
+    5 s (busy_timeout on `wal_checkpoint`). This happens once per install.
+  - Mutation:
+    - `internal/sync`: 26/49 killed. Every survivor is recorded as equivalent, a constant skip or an
+      IMPORTANT diagnostic.
+    - T3h (IMPORTANT): 12/15 killed. One equivalent; the two bound-of-20 survivors are skipped.
+  - T3h: the "130 of 173" figure in rollout.md does not reproduce on the dev copy, where 921 of 1,666
+    non-noise rows carry metadata. The figure came from another week or another database.
+  - Stage 1 (T3) is complete.
