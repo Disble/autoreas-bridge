@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestStdoutLoggerIncludesTimestampLevelAndDomain(t *testing.T) {
@@ -25,9 +26,11 @@ func TestStdoutLoggerIncludesTimestampLevelAndDomain(t *testing.T) {
 	if !strings.Contains(got, "updated Bleach") {
 		t.Fatalf("expected message in output, got %q", got)
 	}
-	// ISO-8601 timestamp starts with year
-	if !strings.HasPrefix(got, "20") {
-		t.Fatalf("expected ISO-8601 timestamp prefix, got %q", got)
+	// The timestamp leads the line with millisecond resolution (P2), so events
+	// inside one second keep their order.
+	stamp, _, _ := strings.Cut(got, " ")
+	if _, err := time.Parse(TimestampLayout, stamp); err != nil || len(stamp) != len("2006-01-02T15:04:05.000Z") {
+		t.Fatalf("expected a millisecond UTC timestamp prefix, got %q (%v)", stamp, err)
 	}
 }
 

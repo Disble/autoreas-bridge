@@ -47,7 +47,7 @@ func runtimeEventsTableExists(db *sql.DB) bool {
 
 // eventCursor is the pagination cursor for Search, keyed on
 // (occurred_at_ms, id) -- the only stable pagination tiebreaker, since
-// LogEntry has no natural id and Timestamp is RFC3339 second resolution.
+// LogEntry has no natural id and two entries may share one millisecond.
 type eventCursor struct {
 	OccurredAtMS int64 `json:"occurred_at_ms"`
 	ID           int64 `json:"id"`
