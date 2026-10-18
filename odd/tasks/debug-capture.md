@@ -73,7 +73,8 @@ Checklist for T7, in the first commit that creates the new Activity folder:
 | T5 | S1 | stage 3 ledger (L15 D-c, D-d): `request_rollup_hourly`, `response_versions`, `response_hash` column | delegated (writer) | pending: Risk item 1 (persisted format), verifier |
 | T6a | S1 | stage 4 incidents (L15 D-e): `incidents` table, triggers from captures, error events and mobile failures | delegated (writer) | pending: Risk item 1, verifier |
 | T6b | S1 | stage 4 sweeper (L15 D-a, D-b, D-g): time retention replaces the row caps, which are deleted | delegated (writer) | pending: Risk item 1 (deletes data), verifier |
-| T7 | S2, S5 | stage 5: MCP tools and Activity UI | to plan | pending |
+| T7 | S2, S5, S7, S8 | stage 5: MCP tools and Activity UI (T7a read service `83374025`, T7b MCP `0adf94e6`, T7c1 bindings `da55bd47`, T7d Go legacy deletion `24357e87`, T7c2 shell + Now `d68a9876`, T7c3+T7c5 Incidents + run story `d5a5335d`, T7c4 History + recorder + wiring `0dcb2299`) | delegated (writers + verifiers per unit; parent wiring inline) | done |
+| T9 | — | gate: pre-commit lanes run one after another, with a contention report | inline | done `c7ab5d8b` |
 | T8 | S1 | stage 6: battery on the real stores, measured budgets | delegated (writer-t8) | done `28180006` |
 | T8a | S1 | D-f body strip + read fallback, trim before recorder deletes (Risk 1) | delegated (writer-t8a + verifier-t8a) | done `e8cd4f12` |
 | T8b | S7 | reader gaps C2/C4/C5: broadcasts, get_hourly_totals, at_ms | delegated (writer-t8b + verifier-t8b) | done `b03a9618` |
@@ -389,3 +390,45 @@ Checklist for T7, in the first commit that creates the new Activity folder:
         would remove that, but it needs a scan or an index, so it was not built.
   - The flake `TestLoggedEventSurvivesBridgeRestart` (L12, at baseline) hit once in the gate; it is
     pre-existing, 0/12 isolated.
+- L23 (2026-10-18): the Activity UI is complete, committed in `d5a5335d` and `0dcb2299`.
+  - **T7c3 (Incidents and the run story):**
+    - The writer was stopped by the parent after about 3 h. It was re-running mutation on IMPORTANT hooks,
+      where survivors may be skipped with a reason. The owner flagged the loop: "ese agente va 3 horas,
+      esta en un loop".
+    - The parent fixed its one type error.
+  - **T7c4 (History and the recorder):** delivered. CORE helpers 100 %.
+  - **Parent wiring, inline and RED first:**
+    - The recorder covers the tabs until Back and returns to the tab it left.
+    - The recorder link with its "Recording" chip sits under Now.
+    - The History tab's "Pair a phone" goes to `/pairing`.
+    - The parent registered the History fixture in `main.tsx` and set the tiers in `coverage-tiers.json`.
+  - **verifier-t7c34 (time-boxed to 75 min):**
+    - Spec PASS, and recorder-callback tolerance confirmed.
+    - CORE mutation 100 % on T7c3's six helpers. It fixed:
+      - the dead HeroUI v3 classes in `ActivityRequestBody`;
+      - one unused export;
+      - one surviving wiring mutant, with a new test.
+    - Blocker: `check:staged` complexity failed in 5 functions.
+  - **T7c5 (time-boxed):**
+    - Split `ActivityIncidents` and the 3 hooks. The shared `use-activity-read` dedupes three copies of the
+      read state.
+    - Added coverage tests for the tier gate.
+    - Changed one CORE line (`activity-run-story.helpers.ts`, a reachable fallback). It did not re-run
+      mutation there, so the parent did: 2 survivors. One was killed with a 2-step span test, the other is
+      equivalent and annotated. Now 155/155.
+  - **The parent split `ActivityHistory`** into `ActivityHistoryResolved` and `ActivityHistoryFailure`, and
+    added the `ActivityRecorderList` branch tests.
+  - **Gate incident** (report `docs/reports/2026-10-18-pre-commit-resource-contention.md`):
+    - Repeated 5 s timeouts in unrelated suites during `git commit`. The same suites pass alone, through
+      `lefthook run`, and through the full sequential pipeline.
+    - The owner asked that the lanes run one after another, with an MD report. Done in `c7ab5d8b`, pinned by
+      a policy test.
+    - After the change 2 of 4 commits still failed once on a timeout. The remaining cause is unproven and
+      recorded for the owner.
+    - The coverage-job scope proposal was reverted at the owner's objection to gate edits; it is now an
+      owner decision.
+  - **Advisories for the final report:**
+    - `ActivityWhere` and its filter are duplicated by the two parallel writers.
+    - No "Unclean stop" chip, because Go emits no stop mark.
+    - Shared `CodeBlock.tsx` has dead classes.
+    - `dist-layout/` is linted by `eslint .`.

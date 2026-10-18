@@ -55,6 +55,27 @@ The failures are CPU starvation, not defects:
 The gate itself caused part of the load, because it ran the Go suite and the frontend suite side by
 side. The rest came from processes outside it.
 
+## After the change
+
+Running the lanes one after another helped but did not remove the failures. These are the runs after
+the change, with nothing else heavy running on the machine:
+
+| Run | Context | Result |
+|---|---|---|
+| 1 | `git commit` | frontend-test failed: 3 `AnimeEditorWorkspace` timeouts, in 137 s, with no other lane running |
+| 2 | `lefthook run pre-commit --job frontend-test` | passed, 119 s |
+| 3 | `lefthook run pre-commit --all-files` | every lane passed, including coverage over all 385 files (156 s) |
+| 4 | `git commit` (gate change, `c7ab5d8b`) | passed |
+| 5 | `git commit` (activity History) | frontend-test passed; frontend-coverage failed on an `AnimeCreate` `findByText` 1 s wait under v8 instrumentation |
+| 6 | `git commit` (same, `0dcb2299`) | passed, with frontend-test 117 s and frontend-coverage 161 s |
+
+So two of four commits failed after the change, and both failures were timeouts in suites that pass
+in every other context. Run 1 shows that contention between lanes does not explain every failure. The
+remaining margin is thin: the suite now has 385 files and some integration tests sit close to the 5 s
+and 1 s budgets. `vite.config.ts` documents the same `AnimeEditorWorkspace` and editor tests starving
+at 1,767 tests in August, which the 4-worker cap fixed then. That cause was not proven here. It needs
+per-test durations measured inside a failing commit run.
+
 ## Decision
 
 - **The lanes now run one after another.** The top-level `parallel: true` became `piped: true`, so quick
@@ -67,6 +88,9 @@ side. The rest came from processes outside it.
 
 ## Open for the owner
 
+- **Gate margin.** Measure per-test durations inside a failing commit run and decide whether the slowest
+  integration tests (`AnimeEditorWorkspace`, `AnimeCreate`, `EpisodeDurationsSection`) need splitting or
+  the worker cap a fresh benchmark at 385 files.
 - **Coverage job scope.** `frontend-coverage` still reruns the whole suite under instrumentation, which
   doubles the frontend test time of every frontend commit. Limiting it to the enforced prefix
   (`coverage-tiers.json` → `enforcedPrefixes`) measured the same thresholds in 12 s instead of 174 s.
