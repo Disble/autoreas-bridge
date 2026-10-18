@@ -21,13 +21,22 @@ export function ActivityScreen() {
   }
 
   return (
-    <Tabs onSelectionChange={selectTab} selectedKey={selectedTab} variant="secondary">
+    <Tabs onSelectionChange={selectTab} selectedKey={selectedTab}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs.ListContainer>
+        <Tabs.ListContainer className="min-w-0 flex-1">
           <Tabs.List aria-label="Activity views">
-            <Tabs.Tab id="now">Now</Tabs.Tab>
-            <Tabs.Tab id="incidents">Incidents</Tabs.Tab>
-            <Tabs.Tab id="history">History</Tabs.Tab>
+            <Tabs.Tab id="now">
+              Now
+              <Tabs.Indicator />
+            </Tabs.Tab>
+            <Tabs.Tab id="incidents">
+              Incidents
+              <Tabs.Indicator />
+            </Tabs.Tab>
+            <Tabs.Tab id="history">
+              History
+              <Tabs.Indicator />
+            </Tabs.Tab>
           </Tabs.List>
         </Tabs.ListContainer>
         <Button isPending={isPinning} onPress={pin} size="sm" variant="secondary">

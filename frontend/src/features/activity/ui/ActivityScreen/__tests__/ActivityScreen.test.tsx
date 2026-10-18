@@ -68,6 +68,8 @@ describe('ActivityScreen', () => {
 
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Now', 'Incidents', 'History']);
     expect(screen.getByRole('tab', { name: 'Now' })).toHaveAttribute('aria-selected', 'true');
+    // The bridge tab style: the selected tab carries the shared sliding indicator, as in Season.
+    expect(screen.getByRole('tab', { name: 'Now' }).querySelector('[data-slot="tabs-indicator"]')).not.toBeNull();
     expect(screen.getByRole('status', { name: 'Loading activity' })).toBeInTheDocument();
   });
 
