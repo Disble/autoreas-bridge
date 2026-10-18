@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router';
 import { NotificationToasts } from '../../src/features/notifications/ui/NotificationToasts/NotificationToasts';
 import { renderAppNotificationToast } from '../../src/features/notifications/ui/NotificationToasts/app-notification.helpers';
-import { ActivityDetailFixture } from './activity-detail-fixture';
+import { ActivityNowFixture } from './activity-now-fixture';
 import { AirisEmptyStatesFixture } from './airis-empty-states-fixture';
 import { LoadingSkeletonsFixture } from './loading-skeletons-fixture';
 import { SeasonIntakeRawFixture } from './season-intake-raw-fixture';
@@ -28,8 +28,8 @@ import '../../src/style.css';
  *
  * jsdom has no layout engine and `render-smoke.mjs` dumps DOM without measuring
  * it, so nothing else in this repo can see an overflow. Both notification-toast
- * layout defects and the Activity detail card's horizontal page scroll shipped
- * through a green suite.
+ * layout defects and the old Activity detail card's horizontal page scroll
+ * shipped through a green suite.
  */
 
 /** The unbreakable-ish title that caused the original overflow, kept verbatim. */
@@ -273,7 +273,7 @@ function LayoutFixtures() {
   return (
     <>
       <ToastFixture />
-      <ActivityDetailFixture />
+      <ActivityNowFixture />
       <AirisEmptyStatesFixture />
       <LoadingSkeletonsFixture />
       <SeasonOrderingFixture />

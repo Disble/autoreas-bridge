@@ -6,5 +6,7 @@
     ".constants.ts",
     ".helpers.ts",
     ".schema.ts"
-  ]
+  ],
+  "countComments": false,
+  "countBlankLines": false
 }

@@ -1,6 +1,6 @@
 /**
  * Frontend mirror of `internal/api/contracts/notification_center.go`'s DTOs
- * (design.md §10), following `capture.types.ts`'s shape. Field names follow
+ * (design.md §10). Field names follow
  * the Go structs' JSON tags (camelCase); every property is `readonly`.
  */
 

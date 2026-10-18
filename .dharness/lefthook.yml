@@ -3,3 +3,6 @@ pre-commit:
     dharness:
       run: dharness check
       root: frontend/
+    coverage:
+      run: bunx --no-install vitest run --coverage --config ../.dharness/vitest.coverage.mjs
+      root: frontend/

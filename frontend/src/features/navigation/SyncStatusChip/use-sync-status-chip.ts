@@ -4,11 +4,11 @@ import type { BridgeRuntimeSource } from '../../../infrastructure/bridge-runtime
 import {
   getSQLiteStatusTone,
   isSQLiteStatusLoading,
-} from '../../dashboard/ui/BridgeStatusCard/bridge-status-card.helpers';
+} from './sync-status-chip.helpers';
 
 /**
  * Drives the rail footer sync-status chip. Reuses the same
- * `getSQLiteStatus` source as `useBridgeStatusCard` so this adds no new
+ * `getSQLiteStatus` source the bridge runtime already exposes, so this adds no new
  * Wails call, and exposes the Devices page as the chip's link target.
  */
 export function useSyncStatusChip(source: BridgeRuntimeSource = bridgeRuntimeSource) {

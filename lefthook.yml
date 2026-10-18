@@ -81,6 +81,11 @@ pre-commit:
             run: &frontend-typecheck bun --cwd="frontend" run typecheck
           - name: frontend-test
             run: &frontend-test bun --cwd="frontend" run test
+          # Copied from the coverage job `dharness sync` writes to .dharness/lefthook.yml,
+          # which this file does not inherit: native coverage over the adopted tiers.
+          - name: frontend-coverage
+            root: frontend/
+            run: bunx --no-install vitest run --coverage --config ../.dharness/vitest.coverage.mjs
           - name: frontend-render-smoke
             run: &frontend-render-smoke bun --cwd="frontend" run render:smoke
           - name: frontend-layout-smoke

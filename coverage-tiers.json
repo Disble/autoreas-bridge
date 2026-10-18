@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "enforcedPrefixes": ["frontend/src/features/activity/"],
+  "features": [
+    {
+      "id": "debug-capture",
+      "path": "frontend/src/features/activity/",
+      "defaultTier": "important",
+      "reason": "The Activity screen: what the user sees and touches",
+      "overrides": [
+        {"path": "frontend/src/features/activity/activity-source/activity-source.helpers.ts", "tier": "core", "reason": "Maps and validates every Go Activity payload the screen trusts"},
+        {"path": "frontend/src/features/activity/ui/ActivityNow/activity-now.helpers.ts", "tier": "core", "reason": "Decides the status dot, the figures, the bars and their gaps, and the change wording"},
+        {"path": "frontend/src/features/activity/activity-source/activity.types.ts", "tier": "infrastructure", "reason": "Type declarations"},
+        {"path": "frontend/src/features/activity/activity-source/activity-source.types.ts", "tier": "infrastructure", "reason": "Type declarations"},
+        {"path": "frontend/src/features/activity/activity-source/activity-source.constants.ts", "tier": "infrastructure", "reason": "Constants"},
+        {"path": "frontend/src/features/activity/ui/ActivityNow/activity-now.types.ts", "tier": "infrastructure", "reason": "Type declarations"},
+        {"path": "frontend/src/features/activity/ui/ActivityNow/activity-now.constants.ts", "tier": "infrastructure", "reason": "Constants"},
+        {"path": "frontend/src/features/activity/ui/ActivityScreen/activity-screen.types.ts", "tier": "infrastructure", "reason": "Type declarations"},
+        {"path": "frontend/src/features/activity/ui/ActivityScreen/activity-screen.constants.ts", "tier": "infrastructure", "reason": "Constants"}
+      ]
+    }
+  ]
+}

@@ -112,3 +112,10 @@ how much test coverage it gets. The governing question is which code can break t
 - `docs/adr/018-desktop-shell-package.md`
 - `docs/adr/019-keyboard-command-registry.md`
 - `docs/adr/020-keymap-override-seam.md`
+
+<!-- dharness:coverage-tiers begin — rewritten by `dharness sync`; edits here are lost. -->
+Coverage targets: CORE 100%, IMPORTANT 80%, INFRASTRUCTURE 0%; classification lives
+in `coverage-tiers.json`, and the wired gate enforces it. Before changing one, read
+`.claude/skills/coverage-tiers/SKILL.md`, shipped by the same binary that wired this gate. dharness owns
+the guide that explains the tiers; this region names no path a project lacks.
+<!-- dharness:coverage-tiers end -->
