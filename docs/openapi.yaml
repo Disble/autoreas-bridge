@@ -289,6 +289,29 @@ info:
       client's accepted value or the bridge's own id. Clients may log it.
     - WebSocket is unchanged: the phone sends no frames.
 
+    2026-10-18 — debug-capture MCP consumer impact: NO REST/WS wire change.
+    BREAKING for MCP clients only: the read-only `autoreas-request-mcp`
+    sidecar replaces its whole tool surface (ADR-028, `docs/observability/rollout.md`,
+    "No legacy"). No alias or shim keeps an old name.
+    - Removed: `search_requests`, `get_request_context`, `resolve_request_context`,
+      `summary_requests`, `search_events`, `summary_events`,
+      `get_correlation_timeline`.
+    - Added, one per Activity question: `get_status`, `list_incidents`,
+      `get_incident`, `get_request` (by bridge `request_id`, or by the
+      `X-Autoreas-Request-Id` value as `client_request_id`, which returns every
+      row sharing it, newest first, at most 10), `search_history`, `list_runs`, `get_run_story`,
+      `list_recorder`, `list_response_versions`.
+    - Every answer carries a `coverage` object: the tables read, the time
+      range each one holds, the window asked about and the part of it the
+      tables cover, in epoch ms and UTC ISO. An empty answer means nothing
+      inside that range, never "nothing happened".
+    - `request_captures` and `runtime_events` keep every row only for the
+      last 2 hours; older rows survive only as writes, WebSocket connections,
+      non-noise events and incident windows. Their coverage entries carry
+      `complete_from` (`ms`, `iso`), the time from which every row is held,
+      and `before_complete_from`, what survives before it. `get_request`,
+      `get_run_story` and `list_recorder` start `covered` at `complete_from`.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}

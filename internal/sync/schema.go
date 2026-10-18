@@ -207,6 +207,12 @@ const (
 		CREATE INDEX IF NOT EXISTS idx_request_captures_status_time
 		ON request_captures (http_status, captured_at_ms DESC, request_id DESC)`
 
+	// requestCapturesClientIDIndexDDL serves the lookup by the phone's
+	// X-Autoreas-Request-Id (<cycleId>:<n>), which the MCP get_request reads.
+	requestCapturesClientIDIndexDDL = `
+		CREATE INDEX IF NOT EXISTS idx_request_captures_client_id
+		ON request_captures (client_request_id)`
+
 	requestCaptureMetadataDDL = `
 		CREATE TABLE IF NOT EXISTS request_capture_metadata (
 			key TEXT PRIMARY KEY,

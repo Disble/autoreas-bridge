@@ -287,6 +287,7 @@ func requestCapturesTable() persistence.TableSchema {
 			requestCapturesAnimeTimeIndexDDL,
 			requestCapturesRouteTimeIndexDDL,
 			requestCapturesStatusTimeIndexDDL,
+			requestCapturesClientIDIndexDDL,
 		},
 		Migrate: migrateRequestCapturesSchema,
 	}

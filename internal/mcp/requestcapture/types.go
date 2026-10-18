@@ -1,93 +1,114 @@
 package requestcapture
 
 import (
-	"context"
-
+	"autoreas-bridge/internal/observability/activityread"
 	obs "autoreas-bridge/internal/observability/requestcapture"
 )
 
-// SearchRequestsInput carries pagination and optional server-side
-// filters for the search_requests tool. Every populated filter
-// composes with the others as a conjunction (AND).
-type SearchRequestsInput struct {
-	Limit       int    `json:"limit,omitempty"`
-	Cursor      string `json:"cursor,omitempty"`
-	Route       string `json:"route,omitempty"`
-	Status      *int   `json:"status,omitempty"`
-	Outcome     string `json:"outcome,omitempty"`
-	Kind        string `json:"kind,omitempty"`
-	DeviceID    string `json:"device_id,omitempty"`
-	AnimeID     string `json:"anime_id,omitempty"`
-	ErrorCode   string `json:"error_code,omitempty"`
-	StartMS     *int64 `json:"start_ms,omitempty"`
-	EndMS       *int64 `json:"end_ms,omitempty"`
-	ChangelogID *int64 `json:"changelog_id,omitempty"`
+// StatusInput takes no arguments.
+type StatusInput struct{}
+
+// WhereInput carries the "where it happened" filter: all (default), phone,
+// downloads, editor, schedule or season.
+type WhereInput struct {
+	Where string `json:"where,omitempty" jsonschema:"all (default), phone, downloads, editor, schedule or season"`
 }
 
-// SummaryRequestsInput carries the same optional filters as
-// SearchRequestsInput to scope the summary_requests aggregation.
-type SummaryRequestsInput struct {
-	Route       string `json:"route,omitempty"`
-	Status      *int   `json:"status,omitempty"`
-	Outcome     string `json:"outcome,omitempty"`
-	Kind        string `json:"kind,omitempty"`
-	DeviceID    string `json:"device_id,omitempty"`
-	AnimeID     string `json:"anime_id,omitempty"`
-	ErrorCode   string `json:"error_code,omitempty"`
-	StartMS     *int64 `json:"start_ms,omitempty"`
-	EndMS       *int64 `json:"end_ms,omitempty"`
-	ChangelogID *int64 `json:"changelog_id,omitempty"`
+// IncidentInput names one incident occurrence.
+type IncidentInput struct {
+	ID int64 `json:"id" jsonschema:"the incident occurrence id, as list_incidents returns it in LatestID"`
 }
 
-// toFilters projects the input's shared filter fields into obs.SearchFilters.
-func (in SearchRequestsInput) toFilters() obs.SearchFilters {
-	return obs.SearchFilters{
-		Route: in.Route, HTTPStatus: in.Status, Outcome: in.Outcome, Kind: in.Kind,
-		DeviceID: in.DeviceID, AnimeID: in.AnimeID, ErrorCode: in.ErrorCode,
-		StartMS: in.StartMS, EndMS: in.EndMS, ChangelogID: in.ChangelogID,
-	}
+// RequestInput names one captured request.
+type RequestInput struct {
+	RequestID       string `json:"request_id,omitempty" jsonschema:"the bridge request id, the capture row key; give this or client_request_id"`
+	ClientRequestID string `json:"client_request_id,omitempty" jsonschema:"the phone's X-Autoreas-Request-Id, <cycleId>:<n>; may match several rows"`
 }
 
-// toFilters projects the input's shared filter fields into obs.SearchFilters.
-func (in SummaryRequestsInput) toFilters() obs.SearchFilters {
-	return obs.SearchFilters{
-		Route: in.Route, HTTPStatus: in.Status, Outcome: in.Outcome, Kind: in.Kind,
-		DeviceID: in.DeviceID, AnimeID: in.AnimeID, ErrorCode: in.ErrorCode,
-		StartMS: in.StartMS, EndMS: in.EndMS, ChangelogID: in.ChangelogID,
-	}
+// HistoryInput selects one History page.
+type HistoryInput struct {
+	Where  string `json:"where,omitempty" jsonschema:"all (default), phone, downloads, editor, schedule or season"`
+	Cursor string `json:"cursor,omitempty" jsonschema:"NextCursor of the previous page; empty for the first page"`
+	Limit  int    `json:"limit,omitempty" jsonschema:"lines per page, default 50, at most 100"`
 }
 
-// ResolveRequestContextInput carries the imprecise reference to resolve.
-type ResolveRequestContextInput struct {
-	Reference string `json:"reference"`
+// RunStoryInput names one run.
+type RunStoryInput struct {
+	CorrelationID string `json:"correlation_id" jsonschema:"the run's correlation id, as list_runs returns it"`
 }
 
-// GetRequestContextInput carries the exact request ID to retrieve.
-type GetRequestContextInput struct {
-	RequestID string `json:"request_id"`
+// RecorderInput selects one recorder page.
+type RecorderInput struct {
+	Cursor string `json:"cursor,omitempty" jsonschema:"NextCursor of the previous page; empty for the first page"`
+	Limit  int    `json:"limit,omitempty" jsonschema:"entries per page, default 50, at most 100"`
 }
 
-// ResolveCandidate now lives in the core request-capture package.
-type ResolveCandidate = obs.ResolveCandidate
-
-// SearchRequestsResult is the newest-first page returned by search.
-type SearchRequestsResult = obs.SearchPage
-
-// SummaryRequestsResult is the grouped aggregation returned by summary.
-type SummaryRequestsResult = obs.SummaryResult
-
-// GetRequestContextResult is the exact-get result returned by get.
-type GetRequestContextResult = obs.GetResult
-
-// ResolveRequestContextResult is the list of ranked candidates.
-type ResolveRequestContextResult struct {
-	Candidates []ResolveCandidate `json:"candidates"`
+// ResponseVersionsInput names one route.
+type ResponseVersionsInput struct {
+	RouteTemplate string `json:"route_template" jsonschema:"a route template such as /api/animes/:id; a concrete route is reduced to its template"`
 }
 
-// Reader abstracts the read-only request-capture storage used by the MCP tools.
-type Reader interface {
-	Search(ctx context.Context, params obs.SearchParams) (obs.SearchPage, error)
-	Get(ctx context.Context, requestID string) (obs.GetResult, error)
-	Resolve(ctx context.Context, reference string) ([]ResolveCandidate, error)
-	Summary(ctx context.Context, filters obs.SearchFilters) (obs.SummaryResult, error)
+// StatusResult answers get_status. BridgeStartedAtMS is the newest stored
+// startup marker; it is null when none is stored, and UptimeMS is then 0.
+type StatusResult struct {
+	Status            activityread.NowView `json:"status"`
+	BridgeStartedAtMS *int64               `json:"bridge_started_at_ms"`
+	Coverage          Coverage             `json:"coverage"`
+}
+
+// IncidentsResult answers list_incidents.
+type IncidentsResult struct {
+	Incidents []activityread.IncidentSummary `json:"incidents"`
+	Coverage  Coverage                       `json:"coverage"`
+}
+
+// IncidentResult answers get_incident. Found is false when the occurrence
+// is not stored; Coverage then says what the incidents table holds.
+type IncidentResult struct {
+	Found    bool                        `json:"found"`
+	Incident activityread.IncidentDetail `json:"incident"`
+	Coverage Coverage                    `json:"coverage"`
+}
+
+// RequestResult answers get_request with the stored rows and their bodies,
+// newest first: at most one for a request id, up to clientRequestLimit for a
+// client id. Truncated is true when more rows share the client id.
+// MalformedRowsSkipped counts rows that matched but could not be decoded.
+type RequestResult struct {
+	Found                bool                `json:"found"`
+	Requests             []obs.CaptureRecord `json:"requests"`
+	Truncated            bool                `json:"truncated"`
+	MalformedRowsSkipped int                 `json:"malformed_rows_skipped"`
+	Coverage             Coverage            `json:"coverage"`
+}
+
+// HistoryResult answers search_history.
+type HistoryResult struct {
+	History  activityread.HistoryView `json:"history"`
+	Coverage Coverage                 `json:"coverage"`
+}
+
+// RunsResult answers list_runs.
+type RunsResult struct {
+	Runs     []activityread.Run `json:"runs"`
+	Coverage Coverage           `json:"coverage"`
+}
+
+// RunStoryResult answers get_run_story.
+type RunStoryResult struct {
+	Story    activityread.RunStory `json:"story"`
+	Coverage Coverage              `json:"coverage"`
+}
+
+// RecorderResult answers list_recorder.
+type RecorderResult struct {
+	Recorder activityread.RecorderPage `json:"recorder"`
+	Coverage Coverage                  `json:"coverage"`
+}
+
+// ResponseVersionsResult answers list_response_versions.
+type ResponseVersionsResult struct {
+	RouteTemplate string                         `json:"route_template"`
+	Versions      []activityread.ResponseVersion `json:"versions"`
+	Coverage      Coverage                       `json:"coverage"`
 }

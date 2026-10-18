@@ -328,7 +328,7 @@ func TestCaptureRouteStatusIndexesExist(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
-	for _, index := range []string{"idx_request_captures_route_time", "idx_request_captures_status_time"} {
+	for _, index := range []string{"idx_request_captures_route_time", "idx_request_captures_status_time", "idx_request_captures_client_id"} {
 		var name string
 		err := db.QueryRow(`SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?`, index).Scan(&name)
 		if err != nil {
@@ -478,5 +478,10 @@ func TestResponseHashMigrationKeepsExistingCaptureRows(t *testing.T) {
 	}
 	if body != `{"ok":true}` || hash != "" {
 		t.Fatalf("expected the old row kept with an empty response_hash, got body %q hash %q", body, hash)
+	}
+	var index string
+	if err := db.QueryRow(`SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'request_captures'
+		AND name = 'idx_request_captures_client_id'`).Scan(&index); err != nil {
+		t.Fatalf("expected an existing database to gain the client request id index: %v", err)
 	}
 }
