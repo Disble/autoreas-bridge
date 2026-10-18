@@ -70,8 +70,9 @@ Checklist for T7, in the first commit that creates the new Activity folder:
 | T3g | S1 | trigger classifier (pure): 5xx, 4xx, rejected, >1,000 ms, mobile failure report, internal error event; consumed by stage 4 | delegated (parallel writer) | done: `e2e5d534`, verifier pass |
 | T3h | S1 | metadata audit of internal events (17 `Metadata:` sites in 10 files) | delegated (explorer + writer) | done: `df9ae784`, verifier pass |
 | T4 | S6 | stage 2: mobile correlation header | covered by T3d (`ce561e39`, `11400406`, openapi `0f7591e2`) | done: the phone side is mobile's, no APK change (S4) |
-| T5 | S1 | stage 3: ledger | to plan | pending |
-| T6 | S1 | stage 4: recorder and incidents replace the row caps | to plan | pending |
+| T5 | S1 | stage 3 ledger (L15 D-c, D-d): `request_rollup_hourly`, `response_versions`, `response_hash` column | delegated (writer) | pending: Risk item 1 (persisted format), verifier |
+| T6a | S1 | stage 4 incidents (L15 D-e): `incidents` table, triggers from captures, error events and mobile failures | delegated (writer) | pending: Risk item 1, verifier |
+| T6b | S1 | stage 4 sweeper (L15 D-a, D-b, D-g): time retention replaces the row caps, which are deleted | delegated (writer) | pending: Risk item 1 (deletes data), verifier |
 | T7 | S2, S5 | stage 5: MCP tools and Activity UI | to plan | pending |
 | T8 | S1 | stage 6: battery on the real stores, measured budgets | to plan | pending |
 
@@ -185,3 +186,41 @@ Checklist for T7, in the first commit that creates the new Activity folder:
     - Every verifier also checks for unrequested scope.
     - Each delicate decision is logged with the measurement that settled it.
   - T4 closed: T3d already delivers the bridge side of stage 2.
+- L15 (2026-10-17): design of stages 3–4, chosen as the smallest one that meets ADR-028. Map: explorer-ledger.
+  Measured on the dev copy:
+  - `request_captures`: 5,008 rows over 3.8 days.
+    - 78 state-changing rows: 60 post plus 18 reconciles carrying operations.
+    - 407 `ws_*` rows, none with a body.
+    - `/api/animes` holds 95% of the body bytes in 4 distinct bodies.
+  - `runtime_events`: 20,001 rows, of which 18,159 are noise.
+  Simulator parameters: 3 first plus 3 latest occurrences per fingerprint; window −2 min/+30 s; rollup by hour,
+  route template and status class.
+  Decisions, each with the hypothesis that would falsify it:
+  - D-a: the recorder is the existing `request_captures` and `runtime_events` tables. Their row caps are
+    replaced by time retention; no new recorder table, no data copy.
+    - Falsifier: a battery issue that needs a field these tables lack.
+  - D-b: the ledger's journal, event ledger and WebSocket ledger are retention classes of those same rows,
+    expressed once as SQL predicates in the sweeper. No column, no backfill, no second copy. The classes:
+    - journal: kind post, put, patch or delete, or a reconcile whose `correlation_json` names an `anime_id`
+      (simulator `isMutation`).
+    - WebSocket ledger: every `ws_*` row.
+    - event ledger: events that are not noise. Noise is `event_type = 'sync.reconcile'`, or `tracer.step`
+      except the startup marker.
+    - Falsifier: on the dev copy the predicates do not select exactly 78, 407 and 1,842 rows.
+  - D-c: the hourly rollup is a new table `request_rollup_hourly` keyed by (hour, route template, status
+    class, device), holding count and max duration. It is upserted in the terminal capture transaction.
+    The device follows ADR D3, although the simulator omitted it.
+  - D-d: response versions are a new table `response_versions` keyed by (route template, sha256), holding
+    the body, first seen, last seen and count. A recorder row gains an additive `response_hash` column.
+  - D-e: incidents are a new table `incidents` (fingerprint, reason, occurred_at, window_start, window_end,
+    source id). Only the first 3 and the latest 3 occurrences per fingerprint are kept. A recorder row
+    older than 2 h survives only while an incident window covers it, or while it belongs to a ledger class.
+  - D-f: incidents do not strip bodies of in-window rows that did not fail.
+    - Measurement that would reverse this: stage 6 shows the incident layer above its 0.48 MB budget.
+  - D-g: one sweeper deletes non-ledger, unpinned rows after 2 h and everything after 90 days. It trims
+    incidents to 3 first plus 3 latest and prunes rollups and versions after 90 days. It deletes the
+    row-cap code (No legacy).
+  Units:
+  - T5: the rollup and response versions.
+  - T6a: the incident store and its trigger wiring.
+  - T6b: the sweeper and the deletion of the row caps.
