@@ -224,3 +224,22 @@ Checklist for T7, in the first commit that creates the new Activity folder:
   - T5: the rollup and response versions.
   - T6a: the incident store and its trigger wiring.
   - T6b: the sweeper and the deletion of the row caps.
+- L16 (2026-10-18): an independent verifier passed T5 and T6a. Commits: `edc1bf98` (T5), `dd9ef3a2` (T6a).
+  - Mutation:
+    - T5: 62/62 killed, 54 by ditto and 8 by new test rows.
+    - T6a: 17/19 killed. The 2 survivors, on the 250 ms record budget constant, are skipped.
+  - Verifier fixes:
+    - A terminal 5xx written by the fallback direct write now records its incident.
+    - The unused `SourcePin` constant was removed as unrequested scope.
+  - Advisory: event incidents carry an empty `source_id`, because `InsertEvent` returns no id. The window
+    and the fingerprint still find the event.
+  - Parent fix: `UpsertCapture` exceeded funlen after T5, so its SQL moved to `upsertCaptureSQL`.
+  - Decision: requests abandoned at startup are not counted in the rollup. Measured: 1 abandoned row in 5,008.
+  - Mobile (autoreas-mobile-85) committed the header on `feat/request-correlation-id`, unmerged. Its ids are
+    a 36-char UUID, `:` and n, which the bridge regex accepts.
+    - Not stamped: the snapshot heal, the UI screens, pairing and covers.
+  - T7a, read service: delegated, under review.
+    - Quiet threshold measured at 2 min, from a p99 of 105.1 s over 4,821 gaps between phone requests.
+    - The non-noise count of 1,842 confirms L15 D-b.
+    - No `editor` domain exists, so Editor = desktop rows of the domain history plus `anime` events.
+  - T6b: delegated.
