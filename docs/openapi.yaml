@@ -695,10 +695,16 @@ components:
 
     ReconcileResponse:
       type: object
-      required: [status, last_changelog_id, applied_operations, bridge_changes, conflicts]
+      required: [status, last_changelog_id, applied_operations, bridge_changes, conflicts, season_mode]
       properties:
         status:
           type: string
+        season_mode:
+          type: boolean
+          description: |
+            True while a season is open. Always present, read on every
+            reconcile, so a backgrounded phone learns it without the push-only
+            `preferences_changed` message.
         last_changelog_id:
           type: integer
           description: |

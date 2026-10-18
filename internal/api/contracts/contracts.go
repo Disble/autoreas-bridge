@@ -398,6 +398,9 @@ type ReconcileResponse struct {
 	AppliedOperations []AppliedOperation `json:"applied_operations"`
 	BridgeChanges     []AnimeChange      `json:"bridge_changes"`
 	Conflicts         []any              `json:"conflicts"`
+	// SeasonMode is true while a season is open; always present, so a backgrounded phone learns it
+	// on the sync path instead of the push-only preferences_changed message.
+	SeasonMode bool `json:"season_mode"`
 }
 
 // DeviceInfo is the synchronization status of a paired device.

@@ -59,7 +59,7 @@ func buildPatchAnimeConfig(h *Handler, config Config) apiHandlers.PatchAnimeConf
 
 // buildSyncHandlerConfig assembles dependencies for the sync handler.
 func buildSyncHandlerConfig(h *Handler, config Config) apiHandlers.SyncHandlerConfig {
-	syncConfig := apiHandlers.SyncHandlerConfig{Authenticate: h.authenticate}
+	syncConfig := apiHandlers.SyncHandlerConfig{Authenticate: h.authenticate, SeasonMode: config.SeasonMode}
 	if config.AnimeWrite != nil {
 		syncConfig.ApplyPendingPatch = apiHandlers.AdaptAnimePatchWriter(config.AnimeWrite)
 	}
