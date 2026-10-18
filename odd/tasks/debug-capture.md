@@ -285,3 +285,27 @@ Checklist for T7, in the first commit that creates the new Activity folder:
   - Delegated:
     - T7b (MCP, with the additive `idx_request_captures_client_id` index): written and under a verifier.
     - T7c1 (Activity bindings, the `activity.recorder` live event, the pin): delegated.
+- L19 (2026-10-18): T7b and T7c1 committed after independent verifiers.
+  - T7b, the MCP, as `0adf94e6`.
+    - Nine read-only tools, one per Activity question, each with a `coverage` object. The 7 old tools are
+      deleted with no alias. `idx_request_captures_client_id` is additive: bootstrap changes no data.
+    - Verifier blocker B1, fixed:
+      - After a sweep, MIN..MAX of the recorder tables overstated what they hold. A swept reconcile read
+        "never existed".
+      - Recorder sources now report `complete_from` = max(oldest, now − `RecorderSpan`) with the
+        kept-classes note, and `get_request`, `get_run_story` and `list_recorder` start `covered` there.
+      - A recheck through the real stdio binary passed.
+    - Mutation: 70/88 killed, 5 equivalent, 13 skipped (IMPORTANT: the midnight boundary, the malformed-row
+      diagnostic, the response-version cap).
+  - T7c1, the bindings, as `da55bd47`.
+    - 8 read bindings over activityread.
+    - `PinActivityMoment()`: no note, because the spec has none. It returns an error only, because
+      `incident.Record` returns no id.
+    - The `activity.recorder` live event is emitted before the incident is recorded.
+    - The verifier proved that a pin keeps the recorder rows at −2:00 and +0:30 through a real sweep, and
+      deletes the rows at −2:01 and +0:31.
+    - Mutation: 34/38 killed, 4 equivalent or unreachable.
+    - Advisory: the activityread types carry no json tags, so Wails serializes the Go field names. This is
+      consistent across all the new bindings.
+  - T7c2, the Activity shell, Now and the old-screen deletion, is in progress. T7d (old Go bindings,
+    readcap/readparity desktop half, stale "MCP search_requests" comments, empty config structs) follows it.
