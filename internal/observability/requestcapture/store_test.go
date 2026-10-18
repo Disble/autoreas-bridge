@@ -113,10 +113,15 @@ func TestUpsertCaptureWritesTelemetryColumns(t *testing.T) {
 	record.ResponseBody = &body
 	record.ResponseBodyState = CaptureStateTruncated
 	record.RequestHeaders = map[string]string{"Content-Type": "application/json"}
+	record.ErrorMessage = "anime anime-1 not found"
 	record.ResponseHeaders = map[string]string{"Content-Type": "application/json"}
 
 	if err := store.UpsertCapture(context.Background(), record); err != nil {
 		t.Fatalf("insert capture: %v", err)
+	}
+	got, err := NewReader(db).Get(context.Background(), record.RequestID)
+	if err != nil || got.Item.ErrorMessage != record.ErrorMessage {
+		t.Fatalf("error message round trip = %q (%v), want %q", got.Item.ErrorMessage, err, record.ErrorMessage)
 	}
 
 	assertTelemetryRow(t, readTelemetryRow(t, db, record.RequestID), telemetryRow{

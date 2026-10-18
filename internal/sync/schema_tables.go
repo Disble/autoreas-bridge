@@ -305,6 +305,7 @@ func migrateRequestCapturesSchema(db *sql.DB, cols []string) error {
 		{name: "request_headers", ddl: `ALTER TABLE request_captures ADD COLUMN request_headers TEXT`},
 		{name: "response_headers", ddl: `ALTER TABLE request_captures ADD COLUMN response_headers TEXT`},
 		{name: "duration_ms", ddl: `ALTER TABLE request_captures ADD COLUMN duration_ms INTEGER`},
+		{name: "error_message", ddl: `ALTER TABLE request_captures ADD COLUMN error_message TEXT NOT NULL DEFAULT ''`},
 	} {
 		if containsSchemaColumn(cols, column.name) {
 			continue

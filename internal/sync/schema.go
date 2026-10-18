@@ -180,7 +180,8 @@ const (
 			response_body_state TEXT NOT NULL DEFAULT '',
 			request_headers TEXT,
 			response_headers TEXT,
-			duration_ms INTEGER
+			duration_ms INTEGER,
+			error_message TEXT NOT NULL DEFAULT ''
 		)`
 
 	requestCapturesTimeIndexDDL = `

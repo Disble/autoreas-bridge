@@ -62,6 +62,9 @@ type CaptureRecord struct {
 	RequestHeaders    map[string]string `json:"request_headers,omitempty"`
 	ResponseHeaders   map[string]string `json:"response_headers,omitempty"`
 	DurationMS        *int64            `json:"duration_ms,omitempty"`
+	// ErrorMessage is the failure cause (P1): the handler's own cause, a panic
+	// value, or the JSON "error" of a failed response. Empty on success.
+	ErrorMessage string `json:"error_message,omitempty"`
 }
 
 // DeviceIdentity is the trusted authenticated device projection.

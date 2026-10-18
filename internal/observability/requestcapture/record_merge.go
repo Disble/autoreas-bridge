@@ -35,6 +35,9 @@ func MergeEnrichment(transport CaptureRecord, enr *CaptureEnrichment) CaptureRec
 	merged.Device = enr.device
 	merged.Outcome = enr.outcome
 	merged.ErrorCode = enr.errorCode
+	if enr.errorMessage != "" {
+		merged.ErrorMessage = enr.errorMessage
+	}
 	merged.AnimeID = enr.animeID
 	merged.Payload = enr.payload
 	merged.Correlations = enr.correlations

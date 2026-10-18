@@ -28,7 +28,7 @@ var captureBaseColumns = []string{
 
 // optionalCaptureColumns are the additive (version-2) telemetry columns. Order
 // matters: it is the fixed order appended to captureBaseColumns whenever present.
-var optionalCaptureColumns = []string{"request_body", "request_body_state", "response_body", "response_body_state", "request_headers", "response_headers", "duration_ms"}
+var optionalCaptureColumns = []string{"request_body", "request_body_state", "response_body", "response_body_state", "request_headers", "response_headers", "duration_ms", "error_message"}
 
 // captureTables names the capture objects for one schema generation. The
 // table/key names are interpolated directly into SQL strings because SQLite
@@ -93,6 +93,7 @@ type optionalColumns struct {
 	requestHeaders    bool
 	responseHeaders   bool
 	durationMS        bool
+	errorMessage      bool
 }
 
 // present reports whether the named optional column was detected.
@@ -112,6 +113,8 @@ func (o optionalColumns) present(name string) bool {
 		return o.responseHeaders
 	case "duration_ms":
 		return o.durationMS
+	case "error_message":
+		return o.errorMessage
 	default:
 		return false
 	}
@@ -195,6 +198,7 @@ func detectOptionalColumns(db *sql.DB, tables captureTables) optionalColumns {
 		requestHeaders:    present["request_headers"],
 		responseHeaders:   present["response_headers"],
 		durationMS:        present["duration_ms"],
+		errorMessage:      present["error_message"],
 	}
 }
 
@@ -308,6 +312,7 @@ type captureRowScan struct {
 	requestHeaders    sql.NullString
 	responseHeaders   sql.NullString
 	durationMS        sql.NullInt64
+	errorMessage      sql.NullString
 }
 
 // buildCaptureScanDest builds the ordered Scan() destination slice for one
@@ -335,6 +340,8 @@ func buildCaptureScanDest(record *CaptureRecord, scan *captureRowScan, columns [
 			dest = append(dest, &scan.responseHeaders)
 		case "duration_ms":
 			dest = append(dest, &scan.durationMS)
+		case "error_message":
+			dest = append(dest, &scan.errorMessage)
 		}
 	}
 	return dest
@@ -389,6 +396,9 @@ func applyOptionalCaptureFields(record *CaptureRecord, scan captureRowScan) {
 	if scan.durationMS.Valid {
 		value := scan.durationMS.Int64
 		record.DurationMS = &value
+	}
+	if scan.errorMessage.Valid {
+		record.ErrorMessage = scan.errorMessage.String
 	}
 }
 
