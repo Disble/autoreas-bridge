@@ -39,7 +39,7 @@ func TestInsertEventWritesEveryColumn(t *testing.T) {
 	t.Parallel()
 
 	db := openStoreTestDB(t)
-	store := NewStore(db, EventStoreConfig{})
+	store := NewStore(db)
 
 	record := EventRecord{
 		OccurredAtMS:  1000,
@@ -78,7 +78,7 @@ func TestInsertEventNullableFieldsBindNull(t *testing.T) {
 	t.Parallel()
 
 	db := openStoreTestDB(t)
-	store := NewStore(db, EventStoreConfig{})
+	store := NewStore(db)
 
 	if err := store.InsertEvent(context.Background(), EventRecord{OccurredAtMS: 1000, Domain: "sync", Level: "info", Message: "hello"}); err != nil {
 		t.Fatalf("insert event: %v", err)

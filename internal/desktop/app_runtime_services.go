@@ -28,7 +28,6 @@ func (a *App) configureRuntimeServices(ctx context.Context) {
 	a.configureCaptureReader()
 	a.configureSyncDiagReader()
 	a.configureEventLogQueue(ctx)
-	a.configureEventReader()
 	a.prepareAnimeRuntime(ctx)
 	a.startSyncChangelogRecorder()
 	a.startIncrementalVacuumLoop(bridgeSync.IncrementalVacuumInterval)
@@ -99,7 +98,7 @@ func (a *App) logCaptureSweep(metadata map[string]any, format string, args ...an
 }
 
 // configureCaptureReader wires the in-process capture read path
-// (ListCaptureTransactions/GetCaptureTransaction) once, over the app's own
+// (GetActivityRequest) once, over the app's own
 // bridgeDB handle -- never a second SQLite connection (design.md "Read
 // handle"). Guarded like configureCaptureQueue: nil-safe when bridgeDB is
 // absent, and a no-op once a reader already exists.
@@ -114,7 +113,7 @@ func (a *App) configureCaptureReader() {
 // path (ListDeviceSyncDiagnostics) once, over the app's own bridgeDB handle --
 // never a second SQLite connection. It is the exact mirror of
 // configureCaptureReader: nil-safe when bridgeDB is absent, and a no-op once a
-// reader already exists. The recover mirrors configureEventReader: the
+// reader already exists. The recover exists because the
 // constructor probes device_telemetry_events, and a bare, unopened *sql.DB{}
 // (as a degraded bootstrap or a unit-test fixture supplies) panics on query
 // rather than erroring. Leaving the reader nil there is the correct
@@ -152,32 +151,6 @@ func (a *App) configureEventLogQueue(ctx context.Context) {
 	if realQueue, ok := queue.(*eventlog.Queue); ok {
 		a.eventSink.Bind(realQueue, persistDebug)
 	}
-}
-
-// configureEventReader wires the in-process runtime-event read path
-// (SearchRuntimeEvents/SummarizeRuntimeEvents/RuntimeEventsAvailable) once,
-// over the app's own bridgeDB handle -- never a second SQLite connection. It
-// is the exact mirror of configureCaptureReader, and deliberately asymmetric
-// with the MCP sidecar, which opens its own read-only connection because it is
-// a separate process. eventlog.NewReader probes runtime_events once and never
-// errors on a missing table, so a database predating that table degrades to
-// Available() false instead of failing startup.
-//
-// The recover mirrors sweepOrphanedCaptures and readEventPersistDebugSetting:
-// the constructor probes runtime_events, and a bare, unopened *sql.DB{} (as a
-// degraded bootstrap or a unit-test fixture supplies) panics on query rather
-// than erroring. Leaving the reader nil there is the correct degradation --
-// the bound reads already report a nil reader as Degraded.
-func (a *App) configureEventReader() {
-	if a.eventReader != nil || a.bridgeDB == nil || a.newEventReader == nil {
-		return
-	}
-	defer func() {
-		if recovered := recover(); recovered != nil && a.sharedLogger != nil {
-			a.sharedLogger.Warnf("api", "failed to wire the runtime-event reader: %v", recovered)
-		}
-	}()
-	a.eventReader = a.newEventReader(a.bridgeDB)
 }
 
 // readEventPersistDebugSetting reads the debug-persistence policy from

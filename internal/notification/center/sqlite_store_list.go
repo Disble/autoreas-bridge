@@ -174,8 +174,7 @@ func stringSetCondition(column string, values []string) (string, []any) {
 }
 
 // joinListConditions ANDs a set of already-parenthesized-as-needed WHERE
-// fragments, mirroring internal/observability/eventlog/reader_search.go's
-// joinEventConditions.
+// fragments.
 func joinListConditions(conditions []string) string {
 	var joined strings.Builder
 	for i, condition := range conditions {

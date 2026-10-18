@@ -146,7 +146,7 @@ func TestRollupCountsTerminalRequestsPerHourRouteStatusAndDevice(t *testing.T) {
 	t.Parallel()
 
 	db := openCaptureTestDB(t)
-	store := NewStore(db, StoreConfig{})
+	store := NewStore(db)
 	base := 10 * hourMS
 	upsertAll(t, store,
 		terminalRecord(ledgerRequest{id: "r1", at: base + 5, route: "/api/animes/a1?x=1", status: intPtr(200), device: "d1", duration: int64Ptr(30)}),
@@ -176,7 +176,7 @@ func TestRollupIgnoresPendingAndCountsEachRequestOnce(t *testing.T) {
 	t.Parallel()
 
 	db := openCaptureTestDB(t)
-	store := NewStore(db, StoreConfig{})
+	store := NewStore(db)
 	arrival := BuildTransportCaptureRecord("req-once", hourMS, "get", "/api/status", "http")
 	upsertAll(t, store, arrival)
 	assertRows(t, "rollup", readRollups(t, db), []rollupRow{})
@@ -201,7 +201,7 @@ func TestResponseVersionsStoreEachDistinctBodyOncePerRoute(t *testing.T) {
 	t.Parallel()
 
 	db := openCaptureTestDB(t)
-	store := NewStore(db, StoreConfig{})
+	store := NewStore(db)
 	same, other := `{"items":[1]}`, `{"items":[2]}`
 	upsertAll(t, store,
 		terminalRecord(ledgerRequest{id: "v1", at: 200, route: "/api/animes", status: intPtr(200), body: stringPtr(same)}),
@@ -234,7 +234,7 @@ func TestResponseVersionCountsBodyAddedByLaterTerminalWrite(t *testing.T) {
 	t.Parallel()
 
 	db := openCaptureTestDB(t)
-	store := NewStore(db, StoreConfig{})
+	store := NewStore(db)
 	body := `{"ok":true}`
 	first := terminalRecord(ledgerRequest{id: "late", at: 50, route: "/api/status", status: intPtr(200)})
 	second := terminalRecord(ledgerRequest{id: "late", at: 50, route: "/api/status", status: intPtr(200), body: stringPtr(body)})

@@ -222,7 +222,7 @@ func TestGetActivityRequestRedactsCredentialsAndReportsNotFound(t *testing.T) {
 	record.RequestBody = &body
 	record.RequestHeaders = map[string]string{"Authorization": "Bearer secret-token", "X-Trace": "t-1"}
 	record.ResponseHeaders = map[string]string{"Proxy-Authorization": "Basic secret"}
-	if err := requestcapture.NewStore(app.bridgeDB, requestcapture.StoreConfig{}).UpsertCapture(context.Background(), record); err != nil {
+	if err := requestcapture.NewStore(app.bridgeDB).UpsertCapture(context.Background(), record); err != nil {
 		t.Fatalf("store capture: %v", err)
 	}
 

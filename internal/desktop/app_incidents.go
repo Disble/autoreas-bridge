@@ -25,9 +25,8 @@ const incidentRecordFailedEventType = "incident.record_failed"
 const incidentRecordBudget = 250 * time.Millisecond
 
 // onCapturePersisted is the capture queue's OnPersist hook: it streams the
-// persisted row to the frontend and records an incident when the row triggers.
+// persisted row to the Live recorder and records an incident when the row triggers.
 func (a *App) onCapturePersisted(record requestcapture.CaptureRecord) {
-	a.emitCaptureTransaction(record)
 	a.emitActivityRecorder(captureRecorderEntry(record))
 	a.recordRequestIncident(record)
 }

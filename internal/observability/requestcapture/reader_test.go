@@ -3,7 +3,6 @@ package requestcapture
 import (
 	"context"
 	"database/sql"
-	"net/http"
 	"path/filepath"
 	"testing"
 
@@ -165,13 +164,6 @@ func buildCaptureFixtureFile(t *testing.T, path string, tables captureTables, ve
 	}
 }
 
-func TestMutationIntentReturnsUnsupported(t *testing.T) {
-	t.Parallel()
-
-	err := ValidateToolName("delete_mobile_request_context")
-	assertRequestCaptureErrorCode(t, err, "unsupported")
-}
-
 func TestMalformedRowSkippedDuringExactGet(t *testing.T) {
 	t.Parallel()
 
@@ -267,8 +259,5 @@ func assertRequestCaptureErrorCode(t *testing.T, err error, want string) {
 	}
 	if captureErr.HTTPStatus == 0 {
 		t.Fatalf("expected error to include http status, got %#v", captureErr)
-	}
-	if want == "unsupported" && captureErr.HTTPStatus != http.StatusMethodNotAllowed {
-		t.Fatalf("expected method-not-allowed status for unsupported tool, got %#v", captureErr)
 	}
 }

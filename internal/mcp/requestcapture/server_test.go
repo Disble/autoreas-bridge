@@ -7,14 +7,19 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-
-	"autoreas-bridge/internal/observability/readcap"
 )
 
 // newToolRoster is the sidecar's tool list, one tool per question.
 var newToolRoster = []string{
 	"get_status", "list_incidents", "get_incident", "get_request", "search_history",
 	"list_runs", "get_run_story", "list_recorder", "list_response_versions",
+}
+
+// deletedToolNames are the tools the sidecar served before the activity
+// tools replaced them (docs/observability/rollout.md, No legacy).
+var deletedToolNames = []string{
+	"search_requests", "resolve_request_context", "get_request_context", "summary_requests",
+	"search_events", "get_correlation_timeline", "summary_events", "list_device_sync_diagnostics",
 }
 
 // TestServerRegistersOnlyTheActivityTools checks the registered tools over
@@ -37,7 +42,7 @@ func TestServerRegistersOnlyTheActivityTools(t *testing.T) {
 	if !slices.Equal(names, want) {
 		t.Fatalf("registered tools = %v, want %v", names, want)
 	}
-	for _, deleted := range readcap.Names() {
+	for _, deleted := range deletedToolNames {
 		if slices.Contains(names, deleted) {
 			t.Fatalf("deleted tool %q is still registered", deleted)
 		}
@@ -66,23 +71,6 @@ func TestToolNamesMatchesTheRoster(t *testing.T) {
 	got[0] = "mutated"
 	if server.ToolNames()[0] != "get_status" {
 		t.Fatal("ToolNames must return a copy")
-	}
-}
-
-// TestManifestExcludesEveryCatalogCapability checks that the sidecar
-// exposes none of the deleted catalog capabilities and gives each a reason.
-func TestManifestExcludesEveryCatalogCapability(t *testing.T) {
-	if exposed := ExposedCapabilities(); exposed == nil || len(exposed) != 0 {
-		t.Fatalf("exposed = %#v, want an empty list", exposed)
-	}
-	excluded := ExcludedCapabilities()
-	for _, name := range readcap.Names() {
-		if excluded[name] == "" {
-			t.Fatalf("catalog capability %q has no exclusion reason: %#v", name, excluded)
-		}
-	}
-	if len(excluded) != len(readcap.Names()) {
-		t.Fatalf("excluded = %#v", excluded)
 	}
 }
 

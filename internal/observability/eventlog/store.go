@@ -13,7 +13,7 @@ type SQLiteStore struct {
 }
 
 // NewStore builds a SQLite-backed event store.
-func NewStore(db *sql.DB, _ EventStoreConfig) *SQLiteStore {
+func NewStore(db *sql.DB) *SQLiteStore {
 	return &SQLiteStore{db: db}
 }
 

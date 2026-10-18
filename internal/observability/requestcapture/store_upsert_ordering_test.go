@@ -9,7 +9,7 @@ func TestUpsertCaptureKeepsTerminalStateWhenArrivalWritesAfterIt(t *testing.T) {
 	t.Parallel()
 
 	db := openCaptureTestDB(t)
-	store := NewStore(db, StoreConfig{})
+	store := NewStore(db)
 
 	terminal := BuildTransportCaptureRecord("req-reverse-order", 100, "patch", "/api/animes/anime-1", "http")
 	terminal.Outcome = "accepted"
@@ -54,7 +54,7 @@ func TestUpsertCaptureStillAllowsTerminalToTerminalEnrichmentUpdates(t *testing.
 	t.Parallel()
 
 	db := openCaptureTestDB(t)
-	store := NewStore(db, StoreConfig{})
+	store := NewStore(db)
 
 	first := BuildTransportCaptureRecord("req-terminal-update", 100, "patch", "/api/animes/anime-1", "http")
 	first.Outcome = "accepted"

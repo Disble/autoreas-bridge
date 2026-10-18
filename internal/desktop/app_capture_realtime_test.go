@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/api"
-	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/observability/activityread"
 	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
@@ -17,8 +17,8 @@ import (
 // TestAppWiresCaptureQueueOnPersistToRuntimeEventEmit exercises the real
 // (non-stubbed) default newCaptureQueue wiring end to end: a record handed
 // to the HTTP server's Capture func must round-trip through the async queue,
-// persist via Store.UpsertCapture, and reach emitFn as "capture.transaction"
-// exactly once, carrying the CaptureRow wire shape (English field names).
+// persist via Store.UpsertCapture, and reach emitFn as "activity.recorder"
+// exactly once, carrying the recorder row of the persisted capture.
 func TestAppWiresCaptureQueueOnPersistToRuntimeEventEmit(t *testing.T) {
 	t.Parallel()
 
@@ -33,12 +33,12 @@ func TestAppWiresCaptureQueueOnPersistToRuntimeEventEmit(t *testing.T) {
 		return &stubAppHTTPServer{}
 	}
 
-	emitted := make(chan contracts.CaptureRow, 4)
+	emitted := make(chan activityread.RecorderEntry, 4)
 	app.emitFn = func(_ context.Context, eventName string, optionalData ...any) {
-		if eventName != captureTransactionEventName || len(optionalData) == 0 {
+		if eventName != activityRecorderEventName || len(optionalData) == 0 {
 			return
 		}
-		if row, ok := optionalData[0].(contracts.CaptureRow); ok {
+		if row, ok := optionalData[0].(activityread.RecorderEntry); ok {
 			emitted <- row
 		}
 	}
@@ -55,17 +55,17 @@ func TestAppWiresCaptureQueueOnPersistToRuntimeEventEmit(t *testing.T) {
 	select {
 	case row := <-emitted:
 		if row.Kind != "patch" {
-			t.Fatalf("unexpected emitted capture.transaction row: %#v", row)
+			t.Fatalf("unexpected emitted activity.recorder row: %#v", row)
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("expected capture.transaction to be emitted after the record persisted")
+		t.Fatal("expected activity.recorder to be emitted after the record persisted")
 	}
 }
 
 // TestAppWiresRealtimeHubCaptureSinkToCaptureQueue exercises the real
 // default newRealtimeHub wiring: MemoryHubConfig.Capture must be a.capture,
 // so a hub-owned lifecycle event (Register) flows through the same capture
-// queue and reaches emitFn as "capture.transaction".
+// queue and reaches emitFn as "activity.recorder".
 func TestAppWiresRealtimeHubCaptureSinkToCaptureQueue(t *testing.T) {
 	t.Parallel()
 
@@ -76,12 +76,12 @@ func TestAppWiresRealtimeHubCaptureSinkToCaptureQueue(t *testing.T) {
 	app.newRealtimeHub = nil  // exercise the real default Capture sink wiring
 	app.newHTTPServer = func(api.Config) api.Server { return &stubAppHTTPServer{} }
 
-	emitted := make(chan contracts.CaptureRow, 4)
+	emitted := make(chan activityread.RecorderEntry, 4)
 	app.emitFn = func(_ context.Context, eventName string, optionalData ...any) {
-		if eventName != captureTransactionEventName || len(optionalData) == 0 {
+		if eventName != activityRecorderEventName || len(optionalData) == 0 {
 			return
 		}
-		if row, ok := optionalData[0].(contracts.CaptureRow); ok {
+		if row, ok := optionalData[0].(activityread.RecorderEntry); ok {
 			emitted <- row
 		}
 	}
@@ -100,7 +100,7 @@ func TestAppWiresRealtimeHubCaptureSinkToCaptureQueue(t *testing.T) {
 	select {
 	case row := <-emitted:
 		if row.Kind != "ws_connect" || row.Outcome != "opened" {
-			t.Fatalf("unexpected emitted capture.transaction row: %#v", row)
+			t.Fatalf("unexpected emitted activity.recorder row: %#v", row)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("expected hub register to flow through the capture queue into a runtime event")

@@ -132,7 +132,7 @@ func TestEventRecorderEntryMatchesTheStoredRow(t *testing.T) {
 			EventType: "download.failed", DurationMS: 42},
 		{OccurredAtMS: at.UnixMilli() - 1, Domain: "season", Level: "info", Message: "rolled"},
 	}
-	store := eventlog.NewStore(db, eventlog.EventStoreConfig{})
+	store := eventlog.NewStore(db)
 	for _, record := range records {
 		if err := store.InsertEvent(context.Background(), record); err != nil {
 			t.Fatalf("insert event: %v", err)

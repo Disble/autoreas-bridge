@@ -311,6 +311,11 @@ info:
       `complete_from` (`ms`, `iso`), the time from which every row is held,
       and `before_complete_from`, what survives before it. `get_request`,
       `get_run_story` and `list_recorder` start `covered` at `complete_from`.
+    - Desktop-app-internal only (Wails, not `/api` or `/ws`): the
+      `capture.transaction` and `observability.log` runtime events and the
+      `ListCaptureTransactions`/`GetCaptureTransaction` family of bindings are
+      deleted. The desktop app streams persisted captures and events as
+      `activity.recorder` rows instead. Mobile clients are unaffected.
 
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
@@ -340,7 +345,8 @@ x-websocket:
     kinds, outcome `opened`/`closed`/`pushed`) into `request_captures`
     (renamed from `mobile_request_captures` by capture-nomenclature-rename)
     and surfaced live to the bridge desktop app via the `capture.transaction`
-    Wails runtime event. No wire-message shape changed.
+    Wails runtime event (since 2026-10-18, the `activity.recorder` event).
+    No wire-message shape changed.
 
 components:
   securitySchemes:

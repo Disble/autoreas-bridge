@@ -147,7 +147,7 @@ func (a *App) ensureSyncRuntimeDependencies() {
 func (a *App) ensureCaptureRuntimeDependencies() {
 	if a.newCaptureStore == nil {
 		a.newCaptureStore = func(db *sql.DB) requestcapture.Upserter {
-			return requestcapture.NewStore(db, requestcapture.StoreConfig{})
+			return requestcapture.NewStore(db)
 		}
 	}
 	if a.newCaptureQueue == nil {
@@ -259,28 +259,17 @@ func (a *App) ensureRuntimeFunctions() {
 
 // ensureRuntimeObservability initializes the shared logging and event bus services.
 func (a *App) ensureRuntimeObservability() {
-	if a.memLogger == nil {
-		a.memLogger = sharedlogger.NewMemLogger(sharedlogger.MemLoggerConfig{
-			Capacity: 500,
-			OnWriteFn: func(entry sharedlogger.LogEntry) {
-				if a.ctx == nil || a.emitFn == nil {
-					return
-				}
-				a.emitFn(a.ctx, observabilityEventName, entry)
-			},
-		})
-	}
 	if a.eventSink == nil {
 		a.eventSink = eventlog.NewSink(eventlog.SinkConfig{})
 	}
 	if a.sharedLogger == nil {
 		// The one NewFanoutLogger call site that changes: the event sink is
-		// registered as a fourth fan-out target, constructed here (before
+		// registered as a fan-out sink next to stdout, constructed here (before
 		// bridgeDB exists) with its queue nil -- WriteEntry drops and counts
 		// via Sink.UnboundDrops() until configureEventLogQueue binds the
 		// queue after bootstrap. This is the accepted early-boot gap.
 		a.sharedLogger = sharedlogger.NewFanoutLoggerWithSinks(
-			[]sharedlogger.Logger{sharedlogger.NewStdoutLogger(nil), a.memLogger},
+			[]sharedlogger.Logger{sharedlogger.NewStdoutLogger(nil)},
 			a.eventSink,
 		)
 	}
@@ -289,11 +278,8 @@ func (a *App) ensureRuntimeObservability() {
 	}
 	if a.newEventQueue == nil {
 		a.newEventQueue = func(db *sql.DB) eventLogStopper {
-			return eventlog.NewQueue(eventlog.NewStore(db, eventlog.EventStoreConfig{}), eventlog.QueueConfig{OnPersist: a.onEventPersisted})
+			return eventlog.NewQueue(eventlog.NewStore(db), eventlog.QueueConfig{OnPersist: a.onEventPersisted})
 		}
-	}
-	if a.newEventReader == nil {
-		a.newEventReader = eventlog.NewReader
 	}
 }
 

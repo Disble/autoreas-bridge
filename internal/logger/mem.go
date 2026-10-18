@@ -6,16 +6,14 @@ const defaultMemLoggerCapacity = 500
 
 // MemLoggerConfig configures a bounded in-memory logger.
 type MemLoggerConfig struct {
-	Capacity  int
-	OnWriteFn func(LogEntry)
+	Capacity int
 }
 
-// MemLogger stores recent log entries in memory for tests and diagnostics.
+// MemLogger stores recent log entries in memory for tests.
 type MemLogger struct {
 	mu       sync.Mutex
 	capacity int
 	entries  []LogEntry
-	onWrite  func(LogEntry)
 }
 
 // NewMemLogger builds a bounded in-memory logger.
@@ -28,7 +26,6 @@ func NewMemLogger(config MemLoggerConfig) *MemLogger {
 	return &MemLogger{
 		capacity: capacity,
 		entries:  make([]LogEntry, 0, capacity),
-		onWrite:  config.OnWriteFn,
 	}
 }
 
@@ -66,12 +63,7 @@ func (l *MemLogger) WriteEntry(entry LogEntry) {
 	} else {
 		l.entries = append(l.entries, entry)
 	}
-	onWrite := l.onWrite
 	l.mu.Unlock()
-
-	if onWrite != nil {
-		onWrite(entry)
-	}
 }
 
 // Recent returns a snapshot copy of the buffered log entries.

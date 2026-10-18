@@ -7,10 +7,6 @@ import (
 	"fmt"
 )
 
-// StoreConfig defines persistence policy. It carries no field: retention is
-// time-based and owned by the retention sweeper, not by the write path.
-type StoreConfig struct{}
-
 // SQLiteStore persists captures into bridge SQLite. Unlike Reader/ReadOnlyDB,
 // it is a write path used only by the already-bootstrapped app, so it targets
 // request_captures unconditionally rather than resolving a table generation --
@@ -21,7 +17,7 @@ type SQLiteStore struct {
 }
 
 // NewStore builds a SQLite-backed capture store.
-func NewStore(db *sql.DB, _ StoreConfig) *SQLiteStore {
+func NewStore(db *sql.DB) *SQLiteStore {
 	return &SQLiteStore{db: db}
 }
 

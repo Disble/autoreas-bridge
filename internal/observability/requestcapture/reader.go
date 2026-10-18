@@ -3,7 +3,6 @@ package requestcapture
 import (
 	"context"
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -139,7 +138,7 @@ func (o optionalColumns) selectColumns() []string {
 }
 
 // NewReader builds a query helper over an already-open bridge DB. Optional
-// telemetry columns are detected once here so Search/Get can tolerate a
+// telemetry columns are detected once here so Get can tolerate a
 // database that predates the additive schema (version 1). Table-name
 // resolution falls back to the current generation on failure -- the
 // in-process caller builds this Reader over the app's own already-bootstrapped
@@ -168,11 +167,6 @@ type ReadOnlyDB struct {
 
 // Tables exposes the resolved capture-table generation for this handle.
 func (r *ReadOnlyDB) Tables() captureTables { return r.tables }
-
-type searchCursor struct {
-	CapturedAtMS int64  `json:"captured_at_ms"`
-	RequestID    string `json:"request_id"`
-}
 
 // detectOptionalColumns probes pragma_table_info for the additive telemetry
 // columns on the resolved capture table. Any failure is treated as "absent"
@@ -289,22 +283,6 @@ func (r *ReadOnlyDB) Close() error { return r.db.Close() }
 
 // DB exposes the raw query-only handle for tests/tools.
 func (r *ReadOnlyDB) DB() *sql.DB { return r.db }
-
-// encodeSearchCursor serializes the pagination cursor to URL-safe base64.
-func encodeSearchCursor(cursor searchCursor) string {
-	encoded, _ := json.Marshal(cursor)
-	return base64.RawURLEncoding.EncodeToString(encoded)
-}
-
-// decodeSearchCursor parses a base64 search cursor into its parts.
-func decodeSearchCursor(value string) (searchCursor, error) {
-	encoded, err := base64.RawURLEncoding.DecodeString(value)
-	var cursor searchCursor
-	if err != nil || json.Unmarshal(encoded, &cursor) != nil || cursor.RequestID == "" {
-		return searchCursor{}, invalidParamsError("invalid search cursor")
-	}
-	return cursor, nil
-}
 
 // captureRowScan holds the scan targets for one capture row: the fixed base
 // columns plus whichever optional telemetry columns are present.

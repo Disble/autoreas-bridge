@@ -9,6 +9,14 @@ import (
 	sharedlogger "autoreas-bridge/internal/logger"
 )
 
+// newAppWithMemLogger builds an app whose shared logger records into a
+// MemLogger, so a test can assert what the wiring told the operator.
+func newAppWithMemLogger(app *App) (*App, *sharedlogger.MemLogger) {
+	memLogger := sharedlogger.NewMemLogger(sharedlogger.MemLoggerConfig{})
+	app.sharedLogger = sharedlogger.NewFanoutLogger(memLogger)
+	return app, memLogger
+}
+
 // warnEntries returns the entries the in-memory sink recorded at warn level.
 func warnEntries(mem *sharedlogger.MemLogger) []sharedlogger.LogEntry {
 	entries := []sharedlogger.LogEntry{}

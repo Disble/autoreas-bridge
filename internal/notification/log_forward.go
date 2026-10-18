@@ -15,9 +15,8 @@ const maxForwardedRowRefIDs = 20
 // in-app log panel keeps a forensic trail of what the user was shown
 // (design.md §2.4/§3, ADR-29-3). The data flow is strictly one-directional:
 // a Notification is forwarded INTO the log, and the log NEVER calls back
-// into Notify -- sharedlogger.MemLogger only emits the observability.log
-// Wails event, it has no Notifier dependency, so the graph is acyclic by
-// construction.
+// into Notify -- the shared logger has no Notifier dependency, so the graph
+// is acyclic by construction.
 type logForwardAdapter struct {
 	logger sharedlogger.Logger
 }
