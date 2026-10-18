@@ -100,3 +100,15 @@ Checklist for T7, in the first commit that creates the new Activity folder:
   covers the optional `X-Autoreas-Request-Id` header, an optional `request_id` in the WS reconcile frame, and
   the bridge echoing the id in a response header. It asks whether the phone already has a per-request or
   per-cycle id to reuse. The answer is pending, and it decides the P3 shape in T3/T4.
+- L10 (2026-10-17): mobile answered.
+  - The phone has a per-cycle UUID: Kotlin `SyncForegroundService.kt:149` and `SyncFloorAttempt.kt:139`. It
+    already reaches the bridge as `client_telemetry.cycle_id`, but only on the first request of a cycle.
+    The JS path has none.
+  - The phone sends no WS frames. Verified on the dev copy: `/ws` rows since 2026-10-14 are only
+    broadcast (179), connect (125) and disconnect (103), with 0 `ws_reconcile`.
+  - Agreed contract (T4):
+    - `X-Autoreas-Request-Id` = `<cycleId>:<n>`, validated by `^[A-Za-z0-9._-]{1,48}:[0-9]{1,9}$`.
+    - An invalid or absent value is ignored, and the bridge mints its own id.
+    - Every response echoes the id.
+    - The WS field is dropped.
+    - Announced in `docs/openapi.yaml` before code.
