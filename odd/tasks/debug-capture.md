@@ -432,3 +432,15 @@ Checklist for T7, in the first commit that creates the new Activity folder:
     - No "Unclean stop" chip, because Go emits no stop mark.
     - Shared `CodeBlock.tsx` has dead classes.
     - `dist-layout/` is linted by `eslint .`.
+- L24 (2026-10-18): the owner asked to bring `dev` into the branch.
+  - Merged as `7432f2c0`. The one textual conflict was the `docs/openapi.yaml` changelog, and both entries
+    were kept.
+  - The six Go files both sides touched merged cleanly: build, vet, typecheck and the full gate passed.
+  - The first merge attempt failed only on the known `AnimeEditorWorkspace` 5 s timeout.
+- L25 (2026-10-18), owner, verbatim: "el gate de los tests de vitest tiene que quedarse solo el dharnes que
+  tiene los coverate tiers, el que usabamos antes (el duplicado) se va".
+  - `frontend-test` was removed from both hooks in `1a725a1c`, pinned RED first by the policy tests.
+  - That commit skipped the suite: the copied `root: frontend/` filters staged files. A scratch repository
+    reproduced it.
+  - Fixed in `3b6c2c94`: `cd frontend && …` replaces `root:`, and the policy tests reject a `root:`.
+    `frontend-coverage` then ran on a commit with no frontend file, and all 387 test files passed.
