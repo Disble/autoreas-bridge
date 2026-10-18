@@ -85,9 +85,10 @@ pre-commit:
           # which this file does not inherit: native coverage over the adopted tiers.
           # It is the only Vitest run: its config re-exports vite.config.ts, so it runs
           # the whole suite, and a plain `vitest run` beside it would run it twice.
+          # No `root:`: lefthook filters staged files by it and would skip the suite on a
+          # commit that stages only .dharness/ or lefthook.yml.
           - name: frontend-coverage
-            root: frontend/
-            run: &frontend-coverage bunx --no-install vitest run --coverage --config ../.dharness/vitest.coverage.mjs
+            run: &frontend-coverage cd frontend && bunx --no-install vitest run --coverage --config ../.dharness/vitest.coverage.mjs
           - name: frontend-render-smoke
             run: &frontend-render-smoke bun --cwd="frontend" run render:smoke
           - name: frontend-layout-smoke
@@ -138,7 +139,6 @@ pre-merge-commit:
           - name: frontend-typecheck
             run: *frontend-typecheck
           - name: frontend-coverage
-            root: frontend/
             run: *frontend-coverage
           - name: frontend-render-smoke
             run: *frontend-render-smoke

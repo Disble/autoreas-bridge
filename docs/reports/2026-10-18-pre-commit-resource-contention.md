@@ -107,3 +107,11 @@ re-exports `vite.config.ts` and runs the whole suite. Both hooks now run `fronte
 the typecheck, and `frontend-test` is gone. This removes one full suite run (about 120 s) from every
 frontend commit. `TestRepositoryFrontendLanesSerializeTypecheckBeforeTests` fails if the duplicate
 returns.
+
+The first version of that change kept the copied `root: frontend/`. Lefthook filters staged files by
+`root`, as it does by `glob`, so that commit (`1a725a1c`, which staged no frontend file) skipped the
+suite without listing it, and a merge with no frontend file would have done the same. A scratch
+repository reproduced it: a rooted job reported "no matching staged files" while a plain job ran. The
+job now changes directory in its command, and both policy tests fail on a `root:`. The job `dharness
+sync` writes to `.dharness/lefthook.yml` carries the same `root:`, which is worth reporting to the
+dharness team.

@@ -68,6 +68,10 @@ func TestRepositoryFrontendLanesSerializeTypecheckBeforeTests(t *testing.T) {
 	if _, duplicate := jobIndex(commit, "frontend-test"); duplicate {
 		t.Fatal("pre-commit runs the Vitest suite twice: frontend-test duplicates frontend-coverage")
 	}
+	// A `root:` would skip the suite on a commit that stages only .dharness/ or lefthook.yml.
+	if commit[tests].Root != "" {
+		t.Fatalf("pre-commit frontend-coverage declares root %q; it must run whatever is staged", commit[tests].Root)
+	}
 	var merge mergeGateConfig
 	if err := yaml.Unmarshal(readRepoFile(t, repoRootFromTest(t), "lefthook.yml"), &merge); err != nil {
 		t.Fatal(err)
