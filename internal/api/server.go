@@ -151,7 +151,11 @@ func (s *HTTPServer) Start() error {
 	server := &http.Server{Handler: s.handler}
 	s.server = server
 	if s.logger != nil {
-		s.logger.Infof("api", "http server listening on %s", listener.Addr().String())
+		addr := listener.Addr().String()
+		s.logger.Logf("api", sharedlogger.LevelInfo, sharedlogger.Fields{
+			EventType: "api.listening",
+			Metadata:  map[string]any{"addr": addr},
+		}, "http server listening on %s", addr)
 	}
 
 	go func() {

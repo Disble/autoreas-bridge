@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -36,6 +37,7 @@ func (l *capturingLogger) Logf(domain, level string, fields sharedlogger.Fields,
 		Message:   fmt.Sprintf(format, args...),
 		EntityID:  fields.EntityID,
 		EventType: fields.EventType,
+		Metadata:  fields.Metadata,
 	})
 }
 
@@ -95,6 +97,9 @@ func TestClientRegistrationLoggingCarriesTheDevice(t *testing.T) {
 	logWebSocketClientRegistered(registered, "device-9")
 	if got := registered.entries[0]; got.EntityID != "device-9" || got.EventType != "websocket.register" {
 		t.Fatalf("unexpected registration entry: %+v", got)
+	}
+	if got := registered.entries[0]; got.Message != "registered websocket client for device-9" || !reflect.DeepEqual(got.Metadata, map[string]any{"deviceId": "device-9"}) {
+		t.Fatalf("expected the unchanged message and the device as metadata, got %+v", got)
 	}
 
 	failed := &capturingLogger{}

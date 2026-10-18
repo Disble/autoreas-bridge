@@ -6,6 +6,10 @@ import (
 	sharedlogger "autoreas-bridge/internal/logger"
 )
 
+// maxForwardedRowRefIDs bounds how many row ids one forwarded entry records, so a run that
+// touched a whole season cannot grow a single ledger row without limit.
+const maxForwardedRowRefIDs = 20
+
 // logForwardAdapter is a one-way Dispatcher Adapter that mirrors every
 // delivered Notification into the shared observability log stream, so the
 // in-app log panel keeps a forensic trail of what the user was shown
@@ -40,6 +44,8 @@ func NewLogForwardAdapter(logger sharedlogger.Logger) *logForwardAdapter {
 //     TestEmittedEventTypesFollowTheDomainVerbShape: a bare "notification"
 //     names a subject with no action, so it cannot group against the
 //     domain.verb values every other emitter uses.
+//   - Kind and the rows' RefIDs -> Fields.Metadata, so a kept ledger row
+//     names what was notified without parsing the message.
 func (a *logForwardAdapter) Deliver(ctx context.Context, delivery Delivery) error {
 	if a == nil || a.logger == nil {
 		return nil
@@ -56,9 +62,37 @@ func (a *logForwardAdapter) Deliver(ctx context.Context, delivery Delivery) erro
 	a.logger.Logf(n.Source, level, sharedlogger.Fields{
 		CorrelationID: n.CorrelationID,
 		EventType:     "notification.forwarded",
+		Metadata:      forwardedNotificationMetadata(n),
 	}, "%s", message)
 
 	return nil
+}
+
+// forwardedNotificationMetadata records what identifies the forwarded notification beyond its
+// prose: its Kind and the ids of the rows it concerns, at most maxForwardedRowRefIDs of them.
+// Summary rows carry no RefID and are skipped. It returns nil when there is nothing to record,
+// so an entry without a kind or rows keeps no empty metadata.
+func forwardedNotificationMetadata(n Notification) map[string]any {
+	metadata := map[string]any{}
+	if n.Kind != "" {
+		metadata["kind"] = n.Kind
+	}
+	refIDs := make([]string, 0, min(len(n.Rows), maxForwardedRowRefIDs))
+	for _, row := range n.Rows {
+		if len(refIDs) == maxForwardedRowRefIDs {
+			break
+		}
+		if row.RefID != "" {
+			refIDs = append(refIDs, row.RefID)
+		}
+	}
+	if len(refIDs) > 0 {
+		metadata["rowRefIds"] = refIDs
+	}
+	if len(metadata) == 0 {
+		return nil
+	}
+	return metadata
 }
 
 // mapNotificationLevelToLogLevel maps a Notification Level onto the shared

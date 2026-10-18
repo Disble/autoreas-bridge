@@ -59,7 +59,8 @@ func (a *App) ingestSyncDiagnostics() apiHandlers.IngestTelemetryEventFunc {
 // its observability Wails event) and the persisted event log. The message
 // identifies the kind, the event and the device without dumping the payload,
 // and EntityID carries the device so the entry is findable by device rather
-// than only by free-text search over its message. Nil-safe: App instances that
+// than only by free-text search over its message; the kind and event id ride
+// in the metadata for the same reason. Nil-safe: App instances that
 // never wire a shared logger (e.g. tests) degrade to a no-op.
 func (a *App) logSyncDiagnosticsStored(event telemetry.Event) {
 	if a.sharedLogger == nil {
@@ -68,5 +69,6 @@ func (a *App) logSyncDiagnosticsStored(event telemetry.Event) {
 	a.sharedLogger.Logf(syncDiagnosticsEventDomain, sharedlogger.LevelInfo, sharedlogger.Fields{
 		EntityID:  event.DeviceID,
 		EventType: syncDiagnosticsStoredEventType,
+		Metadata:  map[string]any{"kind": string(event.Kind), "eventId": event.Validated.EventID},
 	}, "stored %s telemetry event %s from device %s", event.Kind, event.Validated.EventID, event.DeviceID)
 }

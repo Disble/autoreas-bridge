@@ -11,6 +11,7 @@ import (
 	"autoreas-bridge/internal/anime/cover"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
+	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/observability/eventlog"
 	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/season"
@@ -68,7 +69,7 @@ func (a *App) sweepOrphanedCaptures() {
 	// down with it.
 	defer func() {
 		if recovered := recover(); recovered != nil && a.sharedLogger != nil {
-			a.sharedLogger.Warnf("api", "failed to sweep orphaned capture rows: %v", recovered)
+			a.logCaptureSweep(map[string]any{"cause": fmt.Sprint(recovered)}, "failed to sweep orphaned capture rows: %v", recovered)
 		}
 	}()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -76,13 +77,22 @@ func (a *App) sweepOrphanedCaptures() {
 	swept, err := requestcapture.SweepOrphanedCaptures(ctx, a.bridgeDB)
 	if err != nil {
 		if a.sharedLogger != nil {
-			a.sharedLogger.Warnf("api", "failed to sweep orphaned capture rows: %v", err)
+			a.logCaptureSweep(map[string]any{"cause": err.Error()}, "failed to sweep orphaned capture rows: %v", err)
 		}
 		return
 	}
 	if swept > 0 && a.sharedLogger != nil {
-		a.sharedLogger.Warnf("api", "swept %d orphaned capture row(s) left pending by a previous process", swept)
+		a.logCaptureSweep(map[string]any{"swept": swept}, "swept %d orphaned capture row(s) left pending by a previous process", swept)
 	}
+}
+
+// logCaptureSweep writes one capture-sweep warning with its structured metadata, so the kept
+// ledger row says how many rows were swept or why the sweep failed. Callers check sharedLogger.
+func (a *App) logCaptureSweep(metadata map[string]any, format string, args ...any) {
+	a.sharedLogger.Logf("api", sharedlogger.LevelWarn, sharedlogger.Fields{
+		EventType: "api.capture_swept",
+		Metadata:  metadata,
+	}, format, args...)
 }
 
 // configureCaptureReader wires the in-process capture read path

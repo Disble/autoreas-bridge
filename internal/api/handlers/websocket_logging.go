@@ -31,6 +31,7 @@ func logWebSocketClientRegistered(log sharedlogger.Logger, deviceID string) {
 	log.Logf(websocketLogDomain, sharedlogger.LevelInfo, sharedlogger.Fields{
 		EntityID:  deviceID,
 		EventType: websocketRegisterEventType,
+		Metadata:  map[string]any{"deviceId": deviceID},
 	}, "registered websocket client for %s", deviceID)
 }
 
