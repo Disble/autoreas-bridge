@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"autoreas-bridge/internal/anime"
+	"autoreas-bridge/internal/correlation"
 )
 
 // WriteBaseStore persists staged write operations, retained bases, and publish outbox rows.
@@ -34,9 +35,9 @@ func (s *WriteBaseStore) Stage(ctx context.Context, operation anime.WriteOperati
 		INSERT INTO anime_write_operations (
 			operation_id, anime_id, batch_id, batch_order, batch_size, base_modified_at, intended_modified_at,
 			base_snapshot_json, base_hash, desired_snapshot_json, desired_hash,
-			status, created_at_ms
+			status, created_at_ms, request_id
 		)
-		SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+		SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 		WHERE COALESCE((
 			SELECT modified_at FROM anime_snapshots WHERE anime_id = ?
 		), 0) = ?
@@ -58,6 +59,7 @@ func (s *WriteBaseStore) Stage(ctx context.Context, operation anime.WriteOperati
 		operation.DesiredHash,
 		anime.WriteOperationStatusStaged,
 		operation.CreatedAtMs,
+		correlation.RequestIDFromContext(ctx),
 		operation.AnimeID,
 		operation.BaseModifiedAt,
 		operation.AnimeID,
@@ -129,6 +131,7 @@ func (s *WriteBaseStore) StageBatch(ctx context.Context, operations []anime.Writ
 		return fmt.Errorf("begin batch stage: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	requestID := correlation.RequestIDFromContext(ctx)
 	for _, operation := range operations {
 		if operation.BatchSize <= 0 {
 			operation.BatchSize = len(operations)
@@ -140,9 +143,9 @@ func (s *WriteBaseStore) StageBatch(ctx context.Context, operations []anime.Writ
 			INSERT INTO anime_write_operations (
 				operation_id, anime_id, batch_id, batch_order, batch_size, base_modified_at, intended_modified_at,
 				base_snapshot_json, base_hash, desired_snapshot_json, desired_hash,
-				status, created_at_ms
+				status, created_at_ms, request_id
 			)
-			SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+			SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 			WHERE COALESCE((SELECT modified_at FROM anime_snapshots WHERE anime_id = ?), 0) = ?
 			AND NOT EXISTS (
 				SELECT 1 FROM anime_write_operations WHERE anime_id = ? AND status = ?
@@ -150,7 +153,7 @@ func (s *WriteBaseStore) StageBatch(ctx context.Context, operations []anime.Writ
 		`, operation.OperationID, operation.AnimeID, operation.BatchID, operation.BatchOrder, operation.BatchSize,
 			operation.BaseModifiedAt, operation.IntendedModifiedAt, string(operation.BaseSnapshotJSON), operation.BaseHash,
 			string(operation.DesiredSnapshotJSON), operation.DesiredHash, anime.WriteOperationStatusStaged, operation.CreatedAtMs,
-			operation.AnimeID, operation.BaseModifiedAt, operation.AnimeID, anime.WriteOperationStatusStaged)
+			requestID, operation.AnimeID, operation.BaseModifiedAt, operation.AnimeID, anime.WriteOperationStatusStaged)
 		if err != nil {
 			return fmt.Errorf("stage batch write operation %q: %w", operation.OperationID, err)
 		}

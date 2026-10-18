@@ -78,7 +78,7 @@ vocabulary.
 
 | Concept | Source | What it actually is |
 | --- | --- | --- |
-| **Bridge status** | `BridgeStatusCard`, `useBridgeStatusCard` | The bridge's own **SQLite storage** status. No device is involved |
+| **Bridge status** | `getSQLiteStatus`, `useSyncStatusChip` (rail footer chip) | The bridge's own **SQLite storage** status. No device is involved |
 | **Device sync health** | `device_sync_state` → `notifyDeviceSyncHealth`, notification kind `sync_health_warning` | Device **staleness** — approaching or past the stale window. It drives a notification |
 | **Device sync diagnostics** | `device_telemetry_events`, kind `cycle_report` (`internal/observability/telemetry`) | The per-cycle **report a device sends about itself** |
 

@@ -105,6 +105,13 @@ func TestBootstrapLeavesTheRetiredDeviceSyncDiagnosticsTableUntouched(t *testing
 	if err != nil {
 		t.Fatalf("open a handle for the legacy install: %v", err)
 	}
+	// The install is already incremental, so bootstrap runs no conversion
+	// VACUUM: a VACUUM renumbers root pages and would hide the drop-and-recreate
+	// the root page comparison exists to catch.
+	if _, err := legacyDB.Exec(`PRAGMA auto_vacuum = INCREMENTAL`); err != nil {
+		closeTestDB(t, legacyDB)
+		t.Fatalf("make the legacy install incremental: %v", err)
+	}
 	if err := createRetiredDiagnosticsInstall(legacyDB); err != nil {
 		closeTestDB(t, legacyDB)
 		t.Fatalf("create the retired device_sync_diagnostics install: %v", err)

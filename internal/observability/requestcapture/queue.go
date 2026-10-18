@@ -19,7 +19,7 @@ type QueueConfig struct {
 	Capacity int
 	// OnPersist fires exactly once per record, after Upserter.UpsertCapture
 	// succeeds for it, from the single serialized drain goroutine. Nil is a
-	// safe no-op. Used to emit the real-time "capture.transaction" event from
+	// safe no-op. Used to emit the Live recorder row and record incidents from
 	// the one choke point where a record is known to have actually persisted.
 	OnPersist func(CaptureRecord)
 }

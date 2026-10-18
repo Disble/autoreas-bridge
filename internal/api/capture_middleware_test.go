@@ -110,6 +110,10 @@ func TestCaptureMiddlewarePanicEnqueuesTransportOnlyTerminalThenRepanics(t *test
 		if terminal.Outcome != "completed" {
 			t.Fatalf("expected a transport-only terminal outcome of completed, got %q", terminal.Outcome)
 		}
+		// P1: the panic value is the failure cause.
+		if terminal.ErrorMessage != "panic: boom" {
+			t.Fatalf("expected the panic cause %q, got %q", "panic: boom", terminal.ErrorMessage)
+		}
 	}()
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 }
@@ -234,6 +238,10 @@ func TestCaptureMiddlewareCapturesErrorResponseBodyExactly(t *testing.T) {
 	if *terminal.ResponseBody != `{"error":"anime not found","status":404}` {
 		t.Fatalf("expected exact error response body, got %#v", terminal.ResponseBody)
 	}
+	// P1: an unenriched failure takes its cause from the handler's JSON error.
+	if terminal.ErrorMessage != "anime not found" {
+		t.Fatalf("expected the error cause %q, got %q", "anime not found", terminal.ErrorMessage)
+	}
 }
 
 // TestCaptureMiddlewareLeavesEmptyResponseBodyAbsent guards honest emptiness:
@@ -297,4 +305,47 @@ type hijackableResponseWriter struct {
 func (w *hijackableResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	w.hijacked = true
 	return nil, nil, nil
+}
+
+// TestCaptureMiddlewareRecordsTheFailureCause guards P1: a failed exchange
+// keeps its cause, a handler-set cause wins over the response body, and a
+// success never carries one even when its body has an "error" key.
+func TestCaptureMiddlewareRecordsTheFailureCause(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		status int
+		body   string
+		cause  string
+		want   string
+	}{
+		{"handler cause wins", http.StatusConflict, `{"error":"generic"}`, "revision 7 is stale", "revision 7 is stale"},
+		{"success with an error key", http.StatusOK, `{"error":"not a failure"}`, "", ""},
+		{"the first failure status", http.StatusBadRequest, `{"error":"invalid page size"}`, "", "invalid page size"},
+		{"failure without a JSON error", http.StatusBadGateway, `upstream down`, "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var captured []requestcapture.CaptureRecord
+			capture := func(record requestcapture.CaptureRecord) bool {
+				captured = append(captured, record)
+				return true
+			}
+			inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tc.cause != "" {
+					requestcapture.Enrich(r.Context()).SetOutcome("rejected").SetErrorMessage(tc.cause)
+				}
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			})
+			CaptureMiddleware(inner, CaptureMiddlewareDeps{Capture: capture}).
+				ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/animes", nil))
+
+			if got := captured[1].ErrorMessage; got != tc.want {
+				t.Fatalf("error message = %q, want %q", got, tc.want)
+			}
+		})
+	}
 }

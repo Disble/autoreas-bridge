@@ -41,7 +41,6 @@ type App struct {
 	startupErr                 error
 	startupFatal               bool
 	sharedLogger               *sharedlogger.FanoutLogger
-	memLogger                  *sharedlogger.MemLogger
 	syncTrigger                *bridgeSync.TriggerService
 	bootstrapBridgeDB          func() (*sql.DB, error)
 	newCommittedPublisher      func(bus events.Bus) anime.CommittedPublisher
@@ -79,8 +78,6 @@ type App struct {
 	eventSink                  *eventlog.Sink
 	newEventQueue              func(db *sql.DB) eventLogStopper
 	eventQueue                 eventLogStopper
-	newEventReader             func(db *sql.DB) *eventlog.Reader
-	eventReader                *eventlog.Reader
 	trayManager                tray.Manager
 	tracerBulletRunner         tracerBulletRunner
 	catchUpContext             context.Context // NOSONAR godre:S8242 -- a lifetime, not a request scope: WithCancel(ctx) in startup, cancelled by catchUpCancel in shutdown.
@@ -131,7 +128,6 @@ type App struct {
 	processStartedAt           time.Time
 }
 
-const observabilityEventName = "observability.log"
 const pairingTokenConsumedEventName = "pairing.token-consumed"
 
 type tracerBulletRunner interface {

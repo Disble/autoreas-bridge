@@ -15,8 +15,8 @@ type emitFunc func(ctx context.Context, eventName string, optionalData ...any)
 
 // UIToastAdapter delivers a Notification to the frontend by emitting a Wails
 // runtime event named "notification.push" carrying the full Notification
-// payload, mirroring the existing observability.log emit mechanism
-// (app.go:73-78, defaultObservabilityEmit).
+// payload through the same emit mechanism as the desktop app's other runtime
+// events (internal/desktop/app_defaults.go, defaultObservabilityEmit).
 type UIToastAdapter struct {
 	emit emitFunc
 }

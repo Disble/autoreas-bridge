@@ -252,7 +252,7 @@ func (s *Service) RunOnce(ctx context.Context, trigger string) (RunResult, error
 		}
 	}
 
-	s.logf(logger.LevelInfo, runID, "", "download.run_started", nil,
+	s.logf(logger.LevelInfo, runID, "", "download.run_started", map[string]any{"trigger": trigger},
 		"download run %s started (trigger=%s)", runID, trigger)
 	s.publish(events.DownloadRunStartedEvent{RunID: runID, Trigger: trigger, CorrelationID: runID})
 	// The selection is resolved here rather than inside execute so the notification can name the
@@ -300,7 +300,7 @@ func (s *Service) RunAnime(ctx context.Context, trigger string, anime contracts.
 		}
 	}
 
-	s.logf(logger.LevelInfo, runID, anime.ID, "download.run_started", nil,
+	s.logf(logger.LevelInfo, runID, anime.ID, "download.run_started", map[string]any{"trigger": trigger, "animeName": anime.Name},
 		"download run %s started (trigger=%s, anime=%s)", runID, trigger, anime.Name)
 	s.publish(events.DownloadRunStartedEvent{RunID: runID, Trigger: trigger, CorrelationID: runID})
 	s.notify(ctx, runNotification{

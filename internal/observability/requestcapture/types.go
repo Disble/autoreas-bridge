@@ -3,10 +3,6 @@ package requestcapture
 import "autoreas-bridge/internal/observability/obserr"
 
 const (
-	defaultRetentionLimit = 5000
-	defaultPruneEvery     = 100
-	defaultSearchLimit    = 25
-	maxSearchLimit        = 100
 	// MaxCapturedBodyBytes bounds any single captured request/response body so
 	// heap, queue, and SQLite growth stay finite under abuse while ordinary JSON
 	// traffic below this budget still preserves every byte exactly.
@@ -24,6 +20,13 @@ const (
 	// response carries a binary media type, where retained bytes have no
 	// diagnostic value.
 	CaptureStateOmittedBinary = "omitted_binary"
+	// CaptureStateInResponseVersions marks a full response body the retention
+	// sweep removed from the row because response_versions holds it under the
+	// row's route template and response hash. Reader.Get restores the body and
+	// reports the state as empty again. A truncated body keeps
+	// CaptureStateTruncated when stripped; a NULL body with a response hash is
+	// what tells the reader to look it up.
+	CaptureStateInResponseVersions = "in_response_versions"
 	// OutcomePending is the transport-only arrival outcome written before a
 	// handler runs, replaced by the terminal write that follows it.
 	OutcomePending = "pending"
@@ -62,6 +65,16 @@ type CaptureRecord struct {
 	RequestHeaders    map[string]string `json:"request_headers,omitempty"`
 	ResponseHeaders   map[string]string `json:"response_headers,omitempty"`
 	DurationMS        *int64            `json:"duration_ms,omitempty"`
+	// ErrorMessage is the failure cause (P1): the handler's own cause, a panic
+	// value, or the JSON "error" of a failed response. Empty on success.
+	ErrorMessage string `json:"error_message,omitempty"`
+	// ClientRequestID is the client's accepted X-Autoreas-Request-Id, `<cycleId>:<n>`.
+	// It joins a phone log line to this row; RequestID stays the bridge's own key.
+	ClientRequestID string `json:"client_request_id,omitempty"`
+	// ResponseHash is the lowercase hex sha256 of the stored response body, the
+	// key of its response_versions row. The store computes it on write; empty
+	// when the row has no response body.
+	ResponseHash string `json:"response_hash,omitempty"`
 }
 
 // DeviceIdentity is the trusted authenticated device projection.
@@ -85,48 +98,6 @@ type OperationRef struct {
 	Outcome   string `json:"outcome"`
 }
 
-// SearchParams defines search pagination plus optional server-side filters.
-type SearchParams struct {
-	Limit  int
-	Cursor string
-	// Summary selects the projection: summary is the list projection
-	// (request_body, response_body, request_headers, response_headers are not
-	// read), full is the detail projection. The zero value keeps the full
-	// detail projection.
-	Summary bool
-	Filters SearchFilters
-}
-
-// SummaryResult aggregates captures into per-group counts and bounded error samples.
-type SummaryResult struct {
-	Groups []SummaryGroup `json:"groups"`
-}
-
-// SummaryGroup is one (route, http_status, outcome) aggregation bucket.
-type SummaryGroup struct {
-	Route              string        `json:"route"`
-	HTTPStatus         *int          `json:"http_status"`
-	Outcome            string        `json:"outcome"`
-	Count              int           `json:"count"`
-	LatestErrorSamples []ErrorSample `json:"latest_error_samples"`
-}
-
-// ErrorSample is one bounded recent-error reference for a summary group.
-type ErrorSample struct {
-	RequestID    string `json:"request_id"`
-	CapturedAtMS int64  `json:"captured_at_ms"`
-	ErrorCode    string `json:"error_code"`
-}
-
-// SearchPage is one newest-first results page.
-type SearchPage struct {
-	Items                []CaptureRecord `json:"items"`
-	AppliedLimit         int             `json:"applied_limit"`
-	NextCursor           string          `json:"next_cursor,omitempty"`
-	MalformedRowsSkipped int             `json:"malformed_rows_skipped"`
-	WarningCount         int             `json:"warning_count"`
-}
-
 // GetResult is the exact-get result envelope.
 type GetResult struct {
 	Found                bool
@@ -148,16 +119,6 @@ func unavailableError(message string) Error {
 // schemaMismatchError creates a non-retryable error for schema/version mismatches.
 func schemaMismatchError(message string) Error {
 	return obserr.SchemaMismatch(message)
-}
-
-// invalidParamsError creates a non-retryable error for bad tool parameters.
-func invalidParamsError(message string) Error {
-	return obserr.InvalidParams(message)
-}
-
-// unsupportedError creates a non-retryable error for unsupported tool requests.
-func unsupportedError(message string) Error {
-	return obserr.Unsupported(message)
 }
 
 // QueueStopResult reports drain leftovers after Stop.
@@ -204,19 +165,5 @@ func (c *Correlations) Normalize() {
 	}
 	if c.ActivityIDs == nil {
 		c.ActivityIDs = []int64{}
-	}
-}
-
-// ValidateToolName rejects any non-read-only tool name. It gates the
-// sidecar's whole tool surface: the four request-capture tools plus the
-// three runtime-event tools added by the MCP runtime-event read change. No
-// alias name is accepted for any tool.
-func ValidateToolName(name string) error {
-	switch name {
-	case "resolve_request_context", "search_requests", "get_request_context", "summary_requests",
-		"search_events", "get_correlation_timeline", "summary_events":
-		return nil
-	default:
-		return unsupportedError("unsupported request capture tool")
 	}
 }

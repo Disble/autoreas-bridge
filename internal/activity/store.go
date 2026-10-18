@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 const (
@@ -83,9 +84,41 @@ type Record struct {
 	AfterJSON    []byte
 }
 
-// ListQuery controls recent-activity listing.
+// ListQuery controls recent-activity listing. Every zero-valued filter is
+// unset; each set bound is a range on idx_activity_log_occurred_at.
 type ListQuery struct {
 	Limit int
+	// SinceMS and UntilMS bound occurred_at_ms inclusively.
+	SinceMS, UntilMS int64
+	// Source keeps only the rows recorded by that source.
+	Source string
+	// Before keeps only the rows after that position in newest-first order.
+	Before *Position
+}
+
+// Position is one row's place in the newest-first order.
+type Position struct {
+	OccurredAtMs int64
+	ID           int64
+}
+
+// where returns the query's filter predicate and its arguments.
+func (q ListQuery) where() (string, []any) {
+	clauses, args := []string{"1=1"}, []any{}
+	if q.SinceMS != 0 {
+		clauses, args = append(clauses, "occurred_at_ms >= ?"), append(args, q.SinceMS)
+	}
+	if q.UntilMS != 0 {
+		clauses, args = append(clauses, "occurred_at_ms <= ?"), append(args, q.UntilMS)
+	}
+	if q.Source != "" {
+		clauses, args = append(clauses, "source = ?"), append(args, q.Source)
+	}
+	if q.Before != nil {
+		clauses = append(clauses, "(occurred_at_ms < ? OR (occurred_at_ms = ? AND id < ?))")
+		args = append(args, q.Before.OccurredAtMs, q.Before.OccurredAtMs, q.Before.ID)
+	}
+	return strings.Join(clauses, " AND "), args
 }
 
 // Snapshot is the retained storage-format shape of before_json/after_json
@@ -213,18 +246,31 @@ func (s *Store) pruneOldestBeyondRetention(ctx context.Context, tx *sql.Tx) erro
 	return err
 }
 
-// ListRecent returns the newest activity rows first.
+// CountMatching counts the activity rows the query's filters select; its
+// Limit is ignored.
+func (s *Store) CountMatching(ctx context.Context, query ListQuery) (int64, error) {
+	where, args := query.where()
+	var count int64
+	if err := s.provider.DB().QueryRowContext(ctx, `SELECT COUNT(*) FROM activity_log WHERE `+where, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count activity: %w", err)
+	}
+	return count, nil
+}
+
+// ListRecent returns the newest activity rows the query selects first.
 func (s *Store) ListRecent(ctx context.Context, query ListQuery) (records []Record, err error) {
 	limit := query.Limit
 	if limit <= 0 {
 		limit = 50
 	}
+	where, args := query.where()
 	rows, err := s.provider.DB().QueryContext(ctx, `
 		SELECT id, source, action_type, anime_id, anime_name, occurred_at_ms, correlation_id, reported_at_ms, before_json, after_json
 		FROM activity_log
+		WHERE `+where+`
 		ORDER BY occurred_at_ms DESC, id DESC
 		LIMIT ?
-	`, limit)
+	`, append(args, limit)...)
 	if err != nil {
 		return nil, fmt.Errorf("list recent activity: %w", err)
 	}

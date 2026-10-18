@@ -9,8 +9,7 @@ import (
 )
 
 // TestEncodeDecodePageCursorRoundTrips asserts the opaque "<watched_at_ms>:<id>"
-// cursor round-trips exactly, matching eventlog.EventSearchPage's NextCursor
-// convention (design.md D5).
+// cursor round-trips exactly (design.md D5).
 func TestEncodeDecodePageCursorRoundTrips(t *testing.T) {
 	t.Parallel()
 

@@ -9,23 +9,12 @@ import (
 
 // SQLiteStore persists events into bridge SQLite's runtime_events table.
 type SQLiteStore struct {
-	db         *sql.DB
-	rowCap     int
-	pruneEvery int
-	successful int
+	db *sql.DB
 }
 
 // NewStore builds a SQLite-backed event store.
-func NewStore(db *sql.DB, config EventStoreConfig) *SQLiteStore {
-	rowCap := config.RowCap
-	if rowCap <= 0 {
-		rowCap = defaultRowCap
-	}
-	pruneEvery := config.PruneEvery
-	if pruneEvery <= 0 {
-		pruneEvery = defaultPruneEvery
-	}
-	return &SQLiteStore{db: db, rowCap: rowCap, pruneEvery: pruneEvery}
+func NewStore(db *sql.DB) *SQLiteStore {
+	return &SQLiteStore{db: db}
 }
 
 // nullableString returns nil for an empty string so the column binds as SQL
@@ -47,34 +36,9 @@ func nullableDuration(durationMS int64) *int64 {
 	return &durationMS
 }
 
-// pruneOldestBeyondRetention deletes the oldest event rows past the
-// configured row cap, called every pruneEvery successful write so pruning
-// cost scales with event traffic instead of wall-clock time.
-//
-// The write counter is per-process and starts at zero, so cadence alone
-// would never prune in a session that persists fewer than pruneEvery events
-// -- the common case for a desktop app with short sessions, which would let
-// the table grow past its cap across restarts and stay there. The first
-// write of every process therefore prunes unconditionally, which bounds the
-// table at startup regardless of how short the preceding sessions were.
-func (s *SQLiteStore) pruneOldestBeyondRetention(ctx context.Context, tx *sql.Tx) error {
-	s.successful++
-	if s.successful > 1 && s.successful%s.pruneEvery != 0 {
-		return nil
-	}
-	_, err := tx.ExecContext(ctx, `
-		DELETE FROM runtime_events
-		WHERE id IN (
-			SELECT id FROM runtime_events
-			ORDER BY occurred_at_ms DESC, id DESC
-			LIMIT -1 OFFSET ?
-		)
-	`, s.rowCap)
-	return err
-}
-
 // InsertEvent stores one event record: marshal + redact + bound metadata via
-// metadata.go before bind, then BEGIN/INSERT/prune-every-N/COMMIT.
+// metadata.go before bind, then BEGIN/INSERT/COMMIT. Retention is the
+// retention sweeper's job, not the write path's.
 func (s *SQLiteStore) InsertEvent(ctx context.Context, record EventRecord) (err error) {
 	if s.db == nil {
 		return obserr.Unavailable("event store unavailable")
@@ -97,9 +61,6 @@ func (s *SQLiteStore) InsertEvent(ctx context.Context, record EventRecord) (err 
 		nullableString(record.CorrelationID), nullableString(record.EntityID), nullableString(record.EventType),
 		nullableDuration(record.DurationMS), boundMetadataJSON(record.Metadata))
 	if err != nil {
-		return err
-	}
-	if err = s.pruneOldestBeyondRetention(ctx, tx); err != nil {
 		return err
 	}
 	return tx.Commit()

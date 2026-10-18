@@ -164,7 +164,7 @@ func (s *Sink) toEventRecord(entry sharedlogger.LogEntry) EventRecord {
 	}
 }
 
-// occurredAtMS parses the entry's RFC3339 timestamp into epoch millis,
+// occurredAtMS parses the entry's RFC3339 timestamp, fraction included, into epoch millis,
 // falling back to the injected clock when the timestamp is unparsable.
 func (s *Sink) occurredAtMS(timestamp string) int64 {
 	parsed, err := time.Parse(time.RFC3339, timestamp)

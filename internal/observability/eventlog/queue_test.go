@@ -14,8 +14,8 @@ import (
 // internal/observability/requestcapture.Queue, but only the code was mirrored.
 // Its Err, setErr, Stop-deadline, TryEnqueue-stopping, and persist error paths
 // had no coverage at all, while requestcapture's queue_test.go covers every
-// one. These tests port that suite across, minus the OnPersist cases -- the
-// event queue has no such hook.
+// one. These tests port that suite across; the OnPersist hook added for
+// incident recording is covered at the end of this file.
 
 // TestQueueDropsOverflowWithoutBlocking asserts a full queue drops the
 // overflowing record instead of stalling the caller, and that the accepted
@@ -254,5 +254,47 @@ func TestQueueSetErrIgnoresNil(t *testing.T) {
 
 	if err := queue.Err(); !errors.Is(err, sentinel) {
 		t.Fatalf("expected setErr(nil) to leave the recorded error untouched, got %v", err)
+	}
+}
+
+// TestQueueOnPersistFiresOnlyAfterSuccessfulInsert asserts OnPersist sees
+// every record the store accepted, in order, and never a record whose insert
+// failed: the hook reports what actually persisted.
+func TestQueueOnPersistFiresOnlyAfterSuccessfulInsert(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		insertErr error
+		want      []string
+	}{
+		{"successful inserts", nil, []string{"first", "second"}},
+		{"failed inserts", errors.New("insert failed"), nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := &blockingSinkStore{release: make(chan struct{}), insertErr: tt.insertErr}
+			close(store.release)
+			var persisted []string
+			queue := NewQueue(store, QueueConfig{Capacity: 4, OnPersist: func(record EventRecord) {
+				persisted = append(persisted, record.Message)
+			}})
+			queue.TryEnqueue(EventRecord{Message: "first"})
+			queue.TryEnqueue(EventRecord{Message: "second"})
+			if result := queue.Stop(context.Background()); result.UnfinishedItems != 0 {
+				t.Fatalf("expected a clean drain, got %#v", result)
+			}
+
+			if len(persisted) != len(tt.want) {
+				t.Fatalf("OnPersist saw %#v, want %#v", persisted, tt.want)
+			}
+			for i := range tt.want {
+				if persisted[i] != tt.want[i] {
+					t.Fatalf("OnPersist saw %#v, want %#v", persisted, tt.want)
+				}
+			}
+		})
 	}
 }

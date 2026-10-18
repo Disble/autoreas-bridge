@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -22,7 +23,7 @@ func TestChangelogRecorderPersistsAnimeChangedEvents(t *testing.T) {
 	ctx := t.Context()
 	recorder.Start(ctx)
 
-	event := events.AnimeChangedEvent{AnimeID: "anime-1", Payload: []byte(`{"id":"anime-1"}`)}
+	event := events.AnimeChangedEvent{EventID: "evt-1", AnimeID: "anime-1", ChangedFields: []string{"title"}, Payload: []byte(`{"id":"anime-1"}`)}
 	bus.Publish(event)
 
 	eventuallySync(t, func() bool {
@@ -57,6 +58,10 @@ func TestChangelogRecorderPersistsAnimeChangedEvents(t *testing.T) {
 	if insertEntry.EventType != "sync.changelog" {
 		t.Fatalf("expected EventType 'sync.changelog', got %q", insertEntry.EventType)
 	}
+	wantMetadata := map[string]any{"sourceEventId": "evt-1", "changeType": ChangelogTypeUpdate, "changedFields": []string{"title"}}
+	if !reflect.DeepEqual(insertEntry.Metadata, wantMetadata) {
+		t.Fatalf("expected metadata %#v, got %#v", wantMetadata, insertEntry.Metadata)
+	}
 
 	recorder.Stop()
 }
@@ -90,7 +95,7 @@ func TestChangelogRecorderStoresInsertErrors(t *testing.T) {
 	ctx := t.Context()
 	recorder.Start(ctx)
 
-	bus.Publish(events.AnimeChangedEvent{AnimeID: "anime-1", Payload: []byte(`{"id":"anime-1"}`)})
+	bus.Publish(events.AnimeChangedEvent{EventID: "evt-1", AnimeID: "anime-1", ChangeType: ChangelogTypeDelete, Payload: []byte(`{"id":"anime-1"}`)})
 
 	eventuallySync(t, func() bool {
 		return recorder.Err() != nil
@@ -103,6 +108,10 @@ func TestChangelogRecorderStoresInsertErrors(t *testing.T) {
 	entries := logger.entries()
 	if len(entries) == 0 || entries[len(entries)-1].Level != sharedlogger.LevelError {
 		t.Fatalf("expected sync error log for insert failure, got %#v", entries)
+	}
+	wantMetadata := map[string]any{"sourceEventId": "evt-1", "changeType": ChangelogTypeDelete, "changedFields": []string(nil), "cause": "sqlite locked"}
+	if got := entries[len(entries)-1].Metadata; !reflect.DeepEqual(got, wantMetadata) {
+		t.Fatalf("expected metadata %#v, got %#v", wantMetadata, got)
 	}
 
 	recorder.Stop()

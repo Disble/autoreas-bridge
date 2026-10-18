@@ -7,35 +7,18 @@ import (
 	"fmt"
 )
 
-// StoreConfig defines persistence policy.
-type StoreConfig struct {
-	RetentionLimit int
-	PruneEvery     int
-}
-
 // SQLiteStore persists captures into bridge SQLite. Unlike Reader/ReadOnlyDB,
 // it is a write path used only by the already-bootstrapped app, so it targets
 // request_captures unconditionally rather than resolving a table generation --
 // by the time this store is constructed, initializeBridgeDB has already
 // renamed any previous-generation table in place.
 type SQLiteStore struct {
-	db             *sql.DB
-	retentionLimit int
-	pruneEvery     int
-	successful     int
+	db *sql.DB
 }
 
 // NewStore builds a SQLite-backed capture store.
-func NewStore(db *sql.DB, config StoreConfig) *SQLiteStore {
-	retentionLimit := config.RetentionLimit
-	if retentionLimit <= 0 {
-		retentionLimit = defaultRetentionLimit
-	}
-	pruneEvery := config.PruneEvery
-	if pruneEvery <= 0 {
-		pruneEvery = defaultPruneEvery
-	}
-	return &SQLiteStore{db: db, retentionLimit: retentionLimit, pruneEvery: pruneEvery}
+func NewStore(db *sql.DB) *SQLiteStore {
+	return &SQLiteStore{db: db}
 }
 
 // marshalNullableHeaders JSON-encodes a header map, returning a nil *string
@@ -88,29 +71,13 @@ func buildCaptureInsertArgs(record CaptureRecord) (captureInsertArgs, error) {
 	}, nil
 }
 
-// pruneOldestBeyondRetention deletes the oldest capture rows past the
-// configured retention limit, called every pruneEvery successful write.
-func (s *SQLiteStore) pruneOldestBeyondRetention(ctx context.Context, tx *sql.Tx) error {
-	s.successful++
-	if s.successful%s.pruneEvery != 0 {
-		return nil
-	}
-	_, err := tx.ExecContext(ctx, `
-		DELETE FROM request_captures
-		WHERE request_id IN (
-			SELECT request_id FROM request_captures
-			ORDER BY captured_at_ms DESC, request_id DESC
-			LIMIT -1 OFFSET ?
-		)
-	`, s.retentionLimit)
-	return err
-}
-
 // UpsertCapture stores one capture, inserting it on first write (e.g. an
 // arrival row) and updating every semantic/telemetry column in place on a
 // later write sharing the same request_id (e.g. the terminal write following
 // an arrival). captured_at_ms is deliberately excluded from the UPDATE
-// clause so the arrival timestamp survives as the row's clock origin.
+// clause so the arrival timestamp survives as the row's clock origin. A
+// terminal write also records the hourly rollup and the response version in
+// the same transaction (recordLedger).
 func (s *SQLiteStore) UpsertCapture(ctx context.Context, record CaptureRecord) error {
 	if s.db == nil {
 		return unavailableError("capture store unavailable")
@@ -128,12 +95,37 @@ func (s *SQLiteStore) UpsertCapture(ctx context.Context, record CaptureRecord) e
 			_ = tx.Rollback()
 		}
 	}()
-	_, err = tx.ExecContext(ctx, `
+	terminal := record.Outcome != OutcomePending
+	var prior priorCapture
+	if terminal {
+		if prior, err = readPriorCapture(ctx, tx, record.RequestID); err != nil {
+			return err
+		}
+	}
+	hash := responseBodyHash(record)
+	_, err = tx.ExecContext(ctx, upsertCaptureSQL, record.RequestID, record.CapturedAtMS, record.Kind, record.Route, record.Transport, record.Device.DeviceID, record.Device.Name, record.Outcome, record.AnimeID, record.HTTPStatus, args.payloadJSON, args.correlationJSON, record.ErrorCode,
+		record.RequestBody, record.RequestBodyState, record.ResponseBody, record.ResponseBodyState, args.requestHeadersJSON, args.responseHeadersJSON, record.DurationMS, record.ErrorMessage, record.ClientRequestID,
+		hash)
+	if err != nil {
+		return err
+	}
+	if terminal {
+		if err = recordLedger(ctx, tx, record, prior, hash); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// upsertCaptureSQL inserts a capture row or updates it in place, never moving
+// a terminal row back to pending.
+const upsertCaptureSQL = `
 			INSERT INTO request_captures (
 				request_id, captured_at_ms, kind, route, transport, device_id, device_name, outcome,
 				anime_id, http_status, payload_json, correlation_json, error_code,
-				request_body, request_body_state, response_body, response_body_state, request_headers, response_headers, duration_ms
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				request_body, request_body_state, response_body, response_body_state, request_headers, response_headers, duration_ms, error_message, client_request_id,
+				response_hash
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(request_id) DO UPDATE SET
 				kind = excluded.kind,
 				route = excluded.route,
@@ -152,15 +144,9 @@ func (s *SQLiteStore) UpsertCapture(ctx context.Context, record CaptureRecord) e
 				response_body_state = excluded.response_body_state,
 				request_headers = excluded.request_headers,
 				response_headers = excluded.response_headers,
-				duration_ms = excluded.duration_ms
+				duration_ms = excluded.duration_ms,
+				error_message = excluded.error_message,
+				client_request_id = excluded.client_request_id,
+				response_hash = excluded.response_hash
 				WHERE NOT (request_captures.outcome <> 'pending' AND excluded.outcome = 'pending')
-		`, record.RequestID, record.CapturedAtMS, record.Kind, record.Route, record.Transport, record.Device.DeviceID, record.Device.Name, record.Outcome, record.AnimeID, record.HTTPStatus, args.payloadJSON, args.correlationJSON, record.ErrorCode,
-		record.RequestBody, record.RequestBodyState, record.ResponseBody, record.ResponseBodyState, args.requestHeadersJSON, args.responseHeadersJSON, record.DurationMS)
-	if err != nil {
-		return err
-	}
-	if err = s.pruneOldestBeyondRetention(ctx, tx); err != nil {
-		return err
-	}
-	return tx.Commit()
-}
+`

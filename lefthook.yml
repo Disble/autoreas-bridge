@@ -1,11 +1,13 @@
 # Local checks share commands and per-process Go limits, not scope.
-# Keep cheap checks parallel and heavy work in two sequential lanes.
+# Cheap checks run in parallel inside their group; the lanes run one after
+# another so the Go and frontend suites never compete for CPU
+# (docs/reports/2026-10-18-pre-commit-resource-contention.md).
 # No automatic hook inheritance: dharness check is explicit in frontend-heavy.
 # Generated ESLint/Fallow config still comes from .dharness/.
 # Mutation is a development command and a daily/manual CI audit, not a local gate.
 
 pre-commit:
-  parallel: true
+  piped: true
   jobs:
     - name: quick
       group:
@@ -79,8 +81,14 @@ pre-commit:
             run: bun --cwd="frontend" run check:staged
           - name: frontend-typecheck
             run: &frontend-typecheck bun --cwd="frontend" run typecheck
-          - name: frontend-test
-            run: &frontend-test bun --cwd="frontend" run test
+          # Copied from the coverage job `dharness sync` writes to .dharness/lefthook.yml,
+          # which this file does not inherit: native coverage over the adopted tiers.
+          # It is the only Vitest run: its config re-exports vite.config.ts, so it runs
+          # the whole suite, and a plain `vitest run` beside it would run it twice.
+          # No `root:`: lefthook filters staged files by it and would skip the suite on a
+          # commit that stages only .dharness/ or lefthook.yml.
+          - name: frontend-coverage
+            run: &frontend-coverage cd frontend && bunx --no-install vitest run --coverage --config ../.dharness/vitest.coverage.mjs
           - name: frontend-render-smoke
             run: &frontend-render-smoke bun --cwd="frontend" run render:smoke
           - name: frontend-layout-smoke
@@ -89,8 +97,9 @@ pre-commit:
 # A merge judges the whole tree, so no jobs or groups here have file globs.
 # Staged quality is omitted: repository JSDoc adoption is incremental.
 # Typecheck precedes tests in this lane too, avoiding the old merge contention.
+# The lanes run one after another, as in pre-commit, so the suites never compete for CPU.
 pre-merge-commit:
-  parallel: true
+  piped: true
   jobs:
     - name: quick
       group:
@@ -130,8 +139,8 @@ pre-merge-commit:
         jobs:
           - name: frontend-typecheck
             run: *frontend-typecheck
-          - name: frontend-test
-            run: *frontend-test
+          - name: frontend-coverage
+            run: *frontend-coverage
           - name: frontend-render-smoke
             run: *frontend-render-smoke
           - name: frontend-layout-smoke

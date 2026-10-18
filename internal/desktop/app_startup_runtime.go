@@ -196,6 +196,8 @@ func (a *App) capture(record requestcapture.CaptureRecord) bool {
 
 // persistCaptureTerminal repairs an accepted-arrival / dropped-terminal split
 // by upserting the terminal row directly through a short, finite store write.
+// A repaired row records its incident like a queued one: the queue drops
+// terminals exactly under load, when failures matter most.
 func (a *App) persistCaptureTerminal(record requestcapture.CaptureRecord) {
 	if a.captureStore == nil {
 		if a.bridgeDB == nil || a.newCaptureStore == nil {
@@ -205,29 +207,13 @@ func (a *App) persistCaptureTerminal(record requestcapture.CaptureRecord) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 	defer cancel()
-	if err := a.captureStore.UpsertCapture(ctx, record); err != nil && a.sharedLogger != nil {
-		a.sharedLogger.Warnf("api", "failed terminal capture recovery for %s: %v", record.RequestID, err)
-	}
-}
-
-// captureTransactionEventName is the Wails runtime event streaming each
-// persisted capture row to the frontend Network/Activity view in real time
-// (design.md "Emit choke point"), mirroring the committed
-// download-runtime-source event bridge.
-const captureTransactionEventName = "capture.transaction"
-
-// emitCaptureTransaction streams one persisted capture row to the frontend
-// over the Wails runtime event bus. Wired as requestcapture.QueueConfig.OnPersist:
-// it fires exactly once per record, from the queue's single serialized drain
-// goroutine, only after Store.UpsertCapture has actually persisted it -- the
-// one choke point where emitting "what actually persisted" is guaranteed.
-// Nil-safe before ctx/emitFn are wired (e.g. during startup or in tests that
-// never call a.startup).
-func (a *App) emitCaptureTransaction(record requestcapture.CaptureRecord) {
-	if a.ctx == nil || a.emitFn == nil {
+	if err := a.captureStore.UpsertCapture(ctx, record); err != nil {
+		if a.sharedLogger != nil {
+			a.sharedLogger.Warnf("api", "failed terminal capture recovery for %s: %v", record.RequestID, err)
+		}
 		return
 	}
-	a.emitFn(a.ctx, captureTransactionEventName, toCaptureRow(record))
+	a.recordRequestIncident(record)
 }
 
 // onPairingTokenConsumed returns the callback emitted after device pairing.

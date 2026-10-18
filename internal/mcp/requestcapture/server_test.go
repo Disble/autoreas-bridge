@@ -2,104 +2,95 @@ package requestcapture
 
 import (
 	"context"
+	"path/filepath"
+	"slices"
 	"testing"
 
-	obs "autoreas-bridge/internal/observability/requestcapture"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// nullReader is a Reader implementation that returns empty results, used by
-// server-contract tests that only need a Server value and never execute a
-// real query.
-type nullReader struct{}
-
-func (nullReader) Search(ctx context.Context, params obs.SearchParams) (obs.SearchPage, error) {
-	return obs.SearchPage{}, nil
+// newToolRoster is the sidecar's tool list, one tool per question.
+var newToolRoster = []string{
+	"get_status", "list_incidents", "get_incident", "get_request", "search_history",
+	"list_runs", "get_run_story", "list_recorder", "list_response_versions", "get_hourly_totals",
 }
 
-func (nullReader) Get(ctx context.Context, requestID string) (obs.GetResult, error) {
-	return obs.GetResult{}, nil
+// deletedToolNames are the tools the sidecar served before the activity
+// tools replaced them (docs/observability/rollout.md, No legacy).
+var deletedToolNames = []string{
+	"search_requests", "resolve_request_context", "get_request_context", "summary_requests",
+	"search_events", "get_correlation_timeline", "summary_events", "list_device_sync_diagnostics",
 }
 
-func (nullReader) Resolve(ctx context.Context, reference string) ([]ResolveCandidate, error) {
-	return nil, nil
-}
-
-func (nullReader) Summary(ctx context.Context, filters obs.SearchFilters) (obs.SummaryResult, error) {
-	return obs.SummaryResult{}, nil
-}
-
-// TestToolNamesReturnsExactlyFourBareNames asserts the sidecar registers only
-// the four bare, transport-neutral tool names, with no previously-registered
-// mobile-prefixed name surviving.
-func TestToolNamesReturnsExactlyFourBareNames(t *testing.T) {
-	t.Parallel()
-
-	server := NewServer(nullReader{})
-	got := server.ToolNames()
-	want := []string{"resolve_request_context", "search_requests", "get_request_context", "summary_requests"}
-	for i, name := range want {
-		if got[i] != name {
-			t.Fatalf("expected tool %d to be %q, got %q (full: %#v)", i, name, got[i], got)
+// TestServerRegistersOnlyTheActivityTools checks the registered tools over
+// the protocol: the new roster, and none of the deleted tools.
+func TestServerRegistersOnlyTheActivityTools(t *testing.T) {
+	h := newHarness(t)
+	listed, err := h.session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("list tools: %v", err)
+	}
+	var names []string
+	for _, tool := range listed.Tools {
+		names = append(names, tool.Name)
+		if tool.Description == "" {
+			t.Fatalf("tool %s has no description", tool.Name)
 		}
 	}
-	for _, forbidden := range []string{"search_mobile_requests", "get_mobile_request_context", "resolve_mobile_request_context", "summary_mobile_requests"} {
-		for _, name := range got {
-			if name == forbidden {
-				t.Fatalf("expected previously-registered tool %q to not be registered, got %#v", forbidden, got)
-			}
+	slices.Sort(names)
+	want := slices.Sorted(slices.Values(newToolRoster))
+	if !slices.Equal(names, want) {
+		t.Fatalf("registered tools = %v, want %v", names, want)
+	}
+	for _, deleted := range deletedToolNames {
+		if slices.Contains(names, deleted) {
+			t.Fatalf("deleted tool %q is still registered", deleted)
 		}
-	}
-}
-
-// TestSidecarExposesExactlySevenTools asserts the sidecar registers exactly
-// the seven named tools: the four pre-existing request-capture tools plus
-// the three new runtime-event tools.
-func TestSidecarExposesExactlySevenTools(t *testing.T) {
-	t.Parallel()
-
-	server := NewServer(nullReader{})
-	got := server.ToolNames()
-	want := []string{
-		"resolve_request_context", "search_requests", "get_request_context", "summary_requests",
-		"search_events", "get_correlation_timeline", "summary_events",
-	}
-	if len(got) != len(want) {
-		t.Fatalf("expected %d tool names, got %d: %#v", len(want), len(got), got)
-	}
-	for i, name := range want {
-		if got[i] != name {
-			t.Fatalf("expected tool %d to be %q, got %q (full: %#v)", i, name, got[i], got)
+		result, err := h.session.CallTool(context.Background(), &mcp.CallToolParams{Name: deleted, Arguments: map[string]any{}})
+		if err == nil && !result.IsError {
+			t.Fatalf("deleted tool %q answered", deleted)
 		}
 	}
 }
 
-// TestEachToolNameAppearsExactlyOnce asserts no tool name is duplicated,
-// renamed, or aliased across the seven-tool surface.
-func TestEachToolNameAppearsExactlyOnce(t *testing.T) {
-	t.Parallel()
-
-	server := NewServer(nullReader{})
-	seen := map[string]int{}
-	for _, name := range server.ToolNames() {
-		seen[name]++
-	}
-	for name, count := range seen {
-		if count != 1 {
-			t.Fatalf("expected tool %q to appear exactly once, appeared %d times", name, count)
-		}
-	}
-}
-
-func TestOpenReaderUsesReadOnlyBridgePath(t *testing.T) {
-	t.Parallel()
-
-	path := openToolTestDB(t)
+// TestToolNamesMatchesTheRoster checks the declared roster and that callers
+// get a copy.
+func TestToolNamesMatchesTheRoster(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "bridge.db")
+	bootstrapDB(t, path)
 	reader, err := OpenReader(path)
 	if err != nil {
 		t.Fatalf("open reader: %v", err)
 	}
-	defer func() { _ = reader.Close() }()
-	if got := reader.Path(); got != path {
-		t.Fatalf("expected path %q, got %q", path, got)
+	t.Cleanup(func() { _ = reader.Close() })
+	server := NewServer(reader, nil)
+	got := server.ToolNames()
+	if !slices.Equal(got, newToolRoster) {
+		t.Fatalf("tool names = %v, want %v", got, newToolRoster)
+	}
+	got[0] = "mutated"
+	if server.ToolNames()[0] != "get_status" {
+		t.Fatal("ToolNames must return a copy")
+	}
+}
+
+// TestReaderIsQueryOnly checks that the sidecar's handle cannot write and
+// that a missing database fails closed.
+func TestReaderIsQueryOnly(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "bridge.db")
+	bootstrapDB(t, path)
+	reader, err := OpenReader(path)
+	if err != nil {
+		t.Fatalf("open reader: %v", err)
+	}
+	t.Cleanup(func() { _ = reader.Close() })
+	if err := reader.VerifyQueryOnly(context.Background()); err != nil {
+		t.Fatalf("verify query_only: %v", err)
+	}
+	if reader.Path() != path {
+		t.Fatalf("path = %q", reader.Path())
+	}
+	if _, err := OpenReader(filepath.Join(t.TempDir(), "missing.db")); err == nil {
+		t.Fatal("expected a missing database to fail closed")
 	}
 }

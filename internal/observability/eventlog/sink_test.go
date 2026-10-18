@@ -164,7 +164,8 @@ func TestSinkPersistsInfoWarnErrorAlways(t *testing.T) {
 }
 
 // TestSinkConvertsRFC3339TimestampToEpochMillis asserts the sink parses the
-// entry's RFC3339 timestamp into OccurredAtMS.
+// entry's timestamp into OccurredAtMS, keeping the milliseconds the logger
+// writes (P2) and still accepting a second-resolution timestamp.
 func TestSinkConvertsRFC3339TimestampToEpochMillis(t *testing.T) {
 	t.Parallel()
 
@@ -174,12 +175,23 @@ func TestSinkConvertsRFC3339TimestampToEpochMillis(t *testing.T) {
 	sink.Bind(queue, false)
 	defer func() { _ = queue.Stop(context.Background()) }()
 
-	stamp := time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC)
-	sink.WriteEntry(sharedlogger.LogEntry{Domain: "sync", Level: sharedlogger.LevelInfo, Message: "hi", Timestamp: stamp.Format(time.RFC3339)})
+	stamps := []string{
+		time.Date(2024, 1, 2, 3, 4, 5, 123_000_000, time.UTC).Format(sharedlogger.TimestampLayout),
+		time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC).Format(time.RFC3339),
+	}
+	want := []int64{
+		time.Date(2024, 1, 2, 3, 4, 5, 123_000_000, time.UTC).UnixMilli(),
+		time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC).UnixMilli(),
+	}
+	for _, stamp := range stamps {
+		sink.WriteEntry(sharedlogger.LogEntry{Domain: "sync", Level: sharedlogger.LevelInfo, Message: "hi", Timestamp: stamp})
+	}
 
-	record := waitForRecords(t, store, 1)[0]
-	if record.OccurredAtMS != stamp.UnixMilli() {
-		t.Fatalf("expected occurred_at_ms %d, got %d", stamp.UnixMilli(), record.OccurredAtMS)
+	records := waitForRecords(t, store, 2)
+	for i, record := range records {
+		if record.OccurredAtMS != want[i] {
+			t.Fatalf("entry %d (%s): occurred_at_ms %d, want %d", i, stamps[i], record.OccurredAtMS, want[i])
+		}
 	}
 }
 

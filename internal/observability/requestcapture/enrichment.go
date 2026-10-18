@@ -18,6 +18,7 @@ type CaptureEnrichment struct {
 	device       DeviceIdentity
 	outcome      string
 	errorCode    string
+	errorMessage string
 	animeID      *string
 	payload      map[string]any
 	correlations Correlations
@@ -73,6 +74,14 @@ func (e *CaptureEnrichment) SetAnimeID(animeID string) *CaptureEnrichment {
 // SetErrorCode records the semantic error code for a rejected/malformed outcome.
 func (e *CaptureEnrichment) SetErrorCode(errorCode string) *CaptureEnrichment {
 	e.errorCode = errorCode
+	e.set = true
+	return e
+}
+
+// SetErrorMessage records the failure cause, typically err.Error(). It wins
+// over the cause the middleware would derive from the response body.
+func (e *CaptureEnrichment) SetErrorMessage(message string) *CaptureEnrichment {
+	e.errorMessage = message
 	e.set = true
 	return e
 }

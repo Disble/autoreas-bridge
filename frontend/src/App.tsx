@@ -34,8 +34,7 @@ function App() {
                 <Route path="/devices" element={<DevicesRoute />} />
                 <Route path="/pairing" element={<Navigate replace to="/devices" />} />
                 <Route path="/activity" element={<ActivityRoute />} />
-                <Route path="/activity/runtime-events" element={<ActivityRoute initialTab="runtime-events" />} />
-                <Route path="/events" element={<Navigate replace to="/activity/runtime-events" />} />
+                <Route path="/events" element={<Navigate replace to="/activity" />} />
                 <Route path="/network" element={<Navigate replace to="/activity" />} />
                 <Route path="/status" element={<Navigate replace to="/activity" />} />
                 <Route path="/season" element={<SeasonRoute />} />

@@ -88,10 +88,13 @@ func (r *ChangelogRecorder) record(ctx context.Context, entry ChangelogEntry, co
 	entry.ChangedAtMs = now().UnixMilli()
 	if err := r.store.InsertPending(ctx, entry); err != nil {
 		if r.log != nil {
+			metadata := changelogEntryMetadata(entry)
+			metadata["cause"] = err.Error()
 			r.log.Logf("sync", sharedlogger.LevelError, sharedlogger.Fields{
 				EntityID:      entry.AnimeID,
 				EventType:     "sync.changelog",
 				CorrelationID: correlationID,
+				Metadata:      metadata,
 			}, "failed to record pending changelog for %s: %v", entry.AnimeID, err)
 		}
 		r.mu.Lock()
@@ -104,7 +107,18 @@ func (r *ChangelogRecorder) record(ctx context.Context, entry ChangelogEntry, co
 			EntityID:      entry.AnimeID,
 			EventType:     "sync.changelog",
 			CorrelationID: correlationID,
+			Metadata:      changelogEntryMetadata(entry),
 		}, "recorded pending changelog for %s", entry.AnimeID)
+	}
+}
+
+// changelogEntryMetadata identifies a changelog row in its log entry without its snapshot: the
+// event that caused it, the change type and the fields it changed.
+func changelogEntryMetadata(entry ChangelogEntry) map[string]any {
+	return map[string]any{
+		"sourceEventId": entry.SourceEventID,
+		"changeType":    entry.ChangeType,
+		"changedFields": entry.ChangedFields,
 	}
 }
 

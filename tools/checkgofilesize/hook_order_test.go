@@ -61,3 +61,32 @@ func assertGoHookOrder(t *testing.T, jobs []lefthookJob, goFileSizeIndex, golang
 		t.Fatalf("job before go-filesize = %q, want gofmt", jobs[goFileSizeIndex-1].Name)
 	}
 }
+
+// TestRepositoryHooksRunTheirLanesOneAfterAnother pins the pre-commit and
+// pre-merge-commit lanes to run in sequence. Run side by side, the Go and frontend suites starved
+// each other of CPU and timed out unrelated 5 s frontend tests that pass alone
+// (docs/reports/2026-10-18-pre-commit-resource-contention.md).
+func TestRepositoryHooksRunTheirLanesOneAfterAnother(t *testing.T) {
+	t.Parallel()
+	root := repoRootFromTest(t)
+	content := readRepoFile(t, root, "lefthook.yml")
+	var config struct {
+		PreCommit struct {
+			Parallel bool `yaml:"parallel"`
+			Piped    bool `yaml:"piped"`
+		} `yaml:"pre-commit"`
+		PreMergeCommit struct {
+			Parallel bool `yaml:"parallel"`
+			Piped    bool `yaml:"piped"`
+		} `yaml:"pre-merge-commit"`
+	}
+	if err := yaml.Unmarshal(content, &config); err != nil {
+		t.Fatalf("yaml.Unmarshal() error = %v", err)
+	}
+	if config.PreCommit.Parallel || !config.PreCommit.Piped {
+		t.Fatalf("pre-commit parallel = %v, piped = %v; want its lanes piped, one after another", config.PreCommit.Parallel, config.PreCommit.Piped)
+	}
+	if config.PreMergeCommit.Parallel || !config.PreMergeCommit.Piped {
+		t.Fatalf("pre-merge-commit parallel = %v, piped = %v; want its lanes piped, one after another", config.PreMergeCommit.Parallel, config.PreMergeCommit.Piped)
+	}
+}

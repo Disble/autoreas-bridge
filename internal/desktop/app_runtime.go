@@ -9,7 +9,6 @@ import (
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
-	sharedlogger "autoreas-bridge/internal/logger"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/watchhistory"
 )
@@ -130,15 +129,6 @@ func (a *App) UnpairDevice(deviceID string) string {
 		return err.Error()
 	}
 	return "ok"
-}
-
-// GetRecentLogs returns the in-memory log ring backing the Activity panel.
-// Degrades to an empty (non-nil) slice when no memory logger is wired.
-func (a *App) GetRecentLogs() []sharedlogger.LogEntry {
-	if a.memLogger == nil {
-		return []sharedlogger.LogEntry{}
-	}
-	return a.memLogger.Recent()
 }
 
 // GetSyncingAnimeItems lists the anime with writes still pending sync.

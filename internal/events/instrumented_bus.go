@@ -28,8 +28,9 @@ func NewInstrumentedBus(inner Bus, logger sharedlogger.Logger) *InstrumentedBus 
 func (b *InstrumentedBus) Publish(event Event) {
 	if b.logger != nil {
 		b.logger.Logf("bus", sharedlogger.LevelDebug, sharedlogger.Fields{
-			EventType: busPublishEventType,
-			Metadata:  map[string]any{"eventName": event.Name()},
+			EventType:     busPublishEventType,
+			CorrelationID: eventCorrelationID(event),
+			Metadata:      map[string]any{"eventName": event.Name()},
 		}, "publish %s", event.Name())
 	}
 
@@ -44,6 +45,14 @@ func (b *InstrumentedBus) Publish(event Event) {
 			Metadata:   map[string]any{"eventName": event.Name()},
 		}, "slow handler chain for %s", event.Name())
 	}
+}
+
+// eventCorrelationID returns the correlation id a CorrelatedEvent carries, or "".
+func eventCorrelationID(event Event) string {
+	if correlated, ok := event.(CorrelatedEvent); ok {
+		return correlated.EventCorrelationID()
+	}
+	return ""
 }
 
 // Subscribe delegates directly to the inner bus, wrapping the handler to measure per-handler timing.

@@ -4,7 +4,6 @@ import { MemoryRouter, useNavigate } from 'react-router';
 import App from '../../App';
 import { APP_LAYOUT_NAV_GROUPS } from '../../shared/navigation/app-layout.constants';
 import { flattenNavItems } from '../../shared/navigation/app-layout.helpers';
-import { resetNetworkStore } from '../../shared/store/network-store/network-store.helpers';
 import { seasonStore } from '../../shared/store/season-store/season-store.store';
 
 describe('App routing', () => {
@@ -16,7 +15,6 @@ describe('App routing', () => {
 
   afterEach(() => {
     cleanup();
-    resetNetworkStore();
   });
 
   it('redirects the root path to /today', async () => {
@@ -43,9 +41,6 @@ describe('App routing', () => {
     it.each([
       ['/episodes', 'Today'],
       ['/dashboard', 'Today'],
-      // /network redirects to Activity, which is now the real TransactionPanel
-      // (not the event log NetworkPanel.tsx renders -- the unrouted
-      // NetworkRoute.tsx drift was deleted).
       ['/network', 'Activity'],
       ['/status', 'Activity'],
       ['/pairing', 'Devices'],
@@ -151,7 +146,7 @@ describe('App routing', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Activity' })).toBeInTheDocument();
   });
 
-  it('redirects the legacy /events deep link to Activity with the integrated runtime-events surface', async () => {
+  it('redirects the legacy /events deep link to the Activity Now tab', async () => {
     render(
       <MemoryRouter initialEntries={['/events']}>
         <App />
@@ -159,7 +154,7 @@ describe('App routing', () => {
     );
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Activity' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Runtime Events' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Now' })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('renders the season route directly', async () => {
@@ -274,7 +269,6 @@ function CreateNavigationProbe() {
 describe('App editor routes', () => {
   afterEach(() => {
     cleanup();
-    resetNetworkStore();
   });
 
   it('resolves /editor/create to the Create workspace rather than an anime identifier', async () => {

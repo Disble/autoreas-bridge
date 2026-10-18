@@ -2,6 +2,8 @@ package notification
 
 import (
 	"context"
+	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -67,8 +69,10 @@ func TestLogForwardAdapterMapsErrorLevelToErrorLog(t *testing.T) {
 		Body:          "the bridge stopped tracking changes",
 		Level:         LevelError,
 		Source:        "anime",
+		Kind:          "anime.watcher_stopped",
 		CorrelationID: "corr-1",
 		Timestamp:     time.Now(),
+		Rows:          []DetailItem{{RefType: "anime", RefID: "a-1"}, {CollapsedCount: 3}, {RefType: "anime", RefID: "a-2"}},
 	}
 
 	if err := adapter.Deliver(context.Background(), Delivery{Notification: n}); err != nil {
@@ -91,6 +95,53 @@ func TestLogForwardAdapterMapsErrorLevelToErrorLog(t *testing.T) {
 	}
 	if call.fields.EventType != "notification.forwarded" {
 		t.Fatalf("expected EventType %q, got %q", "notification.forwarded", call.fields.EventType)
+	}
+	wantMetadata := map[string]any{"kind": "anime.watcher_stopped", "rowRefIds": []string{"a-1", "a-2"}}
+	if !reflect.DeepEqual(call.fields.Metadata, wantMetadata) {
+		t.Fatalf("expected metadata %#v, got %#v", wantMetadata, call.fields.Metadata)
+	}
+}
+
+// TestLogForwardAdapterMetadataOmitsAbsentFieldsAndBoundsRowRefIDs pins the edges of the
+// forwarded metadata: a notification with no kind and no rows carries none, a run that
+// touched more rows than the bound records only the first maxForwardedRowRefIDs ids, and a
+// single row is still recorded.
+func TestLogForwardAdapterMetadataOmitsAbsentFieldsAndBoundsRowRefIDs(t *testing.T) {
+	t.Parallel()
+
+	logger := &fakeForwardLogger{}
+	adapter := NewLogForwardAdapter(logger)
+	if err := adapter.Deliver(context.Background(), Delivery{Notification: Notification{Title: "t", Source: "sync"}}); err != nil {
+		t.Fatalf("Deliver: %v", err)
+	}
+	if got := logger.logCalls[0].fields.Metadata; got != nil {
+		t.Fatalf("expected no metadata for a notification without kind or rows, got %#v", got)
+	}
+
+	rows := make([]DetailItem, 0, maxForwardedRowRefIDs+1)
+	want := make([]string, 0, maxForwardedRowRefIDs)
+	for i := range maxForwardedRowRefIDs + 1 {
+		id := fmt.Sprintf("a-%d", i)
+		rows = append(rows, DetailItem{RefType: "anime", RefID: id})
+		if i < maxForwardedRowRefIDs {
+			want = append(want, id)
+		}
+	}
+	if err := adapter.Deliver(context.Background(), Delivery{Notification: Notification{Source: "download", Rows: rows}}); err != nil {
+		t.Fatalf("Deliver: %v", err)
+	}
+	wantMetadata := map[string]any{"rowRefIds": want}
+	if got := logger.logCalls[1].fields.Metadata; !reflect.DeepEqual(got, wantMetadata) {
+		t.Fatalf("expected metadata %#v, got %#v", wantMetadata, got)
+	}
+
+	single := Notification{Source: "download", Rows: []DetailItem{{RefType: "anime", RefID: "only"}}}
+	if err := adapter.Deliver(context.Background(), Delivery{Notification: single}); err != nil {
+		t.Fatalf("Deliver: %v", err)
+	}
+	wantSingle := map[string]any{"rowRefIds": []string{"only"}}
+	if got := logger.logCalls[2].fields.Metadata; !reflect.DeepEqual(got, wantSingle) {
+		t.Fatalf("expected metadata %#v for a single row, got %#v", wantSingle, got)
 	}
 }
 

@@ -4,48 +4,10 @@ package contracts
 // requestcapture/sanitizer.go already imports contracts, so
 // CaptureCorrelations/CaptureOperationRef below are a local, English mirror
 // of requestcapture.Correlations/OperationRef (deliberate drift from
-// design.md's `requestcapture.Correlations` field type; app_captures.go maps
+// design.md's `requestcapture.Correlations` field type; app_capture_detail.go maps
 // the reader's type into this one at the binding boundary).
 
-// CaptureQuery is the in-process query DTO for ListCaptureTransactions
-// (design.md "Bound surface"): a page request plus the optional filters
-// requestcapture.SearchFilters already supports. A zero value carries no
-// filters and the reader's default page size.
-type CaptureQuery struct {
-	Limit      int
-	Cursor     string
-	Route      string
-	Outcome    string
-	Kind       string
-	AnimeID    string
-	ErrorCode  string
-	HTTPStatus *int
-	StartMS    *int64
-	EndMS      *int64
-	// DeviceID mirrors requestcapture.SearchFilters.DeviceID. Both it and
-	// ChangelogID were already accepted by the reader and already translated
-	// to SQL; only this DTO and its mapper lacked them, which is what kept the
-	// two filters out of reach of the desktop app.
-	DeviceID string
-	// ChangelogID stays a pointer to match the reader exactly: 0 is a valid
-	// changelog id, so a value type could not tell "no filter" from
-	// "changelog 0".
-	ChangelogID *int64
-}
-
-// CaptureResolveCandidate is one request capture selected by an imprecise
-// reference.
-type CaptureResolveCandidate struct {
-	RequestID string `json:"requestId"`
-}
-
-// CaptureResolveResult is the ranked candidate list returned by
-// ResolveCaptureTransactions. Candidates is always a non-nil slice.
-type CaptureResolveResult struct {
-	Candidates []CaptureResolveCandidate `json:"candidates"`
-}
-
-// CaptureRow is one transaction-list row: the fixed base projection fields
+// CaptureRow is the row part of a capture detail: the fixed base projection fields
 // every capture carries, regardless of the underlying schema version.
 type CaptureRow struct {
 	RequestID    string  `json:"requestId"`
@@ -58,19 +20,6 @@ type CaptureRow struct {
 	HTTPStatus   *int    `json:"httpStatus,omitempty"`
 	DurationMS   *int64  `json:"durationMs,omitempty"`
 	AnimeID      *string `json:"animeId,omitempty"`
-}
-
-// CapturePage is one ListCaptureTransactions page. Degraded is true when the
-// reader is unavailable (nil bridgeDB) or the underlying query failed --
-// Items is then an empty, never-nil slice so the frontend can range over it
-// without a nil check.
-type CapturePage struct {
-	Items                []CaptureRow `json:"items"`
-	NextCursor           string       `json:"nextCursor,omitempty"`
-	AppliedLimit         int          `json:"appliedLimit"`
-	MalformedRowsSkipped int          `json:"malformedRowsSkipped"`
-	WarningCount         int          `json:"warningCount"`
-	Degraded             bool         `json:"degraded"`
 }
 
 // CaptureOperationRef mirrors requestcapture.OperationRef (see the package
@@ -90,7 +39,7 @@ type CaptureCorrelations struct {
 	ActivityIDs   []int64               `json:"activityIds,omitempty"`
 }
 
-// CaptureDetail is one full transaction detail: the list row fields plus the
+// CaptureDetail is one full transaction detail: the row fields plus the
 // request/response payload, bodies, headers, correlations, and originating
 // device identity.
 type CaptureDetail struct {
@@ -105,64 +54,6 @@ type CaptureDetail struct {
 	Correlations      CaptureCorrelations `json:"correlations"`
 	DeviceID          string              `json:"deviceId"`
 	DeviceName        string              `json:"deviceName"`
-}
-
-// CaptureDetailResult is the GetCaptureTransaction result envelope: Found
-// distinguishes "no such request id" from a populated Item; Degraded marks a
-// reader-unavailable or query-error outcome (never a panic).
-type CaptureDetailResult struct {
-	Found    bool          `json:"found"`
-	Item     CaptureDetail `json:"item"`
-	Degraded bool          `json:"degraded"`
-}
-
-// CaptureSummaryQuery is the in-process query DTO for
-// SummarizeCaptureTransactions: the same optional filters CaptureQuery
-// accepts, minus pagination -- an aggregation has no page. It mirrors the
-// MCP's SummaryRequestsInput, which stands in the same relation to
-// SearchRequestsInput.
-type CaptureSummaryQuery struct {
-	Route       string
-	Outcome     string
-	Kind        string
-	AnimeID     string
-	ErrorCode   string
-	HTTPStatus  *int
-	StartMS     *int64
-	EndMS       *int64
-	DeviceID    string
-	ChangelogID *int64
-}
-
-// CaptureErrorSample is one bounded recent-error reference attached to a
-// summary group, so a failing group can be opened without a second query.
-type CaptureErrorSample struct {
-	RequestID    string `json:"requestId"`
-	CapturedAtMS int64  `json:"capturedAtMs"`
-	ErrorCode    string `json:"errorCode"`
-}
-
-// CaptureSummaryGroup is one (route, http_status, outcome) aggregation bucket.
-//
-// HTTPStatus stays a pointer for the same reason the filters do, and it is
-// load-bearing here: a websocket capture carries no HTTP status at all, and
-// measured 2026-08-30 those were 40.8% of the stored table. A value type would
-// report every one of them as status 0 -- a status the bridge never returned.
-type CaptureSummaryGroup struct {
-	Route              string               `json:"route"`
-	HTTPStatus         *int                 `json:"httpStatus,omitempty"`
-	Outcome            string               `json:"outcome"`
-	Count              int                  `json:"count"`
-	LatestErrorSamples []CaptureErrorSample `json:"latestErrorSamples"`
-}
-
-// CaptureSummary is one SummarizeCaptureTransactions result. Groups is a
-// never-nil slice so an unmatched filter set is a zeroed aggregation rather
-// than a null, and Degraded marks a reader-unavailable or query-error outcome
-// (never a panic) exactly as CapturePage does.
-type CaptureSummary struct {
-	Groups   []CaptureSummaryGroup `json:"groups"`
-	Degraded bool                  `json:"degraded"`
 }
 
 // DeviceSyncDiagnosticReport is one attributed device sync diagnostics
@@ -198,64 +89,10 @@ type DeviceSyncDiagnosticsQuery struct {
 // DeviceSyncDiagnosticsResult is the ListDeviceSyncDiagnostics result
 // envelope. Items is always a non-nil slice so the frontend can range over
 // it without a nil check; Degraded marks a reader-unavailable or query-error
-// outcome (never a panic) exactly as CapturePage does. Degraded,
+// outcome (never a panic). Degraded,
 // PreviousOutcome, PreviousElapsedMS and PreviousErrorFingerprint stay
 // pointers so an absent value is never rendered as zero.
 type DeviceSyncDiagnosticsResult struct {
 	Items    []DeviceSyncDiagnosticReport `json:"items"`
 	Degraded bool                         `json:"degraded"`
-}
-
-// ObservabilityFacts is the GetObservabilityFacts result envelope: the
-// desktop adapter's parity statement over the readcap catalog plus each
-// observability store's retention limit. Parity.ExposedCapabilities and
-// Parity.ExcludedCapabilities are never nil, and Degraded marks an unwired
-// observability read path, under which both blocks are zeroed rather than
-// partial.
-type ObservabilityFacts struct {
-	Parity     ObservabilityParityFacts     `json:"parity"`
-	Retention  ObservabilityRetentionLimits `json:"retention"`
-	SampleCaps ObservabilitySampleCaps      `json:"sampleCaps"`
-	Degraded   bool                         `json:"degraded"`
-}
-
-// ObservabilityParityFacts is the machine-readable parity statement for the
-// desktop adapter's observability read surfaces: the exposed capability
-// names, the excluded names with their registered mechanical reasons, and
-// the canonical catalog total the two lists partition. Both lists are never
-// nil so the wire never carries a JSON null.
-type ObservabilityParityFacts struct {
-	ExposedCapabilities  []string                          `json:"exposedCapabilities"`
-	ExcludedCapabilities []ObservabilityExcludedCapability `json:"excludedCapabilities"`
-	CatalogTotal         int                               `json:"catalogTotal"`
-}
-
-// ObservabilityExcludedCapability is one canonical read capability the
-// desktop adapter intentionally does not expose, with the mechanical reason
-// registered for its absence.
-type ObservabilityExcludedCapability struct {
-	Name   string `json:"name"`
-	Reason string `json:"reason"`
-}
-
-// ObservabilityRetentionLimits carries each observability store's retention
-// limit as reported by its owning package, so a surface can state how much
-// history each store keeps instead of copying a row cap into the UI.
-type ObservabilityRetentionLimits struct {
-	CaptureRows        int `json:"captureRows"`
-	EventRows          int `json:"eventRows"`
-	SyncDiagnosticRows int `json:"syncDiagnosticRows"`
-}
-
-// ObservabilitySampleCaps carries each summary's bounded sample size as
-// reported by its owning package: the runtime-event summary's newest-events
-// sample cap and the captured-request summary's per-group latest-error
-// sample cap, so a surface can state how much of each summary is shown
-// instead of copying the constant into the UI.
-type ObservabilitySampleCaps struct {
-	// EventSamples is the runtime-event summary's newest-events sample cap.
-	EventSamples int `json:"eventSamples"`
-	// CaptureErrorSamples is the captured-request summary's per-group
-	// latest-error sample cap.
-	CaptureErrorSamples int `json:"captureErrorSamples"`
 }

@@ -16,22 +16,27 @@ type Inserter interface {
 // QueueConfig defines bounded queue behavior.
 type QueueConfig struct {
 	Capacity int
+	// OnPersist fires exactly once per record, after Inserter.InsertEvent
+	// succeeds for it, from the single serialized drain goroutine. Nil is a
+	// safe no-op. It mirrors requestcapture.QueueConfig.OnPersist.
+	OnPersist func(EventRecord)
 }
 
 // Queue is the non-blocking event-persistence worker. It mirrors
 // requestcapture.Queue's zero-wait enqueue and single serialized drain
 // goroutine exactly, over EventRecord instead of CaptureRecord.
 type Queue struct {
-	store    Inserter
-	ch       chan EventRecord
-	stopped  chan struct{}
-	stopOnce sync.Once
-	mu       sync.Mutex
-	stopping bool
-	err      atomic.Pointer[error]
-	dropped  atomic.Int64
-	queued   atomic.Int64
-	dequeued atomic.Int64
+	store     Inserter
+	onPersist func(EventRecord)
+	ch        chan EventRecord
+	stopped   chan struct{}
+	stopOnce  sync.Once
+	mu        sync.Mutex
+	stopping  bool
+	err       atomic.Pointer[error]
+	dropped   atomic.Int64
+	queued    atomic.Int64
+	dequeued  atomic.Int64
 }
 
 // NewQueue starts a bounded event-persistence worker.
@@ -41,9 +46,10 @@ func NewQueue(store Inserter, config QueueConfig) *Queue {
 		capacity = 256
 	}
 	queue := &Queue{
-		store:   store,
-		ch:      make(chan EventRecord, capacity),
-		stopped: make(chan struct{}),
+		store:     store,
+		onPersist: config.OnPersist,
+		ch:        make(chan EventRecord, capacity),
+		stopped:   make(chan struct{}),
 	}
 	go queue.run()
 	return queue
@@ -58,8 +64,8 @@ func (q *Queue) run() {
 	}
 }
 
-// persist writes one record to the store from the single serialized drain
-// goroutine.
+// persist writes one record to the store and, only on success, notifies
+// OnPersist from this single serialized drain goroutine.
 func (q *Queue) persist(record EventRecord) {
 	if q.store == nil {
 		return
@@ -68,6 +74,10 @@ func (q *Queue) persist(record EventRecord) {
 	defer cancel()
 	if err := q.store.InsertEvent(ctx, record); err != nil {
 		q.setErr(err)
+		return
+	}
+	if q.onPersist != nil {
+		q.onPersist(record)
 	}
 }
 
