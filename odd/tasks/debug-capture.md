@@ -64,10 +64,10 @@ Checklist for T7, in the first commit that creates the new Activity folder:
 | T3b | S1 | P2: logger timestamps in ms; all 20,001 `runtime_events` rows on the dev copy sit on whole seconds (`logger.go:57`, `sink.go:169`) | inline | done: ditto 0 mutants (constant only); hand mutation = the observed RED |
 | T3c | S1 | P1: `error_message` on `request_captures`; the WS path keeps the `err` it already has; middleware records the cause for 4xx/5xx | inline | done: `d7be2d38`, `871e2608`; mutation 1/1, 6/6, 1/1; migration verified on a dev-copy duplicate (5,008 rows); schema version kept at 5 so an older MCP build still reads the table |
 | T3d | S1, S6 | P3: request id in context, read/echo `X-Autoreas-Request-Id`; `docs/openapi.yaml` announcement first | inline | done: `0f7591e2`, `11400406`, `ce561e39`; the bridge keeps its own `request_id` as the row key (a client id as key could overwrite another row), the client id goes to `client_request_id`; mutation 3/3 plus two hand mutations of the pattern |
-| T3d2 | S1 | P3 propagation: join a request to the write it caused. Today nothing links them: `operation_refs` holds anime/operation/outcome but no operation id, `newAnimeChangedEvent` drops `OperationID`, and `AnimeChangedEvent.CorrelationID` is never set. Plan: the write operation records the bridge request id from the context; the capture row's operation refs gain the operation id (additive JSON field); `anime.changed` carries the operation id as its correlation id; the instrumented bus logs it | inline | pending: Risk item 1 (additive column on `anime_write_operations`), independent verifier |
-| T3e | S1 | P7: Wails binding plus global `error`/`unhandledrejection` handler and an error boundary | inline | pending |
+| T3d2 | S1 | P3 propagation: join a request to the write it caused. Today nothing links them: `operation_refs` holds anime/operation/outcome but no operation id, `newAnimeChangedEvent` drops `OperationID`, and `AnimeChangedEvent.CorrelationID` is never set. Plan: the write operation records the bridge request id from the context; the capture row's operation refs gain the operation id (additive JSON field); `anime.changed` carries the operation id as its correlation id; the instrumented bus logs it | delegated (parallel writer) | done: `4722804a`, verifier pass |
+| T3e | S1 | P7: Wails binding plus global `error`/`unhandledrejection` handler and an error boundary | delegated (parallel writer) | done: `0b3137aa`, verifier pass |
 | T3f | S1 | incremental vacuum (`auto_vacuum=INCREMENTAL`, one-time `VACUUM`, periodic `incremental_vacuum`) | inline | pending: Risk item 1 (storage layout) |
-| T3g | S1 | trigger classifier (pure): 5xx, 4xx, rejected, >1,000 ms, mobile failure report, internal error event; consumed by stage 4 | inline | pending |
+| T3g | S1 | trigger classifier (pure): 5xx, 4xx, rejected, >1,000 ms, mobile failure report, internal error event; consumed by stage 4 | delegated (parallel writer) | done: `e2e5d534`, verifier pass |
 | T3h | S1 | metadata audit of internal events (17 `Metadata:` sites in 10 files) | inline | pending |
 | T4 | S6 | stage 2: mobile correlation header | to plan | pending |
 | T5 | S1 | stage 3: ledger | to plan | pending |
@@ -130,3 +130,29 @@ Checklist for T7, in the first commit that creates the new Activity folder:
       sequentially.
     - The parent commits.
   - T3a–T3d committed through `7a4a7587` (correlation helper moved to the leaf package `internal/correlation`).
+- L12 (2026-10-17): an independent verifier passed T3d2, T3e and T3g with no blockers. Commits: `e2e5d534`
+  (T3g), `4722804a` (T3d2), `0b3137aa` (T3e).
+  - Mutation:
+    - T3d2 (CORE): ditto found 0 mutants, so 7/7 hand mutations were run, all killed.
+    - T3g (CORE): 54/55. The survivor (`499 → 500`) is equivalent.
+    - T3e Go (IMPORTANT): equivalents proven. 7 constant-limit survivors are skipped because they only
+      change the amount of diagnostic text kept.
+    - T3e frontend: 92.31%. The remaining survivors are equivalent, except `reloadWindow`, which jsdom
+      cannot observe. It is skipped and recorded as IMPORTANT.
+  - Migration probe on a dev-copy duplicate: 748 write operations were preserved with `request_id = ''`.
+    The `anime_snapshots` hash is unchanged, and integrity is ok.
+  - Gates:
+    - Go lint is clean, and `go test ./...` passes.
+    - The full frontend suite passes (4,166 tests), and `render:smoke` renders.
+    - `bun run lint` reports 46 errors in 28 files this branch never touched (require-jsdoc,
+      role-file-shape). That looks pre-existing, but it is unproven at the baseline, so it gets checked
+      before delivery.
+  - Decisions on the advisories:
+    - (a) The planned operation-id field on `operation_refs` is dropped: the join already works through
+      `anime_write_operations.request_id`.
+    - (b) `bus.publish` is debug level, and debug lines are not persisted by default, so the event-side
+      correlation id reaches stdout but not `runtime_events`. This is an input for the T5 event ledger.
+    - (c) `/ws` gets no correlation, and the phone sends no frames.
+    - The T3g reading "slow during startup never triggers" stands until stage 4 says otherwise.
+  - Flake identified: `TestLoggedEventSurvivesBridgeRestart` in `internal/desktop`. It predates this work:
+    it reproduced at baseline in 1 of 8 runs. A nil `bridgeDB` panic at `app.go:405` masks its startup error.
