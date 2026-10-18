@@ -215,6 +215,9 @@ func buildWSTerminalCaptureRecord(requestID string, startedAt time.Time, message
 	record.Device = requestcapture.DeviceIdentity{DeviceID: device.DeviceID, Name: device.Name}
 	record.Outcome = outcome.outcome
 	record.ErrorCode = outcome.errorCode
+	if outcome.err != nil {
+		record.ErrorMessage = outcome.err.Error()
+	}
 	record.Payload = requestcapture.ReconcilePayload(message.ReconcileRequest)
 	record.Correlations = outcome.correlations
 	if outcome.errorCode != "" {

@@ -3,6 +3,7 @@ package api
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -76,7 +77,7 @@ func captureRequest(next http.Handler, w http.ResponseWriter, r *http.Request, c
 		terminal := buildTerminalCaptureRecord(terminalCapture{
 			requestID: requestID, startedAt: startedAt, kind: kind, route: r.URL.Path,
 			writer: writer, requestHeaders: requestHeaders, requestBody: requestBody,
-			enrichment: enr, panicked: recovered != nil,
+			enrichment: enr, panicked: recovered != nil, panicValue: recovered,
 		})
 		terminalAccepted := capture(terminal)
 		if arrivalAccepted && !terminalAccepted && persistTerminal != nil {
@@ -109,6 +110,7 @@ func buildTerminalCaptureRecord(c terminalCapture) requestcapture.CaptureRecord 
 		transport.ResponseBody = requestcapture.SanitizeResponseBody(c.writer.body)
 	}
 	transport.ResponseBodyState = c.writer.bodyState
+	transport.ErrorMessage = failureCause(status, c.panicValue, c.writer.body)
 	merged := requestcapture.MergeEnrichment(transport, c.enrichment)
 	if merged.Outcome == "pending" {
 		merged.Outcome = "completed"
@@ -130,6 +132,7 @@ type terminalCapture struct {
 	requestBody    requestBodyCapture
 	enrichment     *requestcapture.CaptureEnrichment
 	panicked       bool
+	panicValue     any
 }
 
 type requestBodyCapture struct {
@@ -271,4 +274,23 @@ func (w *capturingResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) 
 		return nil, nil, fmt.Errorf("api: underlying ResponseWriter does not implement http.Hijacker")
 	}
 	return hijacker.Hijack()
+}
+
+// failureCause derives the cause of a failed exchange (P1) when the handler
+// set none: the panic value, or the "error" field every handler writes through
+// writeJSONError. A success, or a failure without that field, has no cause.
+func failureCause(status int, panicValue any, body []byte) string {
+	if panicValue != nil {
+		return fmt.Sprintf("panic: %v", panicValue)
+	}
+	if status < http.StatusBadRequest {
+		return ""
+	}
+	var payload struct {
+		Error string `json:"error"`
+	}
+	if json.Unmarshal(body, &payload) != nil {
+		return ""
+	}
+	return payload.Error
 }
