@@ -69,6 +69,7 @@ type App struct {
 	animeChangedPublisher      anime.CommittedPublisher
 	episodeService             episodeCommandService
 	syncChangelogRecorder      changelogRecorder
+	seasonProjectionPublisher  *bridgeSync.SeasonProjectionPublisher
 	realtimeHub                realtime.Hub
 	httpServer                 api.Server
 	captureQueue               captureQueue
@@ -385,6 +386,9 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 	if closer, ok := a.realtimeHub.(interface{ Close() error }); ok && closer != nil {
 		_ = closer.Close()
+	}
+	if a.seasonProjectionPublisher != nil {
+		a.seasonProjectionPublisher.Stop()
 	}
 	if a.syncChangelogRecorder != nil {
 		a.syncChangelogRecorder.Stop()

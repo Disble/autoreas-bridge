@@ -61,6 +61,9 @@ type MobileAnime struct {
 	// and the changes feed). Long is decided by Bridge, so Mobile computes nothing. omitempty: an
 	// anime with no stored duration omits the field, and an absent field means "no durations".
 	Episodes []EpisodeLength `json:"episodes,omitempty"`
+	// Season is the anime's candidacy in the open active season, joined when served to Mobile like
+	// Episodes and never stored. Absent means "not a candidate of an open season".
+	Season *MobileAnimeSeason `json:"season,omitempty"`
 	// ModifiedAt echoes the bridge-private OCC version token (SDD-30
 	// ADR-30-1/30-5) so the mobile client can round-trip it back as
 	// AnimePatch.Base on its next write. Always present (not a pointer):

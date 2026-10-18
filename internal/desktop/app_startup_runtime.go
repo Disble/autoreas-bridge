@@ -164,7 +164,7 @@ func (a *App) prepareAnimeRuntime(ctx context.Context) {
 func (a *App) buildHTTPServer(deviceService device.AuthService, animeWrite contracts.AnimePatcher, conflictService *bridgeSync.ConflictStore, statusService *bridgeSync.StatusService, syncTrigger *bridgeSync.TriggerService) api.Server {
 	// Mobile's two anime read ports serve each anime with its stored episode durations (S11)
 	// and its folder below the library root (ADR 027).
-	animeQuery, syncPort := withMobileProjection(a.bridgeDB, a.libraryRoot, a.animeQuery, syncTrigger)
+	animeQuery, syncPort := withMobileProjection(a.bridgeDB, a.libraryRoot, a.seasonProjection(), a.animeQuery, syncTrigger)
 	return a.newHTTPServer(api.Config{
 		Addr:                   a.resolveAPIAddr(),
 		DeviceService:          deviceService,

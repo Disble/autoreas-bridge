@@ -9,17 +9,14 @@ import (
 	"autoreas-bridge/internal/season/domain"
 )
 
-// activeSeasonCandidates maps graded season anime to active candidates.
+// activeSeasonCandidates maps the open season's candidacies (seasonCandidacies) to the
+// GET /api/seasons/active candidates.
 func activeSeasonCandidates(rows []domain.SeasonAnime) []contracts.ActiveSeasonCandidate {
-	candidates := make([]contracts.ActiveSeasonCandidate, 0, len(rows))
-	for _, row := range rows {
-		if row.AnimeID == "" {
-			continue
-		}
-		candidate := contracts.ActiveSeasonCandidate{AnimeID: row.AnimeID}
-		if row.IsGraded() {
-			grade := row.Grade
-			candidate.Grade = &grade
+	candidacies := seasonCandidacies("", rows)
+	candidates := make([]contracts.ActiveSeasonCandidate, 0, len(candidacies))
+	for _, candidacy := range candidacies {
+		candidate := contracts.ActiveSeasonCandidate{AnimeID: candidacy.AnimeID, Grade: candidacy.Grade}
+		if candidacy.Grade != nil {
 			candidate.GradeSource = "bridge"
 		}
 		candidates = append(candidates, candidate)

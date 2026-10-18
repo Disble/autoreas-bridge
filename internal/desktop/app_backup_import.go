@@ -7,6 +7,7 @@ import (
 
 	"autoreas-bridge/internal/anime/episodes"
 	"autoreas-bridge/internal/backup"
+	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/settings"
 	bridgeSync "autoreas-bridge/internal/sync"
@@ -111,5 +112,11 @@ func (a *App) ConfirmBackupImport(bundleChecksum string) (BackupImportResult, er
 	// failure before the restore point -- where there is nothing meaningful
 	// to report -- surfaces as a real error above.
 	report, applyErr := backup.Apply(a.appContext(), pending.path, a.importGroups())
+	// The season groups import with plain SQL, past the repository that signals season writes, so
+	// a phone would never hear of the restored candidacies. Even a partial import may have changed
+	// them, and a publication that finds nothing changed records nothing.
+	if a.eventBus != nil {
+		a.eventBus.Publish(events.SeasonProjectionChangedEvent{})
+	}
 	return newBackupImportResult(report, restorePointPath, applyErr), nil
 }

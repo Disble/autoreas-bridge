@@ -274,6 +274,29 @@ info:
     has never seen, because changes written before this fix, and creates
     behind a pruned changelog, are served as `update`.
 
+    2026-10-18 — season on the anime sync path consumer impact: ADDITIVE. Season
+    candidacy now travels with the anime instead of on season-only paths, so a
+    backgrounded phone learns it through reconcile.
+      - `Anime.season` (optional): `{seasonId, grade}`, present only while the
+        anime is a candidate of the open season; `grade` is `null` until graded
+        (1–6). Served by `GET /api/animes`, `GET /api/animes/{id}` and every
+        changes-feed `snapshot`, read when served and never stored.
+      - A candidacy change (becoming or ceasing to be a candidate, a grade
+        change, the season opening, closing or being replaced) records one
+        `update` per affected anime with `changed_fields: [season]`. Its
+        `snapshot` carries the anime's unchanged `modified_at`, and its
+        `timestamp` passes the anime's earlier changes. Connected phones get the
+        usual `anime_changed` notice; its payload is the stored snapshot, which
+        never carries `season`, so read `season` from reconcile.
+      - `ReconcileResponse.season_mode` (always present): true while a season is
+        open. The WebSocket `reconcile` message has no response and does not
+        carry it.
+      - `POST /api/seasons/active/ratings` accepts an optional `season_id`; a
+        grade for a season other than the open one answers the existing `404`.
+      - Unchanged in this release: `GET /api/seasons/active` and the
+        `season_changed` / `preferences_changed` WebSocket messages. They are
+        retired in a later release once Mobile reads season from the anime.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}
@@ -443,6 +466,28 @@ components:
             A change that only touched durations arrives as an ordinary
             `update` with `changed_fields: [episodes]`; it never moves
             `modified_at`.
+        season:
+          type: object
+          required: [seasonId, grade]
+          description: |
+            The anime's candidacy in the open season. Present only while the
+            anime is a candidate (a row of the open season linked to it);
+            absent means "not a candidate of an open season". Served by
+            `GET /api/animes`, `GET /api/animes/{id}` and in every
+            `AnimeChange.snapshot`, always read from the current season when
+            served and never stored. A change that only touched candidacy
+            arrives as an ordinary `update` with `changed_fields: [season]`; it
+            never moves `modified_at`.
+          properties:
+            seasonId:
+              type: string
+              description: The open season's id; send it back as `season_id` when rating.
+            grade:
+              type: integer
+              nullable: true
+              minimum: 1
+              maximum: 6
+              description: The bridge premiere grade; `null` until graded.
         modified_at:
           type: integer
           description: |
@@ -491,8 +536,9 @@ components:
             The anime as stored when this change was recorded, never an older
             copy: for one anime, a later change (higher changelog id) never
             carries an older snapshot than an earlier change. An update or create
-            is not recorded once the anime no longer exists. Only `episodes` is
-            read again when the change is served.
+            is not recorded once the anime no longer exists. Only `episodes`,
+            `folderRelative` and `season` are read again when the change is
+            served.
         timestamp:
           type: integer
           description: |
@@ -1821,7 +1867,8 @@ paths:
         Ingests a mobile-sourced premiere grade (1–6) for an anime in the open season.
         Wire fields are English (see ADR-007). Manual grades captured on the desktop are
         protected: a mobile write is rejected with `409` when a manual grade already exists.
-        A season_changed broadcast confirms a recorded grade.
+        A recorded grade reaches the anime as a `changed_fields: [season]` change
+        on the changes feed (and, until it is retired, a season_changed broadcast).
       security:
         - BearerAuth: []
       requestBody:
