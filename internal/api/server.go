@@ -55,9 +55,6 @@ type ConflictService = contracts.ConflictService
 // RecordSeasonRatingFunc aliases the season-rating command handler signature.
 type RecordSeasonRatingFunc = apiHandlers.RecordSeasonRatingFunc
 
-// ActiveSeasonSnapshotFunc aliases the active-season snapshot query signature.
-type ActiveSeasonSnapshotFunc = apiHandlers.ActiveSeasonSnapshotFunc
-
 // IngestTelemetryEventFunc aliases the telemetry ingestion seam signature.
 type IngestTelemetryEventFunc = apiHandlers.IngestTelemetryEventFunc
 
@@ -69,16 +66,17 @@ var ErrAnimeNotFound = contracts.ErrAnimeNotFound
 
 // Config wires the services and runtime dependencies used by the HTTP API.
 type Config struct {
-	Addr                   string
-	DeviceService          device.AuthService
-	AnimeQuery             AnimeQueryService
-	AnimeWrite             AnimePatcher
-	SyncTrigger            SyncTriggerService
-	Status                 StatusReader
-	DeviceAdmin            DeviceAdminService
-	Conflicts              ConflictService
-	RecordSeasonRating     RecordSeasonRatingFunc
-	ActiveSeasonSnapshot   ActiveSeasonSnapshotFunc
+	Addr               string
+	DeviceService      device.AuthService
+	AnimeQuery         AnimeQueryService
+	AnimeWrite         AnimePatcher
+	SyncTrigger        SyncTriggerService
+	Status             StatusReader
+	DeviceAdmin        DeviceAdminService
+	Conflicts          ConflictService
+	RecordSeasonRating RecordSeasonRatingFunc
+	// SeasonMode reports whether a season is open, for the reconcile response.
+	SeasonMode             func(context.Context) bool
 	IngestTelemetryEvent   IngestTelemetryEventFunc
 	CoverThumbnails        contracts.CoverThumbnailService
 	RealtimeHub            realtime.Hub

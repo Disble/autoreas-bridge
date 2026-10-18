@@ -35,8 +35,6 @@ type Hub interface {
 	Register(ctx context.Context, client Client) error
 	Unregister(clientID string)
 	BroadcastAnimeChanged(ctx context.Context, event events.AnimeChangedEvent)
-	BroadcastPreferencesChanged(ctx context.Context, seasonMode bool)
-	BroadcastSeasonChanged(ctx context.Context, seasonID, status string)
 	// ConnectedDeviceIDs returns the distinct device IDs with at least one
 	// live client connection. A device with two clients (e.g. across a
 	// reconnect) counts once.
@@ -193,55 +191,6 @@ func (h *MemoryHub) BroadcastAnimeChanged(_ context.Context, event events.AnimeC
 	message := buildAnimeEventMessage(event)
 	animeID := event.AnimeID
 	captureHubBroadcast(h.capture, &animeID, map[string]any{"anime_id": event.AnimeID, "change_type": event.ChangeType})
-
-	select {
-	case h.broadcasts <- message:
-	default:
-	}
-}
-
-// BroadcastPreferencesChanged fan-outs preference changes to connected clients.
-func (h *MemoryHub) BroadcastPreferencesChanged(_ context.Context, seasonMode bool) {
-	h.mu.RLock()
-	clientCount := len(h.clients)
-	h.mu.RUnlock()
-
-	if h.logger != nil {
-		h.logger.Logf("websocket", sharedlogger.LevelInfo, sharedlogger.Fields{
-			EventType: websocketBroadcastEventType,
-			Metadata:  map[string]any{"clientCount": clientCount, "seasonMode": seasonMode},
-		}, "broadcast preferences.changed (seasonMode=%v)", seasonMode)
-	}
-	message := mustJSON(PreferencesChangedMessage{
-		Type:       MessageTypePreferencesChanged,
-		SeasonMode: seasonMode,
-	})
-	captureHubBroadcast(h.capture, nil, map[string]any{"season_mode": seasonMode})
-
-	select {
-	case h.broadcasts <- message:
-	default:
-	}
-}
-
-// BroadcastSeasonChanged fan-outs active-season updates to connected clients.
-func (h *MemoryHub) BroadcastSeasonChanged(_ context.Context, seasonID, status string) {
-	h.mu.RLock()
-	clientCount := len(h.clients)
-	h.mu.RUnlock()
-
-	if h.logger != nil {
-		h.logger.Logf("websocket", sharedlogger.LevelInfo, sharedlogger.Fields{
-			EventType: websocketBroadcastEventType,
-			Metadata:  map[string]any{"clientCount": clientCount, "seasonID": seasonID, "status": status},
-		}, "broadcast season.changed (id=%s status=%s)", seasonID, status)
-	}
-	message := mustJSON(SeasonChangedMessage{
-		Type:     MessageTypeSeasonChanged,
-		SeasonID: seasonID,
-		Status:   status,
-	})
-	captureHubBroadcast(h.capture, nil, map[string]any{"season_id": seasonID, "status": status})
 
 	select {
 	case h.broadcasts <- message:

@@ -325,6 +325,14 @@ func (s *Service) RunMatching(ctx context.Context, seasonID string) error {
 // rejected by an existing manual grade returns that row with ErrManualGradePresent
 // so the caller can surface the kept grade. Idempotent for mobile self-writes.
 func (s *Service) RecordPremiereGrade(ctx context.Context, animeID string, grade int, source domain.GradeSource, ratedAt time.Time) (domain.SeasonAnime, error) {
+	return s.RecordPremiereGradeInSeason(ctx, "", animeID, grade, source, ratedAt)
+}
+
+// RecordPremiereGradeInSeason is RecordPremiereGrade for a grade given in seasonID: a grade
+// queued offline for a season that has since closed is not a candidate of the open one, so a
+// seasonID other than the open season's returns ErrNotSeasonCandidate. An empty seasonID accepts
+// the open season.
+func (s *Service) RecordPremiereGradeInSeason(ctx context.Context, seasonID, animeID string, grade int, source domain.GradeSource, ratedAt time.Time) (domain.SeasonAnime, error) {
 	if grade < 1 || grade > 6 {
 		return domain.SeasonAnime{}, ErrInvalidGrade
 	}
@@ -335,7 +343,7 @@ func (s *Service) RecordPremiereGrade(ctx context.Context, animeID string, grade
 	if err != nil {
 		return domain.SeasonAnime{}, err
 	}
-	if active == nil {
+	if active == nil || (seasonID != "" && seasonID != active.ID) {
 		return domain.SeasonAnime{}, ErrNotSeasonCandidate
 	}
 	rows, err := s.repo.ListSeasonAnimes(ctx, active.ID)

@@ -21,6 +21,8 @@ type SyncHandlerConfig struct {
 	TriggerReconcile   TriggerReconcileFunc
 	ListChangesAfterID ListChangesAfterIDFunc
 	AcknowledgeDevice  AcknowledgeDeviceFunc
+	// SeasonMode reports whether a season is open; nil reports false.
+	SeasonMode func(context.Context) bool
 }
 
 // NewSyncHandler builds the POST /api/sync/reconcile transport adapter. It is
@@ -63,7 +65,7 @@ func NewSyncHandler(config SyncHandlerConfig) http.Handler {
 			enrichReconcileRejection(enr, req, "list_changes_failed", appliedOperations)
 			return
 		}
-		writeJSON(w, http.StatusAccepted, ReconcileResponse{Status: "accepted", LastChangelogID: lastID, AppliedOperations: appliedOperations, BridgeChanges: changes, Conflicts: []any{}})
+		writeJSON(w, http.StatusAccepted, ReconcileResponse{Status: "accepted", LastChangelogID: lastID, AppliedOperations: appliedOperations, BridgeChanges: changes, Conflicts: []any{}, SeasonMode: config.SeasonMode != nil && config.SeasonMode(r.Context())})
 		enr.SetOutcome("accepted").SetPayload(requestcapture.ReconcilePayload(req)).SetOperationRefs(operationRefsFromAppliedOperations(appliedOperations)).AddChangelogIDs(changelogIDsFromChanges(changes)...)
 	})
 }

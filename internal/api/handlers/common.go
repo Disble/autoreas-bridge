@@ -40,12 +40,6 @@ type ReconcileRequest = contracts.ReconcileRequest
 // ReconcileResponse aliases the mobile reconcile response contract.
 type ReconcileResponse = contracts.ReconcileResponse
 
-// ActiveSeasonSnapshot aliases the active-season snapshot payload for mobile clients.
-type ActiveSeasonSnapshot = contracts.ActiveSeasonSnapshot
-
-// ActiveSeasonCandidate aliases one candidate entry inside an active-season snapshot.
-type ActiveSeasonCandidate = contracts.ActiveSeasonCandidate
-
 // AuthenticateFunc authenticates an inbound transport request.
 type AuthenticateFunc func(w http.ResponseWriter, r *http.Request) (device.PairedDevice, bool)
 
@@ -141,12 +135,7 @@ type SeasonRatingResult struct {
 // RecordSeasonRatingFunc ingests one mobile-sourced grade for an anime in the
 // active season. ratedAtMs is the epoch-ms watch/grade moment. A non-nil error is
 // an infrastructure failure (HTTP 500); domain outcomes ride SeasonRatingResult.
-type RecordSeasonRatingFunc func(ctx context.Context, animeID string, grade int, ratedAtMs int64) (SeasonRatingResult, error)
-
-// ActiveSeasonSnapshotFunc returns the current active-season snapshot for mobile,
-// or (nil, nil) when no season is open (the handler maps nil to HTTP 404). A non-nil
-// error is an infrastructure failure (HTTP 500).
-type ActiveSeasonSnapshotFunc func(ctx context.Context) (*ActiveSeasonSnapshot, error)
+type RecordSeasonRatingFunc func(ctx context.Context, animeID string, grade int, ratedAtMs int64, seasonID string) (SeasonRatingResult, error)
 
 // IngestTelemetryEventFunc ingests one validated telemetry event. DeviceID and
 // ReportedAtMS on the event are populated by the caller from the authenticated
