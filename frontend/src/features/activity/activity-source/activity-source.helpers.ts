@@ -1,7 +1,16 @@
-import { GetActivityNow, PinActivityMoment } from '../../../../wailsjs/go/desktop/App';
+import {
+  GetActivityIncident,
+  GetActivityNow,
+  GetActivityRequest,
+  GetActivityRunStory,
+  ListActivityIncidents,
+  ListActivityRuns,
+  PinActivityMoment,
+} from '../../../../wailsjs/go/desktop/App';
 import type { activityread } from '../../../../wailsjs/go/models';
 import { EventsOn } from '../../../../wailsjs/runtime/runtime';
 import { createRuntimeSubscription, invokeGoBinding } from '../../../infrastructure/wails-bindings.helpers';
+import { mapActivityIncidentResult, mapActivityRequestResult, mapActivityRun, mapActivityRunStory } from './activity-incident.helpers';
 import {
   ACTIVITY_RECORDER_EVENT_NAME,
   ACTIVITY_RUNTIME_UNAVAILABLE_MESSAGE,
@@ -33,15 +42,22 @@ function mapStatusKind(kind: string): ActivityStatusKind {
   }
 }
 
+/**
+ * Whether a Go recorder source belongs to the closed union.
+ *
+ * @param source The `Source` field of a recorder row.
+ * @returns True for `request` and `event`.
+ */
+function isActivityRecorderSource(source: string): source is ActivityRecorderSource {
+  return source === 'request' || source === 'event';
+}
+
 /** Narrows a Go recorder source onto the closed union, throwing on drift. */
 function mapRecorderSource(source: string): ActivityRecorderSource {
-  switch (source) {
-    case 'request':
-    case 'event':
-      return source;
-    default:
-      throw new Error(`Unknown activity recorder source: ${source}`);
+  if (isActivityRecorderSource(source)) {
+    return source;
   }
+  throw new Error(`Unknown activity recorder source: ${source}`);
 }
 
 /** Maps one Go hour bar. */
@@ -55,8 +71,13 @@ function mapHourBar(bar: activityread.HourBar): ActivityHourBar {
   };
 }
 
-/** Maps one Go incident summary. */
-function mapIncidentSummary(summary: activityread.IncidentSummary): ActivityIncidentSummary {
+/**
+ * Maps one Go incident summary.
+ *
+ * @param summary One row of "Needs a look" or of the incident list.
+ * @returns The readonly summary.
+ */
+function mapActivityIncidentSummary(summary: activityread.IncidentSummary): ActivityIncidentSummary {
   return {
     latestId: summary.LatestID,
     fingerprint: summary.Fingerprint,
@@ -107,7 +128,7 @@ export function mapActivityNowView(view: activityread.NowView): ActivityNowView 
     openIncidents: view.OpenIncidents,
     changesToday: view.ChangesToday,
     hours: (view.Hours ?? []).map(mapHourBar),
-    needsALook: (view.NeedsALook ?? []).map(mapIncidentSummary),
+    needsALook: (view.NeedsALook ?? []).map(mapActivityIncidentSummary),
     recentChanges: (view.RecentChanges ?? []).map(mapChange),
   };
 }
@@ -153,8 +174,14 @@ export function createActivitySource(): ActivitySource {
     return ACTIVITY_SOURCE_STATE.sharedSource;
   }
 
+  // A live row from an unknown source is skipped: throwing inside the runtime
+  // callback would escape into Wails and drop nothing but this row anyway.
   const recorderSubscription = createRuntimeSubscription<ActivityRecorderEntry>((emit) => {
-    return EventsOn(ACTIVITY_RECORDER_EVENT_NAME, (payload: activityread.RecorderEntry) => emit(mapActivityRecorderEntry(payload)));
+    return EventsOn(ACTIVITY_RECORDER_EVENT_NAME, (payload: activityread.RecorderEntry) => {
+      if (isActivityRecorderSource(payload.Source)) {
+        emit(mapActivityRecorderEntry(payload));
+      }
+    });
   });
 
   const source: ActivitySource = {
@@ -166,6 +193,23 @@ export function createActivitySource(): ActivitySource {
     },
     subscribeRecorder(listener) {
       return recorderSubscription.subscribe(listener);
+    },
+    listIncidents(where) {
+      return invokeGoBinding('ListActivityIncidents', () => ListActivityIncidents(where), rejectRuntimeUnavailable).then((rows) =>
+        (rows ?? []).map(mapActivityIncidentSummary),
+      );
+    },
+    getIncident(id) {
+      return invokeGoBinding('GetActivityIncident', () => GetActivityIncident(id), rejectRuntimeUnavailable).then(mapActivityIncidentResult);
+    },
+    getRequest(requestId) {
+      return invokeGoBinding('GetActivityRequest', () => GetActivityRequest(requestId), rejectRuntimeUnavailable).then(mapActivityRequestResult);
+    },
+    listRuns(where) {
+      return invokeGoBinding('ListActivityRuns', () => ListActivityRuns(where), rejectRuntimeUnavailable).then((runs) => (runs ?? []).map(mapActivityRun));
+    },
+    getRunStory(correlationId) {
+      return invokeGoBinding('GetActivityRunStory', () => GetActivityRunStory(correlationId), rejectRuntimeUnavailable).then(mapActivityRunStory);
     },
   };
 

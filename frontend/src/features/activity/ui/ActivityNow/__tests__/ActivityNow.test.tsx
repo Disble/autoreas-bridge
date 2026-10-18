@@ -14,7 +14,7 @@ vi.mock('../../../activity-source/activity-source.helpers', () => ({
 
 /** A source whose Now read the test controls. */
 function createSource(getNow: ActivitySource['getNow']): ActivitySource {
-  return { getNow, pinMoment: vi.fn(), subscribeRecorder: () => () => undefined };
+  return { getNow, pinMoment: vi.fn(), subscribeRecorder: () => () => undefined, listIncidents: vi.fn(), getIncident: vi.fn(), getRequest: vi.fn(), listRuns: vi.fn(), getRunStory: vi.fn() };
 }
 
 /** Builds hour `index` of the 24, with data unless it falls in the gap. */

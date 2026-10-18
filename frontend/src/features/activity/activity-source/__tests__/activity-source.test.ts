@@ -239,6 +239,83 @@ describe('activity-source', () => {
     expect(off).toHaveBeenCalledTimes(1);
   });
 
+  it('skips a live recorder row from an unknown source without breaking the stream', async () => {
+    const handlers = new Map<string, (payload: unknown) => void>();
+    Reflect.set(window, 'runtime', {
+      EventsOnMultiple: (name: string, callback: (payload: unknown) => void) => {
+        handlers.set(name, callback);
+        return () => undefined;
+      },
+    });
+    const { createActivitySource } = await import('../activity-source.helpers');
+    const listener = vi.fn();
+
+    const unsubscribe = createActivitySource().subscribeRecorder(listener);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(() => handlers.get('activity.recorder')?.(goRecorderRow({ Source: 'mobile', ID: 'x' }))).not.toThrow();
+    handlers.get('activity.recorder')?.(goRecorderRow({ ID: 'req-2' }));
+    unsubscribe();
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledWith(expect.objectContaining({ source: 'request', id: 'req-2' }));
+  });
+
+  it('lists the incidents of one filter through ListActivityIncidents, a nil list as empty', async () => {
+    const list = vi
+      .fn()
+      .mockResolvedValueOnce([{ LatestID: 9, Fingerprint: 'fp', Reason: 'r', Title: 't', LatestAtMS: 2, FirstSeenAtMS: 1, Occurrences: 3, IsNew: false, IsError: true }])
+      .mockResolvedValueOnce(null);
+    attachBindings({ ListActivityIncidents: list });
+    const { createActivitySource } = await import('../activity-source.helpers');
+    const source = createActivitySource();
+
+    const incidents = await source.listIncidents('downloads');
+    const none = await source.listIncidents('all');
+
+    expect(list).toHaveBeenNthCalledWith(1, 'downloads');
+    expect(list).toHaveBeenNthCalledWith(2, 'all');
+    expect(incidents).toEqual([{ latestId: 9, fingerprint: 'fp', reason: 'r', title: 't', latestAtMs: 2, firstSeenAtMs: 1, occurrences: 3, isNew: false, isError: true }]);
+    expect(none).toEqual([]);
+  });
+
+  it('reads one incident and one request by id, a missing one as undefined', async () => {
+    const getIncident = vi.fn().mockResolvedValue({ found: false, detail: {} });
+    const getRequest = vi.fn().mockResolvedValue({ found: false, detail: {} });
+    attachBindings({ GetActivityIncident: getIncident, GetActivityRequest: getRequest });
+    const { createActivitySource } = await import('../activity-source.helpers');
+    const source = createActivitySource();
+
+    await expect(source.getIncident(42)).resolves.toBeUndefined();
+    await expect(source.getRequest('req-9')).resolves.toBeUndefined();
+    expect(getIncident).toHaveBeenCalledExactlyOnceWith(42);
+    expect(getRequest).toHaveBeenCalledExactlyOnceWith('req-9');
+  });
+
+  it('lists runs and reads a run story through their bindings', async () => {
+    const listRuns = vi.fn().mockResolvedValueOnce(null);
+    const getStory = vi.fn().mockResolvedValue({ CorrelationID: 'c-1', Steps: null, Truncated: false });
+    attachBindings({ ListActivityRuns: listRuns, GetActivityRunStory: getStory });
+    const { createActivitySource } = await import('../activity-source.helpers');
+    const source = createActivitySource();
+
+    await expect(source.listRuns('season')).resolves.toEqual([]);
+    await expect(source.getRunStory('c-1')).resolves.toEqual({ correlationId: 'c-1', steps: [], truncated: false });
+    expect(listRuns).toHaveBeenCalledExactlyOnceWith('season');
+    expect(getStory).toHaveBeenCalledExactlyOnceWith('c-1');
+  });
+
+  it('rejects every new read when the bindings never attach', async () => {
+    const { createActivitySource } = await import('../activity-source.helpers');
+    const source = createActivitySource();
+
+    const settled = [source.listIncidents('all'), source.getIncident(1), source.getRequest('r'), source.listRuns('all'), source.getRunStory('c')].map((read) =>
+      expect(read).rejects.toThrow('runtime unavailable'),
+    );
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await Promise.all(settled);
+  });
+
   it('rejects a recorder row from an unknown source', async () => {
     const { mapActivityRecorderEntry } = await import('../activity-source.helpers');
 

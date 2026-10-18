@@ -28,6 +28,11 @@ function createFakeSource(getNow: ActivitySource['getNow']) {
   const source: ActivitySource = {
     getNow,
     pinMoment: vi.fn(() => Promise.resolve()),
+    listIncidents: vi.fn(),
+    getIncident: vi.fn(),
+    getRequest: vi.fn(),
+    listRuns: vi.fn(),
+    getRunStory: vi.fn(),
     subscribeRecorder: (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
