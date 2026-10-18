@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	"autoreas-bridge/internal/api/contracts"
 	apiHandlers "autoreas-bridge/internal/api/handlers"
 	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/season"
@@ -45,7 +44,6 @@ func (a *App) CreateSeason(name string) string {
 	if _, err := a.seasonService.CreateSeason(a.seasonCtx(), name); err != nil {
 		return err.Error()
 	}
-	a.broadcastSeasonChanged()
 	return "ok"
 }
 
@@ -57,7 +55,6 @@ func (a *App) SetSeasonMinApprovalGrade(grade int) string {
 	if err := a.seasonService.SetMinApprovalGrade(a.seasonCtx(), grade); err != nil {
 		return err.Error()
 	}
-	a.broadcastSeasonChanged()
 	return "ok"
 }
 
@@ -69,7 +66,6 @@ func (a *App) SetSeasonSlots(slots int) string {
 	if err := a.seasonService.SetSlots(a.seasonCtx(), slots); err != nil {
 		return err.Error()
 	}
-	a.broadcastSeasonChanged()
 	return "ok"
 }
 
@@ -87,7 +83,6 @@ func (a *App) CloseSeason() string {
 	if err := a.seasonService.CloseSeason(a.seasonCtx(), closureJSON); err != nil {
 		return err.Error()
 	}
-	a.broadcastSeasonChanged()
 	return "ok"
 }
 
@@ -205,7 +200,6 @@ func (a *App) ResolveSeasonMatch(rowID, pageURL string) string {
 		return err.Error()
 	}
 	a.recheckResolvedRow(rowID)
-	a.broadcastSeasonChanged()
 	return "ok"
 }
 
@@ -236,7 +230,6 @@ func (a *App) DiscardSeasonName(rowID string) string {
 	if err := a.seasonService.DiscardName(a.seasonCtx(), rowID); err != nil {
 		return err.Error()
 	}
-	a.broadcastSeasonChanged()
 	return "ok"
 }
 
@@ -248,7 +241,6 @@ func (a *App) RestoreSeasonName(rowID string) string {
 	if err := a.seasonService.RestoreName(a.seasonCtx(), rowID); err != nil {
 		return err.Error()
 	}
-	a.broadcastSeasonChanged()
 	return "ok"
 }
 
@@ -262,7 +254,6 @@ func (a *App) SetSeasonGrade(animeID string, grade int) string {
 	if _, err := a.seasonService.RecordPremiereGrade(a.seasonCtx(), animeID, grade, domain.GradeSourceManual, time.Now()); err != nil {
 		return err.Error()
 	}
-	a.broadcastSeasonChanged()
 	return "ok"
 }
 
@@ -275,7 +266,6 @@ func (a *App) SkipSeasonGrading(rowID string) string {
 	if err := a.seasonService.SkipGrading(a.seasonCtx(), rowID); err != nil {
 		return err.Error()
 	}
-	a.broadcastSeasonChanged()
 	return "ok"
 }
 
@@ -288,7 +278,6 @@ func (a *App) SaveSeasonOrderingDraft(draftJSON string) string {
 	if err := a.seasonService.SaveOrderingDraft(a.seasonCtx(), draftJSON); err != nil {
 		return err.Error()
 	}
-	a.broadcastSeasonChanged()
 	return "ok"
 }
 
@@ -303,7 +292,6 @@ func (a *App) ApplySeasonSchedule() ApplyScheduleDTO {
 	if err != nil {
 		return ApplyScheduleDTO{Status: err.Error(), Applied: res.Applied, Failed: res.Failed}
 	}
-	a.broadcastSeasonChanged()
 	status := "ok"
 	if len(res.Failed) > 0 {
 		status = "partial"
@@ -319,7 +307,6 @@ func (a *App) ReopenSeasonOrdering() string {
 	if err := a.seasonService.ReopenOrdering(a.seasonCtx()); err != nil {
 		return err.Error()
 	}
-	a.broadcastSeasonChanged()
 	return "ok"
 }
 
@@ -339,7 +326,6 @@ func (a *App) withActiveSeason(fn func(seasonID string) error) string {
 	if err := fn(active.ID); err != nil {
 		return err.Error()
 	}
-	a.broadcastSeasonChanged()
 	return "ok"
 }
 
@@ -368,7 +354,6 @@ func (a *App) CreateSeasonAnimes(rowIDs []string, folders map[string]string, met
 	if _, err := a.seasonService.CreateSeasonAnimes(a.seasonCtx(), rowIDs, root, folders, metadata); err != nil {
 		return err.Error()
 	}
-	a.broadcastSeasonChanged()
 	return "ok"
 }
 
@@ -381,7 +366,6 @@ func (a *App) SetSeasonConsideration(rowID, consideration string) string {
 	if err := a.seasonService.SetConsideration(a.seasonCtx(), rowID, domain.Consideration(consideration)); err != nil {
 		return err.Error()
 	}
-	a.broadcastSeasonChanged()
 	return "ok"
 }
 
@@ -397,7 +381,6 @@ func (a *App) SetSeasonAnimeMetadata(rowID, metadataJSON string) string {
 	if err := a.seasonService.SetSeasonAnimeMetadata(a.seasonCtx(), rowID, metadataJSON); err != nil {
 		return err.Error()
 	}
-	a.broadcastSeasonChanged()
 	return "ok"
 }
 
@@ -416,13 +399,13 @@ func (a *App) ConfirmSeasonSelection() ConfirmSelectionDTO {
 			QuotaExceeded: errors.Is(err, season.ErrQuotaExceeded),
 		}
 	}
-	a.broadcastSeasonChanged()
 	return ConfirmSelectionDTO{Status: "ok", Approved: res.Approved, Rejected: res.Rejected}
 }
 
 // recordSeasonRating is the API seam for mobile-sourced grade ingestion: it maps
-// the season service's domain outcomes to the transport-neutral result the HTTP/WS
-// handlers translate into status codes, and broadcasts season_changed on success.
+// the season service's domain outcomes to the transport-neutral result the HTTP
+// handler translates into status codes. A recorded grade reaches Mobile as a ["season"]
+// changelog row written by the season projection publisher.
 // Returns nil when the season feature is unavailable (the route then reports 503).
 func (a *App) recordSeasonRating() apiHandlers.RecordSeasonRatingFunc {
 	if a.seasonService == nil {
@@ -432,7 +415,6 @@ func (a *App) recordSeasonRating() apiHandlers.RecordSeasonRatingFunc {
 		row, err := a.seasonService.RecordPremiereGradeInSeason(ctx, seasonID, animeID, grade, domain.GradeSourceMobileSync, time.UnixMilli(ratedAtMs))
 		switch {
 		case err == nil:
-			a.broadcastSeasonChanged()
 			return apiHandlers.SeasonRatingResult{Outcome: apiHandlers.SeasonRatingRecorded}, nil
 		case errors.Is(err, season.ErrInvalidGrade):
 			return apiHandlers.SeasonRatingResult{Outcome: apiHandlers.SeasonRatingInvalidGrade}, nil
@@ -443,29 +425,5 @@ func (a *App) recordSeasonRating() apiHandlers.RecordSeasonRatingFunc {
 		default:
 			return apiHandlers.SeasonRatingResult{}, err
 		}
-	}
-}
-
-// activeSeasonSnapshot projects the open season and its linked, graded candidates
-// into the mobile GET /api/seasons/active read-model. Returns (nil, nil) when no
-// season is open so the handler answers 404. Only rows already linked to a real
-// anime (AnimeID != "") are candidates; ungraded rows carry a nil grade.
-func (a *App) activeSeasonSnapshot() apiHandlers.ActiveSeasonSnapshotFunc {
-	if a.seasonService == nil {
-		return nil
-	}
-	return func(ctx context.Context) (*contracts.ActiveSeasonSnapshot, error) {
-		active, err := a.seasonService.ActiveSeason(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if active == nil {
-			return nil, nil
-		}
-		rows, err := a.seasonService.ListSeasonAnimes(ctx, active.ID)
-		if err != nil {
-			return nil, err
-		}
-		return &contracts.ActiveSeasonSnapshot{SeasonID: active.ID, Candidates: activeSeasonCandidates(rows)}, nil
 	}
 }

@@ -19,7 +19,6 @@ type Handler struct {
 	patchAnime             http.Handler
 	syncReconcile          http.Handler
 	seasonRatings          http.Handler
-	activeSeason           http.Handler
 	syncDiagnostics        http.Handler
 	animeCover             http.Handler
 	mux                    *http.ServeMux
@@ -34,7 +33,6 @@ func NewHandler(config Config) http.Handler {
 	h.patchAnime = apiHandlers.NewPatchAnimeHandler(buildPatchAnimeConfig(h, config))
 	h.syncReconcile = apiHandlers.NewSyncHandler(buildSyncHandlerConfig(h, config))
 	h.seasonRatings = buildSeasonRatingHandler(h, config)
-	h.activeSeason = buildActiveSeasonHandler(h, config)
 	h.syncDiagnostics = buildSyncDiagnosticsHandler(h, config)
 	h.animeCover = buildAnimeCoverHandler(h, config)
 	h.mux = buildHandlerMux(h, config)
@@ -84,14 +82,6 @@ func buildSeasonRatingHandler(h *Handler, config Config) http.Handler {
 	return apiHandlers.NewSeasonRatingHandler(apiHandlers.SeasonRatingConfig{Authenticate: h.authenticate, RecordRating: config.RecordSeasonRating})
 }
 
-// buildActiveSeasonHandler creates the active-season handler when configured.
-func buildActiveSeasonHandler(h *Handler, config Config) http.Handler {
-	if config.ActiveSeasonSnapshot == nil {
-		return nil
-	}
-	return apiHandlers.NewActiveSeasonHandler(apiHandlers.ActiveSeasonConfig{Authenticate: h.authenticate, Snapshot: config.ActiveSeasonSnapshot})
-}
-
 // buildSyncDiagnosticsHandler creates the sync-diagnostics ingestion handler
 // when configured. A nil seam still builds the handler so it reports 503
 // itself, matching NewSyncDiagnosticsHandler's own nil-safe contract. The kind
@@ -120,7 +110,6 @@ func buildHandlerMux(h *Handler, config Config) *http.ServeMux {
 		{path: "/api/conflicts/", handler: h.handleConflictByID},
 		{path: "/api/sync/reconcile", handler: h.handleSyncReconcile},
 		{path: "/api/sync/diagnostics", handler: h.syncDiagnostics.ServeHTTP},
-		{path: "/api/seasons/active", handler: h.handleActiveSeason},
 		{path: "/api/seasons/active/ratings", handler: h.handleSeasonRatings},
 	} {
 		mux.HandleFunc(route.path, route.handler)
@@ -140,11 +129,10 @@ func registerWebSocketRoute(mux *http.ServeMux, h *Handler, config Config) {
 // buildWebSocketHandlerConfig assembles dependencies for the websocket handler.
 func buildWebSocketHandlerConfig(h *Handler, config Config) apiHandlers.WebSocketHandlerConfig {
 	wsConfig := apiHandlers.WebSocketHandlerConfig{
-		Authenticate:       h.authenticateWebSocket,
-		Capture:            config.Capture,
-		RecordSeasonRating: config.RecordSeasonRating,
-		Hub:                config.RealtimeHub,
-		Logger:             config.Logger,
+		Authenticate: h.authenticateWebSocket,
+		Capture:      config.Capture,
+		Hub:          config.RealtimeHub,
+		Logger:       config.Logger,
 	}
 	if config.AnimeWrite != nil {
 		wsConfig.ApplyPendingPatch = apiHandlers.AdaptAnimePatchWriter(config.AnimeWrite)
@@ -296,15 +284,6 @@ func (h *Handler) handleSeasonRatings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.seasonRatings.ServeHTTP(w, r)
-}
-
-// handleActiveSeason dispatches active-season snapshot requests.
-func (h *Handler) handleActiveSeason(w http.ResponseWriter, r *http.Request) {
-	if h.activeSeason == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "active season unavailable")
-		return
-	}
-	h.activeSeason.ServeHTTP(w, r)
 }
 
 // handleAnimeChanges serves changelog entries after the requested identifier.

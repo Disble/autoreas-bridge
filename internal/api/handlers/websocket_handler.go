@@ -32,14 +32,13 @@ func wsRejectResponseBody(errorCode string) *string {
 
 // WebSocketHandlerConfig wires the dependencies required by the realtime socket adapter.
 type WebSocketHandlerConfig struct {
-	Authenticate       AuthenticateFunc
-	ApplyPendingPatch  PatchAnimeFunc
-	TriggerReconcile   TriggerReconcileFunc
-	AcknowledgeDevice  AcknowledgeDeviceFunc
-	RecordSeasonRating RecordSeasonRatingFunc
-	Capture            CaptureFunc
-	Hub                realtime.Hub
-	Logger             sharedlogger.Logger
+	Authenticate      AuthenticateFunc
+	ApplyPendingPatch PatchAnimeFunc
+	TriggerReconcile  TriggerReconcileFunc
+	AcknowledgeDevice AcknowledgeDeviceFunc
+	Capture           CaptureFunc
+	Hub               realtime.Hub
+	Logger            sharedlogger.Logger
 }
 
 var websocketClientSequence atomic.Uint64
@@ -106,29 +105,15 @@ func serveWebSocketMessages(ctx context.Context, device device.PairedDevice, con
 type incomingWebSocketMessage struct {
 	Type string `json:"type"`
 	contracts.ReconcileRequest
-	// Season-rating fields (SDD-44), present only on a "season_rating" message.
-	AnimeID string `json:"anime_id"`
-	Grade   int    `json:"grade"`
-	RatedAt int64  `json:"rated_at"`
 }
 
 // handleIncomingWebSocketMessage decodes and dispatches one client message.
 // Capture only ever brackets a reconcile message (isIncomingReconcileMessage):
-// season_rating is fire-and-forget (no ack, no reconcile -- confirmation
-// reaches clients via the season_changed broadcast) and any other frame type
-// is a silent no-op, both uncaptured.
+// any other frame type is a silent, uncaptured no-op.
 func handleIncomingWebSocketMessage(ctx context.Context, device device.PairedDevice, payload []byte, config WebSocketHandlerConfig, connHeaders map[string]string) error {
 	var message incomingWebSocketMessage
 	if err := json.Unmarshal(payload, &message); err != nil {
 		return nil
-	}
-
-	if message.Type == "season_rating" {
-		if config.RecordSeasonRating == nil {
-			return nil
-		}
-		_, err := config.RecordSeasonRating(ctx, message.AnimeID, message.Grade, message.RatedAt, "")
-		return err
 	}
 
 	if !isIncomingReconcileMessage(message) {

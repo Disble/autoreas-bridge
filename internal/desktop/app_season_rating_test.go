@@ -22,13 +22,6 @@ func seedRatingApp(t *testing.T, hub *stubAppRealtimeHub) *App {
 	row.Availability = domain.AvailabilityCreated
 	row.AnimeID = "anime-a"
 	_ = repo.CreateSeasonAnime(context.Background(), row)
-	// drain the create broadcast
-	if hub != nil {
-		select {
-		case <-hub.seasonChanges:
-		default:
-		}
-	}
 	return app
 }
 
@@ -40,9 +33,9 @@ func TestRecordSeasonRatingUnavailableWhenServiceNil(t *testing.T) {
 	}
 }
 
-func TestRecordSeasonRatingRecordsAndBroadcasts(t *testing.T) {
+func TestRecordSeasonRatingRecords(t *testing.T) {
 	t.Parallel()
-	hub := &stubAppRealtimeHub{seasonChanges: make(chan string, 2)}
+	hub := &stubAppRealtimeHub{}
 	app := seedRatingApp(t, hub)
 
 	res, err := app.recordSeasonRating()(context.Background(), "anime-a", 4, 1_751_500_000_000, "")
@@ -51,11 +44,6 @@ func TestRecordSeasonRatingRecordsAndBroadcasts(t *testing.T) {
 	}
 	if res.Outcome != apiHandlers.SeasonRatingRecorded {
 		t.Fatalf("outcome = %v, want recorded", res.Outcome)
-	}
-	select {
-	case <-hub.seasonChanges:
-	case <-time.After(200 * time.Millisecond):
-		t.Fatal("expected a season_changed broadcast after a recorded grade")
 	}
 }
 
@@ -96,9 +84,9 @@ func TestRecordSeasonRatingMapsNotCandidateAndInvalid(t *testing.T) {
 	}
 }
 
-func TestSetSeasonGradeManualRecordsAndBroadcasts(t *testing.T) {
+func TestSetSeasonGradeManualRecords(t *testing.T) {
 	t.Parallel()
-	hub := &stubAppRealtimeHub{seasonChanges: make(chan string, 2)}
+	hub := &stubAppRealtimeHub{}
 	app := seedRatingApp(t, hub)
 
 	if got := app.SetSeasonGrade("anime-a", 5); got != "ok" {
@@ -107,11 +95,6 @@ func TestSetSeasonGradeManualRecordsAndBroadcasts(t *testing.T) {
 	rows := app.GetSeasonAnimes()
 	if len(rows) != 1 || rows[0].Grade != 5 || rows[0].GradeSource != string(domain.GradeSourceManual) {
 		t.Fatalf("manual grade not recorded: %+v", rows)
-	}
-	select {
-	case <-hub.seasonChanges:
-	case <-time.After(200 * time.Millisecond):
-		t.Fatal("expected a season_changed broadcast after a manual grade")
 	}
 }
 

@@ -229,7 +229,6 @@ func (a *App) SendSeasonAnimesToVerHoy(animeIDs []string) SendToVerHoyDTO {
 			return SendToVerHoyDTO{Status: fmt.Sprintf("unexpected anime mutation outcome %q", result.Outcome)}
 		}
 	}
-	a.broadcastSeasonChanged()
 
 	downloadTime, passed := a.seasonDownloadWindowPassed()
 	if passed {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/season/domain"
@@ -32,7 +31,7 @@ func (r *failingSecondUpdateRepo) UpdateSeasonAnime(ctx context.Context, row dom
 // TestResolveSeasonMatchRechecksTheRow pins every manual resolve: the row is
 // matched to the picked page and then its availability is rechecked on the
 // spot, a newly available row raises the "Available to create" notification,
-// season_changed is broadcast, and the binding answers "ok". Unwired
+// and the binding answers "ok". Unwired
 // availability deps and a failing recheck never undo or fail the resolve.
 func TestResolveSeasonMatchRechecksTheRow(t *testing.T) {
 	t.Parallel()
@@ -52,7 +51,7 @@ func TestResolveSeasonMatchRechecksTheRow(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			hub := &stubAppRealtimeHub{seasonChanges: make(chan string, 4)}
+			hub := &stubAppRealtimeHub{}
 			app, notifier, rowID := newResolveFixture(hub, tc.failRecheck)
 			app.seasonService.SetAvailabilityDeps(tc.probe, nil)
 
@@ -65,13 +64,11 @@ func TestResolveSeasonMatchRechecksTheRow(t *testing.T) {
 				t.Fatalf("row = %+v, want matched to %s, %s with %d episodes", row, resolvedPageURL, tc.wantAvail, tc.wantEpisodes)
 			}
 			assertAvailableNotification(t, notifier, tc.wantNotified)
-			awaitSeasonChange(t, hub)
 		})
 	}
 }
 
-// newResolveFixture opens a season with one intake row and drains the setup
-// broadcasts. With failRecheck, every row write after the resolve fails.
+// newResolveFixture opens a season with one intake row. With failRecheck, every row write after the resolve fails.
 func newResolveFixture(hub *stubAppRealtimeHub, failRecheck bool) (*App, *recordingAppNotifier, string) {
 	var repo season.Repository = newFakeSeasonRepo()
 	if failRecheck {
@@ -83,7 +80,6 @@ func newResolveFixture(hub *stubAppRealtimeHub, failRecheck bool) (*App, *record
 	_ = app.CreateSeason("Julio 2026")
 	_ = app.ImportSeasonIntake("Ao Ashi")
 	rowID := app.GetSeasonAnimes()[0].ID
-	drainSeasonChanges(hub)
 	return app, notifier, rowID
 }
 
@@ -97,43 +93,16 @@ func assertAvailableNotification(t *testing.T, notifier *recordingAppNotifier, w
 	}
 }
 
-// awaitSeasonChange fails the test unless a season_changed broadcast arrives.
-func awaitSeasonChange(t *testing.T, hub *stubAppRealtimeHub) {
-	t.Helper()
-	select {
-	case <-hub.seasonChanges:
-	case <-time.After(200 * time.Millisecond):
-		t.Fatal("expected a season_changed broadcast after resolve")
-	}
-}
-
 // TestResolveSeasonMatchUnknownRowFails proves a failed resolve still reports
-// its error and broadcasts nothing.
+// its error.
 func TestResolveSeasonMatchUnknownRowFails(t *testing.T) {
 	t.Parallel()
-	hub := &stubAppRealtimeHub{seasonChanges: make(chan string, 4)}
+	hub := &stubAppRealtimeHub{}
 	app := newTestSeasonApp(newFakeSeasonRepo(), hub)
 	_ = app.CreateSeason("Julio 2026")
-	drainSeasonChanges(hub)
 	app.seasonService.SetAvailabilityDeps(fakeAppAvailabilityProbe{}, nil)
 
 	if got := app.ResolveSeasonMatch("missing", resolvedPageURL); got != season.ErrSeasonAnimeNotFound.Error() {
 		t.Fatalf("ResolveSeasonMatch = %q, want %q", got, season.ErrSeasonAnimeNotFound.Error())
-	}
-	select {
-	case status := <-hub.seasonChanges:
-		t.Fatalf("unexpected season_changed broadcast %q after a failed resolve", status)
-	default:
-	}
-}
-
-// drainSeasonChanges discards the broadcasts a test's setup produced.
-func drainSeasonChanges(hub *stubAppRealtimeHub) {
-	for {
-		select {
-		case <-hub.seasonChanges:
-		default:
-			return
-		}
 	}
 }

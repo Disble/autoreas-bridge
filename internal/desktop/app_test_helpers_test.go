@@ -113,9 +113,7 @@ type stubAppHTTPServer struct {
 }
 
 type stubAppRealtimeHub struct {
-	received      chan events.AnimeChangedEvent
-	seasonModes   chan bool
-	seasonChanges chan string
+	received chan events.AnimeChangedEvent
 }
 
 type stubAppDeviceService struct{}
@@ -342,16 +340,6 @@ func (*stubAppRealtimeHub) Register(context.Context, realtime.Client) error { re
 func (*stubAppRealtimeHub) Unregister(string)                               {}
 func (s *stubAppRealtimeHub) BroadcastAnimeChanged(_ context.Context, event events.AnimeChangedEvent) {
 	s.received <- event
-}
-func (s *stubAppRealtimeHub) BroadcastPreferencesChanged(_ context.Context, seasonMode bool) {
-	if s.seasonModes != nil {
-		s.seasonModes <- seasonMode
-	}
-}
-func (s *stubAppRealtimeHub) BroadcastSeasonChanged(_ context.Context, _, status string) {
-	if s.seasonChanges != nil {
-		s.seasonChanges <- status
-	}
 }
 func (*stubAppRealtimeHub) Close() error { return nil }
 

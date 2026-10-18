@@ -274,9 +274,10 @@ info:
     has never seen, because changes written before this fix, and creates
     behind a pruned changelog, are served as `update`.
 
-    2026-10-18 — season on the anime sync path consumer impact: ADDITIVE. Season
+    2026-10-18 — season on the anime sync path consumer impact: BREAKING. Season
     candidacy now travels with the anime instead of on season-only paths, so a
-    backgrounded phone learns it through reconcile.
+    backgrounded phone learns it through reconcile. Requires the Mobile release
+    that reads `Anime.season`.
       - `Anime.season` (optional): `{seasonId, grade}`, present only while the
         anime is a candidate of the open season; `grade` is `null` until graded
         (1–6). Served by `GET /api/animes`, `GET /api/animes/{id}` and every
@@ -293,9 +294,10 @@ info:
         carry it.
       - `POST /api/seasons/active/ratings` accepts an optional `season_id`; a
         grade for a season other than the open one answers the existing `404`.
-      - Unchanged in this release: `GET /api/seasons/active` and the
-        `season_changed` / `preferences_changed` WebSocket messages. They are
-        retired in a later release once Mobile reads season from the anime.
+      - Removed: `GET /api/seasons/active` (now `404`), the `season_changed` and
+        `preferences_changed` WebSocket messages, and the inbound WebSocket
+        `season_rating` message (now ignored). Grades go only through
+        `POST /api/seasons/active/ratings`.
 
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
@@ -665,29 +667,6 @@ components:
             Base64-encoded canonical anime JSON the mobile client attempted
             to write, which diverged from local_snapshot_json (SDD-30 ADR-30-4).
 
-    ActiveSeasonCandidate:
-      type: object
-      required: [anime_id]
-      properties:
-        anime_id:
-          type: string
-        grade:
-          type: integer
-          nullable: true
-        grade_source:
-          type: string
-
-    ActiveSeasonSnapshot:
-      type: object
-      required: [season_id, candidates]
-      properties:
-        season_id:
-          type: string
-        candidates:
-          type: array
-          items:
-            $ref: '#/components/schemas/ActiveSeasonCandidate'
-
     BridgeStatus:
       type: object
       required: [status, last_changelog_id]
@@ -749,8 +728,7 @@ components:
           type: boolean
           description: |
             True while a season is open. Always present, read on every
-            reconcile, so a backgrounded phone learns it without the push-only
-            `preferences_changed` message.
+            reconcile, so a backgrounded phone learns it on the sync path.
         last_changelog_id:
           type: integer
           description: |
@@ -1243,46 +1221,6 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Internal error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/seasons/active:
-    get:
-      summary: Fetch the active season snapshot
-      description: |
-        Returns the current active-season snapshot mobile uses to hydrate season
-        candidates and bridge-owned premiere grades.
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Active season snapshot
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ActiveSeasonSnapshot'
-        '401':
-          description: Missing or invalid Bearer token
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: No active season
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Active season read failed
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '503':
-          description: Active season snapshot unavailable
           content:
             application/json:
               schema:
@@ -1868,7 +1806,7 @@ paths:
         Wire fields are English (see ADR-007). Manual grades captured on the desktop are
         protected: a mobile write is rejected with `409` when a manual grade already exists.
         A recorded grade reaches the anime as a `changed_fields: [season]` change
-        on the changes feed (and, until it is retired, a season_changed broadcast).
+        on the changes feed.
       security:
         - BearerAuth: []
       requestBody:

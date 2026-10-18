@@ -4,25 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/schedule"
-	"autoreas-bridge/internal/season/domain"
 )
-
-// activeSeasonCandidates maps the open season's candidacies (seasonCandidacies) to the
-// GET /api/seasons/active candidates.
-func activeSeasonCandidates(rows []domain.SeasonAnime) []contracts.ActiveSeasonCandidate {
-	candidacies := seasonCandidacies("", rows)
-	candidates := make([]contracts.ActiveSeasonCandidate, 0, len(candidacies))
-	for _, candidacy := range candidacies {
-		candidate := contracts.ActiveSeasonCandidate{AnimeID: candidacy.AnimeID, Grade: candidacy.Grade}
-		if candidacy.Grade != nil {
-			candidate.GradeSource = "bridge"
-		}
-		candidates = append(candidates, candidate)
-	}
-	return candidates
-}
 
 // RecheckSeasonAvailability triggers an out-of-band availability recheck now
 // (the Daily Board's "Re-check now"). Reuses the scheduler run guard; an
@@ -37,26 +20,7 @@ func (a *App) RecheckSeasonAvailability() string {
 		}
 		return err.Error()
 	}
-	a.broadcastSeasonChanged()
 	return "ok"
-}
-
-// broadcastSeasonChanged pushes the current active-season snapshot to connected
-// clients (empty id / "closed" status when no season is open). Because season
-// mode is derived from the open season (SDD-41b), it ALSO re-broadcasts the
-// derived season-mode flag over preferences_changed so mobile and the
-// download/episodes season-mode readers update on open/close.
-func (a *App) broadcastSeasonChanged() {
-	if a.realtimeHub == nil {
-		return
-	}
-	id, status := "", "closed"
-	seasonMode := false
-	if dto := a.GetSeason(); dto != nil {
-		id, status, seasonMode = dto.ID, dto.Status, true
-	}
-	a.realtimeHub.BroadcastSeasonChanged(a.seasonCtx(), id, status)
-	a.realtimeHub.BroadcastPreferencesChanged(a.seasonCtx(), seasonMode)
 }
 
 // seasonCtx returns a.ctx, falling back to context.Background() before startup.

@@ -66,12 +66,6 @@ func seedSelectionApp(t *testing.T, hub *stubAppRealtimeHub, slots int) (*App, *
 	}
 	add("row-a", "anime-a", 5)
 	add("row-b", "anime-b", 2)
-	if hub != nil {
-		select {
-		case <-hub.seasonChanges:
-		default:
-		}
-	}
 	return app, gw
 }
 
@@ -99,7 +93,7 @@ func TestSetSeasonConsiderationBinding(t *testing.T) {
 
 func TestConfirmSeasonSelectionBinding(t *testing.T) {
 	t.Parallel()
-	hub := &stubAppRealtimeHub{seasonChanges: make(chan string, 2)}
+	hub := &stubAppRealtimeHub{}
 	app, gw := seedSelectionApp(t, hub, 12)
 
 	res := app.ConfirmSeasonSelection()
@@ -108,11 +102,6 @@ func TestConfirmSeasonSelectionBinding(t *testing.T) {
 	}
 	if gw.selections["anime-a"] != [2]int{0, 1} || gw.selections["anime-b"] != [2]int{2, 0} {
 		t.Fatalf("anime states wrong: %+v", gw.selections)
-	}
-	select {
-	case <-hub.seasonChanges:
-	case <-time.After(200 * time.Millisecond):
-		t.Fatal("expected a season_changed broadcast after confirm")
 	}
 }
 

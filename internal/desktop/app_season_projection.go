@@ -10,8 +10,8 @@ import (
 )
 
 // seasonCandidacies is the one candidate rule: a row of the open season linked to an anime is a
-// candidate, carrying its grade only once graded. The changelog publication, the Mobile anime
-// join and GET /api/seasons/active all read it, so they can never disagree.
+// candidate, carrying its grade only once graded. The changelog publication and the Mobile anime
+// join both read it, so they can never disagree.
 func seasonCandidacies(seasonID string, rows []domain.SeasonAnime) []bridgeSync.SeasonCandidacy {
 	candidacies := make([]bridgeSync.SeasonCandidacy, 0, len(rows))
 	for _, row := range rows {

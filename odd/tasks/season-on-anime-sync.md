@@ -18,7 +18,8 @@ Objective: season candidacy travels on the anime sync path so a backgrounded pho
 - S4 — Ownership: the season context does not write the changelog. It publishes a payload-free `season.projection_changed` signal. The sync context owns `season_projection_published(anime_id PK, season_id, grade)` and, in ONE transaction, diffs it against the current projection, inserts the ["season"] rows and updates the table. Runs on the signal and on startup (idempotent, convergent; first run backfills every current candidate). Backup restore/import is covered.
 - S5 — `ReconcileResponse` gains `season_mode` (boolean, always present) = "an open season exists". Amended (L4): HTTP reconcile only — the WS `reconcile` message has no response body.
 - S6 — POST /api/seasons/active/ratings accepts optional `season_id`; on a mismatch with the open season it answers the existing 404 "not a season candidate". Other fates unchanged: 204 · 404 · 409 {"grade":n,"source":"manual"} · 422 · 503/500.
-- S7 — docs/openapi.yaml documents S1, S2 (changed_fields "season"), S5, S6; old season paths stay alive in vN (retired in vN+1).
+- S7 — docs/openapi.yaml documents S1, S2 (changed_fields "season"), S5, S6. Amended (L10): the old season paths are removed in the same release.
+- S8 — (L10, user: "Borra de una vez.") Remove GET /api/seasons/active, the WS `season_changed` and `preferences_changed` messages, the inbound WS `season_rating` message, the ActiveSeasonSnapshot/Candidate contracts and their OpenAPI entries. POST /api/seasons/active/ratings stays.
 
 ## Tasks
 
@@ -29,6 +30,7 @@ Objective: season candidacy travels on the anime sync path so a backgrounded pho
 | T3 | S6 | inline | done (RED observed) | 329c8102 |
 | T4 | S7 | inline | done (checkopenapi passed) | split across the three commits |
 | T5 | all | delegated verify (project rule; Risk item 3: contract others consume) | PASS, no blockers | n/a |
+| T6 | S7, S8 | inline | done (affected packages green; route 404 pinned) | the retirement commit |
 
 ## Log
 
@@ -41,3 +43,4 @@ Objective: season candidacy travels on the anime sync path so a backgrounded pho
 - L7: mutation — internal/desktop app_season_projection.go 21 mutants, 20 killed; survivor :39 (`err != nil || active == nil` → `false || active == nil`) equivalent: Service.ActiveSeason returns a nil season whenever it errors, so the branch returns the same (nil, err). First desktop run (0.83) exposed real gaps (start guards, announce loop continue, logger guard) now pinned by tests. internal/api/handlers 3/3. Tiers: CORE = sync publisher diff/tx, season signal + season_id rule, candidacy rule + serve join; IMPORTANT = handler fields, nudge; INFRASTRUCTURE = events const, schema registration, api.Config/router/startup wiring (out of mutation scope).
 - L8: independent verifier PASS on S1–S7 (real SQLite probes, differential vs 159d46c6: only `season_mode:false` added on reconcile; go test ./... 64 packages ok; lint 0; gates pass). Advisories accepted: (1) every decorated season write runs one synchronous publication (bulk CreateSeasonAnimes of N rows = N small passes; correct, not measured); (2) a candidate whose anime is missing is marked published, so an anime restored later gets no ["season"] row until its candidacy changes (mobile's GET /api/animes heal still serves it); (3) a signal after shutdown only logs.
 - L9: delivery — ~1500 authored lines (814 tests), committed as three work units on feat/season-on-anime-sync: 9ac4338a (S5), 329c8102 (S6), then S1–S4 + docs. lefthook only hides partially staged files, so each unit was committed over `git stash --keep-index -u` to validate a consistent tree. Push/PR are the user's decision.
+- L10 (2026-10-18, user): "Borra de una vez. No me hagas dar vueltas. Vamos a publicar los dos a la vez, ya, pero borra la, borra de una vez." Bridge and Mobile release together, so the vN/vN+1 split is dropped and the legacy season paths are deleted now. Mobile (fix/background-covers-season 345c0e2/644e44c/1e9643f) no longer uses them. Removal is deletion-only: no mutation target added; the remaining new test pins GET /api/seasons/active → 404 while the rating POST stays routed.

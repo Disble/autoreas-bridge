@@ -62,21 +62,3 @@ func TestSeasonModeReaderDerivesFromOpenSeason(t *testing.T) {
 		t.Fatal("reader should be true with an open season")
 	}
 }
-
-func TestCreateSeasonBroadcastsDerivedSeasonMode(t *testing.T) {
-	t.Parallel()
-	hub := &stubAppRealtimeHub{seasonModes: make(chan bool, 1)}
-	app := newTestSeasonApp(newFakeSeasonRepo(), hub)
-
-	if got := app.CreateSeason("Julio 2026"); got != "ok" {
-		t.Fatalf("CreateSeason: %q", got)
-	}
-	select {
-	case enabled := <-hub.seasonModes:
-		if !enabled {
-			t.Fatal("expected derived season mode true broadcast on create")
-		}
-	default:
-		t.Fatal("expected a preferences_changed broadcast on season create")
-	}
-}
