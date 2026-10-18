@@ -74,7 +74,9 @@ Checklist for T7, in the first commit that creates the new Activity folder:
 | T6a | S1 | stage 4 incidents (L15 D-e): `incidents` table, triggers from captures, error events and mobile failures | delegated (writer) | pending: Risk item 1, verifier |
 | T6b | S1 | stage 4 sweeper (L15 D-a, D-b, D-g): time retention replaces the row caps, which are deleted | delegated (writer) | pending: Risk item 1 (deletes data), verifier |
 | T7 | S2, S5 | stage 5: MCP tools and Activity UI | to plan | pending |
-| T8 | S1 | stage 6: battery on the real stores, measured budgets | to plan | pending |
+| T8 | S1 | stage 6: battery on the real stores, measured budgets | delegated (writer-t8) | done `28180006` |
+| T8a | S1 | D-f body strip + read fallback, trim before recorder deletes (Risk 1) | delegated (writer-t8a + verifier-t8a) | done `e8cd4f12` |
+| T8b | S7 | reader gaps C2/C4/C5: broadcasts, get_hourly_totals, at_ms | delegated (writer-t8b + verifier-t8b) | done `b03a9618` |
 
 ## Log
 
@@ -361,3 +363,29 @@ Checklist for T7, in the first commit that creates the new Activity folder:
   - F4: the sweep trimmed incidents after the recorder deletes, so freed rows survived one extra pass
     → reordered in T8a.
   - F7: the copy predates P1–P3 and P7, so C7, C8 and C13 are verified on structure only. Rerun on fresh data.
+- L22 (2026-10-18): T8a and T8b verified PASS and committed.
+  - **T8b** (`b03a9618`):
+    - Opt-in `IncludeBroadcasts`, used only by MCP `search_history`; the Wails History default is unchanged.
+    - `get_hourly_totals(day|day_ms)` over 90 local days. It matches a direct `GROUP BY` on all 90 days, and DST
+      days are 23/25 h (checked through an overlay).
+    - `at_ms` on `list_response_versions`.
+    - Mutation 56/57: one assertion was added; the survivor `limit+2` is equivalent.
+    - Readable, measured: strict 86/82/81, realistic 92/90/90.
+    - C2 is projected 92/92/92. It was measured only on 3.6 untiled days, where the right body was in the
+      result for 212/212 requests (median 1 version, max 3). The tiled 90-day store overstates the overlap.
+  - **T8a** (`e8cd4f12`):
+    - The incident ledger, then the trim, run before the recorder deletes.
+    - Successful, non-trigger, non-slow (≤ 1000 ms) pinned rows lose `response_body` when (`RouteTemplate`,
+      hash) exists in `response_versions`. The state becomes `in_response_versions`; `truncated` stays
+      `truncated`. `Reader.Get` restores the body.
+    - Probe: 136 stripped, 136 byte-identical read-backs, 0 other rows changed, 29.6 ms.
+    - Incident-layer bodies 936 → 331 KB; total 1.23 → 0.63 MB.
+    - Data-safety proof: `last_seen_ms` is at least the `captured_at_ms` of every row pointing at a version, and
+      the ledger delete is unconditional at 90 d, so a version always outlives its rows.
+    - Mutation 18/21 after boundary tests; the 3 survivors are equivalent.
+    - **Open for the owner:**
+      - The 0.63 MB residual is trigger and slow rows (264 + 66 KB), which the spec keeps.
+      - Advisory: a future `RouteTemplate` change would orphan stripped bodies. A lookup by `body_hash` alone
+        would remove that, but it needs a scan or an index, so it was not built.
+  - The flake `TestLoggedEventSurvivesBridgeRestart` (L12, at baseline) hit once in the gate; it is
+    pre-existing, 0/12 isolated.
