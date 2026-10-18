@@ -20,6 +20,13 @@ const (
 	// response carries a binary media type, where retained bytes have no
 	// diagnostic value.
 	CaptureStateOmittedBinary = "omitted_binary"
+	// CaptureStateInResponseVersions marks a full response body the retention
+	// sweep removed from the row because response_versions holds it under the
+	// row's route template and response hash. Reader.Get restores the body and
+	// reports the state as empty again. A truncated body keeps
+	// CaptureStateTruncated when stripped; a NULL body with a response hash is
+	// what tells the reader to look it up.
+	CaptureStateInResponseVersions = "in_response_versions"
 	// OutcomePending is the transport-only arrival outcome written before a
 	// handler runs, replaced by the terminal write that follows it.
 	OutcomePending = "pending"

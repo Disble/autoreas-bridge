@@ -35,6 +35,8 @@ type SweepResult struct {
 	Rollups   int64
 	Versions  int64
 	Incidents int64
+	// StrippedBodies counts the response bodies the pass moved out to response_versions.
+	StrippedBodies int64
 }
 
 // The ledger classes (ADR-028 D3, design L15 D-b) are retention classes of the recorder rows,
@@ -79,9 +81,29 @@ func ledgerArgs(_, ledgerCutoff int64) []any { return []any{ledgerCutoff} }
 // trimArgs binds the per-fingerprint keep counts.
 func trimArgs(_, _ int64) []any { return []any{KeepFirst, KeepLatest} }
 
-// sweepSteps are run in order: the recorder rules (a, b), the ledger horizon (c), then the
-// incident trim (d).
+// sweepSteps are run in order: the incident horizon and trim (d) first, so a row pinned only
+// by a trimmed incident goes in the same pass, then the recorder rules (a, b) and the rest of
+// the ledger horizon (c). The incident horizon precedes the trim so the trim ranks only live
+// incidents.
 var sweepSteps = []sweepStep{
+	{
+		name:    "ledger incidents",
+		query:   `DELETE FROM incidents WHERE occurred_at_ms < ?`,
+		args:    ledgerArgs,
+		counter: func(r *SweepResult) *int64 { return &r.Incidents },
+	},
+	{
+		name: "incident trim",
+		query: `DELETE FROM incidents WHERE id IN (
+			SELECT id FROM (
+				SELECT id,
+					ROW_NUMBER() OVER (PARTITION BY fingerprint ORDER BY occurred_at_ms ASC, id ASC) AS first_rank,
+					ROW_NUMBER() OVER (PARTITION BY fingerprint ORDER BY occurred_at_ms DESC, id DESC) AS latest_rank
+				FROM incidents
+			) WHERE first_rank > ? AND latest_rank > ?)`,
+		args:    trimArgs,
+		counter: func(r *SweepResult) *int64 { return &r.Incidents },
+	},
 	{
 		name: "recorder captures",
 		query: `DELETE FROM request_captures WHERE captured_at_ms < ?
@@ -122,28 +144,11 @@ var sweepSteps = []sweepStep{
 		args:    ledgerArgs,
 		counter: func(r *SweepResult) *int64 { return &r.Versions },
 	},
-	{
-		name:    "ledger incidents",
-		query:   `DELETE FROM incidents WHERE occurred_at_ms < ?`,
-		args:    ledgerArgs,
-		counter: func(r *SweepResult) *int64 { return &r.Incidents },
-	},
-	{
-		name: "incident trim",
-		query: `DELETE FROM incidents WHERE id IN (
-			SELECT id FROM (
-				SELECT id,
-					ROW_NUMBER() OVER (PARTITION BY fingerprint ORDER BY occurred_at_ms ASC, id ASC) AS first_rank,
-					ROW_NUMBER() OVER (PARTITION BY fingerprint ORDER BY occurred_at_ms DESC, id DESC) AS latest_rank
-				FROM incidents
-			) WHERE first_rank > ? AND latest_rank > ?)`,
-		args:    trimArgs,
-		counter: func(r *SweepResult) *int64 { return &r.Incidents },
-	},
 }
 
 // Sweep deletes what retention no longer keeps at now. Each step is its own statement, so a
 // step that fails leaves the earlier steps' deletions in place and the next pass retries it.
+// After the deletions the pass strips the versioned response bodies of incident-only rows.
 func Sweep(ctx context.Context, db *sql.DB, now time.Time) (SweepResult, error) {
 	var result SweepResult
 	if db == nil {
@@ -162,6 +167,11 @@ func Sweep(ctx context.Context, db *sql.DB, now time.Time) (SweepResult, error) 
 		}
 		*step.counter(&result) += deleted
 	}
+	stripped, err := stripVersionedBodies(ctx, db, recorderCutoff)
+	if err != nil {
+		return result, err
+	}
+	result.StrippedBodies = stripped
 	return result, nil
 }
 

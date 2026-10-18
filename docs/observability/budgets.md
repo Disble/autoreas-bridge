@@ -54,7 +54,30 @@ budget, and 0.84 MB on the unreplayed copy. Of the 1.24 MB:
 - 219 of the 221 pinned rows have their response hash in `response_versions`, so stripping those bodies
   would lose no body.
 
-Stripping is not implemented. It waits for an owner decision.
+T8a implements the strip (`internal/observability/retention/strip.go`). After the recorder deletes, the
+sweep nulls the response body of a row kept only by an incident window when the row succeeded (2xx or
+3xx, not rejected or malformed), took at most 1,000 ms, is not an incident's trigger, is neither journal
+nor WebSocket, and `response_versions` holds its (route template, response hash). `Reader.Get` reads the
+body back from that version, so nothing a reader could return before is lost. Request bodies are never
+touched.
+
+Measured on the stage 6 copy, two passes:
+
+- Incident layer: **1.23 → 0.63 MB** (all columns). Response bodies alone: 0.94 → 0.33 MB.
+- 136 bodies stripped by the first pass, 0 by the second. Every stripped row read back byte-identical,
+  with its pre-strip body state. No other row and no non-observability table changed.
+- The strip pass took about 30 ms.
+
+The residual is what D-f's rule excludes:
+
+| Class | Rows | Response bytes |
+|---|---:|---:|
+| Incident triggers | 48 | 264 KB |
+| Slow (> 1,000 ms) | 11 | 66 KB |
+| Failed | 24 | 1 KB |
+
+The layer still exceeds its 0.48 MB budget. **Owner decision pending:** strip trigger and slow bodies
+too, or accept the measured layer.
 
 ## Free pages
 

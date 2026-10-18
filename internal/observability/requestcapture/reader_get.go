@@ -2,6 +2,8 @@ package requestcapture
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"strings"
 )
 
@@ -29,7 +31,41 @@ func (r *Reader) Get(ctx context.Context, requestID string) (GetResult, error) {
 			result.Item = record
 		}
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return result, err
+	}
+	_ = rows.Close()
+	if result.Found {
+		err = r.restoreVersionedBody(ctx, &result.Item)
+	}
+	return result, err
+}
+
+// restoreVersionedBody reads back a response body the retention sweep moved
+// to response_versions. The store only writes a response hash next to a
+// non-empty body, so a NULL body with a hash means the sweep stripped it; the
+// body comes from the (route template, hash) version, and the state returns to
+// what the row stored before the strip: empty for a full body
+// (CaptureStateInResponseVersions), CaptureStateTruncated otherwise. A version
+// already gone leaves the body nil and the marker state visible.
+func (r *Reader) restoreVersionedBody(ctx context.Context, record *CaptureRecord) error {
+	if record.ResponseBody != nil || record.ResponseHash == "" {
+		return nil
+	}
+	var body string
+	err := r.db.QueryRowContext(ctx, `SELECT body FROM response_versions WHERE route_template = ? AND body_hash = ?`,
+		RouteTemplate(record.Route), record.ResponseHash).Scan(&body)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	record.ResponseBody = &body
+	if record.ResponseBodyState == CaptureStateInResponseVersions {
+		record.ResponseBodyState = ""
+	}
+	return nil
 }
 
 // selectColumnList joins the ordered column list into a SQL SELECT fragment.

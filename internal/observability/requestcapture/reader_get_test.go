@@ -150,3 +150,63 @@ func openLegacyCaptureSchemaDB(t *testing.T) *sql.DB {
 	}
 	return db
 }
+
+// TestGetRestoresAResponseBodyStrippedToResponseVersions pins the read side of the retention
+// strip: a NULL body with a response hash is read back from response_versions under the row's
+// route template, the full-body marker reads as an empty state, a truncated state is kept, and
+// a missing version leaves the body nil with the marker visible.
+func TestGetRestoresAResponseBodyStrippedToResponseVersions(t *testing.T) {
+	t.Parallel()
+
+	db := openCaptureTestDB(t)
+	for _, id := range []string{"req-full", "req-truncated", "req-gone"} {
+		upsertWithResponseBody(t, db, id)
+	}
+	for id, state := range map[string]string{"req-full": "in_response_versions", "req-truncated": "truncated", "req-gone": "in_response_versions"} {
+		if _, err := db.Exec(`UPDATE request_captures SET response_body = NULL, response_body_state = ? WHERE request_id = ?`, state, id); err != nil {
+			t.Fatalf("strip %s: %v", id, err)
+		}
+	}
+	if _, err := db.Exec(`DELETE FROM response_versions WHERE body = '{"id":"req-gone"}'`); err != nil {
+		t.Fatalf("drop version: %v", err)
+	}
+
+	reader := NewReader(db)
+	for id, want := range map[string]struct{ body, state string }{
+		"req-full":      {`{"id":"req-full"}`, ""},
+		"req-truncated": {`{"id":"req-truncated"}`, "truncated"},
+		"req-gone":      {"<nil>", "in_response_versions"},
+	} {
+		result, err := reader.Get(context.Background(), id)
+		if err != nil || !result.Found {
+			t.Fatalf("get %s: found=%v err=%v", id, result.Found, err)
+		}
+		if body := bodyText(result.Item.ResponseBody); body != want.body || result.Item.ResponseBodyState != want.state {
+			t.Errorf("get %s: body %q state %q, want %q state %q", id, bodyText(result.Item.ResponseBody), result.Item.ResponseBodyState, want.body, want.state)
+		}
+	}
+}
+
+// upsertWithResponseBody stores a completed GET for id through the real store, so its response
+// hash and response version are written exactly as production writes them.
+func upsertWithResponseBody(t *testing.T, db *sql.DB, id string) {
+	t.Helper()
+	record := NewCaptureRecord("get", "device")
+	record.RequestID = id
+	record.CapturedAtMS = 5
+	record.Outcome = "completed"
+	record.Route = "/api/animes/" + id + "?page=2"
+	body := `{"id":"` + id + `"}`
+	record.ResponseBody = &body
+	if err := NewStore(db).UpsertCapture(context.Background(), record); err != nil {
+		t.Fatalf("insert %s: %v", id, err)
+	}
+}
+
+// bodyText renders a nullable body, "<nil>" when absent.
+func bodyText(body *string) string {
+	if body == nil {
+		return "<nil>"
+	}
+	return *body
+}

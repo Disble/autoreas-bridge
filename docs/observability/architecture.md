@@ -39,6 +39,7 @@ A trigger pins the recorder window from **2 minutes before to 30 seconds after**
 Windows are grouped by fingerprint. Per fingerprint the first and the latest occurrences are kept, so a
 problem that repeats every minute does not fill the disk. Slow requests in the first 2 minutes after
 startup never count as new.
+Once a pinned row is older than the recorder span, the sweep drops its stored response body when the row succeeded (2xx/3xx, at most 1,000 ms, not a trigger, not journal or WebSocket) and its response version holds that body; reading the request restores the body from the version (stage 6 measured the layer at 1.24 MB against 0.48 MB).
 
 ### 3. Ledger: 90 days, one line per fact
 
