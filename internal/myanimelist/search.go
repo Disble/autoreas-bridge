@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"regexp"
+	"strings"
 )
 
 // defaultBaseURL is MyAnimeList's production host.
@@ -70,7 +72,7 @@ func (c *Client) Search(ctx context.Context, query string) (SearchResult, error)
 			candidates = append(candidates, Candidate{
 				ID:        item.ID,
 				Name:      item.Name,
-				Image:     item.ImageURL,
+				Image:     originalImageURL(item.ImageURL),
 				MediaType: item.Payload.MediaType,
 				StartYear: item.Payload.StartYear,
 				Score:     item.Payload.Score,
@@ -79,4 +81,33 @@ func (c *Client) Search(ctx context.Context, query string) (SearchResult, error)
 	}
 
 	return SearchResult{Candidates: candidates}, nil
+}
+
+// cdnHost is the MyAnimeList image CDN whose resize prefix originalImageURL
+// strips.
+const cdnHost = "cdn.myanimelist.net"
+
+// resizeSegment matches the size segment of the CDN's /r/<W>x<H>/ prefix.
+var resizeSegment = regexp.MustCompile(`^[0-9]+x[0-9]+$`)
+
+// originalImageURL rewrites a CDN-resized image URL
+// (https://cdn.myanimelist.net/r/116x180/images/...jpg?s=<sig>) to the
+// original image it was derived from, dropping the resize signature. The
+// search payload only offers the resized variant, but its on-the-fly resize
+// service fails independently of the originals (measured: 504 on /r/ while
+// /images/ answered 200), and the cover pipeline (ADR-024) derives its own
+// thumbnail anyway. Any other URL is returned unchanged.
+func originalImageURL(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Host != cdnHost {
+		return raw
+	}
+	segments := strings.SplitN(parsed.Path, "/", 4)
+	if len(segments) != 4 || segments[1] != "r" || !resizeSegment.MatchString(segments[2]) || segments[3] == "" {
+		return raw
+	}
+	parsed.Path = "/" + segments[3]
+	parsed.RawPath = ""
+	parsed.RawQuery = ""
+	return parsed.String()
 }

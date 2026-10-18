@@ -16,6 +16,9 @@ type seasonRatingRequest struct {
 	AnimeID string `json:"anime_id"`
 	Grade   int    `json:"grade"`
 	RatedAt int64  `json:"rated_at"`
+	// SeasonID is the season the grade was given in (MobileAnime.season.seasonId). Optional: when
+	// it names a season other than the open one, the grade is not a candidate's (404).
+	SeasonID string `json:"season_id,omitempty"`
 }
 
 // NewSeasonRatingHandler serves POST /api/seasons/active/ratings (SDD-44): a
@@ -46,7 +49,7 @@ func NewSeasonRatingHandler(config SeasonRatingConfig) http.Handler {
 			return
 		}
 
-		result, err := config.RecordRating(r.Context(), req.AnimeID, req.Grade, req.RatedAt)
+		result, err := config.RecordRating(r.Context(), req.AnimeID, req.Grade, req.RatedAt, req.SeasonID)
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, "record rating failed")
 			return

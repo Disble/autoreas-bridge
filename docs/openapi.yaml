@@ -327,6 +327,31 @@ info:
       deleted. The desktop app streams persisted captures and events as
       `activity.recorder` rows instead. Mobile clients are unaffected.
 
+    2026-10-18 — season on the anime sync path consumer impact: BREAKING. Season
+    candidacy now travels with the anime instead of on season-only paths, so a
+    backgrounded phone learns it through reconcile. Requires the Mobile release
+    that reads `Anime.season`.
+      - `Anime.season` (optional): `{seasonId, grade}`, present only while the
+        anime is a candidate of the open season; `grade` is `null` until graded
+        (1–6). Served by `GET /api/animes`, `GET /api/animes/{id}` and every
+        changes-feed `snapshot`, read when served and never stored.
+      - A candidacy change (becoming or ceasing to be a candidate, a grade
+        change, the season opening, closing or being replaced) records one
+        `update` per affected anime with `changed_fields: [season]`. Its
+        `snapshot` carries the anime's unchanged `modified_at`, and its
+        `timestamp` passes the anime's earlier changes. Connected phones get the
+        usual `anime_changed` notice; its payload is the stored snapshot, which
+        never carries `season`, so read `season` from reconcile.
+      - `ReconcileResponse.season_mode` (always present): true while a season is
+        open. The WebSocket `reconcile` message has no response and does not
+        carry it.
+      - `POST /api/seasons/active/ratings` accepts an optional `season_id`; a
+        grade for a season other than the open one answers the existing `404`.
+      - Removed: `GET /api/seasons/active` (now `404`), the `season_changed` and
+        `preferences_changed` WebSocket messages, and the inbound WebSocket
+        `season_rating` message (now ignored). Grades go only through
+        `POST /api/seasons/active/ratings`.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}
@@ -497,6 +522,28 @@ components:
             A change that only touched durations arrives as an ordinary
             `update` with `changed_fields: [episodes]`; it never moves
             `modified_at`.
+        season:
+          type: object
+          required: [seasonId, grade]
+          description: |
+            The anime's candidacy in the open season. Present only while the
+            anime is a candidate (a row of the open season linked to it);
+            absent means "not a candidate of an open season". Served by
+            `GET /api/animes`, `GET /api/animes/{id}` and in every
+            `AnimeChange.snapshot`, always read from the current season when
+            served and never stored. A change that only touched candidacy
+            arrives as an ordinary `update` with `changed_fields: [season]`; it
+            never moves `modified_at`.
+          properties:
+            seasonId:
+              type: string
+              description: The open season's id; send it back as `season_id` when rating.
+            grade:
+              type: integer
+              nullable: true
+              minimum: 1
+              maximum: 6
+              description: The bridge premiere grade; `null` until graded.
         modified_at:
           type: integer
           description: |
@@ -545,8 +592,9 @@ components:
             The anime as stored when this change was recorded, never an older
             copy: for one anime, a later change (higher changelog id) never
             carries an older snapshot than an earlier change. An update or create
-            is not recorded once the anime no longer exists. Only `episodes` is
-            read again when the change is served.
+            is not recorded once the anime no longer exists. Only `episodes`,
+            `folderRelative` and `season` are read again when the change is
+            served.
         timestamp:
           type: integer
           description: |
@@ -673,29 +721,6 @@ components:
             Base64-encoded canonical anime JSON the mobile client attempted
             to write, which diverged from local_snapshot_json (SDD-30 ADR-30-4).
 
-    ActiveSeasonCandidate:
-      type: object
-      required: [anime_id]
-      properties:
-        anime_id:
-          type: string
-        grade:
-          type: integer
-          nullable: true
-        grade_source:
-          type: string
-
-    ActiveSeasonSnapshot:
-      type: object
-      required: [season_id, candidates]
-      properties:
-        season_id:
-          type: string
-        candidates:
-          type: array
-          items:
-            $ref: '#/components/schemas/ActiveSeasonCandidate'
-
     BridgeStatus:
       type: object
       required: [status, last_changelog_id]
@@ -749,10 +774,15 @@ components:
 
     ReconcileResponse:
       type: object
-      required: [status, last_changelog_id, applied_operations, bridge_changes, conflicts]
+      required: [status, last_changelog_id, applied_operations, bridge_changes, conflicts, season_mode]
       properties:
         status:
           type: string
+        season_mode:
+          type: boolean
+          description: |
+            True while a season is open. Always present, read on every
+            reconcile, so a backgrounded phone learns it on the sync path.
         last_changelog_id:
           type: integer
           description: |
@@ -1245,46 +1275,6 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Internal error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/seasons/active:
-    get:
-      summary: Fetch the active season snapshot
-      description: |
-        Returns the current active-season snapshot mobile uses to hydrate season
-        candidates and bridge-owned premiere grades.
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Active season snapshot
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ActiveSeasonSnapshot'
-        '401':
-          description: Missing or invalid Bearer token
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: No active season
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Active season read failed
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '503':
-          description: Active season snapshot unavailable
           content:
             application/json:
               schema:
@@ -1869,7 +1859,8 @@ paths:
         Ingests a mobile-sourced premiere grade (1–6) for an anime in the open season.
         Wire fields are English (see ADR-007). Manual grades captured on the desktop are
         protected: a mobile write is rejected with `409` when a manual grade already exists.
-        A season_changed broadcast confirms a recorded grade.
+        A recorded grade reaches the anime as a `changed_fields: [season]` change
+        on the changes feed.
       security:
         - BearerAuth: []
       requestBody:
@@ -1891,6 +1882,13 @@ paths:
                   type: integer
                   format: int64
                   description: Epoch milliseconds of the watch/grade moment
+                season_id:
+                  type: string
+                  description: |
+                    Optional. The season the grade was given in (`Anime.season.seasonId`).
+                    When it names a season other than the open one, the grade is
+                    answered `404`, so a grade queued offline never lands in the
+                    season that replaced it.
       responses:
         '204':
           description: Grade recorded
@@ -1901,7 +1899,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: No active season, or the anime is not a season candidate (terminal, no retry)
+          description: No active season, the anime is not a season candidate, or `season_id` names another season (terminal, no retry)
           content:
             application/json:
               schema:

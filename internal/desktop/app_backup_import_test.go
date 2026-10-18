@@ -21,6 +21,7 @@ import (
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api"
 	"autoreas-bridge/internal/backup"
+	"autoreas-bridge/internal/events"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
@@ -445,5 +446,33 @@ func TestNoRESTRouteOrWSEventExposesImport(t *testing.T) {
 		if strings.Contains(name, "backup") || strings.Contains(name, "import") {
 			t.Fatalf("api.Config field %q exposes backup/import over the wire; import is desktop-only", field.Name)
 		}
+	}
+}
+
+// TestConfirmBackupImportSignalsTheSeasonProjection pins that a confirmed import tells the season
+// projection publisher to re-diff: the season groups import with plain SQL, past the repository
+// that signals every other season write.
+func TestConfirmBackupImportSignalsTheSeasonProjection(t *testing.T) {
+	app, _ := appBackupImportTestApp(t)
+	bus := events.NewBus()
+	app.eventBus = bus
+	signals := 0
+	bus.Subscribe(events.EventNameSeasonProjectionChanged, func(events.Event) { signals++ })
+	bundlePath := buildTestBundle(t)
+	app.pickBundle = func(context.Context, string) (string, error) { return bundlePath, nil }
+	preview, err := app.PreviewBackupImport()
+	if err != nil {
+		t.Fatalf("preview backup import: %v", err)
+	}
+	if signals != 0 {
+		t.Fatalf("preview signalled %d times", signals)
+	}
+
+	if _, err := app.ConfirmBackupImport(preview.BundleChecksum); err != nil {
+		t.Fatalf("confirm backup import: %v", err)
+	}
+
+	if signals != 1 {
+		t.Fatalf("confirm signalled %d times, want 1", signals)
 	}
 }

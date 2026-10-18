@@ -218,14 +218,14 @@ func TestEpisodeSyncTriggerFailsWhenTheFeedOrTheJoinFails(t *testing.T) {
 func TestWithEpisodeDurationsLeavesThePortsAloneWithoutADatabase(t *testing.T) {
 	t.Parallel()
 
-	query, trigger := withMobileProjection(nil, fixedRoot(""), animeQueryStub{}, syncStub{})
+	query, trigger := withMobileProjection(nil, fixedRoot(""), nil, animeQueryStub{}, syncStub{})
 	if _, wrapped := query.(mobileAnimeQuery); wrapped {
 		t.Error("without a database the query must not be wrapped")
 	}
 	if _, wrapped := trigger.(mobileSyncTrigger); wrapped {
 		t.Error("without a database the feed must not be wrapped")
 	}
-	query, trigger = withMobileProjection(nil, nil, nil, nil)
+	query, trigger = withMobileProjection(nil, nil, nil, nil, nil)
 	if query != nil || trigger != nil {
 		t.Error("absent ports must stay absent")
 	}

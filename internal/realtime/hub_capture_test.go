@@ -81,42 +81,6 @@ func TestMemoryHubBroadcastAnimeChangedCapturesWSBroadcastPushed(t *testing.T) {
 	}
 }
 
-func TestMemoryHubBroadcastPreferencesChangedCapturesWSBroadcastPushed(t *testing.T) {
-	t.Parallel()
-
-	sink := newRecordingCaptureSink()
-	hub := NewMemoryHub(context.Background(), MemoryHubConfig{BroadcastBuffer: 4, ClientBuffer: 4, Capture: sink.capture})
-	t.Cleanup(func() { _ = hub.Close() })
-
-	hub.BroadcastPreferencesChanged(context.Background(), true)
-
-	records := sink.wait(t, 1)
-	if records[0].Kind != "ws_broadcast" || records[0].Outcome != "pushed" {
-		t.Fatalf("unexpected broadcast capture %#v", records[0])
-	}
-	if seasonMode, ok := records[0].Payload["season_mode"].(bool); !ok || !seasonMode {
-		t.Fatalf("expected payload season_mode=true, got %#v", records[0].Payload)
-	}
-}
-
-func TestMemoryHubBroadcastSeasonChangedCapturesWSBroadcastPushed(t *testing.T) {
-	t.Parallel()
-
-	sink := newRecordingCaptureSink()
-	hub := NewMemoryHub(context.Background(), MemoryHubConfig{BroadcastBuffer: 4, ClientBuffer: 4, Capture: sink.capture})
-	t.Cleanup(func() { _ = hub.Close() })
-
-	hub.BroadcastSeasonChanged(context.Background(), "season-1", "open")
-
-	records := sink.wait(t, 1)
-	if records[0].Kind != "ws_broadcast" || records[0].Outcome != "pushed" {
-		t.Fatalf("unexpected broadcast capture %#v", records[0])
-	}
-	if records[0].Payload["season_id"] != "season-1" || records[0].Payload["status"] != "open" {
-		t.Fatalf("unexpected broadcast payload %#v", records[0].Payload)
-	}
-}
-
 func TestMemoryHubNilCaptureSinkIsNoOp(t *testing.T) {
 	t.Parallel()
 

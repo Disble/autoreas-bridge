@@ -6,7 +6,7 @@ import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runt
  * anything itself, so a caller decides where the source comes from.
  */
 export interface SeasonCoverThumbProps {
-  /** A renderable image source (a resolved data URL); absent means no cover. */
+  /** A renderable image source (a resolved data URL or a remote cover URL); absent means no cover. */
   readonly coverSrc: string | undefined;
   /** Whether the cover is still being resolved; ignored once a source exists. */
   readonly isLoading: boolean;

@@ -34,6 +34,7 @@ func (a *App) configureRuntimeServices(ctx context.Context) {
 	a.startRetentionSweepLoop(retention.SweepInterval)
 	deviceService, changelogStore := a.configureBridgeDeviceServices(ctx)
 	a.configureRealtimeHub(ctx)
+	a.startSeasonProjectionPublisher(ctx)
 	conflictService := a.configureAnimeApplicationServices()
 	if !a.recoverStagedAnimeWrites(ctx) {
 		return
@@ -222,7 +223,7 @@ func (a *App) configureBridgeDeviceServices(ctx context.Context) (device.AuthSer
 	deviceStore := a.newDeviceStore(a.bridgeDB)
 	a.deviceStore = deviceStore
 	jkanimeSearcher := newJkanimeNameSearcher()
-	a.seasonService = season.NewService(a.newSeasonStore(a.bridgeDB), time.Now, func() string { return uuid.New().String() }, jkanimeSearcher)
+	a.seasonService = season.NewService(season.WithProjectionSignal(a.newSeasonStore(a.bridgeDB), a.eventBus), time.Now, func() string { return uuid.New().String() }, jkanimeSearcher)
 	a.seasonService.SetProviderSearchers(newSeasonProviderSearchers(jkanimeSearcher))
 	a.settingsStore = settings.NewSQLiteStore(a.bridgeDB)
 	deviceService := a.newDeviceService(deviceStore)

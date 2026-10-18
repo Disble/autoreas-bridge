@@ -1,4 +1,5 @@
 import { Button, cn, Typography } from '@heroui/react';
+import { RemoteCoverImage } from '../../anime-cover/RemoteCoverImage/RemoteCoverImage';
 import { AnimeCoverPlaceholder } from '../AnimeCoverPlaceholder';
 import { LOOKUP_CANDIDATE_COVER_SLOT_CLASS, LOOKUP_CANDIDATE_ROW_CLASS } from './lookup-modal.constants';
 import type { LookupCandidateRowProps } from './lookup-modal.types';
@@ -32,7 +33,13 @@ export function LookupCandidateRow({ title, subtitle, image, isSelected, onPress
         {image === undefined ? (
           <AnimeCoverPlaceholder className="size-full text-muted" />
         ) : (
-          <img alt="" className="size-full object-cover" height={40} src={image} width={40} />
+          <RemoteCoverImage
+            className="size-full object-cover"
+            fallback={<AnimeCoverPlaceholder className="size-full text-muted" />}
+            height={40}
+            src={image}
+            width={40}
+          />
         )}
       </div>
       <div className="flex min-w-0 flex-col items-start gap-0.5 text-left">

@@ -14,6 +14,31 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [2.0.0] — 2026-10-18
+
+This release changes how season data reaches the phone and must be installed together with the matching Autoreas mobile release. An older mobile build no longer receives season candidates from this bridge.
+
+### Changed
+
+- The phone now learns season candidates, their premiere grades and whether a season is open through the normal anime sync, so it stays up to date even when the app was in the background instead of only while it was open and connected.
+- **Wire-visible, breaking**: anime served by `GET /api/animes`, `GET /api/animes/{id}` and every snapshot of the changes feed carry an optional `season` — `seasonId` and `grade` (1–6, or `null` until graded) — present only while the anime is a candidate of the open season. It is computed when served, never stored, and a change that only touched the candidacy arrives as an `update` with `changed_fields: [season]` that never moves `modified_at`.
+- **Wire-visible, additive**: the reconcile response always carries `season_mode`, true while a season is open.
+
+### Fixed
+
+- A grade given on the phone for a season that has since closed is no longer recorded in the season that replaced it. **Wire-visible, additive**: `POST /api/seasons/active/ratings` accepts an optional `season_id` and answers `404` when it is not the open season.
+
+### Removed
+
+- **Wire-visible, breaking**: `GET /api/seasons/active` (now `404`), the `season_changed` and `preferences_changed` WebSocket messages, and the inbound WebSocket `season_rating` message are gone. Season state reaches the phone only through the anime sync, and grades only through `POST /api/seasons/active/ratings`.
+
+## [1.17.2] — 2026-10-17
+
+### Fixed
+
+- Cover images in **Fetch metadata** and in the season provider search no longer show up broken. MyAnimeList's small preview images were failing to load, so the results now use the full-size cover, and any cover that still fails to load shows the anime placeholder instead of a broken-image icon.
+- Anime created from a MyAnimeList match now keep a sharper cover, because the full-size image is saved instead of MyAnimeList's 116×180 preview. Covers you already have are unchanged.
+
 ## [1.17.1] — 2026-10-17
 
 ### Fixed

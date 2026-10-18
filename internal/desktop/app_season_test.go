@@ -43,9 +43,9 @@ func TestSeasonMutatorsReturnErrorStringWhenServiceNil(t *testing.T) {
 
 // ── wired round-trip ────────────────────────────────────────────────────────
 
-func TestCreateSeasonRoundTripAndBroadcast(t *testing.T) {
+func TestCreateSeasonRoundTrip(t *testing.T) {
 	t.Parallel()
-	hub := &stubAppRealtimeHub{seasonChanges: make(chan string, 1)}
+	hub := &stubAppRealtimeHub{}
 	app := newTestSeasonApp(newFakeSeasonRepo(), hub)
 
 	if got := app.CreateSeason("Julio 2026"); got != "ok" {
@@ -61,15 +61,6 @@ func TestCreateSeasonRoundTripAndBroadcast(t *testing.T) {
 	}
 	if dto.ClosedAt != nil || dto.AppliedAt != nil {
 		t.Fatalf("milestones must be null: %+v", dto)
-	}
-
-	select {
-	case status := <-hub.seasonChanges:
-		if status != "open" {
-			t.Fatalf("expected broadcast status open, got %q", status)
-		}
-	case <-time.After(200 * time.Millisecond):
-		t.Fatal("expected a season_changed broadcast")
 	}
 }
 
@@ -398,25 +389,16 @@ func TestGetSeasonAnimesEmptyWhenNoService(t *testing.T) {
 	}
 }
 
-func TestCloseSeasonClearsActiveAndBroadcastsClosed(t *testing.T) {
+func TestCloseSeasonClearsActive(t *testing.T) {
 	t.Parallel()
-	hub := &stubAppRealtimeHub{seasonChanges: make(chan string, 2)}
+	hub := &stubAppRealtimeHub{}
 	app := newTestSeasonApp(newFakeSeasonRepo(), hub)
 	_ = app.CreateSeason("Julio 2026")
-	<-hub.seasonChanges // drain the create broadcast
 
 	if got := app.CloseSeason(); got != "ok" {
 		t.Fatalf("CloseSeason: %q", got)
 	}
 	if app.GetSeason() != nil {
 		t.Fatal("expected no active season after close")
-	}
-	select {
-	case status := <-hub.seasonChanges:
-		if status != "closed" {
-			t.Fatalf("expected broadcast status closed, got %q", status)
-		}
-	case <-time.After(200 * time.Millisecond):
-		t.Fatal("expected a season_changed broadcast on close")
 	}
 }

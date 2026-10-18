@@ -26,6 +26,7 @@ func schemaTables() []persistence.TableSchema {
 		createOnlyTable("request_rollup_hourly", requestRollupHourlyDDL),
 		createOnlyTable("response_versions", responseVersionsDDL),
 		createOnlyTable("schema_migration_markers", schemaMigrationMarkersDDL),
+		createOnlyTable("season_projection_published", seasonProjectionPublishedDDL),
 		// animeSnapshotsTable is last: its Migrate hook drives the SDD-56
 		// cross-table vocabulary migration (ensureVocabularyMigration), which
 		// reads/writes conflicts, changelog, anime_write_operations, and
