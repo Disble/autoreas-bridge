@@ -97,8 +97,9 @@ pre-commit:
 # A merge judges the whole tree, so no jobs or groups here have file globs.
 # Staged quality is omitted: repository JSDoc adoption is incremental.
 # Typecheck precedes tests in this lane too, avoiding the old merge contention.
+# The lanes run one after another, as in pre-commit, so the suites never compete for CPU.
 pre-merge-commit:
-  parallel: true
+  piped: true
   jobs:
     - name: quick
       group:

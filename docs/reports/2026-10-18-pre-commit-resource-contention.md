@@ -115,3 +115,9 @@ repository reproduced it: a rooted job reported "no matching staged files" while
 job now changes directory in its command, and both policy tests fail on a `root:`. The job `dharness
 sync` writes to `.dharness/lefthook.yml` carries the same `root:`, which is worth reporting to the
 dharness team.
+
+## Follow-up: the merge hook
+
+`pre-merge-commit` still ran its lanes in parallel. Merging this branch into `dev` failed twice there,
+both times on `AnimeEditorWorkspace` timeouts, while the same folder passed 3 of 3 runs alone. Its lanes
+now run one after another too, and `TestRepositoryHooksRunTheirLanesOneAfterAnother` pins both hooks.
