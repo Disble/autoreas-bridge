@@ -289,7 +289,7 @@ func (a *App) ensureRuntimeObservability() {
 	}
 	if a.newEventQueue == nil {
 		a.newEventQueue = func(db *sql.DB) eventLogStopper {
-			return eventlog.NewQueue(eventlog.NewStore(db, eventlog.EventStoreConfig{}), eventlog.QueueConfig{OnPersist: a.recordEventIncident})
+			return eventlog.NewQueue(eventlog.NewStore(db, eventlog.EventStoreConfig{}), eventlog.QueueConfig{OnPersist: a.onEventPersisted})
 		}
 	}
 	if a.newEventReader == nil {

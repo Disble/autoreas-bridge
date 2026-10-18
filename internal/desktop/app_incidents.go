@@ -28,6 +28,7 @@ const incidentRecordBudget = 250 * time.Millisecond
 // persisted row to the frontend and records an incident when the row triggers.
 func (a *App) onCapturePersisted(record requestcapture.CaptureRecord) {
 	a.emitCaptureTransaction(record)
+	a.emitActivityRecorder(captureRecorderEntry(record))
 	a.recordRequestIncident(record)
 }
 
@@ -54,9 +55,15 @@ func (a *App) recordRequestIncident(record requestcapture.CaptureRecord) {
 	})
 }
 
-// recordEventIncident is the event queue's OnPersist hook: it records an
-// incident for a persisted event that triggers, except for the app's own
-// incident-recording failures.
+// onEventPersisted is the event queue's OnPersist hook: it streams the
+// persisted event to the Live recorder and records an incident when it triggers.
+func (a *App) onEventPersisted(record eventlog.EventRecord) {
+	a.emitActivityRecorder(eventRecorderEntry(record))
+	a.recordEventIncident(record)
+}
+
+// recordEventIncident records an incident for a persisted event that
+// triggers, except for the app's own incident-recording failures.
 func (a *App) recordEventIncident(record eventlog.EventRecord) {
 	if record.EventType == incidentRecordFailedEventType {
 		return
