@@ -336,3 +336,28 @@ Checklist for T7, in the first commit that creates the new Activity folder:
     - T7c3: Incidents, the run story, Now → incident id, and the recorder-callback tolerance.
     - T7c4: the History and Live recorder components.
     - The parent wires History and the recorder into the shell at the end.
+- L21 (2026-10-18): T8, stage 6, measured on a read-only `VACUUM INTO` copy of the live DB (release 1.17.2).
+  The method and numbers are in `budgets.md` and `qa-battery.md` (`28180006`).
+  - Budgets for a 90-day steady state: about 21.9 MB compacted (26.9 MB in the file), against the 13.0 MB
+    model. Three measured causes:
+    - Bodies are stored raw: response versions compress 3.5×.
+    - The 8 recorder indexes also carry the ledger rows: 7.7 of 14.3 MB.
+    - Incremental vacuum leaves pages underfull: 24 % of table bytes and 33–43 % of index bytes are unused.
+    - **Owner decision pending:** accept the measured total or change the model. Nothing is built for it,
+      because compression and index changes were not requested.
+  - D-f reversed by its own rule. Incident windows measure 1.24 MB against a 0.48 MB budget. 0.95 MB of that
+    is successful in-window response bodies, and 219 of 221 of them are already in `response_versions`.
+    → T8a strips those bodies and reads them back from `response_versions`, so nothing observable is lost.
+  - Battery:
+    - Stored: 92/92 in every scenario.
+    - Readable, strict: 83/70/70 (session/days/weeks).
+    - Readable, realistic: 92/90/90.
+    - The 22 strict/weeks partials are reader gaps:
+      - C2: response versions capped at 20.
+      - C4: no rollup detail beyond today.
+      - C5: `ws_broadcast` is not listed after 2 h.
+    → T8b closes them with an opt-in `IncludeBroadcasts`, `get_hourly_totals(day)` and `at_ms` on
+      `list_response_versions`. The UI defaults stay unchanged.
+  - F4: the sweep trimmed incidents after the recorder deletes, so freed rows survived one extra pass
+    → reordered in T8a.
+  - F7: the copy predates P1–P3 and P7, so C7, C8 and C13 are verified on structure only. Rerun on fresh data.
