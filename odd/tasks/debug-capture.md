@@ -264,3 +264,24 @@ Checklist for T7, in the first commit that creates the new Activity folder:
     - Non-observability tables are unchanged.
     - T6b is under an independent verifier.
   - T7b (MCP) is delegated.
+- L18 (2026-10-18): T6b, the sweeper, committed as `1792a8a9` after an independent verifier passed it.
+  - Probes on a dev-copy duplicate checked every row's fate with an independent computation.
+    - Wrongly deleted: 0. Wrongly kept: 0.
+    - Rows pinned by an incident survived.
+    - All 29 other tables are unchanged, and the `anime_snapshots` hash is identical.
+    - A second pass deletes 0 rows.
+    - The first startup sweep takes 103 ms.
+  - Mutation:
+    - Spans: survivors fixed by spelling 2 h and 90 d literally in the test helpers.
+    - SQL, mutated by hand: 35/37 killed, plus the 90-day pin boundary through a new test row, and 1 equivalent.
+    - Skipped: the 5-minute sweep interval, which no test can observe without real time passing.
+  - Blocker fixed in the same commit. With the caps removed, `CaptureRows` and `EventRows` read 0, and the old
+    screen claimed it "retains the most recent 0 rows". The three lines now state the time-based policy.
+    The old screen and the fields go in T7c2.
+  - The empty `StoreConfig` and `EventStoreConfig` structs stay: removing them means about 60 call sites.
+    Advisory for T7d.
+  - Decision: old bindings are deleted together with the old screen (T7c2), never before it. T7c1 only adds the
+    new bindings, so every commit keeps a compiling frontend.
+  - Delegated:
+    - T7b (MCP, with the additive `idx_request_captures_client_id` index): written and under a verifier.
+    - T7c1 (Activity bindings, the `activity.recorder` live event, the pin): delegated.
