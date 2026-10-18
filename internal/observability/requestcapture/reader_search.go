@@ -118,26 +118,26 @@ func scanCaptureSearchPage(rows captureRowScanner, limit int, columns []string) 
 	return page
 }
 
-// Get returns an exact request by id while still counting malformed surrounding rows.
+// Get returns an exact request by its primary key. Only that row is read: a
+// malformed target counts as one skipped row, and neighbours are never
+// scanned, because reading every row with its bodies froze the Activity detail.
 func (r *Reader) Get(ctx context.Context, requestID string) (GetResult, error) {
 	columns := r.optional.selectColumns()
-	query := "SELECT " + selectColumnList(columns) + " FROM " + r.tables.captures + " ORDER BY captured_at_ms DESC, request_id DESC"
+	query := "SELECT " + selectColumnList(columns) + " FROM " + r.tables.captures + " WHERE request_id = ?"
 	// NOSONAR go:S2077 -- r.tables.captures, and selectColumnList's output is a compile-time internal literal,
 	// never caller data; SQLite cannot bind an identifier as a parameter.
-	rows, err := r.db.QueryContext(ctx, query) // NOSONAR
+	rows, err := r.db.QueryContext(ctx, query, requestID) // NOSONAR
 	if err != nil {
 		return GetResult{}, err
 	}
 	defer func() { _ = rows.Close() }()
 	result := GetResult{}
-	for rows.Next() {
+	if rows.Next() {
 		record, scanErr := scanCaptureRow(rows, columns)
 		if scanErr != nil {
-			result.MalformedRowsSkipped++
-			result.WarningCount++
-			continue
-		}
-		if record.RequestID == requestID {
+			result.MalformedRowsSkipped = 1
+			result.WarningCount = 1
+		} else {
 			result.Found = true
 			result.Item = record
 		}

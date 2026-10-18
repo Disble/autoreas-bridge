@@ -187,19 +187,29 @@ func TestMalformedRowSkippedDuringExactGet(t *testing.T) {
 		t.Fatalf("seed captures: %v", err)
 	}
 
+	// An exact get reads only the requested row (H1, docs/observability/activity-ui.md):
+	// scanning the table to count malformed neighbours froze the Activity detail.
+	cases := []struct {
+		requestID string
+		wantFound bool
+		wantSkips int
+	}{
+		{"req-good", true, 0},
+		{"req-bad", false, 1},
+		{"req-missing", false, 0},
+	}
 	reader := NewReader(db)
-	result, err := reader.Get(context.Background(), "req-good")
-	if err != nil {
-		t.Fatalf("get capture: %v", err)
-	}
-	if !result.Found || result.Item.RequestID != "req-good" {
-		t.Fatalf("expected exact get to find req-good, got %#v", result)
-	}
-	if result.MalformedRowsSkipped != 1 {
-		t.Fatalf("expected malformed_rows_skipped 1, got %d", result.MalformedRowsSkipped)
-	}
-	if result.WarningCount != 1 {
-		t.Fatalf("expected warning_count 1, got %d", result.WarningCount)
+	for _, tc := range cases {
+		result, err := reader.Get(context.Background(), tc.requestID)
+		if err != nil {
+			t.Fatalf("get %s: %v", tc.requestID, err)
+		}
+		if result.Found != tc.wantFound || (tc.wantFound && result.Item.RequestID != tc.requestID) {
+			t.Fatalf("get %s: found = %v item = %q, want found %v", tc.requestID, result.Found, result.Item.RequestID, tc.wantFound)
+		}
+		if result.MalformedRowsSkipped != tc.wantSkips || result.WarningCount != tc.wantSkips {
+			t.Fatalf("get %s: skipped = %d warnings = %d, want %d", tc.requestID, result.MalformedRowsSkipped, result.WarningCount, tc.wantSkips)
+		}
 	}
 }
 
