@@ -50,22 +50,29 @@ func CaptureMiddleware(next http.Handler, deps CaptureMiddlewareDeps) http.Handl
 		clock = time.Now
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if deps.Capture == nil || r.URL.Path == webSocketRoutePath {
+		if r.URL.Path == webSocketRoutePath {
 			next.ServeHTTP(w, r)
 			return
 		}
-		captureRequest(next, w, r, deps.Capture, deps.PersistTerminal, clock)
+		correlated, ids := correlateRequest(w, r)
+		if deps.Capture == nil {
+			next.ServeHTTP(w, correlated)
+			return
+		}
+		captureRequest(next, w, correlated, ids, deps.Capture, deps.PersistTerminal, clock)
 	})
 }
 
-// captureRequest mints one request id, enqueues its arrival row, runs next,
+// captureRequest enqueues its arrival row, runs next,
 // and enqueues the merged terminal row from a defer that survives a handler
 // panic (re-panicking afterward so the server's own recovery is unchanged).
-func captureRequest(next http.Handler, w http.ResponseWriter, r *http.Request, capture apiHandlers.CaptureFunc, persistTerminal func(requestcapture.CaptureRecord), clock func() time.Time) {
-	requestID := uuid.New().String()
+func captureRequest(next http.Handler, w http.ResponseWriter, r *http.Request, ids requestIDs, capture apiHandlers.CaptureFunc, persistTerminal func(requestcapture.CaptureRecord), clock func() time.Time) {
+	requestID := ids.bridge
 	startedAt := clock()
 	kind := captureKind(r.Method, r.URL.Path)
-	arrivalAccepted := capture(requestcapture.BuildTransportCaptureRecord(requestID, startedAt.UnixMilli(), kind, r.URL.Path, "http"))
+	arrival := requestcapture.BuildTransportCaptureRecord(requestID, startedAt.UnixMilli(), kind, r.URL.Path, "http")
+	arrival.ClientRequestID = ids.client
+	arrivalAccepted := capture(arrival)
 
 	requestBody := captureRequestBody(r)
 	writer := &capturingResponseWriter{ResponseWriter: w, method: r.Method}
@@ -79,6 +86,7 @@ func captureRequest(next http.Handler, w http.ResponseWriter, r *http.Request, c
 			writer: writer, requestHeaders: requestHeaders, requestBody: requestBody,
 			enrichment: enr, panicked: recovered != nil, panicValue: recovered,
 		})
+		terminal.ClientRequestID = ids.client
 		terminalAccepted := capture(terminal)
 		if arrivalAccepted && !terminalAccepted && persistTerminal != nil {
 			persistTerminal(terminal)
@@ -293,4 +301,29 @@ func failureCause(status int, panicValue any, body []byte) string {
 		return ""
 	}
 	return payload.Error
+}
+
+// requestIDs are the two ids of one HTTP exchange: the bridge's own id, which
+// keys the capture row and travels in the context, and the client's accepted
+// X-Autoreas-Request-Id, or "" when it sent none or a malformed one.
+type requestIDs struct {
+	bridge string
+	client string
+}
+
+// correlateRequest mints the bridge request id, accepts the client's id when
+// well formed, echoes the id the client should log, and returns r carrying the
+// bridge id in its context (P3). It runs before the handler so the echo header
+// is set before any response byte is written.
+func correlateRequest(w http.ResponseWriter, r *http.Request) (*http.Request, requestIDs) {
+	ids := requestIDs{
+		bridge: uuid.New().String(),
+		client: requestcapture.AcceptClientRequestID(r.Header.Get(requestcapture.ClientRequestIDHeader)),
+	}
+	echo := ids.client
+	if echo == "" {
+		echo = ids.bridge
+	}
+	w.Header().Set(requestcapture.ClientRequestIDHeader, echo)
+	return r.WithContext(requestcapture.WithRequestID(r.Context(), ids.bridge)), ids
 }
