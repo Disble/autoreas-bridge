@@ -152,7 +152,7 @@ func (a *App) ensureCaptureRuntimeDependencies() {
 	}
 	if a.newCaptureQueue == nil {
 		a.newCaptureQueue = func(db *sql.DB) captureQueue {
-			return requestcapture.NewQueue(a.newCaptureStore(db), requestcapture.QueueConfig{OnPersist: a.emitCaptureTransaction})
+			return requestcapture.NewQueue(a.newCaptureStore(db), requestcapture.QueueConfig{OnPersist: a.onCapturePersisted})
 		}
 	}
 	if a.newCaptureReader == nil {
@@ -289,7 +289,7 @@ func (a *App) ensureRuntimeObservability() {
 	}
 	if a.newEventQueue == nil {
 		a.newEventQueue = func(db *sql.DB) eventLogStopper {
-			return eventlog.NewQueue(eventlog.NewStore(db, eventlog.EventStoreConfig{}), eventlog.QueueConfig{})
+			return eventlog.NewQueue(eventlog.NewStore(db, eventlog.EventStoreConfig{}), eventlog.QueueConfig{OnPersist: a.recordEventIncident})
 		}
 	}
 	if a.newEventReader == nil {

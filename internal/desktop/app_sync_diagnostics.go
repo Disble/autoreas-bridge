@@ -48,6 +48,7 @@ func (a *App) ingestSyncDiagnostics() apiHandlers.IngestTelemetryEventFunc {
 		outcome, err := store.Insert(ctx, event)
 		if outcome == telemetry.Stored {
 			a.logSyncDiagnosticsStored(event)
+			a.recordMobileIncident(event)
 		}
 		return outcome, err
 	}

@@ -15,6 +15,7 @@ import (
 	"autoreas-bridge/internal/download/dbschema"
 	"autoreas-bridge/internal/notification/centerschema"
 	"autoreas-bridge/internal/observability/eventlog"
+	"autoreas-bridge/internal/observability/incident"
 	"autoreas-bridge/internal/observability/telemetry"
 	"autoreas-bridge/internal/persistence"
 	"autoreas-bridge/internal/season"
@@ -171,6 +172,7 @@ func initializeBridgeDB(db *sql.DB, dbPath string, fullVacuum func(*sql.DB) erro
 	tables = append(tables, activity.SchemaTables()...)
 	tables = append(tables, season.SchemaTables()...)
 	tables = append(tables, eventlog.SchemaTables()...)
+	tables = append(tables, incident.SchemaTables()...)
 	// The kind-discriminated telemetry store is the single home of device
 	// telemetry, and registration follows the write path: without this line
 	// every ingested event fails at runtime instead of at bootstrap.

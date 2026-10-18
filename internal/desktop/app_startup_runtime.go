@@ -196,6 +196,8 @@ func (a *App) capture(record requestcapture.CaptureRecord) bool {
 
 // persistCaptureTerminal repairs an accepted-arrival / dropped-terminal split
 // by upserting the terminal row directly through a short, finite store write.
+// A repaired row records its incident like a queued one: the queue drops
+// terminals exactly under load, when failures matter most.
 func (a *App) persistCaptureTerminal(record requestcapture.CaptureRecord) {
 	if a.captureStore == nil {
 		if a.bridgeDB == nil || a.newCaptureStore == nil {
@@ -205,9 +207,13 @@ func (a *App) persistCaptureTerminal(record requestcapture.CaptureRecord) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 	defer cancel()
-	if err := a.captureStore.UpsertCapture(ctx, record); err != nil && a.sharedLogger != nil {
-		a.sharedLogger.Warnf("api", "failed terminal capture recovery for %s: %v", record.RequestID, err)
+	if err := a.captureStore.UpsertCapture(ctx, record); err != nil {
+		if a.sharedLogger != nil {
+			a.sharedLogger.Warnf("api", "failed terminal capture recovery for %s: %v", record.RequestID, err)
+		}
+		return
 	}
+	a.recordRequestIncident(record)
 }
 
 // captureTransactionEventName is the Wails runtime event streaming each

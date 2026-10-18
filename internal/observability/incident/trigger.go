@@ -1,6 +1,8 @@
 // Package incident decides which observed facts open an incident (ADR-028 D2,
-// docs/observability/architecture.md "2. Incidents"). It is pure: no storage,
-// no I/O, no goroutines and no clock reads. Every time it needs is passed in.
+// docs/observability/architecture.md "2. Incidents") and persists the
+// occurrences that do. The classifier in this file is pure: no storage, no
+// I/O, no goroutines and no clock reads. Every time it needs is passed in.
+// store.go owns the incidents table.
 package incident
 
 import (
