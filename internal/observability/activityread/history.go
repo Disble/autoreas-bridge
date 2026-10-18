@@ -23,7 +23,8 @@ const (
 
 // History returns the 90-day calendar (first page only) and one page of
 // ledger lines grouped by local day, newest first. Polling never appears as
-// lines: captures contribute only WebSocket connects and disconnects.
+// lines: captures contribute only WebSocket connects and disconnects, and
+// pushes when IncludeBroadcasts is set.
 func (r *Reader) History(ctx context.Context, in HistoryInput) (HistoryView, error) {
 	s, err := scopeOf(in.Where)
 	if err != nil {
@@ -34,7 +35,8 @@ func (r *Reader) History(ctx context.Context, in HistoryInput) (HistoryView, err
 		return HistoryView{}, err
 	}
 	limit := clampLimit(in.Limit)
-	page := sourcePage{cursor: c, sinceMS: in.Now.UnixMilli() - LedgerSpan.Milliseconds(), nowMS: in.Now.UnixMilli(), fetch: limit + 1}
+	page := sourcePage{cursor: c, sinceMS: in.Now.UnixMilli() - LedgerSpan.Milliseconds(), nowMS: in.Now.UnixMilli(),
+		fetch: limit + 1, broadcasts: in.IncludeBroadcasts}
 
 	var items []item[LedgerLine]
 	for _, read := range []func(context.Context, scope, sourcePage) ([]item[LedgerLine], error){
@@ -60,11 +62,13 @@ func (r *Reader) History(ctx context.Context, in HistoryInput) (HistoryView, err
 }
 
 // sourcePage is what every ledger source needs to read its part of a page.
+// broadcasts adds pushes to the connection lines.
 type sourcePage struct {
-	cursor  *cursor
-	sinceMS int64
-	nowMS   int64
-	fetch   int
+	cursor     *cursor
+	sinceMS    int64
+	nowMS      int64
+	fetch      int
+	broadcasts bool
 }
 
 // bounds returns the time and keyset predicate of one source with its args.
@@ -157,7 +161,9 @@ func (r *Reader) phoneReportLines(ctx context.Context, s scope, p sourcePage) ([
 	})
 }
 
-// connectionLines reads WebSocket connects and disconnects.
+// connectionLines reads WebSocket connects and disconnects, and pushes when
+// the page includes them. Without them, the third kind is the connect kind
+// again, so the statement keeps one shape.
 func (r *Reader) connectionLines(ctx context.Context, s scope, p sourcePage) ([]item[LedgerLine], error) {
 	if !s.readsPhone() {
 		return nil, nil
@@ -166,10 +172,15 @@ func (r *Reader) connectionLines(ctx context.Context, s scope, p sourcePage) ([]
 	if err != nil {
 		return nil, err
 	}
+	pushKind := "ws_connect"
+	if p.broadcasts {
+		pushKind = notPhoneContactKind
+	}
 	query := `SELECT request_id, captured_at_ms, kind, device_name FROM request_captures
-		WHERE kind IN ('ws_connect', 'ws_disconnect') AND ` + where + `
+		WHERE kind IN ('ws_connect', 'ws_disconnect', ?) AND ` + where + `
 		ORDER BY captured_at_ms DESC, request_id DESC LIMIT ?`
-	return queryLines(ctx, r.db, query, append(args, p.fetch), rankConnection, func(rows *sql.Rows) (LedgerLine, string, error) {
+	args = append(append([]any{pushKind}, args...), p.fetch)
+	return queryLines(ctx, r.db, query, args, rankConnection, func(rows *sql.Rows) (LedgerLine, string, error) {
 		line := LedgerLine{Kind: LineConnection}
 		err := rows.Scan(&line.ID, &line.AtMS, &line.Title, &line.Source)
 		return line, line.ID, err

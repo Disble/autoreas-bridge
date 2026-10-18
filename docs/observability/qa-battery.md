@@ -98,6 +98,23 @@ gaps are in the readers.
 - No: 0.
 - In the realistic reading, only B10 and B16 stay partial: both are rare, and they need `/api/sync` versions.
 
+**After T8b (2026-10-18).** The same stores, through the rebuilt binary:
+
+| Class | Reader | Measured | Projected |
+|---|---|---|---|
+| C4 | `get_hourly_totals` | Every one of the 90 local days, 6,658 buckets, equal to a `GROUP BY` on `request_rollup_hourly`, to 89 d | Same |
+| C5 | `search_history` (MCP only) | All 5,371 `ws_broadcast` rows, paged to 89.8 d, no duplicates. The desktop History is unchanged | Same |
+| C2 | `list_response_versions` with `at_ms` | Only on the untiled copy, 3.6 days: for each of the 212 kept requests, the versions holding its time include its `response_hash`; median 1 version, max 3 | Versions are kept 90 d by `last_seen_ms`, so `at_ms` reaches every stored version |
+
+| Scenario | Readable, measured (C4, C5) | Readable, projected (C2, C4, C5) |
+|---|---|---|
+| Strict; unknown = session, days, weeks | 86, 82, 81 | 92, 92, 92 |
+| Realistic; unknown = session, days, weeks | 92, 90, 90 | 92, 92, 92 |
+
+- The 11 strict/weeks partials left are the C2 group above. Closing them rests on the projection.
+- On the 90-day store, `at_ms` cannot be measured: its versions are copies tiled from 3.6 days.
+- `at_ms` names candidates. When intervals overlap, only a kept request's `response_hash` names the body.
+
 **Running it.** The probe and scoring programs were scratch code, not shipped. Rerun them after the
 rehearsal against the real database: rows written by this branch exercise C7, C8 and C13.
 

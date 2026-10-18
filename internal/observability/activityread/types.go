@@ -163,11 +163,15 @@ type IncidentDetail struct {
 }
 
 // HistoryInput selects one History page. Cursor is empty for the first page.
+// IncludeBroadcasts adds the bridge's WebSocket pushes to the connection
+// lines; the desktop History leaves it off, since about 60 pushes a day would
+// drown a human view, and the MCP search_history turns it on.
 type HistoryInput struct {
-	Now    time.Time
-	Where  Where
-	Cursor string
-	Limit  int
+	Now               time.Time
+	Where             Where
+	Cursor            string
+	Limit             int
+	IncludeBroadcasts bool
 }
 
 // CalendarDay is one square of the 90-day calendar, in Now's location.

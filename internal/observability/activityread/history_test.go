@@ -2,6 +2,7 @@ package activityread
 
 import (
 	"context"
+	"reflect"
 	"slices"
 	"strconv"
 	"testing"
@@ -227,6 +228,16 @@ func TestHistoryNeverListsPolling(t *testing.T) {
 	lines := flatten(view)
 	if len(lines) != 1 || lines[0].Title != "tracer bullet ready" {
 		t.Fatalf("lines = %+v, want only the startup marker", lines)
+	}
+
+	withPushes, err := reader.History(context.Background(), HistoryInput{Now: testNow, Where: WhereAll, IncludeBroadcasts: true})
+	if err != nil {
+		t.Fatalf("History with broadcasts: %v", err)
+	}
+	lines = flatten(withPushes)
+	want := LedgerLine{Kind: LineConnection, ID: "push", AtMS: minutesAgo(3), Title: "ws_broadcast", Source: "SM-X800"}
+	if len(lines) != 2 || !reflect.DeepEqual(lines[0], want) || lines[1].Title != "tracer bullet ready" {
+		t.Fatalf("lines with broadcasts = %+v", lines)
 	}
 }
 

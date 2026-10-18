@@ -21,16 +21,39 @@ type ResponseVersion struct {
 	SeenCount   int64
 }
 
+// errNoTemplate rejects a version read without a route template.
+var errNoTemplate = errors.New("activityread: route template is required")
+
 // ResponseVersions returns the distinct response bodies of one route
 // template, most recently seen first. The template is the primary key's
 // leading column, so the read is an index range.
 func (r *Reader) ResponseVersions(ctx context.Context, routeTemplate string) ([]ResponseVersion, error) {
 	if routeTemplate == "" {
-		return nil, errors.New("activityread: route template is required")
+		return nil, errNoTemplate
 	}
-	rows, err := r.db.QueryContext(ctx, `SELECT body_hash, body, first_seen_ms, last_seen_ms, seen_count
+	return r.queryVersions(ctx, `SELECT body_hash, body, first_seen_ms, last_seen_ms, seen_count
 		FROM response_versions WHERE route_template = ? ORDER BY last_seen_ms DESC, body_hash LIMIT ?`,
 		routeTemplate, ResponseVersionLimit)
+}
+
+// ResponseVersionsAt returns the versions of one route template whose seen
+// interval holds atMS, bounds included, most recently seen first. Intervals
+// of alternating bodies overlap, so more than one version can hold atMS;
+// only a kept capture's response_hash names the exact body. The read is the
+// template's primary-key range.
+func (r *Reader) ResponseVersionsAt(ctx context.Context, routeTemplate string, atMS int64) ([]ResponseVersion, error) {
+	if routeTemplate == "" {
+		return nil, errNoTemplate
+	}
+	return r.queryVersions(ctx, `SELECT body_hash, body, first_seen_ms, last_seen_ms, seen_count
+		FROM response_versions WHERE route_template = ? AND first_seen_ms <= ? AND last_seen_ms >= ?
+		ORDER BY last_seen_ms DESC, body_hash LIMIT ?`, routeTemplate, atMS, atMS, ResponseVersionLimit)
+}
+
+// queryVersions runs one version read and scans its rows; no row is an
+// empty list.
+func (r *Reader) queryVersions(ctx context.Context, query string, args ...any) ([]ResponseVersion, error) {
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("activityread: response versions: %w", err)
 	}

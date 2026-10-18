@@ -12,6 +12,7 @@ var toolNames = []string{
 	"get_run_story",
 	"list_recorder",
 	"list_response_versions",
+	"get_hourly_totals",
 }
 
 // ToolNames returns a copy of the sidecar's tool roster.

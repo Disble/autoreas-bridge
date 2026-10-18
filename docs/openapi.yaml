@@ -300,7 +300,17 @@ info:
       `get_incident`, `get_request` (by bridge `request_id`, or by the
       `X-Autoreas-Request-Id` value as `client_request_id`, which returns every
       row sharing it, newest first, at most 10), `search_history`, `list_runs`, `get_run_story`,
-      `list_recorder`, `list_response_versions`.
+      `list_recorder`, `list_response_versions`, `get_hourly_totals`.
+    - `search_history` connection lines include the bridge's `ws_broadcast`
+      pushes beside connects and disconnects (the desktop History does not).
+    - `list_response_versions` takes an optional `at_ms`: at most 20
+      versions whose `first_seen_ms`..`last_seen_ms` interval holds it.
+      Intervals of alternating bodies overlap, so only a kept request's
+      `response_hash` names the exact body.
+    - `get_hourly_totals` takes `day` (local `YYYY-MM-DD`) or `day_ms` (any
+      epoch ms inside the local day), one of the last 90 local days, and
+      returns that day's hourly rollup per hour, route template, status
+      class, device: request count and maximum duration in ms.
     - Every answer carries a `coverage` object: the tables read, the time
       range each one holds, the window asked about and the part of it the
       tables cover, in epoch ms and UTC ISO. An empty answer means nothing

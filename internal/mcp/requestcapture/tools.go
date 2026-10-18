@@ -153,11 +153,14 @@ func (t tools) clientRequestIDs(ctx context.Context, clientID string) (ids []str
 	return ids, truncated, rows.Err()
 }
 
-// history answers search_history.
+// history answers search_history. Unlike the desktop History, it lists the
+// bridge's pushes: a diagnosis reads them, a human view would drown in them.
 func (t tools) history(ctx context.Context, in HistoryInput) (HistoryResult, error) {
 	now := t.now()
 	where := activityread.Where(in.Where)
-	view, err := t.reader.activity.History(ctx, activityread.HistoryInput{Now: now, Where: where, Cursor: in.Cursor, Limit: in.Limit})
+	view, err := t.reader.activity.History(ctx, activityread.HistoryInput{
+		Now: now, Where: where, Cursor: in.Cursor, Limit: in.Limit, IncludeBroadcasts: true,
+	})
 	if err != nil {
 		return HistoryResult{}, err
 	}
@@ -216,18 +219,28 @@ func (t tools) recorder(ctx context.Context, in RecorderInput) (RecorderResult, 
 	return RecorderResult{Recorder: page, Coverage: coverage}, err
 }
 
-// responseVersions answers list_response_versions.
+// responseVersions answers list_response_versions: the latest versions, or
+// with at_ms the versions holding that time, whose coverage window is then
+// that instant.
 func (t tools) responseVersions(ctx context.Context, in ResponseVersionsInput) (ResponseVersionsResult, error) {
 	route := strings.TrimSpace(in.RouteTemplate)
 	if route == "" {
 		return ResponseVersionsResult{}, errors.New("route_template is required")
 	}
 	template := obs.RouteTemplate(route)
-	versions, err := t.reader.activity.ResponseVersions(ctx, template)
+	var versions []activityread.ResponseVersion
+	var window *TimeRange
+	var err error
+	if in.AtMS != nil {
+		versions, err = t.reader.activity.ResponseVersionsAt(ctx, template, *in.AtMS)
+		window = newTimeRange(*in.AtMS, *in.AtMS)
+	} else {
+		versions, err = t.reader.activity.ResponseVersions(ctx, template)
+	}
 	if err != nil {
 		return ResponseVersionsResult{}, err
 	}
-	coverage, err := t.coverage(ctx, nil, sourceVersions)
+	coverage, err := t.coverage(ctx, window, sourceVersions)
 	return ResponseVersionsResult{RouteTemplate: template, Versions: versions, Coverage: coverage}, err
 }
 

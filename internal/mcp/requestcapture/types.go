@@ -46,6 +46,7 @@ type RecorderInput struct {
 // ResponseVersionsInput names one route.
 type ResponseVersionsInput struct {
 	RouteTemplate string `json:"route_template" jsonschema:"a route template such as /api/animes/:id; a concrete route is reduced to its template"`
+	AtMS          *int64 `json:"at_ms,omitempty" jsonschema:"optional epoch ms; keeps only the versions first seen at or before it and last seen at or after it"`
 }
 
 // StatusResult answers get_status. BridgeStartedAtMS is the newest stored
@@ -111,4 +112,18 @@ type ResponseVersionsResult struct {
 	RouteTemplate string                         `json:"route_template"`
 	Versions      []activityread.ResponseVersion `json:"versions"`
 	Coverage      Coverage                       `json:"coverage"`
+}
+
+// HourlyTotalsInput names one local day, by date or by any time inside it.
+type HourlyTotalsInput struct {
+	Day   string `json:"day,omitempty" jsonschema:"a local date, YYYY-MM-DD, one of the last 90 days; give this or day_ms"`
+	DayMS *int64 `json:"day_ms,omitempty" jsonschema:"any epoch millisecond inside the local day; give this or day"`
+}
+
+// HourlyTotalsResult answers get_hourly_totals: the rollup buckets of the
+// local day starting at DayStartMS.
+type HourlyTotalsResult struct {
+	DayStartMS int64                      `json:"day_start_ms"`
+	Totals     []activityread.HourlyTotal `json:"totals"`
+	Coverage   Coverage                   `json:"coverage"`
 }
