@@ -37,7 +37,20 @@ for JS/TS sources only. Go tiers are recorded here and applied through ditto.
 
 `coverage-tiers.json` is declared when the first frontend path of the feature exists (T7). dharness accepts
 existing paths only, and today the feature has none: the old `features/network` is deleted, not adopted
-(S7).
+(S7). The owner confirmed the deferral: "Cuando sea el momento se hará." Until then, coverage files and the
+gate stay unchanged, as dharness prescribes for a deferred adoption.
+
+Checklist for T7, in the first commit that creates the new Activity folder:
+
+1. `bun add -d @vitest/coverage-v8@<vitest version>`. Today that is 4.1.6. dharness measured Vitest 5.0.3,
+   so 4.1.6 compatibility is unproven until the native command runs.
+2. Declare the feature in `coverage-tiers.json` with `enforcedPrefixes` set to the new folder only.
+   Validate with `dharness policy --root .`.
+3. Run `dharness sync`.
+4. Add the generated coverage job to the `frontend-heavy` group in the root `lefthook.yml` by hand. The root
+   file does not inherit `.dharness/lefthook.yml` (sync step 6 is left to the project), and inside
+   `frontend-heavy` the job runs only on `frontend/**` commits.
+5. Run the exact native command over the complete adopted folder.
 
 ## Tasks
 
