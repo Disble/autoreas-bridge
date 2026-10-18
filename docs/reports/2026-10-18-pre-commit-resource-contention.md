@@ -99,3 +99,11 @@ per-test durations measured inside a failing commit run.
   Close them before committing when possible.
 - **Go flake.** `TestLoggedEventSurvivesBridgeRestart` closes a nil `*sql.DB` after a `SQLITE_BUSY`
   startup failure (`internal/desktop/app.go`). It predates this branch and needs its own fix.
+
+## Follow-up: one Vitest run
+
+The dharness team confirmed that the coverage-tiers job replaces the plain test job, because its config
+re-exports `vite.config.ts` and runs the whole suite. Both hooks now run `frontend-coverage` alone after
+the typecheck, and `frontend-test` is gone. This removes one full suite run (about 120 s) from every
+frontend commit. `TestRepositoryFrontendLanesSerializeTypecheckBeforeTests` fails if the duplicate
+returns.

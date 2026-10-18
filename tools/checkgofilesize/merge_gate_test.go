@@ -12,6 +12,7 @@ import (
 type mergeGateJob struct {
 	Name  string         `yaml:"name"`
 	Run   string         `yaml:"run"`
+	Root  string         `yaml:"root"`
 	Glob  any            `yaml:"glob"`
 	Group *mergeGateJobs `yaml:"group"`
 }
@@ -60,7 +61,7 @@ var mergeGateWholeTreeJobs = map[string]string{
 	"frontend-typecheck":    "bun --cwd=\"frontend\" run typecheck",
 	"go-vet":                "go vet -p 4 ./...",
 	"go-cover":              "go test ./... -cover -p 4 -parallel 4",
-	"frontend-test":         "bun --cwd=\"frontend\" run test",
+	"frontend-coverage":     "bunx --no-install vitest run --coverage --config ../.dharness/vitest.coverage.mjs",
 	"frontend-render-smoke": "bun --cwd=\"frontend\" run render:smoke",
 	"frontend-layout-smoke": "bun --cwd=\"frontend\" run layout:smoke",
 }
@@ -110,6 +111,10 @@ func TestRepositoryHookGuardsMergeCommits(t *testing.T) {
 		if job.Run != want {
 			t.Errorf("pre-merge-commit job %q run = %q, want %q", name, job.Run, want)
 		}
+	}
+	// The coverage config path is relative to frontend/, so the job must run there.
+	if job := byName["frontend-coverage"]; job.Root != "frontend/" {
+		t.Errorf("pre-merge-commit job frontend-coverage root = %q, want %q", job.Root, "frontend/")
 	}
 }
 

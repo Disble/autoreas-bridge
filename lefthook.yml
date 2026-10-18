@@ -81,13 +81,13 @@ pre-commit:
             run: bun --cwd="frontend" run check:staged
           - name: frontend-typecheck
             run: &frontend-typecheck bun --cwd="frontend" run typecheck
-          - name: frontend-test
-            run: &frontend-test bun --cwd="frontend" run test
           # Copied from the coverage job `dharness sync` writes to .dharness/lefthook.yml,
           # which this file does not inherit: native coverage over the adopted tiers.
+          # It is the only Vitest run: its config re-exports vite.config.ts, so it runs
+          # the whole suite, and a plain `vitest run` beside it would run it twice.
           - name: frontend-coverage
             root: frontend/
-            run: bunx --no-install vitest run --coverage --config ../.dharness/vitest.coverage.mjs
+            run: &frontend-coverage bunx --no-install vitest run --coverage --config ../.dharness/vitest.coverage.mjs
           - name: frontend-render-smoke
             run: &frontend-render-smoke bun --cwd="frontend" run render:smoke
           - name: frontend-layout-smoke
@@ -137,8 +137,9 @@ pre-merge-commit:
         jobs:
           - name: frontend-typecheck
             run: *frontend-typecheck
-          - name: frontend-test
-            run: *frontend-test
+          - name: frontend-coverage
+            root: frontend/
+            run: *frontend-coverage
           - name: frontend-render-smoke
             run: *frontend-render-smoke
           - name: frontend-layout-smoke
