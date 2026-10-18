@@ -1,11 +1,13 @@
 # Local checks share commands and per-process Go limits, not scope.
-# Keep cheap checks parallel and heavy work in two sequential lanes.
+# Cheap checks run in parallel inside their group; the lanes run one after
+# another so the Go and frontend suites never compete for CPU
+# (docs/reports/2026-10-18-pre-commit-resource-contention.md).
 # No automatic hook inheritance: dharness check is explicit in frontend-heavy.
 # Generated ESLint/Fallow config still comes from .dharness/.
 # Mutation is a development command and a daily/manual CI audit, not a local gate.
 
 pre-commit:
-  parallel: true
+  piped: true
   jobs:
     - name: quick
       group:
