@@ -309,3 +309,30 @@ Checklist for T7, in the first commit that creates the new Activity folder:
       consistent across all the new bindings.
   - T7c2, the Activity shell, Now and the old-screen deletion, is in progress. T7d (old Go bindings,
     readcap/readparity desktop half, stale "MCP search_requests" comments, empty config structs) follows it.
+- L20 (2026-10-18): T7d and T7c2 committed after independent verifiers.
+  - T7d, the Go legacy deletion, as `24357e87`.
+    - Deleted: the old Activity bindings, the `capture.transaction` and `observability.log` events,
+      `GetRecentLogs` and its 500-entry memory ring, the old contracts, the eventlog reader, the requestcapture
+      search/resolve/summary readers, readcap/readparity, and the empty store config structs.
+    - Moved helpers are byte-identical. Every deleted test was mapped to the test that now covers any
+      behaviour that stays.
+    - Mutation: 14/14 on changed code. 6 survivors sit on unchanged constants that fall inside a touched range.
+  - T7c2, the Activity shell and Now, as `d68a9876`.
+    - The old screen is deleted: 154 files, `BridgeStatusCard`, and `@tanstack/react-virtual`.
+    - Verifier blocker fixed: the `default-400` classes emit no CSS in HeroUI v3, so the quiet status dot was
+      invisible. They became `muted`.
+    - Now is checked in a real browser: with the bindings absent it renders the failure Alert, not a blank page.
+    - Mutation: CORE 207/207 killed. The skeleton skip was rejected and its shape is now tested.
+    - Coverage-tiers adoption (S8), all 5 steps green: `@vitest/coverage-v8` 4.1.6 works with Vitest 4.1.6.
+      The native coverage job runs in `frontend-heavy`.
+  - Measured: the frontend lint has 46 errors in 28 files at baseline `cdf2e1cc` and 42 in 25 files now, with
+    identical counts per file. The difference is 3 deleted files; the `dharness-eslint-plugin` 0.3.0 → 0.4.0
+    bump added none. Not this feature's debt.
+  - Measured: `AnimeEditorListPanel` "renders no status region…" failed once inside the commit hook and passed
+    3/3 alone. It is a pre-existing flake under load in an untouched file.
+  - Decision: `scripts/lint.ps1` lists packages from `git ls-files --cached`, so a Go deletion must be committed
+    before any other commit runs the lint gate. That is why T7d was committed before T7c2.
+  - Delegated in parallel, with disjoint folders:
+    - T7c3: Incidents, the run story, Now → incident id, and the recorder-callback tolerance.
+    - T7c4: the History and Live recorder components.
+    - The parent wires History and the recorder into the shell at the end.
