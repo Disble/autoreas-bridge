@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { SeasonCoverThumb } from '../SeasonCoverThumb';
@@ -33,5 +33,14 @@ describe('SeasonCoverThumb', () => {
     expect(image).toHaveAttribute('src', 'data:image/png;base64,AA');
     expect(image).toHaveAttribute('alt', '');
     expect(screen.getByTestId('season-cover-thumb')).toHaveClass('size-11', 'rounded-lg');
+  });
+
+  it('swaps a cover that fails to load for the placeholder', () => {
+    render(<SeasonCoverThumb coverSrc="https://cdn.example/a.jpg" isLoading={false} />);
+
+    fireEvent.error(screen.getByTestId('season-cover-thumb-image'));
+
+    expect(screen.queryByTestId('season-cover-thumb-image')).not.toBeInTheDocument();
+    expect(screen.getByTestId('season-cover-thumb-placeholder')).toBeInTheDocument();
   });
 });

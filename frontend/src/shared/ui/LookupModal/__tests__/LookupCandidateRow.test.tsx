@@ -25,6 +25,19 @@ describe('LookupCandidateRow', () => {
     expect(screen.getByRole('button')).toHaveAttribute('aria-pressed', String(isSelected));
   });
 
+  it('swaps a cover that fails to load for the placeholder', () => {
+    const { container } = render(
+      <LookupCandidateRow image="https://cdn.example/a.jpg" isSelected={false} subtitle="" title="Ao Ashi" onPress={vi.fn()} />,
+    );
+
+    const image = container.querySelector('img');
+    expect(image).not.toBeNull();
+    fireEvent.error(image as HTMLImageElement);
+
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('svg')).not.toBeNull();
+  });
+
   it('reports a press once', () => {
     const onPress = vi.fn();
     render(<LookupCandidateRow isSelected={false} subtitle="" title="Ao Ashi" onPress={onPress} />);

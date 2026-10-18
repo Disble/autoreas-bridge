@@ -58,6 +58,12 @@ func TestClientSearchReturnsPinnedCandidatesForBleach(t *testing.T) {
 	if top.StartYear != 2022 {
 		t.Fatalf("expected start year 2022, got %d", top.StartYear)
 	}
+	// The fixture's image_url is the CDN's resized /r/116x180/ variant; the
+	// candidate must carry the original image instead.
+	const wantImage = "https://cdn.myanimelist.net/images/anime/1908/135431.jpg"
+	if top.Image != wantImage {
+		t.Fatalf("expected original image %q, got %q", wantImage, top.Image)
+	}
 
 	// The request the fake server received must carry the
 	// url.QueryEscape'd keyword — proven two ways: the decoded value round
@@ -140,5 +146,38 @@ func TestSearchIssuesExactlyOneRequestPerQuery(t *testing.T) {
 	}
 	if got := requestCount.Load(); got != 1 {
 		t.Fatalf("expected exactly one request per query, got %d", got)
+	}
+}
+
+// TestOriginalImageURLStripsOnlyTheCDNResizePrefix pins which image URLs are
+// rewritten to their original: only a cdn.myanimelist.net /r/<W>x<H>/ path,
+// whose signed query is dropped with it. Anything else passes through.
+func TestOriginalImageURLStripsOnlyTheCDNResizePrefix(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"resized with signature", "https://cdn.myanimelist.net/r/116x180/images/anime/1413/159862.jpg?s=8276cae1", "https://cdn.myanimelist.net/images/anime/1413/159862.jpg"},
+		{"resized without signature", "https://cdn.myanimelist.net/r/116x76/images/anime/1/2.jpg", "https://cdn.myanimelist.net/images/anime/1/2.jpg"},
+		{"already original", "https://cdn.myanimelist.net/images/anime/1/2.jpg", "https://cdn.myanimelist.net/images/anime/1/2.jpg"},
+		{"empty", "", ""},
+		{"other host", "https://example.com/r/116x180/images/anime/1/2.jpg?s=x", "https://example.com/r/116x180/images/anime/1/2.jpg?s=x"},
+		{"r segment is not a size", "https://cdn.myanimelist.net/r/thumbs/images/anime/1/2.jpg?s=x", "https://cdn.myanimelist.net/r/thumbs/images/anime/1/2.jpg?s=x"},
+		{"size prefix not under r", "https://cdn.myanimelist.net/x/116x180/images/anime/1/2.jpg?s=x", "https://cdn.myanimelist.net/x/116x180/images/anime/1/2.jpg?s=x"},
+		{"resize prefix without an image path", "https://cdn.myanimelist.net/r/116x180", "https://cdn.myanimelist.net/r/116x180"},
+		{"resize prefix with an empty image path", "https://cdn.myanimelist.net/r/116x180/", "https://cdn.myanimelist.net/r/116x180/"},
+		{"size missing a dimension", "https://cdn.myanimelist.net/r/116x/images/anime/1/2.jpg?s=x", "https://cdn.myanimelist.net/r/116x/images/anime/1/2.jpg?s=x"},
+		{"unparseable", "https://cdn.myanimelist.net/r/116x180/%zz.jpg", "https://cdn.myanimelist.net/r/116x180/%zz.jpg"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := originalImageURL(tt.in); got != tt.want {
+				t.Fatalf("originalImageURL(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
 	}
 }

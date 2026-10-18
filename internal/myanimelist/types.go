@@ -20,8 +20,9 @@ type Candidate struct {
 	ID int
 	// Name is the candidate's display title as MyAnimeList returns it.
 	Name string
-	// Image is the candidate's cover image URL, taken from the search
-	// payload so no extra fetch is needed to resolve a cover.
+	// Image is the candidate's original cover image URL, derived from the
+	// search payload's resized variant (see originalImageURL) so no extra
+	// fetch is needed to resolve a cover.
 	Image string
 	// MediaType is MyAnimeList's raw media type string (e.g. "TV",
 	// "Movie", "OVA"), unmapped.
