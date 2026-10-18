@@ -59,7 +59,7 @@ Checklist for T7, in the first commit that creates the new Activity folder:
 | T0 | S1, S4, S5 | ADR-028 and `docs/observability/` | inline | done |
 | T1 | S5 | new Activity UI canvas from the UX brief | inline | done: approved, `docs/observability/activity-ui-design.md` |
 | T2 | S4 | data-directory override and copy refresh | inline | done: `bea6bc75`, `c46fcf49`, `fd09052c` |
-| T3 | S1 | stage 1: record quality and the H1 read by id (lanes A and B) | split below | in progress |
+| T3 | S1 | stage 1: record quality and the H1 read by id (lanes A and B) | split below | done: T3a–T3h below |
 | T3a | S1 | H1: `Reader.Get` reads one row by primary key instead of scanning the table (`reader_search.go:122`) | inline | done: 44 ms → 53 µs on the dev copy, mutation 4/4 |
 | T3b | S1 | P2: logger timestamps in ms; all 20,001 `runtime_events` rows on the dev copy sit on whole seconds (`logger.go:57`, `sink.go:169`) | inline | done: ditto 0 mutants (constant only); hand mutation = the observed RED |
 | T3c | S1 | P1: `error_message` on `request_captures`; the WS path keeps the `err` it already has; middleware records the cause for 4xx/5xx | inline | done: `d7be2d38`, `871e2608`; mutation 1/1, 6/6, 1/1; migration verified on a dev-copy duplicate (5,008 rows); schema version kept at 5 so an older MCP build still reads the table |
@@ -70,9 +70,9 @@ Checklist for T7, in the first commit that creates the new Activity folder:
 | T3g | S1 | trigger classifier (pure): 5xx, 4xx, rejected, >1,000 ms, mobile failure report, internal error event; consumed by stage 4 | delegated (parallel writer) | done: `e2e5d534`, verifier pass |
 | T3h | S1 | metadata audit of internal events (17 `Metadata:` sites in 10 files) | delegated (explorer + writer) | done: `df9ae784`, verifier pass |
 | T4 | S6 | stage 2: mobile correlation header | covered by T3d (`ce561e39`, `11400406`, openapi `0f7591e2`) | done: the phone side is mobile's, no APK change (S4) |
-| T5 | S1 | stage 3 ledger (L15 D-c, D-d): `request_rollup_hourly`, `response_versions`, `response_hash` column | delegated (writer) | pending: Risk item 1 (persisted format), verifier |
-| T6a | S1 | stage 4 incidents (L15 D-e): `incidents` table, triggers from captures, error events and mobile failures | delegated (writer) | pending: Risk item 1, verifier |
-| T6b | S1 | stage 4 sweeper (L15 D-a, D-b, D-g): time retention replaces the row caps, which are deleted | delegated (writer) | pending: Risk item 1 (deletes data), verifier |
+| T5 | S1 | stage 3 ledger (L15 D-c, D-d): `request_rollup_hourly`, `response_versions`, `response_hash` column | delegated (writer) | done: `edc1bf98`, verifier pass |
+| T6a | S1 | stage 4 incidents (L15 D-e): `incidents` table, triggers from captures, error events and mobile failures | delegated (writer) | done: `dd9ef3a2`, verifier pass |
+| T6b | S1 | stage 4 sweeper (L15 D-a, D-b, D-g): time retention replaces the row caps, which are deleted | delegated (writer) | done: `1792a8a9`, verifier pass |
 | T7 | S2, S5, S7, S8 | stage 5: MCP tools and Activity UI (T7a read service `83374025`, T7b MCP `0adf94e6`, T7c1 bindings `da55bd47`, T7d Go legacy deletion `24357e87`, T7c2 shell + Now `d68a9876`, T7c3+T7c5 Incidents + run story `d5a5335d`, T7c4 History + recorder + wiring `0dcb2299`) | delegated (writers + verifiers per unit; parent wiring inline) | done |
 | T9 | — | gate: pre-commit lanes run one after another, with a contention report | inline | done `c7ab5d8b` |
 | T8 | S1 | stage 6: battery on the real stores, measured budgets | delegated (writer-t8) | done `28180006` |
