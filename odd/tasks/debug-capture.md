@@ -96,3 +96,7 @@ Checklist for T7, in the first commit that creates the new Activity folder:
 - L8 (2026-10-17): S8. dharness tier coverage was **not** configured: there is no `coverage-tiers.json`,
   `dharness policy` reports `active:false`, and `@vitest/coverage-v8` is not installed (vitest 4.1.6).
   The declaration waits for T7 (see "Coverage tiers").
+- L9 (2026-10-17): "Adelante." The correlation proposal was sent to the mobile session `autoreas-mobile-85`. It
+  covers the optional `X-Autoreas-Request-Id` header, an optional `request_id` in the WS reconcile frame, and
+  the bridge echoing the id in a response header. It asks whether the phone already has a per-request or
+  per-cycle id to reuse. The answer is pending, and it decides the P3 shape in T3/T4.

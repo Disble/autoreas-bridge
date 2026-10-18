@@ -36,7 +36,7 @@ ADRs, `docs/learning-log.md`, `odd/tasks/*` and `openspec/`. They describe what 
 |---|---|---|---|
 | 0 | Docs and development database | this section, ADR-028, the data-directory override | docs written 2026-10-17 |
 | 1 | Record quality | P1 error cause, P2 ms time, P3 correlation, P7 frontend errors, 4xx triggers, incremental vacuum, the detail read by id (H1), a metadata audit of internal events (130 of 173 carried metadata in the measured week), a test that an internal error event opens an incident | pending |
-| 2 | Mobile correlation | the phone sends its id in an optional header; the bridge reads it when present | pending: proposal not sent |
+| 2 | Mobile correlation | the phone sends its id in an optional header; the bridge reads it when present | pending: proposal sent 2026-10-17, awaiting mobile answer |
 | 3 | Ledger | write journal, event and WS ledger, hourly rollup, response versions; the old tables still exist inside the branch | pending |
 | 4 | Recorder and incidents | the 2-hour recorder and 90-day incidents replace the row caps; the old capture and event tables and their readers are deleted | pending: the only stage that deletes data |
 | 5 | Readers | new MCP tools and the new Activity UI; the old screen, stores, sources, bindings and MCP tools are deleted (see "No legacy") | pending: UI design in `activity-ui-design.md` |
