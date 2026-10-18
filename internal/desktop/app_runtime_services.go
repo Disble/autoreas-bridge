@@ -30,6 +30,7 @@ func (a *App) configureRuntimeServices(ctx context.Context) {
 	a.configureEventReader()
 	a.prepareAnimeRuntime(ctx)
 	a.startSyncChangelogRecorder()
+	a.startIncrementalVacuumLoop(bridgeSync.IncrementalVacuumInterval)
 	deviceService, changelogStore := a.configureBridgeDeviceServices(ctx)
 	a.configureRealtimeHub(ctx)
 	conflictService := a.configureAnimeApplicationServices()
@@ -199,6 +200,18 @@ func (a *App) readEventPersistDebugSetting(ctx context.Context) (persistDebug bo
 func (a *App) startSyncChangelogRecorder() {
 	a.syncChangelogRecorder = a.newChangelogRecorder(a.eventBus, a.newChangelogStore(a.bridgeDB), a.sharedLogger)
 	a.syncChangelogRecorder.Start(a.catchUpContext)
+}
+
+// startIncrementalVacuumLoop returns free pages to the disk on a timer until
+// shutdown cancels the catch-up context, which happens before the database
+// closes. interval is IncrementalVacuumInterval in production.
+func (a *App) startIncrementalVacuumLoop(interval time.Duration) {
+	if a.bridgeDB == nil {
+		return
+	}
+	go bridgeSync.RunIncrementalVacuumLoop(a.catchUpContext, a.bridgeDB, interval, func(format string, args ...any) {
+		a.sharedLogger.Warnf("sync", format, args...)
+	})
 }
 
 // configureBridgeDeviceServices wires device authentication and changelog services.

@@ -19,6 +19,15 @@ layer was materialized in a real SQLite file and measured on disk.
 For comparison: today's row caps hold 15.1 MB of capture data and cover about 3.6 days. The whole file
 measured 38.9 MB, almost half of it free pages that were never returned to the disk.
 
+## Free pages
+
+The bridge file runs in `auto_vacuum = INCREMENTAL` (`internal/sync/sqlite_vacuum.go`). A new file gets the
+mode before WAL and before its first table; an existing file is converted once at startup by one full
+`VACUUM`, and a failed conversion is logged and leaves the file as it was. Each start, and every 30 minutes
+while running, `PRAGMA incremental_vacuum(2048)` returns up to 8 MB of pages the prunes freed. Measured
+2026-10-17 on the 21.3 MB dev copy: conversion 220 ms; pruning half of `request_captures` freed 1,888 pages,
+and one pass returned all of them in 54 ms (21.3 MB → 13.6 MB).
+
 ## How to retune
 
 - Retune one number at a time, then rerun the battery (`qa-battery.md`). A change that loses evidence for
