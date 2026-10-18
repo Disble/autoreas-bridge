@@ -1,19 +1,24 @@
-import { Button, Tabs } from '@heroui/react';
+import { Button, Chip, Tabs } from '@heroui/react';
 import { Icon } from '@iconify/react';
-import dangerIcon from '@iconify-icons/solar/danger-triangle-bold-duotone';
-import historyIcon from '@iconify-icons/solar/history-bold-duotone';
 import pinIcon from '@iconify-icons/solar/pin-bold';
-import { AwaitingSelectionPane } from '../../../../shared/ui/AwaitingSelectionPane/AwaitingSelectionPane';
+import { ActivityHistory } from '../../history/ActivityHistory';
+import { ActivityRecorder } from '../../recorder/ActivityRecorder';
+import { ActivityIncidents } from '../ActivityIncidents/ActivityIncidents';
 import { ActivityNow } from '../ActivityNow/ActivityNow';
 import { useActivityScreen } from './use-activity-screen';
 
 /**
  * The Activity shell: the Now · Incidents · History tab strip with "Pin this
- * moment" beside it. Incidents and History hold their resting pane until
- * their own views are built.
+ * moment" beside it. An incident opened from Now reaches the Incidents tab
+ * as an open request, and the recorder link under Now covers the tabs with
+ * the 2-hour recorder until Back.
  */
 export function ActivityScreen() {
-  const { selectedTab, selectTab, openIncident, pin, isPinning } = useActivityScreen();
+  const { selectedTab, selectTab, incidentRequest, openIncident, isRecorderOpen, openRecorder, closeRecorder, pairPhone, pin, isPinning } = useActivityScreen();
+
+  if (isRecorderOpen) {
+    return <ActivityRecorder onBack={closeRecorder} />;
+  }
 
   return (
     <Tabs onSelectionChange={selectTab} selectedKey={selectedTab} variant="secondary">
@@ -30,14 +35,20 @@ export function ActivityScreen() {
           Pin this moment
         </Button>
       </div>
-      <Tabs.Panel className="pt-4" id="now">
+      <Tabs.Panel className="flex flex-col gap-3 pt-4" id="now">
         <ActivityNow onOpenIncident={openIncident} />
+        <Button className="self-start" onPress={openRecorder} size="sm" variant="ghost">
+          <Chip color="success" size="sm" variant="soft">
+            Recording
+          </Chip>
+          See every request from the last 2 hours
+        </Button>
       </Tabs.Panel>
       <Tabs.Panel className="pt-4" id="incidents">
-        <AwaitingSelectionPane description="Errors of the last 7 days, grouped by what went wrong." icon={dangerIcon} title="No incident selected" />
+        <ActivityIncidents openRequest={incidentRequest} />
       </Tabs.Panel>
       <Tabs.Panel className="pt-4" id="history">
-        <AwaitingSelectionPane description="Every change of the last 90 days, day by day." icon={historyIcon} title="No day selected" />
+        <ActivityHistory onPairPhone={pairPhone} />
       </Tabs.Panel>
     </Tabs>
   );
