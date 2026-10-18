@@ -27,17 +27,17 @@ export const ACTIVITY_MARK_CHIPS: Readonly<Record<ActivityLineMark, ActivityHist
 /** Highest fill level of a calendar square. */
 export const ACTIVITY_CALENDAR_MAX_LEVEL = 4;
 
-/** Fill class of each data level; level 0 is a recorded quiet day. */
-export const ACTIVITY_CALENDAR_LEVEL_CLASS: readonly string[] = ['bg-default', 'bg-accent/25', 'bg-accent/50', 'bg-accent/75', 'bg-accent'];
+/** Fill class of each data level; level 0 is a recorded quiet day, still visible on the card surface. */
+export const ACTIVITY_CALENDAR_LEVEL_CLASS: readonly string[] = ['bg-muted/30', 'bg-accent/25', 'bg-accent/50', 'bg-accent/75', 'bg-accent'];
 
 /** Squares the skeleton draws: one per calendar day. */
 export const ACTIVITY_CALENDAR_DAYS = 90;
 
 /** Geometry shared by a calendar square and its skeleton. */
-export const ACTIVITY_CALENDAR_GRID_CLASS = 'grid w-fit max-w-full grid-flow-col grid-rows-7 gap-1';
+export const ACTIVITY_CALENDAR_GRID_CLASS = 'grid w-full auto-cols-fr grid-flow-col grid-rows-7 gap-1';
 
-/** Size of one calendar square. */
-export const ACTIVITY_CALENDAR_CELL_CLASS = 'size-3 rounded-sm';
+/** One calendar square: a fixed height, stretched to its week column so the calendar spans the card. */
+export const ACTIVITY_CALENDAR_CELL_CLASS = 'h-4 w-full rounded-sm';
 
 /** Geometry shared by a History line and its skeleton row. */
 export const ACTIVITY_HISTORY_ROW_CLASS = 'flex min-h-11 min-w-0 items-center gap-3 py-1.5';
@@ -64,7 +64,7 @@ export const ACTIVITY_LINE_TIME_FORMAT = new Intl.DateTimeFormat('en-GB', { hour
 export const ACTIVITY_HISTORY_COUNT_FORMAT = new Intl.NumberFormat('en-US');
 
 /** A day before recording began: an empty outlined square. */
-export const ACTIVITY_CALENDAR_BEFORE_CLASS = 'border border-separator';
+export const ACTIVITY_CALENDAR_BEFORE_CLASS = 'border border-muted/50';
 
 /** A missing day after recording began: a dashed square, never a quiet fill. */
 export const ACTIVITY_CALENDAR_GAP_CLASS = 'border border-dashed border-muted';

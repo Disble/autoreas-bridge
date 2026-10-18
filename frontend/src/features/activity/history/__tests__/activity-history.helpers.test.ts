@@ -85,10 +85,10 @@ describe('toCalendarModel', () => {
 
   it('outlines days before recording, dashes gaps, fills by level and rings incidents', () => {
     expect(toCalendarModel(calendar).cells.map((cell) => cell.className)).toEqual([
-      'border border-separator',
-      'border border-separator',
+      'border border-muted/50',
+      'border border-muted/50',
       'bg-accent ring-2 ring-danger',
-      'bg-default',
+      'bg-muted/30',
       'border border-dashed border-muted ring-2 ring-danger',
       'border border-dashed border-muted',
       'bg-accent/25',

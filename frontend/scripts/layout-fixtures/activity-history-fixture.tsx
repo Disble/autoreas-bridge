@@ -116,6 +116,22 @@ const RECORDER_LINES = [
 ].map(toRecorderLineModel);
 
 /**
+ * Checks that the calendar spans its column instead of hugging its squares.
+ *
+ * @param column The fixture column holding the calendar.
+ * @returns The width check.
+ */
+function checkCalendarSpansColumn(column: Element): Check {
+  const calendarWidth = column.querySelector('[role="img"]')?.getBoundingClientRect().width ?? 0;
+  const columnWidth = column.getBoundingClientRect().width;
+  return {
+    name: 'activity-history: the calendar spans the column width',
+    ok: calendarWidth >= columnWidth - OVERFLOW_TOLERANCE_PX,
+    detail: `calendar ${Math.round(calendarWidth)}px, column ${Math.round(columnWidth)}px`,
+  };
+}
+
+/**
  * Reads back the column, its calendar squares and its filter.
  *
  * @returns Every check History and the recorder must pass.
@@ -142,6 +158,7 @@ function measureActivityHistory(): readonly Check[] {
       ok: squares.length === 90 && tinySquares === 0,
       detail: `${squares.length} squares, ${tinySquares} smaller than 4px`,
     },
+    checkCalendarSpansColumn(column),
     checkThePage('activity-history'),
   ];
 }
