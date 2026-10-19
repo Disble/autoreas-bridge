@@ -126,13 +126,14 @@ describe('activity-run-story.helpers', () => {
       { kind: 'value', label: 'none', value: '' },
       { kind: 'value', label: 'mixed', value: '{"k":1}, x' },
     ]);
-    expect(metadata.raw).toBe(JSON.stringify(JSON.parse('{"hoster":"mega","attempt":2,"dead":false,"note":null,"tags":["a","b"],"probes":[{"hoster":"mega","ok":false},{"hoster":"pixel","ok":true}],"extra":{"k":1}}'), null, 2));
+    // Raw is the text as recorded; the code block formats it for the Pretty view.
+    expect(metadata.raw).toBe('{"hoster":"mega","attempt":2,"dead":false,"note":null,"tags":["a","b"],"probes":[{"hoster":"mega","ok":false},{"hoster":"pixel","ok":true}],"extra":{"k":1}}');
   });
 
   it('keeps unreadable or non-object metadata raw, and nothing recorded as empty', () => {
     expect(toActivityRunMetadata('')).toEqual({ fields: [], raw: '' });
     expect(toActivityRunMetadata('{not json')).toEqual({ fields: [], raw: '{not json' });
-    expect(toActivityRunMetadata('[1,2]')).toEqual({ fields: [], raw: '[\n  1,\n  2\n]' });
+    expect(toActivityRunMetadata('[1,2]')).toEqual({ fields: [], raw: '[1,2]' });
     expect(toActivityRunMetadata('null')).toEqual({ fields: [], raw: 'null' });
   });
 

@@ -38,9 +38,14 @@ describe('useActivityIncidents', () => {
     const { result } = renderHook(() => useActivityIncidents(undefined, source));
     await waitFor(() => expect(result.current.list.status).toBe('ready'));
 
+    act(() => result.current.select({ kind: 'incident', id: 9 }));
     act(() => result.current.selectWhere(new Set(['downloads'])));
+    // A new filter clears the detail pane: what was open may not belong to it.
+    expect(result.current.selection).toBeUndefined();
+    act(() => result.current.select({ kind: 'run', correlationId: 'c-1' }));
     act(() => result.current.selectWhere(new Set()));
     expect(result.current.where).toBe('downloads');
+    expect(result.current.selection).toEqual({ kind: 'run', correlationId: 'c-1' });
     expect(result.current.isFiltered).toBe(true);
     await waitFor(() => expect(result.current.entries.map((entry) => entry.key)).toEqual(['incident:9', 'run:c-1']));
 
@@ -49,6 +54,7 @@ describe('useActivityIncidents', () => {
 
     act(() => result.current.clearFilter());
     expect(result.current.where).toBe('all');
+    expect(result.current.selection).toBeUndefined();
   });
 
   it('opens the incident another tab asked for, and a later request too', async () => {

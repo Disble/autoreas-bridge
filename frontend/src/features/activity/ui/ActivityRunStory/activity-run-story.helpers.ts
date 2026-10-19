@@ -142,7 +142,7 @@ function toField(label: string, value: unknown): ActivityMetadataField {
 
 /**
  * Lays a step's recorded metadata out as labelled fields in recorded order,
- * with the raw JSON (pretty when it parses) behind "Show raw metadata".
+ * with the raw JSON, as recorded, behind "Show raw metadata".
  * Unreadable text, including the empty text of a step that recorded nothing,
  * is kept raw with no fields.
  *
@@ -157,7 +157,8 @@ export function toActivityRunMetadata(json: string): ActivityMetadataModel {
     return { fields: [], raw: json };
   }
   const fields = isRecord(parsed) ? Object.entries(parsed).map(([label, value]) => toField(label, value)) : [];
-  return { fields, raw: JSON.stringify(parsed, null, 2) };
+  // The text as recorded: the code block's Pretty view formats it, its Raw view shows it unchanged.
+  return { fields, raw: json };
 }
 
 /**

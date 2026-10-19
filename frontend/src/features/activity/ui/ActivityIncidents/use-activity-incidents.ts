@@ -15,8 +15,8 @@ import type { ActivityIncidentOpenRequest, ActivityIncidentSelection } from './a
  * filter (incidents, plus runs for internal bridge work), the progressive
  * window over that list, and what the detail pane shows. An incident another
  * tab asks to open replaces the selection; each request is a new object, so
- * asking for the same incident twice opens it twice. An answer for a filter
- * no longer selected is dropped.
+ * asking for the same incident twice opens it twice. A new filter clears the
+ * detail pane, and an answer for a filter no longer selected is dropped.
  *
  * @param openRequest The incident another tab asked to open, if any.
  * @param source The Activity port; the shared Wails source when omitted.
@@ -52,11 +52,13 @@ export function useActivityIncidents(openRequest: ActivityIncidentOpenRequest | 
     const picked = toActivityPickedKey(keys);
     if (picked !== undefined) {
       setWhere(toActivityWhere(picked));
+      setSelection(undefined);
     }
   }, []);
 
   const clearFilter = useCallback(() => {
     setWhere('all');
+    setSelection(undefined);
   }, []);
 
   const select = useCallback((next: ActivityIncidentSelection) => {
