@@ -98,3 +98,21 @@ func TestReconcilePayloadParityWithRetiredBuilder(t *testing.T) {
 		t.Fatalf("expected anime_id anime-1, got %#v", operations[0])
 	}
 }
+
+// TestMergeEnrichmentPrefersTheHandlerCause guards P1: a cause the handler set
+// replaces the one the transport derived, and a handler that set none keeps it.
+func TestMergeEnrichmentPrefersTheHandlerCause(t *testing.T) {
+	t.Parallel()
+
+	transport := BuildTransportCaptureRecord("req-1", 1, "patch", "/api/animes/a", "http")
+	transport.ErrorMessage = "derived from body"
+
+	withCause := newEnrichmentHolder().SetOutcome("rejected").SetErrorMessage("revision 7 is stale")
+	if got := MergeEnrichment(transport, withCause).ErrorMessage; got != "revision 7 is stale" {
+		t.Fatalf("handler cause: got %q", got)
+	}
+	withoutCause := newEnrichmentHolder().SetOutcome("rejected")
+	if got := MergeEnrichment(transport, withoutCause).ErrorMessage; got != "derived from body" {
+		t.Fatalf("no handler cause: got %q", got)
+	}
+}

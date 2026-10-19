@@ -38,7 +38,7 @@ func storePendingArrival(t *testing.T, store *SQLiteStore, id string, capturedAt
 
 func TestSweepOrphanedCapturesMarksPendingArrivalAbandoned(t *testing.T) {
 	db := openCaptureTestDB(t)
-	store := NewStore(db, StoreConfig{})
+	store := NewStore(db)
 	storePendingArrival(t, store, "req-orphan", 1_700_000_000_000)
 
 	swept, err := SweepOrphanedCaptures(context.Background(), db)
@@ -63,7 +63,7 @@ func TestSweepOrphanedCapturesMarksPendingArrivalAbandoned(t *testing.T) {
 
 func TestSweepOrphanedCapturesLeavesTerminalRowsUntouched(t *testing.T) {
 	db := openCaptureTestDB(t)
-	store := NewStore(db, StoreConfig{})
+	store := NewStore(db)
 	status := 404
 	duration := int64(7)
 	terminal := BuildTransportCaptureRecord("req-terminal", 1_700_000_000_000, "get", "/api/seasons/active", "http")
@@ -96,7 +96,7 @@ func TestSweepOrphanedCapturesLeavesTerminalRowsUntouched(t *testing.T) {
 
 func TestSweepOrphanedCapturesIsIdempotent(t *testing.T) {
 	db := openCaptureTestDB(t)
-	store := NewStore(db, StoreConfig{})
+	store := NewStore(db)
 	storePendingArrival(t, store, "req-orphan", 1_700_000_000_000)
 
 	if _, err := SweepOrphanedCaptures(context.Background(), db); err != nil {

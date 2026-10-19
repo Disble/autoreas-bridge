@@ -11,8 +11,10 @@ import (
 	"autoreas-bridge/internal/anime/cover"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
+	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/observability/eventlog"
 	"autoreas-bridge/internal/observability/requestcapture"
+	"autoreas-bridge/internal/observability/retention"
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/settings"
 	bridgeSync "autoreas-bridge/internal/sync"
@@ -26,9 +28,10 @@ func (a *App) configureRuntimeServices(ctx context.Context) {
 	a.configureCaptureReader()
 	a.configureSyncDiagReader()
 	a.configureEventLogQueue(ctx)
-	a.configureEventReader()
 	a.prepareAnimeRuntime(ctx)
 	a.startSyncChangelogRecorder()
+	a.startIncrementalVacuumLoop(bridgeSync.IncrementalVacuumInterval)
+	a.startRetentionSweepLoop(retention.SweepInterval)
 	deviceService, changelogStore := a.configureBridgeDeviceServices(ctx)
 	a.configureRealtimeHub(ctx)
 	a.startSeasonProjectionPublisher(ctx)
@@ -69,7 +72,7 @@ func (a *App) sweepOrphanedCaptures() {
 	// down with it.
 	defer func() {
 		if recovered := recover(); recovered != nil && a.sharedLogger != nil {
-			a.sharedLogger.Warnf("api", "failed to sweep orphaned capture rows: %v", recovered)
+			a.logCaptureSweep(map[string]any{"cause": fmt.Sprint(recovered)}, "failed to sweep orphaned capture rows: %v", recovered)
 		}
 	}()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -77,17 +80,26 @@ func (a *App) sweepOrphanedCaptures() {
 	swept, err := requestcapture.SweepOrphanedCaptures(ctx, a.bridgeDB)
 	if err != nil {
 		if a.sharedLogger != nil {
-			a.sharedLogger.Warnf("api", "failed to sweep orphaned capture rows: %v", err)
+			a.logCaptureSweep(map[string]any{"cause": err.Error()}, "failed to sweep orphaned capture rows: %v", err)
 		}
 		return
 	}
 	if swept > 0 && a.sharedLogger != nil {
-		a.sharedLogger.Warnf("api", "swept %d orphaned capture row(s) left pending by a previous process", swept)
+		a.logCaptureSweep(map[string]any{"swept": swept}, "swept %d orphaned capture row(s) left pending by a previous process", swept)
 	}
 }
 
+// logCaptureSweep writes one capture-sweep warning with its structured metadata, so the kept
+// ledger row says how many rows were swept or why the sweep failed. Callers check sharedLogger.
+func (a *App) logCaptureSweep(metadata map[string]any, format string, args ...any) {
+	a.sharedLogger.Logf("api", sharedlogger.LevelWarn, sharedlogger.Fields{
+		EventType: "api.capture_swept",
+		Metadata:  metadata,
+	}, format, args...)
+}
+
 // configureCaptureReader wires the in-process capture read path
-// (ListCaptureTransactions/GetCaptureTransaction) once, over the app's own
+// (GetActivityRequest) once, over the app's own
 // bridgeDB handle -- never a second SQLite connection (design.md "Read
 // handle"). Guarded like configureCaptureQueue: nil-safe when bridgeDB is
 // absent, and a no-op once a reader already exists.
@@ -102,7 +114,7 @@ func (a *App) configureCaptureReader() {
 // path (ListDeviceSyncDiagnostics) once, over the app's own bridgeDB handle --
 // never a second SQLite connection. It is the exact mirror of
 // configureCaptureReader: nil-safe when bridgeDB is absent, and a no-op once a
-// reader already exists. The recover mirrors configureEventReader: the
+// reader already exists. The recover exists because the
 // constructor probes device_telemetry_events, and a bare, unopened *sql.DB{}
 // (as a degraded bootstrap or a unit-test fixture supplies) panics on query
 // rather than erroring. Leaving the reader nil there is the correct
@@ -142,32 +154,6 @@ func (a *App) configureEventLogQueue(ctx context.Context) {
 	}
 }
 
-// configureEventReader wires the in-process runtime-event read path
-// (SearchRuntimeEvents/SummarizeRuntimeEvents/RuntimeEventsAvailable) once,
-// over the app's own bridgeDB handle -- never a second SQLite connection. It
-// is the exact mirror of configureCaptureReader, and deliberately asymmetric
-// with the MCP sidecar, which opens its own read-only connection because it is
-// a separate process. eventlog.NewReader probes runtime_events once and never
-// errors on a missing table, so a database predating that table degrades to
-// Available() false instead of failing startup.
-//
-// The recover mirrors sweepOrphanedCaptures and readEventPersistDebugSetting:
-// the constructor probes runtime_events, and a bare, unopened *sql.DB{} (as a
-// degraded bootstrap or a unit-test fixture supplies) panics on query rather
-// than erroring. Leaving the reader nil there is the correct degradation --
-// the bound reads already report a nil reader as Degraded.
-func (a *App) configureEventReader() {
-	if a.eventReader != nil || a.bridgeDB == nil || a.newEventReader == nil {
-		return
-	}
-	defer func() {
-		if recovered := recover(); recovered != nil && a.sharedLogger != nil {
-			a.sharedLogger.Warnf("api", "failed to wire the runtime-event reader: %v", recovered)
-		}
-	}()
-	a.eventReader = a.newEventReader(a.bridgeDB)
-}
-
 // readEventPersistDebugSetting reads the debug-persistence policy from
 // app_settings, defaulting to false (OFF) when unset, on any read error, or
 // when bridgeDB is not a genuinely usable handle (some unit tests wire a
@@ -190,6 +176,46 @@ func (a *App) readEventPersistDebugSetting(ctx context.Context) (persistDebug bo
 func (a *App) startSyncChangelogRecorder() {
 	a.syncChangelogRecorder = a.newChangelogRecorder(a.eventBus, a.newChangelogStore(a.bridgeDB), a.sharedLogger)
 	a.syncChangelogRecorder.Start(a.catchUpContext)
+}
+
+// startIncrementalVacuumLoop returns free pages to the disk on a timer until
+// shutdown cancels the catch-up context, which happens before the database
+// closes. interval is IncrementalVacuumInterval in production.
+func (a *App) startIncrementalVacuumLoop(interval time.Duration) {
+	if a.bridgeDB == nil {
+		return
+	}
+	go bridgeSync.RunIncrementalVacuumLoop(a.catchUpContext, a.bridgeDB, interval, func(format string, args ...any) {
+		a.sharedLogger.Warnf("sync", format, args...)
+	})
+}
+
+// startRetentionSweepLoop applies ADR-028 time retention: one sweep right after
+// bootstrap, then one every interval until shutdown cancels the catch-up
+// context. interval is retention.SweepInterval in production.
+func (a *App) startRetentionSweepLoop(interval time.Duration) {
+	if a.bridgeDB == nil {
+		return
+	}
+	warn := func(format string, args ...any) {
+		a.sharedLogger.Warnf("sync", format, args...)
+	}
+	a.sweepRetentionOnce(warn)
+	go retention.RunLoop(a.catchUpContext, a.bridgeDB, interval, warn)
+}
+
+// sweepRetentionOnce runs the start-up sweep. Like sweepOrphanedCaptures, it
+// survives the bare, unopened *sql.DB{} some unit tests and degraded bootstraps
+// wire, which panics on query instead of erroring.
+func (a *App) sweepRetentionOnce(warn func(string, ...any)) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			warn("retention sweep: %v", recovered)
+		}
+	}()
+	if _, err := retention.Sweep(a.catchUpContext, a.bridgeDB, time.Now()); err != nil {
+		warn("retention sweep: %v", err)
+	}
 }
 
 // configureBridgeDeviceServices wires device authentication and changelog services.

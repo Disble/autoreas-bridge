@@ -1,0 +1,1713 @@
+[
+ {
+  "id": "B01",
+  "title": "WebSocket upgrade failed with 500: logging middleware hid http.Hijacker",
+  "date": "2026-06-20",
+  "source": "2eebac8a",
+  "mobile_involved": true,
+  "symptom": "Every realtime client failed to connect; mobile sync over WebSocket broke. gorilla/websocket Upgrade returned 500 'response does not implement http.Hijacker' and the handler swallowed the error.",
+  "how_diagnosed": "Upgrade error text traced to the statusRecorder wrapper in the observability logging middleware, which only reimplemented WriteHeader.",
+  "needs": [
+   "C1",
+   "C5",
+   "C7"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "The wrapper dates from structured telemetry work (b1f7ccdd, 2026-04-13) but the records do not say when the WS path first broke or was first noticed.",
+  "confidence": "high",
+  "triggered": true,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B02",
+  "title": "Mobile-set anime state silently rewritten to Finalizado",
+  "date": "2026-08-05",
+  "source": "cb8e5174; docs/learning-log.md:110",
+  "mobile_involved": true,
+  "symptom": "Marking a fully-watched anime En pausa / No me gusto / Viendo from the phone stored Finalizado instead.",
+  "how_diagnosed": "Mobile's buildSetEstadoPatch always ships episodesWatched with status; ApplyCompletionStateMachine forced estado=1 when nrocapvisto>=totalcap. The activity log recorded the requested estado, not the stored one, which hid the overwrite; diagnosis needed the request body vs the stored snapshot.",
+  "needs": [
+   "C3",
+   "C10",
+   "C11"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "No record of when the state machine started overriding explicit estado; the audit log masked it.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "recurring"
+ },
+ {
+  "id": "B03",
+  "title": "Reconcile cursor rewound to 0 after a fully acknowledged changelog",
+  "date": "2026-09-03",
+  "source": "14a931e4; CHANGELOG.md:266 + engram #9017",
+  "mobile_involved": true,
+  "symptom": "Once every paired device acknowledged, rows were pruned and the reported cursor fell to 0; a trusting client would restart from the beginning of history.",
+  "how_diagnosed": "Found while diagnosing a 43-hour background-sync freeze with the mobile team; measured across four paired devices over the retained capture window (no shipped client actually rewound).",
+  "needs": [
+   "C2",
+   "C3",
+   "C4",
+   "C10"
+  ],
+  "detection_delay": "weeks",
+  "delay_reason": "Latent trap; no client had hit it, so there is no first-occurrence time.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "recurring",
+  "routes": [
+   "/api/sync"
+  ]
+ },
+ {
+  "id": "B04",
+  "title": "Captured Bearer tokens persisted in plaintext in request_captures",
+  "date": "2026-09-03",
+  "source": "14a931e4 + engram #9017",
+  "mobile_involved": true,
+  "symptom": "Never-expiring device auth tokens were stored verbatim in captured request headers in a DB that is copied with backups.",
+  "how_diagnosed": "Noticed while reading captured request headers during the background-sync freeze investigation; eventlog already redacted the same data, showing drift.",
+  "needs": [
+   "C4"
+  ],
+  "detection_delay": "weeks",
+  "delay_reason": "Header capture existed since the capture sidecar (2026-07-24) until the 2026-09-03 fix, about six weeks.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B05",
+  "title": "Mobile background sync frozen for up to 43-46 h with the app closed",
+  "date": "2026-09-20",
+  "source": "autoreas-mobile/docs/mobile-background-sync-investigation-log.md:63; 14a931e4",
+  "mobile_involved": true,
+  "symptom": "Mobile only synced while open (WS foreground-only); bridge saw 0-capture days and gaps up to 46.2 h.",
+  "how_diagnosed": "Three weeks of bridge request_captures and mobile cycle telemetry (last_stage, consecutive_unclosed_cycles) correlated with the 1.3.0 install timestamp; device dumpsys/logcat; root cause on mobile: Expo modules declared 'modulesClassNames' instead of 'modules', so native seams were no-ops.",
+  "needs": [
+   "C4",
+   "C5",
+   "C8",
+   "C9"
+  ],
+  "detection_delay": "days",
+  "delay_reason": "Last healthy cycle close 2026-09-15 23:35; investigation logged from 2026-09-19.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "recurring"
+ },
+ {
+  "id": "B06",
+  "title": "Phone-marked episodes dated at sync time, not watch time",
+  "date": "2026-09-14",
+  "source": "docs/reports/mobile-watch-time-stamped-at-sync.md:1; 47f2b9c5; docs/learning-log.md:254 + engram #9583",
+  "mobile_involved": true,
+  "symptom": "History showed offline-watched episodes 15-24 h late, all collapsed onto the reconnect instant; owner reported it as a time-zone bug.",
+  "how_diagnosed": "Read-only queries on bridge.db: watched_at_ms vs anime_snapshots lastWatchedAt; runtime_events 6551-6565 showed the phone WS registering at 19:02:02 and four queued patches applied in the same second. Stored rows corrected later from per-operation capture evidence.",
+  "needs": [
+   "C3",
+   "C4",
+   "C5",
+   "C6",
+   "C8",
+   "C10",
+   "C11"
+  ],
+  "detection_delay": "days",
+  "delay_reason": "Watch history shipped with SDD-69 around 2026-09-12; found 2026-09-13 while polishing the History UI.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B07",
+  "title": "Every editor save wiped the anime's scheduled days",
+  "date": "2026-08-30",
+  "source": "1d20c60c; docs/learning-log.md:190; CHANGELOG.md:376",
+  "mobile_involved": false,
+  "symptom": "Saving any field in the Anime Editor cleared the anime's schedule; eight animes lost their schedule between 2026-07-15 and 2026-08-29.",
+  "how_diagnosed": "append([]T{}, nil...) produced an empty non-nil Placements slice read as 'clear all'. Counting casualties needed change history per anime (seven had been unknowingly repaired by rescheduling).",
+  "needs": [
+   "C10",
+   "C11"
+  ],
+  "detection_delay": "weeks",
+  "delay_reason": "Learning log says it silently wiped schedules for six weeks (2026-07-15 to 2026-08-29).",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B08",
+  "title": "Changelog changed_fields always [] for six weeks",
+  "date": "2026-08-30",
+  "source": "docs/learning-log.md:192; e2b3199e",
+  "mobile_involved": true,
+  "symptom": "Six producers of AnimeChangedEvent never set ChangedFields, so every changelog row (served to mobile) carried an empty list.",
+  "how_diagnosed": "SDD-64 decision-grade metrics inspected changelog rows; the fix derives the set from committed before/after snapshots.",
+  "needs": [
+   "C10",
+   "C11"
+  ],
+  "detection_delay": "weeks",
+  "delay_reason": "Learning log states the changelog logged [] for six weeks.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B09",
+  "title": "Anime creates reached Mobile as update",
+  "date": "2026-10-16",
+  "source": "9be41764; docs/learning-log.md:314; CHANGELOG.md:61 + engram #12345",
+  "mobile_involved": true,
+  "symptom": "Every create reached the changelog, changes feed and WebSocket as change_type 'update' / anime_changed instead of create / anime_created.",
+  "how_diagnosed": "The outbox never derived a change type and the publish seam had no slot; diagnosis needed the feed/WS payloads plus whether anime_snapshots held a row before the upsert.",
+  "needs": [
+   "C2",
+   "C5",
+   "C10",
+   "C11"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Has existed since the outbox publisher; no first-observation date recorded.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B10",
+  "title": "Changelog rows could carry an older snapshot than an earlier row, reverting patches on Mobile",
+  "date": "2026-10-14",
+  "source": "a64a7bc5; odd/tasks/episode-durations.md:354; CHANGELOG.md:59",
+  "mobile_involved": true,
+  "symptom": "A desktop edit could be undone on a phone: installed Mobile builds diff the whole snapshot and applied a later row carrying a pre-patch snapshot.",
+  "how_diagnosed": "Blocker B2 reported by Mobile; race verified in code (announce reads snapshot, then publishes; insert in a separate transaction); RED tests with concurrent writers, stale payloads and equal millisecond clocks.",
+  "needs": [
+   "C2",
+   "C8",
+   "C10"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Race found by cross-team contract review, not by a dated user report.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "rare",
+  "routes": [
+   "/api/sync"
+  ]
+ },
+ {
+  "id": "B11",
+  "title": "Changelog prune dropped the per-anime clock floor",
+  "date": "2026-10-14",
+  "source": "03dd3cc3; odd/tasks/episode-durations.md:384; CHANGELOG.md:60",
+  "mobile_involved": true,
+  "symptom": "After every device acknowledged and rows were pruned, a new change could tie or fall behind a timestamp a phone already applied, so the phone could skip it.",
+  "how_diagnosed": "Advisory A5 in verification; RED test showed the next change stamped 90 below the acknowledged 120.",
+  "needs": [
+   "C8",
+   "C10"
+  ],
+  "detection_delay": "session",
+  "delay_reason": "Surfaced the same day the per-anime clock was introduced (a64a7bc5).",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "recurring"
+ },
+ {
+  "id": "B12",
+  "title": "Sync diagnostics with new mobile events refused with 400",
+  "date": "2026-10-14",
+  "source": "33db8f7e; CHANGELOG.md:62; autoreas-mobile/docs/learning-log.md:45",
+  "mobile_involved": true,
+  "symptom": "Mobile reports carrying native_module_unavailable or remote_change_rejected were rejected by strict /api/sync/diagnostics.",
+  "how_diagnosed": "Closed vocabulary in syncdiag lacked the two events Mobile already sent; seen as refused diagnostics requests.",
+  "needs": [
+   "C1",
+   "C9"
+  ],
+  "detection_delay": "days",
+  "delay_reason": "Mobile started emitting the events in builds just before the fix; exact onset unrecorded.",
+  "confidence": "medium",
+  "triggered": true,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B13",
+  "title": "Desktop read device sync diagnostics from a table nothing wrote",
+  "date": "2026-09-24",
+  "source": "125f3043; CHANGELOG.md:96",
+  "mobile_involved": true,
+  "symptom": "Device diagnostics view showed only older reports, never a live one.",
+  "how_diagnosed": "Write path had moved to the kind-discriminated store (2f909283); git grep found zero production writers of device_sync_diagnostics; verified by storing a report through the write path and reading it back.",
+  "needs": [
+   "C9",
+   "C10"
+  ],
+  "detection_delay": "session",
+  "delay_reason": "Regression and fix landed the same day (2026-09-24).",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B14",
+  "title": "Device connection_status could never read 'connected'",
+  "date": "2026-09-12",
+  "source": "d44a9ae0 + engram #9412",
+  "mobile_involved": true,
+  "symptom": "Healthy devices always rendered as disconnected in the Devices panel.",
+  "how_diagnosed": "connection_status was derived (and inverted) from sync_status; the real signal, WS client register/unregister in the realtime hub, was never consulted.",
+  "needs": [
+   "C5",
+   "C10"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Noted as out of scope in 812e9bfc the same day; original onset not recorded.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B15",
+  "title": "Devices panel did not refresh on device sync or pairing",
+  "date": "2026-09-12",
+  "source": "812e9bfc; 8c3f30ae",
+  "mobile_involved": true,
+  "symptom": "Last sync stayed stale and a newly paired device did not appear until the route remounted.",
+  "how_diagnosed": "First fix subscribed to device-acknowledged, which never fires on POST /api/devices/pair; second fix subscribed to pairing.token-consumed emitted after a successful pair.",
+  "needs": [
+   "C4",
+   "C6"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Panel had been mount-only since it existed; first report date not recorded.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B16",
+  "title": "Sync conflict failed the whole reconcile exchange",
+  "date": "2026-09-04",
+  "source": "CHANGELOG.md:265; docs/learning-log.md:221 + engram #9071",
+  "mobile_involved": true,
+  "symptom": "One stale operation made the whole reconcile return 500, losing applied operations, pending changes and the changelog position for the batch.",
+  "how_diagnosed": "Contract review with mobile (sync contract fixes branch); path was unreachable in practice because no client sent base.",
+  "needs": [
+   "C1",
+   "C2",
+   "C3",
+   "C7",
+   "C11"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Never hit in production; found by contract analysis.",
+  "confidence": "medium",
+  "triggered": true,
+  "recurrence": "rare",
+  "routes": [
+   "/api/sync"
+  ]
+ },
+ {
+  "id": "B17",
+  "title": "OCC token never echoed to Mobile, leaving stale writes unprotected",
+  "date": "2026-09-04",
+  "source": "f2612eea",
+  "mobile_involved": true,
+  "symptom": "applied_operations carried no modified_at and bridge_changes hardcoded modified_at 0, so mobile could not send a base; stale mobile writes could clobber newer desktop values.",
+  "how_diagnosed": "Mobile team measured 135 of 143 production rows with token 0; wire shape and stored tokens inspected.",
+  "needs": [
+   "C2",
+   "C3",
+   "C10"
+  ],
+  "detection_delay": "weeks",
+  "delay_reason": "OCC built in SDD-30 (2026-06-23) without a wire echo until 2026-09-04.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible",
+  "routes": [
+   "/api/sync"
+  ]
+ },
+ {
+  "id": "B18",
+  "title": "Reconcile soft-deleted Bridge-native animes at startup",
+  "date": "2026-07-14",
+  "source": "52e11aab + engram #5129",
+  "mobile_involved": false,
+  "symptom": "Season-created animes vanished from Chapters on the next startup.",
+  "how_diagnosed": "Startup catch-up reconcile soft-deleted ids absent from Legacy animes.dat; two known casualties identified in the DB and restored by a one-time repair.",
+  "needs": [
+   "C10",
+   "C11",
+   "C12"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "SDD-30 reconcile shipped 2026-06-23; when the first casualty occurred is not recorded.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "recurring"
+ },
+ {
+  "id": "B19",
+  "title": "PATCH writeback reported success before durable append",
+  "date": "2026-04-08",
+  "source": "31c4cc76 + engram #2003",
+  "mobile_involved": true,
+  "symptom": "PATCH /api/animes/:id returned success even when the append to animes.dat failed (silent false-positive success).",
+  "how_diagnosed": "Commit makes append failures surface as HTTP errors and an anime.write.failed bus event; diagnosis details not recorded.",
+  "needs": [
+   "C1",
+   "C6",
+   "C7",
+   "C11"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "No investigation record.",
+  "confidence": "low",
+  "triggered": true,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B20",
+  "title": "Pairing token not refreshed after consumption",
+  "date": "2026-05-28",
+  "source": "4ba3346e + engram #3689",
+  "mobile_involved": true,
+  "symptom": "After a device paired, the pairing panel kept the consumed token.",
+  "how_diagnosed": "Not recorded; fix adds a consumed-token callback from router to desktop.",
+  "needs": [
+   "C1",
+   "C4",
+   "C6",
+   "C13"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Commit has no body and no doc entry.",
+  "confidence": "low",
+  "triggered": true,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B21",
+  "title": "Today panel did not update on anime.changed (no desktop leg)",
+  "date": "2026-08-02",
+  "source": "1609dc0d; docs/learning-log.md:95",
+  "mobile_involved": true,
+  "symptom": "Writes from mobile, REST or downloads reached mobile WS clients but the desktop Today view updated only after navigating away and back.",
+  "how_diagnosed": "Traced bus subscribers: realtime hub, changelog recorder and others got the event, but the only bus-to-Wails bridge iterated download.* names.",
+  "needs": [
+   "C5",
+   "C6"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Behavior existed since the bus bridge was written; remount masked it.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B22",
+  "title": "Tracer bullet published a fake anime.changed at startup",
+  "date": "2026-10-16",
+  "source": "1c28894f; docs/learning-log.md:316 + engram #12352",
+  "mobile_involved": false,
+  "symptom": "Desktop received a change notice for nonexistent 'tracer-bullet-anime' at every startup.",
+  "how_diagnosed": "Runtime bus events at startup compared with anime_snapshots; the demo runner published outside the outbox.",
+  "needs": [
+   "C6",
+   "C8",
+   "C10",
+   "C12"
+  ],
+  "detection_delay": "weeks",
+  "delay_reason": "The desktop leg forwarding anime.changed existed since 2026-08-02; fixed 2026-10-16.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "recurring"
+ },
+ {
+  "id": "B23",
+  "title": "anime.changed announced for writes never persisted",
+  "date": "2026-10-16",
+  "source": "docs/learning-log.md:315",
+  "mobile_involved": true,
+  "symptom": "A writer published anime.changed for writes that were not committed, so consumers (mobile WS, changelog) could see changes that did not exist.",
+  "how_diagnosed": "Comparing published events with committed rows; fix made the outbox drain the only publisher.",
+  "needs": [
+   "C6",
+   "C10",
+   "C11"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Learning log gives only the fix date.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "rare"
+ },
+ {
+  "id": "B24",
+  "title": "Capture rows recorded a hardcoded 500 for real error statuses",
+  "date": "2026-07-24",
+  "source": "docs/learning-log.md:56",
+  "mobile_involved": true,
+  "symptom": "Captured PATCH/reconcile telemetry could never show the real 4xx status or the bridge's own error body.",
+  "how_diagnosed": "responseStatus(w) only worked with httptest.ResponseRecorder; replaced with a capturingResponseWriter recording true status and body.",
+  "needs": [
+   "C1",
+   "C7"
+  ],
+  "detection_delay": "session",
+  "delay_reason": "Capture shipped 2026-07-23/24 and was fixed 2026-07-24.",
+  "confidence": "high",
+  "triggered": true,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B25",
+  "title": "Capture omitted successful responses and showed terminal rows as pending",
+  "date": "2026-07-25",
+  "source": "docs/learning-log.md:62",
+  "mobile_involved": true,
+  "symptom": "No truncation signal, successful response bodies omitted, no wire-faithful request body; transport-only terminal rows kept ticking as in-flight.",
+  "how_diagnosed": "Inspecting captured transactions in the Activity inspector against what was sent and returned.",
+  "needs": [
+   "C2",
+   "C3",
+   "C4"
+  ],
+  "detection_delay": "days",
+  "delay_reason": "Capture added 2026-07-23; hotfix 2026-07-25.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B26",
+  "title": "Orphaned pending capture rows ticking for ~13.7 h",
+  "date": "2026-08-01",
+  "source": "91295490; docs/learning-log.md:89 + engram #7168",
+  "mobile_involved": true,
+  "symptom": "A capture row stuck at outcome=pending with a duration counter growing to ~13.7 h.",
+  "how_diagnosed": "Four sibling rows terminated within ~2 s of each other (mass termination = shutdown) and the same route answered 404 in 0 ms after restart; the arrival row was stranded by process death.",
+  "needs": [
+   "C4",
+   "C8",
+   "C12",
+   "C13"
+  ],
+  "detection_delay": "session",
+  "delay_reason": "Row stranded at shutdown; investigated after about 13.7 h, under a day.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "recurring"
+ },
+ {
+  "id": "B27",
+  "title": "Early-boot runtime events dropped before the sink was bound",
+  "date": "2026-07-30",
+  "source": "cea264ef; docs/learning-log.md:69",
+  "mobile_involved": false,
+  "symptom": "UI showed seven tracer-bullet events while the request MCP retrieved only one from runtime_events.",
+  "how_diagnosed": "Compared memLogger ring buffer vs runtime_events table; startup order showed the tracer bullet ran before Sink.Bind; the lone survivor was the first emission after Bind.",
+  "needs": [
+   "C6",
+   "C12"
+  ],
+  "detection_delay": "session",
+  "delay_reason": "Found while building the runtime-events MCP read path the same day.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "recurring"
+ },
+ {
+  "id": "B28",
+  "title": "Correlation timeline matched captures on a request id no event carries",
+  "date": "2026-07-29",
+  "source": "docs/learning-log.md:70",
+  "mobile_involved": true,
+  "symptom": "get_correlation_timeline would return a permanently half-empty timeline while reporting success.",
+  "how_diagnosed": "Capture request_id is minted per handler and never reaches domain events; real correlation ids are anime.patch:<id>:<ts>, run ids or client correlationId. The original test was self-fulfilling.",
+  "needs": [
+   "C8"
+  ],
+  "detection_delay": "session",
+  "delay_reason": "Caught during implementation of the tool.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B29",
+  "title": "search_requests returned items: null and broke its MCP schema",
+  "date": "2026-09-08",
+  "source": "dc7fd971; docs/learning-log.md:237 + engram #9244",
+  "mobile_involved": false,
+  "symptom": "A zero-match capture search became a hard MCP tool error ('want array').",
+  "how_diagnosed": "MCP output schema validation error; the nil slice marshalled as null; the existing test asserted len != 0.",
+  "needs": [
+   "C2",
+   "C4",
+   "C7"
+  ],
+  "detection_delay": "weeks",
+  "delay_reason": "No first-occurrence date.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B30",
+  "title": "get_request_context on a miss returned a protocol error",
+  "date": "2026-09-19",
+  "source": "autoreas-mobile/docs/mobile-background-sync-investigation-log.md:977",
+  "mobile_involved": true,
+  "symptom": "Looking up a nonexistent request id failed the MCP call instead of returning not-found; resolve_request_context returned unbounded candidates.",
+  "how_diagnosed": "Reproduced twice from the MCP client and by reading the Go source: zero-value record with operation_refs: null violated the output schema.",
+  "needs": [
+   "C7"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Found incidentally during the mobile background-sync investigation; resolution not dated.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B31",
+  "title": "Mobile cycle outcome mislabelled never_closed",
+  "date": "2026-09-21",
+  "source": "autoreas-mobile/docs/mobile-background-sync-investigation-log.md:362",
+  "mobile_involved": true,
+  "symptom": "318 of 320 telemetry rows reported never_closed although 25 carried last_stage=closed with zero unclosed cycles.",
+  "how_diagnosed": "Reading mobile cycle telemetry stored in the bridge; derivePreviousCycleOutcome let the stuck flag outrank the stage.",
+  "needs": [
+   "C9"
+  ],
+  "detection_delay": "days",
+  "delay_reason": "Instrumentation began 2026-09-09/11; mislabel found around 2026-09-19/21.",
+  "confidence": "low",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B32",
+  "title": "Second instance losing the HTTP bind left Downloads readiness unavailable",
+  "date": "2026-08-04",
+  "source": "94c10110; docs/learning-log.md:105 + engram #5054",
+  "mobile_involved": false,
+  "symptom": "Downloads panels reported 'Download readiness unavailable'.",
+  "how_diagnosed": "runtime_events showed two 'tracer bullet ready' and one 'http server listening', proving a second process lost the bind; startupErr gated startup before download orchestration.",
+  "needs": [
+   "C6",
+   "C7",
+   "C12"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Not recorded when it first occurred.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B33",
+  "title": "No single-instance guard: N windows and N tray icons",
+  "date": "2026-08-01",
+  "source": "ce5f0fab; docs/learning-log.md:87",
+  "mobile_involved": false,
+  "symptom": "Every launch spawned a full second process with its own window and tray icon.",
+  "how_diagnosed": "Observed duplicate processes; options.App lacked SingleInstanceLock.",
+  "needs": [
+   "C12"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Present since the app shell was built; first report not dated.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B34",
+  "title": "Test binaries registered themselves for Windows login start",
+  "date": "2026-08-03",
+  "source": "e82ef82d; docs/learning-log.md:98",
+  "mobile_involved": false,
+  "symptom": "Bridge did not launch at sign-in; Task Manager showed Autoreas-bridge.test.",
+  "how_diagnosed": "HKCU Run value pointed at a deleted %TEMP%\\go-build...\\autoreas-bridge.test.exe written by go test calling app.startup.",
+  "needs": [
+   "C12"
+  ],
+  "detection_delay": "days",
+  "delay_reason": "Windows startup was enabled 2026-08-02 and fixed 2026-08-03.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B35",
+  "title": "Tray icon went deaf after running a while",
+  "date": "2026-10-17",
+  "source": "28192bd9; docs/learning-log.md:319; CHANGELOG.md:21 + engram #12398",
+  "mobile_involved": false,
+  "symptom": "Tray icon visible but ignored clicks; Abrir/Salir did nothing while the app kept running.",
+  "how_diagnosed": "systray.Run on an unpinned goroutine; a probe saw the loop migrate across 21 OS threads.",
+  "needs": [
+   "C12"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Intermittent and dependent on uptime; onset not recorded.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "recurring"
+ },
+ {
+  "id": "B36",
+  "title": "Stale wails dev process made the Legacy cut look broken",
+  "date": "2026-07-21",
+  "source": "docs/learning-log.md:50",
+  "mobile_involved": false,
+  "symptom": "After SDD-55 the animes.dat watcher still appeared live at runtime.",
+  "how_diagnosed": "A wails dev process launched before the change was still running; clean-process runtime check resolved it.",
+  "needs": [
+   "C12"
+  ],
+  "detection_delay": "session",
+  "delay_reason": "Found during SDD-55 verification.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "rare"
+ },
+ {
+  "id": "B37",
+  "title": "wails dev auto-restart ran a new data-mutating startup step on the real DB",
+  "date": "2026-09-14",
+  "source": "docs/learning-log.md:258",
+  "mobile_involved": false,
+  "symptom": "Editing Go sources rebuilt and restarted the app, which ran a new startup data rewrite against the real bridge.db before it was decided.",
+  "how_diagnosed": "Noticed restart and its effect on bridge.db; data rewrite moved to a one-off run.",
+  "needs": [
+   "C10",
+   "C12"
+  ],
+  "detection_delay": "session",
+  "delay_reason": "Happened during the SDD-73 session.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "rare"
+ },
+ {
+  "id": "B38",
+  "title": "Backup import blanked the window (nil slices as JSON null)",
+  "date": "2026-07-31",
+  "source": "eb72d624; docs/learning-log.md:85",
+  "mobile_involved": false,
+  "symptom": "The first successful same-version import threw a TypeError and blanked the window.",
+  "how_diagnosed": "Frontend .length/.map on null; only the serialized json.Marshal shape showed it.",
+  "needs": [
+   "C2",
+   "C13"
+  ],
+  "detection_delay": "session",
+  "delay_reason": "Import shipped and failed in the same session.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B39",
+  "title": "Backups omitted watch history",
+  "date": "2026-09-16",
+  "source": "docs/learning-log.md:261; CHANGELOG.md:132",
+  "mobile_involved": false,
+  "symptom": "A full restore looked complete while History stayed empty.",
+  "how_diagnosed": "Only a VM restore surfaced the missing watched_episodes group (DB state after restore).",
+  "needs": [
+   "C10"
+  ],
+  "detection_delay": "days",
+  "delay_reason": "watch_history shipped ~2026-09-12; found 2026-09-16.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B40",
+  "title": "Editor DTO omitempty dropped tipo=0 and caused endless no_op save loop",
+  "date": "2026-07-16",
+  "source": "docs/learning-log.md:20 + engram #5407",
+  "mobile_involved": false,
+  "symptom": "Type field emptied for 'Anime (TV)' (tipo=0), forcing an endless no_op save loop.",
+  "how_diagnosed": "Serialized DTO shape vs stored value; omitempty dropped a legitimate zero.",
+  "needs": [
+   "C10",
+   "C13"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "No onset recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B41",
+  "title": "RunOnce progress stuck at zero then published stale counters",
+  "date": "2026-07-16",
+  "source": "docs/learning-log.md:31",
+  "mobile_involved": false,
+  "symptom": "Persisted run row stayed at zero and live progress was hidden; later an older worker could publish stale counters.",
+  "how_diagnosed": "Run row in DB and progress events compared; aggregation and persistence ordering fixed.",
+  "needs": [
+   "C6",
+   "C8",
+   "C10"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "No onset recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B42",
+  "title": "Cancelled download runs left as running, relabelled interrupted at startup",
+  "date": "2026-08-06",
+  "source": "docs/learning-log.md:113",
+  "mobile_involved": false,
+  "symptom": "Stopping a download left the run row 'running' until next startup labelled it 'interrupted'.",
+  "how_diagnosed": "Terminal write used the cancelled context and failed; seen in run rows across restart.",
+  "needs": [
+   "C7",
+   "C10",
+   "C12"
+  ],
+  "detection_delay": "session",
+  "delay_reason": "Found while building the stop button.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "recurring"
+ },
+ {
+  "id": "B43",
+  "title": "Hoster priority saved to site 'default' that nothing read",
+  "date": "2026-08-05",
+  "source": "2cf2da95; docs/learning-log.md:111",
+  "mobile_involved": false,
+  "symptom": "Every reorder looked saved but downloads kept the seeded order.",
+  "how_diagnosed": "DB rows written under site 'default' while GetDownloadConfig and the resolver read 'jkanime'.",
+  "needs": [
+   "C10",
+   "C11"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "No onset recorded.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B44",
+  "title": "Opaque hoster filename parsed as episode 90 marked anime up to date",
+  "date": "2026-08-05",
+  "source": "6eb69f22; docs/learning-log.md:112",
+  "mobile_involved": false,
+  "symptom": "A 12-episode catch-up ended after one file and the anime was marked up to date forever.",
+  "how_diagnosed": "Download run events/outcomes showed the cursor jump; 'd2ouiemgt90z.mp4' parsed as 90.",
+  "needs": [
+   "C6",
+   "C10"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "No onset recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B45",
+  "title": "jkanime pagination: every series stalled at episode 16",
+  "date": "2026-08-09",
+  "source": "22ceee2c; docs/learning-log.md:122",
+  "mobile_involved": false,
+  "symptom": "Runs logged a clean download.up_to_date while episode 17 was published (Slime 4th Season sat at 16).",
+  "how_diagnosed": "Caught on the 2026-08-09 scheduled run: runtime events said up_to_date while disk and site disagreed; listing was page 1 of 16 only.",
+  "needs": [
+   "C6",
+   "C10"
+  ],
+  "detection_delay": "days",
+  "delay_reason": "Manifests only once a series passes episode 16; caught on a scheduled run.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B46",
+  "title": "Finished hoster declared dead and its package deleted",
+  "date": "2026-08-29",
+  "source": "31ef4d5e; CHANGELOG.md:428",
+  "mobile_involved": false,
+  "symptom": "A hoster that finished inside the detect blind gap was classified dead, its JD package deleted, and the episode credited to a fallback.",
+  "how_diagnosed": "SDD-61 instrumented every terminal point via logf metadata into runtime_events to make it measurable, then the fix.",
+  "needs": [
+   "C6",
+   "C8"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Instrumentation was built to confirm it; onset not recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "rare"
+ },
+ {
+  "id": "B47",
+  "title": "Same episode downloaded twice from two hosters",
+  "date": "2026-08-07",
+  "source": "CHANGELOG.md:661",
+  "mobile_involved": false,
+  "symptom": "With several anime downloading at once, an episode was transferred twice and extra attempts piled up as errors.",
+  "how_diagnosed": "Not recorded beyond 'two separate faults combined'.",
+  "needs": [
+   "C6"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "No investigation record.",
+  "confidence": "low",
+  "triggered": false,
+  "recurrence": "rare"
+ },
+ {
+  "id": "B48",
+  "title": "Create batch failed with 'anime id is required'",
+  "date": "2026-08-13",
+  "source": "docs/learning-log.md:130; CHANGELOG.md:614",
+  "mobile_involved": false,
+  "symptom": "Adding an anime to the schedule failed.",
+  "how_diagnosed": "Error text traced to a zero BatchOperation staged when the reflow changed nothing.",
+  "needs": [
+   "C7"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "No onset recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B49",
+  "title": "Sin Ver rows froze chapter availability at creation time",
+  "date": "2026-07-08",
+  "source": "3b31e8d2",
+  "mobile_involved": false,
+  "symptom": "AvailableChapters never updated, even via 'Re-check now'.",
+  "how_diagnosed": "RecheckAvailability skipped every created row; stored counts did not move.",
+  "needs": [
+   "C10"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "No onset recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B50",
+  "title": "Activity renderer froze with a pinned core and no error",
+  "date": "2026-09-21",
+  "source": "c55b2fe3; docs/learning-log.md:266; CHANGELOG.md:119",
+  "mobile_involved": false,
+  "symptom": "Skeleton frozen, one core at 100% for 35+ min, memory to 2.8 GB, nothing in console or Go log.",
+  "how_diagnosed": "Captured live over CDP against the real WebView2 renderer; React Aria focus-fixup loop on an all-disabled collection.",
+  "needs": [
+   "C13"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Onset not recorded.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "rare"
+ },
+ {
+  "id": "B51",
+  "title": "Logger domain polluted with prose",
+  "date": "2026-08-30",
+  "source": "docs/learning-log.md:193",
+  "mobile_involved": false,
+  "symptom": "runtime_events.domain held whole sentences, breaking forensics by domain.",
+  "how_diagnosed": "Inspecting runtime_events domains during SDD-64 metrics work.",
+  "needs": [
+   "C6"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "No onset recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B52",
+  "title": "checktruncation reported 'clean' after scanning zero rows",
+  "date": "2026-08-30",
+  "source": "docs/learning-log.md:191",
+  "mobile_involved": false,
+  "symptom": "Truncation check printed clean on a pre-SDD-56 DB whose snapshots used 'dias' not 'days'.",
+  "how_diagnosed": "Comparison against stored snapshot_json keys in anime_snapshots.",
+  "needs": [
+   "C10"
+  ],
+  "detection_delay": "session",
+  "delay_reason": "Found when the checker was introduced.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B53",
+  "title": "Cover ETag changed when source file moved, mobile dropped its image",
+  "date": "2026-09-16",
+  "source": "docs/learning-log.md:260",
+  "mobile_involved": true,
+  "symptom": "A cover served from the user's file path stopped loading once the file moved; mobile lost the cached image instead of revalidating with 304.",
+  "how_diagnosed": "Cover route responses and If-None-Match revalidation behaviour.",
+  "needs": [
+   "C2",
+   "C4"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "No onset recorded.",
+  "confidence": "low",
+  "triggered": false,
+  "recurrence": "recurring",
+  "routes": [
+   "/api/animes"
+  ]
+ },
+ {
+  "id": "B54",
+  "title": "Display-boundary sanitization hid 212 stored diagnostics reports",
+  "date": "2026-09-19",
+  "source": "docs/learning-log.md:263",
+  "mobile_involved": true,
+  "symptom": "212 stored mobile diagnostics reports were unreadable on every surface.",
+  "how_diagnosed": "Counting stored reports in the DB against what the surfaces showed.",
+  "needs": [
+   "C9",
+   "C10"
+  ],
+  "detection_delay": "days",
+  "delay_reason": "Diagnostics ingestion added 2026-09-08; found 2026-09-19.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "B55",
+  "title": "Backend event navigation.open had no frontend consumer",
+  "date": "2026-08-25",
+  "source": "docs/learning-log.md:154",
+  "mobile_involved": false,
+  "symptom": "'Open Downloads' pressed green and never navigated.",
+  "how_diagnosed": "Emitted notification.navigate runtime event had zero subscribers in frontend/src.",
+  "needs": [
+   "C6",
+   "C13"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "No onset recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "E01",
+  "title": "Sync endpoints return 500 because of malformed changelog rows",
+  "date": "2026-04-08",
+  "source": "engram #2038",
+  "mobile_involved": true,
+  "symptom": "Mobile bug report: GET /api/animes/changes and POST /api/sync/reconcile both returned HTTP 500 while GET /api/animes still worked.",
+  "how_diagnosed": "Compared the failing endpoints with the healthy one, which pointed to the shared changelog-to-contract conversion. One corrupt changelog.snapshot_json row poisoned all incremental sync.",
+  "needs": [
+   "C1",
+   "C7",
+   "C10"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "The memory does not say when the corrupt row was written or when mobile first saw the 500.",
+  "confidence": "medium",
+  "triggered": true,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "E02",
+  "title": "Legacy changelog schema in the real bridge.db breaks sync endpoints",
+  "date": "2026-04-08",
+  "source": "engram #2039",
+  "mobile_involved": true,
+  "symptom": "GET /api/animes/changes and POST /api/sync/reconcile failed with 500 on the user's real database, while GET /api/animes worked.",
+  "how_diagnosed": "Inspected the real bridge.db and found the old changelog(id, anime_id, payload_json, status) schema. The fix added a bootstrap migration.",
+  "needs": [
+   "C1",
+   "C7",
+   "C10"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "The schema drift was latent from an earlier version, and the memory has no first-failure timestamp.",
+  "confidence": "high",
+  "triggered": true,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "E03",
+  "title": "Inbound WebSocket reconcile messages are discarded, and REST reconcile ignored pending operations",
+  "date": "2026-04-08",
+  "source": "engram #2029",
+  "mobile_involved": true,
+  "symptom": "Mobile sync activity never updated legacy animes.dat. Client messages reached the socket but changed nothing.",
+  "how_diagnosed": "Reviewed the whole mobile-to-bridge workflow. The WS handler called conn.ReadMessage() and dropped every payload, and REST reconcile did not apply pending_operations. An end-to-end test proved the writeback.",
+  "needs": [
+   "C3",
+   "C5",
+   "C10",
+   "C11"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "No record of when mobile started relying on these paths.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "E05",
+  "title": "Reconcile contract gaps: watch time overwritten by server time, no cursor or per-operation ack",
+  "date": "2026-04-09",
+  "source": "engram #2144",
+  "mobile_involved": true,
+  "symptom": "Mobile marked operations synced on any 202 and could not tell ignored operations from applied ones. Client fechaUltCapVisto was replaced with server time.",
+  "how_diagnosed": "Audited the real mobile request flow (#2066) against the bridge handlers. Added last_changelog_id, applied_operations[] and client fechaUltCapVisto support.",
+  "needs": [
+   "C2",
+   "C3"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "This was found during a contract audit after an incident; its start is not recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible",
+  "routes": [
+   "/api/sync"
+  ]
+ },
+ {
+  "id": "E06",
+  "title": "Mobile initial sync fails because the bridge emits generos:null",
+  "date": "2026-07-14",
+  "source": "engram #5309",
+  "mobile_involved": true,
+  "symptom": "Mobile prod APK: 'pairing completed but initial sync failed'. Pairing worked, but the client rejected GET /api/animes.",
+  "how_diagnosed": "Called GET /api/animes on the running bridge with a real device token from the devices table: all 842 snapshots had generos:null. The mobile zod schema rejects null. The cause was a Go nil-slice regression in the uncommitted SDD-49 refactor. A first diagnosis (reconcile soft-delete) was wrong.",
+  "needs": [
+   "C2",
+   "C9",
+   "C10"
+  ],
+  "detection_delay": "days",
+  "delay_reason": "The regression lived in an uncommitted WIP branch the user was running; it was found when a prod APK paired.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible",
+  "routes": [
+   "/api/animes"
+  ]
+ },
+ {
+  "id": "E11",
+  "title": "Devices 'Syncing Now' only cleared because prune emptied the changelog",
+  "date": "2026-10-14",
+  "source": "engram #12228",
+  "mobile_involved": true,
+  "symptom": "Changelog rows never left 'pending'. The panel only looked correct because pruning removed rows, which also removed the per-anime clock floor.",
+  "how_diagnosed": "Read changelog status and device acknowledgement state. The fix keeps MAX(id) per anime and filters by minimum active device ack.",
+  "needs": [
+   "C10",
+   "C11"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Found during the episode-durations work; no start date is recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "rare"
+ },
+ {
+  "id": "E13",
+  "title": "Prod Today blank: corrupt name_key index blocks write recovery and HTTP startup",
+  "date": "2026-09-20",
+  "source": "engram #9868",
+  "mobile_involved": true,
+  "symptom": "Today showed 'Nothing scheduled' for every day. The Editor Repeat failed, and the HTTP API (mobile sync) never started.",
+  "how_diagnosed": "On a copy of the prod DB: integrity_check through modernc, the SQLITE_CORRUPT_VTAB 779 error text, the staged row in anime_write_operations, and startup-recovery order in configureRuntimeServices. netstat showed no listening port. REINDEX with the app's own engine repaired it (#9870).",
+  "needs": [
+   "C6",
+   "C7",
+   "C10",
+   "C11",
+   "C12"
+  ],
+  "detection_delay": "days",
+  "delay_reason": "The failed write was at 2026-09-19 21:53 and the diagnosis was at 2026-09-20 10:28 (about 13 h).",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "rare"
+ },
+ {
+  "id": "E14",
+  "title": "Anime editor locked by a stranded staged write",
+  "date": "2026-09-19",
+  "source": "engram #9852",
+  "mobile_involved": false,
+  "symptom": "After a Repeat on 'Date a Live III', every save hung: isSaving stayed true, all exits were disabled, and CPU spun at about 33%.",
+  "how_diagnosed": "Found the staged operation that never finalized and the ErrWriteReservationBusy retry loop. Measured the button opacity in screenshots to prove isSaving was stuck. There was no runtime_events row for the first Finalize failure.",
+  "needs": [
+   "C6",
+   "C7",
+   "C10",
+   "C11",
+   "C13"
+  ],
+  "detection_delay": "session",
+  "delay_reason": "The write was staged at 21:53 and the hotfix diagnosis is dated 22:28 the same night.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "rare"
+ },
+ {
+  "id": "E16",
+  "title": "Yani Neko re-soft-deleted every reconcile cycle (present in animes.dat as deleted)",
+  "date": "2026-07-13",
+  "source": "engram #5143",
+  "mobile_involved": false,
+  "symptom": "After the SDD-48 fix, the anime kept turning inactive again about every 84 s.",
+  "how_diagnosed": "Matched by exact _id in animes.dat (present with activo=false) and watched snapshot activo and modified_at across the 84 s reconcile cycle. Verified the fix held for 110 s.",
+  "needs": [
+   "C6",
+   "C10",
+   "C11"
+  ],
+  "detection_delay": "session",
+  "delay_reason": "This was a same-session follow-up to E15.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "E17",
+  "title": "Duplicate anime rows: create has no dedup, and readiness includes soft-deleted animes",
+  "date": "2026-09-02",
+  "source": "engram #8976",
+  "mobile_involved": false,
+  "symptom": "Two rows with the same name in Solo anime download and Editor Library.",
+  "how_diagnosed": "Queried the live bridge.db: different anime_ids, one soft-deleted. Created and deleted timestamps refuted 'create duplicates in one action'. Counted 21 duplicate names out of 862 rows.",
+  "needs": [
+   "C10",
+   "C11"
+  ],
+  "detection_delay": "weeks",
+  "delay_reason": "The deleted twins date from 2026-07-07 to 07-11 and the triage was 2026-09-02.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "E19",
+  "title": "Request MCP rejects stored captures with null correlation arrays",
+  "date": "2026-07-24",
+  "source": "engram #5985",
+  "mobile_involved": false,
+  "symptom": "MCP tools failed SDK output-schema validation on real data (operation_refs: null).",
+  "how_diagnosed": "Ran the MCP sidecar against the real %APPDATA% bridge.db. The synthetic fixtures had always populated the arrays.",
+  "needs": [
+   "C4",
+   "C7"
+  ],
+  "detection_delay": "session",
+  "delay_reason": "Found during the first real-DB test right after implementation.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "E21",
+  "title": "Stale request-MCP binary exits with 'request capture schema mismatch'",
+  "date": "2026-07-25",
+  "source": "engram #6051",
+  "mobile_involved": false,
+  "symptom": "autoreas-request-mcp failed with 'MCP error -32000: Connection closed'.",
+  "how_diagnosed": "Ran the repo-root exe (immediate exit with a schema mismatch), checked the live DB capture schema version 5, and compared it with a fresh temp build that started cleanly.",
+  "needs": [
+   "C7",
+   "C10"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Not recorded when the binary went stale.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "E23",
+  "title": "Ordering board locked by appliedAt null vs undefined",
+  "date": "2026-07-08",
+  "source": "engram #4723",
+  "mobile_involved": false,
+  "symptom": "Weekday cards could not be dragged, and 'Reopen ordering' did nothing for a never-applied schedule.",
+  "how_diagnosed": "Verified that the backend reopen cleared applied_at, then found that the Wails binding returned null, which the frontend treated as applied.",
+  "needs": [
+   "C10",
+   "C13"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Not recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "E24",
+  "title": "Ordering weekday duplicates poison persisted ordering state",
+  "date": "2026-07-08",
+  "source": "engram #4742",
+  "mobile_involved": false,
+  "symptom": "The same anime could be placed twice in one weekday column and then autosaved or applied.",
+  "how_diagnosed": "Found that the invariant was enforced only in the drag helper. Added backend apply validation.",
+  "needs": [
+   "C10",
+   "C11"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Not recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "recurring"
+ },
+ {
+  "id": "E25",
+  "title": "Out-of-order staged-write finalize regresses modified_at",
+  "date": "2026-07-14",
+  "source": "engram #5234",
+  "mobile_involved": false,
+  "symptom": "Finalizing an older staged operation after a newer one regressed modified_at and the canonical JSON.",
+  "how_diagnosed": "A deterministic exported-API probe finalized token 300, then 200, and observed modified_at=200. Fixed with a CAS guard (#5233).",
+  "needs": [
+   "C10",
+   "C11"
+  ],
+  "detection_delay": "session",
+  "delay_reason": "Found in review before release.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "rare"
+ },
+ {
+  "id": "E26",
+  "title": "StageBatch deadlock on the single SQLite connection",
+  "date": "2026-07-15",
+  "source": "engram #5384",
+  "mobile_involved": false,
+  "symptom": "Stale batch-stage rejection hung until context deadline.",
+  "how_diagnosed": "A real single-connection test reproduced a deadline deadlock: a classification query on root *sql.DB while the transaction held the only connection.",
+  "needs": [
+   "C7"
+  ],
+  "detection_delay": "session",
+  "delay_reason": "Found by a new test during development.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "rare"
+ },
+ {
+  "id": "E27",
+  "title": "Download schedule panics: JDownloader client created with a nil logger",
+  "date": "2026-06-25",
+  "source": "engram #4328",
+  "mobile_involved": false,
+  "symptom": "The scheduled download crashed during JD Connect.",
+  "how_diagnosed": "Found from the panic in jdownloader-go Connect calling j.log.Debugf on nil.",
+  "needs": [
+   "C7"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Not recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "E28",
+  "title": "JD packagizer rule moves downloads into subfolders and breaks renames",
+  "date": "2026-08-07",
+  "source": "engram #7726",
+  "mobile_involved": false,
+  "symptom": "Episodes kept hoster file names after the JD-delegated rename shipped.",
+  "how_diagnosed": "Read JD's own cfg packagizer rulelist: the enabled rule 'Create Subfolder by Packagename' changed SaveTo, so exact-destination matching found nothing (ErrNoRenamableLink).",
+  "needs": [
+   "C6",
+   "C7"
+  ],
+  "detection_delay": "days",
+  "delay_reason": "Observed after the rename feature shipped; exact gap unknown.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "E29",
+  "title": "Solo catch-up re-downloads the previous episode",
+  "date": "2026-07-08",
+  "source": "engram #4788",
+  "mobile_involved": false,
+  "symptom": "Catch-up queued an already-downloaded episode before the real new one.",
+  "how_diagnosed": "Found that the baseline used CountAtRoot while JD left finished files in package subfolders (root 5, recursive 6).",
+  "needs": [
+   "C6",
+   "C11"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Not recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "recurring"
+ },
+ {
+  "id": "E30",
+  "title": "Schedule 'Last run' stays 'Never' after completed runs",
+  "date": "2026-06-26",
+  "source": "engram #4345",
+  "mobile_involved": false,
+  "symptom": "Run history showed completed scheduled runs, but the Schedule card said Never.",
+  "how_diagnosed": "Found that scheduled completion was not marked before the download.run_finished event, and that the panel only loaded on mount and save.",
+  "needs": [
+   "C6",
+   "C10"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Not recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "E31",
+  "title": "Silent schedule-save failure: Wails string errors ignored",
+  "date": "2026-06-24",
+  "source": "engram #4325",
+  "mobile_involved": false,
+  "symptom": "The Enable scheduled downloads switch reverted with no feedback.",
+  "how_diagnosed": "Found that SetScheduleConfig returns a string reason instead of throwing, and the hook never checked it. Suspected a stale wails dev backend.",
+  "needs": [
+   "C7",
+   "C13"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Not recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "E33",
+  "title": "Missed-schedule alert does not load at startup on Today",
+  "date": "2026-07-26",
+  "source": "engram #6124",
+  "mobile_involved": false,
+  "symptom": "The Today missed-schedule alert never appeared at app start.",
+  "how_diagnosed": "Found that the shared runtime store was loaded only by panels not mounted on Today.",
+  "needs": [
+   "C12",
+   "C13"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Not recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "E34",
+  "title": "Main window shown at Windows login despite tray-first start",
+  "date": "2026-08-02",
+  "source": "engram #7239",
+  "mobile_involved": false,
+  "symptom": "HKCU Run login launch showed the main window.",
+  "how_diagnosed": "Found that Wails' later initial-show flow overrode WindowHide in OnStartup. Fixed with StartHidden.",
+  "needs": [
+   "C12"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Not recorded.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "E36",
+  "title": "Tracer-bullet startup fan-out turns catch-up changes into noisy sync.requested",
+  "date": "2026-07-11",
+  "source": "engram #4947",
+  "mobile_involved": false,
+  "symptom": "Startup catch-up anime changes produced spurious sync.requested publications.",
+  "how_diagnosed": "Event-bus subscription analysis of the tracer-bullet runner in the production lifecycle.",
+  "needs": [
+   "C6",
+   "C12"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Not recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "recurring"
+ },
+ {
+  "id": "E38",
+  "title": "Graduated season animes misfiled in Daily Board 'Sin ver'",
+  "date": "2026-07-20",
+  "source": "engram #5832",
+  "mobile_involved": false,
+  "symptom": "After Apply schedule, weekday-scheduled season animes showed in 'Sin ver'.",
+  "how_diagnosed": "Checked that the DB and Episodes were correct. Found the overlay section was days[0].Day and the frontend catch-all default.",
+  "needs": [
+   "C10"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Not recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "E39",
+  "title": "jkanime search returns 404 for names containing '/'",
+  "date": "2026-10-12",
+  "source": "engram #12024",
+  "mobile_involved": false,
+  "symptom": "Run matching for 'Ranma 1/2 (2024) 3rd Season' failed with 404.",
+  "how_diagnosed": "Live probe through the real adapter and matcher, varying the characters. The site router 404s on a slash; a secondary trigram score of 0.82 was below the 0.93 threshold.",
+  "needs": [
+   "C7"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Not recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "E41",
+  "title": "client_telemetry piggybacked on reconcile is silently discarded by the bridge",
+  "date": "2026-09-08",
+  "source": "engram #9202",
+  "mobile_involved": true,
+  "symptom": "Mobile diagnostic payloads never reached any bridge store; only 1 of the last 8 reconciles carried it.",
+  "how_diagnosed": "Read raw request_body in captures through the MCP, then checked the ReconcileRequest type (no field, no DisallowUnknownFields). Resolved by the dedicated POST /api/sync/diagnostics endpoint (#9231).",
+  "needs": [
+   "C3",
+   "C9"
+  ],
+  "detection_delay": "days",
+  "delay_reason": "The piggyback started around 2026-09-04 and was found 2026-09-08.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "E43",
+  "title": "pairing_tokens table grows without bound",
+  "date": "2026-07-03",
+  "source": "engram #4552",
+  "mobile_involved": false,
+  "symptom": "The real DB had 1,095 pairing tokens, of which 1,084 were unconsumed.",
+  "how_diagnosed": "Counted rows in the real bridge.db (#4553). Found that GetPairingToken minted a token on every panel mount. Fixed with TTL, reuse and prune (#4590).",
+  "needs": [
+   "C10"
+  ],
+  "detection_delay": "weeks",
+  "delay_reason": "The rows accumulated over months of UI mounts before the analysis.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "E44",
+  "title": "Wails desktop black screen from react-qr-code",
+  "date": "2026-04-09",
+  "source": "engram #2248",
+  "mobile_involved": false,
+  "symptom": "The dashboard turned black in the Wails WebView after the PairingPanel was added.",
+  "how_diagnosed": "Manual branch and cherry-pick isolation narrowed it to the react-qr-code render path (#2243).",
+  "needs": [
+   "C13"
+  ],
+  "detection_delay": "session",
+  "delay_reason": "Found while integrating the refactor.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "M01",
+  "title": "Bridge watcher never emits changed_fields; mobile field-merge writes nothing",
+  "date": "2026-06-21",
+  "source": "engram #4223",
+  "mobile_involved": true,
+  "symptom": "Mobile sync UI stopped updating entirely at runtime although 364 tests passed; later changes were dropped as stale.",
+  "how_diagnosed": "Verified that the bridge watcher and writeback publish AnimeChangedEvent without ChangedFields, so changed_fields was always empty on the wire. Mobile now derives changes by diff.",
+  "needs": [
+   "C2",
+   "C5",
+   "C10"
+  ],
+  "detection_delay": "session",
+  "delay_reason": "Broke right after the reactive-sync-engine change shipped.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "M02",
+  "title": "Mobile reconcile cursor mixes changelog ID with timestamps",
+  "date": "2026-06-20",
+  "source": "engram #4194",
+  "mobile_involved": true,
+  "symptom": "Bridge updates stopped being processed after the first reconcile with bridge_changes.",
+  "how_diagnosed": "Compared the sent last_changelog_id (an epoch-ms value) with the bridge's sequential changelog IDs. ListChangesAfterID found nothing.",
+  "needs": [
+   "C2",
+   "C3",
+   "C10"
+  ],
+  "detection_delay": "days",
+  "delay_reason": "Triggered when a recent bridge update started reliably returning bridge_changes.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible",
+  "routes": [
+   "/api/sync"
+  ]
+ },
+ {
+  "id": "M03",
+  "title": "Legacy Spanish keys in queued operations cause reconcile 400 after the English cutover",
+  "date": "2026-07-22",
+  "source": "engram #5913",
+  "mobile_involved": true,
+  "symptom": "POST /api/sync/reconcile returned HTTP 400 for devices with pre-migration operation_log rows.",
+  "how_diagnosed": "Found that durable outbox rows kept Spanish payload aliases. Added transport-time normalization.",
+  "needs": [
+   "C1",
+   "C3"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Not recorded.",
+  "confidence": "high",
+  "triggered": true,
+  "recurrence": "recurring"
+ },
+ {
+  "id": "M04",
+  "title": "Mobile bridge_config schema drift breaks reconcile with 400",
+  "date": "2026-04-09",
+  "source": "engram #2194",
+  "mobile_involved": true,
+  "symptom": "Legacy installs could send a corrupt cursor, and /api/sync/reconcile returned '400 invalid request body'.",
+  "how_diagnosed": "Found drift between schema.ts and the initial SQLite migration (missing last_changelog_id). Added a post-migration repair.",
+  "needs": [
+   "C1",
+   "C9"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Not recorded.",
+  "confidence": "medium",
+  "triggered": true,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "M05",
+  "title": "Mobile shows a false 'Bridge activo' after an offline mutation",
+  "date": "2026-07-13",
+  "source": "engram #5068",
+  "mobile_involved": true,
+  "symptom": "Offline chapter +/- kept a green 'Bridge activo / Catalogo al dia' despite failed transport and pending work.",
+  "how_diagnosed": "Bridge audit (#5067) showed a stopped bridge cannot emit success, so the transition was client-side. Fixed with a generation-guarded connection state.",
+  "needs": [
+   "C4",
+   "C9"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Not recorded.",
+  "confidence": "medium",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "M06",
+  "title": "Mobile fully isolated: RN URL polyfill breaks QR deep-link pairing",
+  "date": "2026-06-20",
+  "source": "engram #4197",
+  "mobile_involved": true,
+  "symptom": "No requests reached the bridge from mobile at all.",
+  "how_diagnosed": "Confirmed the bridge side was healthy and the QR contract matched. Found that the RN URL getter returns an empty hostname for custom schemes, so pairing never completes.",
+  "needs": [
+   "C4",
+   "C9"
+  ],
+  "detection_delay": "unknown",
+  "delay_reason": "Not recorded.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "M07",
+  "title": "Cover E2E: zero /api/animes/{id}/cover requests",
+  "date": "2026-09-15",
+  "source": "engram #9651",
+  "mobile_involved": true,
+  "symptom": "The bridge team saw zero cover requests across two device runs (11:57 to 12:07).",
+  "how_diagnosed": "Used bridge request logs plus a mobile behaviour test. The device APK predated commit 6de9ec8, so it was a deployment problem, not a code bug.",
+  "needs": [
+   "C4",
+   "C8"
+  ],
+  "detection_delay": "session",
+  "delay_reason": "Diagnosed minutes after the device runs.",
+  "confidence": "high",
+  "triggered": false,
+  "recurrence": "reproducible"
+ },
+ {
+  "id": "M08",
+  "title": "Background sync cycles hang 600 s until Android kills them; cursor frozen, operations re-sent",
+  "date": "2026-09-04",
+  "source": "engram #9040",
+  "mobile_involved": true,
+  "symptom": "Reconciles arrived on an exact 600 s cadence with frozen last_changelog_id and the same pending operations, plus hours of silence (#9267).",
+  "how_diagnosed": "Correlated the adb device log (task start at 12:39:20.861) with the bridge capture 840 ms later, read reconcile bodies and client_telemetry through the MCP, and found an 'Access to closed resource' write error.",
+  "needs": [
+   "C2",
+   "C3",
+   "C4",
+   "C8",
+   "C9"
+  ],
+  "detection_delay": "weeks",
+  "delay_reason": "The 600 s pattern spans weeks of captures; one operation was delivered about 43 h late.",
+  "confidence": "low",
+  "triggered": false,
+  "recurrence": "recurring",
+  "routes": [
+   "/api/sync"
+  ]
+ }
+]

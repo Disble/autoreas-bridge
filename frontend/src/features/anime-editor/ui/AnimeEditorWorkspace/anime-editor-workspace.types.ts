@@ -28,6 +28,13 @@ export interface AnimeEditorStatusOption {
 /** Lifecycle action gated behind a confirmation before any gateway write. */
 export type AnimeEditorLifecycleAction = 'deactivate' | 'restore' | 'repeat';
 
+/** The three lifecycle commands a confirmed lifecycle action runs. */
+export interface AnimeEditorLifecycleCommands {
+  readonly onDeactivate: () => Promise<void>;
+  readonly onRestore: () => Promise<void>;
+  readonly onRepeat: () => Promise<void>;
+}
+
 /**
  * Display-ready confirmation copy for the selected lifecycle action, driving
  * one generalized confirm modal instead of one hardcoded modal per action.
@@ -240,14 +247,20 @@ export interface AnimeEditorCoverCache {
 /** Inferred view model consumed by the dumb editor components. */
 export type AnimeEditorWorkspaceViewModel = ReturnType<typeof import('./use-anime-editor-workspace').useAnimeEditorWorkspace>;
 
+/** What the list panel reads: the workspace's memoized `listPanel` slice. */
+export type AnimeEditorListPanelViewModel = AnimeEditorWorkspaceViewModel['listPanel'];
+
+/** What the form panel reads: the workspace's memoized `formPanel` slice. */
+export type AnimeEditorFormPanelViewModel = AnimeEditorWorkspaceViewModel['formPanel'];
+
 /** Props for the independently scrolling editor list panel. */
 export interface AnimeEditorListPanelProps {
-  readonly viewModel: AnimeEditorWorkspaceViewModel;
+  readonly viewModel: AnimeEditorListPanelViewModel;
 }
 
 /** Props for the independently scrolling editor form panel. */
 export interface AnimeEditorFormPanelProps {
-  readonly viewModel: AnimeEditorWorkspaceViewModel;
+  readonly viewModel: AnimeEditorFormPanelViewModel;
 }
 
 /** Props for guard and schedule modal rendering. */

@@ -250,6 +250,11 @@ describe('AnimeEditorWorkspace schedule feedback (integration)', () => {
       entries: expectedScheduleEntries,
     });
 
+    // The rejected apply also swaps the board, and the draft resets to it from
+    // an effect. Driving the next batch before that reset lands discards its
+    // first move, so wait for the board's own zero-change draft first.
+    await waitFor(() => expect(within(dialog).getByText('0 schedule changes')).toBeVisible());
+
     act(() => scheduleTestDriverRef.current?.moveAnime({ animeId: 'bang-dream', destinationId: 'Visto', order: 1 }));
     act(() => scheduleTestDriverRef.current?.moveAnime({ animeId: 'yani-neko', destinationId: 'Visto', order: 2 }));
     act(() => scheduleTestDriverRef.current?.moveAnime({ animeId: 'sayonara-lara', destinationId: 'Visto', order: 3 }));

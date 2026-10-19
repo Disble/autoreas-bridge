@@ -54,6 +54,52 @@ func TestStoreRecordsAndListsAnimeActivity(t *testing.T) {
 	}
 }
 
+// TestStoreFiltersListsAndCounts pins each ListQuery filter on ListRecent and
+// CountMatching, which ignores Limit.
+func TestStoreFiltersListsAndCounts(t *testing.T) {
+	ctx := context.Background()
+	store := activity.NewStore(activity.NewSQLiteProvider(openActivityTestDB(t)))
+	const base = int64(1710000000000)
+	for _, row := range []struct {
+		source string
+		atMS   int64
+	}{{activity.SourceDesktop, base + 100}, {activity.SourceMobile, base + 200}, {activity.SourceMobile, base + 200}, {activity.SourceDesktop, base + 300}} {
+		if err := store.RecordActivity(ctx, activity.Record{Source: row.source, ActionType: activity.ActionEpisodeAdjusted,
+			AnimeID: "anime-1", AnimeName: "Dungeon Meshi", OccurredAtMs: row.atMS}); err != nil {
+			t.Fatalf("record activity: %v", err)
+		}
+	}
+	cases := []struct {
+		name  string
+		query activity.ListQuery
+		want  []int64
+		count int64
+	}{
+		{"unfiltered", activity.ListQuery{Limit: 10}, []int64{4, 3, 2, 1}, 4},
+		{"limit", activity.ListQuery{Limit: 1}, []int64{4}, 4},
+		{"since", activity.ListQuery{SinceMS: base + 200}, []int64{4, 3, 2}, 3},
+		{"until", activity.ListQuery{UntilMS: base + 200}, []int64{3, 2, 1}, 3},
+		{"source", activity.ListQuery{Source: activity.SourceMobile}, []int64{3, 2}, 2},
+		{"before", activity.ListQuery{Before: &activity.Position{OccurredAtMs: base + 200, ID: 3}}, []int64{2, 1}, 2},
+		{"all filters", activity.ListQuery{SinceMS: base + 150, UntilMS: base + 250, Source: activity.SourceMobile,
+			Before: &activity.Position{OccurredAtMs: base + 200, ID: 3}}, []int64{2}, 1},
+	}
+	for _, tc := range cases {
+		records, err := store.ListRecent(ctx, tc.query)
+		if err != nil {
+			t.Fatalf("%s: list: %v", tc.name, err)
+		}
+		ids := make([]int64, len(records))
+		for i, record := range records {
+			ids[i] = record.ID
+		}
+		count, err := store.CountMatching(ctx, tc.query)
+		if err != nil || !slices.Equal(ids, tc.want) || count != tc.count {
+			t.Errorf("%s: ids %v count %d (%v), want %v count %d", tc.name, ids, count, err, tc.want, tc.count)
+		}
+	}
+}
+
 func TestBridgeBootstrapCreatesActivityLogSchema(t *testing.T) {
 	db := openActivityTestDB(t)
 
@@ -224,6 +270,9 @@ func TestStoreReturnsZeroOnQueryOrExecError(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("expected count 0 on error, got %d", count)
+	}
+	if matching, err := store.CountMatching(ctx, activity.ListQuery{}); err == nil || matching != 0 {
+		t.Fatalf("expected count 0 and an error on a closed database, got %d (%v)", matching, err)
 	}
 }
 

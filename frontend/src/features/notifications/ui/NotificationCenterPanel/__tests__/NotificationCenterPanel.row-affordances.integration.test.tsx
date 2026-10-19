@@ -6,6 +6,9 @@ import { NotificationCenterPanel } from '../NotificationCenterPanel';
 
 afterEach(cleanup);
 
+/** Accessible name of the grid containing the notification rows under test. */
+const MASTER_LIST_GRID_NAME = 'Notifications';
+
 /**
  * The unread record the master list must render every affordance for: a
  * severity chip, an unread mark, the names of the things it is about, and a
@@ -62,13 +65,15 @@ function makeSource(items: readonly NotificationRow[]): NotificationCenterSource
 }
 
 /**
- * Renders the real panel over a seeded source and waits for the first page to
- * land, so every assertion below runs against rows the list actually painted.
+ * Renders the real panel and awaits its first seeded row inside the named grid.
+ * The grid can exist before its data rows; await the row, not just the container.
  * @param items The rows the master list is seeded with.
  */
 async function renderSeededList(items: readonly NotificationRow[]): Promise<void> {
   render(<NotificationCenterPanel source={makeSource(items)} />);
-  await screen.findByText(items[0]?.title ?? '');
+
+  const grid = await screen.findByRole('grid', { name: MASTER_LIST_GRID_NAME });
+  await within(grid).findByText(items[0]?.title ?? '');
 }
 
 describe('NotificationCenterPanel master list row affordances (integration)', () => {
@@ -80,7 +85,7 @@ describe('NotificationCenterPanel master list row affordances (integration)', ()
     // unscoped text query would match the filter rather than the row.
     // Written as literals: asserting against SEVERITY_TO_CHIP_COLOR or
     // formatLevelLabel would still pass with either emptied (CLAUDE.md #16).
-    const table = within(screen.getByRole('grid'));
+    const table = within(screen.getByRole('grid', { name: MASTER_LIST_GRID_NAME }));
 
     expect(table.getByText('Warning')).toBeInTheDocument();
     expect(table.getByText('Success')).toBeInTheDocument();

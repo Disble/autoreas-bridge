@@ -58,6 +58,8 @@ type ChangedOutboxEvent = store.AnimeChangedOutboxEvent
 // newAnimeChangedEvent builds the bus event for one drained outbox row. It is
 // the single place a committed write becomes an anime.changed event, so the
 // derived change type and changed fields travel together to every subscriber.
+// The operation id becomes the correlation id: anime_write_operations.request_id
+// joins it to the request that caused the write (P3).
 func newAnimeChangedEvent(event ChangedOutboxEvent) events.AnimeChangedEvent {
 	return events.AnimeChangedEvent{
 		EventID:       event.EventID,
@@ -65,6 +67,7 @@ func newAnimeChangedEvent(event ChangedOutboxEvent) events.AnimeChangedEvent {
 		Payload:       append([]byte(nil), event.Payload...),
 		ChangeType:    event.ChangeType,
 		ChangedFields: append([]string(nil), event.ChangedFields...),
+		CorrelationID: event.OperationID,
 	}
 }
 

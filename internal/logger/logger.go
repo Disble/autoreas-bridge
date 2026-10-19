@@ -51,10 +51,15 @@ type entryWriter interface {
 	WriteEntry(entry LogEntry)
 }
 
+// TimestampLayout is the UTC, fixed-width, millisecond-resolution layout of
+// LogEntry.Timestamp. Second resolution put every event of one second on the
+// same instant, losing their order (P2, docs/observability/architecture.md).
+const TimestampLayout = "2006-01-02T15:04:05.000Z07:00"
+
 // newEntry builds a canonical structured log entry.
 func newEntry(domain, level string, fields Fields, format string, args ...any) LogEntry {
 	return LogEntry{
-		Timestamp:     time.Now().UTC().Format(time.RFC3339),
+		Timestamp:     time.Now().UTC().Format(TimestampLayout),
 		Domain:        domain,
 		Level:         level,
 		Message:       fmt.Sprintf(format, args...),

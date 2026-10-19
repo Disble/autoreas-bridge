@@ -69,8 +69,7 @@ type pageCursor struct {
 }
 
 // encodePageCursor serializes a pagination cursor to the opaque
-// "<watched_at_ms>:<id>" form, matching eventlog.EventSearchPage's
-// NextCursor convention.
+// "<watched_at_ms>:<id>" form.
 func encodePageCursor(cursor pageCursor) string {
 	return fmt.Sprintf("%d:%d", cursor.WatchedAtMS, cursor.ID)
 }

@@ -274,6 +274,59 @@ info:
     has never seen, because changes written before this fix, and creates
     behind a pruned changelog, are served as `update`.
 
+    2026-10-17 — request correlation consumer impact: ADDITIVE, one optional
+    request header and one response header on every HTTP endpoint (agreed
+    with autoreas-mobile, ADR-028 P3).
+    - Request: `X-Autoreas-Request-Id: <cycleId>:<n>`, where `cycleId` is the
+      client's sync-cycle id and `n` is the request's sequence inside that
+      cycle. The bridge accepts a value matching
+      `^[A-Za-z0-9._-]{1,48}:[0-9]{1,9}$` and records it as the request's
+      correlation id.
+    - An absent or non-matching value is ignored, and the bridge mints its
+      own id, as before. A bad header never fails a request, and nothing is
+      required from existing clients.
+    - Response: every HTTP response carries `X-Autoreas-Request-Id`, with the
+      client's accepted value or the bridge's own id. Clients may log it.
+    - WebSocket is unchanged: the phone sends no frames.
+
+    2026-10-18 — debug-capture MCP consumer impact: NO REST/WS wire change.
+    BREAKING for MCP clients only: the read-only `autoreas-request-mcp`
+    sidecar replaces its whole tool surface (ADR-028, `docs/observability/rollout.md`,
+    "No legacy"). No alias or shim keeps an old name.
+    - Removed: `search_requests`, `get_request_context`, `resolve_request_context`,
+      `summary_requests`, `search_events`, `summary_events`,
+      `get_correlation_timeline`.
+    - Added, one per Activity question: `get_status`, `list_incidents`,
+      `get_incident`, `get_request` (by bridge `request_id`, or by the
+      `X-Autoreas-Request-Id` value as `client_request_id`, which returns every
+      row sharing it, newest first, at most 10), `search_history`, `list_runs`, `get_run_story`,
+      `list_recorder`, `list_response_versions`, `get_hourly_totals`.
+    - `search_history` connection lines include the bridge's `ws_broadcast`
+      pushes beside connects and disconnects (the desktop History does not).
+    - `list_response_versions` takes an optional `at_ms`: at most 20
+      versions whose `first_seen_ms`..`last_seen_ms` interval holds it.
+      Intervals of alternating bodies overlap, so only a kept request's
+      `response_hash` names the exact body.
+    - `get_hourly_totals` takes `day` (local `YYYY-MM-DD`) or `day_ms` (any
+      epoch ms inside the local day), one of the last 90 local days, and
+      returns that day's hourly rollup per hour, route template, status
+      class, device: request count and maximum duration in ms.
+    - Every answer carries a `coverage` object: the tables read, the time
+      range each one holds, the window asked about and the part of it the
+      tables cover, in epoch ms and UTC ISO. An empty answer means nothing
+      inside that range, never "nothing happened".
+    - `request_captures` and `runtime_events` keep every row only for the
+      last 2 hours; older rows survive only as writes, WebSocket connections,
+      non-noise events and incident windows. Their coverage entries carry
+      `complete_from` (`ms`, `iso`), the time from which every row is held,
+      and `before_complete_from`, what survives before it. `get_request`,
+      `get_run_story` and `list_recorder` start `covered` at `complete_from`.
+    - Desktop-app-internal only (Wails, not `/api` or `/ws`): the
+      `capture.transaction` and `observability.log` runtime events and the
+      `ListCaptureTransactions`/`GetCaptureTransaction` family of bindings are
+      deleted. The desktop app streams persisted captures and events as
+      `activity.recorder` rows instead. Mobile clients are unaffected.
+
     2026-10-18 — season on the anime sync path consumer impact: BREAKING. Season
     candidacy now travels with the anime instead of on season-only paths, so a
     backgrounded phone learns it through reconcile. Requires the Mobile release
@@ -327,7 +380,8 @@ x-websocket:
     kinds, outcome `opened`/`closed`/`pushed`) into `request_captures`
     (renamed from `mobile_request_captures` by capture-nomenclature-rename)
     and surfaced live to the bridge desktop app via the `capture.transaction`
-    Wails runtime event. No wire-message shape changed.
+    Wails runtime event (since 2026-10-18, the `activity.recorder` event).
+    No wire-message shape changed.
 
 components:
   securitySchemes:
@@ -1402,9 +1456,11 @@ paths:
       summary: Fetch one anime cover thumbnail
       description: |
         Returns the anime's cover thumbnail as a JPEG. The thumbnail is generated once
-        per source identity and cached on disk under the fixed v1 spec (320 px height
-        fit, never upscaled, JPEG q80, strong ETag). A soft-deleted anime still
-        resolves, so its cover stays fetchable.
+        per source identity and cached on disk under the fixed v2 spec (480 px height
+        ceiling, never upscaled, never cropped, every valid source re-encoded at JPEG
+        q85, strong ETag). A source at or below the ceiling keeps its native dimensions
+        and is still re-encoded, so no response is a byte-for-byte copy of the source.
+        A soft-deleted anime still resolves, so its cover stays fetchable.
 
         2026-09-14 mobile consumer note: treat `204` as a placeholder and revalidate it
         after 7 days; treat `404` as an unknown anime and revalidate after 24 hours. A

@@ -342,15 +342,14 @@ func TestListDeviceSyncDiagnosticsResultIsNeverJSONNull(t *testing.T) {
 	}
 }
 
-// TestConfigureSyncDiagReaderIsNilSafeAndBuildsOnce mirrors
-// TestConfigureEventReaderIsNilSafeAndBuildsOnce for the diagnostics reader
-// seam, including the operator contract: a successful wiring builds exactly
+// TestConfigureSyncDiagReaderIsNilSafeAndBuildsOnce covers the diagnostics
+// reader seam, including the operator contract: a successful wiring builds exactly
 // once and says nothing to the log.
 func TestConfigureSyncDiagReaderIsNilSafeAndBuildsOnce(t *testing.T) {
 	t.Parallel()
 
 	db := captureAppTestDB(t)
-	app, memLogger := newObservableEventReaderApp(&App{bridgeDB: db, newSyncDiagReader: telemetry.NewReader})
+	app, memLogger := newAppWithMemLogger(&App{bridgeDB: db, newSyncDiagReader: telemetry.NewReader})
 
 	app.configureSyncDiagReader()
 	if app.syncDiagReader == nil {
@@ -380,15 +379,14 @@ func TestConfigureSyncDiagReaderNoopWhenBridgeDBNil(t *testing.T) {
 	}
 }
 
-// TestConfigureSyncDiagReaderNoopWhenConstructorNil mirrors
-// TestConfigureEventReaderNoopWhenConstructorNil: a bootstrap that deliberately
+// TestConfigureSyncDiagReaderNoopWhenConstructorNil: a bootstrap that deliberately
 // leaves the constructor seam nil gets no reader and no recovered-crash report,
 // because the guard returns before any call is attempted.
 func TestConfigureSyncDiagReaderNoopWhenConstructorNil(t *testing.T) {
 	t.Parallel()
 
 	db := captureAppTestDB(t)
-	app, memLogger := newObservableEventReaderApp(&App{bridgeDB: db})
+	app, memLogger := newAppWithMemLogger(&App{bridgeDB: db})
 
 	app.configureSyncDiagReader()
 	if app.syncDiagReader != nil {
@@ -399,15 +397,14 @@ func TestConfigureSyncDiagReaderNoopWhenConstructorNil(t *testing.T) {
 	}
 }
 
-// TestConfigureSyncDiagReaderSurvivesAnUnusableBridgeHandle mirrors
-// TestConfigureEventReaderSurvivesAnUnusableBridgeHandle: telemetry.NewReader
+// TestConfigureSyncDiagReaderSurvivesAnUnusableBridgeHandle: telemetry.NewReader
 // probes device_telemetry_events on construction, and database/sql panics
 // rather than erroring on a bare, unopened handle. The best-effort read path
 // must degrade with exactly one operator warning, never abort the boot.
 func TestConfigureSyncDiagReaderSurvivesAnUnusableBridgeHandle(t *testing.T) {
 	t.Parallel()
 
-	app, memLogger := newObservableEventReaderApp(&App{bridgeDB: &sql.DB{}, newSyncDiagReader: telemetry.NewReader})
+	app, memLogger := newAppWithMemLogger(&App{bridgeDB: &sql.DB{}, newSyncDiagReader: telemetry.NewReader})
 
 	app.configureSyncDiagReader()
 	if app.syncDiagReader != nil {
@@ -425,8 +422,7 @@ func TestConfigureSyncDiagReaderSurvivesAnUnusableBridgeHandle(t *testing.T) {
 	}
 }
 
-// TestConfigureSyncDiagReaderSurvivesAnUnusableHandleWithNoLogger mirrors
-// TestConfigureEventReaderSurvivesAnUnusableHandleWithNoLogger: the seam can
+// TestConfigureSyncDiagReaderSurvivesAnUnusableHandleWithNoLogger: the seam can
 // run before the shared logger exists, and warning through a nil logger would
 // panic inside the deferred recover, turning the startup guard into the thing
 // that kills startup.

@@ -48,7 +48,7 @@ func (s stubCoverThumbnails) GetHTTP(context.Context, string) (cover.ThumbnailRe
 	return s.result, s.err
 }
 
-// tallJPEG encodes a source taller than the 320 px thumbnail target, so a served cover is generated.
+// tallJPEG encodes a source taller than the 480 px thumbnail ceiling, so a served cover is generated.
 func tallJPEG(t *testing.T) []byte {
 	t.Helper()
 
@@ -112,8 +112,8 @@ func TestGetAnimeCoverReturnsThumbnailJPEGDataURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode served thumbnail: %v", err)
 	}
-	if img.Bounds().Dy() > 320 {
-		t.Fatalf("served thumbnail height = %d, want <= 320", img.Bounds().Dy())
+	if img.Bounds().Dy() > 480 {
+		t.Fatalf("served thumbnail height = %d, want <= 480", img.Bounds().Dy())
 	}
 }
 

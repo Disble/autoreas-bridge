@@ -2,3 +2,6 @@
 
 # Layout-smoke fixture bundle (scripts/layout-smoke.mjs rebuilds it every run).
 dist-layout/
+
+# Native coverage report (the frontend-coverage gate rewrites it every run).
+coverage/

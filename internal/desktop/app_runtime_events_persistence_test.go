@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"autoreas-bridge/internal/observability/eventlog"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/testsupport/async"
 )
@@ -43,45 +42,19 @@ func TestLoggedEventSurvivesBridgeRestart(t *testing.T) {
 	}
 	defer second.shutdown(context.Background())
 
-	reader := eventlog.NewReader(second.bridgeDB)
-	if !reader.Available() {
-		t.Fatal("expected runtime_events to be available across restart")
-	}
-	page, err := reader.Search(context.Background(), eventlog.EventSearchParams{Filters: eventlog.EventFilters{Text: "distinctive-restart-event"}})
-	if err != nil {
-		t.Fatalf("search events after restart: %v", err)
-	}
-	if len(page.Items) != 1 {
-		t.Fatalf("expected the event to survive the restart, got %#v", page.Items)
+	if got := countRuntimeEvents(t, second.bridgeDB, `message = ?`, "distinctive-restart-event"); got != 1 {
+		t.Fatalf("expected the event to survive the restart once, got %d rows", got)
 	}
 }
 
-// TestGetRecentLogsUnchangedWithEventPersistenceActive asserts the in-memory
-// GetRecentLogs feed behaves exactly as before with event persistence wired.
-func TestGetRecentLogsUnchangedWithEventPersistenceActive(t *testing.T) {
-	t.Parallel()
-
-	dbPath := filepath.Join(t.TempDir(), "bridge.db")
-	app := newAppTestApp(t)
-	app.bootstrapBridgeDB = func() (*sql.DB, error) { return bridgeSync.OpenBridgeDB(dbPath) }
-	app.startup(context.Background())
-	defer app.shutdown(context.Background())
-	if app.startupErr != nil {
-		t.Fatalf("startup: %v", app.startupErr)
+// countRuntimeEvents counts the runtime_events rows matching where.
+func countRuntimeEvents(t *testing.T, db *sql.DB, where string, args ...any) int {
+	t.Helper()
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM runtime_events WHERE `+where, args...).Scan(&count); err != nil {
+		t.Fatalf("count runtime events: %v", err)
 	}
-
-	app.sharedLogger.Infof("sync", "recent-logs-still-work")
-
-	got := app.GetRecentLogs()
-	found := false
-	for _, entry := range got {
-		if entry.Message == "recent-logs-still-work" {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("expected GetRecentLogs to still surface the entry, got %#v", got)
-	}
+	return count
 }
 
 // TestEventPersistenceWritesOnlyRuntimeEvents asserts persisting a runtime
@@ -199,14 +172,9 @@ func TestEarlyBootEventsSurviveUntilQueueBinding(t *testing.T) {
 	// runner split its own prose to pick one. They now declare the fixed
 	// `tracer-bullet` domain, which is what lets a health rollup exclude
 	// synthetic traffic. This test's subject is unchanged: a pre-bind event
-	// must be queryable through the reader the MCP sidecar uses.
-	reader := eventlog.NewReader(app.bridgeDB)
-	page, err := reader.Search(context.Background(), eventlog.EventSearchParams{Filters: eventlog.EventFilters{Domain: "tracer-bullet"}})
-	if err != nil {
-		t.Fatalf("search events: %v", err)
-	}
-	if len(page.Items) == 0 {
-		t.Fatal("expected the pre-bind tracer-bullet event to be queryable, which is what the MCP sidecar reads")
+	// must be stored under that domain.
+	if countRuntimeEvents(t, app.bridgeDB, `domain = ?`, "tracer-bullet") == 0 {
+		t.Fatal("expected the pre-bind tracer-bullet event to be stored")
 	}
 }
 

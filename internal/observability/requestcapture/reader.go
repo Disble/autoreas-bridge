@@ -3,7 +3,6 @@ package requestcapture
 import (
 	"context"
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -28,7 +27,7 @@ var captureBaseColumns = []string{
 
 // optionalCaptureColumns are the additive (version-2) telemetry columns. Order
 // matters: it is the fixed order appended to captureBaseColumns whenever present.
-var optionalCaptureColumns = []string{"request_body", "request_body_state", "response_body", "response_body_state", "request_headers", "response_headers", "duration_ms"}
+var optionalCaptureColumns = []string{"request_body", "request_body_state", "response_body", "response_body_state", "request_headers", "response_headers", "duration_ms", "error_message", "client_request_id", "response_hash"}
 
 // captureTables names the capture objects for one schema generation. The
 // table/key names are interpolated directly into SQL strings because SQLite
@@ -93,6 +92,9 @@ type optionalColumns struct {
 	requestHeaders    bool
 	responseHeaders   bool
 	durationMS        bool
+	errorMessage      bool
+	clientRequestID   bool
+	responseHash      bool
 }
 
 // present reports whether the named optional column was detected.
@@ -112,6 +114,12 @@ func (o optionalColumns) present(name string) bool {
 		return o.responseHeaders
 	case "duration_ms":
 		return o.durationMS
+	case "error_message":
+		return o.errorMessage
+	case "client_request_id":
+		return o.clientRequestID
+	case "response_hash":
+		return o.responseHash
 	default:
 		return false
 	}
@@ -130,7 +138,7 @@ func (o optionalColumns) selectColumns() []string {
 }
 
 // NewReader builds a query helper over an already-open bridge DB. Optional
-// telemetry columns are detected once here so Search/Get can tolerate a
+// telemetry columns are detected once here so Get can tolerate a
 // database that predates the additive schema (version 1). Table-name
 // resolution falls back to the current generation on failure -- the
 // in-process caller builds this Reader over the app's own already-bootstrapped
@@ -159,11 +167,6 @@ type ReadOnlyDB struct {
 
 // Tables exposes the resolved capture-table generation for this handle.
 func (r *ReadOnlyDB) Tables() captureTables { return r.tables }
-
-type searchCursor struct {
-	CapturedAtMS int64  `json:"captured_at_ms"`
-	RequestID    string `json:"request_id"`
-}
 
 // detectOptionalColumns probes pragma_table_info for the additive telemetry
 // columns on the resolved capture table. Any failure is treated as "absent"
@@ -195,6 +198,9 @@ func detectOptionalColumns(db *sql.DB, tables captureTables) optionalColumns {
 		requestHeaders:    present["request_headers"],
 		responseHeaders:   present["response_headers"],
 		durationMS:        present["duration_ms"],
+		errorMessage:      present["error_message"],
+		clientRequestID:   present["client_request_id"],
+		responseHash:      present["response_hash"],
 	}
 }
 
@@ -278,22 +284,6 @@ func (r *ReadOnlyDB) Close() error { return r.db.Close() }
 // DB exposes the raw query-only handle for tests/tools.
 func (r *ReadOnlyDB) DB() *sql.DB { return r.db }
 
-// encodeSearchCursor serializes the pagination cursor to URL-safe base64.
-func encodeSearchCursor(cursor searchCursor) string {
-	encoded, _ := json.Marshal(cursor)
-	return base64.RawURLEncoding.EncodeToString(encoded)
-}
-
-// decodeSearchCursor parses a base64 search cursor into its parts.
-func decodeSearchCursor(value string) (searchCursor, error) {
-	encoded, err := base64.RawURLEncoding.DecodeString(value)
-	var cursor searchCursor
-	if err != nil || json.Unmarshal(encoded, &cursor) != nil || cursor.RequestID == "" {
-		return searchCursor{}, invalidParamsError("invalid search cursor")
-	}
-	return cursor, nil
-}
-
 // captureRowScan holds the scan targets for one capture row: the fixed base
 // columns plus whichever optional telemetry columns are present.
 type captureRowScan struct {
@@ -308,6 +298,9 @@ type captureRowScan struct {
 	requestHeaders    sql.NullString
 	responseHeaders   sql.NullString
 	durationMS        sql.NullInt64
+	errorMessage      sql.NullString
+	clientRequestID   sql.NullString
+	responseHash      sql.NullString
 }
 
 // buildCaptureScanDest builds the ordered Scan() destination slice for one
@@ -335,6 +328,12 @@ func buildCaptureScanDest(record *CaptureRecord, scan *captureRowScan, columns [
 			dest = append(dest, &scan.responseHeaders)
 		case "duration_ms":
 			dest = append(dest, &scan.durationMS)
+		case "error_message":
+			dest = append(dest, &scan.errorMessage)
+		case "client_request_id":
+			dest = append(dest, &scan.clientRequestID)
+		case "response_hash":
+			dest = append(dest, &scan.responseHash)
 		}
 	}
 	return dest
@@ -390,14 +389,15 @@ func applyOptionalCaptureFields(record *CaptureRecord, scan captureRowScan) {
 		value := scan.durationMS.Int64
 		record.DurationMS = &value
 	}
-}
-
-// RetentionLimit returns the capture store's retention limit: the row cap
-// enforced by pruning (defaultRetentionLimit, applied by
-// SQLiteStore.pruneOldestBeyondRetention). It is exposed so a surface can
-// state how much history the store keeps without copying the constant.
-func RetentionLimit() int {
-	return defaultRetentionLimit
+	if scan.errorMessage.Valid {
+		record.ErrorMessage = scan.errorMessage.String
+	}
+	if scan.clientRequestID.Valid {
+		record.ClientRequestID = scan.clientRequestID.String
+	}
+	if scan.responseHash.Valid {
+		record.ResponseHash = scan.responseHash.String
+	}
 }
 
 // scanCaptureRow reads one capture row into a CaptureRecord. columns must

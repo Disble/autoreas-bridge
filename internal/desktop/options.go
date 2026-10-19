@@ -32,7 +32,7 @@ func buildAppOptions(app *App, assets embed.FS) *options.App {
 		HideWindowOnClose: true,
 		StartHidden:       true,
 		SingleInstanceLock: &options.SingleInstanceLock{
-			UniqueId:               singleInstanceLockID,
+			UniqueId:               singleInstanceLockIDFor(app.getenv()),
 			OnSecondInstanceLaunch: app.onSecondInstanceLaunch,
 		},
 		OnStartup:  app.startup,

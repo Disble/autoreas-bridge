@@ -1,4 +1,4 @@
-// Package thumbnail is the pure anime-cover-thumbnails v1 transform: source bytes in, served JPEG bytes and a precomputed strong ETag out, with no filesystem/HTTP/cache/semaphore/desktop dependency (design D3).
+// Package thumbnail is the pure anime-cover-thumbnails v2 transform: source bytes in, served JPEG bytes and a precomputed strong ETag out, with no filesystem/HTTP/cache/semaphore/desktop dependency (design D3).
 package thumbnail
 
 import (
@@ -18,12 +18,12 @@ import (
 )
 
 // SpecVersion is the fixed thumbnail spec version this package implements; a rule change here must bump it (design D4).
-const SpecVersion = 1
+const SpecVersion = 2
 
 const (
-	maxHeight    = 320
+	maxHeight    = 480
 	maxPixels    = 16_777_216
-	jpegQuality  = 80
+	jpegQuality  = 85
 	preShrinkMax = 2
 )
 
@@ -33,7 +33,7 @@ var ErrInvalidSource = errors.New("thumbnail: invalid source")
 // defaultBackground is the bridge's existing opaque UI background (internal/desktop/options.go's RGB(27, 38, 54), #1B2636).
 var defaultBackground = color.NRGBA{R: 0x1B, G: 0x26, B: 0x36, A: 0xFF}
 
-// acceptedFormats are the only image.Decode-registered formats v1 serves; ICO, SVG, BMP, and any other image/* bytes have no matching decoder here.
+// acceptedFormats are the only image.Decode-registered formats this package serves; ICO, SVG, BMP, and any other image/* bytes have no matching decoder here.
 var acceptedFormats = map[string]bool{"jpeg": true, "png": true, "gif": true, "webp": true}
 
 // boxKernel reproduces a uniform-weight box filter: x/image/draw exports no named Box scaler, so this rebuilds one via the generic Kernel type.
@@ -50,7 +50,7 @@ type Result struct {
 	ETag  string
 }
 
-// Transform rejects an unsupported format or over-cap source before a full decode, serves an already-small proven-valid JPEG byte-for-byte, and otherwise flattens/resizes/encodes per design D3.
+// Transform rejects an unsupported format or over-cap source before a full decode, then flattens/resizes/encodes every valid source per design D3. There is one transform: a source at or below the ceiling is re-encoded at the same native size rather than served byte-for-byte, so no input bypasses the current quality rule.
 func Transform(data []byte, opts Options) (Result, error) {
 	cfg, format, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil {
@@ -61,14 +61,6 @@ func Transform(data []byte, opts Options) (Result, error) {
 	}
 	if cfg.Width <= 0 || cfg.Height <= 0 || cfg.Width*cfg.Height > maxPixels {
 		return Result{}, fmt.Errorf("%w: pixel cap exceeded", ErrInvalidSource)
-	}
-
-	if format == "jpeg" && cfg.Height <= maxHeight {
-		// Prove the bytes fully decode before serving them unchanged, so a truncated/corrupt short JPEG is rejected instead of served (design D3.2).
-		if _, _, err := image.Decode(bytes.NewReader(data)); err != nil {
-			return Result{}, fmt.Errorf("%w: decode: %w", ErrInvalidSource, err)
-		}
-		return newResult(data), nil
 	}
 
 	src, _, err := image.Decode(bytes.NewReader(data))
@@ -82,7 +74,7 @@ func Transform(data []byte, opts Options) (Result, error) {
 	return generate(src, cfg.Width, cfg.Height, bg)
 }
 
-// generate flattens src over bg, resizes to the never-upscaled height-320 fit, and encodes the result as JPEG q80 (design D3.4-D3.5).
+// generate flattens src over bg, resizes to the never-upscaled height-480 fit, and encodes the result as JPEG q85 (design D3.4-D3.5).
 func generate(src image.Image, srcW, srcH int, bg color.Color) (Result, error) {
 	targetW, targetH := fitDimensions(srcW, srcH)
 	resized := resize(flatten(src, bg), targetW, targetH)
@@ -94,7 +86,7 @@ func generate(src image.Image, srcW, srcH int, bg color.Color) (Result, error) {
 	return newResult(buf.Bytes()), nil
 }
 
-// fitDimensions computes the never-upscaled height-320 target size.
+// fitDimensions computes the never-upscaled height-480 target size.
 func fitDimensions(srcW, srcH int) (w, h int) {
 	h = srcH
 	if h > maxHeight {

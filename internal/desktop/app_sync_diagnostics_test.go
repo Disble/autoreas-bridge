@@ -3,6 +3,7 @@ package desktop
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -86,7 +87,8 @@ func newSyncDiagnosticsTestApp(t *testing.T) (*App, *sharedlogger.MemLogger) {
 // assertSingleSyncDiagnosticsStoredEvent asserts the in-memory logger holds
 // exactly one entry and that it is the sync.diagnostics_stored runtime event:
 // sync domain, info level, the event's device as EntityID, a message naming
-// the kind, the event and the device, and no trace of the payload.
+// the kind, the event and the device, the kind and event id as metadata, and
+// no trace of the payload.
 func assertSingleSyncDiagnosticsStoredEvent(t *testing.T, memLogger *sharedlogger.MemLogger, cycleID string) {
 	t.Helper()
 	entries := memLogger.Recent()
@@ -99,6 +101,10 @@ func assertSingleSyncDiagnosticsStoredEvent(t *testing.T, memLogger *sharedlogge
 	}
 	if entry.EntityID != "device-1" {
 		t.Fatalf("expected EntityID to carry the device, got %q", entry.EntityID)
+	}
+	wantMetadata := map[string]any{"kind": string(telemetry.KindCycleReport), "eventId": cycleID}
+	if !reflect.DeepEqual(entry.Metadata, wantMetadata) {
+		t.Fatalf("expected metadata %#v, got %#v", wantMetadata, entry.Metadata)
 	}
 	if !strings.Contains(entry.Message, cycleID) || !strings.Contains(entry.Message, "device-1") {
 		t.Fatalf("expected the message to identify the event and the device, got %q", entry.Message)

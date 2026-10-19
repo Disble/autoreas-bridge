@@ -2,9 +2,16 @@ import {defineConfig} from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import {configDefaults} from 'vitest/config'
+// dharness:coverage-tiers-import begin — rewritten by `dharness sync`; edits here are lost.
+import { fileURLToPath } from "node:url";
+import { withCoverageTiers } from "../.dharness/coverage-tiers.mjs";
+// dharness:coverage-tiers-import end
 
 // https://vitejs.dev/config/
-export default defineConfig(
+// dharness:coverage-tiers-export begin — rewritten by `dharness sync`; edits here are lost.
+export default withCoverageTiers(
+// dharness:coverage-tiers-input begin — the exported value below is dharness's input and is copied verbatim; the regions around it are rewritten by `dharness sync`.
+defineConfig(
   /**
    * Builds the Vite config per mode: test runs skip the Tailwind plugin and
    * pre-bundle heavy UI dependencies so test-file imports stay fast.
@@ -109,3 +116,7 @@ export default defineConfig(
     }
   }
 )
+// dharness:coverage-tiers-input end
+, { repositoryRoot: fileURLToPath(new URL("..", import.meta.url)), sourceRoot: "frontend" });
+// dharness:coverage-tiers-export end
+

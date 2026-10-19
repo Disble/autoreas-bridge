@@ -5,10 +5,11 @@ import type { EpisodeDurationRuntimeSource } from '../../../../infrastructure/br
 import { metadataLookupSource } from '../../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers';
 import { useEpisodeDurationsSection } from '../EpisodeDurationsSection/use-episode-durations-section';
 import { isAnyCard } from './anime-editor-guard.helpers';
-import { toAnimeEditorLifecycleConfirmation, toAnimeEditorListRowViewModels, toEpisodeDurationsSavedAnime } from './anime-editor-workspace.helpers';
-import type { AnimeEditorCoverSource, AnimeEditorLifecycleAction, AnimeEditorWorkspaceProps } from './anime-editor-workspace.types';
+import { toAnimeEditorListRowViewModels, toEpisodeDurationsSavedAnime } from './anime-editor-workspace.helpers';
+import type { AnimeEditorCoverSource, AnimeEditorWorkspaceProps } from './anime-editor-workspace.types';
 import { useAnimeEditorCovers } from './use-anime-editor-covers';
 import { useAnimeEditorCover } from './use-anime-editor-cover';
+import { useAnimeEditorLifecycleConfirmation } from './use-anime-editor-lifecycle-confirmation';
 import { useAnimeEditorList } from './use-anime-editor-list';
 import { useAnimeEditorListWindow } from './use-anime-editor-list-window';
 import { useAnimeEditorRecord } from './use-anime-editor-record';
@@ -29,7 +30,6 @@ export function useAnimeEditorWorkspace(
 
   // 2. State
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-  const [lifecycleAction, setLifecycleAction] = useState<AnimeEditorLifecycleAction | undefined>(undefined);
 
   // 3. Context/3rd Party Hooks
   const list = useAnimeEditorList({ initialAnimeId: props.initialAnimeId, source });
@@ -60,31 +60,41 @@ export function useAnimeEditorWorkspace(
     isEpisodesDirty: episodes.isDirty,
     isGuardSaveBlocked: episodes.isReanalyzing,
   });
+  const { onDeactivate, onRestore, onRepeat } = transitions;
+  const lifecycle = useAnimeEditorLifecycleConfirmation({ onDeactivate, onRestore, onRepeat });
 
   // 4. Queries/Mutations
 
   // 5. Derived State (useMemo)
-  const lifecycleConfirmation = useMemo(() => (lifecycleAction === undefined ? undefined : toAnimeEditorLifecycleConfirmation(lifecycleAction)), [lifecycleAction]);
   const items = useMemo(() => toAnimeEditorListRowViewModels(list.items, coverCache.covers), [list.items, coverCache.covers]);
   const cover = useAnimeEditorCover(record.selectedRecord, coverCache.covers);
 
   // 6. Callbacks (useCallback calling pure helpers)
   const onToggleDetails = useCallback(() => setIsDetailsOpen((current) => !current), []);
-  const onCancelLifecycleAction = useCallback(() => setLifecycleAction(undefined), []);
-  const onConfirmLifecycleAction = useCallback(async () => {
-    setLifecycleAction(undefined);
-    if (lifecycleAction === 'deactivate') {
-      await transitions.onDeactivate();
-    } else if (lifecycleAction === 'restore') {
-      await transitions.onRestore();
-    } else if (lifecycleAction === 'repeat') {
-      await transitions.onRepeat();
-    }
-  }, [lifecycleAction, transitions]);
+  // The panel slices are derived state, placed after the callbacks they carry.
+  // Each holds only what its memoized panel reads, so an async step that changes
+  // nothing it shows leaves the slice, and the panel, untouched.
+  const listPanel = useMemo(() => ({
+    query: list.query, filter: list.filter, items, listEmptyState: list.emptyState, isLoadingList: list.isLoadingList, listWindow,
+    onQueryChange: list.setQuery, onFilterChange: list.onFilterChange, onClearCriteria: list.onClearCriteria,
+    onSelectAnime: transitions.onSelectAnime, onCoverImageError: coverCache.onCoverImageError,
+  }), [list.query, list.filter, items, list.emptyState, list.isLoadingList, listWindow, list.setQuery, list.onFilterChange, list.onClearCriteria, transitions.onSelectAnime, coverCache.onCoverImageError]);
+  const formPanel = useMemo(() => ({
+    selectedRecord: record.selectedRecord, draft: record.draft, cover, appliedMetadata: record.appliedMetadata, metadataLookupSource,
+    isLoadingRecord: record.isLoadingRecord, isSaving: record.isSaving, isRecordDirty: record.isDirty, canSave: record.canSave, isDetailsOpen,
+    onCoverImageError: coverCache.onCoverImageError, onDraftChange: record.onDraftChange, onToggleDetails, onDiscardChanges: record.onDiscardChanges,
+    onPickFolder: record.onPickFolder, onPickCoverFile: record.onPickCoverFile, onSave: transitions.onSave,
+    onMetadataApplied: record.onMetadataApplied, onMetadataUndo: record.onMetadataUndo,
+    onRequestLifecycleAction: lifecycle.onRequestLifecycleAction,
+  }), [record.selectedRecord, record.draft, cover, record.appliedMetadata, record.isLoadingRecord, record.isSaving, record.isDirty, record.canSave, isDetailsOpen, coverCache.onCoverImageError, record.onDraftChange, onToggleDetails, record.onDiscardChanges, record.onPickFolder, record.onPickCoverFile, transitions.onSave, record.onMetadataApplied, record.onMetadataUndo, lifecycle.onRequestLifecycleAction]);
 
   // 7. Effects
 
   return {
+    /** What the memoized list panel reads. */
+    listPanel,
+    /** What the memoized form panel reads. */
+    formPanel,
     query: list.query, filter: list.filter, items, listEmptyState: list.emptyState, selectedAnimeId: list.selectedAnimeId,
     selectedRecord: record.selectedRecord, draft: record.draft,
     /** The selected anime's saved-cover thumbnail state, rendered in the form header. */
@@ -111,16 +121,14 @@ export function useAnimeEditorWorkspace(
     isGuardSaveBlocked: episodes.isReanalyzing,
     isScheduleModalOpen: schedule.isScheduleModalOpen, scheduleBoard: schedule.scheduleBoard,
     feedback: record.feedback, validationMessage: record.validationMessage, scheduleFeedback: schedule.scheduleFeedback,
-    isDetailsOpen, isGuardOpen: transitions.isGuardOpen, canSave: record.canSave, listWindow, lifecycleConfirmation,
+    isDetailsOpen, isGuardOpen: transitions.isGuardOpen, canSave: record.canSave, listWindow, lifecycleConfirmation: lifecycle.lifecycleConfirmation,
     onQueryChange: list.setQuery, onFilterChange: list.onFilterChange, onClearCriteria: list.onClearCriteria, onSelectAnime: transitions.onSelectAnime, onDraftChange: record.onDraftChange,
-    onToggleDetails, onDiscardChanges: record.onDiscardChanges, onPickFolder: record.onPickFolder, onPickCoverFile: record.onPickCoverFile, onSave: transitions.onSave, onDeactivate: transitions.onDeactivate, onRestore: transitions.onRestore, onRepeat: transitions.onRepeat,
+    onToggleDetails, onDiscardChanges: record.onDiscardChanges, onPickFolder: record.onPickFolder, onPickCoverFile: record.onPickCoverFile, onSave: transitions.onSave, onDeactivate, onRestore, onRepeat,
     /** Applies a confirmed MyAnimeList selection to the draft (design D9/D10). */
     onMetadataApplied: record.onMetadataApplied,
     /** Reverts the draft's last applied metadata patch (design D9). */
     onMetadataUndo: record.onMetadataUndo,
-    /** Asks to confirm a lifecycle action; the state setter is stable, so it needs no callback of its own. */
-    onRequestLifecycleAction: setLifecycleAction as (action: AnimeEditorLifecycleAction) => void,
-    onCancelLifecycleAction, onConfirmLifecycleAction,
+    onRequestLifecycleAction: lifecycle.onRequestLifecycleAction, onCancelLifecycleAction: lifecycle.onCancelLifecycleAction, onConfirmLifecycleAction: lifecycle.onConfirmLifecycleAction,
     onOpenSchedule: transitions.onOpenSchedule, onCloseSchedule: schedule.onCloseSchedule, onApplySchedule: transitions.onApplySchedule,
     onStayWithCurrentEditor: transitions.onStayWithCurrentEditor, onDiscardAndContinue: transitions.onDiscardAndContinue,
     onSaveAndContinue: transitions.onSaveAndContinue,

@@ -65,11 +65,10 @@ const ROUTE_MARKERS = {
   // center binding degrades and the panel settles on the "unavailable"
   // empty state -- a deterministic marker, not one that depends on live data.
   '/#/notifications': ['Notifications unavailable'],
-  // Both Activity markers are static route/tab copy rather than data: the
-  // runtime-event bindings degrade here exactly like the notification ones, and
-  // a marker that waited on a degraded read would only prove the timeout fired.
-  '/#/activity': ['Captured HTTP transactions between mobile clients and the bridge', 'Runtime Events'],
-  '/#/activity/runtime-events': ['Debug-level events are not persisted', 'Runtime Events'],
+  // Both Activity markers are static shell copy rather than data: the Activity
+  // bindings degrade here exactly like the notification ones, and a marker that
+  // waited on a degraded read would only prove the timeout fired.
+  '/#/activity': ['Pin this moment', 'Incidents'],
   // The static Create deep link every Airis empty state points at. It must
   // resolve BEFORE `/editor/:id`, so the marker is the Create workspace's own
   // heading: if the identifier route ever wins again, the Library workspace

@@ -54,14 +54,23 @@ func TestRepositoryHookOffloadsMutation(t *testing.T) {
 	}
 }
 
-// TestRepositoryFrontendLanesSerializeTypecheckBeforeTests keeps both hooks alike.
+// TestRepositoryFrontendLanesSerializeTypecheckBeforeTests keeps both hooks alike:
+// the dharness coverage-tiers run is the only Vitest run, after the typecheck.
+// A plain `vitest run` beside it would run the same suite twice.
 func TestRepositoryFrontendLanesSerializeTypecheckBeforeTests(t *testing.T) {
 	t.Parallel()
 	commit := groupJobs(t, loadLefthookConfig(t).PreCommit.Jobs, "frontend-heavy")
 	typecheck, ok := jobIndex(commit, "frontend-typecheck")
-	tests, found := jobIndex(commit, "frontend-test")
+	tests, found := jobIndex(commit, "frontend-coverage")
 	if !ok || !found || typecheck >= tests {
-		t.Fatal("pre-commit must typecheck before tests")
+		t.Fatal("pre-commit must typecheck before the coverage-tiers tests")
+	}
+	if _, duplicate := jobIndex(commit, "frontend-test"); duplicate {
+		t.Fatal("pre-commit runs the Vitest suite twice: frontend-test duplicates frontend-coverage")
+	}
+	// A `root:` would skip the suite on a commit that stages only .dharness/ or lefthook.yml.
+	if commit[tests].Root != "" {
+		t.Fatalf("pre-commit frontend-coverage declares root %q; it must run whatever is staged", commit[tests].Root)
 	}
 	var merge mergeGateConfig
 	if err := yaml.Unmarshal(readRepoFile(t, repoRootFromTest(t), "lefthook.yml"), &merge); err != nil {
@@ -69,8 +78,8 @@ func TestRepositoryFrontendLanesSerializeTypecheckBeforeTests(t *testing.T) {
 	}
 	for _, lane := range merge.PreMergeCommit.Jobs {
 		if lane.Name == "frontend-heavy" && lane.Group != nil {
-			if len(lane.Group.Jobs) < 2 || lane.Group.Jobs[0].Name != "frontend-typecheck" || lane.Group.Jobs[1].Name != "frontend-test" {
-				t.Fatal("pre-merge must serialize typecheck before tests in frontend-heavy")
+			if len(lane.Group.Jobs) < 2 || lane.Group.Jobs[0].Name != "frontend-typecheck" || lane.Group.Jobs[1].Name != "frontend-coverage" {
+				t.Fatal("pre-merge must serialize typecheck before the coverage-tiers tests in frontend-heavy")
 			}
 			return
 		}

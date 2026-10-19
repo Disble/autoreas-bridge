@@ -151,11 +151,17 @@ describe('AnimeEditorListPanel empty states', () => {
 
   it('renders no status region and no placeholder once the library request resolved', async () => {
     mockSource.getAnimes.mockResolvedValue([SCHEDULED_ANIME]);
+    // The Schedule card reads on its own. Leaving that read pending holds its
+    // loading region on screen beside the resolved rail, so the rule below is
+    // the rail's own loading state -- not "no status region in the workspace",
+    // which no card can promise while a sibling read is still in flight.
+    mockSource.getAnimeEditorScheduleBoard.mockReturnValueOnce(new Promise(() => undefined));
 
     renderWorkspace();
 
     await screen.findByText('Frieren');
-    expect(screen.queryByRole('status')).toBeNull();
+    expect(await screen.findByRole('status', { name: 'Loading the week schedule' })).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Loading anime list...' })).toBeNull();
     expect(screen.queryByTestId('anime-editor-skeleton-row')).toBeNull();
   });
 

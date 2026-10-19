@@ -33,20 +33,17 @@ const (
 // jpegMagic is the SOI-plus-marker prefix every JPEG this package serves carries.
 var jpegMagic = []byte{0xFF, 0xD8, 0xFF}
 
-// TestTransformServedBytesArePinnedToSpecVersionOne pins v1's exact served bytes and ETag for the Box pre-shrink path, the direct CatmullRom path, and both short-JPEG pass-through boundaries; a rule change here must bump SpecVersion (design D4).
-func TestTransformServedBytesArePinnedToSpecVersionOne(t *testing.T) {
+// TestTransformResizeReceiptsArePinnedToSpecVersionTwo pins the served bytes and ETag of the two resampler compositions v2 uses -- Box pre-shrink followed by CatmullRom, and the CatmullRom-only path -- because the measured composition in ADR-024 has no independent oracle: no stdlib encoder reproduces it. The policy itself (quality and geometry) is proven from derived evidence in TestTransformEncodesAtQualityEightyFive and TestTransformFitsHeightWithoutUpscaling, so a rule change must bump SpecVersion (design D4).
+func TestTransformResizeReceiptsArePinnedToSpecVersionTwo(t *testing.T) {
 	t.Parallel()
 
-	gray := color.NRGBA{R: 240, G: 240, B: 240, A: 255}
 	cases := []struct {
 		name       string
 		source     []byte
-		wantSHA256 string // empty means the served bytes must be the source bytes, so their own hash pins them
+		wantSHA256 string
 	}{
-		{name: "pre-shrink engaged", source: encode(t, gradientImage(1000, 1000), "png"), wantSHA256: "73c11880865c5ce17cfcd2e0a51e993bed8dad8cc2f51c40fc5e6d4c3a80f294"},
-		{name: "pre-shrink skipped", source: encode(t, gradientImage(1001, 640), "png"), wantSHA256: "21d52e2a88fbbd9efaa3c8b5cf17900d9e70c3c7ad6d532cb47bba2b395b4007"},
-		{name: "pass-through shorter than the bound", source: encode(t, solidImage(150, 180, gray), "jpeg")},
-		{name: "pass-through exactly at the bound", source: encode(t, solidImage(213, 320, gray), "jpeg")},
+		{name: "pre-shrink engaged", source: encode(t, gradientImage(1000, 1000), "png"), wantSHA256: "76b6120293d03aa7eb3889c9d9957dc3ad33bbf5ae60442d177fc6d126ede30a"},
+		{name: "pre-shrink skipped", source: encode(t, gradientImage(1001, 640), "png"), wantSHA256: "586df4f87fd8c0731440317745e830b368b654010d7a1d85cda8175d7897ddb3"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -55,20 +52,48 @@ func TestTransformServedBytesArePinnedToSpecVersionOne(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Transform: %v", err)
 			}
-			served := result.Bytes
-			if tc.wantSHA256 == "" {
-				served = tc.source
-			}
-			sum := sha256.Sum256(served)
+			sum := sha256.Sum256(result.Bytes)
 			gotSHA256, wantETag := hex.EncodeToString(sum[:]), `"`+hex.EncodeToString(sum[:])+`"`
-			if !bytes.Equal(result.Bytes, served) || result.ETag != wantETag || (tc.wantSHA256 != "" && gotSHA256 != tc.wantSHA256) {
-				t.Fatalf("served %d bytes sha256 %s ETag %s, want %x sha256 %s ETag %s", len(result.Bytes), gotSHA256, result.ETag, served, tc.wantSHA256, wantETag)
+			if gotSHA256 != tc.wantSHA256 || result.ETag != wantETag {
+				t.Fatalf("served %d bytes sha256 %s ETag %s, want sha256 %s ETag %s", len(result.Bytes), gotSHA256, result.ETag, tc.wantSHA256, wantETag)
 			}
 		})
 	}
 }
 
-// TestTransformFitsHeightWithoutUpscaling proves height-320 fit without upscaling, a degenerate one-pixel-wide result, and a decoded WebP source.
+// TestTransformEncodesAtQualityEightyFive proves every served JPEG declares exactly the quantization tables the standard library assigns to quality 85 -- and none of the previously served quality 80 tables -- so a small JPEG is re-encoded instead of passed through byte-for-byte.
+func TestTransformEncodesAtQualityEightyFive(t *testing.T) {
+	t.Parallel()
+
+	probe := solidImage(8, 8, color.NRGBA{R: 120, G: 130, B: 140, A: 255})
+	want85 := jpegQuantizationTables(t, encodeAtQuality(t, probe, 85))
+	if bytes.Equal(want85, jpegQuantizationTables(t, encodeAtQuality(t, probe, 80))) {
+		t.Fatal("fixture invalid: the standard library must use different quantization tables for quality 85 and 80")
+	}
+
+	cases := []struct {
+		name   string
+		source []byte
+	}{
+		{name: "a small JPEG is re-encoded instead of passed through", source: encode(t, solidImage(150, 180, color.NRGBA{R: 200, G: 20, B: 20, A: 255}), "jpeg")},
+		{name: "an oversized source is encoded at the same quality", source: encode(t, gradientImage(1000, 1000), "png")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			result, err := thumbnail.Transform(tc.source, thumbnail.Options{})
+			if err != nil {
+				t.Fatalf("Transform: %v", err)
+			}
+			got := jpegQuantizationTables(t, result.Bytes)
+			if !bytes.Equal(got, want85) {
+				t.Fatalf("served quantization tables = %x, want the quality 85 tables %x", got, want85)
+			}
+		})
+	}
+}
+
+// TestTransformFitsHeightWithoutUpscaling proves the height-480 ceiling: a source at the bound keeps its native size, a source one pixel over is proportionally downsized, a source below it is never upscaled, a degenerate one-pixel-wide result stays one pixel wide, the Box pre-shrink path is reachable, and a WebP source decodes.
 func TestTransformFitsHeightWithoutUpscaling(t *testing.T) {
 	t.Parallel()
 
@@ -78,9 +103,12 @@ func TestTransformFitsHeightWithoutUpscaling(t *testing.T) {
 		wantW int
 		wantH int
 	}{
-		{name: "tall JPEG fits height 320", data: encode(t, solidImage(600, 900, color.NRGBA{R: 10, G: 200, B: 30, A: 255}), "jpeg"), wantW: 213, wantH: 320},
+		{name: "tall JPEG fits height 480", data: encode(t, solidImage(600, 900, color.NRGBA{R: 10, G: 200, B: 30, A: 255}), "jpeg"), wantW: 320, wantH: 480},
+		{name: "exactly at the bound keeps its native height", data: encode(t, solidImage(213, 480, color.NRGBA{R: 60, G: 30, B: 10, A: 255}), "jpeg"), wantW: 213, wantH: 480},
+		{name: "one pixel over the bound is downsized", data: encode(t, solidImage(600, 481, color.NRGBA{R: 30, G: 60, B: 90, A: 255}), "png"), wantW: 598, wantH: 480},
 		{name: "short PNG keeps its height", data: encode(t, solidImage(140, 200, color.NRGBA{R: 5, G: 5, B: 200, A: 255}), "png"), wantW: 140, wantH: 200},
-		{name: "one-pixel-wide source clamps to width one", data: encode(t, solidImage(1, 1000, color.NRGBA{R: 7, G: 7, B: 7, A: 255}), "png"), wantW: 1, wantH: 320},
+		{name: "square source engages the Box pre-shrink", data: encode(t, gradientImage(1000, 1000), "png"), wantW: 480, wantH: 480},
+		{name: "one-pixel-wide source clamps to width one", data: encode(t, solidImage(1, 1000, color.NRGBA{R: 7, G: 7, B: 7, A: 255}), "png"), wantW: 1, wantH: 480},
 		{name: "WebP decodes and is not upscaled", data: mustHex(t, tinyWebPHex), wantW: 4, wantH: 6},
 	}
 	for _, tc := range cases {
@@ -209,6 +237,49 @@ func encode(t *testing.T, img image.Image, format string) []byte {
 		t.Fatalf("encode: %v", err)
 	}
 	return buf.Bytes()
+}
+
+// encodeAtQuality encodes img as a JPEG at quality, failing the test immediately on any encode error.
+func encodeAtQuality(t *testing.T, img image.Image, quality int) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: quality}); err != nil {
+		t.Fatalf("encode JPEG at quality %d: %v", quality, err)
+	}
+	return buf.Bytes()
+}
+
+// jpegQuantizationTables returns the concatenated payloads of every DQT segment in data; the standard library maps a quality value to those tables and nothing else, so comparing them proves the encoder quality without pinning bytes or mirroring the pipeline.
+func jpegQuantizationTables(t *testing.T, data []byte) []byte {
+	t.Helper()
+	if !bytes.HasPrefix(data, []byte{0xFF, 0xD8}) {
+		t.Fatalf("not a JPEG: missing the SOI marker in %x", data[:min(len(data), 8)])
+	}
+	var tables []byte
+	for i := 2; i+1 < len(data); {
+		if data[i] != 0xFF {
+			t.Fatalf("expected a JPEG marker at offset %d, found %#x", i, data[i])
+		}
+		marker := data[i+1]
+		if marker == 0xD9 || marker == 0xDA { // end of image, or start of scan: no more header segments
+			break
+		}
+		if i+4 > len(data) {
+			t.Fatalf("truncated JPEG segment header at offset %d", i)
+		}
+		length := int(data[i+2])<<8 | int(data[i+3])
+		if length < 2 || i+2+length > len(data) {
+			t.Fatalf("invalid JPEG segment length %d for marker %#x at offset %d", length, marker, i)
+		}
+		if marker == 0xDB { // define quantization table
+			tables = append(tables, data[i+4:i+2+length]...)
+		}
+		i += 2 + length
+	}
+	if len(tables) == 0 {
+		t.Fatal("no quantization tables found: not a baseline JPEG header")
+	}
+	return tables
 }
 
 // mustHex decodes a hex fixture constant or fails the test immediately.

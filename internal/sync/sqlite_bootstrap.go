@@ -15,6 +15,7 @@ import (
 	"autoreas-bridge/internal/download/dbschema"
 	"autoreas-bridge/internal/notification/centerschema"
 	"autoreas-bridge/internal/observability/eventlog"
+	"autoreas-bridge/internal/observability/incident"
 	"autoreas-bridge/internal/observability/telemetry"
 	"autoreas-bridge/internal/persistence"
 	"autoreas-bridge/internal/season"
@@ -38,31 +39,26 @@ const (
 )
 
 // SQLiteBootstrap wires the injectable helpers used by tests (userConfigDir, mkdirAll,
-// openDB). Zero-value uses the real OS implementations.
+// openDB, getenv, fullVacuum). Zero-value uses the real OS implementations.
 type SQLiteBootstrap struct {
 	userConfigDir func() (string, error)
 	mkdirAll      func(path string, perm os.FileMode) error
 	openDB        func(driverName string, dataSourceName string) (*sql.DB, error)
+	getenv        func(string) string
+	fullVacuum    func(db *sql.DB) error
 }
 
 // ResolveBridgeDBPath resolves the platform-safe path for the bridge SQLite database.
 func (b SQLiteBootstrap) ResolveBridgeDBPath() (string, error) {
-	userConfigDir := b.userConfigDir
-	if userConfigDir == nil {
-		userConfigDir = os.UserConfigDir
-	}
-
 	mkdirAll := b.mkdirAll
 	if mkdirAll == nil {
 		mkdirAll = os.MkdirAll
 	}
 
-	baseDir, err := userConfigDir()
+	dataDir, err := b.dataDir()
 	if err != nil {
 		return "", err
 	}
-
-	dataDir := filepath.Join(baseDir, bridgeDataDirName, bridgeDataSubdir)
 	if err := mkdirAll(dataDir, 0o755); err != nil {
 		return "", err
 	}
@@ -72,15 +68,11 @@ func (b SQLiteBootstrap) ResolveBridgeDBPath() (string, error) {
 
 // ResolveExistingBridgeDBPath resolves the platform-safe bridge DB path without creating directories and requires the file to exist.
 func (b SQLiteBootstrap) ResolveExistingBridgeDBPath() (string, error) {
-	userConfigDir := b.userConfigDir
-	if userConfigDir == nil {
-		userConfigDir = os.UserConfigDir
-	}
-	baseDir, err := userConfigDir()
+	dataDir, err := b.dataDir()
 	if err != nil {
 		return "", err
 	}
-	path := filepath.Join(baseDir, bridgeDataDirName, bridgeDataSubdir, bridgeDBName)
+	path := filepath.Join(dataDir, bridgeDBName)
 	if _, err := os.Stat(path); err != nil {
 		return "", fmt.Errorf("bridge db missing at %q: %w", path, err)
 	}
@@ -110,7 +102,12 @@ func (b SQLiteBootstrap) OpenBridgeDB(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("open bridge db %q: %w", path, err)
 	}
 
-	if err := initializeBridgeDB(db, path); err != nil {
+	fullVacuum := b.fullVacuum
+	if fullVacuum == nil {
+		fullVacuum = runFullVacuum
+	}
+
+	if err := initializeBridgeDB(db, path, fullVacuum); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize bridge db %q: %w", path, err)
 	}
@@ -141,8 +138,9 @@ func BootstrapBridgeDB() (*sql.DB, error) {
 // initializeBridgeDB configures connection limits, applies pragmas, ensures every table
 // via the schema registry, and seeds default data. It is the only place where the sync
 // and download schema descriptor sets are assembled together. dbPath is the file this db
-// was opened from, needed only by the watch-history backfill's restore point.
-func initializeBridgeDB(db *sql.DB, dbPath string) error {
+// was opened from, needed only by the watch-history backfill's restore point. fullVacuum
+// runs the one-time VACUUM that switches an existing file to incremental auto-vacuum.
+func initializeBridgeDB(db *sql.DB, dbPath string, fullVacuum func(*sql.DB) error) error {
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 
@@ -152,6 +150,13 @@ func initializeBridgeDB(db *sql.DB, dbPath string) error {
 
 	if err := applyBridgePragmas(db); err != nil {
 		return err
+	}
+
+	// Before the schema loop, so a new file gets incremental auto-vacuum before its
+	// first table exists and needs no VACUUM. A failure is logged, never fatal: the
+	// file stays in its current mode with every row intact, and the next start retries.
+	if err := ensureIncrementalAutoVacuum(db, fullVacuum); err != nil {
+		log.Printf("incremental auto-vacuum: %v", err)
 	}
 
 	// Renames any previously-named capture tables in place. MUST run before
@@ -167,6 +172,7 @@ func initializeBridgeDB(db *sql.DB, dbPath string) error {
 	tables = append(tables, activity.SchemaTables()...)
 	tables = append(tables, season.SchemaTables()...)
 	tables = append(tables, eventlog.SchemaTables()...)
+	tables = append(tables, incident.SchemaTables()...)
 	// The kind-discriminated telemetry store is the single home of device
 	// telemetry, and registration follows the write path: without this line
 	// every ingested event fails at runtime instead of at bootstrap.
@@ -209,6 +215,12 @@ func initializeBridgeDB(db *sql.DB, dbPath string) error {
 
 	if err := ensureRequestCaptureMetadata(db); err != nil {
 		return err
+	}
+
+	// Returns the pages the previous session's prunes freed. Bounded, and like the
+	// conversion above it only logs: free pages are wasted disk, not lost data.
+	if _, err := IncrementalVacuum(context.Background(), db); err != nil {
+		log.Printf("incremental vacuum: %v", err)
 	}
 
 	return nil
@@ -277,6 +289,13 @@ func ensureDefaultHosterPriority(db *sql.DB) (err error) {
 
 // applyBridgePragmas configures SQLite for bridge access.
 func applyBridgePragmas(db *sql.DB) error {
+	// First, because switching a new file to WAL writes its header and after that
+	// SQLite only accepts a new auto_vacuum mode through a full VACUUM. On an existing
+	// file this only records the wish; ensureIncrementalAutoVacuum does the conversion.
+	if _, err := db.Exec("PRAGMA auto_vacuum = INCREMENTAL;"); err != nil {
+		return fmt.Errorf("set auto_vacuum INCREMENTAL: %w", err)
+	}
+
 	var journalMode string
 	if err := db.QueryRow("PRAGMA journal_mode = WAL;").Scan(&journalMode); err != nil {
 		return fmt.Errorf("set journal_mode WAL: %w", err)

@@ -245,55 +245,6 @@ func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 	}
 }
 
-func TestAppGetRecentLogsReturnsEmptyWithoutMemLogger(t *testing.T) {
-	t.Parallel()
-
-	app := &App{}
-	if got := app.GetRecentLogs(); len(got) != 0 {
-		t.Fatalf("expected empty recent logs, got %#v", got)
-	}
-}
-
-func TestAppGetRecentLogsReturnsMemLoggerEntries(t *testing.T) {
-	t.Parallel()
-
-	mem := sharedlogger.NewMemLogger(sharedlogger.MemLoggerConfig{Capacity: 2})
-	mem.Infof("anime", "booted")
-	app := &App{memLogger: mem}
-
-	got := app.GetRecentLogs()
-	if len(got) != 1 || got[0].Domain != "anime" || got[0].Message != "booted" {
-		t.Fatalf("unexpected recent logs: %#v", got)
-	}
-}
-
-func TestAppStartupEmitsObservabilityEventOnNewLogEntry(t *testing.T) {
-	t.Parallel()
-
-	var emittedName string
-	var emittedData any
-	server := &stubAppHTTPServer{}
-	app := newAppTestApp(t)
-	app.newHTTPServer = func(api.Config) api.Server { return server }
-	app.emitFn = func(_ context.Context, eventName string, optionalData ...any) {
-		emittedName = eventName
-		if len(optionalData) > 0 {
-			emittedData = optionalData[0]
-		}
-	}
-
-	app.startup(context.Background())
-	app.sharedLogger.Infof("system", "hello logs")
-
-	if emittedName != observabilityEventName {
-		t.Fatalf("expected event %q, got %q", observabilityEventName, emittedName)
-	}
-	entry, ok := emittedData.(sharedlogger.LogEntry)
-	if !ok || entry.Domain != "system" || entry.Message != "hello logs" {
-		t.Fatalf("unexpected emitted payload: %#v", emittedData)
-	}
-}
-
 func TestAppStartupSubscribesRealtimeHubToAnimeChangedEvents(t *testing.T) {
 	t.Parallel()
 

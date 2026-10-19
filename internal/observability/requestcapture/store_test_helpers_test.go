@@ -151,31 +151,6 @@ func openCaptureTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-// requestID returns a deterministic request ID for the given index.
-func requestID(index int) string { return "req-" + string(rune('0'+index)) }
-
-// readCaptureIDs returns all request IDs from the captures table ordered by captured_at_ms.
-func readCaptureIDs(t *testing.T, db *sql.DB) []string {
-	t.Helper()
-	rows, err := db.Query(`SELECT request_id FROM request_captures ORDER BY captured_at_ms ASC`)
-	if err != nil {
-		t.Fatalf("query request ids: %v", err)
-	}
-	defer func() { _ = rows.Close() }()
-	ids := []string{}
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			t.Fatalf("scan request id: %v", err)
-		}
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate request ids: %v", err)
-	}
-	return ids
-}
-
 // countRows returns the number of rows in the provided table.
 func countRows(t *testing.T, db *sql.DB, table string) int {
 	t.Helper()

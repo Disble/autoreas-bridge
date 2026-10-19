@@ -34,8 +34,7 @@ const (
 
 // SchemaTables returns the eventlog-owned bridge table descriptor for the
 // schema registry. runtime_events is create-only: no ColumnAdds, no Migrate,
-// no version stamp -- the table is born at its current shape and the
-// sidecar's tolerance is a presence probe, not a version comparison.
+// no version stamp -- the table is born at its current shape.
 func SchemaTables() []persistence.TableSchema {
 	return []persistence.TableSchema{
 		{

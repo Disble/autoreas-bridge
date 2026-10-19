@@ -1,4 +1,5 @@
 import { Card, Chip, SearchField, ToggleButton, ToggleButtonGroup, Typography } from '@heroui/react';
+import { memo } from 'react';
 import { useNavigate } from 'react-router';
 import editorLibraryAirisArtwork from '../../../../assets/airis-empty-states/editor-library.webp';
 import { ANIME_CREATE_ROUTE } from '../../../../shared/navigation/app-layout.constants';
@@ -10,7 +11,7 @@ import { ANIME_EDITOR_EMPTY_STATE_COPY, ANIME_EDITOR_FILTER_OPTIONS, ANIME_EDITO
 import type { AnimeEditorListPanelProps } from './anime-editor-workspace.types';
 
 /** Renders the progressively loaded watching-first search and selection rail (800+ items). */
-export function AnimeEditorListPanel({ viewModel }: Readonly<AnimeEditorListPanelProps>) {
+export const AnimeEditorListPanel = memo(function AnimeEditorListPanel({ viewModel }: Readonly<AnimeEditorListPanelProps>) {
   const navigate = useNavigate();
   const { scrollRef, onScroll, visibleCount } = viewModel.listWindow;
   const visibleItems = viewModel.items.slice(0, visibleCount);
@@ -60,4 +61,4 @@ export function AnimeEditorListPanel({ viewModel }: Readonly<AnimeEditorListPane
       )}
     </Card.Content></Card>
   );
-}
+});

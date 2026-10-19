@@ -263,8 +263,8 @@ func TestCaptureTableRenameIsIdempotent(t *testing.T) {
 	if err := second.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_request_captures_%'`).Scan(&indexCount); err != nil {
 		t.Fatalf("count current indexes: %v", err)
 	}
-	if indexCount != 5 {
-		t.Fatalf("expected exactly 5 current capture indexes after a repeated bootstrap, got %d", indexCount)
+	if indexCount != 6 {
+		t.Fatalf("expected exactly 6 current capture indexes after a repeated bootstrap, got %d", indexCount)
 	}
 	var version string
 	if err := second.QueryRow(`SELECT value FROM request_capture_metadata WHERE key = 'request_capture_schema_version'`).Scan(&version); err != nil {

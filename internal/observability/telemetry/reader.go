@@ -82,7 +82,7 @@ type Reader struct {
 }
 
 // NewReader builds a query helper over an already-open handle and probes once
-// for device_telemetry_events, mirroring eventlog.NewReader. A missing table
+// for device_telemetry_events. A missing table
 // is NOT an error: Available() reports false and every query returns an
 // unavailable envelope, so a bridge database predating the table degrades
 // instead of failing the whole read. The reader MUST NOT be given a handle it

@@ -16,12 +16,12 @@ function readDeclaredRoutePaths(): readonly string[] {
   return [...source.matchAll(/path="([^"]+)"/g)].map((match) => match[1]);
 }
 
-describe('the Activity Overview surface', () => {
+describe('the Activity tabs', () => {
   it('adds no application route', () => {
-    // Pinned as literals, not derived from the file it guards. The Overview is
-    // a TAB inside Activity: a new route would also need a ROUTE_MARKERS entry
-    // in the render smoke and a desktop-navigation spec delta, neither of which
-    // this change ships.
+    // Pinned as literals, not derived from the file it guards. Now, Incidents
+    // and History are TABS inside Activity: a new route would also need a
+    // ROUTE_MARKERS entry in the render smoke and a desktop-navigation spec
+    // delta.
     expect(readDeclaredRoutePaths()).toEqual([
       '/today',
       '/episodes',
@@ -40,7 +40,6 @@ describe('the Activity Overview surface', () => {
       '/devices',
       '/pairing',
       '/activity',
-      '/activity/runtime-events',
       '/events',
       '/network',
       '/status',
@@ -67,13 +66,13 @@ describe('the Activity Overview surface', () => {
     ]);
   });
 
-  it('is reachable only from inside Activity, never as its own destination', () => {
-    const overviewRoutes = readDeclaredRoutePaths().filter((path) => path.includes('overview'));
-    const overviewNavEntries = flattenNavItems(APP_LAYOUT_NAV_GROUPS).filter((item) =>
-      item.label.toLowerCase().includes('overview'),
+  it('are reachable only from inside Activity, never as their own destination', () => {
+    const tabRoutes = readDeclaredRoutePaths().filter((path) => /^\/activity\/./.test(path));
+    const tabNavEntries = flattenNavItems(APP_LAYOUT_NAV_GROUPS).filter((item) =>
+      ['now', 'incidents'].includes(item.label.toLowerCase()),
     );
 
-    expect(overviewRoutes).toEqual([]);
-    expect(overviewNavEntries).toEqual([]);
+    expect(tabRoutes).toEqual([]);
+    expect(tabNavEntries).toEqual([]);
   });
 });
