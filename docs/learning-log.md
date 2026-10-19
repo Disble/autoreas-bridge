@@ -323,3 +323,5 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-10-19]: A failed bootstrap must not assign a typed-nil database pointer to an interface closer; verify pragma ordering from the actual call chain before diagnosing SQLite contention.
 - [2026-10-19]: A loading-absence assertion must name its own surface: keep a sibling request pending in the regression so whole-workspace status queries fail deterministically; isolated timings do not diagnose loaded failures.
 - [2026-10-19]: After a rejected schedule apply, feedback visibility does not prove the conflict-board draft reset finished; await its observable zero-change state before driving the next edits.
+- [2026-10-19]: Ditto staged reconstructs the Git index: stage matching tests with production changes before mutation, otherwise a red baseline prevents valid scoring.
+- [2026-10-19]: Completed diagnostic Go files under ignored .pi/artifacts still participate in filesystem-wide gates; archive finished probes as text evidence instead of leaving temporary source files in the tree.

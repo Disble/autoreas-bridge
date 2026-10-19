@@ -1,8 +1,6 @@
 package thumbnail_test
 
 import (
-	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,9 +8,9 @@ import (
 	"autoreas-bridge/internal/anime/cover/thumbnail"
 )
 
-// BenchmarkTransformCorpus measures the v1 transform against the real cover corpus copied to
-// THUMBNAIL_BENCH_CORPUS (never committed). Each sub-benchmark is named after the cover and the
-// path it takes, so the run is itself the ADR-024 resampler receipt.
+// BenchmarkTransformCorpus measures the v2 transform against the real cover corpus copied to
+// THUMBNAIL_BENCH_CORPUS (never committed). Every cover takes the same single generated path, because
+// v2 re-encodes a source at or below the ceiling instead of serving it byte-for-byte.
 func BenchmarkTransformCorpus(b *testing.B) {
 	dir := os.Getenv("THUMBNAIL_BENCH_CORPUS")
 	if dir == "" {
@@ -31,12 +29,11 @@ func BenchmarkTransformCorpus(b *testing.B) {
 		if err != nil {
 			b.Fatalf("transform cover %s: %v", entry.Name(), err)
 		}
-		path := "generated"
-		if bytes.Equal(result.Bytes, data) {
-			path = "pass-through"
+		if len(result.Bytes) == 0 {
+			b.Fatalf("transform cover %s produced no bytes", entry.Name())
 		}
 		// Transform is pure, and the call above proved these exact bytes succeed.
-		b.Run(fmt.Sprintf("%s/%s", entry.Name(), path), func(b *testing.B) {
+		b.Run(entry.Name(), func(b *testing.B) {
 			for b.Loop() {
 				_, _ = thumbnail.Transform(data, thumbnail.Options{})
 			}
