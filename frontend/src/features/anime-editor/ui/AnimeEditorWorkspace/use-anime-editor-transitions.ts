@@ -10,13 +10,21 @@ import { useAnimeEditorGuard } from './use-anime-editor-guard';
 export function useAnimeEditorTransitions(options: Readonly<UseAnimeEditorTransitionsOptions>) {
   // 1. Refs
   const previousParamIdRef = useRef<string | undefined>(undefined);
+  // `options` is a fresh literal on every workspace render, so each callback
+  // depends on the fields it reads: memoizing on `options` itself would hand
+  // every panel a new callback per render and defeat their `memo`.
+  const {
+    selectedAnimeId, loadItems, setSelectedAnimeId, loadRecord, saveRecord, deactivateRecord, restoreRecord, repeatRecord,
+    discardRecord, discardEpisodes, applySchedule, openSchedule, reloadSchedule, saveEpisodes, isDirty, isRecordDirty, isEpisodesDirty, isGuardSaveBlocked,
+  } = options;
 
   // 2. State
 
   // 3. Context/3rd Party Hooks
   const navigate = useNavigate();
   const params = useParams();
-  const guard = useAnimeEditorGuard({ isDirty: options.isDirty });
+  const guard = useAnimeEditorGuard({ isDirty });
+  const { requestAction, continueWithDiscard, continueWithSave } = guard;
 
   // 4. Queries/Mutations
 
@@ -24,68 +32,68 @@ export function useAnimeEditorTransitions(options: Readonly<UseAnimeEditorTransi
 
   // 6. Callbacks (useCallback calling pure helpers)
   const onSave = useCallback(async () => {
-    const result = await options.saveRecord();
+    const result = await saveRecord();
     if (result !== undefined && isIntentionalEditorOutcome(result)) {
-      await options.loadItems();
+      await loadItems();
       // A saved anime may have moved on the board, so the Schedule card's week strip reads it again.
-      await options.reloadSchedule();
+      await reloadSchedule();
     }
     return result;
-  }, [options]);
+  }, [loadItems, reloadSchedule, saveRecord]);
   const onDeactivate = useCallback(async () => {
-    const result = await options.deactivateRecord();
-    if (result !== undefined && isIntentionalEditorOutcome(result)) await options.loadItems();
-  }, [options]);
+    const result = await deactivateRecord();
+    if (result !== undefined && isIntentionalEditorOutcome(result)) await loadItems();
+  }, [deactivateRecord, loadItems]);
   const onRestore = useCallback(async () => {
-    const result = await options.restoreRecord();
+    const result = await restoreRecord();
     // Restore is a lifecycle command (EpisodeCommandResult); "ok" means the
     // anime is active again, so refresh the rail to re-home it under "Watching now".
-    if (result?.status === 'ok') await options.loadItems();
-  }, [options]);
+    if (result?.status === 'ok') await loadItems();
+  }, [loadItems, restoreRecord]);
   const onRepeat = useCallback(async () => {
-    const result = await options.repeatRecord();
+    const result = await repeatRecord();
     // Repeat is a lifecycle command (EpisodeCommandResult); "ok" means a new
     // watch cycle started, so refresh the rail to reflect the reset watch count.
-    if (result?.status === 'ok') await options.loadItems();
-  }, [options]);
+    if (result?.status === 'ok') await loadItems();
+  }, [loadItems, repeatRecord]);
   const onApplySchedule = useCallback(async (entries: readonly ApplyAnimeScheduleDraftEntry[]) => {
-    const result = await options.applySchedule(entries);
+    const result = await applySchedule(entries);
     if (result !== undefined && (result.outcome === 'applied' || result.outcome === 'no_op')) {
-      await options.loadItems();
-      if (options.selectedAnimeId !== undefined) await options.loadRecord(options.selectedAnimeId);
+      await loadItems();
+      if (selectedAnimeId !== undefined) await loadRecord(selectedAnimeId);
     }
-  }, [options]);
+  }, [applySchedule, loadItems, loadRecord, selectedAnimeId]);
   const executePendingAction = useCallback(async (action: Exclude<AnimeEditorPendingAction, undefined>) => {
     if (action.type === 'select') {
-      options.setSelectedAnimeId(action.animeId);
+      setSelectedAnimeId(action.animeId);
       await navigate(`/editor/${action.animeId}`);
     } else if (action.type === 'schedule') {
-      await options.openSchedule();
+      await openSchedule();
     } else if (action.type === 'navigate') {
       await navigate(action.path);
     } else {
       await navigate(-1);
     }
-  }, [navigate, options]);
+  }, [navigate, openSchedule, setSelectedAnimeId]);
   const onSelectAnime = useCallback((animeId: string) => {
-    if (animeId === options.selectedAnimeId) return;
+    if (animeId === selectedAnimeId) return;
     const action = { type: 'select' as const, animeId };
-    if (guard.requestAction(action)) void executePendingAction(action);
-  }, [executePendingAction, guard, options.selectedAnimeId]);
+    if (requestAction(action)) void executePendingAction(action);
+  }, [executePendingAction, requestAction, selectedAnimeId]);
   const onOpenSchedule = useCallback(() => {
     const action = { type: 'schedule' as const };
-    return guard.requestAction(action) ? executePendingAction(action) : Promise.resolve();
-  }, [executePendingAction, guard]);
+    return requestAction(action) ? executePendingAction(action) : Promise.resolve();
+  }, [executePendingAction, requestAction]);
   /** The guard's "Discard changes" drops both drafts, then continues. */
-  const onDiscardAndContinue = useCallback(() => guard.continueWithDiscard(() => {
-    options.discardRecord();
-    options.discardEpisodes();
-  }, executePendingAction), [executePendingAction, guard, options]);
+  const onDiscardAndContinue = useCallback(() => continueWithDiscard(() => {
+    discardRecord();
+    discardEpisodes();
+  }, executePendingAction), [continueWithDiscard, discardEpisodes, discardRecord, executePendingAction]);
   /** "Save and continue": each dirty card saves on its own, and the action continues only if all saved (S15). */
-  const onSaveAndContinue = useCallback(() => options.isGuardSaveBlocked ? Promise.resolve() : guard.continueWithSave((): Promise<AnimeEditorSaveResult | undefined> => saveDirtyCards([
-    { isDirty: options.isRecordDirty, save: onSave },
-    { isDirty: options.isEpisodesDirty, save: async () => toEpisodesGuardResult(await options.saveEpisodes()) },
-  ]), executePendingAction), [executePendingAction, guard, onSave, options]);
+  const onSaveAndContinue = useCallback(() => isGuardSaveBlocked ? Promise.resolve() : continueWithSave((): Promise<AnimeEditorSaveResult | undefined> => saveDirtyCards([
+    { isDirty: isRecordDirty, save: onSave },
+    { isDirty: isEpisodesDirty, save: async () => toEpisodesGuardResult(await saveEpisodes()) },
+  ]), executePendingAction), [continueWithSave, executePendingAction, isEpisodesDirty, isGuardSaveBlocked, isRecordDirty, onSave, saveEpisodes]);
 
   // 7. Effects
   // Sync selection ONLY from real URL changes (deep-link / browser back), never
@@ -95,10 +103,10 @@ export function useAnimeEditorTransitions(options: Readonly<UseAnimeEditorTransi
   useEffect(() => {
     const paramChanged = params.id !== previousParamIdRef.current;
     previousParamIdRef.current = params.id;
-    if (!paramChanged || params.id === undefined || params.id === options.selectedAnimeId) return;
+    if (!paramChanged || params.id === undefined || params.id === selectedAnimeId) return;
     const action = { type: 'select' as const, animeId: params.id };
-    if (guard.requestAction(action)) void executePendingAction(action);
-  }, [executePendingAction, guard, options.selectedAnimeId, params.id]);
+    if (requestAction(action)) void executePendingAction(action);
+  }, [executePendingAction, requestAction, selectedAnimeId, params.id]);
 
   return { ...guard, onSave, onDeactivate, onRestore, onRepeat, onApplySchedule, onSelectAnime, onOpenSchedule, onDiscardAndContinue, onSaveAndContinue };
 }

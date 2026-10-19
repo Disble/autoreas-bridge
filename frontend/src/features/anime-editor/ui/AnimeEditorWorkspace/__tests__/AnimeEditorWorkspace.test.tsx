@@ -13,7 +13,7 @@ import { AnimeEditorWorkspace } from '../AnimeEditorWorkspace';
 
 describe('AnimeEditorWorkspace', () => {
   it('renders the split-pane editor shell', () => {
-    useAnimeEditorWorkspaceMock.mockReturnValue({
+    const viewModel = {
       query: '',
       filter: 'watching',
       items: [{ id: 'anime-1', animeId: 'anime-1', nombre: 'Frieren', subtitle: '12 watched', selected: true, hasCover: false, cover: { status: 'placeholder' } }],
@@ -57,7 +57,9 @@ describe('AnimeEditorWorkspace', () => {
       onSaveAndContinue: vi.fn(),
       episodes: { view: 'idle' },
       scheduleWeek: { status: 'ready', days: [{ id: 'Lunes', label: 'Lunes', position: { order: 1, total: 2 }, ariaLabel: 'Lunes: 1 of 2' }] },
-    });
+    };
+    // The panels read their memoized slices; the full view model carries every field they read.
+    useAnimeEditorWorkspaceMock.mockReturnValue({ ...viewModel, listPanel: viewModel, formPanel: viewModel });
 
     render(<MemoryRouter><AnimeEditorWorkspace /></MemoryRouter>);
 

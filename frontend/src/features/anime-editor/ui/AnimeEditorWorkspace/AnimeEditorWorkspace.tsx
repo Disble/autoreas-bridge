@@ -22,9 +22,9 @@ export function AnimeEditorWorkspace(props: Readonly<AnimeEditorWorkspaceProps>)
       {viewModel.feedback !== undefined && <Alert status="default"><Alert.Indicator /><Alert.Content><Alert.Description>{viewModel.feedback}</Alert.Description></Alert.Content></Alert>}
       {viewModel.validationMessage !== undefined && viewModel.validationMessage !== viewModel.feedback && <Alert status="danger"><Alert.Indicator /><Alert.Content><Alert.Description>{viewModel.validationMessage}</Alert.Description></Alert.Content></Alert>}
       <div className="grid gap-4 xl:grid-cols-3 xl:items-start">
-        <AnimeEditorListPanel viewModel={viewModel} />
+        <AnimeEditorListPanel viewModel={viewModel.listPanel} />
         <div className="flex min-w-0 flex-col gap-4 xl:col-span-2">
-          <AnimeEditorFormPanel viewModel={viewModel} />
+          <AnimeEditorFormPanel viewModel={viewModel.formPanel} />
           <EpisodeDurationsSection viewModel={viewModel.episodes} />
           <AnimeScheduleCard week={viewModel.scheduleWeek} onOpenSchedule={() => void viewModel.onOpenSchedule()} />
         </div>
