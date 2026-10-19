@@ -14,6 +14,31 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [2.1.0] — 2026-10-19
+
+### Added
+
+- The Activity screen now opens on what is happening right now, gathers every failure into one Incidents tab, and keeps a two-hour History you can scrub, replacing the previous single-table view.
+- Activity answers the whole day and the last 90 days at a glance, and the History calendar stays visible above the card instead of disappearing with the list.
+
+### Changed
+
+- Covers are rendered from the best artwork source available, at up to 480 px tall and at a higher JPEG quality, so they stay sharp without storing oversized images. The cover endpoint keeps its contract; the phone simply revalidates and receives the new bytes.
+- Incidents are now trimmed by age instead of by a fixed row count, so recent failures stay available while old ones stop consuming space.
+
+### Fixed
+
+- The bridge no longer crashes on shutdown when the database never finished opening.
+- Activity shows recorded metadata exactly as it was stored, and clears the detail pane when you change the filter.
+- The editor redraws only the list and form panels whose content actually changed, so typing stays responsive in large libraries.
+
+### Internal
+
+- Debug capture retains incidents built from failed requests, error events and mobile failures, with an hourly rollup and the distinct response versions of each route.
+- The MCP read tools expose the activity layers, broadcasts, hourly totals per day and response versions; the previous capture tools were removed.
+- Commit and merge lanes run one after another, so the Go and frontend suites no longer compete for CPU.
+- A one-off maintenance script corrected stored cover URLs that pointed at resized MyAnimeList variants. It is not part of the application and does not run on its own.
+
 ## [2.0.0] — 2026-10-18
 
 This release changes how season data reaches the phone and must be installed together with the matching Autoreas mobile release. An older mobile build no longer receives season candidates from this bridge.

@@ -325,3 +325,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-10-19]: After a rejected schedule apply, feedback visibility does not prove the conflict-board draft reset finished; await its observable zero-change state before driving the next edits.
 - [2026-10-19]: Ditto staged reconstructs the Git index: stage matching tests with production changes before mutation, otherwise a red baseline prevents valid scoring.
 - [2026-10-19]: Completed diagnostic Go files under ignored .pi/artifacts still participate in filesystem-wide gates; archive finished probes as text evidence instead of leaving temporary source files in the tree.
+- [2026-10-19]: Release 2.1.0 ships the Activity rebuild, time-based incident retention and sharper 480 px covers; cover bytes changed without any wire contract change, and the stored-URL correction ran as a disposable script outside the app.
