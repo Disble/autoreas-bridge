@@ -1456,9 +1456,11 @@ paths:
       summary: Fetch one anime cover thumbnail
       description: |
         Returns the anime's cover thumbnail as a JPEG. The thumbnail is generated once
-        per source identity and cached on disk under the fixed v1 spec (320 px height
-        fit, never upscaled, JPEG q80, strong ETag). A soft-deleted anime still
-        resolves, so its cover stays fetchable.
+        per source identity and cached on disk under the fixed v2 spec (480 px height
+        ceiling, never upscaled, never cropped, every valid source re-encoded at JPEG
+        q85, strong ETag). A source at or below the ceiling keeps its native dimensions
+        and is still re-encoded, so no response is a byte-for-byte copy of the source.
+        A soft-deleted anime still resolves, so its cover stays fetchable.
 
         2026-09-14 mobile consumer note: treat `204` as a placeholder and revalidate it
         after 7 days; treat `404` as an unknown anime and revalidate after 24 hours. A

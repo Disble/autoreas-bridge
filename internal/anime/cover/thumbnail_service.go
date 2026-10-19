@@ -37,7 +37,7 @@ type ThumbnailResult struct {
 	RetryAfterSeconds int
 }
 
-// ThumbnailService composes source loading, the versioned derived cache, and the pure v1 transform behind a two-slot gate that bounds only decode/resize/encode (design D5).
+// ThumbnailService composes source loading, the versioned derived cache, and the pure v2 transform behind a two-slot gate that bounds only decode/resize/encode (design D5).
 type ThumbnailService struct {
 	load            sourceLoader
 	store           thumbnailStore

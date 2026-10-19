@@ -196,3 +196,49 @@ same source:
 5. **Zero-copy streaming of the generated JPEG.** Rejected for v1: the response needs a
    `Content-Length` and a strong ETag computed over exactly the served bytes, both of which the
    in-memory buffer gives for free. It is deferred, not refused, if profile evidence ever demands it.
+
+## Addendum 2026-10-19 — the current policy is v2: 480 px ceiling, JPEG q85, no pass-through
+
+D1 above records how the resampler was chosen and what it measured; that receipt is history and is
+kept unchanged. The *parameters* D1 shipped are superseded by this addendum, which describes the
+rule set `SpecVersion` now names.
+
+**What changed.** Three parameters of the same single transform, `SpecVersion` 1 -> 2:
+
+| Rule | v1 | v2 (current) |
+|---|---|---|
+| Height ceiling | 320 px | 480 px |
+| JPEG quality | 80 | 85 |
+| JPEG at or below the ceiling | served byte-for-byte after a proof decode | re-encoded at its native size |
+
+Everything else D1 describes is unchanged: the never-upscaled proportional fit (no cropping, no AI,
+no resolution improvement), the refusal of formats with no registered decoder, the pixel cap checked
+from the header before a full decode, alpha flattened over `#1B2636`, the first frame of an animated
+GIF, Box pre-shrink plus one CatmullRom pass, and the strong ETag computed from exactly the served
+bytes.
+
+**Why.** The measured tablet slots were 204x319 and 204x357 physical pixels, but the main blur
+in the sampled covers came from 116x180 source images served unchanged, not demonstrated q80 damage.
+The user agreed a 480 px *height ceiling* as a practical cut-off -- an accepted product choice, not a
+measured population optimum -- on the condition that nothing is ever upscaled: a source already at
+or below 480 px keeps its native dimensions, and only a larger source is proportionally downsized.
+JPEG quality 85 is the user's selected trade-off: six 225x318 candidate re-encodes totalled 148,353 B
+at q80 and 162,637 B at q85, about 9.6% more bytes for q85 in that comparison. This does not establish
+a global visual optimum or that all current blur comes from compression. No v2 timing or allocation
+benchmark was run for this change, so the ns/op and B/op table above remains the v1 receipt and is
+not restated as a v2 measurement.
+
+**What removing the pass-through means.** The small-JPEG short-circuit in v1 made the served bytes
+*depend on the source encoding* instead of on the policy: 21 of the measured small thumbnails were
+byte-identical to their inputs, so the configured q80 rule did not apply to those JPEGs at all.
+v2 has one path for every accepted source, so the served quality is a property of the policy alone.
+A truncated or corrupt source is still refused at the full decode, which is now the same decode the
+encode path needs.
+
+**Cache consequence.** The version directory is what makes the parameter change a miss: existing
+entries stay in `thumbs/v1/`, a v2 service writes `thumbs/v2/`, and `thumbnailCacheKey` folds the
+version into the key as well. Nothing is deleted, purged or migrated by the code, no legacy
+transformer is kept, and no startup cleanup is wired in this change. Originals, raw origin cache
+entries, their `.sha256` identity sidecars and `local-last-good` copies are never read for writing by
+this path and are untouched. Stored cover *URLs* that still point at a resized MAL variant are a
+separate, disposable one-shot script; production code normalizes no legacy URL.

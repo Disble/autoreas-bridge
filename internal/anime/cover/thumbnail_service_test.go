@@ -92,7 +92,7 @@ func TestThumbnailServiceInvalidatesLocalIdentity(t *testing.T) {
 	if err != nil || transformCalls != 1 {
 		t.Fatalf("first GetDesktop: err=%v, transform calls=%d, want nil err and 1 call", err, transformCalls)
 	}
-	assertEntry(t, cache, 1, loader.result.Identity, string(first.Bytes), first.ETag)
+	assertEntry(t, cache, thumbnail.SpecVersion, loader.result.Identity, string(first.Bytes), first.ETag)
 
 	svc.slots = make(chan struct{}, 2) // drained: a cache hit must not need to acquire
 	hit, err := svc.GetHTTP(context.Background(), "path")
