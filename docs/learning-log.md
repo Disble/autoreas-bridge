@@ -320,3 +320,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-10-17]: Released 1.17.1 as a patch hotfix: the only change pins the systray message loop to one OS thread, a bug fix with no wire, storage or UX contract change.
 - [2026-10-18]: MAL prefix.json image_url uses the CDN resize endpoint (/r/WxH/?s=), which fails independently of originals (504 vs 200); store the original and let ADR-024 downsize it. Shipped as 1.17.2.
 - [2026-10-18]: Release 2.0.0 is a major bump because season state moved onto the anime sync path and the season-only REST/WS paths were removed in the same release; bridge and mobile ship together by the owner's decision, so the additive-then-retire split was dropped.
+- [2026-10-19]: A failed bootstrap must not assign a typed-nil database pointer to an interface closer; verify pragma ordering from the actual call chain before diagnosing SQLite contention.

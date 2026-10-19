@@ -1,0 +1,25 @@
+# Flaky-test reduction
+Objective: reduce project flaky tests through the four reconstructed work units. Branch: `fix/flaky-test-reduction`, base `26f24df1`. Delivery: reviewable work-unit commits; no push or merge.
+Runner: Go + Bun/Vitest. Delivery strategy: ask-on-risk; initial forecast approximately 350 authored changed lines including tests and tracking, subject to measured scope.
+
+## Specs
+- S1 (user, verbatim): "Recuerda que esto es parte del objetivo de reducir los flaky tests en el proyecto. Toma todos esos cuatro trabajos como tareas de un mismo ODD. Adelante."
+- S2 (accepted scope of "todos esos cuatro trabajos"): failed-startup database shutdown panic, NotificationCenter grid-read synchronization, direct profiling of EpisodeDurationsSection and AnimeEditorWorkspace.covers, and diagnosis of the intermittent AnimeEditorListPanel loading-state test. These remain one flaky-test reduction outcome.
+- S3 (execution constraints, not additional product requirements): preserve observable product behavior and existing assertions; do not relax timeouts, workers, thresholds, or exclusions. Distinguish reproduced failures, static evidence, historical timings, and hypotheses. A profiling task may conclude with measured evidence that no safe improvement is justified, rather than speculative edits.
+
+## Tasks
+| ID | Specs | Route | Status | Commit / evidence |
+|---|---|---|---|---|
+| T1 Reproduce and fix failed-startup shutdown panic; separate SQLite contention diagnosis | S1-S3 | delegated worker; context backstop and independent multi-step unit | done | RED panic, GREEN package; spot 2.649s; ditto 1/1 killed; independent verifier PASS S1-S3, desktop 8.727s + native gate 81.65s; work-unit commit being created; Risk item 3: shared startup/shutdown |
+| T2 Reproduce and synchronize NotificationCenter grid reads | S1-S3 | inline, small targeted test unit | pending | IMPORTANT user-interaction test; retain real grid and all assertions |
+| T3 Profile EpisodeDurationsSection and covers; apply only evidence-backed cost reduction | S1-S3 | delegated worker; context backstop and independent multi-step unit | pending | IMPORTANT interaction tests; per-test and file timings, before/after, preserved behavior |
+| T4 Diagnose ListPanel intermittent loading-state test and fix only a reproduced cause | S1-S3 | inline, bounded diagnosis using T3 timing evidence | pending | IMPORTANT loading behavior; falsified H1 is not a confirmed race |
+| T5 Verify combined outcome independently, record checks and commit work units | S1-S3 | delegated verify, repository final-verification boundary | pending | exact native gate, focused tests, typecheck, production render/layout smoke; hooks not bypassed |
+
+## Log
+- L1 (2026-10-19, user, verbatim): "Recuerda que esto es parte del objetivo de reducir los flaky tests en el proyecto. Toma todos esos cuatro trabajos como tareas de un mismo ODD. Adelante."
+- L2: Exploration confirmed clean dev at 26f24df1. Previous render optimization is closed. Historical file totals (~6.1 s and ~2.7 s) do not identify an individual timeout. NotificationCenter asynchronous row hypothesis is not reproduced. ListPanel H1 race label conflicts with prior falsification. Desktop app.go assigns a possibly nil *sql.DB to interface bridgeDBCloser; its Close branch can panic, whereas fallback pointer branch is nil-guarded. SQLITE_BUSY origin is not yet reproduced.
+- L6: Independent verifier mvelxwxn-3-xwdc PASS S1-S3 for T1. Desktop 8.727s; native pre-commit81.65s, lint 0 issues, desktop coverage83.4%, frontend skipped by staged scope. Corrected report: applyBridgePragmas precedes schema; its auto_vacuum and WAL precede busy_timeout. Verifier confirmed correction without repeating checks. SQLite historic trigger remains unresolved. Parent appended required lesson; T1 checks complete, commit hook remains delivery boundary.
+- L5: Parent staged mutation completed exit 0: 1 mutant, 1 killed, no survivors; baseline 13.761s, wall 64s. Parent lifecycle/restart spot check exit 0 (2.649s). T1 awaiting independent verification and commit.
+- L4: T1 worker mveln3yw-2-fp99 reproduced typed-nil Close panic, added nil assignment guard and failed/successful lifecycle tests. Parent reviewed source/tests/report. Historical SQLite trigger remains unproven: held-write-lock probe reproduced BUSY in 8 ms, but no retry/reorder was introduced. Native assess was unassessable due to undeclared untracked files; escalation item 3 requires independent verifier. No T1 completion claimed before staged mutation and verification.
+- L3: No gate redesign, broad widget mocks, timeout increases, speculative memoization, retries hiding failures, or cross-worktree writes. Startup/shutdown shared behavior merits independent verification. Types/constants/plain wiring are INFRASTRUCTURE; no new CORE business logic is planned. Preserve existing bootstrap/shutdown, fake sources, shared test constructors and progressive-window invariants. Context backstop explicitly fired before implementation; bounded multi-step workers receive disjoint edit surfaces.

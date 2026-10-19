@@ -269,7 +269,13 @@ func (a *App) startup(ctx context.Context) {
 // initializeBridgeDatabase initializes the bridge database during startup.
 func (a *App) initializeBridgeDatabase(ctx context.Context) bool {
 	a.bridgeDB, a.startupErr = a.bootstrapBridgeDB()
-	a.bridgeDBCloser = a.bridgeDB
+	// Only a real handle becomes a closer. Assigning a typed nil *sql.DB to the
+	// interface would make it non-nil, so shutdown's guard would pass and Close
+	// would panic on the database the failed bootstrap never opened -- which is
+	// what a restart facing SQLITE_BUSY used to hit.
+	if a.bridgeDB != nil {
+		a.bridgeDBCloser = a.bridgeDB
+	}
 	return a.startupErr == nil
 }
 
