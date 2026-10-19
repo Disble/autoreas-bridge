@@ -11,30 +11,30 @@ function incident(latestId: number): ActivityIncidentSummary {
 }
 
 /** A source over the two list reads. */
-function sourceWith(listIncidents: ActivitySource['listIncidents'], listRuns: ActivitySource['listRuns'] = vi.fn(() => Promise.resolve([]))): ActivitySource {
-  return { listIncidents, listRuns } as unknown as ActivitySource;
+function sourceWith(listIncidents: ActivitySource['listIncidents'], listRecoveredRuns: ActivitySource['listRecoveredRuns'] = vi.fn(() => Promise.resolve([]))): ActivitySource {
+  return { listIncidents, listRecoveredRuns } as unknown as ActivitySource;
 }
 
 describe('useActivityIncidents', () => {
-  it('lists the incidents of All without reading runs', async () => {
+  it('lists the incidents and the recovered runs of All', async () => {
     const listIncidents = vi.fn(() => Promise.resolve([incident(9), incident(4)]));
-    const listRuns = vi.fn(() => Promise.resolve([]));
-    const source = sourceWith(listIncidents, listRuns);
+    const listRecoveredRuns = vi.fn(() => Promise.resolve([]));
+    const source = sourceWith(listIncidents, listRecoveredRuns);
     const { result } = renderHook(() => useActivityIncidents(undefined, source));
 
     expect(result.current.list.status).toBe('loading');
     await waitFor(() => expect(result.current.list.status).toBe('ready'));
 
     expect(listIncidents).toHaveBeenCalledExactlyOnceWith('all');
-    expect(listRuns).not.toHaveBeenCalled();
+    expect(listRecoveredRuns).toHaveBeenCalledExactlyOnceWith('all');
     expect(result.current.entries.map((entry) => entry.key)).toEqual(['incident:9', 'incident:4']);
     expect(result.current.selection).toBeUndefined();
   });
 
-  it('narrows to a filter and reads its runs when the filter is internal bridge work', async () => {
+  it('narrows to a filter and reads its incidents and recovered runs', async () => {
     const listIncidents = vi.fn(() => Promise.resolve([incident(9)]));
-    const listRuns = vi.fn(() => Promise.resolve([{ correlationId: 'c-1', firstAtMs: 0, lastAtMs: 0, steps: 1, outcome: 'info', firstEventType: 'e', firstMessage: 'm' }]));
-    const source = sourceWith(listIncidents, listRuns);
+    const listRecoveredRuns = vi.fn(() => Promise.resolve([{ correlationId: 'c-1', firstAtMs: 0, lastAtMs: 0, steps: 1, outcome: 'info', firstEventType: 'e', firstMessage: 'm' }]));
+    const source = sourceWith(listIncidents, listRecoveredRuns);
     const { result } = renderHook(() => useActivityIncidents(undefined, source));
     await waitFor(() => expect(result.current.list.status).toBe('ready'));
 
@@ -50,7 +50,7 @@ describe('useActivityIncidents', () => {
     await waitFor(() => expect(result.current.entries.map((entry) => entry.key)).toEqual(['incident:9', 'run:c-1']));
 
     expect(listIncidents).toHaveBeenLastCalledWith('downloads');
-    expect(listRuns).toHaveBeenCalledExactlyOnceWith('downloads');
+    expect(listRecoveredRuns).toHaveBeenLastCalledWith('downloads');
 
     act(() => result.current.clearFilter());
     expect(result.current.where).toBe('all');

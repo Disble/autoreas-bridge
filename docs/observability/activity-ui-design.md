@@ -120,7 +120,7 @@ loading.
 
 | Element | Data | Component |
 |---|---|---|
-| Run list | runs or saves of the chosen domain, last 7 days, with their outcome | list, soft `Chip` "Recovered" / outcome |
+| Run list | recovered runs of the chosen filter, All included, last 7 days: runs whose worst step was a warning. Errors are incidents already, and clean runs are in History | list, soft `Chip` "Recovered" |
 | Header | run kind, result in plain words, trigger, time span | `Typography`, soft `Chip`s |
 | Steps | every event sharing the run's correlation id, in order; warnings and successes emphasized | vertical step list |
 | Recorded detail | the selected event's metadata as labelled fields; probes or retries drawn as a sequence | field grid; "Show raw metadata" opens the JSON |

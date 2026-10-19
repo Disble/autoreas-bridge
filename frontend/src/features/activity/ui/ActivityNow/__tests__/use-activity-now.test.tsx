@@ -31,7 +31,7 @@ function createFakeSource(getNow: ActivitySource['getNow']) {
     listIncidents: vi.fn(),
     getIncident: vi.fn(),
     getRequest: vi.fn(),
-    listRuns: vi.fn(),
+    listRecoveredRuns: vi.fn(),
     getRunStory: vi.fn(),
     subscribeRecorder: (listener) => {
       listeners.add(listener);

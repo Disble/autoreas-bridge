@@ -36,6 +36,15 @@ func TestRunsGroupsEventsByCorrelationID(t *testing.T) {
 	if err != nil || len(editor) != 1 || editor[0].CorrelationID != "anime-1" {
 		t.Fatalf("editor runs = %+v (%v)", editor, err)
 	}
+	// Recovered only: a warning was the worst step. Errors already open
+	// incidents and clean runs are not problems, so both stay out, in every
+	// filter including All.
+	for _, where := range []Where{WhereDownloads, WhereAll} {
+		recovered, err := reader.Runs(context.Background(), RunsInput{Now: testNow, Where: where, RecoveredOnly: true})
+		if err != nil || len(recovered) != 1 || recovered[0].CorrelationID != "run-1" || recovered[0].Outcome != "warn" {
+			t.Fatalf("recovered runs of %q = %+v (%v), want run-1 only", where, recovered, err)
+		}
+	}
 }
 
 // TestRunStoryOrdersStepsAndCapsThem checks order, metadata and the step cap.

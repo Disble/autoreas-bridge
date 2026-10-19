@@ -242,9 +242,12 @@ type HistoryView struct {
 }
 
 // RunsInput selects the run list of one "where it happened" filter.
+// RecoveredOnly keeps the runs whose worst step was a warning: the desktop
+// Incidents tab lists what went wrong, where errors are already incidents.
 type RunsInput struct {
-	Now   time.Time
-	Where Where
+	Now           time.Time
+	Where         Where
+	RecoveredOnly bool
 }
 
 // Run is the events sharing one non-empty correlation id. Outcome is the

@@ -28,7 +28,7 @@ const source: ActivitySource = {
   listIncidents: vi.fn(() => Promise.resolve([])),
   getIncident: vi.fn<ActivitySource['getIncident']>(() => new Promise(() => undefined)),
   getRequest: vi.fn(),
-  listRuns: vi.fn(() => Promise.resolve([])),
+  listRecoveredRuns: vi.fn(() => Promise.resolve([])),
   getRunStory: vi.fn(),
 };
 

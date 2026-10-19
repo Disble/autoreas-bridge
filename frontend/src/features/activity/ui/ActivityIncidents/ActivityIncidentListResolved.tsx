@@ -19,6 +19,6 @@ export function ActivityIncidentListResolved({ entries, isFiltered, onClearFilte
       title="No incidents for this filter"
     />
   ) : (
-    <AirisEmptyState description="Errors of the last 7 days show here." kind="caught-up" size="section" title="No incidents in the last 7 days" />
+    <AirisEmptyState description="Errors and recovered runs of the last 7 days show here." kind="caught-up" size="section" title="No incidents in the last 7 days" />
   );
 }

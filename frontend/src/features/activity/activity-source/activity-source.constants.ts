@@ -22,8 +22,5 @@ export const ACTIVITY_WHERE_OPTIONS: readonly ActivityWhereOption[] = [
   { id: 'season', label: 'Season' },
 ];
 
-/** The filters that read internal bridge work, whose runs open a run story. */
-export const ACTIVITY_INTERNAL_WHERE: readonly ActivityWhere[] = ['downloads', 'editor', 'schedule', 'season'];
-
 /** The MCP server the "Copy for AI" references name (`cmd/autoreas-request-mcp`). */
 export const ACTIVITY_MCP_SERVER_NAME = 'autoreas-request-mcp';

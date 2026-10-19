@@ -45,7 +45,7 @@ const REQUEST: ActivityRequestDetail = {
 /** The one source instance the tab reads, as the real singleton is. */
 const source = {
   listIncidents: vi.fn<ActivitySource['listIncidents']>(),
-  listRuns: vi.fn<ActivitySource['listRuns']>(),
+  listRecoveredRuns: vi.fn<ActivitySource['listRecoveredRuns']>(),
   getIncident: vi.fn<ActivitySource['getIncident']>(),
   getRequest: vi.fn<ActivitySource['getRequest']>(),
   getRunStory: vi.fn<ActivitySource['getRunStory']>(),
@@ -59,7 +59,7 @@ describe('ActivityIncidents', () => {
   beforeEach(() => {
     Object.values(source).forEach((read) => read.mockReset());
     source.listIncidents.mockResolvedValue([summary(9, 'Sync failed for 5 requests'), summary(4)]);
-    source.listRuns.mockResolvedValue([]);
+    source.listRecoveredRuns.mockResolvedValue([]);
     source.getIncident.mockResolvedValue(DETAIL);
     source.getRequest.mockResolvedValue(REQUEST);
     source.getRunStory.mockResolvedValue({ correlationId: 'dl-1', steps: [], truncated: false });
@@ -104,7 +104,7 @@ describe('ActivityIncidents', () => {
     expect(await screen.findByText('No incidents for this filter')).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Incidents and runs' })).toBeNull();
     expect(source.listIncidents).toHaveBeenLastCalledWith('phone');
-    expect(source.listRuns).not.toHaveBeenCalled();
+    expect(source.listRecoveredRuns).toHaveBeenLastCalledWith('phone');
 
     fireEvent.click(screen.getByRole('button', { name: 'Show all' }));
     expect(await screen.findByRole('list', { name: 'Incidents and runs' })).toBeInTheDocument();
@@ -121,7 +121,8 @@ describe('ActivityIncidents', () => {
     expect(source.getIncident).toHaveBeenCalledExactlyOnceWith(9);
     expect(source.getRequest).not.toHaveBeenCalled();
 
-    fireEvent.click(within(screen.getByRole('grid', { name: 'Requests in this window' })).getByText('/api/sync/reconcile'));
+    // React Aria builds the table's rows in a second render pass, so the row is awaited, not read at once.
+    fireEvent.click(await within(screen.getByRole('grid', { name: 'Requests in this window' })).findByText('/api/sync/reconcile'));
 
     const preview = await screen.findByText(/"error":"list_changes_failed"/);
     expect(preview.textContent?.length).toBeLessThan(700);
@@ -155,15 +156,15 @@ describe('ActivityIncidents', () => {
   });
 
   it('lists the runs of an internal filter and opens one as a run story', async () => {
-    source.listRuns.mockResolvedValue([{ correlationId: 'dl-1', firstAtMs: 0, lastAtMs: 0, steps: 2, outcome: 'warn', firstEventType: 'download.started', firstMessage: 'Download started' }]);
+    source.listRecoveredRuns.mockResolvedValue([{ correlationId: 'dl-1', firstAtMs: 0, lastAtMs: 0, steps: 2, outcome: 'warn', firstEventType: 'download.started', firstMessage: 'Download started' }]);
     render(<ActivityIncidents openRequest={undefined} />);
     await screen.findByRole('list', { name: 'Incidents and runs' });
 
     fireEvent.click(screen.getByRole('radio', { name: 'Downloads' }));
     fireEvent.click(await screen.findByRole('button', { name: /Download started/ }));
 
-    expect(screen.getByText('Runs')).toBeInTheDocument();
-    expect(source.listRuns).toHaveBeenCalledExactlyOnceWith('downloads');
+    expect(screen.getByText('Recovered runs')).toBeInTheDocument();
+    expect(source.listRecoveredRuns).toHaveBeenLastCalledWith('downloads');
     expect(source.getRunStory).toHaveBeenCalledExactlyOnceWith('dl-1');
   });
 

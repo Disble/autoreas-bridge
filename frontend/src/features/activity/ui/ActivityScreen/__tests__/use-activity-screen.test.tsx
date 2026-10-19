@@ -9,7 +9,7 @@ import { useActivityScreen } from '../use-activity-screen';
 
 /** A fake source whose pin the test controls. */
 function createFakeSource(pinMoment: ActivitySource['pinMoment']): ActivitySource {
-  return { getNow: vi.fn(), pinMoment, subscribeRecorder: () => () => undefined, listIncidents: vi.fn(), getIncident: vi.fn(), getRequest: vi.fn(), listRuns: vi.fn(), getRunStory: vi.fn() };
+  return { getNow: vi.fn(), pinMoment, subscribeRecorder: () => () => undefined, listIncidents: vi.fn(), getIncident: vi.fn(), getRequest: vi.fn(), listRecoveredRuns: vi.fn(), getRunStory: vi.fn() };
 }
 
 /** Wraps the hook in a router, since "Pair a phone" navigates. */

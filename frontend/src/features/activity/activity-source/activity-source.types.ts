@@ -19,7 +19,7 @@ export interface ActivitySource {
   /** Reads one captured request by id with its bodies; undefined when it is no longer stored. */
   readonly getRequest: (requestId: string) => Promise<ActivityRequestDetail | undefined>;
   /** Lists the runs of the last 7 days for one filter, newest first. */
-  readonly listRuns: (where: ActivityWhere) => Promise<readonly ActivityRun[]>;
+  readonly listRecoveredRuns: (where: ActivityWhere) => Promise<readonly ActivityRun[]>;
   /** Reads the ordered steps of one correlation id. */
   readonly getRunStory: (correlationId: string) => Promise<ActivityRunStory>;
 }

@@ -4,7 +4,7 @@ import {
   GetActivityRequest,
   GetActivityRunStory,
   ListActivityIncidents,
-  ListActivityRuns,
+  ListActivityRecoveredRuns,
   PinActivityMoment,
 } from '../../../../wailsjs/go/desktop/App';
 import type { activityread } from '../../../../wailsjs/go/models';
@@ -205,8 +205,8 @@ export function createActivitySource(): ActivitySource {
     getRequest(requestId) {
       return invokeGoBinding('GetActivityRequest', () => GetActivityRequest(requestId), rejectRuntimeUnavailable).then(mapActivityRequestResult);
     },
-    listRuns(where) {
-      return invokeGoBinding('ListActivityRuns', () => ListActivityRuns(where), rejectRuntimeUnavailable).then((runs) => (runs ?? []).map(mapActivityRun));
+    listRecoveredRuns(where) {
+      return invokeGoBinding('ListActivityRecoveredRuns', () => ListActivityRecoveredRuns(where), rejectRuntimeUnavailable).then((runs) => (runs ?? []).map(mapActivityRun));
     },
     getRunStory(correlationId) {
       return invokeGoBinding('GetActivityRunStory', () => GetActivityRunStory(correlationId), rejectRuntimeUnavailable).then(mapActivityRunStory);

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ActivityIncidentSummary } from '../../../activity-source/activity.types';
 import type { ActivityRun } from '../../../activity-source/activity-incident.types';
 import type { ActivitySource } from '../../../activity-source/activity-source.types';
-import { isActivityInternalWhere, readActivityIncidentList, toActivityIncidentListEntries, toActivityOpenSelection, toActivityPickedKey, toActivitySelectionKey, toActivityWhere } from '../activity-incidents.helpers';
+import { readActivityIncidentList, toActivityIncidentListEntries, toActivityOpenSelection, toActivityPickedKey, toActivitySelectionKey, toActivityWhere } from '../activity-incidents.helpers';
 
 /** Local epoch milliseconds of Oct 17 at the given time. */
 function at(hours: number, minutes: number): number {
@@ -49,15 +49,6 @@ describe('activity-incidents.helpers', () => {
     expect(toActivityWhere(3)).toBe('all');
   });
 
-  it('marks only the four bridge-work filters as internal', () => {
-    expect(['all', 'phone', 'downloads', 'editor', 'schedule', 'season'].filter((where) => isActivityInternalWhere(toActivityWhere(where)))).toEqual([
-      'downloads',
-      'editor',
-      'schedule',
-      'season',
-    ]);
-  });
-
   it('words incidents in Go order with their dot, count and New flag, without headings when no run is listed', () => {
     const entries = toActivityIncidentListEntries(
       [incident({ latestId: 9, title: 'Sync failed', occurrences: 5, isNew: true }), incident({ latestId: 4, title: 'List is slow', isError: false, latestAtMs: at(9, 2) })],
@@ -70,7 +61,7 @@ describe('activity-incidents.helpers', () => {
     ]);
   });
 
-  it('lists runs after the incidents under their own headings, with a chip only when the run needs attention', () => {
+  it('lists recovered runs after the incidents under their own headings, with a chip only when the run needs attention', () => {
     const entries = toActivityIncidentListEntries(
       [incident({ latestId: 9 }), incident({ latestId: 4 })],
       [run({ correlationId: 'c-1', outcome: 'warn' }), run({ correlationId: 'c-2', outcome: 'error', firstMessage: '', firstEventType: 'download.hoster_dead', steps: 1 }), run({ correlationId: 'c-3' })],
@@ -79,14 +70,14 @@ describe('activity-incidents.helpers', () => {
     expect(entries.map((entry) => [entry.key, entry.heading])).toEqual([
       ['incident:9', 'Incidents'],
       ['incident:4', ''],
-      ['run:c-1', 'Runs'],
+      ['run:c-1', 'Recovered runs'],
       ['run:c-2', ''],
       ['run:c-3', ''],
     ]);
     expect(entries[2]).toEqual({
       key: 'run:c-1',
       selection: { kind: 'run', correlationId: 'c-1' },
-      heading: 'Runs',
+      heading: 'Recovered runs',
       title: 'Download started',
       meta: 'Oct 17, 16:05 · 3 steps',
       tone: 'warning',
@@ -97,8 +88,8 @@ describe('activity-incidents.helpers', () => {
     expect(entries[4]).toMatchObject({ tone: 'default', chip: undefined });
   });
 
-  it('heads the runs alone when the filter has runs but no incident', () => {
-    expect(toActivityIncidentListEntries([], [run({})]).map((entry) => entry.heading)).toEqual(['Runs']);
+  it('heads the recovered runs alone when the filter has no incident', () => {
+    expect(toActivityIncidentListEntries([], [run({})]).map((entry) => entry.heading)).toEqual(['Recovered runs']);
   });
 
   it('names a run by its id when its first event recorded no words', () => {
@@ -131,22 +122,15 @@ describe('readActivityIncidentList', () => {
   function source(): ActivitySource {
     return {
       listIncidents: vi.fn(() => Promise.resolve([incident({ latestId: 9 })])),
-      listRuns: vi.fn(() => Promise.resolve([run({ correlationId: 'c-1' })])),
+      listRecoveredRuns: vi.fn(() => Promise.resolve([run({ correlationId: 'c-1' })])),
     } as unknown as ActivitySource;
   }
 
-  it('lists the incidents and the runs of an internal filter', async () => {
-    const internal = source();
-    const read = await readActivityIncidentList(internal, 'downloads');
-    expect(read.status === 'ready' && read.value.map((entry) => entry.key)).toEqual(['incident:9', 'run:c-1']);
-    expect(internal.listIncidents).toHaveBeenCalledExactlyOnceWith('downloads');
-    expect(internal.listRuns).toHaveBeenCalledExactlyOnceWith('downloads');
-  });
-
-  it('lists only the incidents of any other filter, without reading runs', async () => {
-    const other = source();
-    const read = await readActivityIncidentList(other, 'all');
-    expect(read.status === 'ready' && read.value.map((entry) => entry.key)).toEqual(['incident:9']);
-    expect(other.listRuns).not.toHaveBeenCalled();
+  it.each(['all', 'phone', 'downloads', 'editor', 'schedule', 'season'] as const)('lists the incidents and the recovered runs of the %s filter', async (where) => {
+    const read = source();
+    const list = await readActivityIncidentList(read, where);
+    expect(list.status === 'ready' && list.value.map((entry) => entry.key)).toEqual(['incident:9', 'run:c-1']);
+    expect(read.listIncidents).toHaveBeenCalledExactlyOnceWith(where);
+    expect(read.listRecoveredRuns).toHaveBeenCalledExactlyOnceWith(where);
   });
 });

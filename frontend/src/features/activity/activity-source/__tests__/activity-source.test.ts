@@ -292,15 +292,15 @@ describe('activity-source', () => {
   });
 
   it('lists runs and reads a run story through their bindings', async () => {
-    const listRuns = vi.fn().mockResolvedValueOnce(null);
+    const listRecoveredRuns = vi.fn().mockResolvedValueOnce(null);
     const getStory = vi.fn().mockResolvedValue({ CorrelationID: 'c-1', Steps: null, Truncated: false });
-    attachBindings({ ListActivityRuns: listRuns, GetActivityRunStory: getStory });
+    attachBindings({ ListActivityRecoveredRuns: listRecoveredRuns, GetActivityRunStory: getStory });
     const { createActivitySource } = await import('../activity-source.helpers');
     const source = createActivitySource();
 
-    await expect(source.listRuns('season')).resolves.toEqual([]);
+    await expect(source.listRecoveredRuns('season')).resolves.toEqual([]);
     await expect(source.getRunStory('c-1')).resolves.toEqual({ correlationId: 'c-1', steps: [], truncated: false });
-    expect(listRuns).toHaveBeenCalledExactlyOnceWith('season');
+    expect(listRecoveredRuns).toHaveBeenCalledExactlyOnceWith('season');
     expect(getStory).toHaveBeenCalledExactlyOnceWith('c-1');
   });
 
@@ -308,7 +308,7 @@ describe('activity-source', () => {
     const { createActivitySource } = await import('../activity-source.helpers');
     const source = createActivitySource();
 
-    const settled = [source.listIncidents('all'), source.getIncident(1), source.getRequest('r'), source.listRuns('all'), source.getRunStory('c')].map((read) =>
+    const settled = [source.listIncidents('all'), source.getIncident(1), source.getRequest('r'), source.listRecoveredRuns('all'), source.getRunStory('c')].map((read) =>
       expect(read).rejects.toThrow('runtime unavailable'),
     );
     await vi.advanceTimersByTimeAsync(5000);

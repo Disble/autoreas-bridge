@@ -1,5 +1,5 @@
 import type { Key } from '@heroui/react';
-import { ACTIVITY_INTERNAL_WHERE, ACTIVITY_WHERE_OPTIONS } from '../../activity-source/activity-source.constants';
+import { ACTIVITY_WHERE_OPTIONS } from '../../activity-source/activity-source.constants';
 import type { ActivityIncidentSummary } from '../../activity-source/activity.types';
 import type { ActivityRun, ActivityWhere } from '../../activity-source/activity-incident.types';
 import type { ActivitySource } from '../../activity-source/activity-source.types';
@@ -16,16 +16,6 @@ import type { ActivityIncidentListEntry, ActivityIncidentListRead, ActivityIncid
  */
 export function toActivityWhere(key: Key): ActivityWhere {
   return ACTIVITY_WHERE_OPTIONS.find((option) => option.id === key)?.id ?? 'all';
-}
-
-/**
- * Whether a filter reads internal bridge work, whose runs the list shows.
- *
- * @param where The filter.
- * @returns True for downloads, editor, schedule and season.
- */
-export function isActivityInternalWhere(where: ActivityWhere): boolean {
-  return ACTIVITY_INTERNAL_WHERE.includes(where);
 }
 
 /**
@@ -95,19 +85,19 @@ function toRunEntry(run: ActivityRun, heading: string): ActivityIncidentListEntr
 }
 
 /**
- * Builds the left list: the incidents in Go's order, then the runs of an
- * internal filter. Section headings appear only when runs are listed, since a
+ * Builds the left list: what went wrong, the incidents in Go's order, then the
+ * recovered runs. Section headings appear only when runs are listed, since a
  * list of incidents alone needs no title of its own.
  *
  * @param incidents The incidents of the filter, newest first.
- * @param runs The runs of the filter, newest first; empty for All and Phone.
+ * @param runs The recovered runs of the filter, newest first.
  * @returns The rows in render order.
  */
 export function toActivityIncidentListEntries(incidents: readonly ActivityIncidentSummary[], runs: readonly ActivityRun[]): readonly ActivityIncidentListEntry[] {
   const hasRuns = runs.length > 0;
   return [
     ...incidents.map((incident, index) => toIncidentEntry(incident, hasRuns && index === 0 ? 'Incidents' : '')),
-    ...runs.map((run, index) => toRunEntry(run, index === 0 ? 'Runs' : '')),
+    ...runs.map((run, index) => toRunEntry(run, index === 0 ? 'Recovered runs' : '')),
   ];
 }
 
@@ -137,14 +127,13 @@ export function toActivityOpenSelection(openRequest: ActivityIncidentOpenRequest
 }
 
 /**
- * Reads the list of one filter: its incidents, plus its runs when it reads
- * internal bridge work.
+ * Reads the list of one filter: its incidents and its recovered runs. Errors
+ * are incidents already, and clean runs are in History, so neither is read.
  *
  * @param source The Activity port.
  * @param where The filter.
  * @returns The ready list read; rejects when either read fails.
  */
 export function readActivityIncidentList(source: ActivitySource, where: ActivityWhere): Promise<ActivityIncidentListRead> {
-  const runs = isActivityInternalWhere(where) ? source.listRuns(where) : Promise.resolve([]);
-  return Promise.all([source.listIncidents(where), runs]).then(([incidents, runList]) => ({ status: 'ready', value: toActivityIncidentListEntries(incidents, runList) }));
+  return Promise.all([source.listIncidents(where), source.listRecoveredRuns(where)]).then(([incidents, runList]) => ({ status: 'ready', value: toActivityIncidentListEntries(incidents, runList) }));
 }

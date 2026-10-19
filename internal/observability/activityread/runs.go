@@ -23,7 +23,7 @@ func (r *Reader) Runs(ctx context.Context, in RunsInput) ([]Run, error) {
 			FROM runtime_events
 			WHERE occurred_at_ms >= ? AND occurred_at_ms <= ? AND correlation_id IS NOT NULL AND correlation_id <> ''
 				AND ` + filter + ` AND level IN (?, ?, ?, ?)
-			GROUP BY correlation_id ORDER BY last_ms DESC LIMIT ?
+			GROUP BY correlation_id ` + recoveredHaving(in.RecoveredOnly) + ` ORDER BY last_ms DESC LIMIT ?
 		)
 		SELECT runs.correlation_id, first_ms, last_ms, steps,
 			CASE worst WHEN 3 THEN 'error' WHEN 2 THEN 'warn' WHEN 1 THEN 'info' ELSE 'debug' END,
@@ -52,6 +52,16 @@ func (r *Reader) Runs(ctx context.Context, in RunsInput) ([]Run, error) {
 		runs = append(runs, run)
 	}
 	return runs, rows.Err()
+}
+
+// recoveredHaving keeps, when asked, only the runs whose worst step was a
+// warning. It filters before the LIMIT, so recovered runs are never crowded
+// out by the clean runs around them.
+func recoveredHaving(recoveredOnly bool) string {
+	if !recoveredOnly {
+		return ""
+	}
+	return "HAVING MAX(" + levelRankSQL + ") = 2"
 }
 
 // RunStory returns the events of one correlation id in order, with their

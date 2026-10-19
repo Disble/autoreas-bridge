@@ -88,13 +88,14 @@ func (a *App) SearchActivityHistory(where, cursor string, limit int) (activityre
 	})
 }
 
-// ListActivityRuns returns the run list of one "where it happened" filter.
-func (a *App) ListActivityRuns(where string) ([]activityread.Run, error) {
+// ListActivityRecoveredRuns returns the recovered runs of one "where it
+// happened" filter: the runs the Incidents tab lists beside its incidents.
+func (a *App) ListActivityRecoveredRuns(where string) ([]activityread.Run, error) {
 	reader, err := a.activityReader()
 	if err != nil {
 		return nil, err
 	}
-	return reader.Runs(a.seasonCtx(), activityread.RunsInput{Now: a.currentTime(), Where: activityread.Where(where)})
+	return reader.Runs(a.seasonCtx(), activityread.RunsInput{Now: a.currentTime(), Where: activityread.Where(where), RecoveredOnly: true})
 }
 
 // GetActivityRunStory returns the ordered steps of one correlation id.

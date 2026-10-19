@@ -173,18 +173,22 @@ func TestSearchActivityHistoryPassesItsInputs(t *testing.T) {
 	}
 }
 
-// TestListActivityRunsAndRunStory asserts the run list is filtered by place
-// and a run story returns the steps of its correlation id.
-func TestListActivityRunsAndRunStory(t *testing.T) {
+// TestListActivityRecoveredRunsAndRunStory asserts the run list keeps the
+// recovered runs of the filter, errors being incidents already, and a run
+// story returns the steps of its correlation id.
+func TestListActivityRecoveredRunsAndRunStory(t *testing.T) {
 	t.Parallel()
 	app := newActivityTestApp(t)
+	seedActivityEvent(t, app.bridgeDB, activityAt(-4*time.Minute), "download", "warn", "run-recovered")
 	seedActivityEvent(t, app.bridgeDB, activityAt(-3*time.Minute), "download", "info", "run-download")
 	seedActivityEvent(t, app.bridgeDB, activityAt(-2*time.Minute), "download", "error", "run-download")
 	seedActivityEvent(t, app.bridgeDB, activityAt(-time.Minute), "schedule", "info", "run-schedule")
 
-	runs, err := app.ListActivityRuns("downloads")
-	if err != nil || len(runs) != 1 || runs[0].CorrelationID != "run-download" || runs[0].Outcome != "error" {
-		t.Fatalf("ListActivityRuns = %#v, %v", runs, err)
+	for _, where := range []string{"downloads", "all"} {
+		runs, err := app.ListActivityRecoveredRuns(where)
+		if err != nil || len(runs) != 1 || runs[0].CorrelationID != "run-recovered" || runs[0].Outcome != "warn" {
+			t.Fatalf("ListActivityRecoveredRuns(%q) = %#v, %v", where, runs, err)
+		}
 	}
 	story, err := app.GetActivityRunStory("run-download")
 	if err != nil || len(story.Steps) != 2 || story.Steps[1].Level != "error" {
@@ -294,7 +298,7 @@ func TestActivityBindingsReportAnUnwiredDatabase(t *testing.T) {
 		"incidents": func() error { _, err := app.ListActivityIncidents("all"); return err },
 		"incident":  func() error { _, err := app.GetActivityIncident(1); return err },
 		"history":   func() error { _, err := app.SearchActivityHistory("all", "", 0); return err },
-		"runs":      func() error { _, err := app.ListActivityRuns("all"); return err },
+		"runs":      func() error { _, err := app.ListActivityRecoveredRuns("all"); return err },
 		"story":     func() error { _, err := app.GetActivityRunStory("run"); return err },
 		"recorder":  func() error { _, err := app.ListActivityRecorder("", 0); return err },
 		"request":   func() error { _, err := app.GetActivityRequest("req"); return err },

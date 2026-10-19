@@ -10,7 +10,7 @@ import type { ActivityIncidentDetailPaneProps } from './activity-incidents.types
  */
 export function ActivityIncidentDetailPane({ selection }: ActivityIncidentDetailPaneProps) {
   if (selection === undefined) {
-    return <AwaitingSelectionPane description="Errors of the last 7 days, grouped by what went wrong." icon={dangerIcon} title="No incident selected" />;
+    return <AwaitingSelectionPane description="Errors and recovered runs of the last 7 days." icon={dangerIcon} title="No incident selected" />;
   }
   return selection.kind === 'incident' ? (
     <ActivityIncidentDetail incidentId={selection.id} key={selection.id} />

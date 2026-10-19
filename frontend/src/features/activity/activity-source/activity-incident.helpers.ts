@@ -119,7 +119,7 @@ export function mapActivityRequestResult(result: desktop.ActivityRequestResult):
 /**
  * Converts one Go run.
  *
- * @param run The run `ListActivityRuns` returned.
+ * @param run The run `ListActivityRecoveredRuns` returned.
  * @returns The run the list renders.
  */
 export function mapActivityRun(run: activityread.Run): ActivityRun {
