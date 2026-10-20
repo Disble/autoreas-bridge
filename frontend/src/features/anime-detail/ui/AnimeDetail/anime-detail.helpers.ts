@@ -247,11 +247,10 @@ export function formatAnimeDetailSubtitle(estadoLabel: string, tipoLabel: string
 }
 
 /**
- * Maps the backend `activo` flag to the hero status chip's label. Unlike
- * `catalog-panel.helpers.ts`'s `toAnimeStatus` (Active/Inactive with a
- * neutral color), the Detail hero uses a danger-colored chip for the
- * inactive/soft-deleted ("eliminado") case per design Decision 5, since this
- * is the surface where that state matters most.
+ * Maps the backend `activo` flag to the hero status chip's label. The Detail
+ * hero uses a danger-colored chip for the inactive/soft-deleted ("eliminado")
+ * case per design Decision 5, since this is the surface where that state
+ * matters most.
  */
 export function getAnimeDetailStatusLabel(activo: number): string {
   return activo === 1 ? ANIME_DETAIL_STATUS_ACTIVE_LABEL : ANIME_DETAIL_STATUS_INACTIVE_LABEL;

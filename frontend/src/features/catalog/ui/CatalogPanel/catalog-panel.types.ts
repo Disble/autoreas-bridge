@@ -1,108 +1,149 @@
-import type { LabeledSelectOption } from '../../../../shared/ui/LabeledSelect.types';
+import type { Key, Selection } from '@heroui/react';
+import type { IconifyIcon } from '@iconify/react';
+import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
 import type { ProgressiveListWindow } from '../../../../shared/hooks/use-progressive-list-window.types';
+import type { LabeledSelectOption } from '../../../../shared/ui/LabeledSelect.types';
 
-/**
- * Props for the CatalogPanel component. The panel is self-contained and reads
- * the anime catalog from the Wails runtime, so it accepts no external data.
- */
-export interface CatalogPanelProps {
-  readonly className?: string;
+/** How the Catalog orders its anime. */
+export type CatalogSortKey = 'name-asc' | 'name-desc' | 'status' | 'kind';
+
+/** Which layout the Catalog renders its anime in. */
+export type CatalogView = 'grid' | 'list';
+
+/** One icon-only button of the view toggle, named by its label. */
+export interface CatalogViewOption {
+  readonly value: CatalogView;
+  readonly label: string;
+  readonly icon: IconifyIcon;
 }
 
-/**
- * Normalized status derived from the backend `activo` flag.
- */
-export type AnimeStatus = 'active' | 'inactive';
+/** HeroUI soft chip color an `estado` value is drawn with. */
+export type CatalogStatusColor = 'accent' | 'success' | 'danger' | 'warning' | 'default';
 
 /**
- * View model consumed by the CatalogPanel UI.
+ * Everything that narrows the Catalog: the free-text search plus the three
+ * filters. `status` and `kind` hold the numeric value as a string, or the
+ * `all` sentinel; `genres` lists every genre an anime must carry.
  */
-export interface AnimeViewModel {
-  readonly id: string;
-  readonly nombre: string;
-  readonly estado: number;
-  readonly progressLabel: string;
-  readonly status: AnimeStatus;
-  readonly statusLabel: string;
-  /** Mirrors `Anime.hasDownloadPage` — read-only anime-data-quality signal. */
-  readonly hasDownloadPage: boolean;
-  /** Mirrors `Anime.hasFolder` — read-only anime-data-quality signal. */
-  readonly hasFolder: boolean;
-  /** True when either the download page or folder is missing. */
-  readonly hasDownloadGap: boolean;
-  /** Human-readable summary of what is missing; undefined when there is no gap. */
-  readonly gapLabel: string | undefined;
-}
-
-/** Props for one rendered row of the Catalog's anime list. */
-export interface CatalogListRowProps {
-  readonly item: AnimeViewModel;
-}
-
-/** Single option rendered by a Catalog filter select control. */
-export type AnimeFilterOption = LabeledSelectOption;
-
-/**
- * Current values of all filter controls.
- */
-export interface AnimeFilterState {
+export interface CatalogCriteria {
   readonly query: string;
-  readonly estado: string;
-  readonly activo: string;
-  readonly tipo: string;
-  readonly dia: string;
-  readonly generos: readonly string[];
-  /** Download gap filter: `all` | `missing` | `complete` (see ANIME_GAP_* constants). */
-  readonly gap: string;
+  readonly status: string;
+  readonly kind: string;
+  readonly genres: readonly string[];
 }
 
-/**
- * Props for the dumb CatalogFilterBar component.
- */
-export interface CatalogFilterBarProps {
-  readonly filters: AnimeFilterState;
-  readonly estadoOptions: readonly AnimeFilterOption[];
-  readonly activoOptions: readonly AnimeFilterOption[];
-  readonly tipoOptions: readonly AnimeFilterOption[];
-  readonly diaOptions: readonly AnimeFilterOption[];
-  readonly generoOptions: readonly AnimeFilterOption[];
-  readonly gapOptions: readonly AnimeFilterOption[];
-  readonly onQueryChange: (query: string) => void;
-  readonly onEstadoChange: (value: string) => void;
-  readonly onActivoChange: (value: string) => void;
-  readonly onTipoChange: (value: string) => void;
-  readonly onDiaChange: (value: string) => void;
-  readonly onGenerosChange: (values: readonly (string | number)[]) => void;
-  readonly onGapChange: (value: string) => void;
+/** One removable chip naming an active filter in the result line. */
+export interface CatalogCriterionChip {
+  /** Stable React key, unique among the chips. */
+  readonly id: string;
+  readonly field: 'status' | 'kind' | 'genres';
+  /** The criterion value the chip removes. */
+  readonly value: string;
+  /** Group name shown before the value, for example `Status`. */
+  readonly groupLabel: string;
+  readonly valueLabel: string;
 }
 
-/**
- * View state returned by the CatalogPanel hook.
- */
-export interface CatalogPanelState {
-  /** Only the currently revealed slice — see `listWindow` and ADR-012. */
-  readonly items: readonly AnimeViewModel[];
+/** Single selectable option of a Catalog filter group or the sort select. */
+export type CatalogOption = LabeledSelectOption;
+
+/** View model one Catalog card or row renders. */
+export interface CatalogItemViewModel {
+  readonly id: string;
+  readonly name: string;
+  readonly hasCover: boolean;
+  readonly statusLabel: string;
+  readonly statusColor: CatalogStatusColor;
+  readonly kindLabel: string;
+  /** List-row meta line: the type followed by the genres. */
+  readonly listMeta: string;
+}
+
+/** What one Catalog cover slot draws. */
+export type CatalogCover =
+  | { readonly status: 'loading' }
+  | { readonly status: 'cover'; readonly src: string }
+  | { readonly status: 'placeholder' };
+
+/** Everything that decides what one Catalog cover slot draws. */
+export interface CatalogCoverInput {
+  /** The record reports a stored cover worth asking for. */
+  readonly hasCover: boolean;
+  /** The cached lookup, when one was started. */
+  readonly entry: AnimeCoverEntry | undefined;
+  /** The resolved image failed to decode. */
+  readonly hasFailed: boolean;
+  /** The runtime offers the `getAnimeCover` binding at all. */
+  readonly canResolve: boolean;
+}
+
+/** Cover lookup for the rendered Catalog items, plus the decode-failure report. */
+export interface CatalogCovers {
+  readonly getCover: (item: CatalogItemViewModel) => CatalogCover;
+  readonly onCoverError: (animeId: string) => void;
+}
+
+/** View state returned by the CatalogPanel hook. */
+export interface CatalogPanelState extends UseCatalogCriteriaResult, CatalogCovers {
   readonly isLoading: boolean;
   /** Why the last settled request failed, or `undefined` when it succeeded. */
   readonly error: Error | undefined;
   readonly emptyState: CatalogEmptyState;
+  /** False only once the catalog resolved with no anime: there is nothing to search, sort or count. */
+  readonly hasCatalog: boolean;
+  /** Anime the resolved source returned. */
+  readonly totalCount: number;
+  /** Anime left after the search and filters. */
+  readonly matchingCount: number;
+  /** Only the currently revealed slice — see `listWindow` and ADR-012. */
+  readonly items: readonly CatalogItemViewModel[];
   readonly listWindow: ProgressiveListWindow;
-  readonly filters: AnimeFilterState;
-  readonly estadoOptions: readonly AnimeFilterOption[];
-  readonly activoOptions: readonly AnimeFilterOption[];
-  readonly tipoOptions: readonly AnimeFilterOption[];
-  readonly diaOptions: readonly AnimeFilterOption[];
-  readonly generoOptions: readonly AnimeFilterOption[];
-  readonly gapOptions: readonly AnimeFilterOption[];
-  readonly onQueryChange: (query: string) => void;
-  readonly onEstadoChange: (value: string) => void;
-  readonly onActivoChange: (value: string) => void;
-  readonly onTipoChange: (value: string) => void;
-  readonly onDiaChange: (value: string) => void;
-  readonly onGenerosChange: (values: readonly (string | number)[]) => void;
-  readonly onGapChange: (value: string) => void;
-  /** Restores every filter to the all-records default. */
-  readonly onClearCriteria: () => void;
+  readonly activeFilterCount: number;
+  readonly criterionChips: readonly CatalogCriterionChip[];
+  /** A search or filter is narrowing the catalog. */
+  readonly hasCriteria: boolean;
+  readonly statusOptions: readonly CatalogOption[];
+  readonly kindOptions: readonly CatalogOption[];
+  readonly genreOptions: readonly CatalogOption[];
+  readonly sortOptions: readonly { readonly value: CatalogSortKey; readonly label: string }[];
+  /** Opens the Create anime screen. */
+  readonly onCreate: () => void;
+}
+
+/** Props for the components that render a slice of the Catalog view state. */
+export interface CatalogSectionProps {
+  readonly state: CatalogPanelState;
+}
+
+/** Props for one tag group inside the Filters popover. */
+export interface CatalogFilterGroupProps {
+  readonly label: string;
+  readonly hint?: string;
+  readonly options: readonly CatalogOption[];
+  readonly selectedKeys: readonly string[];
+  readonly selectionMode: 'single' | 'multiple';
+  readonly onSelectionChange: (selection: Selection) => void;
+}
+
+/** Props for one Catalog card or row. */
+export interface CatalogItemProps {
+  readonly item: CatalogItemViewModel;
+  readonly cover: CatalogCover;
+  readonly onCoverError: (animeId: string) => void;
+}
+
+/** Props for the cover slot of a card, a row or the skeleton beside them. */
+export interface CatalogCoverSlotProps {
+  readonly animeId: string;
+  readonly cover: CatalogCover;
+  /** `card` draws the "No cover" label on the poster; `thumb` is too small for it. */
+  readonly size: 'card' | 'thumb';
+  readonly onCoverError: (animeId: string) => void;
+}
+
+/** Props for the loading placeholder of the active view. */
+export interface CatalogSkeletonProps {
+  readonly view: CatalogView;
 }
 
 /** Which Catalog empty state a resolved request produced, if any. */
@@ -117,7 +158,7 @@ export interface CatalogEmptyStateInput {
   readonly sourceCount: number;
   /** Rows left after search and filters. */
   readonly visibleCount: number;
-  readonly filters: AnimeFilterState;
+  readonly criteria: CatalogCriteria;
 }
 
 /** Title and description shown by one Catalog empty state. */
@@ -126,16 +167,32 @@ export interface CatalogEmptyStateCopy {
   readonly description: string;
 }
 
-/** Filter values and the control callbacks that change them. */
-export interface UseCatalogFiltersResult {
-  readonly filters: AnimeFilterState;
+/**
+ * What the Catalog remembers for the rest of the session, so opening an anime
+ * detail and coming back restores the screen the user left.
+ */
+export interface CatalogSessionState {
+  readonly criteria: CatalogCriteria;
+  readonly sort: CatalogSortKey;
+  readonly view: CatalogView;
+}
+
+/** Criteria, sort and view values plus the callbacks that change them. */
+export interface UseCatalogCriteriaResult {
+  readonly criteria: CatalogCriteria;
+  readonly sort: CatalogSortKey;
+  readonly view: CatalogView;
   readonly onQueryChange: (query: string) => void;
-  readonly onEstadoChange: (value: string) => void;
-  readonly onActivoChange: (value: string) => void;
-  readonly onTipoChange: (value: string) => void;
-  readonly onDiaChange: (value: string) => void;
-  readonly onGenerosChange: (values: readonly (string | number)[]) => void;
-  readonly onGapChange: (value: string) => void;
-  /** Restores every filter to the all-records default. */
+  readonly onStatusSelectionChange: (selection: Selection) => void;
+  readonly onKindSelectionChange: (selection: Selection) => void;
+  readonly onGenresSelectionChange: (selection: Selection) => void;
+  /** Drops the criteria behind the removed result-line chips, by chip id. */
+  readonly onCriterionChipsRemove: (chipIds: Iterable<string | number>) => void;
+  /** Applies the sort select's key; an unknown key keeps the current sort. */
+  readonly onSortChange: (key: Key | null) => void;
+  readonly onViewSelectionChange: (selection: Selection) => void;
+  /** Restores the three filters, keeping the search. */
+  readonly onFiltersReset: () => void;
+  /** Restores the search and every filter, keeping sort and view. */
   readonly onClearCriteria: () => void;
 }

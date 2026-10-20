@@ -1,270 +1,236 @@
+import type { Key, Selection } from '@heroui/react';
+import { ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
 import type { Anime } from '../../../../shared/contracts/anime.types';
-import {
-  ANIME_FILTER_ALL_VALUE,
-  ANIME_GAP_COMPLETE_VALUE,
-  ANIME_GAP_LABEL_MISSING_BOTH,
-  ANIME_GAP_LABEL_MISSING_FOLDER,
-  ANIME_GAP_LABEL_MISSING_PAGE,
-  ANIME_GAP_MISSING_VALUE,
-  ANIME_STATUS_ACTIVE_LABEL,
-  ANIME_STATUS_INACTIVE_LABEL,
-} from './catalog-panel.constants';
-import type { AnimeFilterOption, AnimeFilterState, AnimeStatus, AnimeViewModel, CatalogEmptyState, CatalogEmptyStateInput } from './catalog-panel.types';
+import { getAnimeEstadoLabel } from '../../../../shared/helpers/anime-estado.helpers';
+import { getAnimeTipoLabel } from '../../../../shared/helpers/anime-tipo.helpers';
+import { CATALOG_END_LABEL, CATALOG_FILTER_ALL_VALUE, CATALOG_NAME_COLLATOR, CATALOG_SORT_OPTIONS, CATALOG_STATUS_SORT_RANK } from './catalog-panel.constants';
+import type {
+  CatalogCover,
+  CatalogCoverInput,
+  CatalogCriteria,
+  CatalogCriterionChip,
+  CatalogEmptyState,
+  CatalogEmptyStateInput,
+  CatalogItemViewModel,
+  CatalogOption,
+  CatalogSortKey,
+  CatalogStatusColor,
+  CatalogView,
+} from './catalog-panel.types';
 
-/**
- * Maps the backend `activo` flag (1 = active, 0 = inactive/absent) to a
- * normalized status value used by the UI.
- */
-export function toAnimeStatus(activo: number): AnimeStatus {
-  return activo === 1 ? 'active' : 'inactive';
+/** Orders by name, falling back to the id so equal names keep a stable order. */
+function compareByName(a: Anime, b: Anime): number {
+  const byName = CATALOG_NAME_COLLATOR.compare(a.name, b.name);
+  if (byName !== 0) {
+    return byName;
+  }
+  if (a.id === b.id) {
+    return 0;
+  }
+  return a.id < b.id ? -1 : 1;
+}
+
+/** Status-sort rank of an `estado`; an unknown value sorts after every known one. */
+function statusRank(status: number): number {
+  return CATALOG_STATUS_SORT_RANK[status] ?? Number.MAX_SAFE_INTEGER;
+}
+
+/** Type-sort rank of a `tipo`; a missing value sorts after every known one. */
+function kindRank(kind: number | undefined): number {
+  return kind ?? Number.MAX_SAFE_INTEGER;
 }
 
 /**
- * Builds a human-readable progress label from the current and total episode
- * counters. Falls back to "?" when a value is missing.
+ * Returns the comparator for one Catalog sort. Status and Type group the
+ * catalog, then order each group by name.
  */
-export function formatAnimeProgress(current: number, total?: number): string {
-  if (total === undefined) {
-    return `${current} / ?`;
+export function compareCatalogAnimes(sort: CatalogSortKey): (a: Anime, b: Anime) => number {
+  switch (sort) {
+    case 'name-desc':
+      return (a, b) => compareByName(b, a);
+    case 'status':
+      return (a, b) => statusRank(a.status) - statusRank(b.status) || compareByName(a, b);
+    case 'kind':
+      return (a, b) => kindRank(a.kind) - kindRank(b.kind) || compareByName(a, b);
+    default:
+      return compareByName;
   }
-  return `${current} / ${total}`;
+}
+
+/** Narrows a select value to one of the Catalog sort keys. */
+export function isCatalogSortKey(value: string): value is CatalogSortKey {
+  return CATALOG_SORT_OPTIONS.some((option) => option.value === value);
+}
+
+/** Reads the sort select's key; a cleared (`"null"`) or unknown key keeps the current sort. */
+export function toCatalogSortKey(key: Key | null, current: CatalogSortKey): CatalogSortKey {
+  const value = String(key);
+  return isCatalogSortKey(value) ? value : current;
+}
+
+/** Reads the view toggle's selection; anything but grid or list keeps the current view. */
+export function toCatalogView(selection: Selection, current: CatalogView): CatalogView {
+  const next = toCatalogChoice(selection, current);
+  return next === 'grid' || next === 'list' ? next : current;
+}
+
+/** True when a single-choice filter is unset or names the record's value. */
+function matchesChoice(selected: string, value: number | undefined): boolean {
+  return selected === CATALOG_FILTER_ALL_VALUE || value === Number(selected);
+}
+
+/** True when the record carries every selected genre, compared case-insensitively. */
+function hasEveryGenre(item: Anime, genres: readonly string[]): boolean {
+  const carried = new Set(item.genres.map((genre) => genre.toLowerCase()));
+  return genres.every((genre) => carried.has(genre.toLowerCase()));
+}
+
+/** Keeps the records the search and every filter allow. */
+export function filterCatalogAnimes(items: readonly Anime[], criteria: CatalogCriteria): readonly Anime[] {
+  const query = criteria.query.trim().toLowerCase();
+  return items.filter(
+    (item) =>
+      item.name.toLowerCase().includes(query) &&
+      matchesChoice(criteria.status, item.status) &&
+      matchesChoice(criteria.kind, item.kind) &&
+      hasEveryGenre(item, criteria.genres),
+  );
+}
+
+/** How many filters narrow the catalog: status, type and each genre. The search is not a filter. */
+export function countActiveCatalogFilters(criteria: CatalogCriteria): number {
+  return Number(criteria.status !== CATALOG_FILTER_ALL_VALUE)
+    + Number(criteria.kind !== CATALOG_FILTER_ALL_VALUE)
+    + criteria.genres.length;
+}
+
+/** Reports whether anything the user could clear is narrowing the catalog. */
+export function hasActiveCatalogCriteria(criteria: CatalogCriteria): boolean {
+  return criteria.query.trim().length > 0 || countActiveCatalogFilters(criteria) > 0;
+}
+
+/** One removable chip per active filter, in popover order: status, type, then each genre. */
+export function toCatalogCriterionChips(criteria: CatalogCriteria): readonly CatalogCriterionChip[] {
+  const chips: CatalogCriterionChip[] = [];
+  if (criteria.status !== CATALOG_FILTER_ALL_VALUE) {
+    const valueLabel = getAnimeEstadoLabel(Number(criteria.status));
+    chips.push({ id: 'status', field: 'status', value: criteria.status, groupLabel: 'Status', valueLabel });
+  }
+  if (criteria.kind !== CATALOG_FILTER_ALL_VALUE) {
+    const valueLabel = getAnimeTipoLabel(Number(criteria.kind));
+    chips.push({ id: 'kind', field: 'kind', value: criteria.kind, groupLabel: 'Type', valueLabel });
+  }
+  for (const genre of criteria.genres) {
+    chips.push({ id: `genre:${genre}`, field: 'genres', value: genre, groupLabel: 'Genre', valueLabel: genre });
+  }
+  return chips;
+}
+
+/** Drops the criterion a chip names, leaving every other criterion as it was. */
+export function removeCatalogCriterion(criteria: CatalogCriteria, chip: CatalogCriterionChip): CatalogCriteria {
+  if (chip.field === 'genres') {
+    return { ...criteria, genres: criteria.genres.filter((genre) => genre !== chip.value) };
+  }
+  return { ...criteria, [chip.field]: CATALOG_FILTER_ALL_VALUE };
+}
+
+/** Drops every criterion whose chip id is among the removed keys, in one update. */
+export function removeCatalogCriterionChips(
+  criteria: CatalogCriteria,
+  chips: readonly CatalogCriterionChip[],
+  removedIds: Iterable<string | number>,
+): CatalogCriteria {
+  const removed = new Set(Array.from(removedIds, String));
+  return chips.filter((chip) => removed.has(chip.id)).reduce(removeCatalogCriterion, criteria);
 }
 
 /**
- * Returns a human-readable gap label describing which download prerequisite
- * (page, folder, or both) is missing. Returns `undefined` when neither is
- * missing — callers use this to decide whether to render a gap badge at all.
+ * Reads a single-choice filter group's selection. The groups disallow an empty
+ * selection and never offer select-all, so either one keeps the current choice.
  */
-function getAnimeGapLabel(hasDownloadPage: boolean, hasFolder: boolean): string | undefined {
-  if (!hasDownloadPage && !hasFolder) {
-    return ANIME_GAP_LABEL_MISSING_BOTH;
+export function toCatalogChoice(selection: Selection, current: string): string {
+  if (selection === 'all') {
+    return current;
   }
-  if (!hasDownloadPage) {
-    return ANIME_GAP_LABEL_MISSING_PAGE;
-  }
-  if (!hasFolder) {
-    return ANIME_GAP_LABEL_MISSING_FOLDER;
-  }
-  return undefined;
+  const [first] = selection;
+  return first === undefined ? current : String(first);
+}
+
+/** Reads the Genres group's selection, in the order the genres were picked. */
+export function toCatalogGenres(selection: Selection, current: readonly string[]): readonly string[] {
+  return selection === 'all' ? current : Array.from(selection, String);
+}
+
+/** Genre filter options discovered from the catalog: trimmed, unique and alphabetical. */
+export function getCatalogGenreOptions(items: readonly Anime[]): readonly CatalogOption[] {
+  const genres = new Set(items.flatMap((item) => item.genres.map((genre) => genre.trim())).filter(Boolean));
+  return Array.from(genres)
+    .sort((a, b) => a.localeCompare(b))
+    .map((genre) => ({ value: genre, label: genre }));
 }
 
 /**
- * Converts a runtime Anime DTO into the view model rendered by CatalogPanel.
+ * Chip color of an `estado`: watching is accent, finished success, dropped
+ * danger and paused warning. Colors are presentation and stay feature-local.
  */
-export function toAnimeViewModel(anime: Anime): AnimeViewModel {
-  const status = toAnimeStatus(anime.active);
-  const gapLabel = getAnimeGapLabel(anime.hasDownloadPage, anime.hasFolder);
+export function getCatalogStatusColor(status: number): CatalogStatusColor {
+  const colorByStatus: Record<number, CatalogStatusColor> = {
+    [ANIME_ESTADO_VALID_VALUES[0]]: 'accent',
+    [ANIME_ESTADO_VALID_VALUES[1]]: 'success',
+    [ANIME_ESTADO_VALID_VALUES[2]]: 'danger',
+    [ANIME_ESTADO_VALID_VALUES[3]]: 'warning',
+  };
+  return colorByStatus[status] ?? 'default';
+}
 
+/** Accessible name of the Filters button, counting the active filters. */
+export function formatCatalogFiltersLabel(activeFilterCount: number): string {
+  return activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : 'Filters';
+}
+
+/** Label of the action that closes the Filters popover onto the result. */
+export function formatCatalogShowLabel(matchingCount: number): string {
+  return `Show ${matchingCount} anime`;
+}
+
+/** Results footer: how many the progressive window still hides, or the end of the catalog. */
+export function formatCatalogFooter(renderedCount: number, matchingCount: number): string {
+  return renderedCount < matchingCount ? `Showing ${renderedCount} of ${matchingCount} — scroll for more` : CATALOG_END_LABEL;
+}
+
+/** Route of one anime's detail, shared with History. */
+export function toCatalogDetailPath(animeId: string): string {
+  return `/catalog/detail/${animeId}`;
+}
+
+/** Converts a runtime record into the labels one Catalog card or row renders. */
+export function toCatalogItemViewModel(anime: Anime): CatalogItemViewModel {
+  const kindLabel = getAnimeTipoLabel(anime.kind);
   return {
     id: anime.id,
-    nombre: anime.name,
-    estado: anime.status,
-    progressLabel: formatAnimeProgress(anime.episodesWatched, anime.totalEpisodes),
-    status,
-    statusLabel: status === 'active' ? ANIME_STATUS_ACTIVE_LABEL : ANIME_STATUS_INACTIVE_LABEL,
-    hasDownloadPage: anime.hasDownloadPage,
-    hasFolder: anime.hasFolder,
-    hasDownloadGap: gapLabel !== undefined,
-    gapLabel,
+    name: anime.name,
+    hasCover: anime.hasCover,
+    statusLabel: getAnimeEstadoLabel(anime.status),
+    statusColor: getCatalogStatusColor(anime.status),
+    kindLabel,
+    listMeta: [kindLabel, anime.genres.join(', ')].filter(Boolean).join(' · '),
   };
 }
 
 /**
- * Sorts animes by name ascending, using the id as a stable tie-breaker.
+ * Decides what one cover slot draws. A record with a stored cover shows a
+ * skeleton until its lookup answers, so the poster never flashes in before the
+ * real art; every way of not getting art (no stored cover, no binding, a
+ * placeholder answer, a failed lookup or decode) ends on the poster.
  */
-export function sortAnimesByName(a: Anime, b: Anime): number {
-  const nameA = a.name.toLowerCase();
-  const nameB = b.name.toLowerCase();
-  if (nameA !== nameB) {
-    return nameA < nameB ? -1 : 1;
+export function toCatalogCover(input: CatalogCoverInput): CatalogCover {
+  if (!input.hasCover || !input.canResolve || input.hasFailed) {
+    return { status: 'placeholder' };
   }
-
-  if (a.id < b.id) {
-    return -1;
+  if (input.entry === undefined || input.entry.status === 'loading') {
+    return { status: 'loading' };
   }
-
-  if (a.id > b.id) {
-    return 1;
-  }
-
-  return 0;
-}
-
-/**
- * Normalizes a free-text query by trimming whitespace and lowercasing it.
- * Empty queries match every item.
- */
-function normalizeAnimeQuery(query: string): string {
-  return query.trim().toLowerCase();
-}
-
-/**
- * Returns true when the anime name contains the normalized query.
- */
-function matchesAnimeQuery(item: Anime, query: string): boolean {
-  const normalized = normalizeAnimeQuery(query);
-
-  if (normalized.length === 0) {
-    return true;
-  }
-
-  return item.name.toLowerCase().includes(normalized);
-}
-
-/**
- * Returns true when the anime `estado` matches the selected filter value.
- */
-function matchesAnimeEstado(item: Anime, value: string): boolean {
-  if (value === ANIME_FILTER_ALL_VALUE) {
-    return true;
-  }
-
-  return item.status === Number(value);
-}
-
-/**
- * Returns true when the anime `activo` flag matches the selected filter value.
- */
-function matchesAnimeActivo(item: Anime, value: string): boolean {
-  if (value === ANIME_FILTER_ALL_VALUE) {
-    return true;
-  }
-
-  return item.active === Number(value);
-}
-
-/**
- * Returns true when the anime `tipo` matches the selected filter value.
- */
-function matchesAnimeTipo(item: Anime, value: string): boolean {
-  if (value === ANIME_FILTER_ALL_VALUE) {
-    return true;
-  }
-
-  return item.kind === Number(value);
-}
-
-/**
- * Returns true when the anime has at least one of the selected days.
- */
-function matchesAnimeDia(item: Anime, value: string): boolean {
-  if (value === ANIME_FILTER_ALL_VALUE) {
-    return true;
-  }
-
-  return item.days.some((dia) => dia.toLowerCase() === value.toLowerCase());
-}
-
-/**
- * Returns true when the anime has at least one of the selected genres.
- */
-function matchesAnimeGeneros(item: Anime, values: readonly string[]): boolean {
-  if (values.length === 0) {
-    return true;
-  }
-
-  const selected = new Set(values.map((value) => value.toLowerCase()));
-
-  return item.genres.some((genero) => selected.has(genero.toLowerCase()));
-}
-
-/**
- * Returns true when the anime matches the selected download-gap filter value:
- * `all` matches everything, `missing` matches animes missing a page and/or
- * folder, `complete` matches animes that have both.
- */
-export function matchesAnimeGap(item: Anime, value: string): boolean {
-  if (value === ANIME_FILTER_ALL_VALUE) {
-    return true;
-  }
-
-  const hasGap = !item.hasDownloadPage || !item.hasFolder;
-
-  if (value === ANIME_GAP_MISSING_VALUE) {
-    return hasGap;
-  }
-
-  if (value === ANIME_GAP_COMPLETE_VALUE) {
-    return !hasGap;
-  }
-
-  return true;
-}
-
-/**
- * Filters a list of animes according to the current filter state.
- */
-export function filterAnimes(
-  items: readonly Anime[],
-  filters: AnimeFilterState,
-): readonly Anime[] {
-  return items.filter(
-    (item) =>
-      matchesAnimeQuery(item, filters.query) &&
-      matchesAnimeEstado(item, filters.estado) &&
-      matchesAnimeActivo(item, filters.activo) &&
-      matchesAnimeTipo(item, filters.tipo) &&
-      matchesAnimeDia(item, filters.dia) &&
-      matchesAnimeGeneros(item, filters.generos) &&
-      matchesAnimeGap(item, filters.gap),
-  );
-}
-
-/** Trims, de-duplicates and alphabetically orders values discovered in catalog data. */
-function uniqueSortedStrings(values: readonly string[]): readonly string[] {
-  const unique = new Set<string>();
-
-  for (const value of values) {
-    const trimmed = value.trim();
-    if (trimmed.length > 0) {
-      unique.add(trimmed);
-    }
-  }
-
-  return Array.from(unique).sort((a, b) => a.localeCompare(b));
-}
-
-/** Builds a filter select's options from data-discovered values, led by the All sentinel. */
-function toDynamicOptions(values: readonly string[]): readonly AnimeFilterOption[] {
-  return [
-    { value: ANIME_FILTER_ALL_VALUE, label: 'All' },
-    ...uniqueSortedStrings(values).map((value) => ({ value, label: value })),
-  ];
-}
-
-/**
- * Builds the "día" filter options from the actual catalog values, prepending
- * an "All" option.
- */
-export function getUniqueDiaOptions(items: readonly Anime[]): readonly AnimeFilterOption[] {
-  return toDynamicOptions(items.flatMap((item) => item.days));
-}
-
-/**
- * Builds the "género" filter options from the actual catalog values.
- * Genres use a multi-select, so no "All" option is prepended.
- */
-export function getUniqueGeneroOptions(items: readonly Anime[]): readonly AnimeFilterOption[] {
-  return uniqueSortedStrings(items.flatMap((item) => item.genres)).map((value) => ({
-    value,
-    label: value,
-  }));
-}
-
-/**
- * Reports whether anything the user could clear is currently narrowing the
- * catalog. Compared field by field against the all-records default rather than
- * inferred from a "not empty" flag, so a filter added later cannot silently
- * stop counting as criteria.
- */
-function hasActiveCatalogCriteria(filters: AnimeFilterState): boolean {
-  return filters.query.trim().length > 0
-    || filters.estado !== ANIME_FILTER_ALL_VALUE
-    || filters.activo !== ANIME_FILTER_ALL_VALUE
-    || filters.tipo !== ANIME_FILTER_ALL_VALUE
-    || filters.dia !== ANIME_FILTER_ALL_VALUE
-    || filters.gap !== ANIME_FILTER_ALL_VALUE
-    || filters.generos.length > 0;
+  return input.entry.status === 'cover' ? { status: 'cover', src: input.entry.dataUrl } : { status: 'placeholder' };
 }
 
 /**
@@ -283,5 +249,5 @@ export function classifyCatalogEmptyState(input: CatalogEmptyStateInput): Catalo
   if (input.visibleCount > 0) {
     return 'none';
   }
-  return hasActiveCatalogCriteria(input.filters) ? 'criteria' : 'none';
+  return hasActiveCatalogCriteria(input.criteria) ? 'criteria' : 'none';
 }

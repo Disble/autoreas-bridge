@@ -1,112 +1,44 @@
-import { Alert, Card } from '@heroui/react';
-import { useNavigate } from 'react-router';
-import catalogAirisArtwork from '../../../../assets/airis-empty-states/catalog.webp';
-import { ANIME_CREATE_ROUTE } from '../../../../shared/navigation/app-layout.constants';
-import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
-import { AIRIS_CLEAR_CRITERIA_LABEL, AIRIS_CREATE_ANIME_LABEL } from '../../../../shared/ui/AirisEmptyState/airis-empty-state.constants';
-import { CatalogFilterBar } from '../CatalogFilterBar/CatalogFilterBar';
-import { CatalogListRow } from './CatalogListRow';
-import { CatalogListSkeleton } from './CatalogListSkeleton';
-import type { CatalogPanelProps } from './catalog-panel.types';
-import {
-  CATALOG_PANEL_EMPTY_STATE_COPY,
-  CATALOG_PANEL_ERROR_TITLE,
-  CATALOG_PANEL_LOADING_LABEL,
-} from './catalog-panel.constants';
+import plusIcon from '@iconify-icons/tabler/plus';
+import { Icon } from '@iconify/react';
+import { Button, Typography } from '@heroui/react';
+import { AIRIS_CREATE_ANIME_LABEL } from '../../../../shared/ui/AirisEmptyState/airis-empty-state.constants';
+import { CatalogBody } from './CatalogBody';
+import { CatalogResultLine } from './CatalogResultLine';
+import { CatalogToolbar } from './CatalogToolbar';
 import { useCatalogPanel } from './use-catalog-panel';
 
-/** Panel showing the full local anime catalog with active/inactive status. */
-export function CatalogPanel(props: Readonly<CatalogPanelProps>) {
-  const navigate = useNavigate();
-  const {
-    emptyState,
-    error,
-    isLoading,
-    items,
-    listWindow,
-    filters,
-    estadoOptions,
-    activoOptions,
-    tipoOptions,
-    diaOptions,
-    generoOptions,
-    gapOptions,
-    onQueryChange,
-    onEstadoChange,
-    onActivoChange,
-    onTipoChange,
-    onDiaChange,
-    onGenerosChange,
-    onGapChange,
-    onClearCriteria,
-  } = useCatalogPanel(props);
+/**
+ * The Catalog screen: a header with Create, the search/filter/sort/view
+ * toolbar, the result line, and the anime as cover cards or compact rows.
+ * Only the results pane scrolls, so the progressive window grows as it nears
+ * the bottom while the controls stay in reach.
+ */
+export function CatalogPanel() {
+  const state = useCatalogPanel();
+  const { error, isLoading, listWindow } = state;
 
   return (
-    <Card className={props.className}>
-      <Card.Content className="flex flex-col gap-4">
-        <CatalogFilterBar
-          filters={filters}
-          estadoOptions={estadoOptions}
-          activoOptions={activoOptions}
-          tipoOptions={tipoOptions}
-          diaOptions={diaOptions}
-          generoOptions={generoOptions}
-          gapOptions={gapOptions}
-          onQueryChange={onQueryChange}
-          onEstadoChange={onEstadoChange}
-          onActivoChange={onActivoChange}
-          onTipoChange={onTipoChange}
-          onDiaChange={onDiaChange}
-          onGenerosChange={onGenerosChange}
-          onGapChange={onGapChange}
-        />
-        {isLoading ? (
-          <div aria-labelledby="catalog-panel-loading-label" aria-live="polite" className="flex flex-col gap-3" role="status">
-            <span className="sr-only" id="catalog-panel-loading-label">{CATALOG_PANEL_LOADING_LABEL}</span>
-            <CatalogListSkeleton />
-          </div>
+    <section aria-labelledby="catalog-title" className="mx-auto flex h-[calc(100dvh-7rem)] min-h-[32rem] w-full max-w-[1240px] flex-col gap-4">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <Typography id="catalog-title" type="h1">Catalog</Typography>
+        {state.hasCatalog ? (
+          <Button aria-label={AIRIS_CREATE_ANIME_LABEL} variant="primary" onPress={state.onCreate}>
+            <Icon aria-hidden="true" className="size-4" icon={plusIcon} />
+            Create
+          </Button>
         ) : null}
+      </header>
 
-        {error === undefined ? null : (
-          <Alert status="danger">
-            <Alert.Content>
-              <Alert.Title>{CATALOG_PANEL_ERROR_TITLE}</Alert.Title>
-              <Alert.Description>{error.message}</Alert.Description>
-            </Alert.Content>
-          </Alert>
-        )}
+      {state.hasCatalog ? (
+        <>
+          <CatalogToolbar state={state} />
+          {isLoading || error !== undefined ? null : <CatalogResultLine state={state} />}
+        </>
+      ) : null}
 
-        {emptyState === 'actual' ? (
-          <AirisEmptyState
-            action={{ label: AIRIS_CREATE_ANIME_LABEL, onPress: () => void navigate(ANIME_CREATE_ROUTE) }}
-            description={CATALOG_PANEL_EMPTY_STATE_COPY.actual.description}
-            imageSrc={catalogAirisArtwork}
-            title={CATALOG_PANEL_EMPTY_STATE_COPY.actual.title}
-          />
-        ) : null}
-        {emptyState === 'criteria' ? (
-          <AirisEmptyState
-            action={{ label: AIRIS_CLEAR_CRITERIA_LABEL, onPress: onClearCriteria }}
-            description={CATALOG_PANEL_EMPTY_STATE_COPY.criteria.description}
-            kind="filtered"
-            title={CATALOG_PANEL_EMPTY_STATE_COPY.criteria.title}
-          />
-        ) : null}
-
-        {!isLoading && emptyState === 'none' && error === undefined ? (
-          <menu
-            aria-label="Anime catalog"
-            className="flex max-h-[28rem] min-h-0 flex-col gap-3 overflow-y-auto pr-1"
-            data-testid="catalog-list-scroll"
-            onScroll={listWindow.onScroll}
-            ref={listWindow.scrollRef}
-          >
-            {items.map((item) => (
-              <CatalogListRow item={item} key={item.id} />
-            ))}
-          </menu>
-        ) : null}
-      </Card.Content>
-    </Card>
+      <div className="min-h-0 flex-1 overflow-y-auto pb-2" data-testid="catalog-results-scroll" onScroll={listWindow.onScroll} ref={listWindow.scrollRef}>
+        <CatalogBody state={state} />
+      </div>
+    </section>
   );
 }

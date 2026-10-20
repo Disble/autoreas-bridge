@@ -2,8 +2,10 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { HashRouter } from 'react-router';
 import { AnimeEditorListRow } from '../../src/features/anime-editor/ui/AnimeEditorWorkspace/AnimeEditorListRow';
 import { AnimeEditorListSkeleton } from '../../src/features/anime-editor/ui/AnimeEditorWorkspace/AnimeEditorListSkeleton';
+import { CatalogCard } from '../../src/features/catalog/ui/CatalogPanel/CatalogCard';
 import { CatalogListRow } from '../../src/features/catalog/ui/CatalogPanel/CatalogListRow';
-import { CatalogListSkeleton } from '../../src/features/catalog/ui/CatalogPanel/CatalogListSkeleton';
+import { CatalogSkeleton } from '../../src/features/catalog/ui/CatalogPanel/CatalogSkeleton';
+import { CATALOG_GRID_CLASS } from '../../src/features/catalog/ui/CatalogPanel/catalog-panel.constants';
 import { EpisodeScheduleCard } from '../../src/features/episodes/ui/EpisodeSchedulePanel/EpisodeScheduleCard';
 import { EpisodeScheduleSkeleton } from '../../src/features/episodes/ui/EpisodeSchedulePanel/EpisodeScheduleSkeleton';
 import { KeymapBindingRow } from '../../src/shared/keyboard/ui/KeymapBindingRow/KeymapBindingRow';
@@ -41,19 +43,22 @@ interface SkeletonComparison {
   readonly skeleton: ReactNode;
 }
 
-/** A Catalog row carrying both chips, its tallest ordinary shape. */
+/**
+ * A Catalog anime with a two-line title, a type and genres and the `estado`
+ * chip, drawn on the "No Cover" poster: the tallest ordinary card and row.
+ */
 const CATALOG_ITEM = {
   id: 'anime-1',
-  nombre: 'Frieren: Beyond Journey’s End',
-  estado: 0,
-  progressLabel: '10 / 28',
-  status: 'active',
-  statusLabel: 'Active',
-  hasDownloadPage: false,
-  hasFolder: true,
-  hasDownloadGap: true,
-  gapLabel: 'Missing page',
+  name: 'Frieren: Beyond Journey’s End',
+  hasCover: false,
+  statusLabel: 'Viendo',
+  statusColor: 'accent',
+  kindLabel: 'Anime (TV)',
+  listMeta: 'Anime (TV) · Adventure, Drama, Fantasy',
 } as const;
+
+/** What the Catalog cover slot draws for a record without a stored cover. */
+const CATALOG_PLACEHOLDER_COVER = { status: 'placeholder' } as const;
 
 /** An Editor rail row with its cover slot, a name and its watched subtitle. */
 const EDITOR_ITEM = {
@@ -128,10 +133,24 @@ const COMPARISONS: readonly SkeletonComparison[] = [
     skeleton: <KeymapPanelSkeleton />,
   },
   {
-    subject: 'catalog',
+    subject: 'catalog-grid',
+    rowTestId: 'catalog-skeleton-card',
+    real: (
+      <ul className={CATALOG_GRID_CLASS}>
+        <CatalogCard cover={CATALOG_PLACEHOLDER_COVER} item={CATALOG_ITEM} onCoverError={() => undefined} />
+      </ul>
+    ),
+    skeleton: <CatalogSkeleton view="grid" />,
+  },
+  {
+    subject: 'catalog-list',
     rowTestId: 'catalog-skeleton-row',
-    real: <menu className="m-0 list-none p-0"><CatalogListRow item={CATALOG_ITEM} /></menu>,
-    skeleton: <CatalogListSkeleton />,
+    real: (
+      <ul>
+        <CatalogListRow cover={CATALOG_PLACEHOLDER_COVER} item={CATALOG_ITEM} onCoverError={() => undefined} />
+      </ul>
+    ),
+    skeleton: <CatalogSkeleton view="list" />,
   },
   {
     subject: 'editor-library',

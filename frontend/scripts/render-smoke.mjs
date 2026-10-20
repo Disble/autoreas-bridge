@@ -55,7 +55,9 @@ const RENDER_ATTEMPTS = 2;
  */
 const ROUTE_MARKERS = {
   '/': ['anime progress without opening Legacy'],
-  '/#/catalog': ['Browse the synchronized anime inventory'],
+  // The degraded `GetAnimes` read resolves to no anime, so the Catalog hides its
+  // toolbar and settles on its actually-empty state.
+  '/#/catalog': ['Your catalog is empty'],
   '/#/season': ['Run the new-season anime selection workflow.'],
   '/#/devices': ['Pair devices and manage desktop'],
   // The default Settings tab is Library, so its field proves the tab body rendered.
