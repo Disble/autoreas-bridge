@@ -106,3 +106,30 @@ clips the corners. The art is `absolute inset-0 size-full object-cover` (or an S
 `preserveAspectRatio="xMidYMid slice"`) so the source aspect ratio can never change the card height.
 Add `gap-4 min-h-24` on the flex row. Default cover art is `shared/ui/CoverPlaceholderScene.tsx`
 (night bridge scene), full-bleed, never an icon centered in a gray box.
+
+## Poster grid cover frame (Catalog)
+
+Every cover in a poster grid sits in ONE frame class, so stored covers of different heights cannot
+break the row baseline. Catalog's frame is `CATALOG_COVER_FRAME_CLASS`
+(`features/catalog/ui/CatalogPanel/catalog-panel.constants.ts`): a uniform 230:326 crop with
+`overflow-hidden`, shared by the grid card, the 40px list thumbnail and both skeletons.
+
+`CatalogCoverSlot` fills the frame edge to edge in one of three states:
+
+| State | Renders |
+|---|---|
+| Lookup pending | A `Skeleton` of the frame's shape |
+| Cover resolved | The art, `object-cover` |
+| No stored cover, lookup unavailable or empty, or the image fails to decode | The approved Airis "No Cover" poster, `assets/covers/no-cover.webp`, cropped like a real cover |
+
+- The "No cover" text is UI (`CATALOG_NO_COVER_LABEL`, a soft `Chip` over the poster), never baked
+  into the art. Cards show it; 40px thumbnails do not.
+- The poster is Catalog-only for now. Every other screen keeps `CoverPlaceholderScene` (above) until
+  a change asks for the poster there.
+- Covers are requested only for the rendered progressive window and only for records with
+  `hasCover`, so a long catalog costs one lookup per revealed card (`useCatalogCovers` over
+  `shared/anime-cover/use-anime-cover-cache.ts`).
+
+The panel fills the viewport height (`h-[calc(100dvh-7rem)]`) and only the results pane scrolls
+(`data-testid="catalog-results-scroll"`), so the toolbar stays in reach and
+`useProgressiveListWindow` applies unchanged (`patterns/lists.md`).

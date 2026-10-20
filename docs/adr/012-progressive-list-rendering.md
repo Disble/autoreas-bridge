@@ -13,6 +13,12 @@ mount every row on open:
 - The Anime Editor library rail (~857 animes).
 - The Downloads solo-anime rail (the whole readiness catalog).
 - The Catalog panel (`max-h-[28rem]`, every filtered anime).
+
+> **Update, 2026-10-20.** The Catalog redesign replaced the `max-h-[28rem]`
+> list with a viewport-height panel whose results pane alone scrolls
+> (`data-testid="catalog-results-scroll"`). Both views, the cover grid and the
+> compact list, render the same `useProgressiveListWindow` slice, so Catalog is
+> still a static rail under this decision.
 - The Downloads run-history rail (previously button-paginated).
 
 Two problems follow. The DOM cost is paid up front for rows nobody scrolls to,

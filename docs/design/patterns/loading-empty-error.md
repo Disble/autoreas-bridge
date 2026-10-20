@@ -60,6 +60,10 @@ placeholder's **height** is a contract:
 
 - Share ONE row-shape class between the real row and its placeholder (`CATALOG_LIST_ROW_CLASS`,
   `ANIME_EDITOR_LIST_ROW_CLASS`, `EPISODE_COVER_SLOT_CLASS`).
+- A surface with more than one view draws the placeholder of the ACTIVE view. Catalog's
+  `CatalogSkeleton` draws cover cards in the grid (sharing `CATALOG_GRID_CLASS` and
+  `CATALOG_COVER_FRAME_CLASS` with `CatalogCard`) and 40px-cover rows in the list (sharing
+  `CATALOG_LIST_ROW_CLASS` with `CatalogListRow`).
 - Render more than one placeholder row for list and table content, from a named
   `*_SKELETON_ROW_COUNT` constant.
 - **Tables: render the placeholder as a plain `<table>` INSTEAD of the React Aria `Table`, never as
@@ -84,7 +88,7 @@ placeholder's **height** is a contract:
 
 A query driven by typed text is built from the SETTLED text through `useDebounce`
 (`shared/hooks/use-debounce.ts`): 300 ms on History, Notifications and the Activity filters, 200 ms
-on Catalog. The input's text stays immediate (the store updates per keystroke; only the query waits),
+on Catalog (`CATALOG_QUERY_DEBOUNCE_MS`). The input's text stays immediate (the store updates per keystroke; only the query waits),
 and the surface keeps its rows, so nothing flickers. One typing burst costs exactly one query.
 Debounce the WHOLE filters object: stores rebuild it only when a filter changes, so its identity is
 stable, and debouncing fields one by one silently drops any field you forgot to list.

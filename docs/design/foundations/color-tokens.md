@@ -53,13 +53,16 @@ Labels are Legacy domain vocabulary (Spanish data literals, like "Sin ver", "Ver
 | 2 | No me gusto | `danger` |
 | 3 | En pausa | `warning` |
 
-- The wording lives in ONE place: `frontend/src/shared/constants/anime-estado.ts`
-  (`ANIME_ESTADO_LABELS`, `getAnimeEstadoLabel`, `ANIME_ESTADO_FILTER_ENTRIES`). Import labels from
+- The wording lives in ONE place: `frontend/src/shared/constants/anime-estado.constants.ts`
+  (`ANIME_ESTADO_LABELS`, `ANIME_ESTADO_FILTER_ENTRIES`) and
+  `frontend/src/shared/helpers/anime-estado.helpers.ts` (`getAnimeEstadoLabel`). Import labels from
   there and never re-hardcode estado wording in a feature. History, Catalog, AnimeDetail and Chapters
   all consume it — a deliberate, scoped exception to per-feature colocation so a rewording is a
   one-file change. It corrected a three-way drift where estado 2/3 were mislabeled
   "Abandonado"/"Pendiente" (ES) and "Dropped"/"Paused" (EN).
 - Estado COLORS stay feature-local (presentation, not vocabulary), following the mapping above.
+  Catalog's owner is `getCatalogStatusColor` (`features/catalog/ui/CatalogPanel/catalog-panel.helpers.ts`),
+  which colors the soft `estado` chip on every grid card and list row; an unknown value is `default`.
 
 ## Brand and action hierarchy
 
