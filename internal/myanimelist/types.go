@@ -43,12 +43,9 @@ type SearchResult struct {
 	Candidates []Candidate
 }
 
-// Detail is a fully parsed anime detail page, in MyAnimeList's own
-// vocabulary. A field left empty because it was legitimately absent from
-// the page is named in Unfilled rather than defaulted; a field present but
-// in an unrecognized shape is reported as a *DriftError instead of ever
-// reaching this struct with a silently wrong value (design D2's "third
-// outcome").
+// Detail contains usable anime metadata in MyAnimeList's own vocabulary.
+// Optional fields that are absent, unknown or unrecognized stay empty and
+// are named in Unfilled; they never prevent other fields from being read.
 type Detail struct {
 	Title    string
 	Type     string
@@ -57,8 +54,8 @@ type Detail struct {
 	Source   string
 	Studios  []string
 	Genres   []string
-	// Unfilled names every optional field that was legitimately absent
-	// from the page.
+	// Unfilled names optional fields that could not be read. It is
+	// diagnostic metadata, not an error or a user-facing warning.
 	Unfilled []string
 }
 

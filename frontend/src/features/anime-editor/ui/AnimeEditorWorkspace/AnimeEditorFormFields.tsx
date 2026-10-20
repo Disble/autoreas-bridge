@@ -1,4 +1,4 @@
-import { Button, Chip, Disclosure, Label, ListBox, Select, Typography } from '@heroui/react';
+import { Button, Chip, Disclosure, Label, ListBox, Select } from '@heroui/react';
 import { AnimeMetadataLookupModal } from '../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/AnimeMetadataLookupModal';
 import { LabeledSelect } from '../../../../shared/ui/LabeledSelect';
 import { LabeledTextField } from '../../../../shared/ui/LabeledTextField';
@@ -26,11 +26,6 @@ export function AnimeEditorFormFields({ viewModel }: Readonly<AnimeEditorFormPan
           <Button size="sm" variant="tertiary" onPress={viewModel.onMetadataUndo}>
             Undo autofill
           </Button>
-          {viewModel.appliedMetadata.unfilled.length === 0 ? null : (
-            <Typography color="muted" type="body-xs">
-              MyAnimeList did not provide: {viewModel.appliedMetadata.unfilled.join(', ')}
-            </Typography>
-          )}
         </div>
       )}
 

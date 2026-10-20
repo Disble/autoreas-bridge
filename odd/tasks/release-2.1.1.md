@@ -13,8 +13,8 @@ Branch: `fix/mal-partial-metadata-release`; delivery: feature -> dev -> main -> 
 ## Tasks
 
 - T0 [S2,S3] done; route: parent maintenance; commit: not applicable; both exact authorized generated views removed and absence checked (exit 0); authority audit and Git objects/refs preserved.
-- T0b [S2,S4] done; route: delegated writer then independent verifier; commit: pending; exact full coverage 391 files/3,879 tests passed; independent final PASS with 23 focused tests (6.65s), unchanged proof boundaries.
-- T0c [S2,S5] done; route: delegated writer plus parent checks; commit: pending; maxWorkers 4 -> 2, typecheck exit 0 (20s), exact full coverage exit 0 (298.18s); all proof boundaries preserved, no processes terminated.
+- T0b [S2,S4] done; route: delegated writer then independent verifier; commit: 7c34d771; full coverage 391 files/3,879 tests, independent final PASS with 23 focused tests (6.65s), normal frontend quality/type/coverage/render/layout hooks passed.
+- T0c [S2,S5] done; route: delegated writer plus parent checks; commit: 7c34d771; maxWorkers 4 -> 2, full typecheck/coverage and normal hooks passed; all proof boundaries preserved, no processes terminated.
 - T1 [S1,S2] pending; route: parent delivery, existing verified implementation; commit: pending; commit the fix with normal hooks after T0 and T0b.
 - T2 [S2] pending; route: delegated writer (context backstop); commit: pending; prepare version 2.1.1, user-facing changelog and generated NSIS metadata, then verify and commit the release unit.
 - T3 [S2,S3] pending; route: parent delivery; commit: pending; land on dev, merge into main, tag main and publish through Release CI.
@@ -42,3 +42,4 @@ Branch: `fix/mal-partial-metadata-release`; delivery: feature -> dev -> main -> 
 - L18: Corrected-candidate typecheck passed exit 0 in 20s (`bun --cwd="frontend" run typecheck`). Parent then launched exactly `cd frontend && bunx --no-install vitest run --coverage --config ../.dharness/vitest.coverage.mjs` as background job-6, without concurrent typechecking.
 - L19: Exact full coverage passed exit 0: 391 files/3,879 tests, 298.18s (5m03s job), adopted-scope 99.88% statements/99.67% branches/99.73% functions/100% lines. Combined test+resource correction is validated; CPU causality is not isolated. Updated obsolete pending-success comments and recorded measured evidence, no behavior changes. Independent verifier owns final corrective-unit pass before commits; normal hooks still run.
 - L20: Independent final verification PASS for S4/S5, no runtime/test-proof blockers: focused 2 files/23 tests exit 0 in 6.65s; coverage evidence and unchanged assertions/counts/coverage/timeouts/isolation confirmed. Nonblocking report wording advisories do not reopen correction. Commit gate correction separately before the original MAL fix; all hooks remain normal.
+- L21: Gate correction committed as 7c34d771 (`test(frontend): stabilize async checks and coverage worker demand`), exit 0 after 5m14s. Normal frontend quality, typecheck, full coverage, production render smoke and layout smoke all passed. Original MAL fix remains uncommitted and will get its own normal-hook commit.

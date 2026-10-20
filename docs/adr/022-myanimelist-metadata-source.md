@@ -45,38 +45,40 @@ in front of it today.
 trailing anchors — the DOM walk simply never reaches them — so the anchor set (D2) doubles as the
 truncation detector. No second mechanism is needed to catch a body cut short.
 
-### D2 — The noisy-error contract, and its third outcome
+### D2 — The loud-failure contract, scoped to page anchors
 
 Every label MAL's detail page can show falls into exactly one of three tiers, assigned by one rule:
 
 > A field is an **anchor** when its absence can only mean the markup changed. It is **optional**
-> when its absence can mean the anime genuinely lacks it.
+> when its absence — or a value this parser does not recognize — can mean the anime genuinely does
+> not have it.
 
-| Tier | Labels | Absence means | Value used? |
+| Tier | Labels | Unusable means | Value used? |
 |---|---|---|---|
 | Anchor | title heading, `Type:`, `Status:` | markup drift — abort the whole fetch with `*DriftError{Anchor}` | only `Type:`; `Status:` is presence-checked and discarded |
-| Mapped | `Episodes:`, `Duration:`, `Source:`, `Studios:`/`Studio:`, `Genres:`/`Genre:` | the anime genuinely lacks it — leave empty, append to `Unfilled` | yes |
+| Optional | `Episodes:`, `Duration:`, `Source:`, `Studios:`/`Studio:`, `Genres:`/`Genre:` | leave that field empty, append it to `Unfilled`, keep every other field | yes, whenever the value is usable |
 | Unparsed | `Premiered:`, `Themes:`, `Demographic:`, and nine others | — never read at all | no |
 
 Anchors are anchors because they are present on **every** anime page independent of the anime's own
-properties — a TV show and a movie both carry a `Type:` label, just with different values. Mapped
+properties — a TV show and a movie both carry a `Type:` label, just with different values. Optional
 fields are excluded from the anchor set precisely because their presence tracks the *anime*, not the
-markup: a movie legitimately has no `Studios:` block worth flagging as drift.
+markup: a movie legitimately has no `Studios:` block worth aborting over, and MAL renders
+`Duration: Unknown` for a title whose episode length it does not hold.
 
-**The part that prevents the real failure is the third outcome.** Present-but-unparseable is drift,
-not optional absence:
+**Only an anchor aborts the retrieval.** An optional numeric field that is absent, empty, the
+literal `Unknown`, or written in a shape this parser does not recognize leaves its own value empty
+and names itself in `Unfilled`; every other field still reaches the form. Existing source and list
+parsing is unchanged. The one failure this contract keeps
+preventing is a *silently wrong* value: an unrecognized `Duration:` stays empty and is never a
+zero, and a skipped field never overwrites what the form already held. What it deliberately does not
+do is block a lookup the user asked for over a single optional field — a product requirement stated
+after the original `DriftError`-for-optional-fields rule proved too coarse in practice.
 
-| | absent | present, parsed | present, unrecognized shape |
-|---|---|---|---|
-| Anchor | `DriftError` | ok | `DriftError` |
-| Mapped | `Unfilled` | ok | **`DriftError`** |
-
-So a reworded `Duration: 24 minutes/episode` returns `*DriftError{Anchor:"Duration:"}` and **never
-`0`** — and the same applies to `Episodes:` holding neither digits nor the literal string
-`Unknown`. Without this third outcome, a rewording that a naive parser cannot recognize looks
-identical to an anime that simply lacks the field, and a zero gets written silently into a user's
-form. That silent zero is the exact failure this contract exists to prevent; "the field is
-unparseable" and "the field is absent" must never collapse into the same code path.
+**Superseded decision.** The first version of D2 gave optional fields a "third outcome":
+present-but-unparseable returned `*DriftError` for `Episodes:` and `Duration:`. That is superseded —
+`Detail` now reports those two exactly like the other optional fields, and the drift signal survives
+only where it is still true: the anchor tier. `Unfilled` therefore names anchors' opposites, not a
+warranty that the page changed.
 
 Trap #1 from exploration (a single-genre anime uses the singular label `Genre:`, not the plural
 `Genres:`) falls out of the locator design rather than needing a special case: each mapped-field
@@ -153,13 +155,22 @@ future reader rather than fixed in this change's scope:
   resolves locally (`.claude/skills/`) nor globally (`~/.claude/skills/`) — re-verified during this
   phase, first recorded in `explore.md` § 5.
 
+## Verification exception for partial numeric autofill
+
+The user explicitly accepted this bounded exception: Go staged mutation exited 1 with zero mutants;
+a supplementary whole-file mutation run timed out; frontend RED was not observed; a differential
+baseline execution was not performed. None is recorded as a pass. Affected Go packages, typecheck,
+all 3,879 frontend tests, frontend staged mutation (1/1 killed), and independent functional review
+passed. This exception does not waive policy for other changes or authorize commits or publishing.
+
 ## Consequences
 
-- A future markup change on MAL's detail page fails loudly, naming the specific anchor that broke,
-  rather than writing a plausible-looking wrong value into a user's form.
-- Adding a new mapped field means adding it to the "mapped" tier's label set and its own
-  present-but-unparseable test case; adding it to the "unparsed" tier costs nothing until a form
-  gains a place to put it.
+- A future markup change that removes an anchor falls loudly, naming the anchor that broke, rather
+  than writing a plausible-looking wrong value into a user's form; an optional field MAL cannot
+  supply is skipped instead of blocking the lookup.
+- Adding a new optional field means adding it to the optional tier's label set and its own
+  skipped-field test case; adding it to the "unparsed" tier costs nothing until a form gains a place
+  to put it.
 - `internal/myanimelist` cannot be extended to write directly into `internal/anime` or `internal/api/contracts`
   without failing lint — a second hop must be added on the consuming side instead.
 - `docs/openapi.yaml` carries no diff for this change: the two new bindings are desktop-only Wails
@@ -167,8 +178,9 @@ future reader rather than fixed in this change's scope:
 
 ## Alternatives considered
 
-Covered inline under D1 (`regexp`, `goquery`, headless browser) and D2 (a two-tier contract with no
-present-but-unparseable outcome, rejected because it collapses "reworded" and "absent" into the same
-silent-empty result). No repository-wide module-boundary mechanism beyond the existing depguard
+Covered inline under D1 (`regexp`, `goquery`, headless browser) and D2 (a contract that aborts on
+any unrecognized optional value was shipped first and superseded: it blocked lookups over one field
+MAL genuinely lacked, so D2 now aborts on anchors only while still never writing a defaulted value).
+No repository-wide module-boundary mechanism beyond the existing depguard
 pattern was considered for D5 — it is the same enforcement `domain-purity` and
 `wails-confined-to-edge` already use, applied to a third boundary.
