@@ -14,6 +14,17 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [2.1.1] — 2026-10-20
+
+### Fixed
+
+- Looking up MyAnimeList metadata no longer stops when the episode count or the episode duration is missing, marked unknown or in a shape the app cannot read: that single value is skipped quietly, the rest of the metadata still fills in, and a field you already filled keeps its value.
+- The "MyAnimeList did not provide" note is no longer shown, so a partial lookup leaves no warning behind and needs nothing dismissed.
+
+### Internal
+
+- The frontend test and coverage run asks for fewer parallel workers and advances asynchronous checks on explicit timers, so the same suites finish on a busy machine without changing timeouts, isolation or coverage rules.
+
 ## [2.1.0] — 2026-10-19
 
 ### Added

@@ -11,26 +11,15 @@ import (
 	"golang.org/x/net/html"
 )
 
-// anchorTitle, anchorType and anchorStatus are design D2's anchor tier:
-// labels present on every anime page regardless of the anime's own
-// properties, so their absence can only mean the markup drifted from what
-// this parser expects. Only anchorTitle's and anchorType's VALUES are
-// used (mapped to Detail.Title and Detail.Type); anchorStatus is
-// presence-checked only, and its value is discarded — MyAnimeList's
-// Status: reports airing status, a different vocabulary from the bridge
-// editor's own watching estado (docs/ubiquitous-language.md).
+// Page anchors distinguish an anime page from unrelated or truncated HTML.
+// Optional metadata never makes an otherwise recognizable page fail.
 const (
 	anchorTitle  = "title heading"
 	anchorType   = "Type:"
 	anchorStatus = "Status:"
 )
 
-// labelEpisodes, labelDuration, labelSource, labelStudios and labelGenres
-// name design D2's Mapped tier: legitimately absent from a page (appended
-// to Detail.Unfilled), but present-in-an-unrecognized-shape is drift, not
-// silent absence (D2's "third outcome"). Studios:/Studio: and
-// Genres:/Genre: both accept a label set (parse.go); the plural form
-// names the field in Unfilled either way.
+// Optional labels name fields left empty when unavailable or unrecognized.
 const (
 	labelEpisodes = "Episodes:"
 	labelDuration = "Duration:"
@@ -39,14 +28,7 @@ const (
 	labelGenres   = "Genres:"
 )
 
-// episodesUnknownLiteral is MyAnimeList's literal Episodes: text for an
-// anime that has not aired long enough to report an episode count — a
-// legitimate absence, not a parse failure.
-const episodesUnknownLiteral = "Unknown"
-
-// episodesDigitsPattern matches Episodes:'s only other recognized shape:
-// one or more ASCII digits. Anything else present under the label is
-// markup drift (design D2a's episodes row).
+// episodesDigitsPattern recognizes a usable episode count.
 var episodesDigitsPattern = regexp.MustCompile(`^\d+$`)
 
 // firstHeadingText returns the trimmed text of the first <h1> element
@@ -69,48 +51,29 @@ func firstHeadingText(n *html.Node) (title string, ok bool) {
 	return "", false
 }
 
-// mappedEpisodes extracts and validates Episodes:'s Mapped-tier value
-// (design D2/D2a). Absence and the literal "Unknown" are both legitimate
-// — the label is missing, or the anime has not aired long enough to
-// report a count. Any other non-digit shape is markup drift, not a
-// fourth legitimate case: unfilled reports exactly two of those three
-// outcomes, err reports the third.
-func mappedEpisodes(doc *html.Node, url string) (value string, unfilled bool, err error) {
-	raw, ok := parseEpisodes(doc)
-	if !ok {
-		return "", true, nil
+// mappedEpisodes leaves unavailable or unrecognized episode counts empty.
+// An absent label yields empty text, which episodesDigitsPattern rejects, so
+// absence and an unrecognized shape take the same path.
+func mappedEpisodes(doc *html.Node) (value string, unfilled bool) {
+	raw, _ := parseEpisodes(doc)
+	if episodesDigitsPattern.MatchString(raw) {
+		return raw, false
 	}
-	if raw == episodesUnknownLiteral {
-		return "", true, nil
-	}
-	if !episodesDigitsPattern.MatchString(raw) {
-		return "", false, &DriftError{Anchor: labelEpisodes, URL: url}
-	}
-	return raw, false, nil
+	return "", true
 }
 
-// mappedDuration extracts Duration:'s raw text and converts it to whole
-// minutes via parseDurationMinutes (design D2a). Absence is legitimate; a
-// present value in neither recognized shape is markup drift (D2's "third
-// outcome" — never a silent zero).
-func mappedDuration(doc *html.Node, url string) (minutes string, unfilled bool, err error) {
-	raw, ok := singleValueField(doc, labelDuration)
-	if !ok {
-		return "", true, nil
-	}
+// mappedDuration returns whole minutes, or leaves unavailable values empty.
+func mappedDuration(doc *html.Node) (minutes string, unfilled bool) {
+	raw, _ := singleValueField(doc, labelDuration)
 	parsed, ok := parseDurationMinutes(raw)
-	if !ok {
-		return "", false, &DriftError{Anchor: labelDuration, URL: url}
+	if ok {
+		return strconv.Itoa(parsed), false
 	}
-	return strconv.Itoa(parsed), false, nil
+	return "", true
 }
 
-// parseDetailPage assembles a Detail from a fetched anime page's parsed
-// DOM, or returns a *DriftError naming the first anchor or Mapped-tier
-// field whose shape no longer matches this parser's expectations (design
-// D2). url only names the page in the returned error; parseDetailPage
-// performs no fetch itself, which is what makes it independently
-// testable over an in-memory fragment or a real fixture (detail_test.go).
+// parseDetailPage preserves usable metadata and skips unavailable fields.
+// Only a missing page anchor aborts retrieval with a DriftError.
 func parseDetailPage(doc *html.Node, url string) (Detail, error) {
 	title, ok := firstHeadingText(doc)
 	if !ok {
@@ -127,19 +90,13 @@ func parseDetailPage(doc *html.Node, url string) (Detail, error) {
 	detail := Detail{Title: title, Type: kind}
 	var unfilled []string
 
-	episodes, episodesUnfilled, err := mappedEpisodes(doc, url)
-	if err != nil {
-		return Detail{}, err
-	}
+	episodes, episodesUnfilled := mappedEpisodes(doc)
 	detail.Episodes = episodes
 	if episodesUnfilled {
 		unfilled = append(unfilled, labelEpisodes)
 	}
 
-	duration, durationUnfilled, err := mappedDuration(doc, url)
-	if err != nil {
-		return Detail{}, err
-	}
+	duration, durationUnfilled := mappedDuration(doc)
 	detail.Duration = duration
 	if durationUnfilled {
 		unfilled = append(unfilled, labelDuration)

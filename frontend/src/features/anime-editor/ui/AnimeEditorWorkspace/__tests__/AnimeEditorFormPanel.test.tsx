@@ -279,7 +279,7 @@ describe('AnimeEditorFormPanel -- MyAnimeList metadata lookup (SDD-70 slice 7)',
     expect(screen.queryByText(/MyAnimeList did not provide/)).not.toBeInTheDocument();
   });
 
-  it('shows Undo and the unfilled report once metadata is applied, and undoing calls onMetadataUndo', () => {
+  it('silently skips unfilled metadata and keeps Undo functional', () => {
     const onMetadataUndo = vi.fn();
     const viewModel = createViewModel({
       onMetadataUndo,
@@ -292,7 +292,7 @@ describe('AnimeEditorFormPanel -- MyAnimeList metadata lookup (SDD-70 slice 7)',
     });
 
     render(<AnimeEditorFormPanel viewModel={viewModel} />);
-    expect(screen.getByText('MyAnimeList did not provide: kind, studios')).toBeInTheDocument();
+    expect(screen.queryByText(/MyAnimeList did not provide/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Undo autofill' }));
 
     expect(onMetadataUndo).toHaveBeenCalledTimes(1);

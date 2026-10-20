@@ -66,8 +66,14 @@ defineConfig(
         // reintroduce exactly the desktop starvation the cap exists to prevent.
         // `isolate: false` was measured and REJECTED: the suite fails without
         // per-file isolation, so that speedup is not available here.
+        //
+        // Lowered 4 -> 2 after the release 2.1.1 coverage failures; see
+        // docs/reports/2026-10-18-pre-commit-resource-contention.md for evidence.
+        // The exact coverage gate now passes all 391 files / 3,879 tests in
+        // 298.18 s, without changing isolation, timeout or coverage policy.
+        // One inherited bound covers both node and dom projects below.
         fileParallelism: true,
-        maxWorkers: 4,
+        maxWorkers: 2,
         projects: [
           {
             extends: true,

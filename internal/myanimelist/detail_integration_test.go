@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -52,6 +53,74 @@ func TestClientDetailOverHTTPFetchesAndParsesTheRealPage(t *testing.T) {
 	}
 	if got := requestCount.Load(); got != 1 {
 		t.Fatalf("expected exactly one GET per Detail call, got %d", got)
+	}
+}
+
+// TestClientDetailSkipsUnavailableFields keeps every usable value when an
+// optional numeric field is absent, unknown, empty or unrecognized, and
+// names it in Unfilled instead of aborting the whole retrieval.
+func TestClientDetailSkipsUnavailableFields(t *testing.T) {
+	t.Parallel()
+
+	body, err := os.ReadFile("testdata/detail_tv.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// fixtureEpisodes and fixtureDuration are the fixture's exact rendered
+	// values. Each case replaces them literally, so a case whose edit stops
+	// matching the fixture changes nothing and fails its own assertion
+	// instead of passing on an untouched page.
+	const (
+		fixtureEpisodes = "  13\n"
+		fixtureDuration = "  24 min. per ep.\n"
+	)
+	type edit struct{ from, to string }
+	cases := []struct {
+		name     string
+		edits    []edit
+		episodes string
+		duration string
+		unfilled []string
+	}{
+		{name: "unchanged page", episodes: "13", duration: "24"},
+		{name: "unknown duration", edits: []edit{{fixtureDuration, "  Unknown\n"}}, episodes: "13", unfilled: []string{labelDuration}},
+		{name: "unrecognized duration", edits: []edit{{fixtureDuration, "  24 minutes/episode\n"}}, episodes: "13", unfilled: []string{labelDuration}},
+		{name: "empty duration", edits: []edit{{fixtureDuration, "\n"}}, episodes: "13", unfilled: []string{labelDuration}},
+		{name: "absent duration", edits: []edit{{"Duration:", "Unavailable:"}}, episodes: "13", unfilled: []string{labelDuration}},
+		{name: "unknown episodes", edits: []edit{{fixtureEpisodes, "  Unknown\n"}}, duration: "24", unfilled: []string{labelEpisodes}},
+		{name: "unrecognized episodes", edits: []edit{{fixtureEpisodes, "  TBD\n"}}, duration: "24", unfilled: []string{labelEpisodes}},
+		{name: "both unknown", edits: []edit{{fixtureDuration, "  Unknown\n"}, {fixtureEpisodes, "  Unknown\n"}}, unfilled: []string{labelEpisodes, labelDuration}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			page := string(body)
+			for _, e := range tc.edits {
+				page = strings.ReplaceAll(page, e.from, e.to)
+			}
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				requests.Add(1)
+				_, _ = w.Write([]byte(page))
+			}))
+			defer server.Close()
+			client := NewClient(NewHTTPClient(time.Second, 1<<20, ""), server.URL)
+			detail, err := client.Detail(context.Background(), 41467)
+			if err != nil {
+				t.Fatalf("Detail: %v", err)
+			}
+			want := Detail{
+				Title: "Bleach: Sennen Kessen-hen", Type: "TV",
+				Episodes: tc.episodes, Duration: tc.duration, Source: "Manga",
+				Studios: []string{"Studio Pierrot"}, Genres: []string{"Action", "Adventure", "Supernatural"},
+				Unfilled: tc.unfilled,
+			}
+			if !reflect.DeepEqual(detail, want) {
+				t.Fatalf("Detail = %+v; want %+v", detail, want)
+			}
+			if requests.Load() != 1 {
+				t.Fatalf("expected one GET, got %d", requests.Load())
+			}
+		})
 	}
 }
 

@@ -115,6 +115,21 @@ describe('HistoryFilterBar', () => {
       fireEvent.click(rangeTrigger(container));
     }
 
+    /**
+     * The open calendar's own surface (`role="application"`, labelled by the
+     * range aria-label). Day cells and year cells both live inside it, so
+     * assertions scoped here cost one accessible-name lookup each instead of
+     * the document-wide computation a `screen` role query pays for across the
+     * bar and the calendar's 42 day cells plus its 20 always-rendered year
+     * cells.
+     * @returns The open calendar element.
+     */
+    function calendar(): HTMLElement {
+      return screen.getByRole('application', {
+        name: (accessibleName) => accessibleName.startsWith(HISTORY_FILTER_BAR_RANGE_ARIA_LABEL),
+      });
+    }
+
     it.each<[string, HistoryDateRange | undefined, string]>([
       ['the committed range', { from: '2026-09-01', to: '2026-09-13' }, 'Sep 1 – Sep 13, 2026'],
       ['a placeholder without a range', undefined, 'Any date'],
@@ -129,8 +144,8 @@ describe('HistoryFilterBar', () => {
       const { container } = render(<HistoryFilterBar {...props({ range: { from: '2026-09-01', to: '2026-09-02' }, onRangeChange })} />);
 
       openCalendar(container);
-      fireEvent.click(screen.getByRole('button', { name: /september 3, 2026/i }));
-      fireEvent.click(screen.getByRole('button', { name: /september 5, 2026/i }));
+      fireEvent.click(within(calendar()).getByRole('button', { name: /september 3, 2026/i }));
+      fireEvent.click(within(calendar()).getByRole('button', { name: /september 5, 2026/i }));
 
       expect(onRangeChange).toHaveBeenCalledExactlyOnceWith({ from: '2026-09-03', to: '2026-09-05' });
     });
@@ -162,7 +177,7 @@ describe('HistoryFilterBar', () => {
 
         openCalendar(container);
 
-        expect(screen.getByRole('button', { name: /september 1, 2026/i })).toBeInTheDocument();
+        expect(within(calendar()).getByRole('button', { name: /september 1, 2026/i })).toBeInTheDocument();
         expect(screen.getByText('Sun')).toBeInTheDocument();
       } finally {
         vi.useRealTimers();
@@ -170,12 +185,21 @@ describe('HistoryFilterBar', () => {
     });
 
     it('opens a year picker naming years', () => {
-      const { container } = render(<HistoryFilterBar {...props()} />);
+      // The picker opens on whatever month "today" is, and its year grid is
+      // centred on that month, so pin the clock: without it the `2026` cell
+      // exists only while the real date stays near 2026.
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date(2026, 8, 15));
+      try {
+        const { container } = render(<HistoryFilterBar {...props()} />);
 
-      openCalendar(container);
-      fireEvent.click(screen.getByRole('button', { name: /year selector/i }));
+        openCalendar(container);
+        fireEvent.click(within(calendar()).getByRole('button', { name: /year selector/i }));
 
-      expect(screen.getByRole('button', { name: '2026' })).toBeInTheDocument();
+        expect(within(calendar()).getByRole('button', { name: '2026' })).toBeInTheDocument();
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

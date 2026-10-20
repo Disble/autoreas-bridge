@@ -74,16 +74,9 @@ export function AnimeCreateRow({ row, index, viewModel }: Readonly<AnimeCreateRo
             onConfirm={(selection) => viewModel.onMetadataApplied(draftId, selection)}
           />
           {appliedMetadata === undefined ? null : (
-            <>
-              <Button size="sm" variant="tertiary" onPress={() => viewModel.onMetadataUndo(draftId)}>
-                Undo autofill
-              </Button>
-              {appliedMetadata.unfilled.length === 0 ? null : (
-                <Typography color="muted" type="body-xs">
-                  MyAnimeList did not provide: {appliedMetadata.unfilled.join(', ')}
-                </Typography>
-              )}
-            </>
+            <Button size="sm" variant="tertiary" onPress={() => viewModel.onMetadataUndo(draftId)}>
+              Undo autofill
+            </Button>
           )}
         </div>
 

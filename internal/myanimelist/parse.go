@@ -177,8 +177,8 @@ func parseSource(doc *html.Node) (source string, ok bool) {
 
 // parseEpisodes extracts the raw Episodes: value as MyAnimeList renders
 // it — digits, or the literal "Unknown" for an unaired anime. Deciding
-// whether a non-numeric value is Unfilled or a parse-drift error is
-// detail.go's job (Slice 2b); this function only reports the text and
+// whether a value can be used or must be skipped is detail.go's job;
+// this function only reports the text and
 // whether the label was found at all.
 func parseEpisodes(doc *html.Node) (raw string, ok bool) {
 	return singleValueField(doc, "Episodes:")
@@ -208,9 +208,8 @@ func parseStudios(doc *html.Node) (studios []string, ok bool) {
 var durationPattern = regexp.MustCompile(`^(?:(\d+) hr\.)?(?: ?(\d+) min\.(?: per ep\.)?)?$`)
 
 // parseDurationMinutes converts a MyAnimeList Duration: value into whole
-// minutes. An unrecognized shape returns ok=false; the caller raises
-// *DriftError, never 0 (design D2's "third outcome" — present-but-
-// unparseable is drift, not a silently wrong zero).
+// minutes. An unrecognized shape returns ok=false so the caller can
+// skip this field without aborting retrieval or defaulting it to zero.
 func parseDurationMinutes(raw string) (minutes int, ok bool) {
 	match := durationPattern.FindStringSubmatch(strings.TrimSpace(raw))
 	if match == nil || (match[1] == "" && match[2] == "") {

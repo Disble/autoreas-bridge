@@ -104,10 +104,10 @@ func TestParseDetailPageMissingAnchorAbortsWithDriftError(t *testing.T) {
 }
 
 // TestParseDetailPageAbsentMappedFieldsAppendToUnfilled covers design
-// D2's Mapped tier absence outcome: a legitimately absent field is left
-// empty and named in Unfilled, never defaulted. All five Mapped-tier
-// labels are absent from anchorsOnlyFragment, so this proves the whole
-// set, not just one field.
+// D2's optional tier absence outcome: a legitimately absent field is left
+// empty and named in Unfilled, never defaulted. All five optional labels
+// are absent from anchorsOnlyFragment, so this proves the whole set, not
+// just one field.
 func TestParseDetailPageAbsentMappedFieldsAppendToUnfilled(t *testing.T) {
 	t.Parallel()
 
@@ -130,53 +130,10 @@ func TestParseDetailPageAbsentMappedFieldsAppendToUnfilled(t *testing.T) {
 	}
 }
 
-// TestParseDetailPageUnparseableDurationReturnsDriftError is design D2's
-// "third outcome": a reworded Duration: shape is present but matches
-// neither known pattern, so it must return a *DriftError naming
-// "Duration:" and never a zero (the failure this contract exists to
-// prevent).
-func TestParseDetailPageUnparseableDurationReturnsDriftError(t *testing.T) {
-	t.Parallel()
-
-	fragment := anchorsOnlyFragment + `
-<div class="spaceit_pad"><span class="dark_text">Duration:</span> 24 minutes/episode</div>`
-	doc := parseFragment(t, fragment)
-
-	_, err := parseDetailPage(doc, "https://myanimelist.example/anime/1")
-
-	var driftErr *DriftError
-	if !errors.As(err, &driftErr) {
-		t.Fatalf("expected a *DriftError, got %v", err)
-	}
-	if driftErr.Anchor != "Duration:" {
-		t.Fatalf("expected anchor %q, got %q", "Duration:", driftErr.Anchor)
-	}
-}
-
-// TestParseDetailPageUnparseableEpisodesReturnsDriftError extends the
-// third-outcome trap to Episodes:: a value that is neither digits nor
-// the literal "Unknown" is drift, not a legitimate third state.
-func TestParseDetailPageUnparseableEpisodesReturnsDriftError(t *testing.T) {
-	t.Parallel()
-
-	fragment := anchorsOnlyFragment + `
-<div class="spaceit_pad"><span class="dark_text">Episodes:</span> TBD</div>`
-	doc := parseFragment(t, fragment)
-
-	_, err := parseDetailPage(doc, "https://myanimelist.example/anime/1")
-
-	var driftErr *DriftError
-	if !errors.As(err, &driftErr) {
-		t.Fatalf("expected a *DriftError, got %v", err)
-	}
-	if driftErr.Anchor != "Episodes:" {
-		t.Fatalf("expected anchor %q, got %q", "Episodes:", driftErr.Anchor)
-	}
-}
-
 // TestParseDetailPageEpisodesUnknownLiteralIsUnfilledNotDrift proves the
-// literal "Unknown" is the one legitimate non-digit Episodes: value
-// (design D2/D2a): it is reported as unfilled, not as drift.
+// literal "Unknown" never reaches Detail as a value: it is reported as
+// unfilled, like every other shape the parser cannot use. The end-to-end
+// skipped-field cases live in detail_integration_test.go.
 func TestParseDetailPageEpisodesUnknownLiteralIsUnfilledNotDrift(t *testing.T) {
 	t.Parallel()
 
@@ -197,8 +154,8 @@ func TestParseDetailPageEpisodesUnknownLiteralIsUnfilledNotDrift(t *testing.T) {
 }
 
 // TestParseDetailPageOverRealFixturesFillsEveryMappedField is the
-// positive counterpart to the absence/drift tests above: every real
-// fixture's Mapped-tier fields are present and recognized, so none of
+// positive counterpart to the absence/skip tests above: every real
+// fixture's optional fields are present and recognized, so none of
 // them appear in Unfilled and every value matches what parse.go's own
 // per-field tests already pin.
 func TestParseDetailPageOverRealFixturesFillsEveryMappedField(t *testing.T) {

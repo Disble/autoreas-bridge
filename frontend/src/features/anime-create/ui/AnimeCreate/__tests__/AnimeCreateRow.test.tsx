@@ -102,7 +102,7 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
     expect(screen.queryByRole('button', { name: 'Undo autofill' })).not.toBeInTheDocument();
   });
 
-  it('shows Undo and the unfilled report once metadata is applied, and undoing calls onMetadataUndo', () => {
+  it('silently skips unfilled metadata and keeps Undo functional', () => {
     const row = draftRow({ name: 'Bleach' });
     const onMetadataUndo = vi.fn();
     const viewModel = createViewModel({
@@ -118,7 +118,7 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
     });
     render(<AnimeCreateRow index={0} row={row} viewModel={viewModel} />);
 
-    expect(screen.getByText('MyAnimeList did not provide: kind, studios')).toBeInTheDocument();
+    expect(screen.queryByText(/MyAnimeList did not provide/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Undo autofill' }));
 
     expect(onMetadataUndo).toHaveBeenCalledWith(row.draftId);
