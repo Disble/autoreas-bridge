@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NotificationCenterSource } from '../../../../../infrastructure/notification-center-source/notification-center-source.types';
 import type { NotificationListRequest, NotificationPage } from '../../../../../shared/contracts/notification-center.types';
+import { NOTIFICATION_FILTER_DEBOUNCE_MS } from '../../NotificationFilterBar/use-notification-filters';
 import { NotificationCenterPanel } from '../NotificationCenterPanel';
 
 afterEach(cleanup);
@@ -49,10 +50,26 @@ describe('NotificationCenterPanel', () => {
 
     await waitFor(() => expect(screen.getByText('Notifications unavailable')).toBeInTheDocument());
   });
+});
+
+/**
+ * The debounced-search case drives the clock itself, so its fake-timer hooks
+ * are scoped here: the three cases above need real timers, and a file-level
+ * `beforeEach` would fake the clock under them too. `afterEach` is the
+ * cleanup guarantee -- it uninstalls the fake clock even when an assertion
+ * below throws, which the previous inline `vi.useRealTimers()` could not
+ * promise.
+ */
+describe('NotificationCenterPanel debounced search', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it('reaches the "no results for the current filters" empty state once a typed search matches nothing (task 3b gap closure)', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-
     const listNotifications = vi.fn((request: NotificationListRequest): Promise<NotificationPage> =>
       Promise.resolve(
         request.search === 'zzz'
@@ -77,13 +94,25 @@ describe('NotificationCenterPanel', () => {
     };
 
     render(<NotificationCenterPanel source={source} />);
-    await vi.waitFor(() => expect(screen.getByText('Episode ready')).toBeInTheDocument());
+    // The first page is a resolved promise, so it settles on microtasks, not on
+    // a timer: one empty act step drains it and needs no wall-clock budget.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByText('Episode ready')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Search notifications'), { target: { value: 'zzz' } });
 
-    await vi.waitFor(() => expect(screen.getByText('No matches')).toBeInTheDocument());
-    expect(listNotifications).toHaveBeenLastCalledWith(expect.objectContaining({ search: 'zzz' }));
+    // The debounce is an explicit clock step, not a race: the keystroke only
+    // schedules `useDebounce`, and the query that follows renders the panel
+    // several times. Racing that against `vi.waitFor`'s one-second budget is
+    // what failed under v8 instrumentation, where those renders cost more than
+    // the budget allows.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(NOTIFICATION_FILTER_DEBOUNCE_MS);
+    });
 
-    vi.useRealTimers();
+    expect(screen.getByText('No matches')).toBeInTheDocument();
+    expect(listNotifications).toHaveBeenLastCalledWith(expect.objectContaining({ search: 'zzz' }));
   });
 });
