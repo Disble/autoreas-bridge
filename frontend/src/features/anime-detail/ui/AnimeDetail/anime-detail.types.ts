@@ -1,4 +1,5 @@
-import type { Dispatch, SetStateAction, SyntheticEvent } from 'react';
+import type { Dispatch, ReactNode, SetStateAction, SyntheticEvent } from 'react';
+import type { contracts } from '../../../../../wailsjs/go/models';
 import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeDetail as AnimeDetailDto } from '../../../../shared/contracts/anime.types';
 import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
@@ -23,12 +24,6 @@ export interface AnimeDetailSkeletonProps {
  */
 export type HeroChipColor = 'accent' | 'default' | 'success' | 'warning' | 'danger';
 
-/** A single per-episode stat tile (label + display-ready value). */
-export interface AnimeDetailStatTile {
-  readonly label: string;
-  readonly value: string;
-}
-
 /** View model consumed by the dumb AnimeDetail UI. */
 export interface AnimeDetailViewModel {
   readonly id: string;
@@ -37,13 +32,26 @@ export interface AnimeDetailViewModel {
   readonly canRepeat: boolean;
   readonly canRestore: boolean;
   readonly hasStoredCover: boolean;
+  /** Alt text of the resolved cover: `Cover of <name>`. */
+  readonly coverAlt: string;
+  /** Accessible names of the toolbar actions: `Repeat <name>`, `Restore <name>`, `Edit <name>`. */
+  readonly repeatLabel: string;
+  readonly restoreLabel: string;
+  readonly editLabel: string;
   readonly estadoLabel: string;
+  readonly estadoColor: HeroChipColor;
   readonly tipoLabel: string;
-  readonly subtitleLabel: string;
   readonly statusLabel: string;
   readonly statusColor: HeroChipColor;
-  readonly statTiles: readonly AnimeDetailStatTile[];
+  /** `12 of 28 episodes`, or the watched count with the no-total fallback. */
+  readonly progressCountLabel: string;
+  /** `Duration · 24 min`, or the no-duration fallback. */
+  readonly durationLabel: string;
+  /** 0-100 watched ratio; `undefined` without a total, so no progress bar renders. */
+  readonly progressRatio: number | undefined;
   readonly paginaUrl?: string;
+  /** Whether a folder path exists to show and copy. */
+  readonly hasFolder: boolean;
   readonly carpetaLabel: string;
   readonly estrenoLabel: string;
   readonly creacionLabel: string;
@@ -131,14 +139,68 @@ export interface AnimeDetailMutationControlsProps extends AnimeDetailMutationCon
   readonly detail: AnimeDetailViewModel;
 }
 
-/** Props for the dumb Repeat/Restore buttons the hero header renders beside the status chip. */
-export interface AnimeDetailMutationActionsProps {
-  readonly canRepeat: boolean;
-  readonly canRestore: boolean;
+/** A desktop-action binding such as `copyAnimeFolder` or `openAnimePage`, keyed by anime id. */
+export type AnimeDetailDesktopAction = (animeId: string) => Promise<contracts.EpisodeCommandResult>;
+
+/** The toasts one desktop action raises: an optional success and a required failure. */
+export interface AnimeDetailDesktopActionFeedback {
+  readonly success?: string;
+  readonly failure: string;
+}
+
+/** The desktop-action bindings Detail uses; each is optional, and an absent one fails closed. */
+export type AnimeDetailDesktopActionSource = Pick<BridgeRuntimeSource, 'copyAnimeFolder' | 'openAnimePage'>;
+
+/** The Detail callbacks that leave the app: copy the folder path, open the page in the default browser. */
+export interface AnimeDetailDesktopActions {
+  readonly onCopyFolder: () => Promise<void>;
+  readonly onOpenPage: () => Promise<void>;
+}
+
+/** A toast to raise through the global HeroUI toast queue. */
+export interface AnimeDetailToast {
+  readonly status: 'success' | 'danger';
+  readonly message: string;
+}
+
+/** Props for the main card's toolbar: Back on the left, Repeat/Restore/Edit on the right. */
+export interface AnimeDetailToolbarProps {
+  readonly detail: AnimeDetailViewModel;
   readonly isMutating: boolean;
+  readonly onBack: () => void;
+  readonly onEditAnime: () => void;
   readonly onRequestRepeat: () => void;
   readonly onRequestRestore: () => void;
 }
+
+/** Props for the cover frame's content: skeleton, resolved art, or the no-cover poster. */
+export interface AnimeDetailCoverProps {
+  readonly cover: AnimeCoverEntry;
+  readonly coverAlt: string;
+  readonly onPortadaError: () => void;
+  readonly onPortadaLoad: (event: SyntheticEvent<HTMLImageElement>) => void;
+}
+
+/** Props for the identity block (title, type and chips) and the General data card. */
+export interface AnimeDetailSectionProps {
+  readonly detail: AnimeDetailViewModel;
+}
+
+/** Props for the General data card, which owns the Folder copy action and the Page link. */
+export interface AnimeDetailGeneralDataProps extends AnimeDetailSectionProps, AnimeDetailDesktopActions {}
+
+/** Props for one General data field: a caption over its value. */
+export interface AnimeDetailFieldProps {
+  readonly label: string;
+  /** Spans every column of the field grid. */
+  readonly isWide?: boolean;
+  readonly children: ReactNode;
+}
+
+/** Props for the main card: toolbar, cover, identity and General data. */
+export type AnimeDetailMainCardProps = Omit<AnimeDetailState, 'loadState' | 'detail' | 'detailSource' | 'confirmation' | 'feedback' | 'onCancelAction' | 'onConfirmationOpenChange' | 'onConfirmAction'> & {
+  readonly detail: AnimeDetailViewModel;
+};
 
 /** State returned by the `useAnimeDetail` hook. */
 export interface AnimeDetailState {
@@ -151,6 +213,8 @@ export interface AnimeDetailState {
   readonly onPortadaLoad: (event: SyntheticEvent<HTMLImageElement>) => void;
   readonly onBack: () => void;
   readonly onEditAnime: () => void;
+  readonly onCopyFolder: () => Promise<void>;
+  readonly onOpenPage: () => Promise<void>;
   readonly confirmation: AnimeDetailConfirmationViewModel | undefined;
   readonly feedback: AnimeDetailFeedback | undefined;
   readonly isMutating: boolean;

@@ -5,6 +5,12 @@ whose `.claude` (`1.1.2`) and `.agents` (`1.3.0`) copies had drifted; both histo
 Entries name the views that prompted them as a historical record; the rules themselves live in the
 files of `docs/design/`. Superseded entries are kept and marked.
 
+- `2.4.0` — Recorded the Anime Detail redesign, built from the approved mockup: a main card laid
+  out from its own width with container queries (`foundations/layout.md`, "Detail card"), a card
+  toolbar of icon-only actions through the new shared `IconActionButton`
+  (`components/heroui-mapping.md`), one progress line instead of the three stat tiles, and Watch
+  history in its own card. The Airis "No Cover" poster became the shared `NoCoverPoster`, used by
+  Catalog and Anime Detail; it is no longer Catalog-only (supersedes that part of `2.2.0`).
 - `2.3.0` — Recorded the page-chrome cleanup across every screen: a shared `PageHeader` with no
   subtitle (and no rail tagline), section tabs under the title sized to their labels instead of
   spanning the page and never wrapping, the History search taking the free width, tab panels without a repeated heading, Today's view toggle in the header

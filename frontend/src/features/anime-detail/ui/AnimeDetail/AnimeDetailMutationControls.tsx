@@ -5,7 +5,7 @@ import type { AnimeDetailMutationControlsProps } from './anime-detail.types';
 /**
  * Renders the mutation feedback alert and confirmation modal while the hook
  * owns every decision and side effect; the Repeat/Restore buttons that open
- * the modal live in the hero header (`AnimeDetailMutationActions`).
+ * the modal live in the main card toolbar (`AnimeDetailToolbar`).
  */
 export function AnimeDetailMutationControls(props: Readonly<AnimeDetailMutationControlsProps>) {
   return (

@@ -144,10 +144,11 @@ break the row baseline. Catalog's frame is `CATALOG_COVER_FRAME_CLASS`
 | Cover resolved | The art, `object-cover` |
 | No stored cover, lookup unavailable or empty, or the image fails to decode | The approved Airis "No Cover" poster, `assets/covers/no-cover.webp`, cropped like a real cover |
 
-- The "No cover" text is UI (`CATALOG_NO_COVER_LABEL`, a soft `Chip` over the poster), never baked
-  into the art. Cards show it; 40px thumbnails do not.
-- The poster is Catalog-only for now. Every other screen keeps `CoverPlaceholderScene` (above) until
-  a change asks for the poster there.
+- The poster is one shared component, `shared/anime-cover/NoCoverPoster/NoCoverPoster.tsx`. Its
+  "No cover" text is UI (the caller's `label`, a soft `Chip` over the poster), never baked into the
+  art. Cards show it; 40px thumbnails do not (`showLabel`).
+- The poster is used by Catalog and Anime Detail. Every other screen keeps `CoverPlaceholderScene`
+  (above) until a change asks for the poster there.
 - Covers are requested only for the rendered progressive window and only for records with
   `hasCover`, so a long catalog costs one lookup per revealed card (`useCatalogCovers` over
   `shared/anime-cover/use-anime-cover-cache.ts`).
@@ -155,3 +156,27 @@ break the row baseline. Catalog's frame is `CATALOG_COVER_FRAME_CLASS`
 The Catalog sets no width cap or height of its own: it fills `AppLayout`'s container
 (`max-w-[1600px]`) and scrolls with the page like every other screen. Because the document is what
 scrolls, its window is `usePageProgressiveWindow` (`patterns/lists.md`).
+
+## Detail card (cover beside the body, laid out from its own width)
+
+Anime Detail's main card (`features/anime-detail/ui/AnimeDetail/AnimeDetailMainCard.tsx`) lays
+itself out from the card's OWN width, not the viewport: `Card.Content` carries `@container`, and
+every breakpoint below is a Tailwind container variant. The classes live in
+`anime-detail.constants.ts` and are shared with `AnimeDetailSkeleton`, so the two shapes cannot
+drift.
+
+| Card width | Layout |
+|---|---|
+| 700px and up (`@[700px]:`) | A 280px cover column stretched to the body's height (5:7 minimum), the body beside it as a flex column, General data in 3 columns |
+| 420–699px | A 68px cover thumbnail beside the identity; the body is `contents`, so General data spans the card in 2 columns; no "No cover" pill |
+| Below 420px (`@max-[419px]:`) | A 76px thumbnail, General data in 1 column, the duration on its own line |
+
+- The card opens with a **toolbar row**, not page-header actions: a ghost icon-only Back on the
+  left, the actions on the right as icon-only `tertiary` buttons with tooltips
+  (`shared/ui/IconActionButton`). Conditional actions sit left of the one that is always there, so
+  it never moves. A running mutation disables every action.
+- The anime name is the page `h1`; no subtitle line, only the type beside the chips.
+- Secondary sections (Watch history) get their own `Card` below, 24px away.
+- jsdom cannot prove any of this. `scripts/layout-fixtures/anime-detail-card-fixture.tsx` mounts the
+  card at 900, 560 and 380px and `layout:smoke` measures the cover width, the stretch, the field
+  column count, the pill and overflow at each.

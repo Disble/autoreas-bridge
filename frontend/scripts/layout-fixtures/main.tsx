@@ -6,6 +6,7 @@ import { renderAppNotificationToast } from '../../src/features/notifications/ui/
 import { ActivityHistoryFixture } from './activity-history-fixture';
 import { ActivityIncidentFixture } from './activity-incident-fixture';
 import { ActivityNowFixture } from './activity-now-fixture';
+import { AnimeDetailCardFixture } from './anime-detail-card-fixture';
 import { AirisEmptyStatesFixture } from './airis-empty-states-fixture';
 import { LoadingSkeletonsFixture } from './loading-skeletons-fixture';
 import { SeasonIntakeRawFixture } from './season-intake-raw-fixture';
@@ -283,6 +284,7 @@ function LayoutFixtures() {
       <SeasonOrderingFixture />
       <SeasonOverviewFixture />
       <SeasonIntakeRawFixture />
+      <AnimeDetailCardFixture />
       <FixturePageGuard />
     </>
   );

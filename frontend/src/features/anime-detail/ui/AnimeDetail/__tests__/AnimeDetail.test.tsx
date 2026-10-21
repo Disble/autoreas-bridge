@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /** Stands in for the anime-detail hook so this suite asserts rendering only. */
@@ -26,17 +26,20 @@ function createDetailViewModel(overrides = {}) {
     canRepeat: true,
     canRestore: false,
     hasStoredCover: false,
+    coverAlt: 'Cover of Frieren',
+    repeatLabel: 'Repeat Frieren',
+    restoreLabel: 'Restore Frieren',
+    editLabel: 'Edit Frieren',
     estadoLabel: 'No me gusto',
-    tipoLabel: 'Serie',
-    subtitleLabel: 'No me gusto • Serie',
+    estadoColor: 'danger',
+    tipoLabel: 'Película',
     statusLabel: 'Active',
     statusColor: 'success',
-    statTiles: [
-      { label: 'Watched', value: '12' },
-      { label: 'Total episodes', value: '28' },
-      { label: 'Duration', value: '24 min' },
-    ],
+    progressCountLabel: '12 of 28 episodes',
+    durationLabel: 'Duration · 24 min',
+    progressRatio: 43,
     paginaUrl: undefined,
+    hasFolder: false,
     carpetaLabel: 'Unknown',
     estrenoLabel: 'Unknown',
     creacionLabel: 'Unknown',
@@ -78,6 +81,8 @@ function mockAnimeDetailState(overrides = {}) {
     onPortadaLoad: vi.fn(),
     onBack: vi.fn(),
     onEditAnime: vi.fn(),
+    onCopyFolder: vi.fn(),
+    onOpenPage: vi.fn(),
     confirmation: undefined,
     feedback: undefined,
     isMutating: false,
@@ -88,6 +93,11 @@ function mockAnimeDetailState(overrides = {}) {
     onConfirmAction: vi.fn(),
     ...overrides,
   });
+}
+
+/** Reports whether `later` follows `earlier` in document order. */
+function follows(earlier: Element, later: Element): boolean {
+  return (earlier.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
 }
 
 describe('AnimeDetail', () => {
@@ -107,7 +117,7 @@ describe('AnimeDetail', () => {
     expect(screen.getByRole('status', { name: 'Loading anime detail...' })).toBeInTheDocument();
   });
 
-  it('mirrors the resolved shape with placeholder tiles and field groups while loading', () => {
+  it('mirrors the resolved shape with a cover frame and the General data fields while loading', () => {
     useAnimeDetailMock.mockReturnValue({
       loadState: 'loading',
       detail: undefined,
@@ -116,8 +126,9 @@ describe('AnimeDetail', () => {
 
     render(<AnimeDetail animeId="anime-1" />);
 
-    expect(screen.getAllByTestId('anime-detail-skeleton-tile')).toHaveLength(3);
-    expect(screen.getAllByTestId('anime-detail-skeleton-field-group')).toHaveLength(3);
+    expect(screen.getByTestId('anime-detail-skeleton-cover')).toHaveClass('aspect-[5/7]');
+    expect(screen.getAllByTestId('anime-detail-skeleton-field')).toHaveLength(8);
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
   });
 
   it('does not render the loading status region once resolved', () => {
@@ -126,7 +137,7 @@ describe('AnimeDetail', () => {
     render(<AnimeDetail animeId="anime-1" />);
 
     expect(screen.queryByRole('status', { name: 'Loading anime detail...' })).not.toBeInTheDocument();
-    expect(screen.queryByTestId('anime-detail-skeleton-tile')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('anime-detail-skeleton-cover')).not.toBeInTheDocument();
   });
 
   it('renders a not-found message when loadState is not-found', () => {
@@ -141,36 +152,37 @@ describe('AnimeDetail', () => {
     expect(screen.getByText('Anime not found.')).toBeInTheDocument();
   });
 
-  it('renders the hero header with título, subtitle, and status chip', () => {
+  it('renders the name as the page h1 with the type alone, then the estado and status chips', () => {
     mockAnimeDetailState();
 
     render(<AnimeDetail animeId="anime-1" />);
 
-    expect(screen.getByRole('heading', { name: 'Frieren' })).toBeInTheDocument();
-    expect(screen.getByText('No me gusto • Serie')).toBeInTheDocument();
-    expect(screen.getByText('Active')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Frieren' })).toBeInTheDocument();
+    const type = screen.getByText('Película');
+    const estado = screen.getByText('No me gusto');
+    expect(follows(type, estado)).toBe(true);
+    expect(follows(estado, screen.getByText('Active'))).toBe(true);
+    expect(screen.queryByText(/•/)).not.toBeInTheDocument();
   });
 
-  it('renders the cute-anime SVG placeholder instead of raw alt text when the cover resolved to placeholder', () => {
+  it('fills the cover frame with the no-cover poster when the cover resolved to placeholder', () => {
     mockAnimeDetailState({ cover: { status: 'placeholder' } });
 
     render(<AnimeDetail animeId="anime-1" />);
 
-    expect(screen.queryByRole('img', { name: 'Cover art' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Cover art')).not.toBeInTheDocument();
-    expect(screen.getByTestId('anime-detail-portada-placeholder')).toHaveClass('size-21');
-    expect(screen.getByRole('img', { name: 'No cover art' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'No cover' }).getAttribute('src')).toContain('no-cover');
+    expect(screen.queryByRole('img', { name: 'Cover of Frieren' })).not.toBeInTheDocument();
     expect(screen.queryByRole('status', { name: 'Loading cover art...' })).not.toBeInTheDocument();
   });
 
-  it('renders a named loading region for the hero avatar while the cover resolves, without the image or the placeholder', () => {
+  it('renders a named loading region for the cover while it resolves, without the image or the placeholder', () => {
     mockAnimeDetailState({ cover: { status: 'loading' } });
 
     render(<AnimeDetail animeId="anime-1" />);
 
     expect(screen.getByRole('status', { name: 'Loading cover art...' })).toBeInTheDocument();
-    expect(screen.queryByRole('img', { name: 'Cover art' })).not.toBeInTheDocument();
-    expect(screen.queryByTestId('anime-detail-portada-placeholder')).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Cover of Frieren' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'No cover' })).not.toBeInTheDocument();
   });
 
   it('renders the cover image and wires onError/onLoad to the hook callbacks when the cover resolved', () => {
@@ -184,9 +196,9 @@ describe('AnimeDetail', () => {
 
     render(<AnimeDetail animeId="anime-1" />);
 
-    const image = screen.getByRole('img', { name: 'Cover art' });
+    const image = screen.getByRole('img', { name: 'Cover of Frieren' });
     expect(image).toHaveAttribute('src', 'data:image/jpeg;base64,ZmFrZQ==');
-    expect(screen.queryByTestId('anime-detail-portada-placeholder')).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'No cover' })).not.toBeInTheDocument();
     expect(screen.queryByRole('status', { name: 'Loading cover art...' })).not.toBeInTheDocument();
 
     fireEvent.error(image);
@@ -207,28 +219,25 @@ describe('AnimeDetail', () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
-  it('renders an Edit anime action that calls the hook callback', () => {
+  it('renders an icon-only Edit action named after the anime that calls the hook callback', () => {
     const onEditAnime = vi.fn();
     mockAnimeDetailState({ onEditAnime });
 
     render(<AnimeDetail animeId="anime-1" />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit anime' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Frieren' }));
 
     expect(onEditAnime).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Edit anime')).not.toBeInTheDocument();
   });
 
-  it('groups Edit anime, Repeat and Restore beside the status chip in the hero header', () => {
+  it('orders the toolbar Back first, then Repeat, Restore and Edit last', () => {
     mockAnimeDetailState({ detail: createDetailViewModel({ canRepeat: true, canRestore: true }) });
 
     render(<AnimeDetail animeId="anime-1" />);
 
-    const hero = screen.getByRole('heading', { name: 'Frieren' }).closest('header');
-    expect(hero).not.toBeNull();
-    for (const name of ['Edit anime', 'Repeat', 'Restore']) {
-      expect(hero?.contains(screen.getByRole('button', { name }))).toBe(true);
-    }
-    expect(hero?.contains(screen.getByText('Active'))).toBe(true);
+    const names = screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'));
+    expect(names.slice(0, 4)).toEqual(['Back', 'Repeat Frieren', 'Restore Frieren', 'Edit Frieren']);
   });
 
   it('shows Repeat and Restore only when the loaded anime is eligible', () => {
@@ -242,8 +251,8 @@ describe('AnimeDetail', () => {
 
     render(<AnimeDetail animeId="anime-1" />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Repeat' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Repeat Frieren' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Restore Frieren' }));
     expect(onRequestRepeat).toHaveBeenCalledTimes(1);
     expect(onRequestRestore).toHaveBeenCalledTimes(1);
   });
@@ -255,8 +264,23 @@ describe('AnimeDetail', () => {
 
     render(<AnimeDetail animeId="anime-1" />);
 
-    expect(screen.queryByRole('button', { name: 'Repeat' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Restore' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Repeat Frieren' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Restore Frieren' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit Frieren' })).toBeEnabled();
+  });
+
+  it('disables every toolbar action, Edit included, while a mutation runs', () => {
+    mockAnimeDetailState({
+      detail: createDetailViewModel({ canRepeat: true, canRestore: true }),
+      isMutating: true,
+    });
+
+    render(<AnimeDetail animeId="anime-1" />);
+
+    for (const name of ['Repeat Frieren', 'Restore Frieren', 'Edit Frieren']) {
+      expect(screen.getByRole('button', { name })).toBeDisabled();
+    }
+    expect(screen.getByRole('button', { name: 'Back' })).toBeEnabled();
   });
 
   it('renders an explicit HeroUI confirmation whose cancel path never confirms', () => {
@@ -315,49 +339,63 @@ describe('AnimeDetail', () => {
     expect(screen.getByText('Current version: 42. Conflict: conflict-7.')).toBeInTheDocument();
   });
 
-  it('renders the per-episode stat tiles with explicit fallbacks', () => {
+  it('renders one progress line with its bar, and the fallbacks without a bar when no total exists', () => {
+    mockAnimeDetailState();
+
+    const { unmount } = render(<AnimeDetail animeId="anime-1" />);
+
+    const episodeInfo = within(screen.getByRole('region', { name: 'Episode info' }));
+    expect(episodeInfo.getByText('12 of 28 episodes')).toBeInTheDocument();
+    expect(episodeInfo.getByText('Duration · 24 min')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Episodes watched' })).toHaveAttribute('aria-valuenow', '43');
+    expect(screen.queryByText('Total episodes')).not.toBeInTheDocument();
+    unmount();
+
     mockAnimeDetailState({
       detail: createDetailViewModel({
-        statTiles: [
-          { label: 'Watched', value: '12' },
-          { label: 'Total episodes', value: 'No total episodes data' },
-          { label: 'Duration', value: 'No episode duration data' },
-        ],
+        progressCountLabel: '12 episodes · No total episodes data',
+        durationLabel: 'No episode duration data',
+        progressRatio: undefined,
       }),
     });
-
     render(<AnimeDetail animeId="anime-1" />);
 
-    expect(screen.getByText('12')).toBeInTheDocument();
-    expect(screen.getByText('No total episodes data')).toBeInTheDocument();
+    expect(screen.getByText('12 episodes · No total episodes data')).toBeInTheDocument();
     expect(screen.getByText('No episode duration data')).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar', { name: 'Episodes watched' })).not.toBeInTheDocument();
   });
 
-  it('renders página as a clickable external link when present', () => {
+  it('renders página as a keyboard-reachable link that opens through the bridge, never through an href', () => {
+    const onOpenPage = vi.fn();
     mockAnimeDetailState({
       detail: createDetailViewModel({ paginaUrl: 'https://example.com/frieren' }),
+      onOpenPage,
     });
 
     render(<AnimeDetail animeId="anime-1" />);
 
     const link = screen.getByRole('link', { name: 'https://example.com/frieren' });
-    expect(link).toHaveAttribute('href', 'https://example.com/frieren');
-    expect(link).toHaveAttribute('target', '_blank');
-    expect(link).toHaveAttribute('rel', 'noreferrer');
+    expect(link).not.toHaveAttribute('href');
+    expect(link).not.toHaveAttribute('target');
+    expect(link).toHaveAttribute('tabindex', '0');
+    fireEvent.click(link);
+    expect(onOpenPage).toHaveBeenCalledTimes(1);
   });
 
-  it('renders an explicit fallback instead of a link when página is absent', () => {
+  it('renders Unknown instead of a link when página is absent', () => {
     mockAnimeDetailState({ detail: createDetailViewModel({ paginaUrl: undefined }) });
 
     render(<AnimeDetail animeId="anime-1" />);
 
-    expect(screen.getByText('No page link available')).toBeInTheDocument();
+    expect(screen.getByText('Page').nextElementSibling).toHaveTextContent('Unknown');
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
-  it('renders general data fields (carpeta, fechas, estudios, origen, géneros)', () => {
+  it('renders the General data fields in order, with a copy action on Folder', () => {
+    const onCopyFolder = vi.fn();
     mockAnimeDetailState({
       detail: createDetailViewModel({
+        hasFolder: true,
         carpetaLabel: 'D:/anime/Frieren',
         estrenoLabel: 'September 29, 2023',
         creacionLabel: 'January 1, 2023',
@@ -367,13 +405,16 @@ describe('AnimeDetail', () => {
         genres: ['Fantasy', 'Adventure'],
         hasGenres: true,
       }),
+      onCopyFolder,
     });
 
     render(<AnimeDetail animeId="anime-1" />);
 
+    const section = screen.getByRole('region', { name: 'General data' });
+    expect([...section.querySelectorAll('dt')].map((term) => term.textContent)).toEqual([
+      'Folder', 'Page', 'Studios', 'Origin', 'First watched', 'Last episode watched', 'Creation date', 'Genres',
+    ]);
     expect(screen.getByText('D:/anime/Frieren')).toBeInTheDocument();
-    expect(screen.getByText('First watched')).toBeInTheDocument();
-    expect(screen.queryByText('Premiere date')).not.toBeInTheDocument();
     expect(screen.getByText('September 29, 2023')).toBeInTheDocument();
     expect(screen.getByText('January 1, 2023')).toBeInTheDocument();
     expect(screen.getByText('March 22, 2024')).toBeInTheDocument();
@@ -381,17 +422,20 @@ describe('AnimeDetail', () => {
     expect(screen.getByText('Manga')).toBeInTheDocument();
     expect(screen.getByText('Fantasy')).toBeInTheDocument();
     expect(screen.getByText('Adventure')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Copy folder path' }));
+    expect(onCopyFolder).toHaveBeenCalledTimes(1);
   });
 
-  it('renders an explicit fallback when there are no géneros', () => {
+  it('renders an explicit fallback when there are no géneros, and no copy action without a folder', () => {
     mockAnimeDetailState({ detail: createDetailViewModel({ genres: [], hasGenres: false }) });
 
     render(<AnimeDetail animeId="anime-1" />);
 
     expect(screen.getByText('No genres listed')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Copy folder path' })).not.toBeInTheDocument();
   });
 
-  it('renders Watch history as the single history section, with no repetition or episode-history section', () => {
+  it('renders Watch history as the single history section, outside the main card', () => {
     mockAnimeDetailState();
 
     render(<AnimeDetail animeId="anime-1" />);
@@ -400,5 +444,10 @@ describe('AnimeDetail', () => {
     expect(screen.queryByRole('heading', { name: 'Repetition history' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Episode history' })).toBeNull();
     expect(screen.queryByText('No repetition history.')).toBeNull();
+    const mainCard = screen.getByRole('heading', { level: 1, name: 'Frieren' }).closest('[data-testid="anime-detail-main-card"]');
+    expect(mainCard).not.toBeNull();
+    // The card is named after the anime, as the mockup's article is.
+    expect(mainCard).toHaveAttribute('aria-labelledby', screen.getByRole('heading', { level: 1, name: 'Frieren' }).id);
+    expect(mainCard?.contains(screen.getByRole('region', { name: 'Watch history' }))).toBe(false);
   });
 });

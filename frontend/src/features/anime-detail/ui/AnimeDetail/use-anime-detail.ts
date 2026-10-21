@@ -6,6 +6,7 @@ import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runt
 import { useAnimeCover } from '../../../../shared/anime-cover/use-anime-cover';
 import type { AnimeDetail } from '../../../../shared/contracts/anime.types';
 import {
+  getAnimeDetailLoadState,
   hasPreviousHistoryEntry,
   toAnimeDetailViewModel,
 } from './anime-detail.helpers';
@@ -14,6 +15,7 @@ import type {
   AnimeDetailProps,
   AnimeDetailState,
 } from './anime-detail.types';
+import { useAnimeDetailDesktopActions } from './use-anime-detail-desktop-actions';
 import { useAnimeDetailMutation } from './use-anime-detail-mutation';
 
 /**
@@ -35,6 +37,7 @@ export function useAnimeDetail(
 
   // 3. Context/3rd Party Hooks
   const navigate = useNavigate();
+  const { onCopyFolder, onOpenPage } = useAnimeDetailDesktopActions(props.animeId, source);
   const mutation = useAnimeDetailMutation({
     animeId: props.animeId,
     detailSnapshot,
@@ -48,13 +51,7 @@ export function useAnimeDetail(
   const detail: AnimeDetail | null | undefined = detailSnapshot?.animeId === props.animeId
     ? detailSnapshot.detail
     : undefined;
-  const loadState = useMemo<AnimeDetailState['loadState']>(() => {
-    if (detail === undefined) {
-      return 'loading';
-    }
-
-    return detail === null ? 'not-found' : 'loaded';
-  }, [detail]);
+  const loadState = getAnimeDetailLoadState(detail);
   const viewModel = useMemo(
     () => (detail ? toAnimeDetailViewModel(detail) : undefined),
     [detail],
@@ -122,6 +119,8 @@ export function useAnimeDetail(
     onPortadaLoad,
     onBack,
     onEditAnime,
+    onCopyFolder,
+    onOpenPage,
     onRequestRepeat: mutation.onRequestRepeat,
     onRequestRestore: mutation.onRequestRestore,
     onCancelAction: mutation.onCancelAction,

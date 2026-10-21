@@ -1,5 +1,5 @@
-import { Chip, Skeleton } from '@heroui/react';
-import noCoverPoster from '../../../../assets/covers/no-cover.webp';
+import { Skeleton } from '@heroui/react';
+import { NoCoverPoster } from '../../../../shared/anime-cover/NoCoverPoster/NoCoverPoster';
 import { CATALOG_NO_COVER_LABEL } from './catalog-panel.constants';
 import type { CatalogCoverSlotProps } from './catalog-panel.types';
 
@@ -17,14 +17,5 @@ export function CatalogCoverSlot({ animeId, cover, size, onCoverError }: Readonl
     return <img alt="" className="size-full object-cover" decoding="async" src={cover.src} onError={() => onCoverError(animeId)} />;
   }
 
-  return (
-    <span className="relative block size-full bg-surface-secondary">
-      <img alt={CATALOG_NO_COVER_LABEL} className="size-full object-cover" decoding="async" src={noCoverPoster} />
-      {size === 'card' ? (
-        <Chip aria-hidden="true" className="absolute bottom-2 left-2 bg-background/75 text-foreground" color="default" size="sm" variant="soft">
-          <Chip.Label>{CATALOG_NO_COVER_LABEL}</Chip.Label>
-        </Chip>
-      ) : null}
-    </span>
-  );
+  return <NoCoverPoster label={CATALOG_NO_COVER_LABEL} showLabel={size === 'card'} />;
 }
