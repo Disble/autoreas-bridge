@@ -58,6 +58,7 @@ var mergeGateWholeTreeJobs = map[string]string{
 	"golangci-lint":         "powershell -ExecutionPolicy Bypass -File scripts/lint.ps1 -Profile all",
 	"openapi":               "go run ./tools/checkopenapi",
 	"app-icons":             "go run ./tools/genicons -check",
+	"airis-assets":          "bun --cwd=\"frontend\" run check:airis-assets",
 	"frontend-typecheck":    "bun --cwd=\"frontend\" run typecheck",
 	"go-vet":                "go vet -p 4 ./...",
 	"go-cover":              "go test ./... -cover -p 4 -parallel 4",

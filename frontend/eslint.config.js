@@ -77,9 +77,21 @@ export default [
       // bans importing through a barrel, not creating one. The filesystem
       // guard that banned the file itself was removed on 2026-08-11; see
       // "Enforcement status" in docs/adr/011-no-barrel-files.md.
+      //
+      // react-aria-components reaches the bundle only through @heroui/react,
+      // whose pinned copy is the one WebView2 is tested against. This lint
+      // rule replaced a test that read every file under src/ and timed out
+      // under pre-commit load.
       'no-restricted-imports': [
         'error',
         {
+          paths: [
+            {
+              name: 'react-aria-components',
+              message:
+                'Use the HeroUI component instead; react-aria-components reaches the bundle only through @heroui/react.',
+            },
+          ],
           patterns: [
             {
               group: ['**/index'],
