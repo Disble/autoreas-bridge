@@ -144,6 +144,16 @@ function describeFieldChange(change: ActivityChange, field: string, format: (val
   return `${format(before)} → ${format(after)}`;
 }
 
+/** Words a season grade change; a first grade has no before snapshot and reads as the grade alone. */
+function describeGradeChange(change: ActivityChange): string | undefined {
+  const grades = describeFieldChange(change, 'grade', String);
+  if (grades !== undefined) {
+    return `grade ${grades}`;
+  }
+  const first = readSnapshot(change.afterJson).grade;
+  return typeof first === 'number' ? `grade ${first}` : undefined;
+}
+
 /** Words what a write did. */
 function describeAction(change: ActivityChange): string {
   if (change.actionType === 'episode_adjusted') {
@@ -156,6 +166,12 @@ function describeAction(change: ActivityChange): string {
     const states = describeFieldChange(change, 'Estado', getAnimeEstadoLabel);
     if (states !== undefined) {
       return `state ${states}`;
+    }
+  }
+  if (change.actionType === 'season_grade_set') {
+    const grade = describeGradeChange(change);
+    if (grade !== undefined) {
+      return grade;
     }
   }
   return ACTIVITY_CHANGE_ACTION_WORDS[change.actionType] ?? change.actionType.replaceAll('_', ' ');

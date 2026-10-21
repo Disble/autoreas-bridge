@@ -23,7 +23,7 @@ type seasonRatingRequest struct {
 
 // NewSeasonRatingHandler serves POST /api/seasons/active/ratings (SDD-44): a
 // mobile-sourced first-episode grade for an anime in the active season. Outcomes:
-// 204 recorded · 404 no season / not a candidate · 409 manual grade kept ·
+// 204 recorded · 404 no season / not a candidate · 409 newer grade kept ·
 // 422 invalid grade or malformed body · 503 ingestion unavailable.
 func NewSeasonRatingHandler(config SeasonRatingConfig) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -62,8 +62,8 @@ func NewSeasonRatingHandler(config SeasonRatingConfig) http.Handler {
 			writeJSONError(w, http.StatusUnprocessableEntity, "invalid grade")
 		case SeasonRatingNotCandidate:
 			writeJSONError(w, http.StatusNotFound, "not a season candidate")
-		case SeasonRatingManualConflict:
-			writeJSON(w, http.StatusConflict, map[string]any{"grade": result.ExistingGrade, "source": "manual"})
+		case SeasonRatingNewerGradeKept:
+			writeJSON(w, http.StatusConflict, map[string]any{"grade": result.ExistingGrade, "source": result.ExistingSource})
 		default:
 			writeJSONError(w, http.StatusInternalServerError, "unknown rating outcome")
 		}

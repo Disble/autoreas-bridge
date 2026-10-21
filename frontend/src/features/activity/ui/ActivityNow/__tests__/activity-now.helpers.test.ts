@@ -150,6 +150,16 @@ describe('describeActivityChange', () => {
     ).toBe('state Viendo → Finalizado · from the bridge');
   });
 
+  it('words a season grade change, and a first grade without a before', () => {
+    expect(describeActivityChange(change({ actionType: 'season_grade_set', beforeJson: '{"grade":4}', afterJson: '{"grade":5}' }))).toBe(
+      'grade 4 → 5 · from the phone',
+    );
+    expect(describeActivityChange(change({ source: 'desktop', actionType: 'season_grade_set', beforeJson: '{}', afterJson: '{"grade":3}' }))).toBe(
+      'grade 3 · from the bridge',
+    );
+    expect(describeActivityChange(change({ actionType: 'season_grade_set', beforeJson: '', afterJson: '{}' }))).toBe('grade changed · from the phone');
+  });
+
   it.each([
     ['anime_soft_deleted', 'removed'],
     ['anime_restored', 'restored'],

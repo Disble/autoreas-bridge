@@ -28,6 +28,9 @@ const (
 	ActionAnimeRestored = "anime_restored"
 	// ActionAnimeRepeated records a repetition reset.
 	ActionAnimeRepeated = "anime_repeated"
+	// ActionSeasonGradeSet records a season premiere-grade change; its
+	// snapshots carry only {"grade": n}.
+	ActionSeasonGradeSet = "season_grade_set"
 
 	// defaultRowCap bounds activity_log at roughly 2.4 years of audit trail
 	// at the measured post-relocation write rate (design.md D8).

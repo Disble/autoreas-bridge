@@ -122,8 +122,8 @@ func TestSeasonRatingNotCandidateIs404(t *testing.T) {
 	}
 }
 
-func TestSeasonRatingManualConflictIs409WithGrade(t *testing.T) {
-	stubs := &seasonRatingStubs{authOK: true, result: SeasonRatingResult{Outcome: SeasonRatingManualConflict, ExistingGrade: 5}}
+func TestSeasonRatingNewerGradeKeptIs409WithGrade(t *testing.T) {
+	stubs := &seasonRatingStubs{authOK: true, result: SeasonRatingResult{Outcome: SeasonRatingNewerGradeKept, ExistingGrade: 5, ExistingSource: "mobile_sync"}}
 	res := postRating(t, newRatingHandler(stubs), `{"anime_id":"anime-a","grade":2,"rated_at":1}`)
 	if res.Code != http.StatusConflict {
 		t.Fatalf("status = %d, want 409", res.Code)
@@ -135,8 +135,8 @@ func TestSeasonRatingManualConflictIs409WithGrade(t *testing.T) {
 	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode 409 body: %v", err)
 	}
-	if body.Grade != 5 || body.Source != "manual" {
-		t.Fatalf("409 body = %+v, want {5 manual}", body)
+	if body.Grade != 5 || body.Source != "mobile_sync" {
+		t.Fatalf("409 body = %+v, want {5 mobile_sync}", body)
 	}
 }
 

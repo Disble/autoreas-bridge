@@ -28,9 +28,11 @@ func TestApplyGradeOnEmptyCellRecords(t *testing.T) {
 
 func TestApplyGradeManualWinsAndFlipsSource(t *testing.T) {
 	sa := NewSeasonAnime("sa-1", "season-1", "Anime", time.UnixMilli(0))
-	sa.ApplyGrade(3, GradeSourceMobileSync, time.UnixMilli(1))
+	sa.ApplyGrade(3, GradeSourceMobileSync, time.UnixMilli(2))
 
-	if !sa.ApplyGrade(5, GradeSourceManual, time.UnixMilli(2)) {
+	// A manual edit is live on the bridge, so it wins even over a mobile grade whose
+	// rated_at is later (a phone clock ahead of the bridge's).
+	if !sa.ApplyGrade(5, GradeSourceManual, time.UnixMilli(1)) {
 		t.Fatal("a manual grade must always win")
 	}
 	if sa.Grade != 5 || sa.GradeSource != GradeSourceManual {
@@ -38,15 +40,27 @@ func TestApplyGradeManualWinsAndFlipsSource(t *testing.T) {
 	}
 }
 
-func TestApplyGradeMobileRejectedWhenManualPresent(t *testing.T) {
+func TestApplyGradeNewerMobileOverwritesManual(t *testing.T) {
 	sa := NewSeasonAnime("sa-1", "season-1", "Anime", time.UnixMilli(0))
 	sa.ApplyGrade(5, GradeSourceManual, time.UnixMilli(1))
 
-	if sa.ApplyGrade(2, GradeSourceMobileSync, time.UnixMilli(2)) {
-		t.Fatal("mobile_sync must not overwrite a manual grade")
+	if !sa.ApplyGrade(2, GradeSourceMobileSync, time.UnixMilli(2)) {
+		t.Fatal("a newer mobile grade must overwrite a manual grade")
 	}
-	if sa.Grade != 5 || sa.GradeSource != GradeSourceManual {
-		t.Fatalf("manual grade was clobbered: grade=%d source=%q", sa.Grade, sa.GradeSource)
+	if sa.Grade != 2 || sa.GradeSource != GradeSourceMobileSync {
+		t.Fatalf("newer mobile grade did not win: grade=%d source=%q", sa.Grade, sa.GradeSource)
+	}
+}
+
+func TestApplyGradeOlderMobileRejected(t *testing.T) {
+	sa := NewSeasonAnime("sa-1", "season-1", "Anime", time.UnixMilli(0))
+	sa.ApplyGrade(5, GradeSourceManual, time.UnixMilli(2))
+
+	if sa.ApplyGrade(2, GradeSourceMobileSync, time.UnixMilli(1)) {
+		t.Fatal("a mobile grade older than the stored one must not overwrite it")
+	}
+	if sa.Grade != 5 || sa.GradeSource != GradeSourceManual || !sa.RatedAt.Equal(time.UnixMilli(2)) {
+		t.Fatalf("newer grade was clobbered: grade=%d source=%q ratedAt=%v", sa.Grade, sa.GradeSource, sa.RatedAt)
 	}
 }
 
@@ -54,7 +68,8 @@ func TestApplyGradeMobileSelfOverwriteAllowed(t *testing.T) {
 	sa := NewSeasonAnime("sa-1", "season-1", "Anime", time.UnixMilli(0))
 	sa.ApplyGrade(3, GradeSourceMobileSync, time.UnixMilli(1))
 
-	if !sa.ApplyGrade(6, GradeSourceMobileSync, time.UnixMilli(2)) {
+	// The same rated_at is a retried delivery and applies (idempotent).
+	if !sa.ApplyGrade(6, GradeSourceMobileSync, time.UnixMilli(1)) {
 		t.Fatal("mobile correcting its own earlier grade must be allowed")
 	}
 	if sa.Grade != 6 {
