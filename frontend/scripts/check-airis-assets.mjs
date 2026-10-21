@@ -103,7 +103,7 @@ const assetChecks = [checkCodec, checkDimensions, checkTransparency];
  * @param {string} assetPath Absolute asset path.
  * @returns {string[]} Validation failures; empty means the asset meets the contract.
  */
-export function validateAirisAsset(assetPath) {
+function validateAirisAsset(assetPath) {
   const metadata = inspectStream(assetPath);
   const alphaBytes = decodeAlpha(assetPath);
   if (metadata === undefined || alphaBytes === undefined) {

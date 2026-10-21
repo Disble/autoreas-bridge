@@ -76,7 +76,8 @@ Every layer needs a physical reason to hang where it does.
 
 - Files live in `frontend/src/assets/airis-empty-states/` and must pass
   `bun --cwd="frontend" run check:airis-assets`: WebP, exactly 512x512, with a
-  transparent background.
+  transparent background. The `airis-assets` lefthook job runs that check on
+  any commit that touches the artwork or the checker, and on every merge.
 - The artwork renders at 160 px (`AIRIS_ARTWORK_CLASS`) and 40 px (compact).
   Check both sizes on the dark card surface (`#18181b`) and on a light surface
   before shipping.
