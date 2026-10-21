@@ -14,6 +14,38 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [2.2.0] — 2026-10-21
+
+**Wire change (non-breaking):** the season premiere grade endpoint now accepts a phone grade over a manual one when it was rated later, and its `409` body's `source` can now be `mobile_sync` as well as `manual`. See `docs/openapi.yaml`.
+
+### Added
+
+- The Catalog is redesigned: a cover grid or a list view, a Filters popover for status, type and genres, removable chips for the active criteria, and your search, filters and sort are kept while you move around the app.
+- The Catalog sorts by Last watched and Date created, newest first, and Status and Type accept several values at once.
+- The Details screen is redesigned around one card: a toolbar with Back, Repeat, Restore and Edit, a full-size cover, the type and status chips beside the name, one progress line, the general data next to the cover with a button to copy the folder path, and Watch history in its own card. The Page link opens in your default browser.
+- A season premiere grade changed on the phone or on the desktop now appears in Activity's Recent changes, and the History Season filter shows it too, worded the same way in both places.
+
+### Changed
+
+- A season premiere grade can be changed from either side, and the most recent change wins. Before, a grade set on the desktop could never be replaced from the phone.
+- Every screen now shares the same header row with its actions on the right and no subtitle; Today's Season/Daily toggle moves into that row, and Notifications shows its unread count beside the title.
+- Page tabs take only the width of their labels and never wrap, and the History search field fills the free width of its filter bar.
+- The Catalog scrolls with the page and fills the app's width like every other screen.
+- The Editor's Create tab opens straight onto its form, and the sidebar shows only the app name.
+
+### Removed
+
+- The Catalog's Active, Day and Download gap filters.
+
+### Fixed
+
+- Opening the app no longer fails when the database is briefly locked at startup: it waits a moment and continues.
+
+### Internal
+
+- Three checks that failed only on a busy machine were fixed at their cause, so the commit gate no longer fails at random under load.
+- Covers for the Catalog and Season share one cache that asks for each cover once.
+
 ## [2.1.1] — 2026-10-20
 
 ### Fixed
