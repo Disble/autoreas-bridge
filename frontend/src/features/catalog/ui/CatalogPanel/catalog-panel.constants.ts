@@ -120,6 +120,8 @@ export const CATALOG_SORT_OPTIONS: readonly { readonly value: CatalogSortKey; re
   { value: 'name-desc', label: 'Name Z–A' },
   { value: 'status', label: 'Status' },
   { value: 'kind', label: 'Type' },
+  { value: 'last-watched', label: 'Last watched' },
+  { value: 'created', label: 'Date created' },
 ];
 
 /** View toggle options; each is an icon-only button named by its label. */
@@ -145,7 +147,7 @@ export const CATALOG_DEFAULT_VIEW: CatalogView = 'grid';
  */
 export const CATALOG_DEFAULT_CRITERIA: CatalogCriteria = {
   query: '',
-  status: CATALOG_FILTER_ALL_VALUE,
-  kind: CATALOG_FILTER_ALL_VALUE,
+  statuses: [],
+  kinds: [],
   genres: [],
 };

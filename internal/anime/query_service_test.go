@@ -435,3 +435,34 @@ func assertDownloadGapFlags(t *testing.T, byID map[string]contracts.AnimeListIte
 		}
 	}
 }
+
+// TestQueryServiceListAnimeItemsCarriesSortDates guards the Catalog's "Last
+// watched" and "Date created" sorts: the list projection carries both stored
+// instants as Unix milliseconds and leaves them absent when nothing is stored.
+func TestQueryServiceListAnimeItemsCarriesSortDates(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshot(t, store, "dated", `{"id":"dated","name":"Dated","episodesWatched":1,"active":true,"createdAt":1700000000000,"lastWatchedAt":1760000000000}`)
+	seedAnimeSnapshot(t, store, "undated", `{"id":"undated","name":"Undated","episodesWatched":0,"active":true}`)
+
+	got, err := anime.NewQueryService(store).ListAnimeItems(ctx)
+	if err != nil {
+		t.Fatalf("list anime items: %v", err)
+	}
+	byID := make(map[string]contracts.AnimeListItem, len(got))
+	for _, item := range got {
+		byID[item.ID] = item
+	}
+
+	dated := byID["dated"]
+	if dated.CreatedAt == nil || *dated.CreatedAt != 1700000000000 {
+		t.Fatalf("dated CreatedAt = %v, want 1700000000000", dated.CreatedAt)
+	}
+	if dated.LastWatchedAt == nil || *dated.LastWatchedAt != 1760000000000 {
+		t.Fatalf("dated LastWatchedAt = %v, want 1760000000000", dated.LastWatchedAt)
+	}
+	undated := byID["undated"]
+	if undated.CreatedAt != nil || undated.LastWatchedAt != nil {
+		t.Fatalf("undated must carry no dates, got created=%v lastWatched=%v", undated.CreatedAt, undated.LastWatchedAt)
+	}
+}

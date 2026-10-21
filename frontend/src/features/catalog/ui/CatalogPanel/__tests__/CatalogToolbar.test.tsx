@@ -48,7 +48,7 @@ afterEach(cleanup);
 
 describe('CatalogToolbar', () => {
   it('reports the search and clears it with Esc', async () => {
-    const state = renderControls({ criteria: { query: 'fri', status: 'all', kind: 'all', genres: [] } });
+    const state = renderControls({ criteria: { query: 'fri', statuses: [], kinds: [], genres: [] } });
     const search = screen.getByRole('searchbox', { name: 'Search animes' });
 
     fireEvent.change(search, { target: { value: 'frie' } });
@@ -68,7 +68,7 @@ describe('CatalogToolbar', () => {
   });
 
   it('shows the current filters selected, selects tags, resets them and closes onto the result', async () => {
-    const state = renderControls({ matchingCount: 3, criteria: { query: '', status: '1', kind: '0', genres: ['Drama'] } });
+    const state = renderControls({ matchingCount: 3, criteria: { query: '', statuses: ['1'], kinds: ['0'], genres: ['Drama'] } });
     const dialog = await openFilters();
 
     expect(within(dialog).getByText('Shows anime that have every selected genre.')).toBeInTheDocument();
@@ -76,9 +76,9 @@ describe('CatalogToolbar', () => {
       expect(within(dialog).getByRole('row', { name: selected })).toHaveAttribute('aria-selected', 'true');
     }
     fireEvent.click(within(dialog).getByRole('row', { name: 'Viendo' }));
-    expect(lastSelectionKeys(state.onStatusSelectionChange)).toEqual(['0']);
+    expect(lastSelectionKeys(state.onStatusSelectionChange)).toEqual(['1', '0']);
     fireEvent.click(within(dialog).getByRole('row', { name: 'OVA' }));
-    expect(lastSelectionKeys(state.onKindSelectionChange)).toEqual(['3']);
+    expect(lastSelectionKeys(state.onKindSelectionChange)).toEqual(['0', '3']);
     fireEvent.click(within(dialog).getByRole('row', { name: 'Drama' }));
     expect(lastSelectionKeys(state.onGenresSelectionChange)).toEqual([]);
 
@@ -122,12 +122,12 @@ describe('CatalogResultLine', () => {
     const state = renderControls({
       matchingCount: 1,
       hasCriteria: true,
-      criterionChips: [{ id: 'status', field: 'status', value: '0', groupLabel: 'Status', valueLabel: 'Viendo' }],
+      criterionChips: [{ id: 'status:0', field: 'statuses', value: '0', groupLabel: 'Status', valueLabel: 'Viendo' }],
     });
     const chip = within(screen.getByRole('grid', { name: 'Active filters' })).getByRole('row', { name: 'Status: Viendo' });
 
     fireEvent.click(within(chip).getByRole('button'));
-    expect(lastSelectionKeys(state.onCriterionChipsRemove)).toEqual(['status']);
+    expect(lastSelectionKeys(state.onCriterionChipsRemove)).toEqual(['status:0']);
     fireEvent.click(screen.getByRole('button', { name: 'Clear search and filters' }));
     expect(state.onClearCriteria).toHaveBeenCalledTimes(1);
   });

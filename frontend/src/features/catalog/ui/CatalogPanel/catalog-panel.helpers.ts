@@ -40,12 +40,22 @@ function kindRank(kind: number | undefined): number {
   return kind ?? Number.MAX_SAFE_INTEGER;
 }
 
+/** Orders a date newest first; a missing date sorts after every dated record. */
+function compareNewestFirst(a: number | undefined, b: number | undefined): number {
+  return (b ?? Number.MIN_SAFE_INTEGER) - (a ?? Number.MIN_SAFE_INTEGER);
+}
+
 /**
  * Returns the comparator for one Catalog sort. Status and Type group the
- * catalog, then order each group by name.
+ * catalog, the two date sorts put the newest first, and every tie falls back
+ * to the name.
  */
 export function compareCatalogAnimes(sort: CatalogSortKey): (a: Anime, b: Anime) => number {
   switch (sort) {
+    case 'last-watched':
+      return (a, b) => compareNewestFirst(a.lastWatchedAt, b.lastWatchedAt) || compareByName(a, b);
+    case 'created':
+      return (a, b) => compareNewestFirst(a.createdAt, b.createdAt) || compareByName(a, b);
     case 'name-desc':
       return (a, b) => compareByName(b, a);
     case 'status':
@@ -74,9 +84,9 @@ export function toCatalogView(selection: Selection, current: CatalogView): Catal
   return next === 'grid' || next === 'list' ? next : current;
 }
 
-/** True when a single-choice filter is unset or names the record's value. */
-function matchesChoice(selected: string, value: number | undefined): boolean {
-  return selected === CATALOG_FILTER_ALL_VALUE || value === Number(selected);
+/** True when a filter group is set to All or names the record's value among its picks. */
+function matchesAny(selected: readonly string[], value: number | undefined): boolean {
+  return selected.length === 0 || selected.includes(String(value));
 }
 
 /** True when the record carries every selected genre, compared case-insensitively. */
@@ -91,17 +101,15 @@ export function filterCatalogAnimes(items: readonly Anime[], criteria: CatalogCr
   return items.filter(
     (item) =>
       item.name.toLowerCase().includes(query) &&
-      matchesChoice(criteria.status, item.status) &&
-      matchesChoice(criteria.kind, item.kind) &&
+      matchesAny(criteria.statuses, item.status) &&
+      matchesAny(criteria.kinds, item.kind) &&
       hasEveryGenre(item, criteria.genres),
   );
 }
 
-/** How many filters narrow the catalog: status, type and each genre. The search is not a filter. */
+/** How many filter values narrow the catalog: each status, type and genre picked. The search is not a filter. */
 export function countActiveCatalogFilters(criteria: CatalogCriteria): number {
-  return Number(criteria.status !== CATALOG_FILTER_ALL_VALUE)
-    + Number(criteria.kind !== CATALOG_FILTER_ALL_VALUE)
-    + criteria.genres.length;
+  return criteria.statuses.length + criteria.kinds.length + criteria.genres.length;
 }
 
 /** Reports whether anything the user could clear is narrowing the catalog. */
@@ -109,29 +117,22 @@ export function hasActiveCatalogCriteria(criteria: CatalogCriteria): boolean {
   return criteria.query.trim().length > 0 || countActiveCatalogFilters(criteria) > 0;
 }
 
-/** One removable chip per active filter, in popover order: status, type, then each genre. */
+/** One removable chip per picked value, in popover order: statuses, types, then genres. */
 export function toCatalogCriterionChips(criteria: CatalogCriteria): readonly CatalogCriterionChip[] {
-  const chips: CatalogCriterionChip[] = [];
-  if (criteria.status !== CATALOG_FILTER_ALL_VALUE) {
-    const valueLabel = getAnimeEstadoLabel(Number(criteria.status));
-    chips.push({ id: 'status', field: 'status', value: criteria.status, groupLabel: 'Status', valueLabel });
-  }
-  if (criteria.kind !== CATALOG_FILTER_ALL_VALUE) {
-    const valueLabel = getAnimeTipoLabel(Number(criteria.kind));
-    chips.push({ id: 'kind', field: 'kind', value: criteria.kind, groupLabel: 'Type', valueLabel });
-  }
-  for (const genre of criteria.genres) {
-    chips.push({ id: `genre:${genre}`, field: 'genres', value: genre, groupLabel: 'Genre', valueLabel: genre });
-  }
-  return chips;
+  return [
+    ...criteria.statuses.map((value) => ({
+      id: `status:${value}`, field: 'statuses' as const, value, groupLabel: 'Status', valueLabel: getAnimeEstadoLabel(Number(value)),
+    })),
+    ...criteria.kinds.map((value) => ({
+      id: `kind:${value}`, field: 'kinds' as const, value, groupLabel: 'Type', valueLabel: getAnimeTipoLabel(Number(value)),
+    })),
+    ...criteria.genres.map((value) => ({ id: `genre:${value}`, field: 'genres' as const, value, groupLabel: 'Genre', valueLabel: value })),
+  ];
 }
 
-/** Drops the criterion a chip names, leaving every other criterion as it was. */
+/** Drops the value a chip names from its group, leaving every other criterion as it was. */
 export function removeCatalogCriterion(criteria: CatalogCriteria, chip: CatalogCriterionChip): CatalogCriteria {
-  if (chip.field === 'genres') {
-    return { ...criteria, genres: criteria.genres.filter((genre) => genre !== chip.value) };
-  }
-  return { ...criteria, [chip.field]: CATALOG_FILTER_ALL_VALUE };
+  return { ...criteria, [chip.field]: criteria[chip.field].filter((value) => value !== chip.value) };
 }
 
 /** Drops every criterion whose chip id is among the removed keys, in one update. */
@@ -154,6 +155,27 @@ export function toCatalogChoice(selection: Selection, current: string): string {
   }
   const [first] = selection;
   return first === undefined ? current : String(first);
+}
+
+/**
+ * Reads the Status or Type group's selection. The group offers an All tag
+ * beside its values: picking All clears the group, and picking a value while
+ * All is shown replaces it.
+ */
+export function toCatalogGroupValues(selection: Selection, current: readonly string[]): readonly string[] {
+  if (selection === 'all') {
+    return current;
+  }
+  const picked = Array.from(selection, String);
+  if (current.length > 0 && picked.includes(CATALOG_FILTER_ALL_VALUE)) {
+    return [];
+  }
+  return picked.filter((value) => value !== CATALOG_FILTER_ALL_VALUE);
+}
+
+/** The tags a Status or Type group shows selected: All while the group is empty. */
+export function toCatalogGroupKeys(values: readonly string[]): readonly string[] {
+  return values.length === 0 ? [CATALOG_FILTER_ALL_VALUE] : values;
 }
 
 /** Reads the Genres group's selection, in the order the genres were picked. */

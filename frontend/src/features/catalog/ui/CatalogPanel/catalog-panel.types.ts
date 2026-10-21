@@ -5,7 +5,7 @@ import type { PageProgressiveWindow } from '../../../../shared/hooks/use-page-pr
 import type { LabeledSelectOption } from '../../../../shared/ui/LabeledSelect.types';
 
 /** How the Catalog orders its anime. */
-export type CatalogSortKey = 'name-asc' | 'name-desc' | 'status' | 'kind';
+export type CatalogSortKey = 'name-asc' | 'name-desc' | 'status' | 'kind' | 'last-watched' | 'created';
 
 /** Which layout the Catalog renders its anime in. */
 export type CatalogView = 'grid' | 'list';
@@ -22,13 +22,14 @@ export type CatalogStatusColor = 'accent' | 'success' | 'danger' | 'warning' | '
 
 /**
  * Everything that narrows the Catalog: the free-text search plus the three
- * filters. `status` and `kind` hold the numeric value as a string, or the
- * `all` sentinel; `genres` lists every genre an anime must carry.
+ * filters. `statuses` and `kinds` hold numeric values as strings and match
+ * any of them; `genres` lists every genre an anime must carry. An empty list
+ * means the group is set to All.
  */
 export interface CatalogCriteria {
   readonly query: string;
-  readonly status: string;
-  readonly kind: string;
+  readonly statuses: readonly string[];
+  readonly kinds: readonly string[];
   readonly genres: readonly string[];
 }
 
@@ -36,7 +37,7 @@ export interface CatalogCriteria {
 export interface CatalogCriterionChip {
   /** Stable React key, unique among the chips. */
   readonly id: string;
-  readonly field: 'status' | 'kind' | 'genres';
+  readonly field: 'statuses' | 'kinds' | 'genres';
   /** The criterion value the chip removes. */
   readonly value: string;
   /** Group name shown before the value, for example `Status`. */
@@ -121,7 +122,6 @@ export interface CatalogFilterGroupProps {
   readonly hint?: string;
   readonly options: readonly CatalogOption[];
   readonly selectedKeys: readonly string[];
-  readonly selectionMode: 'single' | 'multiple';
   readonly onSelectionChange: (selection: Selection) => void;
 }
 

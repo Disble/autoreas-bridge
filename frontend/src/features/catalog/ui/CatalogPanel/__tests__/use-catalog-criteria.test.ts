@@ -11,23 +11,24 @@ describe('useCatalogCriteria', () => {
   it('opens on the all-records default, sorted A–Z, in the grid', () => {
     const { result } = renderHook(() => useCatalogCriteria());
 
-    expect(result.current.criteria).toEqual({ query: '', status: 'all', kind: 'all', genres: [] });
+    expect(result.current.criteria).toEqual({ query: '', statuses: [], kinds: [], genres: [] });
     expect(result.current.sort).toBe('name-asc');
     expect(result.current.view).toBe('grid');
   });
 
-  it('sets the search, status, type, sort and view', () => {
+  it('sets the search, any number of statuses, the type, sort and view', () => {
     const { result } = renderHook(() => useCatalogCriteria());
 
     act(() => {
       result.current.onQueryChange('fri');
       result.current.onStatusSelectionChange(new Set(['1']));
+      result.current.onStatusSelectionChange(new Set(['1', '0']));
       result.current.onKindSelectionChange(new Set(['3']));
       result.current.onSortChange('status');
       result.current.onViewSelectionChange(new Set(['list']));
     });
 
-    expect(result.current.criteria).toEqual({ query: 'fri', status: '1', kind: '3', genres: [] });
+    expect(result.current.criteria).toEqual({ query: 'fri', statuses: ['1', '0'], kinds: ['3'], genres: [] });
     expect(result.current.sort).toBe('status');
     expect(result.current.view).toBe('list');
   });
@@ -43,9 +44,9 @@ describe('useCatalogCriteria', () => {
     expect(result.current.criteria.genres).toEqual(['Mecha']);
 
     act(() => {
-      result.current.onCriterionChipsRemove(new Set(['status']));
+      result.current.onCriterionChipsRemove(new Set(['status:0']));
     });
-    expect(result.current.criteria).toEqual({ query: '', status: 'all', kind: 'all', genres: ['Mecha'] });
+    expect(result.current.criteria).toEqual({ query: '', statuses: [], kinds: [], genres: ['Mecha'] });
   });
 
   it('resets only the filters, keeping the search', () => {
@@ -59,7 +60,7 @@ describe('useCatalogCriteria', () => {
     });
     act(() => result.current.onFiltersReset());
 
-    expect(result.current.criteria).toEqual({ query: 'fri', status: 'all', kind: 'all', genres: [] });
+    expect(result.current.criteria).toEqual({ query: 'fri', statuses: [], kinds: [], genres: [] });
   });
 
   it('clears the search and filters, keeping the sort and view', () => {
@@ -73,7 +74,7 @@ describe('useCatalogCriteria', () => {
     });
     act(() => result.current.onClearCriteria());
 
-    expect(result.current.criteria).toEqual({ query: '', status: 'all', kind: 'all', genres: [] });
+    expect(result.current.criteria).toEqual({ query: '', statuses: [], kinds: [], genres: [] });
     expect(result.current.sort).toBe('kind');
     expect(result.current.view).toBe('list');
   });
@@ -90,7 +91,7 @@ describe('useCatalogCriteria', () => {
 
     const { result } = renderHook(() => useCatalogCriteria());
 
-    expect(result.current.criteria).toEqual({ query: 'fri', status: 'all', kind: '1', genres: [] });
+    expect(result.current.criteria).toEqual({ query: 'fri', statuses: [], kinds: ['1'], genres: [] });
     expect(result.current.sort).toBe('name-desc');
     expect(result.current.view).toBe('list');
   });

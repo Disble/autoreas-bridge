@@ -4,9 +4,9 @@ import { CATALOG_DEFAULT_CRITERIA } from './catalog-panel.constants';
 import type { Key, Selection } from '@heroui/react';
 import {
   removeCatalogCriterionChips,
-  toCatalogChoice,
   toCatalogCriterionChips,
   toCatalogGenres,
+  toCatalogGroupValues,
   toCatalogSortKey,
   toCatalogView,
 } from './catalog-panel.helpers';
@@ -38,11 +38,11 @@ export function useCatalogCriteria(): UseCatalogCriteriaResult {
   }, []);
   const onQueryChange = useCallback((query: string) => updateCriteria((previous) => ({ ...previous, query })), [updateCriteria]);
   const onStatusSelectionChange = useCallback(
-    (selection: Selection) => updateCriteria((previous) => ({ ...previous, status: toCatalogChoice(selection, previous.status) })),
+    (selection: Selection) => updateCriteria((previous) => ({ ...previous, statuses: toCatalogGroupValues(selection, previous.statuses) })),
     [updateCriteria],
   );
   const onKindSelectionChange = useCallback(
-    (selection: Selection) => updateCriteria((previous) => ({ ...previous, kind: toCatalogChoice(selection, previous.kind) })),
+    (selection: Selection) => updateCriteria((previous) => ({ ...previous, kinds: toCatalogGroupValues(selection, previous.kinds) })),
     [updateCriteria],
   );
   const onGenresSelectionChange = useCallback(

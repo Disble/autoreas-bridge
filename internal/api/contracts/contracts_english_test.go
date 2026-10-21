@@ -150,6 +150,7 @@ func TestMobileAnimeEnglishJSONTags(t *testing.T) {
 // (the closest real DTO to the proposal's since-renamed "LegacyAnimeSummary").
 func TestAnimeListItemEnglishJSONTags(t *testing.T) {
 	kind := 1
+	createdAt, lastWatchedAt := int64(1700000000000), int64(1760000000000)
 	item := AnimeListItem{
 		ID:              "anime-1",
 		Name:            "Frieren",
@@ -159,6 +160,8 @@ func TestAnimeListItemEnglishJSONTags(t *testing.T) {
 		Kind:            &kind,
 		Days:            []string{"Lunes"},
 		Genres:          []string{"Fantasy"},
+		CreatedAt:       &createdAt,
+		LastWatchedAt:   &lastWatchedAt,
 	}
 
 	encoded, err := json.Marshal(item)
@@ -170,7 +173,7 @@ func TestAnimeListItemEnglishJSONTags(t *testing.T) {
 	if err := json.Unmarshal(encoded, &raw); err != nil {
 		t.Fatalf("unmarshal raw map: %v", err)
 	}
-	for _, key := range []string{"name", "status", "episodesWatched", "active", "kind", "days", "genres"} {
+	for _, key := range []string{"name", "status", "episodesWatched", "active", "kind", "days", "genres", "createdAt", "lastWatchedAt"} {
 		if _, ok := raw[key]; !ok {
 			t.Fatalf("expected English JSON key %q, got %s", key, encoded)
 		}
