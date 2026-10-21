@@ -1,6 +1,7 @@
 import type { ComponentPropsWithoutRef } from 'react';
 import { Alert, Button, Card, Chip, Input, Label, Tabs, TextField, Typography } from '@heroui/react';
 import { LoadingBars } from '../../../../shared/ui/LoadingBars/LoadingBars';
+import { PageHeader } from '../../../../shared/ui/PageHeader/PageHeader';
 import {
   SEASON_WORKSPACE_EMPTY_MESSAGE,
   SEASON_WORKSPACE_EMPTY_TITLE,
@@ -51,12 +52,7 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
 
   return (
     <section className={`flex flex-col gap-4 ${className ?? ''}`}>
-      <header className="space-y-1">
-        <Typography type="h1">{SEASON_WORKSPACE_TITLE}</Typography>
-        <Typography color="muted" type="body-sm">
-          Run the new-season anime selection workflow.
-        </Typography>
-      </header>
+      <PageHeader title={SEASON_WORKSPACE_TITLE} />
 
       {errorMessage !== undefined && (
         <Alert status="danger">
@@ -134,7 +130,7 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
           </div>
 
           <Tabs selectedKey={activeTab} onSelectionChange={selectTab}>
-            <Tabs.ListContainer>
+            <Tabs.ListContainer className="w-fit max-w-full whitespace-nowrap">
               <Tabs.List aria-label="Season workflow">
                 {sections.map((tab) => (
                   <Tabs.Tab key={tab.id} id={tab.id} isDisabled={!tab.available}>

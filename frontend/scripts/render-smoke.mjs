@@ -54,12 +54,16 @@ const RENDER_ATTEMPTS = 2;
  * Wails runtime backs this static-served bundle, so every binding degrades.
  */
 const ROUTE_MARKERS = {
-  '/': ['anime progress without opening Legacy'],
-  '/#/catalog': ['Browse the synchronized anime inventory'],
-  '/#/season': ['Run the new-season anime selection workflow.'],
-  '/#/devices': ['Pair devices and manage desktop'],
+  // The day tabs are static schedule chrome, present before the degraded schedule read settles.
+  '/': ['Thursday'],
+  // The degraded `GetAnimes` read resolves to no anime, so the Catalog hides its
+  // toolbar and settles on its actually-empty state.
+  '/#/catalog': ['Your catalog is empty'],
+  // No open season resolves headless, so the create-season card is the deterministic marker.
+  '/#/season': ['Create a season to start the selection workflow.'],
+  '/#/devices': ['Trigger Reconcile'],
   // The default Settings tab is Library, so its field proves the tab body rendered.
-  '/#/settings': ['Configure application behavior', 'Library root'],
+  '/#/settings': ['Set where your anime library lives on this computer.', 'Library root'],
   '/#/downloads': ['Configuration', 'Manual check'],
   // No Wails runtime backs this static-served bundle, so every notification
   // center binding degrades and the panel settles on the "unavailable"
@@ -73,8 +77,9 @@ const ROUTE_MARKERS = {
   // resolve BEFORE `/editor/:id`, so the marker is the Create workspace's own
   // heading: if the identifier route ever wins again, the Library workspace
   // renders here instead and this marker disappears.
-  '/#/editor/create': ['Create anime'],
-  '/#/history': ['Every episode you have watched, grouped by day'],
+  '/#/editor/create': ['Anime 1'],
+  // The sort control is static toolbar chrome, independent of the degraded history read.
+  '/#/history': ['Newest first'],
 };
 
 /** Extension-to-MIME map for the throwaway static server. */

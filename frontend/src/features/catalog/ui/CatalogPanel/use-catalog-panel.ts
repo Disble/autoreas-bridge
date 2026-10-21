@@ -1,101 +1,86 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { Anime } from '../../../../shared/contracts/anime.types';
 import { useAsyncList } from '../../../../shared/hooks/use-async-list/use-async-list';
 import { useDebounce } from '../../../../shared/hooks/use-debounce';
-import { useProgressiveListWindow } from '../../../../shared/hooks/use-progressive-list-window';
-import {
-  ANIME_ACTIVO_OPTIONS,
-  ANIME_ESTADO_OPTIONS,
-  ANIME_FILTER_DEBOUNCE_MS,
-  ANIME_GAP_OPTIONS,
-  ANIME_TIPO_OPTIONS,
-} from './catalog-panel.constants';
+import { usePageProgressiveWindow } from '../../../../shared/hooks/use-page-progressive-window';
+import { ANIME_CREATE_ROUTE } from '../../../../shared/navigation/app-layout.constants';
+import { CATALOG_KIND_OPTIONS, CATALOG_QUERY_DEBOUNCE_MS, CATALOG_SORT_OPTIONS, CATALOG_STATUS_OPTIONS } from './catalog-panel.constants';
 import {
   classifyCatalogEmptyState,
-  filterAnimes,
-  getUniqueDiaOptions,
-  getUniqueGeneroOptions,
-  sortAnimesByName,
-  toAnimeViewModel,
+  compareCatalogAnimes,
+  countActiveCatalogFilters,
+  filterCatalogAnimes,
+  getCatalogGenreOptions,
+  hasActiveCatalogCriteria,
+  toCatalogCriterionChips,
+  toCatalogItemViewModel,
 } from './catalog-panel.helpers';
-import type { CatalogPanelProps, CatalogPanelState, AnimeFilterState, AnimeViewModel } from './catalog-panel.types';
-import { useCatalogFilters } from './use-catalog-filters';
+import type { CatalogCriteria, CatalogItemViewModel, CatalogPanelState } from './catalog-panel.types';
+import { useCatalogCovers } from './use-catalog-covers';
+import { useCatalogCriteria } from './use-catalog-criteria';
 
-/** Drives the CatalogPanel by fetching the full anime catalog from the runtime. */
-export function useCatalogPanel(
-  _props: Readonly<CatalogPanelProps>,
-  source: BridgeRuntimeSource = bridgeRuntimeSource,
-): CatalogPanelState {
+/** Drives the CatalogPanel: reads the catalog, applies the criteria and sort, and windows the result. */
+export function useCatalogPanel(source: BridgeRuntimeSource = bridgeRuntimeSource): CatalogPanelState {
   // 1. Refs
 
   // 2. State
 
   // 3. Context/3rd Party Hooks
-  const { filters, onQueryChange, onEstadoChange, onActivoChange, onTipoChange, onDiaChange, onGenerosChange, onGapChange, onClearCriteria } = useCatalogFilters();
+  const navigate = useNavigate();
+  const criteriaState = useCatalogCriteria();
+  const { criteria, sort } = criteriaState;
 
   // 4. Queries/Mutations
   const { items, isLoading, error } = useAsyncList<Anime>(() => source.getAnimes(), source);
 
   // 5. Derived State (useMemo)
-  const debouncedQuery = useDebounce(filters.query, ANIME_FILTER_DEBOUNCE_MS);
-  const activeFilters = useMemo<AnimeFilterState>(
-    () => ({ ...filters, query: debouncedQuery }),
-    [filters, debouncedQuery],
+  const debouncedQuery = useDebounce(criteria.query, CATALOG_QUERY_DEBOUNCE_MS);
+  const appliedCriteria = useMemo<CatalogCriteria>(() => ({ ...criteria, query: debouncedQuery }), [criteria, debouncedQuery]);
+  const matchingItems = useMemo<readonly CatalogItemViewModel[]>(
+    () => filterCatalogAnimes(items, appliedCriteria).toSorted(compareCatalogAnimes(sort)).map(toCatalogItemViewModel),
+    [appliedCriteria, items, sort],
   );
-  const filteredItems = useMemo<readonly Anime[]>(
-    () => filterAnimes(items, activeFilters).toSorted(sortAnimesByName),
-    [items, activeFilters],
-  );
-  const viewItems = useMemo<readonly AnimeViewModel[]>(
-    () => filteredItems.map(toAnimeViewModel),
-    [filteredItems],
-  );
-  const emptyState = useMemo(
-    () => classifyCatalogEmptyState({
-      isLoading,
-      hasError: error !== undefined,
-      sourceCount: items.length,
-      visibleCount: viewItems.length,
-      filters: activeFilters,
-    }),
-    [activeFilters, error, isLoading, items.length, viewItems.length],
-  );
-  // Static list (ADR-012): the count only moves when a filter or the search
+  const emptyState = classifyCatalogEmptyState({
+    isLoading,
+    hasError: error !== undefined,
+    sourceCount: items.length,
+    visibleCount: matchingItems.length,
+    criteria: appliedCriteria,
+  });
+  // Static list (ADR-012): the count only moves when the search or a filter
   // changes, which is exactly when restarting at the first batch is correct.
-  const listWindow = useProgressiveListWindow(viewItems.length);
-  const visibleItems = useMemo(
-    () => viewItems.slice(0, listWindow.visibleCount),
-    [viewItems, listWindow.visibleCount],
-  );
-  const diaOptions = useMemo(() => getUniqueDiaOptions(items), [items]);
-  const generoOptions = useMemo(() => getUniqueGeneroOptions(items), [items]);
+  const listWindow = usePageProgressiveWindow(matchingItems.length);
+  const windowItems = useMemo(() => matchingItems.slice(0, listWindow.visibleCount), [matchingItems, listWindow.visibleCount]);
+  const covers = useCatalogCovers(windowItems, source);
+  const genreOptions = useMemo(() => getCatalogGenreOptions(items), [items]);
+  const criterionChips = useMemo(() => toCatalogCriterionChips(criteria), [criteria]);
 
   // 6. Callbacks (useCallback calling pure helpers)
+  const onCreate = useCallback(() => void navigate(ANIME_CREATE_ROUTE), [navigate]);
 
   // 7. Effects
 
   return {
-    items: visibleItems,
+    ...criteriaState,
+    ...covers,
     isLoading,
     error,
     emptyState,
+    hasCatalog: isLoading || error !== undefined || items.length > 0,
+    totalCount: items.length,
+    matchingCount: matchingItems.length,
+    items: windowItems,
     listWindow,
-    filters,
-    estadoOptions: ANIME_ESTADO_OPTIONS,
-    activoOptions: ANIME_ACTIVO_OPTIONS,
-    tipoOptions: ANIME_TIPO_OPTIONS,
-    diaOptions,
-    generoOptions,
-    gapOptions: ANIME_GAP_OPTIONS,
-    onQueryChange,
-    onEstadoChange,
-    onActivoChange,
-    onTipoChange,
-    onDiaChange,
-    onGenerosChange,
-    onGapChange,
-    onClearCriteria,
+    activeFilterCount: countActiveCatalogFilters(criteria),
+    criterionChips,
+    hasCriteria: hasActiveCatalogCriteria(criteria),
+    statusOptions: CATALOG_STATUS_OPTIONS,
+    kindOptions: CATALOG_KIND_OPTIONS,
+    genreOptions,
+    sortOptions: CATALOG_SORT_OPTIONS,
+    onCreate,
   };
 }

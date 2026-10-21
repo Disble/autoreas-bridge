@@ -50,7 +50,7 @@ export function HistoryFilterBar({
     <section aria-label="History filters" className="flex flex-row flex-wrap items-end gap-3">
       <SearchField.Root
         aria-label={HISTORY_FILTER_BAR_SEARCH_ARIA_LABEL}
-        className="w-45"
+        className="min-w-45 flex-1"
         onChange={onSearchChange}
         value={search}
         variant="secondary"

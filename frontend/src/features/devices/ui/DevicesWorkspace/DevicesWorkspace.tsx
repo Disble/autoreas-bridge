@@ -1,9 +1,9 @@
-import { Alert, Button, Spinner, Typography } from '@heroui/react';
+import { Alert, Button, Spinner } from '@heroui/react';
 import { PairingPanel } from '../../../dashboard/ui/PairingPanel/PairingPanel';
 import { SyncingAnimePanel } from '../../../dashboard/ui/SyncingAnimePanel/SyncingAnimePanel';
 import { ConnectedDevicesPanel } from '../../../preferences/ui/ConnectedDevicesPanel/ConnectedDevicesPanel';
+import { PageHeader } from '../../../../shared/ui/PageHeader/PageHeader';
 import {
-  DEVICES_WORKSPACE_SUBTITLE,
   DEVICES_WORKSPACE_SYNC_IDLE_LABEL,
   DEVICES_WORKSPACE_SYNC_PENDING_LABEL,
 } from './devices-workspace.constants';
@@ -20,14 +20,8 @@ export function DevicesWorkspace() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0 space-y-1">
-          <Typography type="h1">Devices</Typography>
-          <Typography color="muted" type="body-sm">
-            {DEVICES_WORKSPACE_SUBTITLE}
-          </Typography>
-        </div>
-        <div className="sm:shrink-0">
+      <PageHeader
+        actions={
           <Button
             isDisabled={isSyncing}
             isPending={isSyncing}
@@ -42,8 +36,9 @@ export function DevicesWorkspace() {
               </>
             )}
           </Button>
-        </div>
-      </header>
+        }
+        title="Devices"
+      />
 
       {hasSyncResult(syncResult) ? (
         <Alert status="success">

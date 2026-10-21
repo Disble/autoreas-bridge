@@ -111,3 +111,6 @@ export const EPISODE_GO_TO_SEASON_LABEL = 'Go to Season';
 
 /** The Season workspace route the season lens's empty state sends the user to. */
 export const EPISODE_SEASON_ROUTE = '/season';
+
+/** Page title of the Today screen, matching its nav label. */
+export const EPISODE_SCHEDULE_PAGE_TITLE = 'Today';

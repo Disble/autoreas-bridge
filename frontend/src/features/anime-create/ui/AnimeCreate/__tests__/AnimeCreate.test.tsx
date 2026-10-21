@@ -35,7 +35,7 @@ describe('AnimeCreate', () => {
 
     render(<AnimeCreate />);
 
-    expect(screen.getByRole('heading', { name: 'Create anime' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Create anime' })).toBeNull();
     expect(screen.getByLabelText('Name')).toBeInTheDocument();
     expect(screen.getByLabelText('Download page')).toBeInTheDocument();
     // The board is not dumped inline — it lives behind the placement action.

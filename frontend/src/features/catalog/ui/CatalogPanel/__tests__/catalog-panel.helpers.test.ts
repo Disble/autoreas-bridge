@@ -1,285 +1,352 @@
 import { describe, expect, it } from 'vitest';
 import type { Anime } from '../../../../../shared/contracts/anime.types';
+import { CATALOG_DEFAULT_CRITERIA } from '../catalog-panel.constants';
 import {
   classifyCatalogEmptyState,
-  filterAnimes,
-  formatAnimeProgress,
-  matchesAnimeGap,
-  sortAnimesByName,
-  toAnimeStatus,
-  toAnimeViewModel,
+  compareCatalogAnimes,
+  countActiveCatalogFilters,
+  filterCatalogAnimes,
+  getCatalogGenreOptions,
+  getCatalogStatusColor,
+  isCatalogSortKey,
+  removeCatalogCriterion,
+  removeCatalogCriterionChips,
+  formatCatalogFiltersLabel,
+  formatCatalogFooter,
+  formatCatalogShowLabel,
+  toCatalogChoice,
+  toCatalogCover,
+  toCatalogCriterionChips,
+  toCatalogDetailPath,
+  toCatalogGenres,
+  toCatalogGroupKeys,
+  toCatalogGroupValues,
+  toCatalogItemViewModel,
+  toCatalogSortKey,
+  toCatalogView,
 } from '../catalog-panel.helpers';
-import { ANIME_FILTER_ALL_VALUE, ANIME_GAP_COMPLETE_VALUE, ANIME_GAP_MISSING_VALUE } from '../catalog-panel.constants';
+import type { Selection } from '@heroui/react';
+import type { CatalogCriteria } from '../catalog-panel.types';
 
-/** Baseline catalog record each case mutates one field of. */
+/** Baseline catalog record each case overrides a few fields of. */
 const baseAnime: Anime = {
   id: 'anime-1',
   name: 'Frieren',
-  status: 2,
+  status: 1,
   episodesWatched: 12,
   totalEpisodes: 28,
   active: 1,
+  kind: 0,
   days: [],
-  genres: [],
+  genres: ['Adventure', 'Drama'],
   hasDownloadPage: true,
   hasFolder: true,
-  hasCover: false,
+  hasCover: true,
 };
 
-describe('toAnimeStatus', () => {
-  it('returns active when activo is 1', () => {
-    expect(toAnimeStatus(1)).toBe('active');
+/** Builds a record from the baseline with the given overrides. */
+function anime(overrides: Partial<Anime>): Anime {
+  return { ...baseAnime, ...overrides };
+}
+
+/** Builds criteria from the all-records default with the given overrides. */
+function criteria(overrides: Partial<CatalogCriteria>): CatalogCriteria {
+  return { ...CATALOG_DEFAULT_CRITERIA, ...overrides };
+}
+
+/** Names of the records in the order a sort produced. */
+function namesSortedBy(sort: string, items: readonly Anime[]): readonly string[] {
+  if (!isCatalogSortKey(sort)) {
+    throw new Error(`unknown sort ${sort}`);
+  }
+  return items.toSorted(compareCatalogAnimes(sort)).map((item) => item.name);
+}
+
+describe('filterCatalogAnimes', () => {
+  const items = [
+    anime({ id: 'a', name: 'Dandadan', status: 0, kind: 0, genres: ['Action', 'Comedy'] }),
+    anime({ id: 'b', name: 'Kimi no Na wa.', status: 1, kind: 1, genres: ['Drama', 'Romance'] }),
+    anime({ id: 'c', name: 'Dungeon Meshi', status: 1, kind: 0, genres: ['Adventure', 'Comedy'] }),
+  ];
+
+  /** Ids of the records the criteria keep. */
+  const idsMatching = (overrides: Partial<CatalogCriteria>) =>
+    filterCatalogAnimes(items, criteria(overrides)).map((item) => item.id);
+
+  it('keeps every record under the all-records default', () => {
+    expect(idsMatching({})).toEqual(['a', 'b', 'c']);
   });
 
-  it('returns inactive when activo is 0', () => {
-    expect(toAnimeStatus(0)).toBe('inactive');
+  it('matches a trimmed query against the name case-insensitively', () => {
+    expect(idsMatching({ query: '  DUN ' })).toEqual(['c']);
   });
 
-  it('returns inactive for any non-1 value', () => {
-    expect(toAnimeStatus(2)).toBe('inactive');
+  it('matches any selected status and any selected type, and both groups together', () => {
+    expect(idsMatching({ statuses: ['1'] })).toEqual(['b', 'c']);
+    expect(idsMatching({ statuses: ['0', '1'] })).toEqual(['a', 'b', 'c']);
+    expect(idsMatching({ kinds: ['1'] })).toEqual(['b']);
+    expect(idsMatching({ kinds: ['0', '1'] })).toEqual(['a', 'b', 'c']);
+    expect(idsMatching({ statuses: ['1'], kinds: ['0'] })).toEqual(['c']);
+  });
+
+  it('keeps only records that carry every selected genre, case-insensitively', () => {
+    expect(idsMatching({ genres: ['comedy'] })).toEqual(['a', 'c']);
+    expect(idsMatching({ genres: ['Comedy', 'Adventure'] })).toEqual(['c']);
   });
 });
 
-describe('formatAnimeProgress', () => {
-  it('includes totalcap when present', () => {
-    expect(formatAnimeProgress(12, 28)).toBe('12 / 28');
+describe('compareCatalogAnimes', () => {
+  it('orders names A–Z numerically and case-insensitively, and Z–A in reverse', () => {
+    const items = [
+      anime({ id: '1', name: 'episode 10' }),
+      anime({ id: '2', name: 'Episode 9' }),
+      anime({ id: '3', name: 'alpha' }),
+    ];
+
+    expect(namesSortedBy('name-asc', items)).toEqual(['alpha', 'Episode 9', 'episode 10']);
+    expect(namesSortedBy('name-desc', items)).toEqual(['episode 10', 'Episode 9', 'alpha']);
   });
 
-  it('shows a placeholder when totalcap is missing', () => {
-    expect(formatAnimeProgress(5)).toBe('5 / ?');
+  it.each([
+    [['b', 'a']],
+    [['a', 'b']],
+  ])('breaks a name tie by id so the order is stable, from %j', (ids) => {
+    const items = ids.map((id) => anime({ id, name: id === 'a' ? 'same' : 'Same' }));
+
+    expect(items.toSorted(compareCatalogAnimes('name-asc')).map((item) => item.id)).toEqual(['a', 'b']);
+    expect(compareCatalogAnimes('name-asc')(items[0], items[0])).toBe(0);
+  });
+
+  it('orders by status Viendo, Finalizado, En pausa, No me gusto, then name', () => {
+    const items = [
+      anime({ id: '1', name: 'Dropped', status: 2 }),
+      anime({ id: '2', name: 'Paused', status: 3 }),
+      anime({ id: '3', name: 'Zeta done', status: 1 }),
+      anime({ id: '4', name: 'Alpha done', status: 1 }),
+      anime({ id: '5', name: 'Watching', status: 0 }),
+      anime({ id: '6', name: 'Unknown', status: 9 }),
+    ];
+
+    expect(namesSortedBy('status', items)).toEqual(['Watching', 'Alpha done', 'Zeta done', 'Paused', 'Dropped', 'Unknown']);
+  });
+
+  it('orders by type value, a missing type last, then name', () => {
+    const items = [
+      anime({ id: '1', name: 'No type', kind: undefined }),
+      anime({ id: '2', name: 'Movie', kind: 1 }),
+      anime({ id: '3', name: 'Series B', kind: 0 }),
+      anime({ id: '4', name: 'Series A', kind: 0 }),
+      anime({ id: '5', name: 'An OVA', kind: 3 }),
+      anime({ id: '6', name: 'Special', kind: 2 }),
+    ];
+
+    expect(namesSortedBy('kind', items)).toEqual(['Series A', 'Series B', 'Movie', 'Special', 'An OVA', 'No type']);
+  });
+
+  it.each([
+    ['last-watched', 'lastWatchedAt'],
+    ['created', 'createdAt'],
+  ] as const)('orders %s newest first, an undated record last, then name', (sort, field) => {
+    const items = [
+      anime({ id: '1', name: 'Zeta undated' }),
+      anime({ id: '2', name: 'Old', [field]: 1_000 }),
+      anime({ id: '3', name: 'Alpha undated' }),
+      anime({ id: '4', name: 'Newest', [field]: 3_000 }),
+      anime({ id: '5', name: 'B same day', [field]: 2_000 }),
+      anime({ id: '6', name: 'A same day', [field]: 2_000 }),
+    ];
+
+    expect(namesSortedBy(sort, items)).toEqual(['Newest', 'A same day', 'B same day', 'Old', 'Alpha undated', 'Zeta undated']);
   });
 });
 
-describe('toAnimeViewModel', () => {
-  it('maps an active anime to the view model', () => {
-    const viewModel = toAnimeViewModel(baseAnime);
+describe('isCatalogSortKey', () => {
+  it('accepts only the six sort keys', () => {
+    expect(['name-asc', 'name-desc', 'status', 'kind', 'last-watched', 'created'].every(isCatalogSortKey)).toBe(true);
+    expect(isCatalogSortKey('year-desc')).toBe(false);
+  });
+});
 
-    expect(viewModel).toEqual({
+describe('toCatalogSortKey and toCatalogView', () => {
+  it('apply a known key and keep the current value for anything else', () => {
+    expect(toCatalogSortKey('kind', 'name-asc')).toBe('kind');
+    expect(toCatalogSortKey('year-desc', 'status')).toBe('status');
+    expect(toCatalogSortKey(null, 'status')).toBe('status');
+    expect(toCatalogView(new Set(['list']), 'grid')).toBe('list');
+    expect(toCatalogView(new Set(['grid']), 'list')).toBe('grid');
+    expect(toCatalogView(new Set(['table']), 'grid')).toBe('grid');
+    expect(toCatalogView(new Set(), 'list')).toBe('list');
+  });
+});
+
+describe('countActiveCatalogFilters', () => {
+  it('counts each selected status, type and genre, but never the search', () => {
+    expect(countActiveCatalogFilters(criteria({ query: 'x' }))).toBe(0);
+    expect(countActiveCatalogFilters(criteria({ statuses: ['0', '1'], kinds: ['3'], genres: ['Drama', 'Mecha'] }))).toBe(5);
+  });
+});
+
+describe('toCatalogCriterionChips', () => {
+  it('names every active filter with its group and canonical label', () => {
+    const chips = toCatalogCriterionChips(criteria({ query: 'x', statuses: ['3', '0'], kinds: ['3'], genres: ['Drama'] }));
+
+    expect(chips).toEqual([
+      { id: 'status:3', field: 'statuses', value: '3', groupLabel: 'Status', valueLabel: 'En pausa' },
+      { id: 'status:0', field: 'statuses', value: '0', groupLabel: 'Status', valueLabel: 'Viendo' },
+      { id: 'kind:3', field: 'kinds', value: '3', groupLabel: 'Type', valueLabel: 'OVA' },
+      { id: 'genre:Drama', field: 'genres', value: 'Drama', groupLabel: 'Genre', valueLabel: 'Drama' },
+    ]);
+  });
+
+  it('produces no chip under the all-records default', () => {
+    expect(toCatalogCriterionChips(CATALOG_DEFAULT_CRITERIA)).toEqual([]);
+  });
+});
+
+describe('removeCatalogCriterion', () => {
+  const active = criteria({ query: 'x', statuses: ['0', '1'], kinds: ['1'], genres: ['Drama', 'Mecha'] });
+  const chips = toCatalogCriterionChips(active);
+
+  it('removes only the chip value from its group and keeps the rest', () => {
+    expect(removeCatalogCriterion(active, chips[0])).toEqual({ ...active, statuses: ['1'] });
+    expect(removeCatalogCriterion(active, chips[2])).toEqual({ ...active, kinds: [] });
+    expect(removeCatalogCriterion(active, chips[4])).toEqual({ ...active, genres: ['Drama'] });
+  });
+
+  it('removes every chip named by id at once, ignoring unknown ids', () => {
+    expect(removeCatalogCriterionChips(active, chips, new Set(['kind:1', 'status:1', 'genre:Drama', 'nope']))).toEqual({ ...active, statuses: ['0'], kinds: [], genres: ['Mecha'] });
+  });
+});
+
+describe('toCatalogChoice', () => {
+  it('takes the selected key, and keeps the current choice for an empty or select-all selection', () => {
+    expect(toCatalogChoice(new Set(['1']), 'all')).toBe('1');
+    expect(toCatalogChoice(new Set([3]), 'all')).toBe('3');
+    expect(toCatalogChoice(new Set(), '2')).toBe('2');
+    expect(toCatalogChoice('all', '2')).toBe('2');
+  });
+});
+
+describe('toCatalogGroupValues and toCatalogGroupKeys', () => {
+  it.each<[string, Selection, readonly string[], readonly string[]]>([
+    ['picking a value replaces All', new Set(['all', '1']), [], ['1']],
+    ['picking another value adds it', new Set(['1', 3]), ['1'], ['1', '3']],
+    ['picking All clears the group', new Set(['1', 'all']), ['1'], []],
+    ['dropping the last value clears the group', new Set(), ['1'], []],
+    ['select-all keeps the current values', 'all', ['1'], ['1']],
+  ])('%s', (_case, selection, current, expected) => {
+    expect(toCatalogGroupValues(selection, current)).toEqual(expected);
+  });
+
+  it('shows All selected only while the group is empty', () => {
+    expect(toCatalogGroupKeys([])).toEqual(['all']);
+    expect(toCatalogGroupKeys(['0', '1'])).toEqual(['0', '1']);
+  });
+});
+
+describe('toCatalogGenres', () => {
+  it('takes every selected genre in selection order, and keeps the current ones for select-all', () => {
+    expect(toCatalogGenres(new Set(['Mecha', 'Drama']), ['Drama'])).toEqual(['Mecha', 'Drama']);
+    expect(toCatalogGenres(new Set(), ['Drama'])).toEqual([]);
+    expect(toCatalogGenres('all', ['Drama'])).toEqual(['Drama']);
+  });
+});
+
+describe('getCatalogGenreOptions', () => {
+  it('lists each trimmed genre once, alphabetically', () => {
+    const items = [anime({ genres: ['Drama', ' Action '] }), anime({ genres: ['Action', ''] })];
+
+    expect(getCatalogGenreOptions(items)).toEqual([
+      { value: 'Action', label: 'Action' },
+      { value: 'Drama', label: 'Drama' },
+    ]);
+  });
+});
+
+describe('getCatalogStatusColor', () => {
+  it('draws each estado with its own color and an unknown one as default', () => {
+    expect([0, 1, 2, 3, 7].map(getCatalogStatusColor)).toEqual(['accent', 'success', 'danger', 'warning', 'default']);
+  });
+});
+
+describe('toCatalogItemViewModel', () => {
+  it('maps the record to the labels a card and a row render', () => {
+    expect(toCatalogItemViewModel(anime({ status: 3, kind: 1, genres: ['Drama', 'Romance'] }))).toEqual({
       id: 'anime-1',
-      nombre: 'Frieren',
-      estado: 2,
-      progressLabel: '12 / 28',
-      status: 'active',
-      statusLabel: 'Active',
-      hasDownloadPage: true,
-      hasFolder: true,
-      hasDownloadGap: false,
-      gapLabel: undefined,
+      name: 'Frieren',
+      hasCover: true,
+      statusLabel: 'En pausa',
+      statusColor: 'warning',
+      kindLabel: 'Película',
+      listMeta: 'Película · Drama, Romance',
     });
   });
 
-  it('maps an inactive anime to the view model', () => {
-    const viewModel = toAnimeViewModel({ ...baseAnime, active: 0 });
-
-    expect(viewModel.status).toBe('inactive');
-    expect(viewModel.statusLabel).toBe('Inactive');
-  });
-
-  it('flags a download gap when the page is missing', () => {
-    const viewModel = toAnimeViewModel({ ...baseAnime, hasDownloadPage: false });
-
-    expect(viewModel.hasDownloadGap).toBe(true);
-    expect(viewModel.gapLabel).toBe('Missing page');
-  });
-
-  it('flags a download gap when the folder is missing', () => {
-    const viewModel = toAnimeViewModel({ ...baseAnime, hasFolder: false });
-
-    expect(viewModel.hasDownloadGap).toBe(true);
-    expect(viewModel.gapLabel).toBe('Missing folder');
-  });
-
-  it('flags a download gap mentioning both when page and folder are missing', () => {
-    const viewModel = toAnimeViewModel({ ...baseAnime, hasDownloadPage: false, hasFolder: false });
-
-    expect(viewModel.hasDownloadGap).toBe(true);
-    expect(viewModel.gapLabel).toBe('Missing page & folder');
-  });
-
-  it('has no gap label when both page and folder are present', () => {
-    const viewModel = toAnimeViewModel(baseAnime);
-
-    expect(viewModel.hasDownloadGap).toBe(false);
-    expect(viewModel.gapLabel).toBeUndefined();
+  it('keeps the list meta to the type when the record has no genres', () => {
+    expect(toCatalogItemViewModel(anime({ genres: [] })).listMeta).toBe('Anime (TV)');
   });
 });
 
-describe('matchesAnimeGap', () => {
-  const complete = { ...baseAnime };
-  const missingPage = { ...baseAnime, hasDownloadPage: false };
-
-  it('matches everything when the filter is "all"', () => {
-    expect(matchesAnimeGap(complete, ANIME_FILTER_ALL_VALUE)).toBe(true);
-    expect(matchesAnimeGap(missingPage, ANIME_FILTER_ALL_VALUE)).toBe(true);
-  });
-
-  it('matches only animes missing a page or folder when filter is "missing"', () => {
-    expect(matchesAnimeGap(missingPage, ANIME_GAP_MISSING_VALUE)).toBe(true);
-    expect(matchesAnimeGap(complete, ANIME_GAP_MISSING_VALUE)).toBe(false);
-  });
-
-  it('matches only animes with both page and folder when filter is "complete"', () => {
-    expect(matchesAnimeGap(complete, ANIME_GAP_COMPLETE_VALUE)).toBe(true);
-    expect(matchesAnimeGap(missingPage, ANIME_GAP_COMPLETE_VALUE)).toBe(false);
+describe('catalog paths and footer', () => {
+  it('links an anime to its detail and counts the hidden rest', () => {
+    expect(toCatalogDetailPath('abc')).toBe('/catalog/detail/abc');
+    expect(formatCatalogFooter(20, 36)).toBe('Showing 20 of 36 — scroll for more');
+    expect(formatCatalogFooter(36, 36)).toBe('End of catalog');
+    expect(formatCatalogShowLabel(7)).toBe('Show 7 anime');
+    expect(formatCatalogFiltersLabel(0)).toBe('Filters');
+    expect(formatCatalogFiltersLabel(2)).toBe('Filters, 2 active');
   });
 });
 
-describe('filterAnimes', () => {
-  const actionAnime: Anime = {
-    ...baseAnime,
-    id: 'action',
-    name: '  Solo Leveling  ',
-    status: 1,
-    active: 1,
-    kind: 2,
-    days: ['Friday'],
-    genres: ['Action'],
-  };
+describe('toCatalogCover', () => {
+  const resolving = { hasCover: true, entry: undefined, hasFailed: false, canResolve: true };
 
-  const dramaAnime: Anime = {
-    ...baseAnime,
-    id: 'drama',
-    name: 'Violet Evergarden',
-    status: 2,
-    active: 0,
-    kind: 3,
-    days: ['Sunday'],
-    genres: ['Drama'],
-  };
-
-  it('filters by trimmed query plus estado, activo, and tipo values', () => {
-    const result = filterAnimes([actionAnime, dramaAnime], {
-      query: '  solo LEVELING ',
-      estado: '1',
-      activo: '1',
-      tipo: '2',
-      dia: ANIME_FILTER_ALL_VALUE,
-      generos: [],
-      gap: ANIME_FILTER_ALL_VALUE,
-    });
-
-    expect(result).toEqual([actionAnime]);
+  it('draws the poster for a record without a stored cover, whatever the cache holds', () => {
+    expect(toCatalogCover({ ...resolving, hasCover: false, entry: { status: 'cover', dataUrl: 'data:a' } })).toEqual({ status: 'placeholder' });
   });
 
-  it('keeps every item when query is blank and the select filters stay on all', () => {
-    const result = filterAnimes([actionAnime, dramaAnime], {
-      query: '   ',
-      estado: ANIME_FILTER_ALL_VALUE,
-      activo: ANIME_FILTER_ALL_VALUE,
-      tipo: ANIME_FILTER_ALL_VALUE,
-      dia: ANIME_FILTER_ALL_VALUE,
-      generos: [],
-      gap: ANIME_FILTER_ALL_VALUE,
-    });
-
-    expect(result).toEqual([actionAnime, dramaAnime]);
+  it('draws a skeleton until the lookup answers, never the poster first', () => {
+    expect(toCatalogCover(resolving)).toEqual({ status: 'loading' });
+    expect(toCatalogCover({ ...resolving, entry: { status: 'loading' } })).toEqual({ status: 'loading' });
   });
 
-  it('filters by day and genres case-insensitively', () => {
-    const result = filterAnimes([actionAnime, dramaAnime], {
-      query: '',
-      estado: ANIME_FILTER_ALL_VALUE,
-      activo: ANIME_FILTER_ALL_VALUE,
-      tipo: ANIME_FILTER_ALL_VALUE,
-      dia: 'friday',
-      generos: ['action'],
-      gap: ANIME_FILTER_ALL_VALUE,
-    });
-
-    expect(result).toEqual([actionAnime]);
-  });
-});
-
-describe('sortAnimesByName', () => {
-  it('sorts by name ascending', () => {
-    const a: Anime = { ...baseAnime, id: 'a', name: 'Zeta' };
-    const b: Anime = { ...baseAnime, id: 'b', name: 'Alpha' };
-
-    expect([a, b].sort(sortAnimesByName).map((item) => item.name)).toEqual(['Alpha', 'Zeta']);
+  it('draws the resolved image', () => {
+    expect(toCatalogCover({ ...resolving, entry: { status: 'cover', dataUrl: 'data:a' } })).toEqual({ status: 'cover', src: 'data:a' });
   });
 
-  it('uses id as tie-breaker when names match', () => {
-    const a: Anime = { ...baseAnime, id: 'b', name: 'Same' };
-    const b: Anime = { ...baseAnime, id: 'a', name: 'Same' };
-
-    expect([a, b].sort(sortAnimesByName).map((item) => item.id)).toEqual(['a', 'b']);
-  });
-
-  it('returns zero when both name and id match', () => {
-    const a: Anime = { ...baseAnime, id: 'same-id', name: 'Same' };
-    const b: Anime = { ...baseAnime, id: 'same-id', name: 'Same' };
-
-    expect(sortAnimesByName(a, b)).toBe(0);
-  });
-
-  it('is case-insensitive', () => {
-    const a: Anime = { ...baseAnime, id: 'a', name: 'alpha' };
-    const b: Anime = { ...baseAnime, id: 'b', name: 'BETA' };
-
-    expect([b, a].sort(sortAnimesByName).map((item) => item.name)).toEqual(['alpha', 'BETA']);
+  it('draws the poster when the binding is absent, answered placeholder, or the image failed', () => {
+    expect(toCatalogCover({ ...resolving, canResolve: false })).toEqual({ status: 'placeholder' });
+    expect(toCatalogCover({ ...resolving, entry: { status: 'placeholder' } })).toEqual({ status: 'placeholder' });
+    expect(toCatalogCover({ ...resolving, entry: { status: 'cover', dataUrl: 'data:a' }, hasFailed: true })).toEqual({ status: 'placeholder' });
   });
 });
 
 describe('classifyCatalogEmptyState', () => {
-  /** All-records defaults: nothing the user could clear is active. */
-  const defaultFilters = { query: '', estado: 'all', activo: 'all', tipo: 'all', dia: 'all', generos: [], gap: 'all' } as const;
+  const resolved = { isLoading: false, hasError: false, sourceCount: 3, visibleCount: 0, criteria: criteria({ statuses: ['1'] }) };
 
-  /** Baseline: a resolved catalog holding rows, unnarrowed and unbroken. */
-  const resolved = { isLoading: false, hasError: false, sourceCount: 2, visibleCount: 2, filters: defaultFilters } as const;
-
-  it('classifies nothing while the request is unresolved', () => {
-    expect(classifyCatalogEmptyState({ ...resolved, isLoading: true, sourceCount: 0, visibleCount: 0 })).toBe('none');
-  });
-
-  it('classifies nothing when the request failed, so an error never reads as an empty catalog', () => {
-    expect(classifyCatalogEmptyState({ ...resolved, hasError: true, sourceCount: 0, visibleCount: 0 })).toBe('none');
+  it('classifies nothing while the request is unresolved or failed', () => {
+    expect(classifyCatalogEmptyState({ ...resolved, isLoading: true })).toBe('none');
+    expect(classifyCatalogEmptyState({ ...resolved, hasError: true })).toBe('none');
   });
 
   it('classifies a resolved catalog with no anime as actually empty', () => {
-    expect(classifyCatalogEmptyState({ ...resolved, sourceCount: 0, visibleCount: 0 })).toBe('actual');
+    expect(classifyCatalogEmptyState({ ...resolved, sourceCount: 0 })).toBe('actual');
   });
 
-  it('classifies visible rows as not empty at all', () => {
-    expect(classifyCatalogEmptyState(resolved)).toBe('none');
+  it('classifies visible rows as not empty, even while criteria are active', () => {
+    expect(classifyCatalogEmptyState({ ...resolved, visibleCount: 1 })).toBe('none');
   });
-
-  it('classifies zero visible rows under an active filter as criteria-empty', () => {
-    expect(classifyCatalogEmptyState({ ...resolved, visibleCount: 0, filters: { ...defaultFilters, tipo: 'Serie' } })).toBe('criteria');
-  });
-
-  it('classifies zero visible rows under a selected genre as criteria-empty', () => {
-    expect(classifyCatalogEmptyState({ ...resolved, visibleCount: 0, filters: { ...defaultFilters, generos: ['Action'] } })).toBe('criteria');
-  });
-
-  it('refuses to call zero visible rows criteria-empty when no criteria are active', () => {
-    expect(classifyCatalogEmptyState({ ...resolved, visibleCount: 0 })).toBe('none');
-  });
-});
-
-describe('classifyCatalogEmptyState criteria detection', () => {
-  /** All-records defaults: nothing the user could clear is active. */
-  const noCriteria = { query: '', estado: 'all', activo: 'all', tipo: 'all', dia: 'all', generos: [], gap: 'all' } as const;
-
-  /** A resolved catalog holding rows, with every row currently hidden. */
-  const filteredAway = { isLoading: false, hasError: false, sourceCount: 2, visibleCount: 0 } as const;
 
   it.each([
-    ['a search query', { query: 'alpha' }],
-    ['an estado filter', { estado: '2' }],
-    ['an activo filter', { activo: '1' }],
-    ['a tipo filter', { tipo: 'Serie' }],
-    ['a dia filter', { dia: 'Lunes' }],
-    ['a gap filter', { gap: 'missing' }],
-    ['a selected genre', { generos: ['Action'] }],
-  ])('treats %s on its own as active criteria', (_label, override) => {
-    expect(classifyCatalogEmptyState({ ...filteredAway, filters: { ...noCriteria, ...override } })).toBe('criteria');
+    ['a query', { query: 'zzz' }],
+    ['a status', { statuses: ['1'] }],
+    ['a type', { kinds: ['2'] }],
+    ['a genre', { genres: ['Drama'] }],
+  ])('classifies zero visible rows under %s as criteria-empty', (_name, overrides) => {
+    expect(classifyCatalogEmptyState({ ...resolved, criteria: criteria(overrides) })).toBe('criteria');
   });
 
-  it('treats a whitespace-only query as no criteria at all', () => {
-    expect(classifyCatalogEmptyState({ ...filteredAway, filters: { ...noCriteria, query: '   ' } })).toBe('none');
-  });
-
-  it('keeps visible rows out of every empty state even while criteria are active', () => {
-    expect(classifyCatalogEmptyState({ ...filteredAway, visibleCount: 1, filters: { ...noCriteria, query: 'alpha' } })).toBe('none');
+  it('refuses to call zero visible rows criteria-empty when only whitespace is searched', () => {
+    expect(classifyCatalogEmptyState({ ...resolved, criteria: criteria({ query: '   ' }) })).toBe('none');
   });
 });

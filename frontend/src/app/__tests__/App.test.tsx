@@ -255,7 +255,11 @@ describe('App routing', () => {
         </MemoryRouter>,
       );
 
-      expect(await screen.findByRole('heading', { level: 1, name: label })).toBeInTheDocument();
+      const heading = await screen.findByRole('heading', { level: 1, name: label });
+      // Every screen titles itself through the shared PageHeader row, with no subtitle under the title.
+      const header = heading.closest('header');
+      expect(header).toHaveClass('flex', 'items-center', 'justify-between');
+      expect(header?.querySelector('p')).toBeNull();
     });
   });
 });
@@ -278,7 +282,7 @@ describe('App editor routes', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole('heading', { name: 'Create anime' })).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: 'Create', selected: true })).toBeInTheDocument();
   });
 
   it('reselects Create when an already-mounted Library route navigates to /editor/create', async () => {
@@ -293,6 +297,6 @@ describe('App editor routes', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Go to create' }));
 
-    expect(await screen.findByRole('heading', { name: 'Create anime' })).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: 'Create', selected: true })).toBeInTheDocument();
   });
 });

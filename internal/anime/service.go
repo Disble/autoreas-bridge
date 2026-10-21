@@ -125,6 +125,8 @@ func (s *QueryService) ListAnimeItems(ctx context.Context) ([]contracts.AnimeLis
 			HasDownloadPage: hasNonEmptyLegacyString(item.SourceURL),
 			HasFolder:       hasNonEmptyLegacyString(item.Folder),
 			HasCover:        hasCover(item.Cover),
+			CreatedAt:       item.CreatedAt,
+			LastWatchedAt:   item.LastWatchedAt,
 		})
 	}
 	return result, nil

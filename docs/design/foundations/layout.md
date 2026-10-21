@@ -4,6 +4,28 @@
 scroller**. There is no app-level internal scroll container, and nothing upstream contains an
 over-wide child for you.
 
+## Page header
+
+Every screen titles itself with `shared/ui/PageHeader`: the `h1`, an optional inline `adornment`
+(a status chip such as Notifications' unread count) and optional right-aligned `actions`, in one
+vertically centered row. The page chrome stays minimal:
+
+- **No subtitle** under the title, and no tagline under the app name in the rail.
+- **Title first, section tabs below it.** A screen with sections (Editor, Downloads, Settings,
+  Activity, Season) puts its page-level `Tabs` directly under the header, never beside the title.
+- **Page-level tabs are as wide as their labels**: `Tabs.ListContainer className="w-fit max-w-full whitespace-nowrap"`
+  (a label never wraps to two lines),
+  never stretched across the page. A lone screen action may sit right-aligned on the same row as the
+  tabs (Activity's "Pin this moment"). Tabs inside a card are a separate, card-scoped control.
+- **A tab panel opens straight onto its content.** It repeats no heading or intro of its own under
+  the page title (Editor → Create shows its form, not a "Create anime" heading).
+- **A view switch belongs in `actions`.** Today's Season | Daily toggle sits at the header's right;
+  the content's own filters (the day tabs) move up into the space it left, and no heading restates
+  the selected filter.
+- **Counts that matter sit beside the title** as an `adornment` chip, not in a sentence under it.
+- **A filter bar's search field takes the free width** (`min-w-45 flex-1`); the selects keep their
+  fixed widths. Search text needs the room, the selects do not (History).
+
 ## Containment: a card must never widen the page
 
 A single unbroken URL deep inside a card gives the whole application a horizontal scrollbar.
@@ -106,3 +128,55 @@ clips the corners. The art is `absolute inset-0 size-full object-cover` (or an S
 `preserveAspectRatio="xMidYMid slice"`) so the source aspect ratio can never change the card height.
 Add `gap-4 min-h-24` on the flex row. Default cover art is `shared/ui/CoverPlaceholderScene.tsx`
 (night bridge scene), full-bleed, never an icon centered in a gray box.
+
+## Poster grid cover frame (Catalog)
+
+Every cover in a poster grid sits in ONE frame class, so stored covers of different heights cannot
+break the row baseline. Catalog's frame is `CATALOG_COVER_FRAME_CLASS`
+(`features/catalog/ui/CatalogPanel/catalog-panel.constants.ts`): a uniform 230:326 crop with
+`overflow-hidden`, shared by the grid card, the 40px list thumbnail and both skeletons.
+
+`CatalogCoverSlot` fills the frame edge to edge in one of three states:
+
+| State | Renders |
+|---|---|
+| Lookup pending | A `Skeleton` of the frame's shape |
+| Cover resolved | The art, `object-cover` |
+| No stored cover, lookup unavailable or empty, or the image fails to decode | The approved Airis "No Cover" poster, `assets/covers/no-cover.webp`, cropped like a real cover |
+
+- The poster is one shared component, `shared/anime-cover/NoCoverPoster/NoCoverPoster.tsx`. Its
+  "No cover" text is UI (the caller's `label`, a soft `Chip` over the poster), never baked into the
+  art. Cards show it; 40px thumbnails do not (`showLabel`).
+- The poster is used by Catalog and Anime Detail. Every other screen keeps `CoverPlaceholderScene`
+  (above) until a change asks for the poster there.
+- Covers are requested only for the rendered progressive window and only for records with
+  `hasCover`, so a long catalog costs one lookup per revealed card (`useCatalogCovers` over
+  `shared/anime-cover/use-anime-cover-cache.ts`).
+
+The Catalog sets no width cap or height of its own: it fills `AppLayout`'s container
+(`max-w-[1600px]`) and scrolls with the page like every other screen. Because the document is what
+scrolls, its window is `usePageProgressiveWindow` (`patterns/lists.md`).
+
+## Detail card (cover beside the body, laid out from its own width)
+
+Anime Detail's main card (`features/anime-detail/ui/AnimeDetail/AnimeDetailMainCard.tsx`) lays
+itself out from the card's OWN width, not the viewport: `Card.Content` carries `@container`, and
+every breakpoint below is a Tailwind container variant. The classes live in
+`anime-detail.constants.ts` and are shared with `AnimeDetailSkeleton`, so the two shapes cannot
+drift.
+
+| Card width | Layout |
+|---|---|
+| 700px and up (`@[700px]:`) | A 280px cover column stretched to the body's height (5:7 minimum), the body beside it as a flex column, General data in 3 columns |
+| 420–699px | A 68px cover thumbnail beside the identity; the body is `contents`, so General data spans the card in 2 columns; no "No cover" pill |
+| Below 420px (`@max-[419px]:`) | A 76px thumbnail, General data in 1 column, the duration on its own line |
+
+- The card opens with a **toolbar row**, not page-header actions: a ghost icon-only Back on the
+  left, the actions on the right as icon-only `tertiary` buttons with tooltips
+  (`shared/ui/IconActionButton`). Conditional actions sit left of the one that is always there, so
+  it never moves. A running mutation disables every action.
+- The anime name is the page `h1`; no subtitle line, only the type beside the chips.
+- Secondary sections (Watch history) get their own `Card` below, 24px away.
+- jsdom cannot prove any of this. `scripts/layout-fixtures/anime-detail-card-fixture.tsx` mounts the
+  card at 900, 560 and 380px and `layout:smoke` measures the cover width, the stretch, the field
+  column count, the pill and overflow at each.

@@ -23,7 +23,7 @@ export function ActivityScreen() {
   return (
     <Tabs onSelectionChange={selectTab} selectedKey={selectedTab}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs.ListContainer className="min-w-0 flex-1">
+        <Tabs.ListContainer className="w-fit max-w-full whitespace-nowrap">
           <Tabs.List aria-label="Activity views">
             <Tabs.Tab id="now">
               Now
