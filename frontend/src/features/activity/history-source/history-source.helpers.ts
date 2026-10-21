@@ -39,6 +39,8 @@ function mapLedgerLine(line: activityread.LedgerLine): ActivityLedgerLine {
     title: line.Title,
     detail: line.Detail,
     correlationId: line.CorrelationID,
+    beforeJson: line.BeforeJSON,
+    afterJson: line.AfterJSON,
     // Stryker disable next-line ArrayDeclaration: equivalent; a mutant element is not a known mark and is filtered out, so nil still yields [].
     marks: (line.Marks ?? []).map(toKnownMark).filter((mark) => mark !== undefined),
   };

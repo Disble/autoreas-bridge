@@ -32,8 +32,10 @@ function line(id: string, overrides: Partial<ActivityLedgerLine> = {}): Activity
     source: 'mobile',
     level: '',
     title: `Line ${id}`,
-    detail: 'episode 10 → 11',
+    detail: 'episode_adjusted',
     correlationId: '',
+    beforeJson: '{"NroCapVisto":10}',
+    afterJson: '{"NroCapVisto":11}',
     marks: [],
     ...overrides,
   };

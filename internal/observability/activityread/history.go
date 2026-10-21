@@ -110,7 +110,7 @@ func (r *Reader) changeLines(ctx context.Context, s scope, p sourcePage) ([]item
 		return nil, err
 	}
 	records, err := r.changes.ListRecent(ctx, activity.ListQuery{
-		Limit: p.fetch, SinceMS: p.sinceMS, UntilMS: p.nowMS, Source: s.changeSource, Before: before,
+		Limit: p.fetch, SinceMS: p.sinceMS, UntilMS: p.nowMS, Source: s.changeSource, ActionTypes: s.changeActions, Before: before,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("activityread: change lines: %w", err)

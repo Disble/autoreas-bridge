@@ -41,6 +41,7 @@ func seedLedger(t *testing.T, reader *Reader) {
 		insertChange(t, db, "mobile", "Ao Ashi", minutesAgo(31+i), 0)
 		insertEvent(t, db, event{atMS: minutesAgo(32 + i), domain: "season", level: "info", message: "season"})
 	}
+	insertSeasonGrade(t, db, "desktop", minutesAgo(40))
 	insertChange(t, db, "mobile", "too old", testNow.Add(-91*24*time.Hour).UnixMilli(), 0)
 }
 
@@ -55,8 +56,8 @@ func TestHistoryCursorHasNoGapsOrDuplicates(t *testing.T) {
 		t.Fatalf("History: %v", err)
 	}
 	want := flatten(whole)
-	if len(want) != 22 || whole.NextCursor != "" {
-		t.Fatalf("whole ledger = %d lines (cursor %q), want 22 and no cursor", len(want), whole.NextCursor)
+	if len(want) != 23 || whole.NextCursor != "" {
+		t.Fatalf("whole ledger = %d lines (cursor %q), want 23 and no cursor", len(want), whole.NextCursor)
 	}
 	got := pageHistory(t, reader, WhereAll, 3)
 	if len(got) != len(want) {
@@ -93,8 +94,8 @@ func assertCursorEdges(t *testing.T, reader *Reader, total int) {
 	if err != nil {
 		t.Fatalf("History after rank 0: %v", err)
 	}
-	if lines := flatten(older); len(lines) != 14 || lines[0].AtMS >= minutesAgo(30) {
-		t.Fatalf("after rank 0 = %d lines, want 14 strictly older", len(lines))
+	if lines := flatten(older); len(lines) != 15 || lines[0].AtMS >= minutesAgo(30) {
+		t.Fatalf("after rank 0 = %d lines, want 15 strictly older", len(lines))
 	}
 }
 
@@ -262,8 +263,8 @@ func TestWhereFilterNarrowsHistory(t *testing.T) {
 	}{
 		{WherePhone, map[LineKind]int{LineChange: 8, LinePhoneReport: 1, LineConnection: 2, LineEvent: 1, LineIncident: 1}},
 		{WhereDownloads, map[LineKind]int{LineEvent: 1}},
-		{WhereEditor, map[LineKind]int{LineChange: 1}},
-		{WhereSeason, map[LineKind]int{LineEvent: 7}},
+		{WhereEditor, map[LineKind]int{LineChange: 2}},
+		{WhereSeason, map[LineKind]int{LineEvent: 7, LineChange: 1}},
 		{WhereSchedule, map[LineKind]int{}},
 	}
 	for _, tc := range cases {

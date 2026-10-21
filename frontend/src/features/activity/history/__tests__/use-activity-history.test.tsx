@@ -25,6 +25,8 @@ function group(day: number, ids: readonly string[]): ActivityLedgerDay {
       title: `Line ${id}`,
       detail: '',
       correlationId: '',
+      beforeJson: '',
+      afterJson: '',
       marks: [],
     })),
   };

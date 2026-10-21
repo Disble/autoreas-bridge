@@ -61,10 +61,11 @@ func TestStoreFiltersListsAndCounts(t *testing.T) {
 	store := activity.NewStore(activity.NewSQLiteProvider(openActivityTestDB(t)))
 	const base = int64(1710000000000)
 	for _, row := range []struct {
-		source string
-		atMS   int64
-	}{{activity.SourceDesktop, base + 100}, {activity.SourceMobile, base + 200}, {activity.SourceMobile, base + 200}, {activity.SourceDesktop, base + 300}} {
-		if err := store.RecordActivity(ctx, activity.Record{Source: row.source, ActionType: activity.ActionEpisodeAdjusted,
+		source, action string
+		atMS           int64
+	}{{activity.SourceDesktop, activity.ActionEpisodeAdjusted, base + 100}, {activity.SourceMobile, activity.ActionSeasonGradeSet, base + 200},
+		{activity.SourceMobile, activity.ActionEpisodeAdjusted, base + 200}, {activity.SourceDesktop, activity.ActionSeasonGradeSet, base + 300}} {
+		if err := store.RecordActivity(ctx, activity.Record{Source: row.source, ActionType: row.action,
 			AnimeID: "anime-1", AnimeName: "Dungeon Meshi", OccurredAtMs: row.atMS}); err != nil {
 			t.Fatalf("record activity: %v", err)
 		}
@@ -80,6 +81,8 @@ func TestStoreFiltersListsAndCounts(t *testing.T) {
 		{"since", activity.ListQuery{SinceMS: base + 200}, []int64{4, 3, 2}, 3},
 		{"until", activity.ListQuery{UntilMS: base + 200}, []int64{3, 2, 1}, 3},
 		{"source", activity.ListQuery{Source: activity.SourceMobile}, []int64{3, 2}, 2},
+		{"action types", activity.ListQuery{ActionTypes: []string{activity.ActionSeasonGradeSet}}, []int64{4, 2}, 2},
+		{"source and action types", activity.ListQuery{Source: activity.SourceMobile, ActionTypes: []string{activity.ActionSeasonGradeSet}}, []int64{2}, 1},
 		{"before", activity.ListQuery{Before: &activity.Position{OccurredAtMs: base + 200, ID: 3}}, []int64{2, 1}, 2},
 		{"all filters", activity.ListQuery{SinceMS: base + 150, UntilMS: base + 250, Source: activity.SourceMobile,
 			Before: &activity.Position{OccurredAtMs: base + 200, ID: 3}}, []int64{2}, 1},

@@ -5,6 +5,12 @@ whose `.claude` (`1.1.2`) and `.agents` (`1.3.0`) copies had drifted; both histo
 Entries name the views that prompted them as a historical record; the rules themselves live in the
 files of `docs/design/`. Superseded entries are kept and marked.
 
+- `2.2.0` — Added `patterns/activity-change-lines.md`: every Activity surface words a change with one
+  sentence, `<what changed> · <who changed it>`, from one helper (`describeActivityChange` in
+  `features/activity/change-words/`). It started when season grade changes reached the activity
+  history: History showed the raw action type (`season_grade_set`, `episode_adjusted`) while Recent
+  changes read `grade 4 → 5 · from the phone`. The user asked for one wording, documented as a
+  standard.
 - `2.1.1` — Gave the button preference its nuance: icon-only buttons with a tooltip are for
   secondary and per-row actions, while primary actions (Create, Save, Submit) keep their text. The
   user agreed it should not be absolute, both because primary actions have always been text and
