@@ -56,7 +56,18 @@ buttons are not converted retroactively; apply this when a surface is designed o
   (`More actions for Dr. Stone`), so screen readers and tests get the full name.
 - Wrap it in `Tooltip` with `Tooltip.Content showArrow` + `Tooltip.Arrow`; the tooltip text is the
   short action name (`More actions`). Reference: `IntakeRowMoreMenu.tsx`.
+- For a plain pressable action, reuse `shared/ui/IconActionButton/IconActionButton.tsx`
+  (`ariaLabel`, `tooltip`, `icon`, `variant` `ghost` | `tertiary`, `isDisabled`) instead of
+  repeating the `Tooltip` + `Button` pair. Anime Detail's toolbar and its Folder copy use it.
 - The icon comes from the `@iconify/react` set the surface already uses.
+
+## External URLs open in the default browser
+
+Every external URL opens through the bridge (`openAnimePage` and its siblings), which hands it to
+the system default browser. Never an `<a href target="_blank">`: in the Wails WebView that opens an
+internal window. A URL shown as text is a HeroUI `Link` with `onPress` and no `href` (role link,
+keyboard reachable), its failure a danger toast and its success silent. Reference: Anime Detail's
+Page field (`AnimeDetailGeneralData.tsx`).
 
 ## Toast feedback
 

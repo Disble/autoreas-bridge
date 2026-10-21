@@ -5,6 +5,30 @@ whose `.claude` (`1.1.2`) and `.agents` (`1.3.0`) copies had drifted; both histo
 Entries name the views that prompted them as a historical record; the rules themselves live in the
 files of `docs/design/`. Superseded entries are kept and marked.
 
+- `2.4.0` — Recorded the Anime Detail redesign, built from the approved mockup: a main card laid
+  out from its own width with container queries (`foundations/layout.md`, "Detail card"), a card
+  toolbar of icon-only actions through the new shared `IconActionButton`
+  (`components/heroui-mapping.md`), one progress line instead of the three stat tiles, and Watch
+  history in its own card. The Airis "No Cover" poster became the shared `NoCoverPoster`, used by
+  Catalog and Anime Detail; it is no longer Catalog-only (supersedes that part of `2.2.0`).
+- `2.3.0` — Recorded the page-chrome cleanup across every screen: a shared `PageHeader` with no
+  subtitle (and no rail tagline), section tabs under the title sized to their labels instead of
+  spanning the page and never wrapping, the History search taking the free width, tab panels without a repeated heading, Today's view toggle in the header
+  actions, and Notifications' unread count as a chip beside the title. Added the rule that a UI
+  change updates the existing test for the element instead of adding new cases.
+- `2.2.0` — Recorded the conventions of the Catalog redesign, built from the approved
+  mockup. The Catalog is now a cover grid (default) or a compact list, with search, a Filters
+  `Popover` of `TagGroup`s (Status, Type, Genres where every selected genre must match), and a sort
+  select. The old Active, Day and Download gap filters were removed with their tests rather than
+  kept behind shims. Year display and year sorts were left out because no stored release year
+  exists ("Sin año por ahora"). New rules: the poster grid cover frame (`foundations/layout.md`), a
+  uniform 230:326 crop shared by covers, the "No Cover" poster and skeletons. The approved Airis
+  "No Cover" poster (`assets/covers/no-cover.webp`) carries its "No cover" label as UI, never in the
+  art, and is Catalog-only for now; other screens keep `CoverPlaceholderScene`. The skeleton follows
+  the active view (`patterns/loading-empty-error.md`), and one progressive window feeds both views
+  inside a viewport-height panel where only the results pane scrolls (`patterns/lists.md`, ADR-012).
+  Batch cover loading moved from Season's `useSeasonCovers` to `shared/anime-cover/use-anime-cover-cache.ts`,
+  which Season and Catalog now share.
 - `2.1.1` — Gave the button preference its nuance: icon-only buttons with a tooltip are for
   secondary and per-row actions, while primary actions (Create, Save, Submit) keep their text. The
   user agreed it should not be absolute, both because primary actions have always been text and

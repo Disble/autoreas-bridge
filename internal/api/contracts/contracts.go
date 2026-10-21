@@ -121,6 +121,12 @@ type AnimeListItem struct {
 	// "null" source never reaches an image element. Deliberately does NOT
 	// expose the raw cover path or URL.
 	HasCover bool `json:"hasCover"`
+	// CreatedAt is when the anime was created, in Unix milliseconds; absent
+	// when the record never stored it. Feeds the Catalog "Date created" sort.
+	CreatedAt *int64 `json:"createdAt,omitempty"`
+	// LastWatchedAt is when the last episode was marked watched, in Unix
+	// milliseconds; absent until one is. Feeds the Catalog "Last watched" sort.
+	LastWatchedAt *int64 `json:"lastWatchedAt,omitempty"`
 }
 
 // WatchHistoryEntry is one recorded real-watch-history row (Real Watch

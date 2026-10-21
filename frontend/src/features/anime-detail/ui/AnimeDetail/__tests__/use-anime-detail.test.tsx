@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import * as HeroUI from '@heroui/react';
 import * as ReactRouter from 'react-router';
 import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeDetail } from '../../../../../shared/contracts/anime.types';
@@ -242,6 +243,60 @@ describe('useAnimeDetail', () => {
     });
 
     expect(navigateMock).toHaveBeenCalledWith('/editor/anime-1');
+  });
+
+  it.each([
+    ['success', { status: 'ok' }, 'Folder path copied'],
+    ['danger', { status: 'error', message: 'No folder' }, 'Could not copy the folder path'],
+  ] as const)('copies the folder through the binding and raises a %s toast', async (status, copyResult, message) => {
+    const toastSpy = vi.spyOn(HeroUI.toast, status).mockReturnValue('toast-1');
+    const copyAnimeFolder = vi.fn().mockResolvedValue(copyResult);
+    const source = createSource(populatedDetail, { copyAnimeFolder });
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+    await waitFor(() => expect(result.current.loadState).toBe('loaded'));
+
+    await act(async () => {
+      await result.current.onCopyFolder();
+    });
+
+    expect(copyAnimeFolder).toHaveBeenCalledWith('anime-1');
+    expect(toastSpy).toHaveBeenCalledWith(message);
+  });
+
+  it('opens the page through the binding for the current anime, silent on success and with a danger toast on failure', async () => {
+    const successSpy = vi.spyOn(HeroUI.toast, 'success').mockReturnValue('toast-1');
+    const dangerSpy = vi.spyOn(HeroUI.toast, 'danger').mockReturnValue('toast-2');
+    successSpy.mockClear();
+    dangerSpy.mockClear();
+    const openAnimePage = vi.fn()
+      .mockResolvedValueOnce({ status: 'ok' })
+      .mockResolvedValueOnce({ status: 'ok' })
+      .mockResolvedValueOnce({ status: 'error', message: 'No page' });
+    const source = createSource(populatedDetail, { openAnimePage });
+    const { result, rerender } = renderHook(
+      ({ animeId }) => useAnimeDetail({ animeId }, source),
+      { initialProps: { animeId: 'anime-2' } },
+    );
+    await waitFor(() => expect(result.current.loadState).toBe('loaded'));
+    await act(async () => {
+      await result.current.onOpenPage();
+    });
+    expect(openAnimePage).toHaveBeenLastCalledWith('anime-2');
+
+    rerender({ animeId: 'anime-1' });
+    await waitFor(() => expect(result.current.loadState).toBe('loaded'));
+
+    await act(async () => {
+      await result.current.onOpenPage();
+    });
+    expect(openAnimePage).toHaveBeenLastCalledWith('anime-1');
+    expect(successSpy).not.toHaveBeenCalled();
+    expect(dangerSpy).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.onOpenPage();
+    });
+    expect(dangerSpy).toHaveBeenCalledWith('Could not open the page');
   });
 
   it('cancels an explicit confirmation without invoking either binding', async () => {

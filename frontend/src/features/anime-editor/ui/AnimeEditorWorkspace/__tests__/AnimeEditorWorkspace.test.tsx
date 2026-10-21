@@ -63,7 +63,8 @@ describe('AnimeEditorWorkspace', () => {
 
     render(<MemoryRouter><AnimeEditorWorkspace /></MemoryRouter>);
 
-    expect(screen.getByRole('heading', { name: 'Editor' })).toBeInTheDocument();
+    // The Editor title belongs to the route's page header, above the Library | Create tabs.
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
     expect(screen.getByRole('button', { name: 'Discard changes' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Deactivate anime' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Schedule' })).toBeInTheDocument();

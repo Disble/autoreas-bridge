@@ -145,14 +145,14 @@ describe('NotificationCenterPanel -> NotificationDetail (integration)', () => {
   // The header subtitle and the nav rail badge read the same store value, so
   // asserting the rendered copy proves the number reached a surface the user
   // can see rather than only the store.
-  it('shows the climbed count in the page subtitle after mark unread', async () => {
+  it('shows the climbed count in the title-row unread chip after mark unread', async () => {
     render(<NotificationCenterPanel source={makeSource()} />);
     await pressListedRow();
-    await waitFor(() => expect(screen.getByText(/No unread/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText(/\d+ unread/)).not.toBeInTheDocument());
 
     fireEvent.click(await screen.findByRole('button', { name: 'Mark unread' }));
 
-    await waitFor(() => expect(screen.getByText(/1 unread/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('1 unread')).toBeInTheDocument());
   });
 
   // Every read-state hook below was already correct on its own. What was

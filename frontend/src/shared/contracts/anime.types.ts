@@ -24,6 +24,10 @@ export interface Anime {
    * plain `boolean`.
    */
   readonly hasCover: boolean;
+  /** When the anime was created, in Unix milliseconds; absent when never stored. */
+  readonly createdAt?: number;
+  /** When the last episode was marked watched, in Unix milliseconds; absent until one is. */
+  readonly lastWatchedAt?: number;
 }
 
 /** A single repetition-history entry from the `repetitions` timeline. */

@@ -19,11 +19,3 @@ export interface SeasonCoverThumbProps {
  * degrades every row to the placeholder instead of throwing.
  */
 export type SeasonCoverSource = Pick<BridgeRuntimeSource, 'getAnimeCover'>;
-
-/** One cover-binding answer: a base64 data URL, or the explicit placeholder signal. */
-export interface SeasonCoverResult {
-  /** 'cover' when the binding found one; anything else means the placeholder. */
-  readonly source: string;
-  /** The cover as a data URL, when the binding returned one. */
-  readonly dataUrl?: string;
-}

@@ -1,16 +1,19 @@
-import { Alert, Chip, ToggleButton, ToggleButtonGroup, Typography } from '@heroui/react';
+import { Alert, Chip, ToggleButton, ToggleButtonGroup } from '@heroui/react';
 import { useNavigate } from 'react-router';
 import todayAirisArtwork from '../../../../assets/airis-empty-states/today.webp';
 import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
+import { PageHeader } from '../../../../shared/ui/PageHeader/PageHeader';
 import { EpisodeScheduleCard } from './EpisodeScheduleCard';
 import { EpisodeScheduleSkeleton } from './EpisodeScheduleSkeleton';
-import { EPISODE_LENS_OPTIONS, EPISODE_LENS_TOGGLE_LABEL, EPISODE_TODAY_DOT_CLASS, EPISODE_TODAY_MARKER_LABEL, EPISODES_LOADING_MESSAGE } from './episode-schedule-panel.constants';
+import { EPISODE_LENS_OPTIONS, EPISODE_SCHEDULE_PAGE_TITLE, EPISODE_LENS_TOGGLE_LABEL, EPISODE_TODAY_DOT_CLASS, EPISODE_TODAY_MARKER_LABEL, EPISODES_LOADING_MESSAGE } from './episode-schedule-panel.constants';
 import { dayBadge, episodeDayLabel, getEpisodeEmptyStateNavigation, toEpisodeViewLens } from './episode-schedule-panel.helpers';
 import type { EpisodeSchedulePanelProps } from './episode-schedule-panel.types';
 import { useEpisodeSchedulePanel } from './use-episode-schedule-panel';
 
 /**
- * Renders the operational schedule for updating anime episode progress.
+ * Renders the Today screen: the title row carrying the view-lens toggle, the
+ * optional banner slot, the day tabs, then the operational schedule for
+ * updating anime episode progress.
  */
 export function EpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProps>) {
   const { adjustWatchedEpisodes, copyAnimeFolder, copyAnimePage, dayCounts, emptyStateCopy, errorMessage, filterOptions, isLoadingSchedule, lens, openAnimeFolder, openAnimePage, rows, selectDay, selectLens, selectedDay, setAnimeState, todayDay } = useEpisodeSchedulePanel(props);
@@ -19,22 +22,23 @@ export function EpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProps>)
 
   if (errorMessage !== '') {
     return (
-      <Alert status="danger">
-        <Alert.Content>
-          <Alert.Title>Episode schedule unavailable</Alert.Title>
-          <Alert.Description>{errorMessage}</Alert.Description>
-        </Alert.Content>
-      </Alert>
+      <section className="flex flex-col gap-4">
+        <PageHeader title={EPISODE_SCHEDULE_PAGE_TITLE} />
+        {props.banner}
+        <Alert status="danger">
+          <Alert.Content>
+            <Alert.Title>Episode schedule unavailable</Alert.Title>
+            <Alert.Description>{errorMessage}</Alert.Description>
+          </Alert.Content>
+        </Alert>
+      </section>
     );
   }
 
   return (
-    <section className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-3">
-          <Typography type="h2" className="text-3xl font-semibold tracking-tight text-foreground">
-            {episodeDayLabel(selectedDay)}
-          </Typography>
+    <section className="flex flex-col gap-4">
+      <PageHeader
+        actions={
           <ToggleButtonGroup aria-label={EPISODE_LENS_TOGGLE_LABEL} disallowEmptySelection selectedKeys={[lens]} selectionMode="single" size="sm" onSelectionChange={(keys) => selectLens(toEpisodeViewLens(String(Array.from(keys)[0] ?? lens)))}>
             {EPISODE_LENS_OPTIONS.map((option) => (
               <ToggleButton id={option.id} key={option.id}>
@@ -42,7 +46,11 @@ export function EpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProps>)
               </ToggleButton>
             ))}
           </ToggleButtonGroup>
-        </div>
+        }
+        title={EPISODE_SCHEDULE_PAGE_TITLE}
+      />
+      {props.banner}
+      <div className="flex flex-col">
         <ToggleButtonGroup disallowEmptySelection selectedKeys={[selectedDay]} selectionMode="single" size="sm" onSelectionChange={(keys) => selectDay(String(Array.from(keys)[0] ?? selectedDay))}>
           {filterOptions.map((day) => {
             const badgeCount = dayBadge(day, dayCounts);

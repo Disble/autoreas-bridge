@@ -1,17 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { AnimeDetail } from '../../../../../shared/contracts/anime.types';
+import { ANIME_DETAIL_COPY_FOLDER_FEEDBACK, ANIME_DETAIL_OPEN_PAGE_FEEDBACK } from '../anime-detail.constants';
 import {
   formatAnimeDetailDurationLabel,
   formatAnimeDetailLongDate,
+  formatAnimeDetailProgressCount,
   formatAnimeDetailProgressRatio,
-  formatAnimeDetailSubtitle,
-  formatAnimeDetailTotalLabel,
   getAnimeDetailEstadoColor,
+  getAnimeDetailLoadState,
   getAnimeDetailEstadoLabel,
   getAnimeDetailStatusColor,
   getAnimeDetailStatusLabel,
   getAnimeDetailTipoLabel,
   hasPreviousHistoryEntry,
+  runAnimeDetailDesktopAction,
   toAnimeDetailViewModel,
 } from '../anime-detail.helpers';
 
@@ -92,12 +94,6 @@ describe('getAnimeDetailTipoLabel', () => {
   });
 });
 
-describe('formatAnimeDetailSubtitle', () => {
-  it('joins estado and tipo labels with a bullet separator', () => {
-    expect(formatAnimeDetailSubtitle('Viendo', 'Serie')).toBe('Viendo • Serie');
-  });
-});
-
 describe('getAnimeDetailStatusLabel / getAnimeDetailStatusColor', () => {
   it('reports Active/success when activo is 1', () => {
     expect(getAnimeDetailStatusLabel(1)).toBe('Active');
@@ -110,19 +106,22 @@ describe('getAnimeDetailStatusLabel / getAnimeDetailStatusColor', () => {
   });
 });
 
-describe('formatAnimeDetailTotalLabel', () => {
-  it('renders the total when present', () => {
-    expect(formatAnimeDetailTotalLabel(28)).toBe('28');
+describe('formatAnimeDetailProgressCount', () => {
+  it('renders watched of total when the total is present', () => {
+    expect(formatAnimeDetailProgressCount(12, 28)).toBe('12 of 28 episodes');
   });
 
-  it('renders an explicit fallback when total is missing', () => {
-    expect(formatAnimeDetailTotalLabel(undefined)).toBe('No total episodes data');
+  it.each([
+    [12, '12 episodes · No total episodes data'],
+    [1, '1 episode · No total episodes data'],
+  ])('renders %i watched with an explicit fallback when total is missing', (watched, expected) => {
+    expect(formatAnimeDetailProgressCount(watched, undefined)).toBe(expected);
   });
 });
 
 describe('formatAnimeDetailDurationLabel', () => {
   it('renders the duration in minutes when present', () => {
-    expect(formatAnimeDetailDurationLabel(24)).toBe('24 min');
+    expect(formatAnimeDetailDurationLabel(24)).toBe('Duration · 24 min');
   });
 
   it('renders an explicit fallback when duration is missing', () => {
@@ -184,19 +183,22 @@ describe('toAnimeDetailViewModel', () => {
       nombre: 'Frieren',
       hasStoredCover: false,
       estadoLabel: 'No me gusto',
+      estadoColor: 'danger',
       tipoLabel: 'Unknown',
-      subtitleLabel: 'No me gusto • Unknown',
       statusLabel: 'Active',
       statusColor: 'success',
       modifiedAt: 0,
       canRepeat: true,
       canRestore: false,
-      statTiles: [
-        { label: 'Watched', value: '12' },
-        { label: 'Total episodes', value: '28' },
-        { label: 'Duration', value: 'No episode duration data' },
-      ],
+      coverAlt: 'Cover of Frieren',
+      repeatLabel: 'Repeat Frieren',
+      restoreLabel: 'Restore Frieren',
+      editLabel: 'Edit Frieren',
+      progressCountLabel: '12 of 28 episodes',
+      durationLabel: 'No episode duration data',
+      progressRatio: 43,
       paginaUrl: undefined,
+      hasFolder: false,
       carpetaLabel: 'Unknown',
       estrenoLabel: 'Unknown',
       creacionLabel: 'Unknown',
@@ -236,17 +238,16 @@ describe('toAnimeDetailViewModel', () => {
     expect(viewModel.hasStoredCover).toBe(true);
     expect(viewModel.estadoLabel).toBe('Viendo');
     expect(viewModel.tipoLabel).toBe('Película');
-    expect(viewModel.subtitleLabel).toBe('Viendo • Película');
+    expect(viewModel.estadoColor).toBe('accent');
     expect(viewModel.statusLabel).toBe('Inactive');
     expect(viewModel.statusColor).toBe('danger');
     expect(viewModel.canRepeat).toBe(false);
     expect(viewModel.canRestore).toBe(true);
-    expect(viewModel.statTiles).toEqual([
-      { label: 'Watched', value: '12' },
-      { label: 'Total episodes', value: 'No total episodes data' },
-      { label: 'Duration', value: '24 min' },
-    ]);
+    expect(viewModel.progressCountLabel).toBe('12 episodes · No total episodes data');
+    expect(viewModel.durationLabel).toBe('Duration · 24 min');
+    expect(viewModel.progressRatio).toBeUndefined();
     expect(viewModel.paginaUrl).toBe('https://example.com/frieren');
+    expect(viewModel.hasFolder).toBe(true);
     expect(viewModel.carpetaLabel).toBe('D:/anime/Frieren');
     expect(viewModel.estrenoLabel).toBe('September 29, 2023');
     expect(viewModel.creacionLabel).toBe('January 1, 2023');
@@ -310,5 +311,49 @@ describe('toAnimeDetailViewModel', () => {
   it('preserves the displayed authoritative modified token including zero', () => {
     expect(toAnimeDetailViewModel({ ...baseDetail, modified_at: 0 }).modifiedAt).toBe(0);
     expect(toAnimeDetailViewModel({ ...baseDetail, modified_at: 9876 }).modifiedAt).toBe(9876);
+  });
+});
+
+describe('runAnimeDetailDesktopAction', () => {
+  it('runs the binding with the anime id and reports the success toast when one is set', async () => {
+    const copy = vi.fn().mockResolvedValue({ status: 'ok' });
+
+    await expect(runAnimeDetailDesktopAction(copy, 'anime-1', ANIME_DETAIL_COPY_FOLDER_FEEDBACK)).resolves.toEqual({
+      status: 'success',
+      message: 'Folder path copied',
+    });
+    expect(copy).toHaveBeenCalledWith('anime-1');
+  });
+
+  it('stays silent on success when the action has no success toast', async () => {
+    const open = vi.fn().mockResolvedValue({ status: 'ok' });
+
+    await expect(runAnimeDetailDesktopAction(open, 'anime-1', ANIME_DETAIL_OPEN_PAGE_FEEDBACK)).resolves.toBeUndefined();
+    expect(open).toHaveBeenCalledWith('anime-1');
+  });
+
+  it.each([
+    ['a missing binding', undefined],
+    ['a non-ok result', vi.fn().mockResolvedValue({ status: 'error', message: 'No folder' })],
+    ['a rejected request', vi.fn().mockRejectedValue(new Error('offline'))],
+  ])('reports the failure toast for %s', async (_case, action) => {
+    await expect(runAnimeDetailDesktopAction(action, 'anime-1', ANIME_DETAIL_COPY_FOLDER_FEEDBACK)).resolves.toEqual({
+      status: 'danger',
+      message: 'Could not copy the folder path',
+    });
+    await expect(runAnimeDetailDesktopAction(action, 'anime-1', ANIME_DETAIL_OPEN_PAGE_FEEDBACK)).resolves.toEqual({
+      status: 'danger',
+      message: 'Could not open the page',
+    });
+  });
+});
+
+describe('getAnimeDetailLoadState', () => {
+  it.each([
+    [undefined, 'loading'],
+    [null, 'not-found'],
+    [baseDetail, 'loaded'],
+  ] as const)('maps the snapshot %j to %s', (detail, expected) => {
+    expect(getAnimeDetailLoadState(detail)).toBe(expected);
   });
 });
