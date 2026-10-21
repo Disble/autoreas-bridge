@@ -45,7 +45,7 @@ function countRenderedAnime(): number {
 }
 
 describe('CatalogPanel progressive window (400 anime)', () => {
-  it.each<CatalogView>(['grid', 'list'])('renders one batch in the %s view, then grows on scroll — never the whole catalog', async (view) => {
+  it.each<CatalogView>(['grid', 'list'])('renders one batch in the %s view, then grows as the page scrolls — never the whole catalog', async (view) => {
     catalogSessionStore.setState({ view });
     render(
       <MemoryRouter>
@@ -56,10 +56,10 @@ describe('CatalogPanel progressive window (400 anime)', () => {
     await waitFor(() => expect(screen.getByRole('list', { name: 'Anime catalog' })).toBeInTheDocument());
     expect(countRenderedAnime()).toBe(20); // PROGRESSIVE_LIST_INITIAL_COUNT
 
-    fireEvent.scroll(screen.getByTestId('catalog-results-scroll'));
+    fireEvent.scroll(window);
     await waitFor(() => expect(countRenderedAnime()).toBe(40));
 
-    fireEvent.scroll(screen.getByTestId('catalog-results-scroll'));
+    fireEvent.scroll(window);
     await waitFor(() => expect(countRenderedAnime()).toBe(60));
     expect(screen.getByText('Showing 60 of 400 — scroll for more')).toBeInTheDocument();
   });

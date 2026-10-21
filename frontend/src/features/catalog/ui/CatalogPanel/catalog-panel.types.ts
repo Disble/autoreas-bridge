@@ -1,7 +1,7 @@
 import type { Key, Selection } from '@heroui/react';
 import type { IconifyIcon } from '@iconify/react';
 import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
-import type { ProgressiveListWindow } from '../../../../shared/hooks/use-progressive-list-window.types';
+import type { PageProgressiveWindow } from '../../../../shared/hooks/use-page-progressive-window.types';
 import type { LabeledSelectOption } from '../../../../shared/ui/LabeledSelect.types';
 
 /** How the Catalog orders its anime. */
@@ -97,7 +97,7 @@ export interface CatalogPanelState extends UseCatalogCriteriaResult, CatalogCove
   readonly matchingCount: number;
   /** Only the currently revealed slice — see `listWindow` and ADR-012. */
   readonly items: readonly CatalogItemViewModel[];
-  readonly listWindow: ProgressiveListWindow;
+  readonly listWindow: PageProgressiveWindow;
   readonly activeFilterCount: number;
   readonly criterionChips: readonly CatalogCriterionChip[];
   /** A search or filter is narrowing the catalog. */

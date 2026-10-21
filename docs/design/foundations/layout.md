@@ -130,6 +130,6 @@ break the row baseline. Catalog's frame is `CATALOG_COVER_FRAME_CLASS`
   `hasCover`, so a long catalog costs one lookup per revealed card (`useCatalogCovers` over
   `shared/anime-cover/use-anime-cover-cache.ts`).
 
-The panel fills the viewport height (`h-[calc(100dvh-7rem)]`) and only the results pane scrolls
-(`data-testid="catalog-results-scroll"`), so the toolbar stays in reach and
-`useProgressiveListWindow` applies unchanged (`patterns/lists.md`).
+The Catalog sets no width cap or height of its own: it fills `AppLayout`'s container
+(`max-w-[1600px]`) and scrolls with the page like every other screen. Because the document is what
+scrolls, its window is `usePageProgressiveWindow` (`patterns/lists.md`).

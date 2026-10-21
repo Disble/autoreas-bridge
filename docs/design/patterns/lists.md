@@ -20,8 +20,9 @@ rows (`onPress` selects) inside a height-bounded `overflow-y-auto` div. Geometry
   dodges `react-doctor/no-derived-state-effect`).
 - Do not re-implement the window per feature, and do not map a full `Button` column (800 rows).
 - One window can feed several views. Catalog's grid and list render the same `visibleCount` slice
-  inside one scroll container (`data-testid="catalog-results-scroll"`), the only part of its
-  viewport-height panel that scrolls. Its rows are `Link`s to the detail route, not selectable
+  in normal page flow. When the page itself scrolls (no height-bounded pane), use
+  `usePageProgressiveWindow`, which listens on `window`; `useProgressiveListWindow` needs a
+  bounded container. Its rows are `Link`s to the detail route, not selectable
   `Button`s, because a pick navigates.
 
 ### Live lists (an event stream pushes items into a store)

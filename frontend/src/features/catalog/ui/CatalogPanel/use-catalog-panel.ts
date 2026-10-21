@@ -5,7 +5,7 @@ import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runt
 import type { Anime } from '../../../../shared/contracts/anime.types';
 import { useAsyncList } from '../../../../shared/hooks/use-async-list/use-async-list';
 import { useDebounce } from '../../../../shared/hooks/use-debounce';
-import { useProgressiveListWindow } from '../../../../shared/hooks/use-progressive-list-window';
+import { usePageProgressiveWindow } from '../../../../shared/hooks/use-page-progressive-window';
 import { ANIME_CREATE_ROUTE } from '../../../../shared/navigation/app-layout.constants';
 import { CATALOG_KIND_OPTIONS, CATALOG_QUERY_DEBOUNCE_MS, CATALOG_SORT_OPTIONS, CATALOG_STATUS_OPTIONS } from './catalog-panel.constants';
 import {
@@ -52,7 +52,7 @@ export function useCatalogPanel(source: BridgeRuntimeSource = bridgeRuntimeSourc
   });
   // Static list (ADR-012): the count only moves when the search or a filter
   // changes, which is exactly when restarting at the first batch is correct.
-  const listWindow = useProgressiveListWindow(matchingItems.length);
+  const listWindow = usePageProgressiveWindow(matchingItems.length);
   const windowItems = useMemo(() => matchingItems.slice(0, listWindow.visibleCount), [matchingItems, listWindow.visibleCount]);
   const covers = useCatalogCovers(windowItems, source);
   const genreOptions = useMemo(() => getCatalogGenreOptions(items), [items]);

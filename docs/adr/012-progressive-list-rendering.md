@@ -15,10 +15,11 @@ mount every row on open:
 - The Catalog panel (`max-h-[28rem]`, every filtered anime).
 
 > **Update, 2026-10-20.** The Catalog redesign replaced the `max-h-[28rem]`
-> list with a viewport-height panel whose results pane alone scrolls
-> (`data-testid="catalog-results-scroll"`). Both views, the cover grid and the
-> compact list, render the same `useProgressiveListWindow` slice, so Catalog is
-> still a static rail under this decision.
+> list with results that flow with the page, like every other screen: the
+> document is what scrolls, so the trigger is `usePageProgressiveWindow`, which
+> listens on `window` and reuses `isNearListBottom` and `nextRenderLimit`. Both
+> views, the cover grid and the compact list, render the same slice, so Catalog
+> is still a static rail under this decision.
 - The Downloads run-history rail (previously button-paginated).
 
 Two problems follow. The DOM cost is paid up front for rows nobody scrolls to,

@@ -82,7 +82,7 @@ export function createCatalogState(overrides: Partial<CatalogPanelState> = {}): 
     totalCount: 0,
     matchingCount: 0,
     items: [],
-    listWindow: { scrollRef: { current: null }, onScroll: vi.fn(), visibleCount: 20 },
+    listWindow: { visibleCount: 20 },
     activeFilterCount: 0,
     criterionChips: [],
     hasCriteria: false,
