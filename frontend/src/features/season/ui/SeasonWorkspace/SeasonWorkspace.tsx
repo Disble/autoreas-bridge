@@ -130,7 +130,7 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
           </div>
 
           <Tabs selectedKey={activeTab} onSelectionChange={selectTab}>
-            <Tabs.ListContainer>
+            <Tabs.ListContainer className="w-fit max-w-full whitespace-nowrap">
               <Tabs.List aria-label="Season workflow">
                 {sections.map((tab) => (
                   <Tabs.Tab key={tab.id} id={tab.id} isDisabled={!tab.available}>

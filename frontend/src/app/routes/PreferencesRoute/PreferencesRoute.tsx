@@ -12,7 +12,7 @@ export function PreferencesRoute() {
       <PageHeader title="Settings" />
 
       <Tabs defaultSelectedKey="library">
-        <Tabs.ListContainer>
+        <Tabs.ListContainer className="w-fit max-w-full whitespace-nowrap">
           <Tabs.List aria-label="Options categories">
             {PREFERENCES_ROUTE_TABS.map((tab) => (
               <Tabs.Tab key={tab.id} id={tab.id}>

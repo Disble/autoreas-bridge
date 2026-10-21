@@ -19,7 +19,7 @@ export function AnimeEditorRoute({ initialTab = 'library' }: Readonly<AnimeEdito
         Library. The key forces the remount that re-reads the default.
       */}
       <Tabs defaultSelectedKey={initialTab} key={initialTab}>
-        <Tabs.ListContainer className="w-fit">
+        <Tabs.ListContainer className="w-fit max-w-full whitespace-nowrap">
           <Tabs.List aria-label="Anime editor">
             <Tabs.Tab id="library">
               Library

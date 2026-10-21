@@ -3,7 +3,7 @@ name: autoreas-theme
 description: "Design-system fundamentals for the autoreas-bridge frontend, with an index into docs/design for the detail. Use BEFORE building or refactoring ANY UI under frontend/src: which HeroUI v3 component to use instead of hand-rolling divs/buttons/tables, semantic color tokens, chips, the loading/empty/error states, empty-state kinds and the mascot, and mockup fidelity and pricing. Keywords: theme, design system, UI, rebrand, restyle, frontend component, HeroUI, Tailwind, styling, feature UI, empty state, skeleton, mockup."
 metadata:
   author: autoreas-bridge
-  version: "2.2.0"
+  version: "2.3.0"
   scope: project
   updates: living
 ---
@@ -88,7 +88,18 @@ case by copying badly; anything new is labelled as an improvement proposal. Pric
 change: `$` UI only · `$$` rewire an existing callback · `$$$` new logic (TDD + mutation) · `$$$$`
 new contract (navigation, keyboard registry, Go/Wails).
 
-## 7. Prove layout in a browser
+## 7. Page chrome
+
+Every screen titles itself with `shared/ui/PageHeader`: title, optional adornment chip, actions
+on the right, and no subtitle. Section tabs go under the title and are as wide as their labels
+(`w-fit max-w-full whitespace-nowrap`), and a filter bar's search field takes the free width; a tab panel repeats no heading of its own (`foundations/layout.md`).
+
+## 8. UI changes update existing tests
+
+A UI change tightens the test that already covers that element; it never adds a new `it`. A new
+test is only for genuinely new functionality. Pure class or layout tweaks need no new case at all.
+
+## 9. Prove layout in a browser
 
 jsdom has no layout engine. Layout claims go through `bun --cwd="frontend" run layout:smoke`
 (fixtures in `frontend/scripts/layout-fixtures/`); render claims through `render:smoke`.

@@ -8,7 +8,23 @@ over-wide child for you.
 
 Every screen titles itself with `shared/ui/PageHeader`: the `h1`, an optional inline `adornment`
 (a status chip such as Notifications' unread count) and optional right-aligned `actions`, in one
-vertically centered row. There is no subtitle under the title.
+vertically centered row. The page chrome stays minimal:
+
+- **No subtitle** under the title, and no tagline under the app name in the rail.
+- **Title first, section tabs below it.** A screen with sections (Editor, Downloads, Settings,
+  Activity, Season) puts its page-level `Tabs` directly under the header, never beside the title.
+- **Page-level tabs are as wide as their labels**: `Tabs.ListContainer className="w-fit max-w-full whitespace-nowrap"`
+  (a label never wraps to two lines),
+  never stretched across the page. A lone screen action may sit right-aligned on the same row as the
+  tabs (Activity's "Pin this moment"). Tabs inside a card are a separate, card-scoped control.
+- **A tab panel opens straight onto its content.** It repeats no heading or intro of its own under
+  the page title (Editor → Create shows its form, not a "Create anime" heading).
+- **A view switch belongs in `actions`.** Today's Season | Daily toggle sits at the header's right;
+  the content's own filters (the day tabs) move up into the space it left, and no heading restates
+  the selected filter.
+- **Counts that matter sit beside the title** as an `adornment` chip, not in a sentence under it.
+- **A filter bar's search field takes the free width** (`min-w-45 flex-1`); the selects keep their
+  fixed widths. Search text needs the room, the selects do not (History).
 
 ## Containment: a card must never widen the page
 

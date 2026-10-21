@@ -28,7 +28,7 @@ export function DownloadsRoute() {
       <PageHeader title="Downloads" />
 
       <Tabs defaultSelectedKey="downloads">
-        <Tabs.ListContainer>
+        <Tabs.ListContainer className="w-fit max-w-full whitespace-nowrap">
           <Tabs.List aria-label="Downloads sections">
             <Tabs.Tab id="downloads">
               Downloads
