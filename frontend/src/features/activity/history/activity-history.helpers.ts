@@ -1,4 +1,5 @@
 import type { Key } from '@heroui/react';
+import { describeActivityChange } from '../change-words/change-words.helpers';
 import type { ActivityCalendarDay, ActivityLedgerDay, ActivityLedgerLine, ActivityWhere } from '../history-source/history.types';
 import {
   ACTIVITY_CALENDAR_BEFORE_CLASS,
@@ -199,6 +200,14 @@ function formatPhoneTime(phoneAtMs: number, atMs: number): string {
   return isSameDay ? `Phone ${time}` : `Phone ${ACTIVITY_SHORT_DATE_FORMAT.format(phoneAtMs)}, ${time}`;
 }
 
+/** Words a line's detail: a change reads as every Activity surface words a change; any other fact as Go worded it. */
+function describeLineDetail(line: ActivityLedgerLine): string {
+  if (line.kind !== 'change') {
+    return line.detail;
+  }
+  return describeActivityChange({ source: line.source, actionType: line.detail, beforeJson: line.beforeJson, afterJson: line.afterJson });
+}
+
 /**
  * Words one ledger line. The phone time shows only when Go marked the fact as
  * arrived late, which it does past its 10-minute threshold.
@@ -212,7 +221,7 @@ export function toHistoryLineModel(line: ActivityLedgerLine): ActivityHistoryLin
     time: ACTIVITY_LINE_TIME_FORMAT.format(line.atMs),
     phoneTime: line.marks.includes('arrived_late') && line.phoneAtMs !== undefined ? formatPhoneTime(line.phoneAtMs, line.atMs) : undefined,
     title: line.title,
-    detail: line.detail,
+    detail: describeLineDetail(line),
     chips: line.marks.map((mark) => ACTIVITY_MARK_CHIPS[mark]),
   };
 }

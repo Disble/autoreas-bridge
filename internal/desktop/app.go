@@ -41,6 +41,7 @@ type App struct {
 	startupErr                 error
 	startupFatal               bool
 	sharedLogger               *sharedlogger.FanoutLogger
+	seasonGradeActivity        seasonGradeActivityRecorder // nil → built from bridgeDB
 	syncTrigger                *bridgeSync.TriggerService
 	bootstrapBridgeDB          func() (*sql.DB, error)
 	newCommittedPublisher      func(bus events.Bus) anime.CommittedPublisher

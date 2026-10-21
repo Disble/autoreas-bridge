@@ -128,3 +128,16 @@ func insertChange(t *testing.T, db *sql.DB, source, animeName string, atMS, repo
 		t.Fatalf("record change: %v", err)
 	}
 }
+
+// insertSeasonGrade records one season grade change from source through
+// internal/activity, the table's owner.
+func insertSeasonGrade(t *testing.T, db *sql.DB, source string, atMS int64) {
+	t.Helper()
+	err := activity.NewStore(activity.NewSQLiteProvider(db)).RecordActivity(context.Background(), activity.Record{
+		Source: source, ActionType: activity.ActionSeasonGradeSet, AnimeID: "anime-2", AnimeName: "Date A Live V", OccurredAtMs: atMS,
+		CorrelationID: "season.grade:anime-2", BeforeJSON: []byte(`{"grade":4}`), AfterJSON: []byte(`{"grade":5}`),
+	})
+	if err != nil {
+		t.Fatalf("record season grade: %v", err)
+	}
+}

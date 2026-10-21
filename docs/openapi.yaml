@@ -1859,8 +1859,9 @@ paths:
       summary: Record a first-episode grade for an anime in the active season
       description: |
         Ingests a mobile-sourced premiere grade (1–6) for an anime in the open season.
-        Wire fields are English (see ADR-007). Manual grades captured on the desktop are
-        protected: a mobile write is rejected with `409` when a manual grade already exists.
+        Wire fields are English (see ADR-007). A grade changes from either side and the
+        newest `rated_at` wins: a mobile write is rejected with `409` only when the stored
+        grade, manual or mobile, was rated later than it.
         A recorded grade reaches the anime as a `changed_fields: [season]` change
         on the changes feed.
       security:
@@ -1907,7 +1908,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: A manual grade already exists and is kept; the body carries it
+          description: A grade rated later than this write exists and is kept; the body carries it
           content:
             application/json:
               schema:
@@ -1917,7 +1918,7 @@ paths:
                     type: integer
                   source:
                     type: string
-                    enum: [manual]
+                    enum: [manual, mobile_sync]
         '422':
           description: Grade outside 1–6, or malformed body
           content:

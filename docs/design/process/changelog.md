@@ -5,6 +5,12 @@ whose `.claude` (`1.1.2`) and `.agents` (`1.3.0`) copies had drifted; both histo
 Entries name the views that prompted them as a historical record; the rules themselves live in the
 files of `docs/design/`. Superseded entries are kept and marked.
 
+- `2.5.0` — Added `patterns/activity-change-lines.md`: every Activity surface words a change with one
+  sentence, `<what changed> · <who changed it>`, from one helper (`describeActivityChange` in
+  `features/activity/change-words/`). It started when season grade changes reached the activity
+  history: History showed the raw action type (`season_grade_set`, `episode_adjusted`) while Recent
+  changes read `grade 4 → 5 · from the phone`. The user asked for one wording, documented as a
+  standard.
 - `2.4.0` — Recorded the Anime Detail redesign, built from the approved mockup: a main card laid
   out from its own width with container queries (`foundations/layout.md`, "Detail card"), a card
   toolbar of icon-only actions through the new shared `IconActionButton`

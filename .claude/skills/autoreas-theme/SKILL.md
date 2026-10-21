@@ -3,7 +3,7 @@ name: autoreas-theme
 description: "Design-system fundamentals for the autoreas-bridge frontend, with an index into docs/design for the detail. Use BEFORE building or refactoring ANY UI under frontend/src: which HeroUI v3 component to use instead of hand-rolling divs/buttons/tables, semantic color tokens, chips, the loading/empty/error states, empty-state kinds and the mascot, and mockup fidelity and pricing. Keywords: theme, design system, UI, rebrand, restyle, frontend component, HeroUI, Tailwind, styling, feature UI, empty state, skeleton, mockup."
 metadata:
   author: autoreas-bridge
-  version: "2.4.0"
+  version: "2.5.0"
   scope: project
   updates: living
 ---
@@ -119,6 +119,7 @@ jsdom has no layout engine. Layout claims go through `bun --cwd="frontend" run l
 - `docs/design/patterns/loading-empty-error.md` — the states in full: status region, skeletons, debounce, tests.
 - `docs/design/patterns/empty-states.md` — choosing a kind, copy, actions, the mascot catalog and adding a pose.
 - `docs/design/patterns/lists.md` — progressive windows (static vs live) and status columns.
+- `docs/design/patterns/activity-change-lines.md` — the one sentence every Activity surface uses for a change.
 - `docs/design/process/mockup-fidelity-and-pricing.md` — drawing and pricing a proposal.
 - `docs/design/process/verifying-design-claims.md` — layout fixtures, smoke runs, jsdom testing notes.
 - `docs/design/process/changelog.md` — why each rule exists.

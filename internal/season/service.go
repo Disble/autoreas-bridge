@@ -39,10 +39,10 @@ var ErrInvalidGrade = errors.New("grade out of range")
 // is linked to the given anime (no open season, or the anime is not a candidate).
 var ErrNotSeasonCandidate = errors.New("anime is not an active season candidate")
 
-// ErrManualGradePresent is returned by RecordPremiereGrade when a mobile_sync grade
-// is rejected because a manual grade already exists; the manual grade is kept and
+// ErrNewerGradePresent is returned by RecordPremiereGrade when a mobile_sync grade
+// is rejected because the stored grade was rated later; the newer grade is kept and
 // returned so the caller can surface it (the sync 409 body).
-var ErrManualGradePresent = errors.New("manual grade present")
+var ErrNewerGradePresent = errors.New("newer grade present")
 
 // ErrInvalidConsideration is returned by SetConsideration for an unknown value.
 var ErrInvalidConsideration = errors.New("unknown consideration")
@@ -320,49 +320,53 @@ func (s *Service) RunMatching(ctx context.Context, seasonID string) error {
 }
 
 // RecordPremiereGrade records a first-episode grade for the anime linked to a row
-// in the OPEN season, applying the domain conflict rule (manual protected from
-// mobile). It validates the 1–6 bound and returns the updated row. A mobile write
-// rejected by an existing manual grade returns that row with ErrManualGradePresent
-// so the caller can surface the kept grade. Idempotent for mobile self-writes.
+// in the OPEN season, applying the domain conflict rule (newest rated_at wins).
+// It validates the 1–6 bound and returns the updated row. A mobile write older
+// than the stored grade returns that row with ErrNewerGradePresent so the caller
+// can surface the kept grade. Idempotent for retried mobile writes.
 func (s *Service) RecordPremiereGrade(ctx context.Context, animeID string, grade int, source domain.GradeSource, ratedAt time.Time) (domain.SeasonAnime, error) {
-	return s.RecordPremiereGradeInSeason(ctx, "", animeID, grade, source, ratedAt)
+	row, _, err := s.RecordPremiereGradeInSeason(ctx, "", animeID, grade, source, ratedAt)
+	return row, err
 }
 
 // RecordPremiereGradeInSeason is RecordPremiereGrade for a grade given in seasonID: a grade
 // queued offline for a season that has since closed is not a candidate of the open one, so a
 // seasonID other than the open season's returns ErrNotSeasonCandidate. An empty seasonID accepts
-// the open season.
-func (s *Service) RecordPremiereGradeInSeason(ctx context.Context, seasonID, animeID string, grade int, source domain.GradeSource, ratedAt time.Time) (domain.SeasonAnime, error) {
+// the open season. It also returns the grade the row held before the write (0 when ungraded),
+// so the caller can audit the change; it is meaningful only with a nil error or
+// ErrNewerGradePresent.
+func (s *Service) RecordPremiereGradeInSeason(ctx context.Context, seasonID, animeID string, grade int, source domain.GradeSource, ratedAt time.Time) (domain.SeasonAnime, int, error) {
 	if grade < 1 || grade > 6 {
-		return domain.SeasonAnime{}, ErrInvalidGrade
+		return domain.SeasonAnime{}, 0, ErrInvalidGrade
 	}
 	if animeID == "" {
-		return domain.SeasonAnime{}, ErrNotSeasonCandidate
+		return domain.SeasonAnime{}, 0, ErrNotSeasonCandidate
 	}
 	active, err := s.repo.ActiveSeason(ctx)
 	if err != nil {
-		return domain.SeasonAnime{}, err
+		return domain.SeasonAnime{}, 0, err
 	}
 	if active == nil || (seasonID != "" && seasonID != active.ID) {
-		return domain.SeasonAnime{}, ErrNotSeasonCandidate
+		return domain.SeasonAnime{}, 0, ErrNotSeasonCandidate
 	}
 	rows, err := s.repo.ListSeasonAnimes(ctx, active.ID)
 	if err != nil {
-		return domain.SeasonAnime{}, err
+		return domain.SeasonAnime{}, 0, err
 	}
 	for _, row := range rows {
 		if row.AnimeID != animeID {
 			continue
 		}
+		previous := row.Grade
 		if !row.ApplyGrade(grade, source, ratedAt) {
-			return row, ErrManualGradePresent
+			return row, previous, ErrNewerGradePresent
 		}
 		if err := s.repo.UpdateSeasonAnime(ctx, row); err != nil {
-			return domain.SeasonAnime{}, err
+			return domain.SeasonAnime{}, 0, err
 		}
-		return row, nil
+		return row, previous, nil
 	}
-	return domain.SeasonAnime{}, ErrNotSeasonCandidate
+	return domain.SeasonAnime{}, 0, ErrNotSeasonCandidate
 }
 
 // SkipGrading records the explicit "no grade" override for a row (visible at

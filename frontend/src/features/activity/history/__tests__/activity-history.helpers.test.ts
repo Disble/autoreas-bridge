@@ -37,8 +37,10 @@ function line(overrides: Partial<ActivityLedgerLine>): ActivityLedgerLine {
     source: 'mobile',
     level: '',
     title: 'Date A Live IV',
-    detail: 'episode 10 → 11',
+    detail: 'episode_adjusted',
     correlationId: '',
+    beforeJson: '{"NroCapVisto":10}',
+    afterJson: '{"NroCapVisto":11}',
     marks: [],
     ...overrides,
   };
@@ -171,12 +173,18 @@ describe('toHistoryLineModel', () => {
       time: '17:31',
       phoneTime: undefined,
       title: 'Date A Live IV',
-      detail: 'episode 10 → 11',
+      detail: 'episode 10 → 11 · from the phone',
       chips: [
         { label: 'Recovered', color: 'warning' },
         { label: 'Incident', color: 'danger' },
       ],
     });
+  });
+
+  it('words a change with the shared change wording and keeps any other fact as Go worded it', () => {
+    const grade = line({ source: 'desktop', detail: 'season_grade_set', beforeJson: '{"grade":4}', afterJson: '{"grade":5}' });
+    expect(toHistoryLineModel(grade).detail).toBe('grade 4 → 5 · from the bridge');
+    expect(toHistoryLineModel(line({ kind: 'event', detail: 'run started', beforeJson: '', afterJson: '' })).detail).toBe('run started');
   });
 
   it('shows the phone time beside the bridge time when the fact arrived late', () => {
