@@ -43,10 +43,14 @@ export interface ActivityLedgerLine {
   readonly level: string;
   /** Plain-words title worded by Go. */
   readonly title: string;
-  /** Secondary detail worded by Go. */
+  /** Secondary detail worded by Go; for a change, its action type, which the UI words. */
   readonly detail: string;
   /** Correlation id, when recorded. */
   readonly correlationId: string;
+  /** A change's snapshot JSON before the write; empty for other kinds. */
+  readonly beforeJson: string;
+  /** A change's snapshot JSON after the write; empty for other kinds. */
+  readonly afterJson: string;
   /** Chips Go put on the line. */
   readonly marks: readonly ActivityLineMark[];
 }

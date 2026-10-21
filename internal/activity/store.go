@@ -28,6 +28,9 @@ const (
 	ActionAnimeRestored = "anime_restored"
 	// ActionAnimeRepeated records a repetition reset.
 	ActionAnimeRepeated = "anime_repeated"
+	// ActionSeasonGradeSet records a season premiere-grade change; its
+	// snapshots carry only {"grade": n}.
+	ActionSeasonGradeSet = "season_grade_set"
 
 	// defaultRowCap bounds activity_log at roughly 2.4 years of audit trail
 	// at the measured post-relocation write rate (design.md D8).
@@ -92,6 +95,8 @@ type ListQuery struct {
 	SinceMS, UntilMS int64
 	// Source keeps only the rows recorded by that source.
 	Source string
+	// ActionTypes keeps only the rows with one of these action types.
+	ActionTypes []string
 	// Before keeps only the rows after that position in newest-first order.
 	Before *Position
 }
@@ -113,6 +118,12 @@ func (q ListQuery) where() (string, []any) {
 	}
 	if q.Source != "" {
 		clauses, args = append(clauses, "source = ?"), append(args, q.Source)
+	}
+	if len(q.ActionTypes) > 0 {
+		clauses = append(clauses, "action_type IN (?"+strings.Repeat(", ?", len(q.ActionTypes)-1)+")")
+		for _, actionType := range q.ActionTypes {
+			args = append(args, actionType)
+		}
 	}
 	if q.Before != nil {
 		clauses = append(clauses, "(occurred_at_ms < ? OR (occurred_at_ms = ? AND id < ?))")

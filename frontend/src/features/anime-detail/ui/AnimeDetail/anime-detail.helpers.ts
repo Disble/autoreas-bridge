@@ -3,21 +3,21 @@ import { normalizeStoredCoverPath } from '../../../../shared/anime-cover/anime-c
 import { getAnimeEstadoLabel } from '../../../../shared/helpers/anime-estado.helpers';
 import type { AnimeDetail } from '../../../../shared/contracts/anime.types';
 import {
-  ANIME_DETAIL_DURATION_TILE_LABEL,
   ANIME_DETAIL_LONG_DATE_FORMATTER,
   ANIME_DETAIL_NO_DURATION_MESSAGE,
   ANIME_DETAIL_NO_TOTAL_EPISODES_MESSAGE,
   ANIME_DETAIL_STATUS_ACTIVE_LABEL,
   ANIME_DETAIL_STATUS_INACTIVE_LABEL,
-  ANIME_DETAIL_TOTAL_TILE_LABEL,
   ANIME_DETAIL_UNKNOWN_LABEL,
-  ANIME_DETAIL_WATCHED_TILE_LABEL,
 } from './anime-detail.constants';
 import type {
   AnimeDetailAction,
   AnimeDetailConfirmationViewModel,
+  AnimeDetailDesktopAction,
+  AnimeDetailDesktopActionFeedback,
+  AnimeDetailLoadState,
   AnimeDetailMutationResolution,
-  AnimeDetailStatTile,
+  AnimeDetailToast,
   AnimeDetailViewModel,
   HeroChipColor,
 } from './anime-detail.types';
@@ -241,17 +241,10 @@ export function getAnimeDetailTipoLabel(tipo?: number): string {
   }
 }
 
-/** Joins the estado and tipo labels into the hero's "estado • tipo" subtitle line. */
-export function formatAnimeDetailSubtitle(estadoLabel: string, tipoLabel: string): string {
-  return `${estadoLabel} • ${tipoLabel}`;
-}
-
 /**
- * Maps the backend `activo` flag to the hero status chip's label. Unlike
- * `catalog-panel.helpers.ts`'s `toAnimeStatus` (Active/Inactive with a
- * neutral color), the Detail hero uses a danger-colored chip for the
- * inactive/soft-deleted ("eliminado") case per design Decision 5, since this
- * is the surface where that state matters most.
+ * Maps the backend `activo` flag to the status chip's label. Detail uses a
+ * danger-colored chip for the inactive/soft-deleted ("eliminado") case per
+ * design Decision 5, since this is the surface where that state matters most.
  */
 export function getAnimeDetailStatusLabel(activo: number): string {
   return activo === 1 ? ANIME_DETAIL_STATUS_ACTIVE_LABEL : ANIME_DETAIL_STATUS_INACTIVE_LABEL;
@@ -262,14 +255,22 @@ export function getAnimeDetailStatusColor(activo: number): HeroChipColor {
   return activo === 1 ? 'success' : 'danger';
 }
 
-/** Renders the total-episodes stat value, or an explicit fallback when `totalcap` is absent. */
-export function formatAnimeDetailTotalLabel(total?: number): string {
-  return total === undefined ? ANIME_DETAIL_NO_TOTAL_EPISODES_MESSAGE : String(total);
+/**
+ * Renders the progress line's episode count: `12 of 28 episodes`, or the
+ * watched count with an explicit fallback when `totalcap` is absent.
+ */
+export function formatAnimeDetailProgressCount(watched: number, total?: number): string {
+  if (total !== undefined) {
+    return `${watched} of ${total} episodes`;
+  }
+
+  const watchedLabel = watched === 1 ? '1 episode' : `${watched} episodes`;
+  return `${watchedLabel} · ${ANIME_DETAIL_NO_TOTAL_EPISODES_MESSAGE}`;
 }
 
 /** Renders the per-episode duration in minutes, or an explicit fallback when `duracion` is absent. */
 export function formatAnimeDetailDurationLabel(duracion?: number): string {
-  return duracion === undefined ? ANIME_DETAIL_NO_DURATION_MESSAGE : `${duracion} min`;
+  return duracion === undefined ? ANIME_DETAIL_NO_DURATION_MESSAGE : `Duration · ${duracion} min`;
 }
 
 /**
@@ -287,29 +288,11 @@ export function formatAnimeDetailProgressRatio(current: number, total?: number):
 }
 
 /**
- * Builds the per-episode section's three stat tiles (watched, total
- * episodes, duration), each with an explicit fallback baked in via
- * {@link formatAnimeDetailTotalLabel} / {@link formatAnimeDetailDurationLabel}.
- */
-function buildAnimeDetailStatTiles(
-  watched: number,
-  totalLabel: string,
-  durationLabel: string,
-): readonly AnimeDetailStatTile[] {
-  return [
-    { label: ANIME_DETAIL_WATCHED_TILE_LABEL, value: String(watched) },
-    { label: ANIME_DETAIL_TOTAL_TILE_LABEL, value: totalLabel },
-    { label: ANIME_DETAIL_DURATION_TILE_LABEL, value: durationLabel },
-  ];
-}
-
-/**
  * Returns `true` when `historyState` (the raw `window.history.state` value)
  * carries a react-router v7 `idx` greater than 0, meaning the current
  * location was reached by pushing at least one prior entry onto this
  * session's history stack. Encapsulated so the router-back-vs-`/history`-
- * fallback decision (Anime Detail delta spec, "Back returns to the exact
- * History spot") is testable without touching the real `window.history`.
+ * fallback decision is testable without touching the real `window.history`.
  */
 export function hasPreviousHistoryEntry(historyState: unknown): boolean {
   if (typeof historyState !== 'object' || historyState === null) {
@@ -321,17 +304,54 @@ export function hasPreviousHistoryEntry(historyState: unknown): boolean {
 }
 
 /**
+ * Derives which of the three states Detail renders from the loaded snapshot:
+ * `undefined` is still loading, `null` is not found, a record is loaded.
+ */
+export function getAnimeDetailLoadState(detail: AnimeDetail | null | undefined): AnimeDetailLoadState {
+  if (detail === undefined) {
+    return 'loading';
+  }
+
+  return detail === null ? 'not-found' : 'loaded';
+}
+
+/**
+ * Runs one desktop action (copy the folder path, open the page in the default
+ * browser) through its bridge binding and returns the toast that reports it,
+ * or `undefined` when a success needs none. A missing binding, a non-ok result
+ * and a rejected request all fail closed with the action's failure toast.
+ */
+export async function runAnimeDetailDesktopAction(
+  action: AnimeDetailDesktopAction | undefined,
+  animeId: string,
+  feedback: AnimeDetailDesktopActionFeedback,
+): Promise<AnimeDetailToast | undefined> {
+  const failure: AnimeDetailToast = { status: 'danger', message: feedback.failure };
+  if (action === undefined) {
+    return failure;
+  }
+
+  try {
+    const result = await action(animeId);
+    if (result.status !== 'ok') {
+      return failure;
+    }
+    return feedback.success === undefined ? undefined : { status: 'success', message: feedback.success };
+  } catch {
+    return failure;
+  }
+}
+
+/**
  * Converts the `AnimeDetail` DTO into the view model rendered by the shared
- * detail component. Every field the Anime Detail delta spec calls out (hero,
- * per-episode, general data) gets an explicit fallback rather than a silent
- * blank. Per-watch history derives from the raw DTO in `AnimeWatchHistory`,
- * not from this view model.
+ * detail component. Every field gets an explicit fallback rather than a
+ * silent blank, and every per-anime label (cover alt, action names) is built
+ * here so the dumb UI never formats copy inline. Per-watch history derives
+ * from the raw DTO in `AnimeWatchHistory`, not from this view model.
  */
 export function toAnimeDetailViewModel(detail: AnimeDetail): AnimeDetailViewModel {
-  const totalLabel = formatAnimeDetailTotalLabel(detail.totalEpisodes);
-  const durationLabel = formatAnimeDetailDurationLabel(detail.durationMinutes);
-  const estadoLabel = getAnimeDetailEstadoLabel(detail.status);
-  const tipoLabel = getAnimeDetailTipoLabel(detail.kind);
+  const folder = detail.folder ?? '';
+  const hasFolder = folder !== '';
 
   return {
     id: detail.id,
@@ -340,14 +360,21 @@ export function toAnimeDetailViewModel(detail: AnimeDetail): AnimeDetailViewMode
     canRepeat: detail.status > 0,
     canRestore: detail.active === 0,
     hasStoredCover: normalizeStoredCoverPath(detail.cover) !== undefined,
-    estadoLabel,
-    tipoLabel,
-    subtitleLabel: formatAnimeDetailSubtitle(estadoLabel, tipoLabel),
+    coverAlt: `Cover of ${detail.name}`,
+    repeatLabel: `Repeat ${detail.name}`,
+    restoreLabel: `Restore ${detail.name}`,
+    editLabel: `Edit ${detail.name}`,
+    estadoLabel: getAnimeDetailEstadoLabel(detail.status),
+    estadoColor: getAnimeDetailEstadoColor(detail.status),
+    tipoLabel: getAnimeDetailTipoLabel(detail.kind),
     statusLabel: getAnimeDetailStatusLabel(detail.active),
     statusColor: getAnimeDetailStatusColor(detail.active),
-    statTiles: buildAnimeDetailStatTiles(detail.episodesWatched, totalLabel, durationLabel),
+    progressCountLabel: formatAnimeDetailProgressCount(detail.episodesWatched, detail.totalEpisodes),
+    durationLabel: formatAnimeDetailDurationLabel(detail.durationMinutes),
+    progressRatio: formatAnimeDetailProgressRatio(detail.episodesWatched, detail.totalEpisodes),
     paginaUrl: detail.sourceUrl,
-    carpetaLabel: detail.folder ?? ANIME_DETAIL_UNKNOWN_LABEL,
+    hasFolder,
+    carpetaLabel: hasFolder ? folder : ANIME_DETAIL_UNKNOWN_LABEL,
     estrenoLabel: formatAnimeDetailLongDate(detail.premieredAt) ?? ANIME_DETAIL_UNKNOWN_LABEL,
     creacionLabel: formatAnimeDetailLongDate(detail.createdAt) ?? ANIME_DETAIL_UNKNOWN_LABEL,
     ultCapVistoLabel: formatAnimeDetailLongDate(detail.lastWatchedAt) ?? ANIME_DETAIL_UNKNOWN_LABEL,

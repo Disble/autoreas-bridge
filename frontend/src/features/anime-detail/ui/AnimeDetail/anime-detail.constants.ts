@@ -1,4 +1,6 @@
-/** Fallback shown for a studios/origin field the legacy record left empty. */
+import type { AnimeDetailDesktopActionFeedback } from './anime-detail.types';
+
+/** Fallback shown for any general-data field the record left empty. */
 export const ANIME_DETAIL_UNKNOWN_LABEL = 'Unknown';
 
 /** Shared long-date formatter hoisted once for Anime Detail helper formatting. */
@@ -11,75 +13,97 @@ export const ANIME_DETAIL_LONG_DATE_FORMATTER = new Intl.DateTimeFormat('en-US',
 /** Message rendered while the detail fetch is in flight. */
 export const ANIME_DETAIL_LOADING_MESSAGE = 'Loading anime detail...';
 
-/**
- * Shared class for the hero avatar circle (the real cover image and its
- * empty-cover placeholder both size themselves against this), reused by
- * `AnimeDetailSkeleton` so the placeholder circle cannot drift out of sync
- * with the resolved avatar's footprint.
- */
-export const ANIME_DETAIL_HERO_AVATAR_CLASS = 'size-21 shrink-0 rounded-full';
+/** Id of the page `h1`, so the main card can name itself after the anime. */
+export const ANIME_DETAIL_TITLE_ID = 'anime-detail-title';
+
+/** Id of the General data caption, which names its section. */
+export const ANIME_DETAIL_GENERAL_DATA_TITLE_ID = 'anime-detail-general-data-title';
 
 /**
- * Shared class for a single stat tile, used by both the resolved tile row
- * and `AnimeDetailSkeleton`'s placeholder tiles so the two shapes cannot
- * drift apart.
+ * Main card grid, laid out from the card's OWN width (`@container` on its
+ * content): a 68px cover thumbnail beside the identity below 700px (76px below
+ * 420px), and a 280px cover column beside the whole body from 700px up.
+ * Shared with `AnimeDetailSkeleton` so the two shapes cannot drift apart.
  */
-export const ANIME_DETAIL_STAT_TILE_CLASS = 'rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2';
-
-/** Number of placeholder stat tiles rendered while loading, matching the resolved tile row. */
-export const ANIME_DETAIL_SKELETON_TILE_COUNT = 3;
+export const ANIME_DETAIL_GRID_CLASS = 'grid grid-cols-[68px_minmax(0,1fr)] items-center gap-x-4 gap-y-3 @max-[419px]:grid-cols-[76px_minmax(0,1fr)] @[700px]:grid-cols-[280px_minmax(0,1fr)] @[700px]:items-start';
 
 /**
- * Number of placeholder field-group sections rendered while loading,
- * matching the resolved Episode info / General data / Watch history
- * sections.
+ * Body column: `contents` below 700px, so the identity sits beside the
+ * thumbnail and General data spans the card; a flex column from 700px up.
  */
-export const ANIME_DETAIL_SKELETON_FIELD_GROUP_COUNT = 3;
+export const ANIME_DETAIL_BODY_CLASS = 'contents min-w-0 flex-col gap-3 @[700px]:flex';
+
+/**
+ * Cover frame: a 5:7 poster frame whose art fills it edge to edge. From 700px
+ * up it keeps that ratio as its minimum and stretches to the body's height.
+ * Shared with `AnimeDetailSkeleton`.
+ */
+export const ANIME_DETAIL_COVER_FRAME_CLASS = 'relative aspect-[5/7] w-full overflow-hidden rounded-xl ring-1 ring-border @[700px]:self-stretch';
+
+/** General data inner surface; spans the card below 700px and sits in the body column above. */
+export const ANIME_DETAIL_GENERAL_DATA_CLASS = 'col-span-full min-w-0 rounded-xl bg-white/[0.03] p-4 @[700px]:col-auto';
+
+/** General data field grid: 2 columns, 3 from 700px, 1 below 420px. */
+export const ANIME_DETAIL_FIELD_GRID_CLASS = 'm-0 grid grid-cols-2 gap-x-4 gap-y-3 @max-[419px]:grid-cols-1 @[700px]:grid-cols-3';
+
+/** Number of General data fields, mirrored by the skeleton's field placeholders. */
+export const ANIME_DETAIL_FIELD_COUNT = 8;
 
 /** Message rendered when the anime id does not resolve to a record. */
 export const ANIME_DETAIL_NOT_FOUND_MESSAGE = 'Anime not found.';
 
-/** Label for the hero status chip when the anime record is active (`activo` = 1). */
+/** Label for the status chip when the anime record is active (`activo` = 1). */
 export const ANIME_DETAIL_STATUS_ACTIVE_LABEL = 'Active';
 
-/** Label for the hero status chip when the anime record is inactive/soft-deleted (`activo` = 0). */
+/** Label for the status chip when the anime record is inactive/soft-deleted (`activo` = 0). */
 export const ANIME_DETAIL_STATUS_INACTIVE_LABEL = 'Inactive';
 
-/** Fallback shown in the per-episode section when `totalcap` is absent. */
+/** Fallback appended to the episode count when `totalcap` is absent. */
 export const ANIME_DETAIL_NO_TOTAL_EPISODES_MESSAGE = 'No total episodes data';
 
-/** Fallback shown in the per-episode section when `duracion` is absent. */
+/** Fallback shown on the progress line when `duracion` is absent. */
 export const ANIME_DETAIL_NO_DURATION_MESSAGE = 'No episode duration data';
 
-/** Fallback shown in the general-data section when `pagina` is absent. */
-export const ANIME_DETAIL_NO_PAGINA_MESSAGE = 'No page link available';
-
-/** Fallback shown in the general-data section when `generos` is empty. */
+/** Fallback shown in the General data section when `generos` is empty. */
 export const ANIME_DETAIL_NO_GENEROS_MESSAGE = 'No genres listed';
 
-/** Stat-tile caption for the episodes-watched counter. */
-export const ANIME_DETAIL_WATCHED_TILE_LABEL = 'Watched';
+/** Accessible name of the progress bar under the episode count. */
+export const ANIME_DETAIL_PROGRESS_LABEL = 'Episodes watched';
 
-/** Stat-tile caption for the total-episodes counter. */
-export const ANIME_DETAIL_TOTAL_TILE_LABEL = 'Total episodes';
-
-/** Stat-tile caption for the per-episode duration. */
-export const ANIME_DETAIL_DURATION_TILE_LABEL = 'Duration';
-
-/** Alt text for the hero cover image. */
-export const ANIME_DETAIL_PORTADA_ALT = 'Cover art';
-
-/** Message announced by the hero avatar's loading region while the cover binding is in flight (design D3). */
+/** Message announced by the cover's loading region while the cover binding is in flight. */
 export const ANIME_DETAIL_PORTADA_LOADING_MESSAGE = 'Loading cover art...';
 
-/** Label for the back-navigation button (Anime Detail delta spec, "Back returns to the exact History spot"). */
+/** Accessible name of the toolbar's Back button. */
 export const ANIME_DETAIL_BACK_LABEL = 'Back';
 
-/** Label for the action that starts a new watch cycle. */
+/** Tooltip of the toolbar's Back button. */
+export const ANIME_DETAIL_BACK_TOOLTIP = 'Back';
+
+/** Tooltip of the action that starts a new watch cycle. */
 export const ANIME_DETAIL_REPEAT_LABEL = 'Repeat';
 
-/** Label for the action that makes an inactive anime active again. */
+/** Tooltip of the action that makes an inactive anime active again. */
 export const ANIME_DETAIL_RESTORE_LABEL = 'Restore';
+
+/** Tooltip of the action that opens the anime in the editor. */
+export const ANIME_DETAIL_EDIT_TOOLTIP = 'Edit anime';
+
+/** Accessible name of the Folder field's copy button. */
+export const ANIME_DETAIL_COPY_FOLDER_LABEL = 'Copy folder path';
+
+/** Tooltip of the Folder field's copy button. */
+export const ANIME_DETAIL_COPY_FOLDER_TOOLTIP = 'Copy path';
+
+/** Toasts of the Folder copy action: a confirmation, since a copy shows nothing else. */
+export const ANIME_DETAIL_COPY_FOLDER_FEEDBACK: AnimeDetailDesktopActionFeedback = {
+  success: 'Folder path copied',
+  failure: 'Could not copy the folder path',
+};
+
+/** Toasts of the Page link: failure only, because the opened browser is its own confirmation. */
+export const ANIME_DETAIL_OPEN_PAGE_FEEDBACK: AnimeDetailDesktopActionFeedback = {
+  failure: 'Could not open the page',
+};
 
 /** Label for dismissing a pending anime mutation. */
 export const ANIME_DETAIL_CANCEL_LABEL = 'Cancel';
@@ -91,3 +115,6 @@ export const ANIME_DETAIL_CANCEL_LABEL = 'Cancel';
  * pre-log watch summary date field.
  */
 export const ANIME_DETAIL_NO_DATA_LABEL = 'No data';
+
+/** Accessible name of the no-cover poster and the pill it shows at full size. */
+export const ANIME_DETAIL_NO_COVER_LABEL = 'No cover';

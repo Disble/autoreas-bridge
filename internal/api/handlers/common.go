@@ -120,16 +120,17 @@ const (
 	// SeasonRatingNotCandidate — no open season, or the anime is not a
 	// candidate (HTTP 404, terminal — mobile must not retry).
 	SeasonRatingNotCandidate
-	// SeasonRatingManualConflict — a manual grade is present and kept; the
-	// mobile write is rejected (HTTP 409, body carries the kept grade).
-	SeasonRatingManualConflict
+	// SeasonRatingNewerGradeKept — the stored grade was rated later and is kept;
+	// the older mobile write is rejected (HTTP 409, body carries the kept grade).
+	SeasonRatingNewerGradeKept
 )
 
-// SeasonRatingResult carries the ingestion outcome and, on a manual conflict, the
-// kept grade for the 409 response body.
+// SeasonRatingResult carries the ingestion outcome and, when a newer grade is
+// kept, that grade and its source for the 409 response body.
 type SeasonRatingResult struct {
-	Outcome       SeasonRatingOutcome
-	ExistingGrade int
+	Outcome        SeasonRatingOutcome
+	ExistingGrade  int
+	ExistingSource string
 }
 
 // RecordSeasonRatingFunc ingests one mobile-sourced grade for an anime in the

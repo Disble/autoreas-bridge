@@ -47,20 +47,35 @@ func TestRecordSeasonRatingRecords(t *testing.T) {
 	}
 }
 
-func TestRecordSeasonRatingMapsManualConflict(t *testing.T) {
+func TestRecordSeasonRatingNewerMobileOverwritesManual(t *testing.T) {
 	t.Parallel()
 	app := seedRatingApp(t, nil)
-	// A manual grade exists (via the domain rule): record manual first.
 	if _, err := app.seasonService.RecordPremiereGrade(context.Background(), "anime-a", 5, domain.GradeSourceManual, time.UnixMilli(1)); err != nil {
 		t.Fatalf("seed manual grade: %v", err)
 	}
 
-	res, err := app.recordSeasonRating()(context.Background(), "anime-a", 2, 2, "")
+	res, err := app.recordSeasonRating()(context.Background(), "anime-a", 4, 2, "")
 	if err != nil {
 		t.Fatalf("record: %v", err)
 	}
-	if res.Outcome != apiHandlers.SeasonRatingManualConflict || res.ExistingGrade != 5 {
-		t.Fatalf("outcome = %v existing = %d, want manualConflict/5", res.Outcome, res.ExistingGrade)
+	if res.Outcome != apiHandlers.SeasonRatingRecorded {
+		t.Fatalf("outcome = %v, want recorded: a grade changes from either side", res.Outcome)
+	}
+}
+
+func TestRecordSeasonRatingMapsNewerGradeConflict(t *testing.T) {
+	t.Parallel()
+	app := seedRatingApp(t, nil)
+	if _, err := app.seasonService.RecordPremiereGrade(context.Background(), "anime-a", 5, domain.GradeSourceManual, time.UnixMilli(2)); err != nil {
+		t.Fatalf("seed manual grade: %v", err)
+	}
+
+	res, err := app.recordSeasonRating()(context.Background(), "anime-a", 2, 1, "")
+	if err != nil {
+		t.Fatalf("record: %v", err)
+	}
+	if res.Outcome != apiHandlers.SeasonRatingNewerGradeKept || res.ExistingGrade != 5 || res.ExistingSource != "manual" {
+		t.Fatalf("result = %+v, want newerGradeKept/5/manual", res)
 	}
 }
 

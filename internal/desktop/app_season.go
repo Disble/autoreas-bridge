@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"autoreas-bridge/internal/activity"
 	apiHandlers "autoreas-bridge/internal/api/handlers"
 	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/season"
@@ -245,15 +246,18 @@ func (a *App) RestoreSeasonName(rowID string) string {
 }
 
 // SetSeasonGrade records a MANUAL first-episode grade (1–6) for an anime in the
-// active season — the Episodes card / Evaluation panel rate action. Manual always
-// wins over a mobile grade. Returns "ok" or a descriptive error string.
+// active season — the Episodes card / Evaluation panel rate action. A manual edit
+// always applies and is audited in Activity. Returns "ok" or a descriptive error string.
 func (a *App) SetSeasonGrade(animeID string, grade int) string {
 	if a.seasonService == nil {
 		return seasonServiceUnavailableMessage
 	}
-	if _, err := a.seasonService.RecordPremiereGrade(a.seasonCtx(), animeID, grade, domain.GradeSourceManual, time.Now()); err != nil {
+	ratedAt := time.Now()
+	row, previous, err := a.seasonService.RecordPremiereGradeInSeason(a.seasonCtx(), "", animeID, grade, domain.GradeSourceManual, ratedAt)
+	if err != nil {
 		return err.Error()
 	}
+	a.recordSeasonGradeActivity(a.seasonCtx(), row, previous, activity.SourceDesktop, ratedAt)
 	return "ok"
 }
 
@@ -412,16 +416,17 @@ func (a *App) recordSeasonRating() apiHandlers.RecordSeasonRatingFunc {
 		return nil
 	}
 	return func(ctx context.Context, animeID string, grade int, ratedAtMs int64, seasonID string) (apiHandlers.SeasonRatingResult, error) {
-		row, err := a.seasonService.RecordPremiereGradeInSeason(ctx, seasonID, animeID, grade, domain.GradeSourceMobileSync, time.UnixMilli(ratedAtMs))
+		row, previous, err := a.seasonService.RecordPremiereGradeInSeason(ctx, seasonID, animeID, grade, domain.GradeSourceMobileSync, time.UnixMilli(ratedAtMs))
 		switch {
 		case err == nil:
+			a.recordSeasonGradeActivity(ctx, row, previous, activity.SourceMobile, time.UnixMilli(ratedAtMs))
 			return apiHandlers.SeasonRatingResult{Outcome: apiHandlers.SeasonRatingRecorded}, nil
 		case errors.Is(err, season.ErrInvalidGrade):
 			return apiHandlers.SeasonRatingResult{Outcome: apiHandlers.SeasonRatingInvalidGrade}, nil
 		case errors.Is(err, season.ErrNotSeasonCandidate):
 			return apiHandlers.SeasonRatingResult{Outcome: apiHandlers.SeasonRatingNotCandidate}, nil
-		case errors.Is(err, season.ErrManualGradePresent):
-			return apiHandlers.SeasonRatingResult{Outcome: apiHandlers.SeasonRatingManualConflict, ExistingGrade: row.Grade}, nil
+		case errors.Is(err, season.ErrNewerGradePresent):
+			return apiHandlers.SeasonRatingResult{Outcome: apiHandlers.SeasonRatingNewerGradeKept, ExistingGrade: row.Grade, ExistingSource: string(row.GradeSource)}, nil
 		default:
 			return apiHandlers.SeasonRatingResult{}, err
 		}

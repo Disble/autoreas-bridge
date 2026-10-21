@@ -45,6 +45,14 @@ pre-commit:
               - "tools/genicons/**"
             env: *go-limits
             run: &app-icons go run ./tools/genicons -check
+          # Real ffprobe + ffmpeg decode of the Airis artwork. It lives here, not in
+          # the Vitest suite, because spawning both binaries inside the parallel
+          # coverage run timed out under load.
+          - name: airis-assets
+            glob:
+              - "frontend/src/assets/airis-empty-states/*.webp"
+              - "frontend/scripts/check-airis-assets.mjs"
+            run: &airis-assets bun --cwd="frontend" run check:airis-assets
           - name: openapi
             glob:
               - "*.go"
@@ -123,6 +131,8 @@ pre-merge-commit:
           - name: app-icons
             env: *go-limits
             run: *app-icons
+          - name: airis-assets
+            run: *airis-assets
     - name: go-heavy
       group:
         piped: true

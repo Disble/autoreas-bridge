@@ -97,7 +97,7 @@ func (b SQLiteBootstrap) OpenBridgeDB(path string) (*sql.DB, error) {
 		openDB = sql.Open
 	}
 
-	db, err := openDB(sqliteDriverName, path)
+	db, err := openDB(sqliteDriverName, bridgeDSN(path))
 	if err != nil {
 		return nil, fmt.Errorf("open bridge db %q: %w", path, err)
 	}
@@ -113,6 +113,14 @@ func (b SQLiteBootstrap) OpenBridgeDB(path string) (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+// bridgeDSN carries the busy timeout in the data source name, so the driver
+// sets it on every connection as soon as it opens. Set later by PRAGMA, it
+// came after the first Ping, and a restart that met the previous process
+// still releasing the file failed at once with SQLITE_BUSY instead of waiting.
+func bridgeDSN(path string) string {
+	return fmt.Sprintf("%s?_pragma=busy_timeout(%d)", path, busyTimeoutMillis)
 }
 
 // OpenBridgeDB opens the SQLite bridge database at path and runs schema bootstrap.

@@ -96,15 +96,17 @@ describe('HistoryFilterBar', () => {
 
   describe('watched range', () => {
     /**
-     * Finds the range trigger inside its own bar by accessible name, so the
-     * lookup stays scoped to this widget instead of scanning the document.
+     * Finds the range trigger inside its own bar by its `aria-label`, which
+     * names the range after the shared prefix. The open calendar renders about
+     * 240 pressable cells, and a role query computes the accessible name and
+     * visibility of every one of them; under the coverage gate's load that
+     * pushed these tests past 5 s. A label query reads one attribute instead
+     * (measured about 10 ms against 100–130 ms for the same lookup).
      * @param container The rendered bar's container.
      * @returns The range trigger button.
      */
     function rangeTrigger(container: HTMLElement): HTMLElement {
-      return within(container).getByRole('button', {
-        name: (accessibleName) => accessibleName.startsWith(HISTORY_FILTER_BAR_RANGE_ARIA_LABEL),
-      });
+      return within(container).getByLabelText((label) => label.startsWith(`${HISTORY_FILTER_BAR_RANGE_ARIA_LABEL}, `));
     }
 
     /**
@@ -144,8 +146,8 @@ describe('HistoryFilterBar', () => {
       const { container } = render(<HistoryFilterBar {...props({ range: { from: '2026-09-01', to: '2026-09-02' }, onRangeChange })} />);
 
       openCalendar(container);
-      fireEvent.click(within(calendar()).getByRole('button', { name: /september 3, 2026/i }));
-      fireEvent.click(within(calendar()).getByRole('button', { name: /september 5, 2026/i }));
+      fireEvent.click(within(calendar()).getByLabelText(/september 3, 2026/i));
+      fireEvent.click(within(calendar()).getByLabelText(/september 5, 2026/i));
 
       expect(onRangeChange).toHaveBeenCalledExactlyOnceWith({ from: '2026-09-03', to: '2026-09-05' });
     });
@@ -155,7 +157,7 @@ describe('HistoryFilterBar', () => {
       const { container } = render(<HistoryFilterBar {...props({ range: { from: '2026-09-01', to: '2026-09-13' }, onRangeChange })} />);
 
       openCalendar(container);
-      fireEvent.click(screen.getByRole('button', { name: 'Clear dates' }));
+      fireEvent.click(screen.getByText('Clear dates', { selector: 'button' }));
 
       expect(onRangeChange).toHaveBeenCalledExactlyOnceWith(undefined);
     });
@@ -165,7 +167,7 @@ describe('HistoryFilterBar', () => {
 
       openCalendar(container);
 
-      expect(screen.queryByRole('button', { name: 'Clear dates' })).toBeNull();
+      expect(screen.queryByText('Clear dates')).toBeNull();
     });
 
     it('opens a calendar with day cells and weekday headers', () => {
@@ -177,7 +179,7 @@ describe('HistoryFilterBar', () => {
 
         openCalendar(container);
 
-        expect(within(calendar()).getByRole('button', { name: /september 1, 2026/i })).toBeInTheDocument();
+        expect(within(calendar()).getByLabelText(/september 1, 2026/i)).toBeInTheDocument();
         expect(screen.getByText('Sun')).toBeInTheDocument();
       } finally {
         vi.useRealTimers();
@@ -194,9 +196,9 @@ describe('HistoryFilterBar', () => {
         const { container } = render(<HistoryFilterBar {...props()} />);
 
         openCalendar(container);
-        fireEvent.click(within(calendar()).getByRole('button', { name: /year selector/i }));
+        fireEvent.click(within(calendar()).getByLabelText(/year selector/i));
 
-        expect(within(calendar()).getByRole('button', { name: '2026' })).toBeInTheDocument();
+        expect(within(calendar()).getByLabelText('2026')).toBeInTheDocument();
       } finally {
         vi.useRealTimers();
       }

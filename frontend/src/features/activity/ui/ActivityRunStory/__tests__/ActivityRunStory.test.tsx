@@ -66,8 +66,8 @@ describe('ActivityRunStory', () => {
   });
 
   it('tells the run in order and opens on the warning with its probes drawn as a sequence', async () => {
-    getRunStory.mockResolvedValue(STORY);
-    render(<ActivityRunStory correlationId="dl-7" />);
+    getRunStory.mockResolvedValueOnce({ ...STORY, truncated: true });
+    const { rerender } = render(<ActivityRunStory correlationId="dl-7" />);
 
     const steps = within(await screen.findByRole('list', { name: 'Steps' })).getAllByRole('button');
     expect(steps.map((button) => button.textContent)).toEqual([
@@ -82,6 +82,19 @@ describe('ActivityRunStory', () => {
       '1hoster: mega · ok: false',
       '2hoster: pixel · ok: true',
     ]);
+    expect(screen.getByText('Started by: Download started')).toBeInTheDocument();
+    expect(screen.getByText('Showing the first 3 steps of a longer run.')).toBeInTheDocument();
+
+    // A run with no recorded steps: no domain, trigger, truncation note or step detail to show.
+    getRunStory.mockResolvedValueOnce({ correlationId: 'dl-8', steps: [], truncated: false });
+    rerender(<ActivityRunStory correlationId="dl-8" />);
+
+    await screen.findByText('Run dl-8');
+    expect(within(screen.getByRole('list', { name: 'Steps' })).queryAllByRole('button')).toEqual([]);
+    expect(screen.queryByText(/Started by/)).toBeNull();
+    expect(screen.queryByText(/longer run/)).toBeNull();
+    expect(screen.queryByText('download')).toBeNull();
+    expect(screen.queryByRole('list', { name: 'probes' })).toBeNull();
   });
 
   it('switches the recorded detail with the step and opens the raw metadata on demand', async () => {

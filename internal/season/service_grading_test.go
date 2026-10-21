@@ -63,7 +63,7 @@ func TestRecordPremiereGradeInSeasonRecordsOnlyForTheOpenSeason(t *testing.T) {
 			svc := newTestService(repo)
 			open, _ := seedCreatedCandidate(t, repo, svc, "anime-a")
 
-			_, err := svc.RecordPremiereGradeInSeason(context.Background(), tc.seasonID(open), "anime-a", 4, domain.GradeSourceMobileSync, time.Now())
+			_, _, err := svc.RecordPremiereGradeInSeason(context.Background(), tc.seasonID(open), "anime-a", 4, domain.GradeSourceMobileSync, time.Now())
 
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tc.wantErr)
@@ -73,6 +73,20 @@ func TestRecordPremiereGradeInSeasonRecordsOnlyForTheOpenSeason(t *testing.T) {
 				t.Fatalf("grade persisted = %v, want %v", graded, tc.wantErr == nil)
 			}
 		})
+	}
+}
+
+func TestRecordPremiereGradeInSeasonReturnsPreviousGrade(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	seedCreatedCandidate(t, repo, svc, "anime-a")
+
+	if _, previous, err := svc.RecordPremiereGradeInSeason(context.Background(), "", "anime-a", 3, domain.GradeSourceManual, time.UnixMilli(1)); err != nil || previous != 0 {
+		t.Fatalf("first grade: previous = %d err = %v, want 0/nil", previous, err)
+	}
+	row, previous, err := svc.RecordPremiereGradeInSeason(context.Background(), "", "anime-a", 5, domain.GradeSourceMobileSync, time.UnixMilli(2))
+	if err != nil || previous != 3 || row.Grade != 5 {
+		t.Fatalf("regrade: previous = %d grade = %d err = %v, want 3/5/nil", previous, row.Grade, err)
 	}
 }
 
@@ -109,21 +123,21 @@ func TestRecordPremiereGradeUnknownAnimeIsNotCandidate(t *testing.T) {
 	}
 }
 
-func TestRecordPremiereGradeMobileRejectedByManual(t *testing.T) {
+func TestRecordPremiereGradeOlderMobileRejected(t *testing.T) {
 	repo := newFakeRepo()
 	svc := newTestService(repo)
 	seedCreatedCandidate(t, repo, svc, "anime-a")
 
-	if _, err := svc.RecordPremiereGrade(context.Background(), "anime-a", 5, domain.GradeSourceManual, time.UnixMilli(1)); err != nil {
+	if _, err := svc.RecordPremiereGrade(context.Background(), "anime-a", 5, domain.GradeSourceManual, time.UnixMilli(2)); err != nil {
 		t.Fatalf("manual grade: %v", err)
 	}
 
-	row, err := svc.RecordPremiereGrade(context.Background(), "anime-a", 2, domain.GradeSourceMobileSync, time.UnixMilli(2))
-	if !errors.Is(err, ErrManualGradePresent) {
-		t.Fatalf("expected ErrManualGradePresent, got %v", err)
+	row, err := svc.RecordPremiereGrade(context.Background(), "anime-a", 2, domain.GradeSourceMobileSync, time.UnixMilli(1))
+	if !errors.Is(err, ErrNewerGradePresent) {
+		t.Fatalf("expected ErrNewerGradePresent, got %v", err)
 	}
 	if row.Grade != 5 || row.GradeSource != domain.GradeSourceManual {
-		t.Fatalf("manual grade must be returned intact for the 409 body: %+v", row)
+		t.Fatalf("newer grade must be returned intact for the 409 body: %+v", row)
 	}
 }
 

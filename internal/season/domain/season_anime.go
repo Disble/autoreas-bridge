@@ -101,12 +101,13 @@ func NewSeasonAnime(id, seasonID, rawName string, now time.Time) SeasonAnime {
 }
 
 // ApplyGrade records a first-episode grade under the season conflict rule and
-// reports whether the write was applied. A manual grade always wins and flips
-// the source to manual; a mobile_sync write is REJECTED (returns false) when a
-// manual grade already exists — manual is protected. A mobile write correcting
-// its own earlier mobile grade is allowed. Grading clears a prior skip.
+// reports whether the write was applied. A grade changes from either side and
+// the newest rated_at wins: a mobile_sync write is REJECTED (returns false) only
+// when the stored grade was rated later than it, so a grade queued offline never
+// clobbers a newer one. A manual grade is a live bridge edit and always applies.
+// An equal rated_at applies (a retried delivery). Grading clears a prior skip.
 func (sa *SeasonAnime) ApplyGrade(grade int, source GradeSource, ratedAt time.Time) bool {
-	if source == GradeSourceMobileSync && sa.GradeSource == GradeSourceManual && sa.IsGraded() {
+	if source == GradeSourceMobileSync && sa.RatedAt != nil && sa.RatedAt.After(ratedAt) {
 		return false
 	}
 	sa.Grade = grade

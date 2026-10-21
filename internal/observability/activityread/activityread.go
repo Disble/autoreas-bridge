@@ -103,16 +103,17 @@ const (
 	WhereEditor Where = "editor"
 	// WhereSchedule reads the schedule events.
 	WhereSchedule Where = "schedule"
-	// WhereSeason reads the season events.
+	// WhereSeason reads the season events and the season grade changes.
 	WhereSeason Where = "season"
 )
 
 // scope is the SQL reading of one Where value.
 type scope struct {
-	all          bool
-	phone        bool
-	eventDomains []string
-	changeSource string
+	all           bool
+	phone         bool
+	eventDomains  []string
+	changeSource  string
+	changeActions []string
 }
 
 // scopeOf resolves w; an empty value means All. The domains are the values
@@ -130,7 +131,7 @@ func scopeOf(w Where) (scope, error) {
 	case WhereSchedule:
 		return scope{eventDomains: []string{"schedule"}}, nil
 	case WhereSeason:
-		return scope{eventDomains: []string{"season"}}, nil
+		return scope{eventDomains: []string{"season"}, changeActions: []string{activity.ActionSeasonGradeSet}}, nil
 	}
 	return scope{}, fmt.Errorf("activityread: unknown where filter %q", w)
 }
@@ -157,7 +158,7 @@ func (s scope) eventFilter() (string, []any) {
 
 // readsChanges reports whether any domain history change is in scope.
 func (s scope) readsChanges() bool {
-	return s.all || s.changeSource != ""
+	return s.all || s.changeSource != "" || len(s.changeActions) > 0
 }
 
 // incidentFilter returns the predicate on incidents: request and mobile

@@ -1,12 +1,17 @@
 import { Tabs } from '@heroui/react';
 import { AnimeCreate } from '../../features/anime-create/ui/AnimeCreate/AnimeCreate';
 import { AnimeEditorWorkspace } from '../../features/anime-editor/ui/AnimeEditorWorkspace/AnimeEditorWorkspace';
+import { PageHeader } from '../../shared/ui/PageHeader/PageHeader';
 import type { AnimeEditorRouteProps } from './AnimeEditorRoute.types';
 
-/** AnimeEditorRoute mounts a Library/Create tab shell as its own routed surface. */
+/**
+ * AnimeEditorRoute mounts the Editor page header above a Library/Create tab
+ * shell, as its own routed surface.
+ */
 export function AnimeEditorRoute({ initialTab = 'library' }: Readonly<AnimeEditorRouteProps>) {
   return (
     <section className="flex min-h-screen flex-col gap-4">
+      <PageHeader title="Editor" />
       {/*
         Keyed by the requested tab because HeroUI's Tabs is uncontrolled here:
         `defaultSelectedKey` is read once at mount, so an already-mounted
@@ -14,7 +19,7 @@ export function AnimeEditorRoute({ initialTab = 'library' }: Readonly<AnimeEdito
         Library. The key forces the remount that re-reads the default.
       */}
       <Tabs defaultSelectedKey={initialTab} key={initialTab}>
-        <Tabs.ListContainer className="w-fit">
+        <Tabs.ListContainer className="w-fit max-w-full whitespace-nowrap">
           <Tabs.List aria-label="Anime editor">
             <Tabs.Tab id="library">
               Library

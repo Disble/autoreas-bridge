@@ -193,8 +193,10 @@ describe('useAnimeDetail anime change', () => {
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
-  it('deep-links Edit anime to the current id after an animeId change', async () => {
-    const source = createSource(populatedDetail);
+  it('deep-links Edit anime and the desktop actions to the current id after an animeId change', async () => {
+    const copyAnimeFolder = vi.fn().mockResolvedValue({ status: 'ok' });
+    const openAnimePage = vi.fn().mockResolvedValue({ status: 'ok' });
+    const source = createSource(populatedDetail, { copyAnimeFolder, openAnimePage });
     const { result, rerender } = await renderLoadedDetail(source);
 
     rerender({ animeId: 'anime-2' });
@@ -205,6 +207,14 @@ describe('useAnimeDetail anime change', () => {
     });
 
     expect(navigateMock).toHaveBeenCalledWith('/editor/anime-2');
+
+    await act(async () => {
+      await result.current.onCopyFolder();
+      await result.current.onOpenPage();
+    });
+
+    expect(copyAnimeFolder).toHaveBeenCalledWith('anime-2');
+    expect(openAnimePage).toHaveBeenCalledWith('anime-2');
   });
 
   it('drops a superseded resolution so returning shows loading instead of stale detail', async () => {

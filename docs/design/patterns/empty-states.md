@@ -19,7 +19,9 @@ skeleton; failure shows an `Alert`.
 
 Split a surface's cases honestly. Catalog and the Editor rail have both an actual-empty case
 (`first-run`, mascot, Create) and a criteria-empty case (`filtered`, icon, Clear); they are different
-states with different copy, not one message.
+states with different copy, not one message. When the Catalog holds no anime at all, its header
+Create button, toolbar and result line are hidden too: the `first-run` state already offers "Create
+an anime", and a search field over nothing has nothing to search.
 
 ## Layout
 

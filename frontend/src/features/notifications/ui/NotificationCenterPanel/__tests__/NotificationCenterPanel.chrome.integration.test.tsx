@@ -204,13 +204,13 @@ describe('NotificationCenterPanel header (integration)', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Notifications' })).toBeInTheDocument();
   });
 
-  it('carries the shared store live unread count in the subtitle', async () => {
+  it('shows the shared store live unread count as the title-row chip', async () => {
     await renderPanel(makeSource());
 
     setUnreadNotificationCount(12);
 
     await waitFor(() =>
-      expect(screen.getByText('12 unread · Warnings and failures stay here after the toast disappears.')).toBeInTheDocument(),
+      expect(screen.getByText('12 unread')).toBeInTheDocument(),
     );
   });
 
@@ -224,12 +224,13 @@ describe('NotificationCenterPanel header (integration)', () => {
     const markRead = vi.fn().mockResolvedValue({ affected: 1, unreadCount: 0, degraded: false });
     setUnreadNotificationCount(1);
     await renderPanel(makeSource({ markRead }));
+    expect(await screen.findByText('1 unread')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Mark all as read' }));
 
     await waitFor(() => expect(markRead).toHaveBeenCalledWith([1]));
     await waitFor(() =>
-      expect(screen.getByText('No unread · Warnings and failures stay here after the toast disappears.')).toBeInTheDocument(),
+      expect(screen.queryByText('1 unread')).not.toBeInTheDocument(),
     );
   });
 
