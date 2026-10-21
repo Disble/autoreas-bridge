@@ -255,7 +255,11 @@ describe('App routing', () => {
         </MemoryRouter>,
       );
 
-      expect(await screen.findByRole('heading', { level: 1, name: label })).toBeInTheDocument();
+      const heading = await screen.findByRole('heading', { level: 1, name: label });
+      // Every screen titles itself through the shared PageHeader row, with no subtitle under the title.
+      const header = heading.closest('header');
+      expect(header).toHaveClass('flex', 'items-center', 'justify-between');
+      expect(header?.querySelector('p')).toBeNull();
     });
   });
 });

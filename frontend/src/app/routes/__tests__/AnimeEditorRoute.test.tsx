@@ -26,7 +26,9 @@ describe('AnimeEditorRoute', () => {
 
     expect(screen.getByRole('tab', { name: 'Library' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Create' })).toHaveAttribute('aria-selected', 'false');
-    expect(screen.getByRole('heading', { name: 'Editor' })).toBeInTheDocument();
+    const title = screen.getByRole('heading', { level: 1, name: 'Editor' });
+    // The title sits above the Library | Create tabs, as on every other screen.
+    expect(title.compareDocumentPosition(screen.getByRole('tablist', { name: 'Anime editor' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('opens the Create tab without a modal', () => {
@@ -34,7 +36,9 @@ describe('AnimeEditorRoute', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Create' }));
 
-    expect(screen.getByRole('heading', { name: 'Create anime' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Create anime' })).toBeInTheDocument();
+    // The Editor title stays the page's only h1 on the Create tab too.
+    expect(screen.getAllByRole('heading', { level: 1 }).map((heading) => heading.textContent)).toEqual(['Editor']);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

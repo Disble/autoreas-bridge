@@ -1,7 +1,8 @@
 import plusIcon from '@iconify-icons/tabler/plus';
 import { Icon } from '@iconify/react';
-import { Button, Typography } from '@heroui/react';
+import { Button } from '@heroui/react';
 import { AIRIS_CREATE_ANIME_LABEL } from '../../../../shared/ui/AirisEmptyState/airis-empty-state.constants';
+import { PageHeader } from '../../../../shared/ui/PageHeader/PageHeader';
 import { CatalogBody } from './CatalogBody';
 import { CatalogResultLine } from './CatalogResultLine';
 import { CatalogToolbar } from './CatalogToolbar';
@@ -19,15 +20,18 @@ export function CatalogPanel() {
 
   return (
     <section aria-labelledby="catalog-title" className="flex w-full flex-col gap-4">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <Typography id="catalog-title" type="h1">Catalog</Typography>
-        {state.hasCatalog ? (
-          <Button aria-label={AIRIS_CREATE_ANIME_LABEL} variant="primary" onPress={state.onCreate}>
-            <Icon aria-hidden="true" className="size-4" icon={plusIcon} />
-            Create
-          </Button>
-        ) : null}
-      </header>
+      <PageHeader
+        actions={
+          state.hasCatalog ? (
+            <Button aria-label={AIRIS_CREATE_ANIME_LABEL} variant="primary" onPress={state.onCreate}>
+              <Icon aria-hidden="true" className="size-4" icon={plusIcon} />
+              Create
+            </Button>
+          ) : undefined
+        }
+        title="Catalog"
+        titleId="catalog-title"
+      />
 
       {state.hasCatalog ? (
         <>

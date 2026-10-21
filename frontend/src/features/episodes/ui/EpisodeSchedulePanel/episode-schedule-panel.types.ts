@@ -1,4 +1,5 @@
 import type { Anime } from '../../../../shared/contracts/anime.types';
+import type { ReactNode } from 'react';
 
 /** Which lens groups the Episodes list: season watch states or weekdays. */
 export type EpisodeViewLens = 'season' | 'daily';
@@ -9,6 +10,8 @@ export interface EpisodeSchedulePanelProps {
   readonly source?: EpisodeScheduleSource;
   /** Optional initial day; defaults to the current legacy weekday or season lens. */
   readonly initialDay?: string;
+  /** Optional content between the Today title row and the day tabs, such as the open-season banner. */
+  readonly banner?: ReactNode;
 }
 
 /** Request/reply port used by the Episodes UI hook. */

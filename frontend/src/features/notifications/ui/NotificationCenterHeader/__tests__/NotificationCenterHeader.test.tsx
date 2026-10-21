@@ -11,10 +11,16 @@ describe('NotificationCenterHeader', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Notifications' })).toBeInTheDocument();
   });
 
-  it('carries the live unread count in the subtitle', () => {
+  it('shows the live unread count as a chip in the title row, with no subtitle', () => {
     render(<NotificationCenterHeader canMarkAllRead onMarkAllRead={vi.fn()} unreadCount={12} />);
 
-    expect(screen.getByText('12 unread · Warnings and failures stay here after the toast disappears.')).toBeInTheDocument();
+    expect(screen.getByRole('banner')).toHaveTextContent(/^Notifications12 unreadMark all as read$/);
+  });
+
+  it('hides the unread chip while nothing is unread', () => {
+    render(<NotificationCenterHeader canMarkAllRead={false} onMarkAllRead={vi.fn()} unreadCount={0} />);
+
+    expect(screen.queryByText(/unread/)).toBeNull();
   });
 
   it('reports a press on "Mark all as read"', () => {

@@ -1,4 +1,4 @@
-import { Card, Tabs, Typography } from '@heroui/react';
+import { Card, Tabs } from '@heroui/react';
 import { EpisodeRenamePanel } from '../../features/download/ui/EpisodeRenamePanel/EpisodeRenamePanel';
 import { HosterPriorityEditor } from '../../features/download/ui/HosterPriorityEditor/HosterPriorityEditor';
 import { JDConfigPanel } from '../../features/download/ui/JDConfigPanel/JDConfigPanel';
@@ -7,6 +7,7 @@ import { ManualTriggerButton } from '../../features/download/ui/ManualTriggerBut
 import { RunHistoryPanel } from '../../features/download/ui/RunHistoryPanel/RunHistoryPanel';
 import { SchedulePanel } from '../../features/download/ui/SchedulePanel/SchedulePanel';
 import { SoloAnimeDownloadPanel } from '../../features/download/ui/SoloAnimeDownloadPanel/SoloAnimeDownloadPanel';
+import { PageHeader } from '../../shared/ui/PageHeader/PageHeader';
 
 /**
  * DownloadsRoute assembles the download-management panels exposed under the
@@ -24,12 +25,7 @@ import { SoloAnimeDownloadPanel } from '../../features/download/ui/SoloAnimeDown
 export function DownloadsRoute() {
   return (
     <div className="flex flex-col gap-4">
-      <header className="space-y-1">
-        <Typography type="h1">Downloads</Typography>
-        <Typography color="muted" type="body-sm">
-          Run downloads, review run history, and configure how downloads behave
-        </Typography>
-      </header>
+      <PageHeader title="Downloads" />
 
       <Tabs defaultSelectedKey="downloads">
         <Tabs.ListContainer>

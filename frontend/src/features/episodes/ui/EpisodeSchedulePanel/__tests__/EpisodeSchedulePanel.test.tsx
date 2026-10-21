@@ -370,3 +370,27 @@ describe('EpisodeSchedulePanel loading exclusivity', () => {
     expect(screen.queryByRole('heading', { name: 'Youjo Senki II' })).toBeNull();
   });
 });
+
+describe('EpisodeSchedulePanel Today header', () => {
+  it('puts the lens toggle on the Today title row, then the banner, then the day tabs, with no day heading', async () => {
+    renderPanel(<EpisodeSchedulePanel banner={<p>Season banner</p>} initialDay="Viernes" source={createSource()} />);
+
+    const daily = await screen.findByRole('radio', { name: 'Daily' });
+    const header = screen.getByRole('heading', { level: 1, name: 'Today' }).closest('header');
+    expect(header).toContainElement(daily);
+    const banner = screen.getByText('Season banner');
+    expect(header?.compareDocumentPosition(banner)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(banner.compareDocumentPosition(screen.getByRole('radio', { name: /Friday/ }))).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(screen.queryByRole('heading', { level: 2, name: 'Friday' })).toBeNull();
+  });
+
+  it('keeps the Today title and the banner above the failure alert', async () => {
+    const source = createSource({ getEpisodeSchedule: vi.fn().mockRejectedValue(new Error('binding missing')) });
+
+    renderPanel(<EpisodeSchedulePanel banner={<p>Season banner</p>} initialDay="Viernes" source={source} />);
+
+    expect(await screen.findByText('Episode schedule unavailable')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Today' })).toBeInTheDocument();
+    expect(screen.getByText('Season banner')).toBeInTheDocument();
+  });
+});

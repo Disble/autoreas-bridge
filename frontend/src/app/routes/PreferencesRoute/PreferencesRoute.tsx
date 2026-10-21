@@ -1,5 +1,6 @@
-import { Card, Tabs, Typography } from '@heroui/react';
+import { Card, Tabs } from '@heroui/react';
 import { PREFERENCES_ROUTE_TABS } from '../../../shared/preferences/preferences-route.constants';
+import { PageHeader } from '../../../shared/ui/PageHeader/PageHeader';
 
 /**
  * PreferencesRoute renders the Options workspace tabs and their colocated
@@ -8,12 +9,7 @@ import { PREFERENCES_ROUTE_TABS } from '../../../shared/preferences/preferences-
 export function PreferencesRoute() {
   return (
     <div className="flex flex-col gap-4">
-      <header className="space-y-1">
-        <Typography type="h1">Settings</Typography>
-        <Typography color="muted" type="body-sm">
-          Configure application behavior
-        </Typography>
-      </header>
+      <PageHeader title="Settings" />
 
       <Tabs defaultSelectedKey="library">
         <Tabs.ListContainer>

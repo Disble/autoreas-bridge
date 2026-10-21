@@ -4,6 +4,12 @@
 scroller**. There is no app-level internal scroll container, and nothing upstream contains an
 over-wide child for you.
 
+## Page header
+
+Every screen titles itself with `shared/ui/PageHeader`: the `h1`, an optional inline `adornment`
+(a status chip such as Notifications' unread count) and optional right-aligned `actions`, in one
+vertically centered row. There is no subtitle under the title.
+
 ## Containment: a card must never widen the page
 
 A single unbroken URL deep inside a card gives the whole application a horizontal scrollbar.
