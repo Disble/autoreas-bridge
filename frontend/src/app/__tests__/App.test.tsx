@@ -282,7 +282,7 @@ describe('App editor routes', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole('heading', { name: 'Create anime' })).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: 'Create', selected: true })).toBeInTheDocument();
   });
 
   it('reselects Create when an already-mounted Library route navigates to /editor/create', async () => {
@@ -297,6 +297,6 @@ describe('App editor routes', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Go to create' }));
 
-    expect(await screen.findByRole('heading', { name: 'Create anime' })).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: 'Create', selected: true })).toBeInTheDocument();
   });
 });

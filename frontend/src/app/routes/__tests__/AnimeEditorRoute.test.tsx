@@ -36,9 +36,11 @@ describe('AnimeEditorRoute', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Create' }));
 
-    expect(screen.getByRole('heading', { level: 2, name: 'Create anime' })).toBeInTheDocument();
-    // The Editor title stays the page's only h1 on the Create tab too.
+    expect(screen.getByRole('tab', { name: 'Create', selected: true })).toBeInTheDocument();
+    // Like Library, the Create tab opens straight onto its form: no heading or intro of its own under the Editor title.
     expect(screen.getAllByRole('heading', { level: 1 }).map((heading) => heading.textContent)).toEqual(['Editor']);
+    expect(screen.queryByRole('heading', { name: 'Create anime' })).toBeNull();
+    expect(screen.queryByText(/Add one or more titles/)).toBeNull();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
@@ -58,7 +60,7 @@ describe('AnimeEditorRoute initial tab', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('heading', { name: 'Create anime' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Create', selected: true })).toBeInTheDocument();
   });
 
   it('still opens on Library when the route supplies no tab', () => {
@@ -72,6 +74,6 @@ describe('AnimeEditorRoute initial tab', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Editor' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Create anime' })).toBeNull();
+    expect(screen.getByRole('tab', { name: 'Library', selected: true })).toBeInTheDocument();
   });
 });

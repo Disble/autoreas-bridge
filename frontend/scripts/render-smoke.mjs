@@ -77,7 +77,7 @@ const ROUTE_MARKERS = {
   // resolve BEFORE `/editor/:id`, so the marker is the Create workspace's own
   // heading: if the identifier route ever wins again, the Library workspace
   // renders here instead and this marker disappears.
-  '/#/editor/create': ['Create anime'],
+  '/#/editor/create': ['Anime 1'],
   // The sort control is static toolbar chrome, independent of the degraded history read.
   '/#/history': ['Newest first'],
 };
