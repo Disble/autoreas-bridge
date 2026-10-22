@@ -79,14 +79,14 @@ describe('AnimeCreate', () => {
     expect(screen.getAllByLabelText('Name')).toHaveLength(2);
 
     // An empty row removes with no confirmation.
-    fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Remove / })[0]);
     expect(screen.getAllByLabelText('Name')).toHaveLength(1);
     expect(screen.queryByText('Remove this anime?')).not.toBeInTheDocument();
 
     // A row with entered data asks for confirmation and stays until confirmed.
     fireEvent.click(screen.getByRole('button', { name: 'Add another anime' }));
     fireEvent.change(screen.getAllByLabelText('Name')[0], { target: { value: 'Frieren' } });
-    fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Remove / })[0]);
     expect(screen.getByText('Remove this anime?')).toBeInTheDocument();
     expect(screen.getAllByLabelText('Name')).toHaveLength(2);
   });

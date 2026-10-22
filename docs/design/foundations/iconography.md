@@ -53,7 +53,8 @@ action appears. The tooltip is the short action name; the `aria-label` adds the 
 | Open page | `solar/link-round-bold-duotone` | `Open page` | `OpenPageButton.tsx` |
 | Back | `solar/alt-arrow-left-linear` | `Back` | Navigation, so `linear` |
 | More actions | `solar/menu-dots-bold` | `More actions` | Overflow menu. Reference: `IntakeRowMoreMenu.tsx` |
-| Fetch metadata | `solar/magic-stick-3-bold-duotone` | `Fetch metadata` | Opens the MyAnimeList lookup (`LookupTrigger`'s `icon` variant): Intake rows, Editor and Create |
+| Fetch metadata | `solar/magic-stick-3-bold-duotone` | `Fetch metadata` | Opens the MyAnimeList lookup (`LookupTrigger`'s `icon` variant): Intake rows, Editor, and the Create card header beside Remove |
+| Undo autofill | `solar/undo-left-linear` | `Undo autofill` | Create card header, after a metadata lookup. The Editor still shows a text button; align it when that surface is touched |
 | Re-analyze folder | `tabler/refresh` | `Re-analyze folder` | Measures the folder's episodes again. The tooltip appends the disabled reason (`Re-analyze folder · Set a folder first`). A circular arrow fits here because nothing nearby is Repeat or Restore |
 | Open schedule editor | `solar/calendar-linear` | — | A primary action with its text and the calendar icon, not icon-only (Editor's Schedule card) |
 

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AnimeMetadataLookupSource } from '../../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
 import { AnimeCreateRow } from '../AnimeCreateRow';
@@ -76,6 +76,31 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
     expect(screen.getByLabelText('Watched episodes')).not.toBeVisible();
 
     expect(screen.getByRole('button', { name: 'Fetch metadata' })).toHaveTextContent(/^$/);
+  });
+
+  it('groups the card actions in its header, icon-only: Fetch metadata, then Remove at the outer edge', () => {
+    const row = draftRow({ name: 'Bleach' });
+    render(<AnimeCreateRow index={0} row={row} viewModel={createViewModel()} />);
+
+    const header = screen.getByRole('group', { name: 'Actions for Bleach' });
+    const names = within(header).getAllByRole('button').map((button) => button.getAttribute('aria-label'));
+    expect(names).toEqual(['Fetch metadata', 'Remove Bleach']);
+    const remove = within(header).getByRole('button', { name: 'Remove Bleach' });
+    expect(remove).toHaveTextContent(/^$/);
+    expect(remove).toHaveClass('button--tertiary', 'hover:text-danger');
+  });
+
+  it('explains a locked Remove while the card is the only one', () => {
+    const row = draftRow({ name: 'Bleach' });
+    render(<AnimeCreateRow index={0} row={row} viewModel={createViewModel({ canRemoveRow: false })} />);
+    const remove = screen.getByRole('button', { name: 'Remove Bleach' });
+
+    expect(remove).toBeDisabled();
+    fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
+    fireEvent.pointerUp(document.body, { pointerType: 'mouse' });
+    fireEvent.pointerOver(remove.parentElement as HTMLElement, { pointerType: 'mouse' });
+
+    return expect(screen.findByRole('tooltip')).resolves.toHaveTextContent('Remove · Keep at least one anime to create');
   });
 
   it('keeps the Fetch metadata action reachable once the disclosure is expanded', () => {
