@@ -337,3 +337,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-10-21]: A per-file coverage threshold that a component meets only through another feature's incidental render is a flake: ActivityRunStoryContent got 3 branches from ActivityIncidents' unawaited empty run; its own test now covers all 12.
 - [2026-10-21]: SQLite busy_timeout set by PRAGMA after Ping left the bridge's first connection with no busy handler, so a quick restart failed at once with SQLITE_BUSY; carry it in the DSN (_pragma=busy_timeout) so the driver applies it on open.
 - [2026-10-21]: Release 2.2.0 is a minor bump: it ships the Catalog and Details redesigns and two-way season grades (newest rated_at wins), whose 409 source enum widening to mobile_sync is a non-breaking wire change called out in the changelog.
+- [2026-10-22]: Release 2.3.0 is minor: the icon-only standard and the action hierarchy change how buttons look and read across the app, with no wire, data or config change.
