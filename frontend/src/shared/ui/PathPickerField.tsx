@@ -41,7 +41,8 @@ export function PathPickerField({
           variant="secondary"
           onChange={(event) => onChange(event.target.value)}
         />
-        <Button className="shrink-0" isDisabled={isDisabled} variant="secondary" onPress={onBrowse}>
+        {/* A field adornment is the quietest level: ghost, never louder than the actions around it. */}
+        <Button className="shrink-0" isDisabled={isDisabled} variant="ghost" onPress={onBrowse}>
           {browseLabel ?? 'Browse…'}
         </Button>
       </div>

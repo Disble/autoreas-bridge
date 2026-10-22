@@ -65,6 +65,9 @@ export const EPISODE_REANALYZE_LABEL = 'Re-analyze folder';
 /** Label of the Add episode action, in the table's last row and in the empty state. */
 export const EPISODE_ADD_LABEL = 'Add episode';
 
+/** Tooltip of a row's icon-only Edit button; its aria-label adds the episode number. */
+export const EPISODE_EDIT_DURATION_TOOLTIP = 'Edit duration';
+
 /** Display label of each section row source (guide section 2). */
 export const EPISODE_ROW_SOURCE_LABELS: Readonly<Record<EpisodeDurationRowSource, string>> = {
   measured: 'Measured',

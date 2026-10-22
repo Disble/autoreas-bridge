@@ -82,6 +82,9 @@ export const ANIME_EDITOR_RESTORE_LABEL = 'Restore';
  */
 export const ANIME_EDITOR_REPEAT_LABEL = 'Repeat';
 
+/** Name and tooltip of the icon-only lifecycle action that deactivates an active anime. */
+export const ANIME_EDITOR_DEACTIVATE_LABEL = 'Deactivate anime';
+
 /**
  * Shape shared by the real `AnimeEditorListRow` and its `AnimeEditorListSkeleton`
  * placeholder, so the two cannot drift apart silently.

@@ -120,6 +120,9 @@ describe('EpisodeDurationsSection card header', () => {
     expect(screen.getByText('1 long')).toBeInTheDocument();
     const toggle = screen.getByRole('button', { name: 'Show episodes' });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    // The disclosure is the quietest level (ghost); Re-analyze is a gray secondary action above it.
+    expect(toggle).toHaveClass('button--ghost');
+    expect(screen.getByRole('button', { name: 'Re-analyze folder' })).toHaveClass('button--tertiary');
     expect(screen.queryByRole('grid')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Save episodes' })).toBeNull();
   });
@@ -197,6 +200,20 @@ describe('EpisodeDurationsSection exclusive states', () => {
     expect(await screen.findByText('Showing saved durations')).toBeInTheDocument();
     expect(screen.getAllByTestId('episode-durations-row')).toHaveLength(3);
     expect(screen.getByRole('button', { name: 'Re-analyze folder (Folder not found)' })).toBeDisabled();
+  });
+
+  it('names the row Edit button in its tooltip on hover', async () => {
+    renderSection(createFakeSource(vi.fn().mockResolvedValue(section())));
+    expand();
+    const edit = await screen.findByRole('button', { name: 'Edit episode 3 duration' });
+
+    // The table's grid keeps focus on the row, so the tooltip is proven by mouse hover;
+    // the pointer press first leaves keyboard modality, in which a tooltip ignores hover.
+    fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
+    fireEvent.pointerUp(document.body, { pointerType: 'mouse' });
+    fireEvent.pointerOver(edit.parentElement as HTMLElement, { pointerType: 'mouse' });
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Edit duration');
   });
 });
 

@@ -15,7 +15,8 @@ describe('PathPickerField', () => {
 
     expect(screen.getByText('Folder')).toBeInTheDocument();
     expect(screen.getByRole('textbox')).toHaveValue('D:/Anime/Show');
-    expect(screen.getByRole('button', { name: /browse/i })).toBeInTheDocument();
+    // A field adornment is the quietest level: ghost, not the accent-text secondary.
+    expect(screen.getByRole('button', { name: /browse/i })).toHaveClass('button--ghost');
   });
 
   it('reports typed path edits through onChange', () => {

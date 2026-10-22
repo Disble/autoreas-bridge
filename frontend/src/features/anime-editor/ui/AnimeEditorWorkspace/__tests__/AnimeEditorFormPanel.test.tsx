@@ -100,7 +100,11 @@ describe('AnimeEditorFormPanel spurious-dirty guard', () => {
     const viewModel = createViewModel({ onRequestLifecycleAction, onDeactivate });
 
     render(<AnimeEditorFormPanel viewModel={viewModel} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Deactivate anime' }));
+    const deactivate = screen.getByRole('button', { name: 'Deactivate anime' });
+    // Icon-only like Repeat and Restore, tinting danger on hover; its confirm dialog keeps the words.
+    expect(deactivate).toHaveTextContent(/^$/);
+    expect(deactivate).toHaveClass('hover:text-danger');
+    fireEvent.click(deactivate);
 
     expect(onRequestLifecycleAction).toHaveBeenCalledWith('deactivate');
     expect(onDeactivate).not.toHaveBeenCalled();

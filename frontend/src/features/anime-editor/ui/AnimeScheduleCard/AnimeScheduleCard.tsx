@@ -1,6 +1,6 @@
 import calendarIcon from '@iconify-icons/solar/calendar-linear';
-import { Alert, Card, Skeleton } from '@heroui/react';
-import { IconActionButton } from '../../../../shared/ui/IconActionButton/IconActionButton';
+import { Icon } from '@iconify/react';
+import { Alert, Button, Card, Skeleton } from '@heroui/react';
 import {
   ANIME_SCHEDULE_CARD_DESCRIPTION,
   ANIME_SCHEDULE_CARD_OPEN_LABEL,
@@ -14,7 +14,7 @@ import {
 import type { AnimeScheduleCardProps } from './anime-schedule-card.types';
 
 /**
- * Renders the Editor's Schedule card (S16): the icon-only "Open schedule editor" button
+ * Renders the Editor's Schedule card (S16): its primary "Open schedule editor" button
  * and a seven-day week strip. A day the anime airs is tinted and shows its
  * place, the number strong and "of M" muted on one line; other days are dimmed
  * with the day name only. Loading, failure and the strip never coexist.
@@ -28,7 +28,10 @@ export function AnimeScheduleCard({ week, onOpenSchedule }: Readonly<AnimeSchedu
           <Card.Title>{ANIME_SCHEDULE_CARD_TITLE}</Card.Title>
           <Card.Description>{ANIME_SCHEDULE_CARD_DESCRIPTION}</Card.Description>
         </div>
-        <IconActionButton ariaLabel={ANIME_SCHEDULE_CARD_OPEN_LABEL} icon={calendarIcon} tooltip={ANIME_SCHEDULE_CARD_OPEN_LABEL} variant="tertiary" onPress={onOpenSchedule} />
+        <Button variant="primary" onPress={onOpenSchedule}>
+          <Icon aria-hidden="true" className="size-[18px]" icon={calendarIcon} />
+          {ANIME_SCHEDULE_CARD_OPEN_LABEL}
+        </Button>
       </Card.Header>
       <Card.Content className="min-w-0">
         {week.status === 'loading' ? (
