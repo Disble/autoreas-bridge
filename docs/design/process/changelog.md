@@ -5,6 +5,19 @@ whose `.claude` (`1.1.2`) and `.agents` (`1.3.0`) copies had drifted; both histo
 Entries name the views that prompted them as a historical record; the rules themselves live in the
 files of `docs/design/`. Superseded entries are kept and marked.
 
+- `2.7.0` — One icon-only standard, approved on the "Icon-only buttons" canvas (backed up in
+  OpenDesign, project Bridge Redesign, folder `icon-only-buttons/`). The user's rule: "botón con
+  solo-icono debe tener tooltip". Every icon-only button now goes through `IconActionButton`
+  (tooltip with arrow, 300 ms instead of HeroUI's 1.5 s, shown on focus and while disabled with the
+  reason after " · ", 18 px glyph, hover tone by meaning, second line for a path), and ESLint fails
+  `isIconOnly` elsewhere outside four named exceptions. The action hierarchy was rewritten
+  (`foundations/color-tokens.md`): primary = `primary`, secondary = `tertiary`, tertiary = `ghost`,
+  destructive = `tertiary` + danger hover. HeroUI `secondary` is not a level: its accent text read
+  louder than `tertiary`, so Show episodes looked more important than the Editor's row actions.
+  Open schedule editor became a primary text button ("open schedules es una acción principal"), and
+  Deactivate anime became icon-only `archive-down` with its confirm dialog keeping the text.
+  Supersedes the `2.6.0` notes that Intake's Restore keeps `restart-bold` and that a disabled or
+  modal-trigger icon button keeps its own `Tooltip` pair.
 - `2.6.0` — Added `foundations/iconography.md` (drafted with the Anime Detail redesign, landed here):
   Solar as the primary set, the variants, one action-to-icon vocabulary and the action-group rules.
   Repeat is `rewind-back` (watch it again from the start) and Restore is `archive-up` (out of the

@@ -12,6 +12,7 @@ tooltip".
   No icon font, no inline SVG copied into components.
 - **Solar is the primary set.** Measured on 2026-10-22 by grepping `@iconify-icons/` imports under
   `frontend/src`: 34 Solar imports against 13 Tabler (`.tsx` files only).
+- **Glyph size is 18px** inside every icon-only button (`size-[18px]`, set by `IconActionButton`).
 - **Tabler is the exception set** for small glyph controls where Solar has no fitting shape or the
   duotone fill is too heavy at 16px: chevrons, plus/minus steppers, `question-mark`, `refresh`, and the
   inline `pencil` in `EpisodeDurationsTable.tsx`. Do not mix the two sets inside one button group.
@@ -37,16 +38,24 @@ action appears. The tooltip is the short action name; the `aria-label` adds the 
 |---|---|---|---|
 | Edit a record | `solar/pen-linear` | `Edit anime` | Opens the editor for the record (`AnimeDetailToolbar.tsx`). In dense table cells, the existing Tabler `pencil` stays |
 | Repeat | `solar/rewind-back-linear` | `Repeat` | Starts a new watch cycle: watch it again from the beginning. A media-player rewind, no circle. Anime Detail toolbar and Editor footer |
-| Restore | `solar/archive-up-linear` | `Restore` | Reactivates a deleted record (`Anime.Restore()` in `internal/anime/domain/anime.go`): out of the box, the opposite of Delete. Intake's Restore still uses `solar/restart-bold` (`IntakeDiscardedRow.tsx`); align it when that surface is touched |
+| Restore | `solar/archive-up-linear` | `Restore` | Reactivates a deleted record (`Anime.Restore()` in `internal/anime/domain/anime.go`) or a discarded intake row (`IntakeDiscardedRow.tsx`): out of the box, the opposite of Delete |
 | Delete | `solar/trash-bin-2-bold-duotone` | `Delete` | Destructive; pair with a confirmation |
-| Copy | `solar/copy-bold-duotone` | `Copy path` | Clipboard copy, confirmed by a toast |
-| Open folder | `solar/folder-open-bold-duotone` | `Open folder` | `AnimeDesktopActions.tsx` |
+| Copy | `solar/copy-bold-duotone` | `Copy path`, `Copy this run for AI` | Clipboard copy, confirmed by a toast. Activity's Copy for AI uses it too |
+| Duplicate to another day | `solar/copy-bold-duotone` | `Duplicate to another day` | Both ordering boards. Shares the Copy glyph, a known overlap |
+| Remove from a day | `solar/trash-bin-2-bold-duotone` | `Remove` | Ordering cards, danger tint. Locked on the last card: `Remove · <reason>` |
+| Deactivate anime | `solar/archive-down-linear` | `Deactivate anime` | Editor footer, danger tint; the confirmation dialog keeps the text. The opposite of Restore |
+| Edit duration | `tabler/pencil` | `Edit duration` | Episodes table row |
+| Set download folder | `solar/folder-with-files-bold-duotone` | `Set download folder` | Intake rows; the folder on the second line |
+| Change grade | `solar/star-bold-duotone` | `Change grade` | Warning tint |
+| Change status | `solar/menu-dots-bold` | `Change status` | Today rows, opens the status dialog. Warning tint |
+| Add / subtract one episode | `tabler/plus`, `tabler/minus` | `Add one episode`, `Subtract one episode` | Today stepper; second line `Right-click adds half` / `subtracts half`. "+" is primary, "−" tertiary |
+| Open folder | `solar/folder-open-bold-duotone` | `Open folder` | `AnimeDesktopActions.tsx`; the path on the second line, secondary click copies it |
 | Open page | `solar/link-round-bold-duotone` | `Open page` | `OpenPageButton.tsx` |
 | Back | `solar/alt-arrow-left-linear` | `Back` | Navigation, so `linear` |
 | More actions | `solar/menu-dots-bold` | `More actions` | Overflow menu. Reference: `IntakeRowMoreMenu.tsx` |
 | Fetch metadata | `solar/magic-stick-3-bold-duotone` | `Fetch metadata` | Opens the MyAnimeList lookup (`LookupTrigger`'s `icon` variant): Intake rows, Editor and Create |
 | Re-analyze folder | `tabler/refresh` | `Re-analyze folder` | Measures the folder's episodes again. The tooltip appends the disabled reason (`Re-analyze folder · Set a folder first`). A circular arrow fits here because nothing nearby is Repeat or Restore |
-| Open schedule editor | `solar/calendar-linear` | `Open schedule editor` | Editor's Schedule card header |
+| Open schedule editor | `solar/calendar-linear` | — | A primary action with its text and the calendar icon, not icon-only (Editor's Schedule card) |
 
 **Repeat is not Restore, and neither is an arrow in a circle.** In most sets both are circular
 arrows, and at 18px they cannot be told apart: the Details review rejected `repeat` + `restart` for
@@ -58,8 +67,8 @@ other circular arrow for either action; the brainstorm of rejected candidates (`
 
 ## Action groups
 
-- **All record actions are icon-only at the same level** (`variant="tertiary"`, `size="sm"`,
-  `isIconOnly`) when they sit in a group, as on the anime Details toolbar (Repeat, Restore, Edit). A
+- **All record actions are icon-only at the same level** (`IconActionButton`, `variant="tertiary"`,
+  `size="sm"`) when they sit in a group, as on the anime Details toolbar (Repeat, Restore, Edit). A
   mutation that needs a confirmation dialog is still a secondary action: the dialog's Confirm button is
   where the text and the `primary` variant live.
 - **Order: the action that is always present sits at the outer edge**, conditional ones toward the
