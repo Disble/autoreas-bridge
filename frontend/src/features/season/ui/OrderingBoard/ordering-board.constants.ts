@@ -16,10 +16,13 @@ export const ORDERING_EMPTY_ACTION_LABEL = 'Go to Selection';
 /** Heading and drop-zone name of the rail of approved animes awaiting a weekday. */
 export const ORDERING_RAIL_LABEL = 'Approved to place';
 
-/** Tooltip of a card's Remove button while the anime holds more than one card. */
+/** Tooltip of a card's Remove button; a locked button appends its reason. */
 export const ORDERING_REMOVE_TOOLTIP = 'Remove';
 
-/** Tooltip of a card's locked Remove button: the anime's last card can never be removed. */
+/** Tooltip of a card's Duplicate button, the same wording on both ordering boards. */
+export const ORDERING_DUPLICATE_TOOLTIP = 'Duplicate to another day';
+
+/** Why a card's Remove button is locked: the anime's last card can never be removed. */
 export const ORDERING_LAST_CARD_TOOLTIP = 'An anime must stay on at least one day';
 
 /** Debounce (ms) before autosaving the working ordering draft. */

@@ -16,3 +16,9 @@ export const ANIME_SCHEDULE_STAGING_HELP_MESSAGE = 'A parking lot for rearrangin
 export const ANIME_SCHEDULE_STAGING_HELP_LABEL = 'About the staging area';
 /** Prefix for synthetic anime ids seeded by a create-mode batch draft. */
 export const ANIME_SCHEDULE_DRAFT_ID_PREFIX = '__draft__:';
+/** Tooltip of a card's Duplicate button, the same wording as the Season ordering board. */
+export const ANIME_SCHEDULE_DUPLICATE_TOOLTIP = 'Duplicate to another day';
+/** Tooltip of a card's Remove button; a locked button appends its reason. */
+export const ANIME_SCHEDULE_REMOVE_TOOLTIP = 'Remove';
+/** Why a card's Remove button is locked: the anime's last card can never be removed. */
+export const ANIME_SCHEDULE_LAST_CARD_REASON = 'An anime must stay scheduled at least once';

@@ -52,7 +52,10 @@ describe('AnimeScheduleCard', () => {
     expect(screen.getByRole('status', { name: ANIME_SCHEDULE_WEEK_LOADING_LABEL })).toBeInTheDocument();
     expect(screen.getAllByTestId('anime-schedule-week-skeleton')).toHaveLength(ANIME_SCHEDULE_WEEK_SKELETON_COUNT);
     expect(screen.queryByRole('list', { name: 'Week placement' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Open schedule editor' })).toBeInTheDocument();
+    // The card's primary action: a primary button that shows its words, never an icon-only one.
+    const open = screen.getByRole('button', { name: 'Open schedule editor' });
+    expect(open).toHaveTextContent(/^Open schedule editor$/);
+    expect(open).toHaveClass('button--primary');
   });
 
   it('shows the failure alert alone: no strip, no skeleton', () => {

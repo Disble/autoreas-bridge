@@ -2,7 +2,7 @@ import type { DragOverEvent } from '@dnd-kit/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { OrderingBoard, OrderingCard, SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
-import { ORDERING_LAST_CARD_TOOLTIP, ORDERING_REMOVE_TOOLTIP, RAIL_CONTAINER_ID } from '../ordering-board.constants';
+import { ORDERING_LAST_CARD_TOOLTIP, RAIL_CONTAINER_ID } from '../ordering-board.constants';
 import {
   applyOrder,
   buildDraft,
@@ -10,7 +10,7 @@ import {
   cardCounts,
   countChanges,
   duplicate,
-  getRemoveTooltip,
+  getRemoveDisabledReason,
   hasDuplicateWeekdayPlacements,
   initialWorkingState,
   instancesIn,
@@ -303,11 +303,11 @@ describe('buildOrderingCardMeta', () => {
   });
 });
 
-describe('getRemoveTooltip', () => {
+describe('getRemoveDisabledReason', () => {
   it.each([
-    { canRemove: true, tooltip: ORDERING_REMOVE_TOOLTIP },
+    { canRemove: true, tooltip: undefined },
     { canRemove: false, tooltip: ORDERING_LAST_CARD_TOOLTIP },
-  ])('explains the Remove button when canRemove is $canRemove', ({ canRemove, tooltip }) => {
-    expect(getRemoveTooltip(canRemove)).toBe(tooltip);
+  ])('gives the locked Remove button its reason only when canRemove is false ($canRemove)', ({ canRemove, tooltip }) => {
+    expect(getRemoveDisabledReason(canRemove)).toBe(tooltip);
   });
 });

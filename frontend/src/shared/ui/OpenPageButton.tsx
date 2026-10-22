@@ -1,6 +1,5 @@
 import linkIcon from '@iconify-icons/solar/link-round-bold-duotone';
-import { Icon } from '@iconify/react';
-import { Button, Tooltip } from '@heroui/react';
+import { IconActionButton } from './IconActionButton/IconActionButton';
 import type { OpenPageButtonProps } from './OpenPageButton.types';
 
 /**
@@ -10,22 +9,5 @@ import type { OpenPageButtonProps } from './OpenPageButton.types';
  * the press hands the URL to `onOpen`, which opens it in the external browser.
  */
 export function OpenPageButton({ name, pageUrl, onOpen }: Readonly<OpenPageButtonProps>) {
-  return (
-    <Tooltip>
-      <Button
-        isIconOnly
-        aria-label={`Open the page for ${name}`}
-        className="hover:text-accent"
-        size="sm"
-        variant="tertiary"
-        onPress={() => onOpen(pageUrl)}
-      >
-        <Icon className="size-4" icon={linkIcon} />
-      </Button>
-      <Tooltip.Content showArrow>
-        <Tooltip.Arrow />
-        Open page
-      </Tooltip.Content>
-    </Tooltip>
-  );
+  return <IconActionButton ariaLabel={`Open the page for ${name}`} icon={linkIcon} tone="accent" tooltip="Open page" onPress={() => onOpen(pageUrl)} />;
 }

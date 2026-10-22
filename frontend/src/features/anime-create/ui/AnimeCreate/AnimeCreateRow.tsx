@@ -1,10 +1,13 @@
+import trashIcon from '@iconify-icons/solar/trash-bin-2-bold-duotone';
+import undoIcon from '@iconify-icons/solar/undo-left-linear';
 import { Button, Card, Disclosure, Typography } from '@heroui/react';
 import { ANIME_TIPO_FILTER_ENTRIES } from '../../../../shared/constants/anime-tipo.constants';
 import { AnimeMetadataLookupModal } from '../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/AnimeMetadataLookupModal';
+import { IconActionButton } from '../../../../shared/ui/IconActionButton/IconActionButton';
 import { LabeledSelect } from '../../../../shared/ui/LabeledSelect';
 import { LabeledTextField } from '../../../../shared/ui/LabeledTextField';
 import { PathPickerField } from '../../../../shared/ui/PathPickerField';
-import { ANIME_CREATE_COVER_TYPE_OPTIONS } from './anime-create.constants';
+import { ANIME_CREATE_COVER_TYPE_OPTIONS, ANIME_CREATE_LAST_ROW_REASON } from './anime-create.constants';
 import { downloadPageDescription } from './anime-create.helpers';
 import type { AnimeCreateRowProps } from './anime-create.types';
 
@@ -12,16 +15,37 @@ import type { AnimeCreateRowProps } from './anime-create.types';
 export function AnimeCreateRow({ row, index, viewModel }: Readonly<AnimeCreateRowProps>) {
   const draftId = row.draftId;
   const appliedMetadata = viewModel.appliedMetadataByRow[draftId];
+  const title = row.name.trim() === '' ? `Anime ${index + 1}` : row.name;
   return (
     <Card>
       <Card.Content className="flex flex-col gap-4 p-4">
+        {/* The card's actions sit in its header, icon-only: Undo autofill appears
+            after a lookup, Fetch metadata stays reachable whatever the disclosure
+            below shows, and Remove, always present, holds the outer edge. */}
         <div className="flex items-center justify-between gap-3">
           <Typography className="min-w-0" color="muted" truncate type="body-xs" weight="semibold">
-            {row.name.trim() === '' ? `Anime ${index + 1}` : row.name}
+            {title}
           </Typography>
-          <Button className="shrink-0 text-danger hover:text-danger" isDisabled={!viewModel.canRemoveRow} size="sm" variant="tertiary" onPress={() => viewModel.onRemoveRow(draftId)}>
-            Remove
-          </Button>
+          <div aria-label={`Actions for ${title}`} className="flex shrink-0 items-center gap-1" role="group">
+            {appliedMetadata === undefined ? null : (
+              <IconActionButton ariaLabel="Undo autofill" icon={undoIcon} tooltip="Undo autofill" onPress={() => viewModel.onMetadataUndo(draftId)} />
+            )}
+            <AnimeMetadataLookupModal
+              name={row.name}
+              source={viewModel.metadataLookupSource}
+              triggerVariant="icon"
+              onConfirm={(selection) => viewModel.onMetadataApplied(draftId, selection)}
+            />
+            <IconActionButton
+              ariaLabel={`Remove ${title}`}
+              disabledReason={ANIME_CREATE_LAST_ROW_REASON}
+              icon={trashIcon}
+              isDisabled={!viewModel.canRemoveRow}
+              tone="danger"
+              tooltip="Remove"
+              onPress={() => viewModel.onRemoveRow(draftId)}
+            />
+          </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -62,22 +86,6 @@ export function AnimeCreateRow({ row, index, viewModel }: Readonly<AnimeCreateRo
             onBrowse={() => viewModel.onBrowseFolder(draftId)}
             onChange={(value) => viewModel.onRowChange(draftId, { folder: value })}
           />
-        </div>
-
-        {/* Fetch metadata stays outside the disclosure below (anime-create-editor
-            delta) -- it must stay reachable regardless of the disclosure's own
-            expanded/collapsed state. */}
-        <div className="flex flex-wrap items-center gap-3">
-          <AnimeMetadataLookupModal
-            name={row.name}
-            source={viewModel.metadataLookupSource}
-            onConfirm={(selection) => viewModel.onMetadataApplied(draftId, selection)}
-          />
-          {appliedMetadata === undefined ? null : (
-            <Button size="sm" variant="tertiary" onPress={() => viewModel.onMetadataUndo(draftId)}>
-              Undo autofill
-            </Button>
-          )}
         </div>
 
         <Disclosure>

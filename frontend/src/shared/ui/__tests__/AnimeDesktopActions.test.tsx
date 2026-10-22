@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AnimeDesktopActions } from '../AnimeDesktopActions';
@@ -58,6 +58,12 @@ describe('AnimeDesktopActions', () => {
 
     fireEvent.contextMenu(screen.getByRole('button', { name: /open folder/i }));
     expect(onCopyFolder).toHaveBeenCalledWith('anime-1');
+
+    // The tooltip names the action first and keeps the real path on its second line.
+    fireEvent.keyDown(document.body, { key: 'Tab' });
+    act(() => screen.getByRole('button', { name: /open folder/i }).focus());
+    const lines = screen.getByRole('tooltip').querySelectorAll('span > span');
+    expect([...lines].map((line) => line.textContent)).toEqual(['Open folder', 'D:/downloads/frieren']);
   });
 
   it('tints the buttons with the page/folder intent colors', () => {

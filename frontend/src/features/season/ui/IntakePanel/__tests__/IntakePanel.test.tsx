@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
@@ -220,7 +220,11 @@ describe('IntakePanel', () => {
       folderPreviews: { 'sa-1': 'D:/Anime/Dr. Stone' },
     });
     render(<IntakePanel />);
-    expect(screen.getByTitle('D:/Anime/Dr. Stone')).toBeInTheDocument();
+
+    fireEvent.keyDown(document.body, { key: 'Tab' });
+    act(() => screen.getByRole('button', { name: /^Set download folder for/ }).focus());
+
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Set download folderD:/Anime/Dr. Stone');
   });
 
   it('opens the matched page in the system browser from the link button', () => {

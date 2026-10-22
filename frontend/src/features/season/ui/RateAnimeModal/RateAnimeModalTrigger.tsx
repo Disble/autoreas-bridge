@@ -1,6 +1,6 @@
 import starIcon from '@iconify-icons/solar/star-bold-duotone';
-import { Icon } from '@iconify/react';
-import { Button, Tooltip } from '@heroui/react';
+import { Button } from '@heroui/react';
+import { IconActionButton } from '../../../../shared/ui/IconActionButton/IconActionButton';
 import { CHANGE_GRADE_LABEL } from './rate-anime-modal.constants';
 import { formatGradeLabel } from './rate-anime-modal.helpers';
 import type { RateAnimeModalTriggerProps } from './rate-anime-modal.types';
@@ -14,17 +14,7 @@ import type { RateAnimeModalTriggerProps } from './rate-anime-modal.types';
  */
 export function RateAnimeModalTrigger({ variant, rawName, currentGrade }: Readonly<RateAnimeModalTriggerProps>) {
   if (variant === 'icon') {
-    return (
-      <Tooltip>
-        <Button isIconOnly aria-label={`${CHANGE_GRADE_LABEL} for ${rawName}`} className="hover:text-warning" size="sm" variant="tertiary">
-          <Icon className="size-4" icon={starIcon} />
-        </Button>
-        <Tooltip.Content showArrow>
-          <Tooltip.Arrow />
-          {CHANGE_GRADE_LABEL}
-        </Tooltip.Content>
-      </Tooltip>
-    );
+    return <IconActionButton ariaLabel={`${CHANGE_GRADE_LABEL} for ${rawName}`} icon={starIcon} tone="warning" tooltip={CHANGE_GRADE_LABEL} />;
   }
   if (variant === 'rate') {
     return (

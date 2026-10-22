@@ -6,14 +6,26 @@ import { Button, Card, Chip, Modal, Tooltip, Typography } from '@heroui/react';
 import type { MouseEvent } from 'react';
 import { AnimeDesktopActions } from '../../../../shared/ui/AnimeDesktopActions';
 import { CoverPlaceholderScene } from '../../../../shared/ui/CoverPlaceholderScene';
+import { IconActionButton } from '../../../../shared/ui/IconActionButton/IconActionButton';
+import { ICON_ACTION_TOOLTIP_DELAY_MS } from '../../../../shared/ui/IconActionButton/icon-action-button.constants';
 import { SeasonRateAction } from '../../../season/ui/SeasonRateAction/SeasonRateAction';
-import { EPISODE_COVER_SLOT_CLASS, EPISODE_STATE_OPTIONS } from './episode-schedule-panel.constants';
+import {
+  EPISODE_ADD_HALF_HINT,
+  EPISODE_ADD_TOOLTIP,
+  EPISODE_CHANGE_STATUS_TOOLTIP,
+  EPISODE_COVER_SLOT_CLASS,
+  EPISODE_STATE_OPTIONS,
+  EPISODE_SUBTRACT_HALF_HINT,
+  EPISODE_SUBTRACT_TOOLTIP,
+} from './episode-schedule-panel.constants';
 import type { EpisodeScheduleCardProps } from './episode-schedule-panel.types';
 
 /**
  * Renders one episode-schedule row: cover slot, watched/remaining hover-swap,
- * danger-colored minus, primary plus, real-path tooltips, the long-episode
- * chip beside the status chip when the next episode runs long, and the status modal.
+ * the episode stepper (a gray minus and the row's primary plus), real-path
+ * tooltips, the long-episode chip beside the status chip when the next episode
+ * runs long, and the status modal. The primary plus is the one icon-only button
+ * outside `IconActionButton`, by name: it keeps the row's primary emphasis.
  */
 export function EpisodeScheduleCard(props: Readonly<EpisodeScheduleCardProps>) {
   const { adjustWatchedEpisodes, copyAnimeFolder, copyAnimePage, openAnimeFolder, openAnimePage, row, setAnimeState } = props;
@@ -75,38 +87,42 @@ export function EpisodeScheduleCard(props: Readonly<EpisodeScheduleCardProps>) {
           </div>
 
           <div className="flex shrink-0 flex-nowrap items-center gap-2 sm:justify-end">
-            <Button
-              isIconOnly
-              aria-label={`Subtract one episode for ${row.name}. Secondary click subtracts half episode.`}
+            <IconActionButton
+              ariaLabel={`Subtract one episode for ${row.name}. Secondary click subtracts half episode.`}
+              detail={EPISODE_SUBTRACT_HALF_HINT}
+              icon={minusIcon}
               isDisabled={row.isProgressBlocked}
-              size="sm"
-              variant="secondary"
-              onContextMenu={(event: MouseEvent) => {
-                event.preventDefault();
-                void adjustWatchedEpisodes(row.id, -0.5, row.modifiedAt);
-              }}
+              tooltip={EPISODE_SUBTRACT_TOOLTIP}
+              onContextMenu={() => void adjustWatchedEpisodes(row.id, -0.5, row.modifiedAt)}
               onPress={() => void adjustWatchedEpisodes(row.id, -1, row.modifiedAt)}
-            >
-              <Icon icon={minusIcon} className="size-5" />
-            </Button>
-            <Button
-              isIconOnly
-              aria-label={`Add one episode for ${row.name}. Secondary click adds half episode.`}
-              isDisabled={row.isProgressBlocked}
-              size="sm"
-              variant="primary"
-              onContextMenu={(event: MouseEvent) => {
-                event.preventDefault();
-                void adjustWatchedEpisodes(row.id, 0.5, row.modifiedAt);
-              }}
-              onPress={() => void adjustWatchedEpisodes(row.id, 1, row.modifiedAt)}
-            >
-              <Icon icon={plusIcon} className="size-5" />
-            </Button>
+            />
+            <Tooltip delay={ICON_ACTION_TOOLTIP_DELAY_MS}>
+              <Tooltip.Trigger className="inline-flex shrink-0 rounded-full" role="presentation" tabIndex={-1}>
+                <Button
+                  isIconOnly
+                  aria-label={`Add one episode for ${row.name}. Secondary click adds half episode.`}
+                  isDisabled={row.isProgressBlocked}
+                  size="sm"
+                  variant="primary"
+                  onContextMenu={(event: MouseEvent) => {
+                    event.preventDefault();
+                    void adjustWatchedEpisodes(row.id, 0.5, row.modifiedAt);
+                  }}
+                  onPress={() => void adjustWatchedEpisodes(row.id, 1, row.modifiedAt)}
+                >
+                  <Icon aria-hidden="true" className="size-[18px]" icon={plusIcon} />
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content showArrow>
+                <Tooltip.Arrow />
+                <span className="flex flex-col">
+                  <span>{EPISODE_ADD_TOOLTIP}</span>
+                  <span className="text-muted">{EPISODE_ADD_HALF_HINT}</span>
+                </span>
+              </Tooltip.Content>
+            </Tooltip>
             <Modal>
-              <Button isIconOnly aria-label={`Change status for ${row.name}. Current status: ${row.stateLabel}.`} className="hover:text-warning" size="sm" variant="tertiary">
-                <Icon icon={menuIcon} className="size-5" />
-              </Button>
+              <IconActionButton ariaLabel={`Change status for ${row.name}. Current status: ${row.stateLabel}.`} icon={menuIcon} tone="warning" tooltip={EPISODE_CHANGE_STATUS_TOOLTIP} />
               <Modal.Backdrop variant="blur">
                 <Modal.Container>
                   <Modal.Dialog className="sm:max-w-[420px]">

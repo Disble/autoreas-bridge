@@ -2,8 +2,10 @@ import pencilIcon from '@iconify-icons/tabler/pencil';
 import plusIcon from '@iconify-icons/tabler/plus';
 import { Icon } from '@iconify/react';
 import { Button, Chip, Skeleton, Table } from '@heroui/react';
+import { IconActionButton } from '../../../../shared/ui/IconActionButton/IconActionButton';
 import {
   EPISODE_ADD_LABEL,
+  EPISODE_EDIT_DURATION_TOOLTIP,
   EPISODE_DURATIONS_LOADING_LABEL,
   EPISODE_DURATIONS_ROW_CLASS,
   EPISODE_DURATIONS_SKELETON_ROW_COUNT,
@@ -58,9 +60,7 @@ export function EpisodeDurationsTable({ viewModel }: Readonly<EpisodeDurationsSe
                       <Table.Cell><span className="block truncate text-[13px] text-muted">{row.sourceLabel}</span></Table.Cell>
                       <Table.Cell>
                         <span className="flex justify-end">
-                          <Button aria-label={row.editLabel} className="hover:text-accent" isDisabled={viewModel.isEditingLocked} isIconOnly size="sm" variant="tertiary" onPress={() => viewModel.onOpenEdit(row.episode)}>
-                            <Icon aria-hidden="true" icon={pencilIcon} />
-                          </Button>
+                          <IconActionButton ariaLabel={row.editLabel} icon={pencilIcon} isDisabled={viewModel.isEditingLocked} tone="accent" tooltip={EPISODE_EDIT_DURATION_TOOLTIP} onPress={() => viewModel.onOpenEdit(row.episode)} />
                         </span>
                       </Table.Cell>
                     </Table.Row>

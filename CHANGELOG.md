@@ -14,6 +14,22 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [2.3.0] — 2026-10-22
+
+### Changed
+
+- Every button that shows only an icon now has a tooltip naming what it does. It appears after a short pause, also when you reach the button with the keyboard, and still shows on a disabled button with the reason it is disabled (for example "Remove · An anime must stay on at least one day").
+- Tooltips of the page and folder buttons name the action first and show the path or URL on a second line, instead of showing only the path.
+- Buttons now follow one order of importance across the app: the main action of a screen is the solid blue button, other actions are gray, and disclosures such as "Show episodes" are quieter still. Before, some lesser actions looked more prominent than the actions above them.
+- In the Editor, "Open schedule editor" is now a main action with its text, and "Deactivate anime" is an icon button that turns red on hover; its confirmation dialog is unchanged.
+- In Create, each anime card keeps its actions in its header: Undo autofill (after fetching metadata), Fetch metadata and Remove. Remove is now an icon button instead of red text.
+- On Today, the "−" episode button is gray instead of blue text, and the "+", "−" and status buttons have tooltips; right-click still adds or subtracts half an episode.
+- On the ordering boards, Duplicate reads "Duplicate to another day" on both boards. The discarded intake rows use the same Restore icon as the rest of the app, and "Copy for AI" in Activity uses the copy icon.
+
+### Internal
+
+- A lint rule now rejects an icon-only button that does not go through the shared icon button, and the design documentation describes the standard and the button order.
+
 ## [2.2.0] — 2026-10-21
 
 **Wire change (non-breaking):** the season premiere grade endpoint now accepts a phone grade over a manual one when it was rated later, and its `409` body's `source` can now be `mobile_sync` as well as `manual`. See `docs/openapi.yaml`.
