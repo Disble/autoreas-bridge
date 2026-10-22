@@ -17,7 +17,8 @@ export function AnimeDesktopActions(props: Readonly<AnimeDesktopActionsProps>) {
       {hasPage && (
         <DesktopActionButton
           ariaLabel={`Open page for ${name}. Secondary click copies page URL.`}
-          className="hover:text-accent"
+          tone="accent"
+          tooltip="Open page"
           icon={pageIcon ?? defaultLinkIcon}
           path={pageUrl}
           onOpen={() => onOpenPage(animeId)}
@@ -27,7 +28,8 @@ export function AnimeDesktopActions(props: Readonly<AnimeDesktopActionsProps>) {
       {hasFolder && (
         <DesktopActionButton
           ariaLabel={`Open folder for ${name}. Secondary click copies folder path.`}
-          className="hover:text-success"
+          tone="success"
+          tooltip="Open folder"
           icon={folderIcon ?? defaultFolderIcon}
           path={folderPath}
           onOpen={() => onOpenFolder(animeId)}

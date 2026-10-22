@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EpisodeScheduleCard } from '../EpisodeScheduleCard';
 import type { EpisodeScheduleRow } from '../episode-schedule-panel.types';
@@ -96,15 +96,29 @@ describe('EpisodeScheduleCard', () => {
     expect(remaining).toHaveClass('group-hover:inline');
   });
 
-  it('renders the progress pair with the bridge theme roles: minus secondary, plus primary', () => {
+  it('renders the progress pair with the hierarchy levels: a gray minus below the primary plus', () => {
     render(<EpisodeScheduleCard row={createRow()} {...createCallbacks()} />);
 
     const minusButton = screen.getByRole('button', { name: 'Subtract one episode for Frieren. Secondary click subtracts half episode.' });
     const plusButton = screen.getByRole('button', { name: 'Add one episode for Frieren. Secondary click adds half episode.' });
 
-    expect(minusButton.className).toContain('button--secondary');
+    expect(minusButton.className).toContain('button--tertiary');
     expect(minusButton.className).not.toContain('danger');
     expect(plusButton.className).toContain('button--primary');
+  });
+
+  it.each([
+    { name: 'Subtract one episode for Frieren. Secondary click subtracts half episode.', lines: ['Subtract one episode', 'Right-click subtracts half'] },
+    { name: 'Add one episode for Frieren. Secondary click adds half episode.', lines: ['Add one episode', 'Right-click adds half'] },
+    { name: 'Change status for Frieren. Current status: Viendo.', lines: ['Change status'] },
+  ])('names $lines.0 in a tooltip on keyboard focus', ({ name, lines }) => {
+    render(<EpisodeScheduleCard row={createRow()} {...createCallbacks()} />);
+
+    fireEvent.keyDown(document.body, { key: 'Tab' });
+    act(() => screen.getByRole('button', { name }).focus());
+
+    const shown = screen.getByRole('tooltip').querySelectorAll('span > span');
+    expect([...shown].map((line) => line.textContent)).toEqual(lines);
   });
 
   it('tints the utility actions with intent colors on hover', () => {

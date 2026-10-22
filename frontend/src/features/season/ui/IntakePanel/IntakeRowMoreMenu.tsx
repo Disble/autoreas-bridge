@@ -1,6 +1,6 @@
 import menuDotsIcon from '@iconify-icons/solar/menu-dots-bold';
-import { Icon } from '@iconify/react';
-import { Button, Description, Dropdown, Label, Tooltip } from '@heroui/react';
+import { Description, Dropdown, Label } from '@heroui/react';
+import { IconActionButton } from '../../../../shared/ui/IconActionButton/IconActionButton';
 import { INTAKE_DISCARD_DESCRIPTION } from './intake-panel.constants';
 import type { IntakeRowMoreMenuProps } from './intake-panel.types';
 
@@ -19,15 +19,7 @@ export function IntakeRowMoreMenu({
 }: Readonly<IntakeRowMoreMenuProps>) {
   return (
     <Dropdown>
-      <Tooltip>
-        <Button isIconOnly aria-label={`More actions for ${rawName}`} size="sm" variant="tertiary">
-          <Icon className="size-4" icon={menuDotsIcon} />
-        </Button>
-        <Tooltip.Content showArrow>
-          <Tooltip.Arrow />
-          More actions
-        </Tooltip.Content>
-      </Tooltip>
+      <IconActionButton ariaLabel={`More actions for ${rawName}`} icon={menuDotsIcon} tooltip="More actions" />
       <Dropdown.Popover>
         <Dropdown.Menu>
           {appliedMetadata?.canUndo === true ? (

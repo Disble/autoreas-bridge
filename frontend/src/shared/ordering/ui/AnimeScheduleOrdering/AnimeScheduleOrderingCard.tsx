@@ -1,11 +1,16 @@
 import copyIcon from '@iconify-icons/solar/copy-bold-duotone';
 import trashIcon from '@iconify-icons/solar/trash-bin-2-bold-duotone';
-import { Icon } from '@iconify/react';
 import { useSortable } from '@dnd-kit/react/sortable';
-import { Button, Chip, Tooltip, Typography } from '@heroui/react';
+import { Chip, Typography } from '@heroui/react';
+import { IconActionButton } from '../../../ui/IconActionButton/IconActionButton';
+import { ANIME_SCHEDULE_DUPLICATE_TOOLTIP, ANIME_SCHEDULE_LAST_CARD_REASON, ANIME_SCHEDULE_REMOVE_TOOLTIP } from './anime-schedule-ordering.constants';
 import type { AnimeScheduleOrderingCardProps } from './anime-schedule-ordering.types';
 
-/** Renders one draggable anime card plus duplicate/remove actions. */
+/**
+ * Renders one draggable anime card plus duplicate/remove actions. A press on an
+ * enabled button never starts a drag: dnd-kit's default `preventActivation`
+ * ignores a pointerdown that lands on one.
+ */
 export function AnimeScheduleOrderingCard({ instance, containerId, index, canRemove, onDuplicate, onRemove }: Readonly<AnimeScheduleOrderingCardProps>) {
   const isLocked = instance.locked === true;
   const { ref, isDragging } = useSortable({
@@ -39,18 +44,16 @@ export function AnimeScheduleOrderingCard({ instance, containerId, index, canRem
       </div>
       {!isLocked && (
         <div className="flex items-center gap-1">
-          <Tooltip delay={0}>
-            <Button aria-label={`Duplicate ${instance.name}`} isIconOnly size="sm" variant="tertiary" onPointerDown={(event) => event.stopPropagation()} onPress={onDuplicate}>
-              <Icon className="size-4" icon={copyIcon} />
-            </Button>
-            <Tooltip.Content showArrow><Tooltip.Arrow />Duplicate</Tooltip.Content>
-          </Tooltip>
-          <Tooltip delay={0}>
-            <Button aria-label={`Remove ${instance.name}`} isDisabled={!canRemove} isIconOnly size="sm" variant="tertiary" onPointerDown={(event) => event.stopPropagation()} onPress={onRemove}>
-              <Icon className="size-4" icon={trashIcon} />
-            </Button>
-            <Tooltip.Content showArrow><Tooltip.Arrow />{canRemove ? 'Remove' : 'An anime must stay scheduled at least once'}</Tooltip.Content>
-          </Tooltip>
+          <IconActionButton ariaLabel={`Duplicate ${instance.name}`} icon={copyIcon} tone="accent" tooltip={ANIME_SCHEDULE_DUPLICATE_TOOLTIP} onPress={onDuplicate} />
+          <IconActionButton
+            ariaLabel={`Remove ${instance.name}`}
+            disabledReason={ANIME_SCHEDULE_LAST_CARD_REASON}
+            icon={trashIcon}
+            isDisabled={!canRemove}
+            tone="danger"
+            tooltip={ANIME_SCHEDULE_REMOVE_TOOLTIP}
+            onPress={onRemove}
+          />
         </div>
       )}
     </li>

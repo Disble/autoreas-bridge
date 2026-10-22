@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { IntakeRow } from '../IntakeRow';
@@ -217,11 +217,18 @@ describe('IntakeRow', () => {
   it.each([
     { folderOverride: undefined, folderPreview: undefined, title: 'Default download folder', tint: 'hover:text-success' },
     { folderOverride: 'E:/Anime/Stone', folderPreview: 'E:/Anime/Stone', title: 'E:/Anime/Stone', tint: 'text-success' },
-  ])('labels the folder button with $title and tints it $tint', ({ folderOverride, folderPreview, title, tint }) => {
+  ])('names the folder action with $title on the second line and tints it $tint', ({ folderOverride, folderPreview, title, tint }) => {
     renderRow({ row: seasonRow(CREATABLE), folderOverride, folderPreview });
+    const folder = screen.getByRole('button', { name: 'Set download folder for Dr. Stone' });
 
-    expect(screen.getByTitle(title)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Set download folder for Dr. Stone' })).toHaveClass(tint);
+    fireEvent.keyDown(document.body, { key: 'Tab' });
+    act(() => folder.focus());
+
+    // One tooltip naming the action, the folder after it; no second, native title tooltip.
+    const lines = screen.getByRole('tooltip').querySelectorAll('span > span');
+    expect([...lines].map((line) => line.textContent)).toEqual(['Set download folder', title]);
+    expect(screen.queryByTitle(title)).toBeNull();
+    expect(folder).toHaveClass(tint);
   });
 
   it.each([

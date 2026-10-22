@@ -11,7 +11,7 @@ import {
 import {
   createAnimeScheduleOrderingState,
 } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.helpers';
-import { ORDERING_LAST_CARD_TOOLTIP, ORDERING_REMOVE_TOOLTIP, RAIL_CONTAINER_ID, WEEKDAYS } from './ordering-board.constants';
+import { ORDERING_LAST_CARD_TOOLTIP, RAIL_CONTAINER_ID, WEEKDAYS } from './ordering-board.constants';
 import type { DraftPlacement, OrderingCardMeta, OrderingInstance, WorkingState } from './ordering-board.types';
 import { buildAnimeScheduleDraftPlacements, validateAnimeScheduleDraft } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-payload.helpers';
 
@@ -196,12 +196,12 @@ export function countChanges(board: OrderingBoard, state: WorkingState): number 
 }
 
 /**
- * The tooltip of a card's Remove button: what Remove does, or why it is locked while
- * the card is its anime's last one.
+ * Why a card's Remove button is locked: the card is its anime's last one. The
+ * tooltip appends it after the action name while the button is disabled.
  *
  * @param canRemove Whether the anime holds more than one card.
- * @returns The tooltip copy for the Remove button.
+ * @returns The lock reason, or `undefined` when the card can be removed.
  */
-export function getRemoveTooltip(canRemove: boolean): string {
-  return canRemove ? ORDERING_REMOVE_TOOLTIP : ORDERING_LAST_CARD_TOOLTIP;
+export function getRemoveDisabledReason(canRemove: boolean): string | undefined {
+  return canRemove ? undefined : ORDERING_LAST_CARD_TOOLTIP;
 }
