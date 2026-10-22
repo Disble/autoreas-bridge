@@ -75,7 +75,7 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
     // Disclosure starts collapsed -- its own content is not visible.
     expect(screen.getByLabelText('Watched episodes')).not.toBeVisible();
 
-    expect(screen.getByRole('button', { name: 'Fetch metadata' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Fetch metadata' })).toHaveTextContent(/^$/);
   });
 
   it('keeps the Fetch metadata action reachable once the disclosure is expanded', () => {

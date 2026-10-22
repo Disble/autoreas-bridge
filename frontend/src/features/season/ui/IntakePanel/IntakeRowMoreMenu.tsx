@@ -40,10 +40,13 @@ export function IntakeRowMoreMenu({
               <Label>Clear metadata</Label>
             </Dropdown.Item>
           )}
-          {/* HeroUI's Label fills no menu-item label slot, so the name is explicit and the Description stays the description. */}
+          {/* HeroUI's Label fills no menu-item label slot, so the name is explicit and the Description stays the description.
+              `.menu-item` is a flex row, so the column wrapper puts the description under the name, not beside it. */}
           <Dropdown.Item aria-label="Discard" id="discard" textValue="Discard" variant="danger" onAction={onDiscard}>
-            <Label>Discard</Label>
-            <Description>{INTAKE_DISCARD_DESCRIPTION}</Description>
+            <div className="flex flex-col">
+              <Label>Discard</Label>
+              <Description>{INTAKE_DISCARD_DESCRIPTION}</Description>
+            </div>
           </Dropdown.Item>
         </Dropdown.Menu>
       </Dropdown.Popover>

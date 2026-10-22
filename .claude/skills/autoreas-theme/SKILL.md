@@ -3,7 +3,7 @@ name: autoreas-theme
 description: "Design-system fundamentals for the autoreas-bridge frontend, with an index into docs/design for the detail. Use BEFORE building or refactoring ANY UI under frontend/src: which HeroUI v3 component to use instead of hand-rolling divs/buttons/tables, semantic color tokens, chips, the loading/empty/error states, empty-state kinds and the mascot, and mockup fidelity and pricing. Keywords: theme, design system, UI, rebrand, restyle, frontend component, HeroUI, Tailwind, styling, feature UI, empty state, skeleton, mockup."
 metadata:
   author: autoreas-bridge
-  version: "2.5.0"
+  version: "2.6.0"
   scope: project
   updates: living
 ---
@@ -37,8 +37,10 @@ installed package wins over docs: verify exports in `node_modules` when versions
 | Secondary / per-row action | icon-only `Button` (`isIconOnly`, `aria-label`) inside a `Tooltip` naming the action | a text-only button repeated on every row |
 | Primary action (Create, Save) | `Button` with its text, an icon optional | hiding it behind an icon |
 
-Secondary actions prefer icon-only buttons with a tooltip; primary actions keep their text. A
-preference, not a retroactive rule (`components/heroui-mapping.md`).
+Secondary actions are icon-only buttons with a tooltip (`shared/ui/IconActionButton`); primary
+actions keep their text. Before writing a text `Button`, decide whether it is primary; if not, make it
+icon-only. Existing secondary text buttons convert when their surface is touched
+(`components/heroui-mapping.md`); pick the glyph from `foundations/iconography.md`.
 
 ## 2. Semantic colors, never raw values
 
@@ -111,6 +113,7 @@ jsdom has no layout engine. Layout claims go through `bun --cwd="frontend" run l
 - `docs/design/foundations/chart-palette.md` — literal hex for `@nivo/bar` charts.
 - `docs/design/foundations/typography.md` — `Typography`, text color, hidden-text naming.
 - `docs/design/foundations/layout.md` — containment, filling height, masonry-lite, split panels, cover slots.
+- `docs/design/foundations/iconography.md` — the Solar set, variants, the action-to-icon vocabulary, action-group order.
 - `docs/design/components/heroui-mapping.md` — the full "what to reach for" table, stack, toasts.
 - `docs/design/components/tables.md` — `Table` width, scrolling and stick-to-bottom.
 - `docs/design/components/chips.md` — chip rules and examples.

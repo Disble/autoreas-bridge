@@ -71,6 +71,7 @@ export function AnimeCreateRow({ row, index, viewModel }: Readonly<AnimeCreateRo
           <AnimeMetadataLookupModal
             name={row.name}
             source={viewModel.metadataLookupSource}
+            triggerVariant="icon"
             onConfirm={(selection) => viewModel.onMetadataApplied(draftId, selection)}
           />
           {appliedMetadata === undefined ? null : (

@@ -1,8 +1,14 @@
+import archiveUpIcon from '@iconify-icons/solar/archive-up-linear';
+import rewindBackIcon from '@iconify-icons/solar/rewind-back-linear';
 import { Button } from '@heroui/react';
+import { IconActionButton } from '../../../../shared/ui/IconActionButton/IconActionButton';
 import { ANIME_EDITOR_REPEAT_LABEL, ANIME_EDITOR_RESTORE_LABEL } from './anime-editor-workspace.constants';
 import type { AnimeEditorFormPanelProps } from './anime-editor-workspace.types';
 
-/** Renders the anime data card's sticky footer: the lifecycle actions, Discard changes and Save. */
+/**
+ * Renders the anime data card's sticky footer: the lifecycle actions, Discard changes and Save.
+ * Repeat and Restore are icon-only with the Anime Detail toolbar's glyphs; their dialogs carry the text.
+ */
 export function AnimeEditorFormActions({ viewModel }: Readonly<AnimeEditorFormPanelProps>) {
   const record = viewModel.selectedRecord;
   return (
@@ -17,10 +23,10 @@ export function AnimeEditorFormActions({ viewModel }: Readonly<AnimeEditorFormPa
         button flicker as the user moves the dropdown before saving.
       */}
       {record !== undefined && record.frequent.status > 0 && (
-        <Button isDisabled={viewModel.isSaving} variant="tertiary" onPress={() => viewModel.onRequestLifecycleAction('repeat')}>{ANIME_EDITOR_REPEAT_LABEL}</Button>
+        <IconActionButton ariaLabel={ANIME_EDITOR_REPEAT_LABEL} icon={rewindBackIcon} isDisabled={viewModel.isSaving} tooltip={ANIME_EDITOR_REPEAT_LABEL} variant="tertiary" onPress={() => viewModel.onRequestLifecycleAction('repeat')} />
       )}
       {record?.frequent.active === false ? (
-        <Button className="text-success hover:text-success" isDisabled={viewModel.isSaving} variant="tertiary" onPress={() => viewModel.onRequestLifecycleAction('restore')}>{ANIME_EDITOR_RESTORE_LABEL}</Button>
+        <IconActionButton ariaLabel={ANIME_EDITOR_RESTORE_LABEL} icon={archiveUpIcon} isDisabled={viewModel.isSaving} tooltip={ANIME_EDITOR_RESTORE_LABEL} variant="tertiary" onPress={() => viewModel.onRequestLifecycleAction('restore')} />
       ) : (
         <Button className="text-danger hover:text-danger" isDisabled={record === undefined || viewModel.isSaving} variant="tertiary" onPress={() => viewModel.onRequestLifecycleAction('deactivate')}>Deactivate anime</Button>
       )}

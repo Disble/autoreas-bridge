@@ -112,7 +112,7 @@ describe('AnimeEditorFormPanel spurious-dirty guard', () => {
 
     render(<AnimeEditorFormPanel viewModel={viewModel} />);
 
-    expect(screen.getByRole('button', { name: 'Restore' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Restore' })).toHaveTextContent(/^$/);
     expect(screen.queryByRole('button', { name: 'Deactivate anime' })).not.toBeInTheDocument();
   });
 
@@ -139,7 +139,7 @@ describe('AnimeEditorFormPanel spurious-dirty guard', () => {
     const viewModel = createViewModel({ selectedRecord: finishedRecord, draft: { ...createViewModel().draft, status: 0 }, onDraftChange });
 
     const { rerender } = render(<AnimeEditorFormPanel viewModel={viewModel} />);
-    expect(screen.getByRole('button', { name: 'Repeat' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Repeat' })).toHaveTextContent(/^$/);
 
     fireEvent.click(screen.getByRole('button', { name: /Viendo Status/i }));
     fireEvent.click(screen.getByRole('option', { name: 'Finalizado' }));
@@ -235,6 +235,7 @@ describe('AnimeEditorFormPanel -- MyAnimeList metadata lookup (SDD-70 slice 7)',
     render(<AnimeEditorFormPanel viewModel={viewModel} />);
 
     expect(screen.getByRole('button', { name: 'Fetch metadata' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Fetch metadata' })).toHaveTextContent(/^$/);
   });
 
   it('disables the Fetch metadata action while Name is empty', () => {

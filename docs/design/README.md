@@ -13,6 +13,7 @@ everything else. When the two disagree, the code wins; fix the document in the s
 | `foundations/chart-palette.md` | Drawing a chart with `@nivo/bar`, which needs literal hex values |
 | `foundations/typography.md` | Rendering text with `Typography`, or coloring text |
 | `foundations/layout.md` | A card widens the page, leaves dead space, or packs variable-height cards; cover slots; split panels |
+| `foundations/iconography.md` | Adding an icon or an icon-only button: the Solar set and its variants, the action-to-icon vocabulary, action-group order |
 | `components/heroui-mapping.md` | Before writing any element: which HeroUI v3 primitive to use, the stack, toasts |
 | `components/tables.md` | Sizing, scrolling or sticking a HeroUI `Table` to the bottom |
 | `components/chips.md` | Rendering a tag, badge or status chip |

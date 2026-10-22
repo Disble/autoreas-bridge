@@ -49,8 +49,9 @@ This is a preference with nuance, not an absolute rule. Secondary actions, espec
 repeat on every row or sit together in a group (folder, restore, more actions), work better as an
 icon-only button with a tooltip: icons keep the group compact and the rows aligned, and the tooltip
 carries the words. Primary actions keep their text, because the user must find them without
-hovering: Create, Save, Submit, a login button. An icon may sit next to that text. Existing text
-buttons are not converted retroactively; apply this when a surface is designed or touched.
+hovering: Create, Save, Submit, a login button. An icon may sit next to that text. Existing
+secondary text buttons are being normalized surface by surface: convert them when a surface is
+designed or touched, and leave primary actions with their text.
 
 - `Button isIconOnly` with an `aria-label` that names the action and its target
   (`More actions for Dr. Stone`), so screen readers and tests get the full name.
@@ -58,8 +59,12 @@ buttons are not converted retroactively; apply this when a surface is designed o
   short action name (`More actions`). Reference: `IntakeRowMoreMenu.tsx`.
 - For a plain pressable action, reuse `shared/ui/IconActionButton/IconActionButton.tsx`
   (`ariaLabel`, `tooltip`, `icon`, `variant` `ghost` | `tertiary`, `isDisabled`) instead of
-  repeating the `Tooltip` + `Button` pair. Anime Detail's toolbar and its Folder copy use it.
-- The icon comes from the `@iconify/react` set the surface already uses.
+  repeating the `Tooltip` + `Button` pair. Anime Detail's toolbar, the Editor's Repeat and Restore,
+  and the Editor's Schedule card use it. A button that opens a modal through its trigger slot
+  (`LookupTrigger`'s `icon` variant) or must show a tooltip while disabled (Episodes' Re-analyze
+  folder, wrapped in `Tooltip.Trigger`) keeps its own pair with the same shape.
+- The icon comes from the `@iconify/react` set the surface already uses; the set, its variants and
+  the action-to-icon vocabulary (Edit, Repeat, Restore, Delete…) are in `foundations/iconography.md`.
 
 ## External URLs open in the default browser
 

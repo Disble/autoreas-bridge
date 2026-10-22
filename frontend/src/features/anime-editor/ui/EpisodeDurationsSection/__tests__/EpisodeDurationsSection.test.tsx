@@ -218,6 +218,7 @@ describe('EpisodeDurationsSection progressive table', () => {
     renderSection(fake);
     expand();
     await waitFor(() => expect(screen.getAllByTestId('episode-durations-row')).toHaveLength(3));
+    expect(screen.getByRole('button', { name: 'Re-analyze folder' })).toHaveTextContent(/^$/);
     fireEvent.click(screen.getByRole('button', { name: 'Re-analyze folder' }));
     const rows = Array.from({ length: 150 }, (_unused, index) => ({
       episode: index + 1, basename: `e${index + 1}.mkv`, currentMs: 0, currentMinutes: 0, currentSource: '', measuredMs: 1_440_000, measuredMinutes: 24, result: 'add' as const,

@@ -18,6 +18,7 @@ export function AnimeEditorFormFields({ viewModel }: Readonly<AnimeEditorFormPan
         <AnimeMetadataLookupModal
           name={viewModel.draft.name}
           source={viewModel.metadataLookupSource}
+          triggerVariant="icon"
           onConfirm={viewModel.onMetadataApplied}
         />
       </div>

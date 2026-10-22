@@ -9,7 +9,6 @@ import {
   EPISODE_DURATIONS_SAVE_FAILED_TITLE,
   EPISODE_DURATIONS_SAVE_LABEL,
   EPISODE_DURATIONS_TITLE,
-  EPISODE_REANALYZE_LABEL,
 } from './episode-durations-section.constants';
 import type { EpisodeDurationsSectionProps } from './episode-durations-section.types';
 import { EpisodeDurationsBody } from './EpisodeDurationsBody';
@@ -17,8 +16,8 @@ import { EpisodeDurationsDialogs } from './EpisodeDurationsDialogs';
 
 /**
  * Renders the Editor's Episodes card (S15), independent of the anime data card.
- * Its header carries the title, the measured and long chips, Re-analyze folder
- * and the Show/Hide toggle; the table body is hidden by default. The footer holds the card's own draft:
+ * Its header carries the title, the measured and long chips, the icon-only
+ * Re-analyze folder (its tooltip names it, and the disabled reason) and the Show/Hide toggle; the table body is hidden by default. The footer holds the card's own draft:
  * its unsaved count, Discard changes and Save episodes.
  */
 export function EpisodeDurationsSection({ viewModel }: Readonly<EpisodeDurationsSectionProps>) {
@@ -37,12 +36,14 @@ export function EpisodeDurationsSection({ viewModel }: Readonly<EpisodeDurations
           {viewModel.summary?.longLabel === undefined ? null : <Chip color="warning" size="sm" variant="soft">{viewModel.summary.longLabel}</Chip>}
           <Tooltip delay={0}>
             <Tooltip.Trigger className="inline-flex shrink-0 rounded-full" role="presentation" tabIndex={-1}>
-              <Button aria-label={button.ariaLabel} className="hover:text-accent" isDisabled={button.isDisabled} variant="secondary" onPress={() => void viewModel.onReanalyze()}>
-                <Icon aria-hidden="true" icon={refreshIcon} />
-                {EPISODE_REANALYZE_LABEL}
+              <Button isIconOnly aria-label={button.ariaLabel} className="hover:text-accent" isDisabled={button.isDisabled} variant="secondary" onPress={() => void viewModel.onReanalyze()}>
+                <Icon aria-hidden="true" className="size-[18px]" icon={refreshIcon} />
               </Button>
             </Tooltip.Trigger>
-            <Tooltip.Content>{button.tooltip}</Tooltip.Content>
+            <Tooltip.Content showArrow>
+              <Tooltip.Arrow />
+              {button.tooltip}
+            </Tooltip.Content>
           </Tooltip>
           <Button aria-controls={EPISODE_DURATIONS_BODY_ID} aria-expanded={viewModel.isOpen} variant="secondary" onPress={viewModel.onToggle}>
             {viewModel.toggleLabel}

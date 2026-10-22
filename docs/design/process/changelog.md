@@ -5,6 +5,17 @@ whose `.claude` (`1.1.2`) and `.agents` (`1.3.0`) copies had drifted; both histo
 Entries name the views that prompted them as a historical record; the rules themselves live in the
 files of `docs/design/`. Superseded entries are kept and marked.
 
+- `2.6.0` — Added `foundations/iconography.md` (drafted with the Anime Detail redesign, landed here):
+  Solar as the primary set, the variants, one action-to-icon vocabulary and the action-group rules.
+  Repeat is `rewind-back` (watch it again from the start) and Restore is `archive-up` (out of the
+  deleted, the opposite of Delete's bin); the user rejected `repeat` + `restart` because both are
+  arrows in a circle and cannot be told apart at toolbar size. The draft named the `bold-duotone`
+  glyphs, but the shipped Detail toolbar uses `linear`, so the document follows the code: card
+  toolbars and headers use `linear`. Then started normalizing secondary text buttons to icon-only
+  with a tooltip, because the user saw agents keep ignoring the preference: the Editor's Fetch
+  metadata, Repeat, Restore, Re-analyze folder and Open schedule editor, and Create's Fetch metadata.
+  `components/heroui-mapping.md` no longer says existing buttons stay as they are. Same pass: Intake's
+  Discard menu item stacks its description under the name (`.menu-item` is a flex row).
 - `2.5.0` — Added `patterns/activity-change-lines.md`: every Activity surface words a change with one
   sentence, `<what changed> · <who changed it>`, from one helper (`describeActivityChange` in
   `features/activity/change-words/`). It started when season grade changes reached the activity
