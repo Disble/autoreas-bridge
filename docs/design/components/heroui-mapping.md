@@ -45,21 +45,34 @@ for free. Rebuilding them by hand is a regression, not a redesign.
 
 ## Icon-only buttons with a tooltip
 
-This is a preference with nuance, not an absolute rule. Secondary actions, especially the ones that
-repeat on every row or sit together in a group (folder, restore, more actions), work better as an
-icon-only button with a tooltip: icons keep the group compact and the rows aligned, and the tooltip
-carries the words. Primary actions keep their text, because the user must find them without
-hovering: Create, Save, Submit, a login button. An icon may sit next to that text. Existing text
-buttons are not converted retroactively; apply this when a surface is designed or touched.
+Secondary actions, especially the ones that repeat on every row or sit together in a group (folder,
+restore, more actions), work better as an icon-only button with a tooltip: icons keep the group
+compact and the rows aligned, and the tooltip carries the words. Primary actions keep their text,
+because the user must find them without hovering: Create, Save, Submit, Open schedule editor. An
+icon may sit next to that text. Which level a button takes is in `foundations/color-tokens.md`,
+"Brand and action hierarchy".
 
-- `Button isIconOnly` with an `aria-label` that names the action and its target
-  (`More actions for Dr. Stone`), so screen readers and tests get the full name.
-- Wrap it in `Tooltip` with `Tooltip.Content showArrow` + `Tooltip.Arrow`; the tooltip text is the
-  short action name (`More actions`). Reference: `IntakeRowMoreMenu.tsx`.
-- For a plain pressable action, reuse `shared/ui/IconActionButton/IconActionButton.tsx`
-  (`ariaLabel`, `tooltip`, `icon`, `variant` `ghost` | `tertiary`, `isDisabled`) instead of
-  repeating the `Tooltip` + `Button` pair. Anime Detail's toolbar and its Folder copy use it.
-- The icon comes from the `@iconify/react` set the surface already uses.
+**A button with only an icon always has a tooltip, and it always goes through
+`shared/ui/IconActionButton/IconActionButton.tsx`.** ESLint fails on `isIconOnly` anywhere else
+(`frontend/eslint.config.js`); the named exceptions are the component itself, `HelpTooltip`, the
+Catalog view toggle and Today's primary "+" stepper, which builds the same tooltip shape by hand.
+
+- **One shape.** A 32 px round button (`size="sm"`), an 18 px glyph, `variant="tertiary"` by default
+  or `ghost` for a tertiary-level action. The tooltip has an arrow, opens after 300 ms on hover
+  (HeroUI's default is 1.5 s), shows on keyboard focus, and still shows while the button is disabled
+  (a `Tooltip.Trigger` wraps the button).
+- **The words.** `tooltip` is the short action name, verb first (`Set download folder`). `ariaLabel`
+  adds the target (`Set download folder for Dr. Stone`), so screen readers and tests get the full
+  name. A disabled button appends `disabledReason` after " · " (`Remove · An anime must stay on at
+  least one day`). Extra data, such as a path, goes on a second muted line through `detail`, never
+  instead of the name and never as a native `title`.
+- **Tone.** `tone` tints the glyph on hover by meaning (`accent`, `success`, `warning`, `danger`);
+  `isTinted` keeps the tint at rest (Intake's folder once the row overrides it).
+- **Triggers.** Without `onPress` it works as the trigger of an enclosing `Modal` or `Dropdown`
+  (`LookupTrigger`'s icon variant, `IntakeRowMoreMenu`, Today's status button). `onContextMenu`
+  takes the secondary click and prevents the browser menu (desktop page/folder actions copy).
+- The icon comes from the `@iconify/react` set the surface already uses; the set, its variants and
+  the action-to-icon vocabulary (Edit, Repeat, Restore, Delete…) are in `foundations/iconography.md`.
 
 ## External URLs open in the default browser
 

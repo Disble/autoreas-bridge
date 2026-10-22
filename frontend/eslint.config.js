@@ -103,6 +103,31 @@ export default [
       ],
     },
   },
+  // Icon-only standard (docs/design/foundations/iconography.md): every
+  // icon-only action goes through IconActionButton, which always carries a
+  // tooltip, its delay, the disabled reason and the glyph size. The listed
+  // files are the named exceptions: the component itself, the help glyph,
+  // the catalog view toggle and Today's primary plus.
+  {
+    files: ['src/**/*.tsx'],
+    ignores: [
+      'src/**/*.test.tsx',
+      'src/shared/ui/IconActionButton/IconActionButton.tsx',
+      'src/shared/ui/HelpTooltip/HelpTooltip.tsx',
+      'src/features/catalog/ui/CatalogPanel/CatalogToolbar.tsx',
+      'src/features/episodes/ui/EpisodeSchedulePanel/EpisodeScheduleCard.tsx',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "JSXAttribute[name.name='isIconOnly']",
+          message:
+            'Render icon-only actions with IconActionButton (shared/ui/IconActionButton), which owns the tooltip, delay and disabled reason. See docs/design/foundations/iconography.md.',
+        },
+      ],
+    },
+  },
   // Vitest mock hygiene — local rules, proposed upstream in
   // docs/dlinter-vitest-mock-hygiene-proposal.md and never adopted there.
   // importOriginal-based partial package mocks break under

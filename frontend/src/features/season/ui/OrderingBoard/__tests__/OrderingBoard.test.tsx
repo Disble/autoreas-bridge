@@ -386,6 +386,19 @@ describe('OrderingBoard', () => {
     expect(screen.getByText('Remove')).toBeInTheDocument();
   });
 
+  it('explains a locked Remove on hover, with the reason after the action name', async () => {
+    mockHook({ columns: { Lunes: [card({ key: 'a#0', animeId: 'a', name: 'Anime A' })] }, counts: { a: 1 } });
+    render(<OrderingBoard onNavigate={vi.fn()} />);
+    const remove = screen.getByRole('button', { name: 'Remove Anime A' });
+
+    expect(remove).toBeDisabled();
+    fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
+    fireEvent.pointerUp(document.body, { pointerType: 'mouse' });
+    fireEvent.pointerOver(remove.parentElement as HTMLElement, { pointerType: 'mouse' });
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Remove · An anime must stay on at least one day');
+  });
+
   it('offers no draft controls and no reopen or close actions on a recorded past season', () => {
     mockHook({ readOnly: true, isPastSeason: true, historicalRecorded: true, changeCount: 2 });
     render(<OrderingBoard onNavigate={vi.fn()} />);

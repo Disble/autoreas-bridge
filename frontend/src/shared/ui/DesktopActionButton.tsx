@@ -1,35 +1,22 @@
-import { Icon } from '@iconify/react';
-import { Button, Tooltip } from '@heroui/react';
-import type { MouseEvent } from 'react';
+import { IconActionButton } from './IconActionButton/IconActionButton';
 import type { DesktopActionButtonProps } from './DesktopActionButton.types';
 
 /**
  * Renders one icon-only desktop-action button: press opens, secondary click
- * (context menu) copies, and a HeroUI Tooltip shows the real path. Used by
- * `AnimeDesktopActions` to render its page and folder buttons without
- * duplicating the Tooltip+Button JSX at each call site.
+ * (context menu) copies, and the tooltip names the action with the real path
+ * on its second line. Used by `AnimeDesktopActions` to render its page and
+ * folder buttons without repeating the wiring at each call site.
  */
-export function DesktopActionButton({ ariaLabel, className, icon, path, onOpen, onCopy }: Readonly<DesktopActionButtonProps>) {
+export function DesktopActionButton({ ariaLabel, tooltip, tone, icon, path, onOpen, onCopy }: Readonly<DesktopActionButtonProps>) {
   return (
-    <Tooltip delay={0}>
-      <Button
-        isIconOnly
-        aria-label={ariaLabel}
-        className={className}
-        size="sm"
-        variant="tertiary"
-        onContextMenu={(event: MouseEvent) => {
-          event.preventDefault();
-          void onCopy();
-        }}
-        onPress={() => void onOpen()}
-      >
-        <Icon icon={icon} className="size-4" />
-      </Button>
-      <Tooltip.Content showArrow placement="bottom">
-        <Tooltip.Arrow />
-        {path}
-      </Tooltip.Content>
-    </Tooltip>
+    <IconActionButton
+      ariaLabel={ariaLabel}
+      detail={path}
+      icon={icon}
+      tone={tone}
+      tooltip={tooltip}
+      onContextMenu={() => void onCopy()}
+      onPress={() => void onOpen()}
+    />
   );
 }

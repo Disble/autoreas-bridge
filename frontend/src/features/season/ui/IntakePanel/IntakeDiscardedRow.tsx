@@ -1,6 +1,6 @@
-import restoreIcon from '@iconify-icons/solar/restart-bold';
-import { Icon } from '@iconify/react';
-import { Button, Chip, Tooltip } from '@heroui/react';
+import restoreIcon from '@iconify-icons/solar/archive-up-linear';
+import { Chip } from '@heroui/react';
+import { IconActionButton } from '../../../../shared/ui/IconActionButton/IconActionButton';
 import { getMatchStatusColor, getMatchStatusLabel } from './intake-panel.helpers';
 import { getRestoredMatchStatus } from './intake-view.helpers';
 import { IntakeRowHints } from './IntakeRowHints';
@@ -28,15 +28,7 @@ export function IntakeDiscardedRow({ row, heldMetadata, onRestore }: Readonly<In
             {getMatchStatusLabel(restoredStatus)}
           </Chip>
         )}
-        <Tooltip>
-          <Button isIconOnly aria-label={`Restore ${row.rawName}`} size="sm" variant="tertiary" onPress={onRestore}>
-            <Icon className="size-4" icon={restoreIcon} />
-          </Button>
-          <Tooltip.Content showArrow>
-            <Tooltip.Arrow />
-            Restore
-          </Tooltip.Content>
-        </Tooltip>
+        <IconActionButton ariaLabel={`Restore ${row.rawName}`} icon={restoreIcon} tooltip="Restore" onPress={onRestore} />
       </div>
     </li>
   );

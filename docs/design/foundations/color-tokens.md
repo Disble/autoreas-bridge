@@ -71,14 +71,25 @@ Bridge's brand is HeroUI's token pair, never Legacy's Materialize red/blue.
 - **Primary action** — `Button variant="primary"` → `--accent` (`oklch(0.6204 0.195 253.83)`, the
   brand blue). The value is HeroUI's, not ours: `@heroui/styles` 3.2.4 defines `--accent` once, on
   `:root` in `dist/themes/default/variables.css`, and its `.dark` block does not override it, so the
-  dark app (`<html class="dark">`) uses the same blue. `style.css` sets no tokens. One per action cluster: the action the user came to perform (for example Chapters "+").
-- **Secondary action** — `Button variant="secondary"` → the `--default` surface with
-  `--accent-soft-foreground` text. The counterpart of the primary in a paired control (Chapters "−"),
-  and the weight of an action that undoes something the user did (clearing filters).
-- **Utility actions** — `variant="tertiary"` icon buttons that tint with intent on hover through
-  semantic utilities: folder → `hover:text-success`, page/link → `hover:text-accent`, status →
-  `hover:text-warning`. Color on interaction is a UX signal Legacy had (green/blue/yellow); port the
-  pattern with Bridge tokens, never Legacy's literal hues.
+  dark app (`<html class="dark">`) uses the same blue. `style.css` sets no tokens. One per action
+  cluster: the action the user came to perform (Today's "+", the Editor's Open schedule editor). A
+  primary always keeps its text (an icon may sit beside it); Today's "+" stepper is the one named
+  icon-only exception.
+- **Secondary action** — `variant="tertiary"`: a gray surface, text or icon-only. Row and card
+  actions, and the counterpart of a primary in a paired control (Today's "−").
+- **Tertiary action** — `variant="ghost"`: no surface until hover. Disclosures (Show episodes ⌄) and
+  field adornments (Browse…).
+- **Destructive action** — `variant="tertiary"` with the danger tint on hover (`tone="danger"` on
+  `IconActionButton`). Solid `variant="danger"` appears only on the Confirm button of its
+  confirmation dialog.
+- **HeroUI `secondary` is not a level.** It paints a gray fill with accent text, which reads louder
+  than `tertiary` and breaks the order above. Do not use it in new code; existing uses move to
+  `tertiary` (or `ghost`) when their surface is touched.
+- **Content is an independent axis.** Any level below primary may be text or icon-only; an icon-only
+  button always goes through `IconActionButton` (`components/heroui-mapping.md`).
+- **Hover tints carry meaning** through semantic utilities: folder → success, page/link → accent,
+  status and grade → warning, remove/deactivate → danger. Color on interaction is a UX signal Legacy
+  had (green/blue/yellow); port the pattern with Bridge tokens, never Legacy's literal hues.
 - When porting Legacy UI, ask "what ROLE does this color play?" and map the role to a Bridge token.
   Copying Legacy hex, or using danger because Legacy used red, is a regression (user-rejected in the
   SDD-38 hotfix cycle).

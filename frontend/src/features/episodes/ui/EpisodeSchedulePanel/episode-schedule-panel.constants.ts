@@ -114,3 +114,18 @@ export const EPISODE_SEASON_ROUTE = '/season';
 
 /** Page title of the Today screen, matching its nav label. */
 export const EPISODE_SCHEDULE_PAGE_TITLE = 'Today';
+
+/** Tooltip of the stepper's minus button. */
+export const EPISODE_SUBTRACT_TOOLTIP = 'Subtract one episode';
+
+/** Second tooltip line of the minus button: what its secondary click does. */
+export const EPISODE_SUBTRACT_HALF_HINT = 'Right-click subtracts half';
+
+/** Tooltip of the stepper's primary plus button. */
+export const EPISODE_ADD_TOOLTIP = 'Add one episode';
+
+/** Second tooltip line of the plus button: what its secondary click does. */
+export const EPISODE_ADD_HALF_HINT = 'Right-click adds half';
+
+/** Tooltip of the row's status button, which opens the status dialog. */
+export const EPISODE_CHANGE_STATUS_TOOLTIP = 'Change status';

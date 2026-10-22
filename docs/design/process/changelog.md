@@ -5,6 +5,30 @@ whose `.claude` (`1.1.2`) and `.agents` (`1.3.0`) copies had drifted; both histo
 Entries name the views that prompted them as a historical record; the rules themselves live in the
 files of `docs/design/`. Superseded entries are kept and marked.
 
+- `2.7.0` — One icon-only standard, approved on the "Icon-only buttons" canvas (backed up in
+  OpenDesign, project Bridge Redesign, folder `icon-only-buttons/`). The user's rule: "botón con
+  solo-icono debe tener tooltip". Every icon-only button now goes through `IconActionButton`
+  (tooltip with arrow, 300 ms instead of HeroUI's 1.5 s, shown on focus and while disabled with the
+  reason after " · ", 18 px glyph, hover tone by meaning, second line for a path), and ESLint fails
+  `isIconOnly` elsewhere outside four named exceptions. The action hierarchy was rewritten
+  (`foundations/color-tokens.md`): primary = `primary`, secondary = `tertiary`, tertiary = `ghost`,
+  destructive = `tertiary` + danger hover. HeroUI `secondary` is not a level: its accent text read
+  louder than `tertiary`, so Show episodes looked more important than the Editor's row actions.
+  Open schedule editor became a primary text button ("open schedules es una acción principal"), and
+  Deactivate anime became icon-only `archive-down` with its confirm dialog keeping the text.
+  Supersedes the `2.6.0` notes that Intake's Restore keeps `restart-bold` and that a disabled or
+  modal-trigger icon button keeps its own `Tooltip` pair.
+- `2.6.0` — Added `foundations/iconography.md` (drafted with the Anime Detail redesign, landed here):
+  Solar as the primary set, the variants, one action-to-icon vocabulary and the action-group rules.
+  Repeat is `rewind-back` (watch it again from the start) and Restore is `archive-up` (out of the
+  deleted, the opposite of Delete's bin); the user rejected `repeat` + `restart` because both are
+  arrows in a circle and cannot be told apart at toolbar size. The draft named the `bold-duotone`
+  glyphs, but the shipped Detail toolbar uses `linear`, so the document follows the code: card
+  toolbars and headers use `linear`. Then started normalizing secondary text buttons to icon-only
+  with a tooltip, because the user saw agents keep ignoring the preference: the Editor's Fetch
+  metadata, Repeat, Restore, Re-analyze folder and Open schedule editor, and Create's Fetch metadata.
+  `components/heroui-mapping.md` no longer says existing buttons stay as they are. Same pass: Intake's
+  Discard menu item stacks its description under the name (`.menu-item` is a flex row).
 - `2.5.0` — Added `patterns/activity-change-lines.md`: every Activity surface words a change with one
   sentence, `<what changed> · <who changed it>`, from one helper (`describeActivityChange` in
   `features/activity/change-words/`). It started when season grade changes reached the activity
