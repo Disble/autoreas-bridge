@@ -85,7 +85,7 @@ func (r *Reader) causeOf(ctx context.Context, occ IncidentOccurrence) (Cause, er
 	case incident.SourceMobile:
 		err = r.db.QueryRowContext(ctx, `SELECT COALESCE(json_extract(payload_json, '$.cause'),
 			json_extract(payload_json, '$.previous_cycle.error_cause'), '') FROM device_telemetry_events
-			WHERE kind IN (?, ?) AND event_id = ? LIMIT 1`, telemetry.KindCycleReport, telemetry.KindEpisodeAction,
+			WHERE kind IN (?, ?, ?) AND event_id = ? LIMIT 1`, telemetry.KindCycleReport, telemetry.KindEpisodeAction, telemetry.KindScreenStall,
 			occ.SourceID).Scan(&cause.Message)
 	default:
 		return Cause{}, nil
@@ -176,8 +176,9 @@ func (r *Reader) windowEvents(ctx context.Context, fromMS, toMS int64) ([]EventS
 // oldest first.
 func (r *Reader) phoneReports(ctx context.Context, fromMS, toMS int64) ([]PhoneReport, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT rowid, reported_at_ms, observed_at_ms, device_id, kind, `+reportOutcomeSQL+`
-		FROM device_telemetry_events WHERE kind IN (?, ?) AND reported_at_ms >= ? AND reported_at_ms <= ?
-		ORDER BY reported_at_ms, rowid LIMIT ?`, telemetry.KindCycleReport, telemetry.KindEpisodeAction, fromMS, toMS, windowRowLimit)
+		FROM device_telemetry_events WHERE kind IN (?, ?, ?) AND reported_at_ms >= ? AND reported_at_ms <= ?
+		ORDER BY reported_at_ms, rowid LIMIT ?`, telemetry.KindCycleReport, telemetry.KindEpisodeAction, telemetry.KindScreenStall,
+		fromMS, toMS, windowRowLimit)
 	if err != nil {
 		return nil, fmt.Errorf("activityread: window phone reports: %w", err)
 	}
@@ -196,9 +197,12 @@ func (r *Reader) phoneReports(ctx context.Context, fromMS, toMS int64) ([]PhoneR
 }
 
 // reportOutcomeSQL extracts a phone report's outcome: an episode action
-// carries it at the top level, a cycle report under previous_cycle.
+// carries it at the top level, a cycle report under previous_cycle. A screen
+// stall carries no outcome, so its trigger and duration ("touch 12000 ms")
+// stand in, which is what makes a freeze findable by time in History.
 const reportOutcomeSQL = `COALESCE(json_extract(payload_json, '$.outcome'),
-	json_extract(payload_json, '$.previous_cycle.outcome'), '')`
+	json_extract(payload_json, '$.previous_cycle.outcome'),
+	json_extract(payload_json, '$.trigger') || ' ' || json_extract(payload_json, '$.duration_ms') || ' ms', '')`
 
 // earlierOccurrences lists the retained occurrences of a fingerprint before
 // the given one, newest first.

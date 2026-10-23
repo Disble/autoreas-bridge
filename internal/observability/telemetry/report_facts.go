@@ -12,10 +12,13 @@ type ReportFacts struct {
 	// Outcome is previous_cycle.outcome of a cycle report, or the outcome of an
 	// episode action. Empty when the payload carries none.
 	Outcome string
-	// Phase is the episode-action phase; empty for a cycle report.
+	// Phase is the episode-action phase or the screen-stall trigger; empty for
+	// a cycle report.
 	Phase string
 	// Cause is previous_cycle.error_cause or the episode-action cause.
 	Cause string
+	// DurationMS is the screen-stall duration; zero for every other kind.
+	DurationMS int64
 }
 
 // cycleReportFacts is the slice of the stored cycle-report payload that holds
@@ -41,6 +44,12 @@ func ReadReportFacts(kind KindName, payload []byte) ReportFacts {
 			return ReportFacts{}
 		}
 		return ReportFacts{Outcome: stringValue(stored.Outcome), Phase: stored.Phase, Cause: stringValue(stored.Cause)}
+	case KindScreenStall:
+		var stored screenStallPayload
+		if json.Unmarshal(payload, &stored) != nil {
+			return ReportFacts{}
+		}
+		return ReportFacts{Phase: stored.Trigger, DurationMS: stored.DurationMS}
 	}
 	return ReportFacts{}
 }

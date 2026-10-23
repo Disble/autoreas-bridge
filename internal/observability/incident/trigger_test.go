@@ -148,6 +148,9 @@ func TestClassifyMobileReport(t *testing.T) {
 		{"completed cycle", MobileReportFact{Kind: "cycle_report", Outcome: "completed"}, Trigger{}, false},
 		{"committed write", MobileReportFact{Kind: "episode_action", Outcome: "committed", Phase: "finished"}, Trigger{}, false},
 		{"undeclared kind", MobileReportFact{Kind: "other", Outcome: "failed"}, Trigger{}, false},
+		{"stall at threshold", MobileReportFact{Kind: "screen_stall", Phase: "app_active", DurationMS: 10000},
+			Trigger{ReasonMobileFailure, "mobile_failure|screen_stall|app_active"}, true},
+		{"stall below threshold", MobileReportFact{Kind: "screen_stall", Phase: "app_active", DurationMS: 9999}, Trigger{}, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
