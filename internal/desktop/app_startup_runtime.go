@@ -247,7 +247,7 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 		return
 	}
 	registry := download.NewStaticRegistry()
-	registry.Register(jkanime.New(nil))
+	registry.Register(jkanime.New(a.providerHTTPClient()))
 	hosterResolver := download.NewHosterResolver(func(site string) []download.HosterPriorityEntry {
 		entries, err := a.downloadStore.ListHosterPriority(ctx, site)
 		if err != nil {
