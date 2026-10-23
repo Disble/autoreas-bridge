@@ -85,7 +85,7 @@ func NewRegistry(kinds ...Kind) *Registry {
 // wiring site never has to restate the vocabulary. A kind that is not in this
 // list is refused as undeclared rather than served.
 func DefaultRegistry() *Registry {
-	return NewRegistry(CycleReportKind{}, EpisodeActionKind{})
+	return NewRegistry(CycleReportKind{}, EpisodeActionKind{}, ScreenStallKind{})
 }
 
 // Lookup resolves one wire kind name. A miss is reported as a miss and never

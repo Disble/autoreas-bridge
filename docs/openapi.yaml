@@ -352,6 +352,14 @@ info:
         `season_rating` message (now ignored). Grades go only through
         `POST /api/seasons/active/ratings`.
 
+    2026-10-23 — screen-stall telemetry consumer impact: ADDITIVE, one new
+    request variant on `POST /api/sync/diagnostics`. A body naming
+    `kind: "screen_stall"` is now stored (see `SyncDiagnosticsScreenStall`);
+    before this build it answered `400` with code `kind_not_served`. Nothing
+    already deployed changes. Stalls appear in the History ledger and in an
+    incident's phone reports as `"<trigger> <duration_ms> ms"`, and a stall of
+    10000 ms or more opens a `mobile_failure` incident.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}
@@ -1167,6 +1175,92 @@ components:
             `null` on `received`, `skipped` and `sync`, never `0`, so a reader
             cannot mistake "this phase has no duration" for an instantaneous
             measurement. The key itself is never absent.
+    SyncDiagnosticsScreenStall:
+      type: object
+      required: [kind, observation_id, observed_at_ms, duration_ms, trigger, app_state, window_focused, window_width, window_height, screen_width, screen_height, transitions]
+      description: |
+        The `screen_stall` variant: one mobile probe, armed by a touch, a resume,
+        a window focus or a resize, that took at least 2000 ms to paint a change.
+        Dispatched by `kind: "screen_stall"`. It carries no anime data and no free
+        text.
+
+        Strict decoding applies, and unlike `episode_action` an undeclared key is
+        answered with the which-field shape naming that key: a top-level key as
+        `"field": "<key>"`, a key inside a transition as
+        `"field": "transitions[<i>].<key>"`. That includes a body-supplied
+        `device_id`. Every key is required; only `window_focused` admits `null`.
+        `transitions` is not checked for order, because `at_ms` is the device
+        clock and can step backwards.
+
+        Idempotency is by `observation_id` within this kind. The kind has its own
+        retention cap of 5000 rows. A stall of 10000 ms or more opens a
+        `mobile_failure` incident fingerprinted by kind and `trigger`.
+
+        The stored payload is a fixed nine-key shape (`duration_ms`, `trigger`,
+        `app_state`, `window_focused`, `window_width`, `window_height`,
+        `screen_width`, `screen_height`, `transitions`); `kind`,
+        `observation_id` and `observed_at_ms` are owned by the envelope columns.
+      properties:
+        kind:
+          type: string
+          enum: [screen_stall]
+        observation_id:
+          type: string
+          minLength: 1
+          description: Idempotency key, unique within this kind. Mobile sends a UUID v4; the bridge only requires it to be non-empty.
+        observed_at_ms:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Device clock when the probe armed, the start of the stall.
+        duration_ms:
+          type: integer
+          format: int64
+          minimum: 2000
+          maximum: 3600000
+        trigger:
+          type: string
+          enum: [touch, app_active, focus, resize]
+        app_state:
+          type: string
+          enum: [active, background, inactive, unknown]
+          description: App state when the probe armed.
+        window_focused:
+          type: boolean
+          nullable: true
+          description: "`null` means no focus or blur was seen yet."
+        window_width:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: Window width in dp. A window smaller than the screen means split screen.
+        window_height:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        screen_width:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        screen_height:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        transitions:
+          type: array
+          maxItems: 8
+          description: Oldest first, as mobile recorded them.
+          items:
+            type: object
+            required: [event, at_ms]
+            properties:
+              event:
+                type: string
+                enum: [active, background, inactive, focus, blur, resize]
+              at_ms:
+                type: integer
+                format: int64
+                minimum: 0
 paths:
   /api/devices/pair:
     post:
@@ -1751,11 +1845,13 @@ paths:
               oneOf:
                 - $ref: '#/components/schemas/SyncDiagnosticsCycleReport'
                 - $ref: '#/components/schemas/SyncDiagnosticsEpisodeAction'
+                - $ref: '#/components/schemas/SyncDiagnosticsScreenStall'
               discriminator:
                 propertyName: kind
                 mapping:
                   cycle_report: '#/components/schemas/SyncDiagnosticsCycleReport'
                   episode_action: '#/components/schemas/SyncDiagnosticsEpisodeAction'
+                  screen_stall: '#/components/schemas/SyncDiagnosticsScreenStall'
       responses:
         '204':
           description: |

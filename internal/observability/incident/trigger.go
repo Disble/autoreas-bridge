@@ -44,6 +44,11 @@ const (
 	// StartupGrace is the period after process start in which slow requests
 	// never open an incident: cold caches make the first requests slow by nature.
 	StartupGrace = 2 * time.Minute
+	// StallThreshold is the duration a mobile screen stall must reach to open
+	// an incident. Mobile reports every stall from two seconds; below ten
+	// seconds the History ledger is enough, since a user rarely notices it as
+	// a freeze rather than a slow paint.
+	StallThreshold = 10 * time.Second
 )
 
 // Request outcomes that mean the bridge refused the request. They mirror the
@@ -109,11 +114,14 @@ type MobileReportFact struct {
 	// (internal/observability/syncdiag/types.go:48) or the outcome of an episode
 	// action (internal/observability/telemetry/episode_action.go:130).
 	Outcome string
-	// Phase is the episode-action phase ("finished", "sync"); empty for a cycle report.
+	// Phase is the episode-action phase ("finished", "sync") or the screen-stall
+	// trigger ("touch", "resize", ...); empty for a cycle report.
 	Phase string
 	// Cause is the failure class: error_cause of a cycle report or cause of an
 	// episode action. It may be empty.
 	Cause string
+	// DurationMS is the screen-stall duration; zero for every other kind.
+	DurationMS int64
 }
 
 // RequestReasons returns every reason a request opens an incident, most severe
@@ -175,9 +183,18 @@ func ClassifyEvent(f EventFact) (Trigger, bool) {
 	}, true
 }
 
-// ClassifyMobileReport triggers on a failed sync cycle or a failed episode
-// action write.
+// ClassifyMobileReport triggers on a failed sync cycle, a failed episode
+// action write, or a screen stall of at least StallThreshold.
 func ClassifyMobileReport(f MobileReportFact) (Trigger, bool) {
+	if f.Kind == telemetry.KindScreenStall {
+		if time.Duration(f.DurationMS)*time.Millisecond < StallThreshold {
+			return Trigger{}, false
+		}
+		return Trigger{
+			Reason:      ReasonMobileFailure,
+			Fingerprint: fingerprint(string(ReasonMobileFailure), f.Kind, f.Phase),
+		}, true
+	}
 	if f.Outcome != mobileOutcomeFailed {
 		return Trigger{}, false
 	}

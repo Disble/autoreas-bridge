@@ -509,3 +509,36 @@ func TestSyncDiagnosticsEmptyObjectIsACycleReportMissingDegraded(t *testing.T) {
 		t.Fatal("ingest must not be called for a rejected cycle report")
 	}
 }
+
+// TestSyncDiagnosticsScreenStallStoresOnceAndNamesAnUndeclaredKey drives a
+// real screen_stall body through the endpoint into a real store twice: the
+// repost is a 204 no-op, and a body with an undeclared key is a 400 whose
+// field names that key and stores nothing.
+func TestSyncDiagnosticsScreenStallStoresOnceAndNamesAnUndeclaredKey(t *testing.T) {
+	t.Parallel()
+
+	db := openTelemetryEventsTestDB(t)
+	registry := telemetry.DefaultRegistry()
+	store := telemetry.NewStore(db, telemetry.StoreConfig{Registry: registry})
+	stubs := &telemetryHandlerStubs{authOK: true, deviceID: "dev-1"}
+	handler := NewSyncDiagnosticsHandler(SyncDiagnosticsConfig{Authenticate: stubs.authenticate, Ingest: store.Insert, Kinds: registry})
+
+	body := `{"kind":"screen_stall","observation_id":"0b6f3c1e-2a4d-4f7b-9c1d-5e8a7b6c4d3f","observed_at_ms":1761200700000,"duration_ms":120000,"trigger":"app_active","app_state":"active","window_focused":null,"window_width":600,"window_height":900,"screen_width":1200,"screen_height":900,"transitions":[{"event":"background","at_ms":1761200600000}]}`
+	for attempt := 0; attempt < 2; attempt++ {
+		if res := postDiagnostics(t, handler, body); res.Code != http.StatusNoContent {
+			t.Fatalf("attempt %d: status = %d, want 204 (body %q)", attempt, res.Code, res.Body.String())
+		}
+	}
+	if got := countStoredKind(t, db, telemetry.KindScreenStall); got != 1 {
+		t.Fatalf("stored %s rows = %d, want 1", telemetry.KindScreenStall, got)
+	}
+
+	res := postDiagnostics(t, handler, strings.Replace(body, `"trigger":"app_active",`, `"trigger":"app_active","device_id":"spoofed",`, 1))
+	var refusal map[string]string
+	if err := json.Unmarshal(res.Body.Bytes(), &refusal); err != nil || res.Code != http.StatusBadRequest || refusal["field"] != "device_id" {
+		t.Fatalf("status = %d, body %q; want 400 naming device_id", res.Code, res.Body.String())
+	}
+	if got := countStoredKind(t, db, telemetry.KindScreenStall); got != 1 {
+		t.Fatalf("stored %s rows = %d, want 1: a rejected body must store nothing", telemetry.KindScreenStall, got)
+	}
+}
