@@ -29,3 +29,6 @@ opencode.json
 .pi/gentle-ai/profile.json
 .pi/mcp.json
 .pi/artifacts/
+
+# Nested git worktrees are other checkouts; keep them out of the index and the gates.
+.worktrees/
