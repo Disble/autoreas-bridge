@@ -41,6 +41,38 @@ func TestRunWithArchitectureFSRejectsViolationInsideDirectorySymlink(t *testing.
 	}
 }
 
+// TestRunWithArchitectureFSSkipsNestedWorktrees proves a git worktree checked out under
+// .worktrees/ (another checkout, gitignored) is not scanned as this repository's code,
+// while a violation beside it still fails.
+func TestRunWithArchitectureFSSkipsNestedWorktrees(t *testing.T) {
+	violation := []byte("package copied\nconst query = \"INSERT INTO activity_log DEFAULT VALUES\"\n")
+	for _, test := range []struct {
+		name    string
+		dir     string
+		wantErr bool
+	}{
+		{"nested worktree", ".worktrees", false},
+		{"ordinary directory", "internal", true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := filepath.Clean(".")
+			dir := filepath.Join(root, test.dir)
+			fake := fakeArchitectureFS{
+				directories: map[string][]fs.DirEntry{
+					root: {fakeDirEntry{name: test.dir, mode: fs.ModeDir}},
+					dir:  {fakeDirEntry{name: "leak.go"}},
+				},
+				files: map[string][]byte{filepath.Join(dir, "leak.go"): violation},
+			}
+
+			err := runWithArchitectureFS(root, fake)
+			if gotErr := err != nil; gotErr != test.wantErr {
+				t.Fatalf("runWithArchitectureFS error = %v, want error %v", err, test.wantErr)
+			}
+		})
+	}
+}
+
 type fakeArchitectureFS struct {
 	directories      map[string][]fs.DirEntry
 	targets          map[string]string

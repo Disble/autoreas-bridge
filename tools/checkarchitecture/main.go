@@ -139,6 +139,9 @@ func shouldSkipDir(path string) bool {
 		return true
 	case strings.Contains(normalized, "/node_modules"):
 		return true
+	case strings.Contains("/"+normalized+"/", "/.worktrees/"):
+		// Nested git worktrees (gitignored) are other checkouts, not this repository's code.
+		return true
 	default:
 		return false
 	}
