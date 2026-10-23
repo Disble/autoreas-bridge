@@ -140,12 +140,18 @@ func (r *Reader) phoneReportLines(ctx context.Context, s scope, p sourcePage) ([
 	if !s.readsPhone() {
 		return nil, nil
 	}
+	return r.queryPhoneReports(ctx, p, "1=1")
+}
+
+// queryPhoneReports reads the stored mobile reports of one page that also
+// match extra, a predicate over device_telemetry_events.
+func (r *Reader) queryPhoneReports(ctx context.Context, p sourcePage, extra string) ([]item[LedgerLine], error) {
 	where, args, err := p.bounds(rankPhoneReport, "reported_at_ms", "rowid", true)
 	if err != nil {
 		return nil, err
 	}
 	query := `SELECT rowid, reported_at_ms, observed_at_ms, device_id, kind, ` + reportOutcomeSQL + `
-		FROM device_telemetry_events WHERE kind IN (?, ?, ?) AND ` + where + `
+		FROM device_telemetry_events WHERE kind IN (?, ?, ?) AND ` + where + ` AND ` + extra + `
 		ORDER BY reported_at_ms DESC, rowid DESC LIMIT ?`
 	args = append(append([]any{telemetry.KindCycleReport, telemetry.KindEpisodeAction, telemetry.KindScreenStall}, args...), p.fetch)
 	return queryLines(ctx, r.db, query, args, rankPhoneReport, func(rows *sql.Rows) (LedgerLine, string, error) {
