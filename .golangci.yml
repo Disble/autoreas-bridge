@@ -96,3 +96,5 @@ linters:
               desc: "internal/cfclearance knows nothing about anime state; the hexagon stays a leaf (ADR-030)"
             - pkg: "autoreas-bridge/internal/desktop"
               desc: "the composition root wires internal/cfclearance, never the other way around (ADR-030)"
+            - pkg: "github.com/wailsapp/wails/v2"
+              desc: "internal/cfclearance imports only the standard library, x/net/publicsuffix, internal/events and the WebView2 engine; the Wails runtime stays at the edge (ADR-030)"

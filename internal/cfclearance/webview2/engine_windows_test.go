@@ -58,10 +58,19 @@ func TestEngineClearsAFixtureCookieWithoutShowingAWindow(t *testing.T) {
 	if checks.Load() == 0 || sawVisible.Load() != 0 {
 		t.Fatalf("window visibility: %d checks, visible %d times", checks.Load(), sawVisible.Load())
 	}
-	if n := browserProcessesUsing(t, dataDir, 5*time.Second); n != 0 {
-		t.Fatalf("%d msedgewebview2 process(es) still use %s", n, dataDir)
+	started := time.Now()
+	if n := browserProcessesUsing(t, dataDir, engineTeardownBudget); n != 0 {
+		t.Fatalf("%d msedgewebview2 process(es) still use %s after %s", n, dataDir, engineTeardownBudget)
 	}
+	t.Logf("engine teardown took %s", time.Since(started).Round(time.Millisecond))
 }
+
+// engineTeardownBudget bounds how long the fixture waits for the browser processes to
+// leave after the controller closed. In production the solver child exits and its job
+// object kills them at once; here the engine runs in-process, so Close is asynchronous
+// and its latency grows with machine load (the pre-commit gate runs this test beside
+// every other package with -p 4). A missing Close still fails: the processes never leave.
+const engineTeardownBudget = 60 * time.Second
 
 // watchVisibility polls IsWindowVisible on hwnd until stop closes, counting every check and
 // every time the window reported visible.
