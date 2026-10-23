@@ -1,4 +1,4 @@
-import type { DrawerDataBlock, DrawerEventRow, DrawerRequestGroup, DrawerRequestPanel, DrawerTechnicalTab } from '../../drawer/drawer.types';
+import type { DrawerDataBlock, DrawerEventRow, DrawerRequestGroup, DrawerRequestPanel, DrawerTechnicalTab, DrawerWindowErrorDetail } from '../../drawer/drawer.types';
 import type { ActivityRead } from '../ActivityRunStory/activity-run-story.types';
 
 /** Props of the technical view of the detail drawer. */
@@ -29,6 +29,8 @@ export interface ActivityTechnicalViewProps {
   readonly events: readonly DrawerEventRow[];
   /** The Data tab blocks. */
   readonly data: readonly DrawerDataBlock[];
+  /** The stored window error, shown in Data instead of the raw blocks; undefined for other events. */
+  readonly windowError: DrawerWindowErrorDetail | undefined;
 }
 
 /** Props of the Requests tab. */
@@ -53,4 +55,10 @@ export interface ActivityTechnicalRequestsProps {
 export interface ActivityTechnicalRequestPanelProps {
   /** The picked request. */
   readonly panel: DrawerRequestPanel;
+}
+
+/** Props of the Data tab of a window error. */
+export interface ActivityTechnicalWindowErrorProps {
+  /** The stored window error. */
+  readonly detail: DrawerWindowErrorDetail;
 }

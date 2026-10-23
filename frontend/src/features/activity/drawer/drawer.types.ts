@@ -151,6 +151,16 @@ export interface DrawerDataBlock {
   readonly raw: string;
 }
 
+/** A window error as `ReportFrontendError` stored it, for the Data tab. */
+export interface DrawerWindowErrorDetail {
+  /** Kind, page, source and time, each only when stored. */
+  readonly facts: readonly DrawerFact[];
+  /** The stored message, else the event message. */
+  readonly message: string;
+  /** The stored stack; empty when none was reported. */
+  readonly stack: string;
+}
+
 /** The picked request panel of the Requests tab. */
 export interface DrawerRequestPanel {
   /** The summary line: route, duration and "latest of N · time" when N > 1. */

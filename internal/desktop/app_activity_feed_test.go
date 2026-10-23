@@ -77,3 +77,26 @@ func TestGetActivityOverviewPassesItsInputs(t *testing.T) {
 		}
 	}
 }
+
+// TestGetActivityEventReadsOneEventByID asserts the binding returns the
+// stored event with its metadata, and not found for an unknown id.
+func TestGetActivityEventReadsOneEventByID(t *testing.T) {
+	t.Parallel()
+	app := newActivityTestApp(t)
+	seedActivityEvent(t, app.bridgeDB, activityAt(-time.Minute), "frontend", "error", "")
+	var id int64
+	if err := app.bridgeDB.QueryRow(`SELECT MAX(id) FROM runtime_events`).Scan(&id); err != nil {
+		t.Fatalf("event id: %v", err)
+	}
+
+	got, err := app.GetActivityEvent(id)
+	if err != nil || !got.Found || got.Step.ID != id || got.Step.Domain != "frontend" || got.Step.EventType != "test.step" {
+		t.Fatalf("GetActivityEvent = %#v, %v", got, err)
+	}
+	if missing, err := app.GetActivityEvent(id + 1); err != nil || missing.Found {
+		t.Fatalf("missing event = %#v, %v; want not found", missing, err)
+	}
+	if _, err := (&App{}).GetActivityEvent(id); !errors.Is(err, errActivityUnavailable) {
+		t.Fatalf("unwired: err = %v, want errActivityUnavailable", err)
+	}
+}

@@ -1,8 +1,9 @@
 import type { ActivityIncidentDetail, ActivityRequestDetail } from '../activity-source/activity-incident.types';
 import type { ActivityFeedLine } from '../feed-source/feed.types';
 import { formatActivityDuration } from '../ui/ActivityRunStory/activity-time.helpers';
-import type { DrawerDataBlock, DrawerEventRow, DrawerRequestGroup, DrawerRequestPanel, DrawerSummaryInput, DrawerTechnicalTab } from './drawer.types';
-import { formatDrawerSeconds, formatDrawerTime } from './drawer-format.helpers';
+import { DRAWER_WINDOW_ERROR_EVENT_TYPE } from './drawer.constants';
+import type { DrawerDataBlock, DrawerEventRow, DrawerRequestGroup, DrawerRequestPanel, DrawerSummaryInput, DrawerTechnicalTab, DrawerWindowErrorDetail } from './drawer.types';
+import { drawerFact, formatDrawerSeconds, formatDrawerTime } from './drawer-format.helpers';
 import { toDrawerHeader } from './drawer-summary.helpers';
 
 /**
@@ -128,6 +129,29 @@ export function toDrawerDataBlocks(input: DrawerSummaryInput): readonly DrawerDa
   }
   const metadata = input.metadata === undefined ? [] : [{ label: 'Recorded fields', raw: JSON.stringify(input.metadata) }];
   return [{ label: line.kind === 'event' ? 'Event' : 'Line', raw: JSON.stringify(line) }, ...metadata];
+}
+
+/**
+ * The Data tab of a window error: kind, page, source and time, then the
+ * message and the stack, every value as stored by `ReportFrontendError`.
+ *
+ * @param input The summary input.
+ * @returns The detail; undefined for other events or when the metadata was not read.
+ */
+export function toDrawerWindowErrorDetail(input: DrawerSummaryInput): DrawerWindowErrorDetail | undefined {
+  const { metadata } = input;
+  if (input.line.line.detail !== DRAWER_WINDOW_ERROR_EVENT_TYPE || metadata === undefined) {
+    return undefined;
+  }
+  const occurredAtMs = Number(metadata.occurredAtMs);
+  const stored: readonly (readonly [string, string, string | undefined])[] = [
+    ['kind', 'Kind', metadata.kind],
+    ['page', 'Page', metadata.route],
+    ['source', 'Source', metadata.source],
+    ['at', 'At', Number.isFinite(occurredAtMs) && occurredAtMs > 0 ? formatDrawerSeconds(occurredAtMs) : undefined],
+  ];
+  const facts = stored.filter((entry) => entry[2] !== undefined && entry[2] !== '').map(([key, label, value]) => drawerFact(key, label, value ?? '', { mono: true }));
+  return { facts, message: metadata.message ?? input.line.line.title, stack: metadata.stack ?? '' };
 }
 
 /**

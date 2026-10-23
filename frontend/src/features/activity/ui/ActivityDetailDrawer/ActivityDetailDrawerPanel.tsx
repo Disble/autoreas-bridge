@@ -45,6 +45,7 @@ export function ActivityDetailDrawerPanel({ line, onClose }: ActivityDetailDrawe
         {drawer.status === 'ready' && drawer.technical && (
           <ActivityTechnicalView
             data={drawer.data}
+            windowError={drawer.windowError}
             events={drawer.events}
             gaps={drawer.summary.gaps}
             groups={drawer.requestGroups}

@@ -49,3 +49,13 @@ func toFeedTypes(names []string) []activityread.FeedType {
 	}
 	return types
 }
+
+// GetActivityEvent returns one runtime event with its metadata, for the
+// Activity drawer; Found is false when no event has that id.
+func (a *App) GetActivityEvent(id int64) (activityread.EventDetail, error) {
+	reader, err := a.activityReader()
+	if err != nil {
+		return activityread.EventDetail{}, err
+	}
+	return reader.Event(a.seasonCtx(), id)
+}

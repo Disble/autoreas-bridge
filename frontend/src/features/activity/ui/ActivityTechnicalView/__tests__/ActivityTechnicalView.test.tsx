@@ -26,6 +26,7 @@ function props(overrides: Partial<ActivityTechnicalViewProps> = {}): ActivityTec
     onRetryRequest: vi.fn(),
     events: [],
     data: [],
+    windowError: undefined,
     ...overrides,
   };
 }
@@ -90,6 +91,20 @@ describe('ActivityTechnicalView', () => {
 
     expect(screen.getByText('Nothing was stored.')).toBeInTheDocument();
     expect(screen.getByText('After')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['with a stack', 'at EpisodeStrip (index.js:1:2)', true],
+    ['without a stack', '', false],
+  ])('shows a window error %s from its stored fields instead of raw blocks', (_name, stack, hasStack) => {
+    const windowError = { facts: [{ key: 'page', label: 'Page', value: '/editor', mono: true, warnChip: undefined }], message: 'TypeError: boom', stack };
+    render(<ActivityTechnicalView {...props({ tab: 'data', data: [{ label: 'Event', raw: '{}' }], windowError })} />);
+
+    expect(screen.getByRole('region', { name: 'Window error' })).toHaveTextContent('/editor');
+    expect(screen.getByText('TypeError: boom')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Stack trace' }) !== null).toBe(hasStack);
+    expect(screen.queryByText('Event')).not.toBeInTheDocument();
+    expect(screen.queryByText('Cut at 8 KB')).not.toBeInTheDocument();
   });
 
   it('reports the tab the owner picks', () => {

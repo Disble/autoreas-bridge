@@ -1,6 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import type { ActivityRunStep } from '../../activity-source/activity-incident.types';
 import type { ActivitySource } from '../../activity-source/activity-source.types';
+import type { ActivityFeedSource } from '../../feed-source/feed-source.types';
 import type { ActivityFeedLine } from '../../feed-source/feed.types';
 import { useActivityDetailDrawer } from '../use-activity-detail-drawer';
 import { feedLine, incident } from './drawer.fixtures';
@@ -15,6 +17,19 @@ function sourceWith(reads: Partial<ActivitySource>): ActivitySource {
   } as unknown as ActivitySource;
 }
 
+/** A feed source whose event read is the given spy. */
+function feedWith(getEvent: ActivityFeedSource['getEvent']): ActivityFeedSource {
+  return { getEvent } as unknown as ActivityFeedSource;
+}
+
+/** A feed source where no event is stored, for lines that are not about metadata. */
+const FEED = feedWith(() => Promise.resolve(undefined));
+
+/** Event 12 as stored, with the given metadata JSON. */
+function stored(metadataJson: string): ActivityRunStep {
+  return { id: 12, atMs: 1, domain: 'app', level: 'warn', eventType: 'x.y', message: 'm', correlationId: '', durationMs: undefined, metadataJson };
+}
+
 /** A failed phone traffic hour with incident 7. */
 const TRAFFIC = feedLine({ type: 'traffic', origin: 'phone', failed: true, incidentId: 7, traffic: { hourStartMs: 1, requests: 3, failed: 1, maxDurationMs: 9 } }, { kind: 'traffic_hour' });
 
@@ -27,9 +42,9 @@ const DETAIL = incident({
 });
 
 describe('useActivityDetailDrawer', () => {
-  it('reads nothing for a line without incident or correlation and is ready at once', () => {
+  it('reads nothing for a line that is neither an incident nor an event, and is ready at once', () => {
     const source = sourceWith({});
-    const { result } = renderHook(() => useActivityDetailDrawer(feedLine({}, { kind: 'event', detail: 'x.y' }), source));
+    const { result } = renderHook(() => useActivityDetailDrawer(feedLine({}, { kind: 'change' }), source, FEED));
 
     expect(result.current.status).toBe('ready');
     expect(source.getIncident).not.toHaveBeenCalled();
@@ -39,7 +54,7 @@ describe('useActivityDetailDrawer', () => {
   it('loads the incident once, then builds the summary from it', async () => {
     const getIncident = vi.fn(() => Promise.resolve(DETAIL));
     const source = sourceWith({ getIncident });
-    const { result } = renderHook(() => useActivityDetailDrawer(TRAFFIC, source));
+    const { result } = renderHook(() => useActivityDetailDrawer(TRAFFIC, source, FEED));
 
     expect(result.current.status).toBe('loading');
     await waitFor(() => expect(result.current.status).toBe('ready'));
@@ -50,7 +65,7 @@ describe('useActivityDetailDrawer', () => {
   it('fails when the incident read rejects, and reads again on retry', async () => {
     const getIncident = vi.fn(() => Promise.reject(new Error('db')));
     const source = sourceWith({ getIncident });
-    const { result } = renderHook(() => useActivityDetailDrawer(TRAFFIC, source));
+    const { result } = renderHook(() => useActivityDetailDrawer(TRAFFIC, source, FEED));
 
     await waitFor(() => expect(result.current.status).toBe('failed'));
     act(() => result.current.retry());
@@ -60,7 +75,7 @@ describe('useActivityDetailDrawer', () => {
   it('reads the picked request only in the Requests tab, and the newly picked group on a pick', async () => {
     const getRequest = vi.fn(() => Promise.resolve(undefined));
     const source = sourceWith({ getIncident: vi.fn(() => Promise.resolve(DETAIL)), getRequest });
-    const { result } = renderHook(() => useActivityDetailDrawer(TRAFFIC, source));
+    const { result } = renderHook(() => useActivityDetailDrawer(TRAFFIC, source, FEED));
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(getRequest).not.toHaveBeenCalled();
 
@@ -73,7 +88,7 @@ describe('useActivityDetailDrawer', () => {
 
   it('keeps the technical view and tab across lines, falling back when a line lacks the tab', async () => {
     const source = sourceWith({ getIncident: vi.fn(() => Promise.resolve(DETAIL)), getRequest: vi.fn(() => Promise.resolve(undefined)) });
-    const { result, rerender } = renderHook(({ line }: { readonly line: ActivityFeedLine }) => useActivityDetailDrawer(line, source), { initialProps: { line: TRAFFIC } });
+    const { result, rerender } = renderHook(({ line }: { readonly line: ActivityFeedLine }) => useActivityDetailDrawer(line, source, FEED), { initialProps: { line: TRAFFIC } });
     act(() => result.current.toggleTechnical());
 
     rerender({ line: feedLine({}, { kind: 'event', detail: 'x.y' }) });
@@ -83,16 +98,43 @@ describe('useActivityDetailDrawer', () => {
     expect(result.current.tab).toBe('events');
   });
 
-  it('reads the recorded metadata of an event through its run story', async () => {
-    const getRunStory = vi.fn(() =>
-      Promise.resolve({ correlationId: 'c-1', truncated: false, steps: [{ id: 12, atMs: 1, domain: 'app', level: 'warn', eventType: 'x.y', message: 'm', correlationId: 'c-1', durationMs: undefined, metadataJson: '{"free_bytes":412}' }] }),
-    );
+  it('reads the recorded metadata of an event by its id, without its run story', async () => {
+    const getEvent = vi.fn(() => Promise.resolve(stored('{"free_bytes":412}')));
+    const feed = feedWith(getEvent);
+    const source = sourceWith({});
     const line = feedLine({}, { kind: 'event', id: '12', detail: 'x.y', correlationId: 'c-1' });
-    const source = sourceWith({ getRunStory });
-    const { result } = renderHook(() => useActivityDetailDrawer(line, source));
+    const { result } = renderHook(() => useActivityDetailDrawer(line, source, feed));
 
+    expect(result.current.status).toBe('loading');
     await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(getEvent).toHaveBeenCalledExactlyOnceWith(12);
+    expect(source.getRunStory).not.toHaveBeenCalled();
     const recorded = result.current.summary.sections.find((section) => section.key === 'recorded');
     expect(recorded).toMatchObject({ rows: [{ label: 'free_bytes', value: '412' }] });
+  });
+
+  it('shows the window error from its stored metadata in the summary and the Data tab', async () => {
+    const metadata = '{"kind":"render","route":"/editor","message":"boom","stack":"at A","source":"index.js:1:2","occurredAtMs":1}';
+    const feed = feedWith(vi.fn(() => Promise.resolve(stored(metadata))));
+    const line = feedLine({ failed: true }, { kind: 'event', id: '12', domain: 'frontend', level: 'error', detail: 'frontend.error' });
+    const { result } = renderHook(() => useActivityDetailDrawer(line, sourceWith({}), feed));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(result.current.summary.gaps).toEqual([]);
+    expect(result.current.windowError).toMatchObject({ message: 'boom', stack: 'at A' });
+  });
+
+  it.each([
+    ['a gone event is ready without metadata', () => Promise.resolve(undefined), 'ready'],
+    ['a failed event read fails the body', () => Promise.reject(new Error('db')), 'failed'],
+  ])('%s', async (_name, answer, status) => {
+    const getEvent = vi.fn(answer);
+    const feed = feedWith(getEvent);
+    const { result } = renderHook(() => useActivityDetailDrawer(feedLine({}, { kind: 'event', id: '12', detail: 'x.y' }), sourceWith({}), feed));
+
+    await waitFor(() => expect(result.current.status).toBe(status));
+    expect(result.current.summary.sections.some((section) => section.key === 'recorded')).toBe(false);
+    act(() => result.current.retry());
+    await waitFor(() => expect(getEvent).toHaveBeenCalledTimes(2));
   });
 });

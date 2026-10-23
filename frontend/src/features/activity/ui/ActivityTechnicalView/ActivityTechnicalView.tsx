@@ -4,6 +4,7 @@ import codeIcon from '@iconify-icons/solar/code-bold';
 import { CodeBlock } from '../../../../shared/ui/CodeBlock/CodeBlock';
 import type { DrawerTechnicalTab } from '../../drawer/drawer.types';
 import { ActivityTechnicalRequests } from './ActivityTechnicalRequests';
+import { ActivityTechnicalWindowError } from './ActivityTechnicalWindowError';
 import { ACTIVITY_TECHNICAL_LEVEL_COLORS, ACTIVITY_TECHNICAL_TAB_LABELS } from './activity-technical-view.constants';
 import type { ActivityTechnicalViewProps } from './activity-technical-view.types';
 
@@ -61,9 +62,11 @@ export function ActivityTechnicalView(props: ActivityTechnicalViewProps) {
           </ul>
         </Tabs.Panel>
         <Tabs.Panel className="flex flex-col gap-4 p-0" id="data">
-          {props.data.map((block) => (
-            <CodeBlock key={block.label} label={block.label} notice="Nothing was stored." raw={block.raw} state={block.raw === '' ? 'not-captured' : 'captured'} />
-          ))}
+          {props.windowError !== undefined && <ActivityTechnicalWindowError detail={props.windowError} />}
+          {props.windowError === undefined &&
+            props.data.map((block) => (
+              <CodeBlock key={block.label} label={block.label} notice="Nothing was stored." raw={block.raw} state={block.raw === '' ? 'not-captured' : 'captured'} />
+            ))}
         </Tabs.Panel>
       </Tabs>
     </div>

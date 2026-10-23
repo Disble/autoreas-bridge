@@ -1,7 +1,8 @@
-import type { ActivityRunStory } from '../activity-source/activity-incident.types';
+import type { ActivityRunStep } from '../activity-source/activity-incident.types';
+import type { ActivityFeedSource } from '../feed-source/feed-source.types';
 import type { ActivityFeedLine } from '../feed-source/feed.types';
 import type { ActivityRead } from '../ui/ActivityRunStory/activity-run-story.types';
-import { DRAWER_TASK_DOMAINS } from './drawer.constants';
+import { toActivityFoundRead } from '../ui/ActivityRunStory/activity-time.helpers';
 import type { DrawerRequestGroup } from './drawer.types';
 
 /** The body state of the drawer: exclusive loading, failure and resolved views. */
@@ -26,15 +27,25 @@ export function toDrawerLineKey(line: ActivityFeedLine): string {
 }
 
 /**
- * The run story whose steps hold an event line's recorded metadata: only an
- * event with a correlation id that its own presenter does not read already.
+ * The runtime event id of an event line, whose metadata `GetActivityEvent` reads.
  *
  * @param line The open line.
- * @returns The correlation id to read, or undefined.
+ * @returns The event row id; undefined for other kinds or an id that is not a positive integer.
  */
-export function toDrawerMetadataStoryId(line: ActivityFeedLine): string | undefined {
-  const { kind, correlationId, domain } = line.line;
-  return kind === 'event' && correlationId !== '' && !DRAWER_TASK_DOMAINS.has(domain) ? correlationId : undefined;
+export function toDrawerEventId(line: ActivityFeedLine): number | undefined {
+  const id = Number(line.line.id);
+  return line.line.kind === 'event' && /^\d+$/.test(line.line.id) && id > 0 ? id : undefined;
+}
+
+/**
+ * Reads one runtime event by id; gone when no event has that id.
+ *
+ * @param source The feed port.
+ * @param id The event row id.
+ * @returns The ready or gone read; rejects when the read fails.
+ */
+export function readDrawerEvent(source: ActivityFeedSource, id: number): Promise<ActivityRead<ActivityRunStep>> {
+  return source.getEvent(id).then(toActivityFoundRead);
 }
 
 /** Words one stored metadata value as stored: strings as is, anything else as JSON. */
@@ -43,19 +54,17 @@ function wordMetadataValue(value: unknown): string {
 }
 
 /**
- * The recorded metadata of one event, read from its run story step.
+ * The recorded metadata of one runtime event.
  *
- * @param story The run story; undefined when not read.
- * @param eventId The event row id.
- * @returns Every key and value as stored; undefined when the step or its metadata is missing.
+ * @param event The stored event; undefined when not read or gone.
+ * @returns Every key and value as stored; undefined when it recorded no metadata object.
  */
-export function toDrawerMetadata(story: ActivityRunStory | undefined, eventId: string): Readonly<Record<string, string>> | undefined {
-  const step = story?.steps.find((candidate) => String(candidate.id) === eventId);
-  if (step === undefined || step.metadataJson === '') {
+export function toDrawerEventMetadata(event: ActivityRunStep | undefined): Readonly<Record<string, string>> | undefined {
+  if (event === undefined || event.metadataJson === '') {
     return undefined;
   }
   try {
-    const parsed: unknown = JSON.parse(step.metadataJson);
+    const parsed: unknown = JSON.parse(event.metadataJson);
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
       return undefined;
     }

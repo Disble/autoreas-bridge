@@ -9,6 +9,7 @@ import {
   toDrawerRequestGroups,
   toDrawerRequestPanel,
   toDrawerTechnicalTabs,
+  toDrawerWindowErrorDetail,
 } from '../drawer-technical.helpers';
 import { feedLine, incident } from './drawer.fixtures';
 
@@ -143,6 +144,40 @@ describe('toDrawerCopyText', () => {
     expect(text).not.toContain('incident');
     expect(text).not.toContain('correlation');
     expect(text).toContain('phone_report 3');
+  });
+});
+
+describe('toDrawerWindowErrorDetail', () => {
+  /** A window error line. */
+  const LINE = feedLine({ failed: true }, { kind: 'event', detail: 'frontend.error', title: 'frontend render: boom' });
+
+  it('shows every stored field of a window error, the stack as stored', () => {
+    const metadata = { kind: 'render', route: '/editor', source: 'assets/index.js:1:2', message: 'boom', stack: 'at A', occurredAtMs: String(Date.UTC(2026, 9, 22, 12)) };
+
+    const detail = toDrawerWindowErrorDetail(input({ line: LINE, metadata }));
+
+    expect(detail?.facts.map((fact) => [fact.label, fact.value])).toEqual([
+      ['Kind', 'render'],
+      ['Page', '/editor'],
+      ['Source', 'assets/index.js:1:2'],
+      ['At', expect.stringMatching(/^\d\d:\d\d:\d\d$/)],
+    ]);
+    expect(detail).toMatchObject({ message: 'boom', stack: 'at A' });
+  });
+
+  it('leaves out fields the report did not store and falls back to the event message', () => {
+    expect(toDrawerWindowErrorDetail(input({ line: LINE, metadata: { kind: 'error', occurredAtMs: 'x' } }))).toEqual({
+      facts: [{ key: 'kind', label: 'Kind', value: 'error', mono: true, warnChip: undefined }],
+      message: 'frontend render: boom',
+      stack: '',
+    });
+  });
+
+  it.each([
+    ['another event type', feedLine({}, { kind: 'event', detail: 'x.y' }), { kind: 'render' }],
+    ['no metadata', LINE, undefined],
+  ])('is undefined for %s', (_name, line, metadata) => {
+    expect(toDrawerWindowErrorDetail(input({ line, metadata }))).toBeUndefined();
   });
 });
 

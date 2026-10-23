@@ -174,6 +174,21 @@ describe('feed-source', () => {
     expect(counts.slots).toHaveLength(1);
   });
 
+  it('reads one event by id and maps a missing one to undefined', async () => {
+    const step = { ID: 9, AtMS: 5, Domain: 'frontend', Level: 'error', EventType: 'frontend.error', Message: 'window error', CorrelationID: '', DurationMS: null, MetadataJSON: '{"route":"/#/season"}' };
+    const read = vi.fn((id: number) => Promise.resolve(activityread.EventDetail.createFrom(id === 9 ? { Found: true, Step: step } : { Found: false, Step: { ...step, ID: 0 } })));
+    attachBindings({ GetActivityEvent: read });
+    const { createActivityFeedSource } = await import('../feed-source.helpers');
+    const source = createActivityFeedSource();
+
+    const found = await source.getEvent(9);
+    const missing = await source.getEvent(10);
+
+    expect(read).toHaveBeenCalledWith(9);
+    expect(found).toMatchObject({ id: 9, domain: 'frontend', eventType: 'frontend.error', durationMs: undefined, metadataJson: '{"route":"/#/season"}' });
+    expect(missing).toBeUndefined();
+  });
+
   it('rejects both reads when the bindings never attach', async () => {
     const { createActivityFeedSource } = await import('../feed-source.helpers');
     const source = createActivityFeedSource();

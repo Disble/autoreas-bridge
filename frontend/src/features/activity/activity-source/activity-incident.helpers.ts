@@ -135,7 +135,7 @@ export function mapActivityRun(run: activityread.Run): ActivityRun {
 }
 
 /** Maps one run step; Go flattens its embedded event summary. */
-function mapRunStep(step: activityread.RunStep): ActivityRunStep {
+export function mapRunStep(step: activityread.RunStep): ActivityRunStep {
   return {
     ...mapEventSummary(step),
     durationMs: step.DurationMS ?? undefined,
