@@ -31,14 +31,14 @@ Scope (L3): the Go side may only add read queries and bindings. No writes, no ne
 |---|---|---|---|---|
 | T1 | S3, S4, S5 | inline | done | `Reader.Feed` + `SearchActivityFeed`; RED observed (`r.Feed undefined`), 12 feed tests GREEN; mutation see L9 |
 | T2 | S6 | inline | done | `Reader.Overview` + `GetActivityOverview`; RED not run separately (would not compile), 4 overview tests GREEN; mutation see L9 |
-| T3 | S7 | inline | pending | Go traffic-hour and run-row reads + bindings |
-| T4 | S3, S6, S8 | inline | pending | frontend source, mappers, feed/overview hooks |
-| T5 | S1, S2, S11 | inline | pending | screen: chart, range field, toolbar, failure menu, feed rows |
-| T6 | S1, S2, S7 | inline | pending | drawer summary presenters, generic layer, cause catalog |
-| T7 | S1, S7 | inline | pending | technical view: Requests, Events, Data |
+| T3 | S7 | — | likely not needed | every FeedLine carries its Run and TrafficHour; story, incident, request and recorder reads exist. The T6/T7 writer reports any gap |
+| T4 | S3, S6 | inline | done | `feed-source/` mappers + `createActivityFeedSource`; RED observed (module missing), 7 tests GREEN; `mapLedgerLine` exported for reuse |
+| T5 | S1, S2, S8, S11 | delegated (writer A) | done | screen: chart, range field, toolbar, failure menu, feed rows, hooks, live refresh |
+| T6 | S1, S2, S7 | delegated (writer B) | done | drawer summary presenters, generic layer, cause catalog |
+| T7 | S1, S7 | delegated (writer B) | done | technical view: Requests, Events, Data |
 | T8 | S9, S10 | inline | pending | remove old tabs, design doc gaps, render smoke |
 
-Route evidence: no Writer trigger. The frontend units depend on the T1–T3 contract, so they are not independent parallel units.
+Route evidence: T1–T4 inline (no Writer trigger). T5 and T6+T7 are delegated: Writer trigger (a), two independent units with disjoint edit surfaces, each several files and well over 100 lines, joined only by the `ActivityDetailDrawerProps` contract the parent wrote; plus (b), the parent context passed the long-session backstop. Commit 0972f8fd holds T1+T2.
 
 ## Log
 
@@ -51,3 +51,4 @@ Route evidence: no Writer trigger. The frontend units depend on the T1–T3 cont
 - L7 Probe on the bridge.db copy (read-only, 2026-10-23): first feed page 5 ms, failures-only 4 ms, overview 24 h 1.6 ms, 90 d 9 ms. 90-day counts: changes 407, traffic 394 (72 failed), downloads 107 (5 failed), tasks 18, edits 61, bridge 68 (14 failed). Incident ids attach to traffic hours, failed phone reports and error events.
 - L8 Incident links (measured): `mobile` source_id = `device_telemetry_events.event_id`; `event` occurrences have an empty source_id and match by `occurred_at_ms` + fingerprint `error_event|domain|event_type`; `request` source_id = `request_captures.request_id`, matched to its hour by `occurred_at_ms`.
 - L9 Mutation, T1+T2 (`ditto staged`, scope activityread minus `feed_types.go` (INFRASTRUCTURE) and `history.go` (pure extraction, covered by the History suite)): run 1 hit the 15 min box with no report; run 2 (10 min, `-run Feed|Overview|History`) evaluated 111 of 151 mutants: 90 killed, 21 survived, 40 unevaluated (rest of `feed_sources.go`, all of `overview.go`; some mutants hang ~220 s on an unclosed query). Survivors: equivalent — `feed.go:106` `>`→`>=`, `:110` `<`→`<=`, `0`→`1`, `ToMS < toMS`→true (no row after now), `:31` fetch increment (over-fetch), `:13` `iota - 1` (traffic shares the event rank, both integer keys; the run takes the incident rank, not a feed source), `feed_counts.go:140` slice capacity. Killed with new tests and proven by hand mutation: rank order flip, fetch decrement, one-day grouping, hour overlap boundary, `episodes_failed >= 0`, both count loops `continue`→`break`. Unevaluated mutants are ledgered, not claimed.
+- L10 Writer B (T6+T7) result: 51 tests GREEN, typecheck clean in its files, no Go change. Non-modal `<aside>` instead of HeroUI Drawer (v3 Drawer is a React Aria modal; the design needs the feed usable behind it). Cause catalog holds only `conflict` (mockup's `unsupported_operation` is "Invented in the mockup"). Data gaps, rendered as nothing, to record in the design doc in T8: (1) change "Sent, not saved" / "Tried N times" — changes never fail, no retry count stored; (2) late chip "when the bridge was off" — only the `arrived_late` mark is stored; (3) edit "Made in: Editor" — source is only `desktop`; (4) traffic "Usual answer time" not stored, "Last check-ins" not built; (5) event metadata (recorded fields, window-error page/stack/occurrences) — LedgerLine carries none, reachable only via run story with a correlation id; candidate read-only binding by event id (T3, allowed by L3); (6) bridge stopped facts (S9); (7) request headers and method not stored; (8) run steps reuse ActivityRunStory instead of the mockup's dotted timeline; (9) retention notice only when an incident gives expiresAtMs. Header phrasing (`toDrawerHeader`) may differ from writer A's row text; unify in T8.

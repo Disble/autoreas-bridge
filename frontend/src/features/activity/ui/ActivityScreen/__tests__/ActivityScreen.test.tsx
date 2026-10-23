@@ -1,53 +1,57 @@
-import { toast } from '@heroui/react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ActivityNowView } from '../../../activity-source/activity.types';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { dispatchKeyboardEvent } from '../../../../../shared/keyboard/dispatch.helpers';
+import { resetKeyboardStore } from '../../../../../shared/keyboard/keyboard-scope.helpers';
 import type { ActivitySource } from '../../../activity-source/activity-source.types';
+import type { ActivityFeedSource } from '../../../feed-source/feed-source.types';
+import type { ActivityFeedLine, ActivityFeedView } from '../../../feed-source/feed.types';
 import type { HistorySource } from '../../../history-source/history-source.types';
+import { buildDay, buildLine, buildOverview, buildView } from '../../../feed/__tests__/activity-feed.fixtures';
+import type { ActivityDetailDrawerProps } from '../../ActivityDetailDrawer/activity-detail-drawer.types';
 import { ActivityScreen } from '../ActivityScreen';
 
-/** A resolved Now view with one incident in "Needs a look". */
-const NOW_VIEW: ActivityNowView = {
-  status: { kind: 'problems', sentence: '1 problem needs a look', quietMinutes: 0, problems: 1 },
-  lastPhoneContactMs: 0,
-  uptimeMs: 60_000,
-  requestsToday: 3,
-  openIncidents: 1,
-  changesToday: 0,
-  hours: [],
-  needsALook: [{ latestId: 9, fingerprint: 'fp', reason: 'http_5xx', title: 'Sync failed for 5 requests', latestAtMs: 0, firstSeenAtMs: 0, occurrences: 5, isNew: true, isError: true }],
-  recentChanges: [],
+/** Recorder listeners the screen subscribed. */
+const recorderListeners: (() => void)[] = [];
+
+/** The feed port: each test sets what `searchFeed` resolves with. */
+const feedSource = {
+  searchFeed: vi.fn<ActivityFeedSource['searchFeed']>(),
+  getOverview: vi.fn<ActivityFeedSource['getOverview']>(),
 };
 
-/** The source the screen reads: Now never resolves unless a test says so, the pin succeeds. */
-const source: ActivitySource = {
-  getNow: vi.fn(() => new Promise<ActivityNowView>(() => undefined)),
-  pinMoment: vi.fn(() => Promise.resolve()),
-  subscribeRecorder: () => () => undefined,
-  listIncidents: vi.fn(() => Promise.resolve([])),
-  getIncident: vi.fn<ActivitySource['getIncident']>(() => new Promise(() => undefined)),
-  getRequest: vi.fn(),
-  listRecoveredRuns: vi.fn(() => Promise.resolve([])),
-  getRunStory: vi.fn(),
-};
-
-vi.mock('../../../activity-source/activity-source.helpers', () => ({
-  createActivitySource: () => source,
-}));
-
-/** The History and recorder source: both reads stay pending, so each view rests on its skeleton. */
+/** The History port: only its recorder subscription is used. */
 const historySource: HistorySource = {
-  searchHistory: vi.fn(() => new Promise<never>(() => undefined)),
-  listRecorder: vi.fn(() => new Promise<never>(() => undefined)),
-  subscribeRecorder: () => () => undefined,
+  searchHistory: vi.fn(),
+  listRecorder: vi.fn(),
+  subscribeRecorder: (listener) => {
+    recorderListeners.push(() => listener({} as never));
+    return () => undefined;
+  },
 };
 
-vi.mock('../../../history-source/history-source.helpers', () => ({
-  createHistorySource: () => historySource,
+/** The Activity port: only the pin is used. */
+const activitySource = { pinMoment: vi.fn(() => Promise.resolve()) } as unknown as ActivitySource;
+
+vi.mock('../../../feed-source/feed-source.helpers', () => ({ createActivityFeedSource: () => feedSource }));
+vi.mock('../../../history-source/history-source.helpers', () => ({ createHistorySource: () => historySource }));
+vi.mock('../../../activity-source/activity-source.helpers', () => ({ createActivitySource: () => activitySource }));
+vi.mock('../../ActivityDetailDrawer/ActivityDetailDrawer', () => ({
+  /** Stands in for writer B's drawer: shows which line is open. */
+  ActivityDetailDrawer: ({ line }: ActivityDetailDrawerProps) => (line === undefined ? null : <aside aria-label="Activity detail">{line.line.id}</aside>),
 }));
 
-/** Renders the shell inside a router. */
+/** `count` change lines, newest first, with ids from `firstId` down. */
+function lines(count: number, firstId: number): readonly ActivityFeedLine[] {
+  return Array.from({ length: count }, (_unused, index) => buildLine({}, { id: String(firstId - index), atMs: Date.now() - (1000 - firstId + index) * 1000 }));
+}
+
+/** A page of `count` lines on today, with a cursor when more remain. */
+function page(count: number, firstId: number, nextCursor = ''): ActivityFeedView {
+  return buildView([buildDay(0, lines(count, firstId))], nextCursor);
+}
+
+/** Renders the screen inside a router. */
 function renderScreen() {
   render(
     <MemoryRouter>
@@ -56,84 +60,270 @@ function renderScreen() {
   );
 }
 
-describe('ActivityScreen', () => {
-  beforeEach(() => {
-    vi.mocked(source.getIncident).mockClear();
-    vi.mocked(historySource.searchHistory).mockClear();
-    vi.mocked(historySource.listRecorder).mockClear();
-  });
-
-  it('opens on Now with the three tabs and the pin action', () => {
-    renderScreen();
-
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Now', 'Incidents', 'History']);
-    expect(screen.getByRole('tab', { name: 'Now' })).toHaveAttribute('aria-selected', 'true');
-    // The bridge tab style: the selected tab carries the shared sliding indicator, as in Season.
-    expect(screen.getByRole('tab', { name: 'Now' }).querySelector('[data-slot="tabs-indicator"]')).not.toBeNull();
-    expect(screen.getByRole('status', { name: 'Loading activity' })).toBeInTheDocument();
-  });
-
-  it('shows the Incidents view, resting until a pick, and History loading its first page', async () => {
-    renderScreen();
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Incidents' }));
-    expect(screen.getByRole('heading', { name: 'No incident selected' })).toBeInTheDocument();
-    expect(screen.getByRole('radiogroup', { name: 'Where it happened' })).toBeInTheDocument();
-    expect(await screen.findByText('No incidents in the last 7 days')).toBeInTheDocument();
-    expect(screen.queryByRole('status', { name: 'Loading activity' })).toBeNull();
-
-    fireEvent.click(screen.getByRole('tab', { name: 'History' }));
-    expect(screen.getByRole('status', { name: 'Loading History' })).toBeInTheDocument();
-    expect(historySource.searchHistory).toHaveBeenCalledTimes(1);
-  });
-
-  it('opens the 2-hour recorder from Now and goes back to the tabs', () => {
-    renderScreen();
-
-    fireEvent.click(screen.getByRole('button', { name: /See every request from the last 2 hours/ }));
-    expect(screen.queryByRole('tab', { name: 'Now' })).toBeNull();
-    expect(historySource.listRecorder).toHaveBeenCalledTimes(1);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
-    expect(screen.getByRole('tab', { name: 'Now' })).toHaveAttribute('aria-selected', 'true');
-  });
-
-  it('sends "Pair a phone" on a first-run History to the pairing route', async () => {
-    vi.mocked(historySource.searchHistory).mockResolvedValueOnce({ calendar: [], days: [], nextCursor: '' });
-    render(
-      <MemoryRouter>
-        <Routes>
-          <Route element={<ActivityScreen />} path="/" />
-          <Route element={<p>Pairing route</p>} path="/pairing" />
-        </Routes>
-      </MemoryRouter>,
+/** Presses one key through the app's keyboard dispatcher. */
+function pressKey(key: string) {
+  act(() => {
+    dispatchKeyboardEvent(
+      { key, code: key, ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, defaultPrevented: false, isComposing: false, target: null, preventDefault: () => undefined },
+      { navigate: vi.fn() },
     );
-
-    fireEvent.click(screen.getByRole('tab', { name: 'History' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Pair a phone' }));
-
-    expect(screen.getByText('Pairing route')).toBeInTheDocument();
   });
+}
 
-  it('opens the incident picked in "Needs a look" on the Incidents tab, read once by its id', async () => {
-    vi.mocked(source.getNow).mockResolvedValueOnce(NOW_VIEW);
+/** The feed rows on screen. */
+function rows() {
+  return document.querySelectorAll('[data-feed-row]');
+}
+
+beforeEach(() => {
+  recorderListeners.length = 0;
+  feedSource.searchFeed.mockReset();
+  feedSource.getOverview.mockReset();
+  feedSource.getOverview.mockResolvedValue(buildOverview([{ type: 'change', lines: 41, failed: 2 }, { type: 'bridge', lines: 1, failed: 1 }]));
+  resetKeyboardStore();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe('ActivityScreen', () => {
+  it('shows only the skeleton while the first page is unread', () => {
+    feedSource.searchFeed.mockReturnValue(new Promise(() => undefined));
     renderScreen();
 
-    fireEvent.click(await screen.findByRole('button', { name: /Sync failed for 5 requests/ }));
-
-    expect(screen.getByRole('tab', { name: 'Incidents' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('status', { name: 'Loading the incident' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'No incident selected' })).toBeNull();
-    expect(source.getIncident).toHaveBeenCalledExactlyOnceWith(9);
+    expect(screen.getByRole('status', { name: 'Loading activity' })).toBeInTheDocument();
+    expect(rows()).toHaveLength(0);
   });
 
-  it('pins the moment from the action beside the tabs', async () => {
-    const success = vi.spyOn(toast, 'success').mockReturnValue('t');
+  it('renders one batch of rows, then appends the next page near the bottom', async () => {
+    feedSource.searchFeed.mockResolvedValueOnce(page(40, 100, 'c1')).mockResolvedValueOnce(page(40, 60));
     renderScreen();
 
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Pin this moment' })));
+    await waitFor(() => expect(rows()).toHaveLength(40));
+    expect(screen.getByRole('region', { name: /Oct 22$/ })).toBeInTheDocument();
+    expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: '', limit: 40, types: ['change', 'download', 'task', 'edit'] }));
 
-    expect(source.pinMoment).toHaveBeenCalledTimes(1);
-    expect(success).toHaveBeenCalledTimes(1);
+    fireEvent.scroll(screen.getByTestId('activity-feed-scroll'));
+
+    await waitFor(() => expect(rows()).toHaveLength(80));
+    expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'c1' }));
+    expect(screen.getByText('Start of the last 24 hours')).toBeInTheDocument();
+  });
+
+  it('keeps the loaded window when live events arrive and reads the counts again (S8)', async () => {
+    feedSource.searchFeed.mockResolvedValueOnce(page(40, 100, 'c1')).mockResolvedValueOnce(page(40, 60, 'c2'));
+    renderScreen();
+    await waitFor(() => expect(rows()).toHaveLength(40));
+    fireEvent.scroll(screen.getByTestId('activity-feed-scroll'));
+    await waitFor(() => expect(rows()).toHaveLength(80));
+    feedSource.searchFeed.mockResolvedValueOnce(page(40, 101, 'fresh'));
+    const overviewReads = feedSource.getOverview.mock.calls.length;
+
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    act(() => {
+      recorderListeners.forEach((listener) => listener());
+      recorderListeners.forEach((listener) => listener());
+      vi.advanceTimersByTime(1000);
+    });
+    vi.useRealTimers();
+
+    await waitFor(() => expect(document.querySelector('[data-feed-row="change:101"]')).not.toBeNull());
+    expect(rows().length).toBeGreaterThanOrEqual(80);
+    expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: '' }));
+    expect(feedSource.getOverview).toHaveBeenCalledTimes(overviewReads + 1);
+  });
+
+  it('shows the failure alert, not rows, when the feed cannot be read, and reads again on Try again', async () => {
+    feedSource.searchFeed.mockRejectedValueOnce(new Error('down')).mockResolvedValueOnce(page(1, 1));
+    renderScreen();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Try again' }));
+
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(screen.queryByText('Activity could not read its feed')).not.toBeInTheDocument();
+  });
+
+  it('asks for a type, without reading, when every type is turned off', async () => {
+    feedSource.searchFeed.mockResolvedValue(page(1, 1));
+    renderScreen();
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    const group = screen.getByRole('toolbar', { name: 'Activity filters' });
+
+    for (const name of [/^Changes/, /^Downloads/, /^Tasks/, /^Edits/]) {
+      fireEvent.click(within(group).getByRole('button', { name }));
+    }
+
+    expect(await screen.findByText('Pick at least one type to see activity.')).toBeInTheDocument();
+    expect(feedSource.searchFeed).toHaveBeenCalledTimes(4);
+    expect(rows()).toHaveLength(0);
+  });
+
+  it('shows each type count and its failures, and reads failures only from the failure button until its ×', async () => {
+    feedSource.searchFeed.mockResolvedValue(page(1, 1));
+    renderScreen();
+    expect(await screen.findByLabelText('2 failed')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show only failures' }));
+
+    await waitFor(() => expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ failuresOnly: true })));
+    // The open menu is modal, so the controls behind it are hidden from the accessibility tree.
+    expect(screen.getByRole('button', { name: 'Failures by type', hidden: true })).toHaveTextContent('3');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Turn off failure filter', hidden: true }));
+
+    await waitFor(() => expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ failuresOnly: false })));
+  });
+
+  it('opens a row in the drawer, moves it with ↑ / ↓ and closes it with Esc', async () => {
+    feedSource.searchFeed.mockResolvedValue(page(3, 3));
+    renderScreen();
+    await waitFor(() => expect(rows()).toHaveLength(3));
+
+    fireEvent.click(rows()[0]);
+    expect(screen.getByRole('complementary', { name: 'Activity detail' })).toHaveTextContent('3');
+
+    pressKey('ArrowDown');
+    expect(screen.getByRole('complementary', { name: 'Activity detail' })).toHaveTextContent('2');
+    pressKey('ArrowUp');
+    expect(screen.getByRole('complementary', { name: 'Activity detail' })).toHaveTextContent('3');
+    pressKey('Escape');
+    expect(screen.queryByRole('complementary', { name: 'Activity detail' })).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(rows()[0]);
+  });
+
+  it('keeps the drawer open on a press inside it or on a row, and closes it on a press anywhere else', async () => {
+    feedSource.searchFeed.mockResolvedValue(page(2, 2));
+    renderScreen();
+    await waitFor(() => expect(rows()).toHaveLength(2));
+    fireEvent.click(rows()[0]);
+
+    fireEvent.pointerDown(screen.getByRole('complementary', { name: 'Activity detail' }));
+    fireEvent.pointerDown(rows()[1]);
+    expect(screen.getByRole('complementary', { name: 'Activity detail' })).toBeInTheDocument();
+
+    fireEvent.pointerDown(screen.getByRole('toolbar', { name: 'Activity filters' }));
+    expect(screen.queryByRole('complementary', { name: 'Activity detail' })).not.toBeInTheDocument();
+  });
+
+  it('pins this moment', async () => {
+    feedSource.searchFeed.mockResolvedValue(page(1, 1));
+    renderScreen();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pin this moment' }));
+
+    await waitFor(() => expect(activitySource.pinMoment).toHaveBeenCalledTimes(1));
+  });
+
+  it('marks a failed bridge line with its incident link and a slow line amber', async () => {
+    const failed = buildLine({ type: 'bridge', origin: 'bridge', failed: true, incidentId: 4 }, { kind: 'event', id: '2', title: 'Sync failed', detail: 'sync.error' });
+    const slow = buildLine({ slow: true }, { id: '1', atMs: Date.now() - 2000 });
+    feedSource.searchFeed.mockResolvedValue(buildView([buildDay(0, [failed, slow])]));
+    renderScreen();
+
+    expect(await screen.findByRole('img', { name: 'Linked incident' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Bridge · failed' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Phone · slow' })).toBeInTheDocument();
+  });
+});
+
+describe('ActivityScreen chart and toolbar', () => {
+  /** Start of the current hour. */
+  const hourMs = Math.floor(Date.now() / 3_600_000) * 3_600_000;
+  /** The last three hourly slots, oldest first. */
+  const slots = [2, 1, 0].map((back) => ({ startMs: hourMs - back * 3_600_000, endMs: hourMs - (back - 1) * 3_600_000, count: 3 - back, failed: back === 0 ? 1 : 0 }));
+
+  /** The chart bars on screen. */
+  function bars() {
+    return [...document.querySelectorAll<HTMLElement>('[data-chart-bar]')];
+  }
+
+  /** The last feed read. */
+  function lastQuery() {
+    return feedSource.searchFeed.mock.calls.at(-1)?.[0];
+  }
+
+  /** Renders the screen once its chart bars are drawn. */
+  async function renderChart() {
+    feedSource.getOverview.mockResolvedValue({ ...buildOverview([]), slots });
+    feedSource.searchFeed.mockResolvedValue(page(1, 1));
+    renderScreen();
+    await waitFor(() => expect(bars()).toHaveLength(3));
+    expect(document.querySelectorAll('[data-chart-failure]')).toHaveLength(1);
+  }
+
+  it('reads the dragged range, shows its ×, and reads the whole window again once cleared', async () => {
+    await renderChart();
+    const group = screen.getByRole('group', { name: /Drag across bars/ });
+
+    fireEvent.pointerDown(bars()[0]);
+    fireEvent.pointerEnter(bars()[2]);
+    expect(bars().map((bar) => bar.dataset.chartBar)).toEqual(['selected', 'selected', 'selected']);
+    fireEvent.pointerUp(group);
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ fromMs: slots[0].startMs }));
+    expect(lastQuery()?.toMs).toBeGreaterThan(slots[2].startMs);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear time range' }));
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ toMs: 0 }));
+    expect(screen.queryByRole('button', { name: 'Clear time range' })).not.toBeInTheDocument();
+  });
+
+  it('selects one slot on a click, clears it on a second click, and drops a drag that leaves the chart', async () => {
+    await renderChart();
+    const group = screen.getByRole('group', { name: /Drag across bars/ });
+
+    fireEvent.pointerDown(bars()[1]);
+    fireEvent.pointerUp(group);
+    await waitFor(() => expect(lastQuery()).toMatchObject({ fromMs: slots[1].startMs, toMs: slots[1].endMs - 1 }));
+    expect(bars().map((bar) => bar.dataset.chartBar)).toEqual(['dimmed', 'selected', 'dimmed']);
+
+    fireEvent.pointerDown(bars()[1]);
+    fireEvent.pointerUp(group);
+    await waitFor(() => expect(lastQuery()).toMatchObject({ toMs: 0 }));
+
+    const reads = feedSource.searchFeed.mock.calls.length;
+    fireEvent.pointerDown(bars()[0]);
+    fireEvent.pointerLeave(group);
+    fireEvent.pointerUp(group);
+    expect(feedSource.searchFeed).toHaveBeenCalledTimes(reads);
+    expect(bars().map((bar) => bar.dataset.chartBar)).toEqual(['idle', 'idle', 'idle']);
+  });
+
+  it.each([
+    ['the scale switch reads the 7-day chart', '7 days', () => expect(feedSource.getOverview).toHaveBeenLastCalledWith('7d', 0, 0, 'all')],
+    ['the origin switch reads phone lines only', 'Phone', () => expect(lastQuery()).toMatchObject({ origin: 'phone' })],
+  ])('%s', async (_case, name, assertRead) => {
+    await renderChart();
+
+    fireEvent.click(screen.getByRole('radio', { name }));
+
+    await waitFor(assertRead);
+  });
+
+  it('reads the whole local days picked in the range calendar', async () => {
+    await renderChart();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Time range, / }));
+    const dialog = await screen.findByRole('dialog');
+    const today = within(dialog).getByRole('button', { name: /^Today/ });
+    fireEvent.click(today);
+    fireEvent.click(today);
+
+    const midnight = new Date();
+    midnight.setHours(0, 0, 0, 0);
+    await waitFor(() => expect(lastQuery()).toMatchObject({ fromMs: midnight.getTime(), toMs: midnight.getTime() + 86_400_000 - 1 }));
+  });
+
+  it('shows the chart failure alert instead of bars, and draws them after Try again', async () => {
+    feedSource.getOverview.mockRejectedValueOnce(new Error('down')).mockResolvedValue({ ...buildOverview([]), slots });
+    feedSource.searchFeed.mockResolvedValue(page(1, 1));
+    renderScreen();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Try again' }));
+
+    await waitFor(() => expect(bars()).toHaveLength(3));
+    expect(screen.queryByText('Activity could not read its chart and counts')).not.toBeInTheDocument();
   });
 });

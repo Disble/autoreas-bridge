@@ -1,0 +1,231 @@
+import type { Key } from '@heroui/react';
+import { CalendarDate } from '@internationalized/date';
+import type { ActivityChartScale, ActivityFeedOrigin, ActivityFeedQuery, ActivityFeedType } from '../feed-source/feed.types';
+import {
+  ACTIVITY_ALL_TYPES_KEY,
+  ACTIVITY_DAILY_SCALES,
+  ACTIVITY_DEFAULT_TYPES,
+  ACTIVITY_FAILURE_TYPES,
+  ACTIVITY_FEED_MOMENT_FORMAT,
+  ACTIVITY_HOUR_MS,
+  ACTIVITY_SCALE_DAYS,
+  ACTIVITY_TOGGLE_TYPES,
+} from './activity-feed.constants';
+import type { ActivityCalendarRange, ActivityFailureButtonState, ActivityFeedFilters, ActivityRange } from './activity-feed.types';
+
+/**
+ * The filters the Activity screen opens with.
+ *
+ * @param nowMs The current time.
+ * @returns 24 h, every origin, Traffic off, the failure filter off.
+ */
+export function createInitialFilters(nowMs: number): ActivityFeedFilters {
+  return { scale: '24h', range: undefined, origin: 'all', types: ACTIVITY_DEFAULT_TYPES, failuresOnly: false, failureTypes: ACTIVITY_FAILURE_TYPES, anchorMs: nowMs };
+}
+
+/** Local midnight `daysBack` days before the day of `nowMs`. */
+function localDayStart(nowMs: number, daysBack: number): number {
+  const day = new Date(nowMs);
+  return new Date(day.getFullYear(), day.getMonth(), day.getDate() - daysBack).getTime();
+}
+
+/**
+ * Where a scale's chart starts, as Go draws it: 24 hourly slots ending with
+ * the current hour, or N daily slots ending with today.
+ *
+ * @param scale The chart scale.
+ * @param nowMs The current time.
+ * @returns The window start, epoch milliseconds.
+ */
+export function scaleWindowStart(scale: ActivityChartScale, nowMs: number): number {
+  if (scale === '24h') {
+    return Math.floor(nowMs / ACTIVITY_HOUR_MS) * ACTIVITY_HOUR_MS - 23 * ACTIVITY_HOUR_MS;
+  }
+  return localDayStart(nowMs, ACTIVITY_SCALE_DAYS[scale] - 1);
+}
+
+/**
+ * Builds the feed read of the filters. Go reads every type for an empty type
+ * set, so an empty selection reads nothing instead of everything.
+ *
+ * @param filters The filters on screen.
+ * @param cursor The page cursor; empty for the first page.
+ * @param limit The page size.
+ * @returns The query, or undefined when no type is selected.
+ */
+export function toFeedQuery(filters: ActivityFeedFilters, cursor: string, limit: number): ActivityFeedQuery | undefined {
+  const types = filters.failuresOnly ? filters.failureTypes : filters.types;
+  if (types.length === 0) {
+    return undefined;
+  }
+  return {
+    fromMs: filters.range?.fromMs ?? scaleWindowStart(filters.scale, filters.anchorMs),
+    toMs: filters.range?.toMs ?? 0,
+    origin: filters.origin,
+    types,
+    failuresOnly: filters.failuresOnly,
+    cursor,
+    limit,
+  };
+}
+
+/** The known types among `keys`, in the order of `order`. */
+function pickTypes(keys: Set<Key>, order: readonly ActivityFeedType[]): readonly ActivityFeedType[] {
+  return order.filter((type) => keys.has(type));
+}
+
+/**
+ * Applies the type toggle group's selection. "All" turns every type on, and
+ * any type change turns the failure filter off (design, Failure button).
+ *
+ * @param filters The filters on screen.
+ * @param keys The toggle group's new selection.
+ * @param nowMs The current time; the window moves with it.
+ * @returns The new filters.
+ */
+export function toggleFeedTypes(filters: ActivityFeedFilters, keys: Set<Key>, nowMs: number): ActivityFeedFilters {
+  const wasAll = filters.types.length === ACTIVITY_TOGGLE_TYPES.length;
+  const hasAll = keys.has(ACTIVITY_ALL_TYPES_KEY);
+  const picked = pickTypes(keys, ACTIVITY_TOGGLE_TYPES);
+  // Pressing All while every type is on deselects All alone; it never turns the types off.
+  const pressedAll = hasAll ? !wasAll : wasAll && picked.length === ACTIVITY_TOGGLE_TYPES.length;
+  return { ...filters, types: pressedAll ? ACTIVITY_TOGGLE_TYPES : picked, failuresOnly: false, anchorMs: nowMs };
+}
+
+/**
+ * The toggle group's selected keys: the types, plus "All" when every type is on.
+ *
+ * @param types The selected types.
+ * @returns The keys.
+ */
+export function typeSelectionKeys(types: readonly ActivityFeedType[]): Set<Key> {
+  const keys = new Set<Key>(types.length === ACTIVITY_TOGGLE_TYPES.length ? [ACTIVITY_ALL_TYPES_KEY] : []);
+  for (const type of types) {
+    keys.add(type);
+  }
+  return keys;
+}
+
+/**
+ * Applies the failure menu's selection.
+ *
+ * @param filters The filters on screen.
+ * @param keys The menu's new selection.
+ * @returns The new filters.
+ */
+export function toggleFailureTypes(filters: ActivityFeedFilters, keys: Set<Key>): ActivityFeedFilters {
+  return { ...filters, failureTypes: pickTypes(keys, ACTIVITY_FAILURE_TYPES) };
+}
+
+/**
+ * Applies the origin switch, keeping the current origin for an unknown key.
+ *
+ * @param filters The filters on screen.
+ * @param keys The switch's new selection.
+ * @param nowMs The current time.
+ * @returns The new filters.
+ */
+export function setFilterOrigin(filters: ActivityFeedFilters, keys: Set<Key>, nowMs: number): ActivityFeedFilters {
+  const [key] = keys;
+  const origin = (['all', 'phone', 'bridge'] as const).find((value) => value === key) ?? filters.origin;
+  return { ...filters, origin: origin satisfies ActivityFeedOrigin, anchorMs: nowMs };
+}
+
+/**
+ * Applies the scale switch. A picked range stays picked.
+ *
+ * @param filters The filters on screen.
+ * @param scale The picked scale.
+ * @param nowMs The current time.
+ * @returns The new filters.
+ */
+export function setFilterScale(filters: ActivityFeedFilters, scale: ActivityChartScale, nowMs: number): ActivityFeedFilters {
+  return { ...filters, scale, anchorMs: nowMs };
+}
+
+/**
+ * Picks or clears the range. A range older than the current chart opens the
+ * smallest daily scale that contains it (design, Auto scale).
+ *
+ * @param filters The filters on screen.
+ * @param range The range, or undefined to clear it.
+ * @param nowMs The current time.
+ * @returns The new filters.
+ */
+export function setFilterRange(filters: ActivityFeedFilters, range: ActivityRange | undefined, nowMs: number): ActivityFeedFilters {
+  if (range === undefined || range.fromMs >= scaleWindowStart(filters.scale, nowMs)) {
+    return { ...filters, range, anchorMs: nowMs };
+  }
+  const scale = ACTIVITY_DAILY_SCALES.find((daily) => range.fromMs >= scaleWindowStart(daily, nowMs)) ?? '90d';
+  return { ...filters, range, scale, anchorMs: nowMs };
+}
+
+/**
+ * How the failure button shows.
+ *
+ * @param failuresOnly Whether the failure filter is on.
+ * @param isMenuOpen Whether its menu is open.
+ * @returns Off, on with the menu open, or on with it closed.
+ */
+export function toFailureButtonState(failuresOnly: boolean, isMenuOpen: boolean): ActivityFailureButtonState {
+  if (!failuresOnly) {
+    return 'off';
+  }
+  return isMenuOpen ? 'open' : 'on';
+}
+
+/**
+ * The range field's text: the picked range, or the real window when none is
+ * picked (design, Placeholder).
+ *
+ * @param range The picked range.
+ * @param windowStartMs The scale window's start.
+ * @param nowMs The current time.
+ * @returns `Oct 21, 14:35 – Oct 22, 14:35`.
+ */
+export function formatRangeLabel(range: ActivityRange | undefined, windowStartMs: number, nowMs: number): string {
+  const fromMs = range?.fromMs ?? windowStartMs;
+  const toMs = range?.toMs ?? nowMs;
+  return `${ACTIVITY_FEED_MOMENT_FORMAT.format(fromMs)} – ${ACTIVITY_FEED_MOMENT_FORMAT.format(toMs)}`;
+}
+
+/** The local calendar day of an instant. */
+function toCalendarDate(ms: number): CalendarDate {
+  const day = new Date(ms);
+  return new CalendarDate(day.getFullYear(), day.getMonth() + 1, day.getDate());
+}
+
+/**
+ * The calendar value of a picked range: its local days.
+ *
+ * @param range The picked range.
+ * @returns The calendar value, or null for none.
+ */
+export function toCalendarRange(range: ActivityRange | undefined): ActivityCalendarRange {
+  return range === undefined ? null : { start: toCalendarDate(range.fromMs), end: toCalendarDate(range.toMs) };
+}
+
+/**
+ * The range of a calendar pick: the start day's midnight to the end day's last millisecond.
+ *
+ * @param value The calendar value.
+ * @returns The range, or undefined for none.
+ */
+export function fromCalendarRange(value: ActivityCalendarRange): ActivityRange | undefined {
+  if (value === null) {
+    return undefined;
+  }
+  const fromMs = new Date(value.start.year, value.start.month - 1, value.start.day).getTime();
+  const toMs = new Date(value.end.year, value.end.month - 1, value.end.day + 1).getTime() - 1;
+  return { fromMs, toMs };
+}
+
+/**
+ * The days the range calendar offers: the 90-day ledger span up to today.
+ *
+ * @param nowMs The current time.
+ * @returns The first and last pickable days.
+ */
+export function toCalendarBounds(nowMs: number): { readonly minValue: CalendarDate; readonly maxValue: CalendarDate } {
+  return { minValue: toCalendarDate(scaleWindowStart('90d', nowMs)), maxValue: toCalendarDate(nowMs) };
+}

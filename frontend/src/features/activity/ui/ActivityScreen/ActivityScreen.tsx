@@ -1,64 +1,77 @@
-import { Button, Chip, Tabs } from '@heroui/react';
-import { Icon } from '@iconify/react';
-import pinIcon from '@iconify-icons/solar/pin-bold';
-import { ActivityHistory } from '../../history/ActivityHistory';
-import { ActivityRecorder } from '../../recorder/ActivityRecorder';
-import { ActivityIncidents } from '../ActivityIncidents/ActivityIncidents';
-import { ActivityNow } from '../ActivityNow/ActivityNow';
+import { Card } from '@heroui/react';
+import { ActivityDetailDrawer } from '../ActivityDetailDrawer/ActivityDetailDrawer';
+import { ActivityFeed } from '../ActivityFeed/ActivityFeed';
+import { ActivityTimeChart } from '../ActivityTimeChart/ActivityTimeChart';
+import { ActivityToolbar } from '../ActivityToolbar/ActivityToolbar';
 import { useActivityScreen } from './use-activity-screen';
 
 /**
- * The Activity shell: the Now · Incidents · History tab strip with "Pin this
- * moment" beside it. An incident opened from Now reaches the Incidents tab
- * as an open request, and the recorder link under Now covers the tabs with
- * the 2-hour recorder until Back.
+ * The Activity screen (activity-ui-design-v2.md): the time chart, then the
+ * feed card with its toolbar and the day-grouped feed, newest first. A row
+ * opens the detail drawer; ↑ / ↓ move it and Esc closes it.
  */
 export function ActivityScreen() {
-  const { selectedTab, selectTab, incidentRequest, openIncident, isRecorderOpen, openRecorder, closeRecorder, pairPhone, pin, isPinning } = useActivityScreen();
-
-  if (isRecorderOpen) {
-    return <ActivityRecorder onBack={closeRecorder} />;
-  }
+  const screen = useActivityScreen();
 
   return (
-    <Tabs onSelectionChange={selectTab} selectedKey={selectedTab}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs.ListContainer className="w-fit max-w-full whitespace-nowrap">
-          <Tabs.List aria-label="Activity views">
-            <Tabs.Tab id="now">
-              Now
-              <Tabs.Indicator />
-            </Tabs.Tab>
-            <Tabs.Tab id="incidents">
-              Incidents
-              <Tabs.Indicator />
-            </Tabs.Tab>
-            <Tabs.Tab id="history">
-              History
-              <Tabs.Indicator />
-            </Tabs.Tab>
-          </Tabs.List>
-        </Tabs.ListContainer>
-        <Button isPending={isPinning} onPress={pin} size="sm" variant="secondary">
-          <Icon aria-hidden icon={pinIcon} />
-          Pin this moment
-        </Button>
+    <div className="flex flex-col gap-4">
+      <ActivityTimeChart
+        bars={screen.chart.bars}
+        isPinning={screen.isPinning}
+        onBarPointerDown={screen.onBarPointerDown}
+        onBarPointerEnter={screen.onBarPointerEnter}
+        onBarsPointerLeave={screen.onBarsPointerLeave}
+        onBarsPointerUp={screen.onBarsPointerUp}
+        onPin={screen.pin}
+        onRetry={screen.onRetry}
+        onScaleChange={screen.onScaleChange}
+        scale={screen.scale}
+        status={screen.chart.status}
+        title={screen.chart.title}
+      />
+      <Card aria-label="Feed">
+        <Card.Content className="flex flex-col gap-3">
+          <ActivityToolbar
+            calendarMax={screen.calendarBounds.maxValue}
+            calendarMin={screen.calendarBounds.minValue}
+            calendarValue={screen.calendarValue}
+            failure={{
+              state: screen.failureButtonState,
+              count: screen.failureCount,
+              rows: screen.failureRows,
+              selectedKeys: screen.failureMenuKeys.selected,
+              disabledKeys: screen.failureMenuKeys.disabled,
+              onOpenChange: screen.onFailureMenuOpenChange,
+              onSelectionChange: screen.onFailureTypesChange,
+              onClear: screen.onFailureClear,
+            }}
+            failuresOnly={screen.failuresOnly}
+            hasRange={screen.hasRange}
+            onCalendarChange={screen.onCalendarChange}
+            onClearRange={screen.onClearRange}
+            onOriginChange={screen.onOriginChange}
+            onTypesChange={screen.onTypesChange}
+            origin={screen.origin}
+            rangeLabel={screen.rangeLabel}
+            typeKeys={screen.typeKeys}
+            typeToggles={screen.typeToggles}
+          />
+          <ActivityFeed
+            days={screen.feed.days}
+            endMark={screen.feed.endMark}
+            hasMore={screen.feed.hasMore}
+            isLoadingMore={screen.feed.isLoadingMore}
+            onRetry={screen.onRetry}
+            onScroll={screen.feed.onScroll}
+            onSelectRow={screen.onSelectRow}
+            resolvedView={screen.feed.resolvedView}
+            status={screen.feed.status}
+          />
+        </Card.Content>
+      </Card>
+      <div className="contents" data-activity-drawer>
+        <ActivityDetailDrawer line={screen.openLine} onClose={screen.onCloseDrawer} />
       </div>
-      <Tabs.Panel className="flex flex-col gap-3 pt-4" id="now">
-        <ActivityNow onOpenIncident={openIncident} />
-        <Button className="self-start" onPress={openRecorder} size="sm" variant="ghost">
-          <Chip color="success" size="sm" variant="soft">
-            Recording
-          </Chip>
-          See every request from the last 2 hours
-        </Button>
-      </Tabs.Panel>
-      <Tabs.Panel className="pt-4" id="incidents">
-        <ActivityIncidents openRequest={incidentRequest} />
-      </Tabs.Panel>
-      <Tabs.Panel className="pt-4" id="history">
-        <ActivityHistory onPairPhone={pairPhone} />
-      </Tabs.Panel>
-    </Tabs>
+    </div>
   );
 }

@@ -28,7 +28,7 @@ describe('KeymapPanel', () => {
 
       expect(map.compareDocumentPosition(recovery) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(screen.getByText('Mark all as read')).toBeInTheDocument();
-      expect(screen.getByTestId('keymap-binding-row-scope-note')).toHaveTextContent('while the Notification Center is open');
+      expect(screen.getAllByTestId('keymap-binding-row-scope-note').map((note) => note.textContent)).toContain('while the Notification Center is open');
     });
 
     it('renders every binding label in the order listAllBindings/groupBindingsBySection produces', () => {

@@ -26,8 +26,8 @@ function mapCalendarDay(day: activityread.CalendarDay): ActivityCalendarDay {
   return { dayStartMs: day.DayStartMS, total: day.Total, hasData: day.HasData, hasIncident: day.HasIncident };
 }
 
-/** Maps one Go ledger line; a nil phone time becomes undefined and unknown marks are dropped. */
-function mapLedgerLine(line: activityread.LedgerLine): ActivityLedgerLine {
+/** Maps one Go ledger line; a nil phone time becomes undefined and unknown marks are dropped. The feed source reuses it. */
+export function mapLedgerLine(line: activityread.LedgerLine): ActivityLedgerLine {
   return {
     kind: line.Kind,
     id: line.ID,

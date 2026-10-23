@@ -3,8 +3,8 @@ import { PageHeader } from '../../shared/ui/PageHeader/PageHeader';
 
 /**
  * ActivityRoute is the single destination for Activity and for the retired
- * Status, Network and Events deep links. The Now, Incidents and History views
- * are tabs inside the screen, never routes of their own.
+ * Status, Network and Events deep links. The screen is one feed with its
+ * detail drawer; nothing inside it is a route of its own.
  */
 export function ActivityRoute() {
   return (

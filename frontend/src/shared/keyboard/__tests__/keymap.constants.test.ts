@@ -11,6 +11,14 @@ describe('SCOPED_COMMAND_BINDINGS', () => {
       section: 'Notifications',
     });
   });
+
+  it.each([
+    ['activity-feed.previous', 'arrowup'],
+    ['activity-feed.next', 'arrowdown'],
+    ['activity-feed.close', 'escape'],
+  ] as const)('declares %s on %s under the activity-feed scope and the Activity section', (id, chord) => {
+    expect(SCOPED_COMMAND_BINDINGS[id]).toMatchObject({ id, scope: 'activity-feed', chord, section: 'Activity' });
+  });
 });
 
 describe('KEYMAP_DOCUMENT_VERSION', () => {
