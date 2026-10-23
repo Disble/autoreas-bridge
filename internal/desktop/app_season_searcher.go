@@ -2,7 +2,6 @@ package desktop
 
 import (
 	"context"
-	"net/http"
 
 	"autoreas-bridge/internal/download/sites/jkanime"
 	"autoreas-bridge/internal/season"
@@ -16,9 +15,11 @@ type jkanimeNameSearcher struct {
 	searcher *jkanime.Searcher
 }
 
-// newJkanimeNameSearcher builds the adapter over a default HTTP client.
-func newJkanimeNameSearcher() jkanimeNameSearcher {
-	return jkanimeNameSearcher{searcher: jkanime.NewSearcher(http.DefaultClient)}
+// newJkanimeNameSearcher builds the adapter over the shared provider client,
+// so a name search crosses the Cloudflare clearance transport like every
+// other provider request (ADR-030).
+func (a *App) newJkanimeNameSearcher() jkanimeNameSearcher {
+	return jkanimeNameSearcher{searcher: jkanime.NewSearcher(a.providerHTTPClient())}
 }
 
 // Search runs a jkanime name search and maps the results to match.Candidate.
@@ -38,9 +39,9 @@ func (a jkanimeNameSearcher) Search(ctx context.Context, query string) ([]match.
 // "Find on provider" search asks, each named by its site descriptor so the
 // frontend shows the same name the download registry uses. jkanime is the
 // only provider today; a new site adds its own entry here.
-func newSeasonProviderSearchers(jkanimeSearcher season.NameSearcher) []season.ProviderSearcher {
+func (a *App) newSeasonProviderSearchers(jkanimeSearcher season.NameSearcher) []season.ProviderSearcher {
 	return []season.ProviderSearcher{
-		{Provider: jkanime.New(nil).Descriptor().Name, Searcher: jkanimeSearcher},
+		{Provider: jkanime.New(a.providerHTTPClient()).Descriptor().Name, Searcher: jkanimeSearcher},
 	}
 }
 

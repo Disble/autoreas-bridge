@@ -360,6 +360,16 @@ info:
     incident's phone reports as `"<trigger> <duration_ms> ms"`, and a stall of
     10000 ms or more opens a `mobile_failure` incident.
 
+    2026-10-23 — provider egress clearance consumer impact: NO REST/WS wire
+    change. The bridge's outbound requests to anime providers (today jkanime)
+    now pass through `internal/cfclearance`, a transport that clears a
+    Cloudflare managed challenge with a hidden WebView2 child of the bridge
+    itself and replays the request (ADR-030). Nothing a mobile client sends
+    or receives changes: no new endpoint, field, status code or WebSocket
+    message. What a client may notice is timing: the first provider request
+    after a challenge appears can take 6 to 11 seconds longer once, and the
+    ADR-029 mirror fallback still applies when clearing is impossible.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}
