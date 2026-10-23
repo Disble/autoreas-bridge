@@ -10,14 +10,6 @@
 /** The "where it happened" filter (`activityread.Where`). */
 export type ActivityWhere = 'all' | 'phone' | 'downloads' | 'editor' | 'schedule' | 'season';
 
-/** One option of the "where it happened" filter. */
-export interface ActivityWhereOption {
-  /** The filter value Go reads. */
-  readonly id: ActivityWhere;
-  /** The words the toggle shows. */
-  readonly label: string;
-}
-
 /** One stored incident occurrence with its plain-words title. */
 export interface ActivityIncidentOccurrence {
   /** Occurrence id, the primary key the detail is read by. */

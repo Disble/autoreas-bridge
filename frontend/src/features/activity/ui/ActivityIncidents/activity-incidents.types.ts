@@ -8,12 +8,6 @@ export type ActivityIncidentSelection =
   | { readonly kind: 'incident'; readonly id: number }
   | { readonly kind: 'run'; readonly correlationId: string };
 
-/** A request from another tab to open one incident; each open is a new object. */
-export interface ActivityIncidentOpenRequest {
-  /** The occurrence to open. */
-  readonly incidentId: number;
-}
-
 /** One row of the left list: an incident or, for an internal filter, a run. */
 export interface ActivityIncidentListEntry {
   /** Stable React key, unique across both kinds. */
@@ -33,9 +27,6 @@ export interface ActivityIncidentListEntry {
   /** A run's outcome chip, only when it needs attention. */
   readonly chip: ActivityChipModel | undefined;
 }
-
-/** The left list as the tab renders it. */
-export type ActivityIncidentListRead = ActivityRead<readonly ActivityIncidentListEntry[]>;
 
 /** One marker on a window lane. */
 export interface ActivityLaneMarker {
@@ -162,12 +153,6 @@ export interface ActivityPickedRequest {
   readonly requestId: string;
 }
 
-/** Props of the Incidents tab. */
-export interface ActivityIncidentsProps {
-  /** An incident another tab asked to open; undefined when none was asked. */
-  readonly openRequest: ActivityIncidentOpenRequest | undefined;
-}
-
 /** Props of the left list. */
 export interface ActivityIncidentListProps {
   /** The rows in progressive order. */
@@ -182,94 +167,4 @@ export interface ActivityIncidentListProps {
   readonly onScroll: (event: UIEvent<HTMLDivElement>) => void;
   /** Opens one row. */
   readonly onSelect: (selection: ActivityIncidentSelection) => void;
-}
-
-/** Props of the resolved list: its rows, or the empty state that fits the filter. */
-export interface ActivityIncidentListResolvedProps extends ActivityIncidentListProps {
-  /** Whether a filter other than All is selected. */
-  readonly isFiltered: boolean;
-  /** Returns the filter to All. */
-  readonly onClearFilter: () => void;
-}
-
-/** Props of the list card, whose loading, failure, empty and resolved states are exclusive. */
-export interface ActivityIncidentListPaneProps extends ActivityIncidentListResolvedProps {
-  /** The state of the list read. */
-  readonly status: ActivityIncidentListRead['status'];
-  /** Reads the list again. */
-  readonly onRetry: () => void;
-}
-
-/** Props of the detail card. */
-export interface ActivityIncidentDetailPaneProps {
-  /** What the pane shows; undefined until a pick. */
-  readonly selection: ActivityIncidentSelection | undefined;
-}
-
-/** Props of the where filter. */
-export interface ActivityWhereFilterProps {
-  /** The current filter. */
-  readonly where: ActivityWhere;
-  /** Changes the filter. */
-  readonly onChange: (keys: 'all' | Iterable<Key>) => void;
-}
-
-/** Props of one incident's detail pane. */
-export interface ActivityIncidentDetailProps {
-  /** The occurrence to read. */
-  readonly incidentId: number;
-}
-
-/** Props of the resolved incident detail. */
-export interface ActivityIncidentDetailContentProps {
-  /** The worded occurrence. */
-  readonly model: ActivityIncidentDetailModel;
-  /** The selected request id; empty when none. */
-  readonly selectedRequestId: string;
-  /** Opens one request row. */
-  readonly onSelectRequest: (keys: 'all' | Iterable<Key>) => void;
-  /** Copies the incident reference. */
-  readonly onCopy: () => void;
-  /** The selected request's pane, under the table; null before a pick. */
-  readonly requestPane: ReactNode;
-}
-
-/** Props of the window lanes. */
-export interface ActivityIncidentLanesProps {
-  /** The drawable lanes. */
-  readonly lanes: ActivityLanesModel;
-}
-
-/** Props of the window's request table. */
-export interface ActivityIncidentRequestsProps {
-  /** The folded rows. */
-  readonly rows: readonly ActivityRequestRowModel[];
-  /** The selected row's request id; empty when none. */
-  readonly selectedRequestId: string;
-  /** Opens one row. */
-  readonly onSelect: (keys: 'all' | Iterable<Key>) => void;
-}
-
-/** Props of the selected request's pane. */
-export interface ActivityRequestPaneProps {
-  /** The read of the selected request. */
-  readonly request: ActivityRequestRead;
-  /** The worded request once resolved. */
-  readonly model: ActivityRequestDetailModel | undefined;
-  /** Whether one body's full text is open. */
-  readonly isBodyOpen: (label: string) => boolean;
-  /** Opens or closes one body's full text. */
-  readonly onToggleBody: (label: string) => void;
-  /** Reads it again after a failure. */
-  readonly onRetry: () => void;
-}
-
-/** Props of one body. */
-export interface ActivityRequestBodyProps {
-  /** The worded body. */
-  readonly body: ActivityBodyModel;
-  /** Whether its full text is open. */
-  readonly isOpen: boolean;
-  /** Opens or closes its full text. */
-  readonly onToggle: () => void;
 }

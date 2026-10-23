@@ -31,14 +31,14 @@ Scope (L3): the Go side may only add read queries and bindings. No writes, no ne
 |---|---|---|---|---|
 | T1 | S3, S4, S5 | inline | done | `Reader.Feed` + `SearchActivityFeed`; RED observed (`r.Feed undefined`), 12 feed tests GREEN; mutation see L9 |
 | T2 | S6 | inline | done | `Reader.Overview` + `GetActivityOverview`; RED not run separately (would not compile), 4 overview tests GREEN; mutation see L9 |
-| T3 | S7 | — | likely not needed | every FeedLine carries its Run and TrafficHour; story, incident, request and recorder reads exist. The T6/T7 writer reports any gap |
+| T3 | S7 | inline (Go) + delegated (writer B, drawer) | done | `Reader.Event` + `GetActivityEvent`, `getEvent` on the feed port; RED observed for both; ditto 1/1 killed after removing a dead id guard; commit db7f6b87 |
 | T4 | S3, S6 | inline | done | `feed-source/` mappers + `createActivityFeedSource`; RED observed (module missing), 7 tests GREEN; `mapLedgerLine` exported for reuse |
 | T5 | S1, S2, S8, S11 | delegated (writer A) | done | screen: chart, range field, toolbar, failure menu, feed rows, hooks, live refresh |
 | T6 | S1, S2, S7 | delegated (writer B) | done | drawer summary presenters, generic layer, cause catalog |
 | T7 | S1, S7 | delegated (writer B) | done | technical view: Requests, Events, Data |
-| T8 | S9, S10 | inline | pending | remove old tabs, design doc gaps, render smoke |
+| T8 | S9, S10 | inline + delegated (layout fixture) | in progress | 46 unreachable old-tab files and their orphan exports removed; Activity layout fixtures replaced by one feed+drawer fixture; design-doc gap section pending the observability-doc rule |
 
-Route evidence: T1–T4 inline (no Writer trigger). T5 and T6+T7 are delegated: Writer trigger (a), two independent units with disjoint edit surfaces, each several files and well over 100 lines, joined only by the `ActivityDetailDrawerProps` contract the parent wrote; plus (b), the parent context passed the long-session backstop. Commit 0972f8fd holds T1+T2.
+Route evidence: T1–T4 inline (no Writer trigger). T5 and T6+T7 are delegated: Writer trigger (a), two independent units with disjoint edit surfaces, each several files and well over 100 lines, joined only by the `ActivityDetailDrawerProps` contract the parent wrote; plus (b), the parent context passed the long-session backstop. Commit 0972f8fd holds T1+T2, 6053ad6e holds T4-T7, db7f6b87 holds T3.
 
 ## Log
 

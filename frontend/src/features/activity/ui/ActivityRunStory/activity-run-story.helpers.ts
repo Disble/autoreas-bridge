@@ -30,7 +30,7 @@ export function describeActivityRunOutcome(level: string): ActivityChipModel {
  * @param eventType The stored event type.
  * @returns The type in words.
  */
-export function wordActivityEventType(eventType: string): string {
+function wordActivityEventType(eventType: string): string {
   return eventType.replaceAll(/[._]/g, ' ');
 }
 
