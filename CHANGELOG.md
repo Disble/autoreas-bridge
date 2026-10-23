@@ -14,6 +14,13 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [2.4.0] — 2026-10-23
+
+### Added
+
+- The bridge now records screen freezes reported by the mobile app. When the phone's screen takes 2 seconds or more to respond after a touch, after returning to the app, or after a window focus or resize, the phone sends a report. It appears in Activity history as the cause and duration (for example "app_active 120000 ms"), and a freeze of 10 seconds or more opens an incident.
+- **Wire-visible, additive**: `POST /api/sync/diagnostics` accepts a new `screen_stall` kind. Bridges before 2.4.0 answer it with `400 kind_not_served`, so the mobile app must not send it to them. Every other request is unchanged. See `docs/openapi.yaml`.
+
 ## [2.3.1] — 2026-10-22
 
 ### Fixed

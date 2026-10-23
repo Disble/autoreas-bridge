@@ -373,6 +373,12 @@ func TestMobileReportRecordsIncidentOnlyForFailures(t *testing.T) {
 				"outcome": failedOutcome, "reason": nil, "cause": incidentTestCause, "duration_ms": 40,
 			})
 		}, []incidentRow{{reason: "mobile_failure", sourceKind: "mobile", sourceID: "obs-1"}}},
+		{"ten-second screen stall", func(t *testing.T) telemetry.Event {
+			return mobileTestEvent(t, telemetry.KindScreenStall, "stall-1", map[string]any{"duration_ms": 10000, "trigger": "resize"})
+		}, []incidentRow{{reason: "mobile_failure", sourceKind: "mobile", sourceID: "stall-1"}}},
+		{"short screen stall", func(t *testing.T) telemetry.Event {
+			return mobileTestEvent(t, telemetry.KindScreenStall, "stall-2", map[string]any{"duration_ms": 9999, "trigger": "resize"})
+		}, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

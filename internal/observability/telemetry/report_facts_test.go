@@ -35,6 +35,7 @@ func TestReadReportFacts(t *testing.T) {
 		Action: "episode_plus_one", Phase: "finished", Outcome: strPtr("failed"), Cause: strPtr("timeout"),
 	})
 	receivedAction := mustMarshal(t, episodeActionPayload{Action: "episode_plus_one", Phase: "received"})
+	stall := mustMarshal(t, screenStallPayload{DurationMS: 12000, Trigger: "resize", Transitions: []screenStallTransition{}})
 
 	tests := []struct {
 		name    string
@@ -49,6 +50,8 @@ func TestReadReportFacts(t *testing.T) {
 		{"episode action without outcome", KindEpisodeAction, receivedAction, ReportFacts{Phase: "received"}},
 		{"undecodable cycle report", KindCycleReport, []byte("{"), ReportFacts{}},
 		{"undecodable episode action", KindEpisodeAction, []byte("{"), ReportFacts{}},
+		{"screen stall", KindScreenStall, stall, ReportFacts{Phase: "resize", DurationMS: 12000}},
+		{"undecodable screen stall", KindScreenStall, []byte("{"), ReportFacts{}},
 		{"unknown kind", "other", failedAction, ReportFacts{}},
 	}
 	for _, tt := range tests {
