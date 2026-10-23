@@ -14,12 +14,18 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [2.3.1] — 2026-10-22
+
 ### Fixed
 
-- Downloads and the season name search work again after jkanime.net went behind a Cloudflare challenge.
-  Every request now falls back from jkanime.net to its mirrors jkanime.org and jkanime.bz, but only when
-  the host answers with a Cloudflare challenge. Stored anime page URLs stay on jkanime.net.
-  See ADR-029. No wire change.
+- Automatic downloads work again. jkanime.net started blocking the app behind a Cloudflare check, so every download check failed with "HTTP 403" for every anime. The app now uses jkanime's own mirrors, jkanime.org and jkanime.bz, whenever jkanime.net shows that check, and goes back to jkanime.net automatically once it is lifted.
+- Searching an anime by name in Season mode works again for the same reason, and the anime page links it saves still point at jkanime.net.
+
+### Internal
+
+- The architecture check before each commit no longer scans git worktrees kept inside the repository folder, and git ignores that folder.
+
+No wire change.
 
 ## [2.3.0] — 2026-10-22
 

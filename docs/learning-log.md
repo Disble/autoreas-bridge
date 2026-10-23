@@ -340,3 +340,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-10-22]: Release 2.3.0 is minor: the icon-only standard and the action hierarchy change how buttons look and read across the app, with no wire, data or config change.
 - [2026-10-23]: jkanime.net 403 with Cf-Mitigated: challenge is Cloudflare's JS managed challenge; ping and a working browser prove nothing for net/http. Its mirrors jkanime.org/.bz serve the same flow unchallenged (ADR-029).
 - [2026-10-23]: Go 1.27 httptest.NewTestServer uses an in-memory network: srv.URL is empty until Client() is called and one client reaches one server for any address, so multi-host tests route by r.Host on a single server.
+- [2026-10-23]: 2.3.1 is an emergency patch: jkanime.net went behind a Cloudflare managed challenge and every download failed; the mirror fallback chain (ADR-029) restores downloads and season search with no wire change.
