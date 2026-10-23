@@ -1,7 +1,7 @@
 # Autoreas Bridge — Documento de Arquitectura
 
 **Fecha de creación:** 2026-04-05
-**Última revisión sustantiva:** 2026-08-25
+**Última revisión sustantiva:** 2026-10-23
 **Estado:** Activo y mantenido. Este documento no es un registro histórico: se actualiza cuando el código cambia (las secciones 5-6 se mantuvieron durante agosto de 2026), y ante cualquier discrepancia el código gana como verdad de runtime.
 
 Este documento refleja las decisiones de diseño técnico fundamentales (apoyadas en el RFC original) que guían el desarrollo de Autoreas Bridge.
@@ -33,7 +33,15 @@ El sistema se divide en **Bounded Contexts (Dominios)** fuertemente separados. N
 4. **`internal/desktop/` (Desktop Shell / System Domain):**
    - **Responsabilidad:** Arrancar la app, registrar Auto-start en el OS, gestionar el System Tray y encapsular Wails. Es el **composition root**: el struct `App` y los 99 metodos que el frontend invoca por bindings.
    - **Deriva corregida el 2026-09-02:** este documento describia el dominio como `internal/system/`, un paquete que nunca existio. La responsabilidad vivia repartida en 104 archivos `package main` en la **raiz** del repositorio, porque se creia que Wails lo exigia. No lo exige. Que la doctrina llevara meses describiendo un arbol que no era el real es precisamente la condicion que deja al folklore instalarse: nadie compara la doctrina con el codigo si ambos suenan plausibles. Ver `docs/adr/018-desktop-shell-package.md`.
-   - **Frontera:** es el unico paquete bajo `internal/` autorizado a importar el runtime de Wails (`.golangci.yml` -> `wails-confined-to-edge`). `main.go` en la raiz queda reducido a lo que `//go:embed` y Wails obligan: el bundle embebido y `wails.Run(desktop.Options(assets))`.
+   - **Frontera:** es el unico paquete bajo `internal/` autorizado a importar el runtime de Wails (`.golangci.yml` -> `wails-confined-to-edge`). `main.go` en la raiz queda reducido a lo que `//go:embed` y Wails obligan: el bundle embebido y `wails.Run(desktop.Options(assets))`, mas la llamada que atiende el modo solucionador de `internal/cfclearance` antes de arrancar Wails (ADR-030).
+
+5. **`internal/cfclearance/` (Clearance Context):**
+   - **Responsabilidad:** superar el managed challenge de Cloudflare de forma transparente para cualquier adapter de provider (`internal/download/sites/*`), sin pedir nada al usuario. Es un hexagono propio porque lo consumen dos contextos (download y season) y ninguno es dueño del problema. La decision esta registrada en `docs/adr/030-provider-egress-clearance.md`.
+   - **Puerto de entrada:** `http.RoundTripper`. `cfclearance.Transport` lo implementa y el composition root construye un unico `*http.Client` sobre el, que inyecta en cada sitio de construccion de un adapter (`jkanime.New(client)`, `jkanime.NewSearcher(client)`). Los adapters no aprenden ningun tipo nuevo y no construyen su propio cliente: una regla de `tools/checkarchitecture` rechaza `http.DefaultClient` y `&http.Client{` bajo `internal/download/sites/`.
+   - **Puertos de salida (ADR-017):** `Solver` (resuelve un challenge para un origen y devuelve las cookies de Cloudflare y el User-Agent que las gano), `ClearanceStore` (guarda la clearance por dominio registrable) y `Publisher` (publica `clearance.challenge_detected`, `clearance.solved` y `clearance.failed` en el `events.Bus`, nunca con el valor de una cookie). Adapters: `webview2.ProcessSolver` en Windows, que relanza el propio ejecutable con `--cfclearance-solve` y abre un WebView2 en una ventana que nunca se muestra; `UnsupportedSolver` en otras plataformas; `MemoryStore`; el bus en memoria.
+   - **Mecanismo:** el transport deja pasar intacto todo lo que no es un challenge. Ante `403`/`503` con `Cf-Mitigated: challenge` (o un intersticial HTML con `2xx`) resuelve una vez por dominio registrable, guarda solo `cf_clearance` y `__cf*`, y reintenta la peticion con el User-Agent del motor; maximo dos solves por peticion, un solve concurrente, 30 s de timeout y 10 min de cooldown por dominio tras un fallo. Si no puede ayudar devuelve la respuesta original sin tocar, de modo que la cadena de mirrors de ADR-029 sigue funcionando como ultimo recurso.
+   - **Frontera:** importa solo la biblioteca estandar, `golang.org/x/net/publicsuffix` e `internal/events`; nunca `internal/download`, `internal/season`, `internal/anime`, `internal/desktop` ni Wails (`.golangci.yml` -> depguard). El subpaquete `webview2` es el unico que importa `github.com/wailsapp/go-webview2` y lleva build tag de Windows.
+   - **Tiers:** las decisiones del transport son CORE (cobertura total y mutantes muertos o equivalentes); el adapter WebView2 es IMPORTANT (test con fixture local bajo build tag de Windows); el cableado es INFRASTRUCTURE.
 
 ---
 
