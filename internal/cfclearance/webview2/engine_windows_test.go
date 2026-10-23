@@ -69,7 +69,9 @@ func TestEngineClearsAFixtureCookieWithoutShowingAWindow(t *testing.T) {
 // leave after the controller closed. In production the solver child exits and its job
 // object kills them at once; here the engine runs in-process, so Close is asynchronous
 // and its latency grows with machine load (the pre-commit gate runs this test beside
-// every other package with -p 4). A missing Close still fails: the processes never leave.
+// every other package with -p 4). An engine that is not torn down (host window kept and
+// controller left open) still fails: its processes never leave. Closing the controller
+// alone is belt-and-braces: destroying the host window already ends the engine.
 const engineTeardownBudget = 60 * time.Second
 
 // watchVisibility polls IsWindowVisible on hwnd until stop closes, counting every check and
