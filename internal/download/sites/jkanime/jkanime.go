@@ -1,5 +1,6 @@
 // Package jkanime implements the sites.EpisodeSource port (design.md §3.1/§2.1 rows 5-7) for
-// jkanime.net/jkanime.bz. It lifts the WORKING extraction logic validated in cmd/poc/scraper.go
+// jkanime.net and its mirrors jkanime.org/jkanime.bz, falling back along that host chain when
+// Cloudflare challenges a host (hosts.go, ADR-029). It lifts the WORKING extraction logic validated in cmd/poc/scraper.go
 // (CSRF + anime-ID extraction, AJAX episode listing, base64 "var servers" link extraction) behind
 // the EpisodeSource interface, isolating the regex so a future DOM-parser rewrite swaps only this
 // adapter (design ADR-10).
@@ -62,22 +63,22 @@ type jkanimeServerLink struct {
 	Size   string `json:"size"`
 }
 
-// Adapter implements sites.EpisodeSource for jkanime.net/jkanime.bz.
+// Adapter implements sites.EpisodeSource for jkanime.net and its mirrors.
 type Adapter struct {
-	client  *http.Client
-	baseURL string
+	client *http.Client
+	hosts  hostChain
 }
 
 // New returns a jkanime Adapter using the given HTTP client (a cookiejar is attached so the
 // CSRF-token-bearing session survives across the page+AJAX calls, mirroring the validated PoC
 // session handling).
 func New(client *http.Client) *Adapter {
-	return newWithBaseURL(client, defaultBaseURL)
+	return newWithBaseURL(client, defaultBaseURLs...)
 }
 
-// newWithBaseURL is the test seam: it lets tests point the AJAX endpoint at an httptest.Server
+// newWithBaseURL is the test seam: it lets tests point the host chain at httptest.Servers
 // while still exercising the real extraction code path (no live network in CI).
-func newWithBaseURL(client *http.Client, baseURL string) *Adapter {
+func newWithBaseURL(client *http.Client, baseURLs ...string) *Adapter {
 	if client == nil {
 		client = http.DefaultClient
 	}
@@ -88,7 +89,7 @@ func newWithBaseURL(client *http.Client, baseURL string) *Adapter {
 		cloned.Jar = jar
 		withJar = &cloned
 	}
-	return &Adapter{client: withJar, baseURL: strings.TrimRight(baseURL, "/")}
+	return &Adapter{client: withJar, hosts: newHostChain(baseURLs)}
 }
 
 // Descriptor identifies this adapter to the SiteRegistry (design §3.2).
@@ -96,25 +97,31 @@ func (a *Adapter) Descriptor() sites.SiteDescriptor {
 	return sites.SiteDescriptor{Name: "jkanime", Priority: 0}
 }
 
-// Matches reports whether pageURL is a jkanime.net or jkanime.bz anime page.
+// Matches reports whether pageURL is an anime page on jkanime.net or one of its mirrors.
 func (a *Adapter) Matches(pageURL string) bool {
-	return strings.Contains(pageURL, "jkanime.net") || strings.Contains(pageURL, "jkanime.bz")
+	for _, host := range mirrorHosts {
+		if strings.Contains(pageURL, host) {
+			return true
+		}
+	}
+	return false
 }
 
 // ListEpisodes fetches the anime page (CSRF/ID) then the AJAX episode listing, returning the
 // HIGHEST online episode NUMBER (download-orchestration spec "Online numbering gap is compared
-// by highest number, not entry count") and the episode page URL for the latest episode.
+// by highest number, not entry count") and the episode page URL for the latest episode. The
+// page GET and its CSRF-bound AJAX POST always run on the same host, so a challenge moves the
+// whole listing to the next host; the returned episode URL keeps the caller's host.
 func (a *Adapter) ListEpisodes(ctx context.Context, pageURL string) (sites.EpisodeListing, error) {
 	pagina := ensureTrailingSlash(pageURL)
 
-	animeID, csrfToken, err := a.fetchAnimeInfo(ctx, pagina)
+	var episodes []jkanimeEpisode
+	err := a.hosts.try(pagina, func(base, target string) (err error) {
+		episodes, err = a.episodesOn(ctx, base, target)
+		return err
+	})
 	if err != nil {
-		return sites.EpisodeListing{}, fmt.Errorf("jkanime: fetch anime info: %w", err)
-	}
-
-	episodes, _, err := a.fetchEpisodes(ctx, animeID, csrfToken)
-	if err != nil {
-		return sites.EpisodeListing{}, fmt.Errorf("jkanime: fetch episodes: %w", err)
+		return sites.EpisodeListing{}, err
 	}
 
 	latest := 0
@@ -137,6 +144,20 @@ func (a *Adapter) ListEpisodes(ctx context.Context, pageURL string) (sites.Episo
 	}, nil
 }
 
+// episodesOn reads every listed episode of the anime page pagina on host base.
+func (a *Adapter) episodesOn(ctx context.Context, base, pagina string) ([]jkanimeEpisode, error) {
+	animeID, csrfToken, err := a.fetchAnimeInfo(ctx, base, pagina)
+	if err != nil {
+		return nil, fmt.Errorf("jkanime: fetch anime info: %w", err)
+	}
+
+	episodes, _, err := a.fetchEpisodes(ctx, base, animeID, csrfToken)
+	if err != nil {
+		return nil, fmt.Errorf("jkanime: fetch episodes: %w", err)
+	}
+	return episodes, nil
+}
+
 // EpisodePageURL returns the jkanime episode page URL for a specific episode number.
 func (a *Adapter) EpisodePageURL(ctx context.Context, pageURL string, episode int) (string, error) {
 	return fmt.Sprintf("%s%d/", ensureTrailingSlash(pageURL), episode), nil
@@ -145,8 +166,17 @@ func (a *Adapter) EpisodePageURL(ctx context.Context, pageURL string, episode in
 // ExtractLinks fetches an episode page and extracts hoster-tagged download links from the
 // inline `var servers` array. Per download-sites spec "Download Link Extraction Failure
 // Surfacing", zero links is ALWAYS a loud error -- never a silent empty success.
-func (a *Adapter) ExtractLinks(ctx context.Context, episodePageURL string) ([]sites.DownloadLink, error) {
-	body, err := a.fetchGET(ctx, episodePageURL)
+func (a *Adapter) ExtractLinks(ctx context.Context, episodePageURL string) (links []sites.DownloadLink, err error) {
+	err = a.hosts.try(episodePageURL, func(base, target string) (err error) {
+		links, err = a.extractLinksOn(ctx, base, target)
+		return err
+	})
+	return links, err
+}
+
+// extractLinksOn reads the download links of episodePageURL, fetched from host base.
+func (a *Adapter) extractLinksOn(ctx context.Context, base, episodePageURL string) ([]sites.DownloadLink, error) {
+	body, err := a.fetchGET(ctx, base, episodePageURL)
 	if err != nil {
 		return nil, fmt.Errorf("jkanime: fetch episode page: %w", err)
 	}
@@ -183,8 +213,8 @@ func (a *Adapter) ExtractLinks(ctx context.Context, episodePageURL string) ([]si
 
 // fetchAnimeInfo fetches the anime main page and extracts the anime ID and CSRF token required
 // for the episode-listing AJAX call (download-sites spec "jkanime CSRF and Anime ID Extraction").
-func (a *Adapter) fetchAnimeInfo(ctx context.Context, pagina string) (animeID string, csrfToken string, err error) {
-	body, err := a.fetchGET(ctx, pagina)
+func (a *Adapter) fetchAnimeInfo(ctx context.Context, base, pagina string) (animeID string, csrfToken string, err error) {
+	body, err := a.fetchGET(ctx, base, pagina)
 	if err != nil {
 		return "", "", err
 	}
@@ -213,7 +243,7 @@ func (a *Adapter) fetchAnimeInfo(ctx context.Context, pagina string) (animeID st
 // walk exists to prevent. A response with total==0 and an empty data array is still a
 // SUCCESSFUL "no episodes available" outcome, distinguishable from an extraction/network
 // failure (download-sites spec "jkanime Episode Listing via AJAX").
-func (a *Adapter) fetchEpisodes(ctx context.Context, animeID, csrfToken string) ([]jkanimeEpisode, int, error) {
+func (a *Adapter) fetchEpisodes(ctx context.Context, base, animeID, csrfToken string) ([]jkanimeEpisode, int, error) {
 	var episodes []jkanimeEpisode
 	// Declared at its zero value rather than assigned one: the loop below always runs at
 	// least once and always overwrites this, so an explicit `= 0` would be a literal no
@@ -221,7 +251,7 @@ func (a *Adapter) fetchEpisodes(ctx context.Context, animeID, csrfToken string) 
 	var total int
 
 	for page := 1; page <= maxEpisodeListingPages; page++ {
-		resp, err := a.fetchEpisodePage(ctx, animeID, csrfToken, page)
+		resp, err := a.fetchEpisodePage(ctx, base, animeID, csrfToken, page)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -239,13 +269,13 @@ func (a *Adapter) fetchEpisodes(ctx context.Context, animeID, csrfToken string) 
 // fetchEpisodePage retrieves a single page of the AJAX episode listing. The page number is
 // the last path segment: jkanime also accepts a `?p=` query parameter, but the path form is
 // the one the listing route is built around.
-func (a *Adapter) fetchEpisodePage(ctx context.Context, animeID, csrfToken string, page int) (jkanimeEpisodesResponse, error) {
-	ajaxURL := fmt.Sprintf("%s/ajax/episodes/%s/%d", a.baseURL, animeID, page)
+func (a *Adapter) fetchEpisodePage(ctx context.Context, base, animeID, csrfToken string, page int) (jkanimeEpisodesResponse, error) {
+	ajaxURL := fmt.Sprintf("%s/ajax/episodes/%s/%d", base, animeID, page)
 
 	formData := url.Values{}
 	formData.Set("_token", csrfToken)
 
-	body, err := a.fetchPOST(ctx, ajaxURL, formData)
+	body, err := a.fetchPOST(ctx, base, ajaxURL, formData)
 	if err != nil {
 		return jkanimeEpisodesResponse{}, err
 	}
@@ -257,13 +287,14 @@ func (a *Adapter) fetchEpisodePage(ctx context.Context, animeID, csrfToken strin
 	return resp, nil
 }
 
-// fetchGET retrieves a page with a browser-like GET request.
-func (a *Adapter) fetchGET(ctx context.Context, pageURL string) (body string, err error) {
+// fetchGET retrieves a page from host base with a browser-like GET request. A Cloudflare
+// challenge returns an error wrapping errChallenged.
+func (a *Adapter) fetchGET(ctx context.Context, base, pageURL string) (body string, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("create GET request: %w", err)
 	}
-	applyBrowserHeaders(req)
+	applyBrowserHeaders(req, base)
 
 	resp, err := a.client.Do(req)
 	if err != nil {
@@ -276,6 +307,9 @@ func (a *Adapter) fetchGET(ctx context.Context, pageURL string) (body string, er
 		}
 	}()
 
+	if isChallenge(resp) {
+		return "", fmt.Errorf("GET %s: HTTP %d: %w", pageURL, resp.StatusCode, errChallenged)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("GET %s: HTTP %d", pageURL, resp.StatusCode)
 	}
@@ -287,13 +321,14 @@ func (a *Adapter) fetchGET(ctx context.Context, pageURL string) (body string, er
 	return string(responseBody), nil
 }
 
-// fetchPOST submits form data with a browser-like POST request.
-func (a *Adapter) fetchPOST(ctx context.Context, postURL string, formData url.Values) (body string, err error) {
+// fetchPOST submits form data to host base with a browser-like POST request. A Cloudflare
+// challenge returns an error wrapping errChallenged.
+func (a *Adapter) fetchPOST(ctx context.Context, base, postURL string, formData url.Values) (body string, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, postURL, strings.NewReader(formData.Encode()))
 	if err != nil {
 		return "", fmt.Errorf("create POST request: %w", err)
 	}
-	applyBrowserHeaders(req)
+	applyBrowserHeaders(req, base)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
 
@@ -313,6 +348,9 @@ func (a *Adapter) fetchPOST(ctx context.Context, postURL string, formData url.Va
 		return "", fmt.Errorf("read body: %w", err)
 	}
 
+	if isChallenge(resp) {
+		return "", fmt.Errorf("POST %s: HTTP %d: %w", postURL, resp.StatusCode, errChallenged)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("POST %s: HTTP %d - %s", postURL, resp.StatusCode, truncate(string(responseBody), 200))
 	}
@@ -320,12 +358,13 @@ func (a *Adapter) fetchPOST(ctx context.Context, postURL string, formData url.Va
 	return string(responseBody), nil
 }
 
-// applyBrowserHeaders adds the headers expected by the target site.
-func applyBrowserHeaders(req *http.Request) {
+// applyBrowserHeaders adds the headers expected by the target site, with a Referer on the
+// host the request is sent to.
+func applyBrowserHeaders(req *http.Request, base string) {
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	req.Header.Set("Accept-Language", "es,en;q=0.9")
-	req.Header.Set("Referer", defaultBaseURL+"/")
+	req.Header.Set("Referer", base+"/")
 }
 
 // ensureTrailingSlash appends a trailing slash to a URL when needed.
