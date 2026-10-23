@@ -32,22 +32,22 @@ type SearchResult struct {
 // It is separate from the EpisodeSource Adapter: search is a season-workflow
 // capability, not part of the download episode-listing contract.
 type Searcher struct {
-	client  *http.Client
-	baseURL string
+	client *http.Client
+	hosts  hostChain
 }
 
 // NewSearcher returns a Searcher using the given HTTP client.
 func NewSearcher(client *http.Client) *Searcher {
-	return newSearcherWithBaseURL(client, defaultBaseURL)
+	return newSearcherWithBaseURL(client, defaultBaseURLs...)
 }
 
-// newSearcherWithBaseURL is the test seam: it lets tests point the search
-// endpoint at an httptest.Server while exercising the real extraction path.
-func newSearcherWithBaseURL(client *http.Client, baseURL string) *Searcher {
+// newSearcherWithBaseURL is the test seam: it lets tests point the host chain
+// at httptest.Servers while exercising the real extraction path.
+func newSearcherWithBaseURL(client *http.Client, baseURLs ...string) *Searcher {
 	if client == nil {
 		client = http.DefaultClient
 	}
-	return &Searcher{client: client, baseURL: strings.TrimRight(baseURL, "/")}
+	return &Searcher{client: client, hosts: newHostChain(baseURLs)}
 }
 
 // searchQuerySeparator replaces a name's own path separator before the query is
@@ -69,9 +69,24 @@ func toSearchQuery(query string) string {
 
 // Search fetches the `/buscar/{query}/` page and returns the parsed results in
 // document order. An empty result set (no matches) is returned as an empty
-// slice, not an error.
+// slice, not an error. A Cloudflare challenge moves the search to the next host
+// of the chain, and a mirror answers with links on its own host, so every
+// result URL is rewritten onto jkanime.net: the stored anime page identity
+// never depends on which host answered.
 func (s *Searcher) Search(ctx context.Context, query string) (results []SearchResult, err error) {
-	searchURL := fmt.Sprintf("%s/buscar/%s/", s.baseURL, url.PathEscape(toSearchQuery(query)))
+	path := "/buscar/" + url.PathEscape(toSearchQuery(query)) + "/"
+	err = s.hosts.try(s.hosts[0]+path, func(_, searchURL string) (err error) {
+		results, err = s.searchOn(ctx, query, searchURL)
+		return err
+	})
+	for i := range results {
+		results[i].PageURL = canonicalPageURL(results[i].PageURL)
+	}
+	return results, err
+}
+
+// searchOn fetches one search page URL and parses its results.
+func (s *Searcher) searchOn(ctx context.Context, query, searchURL string) (results []SearchResult, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, searchURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build jkanime search request: %w", err)
@@ -88,6 +103,9 @@ func (s *Searcher) Search(ctx context.Context, query string) (results []SearchRe
 			err = fmt.Errorf("close jkanime search body: %w", closeErr)
 		}
 	}()
+	if isChallenge(resp) {
+		return nil, fmt.Errorf("jkanime search %q: status %d: %w", query, resp.StatusCode, errChallenged)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("jkanime search %q: status %d", query, resp.StatusCode)
 	}

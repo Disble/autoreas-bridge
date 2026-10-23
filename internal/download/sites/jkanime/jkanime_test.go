@@ -96,7 +96,7 @@ func TestExtractAnimeIDAndCSRFTokenSucceedsWhenBothPresent(t *testing.T) {
 
 	adapter := New(srv.Client())
 
-	animeID, csrfToken, err := adapter.fetchAnimeInfo(context.Background(), srv.URL+"/")
+	animeID, csrfToken, err := adapter.fetchAnimeInfo(context.Background(), srv.URL, srv.URL+"/")
 	if err != nil {
 		t.Fatalf("fetchAnimeInfo: %v", err)
 	}
@@ -116,7 +116,7 @@ func TestExtractAnimeIDAndCSRFTokenRejectsIncompletePages(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			srv := newFixtureServer(t, test.fixture)
-			_, _, err := New(srv.Client()).fetchAnimeInfo(context.Background(), srv.URL+"/")
+			_, _, err := New(srv.Client()).fetchAnimeInfo(context.Background(), srv.URL, srv.URL+"/")
 			if err == nil {
 				t.Fatal("expected an explicit extraction error")
 			}
@@ -140,7 +140,7 @@ func TestFetchEpisodesReturnsParsedListWhenTotalGreaterThanZero(t *testing.T) {
 
 	adapter := newWithBaseURL(srv.Client(), srv.URL)
 
-	episodes, total, err := adapter.fetchEpisodes(context.Background(), "555", "tok")
+	episodes, total, err := adapter.fetchEpisodes(context.Background(), srv.URL, "555", "tok")
 	if err != nil {
 		t.Fatalf("fetchEpisodes: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestFetchEpisodesTreatsZeroTotalAsNoEpisodesNotAnError(t *testing.T) {
 
 	adapter := newWithBaseURL(srv.Client(), srv.URL)
 
-	episodes, total, err := adapter.fetchEpisodes(context.Background(), "555", "tok")
+	episodes, total, err := adapter.fetchEpisodes(context.Background(), srv.URL, "555", "tok")
 	if err != nil {
 		t.Fatalf("zero total must NOT be an error, got: %v", err)
 	}

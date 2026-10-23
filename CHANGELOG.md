@@ -14,6 +14,13 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+### Fixed
+
+- Downloads and the season name search work again after jkanime.net went behind a Cloudflare challenge.
+  Every request now falls back from jkanime.net to its mirrors jkanime.org and jkanime.bz, but only when
+  the host answers with a Cloudflare challenge. Stored anime page URLs stay on jkanime.net.
+  See ADR-029. No wire change.
+
 ## [2.3.0] — 2026-10-22
 
 ### Changed
