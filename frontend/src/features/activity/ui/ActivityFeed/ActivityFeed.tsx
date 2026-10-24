@@ -39,7 +39,8 @@ export function ActivityFeed({ status, resolvedView, days, hasMore, isLoadingMor
     <div aria-busy={isLoadingMore} className="flex flex-col" data-testid="activity-feed-list">
       {days.map((day) => (
         <section aria-label={day.label} className="flex flex-col" key={day.key}>
-          <div className="sticky top-14 z-10 bg-surface pb-1.5 pt-4 md:top-0">
+          {/* mb, not pb: the gap under the opaque sticky header stays unpainted, so a row's focus ring shows whole. */}
+          <div className="sticky top-14 z-10 mb-1.5 bg-surface pt-4 md:top-0">
             <Typography className="text-[13px] font-semibold leading-normal" color="muted" type="body-sm">
               {day.label}
             </Typography>

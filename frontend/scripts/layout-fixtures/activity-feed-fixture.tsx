@@ -2,7 +2,7 @@ import { Card } from '@heroui/react';
 import { parseDate } from '@internationalized/date';
 import { createRef, useEffect, useState } from 'react';
 import { toChartBars } from '../../src/features/activity/feed/activity-chart.helpers';
-import { ACTIVITY_CARD_CLASS, ACTIVITY_FAILURE_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TOGGLE_TYPES } from '../../src/features/activity/feed/activity-feed.constants';
+import { ACTIVITY_CARD_CLASS, ACTIVITY_FAILURE_TYPES, ACTIVITY_RANGE_WHOLE_DAY_TIMES, ACTIVITY_TYPE_LABELS, ACTIVITY_TOGGLE_TYPES } from '../../src/features/activity/feed/activity-feed.constants';
 import type { ActivityFailureButtonState, ActivityTypeToggleModel } from '../../src/features/activity/feed/activity-feed.types';
 import type { ActivityChartSlot } from '../../src/features/activity/feed-source/feed.types';
 import { toDrawerHeader, toDrawerSummary } from '../../src/features/activity/drawer/drawer-summary.helpers';
@@ -155,9 +155,6 @@ function ActivityScreenParts({ width }: { readonly width: number }) {
       <Card>
         <Card.Content>
           <ActivityToolbar
-            calendarMax={parseDate('2026-10-22')}
-            calendarMin={parseDate('2026-07-25')}
-            calendarValue={null}
             failure={{
               state: fixtureFailureState(width),
               count: 4,
@@ -170,13 +167,29 @@ function ActivityScreenParts({ width }: { readonly width: number }) {
               onClear: () => undefined,
             }}
             failuresOnly={false}
-            hasRange={false}
-            onCalendarChange={() => undefined}
-            onClearRange={() => undefined}
             onOriginChange={() => undefined}
             onTypesChange={() => undefined}
             origin="all"
-            rangeLabel="Oct 21, 14:35 – Oct 22, 14:35"
+            range={{
+              rangeLabel: 'Oct 21, 14:35 – Oct 22, 14:35',
+              hasRange: false,
+              calendarMin: parseDate('2026-07-25'),
+              calendarMax: parseDate('2026-10-22'),
+              onClearRange: () => undefined,
+              picker: {
+                isOpen: false,
+                onOpenChange: () => undefined,
+                days: null,
+                startTime: ACTIVITY_RANGE_WHOLE_DAY_TIMES.start,
+                endTime: ACTIVITY_RANGE_WHOLE_DAY_TIMES.end,
+                canApply: false,
+                onDaysChange: () => undefined,
+                onStartTimeChange: () => undefined,
+                onEndTimeChange: () => undefined,
+                onApply: () => undefined,
+                onClear: () => undefined,
+              },
+            }}
             typeKeys={new Set(['change', 'download', 'task', 'edit'])}
             typeToggles={TYPE_TOGGLES}
           />

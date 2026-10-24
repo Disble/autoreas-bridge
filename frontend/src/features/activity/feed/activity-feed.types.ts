@@ -1,4 +1,5 @@
 import type { DateValue, RangeValue } from '@heroui/react';
+import type { Time } from '@internationalized/date';
 import type { ActivityChartScale, ActivityFeedLine, ActivityFeedOrigin, ActivityFeedType } from '../feed-source/feed.types';
 
 /** A picked time range, epoch milliseconds, both ends inclusive. */
@@ -121,6 +122,14 @@ export type ActivityFailureButtonState = 'off' | 'open' | 'on';
 
 /** The calendar value of the range field. */
 export type ActivityCalendarRange = RangeValue<DateValue> | null;
+
+/** The start and end times of the range picker. */
+export interface ActivityRangeTimes {
+  /** The time on the start day. */
+  readonly start: Time;
+  /** The time on the end day; its whole minute is inside the range. */
+  readonly end: Time;
+}
 
 /** Options accepted by `useActivityFeedKeyboardScope`. */
 export interface UseActivityFeedKeyboardScopeOptions {

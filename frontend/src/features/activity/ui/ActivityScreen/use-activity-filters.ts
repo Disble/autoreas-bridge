@@ -1,7 +1,7 @@
 import type { Key } from '@heroui/react';
 import { useCallback, useState } from 'react';
-import { createInitialFilters, fromCalendarRange, setFilterOrigin, setFilterRange, setFilterScale, toggleFeedTypes } from '../../feed/activity-feed-filters.helpers';
-import type { ActivityCalendarRange, ActivityFeedFilters } from '../../feed/activity-feed.types';
+import { createInitialFilters, setFilterOrigin, setFilterRange, setFilterScale, toggleFeedTypes } from '../../feed/activity-feed-filters.helpers';
+import type { ActivityFeedFilters, ActivityRange } from '../../feed/activity-feed.types';
 import type { ActivityChartScale } from '../../feed-source/feed.types';
 
 /**
@@ -30,12 +30,10 @@ export function useActivityFilters() {
   }, []);
   const onOriginChange = useCallback((keys: Set<Key>) => setFilters((current) => setFilterOrigin(current, keys, Date.now())), []);
   const onTypesChange = useCallback((keys: Set<Key>) => setFilters((current) => toggleFeedTypes(current, keys, Date.now())), []);
-  const onCalendarChange = useCallback((value: ActivityCalendarRange) => {
-    setFilters((current) => setFilterRange(current, fromCalendarRange(value), Date.now()));
-  }, []);
+  const onRangeChange = useCallback((range: ActivityRange | undefined) => setFilters((current) => setFilterRange(current, range, Date.now())), []);
   const onClearRange = useCallback(() => setFilters((current) => setFilterRange(current, undefined, Date.now())), []);
 
   // 7. Effects
 
-  return { filters, setFilters, onScaleChange, onOriginChange, onTypesChange, onCalendarChange, onClearRange };
+  return { filters, setFilters, onScaleChange, onOriginChange, onTypesChange, onRangeChange, onClearRange };
 }

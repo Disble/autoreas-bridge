@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialFilters } from '../../../feed/activity-feed-filters.helpers';
 import { buildDay, buildLine, NOW_MS } from '../../../feed/__tests__/activity-feed.fixtures';
-import { toFeedEndMark, toFeedResolvedView } from '../activity-screen.helpers';
+import { toFeedEndMark, toFeedResolvedView, toOverviewRange } from '../activity-screen.helpers';
 
 /** The filters every case starts from. */
 const INITIAL = createInitialFilters(NOW_MS);
@@ -22,5 +22,14 @@ describe('toFeedEndMark', () => {
     ['the 30-day window', { ...INITIAL, scale: '30d' as const }, 'Start of the last 30 days'],
   ])('ends the feed of %s', (_case, filters, mark) => {
     expect(toFeedEndMark(filters)).toBe(mark);
+  });
+});
+
+describe('toOverviewRange', () => {
+  it('reads the picked range, else 0 – 0 for the scale window', () => {
+    const range = { fromMs: NOW_MS - 3_600_000, toMs: NOW_MS };
+
+    expect(toOverviewRange({ ...INITIAL, range })).toEqual(range);
+    expect(toOverviewRange(INITIAL)).toEqual({ fromMs: 0, toMs: 0 });
   });
 });

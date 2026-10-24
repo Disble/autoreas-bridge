@@ -29,3 +29,14 @@ export function toFeedEndMark(filters: ActivityFeedFilters): string {
   }
   return ACTIVITY_SCALE_OPTIONS.find((option) => option.id === filters.scale)?.end ?? ACTIVITY_RANGE_END_MARK;
 }
+
+/**
+ * The window the overview reads: the picked range, or 0 – 0 so the reader
+ * takes the scale's own window.
+ *
+ * @param filters The filters on screen.
+ * @returns The overview's from and to times.
+ */
+export function toOverviewRange(filters: ActivityFeedFilters): { readonly fromMs: number; readonly toMs: number } {
+  return filters.range ?? { fromMs: 0, toMs: 0 };
+}

@@ -400,18 +400,72 @@ describe('ActivityScreen chart and toolbar', () => {
     await waitFor(assertRead);
   });
 
-  it('reads the whole local days picked in the range calendar', async () => {
-    await renderChart();
-
+  /** Opens the range picker and returns its dialog. */
+  async function openPicker() {
     fireEvent.click(screen.getByRole('button', { name: /^Time range, / }));
-    const dialog = await screen.findByRole('dialog');
-    const today = within(dialog).getByRole('button', { name: /^Today/ });
-    fireEvent.click(today);
-    fireEvent.click(today);
+    return screen.findByRole('dialog');
+  }
 
-    const midnight = new Date();
-    midnight.setHours(0, 0, 0, 0);
-    await waitFor(() => expect(lastQuery()).toMatchObject({ fromMs: midnight.getTime(), toMs: midnight.getTime() + 86_400_000 - 1 }));
+  /** The picker's time field with that label (React Aria labels its root and its input group). */
+  function timeField(dialog: HTMLElement, name: string) {
+    return within(dialog).getAllByRole('group', { name })[0];
+  }
+
+  it('reads the picked days at their start and end times only on Apply, which a first day already enables', async () => {
+    await renderChart();
+    const dialog = await openPicker();
+    const apply = within(dialog).getByRole('button', { name: 'Apply' });
+    expect(apply).toBeDisabled();
+    expect([...dialog.querySelectorAll('th')].map((head) => head.textContent)).toEqual(['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']);
+    expect(timeField(dialog, 'Start time')).toHaveTextContent(/12\D*00\D*AM/);
+    expect(timeField(dialog, 'End time')).toHaveTextContent(/11\D*59\D*PM/);
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /previous/i }));
+    const picked = new Date();
+    picked.setMonth(picked.getMonth() - 1, 15);
+    /** The calendar cell of a day of the shown month. */
+    const cell = (date: Date) => within(dialog).getByRole('button', { name: new RegExp(new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(date)) });
+    const reads = feedSource.searchFeed.mock.calls.length;
+    fireEvent.click(cell(picked));
+    expect(apply).toBeEnabled();
+    const end = new Date(picked);
+    end.setDate(16);
+    fireEvent.click(cell(end));
+    const [startHour] = within(timeField(dialog, 'Start time')).getAllByRole('spinbutton');
+    fireEvent.keyDown(startHour, { key: 'ArrowUp' });
+    expect(feedSource.searchFeed.mock.calls).toHaveLength(reads);
+
+    fireEvent.click(apply);
+
+    picked.setHours(1, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+    await waitFor(() => expect(lastQuery()).toMatchObject({ fromMs: picked.getTime(), toMs: end.getTime() }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('applies one pressed day as a one-day range, drops an unapplied pick on Esc, and clears the range and closes from Clear', async () => {
+    await renderChart();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let dialog = await openPicker();
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Today/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
+    await waitFor(() => expect(lastQuery()).toMatchObject({ fromMs: today.getTime() }));
+    expect(lastQuery()?.toMs).toBeLessThanOrEqual(Date.now());
+
+    dialog = await openPicker();
+    fireEvent.keyDown(within(timeField(dialog, 'Start time')).getAllByRole('spinbutton')[0], { key: 'ArrowUp' });
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    dialog = await openPicker();
+    expect(timeField(dialog, 'Start time')).toHaveTextContent(/12\D*00\D*AM/);
+    expect(lastQuery()).toMatchObject({ fromMs: today.getTime() });
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Clear' }));
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ toMs: 0 }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear time range' })).not.toBeInTheDocument();
   });
 
   it('shows the chart failure alert instead of bars, and draws them after Try again', async () => {

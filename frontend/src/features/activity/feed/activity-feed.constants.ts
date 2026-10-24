@@ -1,4 +1,6 @@
+import { Time } from '@internationalized/date';
 import type { ActivityChartScale, ActivityFeedType } from '../feed-source/feed.types';
+import type { ActivityRangeTimes } from './activity-feed.types';
 
 /** Lines per feed page: one batch of the progressive window (ADR-012). */
 export const ACTIVITY_FEED_PAGE_LIMIT = 40;
@@ -82,6 +84,12 @@ export const ACTIVITY_FEED_DAY_FORMAT = new Intl.DateTimeFormat('en-US', { weekd
 
 /** Local date and time, `Oct 22, 14:35`. */
 export const ACTIVITY_FEED_MOMENT_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+
+/** The range picker's times with no range picked: the whole days (mockup, 00:00 and 23:59). */
+export const ACTIVITY_RANGE_WHOLE_DAY_TIMES: ActivityRangeTimes = { start: new Time(0, 0), end: new Time(23, 59) };
+
+/** The last millisecond of a minute: the picked end minute is inside the range. */
+export const ACTIVITY_MINUTE_LAST_MS = 59_999;
 
 /** Local short date, `Oct 22`. */
 export const ACTIVITY_FEED_SHORT_DATE_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });

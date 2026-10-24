@@ -1,5 +1,5 @@
 import type { Key } from '@heroui/react';
-import { CalendarDate } from '@internationalized/date';
+import { CalendarDate, Time } from '@internationalized/date';
 import type { ActivityChartScale, ActivityFeedOrigin, ActivityFeedQuery, ActivityFeedType } from '../feed-source/feed.types';
 import {
   ACTIVITY_ALL_TYPES_KEY,
@@ -8,10 +8,12 @@ import {
   ACTIVITY_FAILURE_TYPES,
   ACTIVITY_FEED_MOMENT_FORMAT,
   ACTIVITY_HOUR_MS,
+  ACTIVITY_MINUTE_LAST_MS,
+  ACTIVITY_RANGE_WHOLE_DAY_TIMES,
   ACTIVITY_SCALE_DAYS,
   ACTIVITY_TOGGLE_TYPES,
 } from './activity-feed.constants';
-import type { ActivityCalendarRange, ActivityFailureButtonState, ActivityFeedFilters, ActivityRange } from './activity-feed.types';
+import type { ActivityCalendarRange, ActivityFailureButtonState, ActivityFeedFilters, ActivityRange, ActivityRangeTimes } from './activity-feed.types';
 
 /**
  * The filters the Activity screen opens with.
@@ -206,18 +208,39 @@ export function toCalendarRange(range: ActivityRange | undefined): ActivityCalen
 }
 
 /**
- * The range of a calendar pick: the start day's midnight to the end day's last millisecond.
+ * The picker's times of a picked range, or the whole-day times when none is
+ * picked (mockup: the time inputs open on the range's times, else 00:00 and 23:59).
  *
- * @param value The calendar value.
- * @returns The range, or undefined for none.
+ * @param range The picked range.
+ * @returns The start and end times.
  */
-export function fromCalendarRange(value: ActivityCalendarRange): ActivityRange | undefined {
-  if (value === null) {
+export function toRangeTimes(range: ActivityRange | undefined): ActivityRangeTimes {
+  if (range === undefined) {
+    return ACTIVITY_RANGE_WHOLE_DAY_TIMES;
+  }
+  const from = new Date(range.fromMs);
+  const to = new Date(range.toMs);
+  return { start: new Time(from.getHours(), from.getMinutes()), end: new Time(to.getHours(), to.getMinutes()) };
+}
+
+/**
+ * The range of a picker Apply (mockup): the start day at the start time to the
+ * end day at the end time, the end minute inclusive. When the end is before the
+ * start the two swap, and the end never passes now.
+ *
+ * @param days The picked days.
+ * @param times The start and end times.
+ * @param nowMs The current time.
+ * @returns The range, or undefined when no days are picked.
+ */
+export function fromCalendarPick(days: ActivityCalendarRange, times: ActivityRangeTimes, nowMs: number): ActivityRange | undefined {
+  if (days === null) {
     return undefined;
   }
-  const fromMs = new Date(value.start.year, value.start.month - 1, value.start.day).getTime();
-  const toMs = new Date(value.end.year, value.end.month - 1, value.end.day + 1).getTime() - 1;
-  return { fromMs, toMs };
+  const startMs = new Date(days.start.year, days.start.month - 1, days.start.day, times.start.hour, times.start.minute).getTime();
+  const endMs = new Date(days.end.year, days.end.month - 1, days.end.day, times.end.hour, times.end.minute).getTime() + ACTIVITY_MINUTE_LAST_MS;
+  const [fromMs, toMs] = endMs < startMs ? [endMs, startMs] : [startMs, endMs];
+  return { fromMs, toMs: Math.min(toMs, nowMs) };
 }
 
 /**

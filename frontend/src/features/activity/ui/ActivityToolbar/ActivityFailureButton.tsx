@@ -6,13 +6,8 @@ import { IconActionButton } from '../../../../shared/ui/IconActionButton/IconAct
 import {
   ACTIVITY_FAILURE_BUTTON_TOOLTIP,
   ACTIVITY_FAILURE_BUTTON_VARIANT,
+  ACTIVITY_FAILURE_CLASSES,
   ACTIVITY_FAILURE_MENU_ID,
-  ACTIVITY_FAILURE_PILL_CLASS,
-  ACTIVITY_FAILURE_PILL_SOFT_CLASS,
-  ACTIVITY_FAILURE_POPOVER_CLASS,
-  ACTIVITY_FAILURE_POPOVER_STATE_CLASS,
-  ACTIVITY_FAILURE_ROW_CLASS,
-  ACTIVITY_FAILURE_X_CLASS,
   ACTIVITY_TYPE_ICONS,
 } from './activity-toolbar.constants';
 import type { ActivityFailureButtonProps } from './activity-toolbar.types';
@@ -33,7 +28,7 @@ export function ActivityFailureButton({ state, count, rows, selectedKeys, disabl
         aria-haspopup="menu"
         aria-label={ACTIVITY_FAILURE_BUTTON_TOOLTIP[state]}
         aria-pressed={state !== 'off'}
-        className={`${ACTIVITY_FAILURE_PILL_CLASS} ${state === 'off' ? 'pr-3' : 'pr-9'} ${state === 'on' ? '' : ACTIVITY_FAILURE_PILL_SOFT_CLASS}`}
+        className={`${ACTIVITY_FAILURE_CLASSES.pill} ${state === 'off' ? 'pr-3' : 'pr-9'} ${state === 'on' ? '' : ACTIVITY_FAILURE_CLASSES.pillSoft}`}
         data-failure-pill
         onPress={onToggle}
         variant={ACTIVITY_FAILURE_BUTTON_VARIANT[state]}
@@ -42,7 +37,7 @@ export function ActivityFailureButton({ state, count, rows, selectedKeys, disabl
         {count}
       </Button>
       {state === 'off' ? null : (
-        <span className={ACTIVITY_FAILURE_X_CLASS}>
+        <span className={ACTIVITY_FAILURE_CLASSES.x}>
           <IconActionButton
             ariaLabel="Turn off failure filter"
             icon={closeIcon}
@@ -56,7 +51,7 @@ export function ActivityFailureButton({ state, count, rows, selectedKeys, disabl
       )}
       <div
         aria-hidden={state !== 'open'}
-        className={`${ACTIVITY_FAILURE_POPOVER_CLASS} ${ACTIVITY_FAILURE_POPOVER_STATE_CLASS[state === 'open' ? 'open' : 'closed']}`}
+        className={`${ACTIVITY_FAILURE_CLASSES.popover} ${ACTIVITY_FAILURE_CLASSES.popoverState[state === 'open' ? 'open' : 'closed']}`}
         data-failure-popover={state === 'open' ? 'open' : 'closed'}
         inert={state !== 'open'}
       >
@@ -73,7 +68,7 @@ export function ActivityFailureButton({ state, count, rows, selectedKeys, disabl
           selectionMode="multiple"
         >
           {rows.map((row) => (
-            <Menu.Item aria-label={`${row.label}, ${row.failed} failed`} className={ACTIVITY_FAILURE_ROW_CLASS} id={row.type} key={row.type} textValue={row.label}>
+            <Menu.Item aria-label={`${row.label}, ${row.failed} failed`} className={ACTIVITY_FAILURE_CLASSES.row} id={row.type} key={row.type} textValue={row.label}>
               <Icon aria-hidden className="size-4 shrink-0 text-muted group-data-[selected=true]:text-foreground" icon={ACTIVITY_TYPE_ICONS[row.type]} />
               <Label className="flex-1 text-inherit">{row.label}</Label>
               <Chip color={selectedKeys.has(row.type) ? 'danger' : 'default'} size="sm" variant="soft">

@@ -1,12 +1,14 @@
+import { Time } from '@internationalized/date';
 import { describe, expect, it } from 'vitest';
 import {
   createInitialFilters,
-  fromCalendarRange,
+  fromCalendarPick,
   scaleWindowStart,
   setFilterRange,
   toCalendarBounds,
   toCalendarRange,
   toFeedQuery,
+  toRangeTimes,
   toggleFailureTypes,
   toggleFeedTypes,
   typeSelectionKeys,
@@ -134,18 +136,50 @@ describe('setFilterRange', () => {
 });
 
 describe('calendar range', () => {
-  it('turns a picked range into its local days and back into whole local days', () => {
-    const range = { fromMs: new Date(2026, 9, 20, 9, 30).getTime(), toMs: new Date(2026, 9, 21, 15, 0).getTime() };
+  /** The picker's opening times (mockup: 00:00 and 23:59). */
+  const WHOLE_DAYS = { start: new Time(0, 0), end: new Time(23, 59) };
+
+  it('turns a picked range into its local days and its start and end times', () => {
+    const range = { fromMs: new Date(2026, 9, 20, 9, 30).getTime(), toMs: new Date(2026, 9, 21, 15, 5).getTime() };
     const value = toCalendarRange(range);
+    const times = toRangeTimes(range);
 
     expect(value?.start.toString()).toBe('2026-10-20');
     expect(value?.end.toString()).toBe('2026-10-21');
-    expect(fromCalendarRange(value)).toEqual({ fromMs: dayStart(2), toMs: dayStart(0) - 1 });
+    expect(times.start.toString()).toBe('09:30:00');
+    expect(times.end.toString()).toBe('15:05:00');
   });
 
-  it('maps no range to no calendar value and back', () => {
+  it('maps no range to no calendar value and to the whole-day times', () => {
     expect(toCalendarRange(undefined)).toBeNull();
-    expect(fromCalendarRange(null)).toBeUndefined();
+    expect(toRangeTimes(undefined)).toEqual(WHOLE_DAYS);
+    expect(fromCalendarPick(null, WHOLE_DAYS, NOW_MS)).toBeUndefined();
+  });
+
+  it('combines the picked days with the times, the end minute inclusive', () => {
+    const days = toCalendarRange({ fromMs: dayStart(4), toMs: dayStart(3) });
+    const times = { start: new Time(9, 30), end: new Time(18, 15) };
+
+    expect(fromCalendarPick(days, WHOLE_DAYS, NOW_MS)).toEqual({ fromMs: dayStart(4), toMs: dayStart(2) - 1 });
+    expect(fromCalendarPick(days, times, NOW_MS)).toEqual({
+      fromMs: new Date(2026, 9, 18, 9, 30).getTime(),
+      toMs: new Date(2026, 9, 19, 18, 15, 59, 999).getTime(),
+    });
+  });
+
+  it('swaps a one-day pick whose end time is before its start time', () => {
+    const day = toCalendarRange({ fromMs: dayStart(1), toMs: dayStart(1) });
+
+    expect(fromCalendarPick(day, { start: new Time(18, 0), end: new Time(9, 0) }, NOW_MS)).toEqual({
+      fromMs: new Date(2026, 9, 21, 9, 0, 59, 999).getTime(),
+      toMs: new Date(2026, 9, 21, 18, 0).getTime(),
+    });
+  });
+
+  it('ends a pick that reaches today at now', () => {
+    const today = toCalendarRange({ fromMs: NOW_MS, toMs: NOW_MS });
+
+    expect(fromCalendarPick(today, WHOLE_DAYS, NOW_MS)).toEqual({ fromMs: dayStart(0), toMs: NOW_MS });
   });
 });
 

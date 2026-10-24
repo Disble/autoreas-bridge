@@ -49,9 +49,6 @@ export function ActivityScreen() {
       <Card aria-label="Feed" className={ACTIVITY_CARD_CLASS}>
         <Card.Content className="flex flex-col">
           <ActivityToolbar
-            calendarMax={screen.calendarBounds.maxValue}
-            calendarMin={screen.calendarBounds.minValue}
-            calendarValue={screen.calendarValue}
             failure={{
               state: screen.failureButtonState,
               count: screen.failureCount,
@@ -64,13 +61,10 @@ export function ActivityScreen() {
               onClear: screen.onFailureClear,
             }}
             failuresOnly={screen.failuresOnly}
-            hasRange={screen.hasRange}
-            onCalendarChange={screen.onCalendarChange}
-            onClearRange={screen.onClearRange}
             onOriginChange={screen.onOriginChange}
             onTypesChange={screen.onTypesChange}
             origin={screen.origin}
-            rangeLabel={screen.rangeLabel}
+            range={screen.rangeField}
             typeKeys={screen.typeKeys}
             typeToggles={screen.typeToggles}
           />

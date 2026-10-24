@@ -3,7 +3,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { createActivitySource } from '../../activity-source/activity-source.helpers';
 import type { ActivitySource } from '../../activity-source/activity-source.types';
 import { toTypeToggles } from '../../feed/activity-feed-counts.helpers';
-import { formatRangeLabel, scaleWindowStart, toCalendarBounds, toCalendarRange, toFeedQuery, typeSelectionKeys } from '../../feed/activity-feed-filters.helpers';
+import { scaleWindowStart, toFeedQuery, typeSelectionKeys } from '../../feed/activity-feed-filters.helpers';
 import { toFeedDayModels } from '../../feed/activity-feed-rows.helpers';
 import { ACTIVITY_FEED_PAGE_LIMIT } from '../../feed/activity-feed.constants';
 import { useActivityFeedPages } from '../../feed/use-activity-feed-pages';
@@ -13,8 +13,9 @@ import { createActivityFeedSource } from '../../feed-source/feed-source.helpers'
 import type { ActivityFeedSource } from '../../feed-source/feed-source.types';
 import { createHistorySource } from '../../history-source/history-source.helpers';
 import type { HistorySource } from '../../history-source/history-source.types';
+import { useActivityRangePicker } from '../ActivityToolbar/use-activity-range-picker';
 import { ACTIVITY_PIN_FAILURE_MESSAGE, ACTIVITY_PIN_SUCCESS_MESSAGE } from './activity-screen.constants';
-import { toFeedEndMark, toFeedResolvedView } from './activity-screen.helpers';
+import { toFeedEndMark, toFeedResolvedView, toOverviewRange } from './activity-screen.helpers';
 import { useActivityChart } from './use-activity-chart';
 import { useActivityFailureMenu } from './use-activity-failure-menu';
 import { useActivityFilters } from './use-activity-filters';
@@ -40,19 +41,21 @@ export function useActivityScreen(
 
   // 2. State
   const [isPinning, setIsPinning] = useState(false);
-  const { filters, setFilters, ...filterCallbacks } = useActivityFilters();
+  const { filters, setFilters, onRangeChange, onClearRange, ...filterCallbacks } = useActivityFilters();
 
   // 3. Context/3rd Party Hooks
 
   // 4. Queries/Mutations
   const query = useMemo(() => toFeedQuery(filters, '', ACTIVITY_FEED_PAGE_LIMIT), [filters]);
   const pages = useActivityFeedPages(feedSource, query);
-  const overviewRead = useActivityOverview(feedSource, filters.scale, filters.range?.fromMs ?? 0, filters.range?.toMs ?? 0, filters.origin);
+  const overviewRange = toOverviewRange(filters);
+  const overviewRead = useActivityOverview(feedSource, filters.scale, overviewRange.fromMs, overviewRange.toMs, filters.origin);
 
   // 5. Derived State (useMemo)
   const failureMenu = useActivityFailureMenu(overviewRead.overview, filters, setFilters);
   const { openKey, ...openLine } = useActivityOpenLine(pages.days, { isOpen: failureMenu.isFailureMenuShown, onClose: failureMenu.onFailureMenuEscape });
   const days = useMemo(() => toFeedDayModels(pages.days, openKey, filters.anchorMs), [filters.anchorMs, openKey, pages.days]);
+  const rangeField = useActivityRangePicker(filters, onRangeChange, onClearRange);
   const chart = useActivityChart(overviewRead.overview, overviewRead.status, filters, setFilters);
   const windowStartMs = scaleWindowStart(filters.scale, filters.anchorMs);
 
@@ -84,12 +87,9 @@ export function useActivityScreen(
   return {
     scale: filters.scale,
     origin: filters.origin,
-    hasRange: filters.range !== undefined,
-    rangeLabel: formatRangeLabel(filters.range, windowStartMs, filters.anchorMs),
-    calendarValue: toCalendarRange(filters.range),
+    rangeField,
     windowStartMs,
     nowMs: filters.anchorMs,
-    calendarBounds: toCalendarBounds(filters.anchorMs),
     typeToggles: toTypeToggles(overviewRead.overview),
     typeKeys: typeSelectionKeys(filters.types),
     failuresOnly: filters.failuresOnly,
