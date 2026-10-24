@@ -1,5 +1,5 @@
 import type { IconifyIcon } from '@iconify/react';
-import type { RefObject, UIEvent } from 'react';
+import type { ReactNode, RefObject, UIEvent } from 'react';
 import type { AnimeCoverSource } from '../../../../shared/anime-cover/anime-cover.types';
 import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
 import type { DownloadRunView } from '../../../../shared/contracts/download.types';
@@ -182,6 +182,15 @@ export interface RunHistoryPanelViewModel {
   /** Cover per anime id of the detail's rows. */
   readonly covers: ReadonlyMap<string, AnimeCoverEntry>;
   readonly errorMessage?: string;
+}
+
+/** Props for the `RunHistoryCard` frame: the titled card with its header tools beside the title. */
+export interface RunHistoryCardProps {
+  readonly className?: string;
+  /** Card-level controls shown in the header, beside the title; omitted while nothing is loaded. */
+  readonly tools?: ReactNode;
+  /** The panel body: a state (loading, empty, error) or the master/detail view. */
+  readonly children: ReactNode;
 }
 
 /** Props for the `RunHistoryHeaderTools` dumb-UI component. */

@@ -5,6 +5,7 @@ import { LoadingBars } from '../../../../shared/ui/LoadingBars/LoadingBars';
 import { RUN_HISTORY_STOPPING_NOTE } from './run-history-panel.constants';
 import { useRunHistoryPanel } from './use-run-history-panel';
 import type { RunHistoryPanelProps } from './run-history-panel.types';
+import { RunHistoryCard } from './RunHistoryCard';
 import { RunHistoryDetailPane } from './RunHistoryDetailPane';
 import { RunHistoryErrorAlert } from './RunHistoryErrorAlert';
 import { RunHistoryHeaderTools } from './RunHistoryHeaderTools';
@@ -22,49 +23,64 @@ export function RunHistoryPanel({ className, storySource }: Readonly<RunHistoryP
   const { viewModel, cancelRun, selectRun, scrollRef, onScroll, toggleProblems, copyText, editAnime } = useRunHistoryPanel(undefined, { storySource });
 
   if (viewModel.status === 'loading') {
-    return <LoadingBars className={className} count={3} label="Loading download run history" />;
+    return (
+      <RunHistoryCard className={className}>
+        <LoadingBars count={3} label="Loading download run history" />
+      </RunHistoryCard>
+    );
   }
 
   if (viewModel.status === 'error') {
-    return <RunHistoryErrorAlert message={viewModel.errorMessage ?? 'Failed to load download run history.'} />;
+    return (
+      <RunHistoryCard className={className}>
+        <RunHistoryErrorAlert message={viewModel.errorMessage ?? 'Failed to load download run history.'} />
+      </RunHistoryCard>
+    );
   }
 
   if (viewModel.status === 'empty') {
     return (
-      <EmptyState className={className}>
-        <EmptyState.Root>No download runs yet. Trigger a check or wait for the next scheduled run.</EmptyState.Root>
-      </EmptyState>
+      <RunHistoryCard className={className}>
+        <EmptyState>
+          <EmptyState.Root>No download runs yet. Trigger a check or wait for the next scheduled run.</EmptyState.Root>
+        </EmptyState>
+      </RunHistoryCard>
     );
   }
 
   return (
-    <section aria-label="Download run history" className={`flex flex-col gap-4 ${className ?? ''}`}>
-      <RunHistoryHeaderTools
-        isStopping={viewModel.isStopping}
-        problemCount={viewModel.problemCount}
-        problemsOnly={viewModel.problemsOnly}
-        runInProgress={viewModel.runInProgress}
-        onCancel={cancelRun}
-        onToggleProblems={toggleProblems}
-      />
+    <RunHistoryCard
+      className={className}
+      tools={
+        <RunHistoryHeaderTools
+          isStopping={viewModel.isStopping}
+          problemCount={viewModel.problemCount}
+          problemsOnly={viewModel.problemsOnly}
+          runInProgress={viewModel.runInProgress}
+          onCancel={cancelRun}
+          onToggleProblems={toggleProblems}
+        />
+      }
+    >
+      <section aria-label="Download run history" className="flex flex-col gap-4">
+        {viewModel.runInProgress && viewModel.isStopping ? (
+          <Alert aria-live="polite" className="bg-default">
+            <Alert.Indicator>
+              <Icon aria-hidden="true" className="size-[18px] text-muted" icon={clockIcon} />
+            </Alert.Indicator>
+            <Alert.Content>
+              <Alert.Description>{RUN_HISTORY_STOPPING_NOTE}</Alert.Description>
+            </Alert.Content>
+          </Alert>
+        ) : null}
 
-      {viewModel.runInProgress && viewModel.isStopping ? (
-        <Alert aria-live="polite" className="bg-default">
-          <Alert.Indicator>
-            <Icon aria-hidden="true" className="size-[18px] text-muted" icon={clockIcon} />
-          </Alert.Indicator>
-          <Alert.Content>
-            <Alert.Description>{RUN_HISTORY_STOPPING_NOTE}</Alert.Description>
-          </Alert.Content>
-        </Alert>
-      ) : null}
+        {viewModel.errorMessage === undefined ? null : <RunHistoryErrorAlert message={viewModel.errorMessage} />}
 
-      {viewModel.errorMessage === undefined ? null : <RunHistoryErrorAlert message={viewModel.errorMessage} />}
-
-      <div className="grid gap-4 md:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
-        <RunHistoryMasterList days={viewModel.visibleDays} onScroll={onScroll} onSelectRun={selectRun} scrollRef={scrollRef} />
-        <RunHistoryDetailPane covers={viewModel.covers} detail={viewModel.detail} onCopy={copyText} onEditAnime={editAnime} />
-      </div>
-    </section>
+        <div className="grid gap-4 md:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+          <RunHistoryMasterList days={viewModel.visibleDays} onScroll={onScroll} onSelectRun={selectRun} scrollRef={scrollRef} />
+          <RunHistoryDetailPane covers={viewModel.covers} detail={viewModel.detail} onCopy={copyText} onEditAnime={editAnime} />
+        </div>
+      </section>
+    </RunHistoryCard>
   );
 }

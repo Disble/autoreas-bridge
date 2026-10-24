@@ -192,7 +192,7 @@ describe('RunHistoryPanel detail', () => {
   it('shows the run id, its status label and the error summary verbatim', () => {
     const actions = mockPanel([createRun('run-9', { status: 'error', errorSummary: "list today's animes: database is locked" })], { story: { status: 'ready', story: { steps: [], truncated: false } } });
 
-    expect(screen.getByRole('heading', { level: 3 })).toHaveTextContent('Run run-9');
+    expect(screen.getByRole('heading', { level: 3, name: 'Run run-9' })).toBeInTheDocument();
     expect(screen.getByTestId('run-status')).toHaveTextContent('Error');
     expect(screen.getByRole('alert')).toHaveTextContent("list today's animes: database is locked");
     fireEvent.click(screen.getByRole('button', { name: 'Copy run id' }));
@@ -221,6 +221,14 @@ describe('RunHistoryPanel detail', () => {
 });
 
 describe('RunHistoryPanel stop control', () => {
+  it('sits in the card header beside the Run history title', () => {
+    mockPanel([createRun('run-1', { status: 'running' })]);
+    const header = screen.getByTestId('run-history-header');
+
+    expect(within(header).getByText('Run history')).toBeInTheDocument();
+    expect(within(header).getByRole('button', { name: /stop run/i })).toBeInTheDocument();
+  });
+
   it('offers no stop control when no run is in progress', () => {
     mockPanel([createRun('run-1')]);
 
