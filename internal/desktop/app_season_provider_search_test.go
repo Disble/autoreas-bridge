@@ -97,7 +97,8 @@ func TestSeasonProviderSearchDTOJSONFields(t *testing.T) {
 // descriptor, and its searcher is the jkanime name search adapter.
 func TestSeasonProviderSearchersNameEveryProvider(t *testing.T) {
 	t.Parallel()
-	providers := newSeasonProviderSearchers(newJkanimeNameSearcher())
+	a := &App{}
+	providers := a.newSeasonProviderSearchers(a.newJkanimeNameSearcher())
 	if len(providers) != 1 || providers[0].Provider != "jkanime" {
 		t.Fatalf("providers = %+v, want only jkanime", providers)
 	}

@@ -41,6 +41,9 @@ const RENDER_TIMEOUT_MS = 60000;
 /** Edge virtual-time budget, so the page settles without waiting in real time. */
 const VIRTUAL_TIME_BUDGET_MS = 10000;
 
+/** The splash index.html paints before the app loads; its presence after the render means no mount. */
+const SPLASH_MARKER = 'id="airis-splash"';
+
 /** Markers that only exist once React has mounted the shell and its navigation. */
 const REQUIRED_MARKERS = ['Today', 'Catalog', 'Downloads'];
 
@@ -89,6 +92,7 @@ const CONTENT_TYPES = {
   '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
+  '.webp': 'image/webp',
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
 };
@@ -249,6 +253,11 @@ function checkDom(dom, route) {
   const root = /<div id="root">([\s\S]*)<\/div>\s*<\/body>/.exec(dom);
   const rendered = root ? root[1].trim() : '';
 
+  // index.html ships the splash inside #root, so a bundle that never mounts is not empty: it
+  // still shows Airis running. React's first render replaces the splash.
+  if (dom.includes(SPLASH_MARKER)) {
+    return [`${route}: the splash is still showing — React never mounted`];
+  }
   if (rendered.length === 0) {
     return [`${route}: #root is empty — the app painted nothing`];
   }

@@ -98,7 +98,7 @@ func TestListEpisodesFollowsPaginationToTheHighestEpisode(t *testing.T) {
 		"2": paginatedEpisodesFixture(2, 2, 17, 17),
 	})
 
-	listing, err := newWithBaseURL(srv.Client(), srv.URL).ListEpisodes(context.Background(), srv.URL+"/")
+	listing, err := newWithBaseURL(srv.Client(), newTestLog(), srv.URL).ListEpisodes(context.Background(), srv.URL+"/")
 	if err != nil {
 		t.Fatalf("ListEpisodes: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestListEpisodesStopsAtTheLastPage(t *testing.T) {
 		"1": paginatedEpisodesFixture(1, 1, 4, 1, 2, 4),
 	})
 
-	listing, err := newWithBaseURL(srv.Client(), srv.URL).ListEpisodes(context.Background(), srv.URL+"/")
+	listing, err := newWithBaseURL(srv.Client(), newTestLog(), srv.URL).ListEpisodes(context.Background(), srv.URL+"/")
 	if err != nil {
 		t.Fatalf("ListEpisodes: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestFetchEpisodesAggregatesEveryPaginatedPage(t *testing.T) {
 		"3": paginatedEpisodesFixture(3, 3, 33, 33),
 	})
 
-	episodes, total, err := newWithBaseURL(srv.Client(), srv.URL).fetchEpisodes(context.Background(), srv.URL, "555", "tok")
+	episodes, total, err := newWithBaseURL(srv.Client(), newTestLog(), srv.URL).fetchEpisodes(context.Background(), srv.URL, "555", "tok")
 	if err != nil {
 		t.Fatalf("fetchEpisodes: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestFetchEpisodesStopsOnAnExhaustedPageDespiteAnInflatedLastPage(t *testing
 		"2": paginatedEpisodesFixture(2, 5, 16),
 	})
 
-	episodes, _, err := newWithBaseURL(srv.Client(), srv.URL).fetchEpisodes(context.Background(), srv.URL, "555", "tok")
+	episodes, _, err := newWithBaseURL(srv.Client(), newTestLog(), srv.URL).fetchEpisodes(context.Background(), srv.URL, "555", "tok")
 	if err != nil {
 		t.Fatalf("fetchEpisodes: %v", err)
 	}
@@ -201,7 +201,7 @@ func TestFetchEpisodesStopsAtThePageCapWhenLastPageNeverEnds(t *testing.T) {
 		}
 	}))
 
-	if _, _, err := newWithBaseURL(srv.Client(), srv.URL).fetchEpisodes(context.Background(), srv.URL, "555", "tok"); err != nil {
+	if _, _, err := newWithBaseURL(srv.Client(), newTestLog(), srv.URL).fetchEpisodes(context.Background(), srv.URL, "555", "tok"); err != nil {
 		t.Fatalf("fetchEpisodes: %v", err)
 	}
 
@@ -231,7 +231,7 @@ func TestFetchEpisodesFailsLoudlyWhenALaterPageFails(t *testing.T) {
 		}
 	}))
 
-	episodes, total, err := newWithBaseURL(srv.Client(), srv.URL).fetchEpisodes(context.Background(), srv.URL, "555", "tok")
+	episodes, total, err := newWithBaseURL(srv.Client(), newTestLog(), srv.URL).fetchEpisodes(context.Background(), srv.URL, "555", "tok")
 	if err == nil {
 		t.Fatal("expected a loud error when a later listing page fails")
 	}

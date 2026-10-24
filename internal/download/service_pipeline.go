@@ -227,14 +227,24 @@ func (s *Service) processAvailableEpisode(ctx context.Context, runID string, ani
 // a type ALIAS of that struct and not a separate type. When an emit site looks like it needs a
 // forensic field on the outcome, the answer is to move the emit site.
 func episodeForensics(episode int, result episodeEnqueueResult) map[string]any {
-	return map[string]any{
+	return withSiteHost(map[string]any{
 		"episode":      episode,
 		"hoster":       result.hoster,
 		"attemptIndex": result.attemptIndex,
 		"exit":         string(result.exit),
 		"baseline":     result.baseline,
 		"observed":     result.observed,
+	}, result.siteHost)
+}
+
+// withSiteHost adds siteHost to metadata as its own key, so the site host that served the episode
+// page can be filtered on. An unreported site host is OMITTED rather than recorded empty, the way
+// jdRemovedMetadata omits what was never measured.
+func withSiteHost(metadata map[string]any, siteHost string) map[string]any {
+	if siteHost != "" {
+		metadata["siteHost"] = siteHost
 	}
+	return metadata
 }
 
 // recordEpisodeFailure records an episode failure. It no longer decides whether to
@@ -281,6 +291,9 @@ type episodeEnqueueResult struct {
 	// the pre-attempt return that has no downloader client, where no folder has been resolved yet
 	// and reading the disk there would be a behavior change rather than a measurement.
 	baseline int
+	// siteHost is the site host that served the episode page of the credited attempt. It stays
+	// empty, like hoster, when no attempt ever ran.
+	siteHost string
 	// observed is the on-disk count at the terminal point. It is RECORDED AND NEVER ACTED ON:
 	// no branch, guard, loop condition, early return, verdict, classification, run counter or
 	// event payload may read it. It is computed only inside the terminal return that builds
@@ -300,6 +313,8 @@ const noAttemptIndex = -1
 type hosterLink struct {
 	hoster string
 	links  []string
+	// siteHost is the site host that served the episode page these links were read from.
+	siteHost string
 }
 
 // orderHosters groups links by hoster and orders the groups per HosterResolver.OrderWithDiscovered
@@ -307,18 +322,23 @@ type hosterLink struct {
 // group per hoster" rather than panicking.
 func (s *Service) orderHosters(site string, links []sites.DownloadLink) []hosterLink {
 	byHoster := map[string][]string{}
+	siteHosts := map[string]string{}
 	var discovered []string
 	for _, l := range links {
 		if _, seen := byHoster[l.Hoster]; !seen {
 			discovered = append(discovered, l.Hoster)
 		}
 		byHoster[l.Hoster] = append(byHoster[l.Hoster], l.URL)
+		siteHosts[l.Hoster] = l.SiteHost
+	}
+	group := func(h string) hosterLink {
+		return hosterLink{hoster: h, links: byHoster[h], siteHost: siteHosts[h]}
 	}
 
 	if s.deps.Hosters == nil {
 		out := make([]hosterLink, 0, len(discovered))
 		for _, h := range discovered {
-			out = append(out, hosterLink{hoster: h, links: byHoster[h]})
+			out = append(out, group(h))
 		}
 		return out
 	}
@@ -327,18 +347,17 @@ func (s *Service) orderHosters(site string, links []sites.DownloadLink) []hoster
 	if err != nil {
 		out := make([]hosterLink, 0, len(discovered))
 		for _, h := range discovered {
-			out = append(out, hosterLink{hoster: h, links: byHoster[h]})
+			out = append(out, group(h))
 		}
 		return out
 	}
 
 	out := make([]hosterLink, 0, len(order))
 	for _, entry := range order {
-		urls, ok := byHoster[entry.Hoster]
-		if !ok {
+		if _, ok := byHoster[entry.Hoster]; !ok {
 			continue
 		}
-		out = append(out, hosterLink{hoster: entry.Hoster, links: urls})
+		out = append(out, group(entry.Hoster))
 	}
 	return out
 }
@@ -407,15 +426,15 @@ func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime c
 	// unset is therefore proof that no attempt ever ran, which is the only thing separating the
 	// two callers of the final return below.
 	lastExit := exitUnset
-	lastHoster, lastAttemptIndex := "", noAttemptIndex
+	lastHoster, lastAttemptIndex, lastSiteHost := "", noAttemptIndex, ""
 	for i, hl := range ordered {
 		// Falling back to the next hoster after a stop would keep the run alive for
 		// minutes after the user asked it to end.
 		if ctx.Err() != nil {
-			return episodeEnqueueResult{failureKind: lastFailureKind, hoster: lastHoster, attemptIndex: lastAttemptIndex,
+			return episodeEnqueueResult{failureKind: lastFailureKind, hoster: lastHoster, attemptIndex: lastAttemptIndex, siteHost: lastSiteHost,
 				exit: exitCancelledBeforeAttempt, baseline: baselineCount, observed: s.downloadedEpisodeBaseline(folder)}
 		}
-		lastHoster, lastAttemptIndex = hl.hoster, i
+		lastHoster, lastAttemptIndex, lastSiteHost = hl.hoster, i, hl.siteHost
 		s.jdMu.Lock()
 		err := s.deps.JD.AddAndStart(ctx, s.deps.JDDeviceName, jdownloader.EnqueueRequest{
 			URLs:        hl.links,
@@ -430,16 +449,16 @@ func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime c
 				"anime %s: hoster %s enqueue failed, trying next: %v", anime.Name, hl.hoster, err)
 			// This path CONTINUES without reaching the outcome switch below, so the ledger
 			// needs its own row here or the attempt disappears from the record entirely.
-			s.recordHosterAttempt(runID, anime, hl.hoster, i, episode, "enqueue_error", exitEnqueueError)
+			s.recordHosterAttempt(runID, anime, hl, i, episode, "enqueue_error", exitEnqueueError)
 			continue
 		}
 
 		outcome := s.awaitHosterOutcome(ctx, runID, anime, hl.hoster, baselineCount, episode, i == 0)
 		lastExit = outcome.exit
-		s.recordHosterAttempt(runID, anime, hl.hoster, i, episode, attemptOutcomeName(outcome.kind), outcome.exit)
+		s.recordHosterAttempt(runID, anime, hl, i, episode, attemptOutcomeName(outcome.kind), outcome.exit)
 		switch outcome.kind {
 		case hosterOutcomeSuccess:
-			return episodeEnqueueResult{succeeded: true, hoster: hl.hoster, attemptIndex: i,
+			return episodeEnqueueResult{succeeded: true, hoster: hl.hoster, attemptIndex: i, siteHost: hl.siteHost,
 				exit: outcome.exit, baseline: baselineCount, observed: s.downloadedEpisodeBaseline(folder)}
 		case hosterOutcomeDead:
 			lastFailureKind = FailureKindHosterDown
@@ -461,7 +480,7 @@ func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime c
 	if episodeExit == exitUnset {
 		episodeExit = exitNoHosters
 	}
-	return episodeEnqueueResult{failureKind: lastFailureKind, hoster: lastHoster, attemptIndex: lastAttemptIndex,
+	return episodeEnqueueResult{failureKind: lastFailureKind, hoster: lastHoster, attemptIndex: lastAttemptIndex, siteHost: lastSiteHost,
 		exit: episodeExit, baseline: baselineCount, observed: s.downloadedEpisodeBaseline(folder)}
 }
 
@@ -471,10 +490,10 @@ func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime c
 // never describe the attempt that actually won. This ledger is the complementary channel: exactly
 // one uniform row per attempt, success included, whose value comes from being complete. It is
 // ADDITIVE -- it never derives, replaces or overrides a failure classification.
-func (s *Service) recordHosterAttempt(runID string, anime contracts.MobileAnime, hoster string, attemptIndex, episode int, outcome string, exit exitReason) {
+func (s *Service) recordHosterAttempt(runID string, anime contracts.MobileAnime, hl hosterLink, attemptIndex, episode int, outcome string, exit exitReason) {
 	s.logAnimef(logger.LevelInfo, runID, anime, "download.hoster_attempt",
-		map[string]any{"episode": episode, "hoster": hoster, "attemptIndex": attemptIndex, "outcome": outcome, "exit": string(exit)},
-		"anime %s: episode %d hoster %s attempt %d ended as %s at %s", anime.Name, episode, hoster, attemptIndex, outcome, exit)
+		withSiteHost(map[string]any{"episode": episode, "hoster": hl.hoster, "attemptIndex": attemptIndex, "outcome": outcome, "exit": string(exit)}, hl.siteHost),
+		"anime %s: episode %d hoster %s attempt %d ended as %s at %s", anime.Name, episode, hl.hoster, attemptIndex, outcome, exit)
 }
 
 // classifyEnqueueFailure maps an enqueue error to the download failure taxonomy.

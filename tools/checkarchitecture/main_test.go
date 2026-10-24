@@ -96,6 +96,49 @@ const query = "INSERT INTO anime_episode_durations DEFAULT VALUES; DELETE FROM d
 `,
 		},
 		{
+			name: "a provider adapter constructing its own http.Client is rejected",
+			path: "internal/download/sites/jkanime/client.go",
+			content: `package jkanime
+import "net/http"
+var client = &http.Client{}
+`,
+			wantErr: true,
+		},
+		{
+			name: "a provider adapter test constructing an http.Client is allowed",
+			path: "internal/download/sites/jkanime/client_test.go",
+			content: `package jkanime
+import "net/http"
+var client = &http.Client{}
+`,
+		},
+		{
+			name: "a composition root bypassing the provider client with jkanime.New(nil) is rejected",
+			path: "internal/desktop/app_wiring.go",
+			content: `package desktop
+import "autoreas-bridge/internal/download/sites/jkanime"
+var adapter = jkanime.New(nil, sharedLogger)
+`,
+			wantErr: true,
+		},
+		{
+			name: "a composition root bypassing the provider client with the default searcher client is rejected",
+			path: "internal/desktop/app_wiring.go",
+			content: `package desktop
+import "autoreas-bridge/internal/download/sites/jkanime"
+var searcher = jkanime.NewSearcher(http.DefaultClient, sharedLogger)
+`,
+			wantErr: true,
+		},
+		{
+			name: "a composition root injecting the shared provider client is allowed",
+			path: "internal/desktop/app_wiring.go",
+			content: `package desktop
+import "autoreas-bridge/internal/download/sites/jkanime"
+func wire(a *App) { _ = jkanime.New(a.providerHTTPClient(), a.sharedLogger) }
+`,
+		},
+		{
 			// Proves the legacy-boundary check is fully retired: no source
 			// file in this package declares checkLegacyBoundary, and a file
 			// that would have violated the old legacy-DTO/JSON-key/

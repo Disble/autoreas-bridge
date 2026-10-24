@@ -105,6 +105,9 @@ const (
 	WhereSchedule Where = "schedule"
 	// WhereSeason reads the season events and the season grade changes.
 	WhereSeason Where = "season"
+	// WhereProviders reads the provider egress events: Cloudflare clearance and the jkanime host
+	// fallback (ADR-029, ADR-030).
+	WhereProviders Where = "providers"
 )
 
 // scope is the SQL reading of one Where value.
@@ -132,6 +135,8 @@ func scopeOf(w Where) (scope, error) {
 		return scope{eventDomains: []string{"schedule"}}, nil
 	case WhereSeason:
 		return scope{eventDomains: []string{"season"}, changeActions: []string{activity.ActionSeasonGradeSet}}, nil
+	case WhereProviders:
+		return scope{eventDomains: []string{"clearance", "jkanime"}}, nil
 	}
 	return scope{}, fmt.Errorf("activityread: unknown where filter %q", w)
 }

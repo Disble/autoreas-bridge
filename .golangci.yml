@@ -84,3 +84,17 @@ linters:
               desc: "internal/myanimelist speaks MyAnimeList's vocabulary only; the MAL→bridge mapping lives outside it"
             - pkg: "autoreas-bridge/internal/api/contracts"
               desc: "the MAL module returns MAL-shaped values; the DTO conversion belongs in internal/desktop"
+        cfclearance-is-a-leaf:
+          files:
+            - "**/internal/cfclearance/**"
+          deny:
+            - pkg: "autoreas-bridge/internal/download"
+              desc: "internal/cfclearance is the transport the providers' client passes through; it never imports the download context it serves (ADR-030)"
+            - pkg: "autoreas-bridge/internal/season"
+              desc: "internal/cfclearance knows nothing about seasons; the hexagon stays a leaf (ADR-030)"
+            - pkg: "autoreas-bridge/internal/anime"
+              desc: "internal/cfclearance knows nothing about anime state; the hexagon stays a leaf (ADR-030)"
+            - pkg: "autoreas-bridge/internal/desktop"
+              desc: "the composition root wires internal/cfclearance, never the other way around (ADR-030)"
+            - pkg: "github.com/wailsapp/wails/v2"
+              desc: "internal/cfclearance imports only the standard library, x/net/publicsuffix, internal/events and the WebView2 engine; the Wails runtime stays at the edge (ADR-030)"

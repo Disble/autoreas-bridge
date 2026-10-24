@@ -3,7 +3,7 @@ name: frontend-render-smoke
 description: "Debug a blank or non-rendering Wails window, and verify the production frontend bundle actually paints. Use when the built app opens to an empty window, when a change could stop the UI mounting, when adding a route, or before claiming a build works. Keywords: blank window, white screen, empty window, does not render, WebView2, headless Edge, dump-dom, render smoke, wails build, smoke test."
 metadata:
   author: autoreas-bridge
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Debugging a blank Wails window
@@ -44,8 +44,9 @@ cd frontend && bun x vite build            # build the real artifact
   --dump-dom http://127.0.0.1:<port>/ > dom.html
 ```
 
-If `<div id="root">` in `dom.html` is empty, that is the blank window, reproduced
-in a terminal. Console and network errors arrive on stderr.
+If `<div id="root">` in `dom.html` still holds the Airis splash (`id="airis-splash"`)
+or is empty, React never mounted: that is the broken window, reproduced in a
+terminal. Console and network errors arrive on stderr.
 
 `frontend/scripts/render-smoke.mjs` automates exactly this and runs in ~4s. Use
 it first:
@@ -66,8 +67,11 @@ bun --cwd="frontend" run render:smoke
 
 ## Reading a failure
 
-**`#root` is empty.** A module-level throw, or a render throw with no error
-boundary above the routes.
+**The splash is still showing** (or `#root` is empty). A module-level throw, or a
+render throw with no error boundary above the routes. `index.html` paints the
+Airis splash inside `#root` and React's first render replaces it
+(`docs/design/airis/splash-screen.md`), so a bundle that never mounts shows Airis
+running forever rather than a blank window.
 
 Note: `App.tsx` imports every route eagerly. A module-level throw in **any**
 route blanks the **whole** app, not just that route — verified by breaking
@@ -111,7 +115,7 @@ Break the app on purpose and watch it go red before trusting it:
 
 ```bash
 printf '\nthrow new Error("deliberate break");\n' >> frontend/src/App.tsx
-bun --cwd="frontend" run render:smoke   # must fail with "#root is empty"
+bun --cwd="frontend" run render:smoke   # must fail with "the splash is still showing"
 git checkout -- frontend/src/App.tsx
 ```
 

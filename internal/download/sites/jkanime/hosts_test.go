@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	sharedlogger "autoreas-bridge/internal/logger"
 )
 
 // Test hosts of the chain. The in-memory httptest network delivers a request for any
@@ -100,7 +102,8 @@ func TestListEpisodesFallsBackToTheNextHostOnAChallenge(t *testing.T) {
 		_, _ = fmt.Fprint(w, fixture)
 	})
 
-	listing, err := newWithBaseURL(srv.client, challengedBase, mirrorBase).
+	log := newTestLog()
+	listing, err := newWithBaseURL(srv.client, log, challengedBase, mirrorBase).
 		ListEpisodes(context.Background(), challengedBase+"/some-anime/")
 	if err != nil {
 		t.Fatalf("ListEpisodes: %v", err)
@@ -123,6 +126,7 @@ func TestListEpisodesFallsBackToTheNextHostOnAChallenge(t *testing.T) {
 			t.Fatalf("mirror Referer = %q, want %q", referer, mirrorBase+"/")
 		}
 	}
+	assertFallbackLogged(t, log, "map[from:challenged.test to:mirror.test]")
 }
 
 // TestExtractLinksFallsBackToTheNextHostOnAChallenge proves the episode page is re-read
@@ -131,13 +135,18 @@ func TestExtractLinksFallsBackToTheNextHostOnAChallenge(t *testing.T) {
 	t.Parallel()
 	srv := newHostRoutedServer(t, serveFixture(episodePageWithServersFixture))
 
-	links, err := newWithBaseURL(srv.client, challengedBase, mirrorBase).
+	links, err := newWithBaseURL(srv.client, newTestLog(), challengedBase, mirrorBase).
 		ExtractLinks(context.Background(), challengedBase+"/some-anime/1/")
 	if err != nil {
 		t.Fatalf("ExtractLinks: %v", err)
 	}
 	if len(links) != 2 || links[0].Hoster != "Mediafire" {
 		t.Fatalf("unexpected links: %#v", links)
+	}
+	for _, link := range links {
+		if link.SiteHost != "mirror.test" {
+			t.Fatalf("SiteHost = %q, want the mirror that answered", link.SiteHost)
+		}
 	}
 }
 
@@ -147,7 +156,7 @@ func TestAPlainForbiddenDoesNotFallBack(t *testing.T) {
 	t.Parallel()
 	srv := newHostRoutedServer(t, serveFixture(episodePageWithServersFixture))
 
-	_, err := newWithBaseURL(srv.client, forbiddenBase, mirrorBase).
+	_, err := newWithBaseURL(srv.client, newTestLog(), forbiddenBase, mirrorBase).
 		ExtractLinks(context.Background(), forbiddenBase+"/some-anime/1/")
 	if err == nil || !strings.Contains(err.Error(), "HTTP 403") {
 		t.Fatalf("err = %v, want the plain HTTP 403", err)
@@ -166,7 +175,7 @@ func TestEveryHostChallengedFailsLoudly(t *testing.T) {
 	t.Parallel()
 	srv := newHostRoutedServer(t, serveFixture(animePageWithTokensFixture))
 
-	_, err := newWithBaseURL(srv.client, challengedBase, secondBase).
+	_, err := newWithBaseURL(srv.client, newTestLog(), challengedBase, secondBase).
 		ListEpisodes(context.Background(), challengedBase+"/some-anime/")
 	if !errors.Is(err, errChallenged) {
 		t.Fatalf("err = %v, want errChallenged", err)
@@ -192,7 +201,8 @@ func TestSearchFallsBackAndCanonicalizesMirrorPageURLs(t *testing.T) {
 			`<h5><a href="https://elsewhere.example/x/">Elsewhere</a></h5>`+
 			`<h5><a href="https://jkanime.net/a b/">Canonical</a></h5>`))
 
-	results, err := newSearcherWithBaseURL(srv.client, challengedBase, mirrorBase).
+	log := newTestLog()
+	results, err := newSearcherWithBaseURL(srv.client, log, challengedBase, mirrorBase).
 		Search(context.Background(), "kyoufu")
 	if err != nil {
 		t.Fatalf("Search: %v", err)
@@ -211,6 +221,7 @@ func TestSearchFallsBackAndCanonicalizesMirrorPageURLs(t *testing.T) {
 			t.Fatalf("PageURL[%d] = %q, want %q", i, result.PageURL, want[i])
 		}
 	}
+	assertFallbackLogged(t, log, "map[from:challenged.test to:mirror.test]")
 }
 
 // TestAURLOutsideTheChainIsTriedOnce proves a page on a host the chain does not know is
@@ -219,7 +230,7 @@ func TestAURLOutsideTheChainIsTriedOnce(t *testing.T) {
 	t.Parallel()
 	srv := newHostRoutedServer(t, serveFixture(episodePageWithServersFixture))
 
-	_, err := newWithBaseURL(srv.client, mirrorBase, secondBase).
+	_, err := newWithBaseURL(srv.client, newTestLog(), mirrorBase, secondBase).
 		ExtractLinks(context.Background(), challengedBase+"/some-anime/1/")
 	if !errors.Is(err, errChallenged) {
 		t.Fatalf("err = %v, want errChallenged", err)
@@ -261,10 +272,29 @@ func TestIsChallengeNeedsBothTheForbiddenStatusAndTheHeader(t *testing.T) {
 // TestMatchesAcceptsEveryMirrorHost proves pages stored on any chain host route here.
 func TestMatchesAcceptsEveryMirrorHost(t *testing.T) {
 	t.Parallel()
-	adapter := New(http.DefaultClient)
+	adapter := New(http.DefaultClient, newTestLog())
 	for _, page := range []string{"https://jkanime.net/a/", "https://jkanime.org/a/", "https://jkanime.bz/a/"} {
 		if !adapter.Matches(page) {
 			t.Fatalf("Matches(%q) = false", page)
 		}
+	}
+}
+
+// newTestLog returns the in-memory logger an adapter or searcher under test writes to.
+func newTestLog() *sharedlogger.MemLogger {
+	return sharedlogger.NewMemLogger(sharedlogger.MemLoggerConfig{})
+}
+
+// assertFallbackLogged fails unless log holds exactly one host switch, a warning in the
+// jkanime domain whose metadata renders as wantMetadata.
+func assertFallbackLogged(t *testing.T, log *sharedlogger.MemLogger, wantMetadata string) {
+	t.Helper()
+	entries := log.Recent()
+	if len(entries) != 1 {
+		t.Fatalf("log entries = %+v, want one host switch", entries)
+	}
+	got := fmt.Sprintf("%s %s %s %v", entries[0].Level, entries[0].Domain, entries[0].EventType, entries[0].Metadata)
+	if want := "warn jkanime jkanime.host_fallback " + wantMetadata; got != want {
+		t.Fatalf("log row = %q, want %q", got, want)
 	}
 }

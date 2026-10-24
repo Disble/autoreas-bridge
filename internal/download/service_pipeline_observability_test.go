@@ -20,16 +20,21 @@ func hosterAttemptLedger(t *testing.T, jd *fallbackAwareJDClient) (*fieldsRecord
 	s := NewService(deps)
 
 	ordered := []hosterLink{
-		{hoster: "Mediafire", links: []string{"http://mediafire.example/1"}},
-		{hoster: "Mega", links: []string{"http://mega.example/1"}},
+		{hoster: "Mediafire", links: []string{"http://mediafire.example/1"}, siteHost: "jkanime.org"},
+		{hoster: "Mega", links: []string{"http://mega.example/1"}, siteHost: "jkanime.org"},
 	}
 	result := s.enqueueWithFallback(context.Background(), "run-1", testAnime(folder), ordered, 12)
 	return recorder, result.succeeded, result.failureKind
 }
 
-// assertAttempt checks one ledger row against the hoster, index and outcome it must carry.
-func assertAttempt(t *testing.T, entry recordedEntry, hoster string, attemptIndex int, outcome string) {
+// assertAttempt checks one ledger row against the hoster, index, outcome and site host it must
+// carry. An empty siteHost means the link reported none, and the row must then omit the key
+// rather than record an empty value.
+func assertAttempt(t *testing.T, entry recordedEntry, hoster string, attemptIndex int, outcome, siteHost string) {
 	t.Helper()
+	if got, ok := entry.metadata["siteHost"]; ok != (siteHost != "") || (ok && got != siteHost) {
+		t.Fatalf("expected siteHost %q for hoster %q, got %#v (present %v)", siteHost, hoster, got, ok)
+	}
 	if entry.level != "info" {
 		t.Fatalf("expected the per-attempt ledger to persist at info level, got %q", entry.level)
 	}
@@ -63,8 +68,8 @@ func TestEnqueueErrorAndWinningHosterBothAppearInTheAttemptLedger(t *testing.T) 
 	if len(entries) != 2 {
 		t.Fatalf("expected exactly 1 ledger entry per attempted hoster, got %d", len(entries))
 	}
-	assertAttempt(t, entries[0], "Mediafire", 0, "enqueue_error")
-	assertAttempt(t, entries[1], "Mega", 1, "success")
+	assertAttempt(t, entries[0], "Mediafire", 0, "enqueue_error", "jkanime.org")
+	assertAttempt(t, entries[1], "Mega", 1, "success", "jkanime.org")
 }
 
 func TestDeadFirstHosterAndSuccessfulFallbackAreBothRecordedInOrder(t *testing.T) {
@@ -81,8 +86,8 @@ func TestDeadFirstHosterAndSuccessfulFallbackAreBothRecordedInOrder(t *testing.T
 	if len(entries) != 2 {
 		t.Fatalf("expected exactly 2 ledger entries across the fallback chain, got %d", len(entries))
 	}
-	assertAttempt(t, entries[0], "Mediafire", 0, "dead")
-	assertAttempt(t, entries[1], "Mega", 1, "success")
+	assertAttempt(t, entries[0], "Mediafire", 0, "dead", "jkanime.org")
+	assertAttempt(t, entries[1], "Mega", 1, "success", "jkanime.org")
 }
 
 func TestTheLedgerIsAdditiveAndNeverReplacesTheFailureTaxonomy(t *testing.T) {
@@ -184,8 +189,9 @@ func TestTheFirstHosterAndAFallbackAreClassifiedDifferentlyAtTheSameDeadEnd(t *t
 	if len(entries) != 2 {
 		t.Fatalf("expected one ledger entry per attempt, got %d", len(entries))
 	}
-	assertAttempt(t, entries[0], "Mediafire", 0, "dead")
-	assertAttempt(t, entries[1], "Mega", 1, "timeout")
+	// These links report no site host, so neither row may carry an empty siteHost key.
+	assertAttempt(t, entries[0], "Mediafire", 0, "dead", "")
+	assertAttempt(t, entries[1], "Mega", 1, "timeout", "")
 
 	removals := recorder.byEventType("download.jd_removed")
 	if len(removals) != 1 {
