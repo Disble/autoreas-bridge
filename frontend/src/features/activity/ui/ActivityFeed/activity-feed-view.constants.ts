@@ -25,3 +25,9 @@ export const ACTIVITY_FEED_NO_TYPES = { title: 'Pick at least one type to see ac
 
 /** Empty feed after a read. */
 export const ACTIVITY_FEED_EMPTY = { title: 'Nothing in this time range.', description: 'Pick another range, origin or type.' } as const;
+
+/**
+ * Where a failed row's "Copy for AI" sits (mockup `.ax-row` actions): over the
+ * row's spacer, just before `›`, vertically centred on the row.
+ */
+export const ACTIVITY_ROW_COPY_CLASS = 'absolute right-7 top-1/2 -translate-y-1/2';

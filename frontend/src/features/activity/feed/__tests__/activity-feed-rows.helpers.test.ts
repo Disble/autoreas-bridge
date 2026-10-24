@@ -38,6 +38,7 @@ describe('toFeedRowModel', () => {
       origin: 'phone',
       originLabel: 'Phone · failed',
       health: 'failed',
+      canCopy: true,
       subject: 'Frieren',
       detail: describeActivityChange({ source: 'mobile', actionType: 'episode_adjusted', beforeJson: '{"NroCapVisto":0}', afterJson: '{"NroCapVisto":1}' }),
       isOpen: true,
@@ -67,7 +68,7 @@ describe('toFeedRowModel', () => {
   ])('words %s', (_case, domain, eventType, message, subject, detail) => {
     const line = buildLine({ type: 'bridge', origin: 'bridge', slow: true }, { kind: 'event', domain, title: message, detail: eventType });
 
-    expect(toFeedRowModel(line, undefined)).toMatchObject({ subject, detail, health: 'slow', originLabel: 'Bridge · slow' });
+    expect(toFeedRowModel(line, undefined)).toMatchObject({ subject, detail, health: 'slow', canCopy: false, originLabel: 'Bridge · slow' });
   });
 
   it.each([

@@ -13,7 +13,7 @@ import type { ActivityFeedProps } from './activity-feed-view.types';
  * their text lines up with the toolbar. Loading, empty and
  * failure are exclusive. A complete feed ends with its start mark.
  */
-export function ActivityFeed({ status, resolvedView, days, hasMore, isLoadingMore, endMark, onSelectRow, onRetry }: ActivityFeedProps) {
+export function ActivityFeed({ status, resolvedView, days, hasMore, isLoadingMore, endMark, onSelectRow, onCopyRow, onRetry }: ActivityFeedProps) {
   if (status === 'loading') {
     return <ActivityFeedSkeleton label={ACTIVITY_FEED_LOADING_LABEL} labelId="activity-feed-loading" />;
   }
@@ -48,7 +48,7 @@ export function ActivityFeed({ status, resolvedView, days, hasMore, isLoadingMor
           <ul className="flex flex-col [&>li+li]:shadow-[0_-1px_0_var(--separator)]">
             {day.rows.map((row) => (
               <li key={row.key}>
-                <ActivityFeedRow onSelect={onSelectRow} row={row} />
+                <ActivityFeedRow onCopy={onCopyRow} onSelect={onSelectRow} row={row} />
               </li>
             ))}
           </ul>

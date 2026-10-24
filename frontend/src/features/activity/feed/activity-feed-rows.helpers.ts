@@ -111,6 +111,7 @@ export function toFeedRowModel(line: ActivityFeedLine, openKey: string | undefin
     origin: line.origin,
     originLabel: `${ACTIVITY_ORIGIN_LABELS[line.origin]}${healthLabel}`,
     health,
+    canCopy: health === 'failed',
     ...describeLine(line),
     isOpen: key === openKey,
     line,

@@ -13,6 +13,7 @@ import {
   toDrawerRequestPanel,
   toDrawerTechnicalTabs,
   toDrawerWindowErrorDetail,
+  toLineCopyText,
 } from '../drawer-technical.helpers';
 import { feedLine, incident } from './drawer.fixtures';
 
@@ -176,6 +177,12 @@ describe('toDrawerCopyText', () => {
     expect(text).not.toContain('incident');
     expect(text).not.toContain('correlation');
     expect(text).toContain('phone_report 3');
+  });
+
+  it('copies from a feed row exactly what the drawer summary copies, with no read', () => {
+    const line = feedLine({ incidentId: 7, failed: true }, { kind: 'event', id: '12', correlationId: 'c-1' });
+
+    expect(toLineCopyText(line)).toBe(toDrawerCopyText(input({ line }), false));
   });
 });
 

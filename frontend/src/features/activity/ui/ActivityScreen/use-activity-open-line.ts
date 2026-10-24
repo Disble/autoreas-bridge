@@ -1,14 +1,17 @@
 import { useCallback, useState } from 'react';
+import { toLineCopyText } from '../../drawer/drawer-technical.helpers';
 import { focusFeedRow } from '../../feed/activity-drawer-dismiss.helpers';
 import { feedLineKey, maybeFeedLineKey, stepFeedLine } from '../../feed/activity-feed-rows.helpers';
 import type { ActivityFeedRowModel } from '../../feed/activity-feed.types';
 import { useActivityDrawerDismiss } from '../../feed/use-activity-drawer-dismiss';
 import { useActivityFeedKeyboardScope } from '../../feed/use-activity-feed-keyboard-scope';
 import type { ActivityFeedDay, ActivityFeedLine } from '../../feed-source/feed.types';
+import { useActivityCopy } from '../ActivityRunStory/use-activity-copy';
 
 /**
  * Owns the line the detail drawer shows: opening it from a row, its ↑ / ↓ /
  * Esc keys, and closing it by × or by a press outside the drawer and rows.
+ * Also copies a failed row for AI, which opens nothing.
  *
  * @param days The loaded feed days ↑ / ↓ step through.
  * @param failureMenu Whether the failure menu is open and how Esc closes it; Esc closes the menu before the drawer.
@@ -21,6 +24,7 @@ export function useActivityOpenLine(days: readonly ActivityFeedDay[], failureMen
   const [openLine, setOpenLine] = useState<ActivityFeedLine | undefined>();
 
   // 3. Context/3rd Party Hooks
+  const { copy } = useActivityCopy();
 
   // 4. Queries/Mutations
 
@@ -35,6 +39,8 @@ export function useActivityOpenLine(days: readonly ActivityFeedDay[], failureMen
     setOpenLine(undefined);
   }, [openKey]);
   const onDismissDrawer = useCallback(() => setOpenLine(undefined), []);
+  // A failed row copies its summary for AI without opening the drawer.
+  const onCopyRow = useCallback((row: ActivityFeedRowModel) => copy(toLineCopyText(row.line)), [copy]);
   // The ↑ / ↓ commands exist only while a line is open, so openKey is set whenever these run.
   // Focus moves with the open line, so the focus ring never marks a row the drawer no longer shows.
   const onStepLine = useCallback(
@@ -59,5 +65,5 @@ export function useActivityOpenLine(days: readonly ActivityFeedDay[], failureMen
   });
   useActivityDrawerDismiss(openLine !== undefined, onDismissDrawer);
 
-  return { openLine, openKey, onSelectRow, onCloseDrawer };
+  return { openLine, openKey, onSelectRow, onCopyRow, onCloseDrawer };
 }

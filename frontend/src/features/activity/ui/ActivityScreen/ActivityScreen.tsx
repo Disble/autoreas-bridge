@@ -73,6 +73,7 @@ export function ActivityScreen() {
             endMark={screen.feed.endMark}
             hasMore={screen.feed.hasMore}
             isLoadingMore={screen.feed.isLoadingMore}
+            onCopyRow={screen.onCopyRow}
             onRetry={screen.onRetry}
             onSelectRow={screen.onSelectRow}
             resolvedView={screen.feed.resolvedView}

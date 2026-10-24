@@ -260,7 +260,7 @@ export function ActivityFeedFixture() {
           <Card className={ACTIVITY_CARD_CLASS}>
             <Card.Content className="flex flex-col">
               {HOSTILE_ROWS.map((row) => (
-                <ActivityFeedRow key={row.key} onSelect={() => undefined} row={row} />
+                <ActivityFeedRow key={row.key} onCopy={() => undefined} onSelect={() => undefined} row={row} />
               ))}
             </Card.Content>
           </Card>

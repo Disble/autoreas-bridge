@@ -210,18 +210,30 @@ export function toDrawerWindowErrorDetail(input: DrawerSummaryInput): DrawerWind
  * @returns The clipboard text.
  */
 export function toDrawerCopyText(input: DrawerSummaryInput, technical: boolean): string {
-  const { line, incidentId } = input.line;
-  const header = toDrawerHeader(input.line);
-  const reference = [
-    `Activity ${input.line.type} line ${line.kind} ${line.id} at ${new Date(line.atMs).toISOString()}`,
-    ...(incidentId === undefined ? [] : [`incident ${incidentId}`]),
-    ...(line.correlationId === '' ? [] : [`correlation ${line.correlationId}`]),
-  ].join(' · ');
-  const summary = [reference, [header.title, header.phrase].filter((part) => part !== '').join(' · ')];
+  const summary = toLineCopyText(input.line);
   if (!technical) {
-    return summary.join('\n');
+    return summary;
   }
   const events = toDrawerEventRows(input).map((row) => `${row.time} ${row.level} ${row.domain} ${row.detail} ${row.message}`);
   const data = toDrawerDataBlocks(input).map((block) => `${block.label}: ${block.raw}`);
-  return [...summary, ...events, ...data].join('\n');
+  return [summary, ...events, ...data].join('\n');
+}
+
+/**
+ * The summary "Copy for AI" text of a line, from the line alone: an
+ * MCP-ready reference and its header. A failed feed row copies this without
+ * opening the drawer.
+ *
+ * @param feedLine The line.
+ * @returns The clipboard text.
+ */
+export function toLineCopyText(feedLine: ActivityFeedLine): string {
+  const { line, incidentId } = feedLine;
+  const header = toDrawerHeader(feedLine);
+  const reference = [
+    `Activity ${feedLine.type} line ${line.kind} ${line.id} at ${new Date(line.atMs).toISOString()}`,
+    ...(incidentId === undefined ? [] : [`incident ${incidentId}`]),
+    ...(line.correlationId === '' ? [] : [`correlation ${line.correlationId}`]),
+  ].join(' · ');
+  return [reference, [header.title, header.phrase].filter((part) => part !== '').join(' · ')].join('\n');
 }

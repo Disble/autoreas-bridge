@@ -16,6 +16,8 @@ export interface ActivityFeedProps {
   readonly endMark: string;
   /** Opens a row in the detail drawer. */
   readonly onSelectRow: (row: ActivityFeedRowModel) => void;
+  /** Copies a failed row for AI. */
+  readonly onCopyRow: (row: ActivityFeedRowModel) => void;
   /** Reads the feed again after a failure. */
   readonly onRetry: () => void;
 }
@@ -26,6 +28,8 @@ export interface ActivityFeedRowProps {
   readonly row: ActivityFeedRowModel;
   /** Opens the row in the detail drawer. */
   readonly onSelect: (row: ActivityFeedRowModel) => void;
+  /** Copies a failed row for AI. */
+  readonly onCopy: (row: ActivityFeedRowModel) => void;
 }
 
 /** Props of the feed's skeleton rows. */

@@ -52,6 +52,8 @@ export interface ActivityFeedRowModel {
   readonly detail: string;
   /** Whether the drawer shows this line. */
   readonly isOpen: boolean;
+  /** Whether the row offers "Copy for AI": only a failed row does (mockup row actions). */
+  readonly canCopy: boolean;
   /** The stored line the drawer opens. */
   readonly line: ActivityFeedLine;
 }

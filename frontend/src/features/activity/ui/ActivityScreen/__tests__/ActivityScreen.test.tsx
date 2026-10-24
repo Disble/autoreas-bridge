@@ -294,7 +294,9 @@ describe('ActivityScreen', () => {
     await waitFor(() => expect(activitySource.pinMoment).toHaveBeenCalledTimes(1));
   });
 
-  it('marks a failed bridge line red and a slow line amber, through the origin icon only', async () => {
+  it('marks a failed bridge line red and a slow line amber, and offers Copy for AI on the failed row only', async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     const failed = buildLine({ type: 'bridge', origin: 'bridge', failed: true, incidentId: 4 }, { kind: 'event', id: '2', title: 'Sync failed', detail: 'sync.error' });
     const slow = buildLine({ slow: true }, { id: '1', atMs: Date.now() - 2000 });
     feedSource.searchFeed.mockResolvedValue(buildView([buildDay(0, [failed, slow])]));
@@ -303,6 +305,14 @@ describe('ActivityScreen', () => {
     expect(await screen.findByRole('img', { name: 'Bridge · failed' })).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'Linked incident' })).not.toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Phone · slow' })).toBeInTheDocument();
+    const copyButtons = screen.getAllByRole('button', { name: 'Copy for AI' });
+    expect(copyButtons).toHaveLength(1);
+
+    fireEvent.click(copyButtons[0]);
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('incident 4'));
+    expect(document.querySelector('[aria-current="true"]')).toBeNull();
   });
 });
 
