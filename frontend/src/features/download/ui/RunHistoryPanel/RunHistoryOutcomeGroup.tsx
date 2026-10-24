@@ -13,7 +13,7 @@ import { RunHistoryAnimeRow } from './RunHistoryAnimeRow';
  * run's story is stored, a collapsible list of the anime it names. Without a
  * story the group is its header alone.
  */
-export function RunHistoryOutcomeGroup({ group, covers, onCopy, onEditAnime }: Readonly<RunHistoryOutcomeGroupProps>) {
+export function RunHistoryOutcomeGroup({ group, covers, onCopy, onEditAnime, onOpenLink }: Readonly<RunHistoryOutcomeGroupProps>) {
   const header = (
     <>
       <span className={`inline-grid ${RUN_HISTORY_TONE_ICON_CLASS[group.tone]}`}>
@@ -64,6 +64,7 @@ export function RunHistoryOutcomeGroup({ group, covers, onCopy, onEditAnime }: R
                   row={row}
                   onCopy={onCopy}
                   onEditAnime={onEditAnime}
+                  onOpenLink={onOpenLink}
                 />
               ))}
             </ul>

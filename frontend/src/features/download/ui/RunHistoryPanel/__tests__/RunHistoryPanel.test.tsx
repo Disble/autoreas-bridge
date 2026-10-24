@@ -71,6 +71,7 @@ function mockPanel(runs: readonly DownloadRunView[], { selectedRunId, story = { 
     toggleProblems: vi.fn(),
     copyText: vi.fn(),
     editAnime: vi.fn(),
+    openLink: vi.fn(),
     onScroll: vi.fn(),
   };
   mockedUseRunHistoryPanel.mockReturnValue({ viewModel: { ...list, detail, ...overrides }, scrollRef: { current: null }, ...actions });
@@ -176,7 +177,7 @@ describe('RunHistoryPanel detail', () => {
 
     expect(pending).toHaveTextContent('Not attempted2');
     expect(screen.getByText('Frieren').parentElement).toHaveTextContent('Episode 12');
-    expect(screen.getAllByRole('link', { name: /example\.com\/a/ })[0]).toHaveAttribute('href', 'https://example.com/a');
+    expect(screen.getAllByRole('link', { name: /example\.com\/a/ })[0]).not.toHaveAttribute('href');
     fireEvent.click(screen.getByRole('button', { name: 'Copy all links' }));
     expect(actions.copyText).toHaveBeenCalledWith('https://example.com/a\nhttps://example.com/b', 'All links copied');
   });
@@ -214,6 +215,16 @@ describe('RunHistoryPanel detail', () => {
 
     expect(screen.getByText('Episodes not recorded')).toBeInTheDocument();
     expect(screen.getByText('This run kept no per-anime record of these episodes.')).toBeInTheDocument();
+  });
+
+  it('opens a manual link in the default browser from its button and its text, with no WebView anchor', () => {
+    const actions = mockPanel([jdOfflineRun], { story });
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Open in browser' })[0]);
+    fireEvent.click(screen.getByText('example.com/b'));
+
+    expect(actions.openLink.mock.calls).toEqual([['https://example.com/a'], ['https://example.com/b']]);
+    expect(document.querySelector('a[target="_blank"]')).toBeNull();
   });
 
   it('flags a truncated story beside the totals', () => {

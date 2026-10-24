@@ -18,7 +18,7 @@ import { RunProgressBar } from './RunProgressBar';
  * and episode totals, the episodes bar, the error summary verbatim, and the
  * per-anime outcome groups.
  */
-export function RunHistoryDetailPane({ detail, covers, onCopy, onEditAnime }: Readonly<RunHistoryDetailPaneProps>) {
+export function RunHistoryDetailPane({ detail, covers, onCopy, onEditAnime, onOpenLink }: Readonly<RunHistoryDetailPaneProps>) {
   if (detail === undefined) {
     return (
       <div className={RUN_HISTORY_PANE_CLASS}>
@@ -84,7 +84,7 @@ export function RunHistoryDetailPane({ detail, covers, onCopy, onEditAnime }: Re
       {detail.groups.length === 0 ? null : (
         <div className="flex flex-col gap-2">
           {detail.groups.map((group) => (
-            <RunHistoryOutcomeGroup covers={covers} group={group} key={`${run.runId}-${group.id}`} onCopy={onCopy} onEditAnime={onEditAnime} />
+            <RunHistoryOutcomeGroup covers={covers} group={group} key={`${run.runId}-${group.id}`} onCopy={onCopy} onEditAnime={onEditAnime} onOpenLink={onOpenLink} />
           ))}
         </div>
       )}

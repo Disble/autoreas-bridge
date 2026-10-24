@@ -149,6 +149,20 @@ describe('useRunHistoryPanel', () => {
     expect(result.current.viewModel.selectedRun?.runId).toBe(manyRuns[19]!.runId);
   });
 
+  it('opens a manual link in the default browser through the Wails runtime, never in the WebView', async () => {
+    const browserOpenURL = vi.fn();
+    const runtime = window.runtime;
+    window.runtime = { ...runtime, BrowserOpenURL: browserOpenURL };
+    const { result, unmount } = renderHook(() => useRunHistoryPanel(createSource()), { wrapper: atRoute() });
+    await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
+
+    act(() => result.current.openLink('https://mega.nz/file/a'));
+
+    expect(browserOpenURL).toHaveBeenCalledExactlyOnceWith('https://mega.nz/file/a');
+    unmount();
+    window.runtime = runtime;
+  });
+
   it('reveals older runs when the rail is scrolled near its bottom', async () => {
     const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue(manyRuns) });
     const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });

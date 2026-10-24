@@ -20,7 +20,7 @@ import { RunHistoryMasterList } from './RunHistoryMasterList';
  * sibling sections and stays presentation-only itself.
  */
 export function RunHistoryPanel({ className, storySource }: Readonly<RunHistoryPanelProps>) {
-  const { viewModel, cancelRun, selectRun, scrollRef, onScroll, toggleProblems, copyText, editAnime } = useRunHistoryPanel(undefined, { storySource });
+  const { viewModel, cancelRun, selectRun, scrollRef, onScroll, toggleProblems, copyText, editAnime, openLink } = useRunHistoryPanel(undefined, { storySource });
 
   if (viewModel.status === 'loading') {
     return (
@@ -78,7 +78,7 @@ export function RunHistoryPanel({ className, storySource }: Readonly<RunHistoryP
 
         <div className="grid gap-4 md:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
           <RunHistoryMasterList days={viewModel.visibleDays} onScroll={onScroll} onSelectRun={selectRun} scrollRef={scrollRef} />
-          <RunHistoryDetailPane covers={viewModel.covers} detail={viewModel.detail} onCopy={copyText} onEditAnime={editAnime} />
+          <RunHistoryDetailPane covers={viewModel.covers} detail={viewModel.detail} onCopy={copyText} onEditAnime={editAnime} onOpenLink={openLink} />
         </div>
       </section>
     </RunHistoryCard>

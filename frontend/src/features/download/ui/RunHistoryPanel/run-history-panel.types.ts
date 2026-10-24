@@ -248,6 +248,8 @@ export interface RunHistoryDetailActions {
   readonly onCopy: (text: string, confirmation: string) => void;
   /** Opens the anime in the editor. */
   readonly onEditAnime: (animeId: string) => void;
+  /** Opens a manual link in the default browser. */
+  readonly onOpenLink: (url: string) => void;
 }
 
 /** Props for the `RunHistoryDetailPane` dumb-UI component. */
@@ -274,6 +276,8 @@ export interface RunHistoryAnimeRowProps extends RunHistoryDetailActions {
 export interface RunHistoryManualLinksProps {
   readonly links: readonly string[];
   readonly onCopy: (text: string, confirmation: string) => void;
+  /** Opens one link in the default browser. */
+  readonly onOpenLink: (url: string) => void;
 }
 
 /** Props for the `RunProgressBar` episode-segments visualisation. */

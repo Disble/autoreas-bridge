@@ -5,6 +5,7 @@ import type { UIEvent } from 'react';
 import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
 import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import { isNearListBottom } from '../../../../shared/helpers/progressive-list.helpers';
+import { openInDefaultBrowser } from '../../../../shared/helpers/url.helpers';
 import { connectDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
 import { useDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store/download-runtime-store';
 import { RUN_HISTORY_PAGE_SIZE } from './run-history-panel.constants';
@@ -60,6 +61,10 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
       .writeText(text)
       .then(() => toast.success(confirmation))
       .catch(() => undefined);
+  }, []);
+
+  const openLink = useCallback((url: string) => {
+    openInDefaultBrowser(url);
   }, []);
 
   const editAnime = useCallback((animeId: string) => {
@@ -122,5 +127,6 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
     toggleProblems,
     copyText,
     editAnime,
+    openLink,
   };
 }

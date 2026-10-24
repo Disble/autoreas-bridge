@@ -11,7 +11,7 @@ import { RunHistoryManualLinks } from './RunHistoryManualLinks';
  * value per line), "Edit anime" on a skipped
  * anime, and any manual links under it.
  */
-export function RunHistoryAnimeRow({ row, cover, onCopy, onEditAnime }: Readonly<RunHistoryAnimeRowProps>) {
+export function RunHistoryAnimeRow({ row, cover, onCopy, onEditAnime, onOpenLink }: Readonly<RunHistoryAnimeRowProps>) {
   const { animeId } = row;
 
   return (
@@ -34,7 +34,7 @@ export function RunHistoryAnimeRow({ row, cover, onCopy, onEditAnime }: Readonly
           <IconActionButton ariaLabel={`Edit ${row.name}`} icon={penIcon} tooltip="Edit anime" variant="ghost" onPress={() => onEditAnime(animeId)} />
         ) : null}
       </div>
-      <RunHistoryManualLinks links={row.links} onCopy={onCopy} />
+      <RunHistoryManualLinks links={row.links} onCopy={onCopy} onOpenLink={onOpenLink} />
     </li>
   );
 }
