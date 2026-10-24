@@ -27,6 +27,8 @@ export interface ActivityTechnicalViewProps {
   readonly onRetryRequest: () => void;
   /** The Events tab rows. */
   readonly events: readonly DrawerEventRow[];
+  /** Why the Events tab is empty, when known; empty otherwise. */
+  readonly eventsEmpty: string;
   /** The Data tab blocks. */
   readonly data: readonly DrawerDataBlock[];
   /** The stored window error, shown in Data instead of the raw blocks; undefined for other events. */

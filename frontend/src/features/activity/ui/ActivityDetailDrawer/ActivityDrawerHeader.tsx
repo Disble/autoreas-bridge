@@ -1,10 +1,10 @@
 import { Icon } from '@iconify/react';
-import arrowLeftIcon from '@iconify-icons/solar/arrow-left-bold';
-import closeIcon from '@iconify-icons/solar/close-circle-bold';
-import codeIcon from '@iconify-icons/solar/code-bold';
-import copyIcon from '@iconify-icons/solar/copy-bold';
-import serverIcon from '@iconify-icons/solar/server-bold';
-import phoneIcon from '@iconify-icons/solar/smartphone-bold';
+import arrowLeftIcon from '@iconify-icons/solar/arrow-left-linear';
+import closeIcon from '@iconify-icons/tabler/x';
+import codeIcon from '@iconify-icons/solar/code-linear';
+import copyIcon from '@iconify-icons/solar/copy-linear';
+import monitorIcon from '@iconify-icons/solar/monitor-linear';
+import phoneIcon from '@iconify-icons/solar/smartphone-linear';
 import { IconActionButton } from '../../../../shared/ui/IconActionButton/IconActionButton';
 import { ACTIVITY_DRAWER_TILE_CLASS } from './activity-detail-drawer.constants';
 import type { ActivityDrawerHeaderProps } from './activity-detail-drawer.types';
@@ -23,7 +23,7 @@ export function ActivityDrawerHeader({ header, technical, onToggleTechnical, onC
         data-testid="activity-drawer-origin"
         role="img"
       >
-        <Icon icon={header.origin === 'phone' ? phoneIcon : serverIcon} />
+        <Icon icon={header.origin === 'phone' ? phoneIcon : monitorIcon} />
       </span>
       <div className="min-w-0 flex-1">
         <h2 className="truncate text-base font-semibold text-foreground" id="activity-drawer-title">
@@ -38,9 +38,10 @@ export function ActivityDrawerHeader({ header, technical, onToggleTechnical, onC
           icon={technical ? arrowLeftIcon : codeIcon}
           onPress={onToggleTechnical}
           tooltip={technical ? 'Back to summary' : 'Technical details'}
+          variant="ghost"
         />
-        <IconActionButton ariaLabel="Copy for AI" icon={copyIcon} onPress={onCopy} tooltip="Copy for AI" />
-        <IconActionButton ariaLabel="Close" icon={closeIcon} onPress={onClose} tooltip="Close" />
+        <IconActionButton ariaLabel="Copy for AI" icon={copyIcon} onPress={onCopy} tooltip="Copy for AI" variant="ghost" />
+        <IconActionButton ariaLabel="Close" icon={closeIcon} onPress={onClose} tooltip="Close" variant="ghost" />
       </div>
     </header>
   );

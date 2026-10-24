@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ActivityRunStep } from '../../activity-source/activity-incident.types';
 import type { ActivityFeedSource } from '../../feed-source/feed-source.types';
-import { readDrawerEvent, toDrawerEventId, toDrawerEventMetadata } from '../drawer-reads.helpers';
+import { readDrawerEvent, toDrawerEventId, toDrawerEventMetadata, toDrawerStoryId } from '../drawer-reads.helpers';
 import { feedLine } from './drawer.fixtures';
 
 /** A stored event with the given metadata JSON. */
@@ -47,5 +47,16 @@ describe('readDrawerEvent', () => {
 
     expect(getEvent).toHaveBeenCalledExactlyOnceWith(12);
     expect(read.status).toBe(status);
+  });
+});
+
+describe('toDrawerStoryId', () => {
+  it.each([
+    ['a download run reads its correlation id, the run id', 'download_run', 'download', 'run-1', 'run-1'],
+    ['a task event reads its correlation id', 'event', 'season', 'c-1', 'c-1'],
+    ['another event reads nothing, its summary shows no run story', 'event', 'api', 'c-1', undefined],
+    ['a run without one reads nothing', 'download_run', 'download', '', undefined],
+  ])('%s', (_name, kind, domain, correlationId, expected) => {
+    expect(toDrawerStoryId(feedLine({}, { kind, domain, correlationId }))).toBe(expected);
   });
 });

@@ -25,6 +25,7 @@ function props(overrides: Partial<ActivityTechnicalViewProps> = {}): ActivityTec
     panel: undefined,
     onRetryRequest: vi.fn(),
     events: [],
+    eventsEmpty: '',
     data: [],
     windowError: undefined,
     ...overrides,
@@ -77,6 +78,15 @@ describe('ActivityTechnicalView', () => {
 
     expect(screen.getByRole('list', { name: 'Events' })).toHaveTextContent('Device session rejected');
     expect(screen.getByText('warn')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['says why the Events tab is empty when it knows', 'No events were recorded for this run.'],
+    ['renders nothing more when it does not', ''],
+  ])('%s', (_name, eventsEmpty) => {
+    render(<ActivityTechnicalView {...props({ tab: 'events', eventsEmpty })} />);
+
+    expect(screen.queryByText('No events were recorded for this run.') !== null).toBe(eventsEmpty !== '');
   });
 
   it('shows an event of an unknown level without a detail line', () => {

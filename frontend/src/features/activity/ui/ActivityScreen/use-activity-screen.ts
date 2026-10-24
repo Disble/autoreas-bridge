@@ -50,10 +50,10 @@ export function useActivityScreen(
   const overviewRead = useActivityOverview(feedSource, filters.scale, filters.range?.fromMs ?? 0, filters.range?.toMs ?? 0, filters.origin);
 
   // 5. Derived State (useMemo)
-  const { openKey, ...openLine } = useActivityOpenLine(pages.days);
+  const failureMenu = useActivityFailureMenu(overviewRead.overview, filters, setFilters);
+  const { openKey, ...openLine } = useActivityOpenLine(pages.days, { isOpen: failureMenu.isFailureMenuShown, onClose: failureMenu.onFailureMenuEscape });
   const days = useMemo(() => toFeedDayModels(pages.days, openKey, filters.anchorMs), [filters.anchorMs, openKey, pages.days]);
   const chart = useActivityChart(overviewRead.overview, overviewRead.status, filters, setFilters);
-  const failureMenu = useActivityFailureMenu(overviewRead.overview, filters, setFilters);
   const windowStartMs = scaleWindowStart(filters.scale, filters.anchorMs);
 
   // 6. Callbacks (useCallback calling pure helpers)

@@ -60,3 +60,22 @@ export function incident(overrides: Partial<ActivityIncidentDetail> = {}): Activ
     ...overrides,
   };
 }
+
+/** A failed run with no trigger and no end, overridden per row. */
+export function run(overrides: Partial<NonNullable<ActivityFeedLine['run']>> = {}): NonNullable<ActivityFeedLine['run']> {
+  return {
+    runId: 'run-1',
+    trigger: '',
+    status: 'error',
+    startedAtMs: Date.UTC(2026, 9, 22, 12, 0),
+    finishedAtMs: undefined,
+    animesChecked: 1,
+    episodesFound: 1,
+    episodesDownloaded: 0,
+    episodesFailed: 1,
+    skippedCount: 0,
+    upToDateCount: 0,
+    errorSummary: 'host down',
+    ...overrides,
+  };
+}

@@ -1,4 +1,4 @@
-import type { DrawerHeaderModel, DrawerSection } from '../../drawer/drawer.types';
+import type { DrawerHeaderModel, DrawerSection, DrawerTransitionEnd } from '../../drawer/drawer.types';
 import type { ActivityFeedLine } from '../../feed-source/feed.types';
 
 /**
@@ -13,10 +13,14 @@ export interface ActivityDetailDrawerProps {
   readonly onClose: () => void;
 }
 
-/** Props of the open drawer panel. */
+/** Props of the drawer panel. */
 export interface ActivityDetailDrawerPanelProps {
   /** The open line. */
   readonly line: ActivityFeedLine;
+  /** Whether it is open; closed, it slides out and turns hidden. */
+  readonly open: boolean;
+  /** Reads the panel's transition ends, so a closed drawer unmounts once it has slid out. */
+  readonly onTransitionEnd: (event: DrawerTransitionEnd) => void;
   /** Asks the screen to close the drawer. */
   readonly onClose: () => void;
 }

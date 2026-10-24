@@ -1,7 +1,7 @@
 import { formatActivityDuration } from '../ui/ActivityRunStory/activity-time.helpers';
 import { getAnimeEstadoLabel } from '../../../shared/helpers/anime-estado.helpers';
 import { toDrawerCause } from './drawer-cause.helpers';
-import { DRAWER_CHANGE_FIELDS, DRAWER_HOUR_MS, DRAWER_MINUTE_MS, DRAWER_RECORDER_RETENTION_MS, DRAWER_TOTALS_ONLY_NOTE, DRAWER_WINDOW_ERROR_KIND_WORDS } from './drawer.constants';
+import { DRAWER_CHANGE_FIELDS, DRAWER_HOUR_MS, DRAWER_MINUTE_MS, DRAWER_NO_RUN_EVENTS_NOTE, DRAWER_RECORDER_RETENTION_MS, DRAWER_TOTALS_ONLY_NOTE, DRAWER_WINDOW_ERROR_KIND_WORDS } from './drawer.constants';
 import type { DrawerListItem, DrawerSection, DrawerSummaryInput } from './drawer.types';
 import { drawerFact, formatDrawerKeptUntil, formatDrawerSpan, formatDrawerTime } from './drawer-format.helpers';
 
@@ -135,8 +135,22 @@ export function trafficSections(input: DrawerSummaryInput): readonly DrawerSecti
 }
 
 /**
- * The download run presenter: the run row's stored figures, its error summary
- * and the run story timeline.
+ * The run story of a run or task: its timeline, or a note when its read story
+ * holds no stored event.
+ *
+ * @param input The summary input.
+ * @param correlationId The id the story is read by.
+ * @returns The sections.
+ */
+export function runStorySections(input: DrawerSummaryInput, correlationId: string): readonly DrawerSection[] {
+  if (input.story?.steps.length === 0) {
+    return [{ kind: 'note', key: 'no-events', text: DRAWER_NO_RUN_EVENTS_NOTE }];
+  }
+  return [{ kind: 'run-story', key: 'story', correlationId }];
+}
+
+/**
+ * The download run presenter: the run story timeline, then its failure.
  *
  * @param input The summary input.
  * @returns The sections.
@@ -146,7 +160,7 @@ export function runSections(input: DrawerSummaryInput): readonly DrawerSection[]
   if (run === undefined) {
     return [];
   }
-  return [{ kind: 'run-story', key: 'story', correlationId: run.runId }, ...failureSections(input)];
+  return [...runStorySections(input, run.runId), ...failureSections(input)];
 }
 
 /**

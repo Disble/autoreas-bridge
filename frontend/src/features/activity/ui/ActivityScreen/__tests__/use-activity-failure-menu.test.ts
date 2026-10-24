@@ -18,14 +18,20 @@ function renderMenu() {
 }
 
 describe('useActivityFailureMenu', () => {
-  it('follows the state table: open turns the filter on, closing keeps it on, the × turns it off', () => {
+  it('follows the state table: the first press turns the filter on and opens, later presses close and reopen, the × turns it off', () => {
     const { result } = renderMenu();
     expect(result.current.failureButtonState).toBe('off');
 
-    act(() => result.current.onFailureMenuOpenChange(true));
+    act(() => result.current.onFailureToggle());
     expect([result.current.failureButtonState, result.current.filters.failuresOnly]).toEqual(['open', true]);
 
-    act(() => result.current.onFailureMenuOpenChange(false));
+    act(() => result.current.onFailureToggle());
+    expect([result.current.failureButtonState, result.current.filters.failuresOnly]).toEqual(['on', true]);
+
+    act(() => result.current.onFailureToggle());
+    expect(result.current.failureButtonState).toBe('open');
+
+    act(() => result.current.onFailureMenuEscape());
     expect([result.current.failureButtonState, result.current.filters.failuresOnly]).toEqual(['on', true]);
 
     act(() => result.current.onFailureClear());

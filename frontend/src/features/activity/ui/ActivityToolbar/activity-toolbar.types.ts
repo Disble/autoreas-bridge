@@ -1,5 +1,6 @@
 import type { Key } from '@heroui/react';
 import type { CalendarDate } from '@internationalized/date';
+import type { RefObject } from 'react';
 import type { ActivityCalendarRange, ActivityFailureButtonState, ActivityFailureRowModel, ActivityTypeToggleModel } from '../../feed/activity-feed.types';
 import type { ActivityFeedOrigin } from '../../feed-source/feed.types';
 
@@ -15,8 +16,10 @@ export interface ActivityFailureButtonProps {
   readonly selectedKeys: Set<Key>;
   /** Rows with no failure. */
   readonly disabledKeys: Set<Key>;
-  /** Opens or closes the menu; opening turns the filter on. */
-  readonly onOpenChange: (isOpen: boolean) => void;
+  /** The pill and its menu; a press outside it closes the menu. */
+  readonly groupRef: RefObject<HTMLDivElement | null>;
+  /** The pill's press: off turns the filter on and opens the menu, then it opens or closes the menu. */
+  readonly onToggle: () => void;
   /** Applies the menu's selection. */
   readonly onSelectionChange: (keys: Set<Key> | 'all') => void;
   /** Turns the failure filter off. */

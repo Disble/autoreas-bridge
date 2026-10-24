@@ -6,7 +6,9 @@ import {
   ACTIVITY_FEED_MONTH_FORMAT,
   ACTIVITY_FEED_SHORT_DATE_FORMAT,
   ACTIVITY_FEED_TIME_FORMAT,
+  ACTIVITY_FEED_WEEKDAY_FORMAT,
   ACTIVITY_MIN_BAR_PERCENT,
+  ACTIVITY_TODAY_TICK,
 } from './activity-feed.constants';
 import type { ActivityChartBarModel, ActivityChartBarState, ActivityRange } from './activity-feed.types';
 
@@ -29,16 +31,26 @@ function formatSpan(slot: ActivityChartSlot, scale: ActivityChartScale): string 
   return ACTIVITY_FEED_DAY_FORMAT.format(slot.startMs);
 }
 
-/** The axis tick under a bar; the newest bar reads Now or Today. */
+/**
+ * The axis tick under a bar, as the mockup draws it: 24 h every third hour
+ * (`15`, `18`) with midnight as Today; 7 days `Sat 17`; 30 days every seventh
+ * day back from today; 90 days the month on its first day. The newest daily
+ * bar reads Today.
+ */
 function formatTick(slot: ActivityChartSlot, scale: ActivityChartScale, index: number, count: number): string {
   const fromEnd = count - 1 - index;
   const start = new Date(slot.startMs);
-  if (fromEnd === 0) {
-    return scale === '24h' ? 'Now' : 'Today';
+  if (scale === '24h') {
+    if (start.getHours() === 0) {
+      return ACTIVITY_TODAY_TICK;
+    }
+    return start.getHours() % 3 === 0 ? String(start.getHours()).padStart(2, '0') : '';
   }
-  const ticks: Readonly<Record<ActivityChartScale, () => string>> = {
-    '24h': () => (start.getHours() % 6 === 0 ? ACTIVITY_FEED_TIME_FORMAT.format(slot.startMs) : ''),
-    '7d': () => ACTIVITY_FEED_DAY_FORMAT.format(slot.startMs).split(',')[0],
+  if (fromEnd === 0) {
+    return ACTIVITY_TODAY_TICK;
+  }
+  const ticks: Readonly<Record<Exclude<ActivityChartScale, '24h'>, () => string>> = {
+    '7d': () => `${ACTIVITY_FEED_WEEKDAY_FORMAT.format(slot.startMs)} ${start.getDate()}`,
     '30d': () => (fromEnd % 7 === 0 ? ACTIVITY_FEED_SHORT_DATE_FORMAT.format(slot.startMs) : ''),
     '90d': () => (start.getDate() === 1 ? ACTIVITY_FEED_MONTH_FORMAT.format(slot.startMs) : ''),
   };
@@ -58,13 +70,16 @@ function formatTick(slot: ActivityChartSlot, scale: ActivityChartScale, index: n
 export function toChartBars(slots: readonly ActivityChartSlot[], scale: ActivityChartScale, selection: ActivityRange | undefined): readonly ActivityChartBarModel[] {
   const busiest = Math.max(1, ...slots.map((slot) => slot.count));
   return slots.map((slot, index) => {
+    const tick = formatTick(slot, scale, index, slots.length);
     const state: ActivityChartBarState = selection === undefined ? 'idle' : overlaps(slot, selection) ? 'selected' : 'dimmed';
     return {
       key: slot.startMs,
       heightPercent: slot.count === 0 ? 0 : Math.max(ACTIVITY_MIN_BAR_PERCENT, (slot.count / busiest) * 100),
       hasFailure: slot.failed > 0,
       label: `${formatSpan(slot, scale)} · ${formatCounts(slot)}`,
-      tick: formatTick(slot, scale, index, slots.length),
+      tick,
+      isTodayTick: tick === ACTIVITY_TODAY_TICK,
+      isNow: index === slots.length - 1,
       state,
     };
   });

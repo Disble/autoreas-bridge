@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { selectionFromDrag, toChartBars } from '../../feed/activity-chart.helpers';
 import { setFilterRange } from '../../feed/activity-feed-filters.helpers';
-import { ACTIVITY_SCALE_OPTIONS } from '../../feed/activity-feed.constants';
-import type { ActivityFeedFilters, ActivityReadStatus } from '../../feed/activity-feed.types';
+import { ACTIVITY_CHART_DENSE_AFTER, ACTIVITY_SCALE_OPTIONS } from '../../feed/activity-feed.constants';
+import type { ActivityChartDensity, ActivityFeedFilters, ActivityReadStatus } from '../../feed/activity-feed.types';
 import type { ActivityOverview } from '../../feed-source/feed.types';
 import type { ActivityChartDrag } from './activity-screen.types';
 
@@ -36,6 +36,7 @@ export function useActivityChart(
   const slots = useMemo(() => overview?.slots ?? [], [overview]);
   const dragRange = drag === undefined ? undefined : selectionFromDrag(slots, drag.anchor, drag.current, undefined, filters.anchorMs);
   const bars = toChartBars(slots, filters.scale, dragRange ?? filters.range);
+  const density: ActivityChartDensity = bars.length > ACTIVITY_CHART_DENSE_AFTER ? 'dense' : 'sparse';
   const title = ACTIVITY_SCALE_OPTIONS.find((option) => option.id === filters.scale)?.title ?? '';
 
   // 6. Callbacks (useCallback calling pure helpers)
@@ -52,5 +53,5 @@ export function useActivityChart(
 
   // 7. Effects
 
-  return { chart: { status, bars, title }, onBarPointerDown, onBarPointerEnter, onBarsPointerLeave, onBarsPointerUp };
+  return { chart: { status, bars, title, density, isDragging: drag !== undefined }, onBarPointerDown, onBarPointerEnter, onBarsPointerLeave, onBarsPointerUp };
 }

@@ -22,7 +22,7 @@ describe('toChartBars', () => {
       [100, true, 'idle'],
     ]);
     expect(bars[2].label).toBe('Oct 22, 12:00 – 13:00 · 100 lines · 3 failed');
-    expect(bars[2].tick).toBe('Now');
+    expect(bars.map((bar) => bar.isNow)).toEqual([false, false, true]);
   });
 
   it('keeps a quiet slot visible with a minimum height', () => {
@@ -105,11 +105,14 @@ describe('chart ticks', () => {
   const hourSlot = (hour: number): ActivityChartSlot => ({ startMs: new Date(2026, 9, 22, hour).getTime(), endMs: new Date(2026, 9, 22, hour + 1).getTime(), count: 1, failed: 0 });
 
   it.each([
-    ['24 h marks every sixth hour', '24h', [hourSlot(5), hourSlot(6), hourSlot(7)], ['', '06:00', 'Now']],
-    ['7 days names each weekday', '7d', [daySlot(2), daySlot(1), daySlot(0)], ['Tue', 'Wed', 'Today']],
+    ['24 h marks every third hour and midnight as Today', '24h', [hourSlot(0), hourSlot(2), hourSlot(3)], ['Today', '', '03']],
+    ['7 days names each weekday and date', '7d', [daySlot(2), daySlot(1), daySlot(0)], ['Tue 20', 'Wed 21', 'Today']],
     ['30 days marks every seventh day from today', '30d', Array.from({ length: 8 }, (_unused, index) => daySlot(7 - index)), ['Oct 15', '', '', '', '', '', '', 'Today']],
     ['90 days names the first of each month', '90d', [daySlot(22), daySlot(21), daySlot(0)], ['', 'Oct', 'Today']],
   ] as const)('%s', (_case, scale, slots, ticks) => {
-    expect(toChartBars(slots, scale, undefined).map((bar) => bar.tick)).toEqual(ticks);
+    const bars = toChartBars(slots, scale, undefined);
+
+    expect(bars.map((bar) => bar.tick)).toEqual(ticks);
+    expect(bars.map((bar) => bar.isTodayTick)).toEqual(ticks.map((tick) => tick === 'Today'));
   });
 });

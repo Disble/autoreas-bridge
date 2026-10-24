@@ -1,24 +1,30 @@
-import { Alert, Button } from '@heroui/react';
+import { Alert, Button, Kbd } from '@heroui/react';
 import { DRAWER_ERROR_TITLE, DRAWER_LOADING_LABEL } from '../../drawer/drawer.constants';
 import { useActivityDetailDrawer } from '../../drawer/use-activity-detail-drawer';
 import { ActivityTechnicalView } from '../ActivityTechnicalView/ActivityTechnicalView';
 import { ActivityDrawerHeader } from './ActivityDrawerHeader';
 import { ActivityDrawerSkeleton } from './ActivityDrawerSkeleton';
 import { ActivityDrawerSummary } from './ActivityDrawerSummary';
+import { ACTIVITY_DRAWER_KEYS_HINT, ACTIVITY_DRAWER_MOTION_CLASS, ACTIVITY_DRAWER_SHADOW_CLASS } from './activity-detail-drawer.constants';
 import type { ActivityDetailDrawerPanelProps } from './activity-detail-drawer.types';
 
 /**
- * The open drawer: a non-modal panel on the right (384 px, 720 px in the
+ * The drawer panel: a non-modal panel on the right (384 px, 720 px in the
  * technical view), overlay surface, no rounding and no backdrop, so the feed
- * stays usable behind it. Loading, failure and the resolved body are exclusive.
+ * stays usable behind it. It slides in and out (S12 M2); while closed it is
+ * hidden and inert until it has slid out. Loading, failure and the resolved
+ * body are exclusive.
  */
-export function ActivityDetailDrawerPanel({ line, onClose }: ActivityDetailDrawerPanelProps) {
+export function ActivityDetailDrawerPanel({ line, open, onClose, onTransitionEnd }: ActivityDetailDrawerPanelProps) {
   const drawer = useActivityDetailDrawer(line);
 
   return (
     <aside
       aria-labelledby="activity-drawer-title"
-      className={`fixed inset-y-0 right-0 z-50 flex max-w-[85vw] flex-col gap-5 bg-overlay p-6 text-overlay-foreground shadow-overlay transition-[width] duration-250 ease-[cubic-bezier(.32,.72,0,1)] motion-reduce:transition-none ${drawer.technical ? 'w-[720px]' : 'w-96'}`}
+      aria-hidden={!open}
+      className={`fixed inset-y-0 right-0 z-50 flex max-w-[85vw] flex-col gap-5 bg-overlay p-6 text-overlay-foreground ${ACTIVITY_DRAWER_SHADOW_CLASS} ${ACTIVITY_DRAWER_MOTION_CLASS[open ? 'open' : 'closed']} ${drawer.technical ? 'w-[720px]' : 'w-96'}`}
+      inert={!open}
+      onTransitionEnd={onTransitionEnd}
     >
       <ActivityDrawerHeader header={drawer.header} onClose={onClose} onCopy={drawer.copyForAi} onToggleTechnical={drawer.toggleTechnical} technical={drawer.technical} />
       <div className="-mx-6 flex min-h-0 flex-1 flex-col gap-5 overflow-x-hidden overflow-y-auto overscroll-contain px-6 pb-2">
@@ -47,6 +53,7 @@ export function ActivityDetailDrawerPanel({ line, onClose }: ActivityDetailDrawe
             data={drawer.data}
             windowError={drawer.windowError}
             events={drawer.events}
+            eventsEmpty={drawer.eventsEmpty}
             gaps={drawer.summary.gaps}
             groups={drawer.requestGroups}
             lineFailed={line.failed}
@@ -61,6 +68,11 @@ export function ActivityDetailDrawerPanel({ line, onClose }: ActivityDetailDrawe
           />
         )}
       </div>
+      <p className="flex items-center gap-1.5 text-xs text-muted">
+        <Kbd className="text-[11px]">↑</Kbd>
+        <Kbd className="text-[11px]">↓</Kbd>
+        <span>{ACTIVITY_DRAWER_KEYS_HINT}</span>
+      </p>
     </aside>
   );
 }

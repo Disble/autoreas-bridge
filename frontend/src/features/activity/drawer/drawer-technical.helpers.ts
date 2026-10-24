@@ -1,7 +1,7 @@
 import type { ActivityIncidentDetail, ActivityRequestDetail } from '../activity-source/activity-incident.types';
 import type { ActivityFeedLine } from '../feed-source/feed.types';
 import { formatActivityDuration } from '../ui/ActivityRunStory/activity-time.helpers';
-import { DRAWER_WINDOW_ERROR_EVENT_TYPE } from './drawer.constants';
+import { DRAWER_NO_RUN_EVENTS_NOTE, DRAWER_WINDOW_ERROR_EVENT_TYPE } from './drawer.constants';
 import type { DrawerDataBlock, DrawerEventRow, DrawerRequestGroup, DrawerRequestPanel, DrawerSummaryInput, DrawerTechnicalTab, DrawerWindowErrorDetail } from './drawer.types';
 import { drawerFact, formatDrawerSeconds, formatDrawerTime } from './drawer-format.helpers';
 import { toDrawerHeader } from './drawer-summary.helpers';
@@ -82,15 +82,17 @@ export function toDrawerRequestPanel(group: DrawerRequestGroup, request: Activit
 }
 
 /**
- * The runtime events of the Events tab: the incident's window, else the event
+ * The runtime events of the Events tab: the run's stored story, else the
+ * incident's window, else the event
  * line itself.
  *
  * @param input The summary input.
  * @returns The rows, oldest first.
  */
 export function toDrawerEventRows(input: DrawerSummaryInput): readonly DrawerEventRow[] {
-  if (input.incident !== undefined) {
-    return input.incident.events.map((event) => ({
+  const events = input.story?.steps.length ? input.story.steps : input.incident?.events;
+  if (events !== undefined) {
+    return events.map((event) => ({
       key: String(event.id),
       time: formatDrawerSeconds(event.atMs),
       level: event.level,
@@ -104,6 +106,17 @@ export function toDrawerEventRows(input: DrawerSummaryInput): readonly DrawerEve
     return [];
   }
   return [{ key: line.id, time: formatDrawerSeconds(line.atMs), level: line.level, message: line.title, domain: line.domain, detail: line.detail }];
+}
+
+/**
+ * Why the Events tab is empty, said only when it is known: the run's story was
+ * read and holds no stored event, and no incident window replaces it.
+ *
+ * @param input The summary input.
+ * @returns The note, or empty when the tab has rows or the reason is unknown.
+ */
+export function toDrawerEventsEmpty(input: DrawerSummaryInput): string {
+  return input.story?.steps.length === 0 && input.incident === undefined ? DRAWER_NO_RUN_EVENTS_NOTE : '';
 }
 
 /**

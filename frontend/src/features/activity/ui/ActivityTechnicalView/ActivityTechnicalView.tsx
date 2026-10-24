@@ -46,9 +46,10 @@ export function ActivityTechnicalView(props: ActivityTechnicalViewProps) {
           </Tabs.Panel>
         )}
         <Tabs.Panel className="p-0" id="events">
-          <ul aria-label="Events" className="flex flex-col gap-2 text-sm">
+          {props.eventsEmpty !== '' && <p className="text-sm text-muted">{props.eventsEmpty}</p>}
+          <ul aria-label="Events" className="flex flex-col text-[13px]">
             {props.events.map((event) => (
-              <li className="grid grid-cols-[auto_auto_minmax(0,1fr)] items-start gap-3" key={event.key}>
+              <li className="grid grid-cols-[64px_52px_minmax(0,1fr)] items-baseline gap-2.5 py-2 [&+&]:border-t [&+&]:border-separator" key={event.key}>
                 <span className="font-mono text-xs text-muted tabular-nums">{event.time}</span>
                 <Chip color={ACTIVITY_TECHNICAL_LEVEL_COLORS[event.level] ?? 'default'} size="sm" variant="soft">
                   {event.level}

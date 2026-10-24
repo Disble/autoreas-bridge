@@ -1,5 +1,5 @@
 import type { ActivityFeedLine } from '../feed-source/feed.types';
-import type { ActivityIncidentDetail } from '../activity-source/activity-incident.types';
+import type { ActivityIncidentDetail, ActivityRunStory } from '../activity-source/activity-incident.types';
 
 /**
  * View models of the Activity detail drawer (activity-ui-design-v2.md, Detail
@@ -100,6 +100,8 @@ export interface DrawerSummaryInput {
   readonly line: ActivityFeedLine;
   /** Its incident occurrence; undefined when it has none or it is no longer stored. */
   readonly incident: ActivityIncidentDetail | undefined;
+  /** The events sharing the line's correlation id; undefined when it has none or they were not read. */
+  readonly story: ActivityRunStory | undefined;
   /** The event's recorded metadata, keys as stored; undefined when it could not be read. */
   readonly metadata: Readonly<Record<string, string>> | undefined;
   /** The current time, epoch milliseconds. */
@@ -179,4 +181,24 @@ export interface DrawerRequestPanel {
   readonly responseBody: string;
   /** Whether the response body was cut at the capture limit. */
   readonly responseCut: boolean;
+}
+
+/** What the drawer holds on screen: the line it shows, whether it is open, and its open session. */
+export interface DrawerPresence {
+  /** The line shown; held after close until the panel has slid out. */
+  readonly line: ActivityFeedLine | undefined;
+  /** Whether the drawer is open (slid in). */
+  readonly open: boolean;
+  /** Counts the openings; a new session resets the panel to its summary. */
+  readonly session: number;
+}
+
+/** The fields of a `transitionend` the drawer reads. */
+export interface DrawerTransitionEnd {
+  /** The CSS property that finished. */
+  readonly propertyName: string;
+  /** The element whose transition finished. */
+  readonly target: unknown;
+  /** The panel the handler sits on. */
+  readonly currentTarget: unknown;
 }

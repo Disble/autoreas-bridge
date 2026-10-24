@@ -61,6 +61,13 @@ export const ACTIVITY_RUN_TRIGGER_SUBJECTS: Readonly<Record<string, string>> = {
 /** Row subject of a download run with no or an unknown trigger. */
 export const ACTIVITY_RUN_SUBJECT = 'Download';
 
+/** Row subject of a failed phone report, by its stored report kind (the closed `telemetry` kind enum). */
+export const ACTIVITY_PHONE_REPORT_SUBJECTS: Readonly<Record<string, string>> = {
+  cycle_report: 'Sync cycle',
+  episode_action: 'Episode action',
+  screen_stall: 'Screen stalled',
+};
+
 /** Row subject of one traffic hour. */
 export const ACTIVITY_TRAFFIC_SUBJECT = 'Phone checked in';
 
@@ -79,11 +86,23 @@ export const ACTIVITY_FEED_MOMENT_FORMAT = new Intl.DateTimeFormat('en-US', { mo
 /** Local short date, `Oct 22`. */
 export const ACTIVITY_FEED_SHORT_DATE_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
 
+/** Local weekday, `Sat`. */
+export const ACTIVITY_FEED_WEEKDAY_FORMAT = new Intl.DateTimeFormat('en-US', { weekday: 'short' });
+
+/** The axis tick of today: the newest daily bar and the midnight hourly bar. */
+export const ACTIVITY_TODAY_TICK = 'Today';
+
 /** Local month, `Oct`. */
 export const ACTIVITY_FEED_MONTH_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short' });
 
 /** Grouped integer, `1,912`. */
 export const ACTIVITY_FEED_COUNT_FORMAT = new Intl.NumberFormat('en-US');
+
+/**
+ * The skeleton shimmer of the Activity screen (S12 M4): HeroUI's shimmer sweep
+ * at the mockup's 1.2s linear pace, and still under reduced motion.
+ */
+export const ACTIVITY_SKELETON_SHIMMER_CLASS = 'after:[animation-duration:1.2s] motion-reduce:after:animate-none';
 
 /** Rows the loading skeleton draws. */
 export const ACTIVITY_FEED_SKELETON_ROWS = 6;
@@ -94,8 +113,31 @@ export const ACTIVITY_CHART_SKELETON_BARS = 24;
 /** Geometry shared by a feed row and its skeleton row. */
 export const ACTIVITY_FEED_ROW_CLASS = 'flex min-h-11 w-full min-w-0 items-center gap-3 rounded-lg px-2 py-1.5';
 
+/**
+ * Selection colors of a segmented switch: HeroUI's neutral `--segment` gray
+ * instead of the accent, because red and blue are not selection colors here
+ * (design, Who it is for). Set as the toggle's own variables so its states keep working.
+ */
+const ACTIVITY_SEGMENT_SELECTION =
+  '[--toggle-button-fg:var(--muted)] hover:[--toggle-button-fg:var(--foreground)] [--toggle-button-bg-selected:var(--segment)] [--toggle-button-bg-selected-hover:var(--segment)] [--toggle-button-bg-selected-pressed:var(--segment)] [--toggle-button-fg-selected:var(--segment-foreground)]';
+
+/** A segmented switch's track: one neutral container around its buttons. */
+export const ACTIVITY_SEGMENT_GROUP_CLASS = 'gap-0.5 rounded-xl bg-default p-[3px]';
+
+/** A button of a toolbar segmented switch (origin, types). */
+export const ACTIVITY_SEGMENT_BUTTON_CLASS = `h-[30px] min-w-[30px] gap-1.5 rounded-[0.6rem] px-2.5 text-[13px] ${ACTIVITY_SEGMENT_SELECTION}`;
+
+/** The chart scale switch's pill track. */
+export const ACTIVITY_SCALE_GROUP_CLASS = 'gap-0.5 rounded-full bg-default p-[3px]';
+
+/** A button of the chart scale switch. */
+export const ACTIVITY_SCALE_BUTTON_CLASS = `h-6 rounded-full px-3 text-xs ${ACTIVITY_SEGMENT_SELECTION}`;
+
+/** Bars drawn before the chart packs them tighter, as the mockup's 30 and 90 day scales. */
+export const ACTIVITY_CHART_DENSE_AFTER = 24;
+
 /** Height of the chart's bar area, shared by the chart and its skeleton. */
-export const ACTIVITY_CHART_BARS_CLASS = 'grid h-24 items-end gap-0.5';
+export const ACTIVITY_CHART_BARS_CLASS = 'grid h-24 items-end';
 
 /** Lowest visible fill of a chart slot that holds any line, percent. */
 export const ACTIVITY_MIN_BAR_PERCENT = 4;

@@ -4,7 +4,7 @@ import { toDrawerCauseGap } from './drawer-cause.helpers';
 import { DRAWER_ORIGIN_LABELS, DRAWER_TASK_DOMAINS, DRAWER_WINDOW_ERROR_EVENT_TYPE } from './drawer.constants';
 import type { DrawerHeaderModel, DrawerSection, DrawerSummaryInput, DrawerSummaryModel } from './drawer.types';
 import { drawerFact, formatDrawerKeptUntil, formatDrawerTime, formatDrawerWhen } from './drawer-format.helpers';
-import { changeSections, failureSections, runSections, trafficSections, windowErrorSections } from './drawer-presenters.helpers';
+import { changeSections, failureSections, runStorySections, runSections, trafficSections, windowErrorSections } from './drawer-presenters.helpers';
 
 /** Title and phrase of a line, from its stored fields. */
 function titleAndPhrase(feedLine: ActivityFeedLine): { readonly title: string; readonly phrase: string } {
@@ -80,7 +80,7 @@ function failureSectionsWithoutKept(input: DrawerSummaryInput): readonly DrawerS
 function eventSections(input: DrawerSummaryInput): readonly DrawerSection[] | undefined {
   const { line } = input.line;
   if (DRAWER_TASK_DOMAINS.has(line.domain) && line.correlationId !== '') {
-    return [{ kind: 'run-story', key: 'story', correlationId: line.correlationId }, ...failureSections(input)];
+    return [...runStorySections(input, line.correlationId), ...failureSections(input)];
   }
   if (line.detail === DRAWER_WINDOW_ERROR_EVENT_TYPE) {
     return windowErrorSections(input);

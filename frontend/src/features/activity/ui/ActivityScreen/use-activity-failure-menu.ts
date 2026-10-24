@@ -1,15 +1,18 @@
 import type { Key } from '@heroui/react';
-import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { focusFailurePill } from '../../feed/activity-drawer-dismiss.helpers';
 import { countFailures, toFailureMenuKeys, toFailureRows } from '../../feed/activity-feed-counts.helpers';
 import { toFailureButtonState, toggleFailureTypes } from '../../feed/activity-feed-filters.helpers';
 import { ACTIVITY_FAILURE_TYPES } from '../../feed/activity-feed.constants';
 import type { ActivityFeedFilters } from '../../feed/activity-feed.types';
 import type { ActivityOverview } from '../../feed-source/feed.types';
+import { useActivityFailureMenuDismiss } from '../../feed/use-activity-failure-menu-dismiss';
 
 /**
  * Owns the failure button and its menu (activity-ui-design-v2.md, Failure
  * button): whether the menu is open, its rows and keys, and the callbacks that
- * turn the failure filter on, pick its types and clear it.
+ * turn the failure filter on, open and close its menu (a press outside or Esc
+ * closes it and keeps the filter on), pick its types and clear it.
  *
  * @param overview The overview read, or undefined while none resolved.
  * @param filters The screen filters.
@@ -18,6 +21,7 @@ import type { ActivityOverview } from '../../feed-source/feed.types';
  */
 export function useActivityFailureMenu(overview: ActivityOverview | undefined, filters: ActivityFeedFilters, setFilters: Dispatch<SetStateAction<ActivityFeedFilters>>) {
   // 1. Refs
+  const failureGroupRef = useRef<HTMLDivElement>(null);
 
   // 2. State
   const [isFailureMenuOpen, setIsFailureMenuOpen] = useState(false);
@@ -31,18 +35,20 @@ export function useActivityFailureMenu(overview: ActivityOverview | undefined, f
   const failureCount = countFailures(overview);
   const failureMenuKeys = useMemo(() => toFailureMenuKeys(failureRows, filters.failureTypes), [failureRows, filters.failureTypes]);
   const failureButtonState = toFailureButtonState(filters.failuresOnly, isFailureMenuOpen);
+  const isFailureMenuShown = failureButtonState === 'open';
 
   // 6. Callbacks (useCallback calling pure helpers)
-  // Opening the menu turns the failure filter on; closing it keeps the filter on (design, Failure button).
-  const onFailureMenuOpenChange = useCallback(
-    (isOpen: boolean) => {
-      if (isOpen) {
-        setFilters((current) => ({ ...current, failuresOnly: true }));
-      }
-      setIsFailureMenuOpen(isOpen);
-    },
-    [setFilters],
-  );
+  // The first press turns the failure filter on and opens the menu; later presses open or close it (design, Transitions).
+  const onFailureToggle = useCallback(() => {
+    setFilters((current) => (current.failuresOnly ? current : { ...current, failuresOnly: true }));
+    setIsFailureMenuOpen((isOpen) => !filters.failuresOnly || !isOpen);
+  }, [filters.failuresOnly, setFilters]);
+  const onFailureMenuDismiss = useCallback(() => setIsFailureMenuOpen(false), []);
+  // Esc closes the menu, keeps the filter on and gives focus back to the pill.
+  const onFailureMenuEscape = useCallback(() => {
+    setIsFailureMenuOpen(false);
+    focusFailurePill(failureGroupRef.current);
+  }, []);
   // A disabled row shows unselected but keeps its pick for when its type fails again.
   const onFailureTypesChange = useCallback(
     (keys: Set<Key> | 'all') =>
@@ -55,6 +61,18 @@ export function useActivityFailureMenu(overview: ActivityOverview | undefined, f
   }, [setFilters]);
 
   // 7. Effects
+  useActivityFailureMenuDismiss(failureGroupRef, isFailureMenuShown, `${failureCount}:${String(filters.failuresOnly)}`, onFailureMenuDismiss);
 
-  return { failureButtonState, failureCount, failureRows, failureMenuKeys, onFailureMenuOpenChange, onFailureTypesChange, onFailureClear };
+  return {
+    failureButtonState,
+    failureCount,
+    failureRows,
+    failureMenuKeys,
+    failureGroupRef,
+    isFailureMenuShown,
+    onFailureToggle,
+    onFailureMenuEscape,
+    onFailureTypesChange,
+    onFailureClear,
+  };
 }

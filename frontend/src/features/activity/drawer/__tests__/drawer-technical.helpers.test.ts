@@ -6,6 +6,7 @@ import {
   toDrawerCopyText,
   toDrawerDataBlocks,
   toDrawerEventRows,
+  toDrawerEventsEmpty,
   toDrawerRequestGroups,
   toDrawerRequestPanel,
   toDrawerTechnicalTabs,
@@ -15,7 +16,7 @@ import { feedLine, incident } from './drawer.fixtures';
 
 /** Builds a summary input with no reads. */
 function input(overrides: Partial<DrawerSummaryInput>): DrawerSummaryInput {
-  return { line: feedLine(), incident: undefined, metadata: undefined, nowMs: 0, ...overrides };
+  return { line: feedLine(), incident: undefined, story: undefined, metadata: undefined, nowMs: 0, ...overrides };
 }
 
 /** Two folded groups: a refused one and a fine one. */
@@ -211,5 +212,45 @@ describe('technical edge cases', () => {
 
     expect(toDrawerDataBlocks(input({ line: feedLine({ run }, { kind: 'download_run' }) }))).toEqual([{ label: 'Run', raw: JSON.stringify(run) }]);
     expect(toDrawerDataBlocks(input({ line: feedLine({}, { kind: 'phone_report' }) })).map((block) => block.label)).toEqual(['Line']);
+  });
+});
+
+describe('toDrawerEventRows of a run', () => {
+  /** Two stored steps of run-1. */
+  const STORY = {
+    correlationId: 'run-1',
+    truncated: false,
+    steps: [
+      { id: 1, atMs: 1, domain: 'download', level: 'info', eventType: 'download.run_started', message: 'started', correlationId: 'run-1', durationMs: undefined, metadataJson: '' },
+      { id: 2, atMs: 2, domain: 'download', level: 'error', eventType: 'download.failed', message: 'list episodes failed', correlationId: 'run-1', durationMs: undefined, metadataJson: '' },
+    ],
+  };
+
+  it('lists the run story steps, ahead of an incident window', () => {
+    const line = feedLine({ run: undefined }, { kind: 'download_run', correlationId: 'run-1' });
+
+    expect(toDrawerEventRows(input({ line, story: STORY, incident: DETAIL })).map((row) => [row.level, row.message, row.detail])).toEqual([
+      ['info', 'started', 'download.run_started'],
+      ['error', 'list episodes failed', 'download.failed'],
+    ]);
+  });
+
+  it('falls back to the incident window when the story is empty', () => {
+    const line = feedLine({}, { kind: 'download_run', correlationId: 'run-1' });
+
+    expect(toDrawerEventRows(input({ line, story: { ...STORY, steps: [] }, incident: DETAIL })).map((row) => row.message)).toEqual(['Device session rejected']);
+  });
+});
+
+describe('toDrawerEventsEmpty', () => {
+  /** A run line. */
+  const LINE = feedLine({}, { kind: 'download_run', correlationId: 'run-1' });
+
+  it.each([
+    ['a run whose read story is empty says so', { correlationId: 'run-1', steps: [], truncated: false }, undefined, 'No events were recorded for this run.'],
+    ['a story not read says nothing', undefined, undefined, ''],
+    ['an empty story with incident events says nothing', { correlationId: 'run-1', steps: [], truncated: false }, DETAIL, ''],
+  ])('%s', (_name, story, detail, expected) => {
+    expect(toDrawerEventsEmpty(input({ line: LINE, story, incident: detail }))).toBe(expected);
   });
 });

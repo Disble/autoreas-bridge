@@ -5,7 +5,7 @@ import type { ActivitySource } from '../../activity-source/activity-source.types
 import type { ActivityFeedSource } from '../../feed-source/feed-source.types';
 import type { ActivityFeedLine } from '../../feed-source/feed.types';
 import { useActivityDetailDrawer } from '../use-activity-detail-drawer';
-import { feedLine, incident } from './drawer.fixtures';
+import { feedLine, incident, run } from './drawer.fixtures';
 
 /** A source whose reads are spies; unset reads reject. */
 function sourceWith(reads: Partial<ActivitySource>): ActivitySource {
@@ -96,6 +96,21 @@ describe('useActivityDetailDrawer', () => {
     expect(result.current.technical).toBe(true);
     expect(result.current.tabs).toEqual(['events', 'data']);
     expect(result.current.tab).toBe('events');
+  });
+
+  it.each([
+    ['lists the events stored under the run id in the Events tab', [stored('')], ['m'], ['run-story'], ''],
+    ['says no event was recorded when the run stored none', [], [], ['note'], 'No events were recorded for this run.'],
+  ])('a download run %s', async (_name, steps, messages, kinds, eventsEmpty) => {
+    const getRunStory = vi.fn(() => Promise.resolve({ correlationId: 'run-1', steps, truncated: false }));
+    const source = sourceWith({ getRunStory });
+    const line = feedLine({ type: 'download', failed: true, run: run() }, { kind: 'download_run', correlationId: 'run-1' });
+    const { result } = renderHook(() => useActivityDetailDrawer(line, source, FEED));
+
+    await waitFor(() => expect(getRunStory).toHaveBeenCalledExactlyOnceWith('run-1'));
+    await waitFor(() => expect(result.current.events.map((event) => event.message)).toEqual(messages));
+    await waitFor(() => expect(result.current.summary.sections.map((section) => section.kind)).toEqual(kinds));
+    expect(result.current.eventsEmpty).toBe(eventsEmpty);
   });
 
   it('reads the recorded metadata of an event by its id, without its run story', async () => {

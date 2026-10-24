@@ -1,5 +1,5 @@
 import type { Key } from '@heroui/react';
-import type { ActivityChartBarModel, ActivityReadStatus } from '../../feed/activity-feed.types';
+import type { ActivityChartBarModel, ActivityChartDensity, ActivityReadStatus } from '../../feed/activity-feed.types';
 import type { ActivityChartScale } from '../../feed-source/feed.types';
 
 /** Props of the time chart card. */
@@ -14,6 +14,10 @@ export interface ActivityTimeChartProps {
   readonly status: ActivityReadStatus;
   /** The bars, oldest first. */
   readonly bars: readonly ActivityChartBarModel[];
+  /** How tightly the bars are packed. */
+  readonly density: ActivityChartDensity;
+  /** Whether a drag across the bars is in progress: the cursor turns to ew-resize and the bar tooltips hide. */
+  readonly isDragging: boolean;
   /** Starts a drag on a bar. */
   readonly onBarPointerDown: (index: number) => void;
   /** Extends a drag over a bar. */
@@ -24,8 +28,4 @@ export interface ActivityTimeChartProps {
   readonly onBarsPointerLeave: () => void;
   /** Reads the overview again after a failure. */
   readonly onRetry: () => void;
-  /** Whether a pin is being written. */
-  readonly isPinning: boolean;
-  /** Pins this moment. */
-  readonly onPin: () => void;
 }

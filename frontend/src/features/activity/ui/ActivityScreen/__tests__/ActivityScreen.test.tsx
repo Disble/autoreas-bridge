@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dispatchKeyboardEvent } from '../../../../../shared/keyboard/dispatch.helpers';
@@ -58,6 +58,11 @@ function renderScreen() {
       <ActivityScreen />
     </MemoryRouter>,
   );
+}
+
+/** The types of the last feed read; with the failure filter on, its failure types. */
+function lastFailureTypes(): readonly string[] | undefined {
+  return feedSource.searchFeed.mock.calls.at(-1)?.[0]?.types;
 }
 
 /** Presses one key through the app's keyboard dispatcher. */
@@ -163,16 +168,66 @@ describe('ActivityScreen', () => {
     feedSource.searchFeed.mockResolvedValue(page(1, 1));
     renderScreen();
     expect(await screen.findByLabelText('2 failed')).toBeInTheDocument();
+    expect(screen.queryByRole('menu', { name: 'Failures by type' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Show only failures' }));
 
     await waitFor(() => expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ failuresOnly: true })));
-    // The open menu is modal, so the controls behind it are hidden from the accessibility tree.
-    expect(screen.getByRole('button', { name: 'Failures by type', hidden: true })).toHaveTextContent('3');
+    const pill = screen.getByRole('button', { name: 'Failures by type' });
+    expect(pill).toHaveTextContent('3');
+    expect(pill).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('menu', { name: 'Failures by type' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Turn off failure filter', hidden: true }));
+    // A second press on the pill closes the menu and keeps the filter on.
+    fireEvent.click(pill);
+
+    expect(pill).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('menu', { name: 'Failures by type' })).not.toBeInTheDocument();
+    expect(pill).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Turn off failure filter' }));
 
     await waitFor(() => expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ failuresOnly: false })));
+    expect(screen.queryByRole('button', { name: 'Turn off failure filter' })).not.toBeInTheDocument();
+  });
+
+  it('closes the failure menu on Esc, giving focus back to the pill, and on a press outside it, keeping the filter on', async () => {
+    feedSource.searchFeed.mockResolvedValue(page(1, 1));
+    renderScreen();
+    expect(await screen.findByLabelText('2 failed')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show only failures' }));
+    const pill = screen.getByRole('button', { name: 'Failures by type' });
+
+    pressKey('Escape');
+
+    expect(pill).toHaveAttribute('aria-expanded', 'false');
+    expect(document.activeElement).toBe(pill);
+
+    fireEvent.click(pill);
+    const changes = within(screen.getByRole('menu', { name: 'Failures by type' })).getAllByRole('menuitemcheckbox')[0];
+    fireEvent.pointerDown(changes);
+    fireEvent.click(changes);
+
+    await waitFor(() => expect(lastFailureTypes()).not.toContain('change'));
+    expect(pill).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.pointerDown(screen.getByRole('toolbar', { name: 'Activity filters' }));
+
+    expect(pill).toHaveAttribute('aria-expanded', 'false');
+    expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ failuresOnly: true }));
+  });
+
+  it('turns the failure filter off from the × while the menu is open', async () => {
+    feedSource.searchFeed.mockResolvedValue(page(1, 1));
+    renderScreen();
+    expect(await screen.findByLabelText('2 failed')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show only failures' }));
+    await waitFor(() => expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ failuresOnly: true })));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Turn off failure filter' }));
+
+    await waitFor(() => expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ failuresOnly: false })));
+    expect(screen.queryByRole('menu', { name: 'Failures by type' })).not.toBeInTheDocument();
   });
 
   it('opens a row in the drawer, moves it with ↑ / ↓ and closes it with Esc', async () => {
@@ -206,11 +261,12 @@ describe('ActivityScreen', () => {
     expect(screen.queryByRole('complementary', { name: 'Activity detail' })).not.toBeInTheDocument();
   });
 
-  it('pins this moment', async () => {
+  it('pins this moment from the page header', async () => {
     feedSource.searchFeed.mockResolvedValue(page(1, 1));
     renderScreen();
+    const header = screen.getByRole('heading', { level: 1, name: 'Activity' }).closest('header') as HTMLElement;
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pin this moment' }));
+    fireEvent.click(within(header).getByRole('button', { name: 'Pin this moment' }));
 
     await waitFor(() => expect(activitySource.pinMoment).toHaveBeenCalledTimes(1));
   });
@@ -252,6 +308,20 @@ describe('ActivityScreen chart and toolbar', () => {
     expect(document.querySelectorAll('[data-chart-failure]')).toHaveLength(1);
   }
 
+  it('marks the newest bar with the now line and packs more than 24 bars tighter', async () => {
+    await renderChart();
+    expect(document.querySelector('[data-chart-density]')).toHaveAttribute('data-chart-density', 'sparse');
+    expect(bars().map((bar) => bar.hasAttribute('data-chart-now'))).toEqual([false, false, true]);
+    cleanup();
+
+    const many = Array.from({ length: 30 }, (_unused, index) => ({ startMs: hourMs - (29 - index) * 3_600_000, endMs: hourMs - (28 - index) * 3_600_000, count: 1, failed: 0 }));
+    feedSource.getOverview.mockResolvedValue({ ...buildOverview([]), slots: many });
+    renderScreen();
+
+    await waitFor(() => expect(bars()).toHaveLength(30));
+    expect(document.querySelector('[data-chart-density]')).toHaveAttribute('data-chart-density', 'dense');
+  });
+
   it('reads the dragged range, shows its ×, and reads the whole window again once cleared', async () => {
     await renderChart();
     const group = screen.getByRole('group', { name: /Drag across bars/ });
@@ -259,7 +329,12 @@ describe('ActivityScreen chart and toolbar', () => {
     fireEvent.pointerDown(bars()[0]);
     fireEvent.pointerEnter(bars()[2]);
     expect(bars().map((bar) => bar.dataset.chartBar)).toEqual(['selected', 'selected', 'selected']);
+    // While dragging, the bars hide their tooltips and the cursor turns to ew-resize.
+    expect(group).toHaveAttribute('data-chart-dragging');
+    expect(bars()[0]).not.toHaveAttribute('title');
     fireEvent.pointerUp(group);
+    expect(group).not.toHaveAttribute('data-chart-dragging');
+    expect(bars()[0]).toHaveAttribute('title');
 
     await waitFor(() => expect(lastQuery()).toMatchObject({ fromMs: slots[0].startMs }));
     expect(lastQuery()?.toMs).toBeGreaterThan(slots[2].startMs);

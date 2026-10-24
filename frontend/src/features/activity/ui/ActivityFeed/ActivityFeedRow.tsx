@@ -1,15 +1,15 @@
 import { Button } from '@heroui/react';
 import { Icon } from '@iconify/react';
 import chevronIcon from '@iconify-icons/solar/alt-arrow-right-linear';
-import bridgeIcon from '@iconify-icons/solar/server-bold';
-import phoneIcon from '@iconify-icons/solar/smartphone-bold';
+import bridgeIcon from '@iconify-icons/solar/monitor-linear';
+import phoneIcon from '@iconify-icons/solar/smartphone-linear';
 import { ACTIVITY_FEED_ROW_CLASS } from '../../feed/activity-feed.constants';
 import { ACTIVITY_ROW_DETAIL_CLASS, ACTIVITY_ROW_TILE_CLASS } from './activity-feed-view.constants';
 import type { ActivityFeedRowProps } from './activity-feed-view.types';
 
 /**
- * One feed row: time, origin icon on a health tile, "subject · what changed",
- * the incident link mark and `›`. The whole row opens the detail drawer.
+ * One feed row: time, origin icon on a health tile, "subject · what changed"
+ * and `›`. The whole row opens the detail drawer.
  */
 export function ActivityFeedRow({ row, onSelect }: ActivityFeedRowProps) {
   return (

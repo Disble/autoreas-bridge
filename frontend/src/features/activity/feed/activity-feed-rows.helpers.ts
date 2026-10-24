@@ -7,6 +7,7 @@ import {
   ACTIVITY_FEED_TIME_FORMAT,
   ACTIVITY_HOUR_MS,
   ACTIVITY_ORIGIN_LABELS,
+  ACTIVITY_PHONE_REPORT_SUBJECTS,
   ACTIVITY_RUN_SUBJECT,
   ACTIVITY_RUN_TRIGGER_SUBJECTS,
   ACTIVITY_TRAFFIC_SUBJECT,
@@ -62,8 +63,15 @@ function describeLine(line: ActivityFeedLine): { readonly subject: string; reado
     };
   }
   if (ledger.kind === 'event') {
-    // An event's detail is its event type, which the drawer shows; the row reads as the recorded message.
-    return { subject: ledger.detail === ACTIVITY_BRIDGE_STARTED.eventType ? ACTIVITY_BRIDGE_STARTED.subject : ledger.title, detail: '' };
+    if (ledger.detail === ACTIVITY_BRIDGE_STARTED.eventType) {
+      return { subject: ACTIVITY_BRIDGE_STARTED.subject, detail: '' };
+    }
+    // Layer 0 of the presentation model: the recorded message, then its area and type as stored.
+    return { subject: ledger.title, detail: [ledger.domain, ledger.detail].filter((part) => part !== '').join(' · ') };
+  }
+  if (ledger.kind === 'phone_report') {
+    // The report kind is a closed enum, so it may read as plain words; the outcome is shown as stored.
+    return { subject: ACTIVITY_PHONE_REPORT_SUBJECTS[ledger.title] ?? ledger.title, detail: ledger.detail };
   }
   return { subject: ledger.title, detail: ledger.detail };
 }

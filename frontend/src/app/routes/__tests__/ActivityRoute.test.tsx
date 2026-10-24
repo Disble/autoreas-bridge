@@ -8,10 +8,9 @@ vi.mock('../../../features/activity/ui/ActivityScreen/ActivityScreen', () => ({
 import { ActivityRoute } from '../ActivityRoute';
 
 describe('ActivityRoute', () => {
-  it('renders the Activity heading above the Activity screen', () => {
+  it('renders the Activity screen, which owns its own header', () => {
     render(<ActivityRoute />);
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Activity' })).toBeInTheDocument();
     expect(screen.getByTestId('activity-screen')).toBeInTheDocument();
   });
 });

@@ -1,18 +1,20 @@
-import { Chip, DateField, DateRangePicker, RangeCalendar, ToggleButton, ToggleButtonGroup } from '@heroui/react';
+import { DateField, DateRangePicker, RangeCalendar, ToggleButton, ToggleButtonGroup } from '@heroui/react';
 import { Icon } from '@iconify/react';
-import calendarIcon from '@iconify-icons/solar/calendar-bold';
+import calendarIcon from '@iconify-icons/solar/calendar-linear';
 import closeIcon from '@iconify-icons/solar/close-circle-bold';
-import bridgeIcon from '@iconify-icons/solar/server-bold';
-import phoneIcon from '@iconify-icons/solar/smartphone-bold';
+import bridgeIcon from '@iconify-icons/solar/monitor-linear';
+import phoneIcon from '@iconify-icons/solar/smartphone-linear';
 import { IconActionButton } from '../../../../shared/ui/IconActionButton/IconActionButton';
-import { ACTIVITY_ALL_TYPES_KEY } from '../../feed/activity-feed.constants';
+import { ACTIVITY_ALL_TYPES_KEY, ACTIVITY_SEGMENT_BUTTON_CLASS, ACTIVITY_SEGMENT_GROUP_CLASS } from '../../feed/activity-feed.constants';
 import { ActivityFailureButton } from './ActivityFailureButton';
+import { ACTIVITY_COUNT_CHIP_CLASS, ACTIVITY_FAILED_CHIP_CLASS } from './activity-toolbar.constants';
 import type { ActivityToolbarProps } from './activity-toolbar.types';
 
 /**
- * The feed toolbar, one row: the range field (the same range the chart
- * edits), origin, the type toggles with their counts, and the failure
- * button. On a narrow window the types and the failure button wrap together.
+ * The feed toolbar (activity-ui-design-v2.md, Filters): the range field (the
+ * same range the chart edits), origin, then the type toggles with their counts
+ * and the failure button at the end of their row. When the window is too
+ * narrow for one row, the types and the failure button wrap together.
  */
 export function ActivityToolbar({
   rangeLabel,
@@ -31,14 +33,14 @@ export function ActivityToolbar({
   failure,
 }: ActivityToolbarProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2" role="toolbar" aria-label="Activity filters">
+    <div className="flex flex-wrap items-center gap-2.5 border-b border-separator pb-3.5" role="toolbar" aria-label="Activity filters">
       {/* The clear × sits inside the field visually but outside the picker: React Aria makes any button in the picker its trigger. */}
-      <div className="relative flex items-center">
-        <DateRangePicker aria-label="Time range" maxValue={calendarMax} minValue={calendarMin} onChange={onCalendarChange} value={calendarValue}>
-          <DateField.Group variant="secondary">
-            <DateRangePicker.Trigger aria-label={`Time range, ${rangeLabel}`} className={hasRange ? 'h-full gap-2 pl-3 pr-10' : 'h-full gap-2 px-3'}>
-              <Icon aria-hidden icon={calendarIcon} />
-              <span className={hasRange ? 'whitespace-nowrap text-field-foreground' : 'whitespace-nowrap text-field-placeholder'}>{rangeLabel}</span>
+      <div className="relative flex min-w-0 max-w-[360px] flex-[1_1_220px] items-center">
+        <DateRangePicker aria-label="Time range" className="w-full" maxValue={calendarMax} minValue={calendarMin} onChange={onCalendarChange} value={calendarValue}>
+          <DateField.Group className="h-9 w-full rounded-xl" variant="secondary">
+            <DateRangePicker.Trigger aria-label={`Time range, ${rangeLabel}`} className={hasRange ? 'h-full w-full justify-start gap-2 pl-3 pr-9' : 'h-full w-full justify-start gap-2 px-3'}>
+              <Icon aria-hidden className="shrink-0 text-muted" icon={calendarIcon} />
+              <span className={hasRange ? 'truncate tabular-nums text-field-foreground' : 'truncate tabular-nums text-field-placeholder'}>{rangeLabel}</span>
             </DateRangePicker.Trigger>
           </DateField.Group>
           <DateRangePicker.Popover>
@@ -61,41 +63,52 @@ export function ActivityToolbar({
           </span>
         ) : null}
       </div>
-      <ToggleButtonGroup aria-label="Where" disallowEmptySelection onSelectionChange={onOriginChange} selectedKeys={[origin]} selectionMode="single" size="sm">
-        <ToggleButton id="all">All</ToggleButton>
-        <ToggleButton aria-label="Phone" id="phone">
+      <ToggleButtonGroup
+        aria-label="Where"
+        className={ACTIVITY_SEGMENT_GROUP_CLASS}
+        disallowEmptySelection
+        isDetached
+        onSelectionChange={onOriginChange}
+        selectedKeys={[origin]}
+        selectionMode="single"
+        size="sm"
+      >
+        <ToggleButton className={ACTIVITY_SEGMENT_BUTTON_CLASS} id="all" variant="ghost">
+          All
+        </ToggleButton>
+        <ToggleButton aria-label="Phone" className={ACTIVITY_SEGMENT_BUTTON_CLASS} id="phone" variant="ghost">
           <Icon aria-hidden icon={phoneIcon} />
         </ToggleButton>
-        <ToggleButton aria-label="Bridge" id="bridge">
+        <ToggleButton aria-label="Bridge" className={ACTIVITY_SEGMENT_BUTTON_CLASS} id="bridge" variant="ghost">
           <Icon aria-hidden icon={bridgeIcon} />
         </ToggleButton>
       </ToggleButtonGroup>
-      <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
+      <div className="flex min-w-0 flex-[1_1_auto] items-center gap-2.5" data-activity-types-row>
         <ToggleButtonGroup
           aria-label="What"
-          className={failuresOnly ? 'flex-wrap opacity-60' : 'flex-wrap'}
+          className={`${ACTIVITY_SEGMENT_GROUP_CLASS} max-w-full justify-start overflow-x-auto ${failuresOnly ? 'opacity-45' : ''}`}
+          isDetached
           onSelectionChange={onTypesChange}
           selectedKeys={typeKeys}
           selectionMode="multiple"
           size="sm"
         >
-          <ToggleButton id={ACTIVITY_ALL_TYPES_KEY}>All</ToggleButton>
+          <ToggleButton className={ACTIVITY_SEGMENT_BUTTON_CLASS} id={ACTIVITY_ALL_TYPES_KEY} variant="ghost">
+            All
+          </ToggleButton>
           {typeToggles.map((toggle) => (
-            <ToggleButton id={toggle.type} key={toggle.type}>
+            <ToggleButton className={ACTIVITY_SEGMENT_BUTTON_CLASS} id={toggle.type} key={toggle.type} variant="ghost">
               {toggle.label}
-              {toggle.lines === undefined ? null : (
-                <Chip size="sm" variant="soft">
-                  {toggle.lines}
-                </Chip>
-              )}
+              {toggle.lines === undefined ? null : <span className={ACTIVITY_COUNT_CHIP_CLASS}>{toggle.lines}</span>}
               {toggle.failed === 0 ? null : (
-                <Chip aria-label={`${toggle.failed} failed`} color="danger" size="sm" title={`${toggle.failed} failed`} variant="soft">
+                <span aria-label={`${toggle.failed} failed`} className={ACTIVITY_FAILED_CHIP_CLASS} role="img" title={`${toggle.failed} failed`}>
                   {toggle.failed}
-                </Chip>
+                </span>
               )}
             </ToggleButton>
           ))}
         </ToggleButtonGroup>
+        <span className="flex-1" />
         <ActivityFailureButton {...failure} />
       </div>
     </div>

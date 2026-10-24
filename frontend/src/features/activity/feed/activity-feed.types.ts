@@ -71,6 +71,9 @@ export type ActivityFeedResolvedView = 'rows' | 'no-types' | 'empty';
 /** Whether a bar is inside, outside or unrelated to the current selection. */
 export type ActivityChartBarState = 'selected' | 'dimmed' | 'idle';
 
+/** How tightly the chart packs its bars: past 24 bars they sit closer, as the mockup's 30 and 90 day scales. */
+export type ActivityChartDensity = 'sparse' | 'dense';
+
 /** One drawable chart bar. */
 export interface ActivityChartBarModel {
   /** Unique key: the slot start. */
@@ -83,6 +86,10 @@ export interface ActivityChartBarModel {
   readonly label: string;
   /** Axis tick under the bar; empty for none. */
   readonly tick: string;
+  /** Whether the tick is Today, drawn in the foreground color. */
+  readonly isTodayTick: boolean;
+  /** Whether this is the newest bar, marked by the now line. */
+  readonly isNow: boolean;
   /** Selection state. */
   readonly state: ActivityChartBarState;
 }
@@ -125,4 +132,8 @@ export interface UseActivityFeedKeyboardScopeOptions {
   readonly onNext: () => void;
   /** Closes the drawer. */
   readonly onClose: () => void;
+  /** Whether the failure menu is open; Esc closes it first. */
+  readonly isFailureMenuOpen: boolean;
+  /** Closes the failure menu and keeps the failure filter on. */
+  readonly onCloseFailureMenu: () => void;
 }

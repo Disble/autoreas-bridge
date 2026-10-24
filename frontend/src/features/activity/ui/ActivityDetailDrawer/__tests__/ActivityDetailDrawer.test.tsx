@@ -41,6 +41,26 @@ describe('ActivityDetailDrawer', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it('stays mounted, hidden and inert while it slides out, unmounts after, and reopens at its summary', () => {
+    const { container, rerender } = render(<ActivityDetailDrawer line={CHANGE} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Technical details' }));
+    expect(screen.getByTestId('activity-technical-view')).toBeInTheDocument();
+
+    rerender(<ActivityDetailDrawer line={undefined} onClose={vi.fn()} />);
+    const panel = container.querySelector('aside');
+    expect(panel).toHaveAttribute('aria-hidden', 'true');
+    expect(panel).toHaveAttribute('inert');
+    expect(panel).toHaveClass('invisible', 'translate-x-full');
+    expect(screen.queryByRole('heading', { name: 'Hotaru no Yomeiri' })).not.toBeInTheDocument();
+
+    fireEvent.transitionEnd(panel as Element, { propertyName: 'translate' });
+    expect(container).toBeEmptyDOMElement();
+
+    rerender(<ActivityDetailDrawer line={CHANGE} onClose={vi.fn()} />);
+    expect(container.querySelector('aside')).toHaveClass('visible', 'translate-x-0', 'starting:translate-x-full');
+    expect(screen.queryByTestId('activity-technical-view')).not.toBeInTheDocument();
+  });
+
   it('shows the header and the change presenter, and asks to close from ×', () => {
     const onClose = vi.fn();
     render(<ActivityDetailDrawer line={CHANGE} onClose={onClose} />);
@@ -48,6 +68,7 @@ describe('ActivityDetailDrawer', () => {
     expect(screen.getByRole('heading', { name: 'Hotaru no Yomeiri' })).toBeInTheDocument();
     expect(screen.getByText('episode 0 → 1 · from the phone')).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Episode' })).toHaveTextContent(/Before0.*After1/);
+    expect(screen.getByText('previous or next event').closest('p')).toHaveTextContent('↑↓previous or next event');
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(onClose).toHaveBeenCalledOnce();
   });

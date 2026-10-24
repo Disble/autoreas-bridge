@@ -7,7 +7,7 @@ import { toActivityReadValue } from '../ui/ActivityRunStory/activity-time.helper
 import { useActivityRead } from '../ui/ActivityRunStory/use-activity-read';
 import type { DrawerPickedGroup } from './drawer-reads.helpers';
 import { pickDrawerGroup, toDrawerLineKey } from './drawer-reads.helpers';
-import { pickDrawerTab, toDrawerDataBlocks, toDrawerEventRows, toDrawerRequestGroups, toDrawerRequestPanel, toDrawerTechnicalTabs, toDrawerWindowErrorDetail } from './drawer-technical.helpers';
+import { pickDrawerTab, toDrawerDataBlocks, toDrawerEventRows, toDrawerEventsEmpty, toDrawerRequestGroups, toDrawerRequestPanel, toDrawerTechnicalTabs, toDrawerWindowErrorDetail } from './drawer-technical.helpers';
 import type { DrawerSummaryInput, DrawerTechnicalTab } from './drawer.types';
 
 /**
@@ -44,6 +44,7 @@ export function useDrawerTechnical(source: ActivitySource, line: ActivityFeedLin
   const request = toActivityReadValue(requestRead.read);
   const requestPanel = selectedGroup !== undefined && request !== undefined ? toDrawerRequestPanel(selectedGroup, request) : undefined;
   const events = useMemo(() => toDrawerEventRows(input), [input]);
+  const eventsEmpty = toDrawerEventsEmpty(input);
   const data = useMemo(() => toDrawerDataBlocks(input), [input]);
   const windowError = useMemo(() => toDrawerWindowErrorDetail(input), [input]);
 
@@ -74,6 +75,7 @@ export function useDrawerTechnical(source: ActivitySource, line: ActivityFeedLin
     requestStatus: requestRead.read?.status,
     requestPanel,
     events,
+    eventsEmpty,
     data,
     windowError,
     toggleTechnical,

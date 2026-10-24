@@ -61,12 +61,24 @@ describe('toFeedRowModel', () => {
   });
 
   it.each([
-    ['a bridge start as Bridge started', 'api.listening', 'Listening on :8080', 'Bridge started'],
-    ['any other event by its recorded message', 'season.warn', 'Missed selected day', 'Missed selected day'],
-  ])('words %s', (_case, eventType, message, subject) => {
-    const line = buildLine({ type: 'bridge', origin: 'bridge', slow: true }, { kind: 'event', title: message, detail: eventType });
+    ['a bridge start as Bridge started', 'api', 'api.listening', 'Listening on :8080', 'Bridge started', ''],
+    ['any other event by its recorded message, area and type', 'season', 'season.warn', 'Missed selected day', 'Missed selected day', 'season · season.warn'],
+    ['an event with no area by its type alone', '', 'season.warn', 'Missed selected day', 'Missed selected day', 'season.warn'],
+  ])('words %s', (_case, domain, eventType, message, subject, detail) => {
+    const line = buildLine({ type: 'bridge', origin: 'bridge', slow: true }, { kind: 'event', domain, title: message, detail: eventType });
 
-    expect(toFeedRowModel(line, undefined)).toMatchObject({ subject, detail: '', health: 'slow', originLabel: 'Bridge · slow' });
+    expect(toFeedRowModel(line, undefined)).toMatchObject({ subject, detail, health: 'slow', originLabel: 'Bridge · slow' });
+  });
+
+  it.each([
+    ['an episode action', 'episode_action', 'Episode action'],
+    ['a sync cycle', 'cycle_report', 'Sync cycle'],
+    ['a screen stall', 'screen_stall', 'Screen stalled'],
+    ['an unknown report kind as stored', 'battery_report', 'battery_report'],
+  ])('words a failed phone report of %s in plain words with its stored outcome', (_case, kind, subject) => {
+    const line = buildLine({ type: 'traffic', origin: 'phone', failed: true }, { kind: 'phone_report', title: kind, detail: 'failed' });
+
+    expect(toFeedRowModel(line, undefined)).toMatchObject({ subject, detail: 'failed', health: 'failed' });
   });
 });
 

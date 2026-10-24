@@ -3,6 +3,7 @@ import type { ActivityFeedSource } from '../feed-source/feed-source.types';
 import type { ActivityFeedLine } from '../feed-source/feed.types';
 import type { ActivityRead } from '../ui/ActivityRunStory/activity-run-story.types';
 import { toActivityFoundRead } from '../ui/ActivityRunStory/activity-time.helpers';
+import { DRAWER_TASK_DOMAINS } from './drawer.constants';
 import type { DrawerRequestGroup } from './drawer.types';
 
 /** The body state of the drawer: exclusive loading, failure and resolved views. */
@@ -35,6 +36,19 @@ export function toDrawerLineKey(line: ActivityFeedLine): string {
 export function toDrawerEventId(line: ActivityFeedLine): number | undefined {
   const id = Number(line.line.id);
   return line.line.kind === 'event' && /^\d+$/.test(line.line.id) && id > 0 ? id : undefined;
+}
+
+/**
+ * The correlation id whose events the drawer reads (`GetActivityRunStory`):
+ * only the lines whose summary shows a run story, a download run or a task event.
+ *
+ * @param line The open line.
+ * @returns The correlation id, or undefined for other lines or a line without one.
+ */
+export function toDrawerStoryId(line: ActivityFeedLine): string | undefined {
+  const { kind, domain, correlationId } = line.line;
+  const hasStory = kind === 'download_run' || (kind === 'event' && DRAWER_TASK_DOMAINS.has(domain));
+  return hasStory && correlationId !== '' ? correlationId : undefined;
 }
 
 /**

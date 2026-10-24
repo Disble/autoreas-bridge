@@ -63,3 +63,9 @@ export const DRAWER_WHEN_FORMAT = new Intl.DateTimeFormat('en-US', { weekday: 's
 
 /** Short date of "kept until": `Jan 20`. */
 export const DRAWER_DATE_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
+
+/** What the summary says for a run or task whose stored events are none. */
+export const DRAWER_NO_RUN_EVENTS_NOTE = 'No events were recorded for this run.';
+
+/** The drawer before any line was opened. */
+export const DRAWER_PRESENCE_CLOSED = { line: undefined, open: false, session: 0 } as const;

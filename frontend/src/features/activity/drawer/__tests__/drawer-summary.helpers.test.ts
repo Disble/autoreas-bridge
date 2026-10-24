@@ -1,15 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { ActivityFeedLine } from '../../feed-source/feed.types';
 import type { DrawerSection, DrawerSummaryInput } from '../drawer.types';
 import { toDrawerHeader, toDrawerSummary } from '../drawer-summary.helpers';
-import { feedLine, incident } from './drawer.fixtures';
+import { feedLine, incident, run } from './drawer.fixtures';
 
 /** Noon of the mockup's day, the line time every fixture uses. */
 const AT = Date.UTC(2026, 9, 22, 12, 0);
 
 /** Builds a summary input; no incident, no metadata, read a day later. */
 function input(overrides: Partial<DrawerSummaryInput>): DrawerSummaryInput {
-  return { line: feedLine(), incident: undefined, metadata: undefined, nowMs: AT + 24 * 3_600_000, ...overrides };
+  return { line: feedLine(), incident: undefined, story: undefined, metadata: undefined, nowMs: AT + 24 * 3_600_000, ...overrides };
 }
 
 /** The kinds of a summary's sections, in order. */
@@ -168,25 +167,6 @@ describe('toDrawerHeader', () => {
   });
 });
 
-/** A failed run with no trigger and no end, overridden per row. */
-function run(overrides: Partial<NonNullable<ActivityFeedLine['run']>> = {}): NonNullable<ActivityFeedLine['run']> {
-  return {
-    runId: 'run-1',
-    trigger: '',
-    status: 'error',
-    startedAtMs: AT,
-    finishedAtMs: undefined,
-    animesChecked: 1,
-    episodesFound: 1,
-    episodesDownloaded: 0,
-    episodesFailed: 1,
-    skippedCount: 0,
-    upToDateCount: 0,
-    errorSummary: 'host down',
-    ...overrides,
-  };
-}
-
 /** The texts of every list section, in order. */
 function listTexts(sections: readonly DrawerSection[]): readonly string[] {
   return sections.flatMap((section) => (section.kind === 'list' ? section.items.map((item) => item.text) : []));
@@ -301,5 +281,31 @@ describe('toDrawerHeader edge cases', () => {
     ['a failed phone report reads its stored title with the generic header', feedLine({ failed: true, slow: true }, { kind: 'phone_report', title: 'cycle_report', detail: 'failed' }), 'cycle_report', '', 'failed'],
   ])('%s', (_name, line, title, phrase, tone) => {
     expect(toDrawerHeader(line)).toMatchObject({ title, phrase, tone });
+  });
+});
+
+describe('a run whose story was read', () => {
+  /** A failed season run. */
+  const LINE = feedLine({ type: 'download', failed: true, run: run() }, { kind: 'download_run', correlationId: 'run-1' });
+
+  it.each([
+    ['an empty story says no event was recorded instead of an empty timeline', [], ['note']],
+    ['a story with steps keeps its timeline', [{ id: 1, atMs: AT, domain: 'download', level: 'error', eventType: 'download.failed', message: 'm', correlationId: 'run-1', durationMs: undefined, metadataJson: '' }], ['run-story']],
+  ])('%s', (_name, steps, expected) => {
+    const { sections } = toDrawerSummary(input({ line: LINE, story: { correlationId: 'run-1', steps, truncated: false } }));
+
+    expect(kinds(sections)).toEqual(expected);
+  });
+
+  it('words the empty story note from the stored fact only', () => {
+    const { sections } = toDrawerSummary(input({ line: LINE, story: { correlationId: 'run-1', steps: [], truncated: false } }));
+
+    expect(sectionOf(sections, 'note').text).toBe('No events were recorded for this run.');
+  });
+
+  it('applies the same to a task run', () => {
+    const task = feedLine({ type: 'task' }, { kind: 'event', domain: 'season', correlationId: 'c' });
+
+    expect(kinds(toDrawerSummary(input({ line: task, story: { correlationId: 'c', steps: [], truncated: false } })).sections)).toEqual(['note']);
   });
 });

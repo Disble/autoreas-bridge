@@ -1,4 +1,7 @@
 import { Card } from '@heroui/react';
+import pinIcon from '@iconify-icons/solar/pin-bold';
+import { IconActionButton } from '../../../../shared/ui/IconActionButton/IconActionButton';
+import { PageHeader } from '../../../../shared/ui/PageHeader/PageHeader';
 import { ActivityDetailDrawer } from '../ActivityDetailDrawer/ActivityDetailDrawer';
 import { ActivityFeed } from '../ActivityFeed/ActivityFeed';
 import { ActivityTimeChart } from '../ActivityTimeChart/ActivityTimeChart';
@@ -6,7 +9,8 @@ import { ActivityToolbar } from '../ActivityToolbar/ActivityToolbar';
 import { useActivityScreen } from './use-activity-screen';
 
 /**
- * The Activity screen (activity-ui-design-v2.md): the time chart, then the
+ * The Activity screen (activity-ui-design-v2.md): the page header with "Pin
+ * this moment", the time chart, then the
  * feed card with its toolbar and the day-grouped feed, newest first. A row
  * opens the detail drawer; ↑ / ↓ move it and Esc closes it.
  */
@@ -15,14 +19,18 @@ export function ActivityScreen() {
 
   return (
     <div className="flex flex-col gap-4">
+      <PageHeader
+        actions={<IconActionButton ariaLabel="Pin this moment" icon={pinIcon} isDisabled={screen.isPinning} onPress={screen.pin} tooltip="Pin this moment" variant="tertiary" />}
+        title="Activity"
+      />
       <ActivityTimeChart
         bars={screen.chart.bars}
-        isPinning={screen.isPinning}
+        density={screen.chart.density}
+        isDragging={screen.chart.isDragging}
         onBarPointerDown={screen.onBarPointerDown}
         onBarPointerEnter={screen.onBarPointerEnter}
         onBarsPointerLeave={screen.onBarsPointerLeave}
         onBarsPointerUp={screen.onBarsPointerUp}
-        onPin={screen.pin}
         onRetry={screen.onRetry}
         onScaleChange={screen.onScaleChange}
         scale={screen.scale}
@@ -41,7 +49,8 @@ export function ActivityScreen() {
               rows: screen.failureRows,
               selectedKeys: screen.failureMenuKeys.selected,
               disabledKeys: screen.failureMenuKeys.disabled,
-              onOpenChange: screen.onFailureMenuOpenChange,
+              groupRef: screen.failureGroupRef,
+              onToggle: screen.onFailureToggle,
               onSelectionChange: screen.onFailureTypesChange,
               onClear: screen.onFailureClear,
             }}
