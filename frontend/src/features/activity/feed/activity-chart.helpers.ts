@@ -62,7 +62,7 @@ function formatTick(slot: ActivityChartSlot, scale: ActivityChartScale, index: n
 
 /**
  * Turns the overview's slots into drawable bars: blue height by activity
- * against the busiest slot, a red cap where a line failed, a hatched gap
+ * against the busiest slot, a red part sized to the share of failed lines, a hatched gap
  * where nothing was recorded, and the selection marked with the other bars
  * dimmed. A gap does not claim the bridge was off: no stop is stored.
  *
@@ -79,7 +79,7 @@ export function toChartBars(slots: readonly ActivityChartSlot[], scale: Activity
     return {
       key: slot.startMs,
       heightPercent: slot.count === 0 ? 100 : Math.max(ACTIVITY_MIN_BAR_PERCENT, (slot.count / busiest) * 100),
-      hasFailure: slot.failed > 0,
+      failPercent: slot.count === 0 ? 0 : Math.min(100, (slot.failed / slot.count) * 100),
       isGap: slot.count === 0,
       label: `${formatSpan(slot, scale)} · ${formatCounts(slot)}`,
       tick,

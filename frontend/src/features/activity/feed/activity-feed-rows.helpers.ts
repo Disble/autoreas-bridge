@@ -1,18 +1,17 @@
 import { describeActivityChange } from '../change-words/change-words.helpers';
-import type { ActivityDownloadRun, ActivityFeedDay, ActivityFeedLine, ActivityFeedView, ActivitySystemGroup, ActivityTrafficHour } from '../feed-source/feed.types';
+import type { ActivityDownloadRun, ActivityFeedDay, ActivityFeedLine, ActivityFeedView, ActivitySystemGroup } from '../feed-source/feed.types';
 import {
   ACTIVITY_BRIDGE_STARTED,
   ACTIVITY_FEED_COUNT_FORMAT,
   ACTIVITY_FEED_DAY_FORMAT,
   ACTIVITY_FEED_TIME_FORMAT,
-  ACTIVITY_HOUR_MS,
   ACTIVITY_ORIGIN_LABELS,
   ACTIVITY_PHONE_REPORT_SUBJECTS,
   ACTIVITY_RUN_SUBJECT,
   ACTIVITY_RUN_TRIGGER_SUBJECTS,
   ACTIVITY_TRAFFIC_SUBJECT,
 } from './activity-feed.constants';
-import type { ActivityFeedDayModel, ActivityFeedRowModel, ActivityRowHealth } from './activity-feed.types';
+import type { ActivityFeedDayModel, ActivityFeedRowModel, ActivityRowHealth, ActivityRowRepeat } from './activity-feed.types';
 
 /**
  * The key of a feed line: `kind:id`, unique across the feed.
@@ -34,65 +33,68 @@ export function maybeFeedLineKey(line: ActivityFeedLine | undefined): string | u
   return line === undefined ? undefined : feedLineKey(line);
 }
 
-/** `1 time` / `1,912 times`, as in the design's "Phone checked in · 39 times · 09:00 – 10:00" and a System group's repeat. */
-function formatTimes(count: number): string {
-  return `${ACTIVITY_FEED_COUNT_FORMAT.format(count)} ${count === 1 ? 'time' : 'times'}`;
-}
+/** A row's subject, its one short detail and its repeat badge. */
+type LineWords = Pick<ActivityFeedRowModel, 'subject' | 'detail' | 'repeat'>;
 
-/** A traffic hour's detail: its totals and its hour. */
-function describeTraffic(hour: ActivityTrafficHour): string {
-  const failed = hour.failed > 0 ? ` · ${ACTIVITY_FEED_COUNT_FORMAT.format(hour.failed)} failed` : '';
-  const span = `${ACTIVITY_FEED_TIME_FORMAT.format(hour.hourStartMs)} – ${ACTIVITY_FEED_TIME_FORMAT.format(hour.hourStartMs + ACTIVITY_HOUR_MS)}`;
-  return `${formatTimes(hour.requests)}${failed} · ${span}`;
-}
-
-/** A System group's repeat: `3 times · 10:05 – 10:50`; empty for a group of one event or a line of no group. */
-function describeRepeat(group: ActivitySystemGroup | undefined): string {
-  if (group === undefined || group.count < 2) {
-    return '';
+/**
+ * The `×N` badge of a line that stands for N stored records, with `N times`
+ * as its tooltip; none for a single record.
+ */
+function toRepeat(count: number): ActivityRowRepeat | undefined {
+  if (count < 2) {
+    return undefined;
   }
-  return `${formatTimes(group.count)} · ${ACTIVITY_FEED_TIME_FORMAT.format(group.firstAtMs)} – ${ACTIVITY_FEED_TIME_FORMAT.format(group.lastAtMs)}`;
+  const amount = ACTIVITY_FEED_COUNT_FORMAT.format(count);
+  return { badge: `×${amount}`, label: `${amount} times` };
 }
 
-/** A run's detail: its stored status when not ok, its counts and its stored error. */
+/** `2 failed`, or empty when nothing failed. */
+function formatFailed(failed: number): string {
+  return failed > 0 ? `${ACTIVITY_FEED_COUNT_FORMAT.format(failed)} failed` : '';
+}
+
+/** A run's one fact: its failures, else its stored status when not ok, else what it downloaded. */
 function describeRun(run: ActivityDownloadRun): string {
-  const parts = [
-    run.status === 'ok' || run.status === '' ? '' : run.status,
-    `${run.episodesDownloaded} downloaded`,
-    run.episodesFailed > 0 ? `${run.episodesFailed} failed` : '',
-    run.errorSummary,
-  ];
-  return parts.filter((part) => part !== '').join(' · ');
+  if (run.episodesFailed > 0) {
+    return formatFailed(run.episodesFailed);
+  }
+  return run.status === 'ok' || run.status === '' ? `${run.episodesDownloaded} downloaded` : run.status;
 }
 
-/** What a line is about and what changed, from its stored fields only. */
-function describeLine(line: ActivityFeedLine): { readonly subject: string; readonly detail: string } {
+/** The repeat of a System group; none for a line of no group. */
+function systemRepeat(group: ActivitySystemGroup | undefined): ActivityRowRepeat | undefined {
+  return group === undefined ? undefined : toRepeat(group.count);
+}
+
+/**
+ * What a line is about, its one short fact and how often it repeated, from
+ * its stored fields only. Spans, areas, event types and stored errors are the
+ * drawer's (one row rule for every type, owner-approved mockup).
+ */
+function describeLine(line: ActivityFeedLine): LineWords {
   const ledger = line.line;
   if (line.traffic !== undefined) {
-    return { subject: ACTIVITY_TRAFFIC_SUBJECT, detail: describeTraffic(line.traffic) };
+    return { subject: ACTIVITY_TRAFFIC_SUBJECT, detail: formatFailed(line.traffic.failed), repeat: toRepeat(line.traffic.requests) };
   }
   if (line.run !== undefined) {
-    return { subject: ACTIVITY_RUN_TRIGGER_SUBJECTS[line.run.trigger] ?? ACTIVITY_RUN_SUBJECT, detail: describeRun(line.run) };
+    return { subject: ACTIVITY_RUN_TRIGGER_SUBJECTS[line.run.trigger] ?? ACTIVITY_RUN_SUBJECT, detail: describeRun(line.run), repeat: undefined };
   }
   if (ledger.kind === 'change') {
     return {
       subject: ledger.title,
       detail: describeActivityChange({ source: ledger.source, actionType: ledger.detail, beforeJson: ledger.beforeJson, afterJson: ledger.afterJson }),
+      repeat: undefined,
     };
   }
   if (ledger.kind === 'event') {
-    const repeat = describeRepeat(line.system);
-    if (ledger.detail === ACTIVITY_BRIDGE_STARTED.eventType) {
-      return { subject: ACTIVITY_BRIDGE_STARTED.subject, detail: repeat };
-    }
-    // Layer 0 of the presentation model: the recorded message, then how often it repeated, its area and type as stored.
-    return { subject: ledger.title, detail: [repeat, ledger.domain, ledger.detail].filter((part) => part !== '').join(' · ') };
+    const subject = ledger.detail === ACTIVITY_BRIDGE_STARTED.eventType ? ACTIVITY_BRIDGE_STARTED.subject : ledger.title;
+    return { subject, detail: '', repeat: systemRepeat(line.system) };
   }
   if (ledger.kind === 'phone_report') {
     // The report kind is a closed enum, so it may read as plain words; the outcome is shown as stored.
-    return { subject: ACTIVITY_PHONE_REPORT_SUBJECTS[ledger.title] ?? ledger.title, detail: ledger.detail };
+    return { subject: ACTIVITY_PHONE_REPORT_SUBJECTS[ledger.title] ?? ledger.title, detail: ledger.detail, repeat: undefined };
   }
-  return { subject: ledger.title, detail: ledger.detail };
+  return { subject: ledger.title, detail: ledger.detail, repeat: undefined };
 }
 
 /** Red for a failure, amber for slow, plain otherwise. */

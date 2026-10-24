@@ -31,3 +31,6 @@ export const ACTIVITY_FEED_EMPTY = { title: 'Nothing in this time range.', descr
  * row's spacer, just before `›`, vertically centred on the row.
  */
 export const ACTIVITY_ROW_COPY_CLASS = 'absolute right-7 top-1/2 -translate-y-1/2';
+
+/** The `×N` repeat badge at the row's end (mockup `.ax-count`). */
+export const ACTIVITY_ROW_REPEAT_CLASS = 'shrink-0 rounded-full bg-default px-2 py-px text-xs tabular-nums text-muted';

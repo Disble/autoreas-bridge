@@ -13,13 +13,13 @@ const HOURS: readonly ActivityChartSlot[] = [10, 11, 12].map((hour, index) => ({
 }));
 
 describe('toChartBars', () => {
-  it('scales each bar to the busiest slot, caps failures in red and names each slot by its counts', () => {
+  it('scales each bar to the busiest slot, paints the failed share of its lines red and names each slot by its counts', () => {
     const bars = toChartBars(HOURS, '24h', undefined);
 
-    expect(bars.map((bar) => [bar.heightPercent, bar.hasFailure, bar.state])).toEqual([
-      [100, false, 'idle'],
-      [50, false, 'idle'],
-      [100, true, 'idle'],
+    expect(bars.map((bar) => [bar.heightPercent, bar.failPercent, bar.state])).toEqual([
+      [100, 0, 'idle'],
+      [50, 0, 'idle'],
+      [100, 3, 'idle'],
     ]);
     expect(bars[2].label).toBe('Oct 22, 12:00 – 13:00 · 100 lines · 3 failed');
     expect(bars.map((bar) => bar.isNow)).toEqual([false, false, true]);

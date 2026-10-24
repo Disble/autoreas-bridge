@@ -294,10 +294,11 @@ describe('ActivityScreen', () => {
     await waitFor(() => expect(activitySource.pinMoment).toHaveBeenCalledTimes(1));
   });
 
-  it('marks a failed System line red and a slow line amber, and offers Copy for AI on the failed row only', async () => {
+  it('marks a failed System line red and a slow line amber, badges a repeat, and offers Copy for AI on the failed row only', async () => {
     const writeText = vi.fn(() => Promise.resolve());
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
-    const failed = buildLine({ type: 'system', origin: 'bridge', failed: true, incidentId: 4 }, { kind: 'event', id: '2', title: 'Sync failed', detail: 'sync.error' });
+    const system = { hourStartMs: Date.now() - 3_600_000, count: 4, firstAtMs: Date.now() - 3_000_000, lastAtMs: Date.now() - 1000 };
+    const failed = buildLine({ type: 'system', origin: 'bridge', failed: true, incidentId: 4, system }, { kind: 'event', id: '2', title: 'Sync failed', detail: 'sync.error' });
     const slow = buildLine({ slow: true }, { id: '1', atMs: Date.now() - 2000 });
     feedSource.searchFeed.mockResolvedValue(buildView([buildDay(0, [failed, slow])]));
     renderScreen();
@@ -305,6 +306,11 @@ describe('ActivityScreen', () => {
     expect(await screen.findByRole('img', { name: 'Bridge · failed' })).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'Linked incident' })).not.toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Phone · slow' })).toBeInTheDocument();
+    // the badge explains itself through the design system's Tooltip, never a native title
+    const badge = screen.getByRole('img', { name: '4 times' });
+    expect(badge).toHaveTextContent('×4');
+    expect(badge.closest('[title]')).toBeNull();
+    expect(screen.queryByText(/sync\.error/)).not.toBeInTheDocument();
     const copyButtons = screen.getAllByRole('button', { name: 'Copy for AI' });
     expect(copyButtons).toHaveLength(1);
 
@@ -339,6 +345,8 @@ describe('ActivityScreen chart and toolbar', () => {
     renderScreen();
     await waitFor(() => expect(bars()).toHaveLength(3));
     expect(document.querySelectorAll('[data-chart-failure]')).toHaveLength(1);
+    // 1 of the last slot's 3 lines failed: the red part is a third of its bar, not a fixed cap
+    expect(bars()[2].querySelector<HTMLElement>('[data-chart-failure]')?.style.height).toMatch(/^33\.3/);
     expect(bars()[0].querySelector('[data-chart-gap]')).not.toBeNull();
     expect(document.querySelectorAll('[data-chart-gap]')).toHaveLength(1);
   }

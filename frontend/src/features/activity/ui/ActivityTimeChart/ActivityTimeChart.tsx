@@ -103,7 +103,7 @@ export function ActivityTimeChart({
                     data-chart-gap={bar.isGap ? '' : undefined}
                     style={{ height: `${bar.heightPercent}%` }}
                   >
-                    {bar.hasFailure ? <span className="h-1 w-full shrink-0 bg-danger" data-chart-failure /> : null}
+                    {bar.failPercent > 0 ? <span className="min-h-[3px] w-full shrink-0 bg-danger" data-chart-failure style={{ height: `${bar.failPercent}%` }} /> : null}
                   </span>
                 </button>
               ))}

@@ -49,12 +49,19 @@ describe('toFeedRowModel', () => {
     const hourMs = new Date(2026, 9, 22, 9, 0).getTime();
     const line = buildLine({ type: 'traffic', traffic: { hourStartMs: hourMs, requests: 1912, failed: 2, maxDurationMs: 40 } }, { kind: 'traffic_hour', id: '9', atMs: hourMs });
 
-    expect(toFeedRowModel(line, undefined)).toMatchObject({ subject: 'Phone checked in', detail: '1,912 times · 2 failed · 09:00 – 10:00', isOpen: false });
+    expect(toFeedRowModel(line, undefined)).toMatchObject({ subject: 'Phone checked in', detail: '2 failed', repeat: { badge: '×1,912', label: '1,912 times' }, isOpen: false });
+  });
+
+  it('gives a fine traffic hour no detail, only its repeat badge', () => {
+    const line = buildLine({ type: 'traffic', slow: true, traffic: { hourStartMs: NOW_MS, requests: 1, failed: 0, maxDurationMs: 4000 } }, { kind: 'traffic_hour', id: '9' });
+
+    expect(toFeedRowModel(line, undefined)).toMatchObject({ detail: '', repeat: undefined, health: 'slow' });
   });
 
   it.each([
-    ['a scheduled run with its counts', buildRun(), 'Scheduled download', '3 downloaded'],
-    ['a failed run with its status, failures and stored error', buildRun({ trigger: '', status: 'error', episodesFailed: 1, errorSummary: 'disk full' }), 'Download', 'error · 3 downloaded · 1 failed · disk full'],
+    ['a scheduled run by what it downloaded', buildRun(), 'Scheduled download', '3 downloaded'],
+    ['a failed run by its failures alone', buildRun({ trigger: '', status: 'error', episodesFailed: 1, errorSummary: 'disk full' }), 'Download', '1 failed'],
+    ['a run that ended badly with no failed episode by its stored status', buildRun({ status: 'cancelled' }), 'Scheduled download', 'cancelled'],
   ])('words %s', (_case, run, subject, detail) => {
     const line = buildLine({ type: 'download', origin: 'bridge', run }, { kind: 'download_run', id: 'r1' });
 
@@ -62,24 +69,23 @@ describe('toFeedRowModel', () => {
   });
 
   it.each([
-    ['a bridge start as Bridge started', 'api', 'api.listening', 'Listening on :8080', 'Bridge started', ''],
-    ['any other event by its recorded message, area and type', 'season', 'season.warn', 'Missed selected day', 'Missed selected day', 'season · season.warn'],
-    ['an event with no area by its type alone', '', 'season.warn', 'Missed selected day', 'Missed selected day', 'season.warn'],
-  ])('words %s', (_case, domain, eventType, message, subject, detail) => {
+    ['a bridge start as Bridge started', 'api', 'api.listening', 'Listening on :8080', 'Bridge started'],
+    ['any other event by its recorded message, its area and type left to the drawer', 'season', 'season.warn', 'Missed selected day', 'Missed selected day'],
+  ])('words %s', (_case, domain, eventType, message, subject) => {
     const line = buildLine({ type: 'system', origin: 'bridge', slow: true }, { kind: 'event', domain, title: message, detail: eventType });
 
-    expect(toFeedRowModel(line, undefined)).toMatchObject({ subject, detail, health: 'slow', canCopy: false, originLabel: 'Bridge · slow' });
+    expect(toFeedRowModel(line, undefined)).toMatchObject({ subject, detail: '', repeat: undefined, health: 'slow', canCopy: false, originLabel: 'Bridge · slow' });
   });
 
   it.each([
-    ['a group of one event as that event', 'frontend.error', 1, 'boom', 'frontend · frontend.error'],
-    ['a repeated event with its count and first and last time', 'frontend.error', 3, 'boom', '3 times · 10:05 – 10:50 · frontend · frontend.error'],
-    ['repeated bridge starts with their count alone', 'api.listening', 2, 'Bridge started', '2 times · 10:05 – 10:50'],
-  ])('words a System group of %s', (_case, eventType, count, subject, detail) => {
+    ['a group of one event with no badge', 'frontend.error', 1, 'boom', undefined],
+    ['a repeated event with its count badge', 'frontend.error', 3, 'boom', { badge: '×3', label: '3 times' }],
+    ['repeated bridge starts with their count badge', 'api.listening', 2, 'Bridge started', { badge: '×2', label: '2 times' }],
+  ])('words a System group of %s', (_case, eventType, count, subject, repeat) => {
     const system = { hourStartMs: new Date(2026, 9, 22, 10).getTime(), count, firstAtMs: new Date(2026, 9, 22, 10, 5).getTime(), lastAtMs: new Date(2026, 9, 22, 10, 50).getTime() };
     const line = buildLine({ type: 'system', origin: 'bridge', failed: true, system }, { kind: 'event', domain: 'frontend', title: 'boom', detail: eventType, atMs: system.lastAtMs });
 
-    expect(toFeedRowModel(line, undefined)).toMatchObject({ subject, detail, time: '10:50', health: 'failed' });
+    expect(toFeedRowModel(line, undefined)).toMatchObject({ subject, detail: '', repeat, time: '10:50', health: 'failed' });
   });
 
   it.each([

@@ -34,6 +34,14 @@ export type ActivityReadStatus = 'loading' | 'ready' | 'failed';
 /** The health mark of a feed row. */
 export type ActivityRowHealth = 'failed' | 'slow' | 'ok';
 
+/** A row's repeat badge: `×1,912`, with `1,912 times` as its tooltip. */
+export interface ActivityRowRepeat {
+  /** Badge text, `×22`. */
+  readonly badge: string;
+  /** Tooltip and accessible name, `22 times`. */
+  readonly label: string;
+}
+
 /** One drawable feed row. */
 export interface ActivityFeedRowModel {
   /** `kind:id`, unique across the feed. */
@@ -48,8 +56,10 @@ export interface ActivityFeedRowModel {
   readonly health: ActivityRowHealth;
   /** What the line is about. */
   readonly subject: string;
-  /** What changed; empty when the stored line holds nothing more. */
+  /** One short fact, such as `episode 0 → 1` or `2 failed`; empty when the subject says it all. */
   readonly detail: string;
+  /** The `×N` badge when the line stands for several stored records; undefined for one. */
+  readonly repeat: ActivityRowRepeat | undefined;
   /** Whether the drawer shows this line. */
   readonly isOpen: boolean;
   /** Whether the row offers "Copy for AI": only a failed row does (mockup row actions). */
@@ -83,8 +93,8 @@ export interface ActivityChartBarModel {
   readonly key: number;
   /** Fill height, percent of the busiest slot; a gap fills the whole slot. */
   readonly heightPercent: number;
-  /** Whether a line in the slot failed (red cap). */
-  readonly hasFailure: boolean;
+  /** Share of the slot's lines that failed, 0–100: the red part of the bar. */
+  readonly failPercent: number;
   /** Whether the slot has no lines: drawn as a hatched full-height gap (mockup `.ax-bar.off`). */
   readonly isGap: boolean;
   /** Tooltip and accessible name, from the slot's own counts. */
