@@ -36,8 +36,8 @@ That seam is the port this decision uses.
 ## Decision
 
 1. **A new bounded context, `internal/cfclearance`**, owns everything about clearing a Cloudflare managed
-   challenge. It imports only the standard library, `golang.org/x/net/publicsuffix` and
-   `internal/events`. It never imports `internal/download`, `internal/season`, `internal/anime`,
+   challenge. It imports only the standard library, `golang.org/x/net/publicsuffix`,
+   `internal/events` and `internal/logger` (the port of decision 6). It never imports `internal/download`, `internal/season`, `internal/anime`,
    `internal/desktop` or the Wails runtime; a depguard entry enforces that.
 2. **The inbound port is `http.RoundTripper`.** `cfclearance.Transport` implements it. Provider adapters keep
    accepting a `*http.Client` and learn no new type. They stop building their own client: a
