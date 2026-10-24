@@ -100,7 +100,14 @@ describe('ActivityScreen', () => {
     getConnectedDevices.mockResolvedValueOnce([{ connection_status: 'connected', last_seen_at_ms: Date.now() - 5 * 60_000 }]);
     renderScreen();
 
-    expect(await screen.findByText('Phone connected · last sync 5m ago')).toHaveAttribute('data-phone-status', 'connected');
+    const status = await screen.findByText('Phone connected · last sync 5m ago');
+    expect(status).toHaveAttribute('data-phone-status', 'connected');
+    // the line explains itself through the design system's Tooltip, never a native title
+    expect(status.closest('[title]')).toBeNull();
+    fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
+    fireEvent.pointerUp(document.body, { pointerType: 'mouse' });
+    fireEvent.pointerOver(status, { pointerType: 'mouse' });
+    await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent('Last contact from the phone'));
 
     cleanup();
     getConnectedDevices.mockResolvedValueOnce([{ connection_status: 'disconnected', last_seen_at_ms: Date.now() - 5 * 60_000 }]);
@@ -261,7 +268,8 @@ describe('ActivityScreen', () => {
     renderScreen();
     await waitFor(() => expect(rows()).toHaveLength(3));
 
-    fireEvent.click(rows()[0]);
+    // A press on the origin icon, whose tooltip trigger sits inside the row, still opens the row.
+    fireEvent.click(within(rows()[0] as HTMLElement).getAllByRole('img')[0]);
     expect(screen.getByRole('complementary', { name: 'Activity detail' })).toHaveTextContent('3');
 
     // Focus follows the open row, so the focus ring never marks a line the drawer no longer shows.
@@ -309,7 +317,13 @@ describe('ActivityScreen', () => {
     feedSource.searchFeed.mockResolvedValue(buildView([buildDay(0, [failed, slow])]));
     renderScreen();
 
-    expect(await screen.findByRole('img', { name: 'Bridge · failed' })).toBeInTheDocument();
+    const origin = await screen.findByRole('img', { name: 'Bridge · failed' });
+    // the origin tile names itself through the design system's Tooltip, never a native title
+    expect(origin.closest('[title]')).toBeNull();
+    fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
+    fireEvent.pointerUp(document.body, { pointerType: 'mouse' });
+    fireEvent.pointerOver(origin, { pointerType: 'mouse' });
+    await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent('Bridge · failed'));
     expect(screen.queryByRole('img', { name: 'Linked incident' })).not.toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Phone · slow' })).toBeInTheDocument();
     // the badge explains itself through the design system's Tooltip, never a native title
@@ -387,10 +401,16 @@ describe('ActivityScreen chart and toolbar', () => {
     expect(bars().map((bar) => bar.dataset.chartBar)).toEqual(['selected', 'selected', 'selected']);
     // While dragging, the bars hide their tooltips and the cursor turns to ew-resize.
     expect(group).toHaveAttribute('data-chart-dragging');
-    expect(bars()[0]).not.toHaveAttribute('title');
+    expect(bars()[0].closest('[title]')).toBeNull();
+    // React derives pointerenter from pointerover, so the hover stays on the drag's last bar.
+    fireEvent.pointerOver(bars()[2], { pointerType: 'mouse' });
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
     fireEvent.pointerUp(group);
     expect(group).not.toHaveAttribute('data-chart-dragging');
-    expect(bars()[0]).toHaveAttribute('title');
+    fireEvent.pointerOut(bars()[2], { pointerType: 'mouse' });
+    fireEvent.pointerOver(bars()[0], { pointerType: 'mouse' });
+    await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent(bars()[0].getAttribute('aria-label') ?? '-'));
 
     await waitFor(() => expect(lastQuery()).toMatchObject({ fromMs: slots[0].startMs }));
     expect(lastQuery()?.toMs).toBeGreaterThan(slots[2].startMs);

@@ -1,4 +1,5 @@
-import { Alert, Button, Card, Skeleton, ToggleButton, ToggleButtonGroup, Typography } from '@heroui/react';
+import { Alert, Button, Card, Skeleton, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '@heroui/react';
+import { ICON_ACTION_TOOLTIP_DELAY_MS } from '../../../../shared/ui/IconActionButton/icon-action-button.constants';
 import { ACTIVITY_CHART_BARS_CLASS, ACTIVITY_CHART_SKELETON_BARS, ACTIVITY_SCALE_BUTTON_CLASS, ACTIVITY_SCALE_GROUP_CLASS, ACTIVITY_CARD_CLASS, ACTIVITY_SCALE_OPTIONS, ACTIVITY_SKELETON_SHIMMER_CLASS } from '../../feed/activity-feed.constants';
 import { ACTIVITY_BAR_FILL_CLASS, ACTIVITY_BAR_GAP_CLASS,ACTIVITY_LEGEND_GAP_CLASS, ACTIVITY_BAR_SLOT_CLASS, ACTIVITY_CHART_DENSITY_CLASS, ACTIVITY_CHART_LOADING_LABEL } from './activity-time-chart.constants';
 import type { ActivityTimeChartProps } from './activity-time-chart.types';
@@ -7,7 +8,8 @@ import type { ActivityTimeChartProps } from './activity-time-chart.types';
  * The time chart card: the scale switch, one bar per slot (blue height for
  * activity, a red cap where something failed, a green line after the newest
  * slot), and the axis ticks. Dragging across bars selects their time range;
- * clicking one bar selects that slot.
+ * clicking one bar selects that slot. Each bar names its slot in a Tooltip,
+ * which stays closed while a drag runs.
  */
 export function ActivityTimeChart({
   title,
@@ -87,25 +89,31 @@ export function ActivityTimeChart({
               style={{ gridTemplateColumns: `repeat(${bars.length}, minmax(0, 1fr))` }}
             >
               {bars.map((bar, index) => (
-                <button
-                  aria-label={bar.label}
-                  aria-pressed={bar.state === 'selected'}
-                  className={`relative flex h-full cursor-pointer items-end ${ACTIVITY_CHART_DENSITY_CLASS.bar[density]} ${ACTIVITY_BAR_SLOT_CLASS[bar.state]}`}
-                  data-chart-bar={bar.state}
-                  key={bar.key}
-                  onPointerDown={() => onBarPointerDown(index)}
-                  onPointerEnter={() => onBarPointerEnter(index)}
-                  title={isDragging ? undefined : bar.label}
-                  type="button"
-                >
-                  <span
-                    className={`relative flex w-full flex-col overflow-hidden ${ACTIVITY_CHART_DENSITY_CLASS.fill[density]} ${bar.isGap ? ACTIVITY_BAR_GAP_CLASS : ACTIVITY_BAR_FILL_CLASS[bar.state]}`}
-                    data-chart-gap={bar.isGap ? '' : undefined}
-                    style={{ height: `${bar.heightPercent}%` }}
-                  >
-                    {bar.failPercent > 0 ? <span className="min-h-[3px] w-full shrink-0 bg-danger" data-chart-failure style={{ height: `${bar.failPercent}%` }} /> : null}
-                  </span>
-                </button>
+                <Tooltip delay={ICON_ACTION_TOOLTIP_DELAY_MS} isDisabled={isDragging} key={bar.key}>
+                  <Tooltip.Trigger className="flex h-full min-w-0" role="presentation" tabIndex={-1}>
+                    <button
+                      aria-label={bar.label}
+                      aria-pressed={bar.state === 'selected'}
+                      className={`relative flex h-full w-full cursor-pointer items-end ${ACTIVITY_CHART_DENSITY_CLASS.bar[density]} ${ACTIVITY_BAR_SLOT_CLASS[bar.state]}`}
+                      data-chart-bar={bar.state}
+                      onPointerDown={() => onBarPointerDown(index)}
+                      onPointerEnter={() => onBarPointerEnter(index)}
+                      type="button"
+                    >
+                      <span
+                        className={`relative flex w-full flex-col overflow-hidden ${ACTIVITY_CHART_DENSITY_CLASS.fill[density]} ${bar.isGap ? ACTIVITY_BAR_GAP_CLASS : ACTIVITY_BAR_FILL_CLASS[bar.state]}`}
+                        data-chart-gap={bar.isGap ? '' : undefined}
+                        style={{ height: `${bar.heightPercent}%` }}
+                      >
+                        {bar.failPercent > 0 ? <span className="min-h-[3px] w-full shrink-0 bg-danger" data-chart-failure style={{ height: `${bar.failPercent}%` }} /> : null}
+                      </span>
+                    </button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content showArrow>
+                    <Tooltip.Arrow />
+                    {bar.label}
+                  </Tooltip.Content>
+                </Tooltip>
               ))}
             </div>
             <div

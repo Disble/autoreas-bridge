@@ -1,6 +1,7 @@
-import { Card } from '@heroui/react';
+import { Card, Tooltip } from '@heroui/react';
 import pinIcon from '@iconify-icons/solar/pin-bold';
 import { IconActionButton } from '../../../../shared/ui/IconActionButton/IconActionButton';
+import { ICON_ACTION_TOOLTIP_DELAY_MS } from '../../../../shared/ui/IconActionButton/icon-action-button.constants';
 import { PageHeader } from '../../../../shared/ui/PageHeader/PageHeader';
 import { ActivityDetailDrawer } from '../ActivityDetailDrawer/ActivityDetailDrawer';
 import { ActivityFeed } from '../ActivityFeed/ActivityFeed';
@@ -8,6 +9,7 @@ import { ActivityTimeChart } from '../ActivityTimeChart/ActivityTimeChart';
 import { ActivityToolbar } from '../ActivityToolbar/ActivityToolbar';
 import { ACTIVITY_CARD_CLASS } from '../../feed/activity-feed.constants';
 import { useActivityPhoneStatus } from '../../feed/use-activity-phone-status';
+import { ACTIVITY_PHONE_STATUS_TOOLTIP } from './activity-screen.constants';
 import { useActivityScreen } from './use-activity-screen';
 
 /**
@@ -27,10 +29,18 @@ export function ActivityScreen() {
         title="Activity"
       />
       {phoneStatus === undefined ? null : (
-        <p className="-mt-[7px] flex w-max items-center gap-2 text-[13px] text-muted" data-phone-status={phoneStatus.isConnected ? 'connected' : 'offline'} title="Last contact from the phone">
-          <span aria-hidden className={`size-2 rounded-full ${phoneStatus.isConnected ? 'bg-success' : 'bg-muted'}`} />
-          {phoneStatus.label}
-        </p>
+        <Tooltip delay={ICON_ACTION_TOOLTIP_DELAY_MS}>
+          <Tooltip.Trigger className="-mt-[7px] w-max" role="presentation" tabIndex={-1}>
+            <p className="flex items-center gap-2 text-[13px] text-muted" data-phone-status={phoneStatus.isConnected ? 'connected' : 'offline'}>
+              <span aria-hidden className={`size-2 rounded-full ${phoneStatus.isConnected ? 'bg-success' : 'bg-muted'}`} />
+              {phoneStatus.label}
+            </p>
+          </Tooltip.Trigger>
+          <Tooltip.Content showArrow>
+            <Tooltip.Arrow />
+            {ACTIVITY_PHONE_STATUS_TOOLTIP}
+          </Tooltip.Content>
+        </Tooltip>
       )}
       <ActivityTimeChart
         bars={screen.chart.bars}

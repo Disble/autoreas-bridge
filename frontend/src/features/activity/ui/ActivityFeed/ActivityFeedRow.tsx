@@ -27,9 +27,17 @@ export function ActivityFeedRow({ row, onSelect, onCopy }: ActivityFeedRowProps)
         variant="ghost"
       >
         <span className="w-[52px] shrink-0 text-[13px] leading-normal tabular-nums text-muted">{row.time}</span>
-        <span aria-label={row.originLabel} className={`grid size-7 shrink-0 place-items-center rounded-lg ${ACTIVITY_ROW_TILE_CLASS[row.health]}`} role="img" title={row.originLabel}>
-          <Icon aria-hidden icon={row.origin === 'phone' ? phoneIcon : bridgeIcon} />
-        </span>
+        <Tooltip delay={ICON_ACTION_TOOLTIP_DELAY_MS}>
+          <Tooltip.Trigger className="inline-flex shrink-0" role="presentation" tabIndex={-1}>
+            <span aria-label={row.originLabel} className={`grid size-7 shrink-0 place-items-center rounded-lg ${ACTIVITY_ROW_TILE_CLASS[row.health]}`} role="img">
+              <Icon aria-hidden icon={row.origin === 'phone' ? phoneIcon : bridgeIcon} />
+            </span>
+          </Tooltip.Trigger>
+          <Tooltip.Content showArrow>
+            <Tooltip.Arrow />
+            {row.originLabel}
+          </Tooltip.Content>
+        </Tooltip>
         <span className="flex min-w-0 flex-1 items-baseline gap-2">
           <span className="truncate text-sm font-medium leading-normal text-foreground">{row.subject}</span>
           {row.detail === '' ? null : <span className={`truncate text-sm leading-normal ${ACTIVITY_ROW_DETAIL_CLASS[row.health]}`}>{row.detail}</span>}
