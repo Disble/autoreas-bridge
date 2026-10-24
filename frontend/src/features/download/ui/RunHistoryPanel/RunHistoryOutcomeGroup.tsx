@@ -1,8 +1,9 @@
 import { Disclosure } from '@heroui/react';
 import { Icon } from '@iconify/react';
 import copyIcon from '@iconify-icons/solar/copy-bold-duotone';
+import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
 import { IconActionButton } from '../../../../shared/ui/IconActionButton/IconActionButton';
-import { RUN_HISTORY_COPY_CONFIRMATIONS, RUN_HISTORY_TONE_ICON_CLASS } from './run-history-panel.constants';
+import { RUN_HISTORY_COPY_CONFIRMATIONS, RUN_HISTORY_TONE_ICON_CLASS, RUN_HISTORY_UNRECORDED_COPY } from './run-history-panel.constants';
 import type { RunHistoryOutcomeGroupProps } from './run-history-panel.types';
 import { RunHistoryAnimeRow } from './RunHistoryAnimeRow';
 
@@ -50,17 +51,23 @@ export function RunHistoryOutcomeGroup({ group, covers, onCopy, onEditAnime }: R
       </Disclosure.Heading>
       <Disclosure.Content>
         <Disclosure.Body className="p-0">
-          <ul className="flex flex-col px-2 pb-2">
-            {group.rows.map((row) => (
-              <RunHistoryAnimeRow
-                cover={row.animeId === undefined ? undefined : covers.get(row.animeId)}
-                key={row.key}
-                row={row}
-                onCopy={onCopy}
-                onEditAnime={onEditAnime}
-              />
-            ))}
-          </ul>
+          {group.isUnrecorded ? (
+            <div className="px-2 pb-2">
+              <AirisEmptyState description={RUN_HISTORY_UNRECORDED_COPY.description} kind="caught-up" size="row" title={RUN_HISTORY_UNRECORDED_COPY.title} />
+            </div>
+          ) : (
+            <ul className="flex flex-col px-2 pb-2">
+              {group.rows.map((row) => (
+                <RunHistoryAnimeRow
+                  cover={row.animeId === undefined ? undefined : covers.get(row.animeId)}
+                  key={row.key}
+                  row={row}
+                  onCopy={onCopy}
+                  onEditAnime={onEditAnime}
+                />
+              ))}
+            </ul>
+          )}
         </Disclosure.Body>
       </Disclosure.Content>
     </Disclosure>

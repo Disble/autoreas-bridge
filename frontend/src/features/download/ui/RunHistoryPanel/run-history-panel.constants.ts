@@ -96,6 +96,12 @@ export const RUN_HISTORY_TONE_ICON_CLASS: Readonly<Record<RunHistoryTone, string
 /** The tooltip beside the totals of a run whose events are past the retention. */
 export const RUN_HISTORY_EXPIRED_NOTE = 'Per-anime detail is kept for 90 days';
 
+/** The row empty state of a finished run group whose episodes the story never recorded per anime. */
+export const RUN_HISTORY_UNRECORDED_COPY = {
+  title: 'Episodes not recorded',
+  description: 'This run kept no per-anime record of these episodes.',
+} as const;
+
 /** Accessible name of the no-cover poster. */
 export const RUN_HISTORY_NO_COVER_LABEL = 'No cover';
 

@@ -121,6 +121,8 @@ export interface RunHistoryGroupViewModel extends RunHistoryPresentation {
   readonly defaultExpanded: boolean;
   /** True for the live run's group, whose icon turns. */
   readonly isLive: boolean;
+  /** True when a finished run counts episodes here but its story recorded no line for them. */
+  readonly isUnrecorded: boolean;
   /** Every link of the group, for "Copy all links"; empty when there are none. */
   readonly allLinks: readonly string[];
 }

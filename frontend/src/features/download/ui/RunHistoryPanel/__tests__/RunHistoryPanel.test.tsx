@@ -206,6 +206,16 @@ describe('RunHistoryPanel detail', () => {
     expect(screen.getByRole('img', { name: 'Per-anime detail is kept for 90 days' })).toBeInTheDocument();
   });
 
+  it('says the episodes were not recorded inside a finished run group that has a count but no line', () => {
+    const steps = [step('a1', 'download.episode_downloaded', { animeName: 'Frieren', episode: 3 })];
+    mockPanel([createRun('run-old', { episodesFound: 3, episodesDownloading: 2, upToDateCount: 0, status: 'interrupted' })], {
+      story: { status: 'ready', story: { steps, truncated: false } },
+    });
+
+    expect(screen.getByText('Episodes not recorded')).toBeInTheDocument();
+    expect(screen.getByText('This run kept no per-anime record of these episodes.')).toBeInTheDocument();
+  });
+
   it('flags a truncated story beside the totals', () => {
     mockPanel([jdOfflineRun], { story: { ...story, story: { ...story.story, truncated: true } } as RunHistoryStoryState });
 

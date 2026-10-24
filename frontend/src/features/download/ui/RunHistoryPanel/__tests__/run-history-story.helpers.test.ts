@@ -183,6 +183,25 @@ describe('toRunHistoryDetailViewModel groups and notes', () => {
     expect(detail.groups.filter((group) => group.id !== 'pending').every((group) => group.rows === undefined)).toBe(true);
   });
 
+  // A run stored before per-anime events (no anime_checked) has its pending count but no lines for it.
+  it('marks a finished run group with a count but no recorded line as unrecorded, keeping the others', () => {
+    const steps = [step('a1', 'download.episode_downloaded', { episode: 3, animeName: 'Frieren' })];
+    const detail = toRunHistoryDetailViewModel(createRun({ episodesFailed: 0, skippedCount: 0, upToDateCount: 0 }), ready(steps));
+
+    expect(detail.groups.map((group) => [group.id, group.isUnrecorded, group.rows?.length])).toEqual([
+      ['pending', true, 0],
+      ['downloaded', false, 1],
+    ]);
+  });
+
+  it('shows a live run group whose lines have not arrived yet as a header, not as unrecorded', () => {
+    const steps = [step('a1', 'download.episode_downloaded', { episode: 3, animeName: 'Frieren' })];
+    const run = createRun({ status: 'running', finishedAtMs: undefined, episodesFailed: 0, skippedCount: 0, upToDateCount: 0 });
+    const pending = toRunHistoryDetailViewModel(run, ready(steps)).groups.find((group) => group.id === 'pending');
+
+    expect([pending?.isUnrecorded, pending?.rows]).toEqual([false, undefined]);
+  });
+
   it('shows no retention note while the story loads, when it failed, or for a run that found nothing', () => {
     expect(toRunHistoryDetailViewModel(createRun(), { status: 'loading' }).storyNote).toBeUndefined();
     const withLinks = createRun({ manualLinks: [{ anime: 'Frieren', episode: 4, links: ['https://x/a'] }] });

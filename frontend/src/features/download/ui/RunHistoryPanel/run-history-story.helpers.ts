@@ -133,7 +133,21 @@ function toGroups(run: DownloadRunView, rows: Partial<GroupRows> | undefined, is
     toGroup('downloaded', RUN_HISTORY_GROUPS.downloaded, run.episodesDownloaded, rows?.downloaded, true, false),
     toGroup('skipped', RUN_HISTORY_GROUPS.skipped, run.skippedCount, rows?.skipped, true, false),
     toGroup('upToDate', RUN_HISTORY_GROUPS.upToDate, run.upToDateCount, rows?.upToDate, false, false),
-  ].filter((group) => group.count > 0 || (group.rows?.length ?? 0) > 0);
+  ]
+    .filter((group) => group.count > 0 || (group.rows?.length ?? 0) > 0)
+    .map((group) => withUnrecorded(group, isRunning));
+}
+
+/**
+ * Settles a group that counts episodes but has no line for them. A finished run will never record
+ * them, so it says so; a live run may still, so it shows the header alone until they arrive.
+ */
+function withUnrecorded(group: RunHistoryGroupViewModel, isRunning: boolean): RunHistoryGroupViewModel {
+  if (group.rows === undefined || group.rows.length > 0) {
+    return group;
+  }
+
+  return isRunning ? { ...group, rows: undefined } : { ...group, isUnrecorded: true };
 }
 
 /** Builds one group's view model. */
@@ -152,6 +166,7 @@ function toGroup(
     rows,
     defaultExpanded,
     isLive,
+    isUnrecorded: false,
     allLinks: rows?.flatMap((row) => row.links) ?? [],
   };
 }
