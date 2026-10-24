@@ -194,6 +194,14 @@ JDownloader fetches the file from it.
 | Site host | `jkanime.org` | `sites.DownloadLink.SiteHost`, metadata key `siteHost`, `jkanime.host_fallback` (`from` / `to`) |
 | Hoster | `Mediafire` | `sites.DownloadLink.Hoster`, metadata key `hoster` |
 
+```mermaid
+flowchart LR
+  Site["Site<br/>jkanime"] -- "has several" --> SH["Site host<br/>jkanime.net / .org / .bz"]
+  SH -- "serves the episode page,<br/>which lists download links" --> Link["DownloadLink<br/>SiteHost + Hoster + URL"]
+  Link -- "points at" --> Hoster["Hoster<br/>Mediafire, Mega"]
+  Hoster -- "JDownloader fetches the file" --> File[("episode file")]
+```
+
 Write "site host" for the mirror that answered, never "provider" and never "host" alone, which
 also names hosters. See [ADR-029](./adr/029-jkanime-host-fallback-chain.md) and
 [ADR-030](./adr/030-provider-egress-clearance.md).

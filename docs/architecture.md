@@ -37,11 +37,69 @@ El sistema se divide en **Bounded Contexts (Dominios)** fuertemente separados. N
 
 5. **`internal/cfclearance/` (Clearance Context):**
    - **Responsabilidad:** superar el managed challenge de Cloudflare de forma transparente para cualquier adapter de provider (`internal/download/sites/*`), sin pedir nada al usuario. Es un hexagono propio porque lo consumen dos contextos (download y season) y ninguno es dueño del problema. La decision esta registrada en `docs/adr/030-provider-egress-clearance.md`.
-   - **Puerto de entrada:** `http.RoundTripper`. `cfclearance.Transport` lo implementa y el composition root construye un unico `*http.Client` sobre el, que inyecta en cada sitio de construccion de un adapter (`jkanime.New(client)`, `jkanime.NewSearcher(client)`). Los adapters no aprenden ningun tipo nuevo y no construyen su propio cliente: una regla de `tools/checkarchitecture` rechaza `http.DefaultClient` y `&http.Client{` bajo `internal/download/sites/`.
+   - **Puerto de entrada:** `http.RoundTripper`. `cfclearance.Transport` lo implementa y el composition root construye un unico `*http.Client` sobre el, que inyecta en cada sitio de construccion de un adapter (`jkanime.New(client, log)`, `jkanime.NewSearcher(client, log)`). Los adapters no aprenden ningun tipo nuevo y no construyen su propio cliente: una regla de `tools/checkarchitecture` rechaza `http.DefaultClient` y `&http.Client{` bajo `internal/download/sites/`.
    - **Puertos de salida (ADR-017):** `Solver` (resuelve un challenge para un origen y devuelve las cookies de Cloudflare y el User-Agent que las gano), `ClearanceStore` (guarda la clearance por dominio registrable) y `Publisher` (publica `clearance.challenge_detected`, `clearance.solved` y `clearance.failed` en el `events.Bus`, nunca con el valor de una cookie). Adapters: `webview2.ProcessSolver` en Windows, que relanza el propio ejecutable con `--cfclearance-solve` y abre un WebView2 en una ventana que nunca se muestra; `UnsupportedSolver` en otras plataformas; `MemoryStore`; el bus en memoria.
    - **Mecanismo:** el transport deja pasar intacto todo lo que no es un challenge. Ante `403`/`503` con `Cf-Mitigated: challenge` (o un intersticial HTML con `2xx`) resuelve una vez por dominio registrable, guarda solo `cf_clearance` y `__cf*`, y reintenta la peticion con el User-Agent del motor; maximo dos solves por peticion, un solve concurrente, 30 s de timeout y 10 min de cooldown por dominio tras un fallo. Si no puede ayudar devuelve la respuesta original sin tocar, de modo que la cadena de mirrors de ADR-029 sigue funcionando como ultimo recurso.
-   - **Frontera:** importa solo la biblioteca estandar, `golang.org/x/net/publicsuffix` e `internal/events`; nunca `internal/download`, `internal/season`, `internal/anime`, `internal/desktop` ni Wails (`.golangci.yml` -> depguard). El subpaquete `webview2` es el unico que importa `github.com/wailsapp/go-webview2` y lleva build tag de Windows.
+   - **Frontera:** importa solo la biblioteca estandar, `golang.org/x/net/publicsuffix`, `internal/events` e `internal/logger` (el puerto con el que escribe cada hecho en `runtime_events`); nunca `internal/download`, `internal/season`, `internal/anime`, `internal/desktop` ni Wails (`.golangci.yml` -> depguard). El subpaquete `webview2` es el unico que importa `github.com/wailsapp/go-webview2` y lleva build tag de Windows.
    - **Tiers:** las decisiones del transport son CORE (cobertura total y mutantes muertos o equivalentes); el adapter WebView2 es IMPORTANT (test con fixture local bajo build tag de Windows); el cableado es INFRASTRUCTURE.
+   - **Puertos y adapters:** los adapters de provider solo ven un `*http.Client`; todo lo demas queda detras del `RoundTripper`.
+
+     ```mermaid
+     flowchart LR
+       subgraph providers["internal/download/sites"]
+         JK["jkanime Adapter / Searcher"]
+       end
+       Client["*http.Client compartido<br/>(composition root)"]
+       subgraph clearance["internal/cfclearance"]
+         T["Transport<br/>(puerto de entrada: http.RoundTripper)"]
+         Solver(["Solver"])
+         Store(["ClearanceStore"])
+         Pub(["Publisher"])
+         Log(["logger.Logger"])
+       end
+       JK -- "Do(req)" --> Client --> T
+       T -- "Solve(origin, rejected)" --> Solver
+       T -- "Load / Save por dominio registrable" --> Store
+       T -- "clearance.*" --> Pub
+       T -- "una fila por clearance.*" --> Log
+       Solver -.-> PS["webview2.ProcessSolver<br/>(relanza el exe, WebView2 oculto)"]
+       Store -.-> MS["MemoryStore"]
+       Pub -.-> Bus["events.Bus"]
+       Log -.-> RE[("runtime_events")]
+       T -- "HTTPS" --> Site["site host<br/>jkanime.net / .org / .bz"]
+     ```
+
+   - **Una peticion:** el clearance actua siempre antes que la cadena de mirrors, sea cual sea el site host que se intenta primero; el mirror solo entra cuando el transport no pudo ayudar.
+
+     ```mermaid
+     sequenceDiagram
+       participant A as jkanime Adapter
+       participant T as cfclearance.Transport
+       participant H as site host
+       participant V as Solver
+       participant L as runtime_events
+       A->>T: GET pagina (via *http.Client)
+       T->>H: peticion + clearance guardada del dominio, si hay
+       alt no es challenge
+         H-->>T: 200
+         T-->>A: respuesta intacta (sin fila)
+       else 403/503 Cf-Mitigated o intersticial HTML
+         T->>L: clearance.challenge_detected
+         T->>V: Solve (max 2 por peticion, 30 s)
+         alt resuelto
+           V-->>T: cookies cf_clearance/__cf* + User-Agent
+           T->>L: clearance.solved
+           T->>H: reintento con cookies y User-Agent del motor
+           H-->>T: 200
+           T-->>A: respuesta del reintento
+         else falla
+           T->>L: clearance.failed (abre 10 min de cooldown del dominio)
+           T-->>A: respuesta original sin tocar
+           A->>L: jkanime.host_fallback {from, to}
+           A->>T: misma pagina en el siguiente site host (ADR-029)
+         end
+       end
+     ```
 
 ---
 

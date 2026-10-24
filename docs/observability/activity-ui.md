@@ -66,6 +66,19 @@ top-level metadata key, so `download.episode_downloaded` grouped by `siteHost` r
 episodes each site host served. Events without the key, or whose metadata was stored truncated, form
 the group whose value is `null`. The key is validated and bound as a JSON path parameter.
 
+```mermaid
+flowchart LR
+  T["cfclearance.Transport"] -- "clearance.challenge_detected / solved (info)<br/>clearance.failed (warn)" --> Log["logger.Logger"]
+  JK["jkanime Adapter / Searcher"] -- "jkanime.host_fallback (warn, from / to)" --> Log
+  DL["download pipeline"] -- "download.episode_downloaded, download.failed,<br/>download.hoster_attempt (hoster, siteHost)" --> Log
+  Log --> RE[("runtime_events<br/>domain, event_type, metadata_json")]
+  RE -- "Where = providers / downloads" --> Act["Activity History and Incidents"]
+  RE -- "search_history, list_runs (where)" --> MCP["request MCP"]
+  RE -- "count_events (event_type, group_by)" --> MCP
+```
+
+A bus `Publish` alone reaches neither box on the right: only a row written through `logger.Logger` does.
+
 Decision (owner, 2026-10-17): **only errors open an incident.** A warning that recovers on its own appears
 in History with a "Recovered" mark. In the measured week the bridge logged 10 warnings and 0 errors, so
 opening an incident for every warning would mostly raise false alarms.
