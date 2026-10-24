@@ -37,6 +37,7 @@ func toContractsManualLinks(links []download.ManualLink) []contracts.ManualLink 
 	out := make([]contracts.ManualLink, 0, len(links))
 	for _, l := range links {
 		out = append(out, contracts.ManualLink{
+			AnimeID: l.AnimeID,
 			Anime:   l.Anime,
 			Episode: l.Episode,
 			Links:   l.Links,
