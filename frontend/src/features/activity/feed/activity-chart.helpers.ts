@@ -112,6 +112,8 @@ export function selectionFromDrag(
   const first = slots[Math.min(anchor, current)];
   const last = slots[Math.max(anchor, current)];
   const next = { fromMs: first.startMs, toMs: Math.min(last.endMs - 1, nowMs) };
-  const isSameSlot = anchor === current && range?.fromMs === next.fromMs && range.toMs === next.toMs;
+  // The current hour's selection ends at the now of the click that made it, so a later click
+  // matches it by its start and slot, not by an end that moved with the clock.
+  const isSameSlot = anchor === current && range?.fromMs === next.fromMs && range.toMs < last.endMs;
   return isSameSlot ? undefined : next;
 }

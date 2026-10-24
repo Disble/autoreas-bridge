@@ -55,6 +55,13 @@ describe('selectionFromDrag', () => {
   it('selects the dragged bars in either direction, ending no later than now', () => {
     expect(selectionFromDrag(HOURS, 2, 1, undefined, NOW_MS)).toEqual({ fromMs: HOURS[1].startMs, toMs: NOW_MS });
   });
+
+  it('clears the current hour on a second click even though now has moved since the first', () => {
+    const firstClick = selectionFromDrag(HOURS, 2, 2, undefined, HOURS[2].startMs + 1_000);
+
+    expect(selectionFromDrag(HOURS, 2, 2, firstClick, HOURS[2].startMs + 61_000)).toBeUndefined();
+    expect(selectionFromDrag(HOURS, 1, 1, firstClick, HOURS[2].startMs + 61_000)).toEqual({ fromMs: HOURS[1].startMs, toMs: HOURS[1].endMs - 1 });
+  });
 });
 
 describe('overview counts', () => {

@@ -48,3 +48,4 @@ Risk: item 3 (the feed's FeedType wire value and line shape change for the front
   - M26 (`MAX(level = 'error')` → `MIN` in the System count) is equivalent: `level` is part of `feedSystemGroupSQL`, so every member of a group has the same level and MIN equals MAX. No test.
   - M25 (task `Slow`) predates this work; left as is.
   - Checks: `go test -count=1 ./internal/observability/...` all ok; `scripts/lint.ps1 -Profile all` 0 issues; `go run ./tools/checkgofilesize` passed.
+- L6 User (2026-10-24, in the redesign session): "he cambiado de opinión en una cosa, que el System filter venga desactivado por defecto". S1's "on by default" is superseded: System is still the default *section* (ownership), but its toggle starts off. Built in feat/activity-redesign.

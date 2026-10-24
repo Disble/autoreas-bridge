@@ -127,7 +127,7 @@ describe('ActivityScreen', () => {
 
     await waitFor(() => expect(rows()).toHaveLength(40));
     expect(screen.getByRole('region', { name: /Oct 22$/ })).toBeInTheDocument();
-    expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: '', limit: 40, types: ['change', 'download', 'task', 'edit', 'system'] }));
+    expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: '', limit: 40, types: ['change', 'download', 'task', 'edit'] }));
 
     fireEvent.scroll(window);
 
@@ -175,12 +175,12 @@ describe('ActivityScreen', () => {
     await waitFor(() => expect(rows()).toHaveLength(1));
     const group = screen.getByRole('toolbar', { name: 'Activity filters' });
 
-    for (const name of [/^Changes/, /^Downloads/, /^Tasks/, /^Edits/, /^System/]) {
+    for (const name of [/^Changes/, /^Downloads/, /^Tasks/, /^Edits/]) {
       fireEvent.click(within(group).getByRole('button', { name }));
     }
 
     expect(await screen.findByText('Pick at least one type to see activity.')).toBeInTheDocument();
-    expect(feedSource.searchFeed).toHaveBeenCalledTimes(5);
+    expect(feedSource.searchFeed).toHaveBeenCalledTimes(4);
     expect(rows()).toHaveLength(0);
   });
 

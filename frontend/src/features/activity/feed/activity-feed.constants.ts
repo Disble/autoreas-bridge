@@ -24,8 +24,8 @@ export const ACTIVITY_TYPE_LABELS: Readonly<Record<ActivityFeedType, string>> = 
 /** The type toggles of the toolbar. System, the section of every line no other type owns, is a toggle like the rest. */
 export const ACTIVITY_TOGGLE_TYPES: readonly ActivityFeedType[] = ['change', 'traffic', 'download', 'task', 'edit', 'system'];
 
-/** Types the feed opens with: Traffic starts off (design, Feed). */
-export const ACTIVITY_DEFAULT_TYPES: readonly ActivityFeedType[] = ['change', 'download', 'task', 'edit', 'system'];
+/** Types the feed opens with: Traffic and System start off (design, Feed; owner, 2026-10-24). */
+export const ACTIVITY_DEFAULT_TYPES: readonly ActivityFeedType[] = ['change', 'download', 'task', 'edit'];
 
 /** The rows of the failure menu, which the failure filter starts with. */
 export const ACTIVITY_FAILURE_TYPES: readonly ActivityFeedType[] = ['change', 'traffic', 'download', 'task', 'edit', 'system'];

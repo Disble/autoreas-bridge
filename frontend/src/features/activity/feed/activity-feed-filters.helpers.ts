@@ -19,7 +19,7 @@ import type { ActivityCalendarRange, ActivityFailureButtonState, ActivityFeedFil
  * The filters the Activity screen opens with.
  *
  * @param nowMs The current time.
- * @returns 24 h, every origin, Traffic off, the failure filter off.
+ * @returns 24 h, every origin, Traffic and System off, the failure filter off.
  */
 export function createInitialFilters(nowMs: number): ActivityFeedFilters {
   return { scale: '24h', range: undefined, origin: 'all', types: ACTIVITY_DEFAULT_TYPES, failuresOnly: false, failureTypes: ACTIVITY_FAILURE_TYPES, anchorMs: nowMs };

@@ -20,12 +20,12 @@ import { NOW_MS, dayStart } from './activity-feed.fixtures';
 const INITIAL = createInitialFilters(NOW_MS);
 
 describe('createInitialFilters', () => {
-  it('opens on 24 h, every origin, Traffic off and the failure filter off with every failure type', () => {
+  it('opens on 24 h, every origin, Traffic and System off and the failure filter off with every failure type', () => {
     expect(INITIAL).toEqual({
       scale: '24h',
       range: undefined,
       origin: 'all',
-      types: ['change', 'download', 'task', 'edit', 'system'],
+      types: ['change', 'download', 'task', 'edit'],
       failuresOnly: false,
       failureTypes: ['change', 'traffic', 'download', 'task', 'edit', 'system'],
       anchorMs: NOW_MS,
