@@ -222,6 +222,9 @@ func TestDetectPhasePersistsTheProbeTimelineOnSuccess(t *testing.T) {
 	if entry.level != "info" {
 		t.Fatalf("expected the successful detect phase to persist at info level, got %q", entry.level)
 	}
+	if entry.metadata["episode"] != 12 || entry.metadata["animeName"] != "Test Anime" {
+		t.Fatalf("expected the detect phase entry to name its episode and anime, got %#v", entry.metadata)
+	}
 	probes := metadataProbes(t, entry)
 	if len(probes) != 2 {
 		t.Fatalf("expected the timeline to stop at the probe that found evidence, got %#v", probes)

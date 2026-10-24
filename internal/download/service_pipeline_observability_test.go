@@ -42,6 +42,9 @@ func assertAttempt(t *testing.T, entry recordedEntry, hoster string, attemptInde
 	if entry.metadata["outcome"] != outcome {
 		t.Fatalf("expected outcome %q for hoster %q, got %#v", outcome, hoster, entry.metadata["outcome"])
 	}
+	if entry.metadata["animeName"] != "Test Anime" {
+		t.Fatalf("expected the ledger row to name its anime, got %#v", entry.metadata["animeName"])
+	}
 }
 
 func TestEnqueueErrorAndWinningHosterBothAppearInTheAttemptLedger(t *testing.T) {
@@ -105,6 +108,9 @@ func TestTheLedgerIsAdditiveAndNeverReplacesTheFailureTaxonomy(t *testing.T) {
 		}
 		if failure.metadata["failureKind"] != "hoster_down" {
 			t.Fatalf("expected failure-taxonomy entry %d to keep failureKind hoster_down, got %#v", i, failure.metadata["failureKind"])
+		}
+		if failure.metadata["hoster"] == nil || failure.metadata["animeName"] != "Test Anime" {
+			t.Fatalf("expected failure-taxonomy entry %d to keep its hoster and name its anime, got %#v", i, failure.metadata)
 		}
 	}
 	if got := len(recorder.byEventType("download.hoster_attempt")); got != 2 {

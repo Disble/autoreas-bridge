@@ -3,6 +3,7 @@ package download
 import (
 	"context"
 	"database/sql"
+	"reflect"
 	"testing"
 )
 
@@ -83,7 +84,7 @@ func TestSQLiteStoreFinalizeRunPersistsManualLinksForJDOffline(t *testing.T) {
 		t.Fatalf("OpenRun: %v", err)
 	}
 	finishedAt := int64(200)
-	links := []ManualLink{{Anime: "Naruto", Episode: 5, Links: []string{"https://mediafire.example/ep5"}}}
+	links := []ManualLink{{AnimeID: "anime-7", Anime: "Naruto", Episode: 5, Links: []string{"https://mediafire.example/ep5"}}}
 	if err := store.FinalizeRun(ctx, Run{RunID: "run-1", StartedAtMs: 100, FinishedAtMs: &finishedAt, Trigger: "scheduled", Status: "jd_offline", ManualLinks: links}); err != nil {
 		t.Fatalf("FinalizeRun: %v", err)
 	}
@@ -95,11 +96,34 @@ func TestSQLiteStoreFinalizeRunPersistsManualLinksForJDOffline(t *testing.T) {
 	if got.Status != "jd_offline" {
 		t.Fatalf("expected status jd_offline, got %q", got.Status)
 	}
-	if len(got.ManualLinks) != 1 || got.ManualLinks[0].Anime != "Naruto" || got.ManualLinks[0].Episode != 5 {
+	if len(got.ManualLinks) != 1 || got.ManualLinks[0].Anime != "Naruto" || got.ManualLinks[0].Episode != 5 || got.ManualLinks[0].AnimeID != "anime-7" {
 		t.Fatalf("expected manual links to round-trip, got %#v", got.ManualLinks)
 	}
 	if len(got.ManualLinks[0].Links) != 1 || got.ManualLinks[0].Links[0] != "https://mediafire.example/ep5" {
 		t.Fatalf("expected manual link URLs to round-trip, got %#v", got.ManualLinks[0].Links)
+	}
+}
+
+// A row written before manual links carried an anime id must still read back, with the id empty.
+func TestSQLiteStoreReadsManualLinksStoredWithoutAnAnimeID(t *testing.T) {
+	t.Parallel()
+	db := openTestBridgeDB(t)
+	store := NewSQLiteStore(db)
+	ctx := context.Background()
+	if err := store.OpenRun(ctx, Run{RunID: "run-old", StartedAtMs: 100, Trigger: "scheduled"}); err != nil {
+		t.Fatalf("OpenRun: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE download_runs SET manual_links_json = ? WHERE run_id = ?`,
+		`[{"anime":"Naruto","episode":5,"links":["https://mediafire.example/ep5"]}]`, "run-old"); err != nil {
+		t.Fatalf("store legacy manual links: %v", err)
+	}
+	runs, err := store.ListRuns(ctx, 10)
+	if err != nil {
+		t.Fatalf("ListRuns: %v", err)
+	}
+	want := []ManualLink{{Anime: "Naruto", Episode: 5, Links: []string{"https://mediafire.example/ep5"}}}
+	if len(runs) != 1 || !reflect.DeepEqual(runs[0].ManualLinks, want) {
+		t.Fatalf("legacy manual links = %#v, want %#v", runs, want)
 	}
 }
 

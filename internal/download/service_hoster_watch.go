@@ -111,7 +111,7 @@ func hasPartFilesRecursive(root string) bool {
 // probe ran and what it saw. attemptStart is the instant the attempt began (see probe); the
 // disabled test seam returns before any probe is recorded, exactly as it returned no outcome
 // before.
-func (s *Service) detectDownloadStartPhase(ctx context.Context, runID, animeID, folder string, episode int, attemptStart time.Time) (bool, []probe) {
+func (s *Service) detectDownloadStartPhase(ctx context.Context, runID string, anime contracts.MobileAnime, folder string, episode int, attemptStart time.Time) (bool, []probe) {
 	if s.deps.DetectStartPhaseDisabled {
 		return true, nil
 	}
@@ -128,10 +128,10 @@ func (s *Service) detectDownloadStartPhase(ctx context.Context, runID, animeID, 
 		found := pf(folder)
 		probes = append(probes, probe{elapsedMs: s.deps.Clock().Sub(attemptStart).Milliseconds(), found: found})
 		if found {
-			s.logf(logger.LevelInfo, runID, animeID, "download.detect_start_succeeded",
+			s.logAnimef(logger.LevelInfo, runID, anime, "download.detect_start_succeeded",
 				map[string]any{"episode": episode, "probes": probeMetadata(probes)},
-				"anime %s: episode %d transfer evidence found on probe %d of the 60s grace", animeID, episode, len(probes))
-			s.publish(events.DownloadEpisodeDownloadingEvent{RunID: runID, AnimeID: animeID, Episode: episode, CorrelationID: runID})
+				"anime %s: episode %d transfer evidence found on probe %d of the 60s grace", anime.ID, episode, len(probes))
+			s.publish(events.DownloadEpisodeDownloadingEvent{RunID: runID, AnimeID: anime.ID, Episode: episode, CorrelationID: runID})
 			return true, probes
 		}
 
@@ -152,7 +152,7 @@ func (s *Service) jdPreCheckIsDead(ctx context.Context, runID string, anime cont
 	}
 	status, err := s.deps.JD.PackageStatusByDestination(ctx, s.deps.JDDeviceName, folder)
 	if err != nil {
-		s.logf(logger.LevelWarn, runID, anime.ID, "download.jd_status_query_failed",
+		s.logAnimef(logger.LevelWarn, runID, anime, "download.jd_status_query_failed",
 			map[string]any{"hoster": hoster}, "anime %s: JD pre-check query failed for hoster %s: %v", anime.Name, hoster, err)
 		return false
 	}
@@ -223,7 +223,7 @@ func (s *Service) awaitHosterOutcome(ctx context.Context, runID string, anime co
 	}
 
 	// ────────────────── FASE 1 ──────────────────
-	started, probes := s.detectDownloadStartPhase(ctx, runID, anime.ID, folder, episode, attemptStart)
+	started, probes := s.detectDownloadStartPhase(ctx, runID, anime, folder, episode, attemptStart)
 	if !started {
 		attempt := graceAttempt{
 			runID: runID, anime: anime, hoster: hoster, folder: folder,
@@ -306,7 +306,7 @@ func (s *Service) recheckDiskAfterGrace(ctx context.Context, a graceAttempt) *ho
 // attempts that go on to succeed through the completion poll, and the attempt's own terminal point
 // is recorded by the per-attempt ledger and the episode-level entry instead.
 func (s *Service) logDetectStartFailed(runID string, anime contracts.MobileAnime, hoster string, probes []probe) {
-	s.logf(logger.LevelWarn, runID, anime.ID, "download.detect_start_failed",
+	s.logAnimef(logger.LevelWarn, runID, anime, "download.detect_start_failed",
 		map[string]any{"failureKind": FailureKindHosterDown, "hoster": hoster, "probes": probeMetadata(probes)},
 		"anime %s: hoster %s has no .part evidence after 60s, checking JD", anime.Name, hoster)
 }
@@ -328,7 +328,7 @@ func (s *Service) evaluateJDAfterGrace(ctx context.Context, a graceAttempt) *hos
 
 	status, err := s.deps.JD.PackageStatusByDestination(ctx, s.deps.JDDeviceName, a.folder)
 	if err != nil {
-		s.logf(logger.LevelWarn, a.runID, a.anime.ID, "download.jd_status_query_failed",
+		s.logAnimef(logger.LevelWarn, a.runID, a.anime, "download.jd_status_query_failed",
 			map[string]any{"hoster": a.hoster}, "anime %s: JD post-grace query failed for hoster %s: %v", a.anime.Name, a.hoster, err)
 		if a.isFirstHoster {
 			s.jdRemove(ctx, a.runID, a.anime, a.hoster, a.folder, exitGraceQueryErrorFirst, nil)
@@ -377,11 +377,11 @@ func (s *Service) jdRemove(ctx context.Context, runID string, anime contracts.Mo
 	if s.deps.JD == nil {
 		return
 	}
-	s.logf(logger.LevelWarn, runID, anime.ID, "download.jd_removed",
+	s.logAnimef(logger.LevelWarn, runID, anime, "download.jd_removed",
 		jdRemovedMetadata(hoster, stage, status),
 		"anime %s: removing JD packages for hoster %s at stage %s", anime.Name, hoster, stage)
 	if err := s.deps.JD.RemoveByDestination(ctx, s.deps.JDDeviceName, folder); err != nil {
-		s.logf(logger.LevelWarn, runID, anime.ID, "download.jd_remove_failed",
+		s.logAnimef(logger.LevelWarn, runID, anime, "download.jd_remove_failed",
 			map[string]any{"hoster": hoster}, "anime %s: JD Remove failed for dead hoster %s (continuing): %v", anime.Name, hoster, err)
 	}
 	s.publish(events.DownloadRunProgressEvent{RunID: runID, CorrelationID: runID})

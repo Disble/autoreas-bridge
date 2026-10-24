@@ -2,8 +2,10 @@ package download
 
 import (
 	"context"
+	"maps"
 	"time"
 
+	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
@@ -140,4 +142,17 @@ func (s *Service) logf(level, runID, animeID, eventType string, metadata map[str
 		EventType:     eventType,
 		Metadata:      metadata,
 	}, format, args...)
+}
+
+// logAnimef writes a download log entry about one anime: the anime id is the entry's entity id and
+// its name is added to the metadata as animeName, so a run story can label every anime it touched
+// without a catalog lookup. The caller's map is copied, never mutated; an unknown name is omitted.
+func (s *Service) logAnimef(level, runID string, anime contracts.MobileAnime, eventType string, metadata map[string]any, format string, args ...any) {
+	if anime.Name != "" {
+		named := map[string]any{}
+		maps.Copy(named, metadata)
+		named["animeName"] = anime.Name
+		metadata = named
+	}
+	s.logf(level, runID, anime.ID, eventType, metadata, format, args...)
 }
