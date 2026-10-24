@@ -53,6 +53,16 @@ export interface DailyBoardWatchListProps {
   readonly getCoverThumb: (animeId: string) => SeasonCoverThumbProps;
   /** The row's trailing chip, or null for none. */
   readonly getRowChip: (row: SeasonAnimeRow) => DailyBoardRowChip | null;
+  /** The rows' leading checkboxes; absent renders none (Visto, a read-only season). */
+  readonly selection?: DailyBoardRowSelection;
+}
+
+/** The checkboxes a watch list leads its rows with: which animes are checked and how one toggles. */
+export interface DailyBoardRowSelection {
+  /** The checked anime ids. */
+  readonly selected: ReadonlySet<string>;
+  /** Flips one anime's checkbox. */
+  readonly onToggle: (animeId: string) => void;
 }
 
 /** The trailing chip of one watch-list row: its label and semantic color. */

@@ -9,6 +9,7 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/anime/store"
+	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/download/sites"
 	"autoreas-bridge/internal/download/sites/jkanime"
@@ -243,6 +244,24 @@ func (a *App) SendSeasonAnimesToVerHoy(animeIDs []string) SendToVerHoyDTO {
 func (a *App) TriggerSeasonDownloads() string {
 	a.triggerDownloadsForSeason(a.seasonCtx())
 	return "ok"
+}
+
+// seasonSelectionRunTrigger attributes a Ver hoy subset download in run history.
+const seasonSelectionRunTrigger = "season_selection"
+
+// seasonNoAnimesSelectedMessage refuses a subset download with nothing chosen.
+const seasonNoAnimesSelectedMessage = "no animes selected"
+
+// DownloadSeasonAnimes is the Daily Board's Ver hoy "Download now": it downloads only the animes
+// the user checked, as one background run, instead of every anime scheduled for today. Returns
+// "ok" once the run has started, or why it could not start (one run at a time).
+func (a *App) DownloadSeasonAnimes(animeIDs []string) string {
+	if len(animeIDs) == 0 {
+		return seasonNoAnimesSelectedMessage
+	}
+	return a.startSoloDownload(animeIDs, func(ctx context.Context, animes []contracts.MobileAnime) {
+		_, _ = a.downloadService.RunAnimes(ctx, seasonSelectionRunTrigger, animes)
+	})
 }
 
 // seasonDownloadWindowPassed reports the configured daily download time and whether

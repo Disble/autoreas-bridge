@@ -12,7 +12,7 @@ import {
   VER_HOY_LIST_CLASS,
   VISTO_LIST_CLASS,
 } from './daily-board.constants';
-import { formatAvailableEpisodes, hasBoardRows, isDailyBoardSectionShown } from './daily-board.helpers';
+import { formatAvailableEpisodes, getDailyBoardRowNameId, hasBoardRows, isDailyBoardSectionShown } from './daily-board.helpers';
 import { DailyBoardPlainCard } from './DailyBoardPlainCard';
 import { DailyBoardSectionCard } from './DailyBoardSectionCard';
 import { DailyBoardWatchList } from './DailyBoardWatchList';
@@ -34,9 +34,11 @@ import { useDailyBoard } from './use-daily-board';
  * that closed before the board was recorded shows one plain list of its animes
  * (`DailyBoardPlainCard`) and claims no section.
  *
- * Sin ver offers "Send & download now" beside "Send to Ver hoy" to skip the wait
- * for the scheduled run, and Ver hoy always offers "Download now" (never
- * disabled: it also fetches episodes released since the last run).
+ * Sin ver and Ver hoy rows lead with their checkbox, then the cover. Sin ver
+ * offers "Send & download now" beside "Send to Ver hoy" to skip the wait for the
+ * scheduled run; Ver hoy's "Download now" downloads only the checked animes, so
+ * it stays disabled until one is checked. The late-send notice keeps its own
+ * "Download now", which runs the whole scheduled check.
  *
  * Ver hoy rows carry their weekday chip in an open season only (it reads the
  * live section); Visto rows carry their first-episode
@@ -68,6 +70,9 @@ export function DailyBoard() {
     downloadNotice,
     onDownloadNow,
     onDismissNotice,
+    verHoySelected,
+    toggleVerHoySelect,
+    onDownloadSelected,
     onRecheck,
     onOpenPage,
     errorMessage,
@@ -151,14 +156,19 @@ export function DailyBoard() {
           <ul aria-label="Sin ver" className="flex flex-col gap-2">
             {sections.sinVer.map((row) => (
               <li key={row.id} className="flex flex-wrap items-center gap-3">
-                <SeasonCoverThumb {...getCoverThumb(row.animeId)} />
-                {readOnly ? (
-                  <span className="text-sm text-foreground">{row.rawName}</span>
-                ) : (
-                  <LabeledCheckbox isSelected={selected.has(row.animeId)} onChange={() => toggleSelect(row.animeId)}>
-                    {row.rawName}
+                {!readOnly && (
+                  <LabeledCheckbox
+                    aria-labelledby={getDailyBoardRowNameId(row.id)}
+                    isSelected={selected.has(row.animeId)}
+                    onChange={() => toggleSelect(row.animeId)}
+                  >
+                    {null}
                   </LabeledCheckbox>
                 )}
+                <SeasonCoverThumb {...getCoverThumb(row.animeId)} />
+                <span className="text-sm text-foreground" id={getDailyBoardRowNameId(row.id)}>
+                  {row.rawName}
+                </span>
                 <span className="text-xs text-muted">{formatAvailableEpisodes(row.availableEpisodes)}</span>
                 <div className="ml-auto flex items-center gap-2">
                   {row.matchedSlug !== '' && (
@@ -179,14 +189,21 @@ export function DailyBoard() {
           footer={
             readOnly ? null : (
               <div className="mt-3 flex items-center gap-3">
-                <Button variant="primary" onPress={onDownloadNow}>
+                <Button isDisabled={verHoySelected.size === 0} variant="primary" onPress={onDownloadSelected}>
                   Download now
                 </Button>
               </div>
             )
           }
         >
-          <DailyBoardWatchList getCoverThumb={getCoverThumb} getRowChip={getVerHoyRowChip} label="Ver hoy" listClassName={VER_HOY_LIST_CLASS} rows={sections.verHoy} />
+          <DailyBoardWatchList
+            getCoverThumb={getCoverThumb}
+            getRowChip={getVerHoyRowChip}
+            label="Ver hoy"
+            listClassName={VER_HOY_LIST_CLASS}
+            rows={sections.verHoy}
+            selection={readOnly ? undefined : { selected: verHoySelected, onToggle: toggleVerHoySelect }}
+          />
         </DailyBoardSectionCard>
       )}
 

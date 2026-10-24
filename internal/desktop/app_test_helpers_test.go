@@ -168,7 +168,9 @@ func (s *recordingLifecycleDB) Close() error {
 type stubAnimeQueryService struct {
 	mobileAnime  *contracts.MobileAnime
 	mobileAnimes []contracts.MobileAnime
-	err          error
+	// byID, when set, answers GetMobileAnime per id instead of mobileAnime.
+	byID map[string]*contracts.MobileAnime
+	err  error
 }
 
 func (s *stubAnimeQueryService) GetEffectiveAnime(context.Context, string) (*contracts.EffectiveAnime, error) {
@@ -179,7 +181,10 @@ func (s *stubAnimeQueryService) ListMobileAnimes(context.Context) ([]contracts.M
 	return s.mobileAnimes, s.err
 }
 
-func (s *stubAnimeQueryService) GetMobileAnime(context.Context, string) (*contracts.MobileAnime, error) {
+func (s *stubAnimeQueryService) GetMobileAnime(_ context.Context, id string) (*contracts.MobileAnime, error) {
+	if s.byID != nil {
+		return s.byID[id], s.err
+	}
 	return s.mobileAnime, s.err
 }
 

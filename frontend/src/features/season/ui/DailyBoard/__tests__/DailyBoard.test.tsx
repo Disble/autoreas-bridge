@@ -55,6 +55,9 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     downloadNotice: null,
     onDownloadNow: vi.fn(),
     onDismissNotice: vi.fn(),
+    verHoySelected: new Set<string>(),
+    toggleVerHoySelect: vi.fn(),
+    onDownloadSelected: vi.fn(),
     onRecheck: vi.fn(),
     onOpenPage: vi.fn(),
     errorMessage: undefined,
@@ -108,13 +111,20 @@ describe('DailyBoard', () => {
     expect(onSendAndDownload).toHaveBeenCalled();
   });
 
-  it('Download now on the Ver hoy card starts the season download', () => {
+  it('Download now on the Ver hoy card downloads the checked animes, not the whole scheduled check', () => {
     const onDownloadNow = vi.fn();
-    mockHook({ sections: { sinVer: [], verHoy: [created('b', 'anime-b', 'Ver hoy')], visto: [] }, onDownloadNow });
+    const onDownloadSelected = vi.fn();
+    mockHook({
+      sections: { sinVer: [], verHoy: [created('b', 'anime-b', 'Ver hoy')], visto: [] },
+      verHoySelected: new Set(['anime-b']),
+      onDownloadNow,
+      onDownloadSelected,
+    });
     render(<DailyBoard />);
     const card = screen.getByRole('list', { name: 'Ver hoy' }).closest('[data-slot="card"]') as HTMLElement;
     fireEvent.click(within(card).getByRole('button', { name: 'Download now' }));
-    expect(onDownloadNow).toHaveBeenCalled();
+    expect(onDownloadSelected).toHaveBeenCalled();
+    expect(onDownloadNow).not.toHaveBeenCalled();
   });
 
   it('renders every Ver hoy row in board order with its count and scheduled-day chip', () => {
@@ -122,8 +132,8 @@ describe('DailyBoard', () => {
     render(<DailyBoard />);
     const items = within(screen.getByRole('list', { name: 'Ver hoy' })).getAllByRole('listitem');
     expect(items.map((item) => item.textContent)).toEqual(['B', 'EJueves - 3']);
-    // Elements per row: the cover thumb and the name, plus the chip only when a day is scheduled.
-    expect(items.map((item) => item.children.length)).toEqual([2, 3]);
+    // Elements per row: the checkbox, the cover thumb and the name, plus the chip only when a day is scheduled.
+    expect(items.map((item) => item.children.length)).toEqual([3, 4]);
     expect(within(items[1]).getByText('E')).toHaveAttribute('title', 'E');
     expect(screen.getByRole('heading', { level: 3, name: VER_HOY_HEADING }).parentElement).toHaveTextContent(`${VER_HOY_HEADING}2`);
   });
