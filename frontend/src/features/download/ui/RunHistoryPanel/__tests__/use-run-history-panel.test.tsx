@@ -1,10 +1,12 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { useLocation } from 'react-router';
 import type { UIEvent } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useRunHistoryPanel } from '../use-run-history-panel';
 import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { DownloadRunView } from '../../../../../shared/contracts/download.types';
 import { getDownloadRuntimeStoreState, resetDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
+import type { RunHistoryStory, RunHistoryStorySource } from '../run-history-panel.types';
 import { atRoute } from './run-history-router';
 
 /** Builds one run history row, numbered so ordering assertions read plainly. */
@@ -378,5 +380,89 @@ describe('useRunHistoryPanel stopping feedback', () => {
     await waitFor(() => {
       expect(getDownloadRuntimeStoreState().selectedRunId).toBe('run-1');
     });
+  });
+});
+
+describe('useRunHistoryPanel run story', () => {
+  afterEach(() => {
+    resetDownloadRuntimeStore();
+  });
+
+  /** One stored story: Frieren downloaded episode 4. */
+  const story: RunHistoryStory = {
+    truncated: false,
+    steps: [{ entityId: 'a1', eventType: 'download.episode_downloaded', level: 'info', metadataJson: '{"animeName":"Frieren","episode":4}' }],
+  };
+
+  /** A story port answering `story`, spied. */
+  function createStorySource(): RunHistoryStorySource & { readonly getRunStory: ReturnType<typeof vi.fn> } {
+    return { getRunStory: vi.fn().mockResolvedValue(story) };
+  }
+
+  /** A cover port answering one cover per anime. */
+  const coverSource = { getAnimeCover: vi.fn().mockResolvedValue({ source: 'cover', dataUrl: 'data:image/png;base64,AA' }) };
+
+  it('builds the selected run detail from its story and resolves the covers of its anime', async () => {
+    const storySource = createStorySource();
+    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue([createRun(1, { episodesFound: 1, episodesDownloaded: 1, episodesFailed: 0, episodesDownloading: 0 })]) });
+    const { result } = renderHook(() => useRunHistoryPanel(source, { storySource, coverSource }), { wrapper: atRoute() });
+
+    await waitFor(() => expect(result.current.viewModel.detail?.groups.find((group) => group.id === 'downloaded')?.rows).toHaveLength(1));
+
+    expect(storySource.getRunStory).toHaveBeenCalledWith('run-1');
+    expect(result.current.viewModel.detail?.groups.find((group) => group.id === 'downloaded')?.rows?.[0]).toMatchObject({ name: 'Frieren', values: ['Episode 4'] });
+    await waitFor(() => expect(result.current.viewModel.covers.get('a1')).toEqual({ status: 'cover', dataUrl: 'data:image/png;base64,AA' }));
+  });
+
+  it('reads a live run story again on each download event, and a finished run only once', async () => {
+    let listener: (() => void) | undefined;
+    const subscribeRunEvents = vi.fn().mockImplementation((next: () => void) => {
+      listener = next;
+      return () => undefined;
+    });
+    const running = createRun(1, { status: 'running', finishedAtMs: undefined });
+    const listDownloadRuns = vi.fn().mockResolvedValueOnce([running]).mockResolvedValueOnce([{ ...running, episodesDownloaded: 2 }]).mockResolvedValue([{ ...running, status: 'ok' }]);
+    const storySource = createStorySource();
+    const source = createSource({ listDownloadRuns, subscribeRunEvents });
+    renderHook(() => useRunHistoryPanel(source, { storySource, coverSource }), { wrapper: atRoute() });
+
+    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      listener?.();
+    });
+    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      listener?.();
+    });
+    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(3));
+    await act(async () => {
+      listener?.();
+    });
+    await waitFor(() => expect(listDownloadRuns).toHaveBeenCalledTimes(4));
+    expect(storySource.getRunStory).toHaveBeenCalledTimes(3);
+  });
+
+  it('toggles the Problems filter', async () => {
+    const source = createSource();
+    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
+    await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
+
+    act(() => {
+      result.current.toggleProblems();
+    });
+
+    expect(result.current.viewModel.problemsOnly).toBe(true);
+    expect(result.current.viewModel.rows.map((row) => row.runId)).toEqual(['run-2']);
+  });
+
+  it('opens an anime in the editor', async () => {
+    const source = createSource();
+    const { result } = renderHook(() => ({ panel: useRunHistoryPanel(source), location: useLocation() }), { wrapper: atRoute() });
+
+    act(() => {
+      result.current.panel.editAnime('a7');
+    });
+
+    await waitFor(() => expect(result.current.location.pathname).toBe('/editor/a7'));
   });
 });

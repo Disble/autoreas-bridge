@@ -1,72 +1,178 @@
 import type { DownloadRunView } from '../../../../shared/contracts/download.types';
-import { RUN_HISTORY_PAGE_SIZE } from './run-history-panel.constants';
-import type { RunHistoryPanelViewModel, RunHistoryRowViewModel } from './run-history-panel.types';
-
-/**
- * Names the `episodesFound - episodesDownloaded - episodesFailed` remainder for a
- * run in the given status.
- *
- * The backend never stores that number; it is derived. While a run is open the
- * remainder really is in flight, but a run that has terminated cannot still be
- * downloading anything — there the same number counts episodes that were never
- * attempted at all. Labelling both "Downloading" is what made a finished
- * `jd_offline` run with 0 downloaded and 0 failed claim it was downloading 8.
- */
-export function pendingEpisodesLabel(isRunning: boolean): string {
-  return isRunning ? 'Downloading' : 'Not attempted';
-}
+import {
+  RUN_HISTORY_DAY_MS,
+  RUN_HISTORY_PAGE_SIZE,
+  RUN_HISTORY_PROBLEM_STATUSES,
+  RUN_HISTORY_STATUSES,
+  RUN_HISTORY_TRIGGERS,
+  RUN_HISTORY_UNKNOWN_STATUS_ICON,
+  RUN_HISTORY_UNKNOWN_TRIGGER_ICON,
+} from './run-history-panel.constants';
+import type {
+  RunHistoryDayGroupViewModel,
+  RunHistoryPanelViewModel,
+  RunHistoryPresentation,
+  RunHistoryRowViewModel,
+} from './run-history-panel.types';
 
 /**
  * Maps the raw `DownloadRunView[]` (Wails wire shape, newest-first per
- * `ListDownloadRuns`) into the master/detail view model: one formatted row
- * per run, plus the currently selected run's full record (manual links
- * included) resolved by `selectedRunId`.
+ * `ListDownloadRuns`) into the master/detail view model: one labelled row
+ * per run under its day header, the Problems filter's count, and the
+ * currently selected run's full record resolved by `selectedRunId`. With the
+ * filter on, only problem runs are listed and the selection falls back to
+ * the newest of them.
+ *
+ * @param runs The loaded history.
+ * @param selectedRunId The run the user or route selected.
+ * @param visibleCount How many rows the progressive window shows.
+ * @param problemsOnly Whether the Problems filter is on.
+ * @param nowMs The current time, for the day labels.
+ * @returns The list view model; the hook adds the detail and covers.
  */
 export function toRunHistoryPanelViewModel(
   runs: readonly DownloadRunView[],
   selectedRunId: string | undefined,
   visibleCount: number,
+  problemsOnly = false,
+  nowMs: number = Date.now(),
 ): RunHistoryPanelViewModel {
+  const problemCount = runs.filter(isProblemRun).length;
+  const base = { problemCount, problemsOnly, isStopping: false, covers: new Map() };
+
   if (runs.length === 0) {
-    return {
-      status: 'empty',
-      rows: [],
-      visibleRows: [],
-      canLoadMore: false,
-      remainingCount: 0,
-      runInProgress: false,
-      isStopping: false,
-    };
+    return { ...base, status: 'empty', rows: [], visibleRows: [], visibleDays: [], canLoadMore: false, remainingCount: 0, runInProgress: false };
   }
 
-  const effectiveSelectedRunId = resolveSelectedRunId(runs, selectedRunId);
-
-  const rows: readonly RunHistoryRowViewModel[] = runs.map((run) => ({
-    runId: run.runId,
-    isSelected: run.runId === effectiveSelectedRunId,
-    startedLabel: new Date(run.startedAtMs).toLocaleString(),
-    statusLabel: run.status,
-    trigger: run.trigger,
-    episodesDownloaded: run.episodesDownloaded,
-    episodesFailed: run.episodesFailed,
-  }));
-
-  const selectedRun = runs.find((run) => run.runId === effectiveSelectedRunId);
-  const safeVisibleCount = Math.max(getInitialVisibleRunCount(runs.length), visibleCount);
+  const listedRuns = problemsOnly ? runs.filter(isProblemRun) : runs;
+  const effectiveSelectedRunId = resolveSelectedRunId(listedRuns, selectedRunId);
+  const rows = listedRuns.map((run) => toRunRow(run, run.runId === effectiveSelectedRunId, nowMs));
+  const safeVisibleCount = Math.max(getInitialVisibleRunCount(rows.length), visibleCount);
   const visibleRows = rows.slice(0, Math.min(safeVisibleCount, rows.length));
   const runningRunId = findRunningRunId(runs);
 
   return {
+    ...base,
     status: 'ready',
     rows,
     visibleRows,
+    visibleDays: groupRowsByDay(visibleRows),
     canLoadMore: visibleRows.length < rows.length,
     remainingCount: rows.length - visibleRows.length,
     runInProgress: runningRunId !== undefined,
     runningRunId,
-    isStopping: false,
-    selectedRun,
+    selectedRun: listedRuns.find((run) => run.runId === effectiveSelectedRunId),
   };
+}
+
+/**
+ * Lays the load outcome over the panel's view model: a failed history read is
+ * the error state, an unread one is still loading, and a refused stop keeps
+ * the history that loaded fine and only adds its message.
+ *
+ * @param viewModel The view model built from the loaded history.
+ * @param load What the history read and the last stop request reported.
+ * @returns The view model with its final status and message.
+ */
+export function withLoadOutcome(
+  viewModel: RunHistoryPanelViewModel,
+  load: { readonly hasLoaded: boolean; readonly errorMessage?: string; readonly cancelErrorMessage?: string },
+): RunHistoryPanelViewModel {
+  if (load.errorMessage !== undefined) {
+    return { ...viewModel, status: 'error', errorMessage: load.errorMessage };
+  }
+
+  if (!load.hasLoaded) {
+    return { ...viewModel, status: 'loading' };
+  }
+
+  return load.cancelErrorMessage === undefined ? viewModel : { ...viewModel, errorMessage: load.cancelErrorMessage };
+}
+
+/**
+ * Looks up a status's fixed label, icon and tone. `ok` has none; a status the
+ * map does not know shows its raw value with a muted question mark.
+ *
+ * @param status The run's raw status.
+ * @returns The presentation, or undefined for `ok`.
+ */
+export function toRunStatusPresentation(status: string): RunHistoryPresentation | undefined {
+  if (!(status in RUN_HISTORY_STATUSES)) {
+    return { label: status, icon: RUN_HISTORY_UNKNOWN_STATUS_ICON, tone: 'default' };
+  }
+
+  return RUN_HISTORY_STATUSES[status] ?? undefined;
+}
+
+/** True for a status the Problems filter keeps. */
+function isProblemRun(run: DownloadRunView): boolean {
+  return RUN_HISTORY_PROBLEM_STATUSES.has(run.status);
+}
+
+/** Builds one master-list row. */
+function toRunRow(run: DownloadRunView, isSelected: boolean, nowMs: number): RunHistoryRowViewModel {
+  const trigger = RUN_HISTORY_TRIGGERS[run.trigger];
+  const started = new Date(run.startedAtMs);
+
+  return {
+    runId: run.runId,
+    isSelected,
+    trigger: run.trigger,
+    triggerPresentation: { label: trigger?.label ?? run.trigger, icon: trigger?.icon ?? RUN_HISTORY_UNKNOWN_TRIGGER_ICON, tone: 'default' },
+    timeLabel: started.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+    durationLabel: run.finishedAtMs === undefined || run.status === 'interrupted' || run.status === 'running' ? undefined : formatDuration(run.finishedAtMs - run.startedAtMs),
+    dayKey: started.toDateString(),
+    dayLabel: formatDayLabel(started, nowMs),
+    episodesFound: run.episodesFound,
+    episodesDownloaded: run.episodesDownloaded,
+    episodesFailed: run.episodesFailed,
+    status: toRunStatusPresentation(run.status),
+  };
+}
+
+/** Formats elapsed time as `9 s`, `2 min 28 s` or `1 h 05 min`. */
+function formatDuration(elapsedMs: number): string {
+  const seconds = Math.max(1, Math.round(elapsedMs / 1000));
+  if (seconds < 60) {
+    return `${seconds} s`;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes} min ${String(seconds % 60).padStart(2, '0')} s`;
+  }
+
+  return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')} min`;
+}
+
+/** Labels a local day as Today, Yesterday or a short weekday date. */
+function formatDayLabel(day: Date, nowMs: number): string {
+  const startOf = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const diffDays = Math.round((startOf(day) - startOf(new Date(nowMs))) / RUN_HISTORY_DAY_MS);
+  if (diffDays === 0) {
+    return 'Today';
+  }
+
+  if (diffDays === -1) {
+    return 'Yesterday';
+  }
+
+  return day.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+/** Splits rows into consecutive same-day groups, keeping their order. */
+function groupRowsByDay(rows: readonly RunHistoryRowViewModel[]): RunHistoryDayGroupViewModel[] {
+  const days: { key: string; label: string; rows: RunHistoryRowViewModel[] }[] = [];
+  for (const row of rows) {
+    const last = days.at(-1);
+    if (last?.key === row.dayKey) {
+      last.rows.push(row);
+    } else {
+      days.push({ key: row.dayKey, label: row.dayLabel, rows: [row] });
+    }
+  }
+
+  return days;
 }
 
 /**
