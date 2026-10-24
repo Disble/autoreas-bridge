@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ActivityChartSlot } from '../../feed-source/feed.types';
 import { selectionFromDrag, toChartBars } from '../activity-chart.helpers';
-import { countFailures, toFailureMenuKeys, toFailureRows, toTypeToggles } from '../activity-feed-counts.helpers';
+import { countFailures, toTypeToggles } from '../activity-feed-counts.helpers';
 import { NOW_MS, buildOverview, dayStart } from './activity-feed.fixtures';
 
 /** Three hourly slots ending with the current hour. */
@@ -80,36 +80,11 @@ describe('overview counts', () => {
     expect(toTypeToggles(undefined)[0].lines).toBeUndefined();
   });
 
-  it('counts the failures of the selected sections only, for the button and the menu rows', () => {
+  it('counts the failures of the selected sections only, for the failure button', () => {
     expect(countFailures(overview, ['change', 'traffic', 'download', 'task', 'edit', 'system'])).toBe(3);
-    expect(toFailureRows(overview, ['change', 'traffic', 'download', 'task', 'edit', 'system']).map((row) => [row.type, row.failed])).toEqual([
-      ['change', 1],
-      ['traffic', 0],
-      ['download', 0],
-      ['task', 0],
-      ['edit', 0],
-      ['system', 2],
-    ]);
     expect(countFailures(overview, ['change', 'download'])).toBe(1);
-    expect(toFailureRows(overview, ['system', 'change']).map((row) => row.type)).toEqual(['change', 'system']);
-  });
-});
-
-describe('toFailureMenuKeys', () => {
-  it('disables the rows with no failure, never selects them, and keeps their pick', () => {
-    const rows = toFailureRows(buildOverview([{ type: 'change', lines: 3, failed: 1 }]), ['change', 'traffic', 'download', 'task', 'edit', 'system']);
-
-    const keys = toFailureMenuKeys(rows, ['change', 'system']);
-
-    expect([...keys.selected]).toEqual(['change']);
-    expect([...keys.disabled]).toEqual(['traffic', 'download', 'task', 'edit', 'system']);
-    expect(keys.keptDisabled).toEqual(['system']);
-  });
-
-  it('keeps the pick of a type whose section is off, which the menu does not list', () => {
-    const rows = toFailureRows(buildOverview([{ type: 'change', lines: 3, failed: 1 }]), ['change']);
-
-    expect(toFailureMenuKeys(rows, ['change', 'system']).keptDisabled).toEqual(['system']);
+    expect(countFailures(overview, ['system'])).toBe(2);
+    expect(countFailures(undefined, ['change', 'system'])).toBe(0);
   });
 });
 

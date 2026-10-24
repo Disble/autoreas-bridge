@@ -2,7 +2,7 @@ import { toast } from '@heroui/react';
 import { useCallback, useMemo, useState } from 'react';
 import { createActivitySource } from '../../activity-source/activity-source.helpers';
 import type { ActivitySource } from '../../activity-source/activity-source.types';
-import { toTypeToggles } from '../../feed/activity-feed-counts.helpers';
+import { countFailures, toTypeToggles } from '../../feed/activity-feed-counts.helpers';
 import { scaleWindowStart, toFeedQuery, typeSelectionKeys } from '../../feed/activity-feed-filters.helpers';
 import { toFeedDayModels } from '../../feed/activity-feed-rows.helpers';
 import { ACTIVITY_FEED_PAGE_LIMIT } from '../../feed/activity-feed.constants';
@@ -17,14 +17,13 @@ import { useActivityRangePicker } from '../ActivityToolbar/use-activity-range-pi
 import { ACTIVITY_PIN_FAILURE_MESSAGE, ACTIVITY_PIN_SUCCESS_MESSAGE } from './activity-screen.constants';
 import { toFeedEndMark, toFeedResolvedView, toOverviewRange } from './activity-screen.helpers';
 import { useActivityChart } from './use-activity-chart';
-import { useActivityFailureMenu } from './use-activity-failure-menu';
 import { useActivityFilters } from './use-activity-filters';
 import { useActivityOpenLine } from './use-activity-open-line';
 
 /**
  * Owns the Activity screen (activity-ui-design-v2.md): the filters the chart
  * and toolbar edit, the feed pages and the overview they read, the live
- * refresh of both, the chart drag, the failure menu, the open line with its
+ * refresh of both, the chart drag, the failure switch, the open line with its
  * ↑ / ↓ / Esc keys, and "Pin this moment".
  *
  * @param feedSource The feed port; the shared Wails source when omitted.
@@ -52,8 +51,7 @@ export function useActivityScreen(
   const overviewRead = useActivityOverview(feedSource, filters.scale, overviewRange.fromMs, overviewRange.toMs, filters.origin);
 
   // 5. Derived State (useMemo)
-  const failureMenu = useActivityFailureMenu(overviewRead.overview, filters, setFilters);
-  const { openKey, ...openLine } = useActivityOpenLine(pages.days, { isOpen: failureMenu.isFailureMenuShown, onClose: failureMenu.onFailureMenuEscape });
+  const { openKey, ...openLine } = useActivityOpenLine(pages.days);
   const days = useMemo(() => toFeedDayModels(pages.days, openKey, filters.anchorMs), [filters.anchorMs, openKey, pages.days]);
   const rangeField = useActivityRangePicker(filters, onRangeChange, onClearRange);
   const chart = useActivityChart(overviewRead.overview, overviewRead.status, filters, setFilters);
@@ -93,7 +91,7 @@ export function useActivityScreen(
     typeToggles: toTypeToggles(overviewRead.overview),
     typeKeys: typeSelectionKeys(filters.types),
     failuresOnly: filters.failuresOnly,
-    ...failureMenu,
+    failureCount: countFailures(overviewRead.overview, filters.types),
     feed: {
       status: pages.status,
       resolvedView: toFeedResolvedView(query, pages.days),

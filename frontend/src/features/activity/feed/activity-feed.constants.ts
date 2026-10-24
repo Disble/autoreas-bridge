@@ -11,7 +11,7 @@ export const ACTIVITY_LIVE_DEBOUNCE_MS = 1000;
 /** One hour, milliseconds. */
 export const ACTIVITY_HOUR_MS = 3_600_000;
 
-/** Visible name of each type, in toolbar and failure-menu order. */
+/** Visible name of each type, in toolbar order. */
 export const ACTIVITY_TYPE_LABELS: Readonly<Record<ActivityFeedType, string>> = {
   change: 'Changes',
   traffic: 'Traffic',
@@ -26,9 +26,6 @@ export const ACTIVITY_TOGGLE_TYPES: readonly ActivityFeedType[] = ['change', 'tr
 
 /** Types the feed opens with: Traffic and System start off (design, Feed; owner, 2026-10-24). */
 export const ACTIVITY_DEFAULT_TYPES: readonly ActivityFeedType[] = ['change', 'download', 'task', 'edit'];
-
-/** The rows of the failure menu, which the failure filter starts with. */
-export const ACTIVITY_FAILURE_TYPES: readonly ActivityFeedType[] = ['change', 'traffic', 'download', 'task', 'edit', 'system'];
 
 /** The key of the "All" type toggle. */
 export const ACTIVITY_ALL_TYPES_KEY = 'all';

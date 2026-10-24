@@ -89,7 +89,9 @@ and History tabs.
 ## Filters
 
 The toolbar is one row: range field · origin (All, phone, bridge) · types · failure button. If the
-window gets narrow, the types and the failure button wrap **together**, never apart.
+window gets narrow, the types and the failure button wrap **together**, never apart. The phone and bridge
+origin buttons are icons with a HeroUI Tooltip: "From the phone" and "On the bridge", the words the row
+origin icon uses.
 
 - **Types are independent toggles** (multi-select): Changes, Traffic, Downloads, Tasks, Edits, System.
   "All" turns them all on. **System** is the default section: every bridge start, warning or error that no
@@ -103,48 +105,31 @@ window gets narrow, the types and the failure button wrap **together**, never ap
 
 ## Failure button
 
-A red pill with an alert icon and the number of failures in scope. It opens a menu that lets the user pick
-which failure types to see.
+A red pill with an alert icon and the number of failures in scope. It is a **switch**, not a menu
+(owner, 2026-10-24): pressed, the feed shows only the failures of what the type toggles, range and origin
+leave; pressed again, it shows everything, failures included. The pill counts the failures of the
+selected types in the current range and origin, so its number matches what the switch will show.
 
-**The filters nest: the type toggles come first, and the failure button only narrows them** (owner,
-2026-10-24). The pill counts the failures of the selected types only, the menu lists only the selected
-types, and "only failures" reads the picked failure types that are also selected. A failure type picked
-while its section is off stays picked and returns when the section is turned back on.
+To see only System failures, turn the other type toggles off and press the pill. The type toggles stay
+live while the switch is on: they are never muted, and toggling one keeps the switch on.
 
 ### States
 
-| State | Button | Menu |
-|---|---|---|
-| Off | Soft red, outlined look | Closed |
-| On, menu open | Soft red; it becomes the header of the menu | Open |
-| On, menu closed | Solid red, with an × on its right side | Closed |
+| State | Pill | Tooltip | Feed |
+|---|---|---|---|
+| Off | Soft red | "Show only failures" | Everything the types, range and origin leave |
+| On | Solid red | "Show all activity" | Only the failures of what they leave |
+
+The pill is a toggle button (`aria-pressed`), named "Show only failures" in both states. Its tooltip is
+the design system's HeroUI Tooltip and says what the next press does. There is no menu and no ×.
 
 ### Transitions
 
 | From | Action | To |
 |---|---|---|
-| Off | Click the button | On, menu open. The feed shows only failures |
-| On, menu open | Click outside, or Esc | On, menu closed. **The filter stays on** |
-| On, menu closed | Click the button | On, menu open |
-| On (either) | Click the × | Off. The full feed comes back |
-| On (either) | Click any type filter | Off |
-
-### The menu
-
-- **Animation:** the button's edges stretch down and to the left (it sits at the right end of the row)
-  into a floating container with the HeroUI Dropdown radius and shadow. It overlays the feed, never pushes
-  it. It takes about 200 ms and collapses back into the button on close. With `prefers-reduced-motion`,
-  it opens and closes without animation.
-- **Header row:** "Failures" on the left; the button itself sits on the right of the same row. There is no
-  empty space next to the button.
-- **One row per failure type:** Changes, Traffic, Downloads, Tasks, Edits, System. Each row is the type
-  icon, the name and a red count chip. There is **one icon per row**; a checkmark column was rejected as
-  a double icon.
-- **Selected row:** neutral `bg-default` background, normal text. **Unselected row:** no background, gray
-  text and gray chip. Clicking a row toggles it, and the feed updates immediately without closing the menu.
-- **Zero failures:** the row is disabled (0.5 opacity, no background, not clickable) and never shown as
-  selected.
-- The menu has no "Show all activity" row; the × on the button does that job.
+| Off | Click the pill | On |
+| On | Click the pill | Off. The full feed comes back |
+| On | Click any type toggle | Still on, over the new types |
 
 ## Detail drawer
 
@@ -305,10 +290,13 @@ Read API: `internal/desktop/app_activity_read.go`, types in `internal/observabil
 | "Failures and slow lines always visible", whatever the filters | A filter that lies |
 | Explanatory sentences under controls | Text explaining text. Use icon plus tooltip |
 | Alert icon per type for failures | Replaced by the red count chip |
-| Failure sub-filters as an inline row of chips | Broke the toolbar layout. Replaced by the menu |
+| Failure sub-filters as an inline row of chips | Broke the toolbar layout |
+| A failure menu that picks failure types, with an × on the pill to turn it off | Two type selectors competed: picking in the menu overrode the type toggles and turned the other filters off. Replaced by the switch, which narrows what the types leave (owner, 2026-10-24) |
+| A type toggle turns "only failures" off; the type group mutes while it is on | Same cause: the switch narrows the types, so they stay live and keep it on (owner, 2026-10-24) |
 | Checkmark column in the failure menu | Double icons |
 | Red or tinted background for selected rows | Not HeroUI. Use the neutral `bg-default` |
-| "Show all activity" row inside the failure menu | Not a failure filter; replaced by the × on the button |
+| "Show all activity" row inside the failure menu | Not a failure filter |
+| A native `title` tooltip on an icon button | Not the design system. Use the HeroUI Tooltip |
 | Detail only on some rows | Every event has a detail |
 | Sentences written for one event ("nothing was lost", "it worked again after you signed in") | They state things no stored field holds. See [Event presentation model](#event-presentation-model) |
 | Traffic as one line per request | Noise. It is hourly |
@@ -330,8 +318,8 @@ the API, not be copied:
 ## Checklist for the refactor
 
 - [ ] Every filter shows exactly what it says; counts follow range and origin
-- [ ] The failure button follows the state table above, including the × and "type filter exits"
-- [ ] Menu rows and selected rows use HeroUI states (neutral selection, 0.5 disabled, no tinted rows)
+- [ ] The failure button is a two-state switch over the selected types: no menu, no ×, a type toggle keeps it on
+- [ ] Icon-only toolbar buttons (phone, bridge, failure pill) explain themselves with the HeroUI Tooltip, never `title`
 - [ ] The feed loads progressively and does not reset when events arrive
 - [ ] Every row opens the drawer; ↑ / ↓ and Esc work
 - [ ] System is a toggle like the others; its chip count equals its lines (one per hour group)

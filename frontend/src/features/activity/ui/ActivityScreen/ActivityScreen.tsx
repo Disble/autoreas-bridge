@@ -49,18 +49,7 @@ export function ActivityScreen() {
       <Card aria-label="Feed" className={ACTIVITY_CARD_CLASS}>
         <Card.Content className="flex flex-col">
           <ActivityToolbar
-            failure={{
-              state: screen.failureButtonState,
-              count: screen.failureCount,
-              rows: screen.failureRows,
-              selectedKeys: screen.failureMenuKeys.selected,
-              disabledKeys: screen.failureMenuKeys.disabled,
-              groupRef: screen.failureGroupRef,
-              onToggle: screen.onFailureToggle,
-              onSelectionChange: screen.onFailureTypesChange,
-              onClear: screen.onFailureClear,
-            }}
-            failuresOnly={screen.failuresOnly}
+            failure={{ isOn: screen.failuresOnly, count: screen.failureCount, onToggle: screen.onFailureToggle }}
             onOriginChange={screen.onOriginChange}
             onTypesChange={screen.onTypesChange}
             origin={screen.origin}

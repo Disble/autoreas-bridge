@@ -14,10 +14,9 @@ import { useActivityCopy } from '../ActivityRunStory/use-activity-copy';
  * Also copies a failed row for AI, which opens nothing.
  *
  * @param days The loaded feed days ↑ / ↓ step through.
- * @param failureMenu Whether the failure menu is open and how Esc closes it; Esc closes the menu before the drawer.
  * @returns The open line, its key, and the open and close callbacks.
  */
-export function useActivityOpenLine(days: readonly ActivityFeedDay[], failureMenu: { readonly isOpen: boolean; readonly onClose: () => void }) {
+export function useActivityOpenLine(days: readonly ActivityFeedDay[]) {
   // 1. Refs
 
   // 2. State
@@ -60,8 +59,6 @@ export function useActivityOpenLine(days: readonly ActivityFeedDay[], failureMen
     onPrevious: onPreviousLine,
     onNext: onNextLine,
     onClose: onCloseDrawer,
-    isFailureMenuOpen: failureMenu.isOpen,
-    onCloseFailureMenu: failureMenu.onClose,
   });
   useActivityDrawerDismiss(openLine !== undefined, onDismissDrawer);
 

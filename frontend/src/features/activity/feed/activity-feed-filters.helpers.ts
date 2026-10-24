@@ -5,7 +5,6 @@ import {
   ACTIVITY_ALL_TYPES_KEY,
   ACTIVITY_DAILY_SCALES,
   ACTIVITY_DEFAULT_TYPES,
-  ACTIVITY_FAILURE_TYPES,
   ACTIVITY_FEED_MOMENT_FORMAT,
   ACTIVITY_HOUR_MS,
   ACTIVITY_MINUTE_LAST_MS,
@@ -13,7 +12,7 @@ import {
   ACTIVITY_SCALE_DAYS,
   ACTIVITY_TOGGLE_TYPES,
 } from './activity-feed.constants';
-import type { ActivityCalendarRange, ActivityFailureButtonState, ActivityFeedFilters, ActivityRange, ActivityRangeTimes } from './activity-feed.types';
+import type { ActivityCalendarRange, ActivityFeedFilters, ActivityRange, ActivityRangeTimes } from './activity-feed.types';
 
 /**
  * The filters the Activity screen opens with.
@@ -22,7 +21,7 @@ import type { ActivityCalendarRange, ActivityFailureButtonState, ActivityFeedFil
  * @returns 24 h, every origin, Traffic and System off, the failure filter off.
  */
 export function createInitialFilters(nowMs: number): ActivityFeedFilters {
-  return { scale: '24h', range: undefined, origin: 'all', types: ACTIVITY_DEFAULT_TYPES, failuresOnly: false, failureTypes: ACTIVITY_FAILURE_TYPES, anchorMs: nowMs };
+  return { scale: '24h', range: undefined, origin: 'all', types: ACTIVITY_DEFAULT_TYPES, failuresOnly: false, anchorMs: nowMs };
 }
 
 /** Local midnight `daysBack` days before the day of `nowMs`. */
@@ -47,8 +46,9 @@ export function scaleWindowStart(scale: ActivityChartScale, nowMs: number): numb
 }
 
 /**
- * Builds the feed read of the filters. Go reads every type for an empty type
- * set, so an empty selection reads nothing instead of everything.
+ * Builds the feed read of the filters: the selected types and, with the
+ * failure switch on, only their failures. Go reads every type for an empty
+ * type set, so an empty selection reads nothing instead of everything.
  *
  * @param filters The filters on screen.
  * @param cursor The page cursor; empty for the first page.
@@ -56,8 +56,7 @@ export function scaleWindowStart(scale: ActivityChartScale, nowMs: number): numb
  * @returns The query, or undefined when no type is selected.
  */
 export function toFeedQuery(filters: ActivityFeedFilters, cursor: string, limit: number): ActivityFeedQuery | undefined {
-  // the sections filter first; the failure menu only narrows them
-  const types = filters.failuresOnly ? filters.failureTypes.filter((type) => filters.types.includes(type)) : filters.types;
+  const { types } = filters;
   if (types.length === 0) {
     return undefined;
   }
@@ -78,8 +77,8 @@ function pickTypes(keys: Set<Key>, order: readonly ActivityFeedType[]): readonly
 }
 
 /**
- * Applies the type toggle group's selection. "All" turns every type on, and
- * any type change turns the failure filter off (design, Failure button).
+ * Applies the type toggle group's selection. "All" turns every type on; the
+ * failure switch keeps its state (design, Failure button).
  *
  * @param filters The filters on screen.
  * @param keys The toggle group's new selection.
@@ -92,7 +91,7 @@ export function toggleFeedTypes(filters: ActivityFeedFilters, keys: Set<Key>, no
   const picked = pickTypes(keys, ACTIVITY_TOGGLE_TYPES);
   // Pressing All while every type is on deselects All alone; it never turns the types off.
   const pressedAll = hasAll ? !wasAll : wasAll && picked.length === ACTIVITY_TOGGLE_TYPES.length;
-  return { ...filters, types: pressedAll ? ACTIVITY_TOGGLE_TYPES : picked, failuresOnly: false, anchorMs: nowMs };
+  return { ...filters, types: pressedAll ? ACTIVITY_TOGGLE_TYPES : picked, anchorMs: nowMs };
 }
 
 /**
@@ -110,14 +109,14 @@ export function typeSelectionKeys(types: readonly ActivityFeedType[]): Set<Key> 
 }
 
 /**
- * Applies the failure menu's selection.
+ * Flips the failure switch: on, the feed shows only the failures of what the
+ * types, range and origin leave; off, it shows everything again.
  *
  * @param filters The filters on screen.
- * @param keys The menu's new selection.
  * @returns The new filters.
  */
-export function toggleFailureTypes(filters: ActivityFeedFilters, keys: Set<Key>): ActivityFeedFilters {
-  return { ...filters, failureTypes: pickTypes(keys, ACTIVITY_FAILURE_TYPES) };
+export function toggleFailuresOnly(filters: ActivityFeedFilters): ActivityFeedFilters {
+  return { ...filters, failuresOnly: !filters.failuresOnly };
 }
 
 /**
@@ -161,20 +160,6 @@ export function setFilterRange(filters: ActivityFeedFilters, range: ActivityRang
   }
   const scale = ACTIVITY_DAILY_SCALES.find((daily) => range.fromMs >= scaleWindowStart(daily, nowMs)) ?? '90d';
   return { ...filters, range, scale, anchorMs: nowMs };
-}
-
-/**
- * How the failure button shows.
- *
- * @param failuresOnly Whether the failure filter is on.
- * @param isMenuOpen Whether its menu is open.
- * @returns Off, on with the menu open, or on with it closed.
- */
-export function toFailureButtonState(failuresOnly: boolean, isMenuOpen: boolean): ActivityFailureButtonState {
-  if (!failuresOnly) {
-    return 'off';
-  }
-  return isMenuOpen ? 'open' : 'on';
 }
 
 /**

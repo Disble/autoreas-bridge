@@ -9,7 +9,7 @@ import {
   toCalendarRange,
   toFeedQuery,
   toRangeTimes,
-  toggleFailureTypes,
+  toggleFailuresOnly,
   toggleFeedTypes,
   typeSelectionKeys,
 } from '../activity-feed-filters.helpers';
@@ -20,14 +20,13 @@ import { NOW_MS, dayStart } from './activity-feed.fixtures';
 const INITIAL = createInitialFilters(NOW_MS);
 
 describe('createInitialFilters', () => {
-  it('opens on 24 h, every origin, Traffic and System off and the failure filter off with every failure type', () => {
+  it('opens on 24 h, every origin, Traffic and System off and the failure filter off', () => {
     expect(INITIAL).toEqual({
       scale: '24h',
       range: undefined,
       origin: 'all',
       types: ['change', 'download', 'task', 'edit'],
       failuresOnly: false,
-      failureTypes: ['change', 'traffic', 'download', 'task', 'edit', 'system'],
       anchorMs: NOW_MS,
     });
     expect(INITIAL.types).not.toContain('traffic');
@@ -58,17 +57,16 @@ describe('toFeedQuery', () => {
     });
   });
 
-  it('reads the picked range and, with the failure filter on, the failure types inside the selected sections only', () => {
-    const filters = { ...INITIAL, range: { fromMs: 10, toMs: 20 }, failuresOnly: true, failureTypes: ['traffic', 'download', 'system'] as const };
+  it('reads the picked range and, with the failure filter on, the failures of the selected sections', () => {
+    const filters = { ...INITIAL, range: { fromMs: 10, toMs: 20 }, types: ['download', 'system'] as const, failuresOnly: true };
 
-    // Traffic and System are off by default: the sections come first, the failure menu narrows them
-    expect(toFeedQuery(filters, '', 40)).toMatchObject({ fromMs: 10, toMs: 20, types: ['download'], failuresOnly: true });
+    // the switch narrows what the sections leave; it never picks types of its own (owner, 2026-10-24)
+    expect(toFeedQuery(filters, '', 40)).toMatchObject({ fromMs: 10, toMs: 20, types: ['download', 'system'], failuresOnly: true });
   });
 
   it.each([
     ['no type is selected', { types: [] }],
-    ['the failure filter has no type', { failuresOnly: true, failureTypes: [] }],
-    ['the failure filter has only types whose section is off', { failuresOnly: true, failureTypes: ['system'] as const }],
+    ['no type is selected with the failure filter on', { types: [], failuresOnly: true }],
   ])('reads nothing when %s, since Go reads every type for an empty set', (_case, patch) => {
     expect(toFeedQuery({ ...INITIAL, ...patch }, '', 40)).toBeUndefined();
   });
@@ -97,10 +95,10 @@ describe('toggleFeedTypes', () => {
     expect(toFeedQuery(next, '', 40)?.types).not.toContain('system');
   });
 
-  it('turns the failure filter off and moves the window anchor (design, Failure button: any type filter exits)', () => {
+  it('keeps the failure filter on and moves the window anchor (design, Failure button: a section toggle keeps it)', () => {
     const next = toggleFeedTypes({ ...INITIAL, failuresOnly: true }, new Set(['change']), NOW_MS + 5);
 
-    expect(next.failuresOnly).toBe(false);
+    expect(next.failuresOnly).toBe(true);
     expect(next.anchorMs).toBe(NOW_MS + 5);
   });
 });
@@ -114,9 +112,12 @@ describe('typeSelectionKeys', () => {
   });
 });
 
-describe('toggleFailureTypes', () => {
-  it('keeps only known failure types, in menu order', () => {
-    expect(toggleFailureTypes(INITIAL, new Set(['system', 'change', 'nope'])).failureTypes).toEqual(['change', 'system']);
+describe('toggleFailuresOnly', () => {
+  it('turns the failure filter on, then off again, keeping the sections', () => {
+    const on = toggleFailuresOnly(INITIAL);
+
+    expect(on).toEqual({ ...INITIAL, failuresOnly: true });
+    expect(toggleFailuresOnly(on)).toEqual(INITIAL);
   });
 });
 

@@ -1,9 +1,9 @@
 import { Card } from '@heroui/react';
 import { parseDate } from '@internationalized/date';
-import { createRef, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toChartBars } from '../../src/features/activity/feed/activity-chart.helpers';
-import { ACTIVITY_CARD_CLASS, ACTIVITY_FAILURE_TYPES, ACTIVITY_RANGE_WHOLE_DAY_TIMES, ACTIVITY_TYPE_LABELS, ACTIVITY_TOGGLE_TYPES } from '../../src/features/activity/feed/activity-feed.constants';
-import type { ActivityFailureButtonState, ActivityTypeToggleModel } from '../../src/features/activity/feed/activity-feed.types';
+import { ACTIVITY_CARD_CLASS, ACTIVITY_RANGE_WHOLE_DAY_TIMES, ACTIVITY_TYPE_LABELS, ACTIVITY_TOGGLE_TYPES } from '../../src/features/activity/feed/activity-feed.constants';
+import type { ActivityTypeToggleModel } from '../../src/features/activity/feed/activity-feed.types';
 import type { ActivityChartSlot } from '../../src/features/activity/feed-source/feed.types';
 import { toDrawerHeader, toDrawerSummary } from '../../src/features/activity/drawer/drawer-summary.helpers';
 import { toFeedRowModel } from '../../src/features/activity/feed/activity-feed-rows.helpers';
@@ -118,17 +118,8 @@ const DAILY_SLOTS: readonly ActivityChartSlot[] = Array.from({ length: 90 }, (_u
 /** The type toggles with their counts and failures, as the overview words them. */
 const TYPE_TOGGLES: readonly ActivityTypeToggleModel[] = ACTIVITY_TOGGLE_TYPES.map((type, index) => ({ type, label: ACTIVITY_TYPE_LABELS[type], lines: [7, 7, 3, 2, 2, 12][index], failed: [2, 1, 0, 0, 0, 1][index] }));
 
-/**
- * The failure button state of one column: on, or open in the wide column only
- * with `?activity-failure=open`, for a screenshot of its menu (it is modal, so
- * the measured run keeps it closed).
- */
-function fixtureFailureState(width: number): ActivityFailureButtonState {
-  return width === COLUMN_WIDTHS_PX[0] && new URLSearchParams(window.location.search).get('activity-failure') === 'open' ? 'open' : 'on';
-}
-
 /** The chart cards (24 h with a picked range, 90 days) and the toolbar of one column, from fake data, with every handler inert. */
-function ActivityScreenParts({ width }: { readonly width: number }) {
+function ActivityScreenParts() {
   return (
     <div className="flex flex-col gap-4">
       <ActivityTimeChart
@@ -159,22 +150,11 @@ function ActivityScreenParts({ width }: { readonly width: number }) {
         status="ready"
         title="Last 90 days"
       />
-      {/* Inside a Card, as the screen mounts it: the failure menu reaches 6px past the pill, into the card's padding. */}
+      {/* Inside a Card, as the screen mounts it, with the failure switch on. */}
       <Card>
         <Card.Content>
           <ActivityToolbar
-            failure={{
-              state: fixtureFailureState(width),
-              count: 4,
-              rows: ACTIVITY_FAILURE_TYPES.map((type, index) => ({ type, label: ACTIVITY_TYPE_LABELS[type], failed: [2, 1, 0, 0, 0, 1][index] })),
-              selectedKeys: new Set(['change', 'traffic', 'system']),
-              disabledKeys: new Set(['download', 'task', 'edit']),
-              groupRef: createRef<HTMLDivElement>(),
-              onToggle: () => undefined,
-              onSelectionChange: () => undefined,
-              onClear: () => undefined,
-            }}
-            failuresOnly={false}
+            failure={{ isOn: true, count: 4, onToggle: () => undefined }}
             onOriginChange={() => undefined}
             onTypesChange={() => undefined}
             origin="all"
@@ -263,7 +243,7 @@ export function ActivityFeedFixture() {
     <>
       {COLUMN_WIDTHS_PX.map((width) => (
         <div className="flex flex-col gap-5" data-activity-feed-fixture={width} key={width} style={{ width: `${width}px`, maxWidth: '100%' }}>
-          <ActivityScreenParts width={width} />
+          <ActivityScreenParts />
           {/* Inside the feed card, as the screen mounts them: rows reach 8px into its padding. */}
           <Card className={ACTIVITY_CARD_CLASS}>
             <Card.Content className="flex flex-col">

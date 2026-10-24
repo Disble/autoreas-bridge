@@ -20,10 +20,8 @@ export interface ActivityFeedFilters {
   readonly origin: ActivityFeedOrigin;
   /** Selected type toggles, toolbar order. Bridge lines ignore them. */
   readonly types: readonly ActivityFeedType[];
-  /** Whether the failure filter is on. */
+  /** Whether the failure switch is on: only the failures of the selected types show. */
   readonly failuresOnly: boolean;
-  /** Failure types picked in the failure menu. */
-  readonly failureTypes: readonly ActivityFeedType[];
   /** When the window was last computed, epoch milliseconds; the scale's window ends here. */
   readonly anchorMs: number;
 }
@@ -121,19 +119,6 @@ export interface ActivityTypeToggleModel {
   readonly failed: number;
 }
 
-/** One row of the failure menu. */
-export interface ActivityFailureRowModel {
-  /** The failure type. */
-  readonly type: ActivityFeedType;
-  /** Visible name. */
-  readonly label: string;
-  /** Failed lines of the type in the range and origin. */
-  readonly failed: number;
-}
-
-/** How the failure button shows (activity-ui-design-v2.md, Failure button, States). */
-export type ActivityFailureButtonState = 'off' | 'open' | 'on';
-
 /** The calendar value of the range field. */
 export type ActivityCalendarRange = RangeValue<DateValue> | null;
 
@@ -155,10 +140,6 @@ export interface UseActivityFeedKeyboardScopeOptions {
   readonly onNext: () => void;
   /** Closes the drawer. */
   readonly onClose: () => void;
-  /** Whether the failure menu is open; Esc closes it first. */
-  readonly isFailureMenuOpen: boolean;
-  /** Closes the failure menu and keeps the failure filter on. */
-  readonly onCloseFailureMenu: () => void;
 }
 
 /** The fields of a paired device the phone status line reads (the `getConnectedDevices` binding). */

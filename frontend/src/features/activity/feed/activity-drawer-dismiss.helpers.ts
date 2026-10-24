@@ -22,22 +22,3 @@ export function focusFeedRow(root: Document, key: string | undefined): void {
   row?.focus();
 }
 
-/**
- * Whether a pointer press lands outside an element, which closes the failure menu.
- *
- * @param target The pressed element.
- * @param element The element that keeps the menu open; null treats every press as inside.
- * @returns True when the press is outside the element.
- */
-export function isOutsideElement(target: EventTarget | null, element: Element | null): boolean {
-  return element !== null && target instanceof Node && !element.contains(target);
-}
-
-/**
- * Moves focus back to the failure pill, after Esc closed its menu.
- *
- * @param group The pill and its menu; null focuses nothing.
- */
-export function focusFailurePill(group: Element | null): void {
-  group?.querySelector<HTMLElement>('[data-failure-pill]')?.focus();
-}

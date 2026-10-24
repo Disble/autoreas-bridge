@@ -62,9 +62,9 @@ function renderScreen() {
   );
 }
 
-/** The types of the last feed read; with the failure filter on, its failure types. */
-function lastFailureTypes(): readonly string[] | undefined {
-  return feedSource.searchFeed.mock.calls.at(-1)?.[0]?.types;
+/** The last feed read. */
+function lastQuery() {
+  return feedSource.searchFeed.mock.calls.at(-1)?.[0];
 }
 
 /** Presses one key through the app's keyboard dispatcher. */
@@ -184,71 +184,58 @@ describe('ActivityScreen', () => {
     expect(rows()).toHaveLength(0);
   });
 
-  it('shows each type count and its failures, and reads failures only from the failure button until its ×', async () => {
+  it('shows each type count and its failures, and switches the feed to the failures of the selected sections and back', async () => {
     feedSource.searchFeed.mockResolvedValue(page(1, 1));
     renderScreen();
     expect(await screen.findByLabelText('2 failed')).toBeInTheDocument();
-    expect(screen.queryByRole('menu', { name: 'Failures by type' })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Show only failures' }));
-
-    await waitFor(() => expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ failuresOnly: true })));
-    const pill = screen.getByRole('button', { name: 'Failures by type' });
+    const pill = screen.getByRole('button', { name: 'Show only failures' });
     // Change's 2 failures count; System's 1 does not, since System starts off (sections filter first)
     expect(pill).toHaveTextContent('2');
-    expect(pill).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('menu', { name: 'Failures by type' })).toBeInTheDocument();
+    expect(pill).toHaveAttribute('aria-pressed', 'false');
 
-    // A second press on the pill closes the menu and keeps the filter on.
     fireEvent.click(pill);
 
-    expect(pill).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByRole('menu', { name: 'Failures by type' })).not.toBeInTheDocument();
+    await waitFor(() => expect(lastQuery()).toMatchObject({ failuresOnly: true, types: ['change', 'download', 'task', 'edit'] }));
+    expect(pill).toHaveAttribute('aria-pressed', 'true');
+    expect(pill).not.toHaveAttribute('aria-haspopup');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Turn off failure filter' })).not.toBeInTheDocument();
+    // the sections stay live while the switch is on
+    expect(screen.getByRole('group', { name: 'What' }).className).not.toContain('opacity-45');
+
+    fireEvent.click(within(screen.getByRole('toolbar', { name: 'Activity filters' })).getByRole('button', { name: /^Downloads/ }));
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ failuresOnly: true, types: ['change', 'task', 'edit'] }));
     expect(pill).toHaveAttribute('aria-pressed', 'true');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Turn off failure filter' }));
+    fireEvent.click(pill);
 
-    await waitFor(() => expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ failuresOnly: false })));
-    expect(screen.queryByRole('button', { name: 'Turn off failure filter' })).not.toBeInTheDocument();
+    await waitFor(() => expect(lastQuery()).toMatchObject({ failuresOnly: false, types: ['change', 'task', 'edit'] }));
+    expect(pill).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('closes the failure menu on Esc, giving focus back to the pill, and on a press outside it, keeping the filter on', async () => {
+  it('names the failure switch and the Phone and Bridge origins with the design system Tooltip, never a native title', async () => {
     feedSource.searchFeed.mockResolvedValue(page(1, 1));
     renderScreen();
     expect(await screen.findByLabelText('2 failed')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Show only failures' }));
-    const pill = screen.getByRole('button', { name: 'Failures by type' });
+    const pill = screen.getByRole('button', { name: 'Show only failures' });
+    // a pointer press first leaves keyboard modality, in which a tooltip ignores hover
+    fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
+    fireEvent.pointerUp(document.body, { pointerType: 'mouse' });
 
-    pressKey('Escape');
-
-    expect(pill).toHaveAttribute('aria-expanded', 'false');
-    expect(document.activeElement).toBe(pill);
+    for (const [button, tooltip] of [
+      [screen.getByRole('radio', { name: 'Phone' }), 'From the phone'],
+      [screen.getByRole('radio', { name: 'Bridge' }), 'On the bridge'],
+      [pill, 'Show only failures'],
+    ] as const) {
+      expect(button.closest('[title]')).toBeNull();
+      fireEvent.pointerOver(button, { pointerType: 'mouse' });
+      await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent(tooltip));
+    }
 
     fireEvent.click(pill);
-    const changes = within(screen.getByRole('menu', { name: 'Failures by type' })).getAllByRole('menuitemcheckbox')[0];
-    fireEvent.pointerDown(changes);
-    fireEvent.click(changes);
 
-    await waitFor(() => expect(lastFailureTypes()).not.toContain('change'));
-    expect(pill).toHaveAttribute('aria-expanded', 'true');
-
-    fireEvent.pointerDown(screen.getByRole('toolbar', { name: 'Activity filters' }));
-
-    expect(pill).toHaveAttribute('aria-expanded', 'false');
-    expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ failuresOnly: true }));
-  });
-
-  it('turns the failure filter off from the × while the menu is open', async () => {
-    feedSource.searchFeed.mockResolvedValue(page(1, 1));
-    renderScreen();
-    expect(await screen.findByLabelText('2 failed')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Show only failures' }));
-    await waitFor(() => expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ failuresOnly: true })));
-
-    fireEvent.click(screen.getByRole('button', { name: 'Turn off failure filter' }));
-
-    await waitFor(() => expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ failuresOnly: false })));
-    expect(screen.queryByRole('menu', { name: 'Failures by type' })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent('Show all activity'));
   });
 
   it('opens a row in the drawer, moves it with ↑ / ↓ and closes it with Esc', async () => {
@@ -332,11 +319,6 @@ describe('ActivityScreen chart and toolbar', () => {
   /** The chart bars on screen. */
   function bars() {
     return [...document.querySelectorAll<HTMLElement>('[data-chart-bar]')];
-  }
-
-  /** The last feed read. */
-  function lastQuery() {
-    return feedSource.searchFeed.mock.calls.at(-1)?.[0];
   }
 
   /** Renders the screen once its chart bars are drawn. */
