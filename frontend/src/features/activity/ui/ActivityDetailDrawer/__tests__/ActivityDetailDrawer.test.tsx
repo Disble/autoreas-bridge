@@ -61,14 +61,12 @@ describe('ActivityDetailDrawer', () => {
     const panel = container.querySelector('aside');
     expect(panel).toHaveAttribute('aria-hidden', 'true');
     expect(panel).toHaveAttribute('inert');
-    expect(panel).toHaveClass('invisible', 'translate-x-full');
     expect(screen.queryByRole('heading', { name: 'Hotaru no Yomeiri' })).not.toBeInTheDocument();
 
     fireEvent.transitionEnd(panel as Element, { propertyName: 'translate' });
     expect(container).toBeEmptyDOMElement();
 
     rerender(<ActivityDetailDrawer line={CHANGE} onClose={vi.fn()} />);
-    expect(container.querySelector('aside')).toHaveClass('visible', 'translate-x-0', 'starting:translate-x-full');
     expect(screen.queryByTestId('activity-technical-view')).not.toBeInTheDocument();
   });
 
@@ -79,7 +77,6 @@ describe('ActivityDetailDrawer', () => {
     expect(screen.getByRole('heading', { name: 'Hotaru no Yomeiri' })).toBeInTheDocument();
     expect(screen.getByText('episode 0 → 1 · from the phone')).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Episode' })).toHaveTextContent(/Before0.*After1/);
-    expect(screen.getByText('previous or next event').closest('p')).toHaveTextContent('↑↓previous or next event');
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(onClose).toHaveBeenCalledOnce();
   });

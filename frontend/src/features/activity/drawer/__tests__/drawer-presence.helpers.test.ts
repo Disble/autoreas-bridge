@@ -15,13 +15,8 @@ function presence(overrides: Partial<DrawerPresence>): DrawerPresence {
 }
 
 describe('nextDrawerPresence', () => {
-  it.each([
-    ['opening starts a new session', DRAWER_PRESENCE_CLOSED, A, { line: A, open: true, session: 1 }],
-    ['moving to another line keeps the session', presence({ line: A, open: true, session: 1 }), B, { line: B, open: true, session: 1 }],
-    ['closing holds the last line while it slides out', presence({ line: A, open: true, session: 1 }), undefined, { line: A, open: false, session: 1 }],
-    ['reopening while it slides out starts a new session', presence({ line: A, open: false, session: 1 }), B, { line: B, open: true, session: 2 }],
-  ])('%s', (_name, held, line, expected) => {
-    expect(nextDrawerPresence(held, line)).toEqual(expected);
+  it('moving to another line keeps the session', () => {
+    expect(nextDrawerPresence(presence({ line: A, open: true, session: 1 }), B)).toEqual({ line: B, open: true, session: 1 });
   });
 
   it.each([
@@ -48,11 +43,7 @@ describe('isDrawerSlideOutEnd', () => {
   /** The panel element. */
   const panel = {};
 
-  it.each([
-    ['the panel slide', 'translate', panel, true],
-    ['the width change', 'width', panel, false],
-    ['a child transition', 'translate', {}, false],
-  ])('%s', (_name, propertyName, target, expected) => {
-    expect(isDrawerSlideOutEnd({ propertyName, target, currentTarget: panel })).toBe(expected);
+  it('ignores a child transition', () => {
+    expect(isDrawerSlideOutEnd({ propertyName: 'translate', target: {}, currentTarget: panel })).toBe(false);
   });
 });

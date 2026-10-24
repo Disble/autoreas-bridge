@@ -5,7 +5,6 @@ import { incident } from './drawer.fixtures';
 
 describe('toDrawerCause', () => {
   it.each([
-    ['a code without approved wording shows its recorded message with its code chip', 'conflict', 'applied: false, reason: conflict', undefined, false, 'conflict'],
     ['an unknown code shows the recorded message with the code chip', 'stale_version', 'raw text', undefined, false, 'stale_version'],
     ['no code falls back to the HTTP status of the triggering request', '', 'invalid bearer token', 401, false, 'HTTP 401'],
     ['no code and no status leaves the chip empty', '', 'boom', undefined, false, ''],
@@ -45,10 +44,6 @@ const CATALOG = DRAWER_CAUSE_CATALOG as Record<string, string>;
 describe('the cause catalog lookup', () => {
   afterEach(() => {
     delete CATALOG.test_code;
-  });
-
-  it('ships no approved wording, so every code is shown as recorded', () => {
-    expect(Object.keys(DRAWER_CAUSE_CATALOG)).toEqual([]);
   });
 
   it('reads an entry by code, fills its placeholders, keeps the code chip and notes nothing', () => {

@@ -1,14 +1,11 @@
 /**
- * Frontend contracts of the Incidents tab and the run story: the incident
- * detail, the folded request window, one captured request, and runs.
+ * Frontend contracts the detail drawer reads: the incident detail, the folded
+ * request window, one captured request, a change's context and the run story.
  *
  * Like `activity.types.ts`, they mirror the Go types of `activityread` field
  * for field in camelCase; nil pointers become `undefined` and nil slices
  * become empty arrays.
  */
-
-/** The "where it happened" filter (`activityread.Where`). */
-export type ActivityWhere = 'all' | 'phone' | 'downloads' | 'editor' | 'schedule' | 'season';
 
 /** One stored incident occurrence with its plain-words title. */
 export interface ActivityIncidentOccurrence {
@@ -166,28 +163,8 @@ export interface ActivityRequestDetail {
 export interface ActivityChangeContext {
   /** The anime's runtime events around the change, oldest first. */
   readonly events: readonly ActivityRunStep[];
-  /** True when Go capped the events. */
-  readonly truncated: boolean;
   /** The captured requests that carried the change, folded by route and status. */
   readonly requests: readonly ActivityFoldedRequest[];
-}
-
-/** The events sharing one correlation id; the outcome is their worst level. */
-export interface ActivityRun {
-  /** The run's correlation id. */
-  readonly correlationId: string;
-  /** First event, epoch milliseconds. */
-  readonly firstAtMs: number;
-  /** Last event, epoch milliseconds. */
-  readonly lastAtMs: number;
-  /** Events in the run. */
-  readonly steps: number;
-  /** Worst level among them: `debug`, `info`, `warn` or `error`. */
-  readonly outcome: string;
-  /** Type of the run's first event. */
-  readonly firstEventType: string;
-  /** Message of the run's first event. */
-  readonly firstMessage: string;
 }
 
 /** One event of a run story, with its raw metadata. */

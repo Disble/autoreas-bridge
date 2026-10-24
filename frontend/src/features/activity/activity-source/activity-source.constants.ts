@@ -10,6 +10,3 @@ export const ACTIVITY_RUNTIME_UNAVAILABLE_MESSAGE = 'runtime unavailable';
 export const ACTIVITY_SOURCE_STATE: { sharedSource: ActivitySource | null } = {
   sharedSource: null,
 };
-
-/** The MCP server the "Copy for AI" references name (`cmd/autoreas-request-mcp`). */
-export const ACTIVITY_MCP_SERVER_NAME = 'autoreas-request-mcp';

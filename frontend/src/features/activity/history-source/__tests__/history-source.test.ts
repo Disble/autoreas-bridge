@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { activityread } from '../../../../../wailsjs/go/models';
+import type { ActivityRecorderPayload } from '../../activity-source/activity.types';
 
 /** A complete Go RecorderEntry payload, the shape Wails hands over. */
-function goRecorderRow(overrides: Record<string, unknown>): Record<string, unknown> {
+function goRecorderRow(overrides: Partial<ActivityRecorderPayload>): ActivityRecorderPayload {
   return {
     Source: 'request',
     ID: '',
@@ -43,21 +44,6 @@ function goLedgerLine(overrides: Record<string, unknown>): Record<string, unknow
   };
 }
 
-/** A Go HistoryView payload, nil slices included. */
-function goHistoryPayload(overrides: Record<string, unknown> = {}): activityread.HistoryView {
-  return activityread.HistoryView.createFrom({
-    Calendar: [{ DayStartMS: 100, Total: 12, HasData: true, HasIncident: true }],
-    Days: [{ DayStartMS: 100, Lines: [goLedgerLine({ PhoneAtMS: 4, Marks: ['arrived_late', 'recovered', 'incident'] })] }],
-    NextCursor: 'next',
-    ...overrides,
-  });
-}
-
-/** Attaches fake generated bindings under `window.go.desktop.App`. */
-function attachBindings(app: Record<string, unknown>) {
-  Reflect.set(window, 'go', { desktop: { App: app } });
-}
-
 /** Attaches a fake runtime and returns the registered handlers. */
 function attachRuntime(off: () => void): Map<string, (payload: unknown) => void> {
   const handlers = new Map<string, (payload: unknown) => void>();
@@ -84,93 +70,34 @@ describe('history-source', () => {
     Reflect.deleteProperty(window, 'runtime');
   });
 
-  it('maps a Go HistoryView onto the readonly camelCase contract', async () => {
-    const { mapActivityHistoryView } = await import('../history-source.helpers');
+  it('maps a Go ledger line onto the readonly camelCase contract', async () => {
+    const { mapLedgerLine } = await import('../history-source.helpers');
 
-    expect(mapActivityHistoryView(goHistoryPayload())).toEqual({
-      calendar: [{ dayStartMs: 100, total: 12, hasData: true, hasIncident: true }],
-      days: [
-        {
-          dayStartMs: 100,
-          lines: [
-            {
-              kind: 'change',
-              id: '1',
-              atMs: 10,
-              phoneAtMs: 4,
-              domain: 'anime',
-              source: 'mobile',
-              level: '',
-              title: 'Date A Live IV',
-              detail: 'episode_adjusted',
-              correlationId: 'c-1',
-              beforeJson: '{"NroCapVisto":10}',
-              afterJson: '{"NroCapVisto":11}',
-              marks: ['arrived_late', 'recovered', 'incident'],
-            },
-          ],
-        },
-      ],
-      nextCursor: 'next',
+    expect(mapLedgerLine(activityread.LedgerLine.createFrom(goLedgerLine({ PhoneAtMS: 4, Marks: ['arrived_late', 'recovered', 'incident'] })))).toEqual({
+      kind: 'change',
+      id: '1',
+      atMs: 10,
+      phoneAtMs: 4,
+      domain: 'anime',
+      source: 'mobile',
+      level: '',
+      title: 'Date A Live IV',
+      detail: 'episode_adjusted',
+      correlationId: 'c-1',
+      beforeJson: '{"NroCapVisto":10}',
+      afterJson: '{"NroCapVisto":11}',
+      marks: ['arrived_late', 'recovered', 'incident'],
     });
   });
 
-  it('turns nil slices and a nil phone time into empty values and drops unknown marks', async () => {
-    const { mapActivityHistoryView } = await import('../history-source.helpers');
+  it('turns a nil phone time into undefined, nil marks into empty, and drops unknown marks', async () => {
+    const { mapLedgerLine } = await import('../history-source.helpers');
 
-    const view = mapActivityHistoryView(
-      goHistoryPayload({ Calendar: null, Days: [{ DayStartMS: 1, Lines: [goLedgerLine({ Marks: ['unclean_stop', 'recovered'] })] }, { DayStartMS: 2, Lines: null }] }),
-    );
+    const line = mapLedgerLine(activityread.LedgerLine.createFrom(goLedgerLine({ Marks: ['unclean_stop', 'recovered'] })));
 
-    expect(view.calendar).toEqual([]);
-    expect(view.days[0].lines[0].phoneAtMs).toBeUndefined();
-    expect(view.days[0].lines[0].marks).toEqual(['recovered']);
-    expect(view.days[1].lines).toEqual([]);
-    expect(mapActivityHistoryView(goHistoryPayload({ Days: [{ DayStartMS: 1, Lines: [goLedgerLine({ Marks: null })] }] })).days[0].lines[0].marks).toEqual([]);
-    expect(mapActivityHistoryView(goHistoryPayload({ Days: null })).days).toEqual([]);
-  });
-
-  it('maps a recorder page and skips rows from an unknown source', async () => {
-    const { mapActivityRecorderPage } = await import('../history-source.helpers');
-
-    const page = mapActivityRecorderPage(
-      activityread.RecorderPage.createFrom({
-        Entries: [goRecorderRow({ ID: 'r-1', AtMS: 5 }), goRecorderRow({ Source: 'mobile', ID: 'x' }), goRecorderRow({ Source: 'event', ID: '7', AtMS: 4 })],
-        NextCursor: 'older',
-      }),
-    );
-
-    expect(page.nextCursor).toBe('older');
-    expect(page.entries.map((entry) => `${entry.source}:${entry.id}`)).toEqual(['request:r-1', 'event:7']);
-    expect(mapActivityRecorderPage(activityread.RecorderPage.createFrom({ Entries: null, NextCursor: '' })).entries).toEqual([]);
-  });
-
-  it('reads History and the recorder through their bindings with the arguments given', async () => {
-    const search = vi.fn(() => Promise.resolve(goHistoryPayload()));
-    const list = vi.fn(() => Promise.resolve(activityread.RecorderPage.createFrom({ Entries: [goRecorderRow({ ID: 'r-1' })], NextCursor: '' })));
-    attachBindings({ SearchActivityHistory: search, ListActivityRecorder: list });
-    const { createHistorySource } = await import('../history-source.helpers');
-    const source = createHistorySource();
-
-    const view = await source.searchHistory('downloads', 'c-2', 50);
-    const page = await source.listRecorder('c-3', 100);
-
-    expect(search).toHaveBeenCalledWith('downloads', 'c-2', 50);
-    expect(list).toHaveBeenCalledWith('c-3', 100);
-    expect(view.nextCursor).toBe('next');
-    expect(page.entries[0].id).toBe('r-1');
-  });
-
-  it('rejects both reads when the bindings never attach', async () => {
-    const { createHistorySource } = await import('../history-source.helpers');
-    const source = createHistorySource();
-
-    const historySettled = expect(source.searchHistory('all', '', 50)).rejects.toThrow('runtime unavailable');
-    const recorderSettled = expect(source.listRecorder('', 100)).rejects.toThrow('runtime unavailable');
-    await vi.advanceTimersByTimeAsync(5000);
-
-    await historySettled;
-    await recorderSettled;
+    expect(line.phoneAtMs).toBeUndefined();
+    expect(line.marks).toEqual(['recovered']);
+    expect(mapLedgerLine(activityread.LedgerLine.createFrom(goLedgerLine({ Marks: null }))).marks).toEqual([]);
   });
 
   it('streams live recorder rows and skips an unknown source without throwing out of the callback', async () => {

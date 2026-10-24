@@ -23,10 +23,9 @@ const ChangeContextWindow = time.Second
 // captured requests that carried it, folded like an incident window. Found is
 // false when no change has that id.
 type ChangeContext struct {
-	Found     bool
-	Events    []RunStep
-	Truncated bool
-	Requests  []FoldedRequest
+	Found    bool
+	Events   []RunStep
+	Requests []FoldedRequest
 }
 
 // ChangeContext reads the change (the feed line's id and time) through
@@ -52,7 +51,7 @@ func (r *Reader) ChangeContext(ctx context.Context, changeID, atMS int64) (Chang
 		return out, nil
 	}
 	fromMS, toMS := atMS-ChangeContextWindow.Milliseconds(), atMS+ChangeContextWindow.Milliseconds()
-	events, truncated, err := r.changeEvents(ctx, animeID, fromMS, toMS)
+	events, err := r.changeEvents(ctx, animeID, fromMS, toMS)
 	if err != nil {
 		return ChangeContext{}, err
 	}
@@ -60,22 +59,22 @@ func (r *Reader) ChangeContext(ctx context.Context, changeID, atMS int64) (Chang
 	if err != nil {
 		return ChangeContext{}, err
 	}
-	out.Events, out.Truncated, out.Requests = events, truncated, foldRequests(requests, "")
+	out.Events, out.Requests = events, foldRequests(requests, "")
 	return out, nil
 }
 
 // changeEventsQuery reads the events of one entity inside a time range,
-// oldest first, one row past the story cap.
+// oldest first, at most the story cap.
 const changeEventsQuery = `SELECT id, occurred_at_ms, domain, level, COALESCE(event_type, ''), message,
 	COALESCE(correlation_id, ''), duration_ms, COALESCE(metadata_json, '') FROM runtime_events
 	WHERE occurred_at_ms BETWEEN ? AND ? AND entity_id = ?
 	ORDER BY occurred_at_ms, id LIMIT ?`
 
 // changeEvents reads the anime's events inside the range, capped at StoryLimit.
-func (r *Reader) changeEvents(ctx context.Context, animeID string, fromMS, toMS int64) ([]RunStep, bool, error) {
-	rows, err := r.db.QueryContext(ctx, changeEventsQuery, fromMS, toMS, animeID, StoryLimit+1)
+func (r *Reader) changeEvents(ctx context.Context, animeID string, fromMS, toMS int64) ([]RunStep, error) {
+	rows, err := r.db.QueryContext(ctx, changeEventsQuery, fromMS, toMS, animeID, StoryLimit)
 	if err != nil {
-		return nil, false, fmt.Errorf("activityread: change events: %w", err)
+		return nil, fmt.Errorf("activityread: change events: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	var steps []RunStep
@@ -84,18 +83,15 @@ func (r *Reader) changeEvents(ctx context.Context, animeID string, fromMS, toMS 
 		var duration sql.NullInt64
 		if err := rows.Scan(&step.ID, &step.AtMS, &step.Domain, &step.Level, &step.EventType, &step.Message,
 			&step.CorrelationID, &duration, &step.MetadataJSON); err != nil {
-			return nil, false, fmt.Errorf("activityread: scan change event: %w", err)
+			return nil, fmt.Errorf("activityread: scan change event: %w", err)
 		}
 		step.DurationMS = nullableInt64(duration)
 		steps = append(steps, step)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, false, fmt.Errorf("activityread: change events: %w", err)
+		return nil, fmt.Errorf("activityread: change events: %w", err)
 	}
-	if len(steps) > StoryLimit {
-		return steps[:StoryLimit], true, nil
-	}
-	return steps, false, nil
+	return steps, nil
 }
 
 // changeRequestsQuery reads the captures inside a time range that name the

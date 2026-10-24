@@ -74,5 +74,5 @@ export function buildView(days: readonly ActivityFeedDay[], nextCursor = ''): Ac
  * @returns The overview.
  */
 export function buildOverview(types: readonly ActivityTypeCount[]): ActivityOverview {
-  return { slots: [], types, fromMs: 0, toMs: NOW_MS };
+  return { slots: [], types };
 }

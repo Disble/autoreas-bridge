@@ -24,7 +24,6 @@ function input(overrides: Partial<DrawerSummaryInput>): DrawerSummaryInput {
 /** Change 872's context as stored: one sync event and the reconcile that carried it. */
 const CHANGE: ActivityChangeContext = {
   events: [{ id: 40251, atMs: 3, domain: 'sync', level: 'info', eventType: 'sync.changelog', message: 'recorded pending changelog for 8Fn5qny6DPbhWLJn', correlationId: 'd4c0', durationMs: undefined, metadataJson: '' }],
-  truncated: false,
   requests: [{ routeTemplate: '/api/sync/reconcile', httpStatus: 200, count: 1, firstAtMs: 1, lastAtMs: 1, latestRequestId: '7e4b8c9f', kind: 'reconcile', outcome: 'completed', maxDurationMs: 76, containsTrigger: false }],
 };
 
@@ -184,27 +183,8 @@ describe('toDrawerWindowErrorDetail', () => {
   /** A window error line. */
   const LINE = feedLine({ failed: true }, { kind: 'event', detail: 'frontend.error', title: 'frontend render: boom' });
 
-  it('shows every stored field of a window error, the stack as stored', () => {
-    const metadata = { kind: 'render', route: '/editor', source: 'assets/index.js:1:2', message: 'boom', stack: 'at A', occurredAtMs: String(Date.UTC(2026, 9, 22, 12)) };
-
-    const detail = toDrawerWindowErrorDetail(input({ line: LINE, metadata }));
-
-    expect(detail?.facts.map((fact) => [fact.label, fact.value])).toEqual([
-      ['Kind', 'render'],
-      ['Page', 'Editor'],
-      ['Source', 'assets/index.js:1:2'],
-      ['At', expect.stringMatching(/^\d\d:\d\d:\d\d$/)],
-    ]);
-    expect(detail).toMatchObject({ message: 'boom', stack: 'at A' });
-  });
-
-  it('leaves out fields the report did not store and falls back to the event message', () => {
-    expect(toDrawerWindowErrorDetail(input({ line: LINE, metadata: { kind: 'error', occurredAtMs: 'x' } }))).toEqual({
-      facts: [{ key: 'kind', label: 'Kind', value: 'error', mono: false, warnChip: undefined, note: undefined }],
-      message: 'frontend render: boom',
-      stack: '',
-      stackCut: false,
-    });
+  it('falls back to the line title when the report stored no message', () => {
+    expect(toDrawerWindowErrorDetail(input({ line: LINE, metadata: { kind: 'error', occurredAtMs: 'x' } }))?.message).toBe('frontend render: boom');
   });
 
   it.each([

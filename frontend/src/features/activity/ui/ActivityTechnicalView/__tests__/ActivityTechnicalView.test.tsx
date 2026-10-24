@@ -89,13 +89,16 @@ describe('ActivityTechnicalView', () => {
     expect(screen.getByText('warn')).toBeInTheDocument();
   });
 
-  it.each([
-    ['says why the Events tab is empty when it knows', 'No events were recorded for this run.'],
-    ['renders nothing more when it does not', ''],
-  ])('%s', (_name, eventsEmpty) => {
-    render(<ActivityTechnicalView {...props({ tab: 'events', eventsEmpty })} />);
+  it('says why the Events tab is empty when it knows', () => {
+    render(<ActivityTechnicalView {...props({ tab: 'events', eventsEmpty: 'No events were recorded for this run.' })} />);
 
-    expect(screen.queryByText('No events were recorded for this run.') !== null).toBe(eventsEmpty !== '');
+    expect(screen.getByText('No events were recorded for this run.')).toBeInTheDocument();
+  });
+
+  it('renders no note paragraph when it does not know', () => {
+    render(<ActivityTechnicalView {...props({ tab: 'events', eventsEmpty: '' })} />);
+
+    expect(screen.getByRole('tabpanel').querySelector('p')).toBeNull();
   });
 
   it('shows an event of an unknown level without a detail line', () => {

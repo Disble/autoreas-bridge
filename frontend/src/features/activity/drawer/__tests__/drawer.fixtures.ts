@@ -3,7 +3,7 @@ import type { ActivityFeedLine } from '../../feed-source/feed.types';
 import type { ActivityLedgerLine } from '../../history-source/history.types';
 
 /** A ledger line with every field empty, overridden per test. */
-export function ledgerLine(overrides: Partial<ActivityLedgerLine> = {}): ActivityLedgerLine {
+function ledgerLine(overrides: Partial<ActivityLedgerLine> = {}): ActivityLedgerLine {
   return {
     kind: 'event',
     id: '1',

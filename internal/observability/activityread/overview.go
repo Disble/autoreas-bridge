@@ -50,13 +50,11 @@ type TypeCount struct {
 	Failed int64
 }
 
-// OverviewView is the chart of every origin, the per-type counts of the
-// range and origin, and that range as read.
+// OverviewView is the chart of every origin and the per-type counts of the
+// range and origin.
 type OverviewView struct {
-	Slots  []ChartSlot
-	Types  []TypeCount
-	FromMS int64
-	ToMS   int64
+	Slots []ChartSlot
+	Types []TypeCount
 }
 
 // Overview returns the chart slots of in.Scale and the per-type counts. Both
@@ -81,11 +79,7 @@ func (r *Reader) Overview(ctx context.Context, in OverviewInput) (OverviewView, 
 	for i, slot := range slots {
 		slotBuckets[i] = bucket{loMS: slot.StartMS, hiMS: slot.EndMS - 1}
 	}
-	chartPlan, err := planFeed(FeedInput{})
-	if err != nil {
-		return OverviewView{}, err
-	}
-	perSlot, err := r.countFeed(ctx, chartPlan, slotBuckets)
+	perSlot, err := r.countFeed(ctx, typePlan, slotBuckets)
 	if err != nil {
 		return OverviewView{}, err
 	}
@@ -103,7 +97,7 @@ func (r *Reader) Overview(ctx context.Context, in OverviewInput) (OverviewView, 
 	for i, t := range FeedTypes {
 		types[i] = TypeCount{Type: t, Lines: perRange[0][t].Lines, Failed: perRange[0][t].Failed}
 	}
-	return OverviewView{Slots: slots, Types: types, FromMS: fromMS, ToMS: toMS}, nil
+	return OverviewView{Slots: slots, Types: types}, nil
 }
 
 // chartSlots returns the empty slots of one scale, oldest first. Hourly slots

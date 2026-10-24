@@ -54,8 +54,6 @@ function goOverview(overrides: Record<string, unknown> = {}): activityread.Overv
   return activityread.OverviewView.createFrom({
     Slots: [{ StartMS: 0, EndMS: 3_600_000, Count: 5, Failed: 1 }],
     Types: [{ Type: 'download', Lines: 2, Failed: 1 }],
-    FromMS: 0,
-    ToMS: 3_600_000,
     ...overrides,
   });
 }
@@ -152,8 +150,6 @@ describe('feed-source', () => {
     expect(mapActivityOverview(goOverview())).toEqual({
       slots: [{ startMs: 0, endMs: 3_600_000, count: 5, failed: 1 }],
       types: [{ type: 'download', lines: 2, failed: 1 }],
-      fromMs: 0,
-      toMs: 3_600_000,
     });
     expect(mapActivityOverview(goOverview({ Slots: null, Types: null }))).toMatchObject({ slots: [], types: [] });
   });

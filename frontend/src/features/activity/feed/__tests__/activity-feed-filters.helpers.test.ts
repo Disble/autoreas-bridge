@@ -11,7 +11,7 @@ import {
   toggleFeedTypes,
   typeSelectionKeys,
 } from '../activity-feed-filters.helpers';
-import { ACTIVITY_DEFAULT_TYPES, ACTIVITY_FAILURE_TYPES, ACTIVITY_TOGGLE_TYPES } from '../activity-feed.constants';
+import { ACTIVITY_DEFAULT_TYPES, ACTIVITY_TOGGLE_TYPES } from '../activity-feed.constants';
 import { NOW_MS, dayStart } from './activity-feed.fixtures';
 
 /** The filters every case starts from. */
@@ -23,11 +23,12 @@ describe('createInitialFilters', () => {
       scale: '24h',
       range: undefined,
       origin: 'all',
-      types: ACTIVITY_DEFAULT_TYPES,
+      types: ['change', 'download', 'task', 'edit'],
       failuresOnly: false,
-      failureTypes: ACTIVITY_FAILURE_TYPES,
+      failureTypes: ['change', 'traffic', 'download', 'task', 'edit', 'bridge'],
       anchorMs: NOW_MS,
     });
+    expect(INITIAL.types).not.toContain('traffic');
   });
 });
 

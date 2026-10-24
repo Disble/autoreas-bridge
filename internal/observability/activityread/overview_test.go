@@ -48,8 +48,11 @@ func TestOverviewHourlySlotsCountFeedLinesAndFailures(t *testing.T) {
 	if last.Count != 0 || view.Slots[0].Count != 0 {
 		t.Errorf("empty slots = %+v %+v, want 0", view.Slots[0], last)
 	}
-	if view.FromMS != hourStart(23) || view.ToMS != testNow.UnixMilli() {
-		t.Errorf("window = %d..%d, want %d..%d", view.FromMS, view.ToMS, hourStart(23), testNow.UnixMilli())
+
+	// Every count follows the origin: the phone keeps only the change and its traffic hour.
+	phone := overviewOf(t, r, OverviewInput{Scale: Scale24h, Origin: OriginPhone})
+	if got := phone.Slots[22]; got.Count != 2 || got.Failed != 0 {
+		t.Errorf("phone 17:00 slot = %+v, want 2 lines and no failure", got)
 	}
 }
 
@@ -120,9 +123,6 @@ func TestOverviewTypeCountsFollowRangeAndOrigin(t *testing.T) {
 	}
 	if got := countOf(t, ranged, FeedChange); got.Lines != 0 {
 		t.Errorf("ranged changes = %+v, want 0", got)
-	}
-	if ranged.FromMS != minutesAgo(8) || ranged.ToMS != minutesAgo(4) {
-		t.Errorf("range = %d..%d, want the requested one", ranged.FromMS, ranged.ToMS)
 	}
 	if len(ranged.Slots) != 24 {
 		t.Errorf("a range keeps the scale's slots, got %d", len(ranged.Slots))

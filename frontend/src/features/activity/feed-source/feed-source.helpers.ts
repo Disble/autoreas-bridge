@@ -78,8 +78,6 @@ export function mapActivityOverview(view: activityread.OverviewView): ActivityOv
   return {
     slots: (view.Slots ?? []).map(mapChartSlot),
     types: (view.Types ?? []).map(mapTypeCount),
-    fromMs: view.FromMS,
-    toMs: view.ToMS,
   };
 }
 

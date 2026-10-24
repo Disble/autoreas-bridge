@@ -22,7 +22,6 @@ function fakeSource(...replies: readonly (ActivityFeedView | Error)[]): Activity
   return { searchFeed, getOverview: vi.fn(), getEvent: vi.fn(), getChangeContext: vi.fn() };
 }
 
-/** A scroll event of a list already at its bottom. */
 /** Scrolls the page, which jsdom reports as already at its bottom. */
 function scrollPage() {
   window.dispatchEvent(new Event('scroll'));

@@ -22,8 +22,6 @@ const feedSource = {
 
 /** The History port: only its recorder subscription is used. */
 const historySource: HistorySource = {
-  searchHistory: vi.fn(),
-  listRecorder: vi.fn(),
   subscribeRecorder: (listener) => {
     recorderListeners.push(() => listener({} as never));
     return () => undefined;

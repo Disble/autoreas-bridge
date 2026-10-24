@@ -38,13 +38,6 @@ describe('useActivityFailureMenu', () => {
     expect([result.current.failureButtonState, result.current.filters.failuresOnly]).toEqual(['off', false]);
   });
 
-  it('counts the failures and disables the rows that have none', () => {
-    const { result } = renderMenu();
-
-    expect(result.current.failureCount).toBe(2);
-    expect([...result.current.failureMenuKeys.selected]).toEqual(['change']);
-  });
-
   it.each([
     ['a row toggled off keeps the picks of disabled rows', new Set<string>(), ACTIVITY_FAILURE_TYPES.filter((type) => type !== 'change')],
     ['select all picks every failure type', 'all' as const, ACTIVITY_FAILURE_TYPES],

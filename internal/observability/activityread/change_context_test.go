@@ -97,8 +97,8 @@ func TestChangeContextReadsTheAnimesEventsAroundTheChange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("change context: %v", err)
 	}
-	if len(got.Events) != 2 || got.Truncated || got.Events[0].ID != first || got.Events[1].ID != last {
-		t.Fatalf("events = %+v, truncated %v; want %d then %d", got.Events, got.Truncated, first, last)
+	if len(got.Events) != 2 || got.Events[0].ID != first || got.Events[1].ID != last {
+		t.Fatalf("events = %+v; want %d then %d", got.Events, first, last)
 	}
 	step := got.Events[0]
 	if step.Domain != "sync" || step.Level != "info" || step.EventType != "sync.changelog" || step.AtMS != changeAtMS-1000 ||
@@ -137,12 +137,11 @@ func TestChangeContextFoldsTheCapturesThatCarriedTheChange(t *testing.T) {
 
 func TestChangeContextCapsItsEventsLikeARunStory(t *testing.T) {
 	for _, tc := range []struct {
-		name      string
-		stored    int
-		truncated bool
+		name   string
+		stored int
 	}{
-		{"exactly the cap is whole", StoryLimit, false},
-		{"one past the cap is cut", StoryLimit + 1, true},
+		{"exactly the cap is whole", StoryLimit},
+		{"one past the cap is cut", StoryLimit + 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			db, r := openTestReader(t)
@@ -152,8 +151,8 @@ func TestChangeContextCapsItsEventsLikeARunStory(t *testing.T) {
 			if err != nil {
 				t.Fatalf("change context: %v", err)
 			}
-			if len(got.Events) != StoryLimit || got.Truncated != tc.truncated || got.Events[0].AtMS != changeAtMS-500 {
-				t.Fatalf("events %d, truncated %v, first at %d; want %d, %v, %d", len(got.Events), got.Truncated, got.Events[0].AtMS, StoryLimit, tc.truncated, changeAtMS-500)
+			if len(got.Events) != StoryLimit || got.Events[0].AtMS != changeAtMS-500 {
+				t.Fatalf("events %d, first at %d; want %d, %d", len(got.Events), got.Events[0].AtMS, StoryLimit, changeAtMS-500)
 			}
 		})
 	}
@@ -165,7 +164,7 @@ func TestChangeContextReadsNothingWithoutAnAnime(t *testing.T) {
 	insertChangeCapture(t, db, "no-anime", changeAtMS, "post", "/api/sync/diagnostics", "", `{"operation_refs":[{"anime_id":""}]}`)
 
 	got, err := r.ChangeContext(t.Context(), insertChangeRow(t, db, ""), changeAtMS)
-	if err != nil || !got.Found || len(got.Events) != 0 || len(got.Requests) != 0 || got.Truncated {
+	if err != nil || !got.Found || len(got.Events) != 0 || len(got.Requests) != 0 {
 		t.Fatalf("change context = %+v, %v; want found and empty", got, err)
 	}
 }

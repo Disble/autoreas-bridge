@@ -139,8 +139,4 @@ export interface ActivityOverview {
   readonly slots: readonly ActivityChartSlot[];
   /** One count per type, in toolbar order. */
   readonly types: readonly ActivityTypeCount[];
-  /** Start of the range the counts read, epoch milliseconds. */
-  readonly fromMs: number;
-  /** End of the range the counts read, epoch milliseconds. */
-  readonly toMs: number;
 }

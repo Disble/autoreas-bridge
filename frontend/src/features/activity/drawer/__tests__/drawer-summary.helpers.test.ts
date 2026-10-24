@@ -181,7 +181,7 @@ const SLOW_REQUESTS = [
 describe('toDrawerSummary edge cases', () => {
   it.each([
     ['an unreadable snapshot reads as a dash', '{bad', '{"NroCapVisto":2}', 'episode_adjusted', '—', '2'],
-    ['a state reads as its label', '{"Estado":1}', '{"Estado":2}', 'anime_state_set', expect.any(String), expect.any(String)],
+    ['a state reads as its label', '{"Estado":1}', '{"Estado":2}', 'anime_state_set', 'Finalizado', 'No me gusto'],
     ['an object value reads as JSON and null as a dash', '{"grade":{"a":1}}', '{"grade":null}', 'season_grade_set', '{"a":1}', '—'],
   ])('%s', (_name, beforeJson, afterJson, detail, before, after) => {
     const line = feedLine({ type: 'edit' }, { kind: 'change', source: 'desktop', detail, beforeJson, afterJson });
@@ -288,19 +288,17 @@ describe('a run whose story was read', () => {
   /** A failed season run. */
   const LINE = feedLine({ type: 'download', failed: true, run: run() }, { kind: 'download_run', correlationId: 'run-1' });
 
-  it.each([
-    ['an empty story says no event was recorded instead of an empty timeline', [], ['note']],
-    ['a story with steps keeps its timeline', [{ id: 1, atMs: AT, domain: 'download', level: 'error', eventType: 'download.failed', message: 'm', correlationId: 'run-1', durationMs: undefined, metadataJson: '' }], ['run-story']],
-  ])('%s', (_name, steps, expected) => {
-    const { sections } = toDrawerSummary(input({ line: LINE, story: { correlationId: 'run-1', steps, truncated: false } }));
-
-    expect(kinds(sections)).toEqual(expected);
-  });
-
-  it('words the empty story note from the stored fact only', () => {
+  it('says no event was recorded instead of an empty timeline for an empty story', () => {
     const { sections } = toDrawerSummary(input({ line: LINE, story: { correlationId: 'run-1', steps: [], truncated: false } }));
 
+    expect(kinds(sections)).toEqual(['note']);
     expect(sectionOf(sections, 'note').text).toBe('No events were recorded for this run.');
+  });
+
+  it('keeps the timeline of a story with steps', () => {
+    const steps = [{ id: 1, atMs: AT, domain: 'download', level: 'error', eventType: 'download.failed', message: 'm', correlationId: 'run-1', durationMs: undefined, metadataJson: '' }];
+
+    expect(kinds(toDrawerSummary(input({ line: LINE, story: { correlationId: 'run-1', steps, truncated: false } })).sections)).toEqual(['run-story']);
   });
 
   it('applies the same to a task run', () => {

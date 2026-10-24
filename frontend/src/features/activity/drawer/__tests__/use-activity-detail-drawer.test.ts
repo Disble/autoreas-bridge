@@ -25,7 +25,6 @@ function feedWith(getEvent: ActivityFeedSource['getEvent'], getChangeContext: Ac
 /** Change 1's context as stored: one sync event and the reconcile that carried it. */
 const CHANGE_CONTEXT: ActivityChangeContext = {
   events: [{ ...stored(''), id: 40251, domain: 'sync', level: 'info', eventType: 'sync.changelog', message: 'recorded pending changelog for 8Fn5qny6DPbhWLJn' }],
-  truncated: false,
   requests: [{ routeTemplate: '/api/sync/reconcile', httpStatus: 200, count: 1, firstAtMs: 1, lastAtMs: 1, latestRequestId: '7e4b8c9f', kind: 'reconcile', outcome: 'completed', maxDurationMs: 76, containsTrigger: false }],
 };
 

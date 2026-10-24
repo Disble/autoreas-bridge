@@ -1,4 +1,4 @@
-import { ACTIVITY_DAY_TIME_FORMAT, ACTIVITY_RUN_MINUTE_MS, ACTIVITY_SECOND_MS } from './activity-run-story.constants';
+import { ACTIVITY_RUN_MINUTE_MS, ACTIVITY_SECOND_MS } from './activity-run-story.constants';
 import type { ActivityRead, ActivityTaggedRead } from './activity-run-story.types';
 
 /** Zero-pads a clock part to the given width. */
@@ -15,16 +15,6 @@ function pad(value: number, width = 2): string {
 export function formatActivityClock(ms: number): string {
   const date = new Date(ms);
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
-}
-
-/**
- * Formats epoch milliseconds as the owner's local day and minute.
- *
- * @param ms Epoch milliseconds.
- * @returns `Oct 17, 17:31`.
- */
-export function formatActivityDayTime(ms: number): string {
-  return ACTIVITY_DAY_TIME_FORMAT.format(ms);
 }
 
 /** Words whole minutes and leftover seconds, `2 min 5 s`, `2 min`. */

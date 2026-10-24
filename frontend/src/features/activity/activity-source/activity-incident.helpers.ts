@@ -6,7 +6,6 @@ import type {
   ActivityIncidentDetail,
   ActivityPhoneReport,
   ActivityRequestDetail,
-  ActivityRun,
   ActivityRunStep,
   ActivityRunStory,
 } from './activity-incident.types';
@@ -128,26 +127,7 @@ export function mapActivityRequestResult(result: desktop.ActivityRequestResult):
 export function mapActivityChangeContext(context: activityread.ChangeContext): ActivityChangeContext {
   return {
     events: (context.Events ?? []).map(mapRunStep),
-    truncated: context.Truncated,
     requests: (context.Requests ?? []).map(mapFoldedRequest),
-  };
-}
-
-/**
- * Converts one Go run.
- *
- * @param run The run `ListActivityRecoveredRuns` returned.
- * @returns The run the list renders.
- */
-export function mapActivityRun(run: activityread.Run): ActivityRun {
-  return {
-    correlationId: run.CorrelationID,
-    firstAtMs: run.FirstAtMS,
-    lastAtMs: run.LastAtMS,
-    steps: run.Steps,
-    outcome: run.Outcome,
-    firstEventType: run.FirstEventType,
-    firstMessage: run.FirstMessage,
   };
 }
 

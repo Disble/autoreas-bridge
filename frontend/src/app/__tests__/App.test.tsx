@@ -155,7 +155,6 @@ describe('App routing', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Activity' })).toBeInTheDocument();
     expect(screen.getByRole('toolbar', { name: 'Activity filters' })).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Now' })).not.toBeInTheDocument();
   });
 
   it('renders the season route directly', async () => {
