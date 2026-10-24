@@ -343,3 +343,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-10-23]: 2.3.1 is an emergency patch: jkanime.net went behind a Cloudflare managed challenge and every download failed; the mirror fallback chain (ADR-029) restores downloads and season search with no wire change.
 - [2026-10-23]: Release 2.4.0 is a minor bump: it adds the additive screen_stall diagnostics kind that the mobile team needs before turning on its screen-freeze probe.
 - [2026-10-24]: The loading splash lives inside #root so React's first render removes it with no script; render-smoke must treat a surviving splash, not an empty #root, as a failed mount.
+- [2026-10-24]: Wails v2 keeps the WebView2 invisible until the first load event, and a static module entry delays load until the whole graph runs; the splash only shows because index.html imports main.tsx from a load listener, which headless Edge cannot verify.

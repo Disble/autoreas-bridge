@@ -60,5 +60,11 @@ screenshot them with headless Edge.
 - Prove the splash paints with no script: fetch the served HTML, strip every `<script>`, add a
   `<base href>` to the server, and screenshot it with headless Edge. Headless Edge writes no
   screenshot when scripts are disabled with `--blink-settings=scriptEnabled=false`.
+- Check the real Wails window, not only headless Edge. Wails keeps the WebView invisible until the
+  `load` event, so a splash can pass every headless check and never appear. The app starts hidden in
+  the tray; launch a second instance to show it. Copy the dev binary under another name first (its
+  WebView2 profile folder derives from the exe name and collides with a running instance), put a
+  proxy that delays `/src/main.tsx` in front of Vite (target `localhost`: Vite listens on `::1`), and
+  capture the window by PID with `EnumWindows` plus `PrintWindow` flag 2.
 - Never retouch frames. Inpainting removed flying popcorn but visibly distorted the hair; a
   regeneration with "every kernel stays inside the bucket" fixed it and costs one generation.

@@ -4,7 +4,7 @@ description: "Trigger: animate Airis, mascot animation, splash screen, sprite sh
 license: Apache-2.0
 metadata:
   author: autoreas-bridge
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 ## Activation Contract
@@ -46,6 +46,8 @@ animation. Static empty-state art follows `docs/design/airis/character.md` inste
 4. `python assets/build-strip.py sheet.png out.webp`: read every cell's baseline and border report.
 5. Mock it in a canvas, get approval, then wire it as `docs/design/airis/splash-screen.md` describes.
 6. Run `bun --cwd="frontend" run render:smoke`; it fails while the splash survives the mount.
+7. Watch it in the real Wails window with a delayed `main.tsx` (`references/process.md` §6): Wails
+   hides the WebView until `load`, which headless Edge never shows.
 
 ## Output Contract
 

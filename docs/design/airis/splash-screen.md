@@ -2,14 +2,28 @@
 
 The window shows Airis running with a bucket of popcorn while the frontend loads. It covers the
 gap between the window opening and React's first render, which is longest on a cold `wails dev`
-start: the whole module graph must arrive before anything evaluates, and until then the window
-only shows `BackgroundColour`.
+start: the whole module graph must arrive before anything evaluates.
+
+## Why the app is imported after `load`
+
+Wails v2 keeps the WebView2 control invisible until the page's first `NavigationCompleted`, which
+fires with the `load` event (`wails/v2/internal/frontend/desktop/windows/frontend.go`,
+`navigationCompleted`). Until then the window shows only `BackgroundColour`. A static
+`<script type="module" src>` delays `load` until its whole import graph has loaded and run, so with
+that tag the splash is in the DOM but never on screen. `index.html` therefore imports
+`./src/main.tsx` from a `load` listener: the window appears as soon as the HTML and the sprite arrive.
+
+Headless Edge has no such gate, so `render:smoke` cannot catch a regression here. Check the real
+window: hold `/src/main.tsx` back with a delaying proxy in front of Vite and capture the window. A
+static entry script shows only the background colour for the whole delay; the deferred import shows
+the splash from the first frame. Measured on 2026-10-24 with an 8 s hold.
 
 ## How it works
 
 | Piece | Where | Rule |
 |---|---|---|
 | Markup and CSS | `frontend/index.html` | Plain HTML and an inline `<style>`; it paints before any script runs |
+| App entry | `frontend/index.html` | `addEventListener('load', () => import('./src/main.tsx'))`, never a static entry script |
 | Removal | `#root` | The splash lives inside `#root`, so React's first render replaces it. No script removes it |
 | Animation | Inline CSS keyframes | Only `transform` and `opacity`, so it keeps running on the compositor while the main thread loads the app |
 | Reduced motion | `prefers-reduced-motion: reduce` | Every animation stops; the first frame stays |

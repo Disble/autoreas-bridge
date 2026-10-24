@@ -197,6 +197,12 @@
         </div>
     </div>
 </div>
-<script src="./src/main.tsx" type="module"></script>
+<script type="module">
+    // Wails keeps the WebView invisible until the page's load event (its first NavigationCompleted),
+    // and a static module script delays that event until the whole module graph has loaded.
+    // Importing the app after load lets the window appear with the splash instead of its bare
+    // background colour.
+    addEventListener('load', () => import('./src/main.tsx'));
+</script>
 </body>
 </html>
