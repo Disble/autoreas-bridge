@@ -1,5 +1,4 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import type { UIEvent } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ActivityFeedSource } from '../../feed-source/feed-source.types';
 import type { ActivityFeedQuery, ActivityFeedView } from '../../feed-source/feed.types';
@@ -24,7 +23,10 @@ function fakeSource(...replies: readonly (ActivityFeedView | Error)[]): Activity
 }
 
 /** A scroll event of a list already at its bottom. */
-const BOTTOM_SCROLL = { currentTarget: { scrollTop: 0, clientHeight: 100, scrollHeight: 100 } } as unknown as UIEvent<HTMLDivElement>;
+/** Scrolls the page, which jsdom reports as already at its bottom. */
+function scrollPage() {
+  window.dispatchEvent(new Event('scroll'));
+}
 
 /** The loaded line ids, newest first. */
 function ids(days: readonly { readonly lines: readonly { readonly line: { readonly id: string } }[] }[]) {
@@ -48,7 +50,7 @@ describe('useActivityFeedPages', () => {
     const { result } = renderHook(() => useActivityFeedPages(source, QUERY));
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
-    act(() => result.current.onScroll(BOTTOM_SCROLL));
+    act(() => scrollPage());
     await waitFor(() => expect(result.current.isLoadingMore).toBe(false));
     act(() => result.current.refreshLive());
     await waitFor(() => expect(source.searchFeed).toHaveBeenCalledTimes(3));
@@ -58,17 +60,32 @@ describe('useActivityFeedPages', () => {
     expect(result.current.status).toBe('ready');
   });
 
+  it('reads no older page while the page is far from its bottom, nor after unmount', async () => {
+    const source = fakeSource(onePage('2', 'c1'), onePage('1'));
+    const { result, unmount } = renderHook(() => useActivityFeedPages(source, QUERY));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    Object.defineProperty(document.documentElement, 'scrollHeight', { configurable: true, value: 10_000 });
+
+    act(() => scrollPage());
+
+    expect(source.searchFeed).toHaveBeenCalledTimes(1);
+    Reflect.deleteProperty(document.documentElement, 'scrollHeight');
+    unmount();
+    scrollPage();
+    expect(source.searchFeed).toHaveBeenCalledTimes(1);
+  });
+
   it('does not read an older page while one is loading or when none remains', async () => {
     const source = fakeSource(onePage('2', 'c1'), onePage('1'));
     const { result } = renderHook(() => useActivityFeedPages(source, QUERY));
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
     act(() => {
-      result.current.onScroll(BOTTOM_SCROLL);
-      result.current.onScroll(BOTTOM_SCROLL);
+      scrollPage();
+      scrollPage();
     });
     await waitFor(() => expect(result.current.hasMore).toBe(false));
-    act(() => result.current.onScroll(BOTTOM_SCROLL));
+    act(() => scrollPage());
 
     expect(source.searchFeed).toHaveBeenCalledTimes(2);
     expect(ids(result.current.days)).toEqual(['2', '1']);

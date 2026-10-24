@@ -36,6 +36,10 @@ const activitySource = { pinMoment: vi.fn(() => Promise.resolve()) } as unknown 
 vi.mock('../../../feed-source/feed-source.helpers', () => ({ createActivityFeedSource: () => feedSource }));
 vi.mock('../../../history-source/history-source.helpers', () => ({ createHistorySource: () => historySource }));
 vi.mock('../../../activity-source/activity-source.helpers', () => ({ createActivitySource: () => activitySource }));
+/** The paired devices the phone status line reads: none unless a test sets them. */
+const getConnectedDevices = vi.fn(() => Promise.resolve<readonly { connection_status: string; last_seen_at_ms: number }[]>([]));
+
+vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({ bridgeRuntimeSource: { getConnectedDevices: () => getConnectedDevices() } }));
 vi.mock('../../ActivityDetailDrawer/ActivityDetailDrawer', () => ({
   /** Stands in for writer B's drawer: shows which line is open. */
   ActivityDetailDrawer: ({ line }: ActivityDetailDrawerProps) => (line === undefined ? null : <aside aria-label="Activity detail">{line.line.id}</aside>),
@@ -93,6 +97,24 @@ afterEach(() => {
 });
 
 describe('ActivityScreen', () => {
+  it('shows the phone status line under the title, connected or offline, only while a phone has synced', async () => {
+    feedSource.searchFeed.mockResolvedValue(page(1, 1));
+    getConnectedDevices.mockResolvedValueOnce([{ connection_status: 'connected', last_seen_at_ms: Date.now() - 5 * 60_000 }]);
+    renderScreen();
+
+    expect(await screen.findByText('Phone connected · last sync 5m ago')).toHaveAttribute('data-phone-status', 'connected');
+
+    cleanup();
+    getConnectedDevices.mockResolvedValueOnce([{ connection_status: 'disconnected', last_seen_at_ms: Date.now() - 5 * 60_000 }]);
+    renderScreen();
+    expect(await screen.findByText('Phone offline · last sync 5m ago')).toHaveAttribute('data-phone-status', 'offline');
+
+    cleanup();
+    renderScreen();
+    await screen.findByLabelText('2 failed');
+    expect(document.querySelector('[data-phone-status]')).toBeNull();
+  });
+
   it('shows only the skeleton while the first page is unread', () => {
     feedSource.searchFeed.mockReturnValue(new Promise(() => undefined));
     renderScreen();
@@ -109,7 +131,7 @@ describe('ActivityScreen', () => {
     expect(screen.getByRole('region', { name: /Oct 22$/ })).toBeInTheDocument();
     expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: '', limit: 40, types: ['change', 'download', 'task', 'edit'] }));
 
-    fireEvent.scroll(screen.getByTestId('activity-feed-scroll'));
+    fireEvent.scroll(window);
 
     await waitFor(() => expect(rows()).toHaveLength(80));
     expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'c1' }));
@@ -120,7 +142,7 @@ describe('ActivityScreen', () => {
     feedSource.searchFeed.mockResolvedValueOnce(page(40, 100, 'c1')).mockResolvedValueOnce(page(40, 60, 'c2'));
     renderScreen();
     await waitFor(() => expect(rows()).toHaveLength(40));
-    fireEvent.scroll(screen.getByTestId('activity-feed-scroll'));
+    fireEvent.scroll(window);
     await waitFor(() => expect(rows()).toHaveLength(80));
     feedSource.searchFeed.mockResolvedValueOnce(page(40, 101, 'fresh'));
     const overviewReads = feedSource.getOverview.mock.calls.length;

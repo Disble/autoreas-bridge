@@ -137,3 +137,19 @@ export interface UseActivityFeedKeyboardScopeOptions {
   /** Closes the failure menu and keeps the failure filter on. */
   readonly onCloseFailureMenu: () => void;
 }
+
+/** The fields of a paired device the phone status line reads (the `getConnectedDevices` binding). */
+export interface ActivityPhoneDevice {
+  /** `connected` while the phone holds a live connection. */
+  readonly connection_status: string;
+  /** The phone's last contact, epoch milliseconds; 0 when it never synced. */
+  readonly last_seen_at_ms: number;
+}
+
+/** The phone status line under the Activity title (S13). */
+export interface ActivityPhoneStatusModel {
+  /** Whether any paired phone is connected: a green dot, else a muted one. */
+  readonly isConnected: boolean;
+  /** "Phone connected · last sync 5m ago" or "Phone offline · last sync 2h ago". */
+  readonly label: string;
+}

@@ -8,6 +8,7 @@ import {
   ACTIVITY_FAILURE_BUTTON_VARIANT,
   ACTIVITY_FAILURE_MENU_ID,
   ACTIVITY_FAILURE_PILL_CLASS,
+  ACTIVITY_FAILURE_PILL_SOFT_CLASS,
   ACTIVITY_FAILURE_POPOVER_CLASS,
   ACTIVITY_FAILURE_POPOVER_STATE_CLASS,
   ACTIVITY_FAILURE_ROW_CLASS,
@@ -32,7 +33,7 @@ export function ActivityFailureButton({ state, count, rows, selectedKeys, disabl
         aria-haspopup="menu"
         aria-label={ACTIVITY_FAILURE_BUTTON_TOOLTIP[state]}
         aria-pressed={state !== 'off'}
-        className={`${ACTIVITY_FAILURE_PILL_CLASS} ${state === 'off' ? 'pr-3' : 'pr-9'}`}
+        className={`${ACTIVITY_FAILURE_PILL_CLASS} ${state === 'off' ? 'pr-3' : 'pr-9'} ${state === 'on' ? '' : ACTIVITY_FAILURE_PILL_SOFT_CLASS}`}
         data-failure-pill
         onPress={onToggle}
         variant={ACTIVITY_FAILURE_BUTTON_VARIANT[state]}

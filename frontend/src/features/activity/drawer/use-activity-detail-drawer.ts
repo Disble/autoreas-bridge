@@ -49,7 +49,7 @@ export function useActivityDetailDrawer(line: ActivityFeedLine, source: Activity
   const status = toDrawerBodyStatus([incidentRead.read, eventRead.read]);
   const header = useMemo(() => toDrawerHeader(line), [line]);
   const summary = useMemo(() => toDrawerSummary(input), [input]);
-  const technicalView = useDrawerTechnical(source, line, incident, input);
+  const technicalView = useDrawerTechnical(source, feedSource, line, incident, input);
   const { technical } = technicalView;
 
   // 6. Callbacks (useCallback calling pure helpers)

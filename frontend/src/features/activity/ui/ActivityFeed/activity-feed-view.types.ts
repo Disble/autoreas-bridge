@@ -1,4 +1,3 @@
-import type { UIEvent } from 'react';
 import type { ActivityFeedDayModel, ActivityFeedResolvedView, ActivityFeedRowModel, ActivityReadStatus } from '../../feed/activity-feed.types';
 
 /** Props of the feed list. */
@@ -15,8 +14,6 @@ export interface ActivityFeedProps {
   readonly isLoadingMore: boolean;
   /** The mark that ends a complete feed. */
   readonly endMark: string;
-  /** Reads the next page near the bottom of the list. */
-  readonly onScroll: (event: UIEvent<HTMLDivElement>) => void;
   /** Opens a row in the detail drawer. */
   readonly onSelectRow: (row: ActivityFeedRowModel) => void;
   /** Reads the feed again after a failure. */

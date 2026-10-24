@@ -52,6 +52,11 @@ export function ActivityDetailDrawerPanel({ line, open, onClose, onTransitionEnd
           <ActivityTechnicalView
             data={drawer.data}
             windowError={drawer.windowError}
+            occurrenceStatus={drawer.occurrenceStatus}
+            occurrences={drawer.occurrences}
+            onPickOccurrence={drawer.pickOccurrence}
+            onRetryOccurrence={drawer.retryOccurrence}
+            selectedOccurrenceId={drawer.selectedOccurrenceId}
             events={drawer.events}
             eventsEmpty={drawer.eventsEmpty}
             gaps={drawer.summary.gaps}
@@ -69,8 +74,8 @@ export function ActivityDetailDrawerPanel({ line, open, onClose, onTransitionEnd
         )}
       </div>
       <p className="flex items-center gap-1.5 text-xs text-muted">
-        <Kbd className="text-[11px]">↑</Kbd>
-        <Kbd className="text-[11px]">↓</Kbd>
+        <Kbd className="h-auto rounded-md px-1.5 py-px text-[11px] font-normal text-foreground">↑</Kbd>
+        <Kbd className="h-auto rounded-md px-1.5 py-px text-[11px] font-normal text-foreground">↓</Kbd>
         <span>{ACTIVITY_DRAWER_KEYS_HINT}</span>
       </p>
     </aside>

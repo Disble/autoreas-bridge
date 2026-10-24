@@ -140,7 +140,7 @@ describe('toDrawerSummary', () => {
 
     const { sections, gaps } = toDrawerSummary(input({ line, metadata: { kind: 'render', route: '/editor', message: 'TypeError' } }));
 
-    expect(sectionOf(sections, 'cause').cause).toEqual({ sentence: 'The /editor page crashed while drawing.', recordedMessage: '', code: 'render' });
+    expect(sectionOf(sections, 'cause').cause).toEqual({ sentence: 'The Editor page crashed while drawing.', recordedMessage: '', code: 'render' });
     expect(sectionOf(sections, 'code')).toMatchObject({ title: 'Message', text: 'TypeError' });
     expect(gaps).toEqual([]);
   });

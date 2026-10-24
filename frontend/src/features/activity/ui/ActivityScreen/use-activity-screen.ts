@@ -101,7 +101,6 @@ export function useActivityScreen(
       hasMore: pages.hasMore,
       isLoadingMore: pages.isLoadingMore,
       endMark: toFeedEndMark(filters),
-      onScroll: pages.onScroll,
     },
     ...openLine,
     isPinning,

@@ -17,6 +17,8 @@ export interface DrawerFact {
   readonly value: string;
   /** Whether label and value are monospace (stored keys and raw values). */
   readonly mono: boolean;
+  /** A muted note after the value, such as the stored route after a page name; undefined when none. */
+  readonly note: string | undefined;
   /** An amber chip after the value, such as `6 h 31 min late`; undefined when none. */
   readonly warnChip: string | undefined;
 }
@@ -159,6 +161,8 @@ export interface DrawerWindowErrorDetail {
   readonly facts: readonly DrawerFact[];
   /** The stored message, else the event message. */
   readonly message: string;
+  /** Whether the stored stack reached the report limit, so it was cut. */
+  readonly stackCut: boolean;
   /** The stored stack; empty when none was reported. */
   readonly stack: string;
 }
@@ -201,4 +205,20 @@ export interface DrawerTransitionEnd {
   readonly target: unknown;
   /** The panel the handler sits on. */
   readonly currentTarget: unknown;
+}
+
+/** One occurrence of the occurrence picker. */
+export interface DrawerOccurrence {
+  /** Incident occurrence id, read with `GetActivityIncident`. */
+  readonly id: number;
+  /** Clock time. */
+  readonly time: string;
+}
+
+/** An occurrence the owner picked, remembered with the line it was picked in. */
+export interface DrawerPickedOccurrence {
+  /** The line it was picked in. */
+  readonly lineKey: string;
+  /** The picked occurrence id. */
+  readonly id: number;
 }

@@ -17,19 +17,18 @@ export function ActivityFeedRow({ row, onSelect }: ActivityFeedRowProps) {
       aria-current={row.isOpen ? 'true' : undefined}
       className={`${ACTIVITY_FEED_ROW_CLASS} h-auto justify-start text-left font-normal ${row.isOpen ? 'bg-default' : ''}`}
       data-feed-row={row.key}
-      fullWidth
       onPress={() => onSelect(row)}
       variant="ghost"
     >
-      <span className="w-12 shrink-0 text-sm tabular-nums text-muted">{row.time}</span>
-      <span aria-label={row.originLabel} className={`grid size-7 shrink-0 place-items-center rounded-md ${ACTIVITY_ROW_TILE_CLASS[row.health]}`} role="img" title={row.originLabel}>
+      <span className="w-[52px] shrink-0 text-[13px] leading-normal tabular-nums text-muted">{row.time}</span>
+      <span aria-label={row.originLabel} className={`grid size-7 shrink-0 place-items-center rounded-lg ${ACTIVITY_ROW_TILE_CLASS[row.health]}`} role="img" title={row.originLabel}>
         <Icon aria-hidden icon={row.origin === 'phone' ? phoneIcon : bridgeIcon} />
       </span>
       <span className="flex min-w-0 flex-1 items-baseline gap-2">
-        <span className="truncate text-sm font-medium text-foreground">{row.subject}</span>
-        {row.detail === '' ? null : <span className={`truncate text-sm ${ACTIVITY_ROW_DETAIL_CLASS[row.health]}`}>{row.detail}</span>}
+        <span className="truncate text-sm font-medium leading-normal text-foreground">{row.subject}</span>
+        {row.detail === '' ? null : <span className={`truncate text-sm leading-normal ${ACTIVITY_ROW_DETAIL_CLASS[row.health]}`}>{row.detail}</span>}
       </span>
-      <Icon aria-hidden className="shrink-0 text-muted" icon={chevronIcon} />
+      <Icon aria-hidden className="size-[18px] shrink-0 text-muted" icon={chevronIcon} />
     </Button>
   );
 }

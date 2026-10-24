@@ -33,10 +33,10 @@ export const ACTIVITY_FAILURE_BUTTON_TOOLTIP: Readonly<Record<ActivityFailureBut
 };
 
 /** A type's gray count chip. */
-export const ACTIVITY_COUNT_CHIP_CLASS = 'rounded-full bg-background/40 px-1.5 text-[11px] leading-4 tabular-nums';
+export const ACTIVITY_COUNT_CHIP_CLASS = 'rounded-full bg-background/40 px-1.5 text-[11px] font-normal leading-normal tabular-nums';
 
 /** A type's red chip with its failures (design, Filters): no alert icon, the tooltip "N failed". */
-export const ACTIVITY_FAILED_CHIP_CLASS = 'rounded-full bg-danger/20 px-1.5 text-[11px] leading-4 tabular-nums text-danger';
+export const ACTIVITY_FAILED_CHIP_CLASS = 'rounded-full bg-danger/20 px-1.5 text-[11px] font-normal leading-normal tabular-nums text-danger';
 
 /**
  * The failure pill: 36px tall and fully round, its alert icon before the
@@ -78,3 +78,10 @@ export const ACTIVITY_FAILURE_POPOVER_STATE_CLASS = {
     'invisible opacity-0 [clip-path:inset(0_0_calc(100%_-_48px)_calc(100%_-_var(--bw,60px)_-_12px)_round_24px)] [transition:clip-path_.2s_cubic-bezier(.2,0,0,1),opacity_.12s_ease-out,visibility_0s_linear_.2s]',
   open: 'visible opacity-100 [clip-path:inset(0_0_0_0_round_1rem)] [transition:clip-path_.2s_cubic-bezier(.2,0,0,1),opacity_.08s_ease-out,visibility_0s]',
 } as const;
+
+/**
+ * The pill's soft red while the filter is off or its menu is open (mockup
+ * `.ax-failbtn`): danger at 18% over the toolbar, its text danger mixed 70%
+ * into the foreground.
+ */
+export const ACTIVITY_FAILURE_PILL_SOFT_CLASS = 'bg-[color-mix(in_oklab,var(--danger)_18%,transparent)] text-[color-mix(in_oklab,var(--danger)_70%,var(--foreground))]';

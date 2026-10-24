@@ -2,7 +2,7 @@ import { Card } from '@heroui/react';
 import { parseDate } from '@internationalized/date';
 import { createRef, useEffect, useState } from 'react';
 import { toChartBars } from '../../src/features/activity/feed/activity-chart.helpers';
-import { ACTIVITY_FAILURE_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TOGGLE_TYPES } from '../../src/features/activity/feed/activity-feed.constants';
+import { ACTIVITY_CARD_CLASS, ACTIVITY_FAILURE_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TOGGLE_TYPES } from '../../src/features/activity/feed/activity-feed.constants';
 import type { ActivityFailureButtonState, ActivityTypeToggleModel } from '../../src/features/activity/feed/activity-feed.types';
 import type { ActivityChartSlot } from '../../src/features/activity/feed-source/feed.types';
 import { toDrawerHeader, toDrawerSummary } from '../../src/features/activity/drawer/drawer-summary.helpers';
@@ -243,11 +243,14 @@ export function ActivityFeedFixture() {
       {COLUMN_WIDTHS_PX.map((width) => (
         <div className="flex flex-col gap-5" data-activity-feed-fixture={width} key={width} style={{ width: `${width}px`, maxWidth: '100%' }}>
           <ActivityScreenParts width={width} />
-          <div className="flex flex-col">
-            {HOSTILE_ROWS.map((row) => (
-              <ActivityFeedRow key={row.key} onSelect={() => undefined} row={row} />
-            ))}
-          </div>
+          {/* Inside the feed card, as the screen mounts them: rows reach 8px into its padding. */}
+          <Card className={ACTIVITY_CARD_CLASS}>
+            <Card.Content className="flex flex-col">
+              {HOSTILE_ROWS.map((row) => (
+                <ActivityFeedRow key={row.key} onSelect={() => undefined} row={row} />
+              ))}
+            </Card.Content>
+          </Card>
           <ActivityDrawerHeader header={toDrawerHeader(FAILED_RUN)} onClose={() => undefined} onCopy={() => undefined} onToggleTechnical={() => undefined} technical={false} />
           <ActivityDrawerSummary sections={RUN_SECTIONS} />
         </div>

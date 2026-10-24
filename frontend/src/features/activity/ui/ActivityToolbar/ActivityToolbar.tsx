@@ -35,10 +35,10 @@ export function ActivityToolbar({
   return (
     <div className="flex flex-wrap items-center gap-2.5 border-b border-separator pb-3.5" role="toolbar" aria-label="Activity filters">
       {/* The clear × sits inside the field visually but outside the picker: React Aria makes any button in the picker its trigger. */}
-      <div className="relative flex min-w-0 max-w-[360px] flex-[1_1_220px] items-center">
+      <div className="relative flex w-max min-w-[250px] max-w-full flex-none items-center">
         <DateRangePicker aria-label="Time range" className="w-full" maxValue={calendarMax} minValue={calendarMin} onChange={onCalendarChange} value={calendarValue}>
           <DateField.Group className="h-9 w-full rounded-xl" variant="secondary">
-            <DateRangePicker.Trigger aria-label={`Time range, ${rangeLabel}`} className={hasRange ? 'h-full w-full justify-start gap-2 pl-3 pr-9' : 'h-full w-full justify-start gap-2 px-3'}>
+            <DateRangePicker.Trigger aria-label={`Time range, ${rangeLabel}`} className="h-full w-full justify-start gap-2 pl-3 pr-9">
               <Icon aria-hidden className="shrink-0 text-muted" icon={calendarIcon} />
               <span className={hasRange ? 'truncate tabular-nums text-field-foreground' : 'truncate tabular-nums text-field-placeholder'}>{rangeLabel}</span>
             </DateRangePicker.Trigger>
@@ -77,10 +77,10 @@ export function ActivityToolbar({
           All
         </ToggleButton>
         <ToggleButton aria-label="Phone" className={ACTIVITY_SEGMENT_BUTTON_CLASS} id="phone" variant="ghost">
-          <Icon aria-hidden icon={phoneIcon} />
+          <Icon aria-hidden className="mx-0 size-4" icon={phoneIcon} />
         </ToggleButton>
         <ToggleButton aria-label="Bridge" className={ACTIVITY_SEGMENT_BUTTON_CLASS} id="bridge" variant="ghost">
-          <Icon aria-hidden icon={bridgeIcon} />
+          <Icon aria-hidden className="mx-0 size-4" icon={bridgeIcon} />
         </ToggleButton>
       </ToggleButtonGroup>
       <div className="flex min-w-0 flex-[1_1_auto] items-center gap-2.5" data-activity-types-row>

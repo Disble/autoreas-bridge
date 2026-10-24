@@ -21,3 +21,12 @@ export const ACTIVITY_DRAWER_SHADOW_CLASS = 'shadow-[inset_0_0_1px_0_#ffffff4d,-
 
 /** The drawer footer hint of the feed's ↑ / ↓ keys (design doc, Detail drawer; no registry entry carries it). */
 export const ACTIVITY_DRAWER_KEYS_HINT = 'previous or next event';
+
+/** The mockup's failure text tone (`.ax-list .bad`, `.ax-dw-sub.bad`): danger mixed 65% into the foreground. */
+export const ACTIVITY_DRAWER_FAILED_TEXT_CLASS = 'text-[color-mix(in_oklab,var(--danger)_65%,var(--foreground))]';
+
+/** A stored code box of the summary (`.ax-code`): the page background, 12px radius, 12px by 14px inset. */
+export const ACTIVITY_DRAWER_CODE_CLASS = 'overflow-x-auto rounded-xl bg-background px-3.5 py-3 font-mono text-xs leading-[1.55] whitespace-pre-wrap';
+
+/** The header's icon-only actions as the mockup's `.ax-ib.sm`: 28px and muted, the foreground on hover. */
+export const ACTIVITY_DRAWER_ACTIONS_CLASS = 'flex shrink-0 items-center gap-0.5 [&_button]:size-7 [&_button]:min-w-7 [&_button]:text-muted [&_button:hover]:text-foreground';

@@ -5,7 +5,7 @@ import { CodeBlock } from '../../../../shared/ui/CodeBlock/CodeBlock';
 import type { DrawerTechnicalTab } from '../../drawer/drawer.types';
 import { ActivityTechnicalRequests } from './ActivityTechnicalRequests';
 import { ActivityTechnicalWindowError } from './ActivityTechnicalWindowError';
-import { ACTIVITY_TECHNICAL_LEVEL_COLORS, ACTIVITY_TECHNICAL_TAB_LABELS } from './activity-technical-view.constants';
+import { ACTIVITY_TECHNICAL_LEVEL_COLORS, ACTIVITY_TECHNICAL_TAB_INDICATOR_CLASS, ACTIVITY_TECHNICAL_TAB_LABELS } from './activity-technical-view.constants';
 import type { ActivityTechnicalViewProps } from './activity-technical-view.types';
 
 /**
@@ -21,13 +21,13 @@ export function ActivityTechnicalView(props: ActivityTechnicalViewProps) {
           <span>{gap}</span>
         </p>
       ))}
-      <Tabs className="gap-4" onSelectionChange={(key) => props.onSelectTab(String(key) as DrawerTechnicalTab)} selectedKey={props.tab}>
-        <Tabs.ListContainer className="w-fit">
-          <Tabs.List aria-label="Technical details">
+      <Tabs className="gap-5" onSelectionChange={(key) => props.onSelectTab(String(key) as DrawerTechnicalTab)} selectedKey={props.tab}>
+        <Tabs.ListContainer className="w-fit rounded-xl">
+          <Tabs.List aria-label="Technical details" className="gap-0.5 p-[3px]">
             {props.tabs.map((tab) => (
-              <Tabs.Tab className="h-7 px-3 text-[12.5px] whitespace-nowrap" id={tab} key={tab}>
+              <Tabs.Tab className="h-[30px] w-auto min-w-[30px] rounded-[9.6px] px-2.5 text-[13px] font-normal whitespace-nowrap" id={tab} key={tab}>
                 {ACTIVITY_TECHNICAL_TAB_LABELS[tab]}
-                <Tabs.Indicator />
+                <Tabs.Indicator className={ACTIVITY_TECHNICAL_TAB_INDICATOR_CLASS} />
               </Tabs.Tab>
             ))}
           </Tabs.List>
@@ -49,9 +49,9 @@ export function ActivityTechnicalView(props: ActivityTechnicalViewProps) {
           {props.eventsEmpty !== '' && <p className="text-sm text-muted">{props.eventsEmpty}</p>}
           <ul aria-label="Events" className="flex flex-col text-[13px]">
             {props.events.map((event) => (
-              <li className="grid grid-cols-[64px_52px_minmax(0,1fr)] items-baseline gap-2.5 py-2 [&+&]:border-t [&+&]:border-separator" key={event.key}>
-                <span className="font-mono text-xs text-muted tabular-nums">{event.time}</span>
-                <Chip color={ACTIVITY_TECHNICAL_LEVEL_COLORS[event.level] ?? 'default'} size="sm" variant="soft">
+              <li className="grid grid-cols-[64px_52px_minmax(0,1fr)] items-baseline gap-2.5 py-2 [&+&]:shadow-[0_-1px_0_var(--separator)]" key={event.key}>
+                <span className="font-mono text-[13px] text-muted tabular-nums">{event.time}</span>
+                <Chip className="h-auto min-w-[52px] justify-center rounded-full px-1.5 py-px text-[11px] font-normal" color={ACTIVITY_TECHNICAL_LEVEL_COLORS[event.level] ?? 'default'} size="sm" variant="soft">
                   {event.level}
                 </Chip>
                 <span className="min-w-0 break-words">
@@ -62,9 +62,19 @@ export function ActivityTechnicalView(props: ActivityTechnicalViewProps) {
             ))}
           </ul>
         </Tabs.Panel>
-        <Tabs.Panel className="flex flex-col gap-4 p-0" id="data">
-          {props.windowError !== undefined && <ActivityTechnicalWindowError detail={props.windowError} />}
+        <Tabs.Panel className="flex flex-col gap-5 p-0" id="data">
+          {(props.windowError !== undefined || props.occurrences.length > 0) && (
+            <ActivityTechnicalWindowError
+              detail={props.windowError}
+              occurrenceStatus={props.occurrenceStatus}
+              occurrences={props.occurrences}
+              onPickOccurrence={props.onPickOccurrence}
+              onRetryOccurrence={props.onRetryOccurrence}
+              selectedOccurrenceId={props.selectedOccurrenceId}
+            />
+          )}
           {props.windowError === undefined &&
+            props.occurrences.length === 0 &&
             props.data.map((block) => (
               <CodeBlock key={block.label} label={block.label} notice="Nothing was stored." raw={block.raw} state={block.raw === '' ? 'not-captured' : 'captured'} />
             ))}

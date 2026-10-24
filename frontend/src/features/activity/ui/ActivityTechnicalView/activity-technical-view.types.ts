@@ -1,4 +1,5 @@
-import type { DrawerDataBlock, DrawerEventRow, DrawerRequestGroup, DrawerRequestPanel, DrawerTechnicalTab, DrawerWindowErrorDetail } from '../../drawer/drawer.types';
+import type { DrawerBodyStatus } from '../../drawer/drawer-reads.helpers';
+import type { DrawerDataBlock, DrawerEventRow, DrawerOccurrence, DrawerRequestGroup, DrawerRequestPanel, DrawerTechnicalTab, DrawerWindowErrorDetail } from '../../drawer/drawer.types';
 import type { ActivityRead } from '../ActivityRunStory/activity-run-story.types';
 
 /** Props of the technical view of the detail drawer. */
@@ -33,6 +34,16 @@ export interface ActivityTechnicalViewProps {
   readonly data: readonly DrawerDataBlock[];
   /** The stored window error, shown in Data instead of the raw blocks; undefined for other events. */
   readonly windowError: DrawerWindowErrorDetail | undefined;
+  /** The occurrences of a repeated window error; empty when it did not repeat. */
+  readonly occurrences: readonly DrawerOccurrence[];
+  /** The shown occurrence id; undefined without occurrences. */
+  readonly selectedOccurrenceId: number | undefined;
+  /** The read state of the shown occurrence. */
+  readonly occurrenceStatus: DrawerBodyStatus;
+  /** Picks an occurrence. */
+  readonly onPickOccurrence: (id: number) => void;
+  /** Reads the picked occurrence again. */
+  readonly onRetryOccurrence: () => void;
 }
 
 /** Props of the Requests tab. */
@@ -60,7 +71,8 @@ export interface ActivityTechnicalRequestPanelProps {
 }
 
 /** Props of the Data tab of a window error. */
-export interface ActivityTechnicalWindowErrorProps {
-  /** The stored window error. */
-  readonly detail: DrawerWindowErrorDetail;
+export interface ActivityTechnicalWindowErrorProps
+  extends Pick<ActivityTechnicalViewProps, 'occurrences' | 'selectedOccurrenceId' | 'occurrenceStatus' | 'onPickOccurrence' | 'onRetryOccurrence'> {
+  /** The shown window error; undefined while a picked occurrence is not read. */
+  readonly detail: DrawerWindowErrorDetail | undefined;
 }

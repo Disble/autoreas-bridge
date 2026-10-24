@@ -8,6 +8,7 @@ import type {
   ActivityDrawerListProps,
   ActivityDrawerStatsProps,
 } from './activity-detail-drawer.types';
+import { ACTIVITY_DRAWER_FAILED_TEXT_CLASS } from './activity-detail-drawer.constants';
 
 /** The before and after values of a change, with an arrow between them. */
 export function ActivityDrawerBeforeAfter({ section }: ActivityDrawerBeforeAfterProps) {
@@ -43,12 +44,13 @@ export function ActivityDrawerStats({ section }: ActivityDrawerStatsProps) {
 /** The label and value rows of a facts section, each with its optional warning chip. */
 export function ActivityDrawerFacts({ section }: ActivityDrawerFactsProps) {
   return (
-    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-sm">
+    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
       {section.rows.map((row) => (
         <div className="contents" key={row.key}>
-          <dt className={`text-muted ${row.mono ? 'font-mono text-xs' : ''}`}>{row.label}</dt>
-          <dd className={`flex min-w-0 flex-wrap items-center gap-2 break-words ${row.mono ? 'font-mono text-xs' : ''}`}>
-            {row.value}
+          <dt className="text-muted">{row.label}</dt>
+          <dd className="flex min-w-0 flex-wrap items-center justify-end gap-x-1.5 gap-y-1 text-right tabular-nums [overflow-wrap:anywhere]">
+            <span className={row.mono ? 'font-mono text-xs' : ''}>{row.value}</span>
+            {row.note !== undefined && <span className="font-mono text-muted">{row.note}</span>}
             {row.warnChip !== undefined && (
               <Chip color="warning" size="sm" variant="soft">
                 {row.warnChip}
@@ -64,13 +66,11 @@ export function ActivityDrawerFacts({ section }: ActivityDrawerFactsProps) {
 /** The cause of a failure: its sentence, else the recorded message, and its code chip. */
 export function ActivityDrawerCause({ section }: ActivityDrawerCauseProps) {
   return (
-    <div className="flex flex-col gap-2 rounded-lg bg-surface-secondary p-3">
-      {section.cause.sentence === undefined && <small className="text-xs text-muted">Recorded message</small>}
-      <p className="text-sm break-words">{section.cause.sentence ?? section.cause.recordedMessage}</p>
+    <div className="flex flex-col rounded-xl bg-[color-mix(in_oklab,var(--danger)_12%,transparent)] px-3.5 py-3 text-sm leading-[1.45]">
+      {section.cause.sentence === undefined && <small className="mb-1 text-xs text-muted">Recorded message</small>}
+      <p className={section.cause.sentence === undefined ? 'font-mono text-[13px] [overflow-wrap:anywhere]' : 'break-words'}>{section.cause.sentence ?? section.cause.recordedMessage}</p>
       {section.cause.code !== '' && (
-        <Chip className="self-start font-mono" size="sm" variant="soft">
-          {section.cause.code}
-        </Chip>
+        <span className="mt-2 self-start rounded-full bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)] px-2 py-px font-mono text-xs text-muted">{section.cause.code}</span>
       )}
     </div>
   );
@@ -79,11 +79,11 @@ export function ActivityDrawerCause({ section }: ActivityDrawerCauseProps) {
 /** The timed rows of a list section; failed rows show in red. */
 export function ActivityDrawerList({ section }: ActivityDrawerListProps) {
   return (
-    <ul className="flex flex-col gap-1 text-sm">
+    <ul className="flex flex-col">
       {section.items.map((item) => (
-        <li className="flex gap-3" key={item.key}>
-          <span className="shrink-0 text-muted tabular-nums">{item.time}</span>
-          <span className={`min-w-0 break-words ${item.failed ? 'text-danger' : ''}`}>{item.text}</span>
+        <li className="grid grid-cols-[52px_minmax(0,1fr)] gap-2.5 py-2 text-sm [&+&]:shadow-[0_-1px_0_var(--separator)]" key={item.key}>
+          <span className="text-[13px] text-muted tabular-nums">{item.time}</span>
+          <span className={`min-w-0 break-words ${item.failed ? ACTIVITY_DRAWER_FAILED_TEXT_CLASS : ''}`}>{item.text}</span>
         </li>
       ))}
     </ul>

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { UIEvent } from 'react';
 import { isNearListBottom } from '../../../shared/helpers/progressive-list.helpers';
 import type { ActivityFeedSource } from '../feed-source/feed-source.types';
 import type { ActivityFeedDay, ActivityFeedQuery } from '../feed-source/feed.types';
@@ -8,8 +7,9 @@ import type { ActivityReadStatus } from './activity-feed.types';
 
 /**
  * Owns the feed's paged reads for one query: the first page, read again
- * whenever the query changes; older pages read through the cursor near the
- * bottom of the list; and a live refresh that merges a fresh first page
+ * whenever the query changes; older pages read through the cursor once the
+ * page nears its bottom (the feed flows with the page, so the document is what
+ * scrolls); and a live refresh that merges a fresh first page
  * without shrinking the loaded window (ADR-012, live variant). A read started
  * under an older query is dropped when it resolves. A failed older page or
  * live refresh keeps the rows on screen.
@@ -111,21 +111,23 @@ export function useActivityFeedPages(source: ActivityFeedSource, query: Activity
       .catch(() => undefined);
   }, [query, showPage, source]);
 
-  const onScroll = useCallback(
-    (event: UIEvent<HTMLDivElement>) => {
-      const element = event.currentTarget;
-      // A cursor exists only after a query read a page, so the query check never fails first.
-      if (cursorRef.current !== '' && !isLoadingMoreRef.current && isNearListBottom(element.scrollTop, element.clientHeight, element.scrollHeight) && query !== undefined) {
-        loadOlderPage(query);
-      }
-    },
-    [loadOlderPage, query],
-  );
+  const onPageScroll = useCallback(() => {
+    const page = document.documentElement;
+    // A cursor exists only after a query read a page, so the query check never fails first.
+    if (cursorRef.current !== '' && !isLoadingMoreRef.current && isNearListBottom(window.scrollY, window.innerHeight, page.scrollHeight) && query !== undefined) {
+      loadOlderPage(query);
+    }
+  }, [loadOlderPage, query]);
 
   // 7. Effects
   useEffect(() => {
     loadFirstPage();
   }, [loadFirstPage]);
 
-  return { status, days, hasMore: cursor !== '', isLoadingMore, onScroll, refreshLive, retry: loadFirstPage };
+  useEffect(() => {
+    window.addEventListener('scroll', onPageScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onPageScroll);
+  }, [onPageScroll]);
+
+  return { status, days, hasMore: cursor !== '', isLoadingMore, refreshLive, retry: loadFirstPage };
 }

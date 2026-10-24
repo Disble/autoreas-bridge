@@ -28,6 +28,11 @@ function props(overrides: Partial<ActivityTechnicalViewProps> = {}): ActivityTec
     eventsEmpty: '',
     data: [],
     windowError: undefined,
+    occurrences: [],
+    selectedOccurrenceId: undefined,
+    occurrenceStatus: 'ready',
+    onPickOccurrence: vi.fn(),
+    onRetryOccurrence: vi.fn(),
     ...overrides,
   };
 }
@@ -107,7 +112,7 @@ describe('ActivityTechnicalView', () => {
     ['with a stack', 'at EpisodeStrip (index.js:1:2)', true],
     ['without a stack', '', false],
   ])('shows a window error %s from its stored fields instead of raw blocks', (_name, stack, hasStack) => {
-    const windowError = { facts: [{ key: 'page', label: 'Page', value: '/editor', mono: true, warnChip: undefined }], message: 'TypeError: boom', stack };
+    const windowError = { facts: [{ key: 'page', label: 'Page', value: '/editor', mono: true, warnChip: undefined, note: undefined }], message: 'TypeError: boom', stack, stackCut: false };
     render(<ActivityTechnicalView {...props({ tab: 'data', data: [{ label: 'Event', raw: '{}' }], windowError })} />);
 
     expect(screen.getByRole('region', { name: 'Window error' })).toHaveTextContent('/editor');
@@ -168,5 +173,58 @@ describe('ActivityTechnicalView', () => {
     expect(screen.getAllByText('Cut at 64 KB')).toHaveLength(1);
     expect(screen.getByText('No request body was captured.')).toBeInTheDocument();
     expect(screen.getByText('No response body was captured.')).toBeInTheDocument();
+  });
+
+  it('picks an occurrence of a repeated window error from its times', () => {
+    const onPickOccurrence = vi.fn();
+    const windowError = { facts: [], message: 'TypeError: boom', stack: '', stackCut: false };
+    const occurrences = [
+      { id: 93, time: '11:23' },
+      { id: 92, time: '11:21' },
+    ];
+    render(<ActivityTechnicalView {...props({ tab: 'data', windowError, occurrences, selectedOccurrenceId: 93, onPickOccurrence })} />);
+
+    expect(screen.getByRole('radiogroup', { name: 'Occurrence' })).toHaveTextContent('11:2311:21');
+    expect(screen.getByRole('radio', { name: '11:23' })).toBeChecked();
+    fireEvent.click(screen.getByRole('radio', { name: '11:21' }));
+    expect(onPickOccurrence).toHaveBeenCalledWith(92);
+  });
+
+  it('shows no occurrence picker for a window error that did not repeat', () => {
+    render(<ActivityTechnicalView {...props({ tab: 'data', windowError: { facts: [], message: 'm', stack: '', stackCut: false } })} />);
+
+    expect(screen.queryByRole('radiogroup', { name: 'Occurrence' })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['loading', 'Loading the occurrence', 'This occurrence could not be read'],
+    ['failed', 'This occurrence could not be read', 'Loading the occurrence'],
+  ] as const)('shows only the %s state of a picked occurrence', (occurrenceStatus, present, absent) => {
+    const occurrences = [
+      { id: 93, time: '11:23' },
+      { id: 92, time: '11:21' },
+    ];
+    render(<ActivityTechnicalView {...props({ tab: 'data', occurrences, selectedOccurrenceId: 92, occurrenceStatus })} />);
+
+    expect(screen.getByText(present)).toBeInTheDocument();
+    expect(screen.queryByText(absent)).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Message' })).not.toBeInTheDocument();
+  });
+
+  it('reads a failed occurrence again from Try again', () => {
+    const onRetryOccurrence = vi.fn();
+    render(<ActivityTechnicalView {...props({ tab: 'data', occurrences: [{ id: 93, time: '11:23' }], selectedOccurrenceId: 93, occurrenceStatus: 'failed', onRetryOccurrence })} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(onRetryOccurrence).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['a stack at the report limit', true, 1],
+    ['a shorter stack', false, 0],
+  ])('marks %s as cut', (_name, stackCut, count) => {
+    render(<ActivityTechnicalView {...props({ tab: 'data', windowError: { facts: [], message: 'm', stack: 'at A', stackCut } })} />);
+
+    expect(screen.queryAllByText('Cut at 8 KB')).toHaveLength(count);
   });
 });

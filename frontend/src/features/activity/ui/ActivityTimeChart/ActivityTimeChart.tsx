@@ -1,5 +1,5 @@
 import { Alert, Button, Card, Skeleton, ToggleButton, ToggleButtonGroup, Typography } from '@heroui/react';
-import { ACTIVITY_CHART_BARS_CLASS, ACTIVITY_CHART_SKELETON_BARS, ACTIVITY_SCALE_BUTTON_CLASS, ACTIVITY_SCALE_GROUP_CLASS, ACTIVITY_SCALE_OPTIONS, ACTIVITY_SKELETON_SHIMMER_CLASS } from '../../feed/activity-feed.constants';
+import { ACTIVITY_CHART_BARS_CLASS, ACTIVITY_CHART_SKELETON_BARS, ACTIVITY_SCALE_BUTTON_CLASS, ACTIVITY_SCALE_GROUP_CLASS, ACTIVITY_CARD_CLASS, ACTIVITY_SCALE_OPTIONS, ACTIVITY_SKELETON_SHIMMER_CLASS } from '../../feed/activity-feed.constants';
 import { ACTIVITY_BAR_FILL_CLASS, ACTIVITY_BAR_NOW_CLASS, ACTIVITY_BAR_SLOT_CLASS, ACTIVITY_CHART_DENSITY_CLASS, ACTIVITY_CHART_LOADING_LABEL } from './activity-time-chart.constants';
 import type { ActivityTimeChartProps } from './activity-time-chart.types';
 
@@ -24,10 +24,10 @@ export function ActivityTimeChart({
   onRetry,
 }: ActivityTimeChartProps) {
   return (
-    <Card>
+    <Card className={ACTIVITY_CARD_CLASS}>
       <Card.Content className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Typography className="text-muted" id="activity-chart-title" type="body-sm">
+          <Typography className="text-sm leading-normal text-muted" id="activity-chart-title" type="body-sm">
             {title}
           </Typography>
           <ToggleButtonGroup
@@ -119,13 +119,13 @@ export function ActivityTimeChart({
                 </span>
               ))}
             </div>
-            <div className="mt-2.5 flex gap-4 text-xs text-muted">
+            <div className="mt-2.5 flex gap-4 text-xs leading-normal text-muted">
               <span className="flex items-center gap-1.5">
-                <span className="h-2 w-3 rounded-sm bg-accent/75" />
+                <span className={`h-2 w-3 rounded-[2px] ${ACTIVITY_BAR_FILL_CLASS.idle}`} />
                 Activity
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="h-2 w-3 rounded-sm bg-danger" />
+                <span className="h-2 w-3 rounded-[2px] bg-danger" />
                 Something failed
               </span>
             </div>

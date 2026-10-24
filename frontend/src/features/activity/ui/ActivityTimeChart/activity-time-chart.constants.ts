@@ -2,9 +2,9 @@ import type { ActivityChartBarState } from '../../feed/activity-feed.types';
 
 /** Fill of a bar by selection state: blue activity, full accent inside a selection, faded outside it. */
 export const ACTIVITY_BAR_FILL_CLASS: Readonly<Record<ActivityChartBarState, string>> = {
-  idle: 'bg-accent/75',
+  idle: 'bg-[color-mix(in_oklab,var(--accent)_75%,var(--background))]',
   selected: 'bg-accent',
-  dimmed: 'bg-accent/75 opacity-35',
+  dimmed: 'bg-[color-mix(in_oklab,var(--accent)_75%,var(--background))] opacity-35',
 };
 
 /** The slot behind a bar by selection state: a selected slot is tinted across its full height. */

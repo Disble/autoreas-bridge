@@ -7,10 +7,13 @@ import type { ActivityFeedProps } from './activity-feed-view.types';
 
 /**
  * The feed: day groups with sticky headers, newest first, in a scroll
- * container that reads the next page near its bottom. Loading, empty and
+ * list that flows with the page, which reads the next page near the page's
+ * bottom. Day headers stick to the top of the window, below the mobile app
+ * bar. Rows reach 8px into the card's padding (mockup `.ax-row` margin), so
+ * their text lines up with the toolbar. Loading, empty and
  * failure are exclusive. A complete feed ends with its start mark.
  */
-export function ActivityFeed({ status, resolvedView, days, hasMore, isLoadingMore, endMark, onScroll, onSelectRow, onRetry }: ActivityFeedProps) {
+export function ActivityFeed({ status, resolvedView, days, hasMore, isLoadingMore, endMark, onSelectRow, onRetry }: ActivityFeedProps) {
   if (status === 'loading') {
     return <ActivityFeedSkeleton label={ACTIVITY_FEED_LOADING_LABEL} labelId="activity-feed-loading" />;
   }
@@ -33,15 +36,15 @@ export function ActivityFeed({ status, resolvedView, days, hasMore, isLoadingMor
     return <AirisEmptyState description={copy.description} kind="filtered" size="section" title={copy.title} />;
   }
   return (
-    <div aria-busy={isLoadingMore} className="flex max-h-[36rem] min-h-0 flex-col overflow-y-auto" data-testid="activity-feed-scroll" onScroll={onScroll}>
+    <div aria-busy={isLoadingMore} className="flex flex-col" data-testid="activity-feed-list">
       {days.map((day) => (
         <section aria-label={day.label} className="flex flex-col" key={day.key}>
-          <div className="sticky top-0 z-10 bg-surface py-1.5">
-            <Typography color="muted" type="body-sm">
+          <div className="sticky top-14 z-10 bg-surface pb-1.5 pt-4 md:top-0">
+            <Typography className="text-[13px] font-semibold leading-normal" color="muted" type="body-sm">
               {day.label}
             </Typography>
           </div>
-          <ul className="flex flex-col">
+          <ul className="flex flex-col [&>li+li]:shadow-[0_-1px_0_var(--separator)]">
             {day.rows.map((row) => (
               <li key={row.key}>
                 <ActivityFeedRow onSelect={onSelectRow} row={row} />
@@ -52,9 +55,12 @@ export function ActivityFeed({ status, resolvedView, days, hasMore, isLoadingMor
       ))}
       {isLoadingMore ? <ActivityFeedSkeleton label={ACTIVITY_FEED_LOADING_MORE_LABEL} labelId="activity-feed-loading-more" /> : null}
       {hasMore ? null : (
-        <Typography className="py-3 text-center" color="muted" type="body-xs">
+        <p
+          className="flex items-center gap-3 pb-1 pt-5 text-xs leading-normal text-muted before:h-px before:flex-1 before:bg-separator after:h-px after:flex-1 after:bg-separator"
+          data-feed-end-mark
+        >
           {endMark}
-        </Typography>
+        </p>
       )}
     </div>
   );

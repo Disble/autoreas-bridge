@@ -110,8 +110,8 @@ export const ACTIVITY_FEED_SKELETON_ROWS = 6;
 /** Bars the chart skeleton draws. */
 export const ACTIVITY_CHART_SKELETON_BARS = 24;
 
-/** Geometry shared by a feed row and its skeleton row. */
-export const ACTIVITY_FEED_ROW_CLASS = 'flex min-h-11 w-full min-w-0 items-center gap-3 rounded-lg px-2 py-1.5';
+/** Geometry shared by a feed row and its skeleton row: 48px tall, reaching 8px into the card's padding on both sides (mockup `.ax-row`). */
+export const ACTIVITY_FEED_ROW_CLASS = '-mx-2 flex min-h-12 w-[calc(100%+1rem)] min-w-0 items-center gap-2.5 rounded-xl px-2 py-1.5';
 
 /**
  * Selection colors of a segmented switch: HeroUI's neutral `--segment` gray
@@ -125,13 +125,13 @@ const ACTIVITY_SEGMENT_SELECTION =
 export const ACTIVITY_SEGMENT_GROUP_CLASS = 'gap-0.5 rounded-xl bg-default p-[3px]';
 
 /** A button of a toolbar segmented switch (origin, types). */
-export const ACTIVITY_SEGMENT_BUTTON_CLASS = `h-[30px] min-w-[30px] gap-1.5 rounded-[0.6rem] px-2.5 text-[13px] ${ACTIVITY_SEGMENT_SELECTION}`;
+export const ACTIVITY_SEGMENT_BUTTON_CLASS = `h-[30px] min-w-[30px] gap-1.5 rounded-[0.6rem] px-2.5 text-[13px] font-normal leading-normal ${ACTIVITY_SEGMENT_SELECTION}`;
 
 /** The chart scale switch's pill track. */
-export const ACTIVITY_SCALE_GROUP_CLASS = 'gap-0.5 rounded-full bg-default p-[3px]';
+export const ACTIVITY_SCALE_GROUP_CLASS = 'gap-0 rounded-full bg-default p-[3px]';
 
 /** A button of the chart scale switch. */
-export const ACTIVITY_SCALE_BUTTON_CLASS = `h-6 rounded-full px-3 text-xs ${ACTIVITY_SEGMENT_SELECTION}`;
+export const ACTIVITY_SCALE_BUTTON_CLASS = `h-6 rounded-full px-3 text-xs font-normal leading-normal ${ACTIVITY_SEGMENT_SELECTION}`;
 
 /** Bars drawn before the chart packs them tighter, as the mockup's 30 and 90 day scales. */
 export const ACTIVITY_CHART_DENSE_AFTER = 24;
@@ -144,3 +144,9 @@ export const ACTIVITY_MIN_BAR_PERCENT = 4;
 
 /** Elements whose clicks keep the drawer open: the drawer itself and the feed rows. */
 export const ACTIVITY_DRAWER_KEEP_OPEN_SELECTOR = '[data-activity-drawer], [data-feed-row]';
+
+/** How often the phone status line re-reads the devices and refreshes its relative time (S13). */
+export const ACTIVITY_PHONE_STATUS_TICK_MS = 15_000;
+
+/** The Activity cards' padding (mockup `.ax-card`): 20px top and bottom, 24px on the sides. */
+export const ACTIVITY_CARD_CLASS = 'px-6 py-5';

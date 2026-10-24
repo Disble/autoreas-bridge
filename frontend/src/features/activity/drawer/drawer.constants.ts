@@ -69,3 +69,9 @@ export const DRAWER_NO_RUN_EVENTS_NOTE = 'No events were recorded for this run.'
 
 /** The drawer before any line was opened. */
 export const DRAWER_PRESENCE_CLOSED = { line: undefined, open: false, session: 0 } as const;
+
+/**
+ * Stored stacks at or above this many UTF-8 bytes were cut: the report keeps 8 KiB
+ * (`frontendErrorStackLimit`) and a rune split drops up to 3 bytes; nothing else records a cut.
+ */
+export const DRAWER_STACK_CUT_BYTES = 8192 - 3;

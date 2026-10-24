@@ -8,6 +8,8 @@ import {
   toDrawerEventRows,
   toDrawerEventsEmpty,
   toDrawerRequestGroups,
+  toDrawerPickedRequestPanel,
+  toDrawerRequestId,
   toDrawerRequestPanel,
   toDrawerTechnicalTabs,
   toDrawerWindowErrorDetail,
@@ -159,7 +161,7 @@ describe('toDrawerWindowErrorDetail', () => {
 
     expect(detail?.facts.map((fact) => [fact.label, fact.value])).toEqual([
       ['Kind', 'render'],
-      ['Page', '/editor'],
+      ['Page', 'Editor'],
       ['Source', 'assets/index.js:1:2'],
       ['At', expect.stringMatching(/^\d\d:\d\d:\d\d$/)],
     ]);
@@ -168,9 +170,10 @@ describe('toDrawerWindowErrorDetail', () => {
 
   it('leaves out fields the report did not store and falls back to the event message', () => {
     expect(toDrawerWindowErrorDetail(input({ line: LINE, metadata: { kind: 'error', occurredAtMs: 'x' } }))).toEqual({
-      facts: [{ key: 'kind', label: 'Kind', value: 'error', mono: true, warnChip: undefined }],
+      facts: [{ key: 'kind', label: 'Kind', value: 'error', mono: false, warnChip: undefined, note: undefined }],
       message: 'frontend render: boom',
       stack: '',
+      stackCut: false,
     });
   });
 
@@ -252,5 +255,36 @@ describe('toDrawerEventsEmpty', () => {
     ['an empty story with incident events says nothing', { correlationId: 'run-1', steps: [], truncated: false }, DETAIL, ''],
   ])('%s', (_name, story, detail, expected) => {
     expect(toDrawerEventsEmpty(input({ line: LINE, story, incident: detail }))).toBe(expected);
+  });
+});
+
+describe('toDrawerRequestId', () => {
+  it.each([
+    ['the picked group latest on the open Requests tab', true, 'requests', 'r1'],
+    ['nothing while the summary is shown', false, 'requests', undefined],
+    ['nothing on another tab', true, 'events', undefined],
+  ] as const)('reads %s', (_name, technical, tab, expected) => {
+    expect(toDrawerRequestId(technical, tab, toDrawerRequestGroups(DETAIL)[0])).toBe(expected);
+  });
+
+  it('reads nothing without a group', () => {
+    expect(toDrawerRequestId(true, 'requests', undefined)).toBeUndefined();
+  });
+});
+
+describe('toDrawerPickedRequestPanel', () => {
+  it('builds the panel once the group and its request are known', () => {
+    const group = toDrawerRequestGroups(DETAIL)[0];
+
+    expect(toDrawerPickedRequestPanel(group, REQUEST)).toEqual(toDrawerRequestPanel(group!, REQUEST));
+  });
+
+  it.each([
+    ['the request is not read', 'group'],
+    ['there is no group', 'request'],
+  ] as const)('builds nothing while %s', (_name, known) => {
+    const group = known === 'group' ? toDrawerRequestGroups(DETAIL)[0] : undefined;
+
+    expect(toDrawerPickedRequestPanel(group, known === 'request' ? REQUEST : undefined)).toBeUndefined();
   });
 });

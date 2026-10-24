@@ -4,6 +4,7 @@ import { toDrawerCause } from './drawer-cause.helpers';
 import { DRAWER_CHANGE_FIELDS, DRAWER_HOUR_MS, DRAWER_MINUTE_MS, DRAWER_NO_RUN_EVENTS_NOTE, DRAWER_RECORDER_RETENTION_MS, DRAWER_TOTALS_ONLY_NOTE, DRAWER_WINDOW_ERROR_KIND_WORDS } from './drawer.constants';
 import type { DrawerListItem, DrawerSection, DrawerSummaryInput } from './drawer.types';
 import { drawerFact, formatDrawerKeptUntil, formatDrawerSpan, formatDrawerTime } from './drawer-format.helpers';
+import { drawerPageFact, toDrawerPageName } from './drawer-window-error.helpers';
 
 /** Reads one field of a stored snapshot; unreadable JSON reads as missing. */
 function snapshotField(json: string, field: string): unknown {
@@ -177,13 +178,13 @@ export function windowErrorSections(input: DrawerSummaryInput): readonly DrawerS
   }
   const route = input.metadata.route ?? '';
   const { line } = input.line;
-  const sentence = route === '' ? `The window ${words}.` : `The ${route} page ${words}.`;
+  const sentence = route === '' ? `The window ${words}.` : `The ${toDrawerPageName(route) ?? route} page ${words}.`;
   const around = (input.incident?.events ?? [])
     .filter((event) => String(event.id) !== line.id && Math.abs(event.atMs - line.atMs) <= 45 * DRAWER_MINUTE_MS)
     .map((event) => ({ key: String(event.id), time: formatDrawerTime(event.atMs), text: event.message, failed: event.level === 'error' }));
   return [
     { kind: 'cause', key: 'what', title: 'What happened', cause: { sentence, recordedMessage: '', code: kind } },
-    ...(route === '' ? [] : [{ kind: 'facts' as const, key: 'where', title: 'Where', rows: [drawerFact('route', 'Page', route, { mono: true })] }]),
+    ...(route === '' ? [] : [{ kind: 'facts' as const, key: 'where', title: 'Where', rows: [drawerPageFact('route', route)] }]),
     { kind: 'code', key: 'message', title: 'Message', text: input.metadata.message ?? line.title },
     ...(around.length === 0 ? [] : [{ kind: 'list' as const, key: 'around', title: 'Around it', items: around }]),
     ...(input.incident === undefined ? [] : [{ kind: 'note' as const, key: 'kept', text: formatDrawerKeptUntil(input.incident.expiresAtMs) }]),

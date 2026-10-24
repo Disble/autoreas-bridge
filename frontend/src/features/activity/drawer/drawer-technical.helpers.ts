@@ -3,7 +3,8 @@ import type { ActivityFeedLine } from '../feed-source/feed.types';
 import { formatActivityDuration } from '../ui/ActivityRunStory/activity-time.helpers';
 import { DRAWER_NO_RUN_EVENTS_NOTE, DRAWER_WINDOW_ERROR_EVENT_TYPE } from './drawer.constants';
 import type { DrawerDataBlock, DrawerEventRow, DrawerRequestGroup, DrawerRequestPanel, DrawerSummaryInput, DrawerTechnicalTab, DrawerWindowErrorDetail } from './drawer.types';
-import { drawerFact, formatDrawerSeconds, formatDrawerTime } from './drawer-format.helpers';
+import { formatDrawerSeconds, formatDrawerTime } from './drawer-format.helpers';
+import { toDrawerWindowErrorFromMetadata } from './drawer-window-error.helpers';
 import { toDrawerHeader } from './drawer-summary.helpers';
 
 /**
@@ -82,6 +83,30 @@ export function toDrawerRequestPanel(group: DrawerRequestGroup, request: Activit
 }
 
 /**
+ * The request the Requests tab reads: the picked group's latest, only while
+ * the technical view shows that tab.
+ *
+ * @param technical Whether the technical view is open.
+ * @param tab The shown tab.
+ * @param group The picked group; undefined without groups.
+ * @returns The request id to read; undefined when nothing is read.
+ */
+export function toDrawerRequestId(technical: boolean, tab: DrawerTechnicalTab, group: DrawerRequestGroup | undefined): string | undefined {
+  return technical && tab === 'requests' ? group?.latestRequestId : undefined;
+}
+
+/**
+ * The picked request's panel once both the group and its request are known.
+ *
+ * @param group The picked group.
+ * @param request Its latest request, once read.
+ * @returns The panel; undefined until both are known.
+ */
+export function toDrawerPickedRequestPanel(group: DrawerRequestGroup | undefined, request: ActivityRequestDetail | undefined): DrawerRequestPanel | undefined {
+  return group === undefined || request === undefined ? undefined : toDrawerRequestPanel(group, request);
+}
+
+/**
  * The runtime events of the Events tab: the run's stored story, else the
  * incident's window, else the event
  * line itself.
@@ -156,15 +181,7 @@ export function toDrawerWindowErrorDetail(input: DrawerSummaryInput): DrawerWind
   if (input.line.line.detail !== DRAWER_WINDOW_ERROR_EVENT_TYPE || metadata === undefined) {
     return undefined;
   }
-  const occurredAtMs = Number(metadata.occurredAtMs);
-  const stored: readonly (readonly [string, string, string | undefined])[] = [
-    ['kind', 'Kind', metadata.kind],
-    ['page', 'Page', metadata.route],
-    ['source', 'Source', metadata.source],
-    ['at', 'At', Number.isFinite(occurredAtMs) && occurredAtMs > 0 ? formatDrawerSeconds(occurredAtMs) : undefined],
-  ];
-  const facts = stored.filter((entry) => entry[2] !== undefined && entry[2] !== '').map(([key, label, value]) => drawerFact(key, label, value ?? '', { mono: true }));
-  return { facts, message: metadata.message ?? input.line.line.title, stack: metadata.stack ?? '' };
+  return toDrawerWindowErrorFromMetadata(metadata, input.line.line.title);
 }
 
 /**

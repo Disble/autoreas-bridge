@@ -6,23 +6,32 @@ import { ActivityDetailDrawer } from '../ActivityDetailDrawer/ActivityDetailDraw
 import { ActivityFeed } from '../ActivityFeed/ActivityFeed';
 import { ActivityTimeChart } from '../ActivityTimeChart/ActivityTimeChart';
 import { ActivityToolbar } from '../ActivityToolbar/ActivityToolbar';
+import { ACTIVITY_CARD_CLASS } from '../../feed/activity-feed.constants';
+import { useActivityPhoneStatus } from '../../feed/use-activity-phone-status';
 import { useActivityScreen } from './use-activity-screen';
 
 /**
  * The Activity screen (activity-ui-design-v2.md): the page header with "Pin
- * this moment", the time chart, then the
+ * this moment", the phone status line under it, the time chart, then the
  * feed card with its toolbar and the day-grouped feed, newest first. A row
  * opens the detail drawer; ↑ / ↓ move it and Esc closes it.
  */
 export function ActivityScreen() {
   const screen = useActivityScreen();
+  const phoneStatus = useActivityPhoneStatus();
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       <PageHeader
         actions={<IconActionButton ariaLabel="Pin this moment" icon={pinIcon} isDisabled={screen.isPinning} onPress={screen.pin} tooltip="Pin this moment" variant="tertiary" />}
         title="Activity"
       />
+      {phoneStatus === undefined ? null : (
+        <p className="-mt-[7px] flex w-max items-center gap-2 text-[13px] text-muted" data-phone-status={phoneStatus.isConnected ? 'connected' : 'offline'} title="Last contact from the phone">
+          <span aria-hidden className={`size-2 rounded-full ${phoneStatus.isConnected ? 'bg-success' : 'bg-muted'}`} />
+          {phoneStatus.label}
+        </p>
+      )}
       <ActivityTimeChart
         bars={screen.chart.bars}
         density={screen.chart.density}
@@ -37,8 +46,8 @@ export function ActivityScreen() {
         status={screen.chart.status}
         title={screen.chart.title}
       />
-      <Card aria-label="Feed">
-        <Card.Content className="flex flex-col gap-3">
+      <Card aria-label="Feed" className={ACTIVITY_CARD_CLASS}>
+        <Card.Content className="flex flex-col">
           <ActivityToolbar
             calendarMax={screen.calendarBounds.maxValue}
             calendarMin={screen.calendarBounds.minValue}
@@ -71,7 +80,6 @@ export function ActivityScreen() {
             hasMore={screen.feed.hasMore}
             isLoadingMore={screen.feed.isLoadingMore}
             onRetry={screen.onRetry}
-            onScroll={screen.feed.onScroll}
             onSelectRow={screen.onSelectRow}
             resolvedView={screen.feed.resolvedView}
             status={screen.feed.status}
