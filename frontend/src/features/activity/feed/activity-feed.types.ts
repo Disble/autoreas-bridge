@@ -49,8 +49,6 @@ export interface ActivityFeedRowModel {
   readonly subject: string;
   /** What changed; empty when the stored line holds nothing more. */
   readonly detail: string;
-  /** Whether an incident occurrence is linked to the line. */
-  readonly hasIncident: boolean;
   /** Whether the drawer shows this line. */
   readonly isOpen: boolean;
   /** The stored line the drawer opens. */

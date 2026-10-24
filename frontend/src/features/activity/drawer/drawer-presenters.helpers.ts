@@ -146,19 +146,7 @@ export function runSections(input: DrawerSummaryInput): readonly DrawerSection[]
   if (run === undefined) {
     return [];
   }
-  const rows = [
-    ...(run.trigger === '' ? [] : [drawerFact('trigger', 'Trigger', run.trigger, { mono: true })]),
-    drawerFact('status', 'Status', run.status, { mono: true }),
-    drawerFact('checked', 'Anime checked', String(run.animesChecked)),
-    drawerFact('found', 'Episodes found', String(run.episodesFound)),
-    drawerFact('downloaded', 'Downloaded', String(run.episodesDownloaded)),
-    drawerFact('failed', 'Failed', String(run.episodesFailed)),
-    drawerFact('skipped', 'Skipped', String(run.skippedCount)),
-    drawerFact('upToDate', 'Up to date', String(run.upToDateCount)),
-    ...(run.finishedAtMs === undefined ? [] : [drawerFact('took', 'Took', formatDrawerSpan(run.finishedAtMs - run.startedAtMs))]),
-  ];
-  const summary: DrawerSection[] = run.errorSummary === '' ? [] : [{ kind: 'code', key: 'error', title: 'Error summary', text: run.errorSummary }];
-  return [{ kind: 'facts', key: 'run', title: '', rows }, ...summary, { kind: 'run-story', key: 'story', correlationId: run.runId }, ...failureSections(input)];
+  return [{ kind: 'run-story', key: 'story', correlationId: run.runId }, ...failureSections(input)];
 }
 
 /**

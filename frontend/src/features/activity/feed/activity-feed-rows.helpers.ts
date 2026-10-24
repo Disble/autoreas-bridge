@@ -23,16 +23,16 @@ export function feedLineKey(line: ActivityFeedLine): string {
   return `${line.line.kind}:${line.line.id}`;
 }
 
-/** `1 request` / `1,912 requests`. */
-function formatRequests(count: number): string {
-  return `${ACTIVITY_FEED_COUNT_FORMAT.format(count)} ${count === 1 ? 'request' : 'requests'}`;
+/** `1 time` / `1,912 times`, as in the design's "Phone checked in · 39 times · 09:00 – 10:00". */
+function formatCheckIns(count: number): string {
+  return `${ACTIVITY_FEED_COUNT_FORMAT.format(count)} ${count === 1 ? 'time' : 'times'}`;
 }
 
 /** A traffic hour's detail: its totals and its hour. */
 function describeTraffic(hour: ActivityTrafficHour): string {
   const failed = hour.failed > 0 ? ` · ${ACTIVITY_FEED_COUNT_FORMAT.format(hour.failed)} failed` : '';
   const span = `${ACTIVITY_FEED_TIME_FORMAT.format(hour.hourStartMs)} – ${ACTIVITY_FEED_TIME_FORMAT.format(hour.hourStartMs + ACTIVITY_HOUR_MS)}`;
-  return `${formatRequests(hour.requests)}${failed} · ${span}`;
+  return `${formatCheckIns(hour.requests)}${failed} · ${span}`;
 }
 
 /** A run's detail: its stored status when not ok, its counts and its stored error. */
@@ -41,7 +41,6 @@ function describeRun(run: ActivityDownloadRun): string {
     run.status === 'ok' || run.status === '' ? '' : run.status,
     `${run.episodesDownloaded} downloaded`,
     run.episodesFailed > 0 ? `${run.episodesFailed} failed` : '',
-    `${run.animesChecked} checked`,
     run.errorSummary,
   ];
   return parts.filter((part) => part !== '').join(' · ');
@@ -95,7 +94,6 @@ export function toFeedRowModel(line: ActivityFeedLine, openKey: string | undefin
     originLabel: `${ACTIVITY_ORIGIN_LABELS[line.origin]}${healthLabel}`,
     health,
     ...describeLine(line),
-    hasIncident: line.incidentId !== undefined,
     isOpen: key === openKey,
     line,
   };

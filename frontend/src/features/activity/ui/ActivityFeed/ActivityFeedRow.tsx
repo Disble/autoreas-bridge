@@ -1,7 +1,6 @@
 import { Button } from '@heroui/react';
 import { Icon } from '@iconify/react';
 import chevronIcon from '@iconify-icons/solar/alt-arrow-right-linear';
-import linkIcon from '@iconify-icons/solar/link-bold';
 import bridgeIcon from '@iconify-icons/solar/server-bold';
 import phoneIcon from '@iconify-icons/solar/smartphone-bold';
 import { ACTIVITY_FEED_ROW_CLASS } from '../../feed/activity-feed.constants';
@@ -30,11 +29,6 @@ export function ActivityFeedRow({ row, onSelect }: ActivityFeedRowProps) {
         <span className="truncate text-sm font-medium text-foreground">{row.subject}</span>
         {row.detail === '' ? null : <span className={`truncate text-sm ${ACTIVITY_ROW_DETAIL_CLASS[row.health]}`}>{row.detail}</span>}
       </span>
-      {row.hasIncident ? (
-        <span aria-label="Linked incident" className="shrink-0 text-danger" role="img" title="Linked incident">
-          <Icon aria-hidden icon={linkIcon} />
-        </span>
-      ) : null}
       <Icon aria-hidden className="shrink-0 text-muted" icon={chevronIcon} />
     </Button>
   );

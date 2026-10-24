@@ -16,8 +16,6 @@ function titleAndPhrase(feedLine: ActivityFeedLine): { readonly title: string; r
       return { title: 'Phone checked in', phrase: traffic === undefined ? '' : `${traffic.requests} times${traffic.failed > 0 ? ` · ${traffic.failed} refused` : ''}` };
     case 'download_run':
       return { title: 'Download run', phrase: run === undefined ? '' : `${run.episodesDownloaded} downloaded${run.episodesFailed > 0 ? ` · ${run.episodesFailed} failed` : ''}` };
-    case 'phone_report':
-      return { title: 'Phone report', phrase: [line.title, line.detail].filter((part) => part !== '').join(' · ') };
     default:
       return { title: line.title, phrase: '' };
   }
@@ -78,19 +76,6 @@ function failureSectionsWithoutKept(input: DrawerSummaryInput): readonly DrawerS
   return failureSections(input).filter((section) => section.key !== 'kept');
 }
 
-/** A failed phone report: what the phone stored, then its failure. */
-function phoneReportSections(input: DrawerSummaryInput): readonly DrawerSection[] {
-  const { line } = input.line;
-  const rows = [
-    ...(line.title === '' ? [] : [drawerFact('kind', 'Kind', line.title, { mono: true })]),
-    ...(line.detail === '' ? [] : [drawerFact('outcome', 'Outcome', line.detail, { mono: true })]),
-    ...(line.source === '' ? [] : [drawerFact('device', 'Device', line.source, { mono: true })]),
-    ...(line.phoneAtMs === undefined ? [] : [drawerFact('phone', 'Done on the phone', formatDrawerTime(line.phoneAtMs))]),
-    drawerFact('bridge', 'Reached the bridge', formatDrawerTime(line.atMs)),
-  ];
-  return [{ kind: 'facts', key: 'report', title: '', rows }, ...failureSections(input)];
-}
-
 /** The presenter of an event line, or undefined when its type has none. */
 function eventSections(input: DrawerSummaryInput): readonly DrawerSection[] | undefined {
   const { line } = input.line;
@@ -112,8 +97,6 @@ function presenterSections(input: DrawerSummaryInput): readonly DrawerSection[] 
       return trafficSections(input);
     case 'download_run':
       return runSections(input);
-    case 'phone_report':
-      return phoneReportSections(input);
     default:
       return eventSections(input);
   }

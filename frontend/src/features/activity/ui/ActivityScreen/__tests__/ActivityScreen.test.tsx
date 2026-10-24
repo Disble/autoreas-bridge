@@ -215,14 +215,14 @@ describe('ActivityScreen', () => {
     await waitFor(() => expect(activitySource.pinMoment).toHaveBeenCalledTimes(1));
   });
 
-  it('marks a failed bridge line with its incident link and a slow line amber', async () => {
+  it('marks a failed bridge line red and a slow line amber, through the origin icon only', async () => {
     const failed = buildLine({ type: 'bridge', origin: 'bridge', failed: true, incidentId: 4 }, { kind: 'event', id: '2', title: 'Sync failed', detail: 'sync.error' });
     const slow = buildLine({ slow: true }, { id: '1', atMs: Date.now() - 2000 });
     feedSource.searchFeed.mockResolvedValue(buildView([buildDay(0, [failed, slow])]));
     renderScreen();
 
-    expect(await screen.findByRole('img', { name: 'Linked incident' })).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Bridge · failed' })).toBeInTheDocument();
+    expect(await screen.findByRole('img', { name: 'Bridge · failed' })).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Linked incident' })).not.toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Phone · slow' })).toBeInTheDocument();
   });
 });

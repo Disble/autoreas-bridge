@@ -106,14 +106,13 @@ describe('toDrawerSummary', () => {
     expect(gaps).toEqual(['The 401 carried no error code, only a message. It is shown as recorded.']);
   });
 
-  it('shows a download run with its stored counts and its run story', () => {
+  it('shows a download run as its run story alone', () => {
     const run = { runId: 'run-1', trigger: 'scheduled', status: 'ok', startedAtMs: AT, finishedAtMs: AT + 1, animesChecked: 3, episodesFound: 2, episodesDownloaded: 2, episodesFailed: 0, skippedCount: 0, upToDateCount: 1, errorSummary: '' };
     const line = feedLine({ type: 'download', run }, { kind: 'download_run', correlationId: 'run-1' });
 
     const { sections } = toDrawerSummary(input({ line }));
 
-    expect(sectionOf(sections, 'run-story').correlationId).toBe('run-1');
-    expect(sectionOf(sections, 'facts').rows.find((row) => row.label === 'Trigger')?.value).toBe('scheduled');
+    expect(sections).toEqual([{ kind: 'run-story', key: 'story', correlationId: 'run-1' }]);
   });
 
   it('shows a task with a correlation id as its run story', () => {
@@ -240,16 +239,12 @@ describe('toDrawerSummary edge cases', () => {
     expect(toDrawerSummary(input({ line: feedLine({}, { kind }) })).sections).toEqual([]);
   });
 
-  it('shows a run without trigger or end, with its error summary and failure', () => {
+  it('shows a failed run as its run story then its failure, without stored figures or error summary', () => {
     const line = feedLine({ type: 'download', failed: true, incidentId: 7, run: run() }, { kind: 'download_run' });
 
     const { sections } = toDrawerSummary(input({ line, incident: incident() }));
 
-    const labels = sectionOf(sections, 'facts').rows.map((row) => row.label);
-    expect(labels).not.toContain('Trigger');
-    expect(labels).not.toContain('Took');
-    expect(sectionOf(sections, 'code')).toMatchObject({ title: 'Error summary', text: 'host down' });
-    expect(kinds(sections)).toEqual(['facts', 'code', 'run-story', 'cause', 'note']);
+    expect(kinds(sections)).toEqual(['run-story', 'cause', 'note']);
   });
 
   it('words a window error without a route, with the events around it and its expiry', () => {
@@ -271,15 +266,14 @@ describe('toDrawerSummary edge cases', () => {
     expect(sectionOf(sections, 'note').text).toContain('kept until');
   });
 
-  it.each([
-    [
-      'a failed phone report shows every stored field',
-      feedLine({ type: 'traffic', origin: 'phone', failed: true, incidentId: 7 }, { kind: 'phone_report', title: 'cycle_report', detail: 'failed', source: 'pixel', phoneAtMs: AT - 1 }),
-      ['Kind', 'Outcome', 'Device', 'Done on the phone', 'Reached the bridge'],
-    ],
-    ['an empty phone report shows its bridge time only', feedLine({ type: 'traffic', origin: 'phone' }, { kind: 'phone_report' }), ['Reached the bridge']],
-  ])('%s', (_name, line, labels) => {
-    expect(sectionOf(toDrawerSummary(input({ line, incident: line.failed ? incident() : undefined })).sections, 'facts').rows.map((row) => row.label)).toEqual(labels);
+  it('shows a failed phone report with the generic layout, its failure, and the presenter it lacks', () => {
+    const line = feedLine({ type: 'traffic', origin: 'phone', failed: true, incidentId: 7 }, { kind: 'phone_report', title: 'cycle_report', detail: 'failed', source: 'pixel', phoneAtMs: AT - 1 });
+
+    const { sections, gaps } = toDrawerSummary(input({ line, incident: incident() }));
+
+    expect(kinds(sections)).toEqual(['facts', 'cause', 'note']);
+    expect(sectionOf(sections, 'facts').rows.map((row) => row.label)).not.toContain('Device');
+    expect(gaps[0]).toBe('No presenter for `failed`. Shown with the generic layout.');
   });
 
   it('adds the failure of a task run', () => {
@@ -304,7 +298,7 @@ describe('toDrawerHeader edge cases', () => {
     ['a run line without its row', feedLine({}, { kind: 'download_run' }), 'Download run', '', 'neutral'],
     ['a traffic line without its row', feedLine({ slow: true }, { kind: 'traffic_hour' }), 'Phone checked in', '', 'slow'],
     ['a fine hour', feedLine({ traffic: { hourStartMs: AT, requests: 5, failed: 0, maxDurationMs: 1 } }, { kind: 'traffic_hour' }), 'Phone checked in', '5 times', 'neutral'],
-    ['a failed phone report', feedLine({ failed: true, slow: true }, { kind: 'phone_report', title: 'cycle_report', detail: 'failed' }), 'Phone report', 'cycle_report · failed', 'failed'],
+    ['a failed phone report reads its stored title with the generic header', feedLine({ failed: true, slow: true }, { kind: 'phone_report', title: 'cycle_report', detail: 'failed' }), 'cycle_report', '', 'failed'],
   ])('%s', (_name, line, title, phrase, tone) => {
     expect(toDrawerHeader(line)).toMatchObject({ title, phrase, tone });
   });

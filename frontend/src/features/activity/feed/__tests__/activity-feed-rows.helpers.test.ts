@@ -40,7 +40,6 @@ describe('toFeedRowModel', () => {
       health: 'failed',
       subject: 'Frieren',
       detail: describeActivityChange({ source: 'mobile', actionType: 'episode_adjusted', beforeJson: '{"NroCapVisto":0}', afterJson: '{"NroCapVisto":1}' }),
-      hasIncident: true,
       isOpen: true,
     });
   });
@@ -49,12 +48,12 @@ describe('toFeedRowModel', () => {
     const hourMs = new Date(2026, 9, 22, 9, 0).getTime();
     const line = buildLine({ type: 'traffic', traffic: { hourStartMs: hourMs, requests: 1912, failed: 2, maxDurationMs: 40 } }, { kind: 'traffic_hour', id: '9', atMs: hourMs });
 
-    expect(toFeedRowModel(line, undefined)).toMatchObject({ subject: 'Phone requests', detail: '1,912 requests · 2 failed · 09:00 – 10:00', isOpen: false });
+    expect(toFeedRowModel(line, undefined)).toMatchObject({ subject: 'Phone checked in', detail: '1,912 times · 2 failed · 09:00 – 10:00', isOpen: false });
   });
 
   it.each([
-    ['a scheduled run with its counts', buildRun(), 'Scheduled download', '3 downloaded · 12 checked'],
-    ['a failed run with its status, failures and stored error', buildRun({ trigger: '', status: 'error', episodesFailed: 1, errorSummary: 'disk full' }), 'Download', 'error · 3 downloaded · 1 failed · 12 checked · disk full'],
+    ['a scheduled run with its counts', buildRun(), 'Scheduled download', '3 downloaded'],
+    ['a failed run with its status, failures and stored error', buildRun({ trigger: '', status: 'error', episodesFailed: 1, errorSummary: 'disk full' }), 'Download', 'error · 3 downloaded · 1 failed · disk full'],
   ])('words %s', (_case, run, subject, detail) => {
     const line = buildLine({ type: 'download', origin: 'bridge', run }, { kind: 'download_run', id: 'r1' });
 

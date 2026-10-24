@@ -62,7 +62,7 @@ export const ACTIVITY_RUN_TRIGGER_SUBJECTS: Readonly<Record<string, string>> = {
 export const ACTIVITY_RUN_SUBJECT = 'Download';
 
 /** Row subject of one traffic hour. */
-export const ACTIVITY_TRAFFIC_SUBJECT = 'Phone requests';
+export const ACTIVITY_TRAFFIC_SUBJECT = 'Phone checked in';
 
 /** Event type logged once per bridge start, and the subject it reads as (design, S4). */
 export const ACTIVITY_BRIDGE_STARTED = { eventType: 'api.listening', subject: 'Bridge started' } as const;

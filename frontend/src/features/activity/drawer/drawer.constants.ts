@@ -2,13 +2,11 @@
  * Layer 2 of the event presentation model: one sentence per error code,
  * written once by a person. `{name}` placeholders read fields of the recorded
  * error; a missing field stays visible as `{name}`. A code with no entry shows
- * its recorded message as is. The `conflict` wording is the design doc's own
- * example; `unsupported_operation` has no approved wording yet, so it shows the
- * recorded message.
+ * its recorded message as is. No sentence is approved yet: the design doc marks
+ * the `conflict` and `unsupported_operation` wordings as drafts, so every code
+ * shows its recorded message.
  */
-export const DRAWER_CAUSE_CATALOG: Readonly<Record<string, string>> = {
-  conflict: 'The bridge had changed this anime after the phone last read it, so the change was not applied.',
-};
+export const DRAWER_CAUSE_CATALOG: Readonly<Record<string, string>> = {};
 
 /** Plain words of the closed `kind` enum of a window error (`ReportFrontendError`). */
 export const DRAWER_WINDOW_ERROR_KIND_WORDS: Readonly<Record<string, string>> = {
