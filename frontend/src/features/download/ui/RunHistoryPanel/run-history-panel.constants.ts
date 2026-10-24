@@ -102,6 +102,9 @@ export const RUN_HISTORY_UNRECORDED_COPY = {
   description: 'This run kept no per-anime record of these episodes.',
 } as const;
 
+/** Accessible name of the skeleton shown while the catalog names an anime. */
+export const RUN_HISTORY_NAME_LOADING_LABEL = 'Loading anime name';
+
 /** Accessible name of the no-cover poster. */
 export const RUN_HISTORY_NO_COVER_LABEL = 'No cover';
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DownloadRunView } from '../../../../../shared/contracts/download.types';
-import { toRunHistoryDetailViewModel } from '../run-history-story.helpers';
+import { collectNameLookupIds, toRunHistoryDetailViewModel, withCatalogNames } from '../run-history-story.helpers';
 import type { RunHistoryGroupId, RunHistoryStoryState, RunHistoryStoryStep } from '../run-history-panel.types';
 
 /** Builds a finished run whose counters the cases override. */
@@ -149,6 +149,47 @@ describe('toRunHistoryDetailViewModel per-anime rows', () => {
     expect(lines(story, run, 'skipped')).toEqual(['Frieren: Missing folder', 'Bocchi: other_reason']);
     expect(skipped?.rows?.every((row) => row.isEditable)).toBe(true);
     expect(lines(story, run, 'upToDate')).toEqual(['Dandadan: 5 on disk · 5 online', 'Blue Lock: 12/12 · season complete']);
+  });
+});
+
+describe('catalog names for anime the run did not name', () => {
+  const run = createRun({ episodesFound: 2, episodesDownloaded: 2, episodesFailed: 0, episodesDownloading: 0, skippedCount: 0, upToDateCount: 0 });
+  const story = ready([
+    step('a1', 'download.episode_downloaded', { episode: 3 }),
+    step('a2', 'download.episode_downloaded', { animeName: 'Bocchi', episode: 5 }),
+  ]);
+
+  /** Reads the downloaded rows of the detail after the catalog names are applied. */
+  function downloadedRows(names: ReadonlyMap<string, string | null>) {
+    const detail = withCatalogNames(toRunHistoryDetailViewModel(run, story), names);
+    return detail.groups.find((group) => group.id === 'downloaded')?.rows?.map(({ name, isNameLoading }) => ({ name, isNameLoading }));
+  }
+
+  it('asks the catalog only for the anime whose steps carry no name', () => {
+    expect(collectNameLookupIds(toRunHistoryDetailViewModel(run, story))).toEqual(['a1']);
+  });
+
+  it('marks the name as loading until the catalog answers, and leaves a named anime alone', () => {
+    expect(downloadedRows(new Map())).toEqual([
+      { name: 'a1', isNameLoading: true },
+      { name: 'Bocchi', isNameLoading: false },
+    ]);
+  });
+
+  it('shows the catalog name once it arrives', () => {
+    expect(downloadedRows(new Map([['a1', 'Frieren']]))).toEqual([
+      { name: 'Frieren', isNameLoading: false },
+      { name: 'Bocchi', isNameLoading: false },
+    ]);
+  });
+
+  it('falls back to the manual link name, then the id, when the catalog has no name', () => {
+    const linked = createRun({ ...run, manualLinks: [{ animeId: 'a1', anime: 'Frieren (link)', episode: 4, links: ['https://x/a'] }] });
+    const detail = withCatalogNames(toRunHistoryDetailViewModel(linked, story), new Map([['a1', null]]));
+    const names = detail.groups.flatMap((group) => group.rows ?? []).map(({ name, isNameLoading }) => ({ name, isNameLoading }));
+
+    expect(names).toContainEqual({ name: 'Frieren (link)', isNameLoading: false });
+    expect(downloadedRows(new Map([['a1', null]]))?.[0]).toEqual({ name: 'a1', isNameLoading: false });
   });
 });
 

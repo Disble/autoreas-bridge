@@ -4,7 +4,7 @@ import type { DownloadRunView } from '../../../../../shared/contracts/download.t
 import { RunHistoryPanel } from '../RunHistoryPanel';
 import { toRunHistoryPanelViewModel } from '../run-history-panel.helpers';
 import type { RunHistoryPanelViewModel, RunHistoryStoryState, RunHistoryStoryStep } from '../run-history-panel.types';
-import { toRunHistoryDetailViewModel } from '../run-history-story.helpers';
+import { toRunHistoryDetailViewModel, withCatalogNames } from '../run-history-story.helpers';
 import { useRunHistoryPanel } from '../use-run-history-panel';
 import { atRoute } from './run-history-router';
 
@@ -215,6 +215,17 @@ describe('RunHistoryPanel detail', () => {
 
     expect(screen.getByText('Episodes not recorded')).toBeInTheDocument();
     expect(screen.getByText('This run kept no per-anime record of these episodes.')).toBeInTheDocument();
+  });
+
+  it('shows a skeleton in place of an anime name the catalog has not answered yet, and nothing else waits', () => {
+    const run = createRun('run-old');
+    const steps = [step('a1', 'download.episode_downloaded', { episode: 3 })];
+    const detail = withCatalogNames(toRunHistoryDetailViewModel(run, { status: 'ready', story: { steps, truncated: false } }), new Map());
+    mockPanel([run], { overrides: { detail } });
+
+    expect(screen.getByRole('status', { name: 'Loading anime name' })).toBeInTheDocument();
+    expect(screen.queryByText('a1')).not.toBeInTheDocument();
+    expect(screen.getByText('Episode 3')).toBeInTheDocument();
   });
 
   it('opens a manual link in the default browser from its button and its text, with no WebView anchor', () => {

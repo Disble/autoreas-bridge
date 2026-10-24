@@ -90,6 +90,39 @@ export function collectDetailAnimeIds(detail: RunHistoryDetailViewModel | undefi
 }
 
 /**
+ * Lists the ids whose name the catalog must supply: the anime lines no step of
+ * the run named.
+ *
+ * @param detail The selected run's detail, if any.
+ * @returns The ids to look up, each once, in display order.
+ */
+export function collectNameLookupIds(detail: RunHistoryDetailViewModel | undefined): string[] {
+  const rows = (detail?.groups ?? []).flatMap((group) => group.rows ?? []);
+  return [...new Set(rows.flatMap((row) => (row.nameLookupId === undefined ? [] : [row.nameLookupId])))];
+}
+
+/**
+ * Applies the catalog names to the lines that asked for one. A line whose id
+ * has no answer yet is loading; a `null` answer (no such anime, or a failed
+ * read) keeps the fallback name.
+ *
+ * @param detail The selected run's detail.
+ * @param names The catalog answer per id: a name, or `null` for none.
+ * @returns The detail with every line's name settled or marked loading.
+ */
+export function withCatalogNames(detail: RunHistoryDetailViewModel, names: ReadonlyMap<string, string | null>): RunHistoryDetailViewModel {
+  const named = (row: RunHistoryAnimeRowViewModel): RunHistoryAnimeRowViewModel => {
+    if (row.nameLookupId === undefined) {
+      return { ...row, isNameLoading: false };
+    }
+    const answer = names.get(row.nameLookupId);
+    return answer === undefined ? { ...row, isNameLoading: true } : { ...row, name: answer ?? row.name, isNameLoading: false };
+  };
+
+  return { ...detail, groups: detail.groups.map((group) => (group.rows === undefined ? group : { ...group, rows: group.rows.map(named) })) };
+}
+
+/**
  * Formats a set of episode numbers: one episode, one consecutive range, or the
  * ranges joined by commas.
  *
@@ -226,8 +259,10 @@ function toGroupRows(steps: readonly RunHistoryStoryStep[], manualLinks: readonl
 /** Adds one anime's lines to every group its steps and manual links put it in. */
 function appendAnimeRows(rows: GroupRows, facts: AnimeFacts, links: readonly ManualLink[]): void {
   const name = facts.name ?? links[0]?.anime ?? facts.animeId;
+  // A run recorded before the steps carried the name asks the catalog for it.
+  const lookup = facts.name === undefined ? { nameLookupId: facts.animeId } : {};
   const line = (group: keyof GroupRows, values: string | readonly string[], extra: Partial<RunHistoryAnimeRowViewModel> = {}) => {
-    rows[group].push({ key: `${group}-${facts.animeId}-${rows[group].length}`, animeId: facts.animeId, name, values: typeof values === 'string' ? [values] : values, links: [], isEditable: false, ...extra });
+    rows[group].push({ key: `${group}-${facts.animeId}-${rows[group].length}`, animeId: facts.animeId, name, ...lookup, values: typeof values === 'string' ? [values] : values, links: [], isEditable: false, ...extra });
   };
 
   for (const failure of facts.failures) {

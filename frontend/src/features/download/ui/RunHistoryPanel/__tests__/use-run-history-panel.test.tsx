@@ -428,6 +428,24 @@ describe('useRunHistoryPanel run story', () => {
     await waitFor(() => expect(result.current.viewModel.covers.get('a1')).toEqual({ status: 'cover', dataUrl: 'data:image/png;base64,AA' }));
   });
 
+  it('names an anime the story left unnamed from the catalog, and keeps its id when the catalog has none', async () => {
+    const unnamed: RunHistoryStory = {
+      truncated: false,
+      steps: [
+        { entityId: 'a1', eventType: 'download.episode_downloaded', level: 'info', metadataJson: '{"episode":4}' },
+        { entityId: 'a2', eventType: 'download.episode_downloaded', level: 'info', metadataJson: '{"episode":5}' },
+      ],
+    };
+    const storySource = { getRunStory: vi.fn().mockResolvedValue(unnamed) };
+    const nameSource = { getAnimeDetail: vi.fn().mockImplementation((id: string) => (id === 'a1' ? Promise.resolve({ name: 'Frieren' }) : Promise.resolve(null))) };
+    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue([createRun(1, { episodesFound: 2, episodesDownloaded: 2, episodesFailed: 0, episodesDownloading: 0 })]) });
+    const { result } = renderHook(() => useRunHistoryPanel(source, { storySource, coverSource, nameSource }), { wrapper: atRoute() });
+    const rows = () => result.current.viewModel.detail?.groups.find((group) => group.id === 'downloaded')?.rows?.map(({ name, isNameLoading }) => ({ name, isNameLoading }));
+
+    await waitFor(() => expect(rows()).toEqual([{ name: 'Frieren', isNameLoading: false }, { name: 'a2', isNameLoading: false }]));
+    expect(nameSource.getAnimeDetail.mock.calls).toEqual([['a1'], ['a2']]);
+  });
+
   it('reads a live run story again on each download event, and a finished run only once', async () => {
     let listener: (() => void) | undefined;
     const subscribeRunEvents = vi.fn().mockImplementation((next: () => void) => {

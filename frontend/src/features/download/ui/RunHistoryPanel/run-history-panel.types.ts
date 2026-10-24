@@ -42,6 +42,13 @@ export interface RunHistoryPanelPorts {
   readonly storySource?: RunHistoryStorySource;
   /** Resolves anime covers. */
   readonly coverSource?: AnimeCoverSource;
+  /** Names the anime an older run's steps left unnamed. */
+  readonly nameSource?: RunHistoryNameSource;
+}
+
+/** The catalog read that names an anime by id; its absence (a non-Wails context) leaves the fallback names. */
+export interface RunHistoryNameSource {
+  readonly getAnimeDetail?: (id: string) => Promise<{ readonly name: string } | null>;
 }
 
 /** Props for the `RunHistoryPanel` dumb-UI component. */
@@ -98,7 +105,12 @@ export interface RunHistoryAnimeRowViewModel {
   readonly key: string;
   /** Catalog id; absent for an old manual link that never recorded it. */
   readonly animeId?: string;
+  /** The recorded name, else the manual link name, else the id. */
   readonly name: string;
+  /** The id to ask the catalog for a name, set when no step of the run recorded one. */
+  readonly nameLookupId?: string;
+  /** True while the catalog name is still loading; the row shows a skeleton in place of the name. */
+  readonly isNameLoading?: boolean;
   /** Episodes, reason or on-disk counts, from fixed maps and raw values; one entry per line. */
   readonly values: readonly string[];
   /** Manual-download links offered for this anime. */
