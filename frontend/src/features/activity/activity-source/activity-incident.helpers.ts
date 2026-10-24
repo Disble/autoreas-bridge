@@ -1,11 +1,11 @@
 import type { activityread, desktop } from '../../../../wailsjs/go/models';
 import type {
+  ActivityChangeContext,
   ActivityEventSummary,
   ActivityFoldedRequest,
   ActivityIncidentDetail,
   ActivityPhoneReport,
   ActivityRequestDetail,
-  ActivityRun,
   ActivityRunStep,
   ActivityRunStory,
 } from './activity-incident.types';
@@ -113,29 +113,26 @@ export function mapActivityRequestResult(result: desktop.ActivityRequestResult):
     responseBody: detail.responseBody ?? undefined,
     responseBodyState: detail.responseBodyState ?? '',
     deviceName: detail.deviceName,
+    requestHeaders: detail.requestHeaders,
+    responseHeaders: detail.responseHeaders,
   };
 }
 
 /**
- * Converts one Go run.
+ * Converts the `GetActivityChangeContext` answer; nil lists become empty.
  *
- * @param run The run `ListActivityRecoveredRuns` returned.
- * @returns The run the list renders.
+ * @param context The events and captures Go linked to the change.
+ * @returns The change's events and folded requests.
  */
-export function mapActivityRun(run: activityread.Run): ActivityRun {
+export function mapActivityChangeContext(context: activityread.ChangeContext): ActivityChangeContext {
   return {
-    correlationId: run.CorrelationID,
-    firstAtMs: run.FirstAtMS,
-    lastAtMs: run.LastAtMS,
-    steps: run.Steps,
-    outcome: run.Outcome,
-    firstEventType: run.FirstEventType,
-    firstMessage: run.FirstMessage,
+    events: (context.Events ?? []).map(mapRunStep),
+    requests: (context.Requests ?? []).map(mapFoldedRequest),
   };
 }
 
 /** Maps one run step; Go flattens its embedded event summary. */
-function mapRunStep(step: activityread.RunStep): ActivityRunStep {
+export function mapRunStep(step: activityread.RunStep): ActivityRunStep {
   return {
     ...mapEventSummary(step),
     durationMs: step.DurationMS ?? undefined,

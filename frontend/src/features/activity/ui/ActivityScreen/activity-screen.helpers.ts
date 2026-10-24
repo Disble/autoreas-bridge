@@ -1,13 +1,42 @@
-import type { Key } from '@heroui/react';
-import { ACTIVITY_TAB_IDS } from './activity-screen.constants';
-import type { ActivityTabId } from './activity-screen.types';
+import { ACTIVITY_RANGE_END_MARK, ACTIVITY_SCALE_OPTIONS } from '../../feed/activity-feed.constants';
+import type { ActivityFeedFilters, ActivityFeedResolvedView } from '../../feed/activity-feed.types';
+import type { ActivityFeedDay, ActivityFeedQuery } from '../../feed-source/feed.types';
 
 /**
- * Narrows a tab-strip selection key onto a tab id; anything else opens Now.
+ * Picks the feed's resolved view: a prompt when no type is selected (no read
+ * is made), the empty state when the read found nothing, the rows otherwise.
  *
- * @param key The key the tab strip reported.
- * @returns The tab to show.
+ * @param query The feed query, undefined when no type is selected.
+ * @param days The loaded days.
+ * @returns Which resolved view renders.
  */
-export function toActivityTabId(key: Key): ActivityTabId {
-  return ACTIVITY_TAB_IDS.find((id) => id === key) ?? 'now';
+export function toFeedResolvedView(query: ActivityFeedQuery | undefined, days: readonly ActivityFeedDay[]): ActivityFeedResolvedView {
+  if (query === undefined) {
+    return 'no-types';
+  }
+  return days.length === 0 ? 'empty' : 'rows';
+}
+
+/**
+ * The mark that ends a complete feed: the start of the picked range or of the scale's window.
+ *
+ * @param filters The filters on screen.
+ * @returns `Start of this range` or `Start of the last 24 hours`.
+ */
+export function toFeedEndMark(filters: ActivityFeedFilters): string {
+  if (filters.range !== undefined) {
+    return ACTIVITY_RANGE_END_MARK;
+  }
+  return ACTIVITY_SCALE_OPTIONS.find((option) => option.id === filters.scale)?.end ?? ACTIVITY_RANGE_END_MARK;
+}
+
+/**
+ * The window the overview reads: the picked range, or 0 – 0 so the reader
+ * takes the scale's own window.
+ *
+ * @param filters The filters on screen.
+ * @returns The overview's from and to times.
+ */
+export function toOverviewRange(filters: ActivityFeedFilters): { readonly fromMs: number; readonly toMs: number } {
+  return filters.range ?? { fromMs: 0, toMs: 0 };
 }

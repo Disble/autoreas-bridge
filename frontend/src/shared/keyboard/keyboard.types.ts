@@ -5,10 +5,10 @@ import type { KeymapOverrides } from './keymap.types';
 export type Chord = string;
 
 /** Which surface a command belongs to. `global` is always resolvable; the rest are stack frames. */
-export type KeyboardScope = 'global' | 'notification-center';
+export type KeyboardScope = 'global' | 'notification-center' | 'activity-feed';
 
 /** Help-dialog grouping. Presentation only — it never affects resolution. */
-export type CommandSection = 'Navigation' | 'Notifications' | 'Help';
+export type CommandSection = 'Navigation' | 'Notifications' | 'Activity' | 'Help';
 
 /**
  * Everything environmental a command needs, injected at dispatch time so the

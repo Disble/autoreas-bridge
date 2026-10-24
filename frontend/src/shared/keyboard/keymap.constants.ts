@@ -8,11 +8,12 @@ import type { Chord, CommandBinding } from './keyboard.types';
 export const KEYMAP_DOCUMENT_VERSION = 1;
 
 /**
- * The one scoped command's metadata, keyed by id so a lookup is a
+ * Every scoped command's metadata, keyed by id so a lookup is a
  * compile-time checked property access rather than an `Array.find` that
  * could silently resolve to `undefined` for a renamed id (design D3).
- * `enabled`/`run` stay in `use-notification-keyboard-scope.ts`, the only
- * place with feature state to close over them.
+ * `enabled`/`run` stay in the feature hook that owns the scope
+ * (`use-notification-keyboard-scope.ts`, `use-activity-feed-keyboard-scope.ts`),
+ * the only places with feature state to close over them.
  */
 export const SCOPED_COMMAND_BINDINGS = {
   'notification-center.mark-all-read': {
@@ -21,6 +22,27 @@ export const SCOPED_COMMAND_BINDINGS = {
     chord: 'alt+r',
     label: 'Mark all as read',
     section: 'Notifications',
+  },
+  'activity-feed.previous': {
+    id: 'activity-feed.previous',
+    scope: 'activity-feed',
+    chord: 'arrowup',
+    label: 'Open the newer Activity line',
+    section: 'Activity',
+  },
+  'activity-feed.next': {
+    id: 'activity-feed.next',
+    scope: 'activity-feed',
+    chord: 'arrowdown',
+    label: 'Open the older Activity line',
+    section: 'Activity',
+  },
+  'activity-feed.close': {
+    id: 'activity-feed.close',
+    scope: 'activity-feed',
+    chord: 'escape',
+    label: 'Close the Activity detail',
+    section: 'Activity',
   },
 } as const satisfies Readonly<Record<string, CommandBinding>>;
 

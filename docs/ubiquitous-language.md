@@ -173,6 +173,35 @@ Changing the library root rewrites the anime folder of **active** animes under t
 confirms; inactive history keeps its stored folder. See
 [ADR 027: One library root per computer](./adr/027-one-library-root-per-computer.md).
 
+## Bridge origin vs. System section, and line vs. event — the Activity feed
+
+The Activity feed says **Bridge** and **System** about different things.
+
+**Bridge** is an **origin**: where a fact happened. The origin switch reads *All*, *Phone* or *Bridge*,
+and every feed line has one origin. Downloads, tasks, edits and System lines all happen in the bridge.
+
+**System** is a **section** (a type toggle, like Changes, Traffic, Downloads, Tasks and Edits). It is the
+default section: it owns every bridge event no other section owns — a bridge start, or a warning or error of
+any other area. An event belongs to Tasks when its area is `schedule` or `season`; to its download run when
+its `correlation_id` is that run's id, and the run line already restates it; otherwise to System. Routine
+info events, other than the bridge start, make no line. The wire value is `system`; the retired `bridge`
+type value is rejected.
+
+A **line** is one row of the feed; an **event** is one stored `runtime_events` row. A line may stand for
+many events: one System line groups the events of one hour that share their area, event type, level and
+message, and shows how many times it happened with its first and last time. Traffic lines group requests
+per hour the same way. The type counts and the chart count lines, never events, so a chip, a bar and the
+list agree.
+
+| Term | What it is | Surface |
+| --- | --- | --- |
+| Bridge (origin) | Where a line happened | `FeedOrigin` `bridge`, the origin switch |
+| System (section) | The default section of bridge events no other section owns | `FeedType` `system`, the *System* toggle |
+| Line | One feed row; may group many events | `FeedLine`, `SystemGroup.Count` |
+| Event | One stored runtime event | `runtime_events`, `GetActivityEvent` |
+
+See [ADR 031: Total classification with a System fallback, grouped on read](./adr/031-activity-system-section.md).
+
 ## Site vs. site host vs. hoster — three answers to "where did this episode come from"
 
 An episode download crosses three places, and each one is a different fact.

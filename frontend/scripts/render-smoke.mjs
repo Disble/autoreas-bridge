@@ -75,7 +75,7 @@ const ROUTE_MARKERS = {
   // Both Activity markers are static shell copy rather than data: the Activity
   // bindings degrade here exactly like the notification ones, and a marker that
   // waited on a degraded read would only prove the timeout fired.
-  '/#/activity': ['Pin this moment', 'Incidents'],
+  '/#/activity': ['Pin this moment', 'Traffic'],
   // The static Create deep link every Airis empty state points at. It must
   // resolve BEFORE `/editor/:id`, so the marker is the Create workspace's own
   // heading: if the identifier route ever wins again, the Library workspace
