@@ -79,10 +79,12 @@ export type ActivityChartDensity = 'sparse' | 'dense';
 export interface ActivityChartBarModel {
   /** Unique key: the slot start. */
   readonly key: number;
-  /** Fill height, percent of the busiest slot. */
+  /** Fill height, percent of the busiest slot; a gap fills the whole slot. */
   readonly heightPercent: number;
   /** Whether a line in the slot failed (red cap). */
   readonly hasFailure: boolean;
+  /** Whether the slot has no lines: drawn as a hatched full-height gap (mockup `.ax-bar.off`). */
+  readonly isGap: boolean;
   /** Tooltip and accessible name, from the slot's own counts. */
   readonly label: string;
   /** Axis tick under the bar; empty for none. */

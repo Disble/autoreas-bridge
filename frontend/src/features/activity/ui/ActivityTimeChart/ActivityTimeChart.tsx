@@ -1,6 +1,6 @@
 import { Alert, Button, Card, Skeleton, ToggleButton, ToggleButtonGroup, Typography } from '@heroui/react';
 import { ACTIVITY_CHART_BARS_CLASS, ACTIVITY_CHART_SKELETON_BARS, ACTIVITY_SCALE_BUTTON_CLASS, ACTIVITY_SCALE_GROUP_CLASS, ACTIVITY_CARD_CLASS, ACTIVITY_SCALE_OPTIONS, ACTIVITY_SKELETON_SHIMMER_CLASS } from '../../feed/activity-feed.constants';
-import { ACTIVITY_BAR_FILL_CLASS, ACTIVITY_BAR_NOW_CLASS, ACTIVITY_BAR_SLOT_CLASS, ACTIVITY_CHART_DENSITY_CLASS, ACTIVITY_CHART_LOADING_LABEL } from './activity-time-chart.constants';
+import { ACTIVITY_BAR_FILL_CLASS, ACTIVITY_BAR_GAP_CLASS, ACTIVITY_BAR_NOW_CLASS, ACTIVITY_LEGEND_GAP_CLASS, ACTIVITY_BAR_SLOT_CLASS, ACTIVITY_CHART_DENSITY_CLASS, ACTIVITY_CHART_LOADING_LABEL } from './activity-time-chart.constants';
 import type { ActivityTimeChartProps } from './activity-time-chart.types';
 
 /**
@@ -100,7 +100,8 @@ export function ActivityTimeChart({
                   type="button"
                 >
                   <span
-                    className={`relative flex w-full flex-col overflow-hidden ${ACTIVITY_CHART_DENSITY_CLASS.fill[density]} ${ACTIVITY_BAR_FILL_CLASS[bar.state]}`}
+                    className={`relative flex w-full flex-col overflow-hidden ${ACTIVITY_CHART_DENSITY_CLASS.fill[density]} ${bar.isGap ? ACTIVITY_BAR_GAP_CLASS : ACTIVITY_BAR_FILL_CLASS[bar.state]}`}
+                    data-chart-gap={bar.isGap ? '' : undefined}
                     style={{ height: `${bar.heightPercent}%` }}
                   >
                     {bar.hasFailure ? <span className="h-1 w-full shrink-0 bg-danger" data-chart-failure /> : null}
@@ -127,6 +128,10 @@ export function ActivityTimeChart({
               <span className="flex items-center gap-1.5">
                 <span className="h-2 w-3 rounded-[2px] bg-danger" />
                 Something failed
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className={`h-2 w-3 rounded-[2px] ${ACTIVITY_LEGEND_GAP_CLASS}`} />
+                No activity
               </span>
             </div>
           </div>

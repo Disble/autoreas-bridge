@@ -17,12 +17,19 @@ describe('toChartBars', () => {
     const bars = toChartBars(HOURS, '24h', undefined);
 
     expect(bars.map((bar) => [bar.heightPercent, bar.hasFailure, bar.state])).toEqual([
-      [0, false, 'idle'],
+      [100, false, 'idle'],
       [50, false, 'idle'],
       [100, true, 'idle'],
     ]);
     expect(bars[2].label).toBe('Oct 22, 12:00 – 13:00 · 100 lines · 3 failed');
     expect(bars.map((bar) => bar.isNow)).toEqual([false, false, true]);
+  });
+
+  it('draws a slot with no lines as a gap, never as a short bar, and names it as having no activity', () => {
+    const bars = toChartBars(HOURS, '24h', undefined);
+
+    expect(bars.map((bar) => bar.isGap)).toEqual([true, false, false]);
+    expect(bars[0].label).toBe('Oct 22, 10:00 – 11:00 · no activity');
   });
 
   it('keeps a quiet slot visible with a minimum height', () => {

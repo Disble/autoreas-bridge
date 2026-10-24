@@ -29,3 +29,14 @@ export const ACTIVITY_CHART_DENSITY_CLASS = {
 
 /** Screen-reader label of the chart's loading region. */
 export const ACTIVITY_CHART_LOADING_LABEL = 'Loading the activity chart';
+
+/**
+ * A slot with no lines (mockup `.ax-bar.off .fill`): full height, muted
+ * diagonal hatching and a dashed outline, so a gap reads as a gap rather than
+ * as a short bar.
+ */
+export const ACTIVITY_BAR_GAP_CLASS =
+  'bg-[repeating-linear-gradient(-45deg,transparent_0_5px,color-mix(in_oklab,var(--muted)_22%,transparent)_5px_6px)] outline-1 outline-dashed outline-offset-[-1px] outline-[color-mix(in_oklab,var(--muted)_45%,transparent)]';
+
+/** The legend swatch for a gap (mockup `.ax-legend` "Bridge off" swatch). */
+export const ACTIVITY_LEGEND_GAP_CLASS = 'outline-1 outline-dashed outline-offset-[-1px] outline-muted';

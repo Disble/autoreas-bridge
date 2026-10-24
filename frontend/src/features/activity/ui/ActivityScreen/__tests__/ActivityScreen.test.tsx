@@ -309,8 +309,8 @@ describe('ActivityScreen', () => {
 describe('ActivityScreen chart and toolbar', () => {
   /** Start of the current hour. */
   const hourMs = Math.floor(Date.now() / 3_600_000) * 3_600_000;
-  /** The last three hourly slots, oldest first. */
-  const slots = [2, 1, 0].map((back) => ({ startMs: hourMs - back * 3_600_000, endMs: hourMs - (back - 1) * 3_600_000, count: 3 - back, failed: back === 0 ? 1 : 0 }));
+  /** The last three hourly slots, oldest first; the oldest recorded nothing. */
+  const slots = [2, 1, 0].map((back) => ({ startMs: hourMs - back * 3_600_000, endMs: hourMs - (back - 1) * 3_600_000, count: back === 2 ? 0 : 3 - back, failed: back === 0 ? 1 : 0 }));
 
   /** The chart bars on screen. */
   function bars() {
@@ -329,6 +329,8 @@ describe('ActivityScreen chart and toolbar', () => {
     renderScreen();
     await waitFor(() => expect(bars()).toHaveLength(3));
     expect(document.querySelectorAll('[data-chart-failure]')).toHaveLength(1);
+    expect(bars()[0].querySelector('[data-chart-gap]')).not.toBeNull();
+    expect(document.querySelectorAll('[data-chart-gap]')).toHaveLength(1);
   }
 
   it('marks the newest bar with the now line and packs more than 24 bars tighter', async () => {

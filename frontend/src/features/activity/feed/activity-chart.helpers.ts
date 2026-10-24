@@ -17,8 +17,11 @@ function overlaps(slot: ActivityChartSlot, range: ActivityRange): boolean {
   return slot.startMs <= range.toMs && range.fromMs < slot.endMs;
 }
 
-/** `100 lines · 3 failed`. */
+/** `100 lines · 3 failed`, or `no activity` for a gap. */
 function formatCounts(slot: ActivityChartSlot): string {
+  if (slot.count === 0) {
+    return 'no activity';
+  }
   const lines = `${ACTIVITY_FEED_COUNT_FORMAT.format(slot.count)} ${slot.count === 1 ? 'line' : 'lines'}`;
   return slot.failed > 0 ? `${lines} · ${ACTIVITY_FEED_COUNT_FORMAT.format(slot.failed)} failed` : lines;
 }
@@ -59,8 +62,9 @@ function formatTick(slot: ActivityChartSlot, scale: ActivityChartScale, index: n
 
 /**
  * Turns the overview's slots into drawable bars: blue height by activity
- * against the busiest slot, a red cap where a line failed, and the selection
- * marked with the other bars dimmed.
+ * against the busiest slot, a red cap where a line failed, a hatched gap
+ * where nothing was recorded, and the selection marked with the other bars
+ * dimmed. A gap does not claim the bridge was off: no stop is stored.
  *
  * @param slots The chart slots, oldest first.
  * @param scale The chart scale.
@@ -74,8 +78,9 @@ export function toChartBars(slots: readonly ActivityChartSlot[], scale: Activity
     const state: ActivityChartBarState = selection === undefined ? 'idle' : overlaps(slot, selection) ? 'selected' : 'dimmed';
     return {
       key: slot.startMs,
-      heightPercent: slot.count === 0 ? 0 : Math.max(ACTIVITY_MIN_BAR_PERCENT, (slot.count / busiest) * 100),
+      heightPercent: slot.count === 0 ? 100 : Math.max(ACTIVITY_MIN_BAR_PERCENT, (slot.count / busiest) * 100),
       hasFailure: slot.failed > 0,
+      isGap: slot.count === 0,
       label: `${formatSpan(slot, scale)} · ${formatCounts(slot)}`,
       tick,
       isTodayTick: tick === ACTIVITY_TODAY_TICK,
