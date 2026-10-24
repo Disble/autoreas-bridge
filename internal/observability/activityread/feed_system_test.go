@@ -244,3 +244,50 @@ func TestFeedRejectsTheRetiredBridgeType(t *testing.T) {
 		t.Fatal("Feed with type bridge succeeded, want an unknown type error")
 	}
 }
+
+func TestFeedSplitsSystemGroupsByEveryKeyPart(t *testing.T) {
+	at := hourStart(1) + 10*60_000
+	for _, tc := range []struct {
+		name   string
+		second event
+	}{
+		{"another domain", event{atMS: at + 60_000, domain: "anime", level: "error", message: "boom", eventType: "frontend.error"}},
+		{"another event type", event{atMS: at + 60_000, domain: "frontend", level: "error", message: "boom", eventType: "frontend.crash"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db, r := openTestReader(t)
+			insertEvent(t, db, event{atMS: at, domain: "frontend", level: "error", message: "boom", eventType: "frontend.error"})
+			insertEvent(t, db, tc.second)
+
+			if lines := systemLines(t, r, FeedInput{}); len(lines) != 2 {
+				t.Fatalf("lines = %+v, want one group per key", lines)
+			}
+			if got := countOf(t, overviewOf(t, r, OverviewInput{Scale: Scale24h}), FeedSystem); got.Lines != 2 || got.Failed != 2 {
+				t.Fatalf("System count = %+v, want 2 lines, 2 failed", got)
+			}
+		})
+	}
+}
+
+func TestFeedLinksNoIncidentFromAnotherHour(t *testing.T) {
+	db, r := openTestReader(t)
+	hour := hourStart(1)
+	insertEvent(t, db, event{atMS: hour + 10*60_000, domain: "frontend", level: "error", message: "boom", eventType: "frontend.error"})
+	insertIncident(t, db, "error_event|frontend|frontend.error", "error_event", hour-30*60_000, "event", "") // the previous hour
+
+	lines := systemLines(t, r, FeedInput{})
+	if len(lines) != 1 || !lines[0].Failed || lines[0].IncidentID != 0 {
+		t.Fatalf("lines = %+v, want one failed group with no incident", lines)
+	}
+}
+
+func TestFeedKeepsASystemEventAtTheRangeStart(t *testing.T) {
+	db, r := openTestReader(t)
+	at := hourStart(1) + 10*60_000
+	insertEvent(t, db, event{atMS: at, domain: "frontend", level: "error", message: "boom", eventType: "frontend.error"})
+
+	if lines := systemLines(t, r, FeedInput{FromMS: at}); len(lines) != 1 || lines[0].Line.AtMS != at {
+		t.Fatalf("lines from the event's own time = %+v, want the event", lines)
+	}
+	assertCountsMatchFeed(t, r, OverviewInput{Scale: Scale24h, FromMS: at})
+}
