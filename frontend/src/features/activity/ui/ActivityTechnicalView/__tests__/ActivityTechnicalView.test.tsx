@@ -1,11 +1,15 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { DrawerRequestGroup } from '../../../drawer/drawer.types';
+import type { DrawerRequestGroup, DrawerRequestPanel } from '../../../drawer/drawer.types';
 import { ActivityTechnicalView } from '../ActivityTechnicalView';
+import { ACTIVITY_TECHNICAL_JSON_TOKEN_CLASS } from '../activity-technical-view.constants';
 import type { ActivityTechnicalViewProps } from '../activity-technical-view.types';
 
 /** One refused reconcile group. */
 const GROUP: DrawerRequestGroup = { key: 'a|401', route: '/api/sync/reconcile', status: '401', failed: true, count: 1, latestTime: '09:14', latestRequestId: 'r1' };
+
+/** An unanswered request with no bodies and no captured headers. */
+const UNANSWERED_PANEL: DrawerRequestPanel = { summary: ['/api/sync/reconcile'], status: 'no answer', failed: false, notApplied: false, requestBody: '', requestCut: false, responseBody: '', responseCut: false, requestHeaders: [], responseHeaders: [] };
 
 /** A second, fine diagnostics group. */
 const OTHER_GROUP: DrawerRequestGroup = { key: 'b|200', route: '/api/sync/diagnostics', status: '200', failed: false, count: 3, latestTime: '09:20', latestRequestId: 'r2' };
@@ -52,7 +56,7 @@ describe('ActivityTechnicalView', () => {
           groups: [GROUP],
           selectedGroupKey: GROUP.key,
           requestStatus: 'ready',
-          panel: { summary: ['/api/sync/reconcile', '71 ms'], status: '200', failed: false, notApplied: true, requestBody: '{}', requestCut: false, responseBody: '{}', responseCut: true },
+          panel: { summary: ['/api/sync/reconcile', '71 ms'], status: '200', failed: false, notApplied: true, requestBody: '{}', requestCut: false, responseBody: '{}', responseCut: true, requestHeaders: [], responseHeaders: [] },
         })}
       />,
     );
@@ -105,7 +109,30 @@ describe('ActivityTechnicalView', () => {
     render(<ActivityTechnicalView {...props({ tab: 'data', data: [{ label: 'Before', raw: '' }, { label: 'After', raw: '{"a":1}' }] })} />);
 
     expect(screen.getByText('Nothing was stored.')).toBeInTheDocument();
-    expect(screen.getByText('After')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Before', level: 3 })).toBeInTheDocument();
+    const after = screen.getByRole('region', { name: 'After' });
+    expect(after.querySelector('pre')).toHaveTextContent('{ "a": 1 }');
+    expect(screen.getByText('"a"')).toHaveClass(ACTIVITY_TECHNICAL_JSON_TOKEN_CLASS.key);
+    expect(screen.getByRole('tabpanel').querySelectorAll('button')).toHaveLength(0);
+  });
+
+  it('colours the picked request bodies with the same tokenizer and puts the status on Response', () => {
+    const panel = { summary: ['/api/sync/reconcile'], status: '200', failed: false, notApplied: false, requestBody: '{"device_id":"pixel"}', requestCut: false, responseBody: '{"status":"ok"}', responseCut: false, requestHeaders: [{ name: 'Authorization', value: 'Bearer ••••••••' }, { name: 'X-Client-Request-Id', value: 'c6720086:3' }], responseHeaders: [{ name: 'Content-Type', value: 'application/json' }] };
+    render(<ActivityTechnicalView {...props({ groups: [GROUP], requestStatus: 'ready', panel })} />);
+
+    expect(screen.getByText('"pixel"')).toHaveClass(ACTIVITY_TECHNICAL_JSON_TOKEN_CLASS.string);
+    expect(screen.getByRole('heading', { name: /^Response/, level: 4 })).toHaveTextContent('Response200');
+    const requestHeaders = screen.getByLabelText('Request headers');
+    expect(within(requestHeaders).getAllByRole('term').map((term) => term.textContent)).toEqual(['Authorization', 'X-Client-Request-Id']);
+    expect(within(requestHeaders).getAllByRole('definition').map((value) => value.textContent)).toEqual(['Bearer ••••••••', 'c6720086:3']);
+    expect(screen.getByLabelText('Response headers')).toHaveTextContent('Content-Typeapplication/json');
+  });
+
+  it('shows no header list for a side without captured headers', () => {
+    render(<ActivityTechnicalView {...props({ groups: [GROUP], requestStatus: 'ready', panel: { ...UNANSWERED_PANEL } })} />);
+
+    expect(screen.queryByLabelText('Request headers')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Response headers')).not.toBeInTheDocument();
   });
 
   it.each([
@@ -164,7 +191,7 @@ describe('ActivityTechnicalView', () => {
   });
 
   it('shows a refused request without bodies: no not-applied chip, the request cut chip, and both notices', () => {
-    const panel = { summary: ['/api/sync/reconcile'], status: '401', failed: true, notApplied: false, requestBody: '', requestCut: true, responseBody: '', responseCut: false };
+    const panel = { summary: ['/api/sync/reconcile'], status: '401', failed: true, notApplied: false, requestBody: '', requestCut: true, responseBody: '', responseCut: false, requestHeaders: [], responseHeaders: [] };
     render(<ActivityTechnicalView {...props({ groups: [GROUP], requestStatus: 'ready', panel })} />);
 
     const region = screen.getByRole('region', { name: 'Selected request' });

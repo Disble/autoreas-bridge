@@ -1,8 +1,8 @@
-import type { ActivityIncidentDetail, ActivityRequestDetail } from '../activity-source/activity-incident.types';
+import type { ActivityChangeContext, ActivityIncidentDetail, ActivityRequestDetail } from '../activity-source/activity-incident.types';
 import type { ActivityFeedLine } from '../feed-source/feed.types';
 import { formatActivityDuration } from '../ui/ActivityRunStory/activity-time.helpers';
-import { DRAWER_NO_RUN_EVENTS_NOTE, DRAWER_WINDOW_ERROR_EVENT_TYPE } from './drawer.constants';
-import type { DrawerDataBlock, DrawerEventRow, DrawerRequestGroup, DrawerRequestPanel, DrawerSummaryInput, DrawerTechnicalTab, DrawerWindowErrorDetail } from './drawer.types';
+import { DRAWER_CHANGE_READ_FAILED_NOTE, DRAWER_NO_LINE_EVENTS_NOTE, DRAWER_NO_RUN_EVENTS_NOTE, DRAWER_WINDOW_ERROR_EVENT_TYPE } from './drawer.constants';
+import type { DrawerDataBlock, DrawerEventRow, DrawerHttpHeader, DrawerRequestGroup, DrawerRequestPanel, DrawerSummaryInput, DrawerTechnicalTab, DrawerWindowErrorDetail } from './drawer.types';
 import { formatDrawerSeconds, formatDrawerTime } from './drawer-format.helpers';
 import { toDrawerWindowErrorFromMetadata } from './drawer-window-error.helpers';
 import { toDrawerHeader } from './drawer-summary.helpers';
@@ -29,13 +29,15 @@ export function pickDrawerTab(tabs: readonly DrawerTechnicalTab[], chosen: Drawe
 }
 
 /**
- * The route-and-status groups of the Requests tab, as the incident folded them.
+ * The route-and-status groups of the Requests tab, as the incident folded
+ * them, else as a change's context folded the captures that carried it.
  *
  * @param detail The line's incident; undefined when it has none.
- * @returns The groups; empty without an incident.
+ * @param change The change line's context; undefined for other lines.
+ * @returns The groups; empty without either.
  */
-export function toDrawerRequestGroups(detail: ActivityIncidentDetail | undefined): readonly DrawerRequestGroup[] {
-  return (detail?.requests ?? []).map((request) => ({
+export function toDrawerRequestGroups(detail: ActivityIncidentDetail | undefined, change?: ActivityChangeContext): readonly DrawerRequestGroup[] {
+  return (detail?.requests ?? change?.requests ?? []).map((request) => ({
     key: `${request.routeTemplate}|${request.httpStatus ?? ''}`,
     route: request.routeTemplate,
     status: request.httpStatus === undefined ? 'no answer' : String(request.httpStatus),
@@ -79,7 +81,14 @@ export function toDrawerRequestPanel(group: DrawerRequestGroup, request: Activit
     requestCut: request.requestBodyState === 'truncated',
     responseBody: request.responseBody ?? '',
     responseCut: request.responseBodyState === 'truncated',
+    requestHeaders: toDrawerHttpHeaders(request.requestHeaders),
+    responseHeaders: toDrawerHttpHeaders(request.responseHeaders),
   };
+}
+
+/** Lists stored headers in their stored order; the recorder already masked credentials. */
+function toDrawerHttpHeaders(headers: Readonly<Record<string, string>> | undefined): readonly DrawerHttpHeader[] {
+  return Object.entries(headers ?? {}).map(([name, value]) => ({ name, value }));
 }
 
 /**
@@ -108,14 +117,14 @@ export function toDrawerPickedRequestPanel(group: DrawerRequestGroup | undefined
 
 /**
  * The runtime events of the Events tab: the run's stored story, else the
- * incident's window, else the event
+ * incident's window, else a change's events by anime and time, else the event
  * line itself.
  *
  * @param input The summary input.
  * @returns The rows, oldest first.
  */
 export function toDrawerEventRows(input: DrawerSummaryInput): readonly DrawerEventRow[] {
-  const events = input.story?.steps.length ? input.story.steps : input.incident?.events;
+  const events = input.story?.steps.length ? input.story.steps : (input.incident?.events ?? input.change?.events);
   if (events !== undefined) {
     return events.map((event) => ({
       key: String(event.id),
@@ -134,14 +143,22 @@ export function toDrawerEventRows(input: DrawerSummaryInput): readonly DrawerEve
 }
 
 /**
- * Why the Events tab is empty, said only when it is known: the run's story was
- * read and holds no stored event, and no incident window replaces it.
+ * Why the Events tab is empty, so it is never blank: a run whose stored story
+ * holds no event says so, a change whose context read failed says so, and any
+ * other line without events says none are
+ * linked to it.
  *
  * @param input The summary input.
- * @returns The note, or empty when the tab has rows or the reason is unknown.
+ * @returns The note, or empty when the tab has rows.
  */
 export function toDrawerEventsEmpty(input: DrawerSummaryInput): string {
-  return input.story?.steps.length === 0 && input.incident === undefined ? DRAWER_NO_RUN_EVENTS_NOTE : '';
+  if (toDrawerEventRows(input).length > 0) {
+    return '';
+  }
+  if (input.changeFailed) {
+    return DRAWER_CHANGE_READ_FAILED_NOTE;
+  }
+  return input.story === undefined ? DRAWER_NO_LINE_EVENTS_NOTE : DRAWER_NO_RUN_EVENTS_NOTE;
 }
 
 /**

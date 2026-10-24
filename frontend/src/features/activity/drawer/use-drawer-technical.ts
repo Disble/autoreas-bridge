@@ -41,7 +41,7 @@ export function useDrawerTechnical(source: ActivitySource, feedSource: ActivityF
   const lineKey = toDrawerLineKey(line);
   const tabs = toDrawerTechnicalTabs(line);
   const tab = pickDrawerTab(tabs, chosenTab);
-  const requestGroups = useMemo(() => toDrawerRequestGroups(incident), [incident]);
+  const requestGroups = useMemo(() => toDrawerRequestGroups(incident, input.change), [incident, input.change]);
   const selectedGroup = pickDrawerGroup(requestGroups, picked, lineKey);
   const requestId = toDrawerRequestId(technical, tab, selectedGroup);
   const requestRead = useActivityRead(source, requestId, readActivityRequest);

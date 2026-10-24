@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"autoreas-bridge/internal/activity"
 	"autoreas-bridge/internal/observability/activityread"
 )
 
@@ -97,6 +98,53 @@ func TestGetActivityEventReadsOneEventByID(t *testing.T) {
 		t.Fatalf("missing event = %#v, %v; want not found", missing, err)
 	}
 	if _, err := (&App{}).GetActivityEvent(id); !errors.Is(err, errActivityUnavailable) {
+		t.Fatalf("unwired: err = %v, want errActivityUnavailable", err)
+	}
+}
+
+// TestGetActivityChangeContextReadsTheAnimesEventsAndCaptures asserts the
+// binding returns the events and captures stored for the anime around the
+// change it is asked for by id, not found for an unknown id, and
+// errActivityUnavailable before the reader is wired.
+func TestGetActivityChangeContextReadsTheAnimesEventsAndCaptures(t *testing.T) {
+	t.Parallel()
+	app := newActivityTestApp(t)
+	at := activityAt(-time.Minute)
+	if _, err := app.bridgeDB.Exec(`INSERT INTO runtime_events (occurred_at_ms, domain, level, message, correlation_id,
+		entity_id, event_type) VALUES (?, 'sync', 'info', 'recorded pending changelog for 8Fn5qny6DPbhWLJn',
+		'd4c0098786f004ebdc699c2d3caa4425', '8Fn5qny6DPbhWLJn', 'sync.changelog')`, at-2); err != nil {
+		t.Fatalf("seed event: %v", err)
+	}
+	if _, err := app.bridgeDB.Exec(`INSERT INTO request_captures (request_id, captured_at_ms, kind, route, transport,
+		device_id, device_name, outcome, http_status, payload_json, correlation_json)
+		VALUES ('7e4b8c9f', ?, 'reconcile', '/api/sync/reconcile', 'http', 'device-3e4abdfd05f2ea61', 'Pixel 8a',
+		'completed', 200, '{}', '{"changelog_ids":[2717],"operation_refs":[{"anime_id":"8Fn5qny6DPbhWLJn","operation":"update","outcome":"applied"}]}')`,
+		at-20); err != nil {
+		t.Fatalf("seed capture: %v", err)
+	}
+
+	changes := activity.NewStore(activity.NewSQLiteProvider(app.bridgeDB))
+	if err := changes.RecordActivity(context.Background(), activity.Record{
+		Source: "mobile", ActionType: "episode_adjusted", AnimeID: "8Fn5qny6DPbhWLJn", AnimeName: "Date A Live V",
+		OccurredAtMs: at, CorrelationID: "anime.patch:8Fn5qny6DPbhWLJn:1792801492755",
+	}); err != nil {
+		t.Fatalf("seed change: %v", err)
+	}
+	recorded, err := changes.ListRecent(context.Background(), activity.ListQuery{Limit: 1})
+	if err != nil || len(recorded) != 1 {
+		t.Fatalf("read change back: %v, %d", err, len(recorded))
+	}
+	changeID := recorded[0].ID
+
+	got, err := app.GetActivityChangeContext(changeID, at)
+	if err != nil || !got.Found || len(got.Events) != 1 || got.Events[0].EventType != "sync.changelog" ||
+		len(got.Requests) != 1 || got.Requests[0].LatestRequestID != "7e4b8c9f" {
+		t.Fatalf("GetActivityChangeContext = %#v, %v", got, err)
+	}
+	if missing, err := app.GetActivityChangeContext(changeID+1, at); err != nil || missing.Found || len(missing.Events) != 0 {
+		t.Fatalf("unknown change = %#v, %v; want not found", missing, err)
+	}
+	if _, err := (&App{}).GetActivityChangeContext(changeID, at); !errors.Is(err, errActivityUnavailable) {
 		t.Fatalf("unwired: err = %v, want errActivityUnavailable", err)
 	}
 }

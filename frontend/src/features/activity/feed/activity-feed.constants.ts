@@ -148,5 +148,8 @@ export const ACTIVITY_DRAWER_KEEP_OPEN_SELECTOR = '[data-activity-drawer], [data
 /** How often the phone status line re-reads the devices and refreshes its relative time (S13). */
 export const ACTIVITY_PHONE_STATUS_TICK_MS = 15_000;
 
+/** A phone that synced over HTTP in the last 2 minutes reads as connected, even without a live websocket (S13). */
+export const ACTIVITY_PHONE_RECENT_SYNC_MS = 2 * 60_000;
+
 /** The Activity cards' padding (mockup `.ax-card`): 20px top and bottom, 24px on the sides. */
 export const ACTIVITY_CARD_CLASS = 'px-6 py-5';

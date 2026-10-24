@@ -1,5 +1,5 @@
 import type { DrawerBodyStatus } from '../../drawer/drawer-reads.helpers';
-import type { DrawerDataBlock, DrawerEventRow, DrawerOccurrence, DrawerRequestGroup, DrawerRequestPanel, DrawerTechnicalTab, DrawerWindowErrorDetail } from '../../drawer/drawer.types';
+import type { DrawerDataBlock, DrawerEventRow, DrawerHttpHeader, DrawerOccurrence, DrawerRequestGroup, DrawerRequestPanel, DrawerTechnicalTab, DrawerWindowErrorDetail } from '../../drawer/drawer.types';
 import type { ActivityRead } from '../ActivityRunStory/activity-run-story.types';
 
 /** Props of the technical view of the detail drawer. */
@@ -75,4 +75,36 @@ export interface ActivityTechnicalWindowErrorProps
   extends Pick<ActivityTechnicalViewProps, 'occurrences' | 'selectedOccurrenceId' | 'occurrenceStatus' | 'onPickOccurrence' | 'onRetryOccurrence'> {
   /** The shown window error; undefined while a picked occurrence is not read. */
   readonly detail: DrawerWindowErrorDetail | undefined;
+}
+
+/** One coloured run of a JSON body: a key, a string value, or plain text. */
+export interface ActivityJsonToken {
+  /** What the run is. */
+  readonly kind: 'key' | 'string' | 'plain';
+  /** Where the run starts in the shown text; it also keys the run. */
+  readonly offset: number;
+  /** Its text, as shown. */
+  readonly text: string;
+}
+
+/** Props of a stored JSON body. */
+export interface ActivityTechnicalJsonProps {
+  /** The stored body. */
+  readonly raw: string;
+}
+
+/** Props of the empty state of a technical tab. */
+export interface ActivityTechnicalEmptyProps {
+  /** What is missing. */
+  readonly title: string;
+  /** Why it is missing. */
+  readonly description: string;
+}
+
+/** Props of the stored headers of one side of the picked request. */
+export interface ActivityTechnicalHeadersProps {
+  /** Which side, for the list's accessible name. */
+  readonly label: string;
+  /** The headers as stored; nothing renders when empty. */
+  readonly headers: readonly DrawerHttpHeader[];
 }

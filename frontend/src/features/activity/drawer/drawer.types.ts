@@ -1,5 +1,7 @@
 import type { ActivityFeedLine } from '../feed-source/feed.types';
-import type { ActivityIncidentDetail, ActivityRunStory } from '../activity-source/activity-incident.types';
+import type { ActivityChangeContext, ActivityIncidentDetail, ActivityRunStory } from '../activity-source/activity-incident.types';
+import type { ActivityFeedSource } from '../feed-source/feed-source.types';
+import type { ActivityRead } from '../ui/ActivityRunStory/activity-run-story.types';
 
 /**
  * View models of the Activity detail drawer (activity-ui-design-v2.md, Detail
@@ -104,6 +106,10 @@ export interface DrawerSummaryInput {
   readonly incident: ActivityIncidentDetail | undefined;
   /** The events sharing the line's correlation id; undefined when it has none or they were not read. */
   readonly story: ActivityRunStory | undefined;
+  /** What a change line links to by anime and time; undefined for other lines or until read. */
+  readonly change: ActivityChangeContext | undefined;
+  /** True when a change line's context read failed, so its Events tab says so instead of claiming none are linked. */
+  readonly changeFailed: boolean;
   /** The event's recorded metadata, keys as stored; undefined when it could not be read. */
   readonly metadata: Readonly<Record<string, string>> | undefined;
   /** The current time, epoch milliseconds. */
@@ -167,6 +173,14 @@ export interface DrawerWindowErrorDetail {
   readonly stack: string;
 }
 
+/** One stored HTTP header of the picked request. */
+export interface DrawerHttpHeader {
+  /** Header name as stored. */
+  readonly name: string;
+  /** Header value as stored; a credential arrives masked. */
+  readonly value: string;
+}
+
 /** The picked request panel of the Requests tab. */
 export interface DrawerRequestPanel {
   /** The summary line: route, duration and "latest of N · time" when N > 1. */
@@ -183,6 +197,10 @@ export interface DrawerRequestPanel {
   readonly requestCut: boolean;
   /** Response body text; empty when none was captured. */
   readonly responseBody: string;
+  /** Request headers as stored, credentials already masked by the recorder; empty when none were captured. */
+  readonly requestHeaders: readonly DrawerHttpHeader[];
+  /** Response headers as stored; empty when none were captured. */
+  readonly responseHeaders: readonly DrawerHttpHeader[];
   /** Whether the response body was cut at the capture limit. */
   readonly responseCut: boolean;
 }
@@ -222,3 +240,6 @@ export interface DrawerPickedOccurrence {
   /** The picked occurrence id. */
   readonly id: number;
 }
+
+/** Reads one row by its key over the feed port; a stable, module-level function. */
+export type DrawerFeedReader<K extends string | number, T> = (source: ActivityFeedSource, key: K) => Promise<ActivityRead<T>>;

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ActivityRunStep } from '../../activity-source/activity-incident.types';
 import type { ActivityFeedSource } from '../../feed-source/feed-source.types';
-import { readDrawerEvent, toDrawerEventId, toDrawerEventMetadata, toDrawerStoryId } from '../drawer-reads.helpers';
+import { readDrawerChangeContext, readDrawerEvent, toDrawerChangeKey, toDrawerEventId, toDrawerEventMetadata, toDrawerStoryId } from '../drawer-reads.helpers';
 import { feedLine } from './drawer.fixtures';
 
 /** A stored event with the given metadata JSON. */
@@ -46,6 +46,31 @@ describe('readDrawerEvent', () => {
     const read = await readDrawerEvent({ getEvent } as unknown as ActivityFeedSource, 12);
 
     expect(getEvent).toHaveBeenCalledExactlyOnceWith(12);
+    expect(read.status).toBe(status);
+  });
+});
+
+describe('toDrawerChangeKey', () => {
+  it.each([
+    ['a change line reads its id and time', 'change', '872', '872@1792801492755'],
+    ['another kind reads nothing', 'event', '872', undefined],
+    ['a non-numeric id reads nothing', 'change', 'c-1', undefined],
+    ['a zero id reads nothing', 'change', '0', undefined],
+  ])('%s', (_name, kind, id, expected) => {
+    expect(toDrawerChangeKey(feedLine({}, { kind, id, atMs: 1792801492755 }))).toBe(expected);
+  });
+});
+
+describe('readDrawerChangeContext', () => {
+  it.each([
+    ['ready when stored', { events: [], truncated: false, requests: [] }, 'ready'],
+    ['gone when no change has the id', undefined, 'gone'],
+  ])('is %s', async (_name, stored, status) => {
+    const getChangeContext = vi.fn(() => Promise.resolve(stored));
+
+    const read = await readDrawerChangeContext({ getChangeContext } as unknown as ActivityFeedSource, '872@1792801492755');
+
+    expect(getChangeContext).toHaveBeenCalledExactlyOnceWith(872, 1792801492755);
     expect(read.status).toBe(status);
   });
 });

@@ -1,4 +1,4 @@
-import type { ActivityRunStep } from '../activity-source/activity-incident.types';
+import type { ActivityChangeContext, ActivityRunStep } from '../activity-source/activity-incident.types';
 import type { ActivityFeedSource } from '../feed-source/feed-source.types';
 import type { ActivityFeedLine } from '../feed-source/feed.types';
 import type { ActivityRead } from '../ui/ActivityRunStory/activity-run-story.types';
@@ -60,6 +60,30 @@ export function toDrawerStoryId(line: ActivityFeedLine): string | undefined {
  */
 export function readDrawerEvent(source: ActivityFeedSource, id: number): Promise<ActivityRead<ActivityRunStep>> {
   return source.getEvent(id).then(toActivityFoundRead);
+}
+
+/**
+ * The read key of a change line, whose context `GetActivityChangeContext`
+ * reads by the change's id and time.
+ *
+ * @param line The open line.
+ * @returns `<id>@<atMs>`; undefined for other kinds or an id that is not a positive integer.
+ */
+export function toDrawerChangeKey(line: ActivityFeedLine): string | undefined {
+  const { kind, id, atMs } = line.line;
+  return kind === 'change' && /^\d+$/.test(id) && Number(id) > 0 ? `${id}@${atMs}` : undefined;
+}
+
+/**
+ * Reads what one change links to by its key; gone when no change has that id at that time.
+ *
+ * @param source The feed port.
+ * @param key The change's `<id>@<atMs>` key.
+ * @returns The ready or gone read; rejects when the read fails.
+ */
+export function readDrawerChangeContext(source: ActivityFeedSource, key: string): Promise<ActivityRead<ActivityChangeContext>> {
+  const at = key.indexOf('@');
+  return source.getChangeContext(Number(key.slice(0, at)), Number(key.slice(at + 1))).then(toActivityFoundRead);
 }
 
 /** Words one stored metadata value as stored: strings as is, anything else as JSON. */

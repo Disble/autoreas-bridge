@@ -1,7 +1,7 @@
-import { GetActivityEvent, GetActivityOverview, SearchActivityFeed } from '../../../../wailsjs/go/desktop/App';
+import { GetActivityChangeContext, GetActivityEvent, GetActivityOverview, SearchActivityFeed } from '../../../../wailsjs/go/desktop/App';
 import type { activityread } from '../../../../wailsjs/go/models';
 import { invokeGoBinding } from '../../../infrastructure/wails-bindings.helpers';
-import { mapRunStep } from '../activity-source/activity-incident.helpers';
+import { mapActivityChangeContext, mapRunStep } from '../activity-source/activity-incident.helpers';
 import { ACTIVITY_RUNTIME_UNAVAILABLE_MESSAGE } from '../activity-source/activity-source.constants';
 import { mapLedgerLine } from '../history-source/history-source.helpers';
 import { FEED_SOURCE_STATE } from './feed-source.constants';
@@ -117,6 +117,11 @@ export function createActivityFeedSource(): ActivityFeedSource {
     getEvent(id) {
       return invokeGoBinding('GetActivityEvent', () => GetActivityEvent(id), rejectRuntimeUnavailable).then((detail) =>
         detail.Found ? mapRunStep(detail.Step) : undefined,
+      );
+    },
+    getChangeContext(changeId, atMs) {
+      return invokeGoBinding('GetActivityChangeContext', () => GetActivityChangeContext(changeId, atMs), rejectRuntimeUnavailable).then((context) =>
+        context.Found ? mapActivityChangeContext(context) : undefined,
       );
     },
   };

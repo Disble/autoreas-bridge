@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ActivitySource } from '../../../activity-source/activity-source.types';
+import type { ActivityFeedSource } from '../../../feed-source/feed-source.types';
 import { feedLine, incident } from '../../../drawer/__tests__/drawer.fixtures';
 import { ActivityDetailDrawer } from '../ActivityDetailDrawer';
 
@@ -17,13 +18,23 @@ vi.mock('../../../activity-source/activity-source.helpers', () => ({
   createActivitySource: () => source,
 }));
 
+/** The one feed source the drawer reads; a change links to no event or capture. */
+const feedSource = {
+  getEvent: vi.fn(() => Promise.resolve(undefined)),
+  getChangeContext: vi.fn(() => Promise.resolve({ events: [], truncated: false, requests: [] })),
+} as unknown as ActivityFeedSource;
+
+vi.mock('../../../feed-source/feed-source.helpers', () => ({
+  createActivityFeedSource: () => feedSource,
+}));
+
 /** A failed traffic hour whose incident must be read. */
 const FAILED_HOUR = feedLine(
   { type: 'traffic', origin: 'phone', failed: true, incidentId: 7, traffic: { hourStartMs: Date.UTC(2026, 9, 22, 9), requests: 39, failed: 1, maxDurationMs: 412 } },
   { kind: 'traffic_hour' },
 );
 
-/** A phone change that needs no read. */
+/** A phone change; its context read finds nothing linked. */
 const CHANGE = feedLine(
   { type: 'change', origin: 'phone' },
   { kind: 'change', source: 'mobile', title: 'Hotaru no Yomeiri', detail: 'episode_adjusted', beforeJson: '{"NroCapVisto":0}', afterJson: '{"NroCapVisto":1}' },

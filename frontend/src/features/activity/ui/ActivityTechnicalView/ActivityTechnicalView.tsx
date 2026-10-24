@@ -1,8 +1,8 @@
 import { Chip, Tabs } from '@heroui/react';
 import { Icon } from '@iconify/react';
 import codeIcon from '@iconify-icons/solar/code-bold';
-import { CodeBlock } from '../../../../shared/ui/CodeBlock/CodeBlock';
 import type { DrawerTechnicalTab } from '../../drawer/drawer.types';
+import { ActivityTechnicalJson } from './ActivityTechnicalJson';
 import { ActivityTechnicalRequests } from './ActivityTechnicalRequests';
 import { ActivityTechnicalWindowError } from './ActivityTechnicalWindowError';
 import { ACTIVITY_TECHNICAL_LEVEL_COLORS, ACTIVITY_TECHNICAL_TAB_INDICATOR_CLASS, ACTIVITY_TECHNICAL_TAB_LABELS } from './activity-technical-view.constants';
@@ -76,7 +76,10 @@ export function ActivityTechnicalView(props: ActivityTechnicalViewProps) {
           {props.windowError === undefined &&
             props.occurrences.length === 0 &&
             props.data.map((block) => (
-              <CodeBlock key={block.label} label={block.label} notice="Nothing was stored." raw={block.raw} state={block.raw === '' ? 'not-captured' : 'captured'} />
+              <section aria-label={block.label} className="flex min-w-0 flex-col gap-2" key={block.label}>
+                <h3 className="text-[13px] font-medium text-muted">{block.label}</h3>
+                {block.raw === '' ? <p className="text-xs text-muted">Nothing was stored.</p> : <ActivityTechnicalJson raw={block.raw} />}
+              </section>
             ))}
         </Tabs.Panel>
       </Tabs>

@@ -19,7 +19,7 @@ function fakeSource(...replies: readonly (ActivityFeedView | Error)[]): Activity
   for (const reply of replies) {
     searchFeed.mockImplementationOnce(() => (reply instanceof Error ? Promise.reject(reply) : Promise.resolve(reply)));
   }
-  return { searchFeed, getOverview: vi.fn(), getEvent: vi.fn() };
+  return { searchFeed, getOverview: vi.fn(), getEvent: vi.fn(), getChangeContext: vi.fn() };
 }
 
 /** A scroll event of a list already at its bottom. */
@@ -99,7 +99,7 @@ describe('useActivityFeedPages', () => {
       .mockImplementationOnce(() => new Promise((resolve) => (resolveOld = resolve)))
       .mockImplementationOnce(() => new Promise((_resolve, reject) => (rejectOld = reject)))
       .mockResolvedValueOnce(onePage('new'));
-    const source = { searchFeed, getOverview: vi.fn(), getEvent: vi.fn() };
+    const source = { searchFeed, getOverview: vi.fn(), getEvent: vi.fn(), getChangeContext: vi.fn() };
     const { result, rerender } = renderHook(({ query }) => useActivityFeedPages(source, query), { initialProps: { query: QUERY } });
 
     rerender({ query: { ...QUERY, origin: 'phone' } });

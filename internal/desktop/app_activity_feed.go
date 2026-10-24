@@ -59,3 +59,16 @@ func (a *App) GetActivityEvent(id int64) (activityread.EventDetail, error) {
 	}
 	return reader.Event(a.seasonCtx(), id)
 }
+
+// GetActivityChangeContext returns what one Activity change line, by its id and time,
+// links to: the runtime events stored for its anime around its time, and the
+// captured requests that carried it. Nothing stored keys them to the change
+// itself, so the reader matches by anime and time
+// (activityread.ChangeContextWindow); Found is false for an unknown id.
+func (a *App) GetActivityChangeContext(changeID, atMS int64) (activityread.ChangeContext, error) {
+	reader, err := a.activityReader()
+	if err != nil {
+		return activityread.ChangeContext{}, err
+	}
+	return reader.ChangeContext(a.seasonCtx(), changeID, atMS)
+}

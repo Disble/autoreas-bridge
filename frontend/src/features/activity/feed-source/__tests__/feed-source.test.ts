@@ -189,6 +189,24 @@ describe('feed-source', () => {
     expect(missing).toBeUndefined();
   });
 
+  it('reads what a change line links to by its id, and an unknown change as undefined', async () => {
+    const step = { ID: 40251, AtMS: 5, Domain: 'sync', Level: 'info', EventType: 'sync.changelog', Message: 'recorded pending changelog for a', CorrelationID: 'd4c0', DurationMS: null, MetadataJSON: '' };
+    const read = vi.fn((id: number) =>
+      Promise.resolve(activityread.ChangeContext.createFrom(id === 872 ? { Found: true, Events: [step], Truncated: false, Requests: null } : { Found: false, Events: null, Truncated: false, Requests: null })),
+    );
+    attachBindings({ GetActivityChangeContext: read });
+    const { createActivityFeedSource } = await import('../feed-source.helpers');
+    const source = createActivityFeedSource();
+
+    const context = await source.getChangeContext(872, 1792801492755);
+    const missing = await source.getChangeContext(873, 1792801492755);
+
+    expect(read).toHaveBeenCalledWith(872, 1792801492755);
+    expect(context?.events).toMatchObject([{ id: 40251, eventType: 'sync.changelog', message: 'recorded pending changelog for a' }]);
+    expect(context?.requests).toEqual([]);
+    expect(missing).toBeUndefined();
+  });
+
   it('rejects both reads when the bindings never attach', async () => {
     const { createActivityFeedSource } = await import('../feed-source.helpers');
     const source = createActivityFeedSource();

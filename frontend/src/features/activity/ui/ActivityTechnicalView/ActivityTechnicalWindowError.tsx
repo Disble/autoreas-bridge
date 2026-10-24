@@ -74,7 +74,7 @@ export function ActivityTechnicalWindowError({ detail, occurrences, selectedOccu
                   </Chip>
                 )}
               </h3>
-              <pre className={ACTIVITY_TECHNICAL_CODE_CLASS}>{detail.stack}</pre>
+              <pre className={`${ACTIVITY_TECHNICAL_CODE_CLASS} whitespace-pre`}>{detail.stack}</pre>
             </section>
           )}
         </>

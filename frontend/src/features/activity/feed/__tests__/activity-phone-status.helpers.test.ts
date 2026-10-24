@@ -20,6 +20,8 @@ describe('toPhoneStatus', () => {
       ],
       { isConnected: true, label: 'Phone connected · last sync 3m ago' },
     ],
+    ['a phone without a websocket that synced 1:59 ago reads connected', [{ connection_status: 'disconnected', last_seen_at_ms: NOW_MS - 119_000 }], { isConnected: true, label: 'Phone connected · last sync 1m ago' }],
+    ['a phone without a websocket that synced 2:01 ago reads offline', [{ connection_status: 'disconnected', last_seen_at_ms: NOW_MS - 121_000 }], { isConnected: false, label: 'Phone offline · last sync 2m ago' }],
   ])('%s', (_case, devices, expected) => {
     expect(toPhoneStatus(devices, NOW_MS)).toEqual(expected);
   });

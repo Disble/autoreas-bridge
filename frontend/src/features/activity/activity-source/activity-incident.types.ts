@@ -156,6 +156,20 @@ export interface ActivityRequestDetail {
   readonly responseBodyState: string;
   /** Paired device name. */
   readonly deviceName: string;
+  /** Request headers as stored, credentials already masked; absent when none were captured (Go `omitempty`). */
+  readonly requestHeaders?: Readonly<Record<string, string>>;
+  /** Response headers as stored; absent when none were captured (Go `omitempty`). */
+  readonly responseHeaders?: Readonly<Record<string, string>>;
+}
+
+/** What one change line links to by anime and time (`GetActivityChangeContext`). */
+export interface ActivityChangeContext {
+  /** The anime's runtime events around the change, oldest first. */
+  readonly events: readonly ActivityRunStep[];
+  /** True when Go capped the events. */
+  readonly truncated: boolean;
+  /** The captured requests that carried the change, folded by route and status. */
+  readonly requests: readonly ActivityFoldedRequest[];
 }
 
 /** The events sharing one correlation id; the outcome is their worst level. */

@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { ActivityRunStep } from '../../activity-source/activity-incident.types';
+import type { ActivityChangeContext, ActivityRunStep } from '../../activity-source/activity-incident.types';
 import type { ActivitySource } from '../../activity-source/activity-source.types';
 import type { ActivityFeedSource } from '../../feed-source/feed-source.types';
 import type { ActivityFeedLine } from '../../feed-source/feed.types';
@@ -17,10 +17,17 @@ function sourceWith(reads: Partial<ActivitySource>): ActivitySource {
   } as unknown as ActivitySource;
 }
 
-/** A feed source whose event read is the given spy. */
-function feedWith(getEvent: ActivityFeedSource['getEvent']): ActivityFeedSource {
-  return { getEvent } as unknown as ActivityFeedSource;
+/** A feed source whose event read is the given spy, and whose change read finds no change unless given. */
+function feedWith(getEvent: ActivityFeedSource['getEvent'], getChangeContext: ActivityFeedSource['getChangeContext'] = () => Promise.resolve(undefined)): ActivityFeedSource {
+  return { getEvent, getChangeContext } as unknown as ActivityFeedSource;
 }
+
+/** Change 1's context as stored: one sync event and the reconcile that carried it. */
+const CHANGE_CONTEXT: ActivityChangeContext = {
+  events: [{ ...stored(''), id: 40251, domain: 'sync', level: 'info', eventType: 'sync.changelog', message: 'recorded pending changelog for 8Fn5qny6DPbhWLJn' }],
+  truncated: false,
+  requests: [{ routeTemplate: '/api/sync/reconcile', httpStatus: 200, count: 1, firstAtMs: 1, lastAtMs: 1, latestRequestId: '7e4b8c9f', kind: 'reconcile', outcome: 'completed', maxDurationMs: 76, containsTrigger: false }],
+};
 
 /** A feed source where no event is stored, for lines that are not about metadata. */
 const FEED = feedWith(() => Promise.resolve(undefined));
@@ -42,13 +49,46 @@ const DETAIL = incident({
 });
 
 describe('useActivityDetailDrawer', () => {
-  it('reads nothing for a line that is neither an incident nor an event, and is ready at once', () => {
+  it('reads nothing for a line that is neither an incident, an event nor a change, and is ready at once', () => {
     const source = sourceWith({});
-    const { result } = renderHook(() => useActivityDetailDrawer(feedLine({}, { kind: 'change' }), source, FEED));
+    const getChangeContext = vi.fn(() => Promise.resolve(undefined));
+    const feed = feedWith(() => Promise.resolve(undefined), getChangeContext);
+    const line = feedLine({}, { kind: 'traffic_hour' });
+    const { result } = renderHook(() => useActivityDetailDrawer(line, source, feed));
 
     expect(result.current.status).toBe('ready');
     expect(source.getIncident).not.toHaveBeenCalled();
     expect(source.getRunStory).not.toHaveBeenCalled();
+    expect(getChangeContext).not.toHaveBeenCalled();
+  });
+
+  it('reads a change line context by its id into the Events rows and the request groups', async () => {
+    const getChangeContext = vi.fn(() => Promise.resolve(CHANGE_CONTEXT));
+    const line = feedLine({ type: 'change', origin: 'phone' }, { kind: 'change', id: '872' });
+    const source = sourceWith({});
+    const feed = feedWith(() => Promise.resolve(undefined), getChangeContext);
+    const { result } = renderHook(() => useActivityDetailDrawer(line, source, feed));
+
+    expect(result.current.status).toBe('ready');
+    await waitFor(() => expect(result.current.events).toHaveLength(1));
+    expect(getChangeContext).toHaveBeenCalledExactlyOnceWith(872, line.line.atMs);
+    expect(result.current.events).toMatchObject([{ key: '40251', message: 'recorded pending changelog for 8Fn5qny6DPbhWLJn', domain: 'sync', detail: 'sync.changelog' }]);
+    expect(result.current.eventsEmpty).toBe('');
+    expect(result.current.requestGroups).toMatchObject([{ route: '/api/sync/reconcile', status: '200', latestRequestId: '7e4b8c9f' }]);
+  });
+
+  it('keeps the summary when the change context read rejects, says so in Events, and reads it again on retry', async () => {
+    const getChangeContext = vi.fn().mockRejectedValueOnce(new Error('db')).mockResolvedValueOnce(CHANGE_CONTEXT);
+    const line = feedLine({ type: 'change', origin: 'phone' }, { kind: 'change', id: '872' });
+    const source = sourceWith({});
+    const feed = feedWith(() => Promise.resolve(undefined), getChangeContext);
+    const { result } = renderHook(() => useActivityDetailDrawer(line, source, feed));
+
+    await waitFor(() => expect(result.current.eventsEmpty).toBe('The events linked to this change could not be read.'));
+    expect(result.current.status).toBe('ready');
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.events).toHaveLength(1));
+    expect(getChangeContext).toHaveBeenCalledTimes(2);
   });
 
   it('loads the incident once, then builds the summary from it', async () => {

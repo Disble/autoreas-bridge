@@ -5,10 +5,10 @@ import type { ActivityFeedSource } from '../feed-source/feed-source.types';
 import { readActivityIncident } from '../ui/ActivityIncidents/activity-incident-detail.helpers';
 import { toActivityReadValue } from '../ui/ActivityRunStory/activity-time.helpers';
 import { useActivityRead } from '../ui/ActivityRunStory/use-activity-read';
-import { toDrawerBodyStatus, toDrawerEventMetadata } from './drawer-reads.helpers';
+import { readDrawerEvent, toDrawerBodyStatus, toDrawerEventMetadata } from './drawer-reads.helpers';
 import { pickDrawerOccurrenceId, toDrawerOccurrenceEventId, toDrawerOccurrences, toDrawerOccurrenceStatus, toDrawerWindowErrorFromMetadata } from './drawer-window-error.helpers';
 import type { DrawerPickedOccurrence, DrawerWindowErrorDetail } from './drawer.types';
-import { useDrawerEventRead } from './use-drawer-event-read';
+import { useDrawerFeedRead } from './use-drawer-feed-read';
 
 /**
  * Owns the occurrence picker of a repeated window error (S12, L16): this
@@ -46,7 +46,7 @@ export function useDrawerOccurrence(
   const occurrenceRead = useActivityRead(source, earlierId, readActivityIncident);
   const occurrence = toActivityReadValue(occurrenceRead.read);
   const eventId = earlierId === undefined ? undefined : toDrawerOccurrenceEventId(occurrence);
-  const eventRead = useDrawerEventRead(feedSource, eventId);
+  const eventRead = useDrawerFeedRead(feedSource, eventId, readDrawerEvent);
   const event = toActivityReadValue(eventRead.read);
   const status = toDrawerOccurrenceStatus(toDrawerBodyStatus([occurrenceRead.read, eventRead.read]), earlierId !== undefined && occurrence !== undefined && eventId === undefined);
   const windowError = useMemo(() => {

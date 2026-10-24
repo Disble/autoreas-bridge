@@ -67,6 +67,12 @@ export const DRAWER_DATE_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'sho
 /** What the summary says for a run or task whose stored events are none. */
 export const DRAWER_NO_RUN_EVENTS_NOTE = 'No events were recorded for this run.';
 
+/** What the Events tab says for a line no stored runtime event is linked to (L18 E1). */
+export const DRAWER_NO_LINE_EVENTS_NOTE = 'No runtime events are linked to this line.';
+
+/** The Events tab note of a change line whose linked events could not be read. */
+export const DRAWER_CHANGE_READ_FAILED_NOTE = 'The events linked to this change could not be read.';
+
 /** The drawer before any line was opened. */
 export const DRAWER_PRESENCE_CLOSED = { line: undefined, open: false, session: 0 } as const;
 

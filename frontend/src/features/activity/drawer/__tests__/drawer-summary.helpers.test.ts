@@ -8,7 +8,7 @@ const AT = Date.UTC(2026, 9, 22, 12, 0);
 
 /** Builds a summary input; no incident, no metadata, read a day later. */
 function input(overrides: Partial<DrawerSummaryInput>): DrawerSummaryInput {
-  return { line: feedLine(), incident: undefined, story: undefined, metadata: undefined, nowMs: AT + 24 * 3_600_000, ...overrides };
+  return { line: feedLine(), incident: undefined, story: undefined, change: undefined, changeFailed: false, metadata: undefined, nowMs: AT + 24 * 3_600_000, ...overrides };
 }
 
 /** The kinds of a summary's sections, in order. */

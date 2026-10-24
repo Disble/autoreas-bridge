@@ -1,5 +1,6 @@
 import type { activityread, desktop } from '../../../../wailsjs/go/models';
 import type {
+  ActivityChangeContext,
   ActivityEventSummary,
   ActivityFoldedRequest,
   ActivityIncidentDetail,
@@ -113,6 +114,22 @@ export function mapActivityRequestResult(result: desktop.ActivityRequestResult):
     responseBody: detail.responseBody ?? undefined,
     responseBodyState: detail.responseBodyState ?? '',
     deviceName: detail.deviceName,
+    requestHeaders: detail.requestHeaders,
+    responseHeaders: detail.responseHeaders,
+  };
+}
+
+/**
+ * Converts the `GetActivityChangeContext` answer; nil lists become empty.
+ *
+ * @param context The events and captures Go linked to the change.
+ * @returns The change's events and folded requests.
+ */
+export function mapActivityChangeContext(context: activityread.ChangeContext): ActivityChangeContext {
+  return {
+    events: (context.Events ?? []).map(mapRunStep),
+    truncated: context.Truncated,
+    requests: (context.Requests ?? []).map(mapFoldedRequest),
   };
 }
 

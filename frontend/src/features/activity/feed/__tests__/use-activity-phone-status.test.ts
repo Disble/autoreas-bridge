@@ -73,6 +73,23 @@ describe('useActivityPhoneStatus', () => {
     expect(readDevices).toHaveBeenCalledTimes(2);
   });
 
+  it('turns a recently synced phone offline on its own once its sync ages past 2 minutes, even when reads fail', async () => {
+    const readDevices = vi.fn().mockResolvedValueOnce([{ connection_status: 'disconnected', last_seen_at_ms: NOW_MS - 60_000 }]).mockRejectedValue(new Error('offline'));
+    const { result } = renderHook(() => useActivityPhoneStatus(readDevices));
+    await settle();
+    expect(result.current?.label).toBe('Phone connected · last sync 1m ago');
+
+    // Fake timers move the clock with each tick: five ticks age the sync from 1:00 to 2:15.
+    for (let tick = 0; tick < 5; tick += 1) {
+      await act(async () => {
+        vi.advanceTimersByTime(ACTIVITY_PHONE_STATUS_TICK_MS);
+        await Promise.resolve();
+      });
+    }
+
+    expect(result.current).toEqual({ isConnected: false, label: 'Phone offline · last sync 2m ago' });
+  });
+
   it.each([
     ['reads the devices through the bridge binding by default', true, 'Phone connected · last sync 2m ago'],
     ['hides the line without a Wails runtime to read from', false, undefined],

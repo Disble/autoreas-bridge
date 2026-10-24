@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ActivityRequestDetail } from '../../activity-source/activity-incident.types';
+import type { ActivityChangeContext, ActivityRequestDetail } from '../../activity-source/activity-incident.types';
 import type { DrawerSummaryInput } from '../drawer.types';
 import {
   pickDrawerTab,
@@ -18,8 +18,15 @@ import { feedLine, incident } from './drawer.fixtures';
 
 /** Builds a summary input with no reads. */
 function input(overrides: Partial<DrawerSummaryInput>): DrawerSummaryInput {
-  return { line: feedLine(), incident: undefined, story: undefined, metadata: undefined, nowMs: 0, ...overrides };
+  return { line: feedLine(), incident: undefined, story: undefined, change: undefined, changeFailed: false, metadata: undefined, nowMs: 0, ...overrides };
 }
+
+/** Change 872's context as stored: one sync event and the reconcile that carried it. */
+const CHANGE: ActivityChangeContext = {
+  events: [{ id: 40251, atMs: 3, domain: 'sync', level: 'info', eventType: 'sync.changelog', message: 'recorded pending changelog for 8Fn5qny6DPbhWLJn', correlationId: 'd4c0', durationMs: undefined, metadataJson: '' }],
+  truncated: false,
+  requests: [{ routeTemplate: '/api/sync/reconcile', httpStatus: 200, count: 1, firstAtMs: 1, lastAtMs: 1, latestRequestId: '7e4b8c9f', kind: 'reconcile', outcome: 'completed', maxDurationMs: 76, containsTrigger: false }],
+};
 
 /** Two folded groups: a refused one and a fine one. */
 const DETAIL = incident({
@@ -46,6 +53,8 @@ const REQUEST: ActivityRequestDetail = {
   responseBody: '{"applied_operations":[{"applied":false,"reason":"conflict"}]}',
   responseBodyState: 'truncated',
   deviceName: 'Pixel',
+  requestHeaders: { Authorization: 'Bearer ••••••••', 'X-Client-Request-Id': 'c6720086:3' },
+  responseHeaders: { 'Content-Type': 'application/json' },
 };
 
 describe('toDrawerTechnicalTabs', () => {
@@ -75,6 +84,11 @@ describe('toDrawerRequestGroups', () => {
   it('is empty without an incident', () => {
     expect(toDrawerRequestGroups(undefined)).toEqual([]);
   });
+
+  it('folds a change context captures when there is no incident, and prefers the incident', () => {
+    expect(toDrawerRequestGroups(undefined, CHANGE).map((group) => [group.route, group.status, group.latestRequestId])).toEqual([['/api/sync/reconcile', '200', '7e4b8c9f']]);
+    expect(toDrawerRequestGroups(DETAIL, CHANGE).map((group) => group.latestRequestId)).toEqual(['r1', 'r2']);
+  });
 });
 
 describe('toDrawerRequestPanel', () => {
@@ -83,6 +97,11 @@ describe('toDrawerRequestPanel', () => {
 
     expect(panel).toMatchObject({ status: '200', failed: false, notApplied: true, requestCut: false, responseCut: true });
     expect(panel.summary).toEqual(['/api/sync/reconcile', '71 ms']);
+    expect(panel.requestHeaders).toEqual([
+      { name: 'Authorization', value: 'Bearer ••••••••' },
+      { name: 'X-Client-Request-Id', value: 'c6720086:3' },
+    ]);
+    expect(panel.responseHeaders).toEqual([{ name: 'Content-Type', value: 'application/json' }]);
   });
 
   it('says latest of N only when the group folds several requests', () => {
@@ -105,6 +124,17 @@ describe('toDrawerEventRows', () => {
 
     expect(toDrawerEventRows(input({ line: event })).map((row) => row.message)).toEqual(['Bridge started']);
     expect(toDrawerEventRows(input({ line: feedLine({}, { kind: 'change' }) }))).toEqual([]);
+  });
+
+  it('lists a change line events as stored: message, domain and type', () => {
+    const line = feedLine({ type: 'change', origin: 'phone' }, { kind: 'change', id: '872' });
+
+    expect(toDrawerEventRows(input({ line, change: CHANGE })).map((row) => [row.key, row.level, row.message, row.domain, row.detail])).toEqual([
+      ['40251', 'info', 'recorded pending changelog for 8Fn5qny6DPbhWLJn', 'sync', 'sync.changelog'],
+    ]);
+    expect(toDrawerEventsEmpty(input({ line, change: CHANGE }))).toBe('');
+    expect(toDrawerEventsEmpty(input({ line, change: { ...CHANGE, events: [] } }))).toBe('No runtime events are linked to this line.');
+    expect(toDrawerEventsEmpty(input({ line, changeFailed: true }))).toBe('The events linked to this change could not be read.');
   });
 });
 
@@ -188,7 +218,7 @@ describe('toDrawerWindowErrorDetail', () => {
 describe('technical edge cases', () => {
   it('words an unanswered request without duration or bodies', () => {
     const group = toDrawerRequestGroups(DETAIL)[1]!;
-    const request: ActivityRequestDetail = { ...REQUEST, httpStatus: undefined, durationMs: undefined, requestBody: undefined, requestBodyState: 'truncated', responseBody: undefined, responseBodyState: '' };
+    const request: ActivityRequestDetail = { ...REQUEST, httpStatus: undefined, durationMs: undefined, requestBody: undefined, requestBodyState: 'truncated', responseBody: undefined, responseBodyState: '', requestHeaders: undefined, responseHeaders: undefined };
 
     expect(toDrawerRequestPanel({ ...group, count: 1 }, request)).toEqual({
       summary: ['/api/sync/reconcile'],
@@ -199,6 +229,8 @@ describe('technical edge cases', () => {
       requestCut: true,
       responseBody: '',
       responseCut: false,
+      requestHeaders: [],
+      responseHeaders: [],
     });
   });
 
@@ -251,10 +283,17 @@ describe('toDrawerEventsEmpty', () => {
 
   it.each([
     ['a run whose read story is empty says so', { correlationId: 'run-1', steps: [], truncated: false }, undefined, 'No events were recorded for this run.'],
-    ['a story not read says nothing', undefined, undefined, ''],
+    ['a line with no story and no incident says no event is linked', undefined, undefined, 'No runtime events are linked to this line.'],
     ['an empty story with incident events says nothing', { correlationId: 'run-1', steps: [], truncated: false }, DETAIL, ''],
   ])('%s', (_name, story, detail, expected) => {
     expect(toDrawerEventsEmpty(input({ line: LINE, story, incident: detail }))).toBe(expected);
+  });
+
+  it.each([
+    ['a phone change says no event is linked', feedLine({ origin: 'phone' }, { kind: 'change' }), 'No runtime events are linked to this line.'],
+    ['an event line shows itself and says nothing', feedLine({}, { kind: 'event' }), ''],
+  ])('%s', (_name, line, expected) => {
+    expect(toDrawerEventsEmpty(input({ line }))).toBe(expected);
   });
 });
 

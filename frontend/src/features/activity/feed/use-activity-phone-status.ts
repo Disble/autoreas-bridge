@@ -9,8 +9,10 @@ const readBridgeDevices = (): Promise<readonly ActivityPhoneDevice[]> => bridgeR
 
 /**
  * The phone status line under the Activity title (S13). It reads the paired
- * devices on mount, every 15 s and whenever the window regains focus, and the
- * same tick keeps its relative time fresh. A failed read keeps the last line.
+ * devices on mount, every 15 s and whenever the window regains focus. The same
+ * tick moves its clock, so the relative time stays fresh and a phone whose
+ * recent sync ages past 2 minutes turns offline on its own, even when a read
+ * fails. A failed read keeps the last devices.
  *
  * @param readDevices Reads the paired devices; the bridge binding by default.
  * @returns The line, or undefined to hide it.
@@ -39,16 +41,21 @@ export function useActivityPhoneStatus(readDevices: () => Promise<readonly Activ
       .catch(() => undefined);
   }, [readDevices]);
 
+  const onTick = useCallback(() => {
+    setNowMs(Date.now());
+    refresh();
+  }, [refresh]);
+
   // 7. Effects
   useEffect(() => {
     refresh();
-    const tick = window.setInterval(refresh, ACTIVITY_PHONE_STATUS_TICK_MS);
+    const tick = window.setInterval(onTick, ACTIVITY_PHONE_STATUS_TICK_MS);
     window.addEventListener('focus', refresh);
     return () => {
       window.clearInterval(tick);
       window.removeEventListener('focus', refresh);
     };
-  }, [refresh]);
+  }, [onTick, refresh]);
 
   return phoneStatus;
 }

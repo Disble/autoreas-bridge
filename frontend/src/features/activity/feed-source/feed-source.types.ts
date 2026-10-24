@@ -1,4 +1,4 @@
-import type { ActivityRunStep } from '../activity-source/activity-incident.types';
+import type { ActivityChangeContext, ActivityRunStep } from '../activity-source/activity-incident.types';
 import type { ActivityChartScale, ActivityFeedOrigin, ActivityFeedQuery, ActivityFeedView, ActivityOverview } from './feed.types';
 
 /** Request/reply port of the Activity feed over the Wails bindings. Live rows come from `HistorySource.subscribeRecorder`. */
@@ -9,4 +9,6 @@ export interface ActivityFeedSource {
   readonly getOverview: (scale: ActivityChartScale, fromMs: number, toMs: number, origin: ActivityFeedOrigin) => Promise<ActivityOverview>;
   /** Reads one runtime event with its metadata by id; undefined when no event has that id. */
   readonly getEvent: (id: number) => Promise<ActivityRunStep | undefined>;
+  /** Reads what one change line links to, by its id and time: its anime's runtime events and the captures that carried it, matched by anime and time; undefined when no change has that id. */
+  readonly getChangeContext: (changeId: number, atMs: number) => Promise<ActivityChangeContext | undefined>;
 }
