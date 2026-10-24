@@ -26,20 +26,17 @@ export const VISTO_LIST_CLASS = 'grid gap-x-4 gap-y-1 sm:grid-cols-2 xl:grid-col
  */
 export const DAILY_BOARD_SECTION_COPY: Readonly<Record<'sinVer' | 'verHoy' | 'visto', DailyBoardSectionCopy>> = {
   sinVer: {
-    title: 'Sin ver — pick what you watch today',
-    description: 'Sent animes download at the daily scheduled time — or manually if that window has already passed.',
+    title: 'Sin ver',
     emptyTitle: 'Nothing left to schedule.',
     emptyDescription: 'Every created anime is already in Ver hoy or Visto.',
   },
   verHoy: {
-    title: 'Ver hoy — watching (drains as you watch)',
-    description: "Today's batch. Each anime leaves Ver hoy on its own as you watch its episodes.",
+    title: 'Ver hoy',
     emptyTitle: 'Nothing being watched.',
     emptyDescription: 'No anime was in Ver hoy when this season was last open.',
   },
   visto: {
-    title: 'Visto — watched, ready for evaluation',
-    description: 'Every watched anime with its first-episode grade state.',
+    title: 'Visto',
     emptyTitle: 'Nothing watched yet.',
     emptyDescription: 'No anime reached Visto this season.',
   },

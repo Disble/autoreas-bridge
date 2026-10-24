@@ -16,11 +16,11 @@ const mockedUseDailyBoard = vi.mocked(useDailyBoard);
 type HookReturn = ReturnType<typeof useDailyBoard>;
 
 /** The Sin ver section heading. */
-const SIN_VER_HEADING = 'Sin ver — pick what you watch today';
+const SIN_VER_HEADING = 'Sin ver';
 /** The Ver hoy section heading. */
-const VER_HOY_HEADING = 'Ver hoy — watching (drains as you watch)';
+const VER_HOY_HEADING = 'Ver hoy';
 /** The Visto section heading. */
-const VISTO_HEADING = 'Visto — watched, ready for evaluation';
+const VISTO_HEADING = 'Visto';
 
 /** Builds a created season row in the given section. */
 function created(id: string, animeId: string, section: string, sectionOrder = 0): SeasonAnimeRow {
@@ -79,7 +79,7 @@ describe('DailyBoard', () => {
   it('renders the Sin ver pool with checkbox labels', () => {
     mockHook({ sections: { sinVer: [created('a', 'anime-a', 'Sin ver')], verHoy: [], visto: [] } });
     render(<DailyBoard />);
-    expect(screen.getByText('Sin ver — pick what you watch today')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: SIN_VER_HEADING })).toBeInTheDocument();
     expect(screen.getByText('A')).toBeInTheDocument();
   });
 
@@ -186,7 +186,7 @@ describe('DailyBoard', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('renders every section as one card pattern: title, count chip, description, then content', () => {
+  it('renders every section as one card pattern: title and count chip, no description, then content', () => {
     mockHook({
       readOnly: true,
       sections: { sinVer: [created('a', 'anime-a', 'Sin ver')], verHoy: [created('b', 'anime-b', 'Ver hoy')], visto: [created('c', 'anime-c', 'Visto')] },
@@ -200,9 +200,9 @@ describe('DailyBoard', () => {
         card.querySelector('[data-slot="card-content"] ul')?.getAttribute('aria-label'),
       ]),
     ).toEqual([
-      [`${SIN_VER_HEADING}1`, true, 'Sin ver'],
-      [`${VER_HOY_HEADING}1`, true, 'Ver hoy'],
-      [`${VISTO_HEADING}1`, true, 'Visto'],
+      [`${SIN_VER_HEADING}1`, false, 'Sin ver'],
+      [`${VER_HOY_HEADING}1`, false, 'Ver hoy'],
+      [`${VISTO_HEADING}1`, false, 'Visto'],
     ]);
   });
 

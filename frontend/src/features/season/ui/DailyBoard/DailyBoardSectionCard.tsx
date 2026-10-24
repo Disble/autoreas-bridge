@@ -4,7 +4,7 @@ import type { DailyBoardSectionCardProps } from './daily-board.types';
 
 /**
  * The one card pattern every conveyor section (Sin ver, Ver hoy, Visto) uses:
- * a header with the title, the row count chip and a description, then the
+ * a header with the title and the row count chip, then the
  * section's rows, or its compact empty state when it has none, then an
  * optional footer.
  */
@@ -18,7 +18,6 @@ export function DailyBoardSectionCard({ copy, count, countColor, children, foote
             {count}
           </Chip>
         </div>
-        <Card.Description>{copy.description}</Card.Description>
       </Card.Header>
       <Card.Content>
         {count === 0 ? <AirisEmptyState description={copy.emptyDescription} kind="caught-up" size="row" title={copy.emptyTitle} /> : children}

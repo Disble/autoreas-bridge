@@ -16,8 +16,6 @@ export interface BoardSections {
 export interface DailyBoardSectionCopy {
   /** The section heading; the row count chip follows it. */
   readonly title: string;
-  /** Guidance under the heading. */
-  readonly description: string;
   /** Compact empty-state title, shown when the section has no rows. */
   readonly emptyTitle: string;
   /** Compact empty-state guidance, shown when the section has no rows. */
@@ -29,7 +27,7 @@ export interface DailyBoardSectionCopy {
  * header, the compact empty state shown when it has no rows, and its content.
  */
 export interface DailyBoardSectionCardProps {
-  /** The section's heading, description and empty-state copy. */
+  /** The section's heading and empty-state copy. */
   readonly copy: DailyBoardSectionCopy;
   /** How many rows the section holds. */
   readonly count: number;
