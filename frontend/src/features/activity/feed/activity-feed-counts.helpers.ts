@@ -22,23 +22,26 @@ export function toTypeToggles(overview: ActivityOverview | undefined): readonly 
 }
 
 /**
- * The failure menu's rows with their failure counts.
+ * The failure menu's rows with their failure counts: one per selected
+ * section, since the sections filter first and the failure menu narrows them.
  *
  * @param overview The overview read, or undefined while none resolved.
- * @returns One row per failure type, menu order.
+ * @param types The selected sections.
+ * @returns One row per selected failure type, menu order.
  */
-export function toFailureRows(overview: ActivityOverview | undefined): readonly ActivityFailureRowModel[] {
-  return ACTIVITY_FAILURE_TYPES.map((type) => ({ type, label: ACTIVITY_TYPE_LABELS[type], failed: overview === undefined ? 0 : countOf(overview, type).failed }));
+export function toFailureRows(overview: ActivityOverview | undefined, types: readonly ActivityFeedType[]): readonly ActivityFailureRowModel[] {
+  return ACTIVITY_FAILURE_TYPES.filter((type) => types.includes(type)).map((type) => ({ type, label: ACTIVITY_TYPE_LABELS[type], failed: overview === undefined ? 0 : countOf(overview, type).failed }));
 }
 
 /**
  * The failures in scope, the number on the failure button.
  *
  * @param overview The overview read, or undefined while none resolved.
- * @returns The failed lines of every type.
+ * @param types The selected sections.
+ * @returns The failed lines of the selected sections.
  */
-export function countFailures(overview: ActivityOverview | undefined): number {
-  return toFailureRows(overview).reduce((sum, row) => sum + row.failed, 0);
+export function countFailures(overview: ActivityOverview | undefined, types: readonly ActivityFeedType[]): number {
+  return toFailureRows(overview, types).reduce((sum, row) => sum + row.failed, 0);
 }
 
 /**
@@ -55,9 +58,11 @@ export function toFailureMenuKeys(
   failureTypes: readonly ActivityFeedType[],
 ): { readonly selected: Set<Key>; readonly disabled: Set<Key>; readonly keptDisabled: readonly ActivityFeedType[] } {
   const disabled = new Set<ActivityFeedType>(rows.filter((row) => row.failed === 0).map((row) => row.type));
+  const shown = new Set<ActivityFeedType>(rows.map((row) => row.type));
   return {
     selected: new Set<Key>(failureTypes.filter((type) => !disabled.has(type))),
     disabled: new Set<Key>(disabled),
-    keptDisabled: failureTypes.filter((type) => disabled.has(type)),
+    // a pick hidden by a disabled row or by a section turned off survives the next toggle
+    keptDisabled: failureTypes.filter((type) => disabled.has(type) || !shown.has(type)),
   };
 }

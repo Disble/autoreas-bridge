@@ -194,7 +194,8 @@ describe('ActivityScreen', () => {
 
     await waitFor(() => expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ failuresOnly: true })));
     const pill = screen.getByRole('button', { name: 'Failures by type' });
-    expect(pill).toHaveTextContent('3');
+    // Change's 2 failures count; System's 1 does not, since System starts off (sections filter first)
+    expect(pill).toHaveTextContent('2');
     expect(pill).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('menu', { name: 'Failures by type' })).toBeInTheDocument();
 

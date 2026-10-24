@@ -58,15 +58,17 @@ describe('toFeedQuery', () => {
     });
   });
 
-  it('reads the picked range and, with the failure filter on, the failure types', () => {
-    const filters = { ...INITIAL, range: { fromMs: 10, toMs: 20 }, failuresOnly: true, failureTypes: ['system'] as const };
+  it('reads the picked range and, with the failure filter on, the failure types inside the selected sections only', () => {
+    const filters = { ...INITIAL, range: { fromMs: 10, toMs: 20 }, failuresOnly: true, failureTypes: ['traffic', 'download', 'system'] as const };
 
-    expect(toFeedQuery(filters, '', 40)).toMatchObject({ fromMs: 10, toMs: 20, types: ['system'], failuresOnly: true });
+    // Traffic and System are off by default: the sections come first, the failure menu narrows them
+    expect(toFeedQuery(filters, '', 40)).toMatchObject({ fromMs: 10, toMs: 20, types: ['download'], failuresOnly: true });
   });
 
   it.each([
     ['no type is selected', { types: [] }],
     ['the failure filter has no type', { failuresOnly: true, failureTypes: [] }],
+    ['the failure filter has only types whose section is off', { failuresOnly: true, failureTypes: ['system'] as const }],
   ])('reads nothing when %s, since Go reads every type for an empty set', (_case, patch) => {
     expect(toFeedQuery({ ...INITIAL, ...patch }, '', 40)).toBeUndefined();
   });

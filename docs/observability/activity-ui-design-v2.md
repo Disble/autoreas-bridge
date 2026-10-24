@@ -94,7 +94,8 @@ window gets narrow, the types and the failure button wrap **together**, never ap
 - **Types are independent toggles** (multi-select): Changes, Traffic, Downloads, Tasks, Edits, System.
   "All" turns them all on. **System** is the default section: every bridge start, warning or error that no
   other type owns. A false positive there is accepted; an event no section shows is not (ADR-030).
-  *Bridge* is the origin, not a type.
+  The feed opens with Traffic and System **off** (owner, 2026-10-24); their chips still count their lines
+  and failures. *Bridge* is the origin, not a type.
 - Each type shows a gray count chip. When some of those failed, a **red chip with the number of failures**
   sits next to it, with the tooltip "N failed". There is no alert icon.
 - Every count follows the current range **and** origin, so the numbers always match what the feed can show.
@@ -104,6 +105,11 @@ window gets narrow, the types and the failure button wrap **together**, never ap
 
 A red pill with an alert icon and the number of failures in scope. It opens a menu that lets the user pick
 which failure types to see.
+
+**The filters nest: the type toggles come first, and the failure button only narrows them** (owner,
+2026-10-24). The pill counts the failures of the selected types only, the menu lists only the selected
+types, and "only failures" reads the picked failure types that are also selected. A failure type picked
+while its section is off stays picked and returns when the section is turned back on.
 
 ### States
 

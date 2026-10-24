@@ -31,8 +31,8 @@ export function useActivityFailureMenu(overview: ActivityOverview | undefined, f
   // 4. Queries/Mutations
 
   // 5. Derived State (useMemo)
-  const failureRows = useMemo(() => toFailureRows(overview), [overview]);
-  const failureCount = countFailures(overview);
+  const failureRows = useMemo(() => toFailureRows(overview, filters.types), [overview, filters.types]);
+  const failureCount = countFailures(overview, filters.types);
   const failureMenuKeys = useMemo(() => toFailureMenuKeys(failureRows, filters.failureTypes), [failureRows, filters.failureTypes]);
   const failureButtonState = toFailureButtonState(filters.failuresOnly, isFailureMenuOpen);
   const isFailureMenuShown = failureButtonState === 'open';

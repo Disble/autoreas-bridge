@@ -56,7 +56,8 @@ export function scaleWindowStart(scale: ActivityChartScale, nowMs: number): numb
  * @returns The query, or undefined when no type is selected.
  */
 export function toFeedQuery(filters: ActivityFeedFilters, cursor: string, limit: number): ActivityFeedQuery | undefined {
-  const types = filters.failuresOnly ? filters.failureTypes : filters.types;
+  // the sections filter first; the failure menu only narrows them
+  const types = filters.failuresOnly ? filters.failureTypes.filter((type) => filters.types.includes(type)) : filters.types;
   if (types.length === 0) {
     return undefined;
   }
