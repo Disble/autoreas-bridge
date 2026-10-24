@@ -135,20 +135,26 @@ describe('RunHistoryPanel master list', () => {
 });
 
 describe('RunHistoryPanel Problems filter', () => {
-  it('shows the problem count with no text label and toggles the filter', () => {
+  it('shows the problem count in soft red with no text label and toggles the filter', () => {
     const actions = mockPanel([createRun('run-1'), jdOfflineRun, createRun('run-3', { status: 'error' })]);
     const filter = screen.getByRole('button', { name: 'Show only the 2 runs with problems' });
 
     expect(filter).toHaveTextContent(/^2$/);
     expect(filter).toHaveAttribute('aria-pressed', 'false');
+    expect(filter).toHaveClass('button--danger-soft');
     fireEvent.click(filter);
     expect(actions.toggleProblems).toHaveBeenCalledTimes(1);
   });
 
-  it('reads as pressed while on', () => {
+  it('reads as pressed while on: solid red, with no ×', () => {
     mockPanel([jdOfflineRun], { overrides: { problemsOnly: true } });
 
-    expect(screen.getByRole('button', { name: 'Showing 1 runs with problems. Show all runs' })).toHaveAttribute('aria-pressed', 'true');
+    const filter = screen.getByRole('button', { name: 'Showing 1 runs with problems. Show all runs' });
+
+    expect(filter).toHaveAttribute('aria-pressed', 'true');
+    expect(filter).toHaveClass('button--danger');
+    expect(filter).not.toHaveClass('button--danger-soft');
+    expect(filter.querySelectorAll('svg')).toHaveLength(1);
   });
 
   it('is hidden when no run had a problem', () => {

@@ -115,6 +115,17 @@ export const RUN_HISTORY_COPY_CONFIRMATIONS = {
   allLinks: 'All links copied',
 } as const;
 
+/**
+ * The Problems filter pill, matching Activity's failure button: 32px tall and
+ * fully round, its alert icon before the count, fading over .2s between soft
+ * and solid red. While off it is danger at 18% over the card, its text danger
+ * mixed 70% into the foreground.
+ */
+export const RUN_HISTORY_PROBLEMS_CLASSES = {
+  pill: 'h-8 flex-none gap-1.5 rounded-full px-3 text-sm font-medium tabular-nums [transition:background-color_.2s,color_.2s] motion-reduce:[transition:none]',
+  pillSoft: 'bg-[color-mix(in_oklab,var(--danger)_18%,transparent)] text-[color-mix(in_oklab,var(--danger)_70%,var(--foreground))]',
+} as const;
+
 /** The Problems filter's tooltip by state. */
 export const RUN_HISTORY_PROBLEMS_TOOLTIP = { off: 'Show only problems', on: 'Show all runs' } as const;
 
