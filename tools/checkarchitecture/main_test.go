@@ -117,7 +117,7 @@ var client = &http.Client{}
 			path: "internal/desktop/app_wiring.go",
 			content: `package desktop
 import "autoreas-bridge/internal/download/sites/jkanime"
-var adapter = jkanime.New(nil)
+var adapter = jkanime.New(nil, sharedLogger)
 `,
 			wantErr: true,
 		},
@@ -126,7 +126,7 @@ var adapter = jkanime.New(nil)
 			path: "internal/desktop/app_wiring.go",
 			content: `package desktop
 import "autoreas-bridge/internal/download/sites/jkanime"
-var searcher = jkanime.NewSearcher(http.DefaultClient)
+var searcher = jkanime.NewSearcher(http.DefaultClient, sharedLogger)
 `,
 			wantErr: true,
 		},
@@ -135,7 +135,7 @@ var searcher = jkanime.NewSearcher(http.DefaultClient)
 			path: "internal/desktop/app_wiring.go",
 			content: `package desktop
 import "autoreas-bridge/internal/download/sites/jkanime"
-func wire(a *App) { _ = jkanime.New(a.providerHTTPClient()) }
+func wire(a *App) { _ = jkanime.New(a.providerHTTPClient(), a.sharedLogger) }
 `,
 		},
 		{

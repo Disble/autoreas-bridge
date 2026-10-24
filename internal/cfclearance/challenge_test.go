@@ -120,7 +120,7 @@ func TestInterstitialPageFromARealServerIsSolved(t *testing.T) {
 	defer srv.Close()
 	bus := &recorder{}
 	solver := &fakeSolver{values: []string{"good"}, cookies: bareCookies}
-	tr := NewTransport(srv.Client().Transport, solver, nil, bus, Policy{})
+	tr := NewTransport(srv.Client().Transport, solver, nil, bus, newTestLog(), Policy{})
 
 	resp := get(t, tr, srv.URL+"/")
 

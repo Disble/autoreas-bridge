@@ -369,6 +369,11 @@ info:
     message. What a client may notice is timing: the first provider request
     after a challenge appears can take 6 to 11 seconds longer once, and the
     ADR-029 mirror fallback still applies when clearing is impossible.
+    Additive for MCP clients of `autoreas-request-mcp`: the `where` argument of
+    `list_incidents`, `list_runs` and `search_history` also accepts `providers`,
+    which reads the `clearance.*` events (challenge detected, solved, failed with
+    its cause) and `jkanime.host_fallback` (which mirror answered). Every other
+    value reads exactly what it read before.
 
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes

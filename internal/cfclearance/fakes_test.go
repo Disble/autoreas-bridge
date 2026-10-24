@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/events"
+	sharedlogger "autoreas-bridge/internal/logger"
 )
 
 // engineUA is the identity the fake engine earns its clearances with.
@@ -263,6 +264,7 @@ type harness struct {
 	solver *fakeSolver
 	store  *recordingStore
 	bus    *recorder
+	log    *sharedlogger.MemLogger
 	clock  *fakeClock
 	tr     *Transport
 }
@@ -281,12 +283,13 @@ func newHarness(solver *fakeSolver, policy Policy, accepted ...string) *harness 
 		solver: solver,
 		store:  &recordingStore{MemoryStore: NewMemoryStore()},
 		bus:    &recorder{},
+		log:    newTestLog(),
 		clock:  &fakeClock{at: time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)},
 	}
 	for _, v := range accepted {
 		h.cf.accepted[v] = true
 	}
-	h.tr = NewTransport(h.cf, solver, h.store, h.bus, policy)
+	h.tr = NewTransport(h.cf, solver, h.store, h.bus, h.log, policy)
 	h.tr.now = h.clock.Now
 	return h
 }
@@ -350,4 +353,19 @@ func eventAt(t *testing.T, bus *recorder, i int) events.Event {
 // eventLine renders an event as a stable one-line string for comparisons.
 func eventLine(e events.Event) string {
 	return fmt.Sprintf("%s %+v", e.Name(), e)
+}
+
+// newTestLog returns the in-memory logger a transport under test writes its facts to.
+func newTestLog() *sharedlogger.MemLogger {
+	return sharedlogger.NewMemLogger(sharedlogger.MemLoggerConfig{})
+}
+
+// logLines renders the transport's log rows as "level domain eventType duration metadata", leaving out
+// the message prose and the timestamp so a test pins what Activity filters and groups on.
+func logLines(log *sharedlogger.MemLogger) []string {
+	var lines []string
+	for _, entry := range log.Recent() {
+		lines = append(lines, fmt.Sprintf("%s %s %s %dms %v", entry.Level, entry.Domain, entry.EventType, entry.DurationMs, entry.Metadata))
+	}
+	return lines
 }

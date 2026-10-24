@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"autoreas-bridge/internal/download/sites"
+	sharedlogger "autoreas-bridge/internal/logger"
 )
 
 const defaultBaseURL = "https://jkanime.net"
@@ -67,18 +68,19 @@ type jkanimeServerLink struct {
 type Adapter struct {
 	client *http.Client
 	hosts  hostChain
+	log    sharedlogger.Logger
 }
 
 // New returns a jkanime Adapter using the given HTTP client (a cookiejar is attached so the
 // CSRF-token-bearing session survives across the page+AJAX calls, mirroring the validated PoC
-// session handling).
-func New(client *http.Client) *Adapter {
-	return newWithBaseURL(client, defaultBaseURLs...)
+// session handling). Every host switch is written to log (ADR-029, ADR-030).
+func New(client *http.Client, log sharedlogger.Logger) *Adapter {
+	return newWithBaseURL(client, log, defaultBaseURLs...)
 }
 
 // newWithBaseURL is the test seam: it lets tests point the host chain at httptest.Servers
 // while still exercising the real extraction code path (no live network in CI).
-func newWithBaseURL(client *http.Client, baseURLs ...string) *Adapter {
+func newWithBaseURL(client *http.Client, log sharedlogger.Logger, baseURLs ...string) *Adapter {
 	if client == nil {
 		client = http.DefaultClient
 	}
@@ -89,7 +91,7 @@ func newWithBaseURL(client *http.Client, baseURLs ...string) *Adapter {
 		cloned.Jar = jar
 		withJar = &cloned
 	}
-	return &Adapter{client: withJar, hosts: newHostChain(baseURLs)}
+	return &Adapter{client: withJar, hosts: newHostChain(baseURLs), log: log}
 }
 
 // Descriptor identifies this adapter to the SiteRegistry (design §3.2).
@@ -116,7 +118,7 @@ func (a *Adapter) ListEpisodes(ctx context.Context, pageURL string) (sites.Episo
 	pagina := ensureTrailingSlash(pageURL)
 
 	var episodes []jkanimeEpisode
-	err := a.hosts.try(pagina, func(base, target string) (err error) {
+	err := a.hosts.try(pagina, a.log, func(base, target string) (err error) {
 		episodes, err = a.episodesOn(ctx, base, target)
 		return err
 	})
@@ -167,7 +169,7 @@ func (a *Adapter) EpisodePageURL(ctx context.Context, pageURL string, episode in
 // inline `var servers` array. Per download-sites spec "Download Link Extraction Failure
 // Surfacing", zero links is ALWAYS a loud error -- never a silent empty success.
 func (a *Adapter) ExtractLinks(ctx context.Context, episodePageURL string) (links []sites.DownloadLink, err error) {
-	err = a.hosts.try(episodePageURL, func(base, target string) (err error) {
+	err = a.hosts.try(episodePageURL, a.log, func(base, target string) (err error) {
 		links, err = a.extractLinksOn(ctx, base, target)
 		return err
 	})

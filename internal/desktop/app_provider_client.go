@@ -21,7 +21,9 @@ const providerSolverProfileDirName = "cf-webview2"
 // built over (ADR-030). Its transport is the Cloudflare clearance decorator,
 // so each provider request crosses a challenge the same way: pass through
 // when unchallenged, solve in the windowless WebView2 child when challenged,
-// then replay with the clearance. The client is built on first use and shared
+// then replay with the clearance. Every challenge, solve and failure is
+// written to the shared logger, which NewApp builds before any provider
+// client exists. The client is built on first use and shared
 // from then on; the adapters clone it, so the transport is what they share.
 // When the user cache directory cannot be resolved the solver profile falls
 // back to the temporary directory, which costs a re-solve per start, never a
@@ -36,7 +38,7 @@ func (a *App) providerHTTPClient() *http.Client {
 	}
 	policy := cfclearance.DefaultPolicy()
 	solver := &webview2.ProcessSolver{DataDir: profileDir, Timeout: policy.SolveTimeout}
-	transport := cfclearance.NewTransport(http.DefaultTransport, solver, cfclearance.NewMemoryStore(), appEventPublisher{app: a}, policy)
+	transport := cfclearance.NewTransport(http.DefaultTransport, solver, cfclearance.NewMemoryStore(), appEventPublisher{app: a}, a.sharedLogger, policy)
 	a.providerClient = &http.Client{Transport: transport}
 	return a.providerClient
 }

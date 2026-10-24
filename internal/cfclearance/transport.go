@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	sharedlogger "autoreas-bridge/internal/logger"
 )
 
 // errCooldown marks a challenge met while the domain's cooldown is open; no solve starts.
@@ -25,6 +27,7 @@ type Transport struct {
 	solver    Solver
 	store     ClearanceStore
 	publisher Publisher
+	log       sharedlogger.Logger
 	policy    Policy
 	now       func() time.Time
 	slots     chan struct{}
@@ -42,8 +45,10 @@ type solveCall struct {
 
 // NewTransport wraps base with challenge handling. Every dependency is optional: a nil base
 // means http.DefaultTransport, a nil solver means UnsupportedSolver, a nil store means a fresh
-// MemoryStore, a nil publisher drops events and a zero Policy means every default.
-func NewTransport(base http.RoundTripper, solver Solver, store ClearanceStore, publisher Publisher, policy Policy) *Transport {
+// MemoryStore, a nil publisher drops events and a zero Policy means every default. log is
+// required: every challenge, solve and failure is written to it, so Activity and the request MCP
+// can tell a cleared challenge from a mirror fallback.
+func NewTransport(base http.RoundTripper, solver Solver, store ClearanceStore, publisher Publisher, log sharedlogger.Logger, policy Policy) *Transport {
 	if base == nil {
 		base = http.DefaultTransport
 	}
@@ -62,6 +67,7 @@ func NewTransport(base http.RoundTripper, solver Solver, store ClearanceStore, p
 		solver:    solver,
 		store:     store,
 		publisher: publisher,
+		log:       log,
 		policy:    policy,
 		now:       time.Now,
 		slots:     make(chan struct{}, policy.MaxConcurrentSolves),
@@ -87,7 +93,8 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		if !challenged {
 			return resp, nil
 		}
-		t.publisher.Publish(ChallengeDetectedEvent{Domain: domain, Attempt: attempt, Reason: kind})
+		t.announce(ChallengeDetectedEvent{Domain: domain, Attempt: attempt, Reason: kind}, sharedlogger.LevelInfo, 0,
+			map[string]any{"site": domain, "attempt": attempt, "reason": kind}, "challenge detected on %s", domain)
 		if attempt > t.policy.MaxSolvesPerRequest || !replayable(req) {
 			return resp, nil
 		}
@@ -194,10 +201,12 @@ func (t *Transport) solve(req *http.Request, domain, rejected string, attempt in
 	err := t.runSolver(req, domain, rejected)
 	elapsed := t.now().Sub(start).Milliseconds()
 	if err != nil {
-		t.publisher.Publish(ClearanceFailedEvent{Domain: domain, Attempt: attempt, DurationMs: elapsed, Reason: err.Error()})
+		t.announce(ClearanceFailedEvent{Domain: domain, Attempt: attempt, DurationMs: elapsed, Reason: err.Error()}, sharedlogger.LevelWarn, elapsed,
+			map[string]any{"site": domain, "attempt": attempt, "reason": err.Error()}, "could not clear %s: %v", domain, err)
 		return err
 	}
-	t.publisher.Publish(ClearanceSolvedEvent{Domain: domain, Attempt: attempt, DurationMs: elapsed})
+	t.announce(ClearanceSolvedEvent{Domain: domain, Attempt: attempt, DurationMs: elapsed}, sharedlogger.LevelInfo, elapsed,
+		map[string]any{"site": domain, "attempt": attempt}, "cleared %s", domain)
 	return nil
 }
 

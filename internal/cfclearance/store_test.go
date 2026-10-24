@@ -42,7 +42,7 @@ func TestUnsupportedSolverRefusesEverySolve(t *testing.T) {
 func TestMissingStoreAndPublisherStillClearAChallenge(t *testing.T) {
 	cf := &fakeCloudflare{accepted: map[string]bool{"good": true}}
 	solver := &fakeSolver{values: []string{"good"}}
-	tr := NewTransport(cf, solver, nil, nil, Policy{})
+	tr := NewTransport(cf, solver, nil, nil, newTestLog(), Policy{})
 
 	get(t, tr, siteURL)
 	resp := get(t, tr, siteURL)
@@ -51,7 +51,7 @@ func TestMissingStoreAndPublisherStillClearAChallenge(t *testing.T) {
 }
 
 func TestNewTransportFillsEveryMissingDependency(t *testing.T) {
-	tr := NewTransport(nil, nil, nil, nil, Policy{})
+	tr := NewTransport(nil, nil, nil, nil, newTestLog(), Policy{})
 
 	if tr.base != http.DefaultTransport || tr.store == nil || tr.publisher == nil || tr.solver == nil {
 		t.Fatalf("transport = %+v, want every dependency defaulted", tr)

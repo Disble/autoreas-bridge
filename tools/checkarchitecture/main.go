@@ -42,11 +42,13 @@ var ownedTableRules = []ownedTableRule{
 // never builds its own http.Client (its tests may), and the composition root
 // never hands an adapter a nil or default client; the literals are the exact
 // bypass spellings this gate's own tests exercise.
+// They end at the client argument, so a constructor that grows a parameter
+// (the logger, ADR-030) keeps matching.
 var providerEgressRules = []ownedTableRule{
 	{literal: "http.Client{", isBoundaryFile: isNotProviderAdapterSource},
-	{literal: "jkanime.New(nil)", isBoundaryFile: isArchitectureCheckFile},
-	{literal: "jkanime.NewSearcher(nil)", isBoundaryFile: isArchitectureCheckFile},
-	{literal: "jkanime.NewSearcher(http.DefaultClient)", isBoundaryFile: isArchitectureCheckFile},
+	{literal: "jkanime.New(nil,", isBoundaryFile: isArchitectureCheckFile},
+	{literal: "jkanime.NewSearcher(nil,", isBoundaryFile: isArchitectureCheckFile},
+	{literal: "jkanime.NewSearcher(http.DefaultClient,", isBoundaryFile: isArchitectureCheckFile},
 }
 
 func main() {

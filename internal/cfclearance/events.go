@@ -1,5 +1,10 @@
 package cfclearance
 
+import (
+	"autoreas-bridge/internal/events"
+	sharedlogger "autoreas-bridge/internal/logger"
+)
+
 // clearance.* event names on the bridge bus. They are backend facts for the activity log, not
 // user notifications, and none of them ever carries a cookie value.
 const (
@@ -49,4 +54,14 @@ type ClearanceFailedEvent struct {
 // Name returns the bus event name for ClearanceFailedEvent.
 func (e ClearanceFailedEvent) Name() string {
 	return EventNameClearanceFailed
+}
+
+// logDomain is the runtime_events domain every clearance fact is logged under.
+const logDomain = "clearance"
+
+// announce publishes event on the bus and writes the same fact to the log under the event's own
+// name, which is what Activity and the request MCP read: a bus event alone reaches neither.
+func (t *Transport) announce(event events.Event, level string, durationMs int64, metadata map[string]any, format string, args ...any) {
+	t.publisher.Publish(event)
+	t.log.Logf(logDomain, level, sharedlogger.Fields{EventType: event.Name(), DurationMs: durationMs, Metadata: metadata}, format, args...)
 }

@@ -19,7 +19,7 @@ type jkanimeNameSearcher struct {
 // so a name search crosses the Cloudflare clearance transport like every
 // other provider request (ADR-030).
 func (a *App) newJkanimeNameSearcher() jkanimeNameSearcher {
-	return jkanimeNameSearcher{searcher: jkanime.NewSearcher(a.providerHTTPClient())}
+	return jkanimeNameSearcher{searcher: jkanime.NewSearcher(a.providerHTTPClient(), a.sharedLogger)}
 }
 
 // Search runs a jkanime name search and maps the results to match.Candidate.
@@ -41,7 +41,7 @@ func (a jkanimeNameSearcher) Search(ctx context.Context, query string) ([]match.
 // only provider today; a new site adds its own entry here.
 func (a *App) newSeasonProviderSearchers(jkanimeSearcher season.NameSearcher) []season.ProviderSearcher {
 	return []season.ProviderSearcher{
-		{Provider: jkanime.New(a.providerHTTPClient()).Descriptor().Name, Searcher: jkanimeSearcher},
+		{Provider: jkanime.New(a.providerHTTPClient(), a.sharedLogger).Descriptor().Name, Searcher: jkanimeSearcher},
 	}
 }
 

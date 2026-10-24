@@ -65,6 +65,11 @@ That seam is the port this decision uses.
 6. **Observability through events.** `clearance.challenge_detected`, `clearance.solved` and
    `clearance.failed` carry the domain, the duration, the attempt and the reason. A cookie value never leaves
    the transport. There is no user-facing prompt, toast or setting: the brief asked for transparency.
+   A bus event alone reaches neither Activity nor the request MCP, so the transport also writes each one
+   through the shared `logger.Logger` port, a required dependency, into `runtime_events` under domain
+   `clearance` with the event name as its type: detected and solved at info, failed at warn with its cause.
+   The jkanime adapter and searcher take the same port and write `jkanime.host_fallback` (warn, from and to
+   host) each time ADR-029's chain moves to a mirror. The Where value `providers` reads both domains.
 
 ## Consequences
 

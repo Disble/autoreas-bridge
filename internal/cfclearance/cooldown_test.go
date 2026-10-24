@@ -97,7 +97,7 @@ func TestSolverSlotsFollowThePolicy(t *testing.T) {
 
 func TestWithoutASolverTheChallengeIsAnsweredAsIs(t *testing.T) {
 	h := newHarness(&fakeSolver{}, Policy{}, "good")
-	h.tr = NewTransport(h.cf, nil, h.store, h.bus, Policy{})
+	h.tr = NewTransport(h.cf, nil, h.store, h.bus, h.log, Policy{})
 
 	resp := get(t, h.tr, siteURL)
 

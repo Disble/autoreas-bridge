@@ -54,7 +54,9 @@ The questions Activity must answer, taken from the 92 resolved issues:
 | What did the bridge do inside, step by step? | a hoster declared dead, a stranded editor write | event ledger with metadata, grouped by correlation id (a download run, an editor save) |
 
 Internal bridge work is a first-class source, not an API detail. Incidents and History filter by where
-something happened: phone and sync, downloads, editor, schedule or season. An internal story reads its
+something happened: phone and sync, downloads, editor, schedule or season. The backend and the request
+MCP also accept `providers`, the Cloudflare clearance (`clearance.*`) and jkanime host fallback
+(`jkanime.host_fallback`) events, which the screen shows under All. An internal story reads its
 steps from one correlation id and shows its metadata as labelled fields, with the raw JSON one click
 away.
 

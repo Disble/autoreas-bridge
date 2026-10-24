@@ -344,3 +344,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-10-23]: Release 2.4.0 is a minor bump: it adds the additive screen_stall diagnostics kind that the mobile team needs before turning on its screen-freeze probe.
 - [2026-10-23]: The WebView2 clearance solver runs as a relaunch of the app's own executable (--cfclearance-solve) inside a kill-on-close job object because go-webview2 ends the process on engine failure; in-process embedding would take the desktop app down with it.
 - [2026-10-23]: Provider egress is one shared client whose transport is internal/cfclearance (ADR-030): the composition root injects it and checkarchitecture rejects jkanime.New(nil) and http.Client{} in adapters, so a Cloudflare challenge is cleared in one place.
+- [2026-10-24]: A bus event never reaches Activity or the request MCP: only a logger.Logf row in runtime_events does; the instrumented bus records a debug bus.publish row that is dropped by default.

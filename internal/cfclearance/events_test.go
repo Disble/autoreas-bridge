@@ -2,6 +2,7 @@ package cfclearance
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -46,6 +47,15 @@ func TestEventsTellTheStoryOfASolveWithoutCookieValues(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("events:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
+	wantLog := []string{
+		"info clearance clearance.challenge_detected 0ms map[attempt:1 reason:cf_mitigated site:jkanime.net]",
+		"info clearance clearance.solved 1500ms map[attempt:1 site:jkanime.net]",
+		"info clearance clearance.challenge_detected 0ms map[attempt:2 reason:cf_mitigated site:jkanime.net]",
+		"info clearance clearance.solved 1500ms map[attempt:2 site:jkanime.net]",
+	}
+	if gotLog := logLines(h.log); !slices.Equal(gotLog, wantLog) {
+		t.Fatalf("log:\n%s\nwant:\n%s", strings.Join(gotLog, "\n"), strings.Join(wantLog, "\n"))
+	}
 }
 
 func TestFailedEventCarriesDurationAndReasonButNoCookie(t *testing.T) {
@@ -62,6 +72,14 @@ func TestFailedEventCarriesDurationAndReasonButNoCookie(t *testing.T) {
 	for _, e := range h.bus.all() {
 		if line := eventLine(e); strings.Contains(line, "secret-old") {
 			t.Fatalf("event carries the rejected cookie value: %s", line)
+		}
+	}
+	if got, want := logLines(h.log)[1], "warn clearance clearance.failed 250ms map[attempt:1 reason:engine said secret-value site:jkanime.net]"; got != want {
+		t.Fatalf("failed log row = %q, want %q", got, want)
+	}
+	for _, entry := range h.log.Recent() {
+		if row := fmt.Sprintf("%s %v", entry.Message, entry.Metadata); strings.Contains(row, "secret-old") {
+			t.Fatalf("log row carries the rejected cookie value: %s", row)
 		}
 	}
 }
@@ -115,7 +133,7 @@ func TestEventsReachTheBridgeBus(t *testing.T) {
 	var seen []string
 	bus.Subscribe(EventNameClearanceSolved, func(e events.Event) { seen = append(seen, e.Name()) })
 	cf := &fakeCloudflare{accepted: map[string]bool{"good": true}}
-	tr := NewTransport(cf, &fakeSolver{values: []string{"good"}}, nil, bus, Policy{})
+	tr := NewTransport(cf, &fakeSolver{values: []string{"good"}}, nil, bus, newTestLog(), Policy{})
 
 	resp := get(t, tr, siteURL)
 

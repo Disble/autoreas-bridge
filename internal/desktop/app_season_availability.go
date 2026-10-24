@@ -125,7 +125,7 @@ func (a *App) startSeasonAvailability(ctx context.Context) {
 		return
 	}
 	registry := download.NewStaticRegistry()
-	registry.Register(jkanime.New(a.providerHTTPClient()))
+	registry.Register(jkanime.New(a.providerHTTPClient(), a.sharedLogger))
 	probe := seasonAvailabilityProbe{registry: registry}
 	create := anime.NewCreateService(a.animeWrite)
 	create.SetQuery(readQuery)

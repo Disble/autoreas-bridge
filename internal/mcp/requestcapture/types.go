@@ -9,9 +9,10 @@ import (
 type StatusInput struct{}
 
 // WhereInput carries the "where it happened" filter: all (default), phone,
-// downloads, editor, schedule or season.
+// downloads, editor, schedule, season or providers (Cloudflare clearance and the
+// jkanime host fallback).
 type WhereInput struct {
-	Where string `json:"where,omitempty" jsonschema:"all (default), phone, downloads, editor, schedule or season"`
+	Where string `json:"where,omitempty" jsonschema:"all (default), phone, downloads, editor, schedule, season or providers"`
 }
 
 // IncidentInput names one incident occurrence.
@@ -27,7 +28,7 @@ type RequestInput struct {
 
 // HistoryInput selects one History page.
 type HistoryInput struct {
-	Where  string `json:"where,omitempty" jsonschema:"all (default), phone, downloads, editor, schedule or season"`
+	Where  string `json:"where,omitempty" jsonschema:"all (default), phone, downloads, editor, schedule, season or providers"`
 	Cursor string `json:"cursor,omitempty" jsonschema:"NextCursor of the previous page; empty for the first page"`
 	Limit  int    `json:"limit,omitempty" jsonschema:"lines per page, default 50, at most 100"`
 }
