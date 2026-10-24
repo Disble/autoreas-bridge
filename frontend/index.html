@@ -4,10 +4,199 @@
     <meta charset="UTF-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>Autoreas Bridge</title>
+    <!--
+      Airis splash (docs/design/airis/splash-screen.md). It paints from this file alone, before the
+      module graph loads, and lives inside #root so React's first render replaces it. Plain CSS
+      only: the app stylesheet is not loaded yet. Every animation moves transform or opacity, so it
+      keeps running on the compositor while the main thread is busy loading the app.
+    -->
+    <style>
+        #airis-splash {
+            /* HeroUI's dark --background token, literal because the app CSS has not loaded yet. */
+            --splash-bg: oklch(12% .005 285.823);
+            --splash-cycle: .667s;
+            --splash-scroll: 1.2s;
+            position: fixed;
+            inset: 0;
+            overflow: hidden;
+            background: var(--splash-bg);
+            font-family: system-ui, sans-serif;
+        }
+
+        .airis-splash-sr {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip-path: inset(50%);
+            white-space: nowrap;
+        }
+
+        .airis-splash-stars {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: calc(100% + 1024px);
+            height: 100%;
+            opacity: .55;
+            background-image: radial-gradient(1.5px 1.5px at 40px 60px, #cfe2ff, transparent),
+            radial-gradient(1px 1px at 210px 180px, #9fc3ff, transparent),
+            radial-gradient(1.5px 1.5px at 380px 90px, #fff, transparent),
+            radial-gradient(1px 1px at 520px 300px, #9fc3ff, transparent),
+            radial-gradient(1.5px 1.5px at 700px 40px, #cfe2ff, transparent),
+            radial-gradient(1px 1px at 860px 240px, #fff, transparent),
+            radial-gradient(1px 1px at 960px 400px, #9fc3ff, transparent);
+            background-size: 1024px 520px;
+            animation: airis-splash-pan 14s linear infinite;
+        }
+
+        /* Ground lines span the whole window; the scene below is a fixed 1024x768 stage. */
+        .airis-splash-ground, .airis-splash-ground-far {
+            position: absolute;
+            left: 0;
+            width: calc(100% + 1024px);
+            animation: airis-splash-pan var(--splash-scroll) linear infinite;
+        }
+
+        .airis-splash-ground {
+            top: calc(50% + 214px);
+            height: 3px;
+            background: repeating-linear-gradient(90deg, rgba(138, 164, 214, .55) 0 28px, transparent 28px 64px);
+        }
+
+        .airis-splash-ground-far {
+            top: calc(50% + 242px);
+            height: 2px;
+            opacity: .35;
+            background: repeating-linear-gradient(90deg, rgba(138, 164, 214, .6) 0 12px, transparent 12px 128px);
+            animation-duration: calc(var(--splash-scroll) * .6);
+        }
+
+        .airis-splash-scene {
+            position: absolute;
+            left: calc(50% - 512px);
+            top: calc(50% - 384px);
+            width: 1024px;
+            height: 768px;
+        }
+
+        .airis-splash-glow {
+            position: absolute;
+            left: 212px;
+            top: 150px;
+            width: 560px;
+            height: 460px;
+            border-radius: 50%;
+            background: radial-gradient(closest-side, rgba(52, 120, 255, .2), rgba(52, 120, 255, 0));
+        }
+
+        .airis-splash-streak {
+            position: absolute;
+            width: 90px;
+            height: 2px;
+            border-radius: 2px;
+            opacity: 0;
+            background: linear-gradient(90deg, rgba(159, 195, 255, 0), rgba(159, 195, 255, .7));
+            animation: airis-splash-streak calc(var(--splash-scroll) * .8) linear infinite;
+        }
+
+        /* The shadow shrinks on frames 4 and 8, the two airborne poses of the run cycle. */
+        .airis-splash-shadow {
+            position: absolute;
+            left: 372px;
+            top: 588px;
+            width: 220px;
+            height: 22px;
+            border-radius: 50%;
+            background: radial-gradient(closest-side, rgba(0, 0, 0, .65), rgba(0, 0, 0, 0));
+            animation: airis-splash-shadow var(--splash-cycle) step-end infinite;
+        }
+
+        /* One 440px cell of the eight-frame strip, scaled from the feet so the ground line holds. */
+        .airis-splash-window {
+            position: absolute;
+            left: 270px;
+            top: 192px;
+            width: 440px;
+            height: 440px;
+            overflow: hidden;
+            transform: scale(1.1);
+            transform-origin: 50% 100%;
+        }
+
+        .airis-splash-sprite {
+            display: block;
+            width: 3520px;
+            height: 440px;
+            max-width: none;
+            animation: airis-splash-run var(--splash-cycle) steps(8) infinite;
+        }
+
+        .airis-splash-wordmark {
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 680px;
+            margin: 0;
+            text-align: center;
+            color: #8aa4d6;
+            font-size: 13px;
+            letter-spacing: .35em;
+            text-transform: uppercase;
+        }
+
+        @keyframes airis-splash-pan {
+            from { transform: translateX(0); }
+            to { transform: translateX(-1024px); }
+        }
+
+        @keyframes airis-splash-streak {
+            0% { transform: translateX(0); opacity: 0; }
+            15% { opacity: .8; }
+            100% { transform: translateX(-420px); opacity: 0; }
+        }
+
+        @keyframes airis-splash-shadow {
+            0% { transform: scaleX(1); opacity: 1; }
+            37.5% { transform: scaleX(.7); opacity: .6; }
+            50% { transform: scaleX(1); opacity: 1; }
+            87.5% { transform: scaleX(.7); opacity: .6; }
+        }
+
+        @keyframes airis-splash-run {
+            from { transform: translateX(0); }
+            to { transform: translateX(-3520px); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .airis-splash-stars, .airis-splash-ground, .airis-splash-ground-far,
+            .airis-splash-streak, .airis-splash-shadow, .airis-splash-sprite {
+                animation: none;
+            }
+        }
+    </style>
 </head>
 <body>
-<div id="root"></div>
+<div id="root">
+    <div id="airis-splash" role="status" aria-live="polite" aria-labelledby="airis-splash-label">
+        <span id="airis-splash-label" class="airis-splash-sr">Loading Autoreas Bridge</span>
+        <div class="airis-splash-stars" aria-hidden="true"></div>
+        <div class="airis-splash-ground" aria-hidden="true"></div>
+        <div class="airis-splash-ground-far" aria-hidden="true"></div>
+        <div class="airis-splash-scene" aria-hidden="true">
+            <div class="airis-splash-glow"></div>
+            <div class="airis-splash-streak" style="left: 560px; top: 250px; animation-delay: -.1s"></div>
+            <div class="airis-splash-streak" style="left: 620px; top: 340px; animation-delay: -.5s"></div>
+            <div class="airis-splash-streak" style="left: 540px; top: 430px; animation-delay: -.8s"></div>
+            <div class="airis-splash-streak" style="left: 600px; top: 520px; animation-delay: -.3s"></div>
+            <div class="airis-splash-shadow"></div>
+            <div class="airis-splash-window">
+                <img class="airis-splash-sprite" src="./src/assets/airis-splash/popcorn-run.webp" alt="" width="3520" height="440"/>
+            </div>
+            <p class="airis-splash-wordmark">Autoreas Bridge</p>
+        </div>
+    </div>
+</div>
 <script src="./src/main.tsx" type="module"></script>
 </body>
 </html>
-
