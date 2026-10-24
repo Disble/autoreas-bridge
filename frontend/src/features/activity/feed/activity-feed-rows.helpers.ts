@@ -24,6 +24,16 @@ export function feedLineKey(line: ActivityFeedLine): string {
   return `${line.line.kind}:${line.line.id}`;
 }
 
+/**
+ * The key of a line that may be missing, such as the line ↑ / ↓ opens.
+ *
+ * @param line The feed line, or undefined.
+ * @returns Its key; undefined when there is no line.
+ */
+export function maybeFeedLineKey(line: ActivityFeedLine | undefined): string | undefined {
+  return line === undefined ? undefined : feedLineKey(line);
+}
+
 /** `1 time` / `1,912 times`, as in the design's "Phone checked in · 39 times · 09:00 – 10:00". */
 function formatCheckIns(count: number): string {
   return `${ACTIVITY_FEED_COUNT_FORMAT.format(count)} ${count === 1 ? 'time' : 'times'}`;

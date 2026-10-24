@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { describeActivityChange } from '../../change-words/change-words.helpers';
 import type { ActivityDownloadRun } from '../../feed-source/feed.types';
-import { mergeFeedDays, mergeLivePage, stepFeedLine, toFeedDayModels, toFeedRowModel } from '../activity-feed-rows.helpers';
+import { maybeFeedLineKey, mergeFeedDays, mergeLivePage, stepFeedLine, toFeedDayModels, toFeedRowModel } from '../activity-feed-rows.helpers';
 import { NOW_MS, buildDay, buildLine, buildView, dayStart } from './activity-feed.fixtures';
 
 /** A finished run with every count zero, overridden per case. */
@@ -138,5 +138,12 @@ describe('stepFeedLine', () => {
 
   it('opens nothing when the open line is no longer loaded', () => {
     expect(stepFeedLine(days, 'change:9', 1)).toBeUndefined();
+  });
+});
+
+describe('maybeFeedLineKey', () => {
+  it('keys a line and gives no key without one', () => {
+    expect(maybeFeedLineKey(lineAt('3', NOW_MS))).toBe('change:3');
+    expect(maybeFeedLineKey(undefined)).toBeUndefined();
   });
 });

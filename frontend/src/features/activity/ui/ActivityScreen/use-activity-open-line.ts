@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { focusFeedRow } from '../../feed/activity-drawer-dismiss.helpers';
-import { feedLineKey, stepFeedLine } from '../../feed/activity-feed-rows.helpers';
+import { feedLineKey, maybeFeedLineKey, stepFeedLine } from '../../feed/activity-feed-rows.helpers';
 import type { ActivityFeedRowModel } from '../../feed/activity-feed.types';
 import { useActivityDrawerDismiss } from '../../feed/use-activity-drawer-dismiss';
 import { useActivityFeedKeyboardScope } from '../../feed/use-activity-feed-keyboard-scope';
@@ -36,8 +36,17 @@ export function useActivityOpenLine(days: readonly ActivityFeedDay[], failureMen
   }, [openKey]);
   const onDismissDrawer = useCallback(() => setOpenLine(undefined), []);
   // The ↑ / ↓ commands exist only while a line is open, so openKey is set whenever these run.
-  const onPreviousLine = useCallback(() => setOpenLine(stepFeedLine(days, openKey, -1)), [days, openKey]);
-  const onNextLine = useCallback(() => setOpenLine(stepFeedLine(days, openKey, 1)), [days, openKey]);
+  // Focus moves with the open line, so the focus ring never marks a row the drawer no longer shows.
+  const onStepLine = useCallback(
+    (delta: number) => {
+      const next = stepFeedLine(days, openKey, delta);
+      focusFeedRow(document, maybeFeedLineKey(next));
+      setOpenLine(next);
+    },
+    [days, openKey],
+  );
+  const onPreviousLine = useCallback(() => onStepLine(-1), [onStepLine]);
+  const onNextLine = useCallback(() => onStepLine(1), [onStepLine]);
 
   // 7. Effects
   useActivityFeedKeyboardScope({

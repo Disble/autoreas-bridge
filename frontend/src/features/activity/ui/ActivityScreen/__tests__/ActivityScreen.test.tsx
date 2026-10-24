@@ -258,10 +258,13 @@ describe('ActivityScreen', () => {
     fireEvent.click(rows()[0]);
     expect(screen.getByRole('complementary', { name: 'Activity detail' })).toHaveTextContent('3');
 
+    // Focus follows the open row, so the focus ring never marks a line the drawer no longer shows.
     pressKey('ArrowDown');
     expect(screen.getByRole('complementary', { name: 'Activity detail' })).toHaveTextContent('2');
+    expect(document.activeElement).toBe(rows()[1]);
     pressKey('ArrowUp');
     expect(screen.getByRole('complementary', { name: 'Activity detail' })).toHaveTextContent('3');
+    expect(document.activeElement).toBe(rows()[0]);
     pressKey('Escape');
     expect(screen.queryByRole('complementary', { name: 'Activity detail' })).not.toBeInTheDocument();
     expect(document.activeElement).toBe(rows()[0]);
