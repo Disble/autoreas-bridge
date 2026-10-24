@@ -124,8 +124,10 @@ export function createActivityFeedSource(): ActivityFeedSource {
       };
       return invokeGoBinding('SearchActivityFeed', () => SearchActivityFeed(payload), rejectRuntimeUnavailable).then(mapActivityFeedView);
     },
-    getOverview(scale, fromMs, toMs, origin) {
-      return invokeGoBinding('GetActivityOverview', () => GetActivityOverview(scale, fromMs, toMs, origin), rejectRuntimeUnavailable).then(mapActivityOverview);
+    getOverview(scale, fromMs, toMs, origin, types, failuresOnly) {
+      return invokeGoBinding('GetActivityOverview', () => GetActivityOverview(scale, fromMs, toMs, origin, [...types], failuresOnly), rejectRuntimeUnavailable).then(
+        mapActivityOverview,
+      );
     },
     getEvent(id) {
       return invokeGoBinding('GetActivityEvent', () => GetActivityEvent(id), rejectRuntimeUnavailable).then((detail) =>

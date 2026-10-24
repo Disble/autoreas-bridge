@@ -1,4 +1,4 @@
-import type { ActivityChartScale, ActivityChartSlot } from '../feed-source/feed.types';
+import type { ActivityChartScale, ActivityChartSlot, ActivityFeedType } from '../feed-source/feed.types';
 import {
   ACTIVITY_FEED_COUNT_FORMAT,
   ACTIVITY_FEED_DAY_FORMAT,
@@ -58,6 +58,23 @@ function formatTick(slot: ActivityChartSlot, scale: ActivityChartScale, index: n
     '90d': () => (start.getDate() === 1 ? ACTIVITY_FEED_MONTH_FORMAT.format(slot.startMs) : ''),
   };
   return ticks[scale]();
+}
+
+/**
+ * The slots the bars draw: the overview's, which count what the table shows,
+ * or every slot empty when no section is selected. Go counts every type for an
+ * empty set, while the table then lists nothing (`toFeedQuery`), so the bars
+ * follow the table instead of Go's default.
+ *
+ * @param slots The overview's slots, oldest first.
+ * @param types The selected sections.
+ * @returns The slots to draw, with the same spans.
+ */
+export function toTableSlots(slots: readonly ActivityChartSlot[], types: readonly ActivityFeedType[]): readonly ActivityChartSlot[] {
+  if (types.length > 0) {
+    return slots;
+  }
+  return slots.map((slot) => ({ ...slot, count: 0, failed: 0 }));
 }
 
 /**

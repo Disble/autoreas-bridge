@@ -25,12 +25,17 @@ var scaleDays = map[ChartScale]int{Scale7d: 7, Scale30d: 30, Scale90d: 90}
 
 // OverviewInput selects the chart of one scale and the per-type counts of one
 // range and origin. A zero FromMS or ToMS means the edge of the scale's window.
+// Types and FailuresOnly select the lines the bars count, as FeedInput selects
+// the lines the feed lists: Types empty means every type. They never narrow
+// the per-type counts, which show what turning a type on would add.
 type OverviewInput struct {
-	Now    time.Time
-	Scale  ChartScale
-	FromMS int64
-	ToMS   int64
-	Origin FeedOrigin
+	Now          time.Time
+	Scale        ChartScale
+	FromMS       int64
+	ToMS         int64
+	Origin       FeedOrigin
+	Types        []FeedType
+	FailuresOnly bool
 }
 
 // ChartSlot is one bar: the feed lines whose time falls in [StartMS, EndMS),
@@ -58,14 +63,20 @@ type OverviewView struct {
 }
 
 // Overview returns the chart slots of in.Scale and the per-type counts. Both
-// count exactly the lines Feed would list, so a bar, a chip and the feed
-// always agree.
+// count exactly the lines Feed would list: a bar the lines of the origin,
+// types and failures-only the table shows, a chip every line of its type in
+// the range and origin. The slots always span the whole scale window; the
+// range never drops one.
 func (r *Reader) Overview(ctx context.Context, in OverviewInput) (OverviewView, error) {
 	slots, err := chartSlots(in.Now, in.Scale)
 	if err != nil {
 		return OverviewView{}, err
 	}
 	typePlan, err := planFeed(FeedInput{Origin: in.Origin})
+	if err != nil {
+		return OverviewView{}, err
+	}
+	slotPlan, err := planFeed(FeedInput{Origin: in.Origin, Types: in.Types, FailuresOnly: in.FailuresOnly})
 	if err != nil {
 		return OverviewView{}, err
 	}
@@ -79,7 +90,7 @@ func (r *Reader) Overview(ctx context.Context, in OverviewInput) (OverviewView, 
 	for i, slot := range slots {
 		slotBuckets[i] = bucket{loMS: slot.StartMS, hiMS: slot.EndMS - 1}
 	}
-	perSlot, err := r.countFeed(ctx, typePlan, slotBuckets)
+	perSlot, err := r.countFeed(ctx, slotPlan, slotBuckets)
 	if err != nil {
 		return OverviewView{}, err
 	}
@@ -87,6 +98,10 @@ func (r *Reader) Overview(ctx context.Context, in OverviewInput) (OverviewView, 
 		for _, c := range perSlot[i] {
 			slots[i].Count += c.Lines
 			slots[i].Failed += c.Failed
+		}
+		// Failures-only lists exactly the failed lines, as Feed does.
+		if slotPlan.failuresOnly {
+			slots[i].Count = slots[i].Failed
 		}
 	}
 	perRange, err := r.countFeed(ctx, typePlan, []bucket{{loMS: fromMS, hiMS: toMS}})

@@ -30,14 +30,16 @@ func (a *App) SearchActivityFeed(query ActivityFeedQuery) (activityread.FeedView
 
 // GetActivityOverview returns the time chart of one scale (24h, 7d, 30d, 90d)
 // and the per-type counts of a range and origin, read with the app clock. A
-// zero bound means the edge of the scale's window.
-func (a *App) GetActivityOverview(scale string, fromMS, toMS int64, origin string) (activityread.OverviewView, error) {
+// zero bound means the edge of the scale's window. The bars count the lines
+// of types and failuresOnly, as the feed lists them; no types means every type.
+func (a *App) GetActivityOverview(scale string, fromMS, toMS int64, origin string, types []string, failuresOnly bool) (activityread.OverviewView, error) {
 	reader, err := a.activityReader()
 	if err != nil {
 		return activityread.OverviewView{}, err
 	}
 	return reader.Overview(a.seasonCtx(), activityread.OverviewInput{
 		Now: a.currentTime(), Scale: activityread.ChartScale(scale), FromMS: fromMS, ToMS: toMS, Origin: activityread.FeedOrigin(origin),
+		Types: toFeedTypes(types), FailuresOnly: failuresOnly,
 	})
 }
 

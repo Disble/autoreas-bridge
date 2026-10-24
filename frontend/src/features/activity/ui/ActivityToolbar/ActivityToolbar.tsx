@@ -70,9 +70,17 @@ export function ActivityToolbar({ range, origin, onOriginChange, typeToggles, ty
               {toggle.label}
               {toggle.lines === undefined ? null : <span className={ACTIVITY_COUNT_CHIP_CLASS}>{toggle.lines}</span>}
               {toggle.failed === 0 ? null : (
-                <span aria-label={`${toggle.failed} failed`} className={ACTIVITY_FAILED_CHIP_CLASS} role="img" title={`${toggle.failed} failed`}>
-                  {toggle.failed}
-                </span>
+                <Tooltip delay={ICON_ACTION_TOOLTIP_DELAY_MS}>
+                  <Tooltip.Trigger className="inline-flex shrink-0" role="presentation" tabIndex={-1}>
+                    <span aria-label={`${toggle.failed} failed`} className={ACTIVITY_FAILED_CHIP_CLASS} role="img">
+                      {toggle.failed}
+                    </span>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content showArrow>
+                    <Tooltip.Arrow />
+                    {`${toggle.failed} failed`}
+                  </Tooltip.Content>
+                </Tooltip>
               )}
             </ToggleButton>
           ))}

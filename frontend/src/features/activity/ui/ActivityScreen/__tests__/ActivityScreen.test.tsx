@@ -196,6 +196,8 @@ describe('ActivityScreen', () => {
     fireEvent.click(pill);
 
     await waitFor(() => expect(lastQuery()).toMatchObject({ failuresOnly: true, types: ['change', 'download', 'task', 'edit'] }));
+    // the bars follow the table: the overview reads the same sections and failures-only
+    await waitFor(() => expect(feedSource.getOverview).toHaveBeenLastCalledWith('24h', 0, 0, 'all', ['change', 'download', 'task', 'edit'], true));
     expect(pill).toHaveAttribute('aria-pressed', 'true');
     expect(pill).not.toHaveAttribute('aria-haspopup');
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
@@ -206,18 +208,20 @@ describe('ActivityScreen', () => {
     fireEvent.click(within(screen.getByRole('toolbar', { name: 'Activity filters' })).getByRole('button', { name: /^Downloads/ }));
 
     await waitFor(() => expect(lastQuery()).toMatchObject({ failuresOnly: true, types: ['change', 'task', 'edit'] }));
+    await waitFor(() => expect(feedSource.getOverview).toHaveBeenLastCalledWith('24h', 0, 0, 'all', ['change', 'task', 'edit'], true));
     expect(pill).toHaveAttribute('aria-pressed', 'true');
 
     fireEvent.click(pill);
 
     await waitFor(() => expect(lastQuery()).toMatchObject({ failuresOnly: false, types: ['change', 'task', 'edit'] }));
+    await waitFor(() => expect(feedSource.getOverview).toHaveBeenLastCalledWith('24h', 0, 0, 'all', ['change', 'task', 'edit'], false));
     expect(pill).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('names the failure switch and the Phone and Bridge origins with the design system Tooltip, never a native title', async () => {
+  it('names the failure switch, the Phone and Bridge origins and a section failure chip with the design system Tooltip, never a native title', async () => {
     feedSource.searchFeed.mockResolvedValue(page(1, 1));
     renderScreen();
-    expect(await screen.findByLabelText('2 failed')).toBeInTheDocument();
+    const chip = await screen.findByLabelText('2 failed');
     const pill = screen.getByRole('button', { name: 'Show only failures' });
     // a pointer press first leaves keyboard modality, in which a tooltip ignores hover
     fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
@@ -226,6 +230,7 @@ describe('ActivityScreen', () => {
     for (const [button, tooltip] of [
       [screen.getByRole('radio', { name: 'Phone' }), 'From the phone'],
       [screen.getByRole('radio', { name: 'Bridge' }), 'On the bridge'],
+      [chip, '2 failed'],
       [pill, 'Show only failures'],
     ] as const) {
       expect(button.closest('[title]')).toBeNull();
@@ -236,6 +241,19 @@ describe('ActivityScreen', () => {
     fireEvent.click(pill);
 
     await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent('Show all activity'));
+  });
+
+  it('toggles a section when its failure chip is pressed, so the chip tooltip never swallows the press', async () => {
+    feedSource.searchFeed.mockResolvedValue(page(1, 1));
+    renderScreen();
+    const chip = await screen.findByLabelText('2 failed');
+    const section = within(screen.getByRole('toolbar', { name: 'Activity filters' })).getByRole('button', { name: /^Changes/ });
+    expect(section).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(chip);
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ types: ['download', 'task', 'edit'] }));
+    expect(section).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('opens a row in the drawer, moves it with ↑ / ↓ and closes it with Esc', async () => {
@@ -334,6 +352,19 @@ describe('ActivityScreen chart and toolbar', () => {
     expect(document.querySelectorAll('[data-chart-gap]')).toHaveLength(1);
   }
 
+  it('draws every bar as a gap once no section is selected, as the table then lists nothing', async () => {
+    await renderChart();
+    const toolbar = within(screen.getByRole('toolbar', { name: 'Activity filters' }));
+
+    for (const name of [/^Changes/, /^Downloads/, /^Tasks/, /^Edits/]) {
+      fireEvent.click(toolbar.getByRole('button', { name }));
+    }
+
+    await waitFor(() => expect(document.querySelectorAll('[data-chart-gap]')).toHaveLength(3));
+    expect(bars()).toHaveLength(3);
+    expect(document.querySelectorAll('[data-chart-failure]')).toHaveLength(0);
+  });
+
   it('packs more than 24 bars tighter', async () => {
     await renderChart();
     expect(document.querySelector('[data-chart-density]')).toHaveAttribute('data-chart-density', 'sparse');
@@ -392,7 +423,7 @@ describe('ActivityScreen chart and toolbar', () => {
   });
 
   it.each([
-    ['the scale switch reads the 7-day chart', '7 days', () => expect(feedSource.getOverview).toHaveBeenLastCalledWith('7d', 0, 0, 'all')],
+    ['the scale switch reads the 7-day chart', '7 days', () => expect(feedSource.getOverview).toHaveBeenLastCalledWith('7d', 0, 0, 'all', ['change', 'download', 'task', 'edit'], false)],
     ['the origin switch reads phone lines only', 'Phone', () => expect(lastQuery()).toMatchObject({ origin: 'phone' })],
   ])('%s', async (_case, name, assertRead) => {
     await renderChart();

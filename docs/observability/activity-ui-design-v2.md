@@ -78,6 +78,7 @@ and History tabs.
 | Behaviour | Detail |
 |---|---|
 | Scales | 24 h (hourly bars), 7, 30 and 90 days (daily bars). 90 days is the ledger span |
+| Two axes, two jobs | The **X axis is the time selector**: the bars always span the whole scale window, and a picked range only dims the bars outside it, never removes them. The **Y axis is what the table shows**: each bar counts the lines of the current origin, selected types and failure switch, so with the switch on a bar is fully red. With no type selected the table lists nothing and every bar is a "No activity" gap |
 | Bar color | Blue height = activity. A red cap = something failed in that slot. A slot with no lines is a hatched bar labelled "No activity": it does not claim the bridge was off, because no stored event says so |
 | Now line | None. The green line marking now was removed at the owner's request |
 | Drag across bars | Selects that time range. Clicking one bar selects just that slot; clicking it again clears it |
@@ -99,8 +100,11 @@ origin icon uses.
   The feed opens with Traffic and System **off** (owner, 2026-10-24); their chips still count their lines
   and failures. *Bridge* is the origin, not a type.
 - Each type shows a gray count chip. When some of those failed, a **red chip with the number of failures**
-  sits next to it, with the tooltip "N failed". There is no alert icon.
-- Every count follows the current range **and** origin, so the numbers always match what the feed can show.
+  sits next to it, with the HeroUI Tooltip "N failed" (never a native `title`); pressing the chip toggles its
+  type like the rest of the button. There is no alert icon.
+- The type chips count every type of the current range **and** origin, ignoring which types are selected and
+  the failure switch, so a chip shows what turning that type on would add. The chart bars, unlike the chips,
+  follow the table (see [Time chart and range](#time-chart-and-range)).
 - With no type selected, the empty feed says "Pick at least one type to see activity."
 
 ## Failure button

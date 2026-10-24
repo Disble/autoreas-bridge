@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
-import { selectionFromDrag, toChartBars } from '../../feed/activity-chart.helpers';
+import { selectionFromDrag, toChartBars, toTableSlots } from '../../feed/activity-chart.helpers';
 import { setFilterRange } from '../../feed/activity-feed-filters.helpers';
 import { ACTIVITY_CHART_DENSE_AFTER, ACTIVITY_SCALE_OPTIONS } from '../../feed/activity-feed.constants';
 import type { ActivityChartDensity, ActivityFeedFilters, ActivityReadStatus } from '../../feed/activity-feed.types';
@@ -33,7 +33,7 @@ export function useActivityChart(
 
   // 5. Derived State (useMemo)
   // A drag starts only on a rendered bar, so a drag always has the slots it indexes.
-  const slots = useMemo(() => overview?.slots ?? [], [overview]);
+  const slots = useMemo(() => toTableSlots(overview?.slots ?? [], filters.types), [filters.types, overview]);
   const dragRange = drag === undefined ? undefined : selectionFromDrag(slots, drag.anchor, drag.current, undefined, filters.anchorMs);
   const bars = toChartBars(slots, filters.scale, dragRange ?? filters.range);
   const density: ActivityChartDensity = bars.length > ACTIVITY_CHART_DENSE_AFTER ? 'dense' : 'sparse';

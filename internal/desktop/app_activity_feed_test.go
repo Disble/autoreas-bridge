@@ -49,28 +49,34 @@ func TestActivityFeedBindingsReportAnUnwiredDatabase(t *testing.T) {
 	if _, err := app.SearchActivityFeed(ActivityFeedQuery{}); !errors.Is(err, errActivityUnavailable) {
 		t.Fatalf("feed: err = %v, want errActivityUnavailable", err)
 	}
-	if _, err := app.GetActivityOverview("24h", 0, 0, "all"); !errors.Is(err, errActivityUnavailable) {
+	if _, err := app.GetActivityOverview("24h", 0, 0, "all", nil, false); !errors.Is(err, errActivityUnavailable) {
 		t.Fatalf("overview: err = %v, want errActivityUnavailable", err)
 	}
 }
 
 // TestGetActivityOverviewPassesItsInputs asserts the binding reads the chart
-// of its scale and the counts of its range and origin with the app clock.
+// of its scale, types and failures-only and the counts of its range and
+// origin with the app clock.
 func TestGetActivityOverviewPassesItsInputs(t *testing.T) {
 	t.Parallel()
 	app := newActivityTestApp(t)
 	seedActivityEvent(t, app.bridgeDB, activityAt(-time.Minute), "schedule", "error", "")
 	seedActivityEvent(t, app.bridgeDB, activityAt(-20*time.Minute), "season", "warn", "")
 
-	got, err := app.GetActivityOverview("7d", activityAt(-10*time.Minute), 0, "bridge")
+	got, err := app.GetActivityOverview("7d", activityAt(-10*time.Minute), 0, "bridge", []string{"task"}, true)
 	if err != nil {
 		t.Fatalf("overview: %v", err)
 	}
 	want, err := activityread.New(app.bridgeDB).Overview(context.Background(), activityread.OverviewInput{
 		Now: activityTestNow, Scale: activityread.Scale7d, FromMS: activityAt(-10 * time.Minute), Origin: activityread.OriginBridge,
+		Types: []activityread.FeedType{activityread.FeedTask}, FailuresOnly: true,
 	})
 	if err != nil || !reflect.DeepEqual(got, want) || len(got.Slots) != 7 {
 		t.Fatalf("overview = %#v, want %#v with 7 slots (%v)", got, want, err)
+	}
+	// Failures-only keeps the error and drops the warning from today's bar.
+	if today := got.Slots[6]; today.Count != 1 || today.Failed != 1 {
+		t.Fatalf("today = %+v, want the one failed task", today)
 	}
 	for _, c := range got.Types {
 		if c.Type == activityread.FeedTask && (c.Lines != 1 || c.Failed != 1) {

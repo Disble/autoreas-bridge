@@ -48,7 +48,7 @@ export function useActivityScreen(
   const query = useMemo(() => toFeedQuery(filters, '', ACTIVITY_FEED_PAGE_LIMIT), [filters]);
   const pages = useActivityFeedPages(feedSource, query);
   const overviewRange = toOverviewRange(filters);
-  const overviewRead = useActivityOverview(feedSource, filters.scale, overviewRange.fromMs, overviewRange.toMs, filters.origin);
+  const overviewRead = useActivityOverview(feedSource, filters.scale, overviewRange.fromMs, overviewRange.toMs, filters.origin, filters.types, filters.failuresOnly);
 
   // 5. Derived State (useMemo)
   const { openKey, ...openLine } = useActivityOpenLine(pages.days);

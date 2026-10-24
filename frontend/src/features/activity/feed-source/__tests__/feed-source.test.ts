@@ -172,10 +172,10 @@ describe('feed-source', () => {
     const source = createActivityFeedSource();
 
     const view = await source.searchFeed({ fromMs: 1, toMs: 2, origin: 'phone', types: ['change', 'traffic'], failuresOnly: true, cursor: 'c-1', limit: 40 });
-    const counts = await source.getOverview('7d', 3, 4, 'bridge');
+    const counts = await source.getOverview('7d', 3, 4, 'bridge', ['task'], true);
 
     expect(search).toHaveBeenCalledWith({ FromMS: 1, ToMS: 2, Origin: 'phone', Types: ['change', 'traffic'], FailuresOnly: true, Cursor: 'c-1', Limit: 40 });
-    expect(overview).toHaveBeenCalledWith('7d', 3, 4, 'bridge');
+    expect(overview).toHaveBeenCalledWith('7d', 3, 4, 'bridge', ['task'], true);
     expect(view.nextCursor).toBe('c-2');
     expect(counts.slots).toHaveLength(1);
   });
@@ -220,7 +220,7 @@ describe('feed-source', () => {
     const feedSettled = expect(source.searchFeed({ fromMs: 0, toMs: 0, origin: 'all', types: [], failuresOnly: false, cursor: '', limit: 40 })).rejects.toThrow(
       'runtime unavailable',
     );
-    const overviewSettled = expect(source.getOverview('24h', 0, 0, 'all')).rejects.toThrow('runtime unavailable');
+    const overviewSettled = expect(source.getOverview('24h', 0, 0, 'all', [], false)).rejects.toThrow('runtime unavailable');
     await vi.advanceTimersByTimeAsync(5000);
 
     await feedSettled;

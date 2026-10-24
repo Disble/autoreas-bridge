@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ActivityChartSlot } from '../../feed-source/feed.types';
-import { selectionFromDrag, toChartBars } from '../activity-chart.helpers';
+import { selectionFromDrag, toChartBars, toTableSlots } from '../activity-chart.helpers';
 import { countFailures, toTypeToggles } from '../activity-feed-counts.helpers';
 import { NOW_MS, buildOverview, dayStart } from './activity-feed.fixtures';
 
@@ -11,6 +11,16 @@ const HOURS: readonly ActivityChartSlot[] = [10, 11, 12].map((hour, index) => ({
   count: [0, 50, 100][index],
   failed: [0, 0, 3][index],
 }));
+
+describe('toTableSlots', () => {
+  it('keeps the overview slots while a section is selected', () => {
+    expect(toTableSlots(HOURS, ['download'])).toBe(HOURS);
+  });
+
+  it('empties every slot, keeping its span, when no section is selected', () => {
+    expect(toTableSlots(HOURS, [])).toEqual(HOURS.map((slot) => ({ startMs: slot.startMs, endMs: slot.endMs, count: 0, failed: 0 })));
+  });
+});
 
 describe('toChartBars', () => {
   it('scales each bar to the busiest slot, paints the failed share of its lines red and names each slot by its counts', () => {
