@@ -176,7 +176,9 @@ func (a *Adapter) ExtractLinks(ctx context.Context, episodePageURL string) (link
 	return links, err
 }
 
-// extractLinksOn reads the download links of episodePageURL, fetched from host base.
+// extractLinksOn reads the download links of episodePageURL, fetched from host base. Every
+// link carries the host of episodePageURL as its SiteHost: it is the site host that answered,
+// including for a URL outside the chain, which is fetched as given.
 func (a *Adapter) extractLinksOn(ctx context.Context, base, episodePageURL string) ([]sites.DownloadLink, error) {
 	body, err := a.fetchGET(ctx, base, episodePageURL)
 	if err != nil {
@@ -193,6 +195,8 @@ func (a *Adapter) extractLinksOn(ctx context.Context, base, episodePageURL strin
 		return nil, fmt.Errorf("jkanime: parse servers JSON: %w", err)
 	}
 
+	fetched, _ := url.Parse(episodePageURL) // fetchGET already built a request from it
+	siteHost := fetched.Host
 	links := make([]sites.DownloadLink, 0, len(servers))
 	for _, srv := range servers {
 		decoded, err := base64.StdEncoding.DecodeString(srv.Remote)
@@ -200,9 +204,10 @@ func (a *Adapter) extractLinksOn(ctx context.Context, base, episodePageURL strin
 			continue // skip invalid entries; the zero-links-overall guard below still fires loudly
 		}
 		links = append(links, sites.DownloadLink{
-			URL:    strings.TrimRight(string(decoded), "\n\r "),
-			Hoster: srv.Server,
-			Size:   srv.Size,
+			URL:      strings.TrimRight(string(decoded), "\n\r "),
+			Hoster:   srv.Server,
+			Size:     srv.Size,
+			SiteHost: siteHost,
 		})
 	}
 

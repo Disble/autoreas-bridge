@@ -172,3 +172,28 @@ never stored; it is absent when the folder is outside the library root.
 Changing the library root rewrites the anime folder of **active** animes under the old root, after the user
 confirms; inactive history keeps its stored folder. See
 [ADR 027: One library root per computer](./adr/027-one-library-root-per-computer.md).
+
+## Site vs. site host vs. hoster — three answers to "where did this episode come from"
+
+An episode download crosses three places, and each one is a different fact.
+
+**Site** is the episode provider whose pages Bridge reads: `jkanime`. It is `sites.SiteDescriptor.Name`
+and it is what an anime's page URL points at.
+
+**Site host** is the site's public host that actually answered: `jkanime.net`, `jkanime.org` or
+`jkanime.bz`, the mirrors of ADR-029. One site has several site hosts, and the one that answers can
+change between two requests when a host is challenged. It travels on `sites.DownloadLink.SiteHost`.
+Stored page URLs always name the canonical site host, so they never reveal which one answered.
+
+**Hoster** is where the file itself lives: `Mediafire`, `Mega`. It is `sites.DownloadLink.Hoster`, and
+JDownloader fetches the file from it.
+
+| Term | Example | Surface |
+| --- | --- | --- |
+| Site | `jkanime` | `sites.SiteDescriptor.Name`, hoster priority per site |
+| Site host | `jkanime.org` | `sites.DownloadLink.SiteHost`, metadata key `siteHost`, `jkanime.host_fallback` (`from` / `to`) |
+| Hoster | `Mediafire` | `sites.DownloadLink.Hoster`, metadata key `hoster` |
+
+Write "site host" for the mirror that answered, never "provider" and never "host" alone, which
+also names hosters. See [ADR-029](./adr/029-jkanime-host-fallback-chain.md) and
+[ADR-030](./adr/030-provider-egress-clearance.md).

@@ -35,6 +35,7 @@ func NewServer(reader *Reader, now func() time.Time) *Server {
 	add(sdk, "list_recorder", "The 2-hour recorder: requests and events merged newest first, summary fields only. Pages with cursor.", t.recorder)
 	add(sdk, "list_response_versions", "The distinct response bodies one route template returned, with first seen, last seen and count: the latest 20, or with at_ms at most 20 whose first-to-last-seen interval holds that time. Intervals of alternating bodies overlap, so several versions can hold one time; only a kept request's response_hash names the exact body.", t.responseVersions)
 	add(sdk, "get_hourly_totals", "One local day of the 90-day hourly rollup: per hour, route template, status class (http_status/100, 0 when absent) and device, the request count and the maximum duration in ms.", t.hourlyTotals)
+	add(sdk, "count_events", "How many runtime events of one event_type happened over whole local days of the 90-day ledger (default all 90), optionally grouped by one top-level metadata key, e.g. download.episode_downloaded grouped by siteHost. Groups are largest first; value null groups the events without the key, with a null value, or whose metadata was stored truncated. Noise event types (sync.reconcile, tracer.step) are kept only for the 2-hour recorder.", t.countEvents)
 	return &Server{tools: ToolNames(), mcp: sdk}
 }
 

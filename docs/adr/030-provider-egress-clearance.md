@@ -70,6 +70,9 @@ That seam is the port this decision uses.
    `clearance` with the event name as its type: detected and solved at info, failed at warn with its cause.
    The jkanime adapter and searcher take the same port and write `jkanime.host_fallback` (warn, from and to
    host) each time ADR-029's chain moves to a mirror. The Where value `providers` reads both domains.
+   The site host that served the episode page also travels on `sites.DownloadLink.SiteHost` and lands as
+   its own metadata key `siteHost` (for example `jkanime.org`) on `download.episode_downloaded`, the
+   episode-level `download.failed` and `download.hoster_attempt`, so downloads can be counted per site host.
 
 ## Consequences
 

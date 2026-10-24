@@ -60,6 +60,12 @@ MCP also accept `providers`, the Cloudflare clearance (`clearance.*`) and jkanim
 steps from one correlation id and shows its metadata as labelled fields, with the raw JSON one click
 away.
 
+The request MCP also answers "how many?" without a screen: `count_events` counts the events of one
+`event_type` over whole local days of the 90-day ledger (default all 90), optionally grouped by one
+top-level metadata key, so `download.episode_downloaded` grouped by `siteHost` returns how many
+episodes each site host served. Events without the key, or whose metadata was stored truncated, form
+the group whose value is `null`. The key is validated and bound as a JSON path parameter.
+
 Decision (owner, 2026-10-17): **only errors open an incident.** A warning that recovers on its own appears
 in History with a "Recovered" mark. In the measured week the bridge logged 10 warnings and 0 errors, so
 opening an incident for every warning would mostly raise false alarms.

@@ -22,6 +22,9 @@ type DownloadLink struct {
 	URL    string // decoded (base64 already resolved by the adapter)
 	Hoster string // e.g. "Mediafire"
 	Size   string
+	// SiteHost is the bare host of the site host that served the episode page, such as
+	// "jkanime.org" when a mirror answered. Empty when the adapter does not report it.
+	SiteHost string
 }
 
 // EpisodeSource is the per-site scraper adapter port (design.md §3.1, PoC #5/#6/#7).

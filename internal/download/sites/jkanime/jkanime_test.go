@@ -238,6 +238,10 @@ func TestExtractLinksReturnsHosterTaggedLinksOnWellFormedServerList(t *testing.T
 	if links[1].Hoster != "Mega" {
 		t.Fatalf("unexpected second link: %#v", links[1])
 	}
+	// The page URL is outside the host chain, so the site host is the one actually fetched.
+	if want := strings.TrimPrefix(srv.URL, "http://"); links[0].SiteHost != want || links[1].SiteHost != want {
+		t.Fatalf("SiteHost = %q, %q, want the fetched host %q", links[0].SiteHost, links[1].SiteHost, want)
+	}
 }
 
 func TestExtractLinksRejectsInvalidServerLists(t *testing.T) {

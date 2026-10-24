@@ -12,7 +12,7 @@ import (
 // newToolRoster is the sidecar's tool list, one tool per question.
 var newToolRoster = []string{
 	"get_status", "list_incidents", "get_incident", "get_request", "search_history",
-	"list_runs", "get_run_story", "list_recorder", "list_response_versions", "get_hourly_totals",
+	"list_runs", "get_run_story", "list_recorder", "list_response_versions", "get_hourly_totals", "count_events",
 }
 
 // deletedToolNames are the tools the sidecar served before the activity

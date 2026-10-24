@@ -143,6 +143,11 @@ func TestExtractLinksFallsBackToTheNextHostOnAChallenge(t *testing.T) {
 	if len(links) != 2 || links[0].Hoster != "Mediafire" {
 		t.Fatalf("unexpected links: %#v", links)
 	}
+	for _, link := range links {
+		if link.SiteHost != "mirror.test" {
+			t.Fatalf("SiteHost = %q, want the mirror that answered", link.SiteHost)
+		}
+	}
 }
 
 // TestAPlainForbiddenDoesNotFallBack proves only a Cloudflare challenge moves to the next

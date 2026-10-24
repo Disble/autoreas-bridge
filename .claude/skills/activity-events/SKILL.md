@@ -21,6 +21,7 @@ Load before making a backend fact visible in Activity or to `autoreas-request-mc
 - `EventType` reuses the bus event name when one exists (`download` passes `events.EventName*`); otherwise a string literal `domain.verb` (`internal/logger/event_type_test.go`). Never two names for one fact.
 - Level is behaviour: debug is dropped, warn makes a recovered run only with a `CorrelationID`, error opens an incident (`error_event|domain|type`).
 - Failures carry their cause (P1); never secrets or cookie values in message or metadata.
+- One fact per metadata key, camelCase (`siteHost`, `hoster`), so it can be filtered; never a combined string like `"jkanime.org/Mediafire"`. Omit an unknown value instead of writing `""`.
 - Tighten the feature's existing tests; add a test only when none can carry the rule.
 
 ## Decision Gates

@@ -1,6 +1,7 @@
 package requestcapture
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -113,5 +114,70 @@ func TestListResponseVersionsAt(t *testing.T) {
 	h.call(t, "list_response_versions", map[string]any{"route_template": "/api/sync/reconcile"}, &latest)
 	if len(latest.Versions) != 2 || latest.Versions[0].BodyHash != "new" {
 		t.Fatalf("latest versions = %+v", latest.Versions)
+	}
+}
+
+// TestCountEvents checks count_events over the protocol: the default 90
+// days, the grouped and ungrouped answers, a day range, its coverage window,
+// and the inputs it refuses instead of answering an empty count.
+func TestCountEvents(t *testing.T) {
+	h := newHarness(t)
+	insert := `INSERT INTO runtime_events (occurred_at_ms, domain, level, message, event_type, metadata_json)
+		VALUES (?, 'download', 'info', 'downloaded', ?, NULLIF(?, ''))`
+	at := func(date string, hour int) int64 {
+		day, _ := time.ParseInLocation(time.DateOnly, date, time.UTC)
+		return day.Add(time.Duration(hour) * time.Hour).UnixMilli()
+	}
+	h.exec(t, insert, at("2026-10-17", 10), "download.episode_downloaded", `{"siteHost":"jkanime.org"}`)
+	h.exec(t, insert, at("2026-10-16", 10), "download.episode_downloaded", `{"siteHost":"jkanime.org"}`)
+	h.exec(t, insert, at("2026-10-16", 11), "download.episode_downloaded", `{"siteHost":"jkanime.net"}`)
+	h.exec(t, insert, at("2026-10-16", 12), "download.hoster_attempt", `{"siteHost":"jkanime.org"}`)
+	h.exec(t, insert, at("2026-10-15", 10), "download.episode_downloaded", `{"hoster":"Mediafire"}`)
+	h.exec(t, insert, at("2026-07-20", 0), "download.episode_downloaded", `{"siteHost":"jkanime.org"}`)
+	h.exec(t, insert, at("2026-07-19", 23), "download.episode_downloaded", `{"siteHost":"jkanime.org"}`)
+	org, net := "jkanime.org", "jkanime.net"
+
+	var grouped CountEventsResult
+	h.call(t, "count_events", map[string]any{"event_type": "download.episode_downloaded", "group_by": "siteHost"}, &grouped)
+	want := []EventGroup{{Value: &org, Count: 3}, {Value: &net, Count: 1}, {Value: nil, Count: 1}}
+	if grouped.Total != 5 || grouped.GroupBy != "siteHost" || !reflect.DeepEqual(grouped.Groups, want) {
+		t.Fatalf("grouped = %+v", grouped)
+	}
+	if window := grouped.Coverage.Window; window == nil || window.FromMS != at("2026-07-20", 0) || window.ToMS != at("2026-10-18", 0)-1 {
+		t.Fatalf("default window = %+v", window)
+	}
+	if names := sourceNames(grouped.Coverage); !slices.Equal(names, []string{"runtime_events"}) {
+		t.Fatalf("sources = %v", names)
+	}
+	var total CountEventsResult
+	h.call(t, "count_events", map[string]any{"event_type": "download.episode_downloaded"}, &total)
+	if total.Total != 5 || total.Groups == nil || len(total.Groups) != 0 {
+		t.Fatalf("ungrouped = %+v", total)
+	}
+	var oneDay CountEventsResult
+	h.call(t, "count_events", map[string]any{"event_type": "download.episode_downloaded", "group_by": "siteHost",
+		"from_day": "2026-10-16", "to_day": "2026-10-16"}, &oneDay)
+	if want := []EventGroup{{Value: &net, Count: 1}, {Value: &org, Count: 1}}; oneDay.Total != 2 || !reflect.DeepEqual(oneDay.Groups, want) {
+		t.Fatalf("one day = %+v", oneDay)
+	}
+	if window := oneDay.Coverage.Window; window == nil || window.FromMS != at("2026-10-16", 0) || window.ToMS != at("2026-10-17", 0)-1 {
+		t.Fatalf("one-day window = %+v", window)
+	}
+	for _, tc := range []struct {
+		args map[string]any
+		want string
+	}{
+		{map[string]any{"event_type": " "}, "event type"},
+		{map[string]any{"event_type": "download"}, "event type"},
+		{map[string]any{"event_type": "download.episode_downloaded", "group_by": "$.siteHost"}, "group_by"},
+		{map[string]any{"event_type": "download.episode_downloaded", "group_by": "site host"}, "group_by"},
+		{map[string]any{"event_type": "download.episode_downloaded", "from_day": "2026-07-19"}, "outside"},
+		{map[string]any{"event_type": "download.episode_downloaded", "to_day": "2026-10-18"}, "outside"},
+		{map[string]any{"event_type": "download.episode_downloaded", "from_day": "16/10/2026"}, "from_day"},
+		{map[string]any{"event_type": "download.episode_downloaded", "from_day": "2026-10-17", "to_day": "2026-10-16"}, "before"},
+	} {
+		if text := h.callError(t, "count_events", tc.args); !strings.Contains(text, tc.want) {
+			t.Fatalf("count_events(%v) error = %q, want %q", tc.args, text, tc.want)
+		}
 	}
 }

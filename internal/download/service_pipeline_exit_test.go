@@ -132,7 +132,7 @@ func episodeRun(t *testing.T, deps ServiceDeps, folder string, current int) (*fi
 	t.Helper()
 	sourceURL := "https://jkanime.net/anime/"
 	source := &svcFakeEpisodeSource{name: "jkanime", extractLinks: map[string][]sites.DownloadLink{
-		sourceURL + strconv.Itoa(current+1) + "/": {{Hoster: "Mediafire", URL: "http://mediafire.example/1"}},
+		sourceURL + strconv.Itoa(current+1) + "/": {{Hoster: "Mediafire", URL: "http://mediafire.example/1", SiteHost: "jkanime.org"}},
 	}}
 	recorder := &fieldsRecorder{}
 	deps.Logger = recorder
@@ -160,14 +160,14 @@ func episodeLevelFailure(t *testing.T, recorder *fieldsRecorder) recordedEntry {
 	return out[0]
 }
 
-// assertEpisodeForensics pins the five discriminators an episode-level entry must carry. Every
+// assertEpisodeForensics pins the six discriminators an episode-level entry must carry. Every
 // expectation is a literal: an assertion written against the exitReason constants would follow a
 // rename and stop proving anything about what a reader actually finds in the persisted row.
 func assertEpisodeForensics(t *testing.T, entry recordedEntry, exit, hoster string, attemptIndex, baseline, observed int) {
 	t.Helper()
 	want := map[string]any{
 		"exit": exit, "hoster": hoster, "attemptIndex": attemptIndex,
-		"baseline": baseline, "observed": observed,
+		"baseline": baseline, "observed": observed, "siteHost": "jkanime.org",
 	}
 	for key, value := range want {
 		if entry.metadata[key] != value {
@@ -402,7 +402,7 @@ func TestTwoAttemptsDifferingOnlyInTheObservedCountBehaveIdentically(t *testing.
 // notification work legitimately adds a field, and a guard that cries wolf gets deleted.
 var forbiddenOutcomeFields = map[string]bool{
 	"exit": true, "hoster": true, "attemptIndex": true,
-	"baseline": true, "observed": true, "winningHoster": true,
+	"baseline": true, "observed": true, "winningHoster": true, "siteHost": true,
 }
 
 func TestTheAnimeRunOutcomeNeverGrowsAForensicField(t *testing.T) {

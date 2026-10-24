@@ -375,6 +375,21 @@ info:
     its cause) and `jkanime.host_fallback` (which mirror answered). Every other
     value reads exactly what it read before.
 
+    2026-10-24 — event counts consumer impact: NO REST/WS wire change.
+    Additive for MCP clients of `autoreas-request-mcp`: a new read-only tool
+    `count_events` counts the `runtime_events` rows of one required
+    `event_type` (shaped `domain.verb`), optionally grouped by one top-level
+    metadata key `group_by` (a letter, then letters, digits or `_`), over whole
+    local days `from_day`..`to_day` (`YYYY-MM-DD`, inclusive, inside the last 90
+    local days; by default all 90). It answers `total`, `groups` (each
+    `{value, count}`, largest first; empty without `group_by`) and the usual
+    `coverage`. `value` is `null` for rows without the key, with a JSON null, or
+    whose metadata was stored truncated. A misshaped `event_type` or
+    `group_by`, a day outside the 90 days, or `to_day` before `from_day` is an
+    error, never an empty count. Example: `download.episode_downloaded` grouped
+    by `siteHost` answers how many episodes each site host served. Every other
+    tool is unchanged.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}
