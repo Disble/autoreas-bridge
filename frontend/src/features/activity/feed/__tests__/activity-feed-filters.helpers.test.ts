@@ -25,9 +25,9 @@ describe('createInitialFilters', () => {
       scale: '24h',
       range: undefined,
       origin: 'all',
-      types: ['change', 'download', 'task', 'edit'],
+      types: ['change', 'download', 'task', 'edit', 'system'],
       failuresOnly: false,
-      failureTypes: ['change', 'traffic', 'download', 'task', 'edit', 'bridge'],
+      failureTypes: ['change', 'traffic', 'download', 'task', 'edit', 'system'],
       anchorMs: NOW_MS,
     });
     expect(INITIAL.types).not.toContain('traffic');
@@ -59,9 +59,9 @@ describe('toFeedQuery', () => {
   });
 
   it('reads the picked range and, with the failure filter on, the failure types', () => {
-    const filters = { ...INITIAL, range: { fromMs: 10, toMs: 20 }, failuresOnly: true, failureTypes: ['bridge'] as const };
+    const filters = { ...INITIAL, range: { fromMs: 10, toMs: 20 }, failuresOnly: true, failureTypes: ['system'] as const };
 
-    expect(toFeedQuery(filters, '', 40)).toMatchObject({ fromMs: 10, toMs: 20, types: ['bridge'], failuresOnly: true });
+    expect(toFeedQuery(filters, '', 40)).toMatchObject({ fromMs: 10, toMs: 20, types: ['system'], failuresOnly: true });
   });
 
   it.each([
@@ -87,10 +87,12 @@ describe('toggleFeedTypes', () => {
     expect(toggleFeedTypes(allOn, new Set(ACTIVITY_TOGGLE_TYPES), NOW_MS).types).toEqual(ACTIVITY_TOGGLE_TYPES);
   });
 
-  it('turns one type off while every type is on', () => {
+  it('turns System off like any other type while every type is on', () => {
     const allOn = { ...INITIAL, types: ACTIVITY_TOGGLE_TYPES };
+    const next = toggleFeedTypes(allOn, new Set(['all', 'change', 'traffic', 'download', 'task', 'edit']), NOW_MS);
 
-    expect(toggleFeedTypes(allOn, new Set(['all', 'change', 'traffic', 'download', 'task']), NOW_MS).types).toEqual(['change', 'traffic', 'download', 'task']);
+    expect(next.types).toEqual(['change', 'traffic', 'download', 'task', 'edit']);
+    expect(toFeedQuery(next, '', 40)?.types).not.toContain('system');
   });
 
   it('turns the failure filter off and moves the window anchor (design, Failure button: any type filter exits)', () => {
@@ -112,7 +114,7 @@ describe('typeSelectionKeys', () => {
 
 describe('toggleFailureTypes', () => {
   it('keeps only known failure types, in menu order', () => {
-    expect(toggleFailureTypes(INITIAL, new Set(['bridge', 'change', 'nope'])).failureTypes).toEqual(['change', 'bridge']);
+    expect(toggleFailureTypes(INITIAL, new Set(['system', 'change', 'nope'])).failureTypes).toEqual(['change', 'system']);
   });
 });
 

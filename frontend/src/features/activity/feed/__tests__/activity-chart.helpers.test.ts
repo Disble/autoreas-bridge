@@ -61,7 +61,7 @@ describe('overview counts', () => {
   const overview = buildOverview([
     { type: 'change', lines: 12, failed: 1 },
     { type: 'traffic', lines: 30, failed: 0 },
-    { type: 'bridge', lines: 2, failed: 2 },
+    { type: 'system', lines: 2, failed: 2 },
   ]);
 
   it('gives each toggle its line and failure counts, unknown while no overview is read', () => {
@@ -81,7 +81,7 @@ describe('overview counts', () => {
       ['download', 0],
       ['task', 0],
       ['edit', 0],
-      ['bridge', 2],
+      ['system', 2],
     ]);
   });
 });
@@ -90,11 +90,11 @@ describe('toFailureMenuKeys', () => {
   it('disables the rows with no failure, never selects them, and keeps their pick', () => {
     const rows = toFailureRows(buildOverview([{ type: 'change', lines: 3, failed: 1 }]));
 
-    const keys = toFailureMenuKeys(rows, ['change', 'bridge']);
+    const keys = toFailureMenuKeys(rows, ['change', 'system']);
 
     expect([...keys.selected]).toEqual(['change']);
-    expect([...keys.disabled]).toEqual(['traffic', 'download', 'task', 'edit', 'bridge']);
-    expect(keys.keptDisabled).toEqual(['bridge']);
+    expect([...keys.disabled]).toEqual(['traffic', 'download', 'task', 'edit', 'system']);
+    expect(keys.keptDisabled).toEqual(['system']);
   });
 });
 

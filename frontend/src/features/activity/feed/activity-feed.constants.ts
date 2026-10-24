@@ -18,17 +18,17 @@ export const ACTIVITY_TYPE_LABELS: Readonly<Record<ActivityFeedType, string>> = 
   download: 'Downloads',
   task: 'Tasks',
   edit: 'Edits',
-  bridge: 'Bridge',
+  system: 'System',
 };
 
-/** The type toggles of the toolbar. Bridge lines ignore type filters, so Bridge has no toggle. */
-export const ACTIVITY_TOGGLE_TYPES: readonly ActivityFeedType[] = ['change', 'traffic', 'download', 'task', 'edit'];
+/** The type toggles of the toolbar. System, the section of every line no other type owns, is a toggle like the rest. */
+export const ACTIVITY_TOGGLE_TYPES: readonly ActivityFeedType[] = ['change', 'traffic', 'download', 'task', 'edit', 'system'];
 
 /** Types the feed opens with: Traffic starts off (design, Feed). */
-export const ACTIVITY_DEFAULT_TYPES: readonly ActivityFeedType[] = ['change', 'download', 'task', 'edit'];
+export const ACTIVITY_DEFAULT_TYPES: readonly ActivityFeedType[] = ['change', 'download', 'task', 'edit', 'system'];
 
 /** The rows of the failure menu, which the failure filter starts with. */
-export const ACTIVITY_FAILURE_TYPES: readonly ActivityFeedType[] = ['change', 'traffic', 'download', 'task', 'edit', 'bridge'];
+export const ACTIVITY_FAILURE_TYPES: readonly ActivityFeedType[] = ['change', 'traffic', 'download', 'task', 'edit', 'system'];
 
 /** The key of the "All" type toggle. */
 export const ACTIVITY_ALL_TYPES_KEY = 'all';

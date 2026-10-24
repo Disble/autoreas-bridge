@@ -59,7 +59,7 @@ func seedEveryType(t *testing.T, db *sql.DB) {
 	insertRun(t, db, "run-a", "scheduled", minutesAgo(30), "ok", 0)                    // download
 	insertEvent(t, db, event{atMS: minutesAgo(40), domain: "schedule", level: "warn", message: "Missed selected day", eventType: "notification.forwarded"})
 	insertChange(t, db, "desktop", "Ao Ashi", minutesAgo(50), 0)                                                                                // edit
-	insertEvent(t, db, event{atMS: minutesAgo(55), domain: "api", level: "info", message: "http server listening", eventType: "api.listening"}) // bridge
+	insertEvent(t, db, event{atMS: minutesAgo(55), domain: "api", level: "info", message: "http server listening", eventType: "api.listening"}) // system
 	insertEvent(t, db, event{atMS: minutesAgo(45), domain: "download", level: "info", message: "run started", eventType: "download.run_started", correlationID: "run-a"})
 	insertEvent(t, db, event{atMS: minutesAgo(35), domain: "anime", level: "info", message: "folder opened", eventType: "anime.folder_opened"})
 }
@@ -69,7 +69,7 @@ func TestFeedClassifiesEachSourceIntoItsTypeAndOrigin(t *testing.T) {
 	seedEveryType(t, db)
 
 	lines := feedLines(feedOf(t, r, FeedInput{}))
-	want := []FeedType{FeedChange, FeedDownload, FeedTask, FeedEdit, FeedBridge, FeedTraffic}
+	want := []FeedType{FeedChange, FeedDownload, FeedTask, FeedEdit, FeedSystem, FeedTraffic}
 	if got := typesOf(lines); !slices.Equal(got, want) {
 		t.Fatalf("types = %v, want %v", got, want)
 	}
@@ -78,7 +78,7 @@ func TestFeedClassifiesEachSourceIntoItsTypeAndOrigin(t *testing.T) {
 		origins[line.Type] = line.Origin
 	}
 	wantOrigins := map[FeedType]FeedOrigin{FeedChange: OriginPhone, FeedTraffic: OriginPhone, FeedDownload: OriginBridge,
-		FeedTask: OriginBridge, FeedEdit: OriginBridge, FeedBridge: OriginBridge}
+		FeedTask: OriginBridge, FeedEdit: OriginBridge, FeedSystem: OriginBridge}
 	for feedType, origin := range wantOrigins {
 		if origins[feedType] != origin {
 			t.Errorf("origin of %s = %q, want %q", feedType, origins[feedType], origin)
@@ -94,7 +94,7 @@ func TestFeedClassifiesEachSourceIntoItsTypeAndOrigin(t *testing.T) {
 	}
 }
 
-func TestFeedFiltersByOriginAndTypesButAlwaysShowsBridgeLines(t *testing.T) {
+func TestFeedFiltersByOriginAndTypesWithSystemAsAToggle(t *testing.T) {
 	db, r := openTestReader(t)
 	seedEveryType(t, db)
 
@@ -104,10 +104,11 @@ func TestFeedFiltersByOriginAndTypesButAlwaysShowsBridgeLines(t *testing.T) {
 		want []FeedType
 	}{
 		{"phone origin", FeedInput{Origin: OriginPhone}, []FeedType{FeedChange, FeedTraffic}},
-		{"bridge origin", FeedInput{Origin: OriginBridge}, []FeedType{FeedDownload, FeedTask, FeedEdit, FeedBridge}},
-		{"edits only keep bridge lines", FeedInput{Types: []FeedType{FeedEdit}}, []FeedType{FeedEdit, FeedBridge}},
-		{"changes and traffic", FeedInput{Types: []FeedType{FeedChange, FeedTraffic}}, []FeedType{FeedChange, FeedBridge, FeedTraffic}},
-		{"phone origin hides bridge lines", FeedInput{Origin: OriginPhone, Types: []FeedType{FeedEdit}}, nil},
+		{"bridge origin", FeedInput{Origin: OriginBridge}, []FeedType{FeedDownload, FeedTask, FeedEdit, FeedSystem}},
+		{"edits only hide System", FeedInput{Types: []FeedType{FeedEdit}}, []FeedType{FeedEdit}},
+		{"changes and traffic", FeedInput{Types: []FeedType{FeedChange, FeedTraffic}}, []FeedType{FeedChange, FeedTraffic}},
+		{"System only", FeedInput{Types: []FeedType{FeedSystem}}, []FeedType{FeedSystem}},
+		{"phone origin hides System", FeedInput{Origin: OriginPhone, Types: []FeedType{FeedSystem}}, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -150,7 +151,7 @@ func TestFeedFailuresOnlyKeepsFailedLinesWithTheirIncident(t *testing.T) {
 	insertTelemetry(t, db, "tele-2", minutesAgo(16), minutesAgo(16), `{"outcome":"ok"}`)
 
 	lines := feedLines(feedOf(t, r, FeedInput{FailuresOnly: true}))
-	want := []FeedType{FeedTraffic, FeedDownload, FeedDownload, FeedBridge, FeedTraffic}
+	want := []FeedType{FeedTraffic, FeedDownload, FeedDownload, FeedSystem, FeedTraffic}
 	if got := typesOf(lines); !slices.Equal(got, want) {
 		t.Fatalf("types = %v, want %v", got, want)
 	}
@@ -232,8 +233,8 @@ func TestFeedPagesLinesOfDifferentSourcesSharingAMillisecond(t *testing.T) {
 			break
 		}
 	}
-	// Newest first, ties broken by source rank: run, traffic hour, then the two events by id.
-	want := []LineKind{LineDownloadRun, LineTrafficHour, LineEvent, LineEvent}
+	// Newest first, ties broken by source rank: the System group, run, traffic hour, then the task event.
+	want := []LineKind{LineEvent, LineDownloadRun, LineTrafficHour, LineEvent}
 	if !slices.Equal(kinds, want) {
 		t.Fatalf("kinds = %v, want %v", kinds, want)
 	}

@@ -6,18 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	"autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/observability/incident"
 )
 
-// Feed event predicates (activity-ui-design-v2.md, Feed). Schedule and season
-// events are tasks. The other domains give a bridge line only for a start or
-// a warning or error: download events are the run story, not lines, and
-// routine info events are not news.
+// Feed failure predicates (activity-ui-design-v2.md, Feed). The event
+// ownership predicates live in feed_system.go.
 const (
-	feedTaskEventSQL   = `domain IN ('schedule', 'season')`
-	feedBridgeEventSQL = `(domain NOT IN ('download', 'schedule', 'season')
-		AND (COALESCE(event_type, '') = 'api.listening' OR level IN ('warn', 'error')))`
 	// feedFailedReportSQL is a phone report whose outcome failed.
 	feedFailedReportSQL = `(` + reportOutcomeSQL + `) = 'failed'`
 	// feedFailedRunSQL is a run that ended in error or lost an episode.
@@ -153,49 +147,11 @@ func (r *Reader) feedRunLines(ctx context.Context, plan feedPlan, p sourcePage) 
 	return items, rows.Err()
 }
 
-// feedEventLines reads task and bridge events. An error event fails; a
-// warning is slow.
-func (r *Reader) feedEventLines(ctx context.Context, plan feedPlan, p sourcePage) ([]item[FeedLine], error) {
-	filter := feedEventFilter(plan)
-	if filter == "" {
-		return nil, nil
-	}
-	if plan.failuresOnly {
-		filter += " AND level = '" + logger.LevelError + "'"
-	}
-	where, args, err := p.bounds(rankEvent, "occurred_at_ms", "id", true)
-	if err != nil {
-		return nil, err
-	}
-	query := `SELECT id, occurred_at_ms, domain, level, message, COALESCE(event_type, ''), COALESCE(correlation_id, '')
-		FROM runtime_events WHERE ` + where + ` AND ` + noiseFilter + ` AND ` + restatingEventFilter + ` AND ` + filter + `
-		ORDER BY occurred_at_ms DESC, id DESC LIMIT ?`
-	items, err := queryLines(ctx, r.db, query, append(args, p.fetch), rankEvent, func(rows *sql.Rows) (LedgerLine, string, error) {
-		line := LedgerLine{Kind: LineEvent}
-		var id int64
-		err := rows.Scan(&id, &line.AtMS, &line.Domain, &line.Level, &line.Title, &line.Detail, &line.CorrelationID)
-		line.ID = formatID(id)
-		return line, intKey(id), err
-	})
-	if err != nil {
-		return nil, err
-	}
-	out := toFeedItems(items, func(line LedgerLine) FeedType {
-		if line.Domain == "schedule" || line.Domain == "season" {
-			return FeedTask
-		}
-		return FeedBridge
-	}, func(line LedgerLine) bool { return line.Level == logger.LevelError })
-	for i := range out {
-		out[i].value.Slow = out[i].value.Line.Level == logger.LevelWarn
-	}
-	return out, nil
-}
-
 // attachIncidents sets the newest incident occurrence recorded for each line
-// of a page: an error event by its time and fingerprint, a phone report by its
-// telemetry event id, and a traffic hour by the request occurrences inside it.
-// A slow request occurrence marks a traffic hour that did not fail as slow.
+// of a page: a failed event line by its fingerprint (eventIncident), a phone
+// report by its telemetry event id, and a traffic hour by the request
+// occurrences inside it. A slow request occurrence marks a traffic hour that
+// did not fail as slow.
 func (r *Reader) attachIncidents(ctx context.Context, lines []FeedLine) error {
 	for i := range lines {
 		line := &lines[i]
@@ -203,9 +159,7 @@ func (r *Reader) attachIncidents(ctx context.Context, lines []FeedLine) error {
 		switch line.Line.Kind {
 		case LineEvent:
 			if line.Failed {
-				fingerprint := string(incident.ReasonErrorEvent) + "|" + line.Line.Domain + "|" + line.Line.Detail
-				line.IncidentID, _, err = r.newestIncident(ctx, `source_kind = ? AND occurred_at_ms = ? AND fingerprint = ?`,
-					string(incident.SourceEvent), line.Line.AtMS, fingerprint)
+				line.IncidentID, err = r.eventIncident(ctx, *line)
 			}
 		case LinePhoneReport:
 			line.IncidentID, _, err = r.newestIncident(ctx, `source_kind = ? AND source_id =

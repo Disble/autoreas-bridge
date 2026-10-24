@@ -66,9 +66,20 @@ describe('toFeedRowModel', () => {
     ['any other event by its recorded message, area and type', 'season', 'season.warn', 'Missed selected day', 'Missed selected day', 'season · season.warn'],
     ['an event with no area by its type alone', '', 'season.warn', 'Missed selected day', 'Missed selected day', 'season.warn'],
   ])('words %s', (_case, domain, eventType, message, subject, detail) => {
-    const line = buildLine({ type: 'bridge', origin: 'bridge', slow: true }, { kind: 'event', domain, title: message, detail: eventType });
+    const line = buildLine({ type: 'system', origin: 'bridge', slow: true }, { kind: 'event', domain, title: message, detail: eventType });
 
     expect(toFeedRowModel(line, undefined)).toMatchObject({ subject, detail, health: 'slow', canCopy: false, originLabel: 'Bridge · slow' });
+  });
+
+  it.each([
+    ['a group of one event as that event', 'frontend.error', 1, 'boom', 'frontend · frontend.error'],
+    ['a repeated event with its count and first and last time', 'frontend.error', 3, 'boom', '3 times · 10:05 – 10:50 · frontend · frontend.error'],
+    ['repeated bridge starts with their count alone', 'api.listening', 2, 'Bridge started', '2 times · 10:05 – 10:50'],
+  ])('words a System group of %s', (_case, eventType, count, subject, detail) => {
+    const system = { hourStartMs: new Date(2026, 9, 22, 10).getTime(), count, firstAtMs: new Date(2026, 9, 22, 10, 5).getTime(), lastAtMs: new Date(2026, 9, 22, 10, 50).getTime() };
+    const line = buildLine({ type: 'system', origin: 'bridge', failed: true, system }, { kind: 'event', domain: 'frontend', title: 'boom', detail: eventType, atMs: system.lastAtMs });
+
+    expect(toFeedRowModel(line, undefined)).toMatchObject({ subject, detail, time: '10:50', health: 'failed' });
   });
 
   it.each([

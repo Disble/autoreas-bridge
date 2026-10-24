@@ -9,7 +9,7 @@ import type { ActivityLedgerLine } from '../history-source/history.types';
  */
 
 /** One type toggle of the feed, the Go `FeedType` values. */
-export type ActivityFeedType = 'change' | 'traffic' | 'download' | 'task' | 'edit' | 'bridge';
+export type ActivityFeedType = 'change' | 'traffic' | 'download' | 'task' | 'edit' | 'system';
 
 /** Where a line happened. `all` is a filter value only, never a line's origin. */
 export type ActivityFeedOrigin = 'all' | 'phone' | 'bridge';
@@ -57,7 +57,23 @@ export interface ActivityDownloadRun {
   readonly errorSummary: string;
 }
 
-/** One feed row. `traffic` and `run` are set only for their own line kind. */
+/** What one System line groups: the events of one hour sharing a domain, event type, level and message. */
+export interface ActivitySystemGroup {
+  /** Start of the hour, epoch milliseconds. */
+  readonly hourStartMs: number;
+  /** Events in the group. */
+  readonly count: number;
+  /** The first event's time, epoch milliseconds. */
+  readonly firstAtMs: number;
+  /** The last event's time, epoch milliseconds; the line's own time. */
+  readonly lastAtMs: number;
+}
+
+/**
+ * One feed row. `traffic`, `run` and `system` are set only for their own
+ * lines. A System line is an event line standing for its group: `line` is
+ * the group's newest recorded event.
+ */
 export interface ActivityFeedLine {
   /** The type toggle the line belongs to. */
   readonly type: ActivityFeedType;
@@ -75,6 +91,8 @@ export interface ActivityFeedLine {
   readonly traffic: ActivityTrafficHour | undefined;
   /** The run, for a `download_run` line. */
   readonly run: ActivityDownloadRun | undefined;
+  /** The group, for a System line. */
+  readonly system: ActivitySystemGroup | undefined;
 }
 
 /** One local day's feed lines, newest first. */
@@ -101,7 +119,7 @@ export interface ActivityFeedQuery {
   readonly toMs: number;
   /** Origin filter. */
   readonly origin: ActivityFeedOrigin;
-  /** Selected types; bridge lines are read whatever this says unless `failuresOnly`. */
+  /** Selected types; System lines too are read only when selected. */
   readonly types: readonly ActivityFeedType[];
   /** Keep only failed lines of `types`. */
   readonly failuresOnly: boolean;

@@ -58,6 +58,7 @@ const FAILED_RUN: ActivityFeedLine = {
   slow: false,
   incidentId: undefined,
   traffic: undefined,
+  system: undefined,
   line: ledgerLine({ kind: 'download_run', id: 'run-1' }),
   run: {
     runId: 'run-1',
@@ -75,11 +76,18 @@ const FAILED_RUN: ActivityFeedLine = {
   },
 };
 
-/** The feed lines: the failed run, an unbroken error title, a long route and a long anime title. */
+/** The feed lines: the failed run, an unbroken error title grouped twelve times in its hour, a long route and a long anime title. */
 const HOSTILE_LINES: readonly ActivityFeedLine[] = [
   FAILED_RUN,
-  { ...FAILED_RUN, type: 'bridge', run: undefined, incidentId: 9, line: ledgerLine({ id: '2', level: 'error', title: LONG_ERROR }) },
-  { ...FAILED_RUN, type: 'bridge', run: undefined, line: ledgerLine({ id: '3', kind: 'phone_report', title: `GET ${LONG_ROUTE}`, detail: `500 ${LONG_ROUTE}` }) },
+  {
+    ...FAILED_RUN,
+    type: 'system',
+    run: undefined,
+    incidentId: 9,
+    system: { hourStartMs: Date.UTC(2026, 9, 22, 11), count: 12, firstAtMs: Date.UTC(2026, 9, 22, 11, 2), lastAtMs: Date.UTC(2026, 9, 22, 11, 58) },
+    line: ledgerLine({ id: '2', atMs: Date.UTC(2026, 9, 22, 11, 58), level: 'error', title: LONG_ERROR, domain: 'frontend', detail: 'frontend.error' }),
+  },
+  { ...FAILED_RUN, type: 'system', run: undefined, line: ledgerLine({ id: '3', kind: 'phone_report', title: `GET ${LONG_ROUTE}`, detail: `500 ${LONG_ROUTE}` }) },
   { ...FAILED_RUN, type: 'change', origin: 'phone', failed: false, run: undefined, line: ledgerLine({ id: '4', kind: 'change', source: 'mobile', title: 'Honzuki no Gekokujou: Shisho ni Naru Tame ni wa Shudan wo Erandeiraremasen - Ryoushu no Youjo', detail: 'episode_adjusted', beforeJson: '{"NroCapVisto":0}', afterJson: '{"NroCapVisto":1}' }) },
 ];
 
@@ -108,7 +116,7 @@ const DAILY_SLOTS: readonly ActivityChartSlot[] = Array.from({ length: 90 }, (_u
 });
 
 /** The type toggles with their counts and failures, as the overview words them. */
-const TYPE_TOGGLES: readonly ActivityTypeToggleModel[] = ACTIVITY_TOGGLE_TYPES.map((type, index) => ({ type, label: ACTIVITY_TYPE_LABELS[type], lines: [7, 7, 3, 2, 2][index], failed: [2, 1, 0, 0, 0][index] }));
+const TYPE_TOGGLES: readonly ActivityTypeToggleModel[] = ACTIVITY_TOGGLE_TYPES.map((type, index) => ({ type, label: ACTIVITY_TYPE_LABELS[type], lines: [7, 7, 3, 2, 2, 12][index], failed: [2, 1, 0, 0, 0, 1][index] }));
 
 /**
  * The failure button state of one column: on, or open in the wide column only
@@ -159,7 +167,7 @@ function ActivityScreenParts({ width }: { readonly width: number }) {
               state: fixtureFailureState(width),
               count: 4,
               rows: ACTIVITY_FAILURE_TYPES.map((type, index) => ({ type, label: ACTIVITY_TYPE_LABELS[type], failed: [2, 1, 0, 0, 0, 1][index] })),
-              selectedKeys: new Set(['change', 'traffic', 'bridge']),
+              selectedKeys: new Set(['change', 'traffic', 'system']),
               disabledKeys: new Set(['download', 'task', 'edit']),
               groupRef: createRef<HTMLDivElement>(),
               onToggle: () => undefined,

@@ -6,7 +6,16 @@ import { ACTIVITY_RUNTIME_UNAVAILABLE_MESSAGE } from '../activity-source/activit
 import { mapLedgerLine } from '../history-source/history-source.helpers';
 import { FEED_SOURCE_STATE } from './feed-source.constants';
 import type { ActivityFeedSource } from './feed-source.types';
-import type { ActivityChartSlot, ActivityDownloadRun, ActivityFeedLine, ActivityFeedView, ActivityOverview, ActivityTrafficHour, ActivityTypeCount } from './feed.types';
+import type {
+  ActivityChartSlot,
+  ActivityDownloadRun,
+  ActivityFeedLine,
+  ActivityFeedView,
+  ActivityOverview,
+  ActivitySystemGroup,
+  ActivityTrafficHour,
+  ActivityTypeCount,
+} from './feed.types';
 
 /** Maps one Go traffic hour. */
 function mapTrafficHour(hour: activityread.TrafficHour): ActivityTrafficHour {
@@ -31,6 +40,11 @@ function mapDownloadRun(run: activityread.DownloadRunLine): ActivityDownloadRun 
   };
 }
 
+/** Maps one Go System group. */
+function mapSystemGroup(group: activityread.SystemGroup): ActivitySystemGroup {
+  return { hourStartMs: group.HourStartMS, count: group.Count, firstAtMs: group.FirstAtMS, lastAtMs: group.LastAtMS };
+}
+
 /** Maps one Go feed line; Go's zero incident id means none. */
 function mapFeedLine(line: activityread.FeedLine): ActivityFeedLine {
   return {
@@ -42,6 +56,7 @@ function mapFeedLine(line: activityread.FeedLine): ActivityFeedLine {
     line: mapLedgerLine(line.Line),
     traffic: line.Traffic ? mapTrafficHour(line.Traffic) : undefined,
     run: line.Run ? mapDownloadRun(line.Run) : undefined,
+    system: line.System ? mapSystemGroup(line.System) : undefined,
   };
 }
 

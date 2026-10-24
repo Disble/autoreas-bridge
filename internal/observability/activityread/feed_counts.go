@@ -35,50 +35,43 @@ func (r *Reader) countFeed(ctx context.Context, plan feedPlan, buckets []bucket)
 		counts[i] = bucketCounts{}
 	}
 	cte, args := bucketsCTE(buckets)
-	type grouped struct {
-		reads bool
+	sources := []struct {
+		t     FeedType
 		query string
 		args  []any
-		typed func(flag bool) FeedType
-	}
-	traffic := func(bool) FeedType { return FeedTraffic }
-	sources := []grouped{
-		{plan.reads(FeedTraffic), cte + `SELECT b.i, 0, COUNT(*), SUM(h.failed > 0) FROM b JOIN (
+	}{
+		{FeedTraffic, cte + `SELECT b.i, COUNT(*), SUM(h.failed > 0) FROM b JOIN (
 			SELECT hour_ms, SUM(CASE WHEN status_class >= 4 THEN request_count ELSE 0 END) AS failed
 			FROM request_rollup_hourly GROUP BY hour_ms) h ON h.hour_ms > b.lo - ? AND h.hour_ms <= b.hi GROUP BY b.i`,
-			append(append([]any{}, args...), time.Hour.Milliseconds()), traffic},
-		{plan.reads(FeedTraffic), cte + `SELECT b.i, 0, COUNT(*), COUNT(*) FROM b
+			append(append([]any{}, args...), time.Hour.Milliseconds())},
+		{FeedTraffic, cte + `SELECT b.i, COUNT(*), COUNT(*) FROM b
 			JOIN device_telemetry_events ON reported_at_ms BETWEEN b.lo AND b.hi
 			WHERE kind IN (?, ?, ?) AND ` + feedFailedReportSQL + ` GROUP BY b.i`,
-			append(append([]any{}, args...), telemetry.KindCycleReport, telemetry.KindEpisodeAction, telemetry.KindScreenStall), traffic},
-		{plan.reads(FeedDownload), cte + `SELECT b.i, 0, COUNT(*), SUM(` + feedFailedRunSQL + `) FROM b
-			JOIN download_runs ON started_at_ms BETWEEN b.lo AND b.hi GROUP BY b.i`,
-			args, func(bool) FeedType { return FeedDownload }},
-	}
-	if filter := feedEventFilter(plan); filter != "" {
-		sources = append(sources, grouped{true, cte + `SELECT b.i, ` + feedTaskEventSQL + `, COUNT(*), SUM(level = 'error') FROM b
+			append(append([]any{}, args...), telemetry.KindCycleReport, telemetry.KindEpisodeAction, telemetry.KindScreenStall)},
+		{FeedDownload, cte + `SELECT b.i, COUNT(*), SUM(` + feedFailedRunSQL + `) FROM b
+			JOIN download_runs ON started_at_ms BETWEEN b.lo AND b.hi GROUP BY b.i`, args},
+		{FeedTask, cte + `SELECT b.i, COUNT(*), SUM(level = 'error') FROM b
 			JOIN runtime_events ON occurred_at_ms BETWEEN b.lo AND b.hi
-			WHERE ` + noiseFilter + ` AND ` + restatingEventFilter + ` AND ` + filter + ` GROUP BY b.i, 2`,
-			args, func(task bool) FeedType {
-				if task {
-					return FeedTask
-				}
-				return FeedBridge
-			}})
+			WHERE ` + feedEventWhere(feedTaskEventSQL) + ` GROUP BY b.i`, args},
+		// One System line per group, as feedSystemLines reads them; the level
+		// is part of the key, so a group fails when its level is error.
+		{FeedSystem, cte + `SELECT i, COUNT(*), SUM(failed) FROM (SELECT b.i AS i, MAX(level = 'error') AS failed FROM b
+			JOIN runtime_events ON occurred_at_ms BETWEEN b.lo AND b.hi
+			WHERE ` + feedEventWhere(feedSystemEventSQL) + ` GROUP BY b.i, ` + feedSystemGroupSQL + `) GROUP BY i`, args},
 	}
 	for _, source := range sources {
-		if !source.reads {
+		if !plan.reads(source.t) {
 			continue
 		}
-		if err := r.scanCounts(ctx, source.query, source.args, counts, source.typed); err != nil {
+		if err := r.scanCounts(ctx, source.query, source.args, counts, source.t); err != nil {
 			return nil, err
 		}
 	}
 	return counts, r.countChanges(ctx, plan, buckets, counts)
 }
 
-// scanCounts runs one grouped count and tallies each row into its bucket.
-func (r *Reader) scanCounts(ctx context.Context, query string, args []any, counts []bucketCounts, typed func(bool) FeedType) error {
+// scanCounts runs one grouped count of type t and tallies each row into its bucket.
+func (r *Reader) scanCounts(ctx context.Context, query string, args []any, counts []bucketCounts, t FeedType) error {
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("activityread: feed counts: %w", err)
@@ -86,13 +79,12 @@ func (r *Reader) scanCounts(ctx context.Context, query string, args []any, count
 	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var i int
-		var flag bool
 		var lines int64
 		var failed sql.NullInt64
-		if err := rows.Scan(&i, &flag, &lines, &failed); err != nil {
+		if err := rows.Scan(&i, &lines, &failed); err != nil {
 			return fmt.Errorf("activityread: scan feed counts: %w", err)
 		}
-		counts[i].add(typed(flag), lines, failed.Int64)
+		counts[i].add(t, lines, failed.Int64)
 	}
 	return rows.Err()
 }
@@ -116,22 +108,6 @@ func (r *Reader) countChanges(ctx context.Context, plan feedPlan, buckets []buck
 		}
 	}
 	return nil
-}
-
-// feedEventFilter returns the event predicate of the plan's task and bridge
-// types, or "" when it reads neither.
-func feedEventFilter(plan feedPlan) string {
-	var terms []string
-	if plan.reads(FeedTask) {
-		terms = append(terms, feedTaskEventSQL)
-	}
-	if plan.reads(FeedBridge) {
-		terms = append(terms, feedBridgeEventSQL)
-	}
-	if len(terms) == 0 {
-		return ""
-	}
-	return "(" + strings.Join(terms, " OR ") + ")"
 }
 
 // bucketsCTE returns a WITH clause naming the buckets b(i, lo, hi) and its args.

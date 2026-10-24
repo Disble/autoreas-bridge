@@ -1,5 +1,5 @@
 import { describeActivityChange } from '../change-words/change-words.helpers';
-import type { ActivityDownloadRun, ActivityFeedDay, ActivityFeedLine, ActivityFeedView, ActivityTrafficHour } from '../feed-source/feed.types';
+import type { ActivityDownloadRun, ActivityFeedDay, ActivityFeedLine, ActivityFeedView, ActivitySystemGroup, ActivityTrafficHour } from '../feed-source/feed.types';
 import {
   ACTIVITY_BRIDGE_STARTED,
   ACTIVITY_FEED_COUNT_FORMAT,
@@ -34,8 +34,8 @@ export function maybeFeedLineKey(line: ActivityFeedLine | undefined): string | u
   return line === undefined ? undefined : feedLineKey(line);
 }
 
-/** `1 time` / `1,912 times`, as in the design's "Phone checked in · 39 times · 09:00 – 10:00". */
-function formatCheckIns(count: number): string {
+/** `1 time` / `1,912 times`, as in the design's "Phone checked in · 39 times · 09:00 – 10:00" and a System group's repeat. */
+function formatTimes(count: number): string {
   return `${ACTIVITY_FEED_COUNT_FORMAT.format(count)} ${count === 1 ? 'time' : 'times'}`;
 }
 
@@ -43,7 +43,15 @@ function formatCheckIns(count: number): string {
 function describeTraffic(hour: ActivityTrafficHour): string {
   const failed = hour.failed > 0 ? ` · ${ACTIVITY_FEED_COUNT_FORMAT.format(hour.failed)} failed` : '';
   const span = `${ACTIVITY_FEED_TIME_FORMAT.format(hour.hourStartMs)} – ${ACTIVITY_FEED_TIME_FORMAT.format(hour.hourStartMs + ACTIVITY_HOUR_MS)}`;
-  return `${formatCheckIns(hour.requests)}${failed} · ${span}`;
+  return `${formatTimes(hour.requests)}${failed} · ${span}`;
+}
+
+/** A System group's repeat: `3 times · 10:05 – 10:50`; empty for a group of one event or a line of no group. */
+function describeRepeat(group: ActivitySystemGroup | undefined): string {
+  if (group === undefined || group.count < 2) {
+    return '';
+  }
+  return `${formatTimes(group.count)} · ${ACTIVITY_FEED_TIME_FORMAT.format(group.firstAtMs)} – ${ACTIVITY_FEED_TIME_FORMAT.format(group.lastAtMs)}`;
 }
 
 /** A run's detail: its stored status when not ok, its counts and its stored error. */
@@ -73,11 +81,12 @@ function describeLine(line: ActivityFeedLine): { readonly subject: string; reado
     };
   }
   if (ledger.kind === 'event') {
+    const repeat = describeRepeat(line.system);
     if (ledger.detail === ACTIVITY_BRIDGE_STARTED.eventType) {
-      return { subject: ACTIVITY_BRIDGE_STARTED.subject, detail: '' };
+      return { subject: ACTIVITY_BRIDGE_STARTED.subject, detail: repeat };
     }
-    // Layer 0 of the presentation model: the recorded message, then its area and type as stored.
-    return { subject: ledger.title, detail: [ledger.domain, ledger.detail].filter((part) => part !== '').join(' · ') };
+    // Layer 0 of the presentation model: the recorded message, then how often it repeated, its area and type as stored.
+    return { subject: ledger.title, detail: [repeat, ledger.domain, ledger.detail].filter((part) => part !== '').join(' · ') };
   }
   if (ledger.kind === 'phone_report') {
     // The report kind is a closed enum, so it may read as plain words; the outcome is shown as stored.

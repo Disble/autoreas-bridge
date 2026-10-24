@@ -16,12 +16,14 @@ const (
 	FeedTask FeedType = "task"
 	// FeedEdit is a bridge edit: a domain history write from the desktop.
 	FeedEdit FeedType = "edit"
-	// FeedBridge is any other bridge event worth a line: starts, warnings, errors.
-	FeedBridge FeedType = "bridge"
+	// FeedSystem is the default section: every bridge event no other section
+	// owns that is worth a line (a start, a warning, an error), grouped per
+	// hour (docs/adr/030-activity-system-section.md).
+	FeedSystem FeedType = "system"
 )
 
 // FeedTypes lists every feed type in toolbar order.
-var FeedTypes = []FeedType{FeedChange, FeedTraffic, FeedDownload, FeedTask, FeedEdit, FeedBridge}
+var FeedTypes = []FeedType{FeedChange, FeedTraffic, FeedDownload, FeedTask, FeedEdit, FeedSystem}
 
 // FeedOrigin is where a feed line happened.
 type FeedOrigin string
@@ -44,9 +46,8 @@ const (
 
 // FeedInput selects one feed page. FromMS and ToMS bound the line time and
 // are clamped to the ledger span; zero means the span's edge. Types empty
-// means every type. FailuresOnly keeps only failed lines of Types; without
-// it, bridge lines are always read, whatever Types says, because they mark
-// when the bridge ran (activity-ui-design-v2.md, Feed).
+// means every type; every type, System included, is read only when selected.
+// FailuresOnly keeps only failed lines of Types.
 type FeedInput struct {
 	Now          time.Time
 	FromMS       int64
@@ -82,9 +83,20 @@ type DownloadRunLine struct {
 	ErrorSummary       string
 }
 
+// SystemGroup is what one System line groups: the events of one hour sharing
+// a domain, event type, level and message.
+type SystemGroup struct {
+	HourStartMS int64
+	Count       int64
+	FirstAtMS   int64
+	LastAtMS    int64
+}
+
 // FeedLine is one row of the feed. Line carries the fields every kind has;
-// Traffic and Run are set only for their own kind. IncidentID is the newest
-// incident occurrence recorded for this fact, or 0.
+// Traffic, Run and System are set only for their own lines. A System line is
+// an event line standing for its group: its Line is the group's newest
+// recorded event, at the group's last time. IncidentID is the newest incident
+// occurrence recorded for this fact, or 0.
 type FeedLine struct {
 	Type       FeedType
 	Origin     FeedOrigin
@@ -94,6 +106,7 @@ type FeedLine struct {
 	Line       LedgerLine
 	Traffic    *TrafficHour
 	Run        *DownloadRunLine
+	System     *SystemGroup
 }
 
 // FeedDay groups one local day's feed lines, newest first.

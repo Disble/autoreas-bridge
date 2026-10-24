@@ -86,7 +86,7 @@ beforeEach(() => {
   recorderListeners.length = 0;
   feedSource.searchFeed.mockReset();
   feedSource.getOverview.mockReset();
-  feedSource.getOverview.mockResolvedValue(buildOverview([{ type: 'change', lines: 41, failed: 2 }, { type: 'bridge', lines: 1, failed: 1 }]));
+  feedSource.getOverview.mockResolvedValue(buildOverview([{ type: 'change', lines: 41, failed: 2 }, { type: 'system', lines: 1, failed: 1 }]));
   resetKeyboardStore();
 });
 
@@ -127,7 +127,7 @@ describe('ActivityScreen', () => {
 
     await waitFor(() => expect(rows()).toHaveLength(40));
     expect(screen.getByRole('region', { name: /Oct 22$/ })).toBeInTheDocument();
-    expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: '', limit: 40, types: ['change', 'download', 'task', 'edit'] }));
+    expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: '', limit: 40, types: ['change', 'download', 'task', 'edit', 'system'] }));
 
     fireEvent.scroll(window);
 
@@ -175,12 +175,12 @@ describe('ActivityScreen', () => {
     await waitFor(() => expect(rows()).toHaveLength(1));
     const group = screen.getByRole('toolbar', { name: 'Activity filters' });
 
-    for (const name of [/^Changes/, /^Downloads/, /^Tasks/, /^Edits/]) {
+    for (const name of [/^Changes/, /^Downloads/, /^Tasks/, /^Edits/, /^System/]) {
       fireEvent.click(within(group).getByRole('button', { name }));
     }
 
     expect(await screen.findByText('Pick at least one type to see activity.')).toBeInTheDocument();
-    expect(feedSource.searchFeed).toHaveBeenCalledTimes(4);
+    expect(feedSource.searchFeed).toHaveBeenCalledTimes(5);
     expect(rows()).toHaveLength(0);
   });
 
@@ -294,10 +294,10 @@ describe('ActivityScreen', () => {
     await waitFor(() => expect(activitySource.pinMoment).toHaveBeenCalledTimes(1));
   });
 
-  it('marks a failed bridge line red and a slow line amber, and offers Copy for AI on the failed row only', async () => {
+  it('marks a failed System line red and a slow line amber, and offers Copy for AI on the failed row only', async () => {
     const writeText = vi.fn(() => Promise.resolve());
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
-    const failed = buildLine({ type: 'bridge', origin: 'bridge', failed: true, incidentId: 4 }, { kind: 'event', id: '2', title: 'Sync failed', detail: 'sync.error' });
+    const failed = buildLine({ type: 'system', origin: 'bridge', failed: true, incidentId: 4 }, { kind: 'event', id: '2', title: 'Sync failed', detail: 'sync.error' });
     const slow = buildLine({ slow: true }, { id: '1', atMs: Date.now() - 2000 });
     feedSource.searchFeed.mockResolvedValue(buildView([buildDay(0, [failed, slow])]));
     renderScreen();

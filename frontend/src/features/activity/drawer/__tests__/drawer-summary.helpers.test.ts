@@ -145,6 +145,23 @@ describe('toDrawerSummary', () => {
     expect(gaps).toEqual([]);
   });
 
+  it('puts how often a System group happened in its hour before the line sections', () => {
+    const system = { hourStartMs: AT, count: 3, firstAtMs: AT + 5 * 60_000, lastAtMs: AT + 50 * 60_000 };
+    const line = feedLine({ failed: true, system }, { kind: 'event', domain: 'storage', level: 'error', title: 'Disk full', detail: 'storage.full' });
+
+    const { sections } = toDrawerSummary(input({ line }));
+
+    expect(sections[0]).toMatchObject({ kind: 'facts', key: 'group', title: '3 times this hour', rows: [{ label: 'First' }, { label: 'Last' }] });
+    expect(sections[1]).toMatchObject({ kind: 'facts', key: 'common' });
+  });
+
+  it('adds no group section for a System group of one event', () => {
+    const system = { hourStartMs: AT, count: 1, firstAtMs: AT, lastAtMs: AT };
+    const line = feedLine({ system }, { kind: 'event', domain: 'storage', level: 'warn', title: 'Free space low', detail: 'storage.free_space_low' });
+
+    expect(toDrawerSummary(input({ line })).sections.map((section) => section.key)).not.toContain('group');
+  });
+
   it('shows a window error without metadata through the generic layer', () => {
     const line = feedLine({ failed: true }, { kind: 'event', domain: 'frontend', level: 'error', detail: 'frontend.error', title: 'boom' });
 
@@ -162,6 +179,13 @@ describe('toDrawerHeader', () => {
       '39 times · 2 refused',
     ],
     ['an event reads its recorded message', feedLine({}, { kind: 'event', title: 'Bridge started', detail: 'api.listening' }), 'Bridge started', ''],
+    [
+      'a repeated System group reads its count',
+      feedLine({ system: { hourStartMs: AT, count: 4, firstAtMs: AT, lastAtMs: AT + 60_000 } }, { kind: 'event', title: 'Bridge started', detail: 'api.listening' }),
+      'Bridge started',
+      '4 times',
+    ],
+    ['a System group of one event reads no count', feedLine({ system: { hourStartMs: AT, count: 1, firstAtMs: AT, lastAtMs: AT } }, { kind: 'event', title: 'boom' }), 'boom', ''],
   ])('%s', (_name, line, title, phrase) => {
     expect(toDrawerHeader(line)).toMatchObject({ title, phrase });
   });
