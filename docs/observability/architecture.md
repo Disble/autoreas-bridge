@@ -10,9 +10,9 @@ to the rest of this page.
 |---|---|---|
 | HTTP requests from the phone | `request_captures`, full bodies | recorder, incidents, write journal, rollup, response versions |
 | WebSocket lifecycle and broadcasts | `request_captures` (`ws_*` kinds) | recorder, ledger |
-| Bridge runtime events | `runtime_events` | recorder, ledger (non-noise events only) |
+| Bridge runtime events | `runtime_events` | recorder, ledger (non-noise events only); the Activity feed gives each event one section (Tasks, its download run, or System) |
 | Mobile telemetry and sync diagnostics | `device_telemetry_events`, `device_sync_diagnostics` | unchanged tables; a failure report triggers an incident |
-| Frontend and WebView errors | not captured | bridge events (prerequisite P7) |
+| Frontend and WebView errors | `runtime_events`, domain `frontend`, type `frontend.error` (P7, `ReportFrontendError`) | unchanged: error events, so they trigger incidents and appear as System lines |
 | Domain history | `anime_write_operations`, `activity_log`, outbox | unchanged: months deep in every design |
 
 ## Layers
@@ -57,6 +57,15 @@ to its version instead of a copy.
 Noise is excluded from the event ledger: per-poll tracer events other than the startup marker, and
 "triggered reconcile request".
 
+The Activity feed reads the event ledger by **ownership**, not by a domain exclusion list
+(ADR-030). An event whose domain is `schedule` or `season` is a Task line. An event whose
+`correlation_id` is a `download_runs.run_id` belongs to that run's story and is not a line of its own.
+Every other event is **System**, the default section. System shows only the bridge start
+(`api.listening`) and warnings and errors. It is grouped **on read**: one line per hour, domain,
+event type, level and message, with its count and first and last time. On the live copy
+(2026-10-02..24) that turns 116 per-event lines into 59. Storage is unchanged: events are still one row
+each, and the grouping exists only in the read and in the counts, which use the same key.
+
 ## Prerequisites: record quality first
 
 Retention can only keep what was written. These ship before any retention change:
@@ -87,7 +96,10 @@ version and the incident live for 90 days.
 
 ## Readers
 
-- **Activity UI**: Incidents, Live (the recorder) and History (the ledger). See `activity-ui.md`.
+- **Activity UI**: Incidents, Live (the recorder), History (the ledger), and the feed
+  (`activityread.Feed` / `Overview`), whose sections are Changes, Traffic, Downloads, Tasks, Edits and
+  System. Every section is a filter toggle; none bypasses the filters. See `activity-ui.md` and
+  `activity-ui-design-v2.md`.
 - **MCP** (`cmd/autoreas-request-mcp`): the debugging AI reads incidents, the ledger and mobile reports.
   Every answer states which sources it covered and for what time range, so "no data" is never read as
   "nothing happened".

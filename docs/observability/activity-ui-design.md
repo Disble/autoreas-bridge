@@ -1,5 +1,8 @@
 # Activity UI design (approved)
 
+> **Superseded on 2026-10-23 by [activity-ui-design-v2.md](activity-ui-design-v2.md).** Build from v2; this
+> page is kept only as history.
+
 Approved by the owner on 2026-10-17. Source of truth for the visuals: the canvas "Activity 2026"
 (https://claude.ai/artifact/7jLTYCTy8WUFqCUrKkD1X8, version 8). This page turns that canvas into a build
 specification. The performance and data requirements are in `activity-ui.md`. Where this page and the
