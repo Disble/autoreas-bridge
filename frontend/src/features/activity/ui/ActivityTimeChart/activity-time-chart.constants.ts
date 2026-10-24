@@ -14,9 +14,6 @@ export const ACTIVITY_BAR_SLOT_CLASS: Readonly<Record<ActivityChartBarState, str
   dimmed: 'hover:bg-default',
 };
 
-/** The now line beside the newest bar. */
-export const ACTIVITY_BAR_NOW_CLASS = "before:absolute before:-top-1.5 before:-bottom-1.5 before:-right-[3px] before:w-0.5 before:rounded-sm before:bg-success before:content-['']";
-
 /** Bar geometry by density: 4px apart with 6px corners, or 2px apart with 3px corners past 24 bars. */
 export const ACTIVITY_CHART_DENSITY_CLASS = {
   bars: { sparse: 'gap-1', dense: 'gap-0.5' },

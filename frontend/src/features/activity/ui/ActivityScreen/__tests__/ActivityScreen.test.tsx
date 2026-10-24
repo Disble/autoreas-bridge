@@ -333,10 +333,9 @@ describe('ActivityScreen chart and toolbar', () => {
     expect(document.querySelectorAll('[data-chart-gap]')).toHaveLength(1);
   }
 
-  it('marks the newest bar with the now line and packs more than 24 bars tighter', async () => {
+  it('packs more than 24 bars tighter', async () => {
     await renderChart();
     expect(document.querySelector('[data-chart-density]')).toHaveAttribute('data-chart-density', 'sparse');
-    expect(bars().map((bar) => bar.hasAttribute('data-chart-now'))).toEqual([false, false, true]);
     cleanup();
 
     const many = Array.from({ length: 30 }, (_unused, index) => ({ startMs: hourMs - (29 - index) * 3_600_000, endMs: hourMs - (28 - index) * 3_600_000, count: 1, failed: 0 }));

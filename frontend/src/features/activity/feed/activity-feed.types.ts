@@ -91,7 +91,7 @@ export interface ActivityChartBarModel {
   readonly tick: string;
   /** Whether the tick is Today, drawn in the foreground color. */
   readonly isTodayTick: boolean;
-  /** Whether this is the newest bar, marked by the now line. */
+  /** Whether this is the newest bar, whose tick aligns to the chart's end. */
   readonly isNow: boolean;
   /** Selection state. */
   readonly state: ActivityChartBarState;

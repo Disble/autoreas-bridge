@@ -1,6 +1,6 @@
 import { Alert, Button, Card, Skeleton, ToggleButton, ToggleButtonGroup, Typography } from '@heroui/react';
 import { ACTIVITY_CHART_BARS_CLASS, ACTIVITY_CHART_SKELETON_BARS, ACTIVITY_SCALE_BUTTON_CLASS, ACTIVITY_SCALE_GROUP_CLASS, ACTIVITY_CARD_CLASS, ACTIVITY_SCALE_OPTIONS, ACTIVITY_SKELETON_SHIMMER_CLASS } from '../../feed/activity-feed.constants';
-import { ACTIVITY_BAR_FILL_CLASS, ACTIVITY_BAR_GAP_CLASS, ACTIVITY_BAR_NOW_CLASS, ACTIVITY_LEGEND_GAP_CLASS, ACTIVITY_BAR_SLOT_CLASS, ACTIVITY_CHART_DENSITY_CLASS, ACTIVITY_CHART_LOADING_LABEL } from './activity-time-chart.constants';
+import { ACTIVITY_BAR_FILL_CLASS, ACTIVITY_BAR_GAP_CLASS,ACTIVITY_LEGEND_GAP_CLASS, ACTIVITY_BAR_SLOT_CLASS, ACTIVITY_CHART_DENSITY_CLASS, ACTIVITY_CHART_LOADING_LABEL } from './activity-time-chart.constants';
 import type { ActivityTimeChartProps } from './activity-time-chart.types';
 
 /**
@@ -90,9 +90,8 @@ export function ActivityTimeChart({
                 <button
                   aria-label={bar.label}
                   aria-pressed={bar.state === 'selected'}
-                  className={`relative flex h-full cursor-pointer items-end ${ACTIVITY_CHART_DENSITY_CLASS.bar[density]} ${ACTIVITY_BAR_SLOT_CLASS[bar.state]} ${bar.isNow ? ACTIVITY_BAR_NOW_CLASS : ''}`}
+                  className={`relative flex h-full cursor-pointer items-end ${ACTIVITY_CHART_DENSITY_CLASS.bar[density]} ${ACTIVITY_BAR_SLOT_CLASS[bar.state]}`}
                   data-chart-bar={bar.state}
-                  data-chart-now={bar.isNow ? '' : undefined}
                   key={bar.key}
                   onPointerDown={() => onBarPointerDown(index)}
                   onPointerEnter={() => onBarPointerEnter(index)}
