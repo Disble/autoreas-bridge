@@ -24,6 +24,7 @@ everything else. When the two disagree, the code wins; fix the document in the s
 | `patterns/empty-states.md` | Deciding which kind of emptiness a surface shows, its copy and action, and the mascot catalog |
 | `patterns/lists.md` | A list that may reach 100 rows, or a status column in a row |
 | `patterns/activity-change-lines.md` | Showing a recorded change (episode, state, season grade) on any Activity surface |
+| `airis/splash-screen.md` | Changing the loading splash in `index.html` or regenerating its sprite |
 | `process/mockup-fidelity-and-pricing.md` | Drawing a mockup or proposing a UI change |
 | `process/verifying-design-claims.md` | Proving a layout or render claim: layout fixtures, `layout:smoke`, `render:smoke`, jsdom testing notes |
 | `process/changelog.md` | Why a rule exists; the history of the design system |
