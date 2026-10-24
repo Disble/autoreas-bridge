@@ -95,7 +95,7 @@ func TestOverviewTypeCountsFollowRangeAndOrigin(t *testing.T) {
 	all := overviewOf(t, r, OverviewInput{Scale: Scale24h})
 	for feedType, want := range map[FeedType]TypeCount{
 		FeedChange: {Lines: 1}, FeedTraffic: {Lines: 1}, FeedDownload: {Lines: 2, Failed: 1},
-		FeedTask: {Lines: 1}, FeedEdit: {Lines: 1}, FeedBridge: {Lines: 2, Failed: 1},
+		FeedTask: {Lines: 1}, FeedEdit: {Lines: 1}, FeedSystem: {Lines: 2, Failed: 1},
 	} {
 		if got := countOf(t, all, feedType); got.Lines != want.Lines || got.Failed != want.Failed {
 			t.Errorf("%s = %+v, want %+v", feedType, got, want)
@@ -111,7 +111,7 @@ func TestOverviewTypeCountsFollowRangeAndOrigin(t *testing.T) {
 	}
 	// The bridge origin skips the phone sources and still counts every source after them.
 	bridge := overviewOf(t, r, OverviewInput{Scale: Scale24h, Origin: OriginBridge})
-	for feedType, want := range map[FeedType]int64{FeedChange: 0, FeedTraffic: 0, FeedDownload: 2, FeedTask: 1, FeedEdit: 1, FeedBridge: 2} {
+	for feedType, want := range map[FeedType]int64{FeedChange: 0, FeedTraffic: 0, FeedDownload: 2, FeedTask: 1, FeedEdit: 1, FeedSystem: 2} {
 		if got := countOf(t, bridge, feedType); got.Lines != want {
 			t.Errorf("bridge %s = %+v, want %d lines", feedType, got, want)
 		}

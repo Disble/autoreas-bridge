@@ -4,7 +4,7 @@ import refreshIcon from '@iconify-icons/solar/refresh-bold';
 import downloadIcon from '@iconify-icons/solar/download-minimalistic-bold';
 import clockIcon from '@iconify-icons/solar/clock-circle-bold';
 import penIcon from '@iconify-icons/solar/pen-bold';
-import bridgeIcon from '@iconify-icons/solar/monitor-linear';
+import systemIcon from '@iconify-icons/solar/cpu-bold';
 import type { ActivityFailureButtonState } from '../../feed/activity-feed.types';
 import type { ActivityFeedType } from '../../feed-source/feed.types';
 
@@ -15,7 +15,7 @@ export const ACTIVITY_TYPE_ICONS: Readonly<Record<ActivityFeedType, IconifyIcon>
   download: downloadIcon,
   task: clockIcon,
   edit: penIcon,
-  bridge: bridgeIcon,
+  system: systemIcon,
 };
 
 /** The failure pill's HeroUI variant by state: soft while off or open, solid while on with the menu closed. */

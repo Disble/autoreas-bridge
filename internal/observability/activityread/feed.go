@@ -12,6 +12,7 @@ import (
 const (
 	rankTrafficHour = rankIncident + iota + 1
 	rankDownloadRun
+	rankSystemGroup
 )
 
 // Feed returns one page of the Activity feed (activity-ui-design-v2.md, Feed)
@@ -32,7 +33,7 @@ func (r *Reader) Feed(ctx context.Context, in FeedInput) (FeedView, error) {
 
 	var items []item[FeedLine]
 	for _, read := range []func(context.Context, feedPlan, sourcePage) ([]item[FeedLine], error){
-		r.feedChangeLines, r.feedPhoneReportLines, r.feedTrafficLines, r.feedRunLines, r.feedEventLines,
+		r.feedChangeLines, r.feedPhoneReportLines, r.feedTrafficLines, r.feedRunLines, r.feedTaskLines, r.feedSystemLines,
 	} {
 		lines, err := read(ctx, plan, page)
 		if err != nil {
@@ -47,8 +48,7 @@ func (r *Reader) Feed(ctx context.Context, in FeedInput) (FeedView, error) {
 	return FeedView{Days: groupFeedByDay(lines, in.Now.Location()), NextCursor: next}, nil
 }
 
-// feedPlan is the set of types one feed read covers, after the origin and
-// the always-shown bridge lines are applied.
+// feedPlan is the set of types one feed read covers, after the origin is applied.
 type feedPlan struct {
 	types        map[FeedType]bool
 	failuresOnly bool
@@ -78,9 +78,6 @@ func planFeed(in FeedInput) (feedPlan, error) {
 			return feedPlan{}, fmt.Errorf("activityread: unknown feed type %q", t)
 		}
 		types[t] = true
-	}
-	if !in.FailuresOnly {
-		types[FeedBridge] = true
 	}
 	for t := range types {
 		if origin != OriginAll && originOf(t) != origin {

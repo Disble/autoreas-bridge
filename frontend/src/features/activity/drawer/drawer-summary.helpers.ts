@@ -4,7 +4,7 @@ import { toDrawerCauseGap } from './drawer-cause.helpers';
 import { DRAWER_ORIGIN_LABELS, DRAWER_TASK_DOMAINS, DRAWER_WINDOW_ERROR_EVENT_TYPE } from './drawer.constants';
 import type { DrawerHeaderModel, DrawerSection, DrawerSummaryInput, DrawerSummaryModel } from './drawer.types';
 import { drawerFact, formatDrawerKeptUntil, formatDrawerTime, formatDrawerWhen } from './drawer-format.helpers';
-import { changeSections, failureSections, runStorySections, runSections, trafficSections, windowErrorSections } from './drawer-presenters.helpers';
+import { changeSections, failureSections, runStorySections, runSections, systemGroupSections, trafficSections, windowErrorSections } from './drawer-presenters.helpers';
 
 /** Title and phrase of a line, from its stored fields. */
 function titleAndPhrase(feedLine: ActivityFeedLine): { readonly title: string; readonly phrase: string } {
@@ -17,7 +17,7 @@ function titleAndPhrase(feedLine: ActivityFeedLine): { readonly title: string; r
     case 'download_run':
       return { title: 'Download run', phrase: run === undefined ? '' : `${run.episodesDownloaded} downloaded${run.episodesFailed > 0 ? ` · ${run.episodesFailed} failed` : ''}` };
     default:
-      return { title: line.title, phrase: '' };
+      return { title: line.title, phrase: feedLine.system !== undefined && feedLine.system.count > 1 ? `${feedLine.system.count} times` : '' };
   }
 }
 
@@ -114,5 +114,5 @@ export function toDrawerSummary(input: DrawerSummaryInput): DrawerSummaryModel {
   const tailored = presenterSections(input);
   const presenterGap = tailored === undefined ? [`No presenter for \`${input.line.line.detail || input.line.line.kind}\`. Shown with the generic layout.`] : [];
   const causeGap = input.incident === undefined ? undefined : toDrawerCauseGap(input.incident);
-  return { sections: tailored ?? genericSections(input), gaps: [...presenterGap, ...(causeGap === undefined ? [] : [causeGap])] };
+  return { sections: [...systemGroupSections(input), ...(tailored ?? genericSections(input))], gaps: [...presenterGap, ...(causeGap === undefined ? [] : [causeGap])] };
 }

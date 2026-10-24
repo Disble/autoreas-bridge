@@ -31,6 +31,7 @@ function goFeedLine(overrides: Record<string, unknown> = {}): Record<string, unk
     IncidentID: 0,
     Line: goLedgerLine(),
     Traffic: null,
+    System: null,
     Run: {
       RunID: 'run-1',
       Trigger: 'scheduled',
@@ -129,9 +130,18 @@ describe('feed-source', () => {
 
     const view = mapActivityFeedView(activityread.FeedView.createFrom({ Days: [{ DayStartMS: 1, Lines: [traffic] }, { DayStartMS: 0, Lines: null }], NextCursor: '' }));
 
-    expect(view.days[0].lines[0]).toMatchObject({ incidentId: undefined, slow: true, run: undefined, traffic: { hourStartMs: 3_600_000, requests: 31, failed: 0, maxDurationMs: 6148 } });
+    expect(view.days[0].lines[0]).toMatchObject({ incidentId: undefined, slow: true, run: undefined, system: undefined, traffic: { hourStartMs: 3_600_000, requests: 31, failed: 0, maxDurationMs: 6148 } });
     expect(view.days[1].lines).toEqual([]);
     expect(mapActivityFeedView(activityread.FeedView.createFrom({ Days: null, NextCursor: '' })).days).toEqual([]);
+  });
+
+  it('maps a System group', async () => {
+    const { mapActivityFeedView } = await import('../feed-source.helpers');
+    const system = goFeedLine({ Type: 'system', Run: null, Line: goLedgerLine({ Kind: 'event', ID: '9' }), System: { HourStartMS: 3_600_000, Count: 3, FirstAtMS: 3_660_000, LastAtMS: 3_900_000 } });
+
+    const view = mapActivityFeedView(activityread.FeedView.createFrom({ Days: [{ DayStartMS: 0, Lines: [system] }], NextCursor: '' }));
+
+    expect(view.days[0].lines[0]).toMatchObject({ type: 'system', run: undefined, system: { hourStartMs: 3_600_000, count: 3, firstAtMs: 3_660_000, lastAtMs: 3_900_000 } });
   });
 
   it('maps a finished run time', async () => {

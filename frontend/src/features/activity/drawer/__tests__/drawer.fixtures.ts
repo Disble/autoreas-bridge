@@ -25,13 +25,14 @@ function ledgerLine(overrides: Partial<ActivityLedgerLine> = {}): ActivityLedger
 /** A feed line of the given kind, overridden per test. */
 export function feedLine(overrides: Partial<ActivityFeedLine> = {}, line: Partial<ActivityLedgerLine> = {}): ActivityFeedLine {
   return {
-    type: 'bridge',
+    type: 'system',
     origin: 'bridge',
     failed: false,
     slow: false,
     incidentId: undefined,
     traffic: undefined,
     run: undefined,
+    system: undefined,
     ...overrides,
     line: ledgerLine(line),
   };

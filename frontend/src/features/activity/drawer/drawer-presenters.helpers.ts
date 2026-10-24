@@ -53,6 +53,22 @@ function earlierSections(input: DrawerSummaryInput): readonly DrawerSection[] {
 }
 
 /**
+ * The group of a System line that stands for more than one event: how many
+ * times it happened in its hour, and its first and last time.
+ *
+ * @param input The summary input.
+ * @returns The section; empty for a line of no group or a group of one event.
+ */
+export function systemGroupSections(input: DrawerSummaryInput): readonly DrawerSection[] {
+  const group = input.line.system;
+  if (group === undefined || group.count < 2) {
+    return [];
+  }
+  const rows = [drawerFact('first', 'First', formatDrawerTime(group.firstAtMs)), drawerFact('last', 'Last', formatDrawerTime(group.lastAtMs))];
+  return [{ kind: 'facts', key: 'group', title: `${group.count} times this hour`, rows }];
+}
+
+/**
  * The change and edit presenter: before → after of the action's field, then
  * when it was done and saved, then its failure.
  *
