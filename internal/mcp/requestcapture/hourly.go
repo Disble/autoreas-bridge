@@ -32,27 +32,39 @@ func (t tools) hourlyTotals(ctx context.Context, in HourlyTotalsInput) (HourlyTo
 // activityread.CalendarDays local days ending today, the rollup's retention.
 func requestedDay(in HourlyTotalsInput, now time.Time) (time.Time, error) {
 	date := strings.TrimSpace(in.Day)
-	var at time.Time
 	switch {
 	case date != "" && in.DayMS != nil:
 		return time.Time{}, errors.New("give day or day_ms, not both")
 	case in.DayMS != nil:
-		at = time.UnixMilli(*in.DayMS).In(now.Location())
+		return calendarDay(time.UnixMilli(*in.DayMS).In(now.Location()), now)
 	case date != "":
-		parsed, err := time.ParseInLocation(time.DateOnly, date, now.Location())
-		if err != nil {
-			return time.Time{}, fmt.Errorf("day must be a date as YYYY-MM-DD: %q", date)
-		}
-		at = parsed
-	default:
-		return time.Time{}, errors.New("day or day_ms is required")
+		return calendarDate("day", date, now)
 	}
-	year, month, day := at.Date()
-	start := time.Date(year, month, day, 0, 0, 0, 0, now.Location())
-	year, month, day = now.Date()
-	today := time.Date(year, month, day, 0, 0, 0, 0, now.Location())
+	return time.Time{}, errors.New("day or day_ms is required")
+}
+
+// calendarDate parses field's local date and checks it is a calendar day.
+func calendarDate(field, date string, now time.Time) (time.Time, error) {
+	parsed, err := time.ParseInLocation(time.DateOnly, date, now.Location())
+	if err != nil {
+		return time.Time{}, fmt.Errorf("%s must be a date as YYYY-MM-DD: %q", field, date)
+	}
+	return calendarDay(parsed, now)
+}
+
+// calendarDay returns local midnight of the day holding at, which must be
+// one of the activityread.CalendarDays local days ending today.
+func calendarDay(at, now time.Time) (time.Time, error) {
+	start := localMidnight(at, now.Location())
+	today := localMidnight(now, now.Location())
 	if start.After(today) || start.Before(today.AddDate(0, 0, 1-activityread.CalendarDays)) {
 		return time.Time{}, fmt.Errorf("day %s is outside the last %d local days", start.Format(time.DateOnly), activityread.CalendarDays)
 	}
 	return start, nil
+}
+
+// localMidnight returns the start of the day holding at in loc.
+func localMidnight(at time.Time, loc *time.Location) time.Time {
+	year, month, day := at.In(loc).Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, loc)
 }

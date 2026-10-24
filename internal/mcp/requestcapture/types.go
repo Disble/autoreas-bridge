@@ -9,9 +9,10 @@ import (
 type StatusInput struct{}
 
 // WhereInput carries the "where it happened" filter: all (default), phone,
-// downloads, editor, schedule or season.
+// downloads, editor, schedule, season or providers (Cloudflare clearance and the
+// jkanime host fallback).
 type WhereInput struct {
-	Where string `json:"where,omitempty" jsonschema:"all (default), phone, downloads, editor, schedule or season"`
+	Where string `json:"where,omitempty" jsonschema:"all (default), phone, downloads, editor, schedule, season or providers"`
 }
 
 // IncidentInput names one incident occurrence.
@@ -27,7 +28,7 @@ type RequestInput struct {
 
 // HistoryInput selects one History page.
 type HistoryInput struct {
-	Where  string `json:"where,omitempty" jsonschema:"all (default), phone, downloads, editor, schedule or season"`
+	Where  string `json:"where,omitempty" jsonschema:"all (default), phone, downloads, editor, schedule, season or providers"`
 	Cursor string `json:"cursor,omitempty" jsonschema:"NextCursor of the previous page; empty for the first page"`
 	Limit  int    `json:"limit,omitempty" jsonschema:"lines per page, default 50, at most 100"`
 }
@@ -118,6 +119,32 @@ type ResponseVersionsResult struct {
 type HourlyTotalsInput struct {
 	Day   string `json:"day,omitempty" jsonschema:"a local date, YYYY-MM-DD, one of the last 90 days; give this or day_ms"`
 	DayMS *int64 `json:"day_ms,omitempty" jsonschema:"any epoch millisecond inside the local day; give this or day"`
+}
+
+// CountEventsInput names one event type, an optional metadata key to group
+// by and an optional range of local days.
+type CountEventsInput struct {
+	EventType string `json:"event_type" jsonschema:"the runtime event type to count, shaped domain.verb, e.g. download.episode_downloaded"`
+	GroupBy   string `json:"group_by,omitempty" jsonschema:"optional top-level metadata key to group by, e.g. siteHost: a letter, then letters, digits or _; rows without the key, or whose metadata was stored truncated, form the group whose value is null"`
+	FromDay   string `json:"from_day,omitempty" jsonschema:"first local date counted, YYYY-MM-DD, one of the last 90 days; default the oldest of them"`
+	ToDay     string `json:"to_day,omitempty" jsonschema:"last local date counted, YYYY-MM-DD, inclusive, not before from_day; default today"`
+}
+
+// EventGroup is the number of counted events whose group_by key holds
+// Value; Value is null for the events without the key.
+type EventGroup struct {
+	Value *string `json:"value"`
+	Count int64   `json:"count"`
+}
+
+// CountEventsResult answers count_events. Groups is empty without a
+// group_by; with one, the groups add up to Total, largest first.
+type CountEventsResult struct {
+	EventType string       `json:"event_type"`
+	GroupBy   string       `json:"group_by,omitempty"`
+	Total     int64        `json:"total"`
+	Groups    []EventGroup `json:"groups"`
+	Coverage  Coverage     `json:"coverage"`
 }
 
 // HourlyTotalsResult answers get_hourly_totals: the rollup buckets of the

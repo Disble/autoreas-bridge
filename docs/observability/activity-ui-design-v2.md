@@ -96,7 +96,7 @@ origin icon uses.
 
 - **Types are independent toggles** (multi-select): Changes, Traffic, Downloads, Tasks, Edits, System.
   "All" turns them all on. **System** is the default section: every bridge start, warning or error that no
-  other type owns. A false positive there is accepted; an event no section shows is not (ADR-030).
+  other type owns. A false positive there is accepted; an event no section shows is not (ADR-031).
   The feed opens with Traffic and System **off** (owner, 2026-10-24); their chips still count their lines
   and failures. *Bridge* is the origin, not a type.
 - Each type shows a gray count chip. When some of those failed, a **red chip with the number of failures**

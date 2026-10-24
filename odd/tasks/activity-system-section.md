@@ -22,7 +22,7 @@ Out of scope here: the nested filter hierarchy (failures within selected section
 |---|---|---|---|---|
 | T1 | S1–S7 backend read (activityread) + regenerated bindings | delegated (parallelism: runs alongside the redesign calendar writer, isolated worktree) | done, uncommitted (RED→GREEN, see L4) | — |
 | T2 | S8 frontend System chip/presenter | delegated, same writer after T1 | done, uncommitted (see L4) | — |
-| T3 | S9 docs + ADR | same writer | partial: glossary + ADR-030 done; design doc v2 absent from this worktree (see L4) | — |
+| T3 | S9 docs + ADR | same writer | partial: glossary + ADR-031 done; design doc v2 absent from this worktree (see L4) | — |
 
 Risk: item 3 (the feed's FeedType wire value and line shape change for the frontend consumer) → independent verifier after T1–T3.
 
@@ -39,7 +39,7 @@ Risk: item 3 (the feed's FeedType wire value and line shape change for the front
   - Live DB copy (read-only copy in a scratch dir, 2026-10-02..10-24): old bridge predicate 116 lines → 59 System lines; 48 without the message in the key; 0 download warn/error events outside a run; 19 task events.
   - Mutation: `ditto staged` needs a staged diff, which this writer may not create. `ditto run` scoped to the feed files timed out twice at 15 min with no score (the default copy sandbox copies node_modules; the link sandbox still ran out of time), and the 10-min correction batch on `feed_system.go` alone timed out too. Replacement evidence: 15 hand mutants of the CORE guards in `feed_system.go` and `feed_counts.go`, each proven applied and restored; 13 killed first, 2 survived (incident hour start bound, SQL tie order) and were killed by tightening `TestFeedLinksAFailedSystemGroupToTheNewestIncidentOfItsHour` and `TestFeedPagesSystemGroupsNeverRepeatingOrSkippingOne`. Final: 15/15 killed. `ditto staged` should still run at commit time.
   - Frontend: type `system` (label "System", icon `solar/cpu-bold`), a toggle and on by default, failure-menu row; row detail "N times · first – last" for a repeated group; drawer section "N times this hour" (First/Last) and header phrase "N times"; `mapSystemGroup`; tests and layout fixture updated.
-  - Docs: `docs/ubiquitous-language.md` Activity entry; `docs/adr/030-activity-system-section.md`.
+  - Docs: `docs/ubiquitous-language.md` Activity entry; `docs/adr/031-activity-system-section.md`.
 - L5 Writer (2026-10-24), verifier correction batch in `feat/activity-redesign` (System merged at 95439ad0), uncommitted. Production code unchanged; tests only, in `internal/observability/activityread/feed_system_test.go`:
   - `TestFeedSplitsSystemGroupsByEveryKeyPart` (rows: another domain, another event type; each expects 2 lines and a System count of 2 lines / 2 failed) kills M08 (domain dropped from `feedSystemGroupSQL`) and M09 (`COALESCE(event_type, '')` dropped).
   - `TestFeedLinksNoIncidentFromAnotherHour` (failed group, same-fingerprint incident only in the previous hour → `IncidentID == 0`) kills M18 (`eventIncident` lower bound `HourStartMS - 1h`).

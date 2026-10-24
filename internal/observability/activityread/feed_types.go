@@ -18,7 +18,7 @@ const (
 	FeedEdit FeedType = "edit"
 	// FeedSystem is the default section: every bridge event no other section
 	// owns that is worth a line (a start, a warning, an error), grouped per
-	// hour (docs/adr/030-activity-system-section.md).
+	// hour (docs/adr/031-activity-system-section.md).
 	FeedSystem FeedType = "system"
 )
 

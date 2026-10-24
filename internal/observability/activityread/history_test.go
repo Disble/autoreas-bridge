@@ -244,8 +244,10 @@ func TestHistoryNeverListsPolling(t *testing.T) {
 
 // TestWhereFilterNarrowsHistory checks which sources each filter reads.
 func TestWhereFilterNarrowsHistory(t *testing.T) {
-	_, reader := openTestReader(t)
+	db, reader := openTestReader(t)
 	seedLedger(t, reader)
+	insertEvent(t, db, event{atMS: minutesAgo(41), domain: "clearance", level: "info", message: "cleared jkanime.net", eventType: "clearance.solved"})
+	insertEvent(t, db, event{atMS: minutesAgo(42), domain: "jkanime", level: "warn", message: "trying jkanime.org", eventType: "jkanime.host_fallback"})
 	count := func(where Where) map[LineKind]int {
 		view, err := reader.History(context.Background(), HistoryInput{Now: testNow, Where: where, Limit: MaxPageLimit})
 		if err != nil {
@@ -266,6 +268,7 @@ func TestWhereFilterNarrowsHistory(t *testing.T) {
 		{WhereEditor, map[LineKind]int{LineChange: 2}},
 		{WhereSeason, map[LineKind]int{LineEvent: 7, LineChange: 1}},
 		{WhereSchedule, map[LineKind]int{}},
+		{WhereProviders, map[LineKind]int{LineEvent: 2}},
 	}
 	for _, tc := range cases {
 		got := count(tc.where)

@@ -94,7 +94,7 @@ func TestExtractAnimeIDAndCSRFTokenSucceedsWhenBothPresent(t *testing.T) {
 		}
 	}))
 
-	adapter := New(srv.Client())
+	adapter := New(srv.Client(), newTestLog())
 
 	animeID, csrfToken, err := adapter.fetchAnimeInfo(context.Background(), srv.URL, srv.URL+"/")
 	if err != nil {
@@ -116,7 +116,7 @@ func TestExtractAnimeIDAndCSRFTokenRejectsIncompletePages(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			srv := newFixtureServer(t, test.fixture)
-			_, _, err := New(srv.Client()).fetchAnimeInfo(context.Background(), srv.URL, srv.URL+"/")
+			_, _, err := New(srv.Client(), newTestLog()).fetchAnimeInfo(context.Background(), srv.URL, srv.URL+"/")
 			if err == nil {
 				t.Fatal("expected an explicit extraction error")
 			}
@@ -138,7 +138,7 @@ func TestFetchEpisodesReturnsParsedListWhenTotalGreaterThanZero(t *testing.T) {
 		}
 	}))
 
-	adapter := newWithBaseURL(srv.Client(), srv.URL)
+	adapter := newWithBaseURL(srv.Client(), newTestLog(), srv.URL)
 
 	episodes, total, err := adapter.fetchEpisodes(context.Background(), srv.URL, "555", "tok")
 	if err != nil {
@@ -161,7 +161,7 @@ func TestFetchEpisodesTreatsZeroTotalAsNoEpisodesNotAnError(t *testing.T) {
 		}
 	}))
 
-	adapter := newWithBaseURL(srv.Client(), srv.URL)
+	adapter := newWithBaseURL(srv.Client(), newTestLog(), srv.URL)
 
 	episodes, total, err := adapter.fetchEpisodes(context.Background(), srv.URL, "555", "tok")
 	if err != nil {
@@ -187,7 +187,7 @@ func TestListEpisodesReturnsLatestEpisodeFromAJAXResponse(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			srv := newEpisodeListingServer(t, test.ajax)
-			listing, err := newWithBaseURL(srv.Client(), srv.URL).ListEpisodes(context.Background(), srv.URL+"/")
+			listing, err := newWithBaseURL(srv.Client(), newTestLog(), srv.URL).ListEpisodes(context.Background(), srv.URL+"/")
 			if err != nil {
 				t.Fatalf("ListEpisodes: %v", err)
 			}
@@ -201,7 +201,7 @@ func TestListEpisodesReturnsLatestEpisodeFromAJAXResponse(t *testing.T) {
 func TestEpisodePageURLReturnsSpecificEpisodeURL(t *testing.T) {
 	t.Parallel()
 
-	adapter := New(http.DefaultClient)
+	adapter := New(http.DefaultClient, newTestLog())
 
 	got, err := adapter.EpisodePageURL(context.Background(), "https://jkanime.net/anime", 10)
 	if err != nil {
@@ -223,7 +223,7 @@ func TestExtractLinksReturnsHosterTaggedLinksOnWellFormedServerList(t *testing.T
 		}
 	}))
 
-	adapter := New(srv.Client())
+	adapter := New(srv.Client(), newTestLog())
 
 	links, err := adapter.ExtractLinks(context.Background(), srv.URL+"/1/")
 	if err != nil {
@@ -238,6 +238,10 @@ func TestExtractLinksReturnsHosterTaggedLinksOnWellFormedServerList(t *testing.T
 	if links[1].Hoster != "Mega" {
 		t.Fatalf("unexpected second link: %#v", links[1])
 	}
+	// The page URL is outside the host chain, so the site host is the one actually fetched.
+	if want := strings.TrimPrefix(srv.URL, "http://"); links[0].SiteHost != want || links[1].SiteHost != want {
+		t.Fatalf("SiteHost = %q, %q, want the fetched host %q", links[0].SiteHost, links[1].SiteHost, want)
+	}
 }
 
 func TestExtractLinksRejectsInvalidServerLists(t *testing.T) {
@@ -248,7 +252,7 @@ func TestExtractLinksRejectsInvalidServerLists(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			srv := newFixtureServer(t, test.fixture)
-			links, err := New(srv.Client()).ExtractLinks(context.Background(), srv.URL+"/1/")
+			links, err := New(srv.Client(), newTestLog()).ExtractLinks(context.Background(), srv.URL+"/1/")
 			if err == nil {
 				t.Fatal("expected a loud server-list error")
 			}
@@ -288,7 +292,7 @@ func newEpisodeListingServer(t *testing.T, ajaxFixture string) *httptest.Server 
 func TestDescriptorAndMatchesIdentifyJkanimePages(t *testing.T) {
 	t.Parallel()
 
-	adapter := New(http.DefaultClient)
+	adapter := New(http.DefaultClient, newTestLog())
 
 	if adapter.Descriptor().Name != "jkanime" {
 		t.Fatalf("unexpected descriptor name: %q", adapter.Descriptor().Name)

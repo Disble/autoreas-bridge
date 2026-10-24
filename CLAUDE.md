@@ -81,7 +81,8 @@ how much test coverage it gets. The governing question is which code can break t
 
 - Code, identifiers, columns, errors, comments, and cross-service wire fields are English. Spanish is limited to retained byte-compatible storage-codec fields, Spanish runtime data values, and UI copy. English-ify the pre-existing vocabulary a slice owns with additive migrations; do not rename another pending slice's shipped surface.
 - Anime state is keyed by `_id` in `anime_snapshots.snapshot_json`; do not infer state from row order. `activo=false` is not a tombstone.
-- Only `internal/desktop` may import the Wails runtime. The repository root contains `main.go` for embedding and `wails.Run`; do not spread desktop shell code into the root.
+- Only `internal/desktop` may import the Wails runtime. The repository root contains `main.go` for embedding, the `cfclearance` solver-mode hook and `wails.Run`; do not spread desktop shell code into the root.
+- Provider adapters (`internal/download/sites/*`) never construct their own `http.Client`; the composition root injects one shared client whose transport is `internal/cfclearance` (ADR-030), so every provider request clears a Cloudflare challenge the same way. `tools/checkarchitecture` enforces both halves.
 - A Wails binding namespace rename affects its import path, model alias, and `window.go.<package>.App` runtime global. Search and test all three shapes.
 - Keyboard shortcuts are registry entries, never local `onKeyDown` handlers. The global dispatcher is mounted once; scoped shortcuts use the keyboard scope mechanism. Defaults are user-rebindable through the persisted opaque `keyboard.keymap` value; Go does not parse it.
 - Treat a claimed framework requirement as a hypothesis until verified from that framework's source. A code search is only as broad as the identifier shapes it includes.

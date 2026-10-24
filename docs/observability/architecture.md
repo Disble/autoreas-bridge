@@ -58,7 +58,7 @@ Noise is excluded from the event ledger: per-poll tracer events other than the s
 "triggered reconcile request".
 
 The Activity feed reads the event ledger by **ownership**, not by a domain exclusion list
-(ADR-030). An event whose domain is `schedule` or `season` is a Task line. An event whose
+(ADR-031). An event whose domain is `schedule` or `season` is a Task line. An event whose
 `correlation_id` is a `download_runs.run_id` belongs to that run's story and is not a line of its own.
 Every other event is **System**, the default section. System shows only the bridge start
 (`api.listening`) and warnings and errors. It is grouped **on read**: one line per hour, domain,

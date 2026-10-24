@@ -10,7 +10,7 @@ import (
 	"autoreas-bridge/internal/observability/incident"
 )
 
-// Event ownership (docs/adr/030-activity-system-section.md): every runtime
+// Event ownership (docs/adr/031-activity-system-section.md): every runtime
 // event belongs to exactly one section. Schedule and season events are
 // tasks. An event correlated to a download run is that run's story, which
 // the run line already restates, so it is not a line. Every other event is

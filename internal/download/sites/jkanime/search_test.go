@@ -31,7 +31,7 @@ func serveSearchFixture(t *testing.T, fixture string) *httptest.Server {
 
 func TestSearcherParsesResultTitlesAndURLs(t *testing.T) {
 	srv := serveSearchFixture(t, "buscar_dr_stone.html")
-	searcher := newSearcherWithBaseURL(srv.Client(), srv.URL)
+	searcher := newSearcherWithBaseURL(srv.Client(), newTestLog(), srv.URL)
 
 	results, err := searcher.Search(context.Background(), "dr stone")
 	if err != nil {
@@ -83,7 +83,7 @@ func TestSearcherPairsEachCoverWithItsOwnResult(t *testing.T) {
 		_, _ = w.Write([]byte(page))
 	}))
 	t.Cleanup(srv.Close)
-	searcher := newSearcherWithBaseURL(srv.Client(), srv.URL)
+	searcher := newSearcherWithBaseURL(srv.Client(), newTestLog(), srv.URL)
 
 	results, err := searcher.Search(context.Background(), "a")
 	if err != nil {
@@ -104,7 +104,7 @@ func TestSearcherReturnsEmptyOnNoResults(t *testing.T) {
 		_, _ = w.Write([]byte(`<html><body><div class="no-results">Nada</div></body></html>`))
 	}))
 	t.Cleanup(srv.Close)
-	searcher := newSearcherWithBaseURL(srv.Client(), srv.URL)
+	searcher := newSearcherWithBaseURL(srv.Client(), newTestLog(), srv.URL)
 
 	results, err := searcher.Search(context.Background(), "anime que no existe")
 	if err != nil {
@@ -122,7 +122,7 @@ func TestSearcherEscapesQueryInURL(t *testing.T) {
 		_, _ = w.Write([]byte(`<html></html>`))
 	}))
 	t.Cleanup(srv.Close)
-	searcher := newSearcherWithBaseURL(srv.Client(), srv.URL)
+	searcher := newSearcherWithBaseURL(srv.Client(), newTestLog(), srv.URL)
 
 	if _, err := searcher.Search(context.Background(), "dr stone"); err != nil {
 		t.Fatalf("Search: %v", err)
@@ -144,7 +144,7 @@ func TestSearcherNeverPutsAPathSeparatorInTheQuery(t *testing.T) {
 		_, _ = w.Write([]byte(`<html></html>`))
 	}))
 	t.Cleanup(srv.Close)
-	searcher := newSearcherWithBaseURL(srv.Client(), srv.URL)
+	searcher := newSearcherWithBaseURL(srv.Client(), newTestLog(), srv.URL)
 
 	if _, err := searcher.Search(context.Background(), "Ranma 1/2 (2024) 3rd Season"); err != nil {
 		t.Fatalf("Search: %v", err)

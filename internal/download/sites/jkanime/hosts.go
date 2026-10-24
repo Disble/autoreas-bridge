@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	sharedlogger "autoreas-bridge/internal/logger"
 )
 
 // defaultBaseURLs is the host fallback chain (ADR-029). jkanime.net is the canonical host
@@ -61,11 +63,12 @@ func (c hostChain) rebase(pageURL, base string) (string, bool) {
 // try runs op against each host in order until one is not challenged. op receives the
 // base URL to use and pageURL rebased onto it. A URL outside the chain runs once. When
 // every host is challenged the error names every host tried and wraps the last failure,
-// which itself wraps errChallenged.
-func (c hostChain) try(pageURL string, op func(base, pageURL string) error) error {
+// which itself wraps errChallenged. Each move to the next host is written to log as a
+// jkanime.host_fallback warning, so Activity and the request MCP show which host answered.
+func (c hostChain) try(pageURL string, log sharedlogger.Logger, op func(base, pageURL string) error) error {
 	var tried []string
 	var err error
-	for _, base := range c {
+	for i, base := range c {
 		target, inChain := c.rebase(pageURL, base)
 		err = op(base, target)
 		if !errors.Is(err, errChallenged) {
@@ -74,6 +77,13 @@ func (c hostChain) try(pageURL string, op func(base, pageURL string) error) erro
 		tried = append(tried, base)
 		if !inChain {
 			break
+		}
+		if i+1 < len(c) {
+			from, to := hostOf(base), hostOf(c[i+1])
+			log.Logf("jkanime", sharedlogger.LevelWarn, sharedlogger.Fields{
+				EventType: "jkanime.host_fallback",
+				Metadata:  map[string]any{"from": from, "to": to},
+			}, "%s is behind a Cloudflare challenge, trying %s", from, to)
 		}
 	}
 	return fmt.Errorf("every jkanime host is behind a Cloudflare challenge (%s): %w", strings.Join(tried, ", "), err)
@@ -93,4 +103,10 @@ func canonicalPageURL(pageURL string) string {
 		}
 	}
 	return pageURL
+}
+
+// hostOf returns the host of a chain base URL (scheme://host).
+func hostOf(base string) string {
+	_, host, _ := strings.Cut(base, "://")
+	return host
 }

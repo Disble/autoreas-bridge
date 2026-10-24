@@ -1,4 +1,4 @@
-# ADR-030: Every feed event has a section, with System as the fallback, grouped on read
+# ADR-031: Every feed event has a section, with System as the fallback, grouped on read
 
 - **Status**: Accepted.
 - **Date**: 2026-10-24.
