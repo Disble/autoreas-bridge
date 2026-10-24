@@ -48,10 +48,12 @@ export const ACTIVITY_FAILURE_PILL_CLASS =
 
 /**
  * Where the × sits (mockup `.ax-failx`): a 24px circle 6px inside the pill's
- * right end, above the menu. The shared 32px icon button is scaled to 24px
- * and centred in that box, which keeps it inside the pill's 36px end padding.
+ * right end, above the menu, so its centre is 18px from the pill's top and
+ * right edges. The box matches the shared 32px icon button and shares that
+ * centre (2px inset); the button is then scaled to 24px around it. A 24px box
+ * would not centre the wider button: an overflowing grid item aligns to start.
  */
-export const ACTIVITY_FAILURE_X_CLASS = 'absolute right-1.5 top-1.5 z-[32] grid size-6 place-items-center [&>*]:scale-75';
+export const ACTIVITY_FAILURE_X_CLASS = 'absolute right-0.5 top-0.5 z-[32] grid size-8 place-items-center [&>*]:scale-75';
 
 /** A failure menu row: icon, name and count. Selected rows take the neutral `bg-default`, unselected rows read gray. */
 export const ACTIVITY_FAILURE_ROW_CLASS = 'group h-[34px] min-h-0 gap-2.5 rounded-[0.6rem] px-2.5 text-sm text-muted data-[selected=true]:bg-default data-[selected=true]:text-foreground';
