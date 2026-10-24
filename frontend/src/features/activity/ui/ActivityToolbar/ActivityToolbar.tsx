@@ -32,10 +32,11 @@ export function ActivityToolbar({
 }: ActivityToolbarProps) {
   return (
     <div className="flex flex-wrap items-center gap-2" role="toolbar" aria-label="Activity filters">
-      <div className="flex items-center gap-1">
+      {/* The clear × sits inside the field visually but outside the picker: React Aria makes any button in the picker its trigger. */}
+      <div className="relative flex items-center">
         <DateRangePicker aria-label="Time range" maxValue={calendarMax} minValue={calendarMin} onChange={onCalendarChange} value={calendarValue}>
           <DateField.Group variant="secondary">
-            <DateRangePicker.Trigger aria-label={`Time range, ${rangeLabel}`} className="h-full gap-2 px-3">
+            <DateRangePicker.Trigger aria-label={`Time range, ${rangeLabel}`} className={hasRange ? 'h-full gap-2 pl-3 pr-10' : 'h-full gap-2 px-3'}>
               <Icon aria-hidden icon={calendarIcon} />
               <span className={hasRange ? 'whitespace-nowrap text-field-foreground' : 'whitespace-nowrap text-field-placeholder'}>{rangeLabel}</span>
             </DateRangePicker.Trigger>
@@ -54,7 +55,11 @@ export function ActivityToolbar({
             </RangeCalendar>
           </DateRangePicker.Popover>
         </DateRangePicker>
-        {hasRange ? <IconActionButton ariaLabel="Clear time range" icon={closeIcon} onPress={onClearRange} tooltip="Clear time range" variant="ghost" /> : null}
+        {hasRange ? (
+          <span className="absolute right-1 top-1/2 -translate-y-1/2">
+            <IconActionButton ariaLabel="Clear time range" icon={closeIcon} onPress={onClearRange} tooltip="Clear time range" variant="ghost" />
+          </span>
+        ) : null}
       </div>
       <ToggleButtonGroup aria-label="Where" disallowEmptySelection onSelectionChange={onOriginChange} selectedKeys={[origin]} selectionMode="single" size="sm">
         <ToggleButton id="all">All</ToggleButton>
