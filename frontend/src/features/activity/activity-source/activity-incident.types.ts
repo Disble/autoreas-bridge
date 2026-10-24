@@ -90,6 +90,8 @@ export interface ActivityEventSummary {
   readonly message: string;
   /** Correlation id joining the event to its run, when recorded. */
   readonly correlationId: string;
+  /** Entity the event is about, such as the anime of a download step; absent when it names none. */
+  readonly entityId?: string;
 }
 
 /** One stored phone report. */

@@ -360,6 +360,17 @@ info:
     incident's phone reports as `"<trigger> <duration_ms> ms"`, and a stall of
     10000 ms or more opens a `mobile_failure` incident.
 
+    2026-10-24 — run-history per-anime events, MCP consumer impact: NO REST/WS
+    wire change. ADDITIVE for `autoreas-request-mcp` only: every `get_run_story`
+    step and every `get_incident` window event carries `EntityID`, the stored
+    `runtime_events.entity_id` (the anime id for `download.*` events), empty
+    when the event names none. Every `download.*` event about one anime also
+    stores `animeName` in its metadata, and two info events are new:
+    `download.anime_checked` (`onDiskCount`, `latestOnline`, `missingEpisodes`)
+    and `download.manual_link_offered` (`episode`, `linkCount`). The
+    page-resolution and link-extraction `download.failed` events now carry
+    `episode`. All of them are in the `downloads` Where scope.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}

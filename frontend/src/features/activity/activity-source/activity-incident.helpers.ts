@@ -26,7 +26,7 @@ function mapFoldedRequest(row: activityread.FoldedRequest): ActivityFoldedReques
   };
 }
 
-/** Maps one runtime event summary. */
+/** Maps one runtime event summary; an empty entity id becomes undefined. */
 function mapEventSummary(event: activityread.EventSummary): ActivityEventSummary {
   return {
     id: event.ID,
@@ -36,6 +36,7 @@ function mapEventSummary(event: activityread.EventSummary): ActivityEventSummary
     eventType: event.EventType,
     message: event.Message,
     correlationId: event.CorrelationID,
+    entityId: event.EntityID === '' ? undefined : event.EntityID,
   };
 }
 

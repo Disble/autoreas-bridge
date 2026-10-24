@@ -3,8 +3,10 @@ package desktop
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -190,9 +192,17 @@ func TestListActivityRecoveredRunsAndRunStory(t *testing.T) {
 			t.Fatalf("ListActivityRecoveredRuns(%q) = %#v, %v", where, runs, err)
 		}
 	}
+	if _, err := app.bridgeDB.Exec(`UPDATE runtime_events SET entity_id = 'anime-1' WHERE correlation_id = 'run-download' AND level = 'error'`); err != nil {
+		t.Fatalf("tag the step's anime: %v", err)
+	}
 	story, err := app.GetActivityRunStory("run-download")
 	if err != nil || len(story.Steps) != 2 || story.Steps[1].Level != "error" {
 		t.Fatalf("GetActivityRunStory = %#v, %v", story, err)
+	}
+	// The binding hands the frontend each step's anime under the Go field name.
+	encoded, err := json.Marshal(story.Steps)
+	if err != nil || !strings.Contains(string(encoded), `"EntityID":"anime-1"`) || !strings.Contains(string(encoded), `"EntityID":""`) {
+		t.Fatalf("run story steps = %s, want the error step's EntityID anime-1 and the other empty (%v)", encoded, err)
 	}
 }
 

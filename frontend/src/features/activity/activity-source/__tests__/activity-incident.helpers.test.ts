@@ -37,7 +37,7 @@ function goIncidentDetail(overrides: Record<string, unknown> = {}): Record<strin
       },
       { RouteTemplate: '/ws', HTTPStatus: null, Count: 1, FirstAtMS: 900_000, LastAtMS: 900_000, LatestRequestID: 'ws-1', Kind: 'ws', Outcome: 'opened', MaxDurationMS: null, ContainsTrigger: false },
     ],
-    Events: [{ ID: 7, AtMS: 995_000, Domain: 'sync', Level: 'error', EventType: 'sync.failed', Message: 'm', CorrelationID: 'c-1' }],
+    Events: [{ ID: 7, AtMS: 995_000, Domain: 'sync', Level: 'error', EventType: 'sync.failed', Message: 'm', CorrelationID: 'c-1', EntityID: '' }],
     PhoneReports: [
       { ID: 3, AtMS: 999_000, PhoneAtMS: 998_000, DeviceID: 'd-1', Kind: 'cycle_report', Outcome: 'failed' },
       { ID: 4, AtMS: 999_500, PhoneAtMS: null, DeviceID: 'd-1', Kind: 'episode_action', Outcome: '' },
@@ -91,7 +91,7 @@ describe('activity-incident.helpers', () => {
           containsTrigger: false,
         },
       ],
-      events: [{ id: 7, atMs: 995_000, domain: 'sync', level: 'error', eventType: 'sync.failed', message: 'm', correlationId: 'c-1' }],
+      events: [{ id: 7, atMs: 995_000, domain: 'sync', level: 'error', eventType: 'sync.failed', message: 'm', correlationId: 'c-1', entityId: undefined }],
       phoneReports: [
         { id: 3, atMs: 999_000, phoneAtMs: 998_000, deviceId: 'd-1', kind: 'cycle_report', outcome: 'failed' },
         { id: 4, atMs: 999_500, phoneAtMs: undefined, deviceId: 'd-1', kind: 'episode_action', outcome: '' },
@@ -207,13 +207,13 @@ describe('activity-incident.helpers', () => {
     });
   });
 
-  it('maps a run story with its flattened steps, and a nil step list as empty', () => {
+  it('maps a run story with its flattened steps and their anime, and a nil step list as empty', () => {
     const story = activityread.RunStory.createFrom({
       CorrelationID: 'c-1',
       Truncated: true,
       Steps: [
-        { ID: 1, AtMS: 10, Domain: 'download', Level: 'info', EventType: 'download.started', Message: 'go', CorrelationID: 'c-1', DurationMS: 12, MetadataJSON: '{"a":1}' },
-        { ID: 2, AtMS: 20, Domain: 'download', Level: 'warn', EventType: 'download.retry', Message: 'again', CorrelationID: 'c-1', DurationMS: null, MetadataJSON: '' },
+        { ID: 1, AtMS: 10, Domain: 'download', Level: 'info', EventType: 'download.started', Message: 'go', CorrelationID: 'c-1', EntityID: 'anime-1', DurationMS: 12, MetadataJSON: '{"a":1}' },
+        { ID: 2, AtMS: 20, Domain: 'download', Level: 'warn', EventType: 'download.retry', Message: 'again', CorrelationID: 'c-1', EntityID: '', DurationMS: null, MetadataJSON: '' },
       ],
     });
 
@@ -221,8 +221,8 @@ describe('activity-incident.helpers', () => {
       correlationId: 'c-1',
       truncated: true,
       steps: [
-        { id: 1, atMs: 10, domain: 'download', level: 'info', eventType: 'download.started', message: 'go', correlationId: 'c-1', durationMs: 12, metadataJson: '{"a":1}' },
-        { id: 2, atMs: 20, domain: 'download', level: 'warn', eventType: 'download.retry', message: 'again', correlationId: 'c-1', durationMs: undefined, metadataJson: '' },
+        { id: 1, atMs: 10, domain: 'download', level: 'info', eventType: 'download.started', message: 'go', correlationId: 'c-1', entityId: 'anime-1', durationMs: 12, metadataJson: '{"a":1}' },
+        { id: 2, atMs: 20, domain: 'download', level: 'warn', eventType: 'download.retry', message: 'again', correlationId: 'c-1', entityId: undefined, durationMs: undefined, metadataJson: '' },
       ],
     });
     expect(mapActivityRunStory(activityread.RunStory.createFrom({ CorrelationID: 'c', Steps: null, Truncated: false })).steps).toEqual([]);

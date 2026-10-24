@@ -65,16 +65,16 @@ func insertCapture(t *testing.T, db *sql.DB, c capture) {
 
 // event is one runtime_events row.
 type event struct {
-	atMS                                                       int64
-	domain, level, message, correlationID, eventType, metadata string
+	atMS                                                                 int64
+	domain, level, message, correlationID, eventType, metadata, entityID string
 }
 
 // insertEvent stores e and returns its id.
 func insertEvent(t *testing.T, db *sql.DB, e event) int64 {
 	t.Helper()
 	result, err := db.Exec(`INSERT INTO runtime_events (occurred_at_ms, domain, level, message, correlation_id,
-		event_type, metadata_json) VALUES (?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''))`,
-		e.atMS, e.domain, e.level, e.message, e.correlationID, e.eventType, e.metadata)
+		event_type, metadata_json, entity_id) VALUES (?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''))`,
+		e.atMS, e.domain, e.level, e.message, e.correlationID, e.eventType, e.metadata, e.entityID)
 	if err != nil {
 		t.Fatalf("insert event: %v", err)
 	}
