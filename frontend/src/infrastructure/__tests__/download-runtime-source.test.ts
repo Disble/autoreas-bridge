@@ -138,11 +138,14 @@ describe('download-runtime-source', () => {
     handlers.get('download.run_started')?.({ runId: 'run-1' });
     handlers.get('download.run_progress')?.({ runId: 'run-1' });
     handlers.get('download.run_finished')?.({ runId: 'run-1', status: 'ok' });
+    // The scheduler's own "outcome stored" signal: run_finished fires before it, from inside the run.
+    handlers.get('schedule.run_settled')?.(undefined);
 
-    expect(listener).toHaveBeenCalledTimes(3);
+    expect(listener).toHaveBeenCalledTimes(4);
     expect(eventsOnMultipleMock).toHaveBeenCalledWith('download.run_started', expect.any(Function), -1);
     expect(eventsOnMultipleMock).toHaveBeenCalledWith('download.run_progress', expect.any(Function), -1);
     expect(eventsOnMultipleMock).toHaveBeenCalledWith('download.run_finished', expect.any(Function), -1);
+    expect(eventsOnMultipleMock).toHaveBeenCalledWith('schedule.run_settled', expect.any(Function), -1);
 
     unsubscribe();
   });

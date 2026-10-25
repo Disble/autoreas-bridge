@@ -52,6 +52,24 @@ type Status struct {
 	Running       bool
 }
 
+// RunSettlement describes a run whose bookkeeping is complete (Deps.RunSettled): what ran and
+// what, if anything, the scheduler stored about it.
+type RunSettlement struct {
+	// Trigger is the run's trigger: "scheduled", "missed_startup", or the TriggerNow caller's.
+	Trigger string
+	// Status is the run's terminal status (download.RunStatus*); never empty.
+	Status string
+	// Recorded reports that the scheduler stored this outcome: a scheduled run's last run, or a
+	// missed day's settlement or unresolved attempt. A manual run stores nothing.
+	Recorded bool
+	// StartedAtMs is when a recorded scheduled run started, its stored last-run time; 0 otherwise.
+	StartedAtMs int64
+	// NextRunAtMs is the next run a recorded scheduled run stored; 0 when there is none.
+	NextRunAtMs int64
+	// LocalDate is the missed day a missed_startup run was for; empty otherwise.
+	LocalDate string
+}
+
 // MissedStartupAction names the scheduler-owned startup-missed notice action.
 type MissedStartupAction string
 
@@ -98,6 +116,12 @@ type Deps struct {
 	Log              logger.Logger
 	ProcessStartedAt time.Time
 
+	// RunSettled, when set, is called once a run's bookkeeping is complete: the run guard is
+	// released and, for a scheduled or missed-day run, its outcome is stored. The run's own
+	// terminal event fires earlier, from inside the run, so a schedule re-read on it can still
+	// see the run in flight; a re-read on RunSettled sees the finished one.
+	RunSettled func(RunSettlement)
+
 	// IdleInterval overrides defaultIdleInterval (re-check cadence while disabled).
 	IdleInterval time.Duration
 	// ShutdownDrainWait overrides defaultShutdownDrainWait.
@@ -127,6 +151,7 @@ func NewScheduler(deps Deps) Scheduler {
 		run:               deps.Run,
 		log:               deps.Log,
 		processStartedAt:  deps.ProcessStartedAt,
+		runSettled:        deps.RunSettled,
 		idleInterval:      deps.IdleInterval,
 		shutdownDrainWait: deps.ShutdownDrainWait,
 		maxRunDuration:    deps.MaxRunDuration,

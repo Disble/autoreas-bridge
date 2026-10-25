@@ -59,6 +59,7 @@ type scheduler struct {
 	run              RunFunc
 	log              logger.Logger
 	processStartedAt time.Time
+	runSettled       func(RunSettlement)
 
 	idleInterval      time.Duration
 	shutdownDrainWait time.Duration
@@ -168,7 +169,8 @@ func (s *scheduler) TriggerNow(ctx context.Context, trigger string) error {
 		return ErrRunInProgress
 	}
 	go func() {
-		_, _ = s.executeRun(runCtx, doneChan, trigger)
+		status, err := s.executeRun(runCtx, doneChan, trigger)
+		s.notifyRunSettled(RunSettlement{Trigger: trigger, Status: normalizeTerminalStatus(status, err)})
 	}()
 	return nil
 }
@@ -339,25 +341,23 @@ func (s *scheduler) fireScheduledTick(ctx context.Context) {
 	// racing the next day's boundary against an in-flight run, and it keeps the guard's
 	// happens-before relationship with the loop simple and race-free).
 	status, err := s.executeRun(runCtx, doneChan, "scheduled")
-	s.markScheduledRun(ctx, startedAt, status, err)
+	settlement := s.markScheduledRun(ctx, startedAt, status, err)
 	if err == nil && status == download.RunStatusOK {
-		_, _ = s.store.ApplyScheduleSettlement(ctx, download.ScheduleSettlementRequest{
+		if _, settleErr := s.store.ApplyScheduleSettlement(ctx, download.ScheduleSettlementRequest{
 			LocalDate:   occurrenceLocalDate,
 			Reason:      download.ScheduleSettlementScheduled,
 			NextRunAtMs: s.currentNextRunAtMs(ctx),
-		})
-	}
-}
-
-// markScheduledRun records the result of a scheduled run.
-func (s *scheduler) markScheduledRun(ctx context.Context, startedAt time.Time, status string, runErr error) {
-	if status == "" {
-		if runErr != nil {
-			status = "error"
-		} else {
-			status = "ok"
+		}); settleErr != nil {
+			s.logf("schedule: failed to settle the scheduled run for %s: %v", occurrenceLocalDate, settleErr)
 		}
 	}
+	s.notifyRunSettled(settlement)
+}
+
+// markScheduledRun records the result of a scheduled run and returns it as a settlement,
+// Recorded only when the store accepted it.
+func (s *scheduler) markScheduledRun(ctx context.Context, startedAt time.Time, status string, runErr error) RunSettlement {
+	status = normalizeTerminalStatus(status, runErr)
 
 	nextAtMs := int64(0)
 	if cfg, err := s.store.GetScheduleConfig(ctx); err == nil && cfg.Enabled {
@@ -366,8 +366,22 @@ func (s *scheduler) markScheduledRun(ctx context.Context, startedAt time.Time, s
 		}
 	}
 
+	settlement := RunSettlement{Trigger: "scheduled", Status: status}
 	if err := s.store.MarkScheduleRun(ctx, startedAt.UnixMilli(), status, nextAtMs); err != nil {
 		s.logf("schedule: failed to mark scheduled run result: %v", err)
+		return settlement
+	}
+	settlement.Recorded = true
+	settlement.StartedAtMs = startedAt.UnixMilli()
+	settlement.NextRunAtMs = nextAtMs
+	return settlement
+}
+
+// notifyRunSettled reports that a run's bookkeeping is complete (see Deps.RunSettled). Every
+// path that ran a download calls it after releasing the guard and storing the outcome.
+func (s *scheduler) notifyRunSettled(settlement RunSettlement) {
+	if s.runSettled != nil {
+		s.runSettled(settlement)
 	}
 }
 

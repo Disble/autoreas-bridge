@@ -29,10 +29,11 @@ Load before making a backend fact visible in Activity or to `autoreas-request-mc
 | Need | Touch |
 |------|-------|
 | Filterable by Where (UI or MCP) | `activityread.scopeOf` + `Where` const, MCP `jsonschema` text in `internal/mcp/requestcapture/types.go` (WhereInput, HistoryInput), `docs/observability/activity-ui.md`, `docs/openapi.yaml` MCP note |
-| Visible in the current screen's filter | also frontend `ACTIVITY_WHERE_OPTIONS` / `ActivityWhere` |
+| A line in the Activity feed | ownership by domain (`feed_system.go`): `schedule`/`season` is a Task line at any level; correlated to a `download_runs.run_id` is that run's story; anything else is System, which drops info. The screen filters by feed type (`activity-feed.constants.ts`) |
 | Readable incident title | `areaOf` in `activityread/incidents.go` |
 | Grouped into a run | set `CorrelationID`; only API requests carry one in context (`internal/correlation`) |
 | Hidden unexpectedly | `noiseFilter` (activityread.go), `restatingEventFilter` (history.go) |
+| Producer is shared by several features (the `schedule` scheduler also runs Season) | the producer reports facts through a hook; the composition root names and logs them (`internal/desktop/app_download_scheduler.go`) |
 | Constructor gains the logger | update `tools/checkarchitecture` literals that spell that constructor; end them at the argument they guard (`jkanime.New(nil,`) |
 
 ## Execution Steps

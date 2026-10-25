@@ -1,7 +1,12 @@
 import type { DownloadConfig, JDStatus, ScheduleConfig, ScheduleMissedActionResult } from '../../shared/contracts/download.types';
 import type { DownloadRuntimeSource } from './download-runtime-source.types';
 
-/** Event names that indicate the download run history became stale. */
+/**
+ * Event names that indicate the download run history or the schedule became stale.
+ * `schedule.run_settled` (`scheduleRunSettledEventName`, `app_startup_runtime.go`) closes a
+ * run: `download.run_finished` fires from inside the run, before the scheduler stores its
+ * outcome and clears its running flag, so only a re-read on the settled event is final.
+ */
 export const DOWNLOAD_RUN_EVENT_NAMES = [
   'download.run_started',
   'download.run_progress',
@@ -12,6 +17,7 @@ export const DOWNLOAD_RUN_EVENT_NAMES = [
   'download.skipped',
   'download.jd_status',
   'download.episode_downloading',
+  'schedule.run_settled',
 ] as const;
 
 /**

@@ -121,6 +121,142 @@ describe('download-runtime-store', () => {
     expect(getDownloadRuntimeStoreState().runHistoryHasLoaded).toBe(true);
   });
 
+  it.each([
+    {
+      readModel: 'schedule',
+      stale: { ...scheduleConfig, running: true },
+      fresh: { ...scheduleConfig, running: false, lastRunAtMs: 2000 },
+      port: 'getScheduleConfig',
+      refresh: 'refreshSchedule',
+      value: 'scheduleConfig',
+    },
+    {
+      readModel: 'run history',
+      stale: [],
+      fresh: runHistory,
+      port: 'listDownloadRuns',
+      refresh: 'refreshRunHistory',
+      value: 'runHistory',
+    },
+  ] as const)('a $readModel read answered after a newer one cannot overwrite it', async ({ stale, fresh, port, refresh, value }) => {
+    // Two events re-read back to back (run_finished, then schedule.run_settled) and the
+    // first, stale answer arrives last: the store keeps the answer to the latest read.
+    let answerStale: (snapshot: typeof stale) => void = () => undefined;
+    const source = createSource({
+      [port]: vi
+        .fn()
+        .mockReturnValueOnce(new Promise((resolve) => {
+          answerStale = resolve;
+        }))
+        .mockResolvedValueOnce(fresh),
+    });
+
+    const staleRead = getDownloadRuntimeStoreState()[refresh](source);
+    await getDownloadRuntimeStoreState()[refresh](source);
+    answerStale(stale);
+    await staleRead;
+
+    expect(getDownloadRuntimeStoreState()[value]).toEqual(fresh);
+  });
+
+  it.each([
+    { readModel: 'schedule', port: 'getScheduleConfig', refresh: 'refreshSchedule', error: 'scheduleErrorMessage' },
+    { readModel: 'run history', port: 'listDownloadRuns', refresh: 'refreshRunHistory', error: 'runHistoryErrorMessage' },
+  ] as const)('a superseded $readModel read that fails leaves the newer answer without an error', async ({ port, refresh, error }) => {
+    let failStale: (reason: Error) => void = () => undefined;
+    const source = createSource({
+      [port]: vi
+        .fn()
+        .mockReturnValueOnce(new Promise((_resolve, reject) => {
+          failStale = reject;
+        }))
+        .mockResolvedValueOnce(port === 'getScheduleConfig' ? scheduleConfig : runHistory),
+    });
+
+    const staleRead = getDownloadRuntimeStoreState()[refresh](source);
+    await getDownloadRuntimeStoreState()[refresh](source);
+    failStale(new Error('stale read failed'));
+    await staleRead;
+
+    expect(getDownloadRuntimeStoreState()[error]).toBeUndefined();
+  });
+
+  it.each([
+    { readModel: 'schedule', port: 'getScheduleConfig', refresh: 'refreshSchedule', loaded: 'scheduleHasLoaded', value: 'scheduleConfig', fresh: { ...scheduleConfig, lastRunAtMs: 2000 } },
+    { readModel: 'run history', port: 'listDownloadRuns', refresh: 'refreshRunHistory', loaded: 'runHistoryHasLoaded', value: 'runHistory', fresh: runHistory },
+  ] as const)('a $readModel read from before a reset stays out even once a newer read is under way', async ({ port, refresh, loaded, value, fresh }) => {
+    let answerOld: (snapshot: unknown) => void = () => undefined;
+    let answerNew: (snapshot: unknown) => void = () => undefined;
+    const source = createSource({
+      [port]: vi
+        .fn()
+        .mockReturnValueOnce(new Promise((resolve) => {
+          answerOld = resolve;
+        }))
+        .mockReturnValueOnce(new Promise((resolve) => {
+          answerNew = resolve;
+        })),
+    });
+
+    const oldRead = getDownloadRuntimeStoreState()[refresh](source);
+    resetDownloadRuntimeStore();
+    const newRead = getDownloadRuntimeStoreState()[refresh](source);
+    answerOld(port === 'getScheduleConfig' ? { ...scheduleConfig, running: true } : []);
+    await oldRead;
+
+    expect(getDownloadRuntimeStoreState()[loaded]).toBe(false);
+
+    answerNew(fresh);
+    await newRead;
+
+    expect(getDownloadRuntimeStoreState()[value]).toEqual(fresh);
+  });
+
+  it.each([
+    {
+      readModel: 'schedule',
+      port: 'getScheduleConfig',
+      refresh: 'refreshSchedule',
+      failed: { scheduleHasLoaded: true, scheduleErrorMessage: 'Failed to load schedule config' },
+    },
+    {
+      readModel: 'run history',
+      port: 'listDownloadRuns',
+      refresh: 'refreshRunHistory',
+      failed: { runHistory: [], runHistoryHasLoaded: true, runHistoryErrorMessage: 'Failed to load download run history' },
+    },
+  ] as const)('a failed $readModel read without a message is loaded, empty and says what failed', async ({ port, refresh, failed }) => {
+    const source = createSource({ [port]: vi.fn().mockRejectedValue(new Error('')) });
+
+    await getDownloadRuntimeStoreState()[refresh](createSource());
+    await getDownloadRuntimeStoreState()[refresh](source);
+
+    expect(getDownloadRuntimeStoreState()).toMatchObject(failed);
+  });
+
+  it('a read still in flight when the store resets does not land in the cleared snapshot', async () => {
+    let answerSchedule: (snapshot: ScheduleConfig) => void = () => undefined;
+    let answerRuns: (snapshot: readonly DownloadRunView[]) => void = () => undefined;
+    const source = createSource({
+      getScheduleConfig: vi.fn().mockReturnValue(new Promise((resolve) => {
+        answerSchedule = resolve;
+      })),
+      listDownloadRuns: vi.fn().mockReturnValue(new Promise((resolve) => {
+        answerRuns = resolve;
+      })),
+    });
+
+    const scheduleRead = getDownloadRuntimeStoreState().refreshSchedule(source);
+    const runsRead = getDownloadRuntimeStoreState().refreshRunHistory(source);
+    resetDownloadRuntimeStore();
+    answerSchedule(scheduleConfig);
+    answerRuns(runHistory);
+    await Promise.all([scheduleRead, runsRead]);
+
+    expect(getDownloadRuntimeStoreState().scheduleHasLoaded).toBe(false);
+    expect(getDownloadRuntimeStoreState().runHistoryHasLoaded).toBe(false);
+  });
+
   it('connectDownloadRuntimeStore is idempotent across panels', () => {
     const source = createSource();
 

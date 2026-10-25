@@ -14,7 +14,6 @@ import (
 	"autoreas-bridge/internal/notification"
 	"autoreas-bridge/internal/notification/center"
 	"autoreas-bridge/internal/observability/requestcapture"
-	"autoreas-bridge/internal/schedule"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tray"
 )
@@ -296,20 +295,7 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 	if _, err := a.downloadStore.ReconcileInterruptedRuns(ctx, time.Now().UnixMilli()); err != nil && a.sharedLogger != nil {
 		a.sharedLogger.Warnf("download", "failed to reconcile interrupted download runs at startup: %v", err)
 	}
-	a.downloadScheduler = a.newDownloadScheduler(schedule.Deps{
-		Store:            a.downloadStore,
-		Clock:            schedule.NewRealClock(),
-		ProcessStartedAt: a.processStartedAt,
-		Run: func(runCtx context.Context, trigger string) (string, error) {
-			if a.downloadService == nil {
-				return "", nil
-			}
-			result, err := a.downloadService.RunOnce(runCtx, trigger)
-			return result.Status, err
-		},
-		Log: a.sharedLogger,
-	})
-	a.downloadScheduler.Start(ctx)
+	a.startDownloadScheduler(ctx)
 }
 
 // ensureDownloadStore initializes the download store when database access exists.
