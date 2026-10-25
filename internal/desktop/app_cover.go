@@ -25,7 +25,25 @@ func (a *App) GetAnimeCover(animeID string) contracts.AnimeCover {
 	if err != nil || current == nil {
 		return contracts.AnimeCover{Source: contracts.CoverSourcePlaceholder}
 	}
-	result, err := a.coverThumbnails.GetDesktop(a.appContext(), derefCover(current.Cover))
+	return a.thumbnailCover(derefCover(current.Cover))
+}
+
+// PreviewAnimeCover renders an unsaved cover value -- the local path or URL a form is editing --
+// through the same thumbnail service GetAnimeCover uses, so a cover can be checked before it is
+// saved. A blank or legacy "null" value never reaches the service, and every failure degrades to
+// the placeholder signal, exactly as a saved cover does.
+func (a *App) PreviewAnimeCover(value string) contracts.AnimeCover {
+	trimmed := strings.TrimSpace(value)
+	if a.coverThumbnails == nil || trimmed == "" || trimmed == "null" {
+		return contracts.AnimeCover{Source: contracts.CoverSourcePlaceholder}
+	}
+	return a.thumbnailCover(trimmed)
+}
+
+// thumbnailCover renders one cover value through the shared thumbnail service into a JPEG data URL,
+// or the placeholder signal when the service fails or serves nothing.
+func (a *App) thumbnailCover(value string) contracts.AnimeCover {
+	result, err := a.coverThumbnails.GetDesktop(a.appContext(), value)
 	if err != nil || len(result.Bytes) == 0 {
 		return contracts.AnimeCover{Source: contracts.CoverSourcePlaceholder}
 	}

@@ -195,6 +195,8 @@ export interface AnimeEditorHeaderCoverProps {
  */
 export interface AnimeEditorCoverSource {
   readonly getAnimeCover?: (animeId: string) => Promise<AnimeEditorCoverResult>;
+  /** Renders the draft's unsaved cover value for the form's preview. */
+  readonly previewAnimeCover?: (value: string) => Promise<AnimeEditorCoverResult>;
 }
 
 /** One cover-binding result: a base64 data URL, or the explicit placeholder signal. */

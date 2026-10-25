@@ -24,6 +24,7 @@ function slice(overrides: Partial<AnimeEditorFormPanelViewModel> = {}): AnimeEdi
     draft: { name: 'Frieren', status: 0, progress: '12', totalEpisodes: '28', kind: '1', page: 'https://x', folder: 'D:/a', origin: 'Manga', duration: '24', genres: '', studios: '', coverType: 'url', coverPath: 'https://c.jpg' },
     cover: { status: 'placeholder' }, appliedMetadata: undefined,
     metadataLookupSource: { SearchMyAnimeList: vi.fn(), GetMyAnimeListDetail: vi.fn() },
+    coverPreviewSource: {},
     isLoadingRecord: false, isSaving: false, isRecordDirty: false, canSave: false, isDetailsOpen: true,
     onCoverImageError: vi.fn(), onDraftChange: vi.fn(), onToggleDetails: vi.fn(), onDiscardChanges: vi.fn(),
     onPickFolder: vi.fn(), onPickCoverFile: vi.fn(), onSave: vi.fn(), onMetadataApplied: vi.fn(), onMetadataUndo: vi.fn(),
@@ -69,6 +70,14 @@ describe('AnimeEditorFormPanel field wiring', () => {
     expect(viewModel.onPickCoverFile).not.toHaveBeenCalled();
     fireEvent.click(coverBrowse);
     expect(viewModel.onPickCoverFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('previews the draft cover beside the cover field before it is saved', async () => {
+    const previewAnimeCover = vi.fn().mockResolvedValue({ source: 'cover', dataUrl: 'data:image/jpeg;base64,draft' });
+    render(<AnimeEditorFormPanel viewModel={slice({ coverPreviewSource: { previewAnimeCover } })} />);
+
+    expect(await screen.findByRole('img', { name: 'Cover preview' })).toHaveAttribute('src', 'data:image/jpeg;base64,draft');
+    expect(previewAnimeCover).toHaveBeenCalledExactlyOnceWith('https://c.jpg');
   });
 });
 

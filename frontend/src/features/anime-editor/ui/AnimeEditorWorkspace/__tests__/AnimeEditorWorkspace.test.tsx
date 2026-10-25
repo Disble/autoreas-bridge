@@ -56,6 +56,7 @@ describe('AnimeEditorWorkspace', () => {
       onDiscardAndContinue: vi.fn(),
       onSaveAndContinue: vi.fn(),
       episodes: { view: 'idle' },
+      coverPreviewSource: {},
       scheduleWeek: { status: 'ready', days: [{ id: 'Lunes', label: 'Lunes', isScheduled: true, position: { order: 1, total: 2 }, ariaLabel: 'Lunes: 1 of 2' }], seasonDays: [] },
     };
     // The panels read their memoized slices; the full view model carries every field they read.

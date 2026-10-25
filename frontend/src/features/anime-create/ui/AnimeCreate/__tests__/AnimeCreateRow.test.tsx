@@ -32,6 +32,7 @@ function createViewModel(overrides: Partial<AnimeCreateViewModel> = {}): AnimeCr
     nameConflicts: {},
     appliedMetadataByRow: {},
     metadataLookupSource: fakeMetadataLookupSource(),
+    coverPreviewSource: {},
     isSubmitting: false,
     canRemoveRow: true,
     canOpenBoard: false,
@@ -128,6 +129,15 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
     expect(viewModel.onBrowseCover).not.toHaveBeenCalled();
     fireEvent.click(cover);
     expect(viewModel.onBrowseCover).toHaveBeenCalledExactlyOnceWith(draftRow().draftId);
+  });
+
+  it('previews the row cover beside its cover field before the anime is created', async () => {
+    const previewAnimeCover = vi.fn().mockResolvedValue({ source: 'cover', dataUrl: 'data:image/jpeg;base64,row' });
+    render(<AnimeCreateRow index={0} row={draftRow({ name: 'Bleach', coverType: 'image', coverPath: 'D:/Anime/Bleach/cover.jpg' })} viewModel={createViewModel({ coverPreviewSource: { previewAnimeCover } })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Optional details' }));
+
+    expect(await screen.findByRole('img', { name: 'Cover preview' })).toHaveAttribute('src', 'data:image/jpeg;base64,row');
+    expect(previewAnimeCover).toHaveBeenCalledExactlyOnceWith('D:/Anime/Bleach/cover.jpg');
   });
 
   it('disables the Fetch metadata action while Name is empty', () => {

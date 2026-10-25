@@ -15,3 +15,12 @@ export interface AnimeCoverResult {
   /** The cover as a data URL, when the binding returned one. */
   readonly dataUrl?: string;
 }
+
+/**
+ * The cover-preview port a form depends on: `BridgeRuntimeSource`'s
+ * `previewAnimeCover`, which renders an unsaved cover value. Optional for the
+ * same reason `getAnimeCover` is: no binding degrades to the placeholder.
+ */
+export interface CoverPreviewSource {
+  readonly previewAnimeCover?: (value: string) => Promise<AnimeCoverResult>;
+}

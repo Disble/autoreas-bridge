@@ -33,6 +33,7 @@ function createViewModel(overrides: Partial<AnimeEditorWorkspaceViewModel> = {})
     appliedMetadata: undefined,
     cover: { status: 'placeholder' },
     metadataLookupSource: fakeMetadataLookupSource(),
+    coverPreviewSource: {},
     isLoadingList: false, isLoadingRecord: false, isSaving: false, isApplyingSchedule: false, isDirty: false, isRecordDirty: false,
     isScheduleModalOpen: false, scheduleBoard: undefined, feedback: undefined, validationMessage: undefined, scheduleFeedback: undefined,
     isDetailsOpen: false, isGuardOpen: false, canSave: false,

@@ -3,6 +3,7 @@ import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-s
 import type { AnimeEditorRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { EpisodeDurationRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
 import { metadataLookupSource } from '../../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers';
+import type { CoverPreviewSource } from '../../../../shared/anime-cover/anime-cover.types';
 import { useEpisodeDurationsSection } from '../EpisodeDurationsSection/use-episode-durations-section';
 import { isAnyCard } from './anime-editor-guard.helpers';
 import { toAnimeEditorListRowViewModels, toEpisodeDurationsSavedAnime } from './anime-editor-workspace.helpers';
@@ -68,6 +69,8 @@ export function useAnimeEditorWorkspace(
   // 5. Derived State (useMemo)
   const items = useMemo(() => toAnimeEditorListRowViewModels(list.items, coverCache.covers), [list.items, coverCache.covers]);
   const cover = useAnimeEditorCover(record.selectedRecord, coverCache.covers);
+  // The cover field's preview renders the draft's unsaved value through the same runtime source, narrowed to its port.
+  const coverPreviewSource: CoverPreviewSource = source;
 
   // 6. Callbacks (useCallback calling pure helpers)
   const onToggleDetails = useCallback(() => setIsDetailsOpen((current) => !current), []);
@@ -81,12 +84,13 @@ export function useAnimeEditorWorkspace(
   }), [list.query, list.filter, items, list.emptyState, list.isLoadingList, listWindow, list.setQuery, list.onFilterChange, list.onClearCriteria, transitions.onSelectAnime, coverCache.onCoverImageError]);
   const formPanel = useMemo(() => ({
     selectedRecord: record.selectedRecord, draft: record.draft, cover, appliedMetadata: record.appliedMetadata, metadataLookupSource,
+    coverPreviewSource,
     isLoadingRecord: record.isLoadingRecord, isSaving: record.isSaving, isRecordDirty: record.isDirty, canSave: record.canSave, isDetailsOpen,
     onCoverImageError: coverCache.onCoverImageError, onDraftChange: record.onDraftChange, onToggleDetails, onDiscardChanges: record.onDiscardChanges,
     onPickFolder: record.onPickFolder, onPickCoverFile: record.onPickCoverFile, onSave: transitions.onSave,
     onMetadataApplied: record.onMetadataApplied, onMetadataUndo: record.onMetadataUndo,
     onRequestLifecycleAction: lifecycle.onRequestLifecycleAction,
-  }), [record.selectedRecord, record.draft, cover, record.appliedMetadata, record.isLoadingRecord, record.isSaving, record.isDirty, record.canSave, isDetailsOpen, coverCache.onCoverImageError, record.onDraftChange, onToggleDetails, record.onDiscardChanges, record.onPickFolder, record.onPickCoverFile, transitions.onSave, record.onMetadataApplied, record.onMetadataUndo, lifecycle.onRequestLifecycleAction]);
+  }), [record.selectedRecord, record.draft, cover, record.appliedMetadata, record.isLoadingRecord, record.isSaving, record.isDirty, record.canSave, isDetailsOpen, coverCache.onCoverImageError, record.onDraftChange, onToggleDetails, record.onDiscardChanges, record.onPickFolder, record.onPickCoverFile, transitions.onSave, record.onMetadataApplied, record.onMetadataUndo, lifecycle.onRequestLifecycleAction, coverPreviewSource]);
 
   // 7. Effects
 
@@ -109,6 +113,8 @@ export function useAnimeEditorWorkspace(
     scheduleWeek: schedule.scheduleWeek,
     /** The MyAnimeList lookup's two Wails-bound calls, injected into the form's lookup modal. */
     metadataLookupSource,
+    /** Renders the draft's unsaved cover value for the preview beside the cover field. */
+    coverPreviewSource,
     isLoadingList: list.isLoadingList, isLoadingRecord: record.isLoadingRecord, isSaving: record.isSaving,
     isApplyingSchedule: schedule.isApplyingSchedule,
     /** Whether either card holds unsaved changes; the header chip and the guard read it. */
