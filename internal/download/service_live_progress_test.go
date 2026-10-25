@@ -42,8 +42,8 @@ func TestRunOncePublishesLiveProgressBeforeAllAnimeWorkersFinish(t *testing.T) {
 		Folder:    new(folderB),
 	}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{
-		atRoot:    map[string]int{folderA: 0, folderB: 0},
-		recursive: map[string]int{folderA: 1, folderB: 0},
+		atRoot:  map[string]int{folderA: 0, folderB: 0},
+		landing: map[string]int{folderA: 1, folderB: 0},
 	})
 
 	bus := events.NewBus()
@@ -167,8 +167,8 @@ func TestRunOnceSerializesProgressSnapshotsAcrossPersistenceAndEvents(t *testing
 		Folder:    new(folderB),
 	}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{
-		atRoot:    map[string]int{folderA: 0, folderB: 0},
-		recursive: map[string]int{folderA: 0, folderB: 0},
+		atRoot:  map[string]int{folderA: 0, folderB: 0},
+		landing: map[string]int{folderA: 0, folderB: 0},
 	})
 
 	bus := events.NewBus()

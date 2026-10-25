@@ -98,10 +98,10 @@ func TestRenameEpisodeByDestinationIgnoresUnfinishedLinks(t *testing.T) {
 	}
 }
 
-// JDownloader routinely saves a package into its own subfolder of the anime folder, so the
-// package SaveTo is a DESCENDANT of the destination Bridge asked about, never equal to it.
-// Matching those exactly finds nothing and silently skips the rename -- the episode then
-// keeps its hoster name once the Flattener lifts it to the root.
+// A package that sits in a subfolder of the anime folder (enqueued before Bridge disabled
+// JDownloader's subfolder-per-package rule, or by a user rule) has a SaveTo that DESCENDS from
+// the destination Bridge asked about. Matching it exactly finds nothing and silently skips the
+// rename -- the episode then keeps its hoster name.
 func TestRenameEpisodeByDestinationMatchesPackagesSavedInASubfolder(t *testing.T) {
 	t.Parallel()
 

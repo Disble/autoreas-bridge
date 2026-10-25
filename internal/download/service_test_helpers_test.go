@@ -103,6 +103,9 @@ type svcFakeJDClient struct {
 	renameCalls       []jdRenameCall
 	renameErr         error
 	onRename          func()
+	// onAdd runs after each AddAndStart with its destination, so a fake counter can land the
+	// episode the way JD writes it straight into the anime folder.
+	onAdd func(destination string)
 }
 
 func (f *svcFakeJDClient) Connect(ctx context.Context) error { return nil }
@@ -124,11 +127,25 @@ func (f *svcFakeJDClient) ensureOnlineCallCount() int {
 	return f.ensureOnlineCalls
 }
 func (f *svcFakeJDClient) AddAndStart(ctx context.Context, deviceName string, req jdownloader.EnqueueRequest) error {
+	f.recordAdd(req)
+	f.mu.Lock()
+	onAdd := f.onAdd
+	f.mu.Unlock()
+	if onAdd != nil {
+		onAdd(req.Destination)
+	}
+	return nil
+}
+
+// recordAdd records one enqueue request without landing anything.
+func (f *svcFakeJDClient) recordAdd(req jdownloader.EnqueueRequest) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.addAndStartCall = append(f.addAndStartCall, req)
-	return nil
 }
+
+// fakeJD exposes the fake client to setSvcFakeCounter through any wrapper that embeds it.
+func (f *svcFakeJDClient) fakeJD() *svcFakeJDClient { return f }
 
 // PackageStatusByDestination defaults to a "downloading" verdict (Matched=false, no counts, no
 // links) so tests that never configure JD status keep the pre-existing "wait for disk" behavior.
@@ -144,76 +161,40 @@ func (f *svcFakeJDClient) Disconnect(ctx context.Context) error { return nil }
 
 var _ jdownloader.JDClient = (*svcFakeJDClient)(nil)
 
+// svcFakeCounter is the in-memory EpisodeCounter. atRoot is what the folder root holds before
+// any download; landing is the root count a folder reaches once the download JD was asked for
+// lands, which land applies.
 type svcFakeCounter struct {
-	mu                    sync.Mutex
-	atRoot                map[string]int
-	recursive             map[string]int
-	recursiveAfterFlatten map[string]int
-	flattenedFolders      map[string]bool
+	mu      sync.Mutex
+	atRoot  map[string]int
+	landing map[string]int
+	landed  map[string]bool
 }
 
 func (f *svcFakeCounter) CountAtRoot(folder string) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if f.flattenedFolders != nil && f.flattenedFolders[folder] && f.recursiveAfterFlatten != nil {
-		if v, ok := f.recursiveAfterFlatten[folder]; ok {
-			return v
-		}
-	}
-	if f.flattenedFolders != nil && f.flattenedFolders[folder] {
-		if v, ok := f.recursive[folder]; ok {
-			if root := f.atRoot[folder]; root > v {
-				return root
-			}
-			return v
-		}
+	if v, ok := f.landing[folder]; ok && f.landed[folder] && v > f.atRoot[folder] {
+		return v
 	}
 	return f.atRoot[folder]
-}
-
-func (f *svcFakeCounter) CountRecursive(folder string) int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.recursive[folder]
 }
 
 func (f *svcFakeCounter) HighestEpisodeAtRoot(folder string) int {
 	return f.CountAtRoot(folder)
 }
 
-func (f *svcFakeCounter) HighestEpisodeRecursive(folder string) int {
-	return f.CountRecursive(folder)
-}
-
-func (f *svcFakeCounter) Flatten(folder string) {
+// land makes the folder's landing count visible at the root, as JD's finished download would.
+func (f *svcFakeCounter) land(folder string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if f.flattenedFolders == nil {
-		f.flattenedFolders = map[string]bool{}
+	if f.landed == nil {
+		f.landed = map[string]bool{}
 	}
-	f.flattenedFolders[folder] = true
+	f.landed[folder] = true
 }
 
 var _ filesystem.EpisodeCounter = (*svcFakeCounter)(nil)
-
-type svcFakeFlattener struct {
-	mu        sync.Mutex
-	calls     []string
-	err       error
-	onFlatten func(folder string)
-}
-
-func (f *svcFakeFlattener) Flatten(ctx context.Context, folder string) (int, error) {
-	f.mu.Lock()
-	f.calls = append(f.calls, folder)
-	f.mu.Unlock()
-	if f.onFlatten != nil {
-		f.onFlatten(folder)
-	}
-	return 0, f.err
-}
-
-var _ filesystem.Flattener = (*svcFakeFlattener)(nil)
 
 type svcFakeNotifier struct {
 	mu    sync.Mutex

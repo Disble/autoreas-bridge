@@ -6,15 +6,16 @@ import (
 	"testing"
 )
 
-// hosterAttemptLedger runs one fallback chain and returns the recorded log entries. The counter
-// starts one episode ahead recursively, so the second hoster's completion poll flattens it into
-// place and reports success -- the shape that puts a WINNING attempt in the ledger.
+// hosterAttemptLedger runs one fallback chain and returns the recorded log entries. A hoster that
+// is neither failing nor dead lands one episode at the root and reports success -- the shape that
+// puts a WINNING attempt in the ledger.
 func hosterAttemptLedger(t *testing.T, jd *fallbackAwareJDClient) (*fieldsRecorder, bool, string) {
 	t.Helper()
 	folder := t.TempDir()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 0}, recursive: map[string]int{folder: 1}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 0}, landing: map[string]int{folder: 1}}
 	deps, _ := fastEnqueueDeps(t, folder, counter)
 	deps.JD = jd
+	setSvcFakeCounter(&deps, counter)
 	recorder := &fieldsRecorder{}
 	deps.Logger = recorder
 	s := NewService(deps)
@@ -160,7 +161,7 @@ func TestTheFirstHosterAndAFallbackAreClassifiedDifferentlyAtTheSameDeadEnd(t *t
 	t.Parallel()
 
 	folder := t.TempDir()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 0}, recursive: map[string]int{folder: 0}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 0}, landing: map[string]int{folder: 0}}
 	deps, _ := fastEnqueueDeps(t, folder, counter)
 	// An unmatched status is neither dead nor positively alive, so BOTH hosters reach the same
 	// post-grace dead end and only their position in the chain separates them.

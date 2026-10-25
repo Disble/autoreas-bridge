@@ -101,6 +101,7 @@ how much test coverage it gets. The governing question is which code can break t
 ## References
 
 - `docs/architecture.md`
+- `docs/architecture/README.md` — per-context architecture: overview, workflow, sub-process detail
 - `docs/coverage-tiers.md`
 - `docs/file-size-policy.md`
 - `docs/mutation-testing.md`

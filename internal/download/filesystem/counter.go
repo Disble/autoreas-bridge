@@ -1,5 +1,5 @@
-// Package filesystem implements the EpisodeCounter and Flattener ports (design.md §3.4,
-// PoC #10/#11 cmd/poc/finder.go). The live filesystem tally produced by CountAtRoot is the
+// Package filesystem implements the EpisodeCounter port (design.md §3.4,
+// PoC #10 cmd/poc/finder.go). The live filesystem tally produced by CountAtRoot is the
 // SINGLE SOURCE OF TRUTH for download state (ADR-DISK) -- it is re-derived every run and is
 // NEVER read from or cached in bridge.db.
 package filesystem
@@ -19,16 +19,10 @@ type EpisodeCounter interface {
 	// CountAtRoot tallies video files DIRECTLY in folder (non-recursive) -- the canonical
 	// "downloaded" count. NEVER cached; re-derived from the filesystem on every call.
 	CountAtRoot(folder string) int
-	// CountRecursive tallies video files in folder + all subfolders -- used during completion
-	// polling, before Flatten has had a chance to move JD's package subfolders to root.
-	CountRecursive(folder string) int
 	// HighestEpisodeAtRoot returns the highest episode number detected from video files directly
 	// in folder. It is the preferred baseline for catch-up decisions because online latest is an
 	// episode NUMBER, not a file count.
 	HighestEpisodeAtRoot(folder string) int
-	// HighestEpisodeRecursive returns the highest episode number detected from videos anywhere
-	// under folder. It is used while waiting for JD package subfolders to finish landing.
-	HighestEpisodeRecursive(folder string) int
 }
 
 type episodeCounter struct{}
@@ -60,24 +54,6 @@ func (episodeCounter) CountAtRoot(folder string) int {
 	return count
 }
 
-// CountRecursive mirrors cmd/poc/finder.go countAllVideoFiles: it walks folder and every
-// subfolder, counting video files anywhere underneath. Walk errors are ignored per-entry
-// (mirroring the PoC) because a transient stat failure on one file MUST NOT abort the whole
-// tally -- the caller re-polls on an interval regardless.
-func (episodeCounter) CountRecursive(folder string) int {
-	count := 0
-	_ = filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return nil
-		}
-		if isVideoFile(info.Name()) {
-			count++
-		}
-		return nil
-	})
-	return count
-}
-
 func (episodeCounter) HighestEpisodeAtRoot(folder string) int {
 	entries, err := os.ReadDir(folder)
 	if err != nil {
@@ -94,20 +70,8 @@ func (episodeCounter) HighestEpisodeAtRoot(folder string) int {
 	return highest
 }
 
-func (episodeCounter) HighestEpisodeRecursive(folder string) int {
-	highest := 0
-	_ = filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() || !isVideoFile(info.Name()) {
-			return nil
-		}
-		highest = max(highest, episodeNumberFromName(info.Name()))
-		return nil
-	})
-	return highest
-}
-
 // isVideoFile checks a file name's extension against the shared PR1 allowlist
-// (config.VideoFileExtensions) so EpisodeCounter and Flatten agree with the rest of the
+// (config.VideoFileExtensions) so EpisodeCounter agrees with the rest of the
 // download context on what counts as a downloaded episode.
 func isVideoFile(name string) bool {
 	ext := strings.ToLower(filepath.Ext(name))

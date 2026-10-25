@@ -32,7 +32,6 @@ everything else. When the two disagree, the code wins; fix the document in the s
 Related documents kept where they are:
 
 - `airis/character.md` and `airis/turnaround.webp` — the Airis character contract for new or redrawn mascot artwork.
-- `download-watcher-unified-phases.md` — the download watcher phase design (backend, referenced from `internal/download`).
 
 ## Rules that live elsewhere
 

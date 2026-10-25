@@ -6,24 +6,17 @@ import (
 	"time"
 )
 
-// recheckCounters builds the episode counters one post-grace re-check attempt starts from.
-//
-// The two bases are set independently on purpose. Production can never hold atRoot > recursive,
-// because CountRecursive walks the very root CountAtRoot reads -- but a residue fixture MUST be
-// able to start recursive ABOVE the episode's root baseline, and that is the only state which
-// separates an attempt-scoped recursive baseline from the episode-scoped root one.
-func recheckCounters(folder string, atRoot, recursive int) *svcFakeCounter {
-	return &svcFakeCounter{atRoot: map[string]int{folder: atRoot}, recursive: map[string]int{folder: recursive}}
+// recheckCounters builds the root episode count one grace-watched attempt starts from.
+func recheckCounters(folder string, atRoot int) *svcFakeCounter {
+	return &svcFakeCounter{atRoot: map[string]int{folder: atRoot}}
 }
 
-// recheckAttempt runs one hoster attempt whose detect phase never sees transfer evidence and whose
-// JD answers are inconclusive at both queries, so the attempt reaches the post-grace evaluation
-// against a baseline of 4.
+// recheckAttempt runs one hoster attempt whose detect phase never sees a .part file and whose
+// JD answers are inconclusive at both queries, against a baseline of 4.
 //
-// landDuringGrace moves the RECURSIVE count alone on the last probe of the 60s grace. That is the
-// blind gap this re-check exists to see -- the downloader wrote into its own package subfolder,
-// which Flatten never reaches past one level -- and moving only the recursive basis is what makes
-// a root-basis implementation fail these tests instead of passing them by accident.
+// landDuringGrace adds one episode at the folder ROOT right after the third probe, so the fourth
+// probe's count check is the only reading that sees it: JD finished the file between two probes
+// without a .part ever showing.
 func recheckAttempt(t *testing.T, folder string, counter *svcFakeCounter, landDuringGrace, isFirstHoster bool) (hosterOutcome, *fieldsRecorder, *stagedJDClient) {
 	t.Helper()
 	now := time.Now()
@@ -37,7 +30,7 @@ func recheckAttempt(t *testing.T, folder string, counter *svcFakeCounter, landDu
 		if landDuringGrace && probes == 3 {
 			counter.mu.Lock()
 			defer counter.mu.Unlock()
-			counter.recursive[folder]++
+			counter.atRoot[folder]++
 		}
 		return false
 	})
@@ -52,7 +45,7 @@ func recheckAttempt(t *testing.T, folder string, counter *svcFakeCounter, landDu
 //
 // jdRemove logs download.jd_removed unconditionally BEFORE calling RemoveByDestination, so an
 // absent entry is itself proof that no removal site was even reached; the client's own record
-// closes the loop. Both together are what fail when the re-check is moved after the JD evaluation.
+// closes the loop. Both together are what fail when the count check moves after the JD evaluation.
 func assertNoPackageRemoval(t *testing.T, recorder *fieldsRecorder, jd *stagedJDClient) {
 	t.Helper()
 	if got := len(recorder.byEventType("download.jd_removed")); got != 0 {
@@ -76,37 +69,58 @@ func assertFellThroughToRemoval(t *testing.T, outcome hosterOutcome, recorder *f
 	}
 }
 
-// assertSameEntryShape fails unless two recorded entries agree on event type, level and metadata
-// KEY SET. Values are deliberately not compared: two attempts record different probe offsets while
-// the shape is what must not diverge, and comparing values would pin the wrong thing.
-func assertSameEntryShape(t *testing.T, a, b recordedEntry) {
-	t.Helper()
-	if a.eventType != b.eventType || a.level != b.level {
-		t.Fatalf("expected one carrier at one level, got %q/%q and %q/%q", a.eventType, a.level, b.eventType, b.level)
-	}
-	if len(a.metadata) != len(b.metadata) {
-		t.Fatalf("expected the same metadata key set, got %#v and %#v", a.metadata, b.metadata)
-	}
-	for key := range a.metadata {
-		if _, ok := b.metadata[key]; !ok {
-			t.Fatalf("expected key %q on both entries, got %#v and %#v", key, a.metadata, b.metadata)
-		}
-	}
-}
+// --- the grace's episode count check ---
 
-// --- the post-grace disk re-check ---
-
-func TestAFileThatLandsInsideTheBlindGapProducesADiskConfirmedSuccess(t *testing.T) {
+func TestAFileThatLandsBetweenProbesProducesADiskConfirmedSuccess(t *testing.T) {
 	t.Parallel()
 
 	folder := "folder-" + t.Name()
 
-	outcome, recorder, jd := recheckAttempt(t, folder, recheckCounters(folder, 4, 4), true, true)
+	outcome, recorder, jd := recheckAttempt(t, folder, recheckCounters(folder, 4), true, true)
 
-	// Only the recursive count moved, so a comparison taken on the destination ROOT sees nothing
-	// here and falls through to a dead verdict. That is the whole case this guard exists for.
+	// No probe ever saw a .part file, so only the count check can see the episode.
 	assertOutcome(t, outcome, hosterOutcomeSuccess, "grace_disk_confirmed")
 	assertNoPackageRemoval(t, recorder, jd)
+}
+
+func TestAnEpisodeThatLandsBeforeTheFirstProbeIsConfirmedOnThatProbe(t *testing.T) {
+	t.Parallel()
+
+	folder := "folder-" + t.Name()
+	counter := recheckCounters(folder, 4)
+	now := time.Now()
+	jd := &stagedJDClient{svcFakeJDClient: &svcFakeJDClient{}, answers: []jdAnswer{{status: aliveStatus}, {status: aliveStatus}}}
+	s, recorder := newProbeWatchService(t, jd, counter, &now, func(string) bool { return false })
+	// The rename records its context: the run below is already stopped, and an attempt JD accepted
+	// must still rename what it delivers.
+	var renameCtxErr error
+	s.deps.RenameEpisodes = func(c context.Context) bool { renameCtxErr = c.Err(); return true }
+	// The episode lands during the first 5s sleep, after the entry guard read the baseline, so the
+	// very first probe is the one that must see it.
+	sleep, landed := s.deps.PollSleep, false
+	s.deps.PollSleep = func(d time.Duration) {
+		sleep(d)
+		if !landed {
+			landed = true
+			counter.mu.Lock()
+			counter.atRoot[folder]++
+			counter.mu.Unlock()
+		}
+	}
+
+	stopped, stop := context.WithCancel(context.Background())
+	stop()
+
+	outcome := s.awaitHosterOutcome(stopped, "run-1", testAnime(folder), "Mediafire", 4, 12, true)
+
+	assertOutcome(t, outcome, hosterOutcomeSuccess, "grace_disk_confirmed")
+	assertNoPackageRemoval(t, recorder, jd)
+	if probes := metadataProbes(t, recorder.only(t, "download.detect_start_succeeded")); len(probes) != 1 {
+		t.Fatalf("expected the grace to end on the first probe, got %#v", probes)
+	}
+	if renameCtxErr != nil {
+		t.Fatalf("expected the grace rename to run on a live context, got %v", renameCtxErr)
+	}
 }
 
 func TestAnAttemptWhereNothingLandsFallsThroughUnchanged(t *testing.T) {
@@ -114,24 +128,10 @@ func TestAnAttemptWhereNothingLandsFallsThroughUnchanged(t *testing.T) {
 
 	folder := "folder-" + t.Name()
 
-	outcome, recorder, jd := recheckAttempt(t, folder, recheckCounters(folder, 4, 4), false, true)
+	outcome, recorder, jd := recheckAttempt(t, folder, recheckCounters(folder, 4), false, true)
 
 	// Equality is not a landing. The comparison is strictly greater-than, so an unchanged count
 	// must leave every downstream decision exactly where it stood, the removal included.
-	assertFellThroughToRemoval(t, outcome, recorder, jd)
-}
-
-func TestPreExistingSubfolderResidueDoesNotProduceASuccess(t *testing.T) {
-	t.Parallel()
-
-	folder := "folder-" + t.Name()
-
-	// recursive 6 over a root baseline of 4 is an earlier failed attempt's leftovers sitting in a
-	// package subfolder Flatten never reaches. Comparing the post-grace recursive reading against
-	// the EPISODE's root baseline would read that residue as this attempt's work and advance the
-	// catch-up cursor past an episode nobody downloaded -- silent, permanent, and never retried.
-	outcome, recorder, jd := recheckAttempt(t, folder, recheckCounters(folder, 4, 6), false, true)
-
 	assertFellThroughToRemoval(t, outcome, recorder, jd)
 }
 
@@ -143,53 +143,42 @@ func TestADiskConfirmedSuccessIsIndependentOfChainPosition(t *testing.T) {
 	// The three post-grace dead-end pairs split first-hoster from fallback because their KIND
 	// differs by position. A success does not: a file that landed is a file that landed, so the
 	// fallback attempt reports the same exit rather than the timeout its dead-end twin would.
-	outcome, recorder, jd := recheckAttempt(t, folder, recheckCounters(folder, 4, 4), true, false)
+	outcome, recorder, jd := recheckAttempt(t, folder, recheckCounters(folder, 4), true, false)
 
 	assertOutcome(t, outcome, hosterOutcomeSuccess, "grace_disk_confirmed")
 	assertNoPackageRemoval(t, recorder, jd)
 }
 
-// --- the probe timeline the re-check short-circuits past ---
+// --- the probe timeline of a disk-confirmed attempt ---
 
-func TestADiskConfirmedAttemptStillPersistsItsProbeTimeline(t *testing.T) {
+func TestADiskConfirmedAttemptPersistsItsProbeTimeline(t *testing.T) {
 	t.Parallel()
 
 	folder := "folder-" + t.Name()
 
-	_, recorder, _ := recheckAttempt(t, folder, recheckCounters(folder, 4, 4), true, true)
+	_, recorder, _ := recheckAttempt(t, folder, recheckCounters(folder, 4), true, true)
 
-	// The JD evaluation is what persists this timeline on the failed-detect path, and the
-	// re-check returns before it runs. Losing the entry would blind the probe instrument on
-	// exactly the case it was built to observe.
-	entry := recorder.only(t, "download.detect_start_failed")
-	if entry.level != "warn" {
-		t.Fatalf("expected the probe timeline to persist at warn level, got %q", entry.level)
+	// The grace ends on the probe that saw the episode, and that probe says WHICH signal ended it:
+	// landed, not a .part file. Without the flag a reader cannot tell this success from a transfer.
+	entry := recorder.only(t, "download.detect_start_succeeded")
+	if entry.level != "info" {
+		t.Fatalf("expected the probe timeline to persist at info level, got %q", entry.level)
+	}
+	if got := len(recorder.byEventType("download.detect_start_failed")); got != 0 {
+		t.Fatalf("expected no detect_start_failed entry on a disk-confirmed attempt, got %d", got)
 	}
 	probes := metadataProbes(t, entry)
-	if len(probes) != 3 {
-		t.Fatalf("expected the exhausted grace to persist 3 probes, got %#v", probes)
+	if len(probes) != 4 {
+		t.Fatalf("expected the grace to stop at the fourth probe, got %#v", probes)
 	}
-	for i, p := range probes {
-		if p["found"] != false {
-			t.Fatalf("expected every probe of a missed transfer to report found=false, got probe %d: %#v", i, p)
+	for i, p := range probes[:3] {
+		if p["found"] != false || p["landed"] != false {
+			t.Fatalf("expected the probes before the landing to see nothing, got probe %d: %#v", i, p)
 		}
 	}
-}
-
-func TestTheProbeCarrierKeepsTheShapeItHasOnTheFailedDetectPath(t *testing.T) {
-	t.Parallel()
-
-	confirmed := "folder-" + t.Name() + "-confirmed"
-	fallThrough := "folder-" + t.Name() + "-fallthrough"
-
-	_, confirmedRecorder, _ := recheckAttempt(t, confirmed, recheckCounters(confirmed, 4, 4), true, true)
-	_, fallThroughRecorder, _ := recheckAttempt(t, fallThrough, recheckCounters(fallThrough, 4, 4), false, true)
-
-	// One helper emits both, so identity is structural rather than something this test has to
-	// police -- but a second emission site reintroduced later would show up here first.
-	assertSameEntryShape(t,
-		confirmedRecorder.only(t, "download.detect_start_failed"),
-		fallThroughRecorder.only(t, "download.detect_start_failed"))
+	if probes[3]["landed"] != true || probes[3]["found"] != false {
+		t.Fatalf("expected the last probe to report landed=true and found=false, got %#v", probes[3])
+	}
 }
 
 func TestProbeOffsetsStillAdvanceOnTheDiskConfirmedPath(t *testing.T) {
@@ -197,11 +186,11 @@ func TestProbeOffsetsStillAdvanceOnTheDiskConfirmedPath(t *testing.T) {
 
 	folder := "folder-" + t.Name()
 
-	_, recorder, _ := recheckAttempt(t, folder, recheckCounters(folder, 4, 4), true, true)
+	_, recorder, _ := recheckAttempt(t, folder, recheckCounters(folder, 4), true, true)
 
 	// A fixed clock makes this guard's own tests pass while measuring nothing, and the offsets are
 	// where that shows: under a frozen clock every probe records the same number.
-	probes := metadataProbes(t, recorder.only(t, "download.detect_start_failed"))
+	probes := metadataProbes(t, recorder.only(t, "download.detect_start_succeeded"))
 	previous := int64(-1)
 	for i := range probes {
 		elapsed := probeOffset(t, probes, i)
@@ -210,8 +199,8 @@ func TestProbeOffsetsStillAdvanceOnTheDiskConfirmedPath(t *testing.T) {
 		}
 		previous = elapsed
 	}
-	if got := probeOffset(t, probes, 2) - probeOffset(t, probes, 0); got != 40000 {
-		t.Fatalf("expected the first and last probe to be 40000ms apart, got %d", got)
+	if got := probeOffset(t, probes, 3) - probeOffset(t, probes, 0); got != 15000 {
+		t.Fatalf("expected the first and last probe to be 15000ms apart, got %d", got)
 	}
 }
 
@@ -222,9 +211,9 @@ func TestADiskConfirmedSuccessCompletesTheEpisode(t *testing.T) {
 
 	folder := "folder-" + t.Name()
 
-	_, recorder, _ := recheckAttempt(t, folder, recheckCounters(folder, 4, 4), true, true)
+	_, recorder, _ := recheckAttempt(t, folder, recheckCounters(folder, 4), true, true)
 
-	// Flattening alone would leave the file under the downloader's raw name, where the highest-
+	// Without the rename the file keeps the downloader's raw name, where the highest-
 	// episode read resolves to 0 and the cursor survives on the file count alone -- so one
 	// duplicate video makes the next run skip a real episode.
 	if got := len(recorder.byEventType("download.renamed")); got != 1 {

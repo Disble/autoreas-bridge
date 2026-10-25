@@ -445,6 +445,7 @@ handlers or drivers; or if any `internal/**` package imports the Wails runtime.
 Deeper reading:
 
 - [`docs/architecture.md`](docs/architecture.md) — full architecture document (Spanish)
+- [`docs/architecture/`](docs/architecture/README.md) — per-context architecture (downloads so far)
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — frontend rails and enforcement barriers
 - [`docs/adr/`](docs/adr/) — Architecture Decision Records
 - [`docs/ubiquitous-language.md`](docs/ubiquitous-language.md) — domain vocabulary

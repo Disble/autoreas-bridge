@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/api/contracts"
-	"autoreas-bridge/internal/download/filesystem"
 	"autoreas-bridge/internal/download/jdownloader"
 	"autoreas-bridge/internal/events"
 )
@@ -179,67 +178,13 @@ func TestAwaitHosterOutcomeReturnsSuccessWhenDiskBaselineExceeded(t *testing.T) 
 
 	folder := "folder-a"
 	now := time.Now()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 5}, recursive: map[string]int{folder: 5}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 5}, landing: map[string]int{folder: 5}}
 	jd := &svcFakeJDClient{}
 	s := newWatchTestService(t, jd, counter, &now)
 
 	outcome := s.awaitHosterOutcome(context.Background(), "run-1", testAnime(folder), "Mediafire", 4, 1, true)
 	if outcome.kind != hosterOutcomeSuccess {
 		t.Fatalf("expected success outcome when disk baseline is exceeded, got %#v", outcome)
-	}
-}
-
-func TestAwaitHosterOutcomeFlattensJDownloaderPackageWhenRootSignalsCompletion(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	packageFolder := filepath.Join(root, "9gm31meptrvq")
-	rootVideo := filepath.Join(root, "episode-01.mp4")
-	nestedVideo := filepath.Join(packageFolder, "episode-02.mp4")
-	if err := os.MkdirAll(packageFolder, 0o755); err != nil {
-		t.Fatalf("create JDownloader package folder: %v", err)
-	}
-	if err := os.WriteFile(rootVideo, []byte("video"), 0o600); err != nil {
-		t.Fatalf("create root video: %v", err)
-	}
-	if err := os.WriteFile(nestedVideo, []byte("video"), 0o600); err != nil {
-		t.Fatalf("create nested video: %v", err)
-	}
-
-	now := time.Now()
-	deps := baseDeps(t)
-	deps.Counter = filesystem.NewEpisodeCounter()
-	deps.Flattener = filesystem.NewFlattener()
-	deps.Clock = func() time.Time { return now }
-	s := NewService(deps)
-
-	outcome := s.awaitHosterOutcome(context.Background(), "run-1", testAnime(root), "Mediafire", 0, 1, true)
-	if outcome.kind != hosterOutcomeSuccess {
-		t.Fatalf("expected success outcome, got %#v", outcome)
-	}
-	if _, err := os.Stat(rootVideo); err != nil {
-		t.Fatalf("expected existing root video to remain in place: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(root, filepath.Base(nestedVideo))); err != nil {
-		t.Fatalf("expected JDownloader video at root: %v", err)
-	}
-	if _, err := os.Stat(packageFolder); !os.IsNotExist(err) {
-		t.Fatalf("expected emptied JDownloader package folder removed, stat err: %v", err)
-	}
-}
-
-func TestAwaitHosterOutcomeFlattensOnRecursiveAppearanceBeforeBaselineRecheck(t *testing.T) {
-	t.Parallel()
-
-	folder := "folder-b"
-	now := time.Now()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 5}}
-	jd := &svcFakeJDClient{}
-	s := newWatchTestService(t, jd, counter, &now)
-
-	outcome := s.awaitHosterOutcome(context.Background(), "run-1", testAnime(folder), "Mediafire", 4, 1, true)
-	if outcome.kind != hosterOutcomeSuccess {
-		t.Fatalf("expected the Flatten-on-appear + baseline recheck to report success, got %#v", outcome)
 	}
 }
 
@@ -263,7 +208,7 @@ func TestAwaitHosterOutcomeReturnsDeadAndRemovesThePackage(t *testing.T) {
 
 	folder := "folder-c"
 	now := time.Now()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	jd := &deadJDClient{svcFakeJDClient: &svcFakeJDClient{}}
 	s := newWatchTestService(t, jd, counter, &now)
 
@@ -281,7 +226,7 @@ func TestAwaitHosterOutcomeAdvancesEvenWhenRemoveFails(t *testing.T) {
 
 	folder := "folder-d"
 	now := time.Now()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	jd := &deadJDClient{svcFakeJDClient: &svcFakeJDClient{}, removeErr: errors.New("remove failed")}
 	s := newWatchTestService(t, jd, counter, &now)
 
@@ -304,7 +249,7 @@ func TestAwaitHosterOutcomeReturnsTimeoutWhenNeitherDiskNorDeadWithinDeadline(t 
 
 	folder := "folder-e"
 	now := time.Now()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	jd := &downloadingJDClient{svcFakeJDClient: &svcFakeJDClient{}}
 	s := newWatchTestService(t, jd, counter, &now)
 
@@ -319,7 +264,7 @@ func TestAwaitHosterOutcomeDownloadingVerdictNeverTriggersFallbackUnderTimeout(t
 
 	folder := "folder-f"
 	now := time.Now()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	jd := &downloadingJDClient{svcFakeJDClient: &svcFakeJDClient{}}
 	s := newWatchTestService(t, jd, counter, &now)
 
@@ -412,7 +357,7 @@ func TestDetectDownloadStartPhasePartFoundImmediatelyReturnsStarted(t *testing.T
 	deps.Bus = bus
 	s := NewService(deps)
 
-	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 3, deps.Clock())
+	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 0, 3, deps.Clock())
 	if !started {
 		t.Fatalf("expected started=true when HasPartFiles returns true, got probes=%#v", probes)
 	}
@@ -438,7 +383,7 @@ func TestDetectDownloadStartPhasePublishesEventWhenPartFound(t *testing.T) {
 		}
 	})
 
-	started, _ := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 3, deps.Clock())
+	started, _ := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 0, 3, deps.Clock())
 	if !started {
 		t.Fatal("expected started=true")
 	}
@@ -456,12 +401,37 @@ func TestDetectDownloadStartPhaseNeverFindsPartReturnsDead(t *testing.T) {
 	deps.PollSleep = func(d time.Duration) {} // no-op, instant
 	s := NewService(deps)
 
-	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 3, deps.Clock())
+	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 0, 3, deps.Clock())
 	if started {
 		t.Fatal("expected started=false when HasPartFiles never returns true")
 	}
-	if len(probes) != 3 {
-		t.Fatalf("expected the exhausted schedule to record 3 probes, got %#v", probes)
+	if len(probes) != 12 {
+		t.Fatalf("expected the exhausted schedule to record 12 probes, got %#v", probes)
+	}
+}
+
+// TestDetectDownloadStartPhaseChecksTheEpisodeCountBeforeThePartFile pins the probe order: when a
+// probe sees both a new episode at the root and a .part file, the episode wins, because a .part
+// never counts as an episode and the landed episode is what lets the attempt succeed on the spot.
+func TestDetectDownloadStartPhaseChecksTheEpisodeCountBeforeThePartFile(t *testing.T) {
+	t.Parallel()
+
+	deps := baseDeps(t)
+	deps.DetectStartPhaseDisabled = false
+	partChecks := 0
+	deps.HasPartFiles = func(string) bool { partChecks++; return true }
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{"/fake/folder": 1}})
+	s := NewService(deps)
+
+	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 0, 3, deps.Clock())
+	if !started || len(probes) != 1 {
+		t.Fatalf("expected the first probe to end the grace, got started=%v probes=%#v", started, probes)
+	}
+	if !probes[0].landed || probes[0].found {
+		t.Fatalf("expected the probe to report landed=true and found=false, got %#v", probes[0])
+	}
+	if partChecks != 0 {
+		t.Fatalf("expected no .part lookup once the episode count rose, got %d", partChecks)
 	}
 }
 
@@ -472,7 +442,7 @@ func TestDetectDownloadStartPhaseDisabledReturnsStartedImmediately(t *testing.T)
 	deps.DetectStartPhaseDisabled = true
 	s := NewService(deps)
 
-	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 3, deps.Clock())
+	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 0, 3, deps.Clock())
 	if !started {
 		t.Fatal("expected started=true when phase is disabled")
 	}
@@ -498,7 +468,7 @@ func TestAwaitHosterOutcomeRemovesPackageWhenDetectPhaseReturnsDead(t *testing.T
 
 	folder := "folder-detect-dead"
 	now := time.Now()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	jd := &detectDeadJDClient{svcFakeJDClient: &svcFakeJDClient{}}
 	s := newWatchTestService(t, jd, counter, &now)
 	// Enable detect phase so it runs. HasPartFiles defaults to real hasPartFilesRecursive which

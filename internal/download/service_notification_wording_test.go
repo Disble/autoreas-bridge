@@ -104,7 +104,7 @@ func runPartialFanOutBody(t *testing.T) string {
 		{ID: "wording-ok", Name: "Wording OK Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: new("https://jkanime.net/wording-ok/"), Folder: new(okFolder)},
 		{ID: "wording-broken", Name: "Wording Broken Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: new("https://jkanime.net/wording-broken/"), Folder: new(t.TempDir())},
 	}}
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{okFolder: 4}, recursive: map[string]int{okFolder: 5}})
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{okFolder: 4}, landing: map[string]int{okFolder: 5}})
 	notifier := &svcFakeNotifier{}
 	deps.Notifier = notifier
 
@@ -170,7 +170,7 @@ func runPartialSingleAnimeBody(t *testing.T) string {
 		},
 	})
 	deps.Sites = registry
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 0}, recursive: map[string]int{folder: 1}})
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 0}, landing: map[string]int{folder: 1}})
 	notifier := &svcFakeNotifier{}
 	deps.Notifier = notifier
 	anime := contracts.MobileAnime{ID: "wording-flaky", Name: "Wording Flaky Anime", SourceURL: new("https://jkanime.net/wording-flaky/"), Folder: new(folder)}

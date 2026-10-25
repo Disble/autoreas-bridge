@@ -2,7 +2,6 @@ package download
 
 import (
 	"context"
-	"maps"
 	"strconv"
 	"strings"
 	"sync"
@@ -43,17 +42,16 @@ func assertSoloRunProgress(t *testing.T, snapshots []Run) {
 	}
 }
 
+// catchupCounter is the in-memory EpisodeCounter for catch-up runs: every enqueued download
+// lands one more episode at the folder root.
 type catchupCounter struct {
-	mu        sync.Mutex
-	atRoot    map[string]int
-	recursive map[string]int
+	mu     sync.Mutex
+	atRoot map[string]int
 }
 
-// newCatchupCounter creates an episode counter with root and recursive counts.
+// newCatchupCounter creates an episode counter with the given root counts.
 func newCatchupCounter(atRoot map[string]int) *catchupCounter {
-	recursive := make(map[string]int, len(atRoot))
-	maps.Copy(recursive, atRoot)
-	return &catchupCounter{atRoot: atRoot, recursive: recursive}
+	return &catchupCounter{atRoot: atRoot}
 }
 
 func (c *catchupCounter) CountAtRoot(folder string) int {
@@ -62,36 +60,13 @@ func (c *catchupCounter) CountAtRoot(folder string) int {
 	return c.atRoot[folder]
 }
 
-func (c *catchupCounter) CountRecursive(folder string) int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.recursive[folder]
-}
-
 func (c *catchupCounter) HighestEpisodeAtRoot(folder string) int { return c.CountAtRoot(folder) }
 
-func (c *catchupCounter) HighestEpisodeRecursive(folder string) int { return c.CountRecursive(folder) }
-
-// setRecursive sets the recursive episode count for a folder.
-func (c *catchupCounter) setRecursive(folder string, count int) {
+// markDownloaded lands one newly downloaded episode at the folder root.
+func (c *catchupCounter) markDownloaded(folder string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.recursive[folder] = count
-}
-
-// markRecursiveDownloaded records one newly downloaded recursive episode.
-func (c *catchupCounter) markRecursiveDownloaded(folder string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.recursive[folder] = c.atRoot[folder] + 1
-}
-
-func (c *catchupCounter) Flatten(folder string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.recursive[folder] > c.atRoot[folder] {
-		c.atRoot[folder] = c.recursive[folder]
-	}
+	c.atRoot[folder]++
 }
 
 var _ filesystem.EpisodeCounter = (*catchupCounter)(nil)
@@ -108,7 +83,7 @@ func (j *recordingCatchupJD) AddAndStart(ctx context.Context, deviceName string,
 	j.mu.Lock()
 	j.seen = append(j.seen, episode)
 	j.mu.Unlock()
-	j.counter.markRecursiveDownloaded(req.Destination)
+	j.counter.markDownloaded(req.Destination)
 	return nil
 }
 

@@ -53,8 +53,7 @@ func (j *cancellingJD) AddAndStart(ctx context.Context, deviceName string, req j
 	if err := j.svcFakeJDClient.AddAndStart(ctx, deviceName, req); err != nil {
 		return err
 	}
-	j.counter.markRecursiveDownloaded(req.Destination)
-	j.counter.Flatten(req.Destination)
+	j.counter.markDownloaded(req.Destination)
 	if j.enqueued >= j.cancelAfter {
 		j.cancel()
 	}
@@ -85,7 +84,6 @@ func cancellableSoloRun(t *testing.T, cancelAfter int) (ServiceDeps, contracts.M
 
 	counter := newCatchupCounter(map[string]int{folder: 0})
 	deps.Counter = counter
-	deps.Flattener = &svcFakeFlattener{onFlatten: func(folder string) { counter.Flatten(folder) }}
 	deps.Store = ctxHonoringStore{svcFakeDownloadStore: newsvcFakeDownloadStore()}
 
 	ctx, cancel := context.WithCancel(context.Background())

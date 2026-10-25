@@ -42,10 +42,6 @@ const (
 	exitFSPollConfirmed exitReason = "fs_poll_confirmed"
 	// exitFSPollDeadline is the completion poll running out its safety cap.
 	exitFSPollDeadline exitReason = "fs_poll_deadline"
-	// exitCancelledDuringPoll is the completion poll interrupted by a stopped run. A user
-	// pressing Stop and a genuine 30-minute timeout are different decisions, so they keep
-	// different values even though both classify as a timeout.
-	exitCancelledDuringPoll exitReason = "cancelled_during_poll"
 	// exitGraceClientAbsentFirst is the post-grace dead end with no JD client at all, on the
 	// first hoster.
 	exitGraceClientAbsentFirst exitReason = "grace_client_absent_first"
@@ -67,10 +63,9 @@ const (
 	// exitGraceNoSignalFallback mirrors exitGraceNoSignalFirst on a fallback hoster, which
 	// removes nothing and only times out.
 	exitGraceNoSignalFallback exitReason = "grace_no_signal_fallback"
-	// exitGraceDiskConfirmed is a success the detect phase MISSED: no .part evidence appeared
-	// during the 60s grace, but the filesystem had advanced past this attempt's OWN recursive
-	// baseline by the time the grace ended. It renames and flattens, and it is the only success
-	// exit that fires while JD still holds the package.
+	// exitGraceDiskConfirmed is a success seen during the 60s grace: a probe found the
+	// episode count at the folder root past the episode's baseline. It renames before any
+	// JD verdict is asked, while JD still holds the package.
 	exitGraceDiskConfirmed exitReason = "grace_disk_confirmed"
 
 	// --- pipeline level: resolved by enqueueWithFallback in service_pipeline.go ---
@@ -107,12 +102,15 @@ const (
 // run-dl1532pqkk3g investigation had to perform by hand against an external log.
 //
 // Anchoring at attempt start rather than at the detect phase is what makes the array carry
-// information: detect-relative offsets would always be exactly 20000/40000/60000, so the array
-// would degenerate into three booleans. Anchored at attempt start, the FIRST offset exposes
-// pre-check latency while the SPACING between consecutive entries still shows the 20s schedule.
+// information: detect-relative offsets would always be exactly 5000/10000/.../60000, so the array
+// would degenerate into a list of booleans. Anchored at attempt start, the FIRST offset exposes
+// pre-check latency while the SPACING between consecutive entries still shows the 5s schedule.
 type probe struct {
 	elapsedMs int64
-	found     bool
+	// found reports a .part file; landed reports a new episode at the folder root. A probe that
+	// sees the episode landed does not look for a .part file, so at most one of them is true.
+	found  bool
+	landed bool
 }
 
 // attemptOutcomeName renders a watch outcome for the per-attempt ledger. The enqueue-error
@@ -208,7 +206,7 @@ func anyRunningSignal(status jdownloader.DestinationStatus) bool {
 func probeMetadata(probes []probe) []map[string]any {
 	out := make([]map[string]any, 0, len(probes))
 	for _, p := range probes {
-		out = append(out, map[string]any{"elapsedMs": p.elapsedMs, "found": p.found})
+		out = append(out, map[string]any{"elapsedMs": p.elapsedMs, "found": p.found, "landed": p.landed})
 	}
 	return out
 }

@@ -8,7 +8,7 @@
 // AnimeQueryService (READ-ONLY, ADR-5) -> filter by today's Spanish weekday -> per-anime fan-out
 // with failure isolation -> EvaluateAnimeForDownload (skip accounting) -> trigger decision
 // (NeedsDownload, filesystem is source of truth, ADR-DISK) -> resolve site adapter -> scrape ->
-// hoster-ordered enqueue with fallback -> filesystem completion poll -> flatten -> structured
+// hoster-ordered enqueue with fallback -> filesystem completion poll -> structured
 // logging + download.* events + Notifier for user-notable moments -> FinalizeRun.
 package download
 
@@ -70,8 +70,6 @@ type ServiceDeps struct {
 	Hosters     HosterResolver
 	JD          jdownloader.JDClient
 	Counter     filesystem.EpisodeCounter
-	Flattener   filesystem.Flattener
-	Renamer     filesystem.Renamer
 	Store       Store
 	Notifier    notification.Notifier
 	// EpisodeDurationNotice is where a landed episode is offered to the duration notice. Nil means
