@@ -14,6 +14,16 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [2.5.1] — 2026-10-25
+
+### Fixed
+
+- The app no longer freezes after you edit an episode in the Editor and then save. The Episodes table locked up the whole window when it reloaded after one of its rows had been clicked, for example after saving a new total or saving episode durations.
+
+### Internal
+
+- HeroUI moves to 3.2.6, and React, Tailwind, Vite and other frontend libraries move to their latest patch or minor release. No wire change.
+
 ## [2.5.0] — 2026-10-25
 
 ### Added

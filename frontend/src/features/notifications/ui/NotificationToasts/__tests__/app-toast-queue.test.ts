@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { appToastQueue, resolveToastTimeoutMs } from '../app-toast-queue';
 import { closeAppNotificationToast, renderAppNotificationToast } from '../app-notification.helpers';
 import { SEVERITY_TO_VARIANT } from '../notification-resolver.constants';
@@ -36,11 +36,13 @@ describe('resolveToastTimeoutMs', () => {
  * mocks at all.
  */
 describe('appToastQueue add/close round trip', () => {
-  afterEach(() => {
+  afterEach(async () => {
     appToastQueue.clear();
+    // HeroUI 3.2.6 keeps a closed toast queued for its exit animation; let it leave before the next test.
+    await vi.waitFor(() => expect(appToastQueue.visibleToasts).toHaveLength(0));
   });
 
-  it('closes a toast it opened, so a settled notice can actually leave the screen', () => {
+  it('closes a toast it opened, so a settled notice can actually leave the screen', async () => {
     const toastId = renderAppNotificationToast({ severity: 'warning', title: 'Missed selected day', persistent: true });
     expect(appToastQueue.visibleToasts).toHaveLength(1);
 
@@ -49,16 +51,17 @@ describe('appToastQueue add/close round trip', () => {
     // A persistent toast has timeout 0, so nothing else will ever remove it.
     // Close it on the wrong queue and it stays on screen for the rest of the
     // session, long after the thing it warns about has been resolved.
-    expect(appToastQueue.visibleToasts).toHaveLength(0);
+    // It leaves after its exit animation rather than at once.
+    await vi.waitFor(() => expect(appToastQueue.visibleToasts).toHaveLength(0));
   });
 
-  it('leaves other toasts alone when closing one', () => {
+  it('leaves other toasts alone when closing one', async () => {
     const first = renderAppNotificationToast({ severity: 'info', title: 'First', persistent: true });
     renderAppNotificationToast({ severity: 'info', title: 'Second', persistent: true });
 
     closeAppNotificationToast(first);
 
-    expect(appToastQueue.visibleToasts.map((queued) => queued.content.title)).toEqual(['Second']);
+    await vi.waitFor(() => expect(appToastQueue.visibleToasts.map((queued) => queued.content.title)).toEqual(['Second']));
   });
 });
 
