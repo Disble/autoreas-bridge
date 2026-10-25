@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ActivityRead } from '../activity-run-story.types';
 import {
   formatActivityClock,
-  formatActivityDayTime,
   formatActivityDuration,
   formatActivityOffset,
   startActivityRead,
@@ -23,11 +22,6 @@ describe('activity-time.helpers', () => {
   it('formats a local clock with milliseconds, zero-padded', () => {
     expect(formatActivityClock(new Date(2026, 9, 17, 7, 1, 4, 5).getTime())).toBe('07:01:04.005');
     expect(formatActivityClock(new Date(2026, 9, 17, 17, 31, 44, 120).getTime())).toBe('17:31:44.120');
-  });
-
-  it('formats a local day and minute on a 24-hour clock', () => {
-    expect(formatActivityDayTime(new Date(2026, 9, 17, 17, 31).getTime())).toBe('Oct 17, 17:31');
-    expect(formatActivityDayTime(new Date(2026, 0, 2, 0, 5).getTime())).toBe('Jan 2, 00:05');
   });
 
   it.each([

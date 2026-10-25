@@ -31,6 +31,7 @@ export const KEYMAP_PANEL_ERROR_TITLE = 'Shortcuts unavailable';
 export const KEYMAP_SCOPE_NOTE_BY_SCOPE: Readonly<Record<KeyboardScope, string | null>> = {
   global: null,
   'notification-center': 'while the Notification Center is open',
+  'activity-feed': 'while an Activity detail is open',
 };
 
 /**

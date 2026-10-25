@@ -1,22 +1,11 @@
 /**
- * Frontend contracts of the Incidents tab and the run story: the incident
- * detail, the folded request window, one captured request, and runs.
+ * Frontend contracts the detail drawer reads: the incident detail, the folded
+ * request window, one captured request, a change's context and the run story.
  *
  * Like `activity.types.ts`, they mirror the Go types of `activityread` field
  * for field in camelCase; nil pointers become `undefined` and nil slices
  * become empty arrays.
  */
-
-/** The "where it happened" filter (`activityread.Where`). */
-export type ActivityWhere = 'all' | 'phone' | 'downloads' | 'editor' | 'schedule' | 'season';
-
-/** One option of the "where it happened" filter. */
-export interface ActivityWhereOption {
-  /** The filter value Go reads. */
-  readonly id: ActivityWhere;
-  /** The words the toggle shows. */
-  readonly label: string;
-}
 
 /** One stored incident occurrence with its plain-words title. */
 export interface ActivityIncidentOccurrence {
@@ -164,24 +153,18 @@ export interface ActivityRequestDetail {
   readonly responseBodyState: string;
   /** Paired device name. */
   readonly deviceName: string;
+  /** Request headers as stored, credentials already masked; absent when none were captured (Go `omitempty`). */
+  readonly requestHeaders?: Readonly<Record<string, string>>;
+  /** Response headers as stored; absent when none were captured (Go `omitempty`). */
+  readonly responseHeaders?: Readonly<Record<string, string>>;
 }
 
-/** The events sharing one correlation id; the outcome is their worst level. */
-export interface ActivityRun {
-  /** The run's correlation id. */
-  readonly correlationId: string;
-  /** First event, epoch milliseconds. */
-  readonly firstAtMs: number;
-  /** Last event, epoch milliseconds. */
-  readonly lastAtMs: number;
-  /** Events in the run. */
-  readonly steps: number;
-  /** Worst level among them: `debug`, `info`, `warn` or `error`. */
-  readonly outcome: string;
-  /** Type of the run's first event. */
-  readonly firstEventType: string;
-  /** Message of the run's first event. */
-  readonly firstMessage: string;
+/** What one change line links to by anime and time (`GetActivityChangeContext`). */
+export interface ActivityChangeContext {
+  /** The anime's runtime events around the change, oldest first. */
+  readonly events: readonly ActivityRunStep[];
+  /** The captured requests that carried the change, folded by route and status. */
+  readonly requests: readonly ActivityFoldedRequest[];
 }
 
 /** One event of a run story, with its raw metadata. */

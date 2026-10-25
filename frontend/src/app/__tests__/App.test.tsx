@@ -146,7 +146,7 @@ describe('App routing', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Activity' })).toBeInTheDocument();
   });
 
-  it('redirects the legacy /events deep link to the Activity Now tab', async () => {
+  it('redirects the legacy /events deep link to the Activity feed', async () => {
     render(
       <MemoryRouter initialEntries={['/events']}>
         <App />
@@ -154,7 +154,7 @@ describe('App routing', () => {
     );
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Activity' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Now' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('toolbar', { name: 'Activity filters' })).toBeInTheDocument();
   });
 
   it('renders the season route directly', async () => {

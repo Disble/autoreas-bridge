@@ -6,11 +6,11 @@ import type { ActivityRunStoryProps } from './activity-run-story.types';
 import { useActivityRunStory } from './use-activity-run-story';
 
 /**
- * "Inside the bridge": the story of one run, read by its correlation id.
+ * The story of one run as a timeline, read by its correlation id.
  * Loading, failure and the resolved story are exclusive.
  */
 export function ActivityRunStory({ correlationId }: ActivityRunStoryProps) {
-  const { read, model, selectedStepId, metadata, isRawOpen, selectStep, toggleRaw, retry, copyReference } = useActivityRunStory(correlationId);
+  const { read, model, retry } = useActivityRunStory(correlationId);
 
   if (read.status === 'loading') {
     return (
@@ -37,15 +37,5 @@ export function ActivityRunStory({ correlationId }: ActivityRunStoryProps) {
     );
   }
 
-  return (
-    <ActivityRunStoryContent
-      isRawOpen={isRawOpen}
-      metadata={metadata}
-      model={model}
-      onCopy={copyReference}
-      onSelectStep={selectStep}
-      onToggleRaw={toggleRaw}
-      selectedStepId={selectedStepId}
-    />
-  );
+  return <ActivityRunStoryContent model={model} />;
 }
