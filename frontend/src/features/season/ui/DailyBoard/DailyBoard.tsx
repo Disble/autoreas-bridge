@@ -4,6 +4,7 @@ import { OpenPageButton } from '../../../../shared/ui/OpenPageButton';
 import { LoadingBars } from '../../../../shared/ui/LoadingBars/LoadingBars';
 import { getGradeChip } from '../EvaluationPanel/evaluation-panel.helpers';
 import { SeasonCoverThumb } from '../SeasonCoverThumb/SeasonCoverThumb';
+import { AutoDownloadChip } from './AutoDownloadChip/AutoDownloadChip';
 import {
   DAILY_BOARD_LOADING_LABEL,
   DAILY_BOARD_SECTION_COPY,
@@ -186,6 +187,7 @@ export function DailyBoard() {
           copy={DAILY_BOARD_SECTION_COPY.verHoy}
           count={sections.verHoy.length}
           countColor="accent"
+          headerEnd={readOnly ? null : <AutoDownloadChip />}
           footer={
             readOnly ? null : (
               <div className="mt-3 flex items-center gap-3">

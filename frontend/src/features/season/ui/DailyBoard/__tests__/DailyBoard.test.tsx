@@ -10,6 +10,12 @@ vi.mock('../use-daily-board', () => ({
   useDailyBoard: vi.fn(),
 }));
 
+// The chip reads the Downloads schedule on its own; here only its placement matters.
+vi.mock('../AutoDownloadChip/AutoDownloadChip', () => ({
+  /** Stands in for the scheduled-download chip. */
+  AutoDownloadChip: () => <span data-testid="auto-download-chip" />,
+}));
+
 /** The mocked `useDailyBoard` hook the board renders from. */
 const mockedUseDailyBoard = vi.mocked(useDailyBoard);
 /** The view model `useDailyBoard` returns. */
@@ -171,6 +177,21 @@ describe('DailyBoard', () => {
     render(<DailyBoard />);
     expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([title]);
     expect(screen.getByRole('button', { name: 'Re-check now' })).toBeInTheDocument();
+  });
+
+  it.each([
+    [false, ['Ver hoy']],
+    [true, []],
+  ])('puts the scheduled-download chip in the Ver hoy header only, when read-only is %s', (readOnly, expected) => {
+    mockHook({
+      readOnly,
+      sections: { sinVer: [created('a', 'anime-a', 'Sin ver')], verHoy: [created('b', 'anime-b', 'Ver hoy')], visto: [created('c', 'anime-c', 'Visto')] },
+    });
+    const { container } = render(<DailyBoard />);
+    const headersWithChip = [...container.querySelectorAll('[data-slot="card-header"]')]
+      .filter((header) => header.querySelector('[data-testid="auto-download-chip"]') !== null)
+      .map((header) => header.querySelector('h3')?.textContent);
+    expect(headersWithChip).toEqual(expected);
   });
 
   it('shows all three cards in a read-only season, each empty one with its compact empty state', () => {

@@ -33,6 +33,8 @@ export interface DailyBoardSectionCardProps {
   readonly count: number;
   /** The count chip's semantic color. */
   readonly countColor: 'default' | 'accent' | 'success';
+  /** Rendered at the end of the header row, opposite the title. */
+  readonly headerEnd?: ReactNode;
   /** The section's rows, rendered when the count is above zero. */
   readonly children: ReactNode;
   /** Actions rendered under the content whatever the count. */
