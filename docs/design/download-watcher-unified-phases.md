@@ -81,13 +81,16 @@ awaitHosterOutcome(destination, baselineCount, firstHoster):
   FASE 2 — downloading → completed
   ═══════════════════════════════════════════
   State: downloading → completed
-  Filesystem only, every 15s. No JD API calls.
+  Filesystem only, every 5s. No JD API calls.
   30-minute safety timeout.
+  Stop does not end this phase (nor FASE 1/1B): once JD accepted the enqueue it keeps
+  downloading on its own, so the attempt runs to its end and the run honours Stop before
+  the next hoster is enqueued and after the episode is renamed.
 
   while not timed_out (30 min safety cap):
     video new at the folder root?
       → completed → SUCCESS
-    sleep 15s
+    sleep 5s
 
   → TIMEOUT
 ```
@@ -231,7 +234,7 @@ awaitHosterOutcome(destination, baselineCount, firstHoster):
  ││       Estado: downloading │                     │   │                │   │
  └───────────────────────────┘                     │   │                │   │
  │   │                                            │   │                │   │
- │loop [cada 15s, timeout 30 min]─────────────────────────────────────────│
+ │loop [cada 5s, timeout 30 min]──────────────────────────────────────────│
  │   │                                            │                    │   │
  │   │                     CountAtRoot (solo raíz)                      │   │
  │   │─────────────────────────────────────────────────────────────────▶   │

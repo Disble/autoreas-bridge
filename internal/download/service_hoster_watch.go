@@ -192,7 +192,7 @@ func hasPositiveJDSignal(st jdownloader.DestinationStatus) bool {
 //	           - DEAD (OfflineCount > 0)     → fallback
 //	           - ALIVE (OnlineCount/Running) → DownloadEpisodeDownloadingEvent → FASE 2
 //	           - UNKNOWN (no clear signal)   → firstHoster DEAD, fallback TIMEOUT
-//	FASE 2:    downloading → completed (filesystem-only 15s tick, 30 min safety cap).
+//	FASE 2:    downloading → completed (filesystem-only 5s tick, 30 min safety cap).
 //
 // JD API is called at most twice per hoster attempt; FASE 2 never calls it.
 func (s *Service) awaitHosterOutcome(ctx context.Context, runID string, anime contracts.MobileAnime, hoster string, baselineCount, episode int, isFirstHoster bool) hosterOutcome {
@@ -201,6 +201,12 @@ func (s *Service) awaitHosterOutcome(ctx context.Context, runID string, anime co
 	// for every decision the offsets serve -- and capturing it here costs this function no
 	// signature change.
 	attemptStart := s.deps.Clock()
+	// Once JD accepted the enqueue, Stop can no longer halt the transfer: JD keeps downloading on
+	// its own. The attempt therefore runs to its end -- landed and renamed, hoster dead, or the
+	// 30-minute cap -- and the run honours Stop at its quiet points instead: before the next
+	// hoster is enqueued and after the episode is renamed. Without this, a stopped run would
+	// abandon a file JD still delivers, and the rename would refuse the cancelled context.
+	ctx = context.WithoutCancel(ctx)
 	folder := derefOrEmpty(anime.Folder)
 	if s.deps.Counter == nil {
 		return hosterOutcome{kind: hosterOutcomeTimeout, exit: exitCounterUnavailable}
@@ -242,8 +248,8 @@ func (s *Service) awaitHosterOutcome(ctx context.Context, runID string, anime co
 // pollForCompletion runs FASE 2: the filesystem-only completion poll, bounded by a safety cap. It
 // is the only success authority -- JD's own "finished" verdict never declares one.
 //
-// Extracted verbatim out of awaitHosterOutcome when splitting the terminal condition below pushed
-// that function past the cognitive-complexity gate. Nothing is reordered and no condition changes.
+// Its only terminal points are the episode landing and the safety cap; a stopped run does not
+// end it (see awaitHosterOutcome).
 func (s *Service) pollForCompletion(ctx context.Context, runID string, anime contracts.MobileAnime, folder string, baselineCount, episode int) hosterOutcome {
 	deadline := s.deps.Clock().Add(config.FilesystemCompletionPollTimeout)
 	for {
@@ -252,16 +258,10 @@ func (s *Service) pollForCompletion(ctx context.Context, runID string, anime con
 			return hosterOutcome{kind: hosterOutcomeSuccess, exit: exitFSPollConfirmed}
 		}
 
-		// Split from one `deadline || cancelled` condition into two sequential ifs, with the
-		// deadline FIRST. || reports its left operand when both hold, so keeping the deadline
-		// on the left preserves today's label exactly: same truth table, same kind, one more
-		// distinguishable terminal point. A user pressing Stop and a genuine 30-minute expiry
-		// are different decisions and must not share a value.
+		// Stop is deliberately not checked here: awaitHosterOutcome detached the attempt from
+		// the run's cancellation, because JD keeps downloading whatever this poll stops watching.
 		if s.deps.Clock().After(deadline) {
 			return hosterOutcome{kind: hosterOutcomeTimeout, exit: exitFSPollDeadline}
-		}
-		if ctx.Err() != nil {
-			return hosterOutcome{kind: hosterOutcomeTimeout, exit: exitCancelledDuringPoll}
 		}
 		s.deps.PollSleep(config.FilesystemCompletionPollInterval)
 	}

@@ -91,7 +91,10 @@ func TestAnEpisodeThatLandsBeforeTheFirstProbeIsConfirmedOnThatProbe(t *testing.
 	now := time.Now()
 	jd := &stagedJDClient{svcFakeJDClient: &svcFakeJDClient{}, answers: []jdAnswer{{status: aliveStatus}, {status: aliveStatus}}}
 	s, recorder := newProbeWatchService(t, jd, counter, &now, func(string) bool { return false })
-	s.deps.RenameEpisodes = func(context.Context) bool { return true }
+	// The rename records its context: the run below is already stopped, and an attempt JD accepted
+	// must still rename what it delivers.
+	var renameCtxErr error
+	s.deps.RenameEpisodes = func(c context.Context) bool { renameCtxErr = c.Err(); return true }
 	// The episode lands during the first 5s sleep, after the entry guard read the baseline, so the
 	// very first probe is the one that must see it.
 	sleep, landed := s.deps.PollSleep, false
@@ -105,12 +108,18 @@ func TestAnEpisodeThatLandsBeforeTheFirstProbeIsConfirmedOnThatProbe(t *testing.
 		}
 	}
 
-	outcome := s.awaitHosterOutcome(context.Background(), "run-1", testAnime(folder), "Mediafire", 4, 12, true)
+	stopped, stop := context.WithCancel(context.Background())
+	stop()
+
+	outcome := s.awaitHosterOutcome(stopped, "run-1", testAnime(folder), "Mediafire", 4, 12, true)
 
 	assertOutcome(t, outcome, hosterOutcomeSuccess, "grace_disk_confirmed")
 	assertNoPackageRemoval(t, recorder, jd)
 	if probes := metadataProbes(t, recorder.only(t, "download.detect_start_succeeded")); len(probes) != 1 {
 		t.Fatalf("expected the grace to end on the first probe, got %#v", probes)
+	}
+	if renameCtxErr != nil {
+		t.Fatalf("expected the grace rename to run on a live context, got %v", renameCtxErr)
 	}
 }
 

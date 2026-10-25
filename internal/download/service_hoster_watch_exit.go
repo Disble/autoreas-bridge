@@ -42,10 +42,6 @@ const (
 	exitFSPollConfirmed exitReason = "fs_poll_confirmed"
 	// exitFSPollDeadline is the completion poll running out its safety cap.
 	exitFSPollDeadline exitReason = "fs_poll_deadline"
-	// exitCancelledDuringPoll is the completion poll interrupted by a stopped run. A user
-	// pressing Stop and a genuine 30-minute timeout are different decisions, so they keep
-	// different values even though both classify as a timeout.
-	exitCancelledDuringPoll exitReason = "cancelled_during_poll"
 	// exitGraceClientAbsentFirst is the post-grace dead end with no JD client at all, on the
 	// first hoster.
 	exitGraceClientAbsentFirst exitReason = "grace_client_absent_first"
