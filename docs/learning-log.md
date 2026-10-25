@@ -354,3 +354,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-10-25]: Grace probes every 5s check the root episode count before the .part file; a landed episode ends the grace as grace_disk_confirmed, so the separate 60s re-check was removed.
 - [2026-10-25]: Stop cannot halt a download JD already accepted, so the hoster attempt runs detached from cancellation (context.WithoutCancel) and the run stops before the next enqueue or after the rename; cancelled_during_poll is gone.
 - [2026-10-25]: Release 2.5.0 is minor: Activity System section, run-history detail and schedule season row are new features; downloads grace now probes every 5s and Stop waits for an accepted download. No wire change.
+- [2026-10-25]: Release 2.5.1 is a patch: it ships the HeroUI 3.2.6 upgrade that ends the Editor freeze, caused by react-stately 3.48 looping forever when a focused grid row was replaced by disabled skeleton rows, plus patch and minor dependency upgrades.
