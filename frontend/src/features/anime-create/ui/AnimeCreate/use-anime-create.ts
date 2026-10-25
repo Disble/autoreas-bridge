@@ -91,6 +91,7 @@ export function useAnimeCreate(): AnimeCreateViewModel {
     nameConflicts,
     appliedMetadataByRow: rowState.appliedMetadataByRow,
     metadataLookupSource: rowState.metadataLookupSource,
+    coverPreviewSource: bridgeRuntimeSource,
     feedback,
     isSubmitting,
     canRemoveRow: rowState.canRemoveRow,

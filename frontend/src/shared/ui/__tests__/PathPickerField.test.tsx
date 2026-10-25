@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import folderIcon from '@iconify-icons/solar/folder-with-files-bold-duotone';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -10,18 +11,22 @@ afterEach(() => {
 });
 
 describe('PathPickerField', () => {
-  it('renders the label, current path value, and a default Browse trigger', () => {
-    render(<PathPickerField label="Folder" value="D:/Anime/Show" onBrowse={vi.fn()} onChange={vi.fn()} />);
+  it('renders the label, current path value, and an icon-only trigger named by its browse label', async () => {
+    render(<PathPickerField browseIcon={folderIcon} browseLabel="Choose folder" label="Folder" value="D:/Anime/Show" onBrowse={vi.fn()} onChange={vi.fn()} />);
 
     expect(screen.getByText('Folder')).toBeInTheDocument();
     expect(screen.getByRole('textbox')).toHaveValue('D:/Anime/Show');
-    // A field adornment is the quietest level: ghost, not the accent-text secondary.
-    expect(screen.getByRole('button', { name: /browse/i })).toHaveClass('button--ghost');
+    const trigger = screen.getByRole('button', { name: 'Choose folder' });
+    // An icon-only trigger: its name is the label, never visible text, and its tooltip says it.
+    expect(trigger).toHaveTextContent(/^$/);
+    expect(trigger.querySelector('svg')).not.toBeNull();
+    trigger.focus();
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Choose folder');
   });
 
   it('reports typed path edits through onChange', () => {
     const onChange = vi.fn();
-    render(<PathPickerField label="Folder" value="" onBrowse={vi.fn()} onChange={onChange} />);
+    render(<PathPickerField browseIcon={folderIcon} browseLabel="Choose folder" label="Folder" value="" onBrowse={vi.fn()} onChange={onChange} />);
 
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'D:/Anime/New' } });
 
@@ -30,25 +35,35 @@ describe('PathPickerField', () => {
 
   it('opens the native picker through onBrowse when the trigger is pressed', () => {
     const onBrowse = vi.fn();
-    render(<PathPickerField label="Cover file path" value="" onBrowse={onBrowse} onChange={vi.fn()} />);
+    render(<PathPickerField browseIcon={folderIcon} browseLabel="Choose cover image" label="Cover file path" value="" onBrowse={onBrowse} onChange={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /browse/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Choose cover image' }));
 
     expect(onBrowse).toHaveBeenCalledTimes(1);
   });
 
-  it('supports a caller-provided browse label and optional description', () => {
-    render(<PathPickerField browseLabel="Choose file…" description="Local image file on disk." label="Cover file path" value="" onBrowse={vi.fn()} onChange={vi.fn()} />);
+  it('renders an optional description', () => {
+    render(<PathPickerField browseIcon={folderIcon} browseLabel="Choose cover image" description="Local image file on disk." label="Cover file path" value="" onBrowse={vi.fn()} onChange={vi.fn()} />);
 
-    expect(screen.getByRole('button', { name: 'Choose file…' })).toBeInTheDocument();
     expect(screen.getByText('Local image file on disk.')).toBeInTheDocument();
   });
 
+  it('disables the input and the trigger together', () => {
+    const onBrowse = vi.fn();
+    render(<PathPickerField browseIcon={folderIcon} browseLabel="Choose folder" isDisabled label="Folder" value="" onBrowse={onBrowse} onChange={vi.fn()} />);
+
+    expect(screen.getByRole('textbox')).toBeDisabled();
+    const trigger = screen.getByRole('button', { name: 'Choose folder' });
+    expect(trigger).toBeDisabled();
+    fireEvent.click(trigger);
+    expect(onBrowse).not.toHaveBeenCalled();
+  });
+
   it('shows a "(?)" help beside the label only when the caller asks for one', async () => {
-    const { rerender } = render(<PathPickerField label="Folder" value="" onBrowse={vi.fn()} onChange={vi.fn()} />);
+    const { rerender } = render(<PathPickerField browseIcon={folderIcon} browseLabel="Choose folder" label="Folder" value="" onBrowse={vi.fn()} onChange={vi.fn()} />);
     expect(screen.queryByRole('button', { name: 'About the folder' })).toBeNull();
 
-    rerender(<PathPickerField label="Folder" labelHelp={{ label: 'About the folder', message: 'Folder changes do not re-measure.' }} value="" onBrowse={vi.fn()} onChange={vi.fn()} />);
+    rerender(<PathPickerField browseIcon={folderIcon} browseLabel="Choose folder" label="Folder" labelHelp={{ label: 'About the folder', message: 'Folder changes do not re-measure.' }} value="" onBrowse={vi.fn()} onChange={vi.fn()} />);
     screen.getByRole('button', { name: 'About the folder' }).focus();
 
     expect(await screen.findByText('Folder changes do not re-measure.')).toBeInTheDocument();

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ApplyAnimeScheduleDraftEntry } from '../../../../shared/contracts/anime.types';
 import { ANIME_SCHEDULE_BOARD_IDLE_LOAD } from '../AnimeScheduleCard/anime-schedule-card.constants';
-import { toAnimeScheduleBoardLoad, toAnimeScheduleWeekView } from '../AnimeScheduleCard/anime-schedule-card.helpers';
+import { toAnimeScheduleBoardLoad, toAnimeScheduleSavedPlacements, toAnimeScheduleWeekView } from '../AnimeScheduleCard/anime-schedule-card.helpers';
 import type { AnimeScheduleBoardLoad } from '../AnimeScheduleCard/anime-schedule-card.types';
 import { resolveAnimeEditorFeedbackMessage, toEditorErrorMessage } from './anime-editor-workspace.helpers';
 import type { UseAnimeEditorScheduleOptions } from './anime-editor-workspace.types';
@@ -31,7 +31,8 @@ export function useAnimeEditorSchedule(options: Readonly<UseAnimeEditorScheduleO
 
   // 5. Derived State (useMemo)
   const scheduleBoard = boardLoad.board;
-  const scheduleWeek = useMemo(() => toAnimeScheduleWeekView(boardLoad, selectedAnimeId), [boardLoad, selectedAnimeId]);
+  const savedPlacements = useMemo(() => toAnimeScheduleSavedPlacements(options.selectedRecord, selectedAnimeId), [options.selectedRecord, selectedAnimeId]);
+  const scheduleWeek = useMemo(() => toAnimeScheduleWeekView(boardLoad, selectedAnimeId, savedPlacements), [boardLoad, savedPlacements, selectedAnimeId]);
 
   // 6. Callbacks (useCallback calling pure helpers)
   // Stryker disable ArrayDeclaration: equivalent: `source` is the module-level runtime source, or a

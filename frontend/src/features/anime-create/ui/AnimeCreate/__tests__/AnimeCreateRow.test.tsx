@@ -32,6 +32,7 @@ function createViewModel(overrides: Partial<AnimeCreateViewModel> = {}): AnimeCr
     nameConflicts: {},
     appliedMetadataByRow: {},
     metadataLookupSource: fakeMetadataLookupSource(),
+    coverPreviewSource: {},
     isSubmitting: false,
     canRemoveRow: true,
     canOpenBoard: false,
@@ -111,6 +112,32 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
 
     expect(screen.getByLabelText('Watched episodes')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Fetch metadata' })).toBeInTheDocument();
+  });
+
+  it('opens the folder and cover pickers from icon-only buttons named by what they choose', () => {
+    const viewModel = createViewModel();
+    render(<AnimeCreateRow index={0} row={draftRow({ name: 'Bleach', coverType: 'image' })} viewModel={viewModel} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Optional details' }));
+
+    const folder = screen.getByRole('button', { name: 'Choose folder' });
+    const cover = screen.getByRole('button', { name: 'Choose cover image' });
+    expect(folder).toHaveTextContent(/^$/);
+    expect(cover).toHaveTextContent(/^$/);
+    expect(screen.queryByRole('button', { name: 'Browse…' })).toBeNull();
+    fireEvent.click(folder);
+    expect(viewModel.onBrowseFolder).toHaveBeenCalledExactlyOnceWith(draftRow().draftId);
+    expect(viewModel.onBrowseCover).not.toHaveBeenCalled();
+    fireEvent.click(cover);
+    expect(viewModel.onBrowseCover).toHaveBeenCalledExactlyOnceWith(draftRow().draftId);
+  });
+
+  it('previews the row cover beside its cover field before the anime is created', async () => {
+    const previewAnimeCover = vi.fn().mockResolvedValue({ source: 'cover', dataUrl: 'data:image/jpeg;base64,row' });
+    render(<AnimeCreateRow index={0} row={draftRow({ name: 'Bleach', coverType: 'image', coverPath: 'D:/Anime/Bleach/cover.jpg' })} viewModel={createViewModel({ coverPreviewSource: { previewAnimeCover } })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Optional details' }));
+
+    expect(await screen.findByRole('img', { name: 'Cover preview' })).toHaveAttribute('src', 'data:image/jpeg;base64,row');
+    expect(previewAnimeCover).toHaveBeenCalledExactlyOnceWith('D:/Anime/Bleach/cover.jpg');
   });
 
   it('disables the Fetch metadata action while Name is empty', () => {

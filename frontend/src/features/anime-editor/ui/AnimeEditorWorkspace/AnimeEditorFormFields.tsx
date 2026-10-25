@@ -1,4 +1,7 @@
+import folderIcon from '@iconify-icons/solar/folder-with-files-bold-duotone';
+import galleryIcon from '@iconify-icons/solar/gallery-bold-duotone';
 import { Button, Chip, Disclosure, Label, ListBox, Select } from '@heroui/react';
+import { CoverPreview } from '../../../../shared/anime-cover/CoverPreview/CoverPreview';
 import { AnimeMetadataLookupModal } from '../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/AnimeMetadataLookupModal';
 import { LabeledSelect } from '../../../../shared/ui/LabeledSelect';
 import { LabeledTextField } from '../../../../shared/ui/LabeledTextField';
@@ -70,6 +73,8 @@ export function AnimeEditorFormFields({ viewModel }: Readonly<AnimeEditorFormPan
       <div className="grid gap-4 md:grid-cols-2">
         <LabeledTextField description="Public URL where new episodes are published." label="Download page" placeholder="https://..." value={viewModel.draft.page} onChange={(value) => viewModel.onDraftChange('page', value)} />
         <PathPickerField
+          browseIcon={folderIcon}
+          browseLabel="Choose folder"
           description="Pick a folder from your system, or type the path directly."
           label="Folder"
           labelHelp={ANIME_EDITOR_FOLDER_HELP}
@@ -103,8 +108,12 @@ export function AnimeEditorFormFields({ viewModel }: Readonly<AnimeEditorFormPan
                 value={viewModel.draft.coverType}
                 onChange={(value) => viewModel.onDraftChange('coverType', value)}
               />
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="min-w-0 flex-1">
               {viewModel.draft.coverType === 'image' ? (
                 <PathPickerField
+                  browseIcon={galleryIcon}
+                  browseLabel="Choose cover image"
                   description="Local image file on disk."
                   label="Cover file path"
                   mono
@@ -116,6 +125,9 @@ export function AnimeEditorFormFields({ viewModel }: Readonly<AnimeEditorFormPan
               ) : (
                 <LabeledTextField description="External cover image URL." label="Cover image URL" placeholder="https://..." value={viewModel.draft.coverPath} onChange={(value) => viewModel.onDraftChange('coverPath', value)} />
               )}
+                </div>
+                <CoverPreview source={viewModel.coverPreviewSource} value={viewModel.draft.coverPath} />
+              </div>
             </div>
             <LabeledTextField label="Genres" placeholder="Comma separated" value={viewModel.draft.genres} onChange={(value) => viewModel.onDraftChange('genres', value)} />
             <LabeledTextField label="Studios" placeholder="Comma separated" value={viewModel.draft.studios} onChange={(value) => viewModel.onDraftChange('studios', value)} />

@@ -6,6 +6,7 @@ import {
   CreateAnime,
   DeactivateAnime,
   GetAnimeCover,
+  PreviewAnimeCover,
   GetAnimeDetail,
   GetAnimeEditorRecord,
   GetAnimeEditorScheduleBoard,
@@ -386,6 +387,9 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRu
     },
     getAnimeCover(animeID) {
       return invokeGoBinding('GetAnimeCover', () => GetAnimeCover(animeID), () => ({ source: 'placeholder' }));
+    },
+    previewAnimeCover(value) {
+      return invokeGoBinding('PreviewAnimeCover', () => PreviewAnimeCover(value), () => ({ source: 'placeholder' }));
     },
     getEpisodeDayCounts() {
       return invokeGoBinding('GetEpisodeDayCounts', GetEpisodeDayCounts, () => []);
