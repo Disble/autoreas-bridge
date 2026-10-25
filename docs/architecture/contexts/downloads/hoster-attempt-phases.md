@@ -1,4 +1,6 @@
-# Download Watcher — Unified Phases Design
+# Downloads — hoster attempt phases
+
+This expands section 5 of `workflow.md`. The context's ports and invariants are in `overview.md`.
 
 ## Overview
 

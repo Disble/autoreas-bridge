@@ -184,7 +184,7 @@ func hasPositiveJDSignal(st jdownloader.DestinationStatus) bool {
 }
 
 // awaitHosterOutcome watches one hoster attempt through four assessments
-// (docs/design/download-watcher-unified-phases.md):
+// (docs/architecture/contexts/downloads/hoster-attempt-phases.md):
 //
 //	PRE-CHECK: one JD API call — CrawlOfflineCount > 0 means immediate DEAD, no 60s wait.
 //	FASE 1:    60s filesystem-only grace, every 5s: episode count at the root, then .part.

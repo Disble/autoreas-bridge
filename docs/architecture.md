@@ -6,6 +6,8 @@
 
 Este documento refleja las decisiones de diseño técnico fundamentales (apoyadas en el RFC original) que guían el desarrollo de Autoreas Bridge.
 
+La arquitectura detallada por contexto vive en `docs/architecture/` (ver su `README.md`); este documento se divide allí un contexto a la vez. Descargas: `docs/architecture/contexts/downloads/`.
+
 ---
 
 ## 1. Patrón Arquitectónico Principal: Hexagonal (Ports & Adapters)
