@@ -16,7 +16,7 @@ import (
 // anime change ever did, so every changelog row recorded an empty list while
 // real fields were being rewritten -- including a schedule wiped for six weeks.
 // A declared list can be forgotten; a list computed from the two states in hand
-// cannot. This runs inside the finalize transaction, the one place that holds
+// cannot. This runs inside the save transaction, the one place that holds
 // both snapshots, which is why no producer signature needs to change.
 //
 // Comparison is deliberately shallow. The question this answers is "was this

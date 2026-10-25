@@ -32,13 +32,11 @@ func NewChangelogStore(provider SQLiteProvider) *ChangelogStore {
 // on a phone. Every update or create names the fields it changed: a write that changed none is
 // nothing a phone can apply, so it is not stored. A delete names no field.
 func (s *ChangelogStore) InsertPending(ctx context.Context, entry ChangelogEntry) error {
-	entry = normalizePendingChangelogEntry(entry)
-	if entry.ChangeType != ChangelogTypeDelete && len(entry.ChangedFields) == 0 {
+	if !storesPendingEntry(normalizePendingChangelogEntry(entry)) {
 		return nil
 	}
-
 	err := persistence.InTx(ctx, s.provider.DB(), func(tx *sql.Tx) error {
-		return insertPendingTx(ctx, tx, entry)
+		return recordPendingTx(ctx, tx, entry)
 	})
 	if err != nil {
 		return fmt.Errorf("insert changelog pending for %q: %w", entry.AnimeID, err)
@@ -46,9 +44,26 @@ func (s *ChangelogStore) InsertPending(ctx context.Context, entry ChangelogEntry
 	return nil
 }
 
+// recordPendingTx is InsertPending inside a transaction the caller already
+// holds: the anime save stores its changelog row this way, in the same
+// transaction as the snapshot it describes.
+func recordPendingTx(ctx context.Context, q persistence.Querier, entry ChangelogEntry) error {
+	entry = normalizePendingChangelogEntry(entry)
+	if !storesPendingEntry(entry) {
+		return nil
+	}
+	return insertPendingTx(ctx, q, entry)
+}
+
+// storesPendingEntry reports whether a normalized entry is a row a phone can
+// apply: a delete, or an update or create that names a changed field.
+func storesPendingEntry(entry ChangelogEntry) bool {
+	return entry.ChangeType == ChangelogTypeDelete || len(entry.ChangedFields) > 0
+}
+
 // insertPendingTx stores entry inside tx with the anime's current snapshot and a timestamp past the
 // anime's last row. A create or update of an anime that no longer exists stores nothing.
-func insertPendingTx(ctx context.Context, tx *sql.Tx, entry ChangelogEntry) error {
+func insertPendingTx(ctx context.Context, tx persistence.Querier, entry ChangelogEntry) error {
 	if entry.ChangeType != ChangelogTypeDelete {
 		current, found, err := currentAnimeSnapshot(ctx, tx, entry.AnimeID)
 		if err != nil {
@@ -76,7 +91,7 @@ func insertPendingTx(ctx context.Context, tx *sql.Tx, entry ChangelogEntry) erro
 
 // pastLastRow returns changedAtMs, raised to one past the anime's last stored row when it does not
 // already pass it. An anime with no stored row keeps changedAtMs.
-func pastLastRow(ctx context.Context, tx *sql.Tx, animeID string, changedAtMs int64) (stampedMs int64, err error) {
+func pastLastRow(ctx context.Context, tx persistence.Querier, animeID string, changedAtMs int64) (stampedMs int64, err error) {
 	var lastMs sql.NullInt64
 	if err = tx.QueryRowContext(ctx, `SELECT MAX(changed_at_ms) FROM changelog WHERE anime_id = ?`, animeID).Scan(&lastMs); err != nil {
 		return stampedMs, err
@@ -89,7 +104,7 @@ func pastLastRow(ctx context.Context, tx *sql.Tx, animeID string, changedAtMs in
 
 // currentAnimeSnapshot returns the stored snapshot of animeID inside tx; found is false when the
 // anime no longer exists.
-func currentAnimeSnapshot(ctx context.Context, tx *sql.Tx, animeID string) (snapshot []byte, found bool, err error) {
+func currentAnimeSnapshot(ctx context.Context, tx persistence.Querier, animeID string) (snapshot []byte, found bool, err error) {
 	var stored string
 	err = tx.QueryRowContext(ctx, `SELECT snapshot_json FROM anime_snapshots WHERE anime_id = ?`, animeID).Scan(&stored)
 	if errors.Is(err, sql.ErrNoRows) {

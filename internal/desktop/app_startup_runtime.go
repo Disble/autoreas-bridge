@@ -144,9 +144,9 @@ func (a *App) configureTray(ctx context.Context) bool {
 
 // prepareAnimeRuntime initializes the anime publisher and its startup context.
 //
-// Writes finalize straight into SQLite (ADR-55-1/ADR-55-3); the committed
+// Every save is one SQLite transaction; the committed
 // publisher is the only way their anime.changed events reach the shared bus,
-// once the outbox drains. There is no queued writer to start or wait for.
+// after its commit. There is no queued writer to start or wait for.
 func (a *App) prepareAnimeRuntime(ctx context.Context) {
 	catchUpContext, catchUpCancel := context.WithCancel(ctx)
 	a.catchUpContext = catchUpContext

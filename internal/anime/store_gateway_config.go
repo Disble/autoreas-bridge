@@ -8,9 +8,9 @@ import (
 )
 
 // newStoreGatewayConfig wires all adapter dependencies into a store.GatewayConfig
-// for the SQLite-native persistence gateway. SDD-55 Slice B: the file-append
-// port (FilePath/Append) is gone entirely -- persist() and ApplyBatch finalize
-// straight into SQLite (ADR-55-1/ADR-55-3).
+// for the SQLite-native persistence gateway. Every save runs through the save
+// store: deps.Saves when set, otherwise the one the snapshot lookup provides.
+// writeBases serves only the startup recovery of what an older build staged.
 func newStoreGatewayConfig(
 	lookup snapshotLookup,
 	writeBases WriteBaseStore,
@@ -21,6 +21,10 @@ func newStoreGatewayConfig(
 	var outbox store.AnimeChangedOutboxStore
 	if configured, ok := writeBases.(store.AnimeChangedOutboxStore); ok {
 		outbox = configured
+	}
+	saves := deps.Saves
+	if provider, ok := lookup.(saveStoreProvider); ok && saves == nil {
+		saves = provider.SaveStore()
 	}
 	return store.GatewayConfig{
 		LoadSnapshot: func(ctx context.Context, id string) (store.Snapshot, error) {
@@ -35,6 +39,8 @@ func newStoreGatewayConfig(
 			}
 			return result, err
 		},
+		Saves:          saves,
+		Rule:           deps.SaveRule,
 		Operations:     writeBases,
 		Outbox:         outbox,
 		Conflicts:      deps.Conflicts,

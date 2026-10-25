@@ -28,6 +28,12 @@ func (s *AnimeSnapshotStore) WriteBaseStore() anime.WriteBaseStore {
 	return NewWriteBaseStore(s.db)
 }
 
+// SaveStore exposes the one-transaction save adapter over the same database
+// as this snapshot reader.
+func (s *AnimeSnapshotStore) SaveStore() anime.SaveStore {
+	return NewAnimeSaveStore(s.db)
+}
+
 // ListSnapshots returns every persisted effective snapshot keyed by anime ID.
 func (s *AnimeSnapshotStore) ListSnapshots(ctx context.Context) (result map[string]anime.SnapshotRecord, err error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT anime_id, snapshot_json, snapshot_hash, modified_at FROM anime_snapshots`)

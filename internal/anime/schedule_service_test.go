@@ -2,6 +2,7 @@ package anime_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -69,41 +70,39 @@ func TestScheduleServiceRejectsWholeDraftWhenUnchangedBoardMemberAdvances(t *tes
 	}
 }
 
-func TestScheduleServiceApplyDoesNotPartiallyWriteWhenBatchReplacementFails(t *testing.T) {
+// TestScheduleServiceApplyDoesNotPartiallyWriteWhenTheBatchFailsMidway pins S3's
+// all-or-nothing batch: the save rule fails on anime-b after anime-a was
+// already written inside the same transaction, and the rollback leaves both
+// snapshots, the changelog and the bus untouched.
+func TestScheduleServiceApplyDoesNotPartiallyWriteWhenTheBatchFailsMidway(t *testing.T) {
 	ctx := context.Background()
-	store := openAnimeServiceTestStore(t)
+	db := openAnimeServiceTestDB(t)
+	store := bridgeSync.NewAnimeSnapshotStore(db)
 	payloadA := `{"id":"anime-a","name":"A","active":true,"days":[{"day":"Lunes","order":1}]}`
 	payloadB := `{"id":"anime-b","name":"B","active":true,"days":[{"day":"Martes","order":1}]}`
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-a", payloadA, 101)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-b", payloadB, 202)
-
-	// failingFinalizeBatchStore fails the SQLite FinalizeBatch step, simulating
-	// a batch failure before any snapshot is committed. SDD-55 Slice B:
-	// ApplyBatch stages the whole batch then finalizes it in one SQLite step
-	// (ADR-55-3) -- a FinalizeBatch failure must leave every snapshot in the
-	// batch untouched (all-or-nothing), which is what this test now proves.
-	failing := &failingFinalizeBatchStore{WriteBaseStore: store.WriteBaseStore()}
-	service := anime.NewScheduleService(anime.NewQueryService(store), &stubCommittedPublisher{})
+	publisher := &stubCommittedPublisher{}
+	service := anime.NewScheduleService(anime.NewQueryService(store), publisher)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
-	service.SetDeps(anime.WriteServiceDeps{WriteBases: failing})
+	service.SetDeps(anime.WriteServiceDeps{SaveRule: failingSaveRule("anime-b")})
 
 	_, err := service.Apply(ctx, anime.ApplyAnimeScheduleDraftCommand{BoardModifiedAt: 202, Entries: []anime.ApplyAnimeScheduleDraftEntry{
 		{AnimeID: "anime-a", BaseModifiedAt: 101, Placements: []contracts.MobileAnimeDay{{Day: "Viernes", Order: 1}}},
 		{AnimeID: "anime-b", BaseModifiedAt: 202, Placements: []contracts.MobileAnimeDay{{Day: "Viernes", Order: 2}}},
 	}})
-	if err == nil {
-		t.Fatal("expected batch replacement failure to surface")
+	if !errors.Is(err, errSaveRuleInjected) {
+		t.Fatalf("expected the mid-batch failure to surface, got %v", err)
 	}
-	first, err := store.GetSnapshot(ctx, "anime-a")
-	if err != nil {
-		t.Fatalf("get first snapshot: %v", err)
+	for id, payload := range map[string]string{"anime-a": payloadA, "anime-b": payloadB} {
+		stored, err := store.GetSnapshot(ctx, id)
+		if err != nil || string(stored.CanonicalJSON) != payload {
+			t.Fatalf("schedule apply must be fully atomic, got %s=%s, %v", id, stored.CanonicalJSON, err)
+		}
 	}
-	second, err := store.GetSnapshot(ctx, "anime-b")
-	if err != nil {
-		t.Fatalf("get second snapshot: %v", err)
-	}
-	if string(first.CanonicalJSON) != `{"id":"anime-a","name":"A","active":true,"days":[{"day":"Lunes","order":1}]}` || string(second.CanonicalJSON) != `{"id":"anime-b","name":"B","active":true,"days":[{"day":"Martes","order":1}]}` {
-		t.Fatalf("schedule apply must be fully atomic, got first=%s second=%s", first.CanonicalJSON, second.CanonicalJSON)
+	rows, err := bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(db)).ListAfterID(ctx, 0)
+	if err != nil || len(rows) != 0 || len(publisher.published) != 0 {
+		t.Fatalf("a failed batch must leave no changelog row and no event: rows=%+v events=%d, %v", rows, len(publisher.published), err)
 	}
 }
 

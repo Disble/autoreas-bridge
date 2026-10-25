@@ -137,34 +137,6 @@ func metadataForRow(metadata map[string]AnimeCreateMetadata, rowID string) *Anim
 	return &confirmed
 }
 
-// HandleAnimeWatched is the event-driven Ver hoy → Visto auto-transition: when a
-// created season anime sitting in "Ver hoy" is watched (nrocapvisto >= 1 — they
-// start at 0), it moves to "Visto". Called on every anime change; it early-returns
-// for anything that is not a watched Ver hoy anime, so it is cheap.
-func (s *Service) HandleAnimeWatched(ctx context.Context, animeID, section string, nrocapvisto float64) error {
-	if s.gateway == nil || section != verHoySection || nrocapvisto < 1 || animeID == "" {
-		return nil
-	}
-	active, err := s.repo.ActiveSeason(ctx)
-	if err != nil || active == nil {
-		return err
-	}
-	rows, err := s.repo.ListSeasonAnimes(ctx, active.ID)
-	if err != nil {
-		return err
-	}
-	for _, row := range rows {
-		if row.AnimeID == animeID && row.Availability == domain.AvailabilityCreated {
-			result, err := s.gateway.MoveToSection(ctx, animeID, vistoSection)
-			if err != nil {
-				return err
-			}
-			return acceptAnimeMutation(result)
-		}
-	}
-	return nil
-}
-
 // ConfirmSelection reconciles the OPEN season's created candidates against their
 // derived verdicts: approved animes become Viendo/active, rejected ones "No me
 // gusto"/inactive (soft delete only), applied through the anime gateway. It is a

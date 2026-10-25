@@ -20,9 +20,6 @@ func (g *fakeAppGateway) CreateAnime(context.Context, season.AnimeCreateInput) (
 func (g *fakeAppGateway) FindActiveByPagina(context.Context, string) (string, bool, error) {
 	return "", false, nil
 }
-func (g *fakeAppGateway) MoveToSection(_ context.Context, animeID, _ string) (season.AnimeMutationResult, error) {
-	return season.AnimeMutationResult{AnimeID: animeID, Outcome: season.AnimeMutationApplied}, nil
-}
 func (g *fakeAppGateway) CurrentPlacements(context.Context, []string) (map[string][]domain.Placement, error) {
 	return map[string][]domain.Placement{}, nil
 }

@@ -55,11 +55,11 @@ type WriteBaseStore = store.WriteBaseStore
 // ChangedOutboxEvent stores one deferred anime.changed publication.
 type ChangedOutboxEvent = store.AnimeChangedOutboxEvent
 
-// newAnimeChangedEvent builds the bus event for one drained outbox row. It is
+// newAnimeChangedEvent builds the bus event for one committed write. It is
 // the single place a committed write becomes an anime.changed event, so the
 // derived change type and changed fields travel together to every subscriber.
-// The operation id becomes the correlation id: anime_write_operations.request_id
-// joins it to the request that caused the write (P3).
+// The operation id, which is the event id, becomes the correlation id, so an
+// anime.changed log line joins the changelog row with that source event id.
 func newAnimeChangedEvent(event ChangedOutboxEvent) events.AnimeChangedEvent {
 	return events.AnimeChangedEvent{
 		EventID:       event.EventID,

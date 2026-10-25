@@ -143,9 +143,6 @@ type AnimeCreateInput struct {
 type AnimeGateway interface {
 	CreateAnime(ctx context.Context, in AnimeCreateInput) (AnimeMutationResult, error)
 	FindActiveByPagina(ctx context.Context, pageURL string) (animeID string, found bool, err error)
-	// MoveToSection moves an anime to a single Estrenos section (Sin ver / Ver
-	// hoy / Visto). Used by the watched-in-Ver-hoy auto-transition.
-	MoveToSection(ctx context.Context, animeID, section string) (AnimeMutationResult, error)
 	// SetSelection applies a confirmed selection verdict to the anime: its estado
 	// (0 Viendo / 2 No me gusto) and activo flag. Soft delete only. Used by
 	// ConfirmSelection's bidirectional reconciler.
