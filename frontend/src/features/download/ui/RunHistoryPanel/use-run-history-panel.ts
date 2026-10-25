@@ -44,7 +44,7 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
   // 5. Derived State (useMemo)
   const listViewModel = toRunHistoryPanelViewModel(runs, selectedRunId, visibleCount, problemsOnly);
   const { detail, covers } = useRunHistoryDetail(listViewModel.selectedRun, ports);
-  const { cancelRun, isStopping, cancelErrorMessage } = useRunHistoryStop(runs, listViewModel.runningRunId, source);
+  const { cancelRun, isStopping, cancelErrorMessage } = useRunHistoryStop(listViewModel.runningRunId, source);
   const requestedRunId = readRequestedRunId(search);
 
   // 6. Callbacks (useCallback calling pure helpers)

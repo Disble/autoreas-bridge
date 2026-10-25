@@ -1,7 +1,5 @@
 import { useCallback, useState } from 'react';
 import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
-import type { DownloadRunView } from '../../../../shared/contracts/download.types';
-import { findRunningRunId } from './run-history-panel.helpers';
 
 /**
  * useRunHistoryStop owns the card-level Stop control. A stop stays pending
@@ -10,12 +8,11 @@ import { findRunningRunId } from './run-history-panel.helpers';
  * and no way to get stuck. A refused stop releases the pending state and
  * reports the backend's message.
  *
- * @param runs The loaded history.
  * @param runningRunId The run still open, if any.
  * @param source The download port that cancels the run.
  * @returns The stop action, whether a stop is pending, and a refusal message.
  */
-export function useRunHistoryStop(runs: readonly DownloadRunView[], runningRunId: string | undefined, source: DownloadRuntimeSource) {
+export function useRunHistoryStop(runningRunId: string | undefined, source: DownloadRuntimeSource) {
   // 1. Refs
 
   // 2. State
@@ -37,13 +34,13 @@ export function useRunHistoryStop(runs: readonly DownloadRunView[], runningRunId
   // stop can never leave the button stuck.
   const cancelRun = useCallback(async () => {
     setCancelErrorMessage(undefined);
-    setStopRequestedRunId(findRunningRunId(runs));
+    setStopRequestedRunId(runningRunId);
     const result = await source.cancelDownloadRun();
     if (result !== 'ok') {
       setStopRequestedRunId(undefined);
       setCancelErrorMessage(result);
     }
-  }, [runs, source]);
+  }, [runningRunId, source]);
 
   // 7. Effects
 

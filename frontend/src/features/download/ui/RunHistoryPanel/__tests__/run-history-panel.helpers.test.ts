@@ -81,8 +81,7 @@ describe('toRunHistoryPanelViewModel', () => {
     const viewModel = toRunHistoryPanelViewModel([okRun, jdOfflineRun], undefined, 20, false, NOW_MS);
 
     expect(viewModel.status).toBe('ready');
-    expect(viewModel.visibleRows).toHaveLength(2);
-    expect(viewModel.canLoadMore).toBe(false);
+    expect(viewModel.visibleDays.flatMap((day) => day.rows)).toHaveLength(2);
     expect(viewModel.rows[0]).toMatchObject({ runId: 'run-1', trigger: 'manual', durationLabel: '2 min 28 s', episodesDownloaded: 3, episodesFailed: 0 });
     expect(viewModel.rows[0]?.triggerPresentation.label).toBe('Manual check');
     expect(viewModel.rows[0]?.status).toBeUndefined();
@@ -161,14 +160,12 @@ describe('toRunHistoryPanelViewModel', () => {
     expect(viewModel.rows[0]?.isSelected).toBe(true);
   });
 
-  it('caps the initial visible rows at 20 and exposes the remaining count', () => {
+  it('caps the initial visible rows at 20 and keeps the rest listed', () => {
     const runs = Array.from({ length: 25 }, (_, index) => createRun(index + 1));
     const viewModel = toRunHistoryPanelViewModel(runs, undefined, 20);
 
-    expect(viewModel.visibleRows).toHaveLength(20);
     expect(viewModel.visibleDays.flatMap((day) => day.rows)).toHaveLength(20);
-    expect(viewModel.canLoadMore).toBe(true);
-    expect(viewModel.remainingCount).toBe(5);
+    expect(viewModel.rows).toHaveLength(25);
   });
 });
 

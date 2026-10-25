@@ -41,7 +41,7 @@ export function toRunHistoryPanelViewModel(
   const base = { problemCount, problemsOnly, isStopping: false, covers: new Map() };
 
   if (runs.length === 0) {
-    return { ...base, status: 'empty', rows: [], visibleRows: [], visibleDays: [], canLoadMore: false, remainingCount: 0, runInProgress: false };
+    return { ...base, status: 'empty', rows: [], visibleDays: [], runInProgress: false };
   }
 
   const listedRuns = problemsOnly ? runs.filter(isProblemRun) : runs;
@@ -55,10 +55,7 @@ export function toRunHistoryPanelViewModel(
     ...base,
     status: 'ready',
     rows,
-    visibleRows,
     visibleDays: groupRowsByDay(visibleRows),
-    canLoadMore: visibleRows.length < rows.length,
-    remainingCount: rows.length - visibleRows.length,
     runInProgress: runningRunId !== undefined,
     runningRunId,
     selectedRun: listedRuns.find((run) => run.runId === effectiveSelectedRunId),

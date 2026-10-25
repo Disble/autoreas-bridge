@@ -56,8 +56,8 @@ func TestRunOnceStopsAtTheFirstMissingEpisodeWhenJDIsOffline(t *testing.T) {
 	t.Parallel()
 
 	deps, _ := jdOfflineScenario(t)
-	memLogger := logger.NewMemLogger(logger.MemLoggerConfig{})
-	deps.Logger = memLogger
+	recorder := &fieldsRecorder{}
+	deps.Logger = recorder
 
 	result, err := NewService(deps).RunOnce(context.Background(), "manual")
 	if err != nil {
@@ -87,48 +87,38 @@ func TestRunOnceStopsAtTheFirstMissingEpisodeWhenJDIsOffline(t *testing.T) {
 	if run.EpisodesDownloaded != 0 || run.EpisodesFailed != 0 {
 		t.Fatalf("run = %#v, want nothing downloaded and nothing failed", run)
 	}
-	entries := memLogger.Recent()
-	assertOnlyEntry(t, entries, "download.anime_checked", logger.LevelInfo,
+	assertAnimeEntry(t, recorder.only(t, "download.anime_checked"), logger.LevelInfo,
 		map[string]any{"onDiskCount": 4, "latestOnline": 12, "missingEpisodes": 8, "animeName": "NegaPosi Angler"})
-	assertOnlyEntry(t, entries, "download.manual_link_offered", logger.LevelInfo,
+	assertAnimeEntry(t, recorder.only(t, "download.manual_link_offered"), logger.LevelInfo,
 		map[string]any{"episode": 5, "linkCount": 1, "animeName": "NegaPosi Angler"})
-	assertEveryAnimeEntryNamesItsAnime(t, entries, "NegaPosi Angler")
+	assertEveryAnimeEntryNamesItsAnime(t, recorder.all(), "NegaPosi Angler")
 }
 
-// assertOnlyEntry pins the single entry of eventType: the download domain, the anime it is about,
-// its level and its exact metadata.
-func assertOnlyEntry(t *testing.T, entries []logger.LogEntry, eventType, level string, metadata map[string]any) {
+// assertAnimeEntry pins an entry about anime-1: the download domain, its level and its exact
+// metadata.
+func assertAnimeEntry(t *testing.T, entry recordedEntry, level string, metadata map[string]any) {
 	t.Helper()
-	var matches []logger.LogEntry
-	for _, entry := range entries {
-		if entry.EventType == eventType {
-			matches = append(matches, entry)
-		}
+	if entry.domain != "download" || entry.level != level || entry.entityID != "anime-1" {
+		t.Fatalf("%s = domain %q level %q entity %q, want download/%s/anime-1", entry.eventType, entry.domain, entry.level, entry.entityID, level)
 	}
-	if len(matches) != 1 {
-		t.Fatalf("%s logged %d times, want exactly 1", eventType, len(matches))
-	}
-	got := matches[0]
-	if got.Domain != "download" || got.Level != level || got.EntityID != "anime-1" {
-		t.Fatalf("%s = domain %q level %q entity %q, want download/%s/anime-1", eventType, got.Domain, got.Level, got.EntityID, level)
-	}
-	if !reflect.DeepEqual(got.Metadata, metadata) {
-		t.Fatalf("%s metadata = %#v, want %#v", eventType, got.Metadata, metadata)
+	if !reflect.DeepEqual(entry.metadata, metadata) {
+		t.Fatalf("%s metadata = %#v, want %#v", entry.eventType, entry.metadata, metadata)
 	}
 }
 
 // assertEveryAnimeEntryNamesItsAnime checks that every entry about one anime carries its name, so
-// a run story can label each anime without a catalog lookup.
-func assertEveryAnimeEntryNamesItsAnime(t *testing.T, entries []logger.LogEntry, animeName string) {
+// a run story can label each anime without a catalog lookup. An empty animeName means the anime
+// has none, and every entry must then omit the key rather than record an empty value.
+func assertEveryAnimeEntryNamesItsAnime(t *testing.T, entries []recordedEntry, animeName string) {
 	t.Helper()
 	perAnime := 0
 	for _, entry := range entries {
-		if entry.EntityID == "" {
+		if entry.entityID == "" {
 			continue
 		}
 		perAnime++
-		if entry.Metadata["animeName"] != animeName {
-			t.Fatalf("%s metadata = %#v, want animeName %q", entry.EventType, entry.Metadata, animeName)
+		if got, ok := entry.metadata["animeName"]; ok != (animeName != "") || (ok && got != animeName) {
+			t.Fatalf("%s metadata = %#v, want animeName %q", entry.eventType, entry.metadata, animeName)
 		}
 	}
 	if perAnime == 0 {
@@ -137,21 +127,22 @@ func assertEveryAnimeEntryNamesItsAnime(t *testing.T, entries []logger.LogEntry,
 }
 
 // The clearest proof the cursor no longer walks: episode availability is
-// resolved once, not once per missing episode.
+// resolved once, not once per missing episode. The anime here has no name, so
+// no entry about it may carry an empty animeName.
 func TestRunOnceResolvesOnlyOneEpisodeWhenJDIsOffline(t *testing.T) {
 	t.Parallel()
 
 	deps, _ := jdOfflineScenario(t)
-	events := &renameEventRecorder{}
-	deps.Logger = events
+	deps.Animes.(*svcFakeAnimeQuery).animes[0].Name = ""
+	recorder := &fieldsRecorder{}
+	deps.Logger = recorder
 
 	if _, err := NewService(deps).RunOnce(context.Background(), "manual"); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 
-	if got := events.count("download.episode_available"); got != 1 {
-		t.Fatalf("download.episode_available logged %d times, want 1", got)
-	}
+	recorder.only(t, "download.episode_available")
+	assertEveryAnimeEntryNamesItsAnime(t, recorder.all(), "")
 }
 
 // The third walk-forward path: the site adapter cannot even build the episode's
@@ -167,8 +158,8 @@ func TestRunOnceStopsWhenAnEpisodePageCannotBeResolved(t *testing.T) {
 		pageURLErr:   map[int]error{5: errors.New("episode 5 page unresolvable")},
 	})
 	deps.Sites = registry
-	memLogger := logger.NewMemLogger(logger.MemLoggerConfig{})
-	deps.Logger = memLogger
+	recorder := &fieldsRecorder{}
+	deps.Logger = recorder
 
 	result, err := NewService(deps).RunOnce(context.Background(), "manual")
 	if err != nil {
@@ -182,7 +173,7 @@ func TestRunOnceStopsWhenAnEpisodePageCannotBeResolved(t *testing.T) {
 	if run.EpisodesFailed != 1 {
 		t.Fatalf("episodes failed = %d, want exactly 1 -- more means it walked the backlog", run.EpisodesFailed)
 	}
-	assertOnlyEntry(t, memLogger.Recent(), "download.failed", logger.LevelError,
+	assertAnimeEntry(t, recorder.only(t, "download.failed"), logger.LevelError,
 		map[string]any{"failureKind": "hoster_down", "episode": 5, "animeName": "NegaPosi Angler"})
 }
 
@@ -235,8 +226,8 @@ func TestRunOnceStopsOnALinkFailureEvenWhileJDIsOffline(t *testing.T) {
 		extractErr:   map[string]error{"https://jkanime.net/offline/5/": errors.New("episode 5 links unavailable")},
 	})
 	deps.Sites = registry
-	memLogger := logger.NewMemLogger(logger.MemLoggerConfig{})
-	deps.Logger = memLogger
+	recorder := &fieldsRecorder{}
+	deps.Logger = recorder
 
 	result, err := NewService(deps).RunOnce(context.Background(), "manual")
 	if err != nil {
@@ -253,23 +244,11 @@ func TestRunOnceStopsOnALinkFailureEvenWhileJDIsOffline(t *testing.T) {
 	if len(run.ManualLinks) != 0 {
 		t.Fatalf("manual links = %#v, want none when the links could not be resolved", run.ManualLinks)
 	}
-	entries := memLogger.Recent()
-	assertOnlyEntry(t, entries, "download.episode_available", logger.LevelInfo,
+	assertAnimeEntry(t, recorder.only(t, "download.episode_available"), logger.LevelInfo,
 		map[string]any{"episode": 5, "animeName": "NegaPosi Angler"})
-	assertOnlyEntry(t, entries, "download.failed", logger.LevelError,
+	assertAnimeEntry(t, recorder.only(t, "download.failed"), logger.LevelError,
 		map[string]any{"failureKind": "hoster_down", "episode": 5, "animeName": "NegaPosi Angler"})
-	if got := countEntries(entries, "download.manual_link_offered"); got != 0 {
+	if got := len(recorder.byEventType("download.manual_link_offered")); got != 0 {
 		t.Fatalf("download.manual_link_offered logged %d times, want none without usable links", got)
 	}
-}
-
-// countEntries counts the entries of one event type.
-func countEntries(entries []logger.LogEntry, eventType string) int {
-	total := 0
-	for _, entry := range entries {
-		if entry.EventType == eventType {
-			total++
-		}
-	}
-	return total
 }

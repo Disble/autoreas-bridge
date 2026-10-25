@@ -3,7 +3,7 @@ import { Icon } from '@iconify/react';
 import copyIcon from '@iconify-icons/solar/copy-bold-duotone';
 import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
 import { IconActionButton } from '../../../../shared/ui/IconActionButton/IconActionButton';
-import { RUN_HISTORY_COPY_CONFIRMATIONS, RUN_HISTORY_TONE_ICON_CLASS, RUN_HISTORY_UNRECORDED_COPY } from './run-history-panel.constants';
+import { RUN_HISTORY_COPY_CONFIRMATIONS, RUN_HISTORY_SPIN_CLASS, RUN_HISTORY_TONE_ICON_CLASS, RUN_HISTORY_UNRECORDED_COPY } from './run-history-panel.constants';
 import type { RunHistoryOutcomeGroupProps } from './run-history-panel.types';
 import { RunHistoryAnimeRow } from './RunHistoryAnimeRow';
 
@@ -17,7 +17,7 @@ export function RunHistoryOutcomeGroup({ group, covers, onCopy, onEditAnime, onO
   const header = (
     <>
       <span className={`inline-grid ${RUN_HISTORY_TONE_ICON_CLASS[group.tone]}`}>
-        <Icon aria-hidden="true" className={`size-[18px] ${group.isLive ? 'animate-spin motion-reduce:animate-none [animation-duration:1.6s]' : ''}`} icon={group.icon} />
+        <Icon aria-hidden="true" className={`size-[18px] ${group.isLive ? RUN_HISTORY_SPIN_CLASS : ''}`} icon={group.icon} />
       </span>
       <span className="text-[15px] font-semibold text-foreground">{group.label}</span>
       <span className="text-[15px] font-semibold text-muted tabular-nums">{group.count}</span>

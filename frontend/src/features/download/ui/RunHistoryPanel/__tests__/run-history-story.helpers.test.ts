@@ -169,18 +169,11 @@ describe('catalog names for anime the run did not name', () => {
     expect(collectNameLookupIds(toRunHistoryDetailViewModel(run, story))).toEqual(['a1']);
   });
 
-  it('marks the name as loading until the catalog answers, and leaves a named anime alone', () => {
-    expect(downloadedRows(new Map())).toEqual([
-      { name: 'a1', isNameLoading: true },
-      { name: 'Bocchi', isNameLoading: false },
-    ]);
-  });
-
-  it('shows the catalog name once it arrives', () => {
-    expect(downloadedRows(new Map([['a1', 'Frieren']]))).toEqual([
-      { name: 'Frieren', isNameLoading: false },
-      { name: 'Bocchi', isNameLoading: false },
-    ]);
+  it.each([
+    { when: 'marks the name as loading until the catalog answers, and leaves a named anime alone', names: new Map<string, string | null>(), first: { name: 'a1', isNameLoading: true } },
+    { when: 'shows the catalog name once it arrives', names: new Map<string, string | null>([['a1', 'Frieren']]), first: { name: 'Frieren', isNameLoading: false } },
+  ])('$when', ({ names, first }) => {
+    expect(downloadedRows(names)).toEqual([first, { name: 'Bocchi', isNameLoading: false }]);
   });
 
   it('falls back to the manual link name, then the id, when the catalog has no name', () => {

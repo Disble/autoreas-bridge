@@ -84,6 +84,9 @@ export const RUN_HISTORY_GROUPS = {
   upToDate: { label: 'Up to date', icon: checkCircleIcon, tone: 'default' },
 } as const satisfies Record<string, RunHistoryPresentation>;
 
+/** The slow turn of a live run's icon, held still when the user prefers reduced motion. */
+export const RUN_HISTORY_SPIN_CLASS = 'animate-spin motion-reduce:animate-none [animation-duration:1.6s]';
+
 /** Text color per tone, applied to icons and bar segments only. */
 export const RUN_HISTORY_TONE_ICON_CLASS: Readonly<Record<RunHistoryTone, string>> = {
   default: 'text-muted',

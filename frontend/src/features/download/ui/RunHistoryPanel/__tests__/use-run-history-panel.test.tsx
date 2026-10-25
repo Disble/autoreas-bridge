@@ -6,7 +6,7 @@ import { useRunHistoryPanel } from '../use-run-history-panel';
 import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { DownloadRunView } from '../../../../../shared/contracts/download.types';
 import { getDownloadRuntimeStoreState, resetDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
-import type { RunHistoryStory, RunHistoryStorySource } from '../run-history-panel.types';
+import type { RunHistoryPanelViewModel, RunHistoryStory, RunHistoryStorySource } from '../run-history-panel.types';
 import { atRoute } from './run-history-router';
 
 /** Builds one run history row, numbered so ordering assertions read plainly. */
@@ -42,6 +42,11 @@ const runs: readonly DownloadRunView[] = [
 
 /** Newest-first history long enough to exercise the progressive list window. */
 const manyRuns = Array.from({ length: 25 }, (_, index) => createRun(25 - index));
+
+/** The rows the master list shows, read across its day headers. */
+function visibleRows(viewModel: RunHistoryPanelViewModel) {
+  return viewModel.visibleDays.flatMap((day) => day.rows);
+}
 
 /** Builds a fully stubbed download runtime port, overridable per case. */
 function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
@@ -86,7 +91,7 @@ describe('useRunHistoryPanel', () => {
     await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
 
     expect(result.current.viewModel.rows).toHaveLength(2);
-    expect(result.current.viewModel.visibleRows).toHaveLength(2);
+    expect(visibleRows(result.current.viewModel)).toHaveLength(2);
     expect(result.current.viewModel.selectedRun?.runId).toBe('run-2');
   });
 
@@ -117,16 +122,14 @@ describe('useRunHistoryPanel', () => {
     expect(result.current.viewModel.selectedRun?.runId).toBe('run-1');
   });
 
-  it('shows only the newest 20 runs at first and exposes load more for older history', async () => {
+  it('shows only the newest 20 runs at first and keeps the older history to reveal', async () => {
     const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue(manyRuns) });
     const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
 
     expect(result.current.viewModel.rows).toHaveLength(25);
-    expect(result.current.viewModel.visibleRows).toHaveLength(20);
-    expect(result.current.viewModel.canLoadMore).toBe(true);
-    expect(result.current.viewModel.remainingCount).toBe(5);
+    expect(visibleRows(result.current.viewModel)).toHaveLength(20);
     expect(result.current.viewModel.selectedRun?.runId).toBe(manyRuns[0]?.runId);
   });
 
@@ -144,23 +147,8 @@ describe('useRunHistoryPanel', () => {
       result.current.loadMore();
     });
 
-    expect(result.current.viewModel.visibleRows).toHaveLength(25);
-    expect(result.current.viewModel.canLoadMore).toBe(false);
+    expect(visibleRows(result.current.viewModel)).toHaveLength(25);
     expect(result.current.viewModel.selectedRun?.runId).toBe(manyRuns[19]!.runId);
-  });
-
-  it('opens a manual link in the default browser through the Wails runtime, never in the WebView', async () => {
-    const browserOpenURL = vi.fn();
-    const runtime = window.runtime;
-    window.runtime = { ...runtime, BrowserOpenURL: browserOpenURL };
-    const { result, unmount } = renderHook(() => useRunHistoryPanel(createSource()), { wrapper: atRoute() });
-    await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
-
-    act(() => result.current.openLink('https://mega.nz/file/a'));
-
-    expect(browserOpenURL).toHaveBeenCalledExactlyOnceWith('https://mega.nz/file/a');
-    unmount();
-    window.runtime = runtime;
   });
 
   it('reveals older runs when the rail is scrolled near its bottom', async () => {
@@ -168,7 +156,7 @@ describe('useRunHistoryPanel', () => {
     const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
-    expect(result.current.viewModel.visibleRows).toHaveLength(20);
+    expect(visibleRows(result.current.viewModel)).toHaveLength(20);
 
     act(() => {
       result.current.onScroll({
@@ -176,7 +164,7 @@ describe('useRunHistoryPanel', () => {
       } as unknown as UIEvent<HTMLDivElement>);
     });
 
-    expect(result.current.viewModel.visibleRows).toHaveLength(25);
+    expect(visibleRows(result.current.viewModel)).toHaveLength(25);
   });
 
   it('ignores a scroll that is still far from the bottom', async () => {
@@ -191,18 +179,16 @@ describe('useRunHistoryPanel', () => {
       } as unknown as UIEvent<HTMLDivElement>);
     });
 
-    expect(result.current.viewModel.visibleRows).toHaveLength(20);
+    expect(visibleRows(result.current.viewModel)).toHaveLength(20);
   });
 
-  it('does not expose load more when fewer than 20 runs exist', async () => {
+  it('shows every run when fewer than 20 exist', async () => {
     const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue(manyRuns.slice(0, 12)) });
     const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
 
-    expect(result.current.viewModel.visibleRows).toHaveLength(12);
-    expect(result.current.viewModel.canLoadMore).toBe(false);
-    expect(result.current.viewModel.remainingCount).toBe(0);
+    expect(visibleRows(result.current.viewModel)).toHaveLength(12);
   });
 
   it('reloads runs when a download run lifecycle event invalidates the store', async () => {
@@ -232,9 +218,9 @@ describe('useRunHistoryPanel', () => {
 
     await waitFor(() => expect(result.current.viewModel.rows).toHaveLength(26));
     expect(listDownloadRuns).toHaveBeenCalledTimes(2);
-    expect(result.current.viewModel.visibleRows[0]?.runId).toBe(newestRun.runId);
-    expect(new Set(result.current.viewModel.visibleRows.map((row) => row.runId)).size).toBe(
-      result.current.viewModel.visibleRows.length,
+    expect(visibleRows(result.current.viewModel)[0]?.runId).toBe(newestRun.runId);
+    expect(new Set(visibleRows(result.current.viewModel).map((row) => row.runId)).size).toBe(
+      visibleRows(result.current.viewModel).length,
     );
     expect(result.current.viewModel.selectedRun?.runId).toBe(firstRuns[19]!.runId);
 

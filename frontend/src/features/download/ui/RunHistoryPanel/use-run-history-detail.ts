@@ -3,7 +3,7 @@ import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-s
 import { useAnimeCoverCache } from '../../../../shared/anime-cover/use-anime-cover-cache';
 import type { DownloadRunView } from '../../../../shared/contracts/download.types';
 import type { RunHistoryPanelPorts } from './run-history-panel.types';
-import { collectDetailAnimeIds, collectNameLookupIds, toSelectedRunDetail, withCatalogNames } from './run-history-story.helpers';
+import { collectDetailAnimeIds, collectNameLookupIds, toRunHistoryDetailViewModel, withCatalogNames } from './run-history-story.helpers';
 import { useAnimeNameCache } from './use-anime-name-cache';
 import { useRunHistoryStory } from './use-run-history-story';
 
@@ -27,7 +27,10 @@ export function useRunHistoryDetail(selectedRun: DownloadRunView | undefined, po
   // 4. Queries/Mutations
 
   // 5. Derived State (useMemo)
-  const storyDetail = useMemo(() => toSelectedRunDetail(selectedRun, storyState), [selectedRun, storyState]);
+  const storyDetail = useMemo(
+    () => (selectedRun === undefined ? undefined : toRunHistoryDetailViewModel(selectedRun, storyState)),
+    [selectedRun, storyState],
+  );
   const coverIds = useMemo(() => collectDetailAnimeIds(storyDetail), [storyDetail]);
   const covers = useAnimeCoverCache(coverIds, ports.coverSource ?? bridgeRuntimeSource);
   const nameIds = useMemo(() => collectNameLookupIds(storyDetail), [storyDetail]);

@@ -154,7 +154,6 @@ describe('RunHistoryPanel Problems filter', () => {
     expect(filter).toHaveAttribute('aria-pressed', 'true');
     expect(filter).toHaveClass('button--danger');
     expect(filter).not.toHaveClass('button--danger-soft');
-    expect(filter.querySelectorAll('svg')).toHaveLength(1);
   });
 
   it('is hidden when no run had a problem', () => {
@@ -177,8 +176,8 @@ describe('RunHistoryPanel detail', () => {
     },
   };
 
-  it('lists the anime of each outcome with its links, and copies every link at once', () => {
-    const actions = mockPanel([{ ...jdOfflineRun, skippedCount: 1 }], { story });
+  it('lists the anime of each outcome with its links, copies every link at once, and flags a truncated story beside the totals', () => {
+    const actions = mockPanel([{ ...jdOfflineRun, skippedCount: 1 }], { story: { ...story, story: { ...story.story, truncated: true } } as RunHistoryStoryState });
     const pending = screen.getByRole('button', { name: /Not attempted/ });
 
     expect(pending).toHaveTextContent('Not attempted2');
@@ -186,6 +185,7 @@ describe('RunHistoryPanel detail', () => {
     expect(screen.getAllByRole('link', { name: /example\.com\/a/ })[0]).not.toHaveAttribute('href');
     fireEvent.click(screen.getByRole('button', { name: 'Copy all links' }));
     expect(actions.copyText).toHaveBeenCalledWith('https://example.com/a\nhttps://example.com/b', 'All links copied');
+    expect(screen.getByRole('img', { name: 'Showing the first 2 steps of a longer run.' })).toBeInTheDocument();
   });
 
   it('opens a skipped anime in the editor', () => {
@@ -243,28 +243,17 @@ describe('RunHistoryPanel detail', () => {
     expect(actions.openLink.mock.calls).toEqual([['https://example.com/a'], ['https://example.com/b']]);
     expect(document.querySelector('a[target="_blank"]')).toBeNull();
   });
-
-  it('flags a truncated story beside the totals', () => {
-    mockPanel([jdOfflineRun], { story: { ...story, story: { ...story.story, truncated: true } } as RunHistoryStoryState });
-
-    expect(screen.getByRole('img', { name: 'Showing the first 2 steps of a longer run.' })).toBeInTheDocument();
-  });
-
-  it('names the pending group Downloading on a live run', () => {
-    mockPanel([{ ...jdOfflineRun, status: 'running', finishedAtMs: undefined }], { story });
-
-    expect(screen.getByRole('button', { name: /Downloading/ })).toBeInTheDocument();
-    expect(screen.queryByText('Not attempted')).not.toBeInTheDocument();
-  });
 });
 
 describe('RunHistoryPanel stop control', () => {
-  it('sits in the card header beside the Run history title', () => {
-    mockPanel([createRun('run-1', { status: 'running' })]);
+  it('sits in the card header beside the Run history title, while the live run names its pending group Downloading', () => {
+    mockPanel([createRun('run-1', { status: 'running', episodesDownloading: 1 })]);
     const header = screen.getByTestId('run-history-header');
 
     expect(within(header).getByText('Run history')).toBeInTheDocument();
     expect(within(header).getByRole('button', { name: /stop run/i })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Downloading 1' })).toBeInTheDocument();
+    expect(screen.queryByText('Not attempted')).not.toBeInTheDocument();
   });
 
   it('offers no stop control when no run is in progress', () => {

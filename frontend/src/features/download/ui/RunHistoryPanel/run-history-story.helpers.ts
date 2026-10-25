@@ -59,22 +59,10 @@ export function toRunHistoryDetailViewModel(run: DownloadRunView, storyState: Ru
   return {
     run,
     status: toRunStatusPresentation(run.status),
-    isRunning,
     bar: toBar(run, isRunning),
     groups,
     storyNote: toStoryNote(storyState, groups.length > 0, isRunning),
   };
-}
-
-/**
- * Builds the detail of the selected run, or nothing when no run is selected.
- *
- * @param run The selected run, if any.
- * @param storyState Where that run's story stands.
- * @returns The detail view model, or undefined.
- */
-export function toSelectedRunDetail(run: DownloadRunView | undefined, storyState: RunHistoryStoryState): RunHistoryDetailViewModel | undefined {
-  return run === undefined ? undefined : toRunHistoryDetailViewModel(run, storyState);
 }
 
 /**

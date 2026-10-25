@@ -7,7 +7,7 @@ import historyDuotoneIcon from '@iconify-icons/solar/history-bold-duotone';
 import listCappedIcon from '@iconify-icons/solar/danger-triangle-bold';
 import { AwaitingSelectionPane } from '../../../../shared/ui/AwaitingSelectionPane/AwaitingSelectionPane';
 import { IconActionButton } from '../../../../shared/ui/IconActionButton/IconActionButton';
-import { RUN_HISTORY_COPY_CONFIRMATIONS, RUN_HISTORY_DETAIL_AWAITING, RUN_HISTORY_PANE_CLASS, RUN_HISTORY_TONE_ICON_CLASS } from './run-history-panel.constants';
+import { RUN_HISTORY_COPY_CONFIRMATIONS, RUN_HISTORY_DETAIL_AWAITING, RUN_HISTORY_PANE_CLASS, RUN_HISTORY_SPIN_CLASS, RUN_HISTORY_TONE_ICON_CLASS } from './run-history-panel.constants';
 import type { RunHistoryDetailPaneProps } from './run-history-panel.types';
 import { RunHistoryOutcomeGroup } from './RunHistoryOutcomeGroup';
 import { RunProgressBar } from './RunProgressBar';
@@ -40,7 +40,7 @@ export function RunHistoryDetailPane({ detail, covers, onCopy, onEditAnime, onOp
           <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-sm text-foreground" data-testid="run-status">
             <Icon
               aria-hidden="true"
-              className={`size-4 ${RUN_HISTORY_TONE_ICON_CLASS[status.tone]} ${status.tone === 'accent' ? 'animate-spin motion-reduce:animate-none [animation-duration:1.6s]' : ''}`}
+              className={`size-4 ${RUN_HISTORY_TONE_ICON_CLASS[status.tone]} ${status.tone === 'accent' ? RUN_HISTORY_SPIN_CLASS : ''}`}
               icon={status.icon}
             />
             {status.label}

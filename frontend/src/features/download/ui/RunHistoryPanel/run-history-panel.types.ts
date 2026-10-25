@@ -160,7 +160,6 @@ export interface RunHistoryDetailViewModel {
   readonly run: DownloadRunView;
   /** Status icon and label; absent for an `ok` run. */
   readonly status?: RunHistoryPresentation;
-  readonly isRunning: boolean;
   readonly bar?: RunHistoryBarViewModel;
   readonly groups: readonly RunHistoryGroupViewModel[];
   readonly storyNote?: RunHistoryStoryNote;
@@ -170,11 +169,8 @@ export interface RunHistoryDetailViewModel {
 export interface RunHistoryPanelViewModel {
   readonly status: RunHistoryPanelStatus;
   readonly rows: readonly RunHistoryRowViewModel[];
-  readonly visibleRows: readonly RunHistoryRowViewModel[];
   /** The visible rows under their day headers. */
   readonly visibleDays: readonly RunHistoryDayGroupViewModel[];
-  readonly canLoadMore: boolean;
-  readonly remainingCount: number;
   /** Runs whose status is a problem, counted over the whole history. */
   readonly problemCount: number;
   /** True while the list shows only the problem runs. */
