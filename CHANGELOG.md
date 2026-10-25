@@ -27,8 +27,12 @@ called out explicitly under its release.
   - Downloaded names the site host that served each episode, for example "Episodes 9–10 · jkanime.bz".
   - Skipped has an "Edit anime" button.
   - Runs older than 90 days show the totals only.
+- The Schedule card in the Editor has a Season row under the weekdays. It shows whether the anime is in Sin ver, Ver hoy or Visto, for example "Sin ver: 4 of 4". The row shows even while Season mode is off, so an anime in the history still shows the section it was in.
+- The cover field in the Editor and in Create shows a small preview of the image before the anime is saved.
 
 ### Changed
+
+- The Folder and cover fields in the Editor and in Create pick a path with an icon button instead of a "Browse…" text button. The folder icon is the same one Season Intake uses.
 
 - **Activity is now one screen.** The old Now, Incidents, History and Recorder tabs are gone. In their place:
   - a chart of the last 24 hours, 7, 30 or 90 days;
@@ -63,6 +67,7 @@ called out explicitly under its release.
   - page and link failures store the episode;
   - two new info events, `download.anime_checked` and `download.manual_link_offered`, are added;
   - `get_run_story` steps carry the anime id (`EntityID`).
+- A new desktop binding, `PreviewAnimeCover`, renders a cover that is not saved yet through the same thumbnail service as a saved cover.
 
 No REST or WebSocket change: mobile clients see no new endpoint, field or message. See `docs/openapi.yaml`.
 
