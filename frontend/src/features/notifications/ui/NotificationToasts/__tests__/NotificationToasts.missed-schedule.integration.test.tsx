@@ -128,9 +128,11 @@ describe('NotificationToasts + the missed-schedule seam', () => {
     ports.runMissedScheduleNow.mockResolvedValue({ kind: 'settled', localDate: MISSED_LOCAL_DATE, settlementReason: 'ran' });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     cleanup();
     appToastQueue.clear();
+    // HeroUI 3.2.6 keeps a closed toast queued for its exit animation; let it leave before the next test.
+    await vi.waitFor(() => expect(appToastQueue.visibleToasts).toHaveLength(0));
     resetDownloadRuntimeStore();
     ports.notificationListeners.clear();
     ports.archivedListeners.clear();
