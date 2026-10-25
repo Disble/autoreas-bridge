@@ -9,6 +9,7 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/anime/store"
+	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/download/sites"
 	"autoreas-bridge/internal/download/sites/jkanime"
@@ -245,10 +246,28 @@ func (a *App) TriggerSeasonDownloads() string {
 	return "ok"
 }
 
+// seasonSelectionRunTrigger attributes a Ver hoy subset download in run history.
+const seasonSelectionRunTrigger = "season_selection"
+
+// seasonNoAnimesSelectedMessage refuses a subset download with nothing chosen.
+const seasonNoAnimesSelectedMessage = "no animes selected"
+
+// DownloadSeasonAnimes is the Daily Board's Ver hoy "Download now": it downloads only the animes
+// the user checked, as one background run, instead of every anime scheduled for today. Returns
+// "ok" once the run has started, or why it could not start (one run at a time).
+func (a *App) DownloadSeasonAnimes(animeIDs []string) string {
+	if len(animeIDs) == 0 {
+		return seasonNoAnimesSelectedMessage
+	}
+	return a.startSoloDownload(animeIDs, func(ctx context.Context, animes []contracts.MobileAnime) {
+		_, _ = a.downloadService.RunAnimes(ctx, seasonSelectionRunTrigger, animes)
+	})
+}
+
 // seasonDownloadWindowPassed reports the configured daily download time and whether
 // today's auto-download window has already passed — true when the schedule is
-// disabled/absent or now is past the configured HH:MM, so the scheduled run will
-// not catch a just-sent batch today.
+// disabled/absent, today is not one of its selected days, or now is past the
+// configured HH:MM, so the scheduled run will not catch a just-sent batch today.
 func (a *App) seasonDownloadWindowPassed() (string, bool) {
 	if a.downloadStore == nil {
 		return "", true
@@ -265,6 +284,10 @@ func (a *App) seasonDownloadWindowPassed() (string, bool) {
 		return cfg.DailyTimeHHMM, true
 	}
 	now := a.currentTime()
+	if cfg.EnabledWeekdays&(1<<uint(now.Weekday())) == 0 {
+		// Today is not a selected day, so the scheduler fires no run today.
+		return cfg.DailyTimeHHMM, true
+	}
 	window := time.Date(now.Year(), now.Month(), now.Day(), scheduled.Hour(), scheduled.Minute(), 0, 0, now.Location())
 	return cfg.DailyTimeHHMM, now.After(window)
 }

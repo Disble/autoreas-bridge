@@ -309,6 +309,8 @@ export interface SeasonSource {
   readonly setAnimeDays: (animeId: string, dias: readonly string[]) => Promise<string>;
   readonly sendToVerHoy: (animeIds: readonly string[]) => Promise<SendToVerHoyResult>;
   readonly triggerSeasonDownloads: () => Promise<string>;
+  /** Downloads only the given Ver hoy animes as one run; "ok" once it started, or why it could not. */
+  readonly downloadSeasonAnimes: (animeIds: readonly string[]) => Promise<string>;
   readonly setGrade: (animeId: string, grade: number) => Promise<string>;
   readonly skipGrading: (rowId: string) => Promise<string>;
   readonly setConsideration: (rowId: string, consideration: string) => Promise<string>;

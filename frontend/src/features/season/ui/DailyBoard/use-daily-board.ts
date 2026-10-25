@@ -7,11 +7,13 @@ import type { SeasonCoverSource } from '../SeasonCoverThumb/season-cover-thumb.t
 import { selectVerHoyRowChip } from './daily-board.helpers';
 import { useDailyBoardSend } from './use-daily-board-send';
 import { useDailyBoardView } from './use-daily-board-view';
+import { useVerHoyDownload } from './use-ver-hoy-download';
 
 /**
  * useDailyBoard drives the conveyor: created animes grouped by section, the
- * send-and-download flow over the Sin ver pool (`useDailyBoardSend`), and an
- * on-demand availability recheck. Season I/O
+ * send-and-download flow over the Sin ver pool (`useDailyBoardSend`), the
+ * checked-subset download over Ver hoy (`useVerHoyDownload`, whose refusal
+ * shows as the board's error), and an on-demand availability recheck. Season I/O
  * flows through the season store; `useDailyBoardView` groups the rows and
  * resolves every board row's cover; a closed season's board comes from its
  * closure snapshot (`useDailyBoardView`), never from live sections: the
@@ -31,6 +33,7 @@ export function useDailyBoard(source: SeasonSource = seasonSource, coverSource: 
 
   // 5. Derived State (useMemo)
   const { view, getCoverThumb } = useDailyBoardView(seasonAnimes, source, coverSource);
+  const { downloadError, ...verHoyDownload } = useVerHoyDownload(source, view.sections.verHoy);
   const getVerHoyRowChip = selectVerHoyRowChip(readOnly);
   // A plain arrow, not a useCallback: the button is not memoized, so a stable identity buys nothing.
   const onOpenPage = (pageUrl: string) => source.openPage(pageUrl);
@@ -52,9 +55,10 @@ export function useDailyBoard(source: SeasonSource = seasonSource, coverSource: 
     plainRows: view.plainRows,
     historyError: view.historyError,
     ...send,
+    ...verHoyDownload,
     onRecheck,
     onOpenPage,
-    errorMessage,
+    errorMessage: downloadError ?? errorMessage,
     getCoverThumb,
     getVerHoyRowChip,
   };

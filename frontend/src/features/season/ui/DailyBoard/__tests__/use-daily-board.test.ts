@@ -17,6 +17,7 @@ function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     reconcileIntake: vi.fn().mockResolvedValue('ok'),
     sendToVerHoy: vi.fn().mockResolvedValue({ status: 'ok', pastDownloadTime: false, downloadTime: '21:00' }),
     triggerSeasonDownloads: vi.fn().mockResolvedValue('ok'),
+    downloadSeasonAnimes: vi.fn().mockResolvedValue('ok'),
     runMatching: vi.fn().mockResolvedValue('ok'),
     resolveMatch: vi.fn().mockResolvedValue('ok'),
     discardName: vi.fn().mockResolvedValue('ok'),
@@ -189,6 +190,59 @@ describe('useDailyBoard', () => {
 
     expect(source.sendToVerHoy).toHaveBeenCalledTimes(selection.length);
     expect(source.triggerSeasonDownloads).not.toHaveBeenCalled();
+  });
+
+  it('onDownloadSelected downloads only the checked animes still in Ver hoy, then clears the selection', async () => {
+    const rows = [createdRow('b', 'anime-b', 'Ver hoy'), createdRow('c', 'anime-c', 'Ver hoy')];
+    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const { result } = renderHook(() => useDailyBoard(source));
+    await waitFor(() => expect(result.current.sections.verHoy).toHaveLength(2));
+    // anime-gone was checked before it drained out of Ver hoy.
+    act(() => result.current.toggleVerHoySelect('anime-gone'));
+    act(() => result.current.toggleVerHoySelect('anime-b'));
+    expect([...result.current.verHoySelected]).toEqual(['anime-b']);
+
+    await act(async () => {
+      result.current.onDownloadSelected();
+    });
+
+    expect(source.downloadSeasonAnimes).toHaveBeenCalledWith(['anime-b']);
+    expect(source.triggerSeasonDownloads).not.toHaveBeenCalled();
+    expect(result.current.verHoySelected.size).toBe(0);
+    expect(result.current.errorMessage).toBeUndefined();
+  });
+
+  it('onDownloadSelected keeps the selection and surfaces why the run could not start', async () => {
+    const source = createSource({
+      getSeasonAnimes: vi.fn().mockResolvedValue([createdRow('b', 'anime-b', 'Ver hoy')]),
+      downloadSeasonAnimes: vi.fn().mockResolvedValue('a download run is already in progress'),
+    });
+    const { result } = renderHook(() => useDailyBoard(source));
+    await waitFor(() => expect(result.current.sections.verHoy).toHaveLength(1));
+    act(() => result.current.toggleVerHoySelect('anime-b'));
+
+    await act(async () => {
+      result.current.onDownloadSelected();
+    });
+
+    expect(result.current.errorMessage).toBe('a download run is already in progress');
+    expect([...result.current.verHoySelected]).toEqual(['anime-b']);
+
+    // Changing the selection retires the stale refusal.
+    act(() => result.current.toggleVerHoySelect('anime-b'));
+    expect(result.current.errorMessage).toBeUndefined();
+  });
+
+  it('onDownloadSelected is a no-op with no checked Ver hoy anime', async () => {
+    const source = createSource();
+    const { result } = renderHook(() => useDailyBoard(source));
+    act(() => result.current.toggleVerHoySelect('anime-gone'));
+
+    await act(async () => {
+      result.current.onDownloadSelected();
+    });
+
+    expect(source.downloadSeasonAnimes).not.toHaveBeenCalled();
   });
 
   it('resolves a cover for every board row, Visto included', async () => {

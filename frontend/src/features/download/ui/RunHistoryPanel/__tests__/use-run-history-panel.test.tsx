@@ -7,6 +7,7 @@ import type { DownloadRuntimeSource } from '../../../../../infrastructure/downlo
 import type { DownloadRunView } from '../../../../../shared/contracts/download.types';
 import { getDownloadRuntimeStoreState, resetDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
 import type { RunHistoryPanelViewModel, RunHistoryStory, RunHistoryStorySource } from '../run-history-panel.types';
+import { RUN_HISTORY_STORY_REFRESH_DEBOUNCE_MS } from '../run-history-panel.constants';
 import { atRoute } from './run-history-router';
 
 /** Builds one run history row, numbered so ordering assertions read plainly. */
@@ -458,6 +459,94 @@ describe('useRunHistoryPanel run story', () => {
     });
     await waitFor(() => expect(listDownloadRuns).toHaveBeenCalledTimes(4));
     expect(storySource.getRunStory).toHaveBeenCalledTimes(3);
+  });
+
+  it('reads a finished run story again once rows of that run are stored after it, once per burst, and stops listening on unmount', async () => {
+    // download.run_finished reaches the WebView before the eventlog queue has persisted the run's
+    // last rows, so the read on that status flip can miss them; each stored row is announced.
+    let announceStored: ((row: { readonly correlationId: string }) => void) | undefined;
+    const stopListening = vi.fn();
+    const storySource = {
+      ...createStorySource(),
+      subscribeRecorder: vi.fn().mockImplementation((next: (row: { readonly correlationId: string }) => void) => {
+        announceStored = next;
+        return stopListening;
+      }),
+    };
+    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue([createRun(1, { status: 'ok' })]) });
+    const { unmount } = renderHook(() => useRunHistoryPanel(source, { storySource, coverSource }), { wrapper: atRoute() });
+    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      announceStored?.({ correlationId: 'run-1' });
+      announceStored?.({ correlationId: 'run-1' });
+      announceStored?.({ correlationId: 'run-1' });
+    });
+
+    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 2 * RUN_HISTORY_STORY_REFRESH_DEBOUNCE_MS));
+    });
+    expect(storySource.getRunStory.mock.calls).toEqual([['run-1'], ['run-1']]);
+    unmount();
+    expect(stopListening).toHaveBeenCalled();
+  });
+
+  it('reads the story again for every later burst of stored rows, not only the first', async () => {
+    let announceStored: ((row: { readonly correlationId: string }) => void) | undefined;
+    const storySource = {
+      ...createStorySource(),
+      subscribeRecorder: vi.fn().mockImplementation((next: (row: { readonly correlationId: string }) => void) => {
+        announceStored = next;
+        return () => undefined;
+      }),
+    };
+    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue([createRun(1, { status: 'ok' })]) });
+    renderHook(() => useRunHistoryPanel(source, { storySource, coverSource }), { wrapper: atRoute() });
+    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      announceStored?.({ correlationId: 'run-1' });
+    });
+    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(2));
+    act(() => {
+      announceStored?.({ correlationId: 'run-1' });
+    });
+
+    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(3));
+  });
+
+  it('does not listen for stored rows while no run is selected', async () => {
+    const storySource = { ...createStorySource(), subscribeRecorder: vi.fn().mockReturnValue(() => undefined) };
+    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue([]) });
+    const { result } = renderHook(() => useRunHistoryPanel(source, { storySource, coverSource }), { wrapper: atRoute() });
+
+    await waitFor(() => expect(result.current.viewModel.status).toBe('empty'));
+
+    expect(storySource.subscribeRecorder).not.toHaveBeenCalled();
+  });
+
+  it('reads nothing more for rows of another run', async () => {
+    let announceStored: ((row: { readonly correlationId: string }) => void) | undefined;
+    const storySource = {
+      ...createStorySource(),
+      subscribeRecorder: vi.fn().mockImplementation((next: (row: { readonly correlationId: string }) => void) => {
+        announceStored = next;
+        return () => undefined;
+      }),
+    };
+    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue([createRun(1, { status: 'ok' })]) });
+    renderHook(() => useRunHistoryPanel(source, { storySource, coverSource }), { wrapper: atRoute() });
+    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      announceStored?.({ correlationId: 'run-9' });
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 2 * RUN_HISTORY_STORY_REFRESH_DEBOUNCE_MS));
+    });
+
+    expect(storySource.getRunStory).toHaveBeenCalledTimes(1);
   });
 
   it('toggles the Problems filter', async () => {

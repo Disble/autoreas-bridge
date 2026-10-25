@@ -26,7 +26,8 @@ func buildAppOptions(app *App, assets embed.FS) *options.App {
 		Width:  1024,
 		Height: 768,
 		AssetServer: &assetserver.Options{
-			Assets: assets,
+			Assets:     assets,
+			Middleware: assetServerMiddleware(app.getenv()),
 		},
 		BackgroundColour:  options.NewRGB(27, 38, 54),
 		HideWindowOnClose: true,

@@ -237,6 +237,12 @@ type animeProgressDelta = animeRunOutcome
 // the run row (e.g. the store is unreachable), which the caller (scheduler/Wails binding) MUST
 // surface rather than silently swallow.
 func (s *Service) RunOnce(ctx context.Context, trigger string) (RunResult, error) {
+	return s.runSelection(ctx, trigger, s.listActiveAnimesToday)
+}
+
+// runSelection is the body RunOnce and RunAnimes share: open the run row, resolve the selection,
+// announce, run the pipeline and finalize. A non-nil error only means the run row could not open.
+func (s *Service) runSelection(ctx context.Context, trigger string, selectAnimes func(context.Context) ([]contracts.MobileAnime, error)) (RunResult, error) {
 	runID := s.deps.NewRunID()
 	startedAt := s.deps.Clock()
 
@@ -260,7 +266,7 @@ func (s *Service) RunOnce(ctx context.Context, trigger string) (RunResult, error
 	// itself even when the catalog query fails or nothing is scheduled, and that has to survive --
 	// a run that errors on selection still started. A failed query therefore degrades to the
 	// subject-less sentence this notification used to be, never to silence.
-	animes, selectionErr := s.listActiveAnimesToday(ctx)
+	animes, selectionErr := selectAnimes(ctx)
 	s.notify(ctx, runNotification{
 		level:   notification.LevelInfo,
 		kind:    kindRunStarted,
@@ -275,45 +281,6 @@ func (s *Service) RunOnce(ctx context.Context, trigger string) (RunResult, error
 	s.raiseReadinessAttention(ctx, runID, trigger)
 
 	result := s.execute(ctx, runID, startedAt, trigger, &run, animes, selectionErr)
-	s.finishRunLog(runID, &run)
-
-	return result, nil
-}
-
-// RunAnime executes the same catch-up pipeline as RunOnce, but scoped to a single already
-// selected anime. The caller owns selection/concurrency policy; the service still persists a
-// normal download_runs row and emits the same download lifecycle events so the Downloads UI and
-// run history refresh without a second code path.
-func (s *Service) RunAnime(ctx context.Context, trigger string, anime contracts.MobileAnime) (RunResult, error) {
-	runID := s.deps.NewRunID()
-	startedAt := s.deps.Clock()
-
-	run := Run{
-		RunID:       runID,
-		StartedAtMs: startedAt.UnixMilli(),
-		Trigger:     trigger,
-		Status:      "running",
-	}
-	if s.deps.Store != nil {
-		if err := s.deps.Store.OpenRun(ctx, run); err != nil {
-			return RunResult{}, fmt.Errorf("download: open run %q: %w", runID, err)
-		}
-	}
-
-	s.logAnimef(logger.LevelInfo, runID, anime, "download.run_started", map[string]any{"trigger": trigger},
-		"download run %s started (trigger=%s, anime=%s)", runID, trigger, anime.Name)
-	s.publish(events.DownloadRunStartedEvent{RunID: runID, Trigger: trigger, CorrelationID: runID})
-	s.notify(ctx, runNotification{
-		level:   notification.LevelInfo,
-		kind:    kindRunStarted,
-		runID:   runID,
-		title:   "Anime download started",
-		body:    fmt.Sprintf("Download check started for %s.", anime.Name),
-		rows:    buildRunStartedRows([]contracts.MobileAnime{anime}),
-		actions: runWideActions(kindRunStarted, runID),
-	})
-
-	result := s.executeAnimeLive(ctx, runID, &run, anime)
 	s.finishRunLog(runID, &run)
 
 	return result, nil

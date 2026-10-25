@@ -62,6 +62,7 @@ function makeSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     reconcileIntake: vi.fn().mockResolvedValue('ok'),
     sendToVerHoy: vi.fn().mockResolvedValue({ status: 'ok', pastDownloadTime: false, downloadTime: '' }),
     triggerSeasonDownloads: vi.fn().mockResolvedValue('ok'),
+    downloadSeasonAnimes: vi.fn().mockResolvedValue('ok'),
     runMatching: vi.fn().mockResolvedValue('ok'),
     resolveMatch: vi.fn().mockResolvedValue('ok'),
     discardName: vi.fn().mockResolvedValue('ok'),

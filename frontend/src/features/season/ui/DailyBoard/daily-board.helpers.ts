@@ -122,3 +122,36 @@ export function selectVerHoyRowChip(readOnly: boolean): (row: SeasonAnimeRow) =>
 export function listRowWithoutChip(): DailyBoardRowChip | null {
   return null;
 }
+
+/**
+ * Returns a copy of `selected` with `animeId` flipped: added when absent,
+ * removed when present. The board's selections are immutable sets, so React
+ * sees every toggle as a new state.
+ */
+export function toggleSelection(selected: ReadonlySet<string>, animeId: string): ReadonlySet<string> {
+  const next = new Set(selected);
+  if (next.has(animeId)) {
+    next.delete(animeId);
+  } else {
+    next.add(animeId);
+  }
+  return next;
+}
+
+/**
+ * Keeps only the checked anime ids still listed in `rows`. Ver hoy drains live
+ * as episodes are watched, so an anime checked earlier may have left the
+ * section; it must neither enable the download nor be downloaded.
+ */
+export function pruneSelection(selected: ReadonlySet<string>, rows: readonly SeasonAnimeRow[]): ReadonlySet<string> {
+  return new Set(rows.filter((row) => selected.has(row.animeId)).map((row) => row.animeId));
+}
+
+/**
+ * The DOM id of a board row's visible anime name, which names the row's
+ * checkbox through `aria-labelledby`. Row ids are unique across sections, so
+ * the id is unique on the board.
+ */
+export function getDailyBoardRowNameId(rowId: string): string {
+  return `daily-board-row-name-${rowId}`;
+}

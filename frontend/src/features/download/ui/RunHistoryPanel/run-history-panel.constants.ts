@@ -135,6 +135,9 @@ export const RUN_HISTORY_PROBLEMS_TOOLTIP = { off: 'Show only problems', on: 'Sh
 /** The line under the header while a stop is pending. */
 export const RUN_HISTORY_STOPPING_NOTE = 'Stopping — the run ends after the episode it is already downloading.';
 
+/** Quiet time after the last stored row of the selected run before its story is read again, so a burst reads once. */
+export const RUN_HISTORY_STORY_REFRESH_DEBOUNCE_MS = 250;
+
 /** The one "still loading" story state, shared so a re-render does not look like a new story. */
 export const RUN_HISTORY_STORY_LOADING: RunHistoryStoryState = { status: 'loading' };
 

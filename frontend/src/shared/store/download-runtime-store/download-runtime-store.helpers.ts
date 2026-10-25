@@ -30,27 +30,39 @@ export const downloadRuntimeStore = createStore<DownloadRuntimeStoreState>()((se
   runHistoryHasLoaded: false,
   runHistoryErrorMessage: undefined,
   selectedRunId: undefined,
+  // Events re-read back to back (run_finished, then schedule.run_settled), and the backend may
+  // answer them out of order: only the answer to the latest read is applied.
   refreshSchedule: async (source) => {
+    const read = ++DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.scheduleReadCount;
     try {
       const scheduleConfig = await source.getScheduleConfig();
-      set({ scheduleConfig, scheduleHasLoaded: true, scheduleErrorMessage: undefined });
+      if (read === DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.scheduleReadCount) {
+        set({ scheduleConfig, scheduleHasLoaded: true, scheduleErrorMessage: undefined });
+      }
     } catch (error) {
-      set({
-        scheduleHasLoaded: true,
-        scheduleErrorMessage: toErrorMessage(error, 'Failed to load schedule config'),
-      });
+      if (read === DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.scheduleReadCount) {
+        set({
+          scheduleHasLoaded: true,
+          scheduleErrorMessage: toErrorMessage(error, 'Failed to load schedule config'),
+        });
+      }
     }
   },
   refreshRunHistory: async (source) => {
+    const read = ++DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runHistoryReadCount;
     try {
       const runHistory = await source.listDownloadRuns();
-      set({ runHistory, runHistoryHasLoaded: true, runHistoryErrorMessage: undefined });
+      if (read === DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runHistoryReadCount) {
+        set({ runHistory, runHistoryHasLoaded: true, runHistoryErrorMessage: undefined });
+      }
     } catch (error) {
-      set({
-        runHistory: [],
-        runHistoryHasLoaded: true,
-        runHistoryErrorMessage: toErrorMessage(error, 'Failed to load download run history'),
-      });
+      if (read === DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runHistoryReadCount) {
+        set({
+          runHistory: [],
+          runHistoryHasLoaded: true,
+          runHistoryErrorMessage: toErrorMessage(error, 'Failed to load download run history'),
+        });
+      }
     }
   },
   hideMissedNoticeDecision: (localDate) => set({ hiddenMissedNoticeDate: localDate }),
@@ -142,6 +154,10 @@ export function resetDownloadRuntimeStore(): void {
   if (DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runtimeUnsubscribe !== null) {
     DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runtimeUnsubscribe();
   }
+
+  // A read still in flight belongs to the snapshot being cleared: it must not land after it.
+  DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.scheduleReadCount += 1;
+  DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runHistoryReadCount += 1;
 
   setDownloadRuntimeStoreState({
     scheduleConfig: EMPTY_SCHEDULE_CONFIG,

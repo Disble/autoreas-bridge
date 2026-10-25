@@ -12,6 +12,7 @@ import type {
   RunHistoryDetailViewModel,
   RunHistoryGroupViewModel,
   RunHistoryPresentation,
+  RunHistoryStoredRow,
   RunHistoryStory,
   RunHistoryStoryNote,
   RunHistoryStoryState,
@@ -39,6 +40,17 @@ interface GroupRows {
   readonly downloaded: RunHistoryAnimeRowViewModel[];
   readonly skipped: RunHistoryAnimeRowViewModel[];
   readonly upToDate: RunHistoryAnimeRowViewModel[];
+}
+
+/**
+ * Whether a stored runtime_events row belongs to the given run, so its story changed.
+ *
+ * @param row The stored row the backend announced.
+ * @param runId The selected run's id.
+ * @returns True when the row is one of that run's steps.
+ */
+export function isStoredRowOfRun(row: RunHistoryStoredRow, runId: string): boolean {
+  return row.correlationId === runId;
 }
 
 /**
