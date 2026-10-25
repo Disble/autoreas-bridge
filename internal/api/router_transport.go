@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -40,7 +41,7 @@ func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) (device.P
 
 	paired, err := h.deviceService.AuthenticateToken(r.Context(), token)
 	if err != nil {
-		writeJSONError(w, http.StatusUnauthorized, "invalid bearer token")
+		writeAuthenticationFailure(w, err)
 		return device.PairedDevice{}, false
 	}
 
@@ -60,11 +61,30 @@ func (h *Handler) authenticateWebSocket(w http.ResponseWriter, r *http.Request) 
 
 	paired, err := h.deviceService.AuthenticateToken(r.Context(), token)
 	if err != nil {
-		writeJSONError(w, http.StatusUnauthorized, "invalid bearer token")
+		writeAuthenticationFailure(w, err)
 		return device.PairedDevice{}, false
 	}
 
 	return paired, true
+}
+
+// authRetryAfterSeconds is the Retry-After sent when a token lookup could not
+// run. The wait is for the single pooled SQLite connection, so a short retry is
+// enough; mobile already honours Retry-After on its retryable paths.
+const authRetryAfterSeconds = "1"
+
+// writeAuthenticationFailure answers a failed token lookup. Only a token that
+// matches no paired device is a 401: mobile treats a 401 on reconcile as a
+// rejected pairing and dead-letters every pending operation of the round. Any
+// other failure (a busy database, a cancelled wait for the pooled connection)
+// says nothing about the token, so it is a retryable 503.
+func writeAuthenticationFailure(w http.ResponseWriter, err error) {
+	if errors.Is(err, device.ErrUnauthorized) {
+		writeJSONError(w, http.StatusUnauthorized, "invalid bearer token")
+		return
+	}
+	w.Header().Set("Retry-After", authRetryAfterSeconds)
+	writeJSONError(w, http.StatusServiceUnavailable, "authentication unavailable")
 }
 
 // extractBearerToken returns a non-empty bearer token from the request header.

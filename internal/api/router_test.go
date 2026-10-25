@@ -1,7 +1,10 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -53,18 +56,61 @@ func TestPatchAnimeWithoutTokenReturnsUnauthorized(t *testing.T) {
 	}
 }
 
-func TestPatchAnimeWithInvalidTokenReturnsUnauthorized(t *testing.T) {
+// TestTokenAuthenticationFailureStatus pins the status the phone acts on: only
+// a token that matches no paired device is a 401, which mobile treats as a
+// rejected pairing and dead-letters its pending reconcile operations. A
+// lookup that could not run (a busy database, a cancelled wait for the single
+// pooled connection) is a retryable 503 with Retry-After, on both the HTTP
+// and the websocket authentication paths.
+func TestTokenAuthenticationFailureStatus(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHandler(Config{DeviceService: stubDeviceService{authenticateErr: device.ErrUnauthorized}})
-	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", nil)
-	req.Header.Set("Authorization", "Bearer bad-token")
-	res := httptest.NewRecorder()
+	tests := []struct {
+		name           string
+		err            error
+		wantStatus     int
+		wantRetryAfter string
+		wantMessage    string
+	}{
+		{name: "unknown token", err: device.ErrUnauthorized, wantStatus: http.StatusUnauthorized, wantMessage: "invalid bearer token"},
+		{name: "wrapped unknown token", err: fmt.Errorf("lookup: %w", device.ErrUnauthorized), wantStatus: http.StatusUnauthorized, wantMessage: "invalid bearer token"},
+		{name: "database failure", err: errors.New("find device by auth token: database is locked"), wantStatus: http.StatusServiceUnavailable, wantRetryAfter: "1", wantMessage: "authentication unavailable"},
+		{name: "cancelled wait", err: fmt.Errorf("find device by auth token: %w", context.Canceled), wantStatus: http.StatusServiceUnavailable, wantRetryAfter: "1", wantMessage: "authentication unavailable"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	handler.ServeHTTP(res, req)
+			stub := stubDeviceService{authenticateErr: tt.err}
+			httpReq := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", nil)
+			httpReq.Header.Set("Authorization", "Bearer some-token")
+			httpRes := httptest.NewRecorder()
+			NewHandler(Config{DeviceService: stub}).ServeHTTP(httpRes, httpReq)
 
-	if res.Code != http.StatusUnauthorized {
-		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, res.Code)
+			wsRes := httptest.NewRecorder()
+			if _, ok := (&Handler{deviceService: stub}).authenticateWebSocket(wsRes, httptest.NewRequest(http.MethodGet, "/ws?token=some-token", nil)); ok {
+				t.Fatal("websocket authentication succeeded on a failed lookup")
+			}
+
+			assertAuthFailure(t, "http", httpRes, tt.wantStatus, tt.wantRetryAfter, tt.wantMessage)
+			assertAuthFailure(t, "websocket", wsRes, tt.wantStatus, tt.wantRetryAfter, tt.wantMessage)
+		})
+	}
+}
+
+// assertAuthFailure checks the status, Retry-After header and error body one
+// authentication path wrote.
+func assertAuthFailure(t *testing.T, path string, res *httptest.ResponseRecorder, wantStatus int, wantRetryAfter, wantMessage string) {
+	t.Helper()
+	if res.Code != wantStatus {
+		t.Fatalf("%s: status = %d, want %d", path, res.Code, wantStatus)
+	}
+	if got := res.Header().Get("Retry-After"); got != wantRetryAfter {
+		t.Fatalf("%s: Retry-After = %q, want %q", path, got, wantRetryAfter)
+	}
+	var body map[string]string
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil || body["error"] != wantMessage {
+		t.Fatalf("%s: body = %q (%v), want error %q", path, res.Body.String(), err, wantMessage)
 	}
 }
 

@@ -433,8 +433,8 @@ x-websocket:
       - {"type":"anime_deleted","anime_id":"<id>"}
   responses:
     101: Upgrade success
-    401: Authentication failure
-    503: Hub unavailable
+    401: Authentication failure (unknown token)
+    503: "Hub unavailable, or the token lookup could not run (Retry-After: 1)"
   observability: |
     2026-07-24 — capture-middleware-realtime: connection lifecycle
     (register/unregister) and every outbound broadcast are now captured at
@@ -451,6 +451,14 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: |
+        Every endpoint that requires this scheme, including the /ws upgrade,
+        answers 401 only when the token matches no paired device. When the
+        token lookup itself cannot run (a busy database, a cancelled wait for
+        the bridge's single pooled connection) it answers 503 with
+        `Retry-After: 1` and `{"error":"authentication unavailable"}`: that
+        says nothing about the token, so retry rather than treating the pairing
+        as rejected (2026-10-25; previously such a failure was a 401).
 
   schemas:
     ErrorResponse:
