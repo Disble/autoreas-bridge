@@ -306,7 +306,7 @@ func TestSendSeasonAnimesToVerHoyBeforeWindowIsAutomatic(t *testing.T) {
 	episode := &appliedDaysEpisodeService{stubAppEpisodeService: &stubAppEpisodeService{}}
 	fixedNow := time.Date(2026, 7, 8, 10, 0, 0, 0, time.Local)
 	future := fixedNow.Add(2 * time.Hour).Format("15:04")
-	store := &fakeAppDownloadStore{scheduleConfig: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: future}}
+	store := &fakeAppDownloadStore{scheduleConfig: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: future, EnabledWeekdays: allWeekdaysMask}}
 	sched := &fakeAppScheduler{}
 	app := &App{ctx: context.Background(), episodeService: episode, downloadStore: store, downloadScheduler: sched, nowTime: func() time.Time { return fixedNow }}
 
@@ -322,17 +322,34 @@ func TestSendSeasonAnimesToVerHoyBeforeWindowIsAutomatic(t *testing.T) {
 	}
 }
 
+// TestSendSeasonAnimesToVerHoyPastWindowOffersManual flags a manual download whenever no scheduled
+// run will catch the batch today: the time has passed, or today is not one of the selected days.
 func TestSendSeasonAnimesToVerHoyPastWindowOffersManual(t *testing.T) {
 	t.Parallel()
-	episode := &appliedDaysEpisodeService{stubAppEpisodeService: &stubAppEpisodeService{}}
+	// A Wednesday at 10:00.
 	fixedNow := time.Date(2026, 7, 8, 10, 0, 0, 0, time.Local)
 	past := fixedNow.Add(-2 * time.Hour).Format("15:04")
-	store := &fakeAppDownloadStore{scheduleConfig: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: past}}
-	app := &App{ctx: context.Background(), episodeService: episode, downloadStore: store, nowTime: func() time.Time { return fixedNow }}
+	future := fixedNow.Add(2 * time.Hour).Format("15:04")
+	tests := []struct {
+		name     string
+		schedule download.ScheduleConfig
+	}{
+		{"past today's time", download.ScheduleConfig{Enabled: true, DailyTimeHHMM: past, EnabledWeekdays: allWeekdaysMask}},
+		{"today not selected", download.ScheduleConfig{Enabled: true, DailyTimeHHMM: future, EnabledWeekdays: allWeekdaysMask &^ (1 << time.Wednesday)}},
+		{"no day selected", download.ScheduleConfig{Enabled: true, DailyTimeHHMM: future}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			episode := &appliedDaysEpisodeService{stubAppEpisodeService: &stubAppEpisodeService{}}
+			store := &fakeAppDownloadStore{scheduleConfig: tc.schedule}
+			app := &App{ctx: context.Background(), episodeService: episode, downloadStore: store, nowTime: func() time.Time { return fixedNow }}
 
-	got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"})
-	if got.Status != "ok" || !got.PastDownloadTime {
-		t.Fatalf("past the window the send must flag a manual download, got %+v", got)
+			got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"})
+			if got.Status != "ok" || !got.PastDownloadTime || got.DownloadTime != tc.schedule.DailyTimeHHMM {
+				t.Fatalf("expected a manual-download flag with time %q, got %+v", tc.schedule.DailyTimeHHMM, got)
+			}
+		})
 	}
 }
 

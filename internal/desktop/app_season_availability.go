@@ -266,8 +266,8 @@ func (a *App) DownloadSeasonAnimes(animeIDs []string) string {
 
 // seasonDownloadWindowPassed reports the configured daily download time and whether
 // today's auto-download window has already passed — true when the schedule is
-// disabled/absent or now is past the configured HH:MM, so the scheduled run will
-// not catch a just-sent batch today.
+// disabled/absent, today is not one of its selected days, or now is past the
+// configured HH:MM, so the scheduled run will not catch a just-sent batch today.
 func (a *App) seasonDownloadWindowPassed() (string, bool) {
 	if a.downloadStore == nil {
 		return "", true
@@ -284,6 +284,10 @@ func (a *App) seasonDownloadWindowPassed() (string, bool) {
 		return cfg.DailyTimeHHMM, true
 	}
 	now := a.currentTime()
+	if cfg.EnabledWeekdays&(1<<uint(now.Weekday())) == 0 {
+		// Today is not a selected day, so the scheduler fires no run today.
+		return cfg.DailyTimeHHMM, true
+	}
 	window := time.Date(now.Year(), now.Month(), now.Day(), scheduled.Hour(), scheduled.Minute(), 0, 0, now.Location())
 	return cfg.DailyTimeHHMM, now.After(window)
 }
