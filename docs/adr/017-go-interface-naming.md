@@ -29,7 +29,7 @@ Measured across all 93 production interfaces:
 | `Probe` | 1 | 1 |
 
 **84% of single-method interfaces already used the idiom** before this change —
-`Deliverer`, `Notifier`, `Flattener`, `Renamer`, `Fetcher`, `FileReader`,
+`Deliverer`, `Notifier`, `Fetcher`, `FileReader`,
 `BatchCreator`, `EventPublisher`, `ConflictWriter`. Nobody was asked to do that.
 The role suffixes cluster on multi-method interfaces, where the idiom does not
 apply.

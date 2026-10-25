@@ -99,8 +99,7 @@ does not unify that vocabulary.
 (`MobileAnime.Folder` / `EpisodeScheduleItem.FolderPath`), and the file path comes from listing that
 folder at the moment the file exists, taking the newest video at the root — the criterion the download
 code already documents on the JDownloader side ("the link JD finished last is the episode that just
-landed") and which `filesystem.latestVideoAtRoot` implemented for the disk side (removed on 2026-10-25 with the
-unused filesystem renamer). No new registry, no
+landed"). No new registry, no
 new event field.
 
 **D8 — No duration cache, anywhere.** Rejected on measurement, see section 7.
