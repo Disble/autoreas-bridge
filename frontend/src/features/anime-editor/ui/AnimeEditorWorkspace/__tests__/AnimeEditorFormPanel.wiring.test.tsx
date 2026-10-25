@@ -60,7 +60,10 @@ describe('AnimeEditorFormPanel field wiring', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Cover file path' }), { target: { value: 'D:/d.jpg' } });
     expect(viewModel.onDraftChange).toHaveBeenCalledExactlyOnceWith('coverPath', 'D:/d.jpg');
 
-    const [folderBrowse, coverBrowse] = screen.getAllByRole('button', { name: 'Browse…' });
+    const folderBrowse = screen.getByRole('button', { name: 'Choose folder' });
+    const coverBrowse = screen.getByRole('button', { name: 'Choose cover image' });
+    expect(folderBrowse).toHaveTextContent(/^$/);
+    expect(coverBrowse).toHaveTextContent(/^$/);
     fireEvent.click(folderBrowse);
     expect(viewModel.onPickFolder).toHaveBeenCalledTimes(1);
     expect(viewModel.onPickCoverFile).not.toHaveBeenCalled();

@@ -113,6 +113,23 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
     expect(screen.getByRole('button', { name: 'Fetch metadata' })).toBeInTheDocument();
   });
 
+  it('opens the folder and cover pickers from icon-only buttons named by what they choose', () => {
+    const viewModel = createViewModel();
+    render(<AnimeCreateRow index={0} row={draftRow({ name: 'Bleach', coverType: 'image' })} viewModel={viewModel} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Optional details' }));
+
+    const folder = screen.getByRole('button', { name: 'Choose folder' });
+    const cover = screen.getByRole('button', { name: 'Choose cover image' });
+    expect(folder).toHaveTextContent(/^$/);
+    expect(cover).toHaveTextContent(/^$/);
+    expect(screen.queryByRole('button', { name: 'Browse…' })).toBeNull();
+    fireEvent.click(folder);
+    expect(viewModel.onBrowseFolder).toHaveBeenCalledExactlyOnceWith(draftRow().draftId);
+    expect(viewModel.onBrowseCover).not.toHaveBeenCalled();
+    fireEvent.click(cover);
+    expect(viewModel.onBrowseCover).toHaveBeenCalledExactlyOnceWith(draftRow().draftId);
+  });
+
   it('disables the Fetch metadata action while Name is empty', () => {
     const row = draftRow({ name: '' });
     render(<AnimeCreateRow index={0} row={row} viewModel={createViewModel()} />);

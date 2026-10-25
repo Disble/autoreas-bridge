@@ -1,3 +1,5 @@
+import folderIcon from '@iconify-icons/solar/folder-with-files-bold-duotone';
+import galleryIcon from '@iconify-icons/solar/gallery-bold-duotone';
 import trashIcon from '@iconify-icons/solar/trash-bin-2-bold-duotone';
 import undoIcon from '@iconify-icons/solar/undo-left-linear';
 import { Button, Card, Disclosure, Typography } from '@heroui/react';
@@ -77,7 +79,8 @@ export function AnimeCreateRow({ row, index, viewModel }: Readonly<AnimeCreateRo
             onChange={(value) => viewModel.onRowChange(draftId, { page: value })}
           />
           <PathPickerField
-            browseLabel="Browse…"
+            browseIcon={folderIcon}
+            browseLabel="Choose folder"
             description="Where downloads are saved."
             label="Folder"
             mono
@@ -118,7 +121,8 @@ export function AnimeCreateRow({ row, index, viewModel }: Readonly<AnimeCreateRo
                 />
                 {row.coverType === 'image' ? (
                   <PathPickerField
-                    browseLabel="Browse…"
+                    browseIcon={galleryIcon}
+                    browseLabel="Choose cover image"
                     description="Local image file on disk."
                     label="Cover image path"
                     mono
