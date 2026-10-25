@@ -97,7 +97,7 @@ func newProbeWatchService(t *testing.T, jd jdownloader.JDClient, counter *svcFak
 func watchAttempt(t *testing.T, jd jdownloader.JDClient, now *time.Time, hasPart func(root string) bool) *fieldsRecorder {
 	t.Helper()
 	folder := "folder-" + t.Name()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	s, recorder := newProbeWatchService(t, jd, counter, now, hasPart)
 	s.awaitHosterOutcome(context.Background(), "run-1", testAnime(folder), "Mediafire", 4, 12, true)
 	return recorder

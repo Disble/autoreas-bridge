@@ -12,7 +12,7 @@ import (
 )
 
 // processAnime runs the full per-anime pipeline (gating -> trigger decision -> site resolution ->
-// scrape -> hoster-ordered enqueue with fallback -> filesystem completion poll -> flatten), with
+// scrape -> hoster-ordered enqueue with fallback -> filesystem completion poll), with
 // every error contained to this anime's outcome -- it NEVER panics or returns an error that would
 // abort the fan-out loop (download-orchestration spec "Per-Anime Fan-Out With Failure Isolation").
 func (s *Service) processAnime(
@@ -71,7 +71,6 @@ func (s *Service) prepareAnimeDownload(ctx context.Context, runID string, anime 
 
 	anime.Folder = &decision.Destination
 	sourceURL := strings.TrimSpace(derefOrEmpty(anime.SourceURL))
-	s.flattenDownloadFolder(ctx, runID, anime)
 	onDiskEpisode := s.downloadedEpisodeBaseline(decision.Destination)
 	if anime.TotalEpisodes != nil && *anime.TotalEpisodes > 0 && *anime.TotalEpisodes == onDiskEpisode {
 		s.logAnimef(logger.LevelInfo, runID, anime, "download.up_to_date", map[string]any{"reason": "season_complete_on_disk", "totalcap": *anime.TotalEpisodes, "onDiskCount": onDiskEpisode}, "anime %s up to date: season already complete on disk (%d/%d)", anime.Name, onDiskEpisode, *anime.TotalEpisodes)
@@ -362,25 +361,6 @@ func (s *Service) orderHosters(site string, links []sites.DownloadLink) []hoster
 	return out
 }
 
-// flattenDownloadFolder moves downloaded files from nested folders into the anime folder.
-func (s *Service) flattenDownloadFolder(ctx context.Context, runID string, anime contracts.MobileAnime) {
-	if s.deps.Flattener == nil || anime.Folder == nil || *anime.Folder == "" {
-		return
-	}
-	moved, err := s.deps.Flattener.Flatten(ctx, *anime.Folder)
-	if err != nil {
-		s.logAnimef(logger.LevelWarn, runID, anime, "download.flatten_failed",
-			map[string]any{"moved": moved},
-			"anime %s: download folder flatten moved %d files with errors: %v", anime.Name, moved, err)
-		return
-	}
-	if moved > 0 {
-		s.logAnimef(logger.LevelInfo, runID, anime, "download.flattened",
-			map[string]any{"moved": moved},
-			"anime %s: download folder flatten moved %d files", anime.Name, moved)
-	}
-}
-
 // downloadedEpisodeBaseline returns the highest episode count at the folder root.
 func (s *Service) downloadedEpisodeBaseline(folder string) int {
 	if s.deps.Counter == nil {
@@ -388,16 +368,6 @@ func (s *Service) downloadedEpisodeBaseline(folder string) int {
 	}
 	highest := s.deps.Counter.HighestEpisodeAtRoot(folder)
 	count := s.deps.Counter.CountAtRoot(folder)
-	return max(highest, count)
-}
-
-// downloadedEpisodeRecursive returns the highest episode count recursively below a folder.
-func (s *Service) downloadedEpisodeRecursive(folder string) int {
-	if s.deps.Counter == nil {
-		return 0
-	}
-	highest := s.deps.Counter.HighestEpisodeRecursive(folder)
-	count := s.deps.Counter.CountRecursive(folder)
 	return max(highest, count)
 }
 

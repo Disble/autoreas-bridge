@@ -4,7 +4,7 @@ package download
 // service_download_core_integration_test.go. It exists because the package's default test
 // wiring cannot reach the code that battery covers: baseDeps sets DetectStartPhaseDisabled,
 // a FIXED Clock and a no-op PollSleep, and setSvcFakeCounter replaces the episode counter
-// AND the flattener -- so a t.TempDir() handed to those tests is only a path string, and
+// -- so a t.TempDir() handed to those tests is only a path string, and
 // roughly seventy full-run invocations never enter the detect phase at all.
 //
 // jdSim closes that gap. The virtual clock IS the scheduler: PollSleep advances a shared
@@ -54,8 +54,7 @@ type jdAction struct {
 
 // jdSim is a JDownloader stand-in that performs REAL file operations on a REAL folder,
 // scheduled against the virtual clock the suite advances through PollSleep. It is the only
-// fake left in this battery -- the counter, the flattener and the .part sensor are the
-// production adapters.
+// fake left in this battery -- the counter and the .part sensor are the production adapters.
 type jdSim struct {
 	*svcFakeJDClient // Connect/ListDevices/EnsureOnline/Disconnect, unchanged
 
@@ -150,7 +149,7 @@ func (sim *jdSim) RemoveByDestination(context.Context, string, string) error {
 // RenameEpisodeByDestination renames the ONE path JD still believes it holds, in place, and
 // nothing else. It deliberately never re-scans the folder: rename.go resolves the newest
 // FINISHED LINK and returns ErrNoRenamableLink when JD holds none, so a re-scanning fake would
-// silently succeed after a flatten and make the rename-before-flatten order rule untestable.
+// rename a file JD never downloaded.
 func (sim *jdSim) RenameEpisodeByDestination(_ context.Context, _, _, baseName string) (string, error) {
 	if sim.finished == "" {
 		return "", jdownloader.ErrNoRenamableLink
@@ -167,53 +166,49 @@ func (sim *jdSim) RenameEpisodeByDestination(_ context.Context, _, _, baseName s
 	return renamed, nil
 }
 
-// fixturePath resolves a scripted path INSIDE the fixture root; relDir "" means the root.
-// Every path the sim touches goes through here and none may escape sim.folder. A harness bug
-// that wrote into the repository is the one genuinely damaging failure mode of a battery that
-// performs real file operations, and the single-root rule is what forecloses it.
-func (sim *jdSim) fixturePath(relDir, name string) string {
+// fixturePath resolves a scripted file name at the fixture root, where JD writes every
+// download. Every path the sim touches goes through here and none may escape sim.folder. A
+// harness bug that wrote into the repository is the one genuinely damaging failure mode of a
+// battery that performs real file operations, and the single-root rule is what forecloses it.
+func (sim *jdSim) fixturePath(name string) string {
 	sim.t.Helper()
-	path := filepath.Join(sim.folder, relDir, name)
+	path := filepath.Join(sim.folder, name)
 	if !strings.HasPrefix(path, sim.folder+string(filepath.Separator)) {
 		sim.t.Fatalf("sim: fixture path %q escapes the fixture root %q", path, sim.folder)
 	}
 	return path
 }
 
-// writeFixture creates a scripted file, and its parent directory when JD lands in a package
-// subfolder.
-func (sim *jdSim) writeFixture(relDir, name string) string {
+// writeFixture creates a scripted file at the fixture root.
+func (sim *jdSim) writeFixture(name string) string {
 	sim.t.Helper()
-	path := sim.fixturePath(relDir, name)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		sim.t.Fatalf("sim: create fixture directory for %q: %v", path, err)
-	}
+	path := sim.fixturePath(name)
 	if err := os.WriteFile(path, []byte("video"), 0o644); err != nil {
 		sim.t.Fatalf("sim: write fixture %q: %v", path, err)
 	}
 	return path
 }
 
-// landsPartAt writes relDir/name+".mp4.part" under the fixture root. ".part" is not in
+// landsPartAt writes name+".mp4.part" at the fixture root. ".part" is not in
 // config.VideoFileExtensions, so nothing counts as an episode until the transfer finishes --
 // which is what makes the closing window observable at all.
-func landsPartAt(at time.Duration, relDir, name string) jdAction {
+func landsPartAt(at time.Duration, name string) jdAction {
 	return jdAction{at: at, do: func(sim *jdSim) {
 		sim.t.Helper()
 		if len(name) <= simMinFixtureNameLength {
 			sim.t.Fatalf("sim: fixture name %q is too short for the production .part sensor", name)
 		}
-		sim.writeFixture(relDir, name+".mp4.part")
+		sim.writeFixture(name + ".mp4.part")
 	}}
 }
 
 // finishesPartAt renames that .part to name+".mp4" in place and records it as the path JD now
 // holds.
-func finishesPartAt(at time.Duration, relDir, name string) jdAction {
+func finishesPartAt(at time.Duration, name string) jdAction {
 	return jdAction{at: at, do: func(sim *jdSim) {
 		sim.t.Helper()
-		part := sim.fixturePath(relDir, name+".mp4.part")
-		done := sim.fixturePath(relDir, name+".mp4")
+		part := sim.fixturePath(name + ".mp4.part")
+		done := sim.fixturePath(name + ".mp4")
 		if err := os.Rename(part, done); err != nil {
 			sim.t.Fatalf("sim: finish transfer %q: %v", part, err)
 		}
@@ -231,7 +226,7 @@ func jdReportsDead(at time.Duration) jdAction {
 
 // newCoreIntegrationService wires the download service against the sim and the REAL filesystem
 // adapters. Neither newWatchTestService nor newProbeWatchService may be used here: both call
-// setSvcFakeCounter, which replaces Counter AND Flattener, and the second also overwrites
+// setSvcFakeCounter, which replaces Counter, and the second also overwrites
 // HasPartFiles. HasPartFiles is left UNSET on purpose so NewService installs the production
 // hasPartFilesRecursive sensor -- overriding it would delete this battery's whole subject.
 func newCoreIntegrationService(t *testing.T, sim *jdSim, now *time.Time) (*Service, *fieldsRecorder) {
@@ -240,7 +235,6 @@ func newCoreIntegrationService(t *testing.T, sim *jdSim, now *time.Time) (*Servi
 	deps := baseDeps(t)
 	deps.JD = sim
 	deps.Counter = filesystem.NewEpisodeCounter()
-	deps.Flattener = filesystem.NewFlattener()
 	// Clock and PollSleep MUST read the same *time.Time. Repointing only one of them leaves
 	// every probe.elapsedMs reading 0 while the simulator never advances, and the battery
 	// would run green while exercising nothing.

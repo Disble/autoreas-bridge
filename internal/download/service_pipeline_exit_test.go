@@ -57,7 +57,7 @@ func assertCredited(t *testing.T, result episodeEnqueueResult, hoster string, at
 func chainResult(t *testing.T, jd jdownloader.JDClient, ordered []hosterLink) episodeEnqueueResult {
 	t.Helper()
 	folder := "folder-" + t.Name()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	deps, _ := fastEnqueueDeps(t, folder, counter)
 	deps.JD = jd
 	return NewService(deps).enqueueWithFallback(context.Background(), "run-1", testAnime(folder), ordered, 12)
@@ -68,7 +68,7 @@ func chainResult(t *testing.T, jd jdownloader.JDClient, ordered []hosterLink) ep
 func cancelledChainResult(t *testing.T) episodeEnqueueResult {
 	t.Helper()
 	folder := "folder-" + t.Name()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	deps, _ := fastEnqueueDeps(t, folder, counter)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -180,7 +180,7 @@ func assertEpisodeForensics(t *testing.T, entry recordedEntry, exit, hoster stri
 // the disk already ahead of the baseline the moment it starts watching.
 func diskSuccessDeps(t *testing.T, folder string) ServiceDeps {
 	t.Helper()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	deps, _ := fastEnqueueDeps(t, folder, counter)
 	deps.JD = &diskSuccessOnFirstAddAndStart{svcFakeJDClient: &svcFakeJDClient{}, counter: counter, folder: folder}
 	return deps
@@ -203,7 +203,7 @@ func TestTheEpisodeEntriesCarryTheAttemptThatProducedThem(t *testing.T) {
 		t.Parallel()
 
 		folder := "folder-" + t.Name()
-		counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+		counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 		deps, _ := fastEnqueueDeps(t, folder, counter)
 		deps.JD = &fallbackAwareJDClient{svcFakeJDClient: &svcFakeJDClient{}, deadHosters: map[string]bool{"Mediafire": true}}
 
@@ -221,7 +221,7 @@ func TestNoPersistedExitIsEverTheUnsetValue(t *testing.T) {
 	t.Parallel()
 
 	folder := "folder-" + t.Name()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	deps, _ := fastEnqueueDeps(t, folder, counter)
 	deps.JD = &fallbackAwareJDClient{svcFakeJDClient: &svcFakeJDClient{}, deadHosters: map[string]bool{"Mediafire": true}}
 
@@ -301,17 +301,11 @@ func (f *deadAfterGraceJDClient) removals() int {
 // diskConfirmedOverAdvancedCountEpisode runs one episode whose file lands inside the grace's blind
 // gap, moving the disk count from 4 to observedAtTerminal, while JD goes on to classify the hoster
 // dead. It returns the persisted episode success, the anime outcome, and the JD fake that records
-// any removal.
-//
-// The landing moves BOTH counting bases. svcFakeCounter lets a fixture set atRoot above recursive;
-// production cannot, because CountRecursive walks the very root CountAtRoot reads. Advancing atRoot
-// alone pins a state the system can never reach -- and under that fixture the two tests below kept
-// passing while asserting behaviour this change declares false, including with the post-grace
-// re-check deleted outright.
+// any removal. The landing moves the folder ROOT, where JD writes every download.
 func diskConfirmedOverAdvancedCountEpisode(t *testing.T, label string, observedAtTerminal int) (recordedEntry, animeRunOutcome, *deadAfterGraceJDClient) {
 	t.Helper()
 	folder := "folder-" + t.Name() + "-" + label
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}}
 	deps, _ := fastEnqueueDeps(t, folder, counter)
 	deps.DetectStartPhaseDisabled = false
 	probes := 0
@@ -321,7 +315,6 @@ func diskConfirmedOverAdvancedCountEpisode(t *testing.T, label string, observedA
 			counter.mu.Lock()
 			defer counter.mu.Unlock()
 			counter.atRoot[folder] = observedAtTerminal
-			counter.recursive[folder] = observedAtTerminal
 		}
 		return false
 	}

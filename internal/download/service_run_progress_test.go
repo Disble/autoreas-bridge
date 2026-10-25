@@ -25,7 +25,7 @@ func TestRunOnceHappyPathDownloadsAndMarksRunOk(t *testing.T) {
 	deps.Sites = registry
 	destFolder := t.TempDir()
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{ID: "anime-1", Name: "Some Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: new("https://jkanime.net/anime/"), Folder: new(destFolder)}}}
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}})
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, landing: map[string]int{destFolder: 1}})
 	notifier := &svcFakeNotifier{}
 	deps.Notifier = notifier
 
@@ -64,7 +64,7 @@ func TestRunOncePersistsProgressBeforeFinalStatus(t *testing.T) {
 	deps.Sites = registry
 	destFolder := t.TempDir()
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{ID: "anime-1", Name: "Some Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: new("https://jkanime.net/anime/"), Folder: new(destFolder)}}}
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}})
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, landing: map[string]int{destFolder: 1}})
 
 	bus := events.NewBus()
 	progressEvents := 0
@@ -103,7 +103,7 @@ func TestRunOnceSurvivesNotifierFailure(t *testing.T) {
 	deps.Sites = registry
 	destFolder := t.TempDir()
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{ID: "anime-1", Name: "Some Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: new("https://jkanime.net/anime/"), Folder: new(destFolder)}}}
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}})
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, landing: map[string]int{destFolder: 1}})
 	deps.Notifier = &svcFakeNotifier{err: errors.New("notifier transport down")}
 
 	result, err := NewService(deps).RunOnce(context.Background(), "manual")

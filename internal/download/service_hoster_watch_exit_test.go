@@ -54,7 +54,7 @@ func completionPollExit(t *testing.T, termination pollTermination) hosterOutcome
 	if termination == pollCancelledEarly {
 		cancel()
 	}
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	deps := baseDeps(t)
 	setSvcFakeCounter(&deps, counter)
 	deps.Clock = func() time.Time { return now }
@@ -100,7 +100,7 @@ func postGraceDeadEnd(t *testing.T, isFirstHoster bool) hosterOutcome {
 	t.Helper()
 	folder := "folder-" + t.Name()
 	now := time.Now()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	jd := &stagedJDClient{svcFakeJDClient: &svcFakeJDClient{}, answers: []jdAnswer{
 		{status: aliveStatus},
 		{status: aliveStatus},
@@ -145,7 +145,7 @@ func successExit(t *testing.T, startAtRoot int, advanceDuringPreCheck bool) (hos
 	t.Helper()
 	folder := "folder-" + t.Name()
 	now := time.Now()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: startAtRoot}, recursive: map[string]int{folder: startAtRoot}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: startAtRoot}, landing: map[string]int{folder: startAtRoot}}
 	inner := &svcFakeJDClient{}
 	deps := baseDeps(t)
 	deps.JD = inner
@@ -170,8 +170,8 @@ func TestAnObservedSuccessIsDistinguishableFromOneAlreadyOnDisk(t *testing.T) {
 	// This is the discriminator the whole change exists for. Both cases report success and both
 	// are credited to the same hoster; only the exit says WHERE the success was observed -- found
 	// already on disk when the attempt began, or watched arriving by the poll. Completion handling
-	// no longer rides on that distinction: every success path renames before it flattens, because
-	// the rename is what the NEXT episode's baseline count reads.
+	// no longer rides on that distinction: every success path renames, because the rename is what
+	// the NEXT episode's baseline count reads.
 	t.Run("already on disk when the attempt began", func(t *testing.T) {
 		t.Parallel()
 
@@ -201,7 +201,7 @@ func postGraceProceed(t *testing.T) hosterOutcome {
 	t.Helper()
 	folder := "folder-" + t.Name()
 	now := time.Now()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	jd := &stagedJDClient{svcFakeJDClient: &svcFakeJDClient{}, answers: []jdAnswer{
 		{status: aliveStatus},
 		{status: jdownloader.DestinationStatus{Matched: true, Links: []jdownloader.LinkSignal{{Running: true}}}},

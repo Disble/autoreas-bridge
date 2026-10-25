@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -13,6 +14,25 @@ import (
 	"autoreas-bridge/internal/download/sites"
 	"autoreas-bridge/internal/events"
 )
+
+// folderRecordingCounter records every folder whose root is counted, so a test can prove which
+// destination the pipeline actually read.
+type folderRecordingCounter struct {
+	*svcFakeCounter
+	mu      sync.Mutex
+	folders []string
+}
+
+func (c *folderRecordingCounter) CountAtRoot(folder string) int {
+	c.mu.Lock()
+	c.folders = append(c.folders, folder)
+	c.mu.Unlock()
+	return c.svcFakeCounter.CountAtRoot(folder)
+}
+
+func (c *folderRecordingCounter) HighestEpisodeAtRoot(folder string) int {
+	return c.CountAtRoot(folder)
+}
 
 type spySiteRegistry struct {
 	mu           sync.Mutex
@@ -115,7 +135,7 @@ func TestRunOnceFallsBackToNextHosterWhenFirstHosterEnqueueFails(t *testing.T) {
 	deps.Hosters = &svcFakeHosterResolver{order: []HosterPriorityEntry{{Hoster: "Mediafire", Priority: 0, Enabled: true}, {Hoster: "Mega", Priority: 1, Enabled: true}}}
 	jd := &svcFakeJDClient{}
 	deps.JD = &fallbackAwareJDClient{svcFakeJDClient: jd, failHoster: "Mediafire"}
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}})
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, landing: map[string]int{destFolder: 1}})
 
 	result, err := NewService(deps).RunOnce(context.Background(), "manual")
 	if err != nil {
@@ -171,7 +191,7 @@ func TestRunOnceAccountsSkipsSeparatelyFromAnimesChecked(t *testing.T) {
 		SourceURL: new("https://jkanime.net/serie/"),
 		Folder:    new(destFolder),
 	}}}
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}})
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, landing: map[string]int{destFolder: 1}})
 
 	result, err := NewService(deps).RunOnce(context.Background(), "manual")
 	if err != nil {
@@ -217,20 +237,19 @@ func TestProcessAnimeUsesDerivedDestinationWithoutPersistingIt(t *testing.T) {
 	root := filepath.Join("D:", "Downloads")
 	destination := filepath.Join(root, "Ready Anime")
 	source := &spyEpisodeSource{listing: sites.EpisodeListing{LatestEpisode: 0}}
-	flattener := &svcFakeFlattener{}
+	counter := &folderRecordingCounter{svcFakeCounter: &svcFakeCounter{atRoot: map[string]int{destination: 0}}}
 	deps := baseDeps(t)
 	deps.Sites = &spySiteRegistry{source: source}
 	deps.LibraryRoot = func(context.Context) (string, error) { return root, nil }
-	deps.Counter = &svcFakeCounter{atRoot: map[string]int{destination: 0}, recursive: map[string]int{destination: 0}}
-	deps.Flattener = flattener
+	deps.Counter = counter
 	anime := contracts.MobileAnime{ID: "derived", Name: "Ready: Anime", SourceURL: new("https://supported.example/ready")}
 
 	got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, fixedJDGate(true))
 	if !got.upToDate || got.skipped {
 		t.Fatalf("expected derived destination to remain executable, got %#v", got)
 	}
-	if len(flattener.calls) != 1 || flattener.calls[0] != destination {
-		t.Fatalf("flatten destinations = %#v, want [%q]", flattener.calls, destination)
+	if len(counter.folders) == 0 || slices.ContainsFunc(counter.folders, func(f string) bool { return f != destination }) {
+		t.Fatalf("counted folders = %#v, want only [%q]", counter.folders, destination)
 	}
 	if anime.Folder != nil {
 		t.Fatalf("derived destination mutated caller anime folder: %v", *anime.Folder)
@@ -265,7 +284,7 @@ func TestProcessAnimeReportsUpToDateWhenTotalCapMatchesOnDiskCount(t *testing.T)
 
 	folder := t.TempDir()
 	deps := baseDeps(t)
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 12}, recursive: map[string]int{folder: 12}})
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 12}, landing: map[string]int{folder: 12}})
 	source := &spyEpisodeSource{
 		listing:      sites.EpisodeListing{LatestEpisode: 13, EpisodePageURL: "https://jkanime.net/anime/13/"},
 		extractLinks: []sites.DownloadLink{{URL: "http://mediafire.example/13", Hoster: "Mediafire"}},
@@ -311,7 +330,7 @@ func TestProcessAnimeReportsUpToDateWhenNoNewEpisodeOnline(t *testing.T) {
 	folder := t.TempDir()
 	deps := baseDeps(t)
 	// On disk already has the latest online episode: NeedsDownload is false.
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 5}, recursive: map[string]int{folder: 5}})
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 5}, landing: map[string]int{folder: 5}})
 	source := &spyEpisodeSource{
 		listing: sites.EpisodeListing{LatestEpisode: 5, EpisodePageURL: "https://jkanime.net/anime/5/"},
 	}
@@ -370,8 +389,8 @@ func TestRunOnceCountsUpToDateWithinAnimesChecked(t *testing.T) {
 		Folder:    new(currentFolder),
 	}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{
-		atRoot:    map[string]int{freshFolder: 0, currentFolder: 4},
-		recursive: map[string]int{freshFolder: 1, currentFolder: 4},
+		atRoot:  map[string]int{freshFolder: 0, currentFolder: 4},
+		landing: map[string]int{freshFolder: 1, currentFolder: 4},
 	})
 
 	result, err := NewService(deps).RunOnce(context.Background(), "manual")
@@ -408,7 +427,7 @@ func TestProcessAnimeContinuesOnlineLookupWhenTotalCapDoesNotBlock(t *testing.T)
 
 			folder := t.TempDir()
 			deps := baseDeps(t)
-			setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 11}, recursive: map[string]int{folder: 11}})
+			setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 11}, landing: map[string]int{folder: 11}})
 			source := &spyEpisodeSource{
 				listing:      sites.EpisodeListing{LatestEpisode: 12, EpisodePageURL: "https://jkanime.net/anime/12/"},
 				extractLinks: []sites.DownloadLink{{URL: "http://mediafire.example/12", Hoster: "Mediafire"}},

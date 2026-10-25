@@ -41,7 +41,7 @@ const RunRetentionLimit = 200
 const JDAutoLaunchPollTimeout = 90 * time.Second
 
 // FilesystemCompletionPollInterval is how often the filesystem completion poll re-checks
-// CountRecursive while waiting for a download to land (PoC orchestrator.go, design §5.1).
+// the folder root while waiting for a download to land (PoC orchestrator.go, design §5.1).
 const FilesystemCompletionPollInterval = 5 * time.Second
 
 // FilesystemCompletionPollTimeout bounds the filesystem completion poll per hoster batch

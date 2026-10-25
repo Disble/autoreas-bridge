@@ -84,7 +84,7 @@ anime side implements it, so the download context imports nothing from anime, an
 simply means no notice — the same degradation every optional seam in that service takes.
 
 **D5 — The Path A hook is the end of `completeDownloadedEpisode`** (`internal/download/service_rename.go`),
-after the rename and the flatten. That function has three callers (`service_hoster_watch.go`, disk ahead
+after the rename. That function has three callers (`service_hoster_watch.go`, disk ahead
 at entry, filesystem poll confirmed, disk confirmed after grace) and all three mean the same thing: the
 episode landed. One hook point covers all three by construction, and at that moment the file is at the
 folder root — exactly "the moment the file already exists".

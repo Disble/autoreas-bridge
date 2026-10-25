@@ -56,8 +56,8 @@ func NewRenamer() Renamer {
 // The newest video is the right target because the pipeline downloads one
 // episode at a time per anime folder and only calls this once the filesystem
 // has confirmed that episode landed, so the file JD just finished is the most
-// recently modified one. Subfolders are ignored: flattening them is the
-// Flattener's job and has already run by this point.
+// recently modified one. Subfolders are ignored: JD downloads straight into
+// the folder root.
 func (r renamer) RenameLatestEpisode(folder, canonicalName string, episode int) (string, error) {
 	base, err := EpisodeBaseName(canonicalName, episode)
 	if err != nil {

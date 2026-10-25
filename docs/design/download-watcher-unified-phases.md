@@ -87,8 +87,7 @@ awaitHosterOutcome(destination, baselineCount, firstHoster):
   30-minute safety timeout.
 
   while not timed_out (30 min safety cap):
-    video new?
-      → Flatten (if in subfolder)
+    video new at the folder root?
       → completed → SUCCESS
     sleep 15s
 
@@ -240,13 +239,10 @@ awaitHosterOutcome(destination, baselineCount, firstHoster):
  │   │                                            │   │                │   │
  │loop [cada 15s, timeout 30 min]─────────────────────────────────────────│
  │   │                                            │                    │   │
- │   │                  CountRecursive + CountAtRoot                   │   │
+ │   │                     CountAtRoot (solo raíz)                      │   │
  │   │─────────────────────────────────────────────────────────────────▶   │
  │   │                                            │                    │   │
  │alt [video nuevo en root]────────────────────────────────────────────────│
- │   │                                            │                    │   │
- │   │               Flatten (si archivos en subfolder)                │   │
- │   │─────────────────────────────────────────────────────────────────▶   │
  │   │                                            │                    │   │
  │   │                        video confirmado    │                    │   │
  │   ◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│   │

@@ -117,7 +117,6 @@ func renameScenario(t *testing.T) (ServiceDeps, string) {
 	}}}
 	counter := newCatchupCounter(map[string]int{folder: 0})
 	deps.Counter = counter
-	deps.Flattener = &svcFakeFlattener{onFlatten: func(f string) { counter.Flatten(f) }}
 	deps.JD = &recordingCatchupJD{counter: counter}
 	return deps, folder
 }
@@ -207,57 +206,6 @@ func TestRunOnceReportsSuccessWhenRenamingFails(t *testing.T) {
 	}
 	if got := events.count("download.rename_failed"); got != 3 {
 		t.Fatalf("download.rename_failed logged %d times, want 3", got)
-	}
-}
-
-// The rename is delegated to JDownloader, and JD can only rename a file whose path it
-// still knows -- so it MUST happen before the Flattener moves that file to the folder
-// root. This is the reverse of the original filesystem-only pipeline.
-//
-// "A flatten happened after this rename" is too weak an assertion to prove the order:
-// flattens keep happening for later episodes, so a flatten follows every rename under
-// either ordering. What pins it is HOW MANY flattens have happened at rename time --
-// one fewer per episode than the flatten-first pipeline recorded.
-func TestRunOnceRenamesBeforeTheEpisodeIsFlattenedToTheFolderRoot(t *testing.T) {
-	t.Parallel()
-
-	deps, _ := renameScenario(t)
-	var mu sync.Mutex
-	flattens := 0
-	var flattensAtRename []int
-	counter := deps.Counter.(*catchupCounter)
-	deps.Flattener = &svcFakeFlattener{onFlatten: func(f string) {
-		mu.Lock()
-		flattens++
-		mu.Unlock()
-		counter.Flatten(f)
-	}}
-	deps.JD.(*recordingCatchupJD).onRename = func() {
-		mu.Lock()
-		flattensAtRename = append(flattensAtRename, flattens)
-		mu.Unlock()
-	}
-	deps.RenameEpisodes = func(context.Context) bool { return true }
-
-	if _, err := NewService(deps).RunOnce(context.Background(), "manual"); err != nil {
-		t.Fatalf("run: %v", err)
-	}
-
-	mu.Lock()
-	defer mu.Unlock()
-	if len(flattensAtRename) != 3 {
-		t.Fatalf("renames = %d, want 3 (flatten counts %v)", len(flattensAtRename), flattensAtRename)
-	}
-	// One fewer flatten per episode than the old flatten-first pipeline saw ({3,5,7}),
-	// because completeDownloadedEpisode's own flatten now runs AFTER the rename. The
-	// exact tally is the assertion on purpose: any looser bound -- "at least N",
-	// "followed by a flatten" -- passes for both orders and proves nothing. If a
-	// flatten call site is ever added or removed, this test must fail so the ordering
-	// gets re-verified rather than silently re-baselined.
-	for i, want := range []int{2, 4, 6} {
-		if flattensAtRename[i] != want {
-			t.Fatalf("episode %d renamed after %d flattens, want %d (counts %v)", i+1, flattensAtRename[i], want, flattensAtRename)
-		}
 	}
 }
 

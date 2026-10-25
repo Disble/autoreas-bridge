@@ -8,17 +8,14 @@ import (
 	"autoreas-bridge/internal/logger"
 )
 
-// completeDownloadedEpisode turns "JD wrote a file somewhere under the anime folder" into
-// "the episode is at the folder root under a name the counter can read".
+// completeDownloadedEpisode turns "JD wrote the episode into the anime folder" into "the
+// episode sits at the folder root under a name the counter can read".
 //
-// Order matters, and it is the REVERSE of the original filesystem-only pipeline. The rename
-// is delegated to JDownloader, and JD can only rename a file whose path it still knows --
-// so it must run BEFORE the Flattener moves that file out of JD's package subfolder. Doing
-// it the other way round leaves JD pointing at a path Bridge already emptied.
+// The rename is delegated to JDownloader, which downloads straight into the anime folder and
+// renames the file in place. Bridge never moves or deletes anything in that folder.
 func (s *Service) completeDownloadedEpisode(ctx context.Context, runID string, anime contracts.MobileAnime, episode int) {
 	s.renameDownloadedEpisode(ctx, runID, anime, episode)
-	s.flattenDownloadFolder(ctx, runID, anime)
-	// Last, because a notice about a file the run is still moving would measure the wrong thing.
+	// Last, because a notice about a file JD is still renaming would measure the wrong thing.
 	s.noticeEpisodeDuration(ctx, anime, episode)
 }
 
@@ -27,7 +24,7 @@ func (s *Service) completeDownloadedEpisode(ctx context.Context, runID string, a
 // download cursor from the highest episode on disk instead of falling back to
 // counting files.
 //
-// Best-effort by construction, exactly like flattenDownloadFolder: the episode is
+// Best-effort by construction: the episode is
 // already downloaded by the time this runs, and no naming problem is worth
 // turning a successful download into a failed one. Every giving-up path is
 // Warn-logged so a silently unrenamed folder is still explainable afterwards.

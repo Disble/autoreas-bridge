@@ -21,19 +21,14 @@ func fixedJDGate(online bool) *jdGate {
 	return g
 }
 
-// setSvcFakeCounter installs a fake counter and flattening seam on service deps.
+// setSvcFakeCounter installs a fake counter on service deps and, when JD is (or wraps) the fake
+// client, lands each enqueued download at the folder root through it. Call it AFTER deps.JD is
+// final: a client assigned later never lands anything.
 func setSvcFakeCounter(deps *ServiceDeps, counter *svcFakeCounter) {
 	deps.Counter = counter
-	flattenCalls := map[string]int{}
-	var flattenMu sync.Mutex
-	deps.Flattener = &svcFakeFlattener{onFlatten: func(folder string) {
-		flattenMu.Lock()
-		defer flattenMu.Unlock()
-		flattenCalls[folder]++
-		if flattenCalls[folder] > 1 {
-			counter.Flatten(folder)
-		}
-	}}
+	if holder, ok := deps.JD.(interface{ fakeJD() *svcFakeJDClient }); ok {
+		holder.fakeJD().onAdd = counter.land
+	}
 }
 
 // todayDiaName returns the Spanish weekday name for a timestamp.
@@ -54,14 +49,13 @@ func todayDiaName(now time.Time) string {
 func baseDeps(t *testing.T) ServiceDeps {
 	t.Helper()
 	fixedNow := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
-	counter := &svcFakeCounter{atRoot: map[string]int{}, recursive: map[string]int{}}
+	counter := &svcFakeCounter{atRoot: map[string]int{}, landing: map[string]int{}}
 	return ServiceDeps{
 		Animes:                   &svcFakeAnimeQuery{},
 		Sites:                    NewStaticRegistry(),
 		Hosters:                  &svcFakeHosterResolver{order: []HosterPriorityEntry{{Hoster: "Mediafire", Priority: 0, Enabled: true}}},
-		JD:                       &svcFakeJDClient{},
+		JD:                       &svcFakeJDClient{onAdd: counter.land},
 		Counter:                  counter,
-		Flattener:                &svcFakeFlattener{onFlatten: counter.Flatten},
 		Store:                    newsvcFakeDownloadStore(),
 		Notifier:                 &svcFakeNotifier{},
 		Bus:                      events.NewBus(),
@@ -93,6 +87,11 @@ func (f *fallbackAwareJDClient) AddAndStart(ctx context.Context, deviceName stri
 
 	if hoster == f.failHoster {
 		return errors.New("hoster down")
+	}
+	if f.deadHosters[hoster] {
+		// A dead hoster's link never downloads, so nothing may land for it.
+		f.recordAdd(req)
+		return nil
 	}
 	return f.svcFakeJDClient.AddAndStart(ctx, deviceName, req)
 }

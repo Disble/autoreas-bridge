@@ -68,8 +68,8 @@ const (
 	// removes nothing and only times out.
 	exitGraceNoSignalFallback exitReason = "grace_no_signal_fallback"
 	// exitGraceDiskConfirmed is a success the detect phase MISSED: no .part evidence appeared
-	// during the 60s grace, but the filesystem had advanced past this attempt's OWN recursive
-	// baseline by the time the grace ended. It renames and flattens, and it is the only success
+	// during the 60s grace, but the filesystem had advanced past the episode's root
+	// baseline by the time the grace ended. It renames, and it is the only success
 	// exit that fires while JD still holds the package.
 	exitGraceDiskConfirmed exitReason = "grace_disk_confirmed"
 

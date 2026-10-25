@@ -25,7 +25,7 @@ func TestEnqueueWithFallbackAdvancesToNextHosterWhenFirstIsDeadWithoutWaitingFor
 	t.Parallel()
 
 	folder := t.TempDir()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 0}, recursive: map[string]int{folder: 0}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 0}, landing: map[string]int{folder: 0}}
 	deps, _ := fastEnqueueDeps(t, folder, counter)
 	jd := &fallbackAwareJDClient{svcFakeJDClient: &svcFakeJDClient{}, deadHosters: map[string]bool{"Mediafire": true}}
 	deps.JD = jd
@@ -45,7 +45,7 @@ func TestEnqueueWithFallbackReturnsHosterDownWhenEveryHosterIsDead(t *testing.T)
 	t.Parallel()
 
 	folder := t.TempDir()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 0}, recursive: map[string]int{folder: 0}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 0}, landing: map[string]int{folder: 0}}
 	deps, _ := fastEnqueueDeps(t, folder, counter)
 	jd := &fallbackAwareJDClient{svcFakeJDClient: &svcFakeJDClient{}, deadHosters: map[string]bool{"Mediafire": true, "Mega": true}}
 	deps.JD = jd
@@ -71,10 +71,11 @@ func TestEnqueueWithFallbackStillAdvancesOnAddAndStartAPIError(t *testing.T) {
 	t.Parallel()
 
 	folder := t.TempDir()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 0}, recursive: map[string]int{folder: 1}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 0}, landing: map[string]int{folder: 1}}
 	deps, _ := fastEnqueueDeps(t, folder, counter)
 	jd := &fallbackAwareJDClient{svcFakeJDClient: &svcFakeJDClient{}, failHoster: "Mediafire"}
 	deps.JD = jd
+	setSvcFakeCounter(&deps, counter)
 	s := NewService(deps)
 
 	anime := contracts.MobileAnime{ID: "anime-1", Name: "Anime", Folder: new(folder)}
@@ -113,7 +114,7 @@ func TestEnqueueWithFallbackShortCircuitsOnFirstHosterDiskSuccess(t *testing.T) 
 	t.Parallel()
 
 	folder := t.TempDir()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 0}, recursive: map[string]int{folder: 0}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 0}, landing: map[string]int{folder: 0}}
 	deps, _ := fastEnqueueDeps(t, folder, counter)
 	jd := &diskSuccessOnFirstAddAndStart{svcFakeJDClient: &svcFakeJDClient{}, counter: counter, folder: folder}
 	deps.JD = jd

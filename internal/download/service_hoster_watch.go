@@ -207,11 +207,6 @@ func (s *Service) awaitHosterOutcome(ctx context.Context, runID string, anime co
 		return hosterOutcome{kind: hosterOutcomeTimeout, exit: exitCounterUnavailable}
 	}
 
-	// Captured HERE, before the entry guard and before any wait, so it measures exactly this
-	// attempt's window. Read after the detect phase it would already include whatever landed
-	// during the grace, and the re-check below could never fire. See recheckDiskAfterGrace.
-	recursiveBaseline := s.downloadedEpisodeRecursive(folder)
-
 	if s.downloadedEpisodeBaseline(folder) > baselineCount {
 		s.completeDownloadedEpisode(ctx, runID, anime, episode)
 		return hosterOutcome{kind: hosterOutcomeSuccess, exit: exitDiskAheadAtEntry}
@@ -227,7 +222,7 @@ func (s *Service) awaitHosterOutcome(ctx context.Context, runID string, anime co
 	if !started {
 		attempt := graceAttempt{
 			runID: runID, anime: anime, hoster: hoster, folder: folder,
-			episode: episode, recursiveBaseline: recursiveBaseline,
+			episode: episode, baselineCount: baselineCount,
 			isFirstHoster: isFirstHoster, probes: probes,
 		}
 		if outcome := s.recheckDiskAfterGrace(ctx, attempt); outcome != nil {
@@ -255,10 +250,6 @@ func (s *Service) pollForCompletion(ctx context.Context, runID string, anime con
 			return hosterOutcome{kind: hosterOutcomeSuccess, exit: exitFSPollConfirmed}
 		}
 
-		if s.deps.Flattener != nil && s.downloadedEpisodeRecursive(folder) > baselineCount {
-			_, _ = s.deps.Flattener.Flatten(ctx, folder)
-		}
-
 		// Split from one `deadline || cancelled` condition into two sequential ifs, with the
 		// deadline FIRST. || reports its left operand when both hold, so keeping the deadline
 		// on the left preserves today's label exactly: same truth table, same kind, one more
@@ -279,17 +270,16 @@ func (s *Service) pollForCompletion(ctx context.Context, runID string, anime con
 // the absence of a positive JD signal over a file that HAS landed describes JD's knowledge and not
 // the episode's state.
 //
-// recursiveBaseline is read at the TOP of this attempt and on the SAME recursive basis as the
-// reading it is compared against. It is deliberately NOT baselineCount: that value is a ROOT count,
-// and a recursive reading against a root baseline lets residue in a package subfolder -- which
-// Flatten never reaches past one level -- declare a success that never happened, permanently
-// skipping a real episode no later run retries.
+// It reads the folder ROOT only, against the same root baseline as the entry guard and the
+// completion poll. JD downloads straight into the anime folder, so a video that appears only in
+// a subfolder is not this episode: it is the user's own content (a "Mini Episodes" folder), and
+// counting it would declare a success the root never shows.
 //
 // It MUST run before evaluateJDAfterGrace: RenameEpisodeByDestination resolves the newest finished
 // link under the destination, so the rename works only while JD still holds the package that
 // function removes.
 func (s *Service) recheckDiskAfterGrace(ctx context.Context, a graceAttempt) *hosterOutcome {
-	if s.downloadedEpisodeRecursive(a.folder) > a.recursiveBaseline {
+	if s.downloadedEpisodeBaseline(a.folder) > a.baselineCount {
 		s.logDetectStartFailed(a.runID, a.anime, a.hoster, a.probes)
 		s.completeDownloadedEpisode(ctx, a.runID, a.anime, a.episode)
 		return &hosterOutcome{kind: hosterOutcomeSuccess, exit: exitGraceDiskConfirmed}
@@ -393,14 +383,14 @@ func (s *Service) jdRemove(ctx context.Context, runID string, anime contracts.Mo
 //
 // A struct rather than a parameter list (SonarQube go:S107 on the eight-parameter
 // versions): hoster and folder sat adjacent as two strings, and so did
-// recursiveBaseline and episode as two ints. Swapping either pair compiled.
+// baselineCount and episode as two ints. Swapping either pair compiled.
 type graceAttempt struct {
-	runID             string
-	anime             contracts.MobileAnime
-	hoster            string
-	folder            string
-	episode           int
-	recursiveBaseline int
-	isFirstHoster     bool
-	probes            []probe
+	runID         string
+	anime         contracts.MobileAnime
+	hoster        string
+	folder        string
+	episode       int
+	baselineCount int
+	isFirstHoster bool
+	probes        []probe
 }

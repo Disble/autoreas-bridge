@@ -72,7 +72,7 @@ func TestProcessAnimesCollectedOutcomesCarryAnimeIdentityThroughARealFanOut(t *t
 	deps.Sites = registry
 
 	okFolder := t.TempDir()
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{okFolder: 4}, recursive: map[string]int{okFolder: 5}})
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{okFolder: 4}, landing: map[string]int{okFolder: 5}})
 
 	animes := []contracts.MobileAnime{
 		{ID: "anime-ok", Name: "OK Anime", SourceURL: new("https://jkanime.net/ok-anime/"), Folder: new(okFolder)},

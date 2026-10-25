@@ -239,7 +239,7 @@ func TestRenameLatestEpisodeRefusesAnEmptyCanonicalName(t *testing.T) {
 	}
 }
 
-// Subfolders are the flattener's job, not the renamer's.
+// Subfolders hold the user's own content; the renamer only ever touches the folder root.
 func TestRenameLatestEpisodeOnlyLooksAtTheFolderRoot(t *testing.T) {
 	dir := t.TempDir()
 	nested := filepath.Join(dir, "Season 1")

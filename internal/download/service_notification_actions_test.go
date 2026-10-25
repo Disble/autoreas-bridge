@@ -194,7 +194,7 @@ func partialRunScenarioWithNotifier(t *testing.T) (ServiceDeps, *svcFakeNotifier
 		SourceURL: new("https://jkanime.net/broken-anime/"),
 		Folder:    new(t.TempDir()),
 	}}}
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{okFolder: 4}, recursive: map[string]int{okFolder: 5}})
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{okFolder: 4}, landing: map[string]int{okFolder: 5}})
 
 	notifier := &svcFakeNotifier{}
 	deps.Notifier = notifier
@@ -372,7 +372,7 @@ func cleanRunScenarioWithNotifier(t *testing.T) ServiceDeps {
 		SourceURL: new("https://jkanime.net/ok-anime/"),
 		Folder:    new(okFolder),
 	}}}
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{okFolder: 4}, recursive: map[string]int{okFolder: 5}})
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{okFolder: 4}, landing: map[string]int{okFolder: 5}})
 	deps.Notifier = &svcFakeNotifier{}
 	return deps
 }
@@ -398,7 +398,7 @@ func TestSingleAnimeRunNotificationsCarryTheirKind(t *testing.T) {
 		},
 	})
 	deps.Sites = registry
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 0}, recursive: map[string]int{folder: 1}})
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 0}, landing: map[string]int{folder: 1}})
 	notifier := &svcFakeNotifier{}
 	deps.Notifier = notifier
 	anime := contracts.MobileAnime{ID: "flaky", Name: "Flaky Anime", SourceURL: new("https://jkanime.net/flaky/"), Folder: new(folder)}

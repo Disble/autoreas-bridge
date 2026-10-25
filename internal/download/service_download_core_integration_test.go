@@ -2,14 +2,14 @@ package download
 
 // The download-core integration battery. Five scenarios drive the real core --
 // enqueueWithFallback and downloadAvailableEpisodes -- against a REAL filesystem, the real
-// filesystem.EpisodeCounter, the real filesystem.Flattener and the real hasPartFilesRecursive
-// sensor, with jdSim (service_download_core_sim_test.go) standing in for JDownloader alone.
+// filesystem.EpisodeCounter and the real hasPartFilesRecursive sensor, with jdSim
+// (service_download_core_sim_test.go) standing in for JDownloader alone.
 //
 // It closes the structural gap that let incident run-dl1532pqkk3g ship: baseDeps sets
 // DetectStartPhaseDisabled, so of roughly seventy full-run test invocations essentially none
 // enter FASE 1 -- the phase where that incident's defects lived. A t.TempDir() handed to a
-// test that also calls setSvcFakeCounter is only a path string: the counter and the flattener
-// answering the core are maps, so no assertion there ever observed a real byte.
+// test that also calls setSvcFakeCounter is only a path string: the counter answering the
+// core is a map, so no assertion there ever observed a real byte.
 //
 // Every scenario owns its own jdSim, t.TempDir(), *time.Time and recorder. t.Parallel() is
 // used at the top level only, and no subtest shares mutable state: shared sim state is the one
@@ -59,8 +59,8 @@ func TestDownloadCoreConfirmsAnEpisodeThatLandedDuringTheGrace(t *testing.T) {
 	seedRootEpisodes(t, folder, 4)
 	now := time.Now()
 	sim := newJDSim(t, folder, &now,
-		landsPartAt(45*time.Second, "", "d2ouiemgt90z"),
-		finishesPartAt(55*time.Second, "", "d2ouiemgt90z"),
+		landsPartAt(45*time.Second, "d2ouiemgt90z"),
+		finishesPartAt(55*time.Second, "d2ouiemgt90z"),
 	)
 	svc, recorder := newCoreIntegrationService(t, sim, &now)
 
@@ -91,18 +91,18 @@ func assertAttemptLedger(t *testing.T, recorder *fieldsRecorder, outcome string)
 	}
 }
 
-// TestDownloadCoreFlattensAPackageSubfolderLandingToTheRoot is S2. The transfer is VISIBLE to
-// the production .part sensor on the second probe -- the first time any test has observed
+// TestDownloadCoreConfirmsATransferTheDetectPhaseSaw is S2. The transfer is VISIBLE to the
+// production .part sensor on the second probe -- the first time any test has observed
 // hasPartFilesRecursive return true from inside a run. The five direct unit tests call it with
 // a folder argument, and its one in-run use points at a folder that never exists.
-func TestDownloadCoreFlattensAPackageSubfolderLandingToTheRoot(t *testing.T) {
+func TestDownloadCoreConfirmsATransferTheDetectPhaseSaw(t *testing.T) {
 	t.Parallel()
 
 	folder := t.TempDir()
 	now := time.Now()
 	sim := newJDSim(t, folder, &now,
-		landsPartAt(25*time.Second, "pkg-01", "9gm31meptrvq"),
-		finishesPartAt(90*time.Second, "pkg-01", "9gm31meptrvq"),
+		landsPartAt(25*time.Second, "9gm31meptrvq"),
+		finishesPartAt(90*time.Second, "9gm31meptrvq"),
 	)
 	svc, recorder := newCoreIntegrationService(t, sim, &now)
 
@@ -112,18 +112,9 @@ func TestDownloadCoreFlattensAPackageSubfolderLandingToTheRoot(t *testing.T) {
 	assertDetectStartSaw(t, recorder, 2)
 	assertEnqueueResult(t, result, true, 0, "fs_poll_confirmed", 1)
 	assertSimLedger(t, sim, []string{"Mediafire"}, 0)
+	assertPathStillThere(t, filepath.Join(folder, "Test Anime - 01.mp4"),
+		"the episode was renamed in place at the folder root")
 	assertRootVideoCount(t, folder, 1)
-	assertPathGone(t, filepath.Join(folder, "pkg-01"),
-		"the real Flattener moved the video to the root and removed the emptied package folder")
-
-	// STOP HERE. pollForCompletion checks the root, flattens, and completes on the NEXT
-	// iteration, so on a subfolder landing the Flatten runs BEFORE the rename -- the exact
-	// inversion completeDownloadedEpisode's own doc comment warns about (design F2, SDD-63).
-	// It is RECORDED, NOT FIXED and deliberately NOT ASSERTED here: whether JD's real
-	// link-rename survives that move is not verifiable from this repository, because the JD
-	// adapter is a network client. An assertion on the outcome would pin only jdSim's model of
-	// JD -- the unfaithful-fixture failure class that already bit SDD-62's C5, where a fixture
-	// that could not occur in production stayed green and read as evidence. Do not add it.
 }
 
 // assertDetectStartSaw asserts the detect phase recorded exactly one success whose probe
@@ -161,30 +152,19 @@ func TestDownloadCoreDeclinesTheDiskRecheckWhenNothingLanded(t *testing.T) {
 	assertEntryCount(t, recorder, "download.renamed", 0)
 }
 
-// TestDownloadCoreKeepsTwoLevelResidueOutOfTheSuccessComparison is S4. It pins the premise
-// SDD-62's R-3 decision rests on: Flatten is ONE level deep, so a video two levels down is
-// residue that survives forever, and comparing a recursive reading against the ROOT baseline
-// would let it declare a success that never happened -- permanently skipping a real episode no
-// later run retries.
-//
-// If this test fails, SDD-62 needs revisiting, NOT this test. Never weaken the assertion, fold
-// the residue into the baseline, or quarantine the scenario: open a change against that
-// decision instead. It is the only scenario that kills the recursiveBaseline-to-baselineCount
-// mutant.
-func TestDownloadCoreKeepsTwoLevelResidueOutOfTheSuccessComparison(t *testing.T) {
+// TestDownloadCoreLeavesTheUsersSubfoldersAlone is S4, the "Mini Episodes" incident. A video
+// the user keeps in a subfolder of the anime folder is the user's content, never a download:
+// the attempt must neither move it, delete its folder, nor count it as the episode that landed.
+// A success comparison that read below the root would turn it into a false success here.
+func TestDownloadCoreLeavesTheUsersSubfoldersAlone(t *testing.T) {
 	t.Parallel()
 
 	folder := t.TempDir()
-	residue := filepath.Join(folder, "pkg", "sub", "leftover.mp4")
-	seedResidue(t, residue)
+	userVideo := filepath.Join(folder, "Mini Episodes", "Test Anime - 01.mp4")
+	seedUserVideo(t, userVideo)
 	now := time.Now()
 	sim := newJDSim(t, folder, &now)
 	svc, _ := newCoreIntegrationService(t, sim, &now)
-
-	// The same call prepareAnimeDownload makes before every anime, so "residue survives" is a
-	// claim about production and not about a test that simply never flattened.
-	svc.flattenDownloadFolder(context.Background(), "run-1", testAnime(folder))
-	assertPathStillThere(t, residue, "Flatten only reaches the immediate subdirectory layer")
 
 	result := svc.enqueueWithFallback(context.Background(), "run-1", testAnime(folder),
 		coreIntegrationHosters("Mediafire"), 1)
@@ -192,39 +172,37 @@ func TestDownloadCoreKeepsTwoLevelResidueOutOfTheSuccessComparison(t *testing.T)
 	assertEnqueueResult(t, result, false, 0, "grace_no_signal_first", 0)
 	assertSimLedger(t, sim, []string{"Mediafire"}, 1)
 	assertRootVideoCount(t, folder, 0)
-	assertPathStillThere(t, residue, "nothing in the attempt may move or count two-level residue")
+	assertPathStillThere(t, userVideo, "the download workflow never moves or deletes the user's files")
 }
 
-// seedResidue writes a pre-existing video two directory levels below the fixture root.
-func seedResidue(t *testing.T, path string) {
+// seedUserVideo writes a pre-existing video inside a user subfolder of the fixture root.
+func seedUserVideo(t *testing.T, path string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("create residue directory for %q: %v", path, err)
+		t.Fatalf("create user subfolder for %q: %v", path, err)
 	}
 	if err := os.WriteFile(path, []byte("video"), 0o644); err != nil {
-		t.Fatalf("write residue %q: %v", path, err)
+		t.Fatalf("write user video %q: %v", path, err)
 	}
 }
 
-// TestDownloadCoreRenamesInsideThePackageFolderBeforeFlattening is S5, two consecutive
-// episodes through downloadAvailableEpisodes. Episode 5 lands in a package subfolder, so the
-// JD-side rename must run while JD still knows that path -- asserting the literal
-// "Test Anime - 05.mp4" at the root is the only test anywhere that pins the order rule
-// completeDownloadedEpisode's doc comment declares; today that rule rests on the comment alone.
+// TestDownloadCoreRenamesConsecutiveEpisodesAtTheRoot is S5, two consecutive episodes through
+// downloadAvailableEpisodes. Each lands at the folder root under its hoster name and must be
+// renamed there by the JD-side rename.
 //
 // The second episode also proves the cursor moves from BYTES: CountAtRoot is non-recursive, so
-// if Flatten does not move episode 5 to the root the loop re-attempts episode 5 forever.
-func TestDownloadCoreRenamesInsideThePackageFolderBeforeFlattening(t *testing.T) {
+// if episode 5 never counts at the root the loop re-attempts episode 5 forever.
+func TestDownloadCoreRenamesConsecutiveEpisodesAtTheRoot(t *testing.T) {
 	t.Parallel()
 
 	folder := t.TempDir()
 	seedRootEpisodes(t, folder, 4)
 	now := time.Now()
 	sim := newJDSim(t, folder, &now,
-		landsPartAt(45*time.Second, "pkg-05", "d2ouiemgt90z"),
-		finishesPartAt(55*time.Second, "pkg-05", "d2ouiemgt90z"),
-		landsPartAt(105*time.Second, "", "9gm31meptrvq"),
-		finishesPartAt(115*time.Second, "", "9gm31meptrvq"),
+		landsPartAt(45*time.Second, "d2ouiemgt90z"),
+		finishesPartAt(55*time.Second, "d2ouiemgt90z"),
+		landsPartAt(105*time.Second, "9gm31meptrvq"),
+		finishesPartAt(115*time.Second, "9gm31meptrvq"),
 	)
 	svc, recorder := newCoreIntegrationService(t, sim, &now)
 
@@ -241,11 +219,9 @@ func TestDownloadCoreRenamesInsideThePackageFolderBeforeFlattening(t *testing.T)
 
 	assertEpisodeRange(t, outcome, 2, 5, 6)
 	assertPathStillThere(t, filepath.Join(folder, "Test Anime - 05.mp4"),
-		"the rename ran inside pkg-05 BEFORE the Flattener moved the file to the root")
+		"the first episode landed at the root and was renamed there")
 	assertPathStillThere(t, filepath.Join(folder, "Test Anime - 06.mp4"),
 		"the second episode landed at the root and was renamed there")
-	assertPathGone(t, filepath.Join(folder, "pkg-05"),
-		"the real Flattener emptied and removed the package folder")
 	assertRootVideoCount(t, folder, 6)
 	assertSimLedger(t, sim, []string{"Mediafire", "Mediafire"}, 0)
 	assertEntryCount(t, recorder, "download.rename_failed", 0)
