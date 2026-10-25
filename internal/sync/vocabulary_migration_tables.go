@@ -126,8 +126,8 @@ func migrateAnimeSnapshotsRows(tx *sql.Tx) error {
 		}
 		hash := anime.HashSnapshot(rewritten)
 		if _, err := tx.Exec(
-			`UPDATE anime_snapshots SET snapshot_json = ?, snapshot_hash = ? WHERE anime_id = ?`,
-			string(rewritten), hash, entry.animeID,
+			`UPDATE anime_snapshots SET snapshot_json = ?, snapshot_hash = ?, name_key = ? WHERE anime_id = ?`,
+			string(rewritten), hash, animeNameKey(string(rewritten)), entry.animeID,
 		); err != nil {
 			return fmt.Errorf("update anime_snapshots %q for vocabulary migration: %w", entry.animeID, err)
 		}

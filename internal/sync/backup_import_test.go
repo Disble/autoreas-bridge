@@ -26,7 +26,7 @@ func TestImportAnimeSnapshotsReplacesExistingRows(t *testing.T) {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	for _, rec := range []animeSnapshotRecord{
-		{AnimeID: "b", SnapshotJSON: `{"id":"b2"}`, SnapshotHash: "hash-b2", ModifiedAt: 2},
+		{AnimeID: "b", SnapshotJSON: `{"id":"b2","name":" Imported B "}`, SnapshotHash: "hash-b2", ModifiedAt: 2},
 		{AnimeID: "c", SnapshotJSON: `{"id":"c"}`, SnapshotHash: "hash-c", ModifiedAt: 3},
 	} {
 		if err := enc.Encode(rec); err != nil {
@@ -53,11 +53,14 @@ func TestImportAnimeSnapshotsReplacesExistingRows(t *testing.T) {
 	if _, ok := got["a"]; ok {
 		t.Fatal("expected row 'a' to be gone after full refresh")
 	}
-	if got["b"].CanonicalJSON == nil || string(got["b"].CanonicalJSON) != `{"id":"b2"}` {
+	if got["b"].CanonicalJSON == nil || string(got["b"].CanonicalJSON) != `{"id":"b2","name":" Imported B "}` {
 		t.Fatalf("expected row 'b' replaced, got %+v", got["b"])
 	}
 	if _, ok := got["c"]; !ok {
 		t.Fatal("expected new row 'c' present")
+	}
+	if keys := readNameKeys(t, db); keys["b"].String != "imported b" || keys["c"].Valid {
+		t.Fatalf("expected imported rows to carry their name keys, got %v", keys)
 	}
 }
 

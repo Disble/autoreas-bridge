@@ -184,10 +184,11 @@ The three speculative indexes the legacy schema carried (`..._trigger_source`,
 `..._previous_outcome` and `..._previous_error_fingerprint`) are **not** carried over. No query in
 `reader.go` filters or sorts on any of them — `ReportQuery` carries only `DeviceID` and `Limit` — so they
 bought write cost and nothing else. A payload field is promoted to a queryable projection only when a read
-surface actually filters or sorts on it, and the repo's own idiom for that is a `VIRTUAL` generated column
-plus an index, exactly as `animeSnapshotsNameKeyExpr` does at `internal/sync/schema.go:24-42`. Its
-documented lesson carries over: the `json_valid` guard there is load-bearing, because evaluating an
-expression over unreadable JSON raises and fails the whole write.
+surface actually filters or sorts on it. Such a projection is a plain column computed in Go and written
+with the payload, plus an index, as `anime_snapshots.name_key` is since the write-path rebuild
+(`internal/sync/anime_name_key.go`). That column used to be a `VIRTUAL` generated column; it was retired
+because an index over an SQLite expression can silently desync when another SQLite build evaluates the
+expression differently (an external ICU `lower()` REINDEX corrupted it in production).
 
 **Status:** D6 is decided but was not yet delivered at the time of writing. Slice 4b still owes the
 registry removal, the deletions and the behavioural guard from D2, so the legacy table was still being

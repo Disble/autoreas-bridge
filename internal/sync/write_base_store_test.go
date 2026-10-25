@@ -109,6 +109,7 @@ func TestWriteOperationFinalizeCommitsSnapshotAndExposesBase(t *testing.T) {
 	store := NewWriteBaseStore(db)
 	ctx := context.Background()
 	operation := writeOperationFixture("operation-finalize", "anime-finalize", 300, 400)
+	operation.DesiredSnapshotJSON = []byte(`{"id":"anime-finalize","name":"Finalized NAME","episodesWatched":0}`)
 	seedWriteOperationBase(t, db, operation)
 
 	if err := store.Stage(ctx, operation); err != nil {
@@ -135,6 +136,9 @@ func TestWriteOperationFinalizeCommitsSnapshotAndExposesBase(t *testing.T) {
 	}
 	if current.ModifiedAt != operation.IntendedModifiedAt || string(current.CanonicalJSON) != string(operation.DesiredSnapshotJSON) {
 		t.Fatalf("unexpected finalized anime snapshot: %#v", current)
+	}
+	if key := readNameKeys(t, db)[operation.AnimeID]; key.String != "finalized name" {
+		t.Fatalf("finalized name_key = %#v, want the desired snapshot's key", key)
 	}
 
 	staged, err := store.ListStaged(ctx)

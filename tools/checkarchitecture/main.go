@@ -74,6 +74,7 @@ func runWithArchitectureFS(root string, source architectureFS) error {
 		violations = append(violations, ownedTableViolations(normalized, string(content))...)
 		violations = append(violations, providerEgressViolations(normalized, string(content))...)
 		violations = append(violations, transactionViolations(normalized, string(content))...)
+		violations = append(violations, nameKeyWriterViolations(normalized, string(content))...)
 		return nil
 	})
 	if err != nil {
