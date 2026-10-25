@@ -70,6 +70,9 @@ func TestVocabularyMigrationRewritesAnimeSnapshotsRows(t *testing.T) {
 	if modifiedAt != 500 {
 		t.Fatalf("modified_at = %d, want untouched 500", modifiedAt)
 	}
+	if key := readNameKeys(t, db)["anime-1"]; key.String != "one piece" {
+		t.Fatalf("name_key = %#v, want the key of the renamed name field", key)
+	}
 }
 
 // TestVocabularyMigrationRewritesNonNullChangelogRowsOnly proves scenario

@@ -241,14 +241,16 @@ func finalizeWriteOperation(ctx context.Context, tx *sql.Tx, operation anime.Wri
 		return "", fmt.Errorf("derive change type for write operation %q: %w", operation.OperationID, err)
 	}
 	result, err := tx.ExecContext(ctx, `
-		INSERT INTO anime_snapshots (anime_id, snapshot_json, snapshot_hash, modified_at)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO anime_snapshots (anime_id, snapshot_json, snapshot_hash, modified_at, name_key)
+		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(anime_id) DO UPDATE SET
 			snapshot_json = excluded.snapshot_json,
 			snapshot_hash = excluded.snapshot_hash,
-			modified_at = excluded.modified_at
+			modified_at = excluded.modified_at,
+			name_key = excluded.name_key
 		WHERE anime_snapshots.modified_at < excluded.modified_at
-	`, operation.AnimeID, string(operation.DesiredSnapshotJSON), operation.DesiredHash, operation.IntendedModifiedAt)
+	`, operation.AnimeID, string(operation.DesiredSnapshotJSON), operation.DesiredHash, operation.IntendedModifiedAt,
+		animeNameKey(string(operation.DesiredSnapshotJSON)))
 	if err != nil {
 		return "", fmt.Errorf("finalize anime snapshot for write operation %q: %w", operation.OperationID, err)
 	}

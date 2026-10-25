@@ -74,13 +74,15 @@ func (s *AnimeSnapshotStore) ReplaceBaseline(ctx context.Context, current map[st
 	for _, id := range animeSnapshotIDs(current) {
 		record := current[id]
 		if _, execErr := tx.ExecContext(ctx, `
-			INSERT INTO anime_snapshots (anime_id, snapshot_json, snapshot_hash, modified_at)
-			VALUES (?, ?, ?, ?)
+			INSERT INTO anime_snapshots (anime_id, snapshot_json, snapshot_hash, modified_at, name_key)
+			VALUES (?, ?, ?, ?, ?)
 			ON CONFLICT(anime_id) DO UPDATE SET
 				snapshot_json = excluded.snapshot_json,
 				snapshot_hash = excluded.snapshot_hash,
-				modified_at = excluded.modified_at
-		`, record.AnimeID, string(record.CanonicalJSON), record.Hash, record.ModifiedAt); execErr != nil {
+				modified_at = excluded.modified_at,
+				name_key = excluded.name_key
+		`, record.AnimeID, string(record.CanonicalJSON), record.Hash, record.ModifiedAt,
+			animeNameKey(string(record.CanonicalJSON))); execErr != nil {
 			err = fmt.Errorf("upsert anime snapshot %q: %w", record.AnimeID, execErr)
 			return err
 		}
