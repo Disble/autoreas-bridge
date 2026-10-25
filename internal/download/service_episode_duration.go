@@ -24,8 +24,8 @@ type EpisodeDurationNotice interface {
 	EpisodeLanded(ctx context.Context, folder string, kind *int, episode int, animeID, animeName string)
 }
 
-// noticeEpisodeDuration offers a landed episode to the duration notice, after the rename and the
-// flatten have left the file at the folder root.
+// noticeEpisodeDuration offers a landed episode to the duration notice, after the rename has left
+// the file at the folder root.
 //
 // The folder is the anime's own and is already stored; the file inside it is not named here, because
 // the notice reads the folder at the moment the file exists instead of trusting a name this run

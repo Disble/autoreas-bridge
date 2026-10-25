@@ -16,3 +16,15 @@ export function isValidDownloadPageUrl(value: string): boolean {
     return false;
   }
 }
+
+/**
+ * Opens `url` in the user's default browser through the Wails runtime, the way every "Open page"
+ * action does. A WebView anchor (`target="_blank"`) would open a WebView2 popup instead. A blank URL
+ * or a missing runtime (tests, a plain browser) opens nothing.
+ */
+export function openInDefaultBrowser(url: string): void {
+  if (url === '' || typeof window.runtime?.BrowserOpenURL !== 'function') {
+    return;
+  }
+  window.runtime.BrowserOpenURL(url);
+}

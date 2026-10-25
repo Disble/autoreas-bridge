@@ -33,9 +33,10 @@ func sameDestination(a, b string) bool {
 
 // destinationCovers reports whether candidate IS destination or lives beneath it.
 //
-// JDownloader routinely saves a package into its own subfolder of the anime folder, so a
-// package's SaveTo is frequently a descendant of the folder Bridge asked about rather than
-// equal to it. The trailing separator matters: without it "D:/Anime/Bleach" would also
+// Bridge disables JDownloader's subfolder-per-package rule, so a package it enqueues saves at
+// the folder root. A package that still sits in a subfolder (one enqueued before that override,
+// or by a user rule) has a SaveTo that descends from the folder rather than equals it, and
+// this keeps such a package findable. The trailing separator matters: without it "D:/Anime/Bleach" would also
 // swallow the unrelated sibling "D:/Anime/Bleach Sennen Kessen-hen".
 func destinationCovers(destination, candidate string) bool {
 	root, sub := normDest(destination), normDest(candidate)

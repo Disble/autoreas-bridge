@@ -3,9 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router';
 import { NotificationToasts } from '../../src/features/notifications/ui/NotificationToasts/NotificationToasts';
 import { renderAppNotificationToast } from '../../src/features/notifications/ui/NotificationToasts/app-notification.helpers';
-import { ActivityHistoryFixture } from './activity-history-fixture';
-import { ActivityIncidentFixture } from './activity-incident-fixture';
-import { ActivityNowFixture } from './activity-now-fixture';
+import { ActivityFeedFixture } from './activity-feed-fixture';
 import { AnimeDetailCardFixture } from './anime-detail-card-fixture';
 import { AirisEmptyStatesFixture } from './airis-empty-states-fixture';
 import { LoadingSkeletonsFixture } from './loading-skeletons-fixture';
@@ -276,9 +274,7 @@ function LayoutFixtures() {
   return (
     <>
       <ToastFixture />
-      <ActivityNowFixture />
-      <ActivityIncidentFixture />
-      <ActivityHistoryFixture />
+      <ActivityFeedFixture />
       <AirisEmptyStatesFixture />
       <LoadingSkeletonsFixture />
       <SeasonOrderingFixture />

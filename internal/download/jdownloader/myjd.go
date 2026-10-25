@@ -146,7 +146,7 @@ func (a *myJDAdapter) deviceOnline(deviceName string) bool {
 
 // AddAndStart enqueues req.URLs on deviceName with autostart, deliberately WITHOUT a package
 // name (PoC #13 quirk -- an unset package name avoids JD creating a per-package destination
-// subfolder; filesystem.Flatten exists to mop up any subfolder JD still creates regardless).
+// subfolder).
 func (a *myJDAdapter) AddAndStart(ctx context.Context, deviceName string, req EnqueueRequest) error {
 	device, err := a.client.Device(deviceName)
 	if err != nil {

@@ -72,7 +72,7 @@ func (r *Reader) RunStory(ctx context.Context, correlationID string) (RunStory, 
 		return story, nil
 	}
 	rows, err := r.db.QueryContext(ctx, `SELECT id, occurred_at_ms, domain, level, COALESCE(event_type, ''), message,
-		duration_ms, COALESCE(metadata_json, '') FROM runtime_events WHERE correlation_id = ?
+		COALESCE(entity_id, ''), duration_ms, COALESCE(metadata_json, '') FROM runtime_events WHERE correlation_id = ?
 		ORDER BY occurred_at_ms, id LIMIT ?`, correlationID, StoryLimit+1)
 	if err != nil {
 		return RunStory{}, fmt.Errorf("activityread: run story: %w", err)
@@ -82,7 +82,7 @@ func (r *Reader) RunStory(ctx context.Context, correlationID string) (RunStory, 
 		step := RunStep{EventSummary: EventSummary{CorrelationID: correlationID}}
 		var duration sql.NullInt64
 		if err := rows.Scan(&step.ID, &step.AtMS, &step.Domain, &step.Level, &step.EventType, &step.Message,
-			&duration, &step.MetadataJSON); err != nil {
+			&step.EntityID, &duration, &step.MetadataJSON); err != nil {
 			return RunStory{}, fmt.Errorf("activityread: scan run step: %w", err)
 		}
 		step.DurationMS = nullableInt64(duration)

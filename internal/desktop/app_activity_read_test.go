@@ -3,13 +3,13 @@ package desktop
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
-	"autoreas-bridge/internal/activity"
-	"autoreas-bridge/internal/observability/activityread"
 	"autoreas-bridge/internal/observability/incident"
 	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/observability/retention"
@@ -38,18 +38,6 @@ func activityAt(offset time.Duration) int64 {
 	return activityTestNow.Add(offset).UnixMilli()
 }
 
-// seedActivityChange records one domain history change at atMS.
-func seedActivityChange(t *testing.T, db *sql.DB, atMS int64) {
-	t.Helper()
-	err := activity.NewStore(activity.NewSQLiteProvider(db)).RecordActivity(context.Background(), activity.Record{
-		Source: activity.SourceMobile, ActionType: activity.ActionEpisodeAdjusted, AnimeID: "anime-1", AnimeName: "Frieren",
-		OccurredAtMs: atMS, BeforeJSON: []byte(`{}`), AfterJSON: []byte(`{}`),
-	})
-	if err != nil {
-		t.Fatalf("record change: %v", err)
-	}
-}
-
 // seedActivityIncident records one incident occurrence and returns nothing:
 // tests read ids back through the list.
 func seedActivityIncident(t *testing.T, db *sql.DB, trigger incident.Trigger, atMS int64, kind incident.SourceKind, sourceID string) {
@@ -71,61 +59,6 @@ func seedActivityEvent(t *testing.T, db *sql.DB, atMS int64, domain, level, corr
 	}
 }
 
-// TestGetActivityNowReadsTheAppClock asserts Now is answered from the app's
-// clock, its local midnight and its process start: a change at midnight
-// counts as today and one a millisecond before it does not.
-func TestGetActivityNowReadsTheAppClock(t *testing.T) {
-	t.Parallel()
-	app := newActivityTestApp(t)
-	seedActivityChange(t, app.bridgeDB, activityAt(-30*time.Minute-time.Millisecond))
-	seedActivityChange(t, app.bridgeDB, activityAt(-30*time.Minute))
-
-	got, err := app.GetActivityNow()
-	if err != nil {
-		t.Fatalf("GetActivityNow: %v", err)
-	}
-
-	if got.ChangesToday != 1 || got.UptimeMS != (10*time.Minute).Milliseconds() {
-		t.Fatalf("changes today = %d, uptime = %d; want 1 and 600000", got.ChangesToday, got.UptimeMS)
-	}
-	want, err := activityread.New(app.bridgeDB).Now(context.Background(), activityread.NowInput{
-		Now: activityTestNow, LocalMidnight: activityTestNow.Add(-30 * time.Minute), ProcessStartedAt: app.processStartedAt,
-	})
-	if err != nil || !reflect.DeepEqual(got, want) {
-		t.Fatalf("GetActivityNow = %#v, want %#v (%v)", got, want, err)
-	}
-}
-
-// TestListActivityIncidentsFiltersByWhere asserts the filter and the clock
-// reach the incident list, and an unknown filter is an error.
-func TestListActivityIncidentsFiltersByWhere(t *testing.T) {
-	t.Parallel()
-	app := newActivityTestApp(t)
-	seedActivityIncident(t, app.bridgeDB, incident.Trigger{Reason: incident.ReasonServerError, Fingerprint: "server_error|patch"},
-		activityAt(-time.Hour), incident.SourceRequest, "req-1")
-	seedActivityIncident(t, app.bridgeDB, incident.Trigger{Reason: incident.ReasonErrorEvent, Fingerprint: "error_event|download|x"},
-		activityAt(-time.Hour), incident.SourceEvent, "")
-	seedActivityIncident(t, app.bridgeDB, incident.Trigger{Reason: incident.ReasonServerError, Fingerprint: "server_error|old"},
-		activityAt(-8*24*time.Hour), incident.SourceRequest, "req-old")
-
-	for where, want := range map[string][]string{"all": {"server_error|patch", "error_event|download|x"}, "phone": {"server_error|patch"}} {
-		got, err := app.ListActivityIncidents(where)
-		if err != nil {
-			t.Fatalf("ListActivityIncidents(%q): %v", where, err)
-		}
-		fingerprints := map[string]bool{}
-		for _, summary := range got {
-			fingerprints[summary.Fingerprint] = true
-		}
-		if len(got) != len(want) || !fingerprints[want[0]] || !fingerprints[want[len(want)-1]] {
-			t.Fatalf("ListActivityIncidents(%q) = %#v, want %v", where, got, want)
-		}
-	}
-	if _, err := app.ListActivityIncidents("bogus"); err == nil {
-		t.Fatal("expected an unknown where filter to fail")
-	}
-}
-
 // TestGetActivityIncidentReportsFoundAndNotFound asserts a stored occurrence
 // is found with its detail and a missing one is a typed not-found, not an error.
 func TestGetActivityIncidentReportsFoundAndNotFound(t *testing.T) {
@@ -133,50 +66,24 @@ func TestGetActivityIncidentReportsFoundAndNotFound(t *testing.T) {
 	app := newActivityTestApp(t)
 	seedActivityIncident(t, app.bridgeDB, incident.Trigger{Reason: incident.ReasonServerError, Fingerprint: "server_error|patch"},
 		activityAt(-time.Hour), incident.SourceRequest, "req-1")
-	list, err := app.ListActivityIncidents("all")
-	if err != nil || len(list) != 1 {
-		t.Fatalf("list incidents: %#v, %v", list, err)
+	ids := queryActivityColumn[int64](t, app.bridgeDB, `SELECT id FROM incidents`)
+	if len(ids) != 1 {
+		t.Fatalf("incident ids = %v, want one", ids)
 	}
 
-	found, err := app.GetActivityIncident(list[0].LatestID)
+	found, err := app.GetActivityIncident(ids[0])
 	if err != nil || !found.Found || found.Detail.Incident.SourceID != "req-1" {
 		t.Fatalf("GetActivityIncident(existing) = %#v, %v", found, err)
 	}
-	missing, err := app.GetActivityIncident(list[0].LatestID + 100)
+	missing, err := app.GetActivityIncident(ids[0] + 100)
 	if err != nil || missing.Found {
 		t.Fatalf("GetActivityIncident(missing) = %#v, %v; want not found and no error", missing, err)
 	}
 }
 
-// TestSearchActivityHistoryPassesItsInputs asserts History is answered for the
-// app's clock and the given filter, cursor and limit.
-func TestSearchActivityHistoryPassesItsInputs(t *testing.T) {
-	t.Parallel()
-	app := newActivityTestApp(t)
-	seedActivityEvent(t, app.bridgeDB, activityAt(-time.Minute), "download", "warn", "")
-	seedActivityEvent(t, app.bridgeDB, activityAt(-2*time.Minute), "download", "warn", "")
-	seedActivityEvent(t, app.bridgeDB, activityAt(-3*time.Minute), "schedule", "warn", "")
-
-	first, err := app.SearchActivityHistory("downloads", "", 1)
-	if err != nil || len(first.Days) != 1 || len(first.Days[0].Lines) != 1 || first.NextCursor == "" || len(first.Calendar) == 0 {
-		t.Fatalf("first page = %#v, %v; want one line and a cursor", first, err)
-	}
-	second, err := app.SearchActivityHistory("downloads", first.NextCursor, 1)
-	if err != nil {
-		t.Fatalf("second page: %v", err)
-	}
-	want, err := activityread.New(app.bridgeDB).History(context.Background(), activityread.HistoryInput{
-		Now: activityTestNow, Where: activityread.WhereDownloads, Cursor: first.NextCursor, Limit: 1,
-	})
-	if err != nil || !reflect.DeepEqual(second, want) || second.NextCursor != "" {
-		t.Fatalf("second page = %#v, want %#v and no cursor (%v)", second, want, err)
-	}
-}
-
-// TestListActivityRecoveredRunsAndRunStory asserts the run list keeps the
-// recovered runs of the filter, errors being incidents already, and a run
-// story returns the steps of its correlation id.
-func TestListActivityRecoveredRunsAndRunStory(t *testing.T) {
+// TestGetActivityRunStoryReturnsTheStepsOfItsCorrelationID asserts a run
+// story returns the steps of its correlation id and no other run's.
+func TestGetActivityRunStoryReturnsTheStepsOfItsCorrelationID(t *testing.T) {
 	t.Parallel()
 	app := newActivityTestApp(t)
 	seedActivityEvent(t, app.bridgeDB, activityAt(-4*time.Minute), "download", "warn", "run-recovered")
@@ -184,34 +91,17 @@ func TestListActivityRecoveredRunsAndRunStory(t *testing.T) {
 	seedActivityEvent(t, app.bridgeDB, activityAt(-2*time.Minute), "download", "error", "run-download")
 	seedActivityEvent(t, app.bridgeDB, activityAt(-time.Minute), "schedule", "info", "run-schedule")
 
-	for _, where := range []string{"downloads", "all"} {
-		runs, err := app.ListActivityRecoveredRuns(where)
-		if err != nil || len(runs) != 1 || runs[0].CorrelationID != "run-recovered" || runs[0].Outcome != "warn" {
-			t.Fatalf("ListActivityRecoveredRuns(%q) = %#v, %v", where, runs, err)
-		}
+	if _, err := app.bridgeDB.Exec(`UPDATE runtime_events SET entity_id = 'anime-1' WHERE correlation_id = 'run-download' AND level = 'error'`); err != nil {
+		t.Fatalf("tag the step's anime: %v", err)
 	}
 	story, err := app.GetActivityRunStory("run-download")
 	if err != nil || len(story.Steps) != 2 || story.Steps[1].Level != "error" {
 		t.Fatalf("GetActivityRunStory = %#v, %v", story, err)
 	}
-}
-
-// TestListActivityRecorderPagesTheLastTwoHours asserts the recorder reads the
-// app's clock and honours the cursor and the limit.
-func TestListActivityRecorderPagesTheLastTwoHours(t *testing.T) {
-	t.Parallel()
-	app := newActivityTestApp(t)
-	seedCaptureRow(t, app.bridgeDB, "req-new", activityAt(-time.Minute))
-	seedCaptureRow(t, app.bridgeDB, "req-older", activityAt(-2*time.Minute))
-	seedCaptureRow(t, app.bridgeDB, "req-stale", activityAt(-3*time.Hour))
-
-	first, err := app.ListActivityRecorder("", 1)
-	if err != nil || len(first.Entries) != 1 || first.Entries[0].ID != "req-new" || first.NextCursor == "" {
-		t.Fatalf("first recorder page = %#v, %v", first, err)
-	}
-	second, err := app.ListActivityRecorder(first.NextCursor, 1)
-	if err != nil || len(second.Entries) != 1 || second.Entries[0].ID != "req-older" || second.NextCursor != "" {
-		t.Fatalf("second recorder page = %#v, %v", second, err)
+	// The binding hands the frontend each step's anime under the Go field name.
+	encoded, err := json.Marshal(story.Steps)
+	if err != nil || !strings.Contains(string(encoded), `"EntityID":"anime-1"`) || !strings.Contains(string(encoded), `"EntityID":""`) {
+		t.Fatalf("run story steps = %s, want the error step's EntityID anime-1 and the other empty (%v)", encoded, err)
 	}
 }
 
@@ -246,8 +136,7 @@ func TestGetActivityRequestRedactsCredentialsAndReportsNotFound(t *testing.T) {
 }
 
 // TestPinActivityMomentRecordsOneManualPinPerCall asserts each pin stores one
-// manual_pin incident at the app's clock, its own fingerprint, and shows in
-// the incident list under All.
+// manual_pin incident at the app's clock with its own fingerprint.
 func TestPinActivityMomentRecordsOneManualPinPerCall(t *testing.T) {
 	t.Parallel()
 	app := newActivityTestApp(t)
@@ -283,9 +172,6 @@ func TestPinActivityMomentRecordsOneManualPinPerCall(t *testing.T) {
 	if count != 2 || len(fingerprints) != 2 {
 		t.Fatalf("expected two pins with distinct fingerprints, got %d rows and %v", count, fingerprints)
 	}
-	if list, err := app.ListActivityIncidents("all"); err != nil || len(list) != 2 {
-		t.Fatalf("pins under All = %#v, %v", list, err)
-	}
 }
 
 // TestActivityBindingsReportAnUnwiredDatabase asserts every read fails with
@@ -294,15 +180,10 @@ func TestActivityBindingsReportAnUnwiredDatabase(t *testing.T) {
 	t.Parallel()
 	app := &App{}
 	calls := map[string]func() error{
-		"now":       func() error { _, err := app.GetActivityNow(); return err },
-		"incidents": func() error { _, err := app.ListActivityIncidents("all"); return err },
-		"incident":  func() error { _, err := app.GetActivityIncident(1); return err },
-		"history":   func() error { _, err := app.SearchActivityHistory("all", "", 0); return err },
-		"runs":      func() error { _, err := app.ListActivityRecoveredRuns("all"); return err },
-		"story":     func() error { _, err := app.GetActivityRunStory("run"); return err },
-		"recorder":  func() error { _, err := app.ListActivityRecorder("", 0); return err },
-		"request":   func() error { _, err := app.GetActivityRequest("req"); return err },
-		"pin":       app.PinActivityMoment,
+		"incident": func() error { _, err := app.GetActivityIncident(1); return err },
+		"story":    func() error { _, err := app.GetActivityRunStory("run"); return err },
+		"request":  func() error { _, err := app.GetActivityRequest("req"); return err },
+		"pin":      app.PinActivityMoment,
 	}
 	for name, call := range calls {
 		if err := call(); !errors.Is(err, errActivityUnavailable) {

@@ -1,6 +1,9 @@
+import folderIcon from '@iconify-icons/solar/folder-with-files-bold-duotone';
+import galleryIcon from '@iconify-icons/solar/gallery-bold-duotone';
 import trashIcon from '@iconify-icons/solar/trash-bin-2-bold-duotone';
 import undoIcon from '@iconify-icons/solar/undo-left-linear';
 import { Button, Card, Disclosure, Typography } from '@heroui/react';
+import { CoverPreview } from '../../../../shared/anime-cover/CoverPreview/CoverPreview';
 import { ANIME_TIPO_FILTER_ENTRIES } from '../../../../shared/constants/anime-tipo.constants';
 import { AnimeMetadataLookupModal } from '../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/AnimeMetadataLookupModal';
 import { IconActionButton } from '../../../../shared/ui/IconActionButton/IconActionButton';
@@ -77,7 +80,8 @@ export function AnimeCreateRow({ row, index, viewModel }: Readonly<AnimeCreateRo
             onChange={(value) => viewModel.onRowChange(draftId, { page: value })}
           />
           <PathPickerField
-            browseLabel="Browse…"
+            browseIcon={folderIcon}
+            browseLabel="Choose folder"
             description="Where downloads are saved."
             label="Folder"
             mono
@@ -116,9 +120,12 @@ export function AnimeCreateRow({ row, index, viewModel }: Readonly<AnimeCreateRo
                   variant="secondary"
                   onChange={(value) => viewModel.onRowChange(draftId, { coverType: value })}
                 />
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="min-w-0 flex-1">
                 {row.coverType === 'image' ? (
                   <PathPickerField
-                    browseLabel="Browse…"
+                    browseIcon={galleryIcon}
+                    browseLabel="Choose cover image"
                     description="Local image file on disk."
                     label="Cover image path"
                     mono
@@ -130,6 +137,9 @@ export function AnimeCreateRow({ row, index, viewModel }: Readonly<AnimeCreateRo
                 ) : (
                   <LabeledTextField description="External cover image URL." label="Cover image URL" placeholder="https://..." value={row.coverPath} onChange={(value) => viewModel.onRowChange(draftId, { coverPath: value })} />
                 )}
+                  </div>
+                  <CoverPreview source={viewModel.coverPreviewSource} value={row.coverPath} />
+                </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <LabeledTextField label="Genres" placeholder="Comma separated" value={row.genres} onChange={(value) => viewModel.onRowChange(draftId, { genres: value })} />

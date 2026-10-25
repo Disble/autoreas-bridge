@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import type { SeasonSource, SendToVerHoyResult } from '../../../../infrastructure/season-source/season-source.types';
 import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
+import { toggleSelection } from './daily-board.helpers';
 
 /**
  * useDailyBoardSend owns the Daily board's download flow: the multi-select over
@@ -23,15 +24,7 @@ export function useDailyBoardSend(source: SeasonSource) {
 
   // 6. Callbacks
   const toggleSelect = useCallback((animeId: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(animeId)) {
-        next.delete(animeId);
-      } else {
-        next.add(animeId);
-      }
-      return next;
-    });
+    setSelected((prev) => toggleSelection(prev, animeId));
   }, []);
   // Sends the selection to Ver hoy and clears it; resolves null when nothing was selected.
   const sendSelection = useCallback(async (): Promise<SendToVerHoyResult | null> => {

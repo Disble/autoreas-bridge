@@ -42,6 +42,8 @@ export interface BridgeRuntimeSource {
   readonly getAnimeWatchHistoryPage?: (request: AnimeWatchHistoryPageRequest) => Promise<WatchHistoryPage>;
   readonly getEpisodeSchedule?: (day: string) => Promise<readonly contracts.EpisodeScheduleItem[]>;
   readonly getAnimeCover?: (animeID: string) => Promise<contracts.AnimeCover>;
+  /** Renders an unsaved cover value (a local path or URL a form is editing) the way a saved cover renders. */
+  readonly previewAnimeCover?: (value: string) => Promise<contracts.AnimeCover>;
   readonly getEpisodeDayCounts?: () => Promise<readonly contracts.EpisodeDayCount[]>;
   readonly adjustWatchedEpisodes?: (animeID: string, delta: number, base: number) => Promise<contracts.EpisodeCommandResult>;
   readonly setAnimeState?: (animeID: string, estado: number, base: number) => Promise<contracts.EpisodeCommandResult>;

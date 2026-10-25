@@ -1,3 +1,4 @@
+import type { CoverPreviewSource } from '../../../../shared/anime-cover/anime-cover.types';
 import type { AnimeEditorScheduleBoard } from '../../../../shared/contracts/anime.types';
 import type { AnimeMetadataSelection, AppliedMetadata } from '../../../../shared/metadata-lookup/metadata-lookup.types';
 import type { AnimeMetadataLookupSource } from '../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
@@ -53,6 +54,8 @@ export interface AnimeCreateViewModel {
   readonly appliedMetadataByRow: Readonly<Record<string, AppliedMetadata<AnimeCreateRowPatch>>>;
   /** The MyAnimeList lookup's two Wails-bound calls, injected into every row's lookup modal. */
   readonly metadataLookupSource: AnimeMetadataLookupSource;
+  /** Renders each row's unsaved cover value for the preview beside its cover field. */
+  readonly coverPreviewSource: CoverPreviewSource;
   readonly feedback?: string;
   readonly isSubmitting: boolean;
   readonly canRemoveRow: boolean;

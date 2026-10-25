@@ -16,8 +16,6 @@ export interface BoardSections {
 export interface DailyBoardSectionCopy {
   /** The section heading; the row count chip follows it. */
   readonly title: string;
-  /** Guidance under the heading. */
-  readonly description: string;
   /** Compact empty-state title, shown when the section has no rows. */
   readonly emptyTitle: string;
   /** Compact empty-state guidance, shown when the section has no rows. */
@@ -29,12 +27,14 @@ export interface DailyBoardSectionCopy {
  * header, the compact empty state shown when it has no rows, and its content.
  */
 export interface DailyBoardSectionCardProps {
-  /** The section's heading, description and empty-state copy. */
+  /** The section's heading and empty-state copy. */
   readonly copy: DailyBoardSectionCopy;
   /** How many rows the section holds. */
   readonly count: number;
   /** The count chip's semantic color. */
   readonly countColor: 'default' | 'accent' | 'success';
+  /** Rendered at the end of the header row, opposite the title. */
+  readonly headerEnd?: ReactNode;
   /** The section's rows, rendered when the count is above zero. */
   readonly children: ReactNode;
   /** Actions rendered under the content whatever the count. */
@@ -53,6 +53,16 @@ export interface DailyBoardWatchListProps {
   readonly getCoverThumb: (animeId: string) => SeasonCoverThumbProps;
   /** The row's trailing chip, or null for none. */
   readonly getRowChip: (row: SeasonAnimeRow) => DailyBoardRowChip | null;
+  /** The rows' leading checkboxes; absent renders none (Visto, a read-only season). */
+  readonly selection?: DailyBoardRowSelection;
+}
+
+/** The checkboxes a watch list leads its rows with: which animes are checked and how one toggles. */
+export interface DailyBoardRowSelection {
+  /** The checked anime ids. */
+  readonly selected: ReadonlySet<string>;
+  /** Flips one anime's checkbox. */
+  readonly onToggle: (animeId: string) => void;
 }
 
 /** The trailing chip of one watch-list row: its label and semantic color. */

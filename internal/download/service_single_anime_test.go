@@ -79,7 +79,7 @@ func TestRunAnimeRunPartialNotificationNamesTheAffectedAnimeAsARow(t *testing.T)
 		},
 	})
 	deps.Sites = registry
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 0}, recursive: map[string]int{folder: 1}})
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 0}, landing: map[string]int{folder: 1}})
 	notifier := &svcFakeNotifier{}
 	deps.Notifier = notifier
 	anime := contracts.MobileAnime{

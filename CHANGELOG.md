@@ -14,6 +14,69 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [2.5.0] — 2026-10-25
+
+### Added
+
+- While the app loads, a splash shows Airis running with popcorn instead of an empty window.
+- Activity has a new **System** section. It shows every bridge start, warning or error that no other section owns. Events that repeat within the same hour make one row with a `×N` badge, for example "frontend error: … ×22". System starts off, like Traffic.
+- A failed row in Activity has a "Copy for AI" button that copies the row and its details, ready to paste into an assistant.
+- The range picker in Activity also picks the start and end times, not only the days.
+- Clearing a Cloudflare check is recorded in Activity: when a check appears, when it is cleared, when it fails and why, and which jkanime mirror answered.
+- The Run history in Downloads shows which anime and episodes each run touched, not only its totals. A run's detail groups its anime under Failed, Not attempted, Downloaded, Skipped and Up to date:
+  - Failed shows the episode and the reason, for example "Episode 7 · Captcha".
+  - Not attempted lists the manual download links when JDownloader was offline, with buttons to copy one link or all of them, or to open one.
+  - Downloaded names the site host that served each episode, for example "Episodes 9–10 · jkanime.bz".
+  - Skipped has an "Edit anime" button.
+  - Runs older than 90 days show the totals only.
+- The Schedule card in the Editor has a Season row under the weekdays. It shows whether the anime is in Sin ver, Ver hoy or Visto, for example "Sin ver: 4 of 4". The row shows even while Season mode is off, so an anime in the history still shows the section it was in.
+- The cover field in the Editor and in Create shows a small preview of the image before the anime is saved.
+
+### Changed
+
+- The Folder and cover fields in the Editor and in Create pick a path with an icon button instead of a "Browse…" text button. The folder icon is the same one Season Intake uses.
+- Downloads notice sooner that an episode started or arrived. For the first minute after an episode is sent to JDownloader, the folder is checked every 5 seconds instead of every 20, and an episode that is already in the folder counts at once.
+- Stopping a download run no longer abandons an episode JDownloader is already downloading. The run waits for that episode to arrive and be renamed, then stops. If that download hangs, the run can take up to 30 minutes to stop.
+- **Activity is now one screen.** The old Now, Incidents, History and Recorder tabs are gone. In their place:
+  - a chart of the last 24 hours, 7, 30 or 90 days;
+  - a feed of what happened, grouped by day;
+  - a detail drawer for each row, with its events and requests.
+- The Activity filters work as layers, each one inside the one before:
+  1. **Time:** pick a range by clicking or dragging over the chart, or in the range field. Clicking the selected bar again clears it.
+  2. **Origin:** All, Phone or Bridge.
+  3. **Sections:** Changes, Traffic, Downloads, Tasks, Edits and System. Each one shows how many rows it would add and how many of them failed.
+  4. **Failures:** the red button shows only the failures of what is left, and pressing it again shows everything.
+- The Activity chart shows what the feed shows. Turning a section off removes its rows from the bars, and with the failure button on every bar counts only failures. The red part of a bar is the share of its rows that failed. Hours with no activity are drawn as hatched gaps.
+- Each Activity row states one fact, for example "episode 0 → 1", "3 downloaded" or "1 failed". A download run is one row, not one row per episode.
+- Every tooltip in Activity uses the app's tooltip, including the Phone and Bridge buttons, the row icons, the section failure counts, the chart bars and the phone status line.
+- The Run history list shows each run's status as an icon with a tooltip. The Stop run button and the problems filter now sit in the card header, and the problems filter is the same red button as Activity's failure button.
+- Runs recorded before this version name each anime from the catalog. While the name loads, only the name shows a placeholder. When a run kept no per-anime record for a group, the group says "Episodes not recorded" instead of staying empty.
+
+### Fixed
+
+- Downloads never move or delete your own files. A subfolder you keep inside an anime's folder, for example one with extras, stays untouched. Before, it could be moved into the anime folder and deleted.
+- An episode that finishes downloading after you press Stop is now renamed like any other. Before, it kept the name the hoster gave it.
+- Automatic downloads and the Season mode search work again while jkanime.net shows a Cloudflare check. The app now clears the check by itself in a hidden window, which can make the first request after a check appears 6 to 11 seconds slower. The jkanime mirrors are still used when the check cannot be cleared. Nothing needs to be installed or allowed.
+- The splash now reaches the window before the app finishes loading. Before, the window could stay empty until the app was ready.
+- In the Activity detail drawer, the arrow keys move focus along with the open row.
+- In the Run history, manual download links open in the default browser. Before, they opened in a separate window of the app.
+
+### Internal
+
+- Architecture documentation moved to its own folder, `docs/architecture/`, with one folder per area and Mermaid diagrams. Downloads is the first area: an overview, the whole run as one decision tree, and the hoster attempt phases.
+- Every request to an anime provider goes through one shared HTTP client that clears Cloudflare checks (ADR-030). The architecture check enforces it.
+- MCP clients of `autoreas-request-mcp` get two additions: the `where` argument also accepts `providers`, and a new read-only tool `count_events` counts events by type, optionally grouped by one metadata key.
+- ADR-031 records how Activity gives every event a section, with System as the fallback.
+- A new `airis-sprite-animation` skill documents how to make Airis animations.
+- Download run events record more per anime, and MCP clients of `autoreas-request-mcp` see it:
+  - every event about one anime stores its name (`animeName`);
+  - page and link failures store the episode;
+  - two new info events, `download.anime_checked` and `download.manual_link_offered`, are added;
+  - `get_run_story` steps carry the anime id (`EntityID`).
+- A new desktop binding, `PreviewAnimeCover`, renders a cover that is not saved yet through the same thumbnail service as a saved cover.
+
+No REST or WebSocket change: mobile clients see no new endpoint, field or message. See `docs/openapi.yaml`.
+
 ## [2.4.0] — 2026-10-23
 
 ### Added

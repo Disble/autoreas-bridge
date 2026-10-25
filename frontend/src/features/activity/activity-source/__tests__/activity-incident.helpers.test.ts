@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { activityread, contracts, desktop } from '../../../../../wailsjs/go/models';
 import {
+  mapActivityChangeContext,
   mapActivityIncidentResult,
   mapActivityRequestResult,
-  mapActivityRun,
   mapActivityRunStory,
 } from '../activity-incident.helpers';
 
@@ -140,6 +140,8 @@ describe('activity-incident.helpers', () => {
         correlations: {},
         deviceId: 'd-1',
         deviceName: 'Pixel',
+        requestHeaders: { Authorization: 'Bearer ••••••••', 'X-Client-Request-Id': 'c6720086:3' },
+        responseHeaders: { 'Content-Type': 'application/json' },
       },
     });
     const bare = desktop.ActivityRequestResult.createFrom({
@@ -162,6 +164,8 @@ describe('activity-incident.helpers', () => {
       responseBody: '{"error":"x"}',
       responseBodyState: 'truncated',
       deviceName: 'Pixel',
+      requestHeaders: { Authorization: 'Bearer ••••••••', 'X-Client-Request-Id': 'c6720086:3' },
+      responseHeaders: { 'Content-Type': 'application/json' },
     });
     expect(mapActivityRequestResult(bare)).toEqual({
       requestId: 'r',
@@ -181,39 +185,28 @@ describe('activity-incident.helpers', () => {
     });
   });
 
+  it('maps a change context with its events and folded requests, and nil lists as empty', () => {
+    const step = { ID: 40251, AtMS: 5, Domain: 'sync', Level: 'info', EventType: 'sync.changelog', Message: 'recorded pending changelog for a', CorrelationID: 'd4c0', DurationMS: null, MetadataJSON: '{}' };
+    const request = { RouteTemplate: '/api/sync/reconcile', HTTPStatus: 200, Count: 1, FirstAtMS: 3, LastAtMS: 3, LatestRequestID: '7e4b', Kind: 'reconcile', Outcome: 'completed', MaxDurationMS: 76, ContainsTrigger: false };
+
+    expect(mapActivityChangeContext(activityread.ChangeContext.createFrom({ Events: [step], Requests: [request] }))).toEqual({
+      events: [{ id: 40251, atMs: 5, domain: 'sync', level: 'info', eventType: 'sync.changelog', message: 'recorded pending changelog for a', correlationId: 'd4c0', durationMs: undefined, metadataJson: '{}' }],
+      requests: [{ routeTemplate: '/api/sync/reconcile', httpStatus: 200, count: 1, firstAtMs: 3, lastAtMs: 3, latestRequestId: '7e4b', kind: 'reconcile', outcome: 'completed', maxDurationMs: 76, containsTrigger: false }],
+    });
+    expect(mapActivityChangeContext(activityread.ChangeContext.createFrom({ Events: null, Requests: null }))).toEqual({ events: [], requests: [] });
+  });
+
   it('reads a request that is no longer stored as undefined', () => {
     expect(mapActivityRequestResult(desktop.ActivityRequestResult.createFrom({ found: false, detail: {} }))).toBeUndefined();
   });
 
-  it('maps a run', () => {
-    const run = activityread.Run.createFrom({
-      CorrelationID: 'c-1',
-      FirstAtMS: 1,
-      LastAtMS: 9,
-      Steps: 4,
-      Outcome: 'warn',
-      FirstEventType: 'download.started',
-      FirstMessage: 'Download started',
-    });
-
-    expect(mapActivityRun(run)).toEqual({
-      correlationId: 'c-1',
-      firstAtMs: 1,
-      lastAtMs: 9,
-      steps: 4,
-      outcome: 'warn',
-      firstEventType: 'download.started',
-      firstMessage: 'Download started',
-    });
-  });
-
-  it('maps a run story with its flattened steps, and a nil step list as empty', () => {
+  it('maps a run story with its flattened steps and their anime, and a nil step list as empty', () => {
     const story = activityread.RunStory.createFrom({
       CorrelationID: 'c-1',
       Truncated: true,
       Steps: [
-        { ID: 1, AtMS: 10, Domain: 'download', Level: 'info', EventType: 'download.started', Message: 'go', CorrelationID: 'c-1', DurationMS: 12, MetadataJSON: '{"a":1}' },
-        { ID: 2, AtMS: 20, Domain: 'download', Level: 'warn', EventType: 'download.retry', Message: 'again', CorrelationID: 'c-1', DurationMS: null, MetadataJSON: '' },
+        { ID: 1, AtMS: 10, Domain: 'download', Level: 'info', EventType: 'download.started', Message: 'go', CorrelationID: 'c-1', EntityID: 'anime-1', DurationMS: 12, MetadataJSON: '{"a":1}' },
+        { ID: 2, AtMS: 20, Domain: 'download', Level: 'warn', EventType: 'download.retry', Message: 'again', CorrelationID: 'c-1', EntityID: '', DurationMS: null, MetadataJSON: '' },
       ],
     });
 
@@ -221,8 +214,8 @@ describe('activity-incident.helpers', () => {
       correlationId: 'c-1',
       truncated: true,
       steps: [
-        { id: 1, atMs: 10, domain: 'download', level: 'info', eventType: 'download.started', message: 'go', correlationId: 'c-1', durationMs: 12, metadataJson: '{"a":1}' },
-        { id: 2, atMs: 20, domain: 'download', level: 'warn', eventType: 'download.retry', message: 'again', correlationId: 'c-1', durationMs: undefined, metadataJson: '' },
+        { id: 1, atMs: 10, domain: 'download', level: 'info', eventType: 'download.started', message: 'go', correlationId: 'c-1', entityId: 'anime-1', durationMs: 12, metadataJson: '{"a":1}' },
+        { id: 2, atMs: 20, domain: 'download', level: 'warn', eventType: 'download.retry', message: 'again', correlationId: 'c-1', entityId: undefined, durationMs: undefined, metadataJson: '' },
       ],
     });
     expect(mapActivityRunStory(activityread.RunStory.createFrom({ CorrelationID: 'c', Steps: null, Truncated: false })).steps).toEqual([]);

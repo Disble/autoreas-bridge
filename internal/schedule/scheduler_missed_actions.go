@@ -40,11 +40,15 @@ func (s *scheduler) ResolveMissedStartupDate(ctx context.Context, localDate stri
 		if !ok {
 			return MissedStartupActionResult{Kind: MissedStartupActionRunInProgress, LocalDate: localDate, Message: ErrRunInProgress.Error()}
 		}
+		// Deferred so it fires after the settlement or the attempt below is stored, on every return.
+		settlement := RunSettlement{Trigger: "missed_startup", LocalDate: localDate}
+		defer func() { s.notifyRunSettled(settlement) }()
 		status, runErr := s.executeRun(runCtx, doneChan, "missed_startup")
 		terminalStatus := normalizeTerminalStatus(status, runErr)
+		settlement.Status = terminalStatus
 		if runErr == nil && status == download.RunStatusOK {
 			runAtMs := s.clock.Now().UnixMilli()
-			settlement, err := s.store.ApplyScheduleSettlement(ctx, download.ScheduleSettlementRequest{
+			stored, err := s.store.ApplyScheduleSettlement(ctx, download.ScheduleSettlementRequest{
 				LocalDate:         localDate,
 				Reason:            download.ScheduleSettlementRunNow,
 				NextRunAtMs:       s.computeStrictFutureNextRunAtMs(cfg),
@@ -54,11 +58,14 @@ func (s *scheduler) ResolveMissedStartupDate(ctx context.Context, localDate stri
 			if err != nil {
 				return MissedStartupActionResult{Kind: MissedStartupActionError, LocalDate: localDate, TerminalStatus: terminalStatus, Message: err.Error()}
 			}
-			return s.mapSettlementOutcome(localDate, settlement, download.ScheduleSettlementRunNow, status)
+			result := s.mapSettlementOutcome(localDate, stored, download.ScheduleSettlementRunNow, status)
+			settlement.Recorded = result.Kind == MissedStartupActionSettled
+			return result
 		}
 		if err := s.store.RecordMissedStartupAttempt(ctx, localDate, terminalStatus); err != nil {
 			return MissedStartupActionResult{Kind: MissedStartupActionError, LocalDate: localDate, TerminalStatus: terminalStatus, Message: err.Error()}
 		}
+		settlement.Recorded = true
 		return MissedStartupActionResult{Kind: MissedStartupActionUnresolvedTerminal, LocalDate: localDate, TerminalStatus: terminalStatus}
 	default:
 		return MissedStartupActionResult{Kind: MissedStartupActionError, LocalDate: localDate, Message: "unknown missed-startup action"}

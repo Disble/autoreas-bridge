@@ -46,8 +46,8 @@ func cleanMixedRunScenario(t *testing.T) (ServiceDeps, *svcFakeNotifier) {
 		},
 	}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{
-		atRoot:    map[string]int{okFolder: 4, currentFolder: 3},
-		recursive: map[string]int{okFolder: 5, currentFolder: 3},
+		atRoot:  map[string]int{okFolder: 4, currentFolder: 3},
+		landing: map[string]int{okFolder: 5, currentFolder: 3},
 	})
 	notifier := &svcFakeNotifier{}
 	deps.Notifier = notifier
@@ -264,8 +264,8 @@ func TestSingleAnimeRunThatDownloadedNothingSendsNoRunCompletedNotification(t *t
 
 	currentFolder := t.TempDir()
 	setSvcFakeCounter(&deps, &svcFakeCounter{
-		atRoot:    map[string]int{currentFolder: 3},
-		recursive: map[string]int{currentFolder: 3},
+		atRoot:  map[string]int{currentFolder: 3},
+		landing: map[string]int{currentFolder: 3},
 	})
 	notifier := &svcFakeNotifier{}
 	deps.Notifier = notifier

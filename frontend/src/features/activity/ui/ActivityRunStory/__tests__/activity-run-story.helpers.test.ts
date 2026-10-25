@@ -1,16 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ActivityRunStep, ActivityRunStory } from '../../../activity-source/activity-incident.types';
 import type { ActivitySource } from '../../../activity-source/activity-source.types';
-import {
-  describeActivityRunOutcome,
-  pickActivityRunStepId,
-  readActivityRunStory,
-  toActivityRunCopyText,
-  toActivityRunMetadata,
-  toActivityRunStoryModel,
-  toActivitySelectedStepId,
-  toggleActivityRawOpen,
-} from '../activity-run-story.helpers';
+import { readActivityRunStory, toActivityRunStoryModel } from '../activity-run-story.helpers';
 
 /** Local epoch milliseconds of Oct 17 at the given time. */
 function at(hours: number, minutes: number, seconds = 0, ms = 0): number {
@@ -39,16 +30,7 @@ function story(steps: readonly ActivityRunStep[], truncated = false): ActivityRu
 }
 
 describe('activity-run-story.helpers', () => {
-  it.each([
-    ['error', { label: 'Failed', color: 'danger' }],
-    ['warn', { label: 'Recovered', color: 'warning' }],
-    ['info', { label: 'Finished', color: 'success' }],
-    ['debug', { label: 'Finished', color: 'success' }],
-  ])('words a %s run outcome', (level, expected) => {
-    expect(describeActivityRunOutcome(level)).toEqual(expected);
-  });
-
-  it('words the header and every step of a run, in order', () => {
+  it('words every step of a run, in order', () => {
     const model = toActivityRunStoryModel(
       story([
         step({ id: 1, atMs: at(17, 0, 0, 5), message: 'Download started' }),
@@ -58,31 +40,19 @@ describe('activity-run-story.helpers', () => {
     );
 
     expect(model).toEqual({
-      title: 'Download started',
-      domain: 'download',
-      outcome: { label: 'Recovered', color: 'warning' },
-      trigger: 'Download started',
-      span: 'Oct 17, 17:00 · took 4.0 s',
       steps: [
         { id: 1, time: '17:00:00.005', title: 'Download started', detail: 'download started', tone: 'default' },
         { id: 2, time: '17:00:01.000', title: 'download hoster retry', detail: 'download hoster retry · 1.5 s', tone: 'warning' },
         { id: 3, time: '17:00:04.000', title: 'Episode 11 saved', detail: 'download completed · 41 ms', tone: 'success' },
       ],
       truncatedNote: '',
-      copyText: toActivityRunCopyText('c-1', 'Download started'),
     });
   });
 
-  it('takes the worst level of any step as the outcome and marks errors danger', () => {
+  it('marks errors danger and warnings warning', () => {
     const model = toActivityRunStoryModel(story([step({ id: 1, level: 'warn' }), step({ id: 2, level: 'error', eventType: 'download.failed' }), step({ id: 3 })]));
-    const single = toActivityRunStoryModel(story([step({ id: 1, level: 'error', atMs: at(17, 0) })]));
 
-    expect(model.outcome).toEqual({ label: 'Failed', color: 'danger' });
     expect(model.steps.map((item) => item.tone)).toEqual(['warning', 'danger', 'default']);
-    expect(toActivityRunStoryModel(story([step({ level: 'debug' }), step({ level: 'trace' })])).outcome).toEqual({ label: 'Finished', color: 'success' });
-    expect(single.outcome).toEqual({ label: 'Failed', color: 'danger' });
-    expect(single.span).toBe('Oct 17, 17:00 · took 0 ms');
-    expect(toActivityRunStoryModel(story([step({ id: 1, atMs: at(17, 0) }), step({ id: 2, atMs: at(17, 0, 2) })])).span).toBe('Oct 17, 17:00 · took 2.0 s');
   });
 
   it('notes a capped story', () => {
@@ -90,73 +60,7 @@ describe('activity-run-story.helpers', () => {
   });
 
   it('words an empty story without inventing steps', () => {
-    const model = toActivityRunStoryModel(story([]));
-
-    expect(model.steps).toEqual([]);
-    expect(model.title).toBe('Run c-1');
-    expect(model.domain).toBe('');
-    expect(model.trigger).toBe('');
-    expect(model.span).toBe('');
-    expect(model.outcome).toEqual({ label: 'Finished', color: 'success' });
-  });
-
-  it('picks the first error, else the first warning, else the first step', () => {
-    expect(pickActivityRunStepId([step({ id: 1 }), step({ id: 2, level: 'warn' }), step({ id: 3, level: 'error' }), step({ id: 4, level: 'error' })])).toBe(3);
-    expect(pickActivityRunStepId([step({ id: 1 }), step({ id: 2, level: 'warn' }), step({ id: 5, level: 'warn' })])).toBe(2);
-    expect(pickActivityRunStepId([step({ id: 7 }), step({ id: 8 })])).toBe(7);
-    expect(pickActivityRunStepId([])).toBeUndefined();
-  });
-
-  it('lays recorded metadata out as labelled fields, arrays of objects as a sequence', () => {
-    const metadata = toActivityRunMetadata(
-      '{"hoster":"mega","attempt":2,"dead":false,"note":null,"tags":["a","b"],"probes":[{"hoster":"mega","ok":false},{"hoster":"pixel","ok":true}],"extra":{"k":1}}',
-    );
-    const lists = toActivityRunMetadata('{"none":[],"mixed":[{"k":1},"x"]}');
-
-    expect(metadata.fields).toEqual([
-      { kind: 'value', label: 'hoster', value: 'mega' },
-      { kind: 'value', label: 'attempt', value: '2' },
-      { kind: 'value', label: 'dead', value: 'false' },
-      { kind: 'value', label: 'note', value: '—' },
-      { kind: 'value', label: 'tags', value: 'a, b' },
-      { kind: 'sequence', label: 'probes', items: ['hoster: mega · ok: false', 'hoster: pixel · ok: true'] },
-      { kind: 'value', label: 'extra', value: '{"k":1}' },
-    ]);
-    expect(lists.fields).toEqual([
-      { kind: 'value', label: 'none', value: '' },
-      { kind: 'value', label: 'mixed', value: '{"k":1}, x' },
-    ]);
-    // Raw is the text as recorded; the code block formats it for the Pretty view.
-    expect(metadata.raw).toBe('{"hoster":"mega","attempt":2,"dead":false,"note":null,"tags":["a","b"],"probes":[{"hoster":"mega","ok":false},{"hoster":"pixel","ok":true}],"extra":{"k":1}}');
-  });
-
-  it('keeps unreadable or non-object metadata raw, and nothing recorded as empty', () => {
-    expect(toActivityRunMetadata('')).toEqual({ fields: [], raw: '' });
-    expect(toActivityRunMetadata('{not json')).toEqual({ fields: [], raw: '{not json' });
-    expect(toActivityRunMetadata('[1,2]')).toEqual({ fields: [], raw: '[1,2]' });
-    expect(toActivityRunMetadata('null')).toEqual({ fields: [], raw: 'null' });
-  });
-
-  it('copies an MCP-ready reference naming the run_story tool and the correlation id', () => {
-    expect(toActivityRunCopyText('dl-7', 'Download started')).toBe(
-      'Use the autoreas-request-mcp tool get_run_story with {"correlation_id":"dl-7"}.\nRun: Download started.',
-    );
-  });
-});
-
-describe('activity step selection helpers', () => {
-  it('keeps a chosen step only for the run it was chosen in, else opens the default step', () => {
-    const steps = [step({ id: 1 }), step({ id: 2, level: 'error' })];
-    expect(toActivitySelectedStepId({ correlationId: 'c-1', stepId: 1 }, 'c-1', steps)).toBe(1);
-    expect(toActivitySelectedStepId({ correlationId: 'c-0', stepId: 1 }, 'c-1', steps)).toBe(2);
-    expect(toActivitySelectedStepId(undefined, 'c-1', steps)).toBe(2);
-    expect(toActivitySelectedStepId(undefined, 'c-1', [])).toBeUndefined();
-  });
-
-  it('opens the raw metadata of the selected step, and closes it when it is already open', () => {
-    expect(toggleActivityRawOpen(undefined, 3)).toBe(3);
-    expect(toggleActivityRawOpen(2, 3)).toBe(3);
-    expect(toggleActivityRawOpen(3, 3)).toBeUndefined();
+    expect(toActivityRunStoryModel(story([]))).toEqual({ steps: [], truncatedNote: '' });
   });
 });
 

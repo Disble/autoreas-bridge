@@ -1,10 +1,13 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { useLocation } from 'react-router';
 import type { UIEvent } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useRunHistoryPanel } from '../use-run-history-panel';
 import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { DownloadRunView } from '../../../../../shared/contracts/download.types';
 import { getDownloadRuntimeStoreState, resetDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
+import type { RunHistoryPanelViewModel, RunHistoryStory, RunHistoryStorySource } from '../run-history-panel.types';
+import { RUN_HISTORY_STORY_REFRESH_DEBOUNCE_MS } from '../run-history-panel.constants';
 import { atRoute } from './run-history-router';
 
 /** Builds one run history row, numbered so ordering assertions read plainly. */
@@ -40,6 +43,11 @@ const runs: readonly DownloadRunView[] = [
 
 /** Newest-first history long enough to exercise the progressive list window. */
 const manyRuns = Array.from({ length: 25 }, (_, index) => createRun(25 - index));
+
+/** The rows the master list shows, read across its day headers. */
+function visibleRows(viewModel: RunHistoryPanelViewModel) {
+  return viewModel.visibleDays.flatMap((day) => day.rows);
+}
 
 /** Builds a fully stubbed download runtime port, overridable per case. */
 function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
@@ -84,7 +92,7 @@ describe('useRunHistoryPanel', () => {
     await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
 
     expect(result.current.viewModel.rows).toHaveLength(2);
-    expect(result.current.viewModel.visibleRows).toHaveLength(2);
+    expect(visibleRows(result.current.viewModel)).toHaveLength(2);
     expect(result.current.viewModel.selectedRun?.runId).toBe('run-2');
   });
 
@@ -115,16 +123,14 @@ describe('useRunHistoryPanel', () => {
     expect(result.current.viewModel.selectedRun?.runId).toBe('run-1');
   });
 
-  it('shows only the newest 20 runs at first and exposes load more for older history', async () => {
+  it('shows only the newest 20 runs at first and keeps the older history to reveal', async () => {
     const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue(manyRuns) });
     const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
 
     expect(result.current.viewModel.rows).toHaveLength(25);
-    expect(result.current.viewModel.visibleRows).toHaveLength(20);
-    expect(result.current.viewModel.canLoadMore).toBe(true);
-    expect(result.current.viewModel.remainingCount).toBe(5);
+    expect(visibleRows(result.current.viewModel)).toHaveLength(20);
     expect(result.current.viewModel.selectedRun?.runId).toBe(manyRuns[0]?.runId);
   });
 
@@ -142,8 +148,7 @@ describe('useRunHistoryPanel', () => {
       result.current.loadMore();
     });
 
-    expect(result.current.viewModel.visibleRows).toHaveLength(25);
-    expect(result.current.viewModel.canLoadMore).toBe(false);
+    expect(visibleRows(result.current.viewModel)).toHaveLength(25);
     expect(result.current.viewModel.selectedRun?.runId).toBe(manyRuns[19]!.runId);
   });
 
@@ -152,7 +157,7 @@ describe('useRunHistoryPanel', () => {
     const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
-    expect(result.current.viewModel.visibleRows).toHaveLength(20);
+    expect(visibleRows(result.current.viewModel)).toHaveLength(20);
 
     act(() => {
       result.current.onScroll({
@@ -160,7 +165,7 @@ describe('useRunHistoryPanel', () => {
       } as unknown as UIEvent<HTMLDivElement>);
     });
 
-    expect(result.current.viewModel.visibleRows).toHaveLength(25);
+    expect(visibleRows(result.current.viewModel)).toHaveLength(25);
   });
 
   it('ignores a scroll that is still far from the bottom', async () => {
@@ -175,18 +180,16 @@ describe('useRunHistoryPanel', () => {
       } as unknown as UIEvent<HTMLDivElement>);
     });
 
-    expect(result.current.viewModel.visibleRows).toHaveLength(20);
+    expect(visibleRows(result.current.viewModel)).toHaveLength(20);
   });
 
-  it('does not expose load more when fewer than 20 runs exist', async () => {
+  it('shows every run when fewer than 20 exist', async () => {
     const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue(manyRuns.slice(0, 12)) });
     const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
 
-    expect(result.current.viewModel.visibleRows).toHaveLength(12);
-    expect(result.current.viewModel.canLoadMore).toBe(false);
-    expect(result.current.viewModel.remainingCount).toBe(0);
+    expect(visibleRows(result.current.viewModel)).toHaveLength(12);
   });
 
   it('reloads runs when a download run lifecycle event invalidates the store', async () => {
@@ -216,9 +219,9 @@ describe('useRunHistoryPanel', () => {
 
     await waitFor(() => expect(result.current.viewModel.rows).toHaveLength(26));
     expect(listDownloadRuns).toHaveBeenCalledTimes(2);
-    expect(result.current.viewModel.visibleRows[0]?.runId).toBe(newestRun.runId);
-    expect(new Set(result.current.viewModel.visibleRows.map((row) => row.runId)).size).toBe(
-      result.current.viewModel.visibleRows.length,
+    expect(visibleRows(result.current.viewModel)[0]?.runId).toBe(newestRun.runId);
+    expect(new Set(visibleRows(result.current.viewModel).map((row) => row.runId)).size).toBe(
+      visibleRows(result.current.viewModel).length,
     );
     expect(result.current.viewModel.selectedRun?.runId).toBe(firstRuns[19]!.runId);
 
@@ -378,5 +381,195 @@ describe('useRunHistoryPanel stopping feedback', () => {
     await waitFor(() => {
       expect(getDownloadRuntimeStoreState().selectedRunId).toBe('run-1');
     });
+  });
+});
+
+describe('useRunHistoryPanel run story', () => {
+  afterEach(() => {
+    resetDownloadRuntimeStore();
+  });
+
+  /** One stored story: Frieren downloaded episode 4. */
+  const story: RunHistoryStory = {
+    truncated: false,
+    steps: [{ entityId: 'a1', eventType: 'download.episode_downloaded', level: 'info', metadataJson: '{"animeName":"Frieren","episode":4}' }],
+  };
+
+  /** A story port answering `story`, spied. */
+  function createStorySource(): RunHistoryStorySource & { readonly getRunStory: ReturnType<typeof vi.fn> } {
+    return { getRunStory: vi.fn().mockResolvedValue(story) };
+  }
+
+  /** A cover port answering one cover per anime. */
+  const coverSource = { getAnimeCover: vi.fn().mockResolvedValue({ source: 'cover', dataUrl: 'data:image/png;base64,AA' }) };
+
+  it('builds the selected run detail from its story and resolves the covers of its anime', async () => {
+    const storySource = createStorySource();
+    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue([createRun(1, { episodesFound: 1, episodesDownloaded: 1, episodesFailed: 0, episodesDownloading: 0 })]) });
+    const { result } = renderHook(() => useRunHistoryPanel(source, { storySource, coverSource }), { wrapper: atRoute() });
+
+    await waitFor(() => expect(result.current.viewModel.detail?.groups.find((group) => group.id === 'downloaded')?.rows).toHaveLength(1));
+
+    expect(storySource.getRunStory).toHaveBeenCalledWith('run-1');
+    expect(result.current.viewModel.detail?.groups.find((group) => group.id === 'downloaded')?.rows?.[0]).toMatchObject({ name: 'Frieren', values: ['Episode 4'] });
+    await waitFor(() => expect(result.current.viewModel.covers.get('a1')).toEqual({ status: 'cover', dataUrl: 'data:image/png;base64,AA' }));
+  });
+
+  it('names an anime the story left unnamed from the catalog, and keeps its id when the catalog has none', async () => {
+    const unnamed: RunHistoryStory = {
+      truncated: false,
+      steps: [
+        { entityId: 'a1', eventType: 'download.episode_downloaded', level: 'info', metadataJson: '{"episode":4}' },
+        { entityId: 'a2', eventType: 'download.episode_downloaded', level: 'info', metadataJson: '{"episode":5}' },
+      ],
+    };
+    const storySource = { getRunStory: vi.fn().mockResolvedValue(unnamed) };
+    const nameSource = { getAnimeDetail: vi.fn().mockImplementation((id: string) => (id === 'a1' ? Promise.resolve({ name: 'Frieren' }) : Promise.resolve(null))) };
+    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue([createRun(1, { episodesFound: 2, episodesDownloaded: 2, episodesFailed: 0, episodesDownloading: 0 })]) });
+    const { result } = renderHook(() => useRunHistoryPanel(source, { storySource, coverSource, nameSource }), { wrapper: atRoute() });
+    const rows = () => result.current.viewModel.detail?.groups.find((group) => group.id === 'downloaded')?.rows?.map(({ name, isNameLoading }) => ({ name, isNameLoading }));
+
+    await waitFor(() => expect(rows()).toEqual([{ name: 'Frieren', isNameLoading: false }, { name: 'a2', isNameLoading: false }]));
+    expect(nameSource.getAnimeDetail.mock.calls).toEqual([['a1'], ['a2']]);
+  });
+
+  it('reads a live run story again on each download event, and a finished run only once', async () => {
+    let listener: (() => void) | undefined;
+    const subscribeRunEvents = vi.fn().mockImplementation((next: () => void) => {
+      listener = next;
+      return () => undefined;
+    });
+    const running = createRun(1, { status: 'running', finishedAtMs: undefined });
+    const listDownloadRuns = vi.fn().mockResolvedValueOnce([running]).mockResolvedValueOnce([{ ...running, episodesDownloaded: 2 }]).mockResolvedValue([{ ...running, status: 'ok' }]);
+    const storySource = createStorySource();
+    const source = createSource({ listDownloadRuns, subscribeRunEvents });
+    renderHook(() => useRunHistoryPanel(source, { storySource, coverSource }), { wrapper: atRoute() });
+
+    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      listener?.();
+    });
+    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      listener?.();
+    });
+    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(3));
+    await act(async () => {
+      listener?.();
+    });
+    await waitFor(() => expect(listDownloadRuns).toHaveBeenCalledTimes(4));
+    expect(storySource.getRunStory).toHaveBeenCalledTimes(3);
+  });
+
+  it('reads a finished run story again once rows of that run are stored after it, once per burst, and stops listening on unmount', async () => {
+    // download.run_finished reaches the WebView before the eventlog queue has persisted the run's
+    // last rows, so the read on that status flip can miss them; each stored row is announced.
+    let announceStored: ((row: { readonly correlationId: string }) => void) | undefined;
+    const stopListening = vi.fn();
+    const storySource = {
+      ...createStorySource(),
+      subscribeRecorder: vi.fn().mockImplementation((next: (row: { readonly correlationId: string }) => void) => {
+        announceStored = next;
+        return stopListening;
+      }),
+    };
+    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue([createRun(1, { status: 'ok' })]) });
+    const { unmount } = renderHook(() => useRunHistoryPanel(source, { storySource, coverSource }), { wrapper: atRoute() });
+    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      announceStored?.({ correlationId: 'run-1' });
+      announceStored?.({ correlationId: 'run-1' });
+      announceStored?.({ correlationId: 'run-1' });
+    });
+
+    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 2 * RUN_HISTORY_STORY_REFRESH_DEBOUNCE_MS));
+    });
+    expect(storySource.getRunStory.mock.calls).toEqual([['run-1'], ['run-1']]);
+    unmount();
+    expect(stopListening).toHaveBeenCalled();
+  });
+
+  it('reads the story again for every later burst of stored rows, not only the first', async () => {
+    let announceStored: ((row: { readonly correlationId: string }) => void) | undefined;
+    const storySource = {
+      ...createStorySource(),
+      subscribeRecorder: vi.fn().mockImplementation((next: (row: { readonly correlationId: string }) => void) => {
+        announceStored = next;
+        return () => undefined;
+      }),
+    };
+    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue([createRun(1, { status: 'ok' })]) });
+    renderHook(() => useRunHistoryPanel(source, { storySource, coverSource }), { wrapper: atRoute() });
+    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      announceStored?.({ correlationId: 'run-1' });
+    });
+    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(2));
+    act(() => {
+      announceStored?.({ correlationId: 'run-1' });
+    });
+
+    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(3));
+  });
+
+  it('does not listen for stored rows while no run is selected', async () => {
+    const storySource = { ...createStorySource(), subscribeRecorder: vi.fn().mockReturnValue(() => undefined) };
+    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue([]) });
+    const { result } = renderHook(() => useRunHistoryPanel(source, { storySource, coverSource }), { wrapper: atRoute() });
+
+    await waitFor(() => expect(result.current.viewModel.status).toBe('empty'));
+
+    expect(storySource.subscribeRecorder).not.toHaveBeenCalled();
+  });
+
+  it('reads nothing more for rows of another run', async () => {
+    let announceStored: ((row: { readonly correlationId: string }) => void) | undefined;
+    const storySource = {
+      ...createStorySource(),
+      subscribeRecorder: vi.fn().mockImplementation((next: (row: { readonly correlationId: string }) => void) => {
+        announceStored = next;
+        return () => undefined;
+      }),
+    };
+    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue([createRun(1, { status: 'ok' })]) });
+    renderHook(() => useRunHistoryPanel(source, { storySource, coverSource }), { wrapper: atRoute() });
+    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      announceStored?.({ correlationId: 'run-9' });
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 2 * RUN_HISTORY_STORY_REFRESH_DEBOUNCE_MS));
+    });
+
+    expect(storySource.getRunStory).toHaveBeenCalledTimes(1);
+  });
+
+  it('toggles the Problems filter', async () => {
+    const source = createSource();
+    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
+    await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
+
+    act(() => {
+      result.current.toggleProblems();
+    });
+
+    expect(result.current.viewModel.problemsOnly).toBe(true);
+    expect(result.current.viewModel.rows.map((row) => row.runId)).toEqual(['run-2']);
+  });
+
+  it('opens an anime in the editor', async () => {
+    const source = createSource();
+    const { result } = renderHook(() => ({ panel: useRunHistoryPanel(source), location: useLocation() }), { wrapper: atRoute() });
+
+    act(() => {
+      result.current.panel.editAnime('a7');
+    });
+
+    await waitFor(() => expect(result.current.location.pathname).toBe('/editor/a7'));
   });
 });

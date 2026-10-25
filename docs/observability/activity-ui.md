@@ -54,9 +54,30 @@ The questions Activity must answer, taken from the 92 resolved issues:
 | What did the bridge do inside, step by step? | a hoster declared dead, a stranded editor write | event ledger with metadata, grouped by correlation id (a download run, an editor save) |
 
 Internal bridge work is a first-class source, not an API detail. Incidents and History filter by where
-something happened: phone and sync, downloads, editor, schedule or season. An internal story reads its
+something happened: phone and sync, downloads, editor, schedule or season. The backend and the request
+MCP also accept `providers`, the Cloudflare clearance (`clearance.*`) and jkanime host fallback
+(`jkanime.host_fallback`) events, which the screen shows under All. An internal story reads its
 steps from one correlation id and shows its metadata as labelled fields, with the raw JSON one click
 away.
+
+The request MCP also answers "how many?" without a screen: `count_events` counts the events of one
+`event_type` over whole local days of the 90-day ledger (default all 90), optionally grouped by one
+top-level metadata key, so `download.episode_downloaded` grouped by `siteHost` returns how many
+episodes each site host served. Events without the key, or whose metadata was stored truncated, form
+the group whose value is `null`. The key is validated and bound as a JSON path parameter.
+
+```mermaid
+flowchart LR
+  T["cfclearance.Transport"] -- "clearance.challenge_detected / solved (info)<br/>clearance.failed (warn)" --> Log["logger.Logger"]
+  JK["jkanime Adapter / Searcher"] -- "jkanime.host_fallback (warn, from / to)" --> Log
+  DL["download pipeline"] -- "download.episode_downloaded, download.failed,<br/>download.hoster_attempt (hoster, siteHost)" --> Log
+  Log --> RE[("runtime_events<br/>domain, event_type, metadata_json")]
+  RE -- "Where = providers / downloads" --> Act["Activity History and Incidents"]
+  RE -- "search_history, list_runs (where)" --> MCP["request MCP"]
+  RE -- "count_events (event_type, group_by)" --> MCP
+```
+
+A bus `Publish` alone reaches neither box on the right: only a row written through `logger.Logger` does.
 
 Decision (owner, 2026-10-17): **only errors open an incident.** A warning that recovers on its own appears
 in History with a "Recovered" mark. In the measured week the bridge logged 10 warnings and 0 errors, so

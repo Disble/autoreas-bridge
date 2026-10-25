@@ -222,9 +222,9 @@ func (a *App) sweepRetentionOnce(warn func(string, ...any)) {
 func (a *App) configureBridgeDeviceServices(ctx context.Context) (device.AuthService, *bridgeSync.ChangelogStore) {
 	deviceStore := a.newDeviceStore(a.bridgeDB)
 	a.deviceStore = deviceStore
-	jkanimeSearcher := newJkanimeNameSearcher()
+	jkanimeSearcher := a.newJkanimeNameSearcher()
 	a.seasonService = season.NewService(season.WithProjectionSignal(a.newSeasonStore(a.bridgeDB), a.eventBus), time.Now, func() string { return uuid.New().String() }, jkanimeSearcher)
-	a.seasonService.SetProviderSearchers(newSeasonProviderSearchers(jkanimeSearcher))
+	a.seasonService.SetProviderSearchers(a.newSeasonProviderSearchers(jkanimeSearcher))
 	a.settingsStore = settings.NewSQLiteStore(a.bridgeDB)
 	deviceService := a.newDeviceService(deviceStore)
 	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(a.bridgeDB))

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"net/http"
 	"sync"
 	"time"
 
@@ -66,6 +67,7 @@ type App struct {
 	unminimiseWindow           func(context.Context)
 	quitApp                    func(context.Context)
 	eventBus                   events.Bus
+	providerClient             *http.Client
 	animeChangedPublisher      anime.CommittedPublisher
 	episodeService             episodeCommandService
 	syncChangelogRecorder      changelogRecorder

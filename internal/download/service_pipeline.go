@@ -12,7 +12,7 @@ import (
 )
 
 // processAnime runs the full per-anime pipeline (gating -> trigger decision -> site resolution ->
-// scrape -> hoster-ordered enqueue with fallback -> filesystem completion poll -> flatten), with
+// scrape -> hoster-ordered enqueue with fallback -> filesystem completion poll), with
 // every error contained to this anime's outcome -- it NEVER panics or returns an error that would
 // abort the fan-out loop (download-orchestration spec "Per-Anime Fan-Out With Failure Isolation").
 func (s *Service) processAnime(
@@ -63,7 +63,7 @@ func (s *Service) prepareAnimeDownload(ctx context.Context, runID string, anime 
 		LibraryRoot: root, Sites: s.deps.Sites,
 	})
 	if decision.Skip {
-		s.logf(logger.LevelInfo, runID, anime.ID, "download.skipped", map[string]any{"reason": string(decision.SkipReason)}, "anime %s skipped: %s", anime.Name, decision.SkipReason)
+		s.logAnimef(logger.LevelInfo, runID, anime, "download.skipped", map[string]any{"reason": string(decision.SkipReason)}, "anime %s skipped: %s", anime.Name, decision.SkipReason)
 		s.publish(events.DownloadSkippedEvent{RunID: runID, AnimeID: anime.ID, SkipReason: string(decision.SkipReason), CorrelationID: runID})
 		emitProgress(animeProgressDelta{skipped: true})
 		return animeDownloadPreparation{}, animeRunOutcome{animeID: anime.ID, animeName: anime.Name, skipped: true}, true
@@ -71,10 +71,9 @@ func (s *Service) prepareAnimeDownload(ctx context.Context, runID string, anime 
 
 	anime.Folder = &decision.Destination
 	sourceURL := strings.TrimSpace(derefOrEmpty(anime.SourceURL))
-	s.flattenDownloadFolder(ctx, runID, anime)
 	onDiskEpisode := s.downloadedEpisodeBaseline(decision.Destination)
 	if anime.TotalEpisodes != nil && *anime.TotalEpisodes > 0 && *anime.TotalEpisodes == onDiskEpisode {
-		s.logf(logger.LevelInfo, runID, anime.ID, "download.up_to_date", map[string]any{"reason": "season_complete_on_disk", "totalcap": *anime.TotalEpisodes, "onDiskCount": onDiskEpisode}, "anime %s up to date: season already complete on disk (%d/%d)", anime.Name, onDiskEpisode, *anime.TotalEpisodes)
+		s.logAnimef(logger.LevelInfo, runID, anime, "download.up_to_date", map[string]any{"reason": "season_complete_on_disk", "totalcap": *anime.TotalEpisodes, "onDiskCount": onDiskEpisode}, "anime %s up to date: season already complete on disk (%d/%d)", anime.Name, onDiskEpisode, *anime.TotalEpisodes)
 		emitProgress(animeProgressDelta{checked: true, upToDate: true})
 		return animeDownloadPreparation{}, animeRunOutcome{animeID: anime.ID, animeName: anime.Name, checked: true, upToDate: true}, true
 	}
@@ -84,7 +83,7 @@ func (s *Service) prepareAnimeDownload(ctx context.Context, runID string, anime 
 		return animeDownloadPreparation{}, s.episodeListFailure(runID, anime, err, emitProgress), true
 	}
 	if !NeedsDownload(listing.LatestEpisode, onDiskEpisode) {
-		s.logf(logger.LevelInfo, runID, anime.ID, "download.up_to_date", map[string]any{"reason": "no_new_episode", "latestOnline": listing.LatestEpisode, "onDiskCount": onDiskEpisode}, "anime %s up to date: latest online %d not greater than on disk %d", anime.Name, listing.LatestEpisode, onDiskEpisode)
+		s.logAnimef(logger.LevelInfo, runID, anime, "download.up_to_date", map[string]any{"reason": "no_new_episode", "latestOnline": listing.LatestEpisode, "onDiskCount": onDiskEpisode}, "anime %s up to date: latest online %d not greater than on disk %d", anime.Name, listing.LatestEpisode, onDiskEpisode)
 		emitProgress(animeProgressDelta{checked: true, upToDate: true})
 		return animeDownloadPreparation{}, animeRunOutcome{animeID: anime.ID, animeName: anime.Name, checked: true, upToDate: true}, true
 	}
@@ -94,7 +93,7 @@ func (s *Service) prepareAnimeDownload(ctx context.Context, runID string, anime 
 // configurationFailure records a runtime configuration dependency failure without
 // misclassifying it as an anime readiness skip.
 func (s *Service) configurationFailure(runID string, anime contracts.MobileAnime, err error, emitProgress func(animeProgressDelta)) animeRunOutcome {
-	s.logf(logger.LevelError, runID, anime.ID, events.EventNameDownloadFailed, map[string]any{"failureKind": FailureKindConfiguration}, "anime %s: read download root failed: %v", anime.Name, err)
+	s.logAnimef(logger.LevelError, runID, anime, events.EventNameDownloadFailed, map[string]any{"failureKind": FailureKindConfiguration}, "anime %s: read download root failed: %v", anime.Name, err)
 	s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: FailureKindConfiguration, CorrelationID: runID})
 	emitProgress(animeProgressDelta{checked: true})
 	return animeRunOutcome{animeID: anime.ID, animeName: anime.Name, checked: true, failed: true, failureKind: FailureKindConfiguration}
@@ -103,9 +102,9 @@ func (s *Service) configurationFailure(runID string, anime contracts.MobileAnime
 // episodeListFailure records an episode-listing failure and its progress outcome.
 func (s *Service) episodeListFailure(runID string, anime contracts.MobileAnime, err error, emitProgress func(animeProgressDelta)) animeRunOutcome {
 	if err == nil {
-		s.logf(logger.LevelError, runID, anime.ID, events.EventNameDownloadFailed, map[string]any{"failureKind": FailureKindHosterDown}, "anime %s: site registry unavailable", anime.Name)
+		s.logAnimef(logger.LevelError, runID, anime, events.EventNameDownloadFailed, map[string]any{"failureKind": FailureKindHosterDown}, "anime %s: site registry unavailable", anime.Name)
 	} else {
-		s.logf(logger.LevelError, runID, anime.ID, events.EventNameDownloadFailed, map[string]any{"failureKind": FailureKindHosterDown}, "anime %s: list episodes failed: %v", anime.Name, err)
+		s.logAnimef(logger.LevelError, runID, anime, events.EventNameDownloadFailed, map[string]any{"failureKind": FailureKindHosterDown}, "anime %s: list episodes failed: %v", anime.Name, err)
 	}
 	s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: FailureKindHosterDown, CorrelationID: runID})
 	emitProgress(animeProgressDelta{checked: true})
@@ -120,6 +119,11 @@ func (s *Service) downloadAvailableEpisodes(ctx context.Context, runID string, a
 	gate.online(ctx)
 
 	missingEpisodes := preparation.listing.LatestEpisode - preparation.onDiskEpisode
+	// One fact per checked anime, before any episode is tried: a finished run can then list the
+	// episodes it never attempted, which no per-episode entry can say.
+	s.logAnimef(logger.LevelInfo, runID, anime, "download.anime_checked",
+		map[string]any{"onDiskCount": preparation.onDiskEpisode, "latestOnline": preparation.listing.LatestEpisode, "missingEpisodes": missingEpisodes},
+		"anime %s: %d episodes missing (on disk: %d, latest online: %d)", anime.Name, missingEpisodes, preparation.onDiskEpisode, preparation.listing.LatestEpisode)
 	outcome := animeRunOutcome{animeID: anime.ID, animeName: anime.Name, checked: true, episodesFound: missingEpisodes}
 	emitProgress(animeProgressDelta{checked: true, episodesFound: missingEpisodes})
 	current := preparation.onDiskEpisode
@@ -158,15 +162,15 @@ func (s *Service) processAvailableEpisode(ctx context.Context, runID string, ani
 	nextEpisode := current + 1
 	episodePageURL, err := source.EpisodePageURL(ctx, *anime.SourceURL, nextEpisode)
 	if err != nil {
-		s.recordEpisodeFailure(runID, anime, FailureKindHosterDown, outcome, emitProgress, "anime %s: resolve episode %d page failed: %v", anime.Name, nextEpisode, err)
+		s.recordEpisodeFailure(runID, anime, nextEpisode, FailureKindHosterDown, outcome, emitProgress, "anime %s: resolve episode %d page failed: %v", anime.Name, nextEpisode, err)
 		return current, true
 	}
 
-	s.logf(logger.LevelInfo, runID, anime.ID, "download.episode_available", map[string]any{"episode": nextEpisode}, "anime %s: episode %d available online (on disk: %d)", anime.Name, nextEpisode, current)
+	s.logAnimef(logger.LevelInfo, runID, anime, "download.episode_available", map[string]any{"episode": nextEpisode}, "anime %s: episode %d available online (on disk: %d)", anime.Name, nextEpisode, current)
 	s.publish(events.DownloadEpisodeAvailableEvent{RunID: runID, AnimeID: anime.ID, Episode: nextEpisode, CorrelationID: runID})
 	links, err := source.ExtractLinks(ctx, episodePageURL)
 	if linkExtractionFailed(err, links) {
-		s.recordEpisodeFailure(runID, anime, FailureKindHosterDown, outcome, emitProgress, "anime %s: extract links failed: %v", anime.Name, err)
+		s.recordEpisodeFailure(runID, anime, nextEpisode, FailureKindHosterDown, outcome, emitProgress, "anime %s: extract links failed: %v", anime.Name, err)
 		return current, true
 	}
 	// Offering the links this run already resolved is worth doing only here: JD
@@ -175,7 +179,10 @@ func (s *Service) processAvailableEpisode(ctx context.Context, runID string, ani
 	// offered -- the next one -- so fetching it by hand advances the counter
 	// correctly instead of opening a gap.
 	if gate.knownOffline() {
-		manualLink := ManualLink{Anime: anime.Name, Episode: nextEpisode, Links: linkURLs(links)}
+		manualLink := ManualLink{AnimeID: anime.ID, Anime: anime.Name, Episode: nextEpisode, Links: linkURLs(links)}
+		s.logAnimef(logger.LevelInfo, runID, anime, "download.manual_link_offered",
+			map[string]any{"episode": nextEpisode, "linkCount": len(manualLink.Links)},
+			"anime %s: episode %d offered for manual download with %d links", anime.Name, nextEpisode, len(manualLink.Links))
 		outcome.manualLinks = append(outcome.manualLinks, manualLink)
 		emitProgress(animeProgressDelta{manualLinks: []ManualLink{manualLink}})
 		return current, true
@@ -186,7 +193,7 @@ func (s *Service) processAvailableEpisode(ctx context.Context, runID string, ani
 	if !result.succeeded {
 		failureMetadata := episodeForensics(nextEpisode, result)
 		failureMetadata["failureKind"] = result.failureKind
-		s.logf(logger.LevelError, runID, anime.ID, events.EventNameDownloadFailed, failureMetadata, "anime %s: episode %d failed on every hoster", anime.Name, nextEpisode)
+		s.logAnimef(logger.LevelError, runID, anime, events.EventNameDownloadFailed, failureMetadata, "anime %s: episode %d failed on every hoster", anime.Name, nextEpisode)
 		s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: result.failureKind, CorrelationID: runID})
 		outcome.episodesFailed++
 		outcome.failed = true
@@ -195,7 +202,7 @@ func (s *Service) processAvailableEpisode(ctx context.Context, runID string, ani
 		return current, true
 	}
 
-	s.logf(logger.LevelInfo, runID, anime.ID, "download.episode_downloaded", episodeForensics(nextEpisode, result), "anime %s: episode %d downloaded", anime.Name, nextEpisode)
+	s.logAnimef(logger.LevelInfo, runID, anime, "download.episode_downloaded", episodeForensics(nextEpisode, result), "anime %s: episode %d downloaded", anime.Name, nextEpisode)
 	s.publish(events.DownloadEpisodeDownloadedEvent{RunID: runID, AnimeID: anime.ID, Episode: nextEpisode, CorrelationID: runID})
 	outcome.episodesDownloaded++
 	// Record which episode numbers landed, not just how many, so the notification row can say
@@ -219,21 +226,35 @@ func (s *Service) processAvailableEpisode(ctx context.Context, runID string, ani
 // a type ALIAS of that struct and not a separate type. When an emit site looks like it needs a
 // forensic field on the outcome, the answer is to move the emit site.
 func episodeForensics(episode int, result episodeEnqueueResult) map[string]any {
-	return map[string]any{
+	return withSiteHost(map[string]any{
 		"episode":      episode,
 		"hoster":       result.hoster,
 		"attemptIndex": result.attemptIndex,
 		"exit":         string(result.exit),
 		"baseline":     result.baseline,
 		"observed":     result.observed,
+	}, result.siteHost)
+}
+
+// withSiteHost adds siteHost to metadata as its own key, so the site host that served the episode
+// page can be filtered on. An unreported site host is OMITTED rather than recorded empty, the way
+// jdRemovedMetadata omits what was never measured.
+func withSiteHost(metadata map[string]any, siteHost string) map[string]any {
+	if siteHost != "" {
+		metadata["siteHost"] = siteHost
 	}
+	return metadata
 }
 
 // recordEpisodeFailure records an episode failure. It no longer decides whether to
 // continue: an episode that did not land is always terminal for its anime, so the
 // caller stops unconditionally.
-func (s *Service) recordEpisodeFailure(runID string, anime contracts.MobileAnime, failureKind string, outcome *animeRunOutcome, emitProgress func(animeProgressDelta), logFormat string, logArgs ...any) {
-	s.logf(logger.LevelError, runID, anime.ID, events.EventNameDownloadFailed, map[string]any{"failureKind": failureKind}, logFormat, logArgs...)
+// episode is the episode that failed, carried in the metadata like the hoster failure carries it.
+//
+// NOSONAR go:S107 -- eight parameters, but no two adjacent ones share a type, so there is no
+// transposition a caller can make that still compiles.
+func (s *Service) recordEpisodeFailure(runID string, anime contracts.MobileAnime, episode int, failureKind string, outcome *animeRunOutcome, emitProgress func(animeProgressDelta), logFormat string, logArgs ...any) { // NOSONAR
+	s.logAnimef(logger.LevelError, runID, anime, events.EventNameDownloadFailed, map[string]any{"failureKind": failureKind, "episode": episode}, logFormat, logArgs...)
 	s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: failureKind, CorrelationID: runID})
 	outcome.episodesFailed++
 	outcome.failed = true
@@ -269,6 +290,9 @@ type episodeEnqueueResult struct {
 	// the pre-attempt return that has no downloader client, where no folder has been resolved yet
 	// and reading the disk there would be a behavior change rather than a measurement.
 	baseline int
+	// siteHost is the site host that served the episode page of the credited attempt. It stays
+	// empty, like hoster, when no attempt ever ran.
+	siteHost string
 	// observed is the on-disk count at the terminal point. It is RECORDED AND NEVER ACTED ON:
 	// no branch, guard, loop condition, early return, verdict, classification, run counter or
 	// event payload may read it. It is computed only inside the terminal return that builds
@@ -288,6 +312,8 @@ const noAttemptIndex = -1
 type hosterLink struct {
 	hoster string
 	links  []string
+	// siteHost is the site host that served the episode page these links were read from.
+	siteHost string
 }
 
 // orderHosters groups links by hoster and orders the groups per HosterResolver.OrderWithDiscovered
@@ -295,18 +321,23 @@ type hosterLink struct {
 // group per hoster" rather than panicking.
 func (s *Service) orderHosters(site string, links []sites.DownloadLink) []hosterLink {
 	byHoster := map[string][]string{}
+	siteHosts := map[string]string{}
 	var discovered []string
 	for _, l := range links {
 		if _, seen := byHoster[l.Hoster]; !seen {
 			discovered = append(discovered, l.Hoster)
 		}
 		byHoster[l.Hoster] = append(byHoster[l.Hoster], l.URL)
+		siteHosts[l.Hoster] = l.SiteHost
+	}
+	group := func(h string) hosterLink {
+		return hosterLink{hoster: h, links: byHoster[h], siteHost: siteHosts[h]}
 	}
 
 	if s.deps.Hosters == nil {
 		out := make([]hosterLink, 0, len(discovered))
 		for _, h := range discovered {
-			out = append(out, hosterLink{hoster: h, links: byHoster[h]})
+			out = append(out, group(h))
 		}
 		return out
 	}
@@ -315,39 +346,19 @@ func (s *Service) orderHosters(site string, links []sites.DownloadLink) []hoster
 	if err != nil {
 		out := make([]hosterLink, 0, len(discovered))
 		for _, h := range discovered {
-			out = append(out, hosterLink{hoster: h, links: byHoster[h]})
+			out = append(out, group(h))
 		}
 		return out
 	}
 
 	out := make([]hosterLink, 0, len(order))
 	for _, entry := range order {
-		urls, ok := byHoster[entry.Hoster]
-		if !ok {
+		if _, ok := byHoster[entry.Hoster]; !ok {
 			continue
 		}
-		out = append(out, hosterLink{hoster: entry.Hoster, links: urls})
+		out = append(out, group(entry.Hoster))
 	}
 	return out
-}
-
-// flattenDownloadFolder moves downloaded files from nested folders into the anime folder.
-func (s *Service) flattenDownloadFolder(ctx context.Context, runID string, anime contracts.MobileAnime) {
-	if s.deps.Flattener == nil || anime.Folder == nil || *anime.Folder == "" {
-		return
-	}
-	moved, err := s.deps.Flattener.Flatten(ctx, *anime.Folder)
-	if err != nil {
-		s.logf(logger.LevelWarn, runID, anime.ID, "download.flatten_failed",
-			map[string]any{"moved": moved},
-			"anime %s: download folder flatten moved %d files with errors: %v", anime.Name, moved, err)
-		return
-	}
-	if moved > 0 {
-		s.logf(logger.LevelInfo, runID, anime.ID, "download.flattened",
-			map[string]any{"moved": moved},
-			"anime %s: download folder flatten moved %d files", anime.Name, moved)
-	}
 }
 
 // downloadedEpisodeBaseline returns the highest episode count at the folder root.
@@ -357,16 +368,6 @@ func (s *Service) downloadedEpisodeBaseline(folder string) int {
 	}
 	highest := s.deps.Counter.HighestEpisodeAtRoot(folder)
 	count := s.deps.Counter.CountAtRoot(folder)
-	return max(highest, count)
-}
-
-// downloadedEpisodeRecursive returns the highest episode count recursively below a folder.
-func (s *Service) downloadedEpisodeRecursive(folder string) int {
-	if s.deps.Counter == nil {
-		return 0
-	}
-	highest := s.deps.Counter.HighestEpisodeRecursive(folder)
-	count := s.deps.Counter.CountRecursive(folder)
 	return max(highest, count)
 }
 
@@ -395,15 +396,15 @@ func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime c
 	// unset is therefore proof that no attempt ever ran, which is the only thing separating the
 	// two callers of the final return below.
 	lastExit := exitUnset
-	lastHoster, lastAttemptIndex := "", noAttemptIndex
+	lastHoster, lastAttemptIndex, lastSiteHost := "", noAttemptIndex, ""
 	for i, hl := range ordered {
 		// Falling back to the next hoster after a stop would keep the run alive for
 		// minutes after the user asked it to end.
 		if ctx.Err() != nil {
-			return episodeEnqueueResult{failureKind: lastFailureKind, hoster: lastHoster, attemptIndex: lastAttemptIndex,
+			return episodeEnqueueResult{failureKind: lastFailureKind, hoster: lastHoster, attemptIndex: lastAttemptIndex, siteHost: lastSiteHost,
 				exit: exitCancelledBeforeAttempt, baseline: baselineCount, observed: s.downloadedEpisodeBaseline(folder)}
 		}
-		lastHoster, lastAttemptIndex = hl.hoster, i
+		lastHoster, lastAttemptIndex, lastSiteHost = hl.hoster, i, hl.siteHost
 		s.jdMu.Lock()
 		err := s.deps.JD.AddAndStart(ctx, s.deps.JDDeviceName, jdownloader.EnqueueRequest{
 			URLs:        hl.links,
@@ -413,30 +414,30 @@ func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime c
 		if err != nil {
 			lastFailureKind = classifyEnqueueFailure(err)
 			lastExit = exitEnqueueError
-			s.logf(logger.LevelWarn, runID, anime.ID, events.EventNameDownloadFailed,
+			s.logAnimef(logger.LevelWarn, runID, anime, events.EventNameDownloadFailed,
 				map[string]any{"failureKind": lastFailureKind, "hoster": hl.hoster},
 				"anime %s: hoster %s enqueue failed, trying next: %v", anime.Name, hl.hoster, err)
 			// This path CONTINUES without reaching the outcome switch below, so the ledger
 			// needs its own row here or the attempt disappears from the record entirely.
-			s.recordHosterAttempt(runID, anime, hl.hoster, i, episode, "enqueue_error", exitEnqueueError)
+			s.recordHosterAttempt(runID, anime, hl, i, episode, "enqueue_error", exitEnqueueError)
 			continue
 		}
 
 		outcome := s.awaitHosterOutcome(ctx, runID, anime, hl.hoster, baselineCount, episode, i == 0)
 		lastExit = outcome.exit
-		s.recordHosterAttempt(runID, anime, hl.hoster, i, episode, attemptOutcomeName(outcome.kind), outcome.exit)
+		s.recordHosterAttempt(runID, anime, hl, i, episode, attemptOutcomeName(outcome.kind), outcome.exit)
 		switch outcome.kind {
 		case hosterOutcomeSuccess:
-			return episodeEnqueueResult{succeeded: true, hoster: hl.hoster, attemptIndex: i,
+			return episodeEnqueueResult{succeeded: true, hoster: hl.hoster, attemptIndex: i, siteHost: hl.siteHost,
 				exit: outcome.exit, baseline: baselineCount, observed: s.downloadedEpisodeBaseline(folder)}
 		case hosterOutcomeDead:
 			lastFailureKind = FailureKindHosterDown
-			s.logf(logger.LevelWarn, runID, anime.ID, events.EventNameDownloadFailed,
+			s.logAnimef(logger.LevelWarn, runID, anime, events.EventNameDownloadFailed,
 				map[string]any{"failureKind": lastFailureKind, "hoster": hl.hoster},
 				"anime %s: hoster %s classified dead by JD, trying next hoster", anime.Name, hl.hoster)
 		default: // hosterOutcomeTimeout
 			lastFailureKind = FailureKindSlowOrTimeout
-			s.logf(logger.LevelWarn, runID, anime.ID, events.EventNameDownloadFailed,
+			s.logAnimef(logger.LevelWarn, runID, anime, events.EventNameDownloadFailed,
 				map[string]any{"failureKind": lastFailureKind, "hoster": hl.hoster},
 				"anime %s: hoster %s timed out waiting for filesystem/JD confirmation", anime.Name, hl.hoster)
 		}
@@ -449,7 +450,7 @@ func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime c
 	if episodeExit == exitUnset {
 		episodeExit = exitNoHosters
 	}
-	return episodeEnqueueResult{failureKind: lastFailureKind, hoster: lastHoster, attemptIndex: lastAttemptIndex,
+	return episodeEnqueueResult{failureKind: lastFailureKind, hoster: lastHoster, attemptIndex: lastAttemptIndex, siteHost: lastSiteHost,
 		exit: episodeExit, baseline: baselineCount, observed: s.downloadedEpisodeBaseline(folder)}
 }
 
@@ -459,10 +460,10 @@ func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime c
 // never describe the attempt that actually won. This ledger is the complementary channel: exactly
 // one uniform row per attempt, success included, whose value comes from being complete. It is
 // ADDITIVE -- it never derives, replaces or overrides a failure classification.
-func (s *Service) recordHosterAttempt(runID string, anime contracts.MobileAnime, hoster string, attemptIndex, episode int, outcome string, exit exitReason) {
-	s.logf(logger.LevelInfo, runID, anime.ID, "download.hoster_attempt",
-		map[string]any{"episode": episode, "hoster": hoster, "attemptIndex": attemptIndex, "outcome": outcome, "exit": string(exit)},
-		"anime %s: episode %d hoster %s attempt %d ended as %s at %s", anime.Name, episode, hoster, attemptIndex, outcome, exit)
+func (s *Service) recordHosterAttempt(runID string, anime contracts.MobileAnime, hl hosterLink, attemptIndex, episode int, outcome string, exit exitReason) {
+	s.logAnimef(logger.LevelInfo, runID, anime, "download.hoster_attempt",
+		withSiteHost(map[string]any{"episode": episode, "hoster": hl.hoster, "attemptIndex": attemptIndex, "outcome": outcome, "exit": string(exit)}, hl.siteHost),
+		"anime %s: episode %d hoster %s attempt %d ended as %s at %s", anime.Name, episode, hl.hoster, attemptIndex, outcome, exit)
 }
 
 // classifyEnqueueFailure maps an enqueue error to the download failure taxonomy.

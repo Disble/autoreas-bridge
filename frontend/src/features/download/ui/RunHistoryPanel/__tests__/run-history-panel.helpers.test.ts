@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { findRunningRunId, pendingEpisodesLabel, readRequestedRunId, toRunHistoryPanelViewModel } from '../run-history-panel.helpers';
+import { findRunningRunId, readRequestedRunId, toRunHistoryPanelViewModel } from '../run-history-panel.helpers';
 import type { DownloadRunView } from '../../../../../shared/contracts/download.types';
+
+/** Local noon of 2026-10-23, the "now" the day labels are read against. */
+const NOW_MS = new Date(2026, 9, 23, 12, 0).getTime();
 
 /**
  * Builds a run whose every counter is derived from its index, so a list of them is varied
@@ -8,9 +11,10 @@ import type { DownloadRunView } from '../../../../../shared/contracts/download.t
  * volume rather than about what a particular run contains.
  *
  * @param index Position of the run in the generated list.
+ * @param overrides Fields a case pins.
  * @returns A run view with distinct, reproducible values.
  */
-function createRun(index: number): DownloadRunView {
+function createRun(index: number, overrides: Partial<DownloadRunView> = {}): DownloadRunView {
   return {
     runId: `run-${index}`,
     startedAtMs: 1_700_000_000_000 + index,
@@ -25,14 +29,15 @@ function createRun(index: number): DownloadRunView {
     upToDateCount: 0,
     jdAvailable: true,
     status: 'ok',
+    ...overrides,
   };
 }
 
-/** A run that finished cleanly, with seven anime skipped as already up to date. */
+/** A run that finished cleanly this morning, after 2 min 28 s. */
 const okRun: DownloadRunView = {
   runId: 'run-1',
-  startedAtMs: 1_700_000_000_000,
-  finishedAtMs: 1_700_000_100_000,
+  startedAtMs: new Date(2026, 9, 23, 9, 5, 0).getTime(),
+  finishedAtMs: new Date(2026, 9, 23, 9, 7, 28).getTime(),
   trigger: 'manual',
   animesChecked: 10,
   episodesFound: 3,
@@ -45,11 +50,11 @@ const okRun: DownloadRunView = {
   status: 'ok',
 };
 
-/** A run that ended with JDownloader offline, so nothing downloaded and links await the user. */
+/** A run that ended yesterday with JDownloader offline, so links await the user. */
 const jdOfflineRun: DownloadRunView = {
   runId: 'run-2',
-  startedAtMs: 1_700_086_400_000,
-  finishedAtMs: 1_700_086_500_000,
+  startedAtMs: new Date(2026, 9, 22, 22, 0, 0).getTime(),
+  finishedAtMs: new Date(2026, 9, 22, 22, 0, 9).getTime(),
   trigger: 'scheduled',
   animesChecked: 5,
   episodesFound: 2,
@@ -72,21 +77,65 @@ describe('toRunHistoryPanelViewModel', () => {
     expect(viewModel.rows).toEqual([]);
   });
 
-  it('returns the "ready" status with one row per run, formatted', () => {
-    const viewModel = toRunHistoryPanelViewModel([okRun, jdOfflineRun], undefined, 20);
+  it('returns the "ready" status with one labelled row per run', () => {
+    const viewModel = toRunHistoryPanelViewModel([okRun, jdOfflineRun], undefined, 20, false, NOW_MS);
 
     expect(viewModel.status).toBe('ready');
-    expect(viewModel.rows).toHaveLength(2);
-    expect(viewModel.visibleRows).toHaveLength(2);
-    expect(viewModel.canLoadMore).toBe(false);
-    expect(viewModel.rows[0]).toMatchObject({
-      runId: 'run-1',
-      statusLabel: 'ok',
-      trigger: 'manual',
-      episodesDownloaded: 3,
-      episodesFailed: 0,
-    });
-    expect(viewModel.rows[0]?.startedLabel).toBe(new Date(okRun.startedAtMs).toLocaleString());
+    expect(viewModel.visibleDays.flatMap((day) => day.rows)).toHaveLength(2);
+    expect(viewModel.rows[0]).toMatchObject({ runId: 'run-1', trigger: 'manual', durationLabel: '2 min 28 s', episodesDownloaded: 3, episodesFailed: 0 });
+    expect(viewModel.rows[0]?.triggerPresentation.label).toBe('Manual check');
+    expect(viewModel.rows[0]?.status).toBeUndefined();
+    expect(viewModel.rows[0]?.timeLabel).toBe(new Date(okRun.startedAtMs).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
+    expect(viewModel.rows[1]).toMatchObject({ durationLabel: '9 s', status: { label: 'JDownloader offline', tone: 'warning' } });
+  });
+
+  it('shows an unknown trigger or status as its raw value', () => {
+    const [row] = toRunHistoryPanelViewModel([createRun(1, { trigger: 'webhook', status: 'odd' })], undefined, 20).rows;
+
+    expect(row?.triggerPresentation.label).toBe('webhook');
+    expect(row?.status).toMatchObject({ label: 'odd', tone: 'default' });
+  });
+
+  // An interrupted run's finishedAt is the next app start, not the end of the work.
+  it.each([
+    ['interrupted', 1_700_000_100_000],
+    ['running', undefined],
+  ])('gives a %s run no duration', (status, finishedAtMs) => {
+    const [row] = toRunHistoryPanelViewModel([createRun(1, { status, finishedAtMs })], undefined, 20).rows;
+
+    expect(row?.durationLabel).toBeUndefined();
+  });
+
+  it.each([
+    [9_000, '9 s'],
+    [148_000, '2 min 28 s'],
+    [3_900_000, '1 h 05 min'],
+  ])('formats a %d ms run as "%s"', (elapsedMs, label) => {
+    const [row] = toRunHistoryPanelViewModel([createRun(1, { startedAtMs: 0, finishedAtMs: elapsedMs })], undefined, 20).rows;
+
+    expect(row?.durationLabel).toBe(label);
+  });
+
+  it('puts the visible rows under Today, Yesterday and dated day headers', () => {
+    const older = createRun(3, { startedAtMs: new Date(2026, 9, 20, 8, 0).getTime() });
+    const viewModel = toRunHistoryPanelViewModel([okRun, jdOfflineRun, older], undefined, 20, false, NOW_MS);
+
+    expect(viewModel.visibleDays.map((day) => [day.label, day.rows.map((row) => row.runId)])).toEqual([
+      ['Today', ['run-1']],
+      ['Yesterday', ['run-2']],
+      [new Date(older.startedAtMs).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }), ['run-3']],
+    ]);
+  });
+
+  it('counts the problem runs and, when filtered, lists and selects only them', () => {
+    const runs = [okRun, jdOfflineRun, createRun(3, { status: 'partial' }), createRun(4, { status: 'canceled' }), createRun(5, { status: 'interrupted' }), createRun(6, { status: 'error' })];
+
+    expect(toRunHistoryPanelViewModel(runs, 'run-1', 20).problemCount).toBe(4);
+    const filtered = toRunHistoryPanelViewModel(runs, 'run-1', 20, true);
+    expect(filtered.rows.map((row) => row.runId)).toEqual(['run-2', 'run-3', 'run-5', 'run-6']);
+    expect(filtered.problemsOnly).toBe(true);
+    expect(filtered.problemCount).toBe(4);
+    expect(filtered.selectedRun?.runId).toBe('run-2');
   });
 
   it('resolves selectedRun by matching selectedRunId against the run list', () => {
@@ -111,28 +160,12 @@ describe('toRunHistoryPanelViewModel', () => {
     expect(viewModel.rows[0]?.isSelected).toBe(true);
   });
 
-  it('caps the initial visible rows at 20 and exposes the remaining count', () => {
+  it('caps the initial visible rows at 20 and keeps the rest listed', () => {
     const runs = Array.from({ length: 25 }, (_, index) => createRun(index + 1));
     const viewModel = toRunHistoryPanelViewModel(runs, undefined, 20);
 
-    expect(viewModel.visibleRows).toHaveLength(20);
-    expect(viewModel.canLoadMore).toBe(true);
-    expect(viewModel.remainingCount).toBe(5);
-  });
-});
-
-describe('pendingEpisodesLabel', () => {
-  // The number is `found - downloaded - failed`, which means two different things
-  // depending on whether the run is over. While it runs, those episodes really are
-  // in flight. Once it has terminated nothing can still be downloading, so the same
-  // number means "never attempted" -- and calling that "Downloading" is what made a
-  // jd_offline run with 0 downloaded and 0 failed report "8 downloading".
-  it('says Downloading only while the run is still open', () => {
-    expect(pendingEpisodesLabel(true)).toBe('Downloading');
-  });
-
-  it('says Not attempted once the run has terminated', () => {
-    expect(pendingEpisodesLabel(false)).toBe('Not attempted');
+    expect(viewModel.visibleDays.flatMap((day) => day.rows)).toHaveLength(20);
+    expect(viewModel.rows).toHaveLength(25);
   });
 });
 

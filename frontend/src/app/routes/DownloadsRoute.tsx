@@ -1,4 +1,6 @@
 import { Card, Tabs } from '@heroui/react';
+import { createActivitySource } from '../../features/activity/activity-source/activity-source.helpers';
+import { createHistorySource } from '../../features/activity/history-source/history-source.helpers';
 import { EpisodeRenamePanel } from '../../features/download/ui/EpisodeRenamePanel/EpisodeRenamePanel';
 import { HosterPriorityEditor } from '../../features/download/ui/HosterPriorityEditor/HosterPriorityEditor';
 import { JDConfigPanel } from '../../features/download/ui/JDConfigPanel/JDConfigPanel';
@@ -8,6 +10,22 @@ import { RunHistoryPanel } from '../../features/download/ui/RunHistoryPanel/RunH
 import { SchedulePanel } from '../../features/download/ui/SchedulePanel/SchedulePanel';
 import { SoloAnimeDownloadPanel } from '../../features/download/ui/SoloAnimeDownloadPanel/SoloAnimeDownloadPanel';
 import { PageHeader } from '../../shared/ui/PageHeader/PageHeader';
+
+/** activitySource is the shared Activity source the run story is read through. */
+const activitySource = createActivitySource();
+
+/** historySource is the shared History source whose recorder announces each stored row. */
+const historySource = createHistorySource();
+
+/**
+ * runStorySource reads a run's stored steps for the run history's per-anime breakdown, and hears
+ * when more of them are stored. Both come from the shared Activity sources, handed over here
+ * because one feature never imports another.
+ */
+const runStorySource = {
+  getRunStory: (runId: string) => activitySource.getRunStory(runId),
+  subscribeRecorder: historySource.subscribeRecorder,
+};
 
 /**
  * DownloadsRoute assembles the download-management panels exposed under the
@@ -86,15 +104,7 @@ export function DownloadsRoute() {
             </div>
 
             {/* Run history stays full-width below the packed columns. */}
-            <Card>
-              <Card.Header>
-                <Card.Title>Run history</Card.Title>
-                <Card.Description>Past download checks and any manual links left by an offline JDownloader</Card.Description>
-              </Card.Header>
-              <Card.Content>
-                <RunHistoryPanel />
-              </Card.Content>
-            </Card>
+            <RunHistoryPanel storySource={runStorySource} />
           </div>
         </Tabs.Panel>
 

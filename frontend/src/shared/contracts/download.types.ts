@@ -120,6 +120,8 @@ export interface DownloadReadinessSnapshot {
  * record exposing the raw download links a user must fetch manually.
  */
 export interface ManualLink {
+  /** Catalog id of the anime; absent on links stored before it was recorded. */
+  readonly animeId?: string;
   readonly anime: string;
   readonly episode: number;
   readonly links: readonly string[];

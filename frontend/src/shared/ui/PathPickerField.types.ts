@@ -1,3 +1,4 @@
+import type { IconifyIcon } from '@iconify/react';
 import type { InputProps } from '@heroui/react';
 import type { HelpTooltipProps } from './HelpTooltip/help-tooltip.types';
 
@@ -9,7 +10,7 @@ import type { HelpTooltipProps } from './HelpTooltip/help-tooltip.types';
  * The interface combines the underlying HeroUI `Input` props (so every valid
  * HTML/Aria input attribute is still accepted and forwarded to the rendered
  * `<Input>`) with this component's unique contract: a required `label`, the
- * `onBrowse`/`browseLabel` trigger pair, a `mono` flag for monospace path
+ * `onBrowse`/`browseIcon`/`browseLabel` icon-only trigger, a `mono` flag for monospace path
  * rendering, an `isDisabled` that gates both the input and the Browse button,
  * and an optional helper `description`. `onChange` receives the raw string
  * value.
@@ -28,8 +29,10 @@ export interface PathPickerFieldProps
   readonly placeholder?: string;
   /** Optional helper text rendered via HeroUI Description. */
   readonly description?: string;
-  /** Text for the Browse trigger button. Defaults to "Browse…". */
-  readonly browseLabel?: string;
+  /** The icon of the icon-only trigger: a folder for a folder picker, a picture for an image file. */
+  readonly browseIcon: IconifyIcon;
+  /** The trigger's accessible name and tooltip, verb first ("Choose folder"). */
+  readonly browseLabel: string;
   /** When true, renders the input with a monospace font. */
   readonly mono?: boolean;
   /** Disables both the input and the Browse button when true. */

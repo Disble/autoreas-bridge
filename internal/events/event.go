@@ -272,8 +272,9 @@ func (e DownloadSkippedEvent) Name() string {
 	return EventNameDownloadSkipped
 }
 
-// DownloadEpisodeDownloadingEvent is published when filesystem evidence (a .part file)
-// confirms a download has started transferring (design §X).
+// DownloadEpisodeDownloadingEvent is published when filesystem evidence confirms a download:
+// a .part file showing the transfer started, or a new episode already at the folder root
+// during the detect grace (design §X).
 type DownloadEpisodeDownloadingEvent struct {
 	RunID         string
 	AnimeID       string

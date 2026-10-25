@@ -360,6 +360,60 @@ info:
     incident's phone reports as `"<trigger> <duration_ms> ms"`, and a stall of
     10000 ms or more opens a `mobile_failure` incident.
 
+    2026-10-23 — provider egress clearance consumer impact: NO REST/WS wire
+    change. The bridge's outbound requests to anime providers (today jkanime)
+    now pass through `internal/cfclearance`, a transport that clears a
+    Cloudflare managed challenge with a hidden WebView2 child of the bridge
+    itself and replays the request (ADR-030). Nothing a mobile client sends
+    or receives changes: no new endpoint, field, status code or WebSocket
+    message. What a client may notice is timing: the first provider request
+    after a challenge appears can take 6 to 11 seconds longer once, and the
+    ADR-029 mirror fallback still applies when clearing is impossible.
+    Additive for MCP clients of `autoreas-request-mcp`: the `where` argument of
+    `list_incidents`, `list_runs` and `search_history` also accepts `providers`,
+    which reads the `clearance.*` events (challenge detected, solved, failed with
+    its cause) and `jkanime.host_fallback` (which mirror answered). Every other
+    value reads exactly what it read before.
+
+    2026-10-24 — event counts consumer impact: NO REST/WS wire change.
+    Additive for MCP clients of `autoreas-request-mcp`: a new read-only tool
+    `count_events` counts the `runtime_events` rows of one required
+    `event_type` (shaped `domain.verb`), optionally grouped by one top-level
+    metadata key `group_by` (a letter, then letters, digits or `_`), over whole
+    local days `from_day`..`to_day` (`YYYY-MM-DD`, inclusive, inside the last 90
+    local days; by default all 90). It answers `total`, `groups` (each
+    `{value, count}`, largest first; empty without `group_by`) and the usual
+    `coverage`. `value` is `null` for rows without the key, with a JSON null, or
+    whose metadata was stored truncated. A misshaped `event_type` or
+    `group_by`, a day outside the 90 days, or `to_day` before `from_day` is an
+    error, never an empty count. Example: `download.episode_downloaded` grouped
+    by `siteHost` answers how many episodes each site host served. Every other
+    tool is unchanged.
+
+    2026-10-24 — run-history per-anime events, MCP consumer impact: NO REST/WS
+    wire change. ADDITIVE for `autoreas-request-mcp` only: every `get_run_story`
+    step carries `EntityID`, the stored `runtime_events.entity_id` (the anime id
+    for `download.*` events), empty when the event names none. `get_incident`
+    window events share the shape but always leave `EntityID` empty. Every `download.*` event about one anime also
+    stores `animeName` in its metadata, and two info events are new:
+    `download.anime_checked` (`onDiskCount`, `latestOnline`, `missingEpisodes`)
+    and `download.manual_link_offered` (`episode`, `linkCount`). The
+    page-resolution and link-extraction `download.failed` events now carry
+    `episode`. All of them are in the `downloads` Where scope.
+
+    2026-10-24 — schedule run settled consumer impact: NO REST/WS wire change.
+    The desktop app emits a new Wails-only event, `schedule.run_settled`, once
+    the download scheduler has released its run guard and stored the run's
+    outcome (`download.run_finished` fires earlier, from inside the run, so a
+    schedule read on it could miss the stored last run). Mobile clients over
+    `/api`/`/ws` are unaffected. ADDITIVE for `autoreas-request-mcp`: an
+    outcome the scheduler stored (a scheduled run, or a missed day's Run now)
+    writes one info event `schedule.run_settled` in the `schedule` domain, with
+    metadata `trigger`, `status`, and `startedAtMs`/`nextRunAtMs` (scheduled)
+    or `localDate` (missed day); a manual run stores nothing and writes none.
+    It is in the `schedule` Where scope of `search_history`, carries no
+    correlation id, and `count_events` counts it like any other type.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}

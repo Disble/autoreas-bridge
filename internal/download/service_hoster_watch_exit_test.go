@@ -22,74 +22,94 @@ func assertOutcome(t *testing.T, outcome hosterOutcome, wantKind hosterOutcomeKi
 	}
 }
 
-// pollTermination selects which interruption the completion poll runs into.
+// pollTermination selects how the run behaves while the completion poll watches the disk.
 type pollTermination int
 
 const (
 	// pollRunsToDeadline exhausts the poll's safety cap with the run still alive.
 	pollRunsToDeadline pollTermination = iota
-	// pollCancelledEarly stops the run before the first poll iteration, so ONLY the
-	// cancellation is true when the terminal check runs.
-	pollCancelledEarly
-	// pollCancelledAtDeadline stops the run on the same jump that carries the clock past the
-	// deadline, so BOTH conditions are true at one terminal check. That is the only arrangement
-	// that can observe which of the two sequential ifs is evaluated first, and it is what a
-	// mutant collapsing them back into one condition has to survive.
-	pollCancelledAtDeadline
+	// pollStoppedNothingLands stops the run before the first poll iteration and never lets the
+	// episode land, so only the safety cap can end the attempt.
+	pollStoppedNothingLands
+	// pollStoppedThenLands stops the run before the first poll iteration and lands the episode on
+	// the first sleep, the file JD keeps delivering after the user pressed Stop.
+	pollStoppedThenLands
 )
 
-// completionPollExit runs one hoster attempt that reaches the completion poll and never sees the
-// disk advance, returning the outcome the poll terminated on.
+// completionPoll is what one completion-poll attempt ended on, plus the context the rename saw.
+type completionPoll struct {
+	outcome hosterOutcome
+	// renameCtxErr is the rename's context error, nil when the rename ran on a live context.
+	renameCtxErr error
+	renamed      bool
+}
+
+// completionPollExit runs one hoster attempt that reaches the completion poll and returns what it
+// terminated on.
 //
 // Every simulated poll interval jumps the clock a full day, so the deadline is crossed on the
 // second iteration instead of after the 360 real ticks the 30-minute cap would otherwise need. A
 // jump that large also cannot silently stop crossing the deadline if the cap is ever widened: the
 // test would fail loudly on the label rather than pass while measuring nothing.
-func completionPollExit(t *testing.T, termination pollTermination) hosterOutcome {
+func completionPollExit(t *testing.T, termination pollTermination) completionPoll {
 	t.Helper()
 	folder := "folder-" + t.Name()
 	now := time.Now()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	if termination == pollCancelledEarly {
+	if termination != pollRunsToDeadline {
 		cancel()
 	}
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	deps := baseDeps(t)
 	setSvcFakeCounter(&deps, counter)
 	deps.Clock = func() time.Time { return now }
+	sleeps := 0
 	deps.PollSleep = func(time.Duration) {
-		now = now.Add(24 * time.Hour)
-		if termination == pollCancelledAtDeadline {
-			cancel()
+		sleeps++
+		if termination == pollStoppedThenLands && sleeps == 1 {
+			counter.mu.Lock()
+			counter.atRoot[folder]++
+			counter.mu.Unlock()
+			return
 		}
+		now = now.Add(24 * time.Hour)
 	}
-	return NewService(deps).awaitHosterOutcome(ctx, "run-1", testAnime(folder), "Mediafire", 4, 12, true)
+	var got completionPoll
+	// Returning false stops before the JD rename call: the context it was handed is the evidence.
+	deps.RenameEpisodes = func(c context.Context) bool {
+		got.renamed, got.renameCtxErr = true, c.Err()
+		return false
+	}
+	got.outcome = NewService(deps).awaitHosterOutcome(ctx, "run-1", testAnime(folder), "Mediafire", 4, 12, true)
+	return got
 }
 
-func TestTheCompletionPollRecordsItsDeadlineAndItsCancellationSeparately(t *testing.T) {
+func TestAStoppedRunStillFollowsTheDownloadJDAlreadyAccepted(t *testing.T) {
 	t.Parallel()
 
-	// A user pressing Stop and a genuine 30-minute expiry are different decisions with the same
-	// kind, so one composite condition cannot tell a reader which of them ended the attempt.
+	// Once JD accepted the enqueue it keeps downloading whatever Bridge stops watching, so Stop
+	// never ends the completion poll: the attempt ends only on the episode or the safety cap.
 	t.Run("deadline reached with the run still alive", func(t *testing.T) {
 		t.Parallel()
 
-		assertOutcome(t, completionPollExit(t, pollRunsToDeadline), hosterOutcomeTimeout, "fs_poll_deadline")
+		assertOutcome(t, completionPollExit(t, pollRunsToDeadline).outcome, hosterOutcomeTimeout, "fs_poll_deadline")
 	})
 
-	t.Run("cancelled before the deadline", func(t *testing.T) {
+	t.Run("a stopped run keeps polling until the cap", func(t *testing.T) {
 		t.Parallel()
 
-		assertOutcome(t, completionPollExit(t, pollCancelledEarly), hosterOutcomeTimeout, "cancelled_during_poll")
+		assertOutcome(t, completionPollExit(t, pollStoppedNothingLands).outcome, hosterOutcomeTimeout, "fs_poll_deadline")
 	})
 
-	t.Run("both true keeps the deadline label", func(t *testing.T) {
+	t.Run("a stopped run still renames the episode JD delivers", func(t *testing.T) {
 		t.Parallel()
 
-		// The condition being split used || , which reports the LEFT operand when both hold.
-		// Checking the deadline first is what makes the split provably label-preserving.
-		assertOutcome(t, completionPollExit(t, pollCancelledAtDeadline), hosterOutcomeTimeout, "fs_poll_deadline")
+		got := completionPollExit(t, pollStoppedThenLands)
+		assertOutcome(t, got.outcome, hosterOutcomeSuccess, "fs_poll_confirmed")
+		if !got.renamed || got.renameCtxErr != nil {
+			t.Fatalf("expected the rename to run on a live context, got renamed=%v err=%v", got.renamed, got.renameCtxErr)
+		}
 	})
 }
 
@@ -100,7 +120,7 @@ func postGraceDeadEnd(t *testing.T, isFirstHoster bool) hosterOutcome {
 	t.Helper()
 	folder := "folder-" + t.Name()
 	now := time.Now()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	jd := &stagedJDClient{svcFakeJDClient: &svcFakeJDClient{}, answers: []jdAnswer{
 		{status: aliveStatus},
 		{status: aliveStatus},
@@ -145,7 +165,7 @@ func successExit(t *testing.T, startAtRoot int, advanceDuringPreCheck bool) (hos
 	t.Helper()
 	folder := "folder-" + t.Name()
 	now := time.Now()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: startAtRoot}, recursive: map[string]int{folder: startAtRoot}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: startAtRoot}, landing: map[string]int{folder: startAtRoot}}
 	inner := &svcFakeJDClient{}
 	deps := baseDeps(t)
 	deps.JD = inner
@@ -170,8 +190,8 @@ func TestAnObservedSuccessIsDistinguishableFromOneAlreadyOnDisk(t *testing.T) {
 	// This is the discriminator the whole change exists for. Both cases report success and both
 	// are credited to the same hoster; only the exit says WHERE the success was observed -- found
 	// already on disk when the attempt began, or watched arriving by the poll. Completion handling
-	// no longer rides on that distinction: every success path renames before it flattens, because
-	// the rename is what the NEXT episode's baseline count reads.
+	// no longer rides on that distinction: every success path renames, because the rename is what
+	// the NEXT episode's baseline count reads.
 	t.Run("already on disk when the attempt began", func(t *testing.T) {
 		t.Parallel()
 
@@ -201,7 +221,7 @@ func postGraceProceed(t *testing.T) hosterOutcome {
 	t.Helper()
 	folder := "folder-" + t.Name()
 	now := time.Now()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	jd := &stagedJDClient{svcFakeJDClient: &svcFakeJDClient{}, answers: []jdAnswer{
 		{status: aliveStatus},
 		{status: jdownloader.DestinationStatus{Matched: true, Links: []jdownloader.LinkSignal{{Running: true}}}},

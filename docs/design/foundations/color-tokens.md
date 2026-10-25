@@ -78,7 +78,8 @@ Bridge's brand is HeroUI's token pair, never Legacy's Materialize red/blue.
 - **Secondary action** — `variant="tertiary"`: a gray surface, text or icon-only. Row and card
   actions, and the counterpart of a primary in a paired control (Today's "−").
 - **Tertiary action** — `variant="ghost"`: no surface until hover. Disclosures (Show episodes ⌄) and
-  field adornments (Browse…).
+  field adornments (a path field's icon-only picker: the folder icon for a folder, the gallery icon
+  for a cover image).
 - **Destructive action** — `variant="tertiary"` with the danger tint on hover (`tone="danger"` on
   `IconActionButton`). Solid `variant="danger"` appears only on the Confirm button of its
   confirmation dialog.

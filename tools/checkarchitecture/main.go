@@ -36,6 +36,21 @@ var ownedTableRules = []ownedTableRule{
 	{literal: "durations_pending_announce", isBoundaryFile: isEpisodesBoundaryFile},
 }
 
+// providerEgressRules keep every provider request on the shared Cloudflare
+// clearance client (ADR-030). Same shape as an owned-table rule: the literal
+// is a violation outside the files its boundary allows. A provider adapter
+// never builds its own http.Client (its tests may), and the composition root
+// never hands an adapter a nil or default client; the literals are the exact
+// bypass spellings this gate's own tests exercise.
+// They end at the client argument, so a constructor that grows a parameter
+// (the logger, ADR-030) keeps matching.
+var providerEgressRules = []ownedTableRule{
+	{literal: "http.Client{", isBoundaryFile: isNotProviderAdapterSource},
+	{literal: "jkanime.New(nil,", isBoundaryFile: isArchitectureCheckFile},
+	{literal: "jkanime.NewSearcher(nil,", isBoundaryFile: isArchitectureCheckFile},
+	{literal: "jkanime.NewSearcher(http.DefaultClient,", isBoundaryFile: isArchitectureCheckFile},
+}
+
 func main() {
 	if err := run("."); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -57,6 +72,7 @@ func runWithArchitectureFS(root string, source architectureFS) error {
 			return err
 		}
 		violations = append(violations, ownedTableViolations(normalized, string(content))...)
+		violations = append(violations, providerEgressViolations(normalized, string(content))...)
 		violations = append(violations, transactionViolations(normalized, string(content))...)
 		return nil
 	})
@@ -81,6 +97,33 @@ func ownedTableViolations(path, text string) []string {
 		}
 	}
 	return violations
+}
+
+// providerEgressViolations reports every provider-egress rule the file at path
+// violates: a bypass literal appears in text while path is outside the files
+// that rule allows (ADR-030).
+func providerEgressViolations(path, text string) []string {
+	var violations []string
+	for _, rule := range providerEgressRules {
+		if strings.Contains(text, rule.literal) && !rule.isBoundaryFile(path) {
+			violations = append(violations, fmt.Sprintf("%s uses %s: provider requests go through the shared clearance client the composition root injects (ADR-030)", path, rule.literal))
+		}
+	}
+	return violations
+}
+
+// isNotProviderAdapterSource allows an http.Client literal everywhere except
+// a provider adapter's production source: adapters receive the shared client,
+// while their tests may build one for a local test server.
+func isNotProviderAdapterSource(path string) bool {
+	inAdapter := strings.Contains(path, "/internal/download/sites/") || strings.HasPrefix(path, "internal/download/sites/")
+	return !inAdapter || strings.HasSuffix(path, "_test.go")
+}
+
+// isArchitectureCheckFile allows a bypass literal only inside this gate,
+// which has to spell the literals it rejects.
+func isArchitectureCheckFile(path string) bool {
+	return strings.Contains(path, "/tools/checkarchitecture/") || strings.HasPrefix(path, "tools/checkarchitecture/")
 }
 
 // relativePath converts a filesystem path to a normalized repository-relative path.

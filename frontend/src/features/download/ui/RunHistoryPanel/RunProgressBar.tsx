@@ -1,72 +1,21 @@
-import { ResponsiveBar } from '@nivo/bar';
-import { pendingEpisodesLabel } from './run-history-panel.helpers';
 import type { RunProgressBarProps } from './run-history-panel.types';
 
 /**
- * Renders a stacked horizontal bar chart showing the proportion of episodes
- * that are downloaded (success), pending, or failed (danger).
- * Hidden entirely when episodesFound is zero.
- *
- * The pending segment changes meaning with `isRunning`: active blue while the
- * run is open and genuinely downloading, muted grey once it has terminated and
- * the same episodes are simply ones nobody ever attempted. Painting a finished
- * run's untouched episodes in progress-blue is what made a jd_offline run look
- * like it had eight downloads in flight.
+ * The episodes bar: downloaded in success, failed in danger, and the rest
+ * either pulsing accent while the run is live or a muted hatch once it ended
+ * and those episodes were never attempted. Each segment grows by its count;
+ * the accessible name carries the numbers.
  */
-export function RunProgressBar({
-  episodesFound,
-  episodesDownloaded,
-  episodesDownloading,
-  episodesFailed,
-  isRunning,
-}: Readonly<RunProgressBarProps>) {
-  if (episodesFound <= 0) {
-    return null;
-  }
-
-  const pendingColor = isRunning ? '#0385F7' : '#71717A';
+export function RunProgressBar({ bar }: Readonly<RunProgressBarProps>) {
+  const pendingClass = bar.isRunning
+    ? 'bg-accent animate-pulse motion-reduce:animate-none'
+    : 'bg-[repeating-linear-gradient(-45deg,color-mix(in_oklab,var(--muted)_35%,transparent)_0_4px,transparent_4px_8px)]';
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className="h-3 w-full">
-        <ResponsiveBar
-          data={[
-            {
-              id: 'episodes',
-              downloaded: episodesDownloaded,
-              downloading: episodesDownloading,
-              failed: episodesFailed,
-            },
-          ]}
-          keys={['downloaded', 'downloading', 'failed']}
-          indexBy="id"
-          layout="horizontal"
-          groupMode="stacked"
-          colors={['#17C964', pendingColor, '#DB3B3E']}
-          enableLabel={false}
-          enableGridX={false}
-          enableGridY={false}
-          axisTop={null}
-          axisRight={null}
-          axisBottom={null}
-          axisLeft={null}
-          padding={0}
-          innerPadding={0}
-          borderRadius={2}
-          isInteractive={false}
-          animate
-          motionConfig="wobbly"
-        />
-      </div>
-      <span className="flex gap-3 text-xs text-muted">
-        {episodesDownloaded > 0 && <span className="text-success">■ {episodesDownloaded} downloaded</span>}
-        {episodesDownloading > 0 && (
-          <span className={isRunning ? 'text-primary' : 'text-default-500'}>
-            ■ {episodesDownloading} {pendingEpisodesLabel(isRunning).toLowerCase()}
-          </span>
-        )}
-        {episodesFailed > 0 && <span className="text-danger">■ {episodesFailed} failed</span>}
-      </span>
+    <div aria-label={bar.label} className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-default" role="img">
+      <span className="h-full bg-success transition-[flex-grow] duration-300 ease-out" data-segment="downloaded" style={{ flexGrow: bar.downloaded }} />
+      <span className="h-full bg-danger transition-[flex-grow] duration-300 ease-out" data-segment="failed" style={{ flexGrow: bar.failed }} />
+      <span className={`h-full transition-[flex-grow] duration-300 ease-out ${pendingClass}`} data-segment="pending" style={{ flexGrow: bar.pending }} />
     </div>
   );
 }

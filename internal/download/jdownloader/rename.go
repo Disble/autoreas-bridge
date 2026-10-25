@@ -21,8 +21,7 @@ var ErrNoRenamableLink = errors.New("jdownloader: no finished link for destinati
 //
 // The rename is delegated to JD rather than performed with os.Rename so JD's own record of
 // the file stays correct -- a file Bridge moves behind JD's back leaves JD pointing at a path
-// that no longer exists. That ownership is also why this MUST run before the Flattener: once
-// Bridge moves the file out of JD's package subfolder, JD can no longer find it to rename.
+// that no longer exists.
 //
 // Correlation is by destination folder, the same key PackageStatusByDestination uses, because
 // Bridge holds no link identity of its own (AddAndStart discards the LinkGrabber's response).
@@ -66,8 +65,9 @@ func (a *myJDAdapter) RenameEpisodeByDestination(ctx context.Context, deviceName
 //
 // This deliberately does NOT reuse matchedDownloadPackages, which matches SaveTo exactly.
 // Exact matching is right for the status/removal seams, whose meaning is "the package for
-// this folder", but it silently finds nothing whenever JD saves into a package subfolder --
-// which is the common case, and which made every such episode keep its hoster name.
+// this folder", but it silently finds nothing when a package sits in a subfolder (one enqueued
+// before Bridge disabled the subfolder-per-package rule, or by a user rule) -- which once made
+// every such episode keep its hoster name.
 func packagesUnderDestination(device jd.Device, destination string) (map[int64]bool, error) {
 	packages, err := device.Downloader().Packages()
 	if err != nil {

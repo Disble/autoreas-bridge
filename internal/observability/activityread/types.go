@@ -132,6 +132,9 @@ type EventSummary struct {
 	EventType     string
 	Message       string
 	CorrelationID string
+	// EntityID is the entity the event is about, such as the anime of a
+	// download step; empty when the event names none.
+	EntityID string
 }
 
 // PhoneReport is one stored mobile telemetry fact. PhoneAtMS is the phone's

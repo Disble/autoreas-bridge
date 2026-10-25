@@ -5,6 +5,7 @@ import {
   CreateSeason,
   CreateSeasonAnimes,
   DiscardSeasonName,
+  DownloadSeasonAnimes,
   GetPastSeason,
   GetPastSeasonAnimes,
   GetSeason,
@@ -62,6 +63,7 @@ import type {
   SeasonProviderSearchResult,
   SeasonSource,
 } from './season-source.types';
+import { openInDefaultBrowser } from '../../shared/helpers/url.helpers';
 import { createRuntimeSubscription, hasGoBinding, invokeGoBinding, waitForBindings } from '../wails-bindings.helpers';
 
 /**
@@ -205,6 +207,9 @@ export function createSeasonSource(): SeasonSource {
     triggerSeasonDownloads() {
       return invokeGoBinding('TriggerSeasonDownloads', TriggerSeasonDownloads, () => SEASON_RUNTIME_UNAVAILABLE);
     },
+    downloadSeasonAnimes(animeIds: readonly string[]) {
+      return invokeGoBinding('DownloadSeasonAnimes', () => DownloadSeasonAnimes([...animeIds]), () => SEASON_RUNTIME_UNAVAILABLE);
+    },
     setGrade(animeId: string, grade: number) {
       return invokeGoBinding('SetSeasonGrade', () => SetSeasonGrade(animeId, grade), () => SEASON_RUNTIME_UNAVAILABLE);
     },
@@ -265,10 +270,7 @@ export function createSeasonSource(): SeasonSource {
       return matchingFinishedSubscription.subscribe(listener);
     },
     openPage(url: string) {
-      if (url === '' || typeof window.runtime?.BrowserOpenURL !== 'function') {
-        return; // no matched slug, or running outside the Wails runtime
-      }
-      window.runtime.BrowserOpenURL(url);
+      openInDefaultBrowser(url); // a blank url means no matched slug
     },
   };
 

@@ -57,7 +57,7 @@ func assertCredited(t *testing.T, result episodeEnqueueResult, hoster string, at
 func chainResult(t *testing.T, jd jdownloader.JDClient, ordered []hosterLink) episodeEnqueueResult {
 	t.Helper()
 	folder := "folder-" + t.Name()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	deps, _ := fastEnqueueDeps(t, folder, counter)
 	deps.JD = jd
 	return NewService(deps).enqueueWithFallback(context.Background(), "run-1", testAnime(folder), ordered, 12)
@@ -68,7 +68,7 @@ func chainResult(t *testing.T, jd jdownloader.JDClient, ordered []hosterLink) ep
 func cancelledChainResult(t *testing.T) episodeEnqueueResult {
 	t.Helper()
 	folder := "folder-" + t.Name()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	deps, _ := fastEnqueueDeps(t, folder, counter)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -132,7 +132,7 @@ func episodeRun(t *testing.T, deps ServiceDeps, folder string, current int) (*fi
 	t.Helper()
 	sourceURL := "https://jkanime.net/anime/"
 	source := &svcFakeEpisodeSource{name: "jkanime", extractLinks: map[string][]sites.DownloadLink{
-		sourceURL + strconv.Itoa(current+1) + "/": {{Hoster: "Mediafire", URL: "http://mediafire.example/1"}},
+		sourceURL + strconv.Itoa(current+1) + "/": {{Hoster: "Mediafire", URL: "http://mediafire.example/1", SiteHost: "jkanime.org"}},
 	}}
 	recorder := &fieldsRecorder{}
 	deps.Logger = recorder
@@ -160,14 +160,14 @@ func episodeLevelFailure(t *testing.T, recorder *fieldsRecorder) recordedEntry {
 	return out[0]
 }
 
-// assertEpisodeForensics pins the five discriminators an episode-level entry must carry. Every
+// assertEpisodeForensics pins the six discriminators an episode-level entry must carry. Every
 // expectation is a literal: an assertion written against the exitReason constants would follow a
 // rename and stop proving anything about what a reader actually finds in the persisted row.
 func assertEpisodeForensics(t *testing.T, entry recordedEntry, exit, hoster string, attemptIndex, baseline, observed int) {
 	t.Helper()
 	want := map[string]any{
 		"exit": exit, "hoster": hoster, "attemptIndex": attemptIndex,
-		"baseline": baseline, "observed": observed,
+		"baseline": baseline, "observed": observed, "siteHost": "jkanime.org",
 	}
 	for key, value := range want {
 		if entry.metadata[key] != value {
@@ -180,7 +180,7 @@ func assertEpisodeForensics(t *testing.T, entry recordedEntry, exit, hoster stri
 // the disk already ahead of the baseline the moment it starts watching.
 func diskSuccessDeps(t *testing.T, folder string) ServiceDeps {
 	t.Helper()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	deps, _ := fastEnqueueDeps(t, folder, counter)
 	deps.JD = &diskSuccessOnFirstAddAndStart{svcFakeJDClient: &svcFakeJDClient{}, counter: counter, folder: folder}
 	return deps
@@ -203,7 +203,7 @@ func TestTheEpisodeEntriesCarryTheAttemptThatProducedThem(t *testing.T) {
 		t.Parallel()
 
 		folder := "folder-" + t.Name()
-		counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+		counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 		deps, _ := fastEnqueueDeps(t, folder, counter)
 		deps.JD = &fallbackAwareJDClient{svcFakeJDClient: &svcFakeJDClient{}, deadHosters: map[string]bool{"Mediafire": true}}
 
@@ -221,7 +221,7 @@ func TestNoPersistedExitIsEverTheUnsetValue(t *testing.T) {
 	t.Parallel()
 
 	folder := "folder-" + t.Name()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	deps, _ := fastEnqueueDeps(t, folder, counter)
 	deps.JD = &fallbackAwareJDClient{svcFakeJDClient: &svcFakeJDClient{}, deadHosters: map[string]bool{"Mediafire": true}}
 
@@ -301,17 +301,11 @@ func (f *deadAfterGraceJDClient) removals() int {
 // diskConfirmedOverAdvancedCountEpisode runs one episode whose file lands inside the grace's blind
 // gap, moving the disk count from 4 to observedAtTerminal, while JD goes on to classify the hoster
 // dead. It returns the persisted episode success, the anime outcome, and the JD fake that records
-// any removal.
-//
-// The landing moves BOTH counting bases. svcFakeCounter lets a fixture set atRoot above recursive;
-// production cannot, because CountRecursive walks the very root CountAtRoot reads. Advancing atRoot
-// alone pins a state the system can never reach -- and under that fixture the two tests below kept
-// passing while asserting behaviour this change declares false, including with the post-grace
-// re-check deleted outright.
+// any removal. The landing moves the folder ROOT, where JD writes every download.
 func diskConfirmedOverAdvancedCountEpisode(t *testing.T, label string, observedAtTerminal int) (recordedEntry, animeRunOutcome, *deadAfterGraceJDClient) {
 	t.Helper()
 	folder := "folder-" + t.Name() + "-" + label
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}}
 	deps, _ := fastEnqueueDeps(t, folder, counter)
 	deps.DetectStartPhaseDisabled = false
 	probes := 0
@@ -321,7 +315,6 @@ func diskConfirmedOverAdvancedCountEpisode(t *testing.T, label string, observedA
 			counter.mu.Lock()
 			defer counter.mu.Unlock()
 			counter.atRoot[folder] = observedAtTerminal
-			counter.recursive[folder] = observedAtTerminal
 		}
 		return false
 	}
@@ -402,7 +395,7 @@ func TestTwoAttemptsDifferingOnlyInTheObservedCountBehaveIdentically(t *testing.
 // notification work legitimately adds a field, and a guard that cries wolf gets deleted.
 var forbiddenOutcomeFields = map[string]bool{
 	"exit": true, "hoster": true, "attemptIndex": true,
-	"baseline": true, "observed": true, "winningHoster": true,
+	"baseline": true, "observed": true, "winningHoster": true, "siteHost": true,
 }
 
 func TestTheAnimeRunOutcomeNeverGrowsAForensicField(t *testing.T) {

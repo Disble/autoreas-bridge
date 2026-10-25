@@ -39,7 +39,6 @@ func TestRunOnceCatchesUpSequentialMissingEpisodesForOneAnime(t *testing.T) {
 	}}}
 	counter := newCatchupCounter(map[string]int{folder: 9})
 	deps.Counter = counter
-	deps.Flattener = &svcFakeFlattener{onFlatten: func(folder string) { counter.Flatten(folder) }}
 	jd := &recordingCatchupJD{counter: counter}
 	deps.JD = jd
 
@@ -83,7 +82,6 @@ func TestRunAnimePersistsEpisodeProgressDuringSingleAnimeCatchup(t *testing.T) {
 	deps.Sites = registry
 	counter := newCatchupCounter(map[string]int{folder: 0})
 	deps.Counter = counter
-	deps.Flattener = &svcFakeFlattener{onFlatten: func(folder string) { counter.Flatten(folder) }}
 	deps.JD = &recordingCatchupJD{counter: counter}
 
 	anime := contracts.MobileAnime{
@@ -109,101 +107,6 @@ func TestRunAnimePersistsEpisodeProgressDuringSingleAnimeCatchup(t *testing.T) {
 	assertSoloRunProgress(t, deps.Store.(*svcFakeDownloadStore).progressSnapshots())
 }
 
-func TestRunAnimeFlattensExistingSubfolderDownloadsBeforeChoosingNextEpisode(t *testing.T) {
-	t.Parallel()
-
-	deps := baseDeps(t)
-	folder := t.TempDir()
-	source := &svcFakeEpisodeSource{
-		name: "jkanime",
-		listEpisodes: map[string]sites.EpisodeListing{
-			"https://jkanime.net/solo/": {LatestEpisode: 7, EpisodePageURL: "https://jkanime.net/solo/7/"},
-		},
-		extractLinks: map[string][]sites.DownloadLink{
-			"https://jkanime.net/solo/7/": {{URL: "http://mediafire.example/7", Hoster: "Mediafire"}},
-		},
-	}
-	registry := NewStaticRegistry()
-	registry.Register(source)
-	deps.Sites = registry
-	counter := newCatchupCounter(map[string]int{folder: 5})
-	counter.setRecursive(folder, 6)
-	deps.Counter = counter
-	deps.Flattener = &svcFakeFlattener{onFlatten: func(folder string) { counter.Flatten(folder) }}
-	jd := &recordingCatchupJD{counter: counter}
-	deps.JD = jd
-
-	anime := contracts.MobileAnime{
-		ID:        "anime-1",
-		Name:      "Solo Anime",
-		Active:    1,
-		SourceURL: new("https://jkanime.net/solo/"),
-		Folder:    new(folder),
-	}
-
-	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)
-	if err != nil {
-		t.Fatalf("expected nil error, got %v", err)
-	}
-	if result.Status != "ok" {
-		t.Fatalf("expected ok result, got %#v", result)
-	}
-	if got, want := jd.episodes(), []int{7}; !equalInts(got, want) {
-		t.Fatalf("expected only the truly missing episode to be enqueued, got %v", got)
-	}
-}
-
-func TestRunAnimeRetriesFlattenUntilDownloadedEpisodeReachesRoot(t *testing.T) {
-	t.Parallel()
-
-	deps := baseDeps(t)
-	now := deps.Clock()
-	deps.Clock = func() time.Time { return now }
-	deps.PollSleep = func(d time.Duration) { now = now.Add(d) }
-	folder := t.TempDir()
-	source := &svcFakeEpisodeSource{
-		name: "jkanime",
-		listEpisodes: map[string]sites.EpisodeListing{
-			"https://jkanime.net/solo/": {LatestEpisode: 10, EpisodePageURL: "https://jkanime.net/solo/10/"},
-		},
-		extractLinks: map[string][]sites.DownloadLink{
-			"https://jkanime.net/solo/10/": {{URL: "http://mediafire.example/10", Hoster: "Mediafire"}},
-		},
-	}
-	registry := NewStaticRegistry()
-	registry.Register(source)
-	deps.Sites = registry
-	counter := newCatchupCounter(map[string]int{folder: 9})
-	deps.Counter = counter
-	deps.JD = &recordingCatchupJD{counter: counter}
-	flattenAttempts := 0
-	deps.Flattener = &svcFakeFlattener{onFlatten: func(folder string) {
-		flattenAttempts++
-		if flattenAttempts > 1 {
-			counter.Flatten(folder)
-		}
-	}}
-
-	anime := contracts.MobileAnime{
-		ID:        "anime-1",
-		Name:      "Solo Anime",
-		Active:    1,
-		SourceURL: new("https://jkanime.net/solo/"),
-		Folder:    new(folder),
-	}
-
-	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)
-	if err != nil {
-		t.Fatalf("expected nil error, got %v", err)
-	}
-	if result.Status != "ok" {
-		t.Fatalf("expected ok result, got %#v", result)
-	}
-	if got := counter.CountAtRoot(folder); got != 10 {
-		t.Fatalf("expected final episode to be flattened into root count, got %d", got)
-	}
-}
-
 func TestRunAnimeCompletesWhenJDFolderFileNameDoesNotContainEpisodeNumber(t *testing.T) {
 	t.Parallel()
 
@@ -227,7 +130,6 @@ func TestRunAnimeCompletesWhenJDFolderFileNameDoesNotContainEpisodeNumber(t *tes
 	counter := newCatchupCounter(map[string]int{folder: 10})
 	deps.Counter = counter
 	deps.JD = &recordingCatchupJD{counter: counter}
-	deps.Flattener = &svcFakeFlattener{onFlatten: func(folder string) { counter.Flatten(folder) }}
 
 	anime := contracts.MobileAnime{
 		ID:        "anime-1",
@@ -276,7 +178,6 @@ func TestRunAnimeCompletesFromFilesystemWhenJDPackageStateIsNotReliable(t *testi
 	counter := newCatchupCounter(map[string]int{folder: 10})
 	deps.Counter = counter
 	deps.JD = &neverFinishedCatchupJD{recordingCatchupJD: recordingCatchupJD{counter: counter}}
-	deps.Flattener = &svcFakeFlattener{onFlatten: func(folder string) { counter.Flatten(folder) }}
 
 	anime := contracts.MobileAnime{
 		ID:        "anime-1",
@@ -342,7 +243,6 @@ func TestRunOnceProcessesMultipleAnimesAndAccumulatesCatchupCounters(t *testing.
 	}}}
 	counter := newCatchupCounter(map[string]int{folderA: 1, folderB: 5})
 	deps.Counter = counter
-	deps.Flattener = &svcFakeFlattener{onFlatten: func(folder string) { counter.Flatten(folder) }}
 	jd := &recordingCatchupJD{counter: counter}
 	deps.JD = jd
 

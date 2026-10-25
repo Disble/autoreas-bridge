@@ -39,7 +39,7 @@ func TestRunOnceUpToDateAnimeNeverLaunchesJDownloader(t *testing.T) {
 		SourceURL: new("https://jkanime.net/current/"),
 		Folder:    new(currentFolder),
 	}}}
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{currentFolder: 4}, recursive: map[string]int{currentFolder: 4}})
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{currentFolder: 4}, landing: map[string]int{currentFolder: 4}})
 	jd := &svcFakeJDClient{}
 	deps.JD = jd
 
@@ -84,9 +84,9 @@ func TestRunOnceMissingEpisodeCallsEnsureOnlineExactlyOnce(t *testing.T) {
 		SourceURL: new("https://jkanime.net/fresh/"),
 		Folder:    new(freshFolder),
 	}}}
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{freshFolder: 0}, recursive: map[string]int{freshFolder: 1}})
 	jd := &svcFakeJDClient{}
 	deps.JD = jd
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{freshFolder: 0}, landing: map[string]int{freshFolder: 1}})
 
 	result, err := NewService(deps).RunOnce(context.Background(), "scheduled")
 	if err != nil {
@@ -147,12 +147,12 @@ func TestRunOnceConcurrentMissingEpisodesCallEnsureOnlineExactlyOnce(t *testing.
 		SourceURL: new("https://jkanime.net/two/"),
 		Folder:    new(twoFolder),
 	}}}
-	setSvcFakeCounter(&deps, &svcFakeCounter{
-		atRoot:    map[string]int{oneFolder: 0, twoFolder: 0},
-		recursive: map[string]int{oneFolder: 1, twoFolder: 1},
-	})
 	jd := &svcFakeJDClient{}
 	deps.JD = jd
+	setSvcFakeCounter(&deps, &svcFakeCounter{
+		atRoot:  map[string]int{oneFolder: 0, twoFolder: 0},
+		landing: map[string]int{oneFolder: 1, twoFolder: 1},
+	})
 
 	result, err := NewService(deps).RunOnce(context.Background(), "scheduled")
 	if err != nil {

@@ -51,7 +51,7 @@ func TestRunsGroupsEventsByCorrelationID(t *testing.T) {
 func TestRunStoryOrdersStepsAndCapsThem(t *testing.T) {
 	db, reader := openTestReader(t)
 	insertEvent(t, db, event{atMS: minutesAgo(5), domain: "download", level: "warn", message: "probe", correlationID: "run-1",
-		metadata: `{"hoster":"Mediafire","probes":[{"elapsedMs":21002,"found":false}]}`})
+		metadata: `{"hoster":"Mediafire","probes":[{"elapsedMs":21002,"found":false}]}`, entityID: "anime-1"})
 	insertEvent(t, db, event{atMS: minutesAgo(6), domain: "download", level: "info", message: "start", correlationID: "run-1"})
 	insertEvent(t, db, event{atMS: minutesAgo(4), domain: "download", level: "info", message: "other", correlationID: "run-9"})
 
@@ -64,6 +64,10 @@ func TestRunStoryOrdersStepsAndCapsThem(t *testing.T) {
 	}
 	if story.Steps[1].MetadataJSON == "" || story.Steps[0].MetadataJSON != "" {
 		t.Fatalf("metadata = %q / %q", story.Steps[0].MetadataJSON, story.Steps[1].MetadataJSON)
+	}
+	// The anime a download step is about; a run-wide step has none.
+	if story.Steps[1].EntityID != "anime-1" || story.Steps[0].EntityID != "" {
+		t.Fatalf("entity ids = %q / %q, want \"\" / \"anime-1\"", story.Steps[0].EntityID, story.Steps[1].EntityID)
 	}
 
 	for i := range StoryLimit {

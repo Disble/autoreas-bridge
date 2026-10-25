@@ -31,7 +31,8 @@ Keep a lot for a short time, and a little, the right little, for a long time.
 | [budgets.md](budgets.md) | the storage each layer costs, modelled vs measured, and how to retune it |
 | [qa-battery.md](qa-battery.md) | how the 92-issue battery works, how to run it and how to add an issue |
 | [activity-ui.md](activity-ui.md) | why the current Activity screen hangs, and the requirements for the new one |
-| [activity-ui-design.md](activity-ui-design.md) | the approved screens: what each element shows, its data and its component |
+| [activity-ui-design-v2.md](activity-ui-design-v2.md) | the approved Activity design: behaviour, data sources and rejected ideas the mockup cannot show |
+| [activity-ui-design.md](activity-ui-design.md) | the previous design, superseded by v2 (history only) |
 | [development-database.md](development-database.md) | how development runs against a copy of the data, never the live file |
 | [rollout.md](rollout.md) | the delivery stages, their status and the coordination with mobile |
 

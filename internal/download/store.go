@@ -79,7 +79,11 @@ type ScheduleSettlementResult struct {
 // links[]}`) so backend persistence and the eventual UI run-detail view agree on shape;
 // defined here (not in `contracts`) because Phase 6 (App bindings) has not landed yet -- the
 // Phase 6 batch maps this 1:1 onto contracts.ManualLink at the App boundary.
+//
+// AnimeID names the anime by id, so a run view can group a link with that anime's other facts.
+// It is omitted from rows written before it existed, which decode with it empty.
 type ManualLink struct {
+	AnimeID string   `json:"animeId,omitempty"`
 	Anime   string   `json:"anime"`
 	Episode int      `json:"episode"`
 	Links   []string `json:"links"`

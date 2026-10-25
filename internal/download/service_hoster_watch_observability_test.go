@@ -12,10 +12,13 @@ import (
 )
 
 // recordedEntry is one structured log entry captured with everything a forensic assertion needs:
-// the level that decides whether it is persisted at all, the event type a reader filters on, the
-// message text that carries the unfilterable discriminators, and the metadata map itself.
+// the domain and level that decide where and whether it is persisted, the entity it is about, the
+// event type a reader filters on, the message text that carries the unfilterable discriminators,
+// and the metadata map itself.
 type recordedEntry struct {
+	domain    string
 	level     string
+	entityID  string
 	eventType string
 	message   string
 	metadata  map[string]any
@@ -31,11 +34,13 @@ type fieldsRecorder struct {
 	entries []recordedEntry
 }
 
-func (r *fieldsRecorder) Logf(_, level string, fields logger.Fields, format string, args ...any) {
+func (r *fieldsRecorder) Logf(domain, level string, fields logger.Fields, format string, args ...any) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.entries = append(r.entries, recordedEntry{
+		domain:    domain,
 		level:     level,
+		entityID:  fields.EntityID,
 		eventType: fields.EventType,
 		message:   fmt.Sprintf(format, args...),
 		metadata:  fields.Metadata,
@@ -92,7 +97,7 @@ func newProbeWatchService(t *testing.T, jd jdownloader.JDClient, counter *svcFak
 func watchAttempt(t *testing.T, jd jdownloader.JDClient, now *time.Time, hasPart func(root string) bool) *fieldsRecorder {
 	t.Helper()
 	folder := "folder-" + t.Name()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	s, recorder := newProbeWatchService(t, jd, counter, now, hasPart)
 	s.awaitHosterOutcome(context.Background(), "run-1", testAnime(folder), "Mediafire", 4, 12, true)
 	return recorder
@@ -137,25 +142,24 @@ func TestAwaitHosterOutcomePersistsTheProbeTimelineWhenDetectFails(t *testing.T)
 		t.Fatalf("expected the failed detect phase to persist at warn level, got %q", entry.level)
 	}
 	probes := metadataProbes(t, entry)
-	if len(probes) != 3 {
-		t.Fatalf("expected the exhausted grace to persist 3 probes, got %#v", probes)
+	if len(probes) != 12 {
+		t.Fatalf("expected the exhausted grace to persist 12 probes, got %#v", probes)
 	}
 	for i, p := range probes {
-		if p["found"] != false {
-			t.Fatalf("expected every probe of a failed detect phase to report found=false, got probe %d: %#v", i, p)
+		if p["found"] != false || p["landed"] != false {
+			t.Fatalf("expected every probe of a failed detect phase to report found=false and landed=false, got probe %d: %#v", i, p)
 		}
 	}
 	// The offsets are real elapsed time, not a fixed clock: a constant clock yields spacing 0.
 	// Only the SPACING is pinned; the first offset also carries whatever the attempt spent before
 	// the probes ran, which is exactly the information the anchor exists to expose.
-	if got := probeOffset(t, probes, 1) - probeOffset(t, probes, 0); got != 20000 {
-		t.Fatalf("expected probes 1 and 2 to be 20000ms apart, got %d", got)
+	for i := 1; i < len(probes); i++ {
+		if got := probeOffset(t, probes, i) - probeOffset(t, probes, i-1); got != 5000 {
+			t.Fatalf("expected probes %d and %d to be 5000ms apart, got %d", i, i+1, got)
+		}
 	}
-	if got := probeOffset(t, probes, 2) - probeOffset(t, probes, 1); got != 20000 {
-		t.Fatalf("expected probes 2 and 3 to be 20000ms apart, got %d", got)
-	}
-	if got := probeOffset(t, probes, 0); got < 20000 {
-		t.Fatalf("expected the first probe to land no earlier than the 20000ms grace, got %d", got)
+	if got := probeOffset(t, probes, 0); got < 5000 {
+		t.Fatalf("expected the first probe to land no earlier than one 5000ms interval, got %d", got)
 	}
 	previous := int64(-1)
 	for i := range probes {
@@ -194,12 +198,12 @@ func TestTheProbeTimelineIsAnchoredAtTheAttemptNotAtTheDetectPhase(t *testing.T)
 
 	probes := metadataProbes(t, recorder.only(t, "download.detect_start_failed"))
 	// Equality to literals is the RIGHT assertion here and the wrong one in the schedule test
-	// above. There, an advancing fake produces 20000/40000/60000 under either anchor, so equality
-	// proves nothing. Here the leading 23000 exists ONLY because the offsets are anchored at the
+	// above. There, an advancing fake produces 5000/10000/15000 under either anchor, so equality
+	// proves nothing. Here the leading 8000 exists ONLY because the offsets are anchored at the
 	// attempt: the pre-check spent 3s before the grace opened, and a detect-phase anchor reports
-	// 20000/40000/60000 instead. This is the only test that proves the field carries the JD
+	// 5000/10000/15000 instead. This is the only test that proves the field carries the JD
 	// handoff latency, which is the entire reason the anchor sits where it does.
-	for i, want := range []int64{23000, 43000, 63000} {
+	for i, want := range []int64{8000, 13000, 18000} {
 		if got := probeOffset(t, probes, i); got != want {
 			t.Fatalf("expected probe %d at %d ms including the 3000ms pre-check latency, got %d", i, want, got)
 		}
@@ -222,6 +226,9 @@ func TestDetectPhasePersistsTheProbeTimelineOnSuccess(t *testing.T) {
 	if entry.level != "info" {
 		t.Fatalf("expected the successful detect phase to persist at info level, got %q", entry.level)
 	}
+	if entry.metadata["episode"] != 12 || entry.metadata["animeName"] != "Test Anime" {
+		t.Fatalf("expected the detect phase entry to name its episode and anime, got %#v", entry.metadata)
+	}
 	probes := metadataProbes(t, entry)
 	if len(probes) != 2 {
 		t.Fatalf("expected the timeline to stop at the probe that found evidence, got %#v", probes)
@@ -232,8 +239,8 @@ func TestDetectPhasePersistsTheProbeTimelineOnSuccess(t *testing.T) {
 	if probes[1]["found"] != true {
 		t.Fatalf("expected the final probe to report the transfer evidence, got %#v", probes[1])
 	}
-	if got := probeOffset(t, probes, 1) - probeOffset(t, probes, 0); got != 20000 {
-		t.Fatalf("expected the two probes to be 20000ms apart, got %d", got)
+	if got := probeOffset(t, probes, 1) - probeOffset(t, probes, 0); got != 5000 {
+		t.Fatalf("expected the two probes to be 5000ms apart, got %d", got)
 	}
 }
 
@@ -263,7 +270,7 @@ func TestDetectPhasePersistsExactlyOneEntryPerAttemptOnEitherOutcome(t *testing.
 		}
 	})
 
-	t.Run("failure runs three probes and still records one entry", func(t *testing.T) {
+	t.Run("failure runs twelve probes and still records one entry", func(t *testing.T) {
 		t.Parallel()
 
 		now := time.Now()
@@ -275,11 +282,11 @@ func TestDetectPhasePersistsExactlyOneEntryPerAttemptOnEitherOutcome(t *testing.
 			return false
 		})
 
-		if checks != 3 {
-			t.Fatalf("expected the detect phase to run 3 probes, got %d", checks)
+		if checks != 12 {
+			t.Fatalf("expected the detect phase to run 12 probes, got %d", checks)
 		}
 		if got := len(recorder.byEventType("download.detect_start_failed")); got != 1 {
-			t.Fatalf("expected exactly 1 detect_start_failed entry for 3 probes, got %d", got)
+			t.Fatalf("expected exactly 1 detect_start_failed entry for 12 probes, got %d", got)
 		}
 		if got := len(recorder.byEventType("download.detect_start_succeeded")); got != 0 {
 			t.Fatalf("expected no detect_start_succeeded entry on the failure path, got %d", got)

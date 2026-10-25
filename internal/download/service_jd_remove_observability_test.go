@@ -70,7 +70,7 @@ var deadStatus = jdownloader.DestinationStatus{Matched: true, CrawlOfflineCount:
 func removalScenario(t *testing.T, folder string, answers []jdAnswer) (*stagedJDClient, *fieldsRecorder) {
 	t.Helper()
 	now := time.Now()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
+	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
 	jd := &stagedJDClient{svcFakeJDClient: &svcFakeJDClient{}, answers: answers}
 	s, recorder := newProbeWatchService(t, jd, counter, &now, func(string) bool { return false })
 	s.awaitHosterOutcome(context.Background(), "run-1", testAnime(folder), "Mediafire", 4, 12, true)

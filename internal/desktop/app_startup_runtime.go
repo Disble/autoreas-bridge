@@ -14,7 +14,6 @@ import (
 	"autoreas-bridge/internal/notification"
 	"autoreas-bridge/internal/notification/center"
 	"autoreas-bridge/internal/observability/requestcapture"
-	"autoreas-bridge/internal/schedule"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tray"
 )
@@ -247,7 +246,7 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 		return
 	}
 	registry := download.NewStaticRegistry()
-	registry.Register(jkanime.New(nil))
+	registry.Register(jkanime.New(a.providerHTTPClient(), a.sharedLogger))
 	hosterResolver := download.NewHosterResolver(func(site string) []download.HosterPriorityEntry {
 		entries, err := a.downloadStore.ListHosterPriority(ctx, site)
 		if err != nil {
@@ -262,8 +261,6 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 		Hosters:     hosterResolver,
 		JD:          newReconfigurableJDClient(a.downloadStore),
 		Counter:     filesystem.NewEpisodeCounter(),
-		Flattener:   filesystem.NewFlattener(),
-		Renamer:     filesystem.NewRenamer(),
 		// Read JD's own "Max. simultaneous Downloads" per run rather than once at startup,
 		// so changing it in JDownloader takes effect without restarting Bridge.
 		MaxConcurrentAnimes: jdMaxConcurrentAnimes,
@@ -296,20 +293,7 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 	if _, err := a.downloadStore.ReconcileInterruptedRuns(ctx, time.Now().UnixMilli()); err != nil && a.sharedLogger != nil {
 		a.sharedLogger.Warnf("download", "failed to reconcile interrupted download runs at startup: %v", err)
 	}
-	a.downloadScheduler = a.newDownloadScheduler(schedule.Deps{
-		Store:            a.downloadStore,
-		Clock:            schedule.NewRealClock(),
-		ProcessStartedAt: a.processStartedAt,
-		Run: func(runCtx context.Context, trigger string) (string, error) {
-			if a.downloadService == nil {
-				return "", nil
-			}
-			result, err := a.downloadService.RunOnce(runCtx, trigger)
-			return result.Status, err
-		},
-		Log: a.sharedLogger,
-	})
-	a.downloadScheduler.Start(ctx)
+	a.startDownloadScheduler(ctx)
 }
 
 // ensureDownloadStore initializes the download store when database access exists.

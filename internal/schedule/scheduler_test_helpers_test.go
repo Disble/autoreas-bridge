@@ -103,6 +103,10 @@ type fakeConfigStore struct {
 	mu                 sync.Mutex
 	cfg                download.ScheduleConfig
 	settlementRequests []download.ScheduleSettlementRequest
+	// markErr, when set, makes MarkScheduleRun fail without storing anything.
+	markErr error
+	// settleErr, when set, makes ApplyScheduleSettlement fail without storing anything.
+	settleErr error
 }
 
 func (s *fakeConfigStore) GetScheduleConfig(_ context.Context) (download.ScheduleConfig, error) {
@@ -114,6 +118,9 @@ func (s *fakeConfigStore) GetScheduleConfig(_ context.Context) (download.Schedul
 func (s *fakeConfigStore) MarkScheduleRun(_ context.Context, lastAtMs int64, status string, nextAtMs int64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.markErr != nil {
+		return s.markErr
+	}
 	s.cfg.LastRunAtMs = lastAtMs
 	s.cfg.LastRunStatus = status
 	s.cfg.NextRunAtMs = nextAtMs
@@ -124,6 +131,9 @@ func (s *fakeConfigStore) ApplyScheduleSettlement(_ context.Context, req downloa
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.settlementRequests = append(s.settlementRequests, req)
+	if s.settleErr != nil {
+		return download.ScheduleSettlementResult{}, s.settleErr
+	}
 	if s.cfg.LastSettledLocalDate > req.LocalDate {
 		return download.ScheduleSettlementResult{Outcome: download.ScheduleSettlementObsolete}, nil
 	}

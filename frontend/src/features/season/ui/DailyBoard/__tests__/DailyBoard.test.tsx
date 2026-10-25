@@ -10,17 +10,23 @@ vi.mock('../use-daily-board', () => ({
   useDailyBoard: vi.fn(),
 }));
 
+// The chip reads the Downloads schedule on its own; here only its placement matters.
+vi.mock('../AutoDownloadChip/AutoDownloadChip', () => ({
+  /** Stands in for the scheduled-download chip. */
+  AutoDownloadChip: () => <span data-testid="auto-download-chip" />,
+}));
+
 /** The mocked `useDailyBoard` hook the board renders from. */
 const mockedUseDailyBoard = vi.mocked(useDailyBoard);
 /** The view model `useDailyBoard` returns. */
 type HookReturn = ReturnType<typeof useDailyBoard>;
 
 /** The Sin ver section heading. */
-const SIN_VER_HEADING = 'Sin ver — pick what you watch today';
+const SIN_VER_HEADING = 'Sin ver';
 /** The Ver hoy section heading. */
-const VER_HOY_HEADING = 'Ver hoy — watching (drains as you watch)';
+const VER_HOY_HEADING = 'Ver hoy';
 /** The Visto section heading. */
-const VISTO_HEADING = 'Visto — watched, ready for evaluation';
+const VISTO_HEADING = 'Visto';
 
 /** Builds a created season row in the given section. */
 function created(id: string, animeId: string, section: string, sectionOrder = 0): SeasonAnimeRow {
@@ -55,6 +61,9 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     downloadNotice: null,
     onDownloadNow: vi.fn(),
     onDismissNotice: vi.fn(),
+    verHoySelected: new Set<string>(),
+    toggleVerHoySelect: vi.fn(),
+    onDownloadSelected: vi.fn(),
     onRecheck: vi.fn(),
     onOpenPage: vi.fn(),
     errorMessage: undefined,
@@ -76,7 +85,7 @@ describe('DailyBoard', () => {
   it('renders the Sin ver pool with checkbox labels', () => {
     mockHook({ sections: { sinVer: [created('a', 'anime-a', 'Sin ver')], verHoy: [], visto: [] } });
     render(<DailyBoard />);
-    expect(screen.getByText('Sin ver — pick what you watch today')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: SIN_VER_HEADING })).toBeInTheDocument();
     expect(screen.getByText('A')).toBeInTheDocument();
   });
 
@@ -108,13 +117,20 @@ describe('DailyBoard', () => {
     expect(onSendAndDownload).toHaveBeenCalled();
   });
 
-  it('Download now on the Ver hoy card starts the season download', () => {
+  it('Download now on the Ver hoy card downloads the checked animes, not the whole scheduled check', () => {
     const onDownloadNow = vi.fn();
-    mockHook({ sections: { sinVer: [], verHoy: [created('b', 'anime-b', 'Ver hoy')], visto: [] }, onDownloadNow });
+    const onDownloadSelected = vi.fn();
+    mockHook({
+      sections: { sinVer: [], verHoy: [created('b', 'anime-b', 'Ver hoy')], visto: [] },
+      verHoySelected: new Set(['anime-b']),
+      onDownloadNow,
+      onDownloadSelected,
+    });
     render(<DailyBoard />);
     const card = screen.getByRole('list', { name: 'Ver hoy' }).closest('[data-slot="card"]') as HTMLElement;
     fireEvent.click(within(card).getByRole('button', { name: 'Download now' }));
-    expect(onDownloadNow).toHaveBeenCalled();
+    expect(onDownloadSelected).toHaveBeenCalled();
+    expect(onDownloadNow).not.toHaveBeenCalled();
   });
 
   it('renders every Ver hoy row in board order with its count and scheduled-day chip', () => {
@@ -122,8 +138,8 @@ describe('DailyBoard', () => {
     render(<DailyBoard />);
     const items = within(screen.getByRole('list', { name: 'Ver hoy' })).getAllByRole('listitem');
     expect(items.map((item) => item.textContent)).toEqual(['B', 'EJueves - 3']);
-    // Elements per row: the cover thumb and the name, plus the chip only when a day is scheduled.
-    expect(items.map((item) => item.children.length)).toEqual([2, 3]);
+    // Elements per row: the checkbox, the cover thumb and the name, plus the chip only when a day is scheduled.
+    expect(items.map((item) => item.children.length)).toEqual([3, 4]);
     expect(within(items[1]).getByText('E')).toHaveAttribute('title', 'E');
     expect(screen.getByRole('heading', { level: 3, name: VER_HOY_HEADING }).parentElement).toHaveTextContent(`${VER_HOY_HEADING}2`);
   });
@@ -163,6 +179,21 @@ describe('DailyBoard', () => {
     expect(screen.getByRole('button', { name: 'Re-check now' })).toBeInTheDocument();
   });
 
+  it.each([
+    [false, ['Ver hoy']],
+    [true, []],
+  ])('puts the scheduled-download chip in the Ver hoy header only, when read-only is %s', (readOnly, expected) => {
+    mockHook({
+      readOnly,
+      sections: { sinVer: [created('a', 'anime-a', 'Sin ver')], verHoy: [created('b', 'anime-b', 'Ver hoy')], visto: [created('c', 'anime-c', 'Visto')] },
+    });
+    const { container } = render(<DailyBoard />);
+    const headersWithChip = [...container.querySelectorAll('[data-slot="card-header"]')]
+      .filter((header) => header.querySelector('[data-testid="auto-download-chip"]') !== null)
+      .map((header) => header.querySelector('h3')?.textContent);
+    expect(headersWithChip).toEqual(expected);
+  });
+
   it('shows all three cards in a read-only season, each empty one with its compact empty state', () => {
     mockHook({ readOnly: true });
     const { container } = render(<DailyBoard />);
@@ -176,7 +207,7 @@ describe('DailyBoard', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('renders every section as one card pattern: title, count chip, description, then content', () => {
+  it('renders every section as one card pattern: title and count chip, no description, then content', () => {
     mockHook({
       readOnly: true,
       sections: { sinVer: [created('a', 'anime-a', 'Sin ver')], verHoy: [created('b', 'anime-b', 'Ver hoy')], visto: [created('c', 'anime-c', 'Visto')] },
@@ -190,9 +221,9 @@ describe('DailyBoard', () => {
         card.querySelector('[data-slot="card-content"] ul')?.getAttribute('aria-label'),
       ]),
     ).toEqual([
-      [`${SIN_VER_HEADING}1`, true, 'Sin ver'],
-      [`${VER_HOY_HEADING}1`, true, 'Ver hoy'],
-      [`${VISTO_HEADING}1`, true, 'Visto'],
+      [`${SIN_VER_HEADING}1`, false, 'Sin ver'],
+      [`${VER_HOY_HEADING}1`, false, 'Ver hoy'],
+      [`${VISTO_HEADING}1`, false, 'Visto'],
     ]);
   });
 

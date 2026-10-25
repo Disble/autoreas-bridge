@@ -1,32 +1,38 @@
+import { toast } from '@heroui/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import type { UIEvent } from 'react';
 import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
 import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import { isNearListBottom } from '../../../../shared/helpers/progressive-list.helpers';
+import { openInDefaultBrowser } from '../../../../shared/helpers/url.helpers';
 import { connectDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
 import { useDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store/download-runtime-store';
 import { RUN_HISTORY_PAGE_SIZE } from './run-history-panel.constants';
-import { findRunningRunId, getNextVisibleRunCount, readRequestedRunId, reconcileVisibleRunCount, toRunHistoryPanelViewModel } from './run-history-panel.helpers';
+import { getNextVisibleRunCount, readRequestedRunId, reconcileVisibleRunCount, toRunHistoryPanelViewModel, withLoadOutcome } from './run-history-panel.helpers';
+import type { RunHistoryPanelPorts } from './run-history-panel.types';
+import { useRunHistoryDetail } from './use-run-history-detail';
+import { useRunHistoryStop } from './use-run-history-stop';
 
 /**
- * useRunHistoryPanel loads the download run history and exposes a
- * `selectRun` action for the master/detail UI: the detail pane (including
- * any `manualLinks` for `jd_offline` runs) is resolved purely from the
- * loaded run list, with no extra round-trip per selection.
+ * useRunHistoryPanel loads the download run history and exposes the
+ * master/detail actions: selection, the Problems filter, Stop, copy and
+ * "Edit anime". The selected run's per-anime breakdown and its covers come
+ * from `useRunHistoryDetail`; the Stop control's state from
+ * `useRunHistoryStop`.
  */
-export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRuntimeSource) {
+export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRuntimeSource, ports: RunHistoryPanelPorts = {}) {
   // 1. Refs
   const previousRunCountRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // 2. State
   const [visibleCount, setVisibleCount] = useState(RUN_HISTORY_PAGE_SIZE);
-  const [cancelErrorMessage, setCancelErrorMessage] = useState<string | undefined>(undefined);
-  const [stopRequestedRunId, setStopRequestedRunId] = useState<string | undefined>(undefined);
+  const [problemsOnly, setProblemsOnly] = useState(false);
 
   // 3. Context/3rd Party Hooks
   const { search } = useLocation();
+  const navigate = useNavigate();
   const runs = useDownloadRuntimeStore((state) => state.runHistory);
   const hasLoaded = useDownloadRuntimeStore((state) => state.runHistoryHasLoaded);
   const errorMessage = useDownloadRuntimeStore((state) => state.runHistoryErrorMessage);
@@ -36,26 +42,34 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
   // 4. Queries/Mutations
 
   // 5. Derived State (useMemo)
+  const listViewModel = toRunHistoryPanelViewModel(runs, selectedRunId, visibleCount, problemsOnly);
+  const { detail, covers } = useRunHistoryDetail(listViewModel.selectedRun, ports);
+  const { cancelRun, isStopping, cancelErrorMessage } = useRunHistoryStop(listViewModel.runningRunId, source);
+  const requestedRunId = readRequestedRunId(search);
 
   // 6. Callbacks (useCallback calling pure helpers)
   const selectRun = useCallback((runId: string) => {
     storeSelectRun(runId);
   }, [storeSelectRun]);
 
-  // The stopped run finalizes its own terminal row and the run-event stream
-  // refreshes the list, so there is nothing to optimistically patch here: only a
-  // refusal needs surfacing. The requested run id is remembered so the control can
-  // stay busy until that exact run ends, and is released on refusal so a rejected
-  // stop can never leave the button stuck.
-  const cancelRun = useCallback(async () => {
-    setCancelErrorMessage(undefined);
-    setStopRequestedRunId(findRunningRunId(runs));
-    const result = await source.cancelDownloadRun();
-    if (result !== 'ok') {
-      setStopRequestedRunId(undefined);
-      setCancelErrorMessage(result);
-    }
-  }, [runs, source]);
+  const toggleProblems = useCallback(() => {
+    setProblemsOnly((current) => !current);
+  }, []);
+
+  const copyText = useCallback((text: string, confirmation: string) => {
+    void navigator.clipboard
+      .writeText(text)
+      .then(() => toast.success(confirmation))
+      .catch(() => undefined);
+  }, []);
+
+  const openLink = useCallback((url: string) => {
+    openInDefaultBrowser(url);
+  }, []);
+
+  const editAnime = useCallback((animeId: string) => {
+    void navigate(`/editor/${animeId}`);
+  }, [navigate]);
 
   const loadMore = useCallback(() => {
     setVisibleCount((currentVisibleCount) => getNextVisibleRunCount(currentVisibleCount, runs.length));
@@ -88,7 +102,6 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
   // history refresh would fight the user's own clicks for the rest of the
   // session, and the panel already falls back to the newest run when the id
   // names nothing it holds.
-  const requestedRunId = readRequestedRunId(search);
   useEffect(() => {
     if (requestedRunId !== undefined) {
       storeSelectRun(requestedRunId);
@@ -102,25 +115,7 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
     previousRunCountRef.current = runs.length;
   }, [runs, selectedRunId]);
 
-  // A stop stays pending only while the run it was requested for is still running.
-  // Deriving it this way means the terminal row that ends the run also ends the
-  // pending state, so there is no flag to reset and no way to get stuck.
-  const listViewModel = toRunHistoryPanelViewModel(runs, selectedRunId, visibleCount);
-  const baseViewModel = {
-    ...listViewModel,
-    isStopping: stopRequestedRunId !== undefined && stopRequestedRunId === listViewModel.runningRunId,
-  };
-  let viewModel = baseViewModel;
-
-  if (errorMessage !== undefined) {
-    viewModel = { ...baseViewModel, status: 'error' as const, errorMessage };
-  } else if (!hasLoaded) {
-    viewModel = { ...baseViewModel, status: 'loading' as const };
-  } else if (cancelErrorMessage !== undefined) {
-    // A refused stop does not invalidate the history that loaded fine, so the
-    // list stays readable and only the message is added.
-    viewModel = { ...baseViewModel, errorMessage: cancelErrorMessage };
-  }
+  const viewModel = withLoadOutcome({ ...listViewModel, detail, covers, isStopping }, { hasLoaded, errorMessage, cancelErrorMessage });
 
   return {
     viewModel,
@@ -129,5 +124,9 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
     selectRun,
     scrollRef,
     onScroll,
+    toggleProblems,
+    copyText,
+    editAnime,
+    openLink,
   };
 }

@@ -7,53 +7,9 @@ import (
 	"testing"
 
 	"autoreas-bridge/internal/api/contracts"
-	"autoreas-bridge/internal/download/filesystem"
 	"autoreas-bridge/internal/download/sites"
 	"autoreas-bridge/internal/logger"
 )
-
-// renameCall records one RenameLatestEpisode invocation so tests can assert on
-// the canonical name and episode number the pipeline passed down.
-type renameCall struct {
-	folder    string
-	canonical string
-	episode   int
-}
-
-// svcFakeRenamer records rename requests and can be made to fail, so tests can
-// prove a rename failure never costs the run.
-type svcFakeRenamer struct {
-	mu      sync.Mutex
-	calls   []renameCall
-	err     error
-	onCall  func()
-	renamed string
-}
-
-func (f *svcFakeRenamer) RenameLatestEpisode(folder, canonicalName string, episode int) (string, error) {
-	f.mu.Lock()
-	f.calls = append(f.calls, renameCall{folder: folder, canonical: canonicalName, episode: episode})
-	onCall := f.onCall
-	err := f.err
-	renamed := f.renamed
-	f.mu.Unlock()
-	if onCall != nil {
-		onCall()
-	}
-	if err != nil {
-		return "", err
-	}
-	return renamed, nil
-}
-
-// recorded returns a copy of the rename requests seen so far.
-func (f *svcFakeRenamer) recorded() []renameCall {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return append([]renameCall(nil), f.calls...)
-}
-
-var _ filesystem.Renamer = (*svcFakeRenamer)(nil)
 
 // renameEventRecorder counts structured log events by event type, so a test can
 // assert on which outcome the pipeline actually reported.
@@ -117,7 +73,6 @@ func renameScenario(t *testing.T) (ServiceDeps, string) {
 	}}}
 	counter := newCatchupCounter(map[string]int{folder: 0})
 	deps.Counter = counter
-	deps.Flattener = &svcFakeFlattener{onFlatten: func(f string) { counter.Flatten(f) }}
 	deps.JD = &recordingCatchupJD{counter: counter}
 	return deps, folder
 }
@@ -158,15 +113,14 @@ func TestRunOnceDoesNotRenameWhenTheSettingIsDisabled(t *testing.T) {
 	t.Parallel()
 
 	deps, _ := renameScenario(t)
-	fake := &svcFakeRenamer{renamed: "renamed.mp4"}
-	deps.Renamer = fake
+	jd := deps.JD.(*recordingCatchupJD)
 	deps.RenameEpisodes = func(context.Context) bool { return false }
 
 	if _, err := NewService(deps).RunOnce(context.Background(), "manual"); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 
-	if got := fake.recorded(); len(got) != 0 {
+	if got := jd.recordedRenames(); len(got) != 0 {
 		t.Fatalf("rename calls = %#v, want none while the setting is off", got)
 	}
 }
@@ -210,57 +164,6 @@ func TestRunOnceReportsSuccessWhenRenamingFails(t *testing.T) {
 	}
 }
 
-// The rename is delegated to JDownloader, and JD can only rename a file whose path it
-// still knows -- so it MUST happen before the Flattener moves that file to the folder
-// root. This is the reverse of the original filesystem-only pipeline.
-//
-// "A flatten happened after this rename" is too weak an assertion to prove the order:
-// flattens keep happening for later episodes, so a flatten follows every rename under
-// either ordering. What pins it is HOW MANY flattens have happened at rename time --
-// one fewer per episode than the flatten-first pipeline recorded.
-func TestRunOnceRenamesBeforeTheEpisodeIsFlattenedToTheFolderRoot(t *testing.T) {
-	t.Parallel()
-
-	deps, _ := renameScenario(t)
-	var mu sync.Mutex
-	flattens := 0
-	var flattensAtRename []int
-	counter := deps.Counter.(*catchupCounter)
-	deps.Flattener = &svcFakeFlattener{onFlatten: func(f string) {
-		mu.Lock()
-		flattens++
-		mu.Unlock()
-		counter.Flatten(f)
-	}}
-	deps.JD.(*recordingCatchupJD).onRename = func() {
-		mu.Lock()
-		flattensAtRename = append(flattensAtRename, flattens)
-		mu.Unlock()
-	}
-	deps.RenameEpisodes = func(context.Context) bool { return true }
-
-	if _, err := NewService(deps).RunOnce(context.Background(), "manual"); err != nil {
-		t.Fatalf("run: %v", err)
-	}
-
-	mu.Lock()
-	defer mu.Unlock()
-	if len(flattensAtRename) != 3 {
-		t.Fatalf("renames = %d, want 3 (flatten counts %v)", len(flattensAtRename), flattensAtRename)
-	}
-	// One fewer flatten per episode than the old flatten-first pipeline saw ({3,5,7}),
-	// because completeDownloadedEpisode's own flatten now runs AFTER the rename. The
-	// exact tally is the assertion on purpose: any looser bound -- "at least N",
-	// "followed by a flatten" -- passes for both orders and proves nothing. If a
-	// flatten call site is ever added or removed, this test must fail so the ordering
-	// gets re-verified rather than silently re-baselined.
-	for i, want := range []int{2, 4, 6} {
-		if flattensAtRename[i] != want {
-			t.Fatalf("episode %d renamed after %d flattens, want %d (counts %v)", i+1, flattensAtRename[i], want, flattensAtRename)
-		}
-	}
-}
-
 // Production wiring can leave the JD seam nil; with the rename now delegated to
 // JDownloader that is the seam which must degrade to "do not rename", never to a panic.
 //
@@ -286,15 +189,14 @@ func TestRunOnceDoesNotRenameWhenTheSeamIsUnset(t *testing.T) {
 	t.Parallel()
 
 	deps, _ := renameScenario(t)
-	fake := &svcFakeRenamer{renamed: "renamed.mp4"}
-	deps.Renamer = fake
+	jd := deps.JD.(*recordingCatchupJD)
 	deps.RenameEpisodes = nil
 
 	if _, err := NewService(deps).RunOnce(context.Background(), "manual"); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 
-	if got := fake.recorded(); len(got) != 0 {
+	if got := jd.recordedRenames(); len(got) != 0 {
 		t.Fatalf("rename calls = %#v, want none when the seam is unset", got)
 	}
 }

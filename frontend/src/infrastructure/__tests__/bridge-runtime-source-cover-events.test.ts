@@ -8,9 +8,11 @@ describe('bridge-runtime-source cover and events', () => {
     const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const source = createBridgeRuntimeSource();
     const coverPromise = source.getAnimeCover?.('anime-1');
+    const previewPromise = source.previewAnimeCover?.('D:/Anime/cover.jpg');
     const countsPromise = source.getEpisodeDayCounts?.();
     await vi.advanceTimersByTimeAsync(5000);
     await expect(coverPromise).resolves.toEqual({ source: 'placeholder' });
+    await expect(previewPromise).resolves.toEqual({ source: 'placeholder' });
     await expect(countsPromise).resolves.toEqual([]);
   });
 
@@ -42,11 +44,15 @@ describe('bridge-runtime-source cover and events', () => {
     const source = createBridgeRuntimeSource();
     const getAnimeCover = vi.fn().mockResolvedValue({ dataUrl: 'data:image/jpeg;base64,abc', source: 'cover' });
     const getEpisodeDayCounts = vi.fn().mockResolvedValue([{ count: 2, day: 'Lunes' }]);
+    const previewAnimeCover = vi.fn().mockResolvedValue({ dataUrl: 'data:image/jpeg;base64,draft', source: 'cover' });
     const coverPromise = source.getAnimeCover?.('anime-1');
+    const previewPromise = source.previewAnimeCover?.('D:/Anime/cover.jpg');
     const countsPromise = source.getEpisodeDayCounts?.();
-    window.go = { desktop: { App: { GetAnimeCover: getAnimeCover, GetEpisodeDayCounts: getEpisodeDayCounts } } } as never;
+    window.go = { desktop: { App: { GetAnimeCover: getAnimeCover, PreviewAnimeCover: previewAnimeCover, GetEpisodeDayCounts: getEpisodeDayCounts } } } as never;
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
     await expect(coverPromise).resolves.toEqual({ dataUrl: 'data:image/jpeg;base64,abc', source: 'cover' });
+    await expect(previewPromise).resolves.toEqual({ dataUrl: 'data:image/jpeg;base64,draft', source: 'cover' });
+    expect(previewAnimeCover).toHaveBeenCalledExactlyOnceWith('D:/Anime/cover.jpg');
     await expect(countsPromise).resolves.toEqual([{ count: 2, day: 'Lunes' }]);
   });
 

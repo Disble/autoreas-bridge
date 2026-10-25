@@ -51,7 +51,7 @@ func TestRunOnceIsolatesPerAnimeFailureAndMarksRunPartial(t *testing.T) {
 		Folder:    new(t.TempDir()),
 	}}}
 
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{okFolder: 4}, recursive: map[string]int{okFolder: 5}})
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{okFolder: 4}, landing: map[string]int{okFolder: 5}})
 
 	svc := NewService(deps)
 	result, err := svc.RunOnce(context.Background(), "manual")
@@ -116,8 +116,8 @@ func TestRunOnceRunPartialNotificationNamesEveryAnimeItTouched(t *testing.T) {
 		{ID: "anime-current-2", Name: "Current Anime Two", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: new("https://jkanime.net/current-two/"), Folder: new(currentTwoFolder)},
 	}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{
-		atRoot:    map[string]int{okOneFolder: 4, okTwoFolder: 4, currentOneFolder: 3, currentTwoFolder: 3},
-		recursive: map[string]int{okOneFolder: 5, okTwoFolder: 5, currentOneFolder: 3, currentTwoFolder: 3},
+		atRoot:  map[string]int{okOneFolder: 4, okTwoFolder: 4, currentOneFolder: 3, currentTwoFolder: 3},
+		landing: map[string]int{okOneFolder: 5, okTwoFolder: 5, currentOneFolder: 3, currentTwoFolder: 3},
 	})
 	notifier := &svcFakeNotifier{}
 	deps.Notifier = notifier

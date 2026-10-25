@@ -1,0 +1,39 @@
+import type { ActivityChartBarState } from '../../feed/activity-feed.types';
+
+/** Fill of a bar by selection state: blue activity, full accent inside a selection, faded outside it. */
+export const ACTIVITY_BAR_FILL_CLASS: Readonly<Record<ActivityChartBarState, string>> = {
+  idle: 'bg-[color-mix(in_oklab,var(--accent)_75%,var(--background))]',
+  selected: 'bg-accent',
+  dimmed: 'bg-[color-mix(in_oklab,var(--accent)_75%,var(--background))] opacity-35',
+};
+
+/** The slot behind a bar by selection state: a selected slot is tinted across its full height. */
+export const ACTIVITY_BAR_SLOT_CLASS: Readonly<Record<ActivityChartBarState, string>> = {
+  idle: 'hover:bg-default',
+  selected: 'bg-accent/15',
+  dimmed: 'hover:bg-default',
+};
+
+/** Bar geometry by density: 4px apart with 6px corners, or 2px apart with 3px corners past 24 bars. */
+export const ACTIVITY_CHART_DENSITY_CLASS = {
+  bars: { sparse: 'gap-1', dense: 'gap-0.5' },
+  bar: { sparse: 'rounded-md', dense: 'rounded-[3px]' },
+  fill: { sparse: 'rounded-[5px]', dense: 'rounded-[3px]' },
+  tick: { sparse: 'text-center', dense: 'text-left' },
+  // The newest dense tick ("Today") ends at its bar instead of running past the chart.
+  nowTick: { sparse: 'text-center', dense: 'flex justify-end' },
+} as const;
+
+/** Screen-reader label of the chart's loading region. */
+export const ACTIVITY_CHART_LOADING_LABEL = 'Loading the activity chart';
+
+/**
+ * A slot with no lines (mockup `.ax-bar.off .fill`): full height, muted
+ * diagonal hatching and a dashed outline, so a gap reads as a gap rather than
+ * as a short bar.
+ */
+export const ACTIVITY_BAR_GAP_CLASS =
+  'bg-[repeating-linear-gradient(-45deg,transparent_0_5px,color-mix(in_oklab,var(--muted)_22%,transparent)_5px_6px)] outline-1 outline-dashed outline-offset-[-1px] outline-[color-mix(in_oklab,var(--muted)_45%,transparent)]';
+
+/** The legend swatch for a gap (mockup `.ax-legend` "Bridge off" swatch). */
+export const ACTIVITY_LEGEND_GAP_CLASS = 'outline-1 outline-dashed outline-offset-[-1px] outline-muted';

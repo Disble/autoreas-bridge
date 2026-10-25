@@ -5,6 +5,11 @@ import {
   ANIME_SCHEDULE_CARD_DESCRIPTION,
   ANIME_SCHEDULE_CARD_OPEN_LABEL,
   ANIME_SCHEDULE_CARD_TITLE,
+  ANIME_SCHEDULE_ROW_GRID_CLASS,
+  ANIME_SCHEDULE_SEASON_CAPTION,
+  ANIME_SCHEDULE_SEASON_LABEL,
+  ANIME_SCHEDULE_SEASON_SKELETON_COUNT,
+  ANIME_SCHEDULE_WEEK_CAPTION,
   ANIME_SCHEDULE_WEEK_CELL_CLASS,
   ANIME_SCHEDULE_WEEK_FAILED_TITLE,
   ANIME_SCHEDULE_WEEK_LABEL,
@@ -12,12 +17,13 @@ import {
   ANIME_SCHEDULE_WEEK_SKELETON_COUNT,
 } from './anime-schedule-card.constants';
 import type { AnimeScheduleCardProps } from './anime-schedule-card.types';
+import { AnimeScheduleDayRow } from './AnimeScheduleDayRow';
 
 /**
- * Renders the Editor's Schedule card (S16): its primary "Open schedule editor" button
- * and a seven-day week strip. A day the anime airs is tinted and shows its
- * place, the number strong and "of M" muted on one line; other days are dimmed
- * with the day name only. Loading, failure and the strip never coexist.
+ * Renders the Editor's Schedule card (S16): its primary "Open schedule editor" button,
+ * a seven-day week strip and, below it on the same grid, the season row (Sin
+ * ver, Ver hoy, Visto) whatever the season mode, so a history anime still
+ * shows the section it was left in. Loading, failure and the rows never coexist.
  */
 export function AnimeScheduleCard({ week, onOpenSchedule }: Readonly<AnimeScheduleCardProps>) {
   if (week.status === 'idle') return null;
@@ -37,9 +43,16 @@ export function AnimeScheduleCard({ week, onOpenSchedule }: Readonly<AnimeSchedu
         {week.status === 'loading' ? (
           <div aria-labelledby="anime-schedule-week-loading-label" aria-live="polite" role="status">
             <span className="sr-only" id="anime-schedule-week-loading-label">{ANIME_SCHEDULE_WEEK_LOADING_LABEL}</span>
-            <div className="grid grid-cols-7 gap-2">
-              {Array.from({ length: ANIME_SCHEDULE_WEEK_SKELETON_COUNT }, (_unused, index) => (
-                <Skeleton className={ANIME_SCHEDULE_WEEK_CELL_CLASS} data-testid="anime-schedule-week-skeleton" key={index} />
+            <div className="flex min-w-0 flex-col gap-3">
+              {[ANIME_SCHEDULE_WEEK_SKELETON_COUNT, ANIME_SCHEDULE_SEASON_SKELETON_COUNT].map((count) => (
+                <div className="flex min-w-0 flex-col gap-1.5" key={count}>
+                  <Skeleton className="h-4 w-16 rounded-md" />
+                  <div className={ANIME_SCHEDULE_ROW_GRID_CLASS}>
+                    {Array.from({ length: count }, (_unused, index) => (
+                      <Skeleton className={ANIME_SCHEDULE_WEEK_CELL_CLASS} data-testid="anime-schedule-week-skeleton" key={index} />
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </div>
@@ -54,16 +67,12 @@ export function AnimeScheduleCard({ week, onOpenSchedule }: Readonly<AnimeSchedu
           </Alert>
         ) : null}
         {week.status === 'ready' ? (
-          <ol aria-label={ANIME_SCHEDULE_WEEK_LABEL} className="grid grid-cols-7 gap-2">
-            {week.days.map((day) => (
-              <li aria-label={day.ariaLabel} className={`${ANIME_SCHEDULE_WEEK_CELL_CLASS} ${day.position === undefined ? 'bg-default/40' : 'bg-accent/10'}`} key={day.id}>
-                <span className={`truncate text-sm font-semibold ${day.position === undefined ? 'text-muted' : 'text-foreground'}`}>{day.label}</span>
-                {day.position === undefined ? null : (
-                  <span className="whitespace-nowrap text-sm text-muted"><strong className="text-lg text-foreground">{day.position.order}</strong> of {day.position.total}</span>
-                )}
-              </li>
-            ))}
-          </ol>
+          <div className="flex min-w-0 flex-col gap-3">
+            <AnimeScheduleDayRow caption={ANIME_SCHEDULE_WEEK_CAPTION} days={week.days} listLabel={ANIME_SCHEDULE_WEEK_LABEL} />
+            {week.seasonDays.length === 0 ? null : (
+              <AnimeScheduleDayRow caption={ANIME_SCHEDULE_SEASON_CAPTION} days={week.seasonDays} listLabel={ANIME_SCHEDULE_SEASON_LABEL} />
+            )}
+          </div>
         ) : null}
       </Card.Content>
     </Card>

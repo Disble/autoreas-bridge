@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	sharedlogger "autoreas-bridge/internal/logger"
 )
 
 // searchResultPattern matches one result's title + anime page URL in the
@@ -34,20 +36,21 @@ type SearchResult struct {
 type Searcher struct {
 	client *http.Client
 	hosts  hostChain
+	log    sharedlogger.Logger
 }
 
-// NewSearcher returns a Searcher using the given HTTP client.
-func NewSearcher(client *http.Client) *Searcher {
-	return newSearcherWithBaseURL(client, defaultBaseURLs...)
+// NewSearcher returns a Searcher using the given HTTP client; every host switch is written to log.
+func NewSearcher(client *http.Client, log sharedlogger.Logger) *Searcher {
+	return newSearcherWithBaseURL(client, log, defaultBaseURLs...)
 }
 
 // newSearcherWithBaseURL is the test seam: it lets tests point the host chain
 // at httptest.Servers while exercising the real extraction path.
-func newSearcherWithBaseURL(client *http.Client, baseURLs ...string) *Searcher {
+func newSearcherWithBaseURL(client *http.Client, log sharedlogger.Logger, baseURLs ...string) *Searcher {
 	if client == nil {
 		client = http.DefaultClient
 	}
-	return &Searcher{client: client, hosts: newHostChain(baseURLs)}
+	return &Searcher{client: client, hosts: newHostChain(baseURLs), log: log}
 }
 
 // searchQuerySeparator replaces a name's own path separator before the query is
@@ -75,7 +78,7 @@ func toSearchQuery(query string) string {
 // never depends on which host answered.
 func (s *Searcher) Search(ctx context.Context, query string) (results []SearchResult, err error) {
 	path := "/buscar/" + url.PathEscape(toSearchQuery(query)) + "/"
-	err = s.hosts.try(s.hosts[0]+path, func(_, searchURL string) (err error) {
+	err = s.hosts.try(s.hosts[0]+path, s.log, func(_, searchURL string) (err error) {
 		results, err = s.searchOn(ctx, query, searchURL)
 		return err
 	})
