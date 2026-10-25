@@ -154,7 +154,7 @@ func foldRequests(requests []windowRequest, triggerID string) []FoldedRequest {
 // windowEvents reads the non-noise runtime events inside a window, oldest first.
 func (r *Reader) windowEvents(ctx context.Context, fromMS, toMS int64) ([]EventSummary, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT id, occurred_at_ms, domain, level, COALESCE(event_type, ''), message,
-		COALESCE(correlation_id, ''), COALESCE(entity_id, '') FROM runtime_events
+		COALESCE(correlation_id, '') FROM runtime_events
 		WHERE occurred_at_ms >= ? AND occurred_at_ms <= ? AND `+noiseFilter+`
 		ORDER BY occurred_at_ms, id LIMIT ?`, fromMS, toMS, windowRowLimit)
 	if err != nil {
@@ -164,7 +164,7 @@ func (r *Reader) windowEvents(ctx context.Context, fromMS, toMS int64) ([]EventS
 	var events []EventSummary
 	for rows.Next() {
 		var e EventSummary
-		if err := rows.Scan(&e.ID, &e.AtMS, &e.Domain, &e.Level, &e.EventType, &e.Message, &e.CorrelationID, &e.EntityID); err != nil {
+		if err := rows.Scan(&e.ID, &e.AtMS, &e.Domain, &e.Level, &e.EventType, &e.Message, &e.CorrelationID); err != nil {
 			return nil, fmt.Errorf("activityread: scan window event: %w", err)
 		}
 		events = append(events, e)

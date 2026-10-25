@@ -37,7 +37,7 @@ function goIncidentDetail(overrides: Record<string, unknown> = {}): Record<strin
       },
       { RouteTemplate: '/ws', HTTPStatus: null, Count: 1, FirstAtMS: 900_000, LastAtMS: 900_000, LatestRequestID: 'ws-1', Kind: 'ws', Outcome: 'opened', MaxDurationMS: null, ContainsTrigger: false },
     ],
-    Events: [{ ID: 7, AtMS: 995_000, Domain: 'sync', Level: 'error', EventType: 'sync.failed', Message: 'm', CorrelationID: 'c-1', EntityID: '' }],
+    Events: [{ ID: 7, AtMS: 995_000, Domain: 'sync', Level: 'error', EventType: 'sync.failed', Message: 'm', CorrelationID: 'c-1' }],
     PhoneReports: [
       { ID: 3, AtMS: 999_000, PhoneAtMS: 998_000, DeviceID: 'd-1', Kind: 'cycle_report', Outcome: 'failed' },
       { ID: 4, AtMS: 999_500, PhoneAtMS: null, DeviceID: 'd-1', Kind: 'episode_action', Outcome: '' },
@@ -91,7 +91,7 @@ describe('activity-incident.helpers', () => {
           containsTrigger: false,
         },
       ],
-      events: [{ id: 7, atMs: 995_000, domain: 'sync', level: 'error', eventType: 'sync.failed', message: 'm', correlationId: 'c-1', entityId: undefined }],
+      events: [{ id: 7, atMs: 995_000, domain: 'sync', level: 'error', eventType: 'sync.failed', message: 'm', correlationId: 'c-1' }],
       phoneReports: [
         { id: 3, atMs: 999_000, phoneAtMs: 998_000, deviceId: 'd-1', kind: 'cycle_report', outcome: 'failed' },
         { id: 4, atMs: 999_500, phoneAtMs: undefined, deviceId: 'd-1', kind: 'episode_action', outcome: '' },

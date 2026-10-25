@@ -137,7 +137,7 @@ func TestIncidentDetailReadsItsWindow(t *testing.T) {
 		insertCapture(t, db, capture{id: "poll" + string(rune('a'+i)), kind: "get", route: "/api/status", atMS: at + offset, status: 200})
 	}
 	insertCapture(t, db, capture{id: "outside", kind: "get", route: "/api/status", atMS: at - 3*60_000, status: 200})
-	insertEvent(t, db, event{atMS: at - 1000, domain: "sync", level: "warn", message: "changelog read retried", entityID: "anime-3"})
+	insertEvent(t, db, event{atMS: at - 1000, domain: "sync", level: "warn", message: "changelog read retried"})
 	insertEvent(t, db, event{atMS: at - 500, domain: "sync", level: "info", message: "forwarded", eventType: "sync.reconcile"})
 	insertTelemetry(t, db, "obs-1", at+5000, at-20_000, `{"action":"episode_plus_one","outcome":"failed"}`)
 	fingerprint := "server_error|http|reconcile|500|list_changes_failed"
@@ -179,7 +179,7 @@ func assertDetailLanes(t *testing.T, detail IncidentDetail, at, first int64) {
 	if detail.Requests[0].Count+detail.Requests[1].Count != 4 {
 		t.Fatalf("the window holds 4 requests, the one 3 min before is outside: %+v", detail.Requests)
 	}
-	if len(detail.Events) != 1 || detail.Events[0].Message != "changelog read retried" || detail.Events[0].EntityID != "anime-3" {
+	if len(detail.Events) != 1 || detail.Events[0].Message != "changelog read retried" {
 		t.Fatalf("events = %+v, want the non-noise event only", detail.Events)
 	}
 	if len(detail.PhoneReports) != 1 || detail.PhoneReports[0].Outcome != "failed" || *detail.PhoneReports[0].PhoneAtMS != at-20_000 {

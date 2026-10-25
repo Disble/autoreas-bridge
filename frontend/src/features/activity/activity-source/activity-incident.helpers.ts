@@ -26,7 +26,7 @@ function mapFoldedRequest(row: activityread.FoldedRequest): ActivityFoldedReques
   };
 }
 
-/** Maps one runtime event summary; an empty entity id becomes undefined. */
+/** Maps one runtime event summary. */
 function mapEventSummary(event: activityread.EventSummary): ActivityEventSummary {
   return {
     id: event.ID,
@@ -36,7 +36,6 @@ function mapEventSummary(event: activityread.EventSummary): ActivityEventSummary
     eventType: event.EventType,
     message: event.Message,
     correlationId: event.CorrelationID,
-    entityId: event.EntityID === '' ? undefined : event.EntityID,
   };
 }
 
@@ -135,10 +134,11 @@ export function mapActivityRun(run: activityread.Run): ActivityRun {
   };
 }
 
-/** Maps one run step; Go flattens its embedded event summary. */
+/** Maps one run step; Go flattens its embedded event summary, and an empty entity id becomes undefined. */
 function mapRunStep(step: activityread.RunStep): ActivityRunStep {
   return {
     ...mapEventSummary(step),
+    entityId: step.EntityID === '' ? undefined : step.EntityID,
     durationMs: step.DurationMS ?? undefined,
     metadataJson: step.MetadataJSON,
   };
