@@ -14,6 +14,8 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [2.5.0] — 2026-10-25
+
 ### Added
 
 - While the app loads, a splash shows Airis running with popcorn instead of an empty window.
@@ -33,7 +35,8 @@ called out explicitly under its release.
 ### Changed
 
 - The Folder and cover fields in the Editor and in Create pick a path with an icon button instead of a "Browse…" text button. The folder icon is the same one Season Intake uses.
-
+- Downloads notice sooner that an episode started or arrived. For the first minute after an episode is sent to JDownloader, the folder is checked every 5 seconds instead of every 20, and an episode that is already in the folder counts at once.
+- Stopping a download run no longer abandons an episode JDownloader is already downloading. The run waits for that episode to arrive and be renamed, then stops. If that download hangs, the run can take up to 30 minutes to stop.
 - **Activity is now one screen.** The old Now, Incidents, History and Recorder tabs are gone. In their place:
   - a chart of the last 24 hours, 7, 30 or 90 days;
   - a feed of what happened, grouped by day;
@@ -51,6 +54,8 @@ called out explicitly under its release.
 
 ### Fixed
 
+- Downloads never move or delete your own files. A subfolder you keep inside an anime's folder, for example one with extras, stays untouched. Before, it could be moved into the anime folder and deleted.
+- An episode that finishes downloading after you press Stop is now renamed like any other. Before, it kept the name the hoster gave it.
 - Automatic downloads and the Season mode search work again while jkanime.net shows a Cloudflare check. The app now clears the check by itself in a hidden window, which can make the first request after a check appears 6 to 11 seconds slower. The jkanime mirrors are still used when the check cannot be cleared. Nothing needs to be installed or allowed.
 - The splash now reaches the window before the app finishes loading. Before, the window could stay empty until the app was ready.
 - In the Activity detail drawer, the arrow keys move focus along with the open row.
@@ -58,6 +63,7 @@ called out explicitly under its release.
 
 ### Internal
 
+- Architecture documentation moved to its own folder, `docs/architecture/`, with one folder per area and Mermaid diagrams. Downloads is the first area: an overview, the whole run as one decision tree, and the hoster attempt phases.
 - Every request to an anime provider goes through one shared HTTP client that clears Cloudflare checks (ADR-030). The architecture check enforces it.
 - MCP clients of `autoreas-request-mcp` get two additions: the `where` argument also accepts `providers`, and a new read-only tool `count_events` counts events by type, optionally grouped by one metadata key.
 - ADR-031 records how Activity gives every event a section, with System as the fallback.
