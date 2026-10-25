@@ -31,9 +31,11 @@ function capturePush(): (notification: AppNotification) => void {
 }
 
 describe('NotificationToasts', () => {
-  afterEach(() => {
+  afterEach(async () => {
     cleanup();
     appToastQueue.clear();
+    // HeroUI 3.2.6 keeps a closed toast queued for its exit animation; let it leave before the next test.
+    await vi.waitFor(() => expect(appToastQueue.visibleToasts).toHaveLength(0));
     vi.clearAllMocks();
   });
 

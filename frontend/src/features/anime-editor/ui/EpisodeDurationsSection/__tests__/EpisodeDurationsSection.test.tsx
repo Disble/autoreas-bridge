@@ -170,6 +170,28 @@ describe('EpisodeDurationsSection exclusive states', () => {
     expect(screen.getByRole('button', { name: 'Add episode' })).toBeInTheDocument();
   });
 
+  // Regression: react-stately below 3.49 reset a removed focused row with a `while` that never
+  // ended when every remaining row was disabled, which the loading skeleton rows are. The
+  // renderer froze at 100% CPU with no error. A focused row must survive the reload.
+  it('reloads into the skeleton and back after a row had focus, without freezing', async () => {
+    const getSection = vi.fn().mockResolvedValue(section());
+    const fake = createFakeSource(getSection);
+    const { rerender } = renderSection(fake, { totalEpisodes: '' });
+    expand();
+    const editButton = await screen.findByRole('button', { name: 'Edit episode 3 duration' });
+    const focusedRow = editButton.closest('[role="row"]') as HTMLElement;
+    act(() => focusedRow.focus());
+    expect(focusedRow).toHaveAttribute('data-focused');
+
+    const options: UseEpisodeDurationsSectionOptions = { animeId: 'anime-1', folder: 'D:/Anime/Oshi no Ko', totalEpisodes: '12', kind: '0' };
+    rerender(<Harness options={options} source={fake.source} />);
+
+    expect(screen.getAllByTestId('episode-durations-skeleton-row')).toHaveLength(EPISODE_DURATIONS_SKELETON_ROW_COUNT);
+    await waitFor(() => expect(getSection).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getAllByTestId('episode-durations-row')).toHaveLength(3));
+    expect(screen.queryAllByTestId('episode-durations-skeleton-row')).toHaveLength(0);
+  });
+
   it('shows the failure alert alone: no table, no skeleton, no mascot', async () => {
     renderSection(createFakeSource(vi.fn().mockResolvedValue(section({ outcome: 'error', message: 'disk gone' }))));
     expand();
