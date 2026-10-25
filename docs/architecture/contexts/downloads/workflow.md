@@ -7,6 +7,62 @@ The packages and ports the steps use are in `overview.md`.
 "Folder" means the anime's folder without its subfolders; "count" means the episode count at that
 folder root.
 
+## The whole tree
+
+Square boxes are steps, diamonds are decisions, rounded boxes are terminal outcomes. Dashed edges
+loop back. Sections 1–6 below expand each part.
+
+```mermaid
+flowchart TD
+    run([Run starts]) --> cfg{Folder set, or library root readable?}
+    cfg -- no --> xcfg([End of anime: configuration])
+    cfg -- yes --> ok{Anime downloadable?}
+    ok -- no --> skip([Skipped: unsupported_tipo / missing_pagina / missing_carpeta])
+    ok -- yes --> full{Folder holds the whole season?}
+    full -- yes --> upd1([Up to date: season_complete_on_disk])
+    full -- no --> list{Site lists a newer episode?}
+    list -- listing fails --> xlist([End of anime: hoster_down])
+    list -- no --> upd2([Up to date: no_new_episode])
+    list -- yes --> jd[Bring JD online]
+    jd --> more{Episodes still missing?}
+    more -- no --> done([Anime complete])
+    more -- yes --> stop1{Stop pressed?}
+    stop1 -- yes --> st1([Stopped: downloaded episodes stay])
+    stop1 -- no --> page{Episode page resolves?}
+    page -- no --> xpage([End of anime: hoster_down])
+    page -- yes --> links{Hoster links extracted?}
+    links -- no --> xlinks([End of anime: hoster_down])
+    links -- yes --> off{JD known offline?}
+    off -- yes --> manual([Manual links offered, end of anime])
+    off -- no --> next{Another hoster left?}
+    next -- no --> xall([End of anime: failed on every hoster])
+    next -- yes --> stop2{Stop pressed?}
+    stop2 -- yes --> st2([Stopped: cancelled_before_attempt])
+    stop2 -- no --> enq{JD accepts the enqueue?}
+    enq -- "no: enqueue_error" --> next
+    enq -- yes --> ahead{One more episode already?}
+
+    subgraph attempt [Hoster attempt — ignores Stop]
+        ahead -- no --> pre{JD pre-check: link dead?}
+        pre -- no --> grace{Every 5 s up to 60 s: one more episode?}
+        grace -- no --> part{"Any .part file?"}
+        part -. "no, probes left: wait 5 s" .-> grace
+        part -- "no, 60 s passed" --> ask{JD again: alive?}
+        part -- yes --> poll{Every 5 s up to 30 min: one more episode?}
+        ask -- yes --> poll
+        poll -. "not yet: wait 5 s" .-> poll
+    end
+
+    pre -- "yes: precheck_dead" --> next
+    ask -- "dead, silent or error: grace_*" --> next
+    poll -- "30 min: fs_poll_deadline" --> next
+    ahead -- "yes: disk_ahead_at_entry" --> landed[Episode downloaded]
+    grace -- "yes: grace_disk_confirmed" --> landed
+    poll -- "yes: fs_poll_confirmed" --> landed
+    landed --> ren[JD renames it in place, duration notice]
+    ren -. next episode .-> more
+```
+
 ## 1. The run
 
 `RunOnce`, `RunAnime` or `RunAnimes` (`service.go`, `service_scoped_runs.go`) opens a run row,

@@ -99,167 +99,63 @@ awaitHosterOutcome(destination, baselineCount, firstHoster):
 
 ## Sequence Diagram
 
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as Bridge (awaitHosterOutcome)
+    participant JD as JDownloader
+    participant FS as Folder on disk
+
+    B->>FS: Count episodes at the root
+    alt Count already above the baseline
+        B-->>B: SUCCESS (disk_ahead_at_entry)
+    end
+    B->>JD: PackageStatusByDestination (pre-check)
+    alt CrawlOfflineCount > 0
+        B->>JD: RemoveByDestination
+        B-->>B: DEAD (precheck_dead), next hoster
+    end
+
+    Note over B,FS: FASE 1 — grace, 12 probes every 5 s (60 s)
+    loop Each 5 s probe, until a signal or 60 s
+        B->>FS: One more episode at the root?
+        alt Yes
+            B-->>B: rename, SUCCESS (grace_disk_confirmed)
+        else No
+            B->>FS: Any .part file?
+            opt Yes
+                B-->>B: DownloadEpisodeDownloadingEvent, go to FASE 2
+            end
+        end
+    end
+
+    Note over B,JD: FASE 1B — 60 s with no signal
+    B->>JD: PackageStatusByDestination
+    alt Query fails or no package (first hoster)
+        B->>JD: RemoveByDestination
+        B-->>B: DEAD, next hoster
+    else Query fails or no package (fallback hoster)
+        B-->>B: TIMEOUT, next hoster
+    else Offline links
+        B->>JD: RemoveByDestination
+        B-->>B: DEAD (grace_classified_dead), next hoster
+    else Online or running
+        B-->>B: DownloadEpisodeDownloadingEvent, go to FASE 2
+    end
+
+    Note over B,FS: FASE 2 — completion poll every 5 s, 30 min cap
+    loop Each 5 s, until the episode lands or 30 min
+        B->>FS: One more episode at the root?
+        alt Yes
+            B->>JD: RenameEpisodeByDestination
+            B-->>B: SUCCESS (fs_poll_confirmed)
+        end
+    end
+    B-->>B: 30 min elapsed: TIMEOUT (fs_poll_deadline), next hoster
 ```
-┌────────┐                                 ┌─────────────┐      ┌────────────┐
-│ Bridge │                                 │ JDownloader │      │ Filesystem │
-└────┬───┘                                 └──────┬──────┘      └──────┬─────┘
-     │                                            │                    │
-     │  PackageStatusByDestination(destination)   │                    │
-     │────────────────────────────────────────────▶                    │
-     │                                            │                    │
- ┌alt [CrawlOfflineCount > 0]──────────────────────────────────────────────┐
- │   │                                            │                    │   │
- │   │             OfflineCount > 0               │                    │   │
- │   ◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│                    │   │
- │   │                                            │                    │   │
- │   │            RemoveByDestination             │                    │   │
- │   │────────────────────────────────────────────▶                    │   │
- │   │                                            │                    │   │
- │   ├╌╌╌┐                                        │                    │   │
- │   │   │ DEAD (sin esperar)                    │                    │   │
- │   ◀╌╌╌┘                                        │                    │   │
- └────────────────────────────────────────────────────────────────────────────┘
- │   │                                            │                    │   │
- ├[OnlineCount > 0 o sin respuesta]╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
- │   │                                            │                    │   │
- │   ├───┐                                        │                    │   │
- │   │   │ Estado: pending                        │                    │   │
- │   ◀───┘                                        │                    │   │
- │   │                                            │                    │   │
- │   │                 ═══════════════════════     │                    │   │
- │   │                 │ FASE 1 — 60s gracia │     │                    │   │
- │   │                 ═══════════════════════     │                    │   │
- │   │                                            │                    │   │
- │loop [i = 0..11, 12 intentos cada 5s]───────────────────────────────────│
- │   │                                            │                    │   │
- │   ├───┐                                        │                    │   │
- │   │   │ sleep 5s                               │                    │   │
- │   ◀───┘                                        │                    │   │
- │   │                                            │                    │   │
- │   │                 video nuevo? (>baselineCount)                   │   │
- │   │─────────────────────────────────────────────────────────────────▶   │
- │   │                                            │                    │   │
- │alt [video encontrado]───────────────────────────────────────────────────│
- │   │                                            │                    │   │
- │   │          SUCCESS (grace_disk_confirmed)    │                    │   │
- │   ◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│   │
- │   │                                            │                    │   │
- │[no hay video]╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│
- │   │                                            │                    │   │
- │   │                  hasPartFilesRecursive(folder)                  │   │
- │   │─────────────────────────────────────────────────────────────────▶   │
- │   │                                            │                    │   │
- │alt [.part encontrado]───────────────────────────────────────────────────│
- │   │                                            │                    │   │
- │   │                          .part existe      │                    │   │
- │   ◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│   │
- │   │                                            │                    │   │
- │   ├───┐                                        │                    │   │
- │   │   │ DownloadEpisodeDownloadingEvent        │                    │   │
- │   ◀───┘                                        │                    │   │
- │   │                                            │                    │   │
- │   ├───┐                                        │                    │   │
- │   │   │ Estado: downloading                    │                    │   │
- │   ◀───┘                                        │                    │   │
- │   │                                            │                    │   │
- │   ├─→ FASE 2                                   │                    │   │
- │   │                                            │                    │   │
- │[no .part]╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│
- │   │                                            │                    │   │
- │   │  ═══════════════════════════════════════    │                    │   │
- │   │  ═══ FASE 1B — Re-evaluación JD ═══════    │                    │   │
- │   │  ═══════════════════════════════════════    │                    │   │
- │   │                                            │                    │   │
- │   │  60s sin evidencia. Preguntamos a JD.      │                    │   │
- │   │                                            │                    │   │
- │   │  PackageStatusByDestination(destination)   │                    │   │
- │   │────────────────────────────────────────────▶   │                │   │
- │   │                                            │   │                │   │
- │alt [JD no responde]────────────────────────────────│                │   │
- │   │                                            │   │                │   │
- │   │                   error                    │   │                │   │
- │   ◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│   │                │   │
- │   │                                            │   │                │   │
- │alt [firstHoster]───────────────────────────────────│                │   │
- │   │                                            │   │                │   │
- │   │            RemoveByDestination             │   │                │   │
- │   │────────────────────────────────────────────▶   │                │   │
- │   │                                            │   │                │   │
- │   ├╌╌╌┐                                        │   │                │   │
- │   │   │ DEAD                                  │   │                │   │
- │   ◀╌╌╌┘                                        │   │                │   │
- │   │                                            │   │                │   │
- │[fallback]╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│                │   │
- │   │                                            │   │                │   │
- │   ├╌╌╌┐                                        │   │                │   │
- │   │   │ TIMEOUT                               │   │                │   │
- │   ◀╌╌╌┘                                        │   │                │   │
- │   │                                            │   │                │   │
- │────────────────────────────────────────────────────│                │   │
- │   │                                            │   │                │   │
- │alt [DEAD (OfflineCount > 0)]───────────────────────│                │   │
- │   │                                            │   │                │   │
- │   │            RemoveByDestination             │   │                │   │
- │   │────────────────────────────────────────────▶   │                │   │
- │   │                                            │   │                │   │
- │   ├╌╌╌┐                                        │   │                │   │
- │   │   │ DEAD                                  │   │                │   │
- │   ◀╌╌╌┘                                        │   │                │   │
- │   │                                            │   │                │   │
- │[ALIVE (OnlineCount > 0 o Running)]╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│                │   │
- │   │                                            │   │                │   │
- │   ├───┐                                        │   │                │   │
- │   │   │ DownloadEpisodeDownloadingEvent        │   │                │   │
- │   ◀───┘                                        │   │                │   │
- │   │                                            │   │                │   │
- │   ├───┐                                        │   │                │   │
- │   │   │ Estado: downloading                    │   │                │   │
- │   ◀───┘                                        │   │                │   │
- │   │                                            │   │                │   │
- │   ├─→ FASE 2                                   │   │                │   │
- │   │                                            │   │                │   │
- │alt [UNMATCHED (sin paquetes)]──────────────────────│                │   │
- │   │                                            │   │                │   │
- │   ├[firstHoster]───┐                            │   │                │   │
- │   │   │   DEAD                                │   │                │   │
- │   │   ◀────────────┘                            │   │                │   │
- │   │                                            │   │                │   │
- │   ├[fallback]───┐                               │   │                │   │
- │   │   │   TIMEOUT                             │   │                │   │
- │   │   ◀───────────┘                             │   │                │   │
- │   │                                            │   │                │   │
- │   │          ══════════════════════════════════ │   │                │   │
- │   │          ═══ FASE 2 — downloading ═════════ │   │                │   │
- │   │          ══════════════════════════════════ │   │                │   │
- │   │                                            │   │                │   │
- ┌───────────────────────────┐                     │   │                │   │
- ││       Estado: downloading │                     │   │                │   │
- └───────────────────────────┘                     │   │                │   │
- │   │                                            │   │                │   │
- │loop [cada 5s, timeout 30 min]──────────────────────────────────────────│
- │   │                                            │                    │   │
- │   │                     CountAtRoot (solo raíz)                      │   │
- │   │─────────────────────────────────────────────────────────────────▶   │
- │   │                                            │                    │   │
- │alt [video nuevo en root]────────────────────────────────────────────────│
- │   │                                            │                    │   │
- │   │                        video confirmado    │                    │   │
- │   ◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│   │
- │   │                                            │                    │   │
- │   ├╌╌╌┐                                        │                    │   │
- │   │   │ SUCCESS                               │                    │   │
- │   ◀╌╌╌┘                                        │                    │   │
- │   │                                            │                    │   │
- │[timeout (30 min safety cap)]╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│
- │   │                                            │                    │   │
- │   ├╌╌╌┐                                        │                    │   │
- │   │   │ TIMEOUT                               │                    │   │
- │   ◀╌╌╌┘                                        │                    │   │
-     │                                            │                    │
-┌────┴───┐                                 ┌──────┴──────┐      ┌──────┴─────┐
-│ Bridge │                                 │ JDownloader │      │ Filesystem │
-└────────┘                                 └─────────────┘      └────────────┘
-```
+
+Stop has no effect inside this diagram: the attempt runs on `context.WithoutCancel` (see
+`workflow.md`, "Where Stop takes effect").
 
 ## Legend
 

@@ -45,6 +45,36 @@ Main files of the core, all in `internal/download/`:
 Every port is a field of `ServiceDeps` (`service.go`) and is wired once in the composition root,
 `internal/desktop/app_startup_runtime.go`.
 
+```mermaid
+flowchart LR
+    subgraph callers [Entry points]
+        sched[internal/schedule]
+        desk[internal/desktop]
+    end
+    subgraph core [internal/download — Service]
+        svc[Run, anime pipeline, hoster watch, rename]
+    end
+    subgraph adapters [Adapters]
+        sites[sites/jkanime]
+        jd[jdownloader — MyJD API]
+        fsys[filesystem — counter]
+        store[(SQLite store)]
+    end
+    anime[anime context]
+    bus[[event bus + runtime_events]]
+    notif[notification context]
+    sched --> svc
+    desk --> svc
+    svc --> anime
+    svc --> sites
+    svc --> jd
+    svc --> fsys
+    svc --> store
+    svc --> bus
+    svc --> notif
+    sites -. "shared http.Client over cfclearance" .-> cf[internal/cfclearance]
+```
+
 | Port | Adapter | Used for |
 |---|---|---|
 | `Animes contracts.AnimeQueryService` | anime context | Which animes are active and their folder, site URL and episode total |

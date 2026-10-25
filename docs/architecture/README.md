@@ -42,6 +42,11 @@ Related documents kept where they are:
   persisted value is quoted literally (`fs_poll_confirmed`). Every measured number names how it was
   measured.
 - Write in English, like the code.
+- Every diagram is a Mermaid code block (```` ```mermaid ````), so it renders and stays interactive
+  in GitHub and the editor. Never draw diagrams in ASCII art or embed them as images. Pick the
+  Mermaid type by content: `flowchart` for decision trees and module maps, `sequenceDiagram` for
+  calls between actors, `stateDiagram-v2` for state machines. Do not use `end` as a node id: it is a
+  Mermaid keyword.
 
 ## Adding to the architecture docs
 
