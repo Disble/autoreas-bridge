@@ -7,53 +7,9 @@ import (
 	"testing"
 
 	"autoreas-bridge/internal/api/contracts"
-	"autoreas-bridge/internal/download/filesystem"
 	"autoreas-bridge/internal/download/sites"
 	"autoreas-bridge/internal/logger"
 )
-
-// renameCall records one RenameLatestEpisode invocation so tests can assert on
-// the canonical name and episode number the pipeline passed down.
-type renameCall struct {
-	folder    string
-	canonical string
-	episode   int
-}
-
-// svcFakeRenamer records rename requests and can be made to fail, so tests can
-// prove a rename failure never costs the run.
-type svcFakeRenamer struct {
-	mu      sync.Mutex
-	calls   []renameCall
-	err     error
-	onCall  func()
-	renamed string
-}
-
-func (f *svcFakeRenamer) RenameLatestEpisode(folder, canonicalName string, episode int) (string, error) {
-	f.mu.Lock()
-	f.calls = append(f.calls, renameCall{folder: folder, canonical: canonicalName, episode: episode})
-	onCall := f.onCall
-	err := f.err
-	renamed := f.renamed
-	f.mu.Unlock()
-	if onCall != nil {
-		onCall()
-	}
-	if err != nil {
-		return "", err
-	}
-	return renamed, nil
-}
-
-// recorded returns a copy of the rename requests seen so far.
-func (f *svcFakeRenamer) recorded() []renameCall {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return append([]renameCall(nil), f.calls...)
-}
-
-var _ filesystem.Renamer = (*svcFakeRenamer)(nil)
 
 // renameEventRecorder counts structured log events by event type, so a test can
 // assert on which outcome the pipeline actually reported.
@@ -157,15 +113,14 @@ func TestRunOnceDoesNotRenameWhenTheSettingIsDisabled(t *testing.T) {
 	t.Parallel()
 
 	deps, _ := renameScenario(t)
-	fake := &svcFakeRenamer{renamed: "renamed.mp4"}
-	deps.Renamer = fake
+	jd := deps.JD.(*recordingCatchupJD)
 	deps.RenameEpisodes = func(context.Context) bool { return false }
 
 	if _, err := NewService(deps).RunOnce(context.Background(), "manual"); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 
-	if got := fake.recorded(); len(got) != 0 {
+	if got := jd.recordedRenames(); len(got) != 0 {
 		t.Fatalf("rename calls = %#v, want none while the setting is off", got)
 	}
 }
@@ -234,15 +189,14 @@ func TestRunOnceDoesNotRenameWhenTheSeamIsUnset(t *testing.T) {
 	t.Parallel()
 
 	deps, _ := renameScenario(t)
-	fake := &svcFakeRenamer{renamed: "renamed.mp4"}
-	deps.Renamer = fake
+	jd := deps.JD.(*recordingCatchupJD)
 	deps.RenameEpisodes = nil
 
 	if _, err := NewService(deps).RunOnce(context.Background(), "manual"); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 
-	if got := fake.recorded(); len(got) != 0 {
+	if got := jd.recordedRenames(); len(got) != 0 {
 		t.Fatalf("rename calls = %#v, want none when the seam is unset", got)
 	}
 }

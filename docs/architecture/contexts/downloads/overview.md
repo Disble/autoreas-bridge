@@ -22,7 +22,7 @@ For the step-by-step run, read `workflow.md`. For how one hoster attempt is watc
 | `internal/download` | The `Service` (application core): run orchestration, per-anime pipeline, hoster watch, rename, notifications, run ledger |
 | `internal/download/sites`, `sites/jkanime` | Provider adapters: list episodes, resolve an episode page, extract hoster links |
 | `internal/download/jdownloader` | JD adapter behind the `JDClient` port, built on `github.com/Disble/jdownloader-go` |
-| `internal/download/filesystem` | Disk adapters: the episode counter and the episode name helper |
+| `internal/download/filesystem` | The episode counter (read-only) and `EpisodeBaseName`, the canonical name JD renames to |
 | `internal/download/config` | Timing constants: grace probe interval and length, completion poll interval and cap |
 | `internal/download/crypto` | Encryption of the stored MyJDownloader password |
 | `internal/download/dbschema` | SQLite schema of the context's tables |
@@ -131,8 +131,5 @@ step is also written to `runtime_events` through the logger, with `exit`, `hoste
 
 ## Known drift
 
-- `filesystem.Renamer` is wired in `internal/desktop/app_startup_runtime.go` but the core never calls
-  it; the rename goes through `JDClient.RenameEpisodeByDestination`. It is dead code that can rename
-  files on disk, and is pending removal.
 - The `.part` sensor (`HasPartFiles`) still searches subfolders, so a stale `.part` in a user
   subfolder can be read as a download that started.

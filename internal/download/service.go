@@ -70,7 +70,6 @@ type ServiceDeps struct {
 	Hosters     HosterResolver
 	JD          jdownloader.JDClient
 	Counter     filesystem.EpisodeCounter
-	Renamer     filesystem.Renamer
 	Store       Store
 	Notifier    notification.Notifier
 	// EpisodeDurationNotice is where a landed episode is offered to the duration notice. Nil means

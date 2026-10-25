@@ -261,7 +261,6 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 		Hosters:     hosterResolver,
 		JD:          newReconfigurableJDClient(a.downloadStore),
 		Counter:     filesystem.NewEpisodeCounter(),
-		Renamer:     filesystem.NewRenamer(),
 		// Read JD's own "Max. simultaneous Downloads" per run rather than once at startup,
 		// so changing it in JDownloader takes effect without restarting Bridge.
 		MaxConcurrentAnimes: jdMaxConcurrentAnimes,
