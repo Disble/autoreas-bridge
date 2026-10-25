@@ -24,10 +24,22 @@ export interface RunHistoryStory {
   readonly truncated: boolean;
 }
 
-/** The run-story read the detail pane needs; the Activity source satisfies it. */
+/** A runtime_events row the backend announces once it is stored; only the run it belongs to matters here. */
+export interface RunHistoryStoredRow {
+  /** The run id the row belongs to, or empty for a row outside any run. */
+  readonly correlationId: string;
+}
+
+/** The run-story reads the detail pane needs; the Activity sources satisfy them. */
 export interface RunHistoryStorySource {
   /** Reads the stored steps of one run by its id. */
   readonly getRunStory: (runId: string) => Promise<RunHistoryStory>;
+  /**
+   * Announces each runtime_events row once it is stored. A run's steps are persisted after the
+   * events that announce them, so this is when its story actually changed; without it a
+   * finished run's story is read once.
+   */
+  readonly subscribeRecorder?: (listener: (row: RunHistoryStoredRow) => void) => () => void;
 }
 
 /** Where the selected run's story stands. */
