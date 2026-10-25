@@ -199,6 +199,32 @@ describe('AnimeEditorWorkspace schedule feedback (integration)', () => {
     vi.clearAllMocks();
   });
 
+  it('shows the season section the selected anime sits in on the Schedule card, ranked when it is on the board', async () => {
+    getAnimeEditorRecordMock.mockResolvedValue({ outcome: 'applied', message: 'loaded', record: makeRecord() });
+    getAnimeEditorScheduleBoardMock.mockResolvedValue({ outcome: 'applied', message: 'loaded', board: makeBoard(300) });
+
+    render(<MemoryRouter><AnimeEditorWorkspace episodeSource={episodeSource} /></MemoryRouter>);
+
+    const season = await screen.findByRole('list', { name: 'Season placement' }, { timeout: 4000 });
+    expect(within(season).getByRole('listitem', { name: 'Sin ver: 4 of 4' })).toBeInTheDocument();
+    expect(within(season).getByRole('listitem', { name: 'Visto: not scheduled' })).toBeInTheDocument();
+  });
+
+  it('paints the saved season section of an anime the board leaves out, such as a history anime', async () => {
+    const withoutSelected = makeBoard(300);
+    getAnimeEditorRecordMock.mockResolvedValue({ outcome: 'applied', message: 'loaded', record: makeRecord() });
+    getAnimeEditorScheduleBoardMock.mockResolvedValue({
+      outcome: 'applied',
+      message: 'loaded',
+      board: { ...withoutSelected, entries: withoutSelected.entries.filter((item) => item.animeId !== 'bang-dream') },
+    });
+
+    render(<MemoryRouter><AnimeEditorWorkspace episodeSource={episodeSource} /></MemoryRouter>);
+
+    const season = await screen.findByRole('list', { name: 'Season placement' }, { timeout: 4000 });
+    expect(await within(season).findByRole('listitem', { name: 'Sin ver: scheduled' })).toBeInTheDocument();
+  });
+
   it('renders failure feedback after a rejected apply and hides the Schedule feedback alert after success', async () => {
     const initialBoard = makeBoard(300);
     const conflictBoard = makeBoard(301);

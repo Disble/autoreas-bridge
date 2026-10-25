@@ -113,7 +113,7 @@ describe('useAnimeEditorWorkspace Schedule card reads', () => {
     source.getAnimeEditorScheduleBoard.mockReturnValue(new Promise(() => undefined));
     const { result } = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-1' }, source as never, createEmptyEpisodeDurationSource()), { wrapper });
 
-    await waitFor(() => expect(result.current.scheduleWeek).toEqual({ status: 'loading', days: [] }));
+    await waitFor(() => expect(result.current.scheduleWeek).toEqual({ status: 'loading', days: [], seasonDays: [] }));
   });
 
   it('reads no board before any anime is selected', async () => {
@@ -123,7 +123,7 @@ describe('useAnimeEditorWorkspace Schedule card reads', () => {
     await act(async () => undefined);
 
     expect(source.getAnimeEditorScheduleBoard).not.toHaveBeenCalled();
-    expect(result.current.scheduleWeek).toEqual({ status: 'idle', days: [] });
+    expect(result.current.scheduleWeek).toEqual({ status: 'idle', days: [], seasonDays: [] });
   });
 
   it('neither opens the schedule editor nor saves anything before any anime is selected', async () => {
@@ -261,7 +261,7 @@ describe('useAnimeEditorWorkspace Schedule card', () => {
 
     act(() => result.current.onSelectAnime('anime-2'));
 
-    await waitFor(() => expect(result.current.scheduleWeek).toEqual({ status: 'failed', days: [], failureMessage: 'offline' }));
+    await waitFor(() => expect(result.current.scheduleWeek).toEqual({ status: 'failed', days: [], seasonDays: [], failureMessage: 'offline' }));
   });
 
   it('still opens the schedule editor right away when nothing is unsaved', async () => {

@@ -36,7 +36,7 @@ export function useAnimeEditorWorkspace(
   const listWindow = useAnimeEditorListWindow(list.items.length);
   const record = useAnimeEditorRecord({ selectedAnimeId: list.selectedAnimeId, source });
   const coverCache = useAnimeEditorCovers(list.items, listWindow.visibleCount, record.selectedRecord, source);
-  const schedule = useAnimeEditorSchedule({ selectedAnimeId: list.selectedAnimeId, source });
+  const schedule = useAnimeEditorSchedule({ selectedAnimeId: list.selectedAnimeId, selectedRecord: record.selectedRecord, source });
   // The Episodes card reads the SAVED record, never the anime card's unsaved draft (S15).
   const episodes = useEpisodeDurationsSection(toEpisodeDurationsSavedAnime(record.selectedRecord), episodeSource);
   const isDirty = isAnyCard(record.isDirty, episodes.isDirty);

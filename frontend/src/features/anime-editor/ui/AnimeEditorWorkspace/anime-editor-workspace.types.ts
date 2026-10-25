@@ -99,6 +99,8 @@ export interface UseAnimeEditorGuardOptions {
 /** Inputs for global schedule-modal orchestration. */
 export interface UseAnimeEditorScheduleOptions {
   readonly selectedAnimeId?: string;
+  /** The saved record, whose placements paint an anime the board leaves out (a history anime). */
+  readonly selectedRecord?: AnimeEditorRecord;
   readonly source: AnimeEditorRuntimeSource;
 }
 
