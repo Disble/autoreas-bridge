@@ -21,6 +21,12 @@ called out explicitly under its release.
 - A failed row in Activity has a "Copy for AI" button that copies the row and its details, ready to paste into an assistant.
 - The range picker in Activity also picks the start and end times, not only the days.
 - Clearing a Cloudflare check is recorded in Activity: when a check appears, when it is cleared, when it fails and why, and which jkanime mirror answered.
+- The Run history in Downloads shows which anime and episodes each run touched, not only its totals. A run's detail groups its anime under Failed, Not attempted, Downloaded, Skipped and Up to date:
+  - Failed shows the episode and the reason, for example "Episode 7 · Captcha".
+  - Not attempted lists the manual download links when JDownloader was offline, with buttons to copy one link or all of them, or to open one.
+  - Downloaded names the site host that served each episode, for example "Episodes 9–10 · jkanime.bz".
+  - Skipped has an "Edit anime" button.
+  - Runs older than 90 days show the totals only.
 
 ### Changed
 
@@ -36,12 +42,15 @@ called out explicitly under its release.
 - The Activity chart shows what the feed shows. Turning a section off removes its rows from the bars, and with the failure button on every bar counts only failures. The red part of a bar is the share of its rows that failed. Hours with no activity are drawn as hatched gaps.
 - Each Activity row states one fact, for example "episode 0 → 1", "3 downloaded" or "1 failed". A download run is one row, not one row per episode.
 - Every tooltip in Activity uses the app's tooltip, including the Phone and Bridge buttons, the row icons, the section failure counts, the chart bars and the phone status line.
+- The Run history list shows each run's status as an icon with a tooltip. The Stop run button and the problems filter now sit in the card header, and the problems filter is the same red button as Activity's failure button.
+- Runs recorded before this version name each anime from the catalog. While the name loads, only the name shows a placeholder. When a run kept no per-anime record for a group, the group says "Episodes not recorded" instead of staying empty.
 
 ### Fixed
 
 - Automatic downloads and the Season mode search work again while jkanime.net shows a Cloudflare check. The app now clears the check by itself in a hidden window, which can make the first request after a check appears 6 to 11 seconds slower. The jkanime mirrors are still used when the check cannot be cleared. Nothing needs to be installed or allowed.
 - The splash now reaches the window before the app finishes loading. Before, the window could stay empty until the app was ready.
 - In the Activity detail drawer, the arrow keys move focus along with the open row.
+- In the Run history, manual download links open in the default browser. Before, they opened in a separate window of the app.
 
 ### Internal
 
@@ -49,6 +58,11 @@ called out explicitly under its release.
 - MCP clients of `autoreas-request-mcp` get two additions: the `where` argument also accepts `providers`, and a new read-only tool `count_events` counts events by type, optionally grouped by one metadata key.
 - ADR-031 records how Activity gives every event a section, with System as the fallback.
 - A new `airis-sprite-animation` skill documents how to make Airis animations.
+- Download run events record more per anime, and MCP clients of `autoreas-request-mcp` see it:
+  - every event about one anime stores its name (`animeName`);
+  - page and link failures store the episode;
+  - two new info events, `download.anime_checked` and `download.manual_link_offered`, are added;
+  - `get_run_story` steps carry the anime id (`EntityID`).
 
 No REST or WebSocket change: mobile clients see no new endpoint, field or message. See `docs/openapi.yaml`.
 
