@@ -1,7 +1,8 @@
+import { toast } from '@heroui/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AnimeEditorSaveResult } from '../../../../shared/contracts/anime.types';
 import { ANIME_EDITOR_DEFAULT_DRAFT } from './anime-editor-workspace.constants';
-import { createAnimeEditorDraft, createAnimeEditorSaveCommand, hasAnimeEditorChanges, isIntentionalEditorOutcome, resolveAnimeEditorFeedbackMessage, toEditorErrorMessage, validateAnimeEditorDraft } from './anime-editor-workspace.helpers';
+import { createAnimeEditorDraft, createAnimeEditorSaveCommand, hasAnimeEditorChanges, isIntentionalEditorOutcome, raceAnimeEditorCall, resolveAnimeEditorFeedbackMessage, toAnimeEditorToastKind, toEditorErrorMessage, validateAnimeEditorDraft } from './anime-editor-workspace.helpers';
 import type { AnimeEditorDraft, AnimeEditorRecordState, UseAnimeEditorRecordOptions } from './anime-editor-workspace.types';
 import { useAnimeEditorDraftPickers } from './use-anime-editor-draft-pickers';
 import { useAnimeEditorLifecycleActions } from './use-anime-editor-lifecycle-actions';
@@ -49,7 +50,7 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
   const loadRecord = useCallback(async (animeId: string) => {
     const request = loadSequence.current + 1;
     loadSequence.current = request;
-    setState((current) => ({ ...current, isLoadingRecord: true, feedback: undefined }));
+    setState((current) => ({ ...current, isLoadingRecord: true, recordLoadError: undefined }));
     try {
       const result = await source.getAnimeEditorRecord(animeId);
       if (loadSequence.current !== request) return;
@@ -58,7 +59,7 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
         selectedRecord: result.record,
         draft: createAnimeEditorDraft(result.record),
         retainsAttemptedDraft: false,
-        feedback: result.outcome === 'error' ? resolveAnimeEditorFeedbackMessage(result, 'The editor record could not be loaded.') : undefined,
+        recordLoadError: result.outcome === 'error' ? resolveAnimeEditorFeedbackMessage(result, 'The editor record could not be loaded.') : undefined,
       }));
       // A pending Undo's pre-image belongs to the record it was captured
       // against -- swapping records without clearing it would let Undo
@@ -66,7 +67,7 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
       // persisted").
       metadataPatch.resetAppliedMetadata();
     } catch (error) {
-      if (loadSequence.current === request) setState((current) => ({ ...current, feedback: toEditorErrorMessage(error) }));
+      if (loadSequence.current === request) setState((current) => ({ ...current, recordLoadError: toEditorErrorMessage(error) }));
     } finally {
       if (loadSequence.current === request) setState((current) => ({ ...current, isLoadingRecord: false }));
     }
@@ -75,32 +76,36 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
     patchDraft({ [field]: field === 'status' ? Number(value) : value } as Partial<AnimeEditorDraft>);
   }, [patchDraft]);
   const onDiscardChanges = useCallback(() => {
-    setState((current) => ({ ...current, draft: createAnimeEditorDraft(current.selectedRecord), retainsAttemptedDraft: false, feedback: undefined }));
+    setState((current) => ({ ...current, draft: createAnimeEditorDraft(current.selectedRecord), retainsAttemptedDraft: false }));
     metadataPatch.resetAppliedMetadata();
   }, [metadataPatch.resetAppliedMetadata]);
   const onSave = useCallback(async (): Promise<AnimeEditorSaveResult | undefined> => {
     if (state.selectedRecord === undefined) return undefined;
     const validation = validateAnimeEditorDraft(state.draft);
     if (validation !== undefined) {
-      setState((current) => ({ ...current, feedback: validation, retainsAttemptedDraft: true }));
+      // The validation Alert already shows why; a blocked save does not toast.
+      setState((current) => ({ ...current, retainsAttemptedDraft: true }));
       return { outcome: 'error', message: validation };
     }
-    setState((current) => ({ ...current, isSaving: true, feedback: undefined }));
+    setState((current) => ({ ...current, isSaving: true }));
     try {
-      const result = await source.saveAnimeEditor(createAnimeEditorSaveCommand(state.selectedRecord, state.draft));
+      const result = await raceAnimeEditorCall(source.saveAnimeEditor(createAnimeEditorSaveCommand(state.selectedRecord, state.draft)));
       if (isIntentionalEditorOutcome(result)) {
         const authority = result.record ?? (await source.getAnimeEditorRecord(state.selectedRecord.animeId)).record;
         setState((current) => ({
           ...current, selectedRecord: authority, draft: createAnimeEditorDraft(authority),
-          retainsAttemptedDraft: false, feedback: resolveAnimeEditorFeedbackMessage(result, 'Changes saved.'),
+          retainsAttemptedDraft: false,
         }));
+        toast[toAnimeEditorToastKind(result.outcome)](resolveAnimeEditorFeedbackMessage(result, 'Changes saved.'));
       } else {
-        setState((current) => ({ ...current, selectedRecord: result.record ?? current.selectedRecord, retainsAttemptedDraft: true, feedback: resolveAnimeEditorFeedbackMessage(result, 'No changes were applied.') }));
+        setState((current) => ({ ...current, selectedRecord: result.record ?? current.selectedRecord, retainsAttemptedDraft: true }));
+        toast[toAnimeEditorToastKind(result.outcome)](resolveAnimeEditorFeedbackMessage(result, 'No changes were applied.'));
       }
       return result;
     } catch (error) {
       const message = toEditorErrorMessage(error);
-      setState((current) => ({ ...current, retainsAttemptedDraft: true, feedback: message }));
+      setState((current) => ({ ...current, retainsAttemptedDraft: true }));
+      toast.danger(message);
       return { outcome: 'error', message };
     } finally {
       setState((current) => ({ ...current, isSaving: false }));

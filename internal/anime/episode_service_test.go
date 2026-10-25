@@ -54,12 +54,12 @@ func TestEpisodeServiceAdjustWatchedEpisodesWritesProgressAndRecordsActivity(t *
 // assertEpisodeAdjustmentResult verifies the episode adjustment outcome.
 func assertEpisodeAdjustmentResult(t *testing.T, ctx context.Context, store *bridgeSync.AnimeSnapshotStore, result anime.EpisodeCommandResult, activityRecorder *stubEpisodeActivityRecorder, watchRecorder *stubWatchRecorder) {
 	t.Helper()
-	if result.NroCapVisto != 3 {
-		t.Fatalf("expected resulting progress 3, got %v", result.NroCapVisto)
+	if result.NroCapVisto != 3 || result.Outcome != anime.PatchOutcomeApplied || result.ModifiedAt != 1710000000123 {
+		t.Fatalf("expected an applied adjustment to progress 3 with token 1710000000123, got %+v", result)
 	}
 	snapshot, err := store.GetSnapshot(ctx, "anime-1")
-	if err != nil {
-		t.Fatalf("get snapshot: %v", err)
+	if err != nil || snapshot.ModifiedAt != 1710000000123 {
+		t.Fatalf("stored token must equal the returned token 1710000000123: %d, %v", snapshot.ModifiedAt, err)
 	}
 	value := decodeAnimeDomain(t, snapshot.CanonicalJSON)
 	if value.Progress != 3 || value.LastWatchedAt == nil || value.LastWatchedAt.UnixMilli() != 1710000000123 {

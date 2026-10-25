@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AnimeCoverEntry } from '../../../../../shared/anime-cover/use-anime-cover';
 import type { AnimeEditorRecord } from '../../../../../shared/contracts/anime.types';
 import type { AnimeEditorCoverResult, AnimeEditorListItemViewModel } from '../anime-editor-workspace.types';
 import { ANIME_ESTADO_VALID_VALUES } from '../../../../../shared/constants/anime-estado.constants';
-import { classifyAnimeEditorEmptyState, createAnimeEditorDraft, createAnimeEditorListItems, createAnimeEditorSaveCommand, getAnimeEditorEstadoColor, hasAnimeEditorChanges, hasSavedAnimeCover, isNearListBottom, nextAnimeEditorRenderLimit, planAnimeEditorCoverRequests, resolveAnimeEditorFeedbackMessage, toAnimeEditorCoverEntry, toAnimeEditorCoverTargets, toAnimeEditorLifecycleConfirmation, toAnimeEditorListRowViewModels, toEpisodeDurationsSavedAnime, validateAnimeEditorDraft } from '../anime-editor-workspace.helpers';
+import { ANIME_EDITOR_CALL_TIMEOUT_MESSAGE } from '../anime-editor-workspace.constants';
+import { classifyAnimeEditorEmptyState, createAnimeEditorDraft, createAnimeEditorListItems, createAnimeEditorSaveCommand, getAnimeEditorEstadoColor, hasAnimeEditorChanges, hasSavedAnimeCover, isNearListBottom, nextAnimeEditorRenderLimit, planAnimeEditorCoverRequests, raceAnimeEditorCall, resolveAnimeEditorFeedbackMessage, toAnimeEditorCoverEntry, toAnimeEditorToastKind, toAnimeEditorCoverTargets, toAnimeEditorLifecycleConfirmation, toAnimeEditorListRowViewModels, toEpisodeDurationsSavedAnime, validateAnimeEditorDraft } from '../anime-editor-workspace.helpers';
 
 /** Authority fixture every save-command case edits a draft against. */
 const record = {
@@ -208,6 +209,15 @@ describe('anime-editor-workspace.helpers', () => {
   it('normalizes runtime feedback messages to a safe string', () => {
     expect(resolveAnimeEditorFeedbackMessage({ message: 'runtime unavailable' }, 'fallback')).toBe('runtime unavailable');
     expect(resolveAnimeEditorFeedbackMessage({ message: 42 }, 'fallback')).toBe('fallback');
+  });
+
+  it.each([
+    ['applied', 'success'],
+    ['no_op', 'info'],
+    ['conflict', 'warning'],
+    ['error', 'danger'],
+  ] as const)('reports a %s outcome as a %s toast', (outcome, kind) => {
+    expect(toAnimeEditorToastKind(outcome)).toBe(kind);
   });
 });
 
@@ -445,5 +455,30 @@ describe('cover request planning', () => {
     const plan = planAnimeEditorCoverRequests([target(true, 'B')], new Map([['anime-1', 'A'], ['anime-2', 'X']]));
 
     expect([...plan.requestedVersions]).toEqual([['anime-1', 'B'], ['anime-2', 'X']]);
+  });
+});
+
+describe('raceAnimeEditorCall', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it.each([
+    ['resolves with the binding result', () => Promise.resolve('done'), 'done'],
+    ['rejects with the binding error', () => Promise.reject(new Error('boom')), 'boom'],
+  ])('%s and leaves no timer behind', async (_label, call, expected) => {
+    vi.useFakeTimers();
+
+    const settled = await raceAnimeEditorCall(call(), 1000).then(String, (error: Error) => error.message);
+
+    expect(settled).toBe(expected);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('rejects with the timeout feedback once the call outlives the limit', async () => {
+    vi.useFakeTimers();
+    const outcome = expect(raceAnimeEditorCall(new Promise(() => undefined), 1000)).rejects.toThrow(ANIME_EDITOR_CALL_TIMEOUT_MESSAGE);
+
+    await vi.advanceTimersByTimeAsync(1000);
+
+    await outcome;
   });
 });

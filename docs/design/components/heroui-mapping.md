@@ -90,6 +90,15 @@ Page field (`AnimeDetailGeneralData.tsx`).
   subscriber (see the `app-notification-pipeline` skill).
 - Local imperative feedback (clipboard copy confirmations) is called directly in the hook's mutation
   callback, with English copy such as "Folder path copied to clipboard".
+- The result of a user action is a toast called from the hook callback: a submit that saved
+  (`success`), changed nothing (`info`), hit a conflict (`warning`), failed, threw, or timed out
+  (`danger`). It never lingers as an `Alert`. References: Seasons' Confirm selection
+  (`use-selection-board.ts`) and the Editor's Save, Deactivate, Restore and Repeat
+  (`use-anime-editor-record.ts`, `use-anime-editor-lifecycle-actions.ts`, mapped by
+  `toAnimeEditorToastKind`).
+- `Alert` is reserved for state that persists on the surface: the screen or record did not load
+  (`status="danger"`), or validation blocks the action. An action blocked by validation shows that
+  `Alert` only; it does not also toast.
 - Hook test mock: a `vi.hoisted` toast object plus
   `vi.mock('@heroui/react', () => ({ toast: toastMock }))` (see `use-chapter-schedule-panel.test.ts`).
 

@@ -39,12 +39,12 @@ func TestEditorServiceSaveAppliesTypedNullableAndStructuredPatchMatrix(t *testin
 			Placements: &[]contracts.MobileAnimeDay{{Day: "Viernes", Order: 1}},
 		},
 	})
-	if err != nil || result.Outcome != anime.PatchOutcomeApplied {
-		t.Fatalf("save full editor matrix: result=%+v err=%v", result, err)
+	if err != nil || result.Outcome != anime.PatchOutcomeApplied || result.ModifiedAt != 2000 {
+		t.Fatalf("save full editor matrix must apply with the clock token 2000: result=%+v err=%v", result, err)
 	}
 	snapshot, err := store.GetSnapshot(ctx, "anime-editor")
-	if err != nil {
-		t.Fatalf("get snapshot: %v", err)
+	if err != nil || snapshot.ModifiedAt != 2000 {
+		t.Fatalf("stored token must equal the returned token 2000: %d, %v", snapshot.ModifiedAt, err)
 	}
 	fields := decodeJSONFields(t, snapshot.CanonicalJSON)
 	assertJSONFieldsEqual(t, fields, map[string]string{
