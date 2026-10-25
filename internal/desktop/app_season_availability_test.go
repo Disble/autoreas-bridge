@@ -2,15 +2,20 @@ package desktop
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/anime/domain"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/download/sites"
+	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/season"
+	seasondomain "autoreas-bridge/internal/season/domain"
+	bridgeSync "autoreas-bridge/internal/sync"
 )
 
 // fakeEpisodeSource is a minimal sites.EpisodeSource returning a fixed listing.
@@ -294,4 +299,54 @@ func TestNotifySeasonAvailableNamesAnimesAndTruncatesPastTheLimit(t *testing.T) 
 			t.Fatalf("body = %q, want the collapsed names omitted, not spelled out", body)
 		}
 	})
+}
+
+// TestSeasonWatchedSubscriberMovesAWatchedVerHoyAnimeToVisto pins the Ver hoy
+// -> Visto auto-transition end to end over real SQLite and the real bus: the
+// first episode watched of a created season anime in Ver hoy, written through
+// the episode service, lands the stored anime in Visto.
+func TestSeasonWatchedSubscriberMovesAWatchedVerHoyAnimeToVisto(t *testing.T) {
+	ctx := context.Background()
+	db := openRuntimeBridgeDB(t)
+	snapshots := bridgeSync.NewAnimeSnapshotStore(db)
+	seedRuntimeAnimeSnapshot(t, snapshots, "anime-1", `{"id":"anime-1","name":"Show","episodesWatched":0,"status":0,"active":true,"totalEpisodes":12,"days":[{"day":"Ver hoy","order":1}]}`, 100)
+	bus := events.NewBus()
+	write := anime.NewWriteService(snapshots, anime.NewCommittedPublisher(bus))
+	write.SetDeps(anime.WriteServiceDeps{Conflicts: bridgeSync.NewConflictStore(db)})
+	query := anime.NewQueryService(snapshots)
+	repo := season.NewSQLiteStore(db)
+	service := season.NewService(repo, time.Now, func() string { return "season-1" }, nil)
+	service.SetAvailabilityDeps(nil, seasonAnimeGateway{writer: write, records: query})
+	app := &App{eventBus: bus, seasonService: service}
+	app.subscribeSeasonWatched(ctx)
+	opened, err := service.CreateSeason(ctx, "Spring")
+	if err != nil {
+		t.Fatalf("open season: %v", err)
+	}
+	row := seasondomain.NewSeasonAnime("row-1", opened.ID, "Show", time.UnixMilli(0))
+	row.MatchStatus, row.Availability, row.AnimeID = seasondomain.MatchMatched, seasondomain.AvailabilityCreated, "anime-1"
+	if err := repo.CreateSeasonAnime(ctx, row); err != nil {
+		t.Fatalf("link season anime: %v", err)
+	}
+	episodes := anime.NewEpisodeService(anime.EpisodeServiceDeps{Query: query, Writer: write})
+
+	result, err := episodes.AdjustWatchedEpisodes(ctx, anime.AdjustWatchedEpisodesCommand{AnimeID: "anime-1", Delta: 1, Base: new(int64(100)), Source: anime.ActivitySourceDesktop})
+
+	if err != nil || result.Outcome != anime.PatchOutcomeApplied {
+		t.Fatalf("watch the first episode: result=%+v err=%v", result, err)
+	}
+	stored, err := snapshots.GetSnapshot(ctx, "anime-1")
+	if err != nil {
+		t.Fatalf("read anime: %v", err)
+	}
+	var value struct {
+		EpisodesWatched float64                    `json:"episodesWatched"`
+		Days            []contracts.MobileAnimeDay `json:"days"`
+	}
+	if err := json.Unmarshal(stored.CanonicalJSON, &value); err != nil {
+		t.Fatalf("decode anime: %v", err)
+	}
+	if value.EpisodesWatched != 1 || len(value.Days) != 1 || value.Days[0].Day != "Visto" {
+		t.Fatalf("want the watched anime moved to Visto, got %s", stored.CanonicalJSON)
+	}
 }

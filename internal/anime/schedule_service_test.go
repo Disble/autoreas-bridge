@@ -162,8 +162,9 @@ func TestScheduleServiceApplyTwoAnimeDraftProducesAppliedOutcomeAndExactPublicat
 	if result.Outcome != anime.PatchOutcomeApplied {
 		t.Fatalf("expected applied outcome, got %+v", result)
 	}
-	if result.ModifiedAt <= 0 {
-		t.Fatalf("expected positive refreshed board modified_at, got %d", result.ModifiedAt)
+	// One batch stamps clock+1 and clock+2; the board token is the newest of them.
+	if result.ModifiedAt != 1710000000125 {
+		t.Fatalf("expected refreshed board modified_at 1710000000125, got %d", result.ModifiedAt)
 	}
 	if len(publisher.events()) != 2 {
 		t.Fatalf("expected exactly two publications (one per changed anime), got %d", len(publisher.events()))

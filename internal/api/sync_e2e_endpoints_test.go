@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -67,6 +68,54 @@ func TestSyncEndpointsHandleCapPlusAndIncrementalChangesWithout500(t *testing.T)
 	}
 	if reconcilePayload.BridgeChanges[0].Snapshot == nil || reconcilePayload.BridgeChanges[0].Snapshot.EpisodesWatched != 661 {
 		t.Fatalf("expected reconcile bridge change snapshot nrocapvisto 661 (the stored anime), got %#v", reconcilePayload.BridgeChanges[0].Snapshot)
+	}
+
+	assertReconcileUpdatesApplyThenConflict(t, env, reconcilePayload.LastChangelogID)
+}
+
+// assertReconcileUpdatesApplyThenConflict posts one update on the current base
+// and one on the now-stale base: the first applies with the stamped token, the
+// second conflicts and echoes it, and the applied write advances
+// last_changelog_id through the real changelog.
+func assertReconcileUpdatesApplyThenConflict(t *testing.T, env *syncE2EHTTPEndpointEnv, lastChangelogID int64) {
+	t.Helper()
+	current, err := env.snapshotStore.GetSnapshot(env.ctx, "anime-1")
+	if err != nil {
+		t.Fatalf("get seeded snapshot: %v", err)
+	}
+	body := fmt.Sprintf(`{"device_id":"device-1","last_changelog_id":%d,"pending_operations":[`+
+		`{"anime_id":"anime-1","operation":"update","payload":{"episodesWatched":662,"base":%d},"created_at":1710000000458},`+
+		`{"anime_id":"anime-1","operation":"update","payload":{"episodesWatched":663,"base":%d},"created_at":1710000000459}]}`,
+		lastChangelogID, current.ModifiedAt, current.ModifiedAt)
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer good-token")
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+	env.handler.ServeHTTP(res, req)
+	if res.Code != http.StatusAccepted {
+		t.Fatalf("expected POST /api/sync/reconcile status 202, got %d body=%s", res.Code, res.Body.String())
+	}
+	var payload contracts.ReconcileResponse
+	if err := json.Unmarshal(res.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode POST /api/sync/reconcile response: %v", err)
+	}
+	stamped := syncE2EWriteClockMs
+	want := []contracts.AppliedOperation{
+		{AnimeID: "anime-1", Operation: "update", Applied: true, ModifiedAt: &stamped},
+		{AnimeID: "anime-1", Operation: "update", Applied: false, ModifiedAt: &stamped, Reason: contracts.AppliedOperationReasonConflict},
+	}
+	if len(payload.AppliedOperations) != len(want) {
+		t.Fatalf("expected applied_operations %d entries, got %s", len(want), res.Body.String())
+	}
+	for index, got := range payload.AppliedOperations {
+		if got.ModifiedAt == nil || *got.ModifiedAt != *want[index].ModifiedAt || got.AnimeID != want[index].AnimeID ||
+			got.Operation != want[index].Operation || got.Applied != want[index].Applied || got.Reason != want[index].Reason {
+			t.Fatalf("applied_operations[%d]: want %+v modified_at %d, got %s", index, want[index], stamped, res.Body.String())
+		}
+	}
+	if payload.LastChangelogID <= lastChangelogID || len(payload.BridgeChanges) != 1 ||
+		payload.BridgeChanges[0].Snapshot == nil || payload.BridgeChanges[0].Snapshot.EpisodesWatched != 662 {
+		t.Fatalf("expected last_changelog_id past %d serving the applied update, got %s", lastChangelogID, res.Body.String())
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/device"
@@ -21,7 +22,13 @@ type syncE2EHTTPEndpointEnv struct {
 	db             *sql.DB
 }
 
-// newSyncE2EHTTPEndpointEnv creates the HTTP-only sync test environment.
+// syncE2EWriteClockMs is the e2e write clock. It is far past any seeded token,
+// so an applied write stamps exactly this modified_at.
+const syncE2EWriteClockMs int64 = 4102444800000
+
+// newSyncE2EHTTPEndpointEnv creates the HTTP-only sync test environment. Its
+// writes go through the production publisher and the real changelog recorder
+// on one bus, so a reconcile write lands in the changelog it then serves.
 func newSyncE2EHTTPEndpointEnv(t *testing.T) *syncE2EHTTPEndpointEnv {
 	t.Helper()
 
@@ -31,11 +38,19 @@ func newSyncE2EHTTPEndpointEnv(t *testing.T) *syncE2EHTTPEndpointEnv {
 	seedSyncE2ESnapshot(t, snapshotStore, "anime-1", `{"id":"anime-1","name":"One Piece","episodesWatched":661,"status":2,"totalEpisodes":1200,"active":true}`)
 	deviceService := seedSyncE2EDeviceService(t, ctx, db)
 	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(db))
+	bus := events.NewBus()
+	recorder := bridgeSync.NewChangelogRecorder(bus, changelogStore)
+	recorder.Start(ctx)
+	t.Cleanup(recorder.Stop)
+	write := anime.NewWriteService(snapshotStore, anime.NewCommittedPublisher(bus))
+	write.SetNow(func() time.Time { return time.UnixMilli(syncE2EWriteClockMs).UTC() })
+	write.SetDeps(anime.WriteServiceDeps{Conflicts: bridgeSync.NewConflictStore(db)})
 
 	handler := NewHandler(Config{
 		DeviceService: deviceService,
 		AnimeQuery:    anime.NewQueryService(snapshotStore),
-		SyncTrigger:   bridgeSync.NewTriggerService(events.NewBus(), changelogStore),
+		AnimeWrite:    write,
+		SyncTrigger:   bridgeSync.NewTriggerService(bus, changelogStore),
 	})
 
 	return &syncE2EHTTPEndpointEnv{
