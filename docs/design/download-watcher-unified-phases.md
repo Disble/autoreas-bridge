@@ -9,7 +9,7 @@
 | State | Trigger | Event | Next Action |
 |-------|---------|-------|-------------|
 | **pending** | AddAndStart succeeded, no evidence yet | `DownloadEpisodePendingEvent` (optional) | FASE 1: wait for .part or JD signal |
-| **checking** | 20s passed, 1st .part check failed | (same state) | Retry (2 more) |
+| **checking** | 5s passed, no new episode and no .part yet | (same state) | Retry every 5s until 60s |
 | **downloading** | .part found OR JD confirmed alive | `DownloadEpisodeDownloadingEvent` | FASE 2: wait for video file |
 | **completed** | Video file appears in folder | `DownloadEpisodeDownloadedEvent` | SUCCESS |
 | **failed** | All hosters dead/timeout | `DownloadFailedEvent` | FAILED |
@@ -39,18 +39,16 @@ awaitHosterOutcome(destination, baselineCount, firstHoster):
   FASE 1 — 60s grace (filesystem only)
   ═══════════════════════════════════════════
   State: pending → checking → downloading
-  No JD API calls. Only .part and video checks.
-  3 attempts at 20s intervals = 60s total.
+  No JD API calls. Only video and .part checks, in that order.
+  12 probes at 5s intervals = 60s total (DetectStartProbeInterval, DetectStartGrace).
 
-  sleep 20s
-
-  for i = 0; i < 3; i++:
-    video new? → completed → SUCCESS
+  for i = 0; i < 12; i++:
+    sleep 5s
+    video new at the root? → completed → SUCCESS (grace_disk_confirmed)
     .part found?
       → publish DownloadEpisodeDownloadingEvent
       → state = downloading
       → FASE 2
-    if i < 2: sleep 20s
 
   ═══════════════════════════════════════════
   FASE 1B — JD re-evaluation (after 60s)
@@ -127,18 +125,18 @@ awaitHosterOutcome(destination, baselineCount, firstHoster):
  │   │                 │ FASE 1 — 60s gracia │     │                    │   │
  │   │                 ═══════════════════════     │                    │   │
  │   │                                            │                    │   │
- │   ├───┐                                        │                    │   │
- │   │   │ sleep 20s                              │                    │   │
- │   ◀───┘                                        │                    │   │
+ │loop [i = 0..11, 12 intentos cada 5s]───────────────────────────────────│
  │   │                                            │                    │   │
- │loop [i = 0..2, 3 intentos]─────────────────────────────────────────────│
+ │   ├───┐                                        │                    │   │
+ │   │   │ sleep 5s                               │                    │   │
+ │   ◀───┘                                        │                    │   │
  │   │                                            │                    │   │
  │   │                 video nuevo? (>baselineCount)                   │   │
  │   │─────────────────────────────────────────────────────────────────▶   │
  │   │                                            │                    │   │
  │alt [video encontrado]───────────────────────────────────────────────────│
  │   │                                            │                    │   │
- │   │                           SUCCESS          │                    │   │
+ │   │          SUCCESS (grace_disk_confirmed)    │                    │   │
  │   ◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│   │
  │   │                                            │                    │   │
  │[no hay video]╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│
@@ -162,10 +160,6 @@ awaitHosterOutcome(destination, baselineCount, firstHoster):
  │   ├─→ FASE 2                                   │                    │   │
  │   │                                            │                    │   │
  │[no .part]╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│
- │   │                                            │                    │   │
- │   ├───┐                                        │                    │   │
- │   │   │ sleep 20s (si i < 2)                   │                    │   │
- │   ◀───┘                                        │                    │   │
  │   │                                            │                    │   │
  │   │  ═══════════════════════════════════════    │                    │   │
  │   │  ═══ FASE 1B — Re-evaluación JD ═══════    │                    │   │

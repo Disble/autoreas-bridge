@@ -47,11 +47,10 @@ func coreIntegrationURL(hoster string) string {
 }
 
 // TestDownloadCoreConfirmsAnEpisodeThatLandedDuringTheGrace is S1, the incident replay. The
-// transfer opens and closes entirely inside the single PollSleep carrying the clock from t=40
-// to t=60, so all three .part probes miss it and only the post-grace disk re-check can see the
-// episode. Under the incident's code that re-check did not exist: JD was asked for a verdict,
-// answered "no signal", the package was removed and a second hoster was started over an
-// episode already sitting on disk.
+// transfer opens and closes entirely between the probes at t=45 and t=50, so no probe ever sees
+// a .part file and only the episode count at the root shows the download. Under the incident's
+// code nothing re-read the count: JD was asked for a verdict, answered "no signal", the package
+// was removed and a second hoster was started over an episode already sitting on disk.
 func TestDownloadCoreConfirmsAnEpisodeThatLandedDuringTheGrace(t *testing.T) {
 	t.Parallel()
 
@@ -59,8 +58,8 @@ func TestDownloadCoreConfirmsAnEpisodeThatLandedDuringTheGrace(t *testing.T) {
 	seedRootEpisodes(t, folder, 4)
 	now := time.Now()
 	sim := newJDSim(t, folder, &now,
-		landsPartAt(45*time.Second, "d2ouiemgt90z"),
-		finishesPartAt(55*time.Second, "d2ouiemgt90z"),
+		landsPartAt(46*time.Second, "d2ouiemgt90z"),
+		finishesPartAt(49*time.Second, "d2ouiemgt90z"),
 	)
 	svc, recorder := newCoreIntegrationService(t, sim, &now)
 
@@ -92,7 +91,7 @@ func assertAttemptLedger(t *testing.T, recorder *fieldsRecorder, outcome string)
 }
 
 // TestDownloadCoreConfirmsATransferTheDetectPhaseSaw is S2. The transfer is VISIBLE to the
-// production .part sensor on the second probe -- the first time any test has observed
+// production .part sensor on the fifth probe (t=25) -- the first time any test has observed
 // hasPartFilesRecursive return true from inside a run. The five direct unit tests call it with
 // a folder argument, and its one in-run use points at a folder that never exists.
 func TestDownloadCoreConfirmsATransferTheDetectPhaseSaw(t *testing.T) {
@@ -109,7 +108,7 @@ func TestDownloadCoreConfirmsATransferTheDetectPhaseSaw(t *testing.T) {
 	result := svc.enqueueWithFallback(context.Background(), "run-1", testAnime(folder),
 		coreIntegrationHosters("Mediafire"), 1)
 
-	assertDetectStartSaw(t, recorder, 2)
+	assertDetectStartSaw(t, recorder, 5)
 	assertEnqueueResult(t, result, true, 0, "fs_poll_confirmed", 1)
 	assertSimLedger(t, sim, []string{"Mediafire"}, 0)
 	assertPathStillThere(t, filepath.Join(folder, "Test Anime - 01.mp4"),
@@ -130,12 +129,12 @@ func assertDetectStartSaw(t *testing.T, recorder *fieldsRecorder, probeCount int
 	}
 }
 
-// TestDownloadCoreDeclinesTheDiskRecheckWhenNothingLanded is S3. The folder stays empty for the
-// whole attempt, so the post-grace disk re-check must DECLINE and let JD's dead verdict stand.
-// Without this scenario the re-check is proven to fire but never to be CONDITIONAL, which is
+// TestDownloadCoreDeclinesTheGraceCountCheckWhenNothingLanded is S3. The folder stays empty for the
+// whole attempt, so the grace's count check must DECLINE and let JD's dead verdict stand.
+// Without this scenario the count check is proven to fire but never to be CONDITIONAL, which is
 // the entire distance between the SDD-62 fix and a guard that turns every failure into a
 // success. It is the only scenario that kills the `>` to `>=` mutant on an empty folder.
-func TestDownloadCoreDeclinesTheDiskRecheckWhenNothingLanded(t *testing.T) {
+func TestDownloadCoreDeclinesTheGraceCountCheckWhenNothingLanded(t *testing.T) {
 	t.Parallel()
 
 	folder := t.TempDir()
@@ -199,8 +198,8 @@ func TestDownloadCoreRenamesConsecutiveEpisodesAtTheRoot(t *testing.T) {
 	seedRootEpisodes(t, folder, 4)
 	now := time.Now()
 	sim := newJDSim(t, folder, &now,
-		landsPartAt(45*time.Second, "d2ouiemgt90z"),
-		finishesPartAt(55*time.Second, "d2ouiemgt90z"),
+		landsPartAt(46*time.Second, "d2ouiemgt90z"),
+		finishesPartAt(49*time.Second, "d2ouiemgt90z"),
 		landsPartAt(105*time.Second, "9gm31meptrvq"),
 		finishesPartAt(115*time.Second, "9gm31meptrvq"),
 	)

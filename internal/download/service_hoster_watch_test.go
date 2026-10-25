@@ -357,7 +357,7 @@ func TestDetectDownloadStartPhasePartFoundImmediatelyReturnsStarted(t *testing.T
 	deps.Bus = bus
 	s := NewService(deps)
 
-	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 3, deps.Clock())
+	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 0, 3, deps.Clock())
 	if !started {
 		t.Fatalf("expected started=true when HasPartFiles returns true, got probes=%#v", probes)
 	}
@@ -383,7 +383,7 @@ func TestDetectDownloadStartPhasePublishesEventWhenPartFound(t *testing.T) {
 		}
 	})
 
-	started, _ := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 3, deps.Clock())
+	started, _ := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 0, 3, deps.Clock())
 	if !started {
 		t.Fatal("expected started=true")
 	}
@@ -401,12 +401,37 @@ func TestDetectDownloadStartPhaseNeverFindsPartReturnsDead(t *testing.T) {
 	deps.PollSleep = func(d time.Duration) {} // no-op, instant
 	s := NewService(deps)
 
-	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 3, deps.Clock())
+	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 0, 3, deps.Clock())
 	if started {
 		t.Fatal("expected started=false when HasPartFiles never returns true")
 	}
-	if len(probes) != 3 {
-		t.Fatalf("expected the exhausted schedule to record 3 probes, got %#v", probes)
+	if len(probes) != 12 {
+		t.Fatalf("expected the exhausted schedule to record 12 probes, got %#v", probes)
+	}
+}
+
+// TestDetectDownloadStartPhaseChecksTheEpisodeCountBeforeThePartFile pins the probe order: when a
+// probe sees both a new episode at the root and a .part file, the episode wins, because a .part
+// never counts as an episode and the landed episode is what lets the attempt succeed on the spot.
+func TestDetectDownloadStartPhaseChecksTheEpisodeCountBeforeThePartFile(t *testing.T) {
+	t.Parallel()
+
+	deps := baseDeps(t)
+	deps.DetectStartPhaseDisabled = false
+	partChecks := 0
+	deps.HasPartFiles = func(string) bool { partChecks++; return true }
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{"/fake/folder": 1}})
+	s := NewService(deps)
+
+	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 0, 3, deps.Clock())
+	if !started || len(probes) != 1 {
+		t.Fatalf("expected the first probe to end the grace, got started=%v probes=%#v", started, probes)
+	}
+	if !probes[0].landed || probes[0].found {
+		t.Fatalf("expected the probe to report landed=true and found=false, got %#v", probes[0])
+	}
+	if partChecks != 0 {
+		t.Fatalf("expected no .part lookup once the episode count rose, got %d", partChecks)
 	}
 }
 
@@ -417,7 +442,7 @@ func TestDetectDownloadStartPhaseDisabledReturnsStartedImmediately(t *testing.T)
 	deps.DetectStartPhaseDisabled = true
 	s := NewService(deps)
 
-	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 3, deps.Clock())
+	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 0, 3, deps.Clock())
 	if !started {
 		t.Fatal("expected started=true when phase is disabled")
 	}

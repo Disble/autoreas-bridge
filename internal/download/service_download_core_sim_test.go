@@ -328,7 +328,7 @@ func assertSimLedger(t *testing.T, sim *jdSim, enqueued []string, removals int) 
 //
 // This helper and the other pure comparisons above report with t.Errorf rather than t.Fatalf,
 // so one broken run names EVERY divergence instead of only the first. That is what makes a
-// mutation run readable: the deleted post-grace re-check moves five independent readings at
+// mutation run readable: the deleted grace count check moves five independent readings at
 // once, and a fatal first assertion would hide the other four.
 func assertEnqueueResult(t *testing.T, result episodeEnqueueResult, succeeded bool, attemptIndex int, exit string, observed int) {
 	t.Helper()

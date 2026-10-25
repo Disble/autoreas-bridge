@@ -40,6 +40,15 @@ const RunRetentionLimit = 200
 // configured device after launching the JDownloader executable (design §3.3, PoC #12).
 const JDAutoLaunchPollTimeout = 90 * time.Second
 
+// DetectStartProbeInterval is how often the detect phase re-checks the folder root and looks for
+// a .part file. It matches FilesystemCompletionPollInterval, so the grace and the completion poll
+// watch the disk at the same cadence.
+const DetectStartProbeInterval = 5 * time.Second
+
+// DetectStartGrace bounds the detect phase: with no new episode at the root and no .part file by
+// then, the attempt asks JDownloader for a verdict.
+const DetectStartGrace = 60 * time.Second
+
 // FilesystemCompletionPollInterval is how often the filesystem completion poll re-checks
 // the folder root while waiting for a download to land (PoC orchestrator.go, design §5.1).
 const FilesystemCompletionPollInterval = 5 * time.Second
