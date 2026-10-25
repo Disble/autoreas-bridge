@@ -172,7 +172,9 @@ describe('frontend dependency contracts', () => {
     const packageJson = readPackageJson();
 
     expect(appStylesheetSource).toContain('@import "tailwindcss";');
-    expect(packageJson.dependencies.tailwindcss).toBe('4.2.2');
+    // Pinned exactly, and in lockstep with its Vite plugin, without naming a version an upgrade must chase.
+    expect(packageJson.dependencies.tailwindcss).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(packageJson.devDependencies['@tailwindcss/vite']).toBe(packageJson.dependencies.tailwindcss);
     expect(packageJson.devDependencies.tailwindcss).toBeUndefined();
   });
 });
