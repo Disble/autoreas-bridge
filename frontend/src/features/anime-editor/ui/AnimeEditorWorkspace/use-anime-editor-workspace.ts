@@ -126,7 +126,7 @@ export function useAnimeEditorWorkspace(
     /** Whether the guard's Save and continue is blocked: a re-analysis must finish or be cancelled first. */
     isGuardSaveBlocked: episodes.isReanalyzing,
     isScheduleModalOpen: schedule.isScheduleModalOpen, scheduleBoard: schedule.scheduleBoard,
-    feedback: record.feedback, validationMessage: record.validationMessage, scheduleFeedback: schedule.scheduleFeedback,
+    recordLoadError: record.recordLoadError, validationMessage: record.validationMessage, scheduleFeedback: schedule.scheduleFeedback,
     isDetailsOpen, isGuardOpen: transitions.isGuardOpen, canSave: record.canSave, listWindow, lifecycleConfirmation: lifecycle.lifecycleConfirmation,
     onQueryChange: list.setQuery, onFilterChange: list.onFilterChange, onClearCriteria: list.onClearCriteria, onSelectAnime: transitions.onSelectAnime, onDraftChange: record.onDraftChange,
     onToggleDetails, onDiscardChanges: record.onDiscardChanges, onPickFolder: record.onPickFolder, onPickCoverFile: record.onPickCoverFile, onSave: transitions.onSave, onDeactivate, onRestore, onRepeat,

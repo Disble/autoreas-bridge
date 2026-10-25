@@ -134,9 +134,16 @@ export interface AnimeEditorRecordState {
   readonly draft: AnimeEditorDraft;
   readonly isLoadingRecord: boolean;
   readonly isSaving: boolean;
-  readonly feedback?: string;
+  /**
+   * Why the selected record could not be loaded. It is persistent surface
+   * state, so it renders as an `Alert`; action results are toasts instead.
+   */
+  readonly recordLoadError?: string;
   readonly retainsAttemptedDraft: boolean;
 }
+
+/** HeroUI toast variant that reports one editor action result. */
+export type AnimeEditorToastKind = 'success' | 'info' | 'warning' | 'danger';
 
 /** One rendered list row in the left-hand anime rail. */
 export interface AnimeEditorListItemViewModel {

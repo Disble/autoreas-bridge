@@ -3,7 +3,7 @@ name: autoreas-theme
 description: "Design-system fundamentals for the autoreas-bridge frontend, with an index into docs/design for the detail. Use BEFORE building or refactoring ANY UI under frontend/src: which HeroUI v3 component to use instead of hand-rolling divs/buttons/tables, semantic color tokens, chips, the loading/empty/error states, empty-state kinds and the mascot, and mockup fidelity and pricing. Keywords: theme, design system, UI, rebrand, restyle, frontend component, HeroUI, Tailwind, styling, feature UI, empty state, skeleton, mockup."
 metadata:
   author: autoreas-bridge
-  version: "2.7.0"
+  version: "2.8.0"
   scope: project
   updates: living
 ---
@@ -28,7 +28,8 @@ installed package wins over docs: verify exports in `node_modules` when versions
 | Select / tabs | `Select` + `ListBox`; `Tabs` | raw `<select>`, a `<button>` tab strip |
 | Table | `Table` | raw `<table>` (except a loading placeholder) |
 | Container | `Card` or `Surface` | a bordered `<div>` |
-| Banner / error | `Alert` | a colored `<div>` |
+| Banner / error | `Alert` for persistent surface state only (a load failure, validation that blocks the action) | a colored `<div>`; an `Alert` for an action result |
+| Action result (saved, no-op, conflict, error, timeout) | `toast` from the hook callback (`success` / `info` / `warning` / `danger`) | an `Alert` left behind after the action |
 | Tag / badge | `Chip variant="soft"` | a styled `<span>`, an outlined pill |
 | Long list | `useProgressiveListWindow` (static) or `isNearListBottom` (live) | rendering every row |
 | Loading | shape-mirroring skeleton in a status region, or `LoadingBars` | a "Loading…" sentence, a lone `Spinner` |

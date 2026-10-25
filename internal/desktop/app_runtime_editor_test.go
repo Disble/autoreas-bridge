@@ -10,6 +10,7 @@ import (
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/events"
+	sharedlogger "autoreas-bridge/internal/logger"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
@@ -41,11 +42,39 @@ func TestSaveAnimeEditorDelegatesToEditorService(t *testing.T) {
 	service := anime.NewEditorService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(200).UTC() })
 	app := &App{ctx: context.Background(), animeEditorWrite: service}
+	memLogger := attachEditorMemLogger(app)
 	name := "Frieren X"
 
 	got := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 100, Patch: AnimeEditorPatchDTO{Name: &name}})
 	if got.Outcome != contracts.AnimePatchOutcomeApplied || got.ModifiedAt != 200 {
 		t.Fatalf("unexpected save result: %#v", got)
+	}
+	assertEditorFailuresLogged(t, memLogger, "anime-1", "save", 0)
+}
+
+// attachEditorMemLogger wires an in-memory shared logger into app and returns it.
+func attachEditorMemLogger(app *App) *sharedlogger.MemLogger {
+	memLogger := sharedlogger.NewMemLogger(sharedlogger.MemLoggerConfig{})
+	app.sharedLogger = sharedlogger.NewFanoutLogger(memLogger)
+	return memLogger
+}
+
+// assertEditorFailuresLogged pins the failed-write rows Activity reads: domain,
+// level, event type, entity and operation, never the message prose.
+func assertEditorFailuresLogged(t *testing.T, memLogger *sharedlogger.MemLogger, animeID, operation string, want int) {
+	t.Helper()
+	got := 0
+	for _, entry := range memLogger.Recent() {
+		if entry.EventType != "anime.editor_save_failed" {
+			continue
+		}
+		got++
+		if entry.Domain != "anime" || entry.Level != sharedlogger.LevelError || entry.EntityID != animeID || entry.Metadata["operation"] != operation {
+			t.Fatalf("editor failure row = %+v, want domain anime, level error, entity %q, operation %q", entry, animeID, operation)
+		}
+	}
+	if got != want {
+		t.Fatalf("logged %d editor failure rows, want %d", got, want)
 	}
 }
 
@@ -93,11 +122,13 @@ func TestSaveAnimeEditorReturnsErrorOutcomeForValidationFailure(t *testing.T) {
 	writer := &stubAppCommittedPublisher{}
 	service := anime.NewEditorService(store, writer)
 	app := &App{ctx: context.Background(), animeEditorWrite: service, animeEditorQuery: anime.NewQueryService(store)}
+	memLogger := attachEditorMemLogger(app)
 	blank := " "
 	got := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 100, Patch: AnimeEditorPatchDTO{Name: &blank}})
 	if got.Outcome != contracts.AnimePatchOutcomeError || got.Message == "" || got.Details["operation"] != "save" {
 		t.Fatalf("expected useful validation error outcome, got %#v", got)
 	}
+	assertEditorFailuresLogged(t, memLogger, "anime-1", "save", 1)
 }
 
 func TestSaveAnimeEditorReturnsConflictWithRefreshedRecord(t *testing.T) {
@@ -120,6 +151,8 @@ func TestSaveAnimeEditorRejectsMalformedNumericAndForbiddenOwnershipWithExplicit
 	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2}`, 100)
 	service := anime.NewEditorService(store, &stubAppCommittedPublisher{})
 	app := &App{ctx: context.Background(), animeEditorWrite: service, animeEditorQuery: anime.NewQueryService(store)}
+	memLogger := attachEditorMemLogger(app)
+	defer func() { assertEditorFailuresLogged(t, memLogger, "anime-1", "save", 5) }()
 	requests := []string{
 		`{"animeId":"anime-1","baseModifiedAt":100,"patch":{"totalEpisodes":{"present":true,"value":"twelve"}}}`,
 		`{"animeId":"anime-1","baseModifiedAt":100,"patch":{"modified_at":100}}`,
@@ -146,10 +179,16 @@ func TestDeactivateAnimeReturnsAppliedAuthority(t *testing.T) {
 	service := anime.NewEditorService(store, &stubAppCommittedPublisher{})
 	service.SetNow(func() time.Time { return time.UnixMilli(200).UTC() })
 	app := &App{ctx: context.Background(), animeEditorWrite: service, animeEditorQuery: anime.NewQueryService(store)}
+	memLogger := attachEditorMemLogger(app)
 	got := app.DeactivateAnime("anime-1", 100)
 	if got.Outcome != contracts.AnimePatchOutcomeApplied || got.ModifiedAt != 200 || got.Record == nil || got.Record.Frequent.Active {
 		t.Fatalf("expected applied deactivate authority, got %#v", got)
 	}
+	assertEditorFailuresLogged(t, memLogger, "anime-1", "deactivate", 0)
+	if missing := app.DeactivateAnime("anime-missing", 100); missing.Outcome != contracts.AnimePatchOutcomeError {
+		t.Fatalf("deactivating a missing anime must fail, got %#v", missing)
+	}
+	assertEditorFailuresLogged(t, memLogger, "anime-missing", "deactivate", 1)
 }
 
 func TestApplyAnimeEditorScheduleReturnsConflictWithRefreshedBoard(t *testing.T) {

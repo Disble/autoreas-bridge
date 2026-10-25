@@ -1,10 +1,20 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnimeEditorRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeEditorRecord } from '../../../../../shared/contracts/anime.types';
 import type { AnimeMetadataSelection } from '../../../../../shared/metadata-lookup/metadata-lookup.types';
+import { ANIME_EDITOR_CALL_TIMEOUT_MESSAGE, ANIME_EDITOR_CALL_TIMEOUT_MS } from '../anime-editor-workspace.constants';
 import { isIntentionalEditorOutcome } from '../anime-editor-workspace.helpers';
 import { useAnimeEditorRecord } from '../use-anime-editor-record';
+
+/** Toast stub, hoisted so the HeroUI module mock can close over it. */
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), info: vi.fn(), warning: vi.fn(), danger: vi.fn() }));
+
+vi.mock('@heroui/react', () => ({ toast: toastMock }));
+
+beforeEach(() => {
+  Object.values(toastMock).forEach((mock) => mock.mockClear());
+});
 
 /**
  * Builds a stubbed editor runtime source for one hook test case.
@@ -68,6 +78,16 @@ describe('editor record outcome policy', () => {
   });
 });
 
+describe('editor record load failure', () => {
+  it('keeps a failed record load on the surface instead of toasting it', async () => {
+    const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'error' }) });
+    const { result } = renderHook(() => useAnimeEditorRecord({ selectedAnimeId: 'anime-1', source }));
+
+    await waitFor(() => expect(result.current.recordLoadError).toBe('The editor record could not be loaded.'));
+    expect(toastMock.danger).not.toHaveBeenCalled();
+  });
+});
+
 describe('editor record folder picker', () => {
   it('applies the picked folder path to the draft', async () => {
     const source = createSource({ pickFolder: vi.fn().mockResolvedValue('D:/Anime/New Show') });
@@ -111,7 +131,7 @@ describe('editor record restore handler', () => {
     expect(source.restoreAnime).toHaveBeenCalledWith('anime-1', 42);
     // Mandatory guard (design D11 corollary): success reloads the record.
     expect(source.getAnimeEditorRecord).toHaveBeenCalledTimes(2);
-    expect(result.current.feedback).toBe('Anime restored.');
+    expect(toastMock.success).toHaveBeenCalledWith('Anime restored.');
   });
 
   it('does not reload the record and reports the Restore-not-applied fallback when the backend sends no message', async () => {
@@ -128,7 +148,7 @@ describe('editor record restore handler', () => {
     expect(source.getAnimeEditorRecord).toHaveBeenCalledTimes(1);
     // Pins the renamed fallback literal (`use-anime-editor-record.ts`): easy to
     // miss because it is copy, not a button label.
-    expect(result.current.feedback).toBe('Restore anime was not applied.');
+    expect(toastMock.danger).toHaveBeenCalledWith('Restore anime was not applied.');
   });
 });
 
@@ -161,7 +181,7 @@ describe('editor record repeat handler', () => {
     // watched-episode count actually reading the reset value -- not just a spy call.
     expect(getAnimeEditorRecord).toHaveBeenCalledTimes(2);
     expect(result.current.draft.progress).toBe('0');
-    expect(result.current.feedback).toBe('Anime repeated.');
+    expect(toastMock.success).toHaveBeenCalledWith('Anime repeated.');
   });
 
   it('does not reload the record and reports the Repeat-not-applied fallback on failure', async () => {
@@ -178,7 +198,7 @@ describe('editor record repeat handler', () => {
     expect(source.getAnimeEditorRecord).toHaveBeenCalledTimes(1);
     // Pins the Repeat feedback literal (`use-anime-editor-record.ts`): easy to
     // miss because it is copy, not a button label.
-    expect(result.current.feedback).toBe('Repeat anime was not applied.');
+    expect(toastMock.danger).toHaveBeenCalledWith('Repeat anime was not applied.');
   });
 });
 
@@ -307,24 +327,55 @@ describe('editor record saves anime data only', () => {
     expect(command).not.toHaveProperty('episodes');
     expect(command).toEqual(expect.objectContaining({ animeId: 'anime-1', patch: expect.objectContaining({ name: 'Bleach TYBW' }) }));
     expect(result.current.isDirty).toBe(false);
-    expect(result.current.feedback).toBe('Changes saved.');
+    expect(toastMock.success).toHaveBeenCalledWith('Changes saved.');
+    expect(result.current.recordLoadError).toBeUndefined();
     expect(result.current).not.toHaveProperty('episodeEdits');
     expect(result.current).not.toHaveProperty('onEpisodeEditsChange');
   });
 
-  it('Discard changes restores the saved fields and clears a rejected save, its message included', async () => {
+  it.each([
+    ['save', 'saveAnimeEditor', (api: ReturnType<typeof useAnimeEditorRecord>) => api.onSave()],
+    ['deactivate', 'deactivateAnime', (api: ReturnType<typeof useAnimeEditorRecord>) => api.onDeactivate()],
+    ['restore', 'restoreAnime', (api: ReturnType<typeof useAnimeEditorRecord>) => api.onRestore()],
+    ['repeat', 'repeatAnime', (api: ReturnType<typeof useAnimeEditorRecord>) => api.onRepeat()],
+  ] as const)('a %s binding that never settles stops the busy state with an error outcome', async (_label, binding, run) => {
+    const source = createSource({
+      getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }),
+      [binding]: vi.fn().mockReturnValue(new Promise(() => undefined)),
+    });
+    const { result } = renderHook(() => useAnimeEditorRecord({ selectedAnimeId: 'anime-1', source }));
+    await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
+    act(() => result.current.onDraftChange('name', 'Bleach TYBW'));
+    vi.useFakeTimers();
+    try {
+      let outcome: unknown;
+      let pending: Promise<unknown> = Promise.resolve();
+      act(() => { pending = run(result.current).then((value) => { outcome = value; }); });
+      expect(result.current.isSaving).toBe(true);
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(ANIME_EDITOR_CALL_TIMEOUT_MS); await pending; });
+
+      expect(result.current.isSaving).toBe(false);
+      expect(toastMock.danger).toHaveBeenCalledWith(ANIME_EDITOR_CALL_TIMEOUT_MESSAGE);
+      expect(outcome).toEqual(expect.objectContaining({ message: ANIME_EDITOR_CALL_TIMEOUT_MESSAGE }));
+      expect(result.current.draft.name).toBe('Bleach TYBW');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('Discard changes restores the saved fields after a rejected save', async () => {
     const saveAnimeEditor = vi.fn().mockResolvedValue({ outcome: 'conflict', message: 'stale', modifiedAt: 0 });
     const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }), saveAnimeEditor });
     const { result } = renderHook(() => useAnimeEditorRecord({ selectedAnimeId: 'anime-1', source }));
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
     act(() => result.current.onDraftChange('name', 'Bleach TYBW'));
     await act(async () => { await result.current.onSave(); });
-    expect(result.current.feedback).toBe('stale');
+    expect(toastMock.warning).toHaveBeenCalledWith('stale');
 
     act(() => result.current.onDiscardChanges());
 
     expect(result.current.draft.name).toBe('Bleach');
     expect(result.current.isDirty).toBe(false);
-    expect(result.current.feedback).toBeUndefined();
   });
 });
