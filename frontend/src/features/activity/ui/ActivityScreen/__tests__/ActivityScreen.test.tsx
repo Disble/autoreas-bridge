@@ -1,53 +1,59 @@
-import { toast } from '@heroui/react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ActivityNowView } from '../../../activity-source/activity.types';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { dispatchKeyboardEvent } from '../../../../../shared/keyboard/dispatch.helpers';
+import { resetKeyboardStore } from '../../../../../shared/keyboard/keyboard-scope.helpers';
 import type { ActivitySource } from '../../../activity-source/activity-source.types';
+import type { ActivityFeedSource } from '../../../feed-source/feed-source.types';
+import type { ActivityFeedLine, ActivityFeedView } from '../../../feed-source/feed.types';
 import type { HistorySource } from '../../../history-source/history-source.types';
+import { buildDay, buildLine, buildOverview, buildView } from '../../../feed/__tests__/activity-feed.fixtures';
+import type { ActivityDetailDrawerProps } from '../../ActivityDetailDrawer/activity-detail-drawer.types';
 import { ActivityScreen } from '../ActivityScreen';
 
-/** A resolved Now view with one incident in "Needs a look". */
-const NOW_VIEW: ActivityNowView = {
-  status: { kind: 'problems', sentence: '1 problem needs a look', quietMinutes: 0, problems: 1 },
-  lastPhoneContactMs: 0,
-  uptimeMs: 60_000,
-  requestsToday: 3,
-  openIncidents: 1,
-  changesToday: 0,
-  hours: [],
-  needsALook: [{ latestId: 9, fingerprint: 'fp', reason: 'http_5xx', title: 'Sync failed for 5 requests', latestAtMs: 0, firstSeenAtMs: 0, occurrences: 5, isNew: true, isError: true }],
-  recentChanges: [],
+/** Recorder listeners the screen subscribed. */
+const recorderListeners: (() => void)[] = [];
+
+/** The feed port: each test sets what `searchFeed` resolves with. */
+const feedSource = {
+  searchFeed: vi.fn<ActivityFeedSource['searchFeed']>(),
+  getOverview: vi.fn<ActivityFeedSource['getOverview']>(),
 };
 
-/** The source the screen reads: Now never resolves unless a test says so, the pin succeeds. */
-const source: ActivitySource = {
-  getNow: vi.fn(() => new Promise<ActivityNowView>(() => undefined)),
-  pinMoment: vi.fn(() => Promise.resolve()),
-  subscribeRecorder: () => () => undefined,
-  listIncidents: vi.fn(() => Promise.resolve([])),
-  getIncident: vi.fn<ActivitySource['getIncident']>(() => new Promise(() => undefined)),
-  getRequest: vi.fn(),
-  listRecoveredRuns: vi.fn(() => Promise.resolve([])),
-  getRunStory: vi.fn(),
-};
-
-vi.mock('../../../activity-source/activity-source.helpers', () => ({
-  createActivitySource: () => source,
-}));
-
-/** The History and recorder source: both reads stay pending, so each view rests on its skeleton. */
+/** The History port: only its recorder subscription is used. */
 const historySource: HistorySource = {
-  searchHistory: vi.fn(() => new Promise<never>(() => undefined)),
-  listRecorder: vi.fn(() => new Promise<never>(() => undefined)),
-  subscribeRecorder: () => () => undefined,
+  subscribeRecorder: (listener) => {
+    recorderListeners.push(() => listener({} as never));
+    return () => undefined;
+  },
 };
 
-vi.mock('../../../history-source/history-source.helpers', () => ({
-  createHistorySource: () => historySource,
+/** The Activity port: only the pin is used. */
+const activitySource = { pinMoment: vi.fn(() => Promise.resolve()) } as unknown as ActivitySource;
+
+vi.mock('../../../feed-source/feed-source.helpers', () => ({ createActivityFeedSource: () => feedSource }));
+vi.mock('../../../history-source/history-source.helpers', () => ({ createHistorySource: () => historySource }));
+vi.mock('../../../activity-source/activity-source.helpers', () => ({ createActivitySource: () => activitySource }));
+/** The paired devices the phone status line reads: none unless a test sets them. */
+const getConnectedDevices = vi.fn(() => Promise.resolve<readonly { connection_status: string; last_seen_at_ms: number }[]>([]));
+
+vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({ bridgeRuntimeSource: { getConnectedDevices: () => getConnectedDevices() } }));
+vi.mock('../../ActivityDetailDrawer/ActivityDetailDrawer', () => ({
+  /** Stands in for writer B's drawer: shows which line is open. */
+  ActivityDetailDrawer: ({ line }: ActivityDetailDrawerProps) => (line === undefined ? null : <aside aria-label="Activity detail">{line.line.id}</aside>),
 }));
 
-/** Renders the shell inside a router. */
+/** `count` change lines, newest first, with ids from `firstId` down. */
+function lines(count: number, firstId: number): readonly ActivityFeedLine[] {
+  return Array.from({ length: count }, (_unused, index) => buildLine({}, { id: String(firstId - index), atMs: Date.now() - (1000 - firstId + index) * 1000 }));
+}
+
+/** A page of `count` lines on today, with a cursor when more remain. */
+function page(count: number, firstId: number, nextCursor = ''): ActivityFeedView {
+  return buildView([buildDay(0, lines(count, firstId))], nextCursor);
+}
+
+/** Renders the screen inside a router. */
 function renderScreen() {
   render(
     <MemoryRouter>
@@ -56,84 +62,473 @@ function renderScreen() {
   );
 }
 
-describe('ActivityScreen', () => {
-  beforeEach(() => {
-    vi.mocked(source.getIncident).mockClear();
-    vi.mocked(historySource.searchHistory).mockClear();
-    vi.mocked(historySource.listRecorder).mockClear();
-  });
+/** The last feed read. */
+function lastQuery() {
+  return feedSource.searchFeed.mock.calls.at(-1)?.[0];
+}
 
-  it('opens on Now with the three tabs and the pin action', () => {
-    renderScreen();
-
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Now', 'Incidents', 'History']);
-    expect(screen.getByRole('tab', { name: 'Now' })).toHaveAttribute('aria-selected', 'true');
-    // The bridge tab style: the selected tab carries the shared sliding indicator, as in Season.
-    expect(screen.getByRole('tab', { name: 'Now' }).querySelector('[data-slot="tabs-indicator"]')).not.toBeNull();
-    expect(screen.getByRole('status', { name: 'Loading activity' })).toBeInTheDocument();
-  });
-
-  it('shows the Incidents view, resting until a pick, and History loading its first page', async () => {
-    renderScreen();
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Incidents' }));
-    expect(screen.getByRole('heading', { name: 'No incident selected' })).toBeInTheDocument();
-    expect(screen.getByRole('radiogroup', { name: 'Where it happened' })).toBeInTheDocument();
-    expect(await screen.findByText('No incidents in the last 7 days')).toBeInTheDocument();
-    expect(screen.queryByRole('status', { name: 'Loading activity' })).toBeNull();
-
-    fireEvent.click(screen.getByRole('tab', { name: 'History' }));
-    expect(screen.getByRole('status', { name: 'Loading History' })).toBeInTheDocument();
-    expect(historySource.searchHistory).toHaveBeenCalledTimes(1);
-  });
-
-  it('opens the 2-hour recorder from Now and goes back to the tabs', () => {
-    renderScreen();
-
-    fireEvent.click(screen.getByRole('button', { name: /See every request from the last 2 hours/ }));
-    expect(screen.queryByRole('tab', { name: 'Now' })).toBeNull();
-    expect(historySource.listRecorder).toHaveBeenCalledTimes(1);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
-    expect(screen.getByRole('tab', { name: 'Now' })).toHaveAttribute('aria-selected', 'true');
-  });
-
-  it('sends "Pair a phone" on a first-run History to the pairing route', async () => {
-    vi.mocked(historySource.searchHistory).mockResolvedValueOnce({ calendar: [], days: [], nextCursor: '' });
-    render(
-      <MemoryRouter>
-        <Routes>
-          <Route element={<ActivityScreen />} path="/" />
-          <Route element={<p>Pairing route</p>} path="/pairing" />
-        </Routes>
-      </MemoryRouter>,
+/** Presses one key through the app's keyboard dispatcher. */
+function pressKey(key: string) {
+  act(() => {
+    dispatchKeyboardEvent(
+      { key, code: key, ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, defaultPrevented: false, isComposing: false, target: null, preventDefault: () => undefined },
+      { navigate: vi.fn() },
     );
-
-    fireEvent.click(screen.getByRole('tab', { name: 'History' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Pair a phone' }));
-
-    expect(screen.getByText('Pairing route')).toBeInTheDocument();
   });
+}
 
-  it('opens the incident picked in "Needs a look" on the Incidents tab, read once by its id', async () => {
-    vi.mocked(source.getNow).mockResolvedValueOnce(NOW_VIEW);
+/** The feed rows on screen. */
+function rows() {
+  return document.querySelectorAll('[data-feed-row]');
+}
+
+beforeEach(() => {
+  recorderListeners.length = 0;
+  feedSource.searchFeed.mockReset();
+  feedSource.getOverview.mockReset();
+  feedSource.getOverview.mockResolvedValue(buildOverview([{ type: 'change', lines: 41, failed: 2 }, { type: 'system', lines: 1, failed: 1 }]));
+  resetKeyboardStore();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe('ActivityScreen', () => {
+  it('shows the phone status line under the title, connected or offline, only while a phone has synced', async () => {
+    feedSource.searchFeed.mockResolvedValue(page(1, 1));
+    getConnectedDevices.mockResolvedValueOnce([{ connection_status: 'connected', last_seen_at_ms: Date.now() - 5 * 60_000 }]);
     renderScreen();
 
-    fireEvent.click(await screen.findByRole('button', { name: /Sync failed for 5 requests/ }));
+    const status = await screen.findByText('Phone connected · last sync 5m ago');
+    expect(status).toHaveAttribute('data-phone-status', 'connected');
+    // the line explains itself through the design system's Tooltip, never a native title
+    expect(status.closest('[title]')).toBeNull();
+    fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
+    fireEvent.pointerUp(document.body, { pointerType: 'mouse' });
+    fireEvent.pointerOver(status, { pointerType: 'mouse' });
+    await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent('Last contact from the phone'));
 
-    expect(screen.getByRole('tab', { name: 'Incidents' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('status', { name: 'Loading the incident' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'No incident selected' })).toBeNull();
-    expect(source.getIncident).toHaveBeenCalledExactlyOnceWith(9);
+    cleanup();
+    getConnectedDevices.mockResolvedValueOnce([{ connection_status: 'disconnected', last_seen_at_ms: Date.now() - 5 * 60_000 }]);
+    renderScreen();
+    expect(await screen.findByText('Phone offline · last sync 5m ago')).toHaveAttribute('data-phone-status', 'offline');
+
+    cleanup();
+    renderScreen();
+    await screen.findByLabelText('2 failed');
+    expect(document.querySelector('[data-phone-status]')).toBeNull();
   });
 
-  it('pins the moment from the action beside the tabs', async () => {
-    const success = vi.spyOn(toast, 'success').mockReturnValue('t');
+  it('shows only the skeleton while the first page is unread', () => {
+    feedSource.searchFeed.mockReturnValue(new Promise(() => undefined));
     renderScreen();
 
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Pin this moment' })));
+    expect(screen.getByRole('status', { name: 'Loading activity' })).toBeInTheDocument();
+    expect(rows()).toHaveLength(0);
+  });
 
-    expect(source.pinMoment).toHaveBeenCalledTimes(1);
-    expect(success).toHaveBeenCalledTimes(1);
+  it('renders one batch of rows, then appends the next page near the bottom', async () => {
+    feedSource.searchFeed.mockResolvedValueOnce(page(40, 100, 'c1')).mockResolvedValueOnce(page(40, 60));
+    renderScreen();
+
+    await waitFor(() => expect(rows()).toHaveLength(40));
+    expect(screen.getByRole('region', { name: /Oct 22$/ })).toBeInTheDocument();
+    expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: '', limit: 40, types: ['change', 'download', 'task', 'edit'] }));
+
+    fireEvent.scroll(window);
+
+    await waitFor(() => expect(rows()).toHaveLength(80));
+    expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'c1' }));
+    expect(screen.getByText('Start of the last 24 hours')).toBeInTheDocument();
+  });
+
+  it('keeps the loaded window when live events arrive and reads the counts again (S8)', async () => {
+    feedSource.searchFeed.mockResolvedValueOnce(page(40, 100, 'c1')).mockResolvedValueOnce(page(40, 60, 'c2'));
+    renderScreen();
+    await waitFor(() => expect(rows()).toHaveLength(40));
+    fireEvent.scroll(window);
+    await waitFor(() => expect(rows()).toHaveLength(80));
+    feedSource.searchFeed.mockResolvedValueOnce(page(40, 101, 'fresh'));
+    const overviewReads = feedSource.getOverview.mock.calls.length;
+
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    act(() => {
+      recorderListeners.forEach((listener) => listener());
+      recorderListeners.forEach((listener) => listener());
+      vi.advanceTimersByTime(1000);
+    });
+    vi.useRealTimers();
+
+    await waitFor(() => expect(document.querySelector('[data-feed-row="change:101"]')).not.toBeNull());
+    expect(rows().length).toBeGreaterThanOrEqual(80);
+    expect(feedSource.searchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: '' }));
+    expect(feedSource.getOverview).toHaveBeenCalledTimes(overviewReads + 1);
+  });
+
+  it('shows the failure alert, not rows, when the feed cannot be read, and reads again on Try again', async () => {
+    feedSource.searchFeed.mockRejectedValueOnce(new Error('down')).mockResolvedValueOnce(page(1, 1));
+    renderScreen();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Try again' }));
+
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(screen.queryByText('Activity could not read its feed')).not.toBeInTheDocument();
+  });
+
+  it('asks for a type, without reading, when every type is turned off', async () => {
+    feedSource.searchFeed.mockResolvedValue(page(1, 1));
+    renderScreen();
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    const group = screen.getByRole('toolbar', { name: 'Activity filters' });
+
+    for (const name of [/^Changes/, /^Downloads/, /^Tasks/, /^Edits/]) {
+      fireEvent.click(within(group).getByRole('button', { name }));
+    }
+
+    expect(await screen.findByText('Pick at least one type to see activity.')).toBeInTheDocument();
+    expect(feedSource.searchFeed).toHaveBeenCalledTimes(4);
+    expect(rows()).toHaveLength(0);
+  });
+
+  it('shows each type count and its failures, and switches the feed to the failures of the selected sections and back', async () => {
+    feedSource.searchFeed.mockResolvedValue(page(1, 1));
+    renderScreen();
+    expect(await screen.findByLabelText('2 failed')).toBeInTheDocument();
+    const pill = screen.getByRole('button', { name: 'Show only failures' });
+    // Change's 2 failures count; System's 1 does not, since System starts off (sections filter first)
+    expect(pill).toHaveTextContent('2');
+    expect(pill).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(pill);
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ failuresOnly: true, types: ['change', 'download', 'task', 'edit'] }));
+    // the bars follow the table: the overview reads the same sections and failures-only
+    await waitFor(() => expect(feedSource.getOverview).toHaveBeenLastCalledWith('24h', 0, 0, 'all', ['change', 'download', 'task', 'edit'], true));
+    expect(pill).toHaveAttribute('aria-pressed', 'true');
+    expect(pill).not.toHaveAttribute('aria-haspopup');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Turn off failure filter' })).not.toBeInTheDocument();
+    // the sections stay live while the switch is on
+    expect(screen.getByRole('group', { name: 'What' }).className).not.toContain('opacity-45');
+
+    fireEvent.click(within(screen.getByRole('toolbar', { name: 'Activity filters' })).getByRole('button', { name: /^Downloads/ }));
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ failuresOnly: true, types: ['change', 'task', 'edit'] }));
+    await waitFor(() => expect(feedSource.getOverview).toHaveBeenLastCalledWith('24h', 0, 0, 'all', ['change', 'task', 'edit'], true));
+    expect(pill).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(pill);
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ failuresOnly: false, types: ['change', 'task', 'edit'] }));
+    await waitFor(() => expect(feedSource.getOverview).toHaveBeenLastCalledWith('24h', 0, 0, 'all', ['change', 'task', 'edit'], false));
+    expect(pill).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('names the failure switch, the Phone and Bridge origins and a section failure chip with the design system Tooltip, never a native title', async () => {
+    feedSource.searchFeed.mockResolvedValue(page(1, 1));
+    renderScreen();
+    const chip = await screen.findByLabelText('2 failed');
+    const pill = screen.getByRole('button', { name: 'Show only failures' });
+    // a pointer press first leaves keyboard modality, in which a tooltip ignores hover
+    fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
+    fireEvent.pointerUp(document.body, { pointerType: 'mouse' });
+
+    for (const [button, tooltip] of [
+      [screen.getByRole('radio', { name: 'Phone' }), 'From the phone'],
+      [screen.getByRole('radio', { name: 'Bridge' }), 'On the bridge'],
+      [chip, '2 failed'],
+      [pill, 'Show only failures'],
+    ] as const) {
+      expect(button.closest('[title]')).toBeNull();
+      fireEvent.pointerOver(button, { pointerType: 'mouse' });
+      await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent(tooltip));
+    }
+
+    fireEvent.click(pill);
+
+    await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent('Show all activity'));
+  });
+
+  it('toggles a section when its failure chip is pressed, so the chip tooltip never swallows the press', async () => {
+    feedSource.searchFeed.mockResolvedValue(page(1, 1));
+    renderScreen();
+    const chip = await screen.findByLabelText('2 failed');
+    const section = within(screen.getByRole('toolbar', { name: 'Activity filters' })).getByRole('button', { name: /^Changes/ });
+    expect(section).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(chip);
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ types: ['download', 'task', 'edit'] }));
+    expect(section).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('opens a row in the drawer, moves it with ↑ / ↓ and closes it with Esc', async () => {
+    feedSource.searchFeed.mockResolvedValue(page(3, 3));
+    renderScreen();
+    await waitFor(() => expect(rows()).toHaveLength(3));
+
+    // A press on the origin icon, whose tooltip trigger sits inside the row, still opens the row.
+    fireEvent.click(within(rows()[0] as HTMLElement).getAllByRole('img')[0]);
+    expect(screen.getByRole('complementary', { name: 'Activity detail' })).toHaveTextContent('3');
+
+    // Focus follows the open row, so the focus ring never marks a line the drawer no longer shows.
+    pressKey('ArrowDown');
+    expect(screen.getByRole('complementary', { name: 'Activity detail' })).toHaveTextContent('2');
+    expect(document.activeElement).toBe(rows()[1]);
+    pressKey('ArrowUp');
+    expect(screen.getByRole('complementary', { name: 'Activity detail' })).toHaveTextContent('3');
+    expect(document.activeElement).toBe(rows()[0]);
+    pressKey('Escape');
+    expect(screen.queryByRole('complementary', { name: 'Activity detail' })).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(rows()[0]);
+  });
+
+  it('keeps the drawer open on a press inside it or on a row, and closes it on a press anywhere else', async () => {
+    feedSource.searchFeed.mockResolvedValue(page(2, 2));
+    renderScreen();
+    await waitFor(() => expect(rows()).toHaveLength(2));
+    fireEvent.click(rows()[0]);
+
+    fireEvent.pointerDown(screen.getByRole('complementary', { name: 'Activity detail' }));
+    fireEvent.pointerDown(rows()[1]);
+    expect(screen.getByRole('complementary', { name: 'Activity detail' })).toBeInTheDocument();
+
+    fireEvent.pointerDown(screen.getByRole('toolbar', { name: 'Activity filters' }));
+    expect(screen.queryByRole('complementary', { name: 'Activity detail' })).not.toBeInTheDocument();
+  });
+
+  it('pins this moment from the page header', async () => {
+    feedSource.searchFeed.mockResolvedValue(page(1, 1));
+    renderScreen();
+    const header = screen.getByRole('heading', { level: 1, name: 'Activity' }).closest('header') as HTMLElement;
+
+    fireEvent.click(within(header).getByRole('button', { name: 'Pin this moment' }));
+
+    await waitFor(() => expect(activitySource.pinMoment).toHaveBeenCalledTimes(1));
+  });
+
+  it('marks a failed System line red and a slow line amber, badges a repeat, and offers Copy for AI on the failed row only', async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const system = { hourStartMs: Date.now() - 3_600_000, count: 4, firstAtMs: Date.now() - 3_000_000, lastAtMs: Date.now() - 1000 };
+    const failed = buildLine({ type: 'system', origin: 'bridge', failed: true, incidentId: 4, system }, { kind: 'event', id: '2', title: 'Sync failed', detail: 'sync.error' });
+    const slow = buildLine({ slow: true }, { id: '1', atMs: Date.now() - 2000 });
+    feedSource.searchFeed.mockResolvedValue(buildView([buildDay(0, [failed, slow])]));
+    renderScreen();
+
+    const origin = await screen.findByRole('img', { name: 'Bridge · failed' });
+    // the origin tile names itself through the design system's Tooltip, never a native title
+    expect(origin.closest('[title]')).toBeNull();
+    fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
+    fireEvent.pointerUp(document.body, { pointerType: 'mouse' });
+    fireEvent.pointerOver(origin, { pointerType: 'mouse' });
+    await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent('Bridge · failed'));
+    expect(screen.queryByRole('img', { name: 'Linked incident' })).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Phone · slow' })).toBeInTheDocument();
+    // the badge explains itself through the design system's Tooltip, never a native title
+    const badge = screen.getByRole('img', { name: '4 times' });
+    expect(badge).toHaveTextContent('×4');
+    expect(badge.closest('[title]')).toBeNull();
+    expect(screen.queryByText(/sync\.error/)).not.toBeInTheDocument();
+    const copyButtons = screen.getAllByRole('button', { name: 'Copy for AI' });
+    expect(copyButtons).toHaveLength(1);
+
+    fireEvent.click(copyButtons[0]);
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('incident 4'));
+    expect(document.querySelector('[aria-current="true"]')).toBeNull();
+  });
+});
+
+describe('ActivityScreen chart and toolbar', () => {
+  /** Start of the current hour. */
+  const hourMs = Math.floor(Date.now() / 3_600_000) * 3_600_000;
+  /** The last three hourly slots, oldest first; the oldest recorded nothing. */
+  const slots = [2, 1, 0].map((back) => ({ startMs: hourMs - back * 3_600_000, endMs: hourMs - (back - 1) * 3_600_000, count: back === 2 ? 0 : 3 - back, failed: back === 0 ? 1 : 0 }));
+
+  /** The chart bars on screen. */
+  function bars() {
+    return [...document.querySelectorAll<HTMLElement>('[data-chart-bar]')];
+  }
+
+  /** Renders the screen once its chart bars are drawn. */
+  async function renderChart() {
+    feedSource.getOverview.mockResolvedValue({ ...buildOverview([]), slots });
+    feedSource.searchFeed.mockResolvedValue(page(1, 1));
+    renderScreen();
+    await waitFor(() => expect(bars()).toHaveLength(3));
+    expect(document.querySelectorAll('[data-chart-failure]')).toHaveLength(1);
+    // 1 of the last slot's 3 lines failed: the red part is a third of its bar, not a fixed cap
+    expect(bars()[2].querySelector<HTMLElement>('[data-chart-failure]')?.style.height).toMatch(/^33\.3/);
+    expect(bars()[0].querySelector('[data-chart-gap]')).not.toBeNull();
+    expect(document.querySelectorAll('[data-chart-gap]')).toHaveLength(1);
+  }
+
+  it('draws every bar as a gap once no section is selected, as the table then lists nothing', async () => {
+    await renderChart();
+    const toolbar = within(screen.getByRole('toolbar', { name: 'Activity filters' }));
+
+    for (const name of [/^Changes/, /^Downloads/, /^Tasks/, /^Edits/]) {
+      fireEvent.click(toolbar.getByRole('button', { name }));
+    }
+
+    await waitFor(() => expect(document.querySelectorAll('[data-chart-gap]')).toHaveLength(3));
+    expect(bars()).toHaveLength(3);
+    expect(document.querySelectorAll('[data-chart-failure]')).toHaveLength(0);
+  });
+
+  it('packs more than 24 bars tighter', async () => {
+    await renderChart();
+    expect(document.querySelector('[data-chart-density]')).toHaveAttribute('data-chart-density', 'sparse');
+    cleanup();
+
+    const many = Array.from({ length: 30 }, (_unused, index) => ({ startMs: hourMs - (29 - index) * 3_600_000, endMs: hourMs - (28 - index) * 3_600_000, count: 1, failed: 0 }));
+    feedSource.getOverview.mockResolvedValue({ ...buildOverview([]), slots: many });
+    renderScreen();
+
+    await waitFor(() => expect(bars()).toHaveLength(30));
+    expect(document.querySelector('[data-chart-density]')).toHaveAttribute('data-chart-density', 'dense');
+  });
+
+  it('reads the dragged range, shows its ×, and reads the whole window again once cleared', async () => {
+    await renderChart();
+    const group = screen.getByRole('group', { name: /Drag across bars/ });
+
+    fireEvent.pointerDown(bars()[0]);
+    fireEvent.pointerEnter(bars()[2]);
+    expect(bars().map((bar) => bar.dataset.chartBar)).toEqual(['selected', 'selected', 'selected']);
+    // While dragging, the bars hide their tooltips and the cursor turns to ew-resize.
+    expect(group).toHaveAttribute('data-chart-dragging');
+    expect(bars()[0].closest('[title]')).toBeNull();
+    // React derives pointerenter from pointerover, so the hover stays on the drag's last bar.
+    fireEvent.pointerOver(bars()[2], { pointerType: 'mouse' });
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    fireEvent.pointerUp(group);
+    expect(group).not.toHaveAttribute('data-chart-dragging');
+    fireEvent.pointerOut(bars()[2], { pointerType: 'mouse' });
+    fireEvent.pointerOver(bars()[0], { pointerType: 'mouse' });
+    await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent(bars()[0].getAttribute('aria-label') ?? '-'));
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ fromMs: slots[0].startMs }));
+    expect(lastQuery()?.toMs).toBeGreaterThan(slots[2].startMs);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear time range' }));
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ toMs: 0 }));
+    expect(screen.queryByRole('button', { name: 'Clear time range' })).not.toBeInTheDocument();
+  });
+
+  it('selects one slot on a click, clears it on a second click, and drops a drag that leaves the chart', async () => {
+    await renderChart();
+    const group = screen.getByRole('group', { name: /Drag across bars/ });
+
+    fireEvent.pointerDown(bars()[1]);
+    fireEvent.pointerUp(group);
+    await waitFor(() => expect(lastQuery()).toMatchObject({ fromMs: slots[1].startMs, toMs: slots[1].endMs - 1 }));
+    expect(bars().map((bar) => bar.dataset.chartBar)).toEqual(['dimmed', 'selected', 'dimmed']);
+
+    fireEvent.pointerDown(bars()[1]);
+    fireEvent.pointerUp(group);
+    await waitFor(() => expect(lastQuery()).toMatchObject({ toMs: 0 }));
+
+    const reads = feedSource.searchFeed.mock.calls.length;
+    fireEvent.pointerDown(bars()[0]);
+    fireEvent.pointerLeave(group);
+    fireEvent.pointerUp(group);
+    expect(feedSource.searchFeed).toHaveBeenCalledTimes(reads);
+    expect(bars().map((bar) => bar.dataset.chartBar)).toEqual(['idle', 'idle', 'idle']);
+  });
+
+  it.each([
+    ['the scale switch reads the 7-day chart', '7 days', () => expect(feedSource.getOverview).toHaveBeenLastCalledWith('7d', 0, 0, 'all', ['change', 'download', 'task', 'edit'], false)],
+    ['the origin switch reads phone lines only', 'Phone', () => expect(lastQuery()).toMatchObject({ origin: 'phone' })],
+  ])('%s', async (_case, name, assertRead) => {
+    await renderChart();
+
+    fireEvent.click(screen.getByRole('radio', { name }));
+
+    await waitFor(assertRead);
+  });
+
+  /** Opens the range picker and returns its dialog. */
+  async function openPicker() {
+    fireEvent.click(screen.getByRole('button', { name: /^Time range, / }));
+    return screen.findByRole('dialog');
+  }
+
+  /** The picker's time field with that label (React Aria labels its root and its input group). */
+  function timeField(dialog: HTMLElement, name: string) {
+    return within(dialog).getAllByRole('group', { name })[0];
+  }
+
+  it('reads the picked days at their start and end times only on Apply, which a first day already enables', async () => {
+    await renderChart();
+    const dialog = await openPicker();
+    const apply = within(dialog).getByRole('button', { name: 'Apply' });
+    expect(apply).toBeDisabled();
+    expect([...dialog.querySelectorAll('th')].map((head) => head.textContent)).toEqual(['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']);
+    expect(timeField(dialog, 'Start time')).toHaveTextContent(/12\D*00\D*AM/);
+    expect(timeField(dialog, 'End time')).toHaveTextContent(/11\D*59\D*PM/);
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /previous/i }));
+    const picked = new Date();
+    picked.setMonth(picked.getMonth() - 1, 15);
+    /** The calendar cell of a day of the shown month. */
+    const cell = (date: Date) => within(dialog).getByRole('button', { name: new RegExp(new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(date)) });
+    const reads = feedSource.searchFeed.mock.calls.length;
+    fireEvent.click(cell(picked));
+    expect(apply).toBeEnabled();
+    const end = new Date(picked);
+    end.setDate(16);
+    fireEvent.click(cell(end));
+    const [startHour] = within(timeField(dialog, 'Start time')).getAllByRole('spinbutton');
+    fireEvent.keyDown(startHour, { key: 'ArrowUp' });
+    expect(feedSource.searchFeed.mock.calls).toHaveLength(reads);
+
+    fireEvent.click(apply);
+
+    picked.setHours(1, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+    await waitFor(() => expect(lastQuery()).toMatchObject({ fromMs: picked.getTime(), toMs: end.getTime() }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('applies one pressed day as a one-day range, drops an unapplied pick on Esc, and clears the range and closes from Clear', async () => {
+    await renderChart();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let dialog = await openPicker();
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Today/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
+    await waitFor(() => expect(lastQuery()).toMatchObject({ fromMs: today.getTime() }));
+    expect(lastQuery()?.toMs).toBeLessThanOrEqual(Date.now());
+
+    dialog = await openPicker();
+    fireEvent.keyDown(within(timeField(dialog, 'Start time')).getAllByRole('spinbutton')[0], { key: 'ArrowUp' });
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    dialog = await openPicker();
+    expect(timeField(dialog, 'Start time')).toHaveTextContent(/12\D*00\D*AM/);
+    expect(lastQuery()).toMatchObject({ fromMs: today.getTime() });
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Clear' }));
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ toMs: 0 }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear time range' })).not.toBeInTheDocument();
+  });
+
+  it('shows the chart failure alert instead of bars, and draws them after Try again', async () => {
+    feedSource.getOverview.mockRejectedValueOnce(new Error('down')).mockResolvedValue({ ...buildOverview([]), slots });
+    feedSource.searchFeed.mockResolvedValue(page(1, 1));
+    renderScreen();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Try again' }));
+
+    await waitFor(() => expect(bars()).toHaveLength(3));
+    expect(screen.queryByText('Activity could not read its chart and counts')).not.toBeInTheDocument();
   });
 });

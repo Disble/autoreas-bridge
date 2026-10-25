@@ -244,6 +244,7 @@ type ScheduleMissedActionResult struct {
 
 // ManualLink is a persisted manual-download fallback bundle.
 type ManualLink struct {
+	AnimeID string   `json:"animeId,omitempty"`
 	Anime   string   `json:"anime"`
 	Episode int      `json:"episode"`
 	Links   []string `json:"links"`

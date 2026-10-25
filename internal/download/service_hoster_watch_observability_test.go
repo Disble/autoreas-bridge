@@ -12,10 +12,13 @@ import (
 )
 
 // recordedEntry is one structured log entry captured with everything a forensic assertion needs:
-// the level that decides whether it is persisted at all, the event type a reader filters on, the
-// message text that carries the unfilterable discriminators, and the metadata map itself.
+// the domain and level that decide where and whether it is persisted, the entity it is about, the
+// event type a reader filters on, the message text that carries the unfilterable discriminators,
+// and the metadata map itself.
 type recordedEntry struct {
+	domain    string
 	level     string
+	entityID  string
 	eventType string
 	message   string
 	metadata  map[string]any
@@ -31,11 +34,13 @@ type fieldsRecorder struct {
 	entries []recordedEntry
 }
 
-func (r *fieldsRecorder) Logf(_, level string, fields logger.Fields, format string, args ...any) {
+func (r *fieldsRecorder) Logf(domain, level string, fields logger.Fields, format string, args ...any) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.entries = append(r.entries, recordedEntry{
+		domain:    domain,
 		level:     level,
+		entityID:  fields.EntityID,
 		eventType: fields.EventType,
 		message:   fmt.Sprintf(format, args...),
 		metadata:  fields.Metadata,
@@ -221,6 +226,9 @@ func TestDetectPhasePersistsTheProbeTimelineOnSuccess(t *testing.T) {
 	entry := recorder.only(t, "download.detect_start_succeeded")
 	if entry.level != "info" {
 		t.Fatalf("expected the successful detect phase to persist at info level, got %q", entry.level)
+	}
+	if entry.metadata["episode"] != 12 || entry.metadata["animeName"] != "Test Anime" {
+		t.Fatalf("expected the detect phase entry to name its episode and anime, got %#v", entry.metadata)
 	}
 	probes := metadataProbes(t, entry)
 	if len(probes) != 2 {

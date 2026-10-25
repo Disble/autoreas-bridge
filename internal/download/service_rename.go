@@ -41,7 +41,7 @@ func (s *Service) renameDownloadedEpisode(ctx context.Context, runID string, ani
 
 	base, err := filesystem.EpisodeBaseName(anime.Name, episode)
 	if err != nil {
-		s.logf(logger.LevelWarn, runID, anime.ID, "download.rename_failed",
+		s.logAnimef(logger.LevelWarn, runID, anime, "download.rename_failed",
 			map[string]any{"episode": episode},
 			"anime %s: episode %d kept its downloaded name: %v", anime.Name, episode, err)
 		return
@@ -49,12 +49,12 @@ func (s *Service) renameDownloadedEpisode(ctx context.Context, runID string, ani
 
 	renamed, err := s.deps.JD.RenameEpisodeByDestination(ctx, s.deps.JDDeviceName, *anime.Folder, base)
 	if err != nil {
-		s.logf(logger.LevelWarn, runID, anime.ID, "download.rename_failed",
+		s.logAnimef(logger.LevelWarn, runID, anime, "download.rename_failed",
 			map[string]any{"episode": episode},
 			"anime %s: episode %d kept its downloaded name: %v", anime.Name, episode, err)
 		return
 	}
-	s.logf(logger.LevelInfo, runID, anime.ID, "download.renamed",
+	s.logAnimef(logger.LevelInfo, runID, anime, "download.renamed",
 		map[string]any{"episode": episode, "fileName": renamed},
 		"anime %s: episode %d renamed to %s", anime.Name, episode, renamed)
 }

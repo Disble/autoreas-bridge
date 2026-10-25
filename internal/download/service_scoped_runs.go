@@ -33,7 +33,7 @@ func (s *Service) RunAnime(ctx context.Context, trigger string, anime contracts.
 		}
 	}
 
-	s.logf(logger.LevelInfo, runID, anime.ID, "download.run_started", map[string]any{"trigger": trigger, "animeName": anime.Name},
+	s.logAnimef(logger.LevelInfo, runID, anime, "download.run_started", map[string]any{"trigger": trigger},
 		"download run %s started (trigger=%s, anime=%s)", runID, trigger, anime.Name)
 	s.publish(events.DownloadRunStartedEvent{RunID: runID, Trigger: trigger, CorrelationID: runID})
 	s.notify(ctx, runNotification{

@@ -83,7 +83,7 @@ func TestSQLiteStoreFinalizeRunPersistsManualLinksForJDOffline(t *testing.T) {
 		t.Fatalf("OpenRun: %v", err)
 	}
 	finishedAt := int64(200)
-	links := []ManualLink{{Anime: "Naruto", Episode: 5, Links: []string{"https://mediafire.example/ep5"}}}
+	links := []ManualLink{{AnimeID: "anime-7", Anime: "Naruto", Episode: 5, Links: []string{"https://mediafire.example/ep5"}}}
 	if err := store.FinalizeRun(ctx, Run{RunID: "run-1", StartedAtMs: 100, FinishedAtMs: &finishedAt, Trigger: "scheduled", Status: "jd_offline", ManualLinks: links}); err != nil {
 		t.Fatalf("FinalizeRun: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestSQLiteStoreFinalizeRunPersistsManualLinksForJDOffline(t *testing.T) {
 	if got.Status != "jd_offline" {
 		t.Fatalf("expected status jd_offline, got %q", got.Status)
 	}
-	if len(got.ManualLinks) != 1 || got.ManualLinks[0].Anime != "Naruto" || got.ManualLinks[0].Episode != 5 {
+	if len(got.ManualLinks) != 1 || got.ManualLinks[0].Anime != "Naruto" || got.ManualLinks[0].Episode != 5 || got.ManualLinks[0].AnimeID != "anime-7" {
 		t.Fatalf("expected manual links to round-trip, got %#v", got.ManualLinks)
 	}
 	if len(got.ManualLinks[0].Links) != 1 || got.ManualLinks[0].Links[0] != "https://mediafire.example/ep5" {

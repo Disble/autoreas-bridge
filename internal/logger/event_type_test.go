@@ -24,8 +24,8 @@ var eventTypeShape = regexp.MustCompile(`^[a-z][a-z0-9]*\.[a-z][a-z0-9_]*$`)
 var literalEventType = regexp.MustCompile(`EventType:\s*"([^"]*)"`)
 
 // downloadLogfEventType matches the fourth argument of internal/download's
-// logf wrapper, which is that package's event type.
-var downloadLogfEventType = regexp.MustCompile(`\.logf\([^,]+,[^,]+,[^,]+,\s*"([^"]*)"`)
+// logf and logAnimef wrappers, which is that package's event type.
+var downloadLogfEventType = regexp.MustCompile(`\.log(?:Anime)?f\([^,]+,[^,]+,[^,]+,\s*"([^"]*)"`)
 
 // TestEmittedEventTypesFollowTheDomainVerbShape is the deterministic guard for
 // the event-type vocabulary.

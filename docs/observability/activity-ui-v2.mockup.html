@@ -1,0 +1,1171 @@
+<!doctype html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Activity — feed concept</title>
+<link rel="stylesheet" href="assets/bridge/app.css">
+<style>
+  :root {
+    --bg: oklch(12% .005 285.823);
+    --fg: oklch(99.11% 0 0);
+    --surface: oklch(21.03% .0059 285.89);
+    --surface-2: oklch(25.7% .0037 286.14);
+    --default: oklch(27.4% .006 286.033);
+    --muted: oklch(70.5% .015 286.067);
+    --border: oklch(28% .006 286.033);
+    --sep: oklch(25% .006 286.033);
+    --accent: oklch(62.04% .195 253.83);
+    --success: oklch(73.29% .1935 150.81);
+    --warning: oklch(82.03% .1388 76.34);
+    --danger: oklch(59.4% .1967 24.63);
+    --r: .5rem;
+  }
+  body { background: var(--bg); color: var(--fg); font-family: ui-sans-serif, system-ui, sans-serif; }
+  .ax-shell { display: flex; min-height: 100vh; }
+  .ax-main { flex: 1; min-width: 0; padding: 40px 48px 64px; display: flex; flex-direction: column; gap: 20px; }
+  .ax-head { display: flex; align-items: flex-start; justify-content: space-between; }
+  .ax-h1 { font-size: 2.25rem; font-weight: 600; letter-spacing: -.02em; }
+
+  /* icon button + tooltip */
+  .ax-ib { position: relative; display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 999px;
+    background: var(--default); color: var(--fg); transition: background .15s, transform .1s; }
+  .ax-ib:hover { background: color-mix(in oklab, var(--default) 85%, var(--fg) 15%); }
+  .ax-ib:active { transform: scale(.96); }
+  .ax-ib.sm { width: 28px; height: 28px; background: transparent; color: var(--muted); }
+  .ax-ib.sm:hover { background: var(--default); color: var(--fg); }
+  .ax-ib svg, .ax-ic svg { width: 18px; height: 18px; }
+  [data-tip] { position: relative; }
+  [data-tip]::after { content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 8px); translate: -50% 4px;
+    white-space: nowrap; background: var(--surface-2); color: var(--fg); font-size: 12px; font-weight: 500; padding: 5px 9px;
+    border-radius: 8px; box-shadow: 0 0 1px 0 #ffffff4d inset, 0 8px 24px #0008; opacity: 0; pointer-events: none;
+    transition: opacity .12s, translate .12s; z-index: 40; }
+  [data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; translate: -50% 0; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .ax-card { background: var(--surface); border-radius: 1.5rem; padding: 20px 24px; }
+
+  /* time bar */
+  .ax-time-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+  .ax-label { font-size: 14px; color: var(--muted); }
+  .ax-range { display: inline-flex; background: var(--default); border-radius: 999px; padding: 3px; }
+  .ax-range button { font-size: 12px; padding: 3px 12px; border-radius: 999px; color: var(--muted); }
+  .ax-range button[aria-pressed="true"] { background: oklch(39.64% .01 285.93); color: var(--fg); }
+  .ax-bars { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 4px; align-items: end; height: 96px; }
+  .ax-bar { position: relative; height: 100%; display: flex; align-items: flex-end; border-radius: 6px; cursor: pointer; }
+  .ax-bar:hover { background: color-mix(in oklab, var(--surface) 80%, var(--fg) 6%); }
+  .ax-bar .fill { width: 100%; background: color-mix(in oklab, var(--accent) 75%, var(--bg)); border-radius: 5px; min-height: 3px; position: relative; overflow: hidden; }
+  .ax-bar .fail { position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--danger); }
+  .ax-bar.off { cursor: default; }
+  .ax-bar.off .fill { height: 100% !important; background: repeating-linear-gradient(-45deg, transparent 0 5px, color-mix(in oklab, var(--muted) 22%, transparent) 5px 6px);
+    outline: 1px dashed color-mix(in oklab, var(--muted) 45%, transparent); outline-offset: -1px; }
+  .ax-bar.sel .fill { background: var(--accent); }
+  .ax-bar.dim .fill { opacity: .35; }
+  .ax-bar.now::before { content: ""; position: absolute; right: -3px; top: -6px; bottom: -6px; width: 2px; background: var(--success); border-radius: 2px; }
+  .ax-hours { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 4px; margin-top: 6px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ax-hours span { text-align: center; }
+  .ax-hours span.day { color: var(--fg); }
+  .ax-legend { display: flex; gap: 16px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+  .ax-legend i { display: inline-block; width: 12px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+
+  /* body: feed + panel */
+  .ax-body { display: block; }
+  .ax-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid var(--sep); }
+  .ax-search { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: .75rem; background: var(--default); color: var(--muted); flex: 1 1 220px; min-width: 0; max-width: 360px; }
+  .ax-search svg { width: 16px; height: 16px; flex: none; }
+  .ax-search input { background: transparent; outline: none; color: var(--fg); font-size: 14px; width: 100%; }
+  .ax-search input::placeholder { color: var(--muted); }
+  .ax-seg { display: inline-flex; background: var(--default); border-radius: .75rem; padding: 3px; gap: 2px; }
+  .ax-seg button { height: 30px; min-width: 30px; padding: 0 10px; border-radius: .6rem; font-size: 13px; color: var(--muted); display: inline-grid; place-items: center; grid-auto-flow: column; gap: 6px; }
+  .ax-seg button:hover { color: var(--fg); }
+  .ax-seg button[aria-pressed="true"] { background: oklch(39.64% .01 285.93); color: var(--fg); }
+  .ax-seg svg { width: 16px; height: 16px; }
+  .ax-spacer { flex: 1; }
+  .ax-what { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; }
+  /* a very narrow window scrolls the type control itself, never the whole page */
+  .ax-what > .ax-seg { max-width: 100%; overflow-x: auto; }
+  .ax-failbtn { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 999px; font-size: 14px; font-weight: 500;
+    background: color-mix(in oklab, var(--danger) 18%, transparent); color: color-mix(in oklab, var(--danger) 70%, var(--fg)); }
+  .ax-failbtn svg { width: 16px; height: 16px; }
+  .ax-failbtn[aria-pressed="true"] { background: var(--danger); color: var(--fg); }
+  .ax-active { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 12px; }
+  .ax-active:empty { display: none; }
+  .ax-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 6px 3px 10px; border-radius: 999px; background: color-mix(in oklab, var(--accent) 20%, transparent); color: color-mix(in oklab, var(--accent) 55%, var(--fg)); }
+  .ax-pill button { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 999px; }
+  .ax-pill button:hover { background: #ffffff1a; }
+
+  .ax-day { position: sticky; top: 0; z-index: 2; background: var(--surface); padding: 16px 0 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .ax-row { display: grid; grid-template-columns: 52px 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 48px; padding: 6px 8px; margin: 0 -8px; border-radius: .75rem; }
+  .ax-row.open { cursor: pointer; }
+  .ax-row:hover { background: color-mix(in oklab, var(--surface) 88%, var(--fg) 6%); }
+  .ax-row + .ax-row { box-shadow: 0 -1px 0 var(--sep); }
+  .ax-t { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ax-ic { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--default); color: var(--muted); }
+  .ax-ic.fail { background: color-mix(in oklab, var(--danger) 22%, transparent); color: color-mix(in oklab, var(--danger) 70%, var(--fg)); }
+  .ax-ic.slow { background: color-mix(in oklab, var(--warning) 18%, transparent); color: var(--warning); }
+  .ax-line { min-width: 0; font-size: 14px; display: flex; flex-wrap: wrap; column-gap: 8px; row-gap: 2px; }
+  .ax-line b { font-weight: 500; color: var(--fg); }
+  .ax-line span { color: var(--muted); }
+  .ax-line .bad { color: color-mix(in oklab, var(--danger) 65%, var(--fg)); }
+  .ax-end { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  .ax-count { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--default); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ax-chev { width: 18px; height: 18px; }
+  .ax-gap { display: flex; align-items: center; gap: 10px; margin: 6px 0; padding: 12px 14px; border-radius: .75rem; border: 1px dashed color-mix(in oklab, var(--muted) 45%, transparent); font-size: 13px; color: var(--muted); }
+  .ax-gap svg { width: 18px; height: 18px; }
+  .ax-empty { padding: 48px 0; text-align: center; color: var(--muted); font-size: 14px; }
+
+  /* side panel */
+  .ax-panel { position: sticky; top: 24px; display: flex; flex-direction: column; gap: 8px; padding: 16px; }
+  .ax-panel h2 { font-size: 13px; font-weight: 600; color: var(--muted); padding: 2px 6px 6px; }
+  .ax-area { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 10px; border-radius: 1rem; transition: background .15s; }
+  .ax-area:hover { background: color-mix(in oklab, var(--surface) 88%, var(--fg) 6%); }
+  .ax-area[aria-pressed="true"] { background: color-mix(in oklab, var(--accent) 16%, var(--surface)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 45%, transparent); }
+  .ax-area .ax-ic { width: 36px; height: 36px; border-radius: 10px; }
+  .ax-area .name { font-size: 14px; font-weight: 500; }
+  .ax-area .val { font-size: 12px; color: var(--muted); }
+  .ax-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--success); }
+  .ax-dot.warn { background: var(--warning); } .ax-dot.bad { background: var(--danger); }
+
+  .ax-toast { position: fixed; right: 24px; bottom: 24px; background: var(--surface-2); border-radius: 1rem; padding: 12px 16px; font-size: 14px;
+    box-shadow: 0 0 1px 0 #ffffff4d inset, 0 12px 32px #000a; display: flex; gap: 10px; align-items: center; translate: 0 12px; opacity: 0; transition: .2s; pointer-events: none; }
+  .ax-toast.show { translate: 0 0; opacity: 1; }
+  .ax-toast svg { width: 18px; height: 18px; color: var(--success); }
+
+  /* range selection on the chart */
+  .ax-bars { user-select: none; touch-action: none; }
+  .ax-bar.off { cursor: crosshair; }
+  .ax-bars.dragging .ax-bar { cursor: ew-resize; }
+  .ax-bar.sel { background: color-mix(in oklab, var(--accent) 14%, transparent); }
+  .ax-bar.sel.edge-l { border-top-left-radius: 6px; border-bottom-left-radius: 6px; }
+  .ax-bars.dragging [data-tip]::after { opacity: 0 !important; }
+  .ax-hours.days span { color: var(--muted); }
+
+  /* date range field */
+  .ax-dr-wrap { position: relative; }
+  .ax-dr { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: .75rem; background: var(--default);
+    color: var(--muted); font-size: 14px; min-width: 250px; }
+  .ax-dr:hover { background: color-mix(in oklab, var(--default) 85%, var(--fg) 10%); }
+  .ax-dr svg { width: 16px; height: 16px; flex: none; }
+  .ax-dr .v { color: var(--fg); font-variant-numeric: tabular-nums; }
+  .ax-dr .ph { color: var(--muted); }
+  .ax-pop { position: absolute; top: calc(100% + 8px); left: 0; z-index: 30; width: 320px; padding: 14px; border-radius: 1.25rem;
+    background: var(--surface-2); box-shadow: 0 0 1px 0 #ffffff4d inset, 0 16px 40px #000c; display: none; }
+  .ax-pop.open { display: block; }
+  .ax-cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 14px; font-weight: 600; }
+  .ax-cal-head .ax-ib { width: 28px; height: 28px; background: transparent; }
+  .ax-cal-head .ax-ib:hover { background: var(--default); }
+  .ax-cal-head .ax-ib[disabled] { opacity: .3; pointer-events: none; }
+  .ax-cal { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 2px; text-align: center; }
+  .ax-cal .wd { font-size: 11px; color: var(--muted); padding: 4px 0; }
+  .ax-cal button { height: 34px; font-size: 13px; color: var(--fg); font-variant-numeric: tabular-nums; position: relative; }
+  .ax-cal button span { display: grid; place-items: center; width: 34px; height: 34px; margin: auto; border-radius: 999px; }
+  .ax-cal button:hover span { background: var(--default); }
+  .ax-cal button[disabled] { color: color-mix(in oklab, var(--muted) 45%, transparent); pointer-events: none; }
+  .ax-cal button.in { background: color-mix(in oklab, var(--accent) 22%, transparent); }
+  .ax-cal button.start { border-radius: 999px 0 0 999px; }
+  .ax-cal button.end { border-radius: 0 999px 999px 0; }
+  .ax-cal button.start.end { border-radius: 999px; }
+  .ax-cal button.start span, .ax-cal button.end span { background: var(--accent); color: var(--fg); }
+  .ax-cal button.today span { box-shadow: inset 0 0 0 1px var(--muted); }
+  .ax-times { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .ax-times label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  .ax-times input { height: 34px; padding: 0 10px; border-radius: .6rem; background: var(--default); color: var(--fg); font-size: 14px;
+    color-scheme: dark; font-variant-numeric: tabular-nums; outline: none; }
+  .ax-times input:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+  .ax-pop-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  .ax-btn { height: 32px; padding: 0 14px; border-radius: 999px; font-size: 13px; font-weight: 500; background: var(--default); color: var(--fg); }
+  .ax-btn:hover { background: color-mix(in oklab, var(--default) 85%, var(--fg) 12%); }
+  .ax-btn.primary { background: var(--accent); }
+  .ax-btn.primary:hover { background: color-mix(in oklab, var(--accent) 90%, var(--fg) 10%); }
+  .ax-btn[disabled] { opacity: .4; pointer-events: none; }
+
+  /* dense day bars for 30 and 90 days */
+  .ax-bars.dense, .ax-hours.dense { gap: 2px; }
+  .ax-bars.dense .ax-bar, .ax-bars.dense .ax-bar .fill { border-radius: 3px; }
+  .ax-hours span { white-space: nowrap; overflow: visible; }
+  .ax-hours.dense span { text-align: left; }
+
+  /* phone status, counts in filters, clear inside the range field */
+  .ax-status { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; color: var(--muted); width: max-content; }
+  .ax-n { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--muted); padding: 0 6px; border-radius: 999px; background: color-mix(in oklab, var(--bg) 40%, transparent); }
+  .ax-n:empty { display: none; }
+  .ax-seg button[aria-pressed="true"] .ax-n { color: var(--fg); }
+  .ax-dr { padding-right: 36px; }
+  .ax-dr-clear { position: absolute; right: 6px; top: 6px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 999px; color: var(--muted); }
+  .ax-dr-clear:hover { background: #ffffff1a; color: var(--fg); }
+  .ax-dr-clear svg { width: 14px; height: 14px; }
+  .ax-dr-clear[hidden] { display: none; }
+
+  /* independent type toggles, red mark per type, expanding failure button */
+  .ax-fmark { font-size: 11px; font-variant-numeric: tabular-nums; padding: 0 6px; border-radius: 999px; color: color-mix(in oklab, var(--danger) 70%, var(--fg)); background: color-mix(in oklab, var(--danger) 22%, transparent); }
+  .ax-seg.muted { opacity: .45; }
+  /* failure button grows into a dropdown-style container anchored to its top-right corner */
+  .ax-failgrp { position: relative; flex: none; }
+  .ax-failgrp .ax-failbtn { position: relative; z-index: 31; }
+  .ax-failpop { position: absolute; top: -6px; right: -6px; z-index: 30; width: 236px; padding: 48px 6px 6px; border-radius: 1rem;
+    background: var(--surface-2); box-shadow: 0 0 0 1px #ffffff12, 0 12px 32px -6px #000000b3, 0 4px 12px -4px #00000080;
+    clip-path: inset(0 0 calc(100% - 48px) calc(100% - var(--bw, 60px) - 12px) round 24px); opacity: 0; visibility: hidden;
+    transition: clip-path .2s cubic-bezier(.2, 0, 0, 1), opacity .12s ease-out, visibility 0s linear .2s; }
+  .ax-failgrp.open .ax-failpop { clip-path: inset(0 0 0 0 round 1rem); opacity: 1; visibility: visible;
+    transition: clip-path .2s cubic-bezier(.2, 0, 0, 1), opacity .08s ease-out, visibility 0s; }
+  .ax-failpop [role="menu"] { display: flex; flex-direction: column; gap: 2px; }
+  .ax-failgrp.open .ax-failbtn, .ax-failgrp.open .ax-failbtn[aria-pressed="true"] { background: color-mix(in oklab, var(--danger) 18%, transparent); color: color-mix(in oklab, var(--danger) 70%, var(--fg)); }
+  .ax-failbtn { transition: background .2s, color .2s; }
+  .ax-failhd { position: absolute; top: 6px; left: 16px; height: 36px; display: flex; align-items: center; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .ax-failrow { display: grid; grid-template-columns: 18px 1fr auto; align-items: center; gap: 10px; width: 100%; height: 34px; padding: 0 10px;
+    border-radius: .6rem; font-size: 14px; color: var(--fg); text-align: left; }
+  .ax-failrow:hover, .ax-failrow:focus-visible { background: var(--default); outline: none; }
+  .ax-failrow svg { width: 16px; height: 16px; color: var(--muted); }
+  .ax-failrow[aria-checked="true"] { background: var(--default); }
+  .ax-failrow[aria-checked="true"]:hover, .ax-failrow[aria-checked="true"]:focus-visible { background: color-mix(in oklab, var(--default) 85%, var(--fg) 8%); }
+  .ax-failrow[aria-checked="true"] svg { color: var(--fg); }
+  .ax-failrow[aria-checked="false"] { color: var(--muted); }
+  .ax-failrow[aria-checked="false"] .n { color: var(--muted); background: var(--default); }
+  .ax-failrow .n { font-size: 11px; font-variant-numeric: tabular-nums; padding: 0 6px; border-radius: 999px;
+    color: color-mix(in oklab, var(--danger) 70%, var(--fg)); background: color-mix(in oklab, var(--danger) 22%, transparent); }
+  .ax-failrow[aria-disabled="true"] { opacity: .5; pointer-events: none; cursor: default; background: none; }
+  .ax-failrow[aria-disabled="true"] .n { color: var(--muted); background: var(--default); }
+  /* while the failure filter is on, an × inside the button turns it off (same as the date field's clear) */
+  .ax-failbtn[aria-pressed="true"] { padding-right: 36px; }
+  .ax-failx { position: absolute; right: 6px; top: 6px; z-index: 32; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 999px; color: inherit; }
+  .ax-failx svg { width: 14px; height: 14px; }
+  .ax-failx:hover { background: #ffffff26; }
+  .ax-failx[hidden] { display: none; }
+  .ax-failbtn[aria-pressed="true"] ~ .ax-failx { color: var(--fg); }
+  .ax-failgrp.open .ax-failx { color: color-mix(in oklab, var(--danger) 70%, var(--fg)); }
+  @media (prefers-reduced-motion: reduce) { .ax-failpop, .ax-failgrp.open .ax-failpop { transition: none; } }
+
+  /* detail drawer: HeroUI Drawer, placement right (w-96, p-6, overlay surface, no rounding) */
+  .ax-row.sel { background: var(--default); }
+  .ax-dw { position: fixed; top: 0; right: 0; z-index: 50; width: 384px; max-width: 85vw; height: 100vh; display: flex; flex-direction: column; gap: 20px;
+    padding: 24px; background: var(--surface); box-shadow: 0 0 1px 0 #ffffff4d inset, -16px 0 40px -12px #000000b3;
+    translate: 100% 0; visibility: hidden; transition: translate .25s cubic-bezier(.32, .72, 0, 1), visibility 0s linear .25s; }
+  .ax-dw.open { translate: 0 0; visibility: visible; transition: translate .25s cubic-bezier(.32, .72, 0, 1), visibility 0s; }
+  .ax-dw.open { transition: translate .25s cubic-bezier(.32, .72, 0, 1), width .25s cubic-bezier(.32, .72, 0, 1), visibility 0s; }
+  .ax-dw.wide { width: 720px; }
+  @media (prefers-reduced-motion: reduce) { .ax-dw, .ax-dw.open { transition: none; } }
+
+  /* technical view */
+  .ax-dw .ax-seg { align-self: flex-start; }
+  .ax-mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+  .ax-reqs { display: flex; flex-direction: column; gap: 2px; }
+  .ax-req { display: grid; grid-template-columns: minmax(0, 1fr) auto 32px 44px; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: .6rem; text-align: left; font-size: 13px; color: var(--fg); }
+  .ax-req:hover { background: var(--default); }
+  .ax-req[aria-selected="true"] { background: var(--default); }
+  .ax-req .p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ax-req .p span { color: var(--muted); margin-right: 6px; }
+  .ax-req .t { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+  .ax-code-chip { font-size: 11px; padding: 1px 7px; border-radius: 999px; font-variant-numeric: tabular-nums;
+    background: color-mix(in oklab, var(--success) 18%, transparent); color: var(--success); }
+  .ax-code-chip.bad { background: color-mix(in oklab, var(--danger) 22%, transparent); color: color-mix(in oklab, var(--danger) 70%, var(--fg)); }
+  .ax-req .ax-count { justify-self: end; }
+  .ax-req .st { display: flex; gap: 6px; justify-self: end; }
+  .ax-reqs + .ax-rq-panel { margin-top: 4px; }
+  .ax-rq-panel { border: 1px solid var(--border); border-radius: 1rem; overflow: hidden; }
+  .ax-rq-panel .ax-rq { padding: 16px; }
+  .ax-rq-sum { padding: 12px 16px; background: var(--surface-2); border-bottom: 1px solid var(--border); min-height: 48px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 13px; color: var(--muted); }
+  .ax-rq-sum b { color: var(--fg); font-weight: 500; }
+  .ax-rq { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .ax-rq > div { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+  .ax-rq h4 { font-size: 13px; font-weight: 500; color: var(--fg); display: flex; align-items: center; gap: 8px; }
+  .ax-hdrs { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; font-size: 12px; }
+  .ax-hdrs dt { color: var(--muted); white-space: nowrap; }
+  .ax-hdrs dd { color: var(--fg); overflow-wrap: anywhere; }
+  .ax-code { font-size: 12px; line-height: 1.55; padding: 12px 14px; border-radius: .75rem; background: var(--bg); color: var(--fg); overflow: auto; max-height: 300px; white-space: pre; }
+  .ax-code .k { color: color-mix(in oklab, var(--accent) 60%, var(--fg)); }
+  .ax-code .s { color: color-mix(in oklab, var(--success) 70%, var(--fg)); }
+  .ax-trunc { font-size: 11px; font-weight: 400; padding: 1px 7px; border-radius: 999px; background: color-mix(in oklab, var(--warning) 18%, transparent); color: var(--warning); }
+  .ax-tech-empty { display: grid; place-items: center; gap: 8px; text-align: center; padding: 40px 16px; font-size: 14px; color: var(--muted); }
+  .ax-tech-empty svg { width: 28px; height: 28px; }
+  .ax-tech-empty b { color: var(--fg); font-weight: 500; }
+  .ax-evs li { display: grid; grid-template-columns: 64px 52px minmax(0, 1fr); gap: 10px; padding: 8px 0; font-size: 13px; align-items: baseline; }
+  .ax-evs li + li { box-shadow: 0 -1px 0 var(--sep); }
+  .ax-evs .t { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ax-lvl { font-size: 11px; padding: 1px 6px; border-radius: 999px; text-align: center; background: var(--default); color: var(--muted); }
+  .ax-lvl.error { background: color-mix(in oklab, var(--danger) 22%, transparent); color: color-mix(in oklab, var(--danger) 70%, var(--fg)); }
+  .ax-lvl.warn { background: color-mix(in oklab, var(--warning) 18%, transparent); color: var(--warning); }
+  .ax-evs small { display: block; color: var(--muted); font-size: 12px; }
+  .ax-dw-head { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 12px; align-items: start; }
+  .ax-dw-head .ax-ic { margin-top: 2px; }
+  .ax-dw-title { font-size: 16px; font-weight: 500; color: var(--fg); line-height: 1.3; }
+  .ax-dw-sub { font-size: 14px; color: var(--muted); margin-top: 2px; }
+  .ax-dw-sub.bad { color: color-mix(in oklab, var(--danger) 65%, var(--fg)); }
+  .ax-dw-meta { font-size: 12px; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .ax-dw-acts { display: flex; gap: 2px; margin: -4px -8px 0 0; }
+  .ax-dw-acts [data-tip]::after { bottom: auto; top: calc(100% + 8px); }
+  /* inside the drawer, tooltips grow leftwards from their element's right edge so they never widen the panel */
+  .ax-dw-acts [data-tip]::after, .ax-dw-body [data-tip]::after { left: auto; right: 0; translate: 0 4px; }
+  .ax-dw-acts [data-tip]:hover::after, .ax-dw-acts [data-tip]:focus-visible::after,
+  .ax-dw-body [data-tip]:hover::after, .ax-dw-body [data-tip]:focus-visible::after { translate: 0 0; }
+  .ax-dw-body { flex: 1; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 20px; margin: 0 -24px; padding: 0 24px 8px; }
+  .ax-dw-keys { font-size: 12px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+  .ax-dw-keys kbd { font: inherit; font-size: 11px; padding: 1px 6px; border-radius: 6px; background: var(--default); color: var(--fg); }
+  .ax-sec h3 { font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: 8px; }
+  .ax-ba { display: grid; grid-template-columns: 1fr 20px 1fr; align-items: center; gap: 8px; }
+  .ax-ba > div { padding: 12px 14px; border-radius: .75rem; background: var(--default); min-width: 0; }
+  .ax-ba small { display: block; font-size: 12px; color: var(--muted); }
+  .ax-ba b { display: block; font-size: 20px; font-weight: 500; color: var(--fg); margin-top: 2px; overflow-wrap: anywhere; }
+  .ax-ba .no b { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1px; }
+  .ax-ba > svg { width: 18px; height: 18px; color: var(--muted); }
+  .ax-cause { padding: 12px 14px; border-radius: .75rem; font-size: 14px; color: var(--fg); line-height: 1.45;
+    background: color-mix(in oklab, var(--danger) 12%, transparent); }
+  .ax-cause .code { display: inline-block; margin-top: 8px; font-size: 12px; padding: 1px 8px; border-radius: 999px;
+    background: color-mix(in oklab, var(--fg) 8%, transparent); color: var(--muted); }
+  .ax-cause small { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .ax-cause.raw p { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; overflow-wrap: anywhere; }
+  .ax-nopres { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); padding: 8px 12px; border-radius: .75rem;
+    box-shadow: inset 0 0 0 1px var(--sep); margin-bottom: 12px; }
+  .ax-nopres svg { width: 14px; height: 14px; flex: none; }
+  .ax-nopres code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; color: var(--fg); }
+  .ax-facts dd.ax-mono { font-size: 13px; overflow-wrap: anywhere; }
+  .ax-facts { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; font-size: 14px; }
+  .ax-facts dt { color: var(--muted); }
+  .ax-facts dd { color: var(--fg); text-align: right; font-variant-numeric: tabular-nums; }
+  .ax-late { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; margin-left: 6px;
+    background: color-mix(in oklab, var(--warning) 18%, transparent); color: var(--warning); }
+  .ax-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .ax-stats div { padding: 10px 12px; border-radius: .75rem; background: var(--default); }
+  .ax-stats b { display: block; font-size: 20px; font-weight: 500; color: var(--fg); font-variant-numeric: tabular-nums; }
+  .ax-stats small { font-size: 12px; color: var(--muted); }
+  .ax-stats .bad b { color: color-mix(in oklab, var(--danger) 65%, var(--fg)); }
+  .ax-list { display: flex; flex-direction: column; }
+  .ax-list li { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; padding: 8px 0; font-size: 14px; color: var(--fg); }
+  .ax-list li + li { box-shadow: 0 -1px 0 var(--sep); }
+  .ax-list .t { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13px; }
+  .ax-list .m { color: var(--muted); }
+  .ax-list .bad { color: color-mix(in oklab, var(--danger) 65%, var(--fg)); }
+  .ax-note { font-size: 12px; color: var(--muted); }
+  .ax-steps { display: flex; flex-direction: column; }
+  .ax-steps li { position: relative; display: grid; grid-template-columns: 44px 14px minmax(0, 1fr); gap: 10px; padding-bottom: 14px; font-size: 14px; }
+  .ax-steps li::before { content: ""; position: absolute; left: 60px; top: 14px; bottom: -2px; width: 2px; background: var(--sep); }
+  .ax-steps li:last-child::before { display: none; }
+  .ax-steps .t { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .ax-steps i { width: 10px; height: 10px; margin: 5px 0 0 2px; border-radius: 999px; background: var(--muted); }
+  .ax-steps .ok i { background: var(--success); }
+  .ax-steps .bad i { background: var(--danger); }
+  .ax-steps .bad span:last-child { color: color-mix(in oklab, var(--danger) 65%, var(--fg)); }
+  .ax-steps small { display: block; color: var(--muted); font-size: 13px; }
+
+  /* progressive feed */
+  .ax-skel { display: grid; grid-template-columns: 52px 28px minmax(0, 1fr); align-items: center; gap: 10px; min-height: 48px; }
+  .ax-skel i { display: block; height: 10px; border-radius: 999px; background: linear-gradient(90deg, var(--default) 25%, color-mix(in oklab, var(--default) 80%, var(--fg) 10%) 50%, var(--default) 75%);
+    background-size: 200% 100%; animation: ax-shimmer 1.2s linear infinite; }
+  .ax-skel i.box { width: 28px; height: 28px; border-radius: 8px; }
+  @keyframes ax-shimmer { to { background-position: -200% 0; } }
+  @media (prefers-reduced-motion: reduce) { .ax-skel i { animation: none; } }
+  .ax-end-mark { display: flex; align-items: center; gap: 12px; padding: 20px 0 4px; font-size: 12px; color: var(--muted); }
+  .ax-end-mark::before, .ax-end-mark::after { content: ""; flex: 1; height: 1px; background: var(--sep); }
+</style>
+</head>
+<body>
+<div class="ax-shell">
+<aside class="group/rail sticky top-0 z-20 hidden h-screen shrink-0 flex-col overflow-hidden border-r border-divider/60 bg-content1/40 backdrop-blur-xl md:flex md:w-16 md:transition-[width] md:duration-200 md:ease-out md:hover:w-56 md:focus-within:w-56"><div class="flex h-16 shrink-0 items-center gap-3 px-3"><div class="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-foreground"><svg aria-hidden="true" class="size-5" fill="currentColor" viewBox="0 0 673.91 764.07" xmlns="http://www.w3.org/2000/svg"><path d="M673.91 702.29c-43.31-58.97-85.14-117.8-122.16-181-65.72-112.23-116.29-232.37-163.86-353.16-17.65-44.81-33.92-90.16-51.89-134.84-5-12.43-15.25-25.75-28.11-30.86-17.11-6.81-16.7 1.18-23.32 17.86-1.8 4.52-3.41 9.18-4.09 14-3.13 22.16 4.74 44.37 2.53 67-5.73 58.57-26.1 119.34-44.12 173.9-11.08 33.56-23.38 66.73-36 99.74-30.54 79.89-69.02 157.22-111.55 231.36-27.93 48.69-57.15 96.63-85.63 145-2.21 3.75-7.45 8.32-5.13 12 1.59 2.51 5.12-1.86 5.31-2.11 9.78-12.81 19.51-25.66 28.7-38.89 23.89-34.41 47.66-68.91 70.53-104 16.91-25.95 33.08-52.38 48.77-79.07 4.47-7.61 39.88-90.91 70-110.28 2.62-1.68 6.15-1.28 9-2.55 9.86-4.37 19.03-10.21 29-14.32 15.76-6.5 27.62-9.06 44-10.89 10.37-1.16 21.77-.97 32 .81 27.31 4.77 60.93 13.09 81 32.87 17.55 17.3 27.96 43.98 39.82 63.43 10.15 16.63 20.72 33.03 31.88 49 23.94 34.24 52.5 66.84 84.3 94 34.29 29.29 49.83 38.19 90 61.21 5.81 3.33 5.1 2.61 9.02-.21M316.89 171.8c-19.61 39.47 7.64-16.46-33.6 100.49-10.34 29.33-27.09 56.61-33.73 87-1.06 4.81 8.71 4.64 13.33 6.35 5.53 2.04 11.25 3.56 17 4.87 25.88 5.86 51.14 6.47 77-.04 8.48-2.14 16.75-5.02 25-7.9 2.05-.71 5.69-2.25 4.92-4.28-76.66-201.65 7.48 31.45-69.92-186.49" fill-rule="evenodd"></path></svg></div><div class="min-w-0 overflow-hidden opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100"><p class="truncate text-sm font-semibold tracking-tight text-foreground">Autoreas Bridge</p><p class="truncate text-[11px] text-muted">Anime workspace</p></div></div><nav aria-label="Bridge primary navigation" class="flex flex-1 flex-col gap-1 px-2 py-1"><div class="flex flex-col gap-1"><p class="truncate px-3 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">Library</p><a class="group/item relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/60 text-muted hover:bg-content2/60 hover:text-foreground" href="/today" data-discover="true"><span class="relative shrink-0"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="size-5" width="1em" height="1em" viewBox="0 0 24 24"><g fill="currentColor"><path fill-rule="evenodd" d="M2 5.75A.75.75 0 0 1 2.75 5h18a.75.75 0 0 1 0 1.5h-18A.75.75 0 0 1 2 5.75Zm0 4A.75.75 0 0 1 2.75 9h18a.75.75 0 0 1 0 1.5h-18A.75.75 0 0 1 2 9.75Zm0 4a.75.75 0 0 1 .75-.75h7a.75.75 0 0 1 0 1.5h-7a.75.75 0 0 1-.75-.75Zm0 4a.75.75 0 0 1 .75-.75h7a.75.75 0 0 1 0 1.5h-7a.75.75 0 0 1-.75-.75Z" clip-rule="evenodd" opacity=".5"></path><path d="M20.211 12.659a.75.75 0 0 1 .13 1.052l-3.9 5a.75.75 0 0 1-1.165.021l-2.1-2.5a.75.75 0 0 1 1.148-.964l1.504 1.79l3.33-4.27a.75.75 0 0 1 1.053-.13Z"></path></g></svg></span><span class="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">Today</span></a><a class="group/item relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/60 text-muted hover:bg-content2/60 hover:text-foreground" href="/downloads" data-discover="true"><span class="relative shrink-0"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="size-5" width="1em" height="1em" viewBox="0 0 24 24"><g fill="currentColor"><path d="M22 16v-1c0-2.828 0-4.242-.879-5.12C20.242 9 18.828 9 16 9H8c-2.829 0-4.243 0-5.122.88C2 10.757 2 12.17 2 14.997V16c0 2.829 0 4.243.879 5.122C3.757 22 5.172 22 8 22h8c2.828 0 4.243 0 5.121-.878C22 20.242 22 18.829 22 16Z" opacity=".5"></path><path fill-rule="evenodd" d="M12 1.25a.75.75 0 0 0-.75.75v10.973l-1.68-1.961a.75.75 0 1 0-1.14.976l3 3.5a.75.75 0 0 0 1.14 0l3-3.5a.75.75 0 1 0-1.14-.976l-1.68 1.96V2a.75.75 0 0 0-.75-.75Z" clip-rule="evenodd"></path></g></svg></span><span class="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">Downloads</span></a><a class="group/item relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/60 text-muted hover:bg-content2/60 hover:text-foreground" href="/editor" data-discover="true"><span class="relative shrink-0"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="size-5" width="1em" height="1em" viewBox="0 0 24 24"><g fill="currentColor"><path d="M1 12c0-5.185 0-7.778 1.61-9.39C4.223 1 6.816 1 12 1c5.185 0 7.778 0 9.39 1.61C23 4.223 23 6.816 23 12c0 5.185 0 7.778-1.61 9.39C19.777 23 17.184 23 12 23c-5.185 0-7.778 0-9.39-1.61C1 19.777 1 17.184 1 12Z" opacity=".5"></path><path d="M13.926 14.302c.245-.191.467-.413.912-.858l5.54-5.54c.134-.134.073-.365-.106-.427a6.066 6.066 0 0 1-2.3-1.449a6.066 6.066 0 0 1-1.45-2.3c-.061-.18-.292-.24-.426-.106l-5.54 5.54c-.445.444-.667.667-.858.912a5.045 5.045 0 0 0-.577.932c-.133.28-.233.579-.431 1.175l-.257.77l-.409 1.226l-.382 1.148a.817.817 0 0 0 1.032 1.033l1.15-.383l1.224-.408l.77-.257c.597-.199.895-.298 1.175-.432a5.03 5.03 0 0 0 .933-.576Zm8.187-8.132a3.028 3.028 0 0 0-4.282-4.283l-.179.178a.734.734 0 0 0-.206.651c.027.15.077.37.168.633a4.911 4.911 0 0 0 1.174 1.863a4.91 4.91 0 0 0 1.862 1.174c.263.09.483.141.633.168c.24.043.48-.035.652-.207l.178-.178Z"></path></g></svg></span><span class="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">Editor</span></a><a class="group/item relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/60 text-muted hover:bg-content2/60 hover:text-foreground" href="/catalog" data-discover="true"><span class="relative shrink-0"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="size-5" width="1em" height="1em" viewBox="0 0 24 24"><g fill="currentColor"><path d="M6.94 2c.416 0 .753.324.753.724v1.46c.668-.012 1.417-.012 2.26-.012h4.015c.842 0 1.591 0 2.259.013v-1.46c0-.4.337-.725.753-.725s.753.324.753.724V4.25c1.445.111 2.394.384 3.09 1.055c.698.67.982 1.582 1.097 2.972L22 9H2v-.724c.116-1.39.4-2.302 1.097-2.972c.697-.67 1.645-.944 3.09-1.055V2.724c0-.4.337-.724.753-.724Z"></path><path d="M22 14v-2c0-.839-.004-2.335-.017-3H2.01c-.013.665-.01 2.161-.01 3v2c0 3.771 0 5.657 1.172 6.828C4.343 22 6.228 22 10 22h4c3.77 0 5.656 0 6.828-1.172C22 19.657 22 17.771 22 14Z" opacity=".5"></path><path d="M18 17a1 1 0 1 1-2 0a1 1 0 0 1 2 0Zm0-4a1 1 0 1 1-2 0a1 1 0 0 1 2 0Zm-5 4a1 1 0 1 1-2 0a1 1 0 0 1 2 0Zm0-4a1 1 0 1 1-2 0a1 1 0 0 1 2 0Zm-5 4a1 1 0 1 1-2 0a1 1 0 0 1 2 0Zm0-4a1 1 0 1 1-2 0a1 1 0 0 1 2 0Z"></path></g></svg></span><span class="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">Catalog</span></a><a class="group/item relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/60 text-muted hover:bg-content2/60 hover:text-foreground" href="/history" data-discover="true"><span class="relative shrink-0"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="size-5" width="1em" height="1em" viewBox="0 0 24 24"><g fill="currentColor"><path fill-rule="evenodd" d="M5.079 5.069c3.795-3.79 9.965-3.75 13.783.069c3.82 3.82 3.86 9.993.064 13.788c-3.795 3.795-9.968 3.756-13.788-.064a9.812 9.812 0 0 1-2.798-8.28a.75.75 0 1 1 1.487.203a8.312 8.312 0 0 0 2.371 7.017c3.245 3.244 8.468 3.263 11.668.064c3.199-3.2 3.18-8.423-.064-11.668c-3.243-3.242-8.463-3.263-11.663-.068l.748.003a.75.75 0 1 1-.007 1.5l-2.546-.012a.75.75 0 0 1-.746-.747L3.575 4.33a.75.75 0 1 1 1.5-.008l.004.748Z" clip-rule="evenodd"></path><path d="M12 7.25a.75.75 0 0 1 .75.75v3.69l2.28 2.28a.75.75 0 1 1-1.06 1.06l-2.427-2.426a1 1 0 0 1-.293-.708V8a.75.75 0 0 1 .75-.75Z" opacity=".5"></path></g></svg></span><span class="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">History</span></a><a class="group/item relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/60 text-muted hover:bg-content2/60 hover:text-foreground" href="/season" data-discover="true"><span class="relative shrink-0"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="size-5" width="1em" height="1em" viewBox="0 0 24 24"><g fill="currentColor"><path d="M6.96 2c.418 0 .756.31.756.692V4.09c.67-.012 1.422-.012 2.268-.012h4.032c.846 0 1.597 0 2.268.012V2.692c0-.382.338-.692.756-.692s.756.31.756.692V4.15c1.45.106 2.403.368 3.103 1.008c.7.641.985 1.513 1.101 2.842v1H2V8c.116-1.329.401-2.2 1.101-2.842c.7-.64 1.652-.902 3.103-1.008V2.692c0-.382.339-.692.756-.692Z"></path><path d="M22 14v-2c0-.839-.013-2.335-.026-3H2.006c-.013.665 0 2.161 0 3v2c0 3.771 0 5.657 1.17 6.828C4.349 22 6.234 22 10.004 22h4c3.77 0 5.654 0 6.826-1.172C22 19.657 22 17.771 22 14Z" opacity=".5"></path><path d="M18 16.5a1.5 1.5 0 1 1-3 0a1.5 1.5 0 0 1 3 0Z"></path></g></svg></span><span class="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">Season</span></a></div><div class="flex flex-col gap-1"><p class="truncate px-3 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">Sync</p><a class="group/item relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/60 text-muted hover:bg-content2/60 hover:text-foreground" href="/devices" data-discover="true"><span class="relative shrink-0"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="size-5" width="1em" height="1em" viewBox="0 0 24 24"><g fill="currentColor"><path d="M14.052 2c1.68 0 3.01 0 4.052.142c1.072.147 1.94.456 2.624 1.152c.684.696.988 1.58 1.132 2.67c.14 1.06.14 2.414.14 4.123v3.826c0 1.71 0 3.064-.14 4.123c-.144 1.09-.448 1.974-1.132 2.67c-.684.696-1.552 1.005-2.624 1.152c-1.041.142-2.372.142-4.052.142h-.104c-1.68 0-3.01 0-4.052-.142c-1.072-.147-1.94-.456-2.624-1.152c-.684-.696-.988-1.58-1.132-2.67C6 16.976 6 15.622 6 13.913v-3.826c0-1.71 0-3.064.14-4.123c.144-1.09.448-1.974 1.132-2.67c.684-.696 1.552-1.005 2.624-1.152C10.937 2 12.268 2 13.948 2h.104Z" opacity=".5"></path><path d="M12 18.25a.75.75 0 0 0 0 1.5h5a.75.75 0 0 0 0-1.5h-5ZM2 14.5c0-1.405 0-2.107.337-2.611a2 2 0 0 1 .552-.552C3.393 11 4.096 11 5.5 11c1.404 0 2.107 0 2.611.337a2 2 0 0 1 .552.552C9 12.393 9 13.096 9 14.5v4c0 1.404 0 2.107-.337 2.611a2 2 0 0 1-.552.552C7.607 22 6.904 22 5.5 22c-1.404 0-2.107 0-2.611-.337a2 2 0 0 1-.552-.552C2 20.607 2 19.904 2 18.5v-4Z"></path></g></svg></span><span class="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">Devices</span></a></div><div class="mt-auto flex flex-col gap-1"><p class="truncate px-3 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">System</p><a aria-current="page" class="group/item relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/60 bg-primary/15 text-primary font-medium" href="/activity" data-discover="true"><span class="relative shrink-0"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="size-5" width="1em" height="1em" viewBox="0 0 24 24"><g fill="currentColor"><path d="M2 12c0-4.714 0-7.071 1.464-8.536C4.93 2 7.286 2 12 2c4.714 0 7.071 0 8.535 1.464C22 4.93 22 7.286 22 12c0 4.714 0 7.071-1.465 8.535C19.072 22 16.714 22 12 22s-7.071 0-8.536-1.465C2 19.072 2 16.714 2 12Z" opacity=".5"></path><path d="M15.1 12.094c-.185-.302-.366-.597-.542-.807c-.187-.224-.515-.532-1.017-.512c-.502.02-.804.353-.973.591c-.159.225-.315.532-.475.848l-1.988 3.92c-.075.148-.137.271-.193.377a23.641 23.641 0 0 1-.238-.351l-.176-.266a11.045 11.045 0 0 0-.557-.788a2.223 2.223 0 0 0-.682-.59a2.222 2.222 0 0 0-.87-.24a11.008 11.008 0 0 0-.964-.026H5a.75.75 0 1 0 0 1.5h1.394c.407 0 .661 0 .856.019c.18.017.254.044.301.07c.047.025.111.07.225.211c.123.152.265.363.49.702l.187.279c.188.283.373.56.553.759c.192.213.522.497 1.01.468c.486-.029.78-.35.947-.584c.154-.219.305-.517.459-.82l1.987-3.918c.079-.155.144-.284.203-.395c.067.106.143.23.233.377l.654 1.068c.2.327.378.616.55.844c.186.247.399.469.692.633c.293.164.593.23.901.26c.284.027.623.027 1.006.027H19a.75.75 0 0 0 0-1.5h-1.32c-.424 0-.69 0-.894-.02c-.188-.019-.264-.049-.312-.076c-.049-.027-.114-.076-.227-.227a10.45 10.45 0 0 1-.485-.752l-.663-1.081Z"></path></g></svg></span><span class="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">Activity</span></a><a class="group/item relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/60 text-muted hover:bg-content2/60 hover:text-foreground" href="/notifications" data-discover="true"><span class="relative shrink-0"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="size-5" width="1em" height="1em" viewBox="0 0 24 24"><g fill="currentColor"><path d="M18.75 9v.704c0 .845.24 1.671.692 2.374l1.108 1.723c1.011 1.574.239 3.713-1.52 4.21a25.794 25.794 0 0 1-14.06 0c-1.759-.497-2.531-2.636-1.52-4.21l1.108-1.723a4.393 4.393 0 0 0 .693-2.374V9c0-3.866 3.022-7 6.749-7s6.75 3.134 6.75 7Z" opacity=".5"></path><path d="M7.243 18.545a5.002 5.002 0 0 0 9.513 0c-3.145.59-6.367.59-9.513 0Z"></path></g></svg><span class="absolute -right-2 -top-2"></span></span><span class="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">Notifications</span></a><a class="group/item relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/60 text-muted hover:bg-content2/60 hover:text-foreground" href="/settings" data-discover="true"><span class="relative shrink-0"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="size-5" width="1em" height="1em" viewBox="0 0 24 24"><g fill="currentColor"><path fill-rule="evenodd" d="M14.279 2.152C13.909 2 13.439 2 12.5 2s-1.409 0-1.779.152a2.008 2.008 0 0 0-1.09 1.083c-.094.223-.13.484-.145.863a1.615 1.615 0 0 1-.796 1.353a1.64 1.64 0 0 1-1.579.008c-.338-.178-.583-.276-.825-.308a2.026 2.026 0 0 0-1.49.396c-.318.242-.553.646-1.022 1.453c-.47.807-.704 1.21-.757 1.605c-.07.526.074 1.058.4 1.479c.148.192.357.353.68.555c.477.297.783.803.783 1.361c0 .558-.306 1.064-.782 1.36c-.324.203-.533.364-.682.556a1.99 1.99 0 0 0-.399 1.479c.053.394.287.798.757 1.605c.47.807.704 1.21 1.022 1.453c.424.323.96.465 1.49.396c.242-.032.487-.13.825-.308a1.64 1.64 0 0 1 1.58.008c.486.28.774.795.795 1.353c.015.38.051.64.145.863c.204.49.596.88 1.09 1.083c.37.152.84.152 1.779.152s1.409 0 1.779-.152a2.008 2.008 0 0 0 1.09-1.083c.094-.223.13-.483.145-.863c.02-.558.309-1.074.796-1.353a1.64 1.64 0 0 1 1.579-.008c.338.178.583.276.825.308c.53.07 1.066-.073 1.49-.396c.318-.242.553-.646 1.022-1.453c.47-.807.704-1.21.757-1.605a1.99 1.99 0 0 0-.4-1.479c-.148-.192-.357-.353-.68-.555c-.477-.297-.783-.803-.783-1.361c0-.558.306-1.064.782-1.36c.324-.203.533-.364.682-.556a1.99 1.99 0 0 0 .399-1.479c-.053-.394-.287-.798-.757-1.605c-.47-.807-.704-1.21-1.022-1.453a2.026 2.026 0 0 0-1.49-.396c-.242.032-.487.13-.825.308a1.64 1.64 0 0 1-1.58-.008a1.615 1.615 0 0 1-.795-1.353c-.015-.38-.051-.64-.145-.863a2.007 2.007 0 0 0-1.09-1.083Z" clip-rule="evenodd" opacity=".5"></path><path d="M15.523 12c0 1.657-1.354 3-3.023 3c-1.67 0-3.023-1.343-3.023-3S10.83 9 12.5 9c1.67 0 3.023 1.343 3.023 3Z"></path></g></svg></span><span class="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">Settings</span></a></div></nav><div class="px-3 pb-4 pt-2 opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100"><a class="flex items-center gap-2 text-[11px] text-muted hover:text-foreground" href="/devices" data-discover="true"><span class="truncate">Desktop ↔ Mobile sync</span></a></div></aside>
+<main class="ax-main">
+  <div class="ax-head">
+    <div><h1 class="ax-h1">Activity</h1>
+      <p class="ax-status" data-tip="Last contact from the phone"><span class="ax-dot" aria-hidden="true"></span>Phone connected · last sync 14 s ago</p></div>
+    <button class="ax-ib" data-tip="Pin this moment" aria-label="Pin this moment" id="pin"></button>
+  </div>
+
+  <section class="ax-card" aria-labelledby="t-time">
+    <div class="ax-time-top">
+      <span class="ax-label" id="t-time">Last 24 hours</span>
+      <div class="ax-range" role="group" aria-label="Range" id="mode">
+        <button aria-pressed="true" data-v="24h">24 h</button><button aria-pressed="false" data-v="7d">7 days</button><button aria-pressed="false" data-v="30d">30 days</button><button aria-pressed="false" data-v="90d">90 days</button>
+      </div>
+    </div>
+    <div class="ax-bars" id="bars" role="group" aria-label="Activity over time. Drag across bars to pick a time range."></div>
+    <div class="ax-hours" id="hours"></div>
+    <div class="ax-legend">
+      <span><i style="background:color-mix(in oklab, var(--accent) 75%, var(--bg))"></i>Activity</span>
+      <span><i style="background:var(--danger)"></i>Something failed</span>
+      <span><i style="outline:1px dashed var(--muted);outline-offset:-1px"></i>Bridge off</span>
+    </div>
+  </section>
+
+  <div class="ax-body">
+    <section class="ax-card" aria-label="Feed">
+      <div class="ax-tools">
+        <div class="ax-dr-wrap">
+          <button class="ax-dr" id="drBtn" aria-haspopup="dialog" aria-expanded="false" aria-label="Time range"><span data-i="calendar"></span><span id="drText"></span></button>
+          <button class="ax-dr-clear" id="drX" aria-label="Clear time range" data-tip="Clear time range" hidden></button>
+          <div class="ax-pop" id="pop" role="dialog" aria-label="Pick a time range">
+            <div class="ax-cal-head">
+              <button class="ax-ib" id="calPrev" aria-label="Previous month"></button>
+              <span id="calTitle"></span>
+              <button class="ax-ib" id="calNext" aria-label="Next month"></button>
+            </div>
+            <div class="ax-cal" id="cal"></div>
+            <div class="ax-times">
+              <label>Start time<input type="time" id="tFrom" value="00:00"></label>
+              <label>End time<input type="time" id="tTo" value="23:59"></label>
+            </div>
+            <div class="ax-pop-foot">
+              <button class="ax-btn" id="drClear">Clear</button>
+              <button class="ax-btn primary" id="drApply">Apply</button>
+            </div>
+          </div>
+        </div>
+        <div class="ax-seg" role="group" aria-label="Where" id="origin">
+          <button aria-pressed="true" data-v="all">All</button>
+          <button aria-pressed="false" data-v="phone" data-tip="Phone" aria-label="Phone"><span data-i="phone"></span></button>
+          <button aria-pressed="false" data-v="bridge" data-tip="Bridge" aria-label="Bridge"><span data-i="bridge"></span></button>
+        </div>
+        <div class="ax-what">
+        <div class="ax-seg" role="group" aria-label="What" id="kind">
+          <button aria-pressed="true" data-v="all">All</button>
+          <button aria-pressed="false" data-v="change">Changes<span class="ax-n" data-n="change"></span></button>
+          <button aria-pressed="false" data-v="traffic">Traffic<span class="ax-n" data-n="traffic"></span></button>
+          <button aria-pressed="false" data-v="download">Downloads<span class="ax-n" data-n="download"></span></button>
+          <button aria-pressed="false" data-v="task">Tasks<span class="ax-n" data-n="task"></span></button>
+          <button aria-pressed="false" data-v="edit">Edits<span class="ax-n" data-n="edit"></span></button>
+        </div>
+        <span class="ax-spacer"></span>
+        <div class="ax-failgrp" id="failgrp">
+          <button class="ax-failbtn" id="fails" aria-pressed="false" aria-expanded="false" aria-haspopup="menu" aria-controls="failpop" data-tip="Show only failures"><span data-i="alert"></span><span id="failn"></span></button>
+          <button class="ax-failx" id="failX" aria-label="Turn off failure filter" data-tip="Show all activity" hidden></button>
+          <div class="ax-failpop" id="failpop">
+            <span class="ax-failhd" aria-hidden="true">Failures</span>
+            <div role="menu" aria-label="Failures by type" id="failsub"></div>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div id="feed"></div>
+    </section>
+
+  </div>
+</main>
+</div>
+<aside class="ax-dw" id="dw" role="dialog" aria-modal="false" aria-labelledby="dwTitle" tabindex="-1"></aside>
+<div class="ax-toast" id="toast" role="status"><span data-i="check"></span><span id="toastmsg"></span></div>
+
+<script>
+const I = {
+  phone: '<path d="M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm0 2v16h8V4H8Zm2.5 13h3v1.5h-3V17Z"/>',
+  bridge: '<path d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6v2h3v2H8v-2h3v-2H5a2 2 0 0 1-2-2V5Zm2 0v10h14V5H5Z"/>',
+  download: '<path d="M11 3h2v9.6l3.3-3.3 1.4 1.4L12 16.4l-5.7-5.7 1.4-1.4 3.3 3.3V3ZM4 18h16v2H4v-2Z"/>',
+  clock: '<path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm0 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16Zm1 3v4.6l3.2 3.2-1.4 1.4L11 12.4V7h2Z"/>',
+  pen: '<path d="m15.2 3.4 5.4 5.4L9.4 20H4v-5.4L15.2 3.4Zm0 2.8L6 15.4V18h2.6l9.2-9.2-2.6-2.6Z"/>',
+  alert: '<path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm-1 5v7h2V7h-2Zm0 9v2h2v-2h-2Z"/>',
+  power: '<path d="M11 2h2v10h-2V2Zm-4.2 3.3 1.4 1.4a6 6 0 1 0 7.6 0l1.4-1.4A8 8 0 1 1 6.8 5.3Z"/>',
+  copy: '<path d="M8 3h11a2 2 0 0 1 2 2v11h-2V5H8V3ZM5 7h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Zm0 2v10h10V9H5Z"/>',
+  chev: '<path d="m9.3 5.3 6.7 6.7-6.7 6.7-1.4-1.4 5.3-5.3-5.3-5.3 1.4-1.4Z"/>',
+  chevL: '<path d="m14.7 5.3 1.4 1.4-5.3 5.3 5.3 5.3-1.4 1.4L8 12l6.7-6.7Z"/>',
+  close: '<path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6 10.6 12 5 6.4 6.4 5Z"/>',
+  pin: '<path d="M14.6 2.6 21.4 9.4l-1.4 1.4-1.1-.4-3.3 3.3-.4 4.1-1.4 1.4-3.5-3.5L5 20.4 3.6 19l4.7-5.3-3.5-3.5 1.4-1.4 4.1-.4 3.3-3.3-.4-1.1 1.4-1.4Z"/>',
+  code: '<path d="M8.6 6.6 10 8l-4 4 4 4-1.4 1.4L3.2 12l5.4-5.4Zm6.8 0L20.8 12l-5.4 5.4L14 16l4-4-4-4 1.4-1.4Z"/>',
+  back: '<path d="M10.4 5.6 11.8 7l-4 4H20v2H7.8l4 4-1.4 1.4L4 12l6.4-6.4Z"/>',
+  tick: '<path d="m9.5 16.2-4.2-4.2-1.4 1.4 5.6 5.6 11-11-1.4-1.4-9.6 9.6Z"/>',
+  check: '<path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm4.3 6.3L10.5 14l-2.8-2.8-1.4 1.4 4.2 4.2 7.2-7.1-1.4-1.4Z"/>',
+  swap: '<path d="M7 4 3 8l4 4V9h10V7H7V4Zm10 8v3H7v2h10v3l4-4-4-4Z"/>',
+  sync: '<path d="M12 4a8 8 0 0 1 7.4 5H17v2h6V5h-2v2.3A10 10 0 0 0 2.1 11h2A8 8 0 0 1 12 4Zm7.9 9A8 8 0 0 1 4.6 15H7v-2H1v6h2v-2.3A10 10 0 0 0 21.9 13h-2Z"/>',
+  calendar: '<path d="M8 2h2v2h4V2h2v2h3a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h3V2ZM5 10v9h14v-9H5Zm0-2h14V6H5v2Z"/>',
+};
+const svg = (k, c = '') => `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="${c}">${I[k]}</svg>`;
+document.querySelectorAll('[data-i]').forEach(e => e.outerHTML = svg(e.dataset.i));
+document.getElementById('pin').innerHTML = svg('pin');
+document.getElementById('calPrev').innerHTML = svg('chevL');
+document.getElementById('calNext').innerHTML = svg('chev');
+
+// ---- time model: "now" is Wed Oct 22 2026, 14:35 ----
+const H = 3600e3, D = 24 * H;
+const dayStart = d => new Date(2026, 9, 22 + d).getTime();
+const NOW = dayStart(0) + 14 * H + 35 * 60e3;
+const atOf = (d, t) => dayStart(d) + (+t.slice(0, 2)) * H + (+t.slice(3, 5)) * 60e3;
+const pad = n => String(n).padStart(2, '0');
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const hm = ms => { const x = new Date(ms); return `${pad(x.getHours())}:${pad(x.getMinutes())}`; };
+const md = ms => { const x = new Date(ms); return `${MON[x.getMonth()]} ${x.getDate()}`; };
+const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+const fmtRange = r => sameDay(r.from, r.to) ? `${md(r.from)}, ${hm(r.from)} – ${hm(r.to)}` : `${md(r.from)}, ${hm(r.from)} – ${md(r.to)}, ${hm(r.to)}`;
+
+// Sample data written from the owner's screenshots. d = day offset from today.
+const HAND = [
+  { d: 0, t: '14:35', o: 'phone', k: 'traffic', a: 'Phone synced', s: '14:20 – 14:35', n: 6, open: 1 },
+  { d: 0, t: '14:12', o: 'phone', k: 'change', a: 'Kusuriya no Hitorigoto 3rd Season', s: 'grade 4' },
+  { d: 0, t: '14:11', o: 'phone', k: 'change', a: 'Kusuriya no Hitorigoto 3rd Season', s: 'episode 0 → 1', open: 1 },
+  { d: 0, t: '13:58', o: 'phone', k: 'change', a: 'Hotaru no Yomeiri', s: 'grade 4' },
+  { d: 0, t: '13:57', o: 'phone', k: 'change', a: 'Hotaru no Yomeiri', s: 'episode 0 → 1' },
+  { d: 0, t: '13:30', o: 'phone', k: 'traffic', a: 'Phone synced', s: '13:05 – 13:30', n: 9, open: 1 },
+  { d: 0, t: '12:40', o: 'bridge', k: 'edit', a: 'Zombie Sagashitemasu', s: 'airs on Thursday' },
+  { d: 0, t: '11:23', o: 'bridge', k: 'life', a: 'The bridge window hit an error', s: '5 times', fail: 1, open: 1 },
+  { d: 0, t: '11:00', o: 'phone', k: 'traffic', a: 'Phone synced', s: '10:30 – 11:00', n: 14, open: 1 },
+  // a type with no presenter: the row and the drawer come only from the common fields (layer 0)
+  { d: 0, t: '10:05', o: 'bridge', k: 'life', et: 'storage.free_space_low', dom: 'storage', lvl: 'warn', slow: 1, a: 'Free space below threshold', s: 'storage · storage.free_space_low', open: 1,
+    meta: { path: 'D:\\Anime', free_bytes: 9663676416, threshold_bytes: 10737418240, check: 'download_preflight' } },
+  { d: 0, t: '09:35', o: 'phone', k: 'change', a: 'Zombie Sagashitemasu', s: 'episode 2 → 1 did not save', fail: 1, n: 6, open: 1 },
+  { d: 0, t: '09:30', o: 'phone', k: 'traffic', a: 'Phone synced', s: 'slower than usual · up to 3.4 s', n: 5, slow: 1, open: 1 },
+  { d: 0, t: '09:15', o: 'phone', k: 'traffic', a: 'Phone synced', s: '1 refused: the phone was signed out', n: 13, fail: 1, open: 1 },
+  { d: 0, t: '08:02', o: 'bridge', k: 'life', a: 'Bridge started', s: '' },
+  { gap: 1, d: 0, t: '02:10', to: atOf(0, '08:02'), s: 'Bridge off · 02:10 – 08:02 · changes from the phone in this time may still arrive late' },
+  { d: 0, t: '02:10', o: 'bridge', k: 'life', a: 'Bridge stopped', s: '' },
+  { d: -1, t: '23:39', o: 'bridge', k: 'download', a: 'Seitokai ni mo Ana wa Aru!', s: 'episode 1 · 2 hosts failed, the 3rd worked · 7 min', open: 1 },
+  { d: -1, t: '23:29', o: 'bridge', k: 'task', a: 'Season check', s: '2 anime queued for download' },
+  { d: -1, t: '23:10', o: 'phone', k: 'change', a: 'Bleach: Sennen Kessen-hen - Kashin-tan', s: 'state was not saved: the bridge had a newer version', fail: 1, n: 2, open: 1 },
+  { d: -1, t: '23:10', o: 'bridge', k: 'download', a: 'Hotaru no Yomeiri', s: 'episode 2 downloaded' },
+  { d: -1, t: '23:09', o: 'bridge', k: 'download', a: 'Download run', s: '7 episodes · 1 retry', open: 1 },
+  { d: -1, t: '21:40', o: 'phone', k: 'change', a: 'Bleach: Sennen Kessen-hen - Kashin-tan', s: 'state En pausa → No me gusto' },
+  { d: -1, t: '21:38', o: 'phone', k: 'traffic', a: 'Phone synced', s: '21:20 – 21:38', n: 11, open: 1 },
+  { d: -1, t: '18:00', o: 'bridge', k: 'task', a: 'Schedule', s: "today's episodes checked · 4 airing" },
+  { d: -1, t: '16:20', o: 'bridge', k: 'edit', a: 'Kusuriya no Hitorigoto 3rd Season', s: 'cover replaced' },
+  { d: -1, t: '15:05', o: 'phone', k: 'traffic', a: 'Phone synced', s: '15:00 – 15:05', n: 4, open: 1 },
+  { d: -1, t: '11:10', o: 'phone', k: 'change', a: 'Ao Ashi Season 2nd', s: 'episode 3 → 4' },
+  { d: -1, t: '10:40', o: 'phone', k: 'traffic', a: 'Phone synced', s: '10:05 – 10:40', n: 12, open: 1 },
+  { d: -2, t: '22:15', o: 'bridge', k: 'download', a: 'Download run', s: '5 episodes', open: 1 },
+  { d: -2, t: '21:00', o: 'phone', k: 'traffic', a: 'Phone synced', s: '20:30 – 21:00', n: 10, open: 1 },
+  { d: -2, t: '18:00', o: 'bridge', k: 'task', a: 'Schedule', s: "today's episodes checked · 3 airing" },
+  { d: -2, t: '12:30', o: 'phone', k: 'change', a: 'Ao Ashi Season 2nd', s: 'episode 2 → 3' },
+  { d: -2, t: '10:05', o: 'phone', k: 'traffic', a: 'Phone synced', s: '09:40 – 10:05', n: 8, open: 1 },
+  { d: -3, t: '23:37', o: 'bridge', k: 'download', a: 'Download run', s: '3 episodes · 2 retries', open: 1 },
+  { d: -3, t: '23:29', o: 'bridge', k: 'task', a: 'Season check', s: '3 anime queued for download' },
+  { d: -3, t: '20:10', o: 'phone', k: 'change', a: 'Date A Live V', s: 'episode 10 → 11' },
+  { d: -3, t: '09:40', o: 'phone', k: 'traffic', a: 'Phone synced', s: '2 refused: the phone was signed out', n: 7, fail: 1, open: 1 },
+  { d: -3, t: '08:15', o: 'bridge', k: 'life', a: 'Bridge started', s: '' },
+  { gap: 1, d: -4, t: '00:00', to: atOf(-3, '08:15'), s: 'Bridge off · Oct 18, 00:00 – Oct 19, 08:15 · changes from the phone in this time may still arrive late' },
+  { d: -5, t: '23:59', o: 'bridge', k: 'life', a: 'Bridge stopped', s: '' },
+  { d: -5, t: '23:15', o: 'bridge', k: 'download', a: 'Download run', s: '4 episodes · 1 retry', open: 1 },
+  { d: -5, t: '18:00', o: 'bridge', k: 'task', a: 'Schedule', s: "today's episodes checked · 5 airing" },
+  { d: -5, t: '15:20', o: 'bridge', k: 'edit', a: 'Ao Ashi Season 2nd', s: 'cover replaced' },
+  { d: -5, t: '11:00', o: 'phone', k: 'traffic', a: 'Phone synced', s: '10:30 – 11:00', n: 12, open: 1 },
+  { d: -6, t: '23:39', o: 'bridge', k: 'download', a: 'Download run', s: '2 episodes', open: 1 },
+  { d: -6, t: '19:45', o: 'phone', k: 'change', a: 'Kusuriya no Hitorigoto 3rd Season', s: 'episode 5 → 6' },
+  { d: -6, t: '09:20', o: 'phone', k: 'traffic', a: 'Phone synced', s: '09:00 – 09:20', n: 9, open: 1 },
+];
+
+// Older days (Oct 15 back to Jul 25) are generated, seeded so every load looks the same.
+let seed = 7;
+const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const pick = a => a[Math.floor(rnd() * a.length)];
+const ANIME = ['Kusuriya no Hitorigoto 3rd Season', 'Hotaru no Yomeiri', 'Ao Ashi Season 2nd', 'Date A Live V', 'Zombie Sagashitemasu',
+  'Seitokai ni mo Ana wa Aru!', 'Bleach: Sennen Kessen-hen - Kashin-tan', 'Dandadan 2nd Season', 'Kaoru Hana wa Rin to Saku'];
+const STATES = ['Viendo', 'En pausa', 'Completado', 'No me gusto', 'Pendiente'];
+const OFF_DAYS = new Set([-12, -13, -31, -47, -48, -49, -66]);
+const SYN = [];
+const tt = (h, m) => `${pad(h)}:${pad(m)}`;
+for (let d = -7; d >= -89; d--) {
+  if (OFF_DAYS.has(d)) {
+    if (!OFF_DAYS.has(d - 1)) {
+      let last = d; while (OFF_DAYS.has(last + 1)) last++;
+      const back = atOf(last + 1, '08:10');
+      SYN.push({ d: last + 1, t: '08:10', o: 'bridge', k: 'life', a: 'Bridge started', s: '' });
+      SYN.push({ gap: 1, d, t: '00:00', to: back, s: `Bridge off · ${md(dayStart(d))}, 00:00 – ${md(back)}, 08:10 · changes from the phone in this time may still arrive late` });
+      SYN.push({ d: d - 1, t: '23:58', o: 'bridge', k: 'life', a: 'Bridge stopped', s: '' });
+    }
+    continue;
+  }
+  const failDay = rnd() < .09;
+  for (let i = 0, n = 3 + Math.floor(rnd() * 3); i < n; i++) {
+    const h = 8 + Math.floor(rnd() * 14), m = Math.floor(rnd() * 50) + 5, c = 4 + Math.floor(rnd() * 12);
+    const fail = failDay && i === 0, from = Math.max(0, m - 5 - Math.floor(rnd() * 20));
+    SYN.push({ d, t: tt(h, m), o: 'phone', k: 'traffic', a: 'Phone synced', s: fail ? '1 refused: the phone was signed out' : `${tt(h, from)} – ${tt(h, m)}`, n: c, fail: fail ? 1 : 0, open: 1 });
+  }
+  for (let i = 0, n = 2 + Math.floor(rnd() * 4); i < n; i++) {
+    const a = pick(ANIME), r = rnd(), ep = 1 + Math.floor(rnd() * 11);
+    const s = r < .6 ? `episode ${ep} → ${ep + 1}` : r < .8 ? `grade ${3 + Math.floor(rnd() * 3)}` : `state ${pick(STATES)} → ${pick(STATES)}`;
+    SYN.push({ d, t: tt(9 + Math.floor(rnd() * 14), Math.floor(rnd() * 60)), o: 'phone', k: 'change', a, s });
+  }
+  const eps = 1 + Math.floor(rnd() * 7), retries = rnd() < .3 ? 1 + Math.floor(rnd() * 2) : 0;
+  SYN.push({ d, t: tt(23, 5 + Math.floor(rnd() * 40)), o: 'bridge', k: 'download', a: 'Download run', s: `${eps} episode${eps > 1 ? 's' : ''}${retries ? ` · ${retries} ${retries > 1 ? 'retries' : 'retry'}` : ''}`, open: 1 });
+  SYN.push({ d, t: '18:00', o: 'bridge', k: 'task', a: 'Schedule', s: `today's episodes checked · ${2 + Math.floor(rnd() * 5)} airing` });
+  if (d % 3 === 0) SYN.push({ d, t: '23:29', o: 'bridge', k: 'task', a: 'Season check', s: `${1 + Math.floor(rnd() * 3)} anime queued for download` });
+  if (rnd() < .25) SYN.push({ d, t: tt(12 + Math.floor(rnd() * 8), Math.floor(rnd() * 60)), o: 'bridge', k: 'edit', a: pick(ANIME), s: pick(['cover replaced', 'airs on Thursday', 'airs on Sunday', 'title fixed']) });
+  if (failDay) SYN.push({ d, t: tt(10 + Math.floor(rnd() * 10), Math.floor(rnd() * 60)), o: 'phone', k: 'change', a: pick(ANIME), s: 'episode change did not save', fail: 1, n: 2 + Math.floor(rnd() * 4), open: 1 });
+}
+const E = [...HAND, ...SYN].map(e => e.k !== 'traffic' ? e : (() => {
+    // the ledger keeps phone check-ins as hourly totals: one line per hour
+    const h = +e.t.slice(0, 2), span = `${pad(h)}:00 – ${pad((h + 1) % 24)}:00`;
+    const n = e.n * 3;
+    const s = e.fail || e.slow ? `${n} times · ${e.s}` : `${n} times · ${span}`;
+    return { ...e, t: `${pad(h)}:00`, a: 'Phone checked in', s, n: 0 };
+  })()).map(e => ({ ...e, at: atOf(e.d, e.t), to: e.to ?? atOf(e.d, e.t) }))
+  .sort((a, b) => b.at - a.at || (a.gap ? -1 : 1));
+// every event has a detail; only the "bridge off" bands say all there is in the row itself
+E.forEach((e, i) => { e.id = i; e.open = e.gap ? 0 : 1; });
+const ORIGIN = { phone: 'From the phone', bridge: 'On the bridge' };
+
+// ---- chart slots ----
+const HVOL = { 15: 4, 16: 3, 17: 2, 18: 5, 19: 3, 20: 4, 21: 11, 22: 6, 23: 14, 0: 3, 1: 2, 2: 1, 8: 3, 9: 24, 10: 9, 11: 16, 12: 6, 13: 11, 14: 7 };
+const MODES = { '24h': { days: 1, label: 'last 24 hours', title: 'Last 24 hours' }, '7d': { days: 7, label: 'last 7 days', title: 'Last 7 days' },
+  '30d': { days: 30, label: 'last 30 days', title: 'Last 30 days' }, '90d': { days: 90, label: 'last 90 days', title: 'Last 90 days' } };
+const offDay = d => d === -4 || OFF_DAYS.has(d);
+const dayVolume = d => E.reduce((sum, e) => sum + (!e.gap && e.d === d ? (e.n || 1) : 0), 0);
+function slotsFor(mode) {
+  if (mode === '24h') {
+    const first = dayStart(0) + 14 * H - 23 * H;
+    return Array.from({ length: 24 }, (_, i) => {
+      const from = first + i * H, h = new Date(from).getHours(), d = from < dayStart(0) ? -1 : 0;
+      return { from, to: from + H, v: HVOL[h] || 0, off: d === 0 && h >= 3 && h <= 7, label: h === 0 ? 'Today' : h % 3 === 0 ? pad(h) : '', strong: h === 0, tip: `${pad(h)}:00` };
+    });
+  }
+  const n = MODES[mode].days;
+  return Array.from({ length: n }, (_, i) => {
+    const d = i - (n - 1), from = dayStart(d), x = new Date(from);
+    let label = '';
+    if (d === 0) label = 'Today';
+    else if (n === 7) label = `${WD[x.getDay()]} ${x.getDate()}`;
+    else if (n === 30 && (n - 1 - i) % 7 === 0) label = md(from);
+    else if (n === 90 && x.getDate() === 1) label = MON[x.getMonth()];
+    return { from, to: from + D, v: dayVolume(d), off: offDay(d), label, strong: d === 0, tip: `${WD[x.getDay()]}, ${md(from)}` };
+  });
+}
+
+const KINDS = ['change', 'traffic', 'download', 'task', 'edit'];
+const FAIL_CATS = [
+  { id: 'change', icon: 'swap', name: 'Changes' }, { id: 'traffic', icon: 'sync', name: 'Traffic' },
+  { id: 'download', icon: 'download', name: 'Downloads' }, { id: 'task', icon: 'clock', name: 'Tasks' },
+  { id: 'edit', icon: 'pen', name: 'Edits' }, { id: 'life', icon: 'bridge', name: 'Bridge' },
+];
+// Traffic starts off: check-ins are history, but they are not news unless something failed
+const st = { mode: '24h', origin: 'all', kinds: new Set(['change', 'download', 'task', 'edit']), fails: false, failOpen: false,
+  failKinds: new Set(FAIL_CATS.map(c => c.id)), range: null };
+let drag = null, openId = null;
+const windowOf = () => st.mode === '24h' ? { from: NOW - 24 * H, to: NOW } : { from: dayStart(1 - MODES[st.mode].days), to: NOW };
+const scope = () => st.range || windowOf();
+const overlaps = (a, b) => a.from < b.to && b.from < a.to;
+const hasFail = s => E.some(e => e.fail && e.at >= s.from && e.at < s.to);
+
+function renderBars() {
+  const slots = slotsFor(st.mode), max = Math.max(...slots.map(s => s.v));
+  const sel = drag ? { from: slots[Math.min(drag.a, drag.b)].from, to: slots[Math.max(drag.a, drag.b)].to } : st.range;
+  const bars = document.getElementById('bars'), dense = slots.length > 24;
+  bars.style.gridTemplateColumns = `repeat(${slots.length}, minmax(0, 1fr))`;
+  bars.classList.toggle('dragging', !!drag);
+  bars.classList.toggle('dense', dense);
+  bars.innerHTML = slots.map((s, i) => {
+    const inSel = sel && overlaps(s, sel);
+    const cls = ['ax-bar', s.off && 'off', sel && (inSel ? 'sel' : 'dim'), i === slots.length - 1 && 'now'].filter(Boolean).join(' ');
+    const tip = s.tip + (s.off ? ' · bridge off' : hasFail(s) ? ' · something failed' : '');
+    return `<button class="${cls}" data-i="${i}" data-tip="${tip}" aria-label="${tip}" aria-pressed="${!!inSel}">
+      <span class="fill" style="height:${s.off ? 100 : Math.max(4, s.v / max * 100)}%">${!s.off && hasFail(s) ? '<span class="fail"></span>' : ''}</span></button>`;
+  }).join('');
+  const hours = document.getElementById('hours');
+  hours.style.gridTemplateColumns = bars.style.gridTemplateColumns;
+  hours.classList.toggle('days', st.mode !== '24h');
+  hours.classList.toggle('dense', dense);
+  hours.innerHTML = slots.map(s => `<span class="${s.strong ? 'day' : ''}">${s.label}</span>`).join('');
+  document.getElementById('t-time').textContent = MODES[st.mode].title;
+}
+
+function match(e) {
+  const sc = scope();
+  if (e.gap) return !st.fails && overlaps({ from: e.at, to: e.to }, sc);
+  if (e.at < sc.from || e.at > sc.to) return false;
+  if (st.origin !== 'all' && e.o !== st.origin) return false;
+  // the failure view shows failures of the chosen types, whatever the type filters say
+  if (st.fails) return !!e.fail && st.failKinds.has(e.k);
+  // bridge start and stop mark when data exists, so no type filter hides them
+  return e.k === 'life' || st.kinds.has(e.k);
+}
+
+function row(e) {
+  if (e.gap) return `<div class="ax-gap">${svg('power')}<span>${e.s}</span></div>`;
+  const icCls = e.fail ? 'ax-ic fail' : e.slow ? 'ax-ic slow' : 'ax-ic';
+  const tip = ORIGIN[e.o] + (e.fail ? ' · failed' : e.slow ? ' · slow' : '');
+  const end = [
+    e.n ? `<span class="ax-count" data-tip="${e.n} times">×${e.n}</span>` : '',
+    e.fail ? `<button class="ax-ib sm" data-copy="1" data-tip="Copy for AI" aria-label="Copy for AI">${svg('copy')}</button>` : '',
+    e.open ? svg('chev', 'ax-chev') : '',
+  ].join('');
+  return `<div class="ax-row ${e.open ? 'open' : ''} ${e.id === openId ? 'sel' : ''}" data-id="${e.id}" ${e.open ? 'tabindex="0" role="button"' : ''}>
+    <span class="ax-t">${e.t}</span>
+    <span class="${icCls}" data-tip="${tip}" aria-label="${tip}">${svg(e.o === 'phone' ? 'phone' : 'bridge')}</span>
+    <span class="ax-line"><b>${e.a}</b>${e.s ? `<span class="${e.fail ? 'bad' : ''}">${e.s}</span>` : ''}</span>
+    <span class="ax-end">${end}</span></div>`;
+}
+
+function dayLabel(d) {
+  const x = new Date(dayStart(d)), base = `${WD[x.getDay()]}, ${md(x.getTime())}`;
+  return d === 0 ? `Today · ${base}` : d === -1 ? `Yesterday · ${base}` : base;
+}
+
+// Progressive window (ADR-012): one batch renders, the next one loads near the bottom of the page.
+const BATCH = 40;
+let shown = BATCH, loading = false;
+const skeleton = () => `<div role="status" aria-live="polite"><span class="sr-only">Loading earlier activity</span>` +
+  [60, 45, 70].map(w => `<div class="ax-skel"><i style="width:36px"></i><i class="box"></i><i style="width:${w}%"></i></div>`).join('') + '</div>';
+
+function renderFeed() {
+  const list = E.filter(match), page = list.slice(0, shown);
+  let html = '', day = null;
+  for (const e of page) {
+    if (e.d !== day) { day = e.d; html += `<div class="ax-day">${dayLabel(day)}</div>`; }
+    html += row(e);
+  }
+  if (!list.length) html = `<div class="ax-empty">${!st.fails && !st.kinds.size ? 'Pick at least one type to see activity.' : 'Nothing in this time range.'}</div>`;
+  else if (page.length < list.length) html += loading ? skeleton() : '<div id="sentinel" style="height:1px"></div>';
+  else html += `<div class="ax-end-mark">${st.range ? 'Start of this range' : `Start of the ${MODES[st.mode].label}`}</div>`;
+  document.getElementById('feed').innerHTML = html;
+  const sc = scope();
+  const inScope = e => !e.gap && e.at >= sc.from && e.at <= sc.to && (st.origin === 'all' || e.o === st.origin);
+  const failsOf = k => E.filter(e => e.fail && e.k === k && inScope(e)).length;
+  document.getElementById('failn').textContent = E.filter(e => e.fail && inScope(e)).length;
+  document.getElementById('failsub').innerHTML = FAIL_CATS.map(c => {
+    const n = failsOf(c.id);
+    return `<button class="ax-failrow" role="menuitemcheckbox" data-fk="${c.id}" aria-checked="${!!n && st.failKinds.has(c.id)}" aria-disabled="${!n}"
+      aria-label="${c.name}, ${n} failed">${svg(c.icon)}<span>${c.name}</span><span class="n">${n}</span></button>`;
+  }).join('');
+  const fb = document.getElementById('fails');
+  document.getElementById('failgrp').style.setProperty('--bw', fb.offsetWidth + 'px');
+  document.getElementById('drText').innerHTML = st.range ? `<span class="v">${fmtRange(st.range)}</span>` : `<span class="ph">${fmtRange(windowOf())}</span>`;
+  document.getElementById('drX').hidden = !st.range;
+  // each type shows how many lines it has in the visible range, for the chosen origin
+  document.querySelectorAll('[data-n]').forEach(n => {
+    n.textContent = E.filter(e => e.k === n.dataset.n && inScope(e)).length;
+    const f = failsOf(n.dataset.n), mark = n.parentElement.querySelector('.ax-fmark');
+    if (mark) mark.remove();
+    if (f) n.insertAdjacentHTML('afterend', `<span class="ax-fmark" data-tip="${f} failed" aria-label="${f} failed">${f}</span>`);
+  });
+  return list.length;
+}
+function maybeLoadMore() {
+  if (loading || !document.getElementById('sentinel')) return;
+  if (window.innerHeight + window.scrollY < document.documentElement.scrollHeight - 600) return;
+  loading = true; renderFeed();
+  setTimeout(() => { shown += BATCH; loading = false; renderFeed(); maybeLoadMore(); }, 450);
+}
+window.addEventListener('scroll', maybeLoadMore, { passive: true });
+
+function syncSeg(id, v) { document.querySelectorAll(`#${id} button`).forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v)); }
+function render() {
+  syncSeg('origin', st.origin); syncSeg('mode', st.mode);
+  document.querySelectorAll('#kind button').forEach(b => b.setAttribute('aria-pressed',
+    b.dataset.v === 'all' ? KINDS.every(k => st.kinds.has(k)) : st.kinds.has(b.dataset.v)));
+  document.getElementById('kind').classList.toggle('muted', st.fails);
+  document.getElementById('fails').setAttribute('aria-pressed', st.fails);
+  document.getElementById('fails').setAttribute('aria-expanded', st.failOpen);
+  document.getElementById('failX').hidden = !st.fails;
+  document.getElementById('fails').dataset.tip = st.fails ? 'Failures by type' : 'Show only failures';
+  document.getElementById('failgrp').classList.toggle('open', st.failOpen);
+  shown = BATCH; loading = false;
+  renderBars(); renderFeed();
+}
+function setRange(r) {
+  st.range = r;
+  // a range older than the current chart opens the smallest chart that still shows it
+  if (r && r.from < windowOf().from) st.mode = ['7d', '30d', '90d'].find(m => r.from >= dayStart(1 - MODES[m].days)) || '90d';
+  render();
+}
+
+// ---- drag to select on the chart ----
+const bars = document.getElementById('bars');
+const barIndexAt = ev => { const b = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('.ax-bar'); return b && bars.contains(b) ? +b.dataset.i : null; };
+bars.addEventListener('pointerdown', ev => {
+  const i = barIndexAt(ev); if (i === null) return;
+  drag = { a: i, b: i }; bars.setPointerCapture(ev.pointerId); renderBars();
+});
+bars.addEventListener('pointermove', ev => {
+  if (!drag) return;
+  const i = barIndexAt(ev); if (i !== null && i !== drag.b) { drag.b = i; renderBars(); }
+});
+bars.addEventListener('pointerup', () => {
+  if (!drag) return;
+  const slots = slotsFor(st.mode), lo = Math.min(drag.a, drag.b), hi = Math.max(drag.a, drag.b);
+  const r = { from: slots[lo].from, to: Math.min(slots[hi].to, NOW) };
+  const single = lo === hi;
+  drag = null;
+  if (single && slots[lo].off) { renderBars(); return; }
+  setRange(single && st.range && st.range.from === r.from && st.range.to === r.to ? null : r);
+});
+bars.addEventListener('pointercancel', () => { drag = null; renderBars(); });
+
+// ---- date range picker ----
+const pop = document.getElementById('pop'), drBtn = document.getElementById('drBtn');
+const MIN_DAY = dayStart(-89);
+const cal = { y: 2026, m: 9, start: null, end: null };
+function openPop() {
+  const r = st.range;
+  cal.start = r ? new Date(r.from).setHours(0, 0, 0, 0) : null;
+  cal.end = r ? new Date(r.to).setHours(0, 0, 0, 0) : null;
+  document.getElementById('tFrom').value = r ? hm(r.from) : '00:00';
+  document.getElementById('tTo').value = r ? hm(r.to) : '23:59';
+  if (r) { const x = new Date(r.from); cal.y = x.getFullYear(); cal.m = x.getMonth(); }
+  pop.classList.add('open'); drBtn.setAttribute('aria-expanded', 'true'); renderCal();
+}
+function closePop() { pop.classList.remove('open'); drBtn.setAttribute('aria-expanded', 'false'); }
+function renderCal() {
+  const first = new Date(cal.y, cal.m, 1), days = new Date(cal.y, cal.m + 1, 0).getDate();
+  document.getElementById('calTitle').textContent = `${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][cal.m]} ${cal.y}`;
+  document.getElementById('calPrev').disabled = new Date(cal.y, cal.m, 0).getTime() < MIN_DAY;
+  document.getElementById('calNext').disabled = new Date(cal.y, cal.m + 1, 1).getTime() > NOW;
+  let html = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(w => `<span class="wd">${w}</span>`).join('');
+  html += '<span></span>'.repeat(first.getDay());
+  const end = cal.end ?? cal.start;
+  for (let d = 1; d <= days; d++) {
+    const t = new Date(cal.y, cal.m, d).getTime();
+    const cls = [cal.start !== null && t >= cal.start && t <= end && 'in', t === cal.start && 'start', t === end && 'end', t === dayStart(0) && 'today'].filter(Boolean).join(' ');
+    html += `<button class="${cls}" data-t="${t}" ${t > NOW || t < MIN_DAY ? 'disabled' : ''}><span>${d}</span></button>`;
+  }
+  document.getElementById('cal').innerHTML = html;
+  document.getElementById('drApply').disabled = cal.start === null;
+}
+document.getElementById('cal').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-t]'); if (!b) return;
+  const t = +b.dataset.t;
+  if (cal.start === null || cal.end !== null) { cal.start = t; cal.end = null; }
+  else if (t < cal.start) { cal.end = cal.start; cal.start = t; }
+  else cal.end = t;
+  renderCal();
+});
+document.getElementById('calPrev').addEventListener('click', () => { if (--cal.m < 0) { cal.m = 11; cal.y--; } renderCal(); });
+document.getElementById('calNext').addEventListener('click', () => { if (++cal.m > 11) { cal.m = 0; cal.y++; } renderCal(); });
+drBtn.addEventListener('click', () => pop.classList.contains('open') ? closePop() : openPop());
+document.getElementById('drClear').addEventListener('click', () => { closePop(); setRange(null); });
+document.getElementById('drApply').addEventListener('click', () => {
+  const [fh, fm] = document.getElementById('tFrom').value.split(':').map(Number);
+  const [th, tm] = document.getElementById('tTo').value.split(':').map(Number);
+  let from = cal.start + fh * H + fm * 60e3, to = (cal.end ?? cal.start) + th * H + tm * 60e3 + 59e3;
+  if (to < from) [from, to] = [to, from];
+  closePop(); setRange({ from, to: Math.min(to, NOW) });
+});
+document.addEventListener('pointerdown', ev => { if (pop.classList.contains('open') && !ev.target.closest('.ax-dr-wrap')) closePop(); });
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closePop(); });
+
+// ---- other controls ----
+document.getElementById('mode').addEventListener('click', ev => { const b = ev.target.closest('button'); if (b) { st.mode = b.dataset.v; render(); } });
+document.getElementById('origin').addEventListener('click', ev => { const b = ev.target.closest('button'); if (b) { st.origin = b.dataset.v; render(); } });
+document.getElementById('kind').addEventListener('click', ev => {
+  const b = ev.target.closest('button'); if (!b) return;
+  if (b.dataset.v === 'all') KINDS.forEach(k => st.kinds.add(k));
+  else st.kinds.has(b.dataset.v) ? st.kinds.delete(b.dataset.v) : st.kinds.add(b.dataset.v);
+  st.fails = false; st.failOpen = false; render();
+});
+// first press enters the failure view and opens the menu; later presses only open or close it
+document.getElementById('fails').addEventListener('click', () => {
+  if (!st.fails) { st.fails = true; st.failOpen = true; } else st.failOpen = !st.failOpen;
+  render();
+});
+document.getElementById('failsub').addEventListener('click', ev => {
+  const b = ev.target.closest('[data-fk]'); if (!b || b.getAttribute('aria-disabled') === 'true') return;
+  st.failKinds.has(b.dataset.fk) ? st.failKinds.delete(b.dataset.fk) : st.failKinds.add(b.dataset.fk);
+  render();
+  document.querySelector(`#failsub [data-fk="${b.dataset.fk}"]`)?.focus();
+});
+document.getElementById('failX').addEventListener('click', () => { st.fails = false; st.failOpen = false; render(); document.getElementById('fails').focus(); });
+document.getElementById('failX').innerHTML = svg('close');
+// closing keeps the failure filter; only "Show all activity" or a type filter leaves it
+document.addEventListener('pointerdown', ev => { if (st.failOpen && !ev.target.closest('#failgrp')) { st.failOpen = false; render(); } });
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && st.failOpen) { st.failOpen = false; render(); document.getElementById('fails').focus(); } });
+document.getElementById('drX').addEventListener('click', () => setRange(null));
+document.getElementById('drX').innerHTML = svg('close');
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById('toast'); document.getElementById('toastmsg').textContent = msg;
+  t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+}
+// ---- detail drawer ----
+const MIN = 60e3;
+const full = ms => { const x = new Date(ms); return `${WD[x.getDay()]}, ${md(ms)} · ${hm(ms)}`; };
+const span = ms => { const m = Math.round(ms / MIN); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`; };
+const sec = (title, body) => `<section class="ax-sec">${title ? `<h3>${title}</h3>` : ''}${body}</section>`;
+const facts = rows => `<dl class="ax-facts">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
+const list = items => `<ul class="ax-list">${items.map(([t, txt, cls = '']) => `<li><span class="t">${t}</span><span class="${cls}">${txt}</span></li>`).join('')}</ul>`;
+const steps = items => `<ol class="ax-steps">${items.map(([t, txt, cls = '', sub = '']) =>
+  `<li class="${cls}"><span class="t">${t}</span><i></i><span>${txt}${sub ? `<small>${sub}</small>` : ''}</span></li>`).join('')}</ol>`;
+// ledger retention: incidents, ledger events and hourly totals are kept 90 days (LedgerSpan, ExpiresAtMS)
+const keepUntil = e => `<p class="ax-note">These details are kept until ${md(e.at + 90 * D)}.</p>`;
+
+// ---- presentation model: layer 2, error code catalog ----
+// One sentence per error_code, written once by a person. {name} placeholders read fields of the recorded
+// error. A code with no entry shows its recorded message as is, never a sentence written for one event.
+// Keys are the closed `reason` vocabulary of reconcile's applied_operations (contracts.AppliedOperationReason).
+const CAUSES = {
+  conflict: 'The bridge had changed this anime after the phone last read it, so the change was not applied.',
+  unsupported_operation: 'The bridge does not support this operation, so it never applied it.',
+};
+const fill = (s, f) => s.replace(/\{(\w+)\}/g, (m, k) => f[k] ?? m);
+const causeBlock = c => CAUSES[c.code]
+  ? `<div class="ax-cause"><p>${fill(CAUSES[c.code], c.fields || {})}</p><span class="code ax-mono">${c.code}</span></div>`
+  : `<div class="ax-cause raw"><small>Recorded message</small><p>${esc(c.msg)}</p><span class="code ax-mono">${c.code || `HTTP ${c.status}`}</span></div>`;
+
+// changes whose row text alone does not say what was sent; err = what the bridge stored for the rejection
+const CHANGE_X = {
+  'Zombie Sagashitemasu|09:35': { field: 'Episode', from: '2', to: '1', tries: [35, 34, 32, 29, 25, 20],
+    err: { code: 'conflict', msg: 'applied: false, reason: conflict' } },
+  'Bleach: Sennen Kessen-hen - Kashin-tan|23:10': { field: 'State', from: 'No me gusto', to: 'En pausa', tries: [10, 6],
+    err: { code: 'conflict', msg: 'applied: false, reason: conflict' } },
+  'Kusuriya no Hitorigoto 3rd Season|14:11': { phoneAt: atOf(0, '07:40') },
+};
+const errOf = e => (CHANGE_X[`${e.a}|${e.t}`] || {}).err || { code: 'conflict', msg: 'applied: false, reason: conflict' };
+// what writeJSONError returns for a bad token: a message, no code
+const AUTH_ERR = { code: null, status: 401, msg: 'invalid bearer token' };
+function changeView(e) {
+  const x = CHANGE_X[`${e.a}|${e.t}`] || {};
+  const m = e.s.match(/^(episode|grade|state) (.+?) → (.+?)(?: did not save)?$/) || e.s.match(/^(grade) ()(\d)$/);
+  const field = x.field || (m ? m[1][0].toUpperCase() + m[1].slice(1) : 'Episode');
+  const from = x.from ?? (m ? m[2] || '—' : String(2 + e.id % 4)), to = x.to ?? (m ? m[3] : String(1 + e.id % 4));
+  const phoneAt = x.phoneAt ?? e.at - (1 + e.id % 3) * MIN, late = e.at - phoneAt > 30 * MIN;
+  let html = sec(field, `<div class="ax-ba"><div><small>Before</small><b>${from}</b></div>${svg('chev')}<div class="${e.fail ? 'no' : ''}"><small>${e.fail ? 'Sent, not saved' : 'After'}</small><b>${to}</b></div></div>`);
+  if (e.fail) html += sec('Why it failed', causeBlock(errOf(e)));
+  html += sec('When', facts([['Done on the phone', hm(phoneAt)],
+    ['Reached the bridge', `${hm(e.at)}${late ? `<span class="ax-late" data-tip="The bridge was off when you made this change">${span(e.at - phoneAt)} late</span>` : ''}`]]));
+  if (e.fail) {
+    const tries = x.tries || Array.from({ length: e.n || 2 }, (_, i) => +e.t.slice(3) - i * 4);
+    html += sec(`Tried ${tries.length} times`, list(tries.map(mm => [`${e.t.slice(0, 3)}${pad(Math.max(0, mm))}`, 'Not saved', 'bad'])));
+    html += keepUntil(e);
+  }
+  return html;
+}
+function trafficView(e) {
+  const total = +e.s.match(/^(\d+)/)[1], refused = e.fail ? +(e.s.match(/(\d+) refused/) || [0, 1])[1] : 0, h = +e.t.slice(0, 2);
+  let html = sec('', `<div class="ax-stats"><div><b>${total}</b><small>check-ins</small></div>
+    <div class="${refused ? 'bad' : ''}"><b>${refused}</b><small>refused</small></div><div><b>${e.slow ? '3.4 s' : '0.4 s'}</b><small>slowest</small></div></div>`);
+  html += sec('', facts([['Hour', `${pad(h)}:00 – ${pad((h + 1) % 24)}:00`], ['Usual answer time', '0.4 s']]));
+  if (e.fail) {
+    html += sec('Why it failed', causeBlock(AUTH_ERR));
+    html += sec('Refused check-ins', list(Array.from({ length: refused }, (_, i) => [`${pad(h)}:${pad(14 + i * 7)}`, 'Sync refused · 401', 'bad'])));
+    html += keepUntil(e);
+  } else if (e.slow) {
+    html += sec('Slow check-ins', list([[`${pad(h)}:12`, 'Sync · 3.4 s'], [`${pad(h)}:18`, 'Sync · 2.9 s'], [`${pad(h)}:26`, 'Sync · 2.1 s']]));
+  } else if (e.at >= NOW - 2 * H) {
+    html += sec('Last check-ins', list([0, 3, 6, 9, 12].map(i => [hm(Math.min(NOW, e.at + 50 * MIN) - i * MIN), 'Sync · 0.4 s'])));
+  } else {
+    html += `<p class="ax-note">Single check-ins are kept for 2 hours. Older hours keep only these totals.</p>`;
+  }
+  return html;
+}
+function runView(e) {
+  const t = mm => hm(e.at - mm * MIN);
+  if (e.a !== 'Download run' && !e.s.includes('failed')) return sec('Steps', steps([
+    [t(4), `${e.s.replace(' downloaded', '')} queued`], [t(3), 'Host 1 started'], [t(0), 'Downloaded', 'ok', `${380 + e.id % 90} MB · 4 min in total`]]));
+  if (e.a !== 'Download run') return sec('Steps', steps([
+    [t(7), 'Episode 1 queued'], [t(6), 'Host 1 failed', 'bad', 'The link had expired'], [t(4), 'Host 2 failed', 'bad', 'Too slow, stopped after 2 min'],
+    [t(3), 'Host 3 started'], [t(0), 'Downloaded', 'ok', '412 MB · 7 min in total']]));
+  const eps = +(e.s.match(/^(\d+)/) || [0, 1])[1], retries = +(e.s.match(/(\d+) retr/) || [0, 0])[1];
+  const items = [[t(eps * 3 + retries * 2 + 1), `Run started · ${eps} episode${eps > 1 ? 's' : ''} queued`]];
+  let mm = eps * 3 + retries * 2;
+  for (let i = 0; i < eps; i++) {
+    const a = ANIME[(e.id + i) % ANIME.length];
+    if (i < retries) { items.push([t(mm), `${a} · episode ${i + 2}`, 'bad', 'Host failed, trying the next one']); mm -= 2; }
+    items.push([t(mm), `${a} · episode ${i + 2}`, 'ok', 'Downloaded']); mm -= 3;
+  }
+  items.push([t(0), 'Run finished', 'ok', `${eps} downloaded${retries ? ` · ${retries} ${retries > 1 ? 'retries' : 'retry'}` : ''}`]);
+  return sec('Steps', steps(items));
+}
+// window errors: what ReportFrontendError stores per report (kind, message, stack, source, route, time)
+const PAGES = { '/editor': 'Editor', '/catalog': 'Catalog', '/activity': 'Activity', '/downloads': 'Downloads', '/today': 'Today' };
+const KIND_TEXT = { render: 'crashed while drawing', error: 'hit a code error', unhandledrejection: 'had a background task fail' };
+const FE_MSG = "TypeError: Cannot read properties of undefined (reading 'episodes')";
+const FE_STACK = (route, cut) => `${FE_MSG}
+    at EpisodeStrip (assets/index-B4k2c9.js:1:48211)
+    at renderWithHooks (assets/vendor-react-Dq81.js:1:52940)
+    at updateFunctionComponent (assets/vendor-react-Dq81.js:1:81377)
+    at beginWork (assets/vendor-react-Dq81.js:1:96021)
+    at performUnitOfWork (assets/vendor-react-Dq81.js:1:131805)
+    at workLoopSync (assets/vendor-react-Dq81.js:1:131652)
+    at renderRootSync (assets/vendor-react-Dq81.js:1:131403)
+    at ${route === '/editor' ? 'AnimeEditorWorkspace' : 'CatalogGrid'} (assets/index-B4k2c9.js:1:${route === '/editor' ? '61204' : '39877'})${cut ? '\n    at …' : ''}`;
+const FE_ERRS = [
+  { mm: 23, ss: 41, route: '/editor', kind: 'render', cut: true }, { mm: 21, ss: 7, route: '/editor', kind: 'render' },
+  { mm: 15, ss: 52, route: '/catalog', kind: 'render' }, { mm: 9, ss: 18, route: '/editor', kind: 'render' }, { mm: 2, ss: 4, route: '/editor', kind: 'render' },
+].map(x => ({ ...x, t: `11:${pad(x.mm)}`, page: PAGES[x.route], source: 'assets/index-B4k2c9.js:1:48211', msg: FE_MSG, stack: FE_STACK(x.route, x.cut) }));
+function bridgeView(e) {
+  // hourly totals have no per-check-in time, so they never count as "around" a moment; only the hour that contains it
+  const around = E.filter(x => !x.gap && x.k !== 'traffic' && x.id !== e.id && Math.abs(x.at - e.at) <= 45 * MIN);
+  const hour = E.filter(x => x.k === 'traffic' && x.at <= e.at && e.at < x.at + H);
+  const byPage = {}; FE_ERRS.forEach(x => { byPage[x.page] = (byPage[x.page] || 0) + 1; });
+  const top = Object.entries(byPage).sort((a, b) => b[1] - a[1])[0][0], same = new Set(FE_ERRS.map(x => x.msg)).size === 1;
+  return sec('What happened', `<div class="ax-cause"><p>The ${top} page ${KIND_TEXT[FE_ERRS[0].kind]}.</p><span class="code ax-mono">${FE_ERRS[0].kind}</span></div>`)
+    + sec('Where', `<div style="display:flex;gap:6px;flex-wrap:wrap">${Object.entries(byPage).map(([p, n]) => `<span class="ax-count" style="font-size:13px;padding:3px 10px;color:var(--fg)">${p} ×${n}</span>`).join('')}</div>`)
+    + sec('Message', `<pre class="ax-code ax-mono" style="white-space:pre-wrap">${esc(FE_MSG)}</pre>`)
+    + sec(`${FE_ERRS.length} times${same ? ' · same error each time' : ''}`, list(FE_ERRS.map(x => [x.t, `${x.page} <span class="m">· ${same ? 'same error' : esc(x.msg)}</span>`])))
+    + sec('Around it', around.length ? list(around.map(x => [x.t, `<b style="font-weight:500">${x.a}</b> <span class="m">${x.s}</span>`, x.fail ? 'bad' : ''])) : '<p class="ax-note">Nothing else happened within 45 minutes.</p>')
+    + (hour.length ? sec('Same hour', list(hour.map(x => [x.t, `<b style="font-weight:500">${x.a}</b> <span class="m">${x.s}</span>`, x.fail ? 'bad' : '']))) : '')
+    + keepUntil(e);
+}
+const EDIT_X = { 'airs on Thursday': ['Airs on', 'Wednesday', 'Thursday'], 'airs on Sunday': ['Airs on', 'Saturday', 'Sunday'],
+  'cover replaced': ['Cover', 'Previous image', 'New image'], 'title fixed': ['Title', 'Kaoru Hana wa Rin to Saku (TV)', 'Kaoru Hana wa Rin to Saku'] };
+function editView(e) {
+  const [field, from, to] = EDIT_X[e.s] || ['Field', '—', e.s];
+  return sec(field, `<div class="ax-ba"><div><small>Before</small><b style="font-size:16px">${from}</b></div>${svg('chev')}<div><small>After</small><b style="font-size:16px">${to}</b></div></div>`)
+    + sec('', facts([['Made in', 'Editor'], ['Saved', hm(e.at)]]));
+}
+function taskView(e) {
+  const t = mm => hm(e.at - mm * MIN), n = +(e.s.match(/(\d+) (airing|anime)/) || [0, 1])[1];
+  const names = Array.from({ length: n }, (_, i) => ANIME[(e.id + i * 2) % ANIME.length]);
+  if (e.a === 'Schedule') return sec('Steps', steps([[t(2), 'Check started', '', 'Today\'s schedule'], [t(1), `${12 + e.id % 5} anime in the season checked`],
+    [t(0), `${n} airing today`, 'ok', names.join(' · ')]]));
+  return sec('Steps', steps([[t(3), 'Season check started'], [t(2), `${18 + e.id % 6} anime compared with the season list`],
+    ...names.map(a => [t(1), a, 'ok', 'New episode found, queued for download']), [t(0), 'Check finished', 'ok', `${n} queued`]]));
+}
+function lifeView(e) {
+  const started = e.a === 'Bridge started';
+  const gap = E.find(g => g.gap && (started ? g.to === e.at : g.at >= e.at && g.at - e.at <= 5 * MIN));
+  if (started) {
+    const late = gap ? Object.entries(CHANGE_X).filter(([, x]) => x.phoneAt >= gap.at && x.phoneAt < gap.to) : [];
+    return sec('', facts([['Was off since', gap ? full(gap.at) : '—'], ['Off for', gap ? span(gap.to - gap.at) : '—']]))
+      + sec('Phone changes that waited', late.length ? list(late.map(([k, x]) => [hm(x.phoneAt), `${k.split('|')[0]} <span class="m">· arrived ${span(e.at - x.phoneAt)} later</span>`]))
+        : '<p class="ax-note">No phone changes were waiting.</p>');
+  }
+  const prev = E.find(x => x.a === 'Bridge started' && x.at < e.at);
+  return sec('', facts([['Had been running', prev ? span(e.at - prev.at) : '—'], ['Stayed off', gap ? span(gap.to - gap.at) : '—'], ['Came back', gap ? full(gap.to) : '—']]));
+}
+// layer 0: any event, from the fields every event has. Labels are the stored keys, values as stored.
+function genericView(e) {
+  return sec('', facts([['Type', `<span class="ax-mono">${e.et}</span>`], ['Area', e.dom], ['Level', `<span class="ax-lvl ${e.lvl}">${e.lvl}</span>`], ['At', full(e.at)]]))
+    + sec('Recorded fields', `<dl class="ax-facts">${Object.entries(e.meta || {}).map(([k, v]) => `<dt class="ax-mono">${k}</dt><dd class="ax-mono">${esc(String(v))}</dd>`).join('')}</dl>`)
+    + keepUntil(e);
+}
+// layer 1: a presenter per event type. In the mockup only events without one carry `et`.
+const VIEWS = { change: changeView, traffic: trafficView, download: runView, task: taskView, edit: editView,
+  life: e => e.a.startsWith('Bridge st') ? lifeView(e) : bridgeView(e) };
+const viewOf = e => e.et ? genericView : VIEWS[e.k];
+// what the summary could not translate, said once at the top of the technical view
+function gapsOf(e) {
+  const out = [];
+  if (e.et) out.push(`No presenter for <code>${e.et}</code>. Shown with the generic layout.`);
+  if (e.k === 'traffic' && e.fail) out.push(`The 401 carried no error code, only a message. It is shown as recorded.`);
+  if (e.k === 'change' && e.fail && !CAUSES[errOf(e).code]) out.push(`No catalog entry for <code>${errOf(e).code}</code>. The recorded message is shown as is.`);
+  return out.map(t => `<p class="ax-nopres">${svg('code')}<span>${t}</span></p>`).join('');
+}
+
+// ---- technical view: recorded requests, runtime events and raw data ----
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const json = o => esc(JSON.stringify(o, null, 2)).replace(/(&quot;|")([^"]+)"(?=:)/g, '<span class="k">"$2"</span>').replace(/: "([^"]*)"/g, ': <span class="s">"$1"</span>');
+const iso = ms => new Date(ms).toISOString();
+const sec2 = (ms, s = 0) => `${hm(ms)}:${pad(s)}`;
+const PHONE_HDRS = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ••••••••', 'User-Agent': 'AutoreasMobile/2.4.1 (Android 15)', 'X-Client-Request-Id': '' };
+function requestsOf(e) {
+  if (e.o !== 'phone') return null;
+  const kept = e.fail || e.at >= NOW - 2 * H;
+  if (!kept) return [];
+  const aid = a => 'J' + [...a].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7).toString(36).padEnd(15, 'q').slice(0, 15);
+  const reconcileRes = (ops, at) => ({ status: 'ok', last_changelog_id: 1842, applied_operations: ops, bridge_changes: [], conflicts: [], season_mode: true });
+  if (e.k === 'traffic') {
+    const total = +e.s.match(/^(\d+)/)[1], refused = e.fail ? 1 : 0;
+    const out = [{ m: 'POST', p: '/api/sync/reconcile', code: 200, n: total - refused, at: Math.min(NOW - MIN, e.at + 52 * MIN), ms: 412,
+      req: { device_id: 'pixel-8a', last_changelog_id: 1842, pending_operations: [] }, res: reconcileRes([]) }];
+    if (refused) out.unshift({ m: 'POST', p: '/api/sync/reconcile', code: 401, n: 1, at: e.at + 14 * MIN, ms: 38,
+      req: { device_id: 'pixel-8a', last_changelog_id: 1842, pending_operations: [] }, res: { error: AUTH_ERR.msg } });
+    return out;
+  }
+  if (e.k === 'change') {
+    // a phone change rides reconcile as a pending operation; a rejection is applied:false inside a 200
+    const x = CHANGE_X[`${e.a}|${e.t}`] || {}, field = (x.field || 'Episode').toLowerCase(), tries = e.fail ? (x.tries || [0, 0]).length : 1;
+    const key = { episode: 'episodes_watched', grade: 'grade', state: 'status' }[field] || field;
+    const op = { anime_id: aid(e.a), operation: 'update', payload: { [key]: isNaN(x.to ?? 1) ? x.to : +(x.to ?? 1) }, created_at: x.phoneAt ?? e.at - MIN };
+    const applied = { anime_id: op.anime_id, operation: 'update', applied: !e.fail, modified_at: e.at - 3 * H, ...(e.fail ? { reason: errOf(e).code } : {}) };
+    const out = [{ m: 'POST', p: '/api/sync/reconcile', code: 200, n: tries, at: e.at, ms: e.fail ? 71 : 96, notApplied: !!e.fail,
+      req: { device_id: 'pixel-8a', last_changelog_id: 1842, pending_operations: [op] }, res: reconcileRes([applied]) }];
+    // the phone also reports each sync cycle, and each episode button press, to the diagnostics store
+    const episode = field === 'episode', diag = tries + (episode ? 1 : 0);
+    out.push({ m: 'POST', p: '/api/sync/diagnostics', code: 200, n: diag, at: e.at + 1000, ms: 22,
+      req: { trigger: 'local_mutation', outcome: e.fail ? 'failed' : 'completed', device_id: 'pixel-8a', '…': '18 more fields' }, res: { status: 'ok' } });
+    return out;
+  }
+  return [];
+}
+function eventsOf(e) {
+  const T = s => sec2(e.at, s);
+  if (e.k === 'traffic') return e.fail ? [[sec2(e.at + 14 * MIN, 11), 'warn', 'auth', 'Device session rejected', 'pixel-8a · session_expired'], [sec2(e.at + 14 * MIN, 11), 'info', 'sync', 'Reconcile refused with 401'], [sec2(e.at + 17 * MIN, 40), 'info', 'auth', 'Device signed in again', 'pixel-8a']]
+    : [[T(0), 'info', 'sync', `${+e.s.match(/^(\d+)/)[1]} reconciles folded into this hour`]];
+  if (e.k === 'change') return e.fail ? [[T(2), 'warn', 'sync', 'Phone change rejected', `${errOf(e).code} · ${errOf(e).msg}`], [T(2), 'info', 'sync', 'Phone will retry with backoff']] : [[T(1), 'info', 'sync', 'Phone change saved', `${e.a} · ${e.s}`]];
+  if (e.k === 'edit') return [[T(0), 'info', 'editor', 'Anime updated', `${e.a} · ${e.s}`]];
+  if (e.k === 'task') return [[sec2(e.at - 2 * MIN, 0), 'info', 'tasks', `${e.a} started`], [T(0), 'info', 'tasks', `${e.a} finished`, e.s]];
+  if (e.et) return [[T(0), e.lvl, e.dom, e.a, e.et]];
+  if (e.a === 'Bridge started') return [[T(0), 'info', 'app', 'Bridge started'], [T(3), 'info', 'sync', 'Listening for the phone']];
+  if (e.a === 'Bridge stopped') return [[T(0), 'info', 'app', 'Bridge stopped', 'Window closed']];
+  if (e.k === 'life') return FE_ERRS.map(x => [`${x.t}:${pad(x.ss)}`, 'error', 'frontend', `frontend ${x.kind}: ${x.msg}`, `route ${x.route} · ${x.source}`]);
+  const hostFailed = /retr|failed/.test(e.s);
+  return [[sec2(e.at - 7 * MIN, 2), 'info', 'download', 'Run started'],
+    ...(hostFailed ? [[sec2(e.at - 6 * MIN, 30), 'warn', 'download', 'Host failed, trying the next one', 'link expired']] : []),
+    [T(5), 'info', 'download', 'Run finished']];
+}
+function dataOf(e) {
+  if (e.k === 'change') { const x = CHANGE_X[`${e.a}|${e.t}`] || {}, f = (x.field || 'Episode').toLowerCase();
+    return [['Before', { anime: e.a, [f]: x.from ?? '0', version: 41 }], ['After', e.fail ? null : { anime: e.a, [f]: x.to ?? '1', version: 42 }]]; }
+  if (e.k === 'traffic') return [['Hourly total', { hour: e.t, route: '/api/sync/reconcile', count: +e.s.match(/^(\d+)/)[1], failed: e.fail ? 1 : 0, max_duration_ms: e.slow ? 3400 : 412 }]];
+  if (e.k === 'edit') { const [f, from, to] = EDIT_X[e.s] || ['field', '', e.s], key = f.toLowerCase().replace(/ /g, '_');
+    return [['Before', { anime: e.a, [key]: from }], ['After', { anime: e.a, [key]: to, source: 'editor' }]]; }
+  if (e.k === 'task') return [['Run', { kind: e.a === 'Schedule' ? 'schedule' : 'season_check', started_at: iso(e.at - 2 * MIN), finished_at: iso(e.at), result: e.s }]];
+  if (e.et) return [['Event', { event_type: e.et, domain: e.dom, level: e.lvl, message: e.a, at: iso(e.at), metadata: e.meta }]];
+  if (e.a.startsWith('Bridge st')) return [['Event', { event: e.a === 'Bridge started' ? 'started' : 'stopped', at: iso(e.at) }]];
+  if (e.k === 'life') return [['Error', { source: 'window', occurrences: 5, first_at: iso(e.at - 21 * MIN), last_at: iso(e.at), route: FE_ERRS[0].route, message: FE_MSG }]];
+  return [['Run', { kind: 'download', started_at: iso(e.at - 7 * MIN), finished_at: iso(e.at), steps: 5, outcome: 'completed' }]];
+}
+function techView(e) {
+  const reqs = requestsOf(e), tabs = [reqs && ['requests', 'Requests'], ['events', 'Events'], ['data', 'Data']].filter(Boolean);
+  if (!tabs.some(t => t[0] === techTab)) techTab = tabs[0][0];
+  let html = gapsOf(e) + `<div class="ax-seg" role="tablist" id="dwTabs">${tabs.map(([v, l]) => `<button role="tab" data-tab="${v}" aria-pressed="${techTab === v}" aria-selected="${techTab === v}">${l}</button>`).join('')}</div>`;
+  if (techTab === 'requests') {
+    if (!reqs.length) return html + `<div class="ax-tech-empty">${svg('clock')}<b>Full requests are kept for 2 hours</b><span>This hour went fine, so only its totals are left. Failed requests are kept longer.</span></div>`;
+    const r = reqs[Math.min(techReq, reqs.length - 1)], bad = r.code >= 400;
+    if (reqs.length > 1) html += `<div class="ax-reqs" role="listbox" aria-label="Requests">${reqs.map((q, i) => `<button class="ax-req" role="option" data-req="${i}" aria-selected="${q === r}">
+      <span class="p ax-mono"><span>${q.m}</span>${q.p}</span><span class="st">${q.notApplied ? '<span class="ax-code-chip bad">not applied</span>' : ''}<span class="ax-code-chip ${q.code >= 400 ? 'bad' : ''}">${q.code}</span></span><span class="ax-count">×${q.n}</span><span class="t">${hm(q.at)}</span></button>`).join('')}</div>`;
+    const hdrs = o => `<dl class="ax-hdrs ax-mono">${Object.entries(o).map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`;
+    html += `<section class="ax-rq-panel" aria-label="Selected request"><div class="ax-rq-sum"><b class="ax-mono">${r.m} ${r.p}</b><span>${r.ms} ms</span>${r.n > 1 ? `<span>latest of ${r.n} · ${hm(r.at)}</span>` : ''}${reqs.length === 1 && r.notApplied ? '<span class="ax-code-chip bad">not applied</span>' : ''}</div>
+      <div class="ax-rq"><div><h4>Request</h4>${hdrs({ ...PHONE_HDRS, 'X-Client-Request-Id': `c-${(r.at / 1000).toString(36)}` })}<pre class="ax-code ax-mono">${json(r.req)}</pre></div>
+      <div><h4>Response <span class="ax-code-chip ${bad ? 'bad' : ''}">${r.code}</span>${r.trunc ? '<span class="ax-trunc" data-tip="Bodies are stored up to 64 KB">Cut at 64 KB</span>' : ''}</h4>
+      ${hdrs({ 'Content-Type': 'application/json', 'Content-Length': r.trunc ? '186 204' : String(JSON.stringify(r.res).length), 'X-Request-Id': `r-${(r.at / 7).toString(36).slice(0, 8)}` })}<pre class="ax-code ax-mono">${json(r.res)}</pre></div></div></section>`;
+    return html;
+  }
+  if (techTab === 'events') return html + `<ul class="ax-evs">${eventsOf(e).map(([t, lvl, dom, msg, sub]) =>
+    `<li><span class="t ax-mono">${t}</span><span class="ax-lvl ${lvl}">${lvl}</span><span>${msg} <span class="m" style="color:var(--muted)">· ${dom}</span>${sub ? `<small class="ax-mono">${esc(sub)}</small>` : ''}</span></li>`).join('')}</ul>`;
+  if (e.k === 'life' && !e.a.startsWith('Bridge st')) {
+    const x = FE_ERRS[Math.min(techReq, FE_ERRS.length - 1)];
+    return html + `<div class="ax-seg" role="group" aria-label="Occurrence">${FE_ERRS.map((y, i) => `<button data-req="${i}" aria-pressed="${y === x}">${y.t}</button>`).join('')}</div>`
+      + sec('', facts([['Kind', x.kind], ['Page', `${x.page} <span class="ax-mono" style="color:var(--muted)">${x.route}</span>`], ['Source', `<span class="ax-mono" style="font-size:12px">${x.source}</span>`], ['At', `${x.t}:${pad(x.ss)}`]]))
+      + sec('Message', `<pre class="ax-code ax-mono" style="white-space:pre-wrap">${esc(x.msg)}</pre>`)
+      + `<section class="ax-sec"><h3 style="display:flex;gap:8px;align-items:center">Stack trace${x.cut ? '<span class="ax-trunc" data-tip="Stacks are stored up to 8 KB">Cut at 8 KB</span>' : ''}</h3><pre class="ax-code ax-mono">${esc(x.stack)}</pre></section>`;
+  }
+  return html + dataOf(e).map(([title, o]) => sec(title, o ? `<pre class="ax-code ax-mono">${json(o)}</pre>` : '<p class="ax-note">Nothing was saved, so there is no after.</p>')).join('');
+}
+
+const dw = document.getElementById('dw');
+let tech = false, techTab = 'requests', techReq = 0;
+function openDetail(id) {
+  if (id !== openId) techReq = 0;
+  const e = E[id]; openId = id;
+  const icCls = e.fail ? 'ax-ic fail' : e.slow ? 'ax-ic slow' : 'ax-ic';
+  dw.innerHTML = `<header class="ax-dw-head">
+      <span class="${icCls}" data-tip="${ORIGIN[e.o]}" aria-label="${ORIGIN[e.o]}">${svg(e.o === 'phone' ? 'phone' : 'bridge')}</span>
+      <div><h2 class="ax-dw-title" id="dwTitle">${e.a}</h2>${e.s ? `<p class="ax-dw-sub ${e.fail ? 'bad' : ''}">${e.s}</p>` : ''}<p class="ax-dw-meta">${full(e.at)}</p></div>
+      <div class="ax-dw-acts">${tech ? `<button class="ax-ib sm" id="dwTech" data-tip="Back to summary" aria-label="Back to summary">${svg('back')}</button>`
+        : `<button class="ax-ib sm" id="dwTech" data-tip="Technical details" aria-label="Technical details">${svg('code')}</button>`}
+        <button class="ax-ib sm" data-copy="1" data-tip="Copy for AI" aria-label="Copy for AI">${svg('copy')}</button>
+        <button class="ax-ib sm" id="dwX" data-tip="Close" aria-label="Close">${svg('close')}</button></div></header>
+    <div class="ax-dw-body">${tech ? techView(e) : viewOf(e)(e)}</div>
+    <p class="ax-dw-keys"><kbd>↑</kbd><kbd>↓</kbd> previous or next event</p>`;
+  dw.classList.add('open');
+  dw.classList.toggle('wide', tech);
+  document.querySelectorAll('#feed .ax-row').forEach(r => r.classList.toggle('sel', +r.dataset.id === id));
+  document.querySelector(`#feed .ax-row[data-id="${id}"]`)?.scrollIntoView({ block: 'nearest' });
+}
+function closeDetail() {
+  if (openId === null) return;
+  const r = document.querySelector(`#feed .ax-row[data-id="${openId}"]`);
+  openId = null; tech = false; dw.classList.remove('open', 'wide');
+  document.querySelectorAll('#feed .ax-row.sel').forEach(x => x.classList.remove('sel'));
+  r?.focus({ preventScroll: true });
+}
+document.getElementById('feed').addEventListener('click', ev => {
+  if (ev.target.closest('[data-copy]')) { ev.stopPropagation(); toast('Copied for AI'); return; }
+  const r = ev.target.closest('.ax-row.open'); if (r) openDetail(+r.dataset.id);
+});
+document.getElementById('feed').addEventListener('keydown', ev => {
+  const r = ev.target.closest('.ax-row.open'); if (r && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); openDetail(+r.dataset.id); }
+});
+dw.addEventListener('click', ev => {
+  const tab = ev.target.closest('[data-tab]'), req = ev.target.closest('[data-req]');
+  if (ev.target.closest('#dwX')) closeDetail();
+  else if (ev.target.closest('#dwTech')) { tech = !tech; openDetail(openId); }
+  else if (tab) { techTab = tab.dataset.tab; openDetail(openId); }
+  else if (req) { techReq = +req.dataset.req; openDetail(openId); }
+  else if (ev.target.closest('[data-copy]')) toast(tech ? 'Copied requests, events and data for AI' : 'Copied for AI');
+});
+// the feed stays usable behind the drawer: another row switches the detail, anywhere else closes it
+document.addEventListener('pointerdown', ev => { if (openId !== null && !ev.target.closest('#dw, #feed .ax-row.open')) closeDetail(); });
+document.addEventListener('keydown', ev => {
+  if (openId === null) return;
+  if (ev.key === 'Escape' && !st.failOpen) closeDetail();
+  if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp') return;
+  const rows = [...document.querySelectorAll('#feed .ax-row.open')], i = rows.findIndex(r => +r.dataset.id === openId);
+  const next = rows[i + (ev.key === 'ArrowDown' ? 1 : -1)];
+  if (next) { ev.preventDefault(); openDetail(+next.dataset.id); }
+});
+document.getElementById('pin').addEventListener('click', () => toast('Moment pinned'));
+render();
+</script>
+</body>
+</html>

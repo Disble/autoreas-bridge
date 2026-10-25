@@ -6,105 +6,45 @@
  * become empty arrays, so no component ever branches on `null`.
  */
 
-/** Which of the three status sentences the Go side chose. */
-export type ActivityStatusKind = 'in_sync' | 'quiet' | 'problems';
-
-/** The computed status sentence of the Now view. */
-export interface ActivityStatus {
-  /** Which wording applies; decides the dot's color. */
-  readonly kind: ActivityStatusKind;
-  /** The sentence itself, worded by Go. */
-  readonly sentence: string;
-  /** Minutes since the last phone contact; set for `quiet` only. */
-  readonly quietMinutes: number;
-  /** Open incidents; set for `problems` only. */
-  readonly problems: number;
-}
-
-/** One bar of the 24-hour chart. `hasData` false is a gap, never a zero. */
-export interface ActivityHourBar {
-  /** Start of the hour, epoch milliseconds. */
-  readonly hourStartMs: number;
-  /** Requests answered in the hour. */
-  readonly count: number;
-  /** Requests that ended in a 4xx or 5xx. */
-  readonly failed: number;
-  /** `failed / count`, 0 when the hour holds no request. */
-  readonly failedShare: number;
-  /** Whether the rollup holds any row for the hour. */
-  readonly hasData: boolean;
-}
-
-/** One open fingerprint in "Needs a look". */
-export interface ActivityIncidentSummary {
-  /** Id of the newest stored occurrence, the one the Incidents tab opens. */
-  readonly latestId: number;
-  /** Stable fingerprint shared by every occurrence. */
-  readonly fingerprint: string;
-  /** Trigger reason recorded with the incident. */
-  readonly reason: string;
-  /** Plain-words title worded by Go. */
-  readonly title: string;
-  /** Time of the newest occurrence, epoch milliseconds. */
-  readonly latestAtMs: number;
-  /** Time of the first retained occurrence, epoch milliseconds. */
-  readonly firstSeenAtMs: number;
-  /** Retained occurrences of the fingerprint. */
-  readonly occurrences: number;
-  /** Whether the fingerprint first appeared recently. */
-  readonly isNew: boolean;
-  /** Whether the fingerprint comes from an error rather than a slow call. */
-  readonly isError: boolean;
-}
-
-/** One row of the write journal, with its raw before and after snapshots. */
-export interface ActivityChange {
-  /** Domain-history row id. */
-  readonly id: number;
-  /** Bridge time of the write, epoch milliseconds. */
-  readonly atMs: number;
-  /** Phone time of the write, when the phone reported one. */
-  readonly reportedAtMs: number | undefined;
-  /** Who wrote it: `mobile`, `desktop`, `system`. */
-  readonly source: string;
-  /** Domain action, such as `episode_adjusted`. */
-  readonly actionType: string;
-  /** Anime `_id`. */
-  readonly animeId: string;
-  /** Anime title, as stored. */
-  readonly animeName: string;
-  /** Correlation id joining the write to its request, when known. */
-  readonly correlationId: string;
-  /** Snapshot JSON before the write; empty when the anime was created. */
-  readonly beforeJson: string;
-  /** Snapshot JSON after the write. */
-  readonly afterJson: string;
-}
-
-/** The answer to "is everything fine right now?". */
-export interface ActivityNowView {
-  /** Status sentence and its kind. */
-  readonly status: ActivityStatus;
-  /** Newest phone request, epoch milliseconds; undefined when none is stored. */
-  readonly lastPhoneContactMs: number | undefined;
-  /** How long this bridge process has been running. */
-  readonly uptimeMs: number;
-  /** Requests since local midnight, from the hourly rollup. */
-  readonly requestsToday: number;
-  /** Open incidents, manual pins excluded. */
-  readonly openIncidents: number;
-  /** Writes since local midnight. */
-  readonly changesToday: number;
-  /** The last 24 hours, oldest first, ending with the current hour. */
-  readonly hours: readonly ActivityHourBar[];
-  /** Open incidents ordered by Go: errors, then new, then newest; at most 3. */
-  readonly needsALook: readonly ActivityIncidentSummary[];
-  /** The newest writes, newest first; at most 5. */
-  readonly recentChanges: readonly ActivityChange[];
-}
-
 /** Where a recorder row came from. */
 export type ActivityRecorderSource = 'request' | 'event';
+
+/**
+ * The Go `activityread.RecorderEntry` as the `activity.recorder` event carries
+ * it. No bound method returns it, so Wails generates no model for it.
+ */
+export interface ActivityRecorderPayload {
+  /** `request` or `event`; anything else is backend drift. */
+  readonly Source: string;
+  /** Request id, or the event row id. */
+  readonly ID: string;
+  /** Capture or occurrence time, epoch milliseconds. */
+  readonly AtMS: number;
+  /** Capture kind. */
+  readonly Kind: string;
+  /** Route. */
+  readonly Route: string;
+  /** HTTP status; null until answered or for events. */
+  readonly HTTPStatus: number | null;
+  /** Capture outcome. */
+  readonly Outcome: string;
+  /** Duration in milliseconds; null when not recorded. */
+  readonly DurationMS: number | null;
+  /** Paired device name. */
+  readonly DeviceName: string;
+  /** Recorded error code. */
+  readonly ErrorCode: string;
+  /** Event domain. */
+  readonly Domain: string;
+  /** Event level. */
+  readonly Level: string;
+  /** Event type. */
+  readonly EventType: string;
+  /** Event message. */
+  readonly Message: string;
+  /** Correlation id. */
+  readonly CorrelationID: string;
+}
 
 /**
  * One live recorder row, request or event, carried by the `activity.recorder`

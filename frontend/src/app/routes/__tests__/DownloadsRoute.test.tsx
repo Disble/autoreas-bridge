@@ -12,7 +12,9 @@ vi.mock('../../../features/download/ui/SoloAnimeDownloadPanel/SoloAnimeDownloadP
 }));
 
 vi.mock('../../../features/download/ui/RunHistoryPanel/RunHistoryPanel', () => ({
-  RunHistoryPanel: () => <div>run history panel</div>,
+  RunHistoryPanel: ({ storySource }: { readonly storySource?: unknown }) => (
+    <div data-story-source={storySource === undefined ? 'none' : 'given'}>run history panel</div>
+  ),
 }));
 
 vi.mock('../../../features/download/ui/SchedulePanel/SchedulePanel', () => ({
@@ -33,6 +35,7 @@ vi.mock('../../../features/download/ui/EpisodeRenamePanel/EpisodeRenamePanel', (
 
 afterEach(cleanup);
 
+/** Opens the Downloads route tab with the given accessible name. */
 function selectTab(name: string): void {
   fireEvent.click(screen.getByRole('tab', { name }));
 }
@@ -50,6 +53,14 @@ describe('DownloadsRoute', () => {
     expect(screen.getByText('solo anime download panel')).toBeInTheDocument();
     expect(screen.getByText('schedule panel')).toBeInTheDocument();
     expect(screen.getByText('run history panel')).toBeInTheDocument();
+  });
+
+  // Without a story source the run history can only show counts: the route is the one place
+  // that may hand it the Activity run-story reader, because features never import each other.
+  it('hands the run history the run-story reader', () => {
+    render(<DownloadsRoute />);
+
+    expect(screen.getByText('run history panel')).toHaveAttribute('data-story-source', 'given');
   });
 
   // Configuration is deliberately one tab away rather than one route away: the

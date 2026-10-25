@@ -412,7 +412,7 @@ func TestDetectDownloadStartPhasePartFoundImmediatelyReturnsStarted(t *testing.T
 	deps.Bus = bus
 	s := NewService(deps)
 
-	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", "anime-1", "/fake/folder", 3, deps.Clock())
+	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 3, deps.Clock())
 	if !started {
 		t.Fatalf("expected started=true when HasPartFiles returns true, got probes=%#v", probes)
 	}
@@ -438,7 +438,7 @@ func TestDetectDownloadStartPhasePublishesEventWhenPartFound(t *testing.T) {
 		}
 	})
 
-	started, _ := s.detectDownloadStartPhase(context.Background(), "run-1", "anime-1", "/fake/folder", 3, deps.Clock())
+	started, _ := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 3, deps.Clock())
 	if !started {
 		t.Fatal("expected started=true")
 	}
@@ -456,7 +456,7 @@ func TestDetectDownloadStartPhaseNeverFindsPartReturnsDead(t *testing.T) {
 	deps.PollSleep = func(d time.Duration) {} // no-op, instant
 	s := NewService(deps)
 
-	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", "anime-1", "/fake/folder", 3, deps.Clock())
+	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 3, deps.Clock())
 	if started {
 		t.Fatal("expected started=false when HasPartFiles never returns true")
 	}
@@ -472,7 +472,7 @@ func TestDetectDownloadStartPhaseDisabledReturnsStartedImmediately(t *testing.T)
 	deps.DetectStartPhaseDisabled = true
 	s := NewService(deps)
 
-	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", "anime-1", "/fake/folder", 3, deps.Clock())
+	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 3, deps.Clock())
 	if !started {
 		t.Fatal("expected started=true when phase is disabled")
 	}

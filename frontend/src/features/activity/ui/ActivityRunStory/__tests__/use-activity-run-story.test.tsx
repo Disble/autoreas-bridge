@@ -20,11 +20,11 @@ function step(overrides: Partial<ActivityRunStep>): ActivityRunStep {
   };
 }
 
-/** A story with an info step, a warning carrying metadata, and a final step. */
+/** A story with an info step, a warning, and a final step. */
 const STORY: ActivityRunStory = {
   correlationId: 'c-1',
   truncated: false,
-  steps: [step({ id: 1, metadataJson: '{"episode":11}' }), step({ id: 2, level: 'warn', metadataJson: '{"hoster":"mega"}' }), step({ id: 3, metadataJson: '' })],
+  steps: [step({ id: 1 }), step({ id: 2, level: 'warn' }), step({ id: 3 })],
 };
 
 /** A source whose only used read is the run story. */
@@ -33,41 +33,17 @@ function sourceWith(getRunStory: ActivitySource['getRunStory']): ActivitySource 
 }
 
 describe('useActivityRunStory', () => {
-  it('reads the story once and opens on the first warning with its recorded detail', async () => {
+  it('reads the story once and words its steps', async () => {
     const getRunStory = vi.fn(() => Promise.resolve(STORY));
     const source = sourceWith(getRunStory);
     const { result } = renderHook(() => useActivityRunStory('c-1', source));
 
     expect(result.current.read.status).toBe('loading');
-    expect(result.current.metadata).toEqual({ fields: [], raw: '' });
-    expect(result.current.isRawOpen).toBe(false);
-    act(() => result.current.copyReference());
+    expect(result.current.model).toBeUndefined();
     await waitFor(() => expect(result.current.read.status).toBe('ready'));
 
     expect(getRunStory).toHaveBeenCalledExactlyOnceWith('c-1');
-    expect(result.current.selectedStepId).toBe(2);
-    expect(result.current.metadata.fields).toEqual([{ kind: 'value', label: 'hoster', value: 'mega' }]);
     expect(result.current.model?.steps.map((item) => item.id)).toEqual([1, 2, 3]);
-  });
-
-  it('switches the recorded detail with the selected step and opens its raw metadata on demand', async () => {
-    const source = sourceWith(() => Promise.resolve(STORY));
-    const { result } = renderHook(() => useActivityRunStory('c-1', source));
-    await waitFor(() => expect(result.current.read.status).toBe('ready'));
-
-    act(() => result.current.selectStep(1));
-    expect(result.current.metadata.fields).toEqual([{ kind: 'value', label: 'episode', value: '11' }]);
-    expect(result.current.isRawOpen).toBe(false);
-
-    act(() => result.current.toggleRaw());
-    expect(result.current.isRawOpen).toBe(true);
-    act(() => result.current.toggleRaw());
-    expect(result.current.isRawOpen).toBe(false);
-
-    act(() => result.current.toggleRaw());
-    act(() => result.current.selectStep(3));
-    expect(result.current.isRawOpen).toBe(false);
-    expect(result.current.metadata).toEqual({ fields: [], raw: '' });
   });
 
   it('shows the failure, then reads again on every retry', async () => {
@@ -97,10 +73,8 @@ describe('useActivityRunStory', () => {
     rerender({ id: 'c-2' });
     await waitFor(() => expect(result.current.read.status).toBe('ready'));
     await act(async () => resolveFirst(STORY));
-    act(() => result.current.selectStep(10));
 
     expect(result.current.model?.steps.map((item) => item.id)).toEqual([9, 10]);
-    expect(result.current.selectedStepId).toBe(10);
     expect(getRunStory).toHaveBeenNthCalledWith(2, 'c-2');
   });
 });

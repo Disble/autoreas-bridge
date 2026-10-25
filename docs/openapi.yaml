@@ -390,6 +390,17 @@ info:
     by `siteHost` answers how many episodes each site host served. Every other
     tool is unchanged.
 
+    2026-10-24 — run-history per-anime events, MCP consumer impact: NO REST/WS
+    wire change. ADDITIVE for `autoreas-request-mcp` only: every `get_run_story`
+    step and every `get_incident` window event carries `EntityID`, the stored
+    `runtime_events.entity_id` (the anime id for `download.*` events), empty
+    when the event names none. Every `download.*` event about one anime also
+    stores `animeName` in its metadata, and two info events are new:
+    `download.anime_checked` (`onDiskCount`, `latestOnline`, `missingEpisodes`)
+    and `download.manual_link_offered` (`episode`, `linkCount`). The
+    page-resolution and link-extraction `download.failed` events now carry
+    `episode`. All of them are in the `downloads` Where scope.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}
