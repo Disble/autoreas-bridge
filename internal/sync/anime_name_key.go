@@ -52,6 +52,8 @@ func animeNameKey(snapshotJSON string) sql.NullString {
 }
 
 // nameKeyColumnState is how the name_key column exists on anime_snapshots.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 type nameKeyColumnState int
 
 const (
@@ -71,6 +73,11 @@ const (
 // exactly the databases that already proved they need it. The message names
 // each duplicate key and the animes holding it, so they can be fixed from the
 // Editor.
+//
+// A fresh database never reaches it: animeSnapshotsDDL already creates the
+// plain column, and persistence runs Migrate only on an existing table.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func ensureAnimeNameKeyColumn(db *sql.DB) error {
 	state, err := readNameKeyColumnState(db)
 	if err != nil || state == nameKeyColumnPlain {
@@ -83,6 +90,8 @@ func ensureAnimeNameKeyColumn(db *sql.DB) error {
 
 // rebuildAnimeNameKey replaces whatever name_key the table has with the plain,
 // backfilled column and its unique index.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func rebuildAnimeNameKey(tx *sql.Tx, state nameKeyColumnState) error {
 	if state == nameKeyColumnGenerated {
 		if _, err := tx.Exec(`DROP INDEX IF EXISTS idx_anime_snapshots_name_key`); err != nil {
@@ -108,6 +117,8 @@ func rebuildAnimeNameKey(tx *sql.Tx, state nameKeyColumnState) error {
 // pragma that reports a generated column: table_info and the column list
 // persistence hands the migration hook both hide it. hidden is 2 for a VIRTUAL
 // generated column, the only generated shape this app ever created.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func readNameKeyColumnState(db *sql.DB) (nameKeyColumnState, error) {
 	var hidden int
 	err := db.QueryRow(`SELECT hidden FROM pragma_table_xinfo('anime_snapshots') WHERE name = 'name_key'`).Scan(&hidden)
@@ -127,6 +138,8 @@ func readNameKeyColumnState(db *sql.DB) (nameKeyColumnState, error) {
 // refusing any key more than one anime holds. Rows are buffered before the
 // updates because the bridge runs on a single connection the open cursor would
 // otherwise hold.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func backfillAnimeNameKeys(tx *sql.Tx) error {
 	keys, err := readAnimeNameKeys(tx)
 	if err != nil {
@@ -144,6 +157,8 @@ func backfillAnimeNameKeys(tx *sql.Tx) error {
 }
 
 // readAnimeNameKeys returns the Go-computed key of every stored anime.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func readAnimeNameKeys(tx *sql.Tx) (keys map[string]sql.NullString, err error) {
 	rows, err := tx.Query(`SELECT anime_id, snapshot_json FROM anime_snapshots`)
 	if err != nil {
@@ -172,6 +187,8 @@ func readAnimeNameKeys(tx *sql.Tx) (keys map[string]sql.NullString, err error) {
 // refuseDuplicateAnimeNameKeys fails when a non-NULL key is held by more than
 // one anime, naming every such key with its animes in a stable order so the
 // failure reads the same on every run.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func refuseDuplicateAnimeNameKeys(keys map[string]sql.NullString) error {
 	holders := map[string][]string{}
 	for animeID, key := range keys {

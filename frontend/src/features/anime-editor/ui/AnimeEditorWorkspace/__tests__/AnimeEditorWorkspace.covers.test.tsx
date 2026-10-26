@@ -238,11 +238,13 @@ describe('AnimeEditorWorkspace cover thumbnails', () => {
     expect(mockSource.getAnimeCover).toHaveBeenCalledWith('anime-149');
   });
 
-  it('refetches a saved cover change for the same anime, and drops both thumbnails when it is removed', async () => {
+  it('refetches a saved cover change for the same anime, and moves both thumbnails to the new art', async () => {
     // Three rows are enough here -- coverless `anime-000`, the edited
     // `anime-001`, and covered `anime-002` as the bystander that must keep its
     // art -- and each save re-renders the whole rail several times, so a full
-    // 20-row window only adds render cost, not coverage.
+    // 20-row window only adds render cost, not coverage. One save per test for
+    // the same reason: the save flow's render cascade, not the assertions, is
+    // what costs this file its per-test budget under the gate's coverage run.
     mockSource.getAnimes.mockResolvedValue(buildAnimes(3));
     renderWorkspace();
 
@@ -258,6 +260,20 @@ describe('AnimeEditorWorkspace cover thumbnails', () => {
     await waitFor(() => expect(screen.getByTestId('anime-editor-header-cover-image')).toHaveAttribute('src', 'data:image/jpeg;base64,anime-001#1'));
     expect(railCoverImagesWith('anime-001#1')).toHaveLength(1);
     expect(railCoverImagesWith('anime-001#0')).toHaveLength(0);
+    expect(railCoverImagesWith('anime-002#0')).toHaveLength(1);
+  });
+
+  it('drops both thumbnails of the selected anime when its saved cover is removed', async () => {
+    // Starting from the cover `anime-001` already has is what makes a removal
+    // observable: the art is resolved into the rail's cache first, so clearing
+    // the saved source has to drop it from the row and the header anyway.
+    mockSource.getAnimes.mockResolvedValue(buildAnimes(3));
+    renderWorkspace();
+
+    await screen.findByText('Anime 000');
+    fireEvent.click(screen.getByRole('button', { name: /Anime 001/ }));
+    expect(await screen.findByTestId('anime-editor-header-cover-image')).toHaveAttribute('src', 'data:image/jpeg;base64,anime-001#0');
+    expect(railCoverImagesWith('anime-001#0')).toHaveLength(1);
 
     // Clearing the saved cover leaves the list reporting `hasCover: false`, and
     // BOTH thumbnails fall back to the shared placeholder despite the art still

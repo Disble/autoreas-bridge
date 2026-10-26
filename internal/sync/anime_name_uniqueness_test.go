@@ -15,6 +15,8 @@ import (
 
 // preChangeAnimeSnapshotsDDL is the table exactly as it shipped before the
 // unique anime name index: every current column except name_key.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 const preChangeAnimeSnapshotsDDL = `
 	CREATE TABLE anime_snapshots (
 		anime_id TEXT PRIMARY KEY,
@@ -40,6 +42,8 @@ func openNameUniquenessDB(t *testing.T) *sql.DB {
 
 // generatedNameKeyAnimeSnapshotsDDL is the table exactly as it shipped while
 // name_key was a VIRTUAL generated column SQLite computed itself.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 const generatedNameKeyAnimeSnapshotsDDL = `
 	CREATE TABLE anime_snapshots (
 		anime_id TEXT PRIMARY KEY,
@@ -72,6 +76,8 @@ func animeSnapshotNamed(animeID, name string) string {
 
 // seedAnimeSnapshotRaw stores a snapshot without touching name_key, the way
 // rows reached a table whose key SQLite computed or that had no key at all.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func seedAnimeSnapshotRaw(t *testing.T, db *sql.DB, animeID, snapshotJSON string) {
 	t.Helper()
 	if _, err := db.Exec(
@@ -106,6 +112,8 @@ func readNameKeys(t *testing.T, db *sql.DB) map[string]sql.NullString {
 
 // readSchemaShape lists the table's columns with their hidden flag, plus every
 // index on it, so a test can prove a failed migration left the schema alone.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func readSchemaShape(t *testing.T, db *sql.DB) []string {
 	t.Helper()
 	rows, err := db.Query(`
@@ -128,6 +136,8 @@ func readSchemaShape(t *testing.T, db *sql.DB) []string {
 }
 
 // assertIntegrityOK fails unless PRAGMA integrity_check reports ok.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func assertIntegrityOK(t *testing.T, db *sql.DB) {
 	t.Helper()
 	if got := queryPragmaString(t, db, "integrity_check"); got != "ok" {
@@ -210,6 +220,8 @@ func TestNameUniquenessStillAllowsADistinctName(t *testing.T) {
 
 // legacyNameKeySeeds are the rows an older database carries: names SQLite's
 // own fold must keep, padding, and records without a readable name.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 var legacyNameKeySeeds = map[string]string{
 	"roman":    `{"id":"roman","name":"Date a Live Ⅲ"}`,
 	"padded":   `{"id":"padded","name":"  One Piece  "}`,
@@ -220,6 +232,8 @@ var legacyNameKeySeeds = map[string]string{
 
 // openOldShapeDB opens a database holding an older anime_snapshots schema
 // (one or more statements) and the given raw rows.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func openOldShapeDB(t *testing.T, schema string, seeds map[string]string) *sql.DB {
 	t.Helper()
 	db := openNameUniquenessDB(t)
@@ -232,6 +246,10 @@ func openOldShapeDB(t *testing.T, schema string, seeds map[string]string) *sql.D
 	return db
 }
 
+// TestExistingDatabaseGainsThePlainNameKeyColumnAndItsIndex upgrades both
+// older name_key shapes to the plain column.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func TestExistingDatabaseGainsThePlainNameKeyColumnAndItsIndex(t *testing.T) {
 	for _, shape := range []struct{ name, schema string }{
 		{"no name key", preChangeAnimeSnapshotsDDL},
@@ -243,6 +261,8 @@ func TestExistingDatabaseGainsThePlainNameKeyColumnAndItsIndex(t *testing.T) {
 
 // assertMigratesToPlainNameKey migrates an old shape and checks the plain
 // column, the keys SQLite's own fold produced, integrity and the unique index.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func assertMigratesToPlainNameKey(t *testing.T, schema string) {
 	t.Helper()
 	db := openOldShapeDB(t, schema, legacyNameKeySeeds)
@@ -273,6 +293,8 @@ func assertMigratesToPlainNameKey(t *testing.T, schema string) {
 // index built under one fold while the generated column now computes another,
 // which is what an ICU sqlite3 REINDEX left behind. Rebuilding the index from
 // Go keys leaves the file consistent.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func TestMigrationRepairsAnIndexDesyncedFromItsRows(t *testing.T) {
 	path := filepath.ToSlash(filepath.Join(t.TempDir(), "bridge.db"))
 	db, err := sql.Open(sqliteDriverName, "file:"+path)
@@ -314,6 +336,10 @@ func TestMigrationRepairsAnIndexDesyncedFromItsRows(t *testing.T) {
 	}
 }
 
+// TestMigrationNamesTheDuplicatesItCannotIndexAndLeavesTheSchemaUnchanged
+// refuses to upgrade a catalogue with duplicate names.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func TestMigrationNamesTheDuplicatesItCannotIndexAndLeavesTheSchemaUnchanged(t *testing.T) {
 	for _, shape := range []struct{ name, schema string }{
 		{"no name key", preChangeAnimeSnapshotsDDL},
@@ -325,6 +351,8 @@ func TestMigrationNamesTheDuplicatesItCannotIndexAndLeavesTheSchemaUnchanged(t *
 
 // assertRefusesDuplicateNameKeys checks a migration over colliding names fails
 // naming each key with its animes, and rolls the schema back untouched.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func assertRefusesDuplicateNameKeys(t *testing.T, schema string) {
 	t.Helper()
 	seeds := map[string]string{}
@@ -353,6 +381,10 @@ func assertRefusesDuplicateNameKeys(t *testing.T, schema string) {
 	}
 }
 
+// TestMigrationIsIdempotentOverAnAlreadyMigratedDatabase proves a second open
+// of an upgraded database leaves the stored keys alone.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func TestMigrationIsIdempotentOverAnAlreadyMigratedDatabase(t *testing.T) {
 	db := openOldShapeDB(t, generatedNameKeyAnimeSnapshotsDDL,
 		map[string]string{"kept": animeSnapshotNamed("kept", "One Piece")})

@@ -12,10 +12,14 @@ import (
 
 // droppedWriteTables are the tables of the retired two-phase write: the
 // staged write operations and the anime.changed outbox that referenced them.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 var droppedWriteTables = []string{"anime_changed_outbox", "anime_write_operations"}
 
 // shippedWriteTablesDDL is the last shape of the two retired tables an
 // installed database holds, with their indexes and one row each.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 const shippedWriteTablesDDL = `
 	CREATE TABLE IF NOT EXISTS anime_write_operations (
 		operation_id TEXT PRIMARY KEY,
@@ -69,6 +73,8 @@ func TestOpenBridgeDBNeverCreatesTheRetiredWriteTables(t *testing.T) {
 // database that still holds both tables, with rows, next to rows in the
 // tables that stay. The first open drops both tables and changes no other
 // row; the second open changes nothing at all.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func TestOpenBridgeDBDropsTheRetiredWriteTablesAndKeepsEveryOtherRow(t *testing.T) {
 	t.Parallel()
 
@@ -100,6 +106,8 @@ func TestOpenBridgeDBDropsTheRetiredWriteTablesAndKeepsEveryOtherRow(t *testing.
 // seedRetiredWriteTables builds a bridge database at its current schema, adds
 // the two retired tables with a row each and rows in tables that stay, and
 // returns its path.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func seedRetiredWriteTables(t *testing.T) string {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "bridge.db")
@@ -119,6 +127,8 @@ func seedRetiredWriteTables(t *testing.T) string {
 }
 
 // reopenBridgeDB opens the bridge database at dbPath through the production bootstrap.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func reopenBridgeDB(t *testing.T, dbPath string) *sql.DB {
 	t.Helper()
 	db, err := OpenBridgeDB(dbPath)
@@ -155,6 +165,8 @@ func assertNoRetiredWriteSchema(t *testing.T, db *sql.DB) {
 
 // dumpBridgeTables reads every table of the database at dbPath, opened
 // directly without the bootstrap, as one sorted text line per row.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func dumpBridgeTables(t *testing.T, dbPath string) map[string]string {
 	t.Helper()
 	db, err := sql.Open("sqlite", dbPath)
@@ -183,6 +195,8 @@ func dumpBridgeTables(t *testing.T, dbPath string) map[string]string {
 }
 
 // dumpTableRows renders every row of table as sorted text lines.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func dumpTableRows(t *testing.T, db *sql.DB, table string) string {
 	t.Helper()
 	rows, err := db.Query(`SELECT * FROM "` + table + `"`)
