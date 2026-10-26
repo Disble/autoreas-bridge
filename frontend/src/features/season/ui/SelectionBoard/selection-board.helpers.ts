@@ -83,9 +83,9 @@ export function getQuotaColor(quota: QuotaStatus): QuotaColor {
   return quota === 'at' ? 'warning' : 'success';
 }
 
-/** formatSelectionGrade shows a candidate's first-episode grade, or a dash while it is ungraded (below 1). */
+/** formatSelectionGrade shows a candidate's first-episode grade, or None while it is ungraded (below 1). */
 export function formatSelectionGrade(grade: number): string {
-  return grade >= 1 ? String(grade) : '—';
+  return grade >= 1 ? String(grade) : 'None';
 }
 
 /**

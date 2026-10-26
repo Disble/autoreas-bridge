@@ -146,7 +146,7 @@ describe('formatSelectionGrade', () => {
   it.each([
     [6, '6'],
     [1, '1'],
-    [0, '—'],
+    [0, 'None'],
   ])('shows grade %i as %s', (grade, label) => {
     expect(formatSelectionGrade(grade)).toBe(label);
   });
