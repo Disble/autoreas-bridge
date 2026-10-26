@@ -201,11 +201,11 @@ func (s *ScheduleService) recordBoardConflict(ctx context.Context, records []Rea
 
 // gateway builds the store gateway used by schedule operations.
 func (s *ScheduleService) gateway() *store.Gateway {
-	return store.NewGateway(newStoreGatewayConfig(s.store, nil, s.deps, s.nowFuncForToken(), s.publishCommitted))
+	return store.NewGateway(newStoreGatewayConfig(s.store, s.deps, s.nowFuncForToken(), s.publishCommitted))
 }
 
 // publishCommitted publishes a committed schedule change.
-func (s *ScheduleService) publishCommitted(event ChangedOutboxEvent) {
+func (s *ScheduleService) publishCommitted(event CommittedChange) {
 	if s.deps.Publisher != nil {
 		s.deps.Publisher.Publish(newAnimeChangedEvent(event))
 		return

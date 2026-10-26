@@ -12,11 +12,10 @@ const vocabularyMigrationMarker = "vocabulary"
 
 // ensureVocabularyMigration runs the SDD-56 one-shot vocabulary migration,
 // gated by a dedicated global marker row (see schemaMigrationMarkersDDL). It
-// rewrites Spanish -> English keys and flattens $$date wrappers across all 5
-// decode-reachable columns in 4 tables (anime_snapshots.snapshot_json,
-// changelog.snapshot_json, anime_write_operations.{base,desired}_snapshot_json,
-// conflicts.{local,remote}_snapshot_json, anime_changed_outbox.payload_json)
-// inside a single transaction: any row failure rolls back every table.
+// rewrites Spanish -> English keys and flattens $$date wrappers across the 4
+// decode-reachable columns in 3 tables (anime_snapshots.snapshot_json,
+// changelog.snapshot_json, conflicts.{local,remote}_snapshot_json) inside a
+// single transaction: any row failure rolls back every table.
 func ensureVocabularyMigration(db *sql.DB) error {
 	migrated, err := vocabularyMigrationDone(db)
 	if err != nil {
@@ -56,7 +55,7 @@ func vocabularyMigrationDone(db *sql.DB) (bool, error) {
 	return migratedAt != 0, nil
 }
 
-// runVocabularyMigrationTx rewrites all 5 columns across 4 tables and sets
+// runVocabularyMigrationTx rewrites all 4 columns across 3 tables and sets
 // the marker, all inside the caller's transaction.
 func runVocabularyMigrationTx(tx *sql.Tx) error {
 	if err := migrateAnimeSnapshotsRows(tx); err != nil {
@@ -65,13 +64,7 @@ func runVocabularyMigrationTx(tx *sql.Tx) error {
 	if err := migrateChangelogRows(tx); err != nil {
 		return err
 	}
-	if err := migrateWriteOperationRows(tx); err != nil {
-		return err
-	}
 	if err := migrateConflictRows(tx); err != nil {
-		return err
-	}
-	if err := migratePendingOutboxRows(tx); err != nil {
 		return err
 	}
 	return setVocabularyMigrationMarker(tx)
@@ -135,28 +128,23 @@ func migrateAnimeSnapshotsRows(tx *sql.Tx) error {
 	return nil
 }
 
-// singleColumnRow is one (key, JSON payload) pair scanned for a single-column
-// vocabulary rewrite pass. key is generic so the same helper serves both the
-// int64 changelog.id and the string anime_changed_outbox.event_id primary keys.
-type singleColumnRow[K any] struct {
-	key     K
-	payload string
-}
-
-// migrateSingleColumnRows runs a select/rewrite/update-if-changed pass for
-// one payload column keyed by a single primary key column, sharing the exact
-// scan-buffer-then-update sequencing used by every 5-column migration step.
-func migrateSingleColumnRows[K any](tx *sql.Tx, table, selectQuery, updateQuery string) error {
-	rows, err := tx.Query(selectQuery)
+// migrateChangelogRows rewrites non-null changelog.snapshot_json rows. Null
+// rows are left untouched.
+func migrateChangelogRows(tx *sql.Tx) error {
+	rows, err := tx.Query(`SELECT id, snapshot_json FROM changelog WHERE snapshot_json IS NOT NULL`)
 	if err != nil {
-		return fmt.Errorf("select %s for vocabulary migration: %w", table, err)
+		return fmt.Errorf("select changelog for vocabulary migration: %w", err)
 	}
-	var pending []singleColumnRow[K]
+	type row struct {
+		id      int64
+		payload string
+	}
+	var pending []row
 	for rows.Next() {
-		var entry singleColumnRow[K]
-		if err := rows.Scan(&entry.key, &entry.payload); err != nil {
+		var entry row
+		if err := rows.Scan(&entry.id, &entry.payload); err != nil {
 			_ = rows.Close()
-			return fmt.Errorf("scan %s for vocabulary migration: %w", table, err)
+			return fmt.Errorf("scan changelog for vocabulary migration: %w", err)
 		}
 		pending = append(pending, entry)
 	}
@@ -169,76 +157,13 @@ func migrateSingleColumnRows[K any](tx *sql.Tx, table, selectQuery, updateQuery 
 	for _, entry := range pending {
 		rewritten, changed, err := migrateVocabularyJSON([]byte(entry.payload))
 		if err != nil {
-			return fmt.Errorf("migrate %s row %v: %w", table, entry.key, err)
+			return fmt.Errorf("migrate changelog row %d: %w", entry.id, err)
 		}
 		if !changed {
 			continue
 		}
-		if _, err := tx.Exec(updateQuery, string(rewritten), entry.key); err != nil {
-			return fmt.Errorf("update %s row %v for vocabulary migration: %w", table, entry.key, err)
-		}
-	}
-	return nil
-}
-
-// migrateChangelogRows rewrites non-null changelog.snapshot_json rows. Null
-// rows are left untouched.
-func migrateChangelogRows(tx *sql.Tx) error {
-	return migrateSingleColumnRows[int64](
-		tx, "changelog",
-		`SELECT id, snapshot_json FROM changelog WHERE snapshot_json IS NOT NULL`,
-		`UPDATE changelog SET snapshot_json = ? WHERE id = ?`,
-	)
-}
-
-// migrateWriteOperationRows rewrites anime_write_operations base/desired
-// snapshot columns and recomputes base_hash/desired_hash.
-func migrateWriteOperationRows(tx *sql.Tx) error {
-	rows, err := tx.Query(`SELECT operation_id, base_snapshot_json, desired_snapshot_json FROM anime_write_operations`)
-	if err != nil {
-		return fmt.Errorf("select anime_write_operations for vocabulary migration: %w", err)
-	}
-	type row struct {
-		operationID string
-		base        string
-		desired     string
-	}
-	var pending []row
-	for rows.Next() {
-		var entry row
-		if err := rows.Scan(&entry.operationID, &entry.base, &entry.desired); err != nil {
-			_ = rows.Close()
-			return fmt.Errorf("scan anime_write_operations for vocabulary migration: %w", err)
-		}
-		pending = append(pending, entry)
-	}
-	if err := rows.Err(); err != nil {
-		_ = rows.Close()
-		return err
-	}
-	_ = rows.Close()
-
-	for _, entry := range pending {
-		rewrittenBase, baseChanged, err := migrateVocabularyJSON([]byte(entry.base))
-		if err != nil {
-			return fmt.Errorf("migrate anime_write_operations %q base snapshot: %w", entry.operationID, err)
-		}
-		rewrittenDesired, desiredChanged, err := migrateVocabularyJSON([]byte(entry.desired))
-		if err != nil {
-			return fmt.Errorf("migrate anime_write_operations %q desired snapshot: %w", entry.operationID, err)
-		}
-		if !baseChanged && !desiredChanged {
-			continue
-		}
-		baseHash := anime.HashSnapshot(rewrittenBase)
-		desiredHash := anime.HashSnapshot(rewrittenDesired)
-		if _, err := tx.Exec(
-			`UPDATE anime_write_operations
-			 SET base_snapshot_json = ?, base_hash = ?, desired_snapshot_json = ?, desired_hash = ?
-			 WHERE operation_id = ?`,
-			string(rewrittenBase), baseHash, string(rewrittenDesired), desiredHash, entry.operationID,
-		); err != nil {
-			return fmt.Errorf("update anime_write_operations %q for vocabulary migration: %w", entry.operationID, err)
+		if _, err := tx.Exec(`UPDATE changelog SET snapshot_json = ? WHERE id = ?`, string(rewritten), entry.id); err != nil {
+			return fmt.Errorf("update changelog row %d for vocabulary migration: %w", entry.id, err)
 		}
 	}
 	return nil
@@ -292,14 +217,4 @@ func migrateConflictRows(tx *sql.Tx) error {
 		}
 	}
 	return nil
-}
-
-// migratePendingOutboxRows rewrites pending anime_changed_outbox.payload_json
-// rows before they are published verbatim to mobile.
-func migratePendingOutboxRows(tx *sql.Tx) error {
-	return migrateSingleColumnRows[string](
-		tx, "anime_changed_outbox",
-		`SELECT event_id, payload_json FROM anime_changed_outbox WHERE status = 'pending'`,
-		`UPDATE anime_changed_outbox SET payload_json = ? WHERE event_id = ?`,
-	)
 }

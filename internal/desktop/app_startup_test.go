@@ -330,28 +330,3 @@ func TestAppStartupWiresDownloadOrchestrationDespiteHTTPServerFailure(t *testing
 		t.Fatalf("ListDownloadReadiness after a failed bind = %v, want a usable snapshot", err)
 	}
 }
-
-// The counterpart guard: a failure that leaves anime data in an indeterminate
-// state must still abort startup, so orchestration never runs against it.
-func TestAppStartupFatalFailureStillSkipsDownloadOrchestration(t *testing.T) {
-	t.Parallel()
-
-	dbPath := filepath.Join(t.TempDir(), "bridge.db")
-	app := newAppTestApp(t)
-	app.bootstrapBridgeDB = func() (*sql.DB, error) {
-		return bridgeSync.OpenBridgeDB(dbPath)
-	}
-	app.newDownloadStore = nil
-	t.Cleanup(func() {
-		if app.bridgeDB != nil {
-			_ = app.bridgeDB.Close()
-		}
-	})
-	app.startupFatal = true
-
-	app.startup(context.Background())
-
-	if app.readinessService != nil {
-		t.Fatal("a fatal startup failure must not wire download orchestration")
-	}
-}

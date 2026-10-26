@@ -71,6 +71,9 @@ type ConflictWriter interface { InsertConflict(...) }                  // 1
 Same file, same layer, same author. Multi-method takes the role name;
 single-method takes the idiom.
 
+(`WriteBaseStore` was removed on 2026-10-26 with the two-phase anime write; the
+example records the file as it stood when this decision was made.)
+
 ## Decision
 
 1. A **single-method** interface is named for its method as an agent noun:

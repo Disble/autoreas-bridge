@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -18,8 +17,7 @@ import (
 
 // TestGatewayCurrentBaseSavesSnapshotAndChangelogInOneTransaction pins S1: one
 // applied save stores the snapshot and its changelog row, publishes one event
-// whose id is the row's source event id, and writes nothing to the staged-write
-// or outbox tables.
+// whose id is the row's source event id.
 func TestGatewayCurrentBaseSavesSnapshotAndChangelogInOneTransaction(t *testing.T) {
 	ctx := context.Background()
 	db := openGatewayDB(t)
@@ -56,11 +54,6 @@ func TestGatewayCurrentBaseSavesSnapshotAndChangelogInOneTransaction(t *testing.
 	rows, err := bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(db)).ListAfterID(ctx, 0)
 	if err != nil || len(rows) != 1 || rows[0].SourceEventID != "operation-1" || !slices.Equal(rows[0].ChangedFields, []string{"episodesWatched"}) {
 		t.Fatalf("expected one changelog row for operation-1 naming episodesWatched: %+v, %v", rows, err)
-	}
-	for _, table := range []string{"anime_write_operations", "anime_changed_outbox"} {
-		if n := countGatewayRows(t, db, table); n != 0 {
-			t.Fatalf("expected no %s rows after a save, got %d", table, n)
-		}
 	}
 }
 
@@ -184,58 +177,12 @@ func TestGatewayBaseLessExistingWriteKeepsLastWriteWinsCompatibility(t *testing.
 	}
 }
 
-// TestGatewayRecoveryRetriesFinalizeForAStagedButUnfinalizedWrite proves the
-// startup recovery an older build's leftovers still need (S6): a write that
-// build staged but never finalized is finalized by Recover, and the outbox
-// drain then publishes it exactly once.
-func TestGatewayRecoveryRetriesFinalizeForAStagedButUnfinalizedWrite(t *testing.T) {
-	ctx := context.Background()
-	db := openGatewayDB(t)
-	snapshots := bridgeSync.NewAnimeSnapshotStore(db)
-	base := canonicalGatewayPayload(t, gatewayAnimeJSON("anime-1", 2))
-	seedGatewaySnapshot(t, snapshots, "anime-1", base, 100)
-	stageGatewayOperation(t, bridgeSync.NewWriteBaseStore(db), stagedOperation{
-		operationID: "operation-1", animeID: "anime-1", baseToken: 100, intended: 200,
-		base: base, desired: canonicalGatewayPayload(t, gatewayAnimeJSON("anime-1", 3)), createdAt: 150,
-	})
-
-	published := 0
-	restarted := newGateway(t, gatewayConfig{db: db, clock: 201, publish: func(string, []byte) { published++ }})
-	if err := restarted.Recover(ctx); err != nil {
-		t.Fatalf("recover staged write: %v", err)
-	}
-	if published != 0 {
-		t.Fatalf("recovery published before the durable outbox drain: %d", published)
-	}
-	if err := restarted.DrainOutbox(ctx); err != nil {
-		t.Fatalf("drain recovered write: %v", err)
-	}
-	if published != 1 {
-		t.Fatalf("expected one recovered publication, got %d", published)
-	}
-	recovered, err := snapshots.GetSnapshot(ctx, "anime-1")
-	if err != nil || recovered.ModifiedAt != 200 || !jsonContainsProgress(t, recovered.CanonicalJSON, 3) {
-		t.Fatalf("unexpected recovered snapshot: %#v, %v", recovered, err)
-	}
-
-	// Recovering an already-finalized operation a second time stays a no-op
-	// (Finalize is idempotent) instead of erroring or re-publishing.
-	if err := restarted.Recover(ctx); err != nil {
-		t.Fatalf("second recover of an already-finalized write must be a no-op: %v", err)
-	}
-}
-
 type gatewayConfig struct {
 	db           *sql.DB
 	clock        int64
-	operations   store.WriteBaseStore
-	outbox       store.AnimeChangedOutboxStore
 	publish      func(string, []byte)
 	publishEvent func(string, string, []byte)
-	// publishFields captures the derived changed-field list a drain delivers,
-	// which is the whole point of widening PublishChanged.
-	publishFields func(string, []string)
-	// publishChangeType captures the derived change type a drain delivers.
+	// publishChangeType captures the derived change type a save publishes.
 	publishChangeType func(string, string)
 	operationID       string
 }
@@ -245,14 +192,6 @@ func newGateway(t *testing.T, config gatewayConfig) *store.Gateway {
 	t.Helper()
 	db := config.db
 	snapshots := bridgeSync.NewAnimeSnapshotStore(db)
-	operations := config.operations
-	if operations == nil {
-		operations = bridgeSync.NewWriteBaseStore(db)
-	}
-	outbox := config.outbox
-	if outbox == nil {
-		outbox = bridgeSync.NewWriteBaseStore(db)
-	}
 	operationID := config.operationID
 	if operationID == "" {
 		operationID = "operation-1"
@@ -271,18 +210,13 @@ func newGateway(t *testing.T, config gatewayConfig) *store.Gateway {
 			}
 			return result, err
 		},
-		Operations: operations,
-		Outbox:     outbox,
-		Conflicts:  bridgeSync.NewConflictStore(db),
-		PublishChanged: func(event store.AnimeChangedOutboxEvent) {
+		Conflicts: bridgeSync.NewConflictStore(db),
+		PublishChanged: func(event store.CommittedChange) {
 			if config.publishEvent != nil {
 				config.publishEvent(event.EventID, event.AnimeID, event.Payload)
 			}
 			if config.publish != nil {
 				config.publish(event.AnimeID, event.Payload)
-			}
-			if config.publishFields != nil {
-				config.publishFields(event.EventID, event.ChangedFields)
 			}
 			if config.publishChangeType != nil {
 				config.publishChangeType(event.EventID, event.ChangeType)
@@ -292,8 +226,6 @@ func newGateway(t *testing.T, config gatewayConfig) *store.Gateway {
 		NewOperationID: func() string { return operationID },
 	})
 }
-
-var errFinalizeInjected = fmt.Errorf("injected finalize failure")
 
 // gatewayAnimeJSON creates a minimal stored anime payload for gateway tests.
 // The name is derived from the id rather than fixed: the catalogue enforces
@@ -349,4 +281,35 @@ func countGatewayRows(t *testing.T, db *sql.DB, table string) int {
 		t.Fatalf("count %s: %v", table, err)
 	}
 	return n
+}
+
+// TestGatewayPublishesCreateForTheFirstWriteAndUpdateAfterwards is the root of
+// the "every create reaches Mobile as an update" defect: the change type was
+// never derived, so all publishers sent an empty one. The first write of an
+// anime the store has never held must publish "create"; the next one "update".
+func TestGatewayPublishesCreateForTheFirstWriteAndUpdateAfterwards(t *testing.T) {
+	ctx := context.Background()
+	db := openGatewayDB(t)
+	published := []string{}
+	write := func(progress float64) {
+		t.Helper()
+		gateway := newGateway(t, gatewayConfig{
+			db: db, clock: int64(200 * progress), operationID: "operation-" + jsonNumber(progress),
+			publishChangeType: func(_ string, changeType string) { published = append(published, changeType) },
+		})
+		if _, err := gateway.Update(ctx, store.UpdateCommand{
+			AnimeID:         "anime-created",
+			CreateIfMissing: true,
+			Mutate:          func(value *domain.Anime, _ bool) { value.SetProgress(progress) },
+		}); err != nil {
+			t.Fatalf("write through gateway: %v", err)
+		}
+	}
+
+	write(1)
+	write(2)
+
+	if want := []string{"create", "update"}; !slices.Equal(published, want) {
+		t.Fatalf("expected change types %v, got %v", want, published)
+	}
 }

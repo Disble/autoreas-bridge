@@ -431,6 +431,13 @@ info:
     spurious conflict on its next write. Mobile verified no client change is
     needed (2026-10-25).
 
+    2026-10-26 — two-phase anime write removal consumer impact: NO REST/WS
+    wire change. Bridge drops its internal staged-write and outbox tables
+    (`anime_write_operations`, `anime_changed_outbox`) and the startup
+    recovery that replayed them. Nothing a client sends or receives changes:
+    each anime save still leaves exactly one changes-feed row and sends one
+    `anime_changed` notice after the commit, as in the 2026-10-25 entry.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}

@@ -18,8 +18,6 @@ func schemaTables() []persistence.TableSchema {
 		changelogTable(),
 		{Name: "app_settings", CreateDDL: appSettingsDDL, Migrate: migrateAppSettings},
 		createOnlyTable("device_sync_state", deviceSyncStateDDL),
-		animeWriteOperationsTable(),
-		animeChangedOutboxTable(),
 		requestCapturesTable(),
 		createOnlyTable("request_capture_metadata", requestCaptureMetadataDDL),
 		createOnlyTable("request_rollup_hourly", requestRollupHourlyDDL),
@@ -28,9 +26,8 @@ func schemaTables() []persistence.TableSchema {
 		createOnlyTable("season_projection_published", seasonProjectionPublishedDDL),
 		// animeSnapshotsTable is last: its Migrate hook drives the SDD-56
 		// cross-table vocabulary migration (ensureVocabularyMigration), which
-		// reads/writes conflicts, changelog, anime_write_operations, and
-		// anime_changed_outbox -- all of which must already exist by the time
-		// it runs, including on a truly fresh install.
+		// reads/writes conflicts and changelog, which must already exist by the
+		// time it runs, including on a truly fresh install.
 		animeSnapshotsTable(),
 	}
 }
@@ -38,38 +35,6 @@ func schemaTables() []persistence.TableSchema {
 // createOnlyTable builds a table descriptor without migration logic.
 func createOnlyTable(name, ddl string) persistence.TableSchema {
 	return persistence.TableSchema{Name: name, CreateDDL: ddl}
-}
-
-// animeChangedOutboxTable builds the outbox descriptor. It carries a migration
-// rather than being create-only because the derived changed-field list was
-// added after the table shipped.
-func animeChangedOutboxTable() persistence.TableSchema {
-	return persistence.TableSchema{
-		Name:      "anime_changed_outbox",
-		CreateDDL: animeChangedOutboxDDL,
-		Indexes:   []string{animeChangedOutboxPendingIndexDDL},
-		Migrate:   migrateAnimeChangedOutboxSchema,
-	}
-}
-
-// migrateAnimeChangedOutboxSchema adds the derived changed-field column
-// (ADD COLUMN only -- non-destructive). It is nullable on purpose: rows written
-// before this change carry no derivation, and the reader treats NULL as an
-// empty list, which is exactly the behaviour they already had.
-//
-// The derived change_type column follows the same rule: nullable, ADD COLUMN
-// only, and a NULL reads as an empty change type, which the changelog recorder
-// keeps recording as an update -- exactly what those rows already were.
-func migrateAnimeChangedOutboxSchema(db *sql.DB, cols []string) error {
-	for _, column := range []string{"changed_fields_json", "change_type"} {
-		if containsSchemaColumn(cols, column) {
-			continue
-		}
-		if _, err := db.Exec(`ALTER TABLE anime_changed_outbox ADD COLUMN ` + column + ` TEXT`); err != nil { // NOSONAR go:S2077 -- column is a compile-time literal from the list above.
-			return fmt.Errorf("add anime_changed_outbox %s: %w", column, err)
-		}
-	}
-	return nil
 }
 
 // animeSnapshotsTable builds the anime snapshot table descriptor.
@@ -162,20 +127,6 @@ func ensureSourceEventIdentityColumn(db *sql.DB, cols []string) error {
 	return nil
 }
 
-// animeWriteOperationsTable builds the write operations table descriptor.
-func animeWriteOperationsTable() persistence.TableSchema {
-	return persistence.TableSchema{
-		Name:      "anime_write_operations",
-		CreateDDL: animeWriteOperationsDDL,
-		Indexes: []string{
-			animeWriteOperationsAnimeTokenIndexDDL,
-			animeWriteOperationsRecoveryIndexDDL,
-			animeWriteOperationsLiveReservationIndexDDL,
-		},
-		Migrate: migrateAnimeWriteOperationsSchema,
-	}
-}
-
 // requestCapturesTable builds the request capture table descriptor.
 func requestCapturesTable() persistence.TableSchema {
 	return persistence.TableSchema{
@@ -219,29 +170,6 @@ func migrateRequestCapturesSchema(db *sql.DB, cols []string) error {
 		}
 		if _, err := db.Exec(column.ddl); err != nil {
 			return fmt.Errorf("add request_captures %s: %w", column.name, err)
-		}
-	}
-	return nil
-}
-
-// migrateAnimeWriteOperationsSchema adds missing write operation columns.
-func migrateAnimeWriteOperationsSchema(db *sql.DB, cols []string) error {
-	for _, column := range []struct {
-		name string
-		ddl  string
-	}{
-		{name: "batch_id", ddl: `ALTER TABLE anime_write_operations ADD COLUMN batch_id TEXT NOT NULL DEFAULT ''`},
-		{name: "batch_order", ddl: `ALTER TABLE anime_write_operations ADD COLUMN batch_order INTEGER NOT NULL DEFAULT 0`},
-		{name: "batch_size", ddl: `ALTER TABLE anime_write_operations ADD COLUMN batch_size INTEGER NOT NULL DEFAULT 1`},
-		// request_id joins a write to the bridge request that caused it (P3);
-		// '' marks a write no request caused.
-		{name: "request_id", ddl: `ALTER TABLE anime_write_operations ADD COLUMN request_id TEXT NOT NULL DEFAULT ''`},
-	} {
-		if containsSchemaColumn(cols, column.name) {
-			continue
-		}
-		if _, err := db.Exec(column.ddl); err != nil {
-			return fmt.Errorf("add anime_write_operations %s: %w", column.name, err)
 		}
 	}
 	return nil

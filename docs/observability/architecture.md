@@ -13,7 +13,7 @@ to the rest of this page.
 | Bridge runtime events | `runtime_events` | recorder, ledger (non-noise events only); the Activity feed gives each event one section (Tasks, its download run, or System) |
 | Mobile telemetry and sync diagnostics | `device_telemetry_events`, `device_sync_diagnostics` | unchanged tables; a failure report triggers an incident |
 | Frontend and WebView errors | `runtime_events`, domain `frontend`, type `frontend.error` (P7, `ReportFrontendError`) | unchanged: error events, so they trigger incidents and appear as System lines |
-| Domain history | `anime_write_operations`, `activity_log`, outbox | unchanged: months deep in every design |
+| Domain history | `activity_log` (the staged-write and outbox tables were dropped on 2026-10-26) | unchanged: months deep in every design |
 
 ## Layers
 

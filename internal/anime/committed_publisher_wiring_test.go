@@ -13,48 +13,6 @@ import (
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
-// snapshotOnlyLookup is a snapshot store with no durable write-base journal.
-type snapshotOnlyLookup struct{}
-
-func (snapshotOnlyLookup) GetSnapshot(context.Context, string) (anime.SnapshotRecord, error) {
-	return anime.SnapshotRecord{}, nil
-}
-
-func (snapshotOnlyLookup) ListSnapshots(context.Context) (map[string]anime.SnapshotRecord, error) {
-	return map[string]anime.SnapshotRecord{}, nil
-}
-
-// TestWriteServiceRecoveryNeedsAWriteJournalAndAPublisher pins the recovery
-// gate: recovery runs only when there is a journal to replay AND a publisher to
-// announce what it replays.
-func TestWriteServiceRecoveryNeedsAWriteJournalAndAPublisher(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name      string
-		service   func(t *testing.T) *anime.WriteService
-		configure bool
-	}{
-		{"journal and publisher", func(t *testing.T) *anime.WriteService {
-			return anime.NewWriteService(openAnimeServiceTestStore(t), &stubCommittedPublisher{})
-		}, true},
-		{"journal without publisher", func(t *testing.T) *anime.WriteService {
-			return anime.NewWriteService(openAnimeServiceTestStore(t), nil)
-		}, false},
-		{"publisher without journal", func(*testing.T) *anime.WriteService {
-			return anime.NewWriteService(snapshotOnlyLookup{}, &stubCommittedPublisher{})
-		}, false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if got := tc.service(t).RecoveryConfigured(); got != tc.configure {
-				t.Fatalf("expected RecoveryConfigured %v, got %v", tc.configure, got)
-			}
-		})
-	}
-}
-
 // TestEditorServiceAnnouncesASaveThroughTheCommittedPublisher proves that
 // without an injected bus publisher, an editor save is announced once through
 // the committed publisher -- the production wiring.

@@ -359,7 +359,7 @@ type stubAppChangelogRecorder struct {
 	onStop  func()
 }
 
-func (*stubAppCommittedPublisher) PublishCommitted(anime.ChangedOutboxEvent) {}
+func (*stubAppCommittedPublisher) PublishCommitted(anime.CommittedChange) {}
 
 func (s *stubAppChangelogRecorder) Start(context.Context) { s.started = true }
 func (s *stubAppChangelogRecorder) Stop() {

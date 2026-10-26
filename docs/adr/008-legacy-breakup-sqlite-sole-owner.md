@@ -1,7 +1,12 @@
 # ADR 008: Legacy Breakup — SQLite Is the Sole Owner of Anime State
 
 ## Status
-Accepted (SDD-55)
+Accepted (SDD-55). Decision 1 is partly superseded (2026-10-26, write-path rebuild
+blocks 3 and 4): the codec stays, but the Stage → Finalize → Publish orchestration
+is gone. Every anime save is now one SQLite transaction that writes the snapshot
+and its changelog row and publishes after the commit (`internal/anime/store/save.go`,
+`internal/sync/anime_save_store.go`). The staged-write and outbox tables,
+`anime_write_operations` and `anime_changed_outbox`, are dropped at startup.
 
 ## Context
 Bridge originally existed to synchronize with the Legacy Autoreas Desktop

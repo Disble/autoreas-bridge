@@ -45,7 +45,7 @@ func seedSaveStore(t *testing.T) (*AnimeSaveStore, *ChangelogStore) {
 }
 
 // savePlan decides anime-1 as applied, or as a conflict, and records what Publish receives.
-func savePlan(conflict bool, published *[]anime.ChangedOutboxEvent) anime.SavePlan {
+func savePlan(conflict bool, published *[]anime.CommittedChange) anime.SavePlan {
 	outcome := anime.SaveOutcomeApplied
 	if conflict {
 		outcome = anime.SaveOutcomeConflict
@@ -58,7 +58,7 @@ func savePlan(conflict bool, published *[]anime.ChangedOutboxEvent) anime.SavePl
 			}, nil
 		}}},
 		NewEventID: func() string { return "event-1" },
-		Publish:    func(event anime.ChangedOutboxEvent) { *published = append(*published, event) },
+		Publish:    func(event anime.CommittedChange) { *published = append(*published, event) },
 	}
 }
 
@@ -70,7 +70,7 @@ func savePlan(conflict bool, published *[]anime.ChangedOutboxEvent) anime.SavePl
 func TestAnimeSaveStoreCommitsTheSnapshotAndItsChangelogRowTogether(t *testing.T) {
 	ctx := context.Background()
 	saves, changelog := seedSaveStore(t)
-	var published []anime.ChangedOutboxEvent
+	var published []anime.CommittedChange
 	plan := savePlan(false, &published)
 	plan.Items = append([]anime.SaveItem{noOpItem}, plan.Items...)
 	plan.Rule = ruleTo(saveRuledJSON, nil)
@@ -122,7 +122,7 @@ func TestAnimeSaveStoreWritesNothingForAConflictOrAFailure(t *testing.T) {
 			ctx := context.Background()
 			saves, changelog := seedSaveStore(t)
 			saves.recordChangelog = tc.record
-			var published []anime.ChangedOutboxEvent
+			var published []anime.CommittedChange
 			plan := savePlan(tc.conflict, &published)
 			plan.Rule = tc.rule
 

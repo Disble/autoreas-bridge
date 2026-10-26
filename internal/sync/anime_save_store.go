@@ -15,7 +15,7 @@ import (
 // AnimeSaveStore runs every anime save as one SQLite write transaction: it
 // loads, lets each item decide, applies the save rule, upserts the snapshot
 // with its name key and stores the changelog row, then publishes after the
-// commit. It writes nothing to anime_write_operations or the outbox.
+// commit.
 type AnimeSaveStore struct {
 	db  *sql.DB
 	now func() time.Time
@@ -31,7 +31,7 @@ func NewAnimeSaveStore(db *sql.DB) *AnimeSaveStore {
 // CommitSave implements anime.SaveStore.
 func (s *AnimeSaveStore) CommitSave(ctx context.Context, plan anime.SavePlan) ([]anime.SaveDecision, error) {
 	var decisions []anime.SaveDecision
-	var changed []anime.ChangedOutboxEvent
+	var changed []anime.CommittedChange
 	err := persistence.InWriteTx(ctx, s.db, func(q persistence.Querier) error {
 		var err error
 		if decisions, err = decideSaveItems(ctx, q, plan.Items); err != nil {
@@ -73,8 +73,8 @@ func decideSaveItems(ctx context.Context, q persistence.Querier, items []anime.S
 
 // applyDecisions writes every applied decision, after plan.Rule, and returns
 // the events the commit will publish. It records each rewrite in decisions.
-func (s *AnimeSaveStore) applyDecisions(ctx context.Context, q persistence.Querier, plan anime.SavePlan, decisions []anime.SaveDecision) ([]anime.ChangedOutboxEvent, error) {
-	changed := make([]anime.ChangedOutboxEvent, 0, len(decisions))
+func (s *AnimeSaveStore) applyDecisions(ctx context.Context, q persistence.Querier, plan anime.SavePlan, decisions []anime.SaveDecision) ([]anime.CommittedChange, error) {
+	changed := make([]anime.CommittedChange, 0, len(decisions))
 	for index := range decisions {
 		if decisions[index].Outcome != anime.SaveOutcomeApplied {
 			continue
@@ -96,14 +96,14 @@ func (s *AnimeSaveStore) applyDecisions(ctx context.Context, q persistence.Queri
 }
 
 // applyDecision upserts one applied snapshot and stores its changelog row under eventID.
-func (s *AnimeSaveStore) applyDecision(ctx context.Context, q persistence.Querier, eventID string, decision anime.SaveDecision) (anime.ChangedOutboxEvent, error) {
+func (s *AnimeSaveStore) applyDecision(ctx context.Context, q persistence.Querier, eventID string, decision anime.SaveDecision) (anime.CommittedChange, error) {
 	changeType, err := deriveChangeType(ctx, q, decision.AnimeID)
 	if err != nil {
-		return anime.ChangedOutboxEvent{}, fmt.Errorf("derive change type for anime %q: %w", decision.AnimeID, err)
+		return anime.CommittedChange{}, fmt.Errorf("derive change type for anime %q: %w", decision.AnimeID, err)
 	}
 	changedFields, err := deriveChangedFields(decision.Base, decision.Desired)
 	if err != nil {
-		return anime.ChangedOutboxEvent{}, fmt.Errorf("derive changed fields for anime %q: %w", decision.AnimeID, err)
+		return anime.CommittedChange{}, fmt.Errorf("derive changed fields for anime %q: %w", decision.AnimeID, err)
 	}
 	if _, err := q.ExecContext(ctx, `
 		INSERT INTO anime_snapshots (anime_id, snapshot_json, snapshot_hash, modified_at, name_key)
@@ -115,20 +115,36 @@ func (s *AnimeSaveStore) applyDecision(ctx context.Context, q persistence.Querie
 			name_key = excluded.name_key
 	`, decision.AnimeID, string(decision.Desired), anime.HashSnapshot(decision.Desired), decision.ModifiedAt,
 		animeNameKey(string(decision.Desired))); err != nil {
-		return anime.ChangedOutboxEvent{}, fmt.Errorf("save anime snapshot %q: %w", decision.AnimeID, err)
+		return anime.CommittedChange{}, fmt.Errorf("save anime snapshot %q: %w", decision.AnimeID, err)
 	}
 	nowMs := s.now().UnixMilli()
 	if err := s.recordChangelog(ctx, q, ChangelogEntry{
 		SourceEventID: eventID, AnimeID: decision.AnimeID, ChangeType: changeType,
 		ChangedFields: changedFields, SnapshotJSON: decision.Desired, ChangedAtMs: nowMs,
 	}); err != nil {
-		return anime.ChangedOutboxEvent{}, fmt.Errorf("record changelog for anime %q: %w", decision.AnimeID, err)
+		return anime.CommittedChange{}, fmt.Errorf("record changelog for anime %q: %w", decision.AnimeID, err)
 	}
-	return anime.ChangedOutboxEvent{
-		EventID: eventID, OperationID: eventID, AnimeID: decision.AnimeID,
+	return anime.CommittedChange{
+		EventID: eventID, AnimeID: decision.AnimeID,
 		Payload: append([]byte(nil), decision.Desired...), ChangedFields: changedFields,
 		ChangeType: changeType, CreatedAtMs: nowMs,
 	}, nil
+}
+
+// deriveChangeType reports whether a save creates or updates its anime. It
+// must run inside the save transaction BEFORE the snapshot upsert: the only
+// reliable sign of a create is that the database held no row for the anime
+// when the save committed. The save's base snapshot cannot tell, because a
+// create's synthesized base is a bare {"id":...} object, not an absent one.
+func deriveChangeType(ctx context.Context, q persistence.Querier, animeID string) (string, error) {
+	var exists bool
+	if err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM anime_snapshots WHERE anime_id = ?)`, animeID).Scan(&exists); err != nil {
+		return "", err
+	}
+	if exists {
+		return ChangelogTypeUpdate, nil
+	}
+	return ChangelogTypeCreate, nil
 }
 
 // loadStoredSnapshot reads one stored snapshot inside q; found is false when

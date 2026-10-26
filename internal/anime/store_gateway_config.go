@@ -10,18 +10,12 @@ import (
 // newStoreGatewayConfig wires all adapter dependencies into a store.GatewayConfig
 // for the SQLite-native persistence gateway. Every save runs through the save
 // store: deps.Saves when set, otherwise the one the snapshot lookup provides.
-// writeBases serves only the startup recovery of what an older build staged.
 func newStoreGatewayConfig(
 	lookup snapshotLookup,
-	writeBases WriteBaseStore,
 	deps WriteServiceDeps,
 	now func() time.Time,
-	publishChanged func(event store.AnimeChangedOutboxEvent),
+	publishChanged func(event store.CommittedChange),
 ) store.GatewayConfig {
-	var outbox store.AnimeChangedOutboxStore
-	if configured, ok := writeBases.(store.AnimeChangedOutboxStore); ok {
-		outbox = configured
-	}
 	saves := deps.Saves
 	if provider, ok := lookup.(saveStoreProvider); ok && saves == nil {
 		saves = provider.SaveStore()
@@ -41,8 +35,6 @@ func newStoreGatewayConfig(
 		},
 		Saves:          saves,
 		Rule:           deps.SaveRule,
-		Operations:     writeBases,
-		Outbox:         outbox,
 		Conflicts:      deps.Conflicts,
 		PublishChanged: publishChanged,
 		Now:            now,
