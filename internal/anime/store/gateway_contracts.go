@@ -26,10 +26,8 @@ var (
 	ErrAnimeChangedOutboxEventNotFound = errors.New("anime.changed outbox event not found")
 )
 
-const (
-	writeReservationRetryDelay = 5 * time.Millisecond
-	writeCleanupTimeout        = 5 * time.Second
-)
+// writeCleanupTimeout bounds marking one drained outbox row published.
+const writeCleanupTimeout = 5 * time.Second
 
 // WriteOperationStatus tracks the lifecycle state of one staged gateway write.
 type WriteOperationStatus string
@@ -85,11 +83,8 @@ type WriteBase struct {
 	SnapshotHash        string
 }
 
-// WriteBaseStore persists staged gateway writes and their recovery metadata.
-// SDD-55 Slice B: the file-replacement journal (StageBatchReplacement /
-// UpdateBatchReplacementPhase / GetBatchReplacement) was dropped from this
-// port -- batch writes now finalize straight into SQLite (ApplyBatch in
-// gateway.go), so there is no full-file replacement to checkpoint anymore.
+// WriteBaseStore holds the writes an older build staged, for the startup
+// recovery to finalize; no save stages anything any more.
 type WriteBaseStore interface {
 	Stage(context.Context, WriteOperation) error
 	StageBatch(context.Context, []WriteOperation) error
@@ -163,12 +158,15 @@ type ConflictWriter interface {
 }
 
 // GatewayConfig wires the persistence seams required by the store gateway.
-// SDD-55 Slice B: the Append/FilePath file-write port and the full-file
-// replacement seams (ReplaceFile/ReplaceCheckpoint/ReplacementEcho) are gone
-// -- persist() and ApplyBatch finalize straight into SQLite.
+// Every write goes through Saves, one transaction per save. Operations and
+// Outbox serve only Recover and DrainOutbox, which replay what an older build
+// staged or queued before it stopped.
 type GatewayConfig struct {
-	LoadSnapshot   func(context.Context, string) (Snapshot, error)
-	ListSnapshots  func(context.Context) (map[string]Snapshot, error)
+	LoadSnapshot  func(context.Context, string) (Snapshot, error)
+	ListSnapshots func(context.Context) (map[string]Snapshot, error)
+	Saves         SaveStore
+	// Rule rewrites every applied snapshot inside its save transaction.
+	Rule           SaveRule
 	Operations     WriteBaseStore
 	Outbox         AnimeChangedOutboxStore
 	Conflicts      ConflictWriter

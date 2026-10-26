@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -13,35 +14,60 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 )
 
-// persist stages, finalizes to SQLite, and publishes one write operation.
-// SDD-55 Slice B: the outbound file-append step is gone entirely -- Finalize
-// upserts anime_snapshots directly (ADR-55-1), so a staged-but-not-yet-
-// finalized operation is safely replayed by Recover on the next startup.
-func (g *Gateway) persist(ctx context.Context, animeID string, baseToken int64, base, desired []byte) (AnimePatchResult, error) {
-	if g.config.Operations == nil {
-		return AnimePatchResult{}, fmt.Errorf("write-base store is required")
+// save runs items as one save transaction through the configured save store.
+func (g *Gateway) save(ctx context.Context, items []SaveItem) ([]SaveDecision, error) {
+	if g.config.Saves == nil {
+		return nil, fmt.Errorf("anime save store is required")
 	}
+	return g.config.Saves.CommitSave(ctx, SavePlan{
+		Items: items, Rule: g.config.Rule,
+		NewEventID: g.config.NewOperationID, Publish: g.config.PublishChanged,
+	})
+}
+
+// saveOne saves one anime and reports its outcome. A conflict is recorded once
+// the save transaction is closed, so the snapshot it leaves untouched and the
+// conflict row never share a connection.
+func (g *Gateway) saveOne(ctx context.Context, animeID string, decide func(Snapshot, bool) (SaveDecision, error)) (AnimePatchResult, error) {
+	decisions, err := g.save(ctx, []SaveItem{{AnimeID: animeID, Decide: decide}})
+	if err != nil {
+		return AnimePatchResult{}, err
+	}
+	decision := decisions[0]
+	if decision.Outcome == AnimePatchOutcomeConflict {
+		return g.recordConflict(ctx, decision.Current, decision.Desired)
+	}
+	return AnimePatchResult{AnimeID: animeID, Outcome: decision.Outcome, ModifiedAt: decision.ModifiedAt}, nil
+}
+
+// decide classifies one single-anime write against its decoded stored record:
+// a byte-equal result is a no-op, a stale explicit base is a conflict, and
+// anything else is applied at a token past the stored one.
+func (g *Gateway) decide(base *int64, record Snapshot, desired []byte) SaveDecision {
+	decision := SaveDecision{
+		AnimeID: record.AnimeID, Current: record, Base: record.CanonicalJSON,
+		Desired: desired, ModifiedAt: record.ModifiedAt,
+	}
+	switch {
+	case bytes.Equal(desired, record.CanonicalJSON):
+		decision.Outcome = AnimePatchOutcomeNoOp
+	case base != nil && *base != record.ModifiedAt:
+		decision.Outcome = AnimePatchOutcomeConflict
+	default:
+		decision.Outcome = AnimePatchOutcomeApplied
+		decision.ModifiedAt = g.stampSingle(record.ModifiedAt)
+	}
+	return decision
+}
+
+// stampSingle returns the modified_at of a single-anime write: now, raised to
+// one past the stored token when now does not pass it.
+func (g *Gateway) stampSingle(stored int64) int64 {
 	intended := g.config.Now().UnixMilli()
-	if intended <= baseToken {
-		intended = baseToken + 1
+	if intended <= stored {
+		intended = stored + 1
 	}
-	operation := WriteOperation{
-		OperationID: g.config.NewOperationID(), AnimeID: animeID,
-		BaseModifiedAt: baseToken, IntendedModifiedAt: intended,
-		BaseSnapshotJSON: append([]byte(nil), base...), BaseHash: hashSnapshot(base),
-		DesiredSnapshotJSON: append([]byte(nil), desired...), DesiredHash: hashSnapshot(desired),
-		Status: WriteOperationStatusStaged, CreatedAtMs: g.config.Now().UnixMilli(),
-	}
-	if err := g.config.Operations.Stage(ctx, operation); err != nil {
-		return AnimePatchResult{}, err
-	}
-	if err := g.config.Operations.Finalize(ctx, operation.OperationID, g.config.Now().UnixMilli()); err != nil {
-		return AnimePatchResult{}, err
-	}
-	if err := g.DrainOutbox(ctx); err != nil {
-		return AnimePatchResult{}, err
-	}
-	return AnimePatchResult{AnimeID: animeID, Outcome: AnimePatchOutcomeApplied, ModifiedAt: intended}, nil
+	return intended
 }
 
 // recordConflict stores a write conflict between the current and desired snapshots.

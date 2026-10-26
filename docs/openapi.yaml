@@ -414,6 +414,23 @@ info:
     It is in the `schedule` Where scope of `search_history`, carries no
     correlation id, and `count_events` counts it like any other type.
 
+    2026-10-25 — single-transaction anime save consumer impact: NO REST/WS
+    field change. Each anime save is now one SQLite transaction: the snapshot
+    and its changes-feed row commit together, and the `anime_changed` notice
+    is sent once, after the commit. Observable change: a write that leaves a
+    season candidate in "Ver hoy" with an episode watched (for example a
+    reconcile `update` carrying `episodesWatched`) used to produce two
+    saves. The first was the write itself; the second, automatic, moved
+    the anime to "Visto" with its own `modified_at`, changes-feed row and
+    notice. It is now ONE save. That save's
+    `applied_operations[].modified_at` is the final token, the one whose
+    snapshot already holds `days: [Visto]`. Its single changes-feed row
+    lists `days` together with the progress fields in `changed_fields`.
+    Exactly one notice is sent; the duplicate notice of the first save is
+    gone. A client that re-based on the first save's token no longer meets a
+    spurious conflict on its next write. Mobile verified no client change is
+    needed (2026-10-25).
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}

@@ -11,6 +11,8 @@ import (
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
+	"autoreas-bridge/internal/season"
+	seasondomain "autoreas-bridge/internal/season/domain"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
@@ -44,7 +46,8 @@ func newSyncE2EHTTPEndpointEnv(t *testing.T) *syncE2EHTTPEndpointEnv {
 	t.Cleanup(recorder.Stop)
 	write := anime.NewWriteService(snapshotStore, anime.NewCommittedPublisher(bus))
 	write.SetNow(func() time.Time { return time.UnixMilli(syncE2EWriteClockMs).UTC() })
-	write.SetDeps(anime.WriteServiceDeps{Conflicts: bridgeSync.NewConflictStore(db)})
+	// The production save rule, so a reconcile +1 meets the Season move in its own save.
+	write.SetDeps(anime.WriteServiceDeps{Conflicts: bridgeSync.NewConflictStore(db), SaveRule: anime.NewSectionMoveRule(season.WatchedSection)})
 
 	handler := NewHandler(Config{
 		DeviceService: deviceService,
@@ -106,5 +109,22 @@ func seedSyncE2ESnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, ani
 		},
 	}, nil); err != nil {
 		t.Fatalf("seed snapshot baseline: %v", err)
+	}
+}
+
+// seedSyncE2EOpenSeasonRow opens a season whose created row links animeID, the
+// state in which a watched "Ver hoy" anime moves to "Visto".
+func seedSyncE2EOpenSeasonRow(t *testing.T, env *syncE2EHTTPEndpointEnv, animeID string) {
+	t.Helper()
+	repo := season.NewSQLiteStore(env.db)
+	now := time.UnixMilli(1_700_000_000_000)
+	opened := seasondomain.NewSeason("season-1", "Spring", now)
+	row := seasondomain.NewSeasonAnime("row-1", opened.ID, "Show", now)
+	row.Availability, row.AnimeID = seasondomain.AvailabilityCreated, animeID
+	if err := repo.CreateSeason(env.ctx, opened); err != nil {
+		t.Fatalf("open season: %v", err)
+	}
+	if err := repo.CreateSeasonAnime(env.ctx, row); err != nil {
+		t.Fatalf("link season anime: %v", err)
 	}
 }

@@ -45,8 +45,13 @@ type WriteServiceDeps struct {
 	// OCCObserveOnly remains for source compatibility. Base-less writes alone
 	// use observe-only last-write-wins; explicit stale bases are always enforced.
 	OCCObserveOnly bool
-	WriteBases     WriteBaseStore
-	Publisher      EventPublisher
+	// WriteBases replaces the staged-write store the startup recovery replays.
+	WriteBases WriteBaseStore
+	Publisher  EventPublisher
+	// Saves replaces the save store the snapshot lookup provides.
+	Saves SaveStore
+	// SaveRule rewrites every applied snapshot inside its save transaction.
+	SaveRule SaveRule
 }
 
 // WriteService applies canonical create and patch mutations through the legacy gateway.

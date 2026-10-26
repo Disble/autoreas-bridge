@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -15,17 +16,20 @@ import (
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
-func TestGatewayCurrentBaseFinalizesToSnapshotStoreAndPublishes(t *testing.T) {
+// TestGatewayCurrentBaseSavesSnapshotAndChangelogInOneTransaction pins S1: one
+// applied save stores the snapshot and its changelog row, publishes one event
+// whose id is the row's source event id, and writes nothing to the staged-write
+// or outbox tables.
+func TestGatewayCurrentBaseSavesSnapshotAndChangelogInOneTransaction(t *testing.T) {
 	ctx := context.Background()
 	db := openGatewayDB(t)
 	snapshots := bridgeSync.NewAnimeSnapshotStore(db)
 	seedGatewaySnapshot(t, snapshots, "anime-1", gatewayAnimeJSON("anime-1", 2), 100)
-	published := make([][]byte, 0, 1)
+	published := []string{}
 
 	gateway := newGateway(t, gatewayConfig{
-		db:      db,
-		clock:   200,
-		publish: func(_ string, payload []byte) { published = append(published, append([]byte(nil), payload...)) },
+		db: db, clock: 200,
+		publishEvent: func(eventID, _ string, _ []byte) { published = append(published, eventID) },
 	})
 	base := int64(100)
 	result, err := gateway.Update(ctx, store.UpdateCommand{
@@ -39,26 +43,50 @@ func TestGatewayCurrentBaseFinalizesToSnapshotStoreAndPublishes(t *testing.T) {
 	if result.Outcome != store.AnimePatchOutcomeApplied || result.ModifiedAt != 200 {
 		t.Fatalf("unexpected applied result: %#v", result)
 	}
-	if len(published) != 1 {
-		t.Fatalf("expected one post-commit publication, got %d", len(published))
-	}
-	pending, err := bridgeSync.NewWriteBaseStore(db).ListPendingAnimeChanged(ctx)
-	if err != nil || len(pending) != 0 {
-		t.Fatalf("runtime finalization did not drain its outbox: %#v, %v", pending, err)
+	if len(published) != 1 || published[0] != "operation-1" {
+		t.Fatalf("expected one post-commit publication of operation-1, got %v", published)
 	}
 	current, err := snapshots.GetSnapshot(ctx, "anime-1")
 	if err != nil {
-		t.Fatalf("get finalized snapshot: %v", err)
+		t.Fatalf("get saved snapshot: %v", err)
 	}
 	if current.ModifiedAt != 200 || !jsonContainsProgress(t, current.CanonicalJSON, 3) {
-		t.Fatalf("unexpected finalized snapshot: %#v", current)
+		t.Fatalf("unexpected saved snapshot: %#v", current)
 	}
-	baseRecord, err := bridgeSync.NewWriteBaseStore(db).GetBase(ctx, "anime-1", 200)
-	if err != nil {
-		t.Fatalf("get retained pre-write base: %v", err)
+	rows, err := bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(db)).ListAfterID(ctx, 0)
+	if err != nil || len(rows) != 1 || rows[0].SourceEventID != "operation-1" || !slices.Equal(rows[0].ChangedFields, []string{"episodesWatched"}) {
+		t.Fatalf("expected one changelog row for operation-1 naming episodesWatched: %+v, %v", rows, err)
 	}
-	if baseRecord.BaseModifiedAt != 100 || !jsonContainsProgress(t, baseRecord.SnapshotJSON, 2) {
-		t.Fatalf("unexpected retained base: %#v", baseRecord)
+	for _, table := range []string{"anime_write_operations", "anime_changed_outbox"} {
+		if n := countGatewayRows(t, db, table); n != 0 {
+			t.Fatalf("expected no %s rows after a save, got %d", table, n)
+		}
+	}
+}
+
+// TestGatewayPublishesOnlyAfterTheCommit proves a subscriber that reads the
+// database when it receives the event sees the saved snapshot. Inside the
+// transaction its read would wait for the single connection, so it would fail
+// on its deadline instead.
+func TestGatewayPublishesOnlyAfterTheCommit(t *testing.T) {
+	ctx := context.Background()
+	db := openGatewayDB(t)
+	snapshots := bridgeSync.NewAnimeSnapshotStore(db)
+	seedGatewaySnapshot(t, snapshots, "anime-1", gatewayAnimeJSON("anime-1", 2), 100)
+	var seen []byte
+	var readErr error
+	gateway := newGateway(t, gatewayConfig{db: db, clock: 200, publish: func(id string, _ []byte) {
+		readCtx, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+		record, err := snapshots.GetSnapshot(readCtx, id)
+		seen, readErr = record.CanonicalJSON, err
+	}})
+
+	if _, err := gateway.Update(ctx, updateGatewayProgressCommand(100, 3)); err != nil {
+		t.Fatalf("update through gateway: %v", err)
+	}
+	if readErr != nil || !jsonContainsProgress(t, seen, 3) {
+		t.Fatalf("subscriber did not read the committed snapshot: %s, %v", seen, readErr)
 	}
 }
 
@@ -95,6 +123,9 @@ func TestGatewayExplicitStaleBaseRecordsConflictWithoutFinalizeOrPublish(t *test
 	}
 	if len(conflicts) != 1 || conflicts[0].ConflictID != result.ConflictID {
 		t.Fatalf("unexpected stored conflicts: %#v", conflicts)
+	}
+	if n := countGatewayRows(t, db, "changelog"); n != 0 {
+		t.Fatalf("conflict must not record a changelog row, got %d", n)
 	}
 }
 
@@ -154,31 +185,19 @@ func TestGatewayBaseLessExistingWriteKeepsLastWriteWinsCompatibility(t *testing.
 }
 
 // TestGatewayRecoveryRetriesFinalizeForAStagedButUnfinalizedWrite proves the
-// SDD-55 Slice B recovery contract: with the file channel gone, the only
-// crash window left is between Stage and Finalize. Recover must retry the
-// idempotent Finalize step and the outbox drain must then publish exactly
-// once, without ever touching a file.
+// startup recovery an older build's leftovers still need (S6): a write that
+// build staged but never finalized is finalized by Recover, and the outbox
+// drain then publishes it exactly once.
 func TestGatewayRecoveryRetriesFinalizeForAStagedButUnfinalizedWrite(t *testing.T) {
 	ctx := context.Background()
 	db := openGatewayDB(t)
 	snapshots := bridgeSync.NewAnimeSnapshotStore(db)
-	seedGatewaySnapshot(t, snapshots, "anime-1", gatewayAnimeJSON("anime-1", 2), 100)
-	finalizeFailure := &failFinalizeOnceStore{WriteBaseStore: bridgeSync.NewWriteBaseStore(db)}
-	first := newGateway(t, gatewayConfig{db: db, clock: 200, operations: finalizeFailure})
-	base := int64(100)
-
-	_, err := first.Update(ctx, store.UpdateCommand{
-		AnimeID: "anime-1",
-		Base:    &base,
-		Mutate:  func(value *domain.Anime, _ bool) { value.SetProgress(3) },
+	base := canonicalGatewayPayload(t, gatewayAnimeJSON("anime-1", 2))
+	seedGatewaySnapshot(t, snapshots, "anime-1", base, 100)
+	stageGatewayOperation(t, bridgeSync.NewWriteBaseStore(db), stagedOperation{
+		operationID: "operation-1", animeID: "anime-1", baseToken: 100, intended: 200,
+		base: base, desired: canonicalGatewayPayload(t, gatewayAnimeJSON("anime-1", 3)), createdAt: 150,
 	})
-	if err == nil {
-		t.Fatal("expected injected finalization failure")
-	}
-	current, err := snapshots.GetSnapshot(ctx, "anime-1")
-	if err != nil || current.ModifiedAt != 100 {
-		t.Fatalf("expected the crash to leave the write staged, not finalized: %#v, %v", current, err)
-	}
 
 	published := 0
 	restarted := newGateway(t, gatewayConfig{db: db, clock: 201, publish: func(string, []byte) { published++ }})
@@ -218,7 +237,6 @@ type gatewayConfig struct {
 	publishFields func(string, []string)
 	// publishChangeType captures the derived change type a drain delivers.
 	publishChangeType func(string, string)
-	load              func(context.Context, string) (store.Snapshot, error)
 	operationID       string
 }
 
@@ -235,19 +253,16 @@ func newGateway(t *testing.T, config gatewayConfig) *store.Gateway {
 	if outbox == nil {
 		outbox = bridgeSync.NewWriteBaseStore(db)
 	}
-	load := config.load
-	if load == nil {
-		load = func(ctx context.Context, id string) (store.Snapshot, error) {
-			record, err := snapshots.GetSnapshot(ctx, id)
-			return store.Snapshot{AnimeID: record.AnimeID, CanonicalJSON: record.CanonicalJSON, Hash: record.Hash, ModifiedAt: record.ModifiedAt}, err
-		}
-	}
 	operationID := config.operationID
 	if operationID == "" {
 		operationID = "operation-1"
 	}
 	return store.NewGateway(store.GatewayConfig{
-		LoadSnapshot: load,
+		LoadSnapshot: func(ctx context.Context, id string) (store.Snapshot, error) {
+			record, err := snapshots.GetSnapshot(ctx, id)
+			return store.Snapshot{AnimeID: record.AnimeID, CanonicalJSON: record.CanonicalJSON, Hash: record.Hash, ModifiedAt: record.ModifiedAt}, err
+		},
+		Saves: bridgeSync.NewAnimeSaveStore(db),
 		ListSnapshots: func(ctx context.Context) (map[string]store.Snapshot, error) {
 			records, err := snapshots.ListSnapshots(ctx)
 			result := make(map[string]store.Snapshot, len(records))
@@ -276,19 +291,6 @@ func newGateway(t *testing.T, config gatewayConfig) *store.Gateway {
 		Now:            func() time.Time { return time.UnixMilli(config.clock).UTC() },
 		NewOperationID: func() string { return operationID },
 	})
-}
-
-type failFinalizeOnceStore struct {
-	store.WriteBaseStore
-	failed bool
-}
-
-func (s *failFinalizeOnceStore) Finalize(ctx context.Context, operationID string, committedAtMs int64) error {
-	if !s.failed {
-		s.failed = true
-		return errFinalizeInjected
-	}
-	return s.WriteBaseStore.Finalize(ctx, operationID, committedAtMs)
 }
 
 var errFinalizeInjected = fmt.Errorf("injected finalize failure")
@@ -337,4 +339,14 @@ func jsonContainsProgress(t *testing.T, payload []byte, want float64) bool {
 		t.Fatalf("unmarshal gateway payload: %v", err)
 	}
 	return value["episodesWatched"] == want
+}
+
+// countGatewayRows counts the rows of one table.
+func countGatewayRows(t *testing.T, db *sql.DB, table string) int {
+	t.Helper()
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM ` + table).Scan(&n); err != nil {
+		t.Fatalf("count %s: %v", table, err)
+	}
+	return n
 }

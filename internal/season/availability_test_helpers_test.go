@@ -26,13 +26,11 @@ type fakeGateway struct {
 	existingByPagina map[string]string
 	created          []AnimeCreateInput
 	nextID           int
-	moved            map[string]string
 	selections       map[string]selectionState
 	placements       map[string][]domain.Placement
 	scheduled        map[string][]domain.Placement
 	failSchedule     map[string]bool
 	createResult     AnimeMutationResult
-	moveResult       AnimeMutationResult
 	selectionResult  AnimeMutationResult
 	scheduleResult   AnimeMutationResult
 }
@@ -54,17 +52,6 @@ func (g *fakeGateway) CreateAnime(_ context.Context, in AnimeCreateInput) (Anime
 func (g *fakeGateway) FindActiveByPagina(_ context.Context, pageURL string) (string, bool, error) {
 	id, ok := g.existingByPagina[pageURL]
 	return id, ok, nil
-}
-
-func (g *fakeGateway) MoveToSection(_ context.Context, animeID, section string) (AnimeMutationResult, error) {
-	if g.moved == nil {
-		g.moved = map[string]string{}
-	}
-	g.moved[animeID] = section
-	if g.moveResult.Outcome != "" {
-		return g.moveResult, nil
-	}
-	return AnimeMutationResult{AnimeID: animeID, Outcome: AnimeMutationApplied}, nil
 }
 
 func (g *fakeGateway) SetSelection(_ context.Context, animeID string, estado int, activo bool) (AnimeMutationResult, error) {

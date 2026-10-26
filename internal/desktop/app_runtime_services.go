@@ -303,11 +303,15 @@ func (a *App) newAnimeWriteDeps(conflictService *bridgeSync.ConflictStore) anime
 	// recorded as a (non-applied) conflict -- a regression for current clients.
 	// Observe-only keeps last-write-wins working and logs would-be conflicts; flip
 	// to false to enable full enforcement once mobile ships the `base` echo.
+	//
+	// SaveRule is the season's Ver hoy → Visto auto-transition, applied inside
+	// the same transaction as the save that watches the episode.
 	return anime.WriteServiceDeps{
 		Conflicts:      conflictService,
 		Notifier:       a.notifier,
 		Logger:         a.sharedLogger,
 		OCCObserveOnly: true,
+		SaveRule:       anime.NewSectionMoveRule(season.WatchedSection),
 	}
 }
 

@@ -1,9 +1,9 @@
 package anime
 
-// CommittedPublisher announces one anime write the outbox drained. It is the
+// CommittedPublisher announces one committed anime write. It is the
 // only way an anime.changed event leaves the write path: every event it
 // publishes was committed to SQLite first and carries the change type and
-// changed fields the finalize transaction derived.
+// changed fields its save transaction derived.
 //
 // It replaces the legacy queued update writer, which subscribed to
 // anime.update_requested and published anime.changed for writes it never
@@ -13,7 +13,7 @@ type CommittedPublisher interface {
 	PublishCommitted(event ChangedOutboxEvent)
 }
 
-// busCommittedPublisher publishes drained outbox events on the event bus.
+// busCommittedPublisher publishes committed write events on the event bus.
 type busCommittedPublisher struct {
 	publisher EventPublisher
 }
@@ -24,7 +24,7 @@ func NewCommittedPublisher(publisher EventPublisher) CommittedPublisher {
 	return busCommittedPublisher{publisher: publisher}
 }
 
-// PublishCommitted publishes the anime.changed event for one drained outbox row.
+// PublishCommitted publishes the anime.changed event for one committed write.
 func (p busCommittedPublisher) PublishCommitted(event ChangedOutboxEvent) {
 	if p.publisher == nil {
 		return

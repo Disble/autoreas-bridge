@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"autoreas-bridge/internal/anime"
+	"autoreas-bridge/internal/persistence"
 )
 
 // updateWriteOperationStatus records the terminal status of a staged operation.
@@ -33,7 +34,7 @@ func updateWriteOperationStatus(ctx context.Context, tx *sql.Tx, operation anime
 // reliable sign of a create is that the database held no row for the anime
 // when the write committed. The write's base snapshot cannot tell, because a
 // create's synthesized base is a bare {"id":...} object, not an absent one.
-func deriveChangeType(ctx context.Context, tx *sql.Tx, animeID string) (string, error) {
+func deriveChangeType(ctx context.Context, tx persistence.Querier, animeID string) (string, error) {
 	var exists bool
 	if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM anime_snapshots WHERE anime_id = ?)`, animeID).Scan(&exists); err != nil {
 		return "", err

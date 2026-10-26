@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -116,16 +117,6 @@ func TestAnimeOverlaysByIDUsesEnglishReadRecords(t *testing.T) {
 	}
 	if got["anime-2"].section != "Visto" || got["anime-2"].order != 2 || got["anime-2"].folderPath != "" || got["anime-2"].pageURL != "" {
 		t.Fatalf("animeOverlaysByID()[anime-2] = %#v, want section=Visto order=2 with empty folder/page (nil pointers)", got["anime-2"])
-	}
-}
-
-func TestAnimeWatchedStateUsesEnglishLegacyProjectionWithoutStoreAccess(t *testing.T) {
-	section, progress, ok := animeWatchedState([]byte(`{"id":"anime-1","episodesWatched":4,"days":[{"day":"Ver hoy","order":1}]}`))
-	if !ok || section != "Ver hoy" || progress != 4 {
-		t.Fatalf("animeWatchedState() = (%q, %v, %v), want (Ver hoy, 4, true)", section, progress, ok)
-	}
-	if _, _, ok := animeWatchedState([]byte(`{"id":`)); ok {
-		t.Fatal("animeWatchedState malformed payload accepted")
 	}
 }
 
@@ -301,24 +292,31 @@ func TestNotifySeasonAvailableNamesAnimesAndTruncatesPastTheLimit(t *testing.T) 
 	})
 }
 
-// TestSeasonWatchedSubscriberMovesAWatchedVerHoyAnimeToVisto pins the Ver hoy
-// -> Visto auto-transition end to end over real SQLite and the real bus: the
-// first episode watched of a created season anime in Ver hoy, written through
-// the episode service, lands the stored anime in Visto.
-func TestSeasonWatchedSubscriberMovesAWatchedVerHoyAnimeToVisto(t *testing.T) {
+// TestSeasonWatchedRuleMovesAWatchedVerHoyAnimeToVistoInTheSameSave pins the
+// Ver hoy -> Visto auto-transition end to end over real SQLite, the real bus,
+// the real changelog recorder and the production write deps: the first episode
+// watched of a created season anime in Ver hoy, written through the episode
+// service, lands the stored anime in Visto in that one save -- one snapshot
+// write, one changelog row already in Visto, one event and one modified_at.
+func TestSeasonWatchedRuleMovesAWatchedVerHoyAnimeToVistoInTheSameSave(t *testing.T) {
 	ctx := context.Background()
 	db := openRuntimeBridgeDB(t)
 	snapshots := bridgeSync.NewAnimeSnapshotStore(db)
 	seedRuntimeAnimeSnapshot(t, snapshots, "anime-1", `{"id":"anime-1","name":"Show","episodesWatched":0,"status":0,"active":true,"totalEpisodes":12,"days":[{"day":"Ver hoy","order":1}]}`, 100)
 	bus := events.NewBus()
+	changelog := bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(db))
+	recorder := bridgeSync.NewChangelogRecorder(bus, changelog)
+	recorder.Start(ctx)
+	t.Cleanup(recorder.Stop)
+	var published []events.AnimeChangedEvent
+	t.Cleanup(bus.Subscribe(events.EventNameAnimeChanged, func(event events.Event) {
+		published = append(published, event.(events.AnimeChangedEvent))
+	}))
 	write := anime.NewWriteService(snapshots, anime.NewCommittedPublisher(bus))
-	write.SetDeps(anime.WriteServiceDeps{Conflicts: bridgeSync.NewConflictStore(db)})
+	write.SetDeps((&App{}).newAnimeWriteDeps(bridgeSync.NewConflictStore(db)))
 	query := anime.NewQueryService(snapshots)
 	repo := season.NewSQLiteStore(db)
 	service := season.NewService(repo, time.Now, func() string { return "season-1" }, nil)
-	service.SetAvailabilityDeps(nil, seasonAnimeGateway{writer: write, records: query})
-	app := &App{eventBus: bus, seasonService: service}
-	app.subscribeSeasonWatched(ctx)
 	opened, err := service.CreateSeason(ctx, "Spring")
 	if err != nil {
 		t.Fatalf("open season: %v", err)
@@ -348,5 +346,18 @@ func TestSeasonWatchedSubscriberMovesAWatchedVerHoyAnimeToVisto(t *testing.T) {
 	}
 	if value.EpisodesWatched != 1 || len(value.Days) != 1 || value.Days[0].Day != "Visto" {
 		t.Fatalf("want the watched anime moved to Visto, got %s", stored.CanonicalJSON)
+	}
+	if stored.ModifiedAt != result.ModifiedAt {
+		t.Fatalf("stored modified_at %d differs from the save's %d: the move was a second write", stored.ModifiedAt, result.ModifiedAt)
+	}
+	if len(published) != 1 || !bytes.Equal(published[0].Payload, stored.CanonicalJSON) {
+		t.Fatalf("want one anime.changed event carrying the Visto snapshot, got %+v", published)
+	}
+	rows, err := changelog.ListAfterID(ctx, 0)
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("want exactly one changelog row: %+v, %v", rows, err)
+	}
+	if !bytes.Equal(rows[0].SnapshotJSON, stored.CanonicalJSON) || rows[0].SourceEventID != published[0].EventID {
+		t.Fatalf("want the row to carry the Visto snapshot and the event id %q, got %+v", published[0].EventID, rows[0])
 	}
 }

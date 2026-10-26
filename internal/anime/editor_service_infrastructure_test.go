@@ -8,6 +8,7 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/events"
+	"autoreas-bridge/internal/persistence"
 )
 
 func TestEditorServiceSavePublishesExactlyOnceOnlyAfterAcceptedWrite(t *testing.T) {
@@ -39,42 +40,42 @@ func TestEditorServiceSavePublishesExactlyOnceOnlyAfterAcceptedWrite(t *testing.
 	}
 }
 
-// TestEditorServiceSaveInfrastructureFailureDoesNotPublish proves an
-// infrastructure failure during persist() does not publish anime.changed.
-//
-// SDD-55 Slice B: persist() no longer routes through the Writer at all
-// (finalize is a direct SQLite step, ADR-55-1) -- the injectable
-// infrastructure failure point is now the write-base store's Finalize call,
-// not a writer append error.
+// TestEditorServiceSaveInfrastructureFailureDoesNotPublish proves a failure
+// inside the save transaction rolls the save back and publishes nothing. The
+// failure is injected through the save rule, which runs inside that
+// transaction just before the snapshot is written.
 func TestEditorServiceSaveInfrastructureFailureDoesNotPublish(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":2,"active":true}`, 1000)
-	failing := &failingFinalizeStore{WriteBaseStore: store.WriteBaseStore(), err: errors.New("disk unavailable")}
 	publisher := &editorRecordingPublisher{}
 	service := anime.NewEditorService(store, &stubCommittedPublisher{})
-	service.SetDeps(anime.WriteServiceDeps{Publisher: publisher, WriteBases: failing})
+	service.SetDeps(anime.WriteServiceDeps{Publisher: publisher, SaveRule: failingSaveRule("anime-editor")})
 	name := "Frieren Beyond"
-	if _, err := service.Save(ctx, anime.SaveAnimeEditorCommand{AnimeID: "anime-editor", BaseModifiedAt: 1000, Patch: anime.EditorPatch{Name: &name}}); err == nil {
-		t.Fatal("expected infrastructure failure")
+	if _, err := service.Save(ctx, anime.SaveAnimeEditorCommand{AnimeID: "anime-editor", BaseModifiedAt: 1000, Patch: anime.EditorPatch{Name: &name}}); !errors.Is(err, errSaveRuleInjected) {
+		t.Fatalf("expected the injected failure, got %v", err)
 	}
 	if len(publisher.events()) != 0 {
 		t.Fatalf("failed editor save must not publish: events=%d", len(publisher.events()))
 	}
 	current, err := store.GetSnapshot(ctx, "anime-editor")
 	if err != nil || current.ModifiedAt != 1000 {
-		t.Fatalf("failed editor save must not finalize: %#v, %v", current, err)
+		t.Fatalf("failed editor save must not be stored: %#v, %v", current, err)
 	}
 }
 
-// failingFinalizeStore wraps a real WriteBaseStore and always fails Finalize.
-type failingFinalizeStore struct {
-	anime.WriteBaseStore
-	err error
-}
+// errSaveRuleInjected is the failure failingSaveRule injects.
+var errSaveRuleInjected = errors.New("injected save failure")
 
-func (s *failingFinalizeStore) Finalize(ctx context.Context, operationID string, committedAtMs int64) error {
-	return s.err
+// failingSaveRule fails inside the save transaction when it reaches animeID,
+// and keeps every other snapshot.
+func failingSaveRule(animeID string) anime.SaveRule {
+	return func(_ context.Context, _ persistence.Querier, id string, desired []byte) ([]byte, error) {
+		if id == animeID {
+			return nil, errSaveRuleInjected
+		}
+		return desired, nil
+	}
 }
 
 type editorRecordingPublisher struct{ recorded []events.Event }
