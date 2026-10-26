@@ -17,8 +17,9 @@ type pendingChangelogInserter interface {
 	InsertPending(ctx context.Context, entry ChangelogEntry) error
 }
 
-// ChangelogRecorder subscribes to anime.changed and episode.durations_changed events and records
-// pending changelog rows.
+// ChangelogRecorder subscribes to episode.durations_changed events and records pending changelog
+// rows. It does not subscribe to anime.changed: every anime save stores its own changelog row
+// inside the save transaction (AnimeSaveStore), so the event only announces a row already stored.
 type ChangelogRecorder struct {
 	bus   events.Bus
 	store pendingChangelogInserter
@@ -39,30 +40,12 @@ func NewChangelogRecorder(bus events.Bus, store pendingChangelogInserter, logger
 	return recorder
 }
 
-// Start subscribes the recorder to anime.changed and episode.durations_changed events until Stop is
-// called.
+// Start subscribes the recorder to episode.durations_changed events until Stop is called.
 //
 // An episode-duration announcement records the same ordinary update row an anime edit records, with
 // the current snapshot and changed_fields ["episodes"], so Mobile's reconcile needs nothing new: the
 // episodes are joined into the anime when the row is served (analysis D6).
 func (r *ChangelogRecorder) Start(ctx context.Context) {
-	r.unsubscribes = append(r.unsubscribes, r.bus.Subscribe(events.EventNameAnimeChanged, func(event events.Event) {
-		changed, ok := event.(events.AnimeChangedEvent)
-		if !ok {
-			return
-		}
-		changeType := changed.ChangeType
-		if changeType == "" {
-			changeType = events.AnimeChangeTypeUpdate
-		}
-		r.record(ctx, ChangelogEntry{
-			SourceEventID: changed.EventID,
-			AnimeID:       changed.AnimeID,
-			ChangeType:    changeType,
-			ChangedFields: append([]string(nil), changed.ChangedFields...),
-			SnapshotJSON:  append([]byte(nil), changed.Payload...),
-		}, changed.CorrelationID)
-	}))
 	r.unsubscribes = append(r.unsubscribes, r.bus.Subscribe(events.EventNameEpisodeDurationsChanged, func(event events.Event) {
 		changed, ok := event.(events.EpisodeDurationsChangedEvent)
 		if !ok {
@@ -74,12 +57,12 @@ func (r *ChangelogRecorder) Start(ctx context.Context) {
 			ChangeType:    events.AnimeChangeTypeUpdate,
 			ChangedFields: []string{changedFieldEpisodes},
 			SnapshotJSON:  append([]byte(nil), changed.Payload...),
-		}, "")
+		})
 	}))
 }
 
 // record stamps and stores one pending changelog row, keeping the last failure for Err.
-func (r *ChangelogRecorder) record(ctx context.Context, entry ChangelogEntry, correlationID string) {
+func (r *ChangelogRecorder) record(ctx context.Context, entry ChangelogEntry) {
 	now := r.now
 	if now == nil {
 		now = time.Now
@@ -91,10 +74,9 @@ func (r *ChangelogRecorder) record(ctx context.Context, entry ChangelogEntry, co
 			metadata := changelogEntryMetadata(entry)
 			metadata["cause"] = err.Error()
 			r.log.Logf("sync", sharedlogger.LevelError, sharedlogger.Fields{
-				EntityID:      entry.AnimeID,
-				EventType:     "sync.changelog",
-				CorrelationID: correlationID,
-				Metadata:      metadata,
+				EntityID:  entry.AnimeID,
+				EventType: "sync.changelog",
+				Metadata:  metadata,
 			}, "failed to record pending changelog for %s: %v", entry.AnimeID, err)
 		}
 		r.mu.Lock()
@@ -104,10 +86,9 @@ func (r *ChangelogRecorder) record(ctx context.Context, entry ChangelogEntry, co
 	}
 	if r.log != nil {
 		r.log.Logf("sync", sharedlogger.LevelInfo, sharedlogger.Fields{
-			EntityID:      entry.AnimeID,
-			EventType:     "sync.changelog",
-			CorrelationID: correlationID,
-			Metadata:      changelogEntryMetadata(entry),
+			EntityID:  entry.AnimeID,
+			EventType: "sync.changelog",
+			Metadata:  changelogEntryMetadata(entry),
 		}, "recorded pending changelog for %s", entry.AnimeID)
 	}
 }

@@ -15,8 +15,8 @@ import (
 // SDD-55 Slice B deleted the file-append writer port (ADR-55-3), and the queued
 // writer that outlived it is gone too: the service receives only a committed
 // publisher, so there is no writer left that could touch a file. The write
-// must finalize into anime_snapshots and be announced exactly once, as the
-// create it is, by the outbox drain.
+// must commit into anime_snapshots and be announced exactly once, as the
+// create it is, after its save transaction commits.
 func TestWriteServiceCreateAnimeFinalizesToSnapshotStoreWithZeroFileIO(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)

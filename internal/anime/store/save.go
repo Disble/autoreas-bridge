@@ -28,7 +28,7 @@ type SavePlan struct {
 	// NewEventID names the event, and the changelog row, of each applied anime.
 	NewEventID func() string
 	// Publish receives each committed change after the commit; nil drops them.
-	Publish func(AnimeChangedOutboxEvent)
+	Publish func(CommittedChange)
 }
 
 // SaveItem is one anime a save transaction loads and decides.
@@ -57,3 +57,24 @@ type SaveDecision struct {
 // any state it needs through q, the transaction itself. It returns desired
 // unchanged when it does not apply.
 type SaveRule func(ctx context.Context, q persistence.Querier, animeID string, desired []byte) ([]byte, error)
+
+// CommittedChange is one anime change a save transaction committed, handed to
+// SavePlan.Publish after the commit. EventID is also the source event id of
+// the changelog row the same transaction stored.
+type CommittedChange struct {
+	EventID string
+	AnimeID string
+	Payload []byte
+	// ChangedFields names the top-level snapshot fields this save actually
+	// changed. It is DERIVED inside the save transaction from the base and
+	// desired snapshot pair, never declared by a producer: six publishers
+	// existed and none of them ever set it, so every changelog row recorded an
+	// empty list while real fields were rewritten.
+	ChangedFields []string
+	// ChangeType is "create" when this save stored an anime the database did
+	// not hold yet, and "update" otherwise. It is DERIVED in the same save
+	// transaction as ChangedFields: no publisher ever set it, so every create
+	// reached the changelog and Mobile as an update.
+	ChangeType  string
+	CreatedAtMs int64
+}

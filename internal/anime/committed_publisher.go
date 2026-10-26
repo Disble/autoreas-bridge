@@ -10,7 +10,7 @@ package anime
 // stored. Nothing in production requested such a write, so it could only ever
 // announce a change that did not exist.
 type CommittedPublisher interface {
-	PublishCommitted(event ChangedOutboxEvent)
+	PublishCommitted(event CommittedChange)
 }
 
 // busCommittedPublisher publishes committed write events on the event bus.
@@ -25,7 +25,7 @@ func NewCommittedPublisher(publisher EventPublisher) CommittedPublisher {
 }
 
 // PublishCommitted publishes the anime.changed event for one committed write.
-func (p busCommittedPublisher) PublishCommitted(event ChangedOutboxEvent) {
+func (p busCommittedPublisher) PublishCommitted(event CommittedChange) {
 	if p.publisher == nil {
 		return
 	}

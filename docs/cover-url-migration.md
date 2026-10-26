@@ -7,6 +7,9 @@ run reported `nothing to change`. The live database itself was only ever read. T
 authorization does not authorize applying the script to it, and nothing in the Bridge lifecycle
 calls it.
 
+**Note (2026-10-26):** the `anime_write_operations` table the staged-reservation skip below reads was dropped, so
+that skip describes a database shape that no longer exists.
+
 ## Why it exists
 
 The forward-only cover policy (480 px ceiling, JPEG quality 85) fixed how Bridge renders new

@@ -131,13 +131,13 @@ func seedAnimeSnapshotWithModifiedAt(t *testing.T, store *bridgeSync.AnimeSnapsh
 }
 
 // stubCommittedPublisher is the CommittedPublisher test double. It records
-// every drained outbox event it was asked to publish; writes themselves are
+// every committed change it was asked to publish; writes themselves are
 // asserted against the SQLite snapshot store (see openAnimeServiceTestStore).
 type stubCommittedPublisher struct {
-	published []anime.ChangedOutboxEvent
+	published []anime.CommittedChange
 }
 
-func (s *stubCommittedPublisher) PublishCommitted(event anime.ChangedOutboxEvent) {
+func (s *stubCommittedPublisher) PublishCommitted(event anime.CommittedChange) {
 	s.published = append(s.published, event)
 }
 
@@ -150,22 +150,4 @@ type stubWatchRecorder struct {
 func (s *stubWatchRecorder) RecordWatch(_ context.Context, change watchhistory.Change) error {
 	s.calls = append(s.calls, change)
 	return s.err
-}
-
-// assertNoPendingAnimeChanged verifies that no anime change remains pending.
-func assertNoPendingAnimeChanged(t *testing.T, store *bridgeSync.AnimeSnapshotStore) {
-	t.Helper()
-	outbox, ok := store.WriteBaseStore().(interface {
-		ListPendingAnimeChanged(context.Context) ([]anime.ChangedOutboxEvent, error)
-	})
-	if !ok {
-		t.Fatal("test store does not expose the anime.changed outbox")
-	}
-	pending, err := outbox.ListPendingAnimeChanged(context.Background())
-	if err != nil {
-		t.Fatalf("ListPendingAnimeChanged: %v", err)
-	}
-	if len(pending) != 0 {
-		t.Fatalf("pending anime.changed events = %+v, want none", pending)
-	}
 }

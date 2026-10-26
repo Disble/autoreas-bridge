@@ -176,6 +176,10 @@ func initializeBridgeDB(db *sql.DB, dbPath string, fullVacuum func(*sql.DB) erro
 		return err
 	}
 
+	if err := dropRetiredWriteTables(db); err != nil {
+		return err
+	}
+
 	tables := append(schemaTables(), dbschema.SchemaTables()...)
 	tables = append(tables, activity.SchemaTables()...)
 	tables = append(tables, season.SchemaTables()...)
@@ -203,8 +207,8 @@ func initializeBridgeDB(db *sql.DB, dbPath string, fullVacuum func(*sql.DB) erro
 	}
 
 	// SDD-56: runs once, unconditionally, after every table above is ensured
-	// (fresh-created or pre-existing) and before any handler, gateway, or
-	// gateway.Recover finalization performs its first decode.
+	// (fresh-created or pre-existing) and before any handler or gateway
+	// performs its first decode.
 	if err := ensureVocabularyMigration(db); err != nil {
 		return err
 	}

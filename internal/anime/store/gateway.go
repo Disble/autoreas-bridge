@@ -22,8 +22,8 @@ func NewGateway(config GatewayConfig) *Gateway {
 	if config.Now == nil {
 		config.Now = time.Now
 	}
-	if config.NewOperationID == nil {
-		config.NewOperationID = newOperationID
+	if config.NewEventID == nil {
+		config.NewEventID = newEventID
 	}
 	return &Gateway{config: config, mapper: NewMapper()}
 }

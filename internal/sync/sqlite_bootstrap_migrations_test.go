@@ -3,92 +3,9 @@ package sync
 import (
 	"database/sql"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 )
-
-func TestWriteOperationMigrationCreatesIdempotentSchemaAndIndexes(t *testing.T) {
-	t.Parallel()
-
-	dbPath := filepath.Join(t.TempDir(), "bridge.db")
-	first, err := OpenBridgeDB(dbPath)
-	if err != nil {
-		t.Fatalf("open bridge db first time: %v", err)
-	}
-	if err := first.Close(); err != nil {
-		t.Fatalf("close bridge db first time: %v", err)
-	}
-
-	db, err := OpenBridgeDB(dbPath)
-	if err != nil {
-		t.Fatalf("reopen bridge db: %v", err)
-	}
-	defer closeTestDB(t, db)
-
-	columns := readTableColumns(t, db, "anime_write_operations")
-	for _, required := range []string{
-		"operation_id", "anime_id", "batch_id", "batch_order", "batch_size", "base_modified_at", "intended_modified_at",
-		"base_snapshot_json", "base_hash", "desired_snapshot_json", "desired_hash",
-		"status", "created_at_ms", "committed_at_ms",
-	} {
-		if !containsString(columns, required) {
-			t.Fatalf("expected anime_write_operations to contain column %q, got %#v", required, columns)
-		}
-	}
-
-	indexes := readIndexNames(t, db, "anime_write_operations")
-	for _, required := range []string{
-		"idx_anime_write_operations_anime_token",
-		"idx_anime_write_operations_recovery",
-	} {
-		if !containsString(indexes, required) {
-			t.Fatalf("expected anime_write_operations index %q, got %#v", required, indexes)
-		}
-	}
-}
-
-func TestWriteOperationMigrationCreatesUniqueLiveReservationIndex(t *testing.T) {
-	t.Parallel()
-
-	db := openTestBridgeDB(t)
-	var sqlText string
-	err := db.QueryRow(`
-		SELECT sql FROM sqlite_master
-		WHERE type = 'index' AND name = 'idx_anime_write_operations_live_reservation'
-	`).Scan(&sqlText)
-	if err != nil {
-		t.Fatalf("query live reservation index: %v", err)
-	}
-	if !strings.Contains(strings.ToLower(sqlText), "unique") || !strings.Contains(sqlText, "status = 'staged'") {
-		t.Fatalf("expected unique staged-only reservation index, got %q", sqlText)
-	}
-}
-
-// readIndexNames returns SQLite index names for a table.
-func readIndexNames(t *testing.T, db *sql.DB, tableName string) []string {
-	t.Helper()
-
-	rows, err := db.Query(`PRAGMA index_list(` + tableName + `)`)
-	if err != nil {
-		t.Fatalf("pragma index_list(%s): %v", tableName, err)
-	}
-	defer closeTestRows(t, rows)
-
-	indexes := []string{}
-	for rows.Next() {
-		var sequence, unique, originPartial int
-		var name, origin string
-		if err := rows.Scan(&sequence, &name, &unique, &origin, &originPartial); err != nil {
-			t.Fatalf("scan pragma index_list(%s): %v", tableName, err)
-		}
-		indexes = append(indexes, name)
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate pragma index_list(%s): %v", tableName, err)
-	}
-	return indexes
-}
 
 func TestOpenBridgeDBMigratesLegacyDownloadScheduleConfigSchema(t *testing.T) {
 	t.Parallel()
@@ -406,5 +323,51 @@ func assertMigratedLegacyChangelog(t *testing.T, dbPath string) {
 	}
 	if animeID != "anime-1" || changeType == "" || fields == "" || snapshot == "" || status != "pending" || changedAt <= 0 || changedAt > time.Now().UnixMilli() {
 		t.Fatalf("unexpected migrated changelog row")
+	}
+}
+
+func TestOpenBridgeDBAddsChangelogSourceEventIDWithoutLosingRows(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "bridge.db")
+	legacyDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open legacy bridge db: %v", err)
+	}
+	if _, err := legacyDB.Exec(`
+		CREATE TABLE changelog (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			anime_id TEXT NOT NULL,
+			change_type TEXT NOT NULL,
+			changed_fields_json TEXT NOT NULL,
+			snapshot_json TEXT,
+			status TEXT NOT NULL,
+			changed_at_ms INTEGER NOT NULL
+		);
+		INSERT INTO changelog (
+			anime_id, change_type, changed_fields_json, snapshot_json, status, changed_at_ms
+		) VALUES ('anime-1', 'update', '[]', '{}', 'pending', 100);
+	`); err != nil {
+		closeTestDB(t, legacyDB)
+		t.Fatalf("seed current pre-outbox changelog: %v", err)
+	}
+	if err := legacyDB.Close(); err != nil {
+		t.Fatalf("close legacy bridge db: %v", err)
+	}
+
+	db, err := OpenBridgeDB(dbPath)
+	if err != nil {
+		t.Fatalf("migrate bridge db: %v", err)
+	}
+	defer closeTestDB(t, db)
+	if !containsString(readTableColumns(t, db, "changelog"), "source_event_id") {
+		t.Fatal("expected changelog source_event_id migration")
+	}
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM changelog WHERE anime_id = 'anime-1'`).Scan(&count); err != nil {
+		t.Fatalf("count preserved changelog rows: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected one preserved changelog row, got %d", count)
 	}
 }

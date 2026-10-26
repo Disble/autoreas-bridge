@@ -38,8 +38,6 @@ var transactionBaseline = []string{
 	"internal/sync/schema_migrations.go",
 	"internal/sync/vocabulary_migration_tables.go",
 	"internal/sync/watch_history_backfill.go",
-	"internal/sync/write_base_lifecycle.go",
-	"internal/sync/write_base_store.go",
 	"internal/watchhistory/backup_import.go",
 	"internal/watchhistory/store.go",
 	"internal/watchhistory/store_test.go",

@@ -1,7 +1,6 @@
 package sync
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"path/filepath"
@@ -163,103 +162,6 @@ func TestVocabularyMigrationRewritesConflictRows(t *testing.T) {
 	}
 }
 
-// TestVocabularyMigrationRewritesPendingOutboxRows proves scenario "Pending
-// outbox payloads are rewritten before publish".
-func TestVocabularyMigrationRewritesPendingOutboxRows(t *testing.T) {
-	t.Parallel()
-	dbPath := filepath.Join(t.TempDir(), "bridge.db")
-	legacyDB := openLegacyShapeDB(t, dbPath)
-	seedLegacyWriteOperation(t, legacyDB, "operation-1", "anime-1")
-	if _, err := legacyDB.Exec(`
-		INSERT INTO anime_changed_outbox (event_id, operation_id, anime_id, payload_json, status, created_at_ms)
-		VALUES ('event-1', 'operation-1', 'anime-1', ?, 'pending', 100)
-	`, `{"_id":"anime-1","nombre":"Pending Payload"}`); err != nil {
-		t.Fatalf("seed pending outbox row: %v", err)
-	}
-	closeTestDB(t, legacyDB)
-
-	db, err := OpenBridgeDB(dbPath)
-	if err != nil {
-		t.Fatalf("bootstrap bridge db: %v", err)
-	}
-	defer closeTestDB(t, db)
-
-	var payload string
-	if err := db.QueryRow(`SELECT payload_json FROM anime_changed_outbox WHERE event_id = ?`, "event-1").Scan(&payload); err != nil {
-		t.Fatalf("read migrated outbox row: %v", err)
-	}
-	var fields map[string]any
-	if err := json.Unmarshal([]byte(payload), &fields); err != nil {
-		t.Fatalf("unmarshal migrated outbox payload: %v", err)
-	}
-	if fields["name"] != "Pending Payload" {
-		t.Fatalf("expected outbox payload migrated to English keys, got %#v", fields)
-	}
-}
-
-// TestVocabularyMigrationRewritesStagedWriteOperationBeforeRecoveryFinalizes
-// proves scenario "Staged write-operation snapshots are rewritten before
-// recovery finalizes them": Recover copies the already-English desired
-// snapshot into anime_snapshots and the outbox, so no Spanish content reaches
-// either after cutover.
-func TestVocabularyMigrationRewritesStagedWriteOperationBeforeRecoveryFinalizes(t *testing.T) {
-	t.Parallel()
-	dbPath := filepath.Join(t.TempDir(), "bridge.db")
-	legacyDB := openLegacyShapeDB(t, dbPath)
-	seedLegacyWriteOperation(t, legacyDB, "operation-1", "anime-1")
-	closeTestDB(t, legacyDB)
-
-	db, err := OpenBridgeDB(dbPath)
-	if err != nil {
-		t.Fatalf("bootstrap bridge db: %v", err)
-	}
-	defer closeTestDB(t, db)
-
-	var baseSnapshotJSON, desiredSnapshotJSON, baseHash, desiredHash string
-	if err := db.QueryRow(`SELECT base_snapshot_json, desired_snapshot_json, base_hash, desired_hash FROM anime_write_operations WHERE operation_id = ?`, "operation-1").
-		Scan(&baseSnapshotJSON, &desiredSnapshotJSON, &baseHash, &desiredHash); err != nil {
-		t.Fatalf("read migrated write operation: %v", err)
-	}
-	var desiredFields map[string]any
-	if err := json.Unmarshal([]byte(desiredSnapshotJSON), &desiredFields); err != nil {
-		t.Fatalf("unmarshal migrated desired snapshot: %v", err)
-	}
-	if desiredFields["name"] != "Desired" {
-		t.Fatalf("expected staged desired snapshot migrated to English keys, got %#v", desiredFields)
-	}
-	if baseHash == "stale-base-hash" || desiredHash == "stale-desired-hash" {
-		t.Fatal("expected base_hash/desired_hash to be recomputed, not left at pre-migration placeholders")
-	}
-	wantDesiredHash := anime.HashSnapshot([]byte(desiredSnapshotJSON))
-	if desiredHash != wantDesiredHash {
-		t.Fatalf("desired_hash = %q, want recomputed %q", desiredHash, wantDesiredHash)
-	}
-
-	store := NewWriteBaseStore(db)
-	action, err := store.Recover(context.Background(), "operation-1", desiredHash, 999)
-	if err != nil {
-		t.Fatalf("recover staged write operation: %v", err)
-	}
-	if action != anime.WriteRecoveryActionFinalized {
-		t.Fatalf("expected recovery to finalize the staged operation, got %v", action)
-	}
-
-	var finalSnapshotJSON string
-	if err := db.QueryRow(`SELECT snapshot_json FROM anime_snapshots WHERE anime_id = ?`, "anime-1").Scan(&finalSnapshotJSON); err != nil {
-		t.Fatalf("read finalized anime_snapshots row: %v", err)
-	}
-	var finalFields map[string]any
-	if err := json.Unmarshal([]byte(finalSnapshotJSON), &finalFields); err != nil {
-		t.Fatalf("unmarshal finalized snapshot: %v", err)
-	}
-	if finalFields["name"] != "Desired" {
-		t.Fatalf("expected finalize to copy the already-English desired snapshot, got %#v", finalFields)
-	}
-	if _, ok := finalFields["nombre"]; ok {
-		t.Fatal("expected no Spanish key to reach anime_snapshots via finalize")
-	}
-}
-
 // TestVocabularyMigrationIsIdempotent proves scenario "Re-running the
 // migration is a no-op": a second bootstrap of the same file detects the
 // marker and performs no further rewrite.
@@ -294,7 +196,7 @@ func TestVocabularyMigrationIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestVocabularyMigrationRollsBackEntirelyOnFailure proves scenario "All 5
+// TestVocabularyMigrationRollsBackEntirelyOnFailure proves scenario "All 4
 // columns are rewritten in one transaction": an unparseable row in one table
 // must roll back every table's rewrite, leaving the database exactly as it
 // was before the migration attempt.

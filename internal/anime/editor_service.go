@@ -191,11 +191,11 @@ func toLegacyNullableIntMutation(patch EditorNullableIntPatch) store.NullableInt
 
 // EditorService.gateway creates a store gateway with the service's dependencies and callbacks.
 func (s *EditorService) gateway() *store.Gateway {
-	return store.NewGateway(newStoreGatewayConfig(s.store, nil, s.deps, s.nowFuncForToken(), s.publishCommitted))
+	return store.NewGateway(newStoreGatewayConfig(s.store, s.deps, s.nowFuncForToken(), s.publishCommitted))
 }
 
 // EditorService.publishCommitted publishes a committed anime change through the configured publisher.
-func (s *EditorService) publishCommitted(event ChangedOutboxEvent) {
+func (s *EditorService) publishCommitted(event CommittedChange) {
 	if s.deps.Publisher != nil {
 		s.deps.Publisher.Publish(newAnimeChangedEvent(event))
 		return

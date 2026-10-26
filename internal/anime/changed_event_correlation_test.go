@@ -7,15 +7,14 @@ import (
 	"autoreas-bridge/internal/events"
 )
 
-// TestNewAnimeChangedEventCorrelatesWithItsWriteOperation carries the outbox
-// row's operation id as the event's correlation id, so an anime.changed log
-// line joins the write operation, and through it the request, that caused it.
-func TestNewAnimeChangedEventCorrelatesWithItsWriteOperation(t *testing.T) {
+// TestNewAnimeChangedEventCorrelatesWithItsChangelogRow carries the event id,
+// which is also the changelog row's source event id, as the correlation id, so
+// an anime.changed log line joins the changelog row that save stored.
+func TestNewAnimeChangedEventCorrelatesWithItsChangelogRow(t *testing.T) {
 	t.Parallel()
 
-	got := newAnimeChangedEvent(ChangedOutboxEvent{
+	got := newAnimeChangedEvent(CommittedChange{
 		EventID:       "event-1",
-		OperationID:   "operation-1",
 		AnimeID:       "anime-1",
 		Payload:       []byte(`{"id":"anime-1"}`),
 		ChangeType:    events.AnimeChangeTypeUpdate,
@@ -28,7 +27,7 @@ func TestNewAnimeChangedEventCorrelatesWithItsWriteOperation(t *testing.T) {
 		Payload:       []byte(`{"id":"anime-1"}`),
 		ChangeType:    events.AnimeChangeTypeUpdate,
 		ChangedFields: []string{"episodes"},
-		CorrelationID: "operation-1",
+		CorrelationID: "event-1",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("newAnimeChangedEvent = %#v, want %#v", got, want)

@@ -22,12 +22,6 @@ func NewAnimeSnapshotStore(db *sql.DB) *AnimeSnapshotStore {
 	return &AnimeSnapshotStore{db: db}
 }
 
-// WriteBaseStore exposes the staged-write adapter backed by the same SQLite
-// connection as this snapshot reader, keeping gateway construction atomic.
-func (s *AnimeSnapshotStore) WriteBaseStore() anime.WriteBaseStore {
-	return NewWriteBaseStore(s.db)
-}
-
 // SaveStore exposes the one-transaction save adapter over the same database
 // as this snapshot reader.
 func (s *AnimeSnapshotStore) SaveStore() anime.SaveStore {

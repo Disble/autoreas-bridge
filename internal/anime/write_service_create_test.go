@@ -162,7 +162,6 @@ func TestWriteServiceCreateAnimeRejectsInvalidCanonicalStructureBeforeOwnershipO
 					t.Fatalf("expected no snapshot to be finalized for a rejected create")
 				}
 			}
-			assertNoPendingAnimeChanged(t, store)
 		})
 	}
 }
