@@ -1,94 +1,62 @@
-import { toast } from '@heroui/react';
-import { useCallback, useEffect, useMemo } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
-import type { ConfirmSelectionResult, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
-import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
-import { DEFAULT_MIN_APPROVAL_GRADE, DEFAULT_SLOTS, SELECTION_CONFIRM_ERROR_MESSAGE } from './selection-board.constants';
+import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
 import type { SeasonCoverSource } from '../SeasonCoverThumb/season-cover-thumb.types';
-import { countApproved, formatConfirmSuccess, quotaStatus, runDesktopAction } from './selection-board.helpers';
+import { SELECTION_SORT_OPTIONS } from './selection-board.constants';
+import { useSelectionActions } from './use-selection-actions';
 import { useSelectionCandidates } from './use-selection-candidates';
+import { useSelectionRules } from './use-selection-rules';
+import { useSelectionView } from './use-selection-view';
 
 /**
- * useSelectionBoard drives the Excel-replacement decision board: it derives live
- * verdicts, the Approved/Rejected groups, the approved count, and the quota
- * status from the season store, resolves one cover per candidate, and exposes
- * the parameter/consideration edits plus the confirm action. All derivation is
- * pure (helpers) and all Wails I/O flows through the store.
+ * useSelectionBoard composes the Selection board's three concerns: the season's
+ * decision parameters (`useSelectionRules`), the created candidates with their
+ * covers (`useSelectionCandidates`), and the view filters (`useSelectionView`),
+ * plus the writes (`useSelectionActions`). The view narrows only what is
+ * rendered: the quota, the confirmed milestone and the reconciliation keep
+ * using every row. All derivation is pure (helpers) and all Wails I/O flows
+ * through the store.
  *
  * @param source The season port the store reads and writes through.
  * @param coverSource The port each candidate's cover is resolved through.
  */
 export function useSelectionBoard(source: SeasonSource = seasonSource, coverSource: SeasonCoverSource = bridgeRuntimeSource) {
-  // 3. Context/3rd Party Hooks
-  const season = useSeasonStore((state) => state.season);
-  const seasonAnimes = useSeasonStore((state) => state.seasonAnimes);
-  const readOnly = useSeasonStore((state) => state.readOnly);
-  const errorMessage = useSeasonStore((state) => state.errorMessage);
-  const refresh = useSeasonStore((state) => state.refresh);
-  const refreshAnimes = useSeasonStore((state) => state.refreshAnimes);
-  const setMinApprovalGrade = useSeasonStore((state) => state.setMinApprovalGrade);
-  const setSlots = useSeasonStore((state) => state.setSlots);
-  const setConsideration = useSeasonStore((state) => state.setConsideration);
-  const confirmSelection = useSeasonStore((state) => state.confirmSelection);
-
-  // 5. Derived State (useMemo)
-  const minApprovalGrade = season?.minApprovalGrade ?? DEFAULT_MIN_APPROVAL_GRADE;
-  const slots = season?.slots ?? DEFAULT_SLOTS;
-  const selectionConfirmedAt = season?.selectionConfirmedAt;
-  const { rows, groups, getCoverThumb } = useSelectionCandidates(seasonAnimes, minApprovalGrade, coverSource);
-  const approvedCount = useMemo(() => countApproved(seasonAnimes, minApprovalGrade), [seasonAnimes, minApprovalGrade]);
-  const quota = useMemo(() => quotaStatus(approvedCount, slots), [approvedCount, slots]);
-
-  // 6. Callbacks
-  const onSetMinApprovalGrade = useCallback(
-    (grade: number) => void setMinApprovalGrade(source, grade),
-    [setMinApprovalGrade, source],
-  );
-  const onSetSlots = useCallback((next: number) => void setSlots(source, next), [setSlots, source]);
-  const onSetConsideration = useCallback(
-    (rowId: string, consideration: string) => void setConsideration(source, rowId, consideration),
-    [setConsideration, source],
-  );
-  const onConfirm = useCallback(async (): Promise<ConfirmSelectionResult> => {
-    const result = await confirmSelection(source);
-    if (result.status === 'ok') {
-      toast.success(formatConfirmSuccess(result.approved, result.rejected));
-    } else {
-      toast.danger(result.status || SELECTION_CONFIRM_ERROR_MESSAGE);
-    }
-    return result;
-  }, [confirmSelection, source]);
-  const onOpenPage = useCallback((animeId: string) => runDesktopAction(bridgeRuntimeSource.openAnimePage, animeId), []);
-  const onCopyPage = useCallback((animeId: string) => runDesktopAction(bridgeRuntimeSource.copyAnimePage, animeId, 'Page URL copied to clipboard'), []);
-  const onOpenFolder = useCallback((animeId: string) => runDesktopAction(bridgeRuntimeSource.openAnimeFolder, animeId), []);
-  const onCopyFolder = useCallback((animeId: string) => runDesktopAction(bridgeRuntimeSource.copyAnimeFolder, animeId, 'Folder path copied to clipboard'), []);
-
-  // 7. Effects
-  useEffect(() => {
-    void refresh(source);
-    void refreshAnimes(source);
-  }, [refresh, refreshAnimes, source]);
+  const rules = useSelectionRules(source);
+  const { rows, getCoverThumb } = useSelectionCandidates(rules.seasonAnimes, rules.minApprovalGrade, coverSource);
+  const view = useSelectionView(rows);
+  const actions = useSelectionActions(source);
 
   return {
-    readOnly,
-    seasonName: season?.name ?? '',
-    minApprovalGrade,
-    slots,
+    readOnly: rules.readOnly,
+    seasonName: rules.seasonName,
+    minApprovalGrade: rules.minApprovalGrade,
+    slots: rules.slots,
     rows,
-    groups,
-    approvedCount,
-    quota,
-    selectionConfirmedAt,
-    errorMessage,
-    onSetMinApprovalGrade,
-    onSetSlots,
-    onSetConsideration,
-    onConfirm,
-    onOpenPage,
-    onCopyPage,
-    onOpenFolder,
-    onCopyFolder,
+    groups: view.groups,
+    groupTotals: view.groupTotals,
+    criteria: view.criteria,
+    filterGroups: view.filterGroups,
+    sortOptions: SELECTION_SORT_OPTIONS,
+    summaryOptions: view.summaryOptions,
+    activeFilterCount: view.activeFilterCount,
+    matchingCount: view.visibleRows.length,
+    totalCount: rows.length,
+    onGroupChange: view.onGroupChange,
+    onResetFilters: view.onResetFilters,
+    onResetView: view.onResetView,
+    onSortChange: view.onSortChange,
+    approvedCount: rules.approvedCount,
+    quota: rules.quota,
+    selectionConfirmedAt: rules.selectionConfirmedAt,
+    errorMessage: rules.errorMessage,
+    onSetMinApprovalGrade: rules.onSetMinApprovalGrade,
+    onSetSlots: rules.onSetSlots,
+    onSetConsideration: actions.onSetConsideration,
+    onConfirm: actions.onConfirm,
+    onOpenPage: actions.onOpenPage,
+    onCopyPage: actions.onCopyPage,
+    onOpenFolder: actions.onOpenFolder,
+    onCopyFolder: actions.onCopyFolder,
     getCoverThumb,
   };
 }
