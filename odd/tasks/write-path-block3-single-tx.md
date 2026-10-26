@@ -113,3 +113,13 @@ Plan: artifact https://claude.ai/artifact/8AmVg9jk6D5Cs7rttPoCBH (block 3). Map:
   - Block 3 was merged into dev as c75bc8a7, with the whole-tree pre-merge-commit green: 414 files, 4196 tests, go-heavy, quick.
   - CodeGraph sweep: every new symbol (`InWriteTx`, `CommitSave`, `SavePlan`, `SaveRule`, `NewSectionMoveRule`, `WatchedSection`) has a production caller; `WatchedSection` is wired in `newAnimeWriteDeps`. The only dead code left is the L9 list, which block 4 removes.
   - Mobile was told before the merge and confirmed no phone change. Ping it when block 3 ships in a release.
+- L11 (2026-10-26, owner, verbatim): "Ya hice algunas pruebas, creé animes desde Seasons, subí y bajé, movimos desde Schedule, editamos un anime, el mismo que estuvo dando problemas antes con lo del cover, y ya esto ya también ya se arregló. También mandamos incluso hacer descargas y esas cosas. No ha habido ningún problema en ningún lado, así que yo le doy por aprobado."
+  - The owner chose to run dev instead of cutting a release: "Es básicamente lo mismo a estas alturas."
+  - Read-only check of the real DB afterwards:
+    - integrity ok;
+    - name_key is a plain column, with 0 NULL keys;
+    - 862 snapshots (+2 created);
+    - anime_write_operations frozen at 863 rows, the last on 2026-10-25 18:33, so the new path writes none;
+    - 0 pending outbox rows and 0 staged rows;
+    - 30 changelog rows since 2026-10-26, each with its own source_event_id, so no duplicates.
+  - Block 3's "ran in real use" precondition for block 4 is met.
