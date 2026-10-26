@@ -53,7 +53,7 @@ Plan: artifact https://claude.ai/artifact/8AmVg9jk6D5Cs7rttPoCBH (block 3). Map:
 |---|---|---|---|---|
 | T1 | S1–S7 | delegated writer `block3-writer` (one interdependent unit; the parent's context backstop) | done | this commit; 61 Go packages green; 7 writer hand mutations killed; ditto 0.93 and 0.80, CORE survivors killed (L7) |
 | T2 | S1–S7 | independent verifier (risk items 1, 3, 4) | done | S1–S6 PASS; 1 lint blocker fixed and rechecked (L8) |
-| T3 | S4, S7 | parent: openapi note, mobile notice, gates, CodeGraph sweep, real-app boot on a DB copy, merge | pending | |
+| T3 | S4, S7 | parent: openapi note, mobile notice, gates, CodeGraph sweep, real-app boot on a DB copy, merge | done | merged into dev as c75bc8a7; whole-tree gate 4196/4196 (L10) |
 
 ## Log
 
@@ -108,3 +108,8 @@ Plan: artifact https://claude.ai/artifact/8AmVg9jk6D5Cs7rttPoCBH (block 3). Map:
     - also `AnimeSnapshotStore.WriteBaseStore()`, the recorder's AnimeChanged subscription, and the tables `anime_write_operations` and `anime_changed_outbox`.
   - Repoint or delete `tools/checkeventcoverage` and `tools/checktruncation`.
   - `ErrWriteBaseChanged` stays: the new path uses it.
+- L10 (2026-10-26): T3 done.
+  - The flaky merge-gate test `frontend/scripts/__tests__/eslint-icon-only-rule.test.mjs` was fixed by another agent on `fix/eslint-icon-only-cold-load` (a91ed6f9). The cause was the cold ESLint config load landing in the first case's 5 s budget; the fix moves the warm-up to the collection phase and overrides no timeout. It was merged into dev as 41d37c1a, with the whole-tree pre-merge-commit green.
+  - Block 3 was merged into dev as c75bc8a7, with the whole-tree pre-merge-commit green: 414 files, 4196 tests, go-heavy, quick.
+  - CodeGraph sweep: every new symbol (`InWriteTx`, `CommitSave`, `SavePlan`, `SaveRule`, `NewSectionMoveRule`, `WatchedSection`) has a production caller; `WatchedSection` is wired in `newAnimeWriteDeps`. The only dead code left is the L9 list, which block 4 removes.
+  - Mobile was told before the merge and confirmed no phone change. Ping it when block 3 ships in a release.
