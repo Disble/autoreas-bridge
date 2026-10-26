@@ -322,12 +322,15 @@ func (a *App) wireEpisodeService(conflictWriter anime.ConflictWriter) {
 	snapshotStore := bridgeSync.NewAnimeSnapshotStore(a.bridgeDB)
 	writer := anime.NewWriteService(snapshotStore, a.animeChangedPublisher)
 	if conflictWriter != nil {
-		writer.SetDeps(anime.WriteServiceDeps{
+		deps := anime.WriteServiceDeps{
 			Conflicts:      conflictWriter,
 			Notifier:       a.notifier,
-			Logger:         a.sharedLogger,
 			OCCObserveOnly: true,
-		})
+		}
+		if a.sharedLogger != nil {
+			deps.Logger = a.sharedLogger
+		}
+		writer.SetDeps(deps)
 	}
 	a.wireEpisodeServiceWithWriter(writer)
 }

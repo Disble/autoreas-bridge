@@ -20,7 +20,7 @@ func TestGatewayCompetingExplicitWritesSerializeInTheirTransactions(t *testing.T
 	seedGatewaySnapshot(t, snapshots, "anime-1", gatewayAnimeJSON("anime-1", 2), 100)
 	responses := make(chan gatewayResponse, 2)
 	for index, progress := range []float64{3, 4} {
-		gateway := newGateway(t, gatewayConfig{db: db, clock: 200 + int64(index), operationID: "operation-" + jsonNumber(progress)})
+		gateway := newGateway(t, gatewayConfig{db: db, clock: 200 + int64(index), eventID: "event-" + jsonNumber(progress)})
 		go func() {
 			result, err := gateway.Update(ctx, updateGatewayProgressCommand(100, progress))
 			responses <- gatewayResponse{result, err}

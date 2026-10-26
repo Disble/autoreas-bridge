@@ -21,7 +21,7 @@ func (g *Gateway) save(ctx context.Context, items []SaveItem) ([]SaveDecision, e
 	}
 	return g.config.Saves.CommitSave(ctx, SavePlan{
 		Items: items, Rule: g.config.Rule,
-		NewEventID: g.config.NewOperationID, Publish: g.config.PublishChanged,
+		NewEventID: g.config.NewEventID, Publish: g.config.PublishChanged,
 	})
 }
 
@@ -128,8 +128,9 @@ func hashSnapshot(payload []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// newOperationID generates a random operation identifier with a time fallback.
-func newOperationID() string {
+// newEventID generates a random event identifier with a time fallback; it names
+// each committed change and its changelog row.
+func newEventID() string {
 	var value [16]byte
 	if _, err := rand.Read(value[:]); err != nil {
 		return fmt.Sprintf("write-%d", time.Now().UnixNano())

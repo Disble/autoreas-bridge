@@ -9,7 +9,7 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 )
 
-// ErrWriteBaseChanged reports that the stored write base no longer matches reality.
+// ErrWriteBaseChanged reports that the stored snapshot changed under a save.
 var ErrWriteBaseChanged = errors.New("anime write base changed")
 
 // Snapshot is the gateway-local persisted effective snapshot envelope.
@@ -82,5 +82,5 @@ type GatewayConfig struct {
 	Conflicts      ConflictWriter
 	PublishChanged func(event CommittedChange)
 	Now            func() time.Time
-	NewOperationID func() string
+	NewEventID     func() string
 }

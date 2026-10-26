@@ -41,7 +41,7 @@ func TestGatewayCurrentBaseSavesSnapshotAndChangelogInOneTransaction(t *testing.
 	if result.Outcome != store.AnimePatchOutcomeApplied || result.ModifiedAt != 200 {
 		t.Fatalf("unexpected applied result: %#v", result)
 	}
-	if len(published) != 1 || published[0] != "operation-1" {
+	if len(published) != 1 || published[0] != "event-1" {
 		t.Fatalf("expected one post-commit publication of operation-1, got %v", published)
 	}
 	current, err := snapshots.GetSnapshot(ctx, "anime-1")
@@ -52,7 +52,7 @@ func TestGatewayCurrentBaseSavesSnapshotAndChangelogInOneTransaction(t *testing.
 		t.Fatalf("unexpected saved snapshot: %#v", current)
 	}
 	rows, err := bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(db)).ListAfterID(ctx, 0)
-	if err != nil || len(rows) != 1 || rows[0].SourceEventID != "operation-1" || !slices.Equal(rows[0].ChangedFields, []string{"episodesWatched"}) {
+	if err != nil || len(rows) != 1 || rows[0].SourceEventID != "event-1" || !slices.Equal(rows[0].ChangedFields, []string{"episodesWatched"}) {
 		t.Fatalf("expected one changelog row for operation-1 naming episodesWatched: %+v, %v", rows, err)
 	}
 }
@@ -184,7 +184,7 @@ type gatewayConfig struct {
 	publishEvent func(string, string, []byte)
 	// publishChangeType captures the derived change type a save publishes.
 	publishChangeType func(string, string)
-	operationID       string
+	eventID           string
 }
 
 // newGateway constructs a gateway with test defaults and dependencies.
@@ -192,9 +192,9 @@ func newGateway(t *testing.T, config gatewayConfig) *store.Gateway {
 	t.Helper()
 	db := config.db
 	snapshots := bridgeSync.NewAnimeSnapshotStore(db)
-	operationID := config.operationID
-	if operationID == "" {
-		operationID = "operation-1"
+	eventID := config.eventID
+	if eventID == "" {
+		eventID = "event-1"
 	}
 	return store.NewGateway(store.GatewayConfig{
 		LoadSnapshot: func(ctx context.Context, id string) (store.Snapshot, error) {
@@ -222,8 +222,8 @@ func newGateway(t *testing.T, config gatewayConfig) *store.Gateway {
 				config.publishChangeType(event.EventID, event.ChangeType)
 			}
 		},
-		Now:            func() time.Time { return time.UnixMilli(config.clock).UTC() },
-		NewOperationID: func() string { return operationID },
+		Now:        func() time.Time { return time.UnixMilli(config.clock).UTC() },
+		NewEventID: func() string { return eventID },
 	})
 }
 
@@ -294,7 +294,7 @@ func TestGatewayPublishesCreateForTheFirstWriteAndUpdateAfterwards(t *testing.T)
 	write := func(progress float64) {
 		t.Helper()
 		gateway := newGateway(t, gatewayConfig{
-			db: db, clock: int64(200 * progress), operationID: "operation-" + jsonNumber(progress),
+			db: db, clock: int64(200 * progress), eventID: "operation-" + jsonNumber(progress),
 			publishChangeType: func(_ string, changeType string) { published = append(published, changeType) },
 		})
 		if _, err := gateway.Update(ctx, store.UpdateCommand{

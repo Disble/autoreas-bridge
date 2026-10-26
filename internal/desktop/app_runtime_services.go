@@ -303,13 +303,16 @@ func (a *App) newAnimeWriteDeps(conflictService *bridgeSync.ConflictStore) anime
 	//
 	// SaveRule is the season's Ver hoy → Visto auto-transition, applied inside
 	// the same transaction as the save that watches the episode.
-	return anime.WriteServiceDeps{
+	deps := anime.WriteServiceDeps{
 		Conflicts:      conflictService,
 		Notifier:       a.notifier,
-		Logger:         a.sharedLogger,
 		OCCObserveOnly: true,
 		SaveRule:       anime.NewSectionMoveRule(season.WatchedSection),
 	}
+	if a.sharedLogger != nil {
+		deps.Logger = a.sharedLogger
+	}
+	return deps
 }
 
 // newMobileAnimeWriteService builds the mobile anime writer with activity recording.

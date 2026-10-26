@@ -69,3 +69,27 @@ Plan: artifact https://claude.ai/artifact/8AmVg9jk6D5Cs7rttPoCBH (block 4). Inve
   - Parent edits:
     - rewrote the write mechanism and the changelog-recorder lines in `docs/architecture.md`;
     - left the `checktruncation` mention in `docs/reports/plan-migracion-raiz-go-ejecutable.md:200` unchanged, because it records a past measurement.
+- L6 (2026-10-26): T2 verifier on c7000efc.
+  - Verdicts:
+    - S2, S3, S5, S6: PASS.
+    - S1: PARTIAL, for naming leftovers only.
+    - S4: FAIL, with one blocker.
+  - Differential probe on real-DB copies: changelog rows, snapshots, bus events, the reconcile response and the conflict count are identical to the baseline.
+  - Blocker B1: anime saves no longer wrote their `sync.changelog` log row.
+    - At baseline it was domain sync, level info, EventType `sync.changelog`, EntityID the anime, CorrelationID the event id, metadata `sourceEventId`/`changeType`/`changedFields`, and the message "recorded pending changelog for <id>". The recorder's AnimeChanged handler wrote it.
+    - It matters because the row lands in `runtime_events`, where `activityread/change_context.go` reads it as a step of an Activity change line. The real DB holds 356 such rows.
+  - Advisories:
+    1. Changelog ids are now dense: the old duplicate insert used to burn one AUTOINCREMENT id per save. Consumers see no change.
+    2. `ErrWriteBaseChanged` has no direct test. Its new-path uses were untested at baseline too.
+    3. Naming leftovers: `NewOperationID`, `newOperationID`, and comments that mention the outbox drain and the stored write base.
+    4. Downgrade: a pre-block-4 binary re-creates both tables empty and works; the next open drops them again. No corruption.
+    5. `sqlite_bootstrap_tables_test.go` is at 407 lines, a warning only.
+- L7 (2026-10-26): B1 fixed by the parent, inline: a small fix of one understood change.
+  - `newStoreGatewayConfig` wraps `PublishChanged` with `logRecordedChangelog`, which writes the exact baseline row before each committed change is published. It is one seam shared by the write, editor and schedule services.
+  - The desktop now passes `Logger` only when `a.sharedLogger` is non-nil, like its other uses. A typed-nil `*FanoutLogger` otherwise panics in tests.
+  - Tests: the editor and schedule wiring tests now assert one `sync.changelog` row equal to the baseline shape. RED was observed before the code existed.
+  - Advisory 3 fixed: `NewOperationID` is now `NewEventID`, and the stale comments and test ids are updated.
+  - Checks:
+    - ditto on `internal/anime` and `internal/anime/store` scores 1.00 (3 of 3 killed);
+    - `go test ./internal/... ./tools/...` passes;
+    - lint, checkarchitecture, checkgofilesize and gofmt are clean.
