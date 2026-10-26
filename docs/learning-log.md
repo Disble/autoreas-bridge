@@ -362,3 +362,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-10-26]: Batch modified_at tokens are raised independently against each anime base: they need not be globally ordered or distinct, and the batch result returns the last token rather than the maximum.
 - [2026-10-26]: Real WebView2 integration fixtures must exercise the production solver child and kill-on-close job; in-process browser self-exit is not the production teardown contract.
 - [2026-10-26]: Ship the version bump, changelog and generated NSIS define in one commit; the CI guard rejects a tag whose CHANGELOG section is missing, and a stale generated define ships an installer labelled with the old version.
+- [2026-10-26]: Selection filtering is a view: criteria narrow what is rendered while the quota meter, the confirmed date and the confirmation keep reading every stored candidate, so the derived view lives in its own hook and never writes to the rows.

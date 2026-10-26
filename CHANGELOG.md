@@ -14,6 +14,18 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [2.7.0] — 2026-10-26
+
+### Added
+
+- Season → Selection now has a filter bar above the candidate list: choose any combination of grades, verdicts (approved or rejected) and considerations, then sort the visible rows by grade or title. The filters combine — picking more values widens a group instead of replacing it — and each group starts on "All", which means no restriction.
+- The filter bar keeps the criteria in force visible, says how many candidates they leave out of the total, and clears them with one action. Filtering is a view only: the approved/slots meter, the confirmed date and Confirm selection still act on every candidate, and hiding a row never rejects it.
+
+### Changed
+
+- A candidate's grade now sits beside its name, to the left of the consideration control, so it reads with the candidate instead of after the page and folder buttons.
+- An ungraded candidate reads "None" in the table and in the Grade filter, replacing the bare dash that was easy to mistake for a separator.
+
 ## [2.6.0] — 2026-10-26
 
 **Wire-visible change (non-breaking):** `PATCH /api/animes/{id}`, `POST /api/sync/reconcile`, every other authenticated endpoint and the `/ws` handshake now answer `503` with `Retry-After: 1` when a token lookup could not run — the bridge's single database connection was busy — instead of `401`. Of the token-lookup failures only a token that matches no paired device is a `401`; a missing or malformed token is still a `401`. A phone must treat the `503` as retryable and must not unpair or discard pending operations. See `docs/openapi.yaml`.
