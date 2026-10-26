@@ -113,8 +113,7 @@ writing `name_key` fails the architecture check. Test files and `testdata/` are 
 ## Deprecated upgrade-only migrations
 
 The migrations that upgrade databases created before 2.6.0 are deprecated and are removed in the
-next major release (3.0.0). 2.6.0 is the next minor release and is not published yet, so it is where
-both migrations first ship; 2.5.1 contains neither. See
+next major release (3.0.0). 2.6.0 is where both migrations first ship; 2.5.1 contains neither. See
 `docs/architecture/cross-cutting/deprecations.md` for the register, the marker and the removal steps.
 
 ## Known drift

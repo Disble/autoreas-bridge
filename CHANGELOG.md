@@ -14,9 +14,33 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [2.6.0] — 2026-10-26
+
+**Wire-visible change (non-breaking):** `PATCH /api/animes/{id}`, `POST /api/sync/reconcile`, every other authenticated endpoint and the `/ws` handshake now answer `503` with `Retry-After: 1` when a token lookup could not run — the bridge's single database connection was busy — instead of `401`. Of the token-lookup failures only a token that matches no paired device is a `401`; a missing or malformed token is still a `401`. A phone must treat the `503` as retryable and must not unpair or discard pending operations. See `docs/openapi.yaml`.
+
+### Added
+
+- The Editor now tells you what happened when you save, deactivate, restore or repeat an anime: a green toast when it was applied, a neutral one when nothing changed, a warning when someone else changed it first, and a red one when it failed. A failed save is also recorded in Activity's Editor section and opens an incident.
+
+### Changed
+
+- Each anime save is now one database transaction: the change, its progress, its name key and the changes-feed row the phone syncs are written together, or nothing is. The Activity entry and the notice to the phone are written immediately after the commit; before, they came from a subscription, so a save that finished could still lose them, and a save that stalled halfway could block every later change to that anime.
+- An anime that is a created candidate of the open season, whose first day is **Ver hoy** and whose progress reaches an episode, now moves to **Visto** as part of that same save, so a `+1` is one change with one time stamp, one Activity row and one notice to the phone.
+- The name uniqueness rule that stops two animes sharing a name is now computed by the app itself instead of by SQLite. A database that two different tools folded differently could accept a duplicate name before; the first start on 2.6.0 rebuilds every name key in one transaction and refuses, without changing anything, a catalogue where two animes already share a name — the app then starts without its catalogue until the duplicate is resolved.
+
+### Removed
+
+- The internal tables and startup recovery left over from the previous two-phase save are gone. A database created before 2.6.0 is cleaned up automatically on the first start; later starts do nothing.
+
 ### Deprecated
 
-- The upgrade-only migrations are deprecated from now and will be removed in 3.0.0. They exist only so a database created before 2.6.0 opens on 2.6.0, the upcoming minor release that ships them: they drop the tables of the retired two-phase anime write and convert the anime name key to a plain column. Before upgrading to 3.0.0, open the app once on the last 2.x release. See `docs/architecture/cross-cutting/deprecations.md`.
+- The upgrade-only migrations are deprecated from now and will be removed in 3.0.0. They exist only so a database created before 2.6.0 opens on 2.6.0: they drop the tables of the retired two-phase anime write and convert the anime name key to a plain column. Before upgrading to 3.0.0, open the app once on the last 2.x release. See `docs/architecture/cross-cutting/deprecations.md`.
+
+### Internal
+
+- The Anime area now has its own architecture documentation: an overview of what it owns, and the save as one decision tree from the command to every outcome, next to a persistence document with the single-connection rule, the two transaction helpers and the startup migration order. `docs/architecture/README.md` indexes them, in English like the code.
+- A guard fails the build once `wails.json` declares a 3.x version while upgrade-only migrations are still in the tree, so 3.0.0 cannot ship without removing them. The deprecation register lists the exact removal steps and the older migrations deliberately left in place.
+- The real WebView2 fixture now solves through the same solver process and kill-on-close job the app uses, instead of waiting in the test process for a browser to exit on its own, and it fails if any browser process outlives the job.
 
 ## [2.5.1] — 2026-10-25
 

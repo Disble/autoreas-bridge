@@ -24,10 +24,9 @@ compatibility, with the release that removes it and the exact steps to do so.
   `ensureAnimeNameKeyColumn`, and `initializeBridgeDB` calls the marked `dropRetiredWriteTables`.
   The register lists each call as a removal step; deleting the marked function turns a leftover call
   into a compile error.
-- 2.6.0, the next minor release, is where both migrations first ship, and it is not published yet:
-  2.5.1 contains neither. "Created before 2.6.0" therefore means written by 2.5.1 or older. The guard
-  reads the real `info.productVersion`, so publishing 2.6.0 changes nothing and publishing 3.0.0
-  makes it fail.
+- 2.6.0 is where both migrations first ship; 2.5.1 contains neither. "Created before 2.6.0"
+  therefore means written by 2.5.1 or older. The guard reads the real `info.productVersion`, so
+  publishing 2.6.0 changes nothing and publishing 3.0.0 makes it fail.
 
 ## Register
 
