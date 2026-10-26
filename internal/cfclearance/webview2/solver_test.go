@@ -22,6 +22,11 @@ const (
 	// pidFileEnv names the file where a hanging fake child records its own PID and, when it
 	// spawned one, its grandchild's PID, one per line.
 	pidFileEnv = "CFCLEARANCE_FAKE_PIDFILE"
+	// engineChildMode makes the child harness run the real engine instead of a fake one.
+	engineChildMode = "real"
+	// windowReportEnv names the file where the real-engine child records how often it checked
+	// its host window's visibility and how often it saw it visible.
+	windowReportEnv = "CFCLEARANCE_WINDOW_REPORT"
 )
 
 func TestMain(m *testing.M) {
@@ -52,6 +57,8 @@ func runFakeChild(mode string) {
 		}
 		writePIDs(os.Getpid(), gc.Process.Pid)
 		_ = gc.Wait()
+	case engineChildMode:
+		runRealEngineChild() // ends the child process
 	}
 	engine = fakeEngine(mode)
 	RunSolverIfRequested(os.Args)

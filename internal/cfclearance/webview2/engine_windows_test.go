@@ -3,11 +3,13 @@
 package webview2
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -15,9 +17,10 @@ import (
 	"time"
 )
 
-// TestEngineClearsAFixtureCookieWithoutShowingAWindow runs the real engine against a local
-// page that sets cf_clearance from JavaScript, the way a cleared challenge does. It skips only
-// when the WebView2 runtime is genuinely absent.
+// TestEngineClearsAFixtureCookieWithoutShowingAWindow runs the real engine behind the
+// production boundary: a solver child, confined to runChild's kill-on-close job, solves the
+// fixture and reports the clearance on the protocol. It skips only when the WebView2 runtime is
+// genuinely absent.
 func TestEngineClearsAFixtureCookieWithoutShowingAWindow(t *testing.T) {
 	if testing.Short() {
 		t.Skip("the engine fixture drives a real WebView2")
@@ -33,30 +36,36 @@ func TestEngineClearsAFixtureCookieWithoutShowingAWindow(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("engine profile kept for inspection: %s", dataDir)
-
-	var sawVisible, checks atomic.Int32
-	stop := make(chan struct{})
-	res := runEngine(engineRequest{
-		origin: srv.URL, rejected: "stale", dataDir: dataDir, budget: 20 * time.Second,
-		onWindow: func(hwnd uintptr) { go watchVisibility(hwnd, stop, &checks, &sawVisible) },
-	})
-	close(stop)
-	if strings.HasPrefix(res.Error, runtimeUnavailable) {
-		t.Skip(res.Error)
-	}
-	if res.Error != "" {
-		t.Fatal(res.Error)
-	}
-	got, err := Decode([]byte(Encode(res)), "stale")
+	report := filepath.Join(t.TempDir(), "window")
+	t.Setenv(fakeChildEnv, engineChildMode)
+	t.Setenv(windowReportEnv, report)
+	exe, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Cookies[0].Value != "fixture-"+nonce {
-		t.Fatalf("cookie = %+v, want the fixture value", got.Cookies[0])
+	solver := &ProcessSolver{Executable: exe, DataDir: dataDir, Timeout: 20 * time.Second}
+	got, err := solver.Solve(context.Background(), srv.URL, "stale")
+	if err != nil && strings.Contains(err.Error(), runtimeUnavailable) {
+		t.Skip(err)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	var clearance *http.Cookie
+	for _, c := range got.Cookies {
+		if c.Name == clearanceCookie {
+			clearance = c
+		}
+	}
+	if clearance == nil || clearance.Value != "fixture-"+nonce {
+		t.Fatalf("cookies = %+v, want the fixture cf_clearance", got.Cookies)
 	}
 	t.Logf("user agent: %q", got.UserAgent)
-	if checks.Load() == 0 || sawVisible.Load() != 0 {
-		t.Fatalf("window visibility: %d checks, visible %d times", checks.Load(), sawVisible.Load())
+	if !strings.Contains(got.UserAgent, "Edg/") {
+		t.Fatalf("user agent %q is not the engine's", got.UserAgent)
+	}
+	if checks, visible := readWindowReport(t, report); checks == 0 || visible != 0 {
+		t.Fatalf("window visibility: %d checks, visible %d times", checks, visible)
 	}
 	started := time.Now()
 	if n := browserProcessesUsing(t, dataDir, engineTeardownBudget); n != 0 {
@@ -65,14 +74,61 @@ func TestEngineClearsAFixtureCookieWithoutShowingAWindow(t *testing.T) {
 	t.Logf("engine teardown took %s", time.Since(started).Round(time.Millisecond))
 }
 
-// engineTeardownBudget bounds how long the fixture waits for the browser processes to
-// leave after the controller closed. In production the solver child exits and its job
-// object kills them at once; here the engine runs in-process, so Close is asynchronous
-// and its latency grows with machine load (the pre-commit gate runs this test beside
-// every other package with -p 4). An engine that is not torn down (host window kept and
-// controller left open) still fails: its processes never leave. Closing the controller
-// alone is belt-and-braces: destroying the host window already ends the engine.
-const engineTeardownBudget = 60 * time.Second
+// runRealEngineChild solves with the real engine, the way production's solver child does, and
+// records its host window's visibility so the fixture can assert it stayed hidden. It ends the
+// child process the way production does too.
+func runRealEngineChild() {
+	var checks, visible atomic.Int32
+	stop := make(chan struct{})
+	engine = func(req engineRequest) Result {
+		req.onWindow = func(hwnd uintptr) { go watchVisibility(hwnd, stop, &checks, &visible) }
+		res := runEngine(req)
+		close(stop)
+		return res
+	}
+	res := solveFromArgs(os.Args[2:])
+	if path := os.Getenv(windowReportEnv); path != "" {
+		_ = os.WriteFile(path, []byte(fmt.Sprintf("%d %d", checks.Load(), visible.Load())), 0o600)
+	}
+	exitWithResult(res)
+}
+
+// engineTeardownBudget bounds only the observation of a teardown the child's job object
+// enforces: closing it kills every browser process the child spawned. The earlier fixture drove
+// runEngine in this process and waited 60s for browsers to leave on their own, a mechanism
+// production never relies on and Windows does not bound, so a loaded gate could still see one
+// alive. A budget here tolerates slow process enumeration; a job that never kills keeps the
+// count above zero however long the wait.
+const engineTeardownBudget = 10 * time.Second
+
+// readWindowReport reads the checks and visible counts the real-engine solver child recorded
+// for its host window.
+func readWindowReport(t *testing.T, path string) (checks, visible int32) {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("solver child recorded no window report: %v", err)
+	}
+	counts := strings.Fields(string(raw))
+	if len(counts) != 2 {
+		t.Fatalf("window report %q", raw)
+	}
+	checks, err = parseReportCount(counts[0])
+	if err != nil {
+		t.Fatalf("window report %q: %v", raw, err)
+	}
+	visible, err = parseReportCount(counts[1])
+	if err != nil {
+		t.Fatalf("window report %q: %v", raw, err)
+	}
+	return checks, visible
+}
+
+// parseReportCount parses one counter of the window report.
+func parseReportCount(field string) (int32, error) {
+	n, err := strconv.ParseInt(field, 10, 32)
+	return int32(n), err
+}
 
 // watchVisibility polls IsWindowVisible on hwnd until stop closes, counting every check and
 // every time the window reported visible.
