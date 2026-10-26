@@ -42,12 +42,16 @@ export function useSelectionView(rows: readonly SelectionRow[]) {
   const activeFilterCount = countSelectionFilterValues(criteria);
 
   // 6. Callbacks
+  /** Applies one dimension's selected values, leaving the other dimensions untouched. */
   const onGroupChange = useCallback(
     (key: SelectionFilterKey, values: readonly string[]) => setCriteria({ ...criteria, [key]: values }),
     [criteria],
   );
+  /** Clears every dimension and keeps the current order. */
   const onResetFilters = useCallback(() => setCriteria({ ...createSelectionView(), sort: criteria.sort }), [criteria.sort]);
+  /** Restores the default view: no criteria and the current order. */
   const onResetView = useCallback(() => setCriteria(createSelectionView()), []);
+  /** Applies a sort mode, keeping every criterion in force. */
   const onSortChange = useCallback((sort: SelectionSort) => setCriteria({ ...criteria, sort }), [criteria]);
 
   return {

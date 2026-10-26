@@ -40,11 +40,11 @@ export function SelectionStepper({
     <div className="flex flex-col gap-1">
       <span className="text-xs text-muted">{label}</span>
       <div className="flex items-center gap-2">
-        <Button aria-label={decreaseLabel} isDisabled={!canDecrease} size="sm" variant="secondary" onPress={onDecrease}>
+        <Button aria-label={decreaseLabel} isDisabled={!canDecrease} size="sm" variant="tertiary" onPress={onDecrease}>
           −
         </Button>
         <span className="w-6 text-center text-sm font-semibold text-foreground">{value}</span>
-        <Button aria-label={increaseLabel} isDisabled={!canIncrease} size="sm" variant="secondary" onPress={onIncrease}>
+        <Button aria-label={increaseLabel} isDisabled={!canIncrease} size="sm" variant="tertiary" onPress={onIncrease}>
           +
         </Button>
       </div>

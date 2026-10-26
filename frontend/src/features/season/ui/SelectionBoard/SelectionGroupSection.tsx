@@ -29,6 +29,7 @@ export function SelectionGroupSection({
   onOpenFolder,
   onCopyFolder,
 }: Readonly<SelectionGroupSectionProps>) {
+  /** The id that ties the list to its group heading. */
   const headingId = `selection-group-${group.verdict}`;
   return (
     <div className="flex flex-col">
