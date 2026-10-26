@@ -14,6 +14,10 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+### Deprecated
+
+- The upgrade-only migrations are deprecated from now and will be removed in 3.0.0. They exist only so a database created before 2.6.0 opens on 2.6.0, the upcoming minor release that ships them: they drop the tables of the retired two-phase anime write and convert the anime name key to a plain column. Before upgrading to 3.0.0, open the app once on the last 2.x release. See `docs/architecture/cross-cutting/deprecations.md`.
+
 ## [2.5.1] — 2026-10-25
 
 ### Fixed

@@ -16,6 +16,8 @@ import (
 // The outbox goes first because it holds the foreign key, and both go in one
 // transaction, so a failure leaves both in place. IF EXISTS makes every later
 // open, and every fresh database, a no-op. Their indexes go with them.
+//
+// Deprecated: upgrade-only migration for databases created before 2.6.0; remove in 3.0.0 (docs/architecture/cross-cutting/deprecations.md).
 func dropRetiredWriteTables(db *sql.DB) error {
 	return persistence.InTx(context.Background(), db, func(tx *sql.Tx) error {
 		for _, table := range []string{"anime_changed_outbox", "anime_write_operations"} {
