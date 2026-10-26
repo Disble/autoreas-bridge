@@ -3,6 +3,10 @@
 **Status:** analysis closed on 2026-10-13. Decisions D0–D7 are decided or verified against the code. This is the
 reference for the ODD work units in [`odd/tasks/episode-durations.md`](../odd/tasks/episode-durations.md).
 
+**Note (2026-10-26):** the `anime_write_operations` and `anime_changed_outbox` tables and the outbox relay this
+analysis describes no longer exist. An anime save is now one transaction that writes the snapshot and its changelog
+row; the duration announcement path (D6) is unchanged.
+
 **Related:**
 
 - Editor UI design guide: [`episode-durations-editor-ui.md`](episode-durations-editor-ui.md), and the approved canvas

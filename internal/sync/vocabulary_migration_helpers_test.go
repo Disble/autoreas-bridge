@@ -17,7 +17,7 @@ func openLegacyShapeDB(t *testing.T, dbPath string) *sql.DB {
 		t.Fatalf("open legacy-shape sqlite db: %v", err)
 	}
 	for _, ddl := range []string{
-		animeSnapshotsDDL, changelogDDL, conflictsDDL, animeWriteOperationsDDL, animeChangedOutboxDDL,
+		animeSnapshotsDDL, changelogDDL, conflictsDDL,
 	} {
 		if _, err := db.Exec(ddl); err != nil {
 			closeTestDB(t, db)
@@ -35,23 +35,6 @@ func insertLegacyAnimeSnapshotRow(t *testing.T, db *sql.DB, animeID, payload, ha
 		animeID, payload, hash, modifiedAt,
 	); err != nil {
 		t.Fatalf("seed legacy anime_snapshots row: %v", err)
-	}
-}
-
-// seedLegacyWriteOperation seeds one staged anime_write_operations row with
-// Spanish-keyed base/desired snapshots, matching the pre-cutover shape.
-func seedLegacyWriteOperation(t *testing.T, db *sql.DB, operationID, animeID string) {
-	t.Helper()
-	base := `{"_id":"` + animeID + `","nombre":"Base"}`
-	desired := `{"_id":"` + animeID + `","nombre":"Desired"}`
-	if _, err := db.Exec(`
-		INSERT INTO anime_write_operations (
-			operation_id, anime_id, base_modified_at, intended_modified_at,
-			base_snapshot_json, base_hash, desired_snapshot_json, desired_hash,
-			status, created_at_ms
-		) VALUES (?, ?, 0, 100, ?, 'stale-base-hash', ?, 'stale-desired-hash', 'staged', 50)
-	`, operationID, animeID, base, desired); err != nil {
-		t.Fatalf("seed legacy write operation: %v", err)
 	}
 }
 

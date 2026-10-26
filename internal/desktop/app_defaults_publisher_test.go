@@ -23,7 +23,7 @@ func TestDefaultCommittedPublisherPublishesOnTheGivenBus(t *testing.T) {
 	app := &App{}
 	app.ensureAnimeRuntimeDependencies()
 
-	app.newCommittedPublisher(bus).PublishCommitted(anime.ChangedOutboxEvent{AnimeID: "anime-1", ChangeType: "create"})
+	app.newCommittedPublisher(bus).PublishCommitted(anime.CommittedChange{AnimeID: "anime-1", ChangeType: "create"})
 
 	select {
 	case event := <-received:

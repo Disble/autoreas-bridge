@@ -102,8 +102,9 @@ func TestSaveAnimeEditorStaleBaseConflictsAndStoresNoDuration(t *testing.T) {
 
 	got := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 99, Patch: AnimeEditorPatchDTO{Name: &name}})
 
-	if got.Outcome != contracts.AnimePatchOutcomeConflict {
-		t.Fatalf("a stale save conflicts, got %#v", got)
+	// The conflict hands back the current token (the seed's 100) and the recorded conflict.
+	if got.Outcome != contracts.AnimePatchOutcomeConflict || got.ModifiedAt != 100 || got.ConflictID == "" {
+		t.Fatalf("a stale save conflicts with the current token and a conflict id, got %#v", got)
 	}
 	if rows := storedEpisodes(t, app); len(rows) != 0 {
 		t.Fatalf("an anime save never writes durations, got %+v", rows)

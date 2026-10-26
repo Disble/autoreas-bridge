@@ -76,14 +76,6 @@ func applyCreateMetadata(create *contracts.AnimeCreate, metadata *season.AnimeCr
 	}
 }
 
-func (g seasonAnimeGateway) MoveToSection(ctx context.Context, animeID, section string) (season.AnimeMutationResult, error) {
-	result, err := g.writer.PatchAnime(ctx, animeID, contracts.AnimePatch{
-		Dias:                []string{section},
-		PreserveLastWatched: true,
-	})
-	return toSeasonAnimeMutation(result), err
-}
-
 func (g seasonAnimeGateway) SetSelection(ctx context.Context, animeID string, estado int, activo bool) (season.AnimeMutationResult, error) {
 	result, err := g.writer.PatchAnime(ctx, animeID, contracts.AnimePatch{
 		Estado:              &estado,

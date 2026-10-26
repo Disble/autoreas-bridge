@@ -9,79 +9,57 @@ import (
 
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
-
-	"autoreas-bridge/internal/testsupport/async"
 )
 
-func TestChangelogRecorderPersistsAnimeChangedEvents(t *testing.T) {
+// TestChangelogRecorderLogsEachRecordedRow proves a recorded row is logged with
+// the event that caused it, its change type and the fields it changed.
+func TestChangelogRecorderLogsEachRecordedRow(t *testing.T) {
 	t.Parallel()
 
 	bus := events.NewBus()
 	store := &stubChangelogStore{}
 	logger := &recordingSyncLogger{}
 	recorder := NewChangelogRecorder(bus, store, logger)
-	ctx := t.Context()
-	recorder.Start(ctx)
+	recorder.Start(t.Context())
+	t.Cleanup(recorder.Stop)
 
-	event := events.AnimeChangedEvent{EventID: "evt-1", AnimeID: "anime-1", ChangedFields: []string{"title"}, Payload: []byte(`{"id":"anime-1"}`)}
-	bus.Publish(event)
-
-	eventuallySync(t, func() bool {
-		return store.insertCalls == 1
-	})
-
-	if store.lastEvent.AnimeID != event.AnimeID {
-		t.Fatalf("expected anime id %q, got %q", event.AnimeID, store.lastEvent.AnimeID)
-	}
-	if string(store.lastEvent.SnapshotJSON) != string(event.Payload) {
-		t.Fatalf("expected payload %s, got %s", string(event.Payload), string(store.lastEvent.SnapshotJSON))
-	}
-	if store.lastEvent.Status != "pending" {
-		t.Fatalf("expected status pending, got %q", store.lastEvent.Status)
-	}
-	if store.lastEvent.ChangeType != ChangelogTypeUpdate {
-		t.Fatalf("expected update change type, got %q", store.lastEvent.ChangeType)
-	}
-	if store.lastEvent.ChangedAtMs == 0 {
-		t.Fatal("expected changed timestamp to be stamped")
-	}
+	bus.Publish(events.EpisodeDurationsChangedEvent{EventID: "evt-1", AnimeID: "anime-1", Payload: []byte(`{"id":"anime-1"}`)})
 
 	entries := logger.entries()
-	if len(entries) == 0 || entries[0].Domain != "sync" || entries[0].Level != sharedlogger.LevelInfo {
-		t.Fatalf("expected sync info log for changelog insert, got %#v", entries)
+	if len(entries) != 1 || entries[0].Domain != "sync" || entries[0].Level != sharedlogger.LevelInfo {
+		t.Fatalf("expected one sync info log for changelog insert, got %#v", entries)
 	}
-
-	insertEntry := entries[0]
-	if insertEntry.EntityID != "anime-1" {
-		t.Fatalf("expected EntityID 'anime-1', got %q", insertEntry.EntityID)
+	if entries[0].EntityID != "anime-1" || entries[0].EventType != "sync.changelog" {
+		t.Fatalf("expected the sync.changelog entry of anime-1, got %#v", entries[0])
 	}
-	if insertEntry.EventType != "sync.changelog" {
-		t.Fatalf("expected EventType 'sync.changelog', got %q", insertEntry.EventType)
+	wantMetadata := map[string]any{"sourceEventId": "evt-1", "changeType": ChangelogTypeUpdate, "changedFields": []string{"episodes"}}
+	if !reflect.DeepEqual(entries[0].Metadata, wantMetadata) {
+		t.Fatalf("expected metadata %#v, got %#v", wantMetadata, entries[0].Metadata)
 	}
-	wantMetadata := map[string]any{"sourceEventId": "evt-1", "changeType": ChangelogTypeUpdate, "changedFields": []string{"title"}}
-	if !reflect.DeepEqual(insertEntry.Metadata, wantMetadata) {
-		t.Fatalf("expected metadata %#v, got %#v", wantMetadata, insertEntry.Metadata)
-	}
-
-	recorder.Stop()
 }
 
-func TestChangelogRecorderIgnoresUnrelatedEvents(t *testing.T) {
+// TestChangelogRecorderIgnoresEveryOtherEvent proves the recorder stores no
+// row for an anime.changed event: the save already stored that row inside its
+// transaction, under the same source event id.
+func TestChangelogRecorderIgnoresEveryOtherEvent(t *testing.T) {
 	t.Parallel()
 
-	bus := events.NewBus()
-	store := &stubChangelogStore{}
-	recorder := NewChangelogRecorder(bus, store)
-	ctx := t.Context()
-	recorder.Start(ctx)
+	for _, event := range []events.Event{
+		events.SyncRequestedEvent{Requester: "tablet"},
+		events.AnimeChangedEvent{EventID: "evt-1", AnimeID: "anime-1", ChangedFields: []string{"title"}, Payload: []byte(`{"id":"anime-1"}`)},
+	} {
+		bus := events.NewBus()
+		store := &stubChangelogStore{}
+		recorder := NewChangelogRecorder(bus, store)
+		recorder.Start(t.Context())
 
-	bus.Publish(events.SyncRequestedEvent{Requester: "tablet"})
+		bus.Publish(event)
+		recorder.Stop()
 
-	if store.insertCalls != 0 {
-		t.Fatalf("expected unrelated event to be ignored, got %d inserts", store.insertCalls)
+		if store.insertCalls != 0 {
+			t.Fatalf("expected %T to be ignored, got %d inserts", event, store.insertCalls)
+		}
 	}
-
-	recorder.Stop()
 }
 
 func TestChangelogRecorderStoresInsertErrors(t *testing.T) {
@@ -92,54 +70,49 @@ func TestChangelogRecorderStoresInsertErrors(t *testing.T) {
 	store := &stubChangelogStore{err: wantErr}
 	logger := &recordingSyncLogger{}
 	recorder := NewChangelogRecorder(bus, store, logger)
-	ctx := t.Context()
-	recorder.Start(ctx)
+	recorder.Start(t.Context())
+	t.Cleanup(recorder.Stop)
 
-	bus.Publish(events.AnimeChangedEvent{EventID: "evt-1", AnimeID: "anime-1", ChangeType: ChangelogTypeDelete, Payload: []byte(`{"id":"anime-1"}`)})
-
-	eventuallySync(t, func() bool {
-		return recorder.Err() != nil
-	})
+	bus.Publish(events.EpisodeDurationsChangedEvent{EventID: "evt-1", AnimeID: "anime-1", Payload: []byte(`{"id":"anime-1"}`)})
 
 	if !errors.Is(recorder.Err(), wantErr) {
 		t.Fatalf("expected recorder err %v, got %v", wantErr, recorder.Err())
 	}
-
 	entries := logger.entries()
 	if len(entries) == 0 || entries[len(entries)-1].Level != sharedlogger.LevelError {
 		t.Fatalf("expected sync error log for insert failure, got %#v", entries)
 	}
-	wantMetadata := map[string]any{"sourceEventId": "evt-1", "changeType": ChangelogTypeDelete, "changedFields": []string(nil), "cause": "sqlite locked"}
+	wantMetadata := map[string]any{"sourceEventId": "evt-1", "changeType": ChangelogTypeUpdate, "changedFields": []string{"episodes"}, "cause": "sqlite locked"}
 	if got := entries[len(entries)-1].Metadata; !reflect.DeepEqual(got, wantMetadata) {
 		t.Fatalf("expected metadata %#v, got %#v", wantMetadata, got)
 	}
-
-	recorder.Stop()
 }
 
-func TestChangelogRecorderPersistsDeleteChangeType(t *testing.T) {
+// TestChangelogRecorderDeduplicatesAReplayedEventID proves through the real
+// store that a replayed announcement with the same event id stores one row.
+func TestChangelogRecorderDeduplicatesAReplayedEventID(t *testing.T) {
 	t.Parallel()
 
+	db := openTestBridgeDB(t)
+	store := NewChangelogStore(NewSQLiteProvider(db))
+	seedAnimeSnapshot(t, db, "anime-1", `{"id":"anime-1"}`)
 	bus := events.NewBus()
-	store := &stubChangelogStore{}
 	recorder := NewChangelogRecorder(bus, store)
 	ctx := t.Context()
 	recorder.Start(ctx)
+	t.Cleanup(recorder.Stop)
 
-	bus.Publish(events.AnimeChangedEvent{AnimeID: "anime-1", ChangeType: events.AnimeChangeTypeDelete})
+	event := events.EpisodeDurationsChangedEvent{EventID: "episode.durations_changed:anime-1:42", AnimeID: "anime-1"}
+	bus.Publish(event)
+	bus.Publish(event)
 
-	eventuallySync(t, func() bool {
-		return store.insertCalls == 1
-	})
-
-	if store.lastEvent.ChangeType != ChangelogTypeDelete {
-		t.Fatalf("expected delete change type, got %q", store.lastEvent.ChangeType)
+	entries, err := store.ListAfterID(ctx, 0)
+	if err != nil {
+		t.Fatalf("list replayed changelog: %v", err)
 	}
-	if store.lastEvent.SnapshotJSON != nil {
-		t.Fatalf("expected nil snapshot for delete, got %s", string(store.lastEvent.SnapshotJSON))
+	if len(entries) != 1 || entries[0].SourceEventID != event.EventID {
+		t.Fatalf("expected one row with source event id %q, got %#v", event.EventID, entries)
 	}
-
-	recorder.Stop()
 }
 
 type stubChangelogStore struct {
@@ -152,51 +125,6 @@ func (s *stubChangelogStore) InsertPending(_ context.Context, event ChangelogEnt
 	s.insertCalls++
 	s.lastEvent = event
 	return s.err
-}
-
-// eventuallySync waits for an asynchronous sync condition to become true.
-func eventuallySync(t *testing.T, condition func() bool) {
-	t.Helper()
-	async.Eventually(t, condition, "condition not satisfied before timeout")
-}
-
-// TestChangelogRowRecordsDerivedChangedFieldsEndToEnd is the regression that
-// matters most in this change. The incident's changelog row read
-// `2225|update|[]|pending|...` -- an update declaring no changed fields that
-// had just rewritten `days` from three entries to none. This drives a real
-// SQLite changelog through the real store and asserts the persisted
-// changed_fields_json is no longer an empty envelope.
-func TestChangelogRowRecordsDerivedChangedFieldsEndToEnd(t *testing.T) {
-	t.Parallel()
-
-	db := openTestBridgeDB(t)
-	bus := events.NewBus()
-	store := NewChangelogStore(NewSQLiteProvider(db))
-	seedAnimeSnapshot(t, db, "anime-endtoend", `{"id":"anime-endtoend"}`)
-	recorder := NewChangelogRecorder(bus, store, &recordingSyncLogger{})
-	ctx := t.Context()
-	recorder.Start(ctx)
-
-	bus.Publish(events.AnimeChangedEvent{
-		AnimeID:       "anime-endtoend",
-		Payload:       []byte(`{"id":"anime-endtoend"}`),
-		ChangedFields: []string{"cover", "days"},
-	})
-
-	var stored string
-	eventuallySync(t, func() bool {
-		return db.QueryRow(
-			`SELECT changed_fields_json FROM changelog WHERE anime_id = ?`,
-			"anime-endtoend",
-		).Scan(&stored) == nil
-	})
-
-	if stored == "[]" {
-		t.Fatal("changelog recorded an empty changed-field list: this is the incident shape")
-	}
-	if stored != `["cover","days"]` {
-		t.Fatalf("expected %s, got %s", `["cover","days"]`, stored)
-	}
 }
 
 func TestChangelogRecorderRecordsEpisodeDurationsAsAnOrdinaryUpdateRow(t *testing.T) {
@@ -235,22 +163,6 @@ func TestChangelogRecorderRecordsEpisodeDurationsAsAnOrdinaryUpdateRow(t *testin
 	recorder.Stop()
 	bus.Publish(event)
 	if store.insertCalls != 1 {
-		t.Fatalf("expected no row after Stop, got %d", store.insertCalls)
-	}
-}
-
-func TestChangelogRecorderStopUnsubscribesAnimeChanges(t *testing.T) {
-	t.Parallel()
-
-	bus := events.NewBus()
-	store := &stubChangelogStore{}
-	recorder := NewChangelogRecorder(bus, store)
-	recorder.Start(t.Context())
-	recorder.Stop()
-
-	bus.Publish(events.AnimeChangedEvent{AnimeID: "anime-1", Payload: []byte(`{}`)})
-
-	if store.insertCalls != 0 {
 		t.Fatalf("expected no row after Stop, got %d", store.insertCalls)
 	}
 }

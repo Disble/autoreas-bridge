@@ -76,21 +76,16 @@ type SaveAnimeEditorCommand struct {
 
 // EditorService applies anime-editor mutations through the legacy gateway.
 type EditorService struct {
-	store      snapshotLookup
-	publisher  CommittedPublisher
-	writeBases WriteBaseStore
-	now        func() time.Time
-	deps       WriteServiceDeps
+	store     snapshotLookup
+	publisher CommittedPublisher
+	now       func() time.Time
+	deps      WriteServiceDeps
 }
 
 // NewEditorService builds an editor service over the shared snapshot store and
 // the publisher that announces its committed writes (nil publishes nothing).
 func NewEditorService(store snapshotLookup, publisher CommittedPublisher) *EditorService {
-	service := &EditorService{store: store, publisher: publisher, now: time.Now}
-	if provider, ok := store.(writeBaseStoreProvider); ok {
-		service.writeBases = provider.WriteBaseStore()
-	}
-	return service
+	return &EditorService{store: store, publisher: publisher, now: time.Now}
 }
 
 // SetNow overrides the clock used for token and mutation timestamps.
@@ -98,9 +93,6 @@ func (s *EditorService) SetNow(now func() time.Time) { s.now = now }
 
 // SetDeps overrides optional gateway collaborators for tests and recovery wiring.
 func (s *EditorService) SetDeps(deps WriteServiceDeps) {
-	if deps.WriteBases != nil {
-		s.writeBases = deps.WriteBases
-	}
 	s.deps = deps
 }
 
@@ -199,11 +191,11 @@ func toLegacyNullableIntMutation(patch EditorNullableIntPatch) store.NullableInt
 
 // EditorService.gateway creates a store gateway with the service's dependencies and callbacks.
 func (s *EditorService) gateway() *store.Gateway {
-	return store.NewGateway(newStoreGatewayConfig(s.store, s.writeBases, s.deps, s.nowFuncForToken(), s.publishCommitted))
+	return store.NewGateway(newStoreGatewayConfig(s.store, s.deps, s.nowFuncForToken(), s.publishCommitted))
 }
 
 // EditorService.publishCommitted publishes a committed anime change through the configured publisher.
-func (s *EditorService) publishCommitted(event ChangedOutboxEvent) {
+func (s *EditorService) publishCommitted(event CommittedChange) {
 	if s.deps.Publisher != nil {
 		s.deps.Publisher.Publish(newAnimeChangedEvent(event))
 		return

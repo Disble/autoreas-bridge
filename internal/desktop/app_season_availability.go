@@ -8,12 +8,10 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/anime"
-	"autoreas-bridge/internal/anime/store"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/download/sites"
 	"autoreas-bridge/internal/download/sites/jkanime"
-	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/notification"
 	"autoreas-bridge/internal/notification/center"
 	"autoreas-bridge/internal/schedule"
@@ -101,19 +99,6 @@ func (a *App) animeOverlaysByID(ctx context.Context) map[string]animeOverlay {
 	return out
 }
 
-// animeWatchedState extracts the section and progress from an anime payload.
-func animeWatchedState(payload []byte) (string, float64, bool) {
-	value, _, err := store.Decode(payload)
-	if err != nil {
-		return "", 0, false
-	}
-	section := ""
-	if len(value.Days) > 0 {
-		section = value.Days[0].Day
-	}
-	return section, value.Progress, true
-}
-
 // startSeasonAvailability wires the probe + gateway into the season service and
 // starts the daily availability scheduler (a second schedule.Scheduler instance,
 // composing the same generic component as downloads).
@@ -147,27 +132,6 @@ func (a *App) startSeasonAvailability(ctx context.Context) {
 		Log:   a.sharedLogger,
 	})
 	a.seasonScheduler.Start(ctx)
-
-	a.subscribeSeasonWatched(ctx)
-}
-
-// subscribeSeasonWatched wires the event-driven Ver hoy → Visto auto-transition:
-// on any anime change, a created season anime watched in Ver hoy moves to Visto.
-func (a *App) subscribeSeasonWatched(ctx context.Context) {
-	if a.eventBus == nil {
-		return
-	}
-	a.eventBus.Subscribe(events.EventNameAnimeChanged, func(ev events.Event) {
-		changed, ok := ev.(events.AnimeChangedEvent)
-		if !ok || a.seasonService == nil {
-			return
-		}
-		section, progress, found := animeWatchedState(changed.Payload)
-		if !found {
-			return
-		}
-		_ = a.seasonService.HandleAnimeWatched(ctx, changed.AnimeID, section, progress)
-	})
 }
 
 // runSeasonAvailability is the scheduler RunFunc: while a season is open it only

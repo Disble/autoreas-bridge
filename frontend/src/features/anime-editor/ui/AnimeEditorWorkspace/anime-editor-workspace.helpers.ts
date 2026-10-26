@@ -1,10 +1,10 @@
 import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
 import { normalizeStoredCoverPath } from '../../../../shared/anime-cover/anime-cover.helpers';
-import type { Anime, AnimeEditorRecord, AnimeEditorSaveResult, SaveAnimeEditorCommand } from '../../../../shared/contracts/anime.types';
+import type { Anime, AnimeEditorOutcome, AnimeEditorRecord, AnimeEditorSaveResult, SaveAnimeEditorCommand } from '../../../../shared/contracts/anime.types';
 import { isScheduledAnime, isValidAnimeEstado } from '../../../../shared/helpers/anime-estado.helpers';
 import { isValidDownloadPageUrl } from '../../../../shared/helpers/url.helpers';
-import { ANIME_EDITOR_COVER_PLACEHOLDER, ANIME_EDITOR_DEFAULT_DRAFT } from './anime-editor-workspace.constants';
-import type { AnimeEditorChipColor, AnimeEditorCoverRequestPlan, AnimeEditorCoverResult, AnimeEditorCoverTarget, AnimeEditorDraft, AnimeEditorEmptyState, AnimeEditorEmptyStateInput, AnimeEditorFilter, AnimeEditorGuardEvent, AnimeEditorGuardState, AnimeEditorLifecycleAction, AnimeEditorLifecycleConfirmation, AnimeEditorListItemViewModel, AnimeEditorListRowViewModel } from './anime-editor-workspace.types';
+import { ANIME_EDITOR_CALL_TIMEOUT_MESSAGE, ANIME_EDITOR_CALL_TIMEOUT_MS, ANIME_EDITOR_COVER_PLACEHOLDER, ANIME_EDITOR_DEFAULT_DRAFT } from './anime-editor-workspace.constants';
+import type { AnimeEditorChipColor, AnimeEditorCoverRequestPlan, AnimeEditorCoverResult, AnimeEditorCoverTarget, AnimeEditorDraft, AnimeEditorEmptyState, AnimeEditorEmptyStateInput, AnimeEditorFilter, AnimeEditorGuardEvent, AnimeEditorGuardState, AnimeEditorLifecycleAction, AnimeEditorLifecycleConfirmation, AnimeEditorListItemViewModel, AnimeEditorListRowViewModel, AnimeEditorToastKind } from './anime-editor-workspace.types';
 import { ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
 import type { UseEpisodeDurationsSectionOptions } from '../EpisodeDurationsSection/episode-durations-section.types';
 
@@ -350,9 +350,38 @@ export function isIntentionalEditorOutcome(result: AnimeEditorSaveResult) {
   return result.outcome === 'applied' || result.outcome === 'no_op';
 }
 
+/**
+ * Picks the toast that reports an editor mutation's outcome: an applied write
+ * succeeds, a no-op informs, a conflict warns, and anything else is an error.
+ * @param outcome The outcome the runtime returned.
+ * @returns The toast kind the hook callback shows.
+ */
+export function toAnimeEditorToastKind(outcome: AnimeEditorOutcome): AnimeEditorToastKind {
+  if (outcome === 'applied') return 'success';
+  if (outcome === 'no_op') return 'info';
+  if (outcome === 'conflict') return 'warning';
+  return 'danger';
+}
+
 /** Converts thrown runtime values into stable user feedback. */
 export function toEditorErrorMessage(error: unknown) {
   return error instanceof Error && error.message.length > 0 ? error.message : 'The editor operation failed.';
+}
+
+/**
+ * Races one runtime binding against a timeout so a call that never settles
+ * cannot keep the editor busy forever. The binding's own outcome wins when it
+ * settles first; otherwise the promise rejects with the timeout feedback, which
+ * callers already turn into an error outcome. The timer never outlives the call.
+ * @param call The pending binding promise.
+ * @param timeoutMs Longest wait before giving up on the call.
+ * @returns The binding's result, or a rejection carrying the timeout message.
+ */
+export function raceAnimeEditorCall<T>(call: Promise<T>, timeoutMs: number = ANIME_EDITOR_CALL_TIMEOUT_MS): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(ANIME_EDITOR_CALL_TIMEOUT_MESSAGE)), timeoutMs);
+    call.then(resolve, reject).finally(() => clearTimeout(timer));
+  });
 }
 
 /**

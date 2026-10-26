@@ -85,8 +85,8 @@ func beginFullRefreshTx(ctx context.Context, db *sql.DB, deleteSQL, insertSQL st
 }
 
 const insertAnimeSnapshotSQL = `
-	INSERT INTO anime_snapshots (anime_id, snapshot_json, snapshot_hash, modified_at)
-	VALUES (?, ?, ?, ?)
+	INSERT INTO anime_snapshots (anime_id, snapshot_json, snapshot_hash, modified_at, name_key)
+	VALUES (?, ?, ?, ?, ?)
 `
 
 // ImportAnimeSnapshots returns a backup import function that replaces every
@@ -112,7 +112,7 @@ func ImportAnimeSnapshots(db *sql.DB) func(context.Context, io.Reader) (int, err
 		// inserted before the next line is read, so peak memory does not
 		// grow with catalog size.
 		count, err = decodeAndInsertJSONL(ctx, r, stmt, func(rec animeSnapshotRecord) []any {
-			return []any{rec.AnimeID, rec.SnapshotJSON, rec.SnapshotHash, rec.ModifiedAt}
+			return []any{rec.AnimeID, rec.SnapshotJSON, rec.SnapshotHash, rec.ModifiedAt, animeNameKey(rec.SnapshotJSON)}
 		})
 		if err != nil {
 			return count, err

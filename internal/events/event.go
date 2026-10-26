@@ -114,7 +114,7 @@ var _ CorrelatedEvent = AnimeChangedEvent{}
 // EpisodeDurationsChangedEvent announces that the stored episode durations of one anime changed.
 //
 // It is NOT an anime write: the anime snapshot and its modified_at are untouched, so it never goes
-// through anime_changed_outbox and never reaches the AnimeChangedEvent subscribers (analysis D6).
+// through an anime save and never reaches the AnimeChangedEvent subscribers (analysis D6).
 // Only the sync changelog recorder and the WebSocket hub subscribe to it. Payload is the anime's
 // current snapshot, the same bytes an AnimeChangedEvent carries, so the changelog row it produces is
 // an ordinary update row. EventID is deterministic per pending mark, so a re-announcement after a

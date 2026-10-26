@@ -5,6 +5,12 @@ whose `.claude` (`1.1.2`) and `.agents` (`1.3.0`) copies had drifted; both histo
 Entries name the views that prompted them as a historical record; the rules themselves live in the
 files of `docs/design/`. Superseded entries are kept and marked.
 
+- `2.8.0` — Action results are toasts. The user asked that messages reacting to events (submit
+  status, errors) show mainly as a toast, as Seasons does. The result of a user action (saved,
+  no-op, conflict, error, timeout) is a `toast` called from the hook callback; `Alert` is reserved
+  for persistent surface state, a load failure (`danger`) or validation that blocks the action.
+  The Editor moved its Save, Deactivate, Restore and Repeat results off a gray `Alert` onto
+  toasts (`components/heroui-mapping.md`, "Toast feedback").
 - `2.7.0` — One icon-only standard, approved on the "Icon-only buttons" canvas (backed up in
   OpenDesign, project Bridge Redesign, folder `icon-only-buttons/`). The user's rule: "botón con
   solo-icono debe tener tooltip". Every icon-only button now goes through `IconActionButton`

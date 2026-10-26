@@ -113,8 +113,8 @@ func TestWriteServicePatchAnimeStampsModifiedAtOnConfirmedSnapshot(t *testing.T)
 	if err != nil {
 		t.Fatalf("get snapshot: %v", err)
 	}
-	if got.ModifiedAt <= 1000 {
-		t.Fatalf("expected confirmed snapshot ModifiedAt to advance past previous 1000, got %d", got.ModifiedAt)
+	if got.ModifiedAt != 1710000000123 {
+		t.Fatalf("expected confirmed snapshot ModifiedAt to be the clock token 1710000000123, got %d", got.ModifiedAt)
 	}
 }
 

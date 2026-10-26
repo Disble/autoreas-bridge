@@ -33,10 +33,6 @@ type ConflictWriter interface {
 	InsertConflict(context.Context, contracts.ConflictRecord) error
 }
 
-type writeBaseStoreProvider interface {
-	WriteBaseStore() WriteBaseStore
-}
-
 // WriteServiceDeps carries optional collaborators for write flows.
 type WriteServiceDeps struct {
 	Conflicts ConflictWriter
@@ -45,28 +41,26 @@ type WriteServiceDeps struct {
 	// OCCObserveOnly remains for source compatibility. Base-less writes alone
 	// use observe-only last-write-wins; explicit stale bases are always enforced.
 	OCCObserveOnly bool
-	WriteBases     WriteBaseStore
 	Publisher      EventPublisher
+	// Saves replaces the save store the snapshot lookup provides.
+	Saves SaveStore
+	// SaveRule rewrites every applied snapshot inside its save transaction.
+	SaveRule SaveRule
 }
 
 // WriteService applies canonical create and patch mutations through the legacy gateway.
 type WriteService struct {
-	store      snapshotLookup
-	publisher  CommittedPublisher
-	now        func() time.Time
-	newID      func() string
-	writeBases WriteBaseStore
-	deps       WriteServiceDeps
+	store     snapshotLookup
+	publisher CommittedPublisher
+	now       func() time.Time
+	newID     func() string
+	deps      WriteServiceDeps
 }
 
 // NewWriteService builds a write service over the shared snapshot store and
 // the publisher that announces its committed writes (nil publishes nothing).
 func NewWriteService(store snapshotLookup, publisher CommittedPublisher) *WriteService {
-	service := &WriteService{store: store, publisher: publisher, now: time.Now, newID: defaultAnimeID}
-	if provider, ok := store.(writeBaseStoreProvider); ok {
-		service.writeBases = provider.WriteBaseStore()
-	}
-	return service
+	return &WriteService{store: store, publisher: publisher, now: time.Now, newID: defaultAnimeID}
 }
 
 // SetNow overrides the clock used for write timestamps.
@@ -81,9 +75,6 @@ func (s *WriteService) SetIDGen(newID func() string) {
 
 // SetDeps overrides optional gateway collaborators for tests and runtime wiring.
 func (s *WriteService) SetDeps(deps WriteServiceDeps) {
-	if deps.WriteBases != nil {
-		s.writeBases = deps.WriteBases
-	}
 	s.deps = deps
 }
 
@@ -208,33 +199,14 @@ func (s *WriteService) PatchAnimeResult(ctx context.Context, id string, patch co
 	return s.PatchAnime(ctx, id, patch)
 }
 
-// RecoverWrites replays any durable write-base recovery journal and outbox events.
-func (s *WriteService) RecoverWrites(ctx context.Context) error {
-	gateway := s.gateway()
-	if err := gateway.Recover(ctx); err != nil {
-		return err
-	}
-	return gateway.DrainOutbox(ctx)
-}
-
-// RecoveryConfigured reports whether the service has a real write-base store
-// AND a committed publisher, so recovery can safely replay any
-// staged-but-not-finalized SQLite write left by a prior crash and announce it.
-// SQLite is the only durable write step (ADR-55-1); the publisher gate keeps
-// recovery off an App-level test double's placeholder database, because those
-// startup tests wire no publisher.
-func (s *WriteService) RecoveryConfigured() bool {
-	return s.writeBases != nil && s.publisher != nil
-}
-
 // gateway builds the store gateway used by write operations.
 func (s *WriteService) gateway() *store.Gateway {
-	config := newStoreGatewayConfig(s.store, s.writeBases, s.deps, s.nowFuncForToken(), s.publishCommitted)
+	config := newStoreGatewayConfig(s.store, s.deps, s.nowFuncForToken(), s.publishCommitted)
 	return store.NewGateway(config)
 }
 
 // publishCommitted publishes a committed anime change when a publisher is configured.
-func (s *WriteService) publishCommitted(event ChangedOutboxEvent) {
+func (s *WriteService) publishCommitted(event CommittedChange) {
 	if s.deps.Publisher != nil {
 		s.deps.Publisher.Publish(newAnimeChangedEvent(event))
 		return

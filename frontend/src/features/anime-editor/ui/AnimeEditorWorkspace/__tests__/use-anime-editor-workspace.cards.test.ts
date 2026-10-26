@@ -1,11 +1,20 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createElement } from 'react';
 import { MemoryRouter } from 'react-router';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EpisodeDurationRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
 import type { AnimeEditorRecord, AnimeEditorScheduleBoard } from '../../../../../shared/contracts/anime.types';
 import { useAnimeEditorWorkspace } from '../use-anime-editor-workspace';
 import { createEmptyEpisodeDurationSource } from './episode-duration-source.test-support';
+
+/** Toast stub, hoisted so the HeroUI module mock can close over it. */
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), info: vi.fn(), warning: vi.fn(), danger: vi.fn() }));
+
+vi.mock('@heroui/react', () => ({ toast: toastMock }));
+
+beforeEach(() => {
+  Object.values(toastMock).forEach((mock) => mock.mockClear());
+});
 
 /** Router context the hook needs, since it reads and writes navigation state. */
 const wrapper = ({ children }: Readonly<{ children: React.ReactNode }>) => createElement(MemoryRouter, undefined, children);
@@ -407,6 +416,6 @@ describe('useAnimeEditorWorkspace independent cards', () => {
     expect(episodeSource.saveEpisodeDurations).toHaveBeenCalledTimes(1);
     expect(result.current.selectedAnimeId).toBe('anime-1');
     expect(result.current.isGuardOpen).toBe(true);
-    expect(result.current.feedback).toBe('stale');
+    expect(toastMock.warning).toHaveBeenCalledWith('stale');
   });
 });

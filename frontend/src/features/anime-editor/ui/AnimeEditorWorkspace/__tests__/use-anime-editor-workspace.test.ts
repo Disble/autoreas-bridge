@@ -1,10 +1,19 @@
 import { act, fireEvent, renderHook, waitFor } from '@testing-library/react';
 import { createElement } from 'react';
 import { MemoryRouter } from 'react-router';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnimeEditorRecord, AnimeEditorSaveResult } from '../../../../../shared/contracts/anime.types';
 import { useAnimeEditorWorkspace } from '../use-anime-editor-workspace';
 import { createEmptyEpisodeDurationSource } from './episode-duration-source.test-support';
+
+/** Toast stub, hoisted so the HeroUI module mock can close over it. */
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), info: vi.fn(), warning: vi.fn(), danger: vi.fn() }));
+
+vi.mock('@heroui/react', () => ({ toast: toastMock }));
+
+beforeEach(() => {
+  Object.values(toastMock).forEach((mock) => mock.mockClear());
+});
 
 /** The Episodes section's in-memory source, so no render waits on a Wails binding. */
 const episodeSource = createEmptyEpisodeDurationSource();
@@ -108,16 +117,18 @@ describe('useAnimeEditorWorkspace', () => {
     expect(result.current.draft.name).toBe('Attempted');
     expect(result.current.selectedRecord?.frequent.name).toBe('Authority');
     expect(result.current.isDirty).toBe(true);
-    expect(result.current.feedback).toBe('conflict message');
+    expect(toastMock.warning).toHaveBeenCalledWith('conflict message');
   });
 
-  it.each(['applied', 'no_op'] as const)('clears dirty after an intentional %s save', async (outcome) => {
+  it.each([['applied', 'success'], ['no_op', 'info']] as const)('clears dirty after an intentional %s save and toasts it as %s', async (outcome, kind) => {
     const { result, source } = await loadHook();
     vi.mocked(source.saveAnimeEditor).mockResolvedValueOnce(mutation(outcome, record('anime-1', 'Attempted', 101)));
     act(() => result.current.onDraftChange('name', 'Attempted'));
     await act(() => result.current.onSave());
     expect(result.current.isDirty).toBe(false);
     expect(result.current.selectedAnimeId).toBe('anime-1');
+    expect(toastMock[kind]).toHaveBeenCalledWith(`${outcome} message`);
+    expect(result.current.recordLoadError).toBeUndefined();
   });
 
   it('retains dirty state and resets loading when save throws', async () => {
@@ -128,15 +139,17 @@ describe('useAnimeEditorWorkspace', () => {
     expect(result.current.draft.name).toBe('Attempted');
     expect(result.current.isDirty).toBe(true);
     expect(result.current.isSaving).toBe(false);
-    expect(result.current.feedback).toBe('offline');
+    expect(toastMock.danger).toHaveBeenCalledWith('offline');
   });
 
-  it('shows invalid feedback without calling the save binding', async () => {
+  it('blocks an invalid save on the validation alert alone, without a toast or the save binding', async () => {
     const { result, source } = await loadHook();
     act(() => result.current.onDraftChange('name', '   '));
     await act(() => result.current.onSave());
     expect(source.saveAnimeEditor).not.toHaveBeenCalled();
-    expect(result.current.feedback).toBe('Name is required.');
+    expect(result.current.validationMessage).toBe('Name is required.');
+    expect(result.current.recordLoadError).toBeUndefined();
+    Object.values(toastMock).forEach((mock) => expect(mock).not.toHaveBeenCalled());
     expect(result.current.isDirty).toBe(true);
   });
 

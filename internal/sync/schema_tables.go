@@ -3,7 +3,6 @@ package sync
 import (
 	"database/sql"
 	"fmt"
-	"strings"
 
 	"autoreas-bridge/internal/persistence"
 )
@@ -19,8 +18,6 @@ func schemaTables() []persistence.TableSchema {
 		changelogTable(),
 		{Name: "app_settings", CreateDDL: appSettingsDDL, Migrate: migrateAppSettings},
 		createOnlyTable("device_sync_state", deviceSyncStateDDL),
-		animeWriteOperationsTable(),
-		animeChangedOutboxTable(),
 		requestCapturesTable(),
 		createOnlyTable("request_capture_metadata", requestCaptureMetadataDDL),
 		createOnlyTable("request_rollup_hourly", requestRollupHourlyDDL),
@@ -29,9 +26,8 @@ func schemaTables() []persistence.TableSchema {
 		createOnlyTable("season_projection_published", seasonProjectionPublishedDDL),
 		// animeSnapshotsTable is last: its Migrate hook drives the SDD-56
 		// cross-table vocabulary migration (ensureVocabularyMigration), which
-		// reads/writes conflicts, changelog, anime_write_operations, and
-		// anime_changed_outbox -- all of which must already exist by the time
-		// it runs, including on a truly fresh install.
+		// reads/writes conflicts and changelog, which must already exist by the
+		// time it runs, including on a truly fresh install.
 		animeSnapshotsTable(),
 	}
 }
@@ -39,38 +35,6 @@ func schemaTables() []persistence.TableSchema {
 // createOnlyTable builds a table descriptor without migration logic.
 func createOnlyTable(name, ddl string) persistence.TableSchema {
 	return persistence.TableSchema{Name: name, CreateDDL: ddl}
-}
-
-// animeChangedOutboxTable builds the outbox descriptor. It carries a migration
-// rather than being create-only because the derived changed-field list was
-// added after the table shipped.
-func animeChangedOutboxTable() persistence.TableSchema {
-	return persistence.TableSchema{
-		Name:      "anime_changed_outbox",
-		CreateDDL: animeChangedOutboxDDL,
-		Indexes:   []string{animeChangedOutboxPendingIndexDDL},
-		Migrate:   migrateAnimeChangedOutboxSchema,
-	}
-}
-
-// migrateAnimeChangedOutboxSchema adds the derived changed-field column
-// (ADD COLUMN only -- non-destructive). It is nullable on purpose: rows written
-// before this change carry no derivation, and the reader treats NULL as an
-// empty list, which is exactly the behaviour they already had.
-//
-// The derived change_type column follows the same rule: nullable, ADD COLUMN
-// only, and a NULL reads as an empty change type, which the changelog recorder
-// keeps recording as an update -- exactly what those rows already were.
-func migrateAnimeChangedOutboxSchema(db *sql.DB, cols []string) error {
-	for _, column := range []string{"changed_fields_json", "change_type"} {
-		if containsSchemaColumn(cols, column) {
-			continue
-		}
-		if _, err := db.Exec(`ALTER TABLE anime_changed_outbox ADD COLUMN ` + column + ` TEXT`); err != nil { // NOSONAR go:S2077 -- column is a compile-time literal from the list above.
-			return fmt.Errorf("add anime_changed_outbox %s: %w", column, err)
-		}
-	}
-	return nil
 }
 
 // animeSnapshotsTable builds the anime snapshot table descriptor.
@@ -131,106 +95,6 @@ func ensureScheduleDayMigrationColumn(db *sql.DB, cols []string) error {
 	return nil
 }
 
-// ensureAnimeNameKeyColumn adds the generated anime-identity column to a
-// database that predates it, after refusing any catalogue the unique index
-// could not cover.
-//
-// The refusal is deliberate and loud: a silent skip would leave the guard
-// absent on exactly the databases that already proved they need it. The message
-// names each duplicate so it can be fixed from the Editor, because the index is
-// the only thing standing between the catalogue and a second anime sharing a
-// name -- and a name is what the search rails and the download folder are
-// derived from.
-func ensureAnimeNameKeyColumn(db *sql.DB) error {
-	present, err := hasGeneratedNameKeyColumn(db)
-	if err != nil {
-		return err
-	}
-	if present {
-		return nil
-	}
-	duplicates, err := duplicateAnimeNameKeys(db)
-	if err != nil {
-		return err
-	}
-	if len(duplicates) > 0 {
-		return fmt.Errorf(
-			"cannot enforce unique anime names: %d name(s) are held by more than one anime (%s); "+
-				"rename or remove the extra records, then start again",
-			len(duplicates), strings.Join(duplicates, ", "))
-	}
-	alter := `ALTER TABLE anime_snapshots ADD COLUMN name_key TEXT GENERATED ALWAYS AS (` +
-		animeSnapshotsNameKeyExpr + `) VIRTUAL`
-	if _, err := db.Exec(alter); err != nil {
-		return fmt.Errorf("add anime_snapshots name key: %w", err)
-	}
-	return nil
-}
-
-// hasGeneratedNameKeyColumn reports whether the generated identity column is
-// already on the table.
-//
-// It deliberately does NOT use the column list persistence hands the migration
-// hook, nor PRAGMA table_info, because neither reports a GENERATED ... VIRTUAL
-// column: SQLite treats it as hidden. Probing with table_info makes the ALTER
-// re-run on every boot and fail with "duplicate column name". PRAGMA
-// table_xinfo is the one that lists hidden columns.
-func hasGeneratedNameKeyColumn(db *sql.DB) (present bool, err error) {
-	rows, err := db.Query(`SELECT name FROM pragma_table_xinfo('anime_snapshots')`)
-	if err != nil {
-		return false, fmt.Errorf("inspect anime_snapshots columns: %w", err)
-	}
-	defer func() {
-		if closeErr := rows.Close(); err == nil && closeErr != nil {
-			present, err = false, closeErr
-		}
-	}()
-
-	for rows.Next() {
-		var name string
-		if scanErr := rows.Scan(&name); scanErr != nil {
-			return false, fmt.Errorf("scan anime_snapshots column: %w", scanErr)
-		}
-		if name == "name_key" {
-			present = true
-		}
-	}
-	if rowsErr := rows.Err(); rowsErr != nil {
-		return false, rowsErr
-	}
-	return present, nil
-}
-
-// duplicateAnimeNameKeys returns every normalised name held by more than one
-// stored anime, in a stable order so the failure reads the same on every run.
-func duplicateAnimeNameKeys(db *sql.DB) (names []string, err error) {
-	rows, err := db.Query(`
-		SELECT ` + animeSnapshotsNameKeyExpr + ` AS name_key
-		FROM anime_snapshots
-		GROUP BY name_key HAVING COUNT(*) > 1
-		ORDER BY name_key`)
-	if err != nil {
-		return nil, fmt.Errorf("inspect anime names for duplicates: %w", err)
-	}
-	defer func() {
-		if closeErr := rows.Close(); err == nil && closeErr != nil {
-			names, err = nil, closeErr
-		}
-	}()
-
-	for rows.Next() {
-		var name sql.NullString
-		if scanErr := rows.Scan(&name); scanErr != nil {
-			return nil, fmt.Errorf("scan duplicate anime name: %w", scanErr)
-		}
-		names = append(names, name.String)
-	}
-	if rowsErr := rows.Err(); rowsErr != nil {
-		return nil, rowsErr
-	}
-	return names, nil
-}
-
 // changelogTable builds the changelog table descriptor.
 func changelogTable() persistence.TableSchema {
 	return persistence.TableSchema{
@@ -261,20 +125,6 @@ func ensureSourceEventIdentityColumn(db *sql.DB, cols []string) error {
 		return fmt.Errorf("add changelog source event identity: %w", err)
 	}
 	return nil
-}
-
-// animeWriteOperationsTable builds the write operations table descriptor.
-func animeWriteOperationsTable() persistence.TableSchema {
-	return persistence.TableSchema{
-		Name:      "anime_write_operations",
-		CreateDDL: animeWriteOperationsDDL,
-		Indexes: []string{
-			animeWriteOperationsAnimeTokenIndexDDL,
-			animeWriteOperationsRecoveryIndexDDL,
-			animeWriteOperationsLiveReservationIndexDDL,
-		},
-		Migrate: migrateAnimeWriteOperationsSchema,
-	}
 }
 
 // requestCapturesTable builds the request capture table descriptor.
@@ -320,29 +170,6 @@ func migrateRequestCapturesSchema(db *sql.DB, cols []string) error {
 		}
 		if _, err := db.Exec(column.ddl); err != nil {
 			return fmt.Errorf("add request_captures %s: %w", column.name, err)
-		}
-	}
-	return nil
-}
-
-// migrateAnimeWriteOperationsSchema adds missing write operation columns.
-func migrateAnimeWriteOperationsSchema(db *sql.DB, cols []string) error {
-	for _, column := range []struct {
-		name string
-		ddl  string
-	}{
-		{name: "batch_id", ddl: `ALTER TABLE anime_write_operations ADD COLUMN batch_id TEXT NOT NULL DEFAULT ''`},
-		{name: "batch_order", ddl: `ALTER TABLE anime_write_operations ADD COLUMN batch_order INTEGER NOT NULL DEFAULT 0`},
-		{name: "batch_size", ddl: `ALTER TABLE anime_write_operations ADD COLUMN batch_size INTEGER NOT NULL DEFAULT 1`},
-		// request_id joins a write to the bridge request that caused it (P3);
-		// '' marks a write no request caused.
-		{name: "request_id", ddl: `ALTER TABLE anime_write_operations ADD COLUMN request_id TEXT NOT NULL DEFAULT ''`},
-	} {
-		if containsSchemaColumn(cols, column.name) {
-			continue
-		}
-		if _, err := db.Exec(column.ddl); err != nil {
-			return fmt.Errorf("add anime_write_operations %s: %w", column.name, err)
 		}
 	}
 	return nil

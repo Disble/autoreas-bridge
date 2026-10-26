@@ -40,7 +40,6 @@ type App struct {
 	bridgeDB                   *sql.DB
 	bridgeDBCloser             interface{ Close() error }
 	startupErr                 error
-	startupFatal               bool
 	sharedLogger               *sharedlogger.FanoutLogger
 	seasonGradeActivity        seasonGradeActivityRecorder // nil → built from bridgeDB
 	syncTrigger                *bridgeSync.TriggerService
@@ -249,15 +248,12 @@ func (a *App) startup(ctx context.Context) {
 	a.ensureDownloadStore()
 	a.configureRuntimeServices(ctx)
 	a.wireSeasonMatchingEventBus()
-	// Only a fatal failure stops startup. A failed HTTP bind is reported through
-	// startupErr but must not abort the rest: the server serves mobile sync,
-	// while readiness, the download service and the scheduler are local. When a
-	// second instance lost the port race this gate used to skip
-	// startDownloadOrchestration entirely, leaving readinessService nil and every
-	// Downloads panel reporting "Download readiness unavailable".
-	if a.startupFatal {
-		return
-	}
+	// A failed HTTP bind is reported through startupErr but must not abort the
+	// rest: the server serves mobile sync, while readiness, the download service
+	// and the scheduler are local. When a second instance lost the port race a
+	// gate on startupErr used to skip startDownloadOrchestration entirely,
+	// leaving readinessService nil and every Downloads panel reporting
+	// "Download readiness unavailable".
 	a.reconcileAutoStart(ctx)
 	a.startDownloadOrchestration(ctx)
 	a.startEpisodeBackfill()
@@ -326,12 +322,15 @@ func (a *App) wireEpisodeService(conflictWriter anime.ConflictWriter) {
 	snapshotStore := bridgeSync.NewAnimeSnapshotStore(a.bridgeDB)
 	writer := anime.NewWriteService(snapshotStore, a.animeChangedPublisher)
 	if conflictWriter != nil {
-		writer.SetDeps(anime.WriteServiceDeps{
+		deps := anime.WriteServiceDeps{
 			Conflicts:      conflictWriter,
 			Notifier:       a.notifier,
-			Logger:         a.sharedLogger,
 			OCCObserveOnly: true,
-		})
+		}
+		if a.sharedLogger != nil {
+			deps.Logger = a.sharedLogger
+		}
+		writer.SetDeps(deps)
 	}
 	a.wireEpisodeServiceWithWriter(writer)
 }

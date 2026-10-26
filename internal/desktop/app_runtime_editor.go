@@ -5,6 +5,7 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
+	sharedlogger "autoreas-bridge/internal/logger"
 )
 
 // editorDetails returns operation metadata for editor responses.
@@ -35,13 +36,28 @@ func (a *App) SaveAnimeEditor(command SaveAnimeEditorCommandDTO) contracts.Anime
 	}
 	domainCommand, err := command.toDomain()
 	if err != nil {
-		return editorSaveError("save", fmt.Sprintf("save anime editor: %v", err))
+		return a.editorWriteFailure("save", command.AnimeID, fmt.Errorf("save anime editor: %w", err))
 	}
 	result, err := a.animeEditorWrite.Save(a.appContext(), domainCommand)
 	if err != nil {
-		return editorSaveError("save", fmt.Sprintf("save anime editor: %v", err))
+		return a.editorWriteFailure("save", command.AnimeID, fmt.Errorf("save anime editor: %w", err))
 	}
 	return a.editorSaveResult("save", result)
+}
+
+// editorWriteFailure records a failed editor write in runtime_events, so it
+// reaches Activity's Editor view and opens an incident, then builds the error
+// response. The error level is deliberate: a write the UI already validated
+// failing in the backend is exactly what an operator must be able to find.
+func (a *App) editorWriteFailure(operation, animeID string, err error) contracts.AnimeEditorSaveResult {
+	if a.sharedLogger != nil {
+		a.sharedLogger.Logf("anime", sharedlogger.LevelError, sharedlogger.Fields{
+			EntityID:  animeID,
+			EventType: "anime.editor_save_failed",
+			Metadata:  map[string]any{"operation": operation},
+		}, "editor %s failed for %s: %v", operation, animeID, err)
+	}
+	return editorSaveError(operation, err.Error())
 }
 
 // DeactivateAnime takes an anime out of the active rotation, under
@@ -52,7 +68,7 @@ func (a *App) DeactivateAnime(animeID string, baseModifiedAt int64) contracts.An
 	}
 	result, err := a.animeEditorWrite.Deactivate(a.appContext(), animeID, baseModifiedAt)
 	if err != nil {
-		return editorSaveError("deactivate", fmt.Sprintf("deactivate anime: %v", err))
+		return a.editorWriteFailure("deactivate", animeID, fmt.Errorf("deactivate anime: %w", err))
 	}
 	return a.editorSaveResult("deactivate", result)
 }

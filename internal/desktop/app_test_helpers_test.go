@@ -98,7 +98,7 @@ func newTrayLifecycleTestApp(t *testing.T, manager *tray.MockTrayManager) *trayL
 type stubTracerBulletRunner struct{ started bool }
 
 // stubAppCommittedPublisher is the anime.CommittedPublisher test double; it
-// discards the drained outbox events it is asked to publish.
+// discards the committed changes it is asked to publish.
 type stubAppCommittedPublisher struct{}
 
 type stubAppChangelogStore struct{}
@@ -359,7 +359,7 @@ type stubAppChangelogRecorder struct {
 	onStop  func()
 }
 
-func (*stubAppCommittedPublisher) PublishCommitted(anime.ChangedOutboxEvent) {}
+func (*stubAppCommittedPublisher) PublishCommitted(anime.CommittedChange) {}
 
 func (s *stubAppChangelogRecorder) Start(context.Context) { s.started = true }
 func (s *stubAppChangelogRecorder) Stop() {

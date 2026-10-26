@@ -6,10 +6,13 @@ import (
 	"net/http"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
+	"autoreas-bridge/internal/season"
+	seasondomain "autoreas-bridge/internal/season/domain"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
@@ -21,7 +24,13 @@ type syncE2EHTTPEndpointEnv struct {
 	db             *sql.DB
 }
 
-// newSyncE2EHTTPEndpointEnv creates the HTTP-only sync test environment.
+// syncE2EWriteClockMs is the e2e write clock. It is far past any seeded token,
+// so an applied write stamps exactly this modified_at.
+const syncE2EWriteClockMs int64 = 4102444800000
+
+// newSyncE2EHTTPEndpointEnv creates the HTTP-only sync test environment. Its
+// writes go through the production publisher and the real changelog recorder
+// on one bus, so a reconcile write lands in the changelog it then serves.
 func newSyncE2EHTTPEndpointEnv(t *testing.T) *syncE2EHTTPEndpointEnv {
 	t.Helper()
 
@@ -31,11 +40,20 @@ func newSyncE2EHTTPEndpointEnv(t *testing.T) *syncE2EHTTPEndpointEnv {
 	seedSyncE2ESnapshot(t, snapshotStore, "anime-1", `{"id":"anime-1","name":"One Piece","episodesWatched":661,"status":2,"totalEpisodes":1200,"active":true}`)
 	deviceService := seedSyncE2EDeviceService(t, ctx, db)
 	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(db))
+	bus := events.NewBus()
+	recorder := bridgeSync.NewChangelogRecorder(bus, changelogStore)
+	recorder.Start(ctx)
+	t.Cleanup(recorder.Stop)
+	write := anime.NewWriteService(snapshotStore, anime.NewCommittedPublisher(bus))
+	write.SetNow(func() time.Time { return time.UnixMilli(syncE2EWriteClockMs).UTC() })
+	// The production save rule, so a reconcile +1 meets the Season move in its own save.
+	write.SetDeps(anime.WriteServiceDeps{Conflicts: bridgeSync.NewConflictStore(db), SaveRule: anime.NewSectionMoveRule(season.WatchedSection)})
 
 	handler := NewHandler(Config{
 		DeviceService: deviceService,
 		AnimeQuery:    anime.NewQueryService(snapshotStore),
-		SyncTrigger:   bridgeSync.NewTriggerService(events.NewBus(), changelogStore),
+		AnimeWrite:    write,
+		SyncTrigger:   bridgeSync.NewTriggerService(bus, changelogStore),
 	})
 
 	return &syncE2EHTTPEndpointEnv{
@@ -91,5 +109,22 @@ func seedSyncE2ESnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, ani
 		},
 	}, nil); err != nil {
 		t.Fatalf("seed snapshot baseline: %v", err)
+	}
+}
+
+// seedSyncE2EOpenSeasonRow opens a season whose created row links animeID, the
+// state in which a watched "Ver hoy" anime moves to "Visto".
+func seedSyncE2EOpenSeasonRow(t *testing.T, env *syncE2EHTTPEndpointEnv, animeID string) {
+	t.Helper()
+	repo := season.NewSQLiteStore(env.db)
+	now := time.UnixMilli(1_700_000_000_000)
+	opened := seasondomain.NewSeason("season-1", "Spring", now)
+	row := seasondomain.NewSeasonAnime("row-1", opened.ID, "Show", now)
+	row.Availability, row.AnimeID = seasondomain.AvailabilityCreated, animeID
+	if err := repo.CreateSeason(env.ctx, opened); err != nil {
+		t.Fatalf("open season: %v", err)
+	}
+	if err := repo.CreateSeasonAnime(env.ctx, row); err != nil {
+		t.Fatalf("link season anime: %v", err)
 	}
 }

@@ -55,6 +55,11 @@ func TestSQLiteAnimeSnapshotStoreReplaceBaselineUpsertsAndPrunes(t *testing.T) {
 	if string(got["new"].CanonicalJSON) != string(current["new"].CanonicalJSON) {
 		t.Fatalf("expected new snapshot json %s, got %s", string(current["new"].CanonicalJSON), string(got["new"].CanonicalJSON))
 	}
+
+	keys := readNameKeys(t, db)
+	if keys["keep"].String != "new keep" || keys["new"].String != "brand new" {
+		t.Fatalf("expected inserted and upserted rows to carry their name keys, got %v", keys)
+	}
 }
 
 func TestSQLiteAnimeSnapshotStoreReplaceBaselinePersistsModifiedAt(t *testing.T) {

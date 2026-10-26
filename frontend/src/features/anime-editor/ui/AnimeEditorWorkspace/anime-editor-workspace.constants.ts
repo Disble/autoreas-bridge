@@ -141,3 +141,13 @@ export const ANIME_EDITOR_EMPTY_STATE_COPY: Readonly<Record<'actual' | 'criteria
     description: 'The current search and filters hide every anime in your library.',
   },
 };
+
+/**
+ * Longest the editor waits for one write binding (save, deactivate, restore,
+ * repeat) before it stops showing the busy state. A healthy write answers well
+ * under a second, so reaching 20 s means the call is stuck, not slow.
+ */
+export const ANIME_EDITOR_CALL_TIMEOUT_MS = 20_000;
+
+/** Feedback shown when a write binding outlives {@link ANIME_EDITOR_CALL_TIMEOUT_MS}. */
+export const ANIME_EDITOR_CALL_TIMEOUT_MESSAGE = 'Saving is taking too long. The anime may still be saving, so check the record before trying again.';

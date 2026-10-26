@@ -2,8 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -68,6 +70,54 @@ func TestSyncEndpointsHandleCapPlusAndIncrementalChangesWithout500(t *testing.T)
 	if reconcilePayload.BridgeChanges[0].Snapshot == nil || reconcilePayload.BridgeChanges[0].Snapshot.EpisodesWatched != 661 {
 		t.Fatalf("expected reconcile bridge change snapshot nrocapvisto 661 (the stored anime), got %#v", reconcilePayload.BridgeChanges[0].Snapshot)
 	}
+
+	assertReconcileUpdatesApplyThenConflict(t, env, reconcilePayload.LastChangelogID)
+}
+
+// assertReconcileUpdatesApplyThenConflict posts one update on the current base
+// and one on the now-stale base: the first applies with the stamped token, the
+// second conflicts and echoes it, and the applied write advances
+// last_changelog_id through the real changelog.
+func assertReconcileUpdatesApplyThenConflict(t *testing.T, env *syncE2EHTTPEndpointEnv, lastChangelogID int64) {
+	t.Helper()
+	current, err := env.snapshotStore.GetSnapshot(env.ctx, "anime-1")
+	if err != nil {
+		t.Fatalf("get seeded snapshot: %v", err)
+	}
+	body := fmt.Sprintf(`{"device_id":"device-1","last_changelog_id":%d,"pending_operations":[`+
+		`{"anime_id":"anime-1","operation":"update","payload":{"episodesWatched":662,"base":%d},"created_at":1710000000458},`+
+		`{"anime_id":"anime-1","operation":"update","payload":{"episodesWatched":663,"base":%d},"created_at":1710000000459}]}`,
+		lastChangelogID, current.ModifiedAt, current.ModifiedAt)
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer good-token")
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+	env.handler.ServeHTTP(res, req)
+	if res.Code != http.StatusAccepted {
+		t.Fatalf("expected POST /api/sync/reconcile status 202, got %d body=%s", res.Code, res.Body.String())
+	}
+	var payload contracts.ReconcileResponse
+	if err := json.Unmarshal(res.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode POST /api/sync/reconcile response: %v", err)
+	}
+	stamped := syncE2EWriteClockMs
+	want := []contracts.AppliedOperation{
+		{AnimeID: "anime-1", Operation: "update", Applied: true, ModifiedAt: &stamped},
+		{AnimeID: "anime-1", Operation: "update", Applied: false, ModifiedAt: &stamped, Reason: contracts.AppliedOperationReasonConflict},
+	}
+	if len(payload.AppliedOperations) != len(want) {
+		t.Fatalf("expected applied_operations %d entries, got %s", len(want), res.Body.String())
+	}
+	for index, got := range payload.AppliedOperations {
+		if got.ModifiedAt == nil || *got.ModifiedAt != *want[index].ModifiedAt || got.AnimeID != want[index].AnimeID ||
+			got.Operation != want[index].Operation || got.Applied != want[index].Applied || got.Reason != want[index].Reason {
+			t.Fatalf("applied_operations[%d]: want %+v modified_at %d, got %s", index, want[index], stamped, res.Body.String())
+		}
+	}
+	if payload.LastChangelogID <= lastChangelogID || len(payload.BridgeChanges) != 1 ||
+		payload.BridgeChanges[0].Snapshot == nil || payload.BridgeChanges[0].Snapshot.EpisodesWatched != 662 {
+		t.Fatalf("expected last_changelog_id past %d serving the applied update, got %s", lastChangelogID, res.Body.String())
+	}
 }
 
 func TestSyncEndpointsIgnoreMalformedChangelogSnapshotInsteadOfReturning500(t *testing.T) {
@@ -105,5 +155,73 @@ func TestSyncEndpointsIgnoreMalformedChangelogSnapshotInsteadOfReturning500(t *t
 	env.handler.ServeHTTP(postRes, postReq)
 	if postRes.Code != http.StatusAccepted {
 		t.Fatalf("expected POST /api/sync/reconcile status 202 despite malformed row, got %d body=%s", postRes.Code, postRes.Body.String())
+	}
+}
+
+// TestSyncReconcilePlusOneThatMovesASeasonAnimeToVistoIsOneSave pins the two
+// mobile invariants of the in-transaction Season move (L6): the applied
+// operation echoes the FINAL token of the single save, whose snapshot already
+// holds days=[Visto], and that save's only changelog row names `days` together
+// with the progress fields.
+func TestSyncReconcilePlusOneThatMovesASeasonAnimeToVistoIsOneSave(t *testing.T) {
+	t.Parallel()
+
+	env := newSyncE2EHTTPEndpointEnv(t)
+	seedSyncE2ESnapshot(t, env.snapshotStore, "anime-2", `{"id":"anime-2","name":"Show","episodesWatched":0,"status":0,"totalEpisodes":12,"active":true,"days":[{"day":"Ver hoy","order":1}]}`)
+	seedSyncE2EOpenSeasonRow(t, env, "anime-2")
+
+	base, err := env.snapshotStore.GetSnapshot(env.ctx, "anime-2")
+	if err != nil {
+		t.Fatalf("get seeded snapshot: %v", err)
+	}
+	// The phone's +1: the watched count one past the stored one, on the stored token.
+	body := fmt.Sprintf(`{"device_id":"device-1","last_changelog_id":0,"pending_operations":[`+
+		`{"anime_id":"anime-2","operation":"update","payload":{"episodesWatched":1,"base":%d},"created_at":1710000000460}]}`, base.ModifiedAt)
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer good-token")
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+	env.handler.ServeHTTP(res, req)
+	var payload contracts.ReconcileResponse
+	if res.Code != http.StatusAccepted || json.Unmarshal(res.Body.Bytes(), &payload) != nil {
+		t.Fatalf("expected an accepted reconcile, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	stored, err := env.snapshotStore.GetSnapshot(env.ctx, "anime-2")
+	if err != nil {
+		t.Fatalf("get saved snapshot: %v", err)
+	}
+	var value struct {
+		Days []contracts.MobileAnimeDay `json:"days"`
+	}
+	if err := json.Unmarshal(stored.CanonicalJSON, &value); err != nil || len(value.Days) != 1 || value.Days[0].Day != "Visto" {
+		t.Fatalf("expected the save to leave days=[Visto], got %s (%v) body=%s", stored.CanonicalJSON, err, res.Body.String())
+	}
+	// (a) The token the phone stores is the token of the snapshot already in Visto.
+	if len(payload.AppliedOperations) != 1 || !payload.AppliedOperations[0].Applied || payload.AppliedOperations[0].ModifiedAt == nil ||
+		*payload.AppliedOperations[0].ModifiedAt != stored.ModifiedAt {
+		t.Fatalf("expected one applied operation echoing the final token %d, got %s", stored.ModifiedAt, res.Body.String())
+	}
+	assertSingleSeasonMoveChangelogRow(t, env, "anime-2", stored.CanonicalJSON)
+}
+
+// assertSingleSeasonMoveChangelogRow fails unless animeID has exactly one
+// changelog row, holding the saved snapshot and naming `days` with the
+// progress field (invariant b).
+func assertSingleSeasonMoveChangelogRow(t *testing.T, env *syncE2EHTTPEndpointEnv, animeID string, snapshot []byte) {
+	t.Helper()
+	rows, err := env.changelogStore.ListAfterID(env.ctx, 0)
+	if err != nil {
+		t.Fatalf("list changelog: %v", err)
+	}
+	var mine []bridgeSync.ChangelogEntry
+	for _, row := range rows {
+		if row.AnimeID == animeID {
+			mine = append(mine, row)
+		}
+	}
+	if len(mine) != 1 || string(mine[0].SnapshotJSON) != string(snapshot) ||
+		!slices.Contains(mine[0].ChangedFields, "days") || !slices.Contains(mine[0].ChangedFields, "episodesWatched") {
+		t.Fatalf("expected one changelog row with the saved snapshot naming days and episodesWatched, got %+v", mine)
 	}
 }

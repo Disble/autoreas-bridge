@@ -1,10 +1,8 @@
 package store
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -13,7 +11,7 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 )
 
-// Gateway owns legacy snapshot decoding and append-only writeback orchestration.
+// Gateway owns legacy snapshot decoding and the one-transaction save orchestration.
 type Gateway struct {
 	config GatewayConfig
 	mapper Mapper
@@ -24,8 +22,8 @@ func NewGateway(config GatewayConfig) *Gateway {
 	if config.Now == nil {
 		config.Now = time.Now
 	}
-	if config.NewOperationID == nil {
-		config.NewOperationID = newOperationID
+	if config.NewEventID == nil {
+		config.NewEventID = newEventID
 	}
 	return &Gateway{config: config, mapper: NewMapper()}
 }
@@ -45,6 +43,11 @@ func (g *Gateway) load(ctx context.Context, id string) (Snapshot, AnimeRaw, doma
 	if err != nil {
 		return Snapshot{}, AnimeRaw{}, domain.Anime{}, err
 	}
+	return g.decodeRecord(id, record)
+}
+
+// decodeRecord decodes one stored snapshot and canonicalizes its bytes and hash.
+func (g *Gateway) decodeRecord(id string, record Snapshot) (Snapshot, AnimeRaw, domain.Anime, error) {
 	raw, value, canonical, err := g.decode(record.CanonicalJSON)
 	if err != nil {
 		return Snapshot{}, AnimeRaw{}, domain.Anime{}, fmt.Errorf("decode Legacy anime %q: %w", id, err)
@@ -82,105 +85,68 @@ func (g *Gateway) List(ctx context.Context) ([]Record, error) {
 	return result, nil
 }
 
-// Create appends one brand-new legacy payload and returns the resulting write outcome.
+// Create stores one brand-new legacy payload and returns the resulting write
+// outcome. An anime that already holds a stored token is not created over.
 func (g *Gateway) Create(ctx context.Context, raw AnimeRaw) (AnimePatchResult, error) {
 	payload, err := raw.MarshalJSON()
 	if err != nil {
 		return AnimePatchResult{}, fmt.Errorf("marshal Legacy create %q: %w", raw.ID, err)
 	}
 	base := []byte(`{"id":"` + raw.ID + `"}`)
-	return g.persist(ctx, raw.ID, 0, base, payload)
+	return g.saveOne(ctx, raw.ID, func(current Snapshot, _ bool) (SaveDecision, error) {
+		if current.ModifiedAt != 0 {
+			return SaveDecision{}, fmt.Errorf("create anime %q at base 0 while current is %d: %w", raw.ID, current.ModifiedAt, ErrWriteBaseChanged)
+		}
+		return SaveDecision{
+			AnimeID: raw.ID, Outcome: AnimePatchOutcomeApplied, Current: current,
+			Base: base, Desired: payload, ModifiedAt: g.stampSingle(0),
+		}, nil
+	})
 }
 
-// Update mutates one mapped domain anime and writes the result through the gateway.
+// Update mutates one mapped domain anime and saves the result in one transaction.
 func (g *Gateway) Update(ctx context.Context, command UpdateCommand) (AnimePatchResult, error) {
-	for {
-		result, err := g.updateOnce(ctx, command)
-		if !errors.Is(err, ErrWriteReservationBusy) && !errors.Is(err, ErrWriteBaseChanged) {
-			return result, err
+	return g.saveOne(ctx, command.AnimeID, func(current Snapshot, found bool) (SaveDecision, error) {
+		record, raw, value, created, err := g.prepare(command.AnimeID, current, found, command.CreateIfMissing)
+		if err != nil {
+			return SaveDecision{}, err
 		}
-		if errors.Is(err, ErrWriteReservationBusy) {
-			timer := time.NewTimer(writeReservationRetryDelay)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
-				return AnimePatchResult{}, ctx.Err()
-			case <-timer.C:
-			}
+		if command.Mutate != nil {
+			command.Mutate(&value, created)
 		}
-	}
+		merged, err := g.mapper.Merge(raw, value)
+		if err != nil {
+			return SaveDecision{}, err
+		}
+		desired, err := merged.MarshalJSON()
+		if err != nil {
+			return SaveDecision{}, fmt.Errorf("marshal desired Legacy anime %q: %w", command.AnimeID, err)
+		}
+		return g.decide(command.Base, record, desired), nil
+	})
 }
 
-// UpdateRaw mutates one decoded legacy payload and writes the result through the gateway.
+// UpdateRaw mutates one decoded legacy payload and saves the result in one transaction.
 func (g *Gateway) UpdateRaw(ctx context.Context, command UpdateRawCommand) (AnimePatchResult, error) {
-	for {
-		result, err := g.updateRawOnce(ctx, command)
-		if !errors.Is(err, ErrWriteReservationBusy) && !errors.Is(err, ErrWriteBaseChanged) {
-			return result, err
+	return g.saveOne(ctx, command.AnimeID, func(current Snapshot, found bool) (SaveDecision, error) {
+		record, raw, value, _, err := g.prepare(command.AnimeID, current, found, command.CreateIfMissing)
+		if err != nil {
+			return SaveDecision{}, err
 		}
-		if errors.Is(err, ErrWriteReservationBusy) {
-			timer := time.NewTimer(writeReservationRetryDelay)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
-				return AnimePatchResult{}, ctx.Err()
-			case <-timer.C:
+		if command.Mutate != nil {
+			if err := command.Mutate(&raw, &value); err != nil {
+				return SaveDecision{}, err
 			}
 		}
-	}
-}
-
-// updateOnce applies one domain mutation attempt and persists its merged payload.
-func (g *Gateway) updateOnce(ctx context.Context, command UpdateCommand) (AnimePatchResult, error) {
-	record, raw, value, created, err := g.loadOrCreate(ctx, command.AnimeID, command.CreateIfMissing)
-	if err != nil {
-		return AnimePatchResult{}, err
-	}
-	if command.Mutate != nil {
-		command.Mutate(&value, created)
-	}
-	merged, err := g.mapper.Merge(raw, value)
-	if err != nil {
-		return AnimePatchResult{}, err
-	}
-	desired, err := merged.MarshalJSON()
-	if err != nil {
-		return AnimePatchResult{}, fmt.Errorf("marshal desired Legacy anime %q: %w", command.AnimeID, err)
-	}
-	if bytes.Equal(desired, record.CanonicalJSON) {
-		return AnimePatchResult{AnimeID: command.AnimeID, Outcome: AnimePatchOutcomeNoOp, ModifiedAt: record.ModifiedAt}, nil
-	}
-	if command.Base != nil && *command.Base != record.ModifiedAt {
-		return g.recordConflict(ctx, record, desired)
-	}
-	return g.persist(ctx, command.AnimeID, record.ModifiedAt, record.CanonicalJSON, desired)
-}
-
-// updateRawOnce applies one raw mutation attempt and persists its validated payload.
-func (g *Gateway) updateRawOnce(ctx context.Context, command UpdateRawCommand) (AnimePatchResult, error) {
-	record, raw, value, _, err := g.loadOrCreate(ctx, command.AnimeID, command.CreateIfMissing)
-	if err != nil {
-		return AnimePatchResult{}, err
-	}
-	if command.Mutate != nil {
-		if err := command.Mutate(&raw, &value); err != nil {
-			return AnimePatchResult{}, err
+		desired, err := raw.MarshalJSON()
+		if err != nil {
+			return SaveDecision{}, fmt.Errorf("marshal desired Legacy anime %q: %w", command.AnimeID, err)
 		}
-	}
-	desired, err := raw.MarshalJSON()
-	if err != nil {
-		return AnimePatchResult{}, fmt.Errorf("marshal desired Legacy anime %q: %w", command.AnimeID, err)
-	}
-	if _, _, _, err := g.decode(desired); err != nil {
-		return AnimePatchResult{}, fmt.Errorf("validate desired Legacy anime %q: %w", command.AnimeID, err)
-	}
-	if bytes.Equal(desired, record.CanonicalJSON) {
-		return AnimePatchResult{AnimeID: command.AnimeID, Outcome: AnimePatchOutcomeNoOp, ModifiedAt: record.ModifiedAt}, nil
-	}
-	if command.Base != nil && *command.Base != record.ModifiedAt {
-		return g.recordConflict(ctx, record, desired)
-	}
-	return g.persist(ctx, command.AnimeID, record.ModifiedAt, record.CanonicalJSON, desired)
+		if _, _, _, err := g.decode(desired); err != nil {
+			return SaveDecision{}, fmt.Errorf("validate desired Legacy anime %q: %w", command.AnimeID, err)
+		}
+		return g.decide(command.Base, record, desired), nil
+	})
 }
 
 // BatchOperation describes one desired record replacement in a batch rewrite.
@@ -190,65 +156,66 @@ type BatchOperation struct {
 	Desired []byte
 }
 
-// ApplyBatch applies a coordinated set of raw mutations directly into SQLite.
-//
-// SDD-55 Slice B: this used to drive a full-file `animes.dat` replacement
-// journal (rename/backup/promote, see the deleted legacy/batch.go). With the
-// file channel gone, a batch is just several writes sharing one BatchID,
-// staged and finalized together the same way persist() finalizes a single
-// write (ADR-55-1) -- no file journal, checkpoint, or self-echo tracking.
+// ApplyBatch saves a coordinated set of raw replacements in one transaction:
+// every operation's base must still be the stored one, and either every
+// operation is stored or none is. Operation index i is stamped now+i+1, or
+// base+i+1 when that does not pass its base.
 func (g *Gateway) ApplyBatch(ctx context.Context, operations []BatchOperation) (AnimePatchResult, error) {
 	if len(operations) == 0 {
 		return AnimePatchResult{Outcome: AnimePatchOutcomeNoOp}, nil
 	}
-	if g.config.Operations == nil {
-		return AnimePatchResult{}, fmt.Errorf("write-base store is required")
-	}
-	batchID := g.config.NewOperationID()
-	prepared := make([]WriteOperation, 0, len(operations))
 	nowMs := g.config.Now().UnixMilli()
+	items := make([]SaveItem, 0, len(operations))
 	for index, operation := range operations {
-		intended := nowMs + int64(index+1)
-		if intended <= operation.Base.ModifiedAt {
-			intended = operation.Base.ModifiedAt + int64(index+1)
-		}
-		prepared = append(prepared, WriteOperation{
-			OperationID: fmt.Sprintf("%s-%03d", batchID, index), AnimeID: operation.AnimeID,
-			BatchID: batchID, BatchOrder: index, BatchSize: len(operations),
-			BaseModifiedAt: operation.Base.ModifiedAt, IntendedModifiedAt: intended,
-			BaseSnapshotJSON: append([]byte(nil), operation.Base.CanonicalJSON...), BaseHash: operation.Base.Hash,
-			DesiredSnapshotJSON: append([]byte(nil), operation.Desired...), DesiredHash: hashSnapshot(operation.Desired),
-			Status: WriteOperationStatusStaged, CreatedAtMs: nowMs,
-		})
+		offset := int64(index + 1)
+		items = append(items, SaveItem{AnimeID: operation.AnimeID, Decide: func(current Snapshot, _ bool) (SaveDecision, error) {
+			return decideBatchOperation(operation, current, nowMs+offset, offset)
+		}})
 	}
-	if err := g.config.Operations.StageBatch(ctx, prepared); err != nil {
+	decisions, err := g.save(ctx, items)
+	if err != nil {
 		return AnimePatchResult{}, err
 	}
-	if err := g.config.Operations.FinalizeBatch(ctx, batchID, g.config.Now().UnixMilli()); err != nil {
-		return AnimePatchResult{}, err
-	}
-	if err := g.DrainOutbox(ctx); err != nil {
-		return AnimePatchResult{}, err
-	}
-	last := prepared[len(prepared)-1]
-	return AnimePatchResult{AnimeID: last.AnimeID, Outcome: AnimePatchOutcomeApplied, ModifiedAt: last.IntendedModifiedAt}, nil
+	last := decisions[len(decisions)-1]
+	return AnimePatchResult{AnimeID: last.AnimeID, Outcome: AnimePatchOutcomeApplied, ModifiedAt: last.ModifiedAt}, nil
 }
 
-// loadOrCreate loads an anime or builds an empty legacy record when creation is
-// allowed, reporting whether the record was synthesized.
-func (g *Gateway) loadOrCreate(ctx context.Context, animeID string, createIfMissing bool) (Snapshot, AnimeRaw, domain.Anime, bool, error) {
-	record, raw, value, err := g.load(ctx, animeID)
-	if err == nil || !createIfMissing || !errors.Is(err, contracts.ErrAnimeNotFound) {
+// decideBatchOperation checks one batch operation's base against the stored
+// snapshot and stamps it intended, raised past its base by offset when needed.
+func decideBatchOperation(operation BatchOperation, current Snapshot, intended, offset int64) (SaveDecision, error) {
+	if current.ModifiedAt != operation.Base.ModifiedAt {
+		return SaveDecision{}, fmt.Errorf("batch write of anime %q at base %d while current is %d: %w",
+			operation.AnimeID, operation.Base.ModifiedAt, current.ModifiedAt, ErrWriteBaseChanged)
+	}
+	if intended <= operation.Base.ModifiedAt {
+		intended = operation.Base.ModifiedAt + offset
+	}
+	return SaveDecision{
+		AnimeID: operation.AnimeID, Outcome: AnimePatchOutcomeApplied, Current: current,
+		Base: operation.Base.CanonicalJSON, Desired: operation.Desired, ModifiedAt: intended,
+	}, nil
+}
+
+// prepare decodes the stored snapshot of animeID, or builds an empty legacy
+// record when it is missing and creation is allowed, reporting whether the
+// record was synthesized.
+func (g *Gateway) prepare(animeID string, current Snapshot, found, createIfMissing bool) (Snapshot, AnimeRaw, domain.Anime, bool, error) {
+	if found {
+		record, raw, value, err := g.decodeRecord(animeID, current)
 		return record, raw, value, false, err
 	}
+	if !createIfMissing {
+		return Snapshot{}, AnimeRaw{}, domain.Anime{}, false, contracts.ErrAnimeNotFound
+	}
+	var raw AnimeRaw
 	if err := json.Unmarshal([]byte(`{"id":"`+animeID+`"}`), &raw); err != nil {
 		return Snapshot{}, AnimeRaw{}, domain.Anime{}, false, err
 	}
-	value, err = g.mapper.ToDomain(raw)
+	value, err := g.mapper.ToDomain(raw)
 	if err != nil {
 		return Snapshot{}, AnimeRaw{}, domain.Anime{}, false, err
 	}
-	record = Snapshot{AnimeID: animeID, CanonicalJSON: []byte(`{"id":"` + animeID + `"}`)}
+	record := Snapshot{AnimeID: animeID, CanonicalJSON: []byte(`{"id":"` + animeID + `"}`)}
 	record.Hash = hashSnapshot(record.CanonicalJSON)
 	return record, raw, value, true, nil
 }

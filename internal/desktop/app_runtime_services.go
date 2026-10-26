@@ -36,9 +36,6 @@ func (a *App) configureRuntimeServices(ctx context.Context) {
 	a.configureRealtimeHub(ctx)
 	a.startSeasonProjectionPublisher(ctx)
 	conflictService := a.configureAnimeApplicationServices()
-	if !a.recoverStagedAnimeWrites(ctx) {
-		return
-	}
 	a.wireEpisodeServiceWithWriter(a.animeWrite)
 	a.startHTTPServer(deviceService, a.newMobileAnimeWriteService(), conflictService, changelogStore)
 }
@@ -303,27 +300,19 @@ func (a *App) newAnimeWriteDeps(conflictService *bridgeSync.ConflictStore) anime
 	// recorded as a (non-applied) conflict -- a regression for current clients.
 	// Observe-only keeps last-write-wins working and logs would-be conflicts; flip
 	// to false to enable full enforcement once mobile ships the `base` echo.
-	return anime.WriteServiceDeps{
+	//
+	// SaveRule is the season's Ver hoy → Visto auto-transition, applied inside
+	// the same transaction as the save that watches the episode.
+	deps := anime.WriteServiceDeps{
 		Conflicts:      conflictService,
 		Notifier:       a.notifier,
-		Logger:         a.sharedLogger,
 		OCCObserveOnly: true,
+		SaveRule:       anime.NewSectionMoveRule(season.WatchedSection),
 	}
-}
-
-// recoverStagedAnimeWrites replays any staged anime writes left by an interruption.
-func (a *App) recoverStagedAnimeWrites(ctx context.Context) bool {
-	if a.bridgeDB == nil || !a.animeWrite.RecoveryConfigured() {
-		return true
+	if a.sharedLogger != nil {
+		deps.Logger = a.sharedLogger
 	}
-	if err := a.animeWrite.RecoverWrites(ctx); err != nil {
-		// Fatal: staged writes left unrecovered mean the anime data is in an
-		// indeterminate state, so nothing further may run against it.
-		a.startupErr = fmt.Errorf("recover staged anime writes: %w", err)
-		a.startupFatal = true
-		return false
-	}
-	return true
+	return deps
 }
 
 // newMobileAnimeWriteService builds the mobile anime writer with activity recording.

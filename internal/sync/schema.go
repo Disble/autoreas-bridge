@@ -6,24 +6,6 @@ import (
 )
 
 const (
-	// animeSnapshotsNameKeyExpr is the anime identity the catalogue already
-	// assumes everywhere: the search rails filter by name, and the download
-	// destination is derived from it (internal/download/destination.go), so two
-	// animes sharing a name are indistinguishable in the UI and collide on disk.
-	// Case and surrounding whitespace never distinguish two animes, so the key
-	// folds both away.
-	//
-	// The json_valid guard is load-bearing, not defensive dressing: a generated
-	// column is evaluated on every insert, and the backup import legitimately
-	// writes a record whose snapshot_json is empty (ImportAnimeSnapshots defaults
-	// an absent field to ""). Calling json_extract on that raises "malformed
-	// JSON" and fails the whole import. Yielding NULL instead leaves such a row
-	// unconstrained, which is the right answer twice over: SQLite treats NULLs as
-	// distinct in a unique index, and a record with no readable name has no name
-	// to be unique about.
-	animeSnapshotsNameKeyExpr = `CASE WHEN json_valid(snapshot_json) ` +
-		`THEN lower(trim(json_extract(snapshot_json, '$.name'))) END`
-
 	animeSnapshotsDDL = `
 		CREATE TABLE IF NOT EXISTS anime_snapshots (
 			anime_id TEXT PRIMARY KEY,
@@ -32,13 +14,15 @@ const (
 			modified_at INTEGER NOT NULL DEFAULT 0,
 			schedule_day_migrated_at INTEGER NOT NULL DEFAULT 0,
 			vocabulary_migrated_at INTEGER NOT NULL DEFAULT 0,
-			name_key TEXT GENERATED ALWAYS AS (` + animeSnapshotsNameKeyExpr + `) VIRTUAL
+			name_key TEXT
 		)`
 
 	// animeSnapshotsNameKeyIndexDDL is the deterministic half of the anime
-	// identity guard. The service layer produces the readable error; this makes
-	// the invariant unbypassable, including by write paths that never reach a
-	// service -- backup_import.go inserts straight into the table.
+	// identity guard over the key animeNameKey computes. The service layer
+	// produces the readable error; this makes the invariant unbypassable,
+	// including by write paths that never reach a service -- backup_import.go
+	// inserts straight into the table. Every writer sets name_key, which
+	// tools/checkarchitecture enforces.
 	animeSnapshotsNameKeyIndexDDL = `
 		CREATE UNIQUE INDEX IF NOT EXISTS idx_anime_snapshots_name_key
 		ON anime_snapshots (name_key)`
@@ -109,56 +93,6 @@ const (
 			last_seen_at_ms INTEGER NOT NULL,
 			sync_status TEXT NOT NULL DEFAULT 'active'
 		)`
-
-	animeWriteOperationsDDL = `
-		CREATE TABLE IF NOT EXISTS anime_write_operations (
-			operation_id TEXT PRIMARY KEY,
-			anime_id TEXT NOT NULL,
-			batch_id TEXT NOT NULL DEFAULT '',
-			batch_order INTEGER NOT NULL DEFAULT 0,
-			batch_size INTEGER NOT NULL DEFAULT 1,
-			base_modified_at INTEGER NOT NULL,
-			intended_modified_at INTEGER NOT NULL,
-			base_snapshot_json TEXT NOT NULL,
-			base_hash TEXT NOT NULL,
-			desired_snapshot_json TEXT NOT NULL,
-			desired_hash TEXT NOT NULL,
-			status TEXT NOT NULL CHECK (status IN ('staged', 'committed', 'aborted', 'superseded')),
-			created_at_ms INTEGER NOT NULL,
-			committed_at_ms INTEGER,
-			request_id TEXT NOT NULL DEFAULT ''
-		)`
-
-	animeWriteOperationsAnimeTokenIndexDDL = `
-		CREATE INDEX IF NOT EXISTS idx_anime_write_operations_anime_token
-		ON anime_write_operations (anime_id, intended_modified_at, status)`
-
-	animeWriteOperationsRecoveryIndexDDL = `
-		CREATE INDEX IF NOT EXISTS idx_anime_write_operations_recovery
-		ON anime_write_operations (status, created_at_ms, operation_id)`
-
-	animeWriteOperationsLiveReservationIndexDDL = `
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_anime_write_operations_live_reservation
-		ON anime_write_operations (anime_id)
-		WHERE status = 'staged'`
-
-	animeChangedOutboxDDL = `
-		CREATE TABLE IF NOT EXISTS anime_changed_outbox (
-			event_id TEXT PRIMARY KEY,
-			operation_id TEXT NOT NULL UNIQUE,
-			anime_id TEXT NOT NULL,
-			payload_json TEXT NOT NULL,
-			changed_fields_json TEXT,
-			change_type TEXT,
-			status TEXT NOT NULL CHECK (status IN ('pending', 'published')),
-			created_at_ms INTEGER NOT NULL,
-			published_at_ms INTEGER,
-			FOREIGN KEY (operation_id) REFERENCES anime_write_operations(operation_id)
-		)`
-
-	animeChangedOutboxPendingIndexDDL = `
-		CREATE INDEX IF NOT EXISTS idx_anime_changed_outbox_pending
-		ON anime_changed_outbox (status, created_at_ms, event_id)`
 
 	requestCapturesDDL = `
 		CREATE TABLE IF NOT EXISTS request_captures (

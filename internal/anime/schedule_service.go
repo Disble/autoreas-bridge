@@ -25,22 +25,17 @@ type ApplyAnimeScheduleDraftCommand struct {
 
 // ScheduleService applies schedule-board mutations through the anime write seams.
 type ScheduleService struct {
-	query      *QueryService
-	store      snapshotLookup
-	publisher  CommittedPublisher
-	writeBases WriteBaseStore
-	now        func() time.Time
-	deps       WriteServiceDeps
+	query     *QueryService
+	store     snapshotLookup
+	publisher CommittedPublisher
+	now       func() time.Time
+	deps      WriteServiceDeps
 }
 
 // NewScheduleService builds a schedule mutation service over the query seam and
 // the publisher that announces its committed writes (nil publishes nothing).
 func NewScheduleService(query *QueryService, publisher CommittedPublisher) *ScheduleService {
-	service := &ScheduleService{query: query, store: query.store, publisher: publisher, now: time.Now}
-	if provider, ok := query.store.(writeBaseStoreProvider); ok {
-		service.writeBases = provider.WriteBaseStore()
-	}
-	return service
+	return &ScheduleService{query: query, store: query.store, publisher: publisher, now: time.Now}
 }
 
 // SetNow overrides the clock used by ScheduleService.
@@ -48,9 +43,6 @@ func (s *ScheduleService) SetNow(now func() time.Time) { s.now = now }
 
 // SetDeps overrides optional write-side dependencies used by ScheduleService.
 func (s *ScheduleService) SetDeps(deps WriteServiceDeps) {
-	if deps.WriteBases != nil {
-		s.writeBases = deps.WriteBases
-	}
 	s.deps = deps
 }
 
@@ -209,11 +201,11 @@ func (s *ScheduleService) recordBoardConflict(ctx context.Context, records []Rea
 
 // gateway builds the store gateway used by schedule operations.
 func (s *ScheduleService) gateway() *store.Gateway {
-	return store.NewGateway(newStoreGatewayConfig(s.store, s.writeBases, s.deps, s.nowFuncForToken(), s.publishCommitted))
+	return store.NewGateway(newStoreGatewayConfig(s.store, s.deps, s.nowFuncForToken(), s.publishCommitted))
 }
 
 // publishCommitted publishes a committed schedule change.
-func (s *ScheduleService) publishCommitted(event ChangedOutboxEvent) {
+func (s *ScheduleService) publishCommitted(event CommittedChange) {
 	if s.deps.Publisher != nil {
 		s.deps.Publisher.Publish(newAnimeChangedEvent(event))
 		return
