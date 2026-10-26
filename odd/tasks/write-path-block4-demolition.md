@@ -37,8 +37,8 @@ Plan: artifact https://claude.ai/artifact/8AmVg9jk6D5Cs7rttPoCBH (block 4). Inve
 | ID | Specs | Route | Status | Evidence |
 |---|---|---|---|---|
 | T1 | S1–S6 | delegated writer `block4-writer` (one unit; the parent's context backstop) | done | this commit; ditto sync 1.00; 3 hand mutations killed (L5) |
-| T2 | S1–S6 | independent verifier (risk item 1) | pending | |
-| T3 | S5 | parent: ditto, gates, CodeGraph sweep, merge | pending | |
+| T2 | S1–S6 | independent verifier (risk item 1) | done | S2, S3, S5, S6 PASS; S4 B1 fixed in 98d73dae and rechecked (L6–L8) |
+| T3 | S5 | parent: ditto, gates, CodeGraph sweep, merge | done | merge into dev (L8) |
 
 ## Log
 
@@ -93,3 +93,11 @@ Plan: artifact https://claude.ai/artifact/8AmVg9jk6D5Cs7rttPoCBH (block 4). Inve
     - ditto on `internal/anime` and `internal/anime/store` scores 1.00 (3 of 3 killed);
     - `go test ./internal/... ./tools/...` passes;
     - lint, checkarchitecture, checkgofilesize and gofmt are clean.
+- L8 (2026-10-26): the B1 recheck on 98d73dae is FIXED.
+  - The probe output diff against the baseline is empty once `last_changelog_id` and timestamps are removed.
+  - All 5 `sync.changelog` rows are back in the baseline positions.
+  - Advisory 3 is done.
+  - CodeGraph sweep: `logRecordedChangelog`, `CommittedChange`, `dropRetiredWriteTables` and `newEventID` all have production callers.
+  - Follow-up, pre-existing and outside this block: `desktop.wireEpisodeService` has only a test caller, because production wires `wireEpisodeServiceWithWriter(a.animeWrite)`.
+  - Verifier and writer scratch removed.
+  - Merged into dev with the whole-tree pre-merge-commit.
