@@ -149,6 +149,121 @@ describe('useSelectionBoard', () => {
     expect(getAnimeCover.mock.calls).toEqual([['anime-a'], ['anime-c'], ['anime-b']]);
   });
 
+  it('applies successive view edits without dropping the previous one', async () => {
+    const rows = [created('a', 'anime-a', 6), created('b', 'anime-b', 3), created('c', 'anime-c', 5)];
+    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const { result } = renderHook(() => useSelectionBoard(source));
+    await waitFor(() => expect(result.current.rows).toHaveLength(3));
+
+    act(() => result.current.onGroupChange('grades', ['6']));
+    act(() => result.current.onSortChange('grade-desc'));
+    act(() => result.current.onGroupChange('verdicts', ['approved']));
+
+    expect(result.current.criteria).toEqual({ grades: ['6'], verdicts: ['approved'], considerations: [], sort: 'grade-desc' });
+    expect(result.current.matchingCount).toBe(1);
+  });
+
+  it('exposes the defaults and the season name while the snapshot resolves and after it', async () => {
+    const source = createSource();
+    const { result } = renderHook(() => useSelectionBoard(source));
+
+    expect(result.current.minApprovalGrade).toBe(4);
+    expect(result.current.slots).toBe(12);
+    await waitFor(() => expect(result.current.seasonName).toBe('Julio 2026'));
+  });
+
+  it('refreshes against a replacement source', async () => {
+    const first = createSource();
+    const second = createSource();
+    const { rerender } = renderHook(({ source }: { source: SeasonSource }) => useSelectionBoard(source), {
+      initialProps: { source: first },
+    });
+    await waitFor(() => expect(first.getSeasonAnimes).toHaveBeenCalled());
+
+    rerender({ source: second });
+
+    await waitFor(() => expect(second.getSeasonAnimes).toHaveBeenCalled());
+  });
+
+  it('uses the latest source for its writes', async () => {
+    const first = createSource();
+    const second = createSource();
+    const { result, rerender } = renderHook(({ source }: { source: SeasonSource }) => useSelectionBoard(source), {
+      initialProps: { source: first },
+    });
+    await waitFor(() => expect(first.getSeasonAnimes).toHaveBeenCalled());
+
+    rerender({ source: second });
+    await act(async () => {
+      result.current.onSetConsideration('sa-1', 'spare_quota');
+    });
+
+    expect(second.setConsideration).toHaveBeenCalledWith('sa-1', 'spare_quota');
+    expect(first.setConsideration).not.toHaveBeenCalled();
+  });
+
+  it('counts an asymmetric verdict split, not a symmetric one', async () => {
+    const rows = [created('a', 'anime-a', 5), created('b', 'anime-b', 6), created('c', 'anime-c', 5), created('d', 'anime-d', 2)];
+    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const { result } = renderHook(() => useSelectionBoard(source));
+
+    await waitFor(() => expect(result.current.rows).toHaveLength(4));
+    expect(result.current.groupTotals).toEqual({ approved: 3, rejected: 1 });
+  });
+
+  it('narrows the groups by criteria without touching the approved count', async () => {
+    const rows = [created('a', 'anime-a', 5), created('b', 'anime-b', 2), created('c', 'anime-c', 6), created('d', 'anime-d', 0)];
+    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const { result } = renderHook(() => useSelectionBoard(source));
+    await waitFor(() => expect(result.current.rows).toHaveLength(4));
+
+    act(() => result.current.onGroupChange('grades', ['6']));
+    expect(result.current.matchingCount).toBe(1);
+    expect(result.current.groups.map((group) => group.rows.map((row) => row.id))).toEqual([['c']]);
+    expect(result.current.approvedCount).toBe(2);
+    expect(result.current.groupTotals).toEqual({ approved: 2, rejected: 2 });
+
+    act(() => result.current.onGroupChange('verdicts', ['rejected']));
+    expect(result.current.matchingCount).toBe(0);
+    expect(result.current.groups).toEqual([]);
+    expect(result.current.activeFilterCount).toBe(2);
+  });
+
+  it('sorts the visible rows inside each verdict group and keeps the group totals', async () => {
+    const rows = [created('a', 'anime-a', 5), created('b', 'anime-b', 2), created('c', 'anime-c', 6), created('d', 'anime-d', 0)];
+    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const { result } = renderHook(() => useSelectionBoard(source));
+    await waitFor(() => expect(result.current.rows).toHaveLength(4));
+
+    act(() => result.current.onSortChange('grade-asc'));
+    expect(result.current.groups.map((group) => [group.label, group.rows.map((row) => row.id)])).toEqual([
+      ['Approved', ['a', 'c']],
+      ['Rejected', ['b', 'd']],
+    ]);
+    expect(result.current.groupTotals).toEqual({ approved: 2, rejected: 2 });
+
+    act(() => result.current.onSortChange('grade-desc'));
+    expect(result.current.groups.map((group) => group.rows.map((row) => row.id))).toEqual([['c', 'a'], ['b', 'd']]);
+  });
+
+  it('resets the filters while keeping the order, and resets the whole view', async () => {
+    const rows = [created('a', 'anime-a', 5), created('b', 'anime-b', 2), created('c', 'anime-c', 6)];
+    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const { result } = renderHook(() => useSelectionBoard(source));
+    await waitFor(() => expect(result.current.rows).toHaveLength(3));
+
+    act(() => result.current.onGroupChange('grades', ['6']));
+    act(() => result.current.onSortChange('grade-desc'));
+    act(() => result.current.onResetFilters());
+    expect(result.current.activeFilterCount).toBe(0);
+    expect(result.current.criteria.sort).toBe('grade-desc');
+    expect(result.current.matchingCount).toBe(3);
+
+    act(() => result.current.onResetView());
+    expect(result.current.criteria.sort).toBe('original');
+    expect(result.current.groups.map((group) => group.rows.map((row) => row.id))).toEqual([['a', 'c'], ['b']]);
+  });
+
   it('exposes the selection-confirmed milestone from the season snapshot', async () => {
     const source = createSource({
       getSeason: vi.fn().mockResolvedValue({ id: 's1', name: 'Julio 2026', minApprovalGrade: 4, slots: 12, status: 'open', createdAt: 0, selectionConfirmedAt: 1_753_000_000_000 }),

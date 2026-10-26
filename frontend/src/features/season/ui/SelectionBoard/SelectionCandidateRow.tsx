@@ -6,10 +6,10 @@ import { formatSelectionGrade, getConsiderationLabel, toConsiderationToken } fro
 import type { SelectionCandidateRowProps } from './selection-board.types';
 
 /**
- * One candidate of the selection list: cover, name (truncated, the full name as
- * its tooltip), the consideration select (plain text on a closed season), the
- * page and folder desktop actions, and the grade in a fixed-width slot. Every
- * control stays visible; nothing waits for hover.
+ * One candidate of the selection list: cover, name, the grade, then the
+ * consideration control and the page and folder desktop actions. The grade sits
+ * beside the candidate rather than after the controls, so it is not read as a
+ * third action. Every control stays visible; nothing waits for hover.
  */
 export function SelectionCandidateRow({
   row,
@@ -26,6 +26,9 @@ export function SelectionCandidateRow({
       <SeasonCoverThumb {...coverThumb} />
       <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground" title={row.rawName}>
         {row.rawName}
+      </span>
+      <span className="w-9 shrink-0 text-right text-sm font-semibold text-foreground" data-testid="selection-grade">
+        {formatSelectionGrade(row.grade)}
       </span>
       <div className="flex shrink-0 items-center gap-2">
         {readOnly ? (
@@ -69,9 +72,6 @@ export function SelectionCandidateRow({
           />
         </div>
       </div>
-      <span className="w-7 shrink-0 text-right text-sm font-semibold text-foreground" data-testid="selection-grade">
-        {formatSelectionGrade(row.grade)}
-      </span>
     </li>
   );
 }

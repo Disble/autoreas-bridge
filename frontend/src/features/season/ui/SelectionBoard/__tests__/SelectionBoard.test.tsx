@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SelectionBoard } from '../SelectionBoard';
 import { groupSelectionRows } from '../selection-board.helpers';
+import { SELECTION_SORT_OPTIONS } from '../selection-board.constants';
 import type { SelectionRow } from '../selection-board.types';
+import { createSelectionView, toSelectionFilterGroups, toSelectionViewSummary } from '../selection-view.helpers';
 import { useSelectionBoard } from '../use-selection-board';
 import { AIRIS_WAITING_ARTWORK_CLASS } from '../../../../../shared/ui/AirisEmptyState/airis-empty-state.constants';
 
@@ -40,6 +42,7 @@ const MIXED_ROWS = [
 /** Makes the hook return a board, grouping `rows` the way the real hook does. */
 function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
   const rows = overrides.rows ?? [];
+  const criteria = overrides.criteria ?? createSelectionView();
   const value: HookReturn = {
     readOnly: false,
     seasonName: 'Julio 2026',
@@ -47,6 +50,21 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     slots: 12,
     rows,
     groups: groupSelectionRows(rows),
+    groupTotals: {
+      approved: rows.filter((row) => row.verdict === 'approved').length,
+      rejected: rows.filter((row) => row.verdict === 'rejected').length,
+    },
+    criteria,
+    filterGroups: toSelectionFilterGroups(),
+    sortOptions: SELECTION_SORT_OPTIONS,
+    summaryOptions: toSelectionViewSummary(criteria),
+    activeFilterCount: 0,
+    matchingCount: rows.length,
+    totalCount: rows.length,
+    onGroupChange: vi.fn(),
+    onResetFilters: vi.fn(),
+    onResetView: vi.fn(),
+    onSortChange: vi.fn(),
     approvedCount: 0,
     quota: 'under',
     selectionConfirmedAt: undefined,
@@ -216,8 +234,8 @@ describe('SelectionBoard', () => {
   it('groups the candidates under Approved and Rejected with their counts, each in row order', () => {
     mockHook({ rows: MIXED_ROWS, approvedCount: 2 });
     render(<SelectionBoard onNavigate={vi.fn()} />);
-    const approved = screen.getByRole('list', { name: 'Approved · 2' });
-    const rejected = screen.getByRole('list', { name: 'Rejected · 1' });
+    const approved = screen.getByRole('list', { name: 'Approved · 2 / 2' });
+    const rejected = screen.getByRole('list', { name: 'Rejected · 1 / 1' });
     expect(within(approved).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
       expect.stringContaining('Sayonara Lara'),
       expect.stringContaining('Yani Neko'),
@@ -226,12 +244,44 @@ describe('SelectionBoard', () => {
     expect(within(rejected).getByText('Black Torch')).toBeInTheDocument();
   });
 
-  it('shows each candidate cover and grade, with a dash for an ungraded one', () => {
+  it('shows each candidate cover and grade, with None for an ungraded one', () => {
     mockHook({ rows: MIXED_ROWS, approvedCount: 2 });
     render(<SelectionBoard onNavigate={vi.fn()} />);
     const items = screen.getAllByRole('listitem');
     expect(items.map((item) => item.querySelector('img')?.getAttribute('src'))).toEqual(['data:anime-a1', 'data:anime-a2', 'data:anime-r1']);
-    expect(items.map((item) => within(item).getByTestId('selection-grade').textContent)).toEqual(['6', '1', '—']);
+    expect(items.map((item) => within(item).getByTestId('selection-grade').textContent)).toEqual(['6', '1', 'None']);
+  });
+
+  it('places the grade before the consideration control and the actions', () => {
+    mockHook({ rows: [DR_STONE], approvedCount: 1 });
+    render(<SelectionBoard onNavigate={vi.fn()} />);
+    const item = screen.getByRole('listitem');
+    const grade = within(item).getByTestId('selection-grade');
+
+    expect(grade.nextElementSibling?.querySelector('[aria-label^="Consideration for"]')).not.toBeNull();
+    expect(grade.parentElement?.lastElementChild?.textContent).not.toBe(grade.textContent);
+  });
+
+  it('renders the filter toolbar with the visible count and the view-only scope', () => {
+    mockHook({ rows: MIXED_ROWS, approvedCount: 2 });
+    render(<SelectionBoard onNavigate={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: 'Filters' })).toBeInTheDocument();
+    expect(screen.getByText('3 of 3 candidates')).toBeInTheDocument();
+    expect(screen.getByText(/Confirm selection still applies to all 3 candidates/)).toBeInTheDocument();
+  });
+
+  it('shows the filtered empty state, not the mascot, when the criteria hide every row', () => {
+    const onResetView = vi.fn();
+    mockHook({ rows: MIXED_ROWS, approvedCount: 2, groups: [], matchingCount: 0, totalCount: 3, onResetView });
+    const { container } = render(<SelectionBoard onNavigate={vi.fn()} />);
+
+    expect(screen.getByText('No candidates match these filters')).toBeInTheDocument();
+    expect(screen.queryByText('No candidates to select yet')).not.toBeInTheDocument();
+    expect(container.querySelector('img')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search and filters' }));
+    expect(onResetView).toHaveBeenCalledTimes(1);
   });
 
   it('edits a candidate consideration through its select', () => {
