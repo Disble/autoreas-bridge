@@ -142,6 +142,8 @@ dead or silent hoster, never after a success.
    can read the episode number back. A rename failure is logged (`download.rename_failed`) and the
    episode still counts as downloaded.
 2. **Episode duration notice**: warn when the file's duration does not look like a full episode.
+   The duration is read by running `ffprobe`, a console program, so it starts hidden through
+   `childproc.Background` (`../../cross-cutting/child-processes.md`).
 3. Back to the episode loop (section 3, step 1).
 
 ## Where Stop takes effect

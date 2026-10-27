@@ -25,6 +25,7 @@ that touches that code.
 | Path | Read it when |
 |---|---|
 | `cross-cutting/persistence.md` | Opening `bridge.db`, choosing `InTx` or `InWriteTx`, the schema bootstrap order, or how `name_key` is computed and enforced |
+| `cross-cutting/child-processes.md` | Starting any external program from Go: background console programs (ffprobe, the solver child) versus visible GUI launches, and the gate that keeps console windows from flashing |
 | `cross-cutting/deprecations.md` | Removing upgrade-only migrations, or deciding whether new compatibility code must be marked for removal in a future major release |
 
 Related documents kept where they are:
