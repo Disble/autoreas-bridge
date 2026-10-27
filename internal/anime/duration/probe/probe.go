@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/anime/duration"
+	"autoreas-bridge/internal/childproc"
 )
 
 // DefaultBinaryPath is the ffprobe binary used when no explicit path is
@@ -52,9 +53,10 @@ func NewFFProbe(binaryPath string) *FFProbe {
 }
 
 // Probe runs ffprobe against exactly one file and parses its JSON report.
-// The file path travels as a single process argument, never interpolated
-// into a shell string. Context cancellation — including the timeout —
-// aborts the run and returns an error.
+// ffprobe is a console program, so it starts through childproc.Background and
+// never flashes a console window. The file path travels as a single process
+// argument, never interpolated into a shell string. Context cancellation —
+// including the timeout — aborts the run and returns an error.
 func (p *FFProbe) Probe(ctx context.Context, path string) (time.Duration, error) {
 	binary := p.BinaryPath
 	if binary == "" {
@@ -65,7 +67,7 @@ func (p *FFProbe) Probe(ctx context.Context, path string) (time.Duration, error)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, binary,
+	cmd := childproc.Background(ctx, binary,
 		"-v", "error",
 		"-show_entries", "format=duration",
 		"-of", "json",

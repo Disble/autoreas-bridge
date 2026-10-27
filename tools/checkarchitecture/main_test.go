@@ -139,6 +139,62 @@ func wire(a *App) { _ = jkanime.New(a.providerHTTPClient(), a.sharedLogger) }
 `,
 		},
 		{
+			name: "a production file starting a console program directly is rejected",
+			path: "internal/anime/duration/probe/probe.go",
+			content: `package probe
+import "os/exec"
+func run() { _ = exec.CommandContext(ctx, "ffprobe", path).Run() }
+`,
+			wantErr: true,
+		},
+		{
+			name: "a production file starting a console program through childproc is allowed",
+			path: "internal/anime/duration/probe/probe.go",
+			content: `package probe
+import "autoreas-bridge/internal/childproc"
+func run() { _ = childproc.Background(ctx, "ffprobe", path).Run() }
+`,
+		},
+		{
+			name: "the childproc package itself may build the command",
+			path: "internal/childproc/childproc.go",
+			content: `package childproc
+import "os/exec"
+func build() { _ = exec.CommandContext(ctx, name) }
+`,
+		},
+		{
+			name: "a GUI launch on the allowlist keeps a visible window",
+			path: "internal/download/jdownloader/launcher.go",
+			content: `package jdownloader
+import "os/exec"
+func launch() { _ = exec.Command(path).Start() }
+`,
+		},
+		{
+			name: "a test starting a console program directly is allowed",
+			path: "internal/desktop/app_episode_duration_test.go",
+			content: `package desktop
+import "os/exec"
+func encode() { _ = exec.Command("ffmpeg").Run() }
+`,
+		},
+		{
+			name: "a non-Go source mentioning the command constructor is allowed",
+			path: "frontend/src/shared/process-copy.ts",
+			content: `/** Help text quoting exec.Command for the user. */
+export const help = "exec.Command";
+`,
+		},
+		{
+			name: "a developer tool starting a console program directly is allowed",
+			path: "tools/checkgofmt/main.go",
+			content: `package main
+import "os/exec"
+func run() { _ = exec.Command("gofmt", "-l").Run() }
+`,
+		},
+		{
 			// Proves the legacy-boundary check is fully retired: no source
 			// file in this package declares checkLegacyBoundary, and a file
 			// that would have violated the old legacy-DTO/JSON-key/

@@ -6,11 +6,11 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os/exec"
-	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"autoreas-bridge/internal/childproc"
 )
 
 // runChild runs the solver child to completion with its stdout copied to stdout. The child is
@@ -23,8 +23,7 @@ func runChild(ctx context.Context, exe string, args []string, stdout io.Writer) 
 		return err
 	}
 	defer job.close()
-	cmd := exec.CommandContext(ctx, exe, args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: windows.CREATE_NO_WINDOW}
+	cmd := childproc.Background(ctx, exe, args...)
 	cmd.Stdout = stdout
 	cmd.WaitDelay = waitDelay
 	cmd.Cancel = func() error {
