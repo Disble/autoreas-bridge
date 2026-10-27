@@ -364,3 +364,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-10-26]: Ship the version bump, changelog and generated NSIS define in one commit; the CI guard rejects a tag whose CHANGELOG section is missing, and a stale generated define ships an installer labelled with the old version.
 - [2026-10-26]: Selection filtering is a view: criteria narrow what is rendered while the quota meter, the confirmed date and the confirmation keep reading every stored candidate, so the derived view lives in its own hook and never writes to the rows.
 - [2026-10-27]: A GUI-subsystem app that starts a console program on Windows gets a flashing console window; background console programs (ffprobe, solver child) must start through internal/childproc.Background, enforced by tools/checkarchitecture
+- [2026-10-27]: Release 2.7.1 is a patch: it only fixes the console window that flashed after every downloaded episode, with no wire, storage or UX contract change.

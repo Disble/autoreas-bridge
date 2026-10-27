@@ -14,6 +14,16 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [2.7.1] — 2026-10-27
+
+### Fixed
+
+- A terminal window no longer flashes on screen each time an episode finishes downloading. Measuring the episode's duration now runs fully in the background, and so does reanalyzing a duration from the editor and the initial duration fill.
+
+### Internal
+
+- Every background helper program now starts through one shared launcher that never opens a console window, and the architecture gate rejects any new program started another way. The rule is documented in `docs/architecture/cross-cutting/child-processes.md`.
+
 ## [2.7.0] — 2026-10-26
 
 ### Added
