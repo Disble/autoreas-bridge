@@ -107,6 +107,9 @@ func TestApplyScheduleDiffsAndStampsApplied(t *testing.T) {
 	if active.AppliedAt == nil {
 		t.Fatal("applied milestone not stamped on a clean apply")
 	}
+	if active.OrderingDraft != "" {
+		t.Fatalf("a clean apply must clear the draft so a reopened board starts from the applied schedule, got %q", active.OrderingDraft)
+	}
 }
 
 func TestApplyScheduleStopsAtFirstNonSuccess(t *testing.T) {
@@ -193,6 +196,9 @@ func assertApplyScheduleFailureCase(t *testing.T, ctx context.Context, c schedul
 		t.Fatalf("anime-c must have zero side effects after %s", name)
 	}
 	active, _ := svc.ActiveSeason(ctx)
+	if active.OrderingDraft == "" {
+		t.Fatalf("%s must keep the draft so the user can re-apply it", name)
+	}
 	if active.AppliedAt != nil {
 		t.Fatalf("%s must not stamp the applied milestone", name)
 	}

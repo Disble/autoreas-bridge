@@ -1,21 +1,14 @@
-import type { DragOverEvent } from '@dnd-kit/react';
-import { move } from '@dnd-kit/helpers';
 import { useCallback, useEffect } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
 import type { ApplyScheduleResult, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
 import type { SeasonCoverSource } from '../SeasonCoverThumb/season-cover-thumb.types';
 import { useSeasonCovers } from '../SeasonCoverThumb/use-season-covers';
-import { ORDERING_AUTOSAVE_DEBOUNCE_MS, ORDERING_DUPLICATE_WEEKDAY_ERROR } from './ordering-board.constants';
-import {
-  applyOrder,
-  duplicate as applyDuplicate,
-  hasDuplicateWeekdayPlacements,
-  removeCard as applyRemoveCard,
-  serializeDraft,
-  shouldCancelForbiddenWeekdayHover,
-} from './ordering-board.helpers';
+import { ORDERING_DUPLICATE_WEEKDAY_ERROR, ORDERING_EMPTY_DRAFT } from './ordering-board.constants';
+import { hasDuplicateWeekdayPlacements, serializeDraft } from './ordering-board.helpers';
 import { useOrderingBoardDerived } from './use-ordering-board-derived';
+import { useOrderingBoardAutosave } from './use-ordering-board-autosave';
+import { useOrderingBoardEdits } from './use-ordering-board-edits';
 import { useOrderingBoardDesktopActions } from './use-ordering-board-desktop-actions';
 import { useOrderingBoardLoad } from './use-ordering-board-load';
 import { useOrderingBoardStoreBindings } from './use-ordering-board-store-bindings';
@@ -24,8 +17,9 @@ import { useOrderingBoardStoreBindings } from './use-ordering-board-store-bindin
  * useOrderingBoard drives the weekday scheduling board on @dnd-kit/react: it loads the
  * board into an editable working state (per-container instance keys), reshuffles it live
  * as cards are dragged via the `move` helper (rejecting a second copy on one day),
- * exposes Duplicate/Delete, and autosaves the draft (debounced). Apply saves + reconciles
- * the schedule; Reopen makes an applied board editable again. All derivation is pure.
+ * exposes Duplicate/Delete, and autosaves the draft (debounced) once the user edits it; a
+ * reload restores that draft. Apply saves + reconciles the schedule; Reset discards the
+ * draft; Reopen makes an applied board editable again. All derivation is pure.
  * Covers resolve once per anime on the loaded board.
  *
  * @param source The season port the board reads and writes through.
@@ -44,6 +38,7 @@ export function useOrderingBoard(source: SeasonSource = seasonSource, coverSourc
   const { board, state, setState, isHistoricalLoading, historicalRecorded, historicalError, load } = useOrderingBoardLoad({ source, viewSeasonId });
   const { meta, animeIds, rail, columns, counts, changeCount, scheduledCount, hasInvalidWeekdayPlacements } =
     useOrderingBoardDerived({ board, state, seasonAnimes });
+  const { hasEdits, clearEdits, onDragOver, duplicate, removeCard } = useOrderingBoardEdits({ state, setState });
   const desktopActions = useOrderingBoardDesktopActions();
   const getCoverThumb = useSeasonCovers(animeIds, coverSource);
 
@@ -52,42 +47,26 @@ export function useOrderingBoard(source: SeasonSource = seasonSource, coverSourc
   const readOnly = typeof board.appliedAt === 'number' || isPastSeason;
 
   // 6. Callbacks
-  // Live reshuffle while dragging: block forbidden same-anime weekday hovers first, then
-  // let `move` project valid targets; applyOrder remains the invariant backstop.
-  const onDragOver = useCallback((event: DragOverEvent) => {
-    if (shouldCancelForbiddenWeekdayHover(state, event)) {
-      event.preventDefault();
-      return;
-    }
-    setState((current) => applyOrder(current, move(current.order as Record<string, string[]>, event)));
-  }, [state, setState]);
-  // Stryker disable ArrayDeclaration: these deps arrays are mutation-equivalent to `[]`: both
-  // closures capture only the stable `useState` setter from use-ordering-board-load.ts plus their
-  // own argument via functional updates, and `[setState]` never changes because the setter
-  // identity is stable, so it behaves exactly like `[]` and no test can observe the difference.
-  const duplicate = useCallback((animeId: string) => {
-    setState((current) => applyDuplicate(current, animeId));
-  }, [setState]);
-  const removeCard = useCallback((key: string) => {
-    setState((current) => applyRemoveCard(current, key));
-  }, [setState]);
-  // Stryker restore ArrayDeclaration
   const onApply = useCallback(async (): Promise<ApplyScheduleResult> => {
     if (hasDuplicateWeekdayPlacements(state)) {
       return { status: ORDERING_DUPLICATE_WEEKDAY_ERROR, applied: 0, failed: [] };
     }
     await source.saveOrderingDraft(serializeDraft(state));
     const result = await source.applySchedule();
+    clearEdits();
     await load();
     return result;
-  }, [source, state, load]);
+  }, [source, state, load, clearEdits]);
+  // Reset clears the saved draft too, or the reload would restore the edits it discards.
   const onReset = useCallback(() => {
-    void load();
-  }, [load]);
+    clearEdits();
+    void source.saveOrderingDraft(ORDERING_EMPTY_DRAFT).then(load);
+  }, [source, load, clearEdits]);
   const onReopen = useCallback(async () => {
     await source.reopenOrdering();
+    clearEdits();
     await load();
-  }, [source, load]);
+  }, [source, load, clearEdits]);
   const onCloseSeason = useCallback(() => {
     void closeSeason(source);
   }, [closeSeason, source]);
@@ -97,17 +76,7 @@ export function useOrderingBoard(source: SeasonSource = seasonSource, coverSourc
   useEffect(() => {
     void ensureAnimesLoaded(source);
   }, [ensureAnimesLoaded, source]);
-
-  // Debounced autosave of the working draft (skipped while applied/read-only).
-  useEffect(() => {
-    if (readOnly || hasInvalidWeekdayPlacements) {
-      return undefined;
-    }
-    const timer = setTimeout(() => {
-      void source.saveOrderingDraft(serializeDraft(state));
-    }, ORDERING_AUTOSAVE_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [state, source, readOnly, hasInvalidWeekdayPlacements]);
+  useOrderingBoardAutosave({ source, state, hasEdits, readOnly, hasInvalidWeekdayPlacements });
 
   return {
     rail,

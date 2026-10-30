@@ -1,3 +1,4 @@
+import type { DragOverEvent } from '@dnd-kit/react';
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import type { OrderingBoard, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
 import type { SeasonStoreState } from '../../../../shared/store/season-store/season-store.types';
@@ -207,6 +208,42 @@ export interface OrderingBoardDerivedParams {
   readonly state: WorkingState;
   /** The season selection rows that card metadata is joined from. */
   readonly seasonAnimes: SeasonStoreState['seasonAnimes'];
+}
+
+/** Inputs of the hook that owns the user's edits to the working state. */
+export interface OrderingBoardEditsParams {
+  /** The editable working state. */
+  readonly state: WorkingState;
+  /** Replaces the working state. */
+  readonly setState: Dispatch<SetStateAction<WorkingState>>;
+}
+
+/** The user's edit handlers and whether any edit happened since the last load. */
+export interface OrderingBoardEdits {
+  /** True once the user edited the board since it last loaded. */
+  readonly hasEdits: boolean;
+  /** Forgets the edits, for a reload that replaces the working state. */
+  readonly clearEdits: () => void;
+  /** Live drag reshuffle, refusing a second copy of an anime on one weekday. */
+  readonly onDragOver: (event: DragOverEvent) => void;
+  /** Stages a rail copy of the anime. */
+  readonly duplicate: (animeId: string) => void;
+  /** Removes one card, never the anime's last. */
+  readonly removeCard: (key: string) => void;
+}
+
+/** Inputs of the hook that autosaves the working draft after a user edit. */
+export interface OrderingBoardAutosaveParams {
+  /** The season source the draft is saved through. */
+  readonly source: SeasonSource;
+  /** The editable working state. */
+  readonly state: WorkingState;
+  /** Whether the user edited the board since it was last loaded. */
+  readonly hasEdits: boolean;
+  /** True on a past or applied season. */
+  readonly readOnly: boolean;
+  /** True when one anime holds two cards on the same weekday. */
+  readonly hasInvalidWeekdayPlacements: boolean;
 }
 
 /** The pure render model derived from the board's working state. */

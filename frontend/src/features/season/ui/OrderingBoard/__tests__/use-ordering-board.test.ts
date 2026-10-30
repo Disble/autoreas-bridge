@@ -5,7 +5,7 @@ import type { OrderingBoard, SeasonOrderingSnapshot, SeasonSource } from '../../
 import { resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
 import { ORDERING_AUTOSAVE_DEBOUNCE_MS, ORDERING_DUPLICATE_WEEKDAY_ERROR, ORDERING_HISTORY_LOAD_ERROR } from '../ordering-board.constants';
 import { useOrderingBoard } from '../use-ordering-board';
-import { card, createSource, dragOverEvent, snapshot } from './ordering-board.test-support';
+import { card, createSource, dragOverEvent, snapshot, waitPastAutosave } from './ordering-board.test-support';
 
 describe('useOrderingBoard', () => {
   afterEach(() => {
@@ -25,6 +25,40 @@ describe('useOrderingBoard', () => {
     expect(result.current.columns['Jueves'].map((c) => c.animeId)).toEqual(['g']);
     expect(result.current.changeCount).toBe(0);
     expect(result.current.readOnly).toBe(false);
+  });
+
+  it('restores the saved draft over the applied schedule, counting its edits as changes', async () => {
+    const source = createSource({
+      rail: [card({ animeId: 'r', section: 'Visto' }), card({ animeId: 'kept', section: 'Visto', orden: 3 })],
+      grid: [card({ animeId: 'g', dia: 'Jueves', orden: 1 }), card({ animeId: 'g', dia: 'Viernes', orden: 1 }), card({ animeId: 'still', dia: 'Martes', orden: 1 })],
+      draft: JSON.stringify({
+        r: [{ dia: 'Lunes', orden: 1 }, { dia: 'Sábado', orden: 1 }],
+        g: [{ dia: 'Visto', orden: 2 }],
+        ghost: [{ dia: 'Lunes', orden: 2 }],
+      }),
+    });
+    const { result } = renderHook(() => useOrderingBoard(source));
+
+    await waitFor(() => expect(result.current.columns['Lunes'].map((c) => c.animeId)).toEqual(['r']));
+    expect(result.current.columns['Sábado'].map((c) => c.animeId)).toEqual(['r']);
+    expect(result.current.columns['Jueves']).toEqual([]);
+    expect(result.current.columns['Viernes']).toEqual([]);
+    expect(result.current.columns['Martes'].map((c) => c.animeId)).toEqual(['still']);
+    expect(result.current.rail.map((c) => [c.animeId, c.section, c.orden])).toEqual([['g', 'Visto', 2], ['kept', 'Visto', 3]]);
+    expect(result.current.changeCount).toBe(2);
+  });
+
+  it.each([
+    ['an applied board', { appliedAt: 1_700_000_000_000 }],
+    ['a malformed draft', { draft: '{not json' }],
+    ['a null draft', { draft: 'null' }],
+    ['a draft entry that is not a placement list', { draft: '{"g":5}' }],
+  ])('ignores the saved draft on %s', async (_name, overrides) => {
+    const source = createSource({ rail: [], grid: [card({ animeId: 'g', dia: 'Jueves', orden: 1 })], draft: '{"g":[{"dia":"Lunes","orden":1}]}', ...overrides });
+    const { result } = renderHook(() => useOrderingBoard(source));
+
+    await waitFor(() => expect(result.current.columns['Jueves'].map((c) => c.animeId)).toEqual(['g']));
+    expect(result.current.columns['Lunes']).toEqual([]);
   });
 
   it('resolves one cover per anime on the board, cloned cards included only once', async () => {
@@ -253,6 +287,8 @@ describe('useOrderingBoard', () => {
     await waitFor(() => expect(result.current.readOnly).toBe(false));
     expect(source.reopenOrdering).toHaveBeenCalledTimes(1);
     expect(source.getOrderingBoard).toHaveBeenCalledTimes(2);
+    await waitPastAutosave();
+    expect(source.saveOrderingDraft).not.toHaveBeenCalled();
   });
 
   it('loads the stored snapshot instead of the live board while viewing a past season', async () => {
@@ -332,6 +368,23 @@ describe('useOrderingBoard', () => {
     await act(async () => {
       resolveLiveBoard({ rail: [], grid: [] });
     });
+
+    // Reset and Reopen reload the view now shown — the live board — never the past season it mounted on.
+    await act(async () => {
+      result.current.onReset();
+    });
+    await waitFor(() => expect(source.getOrderingBoard).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      resolveLiveBoard({ rail: [], grid: [] });
+    });
+    await act(async () => {
+      void result.current.onReopen();
+    });
+    await waitFor(() => expect(source.getOrderingBoard).toHaveBeenCalledTimes(3));
+    await act(async () => {
+      resolveLiveBoard({ rail: [], grid: [] });
+    });
+    expect(source.getSeasonOrderingSnapshot).toHaveBeenCalledTimes(1);
   });
 
   it('flags an unrecorded stored board when the past season closed before capture', async () => {

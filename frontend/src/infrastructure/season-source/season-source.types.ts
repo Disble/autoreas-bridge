@@ -67,6 +67,8 @@ export interface OrderingBoard {
   readonly rail: readonly OrderingCard[];
   readonly grid: readonly OrderingCard[];
   readonly appliedAt?: number | null;
+  /** The saved, not-yet-applied placement JSON (`{animeId: [{dia, orden}]}`); absent or empty when there is none. */
+  readonly draft?: string;
 }
 
 /**

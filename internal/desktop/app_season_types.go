@@ -98,11 +98,14 @@ type OrderingCardDTO struct {
 
 // OrderingBoardDTO is the ordering board's read model: the rail (approved season
 // candidates awaiting a weekday) and the grid (all active animes already on
-// weekdays). Read-only in the UI while AppliedAt is set.
+// weekdays). Read-only in the UI while AppliedAt is set. Draft is the saved,
+// not-yet-applied placement JSON the board restores over the applied schedule;
+// empty when there is none.
 type OrderingBoardDTO struct {
 	Rail      []OrderingCardDTO `json:"rail"`
 	Grid      []OrderingCardDTO `json:"grid"`
 	AppliedAt *int64            `json:"appliedAt"`
+	Draft     string            `json:"draft,omitempty"`
 }
 
 // seasonClosureSnapshotDTO is the persisted shape of the ordering board captured

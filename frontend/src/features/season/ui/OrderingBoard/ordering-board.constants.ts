@@ -25,6 +25,9 @@ export const ORDERING_DUPLICATE_TOOLTIP = 'Duplicate to another day';
 /** Why a card's Remove button is locked: the anime's last card can never be removed. */
 export const ORDERING_LAST_CARD_TOOLTIP = 'An anime must stay on at least one day';
 
+/** The saved draft that places nothing: Reset stores it so a reload shows the applied schedule. */
+export const ORDERING_EMPTY_DRAFT = '{}';
+
 /** Debounce (ms) before autosaving the working ordering draft. */
 export const ORDERING_AUTOSAVE_DEBOUNCE_MS = 600;
 

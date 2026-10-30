@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { OrderingBoard } from '../../../../infrastructure/season-source/season-source.types';
 import { EMPTY_ORDERING_BOARD, ORDERING_HISTORY_LOAD_ERROR } from './ordering-board.constants';
-import { initialWorkingState } from './ordering-board.helpers';
+import { applyOrderingDraft, initialWorkingState } from './ordering-board.helpers';
 import type { OrderingBoardLoadParams, OrderingBoardLoadResult, OrderingBoardOrigin, WorkingState } from './ordering-board.types';
 
 /**
- * Loads the live schedule, or one past season's stored closure snapshot, into the
- * board's editable working state, and reloads whenever the source or viewed season
+ * Loads the live schedule (with its saved draft restored), or one past season's
+ * stored closure snapshot, into the board's editable working state, and reloads whenever the source or viewed season
  * changes. A source that cannot read the stored board is reported as a failure, never
  * as a season that recorded nothing.
  * @returns The loaded board, working state and its setter, historical load flags and error, and `load`.
@@ -28,8 +28,10 @@ export function useOrderingBoardLoad({ source, viewSeasonId }: Readonly<Ordering
   const load = useCallback(async () => {
     if (viewSeasonId === null) {
       const loaded = await source.getOrderingBoard();
+      // `board` stays the applied schedule, the baseline changes are counted
+      // against; only the editable state starts from the saved draft.
       setBoard(loaded);
-      setState(initialWorkingState(loaded));
+      setState(initialWorkingState(applyOrderingDraft(loaded)));
       setOrigin({ seasonId: null, recorded: true });
       setHistoricalError(undefined);
       return;

@@ -15,18 +15,6 @@ import (
 // must never fabricate an empty one.
 var errOrderingBoardUnavailable = errors.New("ordering board unavailable")
 
-// buildSeasonOrderingBoard aggregates the ordering board and reports every read
-// failure. GetSeasonOrderingBoard keeps its error-swallowing read for the UI;
-// the season-close capture uses this builder so a failed read aborts the close
-// instead of persisting a false empty history.
-func (a *App) buildSeasonOrderingBoard() (OrderingBoardDTO, error) {
-	inputs, err := a.readSeasonBoardInputs()
-	if err != nil {
-		return OrderingBoardDTO{}, err
-	}
-	return inputs.orderingBoard(), nil
-}
-
 // seasonBoardInputs is one consistent read of everything the season boards are
 // built from: the open season, its intake rows and every live anime.
 type seasonBoardInputs struct {
@@ -71,12 +59,16 @@ func (in seasonBoardInputs) orderingBoard() OrderingBoardDTO {
 // is the approved (verdict Aprobado, linked, still in an Estrenos section) season
 // candidates; the grid is every active anime already scheduled on a weekday
 // (continuing titles + placed newcomers). Newcomers (this season's approved) are
-// flagged. Any read failure degrades to an empty board for the UI.
+// flagged. The saved draft rides along so the board restores unapplied edits;
+// the closure capture never reads it. Any read failure degrades to an empty
+// board for the UI.
 func (a *App) GetSeasonOrderingBoard() OrderingBoardDTO {
-	board, err := a.buildSeasonOrderingBoard()
+	inputs, err := a.readSeasonBoardInputs()
 	if err != nil {
 		return OrderingBoardDTO{Rail: []OrderingCardDTO{}, Grid: []OrderingCardDTO{}}
 	}
+	board := inputs.orderingBoard()
+	board.Draft = inputs.active.OrderingDraft
 	return board
 }
 

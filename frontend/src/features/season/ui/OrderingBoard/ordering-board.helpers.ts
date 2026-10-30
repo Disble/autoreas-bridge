@@ -77,6 +77,65 @@ function placementKey(placements: readonly DraftPlacement[]) {
   return placements.map((placement) => `${placement.dia}#${placement.orden}`).toSorted((left, right) => left.localeCompare(right)).join('|');
 }
 
+/**
+ * Decodes a saved draft, reading anything that is not an `{animeId: placements[]}`
+ * object as no draft, so a corrupt payload shows the applied schedule.
+ * @param raw The saved draft JSON.
+ * @returns The placements per anime id.
+ */
+function parseOrderingDraft(raw: string | undefined): Record<string, readonly DraftPlacement[]> {
+  try {
+    // Stryker disable next-line StringLiteral: any fallback that is not JSON throws into the same catch as a missing draft.
+    const parsed = JSON.parse(raw ?? '') as object;
+    // `null` throws inside Object.entries and lands in the catch; entries that are not
+    // placement lists are dropped so they keep their applied cards.
+    return Object.fromEntries(Object.entries(parsed).filter(([, placements]) => Array.isArray(placements))) as Record<string, readonly DraftPlacement[]>;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Places each drafted card where its saved draft put it, so reopening an unapplied
+ * board restores the edits. Weekday placements become grid cards, any other one a
+ * rail card in that Estrenos section; an anime absent from the draft keeps its
+ * applied cards, and a drafted anime no longer on the board is ignored. An applied
+ * board shows the applied schedule only.
+ * @param board The applied board plus its saved draft.
+ * @returns The board to edit.
+ */
+export function applyOrderingDraft(board: OrderingBoard): OrderingBoard {
+  if (typeof board.appliedAt === 'number') return board;
+  const draft = parseOrderingDraft(board.draft);
+  const cards: OrderingCard[] = [];
+  const placed = new Set<string>();
+  for (const card of [...board.rail, ...board.grid]) {
+    const placements = draft[card.animeId];
+    if (placements === undefined) {
+      cards.push(card);
+    } else if (!placed.has(card.animeId)) {
+      placed.add(card.animeId);
+      cards.push(...draftedCards(card, placements));
+    }
+  }
+  // Stryker disable next-line ConditionalExpression,EqualityOperator,StringLiteral,MethodExpression: equivalent — the only consumer, initialWorkingState, re-merges rail and grid and routes each card by its `dia`.
+  return { ...board, rail: cards.filter((card) => card.dia === ''), grid: cards.filter((card) => card.dia !== '') };
+}
+
+/**
+ * Builds one card per drafted placement: a weekday card, or a rail card in that
+ * Estrenos section. A card moved onto a weekday keeps its section, as it does
+ * mid-session, so dragging it back to the rail restores that section.
+ * @param card Any of the anime's applied cards, the source of its name and flags.
+ * @param placements The anime's drafted placements.
+ * @returns The anime's cards, rail cards carrying an empty `dia`.
+ */
+function draftedCards(card: OrderingCard, placements: readonly DraftPlacement[]): OrderingCard[] {
+  return placements.map(({ dia, orden }) => ((WEEKDAYS as readonly string[]).includes(dia)
+    ? { ...card, dia, orden }
+    : { ...card, dia: '', orden, section: dia }));
+}
+
 /** Builds the Season adapter state through the reusable schedule-specific core. */
 export function initialWorkingState(board: OrderingBoard): WorkingState {
   const shared = createAnimeScheduleOrderingState(toSharedBoard(board));
