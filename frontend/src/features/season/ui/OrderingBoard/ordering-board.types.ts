@@ -1,6 +1,8 @@
+import type { DragOverEvent } from '@dnd-kit/react';
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import type { OrderingBoard, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
 import type { SeasonStoreState } from '../../../../shared/store/season-store/season-store.types';
+import type { SeasonCoverThumbProps } from '../SeasonCoverThumb/season-cover-thumb.types';
 import type { SeasonSectionId } from '../SeasonWorkspace/season-workspace.types';
 import type { OrderingState } from '../../../../shared/ordering/ordering.types';
 import type { AnimeScheduleOrderingInstance } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
@@ -85,6 +87,8 @@ interface OrderingCardActions {
   readonly onOpenFolder: (animeId: string) => void;
   /** Copies the anime's download folder path. */
   readonly onCopyFolder: (animeId: string) => void;
+  /** The cover thumbnail props for an anime id. */
+  readonly getCoverThumb: (animeId: string) => SeasonCoverThumbProps;
 }
 
 /** Props for one droppable ordering container (and its lane): the rail, or one weekday column. */
@@ -133,6 +137,8 @@ export interface OrderingItemProps {
   readonly canRemove: boolean;
   /** Grade + desktop-action metadata for this card's anime; absent when unavailable. */
   readonly meta?: OrderingCardMeta;
+  /** The cover thumbnail of this card's anime. */
+  readonly cover: SeasonCoverThumbProps;
   /** Stages a logical copy of this card's anime to drag onto another day (rail and weekday cards alike). */
   readonly onDuplicate: () => void;
   /** Removes this card. */
@@ -148,7 +154,7 @@ export interface OrderingItemProps {
 }
 
 /** Props for the always-visible action row of one ordering card. */
-export type OrderingCardActionRowProps = Omit<OrderingItemProps, 'container' | 'index'>;
+export type OrderingCardActionRowProps = Omit<OrderingItemProps, 'container' | 'index' | 'cover'>;
 
 /** Props for a droppable column (a weekday, or the rail) that accepts dropped cards. */
 export interface OrderingColumnProps {
@@ -204,10 +210,48 @@ export interface OrderingBoardDerivedParams {
   readonly seasonAnimes: SeasonStoreState['seasonAnimes'];
 }
 
+/** Inputs of the hook that owns the user's edits to the working state. */
+export interface OrderingBoardEditsParams {
+  /** The editable working state. */
+  readonly state: WorkingState;
+  /** Replaces the working state. */
+  readonly setState: Dispatch<SetStateAction<WorkingState>>;
+}
+
+/** The user's edit handlers and whether any edit happened since the last load. */
+export interface OrderingBoardEdits {
+  /** True once the user edited the board since it last loaded. */
+  readonly hasEdits: boolean;
+  /** Forgets the edits, for a reload that replaces the working state. */
+  readonly clearEdits: () => void;
+  /** Live drag reshuffle, refusing a second copy of an anime on one weekday. */
+  readonly onDragOver: (event: DragOverEvent) => void;
+  /** Stages a rail copy of the anime. */
+  readonly duplicate: (animeId: string) => void;
+  /** Removes one card, never the anime's last. */
+  readonly removeCard: (key: string) => void;
+}
+
+/** Inputs of the hook that autosaves the working draft after a user edit. */
+export interface OrderingBoardAutosaveParams {
+  /** The season source the draft is saved through. */
+  readonly source: SeasonSource;
+  /** The editable working state. */
+  readonly state: WorkingState;
+  /** Whether the user edited the board since it was last loaded. */
+  readonly hasEdits: boolean;
+  /** True on a past or applied season. */
+  readonly readOnly: boolean;
+  /** True when one anime holds two cards on the same weekday. */
+  readonly hasInvalidWeekdayPlacements: boolean;
+}
+
 /** The pure render model derived from the board's working state. */
 export interface OrderingBoardDerived {
   /** Grade + desktop-action metadata keyed by anime id. */
   readonly meta: Readonly<Record<string, OrderingCardMeta>>;
+  /** Every anime on the loaded board once, so each cover is resolved a single time. */
+  readonly animeIds: readonly string[];
   /** The rail's cards, in board order. */
   readonly rail: readonly OrderingInstance[];
   /** Each weekday's cards, in board order. */

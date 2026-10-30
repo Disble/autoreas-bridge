@@ -181,8 +181,22 @@ func TestOrderingBindingsSaveApplyReopen(t *testing.T) {
 		t.Fatalf("CreateSeason: %q", got)
 	}
 
-	if got := app.SaveSeasonOrderingDraft(`{"anime-a":[{"day":"Domingo","order":1}]}`); got != "ok" {
+	app.animeQuery = &stubAnimeQueryService{mobileAnimes: []contracts.MobileAnime{{
+		ID: "anime-a", Name: "Placed", Active: 1, Days: []contracts.MobileAnimeDay{{Day: "Lunes", Order: 1}},
+	}}}
+
+	const draft = `{"anime-a":[{"dia":"Domingo","orden":1}]}`
+	if got := app.SaveSeasonOrderingDraft(draft); got != "ok" {
 		t.Fatalf("SaveSeasonOrderingDraft: %q", got)
+	}
+	// The board read hands the saved draft back beside the applied schedule, so
+	// reopening the tab restores the edits instead of starting over.
+	board := app.GetSeasonOrderingBoard()
+	if board.Draft != draft {
+		t.Fatalf("board must carry the saved draft, got %q", board.Draft)
+	}
+	if len(board.Grid) != 1 || board.Grid[0].Dia != "Lunes" {
+		t.Fatalf("grid must stay the applied schedule, got %+v", board.Grid)
 	}
 
 	res := app.ApplySeasonSchedule()
@@ -200,6 +214,9 @@ func TestOrderingBindingsSaveApplyReopen(t *testing.T) {
 	active, _ = app.seasonService.ActiveSeason(context.Background())
 	if active.AppliedAt != nil {
 		t.Fatal("reopen must clear the milestone")
+	}
+	if board := app.GetSeasonOrderingBoard(); board.Draft != "" {
+		t.Fatalf("a reopened board must start from the applied schedule, not the applied draft, got %q", board.Draft)
 	}
 }
 

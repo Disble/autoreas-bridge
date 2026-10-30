@@ -41,6 +41,7 @@ function mockHook(overrides: Partial<HookReturn> = {}): void {
     historicalRecorded: true,
     historicalError: undefined,
     errorMessage: undefined,
+    getCoverThumb: () => ({ coverSrc: undefined, isLoading: false }),
     ...overrides,
   } as HookReturn);
 }

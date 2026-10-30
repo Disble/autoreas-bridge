@@ -14,6 +14,7 @@ import {
   hasDuplicateWeekdayPlacements,
   initialWorkingState,
   instancesIn,
+  orderingAnimeIds,
   removeCard,
   scheduledCount,
   serializeDraft,
@@ -309,5 +310,20 @@ describe('getRemoveDisabledReason', () => {
     { canRemove: false, tooltip: ORDERING_LAST_CARD_TOOLTIP },
   ])('gives the locked Remove button its reason only when canRemove is false ($canRemove)', ({ canRemove, tooltip }) => {
     expect(getRemoveDisabledReason(canRemove)).toBe(tooltip);
+  });
+});
+
+describe('orderingAnimeIds', () => {
+  it('lists each anime once, rail first then grid, so every card can resolve its cover', () => {
+    const ids = orderingAnimeIds(board({
+      rail: [card({ animeId: 'r1' }), card({ animeId: 'shared' })],
+      grid: [card({ animeId: 'shared', dia: 'Lunes' }), card({ animeId: 'g1', dia: 'Martes' }), card({ animeId: 'g1', dia: 'Jueves' })],
+    }));
+
+    expect(ids).toStrictEqual(['r1', 'shared', 'g1']);
+  });
+
+  it('returns no ids for an empty board', () => {
+    expect(orderingAnimeIds(board())).toStrictEqual([]);
   });
 });

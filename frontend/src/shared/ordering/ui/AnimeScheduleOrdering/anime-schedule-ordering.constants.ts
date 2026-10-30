@@ -22,3 +22,11 @@ export const ANIME_SCHEDULE_DUPLICATE_TOOLTIP = 'Duplicate to another day';
 export const ANIME_SCHEDULE_REMOVE_TOOLTIP = 'Remove';
 /** Why a card's Remove button is locked: the anime's last card can never be removed. */
 export const ANIME_SCHEDULE_LAST_CARD_REASON = 'An anime must stay scheduled at least once';
+
+/**
+ * Lane grid shared by every weekday-ordering board (Season Ordering and the anime
+ * schedule): the tracks follow the room the grid's container leaves, not the window —
+ * each lane is at least 16rem, or the whole width when less is left — so lanes wrap
+ * into as many comfortable columns as fit and never scroll sideways.
+ */
+export const ORDERING_LANE_GRID_CLASS = 'grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))]';

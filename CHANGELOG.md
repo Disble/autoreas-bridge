@@ -14,6 +14,15 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [2.7.2] — 2026-10-30
+
+### Fixed
+
+- The Season Ordering board now keeps your unapplied arrangement. Leaving the tab or restarting the app no longer resets the cards to the last applied schedule; Reset draft discards the saved arrangement, and applying the schedule clears it.
+- Ordering cards now show each anime's cover, like every other Season tab.
+- The sort menus in Catalog and Season Selection leave space between the sort icon and the selected order.
+- The anime schedule editor wraps its day columns to the space available, the same way the Season Ordering board does, instead of squeezing seven narrow columns into the dialog.
+
 ## [2.7.1] — 2026-10-27
 
 ### Fixed

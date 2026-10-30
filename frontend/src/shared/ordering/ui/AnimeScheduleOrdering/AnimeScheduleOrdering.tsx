@@ -11,6 +11,7 @@ import {
   ANIME_SCHEDULE_STAGING_HELP_LABEL,
   ANIME_SCHEDULE_STAGING_HELP_MESSAGE,
   ANIME_SCHEDULE_STAGING_LABEL,
+  ORDERING_LANE_GRID_CLASS,
 } from './anime-schedule-ordering.constants';
 import { formatStagingWarning } from './anime-schedule-ordering.helpers';
 import type { AnimeScheduleOrderingProps } from './anime-schedule-ordering.types';
@@ -70,7 +71,7 @@ export function AnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingProps
         )}
 
         <ScrollShadow className="min-h-0 flex-1" hideScrollBar>
-          <div aria-label="Weekday schedule row" className="grid gap-3 lg:grid-cols-7 md:grid-cols-3">
+          <div aria-label="Weekday schedule row" className={`${ORDERING_LANE_GRID_CLASS} gap-3`}>
             {weekdayColumns.map((column) => (
               <Card key={column.id}>
                 <Card.Header>
@@ -101,7 +102,7 @@ export function AnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingProps
               </Card>
             ))}
           </div>
-          <div aria-label="Special queue row" className="mt-4 grid gap-4 md:grid-cols-4">
+          <div aria-label="Special queue row" className={`${ORDERING_LANE_GRID_CLASS} mt-4 gap-4`}>
             <Card>
               <Card.Header>
                 <div className="flex items-center gap-2">
