@@ -60,6 +60,7 @@ export function OrderingBoard({ onNavigate }: Readonly<OrderingBoardProps>) {
     onCopyPage,
     onOpenFolder,
     onCopyFolder,
+    getCoverThumb,
   } = useOrderingBoard();
 
   const notice = (
@@ -80,6 +81,7 @@ export function OrderingBoard({ onNavigate }: Readonly<OrderingBoardProps>) {
     onCopyPage,
     onOpenFolder,
     onCopyFolder,
+    getCoverThumb,
   };
 
   // A failed request shows the workspace Alert and never an empty state: `null` tells the

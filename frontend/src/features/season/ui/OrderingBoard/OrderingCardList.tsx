@@ -6,7 +6,7 @@ import type { OrderingCardListProps } from './ordering-board.types';
  * It is the single place the rail and every weekday column build a `SortableCard`, so
  * both containers cannot drift apart in props or behavior.
  */
-export function OrderingCardList({ container, className, cards, meta, counts, onDuplicate, onRemove, ...cardProps }: Readonly<OrderingCardListProps>) {
+export function OrderingCardList({ container, className, cards, meta, counts, onDuplicate, onRemove, getCoverThumb, ...cardProps }: Readonly<OrderingCardListProps>) {
   return (
     <ul className={className}>
       {cards.map((instance, index) => (
@@ -17,6 +17,7 @@ export function OrderingCardList({ container, className, cards, meta, counts, on
           index={index}
           canRemove={(counts[instance.animeId] ?? 0) > 1}
           meta={meta[instance.animeId]}
+          cover={getCoverThumb(instance.animeId)}
           onDuplicate={() => onDuplicate(instance.animeId)}
           onRemove={() => onRemove(instance.key)}
           {...cardProps}

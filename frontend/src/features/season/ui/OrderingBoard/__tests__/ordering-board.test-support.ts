@@ -1,6 +1,8 @@
 import type { DragOverEvent } from '@dnd-kit/react';
+import { act } from '@testing-library/react';
 import { vi } from 'vitest';
 
+import { ORDERING_AUTOSAVE_DEBOUNCE_MS } from '../ordering-board.constants';
 import type { OrderingBoard, OrderingCard, SeasonOrderingSnapshot, SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
 
 /**
@@ -71,6 +73,13 @@ export function dragOverEvent(sourceId: string, targetId: string): DragOverEvent
       target: { id: targetId },
     },
   } as unknown as DragOverEvent;
+}
+
+/** Waits on real timers past the autosave debounce, so a stray autosave would have fired. */
+export async function waitPastAutosave(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => { setTimeout(resolve, ORDERING_AUTOSAVE_DEBOUNCE_MS + 50); });
+  });
 }
 
 /** Builds a stored closure snapshot, recorded by default. */

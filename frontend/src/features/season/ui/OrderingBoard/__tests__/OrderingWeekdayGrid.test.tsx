@@ -26,6 +26,7 @@ function renderGrid(overrides: Partial<OrderingWeekdayGridProps> = {}) {
     onCopyPage: vi.fn(),
     onOpenFolder: vi.fn(),
     onCopyFolder: vi.fn(),
+    getCoverThumb: vi.fn(() => ({ coverSrc: undefined, isLoading: false })),
     ...overrides,
   };
   render(
@@ -66,5 +67,20 @@ describe('OrderingWeekdayGrid', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove On Monday' }));
     expect(props.onDuplicate).toHaveBeenCalledWith('g');
     expect(props.onRemove).toHaveBeenCalledWith('g#0');
+  });
+
+  it('renders each card with the cover its anime resolves to', () => {
+    const props = renderGrid({
+      columns: { Lunes: [card({ key: 'g#0', animeId: 'g', name: 'With cover' }), card({ key: 'p#0', animeId: 'p', name: 'Pending' })] },
+      counts: { g: 1, p: 1 },
+      getCoverThumb: vi.fn((animeId: string) => (animeId === 'g' ? { coverSrc: 'data:g', isLoading: false } : { coverSrc: undefined, isLoading: true })),
+    });
+
+    const lane = within(screen.getByRole('group', { name: 'Lunes' }));
+    expect(lane.getByTestId('season-cover-thumb-image')).toHaveAttribute('src', 'data:g');
+    expect(lane.getAllByTestId('season-cover-thumb')).toHaveLength(2);
+    expect(lane.getByTestId('season-cover-thumb-loading')).toBeInTheDocument();
+    expect(props.getCoverThumb).toHaveBeenCalledWith('g');
+    expect(props.getCoverThumb).toHaveBeenCalledWith('p');
   });
 });

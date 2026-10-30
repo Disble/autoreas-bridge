@@ -1,11 +1,11 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
+import type { OrderingBoard, SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
 import { resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
 import { ORDERING_AUTOSAVE_DEBOUNCE_MS } from '../ordering-board.constants';
 import { useOrderingBoard } from '../use-ordering-board';
-import { card, createSource, dragOverEvent, snapshot } from './ordering-board.test-support';
+import { card, createSource, dragOverEvent, snapshot, waitPastAutosave } from './ordering-board.test-support';
 
 /** Toast spy the desktop actions call for copy feedback. */
 const toastMock = vi.hoisted(() => ({ success: vi.fn() }));
@@ -96,17 +96,28 @@ describe('useOrderingBoard sub-hook behavior', () => {
     expect(closeSeason).toHaveBeenCalledExactlyOnceWith(source);
   });
 
-  it('onReset discards the working edits by re-reading the board', async () => {
-    const source = createSource({ rail: [card({ animeId: 'g', section: 'Visto' })], grid: [] });
+  it('onReset discards the working edits and the saved draft, then re-reads the board', async () => {
+    const applied = { rail: [card({ animeId: 'g', section: 'Visto' })], grid: [] };
+    const source = createSource(applied, {
+      getOrderingBoard: vi.fn()
+        .mockResolvedValueOnce({ ...applied, draft: '{"g":[{"dia":"Lunes","orden":1}]}' })
+        .mockResolvedValue({ ...applied, draft: '' }),
+    });
     const { result } = renderHook(() => useOrderingBoard(source));
-    await waitFor(() => expect(result.current.rail).toHaveLength(1));
+    await waitFor(() => expect(result.current.columns['Lunes']).toHaveLength(1));
     act(() => result.current.duplicate('g'));
-    expect(result.current.rail).toHaveLength(2);
+    expect(result.current.rail).toHaveLength(1);
 
-    act(() => result.current.onReset());
+    await act(async () => {
+      result.current.onReset();
+    });
 
-    await waitFor(() => expect(result.current.rail).toHaveLength(1));
+    await waitFor(() => expect(result.current.rail.map((c) => c.animeId)).toEqual(['g']));
+    expect(result.current.columns['Lunes']).toEqual([]);
     expect(source.getOrderingBoard).toHaveBeenCalledTimes(2);
+    // The pending autosave of the discarded edit never fires: '{}' is the only write.
+    await waitPastAutosave();
+    expect(vi.mocked(source.saveOrderingDraft).mock.calls).toEqual([['{}']]);
   });
 
   it('onApply saves the draft, applies the schedule, re-reads the board and returns the result', async () => {
@@ -123,23 +134,35 @@ describe('useOrderingBoard sub-hook behavior', () => {
     expect(applied).toEqual({ status: 'ok', applied: 1, failed: [] });
     expect(source.saveOrderingDraft).toHaveBeenCalledWith(expect.stringContaining('"Lunes"'));
     expect(source.getOrderingBoard).toHaveBeenCalledTimes(1);
+    // The reloaded board is the applied schedule; it is never autosaved back as a draft.
+    await waitPastAutosave();
+    expect(source.saveOrderingDraft).toHaveBeenCalledTimes(1);
   });
 
-  it('autosaves the serialized draft once the debounce elapses, and re-arms on each edit', async () => {
+  it.each<[string, (current: ReturnType<typeof useOrderingBoard>) => void]>([
+    ['a duplicate', (current) => current.duplicate('g')],
+    ['a remove', (current) => current.removeCard(current.rail[0].key)],
+    ['a drag', (current) => current.onDragOver(dragOverEvent(current.rail[0].key, current.columns['Jueves'][0].key))],
+  ])('autosaves the serialized draft only after %s, once the debounce elapses', async (_name, edit) => {
     vi.useFakeTimers();
-    const source = createSource({ rail: [card({ animeId: 'g', section: 'Visto' })], grid: [] });
+    // A board read slower than the debounce must not let the empty pre-load state
+    // overwrite the saved draft, and the loaded board itself is never re-saved.
+    let resolveBoard: (board: OrderingBoard) => void = () => undefined;
+    const source = createSource({ rail: [], grid: [] }, {
+      getOrderingBoard: vi.fn(() => new Promise<OrderingBoard>((resolve) => { resolveBoard = resolve; })),
+    });
     const { result } = renderHook(() => useOrderingBoard(source));
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(ORDERING_AUTOSAVE_DEBOUNCE_MS * 2);
     });
-    vi.mocked(source.saveOrderingDraft).mockClear();
-
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(ORDERING_AUTOSAVE_DEBOUNCE_MS - 1);
+      resolveBoard({ rail: [card({ animeId: 'g', section: 'Visto' })], grid: [card({ animeId: 'other', dia: 'Jueves', orden: 1 })] });
+      await vi.advanceTimersByTimeAsync(ORDERING_AUTOSAVE_DEBOUNCE_MS * 2);
     });
+    expect(result.current.rail).toHaveLength(1);
     expect(source.saveOrderingDraft).not.toHaveBeenCalled();
 
-    act(() => result.current.duplicate('g'));
+    act(() => edit(result.current));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(ORDERING_AUTOSAVE_DEBOUNCE_MS - 1);
     });
