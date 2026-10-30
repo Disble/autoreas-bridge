@@ -47,6 +47,7 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     onCopyPage: vi.fn(),
     onOpenFolder: vi.fn(),
     onCopyFolder: vi.fn(),
+    getCoverThumb: vi.fn(() => ({ coverSrc: undefined, isLoading: false })),
     ...overrides,
   };
   mockedUseOrderingBoard.mockReturnValue(value);

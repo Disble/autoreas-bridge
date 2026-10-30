@@ -1,8 +1,11 @@
 import type { DragOverEvent } from '@dnd-kit/react';
 import { move } from '@dnd-kit/helpers';
 import { useCallback, useEffect } from 'react';
+import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
 import type { ApplyScheduleResult, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonCoverSource } from '../SeasonCoverThumb/season-cover-thumb.types';
+import { useSeasonCovers } from '../SeasonCoverThumb/use-season-covers';
 import { ORDERING_AUTOSAVE_DEBOUNCE_MS, ORDERING_DUPLICATE_WEEKDAY_ERROR } from './ordering-board.constants';
 import {
   applyOrder,
@@ -23,8 +26,12 @@ import { useOrderingBoardStoreBindings } from './use-ordering-board-store-bindin
  * as cards are dragged via the `move` helper (rejecting a second copy on one day),
  * exposes Duplicate/Delete, and autosaves the draft (debounced). Apply saves + reconciles
  * the schedule; Reopen makes an applied board editable again. All derivation is pure.
+ * Covers resolve once per anime on the loaded board.
+ *
+ * @param source The season port the board reads and writes through.
+ * @param coverSource The port each card's cover is resolved through.
  */
-export function useOrderingBoard(source: SeasonSource = seasonSource) {
+export function useOrderingBoard(source: SeasonSource = seasonSource, coverSource: SeasonCoverSource = bridgeRuntimeSource) {
   // 3. Context/3rd Party Hooks
   const {
     closeSeason,
@@ -35,9 +42,10 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
     errorMessage,
   } = useOrderingBoardStoreBindings();
   const { board, state, setState, isHistoricalLoading, historicalRecorded, historicalError, load } = useOrderingBoardLoad({ source, viewSeasonId });
-  const { meta, rail, columns, counts, changeCount, scheduledCount, hasInvalidWeekdayPlacements } =
+  const { meta, animeIds, rail, columns, counts, changeCount, scheduledCount, hasInvalidWeekdayPlacements } =
     useOrderingBoardDerived({ board, state, seasonAnimes });
   const desktopActions = useOrderingBoardDesktopActions();
+  const getCoverThumb = useSeasonCovers(animeIds, coverSource);
 
   // 5. Derived State
   // A past season (viewed from history) locks the board just like an applied one.
@@ -123,6 +131,7 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
     onReset,
     onReopen,
     onCloseSeason,
+    getCoverThumb,
     ...desktopActions,
   };
 }

@@ -170,6 +170,9 @@ function measureAll(): readonly Check[] {
 /** Every card action is a no-op: the fixture measures geometry and never acts on a card. */
 const NO_OP = () => undefined;
 
+/** Every card renders the fixed-size placeholder cover, which occupies the same slot as a real one. */
+const NO_COVER = () => ({ coverSrc: undefined, isLoading: false });
+
 /** Mounts the real weekday grid at each container width and measures it once the lanes are on screen. */
 export function SeasonOrderingFixture() {
   const [checks, setChecks] = useState<readonly Check[] | undefined>();
@@ -199,6 +202,7 @@ export function SeasonOrderingFixture() {
               onCopyPage={NO_OP}
               onOpenFolder={NO_OP}
               onCopyFolder={NO_OP}
+              getCoverThumb={NO_COVER}
             />
           </DragDropProvider>
         </div>

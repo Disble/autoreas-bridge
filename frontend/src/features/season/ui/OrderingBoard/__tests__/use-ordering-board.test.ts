@@ -27,6 +27,19 @@ describe('useOrderingBoard', () => {
     expect(result.current.readOnly).toBe(false);
   });
 
+  it('resolves one cover per anime on the board, cloned cards included only once', async () => {
+    const source = createSource({
+      rail: [card({ animeId: 'r' })],
+      grid: [card({ animeId: 'g', dia: 'Lunes' }), card({ animeId: 'g', dia: 'Jueves' })],
+    });
+    const getAnimeCover = vi.fn((animeId: string) => Promise.resolve({ source: 'cover', dataUrl: `data:${animeId}` }));
+    const { result } = renderHook(() => useOrderingBoard(source, { getAnimeCover }));
+
+    await waitFor(() => expect(result.current.getCoverThumb('g').coverSrc).toBe('data:g'));
+    expect(result.current.getCoverThumb('r').coverSrc).toBe('data:r');
+    expect(getAnimeCover.mock.calls).toEqual([['r'], ['g']]);
+  });
+
   it.each([
     ['exposes the season store error message', 'animes failed to load', 'animes failed to load'],
     ['leaves it undefined when the store holds no error', undefined, undefined],

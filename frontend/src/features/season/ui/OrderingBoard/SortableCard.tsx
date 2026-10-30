@@ -1,16 +1,17 @@
 import { useSortable } from '@dnd-kit/react/sortable';
 import { Chip } from '@heroui/react';
+import { SeasonCoverThumb } from '../SeasonCoverThumb/SeasonCoverThumb';
 import { OrderingCardActionRow } from './OrderingCardActionRow';
 import type { OrderingItemProps } from './ordering-board.types';
 
 /**
  * SortableCard is one draggable ordering card (@dnd-kit/react sortable). Dragging it
- * sets both its day (which column it lands in) and its order (its position). The name
- * leads: clamped to two lines, the full name as its tooltip, beside a fixed-width grade
+ * sets both its day (which column it lands in) and its order (its position). The cover
+ * thumb leads, then the name: clamped to two lines, the full name as its tooltip, beside a fixed-width grade
  * chip. Below it sits the always-visible action row (desktop actions, Duplicate to
  * stage a logical copy for another day, Remove never the anime's last card).
  */
-export function SortableCard({ instance, container, index, readOnly, meta, ...actionProps }: Readonly<OrderingItemProps>) {
+export function SortableCard({ instance, container, index, readOnly, meta, cover, ...actionProps }: Readonly<OrderingItemProps>) {
   const { ref, isDragging } = useSortable({
     id: instance.key,
     index,
@@ -34,6 +35,7 @@ export function SortableCard({ instance, container, index, readOnly, meta, ...ac
       className={`flex min-w-0 flex-col gap-1.5 rounded-xl bg-default pb-1.5 pl-2.5 pr-2 pt-2 ${cursorClassName}`}
     >
       <div className="flex min-w-0 items-start gap-1.5">
+        <SeasonCoverThumb {...cover} />
         <span className="line-clamp-2 min-w-0 flex-1 text-sm font-semibold leading-snug text-foreground [overflow-wrap:anywhere]" title={instance.name}>
           {instance.name}
         </span>

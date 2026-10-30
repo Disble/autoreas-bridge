@@ -1,6 +1,7 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import type { OrderingBoard, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
 import type { SeasonStoreState } from '../../../../shared/store/season-store/season-store.types';
+import type { SeasonCoverThumbProps } from '../SeasonCoverThumb/season-cover-thumb.types';
 import type { SeasonSectionId } from '../SeasonWorkspace/season-workspace.types';
 import type { OrderingState } from '../../../../shared/ordering/ordering.types';
 import type { AnimeScheduleOrderingInstance } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
@@ -85,6 +86,8 @@ interface OrderingCardActions {
   readonly onOpenFolder: (animeId: string) => void;
   /** Copies the anime's download folder path. */
   readonly onCopyFolder: (animeId: string) => void;
+  /** The cover thumbnail props for an anime id. */
+  readonly getCoverThumb: (animeId: string) => SeasonCoverThumbProps;
 }
 
 /** Props for one droppable ordering container (and its lane): the rail, or one weekday column. */
@@ -133,6 +136,8 @@ export interface OrderingItemProps {
   readonly canRemove: boolean;
   /** Grade + desktop-action metadata for this card's anime; absent when unavailable. */
   readonly meta?: OrderingCardMeta;
+  /** The cover thumbnail of this card's anime. */
+  readonly cover: SeasonCoverThumbProps;
   /** Stages a logical copy of this card's anime to drag onto another day (rail and weekday cards alike). */
   readonly onDuplicate: () => void;
   /** Removes this card. */
@@ -148,7 +153,7 @@ export interface OrderingItemProps {
 }
 
 /** Props for the always-visible action row of one ordering card. */
-export type OrderingCardActionRowProps = Omit<OrderingItemProps, 'container' | 'index'>;
+export type OrderingCardActionRowProps = Omit<OrderingItemProps, 'container' | 'index' | 'cover'>;
 
 /** Props for a droppable column (a weekday, or the rail) that accepts dropped cards. */
 export interface OrderingColumnProps {
@@ -208,6 +213,8 @@ export interface OrderingBoardDerivedParams {
 export interface OrderingBoardDerived {
   /** Grade + desktop-action metadata keyed by anime id. */
   readonly meta: Readonly<Record<string, OrderingCardMeta>>;
+  /** Every anime on the loaded board once, so each cover is resolved a single time. */
+  readonly animeIds: readonly string[];
   /** The rail's cards, in board order. */
   readonly rail: readonly OrderingInstance[];
   /** Each weekday's cards, in board order. */

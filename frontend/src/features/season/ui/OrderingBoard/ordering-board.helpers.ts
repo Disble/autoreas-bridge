@@ -115,6 +115,16 @@ export function buildOrderingCardMeta(rows: readonly SeasonAnimeRow[]): Record<s
   return meta;
 }
 
+/**
+ * Lists every anime on the loaded board once, rail first then grid, so each
+ * card's cover is resolved a single time however many clones it has.
+ * @param board The Season ordering board.
+ * @returns The distinct anime ids, in board order.
+ */
+export function orderingAnimeIds(board: OrderingBoard): string[] {
+  return [...new Set([...board.rail, ...board.grid].map((card) => card.animeId))];
+}
+
 /** Resolves one Season destination through the shared ordered collection. */
 export function instancesIn(state: WorkingState, container: string): OrderingInstance[] {
   return getInstancesIn(state, container);
