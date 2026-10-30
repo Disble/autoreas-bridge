@@ -1,4 +1,4 @@
-import { ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.constants';
+import { ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE, ORDERING_LANE_GRID_CLASS } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.constants';
 import { WEEKDAYS } from './ordering-board.constants';
 import { OrderingLane } from './OrderingLane';
 import type { OrderingWeekdayGridProps } from './ordering-weekday-grid.types';
@@ -14,7 +14,7 @@ import type { OrderingWeekdayGridProps } from './ordering-weekday-grid.types';
  */
 export function OrderingWeekdayGrid({ columns, ...containerActions }: Readonly<OrderingWeekdayGridProps>) {
   return (
-    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-2">
+    <div className={`${ORDERING_LANE_GRID_CLASS} gap-2`}>
       {WEEKDAYS.map((day) => (
         <OrderingLane
           key={day}

@@ -41,7 +41,7 @@ export function CatalogToolbar({ state }: Readonly<CatalogSectionProps>) {
       </Popover>
 
       <Select aria-label="Sort by" className="w-44 max-sm:flex-1" value={state.sort} variant="secondary" onChange={state.onSortChange}>
-        <Select.Trigger>
+        <Select.Trigger className="items-center gap-2">
           <Icon aria-hidden="true" className="size-4 shrink-0 text-muted" icon={sortIcon} />
           <Select.Value />
           <Select.Indicator />
