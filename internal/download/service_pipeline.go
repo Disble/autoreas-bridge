@@ -361,14 +361,15 @@ func (s *Service) orderHosters(site string, links []sites.DownloadLink) []hoster
 	return out
 }
 
-// downloadedEpisodeBaseline returns the highest episode count at the folder root.
+// downloadedEpisodeBaseline returns the number of video files at the folder root: the
+// catch-up cursor (NeedsDownload's onDiskVideoFileCount). It never reads a number out of
+// a file name -- hosters save copies as "01(8).mp4" or "d2ouiemgt90z.mp4", and a number
+// read from such a name skipped episodes and hid a landed file from the arrival check.
 func (s *Service) downloadedEpisodeBaseline(folder string) int {
 	if s.deps.Counter == nil {
 		return 0
 	}
-	highest := s.deps.Counter.HighestEpisodeAtRoot(folder)
-	count := s.deps.Counter.CountAtRoot(folder)
-	return max(highest, count)
+	return s.deps.Counter.CountAtRoot(folder)
 }
 
 // enqueueWithFallback tries each hoster group in order, AddAndStart-ing then watching each attempt

@@ -9,7 +9,7 @@ import (
 )
 
 // completeDownloadedEpisode turns "JD wrote the episode into the anime folder" into "the
-// episode sits at the folder root under a name the counter can read".
+// episode sits at the folder root under a readable name".
 //
 // The rename is delegated to JDownloader, which downloads straight into the anime folder and
 // renames the file in place. Bridge never moves or deletes anything in that folder.
@@ -19,10 +19,9 @@ func (s *Service) completeDownloadedEpisode(ctx context.Context, runID string, a
 	s.noticeEpisodeDuration(ctx, anime, episode)
 }
 
-// renameDownloadedEpisode gives the episode that just landed a parseable name
-// ("NegaPosi Angler - 04.mp4"), so downloadedEpisodeBaseline can resolve the
-// download cursor from the highest episode on disk instead of falling back to
-// counting files.
+// renameDownloadedEpisode gives the episode that just landed a readable name
+// ("NegaPosi Angler - 04.mp4") for people and players. The download cursor never
+// reads it: downloadedEpisodeBaseline counts video files.
 //
 // Best-effort by construction: the episode is
 // already downloaded by the time this runs, and no naming problem is worth
