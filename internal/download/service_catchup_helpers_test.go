@@ -2,6 +2,8 @@ package download
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -60,8 +62,6 @@ func (c *catchupCounter) CountAtRoot(folder string) int {
 	return c.atRoot[folder]
 }
 
-func (c *catchupCounter) HighestEpisodeAtRoot(folder string) int { return c.CountAtRoot(folder) }
-
 // markDownloaded lands one newly downloaded episode at the folder root.
 func (c *catchupCounter) markDownloaded(folder string) {
 	c.mu.Lock()
@@ -94,6 +94,30 @@ func (j *recordingCatchupJD) episodes() []int {
 	out := make([]int, len(j.seen))
 	copy(out, j.seen)
 	return out
+}
+
+// fileWritingJD lands each enqueued episode as a real empty file in the destination,
+// named the way a hoster saved it, so a run is measured by the real EpisodeCounter.
+type fileWritingJD struct {
+	svcFakeJDClient
+	names map[int]string
+	mu    sync.Mutex
+	seen  []int
+}
+
+func (j *fileWritingJD) AddAndStart(ctx context.Context, deviceName string, req jdownloader.EnqueueRequest) error {
+	episode := episodeFromURL(req.URLs[0])
+	j.mu.Lock()
+	j.seen = append(j.seen, episode)
+	j.mu.Unlock()
+	return os.WriteFile(filepath.Join(req.Destination, j.names[episode]), nil, 0o600)
+}
+
+// episodes returns the episode numbers recorded by the fake client.
+func (j *fileWritingJD) episodes() []int {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return append([]int(nil), j.seen...)
 }
 
 type neverFinishedCatchupJD struct{ recordingCatchupJD }

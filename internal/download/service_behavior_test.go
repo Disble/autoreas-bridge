@@ -30,10 +30,6 @@ func (c *folderRecordingCounter) CountAtRoot(folder string) int {
 	return c.svcFakeCounter.CountAtRoot(folder)
 }
 
-func (c *folderRecordingCounter) HighestEpisodeAtRoot(folder string) int {
-	return c.CountAtRoot(folder)
-}
-
 type spySiteRegistry struct {
 	mu           sync.Mutex
 	resolveCalls int

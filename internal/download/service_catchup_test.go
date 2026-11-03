@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/download/filesystem"
 	"autoreas-bridge/internal/download/sites"
 )
 
@@ -107,7 +108,11 @@ func TestRunAnimePersistsEpisodeProgressDuringSingleAnimeCatchup(t *testing.T) {
 	assertSoloRunProgress(t, deps.Store.(*svcFakeDownloadStore).progressSnapshots())
 }
 
-func TestRunAnimeCompletesWhenJDFolderFileNameDoesNotContainEpisodeNumber(t *testing.T) {
+// The catch-up cursor is the number of video files in the folder, never a number
+// read from their names. Mediafire saved Sakamoto desu ga? episode 1 as "01(8).mp4";
+// reading the 8 skipped episodes 2-8, and "09(4).mp4" then never moved the cursor,
+// so the run waited on episode 9 although the file had landed.
+func TestRunAnimeCountsVideoFilesNotTheNumbersInTheirNames(t *testing.T) {
 	t.Parallel()
 
 	deps := baseDeps(t)
@@ -118,18 +123,20 @@ func TestRunAnimeCompletesWhenJDFolderFileNameDoesNotContainEpisodeNumber(t *tes
 	source := &svcFakeEpisodeSource{
 		name: "jkanime",
 		listEpisodes: map[string]sites.EpisodeListing{
-			"https://jkanime.net/solo/": {LatestEpisode: 11, EpisodePageURL: "https://jkanime.net/solo/11/"},
+			"https://jkanime.net/solo/": {LatestEpisode: 3, EpisodePageURL: "https://jkanime.net/solo/3/"},
 		},
 		extractLinks: map[string][]sites.DownloadLink{
-			"https://jkanime.net/solo/11/": {{URL: "http://mediafire.example/11", Hoster: "Mediafire"}},
+			"https://jkanime.net/solo/1/": {{URL: "http://mediafire.example/1", Hoster: "Mediafire"}},
+			"https://jkanime.net/solo/2/": {{URL: "http://mediafire.example/2", Hoster: "Mediafire"}},
+			"https://jkanime.net/solo/3/": {{URL: "http://mediafire.example/3", Hoster: "Mediafire"}},
 		},
 	}
 	registry := NewStaticRegistry()
 	registry.Register(source)
 	deps.Sites = registry
-	counter := newCatchupCounter(map[string]int{folder: 10})
-	deps.Counter = counter
-	deps.JD = &recordingCatchupJD{counter: counter}
+	deps.Counter = filesystem.NewEpisodeCounter()
+	jd := &fileWritingJD{names: map[int]string{1: "01(8).mp4", 2: "02(4).mp4", 3: "d2ouiemgt90z.mp4"}}
+	deps.JD = jd
 
 	anime := contracts.MobileAnime{
 		ID:        "anime-1",
@@ -150,8 +157,11 @@ func TestRunAnimeCompletesWhenJDFolderFileNameDoesNotContainEpisodeNumber(t *tes
 	if !ok {
 		t.Fatalf("expected run %q persisted", result.RunID)
 	}
-	if run.EpisodesFound != 1 || run.EpisodesDownloaded != 1 || run.EpisodesFailed != 0 {
-		t.Fatalf("expected one found and one downloaded episode, got %#v", run)
+	if run.EpisodesFound != 3 || run.EpisodesDownloaded != 3 || run.EpisodesFailed != 0 {
+		t.Fatalf("expected 3 found and 3 downloaded episodes, got %#v", run)
+	}
+	if got := jd.episodes(); !equalInts(got, []int{1, 2, 3}) {
+		t.Fatalf("expected sequential episode enqueue [1 2 3], got %v", got)
 	}
 }
 
