@@ -117,4 +117,5 @@ export const EPISODE_SKIPPED_DETAIL_LABELS: Readonly<Record<string, string>> = {
   range: 'episode range',
   multi: 'several numbers',
   special: 'special episode',
+  'total-hint': 'number in parentheses',
 };

@@ -20,6 +20,10 @@ type file struct {
 	claimed  bool
 	basis    Basis
 	watched  bool
+	// paren, lead and hasLead mirror the label's trailing "(N)" facts.
+	paren   int
+	lead    int
+	hasLead bool
 }
 
 // eligible reports whether a row may take an inferred ordinal: reliable, no
@@ -30,7 +34,9 @@ func eligible(r *file) bool {
 }
 
 // decide is the pure decision algorithm, kept as a fixed pass order: rows,
-// basename order, ordinal proposals, clear numbers, watched partition,
+// basename order, ordinal proposals, clear numbers, copy-suffix leads
+// (claimCopySuffixLeads, evidence from the names before any inference from
+// progress or dates), watched partition,
 // opaque-sibling elimination, single-pending elimination, pending
 // chronology, global one-to-one reconciliation, then the exact-next
 // selection. That order is the ported semantics; the steps below only name
@@ -51,6 +57,7 @@ func resolveRows(req Request) ([]file, []int, int, bool) {
 	byName := orderByName(rows)
 	counts := proposeOrdinals(rows, byName)
 	markClearNumbers(rows, byName, counts)
+	claimCopySuffixLeads(rows, byName, counts)
 	progress, hasProgress := usableProgress(req.Context)
 	next, hasNext := usableNext(req.Context)
 	partitionWatched(rows, progress, hasProgress)
@@ -111,6 +118,7 @@ func proposeRowOrdinals(r *file) {
 	}
 	r.ords = dedup(ords)
 	r.ambig, r.hasAmbig = l.ambig, l.hasAmbig
+	r.paren, r.lead, r.hasLead = l.paren, l.lead, l.hasLead
 }
 
 // markClearNumbers accepts uncontested single ordinals as direct-number
