@@ -14,6 +14,13 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [2.7.4] — 2026-11-03
+
+### Fixed
+
+- Re-analyze folder now recognizes episode files that carry a copy number in parentheses, such as `04(2).mp4` or `01(9).mp4`: when those numbers repeat across the folder, or one is smaller than the episode number in front of it, the number in front is the episode. A single file like `01(24).mp4` is still left for you to set by hand, because the 24 may be the total episode count.
+- When Re-analyze folder skips a file for that reason, it now says "number in parentheses" instead of "no episode number".
+
 ## [2.7.3] — 2026-11-02
 
 ### Fixed

@@ -90,7 +90,7 @@ Re-analysis never writes directly. It opens a review the user confirms.
 | Outcome | Behavior |
 |---|---|
 | Folder stops responding mid-analysis | Warning: what was measured can be applied; what was not reached keeps its current value. Actions: Cancel, Try again, Apply. |
-| Some files skipped or unreadable | A half episode (x.5), two files claiming the same episode, or an unreadable file. Each keeps its saved duration. |
+| Some files skipped or unreadable | A half episode (x.5), two files claiming the same episode, a trailing number in parentheses the folder cannot settle ("number in parentheses", e.g. a lone `01(24).mp4`), or an unreadable file. Each keeps its saved duration. A copy counter such as `04(2).mp4` is not skipped: when the parenthesized numbers repeat across the folder, or one is below its file's lead number, the lead number is the episode. |
 | Nothing differs | "Everything is up to date", Close only. |
 | No episode files recognized | Warning, Close only. Saved durations untouched. |
 | ffprobe not available | Danger alert, Close only. Saved durations untouched; manual entry still works. |
