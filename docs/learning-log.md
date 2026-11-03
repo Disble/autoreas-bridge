@@ -367,3 +367,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-10-27]: Release 2.7.1 is a patch: it only fixes the console window that flashed after every downloaded episode, with no wire, storage or UX contract change.
 - [2026-10-30]: 2.7.2 is a patch although it carries a feat commit (ordering card covers): the owner classed it as a parity fix, since every other Season tab already showed covers; the draft restore changes only the Wails binding DTO, not REST/WS, so mobile is unaffected.
 - [2026-11-03]: The download cursor counts video files, never numbers parsed from names: max(parsed, count) read Mediafire's '01(8).mp4' as episode 8, skipped 2-8 and hid '09(4).mp4' from the arrival check. Episode identity for durations lives only in internal/anime/identity.
+- [2026-11-03]: Release 2.7.3 is a patch: the download cursor counts video files again (NeedsDownload's documented contract); no wire, DB or config change.
