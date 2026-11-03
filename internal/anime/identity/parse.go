@@ -14,6 +14,12 @@ type label struct {
 	ords     []int
 	ambig    AmbiguityKind
 	hasAmbig bool
+	// paren and lead describe a trailing "(N)": its N, and the number right
+	// before it. Only the folder can tell whether N is a total or a copy
+	// counter, so the lead stays a proposal here (see claimCopySuffixLeads).
+	paren   int
+	lead    int
+	hasLead bool
 }
 
 // setAmbig records the first marker only, so Detail stays deterministic.
@@ -119,12 +125,31 @@ func multiSpan(stem string) ([2]int, bool) {
 	return [2]int{m[0], m[1]}, true
 }
 
-// markTotalHint records a trailing parenthesized total, which is never
-// proof of an ordinal.
+// markTotalHint records a trailing parenthesized number, which is never
+// proof of an ordinal on its own, plus its value and the lead number before
+// it for the folder-level copy-suffix pass.
 func markTotalHint(stem string, l *label) {
-	if m := parenRe.FindStringSubmatch(stem); m != nil {
-		l.setAmbig(AmbiguityTotalHint)
+	m := parenRe.FindStringSubmatchIndex(stem)
+	if m == nil {
+		return
 	}
+	l.setAmbig(AmbiguityTotalHint)
+	l.paren = mustAtoi(stem[m[2]:m[3]])
+	l.lead, l.hasLead = leadOrdinal(stem[:m[0]])
+}
+
+// leadOrdinal returns the trailing number of the text before a "(N)" suffix,
+// under the same noise rules as an ordinary trailing ordinal.
+func leadOrdinal(prefix string) (int, bool) {
+	m := tailRe.FindStringSubmatchIndex(prefix)
+	if m == nil {
+		return 0, false
+	}
+	raw, start := prefix[m[2]:m[3]], m[2]
+	if noiseReason(prefix, raw, start) != "" {
+		return 0, false
+	}
+	return mustAtoi(raw), true
 }
 
 // appendTailOrdinal claims the trailing number unless it belongs to a

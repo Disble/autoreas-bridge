@@ -70,16 +70,16 @@ describe('toEpisodeReviewView', () => {
     const view = toEpisodeReviewView({
       folder: FOLDER,
       review: review([
-        row(0, 0, 0, 'skipped'), row(5, 0, 0, 'skipped', { detail: 'fractional' }), row(7, 24, 24, 'unchanged'),
-        row(9, 24, 0, 'skipped'), row(10, 0, 0, 'unreadable'), row(11, 23, 46, 'update'),
+        row(0, 0, 0, 'skipped'), row(0, 0, 0, 'skipped', { detail: 'total-hint' }), row(5, 0, 0, 'skipped', { detail: 'fractional' }),
+        row(7, 24, 24, 'unchanged'), row(9, 24, 0, 'skipped'), row(10, 0, 0, 'unreadable'), row(11, 23, 46, 'update'),
       ]),
     });
 
-    expect(view).toEqual(expect.objectContaining({ alertStatus: 'warning', title: '2 of 6 episodes measured', confirmLabel: 'Confirm 1 change' }));
+    expect(view).toEqual(expect.objectContaining({ alertStatus: 'warning', title: '2 of 7 episodes measured', confirmLabel: 'Confirm 1 change' }));
     expect(view.description).toBe('Skipped files keep their saved duration. Fix them and re-analyze, or set the duration by hand.');
-    expect(view.chips.map((chip) => [chip.label, chip.color])).toEqual([['1 change', 'accent'], ['3 skipped', 'default'], ['1 unreadable', 'danger'], ['1 unchanged', 'default']]);
+    expect(view.chips.map((chip) => [chip.label, chip.color])).toEqual([['1 change', 'accent'], ['4 skipped', 'default'], ['1 unreadable', 'danger'], ['1 unchanged', 'default']]);
     expect(view.rows.map((reviewRow) => [reviewRow.number, reviewRow.measured])).toEqual([
-      ['—', 'no episode number'], ['05', 'half episode'], ['07', '24 min'], ['09', 'two files claim it'], ['10', 'could not read file'], ['11', '46 min'],
+      ['—', 'no episode number'], ['—', 'number in parentheses'], ['05', 'half episode'], ['07', '24 min'], ['09', 'two files claim it'], ['10', 'could not read file'], ['11', '46 min'],
     ]);
   });
 
