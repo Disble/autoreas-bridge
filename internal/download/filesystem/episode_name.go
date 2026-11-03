@@ -23,9 +23,8 @@ const reservedNameChars = `<>:"/\|?*`
 // ("NegaPosi Angler - 04"). JDownloader performs the rename and appends the extension
 // it actually downloaded; Bridge itself never renames a file on disk.
 //
-// The name is not cosmetic: downloadedEpisodeBaseline resolves the download cursor as
-// max(HighestEpisodeAtRoot, CountAtRoot), and a parseable name makes the highest-episode
-// read authoritative instead of falling back to counting files.
+// The name is for people and players only: the download cursor is the number of video
+// files in the folder (downloadedEpisodeBaseline), never a number read from a name.
 func EpisodeBaseName(canonicalName string, episode int) (string, error) {
 	safeName := sanitizeFileNameBase(canonicalName)
 	if safeName == "" {

@@ -180,10 +180,6 @@ func (f *svcFakeCounter) CountAtRoot(folder string) int {
 	return f.atRoot[folder]
 }
 
-func (f *svcFakeCounter) HighestEpisodeAtRoot(folder string) int {
-	return f.CountAtRoot(folder)
-}
-
 // land makes the folder's landing count visible at the root, as JD's finished download would.
 func (f *svcFakeCounter) land(folder string) {
 	f.mu.Lock()

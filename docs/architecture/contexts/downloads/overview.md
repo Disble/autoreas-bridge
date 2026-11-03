@@ -119,9 +119,11 @@ step is also written to `runtime_events` through the logger, with `exit`, `hoste
 - **The disk is the only success authority.** An episode counts as downloaded when the episode count
   at the folder root rises above the count taken before the attempt. Subfolders and `.part` files
   never count.
-- **The episode cursor comes from the disk**, as max(highest episode number, file count) at the root
-  (`downloadedEpisodeBaseline` in `service_pipeline.go`). An episode that does not land ends the
-  anime, because the cursor cannot express a gap.
+- **The episode cursor comes from the disk**, as the count of video files at the root
+  (`downloadedEpisodeBaseline` in `service_pipeline.go`). It never reads a number out of a file name:
+  hosters save copies as `01(8).mp4` or `d2ouiemgt90z.mp4`. The folder convention is one video per
+  episode, from episode 1, with no gaps. An episode that does not land ends the anime, because the
+  cursor cannot express a gap.
 - **Every wait has a cap**: JD launch, the 60 s grace, the 30-minute completion poll.
 - **Stop never interrupts an attempt JD has accepted.** The attempt runs on
   `context.WithoutCancel`, and the run stops before the next hoster is enqueued or after the

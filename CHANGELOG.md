@@ -14,6 +14,12 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [2.7.3] — 2026-11-02
+
+### Fixed
+
+- Downloads decide the next episode from how many videos are in the anime's folder, never from numbers in the file names. A hoster copy named like `01(8).mp4` was read as episode 8: the run skipped the episodes in between and then kept waiting on an episode that had already finished downloading. Keep one video per episode in the folder, starting at episode 1.
+
 ## [2.7.2] — 2026-10-30
 
 ### Fixed
