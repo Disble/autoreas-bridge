@@ -128,6 +128,10 @@ type App struct {
 	copyText                   func(ctx context.Context, value string) error
 	nowTime                    func() time.Time
 	processStartedAt           time.Time
+	// startLastContacts is each active device's last contact, read once before
+	// the HTTP server starts. The start record stores it; a report arriving
+	// before that row is flushed reads it from here.
+	startLastContacts map[string]int64
 }
 
 const pairingTokenConsumedEventName = "pairing.token-consumed"

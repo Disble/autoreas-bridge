@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strconv"
 	"testing"
 	"time"
 
@@ -392,6 +393,113 @@ func TestMobileReportRecordsIncidentOnlyForFailures(t *testing.T) {
 				t.Fatalf("incidents = %#v, want %#v", got, tt.want)
 			}
 		})
+	}
+}
+
+// syncFailureEvent builds a failed report of kind at phase, observed at failed
+// and received at arrived, both relative to the test process start.
+func syncFailureEvent(t *testing.T, kind telemetry.KindName, phase string, failed, arrived time.Duration) telemetry.Event {
+	t.Helper()
+	event := mobileTestEvent(t, kind, "obs-"+phase, map[string]any{
+		"action": "episode_plus_one", "phase": phase, "correlation_id": "c1",
+		"outcome": "failed", "reason": nil, "cause": incidentTestCause, "duration_ms": 40,
+	})
+	if kind == telemetry.KindCycleReport {
+		event.Validated.Payload = []byte(`{"previous_cycle":{"outcome":"failed"}}`)
+	}
+	observedAtMS := incidentTestProcessStart.Add(failed).UnixMilli()
+	event.Validated.ObservedAtMS = &observedAtMS
+	event.ReportedAtMS = incidentTestProcessStart.Add(arrived).UnixMilli()
+	return event
+}
+
+// insertListeningRow stores one api.listening row relative to the test process start.
+func insertListeningRow(t *testing.T, db *sql.DB, at time.Duration, metadata string) {
+	t.Helper()
+	if _, err := db.Exec(`INSERT INTO runtime_events (occurred_at_ms, domain, level, message, event_type, metadata_json)
+		VALUES (?, 'api', 'info', 'http server listening', 'api.listening', NULLIF(?, ''))`,
+		incidentTestProcessStart.Add(at).UnixMilli(), metadata); err != nil {
+		t.Fatalf("insert listening row: %v", err)
+	}
+}
+
+// TestFailedSyncReportOpensAnIncidentUnlessBridgeWasOff walks S6 through the
+// ingest hook: Bridge was off opens nothing, every other reading and every
+// other report keeps the incident it opens today.
+func TestFailedSyncReportOpensAnIncidentUnlessBridgeWasOff(t *testing.T) {
+	t.Parallel()
+
+	const device = "device-1"
+	contactAfterFailure := incidentTestProcessStart.Add(-30 * time.Minute).UnixMilli()
+	contactRecord := `{"addr":"[::]:9876","lastContacts":{"` + device + `":` + strconv.FormatInt(contactAfterFailure, 10) + `}}`
+	tests := []struct {
+		name     string
+		kind     telemetry.KindName
+		phase    string
+		failed   time.Duration
+		arrived  time.Duration
+		rows     map[time.Duration]string
+		contacts map[string]int64
+		incident bool
+	}{
+		{name: "this process's row is not flushed yet", kind: telemetry.KindEpisodeAction, phase: "sync",
+			failed: -time.Hour, arrived: time.Minute, rows: map[time.Duration]string{-2 * time.Hour: ""}},
+		{name: "this process's row is stored", kind: telemetry.KindEpisodeAction, phase: "sync",
+			failed: -time.Hour, arrived: time.Minute, rows: map[time.Duration]string{-2 * time.Hour: "", time.Second: ""}},
+		{name: "a contact after the failure, row unflushed", kind: telemetry.KindEpisodeAction, phase: "sync",
+			failed: -time.Hour, arrived: time.Minute, rows: map[time.Duration]string{-2 * time.Hour: ""},
+			contacts: map[string]int64{device: contactAfterFailure}, incident: true},
+		{name: "a contact after the failure, row stored", kind: telemetry.KindEpisodeAction, phase: "sync",
+			failed: -time.Hour, arrived: time.Minute, rows: map[time.Duration]string{-2 * time.Hour: "", time.Second: contactRecord}, incident: true},
+		{name: "tablet came back late", kind: telemetry.KindEpisodeAction, phase: "sync",
+			failed: -time.Hour, arrived: 31 * time.Minute, rows: map[time.Duration]string{-2 * time.Hour: ""}, incident: true},
+		{name: "real failure", kind: telemetry.KindEpisodeAction, phase: "sync",
+			failed: time.Minute, arrived: 2 * time.Minute, incident: true},
+		{name: "older than the oldest start", kind: telemetry.KindEpisodeAction, phase: "sync",
+			failed: -time.Hour, arrived: time.Minute, incident: true},
+		{name: "cycle report at Bridge-off times", kind: telemetry.KindCycleReport, phase: "sync",
+			failed: -time.Hour, arrived: time.Minute, rows: map[time.Duration]string{-2 * time.Hour: ""}, incident: true},
+		{name: "another phase at Bridge-off times", kind: telemetry.KindEpisodeAction, phase: "finished",
+			failed: -time.Hour, arrived: time.Minute, rows: map[time.Duration]string{-2 * time.Hour: ""}, incident: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			app := newIncidentTestApp(t)
+			app.startLastContacts = tt.contacts
+			for at, metadata := range tt.rows {
+				insertListeningRow(t, app.bridgeDB, at, metadata)
+			}
+
+			app.recordMobileIncident(syncFailureEvent(t, tt.kind, tt.phase, tt.failed, tt.arrived))
+
+			if got := len(readIncidentRows(t, app.bridgeDB)); (got == 1) != tt.incident || got > 1 {
+				t.Fatalf("incidents = %d, want incident %v", got, tt.incident)
+			}
+		})
+	}
+}
+
+// TestFailedSyncReportStillOpensAnIncidentWhenTheStartsCannotBeRead pins the
+// fallback: without starts there is no reading, so the incident opens as today
+// and the cause is logged.
+func TestFailedSyncReportStillOpensAnIncidentWhenTheStartsCannotBeRead(t *testing.T) {
+	t.Parallel()
+	logger := &incidentTestLogger{}
+	app := newIncidentTestApp(t)
+	app.sharedLogger = logger.fanout()
+	if _, err := app.bridgeDB.Exec(`DROP TABLE runtime_events`); err != nil {
+		t.Fatalf("drop runtime_events: %v", err)
+	}
+
+	app.recordMobileIncident(syncFailureEvent(t, telemetry.KindEpisodeAction, "sync", -time.Hour, time.Minute))
+
+	if got := readIncidentRows(t, app.bridgeDB); len(got) != 1 {
+		t.Fatalf("incidents = %#v, want the fallback incident", got)
+	}
+	if len(logger.entries) != 1 || logger.entries[0].EventType != "incident.sync_reading_failed" ||
+		logger.entries[0].Level != sharedlogger.LevelWarn || logger.entries[0].Metadata["cause"] == "" {
+		t.Fatalf("log = %#v, want one warning with its cause", logger.entries)
 	}
 }
 

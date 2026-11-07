@@ -5,9 +5,11 @@ import (
 	"time"
 
 	sharedlogger "autoreas-bridge/internal/logger"
+	"autoreas-bridge/internal/observability/activityread"
 	"autoreas-bridge/internal/observability/eventlog"
 	"autoreas-bridge/internal/observability/incident"
 	"autoreas-bridge/internal/observability/requestcapture"
+	"autoreas-bridge/internal/observability/syncreading"
 	"autoreas-bridge/internal/observability/telemetry"
 )
 
@@ -84,6 +86,9 @@ func (a *App) recordEventIncident(record eventlog.EventRecord) {
 // report that describes a failure.
 func (a *App) recordMobileIncident(event telemetry.Event) {
 	facts := telemetry.ReadReportFacts(event.Kind, event.Validated.Payload)
+	if a.waitedForBridge(event, facts) {
+		return
+	}
 	trigger, ok := incident.ClassifyMobileReport(incident.MobileReportFact{
 		Kind: event.Kind, Outcome: facts.Outcome, Phase: facts.Phase, Cause: facts.Cause, DurationMS: facts.DurationMS,
 	})
@@ -94,6 +99,38 @@ func (a *App) recordMobileIncident(event telemetry.Event) {
 		Trigger: trigger, OccurredAt: time.UnixMilli(event.ReportedAtMS), SourceKind: incident.SourceMobile,
 		SourceID: event.Validated.EventID,
 	})
+}
+
+// waitedForBridge reports whether a stored report reads as Bridge was off, which
+// opens no incident. It runs on the report's POST path, so it reads the starts
+// once under the incident budget. A read that fails answers no: losing an
+// incident is the worse error.
+func (a *App) waitedForBridge(event telemetry.Event, facts telemetry.ReportFacts) bool {
+	observedAtMS := event.Validated.ObservedAtMS
+	if a.bridgeDB == nil || observedAtMS == nil || !syncreading.Applies(event.Kind, facts.Outcome, facts.Phase) {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), incidentRecordBudget)
+	defer cancel()
+	starts, err := activityread.New(a.bridgeDB).SyncStarts(ctx)
+	if err != nil {
+		a.logSyncReadingFailure(err)
+		return false
+	}
+	current := syncreading.Start{AtMS: a.processStartedAt.UnixMilli(), LastContacts: a.startLastContacts}
+	failure := syncreading.Failure{DeviceID: event.DeviceID, FailedAtMS: *observedAtMS, ArrivedAtMS: event.ReportedAtMS}
+	return syncreading.Read(failure, syncreading.WithCurrentStart(starts, current)).Reading == syncreading.BridgeOff
+}
+
+// logSyncReadingFailure records why a failed sync report went without a reading.
+func (a *App) logSyncReadingFailure(err error) {
+	if a.sharedLogger == nil {
+		return
+	}
+	a.sharedLogger.Logf(incidentLogDomain, sharedlogger.LevelWarn, sharedlogger.Fields{
+		EventType: "incident.sync_reading_failed",
+		Metadata:  map[string]any{"cause": err.Error()},
+	}, "failed to read the Bridge starts for a failed sync report: %v", err)
 }
 
 // recordIncident persists one occurrence. A failure is logged and never
