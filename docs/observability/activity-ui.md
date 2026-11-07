@@ -50,7 +50,7 @@ The questions Activity must answer, taken from the 92 resolved issues:
 | Did my change reach the bridge? | an edit erased scheduled days | write journal |
 | What did the bridge answer the phone? | the cursor reset to 0 | response versions |
 | When did it stop, and for how long? | the phone was silent for 43 h | rollup, lifecycle |
-| What did the phone see? | late sync-cycle reports | mobile reports |
+| What did the phone see? | a failed sync: Bridge was off, the tablet came back late, or a real failure | mobile reports and Bridge's reading of them |
 | What did the bridge do inside, step by step? | a hoster declared dead, a stranded editor write | event ledger with metadata, grouped by correlation id (a download run, an editor save) |
 
 Internal bridge work is a first-class source, not an API detail. Incidents and History filter by where

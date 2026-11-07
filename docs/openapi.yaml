@@ -438,6 +438,23 @@ info:
     each anime save still leaves exactly one changes-feed row and sends one
     `anime_changed` notice after the commit, as in the 2026-10-25 entry.
 
+    2026-11-06 — failed sync readings consumer impact: NO REST/WS wire change.
+    `POST /api/sync/diagnostics` validates, stores and answers every report as
+    before: no endpoint, field, status code or WebSocket message changes, and
+    a stored report is never rewritten. Bridge now reads a failed
+    `episode_action` at phase `sync` as Bridge was off, tablet came back late
+    or a real failure. The reading is computed on read and never stored
+    (`docs/observability/mobile-reports.md`, Reading a failed sync). What
+    mobile will notice: nothing on the wire, and it keeps reporting `failed`
+    as it saw it. What the owner sees changes: a report that reads Bridge was
+    off no longer opens a `mobile_failure` incident, and Activity shows one
+    neutral line per Bridge start instead of a failure per report. Incidents
+    already stored do not change. For MCP clients of `autoreas-request-mcp`:
+    `search_history` stays raw, and `get_status` and `list_incidents` show
+    fewer mobile incidents. Runtime events: `api.listening` metadata gains
+    `lastContacts`, and the warnings `api.last_contacts_unread` and
+    `incident.sync_reading_failed` are new.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}

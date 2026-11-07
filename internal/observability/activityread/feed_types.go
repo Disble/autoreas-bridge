@@ -101,7 +101,7 @@ type SystemGroup struct {
 
 // SyncReading is Bridge's reading of one failed sync report and what it rests
 // on. It is computed on each read and never stored: ReportID names the report,
-// which stays as mobile sent it (Reader.PhoneReport).
+// which stays as stored (Reader.PhoneReport).
 type SyncReading struct {
 	ReportID int64
 	Reading  syncreading.Reading

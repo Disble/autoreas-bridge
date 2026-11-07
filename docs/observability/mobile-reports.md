@@ -1,8 +1,10 @@
 # Mobile reports
 
-Bridge validates a mobile report, stores it and checks it for one thing: a failure. It does not compare
-reports, summarise them or notice that they stopped arriving. This page records what happens to a report
-from arrival to display, what the stored reports can and cannot tell, and what is still undecided.
+Bridge validates a mobile report, stores it and checks it for one thing: a failure. A failed sync also gets
+a reading: what Bridge makes of that failure. Bridge does not otherwise compare reports, summarise them or
+notice that they stopped arriving. This page records what happens to a report from arrival to display, what
+the stored reports can and cannot tell, and what is still undecided. The same path as a decision tree is in
+[the observability workflow](../architecture/contexts/observability/workflow.md).
 
 Figures were measured on 2026-11-06 on the owner's database, read-only. Code is the runtime truth; if this
 page disagrees with it, the code wins.
@@ -17,6 +19,7 @@ Mobile sends every report to `POST /api/sync/diagnostics`. Three kinds exist: `c
 | Identify | The device comes from the bearer token, the receipt time from Bridge's clock | `sync_diagnostics_handler.go` |
 | Validate | Strict decode per kind, closed vocabularies, 8 KiB body limit. A bad report is refused | `telemetry/`, `syncdiag/` |
 | Deduplicate | `UNIQUE(kind, event_id)`. A retry is answered 204 and writes no row, event or incident | `telemetry/store.go` |
+| Read a failed sync | A failed `episode_action` at phase `sync` that reads "Bridge was off" stops here, with no incident. See [Reading a failed sync](#reading-a-failed-sync) | `syncreading/`, `internal/desktop/app_incidents.go` |
 | Check for failure | Reads outcome, phase, cause and stall duration. See the table below | `telemetry/report_facts.go`, `incident/trigger.go` |
 | Count | The request joins the hourly rollup, like every request | request capture |
 
@@ -25,19 +28,26 @@ Mobile sends every report to `POST /api/sync/diagnostics`. Three kinds exist: `c
 | Kind | Condition | Fingerprint parts |
 |---|---|---|
 | `cycle_report` | `previous_cycle.outcome` is `failed` | kind, cause |
-| `episode_action` | `outcome` is `failed` | kind, phase, cause |
+| `episode_action` | `outcome` is `failed`, unless the report reads "Bridge was off" | kind, phase, cause |
 | `screen_stall` | `duration_ms` is at least 10,000 | kind, trigger |
 
 An incident pins the window from 2 minutes before to 30 seconds after. Retention keeps the first 3 and the
 latest 3 occurrences of a fingerprint.
 
+A report that reads "Bridge was off" pins no window. Its row and its request capture stay, as
+[What one report stores](#what-one-report-stores) says, but the requests around it leave with the 2-hour
+recorder. Incidents already stored do not change: older ones on those reports stay listed.
+
 ### Where a report is shown
 
 | Surface | Shows |
 |---|---|
-| Activity feed | Failed reports only, each linked to its incident. Failed reports also count in the Traffic buckets |
+| Activity feed | Failed reports only, under Traffic, which is off by default. A row shows the reading only: "Sync failed", "Tablet came back late", or one neutral line per start ("3 changes waited for Bridge"). The first two, and a failure with no reading, are failed lines linked to their incident and count as failed in the buckets. The neutral line is not a failure and has no incident link |
+| Detail drawer | The reading and its evidence: failure time, last contact, Bridge start, arrival time |
+| Technical view | The stored report, read with `GetActivityPhoneReport` |
 | Incident detail | Every report received inside the window, and the cause of the report that opened it |
-| MCP `search_history` | Every stored report, with its outcome and the "arrived late" mark |
+| MCP `search_history` | Every stored report, raw: its outcome and the "arrived late" mark, no reading |
+| MCP `get_status`, `list_incidents` | Incidents, so fewer mobile incidents than before: "Bridge was off" opens none |
 
 `ListDeviceSyncDiagnostics` reads the cycle fields, but no frontend screen calls it.
 
@@ -57,7 +67,8 @@ reports as "row caps, not replayed", so reports were never part of the retention
 
 ## What the stored reports can tell
 
-None of this is computed today. Each figure was derived from data already stored.
+Apart from [Reading a failed sync](#reading-a-failed-sync), none of this is computed. Each figure was derived
+from data already stored.
 
 ### Episode actions
 
@@ -68,7 +79,7 @@ None of this is computed today. Each figure was derived from data already stored
 | Did the local write work? | All 164 finished `committed` |
 | How fast? | Tap to commit: 121 ms median, 367 ms at p90, 1,222 ms at most |
 | Did sync work? | 162 reached a verdict: 64 `ok`, 98 `failed` |
-| Was Bridge reachable? | Delivery delay separates the cases. See below |
+| Was Bridge reachable? | Delivery delay is a first hint, see below. Bridge's answer is [the reading](#reading-a-failed-sync) |
 | When do failures happen? | 83 of the 98 between 00:00 and 01:59 local time |
 
 | Sync verdict | Delivered under 5 min | 5 to 60 min | 1 to 6 h | Over 6 h |
@@ -76,10 +87,10 @@ None of this is computed today. Each figure was derived from data already stored
 | `ok` | 64 | 0 | 0 | 0 |
 | `failed` | 4 | 1 | 5 | 88 |
 
-A `failed` report delivered hours later means no Bridge was reachable at that time, which is the expected
-result of watching at night with the PC off. Only the 5 failures delivered within an hour are candidates for
-a real failure. Bridge cannot tell them apart today: all retained incidents share the fingerprint
-`mobile_failure|episode_action|sync|`, with an empty cause.
+A `failed` report delivered hours later usually means no Bridge was reachable at that time, which is the
+expected result of watching at night with the PC off. The report alone cannot tell the cases apart: the
+retained incidents measured on this date share the fingerprint `mobile_failure|episode_action|sync|`, with an
+empty cause. The reading adds what the report lacks: the Bridge starts.
 
 ### Cycle reports
 
@@ -120,7 +131,7 @@ The design documents define storage, validation and failure-to-incident only.
 | Non-failed reports as feed lines | Decided against: they flood the feed | `odd/tasks/activity-redesign.md` |
 | Indexes on report fields | Decided against until a read surface filters on them | ADR-026 |
 | `degraded` as a health signal | Decided against | `openspec/changes/mobile-log-ingestion` |
-| Analysing or aggregating report content | Never discussed | No document found |
+| Analysing or aggregating report content, beyond the reading of a failed sync | Never discussed | No document found |
 | Using `pending_ops_count`, `cursor`, `consecutive_unclosed_cycles` | Never discussed | No document found |
 | Detecting that reports stopped | Never discussed | No document found |
 
@@ -129,34 +140,66 @@ The design documents define storage, validation and failure-to-incident only.
 
 ## Reading a failed sync
 
-Approved by the owner on 2026-11-06. Not built yet.
+Approved by the owner on 2026-11-06 and built in `internal/observability/syncreading`.
 
 A report is data: it records what mobile saw. Bridge's reading of it is an interpretation. The two stay
-separate: a reading never changes a stored report. Activity shows the reading, and each level goes one step
-closer to the data.
+separate: a reading is computed on each read, never stored, and never changes a stored report. Activity shows
+the reading, and each level goes one step closer to the data.
 
 | Level | Shows |
 |---|---|
-| Feed row | The reading only. "Bridge was off" is a neutral line per start ("3 changes waited for Bridge"), not a failure |
-| Detail drawer | The reading and its evidence: last contact, Bridge start, arrival time |
-| Technical view | The report exactly as mobile sent it, including its `failed` |
+| Feed row | The reading only |
+| Detail drawer | The reading and its evidence: failure time, last contact, Bridge start, arrival time. "Bridge started" is the latest start at or before the arrival. A "Bridge was off" group has no Requests tab |
+| Technical view | The stored report, including its `failed`. It is the validated record, re-serialized by Bridge, not mobile's raw bytes |
 
-"Bridge was off" opens no incident and does not count as a failure. The other two readings do.
+### The rule
 
-| Reading | Condition | Measured |
-|---|---|---|
-| Bridge was off | The failure falls after the last contact and before the next start, and the report arrives within 30 minutes of that start | 78 |
-| The tablet came back late | Same, but the report arrives more than 30 minutes after that start | 3, all on 2026-11-06 |
-| Real failure | Bridge was on: no start in between, or a contact after the failure | 1, on 2026-10-30 |
+It applies to a failed `episode_action` at phase `sync` that has an observed time. For a failure at T on
+device D, reported at R, the first row that matches decides:
 
-- **Last contact:** at start, Bridge copies each device's `last_seen_at_ms` into its startup record, before
-  the first new contact overwrites it. This covers a power cut and needs no background process.
-- **Measured figures:** they use start times only, because last contact is not recorded yet. They cover the
-  82 failures with start data. Of 55 failures with hourly traffic data, 11 fall in an hour with traffic and
-  cannot be decided.
-- **Limit:** a Bridge that was on and idle looks the same as a Bridge that was off, and last contact falls
-  short when the tablet had been silent for a while.
+| Test | Reading |
+|---|---|
+| T is older than the oldest retained start | No reading: the report shows as a plain failure |
+| No Bridge start after T at or before R | Real failure |
+| That first start recorded D's last contact, and it is at or after T: Bridge heard D after the failure | Real failure |
+| R is at most 30 minutes after the latest start at or before R | Bridge was off |
+| Otherwise | Tablet came back late |
+
+A start is one `api.listening` row, or one older `http server listening on ...` info row in domain `api`,
+written before that line had an event type. When a report arrives, the running process counts as a start too,
+because its own row may not be flushed yet.
+
+### What each reading does
+
+| Reading | Feed row | Failure? | Incident | Replay |
+|---|---|---|---|---|
+| Bridge was off | "3 changes waited for Bridge": one neutral line per start, under Traffic. The failure switch skips it | No | None | 78 reports in 34 lines |
+| Tablet came back late | "Tablet came back late" | Yes | Opens one | 1 |
+| Real failure | "Sync failed" | Yes | Opens one | 1 |
+| No reading | The report as a plain failure | Yes | Opens one | 16 |
+
+The replay ran on `bridge-after-reconnect-2026-11-06.db`, a copy of the owner's database, over its 96 failed
+sync reports. An earlier estimate from start times alone read 3 late; the difference is not explained yet.
+
+### Details and limits
+
+- **Last contact:** at start, before the HTTP server accepts anyone, Bridge copies each active device's
+  `last_seen_at_ms` into the `lastContacts` metadata of the `api.listening` row. This covers a power cut and
+  needs no background process and no new table. `last_seen_at_ms` is the last acknowledgement, pairing or
+  revoke, not every contact: telemetry ingest does not write it.
+- **Older reports:** a start without `lastContacts` is still a start, so older failures read by start times
+  alone. So do long-silent devices, which are not active and so are not in the record.
+- **Idle Bridge:** a Bridge that was on and idle looks the same as a Bridge that was off.
+- **Clocks:** T comes from the tablet's clock, R and the starts from Bridge's.
+- **Caps:** one start records at most 32 devices. A read covers the newest 2,000 starts and 5,000 failed
+  actions; a report past the cap has no reading.
+- **Feed range:** a neutral line sits at its start, shows only when that start is in the range, and always
+  lists all its reports.
+- **Failed reads:** if the starts cannot be read at ingest, the report opens its incident, because losing an
+  incident is the worse error. The warning is `incident.sync_reading_failed`. If the last contacts cannot be
+  read at start, the warning is `api.last_contacts_unread` and readings go by start times alone.
 - **Scope:** `episode_action` only. A `cycle_report` carries no observed time, so it needs a decision first.
+  MCP `search_history` stays raw.
 
 ## Open
 
@@ -177,3 +220,17 @@ Run on 2026-11-06 in the POC simulator, on the 2026-10-12 restore point, with th
 The nine catalog issues that mention reports or telemetry read the report table, a failed request or a
 reconcile body. None read the capture of a delivered report. That reading is a judgment from what each issue
 recorded, and the simulator does not model the row caps at 90 days.
+
+### Battery result for the failed sync readings
+
+Rerun on 2026-11-06 in the POC simulator, same restore point, journal pinned at 90 days: 92 of 92 in all six
+scenarios. This run does not measure the readings' retention effect, because the simulator cannot see it:
+
+- It pins mobile windows only from `device_sync_diagnostics` rows, and it found none that qualify in the
+  restore point's span (2026-10-06 to 2026-10-12): 0 mobile windows.
+- It loads `device_telemetry_events` as evidence but never as a trigger, so `episode_action` incidents are not
+  modelled. Removing the mobile trigger changed nothing: the results of the four scenarios compared were
+  byte-identical.
+
+The effect is therefore known from the code, not from a measurement: a "Bridge was off" report pins no window.
+The accepted cost is the surrounding requests after 2 hours.

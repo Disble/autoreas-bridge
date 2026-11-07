@@ -62,7 +62,7 @@ func (a *App) GetActivityEvent(id int64) (activityread.EventDetail, error) {
 	return reader.Event(a.seasonCtx(), id)
 }
 
-// GetActivityPhoneReport returns one stored mobile report exactly as mobile sent
+// GetActivityPhoneReport returns one stored mobile report as Bridge validated it
 // it, for the Activity Technical view; Found is false when no report has that id.
 func (a *App) GetActivityPhoneReport(id int64) (activityread.PhoneReportDetail, error) {
 	reader, err := a.activityReader()

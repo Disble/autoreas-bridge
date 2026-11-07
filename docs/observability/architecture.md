@@ -1,8 +1,9 @@
 # Debug capture architecture
 
-Status: **in progress**. Time retention is built: the sweeper in `internal/observability/retention`
-replaced the row caps, and the readers are still the old ones. `rollout.md` tracks how the code gets
-to the rest of this page.
+Status: **in progress**. Time retention and the readers are built: the sweeper in
+`internal/observability/retention` replaced the row caps, and the Activity screen and MCP tools replaced the
+old readers. `rollout.md` tracks what is left. For the packages, ports and invariants of this code, read
+[the observability context](../architecture/contexts/observability/overview.md).
 
 ## Sources
 
@@ -11,7 +12,7 @@ to the rest of this page.
 | HTTP requests from the phone | `request_captures`, full bodies | recorder, incidents, write journal, rollup, response versions |
 | WebSocket lifecycle and broadcasts | `request_captures` (`ws_*` kinds) | recorder, ledger |
 | Bridge runtime events | `runtime_events` | recorder, ledger (non-noise events only); the Activity feed gives each event one section (Tasks, its download run, or System) |
-| Mobile telemetry and sync diagnostics | `device_telemetry_events`, `device_sync_diagnostics` | unchanged tables; a failure report triggers an incident |
+| Mobile telemetry and sync diagnostics | `device_telemetry_events`; `device_sync_diagnostics` is retired and unread (ADR-026) | unchanged table; a failure report triggers an incident, unless it is a failed sync that reads "Bridge was off" (`mobile-reports.md`) |
 | Frontend and WebView errors | `runtime_events`, domain `frontend`, type `frontend.error` (P7, `ReportFrontendError`) | unchanged: error events, so they trigger incidents and appear as System lines |
 | Domain history | `activity_log` (the staged-write and outbox tables were dropped on 2026-10-26) | unchanged: months deep in every design |
 
@@ -28,7 +29,8 @@ A trigger pins the recorder window from **2 minutes before to 30 seconds after**
 
 - an HTTP 5xx, a 4xx or a rejected request
 - a request slower than 1,000 ms
-- a mobile failure report (sync cycle failed, write failed)
+- a mobile failure report (sync cycle failed, write failed), except a failed sync that reads "Bridge was
+  off", which opens no incident and so pins no window (`mobile-reports.md`, Reading a failed sync)
 - an internal bridge error event from any domain (downloads, editor, schedule, season, sync), with its
   metadata. The simulator modelled this trigger from the start. The measured week had 0 error-level
   events, though, so real data has never exercised it. The 48 internal issues in the battery (no phone
@@ -67,6 +69,10 @@ event type, level and message, with its count and first and last time. On the li
 (2026-10-02..24) that turns 116 per-event lines into 59. Storage is unchanged: events are still one row
 each, and the grouping exists only in the read and in the counts, which use the same key.
 
+Failed mobile reports are Traffic lines, and a failed sync shows its reading (`mobile-reports.md`). Reports
+that read "Bridge was off" become one neutral Traffic line per Bridge start, not one line each. That line is
+computed on read too: nothing about it is stored, and lines and counts share one read (`readFailedSyncs`).
+
 ## Prerequisites: record quality first
 
 Retention can only keep what was written. These ship before any retention change:
@@ -97,13 +103,14 @@ version and the incident live for 90 days.
 
 ## Readers
 
-- **Activity UI**: Incidents, Live (the recorder), History (the ledger), and the feed
-  (`activityread.Feed` / `Overview`), whose sections are Changes, Traffic, Downloads, Tasks, Edits and
-  System. Every section is a filter toggle; none bypasses the filters. See `activity-ui.md` and
-  `activity-ui-design-v2.md`.
-- **MCP** (`cmd/autoreas-request-mcp`): the debugging AI reads incidents, the ledger and mobile reports.
-  Every answer states which sources it covered and for what time range, so "no data" is never read as
-  "nothing happened".
+- **Activity UI**: one feed (`activityread.Feed` / `Overview`) with a detail drawer and its Technical view.
+  The feed's sections are Changes, Traffic, Downloads, Tasks, Edits and System. Every section is a filter
+  toggle; none bypasses the filters. The `activity.recorder` event refreshes the feed live. Incidents, run
+  stories, requests and stored reports open from a line. See `activity-ui.md` and `activity-ui-design-v2.md`.
+- **MCP** (`cmd/autoreas-request-mcp`): the debugging AI reads status, incidents, the recorder, the ledger and
+  mobile reports (`activityread.Now`, `Incidents`, `Recorder`, `History`). These have no Wails binding. Every
+  answer states which sources it covered and for what time range, so "no data" is never read as "nothing
+  happened". MCP shows no readings: `search_history` stays raw.
 
 ## What this design does not keep
 

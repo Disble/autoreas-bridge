@@ -38,8 +38,8 @@ Out of scope, waiting for the owner: mobile contract and its 50 a day limit, kee
 
 - [x] T1 (S1, S4, S5, S6) Rule, start record and incident gate. Route: delegated, context backstop. Commit: 8f0734ad, f19a998e.
 - [x] T2 (S1, S2, S3, S7) Feed lines, group, counts, report read. Route: delegated, context backstop. Commit: b082e005.
-- [ ] T3 (S3) Feed rows, drawer evidence, Technical view. Route: delegated, context backstop. Commit: pending.
-- [ ] T4 (S8, S9) Documentation and architecture pages. Route: delegated, context backstop. Commit: pending.
+- [x] T3 (S3) Feed rows, drawer evidence, Technical view. Route: delegated, context backstop. Commit: 6b8533e0.
+- [x] T4 (S8, S9) Documentation and architecture pages. Route: delegated, context backstop. Commit: this docs commit.
 - [ ] T5 (S1-S8) Independent verification. Risk item 3: incident meaning changes for MCP readers. Route: delegated verifier. Commit: none.
 
 ## Log
@@ -57,3 +57,5 @@ L4 (2026-11-06, mapping): `last_seen_at_ms` is the last acknowledgement, pairing
 L5 (2026-11-06, T1 and T2): `syncreading` mutation 50 of 50 killed, 100% coverage. Replay on `bridge-after-reconnect-2026-11-06.db`: 78 Bridge was off in 34 groups, 1 late, 1 real, 16 no reading, 96 total; lines and counts agree. Late is 1, not the expected 3: unconfirmed cause, T5 replays a newer copy.
 
 L6 (2026-11-06, T1 and T2 decisions kept): older start rows count, because `api.listening` alone gave 48/1/5 with 42 no reading and read four Bridge-off failures as real. A group appears only when its start is in range, and lists all its reports. No retained starts means no reading. Limits: 32 devices per start record, 2000 starts and 5000 failed actions per read; a report past the cap has no reading. Long-silent devices are not in the record, so they read by start times alone. New warnings: `api.last_contacts_unread`, `incident.sync_reading_failed`.
+
+L7 (2026-11-06, T3 and T4): commit hooks passed on 6b8533e0, including full coverage, render smoke and layout smoke. `bun run lint` reports 32 errors in 21 files, none touched by this branch; base not compared. Battery: 92 of 92 in six scenarios, but the simulator does not model `episode_action` incidents, so the retention effect of "Bridge was off" is known from code, not measured. Open for the owner: failed Traffic lines stay hidden while Traffic is off, including "Sync failed".
