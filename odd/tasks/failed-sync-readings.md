@@ -39,7 +39,7 @@ Out of scope, waiting for the owner: mobile contract and its 50 a day limit, kee
 - [x] T1 (S1, S4, S5, S6) Rule, start record and incident gate. Route: delegated, context backstop. Commit: 8f0734ad, f19a998e.
 - [x] T2 (S1, S2, S3, S7) Feed lines, group, counts, report read. Route: delegated, context backstop. Commit: b082e005.
 - [x] T3 (S3) Feed rows, drawer evidence, Technical view. Route: delegated, context backstop. Commit: 6b8533e0.
-- [x] T4 (S8, S9) Documentation and architecture pages. Route: delegated, context backstop. Commit: this docs commit.
+- [x] T4 (S8, S9) Documentation and architecture pages. Route: delegated, context backstop. Commit: 81aed5c2.
 - [ ] T5 (S1-S8) Independent verification. Risk item 3: incident meaning changes for MCP readers. Route: delegated verifier. Commit: none.
 
 ## Log
