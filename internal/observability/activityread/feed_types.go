@@ -1,6 +1,10 @@
 package activityread
 
-import "time"
+import (
+	"time"
+
+	"autoreas-bridge/internal/observability/syncreading"
+)
 
 // FeedType is one type toggle of the Activity feed (activity-ui-design-v2.md, Filters).
 type FeedType string
@@ -42,6 +46,9 @@ const (
 	LineTrafficHour LineKind = "traffic_hour"
 	// LineDownloadRun is one download_runs row.
 	LineDownloadRun LineKind = "download_run"
+	// LineBridgeOff is one Bridge start and the failed sync reports that waited
+	// for it: a neutral line, never a failure.
+	LineBridgeOff LineKind = "bridge_off"
 )
 
 // FeedInput selects one feed page. FromMS and ToMS bound the line time and
@@ -92,11 +99,28 @@ type SystemGroup struct {
 	LastAtMS    int64
 }
 
+// SyncReading is Bridge's reading of one failed sync report and what it rests
+// on. It is computed on each read and never stored: ReportID names the report,
+// which stays as mobile sent it (Reader.PhoneReport).
+type SyncReading struct {
+	ReportID int64
+	Reading  syncreading.Reading
+	Evidence syncreading.Evidence
+}
+
+// BridgeOffGroup is what one LineBridgeOff line stands for: the start that
+// received the reports, and each report with its reading, newest arrival first.
+type BridgeOffGroup struct {
+	BridgeStartMS int64
+	Reports       []SyncReading
+}
+
 // FeedLine is one row of the feed. Line carries the fields every kind has;
-// Traffic, Run and System are set only for their own lines. A System line is
-// an event line standing for its group: its Line is the group's newest
-// recorded event, at the group's last time. IncidentID is the newest incident
-// occurrence recorded for this fact, or 0.
+// Traffic, Run, System and BridgeOff are set only for their own lines. A System
+// line is an event line standing for its group: its Line is the group's newest
+// recorded event, at the group's last time. SyncReading is set on a phone report
+// line that has a reading; a failed report without one stays a plain failure.
+// IncidentID is the newest incident occurrence recorded for this fact, or 0.
 type FeedLine struct {
 	Type       FeedType
 	Origin     FeedOrigin
@@ -107,6 +131,9 @@ type FeedLine struct {
 	Traffic    *TrafficHour
 	Run        *DownloadRunLine
 	System     *SystemGroup
+	// SyncReading and BridgeOff read a failed sync report (S1): see their types.
+	SyncReading *SyncReading
+	BridgeOff   *BridgeOffGroup
 }
 
 // FeedDay groups one local day's feed lines, newest first.

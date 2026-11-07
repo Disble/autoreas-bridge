@@ -41,11 +41,39 @@ func TestSearchActivityFeedPassesItsQuery(t *testing.T) {
 	}
 }
 
+// TestGetActivityPhoneReportReturnsTheStoredPayload asserts the Technical view
+// binding reads a report by the id a feed reading carries.
+func TestGetActivityPhoneReportReturnsTheStoredPayload(t *testing.T) {
+	t.Parallel()
+	app := newActivityTestApp(t)
+	payload := `{"phase":"sync","outcome":"failed"}`
+	result, err := app.bridgeDB.Exec(`INSERT INTO device_telemetry_events (device_id, reported_at_ms, kind, event_id, observed_at_ms, payload_json)
+		VALUES ('device-1', ?, 'episode_action', 'obs-1', ?, ?)`, activityAt(-time.Minute), activityAt(-time.Hour), payload)
+	if err != nil {
+		t.Fatalf("insert report: %v", err)
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		t.Fatalf("report id: %v", err)
+	}
+
+	got, err := app.GetActivityPhoneReport(id)
+	if err != nil || !got.Found || got.PayloadJSON != payload || got.Report.Outcome != "failed" {
+		t.Fatalf("report = %#v, %v; want the stored payload", got, err)
+	}
+	if missing, err := app.GetActivityPhoneReport(id + 1); err != nil || missing.Found {
+		t.Fatalf("missing report = %#v, %v; want not found", missing, err)
+	}
+}
+
 // TestActivityFeedBindingsReportAnUnwiredDatabase asserts the feed bindings
 // fail like every Activity read before the database is wired.
 func TestActivityFeedBindingsReportAnUnwiredDatabase(t *testing.T) {
 	t.Parallel()
 	app := &App{}
+	if _, err := app.GetActivityPhoneReport(1); !errors.Is(err, errActivityUnavailable) {
+		t.Fatalf("report: err = %v, want errActivityUnavailable", err)
+	}
 	if _, err := app.SearchActivityFeed(ActivityFeedQuery{}); !errors.Is(err, errActivityUnavailable) {
 		t.Fatalf("feed: err = %v, want errActivityUnavailable", err)
 	}

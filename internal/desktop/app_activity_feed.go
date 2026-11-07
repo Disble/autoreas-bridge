@@ -62,6 +62,16 @@ func (a *App) GetActivityEvent(id int64) (activityread.EventDetail, error) {
 	return reader.Event(a.seasonCtx(), id)
 }
 
+// GetActivityPhoneReport returns one stored mobile report exactly as mobile sent
+// it, for the Activity Technical view; Found is false when no report has that id.
+func (a *App) GetActivityPhoneReport(id int64) (activityread.PhoneReportDetail, error) {
+	reader, err := a.activityReader()
+	if err != nil {
+		return activityread.PhoneReportDetail{}, err
+	}
+	return reader.PhoneReport(a.seasonCtx(), id)
+}
+
 // GetActivityChangeContext returns what one Activity change line, by its id and time,
 // links to: the runtime events stored for its anime around its time, and the
 // captured requests that carried it. Nothing stored keys them to the change

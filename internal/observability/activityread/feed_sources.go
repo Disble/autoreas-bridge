@@ -58,19 +58,31 @@ func (r *Reader) feedChangeLines(ctx context.Context, plan feedPlan, p sourcePag
 	}, never), nil
 }
 
-// feedPhoneReportLines reads failed mobile reports as traffic lines. A report
-// that did not fail restates the change or the check-in it reports (on the
-// dev copy each episode press stores three: ok, committed and an empty
-// outcome), so it is never a line.
+// feedPhoneReportLines reads failed mobile reports as traffic lines, each
+// with its reading if it has one, plus one neutral line per Bridge start that
+// received reports reading Bridge was off. A report that did not fail restates
+// the change or the check-in it reports (on the dev copy each episode press
+// stores three: ok, committed and an empty outcome), so it is never a line.
 func (r *Reader) feedPhoneReportLines(ctx context.Context, plan feedPlan, p sourcePage) ([]item[FeedLine], error) {
 	if !plan.reads(FeedTraffic) {
 		return nil, nil
 	}
-	items, err := r.queryPhoneReports(ctx, p, feedFailedReportSQL)
+	syncs, err := r.readFailedSyncs(ctx, p.sinceMS, p.nowMS)
 	if err != nil {
 		return nil, err
 	}
-	return toFeedItems(items, func(LedgerLine) FeedType { return FeedTraffic }, func(LedgerLine) bool { return true }), nil
+	items, err := r.queryPhoneReports(ctx, p, syncs.failedReportSQL())
+	if err != nil {
+		return nil, err
+	}
+	lines := toFeedItems(items, func(LedgerLine) FeedType { return FeedTraffic }, func(LedgerLine) bool { return true })
+	for i := range lines {
+		lines[i].value.SyncReading = syncs.readings[lines[i].value.Line.ID]
+	}
+	if plan.failuresOnly {
+		return lines, nil
+	}
+	return append(lines, syncs.groupLines(p)...), nil
 }
 
 // feedTrafficLines reads one line per rollup hour that overlaps the page's
@@ -151,7 +163,9 @@ func (r *Reader) feedRunLines(ctx context.Context, plan feedPlan, p sourcePage) 
 // of a page: a failed event line by its fingerprint (eventIncident), a phone
 // report by its telemetry event id, and a traffic hour by the request
 // occurrences inside it. A slow request occurrence marks a traffic hour that
-// did not fail as slow.
+// did not fail as slow. A LineBridgeOff line gets none: it is not a failure, so
+// an incident stored for one of its reports before this reading existed stays
+// in the incident list and is not linked from here.
 func (r *Reader) attachIncidents(ctx context.Context, lines []FeedLine) error {
 	for i := range lines {
 		line := &lines[i]

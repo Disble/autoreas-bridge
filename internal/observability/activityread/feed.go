@@ -13,6 +13,7 @@ const (
 	rankTrafficHour = rankIncident + iota + 1
 	rankDownloadRun
 	rankSystemGroup
+	rankBridgeOff
 )
 
 // Feed returns one page of the Activity feed (activity-ui-design-v2.md, Feed)
