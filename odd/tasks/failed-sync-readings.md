@@ -30,6 +30,8 @@ S7. Existing data: failures with start data are read by S1 without a last contac
 
 S8. Documentation: "parte del trabajo de un ODD es actualizar toda la documentación necesaria." Update every document this change touches, and fix the stale ones found on the way: `docs/observability/mobile-reports.md`, `activity-ui-design-v2.md`, `architecture.md`, `activity-ui.md`, `rollout.md`, `docs/adr/026-diagnostics-kind-store.md`, `docs/adr/031-activity-system-section.md`, and the dated changelog in `docs/openapi.yaml`, which carries the "NO REST/WS wire change" note for mobile.
 
+S9. Architecture documents: "siempre que se toque un módulo, tiene que actualizar su doc de arquitectura al 100%." `docs/architecture/contexts/` has no observability folder, so create `contexts/observability/overview.md` and `workflow.md` following `docs/architecture/README.md`, with a report's path from arrival to display as a decision tree, add them to its file map, and replace the observability section of `docs/architecture.md` with the one-line pointer that README requires. Update the page of every other touched module that has one.
+
 Out of scope, waiting for the owner: mobile contract and its 50 a day limit, keeping report captures 2 h, the silence alarm, other report analysis, readings for `cycle_report`, a clean-exit marker, MCP readings (`search_history` stays raw).
 
 ## Tasks
@@ -37,7 +39,7 @@ Out of scope, waiting for the owner: mobile contract and its 50 a day limit, kee
 - [ ] T1 (S1, S4, S5, S6) Rule, start record and incident gate. Route: delegated, context backstop. Commit: pending.
 - [ ] T2 (S1, S2, S3, S7) Feed lines, group, counts, report read. Route: delegated, context backstop. Commit: pending.
 - [ ] T3 (S3) Feed rows, drawer evidence, Technical view. Route: delegated, context backstop. Commit: pending.
-- [ ] T4 (S8) Documentation. Route: delegated, context backstop. Commit: pending.
+- [ ] T4 (S8, S9) Documentation and architecture pages. Route: delegated, context backstop. Commit: pending.
 - [ ] T5 (S1-S8) Independent verification. Risk item 3: incident meaning changes for MCP readers. Route: delegated verifier. Commit: none.
 
 ## Log
@@ -45,6 +47,8 @@ Out of scope, waiting for the owner: mobile contract and its 50 a day limit, kee
 L1 (2026-11-06, owner): "Pero también necesitamos algo para mobile. Considera esto un ODD y empieza a construir sobre eso. Pero necesitamos también definir lo de mobile de una vez. Eso sería el siguiente ODD."
 
 L2 (2026-11-06, owner): "Recuerda que parte del trabajo de un ODD es actualizar toda la documentación necesaria."
+
+L2b (2026-11-06, owner): "Y recuerda que parte de nuevos lugares donde tiene que documentar es en arquitectura (/architecture), ¿no? La regla es que siempre que se toque un módulo, tiene que actualizar su doc de arquitectura al 100%."
 
 L3 (2026-11-06): next ODD after this one: define the mobile side.
 
