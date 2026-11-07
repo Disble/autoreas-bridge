@@ -144,6 +144,35 @@ describe('feed-source', () => {
     expect(view.days[0].lines[0]).toMatchObject({ type: 'system', run: undefined, system: { hourStartMs: 3_600_000, count: 3, firstAtMs: 3_660_000, lastAtMs: 3_900_000 } });
   });
 
+  it('maps a reading, a nil evidence time to undefined, and a line without one to undefined', async () => {
+    const { mapActivityFeedView } = await import('../feed-source.helpers');
+    const report = { ReportID: 41, Reading: 'tablet_late', Evidence: { FailedAtMS: 1, ArrivedAtMS: 5, LastContactMS: null, NextStartMS: 3, ArrivalStartMS: 4 } };
+    const line = goFeedLine({ Type: 'traffic', Origin: 'phone', Run: null, Line: goLedgerLine({ Kind: 'phone_report', ID: '41' }), SyncReading: report });
+
+    const view = mapActivityFeedView(activityread.FeedView.createFrom({ Days: [{ DayStartMS: 0, Lines: [line, goFeedLine()] }], NextCursor: '' }));
+
+    expect(view.days[0].lines[0]?.syncReading).toEqual({ reportId: 41, reading: 'tablet_late', evidence: { failedAtMs: 1, arrivedAtMs: 5, lastContactMs: undefined, nextStartMs: 3, arrivalStartMs: 4 } });
+    expect(view.days[0].lines[1]).toMatchObject({ syncReading: undefined, bridgeOff: undefined });
+  });
+
+  it('maps a Bridge off group with its reports in order, and nil reports to an empty list', async () => {
+    const { mapActivityFeedView } = await import('../feed-source.helpers');
+    const evidence = { FailedAtMS: 1, ArrivedAtMS: 5, LastContactMS: 0, NextStartMS: null, ArrivalStartMS: null };
+    const group = { BridgeStartMS: 4, Reports: [{ ReportID: 9, Reading: 'bridge_off', Evidence: evidence }, { ReportID: 8, Reading: 'bridge_off', Evidence: evidence }] };
+    const line = goFeedLine({ Type: 'traffic', Origin: 'phone', Failed: false, Run: null, Line: goLedgerLine({ Kind: 'bridge_off', ID: '4' }), BridgeOff: group });
+    const empty = goFeedLine({ Run: null, BridgeOff: { BridgeStartMS: 4, Reports: null } });
+
+    const view = mapActivityFeedView(activityread.FeedView.createFrom({ Days: [{ DayStartMS: 0, Lines: [line, empty] }], NextCursor: '' }));
+
+    expect(view.days[0].lines[0]).toMatchObject({ failed: false, syncReading: undefined });
+    expect(view.days[0].lines[0]?.bridgeOff?.bridgeStartMs).toBe(4);
+    expect(view.days[0].lines[0]?.bridgeOff?.reports.map((report) => [report.reportId, report.reading, report.evidence.lastContactMs])).toEqual([
+      [9, 'bridge_off', 0],
+      [8, 'bridge_off', 0],
+    ]);
+    expect(view.days[0].lines[1]?.bridgeOff?.reports).toEqual([]);
+  });
+
   it('maps a finished run time', async () => {
     const { mapActivityFeedView } = await import('../feed-source.helpers');
     const run = goFeedLine();
@@ -210,6 +239,20 @@ describe('feed-source', () => {
     expect(read).toHaveBeenCalledWith(872, 1792801492755);
     expect(context?.events).toMatchObject([{ id: 40251, eventType: 'sync.changelog', message: 'recorded pending changelog for a' }]);
     expect(context?.requests).toEqual([]);
+    expect(missing).toBeUndefined();
+  });
+
+  it('reads the stored payload of one phone report by id, and an unknown report as undefined', async () => {
+    const read = vi.fn((id: number) => Promise.resolve(activityread.PhoneReportDetail.createFrom({ Found: id === 41, Report: { ID: id }, PayloadJSON: id === 41 ? '{"failed":true}' : '' })));
+    attachBindings({ GetActivityPhoneReport: read });
+    const { createActivityFeedSource } = await import('../feed-source.helpers');
+    const source = createActivityFeedSource();
+
+    const found = await source.getPhoneReport(41);
+    const missing = await source.getPhoneReport(42);
+
+    expect(read).toHaveBeenCalledWith(41);
+    expect(found).toBe('{"failed":true}');
     expect(missing).toBeUndefined();
   });
 

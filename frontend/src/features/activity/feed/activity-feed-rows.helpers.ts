@@ -9,6 +9,7 @@ import {
   ACTIVITY_PHONE_REPORT_SUBJECTS,
   ACTIVITY_RUN_SUBJECT,
   ACTIVITY_RUN_TRIGGER_SUBJECTS,
+  ACTIVITY_SYNC_READING_WORDS,
   ACTIVITY_TRAFFIC_SUBJECT,
 } from './activity-feed.constants';
 import type { ActivityFeedDayModel, ActivityFeedRowModel, ActivityRowHealth, ActivityRowRepeat } from './activity-feed.types';
@@ -31,6 +32,16 @@ export function feedLineKey(line: ActivityFeedLine): string {
  */
 export function maybeFeedLineKey(line: ActivityFeedLine | undefined): string | undefined {
   return line === undefined ? undefined : feedLineKey(line);
+}
+
+/**
+ * The one sentence a Bridge off group reads as, in the row and the drawer.
+ *
+ * @param count Reports in the group.
+ * @returns `3 changes waited for Bridge`, `1 change waited for Bridge`.
+ */
+export function toBridgeOffSubject(count: number): string {
+  return `${ACTIVITY_FEED_COUNT_FORMAT.format(count)} ${count === 1 ? 'change' : 'changes'} waited for Bridge`;
 }
 
 /** A row's subject, its one short detail and its repeat badge. */
@@ -73,6 +84,12 @@ function systemRepeat(group: ActivitySystemGroup | undefined): ActivityRowRepeat
  */
 function describeLine(line: ActivityFeedLine): LineWords {
   const ledger = line.line;
+  if (line.bridgeOff !== undefined) {
+    return { subject: toBridgeOffSubject(line.bridgeOff.reports.length), detail: '', repeat: undefined };
+  }
+  if (line.syncReading !== undefined) {
+    return { subject: ACTIVITY_SYNC_READING_WORDS[line.syncReading.reading], detail: '', repeat: undefined };
+  }
   if (line.traffic !== undefined) {
     return { subject: ACTIVITY_TRAFFIC_SUBJECT, detail: formatFailed(line.traffic.failed), repeat: toRepeat(line.traffic.requests) };
   }

@@ -5,10 +5,15 @@ import { DRAWER_ORIGIN_LABELS, DRAWER_TASK_DOMAINS, DRAWER_WINDOW_ERROR_EVENT_TY
 import type { DrawerHeaderModel, DrawerSection, DrawerSummaryInput, DrawerSummaryModel } from './drawer.types';
 import { drawerFact, formatDrawerKeptUntil, formatDrawerTime, formatDrawerWhen } from './drawer-format.helpers';
 import { changeSections, failureSections, runStorySections, runSections, systemGroupSections, trafficSections, windowErrorSections } from './drawer-presenters.helpers';
+import { bridgeOffSections, readingSections, toDrawerReadingHeader } from './drawer-reading.helpers';
 
 /** Title and phrase of a line, from its stored fields. */
 function titleAndPhrase(feedLine: ActivityFeedLine): { readonly title: string; readonly phrase: string } {
   const { line, traffic, run } = feedLine;
+  const reading = toDrawerReadingHeader(feedLine);
+  if (reading !== undefined) {
+    return reading;
+  }
   switch (line.kind) {
     case 'change':
       return { title: line.title, phrase: describeActivityChange({ source: line.source, actionType: line.detail, beforeJson: line.beforeJson, afterJson: line.afterJson }) };
@@ -97,6 +102,10 @@ function presenterSections(input: DrawerSummaryInput): readonly DrawerSection[] 
       return trafficSections(input);
     case 'download_run':
       return runSections(input);
+    case 'bridge_off':
+      return bridgeOffSections(input);
+    case 'phone_report':
+      return readingSections(input);
     default:
       return eventSections(input);
   }

@@ -28,6 +28,21 @@ export const ACTIVITY_TECHNICAL_OCCURRENCE_LOADING_LABEL = 'Loading the occurren
 /** Failure title of a picked occurrence. */
 export const ACTIVITY_TECHNICAL_OCCURRENCE_ERROR_TITLE = 'This occurrence could not be read';
 
+/** Loading label of a stored report. */
+export const ACTIVITY_TECHNICAL_REPORT_LOADING_LABEL = 'Loading the stored report';
+
+/** Failure title of a stored report. */
+export const ACTIVITY_TECHNICAL_REPORT_ERROR_TITLE = 'The stored report could not be read';
+
+/** A stored report that no longer exists: the line read it, so it was removed after. */
+export const ACTIVITY_TECHNICAL_REPORT_GONE = { title: 'The stored report is gone', description: 'It was removed after this line was read.' } as const;
+
+/** The scroll area of a group's report picker: it grows the list near its bottom, so it scrolls on its own. */
+export const ACTIVITY_TECHNICAL_REPORT_PICKER_CLASS = 'max-h-60 min-w-0 overflow-y-auto overscroll-contain';
+
+/** One report of the picker, as a route-and-status row: 36px, 10px inset, the default fill when picked. */
+export const ACTIVITY_TECHNICAL_REPORT_ROW_CLASS = 'h-9 rounded-[.6rem] px-2.5 text-[13px] text-foreground tabular-nums data-[selected=true]:bg-default';
+
 /** The segmented control frame of the mockup (`.ax-seg`): default fill, 12px radius, 3px inset. */
 export const ACTIVITY_TECHNICAL_SEGMENT_CLASS = 'w-fit max-w-full gap-0.5 overflow-x-auto rounded-xl bg-default p-[3px]';
 

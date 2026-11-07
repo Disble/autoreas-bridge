@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { DrawerRequestGroup, DrawerRequestPanel } from '../../../drawer/drawer.types';
+import type { DrawerReportChoice, DrawerRequestGroup, DrawerRequestPanel } from '../../../drawer/drawer.types';
 import { ActivityTechnicalView } from '../ActivityTechnicalView';
 import { ACTIVITY_TECHNICAL_JSON_TOKEN_CLASS } from '../activity-technical-view.constants';
 import type { ActivityTechnicalViewProps } from '../activity-technical-view.types';
@@ -37,8 +37,19 @@ function props(overrides: Partial<ActivityTechnicalViewProps> = {}): ActivityTec
     occurrenceStatus: 'ready',
     onPickOccurrence: vi.fn(),
     onRetryOccurrence: vi.fn(),
+    reports: [],
+    selectedReportId: undefined,
+    reportStatus: undefined,
+    reportJson: undefined,
+    onPickReport: vi.fn(),
+    onRetryReport: vi.fn(),
     ...overrides,
   };
+}
+
+/** A report the Data tab offers, by id. */
+function report(id: number): DrawerReportChoice {
+  return { id, label: `report ${id}` };
 }
 
 describe('ActivityTechnicalView', () => {
@@ -117,6 +128,52 @@ describe('ActivityTechnicalView', () => {
     expect(after.querySelector('pre')).toHaveTextContent('{ "a": 1 }');
     expect(screen.getByText('"a"')).toHaveClass(ACTIVITY_TECHNICAL_JSON_TOKEN_CLASS.key);
     expect(screen.getByRole('tabpanel').querySelectorAll('button')).toHaveLength(0);
+  });
+
+  it('shows a stored report pretty-printed under its label, its failed included, instead of the raw blocks', () => {
+    render(<ActivityTechnicalView {...props({ tab: 'data', data: [{ label: 'Line', raw: '{}' }], reports: [report(41)], selectedReportId: 41, reportStatus: 'ready', reportJson: '{"failed":true,"phase":"sync"}' })} />);
+
+    expect(screen.getByRole('heading', { name: 'Stored report', level: 3 })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Stored report' }).querySelector('pre')?.textContent).toBe('{\n  "failed": true,\n  "phase": "sync"\n}');
+    expect(screen.queryByRole('region', { name: 'Line' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['loading', 'Loading the stored report', ['The stored report could not be read', 'The stored report is gone']],
+    ['failed', 'The stored report could not be read', ['Loading the stored report', 'The stored report is gone']],
+    ['gone', 'The stored report is gone', ['Loading the stored report', 'The stored report could not be read']],
+  ] as const)('shows only the %s state of a stored report', (reportStatus, present, absent) => {
+    render(<ActivityTechnicalView {...props({ tab: 'data', reports: [report(41)], selectedReportId: 41, reportStatus })} />);
+
+    expect(screen.getByText(present)).toBeInTheDocument();
+    for (const text of absent) {
+      expect(screen.queryByText(text)).not.toBeInTheDocument();
+    }
+    expect(screen.queryByRole('region', { name: 'Stored report' })).not.toBeInTheDocument();
+  });
+
+  it('reads a failed stored report again from Try again', () => {
+    const onRetryReport = vi.fn();
+    render(<ActivityTechnicalView {...props({ tab: 'data', reports: [report(41)], selectedReportId: 41, reportStatus: 'failed', onRetryReport })} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(onRetryReport).toHaveBeenCalledOnce();
+  });
+
+  it('picks a report of a group, and renders one batch of a long group', () => {
+    const onPickReport = vi.fn();
+    const reports = Array.from({ length: 120 }, (_unused, index) => report(index + 1));
+    render(<ActivityTechnicalView {...props({ tab: 'data', reports, selectedReportId: 1, reportStatus: 'loading', onPickReport })} />);
+    const picker = screen.getByRole('listbox', { name: 'Reports' });
+
+    expect(within(picker).getAllByRole('option')).toHaveLength(20);
+    expect(screen.getByRole('option', { name: 'report 1' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('option', { name: 'report 2' }));
+    expect(onPickReport).toHaveBeenCalledWith(2);
+    fireEvent.scroll(picker.parentElement as Element);
+    expect(within(picker).getAllByRole('option')).toHaveLength(40);
   });
 
   it('colours the picked request bodies with the same tokenizer and puts the status on Response', () => {

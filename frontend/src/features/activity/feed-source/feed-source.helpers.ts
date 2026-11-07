@@ -1,4 +1,4 @@
-import { GetActivityChangeContext, GetActivityEvent, GetActivityOverview, SearchActivityFeed } from '../../../../wailsjs/go/desktop/App';
+import { GetActivityChangeContext, GetActivityEvent, GetActivityOverview, GetActivityPhoneReport, SearchActivityFeed } from '../../../../wailsjs/go/desktop/App';
 import type { activityread } from '../../../../wailsjs/go/models';
 import { invokeGoBinding } from '../../../infrastructure/wails-bindings.helpers';
 import { mapActivityChangeContext, mapRunStep } from '../activity-source/activity-incident.helpers';
@@ -7,11 +7,13 @@ import { mapLedgerLine } from '../history-source/history-source.helpers';
 import { FEED_SOURCE_STATE } from './feed-source.constants';
 import type { ActivityFeedSource } from './feed-source.types';
 import type {
+  ActivityBridgeOffGroup,
   ActivityChartSlot,
   ActivityDownloadRun,
   ActivityFeedLine,
   ActivityFeedView,
   ActivityOverview,
+  ActivitySyncReading,
   ActivitySystemGroup,
   ActivityTrafficHour,
   ActivityTypeCount,
@@ -45,6 +47,27 @@ function mapSystemGroup(group: activityread.SystemGroup): ActivitySystemGroup {
   return { hourStartMs: group.HourStartMS, count: group.Count, firstAtMs: group.FirstAtMS, lastAtMs: group.LastAtMS };
 }
 
+/** Maps one Go reading; a nil evidence time becomes undefined. */
+function mapSyncReading(reading: activityread.SyncReading): ActivitySyncReading {
+  const evidence = reading.Evidence;
+  return {
+    reportId: reading.ReportID,
+    reading: reading.Reading as ActivitySyncReading['reading'],
+    evidence: {
+      failedAtMs: evidence.FailedAtMS,
+      arrivedAtMs: evidence.ArrivedAtMS,
+      lastContactMs: evidence.LastContactMS ?? undefined,
+      nextStartMs: evidence.NextStartMS ?? undefined,
+      arrivalStartMs: evidence.ArrivalStartMS ?? undefined,
+    },
+  };
+}
+
+/** Maps one Go Bridge off group; nil reports become an empty list. */
+function mapBridgeOffGroup(group: activityread.BridgeOffGroup): ActivityBridgeOffGroup {
+  return { bridgeStartMs: group.BridgeStartMS, reports: (group.Reports ?? []).map(mapSyncReading) };
+}
+
 /** Maps one Go feed line; Go's zero incident id means none. */
 function mapFeedLine(line: activityread.FeedLine): ActivityFeedLine {
   return {
@@ -57,6 +80,8 @@ function mapFeedLine(line: activityread.FeedLine): ActivityFeedLine {
     traffic: line.Traffic ? mapTrafficHour(line.Traffic) : undefined,
     run: line.Run ? mapDownloadRun(line.Run) : undefined,
     system: line.System ? mapSystemGroup(line.System) : undefined,
+    syncReading: line.SyncReading ? mapSyncReading(line.SyncReading) : undefined,
+    bridgeOff: line.BridgeOff ? mapBridgeOffGroup(line.BridgeOff) : undefined,
   };
 }
 
@@ -138,6 +163,9 @@ export function createActivityFeedSource(): ActivityFeedSource {
       return invokeGoBinding('GetActivityChangeContext', () => GetActivityChangeContext(changeId, atMs), rejectRuntimeUnavailable).then((context) =>
         context.Found ? mapActivityChangeContext(context) : undefined,
       );
+    },
+    getPhoneReport(id) {
+      return invokeGoBinding('GetActivityPhoneReport', () => GetActivityPhoneReport(id), rejectRuntimeUnavailable).then((detail) => (detail.Found ? detail.PayloadJSON : undefined));
     },
   };
 

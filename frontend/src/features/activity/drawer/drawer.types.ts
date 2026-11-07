@@ -59,16 +59,30 @@ export interface DrawerCause {
   readonly code: string;
 }
 
+/** A labelled set of facts. */
+export interface DrawerFactsSection {
+  /** Section kind. */
+  readonly kind: 'facts';
+  /** Stable key. */
+  readonly key: string;
+  /** Title; empty for none. */
+  readonly title: string;
+  /** The rows. */
+  readonly rows: readonly DrawerFact[];
+}
+
 /** One section of the summary view. */
 export type DrawerSection =
   | { readonly kind: 'before-after'; readonly key: string; readonly title: string; readonly before: string; readonly after: string }
-  | { readonly kind: 'facts'; readonly key: string; readonly title: string; readonly rows: readonly DrawerFact[] }
+  | DrawerFactsSection
   | { readonly kind: 'stats'; readonly key: string; readonly items: readonly DrawerStat[] }
   | { readonly kind: 'cause'; readonly key: string; readonly title: string; readonly cause: DrawerCause }
   | { readonly kind: 'list'; readonly key: string; readonly title: string; readonly items: readonly DrawerListItem[] }
   | { readonly kind: 'run-story'; readonly key: string; readonly correlationId: string }
   | { readonly kind: 'code'; readonly key: string; readonly title: string; readonly text: string }
-  | { readonly kind: 'note'; readonly key: string; readonly text: string };
+  | { readonly kind: 'note'; readonly key: string; readonly text: string }
+  | { readonly kind: 'text'; readonly key: string; readonly text: string }
+  | { readonly kind: 'reports'; readonly key: string; readonly title: string; readonly reports: readonly DrawerFactsSection[] };
 
 /** The drawer header shared by every kind. */
 export interface DrawerHeaderModel {
@@ -114,6 +128,14 @@ export interface DrawerSummaryInput {
   readonly metadata: Readonly<Record<string, string>> | undefined;
   /** The current time, epoch milliseconds. */
   readonly nowMs: number;
+}
+
+/** One report the Data tab can show: a report line's own, or one of a group's. */
+export interface DrawerReportChoice {
+  /** Stored report id, read with `GetActivityPhoneReport`. */
+  readonly id: number;
+  /** Its times, which tell it apart in the picker. */
+  readonly label: string;
 }
 
 /** One tab of the technical view. */

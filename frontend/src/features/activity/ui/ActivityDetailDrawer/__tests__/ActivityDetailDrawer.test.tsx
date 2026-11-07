@@ -1,8 +1,8 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ActivitySource } from '../../../activity-source/activity-source.types';
 import type { ActivityFeedSource } from '../../../feed-source/feed-source.types';
-import { feedLine, incident } from '../../../drawer/__tests__/drawer.fixtures';
+import { bridgeOffLine, feedLine, incident, readingLine, syncReading } from '../../../drawer/__tests__/drawer.fixtures';
 import { ActivityDetailDrawer } from '../ActivityDetailDrawer';
 
 /** The incident read the mocked source answers with. */
@@ -22,6 +22,7 @@ vi.mock('../../../activity-source/activity-source.helpers', () => ({
 const feedSource = {
   getEvent: vi.fn(() => Promise.resolve(undefined)),
   getChangeContext: vi.fn(() => Promise.resolve({ events: [], truncated: false, requests: [] })),
+  getPhoneReport: vi.fn((id: number) => Promise.resolve(`{"id":${id},"failed":true}`)),
 } as unknown as ActivityFeedSource;
 
 vi.mock('../../../feed-source/feed-source.helpers', () => ({
@@ -112,6 +113,37 @@ describe('ActivityDetailDrawer', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Back to summary' }));
     await waitFor(() => expect(screen.getByTestId('activity-drawer-summary')).toBeInTheDocument());
+  });
+
+  it('opens a Bridge off group as neutral evidence, and its Data tab as the stored report it picks', async () => {
+    const reports = [syncReading({ reportId: 9, reading: 'bridge_off' }), syncReading({ reportId: 8, reading: 'bridge_off' })];
+    render(<ActivityDetailDrawer line={bridgeOffLine(reports)} onClose={vi.fn()} />);
+
+    expect(screen.getByRole('heading', { name: '2 changes waited for Bridge' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'From the phone' })).toHaveClass('text-muted');
+    expect(within(screen.getByRole('list', { name: 'Reports' })).getAllByRole('listitem')).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Technical details' }));
+    expect(screen.queryByRole('tab', { name: 'Requests' })).not.toBeInTheDocument();
+    expect(screen.queryByText('This hour went fine', { exact: false })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Data' }));
+
+    const stored = await screen.findByRole('region', { name: 'Stored report' });
+    expect(stored.querySelector('pre')).toHaveTextContent('"id": 9');
+    fireEvent.click(screen.getAllByRole('option')[1] as Element);
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Stored report' }).querySelector('pre')).toHaveTextContent('"id": 8'));
+  });
+
+  it('opens a report with a reading on its evidence and reads its stored report in Data', async () => {
+    render(<ActivityDetailDrawer line={readingLine(syncReading({ reportId: 41, reading: 'tablet_late' }))} onClose={vi.fn()} />);
+
+    expect(screen.getByRole('heading', { name: 'Tablet came back late' })).toBeInTheDocument();
+    expect(screen.getByText('Failed at')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Technical details' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Data' }));
+
+    expect((await screen.findByRole('region', { name: 'Stored report' })).querySelector('pre')).toHaveTextContent('"failed": true');
   });
 
   it('resets to the summary when closed and opened again', () => {

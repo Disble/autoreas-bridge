@@ -1,20 +1,21 @@
 import type { ActivityChangeContext, ActivityIncidentDetail, ActivityRequestDetail } from '../activity-source/activity-incident.types';
 import type { ActivityFeedLine } from '../feed-source/feed.types';
 import { formatActivityDuration } from '../ui/ActivityRunStory/activity-time.helpers';
-import { DRAWER_CHANGE_READ_FAILED_NOTE, DRAWER_NO_LINE_EVENTS_NOTE, DRAWER_NO_RUN_EVENTS_NOTE, DRAWER_WINDOW_ERROR_EVENT_TYPE } from './drawer.constants';
+import { DRAWER_CHANGE_READ_FAILED_NOTE, DRAWER_NO_LINE_EVENTS_NOTE, DRAWER_NO_RUN_EVENTS_NOTE, DRAWER_STORED_REPORT_LABEL, DRAWER_WINDOW_ERROR_EVENT_TYPE } from './drawer.constants';
 import type { DrawerDataBlock, DrawerEventRow, DrawerHttpHeader, DrawerRequestGroup, DrawerRequestPanel, DrawerSummaryInput, DrawerTechnicalTab, DrawerWindowErrorDetail } from './drawer.types';
 import { formatDrawerSeconds, formatDrawerTime } from './drawer-format.helpers';
 import { toDrawerWindowErrorFromMetadata } from './drawer-window-error.helpers';
 import { toDrawerHeader } from './drawer-summary.helpers';
 
 /**
- * The tabs of the technical view: Requests only for phone lines.
+ * The tabs of the technical view: Requests only for phone lines, and never
+ * for a Bridge off group, which has no requests.
  *
  * @param line The open line.
  * @returns The tabs, in order.
  */
 export function toDrawerTechnicalTabs(line: ActivityFeedLine): readonly DrawerTechnicalTab[] {
-  return line.origin === 'phone' ? ['requests', 'events', 'data'] : ['events', 'data'];
+  return line.origin === 'phone' && line.bridgeOff === undefined ? ['requests', 'events', 'data'] : ['events', 'data'];
 }
 
 /**
@@ -163,13 +164,17 @@ export function toDrawerEventsEmpty(input: DrawerSummaryInput): string {
 
 /**
  * The raw JSON blocks of the Data tab: a change's snapshots, the hourly total,
- * the run row, or the event with its recorded metadata.
+ * the run row, or the event with its recorded metadata. A line with a reading
+ * has none: its data is the stored report, read on its own.
  *
  * @param input The summary input.
  * @returns The blocks.
  */
 export function toDrawerDataBlocks(input: DrawerSummaryInput): readonly DrawerDataBlock[] {
-  const { line, traffic, run } = input.line;
+  const { line, traffic, run, syncReading, bridgeOff } = input.line;
+  if (syncReading !== undefined || bridgeOff !== undefined) {
+    return [];
+  }
   if (line.kind === 'change') {
     return [
       { label: 'Before', raw: line.beforeJson },
@@ -207,16 +212,17 @@ export function toDrawerWindowErrorDetail(input: DrawerSummaryInput): DrawerWind
  *
  * @param input The summary input.
  * @param technical Whether the technical view is open.
+ * @param storedReport The stored report the Data tab read; undefined when none was.
  * @returns The clipboard text.
  */
-export function toDrawerCopyText(input: DrawerSummaryInput, technical: boolean): string {
+export function toDrawerCopyText(input: DrawerSummaryInput, technical: boolean, storedReport?: string): string {
   const summary = toLineCopyText(input.line);
   if (!technical) {
     return summary;
   }
   const events = toDrawerEventRows(input).map((row) => `${row.time} ${row.level} ${row.domain} ${row.detail} ${row.message}`);
   const data = toDrawerDataBlocks(input).map((block) => `${block.label}: ${block.raw}`);
-  return [summary, ...events, ...data].join('\n');
+  return [summary, ...events, ...data, ...(storedReport === undefined ? [] : [`${DRAWER_STORED_REPORT_LABEL}: ${storedReport}`])].join('\n');
 }
 
 /**

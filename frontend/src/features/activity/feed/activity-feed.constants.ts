@@ -1,5 +1,5 @@
 import { Time } from '@internationalized/date';
-import type { ActivityChartScale, ActivityFeedType } from '../feed-source/feed.types';
+import type { ActivityChartScale, ActivityFeedType, ActivitySyncReadingKind } from '../feed-source/feed.types';
 import type { ActivityRangeTimes } from './activity-feed.types';
 
 /** Lines per feed page: one batch of the progressive window (ADR-012). */
@@ -65,6 +65,13 @@ export const ACTIVITY_PHONE_REPORT_SUBJECTS: Readonly<Record<string, string>> = 
   cycle_report: 'Sync cycle',
   episode_action: 'Episode action',
   screen_stall: 'Screen stalled',
+};
+
+/** The plain words of each reading of a failed sync. The row and the drawer both say these, and never mobile's `failed`. */
+export const ACTIVITY_SYNC_READING_WORDS: Readonly<Record<ActivitySyncReadingKind, string>> = {
+  bridge_off: 'Bridge was off',
+  tablet_late: 'Tablet came back late',
+  real_failure: 'Sync failed',
 };
 
 /** Row subject of one traffic hour. */

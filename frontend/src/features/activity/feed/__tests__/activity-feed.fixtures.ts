@@ -26,6 +26,8 @@ export function buildLine(overrides: Partial<ActivityFeedLine> = {}, ledger: Par
     traffic: undefined,
     run: undefined,
     system: undefined,
+    syncReading: undefined,
+    bridgeOff: undefined,
     ...overrides,
     line: {
       kind: 'change',

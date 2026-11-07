@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { DrawerSection } from '../../../drawer/drawer.types';
 import { ActivityDrawerSection } from '../ActivityDrawerSection';
@@ -15,6 +15,7 @@ describe('ActivityDrawerSection', () => {
     ['facts', { kind: 'facts', key: 'k', title: 'When', rows: [{ key: 'r', label: 'Saved', value: '09:00', mono: true, warnChip: '2 h late', note: undefined }] }, 'When'],
     ['a list', { kind: 'list', key: 'k', title: 'Refused check-ins', items: [{ key: 'i', time: '09:14', text: '/api · 401 ×1', failed: true }] }, 'Refused check-ins'],
     ['code', { kind: 'code', key: 'k', title: 'Message', text: 'TypeError' }, 'Message'],
+    ['reports', { kind: 'reports', key: 'k', title: 'Reports', reports: [] }, 'Reports'],
   ])('names its %s section by its title', (_name, section, title) => {
     render(<ActivityDrawerSection section={section} />);
 
@@ -29,6 +30,7 @@ describe('ActivityDrawerSection', () => {
     ['a fact without chip', { kind: 'facts', key: 'k', title: '', rows: [{ key: 'r', label: 'Hour', value: '09:00 – 10:00', mono: false, warnChip: undefined, note: undefined }] }, ['Hour', '09:00 – 10:00'], ['late']],
     ['a run story', { kind: 'run-story', key: 'k', correlationId: 'run-1' }, ['story run-1'], []],
     ['a note', { kind: 'note', key: 'k', text: 'These details are kept until Jan 20.' }, ['These details are kept until Jan 20.'], []],
+    ['a sentence', { kind: 'text', key: 'k', text: 'Bridge was on and the sync still failed.' }, ['Bridge was on and the sync still failed.'], []],
   ])('%s', (_name, section, shown, hidden) => {
     render(<ActivityDrawerSection section={section} />);
 
@@ -38,6 +40,16 @@ describe('ActivityDrawerSection', () => {
     for (const text of hidden) {
       expect(screen.queryByText(text, { exact: false })).not.toBeInTheDocument();
     }
+  });
+
+  it('renders one batch of a long report list, then grows near its bottom', () => {
+    const reports = Array.from({ length: 120 }, (_unused, index) => ({ kind: 'facts' as const, key: String(index), title: '', rows: [{ key: 'failed', label: 'Failed at', value: `09:${index}`, mono: false, warnChip: undefined, note: undefined }] }));
+    render(<ActivityDrawerSection section={{ kind: 'reports', key: 'k', title: 'Reports', reports }} />);
+    const list = screen.getByRole('list', { name: 'Reports' });
+
+    expect(within(list).getAllByRole('listitem')).toHaveLength(20);
+    fireEvent.scroll(list.parentElement as Element);
+    expect(within(list).getAllByRole('listitem')).toHaveLength(40);
   });
 
   it('marks failing figures and rows, and the late chip, with their tone', () => {

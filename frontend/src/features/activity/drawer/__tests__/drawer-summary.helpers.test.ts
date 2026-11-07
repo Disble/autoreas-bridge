@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { DRAWER_BRIDGE_OFF_MEANING_MANY, DRAWER_READING_MEANINGS } from '../drawer.constants';
+import { formatDrawerWhen } from '../drawer-format.helpers';
 import type { DrawerSection, DrawerSummaryInput } from '../drawer.types';
 import { toDrawerHeader, toDrawerSummary } from '../drawer-summary.helpers';
-import { feedLine, incident, run } from './drawer.fixtures';
+import { bridgeOffLine, feedLine, incident, readingLine, run, syncReading } from './drawer.fixtures';
 
 /** Noon of the mockup's day, the line time every fixture uses. */
 const AT = Date.UTC(2026, 9, 22, 12, 0);
@@ -305,6 +307,78 @@ describe('toDrawerHeader edge cases', () => {
     ['a failed phone report reads its stored title with the generic header', feedLine({ failed: true, slow: true }, { kind: 'phone_report', title: 'cycle_report', detail: 'failed' }), 'cycle_report', '', 'failed'],
   ])('%s', (_name, line, title, phrase, tone) => {
     expect(toDrawerHeader(line)).toMatchObject({ title, phrase, tone });
+  });
+});
+
+describe('a failed sync with a reading', () => {
+  /** Every evidence time known: four hours, three, two and one before noon. */
+  const EVIDENCE = { lastContactMs: AT - 4 * 3_600_000, failedAtMs: AT - 3 * 3_600_000, arrivalStartMs: AT - 2 * 3_600_000, arrivedAtMs: AT - 3_600_000 };
+
+  it.each([
+    ['tablet_late', 'Tablet came back late'],
+    ['real_failure', 'Sync failed'],
+  ] as const)('titles a %s report with the reading, its meaning, then its labelled times', (reading, title) => {
+    const line = readingLine(syncReading({ reading }, EVIDENCE));
+
+    const { sections, gaps } = toDrawerSummary(input({ line }));
+
+    expect(toDrawerHeader(line)).toMatchObject({ title, phrase: '', tone: 'failed' });
+    expect(kinds(sections)).toEqual(['text', 'facts']);
+    expect(sectionOf(sections, 'text').text).toBe(DRAWER_READING_MEANINGS[reading]);
+    expect(sectionOf(sections, 'facts').rows.map((row) => [row.label, row.value])).toEqual([
+      ['Failed at', formatDrawerWhen(EVIDENCE.failedAtMs)],
+      ['Last contact', formatDrawerWhen(EVIDENCE.lastContactMs)],
+      ['Bridge started', formatDrawerWhen(EVIDENCE.arrivalStartMs)],
+      ['Arrived', formatDrawerWhen(EVIDENCE.arrivedAtMs)],
+    ]);
+    expect(gaps).toEqual([]);
+  });
+
+  it('reads a time that does not exist as not recorded', () => {
+    const { sections } = toDrawerSummary(input({ line: readingLine(syncReading()) }));
+
+    expect(sectionOf(sections, 'facts').rows.filter((row) => row.value === 'Not recorded').map((row) => row.label)).toEqual(['Last contact', 'Bridge started']);
+  });
+
+  it('keeps the failure its incident recorded, after the evidence', () => {
+    const line = readingLine(syncReading(), { incidentId: 7 });
+
+    expect(kinds(toDrawerSummary(input({ line, incident: incident() })).sections)).toEqual(['text', 'facts', 'cause', 'note']);
+  });
+});
+
+describe('a Bridge off group', () => {
+  /** When Bridge started. */
+  const START = AT - 600_000;
+
+  /** Two reports that waited for it, newest arrival first. */
+  const REPORTS = [
+    syncReading({ reportId: 9, reading: 'bridge_off' }, { failedAtMs: AT - 3_600_000, arrivedAtMs: AT - 60_000, arrivalStartMs: START }),
+    syncReading({ reportId: 8, reading: 'bridge_off' }, { failedAtMs: AT - 7_200_000, arrivedAtMs: AT - 120_000, arrivalStartMs: START, lastContactMs: AT - 8_000_000 }),
+  ];
+
+  it.each([
+    [REPORTS.slice(0, 1), '1 change waited for Bridge'],
+    [REPORTS, '2 changes waited for Bridge'],
+  ])('reads as a neutral header with the reading, not a failure', (reports, title) => {
+    expect(toDrawerHeader(bridgeOffLine(reports, START))).toMatchObject({ title, phrase: 'Bridge was off', failed: false, tone: 'neutral' });
+  });
+
+  it('states its meaning and start once, then each report with its own times, in order', () => {
+    const { sections, gaps } = toDrawerSummary(input({ line: bridgeOffLine(REPORTS, START) }));
+
+    expect(kinds(sections)).toEqual(['text', 'facts', 'reports']);
+    expect(sectionOf(sections, 'text').text).toBe(DRAWER_BRIDGE_OFF_MEANING_MANY);
+    expect(sectionOf(sections, 'facts').rows.map((row) => [row.label, row.value])).toEqual([['Bridge started', formatDrawerWhen(START)]]);
+    expect(sectionOf(sections, 'reports').reports.map((report) => [report.key, report.rows.map((row) => [row.label, row.value])])).toEqual([
+      ['9', [['Failed at', formatDrawerWhen(AT - 3_600_000)], ['Last contact', 'Not recorded'], ['Arrived', formatDrawerWhen(AT - 60_000)]]],
+      ['8', [['Failed at', formatDrawerWhen(AT - 7_200_000)], ['Last contact', formatDrawerWhen(AT - 8_000_000)], ['Arrived', formatDrawerWhen(AT - 120_000)]]],
+    ]);
+    expect(gaps).toEqual([]);
+  });
+
+  it('words the meaning of one change in the singular', () => {
+    expect(sectionOf(toDrawerSummary(input({ line: bridgeOffLine(REPORTS.slice(0, 1), START) })).sections, 'text').text).toBe(DRAWER_READING_MEANINGS.bridge_off);
   });
 });
 

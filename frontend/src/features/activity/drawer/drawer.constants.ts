@@ -1,3 +1,5 @@
+import type { ActivitySyncReadingKind } from '../feed-source/feed.types';
+
 /**
  * Layer 2 of the event presentation model: one sentence per error code,
  * written once by a person. `{name}` placeholders read fields of the recorded
@@ -14,6 +16,28 @@ export const DRAWER_WINDOW_ERROR_KIND_WORDS: Readonly<Record<string, string>> = 
   error: 'hit a code error',
   unhandledrejection: 'had a background task fail',
 };
+
+/** What each reading of a failed sync means, in one sentence the drawer states. */
+export const DRAWER_READING_MEANINGS: Readonly<Record<ActivitySyncReadingKind, string>> = {
+  bridge_off: 'The phone could not reach Bridge because it was off, and the change arrived when it started.',
+  tablet_late: 'Bridge was back, but the report took more than 30 minutes to arrive.',
+  real_failure: 'Bridge was on and the sync still failed.',
+};
+
+/** The Bridge off meaning of a group of several changes. */
+export const DRAWER_BRIDGE_OFF_MEANING_MANY = 'The phone could not reach Bridge because it was off, and the changes arrived when it started.';
+
+/** The labels of a reading's evidence times. */
+export const DRAWER_EVIDENCE_LABELS = { failed: 'Failed at', contact: 'Last contact', start: 'Bridge started', arrived: 'Arrived' } as const;
+
+/** What an evidence time reads as when that fact does not exist. */
+export const DRAWER_EVIDENCE_NOT_RECORDED = 'Not recorded';
+
+/** Title of a Bridge off group's report list, and name of its picker in the technical view. */
+export const DRAWER_REPORTS_TITLE = 'Reports';
+
+/** The label of a report as stored: the validated record re-serialized, not mobile's raw bytes. */
+export const DRAWER_STORED_REPORT_LABEL = 'Stored report';
 
 /** Accessible names of the origin icon. */
 export const DRAWER_ORIGIN_LABELS = { phone: 'From the phone', bridge: 'In the bridge' } as const;

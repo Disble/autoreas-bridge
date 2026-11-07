@@ -17,7 +17,7 @@ function fakeSource(...replies: readonly (ActivityOverview | Error)[]): Activity
   for (const reply of replies) {
     getOverview.mockImplementationOnce(() => (reply instanceof Error ? Promise.reject(reply) : Promise.resolve(reply)));
   }
-  return { searchFeed: vi.fn(), getOverview, getEvent: vi.fn(), getChangeContext: vi.fn() };
+  return { searchFeed: vi.fn(), getOverview, getEvent: vi.fn(), getChangeContext: vi.fn(), getPhoneReport: vi.fn() };
 }
 
 describe('useActivityOverview', () => {
@@ -80,7 +80,7 @@ describe('useActivityOverview', () => {
       .fn<ActivityFeedSource['getOverview']>()
       .mockImplementationOnce(() => new Promise((resolve) => (resolveOld = resolve)))
       .mockResolvedValueOnce(fresh);
-    const source = { searchFeed: vi.fn(), getOverview, getEvent: vi.fn(), getChangeContext: vi.fn() };
+    const source = { searchFeed: vi.fn(), getOverview, getEvent: vi.fn(), getChangeContext: vi.fn(), getPhoneReport: vi.fn() };
     const { result, rerender } = renderHook(({ origin }) => useActivityOverview(source, '24h', 0, 0, origin, SECTIONS, false), {
       initialProps: { origin: 'all' as 'all' | 'phone' },
     });

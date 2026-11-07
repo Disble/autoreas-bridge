@@ -69,10 +69,45 @@ export interface ActivitySystemGroup {
   readonly lastAtMs: number;
 }
 
+/** What Bridge makes of one failed sync report, the Go `syncreading.Reading` values. */
+export type ActivitySyncReadingKind = 'bridge_off' | 'tablet_late' | 'real_failure';
+
+/** What a reading rests on. An undefined time means that fact does not exist. */
+export interface ActivitySyncEvidence {
+  /** When the device failed, epoch milliseconds. */
+  readonly failedAtMs: number;
+  /** When Bridge received the report, epoch milliseconds. */
+  readonly arrivedAtMs: number;
+  /** The device's last contact recorded by the next start, epoch milliseconds. */
+  readonly lastContactMs: number | undefined;
+  /** The first Bridge start after the failure, epoch milliseconds. */
+  readonly nextStartMs: number | undefined;
+  /** The latest Bridge start at or before the arrival, epoch milliseconds. */
+  readonly arrivalStartMs: number | undefined;
+}
+
+/** Bridge's reading of one failed sync report. It is computed, never stored in the report. */
+export interface ActivitySyncReading {
+  /** The stored report, read with `GetActivityPhoneReport`. */
+  readonly reportId: number;
+  /** The reading. */
+  readonly reading: ActivitySyncReadingKind;
+  /** What it rests on. */
+  readonly evidence: ActivitySyncEvidence;
+}
+
+/** What one `bridge_off` line stands for: a Bridge start and the reports that waited for it. */
+export interface ActivityBridgeOffGroup {
+  /** The start, epoch milliseconds; the line's own time. */
+  readonly bridgeStartMs: number;
+  /** The reports, newest arrival first; their count is the group's size. */
+  readonly reports: readonly ActivitySyncReading[];
+}
+
 /**
- * One feed row. `traffic`, `run` and `system` are set only for their own
- * lines. A System line is an event line standing for its group: `line` is
- * the group's newest recorded event.
+ * One feed row. `traffic`, `run`, `system` and `bridgeOff` are set only for
+ * their own lines. A System line is an event line standing for its group:
+ * `line` is the group's newest recorded event.
  */
 export interface ActivityFeedLine {
   /** The type toggle the line belongs to. */
@@ -93,6 +128,10 @@ export interface ActivityFeedLine {
   readonly run: ActivityDownloadRun | undefined;
   /** The group, for a System line. */
   readonly system: ActivitySystemGroup | undefined;
+  /** Bridge's reading, for a phone report line that has one; undefined keeps it a plain failure. */
+  readonly syncReading: ActivitySyncReading | undefined;
+  /** The start and its reports, for a `bridge_off` line. */
+  readonly bridgeOff: ActivityBridgeOffGroup | undefined;
 }
 
 /** One local day's feed lines, newest first. */

@@ -75,6 +75,12 @@ export interface ActivityDrawerCauseProps {
   readonly section: Extract<DrawerSection, { readonly kind: 'cause' }>;
 }
 
+/** Props of the report list of a Bridge off group. */
+export interface ActivityDrawerReportsProps {
+  /** The reports section. */
+  readonly section: Extract<DrawerSection, { readonly kind: 'reports' }>;
+}
+
 /** Props of the list block of a summary section. */
 export interface ActivityDrawerListProps {
   /** The list section. */

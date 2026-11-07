@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { describeActivityChange } from '../../change-words/change-words.helpers';
 import type { ActivityDownloadRun } from '../../feed-source/feed.types';
 import { maybeFeedLineKey, mergeFeedDays, mergeLivePage, stepFeedLine, toFeedDayModels, toFeedRowModel } from '../activity-feed-rows.helpers';
+import { bridgeOffLine, readingLine, syncReading } from '../../drawer/__tests__/drawer.fixtures';
 import { NOW_MS, buildDay, buildLine, buildView, dayStart } from './activity-feed.fixtures';
 
 /** A finished run with every count zero, overridden per case. */
@@ -97,6 +98,23 @@ describe('toFeedRowModel', () => {
     const line = buildLine({ type: 'traffic', origin: 'phone', failed: true }, { kind: 'phone_report', title: kind, detail: 'failed' });
 
     expect(toFeedRowModel(line, undefined)).toMatchObject({ subject, detail: 'failed', health: 'failed' });
+  });
+
+  it.each([
+    [1, '1 change waited for Bridge'],
+    [3, '3 changes waited for Bridge'],
+    [1912, '1,912 changes waited for Bridge'],
+  ])('words a group of %i as one neutral row that is not a failure', (count, subject) => {
+    const reports = Array.from({ length: count }, (_unused, reportId) => syncReading({ reportId, reading: 'bridge_off' }));
+
+    expect(toFeedRowModel(bridgeOffLine(reports), undefined)).toMatchObject({ subject, detail: '', repeat: undefined, health: 'ok', originLabel: 'Phone', canCopy: false });
+  });
+
+  it.each([
+    ['tablet_late', 'Tablet came back late'],
+    ['real_failure', 'Sync failed'],
+  ] as const)('words a %s report as a failed row of the reading alone, without the stored outcome', (reading, subject) => {
+    expect(toFeedRowModel(readingLine(syncReading({ reading })), undefined)).toMatchObject({ subject, detail: '', health: 'failed', canCopy: true });
   });
 });
 
