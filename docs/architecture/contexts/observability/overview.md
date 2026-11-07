@@ -119,7 +119,7 @@ writes itself:
 | `tracer.step` "tracer bullet ready" | info | `internal/tracerbullet/runner.go` | The startup marker MCP reads (`retention.StartupMarker`) |
 | `sync.diagnostics_stored` | info | `internal/desktop/app_sync_diagnostics.go` | One report stored; Activity hides it because it restates the row |
 | `api.last_contacts_unread` | warn | `internal/desktop/app_runtime_services.go` | The last contacts could not be read at start; readings go by start times alone |
-| `incident.sync_reading_failed` | warn | `internal/desktop/app_incidents.go` | The starts could not be read for a failed sync report; it opens its incident |
+| `incident.sync_reading_failed` | warn | `internal/desktop/app_incidents.go` | The starts or the device's first report could not be read for a failed sync report; it opens its incident |
 | `incident.record_failed` | error | `internal/desktop/app_incidents.go` | An incident could not be stored. The event hook skips this type, so it cannot loop |
 | `api.capture_swept` | warn | `internal/desktop/app_runtime_services.go` | Pending captures left by a previous process were swept |
 
@@ -147,17 +147,21 @@ A reading has no storage: it is computed on each read. The start record is metad
 - **The classifier and the reading are pure.** `incident/trigger.go` and `syncreading/reading.go` touch no
   database, take no clock and hold no state.
 - **One start definition for readings.** `syncStartSQL` in `activityread/sync_readings.go` serves both the
-  incident gate and the feed. `syncreading.Read` is the only rule.
+  incident gate and the feed. `syncreading.Read` is the only rule, and `Reader.FirstReports` its only answer
+  for F, the device's first report after the start.
+- **The window is mobile's retry.** `syncreading.RetryWindow` is 20 minutes, mobile's longest normal retry,
+  measured from N, the first start after the failure, to F. It changes only with mobile's retry interval.
 - **The last contact is read before anyone can contact.** `captureLastContacts` runs before `startHTTPServer`,
   because the first contact overwrites the value.
-- **Losing an incident is the worse error.** Any failure to read the starts lets the report open its
+- **Losing an incident is the worse error.** Any failure to read the starts or F lets the report open its
   incident. A failed reading never hides a failure.
 - **An incident write never fails the write that fired it.** `recordIncident` logs and returns, under a 250 ms
   budget, because it runs on a drain goroutine or on the report's POST path.
 - **A retry is free.** `UNIQUE(kind, event_id)` makes a duplicate a 204 with no row, event or incident.
 - **Lines and counts agree.** `readFailedSyncs` is the one read behind feed lines and bucket counts.
 - **The read side stays bounded.** Every `activityread` query has a time predicate on an indexed column, a key
-  or a limit. Sync readings cap at 2,000 starts and 5,000 failed actions.
+  or a limit. Sync readings cap at 2,000 starts and 5,000 failed actions, and ask F with one indexed seek on
+  `(device_id, reported_at_ms)` per device and start.
 - **Only `api.listening` or the older listening row is a reading's start.** Metadata that cannot be decoded
   leaves the start valid with no last contacts.
 
@@ -182,15 +186,17 @@ A reading has no storage: it is computed on each read. The start record is metad
 - **A reading can age.** It depends on the retained starts. A report row can outlive its start, because reports
   sit on row caps and starts on the 90-day ledger. Such a report then has no reading and shows as a plain
   failure, although it opened no incident.
-- **An incident and a reading can disagree.** Incidents opened before this reading existed, or opened because
-  the starts could not be read, stay listed while the feed reads those reports as Bridge was off. The neutral
+- **An incident and a reading can disagree.** Incidents opened before this reading existed, opened because
+  the starts or F could not be read, stay listed while the feed reads those reports as Bridge was off. Reports
+  ingested under the earlier 30-minute window, measured from the latest start, kept the gate's answer of that
+  time: a report that read Bridge was off then and reads late now has no incident. The neutral
   line links to none of them (`attachIncidents`).
 - **Failed Traffic lines are off by default.** Traffic starts off and the failure switch only narrows the
   selected types (`toFeedQuery`, `frontend/src/features/activity/feed/activity-feed-filters.helpers.ts`). So
   "Sync failed" and "Tablet came back late" stay hidden until Traffic is on; the Traffic chip counts them.
 - **ADR-026 and JSON filters.** ADR-026 says a payload field becomes a projection when a read surface filters on
   it. `feedFailedReportSQL` and `readFailedSyncs` filter on `json_extract(payload_json, ...)` with no projection.
-  `readFailedSyncs` narrows by the indexed `kind` and `reported_at_ms` first, and the replay copy held 96 matching
+  `readFailedSyncs` narrows by the indexed `kind` and `reported_at_ms` first, and the 2026-11-07 copy held 101 matching
   rows. No decision records this yet.
 - **Schema away from its owner.** The request tables are declared in `internal/sync/schema.go`, not in
   `requestcapture`.

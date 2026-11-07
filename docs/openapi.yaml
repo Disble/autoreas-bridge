@@ -455,6 +455,19 @@ info:
     `lastContacts`, and the warnings `api.last_contacts_unread` and
     `incident.sync_reading_failed` are new.
 
+    2026-11-07 — failed sync reading window consumer impact: NO REST/WS wire
+    change. Bridge now reads Bridge was off when the device's first report of
+    any kind arrives within 20 minutes of the first Bridge start after the
+    failure, instead of when the failed report arrives within 30 minutes of
+    the latest start. 20 minutes is mobile's longest normal retry (WorkManager
+    floor of 15 minutes, measured at up to 20m11s). Nothing mobile sends or
+    receives changes, and mobile needs no change; if its retry interval ever
+    changes, Bridge's window must change with it. What the owner sees: a
+    backlog stays one Bridge was off line however long it takes to drain, and
+    a tablet that stayed silent after a start reads late even if it reports
+    right after a later one. `incident.sync_reading_failed` now also covers a
+    failed read of the device's first report.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}

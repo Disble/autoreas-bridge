@@ -67,7 +67,7 @@ func (r *Reader) feedPhoneReportLines(ctx context.Context, plan feedPlan, p sour
 	if !plan.reads(FeedTraffic) {
 		return nil, nil
 	}
-	syncs, err := r.readFailedSyncs(ctx, p.sinceMS, p.nowMS)
+	syncs, err := r.readFailedSyncs(ctx, p.sinceMS)
 	if err != nil {
 		return nil, err
 	}

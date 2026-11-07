@@ -51,62 +51,132 @@ func (r *Reader) SyncStarts(ctx context.Context) ([]syncreading.Start, error) {
 	return starts, rows.Err()
 }
 
+// firstReportKey is one first-report question: a device, from one start.
+type firstReportKey struct {
+	deviceID string
+	fromMS   int64
+}
+
+// firstReportAnswer is the stored answer to one firstReportKey.
+type firstReportAnswer struct {
+	atMS int64
+	ok   bool
+}
+
+// FirstReports answers syncreading's first-report lookup from
+// device_telemetry_events, any kind, through the (device_id, reported_at_ms)
+// index: one seek per device and start, kept for the life of the value, so a
+// backlog that shares a start asks once. Err holds the first failed lookup; a
+// failed lookup answers none, which leaves the failure's own arrival as F.
+type FirstReports struct {
+	ctx     context.Context
+	db      *sql.DB
+	answers map[firstReportKey]firstReportAnswer
+	Err     error
+}
+
+// FirstReports returns a lookup bound to ctx for one read.
+func (r *Reader) FirstReports(ctx context.Context) *FirstReports {
+	return &FirstReports{ctx: ctx, db: r.db, answers: map[firstReportKey]firstReportAnswer{}}
+}
+
+// At is the syncreading.FirstReport of this read.
+func (f *FirstReports) At(deviceID string, fromMS int64) (int64, bool) {
+	key := firstReportKey{deviceID: deviceID, fromMS: fromMS}
+	if answer, ok := f.answers[key]; ok {
+		return answer.atMS, answer.ok
+	}
+	var atMS sql.NullInt64
+	err := f.db.QueryRowContext(f.ctx, `SELECT MIN(reported_at_ms) FROM device_telemetry_events
+		WHERE device_id = ? AND reported_at_ms >= ?`, deviceID, fromMS).Scan(&atMS)
+	if err != nil {
+		f.Err = errors.Join(f.Err, fmt.Errorf("activityread: first report: %w", err))
+		return 0, false
+	}
+	f.answers[key] = firstReportAnswer{atMS: atMS.Int64, ok: atMS.Valid}
+	return atMS.Int64, atMS.Valid
+}
+
 // failedSyncs is the one definition lines and counts share: every failed sync
 // report of a span with a reading, keyed by its line id, and the reports that
-// read Bridge was off, grouped by the start that received them.
+// read Bridge was off, grouped by their next start N.
 type failedSyncs struct {
 	readings map[string]*SyncReading
 	groups   []BridgeOffGroup
 }
 
-// readFailedSyncs reads the failed sync reports of the lines between fromMS and
-// toMS. A group sits at its start and its reports arrive up to one
-// ArrivalWindow later, so the read runs that much past toMS: a group is whole
-// whatever the range. A reading depends on the report and the starts alone, so
-// the range never changes one.
-func (r *Reader) readFailedSyncs(ctx context.Context, fromMS, toMS int64) (failedSyncs, error) {
+// readFailedSyncs reads the failed sync reports of the lines from fromMS on. A
+// group sits at its start N and its reports arrive at or after it with no fixed
+// bound, since a backlog drains a few reports per cycle, so the read runs to
+// the newest report: a group is whole whatever the range. A reading depends on
+// the report, the starts and the device's reports alone, so the range never
+// changes one.
+func (r *Reader) readFailedSyncs(ctx context.Context, fromMS int64) (failedSyncs, error) {
 	starts, err := r.SyncStarts(ctx)
 	if err != nil {
 		return failedSyncs{}, err
 	}
-	rows, err := r.db.QueryContext(ctx, `SELECT rowid, device_id, observed_at_ms, reported_at_ms, kind, `+reportOutcomeSQL+`,
-		COALESCE(json_extract(payload_json, '$.phase'), '') FROM device_telemetry_events
-		WHERE kind = ? AND reported_at_ms >= ? AND reported_at_ms <= ? AND `+feedFailedReportSQL+`
-		ORDER BY reported_at_ms DESC, rowid DESC LIMIT ?`, telemetry.KindEpisodeAction, fromMS,
-		toMS+syncreading.ArrivalWindow.Milliseconds(), syncReportLimit)
+	failures, err := r.queryFailedSyncs(ctx, fromMS)
 	if err != nil {
-		return failedSyncs{}, fmt.Errorf("activityread: failed syncs: %w", err)
+		return failedSyncs{}, err
 	}
-	defer func() { _ = rows.Close() }()
 	syncs := failedSyncs{readings: map[string]*SyncReading{}}
 	byStart := map[int64][]SyncReading{}
+	firstReports := r.FirstReports(ctx)
+	for _, failure := range failures {
+		result := syncreading.Read(failure.Failure, starts, firstReports.At)
+		if result.Reading == syncreading.NoReading {
+			continue
+		}
+		reading := SyncReading{ReportID: failure.id, Reading: result.Reading, Evidence: result.Evidence}
+		syncs.readings[formatID(failure.id)] = &reading
+		if result.Reading == syncreading.BridgeOff {
+			startMS := *result.Evidence.NextStartMS
+			byStart[startMS] = append(byStart[startMS], reading)
+		}
+	}
+	if firstReports.Err != nil {
+		return failedSyncs{}, firstReports.Err
+	}
+	for startMS, reports := range byStart {
+		syncs.groups = append(syncs.groups, BridgeOffGroup{BridgeStartMS: startMS, Reports: reports})
+	}
+	return syncs, nil
+}
+
+// storedFailure is one failed sync report and the row that stores it.
+type storedFailure struct {
+	syncreading.Failure
+	id int64
+}
+
+// queryFailedSyncs reads the failed sync reports received from fromMS on,
+// newest first. It returns before any reading starts: the database holds one
+// connection, so a first-report lookup cannot run while these rows are open.
+func (r *Reader) queryFailedSyncs(ctx context.Context, fromMS int64) ([]storedFailure, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT rowid, device_id, observed_at_ms, reported_at_ms, kind, `+reportOutcomeSQL+`,
+		COALESCE(json_extract(payload_json, '$.phase'), '') FROM device_telemetry_events
+		WHERE kind = ? AND reported_at_ms >= ? AND `+feedFailedReportSQL+`
+		ORDER BY reported_at_ms DESC, rowid DESC LIMIT ?`, telemetry.KindEpisodeAction, fromMS, syncReportLimit)
+	if err != nil {
+		return nil, fmt.Errorf("activityread: failed syncs: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var failures []storedFailure
 	for rows.Next() {
-		var id int64
+		var failure storedFailure
 		var kind, outcome, phase string
 		var observed sql.NullInt64
-		var failure syncreading.Failure
-		if err := rows.Scan(&id, &failure.DeviceID, &observed, &failure.ArrivedAtMS, &kind, &outcome, &phase); err != nil {
-			return failedSyncs{}, fmt.Errorf("activityread: scan failed sync: %w", err)
+		if err := rows.Scan(&failure.id, &failure.DeviceID, &observed, &failure.ArrivedAtMS, &kind, &outcome, &phase); err != nil {
+			return nil, fmt.Errorf("activityread: scan failed sync: %w", err)
 		}
 		if !observed.Valid || !syncreading.Applies(kind, outcome, phase) {
 			continue
 		}
 		failure.FailedAtMS = observed.Int64
-		result := syncreading.Read(failure, starts)
-		if result.Reading == syncreading.NoReading {
-			continue
-		}
-		reading := SyncReading{ReportID: id, Reading: result.Reading, Evidence: result.Evidence}
-		syncs.readings[formatID(id)] = &reading
-		if result.Reading == syncreading.BridgeOff {
-			startMS := *result.Evidence.ArrivalStartMS
-			byStart[startMS] = append(byStart[startMS], reading)
-		}
+		failures = append(failures, failure)
 	}
-	for startMS, reports := range byStart {
-		syncs.groups = append(syncs.groups, BridgeOffGroup{BridgeStartMS: startMS, Reports: reports})
-	}
-	return syncs, rows.Err()
+	return failures, rows.Err()
 }
 
 // failedReportSQL is the predicate of the failed reports that stay lines of

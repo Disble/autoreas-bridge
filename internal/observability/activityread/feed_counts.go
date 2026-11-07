@@ -37,7 +37,7 @@ func (r *Reader) countFeed(ctx context.Context, plan feedPlan, buckets []bucket)
 	var syncs failedSyncs
 	if plan.reads(FeedTraffic) {
 		var err error
-		if syncs, err = r.readFailedSyncs(ctx, buckets[0].loMS, buckets[len(buckets)-1].hiMS); err != nil {
+		if syncs, err = r.readFailedSyncs(ctx, buckets[0].loMS); err != nil {
 			return nil, err
 		}
 	}

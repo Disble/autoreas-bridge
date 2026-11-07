@@ -14,10 +14,12 @@ import (
 )
 
 const (
-	// ArrivalWindow is how long after the start that received it a report may
-	// arrive and still count as waiting for Bridge. Approved by the owner on
-	// 2026-11-06.
-	ArrivalWindow = 30 * time.Minute
+	// RetryWindow is how long after a start the device may take to report
+	// anything and still count as having waited for Bridge. It is mobile's
+	// longest normal retry: its WorkManager floor of 15 minutes, measured at
+	// up to 20m11s on the device. Past it, something kept the tablet away.
+	// Set by the owner on 2026-11-07.
+	RetryWindow = 20 * time.Minute
 
 	// LastContactsKey is the api.listening metadata key holding each active
 	// device's last contact at that start.
@@ -62,15 +64,20 @@ type Failure struct {
 
 // Evidence is what a reading rests on. NextStartMS is the first start after
 // the failure, LastContactMS the device's last contact recorded by that start,
-// and ArrivalStartMS the latest start at or before the arrival. A nil field
-// means that fact does not exist.
+// and FirstReportMS the device's first report received at or after that start.
+// A nil field means that fact does not exist or did not decide the reading.
 type Evidence struct {
-	FailedAtMS     int64
-	ArrivedAtMS    int64
-	LastContactMS  *int64
-	NextStartMS    *int64
-	ArrivalStartMS *int64
+	FailedAtMS    int64
+	ArrivedAtMS   int64
+	LastContactMS *int64
+	NextStartMS   *int64
+	FirstReportMS *int64
 }
+
+// FirstReport answers when a device's first report of any kind was received
+// at or after fromMS. ok is false when none is known. Read asks it once per
+// failure, and only when the answer decides the reading.
+type FirstReport func(deviceID string, fromMS int64) (atMS int64, ok bool)
 
 // Result is one reading and its evidence.
 type Result struct {
@@ -86,45 +93,46 @@ func Applies(kind, outcome, phase string) bool {
 
 // Read applies the approved rule. starts is every retained start, oldest
 // first; a failure older than all of them has no reading, because the start
-// that would decide it is gone.
-func Read(failure Failure, starts []Start) Result {
+// that would decide it is gone. firstReport finds the device's first report
+// after the next start N. The failure's own report is one, received at R, so
+// the first report F is never later than R, whatever the lookup answers.
+// Measuring F and not R keeps a backlog together: mobile sends 3 reports per
+// cycle, so the later reports of a healthy tablet arrive later.
+func Read(failure Failure, starts []Start, firstReport FirstReport) Result {
 	result := Result{Evidence: Evidence{FailedAtMS: failure.FailedAtMS, ArrivedAtMS: failure.ArrivedAtMS}}
 	if len(starts) == 0 || failure.FailedAtMS < starts[0].AtMS {
 		return result
 	}
+	result.Reading = RealFailure
 	evidence := &result.Evidence
-	var next *Start
-	for i := range starts {
-		start := &starts[i]
-		if next == nil && start.AtMS > failure.FailedAtMS {
-			next = start
-		}
-		if start.AtMS <= failure.ArrivedAtMS {
-			evidence.ArrivalStartMS = &start.AtMS
+	// The oldest start is at or before the failure, so N is a later one.
+	later := starts[1:]
+	i := slices.IndexFunc(later, func(s Start) bool { return s.AtMS > failure.FailedAtMS })
+	if i < 0 {
+		return result
+	}
+	next := &later[i]
+	evidence.NextStartMS = &next.AtMS
+	if contact, ok := next.LastContacts[failure.DeviceID]; ok {
+		evidence.LastContactMS = &contact
+		if contact >= failure.FailedAtMS {
+			return result
 		}
 	}
-	if next != nil {
-		evidence.NextStartMS = &next.AtMS
-		if contact, ok := next.LastContacts[failure.DeviceID]; ok {
-			evidence.LastContactMS = &contact
-		}
+	if next.AtMS > failure.ArrivedAtMS {
+		return result
 	}
-	result.Reading = decide(failure, evidence)
+	first := failure.ArrivedAtMS
+	if atMS, ok := firstReport(failure.DeviceID, next.AtMS); ok {
+		first = min(first, atMS)
+	}
+	evidence.FirstReportMS = &first
+	if first-next.AtMS <= RetryWindow.Milliseconds() {
+		result.Reading = BridgeOff
+	} else {
+		result.Reading = TabletLate
+	}
 	return result
-}
-
-// decide names the reading of a failure that has a start at or before it.
-func decide(failure Failure, evidence *Evidence) Reading {
-	if evidence.NextStartMS == nil || *evidence.NextStartMS > failure.ArrivedAtMS {
-		return RealFailure
-	}
-	if evidence.LastContactMS != nil && *evidence.LastContactMS >= failure.FailedAtMS {
-		return RealFailure
-	}
-	if failure.ArrivedAtMS-*evidence.ArrivalStartMS <= ArrivalWindow.Milliseconds() {
-		return BridgeOff
-	}
-	return TabletLate
 }
 
 // WithCurrentStart adds the running process to the stored starts while its own

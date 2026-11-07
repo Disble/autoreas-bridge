@@ -311,8 +311,14 @@ describe('toDrawerHeader edge cases', () => {
 });
 
 describe('a failed sync with a reading', () => {
-  /** Every evidence time known: four hours, three, two and one before noon. */
-  const EVIDENCE = { lastContactMs: AT - 4 * 3_600_000, failedAtMs: AT - 3 * 3_600_000, arrivalStartMs: AT - 2 * 3_600_000, arrivedAtMs: AT - 3_600_000 };
+  /** Every evidence time known: four hours, three, two, one and a half, and one before noon. */
+  const EVIDENCE = {
+    lastContactMs: AT - 4 * 3_600_000,
+    failedAtMs: AT - 3 * 3_600_000,
+    nextStartMs: AT - 2 * 3_600_000,
+    firstReportMs: AT - 5_400_000,
+    arrivedAtMs: AT - 3_600_000,
+  };
 
   it.each([
     ['tablet_late', 'Tablet came back late'],
@@ -328,7 +334,8 @@ describe('a failed sync with a reading', () => {
     expect(sectionOf(sections, 'facts').rows.map((row) => [row.label, row.value])).toEqual([
       ['Failed at', formatDrawerWhen(EVIDENCE.failedAtMs)],
       ['Last contact', formatDrawerWhen(EVIDENCE.lastContactMs)],
-      ['Bridge started', formatDrawerWhen(EVIDENCE.arrivalStartMs)],
+      ['Bridge started', formatDrawerWhen(EVIDENCE.nextStartMs)],
+      ['First report', formatDrawerWhen(EVIDENCE.firstReportMs)],
       ['Arrived', formatDrawerWhen(EVIDENCE.arrivedAtMs)],
     ]);
     expect(gaps).toEqual([]);
@@ -337,7 +344,7 @@ describe('a failed sync with a reading', () => {
   it('reads a time that does not exist as not recorded', () => {
     const { sections } = toDrawerSummary(input({ line: readingLine(syncReading()) }));
 
-    expect(sectionOf(sections, 'facts').rows.filter((row) => row.value === 'Not recorded').map((row) => row.label)).toEqual(['Last contact', 'Bridge started']);
+    expect(sectionOf(sections, 'facts').rows.filter((row) => row.value === 'Not recorded').map((row) => row.label)).toEqual(['Last contact', 'Bridge started', 'First report']);
   });
 
   it('keeps the failure its incident recorded, after the evidence', () => {
@@ -353,8 +360,8 @@ describe('a Bridge off group', () => {
 
   /** Two reports that waited for it, newest arrival first. */
   const REPORTS = [
-    syncReading({ reportId: 9, reading: 'bridge_off' }, { failedAtMs: AT - 3_600_000, arrivedAtMs: AT - 60_000, arrivalStartMs: START }),
-    syncReading({ reportId: 8, reading: 'bridge_off' }, { failedAtMs: AT - 7_200_000, arrivedAtMs: AT - 120_000, arrivalStartMs: START, lastContactMs: AT - 8_000_000 }),
+    syncReading({ reportId: 9, reading: 'bridge_off' }, { failedAtMs: AT - 3_600_000, arrivedAtMs: AT - 60_000, nextStartMs: START, firstReportMs: AT - 180_000 }),
+    syncReading({ reportId: 8, reading: 'bridge_off' }, { failedAtMs: AT - 7_200_000, arrivedAtMs: AT - 120_000, nextStartMs: START, lastContactMs: AT - 8_000_000 }),
   ];
 
   it.each([
@@ -371,8 +378,8 @@ describe('a Bridge off group', () => {
     expect(sectionOf(sections, 'text').text).toBe(DRAWER_BRIDGE_OFF_MEANING_MANY);
     expect(sectionOf(sections, 'facts').rows.map((row) => [row.label, row.value])).toEqual([['Bridge started', formatDrawerWhen(START)]]);
     expect(sectionOf(sections, 'reports').reports.map((report) => [report.key, report.rows.map((row) => [row.label, row.value])])).toEqual([
-      ['9', [['Failed at', formatDrawerWhen(AT - 3_600_000)], ['Last contact', 'Not recorded'], ['Arrived', formatDrawerWhen(AT - 60_000)]]],
-      ['8', [['Failed at', formatDrawerWhen(AT - 7_200_000)], ['Last contact', formatDrawerWhen(AT - 8_000_000)], ['Arrived', formatDrawerWhen(AT - 120_000)]]],
+      ['9', [['Failed at', formatDrawerWhen(AT - 3_600_000)], ['Last contact', 'Not recorded'], ['First report', formatDrawerWhen(AT - 180_000)], ['Arrived', formatDrawerWhen(AT - 60_000)]]],
+      ['8', [['Failed at', formatDrawerWhen(AT - 7_200_000)], ['Last contact', formatDrawerWhen(AT - 8_000_000)], ['First report', 'Not recorded'], ['Arrived', formatDrawerWhen(AT - 120_000)]]],
     ]);
     expect(gaps).toEqual([]);
   });

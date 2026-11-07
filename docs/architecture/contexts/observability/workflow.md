@@ -33,9 +33,9 @@ flowchart TD
     subgraph gate [Incident gate, on the POST path]
         ev --> applies{Failed episode_action at phase sync?}
         applies -- yes --> starts{Starts read within 250 ms?}
-        starts -- yes --> gaterule{syncreading.Read: Bridge was off?}
+        starts -- yes --> gaterule{syncreading.Read: Bridge was off, first report read?}
         starts -- "no: warn incident.sync_reading_failed" --> classify
-        gaterule -- no --> classify
+        gaterule -- "no, or the first report unread: warn incident.sync_reading_failed" --> classify
         applies -- no --> classify{ClassifyMobileReport triggers?}
         classify -- yes --> record{incident.Store.Record succeeds?}
     end
@@ -59,9 +59,9 @@ flowchart TD
     subgraph rule [Reading rule, on every read]
         traffic -- yes --> eligible{Episode action at phase sync, inside the read caps?}
         eligible -- yes --> older{T older than the oldest retained start?}
-        older -- no --> next{A start after T at or before R?}
-        next -- yes --> heard{That start recorded a contact from D at or after T?}
-        heard -- no --> within{R within 30 min of the latest start at or before R?}
+        older -- no --> next{N, the first start after T, at or before R?}
+        next -- yes --> heard{N recorded a contact from D at or after T?}
+        heard -- no --> within{F, D's first report at or after N, within 20 min of N?}
     end
 
     eligible -- no --> plain[Plain failed line, linked to its incident]
@@ -71,7 +71,7 @@ flowchart TD
     within -- no --> late[Failed line: Tablet came back late]
     within -- yes --> switch{Failure switch on?}
     switch -- yes --> skipped([No line, a neutral line is not a failure])
-    switch -- no --> range{Its Bridge start in the range?}
+    switch -- no --> range{Its start N in the range?}
     range -- no --> outside([No line in this range])
     range -- yes --> group[Neutral line: N changes waited for Bridge]
 
@@ -108,42 +108,50 @@ incident (`recordRequestIncident`).
 1. `telemetry.ReadReportFacts` reads outcome, phase, cause and stall duration from the stored payload.
 2. `waitedForBridge` applies only when `syncreading.Applies` holds: `episode_action`, outcome `failed`, phase
    `sync`. It reads the starts under the 250 ms incident budget and adds the running process with
-   `WithCurrentStart`, because that process's own `api.listening` row may not be flushed yet.
+   `WithCurrentStart`, because that process's own `api.listening` row may not be flushed yet. When the rule
+   needs F, `Reader.FirstReports` makes one indexed seek on `(device_id, reported_at_ms)` under the same
+   budget. The report being ingested is one of D's reports, so it counts as F even before its row is visible.
 3. Bridge was off ends here: no incident, no pinned window. The report row and its capture stay.
-4. Every other case reaches `ClassifyMobileReport`, which is unchanged. A failed read answers "not Bridge off"
-   and logs `incident.sync_reading_failed`.
+4. Every other case reaches `ClassifyMobileReport`, which is unchanged. A failed read of the starts or of F
+   answers "not Bridge off" and logs `incident.sync_reading_failed`.
 5. `recordIncident` stores the occurrence, and retention pins the window from 2 minutes before to 30 seconds
    after. A failed write logs `incident.record_failed` and never reaches the report's answer.
 
 ## 4. Reading rule — `syncreading.Read` (`internal/observability/syncreading/reading.go`)
 
-`Read` takes the failure and every retained start, oldest first, and fills `Evidence` as it goes.
+`Read` takes the failure, every retained start, oldest first, and a `FirstReport` lookup, and fills `Evidence`
+as it goes. It asks the lookup once, and only when the last row of the table below decides.
 
 | Evidence | Meaning |
 |---|---|
-| `NextStartMS` | The first start after T, the one that decides whether Bridge came up before the report |
-| `LastContactMS` | D's last contact in that start's record, when it holds one |
-| `ArrivalStartMS` | The latest start at or before R, the one the 30 minutes are measured from |
+| `NextStartMS` | N, the first start after T, the one that decides whether Bridge came up before the report |
+| `LastContactMS` | D's last contact in N's record, when it holds one |
+| `FirstReportMS` | F, D's first report of any kind received at or after N, never later than R; nil when it did not decide |
 
 | Test, in order | Reading |
 |---|---|
 | No starts, or T older than the oldest | `NoReading` |
-| No next start, or it came after R | `RealFailure` |
+| No next start | `RealFailure` |
 | `LastContactMS` at or after T | `RealFailure` |
-| R minus `ArrivalStartMS` at most `ArrivalWindow` (30 minutes) | `BridgeOff` |
+| N came after R | `RealFailure` |
+| F minus N at most `RetryWindow` (20 minutes, mobile's longest normal retry) | `BridgeOff` |
 | Otherwise | `TabletLate` |
 
-A reading is computed again on each read, so the same rule serves the gate and the feed. The gate's list of
-starts also holds the running process; the feed reads the stored row instead.
+F and not R decides, because mobile sends 3 reports per cycle: the later reports of a backlog arrive later on a
+healthy tablet. A reading is computed again on each read, so the same rule serves the gate and the feed. The
+gate's list of starts also holds the running process; the feed reads the stored row instead. Both answer F
+with `Reader.FirstReports`, which keeps each device and start's answer for one read.
 
 ## 5. Feed line — `Reader.feedPhoneReportLines` (`internal/observability/activityread/feed_sources.go`)
 
 `readFailedSyncs` (`sync_readings.go`) is the one read behind lines and counts. It reads the starts, then the
-failed episode actions of the span, newest first, up to 5,000, and reads each one.
+failed episode actions from the range start on, newest first, up to 5,000, closes those rows, and only then reads
+each one: the database holds one connection, so the F lookups cannot run while the rows are open.
 
-- It reads one `ArrivalWindow` past the end of the range, so a group is whole whatever the range.
+- It reads to the newest report, past the end of the range, because a group's reports arrive after its start N
+  with no fixed bound. A group is whole whatever the range.
 - `failedReportSQL` removes every report that reads Bridge was off from the plain failed lines.
-- `groupLines` adds one line of kind `LineBridgeOff` per start in range. It sits at the start and is keyed by it,
+- `groupLines` adds one line of kind `LineBridgeOff` per start N in range. It sits at N and is keyed by it,
   so neither its position nor its id moves as more reports arrive.
 - `countGroups` counts each group as one Traffic line with no failure, in the bucket of its start.
 - With the failure switch on, `feedPhoneReportLines` returns before adding groups.

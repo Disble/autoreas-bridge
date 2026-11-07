@@ -58,18 +58,20 @@ func trafficLines(t *testing.T, r *Reader, in FeedInput) []FeedLine {
 	return feedLines(feedOf(t, r, in))
 }
 
-// seedReadings stores three starts and one report of each reading. Newest
+// seedReadings stores four starts and one report of each reading. Newest
 // first its lines are: a contact after the failure (real), a late tablet, a
-// failure with Bridge on (real), the group of two at the middle start, and a
-// failure older than the oldest start.
+// failure with Bridge on (real), the group of two at the start at 300, and a
+// failure older than the oldest start. The tablet's first report after the
+// start at 230 is the late report itself, 30 minutes on.
 func seedReadings(t *testing.T, db *sql.DB) {
 	t.Helper()
 	insertStart(t, db, 600, "")
 	insertStart(t, db, 300, `{"addr":"[::]:9876"}`)
+	insertStart(t, db, 230, "")
 	insertStart(t, db, 100, contactRecord(150))
 	insertFailedSync(t, db, "off-1", 400, 290)
 	insertFailedSync(t, db, "off-2", 350, 280)
-	insertFailedSync(t, db, "late", 350, 200)
+	insertFailedSync(t, db, "late", 240, 200)
 	insertFailedSync(t, db, "on", 250, 245)
 	insertFailedSync(t, db, "heard", 160, 90)
 	insertFailedSync(t, db, "old", 700, 650)
@@ -92,9 +94,13 @@ func TestFeedShowsEachFailedSyncAsItsReading(t *testing.T) {
 
 	heard := lines[0].SyncReading
 	wantEvidence := syncreading.Evidence{FailedAtMS: minutesAgo(160), ArrivedAtMS: minutesAgo(90),
-		LastContactMS: ptr(minutesAgo(150)), NextStartMS: ptr(minutesAgo(100)), ArrivalStartMS: ptr(minutesAgo(100))}
+		LastContactMS: ptr(minutesAgo(150)), NextStartMS: ptr(minutesAgo(100))}
 	if !reflect.DeepEqual(heard.Evidence, wantEvidence) || strconv.FormatInt(heard.ReportID, 10) != lines[0].Line.ID {
 		t.Errorf("reading = %+v, want evidence %+v on report %s", heard, wantEvidence, lines[0].Line.ID)
+	}
+	late := lines[1].SyncReading.Evidence
+	if !reflect.DeepEqual(late.NextStartMS, ptr(minutesAgo(230))) || !reflect.DeepEqual(late.FirstReportMS, ptr(minutesAgo(200))) {
+		t.Errorf("late evidence = %+v, want the start at 230 and its own arrival as the first report", late)
 	}
 
 	group := lines[3]
@@ -106,26 +112,62 @@ func TestFeedShowsEachFailedSyncAsItsReading(t *testing.T) {
 	}
 	for i, arrivedAt := range []int{280, 290} {
 		report := group.BridgeOff.Reports[i]
-		if report.Reading != syncreading.BridgeOff || report.Evidence.ArrivedAtMS != minutesAgo(arrivedAt) || report.ReportID == 0 {
-			t.Errorf("group report %d = %+v, want the report that arrived %d minutes ago", i, report, arrivedAt)
+		if report.Reading != syncreading.BridgeOff || report.Evidence.ArrivedAtMS != minutesAgo(arrivedAt) || report.ReportID == 0 ||
+			!reflect.DeepEqual(report.Evidence.FirstReportMS, ptr(minutesAgo(290))) {
+			t.Errorf("group report %d = %+v, want the report that arrived %d minutes ago, first report at 290", i, report, arrivedAt)
 		}
 	}
 }
 
-func TestFeedGroupsBridgeOffByTheStartThatReceivedIt(t *testing.T) {
-	db, r := openTestReader(t)
-	insertStart(t, db, 600, "")
-	insertStart(t, db, 300, "")
-	insertStart(t, db, 200, "")
-	insertFailedSync(t, db, "waited-two-starts", 400, 190)
-	insertFailedSync(t, db, "first-start", 400, 280)
-
-	lines := trafficLines(t, r, FeedInput{})
-	if len(lines) != 2 || lines[0].Line.AtMS != minutesAgo(200) || lines[1].Line.AtMS != minutesAgo(300) {
-		t.Fatalf("lines = %+v, want one group per receiving start", lines)
+// TestFeedMeasuresTheFirstReportAfterTheNextStart walks S1's first report F
+// through the feed: any kind of the failing device counts, from the first
+// start after the failure, and a group sits on that start.
+func TestFeedMeasuresTheFirstReportAfterTheNextStart(t *testing.T) {
+	const okCycle = `{"previous_cycle":{"outcome":"completed"}}`
+	tests := []struct {
+		name   string
+		starts []int
+		seed   func(t *testing.T, db *sql.DB)
+		want   []string
+		atMS   int64
+	}{
+		{"backlog: first report at 2 minutes, the last one after another start", []int{600, 300, 280},
+			func(t *testing.T, db *sql.DB) {
+				insertFailedSync(t, db, "first", 400, 298)
+				insertFailedSync(t, db, "fifteenth", 400, 269)
+			}, []string{"group of 2"}, minutesAgo(300)},
+		{"silent after the next start, back one minute after the second", []int{600, 300, 200},
+			func(t *testing.T, db *sql.DB) { insertFailedSync(t, db, "back", 400, 199) },
+			[]string{"tablet_late"}, minutesAgo(199)},
+		{"a first report of another kind", []int{600, 300},
+			func(t *testing.T, db *sql.DB) {
+				insertTelemetryOfKind(t, db, "cycle_report", "cycle", minutesAgo(295), minutesAgo(295), okCycle)
+				insertFailedSync(t, db, "change", 400, 250)
+			}, []string{"group of 1"}, minutesAgo(300)},
+		{"another device's report is ignored", []int{600, 300},
+			func(t *testing.T, db *sql.DB) {
+				insertDeviceReport(t, db, "device-2", "cycle_report", "cycle", minutesAgo(295), minutesAgo(295), okCycle)
+				insertFailedSync(t, db, "change", 400, 250)
+			}, []string{"tablet_late"}, minutesAgo(250)},
+		{"a report before the next start is ignored", []int{600, 300},
+			func(t *testing.T, db *sql.DB) {
+				insertTelemetryOfKind(t, db, "cycle_report", "cycle", minutesAgo(310), minutesAgo(310), okCycle)
+				insertFailedSync(t, db, "change", 400, 250)
+			}, []string{"tablet_late"}, minutesAgo(250)},
 	}
-	if got := len(lines[0].BridgeOff.Reports); got != 1 {
-		t.Fatalf("newest group = %d reports, want the one that waited through two starts", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, r := openTestReader(t)
+			for _, minutes := range tt.starts {
+				insertStart(t, db, minutes, "")
+			}
+			tt.seed(t, db)
+
+			lines := trafficLines(t, r, FeedInput{})
+			if got := readingsOf(lines); !slices.Equal(got, tt.want) || lines[0].Line.AtMS != tt.atMS {
+				t.Fatalf("lines = %v at %d, want %v at %d", got, lines[0].Line.AtMS, tt.want, tt.atMS)
+			}
+		})
 	}
 }
 
@@ -277,7 +319,7 @@ func TestFeedLimitsGroupsToThePageItFetches(t *testing.T) {
 	insertStart(t, db, 900, "")
 	for i, minutes := range []int{300, 200, 100} {
 		insertStart(t, db, minutes, "")
-		insertFailedSync(t, db, fmt.Sprintf("off-%d", i), 800, minutes-1)
+		insertFailedSync(t, db, fmt.Sprintf("off-%d", i), minutes+1, minutes-1)
 	}
 
 	first := feedOf(t, r, FeedInput{Types: []FeedType{FeedTraffic}, Limit: 1})
@@ -326,7 +368,7 @@ func TestFailedSyncsReadsAreBounded(t *testing.T) {
 		insertTelemetry(t, db, fmt.Sprintf("off-%d", i), minutesAgo(290)+int64(i), minutesAgo(400), failedSyncPayload)
 	}
 
-	reads, err := r.readFailedSyncs(context.Background(), minutesAgo(900), testNow.UnixMilli())
+	reads, err := r.readFailedSyncs(context.Background(), minutesAgo(900))
 	if err != nil {
 		t.Fatalf("read failed syncs: %v", err)
 	}

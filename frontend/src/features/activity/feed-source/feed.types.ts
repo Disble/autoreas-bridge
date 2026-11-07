@@ -82,8 +82,8 @@ export interface ActivitySyncEvidence {
   readonly lastContactMs: number | undefined;
   /** The first Bridge start after the failure, epoch milliseconds. */
   readonly nextStartMs: number | undefined;
-  /** The latest Bridge start at or before the arrival, epoch milliseconds. */
-  readonly arrivalStartMs: number | undefined;
+  /** The device's first report of any kind received at or after the next start, epoch milliseconds. */
+  readonly firstReportMs: number | undefined;
 }
 
 /** Bridge's reading of one failed sync report. It is computed, never stored in the report. */

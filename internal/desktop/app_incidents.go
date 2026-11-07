@@ -102,9 +102,11 @@ func (a *App) recordMobileIncident(event telemetry.Event) {
 }
 
 // waitedForBridge reports whether a stored report reads as Bridge was off, which
-// opens no incident. It runs on the report's POST path, so it reads the starts
-// once under the incident budget. A read that fails answers no: losing an
-// incident is the worse error.
+// opens no incident. It runs on the report's POST path, so under the incident
+// budget it reads the starts once and, only when the reading needs it, one
+// indexed first-report seek. The report itself is a report of its device, so it
+// can be the first one after the start whether or not its row is visible yet.
+// A read that fails answers no: losing an incident is the worse error.
 func (a *App) waitedForBridge(event telemetry.Event, facts telemetry.ReportFacts) bool {
 	observedAtMS := event.Validated.ObservedAtMS
 	if a.bridgeDB == nil || observedAtMS == nil || !syncreading.Applies(event.Kind, facts.Outcome, facts.Phase) {
@@ -112,14 +114,21 @@ func (a *App) waitedForBridge(event telemetry.Event, facts telemetry.ReportFacts
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), incidentRecordBudget)
 	defer cancel()
-	starts, err := activityread.New(a.bridgeDB).SyncStarts(ctx)
+	reader := activityread.New(a.bridgeDB)
+	starts, err := reader.SyncStarts(ctx)
 	if err != nil {
 		a.logSyncReadingFailure(err)
 		return false
 	}
 	current := syncreading.Start{AtMS: a.processStartedAt.UnixMilli(), LastContacts: a.startLastContacts}
 	failure := syncreading.Failure{DeviceID: event.DeviceID, FailedAtMS: *observedAtMS, ArrivedAtMS: event.ReportedAtMS}
-	return syncreading.Read(failure, syncreading.WithCurrentStart(starts, current)).Reading == syncreading.BridgeOff
+	firstReports := reader.FirstReports(ctx)
+	reading := syncreading.Read(failure, syncreading.WithCurrentStart(starts, current), firstReports.At).Reading
+	if firstReports.Err != nil {
+		a.logSyncReadingFailure(firstReports.Err)
+		return false
+	}
+	return reading == syncreading.BridgeOff
 }
 
 // logSyncReadingFailure records why a failed sync report went without a reading.

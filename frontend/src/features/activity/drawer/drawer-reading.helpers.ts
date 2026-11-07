@@ -14,16 +14,22 @@ function evidenceTime(ms: number | undefined): string {
   return ms === undefined ? DRAWER_EVIDENCE_NOT_RECORDED : formatDrawerWhen(ms);
 }
 
-/** The Bridge started fact: the start the arrival is measured from, the one a group sits on. */
+/** The Bridge started fact: the first start after the failure, the one the first report is measured from and a group sits on. */
 function startFact(ms: number | undefined): DrawerFact {
   return drawerFact('start', DRAWER_EVIDENCE_LABELS.start, evidenceTime(ms));
 }
 
 /** The times of one report that differ from report to report. */
-function reportFacts(evidence: ActivitySyncEvidence): { readonly failed: DrawerFact; readonly contact: DrawerFact; readonly arrived: DrawerFact } {
+function reportFacts(evidence: ActivitySyncEvidence): {
+  readonly failed: DrawerFact;
+  readonly contact: DrawerFact;
+  readonly firstReport: DrawerFact;
+  readonly arrived: DrawerFact;
+} {
   return {
     failed: drawerFact('failed', DRAWER_EVIDENCE_LABELS.failed, evidenceTime(evidence.failedAtMs)),
     contact: drawerFact('contact', DRAWER_EVIDENCE_LABELS.contact, evidenceTime(evidence.lastContactMs)),
+    firstReport: drawerFact('firstReport', DRAWER_EVIDENCE_LABELS.firstReport, evidenceTime(evidence.firstReportMs)),
     arrived: drawerFact('arrived', DRAWER_EVIDENCE_LABELS.arrived, evidenceTime(evidence.arrivedAtMs)),
   };
 }
@@ -53,10 +59,10 @@ export function readingSections(input: DrawerSummaryInput): readonly DrawerSecti
   if (reading === undefined) {
     return undefined;
   }
-  const { failed, contact, arrived } = reportFacts(reading.evidence);
+  const { failed, contact, firstReport, arrived } = reportFacts(reading.evidence);
   return [
     { kind: 'text', key: 'meaning', text: DRAWER_READING_MEANINGS[reading.reading] },
-    { kind: 'facts', key: 'evidence', title: '', rows: [failed, contact, startFact(reading.evidence.arrivalStartMs), arrived] },
+    { kind: 'facts', key: 'evidence', title: '', rows: [failed, contact, startFact(reading.evidence.nextStartMs), firstReport, arrived] },
     ...failureSections(input),
   ];
 }
@@ -74,8 +80,8 @@ export function bridgeOffSections(input: DrawerSummaryInput): readonly DrawerSec
     return [];
   }
   const reports = group.reports.map((report) => {
-    const { failed, contact, arrived } = reportFacts(report.evidence);
-    return { kind: 'facts' as const, key: String(report.reportId), title: '', rows: [failed, contact, arrived] };
+    const { failed, contact, firstReport, arrived } = reportFacts(report.evidence);
+    return { kind: 'facts' as const, key: String(report.reportId), title: '', rows: [failed, contact, firstReport, arrived] };
   });
   return [
     { kind: 'text', key: 'meaning', text: reports.length === 1 ? DRAWER_READING_MEANINGS.bridge_off : DRAWER_BRIDGE_OFF_MEANING_MANY },

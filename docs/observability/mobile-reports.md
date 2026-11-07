@@ -43,7 +43,7 @@ recorder. Incidents already stored do not change: older ones on those reports st
 | Surface | Shows |
 |---|---|
 | Activity feed | Failed reports only, under Traffic, which is off by default. A row shows the reading only: "Sync failed", "Tablet came back late", or one neutral line per start ("3 changes waited for Bridge"). The first two, and a failure with no reading, are failed lines linked to their incident and count as failed in the buckets. The neutral line is not a failure and has no incident link |
-| Detail drawer | The reading and its evidence: failure time, last contact, Bridge start, arrival time |
+| Detail drawer | The reading and its evidence: failure time, last contact, Bridge start, first report, arrival time |
 | Technical view | The stored report, read with `GetActivityPhoneReport` |
 | Incident detail | Every report received inside the window, and the cause of the report that opened it |
 | MCP `search_history` | Every stored report, raw: its outcome and the "arrived late" mark, no reading |
@@ -140,7 +140,8 @@ The design documents define storage, validation and failure-to-incident only.
 
 ## Reading a failed sync
 
-Approved by the owner on 2026-11-06 and built in `internal/observability/syncreading`.
+Approved by the owner on 2026-11-06 and built in `internal/observability/syncreading`. The window was set on
+2026-11-07 from mobile's retry interval, measured from the first start after the failure.
 
 A report is data: it records what mobile saw. Bridge's reading of it is an interpretation. The two stay
 separate: a reading is computed on each read, never stored, and never changes a stored report. Activity shows
@@ -149,7 +150,7 @@ the reading, and each level goes one step closer to the data.
 | Level | Shows |
 |---|---|
 | Feed row | The reading only |
-| Detail drawer | The reading and its evidence: failure time, last contact, Bridge start, arrival time. "Bridge started" is the latest start at or before the arrival. A "Bridge was off" group has no Requests tab |
+| Detail drawer | The reading and its evidence: failure time, last contact, Bridge start, first report, arrival time. "Bridge started" is N, the first start after the failure; "First report" is F, the device's first report after N. A time that does not exist reads "Not recorded". A "Bridge was off" group has no Requests tab |
 | Technical view | The stored report, including its `failed`. It is the validated record, re-serialized by Bridge, not mobile's raw bytes |
 
 ### The rule
@@ -160,10 +161,16 @@ device D, reported at R, the first row that matches decides:
 | Test | Reading |
 |---|---|
 | T is older than the oldest retained start | No reading: the report shows as a plain failure |
-| No Bridge start after T at or before R | Real failure |
-| That first start recorded D's last contact, and it is at or after T: Bridge heard D after the failure | Real failure |
-| R is at most 30 minutes after the latest start at or before R | Bridge was off |
+| N, the first Bridge start after T, is missing or later than R | Real failure |
+| N recorded D's last contact, and it is at or after T: Bridge heard D after the failure | Real failure |
+| F, D's first report of any kind received at or after N, is at most 20 minutes after N | Bridge was off |
 | Otherwise | Tablet came back late |
+
+20 minutes is mobile's longest normal retry: its WorkManager floor is 15 minutes, measured at up to 20m11s on
+the device. A tablet that waited for Bridge reports within one retry of N; past that, something else kept it
+away. The window runs to F, not R, because mobile sends 3 reports per cycle: on a healthy tablet the later
+reports of a backlog arrive later, and they still waited for the same start. The report itself is one of D's
+reports, so F is never later than R.
 
 A start is one `api.listening` row, or one older `http server listening on ...` info row in domain `api`,
 written before that line had an event type. When a report arrives, the running process counts as a start too,
@@ -173,15 +180,17 @@ because its own row may not be flushed yet.
 
 | Reading | Feed row | Failure? | Incident | Replay |
 |---|---|---|---|---|
-| Bridge was off | "3 changes waited for Bridge": one neutral line per start, under Traffic. The failure switch skips it | No | None | 78 reports in 34 lines |
-| Tablet came back late | "Tablet came back late" | Yes | Opens one | 3 |
+| Bridge was off | "3 changes waited for Bridge": one neutral line per start N, under Traffic. The failure switch skips it | No | None | 78 reports in 31 lines |
+| Tablet came back late | "Tablet came back late" | Yes | Opens one | 6, after 3 starts |
 | Real failure | "Sync failed" | Yes | Opens one | 1 |
 | No reading | The report as a plain failure | Yes | Opens one | 16 |
 
-The replay ran on a snapshot of the owner's database taken on 2026-11-06, over its 98 failed sync reports. The
-earlier backup `bridge-after-reconnect-2026-11-06.db` reads 1 late and 96 in total, because it was taken at 16:46,
-before two of the three late reports arrived (16:58 and 17:18). All three failed on the night of 2026-11-06 and
-arrived more than 7 hours after the 09:31 start.
+The replay ran on a snapshot of the owner's database taken on 2026-11-07, over its 101 failed sync reports. The
+late ones follow the starts of 2026-10-12 09:32 (reports 168 and 171), 2026-11-05 10:09 (report 483) and
+2026-11-06 09:31 (reports 486, 489 and 492): each time the tablet sent nothing for 5 to 10 hours after the
+start. In every Bridge was off line the first report came within 14 minutes of the start, and the longest
+backlog, 15 reports after the 2026-10-21 start, drained over 31 minutes. Report 434 is the real failure: no
+start between its failure and its arrival.
 
 ### Details and limits
 
@@ -190,15 +199,16 @@ arrived more than 7 hours after the 09:31 start.
   needs no background process and no new table. `last_seen_at_ms` is the last acknowledgement, pairing or
   revoke, not every contact: telemetry ingest does not write it.
 - **Older reports:** a start without `lastContacts` is still a start, so older failures read by start times
-  alone. So do long-silent devices, which are not active and so are not in the record.
+  and the first report alone. So do long-silent devices, which are not active and so are not in the record.
 - **Idle Bridge:** a Bridge that was on and idle looks the same as a Bridge that was off.
 - **Clocks:** T comes from the tablet's clock, R and the starts from Bridge's.
 - **Caps:** one start records at most 32 devices. A read covers the newest 2,000 starts and 5,000 failed
-  actions; a report past the cap has no reading.
-- **Feed range:** a neutral line sits at its start, shows only when that start is in the range, and always
-  lists all its reports.
-- **Failed reads:** if the starts cannot be read at ingest, the report opens its incident, because losing an
-  incident is the worse error. The warning is `incident.sync_reading_failed`. If the last contacts cannot be
+  actions; a report past the cap has no reading. F costs one indexed seek on `(device_id, reported_at_ms)`,
+  asked only when N and the last contact leave the reading open, once per device and start in a read.
+- **Feed range:** a neutral line sits at its start N, shows only when N is in the range, and always lists all
+  its reports: the read runs from the range start to the newest report, because a backlog has no fixed end.
+- **Failed reads:** if the starts or the device's reports cannot be read at ingest, the report opens its
+  incident, because losing an incident is the worse error. The warning is `incident.sync_reading_failed`. If the last contacts cannot be
   read at start, the warning is `api.last_contacts_unread` and readings go by start times alone.
 - **Scope:** `episode_action` only. A `cycle_report` carries no observed time, so it needs a decision first.
   MCP `search_history` stays raw.
@@ -208,15 +218,7 @@ arrived more than 7 hours after the 09:31 start.
 | Item | State |
 |---|---|
 | Keep the capture of a delivered report for 2 h instead of 90 days | Not adopted. See the battery result below |
-| Measuring the 30 minutes from the latest start or from the first start after the failure | Open. See below |
 | Actions at 2026-09-26 00:42, 2026-09-26 01:48 and 2026-10-09 01:02 | Committed on the phone with no matching applied change. Unresolved |
-
-### Which start the 30 minutes run from
-
-The code measures from the latest start at or before the arrival. The table the owner approved read "within 30
-minutes of that start", the first start after the failure. They differ only when Bridge started twice before the
-report arrived: 4 of the 78 Bridge was off reports would read late if measured from the first start, including
-the 2026-11-05 failure, which arrived 575 minutes after that start and 1.3 minutes after the next one.
 
 ### Battery result for the capture change
 
