@@ -127,12 +127,34 @@ The design documents define storage, validation and failure-to-incident only.
 `cycle_report` stopped on 2026-09-21 and nothing alarmed. Mobile later removed the JS cycle post-mortem
 (`docs/mobile-diagnostic-telemetry.md` in `autoreas-mobile`, "Removed in convergent-sync T18").
 
+## Reading a failed sync
+
+Approved by the owner on 2026-11-06. Not built yet.
+
+A report is data: it records what mobile saw. Bridge's reading of it is an interpretation. The two stay
+separate, so a reading never changes a stored report and mobile's `failed` stays visible next to it.
+
+| Reading | Condition | Measured |
+|---|---|---|
+| Bridge was off | The failure falls after the last contact and before the next start, and the report arrives within 30 minutes of that start | 78 |
+| The tablet came back late | Same, but the report arrives more than 30 minutes after that start | 3, all on 2026-11-06 |
+| Real failure | Bridge was on: no start in between, or a contact after the failure | 1, on 2026-10-30 |
+
+- **Last contact:** at start, Bridge copies each device's `last_seen_at_ms` into its startup record, before
+  the first new contact overwrites it. This covers a power cut and needs no background process.
+- **Measured figures:** they use start times only, because last contact is not recorded yet. They cover the
+  82 failures with start data. Of 55 failures with hourly traffic data, 11 fall in an hour with traffic and
+  cannot be decided.
+- **Limit:** a Bridge that was on and idle looks the same as a Bridge that was off, and last contact falls
+  short when the tablet had been silent for a while.
+- **Scope:** `episode_action` only. A `cycle_report` carries no observed time, so it needs a decision first.
+
 ## Open
 
 | Item | State |
 |---|---|
 | Keep the capture of a delivered report for 2 h instead of 90 days | Not adopted. See the battery result below |
-| Tell "no Bridge reachable" from a real failure | Not designed |
+| Whether the "Bridge was off" reading opens an incident | To decide when the reading is designed |
 | Actions at 2026-09-26 00:42, 2026-09-26 01:48 and 2026-10-09 01:02 | Committed on the phone with no matching applied change. Unresolved |
 
 ### Battery result for the capture change
