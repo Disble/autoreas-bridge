@@ -132,7 +132,16 @@ The design documents define storage, validation and failure-to-incident only.
 Approved by the owner on 2026-11-06. Not built yet.
 
 A report is data: it records what mobile saw. Bridge's reading of it is an interpretation. The two stay
-separate, so a reading never changes a stored report and mobile's `failed` stays visible next to it.
+separate: a reading never changes a stored report. Activity shows the reading, and each level goes one step
+closer to the data.
+
+| Level | Shows |
+|---|---|
+| Feed row | The reading only. "Bridge was off" is a neutral line per start ("3 changes waited for Bridge"), not a failure |
+| Detail drawer | The reading and its evidence: last contact, Bridge start, arrival time |
+| Technical view | The report exactly as mobile sent it, including its `failed` |
+
+"Bridge was off" opens no incident and does not count as a failure. The other two readings do.
 
 | Reading | Condition | Measured |
 |---|---|---|
@@ -154,7 +163,6 @@ separate, so a reading never changes a stored report and mobile's `failed` stays
 | Item | State |
 |---|---|
 | Keep the capture of a delivered report for 2 h instead of 90 days | Not adopted. See the battery result below |
-| Whether the "Bridge was off" reading opens an incident | To decide when the reading is designed |
 | Actions at 2026-09-26 00:42, 2026-09-26 01:48 and 2026-10-09 01:02 | Committed on the phone with no matching applied change. Unresolved |
 
 ### Battery result for the capture change
