@@ -23,7 +23,7 @@ S4. `cycle_report`: reject an empty or missing `cycle_id`. Native failed cycles 
 S5. Delivery answers already agreed: one event per POST, at most 8 KiB; `kind_not_served` keeps rows on the phone; `field_rejected`, `kind_malformed` and `body_too_large` are quarantined by mobile; `write_budget_exceeded` honours Retry-After. Bridge keeps these answers unchanged and documents the new kinds in `docs/openapi.yaml`.
 
 S6. Every new kind shows in Activity. The approved mockup is `docs/observability/mobile-reports-activity.mockup.html`. Owner: "No me parecen mal". Data is computed by fixed rules in code, never by AI: "Bridge no tiene IAs para que te interprete los datos."
-- P1 `hourly_summary`: no new feed line. The Traffic hour line gets an amber "tablet N" chip only when the tablet counted more sync attempts than Bridge heard; the drawer shows the tablet's count and process deaths. Bridge's side of the comparison counts sync attempts only, as agreed with mobile in T1.
+- P1 `hourly_summary`: no new feed line. The Traffic hour line gets an amber "tablet N" chip only when the tablet counted more sync attempts than Bridge heard; the drawer shows the tablet's count and process deaths. Bridge's side counts distinct cycle ids from `X-Autoreas-Request-Id` (`<cycleId>:<n>`) seen on `GET /api/status` or `POST /api/sync/reconcile` in that hour, as agreed with mobile (L6). The tablet's side is its attempts minus the outcomes that never reach Bridge (`skipped_owned_by_ticker`, `schema_not_ready`); `presence_refused` reaches Bridge only when Bridge was up.
 - P2 `runtime_transition`: "Sync service · died" is a failed line; other changes are neutral; owned by Traffic.
 - P3 failed `cycle_report`: "Sync cycle · failed while <stage>" with the four stages in order and where it stopped.
 - P4 silence: "Tablet silent · since HH:MM" and "Tablet was silent · <duration>" when the tablet was not heard for 60 minutes while Bridge was on. Owner: "Sí, P4 calculada al leer." Computed when Activity or the MCP reads, no watcher, no timer, no background process.
@@ -38,7 +38,7 @@ Out of scope: capturing the host or remote address of a report (owner undecided)
 
 ## Tasks
 
-- [ ] T1 (S1-S5) Serve `hourly_summary` and `runtime_transition`, reject empty `cycle_id`, openapi; agree with mobile what Bridge counts as a sync attempt. Unblocks mobile. Route: pending mapping. Commit: pending.
+- [ ] T1 (S1-S5) Serve `hourly_summary` and `runtime_transition`, reject empty `cycle_id`, openapi. Unblocks mobile. Route: pending mapping. Commit: pending.
 - [ ] T2 (S6 P1) Traffic hour comparison and drawer. Commit: pending.
 - [ ] T3 (S6 P2, P3) Transition and failed cycle lines and drawers. Commit: pending.
 - [ ] T4 (S6 P4) Silence computed on read. Commit: pending.
@@ -58,3 +58,5 @@ L3 (2026-11-07, owner): "No me parecen mal, ni siquiera entiendo la mitad de ell
 L4 (2026-11-07, owner): "Ok, entonces confírmame si eso es todo y si ya podemos iniciar el desarrollo conjunto con mobile." Then: "Sí, P4 calculada al leer".
 
 L5 (2026-11-07, mobile): no technical question open; mobile waits on the 50 a day approval (given, L2) and on Bridge serving the two new kinds. Outbox reserve: new kinds stop at 60 of 100 rows. Mockup published in OpenDesign "Bridge Redesign" as `mobile-reports-activity.html`; P4 there was drawn with a watcher and is now computed on read.
+
+L6 (2026-11-07, mobile): one sync attempt is one cycle id; no route maps one to one. Count distinct cycle ids from `X-Autoreas-Request-Id` (`<cycleId>:<n>`). Native attempts start with `GET /api/status` (1.5 s probe, `SyncEngineBridgePresence.kt:91-93`); JS attempts have no probe. Every attempt sends at least one `POST /api/sync/reconcile` (`SyncEngineCycle.kt:242-243`). Mobile still has to confirm that every JS request carries the id. T2 must check whether Bridge keeps request ids per hour: the hourly rollup does not, so this may need a new per-hour count.
