@@ -466,7 +466,9 @@ info:
     backlog stays one Bridge was off line however long it takes to drain, and
     a tablet that stayed silent after a start reads late even if it reports
     right after a later one. `incident.sync_reading_failed` now also covers a
-    failed read of the device's first report.
+    failed read of the device's first report. The reading models three
+    periods: Bridge off (failure to that start), a 20-minute grace period,
+    and overdue; Activity shows them by name.
 
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes

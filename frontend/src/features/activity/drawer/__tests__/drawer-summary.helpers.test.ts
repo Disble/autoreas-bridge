@@ -311,19 +311,39 @@ describe('toDrawerHeader edge cases', () => {
 });
 
 describe('a failed sync with a reading', () => {
-  /** Every evidence time known: four hours, three, two, one and a half, and one before noon. */
+  /** Twenty minutes, the grace period. */
+  const GRACE_MS = 1_200_000;
+
+  /** Every evidence time known: Bridge off from three hours before noon to two, then grace, a first report ten minutes overdue. */
   const EVIDENCE = {
     lastContactMs: AT - 4 * 3_600_000,
     failedAtMs: AT - 3 * 3_600_000,
     nextStartMs: AT - 2 * 3_600_000,
+    graceUntilMs: AT - 2 * 3_600_000 + GRACE_MS,
     firstReportMs: AT - 5_400_000,
+    overdueMs: 600_000,
     arrivedAtMs: AT - 3_600_000,
   };
 
+  /** Words a period the way the drawer does. */
+  const period = (fromMs: number, untilMs: number): string => `${formatDrawerWhen(fromMs)} – ${formatDrawerWhen(untilMs)}`;
+
   it.each([
-    ['tablet_late', 'Tablet came back late'],
-    ['real_failure', 'Sync failed'],
-  ] as const)('titles a %s report with the reading, its meaning, then its labelled times', (reading, title) => {
+    ['tablet_late', 'Tablet came back late', [
+      ['Bridge off', period(EVIDENCE.failedAtMs, EVIDENCE.nextStartMs)],
+      ['Grace period', period(EVIDENCE.nextStartMs, EVIDENCE.graceUntilMs)],
+      ['First report', formatDrawerWhen(EVIDENCE.firstReportMs)],
+      ['Overdue by', '10 min'],
+      ['Last contact', formatDrawerWhen(EVIDENCE.lastContactMs)],
+      ['Arrived', formatDrawerWhen(EVIDENCE.arrivedAtMs)],
+    ]],
+    ['real_failure', 'Sync failed', [
+      ['Failed at', formatDrawerWhen(EVIDENCE.failedAtMs)],
+      ['Last contact', formatDrawerWhen(EVIDENCE.lastContactMs)],
+      ['Bridge started', formatDrawerWhen(EVIDENCE.nextStartMs)],
+      ['Arrived', formatDrawerWhen(EVIDENCE.arrivedAtMs)],
+    ]],
+  ] as const)('titles a %s report with the reading, its meaning, then its labelled times', (reading, title, rows) => {
     const line = readingLine(syncReading({ reading }, EVIDENCE));
 
     const { sections, gaps } = toDrawerSummary(input({ line }));
@@ -331,20 +351,26 @@ describe('a failed sync with a reading', () => {
     expect(toDrawerHeader(line)).toMatchObject({ title, phrase: '', tone: 'failed' });
     expect(kinds(sections)).toEqual(['text', 'facts']);
     expect(sectionOf(sections, 'text').text).toBe(DRAWER_READING_MEANINGS[reading]);
-    expect(sectionOf(sections, 'facts').rows.map((row) => [row.label, row.value])).toEqual([
-      ['Failed at', formatDrawerWhen(EVIDENCE.failedAtMs)],
-      ['Last contact', formatDrawerWhen(EVIDENCE.lastContactMs)],
-      ['Bridge started', formatDrawerWhen(EVIDENCE.nextStartMs)],
-      ['First report', formatDrawerWhen(EVIDENCE.firstReportMs)],
-      ['Arrived', formatDrawerWhen(EVIDENCE.arrivedAtMs)],
-    ]);
+    expect(sectionOf(sections, 'facts').rows.map((row) => [row.label, row.value])).toEqual(rows);
     expect(gaps).toEqual([]);
   });
 
-  it('reads a time that does not exist as not recorded', () => {
-    const { sections } = toDrawerSummary(input({ line: readingLine(syncReading()) }));
+  it.each([
+    ['real_failure', ['Last contact', 'Bridge started']],
+    ['tablet_late', ['Bridge off', 'Grace period', 'First report', 'Overdue by', 'Last contact']],
+  ] as const)('reads a %s time that does not exist as not recorded', (reading, labels) => {
+    const { sections } = toDrawerSummary(input({ line: readingLine(syncReading({ reading })) }));
 
-    expect(sectionOf(sections, 'facts').rows.filter((row) => row.value === 'Not recorded').map((row) => row.label)).toEqual(['Last contact', 'Bridge started', 'First report']);
+    expect(sectionOf(sections, 'facts').rows.filter((row) => row.value === 'Not recorded').map((row) => row.label)).toEqual(labels);
+  });
+
+  it('reads a period with one missing bound as not recorded', () => {
+    const line = readingLine(syncReading({ reading: 'tablet_late' }, { nextStartMs: EVIDENCE.nextStartMs }));
+
+    expect(sectionOf(toDrawerSummary(input({ line })).sections, 'facts').rows.slice(0, 2).map((row) => [row.label, row.value])).toEqual([
+      ['Bridge off', period(Date.UTC(2026, 9, 22, 9, 0), EVIDENCE.nextStartMs)],
+      ['Grace period', 'Not recorded'],
+    ]);
   });
 
   it('keeps the failure its incident recorded, after the evidence', () => {
@@ -358,11 +384,17 @@ describe('a Bridge off group', () => {
   /** When Bridge started. */
   const START = AT - 600_000;
 
+  /** When its grace period ends. */
+  const GRACE_UNTIL = START + 1_200_000;
+
   /** Two reports that waited for it, newest arrival first. */
   const REPORTS = [
-    syncReading({ reportId: 9, reading: 'bridge_off' }, { failedAtMs: AT - 3_600_000, arrivedAtMs: AT - 60_000, nextStartMs: START, firstReportMs: AT - 180_000 }),
-    syncReading({ reportId: 8, reading: 'bridge_off' }, { failedAtMs: AT - 7_200_000, arrivedAtMs: AT - 120_000, nextStartMs: START, lastContactMs: AT - 8_000_000 }),
+    syncReading({ reportId: 9, reading: 'bridge_off' }, { failedAtMs: AT - 3_600_000, arrivedAtMs: AT - 60_000, nextStartMs: START, graceUntilMs: GRACE_UNTIL, firstReportMs: AT - 180_000 }),
+    syncReading({ reportId: 8, reading: 'bridge_off' }, { failedAtMs: AT - 7_200_000, arrivedAtMs: AT - 120_000, nextStartMs: START, graceUntilMs: GRACE_UNTIL, lastContactMs: AT - 8_000_000 }),
   ];
+
+  /** Words a period the way the drawer does. */
+  const period = (fromMs: number, untilMs: number): string => `${formatDrawerWhen(fromMs)} – ${formatDrawerWhen(untilMs)}`;
 
   it.each([
     [REPORTS.slice(0, 1), '1 change waited for Bridge'],
@@ -371,17 +403,23 @@ describe('a Bridge off group', () => {
     expect(toDrawerHeader(bridgeOffLine(reports, START))).toMatchObject({ title, phrase: 'Bridge was off', failed: false, tone: 'neutral' });
   });
 
-  it('states its meaning and start once, then each report with its own times, in order', () => {
+  it('states its meaning and grace period once, then each report with its own times, in order', () => {
     const { sections, gaps } = toDrawerSummary(input({ line: bridgeOffLine(REPORTS, START) }));
 
     expect(kinds(sections)).toEqual(['text', 'facts', 'reports']);
     expect(sectionOf(sections, 'text').text).toBe(DRAWER_BRIDGE_OFF_MEANING_MANY);
-    expect(sectionOf(sections, 'facts').rows.map((row) => [row.label, row.value])).toEqual([['Bridge started', formatDrawerWhen(START)]]);
+    expect(sectionOf(sections, 'facts').rows.map((row) => [row.label, row.value])).toEqual([['Grace period', period(START, GRACE_UNTIL)]]);
     expect(sectionOf(sections, 'reports').reports.map((report) => [report.key, report.rows.map((row) => [row.label, row.value])])).toEqual([
-      ['9', [['Failed at', formatDrawerWhen(AT - 3_600_000)], ['Last contact', 'Not recorded'], ['First report', formatDrawerWhen(AT - 180_000)], ['Arrived', formatDrawerWhen(AT - 60_000)]]],
-      ['8', [['Failed at', formatDrawerWhen(AT - 7_200_000)], ['Last contact', formatDrawerWhen(AT - 8_000_000)], ['First report', 'Not recorded'], ['Arrived', formatDrawerWhen(AT - 120_000)]]],
+      ['9', [['Bridge off', period(AT - 3_600_000, START)], ['First report', formatDrawerWhen(AT - 180_000)], ['Last contact', 'Not recorded'], ['Arrived', formatDrawerWhen(AT - 60_000)]]],
+      ['8', [['Bridge off', period(AT - 7_200_000, START)], ['First report', 'Not recorded'], ['Last contact', formatDrawerWhen(AT - 8_000_000)], ['Arrived', formatDrawerWhen(AT - 120_000)]]],
     ]);
     expect(gaps).toEqual([]);
+  });
+
+  it('reads the grace period of a group without reports as not recorded', () => {
+    expect(sectionOf(toDrawerSummary(input({ line: bridgeOffLine([], START) })).sections, 'facts').rows.map((row) => [row.label, row.value])).toEqual([
+      ['Grace period', 'Not recorded'],
+    ]);
   });
 
   it('words the meaning of one change in the singular', () => {

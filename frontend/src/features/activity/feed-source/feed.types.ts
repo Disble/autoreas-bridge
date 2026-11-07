@@ -82,8 +82,12 @@ export interface ActivitySyncEvidence {
   readonly lastContactMs: number | undefined;
   /** The first Bridge start after the failure, epoch milliseconds. */
   readonly nextStartMs: number | undefined;
+  /** When the grace period after the next start ends: the next start plus 20 minutes, epoch milliseconds. */
+  readonly graceUntilMs: number | undefined;
   /** The device's first report of any kind received at or after the next start, epoch milliseconds. */
   readonly firstReportMs: number | undefined;
+  /** How long after the grace period the first report came, milliseconds; only for a late tablet. */
+  readonly overdueMs: number | undefined;
 }
 
 /** Bridge's reading of one failed sync report. It is computed, never stored in the report. */

@@ -61,14 +61,15 @@ flowchart TD
         eligible -- yes --> older{T older than the oldest retained start?}
         older -- no --> next{N, the first start after T, at or before R?}
         next -- yes --> heard{N recorded a contact from D at or after T?}
-        heard -- no --> within{F, D's first report at or after N, within 20 min of N?}
+        heard -- no --> periods[Periods: Bridge off from T to N, grace period from N to N + 20 min, overdue after]
+        periods --> within{F, D's first report at or after N, inside the grace period?}
     end
 
     eligible -- no --> plain[Plain failed line, linked to its incident]
     older -- yes --> plain
     next -- no --> real[Failed line: Sync failed]
     heard -- yes --> real
-    within -- no --> late[Failed line: Tablet came back late]
+    within -- "no: overdue by F minus the grace end" --> late[Failed line: Tablet came back late]
     within -- yes --> switch{Failure switch on?}
     switch -- yes --> skipped([No line, a neutral line is not a failure])
     switch -- no --> range{Its start N in the range?}
@@ -76,9 +77,10 @@ flowchart TD
     range -- yes --> group[Neutral line: N changes waited for Bridge]
 
     plain --> generic([Drawer: generic layout, no reading])
-    real --> evidence[Drawer: reading and evidence]
-    late --> evidence
-    group --> groupdrawer[Drawer: meaning, Bridge start, each report's times]
+    real --> evidence[Drawer: failed at, last contact, Bridge started, arrived]
+    late --> lateevidence[Drawer: Bridge off, grace period, first report, overdue by, last contact, arrived]
+    lateevidence --> technical
+    group --> groupdrawer[Drawer: meaning, grace period, each report's Bridge off, first report and times]
     groupdrawer --> pick[Pick one report]
     evidence --> technical([Technical view: the stored report])
     pick --> technical
@@ -122,11 +124,19 @@ incident (`recordRequestIncident`).
 `Read` takes the failure, every retained start, oldest first, and a `FirstReport` lookup, and fills `Evidence`
 as it goes. It asks the lookup once, and only when the last row of the table below decides.
 
+The evidence names the bounds of a failure's three periods: Bridge off from `FailedAtMS` to `NextStartMS`, the
+grace period from `NextStartMS` to `GraceUntilMS`, and overdue after `GraceUntilMS`.
+
 | Evidence | Meaning |
 |---|---|
-| `NextStartMS` | N, the first start after T, the one that decides whether Bridge came up before the report |
+| `FailedAtMS` | T, where Bridge off begins |
+| `NextStartMS` | N, the first start after T: where Bridge off ends and the grace period begins |
 | `LastContactMS` | D's last contact in N's record, when it holds one |
-| `FirstReportMS` | F, D's first report of any kind received at or after N, never later than R; nil when it did not decide |
+| `GraceUntilMS` | N plus `GracePeriod` (20 minutes, mobile's longest normal retry): where the grace period ends |
+| `FirstReportMS` | F, D's first report of any kind received at or after N, never later than R |
+| `OverdueMS` | F minus `GraceUntilMS`, set only for `TabletLate` |
+
+`GraceUntilMS` and `FirstReportMS` are nil when the periods did not decide the reading.
 
 | Test, in order | Reading |
 |---|---|
@@ -134,8 +144,8 @@ as it goes. It asks the lookup once, and only when the last row of the table bel
 | No next start | `RealFailure` |
 | `LastContactMS` at or after T | `RealFailure` |
 | N came after R | `RealFailure` |
-| F minus N at most `RetryWindow` (20 minutes, mobile's longest normal retry) | `BridgeOff` |
-| Otherwise | `TabletLate` |
+| F at or before `GraceUntilMS`: inside the grace period | `BridgeOff` |
+| Otherwise: overdue | `TabletLate` |
 
 F and not R decides, because mobile sends 3 reports per cycle: the later reports of a backlog arrive later on a
 healthy tablet. A reading is computed again on each read, so the same rule serves the gate and the feed. The

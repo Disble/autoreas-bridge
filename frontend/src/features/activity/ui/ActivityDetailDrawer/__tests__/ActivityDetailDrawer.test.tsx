@@ -138,7 +138,7 @@ describe('ActivityDetailDrawer', () => {
     render(<ActivityDetailDrawer line={readingLine(syncReading({ reportId: 41, reading: 'tablet_late' }))} onClose={vi.fn()} />);
 
     expect(screen.getByRole('heading', { name: 'Tablet came back late' })).toBeInTheDocument();
-    expect(screen.getByText('Failed at')).toBeInTheDocument();
+    expect(screen.getByText('Overdue by')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Technical details' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Data' }));

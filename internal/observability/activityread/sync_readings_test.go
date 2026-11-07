@@ -99,8 +99,10 @@ func TestFeedShowsEachFailedSyncAsItsReading(t *testing.T) {
 		t.Errorf("reading = %+v, want evidence %+v on report %s", heard, wantEvidence, lines[0].Line.ID)
 	}
 	late := lines[1].SyncReading.Evidence
-	if !reflect.DeepEqual(late.NextStartMS, ptr(minutesAgo(230))) || !reflect.DeepEqual(late.FirstReportMS, ptr(minutesAgo(200))) {
-		t.Errorf("late evidence = %+v, want the start at 230 and its own arrival as the first report", late)
+	wantLate := syncreading.Evidence{FailedAtMS: minutesAgo(240), ArrivedAtMS: minutesAgo(200), NextStartMS: ptr(minutesAgo(230)),
+		GraceUntilMS: ptr(minutesAgo(210)), FirstReportMS: ptr(minutesAgo(200)), OverdueMS: ptr(minutesAgo(200) - minutesAgo(210))}
+	if !reflect.DeepEqual(late, wantLate) {
+		t.Errorf("late evidence = %+v, want Bridge off to 230, grace to 210, its own arrival first, 10 minutes overdue", late)
 	}
 
 	group := lines[3]
@@ -113,7 +115,8 @@ func TestFeedShowsEachFailedSyncAsItsReading(t *testing.T) {
 	for i, arrivedAt := range []int{280, 290} {
 		report := group.BridgeOff.Reports[i]
 		if report.Reading != syncreading.BridgeOff || report.Evidence.ArrivedAtMS != minutesAgo(arrivedAt) || report.ReportID == 0 ||
-			!reflect.DeepEqual(report.Evidence.FirstReportMS, ptr(minutesAgo(290))) {
+			!reflect.DeepEqual(report.Evidence.FirstReportMS, ptr(minutesAgo(290))) ||
+			!reflect.DeepEqual(report.Evidence.GraceUntilMS, ptr(minutesAgo(280))) || report.Evidence.OverdueMS != nil {
 			t.Errorf("group report %d = %+v, want the report that arrived %d minutes ago, first report at 290", i, report, arrivedAt)
 		}
 	}

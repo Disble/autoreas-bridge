@@ -58,7 +58,9 @@ function mapSyncReading(reading: activityread.SyncReading): ActivitySyncReading 
       arrivedAtMs: evidence.ArrivedAtMS,
       lastContactMs: evidence.LastContactMS ?? undefined,
       nextStartMs: evidence.NextStartMS ?? undefined,
+      graceUntilMs: evidence.GraceUntilMS ?? undefined,
       firstReportMs: evidence.FirstReportMS ?? undefined,
+      overdueMs: evidence.OverdueMS ?? undefined,
     },
   };
 }

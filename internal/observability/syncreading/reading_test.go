@@ -68,6 +68,8 @@ func TestReadAppliesTheApprovedRule(t *testing.T) {
 		last    *int64
 		next    *int64
 		report  *int64
+		grace   *int64
+		overdue *int64
 	}{
 		{name: "no start retained", failure: failure(100, 110), reading: NoReading},
 		{name: "older than the oldest start", failure: failure(99, 110), starts: []Start{start(100)}, reading: NoReading},
@@ -80,34 +82,41 @@ func TestReadAppliesTheApprovedRule(t *testing.T) {
 		{name: "next start falls after the arrival", failure: failure(150, 160), starts: []Start{start(100), start(170)},
 			reading: RealFailure, next: at(170)},
 		{name: "next start at the arrival", failure: failure(150, 170), starts: []Start{start(100), start(170)},
-			reading: BridgeOff, next: at(170), report: at(170)},
+			reading: BridgeOff, next: at(170), report: at(170), grace: at(190)},
+		{name: "a start one millisecond after the failure ends Bridge off",
+			failure: failure(150, 160), starts: []Start{start(100), {AtMS: 150*minute + 1}},
+			reading: BridgeOff, next: ptr(150*minute + 1), grace: ptr(170*minute + 1), report: at(160)},
+		{name: "first report as the grace period opens", failure: failure(150, 300), starts: []Start{start(100), start(170)},
+			first: own(170, 300), reading: BridgeOff, next: at(170), report: at(170), grace: at(190)},
 		{name: "a start at the failure time is not after it", failure: failure(150, 160), starts: []Start{start(100), start(150)},
 			reading: RealFailure},
-		{name: "first report inside the window", failure: failure(150, 300), starts: []Start{start(100), start(170)},
-			first: own(185, 300), reading: BridgeOff, next: at(170), report: at(185)},
-		{name: "first report at exactly the window", failure: failure(150, 300), starts: []Start{start(100), start(170)},
-			first: own(190, 300), reading: BridgeOff, next: at(170), report: at(190)},
-		{name: "first report one millisecond past the window",
+		{name: "first report inside the grace period", failure: failure(150, 300), starts: []Start{start(100), start(170)},
+			first: own(185, 300), reading: BridgeOff, next: at(170), report: at(185), grace: at(190)},
+		{name: "first report as the grace period ends", failure: failure(150, 300), starts: []Start{start(100), start(170)},
+			first: own(190, 300), reading: BridgeOff, next: at(170), report: at(190), grace: at(190)},
+		{name: "first report one millisecond overdue",
 			failure: Failure{DeviceID: testDevice, FailedAtMS: 150 * minute, ArrivedAtMS: 190*minute + 1},
-			starts:  []Start{start(100), start(170)}, reading: TabletLate, next: at(170), report: ptr(190*minute + 1)},
+			starts:  []Start{start(100), start(170)},
+			reading: TabletLate, next: at(170), report: ptr(190*minute + 1), grace: at(190), overdue: ptr(1)},
 		{name: "backlog: the first report at 2 minutes, this one at 31",
 			failure: failure(150, 201), starts: []Start{start(100), start(170)},
-			first: own(172, 180, 190, 201), reading: BridgeOff, next: at(170), report: at(172)},
+			first: own(172, 180, 190, 201), reading: BridgeOff, next: at(170), report: at(172), grace: at(190)},
 		{name: "silent after the first start, back one minute after the second",
 			failure: failure(150, 302), starts: []Start{start(100), start(170), start(300)},
-			first: own(301, 302), reading: TabletLate, next: at(170), report: at(301)},
+			first: own(301, 302), reading: TabletLate, next: at(170), report: at(301), grace: at(190), overdue: at(111)},
 		{name: "no report found: the failure's own arrival is the first",
 			failure: failure(150, 185), starts: []Start{start(100), start(170)},
-			reading: BridgeOff, next: at(170), report: at(185)},
+			reading: BridgeOff, next: at(170), report: at(185), grace: at(190)},
 		{name: "a lookup later than the arrival yields to it",
 			failure: failure(150, 185), starts: []Start{start(100), start(170)},
-			first: own(250), reading: BridgeOff, next: at(170), report: at(185)},
+			first: own(250), reading: BridgeOff, next: at(170), report: at(185), grace: at(190)},
 		{name: "a report before the start does not count",
 			failure: failure(150, 250), starts: []Start{start(100), start(170)},
-			first: own(160, 250), reading: TabletLate, next: at(170), report: at(250)},
+			first: own(160, 250), reading: TabletLate, next: at(170), report: at(250), grace: at(190), overdue: at(60)},
 		{name: "another device's report says nothing",
 			failure: failure(150, 250), starts: []Start{start(100), start(170)},
-			first: reports(map[string][]int64{"device-2": {171}, testDevice: {250}}), reading: TabletLate, next: at(170), report: at(250)},
+			first:   reports(map[string][]int64{"device-2": {171}, testDevice: {250}}),
+			reading: TabletLate, next: at(170), report: at(250), grace: at(190), overdue: at(60)},
 		{name: "contact after the failure", failure: failure(150, 180),
 			starts:  []Start{start(100), startWith(170, testDevice, 155*minute)},
 			reading: RealFailure, last: at(155), next: at(170)},
@@ -116,16 +125,16 @@ func TestReadAppliesTheApprovedRule(t *testing.T) {
 			reading: RealFailure, last: at(150), next: at(170)},
 		{name: "contact before the failure", failure: failure(150, 180),
 			starts:  []Start{start(100), startWith(170, testDevice, 150*minute-1)},
-			reading: BridgeOff, last: ptr(150*minute - 1), next: at(170), report: at(180)},
+			reading: BridgeOff, last: ptr(150*minute - 1), next: at(170), report: at(180), grace: at(190)},
 		{name: "another device's contact says nothing", failure: failure(150, 180),
 			starts:  []Start{start(100), startWith(170, "device-2", 160*minute)},
-			reading: BridgeOff, next: at(170), report: at(180)},
+			reading: BridgeOff, next: at(170), report: at(180), grace: at(190)},
 		{name: "only the next start's record counts", failure: failure(150, 300),
 			starts: []Start{start(100), start(170), startWith(290, testDevice, 200*minute)},
-			first:  own(175), reading: BridgeOff, next: at(170), report: at(175)},
+			first:  own(175), reading: BridgeOff, next: at(170), report: at(175), grace: at(190)},
 		{name: "a start without metadata still reads", failure: failure(150, 500),
 			starts:  []Start{start(100), start(170)},
-			reading: TabletLate, next: at(170), report: at(500)},
+			reading: TabletLate, next: at(170), report: at(500), grace: at(190), overdue: at(310)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -137,7 +146,7 @@ func TestReadAppliesTheApprovedRule(t *testing.T) {
 			got := Read(tt.failure, tt.starts, first)
 			want := Result{Reading: tt.reading, Evidence: Evidence{
 				FailedAtMS: tt.failure.FailedAtMS, ArrivedAtMS: tt.failure.ArrivedAtMS,
-				LastContactMS: tt.last, NextStartMS: tt.next, FirstReportMS: tt.report,
+				LastContactMS: tt.last, NextStartMS: tt.next, GraceUntilMS: tt.grace, FirstReportMS: tt.report, OverdueMS: tt.overdue,
 			}}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("Read = %s, want %s", describe(got), describe(want))
@@ -193,8 +202,9 @@ func describe(r Result) string {
 		return *p
 	}
 	e := r.Evidence
-	return fmt.Sprintf("%q failed=%d arrived=%d last=%v next=%v first=%v", r.Reading, e.FailedAtMS, e.ArrivedAtMS,
-		value(e.LastContactMS), value(e.NextStartMS), value(e.FirstReportMS))
+	return fmt.Sprintf("%q failed=%d arrived=%d last=%v next=%v grace=%v first=%v overdue=%v", r.Reading, e.FailedAtMS,
+		e.ArrivedAtMS, value(e.LastContactMS), value(e.NextStartMS), value(e.GraceUntilMS), value(e.FirstReportMS),
+		value(e.OverdueMS))
 }
 
 // TestAppliesOnlyToFailedSyncEpisodeActions pins the reports that get a reading.

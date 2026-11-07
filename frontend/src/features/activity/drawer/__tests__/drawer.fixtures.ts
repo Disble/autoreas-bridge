@@ -51,7 +51,9 @@ export function syncReading(overrides: Partial<ActivitySyncReading> = {}, eviden
       arrivedAtMs: Date.UTC(2026, 9, 22, 12, 0),
       lastContactMs: undefined,
       nextStartMs: undefined,
+      graceUntilMs: undefined,
       firstReportMs: undefined,
+      overdueMs: undefined,
       ...evidence,
     },
   };

@@ -6,7 +6,7 @@ import type { ActivityRead } from '../ui/ActivityRunStory/activity-run-story.typ
 import { toActivityFoundRead } from '../ui/ActivityRunStory/activity-time.helpers';
 import { DRAWER_BRIDGE_OFF_MEANING_MANY, DRAWER_EVIDENCE_LABELS, DRAWER_EVIDENCE_NOT_RECORDED, DRAWER_READING_MEANINGS, DRAWER_REPORTS_TITLE } from './drawer.constants';
 import type { DrawerFact, DrawerReportChoice, DrawerSection, DrawerSummaryInput } from './drawer.types';
-import { drawerFact, formatDrawerWhen } from './drawer-format.helpers';
+import { drawerFact, formatDrawerSpan, formatDrawerWhen } from './drawer-format.helpers';
 import { failureSections } from './drawer-presenters.helpers';
 
 /** Words one evidence time; a fact that does not exist reads as not recorded. */
@@ -14,24 +14,62 @@ function evidenceTime(ms: number | undefined): string {
   return ms === undefined ? DRAWER_EVIDENCE_NOT_RECORDED : formatDrawerWhen(ms);
 }
 
-/** The Bridge started fact: the first start after the failure, the one the first report is measured from and a group sits on. */
-function startFact(ms: number | undefined): DrawerFact {
-  return drawerFact('start', DRAWER_EVIDENCE_LABELS.start, evidenceTime(ms));
+/** Words one period by its two bounds; a period missing either bound reads as not recorded. */
+function evidencePeriod(fromMs: number | undefined, untilMs: number | undefined): string {
+  return fromMs === undefined || untilMs === undefined ? DRAWER_EVIDENCE_NOT_RECORDED : `${formatDrawerWhen(fromMs)} – ${formatDrawerWhen(untilMs)}`;
 }
 
-/** The times of one report that differ from report to report. */
-function reportFacts(evidence: ActivitySyncEvidence): {
+/** The grace period fact: from the first start after the failure until the tablet's first retry was due. */
+function graceFact(startMs: number | undefined, untilMs: number | undefined): DrawerFact {
+  return drawerFact('grace', DRAWER_EVIDENCE_LABELS.grace, evidencePeriod(startMs, untilMs));
+}
+
+/** The facts of one report, each worded once: its times and the periods its reading measured. */
+interface ReportFacts {
+  /** When the device failed. */
   readonly failed: DrawerFact;
+  /** The device's last contact recorded by the next start. */
   readonly contact: DrawerFact;
+  /** The next start, for a reading that measured no periods. */
+  readonly start: DrawerFact;
+  /** Bridge off: from the failure to the next start. */
+  readonly off: DrawerFact;
+  /** The grace period after the next start. */
+  readonly grace: DrawerFact;
+  /** The device's first report after the next start. */
   readonly firstReport: DrawerFact;
+  /** How long after the grace period the first report came. */
+  readonly overdue: DrawerFact;
+  /** When Bridge received the report. */
   readonly arrived: DrawerFact;
-} {
+}
+
+/** Words every fact of one report's evidence. */
+function reportFacts(evidence: ActivitySyncEvidence): ReportFacts {
   return {
     failed: drawerFact('failed', DRAWER_EVIDENCE_LABELS.failed, evidenceTime(evidence.failedAtMs)),
     contact: drawerFact('contact', DRAWER_EVIDENCE_LABELS.contact, evidenceTime(evidence.lastContactMs)),
+    start: drawerFact('start', DRAWER_EVIDENCE_LABELS.start, evidenceTime(evidence.nextStartMs)),
+    off: drawerFact('off', DRAWER_EVIDENCE_LABELS.off, evidencePeriod(evidence.failedAtMs, evidence.nextStartMs)),
+    grace: graceFact(evidence.nextStartMs, evidence.graceUntilMs),
     firstReport: drawerFact('firstReport', DRAWER_EVIDENCE_LABELS.firstReport, evidenceTime(evidence.firstReportMs)),
+    overdue: drawerFact('overdue', DRAWER_EVIDENCE_LABELS.overdue, evidence.overdueMs === undefined ? DRAWER_EVIDENCE_NOT_RECORDED : formatDrawerSpan(evidence.overdueMs)),
     arrived: drawerFact('arrived', DRAWER_EVIDENCE_LABELS.arrived, evidenceTime(evidence.arrivedAtMs)),
   };
+}
+
+/**
+ * The evidence rows of one report line with a reading. A real failure measured
+ * no periods, since Bridge was on, so it shows its times. The only other reading
+ * a report line carries is a late tablet, because Bridge was off reports sit in
+ * their group: it shows the three periods in order, then the times they rest on.
+ */
+function readingRows(reading: ActivitySyncReading): readonly DrawerFact[] {
+  const facts = reportFacts(reading.evidence);
+  if (reading.reading === 'real_failure') {
+    return [facts.failed, facts.contact, facts.start, facts.arrived];
+  }
+  return [facts.off, facts.grace, facts.firstReport, facts.overdue, facts.contact, facts.arrived];
 }
 
 /**
@@ -59,17 +97,17 @@ export function readingSections(input: DrawerSummaryInput): readonly DrawerSecti
   if (reading === undefined) {
     return undefined;
   }
-  const { failed, contact, firstReport, arrived } = reportFacts(reading.evidence);
   return [
     { kind: 'text', key: 'meaning', text: DRAWER_READING_MEANINGS[reading.reading] },
-    { kind: 'facts', key: 'evidence', title: '', rows: [failed, contact, startFact(reading.evidence.nextStartMs), firstReport, arrived] },
+    { kind: 'facts', key: 'evidence', title: '', rows: readingRows(reading) },
     ...failureSections(input),
   ];
 }
 
 /**
- * The presenter of a Bridge off group: what it means and its start, which every
- * report shares, then each report with its own times, newest arrival first.
+ * The presenter of a Bridge off group: what it means and the grace period every
+ * report shares, from the group's start, then each report with its Bridge off
+ * period and its own times, newest arrival first.
  *
  * @param input The summary input.
  * @returns The sections; empty for a line without its group.
@@ -80,12 +118,12 @@ export function bridgeOffSections(input: DrawerSummaryInput): readonly DrawerSec
     return [];
   }
   const reports = group.reports.map((report) => {
-    const { failed, contact, firstReport, arrived } = reportFacts(report.evidence);
-    return { kind: 'facts' as const, key: String(report.reportId), title: '', rows: [failed, contact, firstReport, arrived] };
+    const { off, firstReport, contact, arrived } = reportFacts(report.evidence);
+    return { kind: 'facts' as const, key: String(report.reportId), title: '', rows: [off, firstReport, contact, arrived] };
   });
   return [
     { kind: 'text', key: 'meaning', text: reports.length === 1 ? DRAWER_READING_MEANINGS.bridge_off : DRAWER_BRIDGE_OFF_MEANING_MANY },
-    { kind: 'facts', key: 'start', title: '', rows: [startFact(group.bridgeStartMs)] },
+    { kind: 'facts', key: 'grace', title: '', rows: [graceFact(group.bridgeStartMs, group.reports[0]?.evidence.graceUntilMs)] },
     { kind: 'reports', key: 'reports', title: DRAWER_REPORTS_TITLE, reports },
   ];
 }

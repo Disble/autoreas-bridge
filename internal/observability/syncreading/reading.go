@@ -14,12 +14,13 @@ import (
 )
 
 const (
-	// RetryWindow is how long after a start the device may take to report
-	// anything and still count as having waited for Bridge. It is mobile's
-	// longest normal retry: its WorkManager floor of 15 minutes, measured at
-	// up to 20m11s on the device. Past it, something kept the tablet away.
-	// Set by the owner on 2026-11-07.
-	RetryWindow = 20 * time.Minute
+	// GracePeriod is the second of a failure's three periods: from N, the
+	// first start after the failure, Bridge is on and the tablet has not had
+	// its first retry yet. It is mobile's longest normal retry: its
+	// WorkManager floor of 15 minutes, measured at up to 20m11s on the
+	// device. A first report after it is overdue. Set by the owner on
+	// 2026-11-07.
+	GracePeriod = 20 * time.Minute
 
 	// LastContactsKey is the api.listening metadata key holding each active
 	// device's last contact at that start.
@@ -62,16 +63,25 @@ type Failure struct {
 	ArrivedAtMS int64
 }
 
-// Evidence is what a reading rests on. NextStartMS is the first start after
-// the failure, LastContactMS the device's last contact recorded by that start,
-// and FirstReportMS the device's first report received at or after that start.
-// A nil field means that fact does not exist or did not decide the reading.
+// Evidence is what a reading rests on, as the three periods of a failure:
+//   - Bridge off: from FailedAtMS (T) to NextStartMS (N), the first start
+//     after the failure. LastContactMS is the device's last contact that start
+//     recorded.
+//   - Grace period: from N to GraceUntilMS, N plus GracePeriod.
+//   - Overdue: after GraceUntilMS with no report from the device.
+//
+// FirstReportMS (F) is the device's first report received at or after N;
+// OverdueMS is how long after the grace period F came, set only for a late
+// tablet. A nil field means that fact does not exist or did not decide the
+// reading.
 type Evidence struct {
 	FailedAtMS    int64
 	ArrivedAtMS   int64
 	LastContactMS *int64
 	NextStartMS   *int64
+	GraceUntilMS  *int64
 	FirstReportMS *int64
+	OverdueMS     *int64
 }
 
 // FirstReport answers when a device's first report of any kind was received
@@ -93,11 +103,12 @@ func Applies(kind, outcome, phase string) bool {
 
 // Read applies the approved rule. starts is every retained start, oldest
 // first; a failure older than all of them has no reading, because the start
-// that would decide it is gone. firstReport finds the device's first report
-// after the next start N. The failure's own report is one, received at R, so
-// the first report F is never later than R, whatever the lookup answers.
-// Measuring F and not R keeps a backlog together: mobile sends 3 reports per
-// cycle, so the later reports of a healthy tablet arrive later.
+// that would decide it is gone. The reading follows from where F, the device's
+// first report at or after N, falls: inside the grace period, Bridge was off;
+// after it, the tablet came back late. firstReport finds F. The failure's own
+// report is one, received at R, so F is never later than R, whatever the lookup
+// answers. Measuring F and not R keeps a backlog together: mobile sends 3
+// reports per cycle, so the later reports of a healthy tablet arrive later.
 func Read(failure Failure, starts []Start, firstReport FirstReport) Result {
 	result := Result{Evidence: Evidence{FailedAtMS: failure.FailedAtMS, ArrivedAtMS: failure.ArrivedAtMS}}
 	if len(starts) == 0 || failure.FailedAtMS < starts[0].AtMS {
@@ -126,12 +137,15 @@ func Read(failure Failure, starts []Start, firstReport FirstReport) Result {
 	if atMS, ok := firstReport(failure.DeviceID, next.AtMS); ok {
 		first = min(first, atMS)
 	}
-	evidence.FirstReportMS = &first
-	if first-next.AtMS <= RetryWindow.Milliseconds() {
+	graceUntil := next.AtMS + GracePeriod.Milliseconds()
+	evidence.GraceUntilMS, evidence.FirstReportMS = &graceUntil, &first
+	if first <= graceUntil {
 		result.Reading = BridgeOff
-	} else {
-		result.Reading = TabletLate
+		return result
 	}
+	overdue := first - graceUntil
+	evidence.OverdueMS = &overdue
+	result.Reading = TabletLate
 	return result
 }
 

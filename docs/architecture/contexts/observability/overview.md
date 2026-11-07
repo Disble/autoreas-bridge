@@ -149,8 +149,9 @@ A reading has no storage: it is computed on each read. The start record is metad
 - **One start definition for readings.** `syncStartSQL` in `activityread/sync_readings.go` serves both the
   incident gate and the feed. `syncreading.Read` is the only rule, and `Reader.FirstReports` its only answer
   for F, the device's first report after the start.
-- **The window is mobile's retry.** `syncreading.RetryWindow` is 20 minutes, mobile's longest normal retry,
-  measured from N, the first start after the failure, to F. It changes only with mobile's retry interval.
+- **The grace period is mobile's retry.** A failure has three periods: Bridge off (T to N), grace period (N to
+  N + `syncreading.GracePeriod`, 20 minutes, mobile's longest normal retry) and overdue. Where F falls decides
+  the reading. `GracePeriod` changes only with mobile's retry interval.
 - **The last contact is read before anyone can contact.** `captureLastContacts` runs before `startHTTPServer`,
   because the first contact overwrites the value.
 - **Losing an incident is the worse error.** Any failure to read the starts or F lets the report open its

@@ -43,7 +43,7 @@ recorder. Incidents already stored do not change: older ones on those reports st
 | Surface | Shows |
 |---|---|
 | Activity feed | Failed reports only, under Traffic, which is off by default. A row shows the reading only: "Sync failed", "Tablet came back late", or one neutral line per start ("3 changes waited for Bridge"). The first two, and a failure with no reading, are failed lines linked to their incident and count as failed in the buckets. The neutral line is not a failure and has no incident link |
-| Detail drawer | The reading and its evidence: failure time, last contact, Bridge start, first report, arrival time |
+| Detail drawer | The reading and its evidence: for a late tablet the three periods (Bridge off, grace period, first report, overdue by), then last contact and arrival; for a real failure its failure, last contact, Bridge start and arrival times |
 | Technical view | The stored report, read with `GetActivityPhoneReport` |
 | Incident detail | Every report received inside the window, and the cause of the report that opened it |
 | MCP `search_history` | Every stored report, raw: its outcome and the "arrived late" mark, no reading |
@@ -150,7 +150,7 @@ the reading, and each level goes one step closer to the data.
 | Level | Shows |
 |---|---|
 | Feed row | The reading only |
-| Detail drawer | The reading and its evidence: failure time, last contact, Bridge start, first report, arrival time. "Bridge started" is N, the first start after the failure; "First report" is F, the device's first report after N. A time that does not exist reads "Not recorded". A "Bridge was off" group has no Requests tab |
+| Detail drawer | The reading and its evidence. A late tablet shows its periods in order: "Bridge off" (T to N), "Grace period" (N to N + 20 minutes), "First report" (F) and "Overdue by" (F minus the end of the grace period), then "Last contact" and "Arrived". A real failure measured no periods, because Bridge was on: it shows "Failed at", "Last contact", "Bridge started" and "Arrived". A "Bridge was off" group shows its grace period once, then each report's Bridge off period, first report, last contact and arrival. A time or period that does not exist reads "Not recorded". A group has no Requests tab |
 | Technical view | The stored report, including its `failed`. It is the validated record, re-serialized by Bridge, not mobile's raw bytes |
 
 ### The rule
@@ -163,14 +163,21 @@ device D, reported at R, the first row that matches decides:
 | T is older than the oldest retained start | No reading: the report shows as a plain failure |
 | N, the first Bridge start after T, is missing or later than R | Real failure |
 | N recorded D's last contact, and it is at or after T: Bridge heard D after the failure | Real failure |
-| F, D's first report of any kind received at or after N, is at most 20 minutes after N | Bridge was off |
-| Otherwise | Tablet came back late |
+| F, D's first report of any kind received at or after N, falls inside the grace period | Bridge was off |
+| F falls after the grace period: the tablet was overdue | Tablet came back late |
 
-20 minutes is mobile's longest normal retry: its WorkManager floor is 15 minutes, measured at up to 20m11s on
-the device. A tablet that waited for Bridge reports within one retry of N; past that, something else kept it
-away. The window runs to F, not R, because mobile sends 3 reports per cycle: on a healthy tablet the later
-reports of a backlog arrive later, and they still waited for the same start. The report itself is one of D's
-reports, so F is never later than R.
+When neither real-failure test matches, a failure has three periods:
+
+| Period | From | Until | What it means |
+|---|---|---|---|
+| Bridge off | T, the failure | N, the first start after it | Bridge was not running |
+| Grace period | N | N + 20 minutes (`GracePeriod`) | Bridge is on and the tablet has not had its first retry yet |
+| Overdue | N + 20 minutes | F, the tablet's first report | The tablet stayed away past its retry. Evidence carries how long: F minus the end of the grace period |
+
+The reading follows from where F falls. 20 minutes is mobile's longest normal retry: its WorkManager floor is
+15 minutes, measured at up to 20m11s on the device. F decides, not R, because mobile sends 3 reports per cycle:
+on a healthy tablet the later reports of a backlog arrive later, and they still waited for the same start. The
+report itself is one of D's reports, so F is never later than R.
 
 A start is one `api.listening` row, or one older `http server listening on ...` info row in domain `api`,
 written before that line had an event type. When a report arrives, the running process counts as a start too,
@@ -189,7 +196,8 @@ The replay ran on a snapshot of the owner's database taken on 2026-11-07, over i
 late ones follow the starts of 2026-10-12 09:32 (reports 168 and 171), 2026-11-05 10:09 (report 483) and
 2026-11-06 09:31 (reports 486, 489 and 492): each time the tablet sent nothing for 5 to 10 hours after the
 start. In every Bridge was off line the first report came within 14 minutes of the start, and the longest
-backlog, 15 reports after the 2026-10-21 start, drained over 31 minutes. Report 434 is the real failure: no
+backlog, 15 reports after the 2026-10-21 start, drained over 31 minutes. The late tablets were overdue by 5 h 1
+min (2026-10-12), 9 h 15 min (2026-11-05) and 6 h 50 min (2026-11-06). Report 434 is the real failure: no
 start between its failure and its arrival.
 
 ### Details and limits

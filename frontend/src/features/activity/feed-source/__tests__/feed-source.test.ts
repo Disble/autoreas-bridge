@@ -146,18 +146,18 @@ describe('feed-source', () => {
 
   it('maps a reading, a nil evidence time to undefined, and a line without one to undefined', async () => {
     const { mapActivityFeedView } = await import('../feed-source.helpers');
-    const report = { ReportID: 41, Reading: 'tablet_late', Evidence: { FailedAtMS: 1, ArrivedAtMS: 5, LastContactMS: null, NextStartMS: 3, FirstReportMS: 4 } };
+    const report = { ReportID: 41, Reading: 'tablet_late', Evidence: { FailedAtMS: 1, ArrivedAtMS: 9, LastContactMS: null, NextStartMS: 3, GraceUntilMS: 4, FirstReportMS: 6, OverdueMS: 2 } };
     const line = goFeedLine({ Type: 'traffic', Origin: 'phone', Run: null, Line: goLedgerLine({ Kind: 'phone_report', ID: '41' }), SyncReading: report });
 
     const view = mapActivityFeedView(activityread.FeedView.createFrom({ Days: [{ DayStartMS: 0, Lines: [line, goFeedLine()] }], NextCursor: '' }));
 
-    expect(view.days[0].lines[0]?.syncReading).toEqual({ reportId: 41, reading: 'tablet_late', evidence: { failedAtMs: 1, arrivedAtMs: 5, lastContactMs: undefined, nextStartMs: 3, firstReportMs: 4 } });
+    expect(view.days[0].lines[0]?.syncReading).toEqual({ reportId: 41, reading: 'tablet_late', evidence: { failedAtMs: 1, arrivedAtMs: 9, lastContactMs: undefined, nextStartMs: 3, graceUntilMs: 4, firstReportMs: 6, overdueMs: 2 } });
     expect(view.days[0].lines[1]).toMatchObject({ syncReading: undefined, bridgeOff: undefined });
   });
 
   it('maps a Bridge off group with its reports in order, and nil reports to an empty list', async () => {
     const { mapActivityFeedView } = await import('../feed-source.helpers');
-    const evidence = { FailedAtMS: 1, ArrivedAtMS: 5, LastContactMS: 0, NextStartMS: null, FirstReportMS: null };
+    const evidence = { FailedAtMS: 1, ArrivedAtMS: 5, LastContactMS: 0, NextStartMS: null, GraceUntilMS: null, FirstReportMS: null, OverdueMS: null };
     const group = { BridgeStartMS: 4, Reports: [{ ReportID: 9, Reading: 'bridge_off', Evidence: evidence }, { ReportID: 8, Reading: 'bridge_off', Evidence: evidence }] };
     const line = goFeedLine({ Type: 'traffic', Origin: 'phone', Failed: false, Run: null, Line: goLedgerLine({ Kind: 'bridge_off', ID: '4' }), BridgeOff: group });
     const empty = goFeedLine({ Run: null, BridgeOff: { BridgeStartMS: 4, Reports: null } });
@@ -166,9 +166,9 @@ describe('feed-source', () => {
 
     expect(view.days[0].lines[0]).toMatchObject({ failed: false, syncReading: undefined });
     expect(view.days[0].lines[0]?.bridgeOff?.bridgeStartMs).toBe(4);
-    expect(view.days[0].lines[0]?.bridgeOff?.reports.map((report) => [report.reportId, report.reading, report.evidence.lastContactMs, report.evidence.firstReportMs])).toEqual([
-      [9, 'bridge_off', 0, undefined],
-      [8, 'bridge_off', 0, undefined],
+    expect(view.days[0].lines[0]?.bridgeOff?.reports.map((report) => [report.reportId, report.reading, report.evidence.lastContactMs, report.evidence.graceUntilMs, report.evidence.firstReportMs, report.evidence.overdueMs])).toEqual([
+      [9, 'bridge_off', 0, undefined, undefined, undefined],
+      [8, 'bridge_off', 0, undefined, undefined, undefined],
     ]);
     expect(view.days[0].lines[1]?.bridgeOff?.reports).toEqual([]);
   });

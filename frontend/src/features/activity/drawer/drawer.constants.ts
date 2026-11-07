@@ -28,7 +28,16 @@ export const DRAWER_READING_MEANINGS: Readonly<Record<ActivitySyncReadingKind, s
 export const DRAWER_BRIDGE_OFF_MEANING_MANY = 'The phone could not reach Bridge because it was off, and the changes arrived when it started.';
 
 /** The labels of a reading's evidence times. */
-export const DRAWER_EVIDENCE_LABELS = { failed: 'Failed at', contact: 'Last contact', start: 'Bridge started', firstReport: 'First report', arrived: 'Arrived' } as const;
+export const DRAWER_EVIDENCE_LABELS = {
+  failed: 'Failed at',
+  contact: 'Last contact',
+  start: 'Bridge started',
+  off: 'Bridge off',
+  grace: 'Grace period',
+  firstReport: 'First report',
+  overdue: 'Overdue by',
+  arrived: 'Arrived',
+} as const;
 
 /** What an evidence time reads as when that fact does not exist. */
 export const DRAWER_EVIDENCE_NOT_RECORDED = 'Not recorded';
