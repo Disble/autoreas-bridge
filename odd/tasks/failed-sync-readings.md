@@ -7,7 +7,7 @@ Test runner: `go test` for Go, `bun --cwd="frontend" run test -- <path>` for the
 S1. Three readings of a failed `episode_action` report at phase `sync`. The owner approved them: "Sí, las apruebo." The approved table is in `docs/observability/mobile-reports.md`, "Reading a failed sync". For a failure at T on device D, reported at R:
 - Let N be the first Bridge start after T. No such start at or before R: **real failure**.
 - If N's record holds D's last contact L and L >= T: **real failure**, because Bridge heard D after the failure.
-- Let A be the latest start at or before R. R - A <= 30 minutes: **Bridge was off**. Otherwise: **tablet came back late**.
+- Otherwise let F be D's first report received at or after N (any kind). F - N <= 20 minutes: **Bridge was off**. Otherwise: **tablet came back late**. Owner, 2026-11-07: "el tiempo mínimo de mobile es el tiempo que tú tienes que poner de espera en el bridge ... el tiempo que tú deberías esperar es literalmente el tiempo que mobile vuelve a intentarlo. Ese es el tiempo máximo que se puede demorar una sincronización de forma normal. Después de eso, es que pasó algo." 20 minutes is mobile's longest normal retry: the 15-minute WorkManager floor, measured at up to 20m11s on the device. F, not R, because mobile sends 3 reports per cycle, so later reports of a backlog arrive later on a healthy tablet.
 - T older than the oldest retained start: **no reading**; the report shows as a failure, as it does today.
 - A start is one `api.listening` row, or one older `http server listening on ...` info row in domain `api`, written before that line had an event type. At ingest the current process start counts too, because that row may not be flushed yet.
 
@@ -40,7 +40,9 @@ Out of scope, waiting for the owner: mobile contract and its 50 a day limit, kee
 - [x] T2 (S1, S2, S3, S7) Feed lines, group, counts, report read. Route: delegated, context backstop. Commit: b082e005.
 - [x] T3 (S3) Feed rows, drawer evidence, Technical view. Route: delegated, context backstop. Commit: 6b8533e0.
 - [x] T4 (S8, S9) Documentation and architecture pages. Route: delegated, context backstop. Commit: 81aed5c2.
-- [x] T5 (S1-S9) Independent verification. Risk item 3: incident meaning changes for MCP readers. Route: delegated verifier. Commit: none.
+- [x] T5 (S1-S9) Independent verification.
+- [ ] T6 (S1, S8, S9) Window from mobile's retry interval, measured from N to the device's first report. Route: delegated, context backstop. Commit: pending.
+- [ ] T7 (S1) Independent recheck of T6. Route: delegated verifier. Commit: none. Risk item 3: incident meaning changes for MCP readers. Route: delegated verifier. Commit: none.
 
 ## Log
 
@@ -63,3 +65,7 @@ L7 (2026-11-06, T3 and T4): commit hooks passed on 6b8533e0, including full cove
 L8 (2026-11-06, T5): no code blockers; S1-S7 pass; S8 and S9 corrections D1-D3 applied. MCP outputs byte-identical to baseline; feed differs only by 78 reports replaced by 34 groups. Fresh snapshot: 78, 3, 1, 16 no reading, 98 total. Backup 78, 1, 1 predates reports 489 and 492. Not covered: a real authenticated POST and a rendered screen with these states; `test:mutation:staged` not run, 27 guards removed by hand instead.
 
 L9 (2026-11-06, open): S1 measures 30 minutes from A, the latest start. The table the owner approved says "that start", the first start after the failure. This is my deviation, found by T5. Measuring from N moves 4 of the 78 to late, including report 483, the 2026-11-05 case. Waiting for the owner.
+
+L10 (2026-11-07, owner): "¿No te das cuenta que el tiempo mínimo de mobile es el tiempo que tú tienes que poner de espera en el bridge? O sea, piénsalo bien. La única forma de que se demore más del tiempo que te está diciendo mobile que se demora es que haya hecho la sincronización, la último intento de sincronización un segundo antes de que abrir se encienda. Y desde allí, el tiempo que tú deberías esperar es literalmente el tiempo que mobile vuelve a intentarlo. Ese es el tiempo máximo que se puede demorar una sincronización de forma normal. Después de eso, es que pasó algo. Eso es todo."
+
+L11 (2026-11-07, mobile session): no guaranteed bound. Ticker requested every 60 s, up to about 9 min in Doze; WorkManager floor 15 min (`SyncFloorScheduler.kt:26`), measured 16m37s and 20m11s; nothing runs while locked after reboot; 3 reports per cycle (`SyncEngineDiagnosticsCourier.kt:12`). Measured first report per start over 34 starts: 30 under 2 min, one 13.8 min, three at 321, 430 and 575 min.
