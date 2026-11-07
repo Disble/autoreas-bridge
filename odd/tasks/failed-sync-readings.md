@@ -40,7 +40,7 @@ Out of scope, waiting for the owner: mobile contract and its 50 a day limit, kee
 - [x] T2 (S1, S2, S3, S7) Feed lines, group, counts, report read. Route: delegated, context backstop. Commit: b082e005.
 - [x] T3 (S3) Feed rows, drawer evidence, Technical view. Route: delegated, context backstop. Commit: 6b8533e0.
 - [x] T4 (S8, S9) Documentation and architecture pages. Route: delegated, context backstop. Commit: 81aed5c2.
-- [ ] T5 (S1-S8) Independent verification. Risk item 3: incident meaning changes for MCP readers. Route: delegated verifier. Commit: none.
+- [x] T5 (S1-S9) Independent verification. Risk item 3: incident meaning changes for MCP readers. Route: delegated verifier. Commit: none.
 
 ## Log
 
@@ -59,3 +59,7 @@ L5 (2026-11-06, T1 and T2): `syncreading` mutation 50 of 50 killed, 100% coverag
 L6 (2026-11-06, T1 and T2 decisions kept): older start rows count, because `api.listening` alone gave 48/1/5 with 42 no reading and read four Bridge-off failures as real. A group appears only when its start is in range, and lists all its reports. No retained starts means no reading. Limits: 32 devices per start record, 2000 starts and 5000 failed actions per read; a report past the cap has no reading. Long-silent devices are not in the record, so they read by start times alone. New warnings: `api.last_contacts_unread`, `incident.sync_reading_failed`.
 
 L7 (2026-11-06, T3 and T4): commit hooks passed on 6b8533e0, including full coverage, render smoke and layout smoke. `bun run lint` reports 32 errors in 21 files, none touched by this branch; base not compared. Battery: 92 of 92 in six scenarios, but the simulator does not model `episode_action` incidents, so the retention effect of "Bridge was off" is known from code, not measured. Open for the owner: failed Traffic lines stay hidden while Traffic is off, including "Sync failed".
+
+L8 (2026-11-06, T5): no code blockers; S1-S7 pass; S8 and S9 corrections D1-D3 applied. MCP outputs byte-identical to baseline; feed differs only by 78 reports replaced by 34 groups. Fresh snapshot: 78, 3, 1, 16 no reading, 98 total. Backup 78, 1, 1 predates reports 489 and 492. Not covered: a real authenticated POST and a rendered screen with these states; `test:mutation:staged` not run, 27 guards removed by hand instead.
+
+L9 (2026-11-06, open): S1 measures 30 minutes from A, the latest start. The table the owner approved says "that start", the first start after the failure. This is my deviation, found by T5. Measuring from N moves 4 of the 78 to late, including report 483, the 2026-11-05 case. Waiting for the owner.

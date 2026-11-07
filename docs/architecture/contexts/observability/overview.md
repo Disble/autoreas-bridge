@@ -9,8 +9,7 @@ For a mobile report from arrival to display as a decision tree, read `workflow.m
 exist, what they cost and how the feed looks, read `docs/observability/` (start at its `README.md`), which
 stays the reference for the design. ADR-028 records the retention decision and ADR-026 the report store.
 
-Everything on this page was read from the code on 2026-11-06. The one exception is marked in the text: the
-frontend half of the failed sync readings was still being written then.
+Everything on this page was read from the code on 2026-11-06.
 
 ## Responsibility
 
@@ -199,5 +198,3 @@ A reading has no storage: it is computed on each read. The start record is metad
   `retention` declares.
 - **The battery does not see mobile incidents.** The POC simulator triggers only on `device_sync_diagnostics`,
   so it cannot measure what a missing incident costs (`docs/observability/mobile-reports.md`).
-- **Not verified from committed code.** The drawer and Technical view of a reading were read from the working
-  tree of the frontend task, before its commit.

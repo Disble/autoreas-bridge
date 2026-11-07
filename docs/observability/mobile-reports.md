@@ -174,12 +174,14 @@ because its own row may not be flushed yet.
 | Reading | Feed row | Failure? | Incident | Replay |
 |---|---|---|---|---|
 | Bridge was off | "3 changes waited for Bridge": one neutral line per start, under Traffic. The failure switch skips it | No | None | 78 reports in 34 lines |
-| Tablet came back late | "Tablet came back late" | Yes | Opens one | 1 |
+| Tablet came back late | "Tablet came back late" | Yes | Opens one | 3 |
 | Real failure | "Sync failed" | Yes | Opens one | 1 |
 | No reading | The report as a plain failure | Yes | Opens one | 16 |
 
-The replay ran on `bridge-after-reconnect-2026-11-06.db`, a copy of the owner's database, over its 96 failed
-sync reports. An earlier estimate from start times alone read 3 late; the difference is not explained yet.
+The replay ran on a snapshot of the owner's database taken on 2026-11-06, over its 98 failed sync reports. The
+earlier backup `bridge-after-reconnect-2026-11-06.db` reads 1 late and 96 in total, because it was taken at 16:46,
+before two of the three late reports arrived (16:58 and 17:18). All three failed on the night of 2026-11-06 and
+arrived more than 7 hours after the 09:31 start.
 
 ### Details and limits
 
@@ -206,7 +208,15 @@ sync reports. An earlier estimate from start times alone read 3 late; the differ
 | Item | State |
 |---|---|
 | Keep the capture of a delivered report for 2 h instead of 90 days | Not adopted. See the battery result below |
+| Measuring the 30 minutes from the latest start or from the first start after the failure | Open. See below |
 | Actions at 2026-09-26 00:42, 2026-09-26 01:48 and 2026-10-09 01:02 | Committed on the phone with no matching applied change. Unresolved |
+
+### Which start the 30 minutes run from
+
+The code measures from the latest start at or before the arrival. The table the owner approved read "within 30
+minutes of that start", the first start after the failure. They differ only when Bridge started twice before the
+report arrived: 4 of the 78 Bridge was off reports would read late if measured from the first start, including
+the 2026-11-05 failure, which arrived 575 minutes after that start and 1.3 minutes after the next one.
 
 ### Battery result for the capture change
 

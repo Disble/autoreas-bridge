@@ -50,14 +50,14 @@ flowchart TD
     reader -- "MCP search_history" --> mcpraw([Raw report: outcome and arrived late mark, no reading])
     reader -- "MCP get_status, list_incidents, incident detail" --> hasinc{Report has an incident?}
     hasinc -- yes --> listed([Listed under its fingerprint, with the reports of its window])
-    hasinc -- no --> unlisted([Not listed])
-    reader -- "Activity feed" --> traffic{Traffic selected?}
-    traffic -- no --> hidden([No line, the Traffic chip counts it])
-    traffic -- yes --> failed{Report outcome is failed?}
+    hasinc -- no --> unlisted([No incident of its own; it can still appear in another incident's window])
+    reader -- "Activity feed" --> failed{Report outcome is failed?}
     failed -- no --> noline([No line, the report restates its change])
+    failed -- yes --> traffic{Traffic selected?}
+    traffic -- no --> hidden([No line, the Traffic chip counts it])
 
     subgraph rule [Reading rule, on every read]
-        failed -- yes --> eligible{Episode action at phase sync, inside the read caps?}
+        traffic -- yes --> eligible{Episode action at phase sync, inside the read caps?}
         eligible -- yes --> older{T older than the oldest retained start?}
         older -- no --> next{A start after T at or before R?}
         next -- yes --> heard{That start recorded a contact from D at or after T?}
@@ -159,4 +159,4 @@ validated record Bridge stored, so the screen calls it the stored report. A grou
 Data tab offers a picker.
 
 The frontend side lives in `frontend/src/features/activity/drawer/drawer-reading.helpers.ts`,
-`use-drawer-stored-report.ts` and `ui/ActivityTechnicalView/`. Those files were read before their commit.
+`use-drawer-stored-report.ts` and `ui/ActivityTechnicalView/`.
