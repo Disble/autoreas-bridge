@@ -17,6 +17,7 @@ S3. Serve `runtime_transition`, agreed with mobile:
 - Real state changes only, never per tick.
 - Fields: `observation_id`, `observed_at_ms`, `process_name`, `subject`, `transition`, optional `reason` matching `^[a-z0-9_]{1,40}$`, `app_version`.
 - `died` per event only for `sync`.
+- Closed sets (mobile, 2026-11-07): `subject` is `service`, `tick_alarm`, `floor`, `process`, `boot` or `network`; `transition` is `started`, `stopped`, `armed`, `cancelled`, `skipped`, `refused` or `died`. `ran` is not a value: runs are counted in `hourly_summary`. Not every pair is valid; mobile sends the pair table.
 
 S4. `cycle_report`: reject an empty or missing `cycle_id`. Native failed cycles send `previous_cycle.outcome: failed`, `trigger_source: foreground_service`, `app_state: background`; stages map `checked` to `attempt_started`, `claimed` to `claim_ops`, `sent` to `http`, `applied` to `apply_write`. Bridge adds no vocabulary: mobile maps to existing words.
 
