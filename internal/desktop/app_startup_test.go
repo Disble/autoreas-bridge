@@ -139,15 +139,22 @@ func TestAppStartupReadsLastContactsBeforeTheServerExists(t *testing.T) {
 		}
 	})
 	var got map[string]int64
-	app.newHTTPServer = func(api.Config) api.Server {
-		got = app.startLastContacts
-		return &stubAppHTTPServer{}
+	server := &stubAppHTTPServer{}
+	app.newHTTPServer = func(config api.Config) api.Server {
+		got = config.LastContacts
+		if server.started {
+			t.Fatal("expected the snapshot before the server started")
+		}
+		return server
 	}
 
 	app.startup(context.Background())
 
 	if want := map[string]int64{"tablet": lastSeenMS}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("contacts when the server was built = %v, want %v", got, want)
+		t.Fatalf("server contacts = %v, want %v", got, want)
+	}
+	if !reflect.DeepEqual(app.startLastContacts, got) {
+		t.Fatalf("app contacts = %v, want the record the server holds", app.startLastContacts)
 	}
 }
 
