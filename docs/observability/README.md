@@ -30,6 +30,7 @@ Keep a lot for a short time, and a little, the right little, for a long time.
 | [evidence-classes.md](evidence-classes.md) | the 13 kinds of evidence a diagnosis needs, and which layer keeps each |
 | [budgets.md](budgets.md) | the storage each layer costs, modelled vs measured, and how to retune it |
 | [qa-battery.md](qa-battery.md) | how the 92-issue battery works, how to run it and how to add an issue |
+| [mobile-reports.md](mobile-reports.md) | what Bridge does with a mobile report, what stored reports can and cannot tell, and what is undecided |
 | [activity-ui.md](activity-ui.md) | why the current Activity screen hangs, and the requirements for the new one |
 | [activity-ui-design-v2.md](activity-ui-design-v2.md) | the approved Activity design: behaviour, data sources and rejected ideas the mockup cannot show |
 | [activity-ui-design.md](activity-ui-design.md) | the previous design, superseded by v2 (history only) |

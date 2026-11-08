@@ -39,7 +39,7 @@ ADRs, `docs/learning-log.md`, `odd/tasks/*` and `openspec/`. They describe what 
 | 2 | Mobile correlation | the phone sends its id in an optional header; the bridge reads it when present | done on the bridge side: header accepted and echoed (T3d), announced in openapi; the phone sends it on its own schedule |
 | 3 | Ledger | write journal, event and WS ledger, hourly rollup, response versions; the old tables still exist inside the branch | done: `edc1bf98`, `dd9ef3a2` |
 | 4 | Recorder and incidents | the 2-hour recorder and 90-day incidents replace the row caps; the old capture and event tables and their readers are deleted | done: the existing capture and event tables became the recorder (L15 D-a), the time-based sweeper replaced the row caps |
-| 5 | Readers | new MCP tools and the new Activity UI; the old screen, stores, sources, bindings and MCP tools are deleted (see "No legacy") | pending: UI design in `activity-ui-design.md` |
+| 5 | Readers | new MCP tools and the new Activity UI; the old screen, stores, sources, bindings and MCP tools are deleted (see "No legacy") | done: 11 MCP tools, and the Activity feed designed in `activity-ui-design-v2.md`. `features/network` and the old bindings are gone. Added on 2026-11-06: failed sync readings (`mobile-reports.md`) |
 | 6 | Measure | the battery against real stores, budgets measured on disk | measured 2026-10-18 on a live copy (`budgets.md`, `qa-battery.md`). 92/92 stored and 70–92 readable. ≈21.9 MB against the modelled 13.0 MB. D-f is reversed (incidents at 1.24 MB against 0.48 MB). Waiting for owner decisions |
 
 Stage 1 runs in two lanes with disjoint files:

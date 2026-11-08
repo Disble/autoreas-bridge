@@ -5,10 +5,28 @@ import { DRAWER_ORIGIN_LABELS, DRAWER_TASK_DOMAINS, DRAWER_WINDOW_ERROR_EVENT_TY
 import type { DrawerHeaderModel, DrawerSection, DrawerSummaryInput, DrawerSummaryModel } from './drawer.types';
 import { drawerFact, formatDrawerKeptUntil, formatDrawerTime, formatDrawerWhen } from './drawer-format.helpers';
 import { changeSections, failureSections, runStorySections, runSections, systemGroupSections, trafficSections, windowErrorSections } from './drawer-presenters.helpers';
+import { bridgeOffSections, readingSections, toDrawerReadingHeader } from './drawer-reading.helpers';
+import { reportSections, toDrawerReportHeader } from './drawer-report.helpers';
+import { silenceSections, toDrawerSilenceHeader } from './drawer-silence.helpers';
+import { bridgeStartSections } from './drawer-start.helpers';
+import { ACTIVITY_BRIDGE_CLOSED } from '../feed/activity-feed.constants';
+
+/** Title and phrase of an event line: a clean close titled in plain words, any other event by its recorded message, and a System group's count. */
+function eventTitleAndPhrase(feedLine: ActivityFeedLine): { readonly title: string; readonly phrase: string } {
+  const { line, system } = feedLine;
+  return {
+    title: line.detail === ACTIVITY_BRIDGE_CLOSED.eventType ? ACTIVITY_BRIDGE_CLOSED.subject : line.title,
+    phrase: system !== undefined && system.count > 1 ? `${system.count} times` : '',
+  };
+}
 
 /** Title and phrase of a line, from its stored fields. */
 function titleAndPhrase(feedLine: ActivityFeedLine): { readonly title: string; readonly phrase: string } {
   const { line, traffic, run } = feedLine;
+  const reading = toDrawerReadingHeader(feedLine);
+  if (reading !== undefined) {
+    return reading;
+  }
   switch (line.kind) {
     case 'change':
       return { title: line.title, phrase: describeActivityChange({ source: line.source, actionType: line.detail, beforeJson: line.beforeJson, afterJson: line.afterJson }) };
@@ -16,8 +34,12 @@ function titleAndPhrase(feedLine: ActivityFeedLine): { readonly title: string; r
       return { title: 'Phone checked in', phrase: traffic === undefined ? '' : `${traffic.requests} times${traffic.failed > 0 ? ` · ${traffic.failed} refused` : ''}` };
     case 'download_run':
       return { title: 'Download run', phrase: run === undefined ? '' : `${run.episodesDownloaded} downloaded${run.episodesFailed > 0 ? ` · ${run.episodesFailed} failed` : ''}` };
+    case 'phone_report':
+      return toDrawerReportHeader(feedLine);
+    case 'tablet_silence':
+      return toDrawerSilenceHeader(feedLine) ?? eventTitleAndPhrase(feedLine);
     default:
-      return { title: line.title, phrase: feedLine.system !== undefined && feedLine.system.count > 1 ? `${feedLine.system.count} times` : '' };
+      return eventTitleAndPhrase(feedLine);
   }
 }
 
@@ -97,6 +119,12 @@ function presenterSections(input: DrawerSummaryInput): readonly DrawerSection[] 
       return trafficSections(input);
     case 'download_run':
       return runSections(input);
+    case 'bridge_off':
+      return bridgeOffSections(input);
+    case 'tablet_silence':
+      return silenceSections(input);
+    case 'phone_report':
+      return readingSections(input) ?? reportSections(input);
     default:
       return eventSections(input);
   }
@@ -114,5 +142,5 @@ export function toDrawerSummary(input: DrawerSummaryInput): DrawerSummaryModel {
   const tailored = presenterSections(input);
   const presenterGap = tailored === undefined ? [`No presenter for \`${input.line.line.detail || input.line.line.kind}\`. Shown with the generic layout.`] : [];
   const causeGap = input.incident === undefined ? undefined : toDrawerCauseGap(input.incident);
-  return { sections: [...systemGroupSections(input), ...(tailored ?? genericSections(input))], gaps: [...presenterGap, ...(causeGap === undefined ? [] : [causeGap])] };
+  return { sections: [...systemGroupSections(input), ...bridgeStartSections(input), ...(tailored ?? genericSections(input))], gaps: [...presenterGap, ...(causeGap === undefined ? [] : [causeGap])] };
 }

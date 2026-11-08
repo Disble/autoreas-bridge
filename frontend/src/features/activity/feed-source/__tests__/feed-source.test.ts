@@ -108,6 +108,7 @@ describe('feed-source', () => {
                 upToDateCount: 1,
                 errorSummary: 'jdownloader unreachable',
               },
+              tabletSummaries: [],
             },
           ],
         },
@@ -116,8 +117,21 @@ describe('feed-source', () => {
     });
   });
 
-  it('maps a traffic hour, a zero incident id and nil slices to empty values', async () => {
+  it('maps a traffic hour with its tablet summaries, a zero incident id and nil slices to empty values', async () => {
     const { mapActivityFeedView } = await import('../feed-source.helpers');
+    const summary = {
+      ReportID: 12,
+      DeviceID: 'device-1',
+      ReceivedAtMS: 7_300_000,
+      Summary: {
+        Counts: [
+          { TriggerSource: 'foreground_service', Outcome: 'closed', Count: 29, MaxDurationMS: 1412 },
+          { TriggerSource: 'foreground_service', Outcome: 'presence_refused', Count: 2, MaxDurationMS: null },
+        ],
+        DroppedCount: 3,
+        ProcessDeaths: [{ ProcessName: 'sync', Reason: 'low_memory', Count: 1 }],
+      },
+    };
     const traffic = goFeedLine({
       Type: 'traffic',
       Origin: 'phone',
@@ -126,22 +140,102 @@ describe('feed-source', () => {
       Line: goLedgerLine({ Kind: 'traffic_hour', ID: '3600000' }),
       Traffic: { HourStartMS: 3_600_000, Requests: 31, Failed: 0, MaxDurationMS: 6148 },
       Run: null,
+      TabletSummaries: [summary, { ...summary, ReportID: 13, Summary: { Counts: null, DroppedCount: 0, ProcessDeaths: null } }],
     });
 
     const view = mapActivityFeedView(activityread.FeedView.createFrom({ Days: [{ DayStartMS: 1, Lines: [traffic] }, { DayStartMS: 0, Lines: null }], NextCursor: '' }));
 
     expect(view.days[0].lines[0]).toMatchObject({ incidentId: undefined, slow: true, run: undefined, system: undefined, traffic: { hourStartMs: 3_600_000, requests: 31, failed: 0, maxDurationMs: 6148 } });
+    expect(view.days[0].lines[0]?.tabletSummaries).toEqual([
+      {
+        reportId: 12,
+        deviceId: 'device-1',
+        receivedAtMs: 7_300_000,
+        counts: [
+          { triggerSource: 'foreground_service', outcome: 'closed', count: 29, maxDurationMs: 1412 },
+          { triggerSource: 'foreground_service', outcome: 'presence_refused', count: 2, maxDurationMs: undefined },
+        ],
+        droppedCount: 3,
+        processDeaths: [{ processName: 'sync', reason: 'low_memory', count: 1 }],
+      },
+      { reportId: 13, deviceId: 'device-1', receivedAtMs: 7_300_000, counts: [], droppedCount: 0, processDeaths: [] },
+    ]);
     expect(view.days[1].lines).toEqual([]);
     expect(mapActivityFeedView(activityread.FeedView.createFrom({ Days: null, NextCursor: '' })).days).toEqual([]);
   });
 
-  it('maps a System group', async () => {
+  it('maps a System group, the run before a start with nil times to undefined, and a line without one to undefined', async () => {
     const { mapActivityFeedView } = await import('../feed-source.helpers');
     const system = goFeedLine({ Type: 'system', Run: null, Line: goLedgerLine({ Kind: 'event', ID: '9' }), System: { HourStartMS: 3_600_000, Count: 3, FirstAtMS: 3_660_000, LastAtMS: 3_900_000 } });
+    const closed = { ...system, BridgeStart: { ClosedAtMS: 1_000, LastEventAtMS: null } };
+    const notClosed = { ...system, BridgeStart: { ClosedAtMS: null, LastEventAtMS: 2_000 } };
 
-    const view = mapActivityFeedView(activityread.FeedView.createFrom({ Days: [{ DayStartMS: 0, Lines: [system] }], NextCursor: '' }));
+    const view = mapActivityFeedView(activityread.FeedView.createFrom({ Days: [{ DayStartMS: 0, Lines: [system, closed, notClosed] }], NextCursor: '' }));
 
-    expect(view.days[0].lines[0]).toMatchObject({ type: 'system', run: undefined, system: { hourStartMs: 3_600_000, count: 3, firstAtMs: 3_660_000, lastAtMs: 3_900_000 } });
+    expect(view.days[0].lines[0]).toMatchObject({ type: 'system', run: undefined, bridgeStart: undefined, system: { hourStartMs: 3_600_000, count: 3, firstAtMs: 3_660_000, lastAtMs: 3_900_000 } });
+    expect(view.days[0].lines.slice(1).map((line) => line.bridgeStart)).toEqual([
+      { closedAtMs: 1_000, lastEventAtMs: undefined },
+      { closedAtMs: undefined, lastEventAtMs: 2_000 },
+    ]);
+  });
+
+  it('maps a tablet silence, its nil times and next report to undefined', async () => {
+    const { mapActivityFeedView } = await import('../feed-source.helpers');
+    const goSilence = { DeviceID: 'tab', StartMS: 10, EndMS: 20, LastReport: { Kind: 'hourly_summary', ReceivedAtMS: 10, HourStartMS: 0 }, NextReport: { Kind: 'runtime_transition', ReceivedAtMS: 20, HourStartMS: null }, BridgeStartedAtMS: 5, BridgeStoppedAtMS: null };
+    const ended = goFeedLine({ Type: 'traffic', Run: null, Line: goLedgerLine({ Kind: 'tablet_silence', ID: 'tab:10' }), Silence: goSilence });
+    const ongoing = { ...ended, Silence: { ...goSilence, EndMS: null, NextReport: null, BridgeStoppedAtMS: 30 } };
+
+    const lines = mapActivityFeedView(activityread.FeedView.createFrom({ Days: [{ DayStartMS: 0, Lines: [ended, ongoing, goFeedLine()] }], NextCursor: '' })).days[0].lines;
+
+    expect(lines.map((line) => line.silence)).toEqual([
+      { deviceId: 'tab', startMs: 10, endMs: 20, lastReport: { kind: 'hourly_summary', receivedAtMs: 10, hourStartMs: 0 }, nextReport: { kind: 'runtime_transition', receivedAtMs: 20, hourStartMs: undefined }, bridgeStartedAtMs: 5, bridgeStoppedAtMs: undefined },
+      { deviceId: 'tab', startMs: 10, endMs: undefined, lastReport: { kind: 'hourly_summary', receivedAtMs: 10, hourStartMs: 0 }, nextReport: undefined, bridgeStartedAtMs: 5, bridgeStoppedAtMs: 30 },
+      undefined,
+    ]);
+  });
+
+  it('maps a reading, a nil evidence time to undefined, and a line without one to undefined', async () => {
+    const { mapActivityFeedView } = await import('../feed-source.helpers');
+    const report = { ReportID: 41, Reading: 'tablet_late', Evidence: { FailedAtMS: 1, ArrivedAtMS: 9, LastContactMS: null, NextStartMS: 3, GraceUntilMS: 4, FirstReportMS: 6, OverdueMS: 2 } };
+    const line = goFeedLine({ Type: 'traffic', Origin: 'phone', Run: null, Line: goLedgerLine({ Kind: 'phone_report', ID: '41' }), SyncReading: report });
+
+    const view = mapActivityFeedView(activityread.FeedView.createFrom({ Days: [{ DayStartMS: 0, Lines: [line, goFeedLine()] }], NextCursor: '' }));
+
+    expect(view.days[0].lines[0]?.syncReading).toEqual({ reportId: 41, reading: 'tablet_late', evidence: { failedAtMs: 1, arrivedAtMs: 9, lastContactMs: undefined, nextStartMs: 3, graceUntilMs: 4, firstReportMs: 6, overdueMs: 2 } });
+    expect(view.days[0].lines[1]).toMatchObject({ syncReading: undefined, bridgeOff: undefined });
+  });
+
+  it('maps the stored facts of a report line, an empty reason to undefined, and a line without them to undefined', async () => {
+    const { mapActivityFeedView } = await import('../feed-source.helpers');
+    const facts = (reason: string) => ({ ProcessName: 'sync', Subject: 'process', Transition: 'died', Reason: reason, Stage: '' });
+    const lines = [goFeedLine({ Report: facts('low_memory') }), goFeedLine({ Report: facts('') }), goFeedLine({ Report: { ...facts(''), Stage: 'http' } }), goFeedLine()];
+
+    const view = mapActivityFeedView(activityread.FeedView.createFrom({ Days: [{ DayStartMS: 0, Lines: lines }], NextCursor: '' }));
+
+    expect(view.days[0].lines.map((line) => line.report)).toEqual([
+      { processName: 'sync', subject: 'process', transition: 'died', reason: 'low_memory', stage: '' },
+      { processName: 'sync', subject: 'process', transition: 'died', reason: undefined, stage: '' },
+      { processName: 'sync', subject: 'process', transition: 'died', reason: undefined, stage: 'http' },
+      undefined,
+    ]);
+  });
+
+  it('maps a Bridge off group with its reports in order, and nil reports to an empty list', async () => {
+    const { mapActivityFeedView } = await import('../feed-source.helpers');
+    const evidence = { FailedAtMS: 1, ArrivedAtMS: 5, LastContactMS: 0, NextStartMS: null, GraceUntilMS: null, FirstReportMS: null, OverdueMS: null };
+    const group = { BridgeStartMS: 4, Reports: [{ ReportID: 9, Reading: 'bridge_off', Evidence: evidence }, { ReportID: 8, Reading: 'bridge_off', Evidence: evidence }] };
+    const line = goFeedLine({ Type: 'traffic', Origin: 'phone', Failed: false, Run: null, Line: goLedgerLine({ Kind: 'bridge_off', ID: '4' }), BridgeOff: group });
+    const empty = goFeedLine({ Run: null, BridgeOff: { BridgeStartMS: 4, Reports: null } });
+
+    const view = mapActivityFeedView(activityread.FeedView.createFrom({ Days: [{ DayStartMS: 0, Lines: [line, empty] }], NextCursor: '' }));
+
+    expect(view.days[0].lines[0]).toMatchObject({ failed: false, syncReading: undefined });
+    expect(view.days[0].lines[0]?.bridgeOff?.bridgeStartMs).toBe(4);
+    expect(view.days[0].lines[0]?.bridgeOff?.reports.map((report) => [report.reportId, report.reading, report.evidence.lastContactMs, report.evidence.graceUntilMs, report.evidence.firstReportMs, report.evidence.overdueMs])).toEqual([
+      [9, 'bridge_off', 0, undefined, undefined, undefined],
+      [8, 'bridge_off', 0, undefined, undefined, undefined],
+    ]);
+    expect(view.days[0].lines[1]?.bridgeOff?.reports).toEqual([]);
   });
 
   it('maps a finished run time', async () => {
@@ -210,6 +304,20 @@ describe('feed-source', () => {
     expect(read).toHaveBeenCalledWith(872, 1792801492755);
     expect(context?.events).toMatchObject([{ id: 40251, eventType: 'sync.changelog', message: 'recorded pending changelog for a' }]);
     expect(context?.requests).toEqual([]);
+    expect(missing).toBeUndefined();
+  });
+
+  it('reads the stored payload of one phone report by id, and an unknown report as undefined', async () => {
+    const read = vi.fn((id: number) => Promise.resolve(activityread.PhoneReportDetail.createFrom({ Found: id === 41, Report: { ID: id }, PayloadJSON: id === 41 ? '{"failed":true}' : '' })));
+    attachBindings({ GetActivityPhoneReport: read });
+    const { createActivityFeedSource } = await import('../feed-source.helpers');
+    const source = createActivityFeedSource();
+
+    const found = await source.getPhoneReport(41);
+    const missing = await source.getPhoneReport(42);
+
+    expect(read).toHaveBeenCalledWith(41);
+    expect(found).toBe('{"failed":true}');
     expect(missing).toBeUndefined();
   });
 

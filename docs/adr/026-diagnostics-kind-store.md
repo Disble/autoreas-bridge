@@ -19,6 +19,20 @@
   `internal/persistence/schema.go` (the declarative driver whose limits D2 states), §D2 for
   `ensureRequestCaptureTableRename` and the seven live `Migrate:` hooks as evidence of the refused pattern
 
+> **Update, 2026-11-06.** The store is unchanged, but it has new readers. Activity reads failed
+> `episode_action` reports and computes a reading from them, without storing it
+> (`internal/observability/activityread/sync_readings.go`, `docs/observability/mobile-reports.md`). That read
+> and the feed filter on `json_extract(payload_json, ...)` after the indexed `kind` and `reported_at_ms`
+> predicates, with no projection, which is drift from the promotion rule in D6; it is recorded in
+> `docs/architecture/contexts/observability/overview.md`. `episode_action` at phase `sync` no longer always
+> opens an incident: a report that reads Bridge was off opens none.
+
+> **Update, 2026-11-07.** The store gains two kinds, each one registry declaration as D1 requires and with
+> no schema change: `hourly_summary` (one closed hour of the tablet's sync attempts, cap 2,160 rows) and
+> `runtime_transition` (one state change of a mobile process, cap 2,340 rows). The caps size the 50 reports
+> a day the owner approved for these kinds over 90 days. `cycle_report` now refuses an empty `cycle_id`, its
+> idempotency key (`docs/observability/mobile-reports.md`, `docs/openapi.yaml`).
+
 ## Context
 
 `POST /api/sync/diagnostics` shipped with exactly one shape: the `device_sync_diagnostics` table, 21

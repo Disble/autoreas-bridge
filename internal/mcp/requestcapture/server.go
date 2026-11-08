@@ -9,7 +9,7 @@ import (
 
 // coverageNote closes every tool description: the answer's coverage object
 // is what tells "no data" apart from "nothing happened".
-const coverageNote = " The coverage object lists the tables read and the time range they hold; an empty answer only means nothing inside that range."
+const coverageNote = " The coverage object lists the tables read and the time range they hold, and for phone reports the range of each kind; an empty answer only means nothing inside that range."
 
 // Server is the read-only MCP sidecar over the Activity read service.
 type Server struct {
@@ -25,11 +25,11 @@ func NewServer(reader *Reader, now func() time.Time) *Server {
 	}
 	t := tools{reader: reader, now: now}
 	sdk := mcp.NewServer(&mcp.Implementation{Name: "autoreas-request-mcp", Version: "v2.0.0"}, nil)
-	add(sdk, "get_status", "Is everything fine right now? The status sentence, last phone contact, today's counts, the 24-hour chart, open incidents and recent changes.", t.status)
+	add(sdk, "get_status", "Is everything fine right now? The status sentence, last phone contact, today's counts, the 24-hour chart, open incidents and recent changes. A quiet phone is named even when open problems set the status: read Status.QuietMinutes. tablet_silences lists each tablet not heard for 60 minutes or more while Bridge is on, computed on read; it assumes the newest Bridge run is still on unless a clean close is stored.", t.status)
 	add(sdk, "list_incidents", "Incidents of the last 7 days, one per fingerprint, newest first, filtered by where it happened.", t.incidents)
-	add(sdk, "get_incident", "One incident occurrence: its cause, the requests, events and phone reports of its window, and earlier occurrences. found is false when it is no longer stored.", t.incident)
+	add(sdk, "get_incident", "One incident occurrence: its cause, the requests, events and phone reports of its window, and earlier occurrences. The window lists every phone report kind; an hourly_summary there describes its whole closed hour, not those minutes. A sync process death is an incident whose cause is its recorded reason. found is false when it is no longer stored.", t.incident)
 	add(sdk, "get_request", "Captured requests with headers and bodies, by bridge request_id (one row) or by the phone's client_request_id (every row sharing it, newest first). Credentials are stripped.", t.request)
-	add(sdk, "search_history", "The 90-day ledger, newest first, grouped by day: changes, phone reports, connections (connects, disconnects and the bridge's ws_broadcast pushes), events and incidents. Pages with cursor.", t.history)
+	add(sdk, "search_history", "The 90-day ledger, newest first, grouped by day: changes, phone reports, connections (connects, disconnects and the bridge's ws_broadcast pushes), events and incidents. Pages with cursor. Phone report kinds: cycle_report is one sync cycle's diagnostics; episode_action is one step of an episode change; screen_stall is a frozen screen; runtime_transition is a process or service changing state, with process, subject and change in detail; hourly_summary is the tablet's own counts for one closed hour, with the stored report in detail and the hour's start as the phone time. tablet_silence lines are computed on read: 60 minutes or more with no report while Bridge was on.", t.history)
 	add(sdk, "list_runs", "Runs of the last 7 days: events sharing one correlation id, with their worst level.", t.runs)
 	add(sdk, "get_run_story", "Every event of one run in order, with metadata.", t.runStory)
 	add(sdk, "list_recorder", "The 2-hour recorder: requests and events merged newest first, summary fields only. Pages with cursor.", t.recorder)

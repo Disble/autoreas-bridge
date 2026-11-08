@@ -1,5 +1,5 @@
 import type { DrawerBodyStatus } from '../../drawer/drawer-reads.helpers';
-import type { DrawerDataBlock, DrawerEventRow, DrawerHttpHeader, DrawerOccurrence, DrawerRequestGroup, DrawerRequestPanel, DrawerTechnicalTab, DrawerWindowErrorDetail } from '../../drawer/drawer.types';
+import type { DrawerDataBlock, DrawerEventRow, DrawerHttpHeader, DrawerOccurrence, DrawerReportChoice, DrawerRequestGroup, DrawerRequestPanel, DrawerTechnicalTab, DrawerWindowErrorDetail } from '../../drawer/drawer.types';
 import type { ActivityRead } from '../ActivityRunStory/activity-run-story.types';
 
 /** Props of the technical view of the detail drawer. */
@@ -44,7 +44,22 @@ export interface ActivityTechnicalViewProps {
   readonly onPickOccurrence: (id: number) => void;
   /** Reads the picked occurrence again. */
   readonly onRetryOccurrence: () => void;
+  /** The reports of a line with a reading, shown in Data instead of the raw blocks; empty for other lines. */
+  readonly reports: readonly DrawerReportChoice[];
+  /** The shown report's id; undefined without reports. */
+  readonly selectedReportId: number | undefined;
+  /** Status of the shown report's read; undefined while Data is not shown. */
+  readonly reportStatus: ActivityRead<unknown>['status'] | undefined;
+  /** The shown report's stored payload, once read. */
+  readonly reportJson: string | undefined;
+  /** Picks a report. */
+  readonly onPickReport: (id: number) => void;
+  /** Reads the shown report again. */
+  readonly onRetryReport: () => void;
 }
+
+/** Props of the stored report of a line with a reading. */
+export type ActivityTechnicalStoredReportProps = Pick<ActivityTechnicalViewProps, 'reports' | 'selectedReportId' | 'reportStatus' | 'reportJson' | 'onPickReport' | 'onRetryReport'>;
 
 /** Props of the Requests tab. */
 export interface ActivityTechnicalRequestsProps {

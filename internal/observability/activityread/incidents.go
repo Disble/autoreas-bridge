@@ -90,16 +90,24 @@ func titleFor(fingerprint, reason string) string {
 	case incident.ReasonSlow:
 		return subjectOf(part(2)) + " is slow"
 	case incident.ReasonMobileFailure:
-		if part(1) == "cycle_report" {
-			return withCode("The phone's sync cycle failed", part(3))
-		}
-		return withCode("An episode change failed on the phone", part(3))
+		return withCode(mobileFailureSubject(part(1)), part(3))
 	case incident.ReasonErrorEvent:
 		return withCode("Error in "+areaOf(part(1)), part(2))
 	case incident.ReasonManualPin:
 		return "Pinned moment"
 	}
 	return fingerprint
+}
+
+// mobileFailureSubject names what failed on the phone for one report kind.
+func mobileFailureSubject(kind string) string {
+	switch kind {
+	case "cycle_report":
+		return "The phone's sync cycle failed"
+	case "runtime_transition":
+		return "The phone's sync process died"
+	}
+	return "An episode change failed on the phone"
 }
 
 // withCode appends a non-empty code in parentheses.

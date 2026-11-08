@@ -54,7 +54,7 @@ export function useActivityDetailDrawer(line: ActivityFeedLine, source: Activity
   const header = useMemo(() => toDrawerHeader(line), [line]);
   const summary = useMemo(() => toDrawerSummary(input), [input]);
   const technicalView = useDrawerTechnical(source, feedSource, line, incident, input);
-  const { technical } = technicalView;
+  const { technical, reportJson } = technicalView;
 
   // 6. Callbacks (useCallback calling pure helpers)
   const { retry: retryIncident } = incidentRead;
@@ -67,8 +67,8 @@ export function useActivityDetailDrawer(line: ActivityFeedLine, source: Activity
   }, [retryIncident, retryEvent, retryChange]);
 
   const copyForAi = useCallback(() => {
-    copy(toDrawerCopyText(input, technical));
-  }, [copy, input, technical]);
+    copy(toDrawerCopyText(input, technical, reportJson));
+  }, [copy, input, reportJson, technical]);
 
   // 7. Effects
 

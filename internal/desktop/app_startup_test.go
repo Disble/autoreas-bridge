@@ -5,6 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"path/filepath"
+	"reflect"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,7 +17,10 @@ import (
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
+	"autoreas-bridge/internal/observability/activityread"
+	"autoreas-bridge/internal/observability/eventlog"
 	"autoreas-bridge/internal/observability/requestcapture"
+	"autoreas-bridge/internal/observability/syncreading"
 	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
@@ -97,6 +103,110 @@ func TestAppStartupInitializesDownloadStoreBeforeHTTPServerFailure(t *testing.T)
 	})
 	if got != "ok" {
 		t.Fatalf("expected schedule config to persist through the initialized download store, got %q", got)
+	}
+}
+
+// insertDeviceState stores one device_sync_state row.
+func insertDeviceState(t *testing.T, db *sql.DB, deviceID, status string, lastSeenMS int64) {
+	t.Helper()
+	if _, err := db.Exec(`INSERT INTO device_sync_state (device_id, last_ack_changelog_id, last_seen_at_ms, sync_status)
+		VALUES (?, 0, ?, ?)`, deviceID, lastSeenMS, status); err != nil {
+		t.Fatalf("insert device state: %v", err)
+	}
+}
+
+// TestAppStartupReadsLastContactsBeforeTheServerExists proves S4's ordering: the
+// server is built holding the stored value, and only Start accepts a contact, so
+// no contact can overwrite it first. Only active devices are recorded.
+func TestAppStartupReadsLastContactsBeforeTheServerExists(t *testing.T) {
+	t.Parallel()
+
+	// Recent, because startup marks a long-silent device stale first.
+	lastSeenMS := time.Now().UnixMilli()
+	dbPath := filepath.Join(t.TempDir(), "bridge.db")
+	app := newAppTestApp(t)
+	app.bootstrapBridgeDB = func() (*sql.DB, error) {
+		db, err := bridgeSync.OpenBridgeDB(dbPath)
+		if err == nil {
+			insertDeviceState(t, db, "tablet", bridgeSync.DeviceSyncStatusActive, lastSeenMS)
+			insertDeviceState(t, db, "old-tablet", "revoked", lastSeenMS+1)
+		}
+		return db, err
+	}
+	t.Cleanup(func() {
+		if app.bridgeDB != nil {
+			_ = app.bridgeDB.Close()
+		}
+	})
+	var got map[string]int64
+	server := &stubAppHTTPServer{}
+	app.newHTTPServer = func(config api.Config) api.Server {
+		got = config.LastContacts
+		if server.started {
+			t.Fatal("expected the snapshot before the server started")
+		}
+		return server
+	}
+
+	app.startup(context.Background())
+
+	if want := map[string]int64{"tablet": lastSeenMS}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("server contacts = %v, want %v", got, want)
+	}
+	if !reflect.DeepEqual(app.startLastContacts, got) {
+		t.Fatalf("app contacts = %v, want the record the server holds", app.startLastContacts)
+	}
+}
+
+// TestStartRecordOfTheBusiestBridgeSurvivesTheMetadataBound stores a full record
+// through the real event store: past 4 KB the metadata becomes a marker and the
+// whole record is lost, so the cap has to hold with room to spare.
+func TestStartRecordOfTheBusiestBridgeSurvivesTheMetadataBound(t *testing.T) {
+	t.Parallel()
+
+	states := make([]bridgeSync.DeviceSyncState, maxStartContacts+5)
+	for i := range states {
+		states[i] = bridgeSync.DeviceSyncState{DeviceID: strings.Repeat("d", 60) + strconv.Itoa(i),
+			LastSeenAtMs: 1_794_001_306_685, SyncStatus: bridgeSync.DeviceSyncStatusActive}
+	}
+	contacts := activeLastContacts(states)
+	if len(contacts) != maxStartContacts {
+		t.Fatalf("contacts = %d, want the cap %d", len(contacts), maxStartContacts)
+	}
+	db := captureAppTestDB(t)
+	err := eventlog.NewStore(db).InsertEvent(context.Background(), eventlog.EventRecord{
+		OccurredAtMS: 1000, Domain: "api", Level: sharedlogger.LevelInfo, Message: "http server listening on [::]:9876", EventType: "api.listening",
+		Metadata: map[string]any{"addr": "[::]:9876", syncreading.LastContactsKey: contacts},
+	})
+	if err != nil {
+		t.Fatalf("insert start: %v", err)
+	}
+
+	starts, err := activityread.New(db).SyncStarts(context.Background())
+	if err != nil || len(starts) != 1 || !reflect.DeepEqual(starts[0].LastContacts, contacts) {
+		t.Fatalf("starts = %+v, %v; want the whole record back", starts, err)
+	}
+}
+
+// TestCaptureLastContactsLogsAFailedRead pins the degraded start: no record, a
+// warning with its cause, and a Bridge that starts anyway.
+func TestCaptureLastContactsLogsAFailedRead(t *testing.T) {
+	t.Parallel()
+
+	logger := &incidentTestLogger{}
+	app := &App{bridgeDB: captureAppTestDB(t), sharedLogger: logger.fanout()}
+	if _, err := app.bridgeDB.Exec(`DROP TABLE device_sync_state`); err != nil {
+		t.Fatalf("drop device_sync_state: %v", err)
+	}
+
+	app.captureLastContacts(context.Background(), bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(app.bridgeDB)))
+
+	if app.startLastContacts != nil {
+		t.Fatalf("contacts = %v, want none", app.startLastContacts)
+	}
+	if len(logger.entries) != 1 || logger.entries[0].EventType != "api.last_contacts_unread" ||
+		logger.entries[0].Level != sharedlogger.LevelWarn || logger.entries[0].Metadata["cause"] == "" {
+		t.Fatalf("log = %#v, want one warning with its cause", logger.entries)
 	}
 }
 

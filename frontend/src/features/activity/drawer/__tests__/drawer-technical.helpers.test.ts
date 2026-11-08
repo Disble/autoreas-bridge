@@ -15,7 +15,7 @@ import {
   toDrawerWindowErrorDetail,
   toLineCopyText,
 } from '../drawer-technical.helpers';
-import { feedLine, incident } from './drawer.fixtures';
+import { bridgeOffLine, feedLine, incident, readingLine, syncReading } from './drawer.fixtures';
 
 /** Builds a summary input with no reads. */
 function input(overrides: Partial<DrawerSummaryInput>): DrawerSummaryInput {
@@ -63,6 +63,11 @@ describe('toDrawerTechnicalTabs', () => {
     ['bridge', ['events', 'data']],
   ] as const)('a %s line shows %j', (origin, tabs) => {
     expect(toDrawerTechnicalTabs(feedLine({ origin }))).toEqual(tabs);
+  });
+
+  it('gives a Bridge off group no Requests tab, because it has no requests, and keeps it for a report with a reading', () => {
+    expect(toDrawerTechnicalTabs(bridgeOffLine([syncReading({ reading: 'bridge_off' })]))).toEqual(['events', 'data']);
+    expect(toDrawerTechnicalTabs(readingLine(syncReading()))).toEqual(['requests', 'events', 'data']);
   });
 });
 
@@ -156,6 +161,13 @@ describe('toDrawerDataBlocks', () => {
     expect(event.map((block) => block.label)).toEqual(['Event', 'Recorded fields']);
     expect(JSON.parse(event[1]!.raw)).toEqual({ k: 'v' });
   });
+
+  it.each([
+    ['a report with a reading', readingLine(syncReading())],
+    ['a Bridge off group', bridgeOffLine([syncReading({ reading: 'bridge_off' })])],
+  ])('dumps no raw line for %s: its data is the stored report', (_name, line) => {
+    expect(toDrawerDataBlocks(input({ line }))).toEqual([]);
+  });
 });
 
 describe('toDrawerCopyText', () => {
@@ -177,6 +189,14 @@ describe('toDrawerCopyText', () => {
     expect(text).not.toContain('incident');
     expect(text).not.toContain('correlation');
     expect(text).toContain('phone_report 3');
+  });
+
+  it('adds the stored report to the technical copy once it was read, and only there', () => {
+    const line = readingLine(syncReading());
+
+    expect(toDrawerCopyText(input({ line }), true, '{"failed":true}')).toContain('Stored report: {"failed":true}');
+    expect(toDrawerCopyText(input({ line }), true)).not.toContain('Stored report');
+    expect(toDrawerCopyText(input({ line }), false, '{"failed":true}')).not.toContain('Stored report');
   });
 
   it('copies from a feed row exactly what the drawer summary copies, with no read', () => {

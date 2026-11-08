@@ -26,7 +26,8 @@ const (
 	ReasonRejected Reason = "rejected"
 	// ReasonSlow is a request slower than SlowThreshold.
 	ReasonSlow Reason = "slow"
-	// ReasonMobileFailure is a phone report of a failed sync cycle or a failed write.
+	// ReasonMobileFailure is a phone report of a failed sync cycle, a failed
+	// write, a long screen stall or the death of the sync process.
 	ReasonMobileFailure Reason = "mobile_failure"
 	// ReasonErrorEvent is an error-level internal bridge event from any domain.
 	ReasonErrorEvent Reason = "error_event"
@@ -62,6 +63,14 @@ const (
 // vocabulary (internal/observability/syncdiag/vocabulary.go:50) and the
 // episode-action outcome vocabulary (internal/observability/telemetry/episode_action.go:31).
 const mobileOutcomeFailed = "failed"
+
+// The stored runtime_transition words of a sync process death
+// (internal/observability/telemetry/runtime_transition.go).
+const (
+	transitionProcessSync    = "sync"
+	transitionSubjectProcess = "process"
+	transitionDied           = "died"
+)
 
 // fingerprintSeparator joins fingerprint parts.
 const fingerprintSeparator = "|"
@@ -117,11 +126,16 @@ type MobileReportFact struct {
 	// Phase is the episode-action phase ("finished", "sync") or the screen-stall
 	// trigger ("touch", "resize", ...); empty for a cycle report.
 	Phase string
-	// Cause is the failure class: error_cause of a cycle report or cause of an
-	// episode action. It may be empty.
+	// Cause is the failure class: error_cause of a cycle report, cause of an
+	// episode action or reason of a runtime transition. It may be empty.
 	Cause string
 	// DurationMS is the screen-stall duration; zero for every other kind.
 	DurationMS int64
+	// ProcessName, Subject and Transition are the stored words of a runtime
+	// transition; empty for every other kind.
+	ProcessName string
+	Subject     string
+	Transition  string
 }
 
 // RequestReasons returns every reason a request opens an incident, most severe
@@ -184,8 +198,18 @@ func ClassifyEvent(f EventFact) (Trigger, bool) {
 }
 
 // ClassifyMobileReport triggers on a failed sync cycle, a failed episode
-// action write, or a screen stall of at least StallThreshold.
+// action write, a screen stall of at least StallThreshold, or the death of
+// the sync process.
 func ClassifyMobileReport(f MobileReportFact) (Trigger, bool) {
+	if f.Kind == telemetry.KindRuntimeTransition {
+		if f.ProcessName != transitionProcessSync || f.Subject != transitionSubjectProcess || f.Transition != transitionDied {
+			return Trigger{}, false
+		}
+		return Trigger{
+			Reason:      ReasonMobileFailure,
+			Fingerprint: fingerprint(string(ReasonMobileFailure), f.Kind, f.ProcessName, f.Cause),
+		}, true
+	}
 	if f.Kind == telemetry.KindScreenStall {
 		if time.Duration(f.DurationMS)*time.Millisecond < StallThreshold {
 			return Trigger{}, false

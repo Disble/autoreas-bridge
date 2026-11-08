@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"autoreas-bridge/internal/observability/incident"
+	"autoreas-bridge/internal/observability/telemetry"
 )
 
 // Feed failure predicates (activity-ui-design-v2.md, Feed). The event
@@ -14,6 +16,13 @@ import (
 const (
 	// feedFailedReportSQL is a phone report whose outcome failed.
 	feedFailedReportSQL = `(` + reportOutcomeSQL + `) = 'failed'`
+	// feedTransitionSQL is a runtime transition report: every one is a Traffic
+	// line (S6 P2).
+	feedTransitionSQL = `kind = '` + string(telemetry.KindRuntimeTransition) + `'`
+	// feedTransitionDiedSQL is the one transition that fails: a death, which
+	// the telemetry contract accepts only as the sync process dying. It is 0
+	// for a report of any other kind.
+	feedTransitionDiedSQL = `COALESCE(json_extract(payload_json, '$.transition') = 'died', 0)`
 	// feedFailedRunSQL is a run that ended in error or lost an episode.
 	feedFailedRunSQL = `(status = 'error' OR episodes_failed > 0)`
 	// runStatusError is the download_runs status of a run that ended in error.
@@ -58,19 +67,88 @@ func (r *Reader) feedChangeLines(ctx context.Context, plan feedPlan, p sourcePag
 	}, never), nil
 }
 
-// feedPhoneReportLines reads failed mobile reports as traffic lines. A report
-// that did not fail restates the change or the check-in it reports (on the
-// dev copy each episode press stores three: ok, committed and an empty
-// outcome), so it is never a line.
+// feedPhoneReportLines reads failed mobile reports and every runtime
+// transition as traffic lines, each with its reading or its stored facts if it
+// has them, plus one neutral line per Bridge start that received reports
+// reading Bridge was off. A report that did not fail restates the change or
+// the check-in it reports (on the dev copy each episode press stores three:
+// ok, committed and an empty outcome), so it is never a line. A transition is
+// a state change the phone reports about itself: only a death fails, so a
+// failures-only page keeps only the deaths.
 func (r *Reader) feedPhoneReportLines(ctx context.Context, plan feedPlan, p sourcePage) ([]item[FeedLine], error) {
 	if !plan.reads(FeedTraffic) {
 		return nil, nil
 	}
-	items, err := r.queryPhoneReports(ctx, p, feedFailedReportSQL)
+	syncs, err := r.readFailedSyncs(ctx, p.sinceMS)
 	if err != nil {
 		return nil, err
 	}
-	return toFeedItems(items, func(LedgerLine) FeedType { return FeedTraffic }, func(LedgerLine) bool { return true }), nil
+	transitions := feedTransitionSQL
+	if plan.failuresOnly {
+		transitions += ` AND ` + feedTransitionDiedSQL
+	}
+	items, err := r.queryPhoneReports(ctx, p, phoneReportKindsSQL, phoneReportKinds, `((`+transitions+`) OR (`+syncs.failedReportSQL()+`))`)
+	if err != nil {
+		return nil, err
+	}
+	lines := toFeedItems(items, func(LedgerLine) FeedType { return FeedTraffic }, func(LedgerLine) bool { return true })
+	for i := range lines {
+		lines[i].value.SyncReading = syncs.readings[lines[i].value.Line.ID]
+	}
+	if err := r.attachReportFacts(ctx, lines); err != nil {
+		return nil, err
+	}
+	if plan.failuresOnly {
+		return lines, nil
+	}
+	return append(lines, syncs.groupLines(p)...), nil
+}
+
+// attachReportFacts sets the stored facts P2 and P3 word on the phone report
+// lines of one page, all read by queryPhoneReports: a runtime transition's
+// process, subject, transition and reason, and a failed cycle report's last
+// stage when it recorded one. A transition line fails only when it is a death.
+// The ids are integers this package read, so they bind as text safely.
+func (r *Reader) attachReportFacts(ctx context.Context, lines []item[FeedLine]) error {
+	byID := map[string]*FeedLine{}
+	ids := make([]string, 0, len(lines))
+	for i := range lines {
+		line := &lines[i].value
+		byID[line.Line.ID] = line
+		ids = append(ids, line.Line.ID)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT rowid, kind,
+		COALESCE(json_extract(payload_json, '$.process_name'), ''), COALESCE(json_extract(payload_json, '$.subject'), ''),
+		COALESCE(json_extract(payload_json, '$.transition'), ''), COALESCE(json_extract(payload_json, '$.reason'), ''),
+		COALESCE(json_extract(payload_json, '$.previous_cycle.last_stage'), ''), `+feedTransitionDiedSQL+`
+		FROM device_telemetry_events WHERE rowid IN (`+strings.Join(ids, ", ")+`)`)
+	if err != nil {
+		return fmt.Errorf("activityread: feed report facts: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var id int64
+		var kind string
+		var facts PhoneReportFacts
+		var died bool
+		if err := rows.Scan(&id, &kind, &facts.ProcessName, &facts.Subject, &facts.Transition, &facts.Reason, &facts.Stage, &died); err != nil {
+			return fmt.Errorf("activityread: scan feed report facts: %w", err)
+		}
+		line := byID[formatID(id)]
+		switch telemetry.KindName(kind) {
+		case telemetry.KindRuntimeTransition:
+			line.Failed, line.Report = died, &PhoneReportFacts{ProcessName: facts.ProcessName, Subject: facts.Subject,
+				Transition: facts.Transition, Reason: facts.Reason}
+		case telemetry.KindCycleReport:
+			if facts.Stage != "" {
+				line.Report = &PhoneReportFacts{Stage: facts.Stage}
+			}
+		}
+	}
+	return rows.Err()
 }
 
 // feedTrafficLines reads one line per rollup hour that overlaps the page's
@@ -151,7 +229,9 @@ func (r *Reader) feedRunLines(ctx context.Context, plan feedPlan, p sourcePage) 
 // of a page: a failed event line by its fingerprint (eventIncident), a phone
 // report by its telemetry event id, and a traffic hour by the request
 // occurrences inside it. A slow request occurrence marks a traffic hour that
-// did not fail as slow.
+// did not fail as slow. A LineBridgeOff line gets none: it is not a failure, so
+// an incident stored for one of its reports before this reading existed stays
+// in the incident list and is not linked from here.
 func (r *Reader) attachIncidents(ctx context.Context, lines []FeedLine) error {
 	for i := range lines {
 		line := &lines[i]

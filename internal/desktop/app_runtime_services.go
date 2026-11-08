@@ -21,6 +21,11 @@ import (
 	"autoreas-bridge/internal/watchhistory"
 )
 
+// maxStartContacts caps the devices one start records. Event metadata past 4 KB
+// is replaced by a marker, which would lose the whole record; 32 devices stay far
+// below it, and Bridge pairs one active tablet.
+const maxStartContacts = 32
+
 // configureRuntimeServices wires and starts the bridge runtime services.
 func (a *App) configureRuntimeServices(ctx context.Context) {
 	a.configureCaptureQueue()
@@ -33,11 +38,45 @@ func (a *App) configureRuntimeServices(ctx context.Context) {
 	a.startIncrementalVacuumLoop(bridgeSync.IncrementalVacuumInterval)
 	a.startRetentionSweepLoop(retention.SweepInterval)
 	deviceService, changelogStore := a.configureBridgeDeviceServices(ctx)
+	// Before startHTTPServer: the first contact overwrites the value this keeps.
+	a.captureLastContacts(ctx, changelogStore)
 	a.configureRealtimeHub(ctx)
 	a.startSeasonProjectionPublisher(ctx)
 	conflictService := a.configureAnimeApplicationServices()
 	a.wireEpisodeServiceWithWriter(a.animeWrite)
 	a.startHTTPServer(deviceService, a.newMobileAnimeWriteService(), conflictService, changelogStore)
+}
+
+// captureLastContacts keeps each active device's last contact for the start
+// record. A failed read logs its cause and leaves the record empty, which is a
+// valid start: readings then go by start times alone.
+func (a *App) captureLastContacts(ctx context.Context, store *bridgeSync.ChangelogStore) {
+	if !a.canUseBridgeDB(ctx) {
+		return
+	}
+	states, err := store.ListDeviceSyncStates(ctx)
+	if err != nil {
+		if a.sharedLogger != nil {
+			a.sharedLogger.Logf("api", sharedlogger.LevelWarn, sharedlogger.Fields{
+				EventType: "api.last_contacts_unread",
+				Metadata:  map[string]any{"cause": err.Error()},
+			}, "failed to read device last contacts: %v", err)
+		}
+		return
+	}
+	a.startLastContacts = activeLastContacts(states)
+}
+
+// activeLastContacts returns the last contact of the active devices among
+// states, which list the freshest first, up to maxStartContacts.
+func activeLastContacts(states []bridgeSync.DeviceSyncState) map[string]int64 {
+	contacts := map[string]int64{}
+	for _, state := range states {
+		if state.SyncStatus == bridgeSync.DeviceSyncStatusActive && len(contacts) < maxStartContacts {
+			contacts[state.DeviceID] = state.LastSeenAtMs
+		}
+	}
+	return contacts
 }
 
 // configureCaptureQueue wires the request-capture observability queue when dependencies are present.

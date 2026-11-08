@@ -81,7 +81,7 @@ export function toDrawerWindowErrorFromMetadata(metadata: Readonly<Record<string
  * @param lineKey The open line's key.
  * @returns The occurrence id; undefined without occurrences.
  */
-export function pickDrawerOccurrenceId(occurrences: readonly DrawerOccurrence[], picked: DrawerPickedOccurrence | undefined, lineKey: string): number | undefined {
+export function pickDrawerOccurrenceId(occurrences: readonly Pick<DrawerOccurrence, 'id'>[], picked: DrawerPickedOccurrence | undefined, lineKey: string): number | undefined {
   const chosen = picked?.lineKey === lineKey ? occurrences.find((occurrence) => occurrence.id === picked.id) : undefined;
   return (chosen ?? occurrences[0])?.id;
 }

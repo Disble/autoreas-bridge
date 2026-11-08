@@ -1,6 +1,11 @@
 package activityread
 
-import "time"
+import (
+	"time"
+
+	"autoreas-bridge/internal/observability/syncreading"
+	"autoreas-bridge/internal/observability/telemetry"
+)
 
 // FeedType is one type toggle of the Activity feed (activity-ui-design-v2.md, Filters).
 type FeedType string
@@ -42,6 +47,9 @@ const (
 	LineTrafficHour LineKind = "traffic_hour"
 	// LineDownloadRun is one download_runs row.
 	LineDownloadRun LineKind = "download_run"
+	// LineBridgeOff is one Bridge start and the failed sync reports that waited
+	// for it: a neutral line, never a failure.
+	LineBridgeOff LineKind = "bridge_off"
 )
 
 // FeedInput selects one feed page. FromMS and ToMS bound the line time and
@@ -65,6 +73,18 @@ type TrafficHour struct {
 	Requests      int64
 	Failed        int64
 	MaxDurationMS int64
+}
+
+// TabletSummary is what one device reported for a traffic hour in its
+// hourly_summary (S6 P1), as stored: Bridge keeps no count of its own to
+// compare it with, so it is shown and never interpreted. ReportID is the
+// stored report, read with Reader.PhoneReport; ReceivedAtMS is when it reached
+// Bridge, after its hour closed and possibly much later.
+type TabletSummary struct {
+	ReportID     int64
+	DeviceID     string
+	ReceivedAtMS int64
+	Summary      telemetry.HourlySummary
 }
 
 // DownloadRunLine is one download_runs row as stored.
@@ -92,11 +112,45 @@ type SystemGroup struct {
 	LastAtMS    int64
 }
 
+// SyncReading is Bridge's reading of one failed sync report and what it rests
+// on. It is computed on each read and never stored: ReportID names the report,
+// which stays as stored (Reader.PhoneReport).
+type SyncReading struct {
+	ReportID int64
+	Reading  syncreading.Reading
+	Evidence syncreading.Evidence
+}
+
+// BridgeOffGroup is what one LineBridgeOff line stands for: the start that
+// received the reports, and each report with its reading, newest arrival first.
+type BridgeOffGroup struct {
+	BridgeStartMS int64
+	Reports       []SyncReading
+}
+
+// PhoneReportFacts are the stored fields a phone report line is worded from
+// (S6 P2 and P3), as stored: the frontend words them by fixed rules. A runtime
+// transition carries the first four, Reason empty when it recorded none; a
+// failed cycle report carries Stage, its previous_cycle.last_stage.
+type PhoneReportFacts struct {
+	ProcessName string
+	Subject     string
+	Transition  string
+	Reason      string
+	Stage       string
+}
+
 // FeedLine is one row of the feed. Line carries the fields every kind has;
-// Traffic, Run and System are set only for their own lines. A System line is
-// an event line standing for its group: its Line is the group's newest
-// recorded event, at the group's last time. IncidentID is the newest incident
-// occurrence recorded for this fact, or 0.
+// Traffic, Run, System and BridgeOff are set only for their own lines. A System
+// line is an event line standing for its group: its Line is the group's newest
+// recorded event, at the group's last time. SyncReading is set on a phone report
+// line that has a reading; a failed report without one stays a plain failure.
+// Report is set on a runtime transition line and on a failed cycle report line
+// that recorded its last stage. TabletSummaries is set on a traffic hour line:
+// one per device that reported that hour, by device id, nil when none did.
+// BridgeStart is set on a System line of starts: how the run before its newest
+// start ended (S6 P5). Silence is set on a tablet silence line (S6 P4).
+// IncidentID is the newest incident occurrence recorded for this fact, or 0.
 type FeedLine struct {
 	Type       FeedType
 	Origin     FeedOrigin
@@ -107,6 +161,16 @@ type FeedLine struct {
 	Traffic    *TrafficHour
 	Run        *DownloadRunLine
 	System     *SystemGroup
+	// SyncReading and BridgeOff read a failed sync report (S1): see their types.
+	SyncReading *SyncReading
+	BridgeOff   *BridgeOffGroup
+	Report      *PhoneReportFacts
+	// TabletSummaries are the hourly summaries of a traffic hour (S6 P1).
+	TabletSummaries []TabletSummary
+	// BridgeStart is how the run before a start ended (S6 P5).
+	BridgeStart *BridgeStartFacts
+	// Silence is one tablet silence, computed on read (S6 P4).
+	Silence *TabletSilence
 }
 
 // FeedDay groups one local day's feed lines, newest first.

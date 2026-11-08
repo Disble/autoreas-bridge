@@ -45,6 +45,13 @@ func TestLoggedEventSurvivesBridgeRestart(t *testing.T) {
 	if got := countRuntimeEvents(t, second.bridgeDB, `message = ?`, "distinctive-restart-event"); got != 1 {
 		t.Fatalf("expected the event to survive the restart once, got %d rows", got)
 	}
+	// A clean shutdown writes one close row, after the first run's own events
+	// and before the queue stops, so the restart reads it (S6 P5).
+	closed := `domain = 'desktop' AND level = 'info' AND event_type = 'app.closed' AND metadata_json IS NULL
+		AND occurred_at_ms >= (SELECT occurred_at_ms FROM runtime_events WHERE message = 'distinctive-restart-event')`
+	if got := countRuntimeEvents(t, second.bridgeDB, closed); got != 1 {
+		t.Fatalf("expected the first run's clean close stored once, got %d rows", got)
+	}
 }
 
 // countRuntimeEvents counts the runtime_events rows matching where.

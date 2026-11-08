@@ -4,13 +4,16 @@ import codeIcon from '@iconify-icons/solar/code-bold';
 import type { DrawerTechnicalTab } from '../../drawer/drawer.types';
 import { ActivityTechnicalJson } from './ActivityTechnicalJson';
 import { ActivityTechnicalRequests } from './ActivityTechnicalRequests';
+import { ActivityTechnicalStoredReport } from './ActivityTechnicalStoredReport';
 import { ActivityTechnicalWindowError } from './ActivityTechnicalWindowError';
 import { ACTIVITY_TECHNICAL_LEVEL_COLORS, ACTIVITY_TECHNICAL_TAB_INDICATOR_CLASS, ACTIVITY_TECHNICAL_TAB_LABELS } from './activity-technical-view.constants';
 import type { ActivityTechnicalViewProps } from './activity-technical-view.types';
 
 /**
  * The technical view of the drawer: the untranslated notes, then the tabs
- * Requests (phone lines only), Events and Data.
+ * Requests (phone lines only), Events and Data. A line with a reading shows its
+ * stored report in Data; a traffic hour shows its stored summaries above its
+ * hourly total.
  */
 export function ActivityTechnicalView(props: ActivityTechnicalViewProps) {
   return (
@@ -71,6 +74,16 @@ export function ActivityTechnicalView(props: ActivityTechnicalViewProps) {
               onPickOccurrence={props.onPickOccurrence}
               onRetryOccurrence={props.onRetryOccurrence}
               selectedOccurrenceId={props.selectedOccurrenceId}
+            />
+          )}
+          {props.reports.length > 0 && (
+            <ActivityTechnicalStoredReport
+              onPickReport={props.onPickReport}
+              onRetryReport={props.onRetryReport}
+              reportJson={props.reportJson}
+              reports={props.reports}
+              reportStatus={props.reportStatus}
+              selectedReportId={props.selectedReportId}
             />
           )}
           {props.windowError === undefined &&

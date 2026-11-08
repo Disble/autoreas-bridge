@@ -7,6 +7,29 @@ import (
 	"autoreas-bridge/internal/observability/retention"
 )
 
+// TestHistoryCoverageRangesEachReportKind checks that the reports source says
+// how far back each kind reaches, since each kind has its own cap.
+func TestHistoryCoverageRangesEachReportKind(t *testing.T) {
+	h := newHarness(t)
+	for _, r := range []struct {
+		kind, id string
+		atMS     int64
+	}{{"cycle_report", "c1", minutesAgo(30)}, {"cycle_report", "c2", minutesAgo(10)}, {"hourly_summary", "h1", minutesAgo(90)}} {
+		h.exec(t, `INSERT INTO device_telemetry_events (device_id, reported_at_ms, kind, event_id, observed_at_ms, payload_json)
+			VALUES ('device-1', ?, ?, ?, ?, '{}')`, r.atMS, r.kind, r.id, r.atMS)
+	}
+	var got HistoryResult
+	h.call(t, "search_history", nil, &got)
+	kinds := sourceOf(t, got.Coverage, "device_telemetry_events").Kinds
+	if len(kinds) != 2 || kinds[0].Kind != "cycle_report" || kinds[0].Range.FromMS != minutesAgo(30) || kinds[0].Range.ToMS != minutesAgo(10) ||
+		kinds[1].Kind != "hourly_summary" || kinds[1].Range.FromMS != minutesAgo(90) || kinds[1].Range.ToMS != minutesAgo(90) {
+		t.Fatalf("kinds = %+v", kinds)
+	}
+	if other := sourceOf(t, got.Coverage, "runtime_events").Kinds; other != nil {
+		t.Fatalf("a source without kinds lists %+v", other)
+	}
+}
+
 // sourceOf returns one named coverage source, failing when absent.
 func sourceOf(t *testing.T, coverage Coverage, name string) SourceRange {
 	t.Helper()

@@ -1,5 +1,5 @@
 import { Time } from '@internationalized/date';
-import type { ActivityChartScale, ActivityFeedType } from '../feed-source/feed.types';
+import type { ActivityChartScale, ActivityFeedType, ActivitySyncReadingKind } from '../feed-source/feed.types';
 import type { ActivityRangeTimes } from './activity-feed.types';
 
 /** Lines per feed page: one batch of the progressive window (ADR-012). */
@@ -67,11 +67,57 @@ export const ACTIVITY_PHONE_REPORT_SUBJECTS: Readonly<Record<string, string>> = 
   screen_stall: 'Screen stalled',
 };
 
+/** The stored report kind of a runtime transition, worded from its own fields. */
+export const ACTIVITY_RUNTIME_TRANSITION_KIND = 'runtime_transition';
+
+/** A transition's process in plain words, by the closed set mobile sends; any other value is shown as stored. */
+export const ACTIVITY_TRANSITION_PROCESS_WORDS: Readonly<Record<string, string>> = {
+  sync: 'Sync',
+  main: 'Main',
+};
+
+/** A transition's subject in plain words, by the closed set mobile sends (S3); any other value is shown as stored. */
+export const ACTIVITY_TRANSITION_SUBJECT_WORDS: Readonly<Record<string, string>> = {
+  service: 'service',
+  tick_alarm: 'tick alarm',
+  floor: 'floor',
+  process: 'process',
+  boot: 'boot',
+  network: 'network',
+};
+
+/** A failed sync cycle's row detail by the stage it stopped at: the four native stages (S4). */
+export const ACTIVITY_CYCLE_STAGE_WORDS: Readonly<Record<string, string>> = {
+  attempt_started: 'failed as it started',
+  claim_ops: 'failed while claiming changes',
+  http: 'failed while sending',
+  apply_write: 'failed while applying',
+};
+
+/** The detail of a failed sync cycle that stopped at a stage outside the four, followed by the stage as stored. */
+export const ACTIVITY_CYCLE_STAGE_UNNAMED = 'failed while';
+
+/** The plain words of each reading of a failed sync. The row and the drawer both say these, and never mobile's `failed`. */
+export const ACTIVITY_SYNC_READING_WORDS: Readonly<Record<ActivitySyncReadingKind, string>> = {
+  bridge_off: 'Bridge was off',
+  tablet_late: 'Tablet came back late',
+  real_failure: 'Sync failed',
+};
+
 /** Row subject of one traffic hour. */
 export const ACTIVITY_TRAFFIC_SUBJECT = 'Phone checked in';
 
 /** Event type logged once per bridge start, and the subject it reads as (design, S4). */
 export const ACTIVITY_BRIDGE_STARTED = { eventType: 'api.listening', subject: 'Bridge started' } as const;
+
+/** Event type logged once per clean close, and the subject it reads as (S6 P5). */
+export const ACTIVITY_BRIDGE_CLOSED = { eventType: 'app.closed', subject: 'Bridge closed' } as const;
+
+/** The subject of a tablet silence while it lasts and once it ended (S6 P4). */
+export const ACTIVITY_SILENCE_SUBJECTS = { ongoing: 'Tablet silent', ended: 'Tablet was silent' } as const;
+
+/** What a start says about a run before it that has no close: muted words, never a failure (S6 P5). */
+export const ACTIVITY_START_UNCLOSED_WORDS = { notClosed: 'did not close normally', unknown: 'close unknown' } as const;
 
 /** Local time, `14:35`. */
 export const ACTIVITY_FEED_TIME_FORMAT = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });

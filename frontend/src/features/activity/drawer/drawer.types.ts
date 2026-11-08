@@ -1,7 +1,7 @@
 import type { ActivityFeedLine } from '../feed-source/feed.types';
 import type { ActivityChangeContext, ActivityIncidentDetail, ActivityRunStory } from '../activity-source/activity-incident.types';
 import type { ActivityFeedSource } from '../feed-source/feed-source.types';
-import type { ActivityRead } from '../ui/ActivityRunStory/activity-run-story.types';
+import type { ActivityRead, ActivityTone } from '../ui/ActivityRunStory/activity-run-story.types';
 
 /**
  * View models of the Activity detail drawer (activity-ui-design-v2.md, Detail
@@ -23,6 +23,8 @@ export interface DrawerFact {
   readonly note: string | undefined;
   /** An amber chip after the value, such as `6 h 31 min late`; undefined when none. */
   readonly warnChip: string | undefined;
+  /** Whether the label is a stored code shown in monospace, such as `foreground_service · closed`. */
+  readonly labelMono?: boolean;
 }
 
 /** One figure of a stats section. */
@@ -57,18 +59,47 @@ export interface DrawerCause {
   readonly recordedMessage: string;
   /** The code chip: the error code, else `HTTP <status>`, else empty. */
   readonly code: string;
+  /** The label above a recorded message, such as `Recorded reason`; undefined reads as `Recorded message`. */
+  readonly recordedLabel?: string;
+}
+
+/** One stage of a steps section, in its fixed order. */
+export interface DrawerStep {
+  /** Stable key, the stored stage it stands for. */
+  readonly key: string;
+  /** The stage in plain words. */
+  readonly label: string;
+  /** Success for a stage it passed, danger where it stopped, default for a stage it did not reach. */
+  readonly tone: ActivityTone;
+  /** A muted note under the stage, such as `Stopped here`; undefined when none. */
+  readonly note: string | undefined;
+}
+
+/** A labelled set of facts. */
+export interface DrawerFactsSection {
+  /** Section kind. */
+  readonly kind: 'facts';
+  /** Stable key. */
+  readonly key: string;
+  /** Title; empty for none. */
+  readonly title: string;
+  /** The rows. */
+  readonly rows: readonly DrawerFact[];
 }
 
 /** One section of the summary view. */
 export type DrawerSection =
   | { readonly kind: 'before-after'; readonly key: string; readonly title: string; readonly before: string; readonly after: string }
-  | { readonly kind: 'facts'; readonly key: string; readonly title: string; readonly rows: readonly DrawerFact[] }
+  | DrawerFactsSection
   | { readonly kind: 'stats'; readonly key: string; readonly items: readonly DrawerStat[] }
   | { readonly kind: 'cause'; readonly key: string; readonly title: string; readonly cause: DrawerCause }
   | { readonly kind: 'list'; readonly key: string; readonly title: string; readonly items: readonly DrawerListItem[] }
+  | { readonly kind: 'steps'; readonly key: string; readonly title: string; readonly steps: readonly DrawerStep[] }
   | { readonly kind: 'run-story'; readonly key: string; readonly correlationId: string }
   | { readonly kind: 'code'; readonly key: string; readonly title: string; readonly text: string }
-  | { readonly kind: 'note'; readonly key: string; readonly text: string };
+  | { readonly kind: 'note'; readonly key: string; readonly text: string }
+  | { readonly kind: 'text'; readonly key: string; readonly text: string }
+  | { readonly kind: 'reports'; readonly key: string; readonly title: string; readonly reports: readonly DrawerFactsSection[] };
 
 /** The drawer header shared by every kind. */
 export interface DrawerHeaderModel {
@@ -114,6 +145,14 @@ export interface DrawerSummaryInput {
   readonly metadata: Readonly<Record<string, string>> | undefined;
   /** The current time, epoch milliseconds. */
   readonly nowMs: number;
+}
+
+/** One report the Data tab can show: a report line's own, or one of a group's. */
+export interface DrawerReportChoice {
+  /** Stored report id, read with `GetActivityPhoneReport`. */
+  readonly id: number;
+  /** Its times, which tell it apart in the picker. */
+  readonly label: string;
 }
 
 /** One tab of the technical view. */

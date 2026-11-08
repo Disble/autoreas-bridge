@@ -72,11 +72,11 @@ func (r *Reader) Overview(ctx context.Context, in OverviewInput) (OverviewView, 
 	if err != nil {
 		return OverviewView{}, err
 	}
-	typePlan, err := planFeed(FeedInput{Origin: in.Origin})
+	typePlan, err := planFeed(FeedInput{Now: in.Now, Origin: in.Origin})
 	if err != nil {
 		return OverviewView{}, err
 	}
-	slotPlan, err := planFeed(FeedInput{Origin: in.Origin, Types: in.Types, FailuresOnly: in.FailuresOnly})
+	slotPlan, err := planFeed(FeedInput{Now: in.Now, Origin: in.Origin, Types: in.Types, FailuresOnly: in.FailuresOnly})
 	if err != nil {
 		return OverviewView{}, err
 	}

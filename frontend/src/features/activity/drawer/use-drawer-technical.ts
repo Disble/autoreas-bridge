@@ -11,12 +11,14 @@ import { pickDrawerGroup, toDrawerLineKey } from './drawer-reads.helpers';
 import { pickDrawerTab, toDrawerDataBlocks, toDrawerEventRows, toDrawerEventsEmpty, toDrawerPickedRequestPanel, toDrawerRequestGroups, toDrawerRequestId, toDrawerTechnicalTabs, toDrawerWindowErrorDetail } from './drawer-technical.helpers';
 import type { DrawerSummaryInput, DrawerTechnicalTab } from './drawer.types';
 import { useDrawerOccurrence } from './use-drawer-occurrence';
+import { useDrawerStoredReport } from './use-drawer-stored-report';
 
 /**
  * Owns the technical view of the open line: the toggle and tab (which survive
  * ↑ / ↓ because the drawer stays mounted while a line is open), the request
- * groups, the picked group and its request read, the events and data tabs, and
- * the occurrence picker of a repeated window error (`useDrawerOccurrence`).
+ * groups, the picked group and its request read, the events and data tabs, the
+ * occurrence picker of a repeated window error (`useDrawerOccurrence`), and the
+ * stored report of a line with a reading (`useDrawerStoredReport`).
  *
  * @param source The Activity port that reads the picked request and occurrence.
  * @param feedSource The feed port that reads a picked occurrence's event.
@@ -52,6 +54,7 @@ export function useDrawerTechnical(source: ActivitySource, feedSource: ActivityF
   const data = useMemo(() => toDrawerDataBlocks(input), [input]);
   const currentWindowError = useMemo(() => toDrawerWindowErrorDetail(input), [input]);
   const occurrence = useDrawerOccurrence(source, feedSource, lineKey, incident, currentWindowError);
+  const storedReport = useDrawerStoredReport(feedSource, line, lineKey, technical && tab === 'data');
 
   // 6. Callbacks (useCallback calling pure helpers)
   const toggleTechnical = useCallback(() => {
@@ -83,6 +86,7 @@ export function useDrawerTechnical(source: ActivitySource, feedSource: ActivityF
     eventsEmpty,
     data,
     ...occurrence,
+    ...storedReport,
     toggleTechnical,
     selectTab,
     pickGroup,
