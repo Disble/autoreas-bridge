@@ -40,7 +40,7 @@ func (r *Reader) History(ctx context.Context, in HistoryInput) (HistoryView, err
 
 	var items []item[LedgerLine]
 	for _, read := range []func(context.Context, scope, sourcePage) ([]item[LedgerLine], error){
-		r.changeLines, r.phoneReportLines, r.connectionLines, r.eventLines, r.incidentLines,
+		r.changeLines, r.phoneReportLines, r.connectionLines, r.eventLines, r.incidentLines, r.silenceLines,
 	} {
 		lines, err := read(ctx, s, page)
 		if err != nil {

@@ -176,6 +176,62 @@ func assertRangesHoldOneSilence(t *testing.T, r *Reader) {
 	}
 }
 
+// TestHistoryAndOpenSilencesReadTheSameSilences pins what the MCP reads: every
+// silence in search_history, and only the running ones in get_status.
+func TestHistoryAndOpenSilencesReadTheSameSilences(t *testing.T) {
+	db, r := openTestReader(t)
+	insertEvent(t, db, startEvent(hoursAgo(10)))
+	insertDeviceReport(t, db, "tab", "cycle_report", "c1", hoursAgo(9), hoursAgo(9), `{}`)
+	insertDeviceReport(t, db, "tab", "cycle_report", "c2", hoursAgo(6), hoursAgo(6), `{}`)
+
+	want := []string{"tab Tablet silent 360 min so far " + formatID(hoursAgo(5)), "tab Tablet was silent 180 min " + formatID(hoursAgo(8))}
+	if got := historySilenceWords(t, r, WherePhone); !slices.Equal(got, want) {
+		t.Fatalf("history silences = %q, want %q", got, want)
+	}
+	if got := historySilenceWords(t, r, Where("downloads")); len(got) != 0 {
+		t.Fatalf("downloads read silences %q", got)
+	}
+	if paged := pageHistory(t, r, WherePhone, 1); countSilenceLines(paged) != 2 {
+		t.Fatalf("paged lines = %+v, want the 2 silences once each", paged)
+	}
+
+	open, err := r.OpenTabletSilences(t.Context(), testNow)
+	if err != nil || len(open) != 1 || open[0].StartMS != hoursAgo(6) || open[0].EndMS != nil {
+		t.Fatalf("open silences = %+v (%v), want the one still running", open, err)
+	}
+	insertEvent(t, db, closeEvent(hoursAgo(1)))
+	if open, err = r.OpenTabletSilences(t.Context(), testNow); err != nil || len(open) != 0 {
+		t.Fatalf("after a clean close = %+v (%v), want none", open, err)
+	}
+}
+
+// historySilenceWords names each silence line one History read lists.
+func historySilenceWords(t *testing.T, r *Reader, where Where) []string {
+	t.Helper()
+	view, err := r.History(t.Context(), HistoryInput{Now: testNow, Where: where, Limit: MaxPageLimit})
+	if err != nil {
+		t.Fatal(err)
+	}
+	words := []string{}
+	for _, line := range flatten(view) {
+		if line.Kind == LineTabletSilence {
+			words = append(words, line.Source+" "+line.Title+" "+line.Detail+" "+formatID(line.AtMS))
+		}
+	}
+	return words
+}
+
+// countSilenceLines counts the silence lines among ledger lines.
+func countSilenceLines(lines []LedgerLine) int {
+	count := 0
+	for _, line := range lines {
+		if line.Kind == LineTabletSilence {
+			count++
+		}
+	}
+	return count
+}
+
 func TestSilenceBeforeTheOldestCycleReportIsReadByTheHour(t *testing.T) {
 	db, r := openTestReader(t)
 	insertEvent(t, db, startEvent(hoursAgo(40)))

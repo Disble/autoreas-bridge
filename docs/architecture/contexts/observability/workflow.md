@@ -191,7 +191,8 @@ each one: the database holds one connection, so the F lookups cannot run while t
   The query is bounded by the kind's 2,160-row cap.
 - `feedSilenceLines` (`tablet_silence.go`) comes from no single report: one failed Traffic line per tablet
   silence, computed on read from the reports' receipt times and `bridgeRuns`. The clean close (`app.closed`), or
-  the last row before a start with no close, ends a run and so bounds the silence.
+  the last row before a start with no close, ends a run and so bounds the silence. `silenceLines` gives
+  `search_history` the same silences, and `OpenTabletSilences` gives `get_status` the ones still running.
 - An incident window lists the feed's kinds through `phoneReportKinds`; History also lists `hourly_summary`
   through `historyReportKinds` (`history.go`). `reportOutcomeSQL` gives a transition its stored process, subject
   and transition as its outcome, and an `hourly_summary` its stored report.

@@ -66,8 +66,8 @@ top-level metadata key, so `download.episode_downloaded` grouped by `siteHost` r
 episodes each site host served. Events without the key, or whose metadata was stored truncated, form
 the group whose value is `null`. The key is validated and bound as a JSON path parameter.
 For phone reports, `search_history` reads every report kind, `get_status` names a quiet phone beside open
-problems, and coverage gives each kind's own range (`mobile-reports.md`, Where a report is shown). It lists no
-tablet silence, which only the feed reads.
+problems, and coverage gives each kind's own range (`mobile-reports.md`, Where a report is shown). Tablet
+silences are computed on read here too: `search_history` lists each one and `get_status` lists those still running.
 
 ```mermaid
 flowchart LR

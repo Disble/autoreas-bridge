@@ -120,9 +120,9 @@ version and the incident live for 90 days.
 - **MCP** (`cmd/autoreas-request-mcp`): the debugging AI reads status, incidents, the recorder, the ledger and
   mobile reports (`activityread.Now`, `Incidents`, `Recorder`, `History`). These have no Wails binding. Every
   answer states which sources it covered and for what time range, and for phone reports the range of each
-  kind, so "no data" is never read as "nothing happened". MCP shows no readings and no tablet silences:
-  `search_history` stays raw and lists every report kind, and `get_status` names a quiet phone beside open
-  problems.
+  kind, so "no data" is never read as "nothing happened". MCP shows no readings:
+  `search_history` stays raw and lists every report kind and every tablet silence, and `get_status` names a quiet
+  phone beside open problems and lists the silences still running.
 
 ## What this design does not keep
 

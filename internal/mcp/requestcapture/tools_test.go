@@ -27,7 +27,7 @@ func TestGetStatusAnswersNowWithCoverage(t *testing.T) {
 	if got.BridgeStartedAtMS == nil || *got.BridgeStartedAtMS != minutesAgo(30) || got.Status.UptimeMS != 30*60*1000 {
 		t.Fatalf("bridge start = %v, uptime = %d", got.BridgeStartedAtMS, got.Status.UptimeMS)
 	}
-	want := []string{"request_captures", "runtime_events", "request_rollup_hourly", "incidents", "domain_history"}
+	want := []string{"request_captures", "runtime_events", "request_rollup_hourly", "incidents", "domain_history", "device_telemetry_events"}
 	if names := sourceNames(got.Coverage); !slices.Equal(names, want) {
 		t.Fatalf("sources = %v, want %v", names, want)
 	}
@@ -46,6 +46,28 @@ func TestGetStatusAnswersNowWithCoverage(t *testing.T) {
 	}
 	if got.Coverage.Covered == nil || got.Coverage.Covered.FromMS != minutesAgo(50) || got.Coverage.Covered.ToMS != minutesAgo(1) {
 		t.Fatalf("covered = %+v", got.Coverage.Covered)
+	}
+}
+
+// TestGetStatusNamesATabletStillSilent checks that a tablet not heard for over
+// an hour while Bridge is on shows in get_status, the reading Activity shows.
+func TestGetStatusNamesATabletStillSilent(t *testing.T) {
+	h := newHarness(t)
+	var empty StatusResult
+	h.call(t, "get_status", nil, &empty)
+	if empty.TabletSilences == nil || len(empty.TabletSilences) != 0 {
+		t.Fatalf("no reports must encode as an empty list, got %+v", empty.TabletSilences)
+	}
+	h.exec(t, `INSERT INTO runtime_events (occurred_at_ms, domain, level, message, event_type)
+		VALUES (?, 'api', 'info', 'http server listening on 0.0.0.0:8787', 'api.listening')`, minutesAgo(600))
+	h.exec(t, `INSERT INTO device_telemetry_events (device_id, reported_at_ms, kind, event_id, observed_at_ms, payload_json)
+		VALUES ('device-1', ?, 'cycle_report', 'c1', ?, '{}')`, minutesAgo(300), minutesAgo(300))
+
+	var got StatusResult
+	h.call(t, "get_status", nil, &got)
+	if len(got.TabletSilences) != 1 || got.TabletSilences[0].DeviceID != "device-1" ||
+		got.TabletSilences[0].StartMS != minutesAgo(300) || got.TabletSilences[0].EndMS != nil {
+		t.Fatalf("tablet silences = %+v", got.TabletSilences)
 	}
 }
 

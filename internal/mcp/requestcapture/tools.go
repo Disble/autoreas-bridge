@@ -42,9 +42,13 @@ func (t tools) status(ctx context.Context, _ StatusInput) (StatusResult, error) 
 	if err != nil {
 		return StatusResult{}, err
 	}
+	silences, err := t.reader.activity.OpenTabletSilences(ctx, now)
+	if err != nil {
+		return StatusResult{}, err
+	}
 	coverage, err := t.coverage(ctx, windowBefore(now, 24*time.Hour),
-		sourceCaptures, sourceEvents, sourceRollup, sourceIncidents, sourceChanges)
-	return StatusResult{Status: view, BridgeStartedAtMS: started, Coverage: coverage}, err
+		sourceCaptures, sourceEvents, sourceRollup, sourceIncidents, sourceChanges, sourceTelemetry)
+	return StatusResult{Status: view, TabletSilences: nonNil(silences), BridgeStartedAtMS: started, Coverage: coverage}, err
 }
 
 // bridgeStartedAt returns the time of the newest startup marker at or before

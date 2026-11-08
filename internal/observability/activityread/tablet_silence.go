@@ -3,6 +3,7 @@ package activityread
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -175,19 +176,73 @@ func (r *Reader) feedSilenceLines(ctx context.Context, plan feedPlan, p sourcePa
 		return nil, err
 	}
 	var items []item[FeedLine]
+	for _, paged := range silencesInPage(silences, p) {
+		line := FeedLine{Type: FeedTraffic, Origin: OriginBridge, Failed: true, Silence: paged.silence,
+			Line: LedgerLine{Kind: LineTabletSilence, ID: paged.pos.key, AtMS: paged.pos.atMS}}
+		items = append(items, item[FeedLine]{pos: paged.pos, value: line})
+	}
+	return items, nil
+}
+
+// pagedSilence is one silence inside a page, with its line's place.
+type pagedSilence struct {
+	silence *TabletSilence
+	pos     cursor
+}
+
+// silencesInPage keeps the silences whose line time falls in the page's range
+// and after its cursor.
+func silencesInPage(silences []TabletSilence, p sourcePage) []pagedSilence {
+	var paged []pagedSilence
 	for i := range silences {
-		silence := &silences[i]
-		atMS := silenceAtMS(*silence)
-		id := silence.DeviceID + ":" + formatID(silence.StartMS)
-		pos := cursor{atMS: atMS, rank: rankSilence, key: id}
+		atMS := silenceAtMS(silences[i])
+		pos := cursor{atMS: atMS, rank: rankSilence, key: silences[i].DeviceID + ":" + formatID(silences[i].StartMS)}
 		if atMS < p.sinceMS || atMS > p.nowMS || (p.cursor != nil && comparePositions(*p.cursor, pos) >= 0) {
 			continue
 		}
-		line := FeedLine{Type: FeedTraffic, Origin: OriginBridge, Failed: true, Silence: silence,
-			Line: LedgerLine{Kind: LineTabletSilence, ID: id, AtMS: atMS}}
-		items = append(items, item[FeedLine]{pos: pos, value: line})
+		paged = append(paged, pagedSilence{silence: &silences[i], pos: pos})
+	}
+	return paged
+}
+
+// silenceLines reads one History line per silence, for search_history. A
+// silence is about the phone, so only the scopes that read the phone list it.
+func (r *Reader) silenceLines(ctx context.Context, s scope, p sourcePage) ([]item[LedgerLine], error) {
+	if !s.readsPhone() {
+		return nil, nil
+	}
+	silences, err := r.tabletSilences(ctx, p.nowMS)
+	if err != nil {
+		return nil, err
+	}
+	var items []item[LedgerLine]
+	for _, paged := range silencesInPage(silences, p) {
+		items = append(items, item[LedgerLine]{pos: paged.pos, value: silenceLedgerLine(paged, p.nowMS)})
 	}
 	return items, nil
+}
+
+// silenceLedgerLine says who went silent and for how long.
+func silenceLedgerLine(paged pagedSilence, nowMS int64) LedgerLine {
+	line := LedgerLine{Kind: LineTabletSilence, ID: paged.pos.key, AtMS: paged.pos.atMS, Source: paged.silence.DeviceID}
+	if paged.silence.EndMS != nil {
+		line.Title = "Tablet was silent"
+		line.Detail = fmt.Sprintf("%d min", (*paged.silence.EndMS-paged.silence.StartMS)/time.Minute.Milliseconds())
+		return line
+	}
+	line.Title = "Tablet silent"
+	line.Detail = fmt.Sprintf("%d min so far", (nowMS-paged.silence.StartMS)/time.Minute.Milliseconds())
+	return line
+}
+
+// OpenTabletSilences returns the silences still running at now: the tablets
+// not heard for the minimum or more while Bridge is on.
+func (r *Reader) OpenTabletSilences(ctx context.Context, now time.Time) ([]TabletSilence, error) {
+	silences, err := r.tabletSilences(ctx, now.UnixMilli())
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(silences, func(s TabletSilence) bool { return s.EndMS != nil }), nil
 }
 
 // countSilences tallies each silence as one failed Traffic line of the bucket
