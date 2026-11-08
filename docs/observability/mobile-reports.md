@@ -19,7 +19,7 @@ Mobile sends every report to `POST /api/sync/diagnostics`. Five kinds exist:
 | `episode_action` | One step of an episode action | `observation_id` | `observed_at_ms` | 20,000 |
 | `screen_stall` | One screen that took 2 s or more to paint | `observation_id` | `observed_at_ms` | 5,000 |
 | `hourly_summary` | One closed hour of the tablet's sync attempts per trigger and outcome, plus process deaths | `observation_id` (install id + hour); the first write wins | `hour_start_ms` | 2,160 |
-| `runtime_transition` | One real state change of the `main` or `sync` process, from closed `subject` and `transition` sets; `died` only for `sync` | `observation_id` | `observed_at_ms` | 2,340 |
+| `runtime_transition` | One real state change of the `main` or `sync` process, one of 14 agreed `subject` and `transition` pairs; `process` + `died` only for `sync` | `observation_id` | `observed_at_ms` | 2,340 |
 
 The last two caps size the 50 new reports a day agreed with mobile for 90 days: 24 hourly summaries a day and
 the remaining 26 for transitions. Their wire shapes are `SyncDiagnosticsHourlySummary` and

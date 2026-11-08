@@ -77,11 +77,11 @@ func TestSyncDiagnosticsStoresEachMobileReportKindOnce(t *testing.T) {
 		},
 		{
 			kind:       telemetry.KindRuntimeTransition,
-			body:       `{"kind":"runtime_transition","observation_id":"rt-1","observed_at_ms":1794139020000,"process_name":"sync","subject":"service","transition":"died","reason":"low_memory","app_version":"2.7.1"}`,
+			body:       `{"kind":"runtime_transition","observation_id":"rt-1","observed_at_ms":1794139020000,"process_name":"sync","subject":"process","transition":"died","reason":"low_memory","app_version":"2.7.1"}`,
 			repost:     `{"kind":"runtime_transition","observation_id":"rt-1","observed_at_ms":1794139020000,"process_name":"sync","subject":"service","transition":"started","app_version":"2.7.1"}`,
 			eventID:    "rt-1",
 			observedAt: 1794139020000,
-			payload:    `{"process_name":"sync","subject":"service","transition":"died","reason":"low_memory","app_version":"2.7.1"}`,
+			payload:    `{"process_name":"sync","subject":"process","transition":"died","reason":"low_memory","app_version":"2.7.1"}`,
 		},
 	}
 	for _, tc := range tests {
@@ -104,7 +104,8 @@ func TestSyncDiagnosticsStoresEachMobileReportKindOnce(t *testing.T) {
 
 // TestSyncDiagnosticsRefusesMobileReportKindsWithoutStoring drives each
 // refusal class a new kind can earn through the real store: a closed
-// vocabulary, the code pattern, a missing required key, a body-supplied
+// vocabulary, an invalid subject and transition pair, the code pattern, a
+// missing required key, a body-supplied
 // device_id and the 8 KiB limit. Each answers its code and stores nothing.
 func TestSyncDiagnosticsRefusesMobileReportKindsWithoutStoring(t *testing.T) {
 	t.Parallel()
@@ -123,6 +124,7 @@ func TestSyncDiagnosticsRefusesMobileReportKindsWithoutStoring(t *testing.T) {
 		{"missing dropped count", telemetry.KindHourlySummary, strings.Replace(hourly, `,"dropped_count":0`, ``, 1), 400, "field_rejected", "dropped_count"},
 		{"unknown process", telemetry.KindRuntimeTransition, strings.Replace(transition, `"sync"`, `"ui"`, 1), 400, "field_rejected", "process_name"},
 		{"unknown subject", telemetry.KindRuntimeTransition, strings.Replace(transition, `"service"`, `"sync_service"`, 1), 400, "field_rejected", "subject"},
+		{"invalid subject and transition pair", telemetry.KindRuntimeTransition, strings.Replace(transition, `"started"`, `"armed"`, 1), 400, "field_rejected", "transition"},
 		{"missing app version", telemetry.KindRuntimeTransition, strings.Replace(transition, `,"app_version":"2.7.1"`, ``, 1), 400, "field_rejected", "app_version"},
 		{"body device id", telemetry.KindRuntimeTransition, strings.Replace(transition, `"o",`, `"o","device_id":"spoofed",`, 1), 400, "field_rejected", "device_id"},
 		{"oversize body", telemetry.KindRuntimeTransition, strings.Replace(transition, `"o"`, `"`+strings.Repeat("o", telemetry.MaxBodyBytes)+`"`, 1), 413, "body_too_large", ""},

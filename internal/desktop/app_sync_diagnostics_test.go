@@ -234,7 +234,7 @@ func TestIngestSyncDiagnosticsStoresTheMobileReportKindsQuietly(t *testing.T) {
 	ingest := app.ingestSyncDiagnostics()
 	bodies := map[telemetry.KindName]string{
 		telemetry.KindHourlySummary:     `{"kind":"hourly_summary","observation_id":"i:h","hour_start_ms":0,"counts":[{"trigger_source":"manual","outcome":"failed","count":3}],"dropped_count":0,"process_deaths":[{"process_name":"sync","reason":"low_memory","count":1}]}`,
-		telemetry.KindRuntimeTransition: `{"kind":"runtime_transition","observation_id":"rt","observed_at_ms":0,"process_name":"sync","subject":"service","transition":"died","app_version":"2.7.1"}`,
+		telemetry.KindRuntimeTransition: `{"kind":"runtime_transition","observation_id":"rt","observed_at_ms":0,"process_name":"sync","subject":"process","transition":"died","app_version":"2.7.1"}`,
 	}
 	for name, body := range bodies {
 		kind, _ := telemetry.DefaultRegistry().Lookup(name)

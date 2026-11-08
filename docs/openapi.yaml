@@ -1500,9 +1500,22 @@ components:
 
         `subject` and `transition` are closed vocabularies declared by mobile
         on 2026-11-07; `ran` is not a transition, because runs are counted in
-        `hourly_summary`. Each member is checked on its own: the valid
-        subject and transition pairs are not enforced yet. One cross-field
-        rule: `transition: "died"` is accepted only with `process_name: "sync"`
+        `hourly_summary`. Only these 14 pairs are accepted; any other
+        combination of two known values answers `field_rejected` naming
+        `transition`:
+
+        | subject | transition |
+        |---|---|
+        | `service` | `started`, `stopped`, `refused` |
+        | `tick_alarm` | `armed`, `cancelled` |
+        | `floor` | `armed`, `cancelled`, `skipped`, `started` |
+        | `process` | `started`, `died` |
+        | `boot` | `started` |
+        | `network` | `started`, `stopped` |
+
+        An unknown value is refused naming its own field first. One
+        cross-field rule: `process` + `died` is accepted only with
+        `process_name: "sync"`
         (deaths of `main` are counted in `hourly_summary.process_deaths`), and
         is otherwise refused naming `transition`. Strict decoding applies, as
         for `hourly_summary`. The stored payload is `process_name`, `subject`,

@@ -40,9 +40,9 @@ var runtimeTransitionSubjects = map[string]struct{}{
 
 // runtimeTransitions gates transition: the change itself, in the closed set
 // mobile declared on 2026-11-07. "ran" is deliberately absent: runs are
-// counted in hourly_summary, never reported one by one. Not every subject and
-// transition pair is valid; until mobile's pair table is agreed, each member
-// is checked on its own.
+// counted in hourly_summary, never reported one by one. It stays its own set
+// beside the pair table below so an unknown word is refused as unknown before
+// a known word is refused as the wrong pair.
 var runtimeTransitions = map[string]struct{}{
 	"started":             {},
 	"stopped":             {},
@@ -51,6 +51,18 @@ var runtimeTransitions = map[string]struct{}{
 	"skipped":             {},
 	"refused":             {},
 	runtimeTransitionDied: {},
+}
+
+// runtimeTransitionPairs is mobile's pair table (2026-11-07): the 14 subject
+// and transition pairs that can happen. Every other combination of two known
+// words is refused, naming transition.
+var runtimeTransitionPairs = map[string]map[string]struct{}{
+	"service":    {"started": {}, "stopped": {}, "refused": {}},
+	"tick_alarm": {"armed": {}, "cancelled": {}},
+	"floor":      {"armed": {}, "cancelled": {}, "skipped": {}, "started": {}},
+	"process":    {"started": {}, runtimeTransitionDied: {}},
+	"boot":       {"started": {}},
+	"network":    {"started": {}, "stopped": {}},
 }
 
 // appVersionPattern is the shape of the reporting build's version: a semantic
@@ -138,6 +150,9 @@ func decodeRuntimeTransitionPayload(wire wireRuntimeTransition) (runtimeTransiti
 	}
 	if payload.Transition, err = vocabularyString("transition", wire.Transition, runtimeTransitions); err != nil {
 		return payload, err
+	}
+	if !inVocabulary(runtimeTransitionPairs[payload.Subject], payload.Transition) {
+		return payload, &syncdiag.FieldError{Field: "transition", Reason: "not a valid transition for subject " + payload.Subject}
 	}
 	if payload.Transition == runtimeTransitionDied && payload.ProcessName != runtimeTransitionDyingProcess {
 		return payload, &syncdiag.FieldError{Field: "transition", Reason: "died is reported per event only for process_name sync"}
