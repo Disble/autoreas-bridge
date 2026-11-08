@@ -42,6 +42,7 @@ Adapters and wiring outside the context:
 | `internal/api/capture_middleware.go`, `internal/realtime/hub_capture.go` | Capture of HTTP requests and of WebSocket lifecycle and broadcasts |
 | `internal/api/handlers/sync_diagnostics_handler.go` | `POST /api/sync/diagnostics` and the closed refusal vocabulary |
 | `internal/api/server.go` | The start record: the `api.listening` row and `listeningMetadata` |
+| `internal/desktop/app.go` | `App.shutdown` writes the clean close, `app.closed` |
 | `internal/desktop/app_incidents.go` | The persist hooks, `recordMobileIncident` and the `waitedForBridge` gate |
 | `internal/desktop/app_sync_diagnostics.go` | `ingestSyncDiagnostics`: store, event, incident |
 | `internal/desktop/app_runtime_services.go` | `captureLastContacts`, the orphan capture sweep and `startRetentionSweepLoop` |
@@ -116,7 +117,8 @@ writes itself:
 | Event type | Level | Written by | Meaning |
 |---|---|---|---|
 | `api.listening` | info | `internal/api/server.go` | One Bridge start. Metadata `addr`, and `lastContacts` when a device is active |
-| `tracer.step` "tracer bullet ready" | info | `internal/tracerbullet/runner.go` | The startup marker MCP reads (`retention.StartupMarker`) |
+| `tracer.step` "tracer bullet ready" | info | `internal/tracerbullet/runner.go` | The startup marker MCP reads (`retention.StartupMarker`); Activity reads it as the boot of a run |
+| `app.closed` | info | `internal/desktop/app.go` (`App.shutdown`) | One clean close, logged before the event queue stops so it is flushed. No metadata. A crash writes none |
 | `sync.diagnostics_stored` | info | `internal/desktop/app_sync_diagnostics.go` | One report stored; Activity hides it because it restates the row |
 | `api.last_contacts_unread` | warn | `internal/desktop/app_runtime_services.go` | The last contacts could not be read at start; readings go by start times alone |
 | `incident.sync_reading_failed` | warn | `internal/desktop/app_incidents.go` | The starts or the device's first report could not be read for a failed sync report; it opens its incident |
@@ -166,6 +168,10 @@ A reading has no storage: it is computed on each read. The start record is metad
   their unindexed `observed_at_ms` within the kind index, bounded by the kind's 2,160-row cap.
 - **Only `api.listening` or the older listening row is a reading's start.** Metadata that cannot be decoded
   leaves the start valid with no last contacts.
+- **A run ends at its close or at its last row.** `bridgeRuns` (`bridge_runs.go`) pairs each start with the
+  close stored after the previous start. Without one, the run before ends at the last row stored before the
+  start's boot marker, never at the starting run's own boot rows. Starts, closes and markers are read once per
+  read; the last rows take one query of one indexed seek per unclosed run.
 
 ## Entry points
 
@@ -185,6 +191,7 @@ A reading has no storage: it is computed on each read. The start record is metad
 - **Two definitions of a start.** MCP `get_status` reads the tracer row (`bridgeStartedAt`,
   `internal/mcp/requestcapture/tools.go`). The feed's System line reads `api.listening`, and readings read
   `api.listening` or the older listening row. The rows are written at different moments of one startup.
+  `bridgeRuns` reads both: the listening row is the start, the tracer row the boot that bounds the run before.
 - **A reading can age.** It depends on the retained starts. A report row can outlive its start, because reports
   sit on row caps and starts on the 90-day ledger. Such a report then has no reading and shows as a plain
   failure, although it opened no incident.

@@ -49,6 +49,9 @@ func (r *Reader) Feed(ctx context.Context, in FeedInput) (FeedView, error) {
 	if err := r.attachTabletSummaries(ctx, lines); err != nil {
 		return FeedView{}, err
 	}
+	if err := r.attachBridgeStarts(ctx, lines); err != nil {
+		return FeedView{}, err
+	}
 	return FeedView{Days: groupFeedByDay(lines, in.Now.Location()), NextCursor: next}, nil
 }
 

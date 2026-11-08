@@ -30,6 +30,7 @@ export function buildLine(overrides: Partial<ActivityFeedLine> = {}, ledger: Par
     bridgeOff: undefined,
     report: undefined,
     tabletSummaries: [],
+    bridgeStart: undefined,
     ...overrides,
     line: {
       kind: 'change',

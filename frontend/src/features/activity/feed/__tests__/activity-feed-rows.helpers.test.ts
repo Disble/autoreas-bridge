@@ -71,11 +71,22 @@ describe('toFeedRowModel', () => {
 
   it.each([
     ['a bridge start as Bridge started', 'api', 'api.listening', 'Listening on :8080', 'Bridge started'],
+    ['a clean close as Bridge closed', 'desktop', 'app.closed', 'bridge closed cleanly', 'Bridge closed'],
     ['any other event by its recorded message, its area and type left to the drawer', 'season', 'season.warn', 'Missed selected day', 'Missed selected day'],
   ])('words %s', (_case, domain, eventType, message, subject) => {
     const line = buildLine({ type: 'system', origin: 'bridge', slow: true }, { kind: 'event', domain, title: message, detail: eventType });
 
     expect(toFeedRowModel(line, undefined)).toMatchObject({ subject, detail: '', repeat: undefined, health: 'slow', canCopy: false, originLabel: 'Bridge · slow' });
+  });
+
+  it.each([
+    ['how long Bridge was off after a clean close', { closedAtMs: NOW_MS - (9 * 60 + 12) * 60_000, lastEventAtMs: undefined }, 'off 9 h 12 min'],
+    ['a run before that did not close', { closedAtMs: undefined, lastEventAtMs: NOW_MS - 3_600_000 }, 'did not close normally'],
+    ['a run before any recorded close', { closedAtMs: undefined, lastEventAtMs: undefined }, 'close unknown'],
+  ] as const)('words a Bridge start by %s, never as a failure', (_case, bridgeStart, detail) => {
+    const line = buildLine({ type: 'system', origin: 'bridge', bridgeStart }, { kind: 'event', domain: 'api', title: 'http server listening on :8787', detail: 'api.listening', atMs: NOW_MS });
+
+    expect(toFeedRowModel(line, undefined)).toMatchObject({ subject: 'Bridge started', detail, health: 'ok', canCopy: false });
   });
 
   it.each([

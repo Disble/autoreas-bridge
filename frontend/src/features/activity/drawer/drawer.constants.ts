@@ -134,3 +134,12 @@ export const DRAWER_STEP_NOTES = { stopped: 'Stopped here', notReached: 'Not rea
 
 /** The label of a runtime transition's recorded reason. */
 export const DRAWER_REASON_LABEL = 'Recorded reason';
+
+/** The labels and words of how the run before a Bridge start ended (S6 P5). */
+export const DRAWER_START_WORDS = {
+  closed: 'Closed',
+  offFor: 'Off for',
+  lastEvent: 'Last event before',
+  unknown: 'Unknown',
+  notClosed: 'The previous run did not close normally.',
+} as const;

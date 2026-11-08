@@ -60,7 +60,7 @@ and History tabs.
 | The Traffic type starts **off** | Check-ins are history, not news. Its chip still counts its lines. The failure switch only narrows the selected types, so failed hours and failed reports stay hidden until Traffic is on |
 | "Bridge started" is a System line, filtered like any other type, grouped per hour ("Bridge started · 2 times · 10:05 – 10:50") | A filter never lies |
 | System lines group per hour, area, type, level and message ("Render failed · 3 times · 10:05 – 10:50 · frontend · frontend.error") | Repeated warnings and errors are one line, as check-ins are |
-| Not built: "Bridge stopped" lines and "Bridge off" bands in the feed. No stop or shutdown event is stored, so nothing can say when the bridge was off | A gap must never be drawn from data the bridge does not hold |
+| A clean shutdown writes one `app.closed` row, a "Bridge closed" System line (S6 P5). "Bridge started" then says how long Bridge was off ("off 9 h 12 min"); a start after a run with no close says "did not close normally", and a start with no close stored anywhere before it says "close unknown". Muted, never red. A crash writes nothing, so the chart still draws no "Bridge off" band | A power cut or a kill is not a failure Bridge can prove; a gap is never drawn from data the bridge does not hold |
 | A failed sync report shows Bridge's reading, not the report: "Sync failed" and "Tablet came back late" are failed Traffic lines. "3 changes waited for Bridge" is one neutral Traffic line per Bridge start, the first start after the failures, and the failure switch skips it | The owner wants the interpreted version in the feed; the data stays one level down (`mobile-reports.md`, Reading a failed sync) |
 | A failed sync cycle names the stage it stopped at ("Sync cycle · failed while sending"); a phone process change is a Traffic line ("Sync process · died" failed, "Main service · started" neutral). Words come from fixed maps over the stored fields; a value outside them is shown as stored (`mobile-reports.md`, Where a report is shown) | The phone reports about itself, so Traffic owns it; Bridge has no AI to interpret data (S6 of `odd/tasks/mobile-report-kinds.md`) |
 | A failed row offers Copy for AI (mockup rule `e.fail`) | The owner hands a failure to the AI that debugs without opening the drawer |
@@ -169,8 +169,8 @@ full date and time. On the right are icon-only actions: Technical details (`</>`
 | Changes that waited for Bridge | What the line means, the grace period every report shares, then each report with its Bridge off period, first report, last contact and arrival, newest arrival first |
 | Bridge edit | Before → after of the field, "Made in: Editor" and the time saved |
 | System line | When it groups more than one event: "N times this hour" with First and Last. Then the presenter of its newest event (window error, or the generic layout) |
-| Bridge started | Not built: when it had been off since and for how long. No stop event is stored, so "off since" has no source. The phone changes that waited are a Traffic line of their own, not part of this row |
-| Bridge stopped | Not backed by stored data: no stop or shutdown event is recorded, so a stop has no line and no presenter |
+| Bridge started | Above the generic layout, how the run before it ended: "Closed" and "Off for" after a clean close; "Closed: Not recorded", "Last event before" and "The previous run did not close normally." after a run with no close; "Closed: Unknown" before any close was recorded. The phone changes that waited are a Traffic line of their own, not part of this row |
+| Bridge closed | The generic layout, titled "Bridge closed" |
 | Window error | See [Window errors](#window-errors) |
 | Any type without a presenter | The generic layout: see [Event presentation model](#event-presentation-model) |
 

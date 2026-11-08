@@ -14,13 +14,13 @@ import (
 // event belongs to exactly one section. Schedule and season events are
 // tasks. An event correlated to a download run is that run's story, which
 // the run line already restates, so it is not a line. Every other event is
-// System, which shows only a start or a warning or error: routine info
-// events are not news. Lines and counts read these same predicates.
+// System, which shows only a start, a clean close (S6 P5), or a warning or
+// error: routine info events are not news. Lines and counts read these same predicates.
 const (
 	feedTaskEventSQL   = `domain IN ('schedule', 'season')`
 	feedSystemEventSQL = `(domain NOT IN ('schedule', 'season')
 		AND NOT EXISTS (SELECT 1 FROM download_runs WHERE download_runs.run_id = runtime_events.correlation_id)
-		AND (COALESCE(event_type, '') = 'api.listening' OR level IN ('warn', 'error')))`
+		AND (COALESCE(event_type, '') = 'api.listening' OR (` + bridgeCloseSQL + `) OR level IN ('warn', 'error')))`
 	// feedSystemGroupSQL is the key of one System line: the events of one
 	// hour sharing a domain, event type, level and message. The level is part
 	// of the key, so a group is failed or slow as a whole.

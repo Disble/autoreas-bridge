@@ -404,6 +404,11 @@ func (a *App) shutdown(ctx context.Context) {
 	if a.captureQueue != nil {
 		_ = a.captureQueue.Stop(ctx)
 	}
+	// The clean close is the run's last row: Activity pairs it with the next
+	// start (S6 P5). Logged while the sink is still bound, so Stop flushes it.
+	if a.sharedLogger != nil {
+		a.sharedLogger.Logf("desktop", sharedlogger.LevelInfo, sharedlogger.Fields{EventType: "app.closed"}, "bridge closed cleanly")
+	}
 	// Unbind before Stop: the sink's atomic.Pointer swap takes the nil
 	// branch on the logging goroutine and never contends the queue's
 	// stop mutex during shutdown.

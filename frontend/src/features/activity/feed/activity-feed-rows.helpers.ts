@@ -1,6 +1,9 @@
 import { describeActivityChange } from '../change-words/change-words.helpers';
+import { formatDrawerSpan } from '../drawer/drawer-format.helpers';
+import type { ActivityLedgerLine } from '../history-source/history.types';
 import type { ActivityDownloadRun, ActivityFeedDay, ActivityFeedLine, ActivityFeedView, ActivityPhoneReportFacts, ActivitySystemGroup } from '../feed-source/feed.types';
 import {
+  ACTIVITY_BRIDGE_CLOSED,
   ACTIVITY_BRIDGE_STARTED,
   ACTIVITY_CYCLE_STAGE_UNNAMED,
   ACTIVITY_CYCLE_STAGE_WORDS,
@@ -12,6 +15,7 @@ import {
   ACTIVITY_RUN_SUBJECT,
   ACTIVITY_RUN_TRIGGER_SUBJECTS,
   ACTIVITY_RUNTIME_TRANSITION_KIND,
+  ACTIVITY_START_UNCLOSED_WORDS,
   ACTIVITY_SYNC_READING_WORDS,
   ACTIVITY_TRAFFIC_SUBJECT,
   ACTIVITY_TRANSITION_PROCESS_WORDS,
@@ -82,6 +86,26 @@ function systemRepeat(group: ActivitySystemGroup | undefined): ActivityRowRepeat
   return group === undefined ? undefined : toRepeat(group.count);
 }
 
+/** An event's subject: a start and a clean close in plain words, any other event as recorded. */
+function eventSubject(ledger: ActivityLedgerLine): string {
+  if (ledger.detail === ACTIVITY_BRIDGE_STARTED.eventType) {
+    return ACTIVITY_BRIDGE_STARTED.subject;
+  }
+  return ledger.detail === ACTIVITY_BRIDGE_CLOSED.eventType ? ACTIVITY_BRIDGE_CLOSED.subject : ledger.title;
+}
+
+/** How long Bridge was off before a start, or that the run before has no close (S6 P5); empty for any other line. */
+function startDetail(line: ActivityFeedLine): string {
+  const start = line.bridgeStart;
+  if (start === undefined) {
+    return '';
+  }
+  if (start.closedAtMs !== undefined) {
+    return `off ${formatDrawerSpan(line.line.atMs - start.closedAtMs)}`;
+  }
+  return start.lastEventAtMs === undefined ? ACTIVITY_START_UNCLOSED_WORDS.unknown : ACTIVITY_START_UNCLOSED_WORDS.notClosed;
+}
+
 /**
  * What a line is about, its one short fact and how often it repeated, from
  * its stored fields only. Spans, areas, event types and stored errors are the
@@ -109,8 +133,7 @@ function describeLine(line: ActivityFeedLine): LineWords {
     };
   }
   if (ledger.kind === 'event') {
-    const subject = ledger.detail === ACTIVITY_BRIDGE_STARTED.eventType ? ACTIVITY_BRIDGE_STARTED.subject : ledger.title;
-    return { subject, detail: '', repeat: systemRepeat(line.system) };
+    return { subject: eventSubject(ledger), detail: startDetail(line), repeat: systemRepeat(line.system) };
   }
   if (ledger.kind === 'phone_report') {
     return { ...toPhoneReportWords(ledger.title, ledger.detail, line.report), repeat: undefined };

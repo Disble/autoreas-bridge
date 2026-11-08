@@ -165,6 +165,17 @@ export interface ActivityTabletSummary {
 }
 
 /**
+ * How the run before one Bridge start ended, read from stored rows (S6 P5).
+ * Neither time set: no close is stored before the start, so it is unknown.
+ */
+export interface ActivityBridgeStartFacts {
+  /** Its clean close, epoch milliseconds; undefined when it recorded none. */
+  readonly closedAtMs: number | undefined;
+  /** The last row it wrote, epoch milliseconds; set only when it did not close normally. */
+  readonly lastEventAtMs: number | undefined;
+}
+
+/**
  * One feed row. `traffic`, `run`, `system` and `bridgeOff` are set only for
  * their own lines. A System line is an event line standing for its group:
  * `line` is the group's newest recorded event.
@@ -196,6 +207,8 @@ export interface ActivityFeedLine {
   readonly report: ActivityPhoneReportFacts | undefined;
   /** The hourly summaries of a `traffic_hour` line, one per device that reported that hour; empty otherwise. */
   readonly tabletSummaries: readonly ActivityTabletSummary[];
+  /** How the run before a start ended, for a System line of starts; undefined otherwise. */
+  readonly bridgeStart: ActivityBridgeStartFacts | undefined;
 }
 
 /** One local day's feed lines, newest first. */

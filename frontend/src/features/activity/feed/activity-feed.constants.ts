@@ -110,6 +110,12 @@ export const ACTIVITY_TRAFFIC_SUBJECT = 'Phone checked in';
 /** Event type logged once per bridge start, and the subject it reads as (design, S4). */
 export const ACTIVITY_BRIDGE_STARTED = { eventType: 'api.listening', subject: 'Bridge started' } as const;
 
+/** Event type logged once per clean close, and the subject it reads as (S6 P5). */
+export const ACTIVITY_BRIDGE_CLOSED = { eventType: 'app.closed', subject: 'Bridge closed' } as const;
+
+/** What a start says about a run before it that has no close: muted words, never a failure (S6 P5). */
+export const ACTIVITY_START_UNCLOSED_WORDS = { notClosed: 'did not close normally', unknown: 'close unknown' } as const;
+
 /** Local time, `14:35`. */
 export const ACTIVITY_FEED_TIME_FORMAT = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 

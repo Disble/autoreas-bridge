@@ -8,6 +8,7 @@ import { FEED_SOURCE_STATE } from './feed-source.constants';
 import type { ActivityFeedSource } from './feed-source.types';
 import type {
   ActivityBridgeOffGroup,
+  ActivityBridgeStartFacts,
   ActivityChartSlot,
   ActivityDownloadRun,
   ActivityFeedLine,
@@ -90,6 +91,16 @@ function mapTabletSummary(tablet: activityread.TabletSummary): ActivityTabletSum
   };
 }
 
+/** Maps how the run before a start ended; nil times become undefined. */
+function mapBridgeStart(facts: activityread.BridgeStartFacts): ActivityBridgeStartFacts {
+  return { closedAtMs: facts.ClosedAtMS ?? undefined, lastEventAtMs: facts.LastEventAtMS ?? undefined };
+}
+
+/** Maps a Go value that may be nil; nil becomes undefined. */
+function mapOptional<G, F>(value: G | null | undefined, map: (value: G) => F): F | undefined {
+  return value ? map(value) : undefined;
+}
+
 /** Maps one Go feed line; Go's zero incident id means none. */
 function mapFeedLine(line: activityread.FeedLine): ActivityFeedLine {
   return {
@@ -99,13 +110,14 @@ function mapFeedLine(line: activityread.FeedLine): ActivityFeedLine {
     slow: line.Slow,
     incidentId: line.IncidentID === 0 ? undefined : line.IncidentID,
     line: mapLedgerLine(line.Line),
-    traffic: line.Traffic ? mapTrafficHour(line.Traffic) : undefined,
-    run: line.Run ? mapDownloadRun(line.Run) : undefined,
-    system: line.System ? mapSystemGroup(line.System) : undefined,
-    syncReading: line.SyncReading ? mapSyncReading(line.SyncReading) : undefined,
-    bridgeOff: line.BridgeOff ? mapBridgeOffGroup(line.BridgeOff) : undefined,
-    report: line.Report ? mapReportFacts(line.Report) : undefined,
+    traffic: mapOptional(line.Traffic, mapTrafficHour),
+    run: mapOptional(line.Run, mapDownloadRun),
+    system: mapOptional(line.System, mapSystemGroup),
+    syncReading: mapOptional(line.SyncReading, mapSyncReading),
+    bridgeOff: mapOptional(line.BridgeOff, mapBridgeOffGroup),
+    report: mapOptional(line.Report, mapReportFacts),
     tabletSummaries: (line.TabletSummaries ?? []).map(mapTabletSummary),
+    bridgeStart: mapOptional(line.BridgeStart, mapBridgeStart),
   };
 }
 

@@ -164,13 +164,19 @@ describe('feed-source', () => {
     expect(mapActivityFeedView(activityread.FeedView.createFrom({ Days: null, NextCursor: '' })).days).toEqual([]);
   });
 
-  it('maps a System group', async () => {
+  it('maps a System group, the run before a start with nil times to undefined, and a line without one to undefined', async () => {
     const { mapActivityFeedView } = await import('../feed-source.helpers');
     const system = goFeedLine({ Type: 'system', Run: null, Line: goLedgerLine({ Kind: 'event', ID: '9' }), System: { HourStartMS: 3_600_000, Count: 3, FirstAtMS: 3_660_000, LastAtMS: 3_900_000 } });
+    const closed = { ...system, BridgeStart: { ClosedAtMS: 1_000, LastEventAtMS: null } };
+    const notClosed = { ...system, BridgeStart: { ClosedAtMS: null, LastEventAtMS: 2_000 } };
 
-    const view = mapActivityFeedView(activityread.FeedView.createFrom({ Days: [{ DayStartMS: 0, Lines: [system] }], NextCursor: '' }));
+    const view = mapActivityFeedView(activityread.FeedView.createFrom({ Days: [{ DayStartMS: 0, Lines: [system, closed, notClosed] }], NextCursor: '' }));
 
-    expect(view.days[0].lines[0]).toMatchObject({ type: 'system', run: undefined, system: { hourStartMs: 3_600_000, count: 3, firstAtMs: 3_660_000, lastAtMs: 3_900_000 } });
+    expect(view.days[0].lines[0]).toMatchObject({ type: 'system', run: undefined, bridgeStart: undefined, system: { hourStartMs: 3_600_000, count: 3, firstAtMs: 3_660_000, lastAtMs: 3_900_000 } });
+    expect(view.days[0].lines.slice(1).map((line) => line.bridgeStart)).toEqual([
+      { closedAtMs: 1_000, lastEventAtMs: undefined },
+      { closedAtMs: undefined, lastEventAtMs: 2_000 },
+    ]);
   });
 
   it('maps a reading, a nil evidence time to undefined, and a line without one to undefined', async () => {

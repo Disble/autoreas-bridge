@@ -7,6 +7,17 @@ import { drawerFact, formatDrawerKeptUntil, formatDrawerTime, formatDrawerWhen }
 import { changeSections, failureSections, runStorySections, runSections, systemGroupSections, trafficSections, windowErrorSections } from './drawer-presenters.helpers';
 import { bridgeOffSections, readingSections, toDrawerReadingHeader } from './drawer-reading.helpers';
 import { reportSections, toDrawerReportHeader } from './drawer-report.helpers';
+import { bridgeStartSections } from './drawer-start.helpers';
+import { ACTIVITY_BRIDGE_CLOSED } from '../feed/activity-feed.constants';
+
+/** Title and phrase of an event line: a clean close titled in plain words, any other event by its recorded message, and a System group's count. */
+function eventTitleAndPhrase(feedLine: ActivityFeedLine): { readonly title: string; readonly phrase: string } {
+  const { line, system } = feedLine;
+  return {
+    title: line.detail === ACTIVITY_BRIDGE_CLOSED.eventType ? ACTIVITY_BRIDGE_CLOSED.subject : line.title,
+    phrase: system !== undefined && system.count > 1 ? `${system.count} times` : '',
+  };
+}
 
 /** Title and phrase of a line, from its stored fields. */
 function titleAndPhrase(feedLine: ActivityFeedLine): { readonly title: string; readonly phrase: string } {
@@ -25,7 +36,7 @@ function titleAndPhrase(feedLine: ActivityFeedLine): { readonly title: string; r
     case 'phone_report':
       return toDrawerReportHeader(feedLine);
     default:
-      return { title: line.title, phrase: feedLine.system !== undefined && feedLine.system.count > 1 ? `${feedLine.system.count} times` : '' };
+      return eventTitleAndPhrase(feedLine);
   }
 }
 
@@ -126,5 +137,5 @@ export function toDrawerSummary(input: DrawerSummaryInput): DrawerSummaryModel {
   const tailored = presenterSections(input);
   const presenterGap = tailored === undefined ? [`No presenter for \`${input.line.line.detail || input.line.line.kind}\`. Shown with the generic layout.`] : [];
   const causeGap = input.incident === undefined ? undefined : toDrawerCauseGap(input.incident);
-  return { sections: [...systemGroupSections(input), ...(tailored ?? genericSections(input))], gaps: [...presenterGap, ...(causeGap === undefined ? [] : [causeGap])] };
+  return { sections: [...systemGroupSections(input), ...bridgeStartSections(input), ...(tailored ?? genericSections(input))], gaps: [...presenterGap, ...(causeGap === undefined ? [] : [causeGap])] };
 }

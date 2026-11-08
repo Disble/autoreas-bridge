@@ -148,7 +148,8 @@ type PhoneReportFacts struct {
 // Report is set on a runtime transition line and on a failed cycle report line
 // that recorded its last stage. TabletSummaries is set on a traffic hour line:
 // one per device that reported that hour, by device id, nil when none did.
-// IncidentID is the newest incident occurrence recorded for this fact, or 0.
+// BridgeStart is set on a System line of starts: how the run before its newest
+// start ended (S6 P5). IncidentID is the newest incident occurrence recorded for this fact, or 0.
 type FeedLine struct {
 	Type       FeedType
 	Origin     FeedOrigin
@@ -165,6 +166,8 @@ type FeedLine struct {
 	Report      *PhoneReportFacts
 	// TabletSummaries are the hourly summaries of a traffic hour (S6 P1).
 	TabletSummaries []TabletSummary
+	// BridgeStart is how the run before a start ended (S6 P5).
+	BridgeStart *BridgeStartFacts
 }
 
 // FeedDay groups one local day's feed lines, newest first.

@@ -64,10 +64,15 @@ The Activity feed reads the event ledger by **ownership**, not by a domain exclu
 event `schedule.run_settled`, written when the download scheduler stores a run's outcome. An event whose
 `correlation_id` is a `download_runs.run_id` belongs to that run's story and is not a line of its own.
 Every other event is **System**, the default section. System shows only the bridge start
-(`api.listening`) and warnings and errors. It is grouped **on read**: one line per hour, domain,
+(`api.listening`), the clean close (`app.closed`, written by `App.shutdown`) and warnings and errors. It is grouped **on read**: one line per hour, domain,
 event type, level and message, with its count and first and last time. On the live copy
 (2026-10-02..24) that turns 116 per-event lines into 59. Storage is unchanged: events are still one row
 each, and the grouping exists only in the read and in the counts, which use the same key.
+
+A start line says how the run before it ended (`bridgeRuns`, `bridge_runs.go`), computed on read: the close
+stored after the previous start, or, when there is none, the last row stored before the start's boot marker
+(`tracer bullet ready`), so the starting run's own boot rows never count as the run before. A start with no
+close stored anywhere before it predates the close row, so its close is unknown.
 
 Failed mobile reports are Traffic lines, and a failed sync shows its reading (`mobile-reports.md`). Reports
 that read "Bridge was off" become one neutral Traffic line per Bridge start, not one line each. That line is

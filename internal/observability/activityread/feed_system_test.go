@@ -26,6 +26,8 @@ func TestFeedOwnsEachEventByTaskDownloadRunOrSystem(t *testing.T) {
 	insertEvent(t, db, event{atMS: minutesAgo(17), domain: "anime", level: "warn", message: "folder missing", eventType: "anime.folder"})
 	insertEvent(t, db, event{atMS: minutesAgo(18), domain: "sync", level: "warn", message: "reconcile", eventType: "sync.reconcile"})
 	insertEvent(t, db, event{atMS: minutesAgo(19), domain: "websocket", level: "warn", message: "register", eventType: "websocket.register"})
+	insertEvent(t, db, event{atMS: minutesAgo(20), domain: "desktop", level: "info", message: "bridge closed cleanly", eventType: "app.closed"})
+	insertEvent(t, db, event{atMS: minutesAgo(21), domain: "desktop", level: "info", message: "window shown", eventType: "app.shown"})
 
 	lines := feedLines(feedOf(t, r, FeedInput{Origin: OriginBridge, Types: []FeedType{FeedTask, FeedSystem}}))
 	var got []string
@@ -34,8 +36,10 @@ func TestFeedOwnsEachEventByTaskDownloadRunOrSystem(t *testing.T) {
 	}
 	// The run's own correlated events are its story, whatever their domain; a
 	// download event of no run is System; info events other than the start,
-	// noise and restating events make no line.
-	want := []string{"task:tick", "task:late", "system:queue lost", "system:http server listening", "system:folder missing"}
+	// noise and restating events make no line. The start and the clean close
+	// are the only info System lines (S6 P5).
+	want := []string{"task:tick", "task:late", "system:queue lost", "system:http server listening", "system:folder missing",
+		"system:bridge closed cleanly"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("lines = %v, want %v", got, want)
 	}
