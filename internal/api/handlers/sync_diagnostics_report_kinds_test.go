@@ -167,12 +167,16 @@ func TestSyncDiagnosticsCycleReportNeedsACycleID(t *testing.T) {
 	}
 
 	native := `{"kind":"cycle_report","cycle_id":"native-1","degraded":null,"trigger_source":"foreground_service","app_state":"background","previous_cycle":{"cycle_id":"native-1","trigger_source":"foreground_service","outcome":"failed","last_stage":"http","error_name":"unknown"},"counters":{"consecutive_unclosed_cycles":0,"pending_ops_count":0,"cursor":0},"recent_events":[]}`
-	for _, body := range []string{validDiagnosticsBody(), native} {
+	// hourly_summary counts only 8 schedulers, but a cycle report's previous
+	// cycle keeps accepting local_mutation_write: the two lists are separate.
+	localWrite := strings.Replace(strings.Replace(native, `"cycle_id":"native-1","degraded"`, `"cycle_id":"native-2","degraded"`, 1),
+		`"native-1","trigger_source":"foreground_service","outcome"`, `"native-1","trigger_source":"local_mutation_write","outcome"`, 1)
+	for _, body := range []string{validDiagnosticsBody(), native, localWrite} {
 		if res := postDiagnostics(t, handler, body); res.Code != http.StatusNoContent {
 			t.Fatalf("status = %d, want 204 (body %q)", res.Code, res.Body.String())
 		}
 	}
-	if got := countStoredKind(t, db, telemetry.KindCycleReport); got != 2 {
-		t.Fatalf("stored cycle_report rows = %d, want 2", got)
+	if got := countStoredKind(t, db, telemetry.KindCycleReport); got != 3 {
+		t.Fatalf("stored cycle_report rows = %d, want 3", got)
 	}
 }

@@ -106,7 +106,7 @@ func TestHourlySummaryKindAcceptsAFullGridAndSixteenDeaths(t *testing.T) {
 	t.Parallel()
 
 	var counts, deaths []string
-	for _, trigger := range []string{"foreground_service", "background_task", "bootstrap", "manual", "app_active", "network_regained", "local_mutation", "local_mutation_write", "ws_sync_required"} {
+	for _, trigger := range []string{"foreground_service", "background_task", "bootstrap", "manual", "app_active", "network_regained", "local_mutation", "ws_sync_required"} {
 		for _, outcome := range []string{"closed", "failed", "presence_refused", "schema_not_ready", "skipped_owned_by_ticker", "unsettled", "crashed"} {
 			counts = append(counts, `{"trigger_source":"`+trigger+`","outcome":"`+outcome+`","count":1}`)
 		}
@@ -149,6 +149,7 @@ func TestHourlySummaryKindRejectsAndNamesTheField(t *testing.T) {
 		{"sixty-four counts reach the pair check", counts, sameCounts(64), "counts[1]"},
 		{"string count entry", `{"trigger_source":"foreground_service","outcome":"failed","count":4}`, `"x"`, "counts[1]"},
 		{"unknown trigger source", `"trigger_source":"foreground_service","outcome":"failed"`, `"trigger_source":"native_fgs_tick","outcome":"failed"`, "counts[1].trigger_source"},
+		{"local mutation write is not counted", `"trigger_source":"foreground_service","outcome":"failed"`, `"trigger_source":"local_mutation_write","outcome":"failed"`, "counts[1].trigger_source"},
 		{"missing trigger source", `"trigger_source":"foreground_service","outcome":"failed"`, `"outcome":"failed"`, "counts[1].trigger_source"},
 		{"unknown outcome", `"outcome":"failed"`, `"outcome":"completed"`, "counts[1].outcome"},
 		{"missing outcome", `"outcome":"failed",`, ``, "counts[1].outcome"},

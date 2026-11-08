@@ -22,15 +22,32 @@ const hourlySummaryRetentionLimit = 24 * 90
 // The bounds the wire contract declares. A count above hourlySummaryMaxCount
 // in one hour is a client bug, not traffic (a 15-second tick is 240 an hour);
 // a duration beyond one hour cannot belong to an attempt inside a closed hour.
-// The counts cap is today's 9 schedulers times 7 outcomes (63 distinct pairs)
-// plus one, and the deaths cap is generous for two processes; together they
-// keep the largest legal body inside the 8 KiB transport limit.
+// The counts cap leaves room above today's 8 schedulers times 7 outcomes (56
+// distinct pairs), and the deaths cap is generous for two processes; mobile
+// confirmed both, and together they keep the largest legal body inside the
+// 8 KiB transport limit.
 const (
 	hourlySummaryMaxCount         = 100000
 	hourlySummaryMaxDurationMS    = 3600000
 	hourlySummaryMaxCounts        = 64
 	hourlySummaryMaxProcessDeaths = 16
 )
+
+// hourlySummaryTriggerSources gates counts[].trigger_source: the 8 schedulers
+// mobile counts attempts for (2026-11-07). The words are those of
+// previous_cycle.trigger_source, but it is its own set on purpose: that
+// vocabulary also holds local_mutation_write, which a cycle report keeps
+// accepting and an hourly count does not, so reading it would widen this kind.
+var hourlySummaryTriggerSources = map[string]struct{}{
+	"foreground_service": {},
+	"background_task":    {},
+	"bootstrap":          {},
+	"manual":             {},
+	"app_active":         {},
+	"network_regained":   {},
+	"local_mutation":     {},
+	"ws_sync_required":   {},
+}
 
 // hourlySummaryOutcomes gates counts[].outcome: how one sync attempt ended,
 // in the words agreed with mobile. It is its own set and not syncdiag's cycle
@@ -188,14 +205,10 @@ func hourlyCountItem(prefix string, item json.RawMessage) (hourlyCount, error) {
 	if err := strictItem(prefix, item, &wire); err != nil {
 		return count, err
 	}
-	trigger, err := requiredString(prefix+".trigger_source", wire.TriggerSource)
-	if err != nil {
+	var err error
+	if count.TriggerSource, err = vocabularyString(prefix+".trigger_source", wire.TriggerSource, hourlySummaryTriggerSources); err != nil {
 		return count, err
 	}
-	if !syncdiag.IsSyncAttemptTriggerSource(trigger) {
-		return count, &syncdiag.FieldError{Field: prefix + ".trigger_source", Reason: "not a member of the closed vocabulary"}
-	}
-	count.TriggerSource = trigger
 	if count.Outcome, err = vocabularyString(prefix+".outcome", wire.Outcome, hourlySummaryOutcomes); err != nil {
 		return count, err
 	}

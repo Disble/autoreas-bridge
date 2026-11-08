@@ -484,8 +484,10 @@ info:
     with code `field_rejected` and `"field": "cycle_id"` instead of being
     stored; every other `cycle_report` is accepted exactly as before, and a
     body an earlier rule already refused still names the same field. No other
-    refusal, status code or WebSocket message changes. Neither new kind opens
-    an incident or shows in Activity yet.
+    refusal, status code or WebSocket message changes. `hourly_summary`
+    counts 8 schedulers and refuses `local_mutation_write`, which
+    `cycle_report` keeps accepting in `previous_cycle.trigger_source`.
+    Neither new kind opens an incident or shows in Activity yet.
 
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
@@ -1445,8 +1447,8 @@ components:
             properties:
               trigger_source:
                 type: string
-                enum: [foreground_service, background_task, bootstrap, manual, app_active, network_regained, local_mutation, local_mutation_write, ws_sync_required]
-                description: The scheduler that ran the attempts, in the words of `previous_cycle.trigger_source`.
+                enum: [foreground_service, background_task, bootstrap, manual, app_active, network_regained, local_mutation, ws_sync_required]
+                description: The scheduler that ran the attempts, in the words of `previous_cycle.trigger_source`. `local_mutation_write`, which a `cycle_report` still accepts there, is not counted here and answers `field_rejected`.
               outcome:
                 type: string
                 enum: [closed, failed, presence_refused, schema_not_ready, skipped_owned_by_ticker, unsettled, crashed]
