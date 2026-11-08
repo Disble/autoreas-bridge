@@ -39,7 +39,7 @@ Out of scope: capturing the host or remote address of a report (owner undecided)
 
 ## Tasks
 
-- [ ] T1 (S1-S5) Serve `hourly_summary` and `runtime_transition`, reject empty `cycle_id`, openapi. Unblocks mobile. Route: pending mapping. Commit: pending.
+- [x] T1 (S1-S5) Serve `hourly_summary` and `runtime_transition`, reject empty `cycle_id`, openapi. Unblocks mobile. Route: delegated, context backstop. Commit: e6b9832d, d2acae39, 0fee078a, 0d747f72.
 - [ ] T2 (S6 P1) Traffic hour comparison and drawer. Commit: pending.
 - [ ] T3 (S6 P2, P3) Transition and failed cycle lines and drawers. Commit: pending.
 - [ ] T4 (S6 P4) Silence computed on read. Commit: pending.
@@ -61,3 +61,5 @@ L4 (2026-11-07, owner): "Ok, entonces confírmame si eso es todo y si ya podemos
 L5 (2026-11-07, mobile): no technical question open; mobile waits on the 50 a day approval (given, L2) and on Bridge serving the two new kinds. Outbox reserve: new kinds stop at 60 of 100 rows. Mockup published in OpenDesign "Bridge Redesign" as `mobile-reports-activity.html`; P4 there was drawn with a watcher and is now computed on read.
 
 L6 (2026-11-07, mobile): one sync attempt is one cycle id; no route maps one to one. Count distinct cycle ids from `X-Autoreas-Request-Id` (`<cycleId>:<n>`). Native attempts start with `GET /api/status` (1.5 s probe, `SyncEngineBridgePresence.kt:91-93`); JS attempts have no probe. Every attempt sends at least one `POST /api/sync/reconcile` (`SyncEngineCycle.kt:242-243`). Mobile still has to confirm that every JS request carries the id. T2 must check whether Bridge keeps request ids per hour: the hourly rollup does not, so this may need a new per-hour count.
+
+L7 (2026-11-07, mobile and T1): mobile confirmed `hour_start_ms` (required, stored as the observed time), `counts` as an array of `{trigger_source, outcome, count, max_duration_ms?}` (at most 64, each pair once), top-level `dropped_count`, `process_deaths` at most 16. `hourly_summary` accepts exactly 8 trigger values, without `local_mutation_write`; `cycle_report` keeps accepting it. `runtime_transition` accepts only the 14 subject/transition pairs mobile sent, and `process` + `died` only with `process_name` `sync`; `app_version` matches `^[0-9A-Za-z._+-]{1,32}$`. Caps 2160 + 2340 rows = 50 a day for 90 days. Checks: ditto 89/89, 2/2, 2/2, the pair check mutated by hand (7 and 40 failing tests); 23 existing-kind requests identical to 99113b53 except the intended empty `cycle_id` (204 to 400); a real HTTP POST of each new kind stored one row. Open: mobile confirms every JS request carries the request id.
