@@ -14,6 +14,7 @@ const (
 	rankDownloadRun
 	rankSystemGroup
 	rankBridgeOff
+	rankSilence
 )
 
 // Feed returns one page of the Activity feed (activity-ui-design-v2.md, Feed)
@@ -34,7 +35,8 @@ func (r *Reader) Feed(ctx context.Context, in FeedInput) (FeedView, error) {
 
 	var items []item[FeedLine]
 	for _, read := range []func(context.Context, feedPlan, sourcePage) ([]item[FeedLine], error){
-		r.feedChangeLines, r.feedPhoneReportLines, r.feedTrafficLines, r.feedRunLines, r.feedTaskLines, r.feedSystemLines,
+		r.feedChangeLines, r.feedPhoneReportLines, r.feedTrafficLines, r.feedSilenceLines, r.feedRunLines, r.feedTaskLines,
+		r.feedSystemLines,
 	} {
 		lines, err := read(ctx, plan, page)
 		if err != nil {
@@ -55,10 +57,13 @@ func (r *Reader) Feed(ctx context.Context, in FeedInput) (FeedView, error) {
 	return FeedView{Days: groupFeedByDay(lines, in.Now.Location()), NextCursor: next}, nil
 }
 
-// feedPlan is the set of types one feed read covers, after the origin is applied.
+// feedPlan is the set of types one feed read covers, after the origin is
+// applied, and the moment it reads at: a tablet silence lasts until now.
 type feedPlan struct {
 	types        map[FeedType]bool
 	failuresOnly bool
+	origin       FeedOrigin
+	nowMS        int64
 }
 
 // reads reports whether the plan covers t.
@@ -91,7 +96,7 @@ func planFeed(in FeedInput) (feedPlan, error) {
 			delete(types, t)
 		}
 	}
-	return feedPlan{types: types, failuresOnly: in.FailuresOnly}, nil
+	return feedPlan{types: types, failuresOnly: in.FailuresOnly, origin: origin, nowMS: in.Now.UnixMilli()}, nil
 }
 
 // originOf returns where every line of a type happens.

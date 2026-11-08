@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math"
 	"sort"
+
+	"autoreas-bridge/internal/observability/syncreading"
 )
 
 // A Bridge run goes from one start to its clean close or, when it recorded
@@ -32,16 +34,19 @@ type BridgeStartFacts struct {
 	LastEventAtMS *int64
 }
 
-// bridgeRun is one retained start and how the run before it ended.
+// bridgeRun is one retained start, how the run before it ended, and when its
+// own run ended. endMS is nil for the newest run while it has no close.
 type bridgeRun struct {
 	startMS int64
 	before  BridgeStartFacts
+	endMS   *int64
 }
 
 // bridgeRuns reads every retained start, oldest first, with how the run
 // before it ended: a close after the previous start is its clean close; else
 // the run before ends at the last row stored before this start's boot marker,
-// or before the start itself when the run wrote no marker.
+// or before the start itself when the run wrote no marker. That end is also
+// the previous run's endMS; the newest run ends at a close after its start.
 func (r *Reader) bridgeRuns(ctx context.Context) ([]bridgeRun, error) {
 	starts, err := r.SyncStarts(ctx)
 	if err != nil {
@@ -55,6 +60,18 @@ func (r *Reader) bridgeRuns(ctx context.Context) ([]bridgeRun, error) {
 	if err != nil {
 		return nil, err
 	}
+	runs, unclosed := pairStarts(starts, closes, boots)
+	lastByBoot, err := r.lastRowsBefore(ctx, unclosed)
+	if err != nil {
+		return nil, err
+	}
+	endRuns(runs, unclosed, lastByBoot, closes)
+	return runs, nil
+}
+
+// pairStarts builds one run per start with its clean close, and names the
+// boundary to look behind for each start whose previous run recorded none.
+func pairStarts(starts []syncreading.Start, closes, boots []int64) ([]bridgeRun, map[int]int64) {
 	runs := make([]bridgeRun, len(starts))
 	unclosed := map[int]int64{}
 	previousMS := int64(math.MinInt64)
@@ -62,7 +79,7 @@ func (r *Reader) bridgeRuns(ctx context.Context) ([]bridgeRun, error) {
 		runs[i].startMS = start.AtMS
 		if closedMS, ok := latestBetween(closes, previousMS, start.AtMS); ok {
 			runs[i].before.ClosedAtMS = &closedMS
-		} else if _, closedBefore := latestBetween(closes, math.MinInt64, start.AtMS); closedBefore {
+		} else {
 			unclosed[i] = start.AtMS
 			if bootMS, ok := latestBetween(boots, previousMS, start.AtMS); ok {
 				unclosed[i] = bootMS
@@ -70,27 +87,45 @@ func (r *Reader) bridgeRuns(ctx context.Context) ([]bridgeRun, error) {
 		}
 		previousMS = start.AtMS
 	}
-	if err := r.lastRowsBefore(ctx, runs, unclosed); err != nil {
-		return nil, err
-	}
-	return runs, nil
+	return runs, unclosed
 }
 
-// lastRowsBefore sets LastEventAtMS of each run in bootsByRun to the last row
-// stored before its boot, in one query of one indexed seek per run.
-func (r *Reader) lastRowsBefore(ctx context.Context, runs []bridgeRun, bootsByRun map[int]int64) error {
+// endRuns sets how each run before a start ended and when the runs ended.
+func endRuns(runs []bridgeRun, unclosed map[int]int64, lastByBoot map[int64]*int64, closes []int64) {
+	for i := range runs {
+		previousEnd := runs[i].before.ClosedAtMS
+		if bootMS, ok := unclosed[i]; ok {
+			previousEnd = lastByBoot[bootMS]
+			if _, closedBefore := latestBetween(closes, math.MinInt64, runs[i].startMS); closedBefore {
+				runs[i].before.LastEventAtMS = previousEnd
+			}
+		}
+		if i > 0 {
+			runs[i-1].endMS = previousEnd
+		}
+	}
+	if newest := len(runs) - 1; newest >= 0 {
+		if closedMS, ok := latestBetween(closes, runs[newest].startMS, math.MaxInt64); ok {
+			runs[newest].endMS = &closedMS
+		}
+	}
+}
+
+// lastRowsBefore returns the last row stored before each boot of bootsByRun,
+// nil when none is, in one query of one indexed seek per boot.
+func (r *Reader) lastRowsBefore(ctx context.Context, bootsByRun map[int]int64) (map[int64]*int64, error) {
 	boots := []int64{}
 	for _, bootMS := range bootsByRun {
 		boots = append(boots, bootMS)
 	}
 	list, err := json.Marshal(boots)
 	if err != nil {
-		return fmt.Errorf("activityread: encode boots: %w", err)
+		return nil, fmt.Errorf("activityread: encode boots: %w", err)
 	}
 	rows, err := r.db.QueryContext(ctx, `SELECT boot.value, (SELECT MAX(occurred_at_ms) FROM runtime_events
 		WHERE occurred_at_ms < boot.value) FROM json_each(?) AS boot`, string(list))
 	if err != nil {
-		return fmt.Errorf("activityread: last rows before boots: %w", err)
+		return nil, fmt.Errorf("activityread: last rows before boots: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	lastByBoot := map[int64]*int64{}
@@ -98,14 +133,11 @@ func (r *Reader) lastRowsBefore(ctx context.Context, runs []bridgeRun, bootsByRu
 		var bootMS int64
 		var lastMS *int64
 		if err := rows.Scan(&bootMS, &lastMS); err != nil {
-			return fmt.Errorf("activityread: scan last row before boot: %w", err)
+			return nil, fmt.Errorf("activityread: scan last row before boot: %w", err)
 		}
 		lastByBoot[bootMS] = lastMS
 	}
-	for i, bootMS := range bootsByRun {
-		runs[i].before.LastEventAtMS = lastByBoot[bootMS]
-	}
-	return rows.Err()
+	return lastByBoot, rows.Err()
 }
 
 // eventTimes returns the times of the runtime events matching predicate, oldest first.

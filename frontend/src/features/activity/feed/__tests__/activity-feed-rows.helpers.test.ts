@@ -90,6 +90,24 @@ describe('toFeedRowModel', () => {
   });
 
   it.each([
+    ['an ongoing one by when it began', undefined, 'Tablet silent', 'since 11:00'],
+    ['an ended one by how long it lasted', NOW_MS - 3_600_000 + 68 * 60_000, 'Tablet was silent', '1 h 8 min'],
+  ])('words a tablet silence, %s, as a failed Bridge line', (_case, endMs, subject, detail) => {
+    const silence = {
+      deviceId: 'tab',
+      startMs: NOW_MS - 3_600_000,
+      endMs,
+      lastReport: { kind: 'cycle_report', receivedAtMs: NOW_MS - 3_600_000, hourStartMs: undefined },
+      nextReport: undefined,
+      bridgeStartedAtMs: NOW_MS - 5 * 3_600_000,
+      bridgeStoppedAtMs: undefined,
+    };
+    const line = buildLine({ type: 'traffic', origin: 'bridge', failed: true, silence }, { kind: 'tablet_silence', id: 'tab:1', atMs: NOW_MS });
+
+    expect(toFeedRowModel(line, undefined)).toMatchObject({ subject, detail, health: 'failed', canCopy: true, originLabel: 'Bridge · failed', repeat: undefined });
+  });
+
+  it.each([
     ['a group of one event with no badge', 'frontend.error', 1, 'boom', undefined],
     ['a repeated event with its count badge', 'frontend.error', 3, 'boom', { badge: '×3', label: '3 times' }],
     ['repeated bridge starts with their count badge', 'api.listening', 2, 'Bridge started', { badge: '×2', label: '2 times' }],

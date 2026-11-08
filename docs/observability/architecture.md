@@ -74,6 +74,11 @@ stored after the previous start, or, when there is none, the last row stored bef
 (`tracer bullet ready`), so the starting run's own boot rows never count as the run before. A start with no
 close stored anywhere before it predates the close row, so its close is unknown.
 
+The runs also bound tablet silences (`tablet_silence.go`): 60 minutes or more in which Bridge was on and heard
+no report from a device, a failed Traffic line of origin Bridge computed on read. A run ends at its close, or at
+the last row stored before the next start's boot; the newest run without a close is still on. When the device
+was heard, and the hour precision before its oldest retained `cycle_report`, are in `mobile-reports.md`.
+
 Failed mobile reports are Traffic lines, and a failed sync shows its reading (`mobile-reports.md`). Reports
 that read "Bridge was off" become one neutral Traffic line per Bridge start, not one line each. That line is
 computed on read too: nothing about it is stored, and lines and counts share one read (`readFailedSyncs`).

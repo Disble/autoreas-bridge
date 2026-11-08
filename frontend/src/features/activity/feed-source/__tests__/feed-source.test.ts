@@ -179,6 +179,21 @@ describe('feed-source', () => {
     ]);
   });
 
+  it('maps a tablet silence, its nil times and next report to undefined', async () => {
+    const { mapActivityFeedView } = await import('../feed-source.helpers');
+    const goSilence = { DeviceID: 'tab', StartMS: 10, EndMS: 20, LastReport: { Kind: 'hourly_summary', ReceivedAtMS: 10, HourStartMS: 0 }, NextReport: { Kind: 'runtime_transition', ReceivedAtMS: 20, HourStartMS: null }, BridgeStartedAtMS: 5, BridgeStoppedAtMS: null };
+    const ended = goFeedLine({ Type: 'traffic', Run: null, Line: goLedgerLine({ Kind: 'tablet_silence', ID: 'tab:10' }), Silence: goSilence });
+    const ongoing = { ...ended, Silence: { ...goSilence, EndMS: null, NextReport: null, BridgeStoppedAtMS: 30 } };
+
+    const lines = mapActivityFeedView(activityread.FeedView.createFrom({ Days: [{ DayStartMS: 0, Lines: [ended, ongoing, goFeedLine()] }], NextCursor: '' })).days[0].lines;
+
+    expect(lines.map((line) => line.silence)).toEqual([
+      { deviceId: 'tab', startMs: 10, endMs: 20, lastReport: { kind: 'hourly_summary', receivedAtMs: 10, hourStartMs: 0 }, nextReport: { kind: 'runtime_transition', receivedAtMs: 20, hourStartMs: undefined }, bridgeStartedAtMs: 5, bridgeStoppedAtMs: undefined },
+      { deviceId: 'tab', startMs: 10, endMs: undefined, lastReport: { kind: 'hourly_summary', receivedAtMs: 10, hourStartMs: 0 }, nextReport: undefined, bridgeStartedAtMs: 5, bridgeStoppedAtMs: 30 },
+      undefined,
+    ]);
+  });
+
   it('maps a reading, a nil evidence time to undefined, and a line without one to undefined', async () => {
     const { mapActivityFeedView } = await import('../feed-source.helpers');
     const report = { ReportID: 41, Reading: 'tablet_late', Evidence: { FailedAtMS: 1, ArrivedAtMS: 9, LastContactMS: null, NextStartMS: 3, GraceUntilMS: 4, FirstReportMS: 6, OverdueMS: 2 } };

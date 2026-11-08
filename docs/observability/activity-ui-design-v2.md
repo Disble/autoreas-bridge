@@ -171,6 +171,7 @@ full date and time. On the right are icon-only actions: Technical details (`</>`
 | System line | When it groups more than one event: "N times this hour" with First and Last. Then the presenter of its newest event (window error, or the generic layout) |
 | Bridge started | Above the generic layout, how the run before it ended: "Closed" and "Off for" after a clean close; "Closed: Not recorded", "Last event before" and "The previous run did not close normally." after a run with no close; "Closed: Unknown" before any close was recorded. The phone changes that waited are a Traffic line of their own, not part of this row |
 | Bridge closed | The generic layout, titled "Bridge closed" |
+| Tablet silence | Title "Tablet silent" with "since 11:56", or "Tablet was silent" with how long. "Bridge was on and received no report from the tablet for 60 minutes or more." Then "Last report received at", "Next report received at" once ended, "Bridge started", and "Bridge stopped" when the run's end cut it; a time heard only by an hourly summary reads "in the 09:00 – 10:00 hour". Technical view: Data only, "Read from" (S6 P4) |
 | Window error | See [Window errors](#window-errors) |
 | Any type without a presenter | The generic layout: see [Event presentation model](#event-presentation-model) |
 

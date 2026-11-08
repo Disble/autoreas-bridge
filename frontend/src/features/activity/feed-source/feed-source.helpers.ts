@@ -17,6 +17,7 @@ import type {
   ActivityPhoneReportFacts,
   ActivitySyncReading,
   ActivitySystemGroup,
+  ActivityTabletSilence,
   ActivityTabletSummary,
   ActivityTrafficHour,
   ActivityTypeCount,
@@ -96,6 +97,20 @@ function mapBridgeStart(facts: activityread.BridgeStartFacts): ActivityBridgeSta
   return { closedAtMs: facts.ClosedAtMS ?? undefined, lastEventAtMs: facts.LastEventAtMS ?? undefined };
 }
 
+/** Maps one Go tablet silence; nil times and a nil next report become undefined. */
+function mapSilence(silence: activityread.TabletSilence): ActivityTabletSilence {
+  const report = (stored: activityread.SilenceReport) => ({ kind: stored.Kind, receivedAtMs: stored.ReceivedAtMS, hourStartMs: stored.HourStartMS ?? undefined });
+  return {
+    deviceId: silence.DeviceID,
+    startMs: silence.StartMS,
+    endMs: silence.EndMS ?? undefined,
+    lastReport: report(silence.LastReport),
+    nextReport: mapOptional(silence.NextReport, report),
+    bridgeStartedAtMs: silence.BridgeStartedAtMS,
+    bridgeStoppedAtMs: silence.BridgeStoppedAtMS ?? undefined,
+  };
+}
+
 /** Maps a Go value that may be nil; nil becomes undefined. */
 function mapOptional<G, F>(value: G | null | undefined, map: (value: G) => F): F | undefined {
   return value ? map(value) : undefined;
@@ -118,6 +133,7 @@ function mapFeedLine(line: activityread.FeedLine): ActivityFeedLine {
     report: mapOptional(line.Report, mapReportFacts),
     tabletSummaries: (line.TabletSummaries ?? []).map(mapTabletSummary),
     bridgeStart: mapOptional(line.BridgeStart, mapBridgeStart),
+    silence: mapOptional(line.Silence, mapSilence),
   };
 }
 

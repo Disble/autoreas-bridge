@@ -4,6 +4,7 @@ import { formatActivityDuration } from '../ui/ActivityRunStory/activity-time.hel
 import { DRAWER_CHANGE_READ_FAILED_NOTE, DRAWER_NO_LINE_EVENTS_NOTE, DRAWER_NO_RUN_EVENTS_NOTE, DRAWER_STORED_REPORT_LABEL, DRAWER_WINDOW_ERROR_EVENT_TYPE } from './drawer.constants';
 import type { DrawerDataBlock, DrawerEventRow, DrawerHttpHeader, DrawerRequestGroup, DrawerRequestPanel, DrawerSummaryInput, DrawerTechnicalTab, DrawerWindowErrorDetail } from './drawer.types';
 import { formatDrawerSeconds, formatDrawerTime } from './drawer-format.helpers';
+import { silenceDataBlocks } from './drawer-silence.helpers';
 import { toDrawerWindowErrorFromMetadata } from './drawer-window-error.helpers';
 import { toDrawerHeader } from './drawer-summary.helpers';
 
@@ -15,6 +16,9 @@ import { toDrawerHeader } from './drawer-summary.helpers';
  * @returns The tabs, in order.
  */
 export function toDrawerTechnicalTabs(line: ActivityFeedLine): readonly DrawerTechnicalTab[] {
+  if (line.silence !== undefined) {
+    return ['data'];
+  }
   return line.origin === 'phone' && line.bridgeOff === undefined ? ['requests', 'events', 'data'] : ['events', 'data'];
 }
 
@@ -171,9 +175,12 @@ export function toDrawerEventsEmpty(input: DrawerSummaryInput): string {
  * @returns The blocks.
  */
 export function toDrawerDataBlocks(input: DrawerSummaryInput): readonly DrawerDataBlock[] {
-  const { line, traffic, run, syncReading, bridgeOff } = input.line;
+  const { line, traffic, run, syncReading, bridgeOff, silence } = input.line;
   if (syncReading !== undefined || bridgeOff !== undefined) {
     return [];
+  }
+  if (silence !== undefined) {
+    return silenceDataBlocks(silence);
   }
   if (line.kind === 'change') {
     return [

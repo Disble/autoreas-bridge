@@ -51,10 +51,15 @@ func readingsOf(lines []FeedLine) []string {
 	return out
 }
 
-// trafficLines reads every traffic line of one feed input.
+// trafficLines reads every traffic line of one feed input, of the phone
+// origin unless it names one: Bridge's tablet silences (S6 P4) are not
+// readings.
 func trafficLines(t *testing.T, r *Reader, in FeedInput) []FeedLine {
 	t.Helper()
 	in.Types = []FeedType{FeedTraffic}
+	if in.Origin == "" {
+		in.Origin = OriginPhone
+	}
 	return feedLines(feedOf(t, r, in))
 }
 
@@ -222,7 +227,7 @@ func TestBridgeOffIsNotAFailure(t *testing.T) {
 	if got, want := readingsOf(failures), []string{"real_failure", "tablet_late", "real_failure", "plain"}; !slices.Equal(got, want) {
 		t.Fatalf("failures = %v, want %v", got, want)
 	}
-	view := overviewOf(t, r, OverviewInput{Scale: Scale90d, Types: []FeedType{FeedTraffic}, FailuresOnly: true})
+	view := overviewOf(t, r, OverviewInput{Scale: Scale90d, Origin: OriginPhone, Types: []FeedType{FeedTraffic}, FailuresOnly: true})
 	if got := countOf(t, view, FeedTraffic); got.Lines != 5 || got.Failed != 4 {
 		t.Fatalf("traffic count = %+v, want 5 lines and 4 failed", got)
 	}
@@ -251,7 +256,7 @@ func TestReadingCountsEqualTheLinesOfEveryRange(t *testing.T) {
 	}
 	for _, tc := range ranges {
 		t.Run(tc.name, func(t *testing.T) {
-			lines := trafficLines(t, r, FeedInput{FromMS: tc.fromMS, ToMS: tc.toMS})
+			lines := trafficLines(t, r, FeedInput{Origin: OriginAll, FromMS: tc.fromMS, ToMS: tc.toMS})
 			var failed int64
 			for _, line := range lines {
 				if line.Failed {
@@ -301,7 +306,7 @@ func TestFeedPagesThroughGroupsAndReportsSharingAMillisecond(t *testing.T) {
 	var paged []FeedLine
 	cursor := ""
 	for range len(full) + 1 {
-		view := feedOf(t, r, FeedInput{Types: []FeedType{FeedTraffic}, Cursor: cursor, Limit: 1})
+		view := feedOf(t, r, FeedInput{Origin: OriginPhone, Types: []FeedType{FeedTraffic}, Cursor: cursor, Limit: 1})
 		paged = append(paged, feedLines(view)...)
 		if cursor = view.NextCursor; cursor == "" {
 			break
@@ -325,7 +330,7 @@ func TestFeedLimitsGroupsToThePageItFetches(t *testing.T) {
 		insertFailedSync(t, db, fmt.Sprintf("off-%d", i), minutes+1, minutes-1)
 	}
 
-	first := feedOf(t, r, FeedInput{Types: []FeedType{FeedTraffic}, Limit: 1})
+	first := feedOf(t, r, FeedInput{Origin: OriginPhone, Types: []FeedType{FeedTraffic}, Limit: 1})
 	lines := feedLines(first)
 	if len(lines) != 1 || lines[0].Line.AtMS != minutesAgo(100) || first.NextCursor == "" {
 		t.Fatalf("first page = %+v, cursor %q; want the newest group and a cursor", lines, first.NextCursor)

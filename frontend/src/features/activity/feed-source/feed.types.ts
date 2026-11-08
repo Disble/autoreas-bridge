@@ -164,6 +164,37 @@ export interface ActivityTabletSummary {
   readonly processDeaths: readonly ActivityProcessDeath[];
 }
 
+/** One stored report that bounds a tablet silence: its kind and when Bridge received it. */
+export interface ActivitySilenceReport {
+  /** The stored report kind, such as `cycle_report`. */
+  readonly kind: string;
+  /** When Bridge received it, epoch milliseconds; the end or start of `hourStartMs`'s hour when heard only by the hour. */
+  readonly receivedAtMs: number;
+  /** The hour the device was heard in, by its hourly summary, before its oldest retained cycle report; undefined otherwise. */
+  readonly hourStartMs: number | undefined;
+}
+
+/**
+ * One tablet silence (S6 P4): 60 minutes or more in which Bridge was on and
+ * received no report from a device, computed when Activity reads.
+ */
+export interface ActivityTabletSilence {
+  /** The silent device. */
+  readonly deviceId: string;
+  /** When it began: the later of the last report and the Bridge start, epoch milliseconds. */
+  readonly startMs: number;
+  /** When it ended, epoch milliseconds; undefined while it lasts. */
+  readonly endMs: number | undefined;
+  /** The device's last report before it. */
+  readonly lastReport: ActivitySilenceReport;
+  /** The report that ended it; undefined while it lasts or when Bridge stopped first. */
+  readonly nextReport: ActivitySilenceReport | undefined;
+  /** The start of the Bridge run it happened in, epoch milliseconds. */
+  readonly bridgeStartedAtMs: number;
+  /** When that run stopped, when it ended the silence before a report did; undefined otherwise. */
+  readonly bridgeStoppedAtMs: number | undefined;
+}
+
 /**
  * How the run before one Bridge start ended, read from stored rows (S6 P5).
  * Neither time set: no close is stored before the start, so it is unknown.
@@ -209,6 +240,8 @@ export interface ActivityFeedLine {
   readonly tabletSummaries: readonly ActivityTabletSummary[];
   /** How the run before a start ended, for a System line of starts; undefined otherwise. */
   readonly bridgeStart: ActivityBridgeStartFacts | undefined;
+  /** The silence, for a `tablet_silence` line; undefined otherwise. */
+  readonly silence: ActivityTabletSilence | undefined;
 }
 
 /** One local day's feed lines, newest first. */

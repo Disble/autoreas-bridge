@@ -113,6 +113,9 @@ export const ACTIVITY_BRIDGE_STARTED = { eventType: 'api.listening', subject: 'B
 /** Event type logged once per clean close, and the subject it reads as (S6 P5). */
 export const ACTIVITY_BRIDGE_CLOSED = { eventType: 'app.closed', subject: 'Bridge closed' } as const;
 
+/** The subject of a tablet silence while it lasts and once it ended (S6 P4). */
+export const ACTIVITY_SILENCE_SUBJECTS = { ongoing: 'Tablet silent', ended: 'Tablet was silent' } as const;
+
 /** What a start says about a run before it that has no close: muted words, never a failure (S6 P5). */
 export const ACTIVITY_START_UNCLOSED_WORDS = { notClosed: 'did not close normally', unknown: 'close unknown' } as const;
 

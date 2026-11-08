@@ -78,6 +78,9 @@ func (r *Reader) countFeed(ctx context.Context, plan feedPlan, buckets []bucket)
 		}
 	}
 	syncs.countGroups(buckets, counts)
+	if err := r.countSilences(ctx, plan, buckets, counts); err != nil {
+		return nil, err
+	}
 	return counts, r.countChanges(ctx, plan, buckets, counts)
 }
 

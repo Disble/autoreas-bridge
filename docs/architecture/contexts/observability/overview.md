@@ -172,6 +172,12 @@ A reading has no storage: it is computed on each read. The start record is metad
   close stored after the previous start. Without one, the run before ends at the last row stored before the
   start's boot marker, never at the starting run's own boot rows. Starts, closes and markers are read once per
   read; the last rows take one query of one indexed seek per unclosed run.
+- **A tablet silence counts only time Bridge was on.** `tabletSilences` (`tablet_silence.go`) cuts each gap of
+  60 minutes or more between a device's heard times by the runs, so it never spans Bridge off or an unknown
+  Bridge state. It is computed on every read that includes Traffic outside the phone origin, from one window
+  query over `device_telemetry_events` (bounded by the per-kind caps) plus the runs; nothing is stored, and
+  lines and counts share it. Before a device's oldest retained `cycle_report` it is heard only by the hour of
+  an `hourly_summary` with a `closed` attempt.
 
 ## Entry points
 

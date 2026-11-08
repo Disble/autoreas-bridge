@@ -1,7 +1,7 @@
 import { describeActivityChange } from '../change-words/change-words.helpers';
 import { formatDrawerSpan } from '../drawer/drawer-format.helpers';
 import type { ActivityLedgerLine } from '../history-source/history.types';
-import type { ActivityDownloadRun, ActivityFeedDay, ActivityFeedLine, ActivityFeedView, ActivityPhoneReportFacts, ActivitySystemGroup } from '../feed-source/feed.types';
+import type { ActivityDownloadRun, ActivityFeedDay, ActivityFeedLine, ActivityFeedView, ActivityPhoneReportFacts, ActivitySystemGroup, ActivityTabletSilence } from '../feed-source/feed.types';
 import {
   ACTIVITY_BRIDGE_CLOSED,
   ACTIVITY_BRIDGE_STARTED,
@@ -15,6 +15,7 @@ import {
   ACTIVITY_RUN_SUBJECT,
   ACTIVITY_RUN_TRIGGER_SUBJECTS,
   ACTIVITY_RUNTIME_TRANSITION_KIND,
+  ACTIVITY_SILENCE_SUBJECTS,
   ACTIVITY_START_UNCLOSED_WORDS,
   ACTIVITY_SYNC_READING_WORDS,
   ACTIVITY_TRAFFIC_SUBJECT,
@@ -51,6 +52,20 @@ export function maybeFeedLineKey(line: ActivityFeedLine | undefined): string | u
  */
 export function toBridgeOffSubject(count: number): string {
   return `${ACTIVITY_FEED_COUNT_FORMAT.format(count)} ${count === 1 ? 'change' : 'changes'} waited for Bridge`;
+}
+
+/**
+ * The words of a tablet silence, in the row and the drawer header (S6 P4):
+ * while it lasts, when it began; once it ended, how long it lasted.
+ *
+ * @param silence The silence.
+ * @returns `Tablet silent` · `since 11:56`, or `Tablet was silent` · `1 h 8 min`.
+ */
+export function toSilenceWords(silence: ActivityTabletSilence): { readonly subject: string; readonly detail: string } {
+  if (silence.endMs === undefined) {
+    return { subject: ACTIVITY_SILENCE_SUBJECTS.ongoing, detail: `since ${ACTIVITY_FEED_TIME_FORMAT.format(silence.startMs)}` };
+  }
+  return { subject: ACTIVITY_SILENCE_SUBJECTS.ended, detail: formatDrawerSpan(silence.endMs - silence.startMs) };
 }
 
 /** A row's subject, its one short detail and its repeat badge. */
@@ -118,6 +133,9 @@ function describeLine(line: ActivityFeedLine): LineWords {
   }
   if (line.syncReading !== undefined) {
     return { subject: ACTIVITY_SYNC_READING_WORDS[line.syncReading.reading], detail: '', repeat: undefined };
+  }
+  if (line.silence !== undefined) {
+    return { ...toSilenceWords(line.silence), repeat: undefined };
   }
   if (line.traffic !== undefined) {
     return { subject: ACTIVITY_TRAFFIC_SUBJECT, detail: formatFailed(line.traffic.failed), repeat: toRepeat(line.traffic.requests) };

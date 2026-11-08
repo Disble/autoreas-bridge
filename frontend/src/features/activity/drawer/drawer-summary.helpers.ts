@@ -7,6 +7,7 @@ import { drawerFact, formatDrawerKeptUntil, formatDrawerTime, formatDrawerWhen }
 import { changeSections, failureSections, runStorySections, runSections, systemGroupSections, trafficSections, windowErrorSections } from './drawer-presenters.helpers';
 import { bridgeOffSections, readingSections, toDrawerReadingHeader } from './drawer-reading.helpers';
 import { reportSections, toDrawerReportHeader } from './drawer-report.helpers';
+import { silenceSections, toDrawerSilenceHeader } from './drawer-silence.helpers';
 import { bridgeStartSections } from './drawer-start.helpers';
 import { ACTIVITY_BRIDGE_CLOSED } from '../feed/activity-feed.constants';
 
@@ -35,6 +36,8 @@ function titleAndPhrase(feedLine: ActivityFeedLine): { readonly title: string; r
       return { title: 'Download run', phrase: run === undefined ? '' : `${run.episodesDownloaded} downloaded${run.episodesFailed > 0 ? ` · ${run.episodesFailed} failed` : ''}` };
     case 'phone_report':
       return toDrawerReportHeader(feedLine);
+    case 'tablet_silence':
+      return toDrawerSilenceHeader(feedLine) ?? eventTitleAndPhrase(feedLine);
     default:
       return eventTitleAndPhrase(feedLine);
   }
@@ -118,6 +121,8 @@ function presenterSections(input: DrawerSummaryInput): readonly DrawerSection[] 
       return runSections(input);
     case 'bridge_off':
       return bridgeOffSections(input);
+    case 'tablet_silence':
+      return silenceSections(input);
     case 'phone_report':
       return readingSections(input) ?? reportSections(input);
     default:

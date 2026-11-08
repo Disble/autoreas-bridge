@@ -135,6 +135,16 @@ export const DRAWER_STEP_NOTES = { stopped: 'Stopped here', notReached: 'Not rea
 /** The label of a runtime transition's recorded reason. */
 export const DRAWER_REASON_LABEL = 'Recorded reason';
 
+/** What every tablet silence means, and the labels of the times it rests on (S6 P4). */
+export const DRAWER_SILENCE_WORDS = {
+  meaning: 'Bridge was on and received no report from the tablet for 60 minutes or more.',
+  last: 'Last report received at',
+  next: 'Next report received at',
+  started: 'Bridge started',
+  stopped: 'Bridge stopped',
+  data: 'Read from',
+} as const;
+
 /** The labels and words of how the run before a Bridge start ended (S6 P5). */
 export const DRAWER_START_WORDS = {
   closed: 'Closed',
