@@ -371,3 +371,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-11-03]: A trailing (N) on an episode file is only ambiguous alone; the folder settles it: if the parenthesized column repeats or N is below the lead number, N is a copy counter and the lead is the episode. A single 01(24) stays ambiguous.
 - [2026-11-03]: Release 2.7.4 is a patch: copy-counter file names like 04(2).mp4 now resolve to their lead episode in identity; no wire, DB or config change.
 - [2026-11-07]: Readings of a failed sync: state which start a window runs from; 'that start' and 'latest start' differ when Bridge starts twice before a report arrives.
+- [2026-11-08]: A pre-merge gate takes 10 minutes; a shorter timeout leaves a stale MERGE_HEAD.

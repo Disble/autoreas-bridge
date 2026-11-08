@@ -14,6 +14,28 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [2.8.0] — 2026-11-08
+
+**Requires this version or newer for mobile 2.8.0:** older Bridges refuse the phone's new reports and episode changes stall behind them.
+
+**Wire-visible, additive:** `POST /api/sync/diagnostics` accepts the new `hourly_summary` and `runtime_transition` kinds. **Wire-visible, stricter:** a `cycle_report` with an empty or missing `cycle_id` now answers `400 field_rejected`. Every other answer is unchanged. See `docs/openapi.yaml`.
+
+### Added
+
+- Activity warns when the tablet was not heard for an hour or more while Bridge was on, with "Tablet silent" while it lasts and "Tablet was silent" afterwards.
+- Opening a Traffic hour in Activity shows what the tablet reported for that hour: its sync attempts by trigger and outcome, and any process that died.
+- Activity shows the tablet's process and service changes. When its sync process dies, that is a failed line and opens an incident.
+- A failed sync cycle now says at which of its four steps it stopped.
+- Bridge records when it closes cleanly, as a "Bridge closed" line. "Bridge started" says how long Bridge was off or that it did not close normally, and says the close is unknown for runs from before this version.
+
+### Changed
+
+- Activity now reads a failed episode sync before showing it: "Sync failed", "Tablet came back late", or one neutral line per Bridge start, such as "3 changes waited for Bridge". Failures caused by Bridge being off no longer open an incident.
+
+### Internal
+
+- The request MCP names a quiet tablet even when other problems set the status, lists tablet silences, reports coverage per report kind, and reads the new report kinds in `search_history` and `get_incident`.
+
 ## [2.7.4] — 2026-11-03
 
 ### Fixed
