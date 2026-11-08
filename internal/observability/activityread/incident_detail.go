@@ -27,8 +27,20 @@ type foldKey struct {
 	status   int
 }
 
-// IncidentDetail returns one occurrence with its cause and its window.
+// IncidentDetail returns one occurrence with its cause and its window, as the
+// Activity drawer shows it: no hourly summary, a closed hour no line stands for.
 func (r *Reader) IncidentDetail(ctx context.Context, id int64) (IncidentDetail, error) {
+	return r.incidentDetail(ctx, id, phoneReportKindsSQL, phoneReportKinds)
+}
+
+// IncidentDetailAllKinds is IncidentDetail with every served report kind in
+// the window, for get_incident (S7).
+func (r *Reader) IncidentDetailAllKinds(ctx context.Context, id int64) (IncidentDetail, error) {
+	return r.incidentDetail(ctx, id, historyReportKindsSQL, historyReportKinds)
+}
+
+// incidentDetail reads one occurrence, listing the given kinds in its window.
+func (r *Reader) incidentDetail(ctx context.Context, id int64, kindsSQL string, kinds []any) (IncidentDetail, error) {
 	var occ IncidentOccurrence
 	err := r.db.QueryRowContext(ctx, `SELECT id, fingerprint, reason, occurred_at_ms, window_start_ms, window_end_ms,
 		source_kind, source_id FROM incidents WHERE id = ?`, id).Scan(&occ.ID, &occ.Fingerprint, &occ.Reason,
@@ -57,7 +69,7 @@ func (r *Reader) IncidentDetail(ctx context.Context, id int64) (IncidentDetail, 
 	if detail.Events, err = r.windowEvents(ctx, occ.WindowStartMS, occ.WindowEndMS); err != nil {
 		return IncidentDetail{}, err
 	}
-	if detail.PhoneReports, err = r.phoneReports(ctx, occ.WindowStartMS, occ.WindowEndMS); err != nil {
+	if detail.PhoneReports, err = r.phoneReports(ctx, occ.WindowStartMS, occ.WindowEndMS, kindsSQL, kinds); err != nil {
 		return IncidentDetail{}, err
 	}
 	if detail.Earlier, err = r.earlierOccurrences(ctx, occ); err != nil {
@@ -173,12 +185,12 @@ func (r *Reader) windowEvents(ctx context.Context, fromMS, toMS int64) ([]EventS
 	return events, rows.Err()
 }
 
-// phoneReports reads the mobile reports the bridge received inside a window,
-// oldest first.
-func (r *Reader) phoneReports(ctx context.Context, fromMS, toMS int64) ([]PhoneReport, error) {
+// phoneReports reads the mobile reports of the given kinds the bridge received
+// inside a window, oldest first.
+func (r *Reader) phoneReports(ctx context.Context, fromMS, toMS int64, kindsSQL string, kinds []any) ([]PhoneReport, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT rowid, reported_at_ms, observed_at_ms, device_id, kind, `+reportOutcomeSQL+`
-		FROM device_telemetry_events WHERE `+phoneReportKindsSQL+` AND reported_at_ms >= ? AND reported_at_ms <= ?
-		ORDER BY reported_at_ms, rowid LIMIT ?`, append(append([]any{}, phoneReportKinds...), fromMS, toMS, windowRowLimit)...)
+		FROM device_telemetry_events WHERE `+kindsSQL+` AND reported_at_ms >= ? AND reported_at_ms <= ?
+		ORDER BY reported_at_ms, rowid LIMIT ?`, append(append([]any{}, kinds...), fromMS, toMS, windowRowLimit)...)
 	if err != nil {
 		return nil, fmt.Errorf("activityread: window phone reports: %w", err)
 	}

@@ -49,7 +49,7 @@ flowchart TD
     stored --> reader{Who reads it?}
     reader -- "MCP search_history" --> mcpraw([Raw report of any kind: outcome or stored fields, arrived late mark, no reading])
     reader -- "MCP get_status, list_incidents, incident detail" --> hasinc{Report has an incident?}
-    hasinc -- yes --> listed([Listed under its fingerprint, with the reports of its window except hourly_summary])
+    hasinc -- yes --> listed([Listed under its fingerprint, with the reports of its window, every kind in get_incident])
     hasinc -- no --> unlisted([No incident of its own; it can still appear in another incident's window])
     reader -- "Activity feed" --> kindcheck{Which kind?}
     kindcheck -- "hourly_summary" --> hourdrawer([No line, shown in the Traffic hour drawer of its hour])
@@ -193,8 +193,8 @@ each one: the database holds one connection, so the F lookups cannot run while t
   silence, computed on read from the reports' receipt times and `bridgeRuns`. The clean close (`app.closed`), or
   the last row before a start with no close, ends a run and so bounds the silence. `silenceLines` gives
   `search_history` the same silences, and `OpenTabletSilences` gives `get_status` the ones still running.
-- An incident window lists the feed's kinds through `phoneReportKinds`; History also lists `hourly_summary`
-  through `historyReportKinds` (`history.go`). `reportOutcomeSQL` gives a transition its stored process, subject
+- The Activity drawer's incident window lists the feed's kinds through `phoneReportKinds`; History and
+  `get_incident` (`IncidentDetailAllKinds`) also list `hourly_summary` through `historyReportKinds` (`history.go`). `reportOutcomeSQL` gives a transition its stored process, subject
   and transition as its outcome, and an `hourly_summary` its stored report.
 
 ## 6. Drawer and Technical view

@@ -84,7 +84,7 @@ func (t tools) incident(ctx context.Context, in IncidentInput) (IncidentResult, 
 	if in.ID <= 0 {
 		return IncidentResult{}, errors.New("id must be a positive incident id")
 	}
-	detail, err := t.reader.activity.IncidentDetail(ctx, in.ID)
+	detail, err := t.reader.activity.IncidentDetailAllKinds(ctx, in.ID)
 	if errors.Is(err, activityread.ErrNotFound) {
 		coverage, covErr := t.coverage(ctx, nil, sourceIncidents)
 		return IncidentResult{Coverage: coverage}, covErr

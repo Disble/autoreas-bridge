@@ -71,6 +71,25 @@ func TestGetStatusNamesATabletStillSilent(t *testing.T) {
 	}
 }
 
+// TestGetIncidentWindowListsTheNewReportKinds checks that an incident's window
+// reads both new kinds through get_incident (S7).
+func TestGetIncidentWindowListsTheNewReportKinds(t *testing.T) {
+	h := newHarness(t)
+	at := minutesAgo(10)
+	for _, r := range [][2]string{{"runtime_transition", "rt"}, {"hourly_summary", "hs"}} {
+		h.exec(t, `INSERT INTO device_telemetry_events (device_id, reported_at_ms, kind, event_id, observed_at_ms, payload_json)
+			VALUES ('device-1', ?, ?, ?, ?, '{}')`, at, r[0], r[1], at)
+	}
+	id := h.insertIncident(t, "mobile_failure|runtime_transition|sync|", at, "rt")
+
+	var got IncidentResult
+	h.call(t, "get_incident", map[string]any{"id": id}, &got)
+	reports := got.Incident.PhoneReports
+	if len(reports) != 2 || reports[0].Kind != "runtime_transition" || reports[1].Kind != "hourly_summary" {
+		t.Fatalf("window reports = %+v", reports)
+	}
+}
+
 // TestEmptyDatabaseReportsNoCoverage checks that an empty answer says its
 // sources hold nothing, so it is never read as "nothing happened".
 func TestEmptyDatabaseReportsNoCoverage(t *testing.T) {
