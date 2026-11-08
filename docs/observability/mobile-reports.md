@@ -1,9 +1,9 @@
 # Mobile reports
 
 Bridge validates a mobile report, stores it and checks it for one thing: a failure. A failed sync also gets
-a reading: what Bridge makes of that failure. Bridge does not otherwise compare reports, summarise them or
-notice that they stopped arriving. This page records what happens to a report from arrival to display, what
-the stored reports can and cannot tell, and what is still undecided. The same path as a decision tree is in
+a reading: what Bridge makes of that failure. Bridge does not otherwise compare reports or summarise them, and
+it reads that they stopped arriving only from stored times, when Activity asks. This page records what happens
+to a report from arrival to display, what the stored reports can and cannot tell, and what is still undecided. The same path as a decision tree is in
 [the observability workflow](../architecture/contexts/observability/workflow.md).
 
 Figures were measured on 2026-11-06 on the owner's database, read-only. Code is the runtime truth; if this
@@ -23,8 +23,9 @@ Mobile sends every report to `POST /api/sync/diagnostics`. Five kinds exist:
 
 The last two caps size the 50 new reports a day agreed with mobile for 90 days: 24 hourly summaries a day and
 the remaining 26 for transitions. Their wire shapes are `SyncDiagnosticsHourlySummary` and
-`SyncDiagnosticsRuntimeTransition` in `docs/openapi.yaml`. Since 2026-11-07 both are stored and logged like
-any other kind, but neither opens an incident or shows in Activity yet.
+`SyncDiagnosticsRuntimeTransition` in `docs/openapi.yaml`. Both are stored and logged like any other kind. Of
+the two, only a sync process death opens an incident; [Where a report is shown](#where-a-report-is-shown) has
+what each one shows.
 
 | Step | What happens | Owner |
 |---|---|---|
@@ -32,7 +33,7 @@ any other kind, but neither opens an incident or shows in Activity yet.
 | Validate | Strict decode per kind, closed vocabularies, 8 KiB body limit. A bad report is refused | `telemetry/`, `syncdiag/` |
 | Deduplicate | `UNIQUE(kind, event_id)`. A retry is answered 204 and writes no row, event or incident | `telemetry/store.go` |
 | Read a failed sync | A failed `episode_action` at phase `sync` that reads "Bridge was off" stops here, with no incident. See [Reading a failed sync](#reading-a-failed-sync) | `syncreading/`, `internal/desktop/app_incidents.go` |
-| Check for failure | Reads outcome, phase, cause and stall duration. See the table below | `telemetry/report_facts.go`, `incident/trigger.go` |
+| Check for failure | Reads outcome, phase, cause, stall duration and a transition's process, subject, change and reason. See the table below | `telemetry/report_facts.go`, `incident/trigger.go` |
 | Count | The request joins the hourly rollup, like every request | request capture |
 
 ### What opens an incident
@@ -42,6 +43,7 @@ any other kind, but neither opens an incident or shows in Activity yet.
 | `cycle_report` | `previous_cycle.outcome` is `failed` | kind, cause |
 | `episode_action` | `outcome` is `failed`, unless the report reads "Bridge was off" | kind, phase, cause |
 | `screen_stall` | `duration_ms` is at least 10,000 | kind, trigger |
+| `runtime_transition` | `process_name` is `sync`, `subject` is `process` and `transition` is `died` | kind, process, reason |
 
 An incident pins the window from 2 minutes before to 30 seconds after. Retention keeps the first 3 and the
 latest 3 occurrences of a fingerprint.
@@ -54,14 +56,15 @@ recorder. Incidents already stored do not change: older ones on those reports st
 
 | Surface | Shows |
 |---|---|
-| Activity feed | Failed reports only, plus every `runtime_transition`, under Traffic, which is off by default. A failed episode action shows the reading only: "Sync failed", "Tablet came back late", or one neutral line per start ("3 changes waited for Bridge"). The first two, and a failure with no reading, are failed lines linked to their incident and count as failed in the buckets. The neutral line is not a failure and has no incident link. A failed `cycle_report` reads "Sync cycle · failed while sending" from `previous_cycle.last_stage` (`attempt_started` "failed as it started", `claim_ops` "failed while claiming changes", `http` "failed while sending", `apply_write` "failed while applying"; any other stage "failed while" and the stage as stored; no stage "failed"). A `runtime_transition` reads its process and subject, then its transition as stored ("Sync process · died", "Main service · started"); a `died` transition (only ever `sync` + `process`) is a failed line, every other transition a neutral line the failure switch skips. A transition opens no incident. `hourly_summary` is never a line: it shows in the Traffic hour drawer |
+| Activity feed | Failed reports only, plus every `runtime_transition`, under Traffic, which is off by default. A failed episode action shows the reading only: "Sync failed", "Tablet came back late", or one neutral line per start ("3 changes waited for Bridge"). The first two, and a failure with no reading, are failed lines linked to their incident and count as failed in the buckets. The neutral line is not a failure and has no incident link. A failed `cycle_report` reads "Sync cycle · failed while sending" from `previous_cycle.last_stage` (`attempt_started` "failed as it started", `claim_ops` "failed while claiming changes", `http` "failed while sending", `apply_write` "failed while applying"; any other stage "failed while" and the stage as stored; no stage "failed"). A `runtime_transition` reads its process and subject, then its transition as stored ("Sync process · died", "Main service · started"); a `died` transition (only ever `sync` + `process`) is a failed line, every other transition a neutral line the failure switch skips. A `died` transition links to its incident; no other transition opens one. `hourly_summary` is never a line: it shows in the Traffic hour drawer |
 | Detail drawer | The reading and its evidence: for a late tablet the three periods (Bridge off, grace period, first report, overdue by), then last contact and arrival; for a real failure its failure, last contact, Bridge start and arrival times. A failed cycle with one of the four stages draws them in order, green before the stage, red at it ("Stopped here"), gray after it ("Not reached"); another stage shows "Stopped at" as stored. A transition shows its process, subject and change as stored and its recorded reason. Both then show when the report reached the bridge; a transition also shows when it happened on the phone, with the late chip (a cycle report stores no phone time) |
 | Traffic hour drawer | What the tablet reported for that hour, from each device's `hourly_summary` whose `hour_start_ms` is the hour (never by arrival: it arrives after the hour closes, `main` data possibly much later): its counts per `trigger_source · outcome` with the slowest attempt, "Reports dropped", when it was received, and its process deaths. One block per device; codes shown as stored; no comparison with Bridge's own totals, which count requests, not attempts. An hour with no summary shows nothing extra, and a summary of an hour Bridge has no traffic line for is not shown |
 | Tablet silence | 60 minutes or more in which Bridge was on and received no report from a device (S6 P4): a failed Traffic line of origin Bridge, "Tablet silent · since 11:56" while it lasts, "Tablet was silent · 1 h 8 min" once a report arrives, placed an hour after it began. Computed on read (`tablet_silence.go`): no watcher, timer, stored row or incident. Heard is the receipt time of any report of the device from its oldest retained `cycle_report` on; before that, only an hour whose `hourly_summary` counts a `closed` attempt, the whole hour (a summary's own receipt may come late, after a reconnect). It counts only time Bridge was on: it starts at the later of the last report and the Bridge start, and ends at the clean close, or at the last row Bridge wrote before a start with no close. A device with no retained `cycle_report` is read by the hour alone. The phone origin leaves it out. Drawer: what it means, last and next report received, Bridge started, and Bridge stopped when the run ended it; Data tab only |
 | Technical view | The stored report, read with `GetActivityPhoneReport`; a traffic hour shows each device's stored `hourly_summary` next to its hourly total |
-| Incident detail | Every report received inside the window except `hourly_summary`, and the cause of the report that opened it |
-| MCP `search_history` | Every stored report except `hourly_summary`, raw: its outcome and the "arrived late" mark, no reading. A `runtime_transition` carries no outcome, so its stored process, subject and transition stand in ("sync process died") |
-| MCP `get_status`, `list_incidents` | Incidents, so fewer mobile incidents than before: "Bridge was off" opens none |
+| Incident detail | Every report received inside the window except `hourly_summary`, which describes a whole closed hour, and the cause of the report that opened it. The cause of a sync death is its recorded reason |
+| MCP `search_history` | Every stored report, raw: its outcome and the "arrived late" mark, no reading. A `runtime_transition` carries no outcome, so its stored process, subject and transition stand in ("sync process died"). An `hourly_summary` carries none either: its stored report stands in, with no "arrived late" mark, because its phone time is the hour's start |
+| MCP `get_status`, `list_incidents` | Incidents, so fewer mobile incidents than before: "Bridge was off" opens none. A sync death is titled "The phone's sync process died". `get_status` names a quiet phone beside open problems ("1 problem needs a look; the phone has been quiet for N min", and `QuietMinutes`), measured from the last contact. No MCP tool lists a tablet silence: only the Activity feed reads them |
+| MCP coverage | `get_incident` and `search_history` (filters All and phone) read `device_telemetry_events` and give each report kind's oldest and newest row under `kinds`, because each kind is cut by its own cap. A kind with no rows is absent |
 
 `ListDeviceSyncDiagnostics` reads the cycle fields, but no frontend screen calls it.
 
@@ -74,7 +77,8 @@ recorder. Incidents already stored do not change: older ones on those reports st
 | `sync.diagnostics_stored` event | 90 days | Non-noise event; Activity hides it because it restates the row | about 225 B, calculated |
 
 Row caps: `cycle_report` 5,000, `screen_stall` 5,000, `episode_action` 20,000, `hourly_summary` 2,160,
-`runtime_transition` 2,340. A cap of 5,000 covers 90 days only up to about 55 reports a day.
+`runtime_transition` 2,340. A cap of 5,000 covers 90 days only up to about 55 reports a day. Caps are per kind
+and shared by all devices, so the 90 days of the last two hold with one tablet.
 
 Sizes come from the real `retention.Sweep` on a copy, using `episode_action` rows. `budgets.md` lists mobile
 reports as "row caps, not replayed", so reports were never part of the retention simulation.
@@ -142,12 +146,12 @@ The design documents define storage, validation and failure-to-incident only.
 
 | Topic | Status | Source |
 |---|---|---|
-| Non-failed reports as feed lines | Decided against: they flood the feed | `odd/tasks/activity-redesign.md` |
+| Non-failed reports as feed lines | Decided against: they flood the feed. `runtime_transition` is the exception (S6 P2) | `odd/tasks/activity-redesign.md`, `odd/tasks/mobile-report-kinds.md` |
 | Indexes on report fields | Decided against until a read surface filters on them | ADR-026 |
 | `degraded` as a health signal | Decided against | `openspec/changes/mobile-log-ingestion` |
-| Analysing or aggregating report content, beyond the reading of a failed sync | Never discussed | No document found |
+| Analysing or aggregating report content, beyond the reading of a failed sync | Only by fixed rules in code, never by AI (S6) | `odd/tasks/mobile-report-kinds.md` |
 | Using `pending_ops_count`, `cursor`, `consecutive_unclosed_cycles` | Never discussed | No document found |
-| Detecting that reports stopped | Never discussed | No document found |
+| Detecting that reports stopped | Decided: a tablet silence computed on read, with no watcher, timer or stored event (S6 P4) | `odd/tasks/mobile-report-kinds.md` |
 
 `cycle_report` stopped on 2026-09-21 and nothing alarmed. Mobile later removed the JS cycle post-mortem
 (`docs/mobile-diagnostic-telemetry.md` in `autoreas-mobile`, "Removed in convergent-sync T18").

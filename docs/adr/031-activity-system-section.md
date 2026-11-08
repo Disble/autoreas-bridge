@@ -12,6 +12,9 @@
 > start stays a System line on `api.listening`. That row's metadata now also carries `lastContacts`, and a
 > reading's start also counts the older `http server listening on ...` rows, which the System line does not.
 
+> **Update, 2026-11-08.** The decision stands. Besides the bridge start and warnings and errors, System now
+> shows the clean close (`app.closed`, "Bridge closed").
+
 ## Context
 
 The Activity feed showed runtime events through two predicates. Schedule and season events were Tasks. Every

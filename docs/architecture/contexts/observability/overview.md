@@ -27,7 +27,7 @@ Everything on this page was read from the code on 2026-11-06.
 |---|---|
 | `internal/observability/requestcapture` | Non-blocking queue and sanitized persistence of captured requests; the ledger upserts (rollup, response versions); the read-only database handle and capture reader |
 | `internal/observability/eventlog` | The sink behind the shared logger: bounded queue, redacted and size-bounded metadata, `runtime_events` |
-| `internal/observability/telemetry` | The kind-discriminated store of mobile reports, its registry (`cycle_report`, `episode_action`, `screen_stall`), `ReadReportFacts`, `ReadHourlySummary` and the report reader |
+| `internal/observability/telemetry` | The kind-discriminated store of mobile reports, its registry (`cycle_report`, `episode_action`, `screen_stall`, `hourly_summary`, `runtime_transition`), `ReadReportFacts`, `ReadHourlySummary` and the report reader |
 | `internal/observability/syncdiag` | The `cycle_report` wire contract and its closed vocabularies; `telemetry` registers its validator |
 | `internal/observability/syncreading` | The reading of a failed sync. Pure: no database, no state, no clock |
 | `internal/observability/incident` | The pure classifier (`ClassifyRequest`, `ClassifyEvent`, `ClassifyMobileReport`, `ManualPin`) and the `incidents` store |
@@ -100,7 +100,7 @@ flowchart LR
 |---|---|---|
 | `requestcapture.Upserter` | `requestcapture/queue.go` | `requestcapture.SQLiteStore` |
 | `eventlog.Inserter` | `eventlog/queue.go` | `eventlog.SQLiteStore` |
-| `telemetry.Kind` | `telemetry/kind.go` | `CycleReportKind`, `EpisodeActionKind`, `ScreenStallKind` |
+| `telemetry.Kind` | `telemetry/kind.go` | `CycleReportKind`, `EpisodeActionKind`, `ScreenStallKind`, `HourlySummaryKind`, `RuntimeTransitionKind` |
 | `handlers.IngestTelemetryEventFunc` | `internal/api/handlers/common.go` | `App.ingestSyncDiagnostics` |
 | `logger.Logger` | `internal/logger` | The fanout logger, which feeds `eventlog.Sink` |
 
@@ -137,7 +137,7 @@ writes itself:
 | `response_versions` | `internal/sync/schema.go` | 90 days after last seen |
 | `runtime_events` | `eventlog/schema.go` | Noise (`NoiseEvent`) 2 hours unless pinned; the rest 90 days |
 | `incidents` | `incident/schema.go` | 90 days, then the first 3 and latest 3 per fingerprint |
-| `device_telemetry_events` | `telemetry/schema.go` | Outside the sweep. Row caps per kind: `cycle_report` 5,000, `screen_stall` 5,000, `episode_action` 20,000 |
+| `device_telemetry_events` | `telemetry/schema.go` | Outside the sweep. Row caps per kind, shared by all devices: `cycle_report` 5,000, `screen_stall` 5,000, `episode_action` 20,000, `hourly_summary` 2,160, `runtime_transition` 2,340 |
 | `device_sync_diagnostics` | Retired (ADR-026) | Never created on a fresh install; on an existing one its rows stay, unread |
 
 A reading has no storage: it is computed on each read. The start record is metadata on an existing row.
@@ -190,7 +190,7 @@ A reading has no storage: it is computed on each read. The start record is metad
 | `SearchActivityFeed`, `GetActivityOverview` | `Reader.Feed`, `Reader.Overview` | The Activity screen |
 | `GetActivityEvent`, `GetActivityIncident`, `GetActivityRequest`, `GetActivityRunStory`, `GetActivityChangeContext`, `GetActivityPhoneReport` | The matching `Reader` method | Opening a feed line |
 | `PinActivityMoment` | `incident.Store.Record` | "Pin this moment" |
-| `cmd/autoreas-request-mcp` | `internal/mcp/requestcapture` tools | `get_status`, `list_incidents`, `get_incident`, `get_request`, `search_history`, `list_runs`, `get_run_story`, `list_recorder`, `list_response_versions`, `get_hourly_totals`, `count_events` |
+| `cmd/autoreas-request-mcp` | `internal/mcp/requestcapture` tools | `get_status`, `list_incidents`, `get_incident`, `get_request`, `search_history`, `list_runs`, `get_run_story`, `list_recorder`, `list_response_versions`, `get_hourly_totals`, `count_events`. The coverage of `get_incident` and `search_history` gives each report kind's range (`coverage.go`) |
 
 ## Known drift
 

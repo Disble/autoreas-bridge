@@ -47,11 +47,14 @@ flowchart TD
     stored[Report stored, 204 sent]
 
     stored --> reader{Who reads it?}
-    reader -- "MCP search_history" --> mcpraw([Raw report: outcome and arrived late mark, no reading])
+    reader -- "MCP search_history" --> mcpraw([Raw report of any kind: outcome or stored fields, arrived late mark, no reading])
     reader -- "MCP get_status, list_incidents, incident detail" --> hasinc{Report has an incident?}
-    hasinc -- yes --> listed([Listed under its fingerprint, with the reports of its window])
+    hasinc -- yes --> listed([Listed under its fingerprint, with the reports of its window except hourly_summary])
     hasinc -- no --> unlisted([No incident of its own; it can still appear in another incident's window])
-    reader -- "Activity feed" --> failed{Report outcome is failed?}
+    reader -- "Activity feed" --> kindcheck{Which kind?}
+    kindcheck -- "hourly_summary" --> hourdrawer([No line, shown in the Traffic hour drawer of its hour])
+    kindcheck -- "runtime_transition" --> transition([Traffic line: a sync death is failed and linked to its incident, any other change is neutral])
+    kindcheck -- "any other kind" --> failed{Report outcome is failed?}
     failed -- no --> noline([No line, the report restates its change])
     failed -- yes --> traffic{Traffic selected?}
     traffic -- no --> hidden([No line, the Traffic chip counts it])
@@ -107,15 +110,17 @@ incident (`recordRequestIncident`).
 
 ## 3. Incident gate — `App.recordMobileIncident` (`internal/desktop/app_incidents.go`)
 
-1. `telemetry.ReadReportFacts` reads outcome, phase, cause and stall duration from the stored payload.
+1. `telemetry.ReadReportFacts` reads outcome, phase, cause, stall duration and a transition's process, subject,
+   change and reason from the stored payload.
 2. `waitedForBridge` applies only when `syncreading.Applies` holds: `episode_action`, outcome `failed`, phase
    `sync`. It reads the starts under the 250 ms incident budget and adds the running process with
    `WithCurrentStart`, because that process's own `api.listening` row may not be flushed yet. When the rule
    needs F, `Reader.FirstReports` makes one indexed seek on `(device_id, reported_at_ms)` under the same
    budget. The report being ingested is one of D's reports, so it counts as F even before its row is visible.
 3. Bridge was off ends here: no incident, no pinned window. The report row and its capture stay.
-4. Every other case reaches `ClassifyMobileReport`, which is unchanged. A failed read of the starts or of F
-   answers "not Bridge off" and logs `incident.sync_reading_failed`.
+4. Every other case reaches `ClassifyMobileReport`. A failed read of the starts or of F answers "not Bridge off"
+   and logs `incident.sync_reading_failed`. A `runtime_transition` triggers only for a sync death (`sync`,
+   `process`, `died`); its fingerprint carries the recorded reason, so there is one incident per reason.
 5. `recordIncident` stores the occurrence, and retention pins the window from 2 minutes before to 30 seconds
    after. A failed write logs `incident.record_failed` and never reaches the report's answer.
 
@@ -174,8 +179,8 @@ each one: the database holds one connection, so the F lookups cannot run while t
 - `attachReportFacts` reads, in one query per page, the stored fields the frontend words a line from
   (`FeedLine.Report`): a transition's process, subject, transition and reason, and a failed cycle report's
   `previous_cycle.last_stage`. It also sets a transition line's failure: only a death fails.
-- `attachIncidents` links a phone report to its incident by event id. A `LineBridgeOff` line gets no link. A
-  transition opens no incident, so it has none.
+- `attachIncidents` links a phone report to its incident by event id. A `LineBridgeOff` line gets no link. Of
+  the transitions, only a sync death has one.
 - `attachTabletSummaries` (`feed_tablet.go`) sets `FeedLine.TabletSummaries` on each traffic hour line of a
   page, in one query per page: every `hourly_summary` whose stored `observed_at_ms` (the tablet's
   `hour_start_ms`) equals the line's hour, one per device, ordered by device id. It matches by the hour the
@@ -184,8 +189,12 @@ each one: the database holds one connection, so the F lookups cannot run while t
   device's summary belongs to the one line. `telemetry.ReadHourlySummary` decodes each payload; one that does
   not decode fails the read. Nothing compares it with the rollup: Bridge stores no per-hour count of its own.
   The query is bounded by the kind's 2,160-row cap.
-- History and an incident window list the same kinds through `phoneReportKinds` (`history.go`); `reportOutcomeSQL`
-  gives a transition its stored process, subject and transition as its outcome.
+- `feedSilenceLines` (`tablet_silence.go`) comes from no single report: one failed Traffic line per tablet
+  silence, computed on read from the reports' receipt times and `bridgeRuns`. The clean close (`app.closed`), or
+  the last row before a start with no close, ends a run and so bounds the silence.
+- An incident window lists the feed's kinds through `phoneReportKinds`; History also lists `hourly_summary`
+  through `historyReportKinds` (`history.go`). `reportOutcomeSQL` gives a transition its stored process, subject
+  and transition as its outcome, and an `hourly_summary` its stored report.
 
 ## 6. Drawer and Technical view
 

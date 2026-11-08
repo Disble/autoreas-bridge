@@ -29,7 +29,7 @@ A trigger pins the recorder window from **2 minutes before to 30 seconds after**
 
 - an HTTP 5xx, a 4xx or a rejected request
 - a request slower than 1,000 ms
-- a mobile failure report (sync cycle failed, write failed), except a failed sync that reads "Bridge was
+- a mobile failure report (sync cycle failed, write failed, sync process died), except a failed sync that reads "Bridge was
   off", which opens no incident and so pins no window (`mobile-reports.md`, Reading a failed sync)
 - an internal bridge error event from any domain (downloads, editor, schedule, season, sync), with its
   metadata. The simulator modelled this trigger from the start. The measured week had 0 error-level
@@ -119,8 +119,10 @@ version and the incident live for 90 days.
   stories, requests and stored reports open from a line. See `activity-ui.md` and `activity-ui-design-v2.md`.
 - **MCP** (`cmd/autoreas-request-mcp`): the debugging AI reads status, incidents, the recorder, the ledger and
   mobile reports (`activityread.Now`, `Incidents`, `Recorder`, `History`). These have no Wails binding. Every
-  answer states which sources it covered and for what time range, so "no data" is never read as "nothing
-  happened". MCP shows no readings: `search_history` stays raw.
+  answer states which sources it covered and for what time range, and for phone reports the range of each
+  kind, so "no data" is never read as "nothing happened". MCP shows no readings and no tablet silences:
+  `search_history` stays raw and lists every report kind, and `get_status` names a quiet phone beside open
+  problems.
 
 ## What this design does not keep
 

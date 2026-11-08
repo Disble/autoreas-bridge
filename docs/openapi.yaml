@@ -509,6 +509,19 @@ info:
     its hour; it must stay floored to the epoch hour (as mobile computes it
     today) to meet the hourly rollup's hour. Nothing is compared or derived.
 
+    2026-11-08 — tablet silence, Bridge close line and MCP report reading
+    consumer impact: NO REST/WS wire change; mobile consumers need nothing.
+    Activity computes a tablet silence on read from stored reports and
+    shows "Bridge closed" from the new `app.closed` runtime event. A
+    `runtime_transition` with `process_name` `sync`, `subject` `process`
+    and `transition` `died` now opens a `mobile_failure` incident. For MCP
+    clients of `autoreas-request-mcp`: `search_history` now lists
+    `hourly_summary`, with its stored report as the outcome and no late
+    mark; `get_status` keeps the problems kind and adds the quiet minutes
+    to the sentence and to `QuietMinutes`; coverage entries for
+    `device_telemetry_events` gain `kinds`, each report kind's range. An
+    incident window still leaves `hourly_summary` out.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}
