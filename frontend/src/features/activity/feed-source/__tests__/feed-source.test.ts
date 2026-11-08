@@ -108,6 +108,7 @@ describe('feed-source', () => {
                 upToDateCount: 1,
                 errorSummary: 'jdownloader unreachable',
               },
+              tabletSummaries: [],
             },
           ],
         },
@@ -116,8 +117,21 @@ describe('feed-source', () => {
     });
   });
 
-  it('maps a traffic hour, a zero incident id and nil slices to empty values', async () => {
+  it('maps a traffic hour with its tablet summaries, a zero incident id and nil slices to empty values', async () => {
     const { mapActivityFeedView } = await import('../feed-source.helpers');
+    const summary = {
+      ReportID: 12,
+      DeviceID: 'device-1',
+      ReceivedAtMS: 7_300_000,
+      Summary: {
+        Counts: [
+          { TriggerSource: 'foreground_service', Outcome: 'closed', Count: 29, MaxDurationMS: 1412 },
+          { TriggerSource: 'foreground_service', Outcome: 'presence_refused', Count: 2, MaxDurationMS: null },
+        ],
+        DroppedCount: 3,
+        ProcessDeaths: [{ ProcessName: 'sync', Reason: 'low_memory', Count: 1 }],
+      },
+    };
     const traffic = goFeedLine({
       Type: 'traffic',
       Origin: 'phone',
@@ -126,11 +140,26 @@ describe('feed-source', () => {
       Line: goLedgerLine({ Kind: 'traffic_hour', ID: '3600000' }),
       Traffic: { HourStartMS: 3_600_000, Requests: 31, Failed: 0, MaxDurationMS: 6148 },
       Run: null,
+      TabletSummaries: [summary, { ...summary, ReportID: 13, Summary: { Counts: null, DroppedCount: 0, ProcessDeaths: null } }],
     });
 
     const view = mapActivityFeedView(activityread.FeedView.createFrom({ Days: [{ DayStartMS: 1, Lines: [traffic] }, { DayStartMS: 0, Lines: null }], NextCursor: '' }));
 
     expect(view.days[0].lines[0]).toMatchObject({ incidentId: undefined, slow: true, run: undefined, system: undefined, traffic: { hourStartMs: 3_600_000, requests: 31, failed: 0, maxDurationMs: 6148 } });
+    expect(view.days[0].lines[0]?.tabletSummaries).toEqual([
+      {
+        reportId: 12,
+        deviceId: 'device-1',
+        receivedAtMs: 7_300_000,
+        counts: [
+          { triggerSource: 'foreground_service', outcome: 'closed', count: 29, maxDurationMs: 1412 },
+          { triggerSource: 'foreground_service', outcome: 'presence_refused', count: 2, maxDurationMs: undefined },
+        ],
+        droppedCount: 3,
+        processDeaths: [{ processName: 'sync', reason: 'low_memory', count: 1 }],
+      },
+      { reportId: 13, deviceId: 'device-1', receivedAtMs: 7_300_000, counts: [], droppedCount: 0, processDeaths: [] },
+    ]);
     expect(view.days[1].lines).toEqual([]);
     expect(mapActivityFeedView(activityread.FeedView.createFrom({ Days: null, NextCursor: '' })).days).toEqual([]);
   });

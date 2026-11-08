@@ -169,12 +169,21 @@ each one: the database holds one connection, so the F lookups cannot run while t
   is listed where its start is.
 - Every `runtime_transition` is a Traffic line too (`feedTransitionSQL`); with the failure switch on only a death
   (`feedTransitionDiedSQL`: `transition` `died`, which the contract accepts only for `sync` + `process`) stays. `countFeed` counts them in a source of
-  their own with the same predicates, so Feed lines and Overview counts stay equal. `hourly_summary` is never a line.
+  their own with the same predicates, so Feed lines and Overview counts stay equal. `hourly_summary` is never a
+  line: it rides on the traffic hour line of the hour it reports (`attachTabletSummaries`, below).
 - `attachReportFacts` reads, in one query per page, the stored fields the frontend words a line from
   (`FeedLine.Report`): a transition's process, subject, transition and reason, and a failed cycle report's
   `previous_cycle.last_stage`. It also sets a transition line's failure: only a death fails.
 - `attachIncidents` links a phone report to its incident by event id. A `LineBridgeOff` line gets no link. A
   transition opens no incident, so it has none.
+- `attachTabletSummaries` (`feed_tablet.go`) sets `FeedLine.TabletSummaries` on each traffic hour line of a
+  page, in one query per page: every `hourly_summary` whose stored `observed_at_ms` (the tablet's
+  `hour_start_ms`) equals the line's hour, one per device, ordered by device id. It matches by the hour the
+  summary reports, never by arrival: a summary arrives after its hour closes, and `main` process data may
+  arrive much later. The rollup hour is not per device (`GET /api/status` rows carry no device id), so every
+  device's summary belongs to the one line. `telemetry.ReadHourlySummary` decodes each payload; one that does
+  not decode fails the read. Nothing compares it with the rollup: Bridge stores no per-hour count of its own.
+  The query is bounded by the kind's 2,160-row cap.
 - History and an incident window list the same kinds through `phoneReportKinds` (`history.go`); `reportOutcomeSQL`
   gives a transition its stored process, subject and transition as its outcome.
 

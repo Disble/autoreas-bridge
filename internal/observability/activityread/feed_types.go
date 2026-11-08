@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/observability/syncreading"
+	"autoreas-bridge/internal/observability/telemetry"
 )
 
 // FeedType is one type toggle of the Activity feed (activity-ui-design-v2.md, Filters).
@@ -74,6 +75,18 @@ type TrafficHour struct {
 	MaxDurationMS int64
 }
 
+// TabletSummary is what one device reported for a traffic hour in its
+// hourly_summary (S6 P1), as stored: Bridge keeps no count of its own to
+// compare it with, so it is shown and never interpreted. ReportID is the
+// stored report, read with Reader.PhoneReport; ReceivedAtMS is when it reached
+// Bridge, after its hour closed and possibly much later.
+type TabletSummary struct {
+	ReportID     int64
+	DeviceID     string
+	ReceivedAtMS int64
+	Summary      telemetry.HourlySummary
+}
+
 // DownloadRunLine is one download_runs row as stored.
 type DownloadRunLine struct {
 	RunID              string
@@ -133,7 +146,8 @@ type PhoneReportFacts struct {
 // recorded event, at the group's last time. SyncReading is set on a phone report
 // line that has a reading; a failed report without one stays a plain failure.
 // Report is set on a runtime transition line and on a failed cycle report line
-// that recorded its last stage.
+// that recorded its last stage. TabletSummaries is set on a traffic hour line:
+// one per device that reported that hour, by device id, nil when none did.
 // IncidentID is the newest incident occurrence recorded for this fact, or 0.
 type FeedLine struct {
 	Type       FeedType
@@ -149,6 +163,8 @@ type FeedLine struct {
 	SyncReading *SyncReading
 	BridgeOff   *BridgeOffGroup
 	Report      *PhoneReportFacts
+	// TabletSummaries are the hourly summaries of a traffic hour (S6 P1).
+	TabletSummaries []TabletSummary
 }
 
 // FeedDay groups one local day's feed lines, newest first.

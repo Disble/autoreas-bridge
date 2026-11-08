@@ -499,6 +499,16 @@ info:
     stored `process_name`, `subject` and `transition` joined by spaces
     ("sync process died"). `hourly_summary` is still not listed.
 
+    2026-11-08 — hourly_summary in the Activity Traffic hour drawer
+    consumer impact: NO REST/WS wire change and no MCP change. The Activity
+    Traffic hour drawer shows each device's stored `hourly_summary` whose
+    `hour_start_ms` equals that hour, as stored: counts per
+    `trigger_source` and `outcome` with `max_duration_ms`, `dropped_count`,
+    `process_deaths` and when it was received. Bridge matches by
+    `hour_start_ms`, never by arrival, so a summary sent late still lands on
+    its hour; it must stay floored to the epoch hour (as mobile computes it
+    today) to meet the hourly rollup's hour. Nothing is compared or derived.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}

@@ -43,13 +43,13 @@ export function ActivityDrawerStats({ section }: ActivityDrawerStatsProps) {
   );
 }
 
-/** The label and value rows of a facts section, each with its optional warning chip. */
+/** The label and value rows of a facts section, each with its optional warning chip; a stored-code label reads in monospace. */
 export function ActivityDrawerFacts({ section }: ActivityDrawerFactsProps) {
   return (
     <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
       {section.rows.map((row) => (
         <div className="contents" key={row.key}>
-          <dt className="text-muted">{row.label}</dt>
+          <dt className={row.labelMono === true ? 'font-mono text-xs text-muted' : 'text-muted'}>{row.label}</dt>
           <dd className="flex min-w-0 flex-wrap items-center justify-end gap-x-1.5 gap-y-1 text-right tabular-nums [overflow-wrap:anywhere]">
             <span className={row.mono ? 'font-mono text-xs' : ''}>{row.value}</span>
             {row.note !== undefined && <span className="font-mono text-muted">{row.note}</span>}

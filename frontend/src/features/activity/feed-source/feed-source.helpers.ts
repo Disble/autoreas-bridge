@@ -16,6 +16,7 @@ import type {
   ActivityPhoneReportFacts,
   ActivitySyncReading,
   ActivitySystemGroup,
+  ActivityTabletSummary,
   ActivityTrafficHour,
   ActivityTypeCount,
 } from './feed.types';
@@ -76,6 +77,19 @@ function mapReportFacts(facts: activityread.PhoneReportFacts): ActivityPhoneRepo
   return { processName: facts.ProcessName, subject: facts.Subject, transition: facts.Transition, reason: facts.Reason === '' ? undefined : facts.Reason, stage: facts.Stage };
 }
 
+/** Maps one Go tablet summary, flattened; nil lists become empty and a nil slowest attempt becomes undefined. */
+function mapTabletSummary(tablet: activityread.TabletSummary): ActivityTabletSummary {
+  const { Summary: summary } = tablet;
+  return {
+    reportId: tablet.ReportID,
+    deviceId: tablet.DeviceID,
+    receivedAtMs: tablet.ReceivedAtMS,
+    counts: (summary.Counts ?? []).map((count) => ({ triggerSource: count.TriggerSource, outcome: count.Outcome, count: count.Count, maxDurationMs: count.MaxDurationMS ?? undefined })),
+    droppedCount: summary.DroppedCount,
+    processDeaths: (summary.ProcessDeaths ?? []).map((death) => ({ processName: death.ProcessName, reason: death.Reason, count: death.Count })),
+  };
+}
+
 /** Maps one Go feed line; Go's zero incident id means none. */
 function mapFeedLine(line: activityread.FeedLine): ActivityFeedLine {
   return {
@@ -91,6 +105,7 @@ function mapFeedLine(line: activityread.FeedLine): ActivityFeedLine {
     syncReading: line.SyncReading ? mapSyncReading(line.SyncReading) : undefined,
     bridgeOff: line.BridgeOff ? mapBridgeOffGroup(line.BridgeOff) : undefined,
     report: line.Report ? mapReportFacts(line.Report) : undefined,
+    tabletSummaries: (line.TabletSummaries ?? []).map(mapTabletSummary),
   };
 }
 

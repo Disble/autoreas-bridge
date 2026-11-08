@@ -85,6 +85,12 @@ export const DRAWER_REQUESTS_EMPTY_UNPINNED = 'No request was pinned to this eve
 /** The note of an older traffic hour that did not fail. */
 export const DRAWER_TOTALS_ONLY_NOTE = 'Single check-ins are kept for 2 hours. Older hours keep only these totals.';
 
+/** The title of what one device reported for a traffic hour in its hourly summary (S6 P1). */
+export const DRAWER_TABLET_TITLE = 'What the tablet reported';
+
+/** The title of one device's process deaths of a traffic hour. */
+export const DRAWER_PROCESS_DEATHS_TITLE = 'Process deaths';
+
 /** Loading label of the drawer body. */
 export const DRAWER_LOADING_LABEL = 'Loading the event detail';
 

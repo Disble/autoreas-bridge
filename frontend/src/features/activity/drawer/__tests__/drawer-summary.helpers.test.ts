@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { DRAWER_BRIDGE_OFF_MEANING_MANY, DRAWER_READING_MEANINGS } from '../drawer.constants';
-import { formatDrawerWhen } from '../drawer-format.helpers';
-import type { DrawerSection, DrawerSummaryInput } from '../drawer.types';
+import { formatDrawerTime, formatDrawerWhen } from '../drawer-format.helpers';
+import type { DrawerFact, DrawerSection, DrawerSummaryInput } from '../drawer.types';
 import { toDrawerHeader, toDrawerSummary } from '../drawer-summary.helpers';
-import { bridgeOffLine, feedLine, incident, readingLine, run, syncReading } from './drawer.fixtures';
+import { bridgeOffLine, feedLine, incident, readingLine, run, syncReading, tabletSummary } from './drawer.fixtures';
 
 /** Noon of the mockup's day, the line time every fixture uses. */
 const AT = Date.UTC(2026, 9, 22, 12, 0);
@@ -25,6 +25,19 @@ function sectionOf<K extends DrawerSection['kind']>(sections: readonly DrawerSec
     throw new Error(`no ${kind} section`);
   }
   return found as Extract<DrawerSection, { kind: K }>;
+}
+
+/** The rows of a section that must be a facts section. */
+function rowsOf(section: DrawerSection | undefined): readonly DrawerFact[] {
+  if (section?.kind !== 'facts') {
+    throw new Error('not a facts section');
+  }
+  return section.rows;
+}
+
+/** A facts section's rows as label, value, note and whether the label is monospace. */
+function factRows(section: DrawerSection | undefined): readonly (readonly [string, string, string | undefined, boolean])[] {
+  return rowsOf(section).map((row) => [row.label, row.value, row.note, row.labelMono === true] as const);
 }
 
 /** A phone episode change from 1 to 2. */
@@ -84,8 +97,14 @@ describe('toDrawerSummary', () => {
     expect(gaps).toEqual(['No catalog entry for `stale_version`. The recorded message is shown as is.']);
   });
 
-  it('shows a traffic hour as three figures, its hour and the totals-only note when old and fine', () => {
-    const line = feedLine({ type: 'traffic', origin: 'phone', traffic: { hourStartMs: AT, requests: 39, failed: 0, maxDurationMs: 412 } }, { kind: 'traffic_hour' });
+  it('shows a traffic hour as three figures, its hour, what the tablet reported and the totals-only note when old and fine', () => {
+    const tablet = tabletSummary({
+      counts: [
+        { triggerSource: 'foreground_service', outcome: 'closed', count: 29, maxDurationMs: 1412 },
+        { triggerSource: 'foreground_service', outcome: 'presence_refused', count: 2, maxDurationMs: undefined },
+      ],
+    });
+    const line = feedLine({ type: 'traffic', origin: 'phone', traffic: { hourStartMs: AT, requests: 39, failed: 0, maxDurationMs: 412 }, tabletSummaries: [tablet] }, { kind: 'traffic_hour' });
 
     const { sections } = toDrawerSummary(input({ line }));
 
@@ -94,7 +113,35 @@ describe('toDrawerSummary', () => {
       ['refused', '0', false],
       ['slowest', '412 ms', false],
     ]);
+    expect(sections.map((section) => section.key)).toEqual(['figures', 'hour', 'tablet-device-1', 'totals']);
+    expect(rowsOf(sections[2]).map((row) => row.key)).toEqual(['foreground_service-closed', 'foreground_service-presence_refused', 'dropped', 'received']);
+    expect(sections[2]).toMatchObject({ kind: 'facts', title: 'What the tablet reported' });
+    expect(factRows(sections[2])).toEqual([
+      ['foreground_service · closed', '29', '· slowest 1.4 s', true],
+      ['foreground_service · presence_refused', '2', undefined, true],
+      ['Reports dropped', '0', undefined, false],
+      ['Received', formatDrawerTime(AT + 3_660_000), undefined, false],
+    ]);
     expect(sectionOf(sections, 'note').text).toContain('Older hours keep only these totals');
+  });
+
+  it('shows one block per device that reported the hour, its process deaths, and the date of a summary received on a later day', () => {
+    const late = AT + 30 * 3_600_000;
+    const deaths = [{ processName: 'sync', reason: 'low_memory', count: 1 }];
+    const tablets = [tabletSummary({ processDeaths: deaths, droppedCount: 4 }), tabletSummary({ reportId: 13, deviceId: 'device-2', receivedAtMs: late })];
+    const line = feedLine({ type: 'traffic', origin: 'phone', traffic: { hourStartMs: AT, requests: 3, failed: 0, maxDurationMs: 1 }, tabletSummaries: tablets }, { kind: 'traffic_hour' });
+
+    const { sections } = toDrawerSummary(input({ line, nowMs: AT + 3_600_000 }));
+
+    expect(sections.map((section) => section.key)).toEqual(['figures', 'hour', 'tablet-device-1', 'deaths-device-1', 'tablet-device-2']);
+    expect(factRows(sections[2])).toEqual([
+      ['Device', 'device-1', undefined, false],
+      ['Reports dropped', '4', undefined, false],
+      ['Received', formatDrawerTime(AT + 3_660_000), undefined, false],
+    ]);
+    expect(rowsOf(sections[2])[0]).toMatchObject({ key: 'device', mono: true });
+    expect(sections[3]).toEqual({ kind: 'list', key: 'deaths-device-1', title: 'Process deaths', items: [{ key: 'sync-low_memory', time: 'sync', text: 'low_memory · ×1', failed: false }] });
+    expect(factRows(sections[4]).at(-1)).toEqual(['Received', formatDrawerWhen(late), undefined, false]);
   });
 
   it('lists the refused check-ins of a failed hour and notes a status without a code', () => {

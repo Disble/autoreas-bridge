@@ -23,6 +23,8 @@ export interface DrawerFact {
   readonly note: string | undefined;
   /** An amber chip after the value, such as `6 h 31 min late`; undefined when none. */
   readonly warnChip: string | undefined;
+  /** Whether the label is a stored code shown in monospace, such as `foreground_service · closed`. */
+  readonly labelMono?: boolean;
 }
 
 /** One figure of a stats section. */

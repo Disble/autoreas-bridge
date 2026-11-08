@@ -6,6 +6,7 @@ import type { ActivityLedgerLine } from '../history-source/history.types';
 import type { DrawerFact, DrawerListItem, DrawerSection, DrawerSummaryInput } from './drawer.types';
 import { drawerFact, formatDrawerKeptUntil, formatDrawerSpan, formatDrawerTime } from './drawer-format.helpers';
 import { drawerPageFact, toDrawerPageName } from './drawer-window-error.helpers';
+import { tabletSections } from './drawer-tablet.helpers';
 
 /** Reads one field of a stored snapshot; unreadable JSON reads as missing. */
 function snapshotField(json: string, field: string): unknown {
@@ -127,8 +128,9 @@ function trafficRequestItems(input: DrawerSummaryInput, failed: boolean): readon
 }
 
 /**
- * The traffic hour presenter: check-ins, refused and slowest, the hour, then
- * the refused or slow check-ins its incident pinned, or the totals-only note.
+ * The traffic hour presenter: check-ins, refused and slowest, the hour, what
+ * each device reported for it, then the refused or slow check-ins its incident
+ * pinned, or the totals-only note.
  *
  * @param input The summary input.
  * @returns The sections.
@@ -149,6 +151,7 @@ export function trafficSections(input: DrawerSummaryInput): readonly DrawerSecti
       ],
     },
     { kind: 'facts', key: 'hour', title: '', rows: [drawerFact('hour', 'Hour', `${formatDrawerTime(hour.hourStartMs)} – ${formatDrawerTime(hour.hourStartMs + DRAWER_HOUR_MS)}`)] },
+    ...tabletSections(input.line.tabletSummaries, hour.hourStartMs),
   ];
   const failed = input.line.failed;
   const items = trafficRequestItems(input, failed);

@@ -87,11 +87,14 @@ describe('ActivityDrawerSection', () => {
     expect(screen.getByText('Claiming changes')).not.toHaveClass(ACTIVITY_DRAWER_FAILED_TEXT_CLASS, 'text-muted');
   });
 
-  it('shows a fact note after its value, and no note when it has none', () => {
-    const { rerender } = render(<ActivityDrawerSection section={{ kind: 'facts', key: 'k', title: '', rows: [{ key: 'r', label: 'Page', value: 'Editor', mono: false, warnChip: undefined, note: '/editor' }] }} />);
+  it('shows a fact note after its value and a stored-code label in monospace, and neither when the row has none', () => {
+    const { rerender } = render(<ActivityDrawerSection section={{ kind: 'facts', key: 'k', title: '', rows: [{ key: 'r', label: 'Page', value: 'Editor', mono: false, warnChip: undefined, note: '/editor', labelMono: true }] }} />);
 
     expect(screen.getByText('Editor').closest('dd')).toHaveTextContent('Editor/editor');
+    expect(screen.getByText('Page')).toHaveClass('font-mono');
     rerender(<ActivityDrawerSection section={{ kind: 'facts', key: 'k', title: '', rows: [{ key: 'r', label: 'Page', value: 'Editor', mono: false, warnChip: undefined, note: undefined }] }} />);
     expect(screen.getByText('Editor').closest('dd')).toHaveTextContent(/^Editor$/);
+    expect(screen.getByText('Page')).not.toHaveClass('font-mono');
+    expect(screen.getByText('Page')).toHaveClass('text-muted');
   });
 });

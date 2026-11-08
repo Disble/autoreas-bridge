@@ -27,7 +27,7 @@ Everything on this page was read from the code on 2026-11-06.
 |---|---|
 | `internal/observability/requestcapture` | Non-blocking queue and sanitized persistence of captured requests; the ledger upserts (rollup, response versions); the read-only database handle and capture reader |
 | `internal/observability/eventlog` | The sink behind the shared logger: bounded queue, redacted and size-bounded metadata, `runtime_events` |
-| `internal/observability/telemetry` | The kind-discriminated store of mobile reports, its registry (`cycle_report`, `episode_action`, `screen_stall`), `ReadReportFacts` and the report reader |
+| `internal/observability/telemetry` | The kind-discriminated store of mobile reports, its registry (`cycle_report`, `episode_action`, `screen_stall`), `ReadReportFacts`, `ReadHourlySummary` and the report reader |
 | `internal/observability/syncdiag` | The `cycle_report` wire contract and its closed vocabularies; `telemetry` registers its validator |
 | `internal/observability/syncreading` | The reading of a failed sync. Pure: no database, no state, no clock |
 | `internal/observability/incident` | The pure classifier (`ClassifyRequest`, `ClassifyEvent`, `ClassifyMobileReport`, `ManualPin`) and the `incidents` store |
@@ -162,7 +162,8 @@ A reading has no storage: it is computed on each read. The start record is metad
 - **Lines and counts agree.** `readFailedSyncs` is the one read behind feed lines and bucket counts.
 - **The read side stays bounded.** Every `activityread` query has a time predicate on an indexed column, a key
   or a limit. Sync readings cap at 2,000 starts and 5,000 failed actions, and ask F with one indexed seek on
-  `(device_id, reported_at_ms)` per device and start.
+  `(device_id, reported_at_ms)` per device and start. A traffic hour's `hourly_summary` rows are matched by
+  their unindexed `observed_at_ms` within the kind index, bounded by the kind's 2,160-row cap.
 - **Only `api.listening` or the older listening row is a reading's start.** Metadata that cannot be decoded
   leaves the start valid with no last contacts.
 

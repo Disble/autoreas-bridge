@@ -4,6 +4,8 @@ import (
 	"context"
 	"reflect"
 	"testing"
+
+	"autoreas-bridge/internal/observability/telemetry"
 )
 
 // seedReportKinds stores one report of each shape S6 P2 and P3 word, each a
@@ -99,5 +101,67 @@ func TestHistoryListsRuntimeTransitionsButNoHourlySummary(t *testing.T) {
 		"cycle_report failed", "cycle_report completed", "episode_action failed"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("phone reports = %q\nwant %q", got, want)
+	}
+}
+
+// rowidOf returns the stored row id of one device's report of a kind.
+func rowidOf(t *testing.T, r *Reader, device, eventID string) int64 {
+	t.Helper()
+	var id int64
+	if err := r.db.QueryRow(`SELECT rowid FROM device_telemetry_events WHERE device_id = ? AND event_id = ?`, device, eventID).Scan(&id); err != nil {
+		t.Fatalf("rowid of %s %s: %v", device, eventID, err)
+	}
+	return id
+}
+
+func TestFeedTrafficHourCarriesEachDevicesHourlySummaryOfThatHour(t *testing.T) {
+	db, r := openTestReader(t)
+	insertRollup(t, db, hourStart(2), "/api/status", 2, 30)
+	insertRollup(t, db, hourStart(2), "/api/sync/reconcile", 4, 1)
+	insertRollup(t, db, hourStart(1), "/api/status", 2, 12)
+	// Matched by the hour it reports, not by arrival: device-2's summary of
+	// the 16:00 hour reached Bridge in the 17:00 hour, and device-1 sent the
+	// same hour before it. The 15:00 hour has a summary and no line.
+	insertDeviceReport(t, db, "device-2", "hourly_summary", "inst-b:16", minutesAgo(5), hourStart(2),
+		`{"counts":[{"trigger_source":"app_active","outcome":"closed","count":2,"max_duration_ms":812}],"dropped_count":0,"process_deaths":[]}`)
+	insertDeviceReport(t, db, "device-1", "hourly_summary", "inst-a:16", hourStart(1)+60_000, hourStart(2),
+		`{"counts":[{"trigger_source":"foreground_service","outcome":"presence_refused","count":2,"max_duration_ms":null}],"dropped_count":3,`+
+			`"process_deaths":[{"process_name":"sync","reason":"low_memory","count":1}]}`)
+	insertDeviceReport(t, db, "device-1", "hourly_summary", "inst-a:15", hourStart(1)+120_000, hourStart(3),
+		`{"counts":[],"dropped_count":0,"process_deaths":[]}`)
+
+	slowest := int64(812)
+	want := []TabletSummary{
+		{ReportID: rowidOf(t, r, "device-1", "inst-a:16"), DeviceID: "device-1", ReceivedAtMS: hourStart(1) + 60_000, Summary: telemetry.HourlySummary{
+			Counts:        []telemetry.HourlyCount{{TriggerSource: "foreground_service", Outcome: "presence_refused", Count: 2}},
+			DroppedCount:  3,
+			ProcessDeaths: []telemetry.ProcessDeath{{ProcessName: "sync", Reason: "low_memory", Count: 1}},
+		}},
+		{ReportID: rowidOf(t, r, "device-2", "inst-b:16"), DeviceID: "device-2", ReceivedAtMS: minutesAgo(5), Summary: telemetry.HourlySummary{
+			Counts:        []telemetry.HourlyCount{{TriggerSource: "app_active", Outcome: "closed", Count: 2, MaxDurationMS: &slowest}},
+			ProcessDeaths: []telemetry.ProcessDeath{},
+		}},
+	}
+
+	lines := feedLines(feedOf(t, r, FeedInput{Types: []FeedType{FeedTraffic}}))
+	if len(lines) != 2 || lines[0].Traffic.HourStartMS != hourStart(1) || lines[1].Traffic.HourStartMS != hourStart(2) {
+		t.Fatalf("lines = %+v, want the 17:00 and 16:00 hours", lines)
+	}
+	if lines[0].TabletSummaries != nil {
+		t.Errorf("17:00 summaries = %+v, want none: no device reported that hour", lines[0].TabletSummaries)
+	}
+	if got := lines[1].TabletSummaries; !reflect.DeepEqual(got, want) {
+		t.Errorf("16:00 summaries = %+v\nwant %+v", got, want)
+	}
+	failed := feedLines(feedOf(t, r, FeedInput{Types: []FeedType{FeedTraffic}, FailuresOnly: true}))
+	if len(failed) != 1 || !reflect.DeepEqual(failed[0].TabletSummaries, want) {
+		t.Errorf("failures-only lines = %+v, want the 16:00 hour with its summaries", failed)
+	}
+
+	// A stored summary that does not decode fails the read instead of
+	// showing an hour the tablet reported nothing for.
+	exec(t, db, `UPDATE device_telemetry_events SET payload_json = '{"counts":7}' WHERE event_id = 'inst-b:16'`)
+	if _, err := r.Feed(context.Background(), FeedInput{Now: testNow, Types: []FeedType{FeedTraffic}}); err == nil {
+		t.Fatal("Feed over a corrupt summary succeeded, want an error")
 	}
 }

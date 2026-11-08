@@ -126,6 +126,44 @@ export interface ActivityPhoneReportFacts {
   readonly stage: string;
 }
 
+/** One scheduler and outcome pair of a tablet hour: the attempts it counted, as stored. */
+export interface ActivityTabletCount {
+  /** The scheduler, such as `foreground_service`. */
+  readonly triggerSource: string;
+  /** How the attempts ended, such as `presence_refused`. */
+  readonly outcome: string;
+  /** The number of attempts. */
+  readonly count: number;
+  /** The slowest attempt, milliseconds; undefined when the tablet measured none. */
+  readonly maxDurationMs: number | undefined;
+}
+
+/** One process and reason pair of a tablet hour's process deaths, as stored. */
+export interface ActivityProcessDeath {
+  /** The process, `main` or `sync`. */
+  readonly processName: string;
+  /** The recorded reason code, such as `low_memory`. */
+  readonly reason: string;
+  /** How many times it died for that reason. */
+  readonly count: number;
+}
+
+/** What one device reported for a traffic hour in its hourly summary (S6 P1), as stored and never interpreted. */
+export interface ActivityTabletSummary {
+  /** Stored report id, read with `GetActivityPhoneReport`. */
+  readonly reportId: number;
+  /** The device that reported it. */
+  readonly deviceId: string;
+  /** When it reached Bridge, epoch milliseconds: after its hour closed, possibly much later. */
+  readonly receivedAtMs: number;
+  /** Its counts per scheduler and outcome, in the order the tablet sent them. */
+  readonly counts: readonly ActivityTabletCount[];
+  /** How many of the hour's reports the tablet dropped. */
+  readonly droppedCount: number;
+  /** Its process deaths, in the order the tablet sent them. */
+  readonly processDeaths: readonly ActivityProcessDeath[];
+}
+
 /**
  * One feed row. `traffic`, `run`, `system` and `bridgeOff` are set only for
  * their own lines. A System line is an event line standing for its group:
@@ -156,6 +194,8 @@ export interface ActivityFeedLine {
   readonly bridgeOff: ActivityBridgeOffGroup | undefined;
   /** The stored facts of a runtime transition or of a failed cycle report with a stage; undefined otherwise. */
   readonly report: ActivityPhoneReportFacts | undefined;
+  /** The hourly summaries of a `traffic_hour` line, one per device that reported that hour; empty otherwise. */
+  readonly tabletSummaries: readonly ActivityTabletSummary[];
 }
 
 /** One local day's feed lines, newest first. */
