@@ -1,7 +1,7 @@
 import { formatActivityDuration } from '../ui/ActivityRunStory/activity-time.helpers';
 import type { ActivityTabletSummary } from '../feed-source/feed.types';
 import { DRAWER_PROCESS_DEATHS_TITLE, DRAWER_TABLET_TITLE } from './drawer.constants';
-import type { DrawerFact, DrawerSection } from './drawer.types';
+import type { DrawerFact, DrawerReportChoice, DrawerSection } from './drawer.types';
 import { drawerFact, formatDrawerTime, formatDrawerWhen } from './drawer-format.helpers';
 
 /** When a summary reached Bridge: its time, with the date when it arrived on another day than its hour. */
@@ -44,4 +44,14 @@ export function tabletSections(tablets: readonly ActivityTabletSummary[], hourSt
       ...(deaths.length === 0 ? [] : [{ kind: 'list' as const, key: `deaths-${tablet.deviceId}`, title: DRAWER_PROCESS_DEATHS_TITLE, items: deaths }]),
     ];
   });
+}
+
+/**
+ * The stored summaries a traffic hour's Data tab can show, one per device.
+ *
+ * @param tablets The hour's summaries.
+ * @returns The choices, labelled by device and arrival.
+ */
+export function toTabletReportChoices(tablets: readonly ActivityTabletSummary[]): readonly DrawerReportChoice[] {
+  return tablets.map((tablet) => ({ id: tablet.reportId, label: `${tablet.deviceId} · Received ${formatDrawerWhen(tablet.receivedAtMs)}` }));
 }

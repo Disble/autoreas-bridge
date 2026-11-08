@@ -207,7 +207,7 @@ technical view survives ↑ / ↓, and closing the drawer resets it to the summa
 |---|---|---|
 | Requests | Phone events only | Requests folded by route and status (`POST /api/sync/reconcile · 401 · ×1`), with the latest time. Picking one shows Request and Response side by side: method, path, duration, headers, body (formatted JSON). The picked request sits in its own framed panel (1px border, `surface-secondary` header with method, path, duration and "latest of N"), so the list above reads as a picker and the panel as its detail |
 | Events | Always | Runtime events at that moment: time to the second, level chip (info, warn, error), message, domain, detail line |
-| Data | Always | Raw JSON: before/after of a change, the run, the hourly total. For a window error: an occurrence picker, then kind, page, source, time, message and the stack trace. For a line with a reading: the stored report, read with `GetActivityPhoneReport`, with a report picker on a line that stands for several. It is the validated record Bridge stored, not mobile's raw bytes |
+| Data | Always | Raw JSON: before/after of a change, the run, the hourly total. For a window error: an occurrence picker, then kind, page, source, time, message and the stack trace. For a line with a reading: the stored report, read with `GetActivityPhoneReport`, with a report picker on a line that stands for several. A traffic hour shows the `hourly_summary` each device stored for it, with a picker when several did, above its hourly total. It is the validated record Bridge stored, not mobile's raw bytes |
 
 Rules:
 

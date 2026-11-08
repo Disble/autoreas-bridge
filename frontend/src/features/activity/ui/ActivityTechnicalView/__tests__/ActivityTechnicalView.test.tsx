@@ -130,12 +130,12 @@ describe('ActivityTechnicalView', () => {
     expect(screen.getByRole('tabpanel').querySelectorAll('button')).toHaveLength(0);
   });
 
-  it('shows a stored report pretty-printed under its label, its failed included, instead of the raw blocks', () => {
-    render(<ActivityTechnicalView {...props({ tab: 'data', data: [{ label: 'Line', raw: '{}' }], reports: [report(41)], selectedReportId: 41, reportStatus: 'ready', reportJson: '{"failed":true,"phase":"sync"}' })} />);
+  it('shows a stored report pretty-printed under its label, its failed included, beside the raw blocks the line has', () => {
+    render(<ActivityTechnicalView {...props({ tab: 'data', data: [{ label: 'Hourly total', raw: '{}' }], reports: [report(41)], selectedReportId: 41, reportStatus: 'ready', reportJson: '{"failed":true,"phase":"sync"}' })} />);
 
     expect(screen.getByRole('heading', { name: 'Stored report', level: 3 })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Stored report' }).querySelector('pre')?.textContent).toBe('{\n  "failed": true,\n  "phase": "sync"\n}');
-    expect(screen.queryByRole('region', { name: 'Line' })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Hourly total' })).toBeInTheDocument();
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
   });
 

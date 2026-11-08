@@ -8,6 +8,7 @@ import { DRAWER_BRIDGE_OFF_MEANING_MANY, DRAWER_EVIDENCE_LABELS, DRAWER_EVIDENCE
 import type { DrawerFact, DrawerReportChoice, DrawerSection, DrawerSummaryInput } from './drawer.types';
 import { drawerFact, formatDrawerSpan, formatDrawerWhen } from './drawer-format.helpers';
 import { failureSections } from './drawer-presenters.helpers';
+import { toTabletReportChoices } from './drawer-tablet.helpers';
 
 /** Words one evidence time; a fact that does not exist reads as not recorded. */
 function evidenceTime(ms: number | undefined): string {
@@ -135,12 +136,16 @@ function toReportChoice(report: ActivitySyncReading): DrawerReportChoice {
 }
 
 /**
- * The stored reports a line can show: its own, or each of its group's.
+ * The stored reports a line can show: its own, each of its group's, or each
+ * hourly summary of a traffic hour.
  *
  * @param line The open line.
- * @returns The choices, in the group's order; empty for a line with no reading.
+ * @returns The choices, in the group's order; empty for a line with no reading or summary.
  */
 export function toDrawerReportChoices(line: ActivityFeedLine): readonly DrawerReportChoice[] {
+  if (line.tabletSummaries.length > 0) {
+    return toTabletReportChoices(line.tabletSummaries);
+  }
   const reports = line.bridgeOff?.reports ?? (line.syncReading === undefined ? [] : [line.syncReading]);
   return reports.map(toReportChoice);
 }

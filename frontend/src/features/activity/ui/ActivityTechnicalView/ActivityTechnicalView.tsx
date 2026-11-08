@@ -12,7 +12,8 @@ import type { ActivityTechnicalViewProps } from './activity-technical-view.types
 /**
  * The technical view of the drawer: the untranslated notes, then the tabs
  * Requests (phone lines only), Events and Data. A line with a reading shows its
- * stored report in Data.
+ * stored report in Data; a traffic hour shows its stored summaries above its
+ * hourly total.
  */
 export function ActivityTechnicalView(props: ActivityTechnicalViewProps) {
   return (
@@ -87,7 +88,6 @@ export function ActivityTechnicalView(props: ActivityTechnicalViewProps) {
           )}
           {props.windowError === undefined &&
             props.occurrences.length === 0 &&
-            props.reports.length === 0 &&
             props.data.map((block) => (
               <section aria-label={block.label} className="flex min-w-0 flex-col gap-2" key={block.label}>
                 <h3 className="text-[13px] font-medium text-muted">{block.label}</h3>

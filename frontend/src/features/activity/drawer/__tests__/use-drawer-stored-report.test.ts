@@ -5,7 +5,7 @@ import type { ActivityFeedLine } from '../../feed-source/feed.types';
 import { formatDrawerWhen } from '../drawer-format.helpers';
 import { toDrawerLineKey } from '../drawer-reads.helpers';
 import { useDrawerStoredReport } from '../use-drawer-stored-report';
-import { bridgeOffLine, feedLine, readingLine, syncReading } from './drawer.fixtures';
+import { bridgeOffLine, feedLine, readingLine, syncReading, tabletSummary } from './drawer.fixtures';
 
 /** A feed source whose only read is the given stored report read. */
 function feedWith(getPhoneReport: ActivityFeedSource['getPhoneReport']): ActivityFeedSource {
@@ -66,6 +66,21 @@ describe('useDrawerStoredReport', () => {
     expect(result.current.selectedReportId).toBe(8);
     await waitFor(() => expect(result.current.reportJson).toBe('{"id":8}'));
     expect(getPhoneReport).toHaveBeenCalledTimes(2);
+  });
+
+  it('offers a traffic hour the summary each device reported, labelled by device and arrival, and reads the first', async () => {
+    const getPhoneReport = vi.fn((id: number) => Promise.resolve(`{"id":${id}}`));
+    const tablets = [tabletSummary(), tabletSummary({ reportId: 13, deviceId: 'device-2' })];
+    const line = feedLine({ type: 'traffic', origin: 'phone', tabletSummaries: tablets }, { kind: 'traffic_hour', id: '1' });
+
+    const { result } = renderReport(feedWith(getPhoneReport), line);
+
+    expect(result.current.reports).toEqual([
+      { id: 12, label: `device-1 · Received ${formatDrawerWhen(tablets[0].receivedAtMs)}` },
+      { id: 13, label: `device-2 · Received ${formatDrawerWhen(tablets[0].receivedAtMs)}` },
+    ]);
+    await waitFor(() => expect(result.current.reportJson).toBe('{"id":12}'));
+    expect(getPhoneReport).toHaveBeenCalledExactlyOnceWith(12);
   });
 
   it('forgets a pick on another line, even one holding the same report', async () => {
