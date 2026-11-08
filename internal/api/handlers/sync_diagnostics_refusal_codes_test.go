@@ -86,7 +86,7 @@ func TestSyncDiagnosticsRefusalsCarryTheirClassifyingCode(t *testing.T) {
 		},
 		{
 			label: "a runtime_transition reason off its pattern names the field",
-			body:  `{"kind":"runtime_transition","observation_id":"o","observed_at_ms":0,"process_name":"sync","subject":"sync_service","transition":"started","reason":"Low Memory","app_version":"2.7.1"}`,
+			body:  `{"kind":"runtime_transition","observation_id":"o","observed_at_ms":0,"process_name":"sync","subject":"service","transition":"started","reason":"Low Memory","app_version":"2.7.1"}`,
 			code:  "field_rejected",
 			field: "reason",
 		},

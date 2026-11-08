@@ -27,6 +27,32 @@ const runtimeTransitionDied = "died"
 // runtimeTransitionDyingProcess is the only process a per-event death names.
 const runtimeTransitionDyingProcess = "sync"
 
+// runtimeTransitionSubjects gates subject: what changed, in the closed set
+// mobile declared on 2026-11-07.
+var runtimeTransitionSubjects = map[string]struct{}{
+	"service":    {},
+	"tick_alarm": {},
+	"floor":      {},
+	"process":    {},
+	"boot":       {},
+	"network":    {},
+}
+
+// runtimeTransitions gates transition: the change itself, in the closed set
+// mobile declared on 2026-11-07. "ran" is deliberately absent: runs are
+// counted in hourly_summary, never reported one by one. Not every subject and
+// transition pair is valid; until mobile's pair table is agreed, each member
+// is checked on its own.
+var runtimeTransitions = map[string]struct{}{
+	"started":             {},
+	"stopped":             {},
+	"armed":               {},
+	"cancelled":           {},
+	"skipped":             {},
+	"refused":             {},
+	runtimeTransitionDied: {},
+}
+
 // appVersionPattern is the shape of the reporting build's version: a semantic
 // version with its optional pre-release and build parts, short enough to show.
 var appVersionPattern = regexp.MustCompile(`^[0-9A-Za-z._+-]{1,32}$`)
@@ -69,8 +95,8 @@ func (RuntimeTransitionKind) Name() KindName { return KindRuntimeTransition }
 func (RuntimeTransitionKind) RetentionLimit() int { return runtimeTransitionRetentionLimit }
 
 // Decode strict-decodes and validates one runtime_transition body. subject and
-// transition are mobile's own codes: Bridge closes their shape, not their
-// members, and stores them as sent.
+// transition are closed vocabularies; reason is mobile's own code, closed in
+// shape only and stored as sent.
 func (RuntimeTransitionKind) Decode(body []byte) (Validated, error) {
 	var wire wireRuntimeTransition
 	if err := strictDecode(body, &wire); err != nil {
@@ -107,10 +133,10 @@ func decodeRuntimeTransitionPayload(wire wireRuntimeTransition) (runtimeTransiti
 	if payload.ProcessName, err = vocabularyString("process_name", wire.ProcessName, reportProcessNames); err != nil {
 		return payload, err
 	}
-	if payload.Subject, err = patternString("subject", wire.Subject, reportCodePattern); err != nil {
+	if payload.Subject, err = vocabularyString("subject", wire.Subject, runtimeTransitionSubjects); err != nil {
 		return payload, err
 	}
-	if payload.Transition, err = patternString("transition", wire.Transition, reportCodePattern); err != nil {
+	if payload.Transition, err = vocabularyString("transition", wire.Transition, runtimeTransitions); err != nil {
 		return payload, err
 	}
 	if payload.Transition == runtimeTransitionDied && payload.ProcessName != runtimeTransitionDyingProcess {

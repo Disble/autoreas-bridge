@@ -11,7 +11,7 @@ import (
 // runtimeTransitionBody is the canonical valid runtime_transition body, a
 // literal because it IS the wire contract offered to mobile. Every rejection
 // row perturbs it in exactly one place.
-const runtimeTransitionBody = `{"kind":"runtime_transition","observation_id":"rt-0b6f3c1e","observed_at_ms":1794139020000,"process_name":"sync","subject":"sync_service","transition":"died","reason":"low_memory","app_version":"2.7.1"}`
+const runtimeTransitionBody = `{"kind":"runtime_transition","observation_id":"rt-0b6f3c1e","observed_at_ms":1794139020000,"process_name":"sync","subject":"service","transition":"died","reason":"low_memory","app_version":"2.7.1"}`
 
 // runtimeTransitionWith swaps one literal fragment of the canonical body.
 func runtimeTransitionWith(from, to string) string {
@@ -40,7 +40,7 @@ func TestRuntimeTransitionKindDecodesTheCanonicalBody(t *testing.T) {
 	if validated.Degraded != nil {
 		t.Fatalf("Degraded = %v, want nil", *validated.Degraded)
 	}
-	want := `{"process_name":"sync","subject":"sync_service","transition":"died","reason":"low_memory","app_version":"2.7.1"}`
+	want := `{"process_name":"sync","subject":"service","transition":"died","reason":"low_memory","app_version":"2.7.1"}`
 	if string(validated.Payload) != want {
 		t.Fatalf("Payload = %s\nwant      %s", validated.Payload, want)
 	}
@@ -55,14 +55,21 @@ func TestRuntimeTransitionKindAcceptsEveryBoundaryAndMember(t *testing.T) {
 	tests := []struct {
 		name, from, to, stored string
 	}{
-		{"main started", `"process_name":"sync","subject":"sync_service","transition":"died"`, `"process_name":"main","subject":"app","transition":"started"`, `"process_name":"main","subject":"app","transition":"started"`},
-		{"sync started", `"transition":"died"`, `"transition":"started"`, `"transition":"started"`},
+		{"main process started", `"process_name":"sync","subject":"service","transition":"died"`, `"process_name":"main","subject":"process","transition":"started"`, `"process_name":"main","subject":"process","transition":"started"`},
+		{"tick alarm subject", `"subject":"service"`, `"subject":"tick_alarm"`, `"subject":"tick_alarm"`},
+		{"floor subject", `"subject":"service"`, `"subject":"floor"`, `"subject":"floor"`},
+		{"boot subject", `"subject":"service"`, `"subject":"boot"`, `"subject":"boot"`},
+		{"network subject", `"subject":"service"`, `"subject":"network"`, `"subject":"network"`},
+		{"started", `"transition":"died"`, `"transition":"started"`, `"transition":"started"`},
+		{"stopped", `"transition":"died"`, `"transition":"stopped"`, `"transition":"stopped"`},
+		{"armed", `"transition":"died"`, `"transition":"armed"`, `"transition":"armed"`},
+		{"cancelled", `"transition":"died"`, `"transition":"cancelled"`, `"transition":"cancelled"`},
+		{"skipped", `"transition":"died"`, `"transition":"skipped"`, `"transition":"skipped"`},
+		{"refused", `"transition":"died"`, `"transition":"refused"`, `"transition":"refused"`},
 		{"absent reason", `"reason":"low_memory",`, ``, `"reason":null`},
 		{"null reason", `"reason":"low_memory"`, `"reason":null`, `"reason":null`},
 		{"forty-char reason", `"reason":"low_memory"`, `"reason":"` + strings.Repeat("z", 40) + `"`, strings.Repeat("z", 40)},
 		{"digit reason", `"reason":"low_memory"`, `"reason":"0"`, `"reason":"0"`},
-		{"forty-char subject", `"subject":"sync_service"`, `"subject":"` + strings.Repeat("s", 40) + `"`, strings.Repeat("s", 40)},
-		{"one-char transition", `"transition":"died"`, `"transition":"x"`, `"transition":"x"`},
 		{"prerelease version", `"app_version":"2.7.1"`, `"app_version":"2.8.0-rc.1+build_7"`, `"app_version":"2.8.0-rc.1+build_7"`},
 		{"thirty-two char version", `"app_version":"2.7.1"`, `"app_version":"` + strings.Repeat("9", 32) + `"`, strings.Repeat("9", 32)},
 	}
@@ -105,12 +112,13 @@ func TestRuntimeTransitionKindRejectsAndNamesTheField(t *testing.T) {
 		{"negative observed at", `"observed_at_ms":1794139020000`, `"observed_at_ms":-1`, "observed_at_ms"},
 		{"unknown process", `"process_name":"sync"`, `"process_name":"ui"`, "process_name"},
 		{"missing process", `"process_name":"sync",`, ``, "process_name"},
-		{"missing subject", `"subject":"sync_service",`, ``, "subject"},
-		{"empty subject", `"subject":"sync_service"`, `"subject":""`, "subject"},
-		{"uppercase subject", `"subject":"sync_service"`, `"subject":"SyncService"`, "subject"},
-		{"forty-one char subject", `"subject":"sync_service"`, `"subject":"` + strings.Repeat("s", 41) + `"`, "subject"},
+		{"missing subject", `"subject":"service",`, ``, "subject"},
+		{"empty subject", `"subject":"service"`, `"subject":""`, "subject"},
+		{"unknown subject", `"subject":"service"`, `"subject":"sync_service"`, "subject"},
+		{"transition word as subject", `"subject":"service"`, `"subject":"started"`, "subject"},
 		{"missing transition", `"transition":"died",`, ``, "transition"},
-		{"hyphenated transition", `"transition":"died"`, `"transition":"was-killed"`, "transition"},
+		{"ran is not a transition", `"transition":"died"`, `"transition":"ran"`, "transition"},
+		{"subject word as transition", `"transition":"died"`, `"transition":"service"`, "transition"},
 		{"null transition", `"transition":"died"`, `"transition":null`, "transition"},
 		{"main death per event", `"process_name":"sync"`, `"process_name":"main"`, "transition"},
 		{"empty reason", `"reason":"low_memory"`, `"reason":""`, "reason"},

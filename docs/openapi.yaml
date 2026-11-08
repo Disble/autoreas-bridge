@@ -1498,9 +1498,11 @@ components:
         2340 rows (26 a day for 90 days). `observed_at_ms` is stored as the
         row's observed time.
 
-        `subject` and `transition` are mobile's own codes: the bridge checks
-        their shape and stores them as sent. One rule names a value:
-        `transition: "died"` is accepted only with `process_name: "sync"`
+        `subject` and `transition` are closed vocabularies declared by mobile
+        on 2026-11-07; `ran` is not a transition, because runs are counted in
+        `hourly_summary`. Each member is checked on its own: the valid
+        subject and transition pairs are not enforced yet. One cross-field
+        rule: `transition: "died"` is accepted only with `process_name: "sync"`
         (deaths of `main` are counted in `hourly_summary.process_deaths`), and
         is otherwise refused naming `transition`. Strict decoding applies, as
         for `hourly_summary`. The stored payload is `process_name`, `subject`,
@@ -1523,12 +1525,12 @@ components:
           enum: [main, sync]
         subject:
           type: string
-          pattern: '^[a-z0-9_]{1,40}$'
-          description: What changed, for example `sync_service`.
+          enum: [service, tick_alarm, floor, process, boot, network]
+          description: What changed.
         transition:
           type: string
-          pattern: '^[a-z0-9_]{1,40}$'
-          description: The change, for example `started` or `died`.
+          enum: [started, stopped, armed, cancelled, skipped, refused, died]
+          description: The change.
         reason:
           type: string
           nullable: true

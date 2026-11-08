@@ -77,11 +77,11 @@ func TestSyncDiagnosticsStoresEachMobileReportKindOnce(t *testing.T) {
 		},
 		{
 			kind:       telemetry.KindRuntimeTransition,
-			body:       `{"kind":"runtime_transition","observation_id":"rt-1","observed_at_ms":1794139020000,"process_name":"sync","subject":"sync_service","transition":"died","reason":"low_memory","app_version":"2.7.1"}`,
-			repost:     `{"kind":"runtime_transition","observation_id":"rt-1","observed_at_ms":1794139020000,"process_name":"sync","subject":"sync_service","transition":"started","app_version":"2.7.1"}`,
+			body:       `{"kind":"runtime_transition","observation_id":"rt-1","observed_at_ms":1794139020000,"process_name":"sync","subject":"service","transition":"died","reason":"low_memory","app_version":"2.7.1"}`,
+			repost:     `{"kind":"runtime_transition","observation_id":"rt-1","observed_at_ms":1794139020000,"process_name":"sync","subject":"service","transition":"started","app_version":"2.7.1"}`,
 			eventID:    "rt-1",
 			observedAt: 1794139020000,
-			payload:    `{"process_name":"sync","subject":"sync_service","transition":"died","reason":"low_memory","app_version":"2.7.1"}`,
+			payload:    `{"process_name":"sync","subject":"service","transition":"died","reason":"low_memory","app_version":"2.7.1"}`,
 		},
 	}
 	for _, tc := range tests {
@@ -110,7 +110,7 @@ func TestSyncDiagnosticsRefusesMobileReportKindsWithoutStoring(t *testing.T) {
 	t.Parallel()
 
 	hourly := `{"kind":"hourly_summary","observation_id":"i:h","hour_start_ms":0,"counts":[{"trigger_source":"manual","outcome":"closed","count":1}],"dropped_count":0}`
-	transition := `{"kind":"runtime_transition","observation_id":"o","observed_at_ms":0,"process_name":"sync","subject":"sync_service","transition":"started","app_version":"2.7.1"}`
+	transition := `{"kind":"runtime_transition","observation_id":"o","observed_at_ms":0,"process_name":"sync","subject":"service","transition":"started","app_version":"2.7.1"}`
 	tests := []struct {
 		name   string
 		kind   telemetry.KindName
@@ -122,7 +122,7 @@ func TestSyncDiagnosticsRefusesMobileReportKindsWithoutStoring(t *testing.T) {
 		{"unknown trigger source", telemetry.KindHourlySummary, strings.Replace(hourly, `"manual"`, `"native_fgs_tick"`, 1), 400, "field_rejected", "counts[0].trigger_source"},
 		{"missing dropped count", telemetry.KindHourlySummary, strings.Replace(hourly, `,"dropped_count":0`, ``, 1), 400, "field_rejected", "dropped_count"},
 		{"unknown process", telemetry.KindRuntimeTransition, strings.Replace(transition, `"sync"`, `"ui"`, 1), 400, "field_rejected", "process_name"},
-		{"subject off pattern", telemetry.KindRuntimeTransition, strings.Replace(transition, `"sync_service"`, `"Sync-Service"`, 1), 400, "field_rejected", "subject"},
+		{"unknown subject", telemetry.KindRuntimeTransition, strings.Replace(transition, `"service"`, `"sync_service"`, 1), 400, "field_rejected", "subject"},
 		{"missing app version", telemetry.KindRuntimeTransition, strings.Replace(transition, `,"app_version":"2.7.1"`, ``, 1), 400, "field_rejected", "app_version"},
 		{"body device id", telemetry.KindRuntimeTransition, strings.Replace(transition, `"o",`, `"o","device_id":"spoofed",`, 1), 400, "field_rejected", "device_id"},
 		{"oversize body", telemetry.KindRuntimeTransition, strings.Replace(transition, `"o"`, `"`+strings.Repeat("o", telemetry.MaxBodyBytes)+`"`, 1), 413, "body_too_large", ""},

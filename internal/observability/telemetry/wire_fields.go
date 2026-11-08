@@ -9,10 +9,10 @@ import (
 	"autoreas-bridge/internal/observability/syncdiag"
 )
 
-// reportCodePattern is the shape of a code mobile coins on its own: a reason,
-// a runtime subject or a transition. Bridge does not close these vocabularies,
-// so it closes their shape instead -- lowercase words joined by underscores,
-// short enough to show as stored.
+// reportCodePattern is the shape of a code mobile coins on its own: the
+// reason of a process death or of a runtime transition. Bridge does not close
+// that vocabulary, so it closes its shape instead -- lowercase words joined by
+// underscores, short enough to show as stored.
 var reportCodePattern = regexp.MustCompile(`^[a-z0-9_]{1,40}$`)
 
 // isNull reports whether a present raw wire value is the JSON null literal.
