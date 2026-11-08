@@ -13,6 +13,7 @@ import type {
   ActivityFeedLine,
   ActivityFeedView,
   ActivityOverview,
+  ActivityPhoneReportFacts,
   ActivitySyncReading,
   ActivitySystemGroup,
   ActivityTrafficHour,
@@ -70,6 +71,11 @@ function mapBridgeOffGroup(group: activityread.BridgeOffGroup): ActivityBridgeOf
   return { bridgeStartMs: group.BridgeStartMS, reports: (group.Reports ?? []).map(mapSyncReading) };
 }
 
+/** Maps one Go report's stored facts; Go's empty reason means none. */
+function mapReportFacts(facts: activityread.PhoneReportFacts): ActivityPhoneReportFacts {
+  return { processName: facts.ProcessName, subject: facts.Subject, transition: facts.Transition, reason: facts.Reason === '' ? undefined : facts.Reason, stage: facts.Stage };
+}
+
 /** Maps one Go feed line; Go's zero incident id means none. */
 function mapFeedLine(line: activityread.FeedLine): ActivityFeedLine {
   return {
@@ -84,6 +90,7 @@ function mapFeedLine(line: activityread.FeedLine): ActivityFeedLine {
     system: line.System ? mapSystemGroup(line.System) : undefined,
     syncReading: line.SyncReading ? mapSyncReading(line.SyncReading) : undefined,
     bridgeOff: line.BridgeOff ? mapBridgeOffGroup(line.BridgeOff) : undefined,
+    report: line.Report ? mapReportFacts(line.Report) : undefined,
   };
 }
 

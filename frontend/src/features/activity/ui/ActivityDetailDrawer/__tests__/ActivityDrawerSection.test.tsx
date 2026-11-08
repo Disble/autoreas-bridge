@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { DrawerSection } from '../../../drawer/drawer.types';
 import { ActivityDrawerSection } from '../ActivityDrawerSection';
 import { ACTIVITY_DRAWER_FAILED_TEXT_CLASS } from '../activity-detail-drawer.constants';
+import { ACTIVITY_TONE_DOT_CLASS } from '../../ActivityRunStory/activity-run-story.constants';
 
 vi.mock('../../ActivityRunStory/ActivityRunStory', () => ({
   /** Stands in for the run story, which owns its own read. */
@@ -16,6 +17,7 @@ describe('ActivityDrawerSection', () => {
     ['a list', { kind: 'list', key: 'k', title: 'Refused check-ins', items: [{ key: 'i', time: '09:14', text: '/api · 401 ×1', failed: true }] }, 'Refused check-ins'],
     ['code', { kind: 'code', key: 'k', title: 'Message', text: 'TypeError' }, 'Message'],
     ['reports', { kind: 'reports', key: 'k', title: 'Reports', reports: [] }, 'Reports'],
+    ['steps', { kind: 'steps', key: 'k', title: 'Stages', steps: [] }, 'Stages'],
   ])('names its %s section by its title', (_name, section, title) => {
     render(<ActivityDrawerSection section={section} />);
 
@@ -25,6 +27,7 @@ describe('ActivityDrawerSection', () => {
 
   it.each<[string, DrawerSection, readonly string[], readonly string[]]>([
     ['a catalogued cause shows its sentence and code, not the recorded label', { kind: 'cause', key: 'k', title: 'Why', cause: { sentence: 'Sentence.', recordedMessage: 'raw', code: 'conflict' } }, ['Sentence.', 'conflict'], ['Recorded message', 'raw']],
+    ['a cause with its own label shows it instead of the recorded one', { kind: 'cause', key: 'k', title: '', cause: { sentence: undefined, recordedMessage: 'low_memory', code: '', recordedLabel: 'Recorded reason' } }, ['Recorded reason', 'low_memory'], ['Recorded message']],
     ['a cause without code shows no chip', { kind: 'cause', key: 'k', title: '', cause: { sentence: undefined, recordedMessage: 'raw', code: '' } }, ['Recorded message', 'raw'], ['conflict']],
     ['figures', { kind: 'stats', key: 'k', items: [{ key: 's', value: '39', label: 'check-ins', failed: false }, { key: 'f', value: '2', label: 'refused', failed: true }] }, ['39', 'check-ins', '2', 'refused'], []],
     ['a fact without chip', { kind: 'facts', key: 'k', title: '', rows: [{ key: 'r', label: 'Hour', value: '09:00 – 10:00', mono: false, warnChip: undefined, note: undefined }] }, ['Hour', '09:00 – 10:00'], ['late']],
@@ -63,6 +66,25 @@ describe('ActivityDrawerSection', () => {
 
     rerender(<ActivityDrawerSection section={{ kind: 'facts', key: 'k', title: '', rows: [{ key: 'r', label: 'Reached', value: '09:00', mono: false, warnChip: '6 h 31 min late', note: undefined }] }} />);
     expect(screen.getByText('6 h 31 min late')).toBeInTheDocument();
+  });
+
+  it('draws stages in order with a dot per tone, the stopped one in red and the unreached one muted, each with its note', () => {
+    const steps = [
+      { key: 'a', label: 'Claiming changes', tone: 'success' as const, note: undefined },
+      { key: 'b', label: 'Sending', tone: 'danger' as const, note: 'Stopped here' },
+      { key: 'c', label: 'Applying', tone: 'default' as const, note: 'Not reached' },
+    ];
+    render(<ActivityDrawerSection section={{ kind: 'steps', key: 'k', title: 'Stages', steps }} />);
+    const items = within(screen.getByRole('list', { name: 'Stages' })).getAllByRole('listitem');
+
+    expect(items.map((item) => item.textContent)).toEqual(['Claiming changes', 'SendingStopped here', 'ApplyingNot reached']);
+    const dots = items.map((item) => item.querySelector('[data-step-tone]'));
+    expect(dots.map((dot) => dot?.getAttribute('data-step-tone'))).toEqual(['success', 'danger', 'default']);
+    dots.forEach((dot, index) => expect(dot).toHaveClass(ACTIVITY_TONE_DOT_CLASS[steps[index].tone]));
+    expect(items.map((item) => item.querySelectorAll('small').length)).toEqual([0, 1, 1]);
+    expect(screen.getByText('Sending')).toHaveClass(ACTIVITY_DRAWER_FAILED_TEXT_CLASS);
+    expect(screen.getByText('Applying')).toHaveClass('text-muted');
+    expect(screen.getByText('Claiming changes')).not.toHaveClass(ACTIVITY_DRAWER_FAILED_TEXT_CLASS, 'text-muted');
   });
 
   it('shows a fact note after its value, and no note when it has none', () => {

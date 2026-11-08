@@ -1,3 +1,5 @@
+import type { ActivityTone } from '../ActivityRunStory/activity-run-story.types';
+
 /** Classes of the header's origin tile per tone: red is spent only on failures. */
 export const ACTIVITY_DRAWER_TILE_CLASS = {
   failed: 'bg-danger-soft text-danger',
@@ -24,6 +26,14 @@ export const ACTIVITY_DRAWER_KEYS_HINT = 'previous or next event';
 
 /** The mockup's failure text tone (`.ax-list .bad`, `.ax-dw-sub.bad`): danger mixed 65% into the foreground. */
 export const ACTIVITY_DRAWER_FAILED_TEXT_CLASS = 'text-[color-mix(in_oklab,var(--danger)_65%,var(--foreground))]';
+
+/** A stage's text color per tone (mockup `.ax-steps`): red where it stopped, muted where it did not reach, plain otherwise. */
+export const ACTIVITY_DRAWER_STEP_TEXT_CLASS: Readonly<Record<ActivityTone, string>> = {
+  danger: ACTIVITY_DRAWER_FAILED_TEXT_CLASS,
+  warning: '',
+  success: '',
+  default: 'text-muted',
+};
 
 /** A stored code box of the summary (`.ax-code`): the page background, 12px radius, 12px by 14px inset. */
 export const ACTIVITY_DRAWER_CODE_CLASS = 'overflow-x-auto rounded-xl bg-background px-3.5 py-3 font-mono text-xs leading-[1.55] whitespace-pre-wrap';

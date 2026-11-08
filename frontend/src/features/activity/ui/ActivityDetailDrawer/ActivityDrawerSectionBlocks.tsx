@@ -7,8 +7,10 @@ import type {
   ActivityDrawerFactsProps,
   ActivityDrawerListProps,
   ActivityDrawerStatsProps,
+  ActivityDrawerStepsProps,
 } from './activity-detail-drawer.types';
-import { ACTIVITY_DRAWER_FAILED_TEXT_CLASS } from './activity-detail-drawer.constants';
+import { ACTIVITY_DRAWER_FAILED_TEXT_CLASS, ACTIVITY_DRAWER_STEP_TEXT_CLASS } from './activity-detail-drawer.constants';
+import { ACTIVITY_TONE_DOT_CLASS } from '../ActivityRunStory/activity-run-story.constants';
 
 /** The before and after values of a change, with an arrow between them. */
 export function ActivityDrawerBeforeAfter({ section }: ActivityDrawerBeforeAfterProps) {
@@ -67,7 +69,7 @@ export function ActivityDrawerFacts({ section }: ActivityDrawerFactsProps) {
 export function ActivityDrawerCause({ section }: ActivityDrawerCauseProps) {
   return (
     <div className="flex flex-col rounded-xl bg-[color-mix(in_oklab,var(--danger)_12%,transparent)] px-3.5 py-3 text-sm leading-[1.45]">
-      {section.cause.sentence === undefined && <small className="mb-1 text-xs text-muted">Recorded message</small>}
+      {section.cause.sentence === undefined && <small className="mb-1 text-xs text-muted">{section.cause.recordedLabel ?? 'Recorded message'}</small>}
       <p className={section.cause.sentence === undefined ? 'font-mono text-[13px] [overflow-wrap:anywhere]' : 'break-words'}>{section.cause.sentence ?? section.cause.recordedMessage}</p>
       {section.cause.code !== '' && (
         <span className="mt-2 self-start rounded-full bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)] px-2 py-px font-mono text-xs text-muted">{section.cause.code}</span>
@@ -87,5 +89,25 @@ export function ActivityDrawerList({ section }: ActivityDrawerListProps) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/** The stages of a steps section in order, as the run story timeline draws them: a dot in each stage's tone and its note below. */
+export function ActivityDrawerSteps({ section }: ActivityDrawerStepsProps) {
+  return (
+    <ol aria-label={section.title} className="flex min-w-0 flex-col">
+      {section.steps.map((step) => (
+        <li
+          className="relative flex min-w-0 items-start gap-2.5 pb-3.5 before:absolute before:top-4 before:-bottom-0.5 before:left-[4px] before:w-0.5 before:bg-separator before:content-[''] last:before:hidden"
+          key={step.key}
+        >
+          <span aria-hidden className={`mt-1.5 size-2.5 shrink-0 rounded-full ${ACTIVITY_TONE_DOT_CLASS[step.tone]}`} data-step-tone={step.tone} />
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className={`min-w-0 text-sm [overflow-wrap:anywhere] ${ACTIVITY_DRAWER_STEP_TEXT_CLASS[step.tone]}`}>{step.label}</span>
+            {step.note !== undefined && <small className="text-[13px] text-muted">{step.note}</small>}
+          </span>
+        </li>
+      ))}
+    </ol>
   );
 }

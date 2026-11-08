@@ -81,6 +81,12 @@ export interface ActivityDrawerReportsProps {
   readonly section: Extract<DrawerSection, { readonly kind: 'reports' }>;
 }
 
+/** Props of the steps block of a summary section. */
+export interface ActivityDrawerStepsProps {
+  /** The steps section. */
+  readonly section: Extract<DrawerSection, { readonly kind: 'steps' }>;
+}
+
 /** Props of the list block of a summary section. */
 export interface ActivityDrawerListProps {
   /** The list section. */

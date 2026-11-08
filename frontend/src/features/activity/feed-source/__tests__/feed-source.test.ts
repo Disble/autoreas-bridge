@@ -155,6 +155,21 @@ describe('feed-source', () => {
     expect(view.days[0].lines[1]).toMatchObject({ syncReading: undefined, bridgeOff: undefined });
   });
 
+  it('maps the stored facts of a report line, an empty reason to undefined, and a line without them to undefined', async () => {
+    const { mapActivityFeedView } = await import('../feed-source.helpers');
+    const facts = (reason: string) => ({ ProcessName: 'sync', Subject: 'process', Transition: 'died', Reason: reason, Stage: '' });
+    const lines = [goFeedLine({ Report: facts('low_memory') }), goFeedLine({ Report: facts('') }), goFeedLine({ Report: { ...facts(''), Stage: 'http' } }), goFeedLine()];
+
+    const view = mapActivityFeedView(activityread.FeedView.createFrom({ Days: [{ DayStartMS: 0, Lines: lines }], NextCursor: '' }));
+
+    expect(view.days[0].lines.map((line) => line.report)).toEqual([
+      { processName: 'sync', subject: 'process', transition: 'died', reason: 'low_memory', stage: '' },
+      { processName: 'sync', subject: 'process', transition: 'died', reason: undefined, stage: '' },
+      { processName: 'sync', subject: 'process', transition: 'died', reason: undefined, stage: 'http' },
+      undefined,
+    ]);
+  });
+
   it('maps a Bridge off group with its reports in order, and nil reports to an empty list', async () => {
     const { mapActivityFeedView } = await import('../feed-source.helpers');
     const evidence = { FailedAtMS: 1, ArrivedAtMS: 5, LastContactMS: 0, NextStartMS: null, GraceUntilMS: null, FirstReportMS: null, OverdueMS: null };

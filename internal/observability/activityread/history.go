@@ -143,6 +143,15 @@ func (r *Reader) phoneReportLines(ctx context.Context, s scope, p sourcePage) ([
 	return r.queryPhoneReports(ctx, p, "1=1")
 }
 
+// phoneReportKindsSQL and phoneReportKinds name the stored report kinds
+// History, Feed and an incident window list: every served kind except
+// hourly_summary, a closed hour of counts no line stands for (S6 P1).
+const phoneReportKindsSQL = `kind IN (?, ?, ?, ?)`
+
+// phoneReportKinds are the arguments of phoneReportKindsSQL.
+var phoneReportKinds = []any{telemetry.KindCycleReport, telemetry.KindEpisodeAction, telemetry.KindScreenStall,
+	telemetry.KindRuntimeTransition}
+
 // queryPhoneReports reads the stored mobile reports of one page that also
 // match extra, a predicate over device_telemetry_events.
 func (r *Reader) queryPhoneReports(ctx context.Context, p sourcePage, extra string) ([]item[LedgerLine], error) {
@@ -151,9 +160,9 @@ func (r *Reader) queryPhoneReports(ctx context.Context, p sourcePage, extra stri
 		return nil, err
 	}
 	query := `SELECT rowid, reported_at_ms, observed_at_ms, device_id, kind, ` + reportOutcomeSQL + `
-		FROM device_telemetry_events WHERE kind IN (?, ?, ?) AND ` + where + ` AND ` + extra + `
+		FROM device_telemetry_events WHERE ` + phoneReportKindsSQL + ` AND ` + where + ` AND ` + extra + `
 		ORDER BY reported_at_ms DESC, rowid DESC LIMIT ?`
-	args = append(append([]any{telemetry.KindCycleReport, telemetry.KindEpisodeAction, telemetry.KindScreenStall}, args...), p.fetch)
+	args = append(append(append([]any{}, phoneReportKinds...), args...), p.fetch)
 	return queryLines(ctx, r.db, query, args, rankPhoneReport, func(rows *sql.Rows) (LedgerLine, string, error) {
 		line := LedgerLine{Kind: LinePhoneReport}
 		var id int64

@@ -2,7 +2,8 @@ import { formatActivityDuration } from '../ui/ActivityRunStory/activity-time.hel
 import { getAnimeEstadoLabel } from '../../../shared/helpers/anime-estado.helpers';
 import { toDrawerCause } from './drawer-cause.helpers';
 import { DRAWER_CHANGE_FIELDS, DRAWER_HOUR_MS, DRAWER_MINUTE_MS, DRAWER_NO_RUN_EVENTS_NOTE, DRAWER_RECORDER_RETENTION_MS, DRAWER_TOTALS_ONLY_NOTE, DRAWER_WINDOW_ERROR_KIND_WORDS } from './drawer.constants';
-import type { DrawerListItem, DrawerSection, DrawerSummaryInput } from './drawer.types';
+import type { ActivityLedgerLine } from '../history-source/history.types';
+import type { DrawerFact, DrawerListItem, DrawerSection, DrawerSummaryInput } from './drawer.types';
 import { drawerFact, formatDrawerKeptUntil, formatDrawerSpan, formatDrawerTime } from './drawer-format.helpers';
 import { drawerPageFact, toDrawerPageName } from './drawer-window-error.helpers';
 
@@ -69,6 +70,23 @@ export function systemGroupSections(input: DrawerSummaryInput): readonly DrawerS
 }
 
 /**
+ * When a phone fact happened on the phone and when it reached Bridge, with the
+ * late chip when Go marked it late. A fact the phone gave no time keeps only
+ * its arrival.
+ *
+ * @param line The line's stored fields.
+ * @param phoneLabel The label of the phone's time, such as `Done on the phone`.
+ * @returns The rows.
+ */
+export function phoneWhenRows(line: ActivityLedgerLine, phoneLabel: string): readonly DrawerFact[] {
+  const late = line.marks.includes('arrived_late') && line.phoneAtMs !== undefined ? `${formatDrawerSpan(line.atMs - line.phoneAtMs)} late` : undefined;
+  return [
+    ...(line.phoneAtMs === undefined ? [] : [drawerFact('phone', phoneLabel, formatDrawerTime(line.phoneAtMs))]),
+    drawerFact('bridge', 'Reached the bridge', formatDrawerTime(line.atMs), { warnChip: late }),
+  ];
+}
+
+/**
  * The change and edit presenter: before → after of the action's field, then
  * when it was done and saved, then its failure.
  *
@@ -85,12 +103,7 @@ export function changeSections(input: DrawerSummaryInput): readonly DrawerSectio
     sections.push({ kind: 'before-after', key: 'field', title: field.title, before, after });
   }
   if (input.line.type === 'change') {
-    const late = line.marks.includes('arrived_late') && line.phoneAtMs !== undefined ? `${formatDrawerSpan(line.atMs - line.phoneAtMs)} late` : undefined;
-    const rows = [
-      ...(line.phoneAtMs === undefined ? [] : [drawerFact('phone', 'Done on the phone', formatDrawerTime(line.phoneAtMs))]),
-      drawerFact('bridge', 'Reached the bridge', formatDrawerTime(line.atMs), { warnChip: late }),
-    ];
-    sections.push({ kind: 'facts', key: 'when', title: 'When', rows });
+    sections.push({ kind: 'facts', key: 'when', title: 'When', rows: phoneWhenRows(line, 'Done on the phone') });
   } else {
     sections.push({ kind: 'facts', key: 'when', title: '', rows: [drawerFact('saved', 'Saved', formatDrawerTime(line.atMs))] });
   }

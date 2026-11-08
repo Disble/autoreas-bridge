@@ -55,6 +55,9 @@ func (r *Reader) countFeed(ctx context.Context, plan feedPlan, buckets []bucket)
 			JOIN device_telemetry_events ON reported_at_ms BETWEEN b.lo AND b.hi
 			WHERE kind IN (?, ?, ?) AND ` + syncs.failedReportSQL() + ` GROUP BY b.i`,
 			append(append([]any{}, args...), telemetry.KindCycleReport, telemetry.KindEpisodeAction, telemetry.KindScreenStall)},
+		{FeedTraffic, cte + `SELECT b.i, COUNT(*), SUM(` + feedTransitionDiedSQL + `) FROM b
+			JOIN device_telemetry_events ON reported_at_ms BETWEEN b.lo AND b.hi
+			WHERE ` + feedTransitionSQL + ` GROUP BY b.i`, args},
 		{FeedDownload, cte + `SELECT b.i, COUNT(*), SUM(` + feedFailedRunSQL + `) FROM b
 			JOIN download_runs ON started_at_ms BETWEEN b.lo AND b.hi GROUP BY b.i`, args},
 		{FeedTask, cte + `SELECT b.i, COUNT(*), SUM(level = 'error') FROM b

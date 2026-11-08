@@ -6,6 +6,7 @@ import type { DrawerHeaderModel, DrawerSection, DrawerSummaryInput, DrawerSummar
 import { drawerFact, formatDrawerKeptUntil, formatDrawerTime, formatDrawerWhen } from './drawer-format.helpers';
 import { changeSections, failureSections, runStorySections, runSections, systemGroupSections, trafficSections, windowErrorSections } from './drawer-presenters.helpers';
 import { bridgeOffSections, readingSections, toDrawerReadingHeader } from './drawer-reading.helpers';
+import { reportSections, toDrawerReportHeader } from './drawer-report.helpers';
 
 /** Title and phrase of a line, from its stored fields. */
 function titleAndPhrase(feedLine: ActivityFeedLine): { readonly title: string; readonly phrase: string } {
@@ -21,6 +22,8 @@ function titleAndPhrase(feedLine: ActivityFeedLine): { readonly title: string; r
       return { title: 'Phone checked in', phrase: traffic === undefined ? '' : `${traffic.requests} times${traffic.failed > 0 ? ` · ${traffic.failed} refused` : ''}` };
     case 'download_run':
       return { title: 'Download run', phrase: run === undefined ? '' : `${run.episodesDownloaded} downloaded${run.episodesFailed > 0 ? ` · ${run.episodesFailed} failed` : ''}` };
+    case 'phone_report':
+      return toDrawerReportHeader(feedLine);
     default:
       return { title: line.title, phrase: feedLine.system !== undefined && feedLine.system.count > 1 ? `${feedLine.system.count} times` : '' };
   }
@@ -105,7 +108,7 @@ function presenterSections(input: DrawerSummaryInput): readonly DrawerSection[] 
     case 'bridge_off':
       return bridgeOffSections(input);
     case 'phone_report':
-      return readingSections(input);
+      return readingSections(input) ?? reportSections(input);
     default:
       return eventSections(input);
   }

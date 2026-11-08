@@ -38,16 +38,23 @@ describe('toDrawerSummary', () => {
     const { sections, gaps } = toDrawerSummary(input({ line: CHANGE }));
 
     expect(sectionOf(sections, 'before-after')).toMatchObject({ title: 'Episode', before: '1', after: '2' });
-    const rows = sectionOf(sections, 'facts').rows;
-    expect(rows.map((row) => row.label)).toEqual(['Done on the phone', 'Reached the bridge']);
+    const when = sectionOf(sections, 'facts');
+    const rows = when.rows;
+    expect([when.key, when.title]).toEqual(['when', 'When']);
+    expect(rows.map((row) => [row.key, row.label])).toEqual([
+      ['phone', 'Done on the phone'],
+      ['bridge', 'Reached the bridge'],
+    ]);
     expect(rows[1]?.warnChip).toBe('6 h 31 min late');
     expect(gaps).toEqual([]);
   });
 
-  it('shows no late chip when Go did not mark the change late', () => {
+  it('shows no late chip when Go did not mark the change late, nor without a phone time', () => {
     const line = feedLine({ type: 'change', origin: 'phone' }, { ...CHANGE.line, marks: [] });
+    const noPhoneTime = feedLine({ type: 'change', origin: 'phone' }, { ...CHANGE.line, phoneAtMs: undefined });
 
     expect(sectionOf(toDrawerSummary(input({ line })).sections, 'facts').rows[1]?.warnChip).toBeUndefined();
+    expect(sectionOf(toDrawerSummary(input({ line: noPhoneTime })).sections, 'facts').rows.map((row) => [row.label, row.warnChip])).toEqual([['Reached the bridge', undefined]]);
   });
 
   it('skips before → after when the action has no known field and keeps the saved time of an edit', () => {

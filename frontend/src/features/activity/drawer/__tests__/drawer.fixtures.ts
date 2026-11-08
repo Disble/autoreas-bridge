@@ -35,6 +35,7 @@ export function feedLine(overrides: Partial<ActivityFeedLine> = {}, line: Partia
     system: undefined,
     syncReading: undefined,
     bridgeOff: undefined,
+    report: undefined,
     ...overrides,
     line: ledgerLine(line),
   };

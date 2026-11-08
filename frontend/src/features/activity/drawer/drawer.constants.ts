@@ -114,3 +114,17 @@ export const DRAWER_PRESENCE_CLOSED = { line: undefined, open: false, session: 0
  * (`frontendErrorStackLimit`) and a rune split drops up to 3 bytes; nothing else records a cut.
  */
 export const DRAWER_STACK_CUT_BYTES = 8192 - 3;
+
+/** The four stages of a native sync cycle in order (S4), each as stored and in plain words. */
+export const DRAWER_CYCLE_STAGES: readonly { readonly stage: string; readonly label: string }[] = [
+  { stage: 'attempt_started', label: 'Attempt started' },
+  { stage: 'claim_ops', label: 'Claiming changes' },
+  { stage: 'http', label: 'Sending' },
+  { stage: 'apply_write', label: 'Applying' },
+];
+
+/** The notes of a failed cycle's stages: where it stopped and the stages after it. */
+export const DRAWER_STEP_NOTES = { stopped: 'Stopped here', notReached: 'Not reached' } as const;
+
+/** The label of a runtime transition's recorded reason. */
+export const DRAWER_REASON_LABEL = 'Recorded reason';

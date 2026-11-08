@@ -489,6 +489,16 @@ info:
     `cycle_report` keeps accepting in `previous_cycle.trigger_source`.
     Neither new kind opens an incident or shows in Activity yet.
 
+    2026-11-07 — runtime_transition and failed cycle stages in Activity
+    consumer impact: NO REST/WS wire change. Activity lists every stored
+    `runtime_transition` as a Traffic line, failed only for a
+    `died` transition, and words a failed `cycle_report` by its stored
+    `previous_cycle.last_stage`; no incident opens for a transition. For MCP
+    clients of `autoreas-request-mcp`: `search_history` and the incident
+    window now list `runtime_transition` reports, whose outcome is their
+    stored `process_name`, `subject` and `transition` joined by spaces
+    ("sync process died"). `hourly_summary` is still not listed.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}

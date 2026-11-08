@@ -1,7 +1,7 @@
 import type { ActivityFeedLine } from '../feed-source/feed.types';
 import type { ActivityChangeContext, ActivityIncidentDetail, ActivityRunStory } from '../activity-source/activity-incident.types';
 import type { ActivityFeedSource } from '../feed-source/feed-source.types';
-import type { ActivityRead } from '../ui/ActivityRunStory/activity-run-story.types';
+import type { ActivityRead, ActivityTone } from '../ui/ActivityRunStory/activity-run-story.types';
 
 /**
  * View models of the Activity detail drawer (activity-ui-design-v2.md, Detail
@@ -57,6 +57,20 @@ export interface DrawerCause {
   readonly recordedMessage: string;
   /** The code chip: the error code, else `HTTP <status>`, else empty. */
   readonly code: string;
+  /** The label above a recorded message, such as `Recorded reason`; undefined reads as `Recorded message`. */
+  readonly recordedLabel?: string;
+}
+
+/** One stage of a steps section, in its fixed order. */
+export interface DrawerStep {
+  /** Stable key, the stored stage it stands for. */
+  readonly key: string;
+  /** The stage in plain words. */
+  readonly label: string;
+  /** Success for a stage it passed, danger where it stopped, default for a stage it did not reach. */
+  readonly tone: ActivityTone;
+  /** A muted note under the stage, such as `Stopped here`; undefined when none. */
+  readonly note: string | undefined;
 }
 
 /** A labelled set of facts. */
@@ -78,6 +92,7 @@ export type DrawerSection =
   | { readonly kind: 'stats'; readonly key: string; readonly items: readonly DrawerStat[] }
   | { readonly kind: 'cause'; readonly key: string; readonly title: string; readonly cause: DrawerCause }
   | { readonly kind: 'list'; readonly key: string; readonly title: string; readonly items: readonly DrawerListItem[] }
+  | { readonly kind: 'steps'; readonly key: string; readonly title: string; readonly steps: readonly DrawerStep[] }
   | { readonly kind: 'run-story'; readonly key: string; readonly correlationId: string }
   | { readonly kind: 'code'; readonly key: string; readonly title: string; readonly text: string }
   | { readonly kind: 'note'; readonly key: string; readonly text: string }

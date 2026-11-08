@@ -101,6 +101,40 @@ describe('toFeedRowModel', () => {
   });
 
   it.each([
+    ['a sync process death as a failure', 'sync', 'process', 'died', true, 'Sync process', 'failed'],
+    ['a service start as a neutral line', 'main', 'service', 'started', false, 'Main service', 'ok'],
+    ['a tick alarm in plain words', 'sync', 'tick_alarm', 'armed', false, 'Sync tick alarm', 'ok'],
+    ['an undefined process and subject as stored', 'helper', 'battery_saver', 'started', false, 'helper battery_saver', 'ok'],
+  ])('words a runtime transition of %s, its change as stored', (_case, processName, subject, transition, failed, words, health) => {
+    const report = { processName, subject, transition, reason: undefined, stage: '' };
+    const line = buildLine({ type: 'traffic', origin: 'phone', failed, report }, { kind: 'phone_report', title: 'runtime_transition', detail: `${processName} ${subject} ${transition}` });
+
+    expect(toFeedRowModel(line, undefined)).toMatchObject({ subject: words, detail: transition, health });
+  });
+
+  it.each([
+    ['attempt_started', 'failed as it started'],
+    ['claim_ops', 'failed while claiming changes'],
+    ['http', 'failed while sending'],
+    ['apply_write', 'failed while applying'],
+    ['parse_response', 'failed while parse_response'],
+  ])('words a failed sync cycle that stopped at %s', (stage, detail) => {
+    const report = { processName: '', subject: '', transition: '', reason: undefined, stage };
+    const line = buildLine({ type: 'traffic', origin: 'phone', failed: true, report }, { kind: 'phone_report', title: 'cycle_report', detail: 'failed' });
+
+    expect(toFeedRowModel(line, undefined)).toMatchObject({ subject: 'Sync cycle', detail, health: 'failed' });
+  });
+
+  it.each([
+    ['a transition without its facts', 'runtime_transition', undefined, 'runtime_transition', 'sync process died'],
+    ['a cycle whose facts hold no stage', 'cycle_report', { processName: '', subject: '', transition: '', reason: undefined, stage: '' }, 'Sync cycle', 'failed'],
+  ])('words %s as its kind and its stored outcome', (_case, title, report, subject, detail) => {
+    const line = buildLine({ type: 'traffic', origin: 'phone', failed: true, report }, { kind: 'phone_report', title, detail: title === 'cycle_report' ? 'failed' : 'sync process died' });
+
+    expect(toFeedRowModel(line, undefined)).toMatchObject({ subject, detail });
+  });
+
+  it.each([
     [1, '1 change waited for Bridge'],
     [3, '3 changes waited for Bridge'],
     [1912, '1,912 changes waited for Bridge'],

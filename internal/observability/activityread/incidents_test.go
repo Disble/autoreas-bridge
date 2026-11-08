@@ -140,6 +140,9 @@ func TestIncidentDetailReadsItsWindow(t *testing.T) {
 	insertEvent(t, db, event{atMS: at - 1000, domain: "sync", level: "warn", message: "changelog read retried"})
 	insertEvent(t, db, event{atMS: at - 500, domain: "sync", level: "info", message: "forwarded", eventType: "sync.reconcile"})
 	insertTelemetry(t, db, "obs-1", at+5000, at-20_000, `{"action":"episode_plus_one","outcome":"failed"}`)
+	insertTelemetryOfKind(t, db, "runtime_transition", "rt-1", at+6000, at+6000,
+		`{"process_name":"sync","subject":"service","transition":"started","reason":null,"app_version":"1.4.0"}`)
+	insertTelemetryOfKind(t, db, "hourly_summary", "hs-1", at+7000, at-60_000, `{"counts":[],"dropped_count":0}`)
 	fingerprint := "server_error|http|reconcile|500|list_changes_failed"
 	first := insertIncident(t, db, fingerprint, "server_error", minutesAgo(3*24*60), "request", "gone")
 	id := insertIncident(t, db, fingerprint, "server_error", at, "request", "trigger")
@@ -182,8 +185,11 @@ func assertDetailLanes(t *testing.T, detail IncidentDetail, at, first int64) {
 	if len(detail.Events) != 1 || detail.Events[0].Message != "changelog read retried" {
 		t.Fatalf("events = %+v, want the non-noise event only", detail.Events)
 	}
-	if len(detail.PhoneReports) != 1 || detail.PhoneReports[0].Outcome != "failed" || *detail.PhoneReports[0].PhoneAtMS != at-20_000 {
+	if len(detail.PhoneReports) != 2 || detail.PhoneReports[0].Outcome != "failed" || *detail.PhoneReports[0].PhoneAtMS != at-20_000 {
 		t.Fatalf("phone reports = %+v", detail.PhoneReports)
+	}
+	if transition := detail.PhoneReports[1]; transition.Kind != "runtime_transition" || transition.Outcome != "sync service started" {
+		t.Fatalf("transition report = %+v, want its stored words and no hourly summary", transition)
 	}
 	if len(detail.Earlier) != 1 || detail.Earlier[0].ID != first {
 		t.Fatalf("earlier = %+v", detail.Earlier)

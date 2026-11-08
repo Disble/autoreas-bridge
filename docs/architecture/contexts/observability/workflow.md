@@ -167,11 +167,21 @@ each one: the database holds one connection, so the F lookups cannot run while t
 - With the failure switch on, `feedPhoneReportLines` returns before adding groups.
 - A report whose start lies before the range shows no line in that range: it left the failed lines, and its group
   is listed where its start is.
-- `attachIncidents` links a phone report to its incident by event id. A `LineBridgeOff` line gets no link.
+- Every `runtime_transition` is a Traffic line too (`feedTransitionSQL`); with the failure switch on only a death
+  (`feedTransitionDiedSQL`: `transition` `died`, which the contract accepts only for `sync` + `process`) stays. `countFeed` counts them in a source of
+  their own with the same predicates, so Feed lines and Overview counts stay equal. `hourly_summary` is never a line.
+- `attachReportFacts` reads, in one query per page, the stored fields the frontend words a line from
+  (`FeedLine.Report`): a transition's process, subject, transition and reason, and a failed cycle report's
+  `previous_cycle.last_stage`. It also sets a transition line's failure: only a death fails.
+- `attachIncidents` links a phone report to its incident by event id. A `LineBridgeOff` line gets no link. A
+  transition opens no incident, so it has none.
+- History and an incident window list the same kinds through `phoneReportKinds` (`history.go`); `reportOutcomeSQL`
+  gives a transition its stored process, subject and transition as its outcome.
 
 ## 6. Drawer and Technical view
 
-`SyncReading` and `BridgeOff` travel on the `FeedLine`, so the drawer needs no extra read for the reading. The
+`SyncReading`, `BridgeOff` and `Report` travel on the `FeedLine`, so the drawer needs no extra read for the
+reading, the stages or the transition (`drawer-report.helpers.ts`; row words in `toPhoneReportWords`). The
 Technical view reads the report with `GetActivityPhoneReport` (`Reader.PhoneReport`). Its `payload_json` is the
 validated record Bridge stored, so the screen calls it the stored report. A group holds several reports, so the
 Data tab offers a picker.

@@ -1,7 +1,9 @@
 import { describeActivityChange } from '../change-words/change-words.helpers';
-import type { ActivityDownloadRun, ActivityFeedDay, ActivityFeedLine, ActivityFeedView, ActivitySystemGroup } from '../feed-source/feed.types';
+import type { ActivityDownloadRun, ActivityFeedDay, ActivityFeedLine, ActivityFeedView, ActivityPhoneReportFacts, ActivitySystemGroup } from '../feed-source/feed.types';
 import {
   ACTIVITY_BRIDGE_STARTED,
+  ACTIVITY_CYCLE_STAGE_UNNAMED,
+  ACTIVITY_CYCLE_STAGE_WORDS,
   ACTIVITY_FEED_COUNT_FORMAT,
   ACTIVITY_FEED_DAY_FORMAT,
   ACTIVITY_FEED_TIME_FORMAT,
@@ -9,8 +11,11 @@ import {
   ACTIVITY_PHONE_REPORT_SUBJECTS,
   ACTIVITY_RUN_SUBJECT,
   ACTIVITY_RUN_TRIGGER_SUBJECTS,
+  ACTIVITY_RUNTIME_TRANSITION_KIND,
   ACTIVITY_SYNC_READING_WORDS,
   ACTIVITY_TRAFFIC_SUBJECT,
+  ACTIVITY_TRANSITION_PROCESS_WORDS,
+  ACTIVITY_TRANSITION_SUBJECT_WORDS,
 } from './activity-feed.constants';
 import type { ActivityFeedDayModel, ActivityFeedRowModel, ActivityRowHealth, ActivityRowRepeat } from './activity-feed.types';
 
@@ -108,10 +113,33 @@ function describeLine(line: ActivityFeedLine): LineWords {
     return { subject, detail: '', repeat: systemRepeat(line.system) };
   }
   if (ledger.kind === 'phone_report') {
-    // The report kind is a closed enum, so it may read as plain words; the outcome is shown as stored.
-    return { subject: ACTIVITY_PHONE_REPORT_SUBJECTS[ledger.title] ?? ledger.title, detail: ledger.detail, repeat: undefined };
+    return { ...toPhoneReportWords(ledger.title, ledger.detail, line.report), repeat: undefined };
   }
   return { subject: ledger.title, detail: ledger.detail, repeat: undefined };
+}
+
+/**
+ * Words a phone report by fixed rules over its stored fields (S6 P2 and P3).
+ * A runtime transition reads as its process and subject, then its change as
+ * stored; a failed cycle with a stage names where it stopped; any other report
+ * reads as its kind in plain words and its outcome as stored. Values outside a
+ * closed set are shown as stored.
+ *
+ * @param kind The stored report kind.
+ * @param outcome The stored outcome.
+ * @param report The stored facts of a transition or a staged cycle; undefined for any other report.
+ * @returns The subject and detail.
+ */
+export function toPhoneReportWords(kind: string, outcome: string, report: ActivityPhoneReportFacts | undefined): { readonly subject: string; readonly detail: string } {
+  if (report !== undefined && kind === ACTIVITY_RUNTIME_TRANSITION_KIND) {
+    const process = ACTIVITY_TRANSITION_PROCESS_WORDS[report.processName] ?? report.processName;
+    return { subject: `${process} ${ACTIVITY_TRANSITION_SUBJECT_WORDS[report.subject] ?? report.subject}`, detail: report.transition };
+  }
+  const subject = ACTIVITY_PHONE_REPORT_SUBJECTS[kind] ?? kind;
+  if (report === undefined || report.stage === '') {
+    return { subject, detail: outcome };
+  }
+  return { subject, detail: ACTIVITY_CYCLE_STAGE_WORDS[report.stage] ?? `${ACTIVITY_CYCLE_STAGE_UNNAMED} ${report.stage}` };
 }
 
 /** Red for a failure, amber for slow, plain otherwise. */

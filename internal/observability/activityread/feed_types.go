@@ -115,11 +115,25 @@ type BridgeOffGroup struct {
 	Reports       []SyncReading
 }
 
+// PhoneReportFacts are the stored fields a phone report line is worded from
+// (S6 P2 and P3), as stored: the frontend words them by fixed rules. A runtime
+// transition carries the first four, Reason empty when it recorded none; a
+// failed cycle report carries Stage, its previous_cycle.last_stage.
+type PhoneReportFacts struct {
+	ProcessName string
+	Subject     string
+	Transition  string
+	Reason      string
+	Stage       string
+}
+
 // FeedLine is one row of the feed. Line carries the fields every kind has;
 // Traffic, Run, System and BridgeOff are set only for their own lines. A System
 // line is an event line standing for its group: its Line is the group's newest
 // recorded event, at the group's last time. SyncReading is set on a phone report
 // line that has a reading; a failed report without one stays a plain failure.
+// Report is set on a runtime transition line and on a failed cycle report line
+// that recorded its last stage.
 // IncidentID is the newest incident occurrence recorded for this fact, or 0.
 type FeedLine struct {
 	Type       FeedType
@@ -134,6 +148,7 @@ type FeedLine struct {
 	// SyncReading and BridgeOff read a failed sync report (S1): see their types.
 	SyncReading *SyncReading
 	BridgeOff   *BridgeOffGroup
+	Report      *PhoneReportFacts
 }
 
 // FeedDay groups one local day's feed lines, newest first.

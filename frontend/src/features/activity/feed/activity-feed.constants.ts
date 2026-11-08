@@ -67,6 +67,36 @@ export const ACTIVITY_PHONE_REPORT_SUBJECTS: Readonly<Record<string, string>> = 
   screen_stall: 'Screen stalled',
 };
 
+/** The stored report kind of a runtime transition, worded from its own fields. */
+export const ACTIVITY_RUNTIME_TRANSITION_KIND = 'runtime_transition';
+
+/** A transition's process in plain words, by the closed set mobile sends; any other value is shown as stored. */
+export const ACTIVITY_TRANSITION_PROCESS_WORDS: Readonly<Record<string, string>> = {
+  sync: 'Sync',
+  main: 'Main',
+};
+
+/** A transition's subject in plain words, by the closed set mobile sends (S3); any other value is shown as stored. */
+export const ACTIVITY_TRANSITION_SUBJECT_WORDS: Readonly<Record<string, string>> = {
+  service: 'service',
+  tick_alarm: 'tick alarm',
+  floor: 'floor',
+  process: 'process',
+  boot: 'boot',
+  network: 'network',
+};
+
+/** A failed sync cycle's row detail by the stage it stopped at: the four native stages (S4). */
+export const ACTIVITY_CYCLE_STAGE_WORDS: Readonly<Record<string, string>> = {
+  attempt_started: 'failed as it started',
+  claim_ops: 'failed while claiming changes',
+  http: 'failed while sending',
+  apply_write: 'failed while applying',
+};
+
+/** The detail of a failed sync cycle that stopped at a stage outside the four, followed by the stage as stored. */
+export const ACTIVITY_CYCLE_STAGE_UNNAMED = 'failed while';
+
 /** The plain words of each reading of a failed sync. The row and the drawer both say these, and never mobile's `failed`. */
 export const ACTIVITY_SYNC_READING_WORDS: Readonly<Record<ActivitySyncReadingKind, string>> = {
   bridge_off: 'Bridge was off',

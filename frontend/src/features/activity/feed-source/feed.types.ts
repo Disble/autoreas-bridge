@@ -109,6 +109,24 @@ export interface ActivityBridgeOffGroup {
 }
 
 /**
+ * The stored fields a phone report line is worded from (S6 P2 and P3), as
+ * stored. A runtime transition carries the process, subject, transition and an
+ * optional reason; a failed cycle report carries the last stage it reached.
+ */
+export interface ActivityPhoneReportFacts {
+  /** The reporting process, such as `sync`; empty for a cycle report. */
+  readonly processName: string;
+  /** What changed, such as `process`; empty for a cycle report. */
+  readonly subject: string;
+  /** The change, such as `died`; empty for a cycle report. */
+  readonly transition: string;
+  /** The recorded reason of a transition; undefined when it recorded none. */
+  readonly reason: string | undefined;
+  /** The last stage a failed cycle reached, such as `http`; empty for a transition. */
+  readonly stage: string;
+}
+
+/**
  * One feed row. `traffic`, `run`, `system` and `bridgeOff` are set only for
  * their own lines. A System line is an event line standing for its group:
  * `line` is the group's newest recorded event.
@@ -136,6 +154,8 @@ export interface ActivityFeedLine {
   readonly syncReading: ActivitySyncReading | undefined;
   /** The start and its reports, for a `bridge_off` line. */
   readonly bridgeOff: ActivityBridgeOffGroup | undefined;
+  /** The stored facts of a runtime transition or of a failed cycle report with a stage; undefined otherwise. */
+  readonly report: ActivityPhoneReportFacts | undefined;
 }
 
 /** One local day's feed lines, newest first. */
