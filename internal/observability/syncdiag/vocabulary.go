@@ -140,6 +140,15 @@ var degradedReasons = map[string]struct{}{
 	"previous_cycle": {},
 }
 
+// IsSyncAttemptTriggerSource reports whether value names a scheduler that
+// runs sync attempts: a member of the previous_cycle.trigger_source
+// vocabulary. The hourly_summary kind counts attempts per scheduler with the
+// same words, so it reads this set instead of keeping a copy that could drift;
+// a new scheduler is one member here and both positions accept it.
+func IsSyncAttemptTriggerSource(value string) bool {
+	return inVocabulary(syncAttemptTriggerSources, value)
+}
+
 // inVocabulary reports whether value is a member of vocabulary.
 func inVocabulary(vocabulary map[string]struct{}, value string) bool {
 	_, ok := vocabulary[value]

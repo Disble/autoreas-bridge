@@ -480,3 +480,33 @@ func TestValidateAcceptsTheRecentEventsMobileReports(t *testing.T) {
 		}
 	}
 }
+
+// TestValidateRejectsAnEmptyOrMissingCycleID refuses a report whose cycle_id
+// is empty, null or absent, naming cycle_id: the id is the report's
+// idempotency key, and an empty key would make every such report a duplicate
+// of the first one ever stored.
+func TestValidateRejectsAnEmptyOrMissingCycleID(t *testing.T) {
+	const present = `"cycle_id": "11111111-1111-1111-1111-111111111111",`
+	for name, replacement := range map[string]string{
+		"empty":   `"cycle_id": "",`,
+		"null":    `"cycle_id": null,`,
+		"missing": ``,
+	} {
+		body := strings.Replace(buildReportJSON(nil), present, replacement, 1)
+		_, err := Validate(decodeReport(t, body))
+		if err == nil {
+			t.Fatalf("%s cycle_id: Validate() accepted the report", name)
+		}
+		requireFieldError(t, err, "cycle_id")
+	}
+}
+
+// TestValidateKeepsEarlierFieldsFirstWhenCycleIDIsEmpty pins that the
+// cycle_id rule runs after every pre-existing rule, so a body that was
+// already refused keeps naming the field it named before the rule existed.
+func TestValidateKeepsEarlierFieldsFirstWhenCycleIDIsEmpty(t *testing.T) {
+	body := strings.Replace(buildReportJSON(map[string]string{"TRIGGER_SOURCE": "nonsense"}),
+		`"cycle_id": "11111111-1111-1111-1111-111111111111",`, `"cycle_id": "",`, 1)
+	_, err := Validate(decodeReport(t, body))
+	requireFieldError(t, err, "trigger_source")
+}

@@ -127,6 +127,14 @@ func Validate(wire WireReport) (Record, error) {
 	if err != nil {
 		return Record{}, err
 	}
+	// cycle_id is the report's idempotency key, so an empty one would make
+	// every such report a duplicate of the first ever stored. A null or absent
+	// key decodes to "" as well and is refused the same way. The rule runs
+	// last on purpose: a body an earlier rule already refused keeps naming the
+	// field it named before this rule existed.
+	if wire.CycleID == "" {
+		return Record{}, &FieldError{"cycle_id", "must be a non-empty string"}
+	}
 
 	return Record{
 		CycleID:                   wire.CycleID,

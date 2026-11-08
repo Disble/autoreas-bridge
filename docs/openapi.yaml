@@ -470,6 +470,23 @@ info:
     periods: Bridge off (failure to that start), a 20-minute grace period,
     and overdue; Activity shows them by name.
 
+    2026-11-07 — mobile report kinds consumer impact: ADDITIVE, two new
+    request variants on `POST /api/sync/diagnostics`, and one tightened rule.
+    A body naming `kind: "hourly_summary"` (see `SyncDiagnosticsHourlySummary`)
+    or `kind: "runtime_transition"` (see `SyncDiagnosticsRuntimeTransition`) is
+    now stored; before this build both answered `400` with code
+    `kind_not_served`, so rows kept on the phone are accepted once this build
+    runs. Both are idempotent by `observation_id` within their kind: a repost
+    answers `204` and the first write wins. Row caps follow the 50 new reports
+    a day agreed for these kinds, kept 90 days: `hourly_summary` 2160 rows
+    (24 a day), `runtime_transition` 2340 rows (26 a day). Tightened: a
+    `cycle_report` whose `cycle_id` is empty, `null` or absent now answers `400`
+    with code `field_rejected` and `"field": "cycle_id"` instead of being
+    stored; every other `cycle_report` is accepted exactly as before, and a
+    body an earlier rule already refused still names the same field. No other
+    refusal, status code or WebSocket message changes. Neither new kind opens
+    an incident or shows in Activity yet.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}
@@ -1002,10 +1019,14 @@ components:
       properties:
         cycle_id:
           type: string
+          minLength: 1
           description: |
             Idempotency key, UNIQUE per stored row. Re-posting an
             existing value is a no-op that still acks 204 and never
-            creates a second row.
+            creates a second row. Since 2026-11-07 an empty, `null` or
+            absent value answers `400` `field_rejected` naming `cycle_id`;
+            the rule runs after every other rule, so a body refused for
+            another field still names that field.
         degraded:
           type: string
           nullable: true
@@ -1379,6 +1400,144 @@ components:
                 type: integer
                 format: int64
                 minimum: 0
+    SyncDiagnosticsHourlySummary:
+      type: object
+      required: [kind, observation_id, hour_start_ms, counts, dropped_count]
+      description: |
+        The `hourly_summary` variant: one closed hour of the tablet's own sync
+        attempts, counted per `trigger_source` and `outcome`. Dispatched by
+        `kind: "hourly_summary"`. One body per closed hour.
+
+        Idempotency is by `observation_id` (install id + hour) within this kind:
+        a repost of the same hour answers `204` and stores nothing, so the
+        first write wins. The kind has its own retention cap of 2160 rows (24 a
+        day for 90 days). `hour_start_ms` is stored as the row's
+        `observed_at_ms`.
+
+        Strict decoding applies: an undeclared key, top-level or inside an
+        item, answers `field_rejected` naming it (`"counts[<i>].<key>"`,
+        `"process_deaths[<i>].<key>"`), including a body-supplied `device_id`.
+        One `trigger_source` and `outcome` pair appears at most once in
+        `counts`, and one `process_name` and `reason` pair at most once in
+        `process_deaths`; a repeat names the repeating item. The stored payload
+        is `counts` (each item with `max_duration_ms`, `null` when absent),
+        `dropped_count` and `process_deaths` (`[]` when absent or `null`).
+      properties:
+        kind:
+          type: string
+          enum: [hourly_summary]
+        observation_id:
+          type: string
+          minLength: 1
+          description: Idempotency key within this kind; mobile builds it from its install id and the hour.
+        hour_start_ms:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Device clock at the start of the closed hour the counts cover.
+        counts:
+          type: array
+          maxItems: 64
+          description: Attempts in the hour, one item per `trigger_source` and `outcome` pair. May be empty.
+          items:
+            type: object
+            required: [trigger_source, outcome, count]
+            properties:
+              trigger_source:
+                type: string
+                enum: [foreground_service, background_task, bootstrap, manual, app_active, network_regained, local_mutation, local_mutation_write, ws_sync_required]
+                description: The scheduler that ran the attempts, in the words of `previous_cycle.trigger_source`.
+              outcome:
+                type: string
+                enum: [closed, failed, presence_refused, schema_not_ready, skipped_owned_by_ticker, unsettled, crashed]
+              count:
+                type: integer
+                minimum: 0
+                maximum: 100000
+              max_duration_ms:
+                type: integer
+                format: int64
+                nullable: true
+                minimum: 0
+                maximum: 3600000
+                description: Optional. The longest attempt of the pair in the hour.
+        dropped_count:
+          type: integer
+          minimum: 0
+          maximum: 100000
+          description: Attempts the tablet observed but could not count into this summary.
+        process_deaths:
+          type: array
+          nullable: true
+          maxItems: 16
+          description: Optional. Process deaths in the hour, counted per process and reason.
+          items:
+            type: object
+            required: [process_name, reason, count]
+            properties:
+              process_name:
+                type: string
+                enum: [main, sync]
+              reason:
+                type: string
+                pattern: '^[a-z0-9_]{1,40}$'
+              count:
+                type: integer
+                minimum: 1
+                maximum: 100000
+    SyncDiagnosticsRuntimeTransition:
+      type: object
+      required: [kind, observation_id, observed_at_ms, process_name, subject, transition, app_version]
+      description: |
+        The `runtime_transition` variant: one real state change of a mobile
+        process, never one per tick. Dispatched by
+        `kind: "runtime_transition"`.
+
+        Idempotency is by `observation_id` within this kind; a repost answers
+        `204` and the first write wins. The kind has its own retention cap of
+        2340 rows (26 a day for 90 days). `observed_at_ms` is stored as the
+        row's observed time.
+
+        `subject` and `transition` are mobile's own codes: the bridge checks
+        their shape and stores them as sent. One rule names a value:
+        `transition: "died"` is accepted only with `process_name: "sync"`
+        (deaths of `main` are counted in `hourly_summary.process_deaths`), and
+        is otherwise refused naming `transition`. Strict decoding applies, as
+        for `hourly_summary`. The stored payload is `process_name`, `subject`,
+        `transition`, `reason` (`null` when absent) and `app_version`.
+      properties:
+        kind:
+          type: string
+          enum: [runtime_transition]
+        observation_id:
+          type: string
+          minLength: 1
+          description: Idempotency key within this kind.
+        observed_at_ms:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Device clock when the change happened.
+        process_name:
+          type: string
+          enum: [main, sync]
+        subject:
+          type: string
+          pattern: '^[a-z0-9_]{1,40}$'
+          description: What changed, for example `sync_service`.
+        transition:
+          type: string
+          pattern: '^[a-z0-9_]{1,40}$'
+          description: The change, for example `started` or `died`.
+        reason:
+          type: string
+          nullable: true
+          pattern: '^[a-z0-9_]{1,40}$'
+          description: Optional recorded reason, for example `low_memory`.
+        app_version:
+          type: string
+          pattern: '^[0-9A-Za-z._+-]{1,32}$'
+          description: Version of the build that observed the change.
 paths:
   /api/devices/pair:
     post:
@@ -1964,12 +2123,16 @@ paths:
                 - $ref: '#/components/schemas/SyncDiagnosticsCycleReport'
                 - $ref: '#/components/schemas/SyncDiagnosticsEpisodeAction'
                 - $ref: '#/components/schemas/SyncDiagnosticsScreenStall'
+                - $ref: '#/components/schemas/SyncDiagnosticsHourlySummary'
+                - $ref: '#/components/schemas/SyncDiagnosticsRuntimeTransition'
               discriminator:
                 propertyName: kind
                 mapping:
                   cycle_report: '#/components/schemas/SyncDiagnosticsCycleReport'
                   episode_action: '#/components/schemas/SyncDiagnosticsEpisodeAction'
                   screen_stall: '#/components/schemas/SyncDiagnosticsScreenStall'
+                  hourly_summary: '#/components/schemas/SyncDiagnosticsHourlySummary'
+                  runtime_transition: '#/components/schemas/SyncDiagnosticsRuntimeTransition'
       responses:
         '204':
           description: |

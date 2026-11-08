@@ -11,8 +11,20 @@ page disagrees with it, the code wins.
 
 ## From arrival to display
 
-Mobile sends every report to `POST /api/sync/diagnostics`. Three kinds exist: `cycle_report`,
-`episode_action` and `screen_stall`.
+Mobile sends every report to `POST /api/sync/diagnostics`. Five kinds exist:
+
+| Kind | One report is | Idempotency key | Observed time | Row cap |
+|---|---|---|---|---|
+| `cycle_report` | One sync cycle; `cycle_id` must be non-empty since 2026-11-07 | `cycle_id` | Receipt time only | 5,000 |
+| `episode_action` | One step of an episode action | `observation_id` | `observed_at_ms` | 20,000 |
+| `screen_stall` | One screen that took 2 s or more to paint | `observation_id` | `observed_at_ms` | 5,000 |
+| `hourly_summary` | One closed hour of the tablet's sync attempts per trigger and outcome, plus process deaths | `observation_id` (install id + hour); the first write wins | `hour_start_ms` | 2,160 |
+| `runtime_transition` | One real state change of the `main` or `sync` process; `died` only for `sync` | `observation_id` | `observed_at_ms` | 2,340 |
+
+The last two caps size the 50 new reports a day agreed with mobile for 90 days: 24 hourly summaries a day and
+the remaining 26 for transitions. Their wire shapes are `SyncDiagnosticsHourlySummary` and
+`SyncDiagnosticsRuntimeTransition` in `docs/openapi.yaml`. Since 2026-11-07 both are stored and logged like
+any other kind, but neither opens an incident or shows in Activity yet.
 
 | Step | What happens | Owner |
 |---|---|---|
@@ -59,8 +71,8 @@ recorder. Incidents already stored do not change: older ones on those reports st
 | Row in `device_telemetry_events` | Row cap, outside the 2 h / 90 d sweep | The report itself | about 340 B |
 | `sync.diagnostics_stored` event | 90 days | Non-noise event; Activity hides it because it restates the row | about 225 B, calculated |
 
-Row caps: `cycle_report` 5,000, `screen_stall` 5,000, `episode_action` 20,000. A cap of 5,000 covers 90 days
-only up to about 55 reports a day.
+Row caps: `cycle_report` 5,000, `screen_stall` 5,000, `episode_action` 20,000, `hourly_summary` 2,160,
+`runtime_transition` 2,340. A cap of 5,000 covers 90 days only up to about 55 reports a day.
 
 Sizes come from the real `retention.Sweep` on a copy, using `episode_action` rows. `budgets.md` lists mobile
 reports as "row caps, not replayed", so reports were never part of the retention simulation.

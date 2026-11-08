@@ -66,6 +66,30 @@ func TestSyncDiagnosticsRefusalsCarryTheirClassifyingCode(t *testing.T) {
 			code:  "field_rejected",
 			field: "degraded",
 		},
+		{
+			label: "an empty cycle_id is a rejected field",
+			body:  strings.Replace(validDiagnosticsBody(), `"cycle_id":"c1"`, `"cycle_id":""`, 1),
+			code:  "field_rejected",
+			field: "cycle_id",
+		},
+		{
+			label: "a missing cycle_id is a rejected field",
+			body:  strings.Replace(validDiagnosticsBody(), `"cycle_id":"c1",`, ``, 1),
+			code:  "field_rejected",
+			field: "cycle_id",
+		},
+		{
+			label: "an hourly_summary outcome outside its vocabulary names the field",
+			body:  `{"kind":"hourly_summary","observation_id":"i:h","hour_start_ms":0,"counts":[{"trigger_source":"manual","outcome":"completed","count":1}],"dropped_count":0}`,
+			code:  "field_rejected",
+			field: "counts[0].outcome",
+		},
+		{
+			label: "a runtime_transition reason off its pattern names the field",
+			body:  `{"kind":"runtime_transition","observation_id":"o","observed_at_ms":0,"process_name":"sync","subject":"sync_service","transition":"started","reason":"Low Memory","app_version":"2.7.1"}`,
+			code:  "field_rejected",
+			field: "reason",
+		},
 	}
 
 	for _, tc := range cases {
