@@ -1,7 +1,12 @@
 import { describeActivityChange } from '../change-words/change-words.helpers';
-import type { ActivityDownloadRun, ActivityFeedDay, ActivityFeedLine, ActivityFeedView, ActivitySystemGroup } from '../feed-source/feed.types';
+import { formatDrawerSpan } from '../drawer/drawer-format.helpers';
+import type { ActivityLedgerLine } from '../history-source/history.types';
+import type { ActivityDownloadRun, ActivityFeedDay, ActivityFeedLine, ActivityFeedView, ActivityPhoneReportFacts, ActivitySystemGroup, ActivityTabletSilence } from '../feed-source/feed.types';
 import {
+  ACTIVITY_BRIDGE_CLOSED,
   ACTIVITY_BRIDGE_STARTED,
+  ACTIVITY_CYCLE_STAGE_UNNAMED,
+  ACTIVITY_CYCLE_STAGE_WORDS,
   ACTIVITY_FEED_COUNT_FORMAT,
   ACTIVITY_FEED_DAY_FORMAT,
   ACTIVITY_FEED_TIME_FORMAT,
@@ -9,7 +14,13 @@ import {
   ACTIVITY_PHONE_REPORT_SUBJECTS,
   ACTIVITY_RUN_SUBJECT,
   ACTIVITY_RUN_TRIGGER_SUBJECTS,
+  ACTIVITY_RUNTIME_TRANSITION_KIND,
+  ACTIVITY_SILENCE_SUBJECTS,
+  ACTIVITY_START_UNCLOSED_WORDS,
+  ACTIVITY_SYNC_READING_WORDS,
   ACTIVITY_TRAFFIC_SUBJECT,
+  ACTIVITY_TRANSITION_PROCESS_WORDS,
+  ACTIVITY_TRANSITION_SUBJECT_WORDS,
 } from './activity-feed.constants';
 import type { ActivityFeedDayModel, ActivityFeedRowModel, ActivityRowHealth, ActivityRowRepeat } from './activity-feed.types';
 
@@ -31,6 +42,30 @@ export function feedLineKey(line: ActivityFeedLine): string {
  */
 export function maybeFeedLineKey(line: ActivityFeedLine | undefined): string | undefined {
   return line === undefined ? undefined : feedLineKey(line);
+}
+
+/**
+ * The one sentence a Bridge off group reads as, in the row and the drawer.
+ *
+ * @param count Reports in the group.
+ * @returns `3 changes waited for Bridge`, `1 change waited for Bridge`.
+ */
+export function toBridgeOffSubject(count: number): string {
+  return `${ACTIVITY_FEED_COUNT_FORMAT.format(count)} ${count === 1 ? 'change' : 'changes'} waited for Bridge`;
+}
+
+/**
+ * The words of a tablet silence, in the row and the drawer header (S6 P4):
+ * while it lasts, when it began; once it ended, how long it lasted.
+ *
+ * @param silence The silence.
+ * @returns `Tablet silent` · `since 11:56`, or `Tablet was silent` · `1 h 8 min`.
+ */
+export function toSilenceWords(silence: ActivityTabletSilence): { readonly subject: string; readonly detail: string } {
+  if (silence.endMs === undefined) {
+    return { subject: ACTIVITY_SILENCE_SUBJECTS.ongoing, detail: `since ${ACTIVITY_FEED_TIME_FORMAT.format(silence.startMs)}` };
+  }
+  return { subject: ACTIVITY_SILENCE_SUBJECTS.ended, detail: formatDrawerSpan(silence.endMs - silence.startMs) };
 }
 
 /** A row's subject, its one short detail and its repeat badge. */
@@ -66,6 +101,26 @@ function systemRepeat(group: ActivitySystemGroup | undefined): ActivityRowRepeat
   return group === undefined ? undefined : toRepeat(group.count);
 }
 
+/** An event's subject: a start and a clean close in plain words, any other event as recorded. */
+function eventSubject(ledger: ActivityLedgerLine): string {
+  if (ledger.detail === ACTIVITY_BRIDGE_STARTED.eventType) {
+    return ACTIVITY_BRIDGE_STARTED.subject;
+  }
+  return ledger.detail === ACTIVITY_BRIDGE_CLOSED.eventType ? ACTIVITY_BRIDGE_CLOSED.subject : ledger.title;
+}
+
+/** How long Bridge was off before a start, or that the run before has no close (S6 P5); empty for any other line. */
+function startDetail(line: ActivityFeedLine): string {
+  const start = line.bridgeStart;
+  if (start === undefined) {
+    return '';
+  }
+  if (start.closedAtMs !== undefined) {
+    return `off ${formatDrawerSpan(line.line.atMs - start.closedAtMs)}`;
+  }
+  return start.lastEventAtMs === undefined ? ACTIVITY_START_UNCLOSED_WORDS.unknown : ACTIVITY_START_UNCLOSED_WORDS.notClosed;
+}
+
 /**
  * What a line is about, its one short fact and how often it repeated, from
  * its stored fields only. Spans, areas, event types and stored errors are the
@@ -73,6 +128,15 @@ function systemRepeat(group: ActivitySystemGroup | undefined): ActivityRowRepeat
  */
 function describeLine(line: ActivityFeedLine): LineWords {
   const ledger = line.line;
+  if (line.bridgeOff !== undefined) {
+    return { subject: toBridgeOffSubject(line.bridgeOff.reports.length), detail: '', repeat: undefined };
+  }
+  if (line.syncReading !== undefined) {
+    return { subject: ACTIVITY_SYNC_READING_WORDS[line.syncReading.reading], detail: '', repeat: undefined };
+  }
+  if (line.silence !== undefined) {
+    return { ...toSilenceWords(line.silence), repeat: undefined };
+  }
   if (line.traffic !== undefined) {
     return { subject: ACTIVITY_TRAFFIC_SUBJECT, detail: formatFailed(line.traffic.failed), repeat: toRepeat(line.traffic.requests) };
   }
@@ -87,14 +151,36 @@ function describeLine(line: ActivityFeedLine): LineWords {
     };
   }
   if (ledger.kind === 'event') {
-    const subject = ledger.detail === ACTIVITY_BRIDGE_STARTED.eventType ? ACTIVITY_BRIDGE_STARTED.subject : ledger.title;
-    return { subject, detail: '', repeat: systemRepeat(line.system) };
+    return { subject: eventSubject(ledger), detail: startDetail(line), repeat: systemRepeat(line.system) };
   }
   if (ledger.kind === 'phone_report') {
-    // The report kind is a closed enum, so it may read as plain words; the outcome is shown as stored.
-    return { subject: ACTIVITY_PHONE_REPORT_SUBJECTS[ledger.title] ?? ledger.title, detail: ledger.detail, repeat: undefined };
+    return { ...toPhoneReportWords(ledger.title, ledger.detail, line.report), repeat: undefined };
   }
   return { subject: ledger.title, detail: ledger.detail, repeat: undefined };
+}
+
+/**
+ * Words a phone report by fixed rules over its stored fields (S6 P2 and P3).
+ * A runtime transition reads as its process and subject, then its change as
+ * stored; a failed cycle with a stage names where it stopped; any other report
+ * reads as its kind in plain words and its outcome as stored. Values outside a
+ * closed set are shown as stored.
+ *
+ * @param kind The stored report kind.
+ * @param outcome The stored outcome.
+ * @param report The stored facts of a transition or a staged cycle; undefined for any other report.
+ * @returns The subject and detail.
+ */
+export function toPhoneReportWords(kind: string, outcome: string, report: ActivityPhoneReportFacts | undefined): { readonly subject: string; readonly detail: string } {
+  if (report !== undefined && kind === ACTIVITY_RUNTIME_TRANSITION_KIND) {
+    const process = ACTIVITY_TRANSITION_PROCESS_WORDS[report.processName] ?? report.processName;
+    return { subject: `${process} ${ACTIVITY_TRANSITION_SUBJECT_WORDS[report.subject] ?? report.subject}`, detail: report.transition };
+  }
+  const subject = ACTIVITY_PHONE_REPORT_SUBJECTS[kind] ?? kind;
+  if (report === undefined || report.stage === '') {
+    return { subject, detail: outcome };
+  }
+  return { subject, detail: ACTIVITY_CYCLE_STAGE_WORDS[report.stage] ?? `${ACTIVITY_CYCLE_STAGE_UNNAMED} ${report.stage}` };
 }
 
 /** Red for a failure, amber for slow, plain otherwise. */

@@ -27,8 +27,20 @@ type foldKey struct {
 	status   int
 }
 
-// IncidentDetail returns one occurrence with its cause and its window.
+// IncidentDetail returns one occurrence with its cause and its window, as the
+// Activity drawer shows it: no hourly summary, a closed hour no line stands for.
 func (r *Reader) IncidentDetail(ctx context.Context, id int64) (IncidentDetail, error) {
+	return r.incidentDetail(ctx, id, phoneReportKindsSQL, phoneReportKinds)
+}
+
+// IncidentDetailAllKinds is IncidentDetail with every served report kind in
+// the window, for get_incident (S7).
+func (r *Reader) IncidentDetailAllKinds(ctx context.Context, id int64) (IncidentDetail, error) {
+	return r.incidentDetail(ctx, id, historyReportKindsSQL, historyReportKinds)
+}
+
+// incidentDetail reads one occurrence, listing the given kinds in its window.
+func (r *Reader) incidentDetail(ctx context.Context, id int64, kindsSQL string, kinds []any) (IncidentDetail, error) {
 	var occ IncidentOccurrence
 	err := r.db.QueryRowContext(ctx, `SELECT id, fingerprint, reason, occurred_at_ms, window_start_ms, window_end_ms,
 		source_kind, source_id FROM incidents WHERE id = ?`, id).Scan(&occ.ID, &occ.Fingerprint, &occ.Reason,
@@ -57,7 +69,7 @@ func (r *Reader) IncidentDetail(ctx context.Context, id int64) (IncidentDetail, 
 	if detail.Events, err = r.windowEvents(ctx, occ.WindowStartMS, occ.WindowEndMS); err != nil {
 		return IncidentDetail{}, err
 	}
-	if detail.PhoneReports, err = r.phoneReports(ctx, occ.WindowStartMS, occ.WindowEndMS); err != nil {
+	if detail.PhoneReports, err = r.phoneReports(ctx, occ.WindowStartMS, occ.WindowEndMS, kindsSQL, kinds); err != nil {
 		return IncidentDetail{}, err
 	}
 	if detail.Earlier, err = r.earlierOccurrences(ctx, occ); err != nil {
@@ -84,9 +96,10 @@ func (r *Reader) causeOf(ctx context.Context, occ IncidentOccurrence) (Cause, er
 		err = r.db.QueryRowContext(ctx, `SELECT message FROM runtime_events WHERE id = ?`, eventID).Scan(&cause.Message)
 	case incident.SourceMobile:
 		err = r.db.QueryRowContext(ctx, `SELECT COALESCE(json_extract(payload_json, '$.cause'),
-			json_extract(payload_json, '$.previous_cycle.error_cause'), '') FROM device_telemetry_events
-			WHERE kind IN (?, ?, ?) AND event_id = ? LIMIT 1`, telemetry.KindCycleReport, telemetry.KindEpisodeAction, telemetry.KindScreenStall,
-			occ.SourceID).Scan(&cause.Message)
+			json_extract(payload_json, '$.previous_cycle.error_cause'),
+			CASE kind WHEN 'runtime_transition' THEN json_extract(payload_json, '$.reason') END, '') FROM device_telemetry_events
+			WHERE kind IN (?, ?, ?, ?) AND event_id = ? LIMIT 1`, telemetry.KindCycleReport, telemetry.KindEpisodeAction, telemetry.KindScreenStall,
+			telemetry.KindRuntimeTransition, occ.SourceID).Scan(&cause.Message)
 	default:
 		return Cause{}, nil
 	}
@@ -172,13 +185,12 @@ func (r *Reader) windowEvents(ctx context.Context, fromMS, toMS int64) ([]EventS
 	return events, rows.Err()
 }
 
-// phoneReports reads the mobile reports the bridge received inside a window,
-// oldest first.
-func (r *Reader) phoneReports(ctx context.Context, fromMS, toMS int64) ([]PhoneReport, error) {
+// phoneReports reads the mobile reports of the given kinds the bridge received
+// inside a window, oldest first.
+func (r *Reader) phoneReports(ctx context.Context, fromMS, toMS int64, kindsSQL string, kinds []any) ([]PhoneReport, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT rowid, reported_at_ms, observed_at_ms, device_id, kind, `+reportOutcomeSQL+`
-		FROM device_telemetry_events WHERE kind IN (?, ?, ?) AND reported_at_ms >= ? AND reported_at_ms <= ?
-		ORDER BY reported_at_ms, rowid LIMIT ?`, telemetry.KindCycleReport, telemetry.KindEpisodeAction, telemetry.KindScreenStall,
-		fromMS, toMS, windowRowLimit)
+		FROM device_telemetry_events WHERE `+kindsSQL+` AND reported_at_ms >= ? AND reported_at_ms <= ?
+		ORDER BY reported_at_ms, rowid LIMIT ?`, append(append([]any{}, kinds...), fromMS, toMS, windowRowLimit)...)
 	if err != nil {
 		return nil, fmt.Errorf("activityread: window phone reports: %w", err)
 	}
@@ -197,12 +209,18 @@ func (r *Reader) phoneReports(ctx context.Context, fromMS, toMS int64) ([]PhoneR
 }
 
 // reportOutcomeSQL extracts a phone report's outcome: an episode action
-// carries it at the top level, a cycle report under previous_cycle. A screen
-// stall carries no outcome, so its trigger and duration ("touch 12000 ms")
-// stand in, which is what makes a freeze findable by time in History.
+// carries it at the top level, a cycle report under previous_cycle. A runtime
+// transition carries no outcome, so its stored process, subject and transition
+// stand in ("sync process died"). A screen stall carries none either, so its
+// trigger and duration ("touch 12000 ms") stand in, which is what makes a
+// freeze findable by time in History. An hourly summary has no one word, so
+// its stored report stands in.
 const reportOutcomeSQL = `COALESCE(json_extract(payload_json, '$.outcome'),
 	json_extract(payload_json, '$.previous_cycle.outcome'),
-	json_extract(payload_json, '$.trigger') || ' ' || json_extract(payload_json, '$.duration_ms') || ' ms', '')`
+	json_extract(payload_json, '$.process_name') || ' ' || json_extract(payload_json, '$.subject') || ' ' ||
+	json_extract(payload_json, '$.transition'),
+	json_extract(payload_json, '$.trigger') || ' ' || json_extract(payload_json, '$.duration_ms') || ' ms',
+	CASE kind WHEN 'hourly_summary' THEN payload_json END, '')`
 
 // earlierOccurrences lists the retained occurrences of a fingerprint before
 // the given one, newest first.

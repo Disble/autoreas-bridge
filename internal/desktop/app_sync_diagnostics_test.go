@@ -221,3 +221,43 @@ func TestIngestSyncDiagnosticsUndeclaredKindIsRefused(t *testing.T) {
 		t.Fatalf("expected no runtime event for a refused kind, got %#v", memLogger.Recent())
 	}
 }
+
+// TestIngestSyncDiagnosticsStoresTheMobileReportKinds ingests one decoded body
+// of each new kind -- a sync death included -- through the real seam: each is
+// Stored and emits only its info-level stored event, and only the sync death
+// opens an incident, even though the hourly summary counts a failed attempt.
+func TestIngestSyncDiagnosticsStoresTheMobileReportKinds(t *testing.T) {
+	t.Parallel()
+
+	app, memLogger := newSyncDiagnosticsTestApp(t)
+	ingest := app.ingestSyncDiagnostics()
+	bodies := map[telemetry.KindName]string{
+		telemetry.KindHourlySummary:     `{"kind":"hourly_summary","observation_id":"i:h","hour_start_ms":0,"counts":[{"trigger_source":"manual","outcome":"failed","count":3}],"dropped_count":0,"process_deaths":[{"process_name":"sync","reason":"low_memory","count":1}]}`,
+		telemetry.KindRuntimeTransition: `{"kind":"runtime_transition","observation_id":"rt","observed_at_ms":0,"process_name":"sync","subject":"process","transition":"died","app_version":"2.7.1"}`,
+	}
+	for name, body := range bodies {
+		kind, _ := telemetry.DefaultRegistry().Lookup(name)
+		validated, err := kind.Decode([]byte(body))
+		if err != nil {
+			t.Fatalf("decode %s: %v", name, err)
+		}
+		outcome, err := ingest(context.Background(), telemetry.Event{DeviceID: "device-1", ReportedAtMS: 1000, Kind: name, Validated: validated})
+		if err != nil || outcome != telemetry.Stored {
+			t.Fatalf("ingest %s = %v, %v; want Stored", name, outcome, err)
+		}
+	}
+
+	entries := memLogger.Recent()
+	if len(entries) != len(bodies) {
+		t.Fatalf("expected one runtime event per report, got %#v", entries)
+	}
+	for _, entry := range entries {
+		if entry.Level != sharedlogger.LevelInfo || entry.EventType != "sync.diagnostics_stored" {
+			t.Fatalf("expected only stored events, got %#v", entry)
+		}
+	}
+	got := readIncidentRows(t, app.bridgeDB)
+	if want := (incidentRow{reason: "mobile_failure", sourceKind: "mobile", sourceID: "rt"}); len(got) != 1 || got[0] != want {
+		t.Fatalf("incidents = %#v, want only %#v", got, want)
+	}
+}

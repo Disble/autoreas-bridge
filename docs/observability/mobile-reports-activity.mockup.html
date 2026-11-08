@@ -1,0 +1,756 @@
+<!doctype html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mobile Reports Activity</title>
+<style>
+  :root {
+    --bg: oklch(12% .005 285.823);
+    --fg: oklch(99.11% 0 0);
+    --surface: oklch(21.03% .0059 285.89);
+    --surface-2: oklch(25.7% .0037 286.14);
+    --default: oklch(27.4% .006 286.033);
+    --muted: oklch(70.5% .015 286.067);
+    --border: oklch(28% .006 286.033);
+    --sep: oklch(25% .006 286.033);
+    --accent: oklch(62.04% .195 253.83);
+    --success: oklch(73.29% .1935 150.81);
+    --warning: oklch(82.03% .1388 76.34);
+    --danger: oklch(59.4% .1967 24.63);
+    --ann: oklch(72% .17 320);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  ul, ol { list-style: none; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  body { background: var(--bg); color: var(--fg); font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif; font-size: 14px; line-height: 1.45; }
+  .ax-main { max-width: 1200px; margin: 0 auto; padding: 32px 40px 80px; display: flex; flex-direction: column; gap: 24px; }
+  .ax-head { display: flex; align-items: flex-start; justify-content: space-between; }
+  .ax-h1 { font-size: 2.25rem; font-weight: 600; letter-spacing: -.02em; }
+  .ax-card { background: var(--surface); border-radius: 1.5rem; padding: 20px 24px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* tooltip: stands in for the HeroUI Tooltip (never a native title) */
+  [data-tip] { position: relative; }
+  [data-tip]::after { content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 8px); translate: -50% 4px;
+    white-space: nowrap; background: var(--surface-2); color: var(--fg); font-size: 12px; font-weight: 500; padding: 5px 9px;
+    border-radius: 8px; box-shadow: 0 0 1px 0 #ffffff4d inset, 0 8px 24px #0008; opacity: 0; pointer-events: none;
+    transition: opacity .12s, translate .12s; z-index: 40; }
+  [data-tip]:hover::after { opacity: 1; translate: -50% 0; }
+
+  /* chart */
+  .ax-time-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+  .ax-label { font-size: 14px; color: var(--muted); }
+  .ax-range { display: inline-flex; background: var(--default); border-radius: 999px; padding: 3px; }
+  .ax-range button { font-size: 12px; padding: 3px 12px; border-radius: 999px; color: var(--muted); }
+  .ax-range button[aria-pressed="true"] { background: var(--segment, oklch(39.64% .01 285.93)); color: var(--fg); }
+  .ax-bars { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 4px; align-items: end; height: 96px; }
+  .ax-bar { position: relative; height: 100%; display: flex; align-items: flex-end; border-radius: 6px; }
+  .ax-bar .fill { width: 100%; background: color-mix(in oklab, var(--accent) 75%, var(--bg)); border-radius: 5px; min-height: 3px; position: relative; overflow: hidden; }
+  .ax-bar .fail { position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--danger); }
+  .ax-bar.off .fill { height: 100% !important; background: repeating-linear-gradient(-45deg, transparent 0 5px, color-mix(in oklab, var(--muted) 22%, transparent) 5px 6px);
+    outline: 1px dashed color-mix(in oklab, var(--muted) 45%, transparent); outline-offset: -1px; }
+  .ax-hours { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 4px; margin-top: 6px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ax-hours span { text-align: center; white-space: nowrap; }
+
+  /* toolbar */
+  .ax-status { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; color: var(--muted); width: max-content; }
+  .ax-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--success); }
+  .ax-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid var(--sep); }
+  .ax-dr { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: .75rem; background: var(--default); color: var(--muted); font-size: 14px; min-width: 250px; }
+  .ax-dr svg { width: 16px; height: 16px; flex: none; }
+  .ax-dr .v { color: var(--fg); font-variant-numeric: tabular-nums; }
+  .ax-seg { display: inline-flex; background: var(--default); border-radius: .75rem; padding: 3px; gap: 2px; }
+  .ax-seg button { height: 30px; min-width: 30px; padding: 0 10px; border-radius: .6rem; font-size: 13px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+  .ax-seg button[aria-pressed="true"] { background: oklch(39.64% .01 285.93); color: var(--fg); }
+  .ax-seg svg { width: 16px; height: 16px; }
+  .ax-n { font-size: 11px; font-variant-numeric: tabular-nums; padding: 0 6px; border-radius: 999px; background: color-mix(in oklab, var(--bg) 40%, transparent); }
+  .ax-fmark { font-size: 11px; font-variant-numeric: tabular-nums; padding: 0 6px; border-radius: 999px; color: var(--danger); background: color-mix(in oklab, var(--danger) 20%, transparent); }
+  .ax-what { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; }
+  .ax-spacer { flex: 1; }
+  .ax-failbtn { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 999px; font-size: 14px; font-weight: 500;
+    background: color-mix(in oklab, var(--danger) 18%, transparent); color: color-mix(in oklab, var(--danger) 70%, var(--fg)); }
+  .ax-failbtn svg { width: 16px; height: 16px; }
+
+  /* feed */
+  .ax-day { padding: 16px 0 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .ax-row { position: relative; display: grid; grid-template-columns: 52px 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 48px; padding: 6px 8px; margin: 0 -8px; border-radius: .75rem; cursor: pointer; }
+  .ax-row:hover { background: color-mix(in oklab, var(--surface) 88%, var(--fg) 6%); }
+  .ax-row.sel { background: var(--default); }
+  .ax-row + .ax-row { box-shadow: 0 -1px 0 var(--sep); }
+  .ax-t { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ax-ic { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--default); color: var(--muted); }
+  .ax-ic svg { width: 18px; height: 18px; }
+  .ax-ic.fail { background: color-mix(in oklab, var(--danger) 22%, transparent); color: color-mix(in oklab, var(--danger) 70%, var(--fg)); }
+  .ax-ic.slow { background: color-mix(in oklab, var(--warning) 18%, transparent); color: var(--warning); }
+  .ax-line { min-width: 0; display: flex; align-items: baseline; gap: 8px; white-space: nowrap; overflow: hidden; }
+  .ax-line b { font-weight: 500; }
+  .ax-line span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+  .ax-line .bad { color: color-mix(in oklab, var(--danger) 65%, var(--fg)); }
+  .ax-end { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  .ax-count { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--default); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ax-chip-warn { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: color-mix(in oklab, var(--warning) 18%, transparent); color: var(--warning); font-variant-numeric: tabular-nums; }
+  .ax-chev, .ax-copy svg { width: 18px; height: 18px; }
+  .ax-copy { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 999px; color: var(--muted); }
+  .ax-copy:hover { background: var(--default); color: var(--fg); }
+  .ax-end-mark { display: flex; align-items: center; gap: 12px; padding: 20px 0 4px; font-size: 12px; color: var(--muted); }
+  .ax-end-mark::before, .ax-end-mark::after { content: ""; flex: 1; height: 1px; background: var(--sep); }
+
+  /* drawer, drawn in place (HeroUI Drawer, placement right, w-96, p-6) */
+  .ax-dw { position: relative; width: 384px; flex: none; display: flex; flex-direction: column; gap: 20px; padding: 24px; background: var(--surface);
+    box-shadow: 0 0 1px 0 #ffffff4d inset, -16px 0 40px -12px #000000b3; align-self: flex-start; }
+  .ax-dw.wide { width: 720px; }
+  .ax-dw-head { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 12px; align-items: start; }
+  .ax-dw-head .ax-ic { margin-top: 2px; }
+  .ax-dw-title { font-size: 16px; font-weight: 500; line-height: 1.3; }
+  .ax-dw-sub { font-size: 14px; color: var(--muted); margin-top: 2px; }
+  .ax-dw-sub.bad { color: color-mix(in oklab, var(--danger) 65%, var(--fg)); }
+  .ax-dw-meta { font-size: 12px; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .ax-dw-acts { display: flex; gap: 2px; margin: -4px -8px 0 0; }
+  .ax-dw-acts .ax-copy { width: 32px; height: 32px; }
+  .ax-dw-acts [data-tip]::after { bottom: auto; top: calc(100% + 8px); left: auto; right: 0; translate: 0 4px; }
+  .ax-dw-acts [data-tip]:hover::after { translate: 0 0; }
+  .ax-dw-body { display: flex; flex-direction: column; gap: 20px; }
+  .ax-sec h3 { font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: 8px; }
+  .ax-text { font-size: 14px; }
+  .ax-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .ax-stats div { display: flex; flex-direction: column; gap: 4px; padding: 12px; border-radius: .5rem; background: var(--surface-2); }
+  .ax-stats b { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .ax-stats small { font-size: 12px; color: var(--muted); }
+  .ax-stats .bad b { color: var(--danger); }
+  .ax-stats .warn b { color: var(--warning); }
+  .ax-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 16px; font-size: 14px; }
+  .ax-facts dt { color: var(--muted); }
+  .ax-facts dd { text-align: right; font-variant-numeric: tabular-nums; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+  .ax-mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12px; }
+  .ax-facts dd.zero { color: var(--muted); }
+  .ax-cause { display: flex; flex-direction: column; padding: 12px 14px; border-radius: .75rem; font-size: 14px; background: color-mix(in oklab, var(--danger) 12%, transparent); }
+  .ax-cause small { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .ax-cause p.raw { font-family: ui-monospace, Consolas, monospace; font-size: 13px; overflow-wrap: anywhere; }
+  .ax-cause .code { align-self: flex-start; margin-top: 8px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: color-mix(in oklab, var(--fg) 8%, transparent); color: var(--muted); }
+  .ax-list li { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; padding: 8px 0; font-size: 14px; }
+  .ax-list li + li { box-shadow: 0 -1px 0 var(--sep); }
+  .ax-list .t { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13px; }
+  .ax-list .bad { color: color-mix(in oklab, var(--danger) 65%, var(--fg)); }
+  .ax-note { font-size: 12px; color: var(--muted); }
+  .ax-steps li { position: relative; display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 10px; padding-bottom: 14px; font-size: 14px; }
+  .ax-steps li::before { content: ""; position: absolute; left: 6px; top: 14px; bottom: -2px; width: 2px; background: var(--sep); }
+  .ax-steps li:last-child::before { display: none; }
+  .ax-steps i { width: 10px; height: 10px; margin: 5px 0 0 2px; border-radius: 999px; background: var(--muted); }
+  .ax-steps .ok i { background: var(--success); }
+  .ax-steps .bad i { background: var(--danger); }
+  .ax-steps .bad > span { color: color-mix(in oklab, var(--danger) 65%, var(--fg)); }
+  .ax-steps .skip > span { color: var(--muted); }
+  .ax-steps small { display: block; color: var(--muted); font-size: 13px; }
+  .ax-gapnote { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); padding: 8px 12px; border-radius: .75rem; box-shadow: inset 0 0 0 1px var(--sep); }
+  .ax-gapnote code { font-family: ui-monospace, Consolas, monospace; color: var(--fg); }
+  .ax-tabs { display: inline-flex; align-self: flex-start; background: var(--default); border-radius: .75rem; padding: 3px; gap: 2px; }
+  .ax-tabs span { height: 30px; padding: 0 10px; border-radius: 9.6px; font-size: 13px; color: var(--muted); display: inline-flex; align-items: center; }
+  .ax-tabs span.on { background: oklch(39.64% .01 285.93); color: var(--fg); }
+  .ax-code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12px; line-height: 1.55; padding: 12px 14px; border-radius: .75rem; background: var(--bg); overflow: auto; white-space: pre; }
+  .ax-code .k { color: color-mix(in oklab, var(--accent) 60%, var(--fg)); }
+  .ax-code .s { color: color-mix(in oklab, var(--success) 70%, var(--fg)); }
+  .ax-evs li { display: grid; grid-template-columns: 64px 52px minmax(0, 1fr); gap: 10px; padding: 8px 0; font-size: 13px; align-items: baseline; }
+  .ax-evs li + li { box-shadow: 0 -1px 0 var(--sep); }
+  .ax-evs .t { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ax-evs small { display: block; color: var(--muted); font-size: 12px; }
+  .ax-lvl { font-size: 11px; padding: 1px 6px; border-radius: 999px; text-align: center; background: var(--default); color: var(--muted); }
+  .ax-lvl.error { background: color-mix(in oklab, var(--danger) 22%, transparent); color: color-mix(in oklab, var(--danger) 70%, var(--fg)); }
+  .ax-lvl.warn { background: color-mix(in oklab, var(--warning) 18%, transparent); color: var(--warning); }
+  .ax-reqrow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; height: 36px; padding: 0 10px; border-radius: .6rem; background: var(--default); font-size: 13px; }
+  .ax-code-chip { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: color-mix(in oklab, var(--success) 18%, transparent); color: var(--success); }
+
+  /* proposal board: annotation chrome, not product */
+  .pb-title { font-size: 1.75rem; font-weight: 600; letter-spacing: -.01em; }
+  .pb-lead { color: var(--muted); max-width: 900px; margin-top: 6px; }
+  .pb-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .pb-box { border: 1px dashed color-mix(in oklab, var(--ann) 55%, transparent); border-radius: 1rem; padding: 16px 18px; }
+  .pb-box h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--ann); margin-bottom: 8px; }
+  .pb-box li { position: relative; padding-left: 14px; margin-top: 6px; font-size: 13px; }
+  .pb-box li::before { content: ""; position: absolute; left: 0; top: 8px; width: 6px; height: 6px; border-radius: 999px; background: var(--ann); }
+  .pb-box.copy { border-color: color-mix(in oklab, var(--muted) 45%, transparent); }
+  .pb-box.copy h2 { color: var(--muted); }
+  .pb-box.copy li::before { background: var(--muted); }
+  .pb-box.no h2 { color: var(--muted); }
+  .pb-box.no li::before { background: var(--danger); }
+  .pb-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .pb-table th, .pb-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--sep); vertical-align: top; }
+  .pb-table th { color: var(--muted); font-weight: 500; }
+  .pb-price { font-family: ui-monospace, Consolas, monospace; font-weight: 700; color: var(--ann); white-space: nowrap; }
+  .pb-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px;
+    border: 1px dashed var(--ann); color: var(--ann); white-space: nowrap; }
+  .pb-tag.copy { border-color: var(--muted); color: var(--muted); }
+  .pb-sec { display: flex; flex-direction: column; gap: 16px; padding-top: 12px; border-top: 1px solid var(--sep); scroll-margin-top: 16px; }
+  .pb-sec h2 { font-size: 1.35rem; font-weight: 600; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pb-why { color: var(--muted); max-width: 1000px; font-size: 13px; }
+  .pb-why b { color: var(--fg); font-weight: 500; }
+  .pb-frames { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+  .pb-frame { display: flex; flex-direction: column; gap: 8px; }
+  .pb-frame > .cap { font-size: 12px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .pb-rows { width: 560px; }
+  .pb-ann { outline: 1px dashed var(--ann); outline-offset: 3px; border-radius: 8px; }
+  .pb-annrow { outline: 1px dashed var(--ann); outline-offset: -1px; }
+  .pb-pin { position: absolute; right: -10px; top: -9px; font-size: 10px; font-weight: 700; padding: 0 6px; border-radius: 999px; background: var(--ann); color: var(--bg); z-index: 3; }
+</style>
+</head>
+<body>
+<main class="ax-main">
+
+  <!-- ===================== PROPOSAL BOARD HEADER ===================== -->
+  <header>
+    <p class="pb-tag">Improvement proposal · not built</p>
+    <h1 class="pb-title" style="margin-top:8px">Activity: new mobile reports and Bridge signals</h1>
+    <p class="pb-lead">What the Activity screen shows for each kind agreed with mobile. Sample day: the owner's tablet, Sat, Nov 7, 09:00 – 12:00, 33 to 39 check-ins an hour; the death, silence and close are a staged story around it. "Now" is 13:10. Everything outlined in a <span style="color:var(--ann)">dashed pink</span> line is new; everything else is copied from the real UI on <code class="ax-mono">feat/failed-sync-readings</code>.</p>
+  </header>
+
+  <section class="pb-grid3" aria-label="Scope">
+    <div class="pb-box copy">
+      <h2>Copied from the real UI</h2>
+      <ul>
+        <li>Page header, phone status line ("Phone connected · last sync 6 min ago"), 24 h chart, range field, origin switch, type toggles with gray count and red failed chip, failure pill.</li>
+        <li>Feed row: time, origin tile (red failed, gray neutral), subject, detail, <span class="ax-mono">×N</span> badge, Copy for AI on failed rows, chevron.</li>
+        <li>Traffic hour row "Phone checked in" + <span class="ax-mono">×N</span>; its drawer: check-ins / refused / slowest tiles and Hour.</li>
+        <li>Drawer header with Technical details, Copy for AI, Close; facts, cause box ("Recorded message" + code chip), timeline dots, "These details are kept until …".</li>
+        <li>Technical view tabs Requests · Events · Data; the "No presenter for <code class="ax-mono">api.listening</code>" note; the "Bridge started" generic layout.</li>
+        <li>Default filters: Traffic and System start off.</li>
+      </ul>
+    </div>
+    <div class="pb-box">
+      <h2>New in this proposal</h2>
+      <ul>
+        <li>P1 <code class="ax-mono">hourly_summary</code>: no feed line and no comparison chip; the Traffic hour drawer gains "What the tablet reported": its counts per trigger and outcome, its dropped reports and its process deaths.</li>
+        <li>P2 <code class="ax-mono">runtime_transition</code>: "Sync process · died" failed line that opens an incident, other changes neutral; owned by Traffic.</li>
+        <li>P3 native <code class="ax-mono">cycle_report</code>: "Sync cycle · failed while sending", and a stage timeline in the drawer; a stage outside the four is shown as stored.</li>
+        <li>P4 Silence, computed when Activity reads: "Tablet silent · since 11:56" failed line; once a report arrives it reads "Tablet was silent · 1 h 8 min". No incident, no stored event.</li>
+        <li>P5 Bridge closed: "Bridge closed" System line; "Bridge started" says how long Bridge was off, or that it did not close normally.</li>
+      </ul>
+    </div>
+    <div class="pb-box no">
+      <h2>Not proposed</h2>
+      <ul>
+        <li>MCP status and per-kind coverage changes: they have no screen.</li>
+        <li>Host or remote address capture on reports: undecided by the owner, so no field shows it.</li>
+        <li>Non-failed <code class="ax-mono">cycle_report</code> lines: still decided against (they flood the feed).</li>
+        <li>"Bridge off" bands in the feed or chart: the chart's hatched slot stays "No activity".</li>
+        <li>Notifications or toasts for the silence alarm.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ax-card" aria-label="Prices">
+    <table class="pb-table">
+      <thead><tr><th style="width:44px">#</th><th>Proposal</th><th style="width:70px">Price</th><th>Why that price (most expensive part)</th></tr></thead>
+      <tbody>
+        <tr><td>P1</td><td>The tablet's own hourly summary in the Traffic hour drawer</td><td class="pb-price">$$$$</td><td>New report kind to validate and store, and the hour's stored summary on the traffic hour line through the Wails binding.</td></tr>
+        <tr><td>P2</td><td><code class="ax-mono">runtime_transition</code> lines under Traffic: sync death failed, others neutral</td><td class="pb-price">$$$$</td><td>New kind, new line source and incident trigger in Go, its stored fields on the line through the Wails binding; the row words and drawer presenter are $$$ on top.</td></tr>
+        <tr><td>P3</td><td>Failed <code class="ax-mono">cycle_report</code> says its stage in plain words; stage timeline</td><td class="pb-price">$$$$</td><td>The stored, validated <code class="ax-mono">previous_cycle.last_stage</code> exposed on the line. The words map alone would be $$$.</td></tr>
+        <tr><td>P4</td><td>Silence of 60 min while Bridge was on, computed when Activity reads</td><td class="pb-price">$$$$</td><td>A new line kind read from stored report receipt times and Bridge starts; "never across an unknown Bridge state" is new timing logic, test-first. No watcher, no incident, no stored event.</td></tr>
+        <tr><td>P5</td><td>"Bridge closed" line; "Bridge started" says off-for or "did not close normally"</td><td class="pb-price">$$$$</td><td>A new stored shutdown event written on clean exit, and a start-to-close pairing on the line. The words in the row are $ once that exists.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ===================== SCREEN A: DEFAULT FILTERS ===================== -->
+  <section class="pb-sec" id="screen-a">
+    <h2>Screen A · Default filters <span class="pb-tag copy">Copied layout</span></h2>
+    <p class="pb-why">Traffic and System start off, so none of the new lines show. The three new failures surface only through Traffic's red chip (<b>3</b>); the failure pill counts the selected types, so it reads 0. Nothing new is forced into view. (Feeds on this board are cut for length.)</p>
+
+    <div class="ax-head">
+      <div><h1 class="ax-h1">Activity</h1>
+        <p class="ax-status" data-tip="Last contact from the phone"><span class="ax-dot" aria-hidden="true"></span>Phone connected · last sync 6 min ago</p></div>
+    </div>
+
+    <section class="ax-card" aria-label="Activity over time">
+      <div class="ax-time-top">
+        <span class="ax-label">Last 24 hours</span>
+        <div class="ax-range" role="group" aria-label="Range"><button aria-pressed="true">24 h</button><button aria-pressed="false">7 days</button><button aria-pressed="false">30 days</button><button aria-pressed="false">90 days</button></div>
+      </div>
+      <div class="ax-bars" id="barsA"></div>
+      <div class="ax-hours" id="hoursA"></div>
+    </section>
+
+    <section class="ax-card" aria-label="Feed">
+      <div class="ax-tools" id="toolsA"></div>
+      <div class="ax-day">Today · Sat, Nov 7</div>
+      <div class="ax-row"><span class="ax-t">10:24</span><span class="ax-ic" data-tip="Phone"><i data-i="phone"></i></span><span class="ax-line"><b>Kusuriya no Hitorigoto 3rd Season</b><span>episode 4 → 5</span></span><span class="ax-end"><i data-i="chev" class="ax-chev"></i></span></div>
+      <div class="ax-row"><span class="ax-t">09:41</span><span class="ax-ic" data-tip="Phone"><i data-i="phone"></i></span><span class="ax-line"><b>Hotaru no Yomeiri</b><span>episode 2 → 3</span></span><span class="ax-end"><i data-i="chev" class="ax-chev"></i></span></div>
+      <div class="ax-day">Yesterday · Fri, Nov 6</div>
+      <div class="ax-row"><span class="ax-t">23:10</span><span class="ax-ic" data-tip="Bridge"><i data-i="bridge"></i></span><span class="ax-line"><b>Scheduled download</b><span>2 downloaded</span></span><span class="ax-end"><i data-i="chev" class="ax-chev"></i></span></div>
+      <div class="ax-row"><span class="ax-t">21:40</span><span class="ax-ic" data-tip="Phone"><i data-i="phone"></i></span><span class="ax-line"><b>Ao Ashi Season 2nd</b><span>episode 7 → 8</span></span><span class="ax-end"><i data-i="chev" class="ax-chev"></i></span></div>
+      <div class="ax-end-mark">Start of the last 24 hours</div>
+    </section>
+  </section>
+
+  <!-- ===================== SCREEN B: TRAFFIC + SYSTEM ON ===================== -->
+  <section class="pb-sec" id="screen-b">
+    <h2>Screen B · Traffic and System turned on <span class="pb-tag">Proposal rows outlined</span></h2>
+    <p class="pb-why">The owner turned on Traffic and System. The pill now counts 3. Click a row to jump to its proposal. Changes lines stay as they are; they are kept for scale.</p>
+    <section class="ax-card" aria-label="Feed">
+      <div class="ax-tools" id="toolsB"></div>
+      <div class="ax-day">Today · Sat, Nov 7</div>
+      <div id="feedB"></div>
+      <div class="ax-end-mark">Start of the last 24 hours</div>
+    </section>
+  </section>
+
+  <!-- ===================== P1 hourly_summary ===================== -->
+  <section class="pb-sec" id="p1">
+    <h2>P1 · <code class="ax-mono" style="font-size:1rem">hourly_summary</code> enriches the Traffic hour <span class="pb-tag">Proposal · $$$$</span></h2>
+    <p class="pb-why"><b>No new feed line and no comparison chip.</b> One body per closed hour would add 24 lines a day; the Traffic hour line already stands for that hour, and its row is unchanged. Bridge stores no per-hour count of attempts of its own (the <span class="ax-mono">×N</span> counts requests), so nothing compares the two. The drawer shows what the tablet reported for that hour, as stored: its counts per trigger and outcome, its dropped reports and its process deaths. An hour with no stored summary shows no section.</p>
+    <div class="pb-frames">
+      <div class="pb-frame">
+        <div class="cap">Feed rows · unchanged</div>
+        <div class="ax-card pb-rows" id="p1rows"></div>
+      </div>
+      <div class="pb-frame">
+        <div class="cap">Drawer · 10:00 hour</div>
+        <aside class="ax-dw">
+          <div class="ax-dw-head">
+            <span class="ax-ic"><i data-i="phone"></i></span>
+            <div><h2 class="ax-dw-title">Phone checked in</h2><p class="ax-dw-sub">33 times</p><p class="ax-dw-meta">Sat, Nov 7 · 10:00</p></div>
+            <div class="ax-dw-acts" data-acts></div>
+          </div>
+          <div class="ax-dw-body">
+            <div class="ax-stats"><div><b>33</b><small>check-ins</small></div><div><b>0</b><small>refused</small></div><div><b>1.4 s</b><small>slowest</small></div></div>
+            <dl class="ax-facts"><dt>Hour</dt><dd>10:00 – 11:00</dd></dl>
+            <div class="ax-sec pb-ann"><h3>What the tablet reported</h3>
+              <dl class="ax-facts">
+                <dt class="ax-mono">foreground_service · closed</dt><dd>29 <span class="zero">· slowest 1.4 s</span></dd>
+                <dt class="ax-mono">foreground_service · failed</dt><dd>4 <span class="zero">· slowest 30 s</span></dd>
+                <dt class="ax-mono">foreground_service · presence_refused</dt><dd>2</dd>
+                <dt class="ax-mono">foreground_service · skipped_owned_by_ticker</dt><dd>2</dd>
+                <dt class="ax-mono">app_active · closed</dt><dd>2 <span class="zero">· slowest 0.8 s</span></dd>
+                <dt>Reports dropped</dt><dd>0</dd>
+                <dt>Received</dt><dd>11:00</dd>
+              </dl>
+            </div>
+            <p class="ax-note">Single check-ins are kept for 2 hours. Older hours keep only these totals.</p>
+          </div>
+        </aside>
+      </div>
+      <div class="pb-frame">
+        <div class="cap">Drawer · 11:00 hour (one process death)</div>
+        <aside class="ax-dw">
+          <div class="ax-dw-head">
+            <span class="ax-ic"><i data-i="phone"></i></span>
+            <div><h2 class="ax-dw-title">Phone checked in</h2><p class="ax-dw-sub">34 times</p><p class="ax-dw-meta">Sat, Nov 7 · 11:00</p></div>
+            <div class="ax-dw-acts" data-acts></div>
+          </div>
+          <div class="ax-dw-body">
+            <div class="ax-stats"><div><b>34</b><small>check-ins</small></div><div><b>0</b><small>refused</small></div><div><b>0.9 s</b><small>slowest</small></div></div>
+            <dl class="ax-facts"><dt>Hour</dt><dd>11:00 – 12:00</dd></dl>
+            <div class="ax-sec pb-ann"><h3>What the tablet reported</h3>
+              <dl class="ax-facts">
+                <dt class="ax-mono">foreground_service · closed</dt><dd>33 <span class="zero">· slowest 0.9 s</span></dd>
+                <dt class="ax-mono">foreground_service · failed</dt><dd>1 <span class="zero">· slowest 30 s</span></dd>
+                <dt>Reports dropped</dt><dd>0</dd>
+                <dt>Received</dt><dd>13:04</dd>
+              </dl>
+            </div>
+            <div class="ax-sec pb-ann"><h3>Process deaths</h3>
+              <ul class="ax-list"><li><span class="t ax-mono">sync</span><span><span class="ax-mono">low_memory</span> · ×1</span></li></ul>
+            </div>
+            <p class="ax-note">Single check-ins are kept for 2 hours. Older hours keep only these totals.</p>
+          </div>
+        </aside>
+      </div>
+      <div class="pb-frame">
+        <div class="cap">Technical view · Data · 10:00 hour</div>
+        <aside class="ax-dw wide">
+          <div class="ax-dw-head">
+            <span class="ax-ic"><i data-i="phone"></i></span>
+            <div><h2 class="ax-dw-title">Phone checked in</h2><p class="ax-dw-sub">33 times</p><p class="ax-dw-meta">Sat, Nov 7 · 10:00</p></div>
+            <div class="ax-dw-acts" data-acts="tech"></div>
+          </div>
+          <div class="ax-tabs"><span>Requests</span><span>Events</span><span class="on">Data</span></div>
+          <div class="ax-sec"><h3>Hourly total</h3>
+<pre class="ax-code">{ <span class="k">"hourStartMs"</span>: 1794135600000, <span class="k">"requests"</span>: 33, <span class="k">"failed"</span>: 0, <span class="k">"maxDurationMs"</span>: 1412 }</pre></div>
+          <div class="ax-sec pb-ann"><h3>Stored report</h3>
+<pre class="ax-code">{
+  <span class="k">"kind"</span>: <span class="s">"hourly_summary"</span>,
+  <span class="k">"event_id"</span>: <span class="s">"inst-7f3c…:1794135600000"</span>,
+  <span class="k">"observed_at_ms"</span>: 1794135600000,
+  <span class="k">"reported_at_ms"</span>: 1794139212000,
+  <span class="k">"payload"</span>: {
+    <span class="k">"counts"</span>: [
+      { <span class="k">"trigger_source"</span>: <span class="s">"foreground_service"</span>, <span class="k">"outcome"</span>: <span class="s">"closed"</span>, <span class="k">"count"</span>: 29, <span class="k">"max_duration_ms"</span>: 1412 },
+      { <span class="k">"trigger_source"</span>: <span class="s">"foreground_service"</span>, <span class="k">"outcome"</span>: <span class="s">"failed"</span>, <span class="k">"count"</span>: 4, <span class="k">"max_duration_ms"</span>: 30000 },
+      { <span class="k">"trigger_source"</span>: <span class="s">"foreground_service"</span>, <span class="k">"outcome"</span>: <span class="s">"presence_refused"</span>, <span class="k">"count"</span>: 2, <span class="k">"max_duration_ms"</span>: null },
+      { <span class="k">"trigger_source"</span>: <span class="s">"foreground_service"</span>, <span class="k">"outcome"</span>: <span class="s">"skipped_owned_by_ticker"</span>, <span class="k">"count"</span>: 2, <span class="k">"max_duration_ms"</span>: null },
+      { <span class="k">"trigger_source"</span>: <span class="s">"app_active"</span>, <span class="k">"outcome"</span>: <span class="s">"closed"</span>, <span class="k">"count"</span>: 2, <span class="k">"max_duration_ms"</span>: 812 }
+    ],
+    <span class="k">"dropped_count"</span>: 0,
+    <span class="k">"process_deaths"</span>: []
+  }
+}</pre></div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== P2 runtime_transition ===================== -->
+  <section class="pb-sec" id="p2">
+    <h2>P2 · <code class="ax-mono" style="font-size:1rem">runtime_transition</code> lines <span class="pb-tag">Proposal · $$$$</span></h2>
+    <p class="pb-why"><b>Owner: Traffic.</b> The design places every mobile report under Traffic ("Failed reports only, under Traffic"), and System is the section for Bridge's own starts, warnings and errors that no other type owns. A transition is a report the phone sends about itself, so Traffic owns it. Its failure still surfaces while Traffic is off, through Traffic's red chip. A death of the <code class="ax-mono">sync</code> process is a failed line; every other change (sync process started, main service started) is a neutral line, which the failure switch skips. Mobile reports a death per event only for <code class="ax-mono">sync</code>; deaths of <code class="ax-mono">main</code> are counted in the hourly summary. The row reads the stored process and subject, then the stored transition; a value mobile has not defined is shown as stored. The row time is when it reached Bridge; the drawer shows the time on the tablet and the late arrival with the existing amber chip. A death opens no incident, so the drawer has no "Around it" and no "kept until".</p>
+    <div class="pb-frames">
+      <div class="pb-frame">
+        <div class="cap">Feed rows · death (failed) and restart (neutral)</div>
+        <div class="ax-card pb-rows" id="p2rows"></div>
+      </div>
+      <div class="pb-frame">
+        <div class="cap">Drawer · sync died</div>
+        <aside class="ax-dw">
+          <div class="ax-dw-head">
+            <span class="ax-ic fail"><i data-i="phone"></i></span>
+            <div><h2 class="ax-dw-title">Sync process</h2><p class="ax-dw-sub bad">died</p><p class="ax-dw-meta">Sat, Nov 7 · 13:04</p></div>
+            <div class="ax-dw-acts" data-acts></div>
+          </div>
+          <div class="ax-dw-body">
+            <dl class="ax-facts">
+              <dt>Process</dt><dd class="ax-mono">sync</dd>
+              <dt>Subject</dt><dd class="ax-mono">process</dd>
+              <dt>Change</dt><dd>died</dd>
+            </dl>
+            <div class="ax-cause"><small>Recorded reason</small><p class="raw">low_memory</p><span class="code">low_memory</span></div>
+            <div class="ax-sec"><h3>When</h3>
+              <dl class="ax-facts"><dt>On the phone</dt><dd>11:57</dd><dt>Reached the bridge</dt><dd>13:04 <span class="ax-chip-warn">1 h 7 min late</span></dd></dl></div>
+          </div>
+        </aside>
+      </div>
+      <div class="pb-frame">
+        <div class="cap">Technical view · Data</div>
+        <aside class="ax-dw wide">
+          <div class="ax-dw-head">
+            <span class="ax-ic fail"><i data-i="phone"></i></span>
+            <div><h2 class="ax-dw-title">Sync process</h2><p class="ax-dw-sub bad">died</p><p class="ax-dw-meta">Sat, Nov 7 · 13:04</p></div>
+            <div class="ax-dw-acts" data-acts="tech"></div>
+          </div>
+          <div class="ax-tabs"><span>Requests</span><span>Events</span><span class="on">Data</span></div>
+          <div class="ax-sec pb-ann"><h3>Stored report</h3>
+<pre class="ax-code">{
+  <span class="k">"kind"</span>: <span class="s">"runtime_transition"</span>,
+  <span class="k">"event_id"</span>: <span class="s">"rt-01JC4…"</span>,
+  <span class="k">"observed_at_ms"</span>: 1794142620000,
+  <span class="k">"reported_at_ms"</span>: 1794146652000,
+  <span class="k">"payload"</span>: {
+    <span class="k">"process_name"</span>: <span class="s">"sync"</span>,
+    <span class="k">"subject"</span>: <span class="s">"process"</span>,
+    <span class="k">"transition"</span>: <span class="s">"died"</span>,
+    <span class="k">"reason"</span>: <span class="s">"low_memory"</span>,
+    <span class="k">"app_version"</span>: <span class="s">"1.4.0"</span>
+  }
+}</pre></div>
+          <div class="ax-sec"><h3>Requests (other tab)</h3><div class="ax-reqrow"><span class="ax-mono">POST /api/sync/diagnostics</span><span class="ax-code-chip">204</span><span class="ax-count">×1</span></div></div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== P3 cycle_report ===================== -->
+  <section class="pb-sec" id="p3">
+    <h2>P3 · Native <code class="ax-mono" style="font-size:1rem">cycle_report</code>, failed <span class="pb-tag">Proposal · $$$$</span></h2>
+    <p class="pb-why">Today the row reads "Sync cycle" followed by the stored outcome. <b>Proposal:</b> the detail names the stage it failed at, in plain words from a closed enum: <i>failed as it started</i> (attempt started), <i>failed while claiming changes</i>, <i>failed while sending</i>, <i>failed while applying</i>. The drawer draws the four stages with the run-story timeline: green for the stages it passed, red where it stopped, gray "Not reached" after. It shows no times per stage, because the report stores none. The stage is the stored <code class="ax-mono">previous_cycle.last_stage</code> (<code class="ax-mono">attempt_started</code>, <code class="ax-mono">claim_ops</code>, <code class="ax-mono">http</code>, <code class="ax-mono">apply_write</code>); any other stored stage reads "failed while" and the stage as stored, and the drawer shows "Stopped at" with that value and no four-step bar. A failed cycle without a stage keeps today's "failed". The cause box is the incident's recorded cause, <code class="ax-mono">previous_cycle.error_cause</code>. A cycle report carries no phone time, so "When" has only its arrival. Only failed cycles get a line (non-failed ones still flood the feed).</p>
+    <div class="pb-frames">
+      <div class="pb-frame">
+        <div class="cap">Feed row · today vs proposal</div>
+        <div class="ax-card pb-rows" id="p3rows"></div>
+      </div>
+      <div class="pb-frame">
+        <div class="cap">Drawer</div>
+        <aside class="ax-dw">
+          <div class="ax-dw-head">
+            <span class="ax-ic fail"><i data-i="phone"></i></span>
+            <div><h2 class="ax-dw-title">Sync cycle</h2><p class="ax-dw-sub bad">failed while sending</p><p class="ax-dw-meta">Sat, Nov 7 · 11:52</p></div>
+            <div class="ax-dw-acts" data-acts></div>
+          </div>
+          <div class="ax-dw-body">
+            <div class="ax-sec pb-ann"><h3>Stages</h3>
+              <ol class="ax-steps">
+                <li class="ok"><i></i><span>Attempt started</span></li>
+                <li class="ok"><i></i><span>Claiming changes</span></li>
+                <li class="bad"><i></i><span>Sending<small>Stopped here</small></span></li>
+                <li class="skip"><i></i><span>Applying<small>Not reached</small></span></li>
+              </ol></div>
+            <div class="ax-sec"><h3>Why it failed</h3>
+              <div class="ax-cause"><small>Recorded message</small><p class="raw">timeout</p></div></div>
+            <div class="ax-sec"><h3>When</h3>
+              <dl class="ax-facts"><dt>Reached the bridge</dt><dd>11:52</dd></dl></div>
+            <p class="ax-note">These details are kept until Feb 5.</p>
+          </div>
+        </aside>
+      </div>
+      <div class="pb-frame">
+        <div class="cap">Technical view · Data</div>
+        <aside class="ax-dw wide">
+          <div class="ax-dw-head">
+            <span class="ax-ic fail"><i data-i="phone"></i></span>
+            <div><h2 class="ax-dw-title">Sync cycle</h2><p class="ax-dw-sub bad">failed while sending</p><p class="ax-dw-meta">Sat, Nov 7 · 11:52</p></div>
+            <div class="ax-dw-acts" data-acts="tech"></div>
+          </div>
+          <div class="ax-tabs"><span>Requests</span><span>Events</span><span class="on">Data</span></div>
+          <div class="ax-sec"><h3>Stored report</h3>
+<pre class="ax-code">{
+  <span class="k">"kind"</span>: <span class="s">"cycle_report"</span>,
+  <span class="k">"event_id"</span>: <span class="s">"cyc-01JC4…"</span>,
+  <span class="k">"observed_at_ms"</span>: null,
+  <span class="k">"reported_at_ms"</span>: 1794142320000,
+  <span class="k">"payload"</span>: {
+    <span class="k">"cycle_id"</span>: <span class="s">"cyc-01JC4…"</span>,
+    <span class="k">"trigger_source"</span>: <span class="s">"foreground_service"</span>,
+    <span class="k">"app_state"</span>: <span class="s">"background"</span>,
+    <span class="k">"consecutive_unclosed_cycles"</span>: 0,
+    <span class="k">"pending_ops_count"</span>: 3,
+    <span class="k">"cursor"</span>: 18422,
+    <span class="k">"recent_events"</span>: [],
+    <span class="k">"previous_cycle"</span>: {
+      <span class="k">"cycle_id"</span>: <span class="s">"cyc-01JC3…"</span>,
+      <span class="k">"trigger_source"</span>: <span class="s">"foreground_service"</span>,
+      <span class="k">"outcome"</span>: <span class="s">"failed"</span>,
+      <span class="k">"last_stage"</span>: <span class="s">"http"</span>,
+      <span class="k">"started_at"</span>: 1794142290000,
+      <span class="k">"elapsed_ms"</span>: 30000,
+      <span class="k">"error_name"</span>: <span class="s">"BridgeTimeoutError"</span>,
+      <span class="k">"native_errcode_byte"</span>: null,
+      <span class="k">"error_stage"</span>: <span class="s">"deadline"</span>,
+      <span class="k">"error_cause"</span>: <span class="s">"timeout"</span>,
+      <span class="k">"error_fingerprint"</span>: null
+    }
+  }
+}</pre></div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== P4 silence alarm ===================== -->
+  <section class="pb-sec" id="p4">
+    <h2>P4 · Tablet silence, computed when read <span class="pb-tag">Proposal · $$$$</span></h2>
+    <p class="pb-why">Activity and the MCP compute it each time they read: no watcher, no timer, no background process, no incident and no stored silence event. A silence is 60 minutes or more in which Bridge received no report from the tablet while Bridge was on. <b>Owner: Traffic</b>, origin Bridge: it is about the phone's reports, but Bridge reads it. It is a failed line, so it counts in Traffic's red chip. <b>Heard</b> is the receipt time of any stored report of the device, minute precision while its reports are retained; past that, the hour of its <code class="ax-mono">hourly_summary</code>, hour precision. <b>The silence counts only time Bridge was on:</b> it starts at the later of the last report received and the Bridge start, and it never spans a period where Bridge's own state is unknown: after a start with no recorded close, it ends at the last row Bridge wrote before that start. Example: Bridge closed at 23:46, the tablet's last report was received at 23:40, Bridge started at 08:58 and received a report at 09:00. The silence could start only at 08:58, so there is none. While silent the row reads "since 11:56"; once a report is received it reads how long.</p>
+    <div class="pb-frames">
+      <div class="pb-frame">
+        <div class="cap">Feed row · while silent (read between 12:56 and 13:04), then once a report was received</div>
+        <div class="ax-card pb-rows" id="p4rows"></div>
+      </div>
+      <div class="pb-frame">
+        <div class="cap">Drawer · once a report was received</div>
+        <aside class="ax-dw">
+          <div class="ax-dw-head">
+            <span class="ax-ic fail"><i data-i="bridge"></i></span>
+            <div><h2 class="ax-dw-title">Tablet was silent</h2><p class="ax-dw-sub bad">1 h 8 min</p><p class="ax-dw-meta">Sat, Nov 7 · 12:56</p></div>
+            <div class="ax-dw-acts" data-acts></div>
+          </div>
+          <div class="ax-dw-body">
+            <p class="ax-text">Bridge was on and received no report from the tablet for 60 minutes or more.</p>
+            <dl class="ax-facts">
+              <dt>Last report received at</dt><dd>11:56</dd>
+              <dt>Next report received at</dt><dd>13:04</dd>
+              <dt>Bridge started</dt><dd>08:58</dd>
+            </dl>
+          </div>
+        </aside>
+      </div>
+      <div class="pb-frame">
+        <div class="cap">Technical view · Data (no Requests or Events tab: nothing is stored for it)</div>
+        <aside class="ax-dw wide">
+          <div class="ax-dw-head">
+            <span class="ax-ic fail"><i data-i="bridge"></i></span>
+            <div><h2 class="ax-dw-title">Tablet was silent</h2><p class="ax-dw-sub bad">1 h 8 min</p><p class="ax-dw-meta">Sat, Nov 7 · 12:56</p></div>
+            <div class="ax-dw-acts" data-acts="tech"></div>
+          </div>
+          <div class="ax-tabs"><span class="on">Data</span></div>
+          <div class="ax-sec"><h3>Read from</h3>
+<pre class="ax-code">{
+  <span class="k">"device_id"</span>: <span class="s">"tab-7f3c"</span>,
+  <span class="k">"last_report"</span>: { <span class="k">"kind"</span>: <span class="s">"cycle_report"</span>, <span class="k">"reported_at_ms"</span>: 1794142560000 },
+  <span class="k">"next_report"</span>: { <span class="k">"kind"</span>: <span class="s">"runtime_transition"</span>, <span class="k">"reported_at_ms"</span>: 1794146640000 },
+  <span class="k">"bridge_started_at_ms"</span>: 1794113880000
+}</pre></div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== P5 Bridge closed ===================== -->
+  <section class="pb-sec" id="p5">
+    <h2>P5 · Bridge closed <span class="pb-tag">Proposal · $$$$</span></h2>
+    <p class="pb-why">A clean shutdown writes one event. It shows as a <b>System</b> line "Bridge closed", grouped per hour like every System line. The next "Bridge started" line pairs with it: its detail reads "off 9 h 12 min". A start with no clean close before it reads "did not close normally" in plain muted text, not red: a power cut or a kill is not a failure Bridge can prove, and red is spent only on failures. The chart keeps its "No activity" hatch; it still draws no "Bridge off" band.</p>
+    <div class="pb-frames">
+      <div class="pb-frame">
+        <div class="cap">Feed rows</div>
+        <div class="ax-card pb-rows" id="p5rows"></div>
+      </div>
+      <div class="pb-frame">
+        <div class="cap">Drawer · Bridge started (today: generic layout, copied) + proposed facts</div>
+        <aside class="ax-dw">
+          <div class="ax-dw-head">
+            <span class="ax-ic"><i data-i="bridge"></i></span>
+            <div><h2 class="ax-dw-title">http server listening on 0.0.0.0:8787</h2><p class="ax-dw-meta">Sat, Nov 7 · 08:58</p></div>
+            <div class="ax-dw-acts" data-acts></div>
+          </div>
+          <div class="ax-dw-body">
+            <dl class="ax-facts pb-ann">
+              <dt>Closed</dt><dd>Fri, Nov 6 · 23:46</dd>
+              <dt>Off for</dt><dd>9 h 12 min</dd>
+            </dl>
+            <dl class="ax-facts">
+              <dt>Type</dt><dd class="ax-mono">api.listening</dd>
+              <dt>Area</dt><dd>api</dd>
+              <dt>Level</dt><dd>info</dd>
+              <dt>At</dt><dd>Sat, Nov 7 · 08:58</dd>
+            </dl>
+            <div class="ax-sec"><h3>Recorded fields</h3>
+              <dl class="ax-facts"><dt class="ax-mono">addr</dt><dd class="ax-mono">0.0.0.0:8787</dd><dt class="ax-mono">lastContacts</dt><dd class="ax-mono">{"tab-7f3c":1794094800000}</dd></dl></div>
+          </div>
+        </aside>
+      </div>
+      <div class="pb-frame">
+        <div class="cap">Drawer · start without a clean close</div>
+        <aside class="ax-dw">
+          <div class="ax-dw-head">
+            <span class="ax-ic"><i data-i="bridge"></i></span>
+            <div><h2 class="ax-dw-title">http server listening on 0.0.0.0:8787</h2><p class="ax-dw-meta">Thu, Nov 5 · 10:09</p></div>
+            <div class="ax-dw-acts" data-acts></div>
+          </div>
+          <div class="ax-dw-body">
+            <dl class="ax-facts pb-ann">
+              <dt>Closed</dt><dd>Not recorded</dd>
+              <dt>Last event before</dt><dd>Wed, Nov 4 · 01:12</dd>
+            </dl>
+            <p class="ax-text pb-ann">The previous run did not close normally.</p>
+            <dl class="ax-facts">
+              <dt>Type</dt><dd class="ax-mono">api.listening</dd>
+              <dt>Area</dt><dd>api</dd>
+              <dt>Level</dt><dd>info</dd>
+              <dt>At</dt><dd>Thu, Nov 5 · 10:09</dd>
+            </dl>
+          </div>
+        </aside>
+      </div>
+      <div class="pb-frame">
+        <div class="cap">Technical view · Events · Bridge closed</div>
+        <aside class="ax-dw wide">
+          <div class="ax-dw-head">
+            <span class="ax-ic"><i data-i="bridge"></i></span>
+            <div><h2 class="ax-dw-title">Bridge closed</h2><p class="ax-dw-meta">Fri, Nov 6 · 23:46</p></div>
+            <div class="ax-dw-acts" data-acts="tech"></div>
+          </div>
+          <div class="ax-gapnote">No presenter for <code>app.closed</code>. Shown with the generic layout.</div>
+          <div class="ax-tabs"><span class="on">Events</span><span>Data</span></div>
+          <ul class="ax-evs">
+            <li><span class="t">23:46:08</span><span class="ax-lvl">info</span><span>bridge closed cleanly<small>desktop · app.closed</small></span></li>
+          </ul>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+const I = {
+  phone: '<path d="M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm0 2v16h8V4H8Zm2.5 13h3v1.5h-3V17Z"/>',
+  bridge: '<path d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6v2h3v2H8v-2h3v-2H5a2 2 0 0 1-2-2V5Zm2 0v10h14V5H5Z"/>',
+  alert: '<path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm-1 5v7h2V7h-2Zm0 9v2h2v-2h-2Z"/>',
+  copy: '<path d="M8 3h11a2 2 0 0 1 2 2v11h-2V5H8V3ZM5 7h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Zm0 2v10h10V9H5Z"/>',
+  chev: '<path d="m9.3 5.3 6.7 6.7-6.7 6.7-1.4-1.4 5.3-5.3-5.3-5.3 1.4-1.4Z"/>',
+  close: '<path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6 10.6 12 5 6.4 6.4 5Z"/>',
+  code: '<path d="M8.6 6.6 10 8l-4 4 4 4-1.4 1.4L3.2 12l5.4-5.4Zm6.8 0L20.8 12l-5.4 5.4L14 16l4-4-4-4 1.4-1.4Z"/>',
+  back: '<path d="M10.4 5.6 11.8 7l-4 4H20v2H7.8l4 4-1.4 1.4L4 12l6.4-6.4Z"/>',
+  calendar: '<path d="M8 2h2v2h4V2h2v2h3a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h3V2ZM5 10v9h14v-9H5Zm0-2h14V6H5v2Z"/>',
+};
+const svg = (k, c = '') => `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="${c}">${I[k]}</svg>`;
+
+// one feed row, as ActivityFeedRow draws it; p = proposal id it belongs to (annotation only)
+function row(r) {
+  const tile = r.fail ? 'fail' : r.slow ? 'slow' : '';
+  const label = (r.o === 'phone' ? 'Phone' : 'Bridge') + (r.fail ? ' · failed' : '');
+  const detail = r.s ? `<span class="${r.fail ? 'bad' : ''}">${r.s}</span>` : '';
+  const extra = (r.n ? `<span class="ax-count" data-tip="${r.n} times">×${r.n}</span>` : '');
+  const copy = r.fail ? `<button class="ax-copy" data-tip="Copy for AI" aria-label="Copy for AI">${svg('copy')}</button>` : '';
+  const pin = r.p ? `<span class="pb-pin">${r.p.toUpperCase()}</span>` : '';
+  return `<div class="ax-row ${r.p ? 'pb-annrow' : ''}" ${r.p ? `data-go="${r.p}"` : ''}>${pin}<span class="ax-t">${r.t}</span><span class="ax-ic ${tile}" data-tip="${label}">${svg(r.o)}</span><span class="ax-line"><b>${r.a}</b>${detail}</span><span class="ax-end">${extra}${copy}${svg('chev', 'ax-chev')}</span></div>`;
+}
+
+// Screen B feed: Traffic, System and Changes on, newest first
+const FEED = [
+  { t: '13:00', o: 'phone', a: 'Phone checked in', n: 4, p: 'p1' },
+  { t: '13:04', o: 'phone', a: 'Sync process', s: 'started', p: 'p2' },
+  { t: '13:04', o: 'phone', a: 'Sync process', s: 'died', fail: 1, p: 'p2' },
+  { t: '12:56', o: 'bridge', a: 'Tablet was silent', s: '1 h 8 min', fail: 1, p: 'p4' },
+  { t: '11:52', o: 'phone', a: 'Sync cycle', s: 'failed while sending', fail: 1, p: 'p3' },
+  { t: '11:00', o: 'phone', a: 'Phone checked in', n: 34, p: 'p1' },
+  { t: '10:24', o: 'phone', a: 'Kusuriya no Hitorigoto 3rd Season', s: 'episode 4 → 5' },
+  { t: '10:00', o: 'phone', a: 'Phone checked in', n: 33, p: 'p1' },
+  { t: '09:41', o: 'phone', a: 'Hotaru no Yomeiri', s: 'episode 2 → 3' },
+  { t: '09:00', o: 'phone', a: 'Phone checked in', n: 36, p: 'p1' },
+  { t: '08:58', o: 'bridge', a: 'Bridge started', s: 'off 9 h 12 min', p: 'p5' },
+];
+// newest first by arrival; the two 13:04 transitions keep their order (the restart was received after the death)
+FEED.sort((a, b) => b.t.localeCompare(a.t));
+document.getElementById('feedB').innerHTML = FEED.map(row).join('') +
+  '<div class="ax-day">Yesterday · Fri, Nov 6</div>' +
+  [{ t: '23:46', o: 'bridge', a: 'Bridge closed', p: 'p5' },
+   { t: '23:10', o: 'bridge', a: 'Scheduled download', s: '2 downloaded' },
+   { t: '23:00', o: 'phone', a: 'Phone checked in', n: 37 },
+   { t: '22:00', o: 'phone', a: 'Phone checked in', n: 38 }].map(row).join('');
+
+document.getElementById('p1rows').innerHTML = [
+  { t: '10:00', o: 'phone', a: 'Phone checked in', n: 33 },
+  { t: '09:00', o: 'phone', a: 'Phone checked in', n: 36 }].map(row).join('') +
+  '<p class="ax-note" style="margin-top:10px">The rows are unchanged: the summary of the tablet shows only in the hour drawer.</p>';
+document.getElementById('p2rows').innerHTML = [
+  { t: '13:04', o: 'phone', a: 'Sync process', s: 'started' },
+  { t: '13:04', o: 'phone', a: 'Sync process', s: 'died', fail: 1 }].map(row).join('') +
+  '<p class="ax-note" style="margin-top:10px">Both reached Bridge at 13:04; the death happened on the tablet at 11:57. Other changes read the same way, such as "Main service · started" or "Sync tick alarm · armed".</p>';
+document.getElementById('p3rows').innerHTML =
+  '<p class="ax-note" style="margin-bottom:6px">Today (copied: report kind as plain words, outcome as stored)</p>' +
+  row({ t: '11:52', o: 'phone', a: 'Sync cycle', s: 'failed', fail: 1 }) +
+  '<p class="ax-note" style="margin:14px 0 6px">Proposal</p>' +
+  row({ t: '11:52', o: 'phone', a: 'Sync cycle', s: 'failed while sending', fail: 1 }) +
+  '<p class="ax-note" style="margin-top:10px">Other stages: "failed as it started", "failed while claiming changes", "failed while applying". A stage outside the four, as stored: "failed while parse_response".</p>';
+document.getElementById('p4rows').innerHTML =
+  '<p class="ax-note" style="margin-bottom:6px">While silent</p>' +
+  row({ t: '12:56', o: 'bridge', a: 'Tablet silent', s: 'since 11:56', fail: 1 }) +
+  '<p class="ax-note" style="margin:14px 0 6px">Once a report was received at 13:04</p>' +
+  row({ t: '12:56', o: 'bridge', a: 'Tablet was silent', s: '1 h 8 min', fail: 1 });
+document.getElementById('p5rows').innerHTML =
+  '<div class="ax-day" style="padding-top:0">Today · Sat, Nov 7</div>' +
+  row({ t: '08:58', o: 'bridge', a: 'Bridge started', s: 'off 9 h 12 min' }) +
+  '<div class="ax-day">Yesterday · Fri, Nov 6</div>' +
+  row({ t: '23:46', o: 'bridge', a: 'Bridge closed' }) +
+  '<div class="ax-day">Thu, Nov 5</div>' +
+  row({ t: '10:09', o: 'bridge', a: 'Bridge started', s: 'did not close normally' }) +
+  '<p class="ax-note" style="margin-top:10px">Today\'s real row is "Bridge started" with no detail.</p>';
+
+// toolbar, as ActivityToolbar draws it
+function tools(on, pill) {
+  const T = [['change', 'Changes', 5, 0], ['traffic', 'Traffic', 18, 3], ['download', 'Downloads', 1, 0], ['task', 'Tasks', 2, 0], ['edit', 'Edits', 0, 0], ['system', 'System', 2, 0]];
+  const btn = ([id, label, n, f]) => `<button aria-pressed="${on.includes(id)}">${label}<span class="ax-n">${n}</span>${f ? `<span class="ax-fmark ${id === 'traffic' ? 'pb-ann' : ''}" data-tip="${f} failed">${f}</span>` : ''}</button>`;
+  return `<button class="ax-dr" aria-label="Time range">${svg('calendar')}<span class="v">Nov 6, 13:10 – Nov 7, 13:10</span></button>
+    <div class="ax-seg" role="group" aria-label="Where"><button aria-pressed="true">All</button><button aria-pressed="false" data-tip="From the phone" aria-label="Phone">${svg('phone')}</button><button aria-pressed="false" data-tip="On the bridge" aria-label="Bridge">${svg('bridge')}</button></div>
+    <div class="ax-what"><div class="ax-seg" role="group" aria-label="What"><button aria-pressed="false">All</button>${T.map(btn).join('')}</div>
+    <span class="ax-spacer"></span><button class="ax-failbtn" aria-pressed="false" aria-label="Show only failures" data-tip="Show only failures">${svg('alert')}${pill}</button></div>`;
+}
+document.getElementById('toolsA').innerHTML = tools(['change', 'download', 'task', 'edit'], 0);
+document.getElementById('toolsB').innerHTML = tools(['change', 'traffic', 'system'], 3);
+
+// 24 h chart: Nov 6 14:00 → Nov 7 13:00, one red cap in the 11:00 and 12:00 slots
+const V = [1, 0, 1, 0, 1, 0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0];
+const FAIL = new Set(); // default types: no failures, the new ones are Traffic
+document.getElementById('barsA').innerHTML = V.map((v, i) => v === 0
+  ? '<div class="ax-bar off" data-tip="No activity"><div class="fill"></div></div>'
+  : `<div class="ax-bar"><div class="fill" style="height:${Math.max(4, v / 2 * 100)}%">${FAIL.has(i) ? '<span class="fail"></span>' : ''}</div></div>`).join('');
+document.getElementById('hoursA').innerHTML = V.map((_, i) => { const h = (14 + i) % 24; return `<span>${h === 0 ? 'Today' : h % 3 === 0 ? String(h).padStart(2, '0') : ''}</span>`; }).join('');
+
+// drawer header actions: Technical details, Copy for AI, Close
+document.querySelectorAll('[data-acts]').forEach(el => {
+  const tech = el.dataset.acts === 'tech';
+  el.innerHTML = `<button class="ax-copy" data-tip="${tech ? 'Back to summary' : 'Technical details'}" aria-label="${tech ? 'Back to summary' : 'Technical details'}">${svg(tech ? 'back' : 'code')}</button>
+    <button class="ax-copy" data-tip="Copy for AI" aria-label="Copy for AI">${svg('copy')}</button>
+    <button class="ax-copy" data-tip="Close" aria-label="Close">${svg('close')}</button>`;
+});
+document.querySelectorAll('i[data-i]').forEach(e => e.outerHTML = svg(e.dataset.i, e.className));
+document.querySelectorAll('[data-go]').forEach(r => r.addEventListener('click', () => document.getElementById(r.dataset.go).scrollIntoView({ behavior: 'smooth' })));
+</script>
+</body>
+</html>

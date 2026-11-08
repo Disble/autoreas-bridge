@@ -34,6 +34,13 @@ func (r *Reader) countFeed(ctx context.Context, plan feedPlan, buckets []bucket)
 	for i := range counts {
 		counts[i] = bucketCounts{}
 	}
+	var syncs failedSyncs
+	if plan.reads(FeedTraffic) {
+		var err error
+		if syncs, err = r.readFailedSyncs(ctx, buckets[0].loMS); err != nil {
+			return nil, err
+		}
+	}
 	cte, args := bucketsCTE(buckets)
 	sources := []struct {
 		t     FeedType
@@ -46,8 +53,11 @@ func (r *Reader) countFeed(ctx context.Context, plan feedPlan, buckets []bucket)
 			append(append([]any{}, args...), time.Hour.Milliseconds())},
 		{FeedTraffic, cte + `SELECT b.i, COUNT(*), COUNT(*) FROM b
 			JOIN device_telemetry_events ON reported_at_ms BETWEEN b.lo AND b.hi
-			WHERE kind IN (?, ?, ?) AND ` + feedFailedReportSQL + ` GROUP BY b.i`,
+			WHERE kind IN (?, ?, ?) AND ` + syncs.failedReportSQL() + ` GROUP BY b.i`,
 			append(append([]any{}, args...), telemetry.KindCycleReport, telemetry.KindEpisodeAction, telemetry.KindScreenStall)},
+		{FeedTraffic, cte + `SELECT b.i, COUNT(*), SUM(` + feedTransitionDiedSQL + `) FROM b
+			JOIN device_telemetry_events ON reported_at_ms BETWEEN b.lo AND b.hi
+			WHERE ` + feedTransitionSQL + ` GROUP BY b.i`, args},
 		{FeedDownload, cte + `SELECT b.i, COUNT(*), SUM(` + feedFailedRunSQL + `) FROM b
 			JOIN download_runs ON started_at_ms BETWEEN b.lo AND b.hi GROUP BY b.i`, args},
 		{FeedTask, cte + `SELECT b.i, COUNT(*), SUM(level = 'error') FROM b
@@ -66,6 +76,10 @@ func (r *Reader) countFeed(ctx context.Context, plan feedPlan, buckets []bucket)
 		if err := r.scanCounts(ctx, source.query, source.args, counts, source.t); err != nil {
 			return nil, err
 		}
+	}
+	syncs.countGroups(buckets, counts)
+	if err := r.countSilences(ctx, plan, buckets, counts); err != nil {
+		return nil, err
 	}
 	return counts, r.countChanges(ctx, plan, buckets, counts)
 }

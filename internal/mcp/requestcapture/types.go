@@ -52,10 +52,12 @@ type ResponseVersionsInput struct {
 
 // StatusResult answers get_status. BridgeStartedAtMS is the newest stored
 // startup marker; it is null when none is stored, and UptimeMS is then 0.
+// TabletSilences lists the silences still running, computed on read.
 type StatusResult struct {
-	Status            activityread.NowView `json:"status"`
-	BridgeStartedAtMS *int64               `json:"bridge_started_at_ms"`
-	Coverage          Coverage             `json:"coverage"`
+	Status            activityread.NowView         `json:"status"`
+	TabletSilences    []activityread.TabletSilence `json:"tablet_silences"`
+	BridgeStartedAtMS *int64                       `json:"bridge_started_at_ms"`
+	Coverage          Coverage                     `json:"coverage"`
 }
 
 // IncidentsResult answers list_incidents.

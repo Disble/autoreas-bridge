@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { DrawerSection, DrawerSummaryInput } from '../drawer.types';
+import { DRAWER_BRIDGE_OFF_MEANING_MANY, DRAWER_READING_MEANINGS } from '../drawer.constants';
+import { formatDrawerTime, formatDrawerWhen } from '../drawer-format.helpers';
+import type { DrawerFact, DrawerSection, DrawerSummaryInput } from '../drawer.types';
 import { toDrawerHeader, toDrawerSummary } from '../drawer-summary.helpers';
-import { feedLine, incident, run } from './drawer.fixtures';
+import { bridgeOffLine, feedLine, incident, readingLine, run, syncReading, tabletSummary } from './drawer.fixtures';
 
 /** Noon of the mockup's day, the line time every fixture uses. */
 const AT = Date.UTC(2026, 9, 22, 12, 0);
@@ -25,6 +27,19 @@ function sectionOf<K extends DrawerSection['kind']>(sections: readonly DrawerSec
   return found as Extract<DrawerSection, { kind: K }>;
 }
 
+/** The rows of a section that must be a facts section. */
+function rowsOf(section: DrawerSection | undefined): readonly DrawerFact[] {
+  if (section?.kind !== 'facts') {
+    throw new Error('not a facts section');
+  }
+  return section.rows;
+}
+
+/** A facts section's rows as label, value, note and whether the label is monospace. */
+function factRows(section: DrawerSection | undefined): readonly (readonly [string, string, string | undefined, boolean])[] {
+  return rowsOf(section).map((row) => [row.label, row.value, row.note, row.labelMono === true] as const);
+}
+
 /** A phone episode change from 1 to 2. */
 const CHANGE = feedLine(
   { type: 'change', origin: 'phone' },
@@ -36,16 +51,23 @@ describe('toDrawerSummary', () => {
     const { sections, gaps } = toDrawerSummary(input({ line: CHANGE }));
 
     expect(sectionOf(sections, 'before-after')).toMatchObject({ title: 'Episode', before: '1', after: '2' });
-    const rows = sectionOf(sections, 'facts').rows;
-    expect(rows.map((row) => row.label)).toEqual(['Done on the phone', 'Reached the bridge']);
+    const when = sectionOf(sections, 'facts');
+    const rows = when.rows;
+    expect([when.key, when.title]).toEqual(['when', 'When']);
+    expect(rows.map((row) => [row.key, row.label])).toEqual([
+      ['phone', 'Done on the phone'],
+      ['bridge', 'Reached the bridge'],
+    ]);
     expect(rows[1]?.warnChip).toBe('6 h 31 min late');
     expect(gaps).toEqual([]);
   });
 
-  it('shows no late chip when Go did not mark the change late', () => {
+  it('shows no late chip when Go did not mark the change late, nor without a phone time', () => {
     const line = feedLine({ type: 'change', origin: 'phone' }, { ...CHANGE.line, marks: [] });
+    const noPhoneTime = feedLine({ type: 'change', origin: 'phone' }, { ...CHANGE.line, phoneAtMs: undefined });
 
     expect(sectionOf(toDrawerSummary(input({ line })).sections, 'facts').rows[1]?.warnChip).toBeUndefined();
+    expect(sectionOf(toDrawerSummary(input({ line: noPhoneTime })).sections, 'facts').rows.map((row) => [row.label, row.warnChip])).toEqual([['Reached the bridge', undefined]]);
   });
 
   it('skips before → after when the action has no known field and keeps the saved time of an edit', () => {
@@ -75,8 +97,14 @@ describe('toDrawerSummary', () => {
     expect(gaps).toEqual(['No catalog entry for `stale_version`. The recorded message is shown as is.']);
   });
 
-  it('shows a traffic hour as three figures, its hour and the totals-only note when old and fine', () => {
-    const line = feedLine({ type: 'traffic', origin: 'phone', traffic: { hourStartMs: AT, requests: 39, failed: 0, maxDurationMs: 412 } }, { kind: 'traffic_hour' });
+  it('shows a traffic hour as three figures, its hour, what the tablet reported and the totals-only note when old and fine', () => {
+    const tablet = tabletSummary({
+      counts: [
+        { triggerSource: 'foreground_service', outcome: 'closed', count: 29, maxDurationMs: 1412 },
+        { triggerSource: 'foreground_service', outcome: 'presence_refused', count: 2, maxDurationMs: undefined },
+      ],
+    });
+    const line = feedLine({ type: 'traffic', origin: 'phone', traffic: { hourStartMs: AT, requests: 39, failed: 0, maxDurationMs: 412 }, tabletSummaries: [tablet] }, { kind: 'traffic_hour' });
 
     const { sections } = toDrawerSummary(input({ line }));
 
@@ -85,7 +113,35 @@ describe('toDrawerSummary', () => {
       ['refused', '0', false],
       ['slowest', '412 ms', false],
     ]);
+    expect(sections.map((section) => section.key)).toEqual(['figures', 'hour', 'tablet-device-1', 'totals']);
+    expect(rowsOf(sections[2]).map((row) => row.key)).toEqual(['foreground_service-closed', 'foreground_service-presence_refused', 'dropped', 'received']);
+    expect(sections[2]).toMatchObject({ kind: 'facts', title: 'What the tablet reported' });
+    expect(factRows(sections[2])).toEqual([
+      ['foreground_service · closed', '29', '· slowest 1.4 s', true],
+      ['foreground_service · presence_refused', '2', undefined, true],
+      ['Reports dropped', '0', undefined, false],
+      ['Received', formatDrawerTime(AT + 3_660_000), undefined, false],
+    ]);
     expect(sectionOf(sections, 'note').text).toContain('Older hours keep only these totals');
+  });
+
+  it('shows one block per device that reported the hour, its process deaths, and the date of a summary received on a later day', () => {
+    const late = AT + 30 * 3_600_000;
+    const deaths = [{ processName: 'sync', reason: 'low_memory', count: 1 }];
+    const tablets = [tabletSummary({ processDeaths: deaths, droppedCount: 4 }), tabletSummary({ reportId: 13, deviceId: 'device-2', receivedAtMs: late })];
+    const line = feedLine({ type: 'traffic', origin: 'phone', traffic: { hourStartMs: AT, requests: 3, failed: 0, maxDurationMs: 1 }, tabletSummaries: tablets }, { kind: 'traffic_hour' });
+
+    const { sections } = toDrawerSummary(input({ line, nowMs: AT + 3_600_000 }));
+
+    expect(sections.map((section) => section.key)).toEqual(['figures', 'hour', 'tablet-device-1', 'deaths-device-1', 'tablet-device-2']);
+    expect(factRows(sections[2])).toEqual([
+      ['Device', 'device-1', undefined, false],
+      ['Reports dropped', '4', undefined, false],
+      ['Received', formatDrawerTime(AT + 3_660_000), undefined, false],
+    ]);
+    expect(rowsOf(sections[2])[0]).toMatchObject({ key: 'device', mono: true });
+    expect(sections[3]).toEqual({ kind: 'list', key: 'deaths-device-1', title: 'Process deaths', items: [{ key: 'sync-low_memory', time: 'sync', text: 'low_memory · ×1', failed: false }] });
+    expect(factRows(sections[4]).at(-1)).toEqual(['Received', formatDrawerWhen(late), undefined, false]);
   });
 
   it('lists the refused check-ins of a failed hour and notes a status without a code', () => {
@@ -305,6 +361,123 @@ describe('toDrawerHeader edge cases', () => {
     ['a failed phone report reads its stored title with the generic header', feedLine({ failed: true, slow: true }, { kind: 'phone_report', title: 'cycle_report', detail: 'failed' }), 'cycle_report', '', 'failed'],
   ])('%s', (_name, line, title, phrase, tone) => {
     expect(toDrawerHeader(line)).toMatchObject({ title, phrase, tone });
+  });
+});
+
+describe('a failed sync with a reading', () => {
+  /** Twenty minutes, the grace period. */
+  const GRACE_MS = 1_200_000;
+
+  /** Every evidence time known: Bridge off from three hours before noon to two, then grace, a first report ten minutes overdue. */
+  const EVIDENCE = {
+    lastContactMs: AT - 4 * 3_600_000,
+    failedAtMs: AT - 3 * 3_600_000,
+    nextStartMs: AT - 2 * 3_600_000,
+    graceUntilMs: AT - 2 * 3_600_000 + GRACE_MS,
+    firstReportMs: AT - 5_400_000,
+    overdueMs: 600_000,
+    arrivedAtMs: AT - 3_600_000,
+  };
+
+  /** Words a period the way the drawer does. */
+  const period = (fromMs: number, untilMs: number): string => `${formatDrawerWhen(fromMs)} – ${formatDrawerWhen(untilMs)}`;
+
+  it.each([
+    ['tablet_late', 'Tablet came back late', [
+      ['Bridge off', period(EVIDENCE.failedAtMs, EVIDENCE.nextStartMs)],
+      ['Grace period', period(EVIDENCE.nextStartMs, EVIDENCE.graceUntilMs)],
+      ['First report', formatDrawerWhen(EVIDENCE.firstReportMs)],
+      ['Overdue by', '10 min'],
+      ['Last contact', formatDrawerWhen(EVIDENCE.lastContactMs)],
+      ['Arrived', formatDrawerWhen(EVIDENCE.arrivedAtMs)],
+    ]],
+    ['real_failure', 'Sync failed', [
+      ['Failed at', formatDrawerWhen(EVIDENCE.failedAtMs)],
+      ['Last contact', formatDrawerWhen(EVIDENCE.lastContactMs)],
+      ['Bridge started', formatDrawerWhen(EVIDENCE.nextStartMs)],
+      ['Arrived', formatDrawerWhen(EVIDENCE.arrivedAtMs)],
+    ]],
+  ] as const)('titles a %s report with the reading, its meaning, then its labelled times', (reading, title, rows) => {
+    const line = readingLine(syncReading({ reading }, EVIDENCE));
+
+    const { sections, gaps } = toDrawerSummary(input({ line }));
+
+    expect(toDrawerHeader(line)).toMatchObject({ title, phrase: '', tone: 'failed' });
+    expect(kinds(sections)).toEqual(['text', 'facts']);
+    expect(sectionOf(sections, 'text').text).toBe(DRAWER_READING_MEANINGS[reading]);
+    expect(sectionOf(sections, 'facts').rows.map((row) => [row.label, row.value])).toEqual(rows);
+    expect(gaps).toEqual([]);
+  });
+
+  it.each([
+    ['real_failure', ['Last contact', 'Bridge started']],
+    ['tablet_late', ['Bridge off', 'Grace period', 'First report', 'Overdue by', 'Last contact']],
+  ] as const)('reads a %s time that does not exist as not recorded', (reading, labels) => {
+    const { sections } = toDrawerSummary(input({ line: readingLine(syncReading({ reading })) }));
+
+    expect(sectionOf(sections, 'facts').rows.filter((row) => row.value === 'Not recorded').map((row) => row.label)).toEqual(labels);
+  });
+
+  it('reads a period with one missing bound as not recorded', () => {
+    const line = readingLine(syncReading({ reading: 'tablet_late' }, { nextStartMs: EVIDENCE.nextStartMs }));
+
+    expect(sectionOf(toDrawerSummary(input({ line })).sections, 'facts').rows.slice(0, 2).map((row) => [row.label, row.value])).toEqual([
+      ['Bridge off', period(Date.UTC(2026, 9, 22, 9, 0), EVIDENCE.nextStartMs)],
+      ['Grace period', 'Not recorded'],
+    ]);
+  });
+
+  it('keeps the failure its incident recorded, after the evidence', () => {
+    const line = readingLine(syncReading(), { incidentId: 7 });
+
+    expect(kinds(toDrawerSummary(input({ line, incident: incident() })).sections)).toEqual(['text', 'facts', 'cause', 'note']);
+  });
+});
+
+describe('a Bridge off group', () => {
+  /** When Bridge started. */
+  const START = AT - 600_000;
+
+  /** When its grace period ends. */
+  const GRACE_UNTIL = START + 1_200_000;
+
+  /** Two reports that waited for it, newest arrival first. */
+  const REPORTS = [
+    syncReading({ reportId: 9, reading: 'bridge_off' }, { failedAtMs: AT - 3_600_000, arrivedAtMs: AT - 60_000, nextStartMs: START, graceUntilMs: GRACE_UNTIL, firstReportMs: AT - 180_000 }),
+    syncReading({ reportId: 8, reading: 'bridge_off' }, { failedAtMs: AT - 7_200_000, arrivedAtMs: AT - 120_000, nextStartMs: START, graceUntilMs: GRACE_UNTIL, lastContactMs: AT - 8_000_000 }),
+  ];
+
+  /** Words a period the way the drawer does. */
+  const period = (fromMs: number, untilMs: number): string => `${formatDrawerWhen(fromMs)} – ${formatDrawerWhen(untilMs)}`;
+
+  it.each([
+    [REPORTS.slice(0, 1), '1 change waited for Bridge'],
+    [REPORTS, '2 changes waited for Bridge'],
+  ])('reads as a neutral header with the reading, not a failure', (reports, title) => {
+    expect(toDrawerHeader(bridgeOffLine(reports, START))).toMatchObject({ title, phrase: 'Bridge was off', failed: false, tone: 'neutral' });
+  });
+
+  it('states its meaning and grace period once, then each report with its own times, in order', () => {
+    const { sections, gaps } = toDrawerSummary(input({ line: bridgeOffLine(REPORTS, START) }));
+
+    expect(kinds(sections)).toEqual(['text', 'facts', 'reports']);
+    expect(sectionOf(sections, 'text').text).toBe(DRAWER_BRIDGE_OFF_MEANING_MANY);
+    expect(sectionOf(sections, 'facts').rows.map((row) => [row.label, row.value])).toEqual([['Grace period', period(START, GRACE_UNTIL)]]);
+    expect(sectionOf(sections, 'reports').reports.map((report) => [report.key, report.rows.map((row) => [row.label, row.value])])).toEqual([
+      ['9', [['Bridge off', period(AT - 3_600_000, START)], ['First report', formatDrawerWhen(AT - 180_000)], ['Last contact', 'Not recorded'], ['Arrived', formatDrawerWhen(AT - 60_000)]]],
+      ['8', [['Bridge off', period(AT - 7_200_000, START)], ['First report', 'Not recorded'], ['Last contact', formatDrawerWhen(AT - 8_000_000)], ['Arrived', formatDrawerWhen(AT - 120_000)]]],
+    ]);
+    expect(gaps).toEqual([]);
+  });
+
+  it('reads the grace period of a group without reports as not recorded', () => {
+    expect(sectionOf(toDrawerSummary(input({ line: bridgeOffLine([], START) })).sections, 'facts').rows.map((row) => [row.label, row.value])).toEqual([
+      ['Grace period', 'Not recorded'],
+    ]);
+  });
+
+  it('words the meaning of one change in the singular', () => {
+    expect(sectionOf(toDrawerSummary(input({ line: bridgeOffLine(REPORTS.slice(0, 1), START) })).sections, 'text').text).toBe(DRAWER_READING_MEANINGS.bridge_off);
   });
 });
 

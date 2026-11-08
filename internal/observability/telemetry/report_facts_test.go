@@ -51,6 +51,10 @@ func TestReadReportFacts(t *testing.T) {
 		{"undecodable cycle report", KindCycleReport, []byte("{"), ReportFacts{}},
 		{"undecodable episode action", KindEpisodeAction, []byte("{"), ReportFacts{}},
 		{"screen stall", KindScreenStall, stall, ReportFacts{Phase: "resize", DurationMS: 12000}},
+		{"runtime transition", KindRuntimeTransition, mustMarshal(t, runtimeTransitionPayload{
+			ProcessName: "sync", Subject: "process", Transition: "died", Reason: strPtr("low_memory"), AppVersion: "1.4.0",
+		}), ReportFacts{ProcessName: "sync", Subject: "process", Transition: "died", Cause: "low_memory"}},
+		{"undecodable runtime transition", KindRuntimeTransition, []byte("{"), ReportFacts{}},
 		{"undecodable screen stall", KindScreenStall, []byte("{"), ReportFacts{}},
 		{"unknown kind", "other", failedAction, ReportFacts{}},
 	}

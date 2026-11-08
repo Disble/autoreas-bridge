@@ -1,5 +1,6 @@
 import { ActivityRunStory } from '../ActivityRunStory/ActivityRunStory';
-import { ActivityDrawerBeforeAfter, ActivityDrawerCause, ActivityDrawerFacts, ActivityDrawerList, ActivityDrawerStats } from './ActivityDrawerSectionBlocks';
+import { ActivityDrawerReports } from './ActivityDrawerReports';
+import { ActivityDrawerBeforeAfter, ActivityDrawerCause, ActivityDrawerFacts, ActivityDrawerList, ActivityDrawerStats, ActivityDrawerSteps } from './ActivityDrawerSectionBlocks';
 import { ACTIVITY_DRAWER_CODE_CLASS } from './activity-detail-drawer.constants';
 import type { ActivityDrawerSectionProps } from './activity-detail-drawer.types';
 
@@ -13,9 +14,12 @@ export function ActivityDrawerSection({ section }: ActivityDrawerSectionProps) {
       {section.kind === 'facts' && <ActivityDrawerFacts section={section} />}
       {section.kind === 'cause' && <ActivityDrawerCause section={section} />}
       {section.kind === 'list' && <ActivityDrawerList section={section} />}
+      {section.kind === 'steps' && <ActivityDrawerSteps section={section} />}
       {section.kind === 'code' && <pre className={ACTIVITY_DRAWER_CODE_CLASS}>{section.text}</pre>}
       {section.kind === 'run-story' && <ActivityRunStory correlationId={section.correlationId} />}
       {section.kind === 'note' && <p className="text-xs text-muted">{section.text}</p>}
+      {section.kind === 'text' && <p className="text-sm leading-[1.45] break-words">{section.text}</p>}
+      {section.kind === 'reports' && <ActivityDrawerReports section={section} />}
     </section>
   );
 }

@@ -57,10 +57,12 @@ and History tabs.
 | Time on the left, origin icon (phone or bridge) next to it; red icon tile for a failure, amber for slow | Origin and health in one glance |
 | Days get a sticky header (`Today · Thu, Oct 22`) | Time is the first way in |
 | Phone check-ins are one line **per hour** ("Phone checked in · 39 times · 09:00 – 10:00") | The ledger keeps polling as hourly totals. Line by line it drowns everything else |
-| The Traffic type starts **off** | Check-ins are history, not news. A failed hour still reaches the user through the failure button |
+| The Traffic type starts **off** | Check-ins are history, not news. Its chip still counts its lines. The failure switch only narrows the selected types, so failed hours and failed reports stay hidden until Traffic is on |
 | "Bridge started" is a System line, filtered like any other type, grouped per hour ("Bridge started · 2 times · 10:05 – 10:50") | A filter never lies |
 | System lines group per hour, area, type, level and message ("Render failed · 3 times · 10:05 – 10:50 · frontend · frontend.error") | Repeated warnings and errors are one line, as check-ins are |
-| Not built: "Bridge stopped" lines and "Bridge off" bands in the feed. No stop or shutdown event is stored, so nothing can say when the bridge was off | A gap must never be drawn from data the bridge does not hold |
+| A clean shutdown writes one `app.closed` row, a "Bridge closed" System line (S6 P5). "Bridge started" then says how long Bridge was off ("off 9 h 12 min"); a start after a run with no close says "did not close normally", and a start with no close stored anywhere before it says "close unknown". Muted, never red. A crash writes nothing, so the chart still draws no "Bridge off" band | A power cut or a kill is not a failure Bridge can prove; a gap is never drawn from data the bridge does not hold |
+| A failed sync report shows Bridge's reading, not the report: "Sync failed" and "Tablet came back late" are failed Traffic lines. "3 changes waited for Bridge" is one neutral Traffic line per Bridge start, the first start after the failures, and the failure switch skips it | The owner wants the interpreted version in the feed; the data stays one level down (`mobile-reports.md`, Reading a failed sync) |
+| A failed sync cycle names the stage it stopped at ("Sync cycle · failed while sending"); a phone process change is a Traffic line ("Sync process · died" failed, "Main service · started" neutral). Words come from fixed maps over the stored fields; a value outside them is shown as stored (`mobile-reports.md`, Where a report is shown) | The phone reports about itself, so Traffic owns it; Bridge has no AI to interpret data (S6 of `odd/tasks/mobile-report-kinds.md`) |
 | A failed row offers Copy for AI (mockup rule `e.fail`) | The owner hands a failure to the AI that debugs without opening the drawer |
 | `×6` counter on a row: the same thing happened 6 times | Repeats fold into one row |
 | Every row opens the detail drawer and shows `›` | Every event has a detail |
@@ -159,12 +161,17 @@ full date and time. On the right are icon-only actions: Technical details (`</>`
 | Type | What it shows |
 |---|---|
 | Phone change | Before → after of the field in two large tiles. When it failed, the after tile reads "Sent, not saved" and is struck through. Then **When**: done on the phone vs reached the bridge, with an amber "6 h 31 min late" chip when it arrived late (the stored `arrived_late` mark: phone time vs bridge time). If it failed, also: why (see [Event presentation model](#event-presentation-model)), "Tried N times" with each time, and "These details are kept until …" (the date is `ExpiresAtMS`: occurrence + `LedgerSpan`, 90 days; never a frontend constant) |
-| Traffic hour | Three figures (check-ins, refused, slowest) and the hour. Then, depending on the case: failed → why (same model) and the refused check-ins; slow → the slow check-ins; within the last 2 h → the last check-ins; older and fine → a note that only totals are kept |
+| Traffic hour | Three figures (check-ins, refused, slowest) and the hour. Then **What the tablet reported** when a device stored an `hourly_summary` for that hour (matched by its `hour_start_ms`, not by when it arrived): one block per device, its device id first when several reported, each stored `trigger_source · outcome` (monospace) with its count and "· slowest" when it measured a duration, "Reports dropped" and "Received" (the date too when it arrived on a later day), then **Process deaths** (process, reason and ×count) when it had any. Codes are shown as stored and nothing compares them with the hour's own totals; an hour no device summarized shows no block. Then, depending on the case: failed → why (same model) and the refused check-ins; slow → the slow check-ins; within the last 2 h → the last check-ins; older and fine → a note that only totals are kept |
 | Download or task | The run story as a vertical timeline: time, a dot (green ok, red failed, gray neutral), the step and a sub-line. A run that recovered still shows its failed steps in red |
+| Failed sync report | The reading replaces the report kind as the title. Then what the reading means, its evidence, and the failure its incident recorded. A late tablet shows its periods in order: "Bridge off" (failure to the first start after it), "Grace period" (that start to 20 minutes later), "First report" and "Overdue by", then "Last contact" and "Arrived". A real failure shows "Failed at", "Last contact", "Bridge started" and "Arrived". A time or period that does not exist reads "Not recorded" |
+| Failed sync cycle | Title "Sync cycle", phrase where it stopped. **Stages**: the four native stages in order (Attempt started, Claiming changes, Sending, Applying), a green dot for each it passed, red with "Stopped here" where it stopped, gray with "Not reached" after. A stage outside the four shows "Stopped at" with the stored value instead. Then why it failed (the incident's recorded `previous_cycle.error_cause`), **When** (reached the bridge only: a cycle report stores no phone time) and the kept note |
+| Phone process change | Title the process and subject ("Sync process"), phrase the stored transition. Process, Subject (stored, monospace) and Change; the recorded reason when it has one; then **When**. A sync death has an incident, so its drawer ends with the kept note; any other change has none |
+| Changes that waited for Bridge | What the line means, the grace period every report shares, then each report with its Bridge off period, first report, last contact and arrival, newest arrival first |
 | Bridge edit | Before → after of the field, "Made in: Editor" and the time saved |
 | System line | When it groups more than one event: "N times this hour" with First and Last. Then the presenter of its newest event (window error, or the generic layout) |
-| Bridge started | Not built: when it had been off since, for how long, and the phone changes that waited. No stop event is stored, so "off since" has no source |
-| Bridge stopped | Not backed by stored data: no stop or shutdown event is recorded, so a stop has no line and no presenter |
+| Bridge started | Above the generic layout, how the run before it ended: "Closed" and "Off for" after a clean close; "Closed: Not recorded", "Last event before" and "The previous run did not close normally." after a run with no close; "Closed: Unknown" before any close was recorded. The phone changes that waited are a Traffic line of their own, not part of this row |
+| Bridge closed | The generic layout, titled "Bridge closed" |
+| Tablet silence | Title "Tablet silent" with "since 11:56", or "Tablet was silent" with how long. "Bridge was on and received no report from the tablet for 60 minutes or more." Then "Last report received at", "Next report received at" once ended, "Bridge started", and "Bridge stopped" when the run's end cut it; a time heard only by an hourly summary reads "in the 09:00 – 10:00 hour". Technical view: Data only, "Read from" (S6 P4) |
 | Window error | See [Window errors](#window-errors) |
 | Any type without a presenter | The generic layout: see [Event presentation model](#event-presentation-model) |
 
@@ -201,7 +208,7 @@ technical view survives ↑ / ↓, and closing the drawer resets it to the summa
 |---|---|---|
 | Requests | Phone events only | Requests folded by route and status (`POST /api/sync/reconcile · 401 · ×1`), with the latest time. Picking one shows Request and Response side by side: method, path, duration, headers, body (formatted JSON). The picked request sits in its own framed panel (1px border, `surface-secondary` header with method, path, duration and "latest of N"), so the list above reads as a picker and the panel as its detail |
 | Events | Always | Runtime events at that moment: time to the second, level chip (info, warn, error), message, domain, detail line |
-| Data | Always | Raw JSON: before/after of a change, the run, the hourly total. For a window error: an occurrence picker, then kind, page, source, time, message and the stack trace |
+| Data | Always | Raw JSON: before/after of a change, the run, the hourly total. For a window error: an occurrence picker, then kind, page, source, time, message and the stack trace. For a line with a reading: the stored report, read with `GetActivityPhoneReport`, with a report picker on a line that stands for several. A traffic hour shows the `hourly_summary` each device stored for it, with a picker when several did, above its hourly total. It is the validated record Bridge stored, not mobile's raw bytes |
 
 Rules:
 
@@ -213,8 +220,9 @@ Rules:
   (`operation`: create, update or delete). A rejection is **not an HTTP error**: the response is `200` with
   `applied_operations[].applied: false` and a `reason` (`conflict` or `unsupported_operation`). The row
   shows a red "not applied" chip so a 200 is not read as success. The phone also sends
-  `POST /api/sync/diagnostics` once per sync cycle (`cycle_report`) and once per episode button press
-  (`episode_action`). So a typical phone change has two groups: reconcile ×N and diagnostics ×M.
+  `POST /api/sync/diagnostics` for each episode button press (`episode_action`, several reports per press)
+  and for a screen stall (`screen_stall`). `cycle_report` stopped arriving on 2026-09-21
+  (`mobile-reports.md`). So a typical phone change has two groups: reconcile ×N and diagnostics ×M.
 - **Authorization is masked** (`Bearer ••••••••`). No secret is ever rendered.
 - A body cut at the capture limit shows a "Cut at 64 KB" chip (`requestcapture.MaxCapturedBodyBytes`).
 - **Retention, said plainly:** full requests live 2 hours in the Recorder, except those an incident pins.

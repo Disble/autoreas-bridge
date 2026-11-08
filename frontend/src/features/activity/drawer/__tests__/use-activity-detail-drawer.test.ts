@@ -5,7 +5,7 @@ import type { ActivitySource } from '../../activity-source/activity-source.types
 import type { ActivityFeedSource } from '../../feed-source/feed-source.types';
 import type { ActivityFeedLine } from '../../feed-source/feed.types';
 import { useActivityDetailDrawer } from '../use-activity-detail-drawer';
-import { feedLine, incident, run } from './drawer.fixtures';
+import { feedLine, incident, readingLine, run, syncReading } from './drawer.fixtures';
 
 /** A source whose reads are spies; unset reads reject. */
 function sourceWith(reads: Partial<ActivitySource>): ActivitySource {
@@ -176,6 +176,21 @@ describe('useActivityDetailDrawer', () => {
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(result.current.summary.gaps).toEqual([]);
     expect(result.current.windowError).toMatchObject({ message: 'boom', stack: 'at A' });
+  });
+
+  it('copies the stored report once the Data tab read it', async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.assign(navigator, { clipboard: { writeText } });
+    const feed = { getPhoneReport: () => Promise.resolve('{"failed":true}') } as unknown as ActivityFeedSource;
+    const line = readingLine(syncReading());
+    const { result } = renderHook(() => useActivityDetailDrawer(line, sourceWith({}), feed));
+
+    act(() => result.current.toggleTechnical());
+    act(() => result.current.selectTab('data'));
+    await waitFor(() => expect(result.current.reportJson).toBe('{"failed":true}'));
+    act(() => result.current.copyForAi());
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Stored report: {"failed":true}'));
   });
 
   it.each([

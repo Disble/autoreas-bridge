@@ -13,6 +13,7 @@ import (
 	"autoreas-bridge/internal/device"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/observability/requestcapture"
+	"autoreas-bridge/internal/observability/syncreading"
 	"autoreas-bridge/internal/realtime"
 )
 
@@ -84,6 +85,10 @@ type Config struct {
 	OnPairingTokenConsumed func()
 	Capture                CaptureFunc
 	PersistTerminal        func(requestcapture.CaptureRecord)
+	// LastContacts is each active device's last contact, read before this server
+	// accepts a contact. The start record carries it, so a later reading can tell
+	// whether Bridge heard a device after a failure (internal/observability/syncreading).
+	LastContacts map[string]int64
 }
 
 // Server exposes the lifecycle of the bridge HTTP server.
@@ -103,6 +108,7 @@ type HTTPServer struct {
 	serveMu              sync.Mutex
 	resolveEffectiveHost func() (string, error)
 	logger               sharedlogger.Logger
+	lastContacts         map[string]int64
 }
 
 // DefaultAddr is the address the HTTP API binds when Config.Addr is empty.
@@ -128,6 +134,7 @@ func NewServer(config Config) Server {
 		handler:              handler,
 		resolveEffectiveHost: resolveEffectiveHost,
 		logger:               config.Logger,
+		lastContacts:         config.LastContacts,
 	}
 }
 
@@ -152,7 +159,7 @@ func (s *HTTPServer) Start() error {
 		addr := listener.Addr().String()
 		s.logger.Logf("api", sharedlogger.LevelInfo, sharedlogger.Fields{
 			EventType: "api.listening",
-			Metadata:  map[string]any{"addr": addr},
+			Metadata:  s.listeningMetadata(addr),
 		}, "http server listening on %s", addr)
 	}
 
@@ -163,6 +170,16 @@ func (s *HTTPServer) Start() error {
 	}()
 
 	return nil
+}
+
+// listeningMetadata is the start record: the bound address and, when any device
+// is active, each one's last contact.
+func (s *HTTPServer) listeningMetadata(addr string) map[string]any {
+	metadata := map[string]any{"addr": addr}
+	if len(s.lastContacts) > 0 {
+		metadata[syncreading.LastContactsKey] = s.lastContacts
+	}
+	return metadata
 }
 
 // Shutdown stops the HTTP server and closes the active listener.

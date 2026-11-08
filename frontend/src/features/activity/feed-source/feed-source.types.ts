@@ -21,4 +21,6 @@ export interface ActivityFeedSource {
   readonly getEvent: (id: number) => Promise<ActivityRunStep | undefined>;
   /** Reads what one change line links to, by its id and time: its anime's runtime events and the captures that carried it, matched by anime and time; undefined when no change has that id. */
   readonly getChangeContext: (changeId: number, atMs: number) => Promise<ActivityChangeContext | undefined>;
+  /** Reads the stored payload of one phone report by id: the validated record re-serialized, not mobile's raw bytes; undefined when no report has that id. */
+  readonly getPhoneReport: (id: number) => Promise<string | undefined>;
 }

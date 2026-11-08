@@ -114,11 +114,17 @@ func insertTelemetry(t *testing.T, db *sql.DB, eventID string, reportedMS, obser
 	insertTelemetryOfKind(t, db, "episode_action", eventID, reportedMS, observedMS, payload)
 }
 
-// insertTelemetryOfKind stores one mobile report of the given kind.
+// insertTelemetryOfKind stores one device-1 mobile report of the given kind.
 func insertTelemetryOfKind(t *testing.T, db *sql.DB, kind, eventID string, reportedMS, observedMS int64, payload string) {
 	t.Helper()
+	insertDeviceReport(t, db, "device-1", kind, eventID, reportedMS, observedMS, payload)
+}
+
+// insertDeviceReport stores one mobile report of the given device and kind.
+func insertDeviceReport(t *testing.T, db *sql.DB, device, kind, eventID string, reportedMS, observedMS int64, payload string) {
+	t.Helper()
 	exec(t, db, `INSERT INTO device_telemetry_events (device_id, reported_at_ms, kind, event_id, observed_at_ms,
-		payload_json) VALUES ('device-1', ?, ?, ?, ?, ?)`, reportedMS, kind, eventID, observedMS, payload)
+		payload_json) VALUES (?, ?, ?, ?, ?, ?)`, device, reportedMS, kind, eventID, observedMS, payload)
 }
 
 // insertChange records one domain history change through internal/activity,

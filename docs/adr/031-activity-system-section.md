@@ -6,6 +6,15 @@
   `internal/observability/activityread/feed_counts.go` (type counts and chart slots),
   `odd/tasks/activity-system-section.md` (specification and measurements).
 
+> **Update, 2026-11-06.** The decision stands. The feed gained a second line grouped on read, outside System: one
+> neutral Traffic line per Bridge start, standing for the failed sync reports that waited for it
+> (`internal/observability/activityread/sync_readings.go`, `docs/observability/mobile-reports.md`). The bridge
+> start stays a System line on `api.listening`. That row's metadata now also carries `lastContacts`, and a
+> reading's start also counts the older `http server listening on ...` rows, which the System line does not.
+
+> **Update, 2026-11-08.** The decision stands. Besides the bridge start and warnings and errors, System now
+> shows the clean close (`app.closed`, "Bridge closed").
+
 ## Context
 
 The Activity feed showed runtime events through two predicates. Schedule and season events were Tasks. Every

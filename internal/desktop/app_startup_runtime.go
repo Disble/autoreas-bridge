@@ -182,6 +182,7 @@ func (a *App) buildHTTPServer(deviceService device.AuthService, animeWrite contr
 		OnPairingTokenConsumed: a.onPairingTokenConsumed(),
 		Capture:                a.capture,
 		PersistTerminal:        a.persistCaptureTerminal,
+		LastContacts:           a.startLastContacts,
 	})
 }
 

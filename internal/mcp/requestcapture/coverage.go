@@ -38,6 +38,16 @@ type SourceRange struct {
 	Range              *TimeRange `json:"range"`
 	CompleteFrom       *Instant   `json:"complete_from,omitempty"`
 	BeforeCompleteFrom string     `json:"before_complete_from,omitempty"`
+	// Kinds splits the range by report kind, for the table whose kinds are cut
+	// by separate caps: a kind can reach much less far back than the table.
+	Kinds []KindRange `json:"kinds,omitempty"`
+}
+
+// KindRange is the oldest and newest row one report kind holds. A kind absent
+// from the list holds no row.
+type KindRange struct {
+	Kind  string    `json:"kind"`
+	Range TimeRange `json:"range"`
 }
 
 // Coverage states what an answer read, so an empty answer is never read as
@@ -60,10 +70,12 @@ type Coverage struct {
 // ever one of the package-level literals below, never caller input. A source
 // whose table another package owns reads its range through that package
 // instead (read). A recorder table names what survives the recorder span
-// (beforeComplete); other tables are kept whole for the ledger span.
+// (beforeComplete); other tables are kept whole for the ledger span. A table
+// whose kinds are cut by separate caps also reads each kind's range (kinds).
 type source struct {
 	table, oldestColumn, newestColumn string
 	read                              func(context.Context, *sql.DB) (*TimeRange, error)
+	kinds                             func(context.Context, *sql.DB) ([]KindRange, error)
 	beforeComplete                    string
 }
 
@@ -79,9 +91,10 @@ var (
 		beforeComplete: "only non-noise events and incident windows are kept"}
 	sourceRollup    = source{table: "request_rollup_hourly", oldestColumn: "hour_ms", newestColumn: "hour_ms"}
 	sourceIncidents = source{table: "incidents", oldestColumn: "occurred_at_ms", newestColumn: "occurred_at_ms"}
-	sourceTelemetry = source{table: "device_telemetry_events", oldestColumn: "reported_at_ms", newestColumn: "reported_at_ms"}
-	sourceChanges   = source{table: "domain_history", read: domainHistoryRange}
-	sourceVersions  = source{table: "response_versions", oldestColumn: "first_seen_ms", newestColumn: "last_seen_ms"}
+	sourceTelemetry = source{table: "device_telemetry_events", oldestColumn: "reported_at_ms", newestColumn: "reported_at_ms",
+		kinds: telemetryKindRanges}
+	sourceChanges  = source{table: "domain_history", read: domainHistoryRange}
+	sourceVersions = source{table: "response_versions", oldestColumn: "first_seen_ms", newestColumn: "last_seen_ms"}
 )
 
 // errStopStream ends the oldest-first stream after its first row.
@@ -150,6 +163,9 @@ func readCoverage(ctx context.Context, db *sql.DB, now time.Time, window *TimeRa
 			return Coverage{}, err
 		}
 		entry := SourceRange{Source: s.table, Range: held}
+		if entry.Kinds, err = kindRangesOf(ctx, db, s); err != nil {
+			return Coverage{}, err
+		}
 		if held != nil && s.beforeComplete != "" {
 			completeMS := max(held.FromMS, now.Add(-retention.RecorderSpan).UnixMilli())
 			entry.CompleteFrom = &Instant{MS: completeMS, ISO: isoMS(completeMS)}
@@ -170,6 +186,35 @@ func readCoverage(ctx context.Context, db *sql.DB, now time.Time, window *TimeRa
 	}
 	coverage.Covered = clip(union, window)
 	return coverage, nil
+}
+
+// kindRangesOf reads each kind's range of a source that splits by kind.
+func kindRangesOf(ctx context.Context, db *sql.DB, s source) ([]KindRange, error) {
+	if s.kinds == nil {
+		return nil, nil
+	}
+	return s.kinds(ctx, db)
+}
+
+// telemetryKindRanges reads the oldest and newest report of each kind. The
+// table holds tens of thousands of rows at most, one index scan.
+func telemetryKindRanges(ctx context.Context, db *sql.DB) ([]KindRange, error) {
+	rows, err := db.QueryContext(ctx, `SELECT kind, MIN(reported_at_ms), MAX(reported_at_ms)
+		FROM device_telemetry_events GROUP BY kind ORDER BY kind`)
+	if err != nil {
+		return nil, fmt.Errorf("coverage of device_telemetry_events kinds: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var kinds []KindRange
+	for rows.Next() {
+		var kind string
+		var oldest, newest int64
+		if err := rows.Scan(&kind, &oldest, &newest); err != nil {
+			return nil, fmt.Errorf("scan coverage of device_telemetry_events kinds: %w", err)
+		}
+		kinds = append(kinds, KindRange{Kind: kind, Range: *newTimeRange(oldest, newest)})
+	}
+	return kinds, rows.Err()
 }
 
 // clip returns the part of held inside window, or nil when none is.

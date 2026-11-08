@@ -128,6 +128,10 @@ type App struct {
 	copyText                   func(ctx context.Context, value string) error
 	nowTime                    func() time.Time
 	processStartedAt           time.Time
+	// startLastContacts is each active device's last contact, read once before
+	// the HTTP server starts. The start record stores it; a report arriving
+	// before that row is flushed reads it from here.
+	startLastContacts map[string]int64
 }
 
 const pairingTokenConsumedEventName = "pairing.token-consumed"
@@ -399,6 +403,11 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 	if a.captureQueue != nil {
 		_ = a.captureQueue.Stop(ctx)
+	}
+	// The clean close is the run's last row: Activity pairs it with the next
+	// start (S6 P5). Logged while the sink is still bound, so Stop flushes it.
+	if a.sharedLogger != nil {
+		a.sharedLogger.Logf("desktop", sharedlogger.LevelInfo, sharedlogger.Fields{EventType: "app.closed"}, "bridge closed cleanly")
 	}
 	// Unbind before Stop: the sink's atomic.Pointer swap takes the nil
 	// branch on the logging goroutine and never contends the queue's

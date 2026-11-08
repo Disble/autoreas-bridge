@@ -27,7 +27,10 @@ func TestStatusForPicksTheSentence(t *testing.T) {
 		{"no contact, bridge just started", nil, nowMS - time.Minute.Milliseconds(), 0, StatusInSync, "Phone and bridge are in sync", 0},
 		{"no contact since start", nil, nowMS - (5 * time.Minute).Milliseconds(), 0, StatusQuiet, "The phone has been quiet for 5 min", 5},
 		{"one problem", ms(14 * time.Second), startedLongAgo, 1, StatusProblems, "1 problem needs a look", 0},
-		{"problems win over quiet", ms(time.Hour), startedLongAgo, 3, StatusProblems, "3 problems need a look", 0},
+		{"two problems", ms(14 * time.Second), startedLongAgo, 2, StatusProblems, "2 problems need a look", 0},
+		{"one problem just under the threshold", ms(QuietThreshold - time.Millisecond), startedLongAgo, 1, StatusProblems, "1 problem needs a look", 0},
+		{"one problem and a quiet phone", ms(QuietThreshold), startedLongAgo, 1, StatusProblems, "1 problem needs a look; the phone has been quiet for 2 min", 2},
+		{"problems do not hide a quiet phone", ms(time.Hour), startedLongAgo, 3, StatusProblems, "3 problems need a look; the phone has been quiet for 60 min", 60},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

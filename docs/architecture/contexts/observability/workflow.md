@@ -1,0 +1,209 @@
+# Observability — workflow
+
+One mobile report, from `POST /api/sync/diagnostics` to every place it can be shown, as a single decision
+tree. Each step names the function that takes it. The packages and ports are in `overview.md`; the meaning of
+the readings and their measured figures are in `docs/observability/mobile-reports.md`.
+
+T is when the device failed (`observed_at_ms`), R is when Bridge received the report (`reported_at_ms`), and D
+is the device.
+
+## The whole tree
+
+Square boxes are steps, diamonds are decisions, rounded boxes are terminal outcomes. Every report that ends in
+"Report stored" is answered 204, after the incident step. Sections 1–6 below expand each part.
+
+```mermaid
+flowchart TD
+    post([POST /api/sync/diagnostics]) --> method{Method is POST?}
+    method -- no --> x405([405 method_not_allowed])
+    method -- yes --> auth{Bearer token valid?}
+    auth -- no --> x401([401])
+    auth -- yes --> seam{Ingest wired?}
+    seam -- "no: no database" --> x503a([503 ingest_unavailable])
+    seam -- yes --> size{Body at most 8 KiB?}
+    size -- no --> x413([413 body_too_large])
+    size -- yes --> decode{Kind served and body valid?}
+    decode -- no --> x400([400 with a refusal code])
+    decode -- yes --> insert{Store.Insert}
+    insert -- "write budget exceeded" --> x503b([503 write_budget_exceeded, Retry-After])
+    insert -- "other error" --> x500([500 internal_error])
+    insert -- "duplicate kind and event_id" --> x204([204, no row, event or incident])
+    insert -- stored --> ev[Log sync.diagnostics_stored]
+
+    subgraph gate [Incident gate, on the POST path]
+        ev --> applies{Failed episode_action at phase sync?}
+        applies -- yes --> starts{Starts read within 250 ms?}
+        starts -- yes --> gaterule{syncreading.Read: Bridge was off, first report read?}
+        starts -- "no: warn incident.sync_reading_failed" --> classify
+        gaterule -- "no, or the first report unread: warn incident.sync_reading_failed" --> classify
+        applies -- no --> classify{ClassifyMobileReport triggers?}
+        classify -- yes --> record{incident.Store.Record succeeds?}
+    end
+
+    gaterule -- yes --> stored
+    classify -- no --> stored
+    record -- "no: error incident.record_failed" --> stored
+    record -- "yes: window pinned" --> stored
+    stored[Report stored, 204 sent]
+
+    stored --> reader{Who reads it?}
+    reader -- "MCP search_history" --> mcpraw([Raw report of any kind: outcome or stored fields, arrived late mark, no reading])
+    reader -- "MCP get_status, list_incidents, incident detail" --> hasinc{Report has an incident?}
+    hasinc -- yes --> listed([Listed under its fingerprint, with the reports of its window, every kind in get_incident])
+    hasinc -- no --> unlisted([No incident of its own; it can still appear in another incident's window])
+    reader -- "Activity feed" --> kindcheck{Which kind?}
+    kindcheck -- "hourly_summary" --> hourdrawer([No line, shown in the Traffic hour drawer of its hour])
+    kindcheck -- "runtime_transition" --> transition([Traffic line: a sync death is failed and linked to its incident, any other change is neutral])
+    kindcheck -- "any other kind" --> failed{Report outcome is failed?}
+    failed -- no --> noline([No line, the report restates its change])
+    failed -- yes --> traffic{Traffic selected?}
+    traffic -- no --> hidden([No line, the Traffic chip counts it])
+
+    subgraph rule [Reading rule, on every read]
+        traffic -- yes --> eligible{Episode action at phase sync, inside the read caps?}
+        eligible -- yes --> older{T older than the oldest retained start?}
+        older -- no --> next{N, the first start after T, at or before R?}
+        next -- yes --> heard{N recorded a contact from D at or after T?}
+        heard -- no --> periods[Periods: Bridge off from T to N, grace period from N to N + 20 min, overdue after]
+        periods --> within{F, D's first report at or after N, inside the grace period?}
+    end
+
+    eligible -- no --> plain[Plain failed line, linked to its incident]
+    older -- yes --> plain
+    next -- no --> real[Failed line: Sync failed]
+    heard -- yes --> real
+    within -- "no: overdue by F minus the grace end" --> late[Failed line: Tablet came back late]
+    within -- yes --> switch{Failure switch on?}
+    switch -- yes --> skipped([No line, a neutral line is not a failure])
+    switch -- no --> range{Its start N in the range?}
+    range -- no --> outside([No line in this range])
+    range -- yes --> group[Neutral line: N changes waited for Bridge]
+
+    plain --> generic([Drawer: generic layout, no reading])
+    real --> evidence[Drawer: failed at, last contact, Bridge started, arrived]
+    late --> lateevidence[Drawer: Bridge off, grace period, first report, overdue by, last contact, arrived]
+    lateevidence --> technical
+    group --> groupdrawer[Drawer: meaning, grace period, each report's Bridge off, first report and times]
+    groupdrawer --> pick[Pick one report]
+    evidence --> technical([Technical view: the stored report])
+    pick --> technical
+```
+
+## 1. Arrival — `NewSyncDiagnosticsHandler` (`internal/api/handlers/sync_diagnostics_handler.go`)
+
+The device comes from the bearer token and R from Bridge's clock, never from the body. The body is bounded to
+`telemetry.MaxBodyBytes` before its kind is resolved, then the kind's own strict decode validates it. An absent
+kind means `cycle_report`.
+
+Every refusal except the 401 carries a `code` from the closed `RefusalCode` vocabulary. `CaptureMiddleware`
+records the request whatever the outcome, so a refusal is also a captured failure and can open its own request
+incident (`recordRequestIncident`).
+
+## 2. Store — `telemetry.Store.Insert` (`internal/observability/telemetry/store.go`)
+
+| Outcome | Row | Event | Incident step | Answer |
+|---|---|---|---|---|
+| `Stored` | Inserted. The kind's row cap is pruned on the first write of a process, then every 100 writes | `sync.diagnostics_stored` | Runs | 204 |
+| `Duplicate` | None | None | Skipped | 204 |
+| `Shed`, write budget | None | None | Skipped | 503 with `Retry-After` |
+| `Shed`, other error | None | None | Skipped | 500 |
+
+## 3. Incident gate — `App.recordMobileIncident` (`internal/desktop/app_incidents.go`)
+
+1. `telemetry.ReadReportFacts` reads outcome, phase, cause, stall duration and a transition's process, subject,
+   change and reason from the stored payload.
+2. `waitedForBridge` applies only when `syncreading.Applies` holds: `episode_action`, outcome `failed`, phase
+   `sync`. It reads the starts under the 250 ms incident budget and adds the running process with
+   `WithCurrentStart`, because that process's own `api.listening` row may not be flushed yet. When the rule
+   needs F, `Reader.FirstReports` makes one indexed seek on `(device_id, reported_at_ms)` under the same
+   budget. The report being ingested is one of D's reports, so it counts as F even before its row is visible.
+3. Bridge was off ends here: no incident, no pinned window. The report row and its capture stay.
+4. Every other case reaches `ClassifyMobileReport`. A failed read of the starts or of F answers "not Bridge off"
+   and logs `incident.sync_reading_failed`. A `runtime_transition` triggers only for a sync death (`sync`,
+   `process`, `died`); its fingerprint carries the recorded reason, so there is one incident per reason.
+5. `recordIncident` stores the occurrence, and retention pins the window from 2 minutes before to 30 seconds
+   after. A failed write logs `incident.record_failed` and never reaches the report's answer.
+
+## 4. Reading rule — `syncreading.Read` (`internal/observability/syncreading/reading.go`)
+
+`Read` takes the failure, every retained start, oldest first, and a `FirstReport` lookup, and fills `Evidence`
+as it goes. It asks the lookup once, and only when the last row of the table below decides.
+
+The evidence names the bounds of a failure's three periods: Bridge off from `FailedAtMS` to `NextStartMS`, the
+grace period from `NextStartMS` to `GraceUntilMS`, and overdue after `GraceUntilMS`.
+
+| Evidence | Meaning |
+|---|---|
+| `FailedAtMS` | T, where Bridge off begins |
+| `NextStartMS` | N, the first start after T: where Bridge off ends and the grace period begins |
+| `LastContactMS` | D's last contact in N's record, when it holds one |
+| `GraceUntilMS` | N plus `GracePeriod` (20 minutes, mobile's longest normal retry): where the grace period ends |
+| `FirstReportMS` | F, D's first report of any kind received at or after N, never later than R |
+| `OverdueMS` | F minus `GraceUntilMS`, set only for `TabletLate` |
+
+`GraceUntilMS` and `FirstReportMS` are nil when the periods did not decide the reading.
+
+| Test, in order | Reading |
+|---|---|
+| No starts, or T older than the oldest | `NoReading` |
+| No next start | `RealFailure` |
+| `LastContactMS` at or after T | `RealFailure` |
+| N came after R | `RealFailure` |
+| F at or before `GraceUntilMS`: inside the grace period | `BridgeOff` |
+| Otherwise: overdue | `TabletLate` |
+
+F and not R decides, because mobile sends 3 reports per cycle: the later reports of a backlog arrive later on a
+healthy tablet. A reading is computed again on each read, so the same rule serves the gate and the feed. The
+gate's list of starts also holds the running process; the feed reads the stored row instead. Both answer F
+with `Reader.FirstReports`, which keeps each device and start's answer for one read.
+
+## 5. Feed line — `Reader.feedPhoneReportLines` (`internal/observability/activityread/feed_sources.go`)
+
+`readFailedSyncs` (`sync_readings.go`) is the one read behind lines and counts. It reads the starts, then the
+failed episode actions from the range start on, newest first, up to 5,000, closes those rows, and only then reads
+each one: the database holds one connection, so the F lookups cannot run while the rows are open.
+
+- It reads to the newest report, past the end of the range, because a group's reports arrive after its start N
+  with no fixed bound. A group is whole whatever the range.
+- `failedReportSQL` removes every report that reads Bridge was off from the plain failed lines.
+- `groupLines` adds one line of kind `LineBridgeOff` per start N in range. It sits at N and is keyed by it,
+  so neither its position nor its id moves as more reports arrive.
+- `countGroups` counts each group as one Traffic line with no failure, in the bucket of its start.
+- With the failure switch on, `feedPhoneReportLines` returns before adding groups.
+- A report whose start lies before the range shows no line in that range: it left the failed lines, and its group
+  is listed where its start is.
+- Every `runtime_transition` is a Traffic line too (`feedTransitionSQL`); with the failure switch on only a death
+  (`feedTransitionDiedSQL`: `transition` `died`, which the contract accepts only for `sync` + `process`) stays. `countFeed` counts them in a source of
+  their own with the same predicates, so Feed lines and Overview counts stay equal. `hourly_summary` is never a
+  line: it rides on the traffic hour line of the hour it reports (`attachTabletSummaries`, below).
+- `attachReportFacts` reads, in one query per page, the stored fields the frontend words a line from
+  (`FeedLine.Report`): a transition's process, subject, transition and reason, and a failed cycle report's
+  `previous_cycle.last_stage`. It also sets a transition line's failure: only a death fails.
+- `attachIncidents` links a phone report to its incident by event id. A `LineBridgeOff` line gets no link. Of
+  the transitions, only a sync death has one.
+- `attachTabletSummaries` (`feed_tablet.go`) sets `FeedLine.TabletSummaries` on each traffic hour line of a
+  page, in one query per page: every `hourly_summary` whose stored `observed_at_ms` (the tablet's
+  `hour_start_ms`) equals the line's hour, one per device, ordered by device id. It matches by the hour the
+  summary reports, never by arrival: a summary arrives after its hour closes, and `main` process data may
+  arrive much later. The rollup hour is not per device (`GET /api/status` rows carry no device id), so every
+  device's summary belongs to the one line. `telemetry.ReadHourlySummary` decodes each payload; one that does
+  not decode fails the read. Nothing compares it with the rollup: Bridge stores no per-hour count of its own.
+  The query is bounded by the kind's 2,160-row cap.
+- `feedSilenceLines` (`tablet_silence.go`) comes from no single report: one failed Traffic line per tablet
+  silence, computed on read from the reports' receipt times and `bridgeRuns`. The clean close (`app.closed`), or
+  the last row before a start with no close, ends a run and so bounds the silence. `silenceLines` gives
+  `search_history` the same silences, and `OpenTabletSilences` gives `get_status` the ones still running.
+- The Activity drawer's incident window lists the feed's kinds through `phoneReportKinds`; History and
+  `get_incident` (`IncidentDetailAllKinds`) also list `hourly_summary` through `historyReportKinds` (`history.go`). `reportOutcomeSQL` gives a transition its stored process, subject
+  and transition as its outcome, and an `hourly_summary` its stored report.
+
+## 6. Drawer and Technical view
+
+`SyncReading`, `BridgeOff` and `Report` travel on the `FeedLine`, so the drawer needs no extra read for the
+reading, the stages or the transition (`drawer-report.helpers.ts`; row words in `toPhoneReportWords`). The
+Technical view reads the report with `GetActivityPhoneReport` (`Reader.PhoneReport`). Its `payload_json` is the
+validated record Bridge stored, so the screen calls it the stored report. A group holds several reports, so the
+Data tab offers a picker.
+
+The frontend side lives in `frontend/src/features/activity/drawer/drawer-reading.helpers.ts`,
+`use-drawer-stored-report.ts` and `ui/ActivityTechnicalView/`.

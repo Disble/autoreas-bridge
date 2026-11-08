@@ -63,11 +63,17 @@ export function ActivityDetailDrawerPanel({ line, open, onClose, onTransitionEnd
             groups={drawer.requestGroups}
             lineFailed={line.failed}
             onPickGroup={drawer.pickGroup}
+            onPickReport={drawer.pickReport}
+            onRetryReport={drawer.retryReport}
             onRetryRequest={drawer.retryRequest}
             onSelectTab={drawer.selectTab}
             panel={drawer.requestPanel}
+            reportJson={drawer.reportJson}
+            reports={drawer.reports}
+            reportStatus={drawer.reportStatus}
             requestStatus={drawer.requestStatus}
             selectedGroupKey={drawer.selectedGroupKey}
+            selectedReportId={drawer.selectedReportId}
             tab={drawer.tab}
             tabs={drawer.tabs}
           />

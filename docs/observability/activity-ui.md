@@ -49,8 +49,8 @@ The questions Activity must answer, taken from the 92 resolved issues:
 | What happened around that moment? | the error cause, what ran at the same time | incident window |
 | Did my change reach the bridge? | an edit erased scheduled days | write journal |
 | What did the bridge answer the phone? | the cursor reset to 0 | response versions |
-| When did it stop, and for how long? | the phone was silent for 43 h | rollup, lifecycle |
-| What did the phone see? | late sync-cycle reports | mobile reports |
+| When did it stop, and for how long? | the phone was silent for 43 h | rollup, lifecycle, tablet silence computed on read |
+| What did the phone see? | a failed sync: Bridge was off, the tablet came back late, or a real failure | mobile reports and Bridge's reading of them |
 | What did the bridge do inside, step by step? | a hoster declared dead, a stranded editor write | event ledger with metadata, grouped by correlation id (a download run, an editor save) |
 
 Internal bridge work is a first-class source, not an API detail. Incidents and History filter by where
@@ -65,6 +65,9 @@ The request MCP also answers "how many?" without a screen: `count_events` counts
 top-level metadata key, so `download.episode_downloaded` grouped by `siteHost` returns how many
 episodes each site host served. Events without the key, or whose metadata was stored truncated, form
 the group whose value is `null`. The key is validated and bound as a JSON path parameter.
+For phone reports, `search_history` reads every report kind, `get_status` names a quiet phone beside open
+problems, and coverage gives each kind's own range (`mobile-reports.md`, Where a report is shown). Tablet
+silences are computed on read here too: `search_history` lists each one and `get_status` lists those still running.
 
 ```mermaid
 flowchart LR

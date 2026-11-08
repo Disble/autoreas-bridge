@@ -6,7 +6,7 @@
 
 Este documento refleja las decisiones de diseño técnico fundamentales (apoyadas en el RFC original) que guían el desarrollo de Autoreas Bridge.
 
-La arquitectura detallada por contexto vive en `docs/architecture/` (ver su `README.md`); este documento se divide allí un contexto a la vez. Descargas: `docs/architecture/contexts/downloads/`. Anime: `docs/architecture/contexts/anime/`. Persistencia compartida: `docs/architecture/cross-cutting/persistence.md`.
+La arquitectura detallada por contexto vive en `docs/architecture/` (ver su `README.md`); este documento se divide allí un contexto a la vez. Descargas: `docs/architecture/contexts/downloads/`. Anime: `docs/architecture/contexts/anime/`. Observabilidad: `docs/architecture/contexts/observability/`. Persistencia compartida: `docs/architecture/cross-cutting/persistence.md`.
 
 ---
 
@@ -96,6 +96,8 @@ El sistema se divide en **Bounded Contexts (Dominios)** fuertemente separados. N
          end
        end
      ```
+
+6. **`internal/observability/` (Observability Domain):** ver `docs/architecture/contexts/observability/overview.md`.
 
 ---
 

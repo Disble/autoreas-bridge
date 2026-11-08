@@ -1,4 +1,4 @@
-import { GetActivityChangeContext, GetActivityEvent, GetActivityOverview, SearchActivityFeed } from '../../../../wailsjs/go/desktop/App';
+import { GetActivityChangeContext, GetActivityEvent, GetActivityOverview, GetActivityPhoneReport, SearchActivityFeed } from '../../../../wailsjs/go/desktop/App';
 import type { activityread } from '../../../../wailsjs/go/models';
 import { invokeGoBinding } from '../../../infrastructure/wails-bindings.helpers';
 import { mapActivityChangeContext, mapRunStep } from '../activity-source/activity-incident.helpers';
@@ -7,12 +7,18 @@ import { mapLedgerLine } from '../history-source/history-source.helpers';
 import { FEED_SOURCE_STATE } from './feed-source.constants';
 import type { ActivityFeedSource } from './feed-source.types';
 import type {
+  ActivityBridgeOffGroup,
+  ActivityBridgeStartFacts,
   ActivityChartSlot,
   ActivityDownloadRun,
   ActivityFeedLine,
   ActivityFeedView,
   ActivityOverview,
+  ActivityPhoneReportFacts,
+  ActivitySyncReading,
   ActivitySystemGroup,
+  ActivityTabletSilence,
+  ActivityTabletSummary,
   ActivityTrafficHour,
   ActivityTypeCount,
 } from './feed.types';
@@ -45,6 +51,71 @@ function mapSystemGroup(group: activityread.SystemGroup): ActivitySystemGroup {
   return { hourStartMs: group.HourStartMS, count: group.Count, firstAtMs: group.FirstAtMS, lastAtMs: group.LastAtMS };
 }
 
+/** Maps one Go reading; a nil evidence time becomes undefined. */
+function mapSyncReading(reading: activityread.SyncReading): ActivitySyncReading {
+  const evidence = reading.Evidence;
+  return {
+    reportId: reading.ReportID,
+    reading: reading.Reading as ActivitySyncReading['reading'],
+    evidence: {
+      failedAtMs: evidence.FailedAtMS,
+      arrivedAtMs: evidence.ArrivedAtMS,
+      lastContactMs: evidence.LastContactMS ?? undefined,
+      nextStartMs: evidence.NextStartMS ?? undefined,
+      graceUntilMs: evidence.GraceUntilMS ?? undefined,
+      firstReportMs: evidence.FirstReportMS ?? undefined,
+      overdueMs: evidence.OverdueMS ?? undefined,
+    },
+  };
+}
+
+/** Maps one Go Bridge off group; nil reports become an empty list. */
+function mapBridgeOffGroup(group: activityread.BridgeOffGroup): ActivityBridgeOffGroup {
+  return { bridgeStartMs: group.BridgeStartMS, reports: (group.Reports ?? []).map(mapSyncReading) };
+}
+
+/** Maps one Go report's stored facts; Go's empty reason means none. */
+function mapReportFacts(facts: activityread.PhoneReportFacts): ActivityPhoneReportFacts {
+  return { processName: facts.ProcessName, subject: facts.Subject, transition: facts.Transition, reason: facts.Reason === '' ? undefined : facts.Reason, stage: facts.Stage };
+}
+
+/** Maps one Go tablet summary, flattened; nil lists become empty and a nil slowest attempt becomes undefined. */
+function mapTabletSummary(tablet: activityread.TabletSummary): ActivityTabletSummary {
+  const { Summary: summary } = tablet;
+  return {
+    reportId: tablet.ReportID,
+    deviceId: tablet.DeviceID,
+    receivedAtMs: tablet.ReceivedAtMS,
+    counts: (summary.Counts ?? []).map((count) => ({ triggerSource: count.TriggerSource, outcome: count.Outcome, count: count.Count, maxDurationMs: count.MaxDurationMS ?? undefined })),
+    droppedCount: summary.DroppedCount,
+    processDeaths: (summary.ProcessDeaths ?? []).map((death) => ({ processName: death.ProcessName, reason: death.Reason, count: death.Count })),
+  };
+}
+
+/** Maps how the run before a start ended; nil times become undefined. */
+function mapBridgeStart(facts: activityread.BridgeStartFacts): ActivityBridgeStartFacts {
+  return { closedAtMs: facts.ClosedAtMS ?? undefined, lastEventAtMs: facts.LastEventAtMS ?? undefined };
+}
+
+/** Maps one Go tablet silence; nil times and a nil next report become undefined. */
+function mapSilence(silence: activityread.TabletSilence): ActivityTabletSilence {
+  const report = (stored: activityread.SilenceReport) => ({ kind: stored.Kind, receivedAtMs: stored.ReceivedAtMS, hourStartMs: stored.HourStartMS ?? undefined });
+  return {
+    deviceId: silence.DeviceID,
+    startMs: silence.StartMS,
+    endMs: silence.EndMS ?? undefined,
+    lastReport: report(silence.LastReport),
+    nextReport: mapOptional(silence.NextReport, report),
+    bridgeStartedAtMs: silence.BridgeStartedAtMS,
+    bridgeStoppedAtMs: silence.BridgeStoppedAtMS ?? undefined,
+  };
+}
+
+/** Maps a Go value that may be nil; nil becomes undefined. */
+function mapOptional<G, F>(value: G | null | undefined, map: (value: G) => F): F | undefined {
+  return value ? map(value) : undefined;
+}
+
 /** Maps one Go feed line; Go's zero incident id means none. */
 function mapFeedLine(line: activityread.FeedLine): ActivityFeedLine {
   return {
@@ -54,9 +125,15 @@ function mapFeedLine(line: activityread.FeedLine): ActivityFeedLine {
     slow: line.Slow,
     incidentId: line.IncidentID === 0 ? undefined : line.IncidentID,
     line: mapLedgerLine(line.Line),
-    traffic: line.Traffic ? mapTrafficHour(line.Traffic) : undefined,
-    run: line.Run ? mapDownloadRun(line.Run) : undefined,
-    system: line.System ? mapSystemGroup(line.System) : undefined,
+    traffic: mapOptional(line.Traffic, mapTrafficHour),
+    run: mapOptional(line.Run, mapDownloadRun),
+    system: mapOptional(line.System, mapSystemGroup),
+    syncReading: mapOptional(line.SyncReading, mapSyncReading),
+    bridgeOff: mapOptional(line.BridgeOff, mapBridgeOffGroup),
+    report: mapOptional(line.Report, mapReportFacts),
+    tabletSummaries: (line.TabletSummaries ?? []).map(mapTabletSummary),
+    bridgeStart: mapOptional(line.BridgeStart, mapBridgeStart),
+    silence: mapOptional(line.Silence, mapSilence),
   };
 }
 
@@ -138,6 +215,9 @@ export function createActivityFeedSource(): ActivityFeedSource {
       return invokeGoBinding('GetActivityChangeContext', () => GetActivityChangeContext(changeId, atMs), rejectRuntimeUnavailable).then((context) =>
         context.Found ? mapActivityChangeContext(context) : undefined,
       );
+    },
+    getPhoneReport(id) {
+      return invokeGoBinding('GetActivityPhoneReport', () => GetActivityPhoneReport(id), rejectRuntimeUnavailable).then((detail) => (detail.Found ? detail.PayloadJSON : undefined));
     },
   };
 

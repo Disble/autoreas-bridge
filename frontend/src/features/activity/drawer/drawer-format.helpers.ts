@@ -64,9 +64,14 @@ export function formatDrawerKeptUntil(expiresAtMs: number): string {
  * @param key Stable key.
  * @param label The label.
  * @param value The value.
- * @param options Monospace, an amber chip and a muted note.
+ * @param options Monospace value or label, an amber chip and a muted note.
  * @returns The row.
  */
-export function drawerFact(key: string, label: string, value: string, options: { readonly mono?: boolean; readonly warnChip?: string; readonly note?: string } = {}): DrawerFact {
-  return { key, label, value, mono: options.mono ?? false, warnChip: options.warnChip, note: options.note };
+export function drawerFact(
+  key: string,
+  label: string,
+  value: string,
+  options: { readonly mono?: boolean; readonly labelMono?: boolean; readonly warnChip?: string; readonly note?: string } = {},
+): DrawerFact {
+  return { key, label, value, mono: options.mono ?? false, warnChip: options.warnChip, note: options.note, labelMono: options.labelMono };
 }
