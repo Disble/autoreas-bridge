@@ -15,10 +15,16 @@ type ReportFacts struct {
 	// Phase is the episode-action phase or the screen-stall trigger; empty for
 	// a cycle report.
 	Phase string
-	// Cause is previous_cycle.error_cause or the episode-action cause.
+	// Cause is previous_cycle.error_cause, the episode-action cause or the
+	// runtime-transition reason.
 	Cause string
 	// DurationMS is the screen-stall duration; zero for every other kind.
 	DurationMS int64
+	// ProcessName, Subject and Transition are the stored words of a runtime
+	// transition; empty for every other kind.
+	ProcessName string
+	Subject     string
+	Transition  string
 }
 
 // cycleReportFacts is the slice of the stored cycle-report payload that holds
@@ -50,6 +56,12 @@ func ReadReportFacts(kind KindName, payload []byte) ReportFacts {
 			return ReportFacts{}
 		}
 		return ReportFacts{Phase: stored.Trigger, DurationMS: stored.DurationMS}
+	case KindRuntimeTransition:
+		var stored runtimeTransitionPayload
+		if json.Unmarshal(payload, &stored) != nil {
+			return ReportFacts{}
+		}
+		return ReportFacts{ProcessName: stored.ProcessName, Subject: stored.Subject, Transition: stored.Transition, Cause: stringValue(stored.Reason)}
 	}
 	return ReportFacts{}
 }

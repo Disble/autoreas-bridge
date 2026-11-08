@@ -227,6 +227,24 @@ func TestIncidentDetailCauseOfAnEvent(t *testing.T) {
 	}
 }
 
+// TestIncidentDetailCauseOfASyncDeath reads the recorded reason of a runtime
+// transition, and no other kind's reason field.
+func TestIncidentDetailCauseOfASyncDeath(t *testing.T) {
+	db, reader := openTestReader(t)
+	insertTelemetryOfKind(t, db, "runtime_transition", "rt-1", minutesAgo(5), minutesAgo(5),
+		`{"process_name":"sync","subject":"process","transition":"died","reason":"low_memory","app_version":"1.4.0"}`)
+	insertTelemetry(t, db, "ea-1", minutesAgo(4), minutesAgo(4), `{"outcome":"failed","reason":"not a cause"}`)
+	for _, tc := range []struct {
+		fingerprint, source, want string
+	}{{"mobile_failure|runtime_transition|sync|low_memory", "rt-1", "low_memory"}, {"mobile_failure|episode_action|sync|", "ea-1", ""}} {
+		id := insertIncident(t, db, tc.fingerprint, "mobile_failure", minutesAgo(4), "mobile", tc.source)
+		detail, err := reader.IncidentDetail(context.Background(), id)
+		if err != nil || detail.Cause.Message != tc.want || detail.Cause.Known != (tc.want != "") {
+			t.Fatalf("%s cause = %+v (%v), want %q", tc.source, detail.Cause, err, tc.want)
+		}
+	}
+}
+
 // TestTitleForNamesEveryReason pins the plain-words title of each fingerprint
 // shape incident.Classify* builds, and which reasons count as errors.
 func TestTitleForNamesEveryReason(t *testing.T) {
@@ -240,6 +258,7 @@ func TestTitleForNamesEveryReason(t *testing.T) {
 		{"slow|http|get", "slow", "A read is slow", false},
 		{"mobile_failure|cycle_report||sqlite_busy", "mobile_failure", "The phone's sync cycle failed (sqlite_busy)", true},
 		{"mobile_failure|episode_action|sync|network", "mobile_failure", "An episode change failed on the phone (network)", true},
+		{"mobile_failure|runtime_transition|sync|low_memory", "mobile_failure", "The phone's sync process died (low_memory)", true},
 		{"error_event|download|download.hoster_attempt", "error_event", "Error in downloads (download.hoster_attempt)", true},
 		{"manual_pin|pin-1", "manual_pin", "Pinned moment", false},
 		{"server_error|http|ws_ping|500|", "server_error", "The live connection failed with a server error 500", true},

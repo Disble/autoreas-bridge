@@ -380,6 +380,16 @@ func TestMobileReportRecordsIncidentOnlyForFailures(t *testing.T) {
 		{"short screen stall", func(t *testing.T) telemetry.Event {
 			return mobileTestEvent(t, telemetry.KindScreenStall, "stall-2", map[string]any{"duration_ms": 9999, "trigger": "resize"})
 		}, nil},
+		{"sync process death", func(t *testing.T) telemetry.Event {
+			return mobileTestEvent(t, telemetry.KindRuntimeTransition, "rt-1", map[string]any{
+				"process_name": "sync", "subject": "process", "transition": "died", "reason": "low_memory", "app_version": "1.4.0",
+			})
+		}, []incidentRow{{reason: "mobile_failure", sourceKind: "mobile", sourceID: "rt-1"}}},
+		{"sync service started", func(t *testing.T) telemetry.Event {
+			return mobileTestEvent(t, telemetry.KindRuntimeTransition, "rt-2", map[string]any{
+				"process_name": "sync", "subject": "service", "transition": "started", "reason": nil, "app_version": "1.4.0",
+			})
+		}, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -87,7 +87,7 @@ func (r *Reader) feedPhoneReportLines(ctx context.Context, plan feedPlan, p sour
 	if plan.failuresOnly {
 		transitions += ` AND ` + feedTransitionDiedSQL
 	}
-	items, err := r.queryPhoneReports(ctx, p, `((`+transitions+`) OR (`+syncs.failedReportSQL()+`))`)
+	items, err := r.queryPhoneReports(ctx, p, phoneReportKindsSQL, phoneReportKinds, `((`+transitions+`) OR (`+syncs.failedReportSQL()+`))`)
 	if err != nil {
 		return nil, err
 	}

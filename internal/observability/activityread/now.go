@@ -47,25 +47,39 @@ func (r *Reader) Now(ctx context.Context, in NowInput) (NowView, error) {
 	return view, nil
 }
 
-// statusFor computes the status sentence. Open problems win; otherwise the
-// phone is quiet once QuietThreshold has passed since its last contact, or
-// since the bridge started when no contact is stored.
+// statusFor computes the status sentence. Open problems set the kind, and a
+// quiet phone is still named beside them (S7), so one never hides the other.
 func statusFor(nowMS int64, lastContactMS *int64, processStartMS int64, problems int) Status {
-	if problems == 1 {
-		return Status{Kind: StatusProblems, Problems: 1, Sentence: "1 problem needs a look"}
+	minutes := quietMinutes(nowMS, lastContactMS, processStartMS)
+	if problems > 0 {
+		sentence := "1 problem needs a look"
+		if problems > 1 {
+			sentence = fmt.Sprintf("%d problems need a look", problems)
+		}
+		if minutes > 0 {
+			sentence += fmt.Sprintf("; the phone has been quiet for %d min", minutes)
+		}
+		return Status{Kind: StatusProblems, Problems: problems, QuietMinutes: minutes, Sentence: sentence}
 	}
-	if problems > 1 {
-		return Status{Kind: StatusProblems, Problems: problems, Sentence: fmt.Sprintf("%d problems need a look", problems)}
+	if minutes > 0 {
+		return Status{Kind: StatusQuiet, QuietMinutes: minutes, Sentence: fmt.Sprintf("The phone has been quiet for %d min", minutes)}
 	}
+	return Status{Kind: StatusInSync, Sentence: "Phone and bridge are in sync"}
+}
+
+// quietMinutes is how long the phone has been quiet: the minutes since its
+// last contact, or since the bridge started when no contact is stored, and 0
+// until QuietThreshold has passed.
+func quietMinutes(nowMS int64, lastContactMS *int64, processStartMS int64) int {
 	reference := processStartMS
 	if lastContactMS != nil {
 		reference = *lastContactMS
 	}
-	if silent := nowMS - reference; silent >= QuietThreshold.Milliseconds() {
-		minutes := int(silent / time.Minute.Milliseconds())
-		return Status{Kind: StatusQuiet, QuietMinutes: minutes, Sentence: fmt.Sprintf("The phone has been quiet for %d min", minutes)}
+	silent := nowMS - reference
+	if silent < QuietThreshold.Milliseconds() {
+		return 0
 	}
-	return Status{Kind: StatusInSync, Sentence: "Phone and bridge are in sync"}
+	return int(silent / time.Minute.Milliseconds())
 }
 
 // lastPhoneContact returns the newest capture the phone sent within the

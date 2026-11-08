@@ -219,7 +219,7 @@
       <h2>New in this proposal</h2>
       <ul>
         <li>P1 <code class="ax-mono">hourly_summary</code>: no feed line and no comparison chip; the Traffic hour drawer gains "What the tablet reported": its counts per trigger and outcome, its dropped reports and its process deaths.</li>
-        <li>P2 <code class="ax-mono">runtime_transition</code>: "Sync process · died" failed line, other changes neutral; owned by Traffic.</li>
+        <li>P2 <code class="ax-mono">runtime_transition</code>: "Sync process · died" failed line that opens an incident, other changes neutral; owned by Traffic.</li>
         <li>P3 native <code class="ax-mono">cycle_report</code>: "Sync cycle · failed while sending", and a stage timeline in the drawer; a stage outside the four is shown as stored.</li>
         <li>P4 Silence, computed when Activity reads: "Tablet silent · since 11:56" failed line; once a report arrives it reads "Tablet was silent · 1 h 8 min". No incident, no stored event.</li>
         <li>P5 Bridge closed: "Bridge closed" System line; "Bridge started" says how long Bridge was off, or that it did not close normally.</li>
@@ -242,7 +242,7 @@
       <thead><tr><th style="width:44px">#</th><th>Proposal</th><th style="width:70px">Price</th><th>Why that price (most expensive part)</th></tr></thead>
       <tbody>
         <tr><td>P1</td><td>The tablet's own hourly summary in the Traffic hour drawer</td><td class="pb-price">$$$$</td><td>New report kind to validate and store, and the hour's stored summary on the traffic hour line through the Wails binding.</td></tr>
-        <tr><td>P2</td><td><code class="ax-mono">runtime_transition</code> lines under Traffic: sync death failed, others neutral</td><td class="pb-price">$$$$</td><td>New kind and new line source in Go, its stored fields on the line through the Wails binding; the row words and drawer presenter are $$$ on top.</td></tr>
+        <tr><td>P2</td><td><code class="ax-mono">runtime_transition</code> lines under Traffic: sync death failed, others neutral</td><td class="pb-price">$$$$</td><td>New kind, new line source and incident trigger in Go, its stored fields on the line through the Wails binding; the row words and drawer presenter are $$$ on top.</td></tr>
         <tr><td>P3</td><td>Failed <code class="ax-mono">cycle_report</code> says its stage in plain words; stage timeline</td><td class="pb-price">$$$$</td><td>The stored, validated <code class="ax-mono">previous_cycle.last_stage</code> exposed on the line. The words map alone would be $$$.</td></tr>
         <tr><td>P4</td><td>Silence of 60 min while Bridge was on, computed when Activity reads</td><td class="pb-price">$$$$</td><td>A new line kind read from stored report receipt times and Bridge starts; "never across an unknown Bridge state" is new timing logic, test-first. No watcher, no incident, no stored event.</td></tr>
         <tr><td>P5</td><td>"Bridge closed" line; "Bridge started" says off-for or "did not close normally"</td><td class="pb-price">$$$$</td><td>A new stored shutdown event written on clean exit, and a start-to-close pairing on the line. The words in the row are $ once that exists.</td></tr>

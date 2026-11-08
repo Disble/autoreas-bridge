@@ -84,7 +84,7 @@ func TestFeedReadsRuntimeTransitionsAndFailedCycleStages(t *testing.T) {
 	}
 }
 
-func TestHistoryListsRuntimeTransitionsButNoHourlySummary(t *testing.T) {
+func TestHistoryListsEveryServedReportKind(t *testing.T) {
 	r, _ := seedReportKinds(t)
 	view, err := r.History(context.Background(), HistoryInput{Now: testNow, Where: WherePhone, Limit: MaxPageLimit})
 	if err != nil {
@@ -92,12 +92,16 @@ func TestHistoryListsRuntimeTransitionsButNoHourlySummary(t *testing.T) {
 	}
 	var got []string
 	for _, line := range flatten(view) {
-		if line.Kind == LinePhoneReport {
-			got = append(got, line.Title+" "+line.Detail)
+		if line.Kind != LinePhoneReport {
+			continue
+		}
+		got = append(got, line.Title+" "+line.Detail)
+		if line.Title == "hourly_summary" && len(line.Marks) != 0 {
+			t.Errorf("a closed hour's summary is not late: marks = %v", line.Marks)
 		}
 	}
 	want := []string{"runtime_transition sync process died", "runtime_transition main service started",
-		"runtime_transition main process started", "cycle_report failed",
+		"runtime_transition main process started", `hourly_summary {"counts":[],"dropped_count":0}`, "cycle_report failed",
 		"cycle_report failed", "cycle_report completed", "episode_action failed"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("phone reports = %q\nwant %q", got, want)

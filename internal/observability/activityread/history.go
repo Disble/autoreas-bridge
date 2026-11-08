@@ -140,36 +140,45 @@ func (r *Reader) phoneReportLines(ctx context.Context, s scope, p sourcePage) ([
 	if !s.readsPhone() {
 		return nil, nil
 	}
-	return r.queryPhoneReports(ctx, p, "1=1")
+	return r.queryPhoneReports(ctx, p, historyReportKindsSQL, historyReportKinds, "1=1")
 }
 
-// phoneReportKindsSQL and phoneReportKinds name the stored report kinds
-// History, Feed and an incident window list: every served kind except
-// hourly_summary, a closed hour of counts no line stands for (S6 P1).
+// phoneReportKindsSQL and phoneReportKinds name the stored report kinds Feed
+// and an incident window list: every served kind except hourly_summary, a
+// closed hour of counts no line stands for (S6 P1).
 const phoneReportKindsSQL = `kind IN (?, ?, ?, ?)`
 
 // phoneReportKinds are the arguments of phoneReportKindsSQL.
 var phoneReportKinds = []any{telemetry.KindCycleReport, telemetry.KindEpisodeAction, telemetry.KindScreenStall,
 	telemetry.KindRuntimeTransition}
 
-// queryPhoneReports reads the stored mobile reports of one page that also
-// match extra, a predicate over device_telemetry_events.
-func (r *Reader) queryPhoneReports(ctx context.Context, p sourcePage, extra string) ([]item[LedgerLine], error) {
+// historyReportKindsSQL and historyReportKinds name every served kind: History
+// answers search_history, where a diagnosis reads the hourly summaries too (S7).
+const historyReportKindsSQL = `kind IN (?, ?, ?, ?, ?)`
+
+// historyReportKinds are the arguments of historyReportKindsSQL.
+var historyReportKinds = []any{telemetry.KindCycleReport, telemetry.KindEpisodeAction, telemetry.KindScreenStall,
+	telemetry.KindRuntimeTransition, telemetry.KindHourlySummary}
+
+// queryPhoneReports reads the stored mobile reports of the given kinds in one
+// page that also match extra, a predicate over device_telemetry_events.
+func (r *Reader) queryPhoneReports(ctx context.Context, p sourcePage, kindsSQL string, kinds []any, extra string) ([]item[LedgerLine], error) {
 	where, args, err := p.bounds(rankPhoneReport, "reported_at_ms", "rowid", true)
 	if err != nil {
 		return nil, err
 	}
 	query := `SELECT rowid, reported_at_ms, observed_at_ms, device_id, kind, ` + reportOutcomeSQL + `
-		FROM device_telemetry_events WHERE ` + phoneReportKindsSQL + ` AND ` + where + ` AND ` + extra + `
+		FROM device_telemetry_events WHERE ` + kindsSQL + ` AND ` + where + ` AND ` + extra + `
 		ORDER BY reported_at_ms DESC, rowid DESC LIMIT ?`
-	args = append(append(append([]any{}, phoneReportKinds...), args...), p.fetch)
+	args = append(append(append([]any{}, kinds...), args...), p.fetch)
 	return queryLines(ctx, r.db, query, args, rankPhoneReport, func(rows *sql.Rows) (LedgerLine, string, error) {
 		line := LedgerLine{Kind: LinePhoneReport}
 		var id int64
 		var observed sql.NullInt64
 		err := rows.Scan(&id, &line.AtMS, &observed, &line.Source, &line.Title, &line.Detail)
 		line.ID, line.PhoneAtMS = formatID(id), nullableInt64(observed)
-		if isLate(line.AtMS, line.PhoneAtMS) {
+		// An hourly summary's phone time is its hour's start, so it always reads as late.
+		if line.Title != string(telemetry.KindHourlySummary) && isLate(line.AtMS, line.PhoneAtMS) {
 			line.Marks = []Mark{MarkArrivedLate}
 		}
 		return line, intKey(id), err

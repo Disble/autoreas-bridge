@@ -91,6 +91,7 @@ func (a *App) recordMobileIncident(event telemetry.Event) {
 	}
 	trigger, ok := incident.ClassifyMobileReport(incident.MobileReportFact{
 		Kind: event.Kind, Outcome: facts.Outcome, Phase: facts.Phase, Cause: facts.Cause, DurationMS: facts.DurationMS,
+		ProcessName: facts.ProcessName, Subject: facts.Subject, Transition: facts.Transition,
 	})
 	if !ok {
 		return

@@ -222,12 +222,11 @@ func TestIngestSyncDiagnosticsUndeclaredKindIsRefused(t *testing.T) {
 	}
 }
 
-// TestIngestSyncDiagnosticsStoresTheMobileReportKindsQuietly ingests one
-// decoded body of each new kind -- a sync death included -- through the real
-// seam: each is Stored and emits only its info-level stored event, and none
-// opens an incident or logs an error, because their lines and triggers belong
-// to later work.
-func TestIngestSyncDiagnosticsStoresTheMobileReportKindsQuietly(t *testing.T) {
+// TestIngestSyncDiagnosticsStoresTheMobileReportKinds ingests one decoded body
+// of each new kind -- a sync death included -- through the real seam: each is
+// Stored and emits only its info-level stored event, and only the sync death
+// opens an incident, even though the hourly summary counts a failed attempt.
+func TestIngestSyncDiagnosticsStoresTheMobileReportKinds(t *testing.T) {
 	t.Parallel()
 
 	app, memLogger := newSyncDiagnosticsTestApp(t)
@@ -257,8 +256,8 @@ func TestIngestSyncDiagnosticsStoresTheMobileReportKindsQuietly(t *testing.T) {
 			t.Fatalf("expected only stored events, got %#v", entry)
 		}
 	}
-	var incidents int
-	if err := app.bridgeDB.QueryRow(`SELECT COUNT(*) FROM incidents`).Scan(&incidents); err != nil || incidents != 0 {
-		t.Fatalf("incidents = %d (err %v), want 0", incidents, err)
+	got := readIncidentRows(t, app.bridgeDB)
+	if want := (incidentRow{reason: "mobile_failure", sourceKind: "mobile", sourceID: "rt"}); len(got) != 1 || got[0] != want {
+		t.Fatalf("incidents = %#v, want only %#v", got, want)
 	}
 }

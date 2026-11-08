@@ -84,9 +84,10 @@ func (r *Reader) causeOf(ctx context.Context, occ IncidentOccurrence) (Cause, er
 		err = r.db.QueryRowContext(ctx, `SELECT message FROM runtime_events WHERE id = ?`, eventID).Scan(&cause.Message)
 	case incident.SourceMobile:
 		err = r.db.QueryRowContext(ctx, `SELECT COALESCE(json_extract(payload_json, '$.cause'),
-			json_extract(payload_json, '$.previous_cycle.error_cause'), '') FROM device_telemetry_events
-			WHERE kind IN (?, ?, ?) AND event_id = ? LIMIT 1`, telemetry.KindCycleReport, telemetry.KindEpisodeAction, telemetry.KindScreenStall,
-			occ.SourceID).Scan(&cause.Message)
+			json_extract(payload_json, '$.previous_cycle.error_cause'),
+			CASE kind WHEN 'runtime_transition' THEN json_extract(payload_json, '$.reason') END, '') FROM device_telemetry_events
+			WHERE kind IN (?, ?, ?, ?) AND event_id = ? LIMIT 1`, telemetry.KindCycleReport, telemetry.KindEpisodeAction, telemetry.KindScreenStall,
+			telemetry.KindRuntimeTransition, occ.SourceID).Scan(&cause.Message)
 	default:
 		return Cause{}, nil
 	}
@@ -200,12 +201,14 @@ func (r *Reader) phoneReports(ctx context.Context, fromMS, toMS int64) ([]PhoneR
 // transition carries no outcome, so its stored process, subject and transition
 // stand in ("sync process died"). A screen stall carries none either, so its
 // trigger and duration ("touch 12000 ms") stand in, which is what makes a
-// freeze findable by time in History.
+// freeze findable by time in History. An hourly summary has no one word, so
+// its stored report stands in.
 const reportOutcomeSQL = `COALESCE(json_extract(payload_json, '$.outcome'),
 	json_extract(payload_json, '$.previous_cycle.outcome'),
 	json_extract(payload_json, '$.process_name') || ' ' || json_extract(payload_json, '$.subject') || ' ' ||
 	json_extract(payload_json, '$.transition'),
-	json_extract(payload_json, '$.trigger') || ' ' || json_extract(payload_json, '$.duration_ms') || ' ms', '')`
+	json_extract(payload_json, '$.trigger') || ' ' || json_extract(payload_json, '$.duration_ms') || ' ms',
+	CASE kind WHEN 'hourly_summary' THEN payload_json END, '')`
 
 // earlierOccurrences lists the retained occurrences of a fingerprint before
 // the given one, newest first.
