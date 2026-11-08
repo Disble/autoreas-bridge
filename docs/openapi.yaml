@@ -519,8 +519,9 @@ info:
     `hourly_summary`, with its stored report as the outcome and no late
     mark; `get_status` keeps the problems kind and adds the quiet minutes
     to the sentence and to `QuietMinutes`; coverage entries for
-    `device_telemetry_events` gain `kinds`, each report kind's range. An
-    incident window still leaves `hourly_summary` out.
+    `device_telemetry_events` gain `kinds`, each report kind's range;
+    `get_incident` lists every report kind in the window, and tablet
+    silences are computed on read in `get_status` and `search_history`.
 
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes

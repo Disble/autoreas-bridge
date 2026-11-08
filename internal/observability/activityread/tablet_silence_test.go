@@ -232,18 +232,56 @@ func countSilenceLines(lines []LedgerLine) int {
 	return count
 }
 
+// TestACrashEndsTheSilenceAtTheRunsLastRow pins that a boot row of the next
+// run does not stretch the crashed run over the time Bridge was off.
+func TestACrashEndsTheSilenceAtTheRunsLastRow(t *testing.T) {
+	db, r := openTestReader(t)
+	bootRow := event{atMS: hoursAgo(5) - 500, domain: "anime", level: "info", message: "boot row of second run", eventType: "x"}
+	for _, e := range []event{
+		bootEvent(hoursAgo(20) - 1000), startEvent(hoursAgo(20)),
+		{atMS: hoursAgo(15), domain: "anime", level: "info", message: "last row", eventType: "x"},
+		bootEvent(hoursAgo(5) - 1000), bootRow, startEvent(hoursAgo(5)),
+	} {
+		insertEvent(t, db, e)
+	}
+	insertDeviceReport(t, db, "tab", "cycle_report", "a", hoursAgo(17), hoursAgo(17), `{}`)
+	insertDeviceReport(t, db, "tab", "cycle_report", "b", hoursAgo(3), hoursAgo(3), `{}`)
+	insertDeviceReport(t, db, "tab", "cycle_report", "c", minutesAgo(10), minutesAgo(10), `{}`)
+
+	silences, err := r.tabletSilences(t.Context(), testNow.UnixMilli())
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, middle := SilenceReport{Kind: "cycle_report", ReceivedAtMS: hoursAgo(17)}, SilenceReport{Kind: "cycle_report", ReceivedAtMS: hoursAgo(3)}
+	want := []TabletSilence{
+		{DeviceID: "tab", StartMS: hoursAgo(17), EndMS: ptr(hoursAgo(15)), LastReport: first, BridgeStartedAtMS: hoursAgo(20), BridgeStoppedAtMS: ptr(hoursAgo(15))},
+		{DeviceID: "tab", StartMS: hoursAgo(5), EndMS: ptr(hoursAgo(3)), LastReport: first, NextReport: &middle, BridgeStartedAtMS: hoursAgo(5)},
+		{DeviceID: "tab", StartMS: hoursAgo(3), EndMS: ptr(minutesAgo(10)), LastReport: middle,
+			NextReport: &SilenceReport{Kind: "cycle_report", ReceivedAtMS: minutesAgo(10)}, BridgeStartedAtMS: hoursAgo(5)},
+	}
+	if !slices.EqualFunc(silences, want, equalSilence) {
+		t.Fatalf("silences = %+v\nwant %+v", silences, want)
+	}
+}
+
 func TestSilenceBeforeTheOldestCycleReportIsReadByTheHour(t *testing.T) {
 	db, r := openTestReader(t)
 	insertEvent(t, db, startEvent(hoursAgo(40)))
 	insertEvent(t, db, closeEvent(hoursAgo(5))) // the only run's close ends the last silence
-	summary := func(id string, hourAgo int, outcome string) {
-		payload := `{"counts":[{"trigger_source":"manual","outcome":"` + outcome + `","count":3}],"dropped_count":0,"process_deaths":[]}`
+	count := func(outcome string, n string) string {
+		return `{"trigger_source":"manual","outcome":"` + outcome + `","count":` + n + `}`
+	}
+	summary := func(id string, hourAgo int, counts string) {
+		payload := `{"counts":[` + counts + `],"dropped_count":0,"process_deaths":[]}`
 		insertDeviceReport(t, db, "tab", "hourly_summary", id, hoursAgo(20)+60_000, hoursAgo(hourAgo), payload)
 	}
-	summary("h30", 30, "closed")
-	summary("h29", 29, "failed") // Bridge never answered that hour
-	summary("h28", 28, "closed")
-	summary("h27", 27, "closed")
+	summary("h33", 33, count("closed", "3"))
+	summary("h32", 32, count("closed", "0")) // a closed outcome that never happened
+	summary("h31", 31, count("closed", "3"))
+	summary("h30", 30, count("closed", "3"))
+	summary("h29", 29, count("failed", "3")) // Bridge never answered that hour
+	summary("h28", 28, count("closed", "3"))
+	summary("h27", 27, count("unsettled", "5")+","+count("closed", "1"))                       // one closed sync is enough
 	insertDeviceReport(t, db, "tab", "episode_action", "e1", hoursAgo(24), hoursAgo(24), `{}`) // before the oldest cycle report
 	insertDeviceReport(t, db, "tab", "cycle_report", "c1", hoursAgo(20), hoursAgo(20), `{}`)
 	insertDeviceReport(t, db, "tab", "cycle_report", "c2", minutesAgo(30), minutesAgo(30), `{}`)
@@ -254,6 +292,9 @@ func TestSilenceBeforeTheOldestCycleReportIsReadByTheHour(t *testing.T) {
 	}
 	hour := func(h int) *int64 { return ptr(hoursAgo(h)) }
 	want := []TabletSilence{
+		{DeviceID: "tab", StartMS: hoursAgo(32), EndMS: ptr(hoursAgo(31)), BridgeStartedAtMS: hoursAgo(40),
+			LastReport: SilenceReport{Kind: "hourly_summary", ReceivedAtMS: hoursAgo(32), HourStartMS: hour(33)},
+			NextReport: &SilenceReport{Kind: "hourly_summary", ReceivedAtMS: hoursAgo(31), HourStartMS: hour(31)}},
 		{DeviceID: "tab", StartMS: hoursAgo(29), EndMS: ptr(hoursAgo(28)), BridgeStartedAtMS: hoursAgo(40),
 			LastReport: SilenceReport{Kind: "hourly_summary", ReceivedAtMS: hoursAgo(29), HourStartMS: hour(30)},
 			NextReport: &SilenceReport{Kind: "hourly_summary", ReceivedAtMS: hoursAgo(28), HourStartMS: hour(28)}},
