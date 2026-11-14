@@ -123,7 +123,7 @@ writes itself:
 | `api.last_contacts_unread` | warn | `internal/desktop/app_runtime_services.go` | The last contacts could not be read at start; readings go by start times alone |
 | `incident.sync_reading_failed` | warn | `internal/desktop/app_incidents.go` | The starts or the device's first report could not be read for a failed sync report; it opens its incident |
 | `incident.record_failed` | error | `internal/desktop/app_incidents.go` | An incident could not be stored. The event hook skips this type, so it cannot loop |
-| `api.capture_swept` | warn | `internal/desktop/app_runtime_services.go` | Pending captures left by a previous process were swept |
+| `api.capture_swept` | warn | `internal/desktop/app_runtime_services.go` | Pending captures left by a previous process were swept. Metadata `swept` (the count) and `captures`, the newest 10 swept rows as `requestId`, `route`, `kind`, `capturedAtMs` and `clientRequestId` (mobile's `<cycleId>:<n>`, omitted when absent); `capturesOmitted` counts the older ones left out. A request the previous process never finished is named here, because retention usually deletes the row itself after 2 hours |
 
 `activity.recorder` is a Wails event, not a row: it streams each persisted capture and event to the screen.
 
