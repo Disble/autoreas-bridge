@@ -98,11 +98,13 @@ how much test coverage it gets. The governing question is which code can break t
 - A rule needs a machine owner where practical: a linter, test, gate, or contract. Do not weaken a threshold, exclusion, baseline, or suppression to make a failure disappear; document and review an exceptional decision.
 - Keep the append-only why-log with `node scripts/log-lesson.mjs "one concise lesson"` after non-obvious bugs or deliberate decisions. It complements deterministic enforcement and never replaces it.
 - Measure comparable work with `wc -l`; include tests and task records in the estimate. If a work unit exceeds its budget, refactor genuine duplication without deleting behavior or mutation-killing coverage.
+- A unit that refactors, creates or changes a module brings that module's `docs/architecture/` page fully up to date, backend and frontend, including parts it did not touch; a module without a page gets one from `docs/architecture/templates/overview.md`.
 
 ## References
 
 - `docs/architecture.md`
 - `docs/architecture/README.md` — per-context architecture: overview, workflow, sub-process detail
+- `docs/architecture/cross-cutting/async-state.md` — module readiness, failure codes versus outcomes, and the frontend `shared/query` layer
 - `docs/coverage-tiers.md`
 - `docs/file-size-policy.md`
 - `docs/mutation-testing.md`
@@ -114,6 +116,7 @@ how much test coverage it gets. The governing question is which code can break t
 - `docs/adr/018-desktop-shell-package.md`
 - `docs/adr/019-keyboard-command-registry.md`
 - `docs/adr/020-keymap-override-seam.md`
+- `docs/adr/032-async-state-standard.md`
 
 <!-- dharness:coverage-tiers begin — rewritten by `dharness sync`; edits here are lost. -->
 Coverage targets: CORE 100%, IMPORTANT 80%, INFRASTRUCTURE 0%; classification lives

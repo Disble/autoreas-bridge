@@ -1,7 +1,10 @@
 # ADR 006: Frontend Runtime Read Models
 
 ## Status
-Accepted
+Accepted. Superseded for **server state** by ADR-032 (2026-11-14,
+`032-async-state-standard.md`): data read from the Go side moves to TanStack Query in
+`frontend/src/shared/query/`, module by module. This ADR still governs UI/client state kept in Zustand,
+and the stores below stay in force until their module migrates.
 
 ## Context
 The Downloads UI receives backend state through Wails bindings and lifecycle events. Several panels render different slices of the same process: schedule metadata, run history, and selected run detail. Keeping those panels synchronized through panel-local `useEffect` reloads made freshness depend on every panel knowing every event that could make it stale.
