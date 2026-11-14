@@ -27,7 +27,7 @@ Out of scope: the root cause and its fix (owner review after this ODD), any chan
 | ID | Specs | Route | Status | Commit |
 |---|---|---|---|---|
 | T1 | S6, S7 | inline | done | see git log `feat(observability): name the captures the startup sweep closes` |
-| T2 | S1–S5, S7 | inline | open | |
+| T2 | S1–S5, S7 | inline | done | see git log `feat(observability): record who holds the bridge.db connection` |
 | T3 | all | delegated verify (project rule) | open | |
 
 ## Log
@@ -41,3 +41,9 @@ Out of scope: the root cause and its fix (owner review after this ODD), any chan
   - ditto desktop (`-run Sweep`) 0.85 (17/20). Survivors and their reasons:
     - `app_runtime_services.go:123` `a.sharedLogger != nil` → true is equivalent: the method's recover swallows the nil-logger panic after the sweep already ran (pre-existing guard).
     - `:131` cap 10 → 9/11 is skipped (IMPORTANT): the guarded property is "under the 4 KB bound", and any nearby cap keeps it.
+- L5 T2 evidence.
+  - Built inline: `internal/observability/dbstall` (file, rotation, suspects, metadata), `eventlog.MaxMetadataBytes` and `HasCorrelatedEvent`, `internal/api/abandoned_request.go` (`Config.OnRequestAbandoned`), `internal/desktop/app_db_stall.go` (probe, dump, import before listen). The stall file is found by its header id, not its name, because names shift on rotation (S4 tweak).
+  - Real boundary: `TestReportAbandonedRequestsSeesARealClientTimeout` proves net/http cancels the request context when a real client times out while the handler is blocked. `TestStallEvidenceDumpNamesTheBlockedBridgeGoroutines` proves the real pprof dump parses into suspects.
+  - First commit attempt failed the gate: `TestStartupContinuesWithUnusableSettingsStore` (and 9 other tests) inject a zero `&sql.DB{}`, and the pragma lookup of the database file panicked on it. The directory now comes from `resolveStallLogDir`, set only beside the real bootstrap (`defaultStallLogDir`), so injected test databases never touch the real logs directory.
+  - ditto: eventlog 1.00 (1/1), api 1.00 (5/5), dbstall 0.90 (64/71), desktop (`-run Stall|AbandonedRequest|OnlyOneProbe|Sweep|DefaultsKeep`) 0.86 (25/29).
+  - Survivors, all equivalent: `Rotate` loop start `MaxRotated∓1` and floor `i >= 0` only rename files that cannot exist; `functionName` `open >= 0` → `> 0`/`>= 1` differ only for a line starting with "(", which a dump never prints; `lines[1:]` → `lines[0:]` adds the header line, which never matches a frame prefix; `SplitN(…, 2)` → 3 keeps the same first element; `stallImportBudget` ±1 s and pprof debug 2 → 3 (same per-goroutine format). Skipped (IMPORTANT): `defaultStallLogDir` error check inverted; testing it would create the real data directory, and it is two lines of wiring over `ResolveBridgeDBPath`.

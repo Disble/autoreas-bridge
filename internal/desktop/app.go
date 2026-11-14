@@ -39,6 +39,8 @@ type App struct {
 	ctx                        context.Context // NOSONAR godre:S8242 -- Wails hands this to OnStartup, and the bindings and tray callbacks that need it have fixed signatures with no ctx to pass in.
 	bridgeDB                   *sql.DB
 	bridgeDBCloser             interface{ Close() error }
+	dbStall                    *stallEvidence // held-connection evidence; nil until configureStallEvidence
+	resolveStallLogDir         func() (string, error)
 	startupErr                 error
 	sharedLogger               *sharedlogger.FanoutLogger
 	seasonGradeActivity        seasonGradeActivityRecorder // nil → built from bridgeDB

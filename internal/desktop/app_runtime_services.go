@@ -33,6 +33,9 @@ func (a *App) configureRuntimeServices(ctx context.Context) {
 	a.configureCaptureReader()
 	a.configureSyncDiagReader()
 	a.configureEventLogQueue(ctx)
+	// Before startHTTPServer: a pending stall is imported before the next can happen.
+	a.configureStallEvidence()
+	a.importStallEvidence()
 	a.prepareAnimeRuntime(ctx)
 	a.startSyncChangelogRecorder()
 	a.startIncrementalVacuumLoop(bridgeSync.IncrementalVacuumInterval)

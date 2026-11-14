@@ -36,7 +36,7 @@ func NewHandler(config Config) http.Handler {
 	h.syncDiagnostics = buildSyncDiagnosticsHandler(h, config)
 	h.animeCover = buildAnimeCoverHandler(h, config)
 	h.mux = buildHandlerMux(h, config)
-	h.captureMux = CaptureMiddleware(h.mux, CaptureMiddlewareDeps{Capture: config.Capture, PersistTerminal: config.PersistTerminal})
+	h.captureMux = CaptureMiddleware(reportAbandonedRequests(h.mux, config.OnRequestAbandoned), CaptureMiddlewareDeps{Capture: config.Capture, PersistTerminal: config.PersistTerminal})
 	return h
 }
 

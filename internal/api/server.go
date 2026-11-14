@@ -89,6 +89,9 @@ type Config struct {
 	// accepts a contact. The start record carries it, so a later reading can tell
 	// whether Bridge heard a device after a failure (internal/observability/syncreading).
 	LastContacts map[string]int64
+	// OnRequestAbandoned is told the route of each request whose client gave up
+	// before its handler returned (abandoned_request.go). Nil reports nothing.
+	OnRequestAbandoned func(route string)
 }
 
 // Server exposes the lifecycle of the bridge HTTP server.
