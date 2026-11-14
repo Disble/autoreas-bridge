@@ -239,6 +239,7 @@ func (a *App) onPairingTokenConsumed() func() {
 
 // startDownloadOrchestration wires and starts download scheduling services.
 func (a *App) startDownloadOrchestration(ctx context.Context) {
+	defer a.settleModules(moduleDownloads)
 	if a.bridgeDB == nil {
 		return
 	}

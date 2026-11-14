@@ -17,15 +17,6 @@ import (
 // service was never wired. Shared with app_season_availability.go (same package).
 const episodeServiceUnavailableMessage = "episode service unavailable"
 
-// GetBridgeStatus reports "ok" once startup completed, or the startup error
-// message. It is the frontend's single readiness signal for the Go side.
-func (a *App) GetBridgeStatus() string {
-	if a.startupErr != nil {
-		return a.startupErr.Error()
-	}
-	return "ok"
-}
-
 // GetEffectiveAddress returns the address the HTTP server actually bound, which
 // differs from the configured one when the port was taken. Empty when no server
 // is running, so the pairing UI can say so instead of showing a stale address.

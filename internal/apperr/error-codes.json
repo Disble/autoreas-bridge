@@ -1,0 +1,4 @@
+{
+  "$comment": "The failure codes a Bridge binding can return (ADR-032 §2). internal/apperr owns them; a Go test and a frontend Vitest test fail when either side drifts from this list. Outcomes (applied, no_op, conflict) are successful results, never codes.",
+  "codes": ["unavailable", "failed_precondition", "invalid_argument", "not_found", "internal"]
+}

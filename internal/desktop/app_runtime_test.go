@@ -15,24 +15,6 @@ import (
 	"autoreas-bridge/internal/watchhistory"
 )
 
-func TestGetBridgeStatusReturnsOkWhenNoStartupError(t *testing.T) {
-	t.Parallel()
-
-	app := &App{}
-	if got := app.GetBridgeStatus(); got != "ok" {
-		t.Fatalf("expected %q, got %q", "ok", got)
-	}
-}
-
-func TestGetBridgeStatusReturnsErrorStringWhenStartupFailed(t *testing.T) {
-	t.Parallel()
-
-	app := &App{startupErr: errors.New("sqlite failed")}
-	if got := app.GetBridgeStatus(); got != "sqlite failed" {
-		t.Fatalf("expected error string %q, got %q", "sqlite failed", got)
-	}
-}
-
 func TestGetEffectiveAddressReturnsEmptyWhenHTTPServerNil(t *testing.T) {
 	t.Parallel()
 

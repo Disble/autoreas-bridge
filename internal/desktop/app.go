@@ -132,6 +132,9 @@ type App struct {
 	// the HTTP server starts. The start record stores it; a report arriving
 	// before that row is flushed reads it from here.
 	startLastContacts map[string]int64
+	// modules holds the readiness registry, its writer and the module handles
+	// (ADR-032); app_readiness.go builds it and lists the modules.
+	modules appModules
 }
 
 const pairingTokenConsumedEventName = "pairing.token-consumed"
@@ -236,6 +239,7 @@ func (a *App) startup(ctx context.Context) {
 		a.processStartedAt = a.currentTime()
 	}
 	a.ensureRuntimeDependencies()
+	a.registerReadinessRuntimeEventBridge(ctx)
 	a.registerDownloadRuntimeEventBridge(ctx)
 	a.registerSeasonRuntimeEventBridge(ctx)
 	a.registerAnimeRuntimeEventBridge(ctx)
@@ -243,15 +247,18 @@ func (a *App) startup(ctx context.Context) {
 	a.tracerBulletRunner = a.newTracerBulletRunner(a.eventBus, a.newTracerBulletSink(), a.sharedLogger)
 	a.tracerBulletRunner.Start()
 	if !a.configureTray(ctx) {
+		a.failStartingModules("system tray failed to start")
 		return
 	}
 
 	if !a.initializeBridgeDatabase(ctx) {
+		a.failStartingModules("bridge database failed to open")
 		return
 	}
 	a.ensureDownloadStore()
 	a.configureRuntimeServices(ctx)
 	a.wireSeasonMatchingEventBus()
+	a.settleModules(moduleSeason)
 	// A failed HTTP bind is reported through startupErr but must not abort the
 	// rest: the server serves mobile sync, while readiness, the download service
 	// and the scheduler are local. When a second instance lost the port race a
@@ -262,6 +269,7 @@ func (a *App) startup(ctx context.Context) {
 	a.startDownloadOrchestration(ctx)
 	a.startEpisodeBackfill()
 	a.wireNotificationCenterIntentExecutor()
+	a.settleModules(moduleNotifications)
 	// After the executor, so the two tokens this record carries already have their handlers
 	// registered by the time it can be pressed -- and once only, because startup is the single
 	// moment a missed selected day can begin to exist (app_missed_schedule_notification.go).

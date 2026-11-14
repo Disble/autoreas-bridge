@@ -260,7 +260,7 @@ func TestAppStartupPairingTokenConsumedCallbackEmitsSuccessNotificationBesideBar
 
 	app.startup(context.Background())
 
-	if emittedEvents[len(emittedEvents)-1] != pairingTokenConsumedEventName {
+	if !containsString(emittedEvents, pairingTokenConsumedEventName) {
 		t.Fatalf("expected bare event %q still emitted, got %#v", pairingTokenConsumedEventName, emittedEvents)
 	}
 	if got := len(fakeNotifier.received); got != 1 {
@@ -304,7 +304,7 @@ func TestAppStartupPairingTokenConsumedCallbackSurvivesNotifierError(t *testing.
 
 	app.startup(context.Background())
 
-	if emittedEvents[len(emittedEvents)-1] != pairingTokenConsumedEventName {
+	if !containsString(emittedEvents, pairingTokenConsumedEventName) {
 		t.Fatalf("expected bare event still emitted despite Notify error, got %#v", emittedEvents)
 	}
 	if app.startupErr != nil {
@@ -334,7 +334,7 @@ func TestAppStartupPairingTokenConsumedCallbackIsSafeWithNilNotifier(t *testing.
 
 	app.startup(context.Background())
 
-	if emittedEvents[len(emittedEvents)-1] != pairingTokenConsumedEventName {
+	if !containsString(emittedEvents, pairingTokenConsumedEventName) {
 		t.Fatalf("expected bare event still emitted with nil notifier, got %#v", emittedEvents)
 	}
 	if app.startupErr != nil {

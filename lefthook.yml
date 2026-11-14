@@ -22,7 +22,9 @@ pre-commit:
             env: *go-limits
             run: &go-filesize go run ./tools/checkgofilesize
           - name: architecture
-            glob: "*.go"
+            glob:
+              - "*.go"
+              - "tools/checkarchitecture/**"
             env: *go-limits
             run: &architecture go run ./tools/checkarchitecture
           - name: golangci-lint

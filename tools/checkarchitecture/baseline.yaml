@@ -1,0 +1,531 @@
+# Legacy binding violations (ADR-032 §5), one identified entry per rule, file and
+# exported App method. tools/checkarchitecture fails on a violation this file does
+# not list and on an entry that no longer occurs (the message names the entry to
+# delete). The count is printed on every run; it is reported, not gated.
+#
+# Maintenance rules:
+# - Delete an entry in the same unit that migrates its binding to a module handle
+#   (skill bridge-data; internal/modules says how to create a handle).
+# - Never add an entry for a new binding: a new binding uses its module's handle.
+# - A renamed or moved binding is a new binding; migrate it rather than re-listing it.
+version: 1
+violations:
+  - rule: binding-signature
+    file: internal/desktop/app_api_address.go
+    symbol: GetAPIAddress
+  - rule: binding-signature
+    file: internal/desktop/app_api_address.go
+    symbol: SetAPIAddress
+  - rule: binding-signature
+    file: internal/desktop/app_download.go
+    symbol: ListDownloadRuns
+  - rule: binding-signature
+    file: internal/desktop/app_download.go
+    symbol: SetHosterPriority
+  - rule: binding-signature
+    file: internal/desktop/app_download.go
+    symbol: SetJDConfig
+  - rule: binding-signature
+    file: internal/desktop/app_download.go
+    symbol: SetScheduleConfig
+  - rule: binding-signature
+    file: internal/desktop/app_download.go
+    symbol: TriggerAnimeDownload
+  - rule: binding-signature
+    file: internal/desktop/app_download.go
+    symbol: TriggerDownloadCheck
+  - rule: binding-signature
+    file: internal/desktop/app_download_cancel.go
+    symbol: CancelDownloadRun
+  - rule: binding-signature
+    file: internal/desktop/app_download_rename.go
+    symbol: SetEpisodeRenameEnabled
+  - rule: binding-signature
+    file: internal/desktop/app_frontend_errors.go
+    symbol: ReportFrontendError
+  - rule: binding-signature
+    file: internal/desktop/app_preferences.go
+    symbol: GetKeymap
+  - rule: binding-signature
+    file: internal/desktop/app_preferences.go
+    symbol: GetLibraryRoot
+  - rule: binding-signature
+    file: internal/desktop/app_preferences.go
+    symbol: PickFile
+  - rule: binding-signature
+    file: internal/desktop/app_preferences.go
+    symbol: PickFolder
+  - rule: binding-signature
+    file: internal/desktop/app_preferences.go
+    symbol: SetAutoStartEnabled
+  - rule: binding-signature
+    file: internal/desktop/app_preferences.go
+    symbol: SetKeymap
+  - rule: binding-signature
+    file: internal/desktop/app_preferences.go
+    symbol: SetLibraryRoot
+  - rule: binding-signature
+    file: internal/desktop/app_runtime.go
+    symbol: GetAnimes
+  - rule: binding-signature
+    file: internal/desktop/app_runtime.go
+    symbol: GetConnectedDevices
+  - rule: binding-signature
+    file: internal/desktop/app_runtime.go
+    symbol: GetEffectiveAddress
+  - rule: binding-signature
+    file: internal/desktop/app_runtime.go
+    symbol: GetEpisodeDayCounts
+  - rule: binding-signature
+    file: internal/desktop/app_runtime.go
+    symbol: GetEpisodeSchedule
+  - rule: binding-signature
+    file: internal/desktop/app_runtime.go
+    symbol: GetPairingToken
+  - rule: binding-signature
+    file: internal/desktop/app_runtime.go
+    symbol: GetSQLiteStatus
+  - rule: binding-signature
+    file: internal/desktop/app_runtime.go
+    symbol: GetSyncingAnimeItems
+  - rule: binding-signature
+    file: internal/desktop/app_runtime.go
+    symbol: TriggerReconcile
+  - rule: binding-signature
+    file: internal/desktop/app_runtime.go
+    symbol: UnpairDevice
+  - rule: binding-signature
+    file: internal/desktop/app_season.go
+    symbol: CloseSeason
+  - rule: binding-signature
+    file: internal/desktop/app_season.go
+    symbol: CreateSeason
+  - rule: binding-signature
+    file: internal/desktop/app_season.go
+    symbol: CreateSeasonAnimes
+  - rule: binding-signature
+    file: internal/desktop/app_season.go
+    symbol: DiscardSeasonName
+  - rule: binding-signature
+    file: internal/desktop/app_season.go
+    symbol: GetSeasonAnimes
+  - rule: binding-signature
+    file: internal/desktop/app_season.go
+    symbol: ImportSeasonIntake
+  - rule: binding-signature
+    file: internal/desktop/app_season.go
+    symbol: ReconcileSeasonIntake
+  - rule: binding-signature
+    file: internal/desktop/app_season.go
+    symbol: ReopenSeasonOrdering
+  - rule: binding-signature
+    file: internal/desktop/app_season.go
+    symbol: ResolveSeasonMatch
+  - rule: binding-signature
+    file: internal/desktop/app_season.go
+    symbol: RestoreSeasonName
+  - rule: binding-signature
+    file: internal/desktop/app_season.go
+    symbol: RunSeasonMatching
+  - rule: binding-signature
+    file: internal/desktop/app_season.go
+    symbol: SaveSeasonOrderingDraft
+  - rule: binding-signature
+    file: internal/desktop/app_season.go
+    symbol: SetSeasonAnimeMetadata
+  - rule: binding-signature
+    file: internal/desktop/app_season.go
+    symbol: SetSeasonConsideration
+  - rule: binding-signature
+    file: internal/desktop/app_season.go
+    symbol: SetSeasonGrade
+  - rule: binding-signature
+    file: internal/desktop/app_season.go
+    symbol: SetSeasonMinApprovalGrade
+  - rule: binding-signature
+    file: internal/desktop/app_season.go
+    symbol: SetSeasonSlots
+  - rule: binding-signature
+    file: internal/desktop/app_season.go
+    symbol: SkipSeasonGrading
+  - rule: binding-signature
+    file: internal/desktop/app_season_availability.go
+    symbol: DownloadSeasonAnimes
+  - rule: binding-signature
+    file: internal/desktop/app_season_availability.go
+    symbol: TriggerSeasonDownloads
+  - rule: binding-signature
+    file: internal/desktop/app_season_check_time.go
+    symbol: GetSeasonCheckTime
+  - rule: binding-signature
+    file: internal/desktop/app_season_check_time.go
+    symbol: SetSeasonCheckTime
+  - rule: binding-signature
+    file: internal/desktop/app_season_history.go
+    symbol: GetPastSeasonAnimes
+  - rule: binding-signature
+    file: internal/desktop/app_season_history.go
+    symbol: ListSeasons
+  - rule: binding-signature
+    file: internal/desktop/app_season_runtime.go
+    symbol: RecheckSeasonAvailability
+  - rule: binding-uses-handle
+    file: internal/desktop/app_activity_feed.go
+    symbol: GetActivityChangeContext
+  - rule: binding-uses-handle
+    file: internal/desktop/app_activity_feed.go
+    symbol: GetActivityEvent
+  - rule: binding-uses-handle
+    file: internal/desktop/app_activity_feed.go
+    symbol: GetActivityOverview
+  - rule: binding-uses-handle
+    file: internal/desktop/app_activity_feed.go
+    symbol: GetActivityPhoneReport
+  - rule: binding-uses-handle
+    file: internal/desktop/app_activity_feed.go
+    symbol: SearchActivityFeed
+  - rule: binding-uses-handle
+    file: internal/desktop/app_activity_pin.go
+    symbol: PinActivityMoment
+  - rule: binding-uses-handle
+    file: internal/desktop/app_activity_read.go
+    symbol: GetActivityIncident
+  - rule: binding-uses-handle
+    file: internal/desktop/app_activity_read.go
+    symbol: GetActivityRequest
+  - rule: binding-uses-handle
+    file: internal/desktop/app_activity_read.go
+    symbol: GetActivityRunStory
+  - rule: binding-uses-handle
+    file: internal/desktop/app_api_address.go
+    symbol: GetAPIAddress
+  - rule: binding-uses-handle
+    file: internal/desktop/app_api_address.go
+    symbol: SetAPIAddress
+  - rule: binding-uses-handle
+    file: internal/desktop/app_backup.go
+    symbol: ExportBackup
+  - rule: binding-uses-handle
+    file: internal/desktop/app_backup_import.go
+    symbol: ConfirmBackupImport
+  - rule: binding-uses-handle
+    file: internal/desktop/app_backup_import.go
+    symbol: PreviewBackupImport
+  - rule: binding-uses-handle
+    file: internal/desktop/app_cover.go
+    symbol: GetAnimeCover
+  - rule: binding-uses-handle
+    file: internal/desktop/app_cover.go
+    symbol: PreviewAnimeCover
+  - rule: binding-uses-handle
+    file: internal/desktop/app_desktop_actions.go
+    symbol: CopyAnimeFolder
+  - rule: binding-uses-handle
+    file: internal/desktop/app_desktop_actions.go
+    symbol: CopyAnimePage
+  - rule: binding-uses-handle
+    file: internal/desktop/app_desktop_actions.go
+    symbol: OpenAnimeFolder
+  - rule: binding-uses-handle
+    file: internal/desktop/app_desktop_actions.go
+    symbol: OpenAnimePage
+  - rule: binding-uses-handle
+    file: internal/desktop/app_device_sync_diagnostics.go
+    symbol: ListDeviceSyncDiagnostics
+  - rule: binding-uses-handle
+    file: internal/desktop/app_download.go
+    symbol: GetDownloadConfig
+  - rule: binding-uses-handle
+    file: internal/desktop/app_download.go
+    symbol: GetJDStatus
+  - rule: binding-uses-handle
+    file: internal/desktop/app_download.go
+    symbol: GetScheduleConfig
+  - rule: binding-uses-handle
+    file: internal/desktop/app_download.go
+    symbol: IgnoreMissedSchedule
+  - rule: binding-uses-handle
+    file: internal/desktop/app_download.go
+    symbol: ListDownloadRuns
+  - rule: binding-uses-handle
+    file: internal/desktop/app_download.go
+    symbol: RunMissedScheduleNow
+  - rule: binding-uses-handle
+    file: internal/desktop/app_download.go
+    symbol: SetHosterPriority
+  - rule: binding-uses-handle
+    file: internal/desktop/app_download.go
+    symbol: SetJDConfig
+  - rule: binding-uses-handle
+    file: internal/desktop/app_download.go
+    symbol: SetScheduleConfig
+  - rule: binding-uses-handle
+    file: internal/desktop/app_download.go
+    symbol: TriggerAnimeDownload
+  - rule: binding-uses-handle
+    file: internal/desktop/app_download.go
+    symbol: TriggerDownloadCheck
+  - rule: binding-uses-handle
+    file: internal/desktop/app_download_cancel.go
+    symbol: CancelDownloadRun
+  - rule: binding-uses-handle
+    file: internal/desktop/app_download_concurrency.go
+    symbol: GetJDMaxSimultaneousDownloads
+  - rule: binding-uses-handle
+    file: internal/desktop/app_download_readiness.go
+    symbol: ListDownloadReadiness
+  - rule: binding-uses-handle
+    file: internal/desktop/app_download_rename.go
+    symbol: SetEpisodeRenameEnabled
+  - rule: binding-uses-handle
+    file: internal/desktop/app_episode_editor.go
+    symbol: CancelEpisodeReanalysis
+  - rule: binding-uses-handle
+    file: internal/desktop/app_episode_editor.go
+    symbol: GetEpisodeDurationSection
+  - rule: binding-uses-handle
+    file: internal/desktop/app_episode_editor.go
+    symbol: ReanalyzeEpisodeDurations
+  - rule: binding-uses-handle
+    file: internal/desktop/app_episode_editor.go
+    symbol: SaveEpisodeDurations
+  - rule: binding-uses-handle
+    file: internal/desktop/app_frontend_errors.go
+    symbol: ReportFrontendError
+  - rule: binding-uses-handle
+    file: internal/desktop/app_library_root.go
+    symbol: PreviewLibraryRootChange
+  - rule: binding-uses-handle
+    file: internal/desktop/app_myanimelist.go
+    symbol: GetMyAnimeListDetail
+  - rule: binding-uses-handle
+    file: internal/desktop/app_myanimelist.go
+    symbol: SearchMyAnimeList
+  - rule: binding-uses-handle
+    file: internal/desktop/app_notification_center.go
+    symbol: ArchiveNotifications
+  - rule: binding-uses-handle
+    file: internal/desktop/app_notification_center.go
+    symbol: ExecuteNotificationAction
+  - rule: binding-uses-handle
+    file: internal/desktop/app_notification_center.go
+    symbol: GetNotification
+  - rule: binding-uses-handle
+    file: internal/desktop/app_notification_center.go
+    symbol: GetUnreadNotificationCount
+  - rule: binding-uses-handle
+    file: internal/desktop/app_notification_center.go
+    symbol: ListNotifications
+  - rule: binding-uses-handle
+    file: internal/desktop/app_notification_center.go
+    symbol: MarkNotificationsRead
+  - rule: binding-uses-handle
+    file: internal/desktop/app_notification_center.go
+    symbol: MarkNotificationsUnread
+  - rule: binding-uses-handle
+    file: internal/desktop/app_notification_center.go
+    symbol: RestoreNotifications
+  - rule: binding-uses-handle
+    file: internal/desktop/app_preferences.go
+    symbol: GetAutoStartEnabled
+  - rule: binding-uses-handle
+    file: internal/desktop/app_preferences.go
+    symbol: GetKeymap
+  - rule: binding-uses-handle
+    file: internal/desktop/app_preferences.go
+    symbol: GetLibraryRoot
+  - rule: binding-uses-handle
+    file: internal/desktop/app_preferences.go
+    symbol: GetSeasonMode
+  - rule: binding-uses-handle
+    file: internal/desktop/app_preferences.go
+    symbol: PickFile
+  - rule: binding-uses-handle
+    file: internal/desktop/app_preferences.go
+    symbol: PickFolder
+  - rule: binding-uses-handle
+    file: internal/desktop/app_preferences.go
+    symbol: SetAutoStartEnabled
+  - rule: binding-uses-handle
+    file: internal/desktop/app_preferences.go
+    symbol: SetKeymap
+  - rule: binding-uses-handle
+    file: internal/desktop/app_preferences.go
+    symbol: SetLibraryRoot
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime.go
+    symbol: AdjustWatchedEpisodes
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime.go
+    symbol: GetAnimeDetail
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime.go
+    symbol: GetAnimeDetailView
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime.go
+    symbol: GetAnimeWatchHistoryPage
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime.go
+    symbol: GetAnimes
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime.go
+    symbol: GetConnectedDevices
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime.go
+    symbol: GetEffectiveAddress
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime.go
+    symbol: GetEpisodeDayCounts
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime.go
+    symbol: GetEpisodeSchedule
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime.go
+    symbol: GetPairingToken
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime.go
+    symbol: GetSQLiteStatus
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime.go
+    symbol: GetSyncingAnimeItems
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime.go
+    symbol: GetWatchHistoryPage
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime.go
+    symbol: RepeatAnime
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime.go
+    symbol: RestoreAnime
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime.go
+    symbol: SetAnimeDays
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime.go
+    symbol: SetAnimeState
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime.go
+    symbol: SoftDeleteAnime
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime.go
+    symbol: TriggerReconcile
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime.go
+    symbol: UnpairDevice
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime_create.go
+    symbol: CreateAnime
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime_editor.go
+    symbol: ApplyAnimeEditorSchedule
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime_editor.go
+    symbol: DeactivateAnime
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime_editor.go
+    symbol: GetAnimeEditorRecord
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime_editor.go
+    symbol: GetAnimeEditorScheduleBoard
+  - rule: binding-uses-handle
+    file: internal/desktop/app_runtime_editor.go
+    symbol: SaveAnimeEditor
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: ApplySeasonSchedule
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: CloseSeason
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: ConfirmSeasonSelection
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: CreateSeason
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: CreateSeasonAnimes
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: DiscardSeasonName
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: GetSeason
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: GetSeasonAnimes
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: ImportSeasonIntake
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: ReconcileSeasonIntake
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: ReopenSeasonOrdering
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: ResolveSeasonMatch
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: RestoreSeasonName
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: RunSeasonMatching
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: SaveSeasonOrderingDraft
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: SetSeasonAnimeMetadata
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: SetSeasonConsideration
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: SetSeasonGrade
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: SetSeasonMinApprovalGrade
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: SetSeasonSlots
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season.go
+    symbol: SkipSeasonGrading
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season_availability.go
+    symbol: DownloadSeasonAnimes
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season_availability.go
+    symbol: SendSeasonAnimesToVerHoy
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season_availability.go
+    symbol: TriggerSeasonDownloads
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season_check_time.go
+    symbol: GetSeasonCheckTime
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season_check_time.go
+    symbol: SetSeasonCheckTime
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season_history.go
+    symbol: GetPastSeason
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season_history.go
+    symbol: GetPastSeasonAnimes
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season_history.go
+    symbol: GetSeasonOrderingSnapshot
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season_history.go
+    symbol: ListSeasons
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season_ordering.go
+    symbol: GetSeasonOrderingBoard
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season_runtime.go
+    symbol: RecheckSeasonAvailability
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season_searcher.go
+    symbol: SearchSeasonProviders

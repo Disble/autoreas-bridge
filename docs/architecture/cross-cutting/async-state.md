@@ -32,6 +32,8 @@ stateDiagram-v2
   (Wails drops events emitted before a listener exists).
 - No module stays `starting` forever: an early return in `startup()` marks every module it skips
   `failed` with the reason.
+- `ready` and `failed` are terminal: the registry rejects any move out of them
+  (`lifecycle.ErrInvalidTransition`). A module never goes back to `starting`.
 
 ## Failures and outcomes
 
@@ -103,6 +105,11 @@ sequenceDiagram
 If the module fails instead, the gate receives `failed` with its reason and the screen shows the failure
 Alert; it never shows the empty state.
 
+The subscription and the `GetReadiness()` call race, so the snapshot can be older than an event that
+already arrived. Because `ready` and `failed` are terminal, a snapshot that answers `starting` for a
+module the gate already saw `ready` or `failed` is stale: the gate keeps the terminal state and never
+moves a module back to `starting`.
+
 ## QueryClient defaults
 
 | Option | Value | Why |
@@ -123,14 +130,19 @@ entry fails in pre-commit (staged) and in `pre-merge-commit` (whole tree), namin
 
 ## Known drift
 
-Measured on `dev` at `fe1fa0fa` (same code as `main` `b4392629`), before any slice of ADR-032:
+Measured on `feat/async-state-standard` after the Go foundation (ADR-032 task T2); the frontend items
+are unchanged from `dev` `fe1fa0fa`:
 
-- `internal/lifecycle` and the module handles do not exist yet. Services are `App` fields wired in
-  `internal/desktop/app.go:233-270`; bindings read them without readiness.
+- The Go foundation exists: `internal/lifecycle` (registry and writer), `internal/apperr` (codes,
+  `error-codes.json`), `internal/modules` (`Handle[S]`, `Shell`), `GetReadiness`, the
+  `bridge.readiness` event and the JSON `ErrorFormatter`. Ten modules are registered and settled by
+  `startup` (`docs/architecture/contexts/desktop/overview.md`, "Readiness and failures").
+- No domain module has a handle yet: every binding except `GetReadiness` still reads an `App` field
+  without readiness. `tools/checkarchitecture/baseline.yaml` lists them: 120 `binding-uses-handle` and
+  53 `binding-signature` entries (printed by `go run ./tools/checkarchitecture`).
 - `GetEpisodeSchedule` and `GetEpisodeDayCounts` return `[]` when the episode service is nil or fails
-  (`internal/desktop/app_runtime.go:236-245` and `:357-366`).
-- `GetBridgeStatus` (`internal/desktop/app_runtime.go:21`) returns `"ok"` during startup and has no
-  frontend caller.
+  (`internal/desktop/app_runtime.go`); the episodes pilot (T4) moves them onto a handle.
+- Nothing in `frontend/src` calls `GetReadiness` or parses the JSON failure string yet (T3).
 - `invokeGoBinding` (`frontend/src/infrastructure/wails-bindings.helpers.ts:64`) answers adapter
   fallbacks such as `() => []` when a binding never attaches.
 - 126 non-test feature files and 16 non-test shared files import `infrastructure/` (grep of import

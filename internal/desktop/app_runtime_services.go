@@ -45,6 +45,7 @@ func (a *App) configureRuntimeServices(ctx context.Context) {
 	conflictService := a.configureAnimeApplicationServices()
 	a.wireEpisodeServiceWithWriter(a.animeWrite)
 	a.startHTTPServer(deviceService, a.newMobileAnimeWriteService(), conflictService, changelogStore)
+	a.settleModules(moduleObservability, moduleSync, moduleDevices, moduleSettings, moduleAnime, moduleEpisodes, moduleAPI)
 }
 
 // captureLastContacts keeps each active device's last contact for the start

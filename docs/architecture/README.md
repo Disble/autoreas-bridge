@@ -26,6 +26,7 @@ that touches that code.
 | `contexts/anime/workflow.md` | Following one anime save end to end: decide, stamp, Season rule, commit, publish, conflict |
 | `contexts/observability/overview.md` | Touching `internal/observability`: its packages, ports, adapters, events, storage and invariants |
 | `contexts/observability/workflow.md` | Following one mobile report end to end: arrival, store, reading, incident gate, feed line, drawer, Technical view |
+| `contexts/desktop/overview.md` | Touching `internal/desktop`: the composition root, startup order, bindings, module readiness and handles, failure codes and the events the WebView receives |
 
 ### Cross-cutting
 

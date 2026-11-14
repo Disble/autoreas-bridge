@@ -1,0 +1,200 @@
+package desktop
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"sync"
+
+	"autoreas-bridge/internal/apperr"
+	"autoreas-bridge/internal/events"
+	"autoreas-bridge/internal/lifecycle"
+	"autoreas-bridge/internal/modules"
+)
+
+// The modules the composition root registers, one per bounded context it wires
+// (ADR-032 §1). Each becomes ready or failed at the startup step named in
+// moduleWiringChecks; docs/architecture/contexts/desktop/overview.md lists them.
+const (
+	moduleObservability lifecycle.ModuleID = "observability"
+	moduleSync          lifecycle.ModuleID = "sync"
+	moduleDevices       lifecycle.ModuleID = "devices"
+	moduleSettings      lifecycle.ModuleID = "settings"
+	moduleAnime         lifecycle.ModuleID = "anime"
+	moduleEpisodes      lifecycle.ModuleID = "episodes"
+	moduleAPI           lifecycle.ModuleID = "api"
+	moduleSeason        lifecycle.ModuleID = "season"
+	moduleDownloads     lifecycle.ModuleID = "downloads"
+	moduleNotifications lifecycle.ModuleID = "notifications"
+)
+
+// registeredModules is every module, in the order startup wires them.
+var registeredModules = []lifecycle.ModuleID{
+	moduleObservability, moduleSync, moduleDevices, moduleSettings, moduleAnime,
+	moduleEpisodes, moduleAPI, moduleSeason, moduleDownloads, moduleNotifications,
+}
+
+// errNotWired is the reason of a module whose wiring step left its services nil.
+var errNotWired = errors.New("was not wired")
+
+// moduleWiringChecks says, per module, whether its services were wired: nil
+// means ready, an error is the failure reason the frontend shows.
+var moduleWiringChecks = map[lifecycle.ModuleID]func(*App) error{
+	moduleObservability: func(a *App) error {
+		return wiredUnless(a.eventQueue == nil || a.captureReader == nil, "runtime event log or request capture reader")
+	},
+	moduleSync:     func(a *App) error { return wiredUnless(a.syncChangelogRecorder == nil, "sync changelog recorder") },
+	moduleDevices:  func(a *App) error { return wiredUnless(a.deviceStore == nil, "device store") },
+	moduleSettings: func(a *App) error { return wiredUnless(a.settingsStore == nil, "settings store") },
+	moduleAnime: func(a *App) error {
+		return wiredUnless(a.animeQuery == nil || a.animeWrite == nil, "anime services")
+	},
+	moduleEpisodes: func(a *App) error { return wiredUnless(a.episodeService == nil, "episode service") },
+	moduleAPI: func(a *App) error {
+		// Past the database step, only the HTTP server sets startupErr.
+		if a.startupErr != nil {
+			return fmt.Errorf("HTTP server failed to start: %w", a.startupErr)
+		}
+		return wiredUnless(a.httpServer == nil, "HTTP server")
+	},
+	moduleSeason: func(a *App) error { return wiredUnless(a.seasonService == nil, "season service") },
+	moduleDownloads: func(a *App) error {
+		return wiredUnless(a.downloadService == nil || a.readinessService == nil, "download services")
+	},
+	moduleNotifications: func(a *App) error {
+		return wiredUnless(a.notificationCenterExecutor == nil, "notification center")
+	},
+}
+
+// wiredUnless returns the not-wired reason for what when missing is true.
+func wiredUnless(missing bool, what string) error {
+	if missing {
+		return fmt.Errorf("%s %w", what, errNotWired)
+	}
+	return nil
+}
+
+// appModules is the module set App holds: the readiness registry, its writer
+// (only the composition root writes) and the module handles. Domain modules get
+// their handle here when they migrate (ADR-032 §3; internal/modules says how).
+type appModules struct {
+	once     sync.Once
+	registry *lifecycle.Registry
+	writer   *lifecycle.Writer
+	shell    *modules.Shell
+}
+
+// moduleSet builds the module set once, on first use, and registers every module
+// as starting. Wails may call GetReadiness before startup runs; that first call
+// builds the set, so it already reads "starting". NewApp has set the event bus by
+// then, and startup never replaces it, so the registry always publishes on it.
+func (a *App) moduleSet() *appModules {
+	a.modules.once.Do(func() {
+		a.modules.registry, a.modules.writer = lifecycle.New(a.eventBus)
+		a.modules.writer.Register(registeredModules...)
+		services := modules.ShellServices{EffectiveAddress: a.GetEffectiveAddress, Readiness: a.modules.registry}
+		if a.sharedLogger != nil {
+			services.Logger = a.sharedLogger
+		}
+		a.modules.shell = modules.NewShell(services)
+	})
+	return &a.modules
+}
+
+// settleModules marks each module ready when its services were wired and
+// failed with the reason otherwise. A module already settled keeps its state.
+func (a *App) settleModules(ids ...lifecycle.ModuleID) {
+	writer := a.moduleSet().writer
+	for _, id := range ids {
+		if err := moduleWiringChecks[id](a); err != nil {
+			_ = writer.MarkFailed(id, fmt.Sprintf("%s: %v", id, err))
+			continue
+		}
+		_ = writer.MarkReady(id)
+	}
+}
+
+// failStartingModules fails every module still starting with "<step>: <startupErr>":
+// that startup step returned early, so their wiring will not run in this process.
+func (a *App) failStartingModules(step string) {
+	a.moduleSet().writer.FailStarting(fmt.Sprintf("%s: %v", step, a.startupErr))
+}
+
+// ModuleReadiness is one module's readiness as the frontend receives it, both in
+// GetReadiness and in each bridge.readiness event. Reason is set only when failed.
+type ModuleReadiness struct {
+	Module string `json:"module"`
+	State  string `json:"state"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// ReadinessSnapshot is every module's readiness, in registration order.
+type ReadinessSnapshot struct {
+	Modules []ModuleReadiness `json:"modules"`
+}
+
+// toModuleReadiness maps one lifecycle status to its DTO.
+func toModuleReadiness(status lifecycle.Status) ModuleReadiness {
+	return ModuleReadiness{Module: string(status.Module), State: string(status.State), Reason: status.Reason}
+}
+
+// GetReadiness returns every module's readiness (ADR-032 §1). The frontend
+// subscribes to bridge.readiness first and then calls this, so a transition
+// emitted before its listener existed is not lost.
+func (a *App) GetReadiness() (ReadinessSnapshot, error) {
+	return a.moduleSet().shell.Use(func(services modules.ShellServices) (ReadinessSnapshot, error) {
+		statuses := services.Readiness.Snapshot()
+		snapshot := ReadinessSnapshot{Modules: make([]ModuleReadiness, 0, len(statuses))}
+		for _, status := range statuses {
+			snapshot.Modules = append(snapshot.Modules, toModuleReadiness(status))
+		}
+		return snapshot, nil
+	})
+}
+
+// registerReadinessRuntimeEventBridge forwards every readiness transition to the
+// frontend as bridge.readiness, like the other register*RuntimeEventBridge
+// functions: a mapped DTO, never the bus event itself. It builds the module set
+// first, so the registrations it publishes are not forwarded: the frontend reads
+// the starting state through GetReadiness.
+func (a *App) registerReadinessRuntimeEventBridge(ctx context.Context) {
+	a.moduleSet()
+	if a.eventBus == nil || a.emitFn == nil {
+		return
+	}
+	a.eventBus.Subscribe(lifecycle.EventNameReadinessChanged, func(event events.Event) {
+		changed, ok := event.(lifecycle.ReadinessChangedEvent)
+		if !ok {
+			return
+		}
+		emitCtx := a.ctx
+		if emitCtx == nil {
+			emitCtx = ctx
+		}
+		if emitCtx == nil {
+			return
+		}
+		a.emitFn(emitCtx, lifecycle.EventNameReadinessChanged, toModuleReadiness(changed.Status))
+	})
+}
+
+// bindingFailure is the JSON a coded binding failure travels as.
+type bindingFailure struct {
+	Code    apperr.Code `json:"code"`
+	Message string      `json:"message"`
+}
+
+// formatBindingError is the Wails ErrorFormatter. Wails turns any object into
+// "[object Object]" in JS, so a coded failure travels as a JSON string
+// {"code":…,"message":…}. Every other error keeps its plain message, exactly as
+// Wails sends it without a formatter, so legacy bindings keep their messages
+// until their module migrates (ADR-032 §2).
+func formatBindingError(err error) any {
+	code, ok := apperr.CodeOf(err)
+	if !ok {
+		return err.Error()
+	}
+	encoded, _ := json.Marshal(bindingFailure{Code: code, Message: err.Error()})
+	return string(encoded)
+}
