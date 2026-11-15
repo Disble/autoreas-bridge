@@ -32,13 +32,8 @@ function page(overrides: Partial<WatchHistoryPage> = {}): WatchHistoryPage {
 function createSource(getAnimeWatchHistoryPage?: BridgeRuntimeSource['getAnimeWatchHistoryPage']): BridgeRuntimeSource {
   return {
     getSQLiteStatus: vi.fn(),
-    getEffectiveAddress: vi.fn(),
-    getPairingToken: vi.fn(),
-    getSyncingAnimeItems: vi.fn(),
     getAnimes: vi.fn(),
     getAnimeDetail: vi.fn(),
-    triggerReconcile: vi.fn(),
-    onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
     getAnimeWatchHistoryPage,
   };
 }

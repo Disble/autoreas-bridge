@@ -1,4 +1,4 @@
-import { Card, Chip } from '@heroui/react';
+import { Alert, Card, Chip } from '@heroui/react';
 import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
 import type { SyncingAnimePanelProps } from './syncing-anime-panel.types';
 import {
@@ -14,7 +14,7 @@ import { useSyncingAnimePanel } from './use-syncing-anime-panel';
 
 /** Panel showing the anime items that still have pending bridge sync work. */
 export function SyncingAnimePanel(props: Readonly<SyncingAnimePanelProps>) {
-  const { isEmpty, isLoading, items } = useSyncingAnimePanel(props);
+  const { view } = useSyncingAnimePanel(props);
 
   return (
     <Card>
@@ -23,7 +23,7 @@ export function SyncingAnimePanel(props: Readonly<SyncingAnimePanelProps>) {
         <Card.Description>{SYNCING_ANIME_PANEL_DESCRIPTION}</Card.Description>
       </Card.Header>
       <Card.Content className="flex flex-col gap-3">
-        {isLoading ? (
+        {view.kind === 'loading' ? (
           <div aria-labelledby="syncing-anime-panel-loading-label" aria-live="polite" role="status">
             <span className="sr-only" id="syncing-anime-panel-loading-label">
               {SYNCING_ANIME_PANEL_LOADING_LABEL}
@@ -32,13 +32,22 @@ export function SyncingAnimePanel(props: Readonly<SyncingAnimePanelProps>) {
           </div>
         ) : null}
 
-        {isEmpty ? (
+        {view.kind === 'failure' ? (
+          <Alert status="danger">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>{view.message}</Alert.Title>
+            </Alert.Content>
+          </Alert>
+        ) : null}
+
+        {view.kind === 'empty' ? (
           <AirisEmptyState description={SYNCING_ANIME_PANEL_EMPTY_DESCRIPTION} kind="caught-up" size="section" title={SYNCING_ANIME_PANEL_EMPTY_TITLE} />
         ) : null}
 
-        {!isLoading && !isEmpty ? (
+        {view.kind === 'ready' ? (
           <div className="grid max-h-[28rem] grid-cols-1 gap-3 overflow-y-auto pr-1 xl:grid-cols-2">
-            {items.map((item) => (
+            {view.data.map((item) => (
               <article key={item.animeId} className={`${SYNCING_ANIME_PANEL_CARD_CLASS} transition-colors hover:bg-white/[0.04]`}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">

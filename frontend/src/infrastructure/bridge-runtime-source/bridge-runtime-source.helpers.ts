@@ -12,11 +12,7 @@ import {
   GetAnimeEditorScheduleBoard,
   GetAnimes,
   GetAnimeWatchHistoryPage,
-  GetConnectedDevices,
-  GetEffectiveAddress,
-  GetPairingToken,
   GetSQLiteStatus,
-  GetSyncingAnimeItems,
   GetWatchHistoryPage,
   OpenAnimeFolder,
   OpenAnimePage,
@@ -27,12 +23,9 @@ import {
   SaveAnimeEditor,
   SetAnimeState,
   SoftDeleteAnime,
-  TriggerReconcile,
-  UnpairDevice,
 } from '../../../wailsjs/go/desktop/App';
 import { contracts as wailsContracts } from '../../../wailsjs/go/models';
 import type { desktop as wailsDesktop } from '../../../wailsjs/go/models';
-import { EventsOn } from '../../../wailsjs/runtime/runtime';
 import type {
   AnimeCreateCommand,
   AnimeCreateResult,
@@ -48,15 +41,13 @@ import type {
 } from '../../shared/contracts/anime.types';
 import {
   BRIDGE_RUNTIME_SOURCE_STATE,
-  DEVICE_ACKNOWLEDGED_EVENT_NAME,
-  PAIRING_TOKEN_CONSUMED_EVENT_NAME,
   RUNTIME_UNAVAILABLE_COMMAND_RESULT,
   RUNTIME_UNAVAILABLE_CREATE_RESULT,
   RUNTIME_UNAVAILABLE_EDITOR_RESULT,
   RUNTIME_UNAVAILABLE_WATCH_HISTORY_PAGE,
 } from './bridge-runtime-source.constants';
-import type { AnimeEditorRuntimeSource, BridgeRuntimeSource, DeviceAcknowledgedNotice } from './bridge-runtime-source.types';
-import { createRuntimeSubscription, invokeGoBinding } from '../wails-bindings.helpers';
+import type { AnimeEditorRuntimeSource, BridgeRuntimeSource } from './bridge-runtime-source.types';
+import { invokeGoBinding } from '../wails-bindings.helpers';
 
 /**
  * Builds the empty schedule board served when the Go bindings are unreachable,
@@ -321,26 +312,9 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRu
     return BRIDGE_RUNTIME_SOURCE_STATE.sharedSource as BridgeRuntimeSource & AnimeEditorRuntimeSource;
   }
 
-  const pairingTokenSubscription = createRuntimeSubscription<void>((emit) => {
-    return EventsOn(PAIRING_TOKEN_CONSUMED_EVENT_NAME, () => emit(undefined));
-  });
-
-  const deviceAcknowledgedSubscription = createRuntimeSubscription<DeviceAcknowledgedNotice>((emit) => {
-    return EventsOn(DEVICE_ACKNOWLEDGED_EVENT_NAME, (notice: DeviceAcknowledgedNotice) => emit(notice));
-  });
-
   BRIDGE_RUNTIME_SOURCE_STATE.sharedSource = {
     getSQLiteStatus() {
       return invokeGoBinding('GetSQLiteStatus', GetSQLiteStatus, () => 'runtime unavailable');
-    },
-    getEffectiveAddress() {
-      return invokeGoBinding('GetEffectiveAddress', GetEffectiveAddress, () => '');
-    },
-    getPairingToken() {
-      return invokeGoBinding('GetPairingToken', GetPairingToken, () => '');
-    },
-    getSyncingAnimeItems() {
-      return invokeGoBinding('GetSyncingAnimeItems', GetSyncingAnimeItems, () => []);
     },
     getAnimes() {
       return invokeGoBinding('GetAnimes', GetAnimes, () => []);
@@ -418,21 +392,6 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRu
     },
     pickFile(title) {
       return invokeGoBinding('PickFile', () => PickFile(title), () => '');
-    },
-    getConnectedDevices() {
-      return invokeGoBinding('GetConnectedDevices', GetConnectedDevices, () => []);
-    },
-    triggerReconcile() {
-      return invokeGoBinding('TriggerReconcile', TriggerReconcile, () => 'runtime unavailable');
-    },
-    unpairDevice(deviceID) {
-      return invokeGoBinding('UnpairDevice', () => UnpairDevice(deviceID), () => 'runtime unavailable');
-    },
-    onPairingTokenConsumed(listener) {
-      return pairingTokenSubscription.subscribe(listener);
-    },
-    onDeviceAcknowledged(listener) {
-      return deviceAcknowledgedSubscription.subscribe(listener);
     },
   };
 

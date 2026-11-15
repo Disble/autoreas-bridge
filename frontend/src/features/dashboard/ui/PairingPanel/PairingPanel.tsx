@@ -1,9 +1,9 @@
-import { Button, Card, Chip } from '@heroui/react';
+import { Alert, Button, Card, Chip } from '@heroui/react';
 import { usePairingPanel } from './use-pairing-panel';
 
 /** Panel rendering the pairing token, address, and QR code for mobile clients. */
 export function PairingPanel() {
-  const { copied, ip, onCopyToken, port, qrImageUrl, token } = usePairingPanel();
+  const { copied, failureMessage, ip, onCopyToken, port, qrImageUrl, token } = usePairingPanel();
 
   return (
     <Card>
@@ -11,6 +11,14 @@ export function PairingPanel() {
         <Card.Title>Pair a Device</Card.Title>
         <Card.Description>Scan the QR code from Autoreas Mobile, or use the token below as a manual fallback</Card.Description>
       </Card.Header>
+      {failureMessage ? (
+        <Alert status="danger">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>{failureMessage}</Alert.Title>
+          </Alert.Content>
+        </Alert>
+      ) : null}
       {/*
        * Wide-screen layout: pairing info (LAN + token) fills the flexible left
        * column while the QR pins right, instead of a centered QR with empty

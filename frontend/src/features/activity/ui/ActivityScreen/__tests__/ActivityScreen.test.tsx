@@ -37,7 +37,7 @@ vi.mock('../../../activity-source/activity-source.helpers', () => ({ createActiv
 /** The paired devices the phone status line reads: none unless a test sets them. */
 const getConnectedDevices = vi.fn(() => Promise.resolve<readonly { connection_status: string; last_seen_at_ms: number }[]>([]));
 
-vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({ bridgeRuntimeSource: { getConnectedDevices: () => getConnectedDevices() } }));
+vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', () => ({ BRIDGE_DEVICES_SOURCE: { getConnectedDevices: () => getConnectedDevices() } }));
 vi.mock('../../ActivityDetailDrawer/ActivityDetailDrawer', () => ({
   /** Stands in for writer B's drawer: shows which line is open. */
   ActivityDetailDrawer: ({ line }: ActivityDetailDrawerProps) => (line === undefined ? null : <aside aria-label="Activity detail">{line.line.id}</aside>),

@@ -27,13 +27,8 @@ function createSource(
 ): BridgeRuntimeSource {
   return {
     getSQLiteStatus: vi.fn(),
-    getEffectiveAddress: vi.fn(),
-    getPairingToken: vi.fn(),
-    getSyncingAnimeItems: vi.fn(),
     getAnimes,
     getAnimeDetail: vi.fn(),
-    triggerReconcile: vi.fn(),
-    onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
   };
 }
 

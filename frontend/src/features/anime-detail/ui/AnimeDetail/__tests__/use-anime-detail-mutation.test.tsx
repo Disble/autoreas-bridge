@@ -22,13 +22,8 @@ const detail: AnimeDetail = {
 function createSource(): BridgeRuntimeSource {
   return {
     getSQLiteStatus: vi.fn(),
-    getEffectiveAddress: vi.fn(),
-    getPairingToken: vi.fn(),
-    getSyncingAnimeItems: vi.fn(),
     getAnimes: vi.fn(),
     getAnimeDetail: vi.fn().mockResolvedValue({ ...detail, modified_at: 11 }),
-    triggerReconcile: vi.fn(),
-    onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
     repeatAnime: vi.fn().mockResolvedValue({ status: 'ok', outcome: 'applied', modifiedAt: 11 }),
     restoreAnime: vi.fn(),
   };

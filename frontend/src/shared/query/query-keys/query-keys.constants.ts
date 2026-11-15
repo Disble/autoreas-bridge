@@ -9,3 +9,17 @@ import { defineQueryKeys } from './query-keys.helpers';
  * and `episodesKeys.key('day-counts')`; `episodesKeys.all` is their common prefix.
  */
 export const episodesKeys = defineQueryKeys('episodes');
+
+/**
+ * Keys of the Devices page's reads, served by the `api`, `devices` and `sync`
+ * modules: `devicesKeys.key('effective-address')`, `devicesKeys.key('pairing-token')`,
+ * `devicesKeys.key('connected')` and `devicesKeys.key('syncing-anime', refreshToken)`;
+ * `devicesKeys.all` is their common prefix.
+ */
+export const devicesKeys = defineQueryKeys('devices');
+
+/** Key of the live pairing token; a consumed token invalidates it (`BRIDGE_INVALIDATIONS`). */
+export const DEVICES_PAIRING_TOKEN_KEY = devicesKeys.key('pairing-token');
+
+/** Key of the paired-device list; a pairing or a device acknowledgment invalidates it (`BRIDGE_INVALIDATIONS`). */
+export const DEVICES_CONNECTED_KEY = devicesKeys.key('connected');

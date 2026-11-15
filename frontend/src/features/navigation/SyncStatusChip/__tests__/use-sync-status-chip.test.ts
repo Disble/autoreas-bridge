@@ -7,13 +7,8 @@ import { useSyncStatusChip } from '../use-sync-status-chip';
 function createFakeSource(overrides: Partial<BridgeRuntimeSource> = {}): BridgeRuntimeSource {
   return {
     getSQLiteStatus: vi.fn().mockResolvedValue('ok'),
-    getEffectiveAddress: vi.fn().mockResolvedValue(''),
-    getPairingToken: vi.fn().mockResolvedValue(''),
-    getSyncingAnimeItems: vi.fn().mockResolvedValue([]),
     getAnimes: vi.fn().mockResolvedValue([]),
     getAnimeDetail: vi.fn().mockResolvedValue(null),
-    triggerReconcile: vi.fn().mockResolvedValue(''),
-    onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };
 }

@@ -138,19 +138,4 @@ describe('bridge-runtime-source mutating bindings', () => {
       ],
     });
   });
-
-  it('calls TriggerReconcile once Go bindings become ready', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
-    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
-    const source = createBridgeRuntimeSource();
-    const triggerReconcileMock = vi.fn().mockResolvedValue('done');
-
-    const reconcilePromise = source.triggerReconcile();
-
-    window.go = { desktop: { App: { TriggerReconcile: triggerReconcileMock } } } as never;
-
-    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
-
-    await expect(reconcilePromise).resolves.toBe('done');
-  });
 });

@@ -3,6 +3,7 @@ import type { SyncingAnime } from '../../../../../shared/contracts/syncing-anime
 import {
   formatSyncingAnimeProgress,
   formatSyncingAnimeQueueLabel,
+  toSyncingAnimePanelView,
   toSyncingAnimePanelViewModel,
 } from '../syncing-anime-panel.helpers';
 
@@ -87,5 +88,26 @@ describe('toSyncingAnimePanelViewModel', () => {
       progressLabel: null,
       changedFields: [],
     });
+  });
+});
+
+describe('toSyncingAnimePanelView', () => {
+  /** One pending sync, as the binding answers it. */
+  const pending: SyncingAnime = { animeId: 'anime-9', title: 'Frieren', changeType: 'create', pendingChanges: 1, changedFields: [], lastChangedAtMs: 0, active: 1 };
+
+  /** A settled query state; a case spells out what differs. */
+  const query = { status: 'success' as const, data: [pending], error: null, isFetching: false, isPlaceholderData: false };
+
+  it('maps ready items to render-ready cards', () => {
+    expect(toSyncingAnimePanelView(query)).toMatchObject({ kind: 'ready', isRefreshing: false, data: [{ animeId: 'anime-9', changeLabel: 'Created' }] });
+  });
+
+  it('is loading while a new refresh token still shows the superseded items', () => {
+    expect(toSyncingAnimePanelView({ ...query, isFetching: true, isPlaceholderData: true })).toEqual({ kind: 'loading' });
+  });
+
+  it('keeps the empty and failure states as they are', () => {
+    expect(toSyncingAnimePanelView({ ...query, data: [] })).toEqual({ kind: 'empty' });
+    expect(toSyncingAnimePanelView({ ...query, status: 'error', data: undefined, error: new Error('boom') })).toMatchObject({ kind: 'failure', message: 'boom' });
   });
 });

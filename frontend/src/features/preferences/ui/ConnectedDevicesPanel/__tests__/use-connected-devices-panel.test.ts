@@ -1,253 +1,142 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { ConnectedDevice } from '../connected-devices-panel.types';
+import type { ConnectedDevice } from '../../../../../shared/contracts/devices.types';
+import type { ModuleReadiness } from '../../../../../shared/contracts/readiness.types';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
+import { connectBridgeEvents, createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
+import { status } from '../../../../../shared/query/test-support/readiness-source.test-support';
+import type { ConnectedDevicesSource } from '../connected-devices-panel.types';
 import { useConnectedDevicesPanel } from '../use-connected-devices-panel';
 
+/** A paired tablet as `GetConnectedDevices` answers it. */
+const GALAXY_TAB: ConnectedDevice = {
+  auth_state: 'active',
+  blocks_changelog_pruning: true,
+  connection_status: 'connected',
+  device_id: 'device-1',
+  device_name: 'Galaxy Tab',
+  last_ack_changelog_id: 42,
+  last_seen_at_ms: 100,
+  paired_at_ms: 50,
+  sync_status: 'active',
+};
+
+/**
+ * Builds the Devices port double: no device and a successful unpair unless a test overrides them.
+ * @param overrides The calls a test spells out.
+ * @returns The source.
+ */
+function createSource(overrides: Partial<ConnectedDevicesSource> = {}): ConnectedDevicesSource {
+  return { getConnectedDevices: vi.fn().mockResolvedValue([]), unpairDevice: vi.fn().mockResolvedValue(undefined), ...overrides };
+}
+
+/**
+ * Renders the hook under a query wrapper whose `devices` module reports `devices`, with the app's
+ * invalidation rules connected to a fake backend event source.
+ * @param source The Devices port.
+ * @param devices The devices module's readiness.
+ * @returns The hook render, the readiness `emit` and the backend event `fire`.
+ */
+function renderPanel(source: ConnectedDevicesSource, devices: ModuleReadiness = status('devices', 'ready')) {
+  const { client, wrapper, emit } = createModulesTestWrapper(devices);
+  const events = connectBridgeEvents(client);
+  return { ...renderHook(() => useConnectedDevicesPanel({ source }), { wrapper }), emit, fire: events.emit };
+}
+
+/**
+ * The rows the view renders, or none outside the ready state.
+ * @param view The hook's view.
+ * @returns The rows.
+ */
+function rowsOf(view: ReturnType<typeof useConnectedDevicesPanel>['view']) {
+  return view.kind === 'ready' ? view.data : [];
+}
+
 describe('useConnectedDevicesPanel', () => {
-  it('loads connected devices from the source', async () => {
-    const source = {
-      getConnectedDevices: vi.fn().mockResolvedValue([
-        {
-          auth_state: 'active',
-          blocks_changelog_pruning: true,
-          connection_status: 'disconnected',
-          device_id: 'device-1',
-          device_name: 'Galaxy Tab',
-          last_ack_changelog_id: 42,
-          last_seen_at_ms: 0,
-          paired_at_ms: 100,
-          sync_status: 'active',
-        },
-      ]),
-      onDeviceAcknowledged: vi.fn().mockReturnValue(() => undefined),
-      onDevicePaired: vi.fn().mockReturnValue(() => undefined),
-      unpairDevice: vi.fn(),
-    };
+  it('stays loading without reading while the devices module starts, then shows the devices once ready', async () => {
+    const source = createSource({ getConnectedDevices: vi.fn().mockResolvedValue([GALAXY_TAB]) });
+    const { result, emit } = renderPanel(source, status('devices', 'starting'));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
 
-    const { result } = renderHook(() => useConnectedDevicesPanel({ source }));
+    expect(result.current.view.kind).toBe('loading');
+    expect(source.getConnectedDevices).not.toHaveBeenCalled();
 
-    await waitFor(() => expect(result.current.rows).toHaveLength(1));
-    expect(result.current.rows[0]?.name).toBe('Galaxy Tab');
+    act(() => emit(status('devices', 'ready')));
+
+    await waitFor(() => expect(rowsOf(result.current.view).map((row) => row.name)).toEqual(['Galaxy Tab']));
   });
 
-  it('keeps loading state until the device request resolves', async () => {
-    let resolveDevices!: (devices: readonly ConnectedDevice[]) => void;
-    const source = {
-      getConnectedDevices: vi.fn(
-        () =>
-          new Promise<readonly ConnectedDevice[]>((resolve) => {
-            resolveDevices = resolve;
-          }),
-      ),
-      onDeviceAcknowledged: vi.fn().mockReturnValue(() => undefined),
-      onDevicePaired: vi.fn().mockReturnValue(() => undefined),
-      unpairDevice: vi.fn(),
-    };
+  it('is empty, not loading, once no paired device resolves', async () => {
+    const { result } = renderPanel(createSource());
 
-    const { result } = renderHook(() => useConnectedDevicesPanel({ source }));
+    await waitFor(() => expect(result.current.view.kind).toBe('empty'));
+  });
 
-    expect(result.current.isLoading).toBe(true);
+  it.each([
+    ['the devices module failed', status('devices', 'failed', 'devices: database locked'), createSource(), 'devices: database locked'],
+    ['the read rejects', status('devices', 'ready'), createSource({ getConnectedDevices: vi.fn().mockRejectedValue(createBridgeError('internal', 'offline')) }), 'offline'],
+  ])('shows the failure, never an empty list, when %s', async (_case, devices, source, message) => {
+    const { result } = renderPanel(source, devices);
+
+    await waitFor(() => expect(result.current.view).toMatchObject({ kind: 'failure', message }));
+  });
+
+  it('unpairs a device and re-reads the list', async () => {
+    const source = createSource({ getConnectedDevices: vi.fn().mockResolvedValueOnce([GALAXY_TAB]).mockResolvedValueOnce([]) });
+    const { result } = renderPanel(source);
+    await waitFor(() => expect(rowsOf(result.current.view)).toHaveLength(1));
+
+    act(() => result.current.unpairDevice('device-1'));
+
+    await waitFor(() => expect(result.current.view.kind).toBe('empty'));
+    expect(source.unpairDevice).toHaveBeenCalledWith('device-1');
+    expect(source.getConnectedDevices).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows a rejected unpair until the list loads again', async () => {
+    const source = createSource({
+      getConnectedDevices: vi.fn().mockResolvedValue([GALAXY_TAB]),
+      unpairDevice: vi.fn().mockRejectedValue(createBridgeError('internal', 'disk I/O error')),
+    });
+    const { result, fire } = renderPanel(source);
+    await waitFor(() => expect(rowsOf(result.current.view)).toHaveLength(1));
+
+    act(() => result.current.unpairDevice('device-1'));
+
+    await waitFor(() => expect(result.current.view).toMatchObject({ kind: 'failure', message: 'disk I/O error' }));
 
     await act(async () => {
-      resolveDevices([]);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      fire('sync.device_acknowledged');
     });
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(rowsOf(result.current.view)).toHaveLength(1));
   });
 
-  it('clears loading state when the device request fails', async () => {
-    const source = {
-      getConnectedDevices: vi.fn().mockRejectedValue(new Error('offline')),
-      onDeviceAcknowledged: vi.fn().mockReturnValue(() => undefined),
-      onDevicePaired: vi.fn().mockReturnValue(() => undefined),
-      unpairDevice: vi.fn(),
-    };
-
-    const { result } = renderHook(() => useConnectedDevicesPanel({ source }));
-
-    await waitFor(() => expect(result.current.errorMessage).toBe('Could not load connected devices.'));
-    expect(result.current.isLoading).toBe(false);
-  });
-
-  it('unpairs a device and refreshes the list', async () => {
-    const source = {
-      getConnectedDevices: vi.fn().mockResolvedValue([]),
-      onDeviceAcknowledged: vi.fn().mockReturnValue(() => undefined),
-      onDevicePaired: vi.fn().mockReturnValue(() => undefined),
-      unpairDevice: vi.fn().mockResolvedValue('ok'),
-    };
-
-    const { result } = renderHook(() => useConnectedDevicesPanel({ source }));
-    await waitFor(() => expect(source.getConnectedDevices).toHaveBeenCalledTimes(1));
-
-    act(() => {
-      result.current.unpairDevice('device-1');
-    });
-
-    await waitFor(() => expect(source.unpairDevice).toHaveBeenCalledWith('device-1'));
-    await waitFor(() => expect(source.getConnectedDevices).toHaveBeenCalledTimes(2));
-  });
-
-  it('subscribes to onDeviceAcknowledged on mount', async () => {
-    const source = {
-      getConnectedDevices: vi.fn().mockResolvedValue([]),
-      onDeviceAcknowledged: vi.fn().mockReturnValue(() => undefined),
-      onDevicePaired: vi.fn().mockReturnValue(() => undefined),
-      unpairDevice: vi.fn(),
-    };
-
-    renderHook(() => useConnectedDevicesPanel({ source }));
-
-    await waitFor(() => expect(source.onDeviceAcknowledged).toHaveBeenCalledTimes(1));
-  });
-
-  it('refetches in place on a device-acknowledged event without flashing the loading state', async () => {
-    const initialDevices: readonly ConnectedDevice[] = [
-      {
-        auth_state: 'active',
-        blocks_changelog_pruning: false,
-        connection_status: 'connected',
-        device_id: 'device-1',
-        device_name: 'Galaxy Tab',
-        last_ack_changelog_id: 1,
-        last_seen_at_ms: 100,
-        paired_at_ms: 50,
-        sync_status: 'active',
-      },
-    ];
-    let resolveRefetch!: (devices: readonly ConnectedDevice[]) => void;
+  it.each([
+    ['a device acknowledgment', 'sync.device_acknowledged'],
+    ['a pairing', 'pairing.token-consumed'],
+  ])('re-reads the list in place on %s, keeping the previous rows while it loads', async (_moment, eventName) => {
+    let answerRefetch: (devices: readonly ConnectedDevice[]) => void = () => undefined;
     const getConnectedDevices = vi
       .fn()
-      .mockResolvedValueOnce(initialDevices)
-      .mockImplementationOnce(
-        () =>
-          new Promise<readonly ConnectedDevice[]>((resolve) => {
-            resolveRefetch = resolve;
-          }),
-      );
-    let acknowledgedListener: (() => void) | undefined;
-    const source = {
-      getConnectedDevices,
-      onDevicePaired: vi.fn().mockReturnValue(() => undefined),
-      onDeviceAcknowledged: vi.fn().mockImplementation((listener: () => void) => {
-        acknowledgedListener = listener;
-        return () => undefined;
-      }),
-      unpairDevice: vi.fn(),
-    };
-
-    const { result } = renderHook(() => useConnectedDevicesPanel({ source }));
-    await waitFor(() => expect(result.current.rows).toHaveLength(1));
-    expect(result.current.isLoading).toBe(false);
+      .mockResolvedValueOnce([GALAXY_TAB])
+      .mockReturnValueOnce(new Promise((resolve) => (answerRefetch = resolve)));
+    const { result, fire } = renderPanel(createSource({ getConnectedDevices }));
+    await waitFor(() => expect(rowsOf(result.current.view)).toHaveLength(1));
 
     act(() => {
-      acknowledgedListener?.();
+      fire(eventName);
     });
 
-    // Assert the negative mid-flight: the previous rows stay rendered and loading never flips
-    // true, so the panel never shows the loading branch and its populated rows together.
-    expect(result.current.isLoading).toBe(false);
-    expect(result.current.rows).toHaveLength(1);
-    expect(result.current.rows[0]?.id).toBe('device-1');
+    await waitFor(() => expect(result.current.view).toMatchObject({ kind: 'ready', isRefreshing: true }));
+    expect(rowsOf(result.current.view)[0]?.id).toBe('device-1');
 
-    await act(async () => {
-      resolveRefetch([{ ...initialDevices[0]!, last_seen_at_ms: 999 }]);
-    });
+    await act(async () => answerRefetch([{ ...GALAXY_TAB, last_seen_at_ms: 999 }]));
 
-    await waitFor(() => expect(result.current.rows[0]?.lastSyncLabel).toBe(new Date(999).toLocaleString()));
-    expect(result.current.isLoading).toBe(false);
-  });
-
-  it('unsubscribes from onDeviceAcknowledged on unmount and stops refreshing', async () => {
-    const unsubscribe = vi.fn();
-    let acknowledgedListener: (() => void) | undefined;
-    const source = {
-      getConnectedDevices: vi.fn().mockResolvedValue([]),
-      onDevicePaired: vi.fn().mockReturnValue(() => undefined),
-      onDeviceAcknowledged: vi.fn().mockImplementation((listener: () => void) => {
-        acknowledgedListener = listener;
-        // Mirrors the real shared-subscription contract: `unsubscribe` stops
-        // future delivery, so a stray call after unmount is a true no-op
-        // rather than a mock that merely records it was invoked.
-        return () => {
-          unsubscribe();
-          acknowledgedListener = undefined;
-        };
-      }),
-      unpairDevice: vi.fn(),
-    };
-
-    const { unmount } = renderHook(() => useConnectedDevicesPanel({ source }));
-    await waitFor(() => expect(source.getConnectedDevices).toHaveBeenCalledTimes(1));
-
-    unmount();
-
-    expect(unsubscribe).toHaveBeenCalledTimes(1);
-
-    acknowledgedListener?.();
-    expect(source.getConnectedDevices).toHaveBeenCalledTimes(1);
-  });
-
-  it('shows a newly paired device without a remount', async () => {
-    const pairedDevice: ConnectedDevice = {
-      auth_state: 'active',
-      blocks_changelog_pruning: true,
-      connection_status: 'disconnected',
-      device_id: 'device-0ccf6849dbddb7d1',
-      device_name: 'AutoreasMobile',
-      last_ack_changelog_id: 0,
-      last_seen_at_ms: 1_757_707_861_000,
-      paired_at_ms: 1_757_707_861_000,
-      sync_status: 'active',
-    };
-    // The panel starts empty, which is what "No connected devices yet" renders from.
-    const getConnectedDevices = vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([pairedDevice]);
-    let pairedListener: (() => void) | undefined;
-    const source = {
-      getConnectedDevices,
-      onDeviceAcknowledged: vi.fn().mockReturnValue(() => undefined),
-      onDevicePaired: vi.fn().mockImplementation((listener: () => void) => {
-        pairedListener = listener;
-        return () => undefined;
-      }),
-      unpairDevice: vi.fn(),
-    };
-
-    const { result } = renderHook(() => useConnectedDevicesPanel({ source }));
-    await waitFor(() => expect(getConnectedDevices).toHaveBeenCalledTimes(1));
-    expect(result.current.rows).toHaveLength(0);
-
-    // Pairing never reaches AcknowledgeDevice, so the acknowledgment subscription
-    // cannot carry this: only the pairing event tells the panel a device now exists.
-    act(() => {
-      pairedListener?.();
-    });
-
-    // The pair refetch must not raise isLoading either: the panel has no skeleton,
-    // so isLoading only gates the "No connected devices yet" message, and raising it
-    // would blank that message for the duration of the request instead of replacing
-    // it with the row.
-    expect(result.current.isLoading).toBe(false);
-
-    await waitFor(() => expect(result.current.rows).toHaveLength(1));
-    expect(result.current.rows[0]?.name).toBe('AutoreasMobile');
-    expect(source.onDeviceAcknowledged).toHaveBeenCalledTimes(1);
-  });
-
-  it('unsubscribes from onDevicePaired on unmount', async () => {
-    const unsubscribe = vi.fn();
-    const source = {
-      getConnectedDevices: vi.fn().mockResolvedValue([]),
-      onDeviceAcknowledged: vi.fn().mockReturnValue(() => undefined),
-      onDevicePaired: vi.fn().mockReturnValue(unsubscribe),
-      unpairDevice: vi.fn(),
-    };
-
-    const { unmount } = renderHook(() => useConnectedDevicesPanel({ source }));
-    await waitFor(() => expect(source.onDevicePaired).toHaveBeenCalledTimes(1));
-
-    unmount();
-
-    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(rowsOf(result.current.view)[0]?.lastSyncLabel).toBe(new Date(999).toLocaleString()));
+    expect(result.current.view).toMatchObject({ kind: 'ready', isRefreshing: false });
   });
 });

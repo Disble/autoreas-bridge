@@ -53,8 +53,8 @@ describe('BridgeDataProvider', () => {
     await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
 
     expect(screen.getByText('pending')).toBeInTheDocument();
-    // One listener each, StrictMode included: readiness first, then the invalidation rules (`anime.changed`).
-    expect(calls).toEqual(['listen:bridge.readiness', 'GetReadiness', 'listen:anime.changed']);
+    // One listener each, StrictMode included: readiness first, then the invalidation rules (`anime.changed`, then the two Devices events).
+    expect(calls).toEqual(['listen:bridge.readiness', 'GetReadiness', 'listen:anime.changed', 'listen:pairing.token-consumed', 'listen:sync.device_acknowledged']);
     expect(queryFn).not.toHaveBeenCalled();
 
     act(() => handlers.get('bridge.readiness')?.({ module: 'episodes', state: 'ready' }));

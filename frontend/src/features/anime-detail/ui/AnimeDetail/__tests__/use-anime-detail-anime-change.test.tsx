@@ -33,13 +33,8 @@ function createSource(
 ): BridgeRuntimeSource {
   return {
     getSQLiteStatus: vi.fn(),
-    getEffectiveAddress: vi.fn(),
-    getPairingToken: vi.fn(),
-    getSyncingAnimeItems: vi.fn(),
     getAnimes: vi.fn().mockResolvedValue([]),
     getAnimeDetail: vi.fn().mockResolvedValue(resolvedValue),
-    triggerReconcile: vi.fn(),
-    onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
     restoreAnime: vi.fn().mockResolvedValue({ status: 'ok', outcome: 'applied', modifiedAt: 1 }),
     repeatAnime: vi.fn().mockResolvedValue({ status: 'ok', outcome: 'applied', modifiedAt: 1 }),
     ...overrides,

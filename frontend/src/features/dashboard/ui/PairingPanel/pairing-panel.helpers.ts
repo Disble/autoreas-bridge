@@ -1,6 +1,6 @@
 import { toDataURL } from 'qrcode';
 import { DEFAULT_PAIRING_QR_OPTIONS } from './pairing-panel.constants';
-import type { PairingQrImageOptions, PairingQrPayloadInput, ParsedEffectiveAddress } from './pairing-panel.types';
+import type { PairingPanelReadings, PairingPanelViews, PairingQrImageOptions, PairingQrPayloadInput, ParsedEffectiveAddress } from './pairing-panel.types';
 
 /**
  * Splits the effective Wails address into IP and port segments.
@@ -40,4 +40,23 @@ export function buildPairingQrValue(payload: PairingQrPayloadInput) {
  */
 export function buildPairingQrImageUrl(value: string, options: PairingQrImageOptions = DEFAULT_PAIRING_QR_OPTIONS) {
   return toDataURL(value, options);
+}
+
+/**
+ * What the panel shows from its two reads (ADR-032 §4): each value once ready,
+ * nothing while it loads, and the first failure's message. A token being
+ * re-read after a device consumed it shows nothing, so a spent token is never
+ * offered for pairing.
+ * @param views The address and token views.
+ * @returns The address, the token and the failure message.
+ */
+export function toPairingPanelReadings(views: PairingPanelViews): PairingPanelReadings {
+  const { address, token } = views;
+  const failure = [address, token].find((view) => view.kind === 'failure');
+
+  return {
+    address: address.kind === 'ready' ? address.data : '',
+    token: token.kind === 'ready' && !token.isRefreshing ? token.data : '',
+    failureMessage: failure?.kind === 'failure' ? failure.message : '',
+  };
 }

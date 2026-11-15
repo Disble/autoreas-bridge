@@ -1,25 +1,39 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import type { DevicesSource } from '../../../../../shared/contracts/devices.types';
+import type { ModuleReadiness } from '../../../../../shared/contracts/readiness.types';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
+import { connectBridgeEvents, createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
+import { status } from '../../../../../shared/query/test-support/readiness-source.test-support';
 import { usePairingPanel } from '../use-pairing-panel';
 
 vi.mock('qrcode', () => ({
   toDataURL: vi.fn(async (value: string) => `data:image/png;base64,${value}`),
 }));
 
-/** Builds a BridgeRuntimeSource double whose members all resolve empty, so each test overrides only the call it is about. */
-function createFakeSource(overrides: Partial<BridgeRuntimeSource> = {}): BridgeRuntimeSource {
+/** The pairing reads' port; every read resolves empty unless a test overrides it. */
+type PairingSource = Pick<DevicesSource, 'getEffectiveAddress' | 'getPairingToken'>;
+
+/** Builds a pairing-source double whose reads resolve empty, so each test overrides only the call it is about. */
+function createFakeSource(overrides: Partial<PairingSource> = {}): PairingSource {
   return {
-    getSQLiteStatus: vi.fn().mockResolvedValue('ok'),
     getEffectiveAddress: vi.fn().mockResolvedValue(''),
     getPairingToken: vi.fn().mockResolvedValue(''),
-    getSyncingAnimeItems: vi.fn().mockResolvedValue([]),
-    getAnimes: vi.fn().mockResolvedValue([]),
-    getAnimeDetail: vi.fn().mockResolvedValue(null),
-    triggerReconcile: vi.fn().mockResolvedValue(''),
-    onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };
+}
+
+/**
+ * Renders the hook under a query wrapper whose `api` and `devices` modules report the given states,
+ * with the app's invalidation rules connected to a fake event source.
+ * @param source The pairing reads.
+ * @param modules The modules' readiness; both ready by default.
+ * @returns The hook render, the readiness `emit` and the backend event `fire`.
+ */
+function renderPairing(source: PairingSource, modules: readonly ModuleReadiness[] = [status('api', 'ready'), status('devices', 'ready')]) {
+  const { client, wrapper, emit } = createModulesTestWrapper(...modules);
+  const events = connectBridgeEvents(client);
+  return { ...renderHook(() => usePairingPanel(source), { wrapper }), emit, fire: events.emit };
 }
 
 describe('usePairingPanel', () => {
@@ -41,7 +55,7 @@ describe('usePairingPanel', () => {
       value: { writeText: writeTextMock },
     });
 
-    const { result } = renderHook(() => usePairingPanel(source));
+    const { result } = renderPairing(source);
 
     await waitFor(() => {
       expect(result.current.token).toBe('token-123');
@@ -65,7 +79,7 @@ describe('usePairingPanel', () => {
       value: { writeText: writeTextMock },
     });
 
-    const { result } = renderHook(() => usePairingPanel(source));
+    const { result } = renderPairing(source);
 
     await waitFor(() => {
       expect(result.current.ip).toBe('192.168.1.10');
@@ -76,16 +90,11 @@ describe('usePairingPanel', () => {
     expect(result.current.qrImageUrl).toBe('');
   });
 
-  it('refreshes the pairing token after onPairingTokenConsumed fires', async () => {
-    let onPairingTokenConsumed: (() => void) | undefined;
+  it('re-reads the pairing token when the backend reports it consumed', async () => {
     const getPairingTokenMock = vi.fn().mockResolvedValueOnce('token-123').mockResolvedValueOnce('token-456');
     const source = createFakeSource({
       getEffectiveAddress: vi.fn().mockResolvedValue('192.168.1.10:9876'),
       getPairingToken: getPairingTokenMock,
-      onPairingTokenConsumed: vi.fn().mockImplementation((listener: () => void) => {
-        onPairingTokenConsumed = listener;
-        return () => undefined;
-      }),
     });
 
     Object.defineProperty(globalThis.navigator, 'clipboard', {
@@ -93,17 +102,14 @@ describe('usePairingPanel', () => {
       value: { writeText: writeTextMock },
     });
 
-    const { result } = renderHook(() => usePairingPanel(source));
+    const { result, fire } = renderPairing(source);
 
     await waitFor(() => {
       expect(result.current.token).toBe('token-123');
     });
 
-    expect(source.onPairingTokenConsumed).toHaveBeenCalledWith(expect.any(Function));
-    expect(onPairingTokenConsumed).toBeTypeOf('function');
-
     await act(async () => {
-      onPairingTokenConsumed?.();
+      fire('pairing.token-consumed');
     });
 
     await waitFor(() => {
@@ -114,7 +120,6 @@ describe('usePairingPanel', () => {
   });
 
   it('clears the stale token while a consumed token refresh is in flight', async () => {
-    let onPairingTokenConsumed: (() => void) | undefined;
     let resolveNextToken: ((value: string) => void) | undefined;
     const getPairingTokenMock = vi
       .fn()
@@ -128,10 +133,6 @@ describe('usePairingPanel', () => {
     const source = createFakeSource({
       getEffectiveAddress: vi.fn().mockResolvedValue('192.168.1.10:9876'),
       getPairingToken: getPairingTokenMock,
-      onPairingTokenConsumed: vi.fn().mockImplementation((listener: () => void) => {
-        onPairingTokenConsumed = listener;
-        return () => undefined;
-      }),
     });
 
     Object.defineProperty(globalThis.navigator, 'clipboard', {
@@ -139,14 +140,14 @@ describe('usePairingPanel', () => {
       value: { writeText: writeTextMock },
     });
 
-    const { result } = renderHook(() => usePairingPanel(source));
+    const { result, fire } = renderPairing(source);
 
     await waitFor(() => {
       expect(result.current.token).toBe('token-123');
     });
 
     await act(async () => {
-      onPairingTokenConsumed?.();
+      fire('pairing.token-consumed');
     });
 
     await waitFor(() => {
@@ -175,7 +176,7 @@ describe('usePairingPanel', () => {
       value: { writeText: writeTextMock },
     });
 
-    const { result } = renderHook(() => usePairingPanel(source));
+    const { result } = renderPairing(source);
 
     await waitFor(() => {
       expect(result.current.token).toBe('token-123');
@@ -197,16 +198,39 @@ describe('usePairingPanel', () => {
     expect(result.current.copied).toBe(false);
   });
 
-  it('uses the default singleton source when no source is injected', async () => {
-    Object.defineProperty(globalThis.navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText: writeTextMock },
+  it('shows nothing, and does not read, while the modules start; then the token once ready', async () => {
+    const source = createFakeSource({
+      getEffectiveAddress: vi.fn().mockResolvedValue('192.168.1.10:9876'),
+      getPairingToken: vi.fn().mockResolvedValue('token-123'),
+    });
+    const { result, emit } = renderPairing(source, [status('api', 'starting'), status('devices', 'starting')]);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
     });
 
-    const { result } = renderHook(() => usePairingPanel());
+    expect(result.current).toMatchObject({ token: '', ip: '', failureMessage: '', qrImageUrl: '' });
+    expect(source.getPairingToken).not.toHaveBeenCalled();
 
-    await waitFor(() => {
-      expect(result.current.token).toBe('');
+    act(() => {
+      emit(status('api', 'ready'));
+      emit(status('devices', 'ready'));
     });
+
+    await waitFor(() => expect(result.current).toMatchObject({ token: 'token-123', ip: '192.168.1.10' }));
+  });
+
+  it.each([
+    ['the devices module failed', [status('api', 'ready'), status('devices', 'failed', 'devices: database locked')], createFakeSource(), 'devices: database locked'],
+    [
+      'the address read rejects',
+      [status('api', 'ready'), status('devices', 'ready')],
+      createFakeSource({ getEffectiveAddress: vi.fn().mockRejectedValue(createBridgeError('internal', 'no listener')) }),
+      'no listener',
+    ],
+  ])('reports the failure and offers no token when %s', async (_case, modules, source, message) => {
+    const { result } = renderPairing(source, modules);
+
+    await waitFor(() => expect(result.current.failureMessage).toBe(message));
+    expect(result.current.qrImageUrl).toBe('');
   });
 });

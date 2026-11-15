@@ -11,13 +11,8 @@ import { useAnimeCover } from '../use-anime-cover';
 function createSource(overrides: Partial<BridgeRuntimeSource> = {}): BridgeRuntimeSource {
   return {
     getSQLiteStatus: vi.fn(),
-    getEffectiveAddress: vi.fn(),
-    getPairingToken: vi.fn(),
-    getSyncingAnimeItems: vi.fn(),
     getAnimes: vi.fn(),
     getAnimeDetail: vi.fn(),
-    triggerReconcile: vi.fn(),
-    onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };
 }
