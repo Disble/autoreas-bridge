@@ -51,6 +51,7 @@ import {
   SEASON_SOURCE_STATE,
 } from './season-source.constants';
 import type {
+  SeasonAnimeRow,
   SeasonCreateMetadata,
   SeasonMatchingFinishedNotice,
   SeasonMatchingFinishedWire,
@@ -62,6 +63,8 @@ import type {
   SeasonMatchingStartedWire,
   SeasonOrderingSnapshot,
   SeasonProviderSearchResult,
+  SeasonQuerySource,
+  SeasonSnapshot,
   SeasonSource,
   SendToVerHoyResult,
 } from '../../shared/contracts/season.types';
@@ -92,6 +95,20 @@ function invokeSeasonCommand(bindingName: string, invoke: () => Promise<void>): 
  */
 function invokeSeasonRead<T>(bindingName: string, invoke: () => Promise<T>, fallback: () => T): Promise<T> {
   return invokeGoBinding(bindingName, () => withBridgeErrors(invoke()).catch(fallback), fallback);
+}
+
+/**
+ * Calls a season read binding for a query: its rejection becomes a
+ * `BridgeError`, and a binding that never attaches rejects as `unavailable`, so
+ * the query reports loading or failure instead of an empty answer.
+ * @param bindingName The `App` method name, as `window.go` exposes it.
+ * @param call The generated binding call.
+ * @returns What the binding answered.
+ */
+function callSeasonQuery<T>(bindingName: string, call: () => Promise<T>): Promise<T> {
+  return withBridgeErrors(
+    invokeGoBinding(bindingName, call, () => Promise.reject(createBridgeError('unavailable', `the ${bindingName} binding is not attached`))),
+  );
 }
 
 /**
@@ -159,7 +176,7 @@ function mapSeasonMatchingFinishedNotice(wire: SeasonMatchingFinishedWire): Seas
 /**
  * Creates the singleton runtime-backed season source with browser-safe degraded fallbacks.
  */
-export function createSeasonSource(): SeasonSource {
+export function createSeasonSource(): SeasonSource & SeasonQuerySource {
   if (SEASON_SOURCE_STATE.sharedSource !== null) {
     return SEASON_SOURCE_STATE.sharedSource;
   }
@@ -206,6 +223,21 @@ export function createSeasonSource(): SeasonSource {
     },
     getPastSeasonAnimes(seasonId: string) {
       return invokeSeasonRead('GetPastSeasonAnimes', () => GetPastSeasonAnimes(seasonId), () => []);
+    },
+    readSeason() {
+      return callSeasonQuery<SeasonSnapshot | null>('GetSeason', GetSeason);
+    },
+    readSeasonAnimes() {
+      return callSeasonQuery<readonly SeasonAnimeRow[]>('GetSeasonAnimes', GetSeasonAnimes);
+    },
+    readSeasons() {
+      return callSeasonQuery<readonly SeasonSnapshot[]>('ListSeasons', ListSeasons);
+    },
+    readPastSeason(seasonId: string) {
+      return callSeasonQuery<SeasonSnapshot | null>('GetPastSeason', () => GetPastSeason(seasonId));
+    },
+    readPastSeasonAnimes(seasonId: string) {
+      return callSeasonQuery<readonly SeasonAnimeRow[]>('GetPastSeasonAnimes', () => GetPastSeasonAnimes(seasonId));
     },
     reconcileIntake(rawText: string) {
       return invokeSeasonCommand('ReconcileSeasonIntake', () => ReconcileSeasonIntake(rawText));

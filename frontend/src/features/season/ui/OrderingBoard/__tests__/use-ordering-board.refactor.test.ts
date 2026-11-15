@@ -1,11 +1,13 @@
-import { act, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrderingBoard, SeasonAnimeRow } from '../../../../../shared/contracts/season.types';
+import { BRIDGE_SEASON_SOURCE } from '../../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { SEASON_ANIMES_KEY } from '../../../../../shared/query/query-keys/query-keys.constants';
 import { resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
 import { ORDERING_AUTOSAVE_DEBOUNCE_MS } from '../ordering-board.constants';
 import { useOrderingBoard } from '../use-ordering-board';
-import { card, createSource, dragOverEvent, renderOrderingBoard, snapshot, waitPastAutosave } from './ordering-board.test-support';
+import { card, createSource, dragOverEvent, orderingQueryWrapper, renderOrderingBoard, snapshot, waitPastAutosave } from './ordering-board.test-support';
 
 /** Toast spy the desktop actions call for copy feedback. */
 const toastMock = vi.hoisted(() => ({ success: vi.fn() }));
@@ -33,6 +35,7 @@ describe('useOrderingBoard sub-hook behavior', () => {
   afterEach(() => {
     resetSeasonStore();
     vi.useRealTimers();
+    vi.restoreAllMocks();
     vi.clearAllMocks();
   });
 
@@ -54,9 +57,8 @@ describe('useOrderingBoard sub-hook behavior', () => {
   });
 
   it('joins grade and desktop-action metadata from the season selection rows', async () => {
-    setSeasonStoreState({ seasonAnimes: [row({}), row({ animeId: '' })], ensureAnimesLoaded: vi.fn().mockResolvedValue(undefined) });
     const source = createSource({ rail: [], grid: [] });
-    const { result } = renderOrderingBoard(source);
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper([row({}), row({ animeId: '' })]).wrapper });
 
     await waitFor(() => expect(result.current.meta['g']).toEqual({
       grade: 5, hasPage: true, hasFolder: false, pageUrl: 'https://example.test/g', folderPath: '',
@@ -65,35 +67,34 @@ describe('useOrderingBoard sub-hook behavior', () => {
   });
 
   it('refreshes the card metadata when the season selection rows change while mounted', async () => {
-    setSeasonStoreState({ seasonAnimes: [row({})], ensureAnimesLoaded: vi.fn().mockResolvedValue(undefined) });
     const source = createSource({ rail: [], grid: [] });
-    const { result } = renderOrderingBoard(source);
+    const { client, wrapper } = orderingQueryWrapper([row({})]);
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper });
     await waitFor(() => expect(result.current.meta['g'].grade).toBe(5));
 
-    act(() => setSeasonStoreState({ seasonAnimes: [row({ grade: 8, pageUrl: '', folderPath: 'D:/anime/g' })] }));
+    act(() => client.setQueryData(SEASON_ANIMES_KEY, [row({ grade: 8, pageUrl: '', folderPath: 'D:/anime/g' })]));
 
-    expect(result.current.meta['g']).toEqual({ grade: 8, hasPage: false, hasFolder: true, pageUrl: '', folderPath: 'D:/anime/g' });
+    await waitFor(() => expect(result.current.meta['g']).toEqual({ grade: 8, hasPage: false, hasFolder: true, pageUrl: '', folderPath: 'D:/anime/g' }));
   });
 
-  it('loads the season animes through the same source on mount', async () => {
-    const ensureAnimesLoaded = vi.fn().mockResolvedValue(undefined);
-    setSeasonStoreState({ ensureAnimesLoaded });
+  it('loads the season animes through the season read on mount', async () => {
+    const readSeasonAnimes = vi.spyOn(BRIDGE_SEASON_SOURCE, 'readSeasonAnimes').mockResolvedValue([]);
     const source = createSource({ rail: [], grid: [] });
 
-    renderOrderingBoard(source);
+    renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper(null).wrapper });
 
-    await waitFor(() => expect(ensureAnimesLoaded).toHaveBeenCalledExactlyOnceWith(source));
+    await waitFor(() => expect(readSeasonAnimes).toHaveBeenCalledTimes(1));
   });
 
-  it('closes the season through the same source', async () => {
-    const closeSeason = vi.fn().mockResolvedValue(undefined);
-    setSeasonStoreState({ closeSeason });
+  it('closes the season through the season command', async () => {
+    const closeSeason = vi.spyOn(BRIDGE_SEASON_SOURCE, 'closeSeason').mockResolvedValue('ok');
+    vi.spyOn(BRIDGE_SEASON_SOURCE, 'readSeason').mockResolvedValue(null);
     const source = createSource({ rail: [], grid: [] });
     const { result } = renderOrderingBoard(source);
 
     act(() => result.current.onCloseSeason());
 
-    expect(closeSeason).toHaveBeenCalledExactlyOnceWith(source);
+    await waitFor(() => expect(closeSeason).toHaveBeenCalledTimes(1));
   });
 
   it('onReset discards the working edits and the saved draft, then re-reads the board', async () => {

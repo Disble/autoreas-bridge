@@ -348,6 +348,7 @@ describe('useOrderingBoard', () => {
 
     const { result } = renderOrderingBoard(source);
     expect([result.current.isHistoricalLoading, result.current.isLiveLoading]).toEqual([true, false]);
+    expect(result.current.isHistoricalLoading).toBe(true);
     await waitFor(() => expect(readSnapshot).toHaveBeenCalledTimes(1));
 
     await act(async () => {

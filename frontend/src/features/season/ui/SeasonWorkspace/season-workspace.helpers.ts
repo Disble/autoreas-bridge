@@ -35,7 +35,7 @@ export function formatSeasonCreatedLabel(createdAt: number): string {
  * reads as success, a "Closed" one as neutral. The nota mínima de aprobación and
  * slots are shown read-only here (they are edited on the Selection board).
  */
-export function buildSeasonOverview(season: SeasonSnapshot): SeasonOverview {
+function buildSeasonOverview(season: SeasonSnapshot): SeasonOverview {
   const isOpen = season.status === 'open';
   return {
     title: season.name,
@@ -63,4 +63,25 @@ export function buildPastSeasonEntries(seasons: readonly SeasonSnapshot[]): read
       createdLabel: formatSeasonCreatedLabel(season.createdAt),
     };
   });
+}
+
+/**
+ * Whether the workspace reads the past-seasons history: only once the live
+ * season read answered with no open season, and never inside a past-season view.
+ * @param isSeasonRead Whether the displayed season read succeeded.
+ * @param season The displayed season, or null when none is open.
+ * @param readOnly Whether a past season is being viewed.
+ * @returns Whether the history read is enabled.
+ */
+export function isSeasonListWanted(isSeasonRead: boolean, season: SeasonSnapshot | null, readOnly: boolean): boolean {
+  return isSeasonRead && season === null && !readOnly;
+}
+
+/**
+ * The overview card of the displayed season.
+ * @param season The displayed season, or null when none is open.
+ * @returns The card's view model, or null without a season.
+ */
+export function toSeasonOverview(season: SeasonSnapshot | null): SeasonOverview | null {
+  return season ? buildSeasonOverview(season) : null;
 }

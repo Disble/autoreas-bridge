@@ -58,7 +58,7 @@ For module readiness, failure codes and the `shared/query` layer, read
 |---|---|---|
 | `season.matching_started` | a matching run opens, with its total | season source (`subscribeMatchingStarted`) |
 | `season.matching_progress` | one intake row resolves, in its phase (`name_matching`, `availability_check`) | season source (`subscribeMatchingProgress`) |
-| `season.matching_finished` | both phases of a run completed | season source (`subscribeMatchingFinished`) |
+| `season.matching_finished` | both phases of a run completed | season source (`subscribeMatchingFinished`); `BRIDGE_INVALIDATIONS` reads the open season's rows again (`SEASON_ANIMES_KEY`) |
 
 ## Storage
 
@@ -96,8 +96,35 @@ For module readiness, failure codes and the `shared/query` layer, read
   `'ok'` or the failure's message, a read to its earlier fallback (`null`, `[]`, an empty board, an
   unrecorded snapshot), a status-carrying result to its unavailable shape with the failure's message.
   `preferences-source` reads a rejected `GetSeasonMode` as `false`.
-- Query keys and `toAsyncView` states: not yet; the consumers migrate to `shared/query` in the T5j
-  frontend units.
+- Query reads (`shared/query`): the port `SeasonQuerySource` (same file) holds the reads the queries
+  call, `readSeason`, `readSeasonAnimes`, `readSeasons`, `readPastSeason` and `readPastSeasonAnimes`;
+  each rejects with a `BridgeError` (`unavailable` while the module starts or the binding never
+  attaches), never a fallback. The adapter is built once as `BRIDGE_SEASON_SOURCE`
+  (`shared/query/bridge-runtime/bridge-runtime.constants.ts`). Keys: `seasonKeys`
+  (`shared/query/query-keys/query-keys.constants.ts`): `current`, `animes` (`SEASON_ANIMES_KEY`,
+  invalidated by `season.matching_finished`), `list`, `past/<id>`, `past-animes/<id>`.
+- `frontend/src/shared/season/` is the season state the screens share:
+  - `useDisplayedSeason` and `useDisplayedSeasonAnimes` read the season and the rows the screens show:
+    the open season's, or the past season's that the store's `viewSeasonId` names. Each caller picks
+    when its read fetches: `mount` (Workspace, Overview: on every mount while stale), `once` (the
+    Episodes-card rate action and the ordering board: only while nothing is cached), `never` (the
+    Season nav badge, the Today banner and the rate action's season: cache only, so a Today-first
+    start shows no season until the Season route loaded it). Season reads stay cached for the session
+    (`gcTime: Infinity`); a viewed past season never goes stale.
+  - `useSeasonList` reads the past-seasons history, only while no season is open.
+  - `useSeasonLifecycleCommands` runs `createSeason` and `closeSeason` through `useBridgeMutation`; a
+    success clears the banner and resolves after the season was read again.
+  - `usePastSeasonView` enters a past season only once its season and rows both loaded (the live view
+    stays meanwhile and after a failure) and leaves it by reading the live season again.
+  - `useSeasonBannerSync` reports a read's new outcomes on the store's shared banner (`errorMessage`):
+    a failure's message (the intake-rows reads that only need the rows loaded show the fixed
+    `Failed to load intake rows`), and a success clears it where the read refreshes the screen. A
+    failed refetch keeps the loaded data on screen next to the banner.
+- The season Zustand store (`shared/store/season-store/`) keeps the UI state (`viewSeasonId`,
+  `readOnly`, `lastDiscard`, the banner, the matching run).
+- Migrated to `shared/season`: `SeasonWorkspace`, `OverviewPanel/use-overview-panel.ts`,
+  `OrderingBoard/use-ordering-board-store-bindings.ts`, `SeasonRateAction`, `TodaySeasonBanner`,
+  `features/navigation/SeasonNavBadge`.
 
 ## Entry points
 
@@ -112,5 +139,9 @@ For module readiness, failure codes and the `shared/query` layer, read
 - Season bindings that call other contexts still read their service from an `App` field:
   `DownloadSeasonAnimes`, `TriggerSeasonDownloads` (downloads), `SendSeasonAnimesToVerHoy` (anime
   editor), `GetSeasonCheckTime`, `SetSeasonCheckTime` (settings). They migrate with those contexts.
-- The frontend consumers still read status strings and fallbacks through the adapter, not
-  `shared/query` (`frontend/src/infrastructure/season-source/season-source.helpers.ts`).
+- The intake, evaluation, selection, Daily board and ordering-board reads and commands, the closure
+  snapshot and the provider search still read status strings and fallbacks through the adapter, not
+  `shared/query` (`frontend/src/infrastructure/season-source/season-source.helpers.ts`), and still
+  read the season and its rows from the store, which their own refreshes fill. Until they migrate, a
+  past-season view also copies the past season and its rows into the store, and a command run from
+  one of those screens updates the store, not the query cache.

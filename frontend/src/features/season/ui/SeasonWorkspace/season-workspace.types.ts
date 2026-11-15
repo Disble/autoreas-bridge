@@ -1,39 +1,20 @@
-import type { SeasonSource } from '../../../../shared/contracts/season.types';
+import type { SeasonQuerySource, SeasonSnapshot } from '../../../../shared/contracts/season.types';
 import type { SeasonStoreState } from '../../../../shared/store/season-store/season-store.types';
 
 /** Section identifiers for the Season Workspace tab shell. */
 export type SeasonSectionId = 'overview' | 'intake' | 'daily' | 'evaluation' | 'selection' | 'ordering';
 
-/** Season store values and actions consumed by the Season Workspace. */
-export type SeasonWorkspaceStoreBindings = Pick<
-  SeasonStoreState,
-  | 'season'
-  | 'hasLoaded'
-  | 'animesLoadState'
-  | 'errorMessage'
-  | 'readOnly'
-  | 'pastSeasons'
-  | 'refresh'
-  | 'ensureAnimesLoaded'
-  | 'createSeason'
-  | 'closeSeason'
-  | 'loadPastSeasons'
-  | 'viewPastSeason'
-  | 'exitPastSeason'
->;
+/** Season store UI state consumed by the Season Workspace: the shared banner and the read-only view flag. */
+export type SeasonWorkspaceStoreBindings = Pick<SeasonStoreState, 'errorMessage' | 'readOnly'>;
 
 /** Inputs of the hook that loads the open season's animes for the workspace gate. */
 export interface SeasonWorkspaceAnimesLoadParams {
-  /** The season the store currently holds. */
+  /** The season the workspace shows; null when none is open. */
   readonly season: SeasonStoreState['season'];
   /** Whether a past season is being viewed read-only. */
   readonly readOnly: boolean;
-  /** Request state of the season's animes. */
-  readonly animesLoadState: SeasonStoreState['animesLoadState'];
-  /** Store action that loads the animes once. */
-  readonly ensureAnimesLoaded: SeasonStoreState['ensureAnimesLoaded'];
   /** Season port the load goes through. */
-  readonly source: SeasonSource;
+  readonly source: SeasonQuerySource;
 }
 
 /** Derived view model for the Overview section of a season. */
@@ -78,4 +59,14 @@ export interface SeasonOverviewCardProps {
   readonly overview: SeasonOverview;
   /** Closes the season, which turns season mode off. */
   readonly onCloseSeason: () => void;
+}
+
+/** The Season Workspace reads: the displayed season, whether the screen still waits, and the history. */
+export interface SeasonWorkspaceReads {
+  /** The displayed season, or null when none is open. */
+  readonly season: SeasonSnapshot | null;
+  /** Whether the season, or an open live season's rows, are still unresolved. */
+  readonly isLoading: boolean;
+  /** The past-seasons history, once read. */
+  readonly pastSeasons: readonly SeasonSnapshot[] | undefined;
 }

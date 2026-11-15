@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonSource } from '../../shared/contracts/season.types';
+import type { SeasonQuerySource, SeasonSource } from '../../shared/contracts/season.types';
 
 /** The coded failure exactly as Wails rejects a season binding while the module starts. */
 const SEASON_STARTING_REJECTION = '{"code":"unavailable","message":"season is starting"}';
@@ -38,6 +38,15 @@ const SEASON_READS: readonly (readonly [string, (source: SeasonSource) => Promis
   ['GetPastSeasonAnimes', (source) => source.getPastSeasonAnimes('season-1'), []],
   ['GetSeasonOrderingBoard', (source) => source.getOrderingBoard(), { rail: [], grid: [] }],
   ['GetSeasonOrderingSnapshot', (source) => source.getSeasonOrderingSnapshot!('season-1'), { recorded: false, rail: [], grid: [] }],
+];
+
+/** Every rejecting season read the queries call: the binding, how the source invokes it, and the arguments the binding receives. */
+const SEASON_QUERY_READS: readonly (readonly [string, (source: SeasonQuerySource) => Promise<unknown>, readonly unknown[]])[] = [
+  ['GetSeason', (source) => source.readSeason(), []],
+  ['GetSeasonAnimes', (source) => source.readSeasonAnimes(), []],
+  ['ListSeasons', (source) => source.readSeasons(), []],
+  ['GetPastSeason', (source) => source.readPastSeason('season-1'), ['season-1']],
+  ['GetPastSeasonAnimes', (source) => source.readPastSeasonAnimes('season-1'), ['season-1']],
 ];
 
 /** Every season binding whose result carries a status: how the source invokes it, and its runtime-unavailable result. */
@@ -317,6 +326,35 @@ describe('season-source', () => {
 
     await expect(invoke(createSeasonSource())).resolves.toEqual(fallback);
     expect(bindingMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(SEASON_QUERY_READS)('answers the %s query read with what the binding returned', async (binding, invoke, args) => {
+    const payload = { answered: binding };
+    const bindingMock = vi.fn().mockResolvedValue(payload);
+    window.go = { desktop: { App: { [binding]: bindingMock } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+
+    await expect(invoke(createSeasonSource())).resolves.toBe(payload);
+    expect(bindingMock).toHaveBeenCalledExactlyOnceWith(...args);
+  });
+
+  it.each(SEASON_QUERY_READS)('rejects the %s query read with the coded failure the binding rejected with', async (binding, invoke) => {
+    window.go = { desktop: { App: { [binding]: vi.fn().mockRejectedValue(new Error(SEASON_STARTING_REJECTION)) } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+
+    await expect(invoke(createSeasonSource())).rejects.toMatchObject({ code: 'unavailable', message: 'season is starting' });
+  });
+
+  it.each(SEASON_QUERY_READS)('rejects the %s query read as unavailable when its binding never attaches', async (binding, invoke) => {
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+
+    const read = invoke(createSeasonSource());
+    const settled = expect(read).rejects.toMatchObject({ code: 'unavailable', message: `the ${binding} binding is not attached` });
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await settled;
   });
 
   it.each(SEASON_OUTCOMES)('reads a rejected %s as its unavailable result carrying the failure message', async (binding, invoke, rest) => {

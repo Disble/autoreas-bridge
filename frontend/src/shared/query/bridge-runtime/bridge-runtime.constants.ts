@@ -15,6 +15,7 @@ import { frontendErrorReporter } from '../../../infrastructure/error-reporting/f
 import { createNotificationCenterSource } from '../../../infrastructure/notification-center-source/notification-center-source.helpers';
 import { NOTIFICATION_ARCHIVED_EVENT_NAME, NOTIFICATION_EVENT_NAME } from '../../../infrastructure/notification-source/notification-source.constants';
 import { createReadinessSource } from '../../../infrastructure/readiness/readiness-source.helpers';
+import { SEASON_MATCHING_FINISHED_EVENT_NAME } from '../../../infrastructure/season-source/season-source.constants';
 import { createSeasonSource } from '../../../infrastructure/season-source/season-source.helpers';
 import { createSettingsSource } from '../../../infrastructure/settings-source/settings-source.helpers';
 import { createRuntimeEventSource } from '../../../infrastructure/wails-bindings.helpers';
@@ -26,6 +27,7 @@ import {
   episodesKeys,
   NOTIFICATIONS_UNREAD_COUNT_KEY,
   notificationsKeys,
+  SEASON_ANIMES_KEY,
 } from '../query-keys/query-keys.constants';
 import { createReadinessGate } from '../readiness-gate/readiness-gate.helpers';
 
@@ -103,6 +105,8 @@ export const BRIDGE_SEASON_SOURCE = createSeasonSource();
  * the device list grew; a device acknowledgment advances that device's last sync.
  * Notifications: every pushed notification is a new unread record (the badge and
  * the center's first page read again); an archive lowers the unread count.
+ * Season: a finished matching run is the one authoritative reload of the open
+ * season's intake rows.
  */
 export const BRIDGE_INVALIDATIONS = createInvalidationRegistry([
   { event: ANIME_CHANGED_EVENT_NAME, queryKeys: [episodesKeys.all] },
@@ -110,4 +114,5 @@ export const BRIDGE_INVALIDATIONS = createInvalidationRegistry([
   { event: DEVICE_ACKNOWLEDGED_EVENT_NAME, queryKeys: [DEVICES_CONNECTED_KEY] },
   { event: NOTIFICATION_EVENT_NAME, queryKeys: [notificationsKeys.all] },
   { event: NOTIFICATION_ARCHIVED_EVENT_NAME, queryKeys: [NOTIFICATIONS_UNREAD_COUNT_KEY] },
+  { event: SEASON_MATCHING_FINISHED_EVENT_NAME, queryKeys: [SEASON_ANIMES_KEY] },
 ]);

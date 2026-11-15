@@ -386,3 +386,23 @@ export interface SeasonSource {
    */
   readonly fetchSeasonOrderingSnapshot?: (seasonId: string) => Promise<SeasonOrderingSnapshot>;
 }
+
+/**
+ * The season module's reads for `shared/season`'s queries (ADR-032 §4). Each
+ * one rejects with a `BridgeError` (`unavailable` while the module starts or
+ * when the binding never attaches, `failed_precondition` once it failed), so a
+ * query reports loading or failure and never mistakes a starting backend for
+ * "no season". The runtime adapter provides them beside `SeasonSource`.
+ */
+export interface SeasonQuerySource {
+  /** The open season, or `null` when none is open. */
+  readonly readSeason: () => Promise<SeasonSnapshot | null>;
+  /** The open season's intake rows; empty when no season is open. */
+  readonly readSeasonAnimes: () => Promise<readonly SeasonAnimeRow[]>;
+  /** Every season, newest first, for the past-seasons history. */
+  readonly readSeasons: () => Promise<readonly SeasonSnapshot[]>;
+  /** One season by id, for the read-only past-season view; `null` when unknown. */
+  readonly readPastSeason: (seasonId: string) => Promise<SeasonSnapshot | null>;
+  /** One season's intake rows, for the read-only past-season view. */
+  readonly readPastSeasonAnimes: (seasonId: string) => Promise<readonly SeasonAnimeRow[]>;
+}

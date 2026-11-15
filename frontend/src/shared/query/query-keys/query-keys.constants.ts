@@ -76,3 +76,6 @@ export const NOTIFICATIONS_UNREAD_COUNT_KEY = notificationsKeys.key('unread-coun
 
 /** Keys of the season module's reads; `seasonKeys.all` is their common prefix. */
 export const seasonKeys = defineQueryKeys('season');
+
+/** Key of the open season's intake rows; a finished matching run invalidates it (`BRIDGE_INVALIDATIONS`). */
+export const SEASON_ANIMES_KEY = seasonKeys.key('animes');
