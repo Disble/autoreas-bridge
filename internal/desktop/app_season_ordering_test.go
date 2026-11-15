@@ -14,7 +14,7 @@ func TestGetSeasonOrderingBoardEmitsCloneForEachWeekday(t *testing.T) {
 	t.Parallel()
 	repo := newFakeSeasonRepo()
 	app := newTestSeasonApp(repo, nil)
-	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+	if got := app.CreateSeason("Julio 2026"); got != nil {
 		t.Fatalf("CreateSeason: %q", got)
 	}
 	app.animeQuery = &stubAnimeQueryService{mobileAnimes: []contracts.MobileAnime{{
@@ -22,8 +22,9 @@ func TestGetSeasonOrderingBoardEmitsCloneForEachWeekday(t *testing.T) {
 			{Day: "Lunes", Order: 2}, {Day: "Miércoles", Order: 1},
 		},
 	}}}
+	seasonReady(app)
 
-	board := app.GetSeasonOrderingBoard()
+	board := must(t).value(app.GetSeasonOrderingBoard())
 	if len(board.Grid) != 2 {
 		t.Fatalf("multi-day anime must clone one grid card per weekday, got %d: %+v", len(board.Grid), board.Grid)
 	}
@@ -50,7 +51,8 @@ func TestCloseSeasonCapturesOrderingBoardGrid(t *testing.T) {
 		ID: "anime-a", Name: "Scheduled", Active: 1,
 		Days: []contracts.MobileAnimeDay{{Day: "Lunes", Order: 3}},
 	}}}
-	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+	seasonReady(app)
+	if got := app.CreateSeason("Julio 2026"); got != nil {
 		t.Fatalf("CreateSeason: %q", got)
 	}
 
@@ -63,7 +65,7 @@ func TestCloseSeasonCapturesOrderingBoardGrid(t *testing.T) {
 		t.Fatalf("UpdateSeason: %v", err)
 	}
 
-	if got := app.CloseSeason(); got != "ok" {
+	if got := app.CloseSeason(); got != nil {
 		t.Fatalf("CloseSeason: %q", got)
 	}
 
@@ -139,14 +141,15 @@ func assertCloseSeasonCaptureFailure(t *testing.T, arrange func(*App, *fakeSeaso
 	t.Helper()
 	repo := newFakeSeasonRepo()
 	app := newTestSeasonApp(repo, nil)
-	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+	if got := app.CreateSeason("Julio 2026"); got != nil {
 		t.Fatalf("CreateSeason: %q", got)
 	}
 	ctx := context.Background()
 	active, _ := app.seasonService.ActiveSeason(ctx)
 	arrange(app, repo)
+	seasonReady(app)
 
-	if got := app.CloseSeason(); got != wantErr {
+	if got := app.CloseSeason(); got == nil || got.Error() != wantErr {
 		t.Fatalf("CloseSeason = %q, want %q", got, wantErr)
 	}
 	stored, err := repo.SeasonByID(ctx, active.ID)
@@ -166,7 +169,7 @@ func assertCloseSeasonCaptureFailure(t *testing.T, arrange func(*App, *fakeSeaso
 func TestCloseSeasonWithoutOpenSeasonRefuses(t *testing.T) {
 	t.Parallel()
 	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
-	if got := app.CloseSeason(); got != "no active season" {
+	if got := app.CloseSeason(); got == nil || got.Error() != "no active season" {
 		t.Fatalf("CloseSeason with no open season = %q, want %q", got, "no active season")
 	}
 }
@@ -177,21 +180,22 @@ func TestOrderingBindingsSaveApplyReopen(t *testing.T) {
 	app := newTestSeasonApp(repo, nil)
 	gw := &fakeAppGateway{}
 	app.seasonService.SetAvailabilityDeps(nil, gw)
-	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+	if got := app.CreateSeason("Julio 2026"); got != nil {
 		t.Fatalf("CreateSeason: %q", got)
 	}
 
 	app.animeQuery = &stubAnimeQueryService{mobileAnimes: []contracts.MobileAnime{{
 		ID: "anime-a", Name: "Placed", Active: 1, Days: []contracts.MobileAnimeDay{{Day: "Lunes", Order: 1}},
 	}}}
+	seasonReady(app)
 
 	const draft = `{"anime-a":[{"dia":"Domingo","orden":1}]}`
-	if got := app.SaveSeasonOrderingDraft(draft); got != "ok" {
+	if got := app.SaveSeasonOrderingDraft(draft); got != nil {
 		t.Fatalf("SaveSeasonOrderingDraft: %q", got)
 	}
 	// The board read hands the saved draft back beside the applied schedule, so
 	// reopening the tab restores the edits instead of starting over.
-	board := app.GetSeasonOrderingBoard()
+	board := must(t).value(app.GetSeasonOrderingBoard())
 	if board.Draft != draft {
 		t.Fatalf("board must carry the saved draft, got %q", board.Draft)
 	}
@@ -199,7 +203,7 @@ func TestOrderingBindingsSaveApplyReopen(t *testing.T) {
 		t.Fatalf("grid must stay the applied schedule, got %+v", board.Grid)
 	}
 
-	res := app.ApplySeasonSchedule()
+	res := must(t).value(app.ApplySeasonSchedule())
 	if res.Status != "ok" {
 		t.Fatalf("ApplySeasonSchedule: %+v", res)
 	}
@@ -208,29 +212,14 @@ func TestOrderingBindingsSaveApplyReopen(t *testing.T) {
 		t.Fatal("apply must stamp the milestone")
 	}
 
-	if got := app.ReopenSeasonOrdering(); got != "ok" {
+	if got := app.ReopenSeasonOrdering(); got != nil {
 		t.Fatalf("ReopenSeasonOrdering: %q", got)
 	}
 	active, _ = app.seasonService.ActiveSeason(context.Background())
 	if active.AppliedAt != nil {
 		t.Fatal("reopen must clear the milestone")
 	}
-	if board := app.GetSeasonOrderingBoard(); board.Draft != "" {
+	if board := must(t).value(app.GetSeasonOrderingBoard()); board.Draft != "" {
 		t.Fatalf("a reopened board must start from the applied schedule, not the applied draft, got %q", board.Draft)
-	}
-}
-
-func TestOrderingBindingsNilService(t *testing.T) {
-	t.Parallel()
-	app := &App{ctx: context.Background()}
-	if got := app.SaveSeasonOrderingDraft("{}"); got == "" || got == "ok" {
-		t.Fatalf("SaveSeasonOrderingDraft nil service: %q", got)
-	}
-	if res := app.ApplySeasonSchedule(); res.Status == "" || res.Status == "ok" {
-		t.Fatalf("ApplySeasonSchedule nil service: %+v", res)
-	}
-	board := app.GetSeasonOrderingBoard()
-	if board.Rail == nil || board.Grid == nil {
-		t.Fatalf("GetSeasonOrderingBoard nil service must return empty non-nil slices: %+v", board)
 	}
 }

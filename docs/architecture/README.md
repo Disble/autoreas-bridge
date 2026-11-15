@@ -30,6 +30,7 @@ that touches that code.
 | `contexts/devices/overview.md` | Touching pairing, connected devices or sync reconcile: the `api`, `sync` and `devices` modules, their bindings and the Devices, Pairing and Syncing panels |
 | `contexts/settings/overview.md` | Touching `internal/settings` or a preference binding: the `settings` module, its bindings, the `app_settings` keys and the Library and auto-start panels |
 | `contexts/notifications/overview.md` | Touching `internal/notification` or the notification center: the `notifications` module, its bindings, records, events, the rail badge and the toasts |
+| `contexts/season/overview.md` | Touching `internal/season` or its bindings: the `season` module, its ports, events, storage, invariants and the season source adapter |
 
 ### Cross-cutting
 

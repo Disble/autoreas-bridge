@@ -74,10 +74,10 @@ func stringOrEmpty(value *string) string {
 
 // animeOverlaysByID returns each anime's current section (Sin ver / Ver hoy /
 // Visto) plus its folder/page desktop-action targets, keyed by anime id, in a
-// single ListReadRecords pass. Empty map on any read error.
-func (a *App) animeOverlaysByID(ctx context.Context) map[string]animeOverlay {
+// single ListReadRecords pass over animes. Empty map on any read error.
+func animeOverlaysByID(ctx context.Context, animes contracts.AnimeQueryService) map[string]animeOverlay {
 	out := map[string]animeOverlay{}
-	query, ok := a.readRecordLister()
+	query, ok := animes.(animeReadRecordLister)
 	if !ok {
 		return out
 	}

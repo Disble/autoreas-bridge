@@ -38,74 +38,11 @@ violations:
     file: internal/desktop/app_preferences.go
     symbol: SetKeymap
   - rule: binding-signature
-    file: internal/desktop/app_season.go
-    symbol: CloseSeason
-  - rule: binding-signature
-    file: internal/desktop/app_season.go
-    symbol: CreateSeason
-  - rule: binding-signature
-    file: internal/desktop/app_season.go
-    symbol: CreateSeasonAnimes
-  - rule: binding-signature
-    file: internal/desktop/app_season.go
-    symbol: DiscardSeasonName
-  - rule: binding-signature
-    file: internal/desktop/app_season.go
-    symbol: GetSeasonAnimes
-  - rule: binding-signature
-    file: internal/desktop/app_season.go
-    symbol: ImportSeasonIntake
-  - rule: binding-signature
-    file: internal/desktop/app_season.go
-    symbol: ReconcileSeasonIntake
-  - rule: binding-signature
-    file: internal/desktop/app_season.go
-    symbol: ReopenSeasonOrdering
-  - rule: binding-signature
-    file: internal/desktop/app_season.go
-    symbol: ResolveSeasonMatch
-  - rule: binding-signature
-    file: internal/desktop/app_season.go
-    symbol: RestoreSeasonName
-  - rule: binding-signature
-    file: internal/desktop/app_season.go
-    symbol: RunSeasonMatching
-  - rule: binding-signature
-    file: internal/desktop/app_season.go
-    symbol: SaveSeasonOrderingDraft
-  - rule: binding-signature
-    file: internal/desktop/app_season.go
-    symbol: SetSeasonAnimeMetadata
-  - rule: binding-signature
-    file: internal/desktop/app_season.go
-    symbol: SetSeasonConsideration
-  - rule: binding-signature
-    file: internal/desktop/app_season.go
-    symbol: SetSeasonGrade
-  - rule: binding-signature
-    file: internal/desktop/app_season.go
-    symbol: SetSeasonMinApprovalGrade
-  - rule: binding-signature
-    file: internal/desktop/app_season.go
-    symbol: SetSeasonSlots
-  - rule: binding-signature
-    file: internal/desktop/app_season.go
-    symbol: SkipSeasonGrading
-  - rule: binding-signature
     file: internal/desktop/app_season_availability.go
     symbol: DownloadSeasonAnimes
   - rule: binding-signature
     file: internal/desktop/app_season_availability.go
     symbol: TriggerSeasonDownloads
-  - rule: binding-signature
-    file: internal/desktop/app_season_history.go
-    symbol: GetPastSeasonAnimes
-  - rule: binding-signature
-    file: internal/desktop/app_season_history.go
-    symbol: ListSeasons
-  - rule: binding-signature
-    file: internal/desktop/app_season_runtime.go
-    symbol: RecheckSeasonAvailability
   - rule: binding-uses-handle
     file: internal/desktop/app_desktop_actions.go
     symbol: CopyAnimeFolder
@@ -162,9 +99,6 @@ violations:
     symbol: GetKeymap
   - rule: binding-uses-handle
     file: internal/desktop/app_preferences.go
-    symbol: GetSeasonMode
-  - rule: binding-uses-handle
-    file: internal/desktop/app_preferences.go
     symbol: SetKeymap
   - rule: binding-uses-handle
     file: internal/desktop/app_runtime.go
@@ -203,69 +137,6 @@ violations:
     file: internal/desktop/app_runtime_editor.go
     symbol: SaveAnimeEditor
   - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: ApplySeasonSchedule
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: CloseSeason
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: ConfirmSeasonSelection
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: CreateSeason
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: CreateSeasonAnimes
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: DiscardSeasonName
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: GetSeason
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: GetSeasonAnimes
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: ImportSeasonIntake
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: ReconcileSeasonIntake
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: ReopenSeasonOrdering
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: ResolveSeasonMatch
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: RestoreSeasonName
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: RunSeasonMatching
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: SaveSeasonOrderingDraft
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: SetSeasonAnimeMetadata
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: SetSeasonConsideration
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: SetSeasonGrade
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: SetSeasonMinApprovalGrade
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: SetSeasonSlots
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season.go
-    symbol: SkipSeasonGrading
-  - rule: binding-uses-handle
     file: internal/desktop/app_season_availability.go
     symbol: DownloadSeasonAnimes
   - rule: binding-uses-handle
@@ -274,24 +145,3 @@ violations:
   - rule: binding-uses-handle
     file: internal/desktop/app_season_availability.go
     symbol: TriggerSeasonDownloads
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season_history.go
-    symbol: GetPastSeason
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season_history.go
-    symbol: GetPastSeasonAnimes
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season_history.go
-    symbol: GetSeasonOrderingSnapshot
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season_history.go
-    symbol: ListSeasons
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season_ordering.go
-    symbol: GetSeasonOrderingBoard
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season_runtime.go
-    symbol: RecheckSeasonAvailability
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season_searcher.go
-    symbol: SearchSeasonProviders

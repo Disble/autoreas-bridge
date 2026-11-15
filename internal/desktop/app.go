@@ -259,6 +259,7 @@ func (a *App) startup(ctx context.Context) {
 	a.ensureDownloadStore()
 	a.configureRuntimeServices(ctx)
 	a.wireSeasonMatchingEventBus()
+	a.bindSeasonModule()
 	a.settleModules(moduleSeason)
 	// A failed HTTP bind is reported through startupErr but must not abort the
 	// rest: the server serves mobile sync, while readiness, the download service

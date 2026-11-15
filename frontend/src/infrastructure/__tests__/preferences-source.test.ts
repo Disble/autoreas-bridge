@@ -62,6 +62,16 @@ describe('preferences-source', () => {
     await expect(createPreferencesSource().getLibraryRoot()).resolves.toBe('');
   });
 
+  it('reads season mode as off while the season module rejects, as before the binding returned an error', async () => {
+    const getSeasonModeMock = vi.fn().mockRejectedValue(new Error('{"code":"unavailable","message":"season is starting"}'));
+    window.go = { desktop: { App: { GetSeasonMode: getSeasonModeMock } } } as never;
+
+    const { createPreferencesSource } = await import('../preferences-source/preferences-source.helpers');
+
+    await expect(createPreferencesSource().getSeasonMode()).resolves.toBe(false);
+    expect(getSeasonModeMock).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps source-adapter declarations in colocated sibling modules', () => {
     const sourceRoot = join(process.cwd(), 'src/infrastructure/preferences-source');
     const indexPath = join(sourceRoot, 'index.ts');

@@ -13,9 +13,7 @@ import (
 
 // TestSearchSeasonProvidersBinding pins the Wails provider search: the ranked
 // pages of every provider reach the frontend tagged with their provider under
-// status "ok", a total failure surfaces its message with an empty page list,
-// and an unwired service reports itself unavailable. Pages is never nil, so
-// the frontend never receives a null collection.
+// status "ok". Pages is never nil, so the frontend never receives a null collection.
 func TestSearchSeasonProvidersBinding(t *testing.T) {
 	t.Parallel()
 	pages := map[string][]match.Candidate{"Ao Ashi": {
@@ -25,7 +23,6 @@ func TestSearchSeasonProvidersBinding(t *testing.T) {
 	cases := []struct {
 		name      string
 		providers []season.ProviderSearcher
-		noService bool
 		want      SeasonProviderSearchDTO
 	}{
 		{
@@ -36,32 +33,33 @@ func TestSearchSeasonProvidersBinding(t *testing.T) {
 				{Title: "Starmyu 2nd Season", PageURL: "https://jkanime.net/starmyu-2/", Provider: "jkanime"},
 			}},
 		},
-		{
-			name:      "every provider failing reports the failure",
-			providers: []season.ProviderSearcher{{Provider: "jkanime", Searcher: fakeAppNameSearcher{err: errors.New("site down")}}},
-			want:      SeasonProviderSearchDTO{Status: "jkanime search: site down", Pages: []SeasonProviderPageDTO{}},
-		},
-		{
-			name:      "no season service is unavailable",
-			noService: true,
-			want:      SeasonProviderSearchDTO{Status: seasonServiceUnavailableMessage, Pages: []SeasonProviderPageDTO{}},
-		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			app := newTestSeasonApp(newFakeSeasonRepo(), nil)
 			app.seasonService.SetProviderSearchers(tc.providers)
-			if tc.noService {
-				app.seasonService = nil
-			}
 
-			got := app.SearchSeasonProviders("Ao Ashi")
+			got := must(t).value(app.SearchSeasonProviders("Ao Ashi"))
 
 			if got.Status != tc.want.Status || !slices.Equal(got.Pages, tc.want.Pages) || got.Pages == nil {
 				t.Fatalf("SearchSeasonProviders = %#v, want %#v", got, tc.want)
 			}
 		})
+	}
+}
+
+// TestSearchSeasonProvidersFailureIsTheBindingError pins that every provider failing is the
+// binding's error carrying the failure's message, not a status string.
+func TestSearchSeasonProvidersFailureIsTheBindingError(t *testing.T) {
+	t.Parallel()
+	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
+	app.seasonService.SetProviderSearchers([]season.ProviderSearcher{{Provider: "jkanime", Searcher: fakeAppNameSearcher{err: errors.New("site down")}}})
+
+	_, err := app.SearchSeasonProviders("Ao Ashi")
+
+	if err == nil || err.Error() != "jkanime search: site down" {
+		t.Fatalf("SearchSeasonProviders error = %v, want %q", err, "jkanime search: site down")
 	}
 }
 

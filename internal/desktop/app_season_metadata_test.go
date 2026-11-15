@@ -174,7 +174,7 @@ func TestCreateSeasonAnimesBindingWritesConfirmedMetadataIntoRealSQLite(t *testi
 		"sa-a":       confirmed,
 		"sa-unknown": {Origin: "must be ignored"},
 	}
-	if got := fixture.app.CreateSeasonAnimes([]string{"sa-a"}, map[string]string{"sa-a": folder}, metadata); got != "ok" {
+	if got := fixture.app.CreateSeasonAnimes([]string{"sa-a"}, map[string]string{"sa-a": folder}, metadata); got != nil {
 		t.Fatalf("CreateSeasonAnimes: %q", got)
 	}
 
@@ -216,7 +216,7 @@ func TestCreateSeasonAnimesBindingWithoutMetadataWritesUnchangedRecord(t *testin
 	fixture := newRuntimeSeasonFixture(t)
 	fixture.seedAvailableRow(t, "sa-a", "Frieren", "https://jkanime.net/frieren/")
 
-	if got := fixture.app.CreateSeasonAnimes([]string{"sa-a"}, nil, nil); got != "ok" {
+	if got := fixture.app.CreateSeasonAnimes([]string{"sa-a"}, nil, nil); got != nil {
 		t.Fatalf("CreateSeasonAnimes: %q", got)
 	}
 
@@ -324,7 +324,7 @@ func TestSetSeasonAnimeMetadataBindingWritesThroughToRealRecord(t *testing.T) {
 	fixture.seedRow(t, "sa-a", "Frieren")
 	ctx := context.Background()
 
-	if got := fixture.app.SetSeasonAnimeMetadata("sa-a", desktopMetadataJSON); got != "ok" {
+	if got := fixture.app.SetSeasonAnimeMetadata("sa-a", desktopMetadataJSON); got != nil {
 		t.Fatalf("SetSeasonAnimeMetadata: %q", got)
 	}
 	recorded, err := fixture.store.SeasonAnimeByID(ctx, "sa-a")
@@ -335,7 +335,7 @@ func TestSetSeasonAnimeMetadataBindingWritesThroughToRealRecord(t *testing.T) {
 		t.Fatalf("stored metadata = %q, want %q", recorded.MetadataJSON, desktopMetadataJSON)
 	}
 
-	if got := fixture.app.SetSeasonAnimeMetadata("sa-a", ""); got != "ok" {
+	if got := fixture.app.SetSeasonAnimeMetadata("sa-a", ""); got != nil {
 		t.Fatalf("clear: %q", got)
 	}
 	cleared, err := fixture.store.SeasonAnimeByID(ctx, "sa-a")
@@ -346,10 +346,10 @@ func TestSetSeasonAnimeMetadataBindingWritesThroughToRealRecord(t *testing.T) {
 		t.Fatalf("metadata after clear = %q, want \"\"", cleared.MetadataJSON)
 	}
 
-	if got := fixture.app.SetSeasonAnimeMetadata("sa-a", "not json"); got == "ok" {
+	if got := fixture.app.SetSeasonAnimeMetadata("sa-a", "not json"); got == nil {
 		t.Fatal("a malformed payload must not report success")
 	}
-	if got := fixture.app.SetSeasonAnimeMetadata("missing", desktopMetadataJSON); got == "ok" {
+	if got := fixture.app.SetSeasonAnimeMetadata("missing", desktopMetadataJSON); got == nil {
 		t.Fatal("an unknown row must not report success")
 	}
 }

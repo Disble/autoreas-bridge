@@ -111,7 +111,7 @@ func TestAnimeOverlaysByIDUsesEnglishReadRecords(t *testing.T) {
 		{Value: domain.Anime{ID: "anime-2", Days: []domain.AnimeDay{{Day: "Visto", Order: 2}}}},
 	}}}
 
-	got := app.animeOverlaysByID(context.Background())
+	got := animeOverlaysByID(context.Background(), app.animeQuery)
 	if got["anime-1"].section != "Sin ver" || got["anime-1"].order != 1 || got["anime-1"].folderPath != folder1 || got["anime-1"].pageURL != page1 {
 		t.Fatalf("animeOverlaysByID()[anime-1] = %#v, want section=Sin ver order=1 folderPath=%q pageURL=%q", got["anime-1"], folder1, page1)
 	}

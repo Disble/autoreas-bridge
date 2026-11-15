@@ -14,7 +14,7 @@ func seedRatingApp(t *testing.T, hub *stubAppRealtimeHub) *App {
 	t.Helper()
 	repo := newFakeSeasonRepo()
 	app := newTestSeasonApp(repo, hub)
-	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+	if got := app.CreateSeason("Julio 2026"); got != nil {
 		t.Fatalf("CreateSeason: %q", got)
 	}
 	active, _ := app.seasonService.ActiveSeason(context.Background())
@@ -104,10 +104,10 @@ func TestSetSeasonGradeManualRecords(t *testing.T) {
 	hub := &stubAppRealtimeHub{}
 	app := seedRatingApp(t, hub)
 
-	if got := app.SetSeasonGrade("anime-a", 5); got != "ok" {
+	if got := app.SetSeasonGrade("anime-a", 5); got != nil {
 		t.Fatalf("SetSeasonGrade: %q", got)
 	}
-	rows := app.GetSeasonAnimes()
+	rows := must(t).value(app.GetSeasonAnimes())
 	if len(rows) != 1 || rows[0].Grade != 5 || rows[0].GradeSource != string(domain.GradeSourceManual) {
 		t.Fatalf("manual grade not recorded: %+v", rows)
 	}
@@ -116,30 +116,19 @@ func TestSetSeasonGradeManualRecords(t *testing.T) {
 func TestSetSeasonGradeRejectsOutOfRange(t *testing.T) {
 	t.Parallel()
 	app := seedRatingApp(t, nil)
-	if got := app.SetSeasonGrade("anime-a", 9); got == "ok" || got == "" {
+	if got := app.SetSeasonGrade("anime-a", 9); got == nil {
 		t.Fatalf("expected an error string for grade 9, got %q", got)
-	}
-}
-
-func TestSeasonGradeMutatorsErrorWhenServiceNil(t *testing.T) {
-	t.Parallel()
-	app := &App{ctx: context.Background()}
-	if got := app.SetSeasonGrade("anime-a", 4); got == "" || got == "ok" {
-		t.Fatalf("SetSeasonGrade nil service: %q", got)
-	}
-	if got := app.SkipSeasonGrading("row-1"); got == "" || got == "ok" {
-		t.Fatalf("SkipSeasonGrading nil service: %q", got)
 	}
 }
 
 func TestSkipSeasonGradingRecordsOverride(t *testing.T) {
 	t.Parallel()
 	app := seedRatingApp(t, nil)
-	rows := app.GetSeasonAnimes()
-	if got := app.SkipSeasonGrading(rows[0].ID); got != "ok" {
+	rows := must(t).value(app.GetSeasonAnimes())
+	if got := app.SkipSeasonGrading(rows[0].ID); got != nil {
 		t.Fatalf("SkipSeasonGrading: %q", got)
 	}
-	after := app.GetSeasonAnimes()
+	after := must(t).value(app.GetSeasonAnimes())
 	if !after[0].SkipGrading {
 		t.Fatalf("skip not recorded in DTO: %+v", after[0])
 	}

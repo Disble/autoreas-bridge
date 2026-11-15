@@ -1,6 +1,7 @@
 import { GetLibraryRoot, GetKeymap, GetSeasonMode, PickFolder, SetKeymap } from '../../../wailsjs/go/desktop/App';
 import { PREFERENCES_SOURCE_STATE } from './preferences-source.constants';
 import type { PreferencesSource } from './preferences-source.types';
+import { withBridgeErrors } from '../bridge-error/bridge-error.helpers';
 import { hasGoBinding, waitForBindings } from '../wails-bindings.helpers';
 
 /**
@@ -14,7 +15,8 @@ export function createPreferencesSource(): PreferencesSource {
   PREFERENCES_SOURCE_STATE.sharedSource = {
     getSeasonMode() {
       return waitForBindings(() => hasGoBinding('GetSeasonMode')).then((isReady) => {
-        return isReady ? GetSeasonMode() : Promise.resolve(false);
+        // The season module handle rejects while season is starting or failed; its consumers still read that as off.
+        return isReady ? withBridgeErrors(GetSeasonMode()).catch(() => false) : Promise.resolve(false);
       });
     },
     getLibraryRoot() {

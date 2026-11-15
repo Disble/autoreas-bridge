@@ -20,6 +20,7 @@ import (
 	"autoreas-bridge/internal/observability/incident"
 	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/observability/telemetry"
+	"autoreas-bridge/internal/season"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
@@ -162,6 +163,18 @@ type notificationServices struct {
 	executor *center.Executor
 }
 
+// seasonServices are the services the season module's bindings use: the season
+// service, the anime read its boards and intake overlays join, and the settings
+// store CreateSeasonAnimes reads the library root from (nil reads as no root).
+// bindSeasonModule binds them before startup marks the module ready. The daily
+// availability scheduler starts after that (startSeasonAvailability), so
+// RecheckSeasonAvailability resolves it when it runs.
+type seasonServices struct {
+	season   *season.Service
+	animes   contracts.AnimeQueryService
+	settings appSettingsStore
+}
+
 // appModules is the module set App holds: the readiness registry, its writer
 // (only the composition root writes) and the module handles. Domain modules get
 // their handle here when they migrate (ADR-032 §3; internal/modules says how).
@@ -179,6 +192,7 @@ type appModules struct {
 	settings      *modules.Handle[settingsServices]
 	observability *modules.Handle[observabilityServices]
 	notifications *modules.Handle[notificationServices]
+	season        *modules.Handle[seasonServices]
 }
 
 // moduleSet builds the module set once, on first use, and registers every module
@@ -199,6 +213,7 @@ func (a *App) moduleSet() *appModules {
 		a.modules.settings = modules.NewHandle[settingsServices](moduleSettings, a.modules.registry)
 		a.modules.observability = modules.NewHandle[observabilityServices](moduleObservability, a.modules.registry)
 		a.modules.notifications = modules.NewHandle[notificationServices](moduleNotifications, a.modules.registry)
+		a.modules.season = modules.NewHandle[seasonServices](moduleSeason, a.modules.registry)
 	})
 	return &a.modules
 }
