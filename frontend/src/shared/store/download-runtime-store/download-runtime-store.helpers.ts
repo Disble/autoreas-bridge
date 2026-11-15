@@ -9,8 +9,7 @@ import type { DownloadRuntimeStoreState } from './download-runtime-store.types';
 /**
  * Vanilla backing store for the shared Downloads runtime read-model.
  *
- * `notification-store` keeps its instance in `.constants.ts`, which is where
- * this one belongs too. It stays here for now because this file's own
+ * A store instance belongs in `.constants.ts`. This one stays here because this file's own
  * `.constants.ts` holds `DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE`, which the
  * connect/reset functions below mutate -- moving the store across would put the
  * initializer and the subscription state on opposite sides of an import this

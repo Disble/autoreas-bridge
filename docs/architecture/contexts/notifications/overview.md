@@ -117,6 +117,4 @@ For the readiness, failure codes and query runtime it relies on, read
 
 - `internal/api/contracts/notification_center.go` still declares `Degraded` on the page, detail and
   mutation results, and the TypeScript mirror keeps `degraded`; no binding sets it any more.
-- `frontend/src/shared/store/notification-store/` (and its test) is no longer read by any screen:
-  the badge and the header read the unread-count query.
 - The placeholder rows approximate a real row's height (two text lines); no layout fixture pins it.

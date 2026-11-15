@@ -35,7 +35,6 @@ const ZUSTAND_VANILLA_ALLOW_LIST = {
   'src/features/catalog/ui/CatalogPanel/catalog-session.store.ts': 'Catalog session UI state (filters, view), which ADR-032 §4 leaves in Zustand.',
   'src/shared/keyboard/keyboard.constants.ts': 'Keyboard scope stack and keymap UI state (ADR-019, ADR-020).',
   'src/shared/store/download-runtime-store/download-runtime-store.helpers.ts': 'ADR-006 download read-model; leaves this list when it migrates (last, per ADR-032).',
-  'src/shared/store/notification-store/notification-store.constants.ts': 'ADR-006 notification read-model; leaves this list when it migrates.',
   'src/shared/store/preferences-store/preferences-store.helpers.ts': 'ADR-006 preferences read-model; leaves this list when it migrates.',
   'src/shared/store/season-store/season-store.store.ts': 'ADR-006 season read-model; leaves this list when it migrates (last, per ADR-032).',
 };

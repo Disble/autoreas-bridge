@@ -192,8 +192,8 @@ Frontend gates (`frontend/scripts/async-state-gates.helpers.mjs`, ESLint plugin 
 - An entry is an identity (rule, file, import specifier or symbol), not a count: repeating an
   already-baselined violation in the same file passes. A renamed baselined file fails as new code
   until its entries move to the new path; the old-path entries show as stale.
-- The allow-list (`zustand/vanilla`) is closed: the Catalog session and keyboard UI stores, and the four
-  ADR-006 read-models (download, notification, preferences, season), which leave it as they migrate.
+- The allow-list (`zustand/vanilla`) is closed: the Catalog session and keyboard UI stores, and the three
+  ADR-006 read-models (download, preferences, season), which leave it as they migrate.
 
 ## Known drift
 
@@ -297,7 +297,7 @@ pilot's frontend (T4b), the Devices bindings (T5a), the Activity reads (T5b) and
     navigation badge, notifications) and 2 shared stores (download runtime, season).
   - `no-window-go`, `react-query-in-shared-query` and `zustand-vanilla-allow-list` 0 entries: production
     code outside `infrastructure/**` never reads `window.go` (8 test files fake it), TanStack Query is
-    imported only in `shared/query`, and the 6 `zustand/vanilla` importers are exactly the allow-list.
+    imported only in `shared/query`, and the 5 `zustand/vanilla` importers are exactly the allow-list.
 - The skill's "show backend data on a screen" recipe has one migrated example: Today
   (`use-episode-schedule-request.ts`, `use-episode-day-counts.ts`), with its adapter built in
   `bridge-runtime.constants.ts` and its key factory in `shared/query/query-keys/query-keys.constants.ts`.
