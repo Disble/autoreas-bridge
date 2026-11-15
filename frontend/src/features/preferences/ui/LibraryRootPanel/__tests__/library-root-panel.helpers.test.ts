@@ -26,12 +26,8 @@ describe('toPendingLibraryRootChange', () => {
 });
 
 describe('libraryRootPreviewOutcome', () => {
-  it('fails on a preview message, saves when nothing moves, and confirms otherwise', () => {
-    expect(libraryRootPreviewOutcome({ ...PREVIEW, message: 'list animes: closed' }, 'F:\\Anime')).toEqual({
-      kind: 'failed',
-      message: 'list animes: closed',
-    });
-    expect(libraryRootPreviewOutcome({ ...PREVIEW, moves: [], message: '' }, 'F:\\Anime')).toEqual({ kind: 'save' });
+  it('saves when nothing moves, and confirms otherwise', () => {
+    expect(libraryRootPreviewOutcome({ ...PREVIEW, moves: [] }, 'F:\\Anime')).toEqual({ kind: 'save' });
     expect(libraryRootPreviewOutcome(PREVIEW, 'F:\\Anime')).toEqual({
       kind: 'confirm',
       pending: { oldRoot: 'D:\\Anime', newRoot: 'F:\\Anime', moves: PREVIEW.moves, kept: PREVIEW.kept },

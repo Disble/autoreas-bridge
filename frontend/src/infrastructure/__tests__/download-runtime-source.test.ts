@@ -424,6 +424,20 @@ describe('download-runtime-source', () => {
     expect(setHosterPriorityMock).toHaveBeenCalledWith('default', items);
   });
 
+  it('maps the settings module SetEpisodeRenameEnabled back to the status string the rename panel reads', async () => {
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
+    const setEpisodeRenameEnabled = vi.fn().mockResolvedValue(undefined);
+    window.go = { desktop: { App: { SetEpisodeRenameEnabled: setEpisodeRenameEnabled } } } as never;
+
+    await expect(createDownloadRuntimeSource().setEpisodeRenameEnabled(true)).resolves.toBe('ok');
+    expect(setEpisodeRenameEnabled).toHaveBeenCalledWith(true);
+
+    window.go = {
+      desktop: { App: { SetEpisodeRenameEnabled: vi.fn().mockRejectedValue(new Error('{"code":"unavailable","message":"settings is starting"}')) } },
+    } as never;
+    await expect(createDownloadRuntimeSource().setEpisodeRenameEnabled(true)).resolves.toBe('settings is starting');
+  });
+
   it('keeps source-adapter declarations in colocated sibling modules', () => {
     const sourceRoot = join(process.cwd(), 'src/infrastructure/download-runtime-source');
     const indexPath = join(sourceRoot, 'index.ts');

@@ -28,6 +28,7 @@ that touches that code.
 | `contexts/observability/workflow.md` | Following one mobile report end to end: arrival, store, reading, incident gate, feed line, drawer, Technical view |
 | `contexts/desktop/overview.md` | Touching `internal/desktop`: the composition root, startup order, bindings, module readiness and handles, failure codes and the events the WebView receives |
 | `contexts/devices/overview.md` | Touching pairing, connected devices or sync reconcile: the `api`, `sync` and `devices` modules, their bindings and the Devices, Pairing and Syncing panels |
+| `contexts/settings/overview.md` | Touching `internal/settings` or a preference binding: the `settings` module, its bindings, the `app_settings` keys and the Library and auto-start panels |
 
 ### Cross-cutting
 

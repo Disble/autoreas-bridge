@@ -1,4 +1,4 @@
-import type { LibraryRootChangePreview } from '../../../../infrastructure/preferences-source/preferences-source.types';
+import type { LibraryRootChangePreview } from '../../../../shared/contracts/settings.types';
 import type { LibraryRootPreviewOutcome, PendingLibraryRootChange } from './library-root-panel.types';
 
 /**
@@ -16,13 +16,11 @@ export function toPendingLibraryRootChange(
 }
 
 /**
- * Decides what a served preview leads to: a failure to show, a straight save,
- * or a change to confirm because active animes would move.
+ * Decides what a served preview leads to: a straight save, or a change to
+ * confirm because active animes would move. A preview that could not be
+ * computed rejects instead, so it never reaches here.
  */
 export function libraryRootPreviewOutcome(preview: LibraryRootChangePreview, newRoot: string): LibraryRootPreviewOutcome {
-  if (preview.message !== undefined && preview.message !== '') {
-    return { kind: 'failed', message: preview.message };
-  }
   const pending = toPendingLibraryRootChange(preview, newRoot);
   return pending === null ? { kind: 'save' } : { kind: 'confirm', pending };
 }

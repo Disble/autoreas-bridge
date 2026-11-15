@@ -64,6 +64,7 @@ import type {
   SeasonSource,
 } from './season-source.types';
 import { openInDefaultBrowser } from '../../shared/helpers/url.helpers';
+import { withBridgeErrors } from '../bridge-error/bridge-error.helpers';
 import { createRuntimeSubscription, hasGoBinding, invokeGoBinding, waitForBindings } from '../wails-bindings.helpers';
 
 /**
@@ -259,7 +260,13 @@ export function createSeasonSource(): SeasonSource {
       return invokeGoBinding('GetSeasonCheckTime', GetSeasonCheckTime, () => '');
     },
     setCheckTime(hhmm: string) {
-      return invokeGoBinding('SetSeasonCheckTime', () => SetSeasonCheckTime(hhmm), () => SEASON_RUNTIME_UNAVAILABLE);
+      // The binding moved to the settings module and rejects on failure; the intake check time
+      // still reads the old status string ('ok' or the failure message) until its own slice migrates it.
+      return invokeGoBinding(
+        'SetSeasonCheckTime',
+        () => withBridgeErrors(SetSeasonCheckTime(hhmm)).then(() => 'ok', (error: Error) => error.message),
+        () => SEASON_RUNTIME_UNAVAILABLE,
+      );
     },
     subscribeMatchingStarted(listener) {
       return matchingStartedSubscription.subscribe(listener);

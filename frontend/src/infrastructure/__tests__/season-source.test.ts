@@ -219,6 +219,22 @@ describe('season-source', () => {
     await expect(write).resolves.toBe(SEASON_RUNTIME_UNAVAILABLE);
   });
 
+  it('maps the settings module SetSeasonCheckTime back to the status string the check-time control reads', async () => {
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const setSeasonCheckTime = vi.fn().mockResolvedValue(undefined);
+    window.go = { desktop: { App: { SetSeasonCheckTime: setSeasonCheckTime } } } as never;
+
+    await expect(createSeasonSource().setCheckTime('07:30')).resolves.toBe('ok');
+    expect(setSeasonCheckTime).toHaveBeenCalledWith('07:30');
+
+    window.go = {
+      desktop: {
+        App: { SetSeasonCheckTime: vi.fn().mockRejectedValue(new Error('{"code":"invalid_argument","message":"invalid time \\"9:00\\": use HH:MM (00:00-23:59)"}')) },
+      },
+    } as never;
+    await expect(createSeasonSource().setCheckTime('9:00')).resolves.toBe('invalid time "9:00": use HH:MM (00:00-23:59)');
+  });
+
   it('uses the shared Wails binding readiness helper instead of local duplicate plumbing', () => {
     const seasonSourcePath = join(process.cwd(), 'src/infrastructure/season-source/season-source.helpers.ts');
     const sourceText = readFileSync(seasonSourcePath, 'utf8');

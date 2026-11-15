@@ -1,3 +1,5 @@
+import { settingsKeys } from '../../../../shared/query/query-keys/query-keys.constants';
+
 /** Field label for the library root input. */
 export const LIBRARY_ROOT_LABEL = 'Library root';
 
@@ -25,3 +27,12 @@ export const LIBRARY_ROOT_CHANGE_KEPT_LABEL = 'Left unchanged';
 
 /** Warning that files on disk are never moved. */
 export const LIBRARY_ROOT_CHANGE_DISK_WARNING = 'Bridge only updates the saved paths. Move the folders on disk yourself.';
+
+/** Query key of the stored library root, served by the `settings` module. */
+export const LIBRARY_ROOT_QUERY_KEY = settingsKeys.key('library-root');
+
+/** Screen-reader label of the loading status region. */
+export const LIBRARY_ROOT_LOADING_LABEL = 'Loading the library root';
+
+/** Title of the Alert shown when the stored root cannot be read. */
+export const LIBRARY_ROOT_UNAVAILABLE_TITLE = 'Library root unavailable';

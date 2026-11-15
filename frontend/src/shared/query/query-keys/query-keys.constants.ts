@@ -37,3 +37,9 @@ export const activityKeys = defineQueryKeys('activity');
  * chip's database ping; `backupKeys.all` is their common prefix.
  */
 export const backupKeys = defineQueryKeys('backup');
+
+/**
+ * Keys of the settings module's reads (Settings page): `settingsKeys.key('library-root')`
+ * and `settingsKeys.key('auto-start')`; `settingsKeys.all` is their common prefix.
+ */
+export const settingsKeys = defineQueryKeys('settings');

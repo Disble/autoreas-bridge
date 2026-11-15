@@ -1,10 +1,26 @@
 import { toast } from '@heroui/react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
+import { status } from '../../../../../shared/query/test-support/readiness-source.test-support';
+import { LIBRARY_ROOT_LOADING_LABEL, LIBRARY_ROOT_UNAVAILABLE_TITLE } from '../library-root-panel.constants';
+import type { LibraryRootSource } from '../library-root-panel.types';
 import { LibraryRootPanel } from '../LibraryRootPanel';
 
 /** A preview where no active anime moves, so the root saves straight away. */
 const NO_MOVES = { oldRoot: 'D:/Anime', moves: [], kept: [] };
+
+/**
+ * Renders the panel under a query wrapper whose `settings` module is `state`.
+ * @param source The Settings port.
+ * @param state The settings module's state.
+ * @returns The render result.
+ */
+function renderPanel(source: LibraryRootSource, state: 'starting' | 'ready' = 'ready') {
+  const { wrapper } = createModulesTestWrapper(status('settings', state));
+  return render(<LibraryRootPanel source={source} />, { wrapper });
+}
 
 // Spy instead of vi.mock: @heroui/react is pre-bundled by deps.optimizer,
 // which does not support importOriginal-based partial mocks.
@@ -22,17 +38,19 @@ describe('LibraryRootPanel', () => {
   it('shows the loaded root and persists an edit on Save', async () => {
     const source = {
       getLibraryRoot: vi.fn().mockResolvedValue('D:/Anime'),
-      setLibraryRoot: vi.fn().mockResolvedValue('ok'),
+      setLibraryRoot: vi.fn().mockResolvedValue(undefined),
       previewLibraryRootChange: vi.fn().mockResolvedValue(NO_MOVES),
       pickFolder: vi.fn(),
     };
 
-    render(<LibraryRootPanel source={source} />);
+    renderPanel(source);
 
     const input = await screen.findByLabelText('Library root');
     await waitFor(() => expect(input).toHaveValue('D:/Anime'));
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
 
     fireEvent.change(input, { target: { value: 'E:/Media/Anime' } });
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(source.setLibraryRoot).toHaveBeenCalledWith('E:/Media/Anime'));
@@ -41,12 +59,12 @@ describe('LibraryRootPanel', () => {
   it('fills the root from the folder picker', async () => {
     const source = {
       getLibraryRoot: vi.fn().mockResolvedValue(''),
-      setLibraryRoot: vi.fn().mockResolvedValue('ok'),
+      setLibraryRoot: vi.fn().mockResolvedValue(undefined),
       previewLibraryRootChange: vi.fn().mockResolvedValue(NO_MOVES),
       pickFolder: vi.fn().mockResolvedValue('F:/Chosen'),
     };
 
-    render(<LibraryRootPanel source={source} />);
+    renderPanel(source);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Browse' }));
 
@@ -56,7 +74,7 @@ describe('LibraryRootPanel', () => {
   it('confirms a root change that moves active animes, then saves', async () => {
     const source = {
       getLibraryRoot: vi.fn().mockResolvedValue('D:\\Anime'),
-      setLibraryRoot: vi.fn().mockResolvedValue('ok'),
+      setLibraryRoot: vi.fn().mockResolvedValue(undefined),
       previewLibraryRootChange: vi.fn().mockResolvedValue({
         oldRoot: 'D:\\Anime',
         moves: [
@@ -68,7 +86,7 @@ describe('LibraryRootPanel', () => {
       pickFolder: vi.fn(),
     };
 
-    render(<LibraryRootPanel source={source} />);
+    renderPanel(source);
     const input = await screen.findByLabelText('Library root');
     await waitFor(() => expect(input).toHaveValue('D:\\Anime'));
     fireEvent.change(input, { target: { value: 'F:\\Anime' } });
@@ -85,5 +103,32 @@ describe('LibraryRootPanel', () => {
 
     await waitFor(() => expect(source.setLibraryRoot).toHaveBeenCalledWith('F:\\Anime'));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('shows a labelled skeleton and no field while the settings module starts', () => {
+    const source = { getLibraryRoot: vi.fn().mockResolvedValue('D:/Anime'), setLibraryRoot: vi.fn(), previewLibraryRootChange: vi.fn(), pickFolder: vi.fn() };
+
+    renderPanel(source, 'starting');
+
+    expect(screen.getByRole('status', { name: LIBRARY_ROOT_LOADING_LABEL })).toHaveAttribute('aria-live', 'polite');
+    expect(screen.getByText('Library root')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Library root')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+    expect(source.getLibraryRoot).not.toHaveBeenCalled();
+  });
+
+  it('shows the read failure instead of an empty field', async () => {
+    const source = {
+      getLibraryRoot: vi.fn().mockRejectedValue(createBridgeError('internal', 'settings disk I/O error')),
+      setLibraryRoot: vi.fn(),
+      previewLibraryRootChange: vi.fn(),
+      pickFolder: vi.fn(),
+    };
+
+    renderPanel(source);
+
+    expect(await screen.findByText(LIBRARY_ROOT_UNAVAILABLE_TITLE)).toBeInTheDocument();
+    expect(screen.getByText('settings disk I/O error')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Library root')).not.toBeInTheDocument();
   });
 });

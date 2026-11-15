@@ -10,6 +10,7 @@ import { createDevicesSource } from '../../../infrastructure/bridge-runtime-sour
 import { createEpisodesSource } from '../../../infrastructure/bridge-runtime-source/episodes-source.helpers';
 import { frontendErrorReporter } from '../../../infrastructure/error-reporting/frontend-error-source.helpers';
 import { createReadinessSource } from '../../../infrastructure/readiness/readiness-source.helpers';
+import { createSettingsSource } from '../../../infrastructure/settings-source/settings-source.helpers';
 import { createRuntimeEventSource } from '../../../infrastructure/wails-bindings.helpers';
 import { createInvalidationRegistry } from '../invalidation-bridge/invalidation-bridge.helpers';
 import { createBridgeQueryClient } from '../query-client/query-client.helpers';
@@ -53,6 +54,9 @@ export const BRIDGE_ACTIVITY_SOURCE = createActivityWailsSource();
 
 /** The Activity feed's page, overview and drawer reads, served by the `observability` module. */
 export const BRIDGE_ACTIVITY_FEED_SOURCE = createActivityFeedSource();
+
+/** The Settings page's bindings: the `settings` module's library root and auto-start reads and commands. */
+export const BRIDGE_SETTINGS_SOURCE = createSettingsSource();
 
 /**
  * Every context's event→invalidation rules, the one place a context registers

@@ -120,7 +120,13 @@ export function createDownloadRuntimeSource(): DownloadRuntimeSource {
       return invokeGoBinding('SetHosterPriority', () => SetHosterPriority(site, [...items]), () => 'runtime unavailable');
     },
     setEpisodeRenameEnabled(enabled) {
-      return invokeGoBinding('SetEpisodeRenameEnabled', () => SetEpisodeRenameEnabled(enabled), () => 'runtime unavailable');
+      // The binding moved to the settings module and rejects on failure; the rename panel still
+      // reads the old status string ('ok' or the failure message) until its own slice migrates it.
+      return invokeGoBinding(
+        'SetEpisodeRenameEnabled',
+        () => withBridgeErrors(SetEpisodeRenameEnabled(enabled)).then(() => 'ok', (error: Error) => error.message),
+        () => 'runtime unavailable',
+      );
     },
     triggerDownloadCheck() {
       return invokeGoBinding('TriggerDownloadCheck', TriggerDownloadCheck, () => 'runtime unavailable');

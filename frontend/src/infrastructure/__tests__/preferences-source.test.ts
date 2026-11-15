@@ -20,34 +20,23 @@ describe('preferences-source', () => {
 
     const seasonModePromise = source.getSeasonMode();
     const libraryRootPromise = source.getLibraryRoot();
-    const previewPromise = source.previewLibraryRootChange('F:/Anime');
 
     await vi.advanceTimersByTimeAsync(5000);
 
     await expect(seasonModePromise).resolves.toBe(false);
     await expect(libraryRootPromise).resolves.toBe('');
-    await expect(previewPromise).resolves.toEqual({ oldRoot: '', moves: [], kept: [], message: 'runtime unavailable' });
   });
 
   it('preserves live Wails preference values and folder selection results', async () => {
     const getLibraryRootMock = vi.fn().mockResolvedValue('D:/Downloads');
     const getSeasonModeMock = vi.fn().mockResolvedValue(true);
     const pickFolderMock = vi.fn().mockResolvedValue('D:/Anime');
-    const setLibraryRootMock = vi.fn().mockResolvedValue('saved');
-    const getAutoStartEnabledMock = vi.fn().mockResolvedValue(true);
-    const setAutoStartEnabledMock = vi.fn().mockResolvedValue('ok');
-    const preview = { oldRoot: 'D:/Downloads', moves: [], kept: [] };
-    const previewLibraryRootChangeMock = vi.fn().mockResolvedValue(preview);
     window.go = {
       desktop: {
         App: {
-          PreviewLibraryRootChange: previewLibraryRootChangeMock,
           GetLibraryRoot: getLibraryRootMock,
           GetSeasonMode: getSeasonModeMock,
           PickFolder: pickFolderMock,
-          SetLibraryRoot: setLibraryRootMock,
-          GetAutoStartEnabled: getAutoStartEnabledMock,
-          SetAutoStartEnabled: setAutoStartEnabledMock,
         },
       },
     } as never;
@@ -57,18 +46,20 @@ describe('preferences-source', () => {
 
     await expect(source.getSeasonMode()).resolves.toBe(true);
     await expect(source.getLibraryRoot()).resolves.toBe('D:/Downloads');
-    await expect(source.setLibraryRoot('D:/Downloads')).resolves.toBe('saved');
-    await expect(source.previewLibraryRootChange('F:/Anime')).resolves.toBe(preview);
-    expect(previewLibraryRootChangeMock).toHaveBeenCalledWith('F:/Anime');
     await expect(source.pickFolder('Choose anime directory')).resolves.toBe('D:/Anime');
-    await expect(source.getAutoStartEnabled()).resolves.toBe(true);
-    await expect(source.setAutoStartEnabled(false)).resolves.toBe('ok');
     expect(getSeasonModeMock).toHaveBeenCalledTimes(1);
     expect(getLibraryRootMock).toHaveBeenCalledTimes(1);
-    expect(setLibraryRootMock).toHaveBeenCalledWith('D:/Downloads');
     expect(pickFolderMock).toHaveBeenCalledWith('Choose anime directory');
-    expect(getAutoStartEnabledMock).toHaveBeenCalledTimes(1);
-    expect(setAutoStartEnabledMock).toHaveBeenCalledWith(false);
+  });
+
+  it('reads a library root the settings module refuses as unset, as anime create and season intake did before', async () => {
+    window.go = {
+      desktop: { App: { GetLibraryRoot: vi.fn().mockRejectedValue(new Error('{"code":"unavailable","message":"settings is starting"}')) } },
+    } as never;
+
+    const { createPreferencesSource } = await import('../preferences-source/preferences-source.helpers');
+
+    await expect(createPreferencesSource().getLibraryRoot()).resolves.toBe('');
   });
 
   it('keeps source-adapter declarations in colocated sibling modules', () => {
