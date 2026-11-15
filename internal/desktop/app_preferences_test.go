@@ -9,18 +9,18 @@ import (
 // These tests exercise the derived GetSeasonMode binding and the shared
 // seasonModeReader seam (used by downloads + mobile status).
 
-func TestGetSeasonModeFalseWhenServiceNil(t *testing.T) {
+func TestSeasonModeReaderFalseWhenServiceNil(t *testing.T) {
 	t.Parallel()
 	app := &App{ctx: context.Background()}
-	if app.GetSeasonMode() {
-		t.Fatal("expected GetSeasonMode false when the season service is nil")
+	if app.seasonModeReader()(context.Background()) {
+		t.Fatal("expected season mode off when the season service is nil")
 	}
 }
 
 func TestGetSeasonModeFalseWhenNoOpenSeason(t *testing.T) {
 	t.Parallel()
 	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
-	if app.GetSeasonMode() {
+	if must(t).value(app.GetSeasonMode()) {
 		t.Fatal("expected GetSeasonMode false with no open season")
 	}
 }
@@ -28,10 +28,10 @@ func TestGetSeasonModeFalseWhenNoOpenSeason(t *testing.T) {
 func TestGetSeasonModeTrueWhileSeasonOpen(t *testing.T) {
 	t.Parallel()
 	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
-	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+	if got := app.CreateSeason("Julio 2026"); got != nil {
 		t.Fatalf("CreateSeason: %q", got)
 	}
-	if !app.GetSeasonMode() {
+	if !must(t).value(app.GetSeasonMode()) {
 		t.Fatal("expected season mode on while a season is open")
 	}
 }
@@ -40,10 +40,10 @@ func TestGetSeasonModeFalseAfterClose(t *testing.T) {
 	t.Parallel()
 	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
 	_ = app.CreateSeason("Julio 2026")
-	if got := app.CloseSeason(); got != "ok" {
+	if got := app.CloseSeason(); got != nil {
 		t.Fatalf("CloseSeason: %q", got)
 	}
-	if app.GetSeasonMode() {
+	if must(t).value(app.GetSeasonMode()) {
 		t.Fatal("expected season mode off after closing the season")
 	}
 }

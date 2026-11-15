@@ -130,20 +130,21 @@ func (r *fakeSeasonRepo) UpdateSeasonAnime(_ context.Context, seasonAnime domain
 	return nil
 }
 
-// newTestSeasonApp creates an application backed by a test season service. An
-// empty anime query is wired by default so board-capturing bindings (CloseSeason)
-// read live data instead of failing; tests needing specific animes overwrite it.
 // seasonRowsByID indexes the app's current intake rows by row ID.
-func seasonRowsByID(app *App) map[string]SeasonAnimeDTO {
+func seasonRowsByID(t *testing.T, app *App) map[string]SeasonAnimeDTO {
+	t.Helper()
 	byID := map[string]SeasonAnimeDTO{}
-	for _, row := range app.GetSeasonAnimes() {
+	for _, row := range must(t).value(app.GetSeasonAnimes()) {
 		byID[row.ID] = row
 	}
 	return byID
 }
 
 // newTestSeasonApp builds an App over a season service backed by repo, with a fixed
-// clock and sequential IDs; a non-nil hub receives the realtime broadcasts.
+// clock and sequential IDs, its season module bound and ready; a non-nil hub receives
+// the realtime broadcasts. An empty anime query is wired by default so board-capturing
+// bindings (CloseSeason) read live data instead of failing; a test needing specific
+// animes overwrites it and calls seasonReady again.
 func newTestSeasonApp(repo season.Repository, hub *stubAppRealtimeHub) *App {
 	fixed := time.UnixMilli(1_700_000_000_000)
 	nextID := 0
@@ -155,7 +156,7 @@ func newTestSeasonApp(repo season.Repository, hub *stubAppRealtimeHub) *App {
 	if hub != nil {
 		app.realtimeHub = hub
 	}
-	return app
+	return seasonReady(app)
 }
 
 // fakeAppNameSearcher answers a name search from canned candidates per query,
@@ -226,7 +227,7 @@ func newRuntimeSeasonFixture(t *testing.T) runtimeSeasonFixture {
 // seedAvailableRow opens the fixture's season and adds one AVAILABLE intake row.
 func (f runtimeSeasonFixture) seedAvailableRow(t *testing.T, rowID, name, pageURL string) {
 	t.Helper()
-	if got := f.app.CreateSeason("Julio 2026"); got != "ok" {
+	if got := f.app.CreateSeason("Julio 2026"); got != nil {
 		t.Fatalf("CreateSeason: %q", got)
 	}
 	active, err := f.app.seasonService.ActiveSeason(context.Background())
@@ -262,7 +263,7 @@ func newSQLiteSeasonFixture(t *testing.T) sqliteSeasonFixture {
 // seedRow opens the fixture's season and adds one AVAILABLE intake row under it.
 func (f sqliteSeasonFixture) seedRow(t *testing.T, rowID, name string) {
 	t.Helper()
-	if got := f.app.CreateSeason("Julio 2026"); got != "ok" {
+	if got := f.app.CreateSeason("Julio 2026"); got != nil {
 		t.Fatalf("CreateSeason: %q", got)
 	}
 	active, err := f.app.seasonService.ActiveSeason(context.Background())

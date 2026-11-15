@@ -10,9 +10,9 @@ import (
 	"autoreas-bridge/internal/season/domain"
 )
 
-// errOrderingBoardUnavailable is the builder's explicit failure when the season
-// service or the anime query is not wired: no board can be read, and a capture
-// must never fabricate an empty one.
+// errOrderingBoardUnavailable is the builder's explicit failure when the anime
+// query is not wired: no board can be read, and a capture must never fabricate
+// an empty one.
 var errOrderingBoardUnavailable = errors.New("ordering board unavailable")
 
 // seasonBoardInputs is one consistent read of everything the season boards are
@@ -25,22 +25,22 @@ type seasonBoardInputs struct {
 
 // readSeasonBoardInputs reads the open season, its rows and the live animes,
 // reporting every failure so a capture never builds a board from a failed read.
-func (a *App) readSeasonBoardInputs() (seasonBoardInputs, error) {
-	if a.seasonService == nil || a.animeQuery == nil {
+func (a *App) readSeasonBoardInputs(s seasonServices) (seasonBoardInputs, error) {
+	if s.animes == nil {
 		return seasonBoardInputs{}, errOrderingBoardUnavailable
 	}
-	active, err := a.seasonService.ActiveSeason(a.seasonCtx())
+	active, err := s.season.ActiveSeason(a.seasonCtx())
 	if err != nil {
 		return seasonBoardInputs{}, err
 	}
 	if active == nil {
 		return seasonBoardInputs{}, season.ErrNoActiveSeason
 	}
-	rows, err := a.seasonService.ListSeasonAnimes(a.seasonCtx(), active.ID)
+	rows, err := s.season.ListSeasonAnimes(a.seasonCtx(), active.ID)
 	if err != nil {
 		return seasonBoardInputs{}, err
 	}
-	animes, err := a.animeQuery.ListMobileAnimes(a.seasonCtx())
+	animes, err := s.animes.ListMobileAnimes(a.seasonCtx())
 	if err != nil {
 		return seasonBoardInputs{}, err
 	}
@@ -60,24 +60,29 @@ func (in seasonBoardInputs) orderingBoard() OrderingBoardDTO {
 // candidates; the grid is every active anime already scheduled on a weekday
 // (continuing titles + placed newcomers). Newcomers (this season's approved) are
 // flagged. The saved draft rides along so the board restores unapplied edits;
-// the closure capture never reads it. Any read failure degrades to an empty
-// board for the UI.
-func (a *App) GetSeasonOrderingBoard() OrderingBoardDTO {
-	inputs, err := a.readSeasonBoardInputs()
-	if err != nil {
-		return OrderingBoardDTO{Rail: []OrderingCardDTO{}, Grid: []OrderingCardDTO{}}
-	}
-	board := inputs.orderingBoard()
-	board.Draft = inputs.active.OrderingDraft
-	return board
+// the closure capture never reads it. No open season is an empty board; any
+// read failure is the binding's error, never an empty board.
+func (a *App) GetSeasonOrderingBoard() (OrderingBoardDTO, error) {
+	return a.moduleSet().season.Use(func(s seasonServices) (OrderingBoardDTO, error) {
+		inputs, err := a.readSeasonBoardInputs(s)
+		if errors.Is(err, season.ErrNoActiveSeason) {
+			return OrderingBoardDTO{Rail: []OrderingCardDTO{}, Grid: []OrderingCardDTO{}}, nil
+		}
+		if err != nil {
+			return OrderingBoardDTO{}, err
+		}
+		board := inputs.orderingBoard()
+		board.Draft = inputs.active.OrderingDraft
+		return board, nil
+	})
 }
 
 // captureSeasonClosure builds the ordering and Daily boards from one live read
 // and encodes the closure snapshot. Any failure — a read error or an encode
 // error — returns an error so the caller leaves the season open rather than
 // storing a false snapshot.
-func (a *App) captureSeasonClosure() (string, error) {
-	inputs, err := a.readSeasonBoardInputs()
+func (a *App) captureSeasonClosure(s seasonServices) (string, error) {
+	inputs, err := a.readSeasonBoardInputs(s)
 	if err != nil {
 		return "", err
 	}

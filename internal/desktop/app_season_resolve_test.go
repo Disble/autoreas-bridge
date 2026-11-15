@@ -52,14 +52,14 @@ func TestResolveSeasonMatchRechecksTheRow(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			hub := &stubAppRealtimeHub{}
-			app, notifier, rowID := newResolveFixture(hub, tc.failRecheck)
+			app, notifier, rowID := newResolveFixture(t, hub, tc.failRecheck)
 			app.seasonService.SetAvailabilityDeps(tc.probe, nil)
 
-			if got := app.ResolveSeasonMatch(rowID, resolvedPageURL); got != "ok" {
+			if got := app.ResolveSeasonMatch(rowID, resolvedPageURL); got != nil {
 				t.Fatalf("ResolveSeasonMatch = %q, want ok", got)
 			}
 
-			row := app.GetSeasonAnimes()[0]
+			row := must(t).value(app.GetSeasonAnimes())[0]
 			if row.MatchStatus != "matched" || row.MatchedSlug != resolvedPageURL || row.Availability != tc.wantAvail || row.AvailableEpisodes != tc.wantEpisodes {
 				t.Fatalf("row = %+v, want matched to %s, %s with %d episodes", row, resolvedPageURL, tc.wantAvail, tc.wantEpisodes)
 			}
@@ -69,7 +69,8 @@ func TestResolveSeasonMatchRechecksTheRow(t *testing.T) {
 }
 
 // newResolveFixture opens a season with one intake row. With failRecheck, every row write after the resolve fails.
-func newResolveFixture(hub *stubAppRealtimeHub, failRecheck bool) (*App, *recordingAppNotifier, string) {
+func newResolveFixture(t *testing.T, hub *stubAppRealtimeHub, failRecheck bool) (*App, *recordingAppNotifier, string) {
+	t.Helper()
 	var repo season.Repository = newFakeSeasonRepo()
 	if failRecheck {
 		repo = &failingSecondUpdateRepo{fakeSeasonRepo: newFakeSeasonRepo()}
@@ -79,7 +80,7 @@ func newResolveFixture(hub *stubAppRealtimeHub, failRecheck bool) (*App, *record
 	app.notifier = notifier
 	_ = app.CreateSeason("Julio 2026")
 	_ = app.ImportSeasonIntake("Ao Ashi")
-	rowID := app.GetSeasonAnimes()[0].ID
+	rowID := must(t).value(app.GetSeasonAnimes())[0].ID
 	return app, notifier, rowID
 }
 
@@ -102,7 +103,7 @@ func TestResolveSeasonMatchUnknownRowFails(t *testing.T) {
 	_ = app.CreateSeason("Julio 2026")
 	app.seasonService.SetAvailabilityDeps(fakeAppAvailabilityProbe{}, nil)
 
-	if got := app.ResolveSeasonMatch("missing", resolvedPageURL); got != season.ErrSeasonAnimeNotFound.Error() {
+	if got := app.ResolveSeasonMatch("missing", resolvedPageURL); !errors.Is(got, season.ErrSeasonAnimeNotFound) {
 		t.Fatalf("ResolveSeasonMatch = %q, want %q", got, season.ErrSeasonAnimeNotFound.Error())
 	}
 }

@@ -16,31 +16,6 @@ import (
 	"autoreas-bridge/internal/season/match"
 )
 
-// ── nil service safety ──────────────────────────────────────────────────────
-
-func TestGetSeasonReturnsNilWhenServiceNil(t *testing.T) {
-	t.Parallel()
-	app := &App{ctx: context.Background()}
-	if app.GetSeason() != nil {
-		t.Fatal("expected nil season when service is nil")
-	}
-}
-
-func TestSeasonMutatorsReturnErrorStringWhenServiceNil(t *testing.T) {
-	t.Parallel()
-	app := &App{ctx: context.Background()}
-	for name, got := range map[string]string{
-		"CreateSeason":              app.CreateSeason("Julio 2026"),
-		"SetSeasonMinApprovalGrade": app.SetSeasonMinApprovalGrade(4),
-		"SetSeasonSlots":            app.SetSeasonSlots(12),
-		"CloseSeason":               app.CloseSeason(),
-	} {
-		if got == "" || got == "ok" {
-			t.Fatalf("%s: expected non-ok error string with nil service, got %q", name, got)
-		}
-	}
-}
-
 // ── wired round-trip ────────────────────────────────────────────────────────
 
 func TestCreateSeasonRoundTrip(t *testing.T) {
@@ -48,11 +23,11 @@ func TestCreateSeasonRoundTrip(t *testing.T) {
 	hub := &stubAppRealtimeHub{}
 	app := newTestSeasonApp(newFakeSeasonRepo(), hub)
 
-	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+	if got := app.CreateSeason("Julio 2026"); got != nil {
 		t.Fatalf("CreateSeason: expected ok, got %q", got)
 	}
 
-	dto := app.GetSeason()
+	dto := must(t).value(app.GetSeason())
 	if dto == nil {
 		t.Fatal("expected an active season after create")
 	}
@@ -67,10 +42,10 @@ func TestCreateSeasonRoundTrip(t *testing.T) {
 func TestCreateSeasonRejectsSecondOpen(t *testing.T) {
 	t.Parallel()
 	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
-	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+	if got := app.CreateSeason("Julio 2026"); got != nil {
 		t.Fatalf("first create: %q", got)
 	}
-	if got := app.CreateSeason("Octubre 2026"); got == "ok" || got == "" {
+	if got := app.CreateSeason("Octubre 2026"); got == nil {
 		t.Fatalf("expected error string on second open season, got %q", got)
 	}
 }
@@ -80,18 +55,18 @@ func TestSetSeasonParametersRoundTrip(t *testing.T) {
 	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
 	_ = app.CreateSeason("Julio 2026")
 
-	if got := app.SetSeasonMinApprovalGrade(5); got != "ok" {
+	if got := app.SetSeasonMinApprovalGrade(5); got != nil {
 		t.Fatalf("SetSeasonMinApprovalGrade: %q", got)
 	}
-	if got := app.SetSeasonSlots(9); got != "ok" {
+	if got := app.SetSeasonSlots(9); got != nil {
 		t.Fatalf("SetSeasonSlots: %q", got)
 	}
-	dto := app.GetSeason()
+	dto := must(t).value(app.GetSeason())
 	if dto.MinApprovalGrade != 5 || dto.Slots != 9 {
 		t.Fatalf("params not persisted: %+v", dto)
 	}
 
-	if got := app.SetSeasonMinApprovalGrade(9); got == "ok" || got == "" {
+	if got := app.SetSeasonMinApprovalGrade(9); got == nil {
 		t.Fatalf("expected rejection of out-of-range grade, got %q", got)
 	}
 }
@@ -101,10 +76,10 @@ func TestImportSeasonIntakeAndGetSeasonAnimes(t *testing.T) {
 	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
 	_ = app.CreateSeason("Julio 2026")
 
-	if got := app.ImportSeasonIntake("Dr. Stone\nMARRIAGETOXIN\ndr. stone"); got != "ok" {
+	if got := app.ImportSeasonIntake("Dr. Stone\nMARRIAGETOXIN\ndr. stone"); got != nil {
 		t.Fatalf("ImportSeasonIntake: %q", got)
 	}
-	rows := app.GetSeasonAnimes()
+	rows := must(t).value(app.GetSeasonAnimes())
 	if len(rows) != 2 {
 		t.Fatalf("expected 2 deduped rows, got %d: %+v", len(rows), rows)
 	}
@@ -118,7 +93,7 @@ func TestImportSeasonIntakeAndGetSeasonAnimes(t *testing.T) {
 func TestImportSeasonIntakeWithoutActiveSeason(t *testing.T) {
 	t.Parallel()
 	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
-	if got := app.ImportSeasonIntake("Dr. Stone"); got == "ok" || got == "" {
+	if got := app.ImportSeasonIntake("Dr. Stone"); got == nil {
 		t.Fatalf("expected error without an active season, got %q", got)
 	}
 }
@@ -139,20 +114,20 @@ func TestRunSeasonMatchingRefreshesAvailabilityForNewMatches(t *testing.T) {
 	svc.SetAvailabilityDeps(fakeAppAvailabilityProbe{episodes: map[string]int{
 		"https://jkanime.net/anime-with-episode/": 1,
 	}}, nil)
-	app := &App{ctx: context.Background(), seasonService: svc}
+	app := seasonReady(&App{ctx: context.Background(), seasonService: svc})
 
-	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+	if got := app.CreateSeason("Julio 2026"); got != nil {
 		t.Fatalf("CreateSeason: %q", got)
 	}
-	if got := app.ImportSeasonIntake("Anime With Episode"); got != "ok" {
+	if got := app.ImportSeasonIntake("Anime With Episode"); got != nil {
 		t.Fatalf("ImportSeasonIntake: %q", got)
 	}
 
-	if got := app.RunSeasonMatching(); got != "ok" {
+	if got := app.RunSeasonMatching(); got != nil {
 		t.Fatalf("RunSeasonMatching: %q", got)
 	}
 
-	rows := app.GetSeasonAnimes()
+	rows := must(t).value(app.GetSeasonAnimes())
 	if len(rows) != 1 {
 		t.Fatalf("expected one row, got %+v", rows)
 	}
@@ -196,15 +171,15 @@ func TestRunSeasonMatchingOrdersFinishedAfterBothPhases(t *testing.T) {
 		nil,
 	)
 	svc.SetEventBus(bus)
-	app := &App{ctx: context.Background(), seasonService: svc, eventBus: bus}
+	app := seasonReady(&App{ctx: context.Background(), seasonService: svc, eventBus: bus})
 
-	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+	if got := app.CreateSeason("Julio 2026"); got != nil {
 		t.Fatalf("CreateSeason: %q", got)
 	}
-	if got := app.ImportSeasonIntake("Good Anime\nTypo Anime"); got != "ok" {
+	if got := app.ImportSeasonIntake("Good Anime\nTypo Anime"); got != nil {
 		t.Fatalf("ImportSeasonIntake: %q", got)
 	}
-	if got := app.RunSeasonMatching(); got != "ok" {
+	if got := app.RunSeasonMatching(); got != nil {
 		t.Fatalf("RunSeasonMatching: %q", got)
 	}
 
@@ -224,33 +199,33 @@ func TestResolveDiscardAndRestoreSeasonRows(t *testing.T) {
 	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
 	_ = app.CreateSeason("Julio 2026")
 	_ = app.ImportSeasonIntake("Anime Uno\nAnime Dos")
-	rows := app.GetSeasonAnimes()
+	rows := must(t).value(app.GetSeasonAnimes())
 	if len(rows) != 2 {
 		t.Fatalf("setup expected 2 rows, got %d", len(rows))
 	}
 
-	if got := app.ResolveSeasonMatch(rows[0].ID, "https://jkanime.net/anime-uno/"); got != "ok" {
+	if got := app.ResolveSeasonMatch(rows[0].ID, "https://jkanime.net/anime-uno/"); got != nil {
 		t.Fatalf("ResolveSeasonMatch: %q", got)
 	}
-	if got := app.DiscardSeasonName(rows[1].ID); got != "ok" {
+	if got := app.DiscardSeasonName(rows[1].ID); got != nil {
 		t.Fatalf("DiscardSeasonName: %q", got)
 	}
 
-	after := seasonRowsByID(app)
+	after := seasonRowsByID(t, app)
 	if after[rows[0].ID].MatchStatus != "matched" || after[rows[1].ID].MatchStatus != "discarded" {
 		t.Fatalf("unexpected rows: %+v", after)
 	}
 
-	if got := app.DiscardSeasonName(rows[0].ID); got != "ok" {
+	if got := app.DiscardSeasonName(rows[0].ID); got != nil {
 		t.Fatalf("DiscardSeasonName(matched): %q", got)
 	}
-	if got := app.RestoreSeasonName(rows[0].ID); got != "ok" {
+	if got := app.RestoreSeasonName(rows[0].ID); got != nil {
 		t.Fatalf("RestoreSeasonName: %q", got)
 	}
-	if got := app.RestoreSeasonName("missing"); got == "ok" {
+	if got := app.RestoreSeasonName("missing"); got == nil {
 		t.Fatalf("RestoreSeasonName(missing) = %q, want an error", got)
 	}
-	restored, ok := seasonRowsByID(app)[rows[0].ID]
+	restored, ok := seasonRowsByID(t, app)[rows[0].ID]
 	if !ok || restored.MatchStatus != "matched" || restored.MatchedSlug != "https://jkanime.net/anime-uno/" {
 		t.Fatalf("restored row = %+v (found %v), want matched with its page", restored, ok)
 	}
@@ -261,17 +236,17 @@ func TestReconcileSeasonIntakeAddsAndDiscards(t *testing.T) {
 	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
 	_ = app.CreateSeason("Julio 2026")
 
-	if got := app.ReconcileSeasonIntake("Anime A\nAnime B\nAnime C"); got != "ok" {
+	if got := app.ReconcileSeasonIntake("Anime A\nAnime B\nAnime C"); got != nil {
 		t.Fatalf("ReconcileSeasonIntake: %q", got)
 	}
-	if len(app.GetSeasonAnimes()) != 3 {
+	if len(must(t).value(app.GetSeasonAnimes())) != 3 {
 		t.Fatalf("expected 3 rows after reconcile")
 	}
 
-	if got := app.ReconcileSeasonIntake("Anime A"); got != "ok" {
+	if got := app.ReconcileSeasonIntake("Anime A"); got != nil {
 		t.Fatalf("second reconcile: %q", got)
 	}
-	active := app.GetSeasonAnimes()
+	active := must(t).value(app.GetSeasonAnimes())
 	pending := 0
 	for _, r := range active {
 		if r.MatchStatus == "pending" {
@@ -385,7 +360,7 @@ func TestSeasonAnimeDTOsOverlaysFolderAndPageForCreatedRowsOnly(t *testing.T) {
 		{ID: "row-pending", RawName: "Pending Anime", AnimeID: ""},
 	}
 
-	dtos := app.seasonAnimeDTOs(context.Background(), rows)
+	dtos := seasonAnimeDTOs(context.Background(), app.animeQuery, rows)
 	if len(dtos) != 2 {
 		t.Fatalf("expected 2 DTOs, got %d", len(dtos))
 	}
@@ -398,24 +373,16 @@ func TestSeasonAnimeDTOsOverlaysFolderAndPageForCreatedRowsOnly(t *testing.T) {
 	}
 }
 
-func TestGetSeasonAnimesEmptyWhenNoService(t *testing.T) {
-	t.Parallel()
-	app := &App{ctx: context.Background()}
-	if got := app.GetSeasonAnimes(); len(got) != 0 {
-		t.Fatalf("expected empty list with nil service, got %+v", got)
-	}
-}
-
 func TestCloseSeasonClearsActive(t *testing.T) {
 	t.Parallel()
 	hub := &stubAppRealtimeHub{}
 	app := newTestSeasonApp(newFakeSeasonRepo(), hub)
 	_ = app.CreateSeason("Julio 2026")
 
-	if got := app.CloseSeason(); got != "ok" {
+	if got := app.CloseSeason(); got != nil {
 		t.Fatalf("CloseSeason: %q", got)
 	}
-	if app.GetSeason() != nil {
+	if must(t).value(app.GetSeason()) != nil {
 		t.Fatal("expected no active season after close")
 	}
 }

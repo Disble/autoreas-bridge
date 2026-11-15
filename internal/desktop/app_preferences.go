@@ -15,9 +15,14 @@ var errAutoStartSettingsUnavailable = errors.New("auto-start settings unavailabl
 // GetSeasonMode reports whether the bridge is in season mode. Season mode is a
 // DERIVED state (SDD-41b): it is on exactly while a season is open. The manual
 // Options toggle was removed — the Season section is the single source of truth,
-// so opening a season turns season mode on and closing it turns it off.
-func (a *App) GetSeasonMode() bool {
-	return a.seasonModeReader()(a.seasonCtx())
+// so opening a season turns season mode on and closing it turns it off. It runs
+// through the season module handle: a module that is not ready, or a failed
+// read, is the binding's error, never "off".
+func (a *App) GetSeasonMode() (bool, error) {
+	return a.moduleSet().season.Use(func(s seasonServices) (bool, error) {
+		active, err := s.season.ActiveSeason(a.seasonCtx())
+		return active != nil, err
+	})
 }
 
 // seasonModeReader returns a ctx-aware reader for the derived season-mode flag,
