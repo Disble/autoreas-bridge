@@ -1,9 +1,10 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import * as ReactRouter from 'react-router';
 import type { AnimeSource } from '../../../../../shared/contracts/anime-source.types';
 import type { AnimeDetail } from '../../../../../shared/contracts/anime.types';
 import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
+import { BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE } from '../../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import type { AnimeDetailCommandSource } from '../anime-detail.types';
 import { useAnimeDetail } from '../use-anime-detail';
@@ -197,9 +198,13 @@ describe('useAnimeDetail anime change', () => {
   });
 
   it('deep-links Edit anime and the desktop actions to the current id after an animeId change', async () => {
-    const copyAnimeFolder = vi.fn().mockResolvedValue({ status: 'ok' });
-    const openAnimePage = vi.fn().mockResolvedValue({ status: 'ok' });
-    const source = createSource(populatedDetail, { copyAnimeFolder, openAnimePage });
+    const copyAnimeFolder = vi.spyOn(BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE, 'copyAnimeFolder').mockResolvedValue({ status: 'ok' });
+    const openAnimePage = vi.spyOn(BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE, 'openAnimePage').mockResolvedValue({ status: 'ok' });
+    onTestFinished(() => {
+      copyAnimeFolder.mockRestore();
+      openAnimePage.mockRestore();
+    });
+    const source = createSource(populatedDetail);
     const { result, rerender } = await renderLoadedDetail(source);
 
     rerender({ animeId: 'anime-2' });

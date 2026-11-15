@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
 import { BRIDGE_INVALIDATIONS } from '../../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { connectInvalidationBridge } from '../../../../../shared/query/invalidation-bridge/invalidation-bridge.helpers';
 import { status } from '../../../../../shared/query/test-support/readiness-source.test-support';
@@ -160,8 +161,11 @@ describe('useEpisodeSchedulePanel', () => {
       expect(toastMock.success).toHaveBeenCalledWith('Page URL copied to clipboard');
     });
 
-    it('does not toast when the copy fails and shows its message as the failure', async () => {
-      const source = createSource({ copyAnimeFolder: vi.fn().mockResolvedValue({ status: 'error', message: 'clipboard unavailable' }) });
+    it.each([
+      ['answers an error status', () => Promise.resolve({ status: 'error', message: 'clipboard unavailable' })],
+      ['rejects with a BridgeError', () => Promise.reject(createBridgeError('internal', 'clipboard unavailable'))],
+    ])('does not toast when the copy %s and shows its message as the failure', async (_label, copyAnimeFolder) => {
+      const source = createSource({ copyAnimeFolder: vi.fn(copyAnimeFolder) });
       const { result } = renderPanelHook({ initialDay: 'Viernes', source });
       await waitFor(() => expect(result.current.scheduleView.kind).toBe('empty'));
 

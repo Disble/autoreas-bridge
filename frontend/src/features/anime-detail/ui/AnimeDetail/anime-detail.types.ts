@@ -1,6 +1,6 @@
 import type { ReactNode, SyntheticEvent } from 'react';
-import type { contracts } from '../../../../../wailsjs/go/models';
 import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import type { AnimeDesktopActionResult, AnimeDesktopActionsSource } from '../../../../shared/contracts/anime-editor-source.types';
 import type { AnimeDetail as AnimeDetailDto } from '../../../../shared/contracts/anime.types';
 import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
 import type { AsyncViewSource } from '../../../../shared/query/async-view/async-view.types';
@@ -82,8 +82,8 @@ export interface AnimeDetailLoad {
   readonly failureMessage: string | undefined;
 }
 
-/** The commands and desktop actions the detail page runs, not yet behind a module port. */
-export type AnimeDetailCommandSource = Pick<BridgeRuntimeSource, 'repeatAnime' | 'restoreAnime' | 'copyAnimeFolder' | 'openAnimePage'>;
+/** The commands the detail page runs, not yet behind a module port. */
+export type AnimeDetailCommandSource = Pick<BridgeRuntimeSource, 'repeatAnime' | 'restoreAnime'>;
 
 /** Destructive anime command selected by the user for explicit confirmation. */
 export type AnimeDetailAction = 'repeat' | 'restore';
@@ -155,7 +155,7 @@ export interface AnimeDetailMutationControlsProps extends AnimeDetailMutationCon
 }
 
 /** A desktop-action binding such as `copyAnimeFolder` or `openAnimePage`, keyed by anime id. */
-export type AnimeDetailDesktopAction = (animeId: string) => Promise<contracts.EpisodeCommandResult>;
+export type AnimeDetailDesktopAction = (animeId: string) => Promise<AnimeDesktopActionResult>;
 
 /** The toasts one desktop action raises: an optional success and a required failure. */
 export interface AnimeDetailDesktopActionFeedback {
@@ -163,8 +163,8 @@ export interface AnimeDetailDesktopActionFeedback {
   readonly failure: string;
 }
 
-/** The desktop-action bindings Detail uses; each is optional, and an absent one fails closed. */
-export type AnimeDetailDesktopActionSource = Pick<BridgeRuntimeSource, 'copyAnimeFolder' | 'openAnimePage'>;
+/** The anime module's desktop actions Detail uses. */
+export type AnimeDetailDesktopActionSource = Pick<AnimeDesktopActionsSource, 'copyAnimeFolder' | 'openAnimePage'>;
 
 /** The Detail callbacks that leave the app: copy the folder path, open the page in the default browser. */
 export interface AnimeDetailDesktopActions {

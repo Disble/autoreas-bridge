@@ -51,6 +51,13 @@ async function countRenders(load: () => Promise<Record<string, unknown>>, name: 
 }
 
 vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({ bridgeRuntimeSource: mockSource }));
+vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  /** The workspace's default anime-module Editor port: the same fake. */
+  get BRIDGE_ANIME_EDITOR_SOURCE() {
+    return mockSource;
+  },
+}));
 vi.mock('../AnimeEditorListPanel', (load) => countRenders(load, 'AnimeEditorListPanel', true));
 vi.mock('../AnimeEditorFormPanel', (load) => countRenders(load, 'AnimeEditorFormPanel', true));
 vi.mock('../AnimeEditorDialogs', (load) => countRenders(load, 'AnimeEditorDialogs', false));

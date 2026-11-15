@@ -67,17 +67,4 @@ describe('bridge-runtime-source degraded paths', () => {
 
     await expect(detailPromise).resolves.toBeNull();
   });
-
-  it('degrades createAnime to an error outcome when the Go runtime is absent', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
-    const source = createBridgeRuntimeSource();
-
-    const createPromise = source.createAnime?.({ creates: [], changedNeighbors: [] });
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    await expect(createPromise).resolves.toEqual(
-      expect.objectContaining({ outcome: 'error', message: 'runtime unavailable' }),
-    );
-  });
 });

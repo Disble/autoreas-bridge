@@ -73,69 +73,15 @@ describe('bridge-runtime-source mutating bindings', () => {
     expect(copyFolderMock).toHaveBeenCalledWith('anime-1');
   });
 
-  it('calls CreateAnime once Go bindings become ready and maps the wire DTO', async () => {
+  it('maps a rejected desktop action to an error status carrying its message for later-slice consumers', async () => {
     const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
-    const source = createBridgeRuntimeSource();
-    const createAnimeMock = vi.fn().mockResolvedValue({
-      outcome: 'applied',
-      message: 'created',
-      animeIds: ['anime-new-1'],
-      modifiedAt: 555,
-    });
+    const openPageMock = vi.fn().mockRejectedValue(new Error('{"code":"invalid_argument","message":"anime anime-1 has no page"}'));
+    const openPagePromise = createBridgeRuntimeSource().openAnimePage?.('anime-1');
 
-    const createPromise = source.createAnime?.({
-      creates: [
-        {
-          name: 'Frieren',
-          page: 'https://example.test/frieren',
-          placements: [{ day: 'Miércoles', order: 1 }],
-          folder: 'D:/Anime/Frieren',
-          kind: 0,
-          episodesWatched: 2,
-          totalEpisodes: 12,
-          durationMinutes: 24,
-          origin: 'Light novel',
-          genres: ['Adventure', 'Drama'],
-          studios: ['Madhouse'],
-          cover: { type: 'image', path: 'D:/Anime/Frieren/cover.jpg' },
-        },
-      ],
-      changedNeighbors: [
-        { animeId: 'existing-1', baseModifiedAt: 100, placements: [{ day: 'Miércoles', order: 2 }] },
-      ],
-    });
-
-    window.go = { desktop: { App: { CreateAnime: createAnimeMock } } } as never;
-
+    window.go = { desktop: { App: { OpenAnimePage: openPageMock } } } as never;
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
-    await expect(createPromise).resolves.toEqual({
-      outcome: 'applied',
-      message: 'created',
-      animeIds: ['anime-new-1'],
-      modifiedAt: 555,
-    });
-    expect(createAnimeMock).toHaveBeenCalledWith({
-      creates: [
-        {
-          nombre: 'Frieren',
-          pagina: 'https://example.test/frieren',
-          dias: [{ day: 'Miércoles', order: 1 }],
-          carpeta: 'D:/Anime/Frieren',
-          tipo: 0,
-          episodesWatched: 2,
-          totalEpisodes: 12,
-          durationMinutes: 24,
-          origin: 'Light novel',
-          genres: ['Adventure', 'Drama'],
-          studios: ['Madhouse'],
-          cover: { type: 'image', path: 'D:/Anime/Frieren/cover.jpg' },
-        },
-      ],
-      changedNeighbors: [
-        { animeId: 'existing-1', baseModifiedAt: 100, placements: [{ day: 'Miércoles', order: 2 }] },
-      ],
-    });
+    await expect(openPagePromise).resolves.toEqual({ status: 'error', modifiedAt: 0, message: 'anime anime-1 has no page' });
   });
 });

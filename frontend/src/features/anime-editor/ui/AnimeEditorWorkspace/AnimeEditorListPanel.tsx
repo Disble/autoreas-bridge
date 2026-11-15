@@ -1,4 +1,4 @@
-import { Card, Chip, SearchField, ToggleButton, ToggleButtonGroup, Typography } from '@heroui/react';
+import { Alert, Card, Chip, SearchField, ToggleButton, ToggleButtonGroup, Typography } from '@heroui/react';
 import { memo } from 'react';
 import { useNavigate } from 'react-router';
 import editorLibraryAirisArtwork from '../../../../assets/airis-empty-states/editor-library.webp';
@@ -7,7 +7,7 @@ import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmpt
 import { AIRIS_CLEAR_CRITERIA_LABEL, AIRIS_CREATE_ANIME_LABEL } from '../../../../shared/ui/AirisEmptyState/airis-empty-state.constants';
 import { AnimeEditorListRow } from './AnimeEditorListRow';
 import { AnimeEditorListSkeleton } from './AnimeEditorListSkeleton';
-import { ANIME_EDITOR_EMPTY_STATE_COPY, ANIME_EDITOR_FILTER_OPTIONS, ANIME_EDITOR_LIST_LOADING_LABEL } from './anime-editor-workspace.constants';
+import { ANIME_EDITOR_EMPTY_STATE_COPY, ANIME_EDITOR_FILTER_OPTIONS, ANIME_EDITOR_LIST_FAILED_TITLE, ANIME_EDITOR_LIST_LOADING_LABEL } from './anime-editor-workspace.constants';
 import type { AnimeEditorListPanelProps } from './anime-editor-workspace.types';
 
 /** Renders the progressively loaded watching-first search and selection rail (800+ items). */
@@ -33,6 +33,15 @@ export const AnimeEditorListPanel = memo(function AnimeEditorListPanel({ viewMod
           <span className="sr-only" id="anime-editor-list-loading-label">{ANIME_EDITOR_LIST_LOADING_LABEL}</span>
           <AnimeEditorListSkeleton />
         </div>
+      )}
+      {viewModel.listLoadError !== undefined && (
+        <Alert status="danger">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>{ANIME_EDITOR_LIST_FAILED_TITLE}</Alert.Title>
+            <Alert.Description>{viewModel.listLoadError}</Alert.Description>
+          </Alert.Content>
+        </Alert>
       )}
       {emptyState === 'actual' && (
         <AirisEmptyState

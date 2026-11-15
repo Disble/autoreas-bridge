@@ -1,11 +1,13 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import * as HeroUI from '@heroui/react';
 import * as ReactRouter from 'react-router';
+import type { AnimeDesktopActionResult } from '../../../../../shared/contracts/anime-editor-source.types';
 import type { AnimeSource } from '../../../../../shared/contracts/anime-source.types';
 import type { AnimeDetail } from '../../../../../shared/contracts/anime.types';
 import type { ModuleReadiness } from '../../../../../shared/contracts/readiness.types';
 import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
+import { BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE } from '../../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import type { AnimeDetailCommandSource } from '../anime-detail.types';
 import { useAnimeDetail } from '../use-anime-detail';
@@ -63,6 +65,17 @@ function createSource(
  */
 function modules(anime: ModuleReadiness = { module: 'anime', state: 'ready' }) {
   return createModulesTestWrapper(anime);
+}
+
+/**
+ * Replaces one of the anime module's desktop actions, which Detail runs by
+ * default, for the current test only.
+ * @param name The desktop action.
+ * @param action Its stand-in.
+ */
+function stubDesktopAction(name: 'copyAnimeFolder' | 'openAnimePage', action: (animeId: string) => Promise<AnimeDesktopActionResult>) {
+  const spy = vi.spyOn(BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE, name).mockImplementation(action);
+  onTestFinished(() => spy.mockRestore());
 }
 
 describe('useAnimeDetail', () => {
@@ -278,12 +291,13 @@ describe('useAnimeDetail', () => {
   });
 
   it.each([
-    ['success', { status: 'ok' }, 'Folder path copied'],
-    ['danger', { status: 'error', message: 'No folder' }, 'Could not copy the folder path'],
-  ] as const)('copies the folder through the binding and raises a %s toast', async (status, copyResult, message) => {
+    ['success', () => Promise.resolve({ status: 'ok' }), 'Folder path copied'],
+    ['danger', () => Promise.reject(createBridgeError('invalid_argument', 'anime anime-1 has no folder')), 'Could not copy the folder path'],
+  ] as const)('copies the folder through the anime module and raises a %s toast', async (status, copyResult, message) => {
     const toastSpy = vi.spyOn(HeroUI.toast, status).mockReturnValue('toast-1');
-    const copyAnimeFolder = vi.fn().mockResolvedValue(copyResult);
-    const source = createSource(populatedDetail, { copyAnimeFolder });
+    const copyAnimeFolder = vi.fn(copyResult);
+    stubDesktopAction('copyAnimeFolder', copyAnimeFolder);
+    const source = createSource(populatedDetail);
     const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
 
@@ -295,7 +309,7 @@ describe('useAnimeDetail', () => {
     expect(toastSpy).toHaveBeenCalledWith(message);
   });
 
-  it('opens the page through the binding for the current anime, silent on success and with a danger toast on failure', async () => {
+  it('opens the page through the anime module for the current anime, silent on success and with a danger toast on a rejection', async () => {
     const successSpy = vi.spyOn(HeroUI.toast, 'success').mockReturnValue('toast-1');
     const dangerSpy = vi.spyOn(HeroUI.toast, 'danger').mockReturnValue('toast-2');
     successSpy.mockClear();
@@ -303,8 +317,9 @@ describe('useAnimeDetail', () => {
     const openAnimePage = vi.fn()
       .mockResolvedValueOnce({ status: 'ok' })
       .mockResolvedValueOnce({ status: 'ok' })
-      .mockResolvedValueOnce({ status: 'error', message: 'No page' });
-    const source = createSource(populatedDetail, { openAnimePage });
+      .mockRejectedValueOnce(createBridgeError('unavailable', 'anime is starting'));
+    stubDesktopAction('openAnimePage', openAnimePage);
+    const source = createSource(populatedDetail);
     const { result, rerender } = renderHook(
       ({ animeId }) => useAnimeDetail({ animeId }, source, source),
       { initialProps: { animeId: 'anime-2' }, ...modules() },

@@ -140,6 +140,19 @@ same way:
   anime id, `invalid_argument` for an unknown history order and `internal` when a read fails. None
   answers `[]`, `null` or an error-status page in place of a failure. Once ready, a missing or
   unreadable cover is still the placeholder, never a failure.
+- The Editor, create and desktop-action bindings run through the same handle
+  (`internal/desktop/app_runtime_editor.go`, `app_runtime_create.go`, `app_desktop_actions.go`),
+  over `animeServices.editorQuery`, `editorWrite`, `scheduleQuery`, `scheduleWrite`, `createBatch`
+  and `query`. They reject with `unavailable` / `failed_precondition` like the reads, and none answers
+  an `error` outcome or status: `GetAnimeEditorRecord` is `not_found` for an unknown anime;
+  `SaveAnimeEditor` is `invalid_argument` for a patch its DTO conversion rejects; a failed read or
+  write (the editor service's own validation included) is `internal`. A failed save or deactivate is
+  still recorded as `anime.editor_save_failed` before it is returned. `applied`, `no_op` and
+  `conflict` stay result outcomes, and a committed write whose record refresh fails still answers its
+  outcome with `details.refreshError`. A failed schedule apply returns its error without a refreshed
+  board. The four desktop actions are `not_found` for an unknown anime, `invalid_argument` for an
+  anime without a page or folder, and `internal` when the stored value is unsafe or the launch or
+  copy fails; nothing is opened or copied while the module is not ready.
 - The notification center's "run again" action (`runAnimeAgainIntent`,
   `internal/desktop/app_notification_center.go`) reports a deleted target only for `not_found`; a
   starting module or a failed read is returned as that error.
@@ -283,9 +296,11 @@ flowchart LR
 - Readiness recovery: the gate re-reads `GetReadiness()` while a query waits on a `starting`
   module and retries a failed first snapshot with the same backoff (1 s, 2 s, 4 s, then every 8 s),
   so a dropped `bridge.readiness` event cannot leave Today on its skeleton or its Alert.
-- Not migrated (task T5): the season probe (`preferencesSource.getSeasonMode`), covers, row writes
-  and desktop actions still call `bridgeRuntimeSource` / `preferencesSource` with their
-  runtime-unavailable fallbacks; no UI state for Today lives in Zustand.
+- The four row desktop actions come from `BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE`; a rejection is panel
+  feedback with its message ("Frontend: Editor and create").
+- Not migrated (task T5): the season probe (`preferencesSource.getSeasonMode`), covers and row
+  writes still call `bridgeRuntimeSource` / `preferencesSource` with their runtime-unavailable
+  fallbacks; no UI state for Today lives in Zustand.
 - Durations card (Editor, `frontend/src/features/anime-editor/ui/EpisodeDurationsSection/`): its
   adapter `createEpisodeDurationRuntimeSource`
   (`frontend/src/infrastructure/bridge-runtime-source/episode-duration-runtime-source.helpers.ts`)
@@ -360,20 +375,60 @@ flowchart LR
   Repeat/Restore failed stays shown with the warning feedback. A failed cover read is the placeholder.
 - Invalidation: no `BRIDGE_INVALIDATIONS` rule refreshes these queries; as before the migration,
   each screen reads on mount and on a key change, and the Detail page reads again after a mutation.
-- Not migrated (later tasks): the editor's and create screen's catalog reads (T5i), the download
-  run history's anime names (T5k) and the other cover consumers (notifications T5d, Season T5j,
-  editor T5i, run history T5k) still call `bridgeRuntimeSource`, which keeps their previous `[]`,
-  `null` and placeholder fallbacks; `PreviewAnimeCover` is read only by `CoverPreview` (T5i).
-  Repeat/Restore (T5g) and the Detail page's copy-folder and open-page actions still run through
-  `bridgeRuntimeSource`.
+- Not migrated (later tasks): the download run history's anime names (T5k) and the other cover
+  consumers (notifications T5d, Season T5j, the Editor's rail and header covers, run history T5k)
+  still call `bridgeRuntimeSource`, which keeps their previous `[]`, `null` and placeholder
+  fallbacks; `PreviewAnimeCover` is read only by `CoverPreview` (the Editor and create forms).
+  Repeat/Restore (T5g) still run through `bridgeRuntimeSource`. The Detail page's copy-folder and
+  open-page actions run through `BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE` ("Frontend: Editor and
+  create").
+
+## Frontend: Editor and create
+
+The Editor, the create screen and the desktop actions follow ADR-032 §4 through two ports in
+`frontend/src/shared/contracts/anime-editor-source.types.ts`: `AnimeEditorSource` (the catalog,
+the record, save, deactivate, the schedule board, its apply and the batch create) and
+`AnimeDesktopActionsSource` (open or copy a page or folder). Their adapters `createAnimeEditorSource`
+and `createAnimeDesktopActionsSource`
+(`frontend/src/infrastructure/bridge-runtime-source/anime-editor-source.helpers.ts`) hold the wire
+mappers, wrap each binding in `withBridgeErrors` and reject as `unavailable` when a binding never
+attaches. They are built once as `BRIDGE_ANIME_EDITOR_SOURCE` (its catalog is
+`BRIDGE_ANIME_SOURCE.getAnimes`) and `BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE`.
+
+- Queries (all `module: 'anime'`): the Editor rail and the create name check read the catalog under
+  `ANIME_LIST_KEY`; the Editor record under `animeEditorKeys.key('record', id)` and the schedule
+  board under `animeEditorKeys.key('schedule-board', id)` (the create screen reads it with id `''`),
+  both with `gcTime: 0`. The `anime-editor` prefix keeps catalog invalidations away from a record the
+  Editor holds a draft over. The create screen reads the library root under
+  `settingsKeys.key('library-root')` on module `settings`; a failed read leaves the root unset.
+- Record draft: each settled record read replaces the draft once (`useAnimeEditorRecordRead`, composed
+  by `useAnimeEditorRecord`); a failed
+  read clears the record and shows its message. Save, deactivate, the schedule apply, the create
+  and the desktop actions are `useBridgeMutation`s inside the existing callbacks; the save's
+  sequencing, timeout race, toasts and post-save record read are unchanged.
+- What the Editor and create screen show in each module state:
+
+| `anime` state | Editor rail | Editor form | Week strip | Create screen |
+|---|---|---|---|---|
+| `starting` | Skeleton (`role="status"`) | Loading record | Loading | Board cannot be opened yet; no name conflicts |
+| `ready` | The rows, or the empty state | The record | The board | The form and its board |
+| `failed` | The failure Alert with the reason | The record load error | The failure message | Board cannot be opened |
+
+- A write while the module is not ready rejects; the Editor and create surface its message as a
+  danger toast or feedback, Today's rows as panel feedback and the Detail page as its failure toast.
+- Not migrated: restore, repeat, the folder and cover pickers, the covers and `CoverPreview` run
+  through `bridgeRuntimeSource` (`AnimeEditorRuntimeSource`). Season's ordering and selection boards
+  (T5j) keep the legacy desktop actions, which read a rejection as an `error` status with its
+  message.
 
 ## Entry points
 
 | Caller | Service method | Trigger |
 |---|---|---|
-| `internal/desktop/app_runtime_editor.go` | `EditorService.Save`, `Deactivate`, `ScheduleService.Apply` | The Editor and the schedule board |
+| `internal/desktop/app_runtime_editor.go` | `EditorService.Save`, `Deactivate`, `ScheduleService.Apply`, through the `anime` module handle | The Editor and the schedule board |
 | `internal/desktop/app_library_root.go` | `EditorService.Save` | Rewriting folders under a new library root |
-| `internal/desktop/app_runtime_create.go` | `CreateService.CreateBatch` | Creating animes (with reflowed neighbours) |
+| `internal/desktop/app_runtime_create.go` | `CreateService.CreateBatch`, through the `anime` module handle | Creating animes (with reflowed neighbours) |
+| `internal/desktop/app_desktop_actions.go` `OpenAnimePage`, `CopyAnimePage`, `OpenAnimeFolder`, `CopyAnimeFolder` | Anime query service, through the `anime` module handle | Today's rows, the Detail page and Season boards |
 | `internal/desktop/app.go` (`wireEpisodeServiceWithWriter`) | `EpisodeService` over `WriteService.PatchAnime` | Episode +1 / −1 and watch state |
 | `internal/desktop/app_runtime.go` `GetEpisodeSchedule`, `GetEpisodeDayCounts` | `EpisodeService` reads, through the `episodes` module handle | Today's schedule and day badges |
 | `internal/desktop/app_episode_editor.go` `GetEpisodeDurationSection`, `ReanalyzeEpisodeDurations`, `CancelEpisodeReanalysis`, `SaveEpisodeDurations` | `durationedit.Service`, `episodes.Store.ApplyEdits`, through the `episodes` module handle | The Editor's durations card |

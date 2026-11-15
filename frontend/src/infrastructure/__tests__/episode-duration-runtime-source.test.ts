@@ -238,11 +238,11 @@ describe('bridge-runtime-source editor save without episodes', () => {
   useIsolatedWailsRuntime();
 
   it('never sends episode edits with the anime save, even from a stale command that carries them', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const { createAnimeEditorSource } = await import('../bridge-runtime-source/anime-editor-source.helpers');
     const save = vi.fn().mockResolvedValue({ animeId: 'anime-1', outcome: 'applied', message: 'saved', modifiedAt: 100 });
     const emptyPatch = { cover: { present: false, clear: false, type: '', path: '' } };
     const stale = { animeId: 'anime-1', baseModifiedAt: 100, patch: emptyPatch, episodes: [{ episode: 4, durationMs: 1, source: 'manual', clear: false }] };
-    const pending = createBridgeRuntimeSource().saveAnimeEditor(stale as never);
+    const pending = createAnimeEditorSource({ getAnimes: () => Promise.resolve([]) }).saveAnimeEditor(stale as never);
 
     await attachBindings({ SaveAnimeEditor: save });
     await pending;

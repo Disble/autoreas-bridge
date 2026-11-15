@@ -1,16 +1,18 @@
 import { useCallback } from 'react';
 import { toast } from '@heroui/react';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
 import type { EpisodeCommandResult, EpisodeScheduleSource } from './episode-schedule-panel.types';
 
 /**
  * Wires the four row actions that leave the app — open or copy an anime's page,
- * open or copy its folder — onto one result contract: a failure becomes panel
- * feedback, a copy that worked becomes a toast, and an open that worked stays
- * silent because the thing it opened is its own confirmation.
+ * open or copy its folder — onto one outcome: a failure (a rejected action,
+ * the anime module starting or failed included, or a non-ok result) becomes
+ * panel feedback, a copy that worked becomes a toast, and an open that worked
+ * stays silent because the thing it opened is its own confirmation.
  *
  * Split out of `useEpisodeSchedulePanel`, which also owns the schedule request,
  * the day counts, the covers and the push subscription. These four share one
- * helper and touch nothing else in that hook.
+ * mutation and touch nothing else in that hook.
  *
  * @param source The schedule port the desktop commands are sent through.
  * @param onError Called with the message a failed command should surface.
@@ -24,13 +26,23 @@ export function useEpisodeDesktopActions(source: EpisodeScheduleSource, onError:
   // 3. Context/3rd Party Hooks
 
   // 4. Queries/Mutations
+  const actionMutation = useBridgeMutation({
+    mutationFn: (request: { readonly action: (animeID: string) => Promise<EpisodeCommandResult>; readonly animeID: string }) => request.action(request.animeID),
+  });
+  const runAction = actionMutation.mutateAsync;
 
   // 5. Derived State (useMemo)
 
   // 6. Callbacks (useCallback calling pure helpers)
   const runDesktopAction = useCallback(async (action: (animeID: string) => Promise<EpisodeCommandResult>, animeID: string, successToast?: string) => {
     onError('');
-    const result = await action(animeID);
+    let result: EpisodeCommandResult;
+    try {
+      result = await runAction({ action, animeID });
+    } catch (error) {
+      onError(error instanceof Error && error.message !== '' ? error.message : 'Could not run anime desktop action.');
+      return;
+    }
     if (result.status !== 'ok') {
       onError(result.message ?? 'Could not run anime desktop action.');
       return;
@@ -38,7 +50,7 @@ export function useEpisodeDesktopActions(source: EpisodeScheduleSource, onError:
     if (successToast !== undefined) {
       toast.success(successToast);
     }
-  }, [onError]);
+  }, [onError, runAction]);
 
   const openAnimePage = useCallback((animeID: string) => runDesktopAction(source.openAnimePage, animeID), [runDesktopAction, source.openAnimePage]);
   const copyAnimePage = useCallback((animeID: string) => runDesktopAction(source.copyAnimePage, animeID, 'Page URL copied to clipboard'), [runDesktopAction, source.copyAnimePage]);
