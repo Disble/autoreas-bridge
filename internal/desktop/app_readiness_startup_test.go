@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"autoreas-bridge/internal/api"
+	"autoreas-bridge/internal/api/contracts"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tray"
 
@@ -93,12 +94,19 @@ func TestProductionStartupGatesTheEpisodeSchedule(t *testing.T) {
 	}
 }
 
-// runtimeModuleCalls calls one binding of each of the api, sync and devices modules.
+// runtimeModuleCalls calls one binding of each of the api, sync and devices modules, and the
+// observability bindings that read each of its bound services.
 func runtimeModuleCalls(app *App) map[string]error {
 	_, address := app.GetEffectiveAddress()
 	_, syncing := app.GetSyncingAnimeItems()
 	_, devices := app.GetConnectedDevices()
-	return map[string]error{"GetEffectiveAddress": address, "GetSyncingAnimeItems": syncing, "GetConnectedDevices": devices}
+	_, feed := app.SearchActivityFeed(ActivityFeedQuery{})
+	_, request := app.GetActivityRequest("req-1")
+	_, diagnostics := app.ListDeviceSyncDiagnostics(contracts.DeviceSyncDiagnosticsQuery{})
+	return map[string]error{
+		"GetEffectiveAddress": address, "GetSyncingAnimeItems": syncing, "GetConnectedDevices": devices,
+		"SearchActivityFeed": feed, "GetActivityRequest": request, "ListDeviceSyncDiagnostics": diagnostics,
+	}
 }
 
 // TestProductionStartupFailureRejectsTheEpisodeReads proves a failed startup reaches the frontend

@@ -20,6 +20,7 @@ import (
 	"autoreas-bridge/internal/lifecycle"
 	"autoreas-bridge/internal/notification/center"
 	"autoreas-bridge/internal/observability/requestcapture"
+	"autoreas-bridge/internal/observability/telemetry"
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/settings"
 	bridgeSync "autoreas-bridge/internal/sync"
@@ -167,6 +168,9 @@ func TestStartupSettlesEveryModule(t *testing.T) {
 	}
 }
 
+// observabilityNotWired is the failure reason of an observability module missing any reader.
+const observabilityNotWired = "observability: runtime event log, request capture reader or sync diagnostics reader was not wired"
+
 func TestSettleModulesNamesWhatWasNotWired(t *testing.T) {
 	t.Parallel()
 
@@ -175,8 +179,9 @@ func TestSettleModulesNamesWhatWasNotWired(t *testing.T) {
 		prune  func(*App)
 		reason string
 	}{
-		{"observability event log", func(a *App) { a.eventQueue = nil }, "observability: runtime event log or request capture reader was not wired"},
-		{"observability capture reader", func(a *App) { a.captureReader = nil }, "observability: runtime event log or request capture reader was not wired"},
+		{"observability event log", func(a *App) { a.eventQueue = nil }, observabilityNotWired},
+		{"observability capture reader", func(a *App) { a.captureReader = nil }, observabilityNotWired},
+		{"observability sync diagnostics reader", func(a *App) { a.syncDiagReader = nil }, observabilityNotWired},
 		{"sync changelog recorder", func(a *App) { a.syncChangelogRecorder = nil }, "sync: sync changelog recorder or sync trigger was not wired"},
 		{"sync trigger", func(a *App) { a.syncTrigger = nil }, "sync: sync changelog recorder or sync trigger was not wired"},
 		{"devices", func(a *App) { a.deviceStore = nil }, "devices: device store was not wired"},
@@ -216,6 +221,7 @@ func wiredApp() *App {
 	return &App{
 		eventQueue:                 &stubEventLogQueue{},
 		captureReader:              &requestcapture.Reader{},
+		syncDiagReader:             &telemetry.Reader{},
 		syncChangelogRecorder:      &stubAppChangelogRecorder{},
 		syncTrigger:                &bridgeSync.TriggerService{},
 		deviceStore:                &stubAppDeviceStore{},

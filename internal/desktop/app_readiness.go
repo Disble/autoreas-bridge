@@ -13,6 +13,10 @@ import (
 	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/lifecycle"
 	"autoreas-bridge/internal/modules"
+	"autoreas-bridge/internal/observability/activityread"
+	"autoreas-bridge/internal/observability/incident"
+	"autoreas-bridge/internal/observability/requestcapture"
+	"autoreas-bridge/internal/observability/telemetry"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
@@ -45,7 +49,8 @@ var errNotWired = errors.New("was not wired")
 // means ready, an error is the failure reason the frontend shows.
 var moduleWiringChecks = map[lifecycle.ModuleID]func(*App) error{
 	moduleObservability: func(a *App) error {
-		return wiredUnless(a.eventQueue == nil || a.captureReader == nil, "runtime event log or request capture reader")
+		return wiredUnless(a.eventQueue == nil || a.captureReader == nil || a.syncDiagReader == nil,
+			"runtime event log, request capture reader or sync diagnostics reader")
 	},
 	moduleSync: func(a *App) error {
 		return wiredUnless(a.syncChangelogRecorder == nil || a.syncTrigger == nil, "sync changelog recorder or sync trigger")
@@ -80,6 +85,16 @@ func wiredUnless(missing bool, what string) error {
 	return nil
 }
 
+// observabilityServices are the services the observability module's bindings use: the
+// Activity reads, the pin store and the two capture-table readers. bindObservabilityModule binds
+// them before configureRuntimeServices marks the module ready.
+type observabilityServices struct {
+	activity        *activityread.Reader
+	pins            *incident.Store
+	captures        *requestcapture.Reader
+	syncDiagnostics *telemetry.Reader
+}
+
 // episodeServices are the services the episodes module's migrated bindings use.
 // wireEpisodeServiceWithWriter binds them before configureRuntimeServices marks
 // the module ready.
@@ -111,14 +126,15 @@ type deviceServices struct {
 // (only the composition root writes) and the module handles. Domain modules get
 // their handle here when they migrate (ADR-032 §3; internal/modules says how).
 type appModules struct {
-	once     sync.Once
-	registry *lifecycle.Registry
-	writer   *lifecycle.Writer
-	shell    *modules.Shell
-	episodes *modules.Handle[episodeServices]
-	api      *modules.Handle[apiServices]
-	sync     *modules.Handle[syncServices]
-	devices  *modules.Handle[deviceServices]
+	once          sync.Once
+	registry      *lifecycle.Registry
+	writer        *lifecycle.Writer
+	shell         *modules.Shell
+	episodes      *modules.Handle[episodeServices]
+	api           *modules.Handle[apiServices]
+	sync          *modules.Handle[syncServices]
+	devices       *modules.Handle[deviceServices]
+	observability *modules.Handle[observabilityServices]
 }
 
 // moduleSet builds the module set once, on first use, and registers every module
@@ -138,6 +154,7 @@ func (a *App) moduleSet() *appModules {
 		a.modules.api = modules.NewHandle[apiServices](moduleAPI, a.modules.registry)
 		a.modules.sync = modules.NewHandle[syncServices](moduleSync, a.modules.registry)
 		a.modules.devices = modules.NewHandle[deviceServices](moduleDevices, a.modules.registry)
+		a.modules.observability = modules.NewHandle[observabilityServices](moduleObservability, a.modules.registry)
 	})
 	return &a.modules
 }

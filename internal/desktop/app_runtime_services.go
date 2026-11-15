@@ -33,6 +33,7 @@ func (a *App) configureRuntimeServices(ctx context.Context) {
 	a.configureCaptureReader()
 	a.configureSyncDiagReader()
 	a.configureEventLogQueue(ctx)
+	a.bindObservabilityModule()
 	a.prepareAnimeRuntime(ctx)
 	a.startSyncChangelogRecorder()
 	a.startIncrementalVacuumLoop(bridgeSync.IncrementalVacuumInterval)
@@ -156,7 +157,8 @@ func (a *App) configureCaptureReader() {
 // constructor probes device_telemetry_events, and a bare, unopened *sql.DB{}
 // (as a degraded bootstrap or a unit-test fixture supplies) panics on query
 // rather than erroring. Leaving the reader nil there is the correct
-// degradation -- the bound read already reports a nil reader as Degraded.
+// degradation -- the observability module then fails its wiring check, so the
+// bound read answers failed_precondition instead of an empty page.
 func (a *App) configureSyncDiagReader() {
 	if a.syncDiagReader != nil || a.bridgeDB == nil || a.newSyncDiagReader == nil {
 		return

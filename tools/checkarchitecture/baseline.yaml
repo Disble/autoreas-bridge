@@ -146,33 +146,6 @@ violations:
     file: internal/desktop/app_season_runtime.go
     symbol: RecheckSeasonAvailability
   - rule: binding-uses-handle
-    file: internal/desktop/app_activity_feed.go
-    symbol: GetActivityChangeContext
-  - rule: binding-uses-handle
-    file: internal/desktop/app_activity_feed.go
-    symbol: GetActivityEvent
-  - rule: binding-uses-handle
-    file: internal/desktop/app_activity_feed.go
-    symbol: GetActivityOverview
-  - rule: binding-uses-handle
-    file: internal/desktop/app_activity_feed.go
-    symbol: GetActivityPhoneReport
-  - rule: binding-uses-handle
-    file: internal/desktop/app_activity_feed.go
-    symbol: SearchActivityFeed
-  - rule: binding-uses-handle
-    file: internal/desktop/app_activity_pin.go
-    symbol: PinActivityMoment
-  - rule: binding-uses-handle
-    file: internal/desktop/app_activity_read.go
-    symbol: GetActivityIncident
-  - rule: binding-uses-handle
-    file: internal/desktop/app_activity_read.go
-    symbol: GetActivityRequest
-  - rule: binding-uses-handle
-    file: internal/desktop/app_activity_read.go
-    symbol: GetActivityRunStory
-  - rule: binding-uses-handle
     file: internal/desktop/app_api_address.go
     symbol: GetAPIAddress
   - rule: binding-uses-handle
@@ -205,9 +178,6 @@ violations:
   - rule: binding-uses-handle
     file: internal/desktop/app_desktop_actions.go
     symbol: OpenAnimePage
-  - rule: binding-uses-handle
-    file: internal/desktop/app_device_sync_diagnostics.go
-    symbol: ListDeviceSyncDiagnostics
   - rule: binding-uses-handle
     file: internal/desktop/app_download.go
     symbol: GetDownloadConfig

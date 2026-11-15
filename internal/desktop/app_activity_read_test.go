@@ -4,12 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"autoreas-bridge/internal/lifecycle"
 	"autoreas-bridge/internal/observability/incident"
 	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/observability/retention"
@@ -19,18 +20,18 @@ import (
 // and yesterday's facts sit right before it.
 var activityTestNow = time.Date(2026, 10, 17, 0, 30, 0, 0, time.Local)
 
+// activityTestUptime is how long before activityTestNow the test process started.
+const activityTestUptime = 10 * time.Minute
+
+// activityTestClock reads activityTestNow.
+func activityTestClock() time.Time { return activityTestNow }
+
 // newActivityTestApp returns an app over a bootstrapped bridge database whose
-// clock reads activityTestNow and whose process started 10 minutes earlier.
+// clock reads activityTestNow, whose process started 10 minutes earlier, and
+// whose observability module is ready.
 func newActivityTestApp(t *testing.T) *App {
 	t.Helper()
-	app := &App{
-		bridgeDB:         captureAppTestDB(t),
-		nowTime:          func() time.Time { return activityTestNow },
-		processStartedAt: activityTestNow.Add(-10 * time.Minute),
-	}
-	app.ensureCaptureRuntimeDependencies()
-	app.configureCaptureReader()
-	return app
+	return observabilityApp(t, captureAppTestDB(t), lifecycle.StateReady)
 }
 
 // activityAt returns activityTestNow shifted by offset, in epoch milliseconds.
@@ -163,32 +164,15 @@ func TestPinActivityMomentRecordsOneManualPinPerCall(t *testing.T) {
 			t.Fatalf("scan incident: %v", err)
 		}
 		want := activityAt(time.Duration(count) * time.Second)
-		if reason != string(incident.ReasonManualPin) || atMS != want || sourceKind != string(activityPinSourceKind) || sourceID == "" {
-			t.Fatalf("pin %d = %q %q %d %q %q; want manual_pin at %d", count, fingerprint, reason, atMS, sourceKind, sourceID, want)
+		wantID := "pin-" + strconv.FormatInt(activityTestNow.Add(time.Duration(count)*time.Second).UnixNano(), 10)
+		if reason != string(incident.ReasonManualPin) || atMS != want || sourceKind != string(activityPinSourceKind) || sourceID != wantID {
+			t.Fatalf("pin %d = %q %q %d %q %q; want manual_pin %q at %d", count, fingerprint, reason, atMS, sourceKind, sourceID, wantID, want)
 		}
 		fingerprints[fingerprint] = true
 		count++
 	}
 	if count != 2 || len(fingerprints) != 2 {
 		t.Fatalf("expected two pins with distinct fingerprints, got %d rows and %v", count, fingerprints)
-	}
-}
-
-// TestActivityBindingsReportAnUnwiredDatabase asserts every read fails with
-// errActivityUnavailable before the bridge database is wired.
-func TestActivityBindingsReportAnUnwiredDatabase(t *testing.T) {
-	t.Parallel()
-	app := &App{}
-	calls := map[string]func() error{
-		"incident": func() error { _, err := app.GetActivityIncident(1); return err },
-		"story":    func() error { _, err := app.GetActivityRunStory("run"); return err },
-		"request":  func() error { _, err := app.GetActivityRequest("req"); return err },
-		"pin":      app.PinActivityMoment,
-	}
-	for name, call := range calls {
-		if err := call(); !errors.Is(err, errActivityUnavailable) {
-			t.Fatalf("%s: err = %v, want errActivityUnavailable", name, err)
-		}
 	}
 }
 

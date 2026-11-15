@@ -88,11 +88,10 @@ type DeviceSyncDiagnosticsQuery struct {
 
 // DeviceSyncDiagnosticsResult is the ListDeviceSyncDiagnostics result
 // envelope. Items is always a non-nil slice so the frontend can range over
-// it without a nil check; Degraded marks a reader-unavailable or query-error
-// outcome (never a panic). Degraded,
+// it without a nil check; a failed or not-ready read is the binding's error,
+// never an empty envelope. A report's Degraded,
 // PreviousOutcome, PreviousElapsedMS and PreviousErrorFingerprint stay
 // pointers so an absent value is never rendered as zero.
 type DeviceSyncDiagnosticsResult struct {
-	Items    []DeviceSyncDiagnosticReport `json:"items"`
-	Degraded bool                         `json:"degraded"`
+	Items []DeviceSyncDiagnosticReport `json:"items"`
 }
