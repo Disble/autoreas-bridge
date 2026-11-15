@@ -301,6 +301,7 @@ func (a *App) startHTTPServer(deviceService device.AuthService, mobileAnimeWrite
 	syncTrigger := bridgeSync.NewTriggerService(a.eventBus, changelogStore, a.sharedLogger)
 	a.syncTrigger = syncTrigger
 	a.httpServer = a.buildHTTPServer(deviceService, mobileAnimeWrite, conflictService, statusService, syncTrigger)
+	a.bindServerModules(syncTrigger)
 	if err := a.httpServer.Start(); err != nil {
 		a.startupErr = err
 	}

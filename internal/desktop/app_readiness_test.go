@@ -177,7 +177,8 @@ func TestSettleModulesNamesWhatWasNotWired(t *testing.T) {
 	}{
 		{"observability event log", func(a *App) { a.eventQueue = nil }, "observability: runtime event log or request capture reader was not wired"},
 		{"observability capture reader", func(a *App) { a.captureReader = nil }, "observability: runtime event log or request capture reader was not wired"},
-		{"sync", func(a *App) { a.syncChangelogRecorder = nil }, "sync: sync changelog recorder was not wired"},
+		{"sync changelog recorder", func(a *App) { a.syncChangelogRecorder = nil }, "sync: sync changelog recorder or sync trigger was not wired"},
+		{"sync trigger", func(a *App) { a.syncTrigger = nil }, "sync: sync changelog recorder or sync trigger was not wired"},
 		{"devices", func(a *App) { a.deviceStore = nil }, "devices: device store was not wired"},
 		{"settings", func(a *App) { a.settingsStore = nil }, "settings: settings store was not wired"},
 		{"anime query", func(a *App) { a.animeQuery = nil }, "anime: anime services was not wired"},
@@ -216,6 +217,7 @@ func wiredApp() *App {
 		eventQueue:                 &stubEventLogQueue{},
 		captureReader:              &requestcapture.Reader{},
 		syncChangelogRecorder:      &stubAppChangelogRecorder{},
+		syncTrigger:                &bridgeSync.TriggerService{},
 		deviceStore:                &stubAppDeviceStore{},
 		settingsStore:              settings.NewSQLiteStore(nil),
 		animeQuery:                 &stubAnimeQueryService{},

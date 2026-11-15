@@ -86,6 +86,19 @@ func TestProductionStartupGatesTheEpisodeSchedule(t *testing.T) {
 	if err != nil || counts == nil || len(counts) != 0 {
 		t.Fatalf("GetEpisodeDayCounts() = %#v, %v; want an empty, non-nil list", counts, err)
 	}
+	for name, err := range runtimeModuleCalls(app) {
+		if err != nil {
+			t.Fatalf("%s after startup = %v, want its module's services bound", name, err)
+		}
+	}
+}
+
+// runtimeModuleCalls calls one binding of each of the api, sync and devices modules.
+func runtimeModuleCalls(app *App) map[string]error {
+	_, address := app.GetEffectiveAddress()
+	_, syncing := app.GetSyncingAnimeItems()
+	_, devices := app.GetConnectedDevices()
+	return map[string]error{"GetEffectiveAddress": address, "GetSyncingAnimeItems": syncing, "GetConnectedDevices": devices}
 }
 
 // TestProductionStartupFailureRejectsTheEpisodeReads proves a failed startup reaches the frontend
@@ -100,7 +113,9 @@ func TestProductionStartupFailureRejectsTheEpisodeReads(t *testing.T) {
 		`resolve bridge db path: AUTOREAS_DATA_DIR must be an absolute path, got \"relative-copy\""}`
 	_, scheduleErr := app.GetEpisodeSchedule("Lunes")
 	_, countsErr := app.GetEpisodeDayCounts()
-	for name, err := range map[string]error{"GetEpisodeSchedule": scheduleErr, "GetEpisodeDayCounts": countsErr} {
+	calls := runtimeModuleCalls(app)
+	calls["GetEpisodeSchedule"], calls["GetEpisodeDayCounts"] = scheduleErr, countsErr
+	for name, err := range calls {
 		if err == nil {
 			t.Fatalf("%s answered without an error after a failed startup", name)
 		}

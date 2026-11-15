@@ -69,25 +69,7 @@ violations:
     symbol: GetAnimes
   - rule: binding-signature
     file: internal/desktop/app_runtime.go
-    symbol: GetConnectedDevices
-  - rule: binding-signature
-    file: internal/desktop/app_runtime.go
-    symbol: GetEffectiveAddress
-  - rule: binding-signature
-    file: internal/desktop/app_runtime.go
-    symbol: GetPairingToken
-  - rule: binding-signature
-    file: internal/desktop/app_runtime.go
     symbol: GetSQLiteStatus
-  - rule: binding-signature
-    file: internal/desktop/app_runtime.go
-    symbol: GetSyncingAnimeItems
-  - rule: binding-signature
-    file: internal/desktop/app_runtime.go
-    symbol: TriggerReconcile
-  - rule: binding-signature
-    file: internal/desktop/app_runtime.go
-    symbol: UnpairDevice
   - rule: binding-signature
     file: internal/desktop/app_season.go
     symbol: CloseSeason
@@ -363,19 +345,7 @@ violations:
     symbol: GetAnimes
   - rule: binding-uses-handle
     file: internal/desktop/app_runtime.go
-    symbol: GetConnectedDevices
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime.go
-    symbol: GetEffectiveAddress
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime.go
-    symbol: GetPairingToken
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime.go
     symbol: GetSQLiteStatus
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime.go
-    symbol: GetSyncingAnimeItems
   - rule: binding-uses-handle
     file: internal/desktop/app_runtime.go
     symbol: GetWatchHistoryPage
@@ -394,12 +364,6 @@ violations:
   - rule: binding-uses-handle
     file: internal/desktop/app_runtime.go
     symbol: SoftDeleteAnime
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime.go
-    symbol: TriggerReconcile
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime.go
-    symbol: UnpairDevice
   - rule: binding-uses-handle
     file: internal/desktop/app_runtime_create.go
     symbol: CreateAnime

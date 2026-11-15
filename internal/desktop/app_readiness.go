@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"sync"
 
+	"autoreas-bridge/internal/api"
 	"autoreas-bridge/internal/apperr"
+	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/lifecycle"
 	"autoreas-bridge/internal/modules"
+	bridgeSync "autoreas-bridge/internal/sync"
 )
 
 // The modules the composition root registers, one per bounded context it wires
@@ -44,7 +47,9 @@ var moduleWiringChecks = map[lifecycle.ModuleID]func(*App) error{
 	moduleObservability: func(a *App) error {
 		return wiredUnless(a.eventQueue == nil || a.captureReader == nil, "runtime event log or request capture reader")
 	},
-	moduleSync:     func(a *App) error { return wiredUnless(a.syncChangelogRecorder == nil, "sync changelog recorder") },
+	moduleSync: func(a *App) error {
+		return wiredUnless(a.syncChangelogRecorder == nil || a.syncTrigger == nil, "sync changelog recorder or sync trigger")
+	},
 	moduleDevices:  func(a *App) error { return wiredUnless(a.deviceStore == nil, "device store") },
 	moduleSettings: func(a *App) error { return wiredUnless(a.settingsStore == nil, "settings store") },
 	moduleAnime: func(a *App) error {
@@ -82,6 +87,26 @@ type episodeServices struct {
 	episodes episodeCommandService
 }
 
+// apiServices are the services the api module's bindings use. startHTTPServer
+// binds them before configureRuntimeServices marks the module ready.
+type apiServices struct {
+	server api.Server
+}
+
+// syncServices are the services the sync module's bindings use. startHTTPServer
+// binds them before configureRuntimeServices marks the module ready.
+type syncServices struct {
+	trigger *bridgeSync.TriggerService
+}
+
+// deviceServices are the services the devices module's bindings use.
+// bindDevicesModule binds them before configureRuntimeServices marks the module ready.
+type deviceServices struct {
+	store    device.Store
+	admin    device.AdminService
+	newToken func() (string, error)
+}
+
 // appModules is the module set App holds: the readiness registry, its writer
 // (only the composition root writes) and the module handles. Domain modules get
 // their handle here when they migrate (ADR-032 §3; internal/modules says how).
@@ -91,6 +116,9 @@ type appModules struct {
 	writer   *lifecycle.Writer
 	shell    *modules.Shell
 	episodes *modules.Handle[episodeServices]
+	api      *modules.Handle[apiServices]
+	sync     *modules.Handle[syncServices]
+	devices  *modules.Handle[deviceServices]
 }
 
 // moduleSet builds the module set once, on first use, and registers every module
@@ -101,12 +129,15 @@ func (a *App) moduleSet() *appModules {
 	a.modules.once.Do(func() {
 		a.modules.registry, a.modules.writer = lifecycle.New(a.eventBus)
 		a.modules.writer.Register(registeredModules...)
-		services := modules.ShellServices{EffectiveAddress: a.GetEffectiveAddress, Readiness: a.modules.registry}
+		services := modules.ShellServices{EffectiveAddress: a.effectiveAddress, Readiness: a.modules.registry}
 		if a.sharedLogger != nil {
 			services.Logger = a.sharedLogger
 		}
 		a.modules.shell = modules.NewShell(services)
 		a.modules.episodes = modules.NewHandle[episodeServices](moduleEpisodes, a.modules.registry)
+		a.modules.api = modules.NewHandle[apiServices](moduleAPI, a.modules.registry)
+		a.modules.sync = modules.NewHandle[syncServices](moduleSync, a.modules.registry)
+		a.modules.devices = modules.NewHandle[deviceServices](moduleDevices, a.modules.registry)
 	})
 	return &a.modules
 }

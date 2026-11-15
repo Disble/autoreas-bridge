@@ -17,26 +17,32 @@ import (
 // service was never wired. Shared with app_season_availability.go (same package).
 const episodeServiceUnavailableMessage = "episode service unavailable"
 
-// GetEffectiveAddress returns the address the HTTP server actually bound, which
-// differs from the configured one when the port was taken. Empty when no server
-// is running, so the pairing UI can say so instead of showing a stale address.
-func (a *App) GetEffectiveAddress() string {
+// effectiveAddress returns the address the HTTP server actually bound, which
+// differs from the configured one when the port was taken, or "" when no
+// server is running. The shell handle exposes it to shell capabilities.
+func (a *App) effectiveAddress() string {
 	if a.httpServer == nil {
 		return ""
 	}
 	return a.httpServer.EffectiveAddress()
 }
 
-// TriggerReconcile asks the sync service for an immediate reconcile pass and
-// returns "ok" or the reason it could not run.
-func (a *App) TriggerReconcile() string {
-	if a.syncTrigger == nil {
-		return "sync service unavailable"
-	}
-	if err := a.syncTrigger.TriggerReconcile(a.appContext()); err != nil {
-		return err.Error()
-	}
-	return "ok"
+// GetEffectiveAddress returns the address the HTTP server actually bound, through
+// the api module handle: unavailable while the module starts, failed_precondition
+// when the server failed to start.
+func (a *App) GetEffectiveAddress() (string, error) {
+	return a.moduleSet().api.Use(func(services apiServices) (string, error) {
+		return services.server.EffectiveAddress(), nil
+	})
+}
+
+// TriggerReconcile asks the sync service for an immediate reconcile pass,
+// through the sync module handle.
+func (a *App) TriggerReconcile() error {
+	_, err := a.moduleSet().sync.Use(func(services syncServices) (struct{}, error) {
+		return struct{}{}, services.trigger.TriggerReconcile(a.appContext())
+	})
+	return err
 }
 
 // GetSQLiteStatus pings the bridge database and returns "ok" or the failure.
@@ -53,87 +59,84 @@ func (a *App) GetSQLiteStatus() string {
 }
 
 // GetPairingToken returns the active pairing token, minting one when none is
-// live. Expired tokens are pruned first, so a token this returns is always
-// within its TTL. Failures come back as a message rather than an error, since
-// the binding's single string is what the pairing screen renders.
-func (a *App) GetPairingToken() string {
-	if a.deviceStore == nil {
-		return "device store unavailable"
-	}
-	nowMs := time.Now().UnixMilli()
-	activeAfterMs := nowMs - device.PairingTokenTTL.Milliseconds()
-	if _, err := a.deviceStore.PruneExpiredPairingTokens(a.appContext(), activeAfterMs); err != nil {
-		return fmt.Sprintf("token cleanup failed: %s", err.Error())
-	}
-	activeToken, err := a.deviceStore.FindActivePairingToken(a.appContext(), activeAfterMs)
-	if err == nil {
-		return activeToken
-	}
-	if !errors.Is(err, device.ErrInvalidPairingToken) {
-		return fmt.Sprintf("token lookup failed: %s", err.Error())
-	}
-	genToken := a.newToken
-	if genToken == nil {
-		genToken = defaultPairingTokenGenerator
-	}
-	token, err := genToken()
-	if err != nil {
-		return fmt.Sprintf("token generation failed: %s", err.Error())
-	}
-	if err := a.deviceStore.SavePairingToken(a.appContext(), token, nowMs); err != nil {
-		return fmt.Sprintf("token persist failed: %s", err.Error())
-	}
-	return token
+// live, through the devices module handle. Expired tokens are pruned first, so a
+// token this returns is always within its TTL; a failed step is an internal error.
+func (a *App) GetPairingToken() (string, error) {
+	return a.moduleSet().devices.Use(func(services deviceServices) (string, error) {
+		ctx := a.appContext()
+		nowMs := time.Now().UnixMilli()
+		activeAfterMs := nowMs - device.PairingTokenTTL.Milliseconds()
+		if _, err := services.store.PruneExpiredPairingTokens(ctx, activeAfterMs); err != nil {
+			return "", fmt.Errorf("token cleanup failed: %w", err)
+		}
+		activeToken, err := services.store.FindActivePairingToken(ctx, activeAfterMs)
+		if err == nil {
+			return activeToken, nil
+		}
+		if !errors.Is(err, device.ErrInvalidPairingToken) {
+			return "", fmt.Errorf("token lookup failed: %w", err)
+		}
+		token, err := services.newToken()
+		if err != nil {
+			return "", fmt.Errorf("token generation failed: %w", err)
+		}
+		if err := services.store.SavePairingToken(ctx, token, nowMs); err != nil {
+			return "", fmt.Errorf("token persist failed: %w", err)
+		}
+		return token, nil
+	})
 }
 
-// GetConnectedDevices lists the paired devices with their sync state. Degrades
-// to an empty (non-nil) slice on an unavailable store or a query error.
-func (a *App) GetConnectedDevices() []contracts.DeviceInfo {
+// GetConnectedDevices lists the paired devices with their sync state, through the
+// devices module handle. No paired device is an empty, non-nil list.
+func (a *App) GetConnectedDevices() ([]contracts.DeviceInfo, error) {
+	return a.moduleSet().devices.Use(func(services deviceServices) ([]contracts.DeviceInfo, error) {
+		return services.admin.ListDevices(a.appContext())
+	})
+}
+
+// UnpairDevice revokes a paired device's access, through the devices module handle.
+func (a *App) UnpairDevice(deviceID string) error {
+	_, err := a.moduleSet().devices.Use(func(services deviceServices) (struct{}, error) {
+		return struct{}{}, services.admin.RevokeDevice(a.appContext(), deviceID)
+	})
+	return err
+}
+
+// GetSyncingAnimeItems lists the anime with writes still pending sync, through
+// the sync module handle. Nothing pending is an empty, non-nil list.
+func (a *App) GetSyncingAnimeItems() ([]contracts.SyncingAnimeItem, error) {
+	return a.moduleSet().sync.Use(func(services syncServices) ([]contracts.SyncingAnimeItem, error) {
+		return services.trigger.ListPendingAnimeSyncs(a.appContext())
+	})
+}
+
+// bindServerModules binds the sync trigger and the HTTP server to their handles. startHTTPServer
+// calls it before settleModules marks sync and api ready, so a binding that sees ready finds them.
+func (a *App) bindServerModules(syncTrigger *bridgeSync.TriggerService) {
+	a.moduleSet().sync.Bind(syncServices{trigger: syncTrigger})
+	a.moduleSet().api.Bind(apiServices{server: a.httpServer})
+}
+
+// bindDevicesModule binds the devices module's services: the device store, an
+// admin service reading sync state from the bridge database and presence from the
+// realtime hub when they are wired, and the pairing token generator.
+func (a *App) bindDevicesModule() {
 	if a.deviceStore == nil {
-		return []contracts.DeviceInfo{}
+		return
 	}
-	service := device.NewService(a.deviceStore)
+	admin := device.NewService(a.deviceStore)
 	if a.bridgeDB != nil {
-		service.SetSyncStateStore(syncDeviceStateAdapter{store: bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(a.bridgeDB))})
+		admin.SetSyncStateStore(syncDeviceStateAdapter{store: bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(a.bridgeDB))})
 	}
 	if a.realtimeHub != nil {
-		service.SetPresenceStore(a.realtimeHub)
+		admin.SetPresenceStore(a.realtimeHub)
 	}
-	devices, err := service.ListDevices(a.appContext())
-	if err != nil {
-		return []contracts.DeviceInfo{}
+	newToken := a.newToken
+	if newToken == nil {
+		newToken = defaultPairingTokenGenerator
 	}
-	return devices
-}
-
-// UnpairDevice revokes a paired device's access and returns "ok" or the reason
-// it could not.
-func (a *App) UnpairDevice(deviceID string) string {
-	if a.deviceStore == nil {
-		return "device store unavailable"
-	}
-	service := device.NewService(a.deviceStore)
-	if a.bridgeDB != nil {
-		service.SetSyncStateStore(syncDeviceStateAdapter{store: bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(a.bridgeDB))})
-	}
-	if err := service.RevokeDevice(a.appContext(), deviceID); err != nil {
-		return err.Error()
-	}
-	return "ok"
-}
-
-// GetSyncingAnimeItems lists the anime with writes still pending sync.
-// Degrades to an empty (non-nil) slice on an unavailable service or a query
-// error.
-func (a *App) GetSyncingAnimeItems() []contracts.SyncingAnimeItem {
-	if a.syncTrigger == nil {
-		return []contracts.SyncingAnimeItem{}
-	}
-	items, err := a.syncTrigger.ListPendingAnimeSyncs(a.appContext())
-	if err != nil {
-		return []contracts.SyncingAnimeItem{}
-	}
-	return items
+	a.moduleSet().devices.Bind(deviceServices{store: a.deviceStore, admin: admin, newToken: newToken})
 }
 
 // GetAnimes returns the flat catalog list model. Degrades to an empty

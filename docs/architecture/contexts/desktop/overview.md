@@ -56,8 +56,11 @@ Bindings that run through a handle today:
 
 | Handle (`appModules` field) | Services | Bound at | Bindings |
 |---|---|---|---|
-| `shell` (`modules.Shell`, always ready) | `ShellServices`: effective address, logger, readiness registry | `moduleSet` | `GetReadiness` |
+| `shell` (`modules.Shell`, always ready) | `ShellServices`: effective address (`App.effectiveAddress`, "" when no server runs), logger, readiness registry | `moduleSet` | `GetReadiness` |
 | `episodes` (`modules.Handle[episodeServices]`) | `episodeServices.episodes`, the episode service | `wireEpisodeServiceWithWriter`, before `configureRuntimeServices` settles `episodes` | `GetEpisodeSchedule(day)`, `GetEpisodeDayCounts()` |
+| `api` (`modules.Handle[apiServices]`) | `apiServices.server`, the HTTP server | `startHTTPServer`, before `configureRuntimeServices` settles `api` | `GetEffectiveAddress() (string, error)` |
+| `sync` (`modules.Handle[syncServices]`) | `syncServices.trigger`, the sync trigger service | `startHTTPServer`, before `configureRuntimeServices` settles `sync` | `TriggerReconcile() error`, `GetSyncingAnimeItems() ([]SyncingAnimeItem, error)` |
+| `devices` (`modules.Handle[deviceServices]`) | device store, a device admin service (sync state from `bridge.db`, presence from the realtime hub), pairing token generator | `bindDevicesModule`, after `configureRealtimeHub`, before `configureRuntimeServices` settles `devices` | `GetPairingToken() (string, error)`, `GetConnectedDevices() ([]DeviceInfo, error)`, `UnpairDevice(id) error` |
 
 The other episode bindings (`AdjustWatchedEpisodes`, `SetAnimeState`, `SetAnimeDays`,
 `SoftDeleteAnime`, `RestoreAnime`, `RepeatAnime`) still read `App.episodeService` and answer a status
@@ -72,12 +75,12 @@ then settles at the step that wires it:
 | Module | Ready when | Settled after |
 |---|---|---|
 | `observability` | runtime event log queue and request capture reader are wired | `configureRuntimeServices` |
-| `sync` | sync changelog recorder is wired | `configureRuntimeServices` |
-| `devices` | device store is wired | `configureRuntimeServices` |
+| `sync` | sync changelog recorder and sync trigger are wired (the trigger bound to the `sync` handle) | `configureRuntimeServices` |
+| `devices` | device store is wired (and bound to the `devices` handle) | `configureRuntimeServices` |
 | `settings` | settings store is wired | `configureRuntimeServices` |
 | `anime` | anime query and write services are wired | `configureRuntimeServices` |
 | `episodes` | episode service is wired (and bound to the `episodes` handle) | `configureRuntimeServices` |
-| `api` | HTTP server is built and started; a failed bind is `failed` with the bind error | `configureRuntimeServices` |
+| `api` | HTTP server is built (and bound to the `api` handle) and started; a failed bind is `failed` with the bind error | `configureRuntimeServices` |
 | `season` | season service is wired | `wireSeasonMatchingEventBus` |
 | `downloads` | download service and download readiness service are wired | `startDownloadOrchestration` |
 | `notifications` | notification center executor is wired | `wireNotificationCenterIntentExecutor` |
@@ -112,7 +115,12 @@ then settles at the step that wires it:
   reaches `bridge.readiness`. `NewApp` sets the event bus before anything can build the module set,
   and `startup` never replaces it, so the registry built on first use publishes on the bus the
   readiness bridge subscribes to. `TestProductionStartupFailureRejectsTheEpisodeReads` covers the
-  failed startup (`failed_precondition` with the database reason).
+  failed startup (`failed_precondition` with the database reason). Both tests also call
+  `GetEffectiveAddress`, `GetSyncingAnimeItems` and `GetConnectedDevices`: answered after a real
+  startup (each handle is bound in production wiring), `failed_precondition` after a failed one.
+  `TestRuntimeModuleBindingsFollowTheirModule` covers the six `api`/`sync`/`devices` bindings
+  starting → `unavailable`, failed → `failed_precondition`, ready → the value;
+  `TestRuntimeModuleServiceFailuresAreInternal` covers a failing service → `internal` with its cause.
 
 ## Events
 
@@ -123,11 +131,11 @@ event itself for the download and season families), or emitted directly:
 |---|---|---|
 | `bridge.readiness` | a module changes readiness (`ModuleReadiness` DTO) | the frontend readiness gate (ADR-032 §4, task T3) |
 | `anime.changed` | an anime save commits (`contracts.AnimeChangedNotice`) | anime runtime source |
-| `sync.device_acknowledged` | a device acknowledges the changelog | connected devices panel |
+| `sync.device_acknowledged` | a device acknowledges the changelog | `BRIDGE_INVALIDATIONS` → the paired-device list (`../devices/overview.md`) |
 | `download.*` (`downloadRuntimeEventNames`) | a download run, episode or JD status changes | download runtime source |
 | `season.matching_*` (`seasonRuntimeEventNames`) | a season matching run progresses | season source |
 | `episode.durations_reanalysis_progress` | an episode duration reanalysis advances | episode duration runtime source |
-| `activity.recorder`, `schedule.run_settled`, `schedule.missed_settled`, `notification.archived`, `notification.navigate`, `pairing.token-consumed` | the matching shell action happens | Activity, scheduler, notification center, pairing screens |
+| `activity.recorder`, `schedule.run_settled`, `schedule.missed_settled`, `notification.archived`, `notification.navigate`, `pairing.token-consumed` | the matching shell action happens | Activity, scheduler, notification center; `pairing.token-consumed` → `BRIDGE_INVALIDATIONS` (pairing token and paired-device list) |
 
 ## Storage
 
@@ -176,12 +184,13 @@ memory and starts over with every process.
 | Second launch | `App.onSecondInstanceLaunch` (`internal/desktop/app.go`) |
 | Readiness | `internal/desktop/app_readiness.go` `GetReadiness`, event `bridge.readiness` |
 | Today schedule and day badges | `internal/desktop/app_runtime.go` `GetEpisodeSchedule`, `GetEpisodeDayCounts` (handle `episodes`) |
+| Devices page (pairing, paired devices, reconcile, pending syncs) | `internal/desktop/app_runtime.go` `GetEffectiveAddress` (handle `api`), `GetPairingToken`, `GetConnectedDevices`, `UnpairDevice` (handle `devices`), `TriggerReconcile`, `GetSyncingAnimeItems` (handle `sync`); `../devices/overview.md` |
 | Any other Wails binding | the exported `App` method in `internal/desktop/app_<context>*.go` |
 
 ## Known drift
 
-- Every binding except `GetReadiness`, `GetEpisodeSchedule` and `GetEpisodeDayCounts` still reads
-  its service from an `App` field without a readiness check: 118 `binding-uses-handle` and 51
-  `binding-signature` entries in
+- Every binding except `GetReadiness`, `GetEpisodeSchedule`, `GetEpisodeDayCounts` and the six
+  `api`/`sync`/`devices` bindings above still reads its service from an `App` field without a
+  readiness check: 112 `binding-uses-handle` and 45 `binding-signature` entries in
   `tools/checkarchitecture/baseline.yaml` (printed by `go run ./tools/checkarchitecture`).
 - ADR-018's field count (~110) predates this page; `App` grew by one field, `modules`.

@@ -41,6 +41,7 @@ func (a *App) configureRuntimeServices(ctx context.Context) {
 	// Before startHTTPServer: the first contact overwrites the value this keeps.
 	a.captureLastContacts(ctx, changelogStore)
 	a.configureRealtimeHub(ctx)
+	a.bindDevicesModule()
 	a.startSeasonProjectionPublisher(ctx)
 	conflictService := a.configureAnimeApplicationServices()
 	a.wireEpisodeServiceWithWriter(a.animeWrite)
