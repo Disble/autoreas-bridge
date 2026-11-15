@@ -39,17 +39,17 @@ func TestSaveAnimeEditorIgnoresAWireEpisodesKey(t *testing.T) {
 // One bad edit placed last (after good ones, including a clear) stores none.
 func TestSaveEpisodeDurationsBadEditLastStoresNothing(t *testing.T) {
 	app, _ := editorEpisodeApp(t)
-	ok := app.SaveEpisodeDurations("anime-1", []EpisodeDurationEditDTO{{Episode: 2, DurationMs: 60_000, Source: episodes.SourceManual}})
-	if ok.Outcome != contracts.AnimePatchOutcomeApplied {
-		t.Fatalf("seed: %#v", ok)
+	ok, err := app.SaveEpisodeDurations("anime-1", []EpisodeDurationEditDTO{{Episode: 2, DurationMs: 60_000, Source: episodes.SourceManual}})
+	if err != nil || ok.Outcome != contracts.AnimePatchOutcomeApplied {
+		t.Fatalf("seed: %#v (err %v)", ok, err)
 	}
-	got := app.SaveEpisodeDurations("anime-1", []EpisodeDurationEditDTO{
+	got, err := app.SaveEpisodeDurations("anime-1", []EpisodeDurationEditDTO{
 		{Episode: 1, DurationMs: (24 * time.Minute).Milliseconds(), Source: episodes.SourceManual},
 		{Episode: 2, Clear: true},
 		{Episode: 3, DurationMs: 60_000, Source: "bogus"},
 	})
-	if got.Outcome != contracts.AnimePatchOutcomeError || got.Changed != 0 {
-		t.Fatalf("want error, got %#v", got)
+	if err == nil || got.Changed != 0 {
+		t.Fatalf("want an error, got %#v (err %v)", got, err)
 	}
 	if rows := storedEpisodes(t, app); len(rows) != 1 || rows[0].Episode != 2 {
 		t.Fatalf("want only the seeded episode 2, got %+v", rows)

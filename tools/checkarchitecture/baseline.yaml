@@ -200,18 +200,6 @@ violations:
     file: internal/desktop/app_download_rename.go
     symbol: SetEpisodeRenameEnabled
   - rule: binding-uses-handle
-    file: internal/desktop/app_episode_editor.go
-    symbol: CancelEpisodeReanalysis
-  - rule: binding-uses-handle
-    file: internal/desktop/app_episode_editor.go
-    symbol: GetEpisodeDurationSection
-  - rule: binding-uses-handle
-    file: internal/desktop/app_episode_editor.go
-    symbol: ReanalyzeEpisodeDurations
-  - rule: binding-uses-handle
-    file: internal/desktop/app_episode_editor.go
-    symbol: SaveEpisodeDurations
-  - rule: binding-uses-handle
     file: internal/desktop/app_library_root.go
     symbol: PreviewLibraryRootChange
   - rule: binding-uses-handle
