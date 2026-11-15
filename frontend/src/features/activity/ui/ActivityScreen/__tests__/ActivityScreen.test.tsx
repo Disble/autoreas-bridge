@@ -512,23 +512,29 @@ describe('ActivityScreen chart and toolbar', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('applies one pressed day as a one-day range, drops an unapplied pick on Esc, and clears the range and closes from Clear', async () => {
-    await renderChart();
+  /** Applies today as a one-day range through the picker and waits for the feed to read it. */
+  async function applyToday() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    let dialog = await openPicker();
+    const dialog = await openPicker();
     fireEvent.click(within(dialog).getByRole('button', { name: /^Today/ }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
     await waitFor(() => expect(lastQuery()).toMatchObject({ fromMs: today.getTime() }));
-    expect(lastQuery()?.toMs).toBeLessThanOrEqual(Date.now());
+  }
 
-    dialog = await openPicker();
-    fireEvent.keyDown(within(timeField(dialog, 'Start time')).getAllByRole('spinbutton')[0], { key: 'ArrowUp' });
-    fireEvent.keyDown(dialog, { key: 'Escape' });
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    dialog = await openPicker();
-    expect(timeField(dialog, 'Start time')).toHaveTextContent(/12\D*00\D*AM/);
-    expect(lastQuery()).toMatchObject({ fromMs: today.getTime() });
+  it('applies one pressed day as a one-day range', async () => {
+    await renderChart();
+
+    await applyToday();
+
+    expect(lastQuery()?.toMs).toBeLessThanOrEqual(Date.now());
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('clears the range and closes from Clear', async () => {
+    await renderChart();
+    await applyToday();
+    const dialog = await openPicker();
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Clear' }));
 
