@@ -11,12 +11,6 @@
 version: 1
 violations:
   - rule: binding-signature
-    file: internal/desktop/app_api_address.go
-    symbol: GetAPIAddress
-  - rule: binding-signature
-    file: internal/desktop/app_api_address.go
-    symbol: SetAPIAddress
-  - rule: binding-signature
     file: internal/desktop/app_download.go
     symbol: ListDownloadRuns
   - rule: binding-signature
@@ -38,23 +32,11 @@ violations:
     file: internal/desktop/app_download_cancel.go
     symbol: CancelDownloadRun
   - rule: binding-signature
-    file: internal/desktop/app_download_rename.go
-    symbol: SetEpisodeRenameEnabled
-  - rule: binding-signature
     file: internal/desktop/app_preferences.go
     symbol: GetKeymap
   - rule: binding-signature
     file: internal/desktop/app_preferences.go
-    symbol: GetLibraryRoot
-  - rule: binding-signature
-    file: internal/desktop/app_preferences.go
-    symbol: SetAutoStartEnabled
-  - rule: binding-signature
-    file: internal/desktop/app_preferences.go
     symbol: SetKeymap
-  - rule: binding-signature
-    file: internal/desktop/app_preferences.go
-    symbol: SetLibraryRoot
   - rule: binding-signature
     file: internal/desktop/app_runtime.go
     symbol: GetAnimes
@@ -119,12 +101,6 @@ violations:
     file: internal/desktop/app_season_availability.go
     symbol: TriggerSeasonDownloads
   - rule: binding-signature
-    file: internal/desktop/app_season_check_time.go
-    symbol: GetSeasonCheckTime
-  - rule: binding-signature
-    file: internal/desktop/app_season_check_time.go
-    symbol: SetSeasonCheckTime
-  - rule: binding-signature
     file: internal/desktop/app_season_history.go
     symbol: GetPastSeasonAnimes
   - rule: binding-signature
@@ -133,12 +109,6 @@ violations:
   - rule: binding-signature
     file: internal/desktop/app_season_runtime.go
     symbol: RecheckSeasonAvailability
-  - rule: binding-uses-handle
-    file: internal/desktop/app_api_address.go
-    symbol: GetAPIAddress
-  - rule: binding-uses-handle
-    file: internal/desktop/app_api_address.go
-    symbol: SetAPIAddress
   - rule: binding-uses-handle
     file: internal/desktop/app_cover.go
     symbol: GetAnimeCover
@@ -197,9 +167,6 @@ violations:
     file: internal/desktop/app_download_readiness.go
     symbol: ListDownloadReadiness
   - rule: binding-uses-handle
-    file: internal/desktop/app_download_rename.go
-    symbol: SetEpisodeRenameEnabled
-  - rule: binding-uses-handle
     file: internal/desktop/app_episode_editor.go
     symbol: CancelEpisodeReanalysis
   - rule: binding-uses-handle
@@ -211,9 +178,6 @@ violations:
   - rule: binding-uses-handle
     file: internal/desktop/app_episode_editor.go
     symbol: SaveEpisodeDurations
-  - rule: binding-uses-handle
-    file: internal/desktop/app_library_root.go
-    symbol: PreviewLibraryRootChange
   - rule: binding-uses-handle
     file: internal/desktop/app_notification_center.go
     symbol: ArchiveNotifications
@@ -240,25 +204,13 @@ violations:
     symbol: RestoreNotifications
   - rule: binding-uses-handle
     file: internal/desktop/app_preferences.go
-    symbol: GetAutoStartEnabled
-  - rule: binding-uses-handle
-    file: internal/desktop/app_preferences.go
     symbol: GetKeymap
-  - rule: binding-uses-handle
-    file: internal/desktop/app_preferences.go
-    symbol: GetLibraryRoot
   - rule: binding-uses-handle
     file: internal/desktop/app_preferences.go
     symbol: GetSeasonMode
   - rule: binding-uses-handle
     file: internal/desktop/app_preferences.go
-    symbol: SetAutoStartEnabled
-  - rule: binding-uses-handle
-    file: internal/desktop/app_preferences.go
     symbol: SetKeymap
-  - rule: binding-uses-handle
-    file: internal/desktop/app_preferences.go
-    symbol: SetLibraryRoot
   - rule: binding-uses-handle
     file: internal/desktop/app_runtime.go
     symbol: AdjustWatchedEpisodes
@@ -382,12 +334,6 @@ violations:
   - rule: binding-uses-handle
     file: internal/desktop/app_season_availability.go
     symbol: TriggerSeasonDownloads
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season_check_time.go
-    symbol: GetSeasonCheckTime
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season_check_time.go
-    symbol: SetSeasonCheckTime
   - rule: binding-uses-handle
     file: internal/desktop/app_season_history.go
     symbol: GetPastSeason

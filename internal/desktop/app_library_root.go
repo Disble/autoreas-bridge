@@ -10,23 +10,25 @@ import (
 )
 
 // LibraryRootChangePreview is what saving a new library root would do to stored folders
-// (ADR 027 D4). Message is set only when the preview could not be computed.
+// (ADR 027 D4).
 type LibraryRootChangePreview struct {
 	OldRoot string                  `json:"oldRoot"`
 	Moves   []anime.LibraryRootMove `json:"moves"`
 	Kept    []anime.LibraryRootKept `json:"kept"`
-	Message string                  `json:"message,omitempty"`
 }
 
-// PreviewLibraryRootChange lists the active animes whose stored folder would follow a change to
-// newRoot, and the active animes outside the current root that stay as they are. Options shows
-// it for confirmation before calling SetLibraryRoot.
-func (a *App) PreviewLibraryRootChange(newRoot string) LibraryRootChangePreview {
-	oldRoot, plan, err := a.libraryRootPlan(a.seasonCtx(), newRoot)
-	if err != nil {
-		return LibraryRootChangePreview{Moves: []anime.LibraryRootMove{}, Kept: []anime.LibraryRootKept{}, Message: err.Error()}
-	}
-	return LibraryRootChangePreview{OldRoot: oldRoot, Moves: plan.Moves, Kept: plan.Kept}
+// PreviewLibraryRootChange lists, through the settings module handle, the active animes whose
+// stored folder would follow a change to newRoot, and the active animes outside the current root
+// that stay as they are. Options shows it for confirmation before calling SetLibraryRoot. A
+// preview that cannot be computed is the binding's error.
+func (a *App) PreviewLibraryRootChange(newRoot string) (LibraryRootChangePreview, error) {
+	return a.moduleSet().settings.Use(func(settingsServices) (LibraryRootChangePreview, error) {
+		oldRoot, plan, err := a.libraryRootPlan(a.seasonCtx(), newRoot)
+		if err != nil {
+			return LibraryRootChangePreview{}, err
+		}
+		return LibraryRootChangePreview{OldRoot: oldRoot, Moves: plan.Moves, Kept: plan.Kept}, nil
+	})
 }
 
 // libraryRootPlan reads the current root and every anime, and plans the change to newRoot.

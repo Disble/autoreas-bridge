@@ -34,17 +34,22 @@ func (a *App) seasonModeReader() func(context.Context) bool {
 	}
 }
 
-// GetLibraryRoot returns the configured global library root, or "" when it
-// has never been set. It degrades to "" when the settings store is unavailable.
-func (a *App) GetLibraryRoot() string {
+// bindSettingsModule binds the settings store to the settings handle. Startup calls
+// it where it wires the store, before configureRuntimeServices marks the module
+// ready, so a binding that sees ready finds the store.
+func (a *App) bindSettingsModule() {
 	if a.settingsStore == nil {
-		return ""
+		return
 	}
-	root, err := a.settingsStore.LibraryRoot(a.seasonCtx())
-	if err != nil {
-		return ""
-	}
-	return root
+	a.moduleSet().settings.Bind(settingsServices{store: a.settingsStore})
+}
+
+// GetLibraryRoot returns the configured global library root through the
+// settings module handle, or "" when it has never been set.
+func (a *App) GetLibraryRoot() (string, error) {
+	return a.moduleSet().settings.Use(func(services settingsServices) (string, error) {
+		return services.store.LibraryRoot(a.seasonCtx())
+	})
 }
 
 // libraryRoot is the download-context settings seam used by readiness and execution.
@@ -57,49 +62,43 @@ func (a *App) libraryRoot(ctx context.Context) (string, error) {
 
 // SetLibraryRoot persists the global library root — the base folder joined
 // with a sanitized anime name to form a newly-created season anime's default
-// download folder. The active animes under the previous root first follow it (ADR 027 D4); if
-// any cannot, the root is kept. Returns "ok" or an error string.
-func (a *App) SetLibraryRoot(path string) string {
-	if a.settingsStore == nil {
-		return "settings store unavailable"
-	}
-	if err := a.rebaseActiveFolders(a.seasonCtx(), path); err != nil {
-		return err.Error()
-	}
-	if err := a.settingsStore.SetLibraryRoot(a.seasonCtx(), path); err != nil {
-		return err.Error()
-	}
-	return "ok"
+// download folder — through the settings module handle. The active animes under
+// the previous root first follow it (ADR 027 D4); if any cannot, the root is
+// kept and the failure names them.
+func (a *App) SetLibraryRoot(path string) error {
+	_, err := a.moduleSet().settings.Use(func(services settingsServices) (struct{}, error) {
+		if err := a.rebaseActiveFolders(a.seasonCtx(), path); err != nil {
+			return struct{}{}, err
+		}
+		return struct{}{}, services.store.SetLibraryRoot(a.seasonCtx(), path)
+	})
+	return err
 }
 
-// GetAutoStartEnabled returns the persisted login-launch preference. The
-// preference defaults to enabled when settings have not been initialized yet.
-func (a *App) GetAutoStartEnabled() bool {
-	if a.settingsStore == nil {
-		return true
-	}
-	enabled, err := a.autoStartEnabled(a.seasonCtx())
-	return err == nil && enabled
+// GetAutoStartEnabled returns the persisted login-launch preference through the
+// settings module handle; it defaults to enabled until the user changes it.
+func (a *App) GetAutoStartEnabled() (bool, error) {
+	return a.moduleSet().settings.Use(func(services settingsServices) (bool, error) {
+		return autoStartEnabled(a.seasonCtx(), services.store)
+	})
 }
 
 // SetAutoStartEnabled persists and immediately reconciles the login-launch
-// preference. Registry failures leave the preference intact for the next start.
-func (a *App) SetAutoStartEnabled(enabled bool) string {
-	if a.settingsStore == nil {
-		return "settings store unavailable"
-	}
-	if err := a.settingsStore.SetAutoStartEnabled(a.seasonCtx(), enabled); err != nil {
-		return err.Error()
-	}
-	// A data directory copy is a development build: the registry belongs to the
-	// everyday bridge, so the copy only records the preference.
-	if a.newAutoStartReconciler == nil || a.dataDirOverridden() {
-		return "ok"
-	}
-	if err := a.newAutoStartReconciler().Reconcile(enabled); err != nil {
-		return err.Error()
-	}
-	return "ok"
+// preference through the settings module handle. Registry failures leave the
+// preference intact for the next start.
+func (a *App) SetAutoStartEnabled(enabled bool) error {
+	_, err := a.moduleSet().settings.Use(func(services settingsServices) (struct{}, error) {
+		if err := services.store.SetAutoStartEnabled(a.seasonCtx(), enabled); err != nil {
+			return struct{}{}, err
+		}
+		// A data directory copy is a development build: the registry belongs to the
+		// everyday bridge, so the copy only records the preference.
+		if a.newAutoStartReconciler == nil || a.dataDirOverridden() {
+			return struct{}{}, nil
+		}
+		return struct{}{}, a.newAutoStartReconciler().Reconcile(enabled)
+	})
+	return err
 }
 
 // reconcileAutoStart makes registration best effort so registry access can
@@ -110,7 +109,7 @@ func (a *App) reconcileAutoStart(ctx context.Context) {
 	if a.settingsStore == nil || a.newAutoStartReconciler == nil || a.dataDirOverridden() {
 		return
 	}
-	enabled, err := a.autoStartEnabled(ctx)
+	enabled, err := autoStartEnabled(ctx, a.settingsStore)
 	if err != nil {
 		if errors.Is(err, errAutoStartSettingsUnavailable) || errors.Is(err, settings.ErrDatabaseUnavailable) {
 			return
@@ -125,15 +124,15 @@ func (a *App) reconcileAutoStart(ctx context.Context) {
 	}
 }
 
-// autoStartEnabled reads the startup preference without allowing an unavailable
-// settings boundary to prevent the resident application from starting.
-func (a *App) autoStartEnabled(ctx context.Context) (enabled bool, err error) {
+// autoStartEnabled reads the startup preference from store without allowing an
+// unavailable settings boundary to prevent the resident application from starting.
+func autoStartEnabled(ctx context.Context, store appSettingsStore) (enabled bool, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			err = fmt.Errorf("%w: %v", errAutoStartSettingsUnavailable, recovered)
 		}
 	}()
-	return a.settingsStore.AutoStartEnabled(ctx)
+	return store.AutoStartEnabled(ctx)
 }
 
 // GetKeymap returns the persisted keymap document, or "" when the settings

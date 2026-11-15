@@ -144,8 +144,8 @@ type tracerBulletRunner interface {
 }
 
 // appSettingsStore is the narrow port for reading/writing global user
-// preferences (app_settings). Nil-tolerant at every binding: a nil store
-// degrades to an unset ("") library root.
+// preferences (app_settings). Bindings reach it through the settings module
+// handle; the startup and download seams that read it directly stay nil-tolerant.
 type appSettingsStore interface {
 	LibraryRoot(ctx context.Context) (string, error)
 	SetLibraryRoot(ctx context.Context, path string) error

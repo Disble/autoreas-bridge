@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"autoreas-bridge/internal/apperr"
 	"autoreas-bridge/internal/download"
 )
 
@@ -49,29 +50,34 @@ func (a *App) seasonCheckTime(ctx context.Context) (hhmm string) {
 	return stored
 }
 
-// GetSeasonCheckTime returns the local HH:MM at which the daily season
-// availability check runs.
-func (a *App) GetSeasonCheckTime() string {
-	return a.seasonCheckTime(a.seasonCtx())
+// GetSeasonCheckTime returns, through the settings module handle, the local
+// HH:MM at which the daily season availability check runs: the effective time
+// seasonCheckTime gives the scheduler, so an unreadable or malformed stored
+// value answers the default the check actually uses.
+func (a *App) GetSeasonCheckTime() (string, error) {
+	return a.moduleSet().settings.Use(func(settingsServices) (string, error) {
+		return a.seasonCheckTime(a.seasonCtx()), nil
+	})
 }
 
 // SetSeasonCheckTime persists a new local HH:MM for the daily season
-// availability check and wakes the season scheduler so the next run is
-// re-armed at the new time without a restart. Returns "ok" or an error message.
-func (a *App) SetSeasonCheckTime(hhmm string) string {
-	if a.settingsStore == nil {
-		return "settings store unavailable"
-	}
-	if !isValidSeasonCheckTime(hhmm) {
-		return fmt.Sprintf("invalid time %q: use HH:MM (00:00-23:59)", hhmm)
-	}
-	if err := a.settingsStore.SetSeasonCheckTime(a.seasonCtx(), hhmm); err != nil {
-		return err.Error()
-	}
-	if a.seasonScheduler != nil {
-		a.seasonScheduler.NotifyConfigChanged()
-	}
-	return "ok"
+// availability check through the settings module handle and wakes the season
+// scheduler so the next run is re-armed at the new time without a restart. A
+// value that is not HH:MM is invalid_argument.
+func (a *App) SetSeasonCheckTime(hhmm string) error {
+	_, err := a.moduleSet().settings.Use(func(services settingsServices) (struct{}, error) {
+		if !isValidSeasonCheckTime(hhmm) {
+			return struct{}{}, apperr.InvalidArgument(fmt.Sprintf("invalid time %q: use HH:MM (00:00-23:59)", hhmm))
+		}
+		if err := services.store.SetSeasonCheckTime(a.seasonCtx(), hhmm); err != nil {
+			return struct{}{}, err
+		}
+		if a.seasonScheduler != nil {
+			a.seasonScheduler.NotifyConfigChanged()
+		}
+		return struct{}{}, nil
+	})
+	return err
 }
 
 // seasonScheduleStore is the schedule.ConfigStore of the daily availability

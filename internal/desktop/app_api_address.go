@@ -6,21 +6,18 @@ import (
 	"strings"
 
 	"autoreas-bridge/internal/api"
+	"autoreas-bridge/internal/apperr"
 )
 
-// GetAPIAddress returns the configured HTTP listen address, or "" when the
-// shipped default is in use. Empty is the honest answer for "not configured":
-// reporting the default here would make the field look chosen rather than
-// inherited, and the two behave differently when the default later moves.
-func (a *App) GetAPIAddress() string {
-	if a.settingsStore == nil {
-		return ""
-	}
-	addr, err := a.settingsStore.APIAddr(a.seasonCtx())
-	if err != nil {
-		return ""
-	}
-	return addr
+// GetAPIAddress returns the configured HTTP listen address through the settings
+// module handle, or "" when the shipped default is in use. Empty is the honest
+// answer for "not configured": reporting the default here would make the field
+// look chosen rather than inherited, and the two behave differently when the
+// default later moves.
+func (a *App) GetAPIAddress() (string, error) {
+	return a.moduleSet().settings.Use(func(services settingsServices) (string, error) {
+		return services.store.APIAddr(a.seasonCtx())
+	})
 }
 
 // SetAPIAddress persists the address the HTTP API binds. A bare port number is
@@ -34,21 +31,19 @@ func (a *App) GetAPIAddress() string {
 //
 // The running listener is deliberately not rebound. Moving the port underneath
 // paired devices mid-session breaks their sync without telling them, so the
-// change takes effect on the next start. Returns "ok" or an error string.
-func (a *App) SetAPIAddress(addr string) string {
-	if a.settingsStore == nil {
-		return "settings store unavailable"
-	}
-	trimmed := strings.TrimSpace(addr)
-	if trimmed != "" {
-		if _, rejected := api.ResolveAddr(trimmed, nil); rejected != "" {
-			return fmt.Sprintf("%q is not a usable port or address", rejected)
+// change takes effect on the next start. It runs through the settings module
+// handle; an unusable value is invalid_argument.
+func (a *App) SetAPIAddress(addr string) error {
+	_, err := a.moduleSet().settings.Use(func(services settingsServices) (struct{}, error) {
+		trimmed := strings.TrimSpace(addr)
+		if trimmed != "" {
+			if _, rejected := api.ResolveAddr(trimmed, nil); rejected != "" {
+				return struct{}{}, apperr.InvalidArgument(fmt.Sprintf("%q is not a usable port or address", rejected))
+			}
 		}
-	}
-	if err := a.settingsStore.SetAPIAddr(a.seasonCtx(), trimmed); err != nil {
-		return err.Error()
-	}
-	return "ok"
+		return struct{}{}, services.store.SetAPIAddr(a.seasonCtx(), trimmed)
+	})
+	return err
 }
 
 // resolveAPIAddr picks the address the HTTP API binds at startup: the

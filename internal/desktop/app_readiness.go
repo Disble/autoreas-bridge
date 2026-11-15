@@ -133,6 +133,13 @@ type deviceServices struct {
 	newToken func() (string, error)
 }
 
+// settingsServices are the services the settings module's bindings use: the
+// settings store. bindSettingsModule binds them where startup wires the store,
+// before configureRuntimeServices marks the module ready.
+type settingsServices struct {
+	store appSettingsStore
+}
+
 // appModules is the module set App holds: the readiness registry, its writer
 // (only the composition root writes) and the module handles. Domain modules get
 // their handle here when they migrate (ADR-032 §3; internal/modules says how).
@@ -146,6 +153,7 @@ type appModules struct {
 	api           *modules.Handle[apiServices]
 	sync          *modules.Handle[syncServices]
 	devices       *modules.Handle[deviceServices]
+	settings      *modules.Handle[settingsServices]
 	observability *modules.Handle[observabilityServices]
 }
 
@@ -163,6 +171,7 @@ func (a *App) moduleSet() *appModules {
 		a.modules.api = modules.NewHandle[apiServices](moduleAPI, a.modules.registry)
 		a.modules.sync = modules.NewHandle[syncServices](moduleSync, a.modules.registry)
 		a.modules.devices = modules.NewHandle[deviceServices](moduleDevices, a.modules.registry)
+		a.modules.settings = modules.NewHandle[settingsServices](moduleSettings, a.modules.registry)
 		a.modules.observability = modules.NewHandle[observabilityServices](moduleObservability, a.modules.registry)
 	})
 	return &a.modules

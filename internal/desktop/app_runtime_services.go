@@ -266,6 +266,7 @@ func (a *App) configureBridgeDeviceServices(ctx context.Context) (device.AuthSer
 	a.seasonService = season.NewService(season.WithProjectionSignal(a.newSeasonStore(a.bridgeDB), a.eventBus), time.Now, func() string { return uuid.New().String() }, jkanimeSearcher)
 	a.seasonService.SetProviderSearchers(a.newSeasonProviderSearchers(jkanimeSearcher))
 	a.settingsStore = settings.NewSQLiteStore(a.bridgeDB)
+	a.bindSettingsModule()
 	deviceService := a.newDeviceService(deviceStore)
 	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(a.bridgeDB))
 	a.attachDeviceSyncStateStore(deviceService, changelogStore)
