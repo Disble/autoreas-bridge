@@ -4,22 +4,28 @@ package webview2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+	"unsafe"
+
+	"golang.org/x/sys/windows"
+
+	"autoreas-bridge/internal/cfclearance"
 )
 
 // TestEngineClearsAFixtureCookieWithoutShowingAWindow runs the real engine behind the
-// production boundary: a solver child, confined to runChild's kill-on-close job, solves the
-// fixture and reports the clearance on the protocol. It skips only when the WebView2 runtime is
+// production boundary: a solver child, confined to a kill-on-close job, solves the fixture and
+// reports the clearance on the protocol. Every browser process the engine starts runs inside
+// that job, so closing the job ends them all. It skips only when the WebView2 runtime is
 // genuinely absent.
 func TestEngineClearsAFixtureCookieWithoutShowingAWindow(t *testing.T) {
 	if testing.Short() {
@@ -35,7 +41,7 @@ func TestEngineClearsAFixtureCookieWithoutShowingAWindow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("engine profile kept for inspection: %s", dataDir)
+	t.Cleanup(func() { removeProfileUnlessFailed(t, dataDir) })
 	report := filepath.Join(t.TempDir(), "window")
 	t.Setenv(fakeChildEnv, engineChildMode)
 	t.Setenv(windowReportEnv, report)
@@ -43,14 +49,51 @@ func TestEngineClearsAFixtureCookieWithoutShowingAWindow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	solver := &ProcessSolver{Executable: exe, DataDir: dataDir, Timeout: 20 * time.Second}
-	got, err := solver.Solve(context.Background(), srv.URL, "stale")
+	got, inside, outside := solveInWatchedJob(t, exe, srv.URL, dataDir)
+	assertFixtureClearance(t, got, nonce)
+	if checks, visible := readWindowReport(t, report); checks == 0 || visible != 0 {
+		t.Fatalf("window visibility: %d checks, visible %d times", checks, visible)
+	}
+	if outside != 0 {
+		t.Fatalf("%d msedgewebview2 process(es) using %s ran outside the kill-on-close job", outside, dataDir)
+	}
+	if inside == 0 {
+		t.Fatalf("no msedgewebview2 process using %s was seen during the solve", dataDir)
+	}
+	t.Logf("%d browser processes, all inside the job", inside)
+}
+
+// solveInWatchedJob runs the solver child for origin inside a kill-on-close job the fixture
+// owns, and returns the decoded clearance with how many browser processes using dataDir ran
+// inside and outside that job. It skips the test when the WebView2 runtime is absent.
+func solveInWatchedJob(t *testing.T, exe, origin, dataDir string) (got cfclearance.Clearance, inside, outside int) {
+	t.Helper()
+	job, err := newKillOnCloseJob()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer job.close()
+	watch := watchJobMembership(job.handle, dataDir)
+	budget := 20 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), budget+shutdownGrace)
+	defer cancel()
+	stdout := &boundedWriter{limit: MaxOutputBytes}
+	runErr := runChildInJob(ctx, job, exe, []string{SolveFlag, origin, "stale", dataDir, budget.String()}, stdout)
+	inside, outside = watch.stop(t)
+	clearance, err := Decode(stdout.Bytes(), "stale")
 	if err != nil && strings.Contains(err.Error(), runtimeUnavailable) {
 		t.Skip(err)
 	}
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal(errors.Join(err, runErr))
 	}
+	return clearance, inside, outside
+}
+
+// assertFixtureClearance fails unless got carries the fixture's cf_clearance for nonce and the
+// engine's user agent.
+func assertFixtureClearance(t *testing.T, got cfclearance.Clearance, nonce string) {
+	t.Helper()
 	var clearance *http.Cookie
 	for _, c := range got.Cookies {
 		if c.Name == clearanceCookie {
@@ -64,14 +107,6 @@ func TestEngineClearsAFixtureCookieWithoutShowingAWindow(t *testing.T) {
 	if !strings.Contains(got.UserAgent, "Edg/") {
 		t.Fatalf("user agent %q is not the engine's", got.UserAgent)
 	}
-	if checks, visible := readWindowReport(t, report); checks == 0 || visible != 0 {
-		t.Fatalf("window visibility: %d checks, visible %d times", checks, visible)
-	}
-	started := time.Now()
-	if n := browserProcessesUsing(t, dataDir, engineTeardownBudget); n != 0 {
-		t.Fatalf("%d msedgewebview2 process(es) still use %s after %s", n, dataDir, engineTeardownBudget)
-	}
-	t.Logf("engine teardown took %s", time.Since(started).Round(time.Millisecond))
 }
 
 // runRealEngineChild solves with the real engine, the way production's solver child does, and
@@ -93,13 +128,30 @@ func runRealEngineChild() {
 	exitWithResult(res)
 }
 
-// engineTeardownBudget bounds only the observation of a teardown the child's job object
-// enforces: closing it kills every browser process the child spawned. The earlier fixture drove
-// runEngine in this process and waited 60s for browsers to leave on their own, a mechanism
-// production never relies on and Windows does not bound, so a loaded gate could still see one
-// alive. A budget here tolerates slow process enumeration; a job that never kills keeps the
-// count above zero however long the wait.
-const engineTeardownBudget = 10 * time.Second
+// removeProfileUnlessFailed deletes the fixture's engine profile, or keeps it and logs its path
+// when the test failed so the profile can be inspected. The browsers release the profile's
+// files as they exit, so the delete retries for up to profileRemovalBudget.
+func removeProfileUnlessFailed(t *testing.T, dataDir string) {
+	if t.Failed() {
+		t.Logf("engine profile kept for inspection: %s", dataDir)
+		return
+	}
+	deadline := time.Now().Add(profileRemovalBudget)
+	for {
+		err := os.RemoveAll(dataDir)
+		if err == nil {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Logf("engine profile %s not removed: %v", dataDir, err)
+			return
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+}
+
+// profileRemovalBudget bounds how long the fixture retries deleting its engine profile.
+const profileRemovalBudget = 15 * time.Second
 
 // readWindowReport reads the checks and visible counts the real-engine solver child recorded
 // for its host window.
@@ -146,25 +198,117 @@ func watchVisibility(hwnd uintptr, stop <-chan struct{}, checks, sawVisible *ato
 	}
 }
 
-// browserProcessesUsing counts the msedgewebview2 processes whose command line names dataDir,
-// polling until none is left or budget passes, and returns the last count.
-func browserProcessesUsing(t *testing.T, dataDir string, budget time.Duration) int {
-	t.Helper()
-	script := `@(Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" | ` +
-		`Where-Object { $_.CommandLine -ne $null -and $_.CommandLine.Contains('` + dataDir + `') }).Count`
-	deadline := time.Now().Add(budget)
-	for {
-		out, err := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script).Output()
-		if err != nil {
-			t.Fatalf("process listing: %v", err)
+// jobWatch records, while a solve runs, which msedgewebview2 processes using the fixture's
+// profile ran inside the solver child's job and which ran outside it.
+type jobWatch struct {
+	done     chan struct{}
+	finished chan struct{}
+	inside   map[uint32]bool
+	outside  map[uint32]bool
+	err      error
+}
+
+// watchJobMembership looks every 20ms, until stop, for msedgewebview2 processes whose command
+// line names dataDir and records whether each one is a member of job.
+func watchJobMembership(job windows.Handle, dataDir string) *jobWatch {
+	w := &jobWatch{done: make(chan struct{}), finished: make(chan struct{}), inside: map[uint32]bool{}, outside: map[uint32]bool{}}
+	go func() {
+		defer close(w.finished)
+		for {
+			if w.err = w.look(job, dataDir); w.err != nil {
+				return
+			}
+			select {
+			case <-w.done:
+				return
+			case <-time.After(20 * time.Millisecond):
+			}
 		}
-		n, err := strconv.Atoi(strings.TrimSpace(string(out)))
-		if err != nil {
-			t.Fatalf("process listing output %q", out)
-		}
-		if n == 0 || time.Now().After(deadline) {
-			return n
-		}
-		time.Sleep(500 * time.Millisecond)
+	}()
+	return w
+}
+
+// look classifies each browser process using dataDir that has not been classified yet.
+func (w *jobWatch) look(job windows.Handle, dataDir string) error {
+	pids, err := browserProcessIDs()
+	if err != nil {
+		return err
 	}
+	for _, pid := range pids {
+		if w.inside[pid] || w.outside[pid] {
+			continue
+		}
+		h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
+		if err != nil {
+			continue // exited since the snapshot, or not ours to open
+		}
+		member, err := classifyBrowserProcess(h, job, dataDir)
+		_ = windows.CloseHandle(h)
+		switch {
+		case err != nil:
+			return err
+		case member == nil:
+		case *member:
+			w.inside[pid] = true
+		default:
+			w.outside[pid] = true
+		}
+	}
+	return nil
+}
+
+// stop ends the watch and returns how many browser processes ran inside and outside the job.
+func (w *jobWatch) stop(t *testing.T) (inside, outside int) {
+	t.Helper()
+	close(w.done)
+	<-w.finished
+	if w.err != nil {
+		t.Fatalf("watch browser processes: %v", w.err)
+	}
+	return len(w.inside), len(w.outside)
+}
+
+// browserProcessIDs lists the IDs of the running msedgewebview2 processes.
+func browserProcessIDs() ([]uint32, error) {
+	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
+	if err != nil {
+		return nil, fmt.Errorf("process snapshot: %w", err)
+	}
+	defer func() { _ = windows.CloseHandle(snapshot) }()
+	var pids []uint32
+	entry := windows.ProcessEntry32{Size: uint32(unsafe.Sizeof(windows.ProcessEntry32{}))}
+	for err = windows.Process32First(snapshot, &entry); err == nil; err = windows.Process32Next(snapshot, &entry) {
+		if strings.EqualFold(windows.UTF16ToString(entry.ExeFile[:]), "msedgewebview2.exe") {
+			pids = append(pids, entry.ProcessID)
+		}
+	}
+	return pids, nil
+}
+
+// procIsProcessInJob is kernel32's IsProcessInJob, which golang.org/x/sys/windows does not wrap.
+var procIsProcessInJob = windows.NewLazySystemDLL("kernel32.dll").NewProc("IsProcessInJob")
+
+// classifyBrowserProcess reports whether the process behind h is a member of job, or nil when
+// its command line does not name dataDir.
+func classifyBrowserProcess(h, job windows.Handle, dataDir string) (*bool, error) {
+	if !strings.Contains(processCommandLine(h), dataDir) {
+		return nil, nil
+	}
+	var member int32
+	if ok, _, err := procIsProcessInJob.Call(uintptr(h), uintptr(job), uintptr(unsafe.Pointer(&member))); ok == 0 {
+		return nil, fmt.Errorf("IsProcessInJob: %w", err)
+	}
+	in := member != 0
+	return &in, nil
+}
+
+// processCommandLine reads a process's command line, or "" when it cannot be read.
+func processCommandLine(h windows.Handle) string {
+	buf := make([]byte, 64<<10)
+	var n uint32
+	if err := windows.NtQueryInformationProcess(h, windows.ProcessCommandLineInformation,
+		unsafe.Pointer(&buf[0]), uint32(len(buf)), &n); err != nil {
+		return ""
+	}
+	return (*windows.NTUnicodeString)(unsafe.Pointer(&buf[0])).String()
 }
