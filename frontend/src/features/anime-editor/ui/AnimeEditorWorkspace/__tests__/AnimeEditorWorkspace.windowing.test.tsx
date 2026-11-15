@@ -34,7 +34,7 @@ vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-sour
 }));
 
 import { AnimeEditorWorkspace } from '../AnimeEditorWorkspace';
-import { createEmptyEpisodeDurationSource } from './episode-duration-source.test-support';
+import { createEmptyEpisodeDurationSource, createEpisodesReadyWrapper } from './episode-duration-source.test-support';
 
 /** The Episodes section's in-memory source, so no render waits on a Wails binding. */
 const episodeSource = createEmptyEpisodeDurationSource();
@@ -55,7 +55,8 @@ describe('AnimeEditorWorkspace progressive list (150 items)', () => {
           <Route element={<AnimeEditorWorkspace episodeSource={episodeSource} />} path="/editor/:id" />
         </Routes>
       </MemoryRouter>,
-    );
+    { wrapper: createEpisodesReadyWrapper() },
+  );
 
     // The chip reports the true total (150) — but the DOM must NOT hold 150 rows.
     await waitFor(() => expect(screen.getByText('150 animes')).toBeInTheDocument());

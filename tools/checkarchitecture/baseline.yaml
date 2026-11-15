@@ -167,18 +167,6 @@ violations:
     file: internal/desktop/app_download_readiness.go
     symbol: ListDownloadReadiness
   - rule: binding-uses-handle
-    file: internal/desktop/app_episode_editor.go
-    symbol: CancelEpisodeReanalysis
-  - rule: binding-uses-handle
-    file: internal/desktop/app_episode_editor.go
-    symbol: GetEpisodeDurationSection
-  - rule: binding-uses-handle
-    file: internal/desktop/app_episode_editor.go
-    symbol: ReanalyzeEpisodeDurations
-  - rule: binding-uses-handle
-    file: internal/desktop/app_episode_editor.go
-    symbol: SaveEpisodeDurations
-  - rule: binding-uses-handle
     file: internal/desktop/app_notification_center.go
     symbol: ArchiveNotifications
   - rule: binding-uses-handle

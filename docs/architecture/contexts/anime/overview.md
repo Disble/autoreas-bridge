@@ -111,6 +111,13 @@ The episodes reads behind Today are served by the `episodes` module (ADR-032,
   starting (even when the service is already bound), `failed_precondition` with the startup reason
   after a failed startup, and `internal` when the service fails (ADR-032). Neither answers `[]` in
   place of a failure; a day with nothing scheduled is an empty list, never null.
+- The Editor's durations card bindings (`internal/desktop/app_episode_editor.go`:
+  `GetEpisodeDurationSection`, `ReanalyzeEpisodeDurations`, `CancelEpisodeReanalysis`,
+  `SaveEpisodeDurations`) run through the same handle, over `episodeServices.durations` (the bridge
+  database). They reject with `unavailable` / `failed_precondition` like the Today reads, and with
+  `internal` when the read, the re-analysis or the save fails (a refused edit stores nothing) or the
+  database is missing; no result carries an `error` outcome. Real outcomes stay results:
+  re-analysis `ok` or `busy` (another one is running), save `applied` or `no_op`.
 - What Today shows in each module state:
 
 | `episodes` state | Today schedule area | Day-tab badges |
@@ -257,6 +264,21 @@ flowchart LR
 - Not migrated (task T5): the season probe (`preferencesSource.getSeasonMode`), covers, row writes
   and desktop actions still call `bridgeRuntimeSource` / `preferencesSource` with their
   runtime-unavailable fallbacks; no UI state for Today lives in Zustand.
+- Durations card (Editor, `frontend/src/features/anime-editor/ui/EpisodeDurationsSection/`): its
+  adapter `createEpisodeDurationRuntimeSource`
+  (`frontend/src/infrastructure/bridge-runtime-source/episode-duration-runtime-source.helpers.ts`)
+  wraps the four bindings in `withBridgeErrors` and rejects as `unavailable` when a binding never
+  attaches (no fail-closed stand-in results). It is built once as `BRIDGE_EPISODE_DURATIONS_SOURCE`
+  and its port types live in `frontend/src/shared/contracts/episode-durations.types.ts`. The card
+  reads its section with `useBridgeQuery` on module `episodes` under its own `episode-durations` key
+  (saved anime, folder, total, type and the card's save revision; not under the `episodes` keys, so
+  `anime.changed` does not re-read the disk). The key follows the request only after it settles for
+  `EPISODE_DURATIONS_RELOAD_DELAY_MS` (250 ms), so a burst of record reloads reads the disk once; the
+  card shows loading while a newer request settles. A `starting` module shows the skeleton, a
+  `failed` module or a rejected read shows the surface Alert, and another anime's previous section
+  counts as loading. Re-analysis, cancel and save run as `useBridgeMutation`s with the card's own
+  review, Alert and copy. Re-analysis progress stays a per-run `EventsOn` listener
+  (`onEpisodeReanalysisProgress`), not an invalidation.
 
 ## Entry points
 
@@ -267,6 +289,7 @@ flowchart LR
 | `internal/desktop/app_runtime_create.go` | `CreateService.CreateBatch` | Creating animes (with reflowed neighbours) |
 | `internal/desktop/app.go` (`wireEpisodeServiceWithWriter`) | `EpisodeService` over `WriteService.PatchAnime` | Episode +1 / −1 and watch state |
 | `internal/desktop/app_runtime.go` `GetEpisodeSchedule`, `GetEpisodeDayCounts` | `EpisodeService` reads, through the `episodes` module handle | Today's schedule and day badges |
+| `internal/desktop/app_episode_editor.go` `GetEpisodeDurationSection`, `ReanalyzeEpisodeDurations`, `CancelEpisodeReanalysis`, `SaveEpisodeDurations` | `durationedit.Service`, `episodes.Store.ApplyEdits`, through the `episodes` module handle | The Editor's durations card |
 | `internal/api/router.go` | `PATCH /api/animes/:id`, sync reconcile, WS pending patch, all through `newMobileAnimeWriteService` (`app_runtime_services.go`) | Phones |
 | `internal/desktop/app_season_anime_gateway.go`, `app_season_availability.go` | `WriteService.PatchAnime`, `CreateService` | Season mode |
 

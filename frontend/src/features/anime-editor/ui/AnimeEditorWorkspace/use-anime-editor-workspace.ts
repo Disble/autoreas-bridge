@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import type { AnimeEditorRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
-import type { EpisodeDurationRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
+import type { EpisodeDurationRuntimeSource } from '../../../../shared/contracts/episode-durations.types';
 import { metadataLookupSource } from '../../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers';
 import type { CoverPreviewSource } from '../../../../shared/anime-cover/anime-cover.types';
 import { useEpisodeDurationsSection } from '../EpisodeDurationsSection/use-episode-durations-section';

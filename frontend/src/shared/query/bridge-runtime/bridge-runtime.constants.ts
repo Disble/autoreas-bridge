@@ -7,6 +7,7 @@ import { backupSource } from '../../../infrastructure/backup-source/backup-sourc
 import { createActivityFeedSource } from '../../../infrastructure/bridge-runtime-source/activity-feed-source.helpers';
 import { createActivityWailsSource } from '../../../infrastructure/bridge-runtime-source/activity-source.helpers';
 import { createDevicesSource } from '../../../infrastructure/bridge-runtime-source/devices-source.helpers';
+import { createEpisodeDurationRuntimeSource } from '../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.helpers';
 import { createEpisodesSource } from '../../../infrastructure/bridge-runtime-source/episodes-source.helpers';
 import { frontendErrorReporter } from '../../../infrastructure/error-reporting/frontend-error-source.helpers';
 import { createReadinessSource } from '../../../infrastructure/readiness/readiness-source.helpers';
@@ -45,6 +46,9 @@ export const BRIDGE_EVENT_SOURCE = createRuntimeEventSource();
 
 /** The episodes module's reads (`GetEpisodeSchedule`, `GetEpisodeDayCounts`), for Today. */
 export const BRIDGE_EPISODES_SOURCE = createEpisodesSource();
+
+/** The Editor durations card's reads and commands, served by the episodes module. */
+export const BRIDGE_EPISODE_DURATIONS_SOURCE = createEpisodeDurationRuntimeSource();
 
 /** The Devices page's bindings: the `api`, `devices` and `sync` modules' reads and commands. */
 export const BRIDGE_DEVICES_SOURCE = createDevicesSource();

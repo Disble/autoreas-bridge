@@ -1,6 +1,8 @@
 import { CancelEpisodeReanalysis, GetEpisodeDurationSection, ReanalyzeEpisodeDurations, SaveEpisodeDurations } from '../../../wailsjs/go/desktop/App';
 import type { desktop as wailsDesktop } from '../../../wailsjs/go/models';
 import { EventsOn } from '../../../wailsjs/runtime/runtime';
+import { createBridgeError } from '../../shared/query/bridge-error/bridge-error.helpers';
+import { withBridgeErrors } from '../bridge-error/bridge-error.helpers';
 import { createRuntimeSubscription, invokeGoBinding } from '../wails-bindings.helpers';
 import {
   EPISODE_DURATION_ROW_SOURCES,
@@ -9,9 +11,6 @@ import {
   EPISODE_REANALYSIS_PROGRESS_EVENT_NAME,
   EPISODE_REANALYSIS_RESULTS,
   EPISODE_REANALYSIS_STATUSES,
-  RUNTIME_UNAVAILABLE_EPISODE_REVIEW,
-  RUNTIME_UNAVAILABLE_EPISODE_SAVE,
-  RUNTIME_UNAVAILABLE_EPISODE_SECTION,
 } from './episode-duration-runtime-source.constants';
 import type {
   EpisodeDurationFolderStatus,
@@ -23,7 +22,7 @@ import type {
   EpisodeReanalysisProgress,
   EpisodeReanalysisReview,
   EpisodeReanalysisRow,
-} from './episode-duration-runtime-source.types';
+} from '../../shared/contracts/episode-durations.types';
 
 /**
  * Narrows one wire string to a known member, or to the fallback when the
@@ -49,11 +48,24 @@ function toSectionRow(row: wailsDesktop.EpisodeDurationRowDTO): EpisodeDurationR
   };
 }
 
-/** Maps the section; an unknown outcome is a failure, and missing lists are empty, never null. */
+/**
+ * Calls one durations-editor binding: its rejection becomes a `BridgeError`
+ * (the episodes module's `unavailable` / `failed_precondition`, or the binding's
+ * coded failure), and a binding that never attaches rejects as `unavailable`
+ * instead of answering a stand-in result.
+ * @param bindingName The `App` method name, as `window.go` exposes it.
+ * @param call The generated binding call.
+ * @returns What the binding answered.
+ */
+function callDurationsBinding<T>(bindingName: string, call: () => Promise<T>): Promise<T> {
+  return withBridgeErrors(
+    invokeGoBinding(bindingName, call, () => Promise.reject(createBridgeError('unavailable', `the ${bindingName} binding is not attached`))),
+  );
+}
+
+/** Maps the section the binding answered; a failure is its rejection, and missing lists are empty, never null. */
 function toSection(result: wailsDesktop.EpisodeDurationSectionResult): EpisodeDurationSection {
   return {
-    outcome: result.outcome === 'ok' ? 'ok' : 'error',
-    ...(result.message === undefined ? {} : { message: result.message }),
     folderStatus: toFolderStatus(result.folderStatus),
     rows: (result.rows ?? []).map(toSectionRow),
     beyondTotal: result.beyondTotal ?? [],
@@ -87,11 +99,10 @@ function toReview(result: wailsDesktop.EpisodeDurationReviewResult): EpisodeRean
   };
 }
 
-/** Maps the save answer, reading an unknown outcome as an error. */
+/** Maps the save answer, reading an unknown outcome as an error; a refused save is the rejection. */
 function toSaveResult(result: wailsDesktop.EpisodeDurationSaveResult): EpisodeDurationSaveResult {
   return {
     outcome: narrow(result.outcome, EPISODE_DURATION_SAVE_OUTCOMES, 'error'),
-    ...(result.message === undefined ? {} : { message: result.message }),
     changed: result.changed,
   };
 }
@@ -104,9 +115,10 @@ function toRequestDTO(request: EpisodeDurationRequest): wailsDesktop.EpisodeDura
 /**
  * Creates the runtime-backed episode-duration source once and returns the same
  * memoized instance on every later call, so consumers resolve it where they
- * use it instead of importing a module-level value. Every binding
- * degrades to a fail-closed result outside Wails, so the Editor shows a failure
- * instead of hanging, and the progress stream degrades to a no-op subscription.
+ * use it instead of importing a module-level value. Every binding rejects
+ * with a `BridgeError` when the episodes module is not ready, when it fails or
+ * outside Wails, so the Editor shows a failure instead of hanging, and the
+ * progress stream degrades to a no-op subscription.
  */
 export function createEpisodeDurationRuntimeSource(): EpisodeDurationRuntimeSource {
   if (EPISODE_DURATION_RUNTIME_SOURCE_STATE.sharedSource !== null) {
@@ -119,17 +131,17 @@ export function createEpisodeDurationRuntimeSource(): EpisodeDurationRuntimeSour
 
   EPISODE_DURATION_RUNTIME_SOURCE_STATE.sharedSource = {
     getEpisodeDurationSection(request) {
-      return invokeGoBinding('GetEpisodeDurationSection', () => GetEpisodeDurationSection(toRequestDTO(request)), () => RUNTIME_UNAVAILABLE_EPISODE_SECTION).then(toSection);
+      return callDurationsBinding('GetEpisodeDurationSection', () => GetEpisodeDurationSection(toRequestDTO(request))).then(toSection);
     },
     reanalyzeEpisodeDurations(request) {
-      return invokeGoBinding('ReanalyzeEpisodeDurations', () => ReanalyzeEpisodeDurations(toRequestDTO(request)), () => RUNTIME_UNAVAILABLE_EPISODE_REVIEW).then(toReview);
+      return callDurationsBinding('ReanalyzeEpisodeDurations', () => ReanalyzeEpisodeDurations(toRequestDTO(request))).then(toReview);
     },
     cancelEpisodeReanalysis() {
-      return invokeGoBinding('CancelEpisodeReanalysis', CancelEpisodeReanalysis, () => undefined);
+      return callDurationsBinding('CancelEpisodeReanalysis', () => CancelEpisodeReanalysis());
     },
     saveEpisodeDurations(animeId, edits) {
       const dto = edits.map((edit) => ({ ...edit }) as wailsDesktop.EpisodeDurationEditDTO);
-      return invokeGoBinding('SaveEpisodeDurations', () => SaveEpisodeDurations(animeId, dto), () => RUNTIME_UNAVAILABLE_EPISODE_SAVE).then(toSaveResult);
+      return callDurationsBinding('SaveEpisodeDurations', () => SaveEpisodeDurations(animeId, dto)).then(toSaveResult);
     },
     onEpisodeReanalysisProgress(listener) {
       return progressSubscription.subscribe(listener);

@@ -95,9 +95,11 @@ func TestProductionStartupGatesTheEpisodeSchedule(t *testing.T) {
 }
 
 // runtimeModuleCalls calls one binding of each of the api, sync and devices modules, the sync
-// binding that reads its bound database, the observability bindings that read each of its
-// bound services, and the settings binding that reads its bound store.
+// binding that reads its bound database, the episodes durations binding that reads its bound
+// database, the observability bindings that read each of its bound services, and the settings
+// binding that reads its bound store.
 func runtimeModuleCalls(app *App) map[string]error {
+	_, durations := app.GetEpisodeDurationSection(EpisodeDurationAnimeDTO{AnimeID: "anime-1"})
 	_, address := app.GetEffectiveAddress()
 	_, syncing := app.GetSyncingAnimeItems()
 	_, sqliteStatus := app.GetSQLiteStatus()
@@ -108,7 +110,7 @@ func runtimeModuleCalls(app *App) map[string]error {
 	_, libraryRoot := app.GetLibraryRoot()
 	return map[string]error{
 		"GetEffectiveAddress": address, "GetSyncingAnimeItems": syncing, "GetSQLiteStatus": sqliteStatus,
-		"GetConnectedDevices": devices, "GetLibraryRoot": libraryRoot,
+		"GetConnectedDevices": devices, "GetLibraryRoot": libraryRoot, "GetEpisodeDurationSection": durations,
 		"SearchActivityFeed": feed, "GetActivityRequest": request, "ListDeviceSyncDiagnostics": diagnostics,
 	}
 }

@@ -1,5 +1,5 @@
 import type { AnimeEditorRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
-import type { EpisodeDurationRuntimeSource, EpisodeDurationSaveResult } from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
+import type { EpisodeDurationRuntimeSource, EpisodeDurationSaveResult } from '../../../../shared/contracts/episode-durations.types';
 import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
 import type { AnimeEditorRecord, AnimeEditorSaveResult, AnimeEditorScheduleApplyResult, ApplyAnimeScheduleDraftEntry } from '../../../../shared/contracts/anime.types';
 import type { AnimeMetadataSelection, AppliedMetadata } from '../../../../shared/metadata-lookup/metadata-lookup.types';

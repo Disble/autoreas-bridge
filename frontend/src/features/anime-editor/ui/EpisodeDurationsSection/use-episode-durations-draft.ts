@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { EpisodeDurationSaveResult } from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
+import type { EpisodeDurationSaveResult } from '../../../../shared/contracts/episode-durations.types';
 import type { EpisodeDurationEdit } from '../../../../shared/contracts/anime.types';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
 import { saveEpisodeDurationEdits, settleEpisodeDurationsSave } from './episode-durations-draft.helpers';
 import { EPISODE_DURATIONS_EMPTY_DRAFT } from './episode-durations-section.constants';
-import type { EpisodeDurationsDraftState, UseEpisodeDurationsDraftOptions } from './episode-durations-section.types';
+import type { EpisodeDurationSaveCommand, EpisodeDurationsDraftState, UseEpisodeDurationsDraftOptions } from './episode-durations-section.types';
 
 /**
- * Owns the Episodes card's own draft (S15): its edits, its Save and its Discard
- * changes, apart from the anime data. Selecting another anime starts an empty
+ * Owns the Episodes card's own draft (S15): its edits, its Save (a
+ * `useBridgeMutation`) and its Discard changes, apart from the anime data. Selecting another anime starts an empty
  * draft, and a save that settles after that move never lands on the new anime.
  */
 export function useEpisodeDurationsDraft(options: Readonly<UseEpisodeDurationsDraftOptions>) {
@@ -22,6 +23,10 @@ export function useEpisodeDurationsDraft(options: Readonly<UseEpisodeDurationsDr
   // 3. Context/3rd Party Hooks
 
   // 4. Queries/Mutations
+  const saveMutation = useBridgeMutation({
+    mutationFn: (command: EpisodeDurationSaveCommand) => source.saveEpisodeDurations(command.animeId, command.edits),
+  });
+  const save = saveMutation.mutateAsync;
 
   // 5. Derived State (render-phase reset when the Editor moves to another anime)
   if (animeId !== seenAnimeId) {
@@ -49,10 +54,10 @@ export function useEpisodeDurationsDraft(options: Readonly<UseEpisodeDurationsDr
     const run = {};
     latestSave.current = run;
     setDraft((current) => ({ ...current, isSaving: true, saveError: undefined }));
-    const result = await saveEpisodeDurationEdits(source, animeId, draft.edits);
+    const result = await saveEpisodeDurationEdits(save, animeId, draft.edits);
     if (latestSave.current === run) setDraft((current) => settleEpisodeDurationsSave(current, result));
     return result;
-  }, [animeId, draft.edits, source]);
+  }, [animeId, draft.edits, save]);
 
   // 7. Effects
   useEffect(() => () => {

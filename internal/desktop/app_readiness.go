@@ -98,11 +98,13 @@ type observabilityServices struct {
 	syncDiagnostics *telemetry.Reader
 }
 
-// episodeServices are the services the episodes module's migrated bindings use.
-// wireEpisodeServiceWithWriter binds them before configureRuntimeServices marks
-// the module ready.
+// episodeServices are the services the episodes module's migrated bindings use:
+// the episode service and the bridge database the durations editor reads and
+// writes. wireEpisodeServiceWithWriter binds them before configureRuntimeServices
+// marks the module ready.
 type episodeServices struct {
-	episodes episodeCommandService
+	episodes  episodeCommandService
+	durations *sql.DB
 }
 
 // apiServices are the services the api module's bindings use. startHTTPServer

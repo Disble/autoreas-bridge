@@ -1,7 +1,17 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createModulesTestWrapper } from '../../../shared/query/test-support/bridge-modules.test-support';
+import { status } from '../../../shared/query/test-support/readiness-source.test-support';
 import { AnimeEditorRoute } from '../AnimeEditorRoute';
+
+/**
+ * A query wrapper whose `episodes` module is ready: the Editor's Episodes card reads through `useBridgeQuery`.
+ * @returns The wrapper component.
+ */
+function episodesReadyWrapper() {
+  return createModulesTestWrapper(status('episodes', 'ready')).wrapper;
+}
 
 /** Mounts the route on the editor paths it serves in production. */
 function renderRoute() {
@@ -12,6 +22,7 @@ function renderRoute() {
         <Route element={<AnimeEditorRoute />} path="/editor/:id" />
       </Routes>
     </MemoryRouter>,
+    { wrapper: episodesReadyWrapper() },
   );
 }
 
@@ -58,6 +69,7 @@ describe('AnimeEditorRoute initial tab', () => {
           <Route element={<AnimeEditorRoute />} path="/editor/:id" />
         </Routes>
       </MemoryRouter>,
+      { wrapper: episodesReadyWrapper() },
     );
 
     expect(screen.getByRole('tab', { name: 'Create', selected: true })).toBeInTheDocument();
@@ -71,6 +83,7 @@ describe('AnimeEditorRoute initial tab', () => {
           <Route element={<AnimeEditorRoute />} path="/editor/:id" />
         </Routes>
       </MemoryRouter>,
+      { wrapper: episodesReadyWrapper() },
     );
 
     expect(screen.getByRole('heading', { name: 'Editor' })).toBeInTheDocument();

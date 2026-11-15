@@ -4,7 +4,7 @@ import type {
   EpisodeDurationSection,
   EpisodeReanalysisProgress,
   EpisodeReanalysisReview,
-} from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
+} from '../../../../shared/contracts/episode-durations.types';
 import type { EpisodeDurationEdit } from '../../../../shared/contracts/anime.types';
 
 /** Semantic HeroUI chip colors the section and its review use. */
@@ -42,11 +42,23 @@ export interface UseEpisodeDurationsLoadOptions extends UseEpisodeDurationsSecti
   readonly revision: number;
 }
 
+/** The section read the card keys its query on: the request and save revision that settled. */
+export interface EpisodeDurationsTarget {
+  readonly request?: EpisodeDurationRequest;
+  readonly revision: number;
+}
+
 /** Collaborators of the card's own draft hook. */
 export interface UseEpisodeDurationsDraftOptions {
   /** The saved anime; switching to another one starts an empty draft. */
   readonly animeId?: string;
   readonly source: EpisodeDurationRuntimeSource;
+}
+
+/** What the card's save mutation sends: the saved anime and the card's edits. */
+export interface EpisodeDurationSaveCommand {
+  readonly animeId: string;
+  readonly edits: readonly EpisodeDurationEdit[];
 }
 
 /** The Episodes card's own draft: its edits, save revision, save in flight and last save failure. */

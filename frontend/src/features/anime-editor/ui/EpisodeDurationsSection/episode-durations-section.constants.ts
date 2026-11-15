@@ -1,6 +1,7 @@
-import type { EpisodeDurationRowSource } from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
-import type { EpisodeReanalysisReview } from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
-import type { EpisodeAnalysisState, EpisodeDurationsDraftState, EpisodeDurationsEmptyCopy, EpisodeDurationsLoad, EpisodeReanalysisResultView } from './episode-durations-section.types';
+import { defineQueryKeys } from '../../../../shared/query/query-keys/query-keys.helpers';
+import type { EpisodeDurationRowSource } from '../../../../shared/contracts/episode-durations.types';
+import type { EpisodeReanalysisReview } from '../../../../shared/contracts/episode-durations.types';
+import type { EpisodeAnalysisState, EpisodeDurationsDraftState, EpisodeDurationsEmptyCopy, EpisodeDurationsLoad, EpisodeDurationsTarget, EpisodeReanalysisResultView } from './episode-durations-section.types';
 
 /** One minute in milliseconds: durations are stored in ms and edited in whole minutes. */
 export const EPISODE_MINUTE_MS = 60_000;
@@ -13,6 +14,18 @@ export const EPISODE_LONG_THRESHOLD_MS = 30 * EPISODE_MINUTE_MS;
  * before it asks again, so a burst of record reloads reads the disk once.
  */
 export const EPISODE_DURATIONS_RELOAD_DELAY_MS = 250;
+
+/** The section read before any request settled: no request, so the query stays disabled. */
+export const EPISODE_DURATIONS_UNSETTLED: EpisodeDurationsTarget = { revision: 0 };
+
+/**
+ * The section query's keys. Not under `episodesKeys`: `anime.changed`
+ * invalidates those, and the card reads the disk only when its own key changes.
+ */
+export const EPISODE_DURATIONS_QUERY_KEYS = defineQueryKeys('episode-durations');
+
+/** Why the section read rejects when no record is loaded (the query stays disabled then). */
+export const EPISODE_DURATIONS_NO_ANIME_MESSAGE = 'no anime selected';
 
 /** The section load before any read, and while no record is loaded. */
 export const EPISODE_DURATIONS_IDLE_LOAD: EpisodeDurationsLoad = { status: 'idle' };

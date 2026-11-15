@@ -1,7 +1,8 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { EpisodeDurationRuntimeSource, EpisodeDurationSaveResult } from '../../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
+import type { EpisodeDurationRuntimeSource, EpisodeDurationSaveResult } from '../../../../../shared/contracts/episode-durations.types';
 import type { EpisodeDurationEdit } from '../../../../../shared/contracts/anime.types';
+import { createBridgeQueryTestWrapper } from '../../../../../shared/query/test-support/bridge-query.test-support';
 import { EPISODE_DURATIONS_SAVE_FAILED_MESSAGE } from '../episode-durations-section.constants';
 import { useEpisodeDurationsDraft } from '../use-episode-durations-draft';
 
@@ -30,7 +31,7 @@ function createSource(save: EpisodeDurationRuntimeSource['saveEpisodeDurations']
  * @returns The render result.
  */
 function renderDraft(source: EpisodeDurationRuntimeSource, animeId: string | null = 'anime-1') {
-  const rendered = renderHook((props: { readonly animeId?: string }) => useEpisodeDurationsDraft({ animeId: props.animeId, source }), { initialProps: { animeId: animeId ?? undefined } });
+  const rendered = renderHook((props: { readonly animeId?: string }) => useEpisodeDurationsDraft({ animeId: props.animeId, source }), { initialProps: { animeId: animeId ?? undefined }, wrapper: createBridgeQueryTestWrapper().wrapper });
   act(() => rendered.result.current.onEditsChange(EDITS));
   return rendered;
 }
@@ -93,13 +94,15 @@ describe('useEpisodeDurationsDraft', () => {
     act(() => { pending = result.current.onSave(); });
     expect(result.current.isSaving).toBe(true);
     expect(result.current.saveError).toBeUndefined();
+    // A bridge mutation calls its command a few microtasks after it starts.
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
     await act(async () => { settle({ outcome: 'applied', changed: 1 }); await pending; });
     expect(result.current.isSaving).toBe(false);
   });
 
   it('saves nothing without edits or without an anime', async () => {
     const save = vi.fn();
-    const empty = renderHook(() => useEpisodeDurationsDraft({ animeId: 'anime-1', source: createSource(save) }));
+    const empty = renderHook(() => useEpisodeDurationsDraft({ animeId: 'anime-1', source: createSource(save) }), { wrapper: createBridgeQueryTestWrapper().wrapper });
     const noAnime = renderDraft(createSource(save), null);
 
     let first: unknown = 'unset';
@@ -136,6 +139,8 @@ describe('useEpisodeDurationsDraft', () => {
     act(() => { pending = result.current.onSave(); });
     rerender({ animeId: 'anime-2' });
     act(() => result.current.onEditsChange(EDITS));
+    // A bridge mutation calls its command a few microtasks after it starts.
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
     await act(async () => { settle({ outcome: 'applied', changed: 1 }); await pending; });
 
     expect(result.current.edits).toEqual(EDITS);
