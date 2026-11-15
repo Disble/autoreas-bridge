@@ -39,7 +39,7 @@ Design source until ADR-032 lands: Judgment Day `proposal-r2.md` (sha256 `34533f
 | T5f | S1 S2 S6 | delegated: Writer trigger (a) | done | episodes (a) durations editor: 4 bindings, 10 entries; `0b2786a6` + `b6dbc895`, merged `d5fcc5ee` |
 | T5g | S1 S2 S6 | delegated: Writer trigger (b) | open | episodes (b) commands: AdjustWatchedEpisodes, SetAnimeState, SetAnimeDays, SoftDeleteAnime, RestoreAnime, RepeatAnime, SendSeasonAnimesToVerHoy |
 | T5h | S1 S2 S6 | delegated: Writer trigger (a) | done | anime (a) catalog, detail, history, covers: ~24 entries; `3bfedc45` + `7009e39d`, merged `67bade77` |
-| T5i | S1 S2 S6 | delegated: Writer trigger (a) | verifying | anime (b) editor + create flow; written, uncommitted in `async-state-t5i`; 4 reported behaviour differences under independent verification (L40) |
+| T5i | S1 S2 S6 | delegated: Writer trigger (a) | done | anime (b) editor + create flow; `b3094aed` + `583d8b2f`, merged `7557c75b` (L41) |
 | T5j | S1 S2 S6 | delegated: Writer trigger (a) | in progress | season: 29 bindings (21 S), 79 entries. Go done (`5c05a34b` + `b74d8458`, merged `4f0f906c`); types move `def5e2ec`; frontend units U0, P1 running, P3, C2, C3, Z pending (L40) |
 | T5k | S1 S2 S6 | delegated: Writer trigger (b) | open | downloads: 15 bindings (9 S), 30 entries; last |
 
@@ -85,4 +85,20 @@ Design source until ADR-032 lands: Judgment Day `proposal-r2.md` (sha256 `34533f
 - **L38 (2026-11-15, owner):** "Oye, si puedes paralelizar hazlo que falta muchísimo". Route change: Writer trigger (a) parallelism. T5e, T5f and T5h run in parallel with T5d, each in its own worktree (`async-state-t5e`/`-t5f`/`-t5h`, branches `feat/async-state-t5*` from `d5c93d0d`); heavy commands serialised through a machine lock (`heavy.sh`, scratchpad); the parent owns the shared drift counters and `odd/tasks/**`, and merges each branch into `feat/async-state-standard` locally. T5g waits for T5f (same `episodes` handle); T5i for T5h (anime); T5j/T5k after.
 - **L39 (2026-11-15, integration):** the parallel slices merge into `feat/async-state-integ` (from `d5c93d0d`), not `feat/async-state-standard`; baselines are merged by set arithmetic over base/ours/theirs. Go binding baseline now 45, frontend async-state baseline 107. Two flaky tests found on the way were made lighter instead of retried: the WebView2 fixture now watches job membership (`50cf0b2a` on `fix/webview2-fixture-teardown`, cherry-picked as `aec81663`/`cf60589b`; merge to `dev` awaits the owner), and the Activity range-picker test split so the Esc rule runs on the field (`9b10e927`). T5d left `shared/store/notification-store` unread; it was deleted and left the zustand allow-list (`e78d27fb`).
 - **L40 (2026-11-15, owner, T5j frontend):** asked where the season store's non-server state goes, the owner answered "No tenemos para esto Zustand?". Decision (ADR-032 §4, `docs/adr/032-async-state-standard.md:112`): server data (season, animes, past seasons, ordering board/snapshot, provider search) moves to `shared/query`; a reduced season Zustand store keeps UI/client state (viewSeasonId, readOnly, lastDiscard, busy/error banner, the matching run fed by its three baselined subscriptions) and stays on the allow-list with a reworded reason; no new `shared/query` capability. Units (plan in scratch `t5j-fe-plan.md`): Phase A U0 (season reads + workspace/overview/Today-side readers) and P1 (ordering board + closure snapshot) in parallel, P3 (provider search); Phase B C2 (intake + discard resolver) and C3 (evaluation/selection/rating/Daily board); Phase C Z (store cleanup, allow-list reason, docs). Fallow's audit rejects an export without a consumer, so every new export lands with its consumer. The integration branch is inconsistent between Phase B and Z and is not merged to `dev` before Z. T5i returned with four self-reported behaviour differences (failed schedule apply no longer returns a refreshed board; forbidden-field save answers `internal`; `reloadBoard` no longer flashes loading; create screen's library root waits for settings) and goes to an independent verifier (Risk item 3) before its commit.
-- **Next:** T5i verdict → commit + merge → T5g; U0/P1 → merge → P3, C2/C3 → Z → T5k.
+- **L41 (T5i verify):** the independent verifier (Risk item 3: 10 binding signatures) found 2 user-visible blockers among the 4 self-reported differences and 1 unreported copy change:
+  - **B1:** a failed schedule apply no longer showed the stored board.
+  - **B2:** the post-save board reload lost its week skeleton.
+  - **U1:** the desktop action on an unknown anime said `anime <id> not found` instead of "anime not found".
+
+  One correction batch fixed all three, each with a RED-first test and a hand mutation that fails it:
+  - B1: `await refetch()` in the apply catch.
+  - B2: `isReloadingBoard` around `refetch()`.
+  - U1: `apperr.NotFound("anime not found")`.
+
+  Parent recheck: 17/17 Editor workspace tests, and the Go desktop-action tests ok. Kept as allowed:
+  - a forbidden-field save answers `internal`, with the same toast text;
+  - the create screen's root waits for settings (S1);
+  - the rail shows a skeleton while anime starts (S1).
+
+  Frontend mutation was not scored (dry run timed out under instrumentation; budget spent). Go mutation 0.88. Baselines: Go 45 → 35, frontend 107 → 103. The T5i branch also needed the WebView2 test fix (`fe351310`) to pass its own hook. T5g launched from `7557c75b`.
+- **Next:** T5g; U0/P1 → merge → P3, C2/C3 → Z → T5k.
