@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { describeActivityChange } from '../../change-words/change-words.helpers';
-import type { ActivityDownloadRun } from '../../feed-source/feed.types';
-import { maybeFeedLineKey, mergeFeedDays, mergeLivePage, stepFeedLine, toFeedDayModels, toFeedRowModel } from '../activity-feed-rows.helpers';
+import type { ActivityDownloadRun } from '../../../../shared/contracts/activity-feed.types';
+import { maybeFeedLineKey, mergeFeedDays, mergeLivePage, stepFeedLine, toFeedDayModels, toFeedRowModel, toShownFeedPage } from '../activity-feed-rows.helpers';
 import { bridgeOffLine, readingLine, syncReading } from '../../drawer/__tests__/drawer.fixtures';
 import { NOW_MS, buildDay, buildLine, buildView, dayStart } from './activity-feed.fixtures';
 
@@ -220,6 +220,40 @@ describe('mergeLivePage', () => {
 
     expect(mergeLivePage(shown, 'older', buildView([buildDay(0, [lineAt('3', NOW_MS)])])).cursor).toBe('');
     expect(mergeLivePage(shown, 'older', buildView([buildDay(0, [lineAt('3', NOW_MS), lineAt('2', NOW_MS - 10)])], 'fresh')).cursor).toBe('fresh');
+  });
+});
+
+describe('toShownFeedPage', () => {
+  /** A first page with line 2 and more below it. */
+  const FIRST = buildView([buildDay(0, [lineAt('2', NOW_MS - 10)])], 'c1');
+  /** The window loaded past FIRST, answered at 5. */
+  const LOADED = { days: [buildDay(0, [lineAt('2', NOW_MS - 10), lineAt('1', NOW_MS - 20)])], cursor: 'c2', firstPageAt: 5 };
+
+  /**
+   * The line ids and cursor shown.
+   * @param shown What toShownFeedPage returned.
+   * @returns The ids, newest first, and the cursor.
+   */
+  function idsOf(shown: ReturnType<typeof toShownFeedPage>) {
+    return [shown.days.flatMap((day) => day.lines.map((line) => line.line.id)), shown.cursor];
+  }
+
+  it('shows nothing before the first page answered', () => {
+    expect(idsOf(toShownFeedPage(undefined, 0, LOADED))).toEqual([[], '']);
+  });
+
+  it('shows the first page alone until an older page was loaded', () => {
+    expect(idsOf(toShownFeedPage(FIRST, 5, undefined))).toEqual([['2'], 'c1']);
+  });
+
+  it('shows the loaded window over the first page it extends', () => {
+    expect(idsOf(toShownFeedPage(FIRST, 5, LOADED))).toEqual([['2', '1'], 'c2']);
+  });
+
+  it('puts a refreshed first page over the loaded window without shrinking it', () => {
+    const fresh = buildView([buildDay(0, [lineAt('3', NOW_MS), lineAt('2', NOW_MS - 10)])], 'fresh');
+
+    expect(idsOf(toShownFeedPage(fresh, 9, LOADED))).toEqual([['3', '2', '1'], 'c2']);
   });
 });
 

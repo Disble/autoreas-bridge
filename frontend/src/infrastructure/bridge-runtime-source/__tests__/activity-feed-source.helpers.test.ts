@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { activityread } from '../../../../../wailsjs/go/models';
+import { activityread } from '../../../../wailsjs/go/models';
 
 /** A complete Go LedgerLine payload. */
 function goLedgerLine(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -77,7 +77,7 @@ describe('feed-source', () => {
   });
 
   it('maps a Go FeedView onto the readonly camelCase contract', async () => {
-    const { mapActivityFeedView } = await import('../feed-source.helpers');
+    const { mapActivityFeedView } = await import('../activity-feed-source.helpers');
 
     const view = mapActivityFeedView(activityread.FeedView.createFrom({ Days: [{ DayStartMS: 1, Lines: [goFeedLine({ IncidentID: 7 })] }], NextCursor: 'older' }));
 
@@ -118,7 +118,7 @@ describe('feed-source', () => {
   });
 
   it('maps a traffic hour with its tablet summaries, a zero incident id and nil slices to empty values', async () => {
-    const { mapActivityFeedView } = await import('../feed-source.helpers');
+    const { mapActivityFeedView } = await import('../activity-feed-source.helpers');
     const summary = {
       ReportID: 12,
       DeviceID: 'device-1',
@@ -165,7 +165,7 @@ describe('feed-source', () => {
   });
 
   it('maps a System group, the run before a start with nil times to undefined, and a line without one to undefined', async () => {
-    const { mapActivityFeedView } = await import('../feed-source.helpers');
+    const { mapActivityFeedView } = await import('../activity-feed-source.helpers');
     const system = goFeedLine({ Type: 'system', Run: null, Line: goLedgerLine({ Kind: 'event', ID: '9' }), System: { HourStartMS: 3_600_000, Count: 3, FirstAtMS: 3_660_000, LastAtMS: 3_900_000 } });
     const closed = { ...system, BridgeStart: { ClosedAtMS: 1_000, LastEventAtMS: null } };
     const notClosed = { ...system, BridgeStart: { ClosedAtMS: null, LastEventAtMS: 2_000 } };
@@ -180,7 +180,7 @@ describe('feed-source', () => {
   });
 
   it('maps a tablet silence, its nil times and next report to undefined', async () => {
-    const { mapActivityFeedView } = await import('../feed-source.helpers');
+    const { mapActivityFeedView } = await import('../activity-feed-source.helpers');
     const goSilence = { DeviceID: 'tab', StartMS: 10, EndMS: 20, LastReport: { Kind: 'hourly_summary', ReceivedAtMS: 10, HourStartMS: 0 }, NextReport: { Kind: 'runtime_transition', ReceivedAtMS: 20, HourStartMS: null }, BridgeStartedAtMS: 5, BridgeStoppedAtMS: null };
     const ended = goFeedLine({ Type: 'traffic', Run: null, Line: goLedgerLine({ Kind: 'tablet_silence', ID: 'tab:10' }), Silence: goSilence });
     const ongoing = { ...ended, Silence: { ...goSilence, EndMS: null, NextReport: null, BridgeStoppedAtMS: 30 } };
@@ -195,7 +195,7 @@ describe('feed-source', () => {
   });
 
   it('maps a reading, a nil evidence time to undefined, and a line without one to undefined', async () => {
-    const { mapActivityFeedView } = await import('../feed-source.helpers');
+    const { mapActivityFeedView } = await import('../activity-feed-source.helpers');
     const report = { ReportID: 41, Reading: 'tablet_late', Evidence: { FailedAtMS: 1, ArrivedAtMS: 9, LastContactMS: null, NextStartMS: 3, GraceUntilMS: 4, FirstReportMS: 6, OverdueMS: 2 } };
     const line = goFeedLine({ Type: 'traffic', Origin: 'phone', Run: null, Line: goLedgerLine({ Kind: 'phone_report', ID: '41' }), SyncReading: report });
 
@@ -206,7 +206,7 @@ describe('feed-source', () => {
   });
 
   it('maps the stored facts of a report line, an empty reason to undefined, and a line without them to undefined', async () => {
-    const { mapActivityFeedView } = await import('../feed-source.helpers');
+    const { mapActivityFeedView } = await import('../activity-feed-source.helpers');
     const facts = (reason: string) => ({ ProcessName: 'sync', Subject: 'process', Transition: 'died', Reason: reason, Stage: '' });
     const lines = [goFeedLine({ Report: facts('low_memory') }), goFeedLine({ Report: facts('') }), goFeedLine({ Report: { ...facts(''), Stage: 'http' } }), goFeedLine()];
 
@@ -221,7 +221,7 @@ describe('feed-source', () => {
   });
 
   it('maps a Bridge off group with its reports in order, and nil reports to an empty list', async () => {
-    const { mapActivityFeedView } = await import('../feed-source.helpers');
+    const { mapActivityFeedView } = await import('../activity-feed-source.helpers');
     const evidence = { FailedAtMS: 1, ArrivedAtMS: 5, LastContactMS: 0, NextStartMS: null, GraceUntilMS: null, FirstReportMS: null, OverdueMS: null };
     const group = { BridgeStartMS: 4, Reports: [{ ReportID: 9, Reading: 'bridge_off', Evidence: evidence }, { ReportID: 8, Reading: 'bridge_off', Evidence: evidence }] };
     const line = goFeedLine({ Type: 'traffic', Origin: 'phone', Failed: false, Run: null, Line: goLedgerLine({ Kind: 'bridge_off', ID: '4' }), BridgeOff: group });
@@ -239,7 +239,7 @@ describe('feed-source', () => {
   });
 
   it('maps a finished run time', async () => {
-    const { mapActivityFeedView } = await import('../feed-source.helpers');
+    const { mapActivityFeedView } = await import('../activity-feed-source.helpers');
     const run = goFeedLine();
     Reflect.set(run.Run as object, 'FinishedAtMS', 99);
 
@@ -248,8 +248,38 @@ describe('feed-source', () => {
     expect(view.days[0].lines[0].run?.finishedAtMs).toBe(99);
   });
 
+  it('maps a Go ledger line onto the readonly camelCase contract, keeping known marks in order', async () => {
+    const { mapLedgerLine } = await import('../activity-feed-source.helpers');
+
+    expect(mapLedgerLine(activityread.LedgerLine.createFrom(goLedgerLine({ Kind: 'change', PhoneAtMS: 4, Marks: ['arrived_late', 'recovered', 'incident'] })))).toEqual({
+      kind: 'change',
+      id: 'run-1',
+      atMs: 10,
+      phoneAtMs: 4,
+      domain: 'download',
+      source: '',
+      level: '',
+      title: '',
+      detail: '',
+      correlationId: 'run-1',
+      beforeJson: '',
+      afterJson: '',
+      marks: ['arrived_late', 'recovered', 'incident'],
+    });
+  });
+
+  it('turns a nil phone time into undefined, nil marks into empty, and drops unknown marks', async () => {
+    const { mapLedgerLine } = await import('../activity-feed-source.helpers');
+
+    const line = mapLedgerLine(activityread.LedgerLine.createFrom(goLedgerLine({ Marks: ['unclean_stop', 'recovered'] })));
+
+    expect(line.phoneAtMs).toBeUndefined();
+    expect(line.marks).toEqual(['recovered']);
+    expect(mapLedgerLine(activityread.LedgerLine.createFrom(goLedgerLine({ Marks: null }))).marks).toEqual([]);
+  });
+
   it('maps a Go OverviewView and turns nil slices into empty arrays', async () => {
-    const { mapActivityOverview } = await import('../feed-source.helpers');
+    const { mapActivityOverview } = await import('../activity-feed-source.helpers');
 
     expect(mapActivityOverview(goOverview())).toEqual({
       slots: [{ startMs: 0, endMs: 3_600_000, count: 5, failed: 1 }],
@@ -262,7 +292,7 @@ describe('feed-source', () => {
     const search = vi.fn(() => Promise.resolve(activityread.FeedView.createFrom({ Days: [], NextCursor: 'c-2' })));
     const overview = vi.fn(() => Promise.resolve(goOverview()));
     attachBindings({ SearchActivityFeed: search, GetActivityOverview: overview });
-    const { createActivityFeedSource } = await import('../feed-source.helpers');
+    const { createActivityFeedSource } = await import('../activity-feed-source.helpers');
     const source = createActivityFeedSource();
 
     const view = await source.searchFeed({ fromMs: 1, toMs: 2, origin: 'phone', types: ['change', 'traffic'], failuresOnly: true, cursor: 'c-1', limit: 40 });
@@ -278,7 +308,7 @@ describe('feed-source', () => {
     const step = { ID: 9, AtMS: 5, Domain: 'frontend', Level: 'error', EventType: 'frontend.error', Message: 'window error', CorrelationID: '', DurationMS: null, MetadataJSON: '{"route":"/#/season"}' };
     const read = vi.fn((id: number) => Promise.resolve(activityread.EventDetail.createFrom(id === 9 ? { Found: true, Step: step } : { Found: false, Step: { ...step, ID: 0 } })));
     attachBindings({ GetActivityEvent: read });
-    const { createActivityFeedSource } = await import('../feed-source.helpers');
+    const { createActivityFeedSource } = await import('../activity-feed-source.helpers');
     const source = createActivityFeedSource();
 
     const found = await source.getEvent(9);
@@ -295,7 +325,7 @@ describe('feed-source', () => {
       Promise.resolve(activityread.ChangeContext.createFrom(id === 872 ? { Found: true, Events: [step], Truncated: false, Requests: null } : { Found: false, Events: null, Truncated: false, Requests: null })),
     );
     attachBindings({ GetActivityChangeContext: read });
-    const { createActivityFeedSource } = await import('../feed-source.helpers');
+    const { createActivityFeedSource } = await import('../activity-feed-source.helpers');
     const source = createActivityFeedSource();
 
     const context = await source.getChangeContext(872, 1792801492755);
@@ -310,7 +340,7 @@ describe('feed-source', () => {
   it('reads the stored payload of one phone report by id, and an unknown report as undefined', async () => {
     const read = vi.fn((id: number) => Promise.resolve(activityread.PhoneReportDetail.createFrom({ Found: id === 41, Report: { ID: id }, PayloadJSON: id === 41 ? '{"failed":true}' : '' })));
     attachBindings({ GetActivityPhoneReport: read });
-    const { createActivityFeedSource } = await import('../feed-source.helpers');
+    const { createActivityFeedSource } = await import('../activity-feed-source.helpers');
     const source = createActivityFeedSource();
 
     const found = await source.getPhoneReport(41);
@@ -321,23 +351,4 @@ describe('feed-source', () => {
     expect(missing).toBeUndefined();
   });
 
-  it('rejects both reads when the bindings never attach', async () => {
-    const { createActivityFeedSource } = await import('../feed-source.helpers');
-    const source = createActivityFeedSource();
-
-    const feedSettled = expect(source.searchFeed({ fromMs: 0, toMs: 0, origin: 'all', types: [], failuresOnly: false, cursor: '', limit: 40 })).rejects.toThrow(
-      'runtime unavailable',
-    );
-    const overviewSettled = expect(source.getOverview('24h', 0, 0, 'all', [], false)).rejects.toThrow('runtime unavailable');
-    await vi.advanceTimersByTimeAsync(5000);
-
-    await feedSettled;
-    await overviewSettled;
-  });
-
-  it('shares one source instance', async () => {
-    const { createActivityFeedSource } = await import('../feed-source.helpers');
-
-    expect(createActivityFeedSource()).toBe(createActivityFeedSource());
-  });
 });

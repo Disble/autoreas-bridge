@@ -1,4 +1,4 @@
-import type { ActivityLedgerLine } from '../history-source/history.types';
+import type { ActivityLedgerLine } from './activity-ledger.types';
 
 /**
  * Frontend contracts of the Activity feed and overview reads

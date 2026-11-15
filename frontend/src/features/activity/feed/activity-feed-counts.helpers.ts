@@ -1,4 +1,4 @@
-import type { ActivityFeedType, ActivityOverview } from '../feed-source/feed.types';
+import type { ActivityFeedType, ActivityOverview } from '../../../shared/contracts/activity-feed.types';
 import { ACTIVITY_TOGGLE_TYPES, ACTIVITY_TYPE_LABELS } from './activity-feed.constants';
 import type { ActivityTypeToggleModel } from './activity-feed.types';
 

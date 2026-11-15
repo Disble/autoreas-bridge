@@ -1,6 +1,6 @@
 import type { DateValue, RangeValue } from '@heroui/react';
 import type { Time } from '@internationalized/date';
-import type { ActivityChartScale, ActivityFeedLine, ActivityFeedOrigin, ActivityFeedType } from '../feed-source/feed.types';
+import type { ActivityChartScale, ActivityFeedDay, ActivityFeedLine, ActivityFeedOrigin, ActivityFeedQuery, ActivityFeedType } from '../../../shared/contracts/activity-feed.types';
 
 /** A picked time range, epoch milliseconds, both ends inclusive. */
 export interface ActivityRange {
@@ -28,6 +28,18 @@ export interface ActivityFeedFilters {
 
 /** Request state of a read. */
 export type ActivityReadStatus = 'loading' | 'ready' | 'failed';
+
+/** The feed loaded past its first page under one query: every day shown then, and the cursor after them. */
+export interface ActivityFeedWindow {
+  /** The first-page query the window was read under. */
+  readonly query: ActivityFeedQuery;
+  /** When the first page the window extends was answered; a newer first page is a live refresh. */
+  readonly firstPageAt: number;
+  /** The shown days, newest first. */
+  readonly days: readonly ActivityFeedDay[];
+  /** The cursor after the oldest shown line; empty when nothing older remains. */
+  readonly cursor: string;
+}
 
 /** The health mark of a feed row. */
 export type ActivityRowHealth = 'failed' | 'slow' | 'ok';

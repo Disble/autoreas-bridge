@@ -1,5 +1,5 @@
 import { APP_LAYOUT_NAV_GROUPS } from '../../../shared/navigation/app-layout.constants';
-import type { ActivityIncidentDetail } from '../activity-source/activity-incident.types';
+import type { ActivityIncidentDetail } from '../../../shared/contracts/activity-incident.types';
 import type { DrawerBodyStatus } from './drawer-reads.helpers';
 import { DRAWER_STACK_CUT_BYTES } from './drawer.constants';
 import { drawerFact, formatDrawerSeconds, formatDrawerTime } from './drawer-format.helpers';

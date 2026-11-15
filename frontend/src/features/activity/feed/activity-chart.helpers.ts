@@ -1,4 +1,4 @@
-import type { ActivityChartScale, ActivityChartSlot, ActivityFeedType } from '../feed-source/feed.types';
+import type { ActivityChartScale, ActivityChartSlot, ActivityFeedType } from '../../../shared/contracts/activity-feed.types';
 import {
   ACTIVITY_FEED_COUNT_FORMAT,
   ACTIVITY_FEED_DAY_FORMAT,

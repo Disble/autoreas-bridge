@@ -1,11 +1,12 @@
-import { GetActivityChangeContext, GetActivityEvent, GetActivityOverview, GetActivityPhoneReport, SearchActivityFeed } from '../../../../wailsjs/go/desktop/App';
-import type { activityread } from '../../../../wailsjs/go/models';
-import { invokeGoBinding } from '../../../infrastructure/wails-bindings.helpers';
-import { mapActivityChangeContext, mapRunStep } from '../activity-source/activity-incident.helpers';
-import { ACTIVITY_RUNTIME_UNAVAILABLE_MESSAGE } from '../activity-source/activity-source.constants';
-import { mapLedgerLine } from '../history-source/history-source.helpers';
-import { FEED_SOURCE_STATE } from './feed-source.constants';
-import type { ActivityFeedSource } from './feed-source.types';
+import { GetActivityChangeContext, GetActivityEvent, GetActivityOverview, GetActivityPhoneReport, SearchActivityFeed } from '../../../wailsjs/go/desktop/App';
+import type { activityread } from '../../../wailsjs/go/models';
+import type { ActivityLedgerLine, ActivityLineMark } from '../../shared/contracts/activity-ledger.types';
+import { createBridgeError } from '../../shared/query/bridge-error/bridge-error.helpers';
+import { withBridgeErrors } from '../bridge-error/bridge-error.helpers';
+import { invokeGoBinding } from '../wails-bindings.helpers';
+import { ACTIVITY_KNOWN_LINE_MARKS } from './activity-feed-source.constants';
+import { mapActivityChangeContext, mapRunStep } from './activity-incident.helpers';
+import type { ActivityFeedSource } from '../../shared/contracts/activity.types';
 import type {
   ActivityBridgeOffGroup,
   ActivityBridgeStartFacts,
@@ -21,7 +22,37 @@ import type {
   ActivityTabletSummary,
   ActivityTrafficHour,
   ActivityTypeCount,
-} from './feed.types';
+} from '../../shared/contracts/activity-feed.types';
+
+/** Narrows a Go mark onto the known union; undefined for a mark the UI cannot label. */
+function toKnownMark(mark: string): ActivityLineMark | undefined {
+  return ACTIVITY_KNOWN_LINE_MARKS.find((known) => known === mark);
+}
+
+/**
+ * Maps one Go ledger line; a nil phone time becomes undefined and unknown marks are dropped.
+ *
+ * @param line The Go ledger line of a feed line.
+ * @returns The ledger line.
+ */
+export function mapLedgerLine(line: activityread.LedgerLine): ActivityLedgerLine {
+  return {
+    kind: line.Kind,
+    id: line.ID,
+    atMs: line.AtMS,
+    phoneAtMs: line.PhoneAtMS ?? undefined,
+    domain: line.Domain,
+    source: line.Source,
+    level: line.Level,
+    title: line.Title,
+    detail: line.Detail,
+    correlationId: line.CorrelationID,
+    beforeJson: line.BeforeJSON,
+    afterJson: line.AfterJSON,
+    // Stryker disable next-line ArrayDeclaration: equivalent; a mutant element is not a known mark and is filtered out, so nil still yields [].
+    marks: (line.Marks ?? []).map(toKnownMark).filter((mark) => mark !== undefined),
+  };
+}
 
 /** Maps one Go traffic hour. */
 function mapTrafficHour(hour: activityread.TrafficHour): ActivityTrafficHour {
@@ -173,22 +204,31 @@ export function mapActivityOverview(view: activityread.OverviewView): ActivityOv
   };
 }
 
-/** Rejects a read whose bindings never attached; the screen shows its failure state. */
-function rejectRuntimeUnavailable(): Promise<never> {
-  return Promise.reject(new Error(ACTIVITY_RUNTIME_UNAVAILABLE_MESSAGE));
+/**
+ * Calls one Activity binding: its rejection becomes a `BridgeError`, and a
+ * binding that never attaches rejects as `unavailable` instead of answering a
+ * fallback value.
+ *
+ * @param bindingName The `App` method name, as `window.go` exposes it.
+ * @param call The generated binding call.
+ * @returns What the binding answered.
+ */
+export function callActivityBinding<T>(bindingName: string, call: () => Promise<T>): Promise<T> {
+  return withBridgeErrors(
+    invokeGoBinding(bindingName, call, () => Promise.reject(createBridgeError('unavailable', `the ${bindingName} binding is not attached`))),
+  );
 }
 
 /**
- * Returns the shared feed source over the generated Wails bindings, creating it on first use.
+ * The Wails adapter of the `ActivityFeedSource` port (ADR-032 §4), built once in
+ * `shared/query/bridge-runtime/bridge-runtime.constants.ts`. Every call rejects
+ * with the `observability` module's `unavailable` / `failed_precondition`
+ * failure rather than answer an empty page.
  *
- * @returns The shared ActivityFeedSource.
+ * @returns The source.
  */
 export function createActivityFeedSource(): ActivityFeedSource {
-  if (FEED_SOURCE_STATE.sharedSource !== null) {
-    return FEED_SOURCE_STATE.sharedSource;
-  }
-
-  const source: ActivityFeedSource = {
+  return {
     searchFeed(query) {
       const payload = {
         FromMS: query.fromMs,
@@ -199,28 +239,21 @@ export function createActivityFeedSource(): ActivityFeedSource {
         Cursor: query.cursor,
         Limit: query.limit,
       };
-      return invokeGoBinding('SearchActivityFeed', () => SearchActivityFeed(payload), rejectRuntimeUnavailable).then(mapActivityFeedView);
+      return callActivityBinding('SearchActivityFeed', () => SearchActivityFeed(payload)).then(mapActivityFeedView);
     },
     getOverview(scale, fromMs, toMs, origin, types, failuresOnly) {
-      return invokeGoBinding('GetActivityOverview', () => GetActivityOverview(scale, fromMs, toMs, origin, [...types], failuresOnly), rejectRuntimeUnavailable).then(
-        mapActivityOverview,
-      );
+      return callActivityBinding('GetActivityOverview', () => GetActivityOverview(scale, fromMs, toMs, origin, [...types], failuresOnly)).then(mapActivityOverview);
     },
     getEvent(id) {
-      return invokeGoBinding('GetActivityEvent', () => GetActivityEvent(id), rejectRuntimeUnavailable).then((detail) =>
-        detail.Found ? mapRunStep(detail.Step) : undefined,
-      );
+      return callActivityBinding('GetActivityEvent', () => GetActivityEvent(id)).then((detail) => (detail.Found ? mapRunStep(detail.Step) : undefined));
     },
     getChangeContext(changeId, atMs) {
-      return invokeGoBinding('GetActivityChangeContext', () => GetActivityChangeContext(changeId, atMs), rejectRuntimeUnavailable).then((context) =>
+      return callActivityBinding('GetActivityChangeContext', () => GetActivityChangeContext(changeId, atMs)).then((context) =>
         context.Found ? mapActivityChangeContext(context) : undefined,
       );
     },
     getPhoneReport(id) {
-      return invokeGoBinding('GetActivityPhoneReport', () => GetActivityPhoneReport(id), rejectRuntimeUnavailable).then((detail) => (detail.Found ? detail.PayloadJSON : undefined));
+      return callActivityBinding('GetActivityPhoneReport', () => GetActivityPhoneReport(id)).then((detail) => (detail.Found ? detail.PayloadJSON : undefined));
     },
   };
-
-  FEED_SOURCE_STATE.sharedSource = source;
-  return source;
 }

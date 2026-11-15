@@ -1,6 +1,6 @@
-import type { ActivityFeedLine } from '../feed-source/feed.types';
-import type { ActivityChangeContext, ActivityIncidentDetail, ActivityRunStory } from '../activity-source/activity-incident.types';
-import type { ActivityFeedSource } from '../feed-source/feed-source.types';
+import type { ActivityFeedLine } from '../../../shared/contracts/activity-feed.types';
+import type { ActivityChangeContext, ActivityIncidentDetail, ActivityRunStory } from '../../../shared/contracts/activity-incident.types';
+import type { ActivityFeedSource } from '../../../shared/contracts/activity.types';
 import type { ActivityRead, ActivityTone } from '../ui/ActivityRunStory/activity-run-story.types';
 
 /**

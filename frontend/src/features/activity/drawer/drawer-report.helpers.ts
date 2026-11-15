@@ -1,4 +1,4 @@
-import type { ActivityFeedLine, ActivityPhoneReportFacts } from '../feed-source/feed.types';
+import type { ActivityFeedLine, ActivityPhoneReportFacts } from '../../../shared/contracts/activity-feed.types';
 import { ACTIVITY_RUNTIME_TRANSITION_KIND } from '../feed/activity-feed.constants';
 import { toPhoneReportWords } from '../feed/activity-feed-rows.helpers';
 import { DRAWER_CYCLE_STAGES, DRAWER_REASON_LABEL, DRAWER_STEP_NOTES } from './drawer.constants';

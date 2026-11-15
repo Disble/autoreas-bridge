@@ -7,13 +7,6 @@
   ],
   "version": 1,
   "violations": [
-    {"rule":"no-infrastructure-import","file":"src/features/activity/activity-source/activity-incident.helpers.ts","specifier":"../../../../wailsjs/go/models"},
-    {"rule":"no-infrastructure-import","file":"src/features/activity/activity-source/activity-source.helpers.ts","specifier":"../../../../wailsjs/go/desktop/App"},
-    {"rule":"no-infrastructure-import","file":"src/features/activity/activity-source/activity-source.helpers.ts","specifier":"../../../infrastructure/wails-bindings.helpers"},
-    {"rule":"no-infrastructure-import","file":"src/features/activity/feed-source/feed-source.helpers.ts","specifier":"../../../../wailsjs/go/desktop/App"},
-    {"rule":"no-infrastructure-import","file":"src/features/activity/feed-source/feed-source.helpers.ts","specifier":"../../../../wailsjs/go/models"},
-    {"rule":"no-infrastructure-import","file":"src/features/activity/feed-source/feed-source.helpers.ts","specifier":"../../../infrastructure/wails-bindings.helpers"},
-    {"rule":"no-infrastructure-import","file":"src/features/activity/history-source/history-source.helpers.ts","specifier":"../../../../wailsjs/go/models"},
     {"rule":"no-infrastructure-import","file":"src/features/activity/history-source/history-source.helpers.ts","specifier":"../../../../wailsjs/runtime/runtime"},
     {"rule":"no-infrastructure-import","file":"src/features/activity/history-source/history-source.helpers.ts","specifier":"../../../infrastructure/wails-bindings.helpers"},
     {"rule":"no-infrastructure-import","file":"src/features/anime-create/ui/AnimeCreate/use-anime-create-bootstrap.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers"},

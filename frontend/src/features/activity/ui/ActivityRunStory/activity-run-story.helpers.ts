@@ -1,5 +1,5 @@
-import type { ActivityRunStep, ActivityRunStory } from '../../activity-source/activity-incident.types';
-import type { ActivitySource } from '../../activity-source/activity-source.types';
+import type { ActivityRunStep, ActivityRunStory } from '../../../../shared/contracts/activity-incident.types';
+import type { ActivitySource } from '../../../../shared/contracts/activity.types';
 import { ACTIVITY_SUCCESS_EVENT_SUFFIXES } from './activity-run-story.constants';
 import type { ActivityRunStoryModel, ActivityRunStoryRead, ActivityTone } from './activity-run-story.types';
 import { formatActivityClock, formatActivityDuration } from './activity-time.helpers';

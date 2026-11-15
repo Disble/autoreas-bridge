@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ActivityTabletSilence } from '../../feed-source/feed.types';
+import type { ActivityTabletSilence } from '../../../../shared/contracts/activity-feed.types';
 import { formatDrawerWhen } from '../drawer-format.helpers';
 import type { DrawerSection, DrawerSummaryInput } from '../drawer.types';
 import { toDrawerHeader, toDrawerSummary } from '../drawer-summary.helpers';

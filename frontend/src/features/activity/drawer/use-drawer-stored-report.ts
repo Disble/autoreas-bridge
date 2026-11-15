@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { ActivityFeedSource } from '../feed-source/feed-source.types';
-import type { ActivityFeedLine } from '../feed-source/feed.types';
+import type { ActivityFeedSource } from '../../../shared/contracts/activity.types';
+import type { ActivityFeedLine } from '../../../shared/contracts/activity-feed.types';
 import { toActivityReadValue } from '../ui/ActivityRunStory/activity-time.helpers';
 import { readDrawerStoredReport, toDrawerReportChoices } from './drawer-reading.helpers';
 import { pickDrawerOccurrenceId } from './drawer-window-error.helpers';
@@ -31,7 +31,7 @@ export function useDrawerStoredReport(feedSource: ActivityFeedSource, line: Acti
   // 5. Derived State (useMemo)
   const reports = useMemo(() => toDrawerReportChoices(line), [line]);
   const selectedReportId = pickDrawerOccurrenceId(reports, picked, lineKey);
-  const { read, retry: retryReport } = useDrawerFeedRead(feedSource, shown ? selectedReportId : undefined, readDrawerStoredReport);
+  const { read, retry: retryReport } = useDrawerFeedRead(feedSource, shown ? selectedReportId : undefined, readDrawerStoredReport, 'phone-report');
 
   // 6. Callbacks (useCallback calling pure helpers)
   const pickReport = useCallback(

@@ -1,4 +1,4 @@
-import type { ActivityFeedLine } from '../feed-source/feed.types';
+import type { ActivityFeedLine } from '../../../shared/contracts/activity-feed.types';
 import type { DrawerPresence, DrawerTransitionEnd } from './drawer.types';
 
 /**

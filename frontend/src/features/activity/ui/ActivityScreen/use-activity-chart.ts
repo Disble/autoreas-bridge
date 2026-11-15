@@ -3,7 +3,7 @@ import { selectionFromDrag, toChartBars, toTableSlots } from '../../feed/activit
 import { setFilterRange } from '../../feed/activity-feed-filters.helpers';
 import { ACTIVITY_CHART_DENSE_AFTER, ACTIVITY_SCALE_OPTIONS } from '../../feed/activity-feed.constants';
 import type { ActivityChartDensity, ActivityFeedFilters, ActivityReadStatus } from '../../feed/activity-feed.types';
-import type { ActivityOverview } from '../../feed-source/feed.types';
+import type { ActivityOverview } from '../../../../shared/contracts/activity-feed.types';
 import type { ActivityChartDrag } from './activity-screen.types';
 
 /**

@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { ActivityIncidentDetail } from '../activity-source/activity-incident.types';
-import type { ActivitySource } from '../activity-source/activity-source.types';
-import type { ActivityFeedLine } from '../feed-source/feed.types';
-import type { ActivityFeedSource } from '../feed-source/feed-source.types';
+import type { ActivityIncidentDetail } from '../../../shared/contracts/activity-incident.types';
+import type { ActivitySource } from '../../../shared/contracts/activity.types';
+import type { ActivityFeedLine } from '../../../shared/contracts/activity-feed.types';
+import type { ActivityFeedSource } from '../../../shared/contracts/activity.types';
 import { readActivityRequest } from '../ui/ActivityIncidents/activity-request-detail.helpers';
 import { toActivityReadValue } from '../ui/ActivityRunStory/activity-time.helpers';
 import { useActivityRead } from '../ui/ActivityRunStory/use-activity-read';
@@ -46,7 +46,7 @@ export function useDrawerTechnical(source: ActivitySource, feedSource: ActivityF
   const requestGroups = useMemo(() => toDrawerRequestGroups(incident, input.change), [incident, input.change]);
   const selectedGroup = pickDrawerGroup(requestGroups, picked, lineKey);
   const requestId = toDrawerRequestId(technical, tab, selectedGroup);
-  const requestRead = useActivityRead(source, requestId, readActivityRequest);
+  const requestRead = useActivityRead(source, requestId, readActivityRequest, 'request');
   const request = toActivityReadValue(requestRead.read);
   const requestPanel = toDrawerPickedRequestPanel(selectedGroup, request);
   const events = useMemo(() => toDrawerEventRows(input), [input]);

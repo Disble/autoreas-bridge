@@ -1,4 +1,4 @@
-import type { ActivityLineMark } from './history.types';
+import type { ActivityLineMark } from '../../../shared/contracts/activity-ledger.types';
 import type { HistorySource } from './history-source.types';
 
 /** Ledger marks the UI knows how to label; any other mark is dropped. */

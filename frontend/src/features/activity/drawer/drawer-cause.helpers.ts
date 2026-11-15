@@ -1,4 +1,4 @@
-import type { ActivityIncidentDetail } from '../activity-source/activity-incident.types';
+import type { ActivityIncidentDetail } from '../../../shared/contracts/activity-incident.types';
 import { DRAWER_CAUSE_CATALOG } from './drawer.constants';
 import type { DrawerCause } from './drawer.types';
 

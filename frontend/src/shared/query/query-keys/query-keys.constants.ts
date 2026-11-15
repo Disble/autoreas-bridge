@@ -23,3 +23,11 @@ export const DEVICES_PAIRING_TOKEN_KEY = devicesKeys.key('pairing-token');
 
 /** Key of the paired-device list; a pairing or a device acknowledgment invalidates it (`BRIDGE_INVALIDATIONS`). */
 export const DEVICES_CONNECTED_KEY = devicesKeys.key('connected');
+
+/**
+ * Keys of the Activity screen's reads, served by the `observability` module:
+ * `activityKeys.key('feed', query)`, `activityKeys.key('overview', ...inputs)` and
+ * one by-id read per detail, `activityKeys.key(<read>, id)`; `activityKeys.all` is
+ * their common prefix.
+ */
+export const activityKeys = defineQueryKeys('activity');

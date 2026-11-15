@@ -1,4 +1,4 @@
-import type { activityread, desktop } from '../../../../wailsjs/go/models';
+import type { activityread, desktop } from '../../../wailsjs/go/models';
 import type {
   ActivityChangeContext,
   ActivityEventSummary,
@@ -8,7 +8,7 @@ import type {
   ActivityRequestDetail,
   ActivityRunStep,
   ActivityRunStory,
-} from './activity-incident.types';
+} from '../../shared/contracts/activity-incident.types';
 
 /** Maps one folded request row; a nil status or duration becomes undefined. */
 function mapFoldedRequest(row: activityread.FoldedRequest): ActivityFoldedRequest {

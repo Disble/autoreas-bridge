@@ -3,6 +3,8 @@ import {
   DEVICE_ACKNOWLEDGED_EVENT_NAME,
   PAIRING_TOKEN_CONSUMED_EVENT_NAME,
 } from '../../../infrastructure/bridge-runtime-source/bridge-runtime-source.constants';
+import { createActivityFeedSource } from '../../../infrastructure/bridge-runtime-source/activity-feed-source.helpers';
+import { createActivityWailsSource } from '../../../infrastructure/bridge-runtime-source/activity-source.helpers';
 import { createDevicesSource } from '../../../infrastructure/bridge-runtime-source/devices-source.helpers';
 import { createEpisodesSource } from '../../../infrastructure/bridge-runtime-source/episodes-source.helpers';
 import { createReadinessSource } from '../../../infrastructure/readiness/readiness-source.helpers';
@@ -31,6 +33,12 @@ export const BRIDGE_EPISODES_SOURCE = createEpisodesSource();
 
 /** The Devices page's bindings: the `api`, `devices` and `sync` modules' reads and commands. */
 export const BRIDGE_DEVICES_SOURCE = createDevicesSource();
+
+/** The Activity screen's pin and detail reads, served by the `observability` module. */
+export const BRIDGE_ACTIVITY_SOURCE = createActivityWailsSource();
+
+/** The Activity feed's page, overview and drawer reads, served by the `observability` module. */
+export const BRIDGE_ACTIVITY_FEED_SOURCE = createActivityFeedSource();
 
 /**
  * Every context's event→invalidation rules, the one place a context registers

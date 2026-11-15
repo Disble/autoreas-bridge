@@ -1,5 +1,5 @@
-import type { ActivityLedgerLine } from '../../history-source/history.types';
-import type { ActivityFeedDay, ActivityFeedLine, ActivityFeedView, ActivityOverview, ActivityTypeCount } from '../../feed-source/feed.types';
+import type { ActivityLedgerLine } from '../../../../shared/contracts/activity-ledger.types';
+import type { ActivityFeedDay, ActivityFeedLine, ActivityFeedView, ActivityOverview, ActivityTypeCount } from '../../../../shared/contracts/activity-feed.types';
 
 /** Local noon of Thu, Oct 22 2026: the "now" of these tests. */
 export const NOW_MS = new Date(2026, 9, 22, 12, 0).getTime();

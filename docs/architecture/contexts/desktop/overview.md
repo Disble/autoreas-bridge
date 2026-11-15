@@ -61,6 +61,7 @@ Bindings that run through a handle today:
 | `api` (`modules.Handle[apiServices]`) | `apiServices.server`, the HTTP server | `startHTTPServer`, before `configureRuntimeServices` settles `api` | `GetEffectiveAddress() (string, error)` |
 | `sync` (`modules.Handle[syncServices]`) | `syncServices.trigger`, the sync trigger service | `startHTTPServer`, before `configureRuntimeServices` settles `sync` | `TriggerReconcile() error`, `GetSyncingAnimeItems() ([]SyncingAnimeItem, error)` |
 | `devices` (`modules.Handle[deviceServices]`) | device store, a device admin service (sync state from `bridge.db`, presence from the realtime hub), pairing token generator | `bindDevicesModule`, after `configureRealtimeHub`, before `configureRuntimeServices` settles `devices` | `GetPairingToken() (string, error)`, `GetConnectedDevices() ([]DeviceInfo, error)`, `UnpairDevice(id) error` |
+| `observability` (`modules.Handle[observabilityServices]`) | activity reader (`activityread.Reader`), incident store (pins), request capture reader, sync diagnostics reader | `bindObservabilityModule`, after `configureEventLogQueue`, before `configureRuntimeServices` settles `observability` | `SearchActivityFeed`, `GetActivityOverview`, `GetActivityEvent`, `GetActivityChangeContext`, `GetActivityPhoneReport`, `GetActivityIncident`, `GetActivityRequest`, `GetActivityRunStory`, `PinActivityMoment`, `ListDeviceSyncDiagnostics() (DeviceSyncDiagnosticsResult, error)`; `../observability/overview.md`, "Readiness" |
 
 The other episode bindings (`AdjustWatchedEpisodes`, `SetAnimeState`, `SetAnimeDays`,
 `SoftDeleteAnime`, `RestoreAnime`, `RepeatAnime`) still read `App.episodeService` and answer a status
@@ -74,7 +75,7 @@ then settles at the step that wires it:
 
 | Module | Ready when | Settled after |
 |---|---|---|
-| `observability` | runtime event log queue and request capture reader are wired | `configureRuntimeServices` |
+| `observability` | runtime event log queue, request capture reader and sync diagnostics reader are wired (the readers bound to the `observability` handle) | `configureRuntimeServices` |
 | `sync` | sync changelog recorder and sync trigger are wired (the trigger bound to the `sync` handle) | `configureRuntimeServices` |
 | `devices` | device store is wired (and bound to the `devices` handle) | `configureRuntimeServices` |
 | `settings` | settings store is wired | `configureRuntimeServices` |
@@ -185,12 +186,13 @@ memory and starts over with every process.
 | Readiness | `internal/desktop/app_readiness.go` `GetReadiness`, event `bridge.readiness` |
 | Today schedule and day badges | `internal/desktop/app_runtime.go` `GetEpisodeSchedule`, `GetEpisodeDayCounts` (handle `episodes`) |
 | Devices page (pairing, paired devices, reconcile, pending syncs) | `internal/desktop/app_runtime.go` `GetEffectiveAddress` (handle `api`), `GetPairingToken`, `GetConnectedDevices`, `UnpairDevice` (handle `devices`), `TriggerReconcile`, `GetSyncingAnimeItems` (handle `sync`); `../devices/overview.md` |
+| Activity screen (feed, chart, drawer reads, pin) | `internal/desktop/app_activity_feed.go`, `app_activity_read.go`, `app_activity_pin.go` (handle `observability`); `../observability/overview.md` |
 | Any other Wails binding | the exported `App` method in `internal/desktop/app_<context>*.go` |
 
 ## Known drift
 
-- Every binding except `GetReadiness`, `GetEpisodeSchedule`, `GetEpisodeDayCounts` and the six
-  `api`/`sync`/`devices` bindings above still reads its service from an `App` field without a
-  readiness check: 112 `binding-uses-handle` and 45 `binding-signature` entries in
+- Every binding except `GetReadiness`, `GetEpisodeSchedule`, `GetEpisodeDayCounts`, the six
+  `api`/`sync`/`devices` bindings and the ten `observability` bindings above still reads its service
+  from an `App` field without a readiness check: 102 `binding-uses-handle` and 45 `binding-signature` entries in
   `tools/checkarchitecture/baseline.yaml` (printed by `go run ./tools/checkarchitecture`).
 - ADR-018's field count (~110) predates this page; `App` grew by one field, `modules`.

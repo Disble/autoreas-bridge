@@ -1,7 +1,6 @@
 import { toast } from '@heroui/react';
-import { useCallback, useMemo, useState } from 'react';
-import { createActivitySource } from '../../activity-source/activity-source.helpers';
-import type { ActivitySource } from '../../activity-source/activity-source.types';
+import { useCallback, useMemo } from 'react';
+import type { ActivitySource } from '../../../../shared/contracts/activity.types';
 import { countFailures, toTypeToggles } from '../../feed/activity-feed-counts.helpers';
 import { scaleWindowStart, toFeedQuery, typeSelectionKeys } from '../../feed/activity-feed-filters.helpers';
 import { toFeedDayModels } from '../../feed/activity-feed-rows.helpers';
@@ -9,8 +8,9 @@ import { ACTIVITY_FEED_PAGE_LIMIT } from '../../feed/activity-feed.constants';
 import { useActivityFeedPages } from '../../feed/use-activity-feed-pages';
 import { useActivityLiveRefresh } from '../../feed/use-activity-live-refresh';
 import { useActivityOverview } from '../../feed/use-activity-overview';
-import { createActivityFeedSource } from '../../feed-source/feed-source.helpers';
-import type { ActivityFeedSource } from '../../feed-source/feed-source.types';
+import { BRIDGE_ACTIVITY_FEED_SOURCE, BRIDGE_ACTIVITY_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
+import type { ActivityFeedSource } from '../../../../shared/contracts/activity.types';
 import { createHistorySource } from '../../history-source/history-source.helpers';
 import type { HistorySource } from '../../history-source/history-source.types';
 import { useActivityRangePicker } from '../ActivityToolbar/use-activity-range-picker';
@@ -26,25 +26,29 @@ import { useActivityOpenLine } from './use-activity-open-line';
  * refresh of both, the chart drag, the failure switch, the open line with its
  * ↑ / ↓ / Esc keys, and "Pin this moment".
  *
- * @param feedSource The feed port; the shared Wails source when omitted.
+ * @param feedSource The feed port; the shared bridge source when omitted.
  * @param historySource The port that carries the recorder subscription.
  * @param activitySource The port that pins a moment.
  * @returns Everything the dumb screen renders and the callbacks it wires.
  */
 export function useActivityScreen(
-  feedSource: ActivityFeedSource = createActivityFeedSource(),
+  feedSource: ActivityFeedSource = BRIDGE_ACTIVITY_FEED_SOURCE,
   historySource: HistorySource = createHistorySource(),
-  activitySource: ActivitySource = createActivitySource(),
+  activitySource: ActivitySource = BRIDGE_ACTIVITY_SOURCE,
 ) {
   // 1. Refs
 
   // 2. State
-  const [isPinning, setIsPinning] = useState(false);
   const { filters, setFilters, onRangeChange, onClearRange, ...filterCallbacks } = useActivityFilters();
 
   // 3. Context/3rd Party Hooks
 
   // 4. Queries/Mutations
+  const pinMutation = useBridgeMutation({
+    mutationFn: () => activitySource.pinMoment(),
+    onSuccess: () => toast.success(ACTIVITY_PIN_SUCCESS_MESSAGE),
+    onError: () => toast.danger(ACTIVITY_PIN_FAILURE_MESSAGE),
+  });
   const query = useMemo(() => toFeedQuery(filters, '', ACTIVITY_FEED_PAGE_LIMIT), [filters]);
   const pages = useActivityFeedPages(feedSource, query);
   const overviewRange = toOverviewRange(filters);
@@ -70,14 +74,10 @@ export function useActivityScreen(
     overviewRead.retry();
   }, [overviewRead, pages]);
 
+  const { mutate: pinMoment } = pinMutation;
   const pin = useCallback(() => {
-    setIsPinning(true);
-    void activitySource
-      .pinMoment()
-      .then(() => toast.success(ACTIVITY_PIN_SUCCESS_MESSAGE))
-      .catch(() => toast.danger(ACTIVITY_PIN_FAILURE_MESSAGE))
-      .finally(() => setIsPinning(false));
-  }, [activitySource]);
+    pinMoment();
+  }, [pinMoment]);
 
   // 7. Effects
   useActivityLiveRefresh(historySource, onLive);
@@ -101,7 +101,7 @@ export function useActivityScreen(
       endMark: toFeedEndMark(filters),
     },
     ...openLine,
-    isPinning,
+    isPinning: pinMutation.isPending,
     ...filterCallbacks,
     ...chart,
     onRetry,

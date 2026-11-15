@@ -1,8 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { ActivityFeedSource } from '../../feed-source/feed-source.types';
-import type { ActivityFeedType, ActivityOverview } from '../../feed-source/feed.types';
+import type { ActivityFeedSource } from '../../../../shared/contracts/activity.types';
+import type { ActivityFeedType, ActivityOverview } from '../../../../shared/contracts/activity-feed.types';
 import { useActivityOverview } from '../use-activity-overview';
+import { createModulesTestWrapper } from '../../../../shared/query/test-support/bridge-modules.test-support';
 import { buildOverview } from './activity-feed.fixtures';
 
 /** An overview with one change line. */
@@ -23,7 +24,7 @@ function fakeSource(...replies: readonly (ActivityOverview | Error)[]): Activity
 describe('useActivityOverview', () => {
   it('reads the overview of the scale, range, origin, sections and failures-only, and again when a section or the failure switch changes', async () => {
     const source = fakeSource(OVERVIEW, OVERVIEW, OVERVIEW);
-    const { result, rerender } = renderHook(({ types, failuresOnly }) => useActivityOverview(source, '7d', 10, 20, 'phone', types, failuresOnly), {
+    const { result, rerender } = renderHook(({ types, failuresOnly }) => useActivityOverview(source, '7d', 10, 20, 'phone', types, failuresOnly), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper,
       initialProps: { types: ['change'] as readonly ActivityFeedType[], failuresOnly: false },
     });
 
@@ -40,7 +41,7 @@ describe('useActivityOverview', () => {
 
   it('fails a first read, and reads again on retry', async () => {
     const source = fakeSource(new Error('down'), OVERVIEW);
-    const { result } = renderHook(() => useActivityOverview(source, '24h', 0, 0, 'all', SECTIONS, false));
+    const { result } = renderHook(() => useActivityOverview(source, '24h', 0, 0, 'all', SECTIONS, false), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
     await waitFor(() => expect(result.current.status).toBe('failed'));
 
     act(() => result.current.retry());
@@ -51,7 +52,7 @@ describe('useActivityOverview', () => {
 
   it('keeps the counts on screen when a refresh fails', async () => {
     const source = fakeSource(OVERVIEW, new Error('down'));
-    const { result } = renderHook(() => useActivityOverview(source, '24h', 0, 0, 'all', SECTIONS, false));
+    const { result } = renderHook(() => useActivityOverview(source, '24h', 0, 0, 'all', SECTIONS, false), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
     act(() => result.current.refresh());
@@ -65,7 +66,7 @@ describe('useActivityOverview', () => {
   it('keeps the drawn overview while a new origin is read', async () => {
     const source = fakeSource(OVERVIEW);
     vi.mocked(source.getOverview).mockReturnValueOnce(new Promise(() => undefined));
-    const { result, rerender } = renderHook(({ origin }) => useActivityOverview(source, '24h', 0, 0, origin, SECTIONS, false), { initialProps: { origin: 'all' as 'all' | 'phone' } });
+    const { result, rerender } = renderHook(({ origin }) => useActivityOverview(source, '24h', 0, 0, origin, SECTIONS, false), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper, initialProps: { origin: 'all' as 'all' | 'phone' } });
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
     rerender({ origin: 'phone' });
@@ -81,9 +82,11 @@ describe('useActivityOverview', () => {
       .mockImplementationOnce(() => new Promise((resolve) => (resolveOld = resolve)))
       .mockResolvedValueOnce(fresh);
     const source = { searchFeed: vi.fn(), getOverview, getEvent: vi.fn(), getChangeContext: vi.fn(), getPhoneReport: vi.fn() };
-    const { result, rerender } = renderHook(({ origin }) => useActivityOverview(source, '24h', 0, 0, origin, SECTIONS, false), {
+    const { result, rerender } = renderHook(({ origin }) => useActivityOverview(source, '24h', 0, 0, origin, SECTIONS, false), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper,
       initialProps: { origin: 'all' as 'all' | 'phone' },
     });
+    // The first read starts once the module gate lets it through.
+    await waitFor(() => expect(getOverview).toHaveBeenCalledOnce());
 
     rerender({ origin: 'phone' });
     await waitFor(() => expect(result.current.overview).toBe(fresh));
@@ -93,5 +96,29 @@ describe('useActivityOverview', () => {
     });
 
     expect(result.current.overview).toBe(fresh);
+  });
+
+  it('stays loading without reading while the observability module starts, and reads once it is ready', async () => {
+    const source = fakeSource(OVERVIEW);
+    const { wrapper, emit } = createModulesTestWrapper({ module: 'observability', state: 'starting' });
+    const { result } = renderHook(() => useActivityOverview(source, '24h', 0, 0, 'all', SECTIONS, false), { wrapper });
+
+    await act(() => Promise.resolve());
+    expect(result.current.status).toBe('loading');
+    expect(source.getOverview).not.toHaveBeenCalled();
+
+    act(() => emit({ module: 'observability', state: 'ready' }));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(result.current.overview).toBe(OVERVIEW);
+  });
+
+  it('fails without reading when the observability module failed', async () => {
+    const source = fakeSource(OVERVIEW);
+    const { result } = renderHook(() => useActivityOverview(source, '24h', 0, 0, 'all', SECTIONS, false), {
+      wrapper: createModulesTestWrapper({ module: 'observability', state: 'failed', reason: 'db closed' }).wrapper,
+    });
+
+    await waitFor(() => expect(result.current.status).toBe('failed'));
+    expect(source.getOverview).not.toHaveBeenCalled();
   });
 });

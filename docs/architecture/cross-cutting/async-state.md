@@ -204,19 +204,22 @@ pilot's frontend (T4b) and the Devices bindings (T5a):
   `error-codes.json`), `internal/modules` (`Handle[S]`, `Shell`), `GetReadiness`, the
   `bridge.readiness` event and the JSON `ErrorFormatter`. Ten modules are registered and settled by
   `startup` (`docs/architecture/contexts/desktop/overview.md`, "Readiness and failures").
-- Four domain modules have a handle (`appModules` in `internal/desktop/app_readiness.go`):
+- Five domain modules have a handle (`appModules` in `internal/desktop/app_readiness.go`):
   `episodes` (`GetEpisodeSchedule`, `GetEpisodeDayCounts`), `api` (`GetEffectiveAddress`), `sync`
-  (`TriggerReconcile`, `GetSyncingAnimeItems`) and `devices` (`GetPairingToken`,
-  `GetConnectedDevices`, `UnpairDevice`); `docs/architecture/contexts/desktop/overview.md` says where
+  (`TriggerReconcile`, `GetSyncingAnimeItems`), `devices` (`GetPairingToken`,
+  `GetConnectedDevices`, `UnpairDevice`) and `observability` (the nine Activity bindings and
+  `ListDeviceSyncDiagnostics`); `docs/architecture/contexts/desktop/overview.md` says where
   each is bound. Every other binding except `GetReadiness` still reads an `App` field without
   readiness, including the six other episode bindings. `tools/checkarchitecture/baseline.yaml` lists
-  them: 112 `binding-uses-handle` and 45 `binding-signature` entries (printed by
+  them: 102 `binding-uses-handle` and 45 `binding-signature` entries (printed by
   `go run ./tools/checkarchitecture`).
 - `internal/desktop/app_readiness_startup_test.go` runs the production options and `OnStartup` against
   a temporary data directory and pins the rejection the frontend receives while episodes is starting:
   `{"code":"unavailable","message":"episodes is starting"}`.
 - The Devices page and the paired-device panel read through it too (module `api`, `sync`, `devices`;
   `docs/architecture/contexts/devices/overview.md`).
+- The Activity screen reads through it too (module `observability`; its live refresh still subscribes to
+  `activity.recorder` directly; `docs/architecture/contexts/observability/overview.md`, "Readiness").
 - The frontend runtime exists, and Today uses it: Today
   (`features/episodes/ui/EpisodeSchedulePanel`) reads `GetEpisodeSchedule` and `GetEpisodeDayCounts`
   through `useBridgeQuery` (module `episodes`) and renders `toAsyncView` states
@@ -270,16 +273,16 @@ pilot's frontend (T4b) and the Devices bindings (T5a):
     placeholder loader that rejects until the author wires the binding.
 - `invokeGoBinding` (`frontend/src/infrastructure/wails-bindings.helpers.ts`) still answers adapter
   fallbacks such as `() => []` when a binding never attaches, for every source that has not migrated.
-- 119 non-test feature files and 16 non-test shared files import `infrastructure/`, measured with
+- 117 non-test feature files and 16 non-test shared files import `infrastructure/`, measured with
   `grep -rlE "from '(\.\./)+infrastructure/" src/<layer> --include=*.ts --include=*.tsx | grep -v __tests__`
   from `frontend/`. One of the 16 is in `shared/query`: the composition module
   `bridge-runtime/bridge-runtime.constants.ts`; the rest of `shared/query` imports none.
 - Server state still lives in 4 Zustand read-models (ADR-006) and in hand-fetching hooks.
-- `frontend/async-state-baseline.json` holds 232 entries (244 at task T3b; the Today pilot, T4b,
-  deleted 3; the Devices bindings, T5a, deleted 9), measured by running the five rules over
+- `frontend/async-state-baseline.json` holds 225 entries (244 at task T3b; the Today pilot, T4b,
+  deleted 3; the Devices bindings, T5a, deleted 9; the Activity reads, T5b, deleted 7), measured by running the five rules over
   `src/**/*.{ts,tsx}` and printed by `bun --cwd="frontend" run check:async-state:all`:
-  - `no-infrastructure-import` 218 entries in 137 files (122 feature, 15 shared); 10 of them are direct
-    `wailsjs/**` imports (generated bindings, models and the runtime) in 7 files. Today's
+  - `no-infrastructure-import` 211 entries in 134 files (119 feature, 15 shared); 5 of them are direct
+    `wailsjs/**` imports (generated bindings, models and the runtime) in 4 files. Today's
     `episode-schedule-panel.helpers.ts` keeps two (`bridge-runtime-source`, `preferences-source`) for
     the operations that have not migrated.
   - `no-runtime-subscription` 14 entries in 9 files: 7 feature files (activity, download run history,

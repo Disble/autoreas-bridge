@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ActivityRunStep, ActivityRunStory } from '../../../activity-source/activity-incident.types';
-import type { ActivitySource } from '../../../activity-source/activity-source.types';
+import type { ActivityRunStep, ActivityRunStory } from '../../../../../shared/contracts/activity-incident.types';
+import type { ActivitySource } from '../../../../../shared/contracts/activity.types';
 import { readActivityRunStory, toActivityRunStoryModel } from '../activity-run-story.helpers';
 
 /** Local epoch milliseconds of Oct 17 at the given time. */

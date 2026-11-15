@@ -1,6 +1,6 @@
 import type { Key } from '@heroui/react';
 import type { ActivityChartBarModel, ActivityChartDensity, ActivityReadStatus } from '../../feed/activity-feed.types';
-import type { ActivityChartScale } from '../../feed-source/feed.types';
+import type { ActivityChartScale } from '../../../../shared/contracts/activity-feed.types';
 
 /** Props of the time chart card. */
 export interface ActivityTimeChartProps {

@@ -1,5 +1,5 @@
 import { toSilenceWords } from '../feed/activity-feed-rows.helpers';
-import type { ActivityFeedLine, ActivitySilenceReport, ActivityTabletSilence } from '../feed-source/feed.types';
+import type { ActivityFeedLine, ActivitySilenceReport, ActivityTabletSilence } from '../../../shared/contracts/activity-feed.types';
 import { DRAWER_HOUR_MS, DRAWER_SILENCE_WORDS } from './drawer.constants';
 import type { DrawerDataBlock, DrawerSection, DrawerSummaryInput } from './drawer.types';
 import { drawerFact, formatDrawerTime, formatDrawerWhen } from './drawer-format.helpers';

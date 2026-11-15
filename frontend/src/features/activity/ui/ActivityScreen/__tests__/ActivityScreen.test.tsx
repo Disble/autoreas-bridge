@@ -1,24 +1,27 @@
+import * as HeroUI from '@heroui/react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dispatchKeyboardEvent } from '../../../../../shared/keyboard/dispatch.helpers';
 import { resetKeyboardStore } from '../../../../../shared/keyboard/keyboard-scope.helpers';
-import type { ActivitySource } from '../../../activity-source/activity-source.types';
-import type { ActivityFeedSource } from '../../../feed-source/feed-source.types';
-import type { ActivityFeedLine, ActivityFeedView } from '../../../feed-source/feed.types';
+import type { ActivitySource } from '../../../../../shared/contracts/activity.types';
+import type { ActivityFeedSource } from '../../../../../shared/contracts/activity.types';
+import type { ActivityFeedLine, ActivityFeedView } from '../../../../../shared/contracts/activity-feed.types';
 import type { HistorySource } from '../../../history-source/history-source.types';
 import { buildDay, buildLine, buildOverview, buildView } from '../../../feed/__tests__/activity-feed.fixtures';
 import type { ActivityDetailDrawerProps } from '../../ActivityDetailDrawer/activity-detail-drawer.types';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { ActivityScreen } from '../ActivityScreen';
+import { ACTIVITY_PIN_FAILURE_MESSAGE, ACTIVITY_PIN_SUCCESS_MESSAGE } from '../activity-screen.constants';
 
 /** Recorder listeners the screen subscribed. */
 const recorderListeners: (() => void)[] = [];
 
-/** The feed port: each test sets what `searchFeed` resolves with. */
-const feedSource = {
+/** The feed port: each test sets what `searchFeed` resolves with. Hoisted: the mocked bridge runtime hands it out at import. */
+const feedSource = vi.hoisted(() => ({
   searchFeed: vi.fn<ActivityFeedSource['searchFeed']>(),
   getOverview: vi.fn<ActivityFeedSource['getOverview']>(),
-};
+}));
 
 /** The History port: only its recorder subscription is used. */
 const historySource: HistorySource = {
@@ -28,16 +31,18 @@ const historySource: HistorySource = {
   },
 };
 
-/** The Activity port: only the pin is used. */
-const activitySource = { pinMoment: vi.fn(() => Promise.resolve()) } as unknown as ActivitySource;
+/** The Activity port: only the pin is used. Hoisted: the mocked bridge runtime hands it out at import. */
+const activitySource = vi.hoisted(() => ({ pinMoment: vi.fn(() => Promise.resolve()) }) as unknown as ActivitySource);
 
-vi.mock('../../../feed-source/feed-source.helpers', () => ({ createActivityFeedSource: () => feedSource }));
 vi.mock('../../../history-source/history-source.helpers', () => ({ createHistorySource: () => historySource }));
-vi.mock('../../../activity-source/activity-source.helpers', () => ({ createActivitySource: () => activitySource }));
 /** The paired devices the phone status line reads: none unless a test sets them. */
 const getConnectedDevices = vi.fn(() => Promise.resolve<readonly { connection_status: string; last_seen_at_ms: number }[]>([]));
 
-vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', () => ({ BRIDGE_DEVICES_SOURCE: { getConnectedDevices: () => getConnectedDevices() } }));
+vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', () => ({
+  BRIDGE_DEVICES_SOURCE: { getConnectedDevices: () => getConnectedDevices() },
+  BRIDGE_ACTIVITY_FEED_SOURCE: feedSource,
+  BRIDGE_ACTIVITY_SOURCE: activitySource,
+}));
 vi.mock('../../ActivityDetailDrawer/ActivityDetailDrawer', () => ({
   /** Stands in for writer B's drawer: shows which line is open. */
   ActivityDetailDrawer: ({ line }: ActivityDetailDrawerProps) => (line === undefined ? null : <aside aria-label="Activity detail">{line.line.id}</aside>),
@@ -53,12 +58,13 @@ function page(count: number, firstId: number, nextCursor = ''): ActivityFeedView
   return buildView([buildDay(0, lines(count, firstId))], nextCursor);
 }
 
-/** Renders the screen inside a router. */
+/** Renders the screen inside a router, over a fresh query client whose observability module is ready. */
 function renderScreen() {
   render(
     <MemoryRouter>
       <ActivityScreen />
     </MemoryRouter>,
+    { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper },
   );
 }
 
@@ -298,14 +304,24 @@ describe('ActivityScreen', () => {
     expect(screen.queryByRole('complementary', { name: 'Activity detail' })).not.toBeInTheDocument();
   });
 
-  it('pins this moment from the page header', async () => {
+  it('pins this moment from the page header, saying whether the pin was kept', async () => {
+    const success = vi.spyOn(HeroUI.toast, 'success').mockReturnValue('toast-1');
+    const danger = vi.spyOn(HeroUI.toast, 'danger').mockReturnValue('toast-2');
+    vi.mocked(activitySource.pinMoment).mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('disk full'));
     feedSource.searchFeed.mockResolvedValue(page(1, 1));
     renderScreen();
     const header = screen.getByRole('heading', { level: 1, name: 'Activity' }).closest('header') as HTMLElement;
+    const pin = within(header).getByRole('button', { name: 'Pin this moment' });
 
-    fireEvent.click(within(header).getByRole('button', { name: 'Pin this moment' }));
+    fireEvent.click(pin);
+    await waitFor(() => expect(success).toHaveBeenCalledExactlyOnceWith(ACTIVITY_PIN_SUCCESS_MESSAGE));
+    await waitFor(() => expect(pin).toBeEnabled());
+    fireEvent.click(pin);
 
-    await waitFor(() => expect(activitySource.pinMoment).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(danger).toHaveBeenCalledExactlyOnceWith(ACTIVITY_PIN_FAILURE_MESSAGE));
+    expect(activitySource.pinMoment).toHaveBeenCalledTimes(2);
+    success.mockRestore();
+    danger.mockRestore();
   });
 
   it('marks a failed System line red and a slow line amber, badges a repeat, and offers Copy for AI on the failed row only', async () => {

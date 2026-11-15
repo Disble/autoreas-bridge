@@ -1,22 +1,15 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import type { AsyncView } from '../../../../../shared/query/async-view/async-view.types';
 import type { ActivityRead } from '../activity-run-story.types';
 import {
   formatActivityClock,
   formatActivityDuration,
   formatActivityOffset,
-  startActivityRead,
-  toActivityCurrentRead,
+  isActivityReadGone,
   toActivityFoundRead,
-  toActivityReadKey,
+  toActivityQueryRead,
   toActivityReadValue,
 } from '../activity-time.helpers';
-
-/** Lets every settled promise run its handlers. */
-function flush(): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, 0);
-  });
-}
 
 describe('activity-time.helpers', () => {
   it('formats a local clock with milliseconds, zero-padded', () => {
@@ -50,18 +43,23 @@ describe('activity-time.helpers', () => {
     expect(formatActivityOffset(ms)).toBe(expected);
   });
 
-  it('keys a read by what it reads and its attempt', () => {
-    expect(toActivityReadKey('c-1', 0)).toBe('c-1#0');
-    expect(toActivityReadKey(42, 3)).toBe('42#3');
-  });
 });
 
 describe('activity read helpers', () => {
-  it('shows a tagged read only for the request it answers, else loading', () => {
-    const tagged = { key: 'c-1#0', read: { status: 'failed' } } as const;
-    expect(toActivityCurrentRead(tagged, 'c-1#0')).toEqual({ status: 'failed' });
-    expect(toActivityCurrentRead(tagged, 'c-1#1')).toEqual({ status: 'loading' });
-    expect(toActivityCurrentRead(undefined, 'c-1#0')).toEqual({ status: 'loading' });
+  it.each<[string, AsyncView<ActivityRead<string>>, boolean, ActivityRead<string>]>([
+    ['pending', { kind: 'loading' }, true, { status: 'loading' }],
+    ['answered and reading again', { kind: 'ready', data: { status: 'ready', value: 'v' }, isRefreshing: true }, true, { status: 'loading' }],
+    ['failed and reading again', { kind: 'failure', code: 'internal', message: 'boom' }, true, { status: 'loading' }],
+    ['failed', { kind: 'failure', code: 'failed_precondition', message: 'observability: db closed' }, false, { status: 'failed' }],
+    ['found nothing', { kind: 'empty' }, false, { status: 'gone' }],
+    ['answered', { kind: 'ready', data: { status: 'ready', value: 'v' }, isRefreshing: false }, false, { status: 'ready', value: 'v' }],
+  ])('shows a query that is %s as its read', (_label, view, isFetching, expected) => {
+    expect(toActivityQueryRead(view, isFetching)).toEqual(expected);
+  });
+
+  it('counts only a lookup that found nothing as gone', () => {
+    expect(isActivityReadGone({ status: 'gone' })).toBe(true);
+    expect(isActivityReadGone({ status: 'ready', value: 1 })).toBe(false);
   });
 
   it('reads a missing value as gone and a found one as ready', () => {
@@ -75,25 +73,4 @@ describe('activity read helpers', () => {
     expect(toActivityReadValue(undefined)).toBeUndefined();
   });
 
-  it('tags an answer with its request key', async () => {
-    const onRead = vi.fn();
-    startActivityRead(Promise.resolve<ActivityRead<number>>({ status: 'ready', value: 3 }), 'c-1#0', onRead);
-    await flush();
-    expect(onRead).toHaveBeenCalledExactlyOnceWith({ key: 'c-1#0', read: { status: 'ready', value: 3 } });
-  });
-
-  it('tags a rejected read as failed', async () => {
-    const onRead = vi.fn();
-    startActivityRead(Promise.reject(new Error('boom')), 'c-1#2', onRead);
-    await flush();
-    expect(onRead).toHaveBeenCalledExactlyOnceWith({ key: 'c-1#2', read: { status: 'failed' } });
-  });
-
-  it('drops answers that arrive after the read was stopped', async () => {
-    const onRead = vi.fn();
-    startActivityRead(Promise.resolve<ActivityRead<number>>({ status: 'gone' }), 'c-1#0', onRead)();
-    startActivityRead(Promise.reject(new Error('boom')), 'c-1#1', onRead)();
-    await flush();
-    expect(onRead).not.toHaveBeenCalled();
-  });
 });

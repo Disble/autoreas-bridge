@@ -1,5 +1,5 @@
-import type { ActivityChangeContext, ActivityIncidentDetail, ActivityRequestDetail } from '../activity-source/activity-incident.types';
-import type { ActivityFeedLine } from '../feed-source/feed.types';
+import type { ActivityChangeContext, ActivityIncidentDetail, ActivityRequestDetail } from '../../../shared/contracts/activity-incident.types';
+import type { ActivityFeedLine } from '../../../shared/contracts/activity-feed.types';
 import { formatActivityDuration } from '../ui/ActivityRunStory/activity-time.helpers';
 import { DRAWER_CHANGE_READ_FAILED_NOTE, DRAWER_NO_LINE_EVENTS_NOTE, DRAWER_NO_RUN_EVENTS_NOTE, DRAWER_STORED_REPORT_LABEL, DRAWER_WINDOW_ERROR_EVENT_TYPE } from './drawer.constants';
 import type { DrawerDataBlock, DrawerEventRow, DrawerHttpHeader, DrawerRequestGroup, DrawerRequestPanel, DrawerSummaryInput, DrawerTechnicalTab, DrawerWindowErrorDetail } from './drawer.types';

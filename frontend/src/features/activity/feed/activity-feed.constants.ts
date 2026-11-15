@@ -1,5 +1,5 @@
 import { Time } from '@internationalized/date';
-import type { ActivityChartScale, ActivityFeedType, ActivitySyncReadingKind } from '../feed-source/feed.types';
+import type { ActivityChartScale, ActivityFeedType, ActivitySyncReadingKind } from '../../../shared/contracts/activity-feed.types';
 import type { ActivityRangeTimes } from './activity-feed.types';
 
 /** Lines per feed page: one batch of the progressive window (ADR-012). */

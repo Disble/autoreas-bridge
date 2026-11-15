@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activityread, contracts, desktop } from '../../../../../wailsjs/go/models';
+import { activityread, contracts, desktop } from '../../../../wailsjs/go/models';
 import {
   mapActivityChangeContext,
   mapActivityIncidentResult,

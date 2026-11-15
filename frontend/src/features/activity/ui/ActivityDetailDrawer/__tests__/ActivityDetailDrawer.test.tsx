@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ActivitySource } from '../../../activity-source/activity-source.types';
-import type { ActivityFeedSource } from '../../../feed-source/feed-source.types';
+import type { ActivitySource } from '../../../../../shared/contracts/activity.types';
+import type { ActivityFeedSource } from '../../../../../shared/contracts/activity.types';
 import { bridgeOffLine, feedLine, incident, readingLine, syncReading } from '../../../drawer/__tests__/drawer.fixtures';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { ActivityDetailDrawer } from '../ActivityDetailDrawer';
 
 /** The incident read the mocked source answers with. */
@@ -14,10 +15,6 @@ const getRequest = vi.fn<ActivitySource['getRequest']>();
 /** The one source instance the drawer reads, as the real singleton is. */
 const source = { getIncident, getRequest, getRunStory: vi.fn() } as unknown as ActivitySource;
 
-vi.mock('../../../activity-source/activity-source.helpers', () => ({
-  createActivitySource: () => source,
-}));
-
 /** The one feed source the drawer reads; a change links to no event or capture. */
 const feedSource = {
   getEvent: vi.fn(() => Promise.resolve(undefined)),
@@ -25,8 +22,16 @@ const feedSource = {
   getPhoneReport: vi.fn((id: number) => Promise.resolve(`{"id":${id},"failed":true}`)),
 } as unknown as ActivityFeedSource;
 
-vi.mock('../../../feed-source/feed-source.helpers', () => ({
-  createActivityFeedSource: () => feedSource,
+vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  /** The drawer's default Activity port. */
+  get BRIDGE_ACTIVITY_SOURCE() {
+    return source;
+  },
+  /** The drawer's default feed port. */
+  get BRIDGE_ACTIVITY_FEED_SOURCE() {
+    return feedSource;
+  },
 }));
 
 /** A failed traffic hour whose incident must be read. */
@@ -48,13 +53,13 @@ describe('ActivityDetailDrawer', () => {
   });
 
   it('renders nothing while closed', () => {
-    const { container } = render(<ActivityDetailDrawer line={undefined} onClose={vi.fn()} />);
+    const { container } = render(<ActivityDetailDrawer line={undefined} onClose={vi.fn()} />, { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     expect(container).toBeEmptyDOMElement();
   });
 
   it('stays mounted, hidden and inert while it slides out, unmounts after, and reopens at its summary', () => {
-    const { container, rerender } = render(<ActivityDetailDrawer line={CHANGE} onClose={vi.fn()} />);
+    const { container, rerender } = render(<ActivityDetailDrawer line={CHANGE} onClose={vi.fn()} />, { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
     fireEvent.click(screen.getByRole('button', { name: 'Technical details' }));
     expect(screen.getByTestId('activity-technical-view')).toBeInTheDocument();
 
@@ -73,7 +78,7 @@ describe('ActivityDetailDrawer', () => {
 
   it('shows the header and the change presenter, and asks to close from ×', () => {
     const onClose = vi.fn();
-    render(<ActivityDetailDrawer line={CHANGE} onClose={onClose} />);
+    render(<ActivityDetailDrawer line={CHANGE} onClose={onClose} />, { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     expect(screen.getByRole('heading', { name: 'Hotaru no Yomeiri' })).toBeInTheDocument();
     expect(screen.getByText('episode 0 → 1 · from the phone')).toBeInTheDocument();
@@ -84,7 +89,7 @@ describe('ActivityDetailDrawer', () => {
 
   it('shows only the loading region while the incident is unresolved', () => {
     getIncident.mockReturnValue(new Promise(() => undefined));
-    render(<ActivityDetailDrawer line={FAILED_HOUR} onClose={vi.fn()} />);
+    render(<ActivityDetailDrawer line={FAILED_HOUR} onClose={vi.fn()} />, { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     expect(screen.getByRole('status', { name: 'Loading the event detail' })).toBeInTheDocument();
     expect(screen.queryByTestId('activity-drawer-summary')).not.toBeInTheDocument();
@@ -93,7 +98,7 @@ describe('ActivityDetailDrawer', () => {
 
   it('shows the failure alert instead of the summary when the read fails', async () => {
     getIncident.mockRejectedValue(new Error('db'));
-    render(<ActivityDetailDrawer line={FAILED_HOUR} onClose={vi.fn()} />);
+    render(<ActivityDetailDrawer line={FAILED_HOUR} onClose={vi.fn()} />, { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     expect(await screen.findByText('The event detail could not be read')).toBeInTheDocument();
     expect(screen.queryByTestId('activity-drawer-summary')).not.toBeInTheDocument();
@@ -102,7 +107,7 @@ describe('ActivityDetailDrawer', () => {
 
   it('shows the recorded cause, then opens the technical view and goes back', async () => {
     getIncident.mockResolvedValue(incident({ cause: { known: true, errorCode: '', message: 'invalid bearer token' } }));
-    render(<ActivityDetailDrawer line={FAILED_HOUR} onClose={vi.fn()} />);
+    render(<ActivityDetailDrawer line={FAILED_HOUR} onClose={vi.fn()} />, { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     expect(await screen.findByText('invalid bearer token')).toBeInTheDocument();
     expect(screen.getByText('Recorded message')).toBeInTheDocument();
@@ -117,7 +122,7 @@ describe('ActivityDetailDrawer', () => {
 
   it('opens a Bridge off group as neutral evidence, and its Data tab as the stored report it picks', async () => {
     const reports = [syncReading({ reportId: 9, reading: 'bridge_off' }), syncReading({ reportId: 8, reading: 'bridge_off' })];
-    render(<ActivityDetailDrawer line={bridgeOffLine(reports)} onClose={vi.fn()} />);
+    render(<ActivityDetailDrawer line={bridgeOffLine(reports)} onClose={vi.fn()} />, { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     expect(screen.getByRole('heading', { name: '2 changes waited for Bridge' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'From the phone' })).toHaveClass('text-muted');
@@ -135,7 +140,7 @@ describe('ActivityDetailDrawer', () => {
   });
 
   it('opens a report with a reading on its evidence and reads its stored report in Data', async () => {
-    render(<ActivityDetailDrawer line={readingLine(syncReading({ reportId: 41, reading: 'tablet_late' }))} onClose={vi.fn()} />);
+    render(<ActivityDetailDrawer line={readingLine(syncReading({ reportId: 41, reading: 'tablet_late' }))} onClose={vi.fn()} />, { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     expect(screen.getByRole('heading', { name: 'Tablet came back late' })).toBeInTheDocument();
     expect(screen.getByText('Overdue by')).toBeInTheDocument();
@@ -147,7 +152,7 @@ describe('ActivityDetailDrawer', () => {
   });
 
   it('resets to the summary when closed and opened again', () => {
-    const { rerender } = render(<ActivityDetailDrawer line={CHANGE} onClose={vi.fn()} />);
+    const { rerender } = render(<ActivityDetailDrawer line={CHANGE} onClose={vi.fn()} />, { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
     fireEvent.click(screen.getByRole('button', { name: 'Technical details' }));
 
     rerender(<ActivityDetailDrawer line={undefined} onClose={vi.fn()} />);

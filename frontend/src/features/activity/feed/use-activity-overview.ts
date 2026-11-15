@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ActivityFeedSource } from '../feed-source/feed-source.types';
-import type { ActivityChartScale, ActivityFeedOrigin, ActivityFeedType, ActivityOverview } from '../feed-source/feed.types';
-import type { ActivityReadStatus } from './activity-feed.types';
+import { useCallback } from 'react';
+import type { ActivityChartScale, ActivityFeedOrigin, ActivityFeedType } from '../../../shared/contracts/activity-feed.types';
+import type { ActivityFeedSource } from '../../../shared/contracts/activity.types';
+import { toAsyncView } from '../../../shared/query/async-view/async-view.helpers';
+import { activityKeys } from '../../../shared/query/query-keys/query-keys.constants';
+import { useBridgeQuery } from '../../../shared/query/use-bridge-query/use-bridge-query';
+import { toActivityQueryStatus } from './activity-feed-query.helpers';
 
 /**
- * Owns the overview read: the chart of one scale, whose bars count what the
- * table shows (origin, sections and failures-only), and the per-type counts of
- * a range and origin, read again when any of them changes and on `refresh`. A
- * failed refresh keeps the counts on screen. Drawn bars stay while a new read runs.
+ * Owns the overview read through `useBridgeQuery` on the `observability`
+ * module: the chart of one scale, whose bars count what the table shows
+ * (origin, sections and failures-only), and the per-type counts of a range and
+ * origin, read again when any of them changes and on `refresh`. A failed
+ * refresh keeps the counts on screen. Drawn bars stay while a new read runs.
  *
  * @param source The feed port.
  * @param scale The chart scale.
@@ -27,50 +31,22 @@ export function useActivityOverview(
   types: readonly ActivityFeedType[],
   failuresOnly: boolean,
 ) {
-  // 1. Refs
-  const requestIdRef = useRef(0);
-
-  // 2. State
-  const [status, setStatus] = useState<ActivityReadStatus>('loading');
-  const [overview, setOverview] = useState<ActivityOverview | undefined>();
-
-  // 3. Context/3rd Party Hooks
-
   // 4. Queries/Mutations
+  const query = useBridgeQuery({
+    queryKey: activityKeys.key('overview', scale, fromMs, toMs, origin, types, failuresOnly),
+    queryFn: () => source.getOverview(scale, fromMs, toMs, origin, types, failuresOnly),
+    module: 'observability',
+  });
 
   // 5. Derived State (useMemo)
+  // Bars already drawn (a previous range's placeholder, or a failed refresh's last answer) stay ready.
+  const status = toActivityQueryStatus(toAsyncView(query, () => false), query.data !== undefined, query.isFetching);
 
   // 6. Callbacks (useCallback calling pure helpers)
-  const read = useCallback(
-    (isRefresh: boolean) => {
-      requestIdRef.current += 1;
-      const requestId = requestIdRef.current;
-      // Bars already drawn stay while a new range, origin or section set is read, so a chart selection never flashes the skeleton.
-      setStatus((current) => (current === 'ready' ? current : 'loading'));
-      source
-        .getOverview(scale, fromMs, toMs, origin, types, failuresOnly)
-        .then((view) => {
-          if (requestId === requestIdRef.current) {
-            setOverview(view);
-            setStatus('ready');
-          }
-        })
-        .catch(() => {
-          if (requestId === requestIdRef.current && !isRefresh) {
-            setStatus('failed');
-          }
-        });
-    },
-    [failuresOnly, fromMs, origin, scale, source, toMs, types],
-  );
+  const { refetch } = query;
+  const refresh = useCallback(() => {
+    void refetch();
+  }, [refetch]);
 
-  const refresh = useCallback(() => read(true), [read]);
-  const retry = useCallback(() => read(false), [read]);
-
-  // 7. Effects
-  useEffect(() => {
-    read(false);
-  }, [read]);
-
-  return { status, overview, refresh, retry };
+  return { status, overview: query.data, refresh, retry: refresh };
 }

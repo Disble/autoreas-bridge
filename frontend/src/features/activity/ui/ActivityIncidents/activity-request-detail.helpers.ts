@@ -1,4 +1,4 @@
-import type { ActivitySource } from '../../activity-source/activity-source.types';
+import type { ActivitySource } from '../../../../shared/contracts/activity.types';
 import { toActivityFoundRead } from '../ActivityRunStory/activity-time.helpers';
 import type { ActivityRequestRead } from './activity-incidents.types';
 

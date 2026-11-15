@@ -1,10 +1,11 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { ActivityFeedSource } from '../../feed-source/feed-source.types';
-import type { ActivityFeedLine } from '../../feed-source/feed.types';
+import type { ActivityFeedSource } from '../../../../shared/contracts/activity.types';
+import type { ActivityFeedLine } from '../../../../shared/contracts/activity-feed.types';
 import { formatDrawerWhen } from '../drawer-format.helpers';
 import { toDrawerLineKey } from '../drawer-reads.helpers';
 import { useDrawerStoredReport } from '../use-drawer-stored-report';
+import { createModulesTestWrapper } from '../../../../shared/query/test-support/bridge-modules.test-support';
 import { bridgeOffLine, feedLine, readingLine, syncReading, tabletSummary } from './drawer.fixtures';
 
 /** A feed source whose only read is the given stored report read. */
@@ -14,7 +15,7 @@ function feedWith(getPhoneReport: ActivityFeedSource['getPhoneReport']): Activit
 
 /** Renders the hook over a line, on the Data tab unless told otherwise. */
 function renderReport(feed: ActivityFeedSource, line: ActivityFeedLine, shown = true) {
-  return renderHook((props: { readonly line: ActivityFeedLine; readonly shown: boolean }) => useDrawerStoredReport(feed, props.line, toDrawerLineKey(props.line), props.shown), {
+  return renderHook((props: { readonly line: ActivityFeedLine; readonly shown: boolean }) => useDrawerStoredReport(feed, props.line, toDrawerLineKey(props.line), props.shown), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper,
     initialProps: { line, shown },
   });
 }
