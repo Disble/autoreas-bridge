@@ -27,7 +27,6 @@ function createSource(
   overrides: Partial<BridgeRuntimeSource> = {},
 ): BridgeRuntimeSource {
   return {
-    getSQLiteStatus: vi.fn(),
     getAnimes: vi.fn(),
     getAnimeDetail,
     ...overrides,

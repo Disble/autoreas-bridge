@@ -31,7 +31,6 @@ function page(overrides: Partial<WatchHistoryPage> = {}): WatchHistoryPage {
 /** Minimal BridgeRuntimeSource stub exposing only the anime-scoped page binding under test; omit it to test the missing-binding path. */
 function createSource(getAnimeWatchHistoryPage?: BridgeRuntimeSource['getAnimeWatchHistoryPage']): BridgeRuntimeSource {
   return {
-    getSQLiteStatus: vi.fn(),
     getAnimes: vi.fn(),
     getAnimeDetail: vi.fn(),
     getAnimeWatchHistoryPage,

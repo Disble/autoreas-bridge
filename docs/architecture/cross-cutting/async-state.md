@@ -71,7 +71,8 @@ flowchart LR
 ```
 
 - **Go.** A binding reaches its service only through its module handle. The `shell` handle carries
-  only shell capabilities (effective address, logger, frontend error reporting) and is always ready.
+  only shell capabilities (effective address, logger, frontend error reporting, the native pickers,
+  the MyAnimeList client, the JDownloader limit reader) and is always ready.
 - **Infrastructure** (`frontend/src/infrastructure/**`). The only code that calls bindings or touches
   `window.go`. It turns a rejection into a typed `BridgeError`. It never invents a fallback value.
 - **Application** (`frontend/src/shared/query/**`). The only code that imports
@@ -198,20 +199,23 @@ Frontend gates (`frontend/scripts/async-state-gates.helpers.mjs`, ESLint plugin 
 
 Measured on `feat/async-state-standard` after the Go foundation (ADR-032 task T2), the frontend
 runtime with its gate recovery (tasks T3a, T3d), the gates (T3b), the guidance (T3c), the Today
-pilot's frontend (T4b) and the Devices bindings (T5a):
+pilot's frontend (T4b), the Devices bindings (T5a), the Activity reads (T5b) and the shell slice (T5c):
 
 - The Go foundation exists: `internal/lifecycle` (registry and writer), `internal/apperr` (codes,
   `error-codes.json`), `internal/modules` (`Handle[S]`, `Shell`), `GetReadiness`, the
-  `bridge.readiness` event and the JSON `ErrorFormatter`. Ten modules are registered and settled by
+  `bridge.readiness` event and the JSON `ErrorFormatter`. Eleven modules are registered and settled by
   `startup` (`docs/architecture/contexts/desktop/overview.md`, "Readiness and failures").
-- Five domain modules have a handle (`appModules` in `internal/desktop/app_readiness.go`):
-  `episodes` (`GetEpisodeSchedule`, `GetEpisodeDayCounts`), `api` (`GetEffectiveAddress`), `sync`
+- Six domain modules have a handle (`appModules` in `internal/desktop/app_readiness.go`):
+  `backup` (`GetSQLiteStatus` and the three backup bindings, `ExportBackup`, `PreviewBackupImport`,
+  `ConfirmBackupImport`, ready as soon as the database opened), `episodes` (`GetEpisodeSchedule`, `GetEpisodeDayCounts`), `api` (`GetEffectiveAddress`), `sync`
   (`TriggerReconcile`, `GetSyncingAnimeItems`), `devices` (`GetPairingToken`,
   `GetConnectedDevices`, `UnpairDevice`) and `observability` (the nine Activity bindings and
-  `ListDeviceSyncDiagnostics`); `docs/architecture/contexts/desktop/overview.md` says where
-  each is bound. Every other binding except `GetReadiness` still reads an `App` field without
-  readiness, including the six other episode bindings. `tools/checkarchitecture/baseline.yaml` lists
-  them: 102 `binding-uses-handle` and 45 `binding-signature` entries (printed by
+  `ListDeviceSyncDiagnostics`), and the always-ready `shell` serves `ReportFrontendError`,
+  `PickFile`, `PickFolder`, `SearchMyAnimeList`, `GetMyAnimeListDetail` and
+  `GetJDMaxSimultaneousDownloads`. `docs/architecture/contexts/desktop/overview.md`
+  says where each is bound. Every other binding except `GetReadiness` still reads an `App` field
+  without readiness, including the six other episode bindings. `tools/checkarchitecture/baseline.yaml`
+  lists them: 92 `binding-uses-handle` and 41 `binding-signature` entries (printed by
   `go run ./tools/checkarchitecture`).
 - `internal/desktop/app_readiness_startup_test.go` runs the production options and `OnStartup` against
   a temporary data directory and pins the rejection the frontend receives while episodes is starting:
@@ -262,7 +266,10 @@ pilot's frontend (T4b) and the Devices bindings (T5a):
     parses Wails rejections, and its test compares the codes with `internal/apperr/error-codes.json`.
   - `infrastructure/readiness/readiness-source.helpers.ts` is the Wails adapter of the
     `ReadinessSource` port (`shared/contracts/readiness.types.ts`); it reports an unreadable event
-    through `frontendErrorReporter` (`shared/error-reporting`); `createRuntimeEventSource`
+    through `frontendErrorReporter`
+    (`infrastructure/error-reporting/frontend-error-source.helpers.ts`, the `ReportFrontendError`
+    adapter; `shared/error-reporting` reads it as `BRIDGE_FRONTEND_ERROR_REPORTER` from the
+    composition module); `createRuntimeEventSource`
     (`infrastructure/wails-bindings.helpers.ts`) is the event adapter.
   - `shared/query/bridge-runtime/bridge-runtime.constants.ts` is the composition module: it builds the
     client, the gate over the readiness adapter, the event adapter and the invalidation registry, and
@@ -273,16 +280,17 @@ pilot's frontend (T4b) and the Devices bindings (T5a):
     placeholder loader that rejects until the author wires the binding.
 - `invokeGoBinding` (`frontend/src/infrastructure/wails-bindings.helpers.ts`) still answers adapter
   fallbacks such as `() => []` when a binding never attaches, for every source that has not migrated.
-- 117 non-test feature files and 16 non-test shared files import `infrastructure/`, measured with
+- 110 non-test feature files and 15 non-test shared files import `infrastructure/`, measured with
   `grep -rlE "from '(\.\./)+infrastructure/" src/<layer> --include=*.ts --include=*.tsx | grep -v __tests__`
   from `frontend/`. One of the 16 is in `shared/query`: the composition module
   `bridge-runtime/bridge-runtime.constants.ts`; the rest of `shared/query` imports none.
 - Server state still lives in 4 Zustand read-models (ADR-006) and in hand-fetching hooks.
-- `frontend/async-state-baseline.json` holds 225 entries (244 at task T3b; the Today pilot, T4b,
-  deleted 3; the Devices bindings, T5a, deleted 9; the Activity reads, T5b, deleted 7), measured by running the five rules over
+- `frontend/async-state-baseline.json` holds 212 entries (244 at task T3b; the Today pilot, T4b,
+  deleted 3; the Devices bindings, T5a, deleted 9; the Activity reads, T5b, deleted 7; the shell
+  slice, T5c, deleted 13: the frontend error reporter 3, the backup panels 8, the rail SQLite chip 2), measured by running the five rules over
   `src/**/*.{ts,tsx}` and printed by `bun --cwd="frontend" run check:async-state:all`:
-  - `no-infrastructure-import` 211 entries in 134 files (119 feature, 15 shared); 5 of them are direct
-    `wailsjs/**` imports (generated bindings, models and the runtime) in 4 files. Today's
+  - `no-infrastructure-import` 198 entries in 126 files (112 feature, 14 shared); 3 of them are direct
+    `wailsjs/**` imports (generated bindings, models and the runtime) in 3 files. Today's
     `episode-schedule-panel.helpers.ts` keeps two (`bridge-runtime-source`, `preferences-source`) for
     the operations that have not migrated.
   - `no-runtime-subscription` 14 entries in 9 files: 7 feature files (activity, download run history,

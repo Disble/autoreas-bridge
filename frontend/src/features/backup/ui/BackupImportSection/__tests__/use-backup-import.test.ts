@@ -1,7 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { BackupImportPreviewDTO, BackupImportResultDTO } from '../../../../../infrastructure/backup-source/backup-source.types';
+import type { BackupImportPreviewDTO, BackupImportResultDTO } from '../../../../../shared/contracts/backup.types';
 import { loadKeymapOverrides } from '../../../../../shared/keyboard/keymap-load.helpers';
+import { createBridgeQueryTestWrapper } from '../../../../../shared/query/test-support/bridge-query.test-support';
 import { useBackupImport } from '../use-backup-import';
 
 vi.mock('../../../../../shared/keyboard/keymap-load.helpers', () => ({
@@ -39,7 +40,7 @@ function buildResult(overrides: Partial<BackupImportResultDTO> = {}): BackupImpo
 
 describe('useBackupImport', () => {
   it('starts idle with no preview, no result, and no error', () => {
-    const { result } = renderHook(() => useBackupImport({ previewBackupImport: vi.fn(), confirmBackupImport: vi.fn() }));
+    const { result } = renderHook(() => useBackupImport({ previewBackupImport: vi.fn(), confirmBackupImport: vi.fn() }), { wrapper: createBridgeQueryTestWrapper().wrapper });
 
     expect(result.current.phase).toBe('idle');
     expect(result.current.preview).toBeNull();
@@ -49,7 +50,7 @@ describe('useBackupImport', () => {
 
   it('moves to previewed and holds the DTO after a successful preview', async () => {
     const previewBackupImport = vi.fn().mockResolvedValue(buildPreview());
-    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport: vi.fn() }));
+    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport: vi.fn() }), { wrapper: createBridgeQueryTestWrapper().wrapper });
 
     act(() => {
       result.current.onPreview();
@@ -61,7 +62,7 @@ describe('useBackupImport', () => {
 
   it('returns to idle with no error when the dialog is cancelled', async () => {
     const previewBackupImport = vi.fn().mockResolvedValue(buildPreview({ cancelled: true }));
-    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport: vi.fn() }));
+    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport: vi.fn() }), { wrapper: createBridgeQueryTestWrapper().wrapper });
 
     act(() => {
       result.current.onPreview();
@@ -74,7 +75,7 @@ describe('useBackupImport', () => {
 
   it('reports a preview error as failed', async () => {
     const previewBackupImport = vi.fn().mockRejectedValue(new Error('not a valid bundle'));
-    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport: vi.fn() }));
+    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport: vi.fn() }), { wrapper: createBridgeQueryTestWrapper().wrapper });
 
     act(() => {
       result.current.onPreview();
@@ -86,7 +87,7 @@ describe('useBackupImport', () => {
 
   it('does nothing when confirm is called with no preview', () => {
     const confirmBackupImport = vi.fn();
-    const { result } = renderHook(() => useBackupImport({ previewBackupImport: vi.fn(), confirmBackupImport }));
+    const { result } = renderHook(() => useBackupImport({ previewBackupImport: vi.fn(), confirmBackupImport }), { wrapper: createBridgeQueryTestWrapper().wrapper });
 
     act(() => {
       result.current.onConfirm();
@@ -100,7 +101,7 @@ describe('useBackupImport', () => {
     const preview = buildPreview({ bundleChecksum: 'the-exact-checksum' });
     const previewBackupImport = vi.fn().mockResolvedValue(preview);
     const confirmBackupImport = vi.fn().mockResolvedValue(buildResult());
-    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport }));
+    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport }), { wrapper: createBridgeQueryTestWrapper().wrapper });
 
     act(() => {
       result.current.onPreview();
@@ -123,7 +124,7 @@ describe('useBackupImport', () => {
       deferred.resolve = resolve;
     });
     const confirmBackupImport = vi.fn().mockImplementation(() => pending);
-    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport }));
+    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport }), { wrapper: createBridgeQueryTestWrapper().wrapper });
 
     act(() => {
       result.current.onPreview();
@@ -135,16 +136,51 @@ describe('useBackupImport', () => {
     });
     await waitFor(() => expect(result.current.phase).toBe('applying'));
 
-    act(() => {
+    // Async act flushes the microtasks a mutation runs its function in, so an unguarded call shows.
+    await act(async () => {
       result.current.onConfirm();
       result.current.onConfirm();
+      result.current.onPreview();
     });
     expect(confirmBackupImport).toHaveBeenCalledTimes(1);
+    expect(previewBackupImport).toHaveBeenCalledTimes(1);
 
     act(() => {
       deferred.resolve(buildResult());
     });
     await waitFor(() => expect(result.current.phase).toBe('applied'));
+  });
+
+  it('does not fire a second preview while one is already in flight', async () => {
+    const previewBackupImport = vi.fn().mockImplementation(() => new Promise<BackupImportPreviewDTO>(() => undefined));
+    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport: vi.fn() }), { wrapper: createBridgeQueryTestWrapper().wrapper });
+
+    act(() => {
+      result.current.onPreview();
+    });
+    await waitFor(() => expect(result.current.phase).toBe('previewing'));
+    await act(async () => {
+      result.current.onPreview();
+    });
+
+    expect(previewBackupImport).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops the preview and its error when the user cancels it', async () => {
+    const previewBackupImport = vi.fn().mockResolvedValue(buildPreview());
+    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport: vi.fn() }), { wrapper: createBridgeQueryTestWrapper().wrapper });
+    act(() => {
+      result.current.onPreview();
+    });
+    await waitFor(() => expect(result.current.phase).toBe('previewed'));
+
+    act(() => {
+      result.current.onCancel();
+    });
+
+    expect(result.current.phase).toBe('idle');
+    expect(result.current.preview).toBeNull();
+    expect(result.current.errorMessage).toBeNull();
   });
 
   it('keeps the restore point path visible after a failed apply', async () => {
@@ -158,7 +194,7 @@ describe('useBackupImport', () => {
         errorMessage: 'insert record 1: UNIQUE constraint failed',
       }),
     );
-    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport }));
+    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport }), { wrapper: createBridgeQueryTestWrapper().wrapper });
 
     act(() => {
       result.current.onPreview();
@@ -197,7 +233,7 @@ describe('post-import keymap refresh', () => {
         ],
       }),
     );
-    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport }));
+    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport }), { wrapper: createBridgeQueryTestWrapper().wrapper });
 
     act(() => {
       result.current.onPreview();
@@ -215,7 +251,7 @@ describe('post-import keymap refresh', () => {
   it('does not reload the keymap store when a successful confirm does not carry keyboard_keymap', async () => {
     const previewBackupImport = vi.fn().mockResolvedValue(buildPreview());
     const confirmBackupImport = vi.fn().mockResolvedValue(buildResult());
-    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport }));
+    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport }), { wrapper: createBridgeQueryTestWrapper().wrapper });
 
     act(() => {
       result.current.onPreview();
@@ -233,7 +269,7 @@ describe('post-import keymap refresh', () => {
   it('does not reload the keymap store when confirm fails', async () => {
     const previewBackupImport = vi.fn().mockResolvedValue(buildPreview());
     const confirmBackupImport = vi.fn().mockRejectedValue(new Error('apply failed'));
-    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport }));
+    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport }), { wrapper: createBridgeQueryTestWrapper().wrapper });
 
     act(() => {
       result.current.onPreview();

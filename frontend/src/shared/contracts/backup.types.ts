@@ -43,8 +43,13 @@ export interface BackupImportResultDTO {
   readonly errorMessage: string;
 }
 
-/** Request/reply port for the backup export and import runtime bindings. */
+/**
+ * Port of the backup module's bindings: the SQLite status ping and the backup
+ * export and import commands. Every call rejects with a `BridgeError` whose
+ * message is the plain text the UI shows.
+ */
 export interface BackupSource {
+  readonly getSQLiteStatus: () => Promise<string>;
   readonly exportBackup: () => Promise<BackupExportResultDTO>;
   readonly previewBackupImport: () => Promise<BackupImportPreviewDTO>;
   readonly confirmBackupImport: (bundleChecksum: string) => Promise<BackupImportResultDTO>;

@@ -234,7 +234,8 @@ export function createSeasonSource(): SeasonSource {
       );
     },
     pickFolder(title: string) {
-      return invokeGoBinding('PickFolder', () => PickFolder(title), () => '');
+      // A failed dialog rejects as internal since the shell slice; its pickers still read it as a cancel.
+      return invokeGoBinding('PickFolder', () => PickFolder(title), () => '').catch(() => '');
     },
     getOrderingBoard() {
       return invokeGoBinding('GetSeasonOrderingBoard', GetSeasonOrderingBoard, () => SEASON_EMPTY_BOARD);

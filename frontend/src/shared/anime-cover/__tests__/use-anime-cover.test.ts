@@ -10,7 +10,6 @@ import { useAnimeCover } from '../use-anime-cover';
  */
 function createSource(overrides: Partial<BridgeRuntimeSource> = {}): BridgeRuntimeSource {
   return {
-    getSQLiteStatus: vi.fn(),
     getAnimes: vi.fn(),
     getAnimeDetail: vi.fn(),
     ...overrides,

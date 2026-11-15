@@ -20,7 +20,6 @@ import type {
  * module source (ADR-032; the Devices bindings moved to `DevicesSource`).
  */
 export interface BridgeRuntimeSource {
-  readonly getSQLiteStatus: () => Promise<string>;
   readonly getAnimes: () => Promise<readonly Anime[]>;
   readonly getAnimeDetail: (id: string) => Promise<AnimeDetail | null>;
   readonly getAnimeEditorRecord?: (id: string) => Promise<AnimeEditorRecordResult>;

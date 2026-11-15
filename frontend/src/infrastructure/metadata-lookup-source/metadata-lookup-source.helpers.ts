@@ -5,6 +5,7 @@ import type {
   MyAnimeListSearchResultDTO,
 } from '../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
 import { METADATA_LOOKUP_SOURCE_RUNTIME_UNAVAILABLE_MESSAGE, METADATA_LOOKUP_SOURCE_STATE } from './metadata-lookup-source.constants';
+import { withBridgeErrors } from '../bridge-error/bridge-error.helpers';
 import { hasGoBinding, waitForBindings } from '../wails-bindings.helpers';
 
 /**
@@ -19,6 +20,8 @@ import { hasGoBinding, waitForBindings } from '../wails-bindings.helpers';
  * candidate list -- `useAnimeMetadataLookup` maps an `'error'` outcome to its
  * own `'failed'` state, and a zero-candidate search is a distinct, legitimate
  * outcome (`AnimePatchOutcomeNoOp`) this source must not be confused with.
+ * A failed lookup rejects with a coded error since the shell slice; this source
+ * reports it as the same `'error'` outcome carrying the binding's message.
  */
 export function createMetadataLookupSource(): AnimeMetadataLookupSource {
   if (METADATA_LOOKUP_SOURCE_STATE.sharedSource !== null) {
@@ -29,14 +32,14 @@ export function createMetadataLookupSource(): AnimeMetadataLookupSource {
     SearchMyAnimeList(query: string): Promise<MyAnimeListSearchResultDTO> {
       return waitForBindings(() => hasGoBinding('SearchMyAnimeList')).then((isReady): Promise<MyAnimeListSearchResultDTO> => {
         return isReady
-          ? SearchMyAnimeList(query)
+          ? withBridgeErrors(SearchMyAnimeList(query)).catch((error: Error) => ({ outcome: 'error', message: error.message, candidates: [] }))
           : Promise.resolve({ outcome: 'error', message: METADATA_LOOKUP_SOURCE_RUNTIME_UNAVAILABLE_MESSAGE, candidates: [] });
       });
     },
     GetMyAnimeListDetail(malId: number): Promise<MyAnimeListDetailResultDTO> {
       return waitForBindings(() => hasGoBinding('GetMyAnimeListDetail')).then((isReady): Promise<MyAnimeListDetailResultDTO> => {
         return isReady
-          ? GetMyAnimeListDetail(malId)
+          ? withBridgeErrors(GetMyAnimeListDetail(malId)).catch((error: Error) => ({ outcome: 'error', message: error.message }))
           : Promise.resolve({ outcome: 'error', message: METADATA_LOOKUP_SOURCE_RUNTIME_UNAVAILABLE_MESSAGE });
       });
     },

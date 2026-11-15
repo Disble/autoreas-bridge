@@ -26,7 +26,6 @@ function createSource(
   getAnimes: BridgeRuntimeSource["getAnimes"],
 ): BridgeRuntimeSource {
   return {
-    getSQLiteStatus: vi.fn(),
     getAnimes,
     getAnimeDetail: vi.fn(),
   };

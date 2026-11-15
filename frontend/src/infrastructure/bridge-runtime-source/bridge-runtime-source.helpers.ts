@@ -12,7 +12,6 @@ import {
   GetAnimeEditorScheduleBoard,
   GetAnimes,
   GetAnimeWatchHistoryPage,
-  GetSQLiteStatus,
   GetWatchHistoryPage,
   OpenAnimeFolder,
   OpenAnimePage,
@@ -313,9 +312,6 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRu
   }
 
   BRIDGE_RUNTIME_SOURCE_STATE.sharedSource = {
-    getSQLiteStatus() {
-      return invokeGoBinding('GetSQLiteStatus', GetSQLiteStatus, () => 'runtime unavailable');
-    },
     getAnimes() {
       return invokeGoBinding('GetAnimes', GetAnimes, () => []);
     },
@@ -388,10 +384,12 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRu
       return invokeGoBinding('CopyAnimeFolder', () => CopyAnimeFolder(animeID), () => RUNTIME_UNAVAILABLE_COMMAND_RESULT);
     },
     pickFolder(title) {
-      return invokeGoBinding('PickFolder', () => PickFolder(title), () => '');
+      // A failed dialog rejects as internal since the shell slice; its pickers still read it as a cancel.
+      return invokeGoBinding('PickFolder', () => PickFolder(title), () => '').catch(() => '');
     },
     pickFile(title) {
-      return invokeGoBinding('PickFile', () => PickFile(title), () => '');
+      // A failed dialog rejects as internal since the shell slice; its pickers still read it as a cancel.
+      return invokeGoBinding('PickFile', () => PickFile(title), () => '').catch(() => '');
     },
   };
 

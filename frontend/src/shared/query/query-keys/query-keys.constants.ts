@@ -31,3 +31,9 @@ export const DEVICES_CONNECTED_KEY = devicesKeys.key('connected');
  * their common prefix.
  */
 export const activityKeys = defineQueryKeys('activity');
+
+/**
+ * Keys of the backup module's reads: `backupKeys.key('sqlite-status')`, the rail
+ * chip's database ping; `backupKeys.all` is their common prefix.
+ */
+export const backupKeys = defineQueryKeys('backup');

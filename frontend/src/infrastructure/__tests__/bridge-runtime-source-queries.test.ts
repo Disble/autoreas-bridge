@@ -4,22 +4,6 @@ import { useIsolatedWailsRuntime } from './bridge-runtime-source.test-support';
 describe('bridge-runtime-source read bindings', () => {
   useIsolatedWailsRuntime();
 
-  it('calls GetSQLiteStatus once Go bindings become ready', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
-    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
-    const source = createBridgeRuntimeSource();
-    const getSQLiteStatusMock = vi.fn().mockResolvedValue('ok');
-
-    const statusPromise = source.getSQLiteStatus();
-
-    window.go = { desktop: { App: { GetSQLiteStatus: getSQLiteStatusMock } } } as never;
-
-    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
-
-    await expect(statusPromise).resolves.toBe('ok');
-    expect(getSQLiteStatusMock).toHaveBeenCalledTimes(1);
-  });
-
   it('calls GetAnimes once Go bindings become ready', async () => {
     const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');

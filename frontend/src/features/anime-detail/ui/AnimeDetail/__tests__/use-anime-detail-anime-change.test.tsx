@@ -32,7 +32,6 @@ function createSource(
   overrides: Partial<BridgeRuntimeSource> = {},
 ): BridgeRuntimeSource {
   return {
-    getSQLiteStatus: vi.fn(),
     getAnimes: vi.fn().mockResolvedValue([]),
     getAnimeDetail: vi.fn().mockResolvedValue(resolvedValue),
     restoreAnime: vi.fn().mockResolvedValue({ status: 'ok', outcome: 'applied', modifiedAt: 1 }),

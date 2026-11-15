@@ -69,7 +69,6 @@ function createSource(
   getAnimes: BridgeRuntimeSource['getAnimes'] = vi.fn().mockResolvedValue([]),
 ): BridgeRuntimeSource {
   return {
-    getSQLiteStatus: vi.fn(),
     getAnimes,
     getAnimeDetail: vi.fn(),
     getWatchHistoryPage,

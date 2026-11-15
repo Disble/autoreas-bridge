@@ -30,7 +30,7 @@ For module readiness, failure codes and the `shared/query` layer the frontend re
 | `internal/desktop/app.go` | the `App` struct, `NewApp`, `startup`, `shutdown`, window and quit hooks |
 | `internal/desktop/app_defaults.go` | default constructors for every injectable seam (tests replace them) |
 | `internal/desktop/app_startup_runtime.go`, `app_runtime_services.go` | the wiring steps `startup` runs, and the `register*RuntimeEventBridge` functions |
-| `internal/desktop/app_readiness.go` | module ids, the module set and its handles (`shell`, `episodes`), readiness settling, `GetReadiness`, the `bridge.readiness` bridge, `formatBindingError` |
+| `internal/desktop/app_readiness.go` | module ids, the module set and its handles (`shell`, `backup`, `episodes`, `api`, `sync`, `devices`, `observability`), readiness settling, `GetReadiness`, the `bridge.readiness` bridge, `formatBindingError` |
 | `internal/desktop/app_<context>*.go` | bindings grouped by the context they serve (anime, episodes, season, downloads, notifications, activity, backup, preferences, devices) |
 | `internal/lifecycle` | readiness registry (`Registry`, read side) and its `Writer`; no Wails import |
 | `internal/modules` | typed module handles (`Handle[S]`) and the always-ready `Shell` handle; no Wails import |
@@ -56,10 +56,11 @@ Bindings that run through a handle today:
 
 | Handle (`appModules` field) | Services | Bound at | Bindings |
 |---|---|---|---|
-| `shell` (`modules.Shell`, always ready) | `ShellServices`: effective address (`App.effectiveAddress`, "" when no server runs), logger, readiness registry | `moduleSet` | `GetReadiness` |
+| `shell` (`modules.Shell`, always ready) | `ShellServices` (`App.shellServices`): effective address (`App.effectiveAddress`, "" when no server runs), logger, readiness registry, the native file and folder pickers, the MyAnimeList client, the JDownloader limit reader; all wired in `NewApp` | `moduleSet` | `GetReadiness`, `ReportFrontendError(report) error` (never waits for a module, so a report sent during startup is recorded; an invalid report is `invalid_argument`), `PickFile(title) (string, error)`, `PickFolder(title) (string, error)` (`""` on cancel; a failing dialog or a missing picker is `internal`), `SearchMyAnimeList(query) (MyAnimeListSearchResult, error)`, `GetMyAnimeListDetail(malID) (MyAnimeListDetailResult, error)` (`applied`/`no_op` outcomes; a failed request, a page drift or a missing client is `internal` with the message the lookup shows), `GetJDMaxSimultaneousDownloads() (int, error)` (0 when JDownloader's config cannot be read) |
+| `backup` (`modules.Handle[backupServices]`) | `backupServices.db`, the bridge database `internal/sync` opens (`BootstrapBridgeDB`) | `initializeBridgeDatabase` (`bindBackupModule`, `app_bridge_database.go`) as soon as the database opened; `startup` settles `backup` right after | `GetSQLiteStatus() (string, error)` (`"ok"`, or the ping failure as `internal`), `ExportBackup`, `PreviewBackupImport`, `ConfirmBackupImport` (their results unchanged; a not-ready `backup` refuses before the dialog opens or the pending preview is read). Restore waits only for the database, so a broken `sync` or `anime` wiring never takes it away (`TestBackupAnswersWhileSyncIsBroken`) |
 | `episodes` (`modules.Handle[episodeServices]`) | `episodeServices.episodes`, the episode service | `wireEpisodeServiceWithWriter`, before `configureRuntimeServices` settles `episodes` | `GetEpisodeSchedule(day)`, `GetEpisodeDayCounts()` |
 | `api` (`modules.Handle[apiServices]`) | `apiServices.server`, the HTTP server | `startHTTPServer`, before `configureRuntimeServices` settles `api` | `GetEffectiveAddress() (string, error)` |
-| `sync` (`modules.Handle[syncServices]`) | `syncServices.trigger`, the sync trigger service | `startHTTPServer`, before `configureRuntimeServices` settles `sync` | `TriggerReconcile() error`, `GetSyncingAnimeItems() ([]SyncingAnimeItem, error)` |
+| `sync` (`modules.Handle[syncServices]`) | `syncServices.trigger`, the sync trigger service | `startHTTPServer` (`bindServerModules`), before `configureRuntimeServices` settles `sync` | `TriggerReconcile() error`, `GetSyncingAnimeItems() ([]SyncingAnimeItem, error)` |
 | `devices` (`modules.Handle[deviceServices]`) | device store, a device admin service (sync state from `bridge.db`, presence from the realtime hub), pairing token generator | `bindDevicesModule`, after `configureRealtimeHub`, before `configureRuntimeServices` settles `devices` | `GetPairingToken() (string, error)`, `GetConnectedDevices() ([]DeviceInfo, error)`, `UnpairDevice(id) error` |
 | `observability` (`modules.Handle[observabilityServices]`) | activity reader (`activityread.Reader`), incident store (pins), request capture reader, sync diagnostics reader | `bindObservabilityModule`, after `configureEventLogQueue`, before `configureRuntimeServices` settles `observability` | `SearchActivityFeed`, `GetActivityOverview`, `GetActivityEvent`, `GetActivityChangeContext`, `GetActivityPhoneReport`, `GetActivityIncident`, `GetActivityRequest`, `GetActivityRunStory`, `PinActivityMoment`, `ListDeviceSyncDiagnostics() (DeviceSyncDiagnosticsResult, error)`; `../observability/overview.md`, "Readiness" |
 
@@ -75,6 +76,7 @@ then settles at the step that wires it:
 
 | Module | Ready when | Settled after |
 |---|---|---|
+| `backup` | the bridge database opened (and is bound to the `backup` handle) | `initializeBridgeDatabase` |
 | `observability` | runtime event log queue, request capture reader and sync diagnostics reader are wired (the readers bound to the `observability` handle) | `configureRuntimeServices` |
 | `sync` | sync changelog recorder and sync trigger are wired (the trigger bound to the `sync` handle) | `configureRuntimeServices` |
 | `devices` | device store is wired (and bound to the `devices` handle) | `configureRuntimeServices` |
@@ -117,11 +119,21 @@ then settles at the step that wires it:
   and `startup` never replaces it, so the registry built on first use publishes on the bus the
   readiness bridge subscribes to. `TestProductionStartupFailureRejectsTheEpisodeReads` covers the
   failed startup (`failed_precondition` with the database reason). Both tests also call
-  `GetEffectiveAddress`, `GetSyncingAnimeItems` and `GetConnectedDevices`: answered after a real
+  `GetEffectiveAddress`, `GetSyncingAnimeItems`, `GetSQLiteStatus` and `GetConnectedDevices`: answered after a real
   startup (each handle is bound in production wiring), `failed_precondition` after a failed one.
   `TestRuntimeModuleBindingsFollowTheirModule` covers the six `api`/`sync`/`devices` bindings
   starting → `unavailable`, failed → `failed_precondition`, ready → the value;
   `TestRuntimeModuleServiceFailuresAreInternal` covers a failing service → `internal` with its cause.
+  `TestBackupBindingsFollowTheBackupModule` covers `GetSQLiteStatus` and the three backup
+  bindings the same way, `TestBackupServiceFailuresAreInternal` a closed database, a failing
+  dialog or an unknown database path → `internal` with its cause, and
+  `TestConfirmBackupImportNotReadyKeepsThePendingPreview` that a refused confirmation writes no
+  restore point and leaves the pending preview as it was.
+  `TestReportFrontendErrorIsRecordedWhateverTheModulesState` records a report while every module
+  starts and after they failed; `TestShellBindingsNeverWaitForAModule` does the same for the
+  pickers, the MyAnimeList lookups and the JDownloader limit, and
+  `TestPickersAnswerCancelPathOrInternal` pins a cancelled dialog (`""`), a failing one and a
+  missing picker (`internal`).
 
 ## Events
 
@@ -168,12 +180,23 @@ memory and starts over with every process.
 - Event subscriptions live in the runtime sources under `frontend/src/infrastructure/*-source/`
   (`createRuntimeSubscription`), plus one feature source,
   `frontend/src/features/activity/history-source/history-source.helpers.ts`.
+- Frontend errors: `infrastructure/error-reporting/frontend-error-source.helpers.ts` sends a report
+  through `ReportFrontendError` (`unavailable` at once when the binding is not attached) and builds the
+  shared throttled reporter; `shared/error-reporting` reads it as `BRIDGE_FRONTEND_ERROR_REPORTER`
+  from `shared/query/bridge-runtime/bridge-runtime.constants.ts` and drops any failure of the send.
 - Readiness: `GetReadiness()` returns `{ modules: [{ module, state, reason? }] }` and
   `bridge.readiness` carries one `{ module, state, reason? }`. The readiness source
   (`frontend/src/infrastructure/readiness/`) reads both, the readiness gate in
   `frontend/src/shared/query/readiness-gate/` holds a gated query while its module starts, and
   `frontend/src/infrastructure/bridge-error/` parses the JSON failure string into a `BridgeError`
   (`../../cross-cutting/async-state.md`).
+- Backup module: `infrastructure/backup-source/backup-source.helpers.ts` implements the
+  `BackupSource` port (`shared/contracts/backup.types.ts`) and rejects every failure as a
+  `BridgeError`; it is built once as `BRIDGE_BACKUP_SOURCE`. The rail chip
+  (`features/navigation/SyncStatusChip`) reads `GetSQLiteStatus` through `useBridgeQuery` gated on
+  `backup` (no chip while it loads, the failure message in danger), and the backup panels
+  (`features/backup/**`) run export, preview and confirm through `useBridgeMutation`, with their
+  copy unchanged.
 - Loading, empty and failure rendering per screen belongs to each context's page.
 
 ## Entry points
@@ -186,13 +209,21 @@ memory and starts over with every process.
 | Readiness | `internal/desktop/app_readiness.go` `GetReadiness`, event `bridge.readiness` |
 | Today schedule and day badges | `internal/desktop/app_runtime.go` `GetEpisodeSchedule`, `GetEpisodeDayCounts` (handle `episodes`) |
 | Devices page (pairing, paired devices, reconcile, pending syncs) | `internal/desktop/app_runtime.go` `GetEffectiveAddress` (handle `api`), `GetPairingToken`, `GetConnectedDevices`, `UnpairDevice` (handle `devices`), `TriggerReconcile`, `GetSyncingAnimeItems` (handle `sync`); `../devices/overview.md` |
+| Rail SQLite status chip, backup export and import | `internal/desktop/app_runtime.go` `GetSQLiteStatus`, `app_backup.go` `ExportBackup`, `app_backup_import.go` `PreviewBackupImport`, `ConfirmBackupImport` (handle `backup`) |
+| Frontend error report | `internal/desktop/app_frontend_errors.go` `ReportFrontendError` (handle `shell`) |
+| Native pickers, MyAnimeList lookup, JDownloader limit | `internal/desktop/app_preferences.go` `PickFile`, `PickFolder`, `app_myanimelist.go` `SearchMyAnimeList`, `GetMyAnimeListDetail`, `app_download_concurrency.go` `GetJDMaxSimultaneousDownloads` (handle `shell`) |
 | Activity screen (feed, chart, drawer reads, pin) | `internal/desktop/app_activity_feed.go`, `app_activity_read.go`, `app_activity_pin.go` (handle `observability`); `../observability/overview.md` |
 | Any other Wails binding | the exported `App` method in `internal/desktop/app_<context>*.go` |
 
 ## Known drift
 
-- Every binding except `GetReadiness`, `GetEpisodeSchedule`, `GetEpisodeDayCounts`, the six
-  `api`/`sync`/`devices` bindings and the ten `observability` bindings above still reads its service
-  from an `App` field without a readiness check: 102 `binding-uses-handle` and 45 `binding-signature` entries in
-  `tools/checkarchitecture/baseline.yaml` (printed by `go run ./tools/checkarchitecture`).
+- Every binding except the seven `shell` bindings, `GetEpisodeSchedule`, `GetEpisodeDayCounts`,
+  the six `api`/`sync`/`devices` bindings, the four `backup` bindings and the ten `observability`
+  bindings above still reads its service from an `App` field without a readiness check: 92
+  `binding-uses-handle` and 41 `binding-signature` entries in `tools/checkarchitecture/baseline.yaml`
+  (printed by `go run ./tools/checkarchitecture`).
+- The picker and lookup consumers keep their earlier behaviour through their adapters: the
+  `bridge-runtime-source`, `season-source` and `preferences-source` pickers read a rejected dialog
+  as a cancel (`""`), and `metadata-lookup-source` turns a rejected lookup into the `error` outcome
+  carrying the binding's message, which the lookup modal already shows.
 - ADR-018's field count (~110) predates this page; `App` grew by one field, `modules`.

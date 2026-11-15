@@ -5,6 +5,7 @@
  * `internal/lifecycle/modules.json`, which a Go test pins to `registeredModules`.
  */
 export const MODULE_IDS = [
+  'backup',
   'observability',
   'sync',
   'devices',

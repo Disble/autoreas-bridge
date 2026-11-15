@@ -28,6 +28,7 @@ import {
 } from './download-runtime-source.constants';
 import type { AnimeDownloadReadiness, DownloadReadinessReason, DownloadReadinessSnapshot } from '../../shared/contracts/download.types';
 import type { DownloadRuntimeSource } from './download-runtime-source.types';
+import { withBridgeErrors } from '../bridge-error/bridge-error.helpers';
 import { createRuntimeSubscription, invokeGoBinding } from '../wails-bindings.helpers';
 
 /**
@@ -104,7 +105,7 @@ export function createDownloadRuntimeSource(): DownloadRuntimeSource {
       return invokeGoBinding('GetJDStatus', GetJDStatus, () => EMPTY_JD_STATUS);
     },
     getJDMaxSimultaneousDownloads() {
-      return invokeGoBinding('GetJDMaxSimultaneousDownloads', GetJDMaxSimultaneousDownloads, () => 0);
+      return withBridgeErrors(invokeGoBinding('GetJDMaxSimultaneousDownloads', GetJDMaxSimultaneousDownloads, () => 0));
     },
     setJDConfig(input) {
       return invokeGoBinding('SetJDConfig', () => SetJDConfig(input), () => 'runtime unavailable');

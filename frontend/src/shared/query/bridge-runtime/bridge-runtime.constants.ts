@@ -3,10 +3,12 @@ import {
   DEVICE_ACKNOWLEDGED_EVENT_NAME,
   PAIRING_TOKEN_CONSUMED_EVENT_NAME,
 } from '../../../infrastructure/bridge-runtime-source/bridge-runtime-source.constants';
+import { backupSource } from '../../../infrastructure/backup-source/backup-source.helpers';
 import { createActivityFeedSource } from '../../../infrastructure/bridge-runtime-source/activity-feed-source.helpers';
 import { createActivityWailsSource } from '../../../infrastructure/bridge-runtime-source/activity-source.helpers';
 import { createDevicesSource } from '../../../infrastructure/bridge-runtime-source/devices-source.helpers';
 import { createEpisodesSource } from '../../../infrastructure/bridge-runtime-source/episodes-source.helpers';
+import { frontendErrorReporter } from '../../../infrastructure/error-reporting/frontend-error-source.helpers';
 import { createReadinessSource } from '../../../infrastructure/readiness/readiness-source.helpers';
 import { createRuntimeEventSource } from '../../../infrastructure/wails-bindings.helpers';
 import { createInvalidationRegistry } from '../invalidation-bridge/invalidation-bridge.helpers';
@@ -24,6 +26,18 @@ export const BRIDGE_QUERY_CLIENT = createBridgeQueryClient();
 
 /** The app's one readiness gate, over the Wails `GetReadiness` + `bridge.readiness` adapter. */
 export const BRIDGE_READINESS_GATE = createReadinessGate(createReadinessSource());
+
+/**
+ * The app's one frontend error reporter, over the `ReportFrontendError` adapter
+ * (served by the always-ready shell handle); `shared/error-reporting` reads it here.
+ */
+export const BRIDGE_FRONTEND_ERROR_REPORTER = frontendErrorReporter;
+
+/**
+ * The backup module's bindings: the SQLite status the rail chip reads and the
+ * backup export and import commands of Settings.
+ */
+export const BRIDGE_BACKUP_SOURCE = backupSource;
 
 /** The Wails runtime events the invalidation bridge listens through. */
 export const BRIDGE_EVENT_SOURCE = createRuntimeEventSource();

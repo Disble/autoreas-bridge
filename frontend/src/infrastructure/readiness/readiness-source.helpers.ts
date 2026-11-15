@@ -1,11 +1,11 @@
 import { GetReadiness } from '../../../wailsjs/go/desktop/App';
 import { EventsOn } from '../../../wailsjs/runtime/runtime';
 import type { ModuleReadiness, ReadinessSource, ReadinessState } from '../../shared/contracts/readiness.types';
-import { buildFrontendErrorReport } from '../../shared/error-reporting/error-reporting.helpers';
+import { buildFrontendErrorReport, readBrowserErrorContext } from '../../shared/error-reporting/error-reporting.helpers';
 import type { ReportFrontendError } from '../../shared/error-reporting/error-reporting.types';
-import { frontendErrorReporter, readBrowserErrorContext } from '../../shared/error-reporting/install-global-error-handlers';
 import { createBridgeError } from '../../shared/query/bridge-error/bridge-error.helpers';
 import { withBridgeErrors } from '../bridge-error/bridge-error.helpers';
+import { frontendErrorReporter } from '../error-reporting/frontend-error-source.helpers';
 import { createRuntimeSubscription, invokeGoBinding } from '../wails-bindings.helpers';
 import { READINESS_EVENT_NAME, READINESS_STATES } from './readiness-source.constants';
 

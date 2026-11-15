@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { installGlobalErrorHandlers, sendReportToBridge } from '../install-global-error-handlers';
+import { installGlobalErrorHandlers } from '../install-global-error-handlers';
 
 /** Uninstallers registered by a scenario, run after it. */
 const uninstallers: Array<() => void> = [];
@@ -74,23 +74,5 @@ describe('installGlobalErrorHandlers', () => {
     target.dispatchEvent(new ErrorEvent('error', { message: 'two' }));
     target.dispatchEvent(new Event('unhandledrejection'));
     expect(reporter).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('sendReportToBridge', () => {
-  /** A minimal valid report. */
-  const report = { kind: 'error' as const, message: 'm', stack: '', source: '', route: '', occurredAtMs: 1 };
-
-  it('resolves without calling anything when the binding is not attached', async () => {
-    await expect(sendReportToBridge(report)).resolves.toBe('bindings unavailable');
-  });
-
-  it('passes the report to the bound Go method', async () => {
-    const bound = vi.fn().mockResolvedValue('ok');
-    window.go = { desktop: { App: { ReportFrontendError: bound } } };
-
-    await expect(sendReportToBridge(report)).resolves.toBe('ok');
-    expect(bound).toHaveBeenCalledTimes(1);
-    expect(bound.mock.calls[0][0]).toMatchObject(report);
   });
 });

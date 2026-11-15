@@ -24,7 +24,6 @@ const beta = createAnime({ id: 'anime-b', name: 'Beta', status: 0, kind: 3, genr
  */
 function createSource(items: readonly Anime[], shouldReject = false): BridgeRuntimeSource {
   return {
-    getSQLiteStatus: vi.fn(),
     getAnimes: shouldReject ? vi.fn().mockRejectedValue(new Error('boom')) : vi.fn().mockResolvedValue(items),
     getAnimeDetail: vi.fn().mockResolvedValue(null),
   };

@@ -46,7 +46,8 @@ export function createPreferencesSource(): PreferencesSource {
     },
     pickFolder(title: string) {
       return waitForBindings(() => hasGoBinding('PickFolder')).then((isReady) => {
-        return isReady ? PickFolder(title) : Promise.resolve('');
+        // A failed dialog rejects as internal since the shell slice; its pickers still read it as a cancel.
+        return isReady ? PickFolder(title).catch(() => '') : Promise.resolve('');
       });
     },
     getAutoStartEnabled() {

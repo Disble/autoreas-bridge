@@ -21,7 +21,6 @@ const detail: AnimeDetail = {
 /** Builds a runtime source stubbing every binding `useAnimeDetailMutation` calls. */
 function createSource(): BridgeRuntimeSource {
   return {
-    getSQLiteStatus: vi.fn(),
     getAnimes: vi.fn(),
     getAnimeDetail: vi.fn().mockResolvedValue({ ...detail, modified_at: 11 }),
     repeatAnime: vi.fn().mockResolvedValue({ status: 'ok', outcome: 'applied', modifiedAt: 11 }),

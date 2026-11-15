@@ -8,7 +8,6 @@ describe('bridge-runtime-source degraded paths', () => {
     const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const source = createBridgeRuntimeSource();
 
-    const statusPromise = source.getSQLiteStatus();
     const animePromise = source.getAnimes();
     const animeDetailPromise = source.getAnimeDetail?.('anime-1');
     const softDeletePromise = source.softDeleteAnime?.('anime-1', 1000);
@@ -21,7 +20,6 @@ describe('bridge-runtime-source degraded paths', () => {
 
     await vi.advanceTimersByTimeAsync(5000);
 
-    await expect(statusPromise).resolves.toBe('runtime unavailable');
     await expect(animePromise).resolves.toEqual([]);
     await expect(animeDetailPromise).resolves.toBeNull();
     await expect(softDeletePromise).resolves.toEqual({ message: 'runtime unavailable', modifiedAt: 0, status: 'error' });

@@ -40,7 +40,7 @@ The bindings use three handles (`appModules` in `internal/desktop/app_readiness.
 | Handle | Ready when | Bindings |
 |---|---|---|
 | `api` | the HTTP server is built (bound in `startHTTPServer`) and started | `GetEffectiveAddress() (string, error)` |
-| `sync` | the changelog recorder and the sync trigger are wired (trigger bound in `startHTTPServer`) | `TriggerReconcile() error`, `GetSyncingAnimeItems() ([]SyncingAnimeItem, error)` |
+| `sync` | the changelog recorder and the sync trigger are wired (trigger bound in `startHTTPServer`) | `TriggerReconcile() error`, `GetSyncingAnimeItems() ([]SyncingAnimeItem, error)`; `GetSQLiteStatus` and the backup bindings are served by the `backup` handle (`../desktop/overview.md`) |
 | `devices` | the device store is wired (bound by `bindDevicesModule`) | `GetPairingToken() (string, error)`, `GetConnectedDevices() ([]DeviceInfo, error)`, `UnpairDevice(id) error` |
 
 - `unavailable` while the module starts, `failed_precondition` with the startup reason after it
