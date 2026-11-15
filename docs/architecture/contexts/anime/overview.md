@@ -126,8 +126,10 @@ The episodes reads behind Today are served by the `episodes` module (ADR-032,
 | `ready` | The rows, or the empty state when the day resolved empty | The loaded counts |
 | `failed` | The failure Alert with the module's reason; no read is called | Not shown (the Alert replaces the tabs) |
 
-- A rejected row write (`status` other than `ok`) is an outcome, not a read failure: Today shows its
-  message in the same Alert until the schedule loads again.
+- A row write that fails (the command rejects) is not a read failure; a `conflict` outcome resolves
+  silently and Today reads the schedule again. On a failure Today shows its message in the same
+  Alert until the schedule loads again. The episode commands are described in
+  `contexts/episodes/overview.md`.
 
 The anime reads behind the Catalog, History and the Detail page are served by the `anime` module the
 same way:
@@ -239,7 +241,8 @@ rewritten by the Season rule), `source_event_id` (unique when not NULL), `status
 ## Frontend: Today
 
 Today (`frontend/src/features/episodes/ui/EpisodeSchedulePanel/`) is the screen of the episodes
-reads. Its two reads follow ADR-032 §4; its other operations have not migrated yet.
+reads. Its two reads follow ADR-032 §4; its row writes run through `useBridgeMutation` on the
+episodes module (`contexts/episodes/overview.md`).
 
 ```mermaid
 flowchart LR

@@ -159,47 +159,50 @@ func (a *App) runSeasonAvailability(ctx context.Context, _ string) (string, erro
 	return fmt.Sprintf("checked=%d available=%d", res.Checked, len(res.Available)), nil
 }
 
-// SendToVerHoyDTO reports the outcome of staging animes into "Ver hoy". When the
-// daily auto-download window has already passed (PastDownloadTime), the scheduled
-// run will not pick the animes up today, so the UI surfaces a manual download
-// option; otherwise the scheduled run downloads them automatically at DownloadTime.
+// SendToVerHoyDTO reports where a Ver hoy batch landed against the daily
+// auto-download window. When that window has already passed (PastDownloadTime),
+// the scheduled run will not pick the animes up today, so the UI surfaces a
+// manual download option; otherwise the scheduled run downloads them
+// automatically at DownloadTime. A batch that could not be staged is the
+// binding's error.
 type SendToVerHoyDTO struct {
-	Status           string `json:"status"`
 	PastDownloadTime bool   `json:"pastDownloadTime"`
 	DownloadTime     string `json:"downloadTime"`
 }
 
 // SendSeasonAnimesToVerHoy stages the given created animes into "Ver hoy" (the
-// Daily Board's multi-select "watch today"). It does NOT force a download run:
-// the animes ride the scheduled daily download at DownloadTime. When that window
-// has already passed for today (PastDownloadTime), it notifies the user and the UI
-// offers a manual download so they still have episodes to watch today.
-func (a *App) SendSeasonAnimesToVerHoy(animeIDs []string) SendToVerHoyDTO {
-	if a.episodeService == nil {
-		return SendToVerHoyDTO{Status: episodeServiceUnavailableMessage}
-	}
-	for _, id := range animeIDs {
-		result, err := a.episodeService.SetAnimeDays(a.seasonCtx(), anime.SetAnimeDaysCommand{
-			AnimeID: id,
-			Dias:    []string{"Ver hoy"},
-		})
-		if err != nil {
-			return SendToVerHoyDTO{Status: err.Error()}
+// Daily Board's multi-select "watch today") through the episodes module handle:
+// unavailable while the module starts, failed_precondition after it failed. It
+// does NOT force a download run: the animes ride the scheduled daily download
+// at DownloadTime. When that window has already passed for today
+// (PastDownloadTime), it notifies the user and the UI offers a manual download
+// so they still have episodes to watch today. The batch stops at the first
+// anime it cannot move, and that failure (a conflict included) is the error.
+func (a *App) SendSeasonAnimesToVerHoy(animeIDs []string) (SendToVerHoyDTO, error) {
+	return a.moduleSet().episodes.Use(func(services episodeServices) (SendToVerHoyDTO, error) {
+		for _, id := range animeIDs {
+			result, err := services.episodes.SetAnimeDays(a.seasonCtx(), anime.SetAnimeDaysCommand{
+				AnimeID: id,
+				Dias:    []string{"Ver hoy"},
+			})
+			if err != nil {
+				return SendToVerHoyDTO{}, err
+			}
+			switch result.Outcome {
+			case anime.PatchOutcomeApplied, anime.PatchOutcomeNoOp:
+			case anime.PatchOutcomeConflict:
+				return SendToVerHoyDTO{}, fmt.Errorf("anime mutation conflict: anime=%s modifiedAt=%d conflictId=%s", result.AnimeID, result.ModifiedAt, result.ConflictID)
+			default:
+				return SendToVerHoyDTO{}, fmt.Errorf("unexpected anime mutation outcome %q", result.Outcome)
+			}
 		}
-		switch result.Outcome {
-		case anime.PatchOutcomeApplied, anime.PatchOutcomeNoOp:
-		case anime.PatchOutcomeConflict:
-			return SendToVerHoyDTO{Status: fmt.Sprintf("anime mutation conflict: anime=%s modifiedAt=%d conflictId=%s", result.AnimeID, result.ModifiedAt, result.ConflictID)}
-		default:
-			return SendToVerHoyDTO{Status: fmt.Sprintf("unexpected anime mutation outcome %q", result.Outcome)}
-		}
-	}
 
-	downloadTime, passed := a.seasonDownloadWindowPassed()
-	if passed {
-		a.notifySeasonPastDownloadWindow(a.seasonCtx(), len(animeIDs), downloadTime)
-	}
-	return SendToVerHoyDTO{Status: "ok", PastDownloadTime: passed, DownloadTime: downloadTime}
+		downloadTime, passed := a.seasonDownloadWindowPassed()
+		if passed {
+			a.notifySeasonPastDownloadWindow(a.seasonCtx(), len(animeIDs), downloadTime)
+		}
+		return SendToVerHoyDTO{PastDownloadTime: passed, DownloadTime: downloadTime}, nil
+	})
 }
 
 // TriggerSeasonDownloads is the manual "download now" the Daily Board offers when a

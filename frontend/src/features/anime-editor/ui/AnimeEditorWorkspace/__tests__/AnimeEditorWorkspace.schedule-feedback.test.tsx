@@ -43,6 +43,9 @@ const { expectedScheduleEntries, fakeSource, getAnimeEditorRecordMock, getAnimeE
   };
 });
 
+// The Episodes card is independent of schedule feedback and its DOM is not under test.
+vi.mock('../../EpisodeDurationsSection/EpisodeDurationsSection', () => ({ EpisodeDurationsSection: () => null }));
+
 vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
   bridgeRuntimeSource: fakeSource,
 }));
@@ -268,13 +271,15 @@ describe('AnimeEditorWorkspace schedule feedback (integration)', () => {
 
     await waitFor(() => expect(scheduleTestDriverRef.current).toBeDefined());
 
-    act(() => scheduleTestDriverRef.current?.moveAnime({ animeId: 'bang-dream', destinationId: 'Visto', order: 1 }));
-    act(() => scheduleTestDriverRef.current?.moveAnime({ animeId: 'yani-neko', destinationId: 'Visto', order: 2 }));
-    act(() => scheduleTestDriverRef.current?.moveAnime({ animeId: 'sayonara-lara', destinationId: 'Visto', order: 3 }));
+    act(() => {
+      scheduleTestDriverRef.current?.moveAnime({ animeId: 'bang-dream', destinationId: 'Visto', order: 1 });
+      scheduleTestDriverRef.current?.moveAnime({ animeId: 'yani-neko', destinationId: 'Visto', order: 2 });
+      scheduleTestDriverRef.current?.moveAnime({ animeId: 'sayonara-lara', destinationId: 'Visto', order: 3 });
+    });
 
     expect(within(dialog).getByText('8 schedule changes')).toBeVisible();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Apply schedule' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply schedule' }));
 
     expect(await within(dialog).findByText('Schedule feedback')).toBeVisible();
     expect(within(dialog).getByText('board changed')).toBeVisible();
@@ -288,11 +293,13 @@ describe('AnimeEditorWorkspace schedule feedback (integration)', () => {
     // first move, so wait for the board's own zero-change draft first.
     await waitFor(() => expect(within(dialog).getByText('0 schedule changes')).toBeVisible());
 
-    act(() => scheduleTestDriverRef.current?.moveAnime({ animeId: 'bang-dream', destinationId: 'Visto', order: 1 }));
-    act(() => scheduleTestDriverRef.current?.moveAnime({ animeId: 'yani-neko', destinationId: 'Visto', order: 2 }));
-    act(() => scheduleTestDriverRef.current?.moveAnime({ animeId: 'sayonara-lara', destinationId: 'Visto', order: 3 }));
+    act(() => {
+      scheduleTestDriverRef.current?.moveAnime({ animeId: 'bang-dream', destinationId: 'Visto', order: 1 });
+      scheduleTestDriverRef.current?.moveAnime({ animeId: 'yani-neko', destinationId: 'Visto', order: 2 });
+      scheduleTestDriverRef.current?.moveAnime({ animeId: 'sayonara-lara', destinationId: 'Visto', order: 3 });
+    });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Apply schedule' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply schedule' }));
 
     await waitFor(() => expect(within(dialog).queryByText('Schedule feedback')).not.toBeInTheDocument());
     expect(within(dialog).queryByText('board changed')).not.toBeInTheDocument();

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnimeEditorRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeEditorSource } from '../../../../../shared/contracts/anime-editor-source.types';
 import type { AnimeEditorRecord } from '../../../../../shared/contracts/anime.types';
+import type { EpisodeCommandsSource } from '../../../../../shared/contracts/episodes.types';
 import type { ModuleReadiness } from '../../../../../shared/contracts/readiness.types';
 import type { AnimeMetadataSelection } from '../../../../../shared/metadata-lookup/metadata-lookup.types';
 import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
@@ -17,17 +18,28 @@ const toastMock = vi.hoisted(() => ({ success: vi.fn(), info: vi.fn(), warning: 
 
 vi.mock('@heroui/react', () => ({ toast: toastMock }));
 
+/** Holds the current test's stub, which also serves the episodes module's restore and repeat. */
+const episodesPort = vi.hoisted(() => ({ current: {} as unknown }));
+
+vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  /** The lifecycle hook's restore and repeat port: the current test's stub. */
+  get BRIDGE_EPISODES_SOURCE() {
+    return episodesPort.current;
+  },
+}));
+
 beforeEach(() => {
   Object.values(toastMock).forEach((mock) => mock.mockClear());
 });
 
-/** One fake serving both the runtime bindings and the anime module's Editor port. */
-type FakeEditorSources = AnimeEditorRuntimeSource & AnimeEditorSource;
+/** One fake serving the runtime pickers, the anime module's Editor port and the episodes module's restore and repeat. */
+type FakeEditorSources = AnimeEditorRuntimeSource & AnimeEditorSource & Pick<EpisodeCommandsSource, 'restoreAnime' | 'repeatAnime'>;
 
 /**
- * Builds a stubbed editor source for one hook test case: the runtime bindings
- * (restore, repeat, pickers) and the anime module's Editor port on one object,
- * so a test asserts on either through the same stub.
+ * Builds a stubbed editor source for one hook test case: the runtime pickers,
+ * the anime module's Editor port and the episodes module's restore and repeat
+ * on one object, so a test asserts on any of them through the same stub.
  * @param overrides Bindings to replace on the default stub.
  * @returns The stubbed source.
  */
@@ -57,6 +69,7 @@ function createSource(overrides: Partial<FakeEditorSources>): FakeEditorSources 
  * @returns The `renderHook` result.
  */
 function renderRecord(source: FakeEditorSources, selectedAnimeId?: string, anime: ModuleReadiness = status('anime', 'ready')) {
+  episodesPort.current = source;
   const { wrapper } = createModulesTestWrapper(anime);
   return renderHook(
     (props: { readonly selectedAnimeId?: string }) => useAnimeEditorRecord({ selectedAnimeId: props.selectedAnimeId, source, editorSource: source }),
@@ -182,10 +195,13 @@ describe('editor record restore handler', () => {
     expect(toastMock.success).toHaveBeenCalledWith('Anime restored.');
   });
 
-  it('does not reload the record and reports the Restore-not-applied fallback when the backend sends no message', async () => {
+  it.each([
+    ['the Restore-not-applied fallback when the failure carries no message', '', 'Restore anime was not applied.'],
+    ['the failure message', 'episodes is starting', 'episodes is starting'],
+  ])('does not reload the record and reports %s', async (_label, message, toast) => {
     const source = createSource({
       getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }),
-      restoreAnime: vi.fn().mockResolvedValue({ status: 'error' }),
+      restoreAnime: vi.fn().mockRejectedValue(createBridgeError('unavailable', message)),
     });
     const { result } = renderRecord(source, 'anime-1');
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
@@ -196,7 +212,7 @@ describe('editor record restore handler', () => {
     expect(source.getAnimeEditorRecord).toHaveBeenCalledTimes(1);
     // Pins the renamed fallback literal (`use-anime-editor-record.ts`): easy to
     // miss because it is copy, not a button label.
-    expect(toastMock.danger).toHaveBeenCalledWith('Restore anime was not applied.');
+    expect(toastMock.danger).toHaveBeenCalledWith(toast);
   });
 });
 
@@ -232,10 +248,13 @@ describe('editor record repeat handler', () => {
     expect(toastMock.success).toHaveBeenCalledWith('Anime repeated.');
   });
 
-  it('does not reload the record and reports the Repeat-not-applied fallback on failure', async () => {
+  it.each([
+    ['the Repeat-not-applied fallback when the failure carries no message', '', 'Repeat anime was not applied.'],
+    ['the failure message', 'anime write failed', 'anime write failed'],
+  ])('does not reload the record and reports %s', async (_label, message, toast) => {
     const source = createSource({
       getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }),
-      repeatAnime: vi.fn().mockResolvedValue({ status: 'error' }),
+      repeatAnime: vi.fn().mockRejectedValue(createBridgeError('internal', message)),
     });
     const { result } = renderRecord(source, 'anime-1');
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
@@ -246,7 +265,7 @@ describe('editor record repeat handler', () => {
     expect(source.getAnimeEditorRecord).toHaveBeenCalledTimes(1);
     // Pins the Repeat feedback literal (`use-anime-editor-record.ts`): easy to
     // miss because it is copy, not a button label.
-    expect(toastMock.danger).toHaveBeenCalledWith('Repeat anime was not applied.');
+    expect(toastMock.danger).toHaveBeenCalledWith(toast);
   });
 });
 

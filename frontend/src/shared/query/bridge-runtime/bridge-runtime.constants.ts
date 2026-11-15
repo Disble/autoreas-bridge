@@ -55,7 +55,7 @@ export const BRIDGE_BACKUP_SOURCE = backupSource;
 /** The Wails runtime events the invalidation bridge listens through. */
 export const BRIDGE_EVENT_SOURCE = createRuntimeEventSource();
 
-/** The episodes module's reads (`GetEpisodeSchedule`, `GetEpisodeDayCounts`), for Today. */
+/** The episodes module's reads (`GetEpisodeSchedule`, `GetEpisodeDayCounts`) and commands (progress, state, restore, repeat), for Today and the Editor. */
 export const BRIDGE_EPISODES_SOURCE = createEpisodesSource();
 
 /** The Editor durations card's reads and commands, served by the episodes module. */

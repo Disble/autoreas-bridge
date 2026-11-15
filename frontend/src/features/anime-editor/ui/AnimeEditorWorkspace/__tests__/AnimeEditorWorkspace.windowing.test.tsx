@@ -29,6 +29,12 @@ const { mockSource } = vi.hoisted(() => {
   };
 });
 
+// The rail is the subject; unrelated cards add DOM and accessibility-query cost.
+vi.mock('../AnimeEditorFormPanel', () => ({ AnimeEditorFormPanel: () => null }));
+vi.mock('../AnimeEditorDialogs', () => ({ AnimeEditorDialogs: () => null }));
+vi.mock('../../EpisodeDurationsSection/EpisodeDurationsSection', () => ({ EpisodeDurationsSection: () => null }));
+vi.mock('../../AnimeScheduleCard/AnimeScheduleCard', () => ({ AnimeScheduleCard: () => null }));
+
 vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
   bridgeRuntimeSource: mockSource,
 }));

@@ -11,6 +11,7 @@ import (
 	animeDomain "autoreas-bridge/internal/anime/domain"
 	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/events"
+	"autoreas-bridge/internal/lifecycle"
 	"autoreas-bridge/internal/season"
 	seasonDomain "autoreas-bridge/internal/season/domain"
 	"autoreas-bridge/internal/season/match"
@@ -261,11 +262,11 @@ func TestReconcileSeasonIntakeAddsAndDiscards(t *testing.T) {
 func TestSendSeasonAnimesToVerHoy(t *testing.T) {
 	t.Parallel()
 	episode := &appliedDaysEpisodeService{stubAppEpisodeService: &stubAppEpisodeService{}}
-	app := &App{ctx: context.Background(), episodeService: episode}
+	app := episodesApp(episode, lifecycle.StateReady)
 
-	got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"})
-	if got.Status != "ok" {
-		t.Fatalf("SendSeasonAnimesToVerHoy: %q", got.Status)
+	got, err := app.SendSeasonAnimesToVerHoy([]string{"anime-1"})
+	if err != nil {
+		t.Fatalf("SendSeasonAnimesToVerHoy: %v", err)
 	}
 	if episode.lastDays.AnimeID != "anime-1" || len(episode.lastDays.Dias) != 1 || episode.lastDays.Dias[0] != "Ver hoy" {
 		t.Fatalf("expected a Ver hoy move for anime-1, got %+v", episode.lastDays)
@@ -283,10 +284,11 @@ func TestSendSeasonAnimesToVerHoyBeforeWindowIsAutomatic(t *testing.T) {
 	future := fixedNow.Add(2 * time.Hour).Format("15:04")
 	store := &fakeAppDownloadStore{scheduleConfig: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: future, EnabledWeekdays: allWeekdaysMask}}
 	sched := &fakeAppScheduler{}
-	app := &App{ctx: context.Background(), episodeService: episode, downloadStore: store, downloadScheduler: sched, nowTime: func() time.Time { return fixedNow }}
+	app := episodesApp(episode, lifecycle.StateReady)
+	app.downloadStore, app.downloadScheduler, app.nowTime = store, sched, func() time.Time { return fixedNow }
 
-	got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"})
-	if got.Status != "ok" || got.PastDownloadTime {
+	got, err := app.SendSeasonAnimesToVerHoy([]string{"anime-1"})
+	if err != nil || got.PastDownloadTime {
 		t.Fatalf("before the window the send is automatic (no manual prompt), got %+v", got)
 	}
 	if got.DownloadTime != future {
@@ -318,21 +320,14 @@ func TestSendSeasonAnimesToVerHoyPastWindowOffersManual(t *testing.T) {
 			t.Parallel()
 			episode := &appliedDaysEpisodeService{stubAppEpisodeService: &stubAppEpisodeService{}}
 			store := &fakeAppDownloadStore{scheduleConfig: tc.schedule}
-			app := &App{ctx: context.Background(), episodeService: episode, downloadStore: store, nowTime: func() time.Time { return fixedNow }}
+			app := episodesApp(episode, lifecycle.StateReady)
+			app.downloadStore, app.nowTime = store, func() time.Time { return fixedNow }
 
-			got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"})
-			if got.Status != "ok" || !got.PastDownloadTime || got.DownloadTime != tc.schedule.DailyTimeHHMM {
+			got, err := app.SendSeasonAnimesToVerHoy([]string{"anime-1"})
+			if err != nil || !got.PastDownloadTime || got.DownloadTime != tc.schedule.DailyTimeHHMM {
 				t.Fatalf("expected a manual-download flag with time %q, got %+v", tc.schedule.DailyTimeHHMM, got)
 			}
 		})
-	}
-}
-
-func TestSendSeasonAnimesToVerHoyNoEpisodeService(t *testing.T) {
-	t.Parallel()
-	app := &App{ctx: context.Background()}
-	if got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"}); got.Status == "ok" || got.Status == "" {
-		t.Fatalf("expected error without episode service, got %q", got.Status)
 	}
 }
 

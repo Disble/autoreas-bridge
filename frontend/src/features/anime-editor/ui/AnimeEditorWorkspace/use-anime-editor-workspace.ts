@@ -24,8 +24,8 @@ import { useAnimeEditorTransitions } from './use-anime-editor-transitions';
  * S16) -- anime data, Episodes and Schedule -- each saving only its own data,
  * plus one unsaved-changes guard that covers both drafts. The list, the record,
  * its save and deactivate and the schedule board read and write through the
- * anime module (`editorSource`); restore, repeat, the pickers and the covers stay
- * on the runtime source (`source`).
+ * anime module (`editorSource`); restore and repeat run through the episodes module
+ * (`BRIDGE_EPISODES_SOURCE`); the pickers and the covers stay on the runtime source (`source`).
  */
 export function useAnimeEditorWorkspace(
   props: Readonly<AnimeEditorWorkspaceProps>,

@@ -52,3 +52,33 @@ export interface EpisodesSource {
   /** The per-weekday badge counts. */
   readonly getEpisodeDayCounts: () => Promise<readonly EpisodeDayCount[]>;
 }
+
+/**
+ * What an episodes command answers once it ran: `status` is `ok` and `outcome`
+ * is `applied`, `no_op` or `conflict`, at the anime's `modifiedAt` stamp.
+ * Mirrors the generated `EpisodeCommandResult` contract.
+ */
+export interface EpisodeWriteResult {
+  readonly status: string;
+  readonly message?: string;
+  readonly outcome?: string;
+  readonly modifiedAt: number;
+}
+
+/**
+ * Port of the episodes module's commands (ADR-032 §4), served by the same
+ * adapter as `EpisodesSource`. Each resolves with the write's outcome and
+ * rejects with a `BridgeError` for a failure: `unavailable` while the module
+ * starts, `failed_precondition` once it failed, the write's own code otherwise.
+ * `base` is the anime's last-seen `modifiedAt`, for optimistic concurrency.
+ */
+export interface EpisodeCommandsSource {
+  /** Moves the watched-episode count by `delta`. */
+  readonly adjustWatchedEpisodes: (animeID: string, delta: number, base: number) => Promise<EpisodeWriteResult>;
+  /** Sets the watch state (`estado`). */
+  readonly setAnimeState: (animeID: string, estado: number, base: number) => Promise<EpisodeWriteResult>;
+  /** Brings a deactivated anime back. */
+  readonly restoreAnime: (animeID: string, base: number) => Promise<EpisodeWriteResult>;
+  /** Starts a new watch-through of a finished anime. */
+  readonly repeatAnime: (animeID: string, base: number) => Promise<EpisodeWriteResult>;
+}

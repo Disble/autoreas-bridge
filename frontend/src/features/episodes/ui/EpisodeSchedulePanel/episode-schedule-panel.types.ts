@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { EpisodeScheduleItem, EpisodesSource } from '../../../../shared/contracts/episodes.types';
+import type { EpisodeCommandsSource, EpisodeScheduleItem, EpisodesSource } from '../../../../shared/contracts/episodes.types';
 import type { AsyncView } from '../../../../shared/query/async-view/async-view.types';
 
 /** Which lens groups the Episodes list: season watch states or weekdays. */
@@ -17,14 +17,13 @@ export interface EpisodeSchedulePanelProps {
 
 /**
  * Request/reply port used by the Episodes UI hook: the episodes module's two
- * reads (`EpisodesSource`, read through `useBridgeQuery`) plus the season probe,
- * covers and writes, which have not migrated yet. Live updates come from the
- * `anime.changed` invalidation rule, not from a subscription here.
+ * reads (`EpisodesSource`, read through `useBridgeQuery`) and its two row
+ * writes (`EpisodeCommandsSource`, run through `useBridgeMutation`), plus the
+ * season probe, covers and desktop actions. Live updates come from the
+ * `anime.changed` invalidation rule.
  */
-export interface EpisodeScheduleSource extends EpisodesSource {
+export interface EpisodeScheduleSource extends EpisodesSource, Pick<EpisodeCommandsSource, 'adjustWatchedEpisodes' | 'setAnimeState'> {
   readonly getSeasonMode: () => Promise<boolean>;
-  readonly adjustWatchedEpisodes: (animeID: string, delta: number, base: number) => Promise<EpisodeCommandResult>;
-  readonly setAnimeState: (animeID: string, estado: number, base: number) => Promise<EpisodeCommandResult>;
   readonly openAnimePage: (animeID: string) => Promise<EpisodeCommandResult>;
   readonly copyAnimePage: (animeID: string) => Promise<EpisodeCommandResult>;
   readonly openAnimeFolder: (animeID: string) => Promise<EpisodeCommandResult>;
@@ -143,6 +142,16 @@ export interface EpisodeEmptyStateCopy {
   readonly kind: 'first-run' | 'waiting-on-step';
   /** Where the empty state's one action sends the user. */
   readonly action: EpisodeEmptyStateAction;
+}
+
+/**
+ * One Today row write: the anime, the change (the watched-episode delta, or
+ * the new state), and the row's `modifiedAt` as the optimistic-concurrency base.
+ */
+export interface EpisodeRowWrite {
+  readonly animeID: string;
+  readonly value: number;
+  readonly base: number;
 }
 
 /** Collaborators the Today write commands need, and nothing more. */
