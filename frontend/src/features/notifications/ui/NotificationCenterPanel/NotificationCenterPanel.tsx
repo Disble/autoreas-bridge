@@ -4,6 +4,7 @@ import { NotificationEmptyState } from '../NotificationEmptyState/NotificationEm
 import { NotificationFilterBar } from '../NotificationFilterBar/NotificationFilterBar';
 import { NotificationSelectionBar } from '../NotificationSelectionBar/NotificationSelectionBar';
 import { NotificationTable } from '../NotificationTable/NotificationTable';
+import { NotificationTableSkeleton } from '../NotificationTable/NotificationTableSkeleton';
 import type { NotificationCenterPanelProps } from './notification-center-panel.types';
 import { useNotificationCenterPanel } from './use-notification-center-panel';
 
@@ -12,7 +13,8 @@ import { useNotificationCenterPanel } from './use-notification-center-panel';
  * artboard lays it out: the page header (title, live unread count, "Mark all
  * as read"), the filter bar (four view tabs, search, level and source
  * dropdowns), the bulk-action selection bar, the dense table with its
- * empty-state renderings and keyset-cursor pagination, and the
+ * empty-state renderings and keyset-cursor pagination (a placeholder table
+ * while the first page loads), and the
  * `NotificationDetail` pane beside the list that pressing a row opens.
  *
  * The header lives here rather than in the route because "Mark all as read"
@@ -27,6 +29,7 @@ import { useNotificationCenterPanel } from './use-notification-center-panel';
  */
 export function NotificationCenterPanel({ pushSource, source }: Readonly<NotificationCenterPanelProps>) {
   const {
+    listState,
     rows,
     onScroll,
     emptyStateConditions,
@@ -78,14 +81,18 @@ export function NotificationCenterPanel({ pushSource, source }: Readonly<Notific
         view={archiveView}
       />
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <NotificationTable
-          onRowAction={onRowAction}
-          onScroll={onScroll}
-          onSelectionChange={onSelectionChange}
-          renderEmptyState={() => <NotificationEmptyState {...emptyStateConditions} />}
-          rows={rows}
-          selectedKeys={selectedKeys}
-        />
+        {listState === 'loading' ? (
+          <NotificationTableSkeleton />
+        ) : (
+          <NotificationTable
+            onRowAction={onRowAction}
+            onScroll={onScroll}
+            onSelectionChange={onSelectionChange}
+            renderEmptyState={() => <NotificationEmptyState {...emptyStateConditions} />}
+            rows={rows}
+            selectedKeys={selectedKeys}
+          />
+        )}
         <NotificationDetail detail={openRecord} onReadStateChanged={onReadStateChanged} source={source} />
       </div>
     </div>

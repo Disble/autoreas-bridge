@@ -1,8 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { NotificationCenterSource } from '../../../../../infrastructure/notification-center-source/notification-center-source.types';
-import type { NotificationListRequest, NotificationPage, NotificationRow } from '../../../../../shared/contracts/notification-center.types';
+import type { NotificationCenterSource, NotificationListRequest, NotificationPage, NotificationRow } from '../../../../../shared/contracts/notification-center.types';
 import { NotificationCenterPanel } from '../../NotificationCenterPanel/NotificationCenterPanel';
+import { notificationsQueryWrapper } from '../../NotificationCenterPanel/__tests__/notification-center.test-support';
 
 afterEach(cleanup);
 
@@ -83,7 +83,7 @@ function scroller(): HTMLElement {
 describe('NotificationTable progressive load (500-record backing collection)', () => {
   it('renders only the loaded page, then grows on a scroll near the bottom -- never the whole backing collection', async () => {
     const source = makeFakeSource();
-    render(<NotificationCenterPanel source={source} />);
+    render(<NotificationCenterPanel source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     await screen.findByText('Notification 25');
     expect(countDataRows()).toBe(PAGE_SIZE);

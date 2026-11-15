@@ -1,24 +1,20 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { NotificationCenterSource } from '../../../../../infrastructure/notification-center-source/notification-center-source.types';
-import type { NotificationListRequest, NotificationPage } from '../../../../../shared/contracts/notification-center.types';
+import type { NotificationCenterSource, NotificationListRequest, NotificationPage } from '../../../../../shared/contracts/notification-center.types';
 import { NOTIFICATION_FILTER_DEBOUNCE_MS } from '../../NotificationFilterBar/use-notification-filters';
+import { NOTIFICATION_TABLE_SKELETON_ROW_COUNT } from '../../NotificationTable/notification-table.constants';
 import { NotificationCenterPanel } from '../NotificationCenterPanel';
+import { createCenterSource, notificationsQueryWrapper } from './notification-center.test-support';
 
 afterEach(cleanup);
 
-/** A fake source with only `listNotifications` wired; every other method is an unused stub. */
+/**
+ * A fake source whose list answers `page`.
+ * @param page The first page.
+ * @returns A `NotificationCenterSource` double.
+ */
 function makeSource(page: NotificationPage): NotificationCenterSource {
-  return {
-    listNotifications: vi.fn().mockResolvedValue(page),
-    getNotification: vi.fn(),
-    getUnreadCount: vi.fn(),
-    markRead: vi.fn(),
-    markUnread: vi.fn(),
-    archive: vi.fn(),
-    restore: vi.fn(),
-    executeAction: vi.fn(),
-  };
+  return createCenterSource({ listNotifications: vi.fn().mockResolvedValue(page) });
 }
 
 describe('NotificationCenterPanel', () => {
@@ -30,7 +26,7 @@ describe('NotificationCenterPanel', () => {
       degraded: false,
     });
 
-    render(<NotificationCenterPanel source={source} />);
+    render(<NotificationCenterPanel source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     await waitFor(() => expect(screen.getByText('Episode ready')).toBeInTheDocument());
   });
@@ -38,15 +34,27 @@ describe('NotificationCenterPanel', () => {
   it('renders the never-recorded empty state when nothing has ever been recorded', async () => {
     const source = makeSource({ items: [], appliedLimit: 25, totalEver: 0, degraded: false });
 
-    render(<NotificationCenterPanel source={source} />);
+    render(<NotificationCenterPanel source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     await waitFor(() => expect(screen.getByText('Nothing here yet')).toBeInTheDocument());
   });
 
-  it('renders the unavailable empty state when the page comes back degraded', async () => {
-    const source = makeSource({ items: [], appliedLimit: 25, totalEver: 0, degraded: true });
+  it('draws a placeholder table, and no empty state, while the notifications module starts', async () => {
+    const source = makeSource({ items: [], appliedLimit: 25, totalEver: 0, degraded: false });
 
-    render(<NotificationCenterPanel source={source} />);
+    render(<NotificationCenterPanel source={source} />, { wrapper: notificationsQueryWrapper('starting').wrapper });
+
+    expect(await screen.findByRole('status', { name: 'Loading notifications' })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Notifications' })).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getAllByTestId('notification-table-skeleton-row')).toHaveLength(NOTIFICATION_TABLE_SKELETON_ROW_COUNT);
+    expect(screen.queryByText('Nothing here yet')).not.toBeInTheDocument();
+    expect(source.listNotifications).not.toHaveBeenCalled();
+  });
+
+  it('renders the unavailable empty state when the first page fails', async () => {
+    const source = createCenterSource({ listNotifications: vi.fn().mockRejectedValue(new Error('store closed')) });
+
+    render(<NotificationCenterPanel source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     await waitFor(() => expect(screen.getByText('Notifications unavailable')).toBeInTheDocument());
   });
@@ -82,18 +90,9 @@ describe('NotificationCenterPanel debounced search', () => {
             },
       ),
     );
-    const source: NotificationCenterSource = {
-      listNotifications,
-      getNotification: vi.fn(),
-      getUnreadCount: vi.fn(),
-      markRead: vi.fn(),
-      markUnread: vi.fn(),
-      archive: vi.fn(),
-      restore: vi.fn(),
-      executeAction: vi.fn(),
-    };
+    const source = createCenterSource({ listNotifications });
 
-    render(<NotificationCenterPanel source={source} />);
+    render(<NotificationCenterPanel source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
     // The first page is a resolved promise, so it settles on microtasks, not on
     // a timer: one empty act step drains it and needs no wall-clock budget.
     await act(async () => {
@@ -110,6 +109,11 @@ describe('NotificationCenterPanel debounced search', () => {
     // the budget allows.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(NOTIFICATION_FILTER_DEBOUNCE_MS);
+    });
+    // The read the new search starts waits on the readiness gate first, which
+    // also settles on microtasks: one more empty step drains it.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
     });
 
     expect(screen.getByText('No matches')).toBeInTheDocument();

@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react';
 import type { AppNotification } from '../../../../shared/contracts/app-notification.types';
 import { notificationSource } from '../../../../infrastructure/notification-source/notification-source.helpers';
 import type { NotificationSource } from '../../../../infrastructure/notification-source/notification-source.types';
-import { createNotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.helpers';
-import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
+import type { NotificationCenterSource } from '../../../../shared/contracts/notification-center.types';
+import { BRIDGE_NOTIFICATION_CENTER_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { toBackendAppNotification } from './backend-toast.helpers';
 import { KINDS_OWNED_BY_A_DEDICATED_RESOLVER } from './notification-resolver.constants';
 
@@ -33,7 +33,7 @@ export function useBackendEventResolver(
   push: (notification: AppNotification) => void,
   remove: (key: string | number) => void,
   source: NotificationSource = notificationSource,
-  centerSource: NotificationCenterSource = createNotificationCenterSource(),
+  centerSource: NotificationCenterSource = BRIDGE_NOTIFICATION_CENTER_SOURCE,
 ): void {
   const pushRef = useRef(push);
   const removeRef = useRef(remove);
@@ -55,7 +55,9 @@ export function useBackendEventResolver(
 
       pushRef.current(
         toBackendAppNotification(notification, (recordId, actionId) => {
-          void centerSource.executeAction(recordId, actionId);
+          // A press the notifications module cannot take yet is dropped, as a
+          // refused press always was: the toast offers no failure surface.
+          void centerSource.executeAction(recordId, actionId).catch(() => undefined);
         }),
       );
     });

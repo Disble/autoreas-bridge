@@ -1,42 +1,30 @@
-import { useEffect } from 'react';
-import { createNotificationCenterSource } from '../../../infrastructure/notification-center-source/notification-center-source.helpers';
-import type { NotificationCenterSource } from '../../../infrastructure/notification-center-source/notification-center-source.types';
-import { notificationSource } from '../../../infrastructure/notification-source/notification-source.helpers';
-import type { NotificationSource } from '../../../infrastructure/notification-source/notification-source.types';
-import { useNotificationStore } from '../../../shared/store/notification-store/use-notification-store';
-import {
-  incrementUnreadNotificationCount,
-  setUnreadNotificationCount,
-} from '../../../shared/store/notification-store/notification-store.helpers';
+import type { NotificationCenterSource } from '../../../shared/contracts/notification-center.types';
+import { toAsyncView } from '../../../shared/query/async-view/async-view.helpers';
+import { BRIDGE_NOTIFICATION_CENTER_SOURCE } from '../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { NOTIFICATIONS_UNREAD_COUNT_KEY } from '../../../shared/query/query-keys/query-keys.constants';
+import { useBridgeQuery } from '../../../shared/query/use-bridge-query/use-bridge-query';
 
 /**
- * Drives the Notifications nav item's unread-count badge: seeds the count
- * from `GetUnreadNotificationCount` on mount, then raises it locally
- * whenever a `notification.push` event arrives -- design.md §15's resolved
- * open question ("the subscription is the cheaper answer" over re-polling).
+ * Drives the Notifications nav item's unread-count badge: reads
+ * `GetUnreadNotificationCount` through `useBridgeQuery` on the `notifications`
+ * module. A `notification.push` or `notification.archived` event reads it again
+ * (`BRIDGE_INVALIDATIONS`), and the center reads the same key again after its
+ * own lifecycle mutations, so reading or archiving a record lowers this badge.
  *
- * The count itself lives in the shared notification store rather than in
- * this hook's state, because arriving pushes are not the only thing that
- * moves it: every notification-center mutation feeds the backend's own
- * fresh `unreadCount` into that store, so reading or archiving a record in
- * the center lowers this badge. Owning the count locally is what previously
- * left the rail reading "2" over a one-row table.
+ * Only a loaded count is shown: while the module starts, after it failed, or
+ * while the read is pending the badge reports 0, which renders no badge.
+ * @param centerSource The notification-center port the count is read through.
+ * @returns The unread count to render; 0 renders nothing.
  */
-export function useNotificationsNavBadge(
-  centerSource: NotificationCenterSource = createNotificationCenterSource(),
-  pushSource: NotificationSource = notificationSource,
-): number {
-  // 3. Context/3rd Party Hooks
-  const unreadCount = useNotificationStore((state) => state.unreadCount);
+export function useNotificationsNavBadge(centerSource: NotificationCenterSource = BRIDGE_NOTIFICATION_CENTER_SOURCE): number {
+  // 4. Queries/Mutations
+  const query = useBridgeQuery({
+    queryKey: NOTIFICATIONS_UNREAD_COUNT_KEY,
+    queryFn: () => centerSource.getUnreadCount(),
+    module: 'notifications',
+  });
 
-  // 7. Effects
-  useEffect(() => {
-    void centerSource.getUnreadCount().then(setUnreadNotificationCount);
-  }, [centerSource]);
-
-  useEffect(() => {
-    return pushSource.subscribe(incrementUnreadNotificationCount);
-  }, [pushSource]);
-
-  return unreadCount;
+  // 5. Derived State
+  const view = toAsyncView(query);
+  return view.kind === 'ready' ? view.data : 0;
 }

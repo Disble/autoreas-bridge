@@ -30,7 +30,7 @@ For module readiness, failure codes and the `shared/query` layer the frontend re
 | `internal/desktop/app.go` | the `App` struct, `NewApp`, `startup`, `shutdown`, window and quit hooks |
 | `internal/desktop/app_defaults.go` | default constructors for every injectable seam (tests replace them) |
 | `internal/desktop/app_startup_runtime.go`, `app_runtime_services.go` | the wiring steps `startup` runs, and the `register*RuntimeEventBridge` functions |
-| `internal/desktop/app_readiness.go` | module ids, the module set and its handles (`shell`, `backup`, `episodes`, `api`, `sync`, `devices`, `observability`), readiness settling, `GetReadiness`, the `bridge.readiness` bridge, `formatBindingError` |
+| `internal/desktop/app_readiness.go` | module ids, the module set and its handles (`shell`, `backup`, `episodes`, `api`, `sync`, `devices`, `observability`, `notifications`), readiness settling, `GetReadiness`, the `bridge.readiness` bridge, `formatBindingError` |
 | `internal/desktop/app_<context>*.go` | bindings grouped by the context they serve (anime, episodes, season, downloads, notifications, activity, backup, preferences, devices) |
 | `internal/lifecycle` | readiness registry (`Registry`, read side) and its `Writer`; no Wails import |
 | `internal/modules` | typed module handles (`Handle[S]`) and the always-ready `Shell` handle; no Wails import |
@@ -63,6 +63,7 @@ Bindings that run through a handle today:
 | `sync` (`modules.Handle[syncServices]`) | `syncServices.trigger`, the sync trigger service | `startHTTPServer` (`bindServerModules`), before `configureRuntimeServices` settles `sync` | `TriggerReconcile() error`, `GetSyncingAnimeItems() ([]SyncingAnimeItem, error)` |
 | `devices` (`modules.Handle[deviceServices]`) | device store, a device admin service (sync state from `bridge.db`, presence from the realtime hub), pairing token generator | `bindDevicesModule`, after `configureRealtimeHub`, before `configureRuntimeServices` settles `devices` | `GetPairingToken() (string, error)`, `GetConnectedDevices() ([]DeviceInfo, error)`, `UnpairDevice(id) error` |
 | `observability` (`modules.Handle[observabilityServices]`) | activity reader (`activityread.Reader`), incident store (pins), request capture reader, sync diagnostics reader | `bindObservabilityModule`, after `configureEventLogQueue`, before `configureRuntimeServices` settles `observability` | `SearchActivityFeed`, `GetActivityOverview`, `GetActivityEvent`, `GetActivityChangeContext`, `GetActivityPhoneReport`, `GetActivityIncident`, `GetActivityRequest`, `GetActivityRunStory`, `PinActivityMoment`, `ListDeviceSyncDiagnostics() (DeviceSyncDiagnosticsResult, error)`; `../observability/overview.md`, "Readiness" |
+| `notifications` (`modules.Handle[notificationServices]`) | the notification center store and its action executor | `wireNotificationCenterIntentExecutor`, before `startup` settles `notifications` | `ListNotifications`, `GetNotification`, `GetUnreadNotificationCount`, `MarkNotificationsRead`, `MarkNotificationsUnread`, `ArchiveNotifications`, `RestoreNotifications`, `ExecuteNotificationAction`, each `(T, error)` (`TestNotificationBindingsFollowTheirModule`); `../notifications/overview.md` |
 
 The other episode bindings (`AdjustWatchedEpisodes`, `SetAnimeState`, `SetAnimeDays`,
 `SoftDeleteAnime`, `RestoreAnime`, `RepeatAnime`) still read `App.episodeService` and answer a status
@@ -86,7 +87,7 @@ then settles at the step that wires it:
 | `api` | HTTP server is built (and bound to the `api` handle) and started; a failed bind is `failed` with the bind error | `configureRuntimeServices` |
 | `season` | season service is wired | `wireSeasonMatchingEventBus` |
 | `downloads` | download service and download readiness service are wired | `startDownloadOrchestration` |
-| `notifications` | notification center executor is wired | `wireNotificationCenterIntentExecutor` |
+| `notifications` | notification center store and executor are wired (bound to the `notifications` handle) | `wireNotificationCenterIntentExecutor` |
 
 - `registeredModules` (`app_readiness.go`) lists them in this order. `internal/lifecycle/modules.json`
   holds the same list for the frontend: `TestRegisteredModulesMatchTheSharedJSON` pins it to
@@ -213,6 +214,7 @@ memory and starts over with every process.
 | Frontend error report | `internal/desktop/app_frontend_errors.go` `ReportFrontendError` (handle `shell`) |
 | Native pickers, MyAnimeList lookup, JDownloader limit | `internal/desktop/app_preferences.go` `PickFile`, `PickFolder`, `app_myanimelist.go` `SearchMyAnimeList`, `GetMyAnimeListDetail`, `app_download_concurrency.go` `GetJDMaxSimultaneousDownloads` (handle `shell`) |
 | Activity screen (feed, chart, drawer reads, pin) | `internal/desktop/app_activity_feed.go`, `app_activity_read.go`, `app_activity_pin.go` (handle `observability`); `../observability/overview.md` |
+| Notification center and rail badge | `internal/desktop/app_notification_center.go` (handle `notifications`); `../notifications/overview.md` |
 | Any other Wails binding | the exported `App` method in `internal/desktop/app_<context>*.go` |
 
 ## Known drift

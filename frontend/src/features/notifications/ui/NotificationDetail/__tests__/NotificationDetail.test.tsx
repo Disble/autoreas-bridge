@@ -2,6 +2,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { NotificationDetail as NotificationDetailDTO } from '../../../../../shared/contracts/notification-center.types';
 import { NotificationDetail } from '../NotificationDetail';
+import { notificationsQueryWrapper } from '../../NotificationCenterPanel/__tests__/notification-center.test-support';
 
 vi.mock('../use-notification-detail-covers', () => ({
   useNotificationDetailCovers: vi.fn().mockReturnValue(new Map()),
@@ -27,7 +28,7 @@ function buildDetail(overrides: Partial<NotificationDetailDTO> = {}): Notificati
 
 describe('NotificationDetail', () => {
   it('prompts to select a notification when detail is null', () => {
-    const { container } = render(<NotificationDetail detail={null} />);
+    const { container } = render(<NotificationDetail detail={null} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     expect(screen.getByRole('heading', { level: 3, name: 'No notification selected' })).toBeInTheDocument();
     expect(screen.getByText('Pick one on the left to read it.')).toBeInTheDocument();
@@ -38,7 +39,7 @@ describe('NotificationDetail', () => {
   });
 
   it('renders the header and the row-list block for a present detail', () => {
-    render(<NotificationDetail detail={buildDetail()} />);
+    render(<NotificationDetail detail={buildDetail()} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     expect(screen.getByText('Download stopped before the season finished')).toBeInTheDocument();
     expect(screen.getByText('Some Anime')).toBeInTheDocument();

@@ -1,10 +1,14 @@
 import type { UIEvent } from 'react';
-import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
 import type { NotificationSource } from '../../../../infrastructure/notification-source/notification-source.types';
-import type { NotificationDetail as NotificationDetailDTO, NotificationRow } from '../../../../shared/contracts/notification-center.types';
+import type {
+  NotificationCenterSource,
+  NotificationDetail as NotificationDetailDTO,
+  NotificationRow,
+} from '../../../../shared/contracts/notification-center.types';
 import type { NotificationEmptyStateConditions } from '../NotificationEmptyState/notification-empty-state.types';
 import type { NotificationFilterOption } from '../NotificationFilterBar/notification-filter-bar.types';
 import type { NotificationTableRowAction, NotificationTableSelection } from '../NotificationTable/notification-table.types';
+import type { NotificationListState } from './use-notification-center-page';
 import type { NotificationCenterSyncView } from './use-notification-center-sync';
 
 /**
@@ -21,10 +25,10 @@ export interface NotificationCenterQuery {
   readonly unreadOnly: boolean;
 }
 
-/** Props accepted by `NotificationCenterPanel`. Both sources default to the runtime-backed singletons. */
+/** Props accepted by `NotificationCenterPanel`. Both sources default to the app's runtime-backed adapters. */
 export interface NotificationCenterPanelProps {
   readonly source?: NotificationCenterSource;
-  /** Runtime push stream the master list live-refreshes from, the same one the rail badge listens to. */
+  /** Runtime stream of `notification.archived` events the master list follows. */
   readonly pushSource?: NotificationSource;
 }
 
@@ -36,7 +40,8 @@ export interface NotificationCenterPanelProps {
 export interface NotificationCenterPanelEmptyStateInput {
   readonly totalEverRecorded: number;
   readonly view: NotificationCenterView;
-  readonly degraded: boolean;
+  /** False once the first page failed with nothing to show: the `unavailable` rendering. */
+  readonly serviceAvailable: boolean;
   /** Whether a non-empty (trimmed) search is currently applied. */
   readonly hasSearch: boolean;
   /** Whether the level or source dropdown currently narrows the query. */
@@ -45,6 +50,8 @@ export interface NotificationCenterPanelEmptyStateInput {
 
 /** Everything `NotificationCenterPanel` needs from `useNotificationCenterPanel`. */
 export interface NotificationCenterPanelResult {
+  /** Whether the master list's first page is loading (skeleton), failed with nothing to show, or ready. */
+  readonly listState: NotificationListState;
   readonly rows: readonly NotificationRow[];
   /**
    * The master list's only load-more trigger: a scroll on the table's own
@@ -84,7 +91,7 @@ export interface NotificationCenterPanelResult {
   /** Un-archives every selected row -- what the selection bar offers in place of `onArchive` while the archived view is showing. */
   readonly onRestore: () => void;
   readonly onClearSelection: () => void;
-  /** How many records are unread, as the shared notification store last reported -- the value the rail badge also renders. */
+  /** How many records are unread, from the query the rail badge also reads; 0 until it has loaded. */
   readonly unreadCount: number;
   /** Marks every unread record the list currently holds as read. */
   readonly onMarkAllRead: () => void;
@@ -96,7 +103,28 @@ export interface NotificationCenterPanelResult {
   readonly onRowAction: NotificationTableRowAction;
   /**
    * Handed to the detail pane so a read-state verb pressed there lands on the
-   * master-list row beside it, in place and without re-fetching a page.
+   * master-list row beside it, in place and without re-fetching a page, and
+   * the unread count is read again.
    */
+  readonly onReadStateChanged: (recordIds: readonly number[], isRead: boolean) => void;
+}
+
+/** What `useNotificationUnreadCount` needs from the panel: the source and the list it refreshes. */
+export interface NotificationUnreadCountInput {
+  /** The notification center the count is read from. */
+  readonly source: NotificationCenterSource;
+  /** Reloads the master list from its first page. */
+  readonly refetchList: () => void;
+  /** Applies a read-state change to the rows the list already holds. */
+  readonly applyReadState: (recordIds: readonly number[], isRead: boolean) => void;
+}
+
+/** The unread count the panel shows and the two refresh paths that keep it current. */
+export interface NotificationUnreadCountResult {
+  /** The count to show; 0 while it loads or after it failed. */
+  readonly unreadCount: number;
+  /** Refreshes the list and the count after a lifecycle mutation. */
+  readonly onMutated: () => void;
+  /** Applies a read-state change to the rows and refreshes the count. */
   readonly onReadStateChanged: (recordIds: readonly number[], isRead: boolean) => void;
 }
