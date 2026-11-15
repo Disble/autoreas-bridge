@@ -1,65 +1,46 @@
-import { renderHook } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { renderHook, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonSnapshot } from '../../../../shared/contracts/season.types';
-import {
-  resetSeasonStore,
-  setSeasonStoreState,
-} from '../../../../shared/store/season-store/season-store.helpers';
+import type { SeasonQuerySource } from '../../../../shared/contracts/season.types';
+import { createSeasonDataSource, makeSeason, seasonQueryWrapper } from '../../../../shared/season/__tests__/season.test-support';
+import { useDisplayedSeason } from '../../../../shared/season/use-displayed-season';
+import { resetSeasonStore, setSeasonStoreState } from '../../../../shared/store/season-store/season-store.helpers';
 import { useSeasonNavBadge } from '../use-season-nav-badge';
 
-/** Builds the loaded season snapshot the shared store holds, with the status under test. */
-function seasonSnapshot(status: string): SeasonSnapshot {
-  return {
-    id: 'season-1',
-    name: 'Julio 2026',
-    minApprovalGrade: 4,
-    slots: 12,
-    status,
-    createdAt: 1_700_000_000_000,
-  };
-}
-
 /**
- * Applies the read-model state `viewPastSeason` leaves behind once the user opens
- * a closed season from the Season page history, so the navigation badge is read
- * against real historical representation rather than an empty store.
+ * Renders the badge hook next to the Season route's season read, which loads the shared cache.
+ * @param source The port the Season route reads through.
+ * @returns The badge hook's render result.
  */
-function viewClosedHistory(): void {
-  setSeasonStoreState({
-    season: seasonSnapshot('closed'),
-    seasonAnimes: [],
-    viewSeasonId: 'season-old',
-    readOnly: true,
-    hasLoaded: true,
-    hasLoadedAnimes: true,
-  });
+function renderBesideSeasonRoute(source: SeasonQuerySource) {
+  const { wrapper } = seasonQueryWrapper();
+  renderHook(() => useDisplayedSeason({ refresh: 'mount', source }), { wrapper });
+  return renderHook(() => useSeasonNavBadge(source), { wrapper });
 }
 
 describe('useSeasonNavBadge', () => {
-  afterEach(() => {
-    resetSeasonStore();
+  afterEach(() => resetSeasonStore());
+
+  it('hides the badge before the Season route loaded the season, and never fetches it', async () => {
+    const source = createSeasonDataSource();
+    const { result } = renderHook(() => useSeasonNavBadge(source), { wrapper: seasonQueryWrapper().wrapper });
+
+    await waitFor(() => expect(result.current).toBe(false));
+    expect(source.readSeason).not.toHaveBeenCalled();
   });
 
-  it('returns false when the store holds no season snapshot', () => {
-    const { result } = renderHook(() => useSeasonNavBadge());
+  it('shows the badge while the season the Season route loaded is open', async () => {
+    const { result } = renderBesideSeasonRoute(createSeasonDataSource({ readSeason: vi.fn().mockResolvedValue(makeSeason()) }));
 
-    expect(result.current).toBe(false);
+    await waitFor(() => expect(result.current).toBe(true));
   });
 
-  it('returns true while the loaded season is open', () => {
-    setSeasonStoreState({ season: seasonSnapshot('open') });
+  it('hides the badge while a closed historical season is viewed read-only', async () => {
+    setSeasonStoreState({ viewSeasonId: 'season-old', readOnly: true });
+    const source = createSeasonDataSource({ readPastSeason: vi.fn().mockResolvedValue(makeSeason({ id: 'season-old', status: 'closed' })) });
+    const { result } = renderBesideSeasonRoute(source);
 
-    const { result } = renderHook(() => useSeasonNavBadge());
-
-    expect(result.current).toBe(true);
-  });
-
-  it('returns false while a closed historical season is loaded read-only', () => {
-    viewClosedHistory();
-
-    const { result } = renderHook(() => useSeasonNavBadge());
-
+    await waitFor(() => expect(source.readPastSeason).toHaveBeenCalledWith('season-old'));
     expect(result.current).toBe(false);
   });
 });

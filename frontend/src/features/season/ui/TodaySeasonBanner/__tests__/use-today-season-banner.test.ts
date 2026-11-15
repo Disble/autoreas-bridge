@@ -1,66 +1,46 @@
-import { renderHook } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { renderHook, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonSnapshot } from '../../../../../shared/contracts/season.types';
-import {
-  resetSeasonStore,
-  setSeasonStoreState,
-} from '../../../../../shared/store/season-store/season-store.helpers';
+import type { SeasonQuerySource } from '../../../../../shared/contracts/season.types';
+import { createSeasonDataSource, makeSeason, seasonQueryWrapper } from '../../../../../shared/season/__tests__/season.test-support';
+import { useDisplayedSeason } from '../../../../../shared/season/use-displayed-season';
+import { resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
 import { useTodaySeasonBanner } from '../use-today-season-banner';
 
-/** Builds the loaded season snapshot the shared store holds, with the status under test. */
-function seasonSnapshot(status: string): SeasonSnapshot {
-  return {
-    id: 'season-1',
-    name: 'Julio 2026',
-    minApprovalGrade: 4,
-    slots: 12,
-    status,
-    createdAt: 1_700_000_000_000,
-  };
-}
-
 /**
- * Applies the read-model state `viewPastSeason` leaves behind once the user opens
- * a closed season from the Season page history. The history path itself is proven
- * in `shared/store/__tests__/season-store.test.ts`; this file pins what the Today
- * banner must read from it.
+ * Renders the banner hook next to the Season route's season read, which loads the shared cache.
+ * @param source The port the Season route reads through.
+ * @returns The banner hook's render result.
  */
-function viewClosedHistory(): void {
-  setSeasonStoreState({
-    season: seasonSnapshot('closed'),
-    seasonAnimes: [],
-    viewSeasonId: 'season-old',
-    readOnly: true,
-    hasLoaded: true,
-    hasLoadedAnimes: true,
-  });
+function renderBesideSeasonRoute(source: SeasonQuerySource) {
+  const { wrapper } = seasonQueryWrapper();
+  renderHook(() => useDisplayedSeason({ refresh: 'mount', source }), { wrapper });
+  return renderHook(() => useTodaySeasonBanner(source), { wrapper });
 }
 
 describe('useTodaySeasonBanner', () => {
-  afterEach(() => {
-    resetSeasonStore();
+  afterEach(() => resetSeasonStore());
+
+  it('hides the banner before the Season route loaded the season, and never fetches it', async () => {
+    const source = createSeasonDataSource();
+    const { result } = renderHook(() => useTodaySeasonBanner(source), { wrapper: seasonQueryWrapper().wrapper });
+
+    await waitFor(() => expect(result.current).toBe(false));
+    expect(source.readSeason).not.toHaveBeenCalled();
   });
 
-  it('hides the banner when the store holds no season snapshot', () => {
-    const { result } = renderHook(() => useTodaySeasonBanner());
+  it('shows the banner while the season the Season route loaded is open', async () => {
+    const { result } = renderBesideSeasonRoute(createSeasonDataSource({ readSeason: vi.fn().mockResolvedValue(makeSeason()) }));
 
-    expect(result.current).toBe(false);
+    await waitFor(() => expect(result.current).toBe(true));
   });
 
-  it('shows the banner while the loaded season is open', () => {
-    setSeasonStoreState({ season: seasonSnapshot('open') });
+  it('hides the banner while a closed historical season is viewed read-only', async () => {
+    setSeasonStoreState({ viewSeasonId: 'season-old', readOnly: true });
+    const source = createSeasonDataSource({ readPastSeason: vi.fn().mockResolvedValue(makeSeason({ id: 'season-old', status: 'closed' })) });
+    const { result } = renderBesideSeasonRoute(source);
 
-    const { result } = renderHook(() => useTodaySeasonBanner());
-
-    expect(result.current).toBe(true);
-  });
-
-  it('hides the banner while a closed historical season is loaded read-only', () => {
-    viewClosedHistory();
-
-    const { result } = renderHook(() => useTodaySeasonBanner());
-
+    await waitFor(() => expect(source.readPastSeason).toHaveBeenCalledWith('season-old'));
     expect(result.current).toBe(false);
   });
 });

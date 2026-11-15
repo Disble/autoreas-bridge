@@ -5,7 +5,7 @@ import type { OrderingBoard, SeasonOrderingSnapshot, SeasonSource } from '../../
 import { resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
 import { ORDERING_AUTOSAVE_DEBOUNCE_MS, ORDERING_DUPLICATE_WEEKDAY_ERROR, ORDERING_HISTORY_LOAD_ERROR } from '../ordering-board.constants';
 import { useOrderingBoard } from '../use-ordering-board';
-import { card, createSource, dragOverEvent, snapshot, waitPastAutosave } from './ordering-board.test-support';
+import { card, createSource, dragOverEvent, orderingQueryWrapper, snapshot, waitPastAutosave } from './ordering-board.test-support';
 
 describe('useOrderingBoard', () => {
   afterEach(() => {
@@ -19,7 +19,7 @@ describe('useOrderingBoard', () => {
       rail: [card({ animeId: 'r', section: 'Visto' })],
       grid: [card({ animeId: 'g', dia: 'Jueves', orden: 1 })],
     });
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
 
     await waitFor(() => expect(result.current.rail).toHaveLength(1));
     expect(result.current.columns['Jueves'].map((c) => c.animeId)).toEqual(['g']);
@@ -37,7 +37,7 @@ describe('useOrderingBoard', () => {
         ghost: [{ dia: 'Lunes', orden: 2 }],
       }),
     });
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
 
     await waitFor(() => expect(result.current.columns['Lunes'].map((c) => c.animeId)).toEqual(['r']));
     expect(result.current.columns['Sábado'].map((c) => c.animeId)).toEqual(['r']);
@@ -55,7 +55,7 @@ describe('useOrderingBoard', () => {
     ['a draft entry that is not a placement list', { draft: '{"g":5}' }],
   ])('ignores the saved draft on %s', async (_name, overrides) => {
     const source = createSource({ rail: [], grid: [card({ animeId: 'g', dia: 'Jueves', orden: 1 })], draft: '{"g":[{"dia":"Lunes","orden":1}]}', ...overrides });
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
 
     await waitFor(() => expect(result.current.columns['Jueves'].map((c) => c.animeId)).toEqual(['g']));
     expect(result.current.columns['Lunes']).toEqual([]);
@@ -67,7 +67,7 @@ describe('useOrderingBoard', () => {
       grid: [card({ animeId: 'g', dia: 'Lunes' }), card({ animeId: 'g', dia: 'Jueves' })],
     });
     const getAnimeCover = vi.fn((animeId: string) => Promise.resolve({ source: 'cover', dataUrl: `data:${animeId}` }));
-    const { result } = renderHook(() => useOrderingBoard(source, { getAnimeCover }));
+    const { result } = renderHook(() => useOrderingBoard(source, { getAnimeCover }), { wrapper: orderingQueryWrapper().wrapper });
 
     await waitFor(() => expect(result.current.getCoverThumb('g').coverSrc).toBe('data:g'));
     expect(result.current.getCoverThumb('r').coverSrc).toBe('data:r');
@@ -80,7 +80,7 @@ describe('useOrderingBoard', () => {
   ])('%s', async (_name, errorMessage, expected) => {
     setSeasonStoreState({ errorMessage });
     const source = createSource({ rail: [card({ animeId: 'r' })], grid: [] });
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
 
     await waitFor(() => expect(result.current.rail).toHaveLength(1));
     expect(result.current.errorMessage).toBe(expected);
@@ -93,7 +93,7 @@ describe('useOrderingBoard', () => {
       { getOrderingBoard: vi.fn(() => new Promise<OrderingBoard>((resolve) => { resolveBoard = resolve; })) },
     );
 
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
 
     expect(result.current.historicalRecorded).toBe(true);
     expect(result.current.isHistoricalLoading).toBe(false);
@@ -108,7 +108,7 @@ describe('useOrderingBoard', () => {
 
   it('duplicate stages a rail copy and removeCard keeps the last card (min-one)', async () => {
     const source = createSource({ rail: [], grid: [card({ animeId: 'g', dia: 'Lunes', orden: 1 })] });
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
     await waitFor(() => expect(result.current.columns['Lunes']).toHaveLength(1));
 
     act(() => result.current.duplicate('g'));
@@ -126,7 +126,7 @@ describe('useOrderingBoard', () => {
 
   it('duplicate stages repeated pending rail copies from an approved rail card', async () => {
     const source = createSource({ rail: [card({ animeId: 'g', section: 'Visto', orden: 2 })], grid: [] });
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
 
     await waitFor(() => expect(result.current.rail).toHaveLength(1));
 
@@ -149,7 +149,7 @@ describe('useOrderingBoard', () => {
 
   it('duplicate stages repeated pending rail copies from an approved rail card with empty section', async () => {
     const source = createSource({ rail: [card({ animeId: 'g', section: '', orden: 0 })], grid: [] });
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
 
     await waitFor(() => expect(result.current.rail).toHaveLength(1));
 
@@ -175,7 +175,7 @@ describe('useOrderingBoard', () => {
       rail: [],
       grid: [card({ animeId: 'g', dia: 'Lunes', orden: 1 }), card({ animeId: 'g', dia: 'Lunes', orden: 2 })],
     });
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
 
     await waitFor(() => expect(result.current.columns['Lunes']).toHaveLength(2));
     vi.mocked(source.saveOrderingDraft).mockClear();
@@ -192,7 +192,7 @@ describe('useOrderingBoard', () => {
       rail: [],
       grid: [card({ animeId: 'g', dia: 'Lunes', orden: 1 }), card({ animeId: 'g', dia: 'Lunes', orden: 2 })],
     });
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
 
     await waitFor(() => expect(result.current.columns['Lunes']).toHaveLength(2));
 
@@ -206,7 +206,7 @@ describe('useOrderingBoard', () => {
 
   it('cancels forbidden same-anime weekday hover before projected move state is applied', async () => {
     const source = createSource({ rail: [card({ animeId: 'g', section: 'Visto', orden: 2 })], grid: [card({ animeId: 'g', dia: 'Jueves', orden: 1 })] });
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
 
     await waitFor(() => expect(result.current.rail).toHaveLength(1));
 
@@ -227,7 +227,7 @@ describe('useOrderingBoard', () => {
 
   it('keeps valid dragover behavior for allowed targets', async () => {
     const source = createSource({ rail: [card({ animeId: 'g', section: 'Visto', orden: 2 })], grid: [card({ animeId: 'other', dia: 'Jueves', orden: 1 })] });
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
 
     await waitFor(() => expect(result.current.rail).toHaveLength(1));
 
@@ -242,7 +242,7 @@ describe('useOrderingBoard', () => {
 
   it('onApply saves the serialized draft then applies the schedule', async () => {
     const source = createSource({ rail: [], grid: [card({ animeId: 'g', dia: 'Lunes', orden: 1 })] });
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
     await waitFor(() => expect(result.current.columns['Lunes']).toHaveLength(1));
 
     await act(async () => {
@@ -254,13 +254,13 @@ describe('useOrderingBoard', () => {
 
   it('marks an already-applied board read-only', async () => {
     const source = createSource({ rail: [], grid: [], appliedAt: 1_700_000_000_000 });
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
     await waitFor(() => expect(result.current.readOnly).toBe(true));
   });
 
   it('keeps the board editable when appliedAt is null', async () => {
     const source = createSource({ rail: [], grid: [], appliedAt: null as unknown as number });
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
 
     await waitFor(() => expect(vi.mocked(source.getOrderingBoard)).toHaveBeenCalledTimes(1));
     expect(result.current.readOnly).toBe(false);
@@ -276,7 +276,7 @@ describe('useOrderingBoard', () => {
           .mockResolvedValueOnce({ rail: [], grid: [], appliedAt: null as unknown as number }),
       },
     );
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
 
     await waitFor(() => expect(result.current.readOnly).toBe(true));
 
@@ -303,7 +303,7 @@ describe('useOrderingBoard', () => {
       { getSeasonOrderingSnapshot: readSnapshot },
     );
 
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
 
     await waitFor(() => expect(result.current.rail.map((instance) => instance.animeId)).toEqual(['stored-rail']));
     expect(result.current.columns['Jueves'].map((instance) => instance.animeId)).toEqual(['stored-grid']);
@@ -322,7 +322,7 @@ describe('useOrderingBoard', () => {
     );
     const source = createSource({ rail: [], grid: [] }, { getSeasonOrderingSnapshot: readSnapshot });
 
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
     expect(result.current.isHistoricalLoading).toBe(true);
 
     await act(async () => {
@@ -338,7 +338,7 @@ describe('useOrderingBoard', () => {
     const readSnapshot = vi.fn((seasonId: string) => Promise.resolve(snapshot({ rail: [card({ animeId: `stored-${seasonId}` })] })));
     const source = createSource({ rail: [], grid: [] }, { getSeasonOrderingSnapshot: readSnapshot });
 
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
     await waitFor(() => expect(result.current.rail.map((instance) => instance.animeId)).toEqual(['stored-season-a']));
 
     act(() => setSeasonStoreState({ viewSeasonId: 'season-b' }));
@@ -358,7 +358,7 @@ describe('useOrderingBoard', () => {
       },
     );
 
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
     await waitFor(() => expect(result.current.isHistoricalLoading).toBe(false));
 
     act(() => setSeasonStoreState({ viewSeasonId: null }));
@@ -394,7 +394,7 @@ describe('useOrderingBoard', () => {
       { getSeasonOrderingSnapshot: vi.fn().mockResolvedValue(snapshot({ recorded: false })) },
     );
 
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
 
     await waitFor(() => expect(result.current.isHistoricalLoading).toBe(false));
     expect(result.current.historicalRecorded).toBe(false);
@@ -409,7 +409,7 @@ describe('useOrderingBoard', () => {
       { getSeasonOrderingSnapshot: vi.fn().mockRejectedValue(new Error('history read failed')) },
     );
 
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
 
     await waitFor(() => expect(result.current.historicalError).toBe('history read failed'));
     expect(result.current.isHistoricalLoading).toBe(false);
@@ -422,7 +422,7 @@ describe('useOrderingBoard', () => {
     setSeasonStoreState({ viewSeasonId: 'season-old', readOnly: true });
     const source = createSource({ rail: [card({ animeId: 'live-only' })], grid: [] });
 
-    const { result } = renderHook(() => useOrderingBoard(source));
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper().wrapper });
 
     await waitFor(() => expect(result.current.historicalError).toBe(ORDERING_HISTORY_LOAD_ERROR));
     expect(result.current.historicalRecorded).toBe(false);

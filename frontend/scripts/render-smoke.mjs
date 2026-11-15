@@ -62,8 +62,9 @@ const ROUTE_MARKERS = {
   // No Wails runtime reports the anime module ready, so the Catalog stays in its
   // loading state (ADR-032) and its static loading label is the marker.
   '/#/catalog': ['Loading catalog'],
-  // No open season resolves headless, so the create-season card is the deterministic marker.
-  '/#/season': ['Create a season to start the selection workflow.'],
+  // No Wails runtime reports the season module ready, so the Season workspace
+  // stays in its loading state (ADR-032) and its static loading label is the marker.
+  '/#/season': ['Loading season'],
   '/#/devices': ['Trigger Reconcile'],
   // The default Settings tab is Library, so its field proves the tab body rendered.
   '/#/settings': ['Set where your anime library lives on this computer.', 'Library root'],

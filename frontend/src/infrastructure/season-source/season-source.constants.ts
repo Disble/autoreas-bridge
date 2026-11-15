@@ -3,6 +3,7 @@ import type {
   ConfirmSelectionResult,
   OrderingBoard,
   SeasonProviderSearchResult,
+  SeasonQuerySource,
   SeasonSource,
   SendToVerHoyResult,
 } from '../../shared/contracts/season.types';
@@ -49,7 +50,7 @@ export const SEASON_APPLY_UNAVAILABLE: ApplyScheduleResult = {
 };
 
 /** Module-local singleton container for the shared season source. */
-export const SEASON_SOURCE_STATE: { sharedSource: SeasonSource | null } = {
+export const SEASON_SOURCE_STATE: { sharedSource: (SeasonSource & SeasonQuerySource) | null } = {
   sharedSource: null,
 };
 
