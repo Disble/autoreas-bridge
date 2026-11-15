@@ -79,7 +79,10 @@ flowchart LR
   event→invalidation bridge and the readiness gate.
 - **Features** (`frontend/src/features/**`). Hooks call `useBridgeQuery`/`useBridgeMutation` and
   `toAsyncView`; `.tsx` files render the returned state only.
-- **Composition** (`frontend/src/app/**`). Wires concrete sources into the ports features depend on.
+- **Composition.** One module in `shared/query` constructs the concrete adapters; it is the only shared
+  code that imports `infrastructure/**`, which `.dharness/fallow.jsonc` already allows for `shared`.
+  The rest of `shared/query` depends on ports. `frontend/src/app/**` only mounts the provider: it may
+  import only `features` and `shared`.
 
 ## Startup sequence
 
@@ -130,8 +133,8 @@ entry fails in pre-commit (staged) and in `pre-merge-commit` (whole tree), namin
 
 ## Known drift
 
-Measured on `feat/async-state-standard` after the Go foundation (ADR-032 task T2); the frontend items
-are unchanged from `dev` `fe1fa0fa`:
+Measured on `feat/async-state-standard` after the Go foundation (ADR-032 task T2) and the frontend
+runtime (task T3a):
 
 - The Go foundation exists: `internal/lifecycle` (registry and writer), `internal/apperr` (codes,
   `error-codes.json`), `internal/modules` (`Handle[S]`, `Shell`), `GetReadiness`, the
@@ -142,10 +145,36 @@ are unchanged from `dev` `fe1fa0fa`:
   53 `binding-signature` entries (printed by `go run ./tools/checkarchitecture`).
 - `GetEpisodeSchedule` and `GetEpisodeDayCounts` return `[]` when the episode service is nil or fails
   (`internal/desktop/app_runtime.go`); the episodes pilot (T4) moves them onto a handle.
-- Nothing in `frontend/src` calls `GetReadiness` or parses the JSON failure string yet (T3).
-- `invokeGoBinding` (`frontend/src/infrastructure/wails-bindings.helpers.ts:64`) answers adapter
-  fallbacks such as `() => []` when a binding never attaches.
-- 126 non-test feature files and 16 non-test shared files import `infrastructure/` (grep of import
-  specifiers).
-- Server state lives in 4 Zustand read-models (ADR-006) and in hand-fetching hooks; TanStack Query is not
-  installed.
+- The frontend runtime exists, but no feature uses it yet (the Today pilot, T4, is the first):
+  - `@tanstack/react-query` 5.107.1 is installed and imported only under `frontend/src/shared/query/`.
+  - `shared/query/query-client/query-client.helpers.ts`: `createBridgeQueryClient` with the defaults
+    above; `unavailable` is retried at most 4 times (500, 1000, 2000, 4000 ms).
+  - `shared/query/use-bridge-query/use-bridge-query.ts` (`module` option = readiness gate,
+    previous data kept on key change), `shared/query/use-bridge-mutation/use-bridge-mutation.ts` (never
+    retried), `shared/query/query-keys/query-keys.helpers.ts` (`defineQueryKeys`),
+    `shared/query/async-view/async-view.helpers.ts` (`toAsyncView`; only an empty array is empty by
+    default, other shapes pass a predicate).
+  - `shared/query/readiness-gate/readiness-gate.helpers.ts`: `createReadinessGate` subscribes first,
+    then calls the snapshot, and applies the terminal-state rule.
+  - `shared/query/invalidation-bridge/invalidation-bridge.helpers.ts`: one registry, mounted once by
+    `shared/query/BridgeQueryProvider/BridgeQueryProvider.tsx`; no context registers a rule yet
+    (`BRIDGE_INVALIDATIONS` in `shared/query/bridge-runtime/bridge-runtime.constants.ts`).
+  - `shared/query/bridge-error/` holds the `BridgeError` contract and its codes;
+    `infrastructure/bridge-error/bridge-error.helpers.ts` (`parseBridgeError`, `withBridgeErrors`)
+    parses Wails rejections, and its test compares the codes with `internal/apperr/error-codes.json`.
+  - `infrastructure/readiness/readiness-source.helpers.ts` is the Wails adapter of the
+    `ReadinessSource` port (`shared/contracts/readiness.types.ts`); `createRuntimeEventSource`
+    (`infrastructure/wails-bindings.helpers.ts`) is the event adapter.
+  - `shared/query/bridge-runtime/bridge-runtime.constants.ts` is the composition module: it builds the
+    client, the gate over the readiness adapter, the event adapter and the invalidation registry, and
+    is the only `shared/query` file importing `infrastructure/**`.
+    `frontend/src/app/BridgeDataProvider/BridgeDataProvider.tsx` only mounts the provider with them; it
+    is mounted in `frontend/src/main.tsx` inside `React.StrictMode`.
+  - `bun run generate:feature` emits a hook that reads through `useBridgeQuery` + `toAsyncView`, with a
+    placeholder loader that rejects until the author wires the binding.
+- `invokeGoBinding` (`frontend/src/infrastructure/wails-bindings.helpers.ts`) still answers adapter
+  fallbacks such as `() => []` when a binding never attaches, for every source that has not migrated.
+- 126 non-test feature files and 15 non-test shared files import `infrastructure/` (grep of import
+  specifiers); `shared/query` imports none.
+- Server state still lives in 4 Zustand read-models (ADR-006) and in hand-fetching hooks; the ESLint
+  gates that confine `@tanstack/react-query`, `infrastructure/**` and `EventsOn` are not in place yet (T3b).

@@ -98,8 +98,10 @@ until the state is fixed).
 - `features/**` → `shared/query/**` (application layer, depends on source **ports**) →
   `infrastructure/**` (adapters, the only binding callers). TanStack Query is confined to
   `shared/query/**` as Wails is confined to `internal/desktop`.
-- Concrete sources are wired in `src/app/**` and injected as ports; a provider component there with no
-  state or effect hooks is composition.
+- Concrete adapters are constructed in one composition module in `shared/query`, the only shared code
+  allowed to import `infrastructure/**` (which `.dharness/fallow.jsonc` already allows for `shared`);
+  the rest of `shared/query` depends on ports. `src/app/**` only mounts the provider: it may import
+  only `features` and `shared`.
 - `shared/query` owns: the `QueryClient` defaults (`networkMode: 'always'`, no focus/reconnect refetch,
   retry only on `unavailable`, bounded), per-context query-key factories, the single event→invalidation
   bridge, and the readiness gate (subscribe to `bridge.readiness` first, then call `GetReadiness()`,
