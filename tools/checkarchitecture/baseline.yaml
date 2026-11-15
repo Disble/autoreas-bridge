@@ -56,9 +56,6 @@ violations:
     file: internal/desktop/app_preferences.go
     symbol: SetLibraryRoot
   - rule: binding-signature
-    file: internal/desktop/app_runtime.go
-    symbol: GetAnimes
-  - rule: binding-signature
     file: internal/desktop/app_season.go
     symbol: CloseSeason
   - rule: binding-signature
@@ -139,12 +136,6 @@ violations:
   - rule: binding-uses-handle
     file: internal/desktop/app_api_address.go
     symbol: SetAPIAddress
-  - rule: binding-uses-handle
-    file: internal/desktop/app_cover.go
-    symbol: GetAnimeCover
-  - rule: binding-uses-handle
-    file: internal/desktop/app_cover.go
-    symbol: PreviewAnimeCover
   - rule: binding-uses-handle
     file: internal/desktop/app_desktop_actions.go
     symbol: CopyAnimeFolder
@@ -262,21 +253,6 @@ violations:
   - rule: binding-uses-handle
     file: internal/desktop/app_runtime.go
     symbol: AdjustWatchedEpisodes
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime.go
-    symbol: GetAnimeDetail
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime.go
-    symbol: GetAnimeDetailView
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime.go
-    symbol: GetAnimeWatchHistoryPage
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime.go
-    symbol: GetAnimes
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime.go
-    symbol: GetWatchHistoryPage
   - rule: binding-uses-handle
     file: internal/desktop/app_runtime.go
     symbol: RepeatAnime
