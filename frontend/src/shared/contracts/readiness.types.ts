@@ -1,3 +1,5 @@
+import type { MODULE_IDS } from './readiness.constants';
+
 /**
  * Lifecycle state of one backend module (ADR-032 §1, `internal/lifecycle`).
  * `ready` and `failed` are terminal: a module never moves out of them.
@@ -5,20 +7,11 @@
 export type ReadinessState = 'starting' | 'ready' | 'failed';
 
 /**
- * Every module the composition root registers (`internal/desktop/app_readiness.go`,
- * `registeredModules`). A query names one of these to wait for its readiness.
+ * Every module the composition root registers, built from `MODULE_IDS` (kept in
+ * parity with Go `registeredModules` through `internal/lifecycle/modules.json`).
+ * A query names one of these to wait for its readiness.
  */
-export type ModuleId =
-  | 'observability'
-  | 'sync'
-  | 'devices'
-  | 'settings'
-  | 'anime'
-  | 'episodes'
-  | 'api'
-  | 'season'
-  | 'downloads'
-  | 'notifications';
+export type ModuleId = (typeof MODULE_IDS)[number];
 
 /**
  * One module's readiness, as `GetReadiness()` and each `bridge.readiness`

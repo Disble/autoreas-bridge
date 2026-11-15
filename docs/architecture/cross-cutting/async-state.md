@@ -113,6 +113,19 @@ already arrived. Because `ready` and `failed` are terminal, a snapshot that answ
 module the gate already saw `ready` or `failed` is stale: the gate keeps the terminal state and never
 moves a module back to `starting`.
 
+**Re-sync.** While at least one gated query waits on a `starting` module, the gate re-reads
+`GetReadiness()` after 1, 2, 4 and then every 8 s (`READINESS_RESYNC_DELAYS_MS`), merging each answer
+under the terminal-state rule, so a dropped `ready` or `failed` event cannot keep the skeleton forever;
+a failed re-read keeps waiting, and the timer stops (and the backoff starts over) as soon as nothing
+waits. It is not a timeout: the backend never leaves a module `starting`. The Wails adapter reports an
+unreadable `bridge.readiness` event through the shared frontend error reporter instead of dropping it
+silently.
+
+**Re-run on settle.** When a module first turns `ready` or `failed` (from an event or a snapshot), the
+provider invalidates that module's gated queries that are in error (`rerunFailedGatedQueries`), so a
+query a failed `GetReadiness()` left failed then runs, or shows the module's failure Alert; queries
+still waiting are resolved or failed by the gate itself.
+
 ## QueryClient defaults
 
 | Option | Value | Why |
@@ -134,7 +147,7 @@ entry fails in pre-commit (staged) and in `pre-merge-commit` (whole tree), namin
 ## Known drift
 
 Measured on `feat/async-state-standard` after the Go foundation (ADR-032 task T2) and the frontend
-runtime (task T3a):
+runtime with its gate recovery (tasks T3a, T3d):
 
 - The Go foundation exists: `internal/lifecycle` (registry and writer), `internal/apperr` (codes,
   `error-codes.json`), `internal/modules` (`Handle[S]`, `Shell`), `GetReadiness`, the
@@ -155,7 +168,13 @@ runtime (task T3a):
     `shared/query/async-view/async-view.helpers.ts` (`toAsyncView`; only an empty array is empty by
     default, other shapes pass a predicate).
   - `shared/query/readiness-gate/readiness-gate.helpers.ts`: `createReadinessGate` subscribes first,
-    then calls the snapshot, and applies the terminal-state rule.
+    then calls the snapshot, applies the terminal-state rule, re-syncs while a query waits on a
+    `starting` module and announces each settled module (`onSettled`);
+    `shared/query/use-bridge-query/use-bridge-query.helpers.ts` (`rerunFailedGatedQueries`) re-runs
+    that module's failed queries, wired by `BridgeQueryProvider`.
+  - The frontend `ModuleId` is built from `MODULE_IDS` (`shared/contracts/readiness.constants.ts`);
+    a Vitest test (`infrastructure/readiness`) and a Go test (`internal/desktop`) pin both sides to
+    `internal/lifecycle/modules.json`.
   - `shared/query/invalidation-bridge/invalidation-bridge.helpers.ts`: one registry, mounted once by
     `shared/query/BridgeQueryProvider/BridgeQueryProvider.tsx`; no context registers a rule yet
     (`BRIDGE_INVALIDATIONS` in `shared/query/bridge-runtime/bridge-runtime.constants.ts`).
@@ -163,7 +182,8 @@ runtime (task T3a):
     `infrastructure/bridge-error/bridge-error.helpers.ts` (`parseBridgeError`, `withBridgeErrors`)
     parses Wails rejections, and its test compares the codes with `internal/apperr/error-codes.json`.
   - `infrastructure/readiness/readiness-source.helpers.ts` is the Wails adapter of the
-    `ReadinessSource` port (`shared/contracts/readiness.types.ts`); `createRuntimeEventSource`
+    `ReadinessSource` port (`shared/contracts/readiness.types.ts`); it reports an unreadable event
+    through `frontendErrorReporter` (`shared/error-reporting`); `createRuntimeEventSource`
     (`infrastructure/wails-bindings.helpers.ts`) is the event adapter.
   - `shared/query/bridge-runtime/bridge-runtime.constants.ts` is the composition module: it builds the
     client, the gate over the readiness adapter, the event adapter and the invalidation registry, and
@@ -174,7 +194,9 @@ runtime (task T3a):
     placeholder loader that rejects until the author wires the binding.
 - `invokeGoBinding` (`frontend/src/infrastructure/wails-bindings.helpers.ts`) still answers adapter
   fallbacks such as `() => []` when a binding never attaches, for every source that has not migrated.
-- 126 non-test feature files and 15 non-test shared files import `infrastructure/` (grep of import
-  specifiers); `shared/query` imports none.
+- 125 non-test feature files and 16 non-test shared files import `infrastructure/`, measured with
+  `grep -rlE "from '(\.\./)+infrastructure/" src/<layer> --include=*.ts --include=*.tsx | grep -v __tests__`
+  from `frontend/`. One of the 16 is in `shared/query`: the composition module
+  `bridge-runtime/bridge-runtime.constants.ts`; the rest of `shared/query` imports none.
 - Server state still lives in 4 Zustand read-models (ADR-006) and in hand-fetching hooks; the ESLint
   gates that confine `@tanstack/react-query`, `infrastructure/**` and `EventsOn` are not in place yet (T3b).

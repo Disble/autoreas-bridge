@@ -1,6 +1,7 @@
 import type { ModuleId, ModuleReadiness, ReadinessSource } from '../../contracts/readiness.types';
 import { createBridgeError } from '../bridge-error/bridge-error.helpers';
-import type { ReadinessGate, ReadinessGateDecision, ReadinessGateState } from './readiness-gate.types';
+import { READINESS_RESYNC_DELAYS_MS } from './readiness-gate.constants';
+import type { ReadinessGate, ReadinessGateDecision, ReadinessGateState, SettledListener } from './readiness-gate.types';
 
 /** Tells whether a module already reached a state it can never leave. */
 function isTerminal(entry: ModuleReadiness | undefined): boolean {
@@ -29,6 +30,22 @@ export function mergeReadinessSnapshot(
   snapshot: readonly ModuleReadiness[],
 ): ReadonlyMap<string, ModuleReadiness> {
   return snapshot.reduce(mergeModuleReadiness, current);
+}
+
+/**
+ * Lists the modules `next` holds in a terminal state that `previous` did not:
+ * under the terminal rule each module appears here once in a gate's life.
+ */
+function newlySettled(
+  previous: ReadonlyMap<string, ModuleReadiness>,
+  next: ReadonlyMap<string, ModuleReadiness>,
+): ModuleReadiness[] {
+  return [...next.values()].filter((entry) => isTerminal(entry) && !isTerminal(previous.get(entry.module)));
+}
+
+/** The delay before re-sync read `attempt` (0-based): the backoff, capped at its last step. */
+function resyncDelay(attempt: number): number {
+  return READINESS_RESYNC_DELAYS_MS[Math.min(attempt, READINESS_RESYNC_DELAYS_MS.length - 1)];
 }
 
 /**
@@ -64,14 +81,53 @@ interface Waiter {
  * before it asks for the snapshot (Wails drops events emitted before a
  * listener exists, and the snapshot covers what came earlier). A failed
  * snapshot rejects the current waiters with its error; the next wait asks again.
+ * While a waiter waits on a `starting` module the gate re-reads the snapshot
+ * with a capped backoff (`READINESS_RESYNC_DELAYS_MS`), in case that module's
+ * event was dropped; a failed re-read keeps waiting, and no timer runs when
+ * nothing waits. Each module that settles is announced once to `onSettled`.
  */
 export function createReadinessGate(source: ReadinessSource): ReadinessGate {
   let state: ReadinessGateState = { modules: new Map(), snapshotLoaded: false };
   let started = false;
   let snapshotInFlight = false;
+  let resyncTimer: ReturnType<typeof setTimeout> | undefined;
+  let resyncAttempt = 0;
+  let resyncInFlight = false;
   const waiters = new Set<Waiter>();
+  const settledListeners = new Set<SettledListener>();
 
-  const settleWaiters = () => {
+  // Once the snapshot loaded, `settleWaiters` settles every waiter whose module is
+  // ready, failed or unknown, so any waiter left waits on a `starting` module.
+  const waitsOnStartingModule = () => state.snapshotLoaded && waiters.size > 0;
+
+  // Hoisted: the re-sync, the waiters and `apply` call each other.
+  function scheduleResync() {
+    if (!waitsOnStartingModule()) {
+      clearTimeout(resyncTimer);
+      resyncTimer = undefined;
+      resyncAttempt = 0;
+    } else if (resyncTimer === undefined && !resyncInFlight) {
+      resyncTimer = setTimeout(resync, resyncDelay(resyncAttempt));
+    }
+  }
+
+  function resync() {
+    resyncTimer = undefined;
+    resyncInFlight = true;
+    resyncAttempt += 1;
+    source.getReadiness().then(
+      (snapshot) => {
+        resyncInFlight = false;
+        apply({ modules: mergeReadinessSnapshot(state.modules, snapshot), snapshotLoaded: true });
+      },
+      () => {
+        resyncInFlight = false;
+        scheduleResync();
+      },
+    );
+  }
+
+  function settleWaiters() {
     for (const waiter of [...waiters]) {
       const decision = decideGate(state, waiter.module);
       if (decision.kind === 'run') {
@@ -80,12 +136,15 @@ export function createReadinessGate(source: ReadinessSource): ReadinessGate {
         waiter.reject(decision.error);
       }
     }
-  };
+    scheduleResync();
+  }
 
-  const apply = (next: ReadinessGateState) => {
+  function apply(next: ReadinessGateState) {
+    const settled = newlySettled(state.modules, next.modules);
     state = next;
     settleWaiters();
-  };
+    settled.forEach((entry) => settledListeners.forEach((listener) => listener(entry)));
+  }
 
   const requestSnapshot = () => {
     if (state.snapshotLoaded || snapshotInFlight) {
@@ -124,6 +183,7 @@ export function createReadinessGate(source: ReadinessSource): ReadinessGate {
         waiters.delete(waiter);
         signal?.removeEventListener('abort', onAbort);
         settle(value);
+        scheduleResync();
       };
       const waiter: Waiter = { module, resolve: finish(resolve), reject: finish(reject) };
       waiters.add(waiter);
@@ -132,7 +192,14 @@ export function createReadinessGate(source: ReadinessSource): ReadinessGate {
     });
   };
 
-  return { start, whenReady };
+  const onSettled = (listener: SettledListener) => {
+    settledListeners.add(listener);
+    return () => {
+      settledListeners.delete(listener);
+    };
+  };
+
+  return { start, whenReady, onSettled };
 }
 
 /**

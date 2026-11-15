@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"sync"
@@ -15,6 +17,7 @@ import (
 	"autoreas-bridge/internal/api"
 	"autoreas-bridge/internal/apperr"
 	"autoreas-bridge/internal/download"
+	"autoreas-bridge/internal/lifecycle"
 	"autoreas-bridge/internal/notification/center"
 	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/season"
@@ -56,6 +59,25 @@ func readinessOf(t *testing.T, app *App) []ModuleReadiness {
 		t.Fatalf("GetReadiness() error = %v", err)
 	}
 	return snapshot.Modules
+}
+
+// TestRegisteredModulesMatchTheSharedJSON pins registeredModules to
+// internal/lifecycle/modules.json, which the frontend ModuleId parity test reads too.
+func TestRegisteredModulesMatchTheSharedJSON(t *testing.T) {
+	t.Parallel()
+	raw, err := os.ReadFile(filepath.Join("..", "lifecycle", "modules.json"))
+	if err != nil {
+		t.Fatalf("read modules.json: %v", err)
+	}
+	var document struct {
+		Modules []lifecycle.ModuleID `json:"modules"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatalf("decode modules.json: %v", err)
+	}
+	if !slices.Equal(registeredModules, document.Modules) {
+		t.Fatalf("registeredModules = %v, modules.json = %v", registeredModules, document.Modules)
+	}
 }
 
 func TestGetReadinessBeforeStartupReportsEveryModuleStarting(t *testing.T) {

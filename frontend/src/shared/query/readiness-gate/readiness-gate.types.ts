@@ -19,6 +19,9 @@ export type ReadinessGateDecision =
   | { readonly kind: 'wait' }
   | { readonly kind: 'fail'; readonly error: BridgeError };
 
+/** Receives one module's readiness the moment it first turns `ready` or `failed`. */
+export type SettledListener = (status: ModuleReadiness) => void;
+
 /** The readiness gate one `BridgeQueryProvider` owns. */
 export interface ReadinessGate {
   /** Subscribes to transitions, then asks for the snapshot. Idempotent. */
@@ -28,4 +31,10 @@ export interface ReadinessGate {
    * once it failed. Aborting `signal` rejects with the signal's reason.
    */
   readonly whenReady: (module: ModuleId, signal?: AbortSignal) => Promise<void>;
+  /**
+   * Calls `listener` once per module when it first turns `ready` or `failed`,
+   * from an event or a snapshot; returns the unsubscribe function.
+   * `BridgeQueryProvider` re-runs that module's failed queries with it.
+   */
+  readonly onSettled: (listener: SettledListener) => () => void;
 }

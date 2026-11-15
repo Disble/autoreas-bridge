@@ -71,6 +71,10 @@ then settles at the step that wires it:
 | `downloads` | download service and download readiness service are wired | `startDownloadOrchestration` |
 | `notifications` | notification center executor is wired | `wireNotificationCenterIntentExecutor` |
 
+- `registeredModules` (`app_readiness.go`) lists them in this order. `internal/lifecycle/modules.json`
+  holds the same list for the frontend: `TestRegisteredModulesMatchTheSharedJSON` pins it to
+  `registeredModules`, and a Vitest test pins the frontend `MODULE_IDS` (from which `ModuleId` is
+  built) to it, so adding a module without the other side fails a test.
 - A module whose services are missing is `failed` with `"<module>: <what> was not wired"`.
 - `startup` returning early fails every module still starting: `"system tray failed to start: <err>"`
   or `"bridge database failed to open: <err>"`. No module stays `starting`.

@@ -1,17 +1,13 @@
 import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
 import { BRIDGE_ERROR_CODES } from '../../../shared/query/bridge-error/bridge-error.constants';
+import { findRepositoryFile } from '../../test-support/repository-file.test-support';
 import { parseBridgeError, withBridgeErrors } from '../bridge-error.helpers';
 
 /** `internal/apperr/error-codes.json`, the Go side's list of failure codes. */
-const goErrorCodesPath = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '../../../../../internal/apperr/error-codes.json',
-);
+const goErrorCodesPath = findRepositoryFile('internal/apperr/error-codes.json', import.meta.url);
 
 describe('parseBridgeError', () => {
   it.each([

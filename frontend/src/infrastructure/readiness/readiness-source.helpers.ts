@@ -1,6 +1,9 @@
 import { GetReadiness } from '../../../wailsjs/go/desktop/App';
 import { EventsOn } from '../../../wailsjs/runtime/runtime';
 import type { ModuleReadiness, ReadinessSource, ReadinessState } from '../../shared/contracts/readiness.types';
+import { buildFrontendErrorReport } from '../../shared/error-reporting/error-reporting.helpers';
+import type { ReportFrontendError } from '../../shared/error-reporting/error-reporting.types';
+import { frontendErrorReporter, readBrowserErrorContext } from '../../shared/error-reporting/install-global-error-handlers';
 import { createBridgeError } from '../../shared/query/bridge-error/bridge-error.helpers';
 import { withBridgeErrors } from '../bridge-error/bridge-error.helpers';
 import { createRuntimeSubscription, invokeGoBinding } from '../wails-bindings.helpers';
@@ -42,16 +45,22 @@ function toReadinessSnapshot(wire: unknown): readonly ModuleReadiness[] {
 /**
  * The Wails adapter of the `ReadinessSource` port. `subscribe` shares one
  * `bridge.readiness` listener across consumers (StrictMode double mounts
- * included) and drops an unreadable event; `getReadiness` rejects with a
+ * included); an unreadable event is not forwarded but reported through
+ * `report` (the shared frontend error reporter by default), so a drift between
+ * Go and this parser is visible instead of silent. The gate's snapshot re-sync
+ * covers the transition the event carried. `getReadiness` rejects with a
  * `BridgeError`, `unavailable` when the binding never attaches.
  */
-export function createReadinessSource(): ReadinessSource {
+export function createReadinessSource(report: ReportFrontendError = frontendErrorReporter): ReadinessSource {
   const transitions = createRuntimeSubscription<ModuleReadiness>((emit) =>
     EventsOn(READINESS_EVENT_NAME, (wire: unknown) => {
       const status = toModuleReadiness(wire);
-      if (status !== null) {
-        emit(status);
+      if (status === null) {
+        const unreadable = `${READINESS_EVENT_NAME} event is unreadable: ${JSON.stringify(wire)}`;
+        report(buildFrontendErrorReport('error', unreadable, readBrowserErrorContext(READINESS_EVENT_NAME)));
+        return;
       }
+      emit(status);
     }),
   );
 

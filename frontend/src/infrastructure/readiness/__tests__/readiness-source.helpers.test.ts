@@ -1,6 +1,26 @@
+import { readFileSync } from 'node:fs';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { MODULE_IDS } from '../../../shared/contracts/readiness.constants';
+import { findRepositoryFile } from '../../test-support/repository-file.test-support';
 import { toModuleReadiness } from '../readiness-source.helpers';
+
+/**
+ * Finds `internal/lifecycle/modules.json`, the Go side's list of registered modules.
+ * @returns The absolute path of the Go module list.
+ */
+function findGoModulesJson(): string {
+  return findRepositoryFile('internal/lifecycle/modules.json', import.meta.url);
+}
+
+describe('module-id parity', () => {
+  it('matches internal/lifecycle/modules.json exactly, in startup order', () => {
+    const goModules = (JSON.parse(readFileSync(findGoModulesJson(), 'utf8')) as { modules: string[] }).modules;
+
+    expect([...MODULE_IDS]).toEqual(goModules);
+  });
+});
 
 describe('toModuleReadiness', () => {
   it.each([
@@ -61,7 +81,8 @@ describe('createReadinessSource', () => {
     const wails = attachWails(() =>
       Promise.resolve({ modules: [{ module: 'episodes', state: 'starting' }, { module: 'api', state: 'failed', reason: 'api: bind' }] }),
     );
-    const source = createReadinessSource();
+    const report = vi.fn();
+    const source = createReadinessSource(report);
     const listener = vi.fn();
 
     source.subscribe(listener);
@@ -77,6 +98,9 @@ describe('createReadinessSource', () => {
     wails.handlers.get('bridge.readiness')?.({ module: 'episodes', state: 'ready' });
     wails.handlers.get('bridge.readiness')?.({ module: 'episodes', state: 'bogus' });
     expect(listener.mock.calls).toEqual([[{ module: 'episodes', state: 'ready' }]]);
+    expect(report.mock.calls).toEqual([
+      [expect.objectContaining({ kind: 'error', source: 'bridge.readiness', message: expect.stringContaining('"bogus"') })],
+    ]);
   });
 
   it.each([
