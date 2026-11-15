@@ -1,70 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { ModuleReadiness, ReadinessSource } from '../../../contracts/readiness.types';
+import type { ModuleReadiness } from '../../../contracts/readiness.types';
 import { createBridgeError } from '../../bridge-error/bridge-error.helpers';
+import { fakeSource, flush, status, track } from '../../test-support/readiness-source.test-support';
 import { createReadinessGate, decideGate, mergeModuleReadiness, mergeReadinessSnapshot, runGatedQuery } from '../readiness-gate.helpers';
-
-/** Shorthand for one module's readiness. */
-function status(module: string, state: ModuleReadiness['state'], reason?: string): ModuleReadiness {
-  return reason === undefined ? { module, state } : { module, state, reason };
-}
 
 /** A map holding the given statuses, keyed by module. */
 function modulesOf(...statuses: ModuleReadiness[]): ReadonlyMap<string, ModuleReadiness> {
   return new Map(statuses.map((entry) => [entry.module, entry]));
-}
-
-/**
- * A controllable readiness source: `emit` pushes a transition, `answer` and
- * `fail` settle the pending `getReadiness()` call, `calls` records the order.
- */
-function fakeSource() {
-  const calls: string[] = [];
-  const listeners = new Set<(status: ModuleReadiness) => void>();
-  const pending: { resolve: (snapshot: readonly ModuleReadiness[]) => void; reject: (error: unknown) => void }[] = [];
-  const source: ReadinessSource = {
-    getReadiness: () => {
-      calls.push('getReadiness');
-      return new Promise((resolve, reject) => pending.push({ resolve, reject }));
-    },
-    subscribe: (listener) => {
-      calls.push('subscribe');
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-  };
-
-  return {
-    source,
-    calls,
-    emit: (entry: ModuleReadiness) => listeners.forEach((listener) => listener(entry)),
-    answer: async (...snapshot: ModuleReadiness[]) => {
-      pending.shift()?.resolve(snapshot);
-      await Promise.resolve();
-    },
-    fail: async (error: unknown) => {
-      pending.shift()?.reject(error);
-      await Promise.resolve();
-      await Promise.resolve();
-    },
-  };
-}
-
-/** Records how a promise settled, without awaiting it. */
-function track(promise: Promise<unknown>) {
-  const outcome: { settled: 'pending' | 'resolved' | 'rejected'; error?: unknown } = { settled: 'pending' };
-  promise.then(
-    () => (outcome.settled = 'resolved'),
-    (error: unknown) => Object.assign(outcome, { settled: 'rejected', error }),
-  );
-  return outcome;
-}
-
-/** Lets queued promise callbacks run. */
-async function flush() {
-  for (let index = 0; index < 4; index += 1) {
-    await Promise.resolve();
-  }
 }
 
 describe('mergeModuleReadiness', () => {
@@ -433,5 +376,101 @@ describe('runGatedQuery', () => {
 
     await expect(runGatedQuery(null, 'episodes', run)).rejects.toMatchObject({ code: 'internal', message: expect.stringMatching(/\S/) });
     expect(run).not.toHaveBeenCalled();
+  });
+});
+
+describe('createReadinessGate first-snapshot retry', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Counts the `getReadiness()` calls the fake source received. */
+  const reads = (fake: ReturnType<typeof fakeSource>) => fake.calls.filter((call) => call === 'getReadiness').length;
+
+  it('retries a failed first snapshot with the re-sync backoff until it loads, with nothing waiting', async () => {
+    vi.useFakeTimers();
+    const fake = fakeSource();
+    createReadinessGate(fake.source).start();
+
+    const observed: number[] = [];
+    for (const delay of [1000, 2000, 4000, 8000, 8000]) {
+      await fake.fail(createBridgeError('unavailable', 'GetReadiness is not attached'));
+      await vi.advanceTimersByTimeAsync(delay - 1);
+      observed.push(reads(fake));
+      await vi.advanceTimersByTimeAsync(1);
+      observed.push(reads(fake));
+    }
+    expect(observed).toEqual([1, 2, 2, 3, 3, 4, 4, 5, 5, 6]);
+
+    await fake.answer(status('episodes', 'ready'));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(reads(fake)).toBe(6);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('recovers a failed first snapshot whose ready event was dropped: the module settles and a later wait runs', async () => {
+    vi.useFakeTimers();
+    const fake = fakeSource();
+    const gate = createReadinessGate(fake.source);
+    const settled = vi.fn();
+    gate.onSettled(settled);
+    const first = track(gate.whenReady('episodes'));
+
+    await fake.fail(createBridgeError('internal', 'registry gone'));
+    await flush();
+    expect(first.settled).toBe('rejected');
+
+    // The `ready` event fired while no snapshot had loaded and never reached the gate.
+    await vi.advanceTimersByTimeAsync(1000);
+    await fake.answer(status('episodes', 'ready'));
+    await flush();
+
+    expect(settled.mock.calls).toEqual([[status('episodes', 'ready')]]);
+    await expect(gate.whenReady('episodes')).resolves.toBeUndefined();
+    expect(reads(fake)).toBe(2);
+  });
+
+  it('never retries a snapshot that loaded', async () => {
+    vi.useFakeTimers();
+    const fake = fakeSource();
+    createReadinessGate(fake.source).start();
+
+    await fake.answer(status('episodes', 'ready'));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(reads(fake)).toBe(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('arms no second retry timer when a wait\'s snapshot also fails before the first one fires', async () => {
+    vi.useFakeTimers();
+    const fake = fakeSource();
+    const gate = createReadinessGate(fake.source);
+    gate.start();
+    await fake.fail(createBridgeError('unavailable', 'GetReadiness is not attached'));
+
+    void gate.whenReady('episodes').catch(() => undefined);
+    await fake.fail(createBridgeError('unavailable', 'GetReadiness is not attached'));
+
+    expect(vi.getTimerCount()).toBe(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(reads(fake)).toBe(3);
+  });
+
+  it('keeps one retry timer when a wait asks for the snapshot again before it fires', async () => {
+    vi.useFakeTimers();
+    const fake = fakeSource();
+    const gate = createReadinessGate(fake.source);
+    gate.start();
+    await fake.fail(createBridgeError('unavailable', 'GetReadiness is not attached'));
+
+    const waiting = track(gate.whenReady('episodes'));
+    expect(reads(fake)).toBe(2);
+    await fake.answer(status('episodes', 'ready'));
+    await flush();
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(waiting.settled).toBe('resolved');
+    expect(reads(fake)).toBe(2);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

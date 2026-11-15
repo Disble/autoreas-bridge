@@ -197,18 +197,28 @@ Frontend gates (`frontend/scripts/async-state-gates.helpers.mjs`, ESLint plugin 
 ## Known drift
 
 Measured on `feat/async-state-standard` after the Go foundation (ADR-032 task T2), the frontend
-runtime with its gate recovery (tasks T3a, T3d), the gates (T3b) and the guidance (T3c):
+runtime with its gate recovery (tasks T3a, T3d), the gates (T3b), the guidance (T3c) and the Today
+pilot's frontend (T4b):
 
 - The Go foundation exists: `internal/lifecycle` (registry and writer), `internal/apperr` (codes,
   `error-codes.json`), `internal/modules` (`Handle[S]`, `Shell`), `GetReadiness`, the
   `bridge.readiness` event and the JSON `ErrorFormatter`. Ten modules are registered and settled by
   `startup` (`docs/architecture/contexts/desktop/overview.md`, "Readiness and failures").
-- No domain module has a handle yet: every binding except `GetReadiness` still reads an `App` field
-  without readiness. `tools/checkarchitecture/baseline.yaml` lists them: 120 `binding-uses-handle` and
-  53 `binding-signature` entries (printed by `go run ./tools/checkarchitecture`).
-- `GetEpisodeSchedule` and `GetEpisodeDayCounts` return `[]` when the episode service is nil or fails
-  (`internal/desktop/app_runtime.go`); the episodes pilot (T4) moves them onto a handle.
-- The frontend runtime exists, but no feature uses it yet (the Today pilot, T4, is the first):
+- One domain module has a handle: `episodes` (`appModules.episodes` in
+  `internal/desktop/app_readiness.go`, bound in `wireEpisodeServiceWithWriter`), and only
+  `GetEpisodeSchedule` and `GetEpisodeDayCounts` use it. Every other binding except `GetReadiness`
+  still reads an `App` field without readiness, including the six other episode bindings.
+  `tools/checkarchitecture/baseline.yaml` lists them: 118 `binding-uses-handle` and 51
+  `binding-signature` entries (printed by `go run ./tools/checkarchitecture`).
+- `internal/desktop/app_readiness_startup_test.go` runs the production options and `OnStartup` against
+  a temporary data directory and pins the rejection the frontend receives while episodes is starting:
+  `{"code":"unavailable","message":"episodes is starting"}`.
+- The frontend runtime exists, and one feature uses it: Today
+  (`features/episodes/ui/EpisodeSchedulePanel`) reads `GetEpisodeSchedule` and `GetEpisodeDayCounts`
+  through `useBridgeQuery` (module `episodes`) and renders `toAsyncView` states
+  (`docs/architecture/contexts/anime/overview.md`, "Frontend: Today"). Its other operations (season
+  probe, covers, row writes, desktop actions) still call `bridgeRuntimeSource` and
+  `preferencesSource` directly:
   - `@tanstack/react-query` 5.107.1 is installed and imported only under `frontend/src/shared/query/`.
   - `shared/query/query-client/query-client.helpers.ts`: `createBridgeQueryClient` with the defaults
     above; `unavailable` is retried at most 4 times (500, 1000, 2000, 4000 ms).
@@ -219,15 +229,23 @@ runtime with its gate recovery (tasks T3a, T3d), the gates (T3b) and the guidanc
     default, other shapes pass a predicate).
   - `shared/query/readiness-gate/readiness-gate.helpers.ts`: `createReadinessGate` subscribes first,
     then calls the snapshot, applies the terminal-state rule, re-syncs while a query waits on a
-    `starting` module and announces each settled module (`onSettled`);
+    `starting` module, retries a failed first snapshot with the same backoff until one loads (so a
+    `ready` event dropped meanwhile still settles the module), and announces each settled module
+    (`onSettled`);
     `shared/query/use-bridge-query/use-bridge-query.helpers.ts` (`rerunFailedGatedQueries`) re-runs
     that module's failed queries, wired by `BridgeQueryProvider`.
   - The frontend `ModuleId` is built from `MODULE_IDS` (`shared/contracts/readiness.constants.ts`);
     a Vitest test (`infrastructure/readiness`) and a Go test (`internal/desktop`) pin both sides to
     `internal/lifecycle/modules.json`.
   - `shared/query/invalidation-bridge/invalidation-bridge.helpers.ts`: one registry, mounted once by
-    `shared/query/BridgeQueryProvider/BridgeQueryProvider.tsx`; no context registers a rule yet
-    (`BRIDGE_INVALIDATIONS` in `shared/query/bridge-runtime/bridge-runtime.constants.ts`).
+    `shared/query/BridgeQueryProvider/BridgeQueryProvider.tsx`; one rule is registered
+    (`BRIDGE_INVALIDATIONS` in `shared/query/bridge-runtime/bridge-runtime.constants.ts`):
+    `anime.changed` → `episodesKeys.all`.
+  - One context key factory: `episodesKeys` (`shared/query/query-keys/query-keys.constants.ts`).
+  - One context source adapter: `createEpisodesSource`
+    (`infrastructure/bridge-runtime-source/episodes-source.helpers.ts`, port `EpisodesSource` in
+    `shared/contracts/episodes.types.ts`), built once as `BRIDGE_EPISODES_SOURCE` in the composition
+    module; it rejects with a `BridgeError` (`unavailable` when the binding never attaches), never `[]`.
   - `shared/query/bridge-error/` holds the `BridgeError` contract and its codes;
     `infrastructure/bridge-error/bridge-error.helpers.ts` (`parseBridgeError`, `withBridgeErrors`)
     parses Wails rejections, and its test compares the codes with `internal/apperr/error-codes.json`.
@@ -249,15 +267,22 @@ runtime with its gate recovery (tasks T3a, T3d), the gates (T3b) and the guidanc
   from `frontend/`. One of the 16 is in `shared/query`: the composition module
   `bridge-runtime/bridge-runtime.constants.ts`; the rest of `shared/query` imports none.
 - Server state still lives in 4 Zustand read-models (ADR-006) and in hand-fetching hooks.
-- `frontend/async-state-baseline.json` holds 244 entries (task T3b), measured by running the five rules
-  over `src/**/*.{ts,tsx}` and printed by `bun --cwd="frontend" run check:async-state:all`:
-  - `no-infrastructure-import` 228 entries in 143 files (128 feature, 15 shared); 10 of them are direct
-    `wailsjs/**` imports (generated bindings, models and the runtime) in 7 files.
-  - `no-runtime-subscription` 16 entries in 11 files: 9 feature files (activity, download run history,
-    episode schedule, navigation badge, notifications) and 2 shared stores (download runtime, season).
+- `frontend/async-state-baseline.json` holds 241 entries (244 at task T3b; the Today pilot, T4b,
+  deleted 3), measured by running the five rules over `src/**/*.{ts,tsx}` and printed by
+  `bun --cwd="frontend" run check:async-state:all`:
+  - `no-infrastructure-import` 227 entries in 143 files (128 feature, 15 shared); 10 of them are direct
+    `wailsjs/**` imports (generated bindings, models and the runtime) in 7 files. Today's
+    `episode-schedule-panel.helpers.ts` keeps two (`bridge-runtime-source`, `preferences-source`) for
+    the operations that have not migrated.
+  - `no-runtime-subscription` 14 entries in 9 files: 7 feature files (activity, download run history,
+    navigation badge, notifications) and 2 shared stores (download runtime, season).
   - `no-window-go`, `react-query-in-shared-query` and `zustand-vanilla-allow-list` 0 entries: production
     code outside `infrastructure/**` never reads `window.go` (8 test files fake it), TanStack Query is
     imported only in `shared/query`, and the 6 `zustand/vanilla` importers are exactly the allow-list.
-- The skill's "show backend data on a screen" recipe has no migrated example yet: no source adapter is
-  constructed in `bridge-runtime.constants.ts` and no context key factory lives in `shared/query`
-  (both follow ADR-032 §4; the Today pilot, T4, is the first).
+- The skill's "show backend data on a screen" recipe has one migrated example: Today
+  (`use-episode-schedule-request.ts`, `use-episode-day-counts.ts`), with its adapter built in
+  `bridge-runtime.constants.ts` and its key factory in `shared/query/query-keys/query-keys.constants.ts`.
+  Today maps a new day's placeholder rows (`isPlaceholderData`) to `loading`, so a tab never shows
+  another day's anime; that rule lives in the feature (`toEpisodeScheduleView`), not in `toAsyncView`.
+- Today has no progressive window (ADR-012): every row of the selected day renders. Whether one day
+  can reach 100 rows has not been measured; the pilot did not change it.

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { createEpisodeScheduleSource, getDefaultEpisodeDay, getEpisodeEmptyStateCopy, getEpisodeFilterOptions, toEpisodeScheduleRows } from './episode-schedule-panel.helpers';
+import { useCallback, useMemo, useState } from 'react';
+import { NO_EPISODE_SCHEDULE_ITEMS } from './episode-schedule-panel.constants';
+import { createEpisodeScheduleSource, getDefaultEpisodeDay, getEpisodeEmptyStateCopy, getEpisodeFilterOptions, toEpisodeScheduleView } from './episode-schedule-panel.helpers';
 import type { EpisodeSchedulePanelProps } from './episode-schedule-panel.types';
 import { useEpisodeCovers } from './use-episode-covers';
 import { useEpisodeDayCounts } from './use-episode-day-counts';
@@ -8,9 +9,11 @@ import { useEpisodeProgressCommands } from './use-episode-progress-commands';
 import { useEpisodeScheduleRequest } from './use-episode-schedule-request';
 
 /**
- * Composes the focused request, day-count, cover, write and desktop-action
- * hooks the Today board is built from, and derives the view model its dumb
- * component renders.
+ * Composes the focused schedule-query, day-count, cover, write and
+ * desktop-action hooks the Today board is built from, and derives the one
+ * schedule view (loading, failure, empty or ready, ADR-032 §4) its dumb
+ * component renders. Backend pushes need no subscription here: the
+ * `anime.changed` rule in `BRIDGE_INVALIDATIONS` refreshes both queries.
  */
 export function useEpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProps>) {
   // 1. Refs
@@ -25,32 +28,27 @@ export function useEpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProp
   const source = useMemo(() => createEpisodeScheduleSource(props.source), [props.source]);
   const schedule = useEpisodeScheduleRequest(source, props.initialDay);
   const { dayCounts, refreshDayCounts } = useEpisodeDayCounts(source);
-  const covers = useEpisodeCovers(schedule.items, source);
+  const covers = useEpisodeCovers(schedule.query.data ?? NO_EPISODE_SCHEDULE_ITEMS, source);
   const { openAnimePage, copyAnimePage, openAnimeFolder, copyAnimeFolder } = useEpisodeDesktopActions(source, schedule.setErrorMessage);
 
   // 4. Queries/Mutations
 
   // 5. Derived State (useMemo)
   const filterOptions = useMemo(() => getEpisodeFilterOptions(schedule.lens === 'season'), [schedule.lens]);
-  const rows = useMemo(() => toEpisodeScheduleRows(schedule.items, covers), [schedule.items, covers]);
+  const scheduleView = toEpisodeScheduleView(schedule.query, covers, schedule.errorMessage);
+  const isScheduleRefreshing = scheduleView.kind === 'ready' && scheduleView.isRefreshing;
   const emptyStateCopy = useMemo(() => getEpisodeEmptyStateCopy(schedule.lens, schedule.selectedDay), [schedule.lens, schedule.selectedDay]);
 
   // 6. Callbacks (useCallback calling pure helpers)
+  const { refresh } = schedule;
   const onCommitted = useCallback(() => {
-    schedule.refresh();
+    refresh();
     refreshDayCounts();
-  }, [refreshDayCounts, schedule]);
+  }, [refresh, refreshDayCounts]);
 
   const { adjustWatchedEpisodes, setAnimeState } = useEpisodeProgressCommands({ onCommitted, onError: schedule.setErrorMessage, source });
 
   // 7. Effects
-  useEffect(() => {
-    // The backend pushes every committed anime change, including writes that
-    // never touched this window (mobile, REST API, background downloads).
-    // Without this the panel only refreshed on remount, so a mobile update
-    // stayed invisible until the user navigated away and back.
-    return source.subscribeAnimeChanges(onCommitted);
-  }, [onCommitted, source]);
 
   return {
     adjustWatchedEpisodes,
@@ -58,13 +56,12 @@ export function useEpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProp
     copyAnimePage,
     dayCounts,
     emptyStateCopy,
-    errorMessage: schedule.errorMessage,
     filterOptions,
-    isLoadingSchedule: schedule.isLoadingSchedule,
+    isScheduleRefreshing,
     lens: schedule.lens,
     openAnimeFolder,
     openAnimePage,
-    rows,
+    scheduleView,
     selectDay: schedule.selectDay,
     selectLens: schedule.selectLens,
     selectedDay: schedule.selectedDay,

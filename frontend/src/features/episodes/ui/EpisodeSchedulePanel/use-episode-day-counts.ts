@@ -1,45 +1,46 @@
-import { useCallback, useEffect, useState } from 'react';
-import type { EpisodeDayCount, EpisodeScheduleSource } from './episode-schedule-panel.types';
+import { useCallback } from 'react';
+import { toAsyncView } from '../../../../shared/query/async-view/async-view.helpers';
+import { episodesKeys } from '../../../../shared/query/query-keys/query-keys.constants';
+import { useBridgeQuery } from '../../../../shared/query/use-bridge-query/use-bridge-query';
+import { toDayBadgeCounts } from './episode-schedule-panel.helpers';
+import type { EpisodeScheduleSource } from './episode-schedule-panel.types';
 
 /**
- * Loads the per-weekday badge counts and hands back a way to re-read them.
+ * Reads the per-weekday badge counts through `useBridgeQuery`, gated on the
+ * `episodes` module, and hands back a way to re-read them. An `anime.changed`
+ * event refreshes them through the `BRIDGE_INVALIDATIONS` rule.
  *
- * A failed read degrades to no badges rather than to an error: the counts are a
- * decoration on the day tabs, and losing them must not take the schedule down
- * with them.
+ * The counts are a decoration on the day tabs: while they load or after their
+ * read failed the tabs carry no badges, and the schedule view (not this hook)
+ * shows the module's loading or failure state.
  *
  * @param source The schedule port the counts are read through.
- * @returns The current counts and the refresh a committed write triggers.
+ * @returns The counts to badge and the refresh a committed write triggers.
  */
 export function useEpisodeDayCounts(source: EpisodeScheduleSource) {
   // 1. Refs
 
   // 2. State
-  const [dayCounts, setDayCounts] = useState<readonly EpisodeDayCount[]>([]);
 
   // 3. Context/3rd Party Hooks
 
   // 4. Queries/Mutations
+  const query = useBridgeQuery({
+    queryKey: episodesKeys.key('day-counts'),
+    queryFn: () => source.getEpisodeDayCounts(),
+    module: 'episodes',
+  });
 
   // 5. Derived State (useMemo)
+  const dayCounts = toDayBadgeCounts(toAsyncView(query));
 
   // 6. Callbacks (useCallback calling pure helpers)
+  const { refetch } = query;
   const refreshDayCounts = useCallback(() => {
-    void source
-      .getEpisodeDayCounts()
-      .then((counts) => {
-        setDayCounts(counts);
-      })
-      .catch(() => {
-        setDayCounts([]);
-      });
-  }, [source]);
+    void refetch();
+  }, [refetch]);
 
   // 7. Effects
-  useEffect(() => {
-    // eslint-disable-next-line react-doctor/no-derived-state -- Day counts come from an async backend query and are not derivable from the local render state.
-    refreshDayCounts();
-  }, [refreshDayCounts]);
 
   return { dayCounts, refreshDayCounts };
 }

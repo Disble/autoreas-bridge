@@ -99,6 +99,29 @@ flowchart LR
 | `CommittedPublisher` | `busCommittedPublisher` over the shared bus (`internal/desktop/app_defaults.go`) | Publishing `anime.changed` after the commit |
 | `WriteServiceDeps.Logger` | shared logger | The `sync.changelog` row in `runtime_events` |
 
+## Readiness and failures
+
+The episodes reads behind Today are served by the `episodes` module (ADR-032,
+`../../cross-cutting/async-state.md`). Its lifecycle is reported in `GetReadiness()` and in each
+`bridge.readiness` event (`../desktop/overview.md`, "Readiness and failures").
+
+- `GetEpisodeSchedule` and `GetEpisodeDayCounts` read through the `episodes` module handle
+  (`appModules.episodes`, `internal/desktop/app_readiness.go`), which `wireEpisodeServiceWithWriter`
+  binds before startup marks the module ready. They reject with `unavailable` while the module is
+  starting (even when the service is already bound), `failed_precondition` with the startup reason
+  after a failed startup, and `internal` when the service fails (ADR-032). Neither answers `[]` in
+  place of a failure; a day with nothing scheduled is an empty list, never null.
+- What Today shows in each module state:
+
+| `episodes` state | Today schedule area | Day-tab badges |
+|---|---|---|
+| `starting` | Skeleton (`role="status"`, three shape-matching rows); no read is called | None |
+| `ready` | The rows, or the empty state when the day resolved empty | The loaded counts |
+| `failed` | The failure Alert with the module's reason; no read is called | Not shown (the Alert replaces the tabs) |
+
+- A rejected row write (`status` other than `ok`) is an outcome, not a read failure: Today shows its
+  message in the same Alert until the schedule loads again.
+
 ## Events
 
 - `anime.changed` (`events.AnimeChangedEvent`, `internal/events/event.go`) is published once per
@@ -108,7 +131,8 @@ flowchart LR
   inside the save transaction.
 - Subscribers: the realtime hub that fans it out to phones (`configureRealtimeHub`,
   `internal/desktop/app_runtime_services.go`) and the desktop frontend bridge
-  (`registerAnimeRuntimeEventBridge`, `internal/desktop/app_startup_runtime.go`).
+  (`registerAnimeRuntimeEventBridge`, `internal/desktop/app_startup_runtime.go`). In the frontend,
+  the one `BRIDGE_INVALIDATIONS` rule for it refreshes every Today query ("Frontend: Today" below).
 - Before publishing, `logRecordedChangelog` (`store_gateway_config.go`) writes one
   `runtime_events` row with `event_type` `sync.changelog`, `entity_id` the anime, and
   `sourceEventId`, `changeType`, `changedFields` in its metadata. Activity reads it as a step of
@@ -170,6 +194,70 @@ rewritten by the Season rule), `source_event_id` (unique when not NULL), `status
 - **No call leaves the transaction's connection.** Code inside the save, the Season rule included,
   uses only the `Querier` it is handed.
 
+## Frontend: Today
+
+Today (`frontend/src/features/episodes/ui/EpisodeSchedulePanel/`) is the screen of the episodes
+reads. Its two reads follow ADR-032 §4; its other operations have not migrated yet.
+
+```mermaid
+flowchart LR
+    subgraph feature [features/episodes EpisodeSchedulePanel]
+        req[use-episode-schedule-request]
+        cnt[use-episode-day-counts]
+        view[toEpisodeScheduleView / toDayBadgeCounts]
+        tsx[EpisodeSchedulePanel.tsx renders view.kind]
+    end
+    subgraph sq [shared/query]
+        ubq[useBridgeQuery module episodes]
+        gate[readiness gate]
+        keys[episodesKeys]
+        rt[bridge-runtime.constants: BRIDGE_EPISODES_SOURCE, BRIDGE_INVALIDATIONS]
+    end
+    subgraph infra [infrastructure]
+        src[createEpisodesSource]
+        rdy[createReadinessSource]
+    end
+    req --> ubq
+    cnt --> ubq
+    ubq --> gate --> rdy
+    req --> keys
+    cnt --> keys
+    ubq -->|queryFn| src
+    rt --> src
+    rt -->|anime.changed invalidates episodesKeys.all| ubq
+    req --> view
+    cnt --> view
+    view --> tsx
+```
+
+- Hooks: `use-episode-schedule-request.ts` reads the selected day with `useBridgeQuery` (module
+  `episodes`, key `episodesKeys.key('schedule', day)`, `enabled` once the season probe chose a day);
+  `use-episode-day-counts.ts` reads the badge counts (key `episodesKeys.key('day-counts')`);
+  `use-episode-schedule-panel.ts` composes them with the covers, the writes and the desktop actions.
+- State mapping (in the hooks, through `episode-schedule-panel.helpers.ts`):
+  `toEpisodeScheduleView` calls `toAsyncView` and adds two Today rules: a new day's placeholder rows
+  (`isPlaceholderData`) are `loading`, never the previous day's anime; a rejected row write is the
+  failure view until the schedule loads again (`toVisibleCommandFailure`). `toDayBadgeCounts` badges
+  only loaded counts. `EpisodeSchedulePanel.tsx` renders exactly one `scheduleView.kind`: skeleton,
+  Alert, `AirisEmptyState`, or the rows with `aria-busy` while a refetch runs.
+- Key factory: `episodesKeys = defineQueryKeys('episodes')` in
+  `frontend/src/shared/query/query-keys/query-keys.constants.ts`.
+- Invalidation: `BRIDGE_INVALIDATIONS` (`frontend/src/shared/query/bridge-runtime/bridge-runtime.constants.ts`)
+  maps `anime.changed` to `episodesKeys.all`, so a change from any writer (this window, a phone, the
+  REST API, downloads) refetches the schedule and the counts. A successful row write also refetches
+  both directly. No feature subscribes to `anime.changed` for Today.
+- Source port and adapter: `EpisodesSource` (`frontend/src/shared/contracts/episodes.types.ts`);
+  `createEpisodesSource` (`frontend/src/infrastructure/bridge-runtime-source/episodes-source.helpers.ts`)
+  wraps both bindings in `withBridgeErrors` and rejects as `unavailable` when a binding never
+  attaches. It is built once as `BRIDGE_EPISODES_SOURCE` and used by `createEpisodeScheduleSource`
+  unless a test injects a source.
+- Readiness recovery: the gate re-reads `GetReadiness()` while a query waits on a `starting`
+  module and retries a failed first snapshot with the same backoff (1 s, 2 s, 4 s, then every 8 s),
+  so a dropped `bridge.readiness` event cannot leave Today on its skeleton or its Alert.
+- Not migrated (task T5): the season probe (`preferencesSource.getSeasonMode`), covers, row writes
+  and desktop actions still call `bridgeRuntimeSource` / `preferencesSource` with their
+  runtime-unavailable fallbacks; no UI state for Today lives in Zustand.
+
 ## Entry points
 
 | Caller | Service method | Trigger |
@@ -178,6 +266,7 @@ rewritten by the Season rule), `source_event_id` (unique when not NULL), `status
 | `internal/desktop/app_library_root.go` | `EditorService.Save` | Rewriting folders under a new library root |
 | `internal/desktop/app_runtime_create.go` | `CreateService.CreateBatch` | Creating animes (with reflowed neighbours) |
 | `internal/desktop/app.go` (`wireEpisodeServiceWithWriter`) | `EpisodeService` over `WriteService.PatchAnime` | Episode +1 / −1 and watch state |
+| `internal/desktop/app_runtime.go` `GetEpisodeSchedule`, `GetEpisodeDayCounts` | `EpisodeService` reads, through the `episodes` module handle | Today's schedule and day badges |
 | `internal/api/router.go` | `PATCH /api/animes/:id`, sync reconcile, WS pending patch, all through `newMobileAnimeWriteService` (`app_runtime_services.go`) | Phones |
 | `internal/desktop/app_season_anime_gateway.go`, `app_season_availability.go` | `WriteService.PatchAnime`, `CreateService` | Season mode |
 

@@ -14,8 +14,6 @@ import {
   GetAnimeWatchHistoryPage,
   GetConnectedDevices,
   GetEffectiveAddress,
-  GetEpisodeDayCounts,
-  GetEpisodeSchedule,
   GetPairingToken,
   GetSQLiteStatus,
   GetSyncingAnimeItems,
@@ -382,17 +380,11 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRu
     getAnimeWatchHistoryPage(request) {
       return invokeGoBinding('GetAnimeWatchHistoryPage', () => GetAnimeWatchHistoryPage({ ...request }), () => RUNTIME_UNAVAILABLE_WATCH_HISTORY_PAGE);
     },
-    getEpisodeSchedule(day) {
-      return invokeGoBinding('GetEpisodeSchedule', () => GetEpisodeSchedule(day), () => []);
-    },
     getAnimeCover(animeID) {
       return invokeGoBinding('GetAnimeCover', () => GetAnimeCover(animeID), () => ({ source: 'placeholder' }));
     },
     previewAnimeCover(value) {
       return invokeGoBinding('PreviewAnimeCover', () => PreviewAnimeCover(value), () => ({ source: 'placeholder' }));
-    },
-    getEpisodeDayCounts() {
-      return invokeGoBinding('GetEpisodeDayCounts', GetEpisodeDayCounts, () => []);
     },
     adjustWatchedEpisodes(animeID, delta, base) {
       return invokeGoBinding('AdjustWatchedEpisodes', () => AdjustWatchedEpisodes(animeID, delta, base), () => RUNTIME_UNAVAILABLE_COMMAND_RESULT);

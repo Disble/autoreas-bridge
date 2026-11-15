@@ -80,8 +80,10 @@ interface Waiter {
  * Builds the readiness gate over a source port. It subscribes to transitions
  * before it asks for the snapshot (Wails drops events emitted before a
  * listener exists, and the snapshot covers what came earlier). A failed
- * snapshot rejects the current waiters with its error; the next wait asks again.
- * While a waiter waits on a `starting` module the gate re-reads the snapshot
+ * snapshot rejects the current waiters with its error, and the gate asks again
+ * on the next wait or, at the latest, after the same capped backoff the re-sync
+ * uses, until one loads: a `ready` event dropped meanwhile cannot leave the
+ * module unsettled (and its failed queries un-run). While a waiter waits on a `starting` module the gate re-reads the snapshot
  * with a capped backoff (`READINESS_RESYNC_DELAYS_MS`), in case that module's
  * event was dropped; a failed re-read keeps waiting, and no timer runs when
  * nothing waits. Each module that settles is announced once to `onSettled`.
@@ -93,6 +95,8 @@ export function createReadinessGate(source: ReadinessSource): ReadinessGate {
   let resyncTimer: ReturnType<typeof setTimeout> | undefined;
   let resyncAttempt = 0;
   let resyncInFlight = false;
+  let snapshotRetryTimer: ReturnType<typeof setTimeout> | undefined;
+  let snapshotRetryAttempt = 0;
   const waiters = new Set<Waiter>();
   const settledListeners = new Set<SettledListener>();
 
@@ -146,7 +150,18 @@ export function createReadinessGate(source: ReadinessSource): ReadinessGate {
     settled.forEach((entry) => settledListeners.forEach((listener) => listener(entry)));
   }
 
-  const requestSnapshot = () => {
+  // Only a failed first snapshot arms this timer, so it costs nothing once one loaded.
+  function scheduleSnapshotRetry() {
+    if (snapshotRetryTimer === undefined) {
+      snapshotRetryTimer = setTimeout(() => {
+        snapshotRetryTimer = undefined;
+        requestSnapshot();
+      }, resyncDelay(snapshotRetryAttempt));
+      snapshotRetryAttempt += 1;
+    }
+  }
+
+  function requestSnapshot() {
     if (state.snapshotLoaded || snapshotInFlight) {
       return;
     }
@@ -154,14 +169,17 @@ export function createReadinessGate(source: ReadinessSource): ReadinessGate {
     source.getReadiness().then(
       (snapshot) => {
         // snapshotInFlight stays set: once loaded, requestSnapshot never asks again.
+        clearTimeout(snapshotRetryTimer);
+        snapshotRetryTimer = undefined;
         apply({ modules: mergeReadinessSnapshot(state.modules, snapshot), snapshotLoaded: true });
       },
       (error: unknown) => {
         snapshotInFlight = false;
         [...waiters].forEach((waiter) => waiter.reject(error));
+        scheduleSnapshotRetry();
       },
     );
-  };
+  }
 
   const start = () => {
     if (!started) {

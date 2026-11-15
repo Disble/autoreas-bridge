@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createEpisodeScheduleSource, dayBadge, episodeDayLabel, formatLongEpisodeChipLabel, formatLongEpisodeChipTooltip, getEpisodeEmptyStateCopy, getEpisodeEmptyStateNavigation, getEpisodeFilterOptions, getDefaultEpisodeDay, getDefaultLensSelection, getInitialEpisodeSelection, toEpisodeScheduleRows, toEpisodeViewLens } from '../episode-schedule-panel.helpers';
-import type { EpisodeDayCount, EpisodeScheduleItem, EpisodeScheduleSource, CoverEntry } from '../episode-schedule-panel.types';
+import type { EpisodeDayCount, EpisodeScheduleItem } from '../../../../../shared/contracts/episodes.types';
+import type { EpisodeScheduleSource, CoverEntry } from '../episode-schedule-panel.types';
 
 describe('toEpisodeScheduleRows', () => {
   it('preserves an explicitly injected source for isolated hook tests', () => {

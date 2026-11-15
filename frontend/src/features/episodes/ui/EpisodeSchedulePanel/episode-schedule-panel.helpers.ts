@@ -9,17 +9,23 @@ import {
   EPISODE_SCHEDULE_WEEKDAY_FORMATTER,
   EPISODE_SEASON_OPTIONS,
   EPISODE_STATE_LABELS,
+  NO_EPISODE_DAY_COUNTS,
 } from './episode-schedule-panel.constants';
-import { animeRuntimeSource } from '../../../../infrastructure/anime-runtime-source/anime-runtime-source.helpers';
+import type { EpisodeDayCount, EpisodeScheduleItem, LongEpisodeMark } from '../../../../shared/contracts/episodes.types';
 import { ANIME_CREATE_ROUTE } from '../../../../shared/navigation/app-layout.constants';
+import { toAsyncView } from '../../../../shared/query/async-view/async-view.helpers';
+import type { AsyncView } from '../../../../shared/query/async-view/async-view.types';
+import { BRIDGE_EPISODES_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { AIRIS_CREATE_ANIME_LABEL } from '../../../../shared/ui/AirisEmptyState/airis-empty-state.constants';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
-import type { AnimeCover, EpisodeDayCount, EpisodeEmptyStateAction, EpisodeEmptyStateCopy, EpisodeScheduleItem, EpisodeScheduleRow, EpisodeScheduleSource, EpisodeViewLens, CoverEntry, InitialEpisodeSelectionInput, LongEpisodeChip, LongEpisodeMark } from './episode-schedule-panel.types';
+import type { AnimeCover, EpisodeCommandFailure, EpisodeEmptyStateAction, EpisodeEmptyStateCopy, EpisodeScheduleQueryState, EpisodeScheduleRow, EpisodeScheduleSource, EpisodeScheduleView, EpisodeViewLens, CoverEntry, InitialEpisodeSelectionInput, LongEpisodeChip } from './episode-schedule-panel.types';
 
 /**
  * Returns an injected schedule source when supplied, otherwise assembles the
- * runtime-backed source with browser-safe fallbacks outside the React hook.
+ * runtime-backed source outside the React hook: the two reads come from the
+ * episodes adapter (`BRIDGE_EPISODES_SOURCE`, rejecting with a `BridgeError`,
+ * never `[]`); the not-yet-migrated writes keep their runtime-unavailable result.
  */
 export function createEpisodeScheduleSource(source?: EpisodeScheduleSource): EpisodeScheduleSource {
   if (source !== undefined) {
@@ -33,14 +39,64 @@ export function createEpisodeScheduleSource(source?: EpisodeScheduleSource): Epi
     copyAnimeFolder: bridgeRuntimeSource.copyAnimeFolder ?? (() => Promise.resolve(EPISODE_RUNTIME_UNAVAILABLE_RESULT)),
     copyAnimePage: bridgeRuntimeSource.copyAnimePage ?? (() => Promise.resolve(EPISODE_RUNTIME_UNAVAILABLE_RESULT)),
     getAnimeCover: getAnimeCover ? (animeID: string) => getAnimeCover(animeID).then(toAnimeCover) : () => Promise.resolve({ source: 'placeholder' }),
-    getEpisodeDayCounts: bridgeRuntimeSource.getEpisodeDayCounts ?? (() => Promise.resolve([])),
-    getEpisodeSchedule: bridgeRuntimeSource.getEpisodeSchedule ?? (() => Promise.resolve([])),
+    getEpisodeDayCounts: BRIDGE_EPISODES_SOURCE.getEpisodeDayCounts,
+    getEpisodeSchedule: BRIDGE_EPISODES_SOURCE.getEpisodeSchedule,
     getSeasonMode: preferencesSource.getSeasonMode,
     openAnimeFolder: bridgeRuntimeSource.openAnimeFolder ?? (() => Promise.resolve(EPISODE_RUNTIME_UNAVAILABLE_RESULT)),
     openAnimePage: bridgeRuntimeSource.openAnimePage ?? (() => Promise.resolve(EPISODE_RUNTIME_UNAVAILABLE_RESULT)),
     setAnimeState: bridgeRuntimeSource.setAnimeState ?? (() => Promise.resolve(EPISODE_RUNTIME_UNAVAILABLE_RESULT)),
-    subscribeAnimeChanges: (listener) => animeRuntimeSource.subscribeAnimeChanges(() => listener()),
   };
+}
+
+/**
+ * The one state Today's schedule area renders (ADR-032 §4), from the schedule
+ * query: `toAsyncView` decides loading, failure, empty or ready, and the rows
+ * are made view-ready. Two Today rules sit on top: a new day showing the
+ * previous day's rows as placeholder is `loading`, so no tab ever shows another
+ * day's anime; and a rejected row write (`commandFailure`, '' for none) is the
+ * failure shown in place of the schedule.
+ * @param query The schedule query result.
+ * @param covers The per-session cover cache the rows render from.
+ * @param commandFailure The visible message of a rejected write, or ''.
+ * @returns The schedule view.
+ */
+export function toEpisodeScheduleView(
+  query: EpisodeScheduleQueryState,
+  covers: ReadonlyMap<string, CoverEntry> = EPISODE_SCHEDULE_EMPTY_COVERS,
+  commandFailure = '',
+): EpisodeScheduleView {
+  if (commandFailure !== '') {
+    return { kind: 'failure', code: 'internal', message: commandFailure };
+  }
+  if (query.isPlaceholderData) {
+    return { kind: 'loading' };
+  }
+
+  const view = toAsyncView(query);
+  return view.kind === 'ready' ? { ...view, data: toEpisodeScheduleRows(view.data, covers) } : view;
+}
+
+/**
+ * The counts the day tabs badge: the loaded counts, or none while they load or
+ * after their read failed. The counts decorate the tabs; the schedule view
+ * carries the module's state, so a missing badge never stands for "zero".
+ * @param view The day-count query's view.
+ * @returns The counts to badge.
+ */
+export function toDayBadgeCounts(view: AsyncView<readonly EpisodeDayCount[]>): readonly EpisodeDayCount[] {
+  return view.kind === 'ready' ? view.data : NO_EPISODE_DAY_COUNTS;
+}
+
+/**
+ * The rejected-write message to show now: a write failure stays until the
+ * schedule loads again (a refetch after another write, or an `anime.changed`
+ * invalidation), as the request-driven panel cleared it on every reload.
+ * @param failure The last rejected write, if any.
+ * @param dataUpdatedAt When the schedule data now shown was loaded (epoch ms).
+ * @returns The message, or '' when none shows.
+ */
+export function toVisibleCommandFailure(failure: EpisodeCommandFailure | undefined, dataUpdatedAt: number): string {
+  return failure !== undefined && failure.raisedAt >= dataUpdatedAt ? failure.message : '';
 }
 
 /**
