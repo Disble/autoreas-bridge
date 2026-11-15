@@ -28,7 +28,7 @@ Out of scope: the root cause and its fix (owner review after this ODD), any chan
 |---|---|---|---|---|
 | T1 | S6, S7 | inline | done | see git log `feat(observability): name the captures the startup sweep closes` |
 | T2 | S1–S5, S7 | inline | done | see git log `feat(observability): record who holds the bridge.db connection` |
-| T3 | all | delegated verify (project rule) | open | |
+| T3 | all | delegated verify (project rule) | done | L6; correction `fix(observability): bound the stall route and probe after capture` |
 
 ## Log
 
@@ -47,3 +47,4 @@ Out of scope: the root cause and its fix (owner review after this ODD), any chan
   - First commit attempt failed the gate: `TestStartupContinuesWithUnusableSettingsStore` (and 9 other tests) inject a zero `&sql.DB{}`, and the pragma lookup of the database file panicked on it. The directory now comes from `resolveStallLogDir`, set only beside the real bootstrap (`defaultStallLogDir`), so injected test databases never touch the real logs directory.
   - ditto: eventlog 1.00 (1/1), api 1.00 (5/5), dbstall 0.90 (64/71), desktop (`-run Stall|AbandonedRequest|OnlyOneProbe|Sweep|DefaultsKeep`) 0.86 (25/29).
   - Survivors, all equivalent: `Rotate` loop start `MaxRotated∓1` and floor `i >= 0` only rename files that cannot exist; `functionName` `open >= 0` → `> 0`/`>= 1` differ only for a line starting with "(", which a dump never prints; `lines[1:]` → `lines[0:]` adds the header line, which never matches a frame prefix; `SplitN(…, 2)` → 3 keeps the same first element; `stallImportBudget` ±1 s and pprof debug 2 → 3 (same per-goroutine format). Skipped (IMPORTANT): `defaultStallLogDir` error check inverted; testing it would create the real data directory, and it is two lines of wiring over `ResolveBridgeDBPath`.
+- L6 T3 verify: no blockers; S4 PARTIAL (D1: route unbounded, a ~4 KB path lost all metadata, measured 5133 bytes). One correction batch: route capped at 256 bytes (`capRoute`, regression test from the verifier), and the hook now wraps CaptureMiddleware so the probe never delays the terminal capture row (order test, RED against the old wiring). Accepted follow-ups: transient read error rotates like a corrupt header; a new stall rotates an unimported one; S6 route/clientRequestId unbounded in theory; doc row for api.db_stall_write_failed omits the event queue sink. Race detector unavailable (cgo path broken).

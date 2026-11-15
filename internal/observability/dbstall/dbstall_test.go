@@ -277,3 +277,17 @@ func TestMetadataKeepsASuspectThatFillsTheBoundExactly(t *testing.T) {
 		t.Fatalf("expected the suspect kept at exactly %d bytes, got %#v", len(exact), metadata)
 	}
 }
+
+// TestMetadataWithALongRouteStaysUnderTheBound pins the route cap: a long path
+// must not push the record past its bound.
+func TestMetadataWithALongRouteStaysUnderTheBound(t *testing.T) {
+	t.Parallel()
+	header := Header{ID: "id", Route: "/api/" + strings.Repeat("a", 5000)}
+
+	metadata := header.Metadata(nil, 4096)
+
+	encoded, err := json.Marshal(metadata)
+	if err != nil || len(encoded) > 4096 || metadata["route"] != header.Route[:maxRouteBytes] {
+		t.Fatalf("metadata is %d bytes (err %v) with route %q", len(encoded), err, metadata["route"])
+	}
+}

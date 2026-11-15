@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"autoreas-bridge/internal/observability/requestcapture"
 )
 
 // abandonedRoutes records the routes the abandoned-request hook reports.
@@ -97,5 +99,23 @@ func TestReportAbandonedRequestsSeesARealClientTimeout(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("expected the timed-out request to be reported")
+	}
+}
+
+// TestAbandonedRequestIsReportedAfterItsCaptureIsQueued pins the middleware
+// order: the hook's probe runs after the terminal capture row is queued, so it
+// never inflates the captured duration.
+func TestAbandonedRequestIsReportedAfterItsCaptureIsQueued(t *testing.T) {
+	t.Parallel()
+	order := []string{}
+	handler := NewHandler(Config{
+		Capture:            func(requestcapture.CaptureRecord) bool { order = append(order, "capture"); return true },
+		OnRequestAbandoned: func(string) { order = append(order, "abandoned") },
+	})
+
+	serveWithContext(handler, cancelledContext(), "/unknown")
+
+	if len(order) < 2 || order[len(order)-1] != "abandoned" || order[len(order)-2] != "capture" {
+		t.Fatalf("expected the capture queued before the abandoned report, got %#v", order)
 	}
 }

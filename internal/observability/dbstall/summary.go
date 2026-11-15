@@ -18,6 +18,9 @@ const (
 	connWaitFrame = "database/sql.(*DB).conn"
 	// dumperFramePrefix marks the goroutine that wrote the dump.
 	dumperFramePrefix = "runtime/pprof."
+	// maxRouteBytes caps the abandoned route, so a long path cannot push the
+	// record past its bound and lose all of its metadata.
+	maxRouteBytes = 256
 	// maxSuspectFrames is how many Bridge frames a suspect keeps, innermost first.
 	maxSuspectFrames = 4
 )
@@ -95,7 +98,7 @@ func functionName(line string) string {
 // suspectsTruncated says some were left out; suspectsFound counts them all.
 func (h Header) Metadata(suspects []Suspect, maxBytes int) map[string]any {
 	metadata := map[string]any{
-		"route": h.Route, "poolMaxOpen": h.Pool.MaxOpen, "poolInUse": h.Pool.InUse, "poolIdle": h.Pool.Idle,
+		"route": capRoute(h.Route), "poolMaxOpen": h.Pool.MaxOpen, "poolInUse": h.Pool.InUse, "poolIdle": h.Pool.Idle,
 		"poolWaitCount": h.Pool.WaitCount, "poolWaitDurationMs": h.Pool.WaitDurationMS, "suspectsFound": len(suspects),
 	}
 	kept := []map[string]any{}
@@ -116,4 +119,12 @@ func (h Header) Metadata(suspects []Suspect, maxBytes int) map[string]any {
 		delete(metadata, "suspectsTruncated")
 	}
 	return metadata
+}
+
+// capRoute keeps the first maxRouteBytes of route.
+func capRoute(route string) string {
+	if len(route) > maxRouteBytes {
+		return route[:maxRouteBytes]
+	}
+	return route
 }

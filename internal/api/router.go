@@ -36,7 +36,8 @@ func NewHandler(config Config) http.Handler {
 	h.syncDiagnostics = buildSyncDiagnosticsHandler(h, config)
 	h.animeCover = buildAnimeCoverHandler(h, config)
 	h.mux = buildHandlerMux(h, config)
-	h.captureMux = CaptureMiddleware(reportAbandonedRequests(h.mux, config.OnRequestAbandoned), CaptureMiddlewareDeps{Capture: config.Capture, PersistTerminal: config.PersistTerminal})
+	// The abandoned-request hook wraps capture, so its probe never delays the terminal capture row.
+	h.captureMux = reportAbandonedRequests(CaptureMiddleware(h.mux, CaptureMiddlewareDeps{Capture: config.Capture, PersistTerminal: config.PersistTerminal}), config.OnRequestAbandoned)
 	return h
 }
 
