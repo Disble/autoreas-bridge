@@ -14,10 +14,6 @@ import (
 	"autoreas-bridge/internal/watchhistory"
 )
 
-// episodeServiceUnavailableMessage is what every episode binding returns when the episode
-// service was never wired. Shared with app_season_availability.go (same package).
-const episodeServiceUnavailableMessage = "episode service unavailable"
-
 // effectiveAddress returns the address the HTTP server actually bound, which
 // differs from the configured one when the port was taken, or "" when no
 // server is running. The shell handle exposes it to shell capabilities.
@@ -246,109 +242,91 @@ func (a *App) GetEpisodeSchedule(day string) ([]contracts.EpisodeScheduleItem, e
 	})
 }
 
-// AdjustWatchedEpisodes moves an anime's watched-episode count by delta. base
-// is the caller's last-seen modification stamp and drives optimistic
-// concurrency, so a stale desktop view loses to a newer write instead of
-// overwriting it.
-func (a *App) AdjustWatchedEpisodes(animeID string, delta float64, base int64) contracts.EpisodeCommandResult {
-	if a.episodeService == nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: episodeServiceUnavailableMessage}
-	}
-	result, err := a.episodeService.AdjustWatchedEpisodes(a.appContext(), anime.AdjustWatchedEpisodesCommand{
-		AnimeID: animeID,
-		Delta:   delta,
-		Base:    &base,
-		Source:  anime.ActivitySourceDesktop,
+// AdjustWatchedEpisodes moves an anime's watched-episode count by delta, through the episodes
+// module handle. base is the caller's last-seen modification stamp and drives optimistic
+// concurrency, so a stale desktop view loses to a newer write. That conflict is an outcome of
+// the result; a failure is the binding's error.
+func (a *App) AdjustWatchedEpisodes(animeID string, delta float64, base int64) (contracts.EpisodeCommandResult, error) {
+	return a.moduleSet().episodes.Use(func(services episodeServices) (contracts.EpisodeCommandResult, error) {
+		return toEpisodeCommandOutcome(services.episodes.AdjustWatchedEpisodes(a.appContext(), anime.AdjustWatchedEpisodesCommand{
+			AnimeID: animeID,
+			Delta:   delta,
+			Base:    &base,
+			Source:  anime.ActivitySourceDesktop,
+		}))
 	})
-	if err != nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: err.Error()}
-	}
-	return toEpisodeCommandContract(result)
 }
 
 // SetAnimeState sets an anime's watch state, under the same base-stamp
-// optimistic concurrency as AdjustWatchedEpisodes.
-func (a *App) SetAnimeState(animeID string, estado int, base int64) contracts.EpisodeCommandResult {
-	if a.episodeService == nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: episodeServiceUnavailableMessage}
-	}
-	result, err := a.episodeService.SetAnimeState(a.appContext(), anime.SetAnimeStateCommand{
-		AnimeID: animeID,
-		Estado:  estado,
-		Base:    &base,
-		Source:  anime.ActivitySourceDesktop,
+// optimistic concurrency and failures as AdjustWatchedEpisodes.
+func (a *App) SetAnimeState(animeID string, estado int, base int64) (contracts.EpisodeCommandResult, error) {
+	return a.moduleSet().episodes.Use(func(services episodeServices) (contracts.EpisodeCommandResult, error) {
+		return toEpisodeCommandOutcome(services.episodes.SetAnimeState(a.appContext(), anime.SetAnimeStateCommand{
+			AnimeID: animeID,
+			Estado:  estado,
+			Base:    &base,
+			Source:  anime.ActivitySourceDesktop,
+		}))
 	})
-	if err != nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: err.Error()}
-	}
-	return toEpisodeCommandContract(result)
 }
 
 // SetAnimeDays replaces an anime's airing days, under the same base-stamp
-// optimistic concurrency as AdjustWatchedEpisodes.
-func (a *App) SetAnimeDays(animeID string, dias []string, base int64) contracts.EpisodeCommandResult {
-	if a.episodeService == nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: episodeServiceUnavailableMessage}
-	}
-	result, err := a.episodeService.SetAnimeDays(a.appContext(), anime.SetAnimeDaysCommand{
-		AnimeID: animeID,
-		Dias:    dias,
-		Base:    &base,
+// optimistic concurrency and failures as AdjustWatchedEpisodes.
+func (a *App) SetAnimeDays(animeID string, dias []string, base int64) (contracts.EpisodeCommandResult, error) {
+	return a.moduleSet().episodes.Use(func(services episodeServices) (contracts.EpisodeCommandResult, error) {
+		return toEpisodeCommandOutcome(services.episodes.SetAnimeDays(a.appContext(), anime.SetAnimeDaysCommand{
+			AnimeID: animeID,
+			Dias:    dias,
+			Base:    &base,
+		}))
 	})
-	if err != nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: err.Error()}
-	}
-	return toEpisodeCommandContract(result)
 }
 
 // SoftDeleteAnime marks an anime deleted without dropping its row, so
-// RestoreAnime can bring it back and sync can propagate the deletion.
-func (a *App) SoftDeleteAnime(animeID string, base int64) contracts.EpisodeCommandResult {
-	if a.episodeService == nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: episodeServiceUnavailableMessage}
-	}
-	result, err := a.episodeService.SoftDeleteAnime(a.appContext(), anime.SoftDeleteAnimeCommand{
-		AnimeID: animeID,
-		Base:    &base,
-		Source:  anime.ActivitySourceDesktop,
+// RestoreAnime can bring it back and sync can propagate the deletion. Its
+// failures are AdjustWatchedEpisodes'.
+func (a *App) SoftDeleteAnime(animeID string, base int64) (contracts.EpisodeCommandResult, error) {
+	return a.moduleSet().episodes.Use(func(services episodeServices) (contracts.EpisodeCommandResult, error) {
+		return toEpisodeCommandOutcome(services.episodes.SoftDeleteAnime(a.appContext(), anime.SoftDeleteAnimeCommand{
+			AnimeID: animeID,
+			Base:    &base,
+			Source:  anime.ActivitySourceDesktop,
+		}))
 	})
-	if err != nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: err.Error()}
-	}
-	return toEpisodeCommandContract(result)
 }
 
-// RestoreAnime undoes a SoftDeleteAnime.
-func (a *App) RestoreAnime(animeID string, base int64) contracts.EpisodeCommandResult {
-	if a.episodeService == nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: episodeServiceUnavailableMessage}
-	}
-	result, err := a.episodeService.RestoreAnime(a.appContext(), anime.RestoreAnimeCommand{
-		AnimeID: animeID,
-		Base:    &base,
-		Source:  anime.ActivitySourceDesktop,
+// RestoreAnime undoes a SoftDeleteAnime, with AdjustWatchedEpisodes' failures.
+func (a *App) RestoreAnime(animeID string, base int64) (contracts.EpisodeCommandResult, error) {
+	return a.moduleSet().episodes.Use(func(services episodeServices) (contracts.EpisodeCommandResult, error) {
+		return toEpisodeCommandOutcome(services.episodes.RestoreAnime(a.appContext(), anime.RestoreAnimeCommand{
+			AnimeID: animeID,
+			Base:    &base,
+			Source:  anime.ActivitySourceDesktop,
+		}))
 	})
-	if err != nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: err.Error()}
-	}
-	return toEpisodeCommandContract(result)
 }
 
 // RepeatAnime starts a new watch-through of a finished anime, recording the
-// repeat rather than resetting the original progress.
-func (a *App) RepeatAnime(animeID string, base int64) contracts.EpisodeCommandResult {
-	if a.episodeService == nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: episodeServiceUnavailableMessage}
-	}
-	result, err := a.episodeService.RepeatAnime(a.appContext(), anime.RepeatAnimeCommand{
-		AnimeID: animeID,
-		Base:    &base,
-		Source:  anime.ActivitySourceDesktop,
+// repeat rather than resetting the original progress. Its failures are
+// AdjustWatchedEpisodes'.
+func (a *App) RepeatAnime(animeID string, base int64) (contracts.EpisodeCommandResult, error) {
+	return a.moduleSet().episodes.Use(func(services episodeServices) (contracts.EpisodeCommandResult, error) {
+		return toEpisodeCommandOutcome(services.episodes.RepeatAnime(a.appContext(), anime.RepeatAnimeCommand{
+			AnimeID: animeID,
+			Base:    &base,
+			Source:  anime.ActivitySourceDesktop,
+		}))
 	})
+}
+
+// toEpisodeCommandOutcome answers an episode write inside the episodes module
+// handle: the command's error when it failed, otherwise its outcome (applied,
+// no_op or conflict) as the result.
+func toEpisodeCommandOutcome(result anime.EpisodeCommandResult, err error) (contracts.EpisodeCommandResult, error) {
 	if err != nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: err.Error()}
+		return contracts.EpisodeCommandResult{}, err
 	}
-	return toEpisodeCommandContract(result)
+	return toEpisodeCommandContract(result), nil
 }
 
 // GetEpisodeDayCounts returns the per-weekday active-progress badge counts

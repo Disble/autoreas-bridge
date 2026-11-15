@@ -123,6 +123,28 @@ describe('useEpisodeSchedulePanel', () => {
     await waitFor(() => expect(result.current.scheduleView.kind).toBe('empty'));
   });
 
+  it.each([
+    ['adjustWatchedEpisodes', (api: ReturnType<typeof useEpisodeSchedulePanel>) => api.adjustWatchedEpisodes('anime-1', 1, 1000), 'Could not update episode progress.'],
+    ['setAnimeState', (api: ReturnType<typeof useEpisodeSchedulePanel>) => api.setAnimeState('anime-1', 1, 1000), 'Could not update anime state.'],
+  ] as const)('shows a rejected %s as the failure, its message or the fallback, and re-reads nothing', async (port, run, fallback) => {
+    const command = vi.fn().mockRejectedValueOnce(createBridgeError('unavailable', 'episodes is starting')).mockRejectedValueOnce(createBridgeError('internal', ''));
+    const source = createSource({ [port]: command });
+    const { result } = renderPanelHook({ initialDay: 'Viernes', source });
+    await waitFor(() => expect(result.current.scheduleView.kind).toBe('empty'));
+
+    await act(async () => {
+      await run(result.current);
+    });
+    expect(result.current.scheduleView).toMatchObject({ kind: 'failure', message: 'episodes is starting' });
+    await act(async () => {
+      await run(result.current);
+    });
+
+    expect(result.current.scheduleView).toMatchObject({ kind: 'failure', message: fallback });
+    expect(source.getEpisodeSchedule).toHaveBeenCalledTimes(1);
+    expect(source.getEpisodeDayCounts).toHaveBeenCalledTimes(1);
+  });
+
   it('delegates desktop page and folder actions', async () => {
     const source = createSource();
     const { result } = renderPanelHook({ initialDay: 'Viernes', source });
@@ -317,7 +339,7 @@ describe('useEpisodeSchedulePanel', () => {
     });
 
     it('hides a write failure once anime.changed reloads the schedule', async () => {
-      const source = createSource({ setAnimeState: vi.fn().mockResolvedValue({ status: 'conflict', message: 'stale row' }) });
+      const source = createSource({ setAnimeState: vi.fn().mockRejectedValue(createBridgeError('internal', 'stale row')) });
       const { result, client } = renderPanelHook({ initialDay: 'Viernes', source });
       const events = connectEvents(client);
       await waitFor(() => expect(result.current.scheduleView.kind).toBe('empty'));

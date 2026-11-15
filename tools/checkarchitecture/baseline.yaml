@@ -89,29 +89,8 @@ violations:
     file: internal/desktop/app_preferences.go
     symbol: SetKeymap
   - rule: binding-uses-handle
-    file: internal/desktop/app_runtime.go
-    symbol: AdjustWatchedEpisodes
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime.go
-    symbol: RepeatAnime
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime.go
-    symbol: RestoreAnime
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime.go
-    symbol: SetAnimeDays
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime.go
-    symbol: SetAnimeState
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime.go
-    symbol: SoftDeleteAnime
-  - rule: binding-uses-handle
     file: internal/desktop/app_season_availability.go
     symbol: DownloadSeasonAnimes
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season_availability.go
-    symbol: SendSeasonAnimesToVerHoy
   - rule: binding-uses-handle
     file: internal/desktop/app_season_availability.go
     symbol: TriggerSeasonDownloads

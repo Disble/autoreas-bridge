@@ -63,10 +63,11 @@ import type {
   SeasonOrderingSnapshot,
   SeasonProviderSearchResult,
   SeasonSource,
+  SendToVerHoyResult,
 } from '../../shared/contracts/season.types';
 import { openInDefaultBrowser } from '../../shared/helpers/url.helpers';
 import { withBridgeErrors } from '../bridge-error/bridge-error.helpers';
-import { createRuntimeSubscription, hasGoBinding, invokeGoBinding, waitForBindings } from '../wails-bindings.helpers';
+import { createRuntimeSubscription, invokeGoBinding } from '../wails-bindings.helpers';
 
 /**
  * Calls a season command binding, which returns only an error since the season
@@ -224,16 +225,19 @@ export function createSeasonSource(): SeasonSource {
       return invokeSeasonCommand('RestoreSeasonName', () => RestoreSeasonName(rowId));
     },
     setAnimeDays(animeId: string, dias: readonly string[]) {
-      return waitForBindings(() => hasGoBinding('SetAnimeDays')).then((isReady) => {
-        if (!isReady) {
-          return Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
-        }
-
-        return SetAnimeDays(animeId, [...dias], 0).then((result) => result.status === 'ok' ? 'ok' : result.message || 'Failed to move anime');
-      });
+      // The binding is an episodes module command that rejects on failure; the season store reads
+      // 'ok', the failure's message, or 'Failed to move anime' for a failure without one.
+      return invokeSeasonCommand('SetAnimeDays', () => SetAnimeDays(animeId, [...dias], 0).then(() => undefined))
+        .then((status) => status || 'Failed to move anime');
     },
     sendToVerHoy(animeIds: readonly string[]) {
-      return invokeGoBinding('SendSeasonAnimesToVerHoy', () => SendSeasonAnimesToVerHoy([...animeIds]), () => SEASON_SEND_UNAVAILABLE);
+      // The episodes module answers only the download window and rejects on failure; the season
+      // store reads the status 'ok' beside it, or the failure's message as the status.
+      return invokeSeasonOutcome<SendToVerHoyResult>(
+        'SendSeasonAnimesToVerHoy',
+        () => SendSeasonAnimesToVerHoy([...animeIds]).then((result) => ({ status: SEASON_COMMAND_OK, pastDownloadTime: result.pastDownloadTime, downloadTime: result.downloadTime })),
+        SEASON_SEND_UNAVAILABLE,
+      );
     },
     triggerSeasonDownloads() {
       return invokeGoBinding('TriggerSeasonDownloads', TriggerSeasonDownloads, () => SEASON_RUNTIME_UNAVAILABLE);

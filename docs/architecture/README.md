@@ -23,6 +23,7 @@ that touches that code.
 | `contexts/downloads/workflow.md` | Following one download run end to end: run, anime, episode, hoster, rename, Stop |
 | `contexts/downloads/hoster-attempt-phases.md` | Changing how one hoster attempt is watched: grace probes, JD verdict, completion poll |
 | `contexts/anime/overview.md` | Touching `internal/anime`: its services, the store gateway, the save transaction, events, storage and invariants |
+| `contexts/episodes/overview.md` | Touching the episode schedule reads or the episode commands: the `episodes` module, its bindings and Today's row writes |
 | `contexts/anime/workflow.md` | Following one anime save end to end: decide, stamp, Season rule, commit, publish, conflict |
 | `contexts/observability/overview.md` | Touching `internal/observability`: its packages, ports, adapters, events, storage and invariants |
 | `contexts/observability/workflow.md` | Following one mobile report end to end: arrival, store, reading, incident gate, feed line, drawer, Technical view |

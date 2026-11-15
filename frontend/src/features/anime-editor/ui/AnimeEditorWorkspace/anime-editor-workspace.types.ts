@@ -73,7 +73,7 @@ export type AnimeEditorGuardEvent =
 /** Inputs for the focused authoritative record-editing hook. */
 export interface UseAnimeEditorRecordOptions {
   readonly selectedAnimeId?: string;
-  /** The Editor bindings not yet behind a module port: restore, repeat and the pickers. */
+  /** The Editor bindings not yet behind a module port: the pickers and the covers. */
   readonly source: AnimeEditorRuntimeSource;
   /** The anime module's record read, save and deactivate. */
   readonly editorSource: AnimeEditorSource;

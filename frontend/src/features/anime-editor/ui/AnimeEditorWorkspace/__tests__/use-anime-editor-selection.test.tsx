@@ -4,8 +4,20 @@ import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { AnimeEditorRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeEditorSource } from '../../../../../shared/contracts/anime-editor-source.types';
+import type { EpisodeCommandsSource } from '../../../../../shared/contracts/episodes.types';
 import { useAnimeEditorWorkspace } from '../use-anime-editor-workspace';
 import { createEmptyEpisodeDurationSource, createEpisodesReadyWrapper } from './episode-duration-source.test-support';
+
+/** Holds the current test's stub, which also serves the episodes module's restore and repeat. */
+const episodesPort = vi.hoisted(() => ({ current: {} as unknown }));
+
+vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  /** The lifecycle hook's restore and repeat port: the current test's stub. */
+  get BRIDGE_EPISODES_SOURCE() {
+    return episodesPort.current;
+  },
+}));
 
 /** The Episodes section's in-memory source, so no render waits on a Wails binding. */
 const episodeSource = createEmptyEpisodeDurationSource();
@@ -34,14 +46,18 @@ function makeRecord(id: string) {
   };
 }
 
+/** One fake serving the runtime pickers, the anime module's Editor port and the episodes module's restore and repeat. */
+type FakeEditorSources = AnimeEditorRuntimeSource & AnimeEditorSource & Pick<EpisodeCommandsSource, 'restoreAnime' | 'repeatAnime'>;
+
 /**
  * Builds the editor's data sources with every call this suite needs stubbed:
- * the runtime bindings and the anime module's Editor port on one object, passed
- * as both the workspace's `source` and its `editorSource`.
+ * the runtime pickers, the anime module's Editor port and the episodes module's
+ * restore and repeat on one object, passed as the workspace's `source` and its
+ * `editorSource`, and served as the episodes port.
  * @returns The stubbed sources.
  */
-function createSource(): AnimeEditorRuntimeSource & AnimeEditorSource {
-  return {
+function createSource(): FakeEditorSources {
+  const source = {
     getAnimes: vi.fn().mockResolvedValue([makeAnime('anime-1', 'Alpha'), makeAnime('anime-2', 'Beta'), makeAnime('anime-3', 'Gamma')]),
     getAnimeEditorRecord: vi.fn((id: string) => Promise.resolve({ record: makeRecord(id) })),
     saveAnimeEditor: vi.fn(),
@@ -52,7 +68,9 @@ function createSource(): AnimeEditorRuntimeSource & AnimeEditorSource {
     applyAnimeEditorSchedule: vi.fn(),
     createAnime: vi.fn(),
     pickFolder: vi.fn().mockResolvedValue(''),
-  } as unknown as AnimeEditorRuntimeSource & AnimeEditorSource;
+  } as unknown as FakeEditorSources;
+  episodesPort.current = source;
+  return source;
 }
 
 /** Router context the hook needs, since it reads and writes navigation state. */

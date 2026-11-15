@@ -61,9 +61,6 @@ export const NO_EPISODE_DAY_COUNTS: readonly EpisodeDayCount[] = [];
 /** The rows covers are fetched for while the schedule has not loaded: one stable empty list. */
 export const NO_EPISODE_SCHEDULE_ITEMS: readonly EpisodeScheduleItem[] = [];
 
-/** Runtime fallback result used when Wails bindings are not ready. */
-export const EPISODE_RUNTIME_UNAVAILABLE_RESULT = { status: 'error', message: 'runtime unavailable' } as const;
-
 /** State transition options exposed by the Episodes operational panel. */
 export const EPISODE_STATE_OPTIONS = [
   { icon: playCircleIcon, label: ANIME_ESTADO_LABELS[0], value: 0 },

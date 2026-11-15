@@ -1,7 +1,6 @@
 import {
   EPISODE_DAY_LABELS_EN,
   EPISODE_DAY_OPTIONS,
-  EPISODE_RUNTIME_UNAVAILABLE_RESULT,
   EPISODE_SCHEDULE_EMPTY_COVERS,
   EPISODE_GO_TO_SEASON_LABEL,
   EPISODE_SEASON_EMPTY_COPY,
@@ -23,11 +22,11 @@ import type { AnimeCover, EpisodeCommandFailure, EpisodeEmptyStateAction, Episod
 
 /**
  * Returns an injected schedule source when supplied, otherwise assembles the
- * runtime-backed source outside the React hook: the two reads come from the
- * episodes adapter (`BRIDGE_EPISODES_SOURCE`, rejecting with a `BridgeError`,
- * never `[]`); the four desktop actions come from the anime module's adapter
- * (`BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE`, rejecting with a `BridgeError`); the
- * not-yet-migrated writes keep their runtime-unavailable result.
+ * runtime-backed source outside the React hook: the two reads and the two row
+ * writes come from the episodes adapter (`BRIDGE_EPISODES_SOURCE`, rejecting
+ * with a `BridgeError`, never `[]`); the four desktop actions come from the
+ * anime module's adapter (`BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE`, rejecting with
+ * a `BridgeError`).
  */
 export function createEpisodeScheduleSource(source?: EpisodeScheduleSource): EpisodeScheduleSource {
   if (source !== undefined) {
@@ -37,7 +36,7 @@ export function createEpisodeScheduleSource(source?: EpisodeScheduleSource): Epi
   const getAnimeCover = bridgeRuntimeSource.getAnimeCover;
 
   return {
-    adjustWatchedEpisodes: bridgeRuntimeSource.adjustWatchedEpisodes ?? (() => Promise.resolve(EPISODE_RUNTIME_UNAVAILABLE_RESULT)),
+    adjustWatchedEpisodes: BRIDGE_EPISODES_SOURCE.adjustWatchedEpisodes,
     copyAnimeFolder: BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE.copyAnimeFolder,
     copyAnimePage: BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE.copyAnimePage,
     getAnimeCover: getAnimeCover ? (animeID: string) => getAnimeCover(animeID).then(toAnimeCover) : () => Promise.resolve({ source: 'placeholder' }),
@@ -46,8 +45,19 @@ export function createEpisodeScheduleSource(source?: EpisodeScheduleSource): Epi
     getSeasonMode: preferencesSource.getSeasonMode,
     openAnimeFolder: BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE.openAnimeFolder,
     openAnimePage: BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE.openAnimePage,
-    setAnimeState: bridgeRuntimeSource.setAnimeState ?? (() => Promise.resolve(EPISODE_RUNTIME_UNAVAILABLE_RESULT)),
+    setAnimeState: BRIDGE_EPISODES_SOURCE.setAnimeState,
   };
+}
+
+/**
+ * The panel feedback of a rejected row write: the failure's message, or the
+ * write's own fallback when the failure carries none.
+ * @param error What the write rejected with.
+ * @param fallback The copy shown for a failure without a message.
+ * @returns The message to show.
+ */
+export function toEpisodeCommandFailureMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message !== '' ? error.message : fallback;
 }
 
 /**

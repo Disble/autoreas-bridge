@@ -1,5 +1,4 @@
 import {
-  AdjustWatchedEpisodes,
   CopyAnimeFolder,
   CopyAnimePage,
   GetAnimeCover,
@@ -12,7 +11,6 @@ import {
   PickFolder,
   RepeatAnime,
   RestoreAnime,
-  SetAnimeState,
   SoftDeleteAnime,
 } from '../../../wailsjs/go/desktop/App';
 import type { contracts as wailsContracts } from '../../../wailsjs/go/models';
@@ -22,9 +20,11 @@ import type { AnimeEditorRuntimeSource, BridgeRuntimeSource } from './bridge-run
 import { invokeGoBinding } from '../wails-bindings.helpers';
 
 /**
- * Runs one desktop action for the consumers of later migration slices. Its
- * binding rejects with the anime module's failure; these consumers read a
- * failure as an `error` status carrying the message, as they always did.
+ * Runs one desktop action or lifecycle command for the consumers of later
+ * migration slices. Its binding rejects with its module's failure (anime for
+ * the desktop actions, episodes for soft delete, restore and repeat); these
+ * consumers read a failure as an `error` status carrying the message, as they
+ * always did.
  * @param bindingName The `App` method name, as `window.go` exposes it.
  * @param call The generated binding call.
  * @returns The binding's result, or an `error` status with the failure's message.
@@ -40,9 +40,11 @@ function runLegacyDesktopAction(bindingName: string, call: () => Promise<wailsCo
  * anime reads it still carries (`getAnimes`, `getAnimeDetail`, `getAnimeCover`,
  * `previewAnimeCover`) serve consumers of later migration slices: their bindings
  * now reject while the anime module is not ready, and these keep answering the
- * pre-migration fallback (`[]`, `null`, the placeholder) for them. Migrated
- * consumers read through `AnimeSource` (`anime-source.helpers.ts`) and the
- * Editor, create and desktop-action ports (`anime-editor-source.helpers.ts`).
+ * pre-migration fallback (`[]`, `null`, the placeholder) for them. Its soft
+ * delete, restore and repeat keep the `error` status for them likewise. Migrated
+ * consumers read through `AnimeSource` (`anime-source.helpers.ts`), the Editor,
+ * create and desktop-action ports (`anime-editor-source.helpers.ts`) and the
+ * episodes commands (`episodes-source.helpers.ts`).
  */
 export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRuntimeSource {
   if (BRIDGE_RUNTIME_SOURCE_STATE.sharedSource !== null) {
@@ -62,20 +64,14 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRu
     previewAnimeCover(value) {
       return invokeGoBinding('PreviewAnimeCover', () => PreviewAnimeCover(value), () => ({ source: 'placeholder' })).catch(() => ({ source: 'placeholder' }));
     },
-    adjustWatchedEpisodes(animeID, delta, base) {
-      return invokeGoBinding('AdjustWatchedEpisodes', () => AdjustWatchedEpisodes(animeID, delta, base), () => RUNTIME_UNAVAILABLE_COMMAND_RESULT);
-    },
-    setAnimeState(animeID, estado, base) {
-      return invokeGoBinding('SetAnimeState', () => SetAnimeState(animeID, estado, base), () => RUNTIME_UNAVAILABLE_COMMAND_RESULT);
-    },
     softDeleteAnime(animeID, base) {
-      return invokeGoBinding('SoftDeleteAnime', () => SoftDeleteAnime(animeID, base), () => RUNTIME_UNAVAILABLE_COMMAND_RESULT);
+      return runLegacyDesktopAction('SoftDeleteAnime', () => SoftDeleteAnime(animeID, base));
     },
     restoreAnime(animeID, base) {
-      return invokeGoBinding('RestoreAnime', () => RestoreAnime(animeID, base), () => RUNTIME_UNAVAILABLE_COMMAND_RESULT);
+      return runLegacyDesktopAction('RestoreAnime', () => RestoreAnime(animeID, base));
     },
     repeatAnime(animeID, base) {
-      return invokeGoBinding('RepeatAnime', () => RepeatAnime(animeID, base), () => RUNTIME_UNAVAILABLE_COMMAND_RESULT);
+      return runLegacyDesktopAction('RepeatAnime', () => RepeatAnime(animeID, base));
     },
     openAnimePage(animeID) {
       return runLegacyDesktopAction('OpenAnimePage', () => OpenAnimePage(animeID));

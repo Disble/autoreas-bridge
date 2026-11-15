@@ -26,6 +26,7 @@ const SEASON_COMMANDS: readonly (readonly [string, (source: SeasonSource) => Pro
   ['SaveSeasonOrderingDraft', (source) => source.saveOrderingDraft('{}')],
   ['ReopenSeasonOrdering', (source) => source.reopenOrdering()],
   ['RecheckSeasonAvailability', (source) => source.recheckAvailability()],
+  ['SetAnimeDays', (source) => source.setAnimeDays('anime-1', ['Ver hoy'])],
 ];
 
 /** Every season read: the binding it calls, how the source invokes it, and the fallback its consumers read. */
@@ -44,6 +45,7 @@ const SEASON_OUTCOMES: readonly (readonly [string, (source: SeasonSource) => Pro
   ['ApplySeasonSchedule', (source) => source.applySchedule(), { applied: 0, failed: [] }],
   ['ConfirmSeasonSelection', (source) => source.confirmSelection(), { approved: 0, rejected: 0, quotaExceeded: false }],
   ['SearchSeasonProviders', (source) => source.searchProviders!('Naruto'), { pages: [] }],
+  ['SendSeasonAnimesToVerHoy', (source) => source.sendToVerHoy(['anime-1']), { pastDownloadTime: false, downloadTime: '' }],
 ];
 
 describe('season-source', () => {
@@ -319,6 +321,24 @@ describe('season-source', () => {
 
     await expect(invoke(createSeasonSource())).resolves.toEqual({ ...rest, status: 'season is starting' });
     expect(bindingMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads a SetAnimeDays failure without a message as the move failure the season store shows', async () => {
+    window.go = { desktop: { App: { SetAnimeDays: vi.fn().mockRejectedValue(new Error('{"code":"internal","message":""}')) } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+
+    await expect(createSeasonSource().setAnimeDays('anime-1', ['Ver hoy'])).resolves.toBe('Failed to move anime');
+  });
+
+  it('reads a staged Ver hoy batch as "ok" with the download window the binding answered', async () => {
+    const send = vi.fn().mockResolvedValue({ pastDownloadTime: true, downloadTime: '21:00' });
+    window.go = { desktop: { App: { SendSeasonAnimesToVerHoy: send } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+
+    await expect(createSeasonSource().sendToVerHoy(['anime-1', 'anime-2'])).resolves.toEqual({ status: 'ok', pastDownloadTime: true, downloadTime: '21:00' });
+    expect(send).toHaveBeenCalledExactlyOnceWith(['anime-1', 'anime-2']);
   });
 
   it('uses the shared Wails binding readiness helper instead of local duplicate plumbing', () => {
