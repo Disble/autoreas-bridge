@@ -324,6 +324,8 @@ func (a *App) wireEpisodeServiceWithWriter(writer contracts.AnimePatcher) {
 		deps.Logger = a.sharedLogger
 	}
 	a.episodeService = anime.NewEpisodeService(deps)
+	// Bound before settleModules marks episodes ready, so a binding that sees ready finds it.
+	a.moduleSet().episodes.Bind(episodeServices{episodes: a.episodeService})
 }
 
 // wireEpisodeService constructs the episode service and its write dependencies.

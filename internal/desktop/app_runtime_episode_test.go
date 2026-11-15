@@ -2,14 +2,97 @@ package desktop
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"autoreas-bridge/internal/activity"
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/apperr"
+	"autoreas-bridge/internal/lifecycle"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/watchhistory"
 )
+
+// episodesApp returns an App whose episodes handle serves service, in the given module state.
+func episodesApp(service *stubAppEpisodeService, state lifecycle.State) *App {
+	app := &App{ctx: context.Background(), episodeService: service}
+	app.moduleSet().episodes.Bind(episodeServices{episodes: service})
+	switch state {
+	case lifecycle.StateReady:
+		app.settleModules(moduleEpisodes)
+	case lifecycle.StateFailed:
+		_ = app.moduleSet().writer.MarkFailed(moduleEpisodes, "bridge database failed to open: locked")
+	}
+	return app
+}
+
+// episodeReads calls each episodes binding that runs through the handle: the row count, whether
+// the slice is nil, and the error.
+var episodeReads = []struct {
+	name string
+	call func(*App) (rows int, isNil bool, err error)
+}{
+	{"GetEpisodeSchedule", func(a *App) (int, bool, error) {
+		got, err := a.GetEpisodeSchedule("Viernes")
+		return len(got), got == nil, err
+	}},
+	{"GetEpisodeDayCounts", func(a *App) (int, bool, error) {
+		got, err := a.GetEpisodeDayCounts()
+		return len(got), got == nil, err
+	}},
+}
+
+// TestEpisodeReadsFollowTheEpisodesModule pins the Today bug (S9): neither read answers an empty
+// slice while the module starts, after it failed, or when the service fails.
+func TestEpisodeReadsFollowTheEpisodesModule(t *testing.T) {
+	t.Parallel()
+	rows := stubAppEpisodeService{
+		schedule:  []anime.EpisodeScheduleItem{{AnimeID: "anime-1"}},
+		dayCounts: []anime.EpisodeDayCount{{Day: "Viernes", Count: 1}},
+	}
+	cases := []struct {
+		name     string
+		service  stubAppEpisodeService
+		state    lifecycle.State
+		wantRows int
+		wantCode apperr.Code
+		wantMsg  string
+	}{
+		{"starting is unavailable", rows, lifecycle.StateStarting, 0, apperr.CodeUnavailable, "episodes is starting"},
+		{"failed is a failed precondition", rows, lifecycle.StateFailed, 0, apperr.CodeFailedPrecondition, "bridge database failed to open: locked"},
+		{"service error is internal", stubAppEpisodeService{err: errors.New("snapshot read failed")}, lifecycle.StateReady, 0, apperr.CodeInternal, "snapshot read failed"},
+		{"ready answers the rows", rows, lifecycle.StateReady, 1, "", ""},
+		{"ready empty day is an empty list", stubAppEpisodeService{}, lifecycle.StateReady, 0, "", ""},
+	}
+	for _, read := range episodeReads {
+		for _, tc := range cases {
+			t.Run(read.name+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+				service := tc.service // a copy per subtest: the stub records the day it was asked
+				rows, isNil, err := read.call(episodesApp(&service, tc.state))
+
+				assertEpisodeRead(t, rows, isNil, err, tc.wantRows, tc.wantCode, tc.wantMsg)
+			})
+		}
+	}
+}
+
+// assertEpisodeRead checks one episodes read: a failure carries its code and message and no slice;
+// a success carries wantRows rows in a non-nil slice.
+func assertEpisodeRead(t *testing.T, rows int, isNil bool, err error, wantRows int, wantCode apperr.Code, wantMsg string) {
+	t.Helper()
+	code, _ := apperr.CodeOf(err)
+	if code != wantCode || rows != wantRows {
+		t.Fatalf("got %d rows, code %q (err %v), want %d rows, code %q", rows, code, err, wantRows, wantCode)
+	}
+	if err != nil && (err.Error() != wantMsg || !isNil) {
+		t.Fatalf("err = %q with nil slice %t, want %q and no slice", err, isNil, wantMsg)
+	}
+	if err == nil && isNil {
+		t.Fatal("a ready read answered a nil slice; the frontend needs [] for an empty day")
+	}
+}
 
 func TestGetEpisodeScheduleDelegatesToEpisodeService(t *testing.T) {
 	t.Parallel()
@@ -17,12 +100,12 @@ func TestGetEpisodeScheduleDelegatesToEpisodeService(t *testing.T) {
 	service := &stubAppEpisodeService{
 		schedule: []anime.EpisodeScheduleItem{{AnimeID: "anime-1", AnimeName: "Frieren", DayOrder: 1}},
 	}
-	app := &App{ctx: context.Background(), episodeService: service}
+	app := episodesApp(service, lifecycle.StateReady)
 
-	got := app.GetEpisodeSchedule("Viernes")
+	got, err := app.GetEpisodeSchedule("Viernes")
 
-	if len(got) != 1 || got[0].AnimeID != "anime-1" {
-		t.Fatalf("expected delegated episode schedule, got %#v", got)
+	if err != nil || len(got) != 1 || got[0].AnimeID != "anime-1" {
+		t.Fatalf("expected delegated episode schedule, got %#v (err %v)", got, err)
 	}
 	if got[0].AnimeName != "Frieren" || got[0].DayOrder != 1 {
 		t.Fatalf("expected episode schedule contract fields, got %#v", got[0])

@@ -75,12 +75,6 @@ violations:
     symbol: GetEffectiveAddress
   - rule: binding-signature
     file: internal/desktop/app_runtime.go
-    symbol: GetEpisodeDayCounts
-  - rule: binding-signature
-    file: internal/desktop/app_runtime.go
-    symbol: GetEpisodeSchedule
-  - rule: binding-signature
-    file: internal/desktop/app_runtime.go
     symbol: GetPairingToken
   - rule: binding-signature
     file: internal/desktop/app_runtime.go
@@ -373,12 +367,6 @@ violations:
   - rule: binding-uses-handle
     file: internal/desktop/app_runtime.go
     symbol: GetEffectiveAddress
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime.go
-    symbol: GetEpisodeDayCounts
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime.go
-    symbol: GetEpisodeSchedule
   - rule: binding-uses-handle
     file: internal/desktop/app_runtime.go
     symbol: GetPairingToken

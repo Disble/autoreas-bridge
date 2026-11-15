@@ -75,6 +75,13 @@ func wiredUnless(missing bool, what string) error {
 	return nil
 }
 
+// episodeServices are the services the episodes module's migrated bindings use.
+// wireEpisodeServiceWithWriter binds them before configureRuntimeServices marks
+// the module ready.
+type episodeServices struct {
+	episodes episodeCommandService
+}
+
 // appModules is the module set App holds: the readiness registry, its writer
 // (only the composition root writes) and the module handles. Domain modules get
 // their handle here when they migrate (ADR-032 §3; internal/modules says how).
@@ -83,6 +90,7 @@ type appModules struct {
 	registry *lifecycle.Registry
 	writer   *lifecycle.Writer
 	shell    *modules.Shell
+	episodes *modules.Handle[episodeServices]
 }
 
 // moduleSet builds the module set once, on first use, and registers every module
@@ -98,6 +106,7 @@ func (a *App) moduleSet() *appModules {
 			services.Logger = a.sharedLogger
 		}
 		a.modules.shell = modules.NewShell(services)
+		a.modules.episodes = modules.NewHandle[episodeServices](moduleEpisodes, a.modules.registry)
 	})
 	return &a.modules
 }

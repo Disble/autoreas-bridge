@@ -222,17 +222,18 @@ func (a *App) GetAnimeDetailView(animeID string) contracts.AnimeDetail {
 	return *item
 }
 
-// GetEpisodeSchedule returns the episodes airing on the given day. Degrades to
-// an empty (non-nil) slice, mirroring GetAnimes's nil-guard contract.
-func (a *App) GetEpisodeSchedule(day string) []contracts.EpisodeScheduleItem {
-	if a.episodeService == nil {
-		return []contracts.EpisodeScheduleItem{}
-	}
-	items, err := a.episodeService.ListEpisodeSchedule(a.appContext(), anime.EpisodeScheduleQuery{Day: day})
-	if err != nil {
-		return []contracts.EpisodeScheduleItem{}
-	}
-	return toEpisodeScheduleContracts(items)
+// GetEpisodeSchedule returns the episodes airing on the given day, through the
+// episodes module handle: unavailable while the module starts, failed_precondition
+// after it failed, internal when the service fails. A day with no episodes is an
+// empty, non-nil list.
+func (a *App) GetEpisodeSchedule(day string) ([]contracts.EpisodeScheduleItem, error) {
+	return a.moduleSet().episodes.Use(func(services episodeServices) ([]contracts.EpisodeScheduleItem, error) {
+		items, err := services.episodes.ListEpisodeSchedule(a.appContext(), anime.EpisodeScheduleQuery{Day: day})
+		if err != nil {
+			return nil, err
+		}
+		return toEpisodeScheduleContracts(items), nil
+	})
 }
 
 // AdjustWatchedEpisodes moves an anime's watched-episode count by delta. base
@@ -342,18 +343,16 @@ func (a *App) RepeatAnime(animeID string, base int64) contracts.EpisodeCommandRe
 
 // GetEpisodeDayCounts returns the per-weekday active-progress badge counts
 // (episodes-cover-pipeline spec, "Per-day active-progress count mirrors
-// Legacy's buscarMedalla semantics"). Degrades to an empty (non-nil) slice
-// on a nil service or any query error, mirroring GetEpisodeSchedule's
-// nil-guard contract.
-func (a *App) GetEpisodeDayCounts() []contracts.EpisodeDayCount {
-	if a.episodeService == nil {
-		return []contracts.EpisodeDayCount{}
-	}
-	counts, err := a.episodeService.ListEpisodeDayCounts(a.appContext())
-	if err != nil {
-		return []contracts.EpisodeDayCount{}
-	}
-	return toEpisodeDayCountContracts(counts)
+// Legacy's buscarMedalla semantics"), with GetEpisodeSchedule's failures: it
+// never answers an empty list for a module that is not ready or a failed read.
+func (a *App) GetEpisodeDayCounts() ([]contracts.EpisodeDayCount, error) {
+	return a.moduleSet().episodes.Use(func(services episodeServices) ([]contracts.EpisodeDayCount, error) {
+		counts, err := services.episodes.ListEpisodeDayCounts(a.appContext())
+		if err != nil {
+			return nil, err
+		}
+		return toEpisodeDayCountContracts(counts), nil
+	})
 }
 
 // appContext returns the application context or a background fallback.

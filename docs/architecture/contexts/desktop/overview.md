@@ -30,13 +30,13 @@ For module readiness, failure codes and the `shared/query` layer the frontend re
 | `internal/desktop/app.go` | the `App` struct, `NewApp`, `startup`, `shutdown`, window and quit hooks |
 | `internal/desktop/app_defaults.go` | default constructors for every injectable seam (tests replace them) |
 | `internal/desktop/app_startup_runtime.go`, `app_runtime_services.go` | the wiring steps `startup` runs, and the `register*RuntimeEventBridge` functions |
-| `internal/desktop/app_readiness.go` | module ids, readiness settling, `GetReadiness`, the `bridge.readiness` bridge, `formatBindingError` |
+| `internal/desktop/app_readiness.go` | module ids, the module set and its handles (`shell`, `episodes`), readiness settling, `GetReadiness`, the `bridge.readiness` bridge, `formatBindingError` |
 | `internal/desktop/app_<context>*.go` | bindings grouped by the context they serve (anime, episodes, season, downloads, notifications, activity, backup, preferences, devices) |
 | `internal/lifecycle` | readiness registry (`Registry`, read side) and its `Writer`; no Wails import |
 | `internal/modules` | typed module handles (`Handle[S]`) and the always-ready `Shell` handle; no Wails import |
 | `internal/apperr` | failure codes, the exported constructors, `error-codes.json` |
 
-Measured on `feat/async-state-standard`: 70 non-test files in `internal/desktop` and 121 exported
+Measured on `feat/async-state-standard`: 69 non-test files in `internal/desktop` and 121 exported
 `App` methods (`grep -c "^func (a \*App) [A-Z]"` over the non-test files).
 
 ## Ports and adapters
@@ -50,7 +50,18 @@ Measured on `feat/async-state-standard`: 70 non-test files in `internal/desktop`
 - Target shape (ADR-032 §3): a binding reaches its services only through
   `a.modules.<context>.Use(func(services) (T, error))`. The mechanism exists (`internal/modules`
   package documentation says how to create a handle); domain modules move their services into a
-  handle as they migrate. Only `GetReadiness` runs through a handle today, the `Shell`.
+  handle as they migrate.
+
+Bindings that run through a handle today:
+
+| Handle (`appModules` field) | Services | Bound at | Bindings |
+|---|---|---|---|
+| `shell` (`modules.Shell`, always ready) | `ShellServices`: effective address, logger, readiness registry | `moduleSet` | `GetReadiness` |
+| `episodes` (`modules.Handle[episodeServices]`) | `episodeServices.episodes`, the episode service | `wireEpisodeServiceWithWriter`, before `configureRuntimeServices` settles `episodes` | `GetEpisodeSchedule(day)`, `GetEpisodeDayCounts()` |
+
+The other episode bindings (`AdjustWatchedEpisodes`, `SetAnimeState`, `SetAnimeDays`,
+`SoftDeleteAnime`, `RestoreAnime`, `RepeatAnime`) still read `App.episodeService` and answer a status
+DTO; they stay in the baseline until their own unit.
 
 ## Readiness and failures
 
@@ -65,7 +76,7 @@ then settles at the step that wires it:
 | `devices` | device store is wired | `configureRuntimeServices` |
 | `settings` | settings store is wired | `configureRuntimeServices` |
 | `anime` | anime query and write services are wired | `configureRuntimeServices` |
-| `episodes` | episode service is wired | `configureRuntimeServices` |
+| `episodes` | episode service is wired (and bound to the `episodes` handle) | `configureRuntimeServices` |
 | `api` | HTTP server is built and started; a failed bind is `failed` with the bind error | `configureRuntimeServices` |
 | `season` | season service is wired | `wireSeasonMatchingEventBus` |
 | `downloads` | download service and download readiness service are wired | `startDownloadOrchestration` |
@@ -81,11 +92,27 @@ then settles at the step that wires it:
 - A failed HTTP bind fails only `api`; the local modules still become ready
   (`TestStartupSettlesEveryModule`).
 - Handle failures: `unavailable` while the module starts, `failed_precondition` with the reason
-  after it failed, `internal` for a closure error without a code. Bindings build
+  after it failed, `internal` for a closure error without a code. For example,
+  `GetEpisodeSchedule` and `GetEpisodeDayCounts` answer `([]T, error)`: `unavailable`
+  (`"episodes is starting"`) until `episodes` is ready, even after its service is bound;
+  `failed_precondition` with the startup reason after a failed startup; `internal` when the episode
+  service fails; an empty, non-nil list for a day with nothing scheduled. Never `[]` for any of the
+  failures (`TestEpisodeReadsFollowTheEpisodesModule`). Bindings build
   `invalid_argument`, `not_found` and `internal` with `apperr`; domains keep their sentinel errors.
 - Outcomes (`applied`, `no_op`, `conflict`) are successful results, never error codes.
 - `formatBindingError` sends a coded failure as the JSON string `{"code":"…","message":"…"}`; any
-  other error keeps its plain message, so legacy bindings answer exactly as before.
+  other error keeps its plain message, so legacy bindings answer exactly as before. The Wails v2.15
+  dispatcher puts the formatter's value in the call's `error` field and the runtime rejects with
+  `new Error(thatString)`; the dispatcher is internal to Wails, so the tests pin the formatter taken
+  from the real `Options` value.
+- `TestProductionStartupGatesTheEpisodeSchedule` builds the App as `main` does (`Options` →
+  `NewApp`) over a temporary data directory and runs the real `startup`: `GetEpisodeSchedule` called
+  before startup and again after the service is bound but before `episodes` is ready rejects with
+  `{"code":"unavailable","message":"episodes is starting"}`, and the `episodes` → `ready` transition
+  reaches `bridge.readiness`. `NewApp` sets the event bus before anything can build the module set,
+  and `startup` never replaces it, so the registry built on first use publishes on the bus the
+  readiness bridge subscribes to. `TestProductionStartupFailureRejectsTheEpisodeReads` covers the
+  failed startup (`failed_precondition` with the database reason).
 
 ## Events
 
@@ -133,9 +160,11 @@ memory and starts over with every process.
   (`createRuntimeSubscription`), plus one feature source,
   `frontend/src/features/activity/history-source/history-source.helpers.ts`.
 - Readiness: `GetReadiness()` returns `{ modules: [{ module, state, reason? }] }` and
-  `bridge.readiness` carries one `{ module, state, reason? }`. The frontend readiness gate, query
-  client and `BridgeError` parsing of the JSON failure string arrive with ADR-032 task T3; until then
-  nothing in `frontend/src` reads them.
+  `bridge.readiness` carries one `{ module, state, reason? }`. The readiness source
+  (`frontend/src/infrastructure/readiness/`) reads both, the readiness gate in
+  `frontend/src/shared/query/readiness-gate/` holds a gated query while its module starts, and
+  `frontend/src/infrastructure/bridge-error/` parses the JSON failure string into a `BridgeError`
+  (`../../cross-cutting/async-state.md`).
 - Loading, empty and failure rendering per screen belongs to each context's page.
 
 ## Entry points
@@ -146,11 +175,13 @@ memory and starts over with every process.
 | Process exit | `App.shutdown` (`internal/desktop/app.go`) |
 | Second launch | `App.onSecondInstanceLaunch` (`internal/desktop/app.go`) |
 | Readiness | `internal/desktop/app_readiness.go` `GetReadiness`, event `bridge.readiness` |
+| Today schedule and day badges | `internal/desktop/app_runtime.go` `GetEpisodeSchedule`, `GetEpisodeDayCounts` (handle `episodes`) |
 | Any other Wails binding | the exported `App` method in `internal/desktop/app_<context>*.go` |
 
 ## Known drift
 
-- Every binding except `GetReadiness` still reads its service from an `App` field without a
-  readiness check: 120 `binding-uses-handle` and 53 `binding-signature` entries in
+- Every binding except `GetReadiness`, `GetEpisodeSchedule` and `GetEpisodeDayCounts` still reads
+  its service from an `App` field without a readiness check: 118 `binding-uses-handle` and 51
+  `binding-signature` entries in
   `tools/checkarchitecture/baseline.yaml` (printed by `go run ./tools/checkarchitecture`).
 - ADR-018's field count (~110) predates this page; `App` grew by one field, `modules`.
