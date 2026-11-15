@@ -57,6 +57,7 @@ func TestHourlySummaryKindAcceptsEveryBoundaryAndVocabularyMember(t *testing.T) 
 		name, from, to, stored string
 	}{
 		{"presence refused", `"outcome":"failed"`, `"outcome":"presence_refused"`, `"outcome":"presence_refused"`},
+		{"presence unanswered", `"outcome":"failed"`, `"outcome":"presence_unanswered"`, `"outcome":"presence_unanswered"`},
 		{"schema not ready", `"outcome":"failed"`, `"outcome":"schema_not_ready"`, `"outcome":"schema_not_ready"`},
 		{"skipped owned by ticker", `"outcome":"failed"`, `"outcome":"skipped_owned_by_ticker"`, `"outcome":"skipped_owned_by_ticker"`},
 		{"unsettled", `"outcome":"failed"`, `"outcome":"unsettled"`, `"outcome":"unsettled"`},
@@ -107,7 +108,7 @@ func TestHourlySummaryKindAcceptsAFullGridAndSixteenDeaths(t *testing.T) {
 
 	var counts, deaths []string
 	for _, trigger := range []string{"foreground_service", "background_task", "bootstrap", "manual", "app_active", "network_regained", "local_mutation", "ws_sync_required"} {
-		for _, outcome := range []string{"closed", "failed", "presence_refused", "schema_not_ready", "skipped_owned_by_ticker", "unsettled", "crashed"} {
+		for _, outcome := range []string{"closed", "failed", "presence_refused", "presence_unanswered", "schema_not_ready", "skipped_owned_by_ticker", "unsettled", "crashed"} {
 			counts = append(counts, `{"trigger_source":"`+trigger+`","outcome":"`+outcome+`","count":1}`)
 		}
 	}
