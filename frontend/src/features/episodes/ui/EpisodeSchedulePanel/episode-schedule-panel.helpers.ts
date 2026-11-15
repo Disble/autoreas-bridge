@@ -15,7 +15,7 @@ import type { EpisodeDayCount, EpisodeScheduleItem, LongEpisodeMark } from '../.
 import { ANIME_CREATE_ROUTE } from '../../../../shared/navigation/app-layout.constants';
 import { toAsyncView } from '../../../../shared/query/async-view/async-view.helpers';
 import type { AsyncView } from '../../../../shared/query/async-view/async-view.types';
-import { BRIDGE_EPISODES_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE, BRIDGE_EPISODES_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { AIRIS_CREATE_ANIME_LABEL } from '../../../../shared/ui/AirisEmptyState/airis-empty-state.constants';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
@@ -25,7 +25,9 @@ import type { AnimeCover, EpisodeCommandFailure, EpisodeEmptyStateAction, Episod
  * Returns an injected schedule source when supplied, otherwise assembles the
  * runtime-backed source outside the React hook: the two reads come from the
  * episodes adapter (`BRIDGE_EPISODES_SOURCE`, rejecting with a `BridgeError`,
- * never `[]`); the not-yet-migrated writes keep their runtime-unavailable result.
+ * never `[]`); the four desktop actions come from the anime module's adapter
+ * (`BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE`, rejecting with a `BridgeError`); the
+ * not-yet-migrated writes keep their runtime-unavailable result.
  */
 export function createEpisodeScheduleSource(source?: EpisodeScheduleSource): EpisodeScheduleSource {
   if (source !== undefined) {
@@ -36,14 +38,14 @@ export function createEpisodeScheduleSource(source?: EpisodeScheduleSource): Epi
 
   return {
     adjustWatchedEpisodes: bridgeRuntimeSource.adjustWatchedEpisodes ?? (() => Promise.resolve(EPISODE_RUNTIME_UNAVAILABLE_RESULT)),
-    copyAnimeFolder: bridgeRuntimeSource.copyAnimeFolder ?? (() => Promise.resolve(EPISODE_RUNTIME_UNAVAILABLE_RESULT)),
-    copyAnimePage: bridgeRuntimeSource.copyAnimePage ?? (() => Promise.resolve(EPISODE_RUNTIME_UNAVAILABLE_RESULT)),
+    copyAnimeFolder: BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE.copyAnimeFolder,
+    copyAnimePage: BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE.copyAnimePage,
     getAnimeCover: getAnimeCover ? (animeID: string) => getAnimeCover(animeID).then(toAnimeCover) : () => Promise.resolve({ source: 'placeholder' }),
     getEpisodeDayCounts: BRIDGE_EPISODES_SOURCE.getEpisodeDayCounts,
     getEpisodeSchedule: BRIDGE_EPISODES_SOURCE.getEpisodeSchedule,
     getSeasonMode: preferencesSource.getSeasonMode,
-    openAnimeFolder: bridgeRuntimeSource.openAnimeFolder ?? (() => Promise.resolve(EPISODE_RUNTIME_UNAVAILABLE_RESULT)),
-    openAnimePage: bridgeRuntimeSource.openAnimePage ?? (() => Promise.resolve(EPISODE_RUNTIME_UNAVAILABLE_RESULT)),
+    openAnimeFolder: BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE.openAnimeFolder,
+    openAnimePage: BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE.openAnimePage,
     setAnimeState: bridgeRuntimeSource.setAnimeState ?? (() => Promise.resolve(EPISODE_RUNTIME_UNAVAILABLE_RESULT)),
   };
 }

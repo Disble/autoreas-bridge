@@ -7,6 +7,7 @@ import { backupSource } from '../../../infrastructure/backup-source/backup-sourc
 import { createActivityFeedSource } from '../../../infrastructure/bridge-runtime-source/activity-feed-source.helpers';
 import { createActivityWailsSource } from '../../../infrastructure/bridge-runtime-source/activity-source.helpers';
 import { createAnimeSource } from '../../../infrastructure/bridge-runtime-source/anime-source.helpers';
+import { createAnimeDesktopActionsSource, createAnimeEditorSource } from '../../../infrastructure/bridge-runtime-source/anime-editor-source.helpers';
 import { createDevicesSource } from '../../../infrastructure/bridge-runtime-source/devices-source.helpers';
 import { createEpisodeDurationRuntimeSource } from '../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.helpers';
 import { createEpisodesSource } from '../../../infrastructure/bridge-runtime-source/episodes-source.helpers';
@@ -63,6 +64,16 @@ export const BRIDGE_EPISODE_DURATIONS_SOURCE = createEpisodeDurationRuntimeSourc
  * pages, `GetAnimeCover`), for the Catalog, the anime detail page and History.
  */
 export const BRIDGE_ANIME_SOURCE = createAnimeSource();
+
+/**
+ * The anime module's Editor and create bindings: the record, its save and
+ * deactivate, the schedule board and its apply, and the batch create, with the
+ * strict catalog list of `BRIDGE_ANIME_SOURCE`.
+ */
+export const BRIDGE_ANIME_EDITOR_SOURCE = createAnimeEditorSource(BRIDGE_ANIME_SOURCE);
+
+/** The anime module's four desktop actions: open or copy an anime's page or folder. */
+export const BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE = createAnimeDesktopActionsSource();
 
 /** The Devices page's bindings: the `api`, `devices` and `sync` modules' reads and commands. */
 export const BRIDGE_DEVICES_SOURCE = createDevicesSource();

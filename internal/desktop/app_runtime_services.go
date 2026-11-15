@@ -333,11 +333,18 @@ func (a *App) configureAnimeApplicationServices() *bridgeSync.ConflictStore {
 	return conflictService
 }
 
-// bindAnimeModule binds the anime module's read services to its handle.
+// bindAnimeModule binds the anime module's services to its handle.
 // configureAnimeApplicationServices calls it once they are built, before
-// settleModules marks the module ready, so a read that sees ready finds them.
+// settleModules marks the module ready, so a binding that sees ready finds them.
+// The batch creator is stateless over the anime writer and query, so the one
+// startSeasonAvailability builds later over the same two behaves the same.
 func (a *App) bindAnimeModule() {
-	a.moduleSet().anime.Bind(animeServices{query: a.animeQuery, watchHistory: a.watchHistoryQuery, covers: a.coverThumbnails})
+	a.moduleSet().anime.Bind(animeServices{
+		query: a.animeQuery, watchHistory: a.watchHistoryQuery, covers: a.coverThumbnails,
+		editorQuery: a.animeEditorQuery, editorWrite: a.animeEditorWrite,
+		scheduleQuery: a.animeEditorScheduleQuery, scheduleWrite: a.animeEditorScheduleWrite,
+		createBatch: a.animeCreateBatch,
+	})
 }
 
 // newAnimeWriteDeps builds shared dependencies for anime write services.

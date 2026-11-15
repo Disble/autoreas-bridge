@@ -1,32 +1,17 @@
 import type { contracts } from '../../../wailsjs/go/models';
-import type {
-  Anime,
-  AnimeCreateCommand,
-  AnimeCreateResult,
-  AnimeDetail,
-  AnimeEditorRecordResult,
-  AnimeEditorSaveResult,
-  AnimeEditorScheduleApplyResult,
-  AnimeEditorScheduleBoardResult,
-  ApplyAnimeScheduleDraftCommand,
-  SaveAnimeEditorCommand,
-} from '../../shared/contracts/anime.types';
+import type { Anime, AnimeDetail } from '../../shared/contracts/anime.types';
 
 /**
  * Request/reply port for the bridge runtime bindings not yet migrated to a
  * module source (ADR-032; the Devices bindings moved to `DevicesSource`, the
- * watch-history pages to `AnimeSource`). Its anime reads remain only for
- * consumers of later slices and keep their pre-migration fallbacks.
+ * watch-history pages to `AnimeSource`, the Editor, create and desktop-action
+ * bindings to `AnimeEditorSource` and `AnimeDesktopActionsSource`). Its anime
+ * reads and desktop actions remain only for consumers of later slices and keep
+ * their pre-migration fallbacks.
  */
 export interface BridgeRuntimeSource {
   readonly getAnimes: () => Promise<readonly Anime[]>;
   readonly getAnimeDetail: (id: string) => Promise<AnimeDetail | null>;
-  readonly getAnimeEditorRecord?: (id: string) => Promise<AnimeEditorRecordResult>;
-  readonly saveAnimeEditor?: (command: SaveAnimeEditorCommand) => Promise<AnimeEditorSaveResult>;
-  readonly deactivateAnime?: (animeID: string, baseModifiedAt: number) => Promise<AnimeEditorSaveResult>;
-  readonly getAnimeEditorScheduleBoard?: (originAnimeID: string) => Promise<AnimeEditorScheduleBoardResult>;
-  readonly applyAnimeEditorSchedule?: (command: ApplyAnimeScheduleDraftCommand) => Promise<AnimeEditorScheduleApplyResult>;
-  readonly createAnime?: (command: AnimeCreateCommand) => Promise<AnimeCreateResult>;
   readonly getAnimeCover?: (animeID: string) => Promise<contracts.AnimeCover>;
   /** Renders an unsaved cover value (a local path or URL a form is editing) the way a saved cover renders. */
   readonly previewAnimeCover?: (value: string) => Promise<contracts.AnimeCover>;
@@ -43,16 +28,10 @@ export interface BridgeRuntimeSource {
   readonly pickFile?: (title: string) => Promise<string>;
 }
 
-/** Required editor subset implemented by the production Wails adapter. */
+/** The Editor's bindings not yet behind a module port: restore, repeat and the two pickers. */
 export interface AnimeEditorRuntimeSource {
-  readonly getAnimes: BridgeRuntimeSource['getAnimes'];
-  readonly getAnimeEditorRecord: NonNullable<BridgeRuntimeSource['getAnimeEditorRecord']>;
-  readonly saveAnimeEditor: NonNullable<BridgeRuntimeSource['saveAnimeEditor']>;
-  readonly deactivateAnime: NonNullable<BridgeRuntimeSource['deactivateAnime']>;
   readonly restoreAnime: NonNullable<BridgeRuntimeSource['restoreAnime']>;
   readonly repeatAnime: NonNullable<BridgeRuntimeSource['repeatAnime']>;
-  readonly getAnimeEditorScheduleBoard: NonNullable<BridgeRuntimeSource['getAnimeEditorScheduleBoard']>;
-  readonly applyAnimeEditorSchedule: NonNullable<BridgeRuntimeSource['applyAnimeEditorSchedule']>;
   readonly pickFolder: NonNullable<BridgeRuntimeSource['pickFolder']>;
   readonly pickFile: NonNullable<BridgeRuntimeSource['pickFile']>;
 }

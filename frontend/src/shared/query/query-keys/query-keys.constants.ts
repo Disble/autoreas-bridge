@@ -19,8 +19,15 @@ export const episodesKeys = defineQueryKeys('episodes');
  */
 export const animeKeys = defineQueryKeys('anime');
 
-/** Key of the catalog list, shared by the Catalog page and the History status/type filters. */
+/** Key of the catalog list, shared by the Catalog page, the History status/type filters, the Editor rail and the create name check. */
 export const ANIME_LIST_KEY = animeKeys.key('list');
+
+/**
+ * The Editor's anime-module reads: one anime's editable record and the schedule
+ * board. Their own prefix keeps the catalog's invalidations from reloading a
+ * record the Editor holds a draft over.
+ */
+export const animeEditorKeys = defineQueryKeys('anime-editor');
 
 /**
  * Keys of the Devices page's reads, served by the `api`, `devices` and `sync`

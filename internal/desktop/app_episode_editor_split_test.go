@@ -26,8 +26,8 @@ func TestSaveAnimeEditorIgnoresAWireEpisodesKey(t *testing.T) {
 			if err := json.Unmarshal([]byte(raw), &cmd); err != nil {
 				t.Fatal(err)
 			}
-			if got := app.SaveAnimeEditor(cmd); got.Outcome != tc.want {
-				t.Fatalf("want %s, got %#v", tc.want, got)
+			if got, err := app.SaveAnimeEditor(cmd); err != nil || got.Outcome != tc.want {
+				t.Fatalf("want %s, got %#v (err %v)", tc.want, got, err)
 			}
 			if rows := storedEpisodes(t, app); len(rows) != 0 {
 				t.Fatalf("anime save stored durations: %+v", rows)

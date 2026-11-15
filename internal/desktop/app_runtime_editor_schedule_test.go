@@ -24,13 +24,12 @@ func TestApplyAnimeEditorScheduleMovesBanGDreamSayonaraLaraAndYaniNekoToVistoAnd
 	publisher := &runtimeSchedulePublisher{}
 	service := anime.NewScheduleService(query, &stubAppCommittedPublisher{})
 	service.SetDeps(anime.WriteServiceDeps{Publisher: publisher})
-	app := &App{
-		ctx:                      context.Background(),
-		animeEditorScheduleWrite: service,
-		animeEditorScheduleQuery: anime.NewScheduleQueryService(query),
-	}
+	app := readyAnimeApp(animeServices{scheduleWrite: service, scheduleQuery: anime.NewScheduleQueryService(query)})
 
-	result := app.ApplyAnimeEditorSchedule(runtimeMovedCardsScheduleCommand())
+	result, err := app.ApplyAnimeEditorSchedule(runtimeMovedCardsScheduleCommand())
+	if err != nil {
+		t.Fatalf("ApplyAnimeEditorSchedule() error = %v", err)
+	}
 	assertRuntimeScheduleApplyResult(t, result)
 	assertRuntimeSchedulePublishedAnimeIDs(t, publisher.animeIDs())
 	assertRuntimeScheduleBoardPlacements(t, runtimeBoardPlacementsByAnimeID(result.Board))

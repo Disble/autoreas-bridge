@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { AnimeEditorRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import type { AnimeEditorSource } from '../../../../../shared/contracts/anime-editor-source.types';
 import { useAnimeEditorWorkspace } from '../use-anime-editor-workspace';
 import { createEmptyEpisodeDurationSource, createEpisodesReadyWrapper } from './episode-duration-source.test-support';
 
@@ -34,10 +35,12 @@ function makeRecord(id: string) {
 }
 
 /**
- * Builds the editor's data source with every call this suite needs stubbed.
- * @returns The stubbed source.
+ * Builds the editor's data sources with every call this suite needs stubbed:
+ * the runtime bindings and the anime module's Editor port on one object, passed
+ * as both the workspace's `source` and its `editorSource`.
+ * @returns The stubbed sources.
  */
-function createSource(): AnimeEditorRuntimeSource {
+function createSource(): AnimeEditorRuntimeSource & AnimeEditorSource {
   return {
     getAnimes: vi.fn().mockResolvedValue([makeAnime('anime-1', 'Alpha'), makeAnime('anime-2', 'Beta'), makeAnime('anime-3', 'Gamma')]),
     getAnimeEditorRecord: vi.fn((id: string) => Promise.resolve({ record: makeRecord(id) })),
@@ -47,8 +50,9 @@ function createSource(): AnimeEditorRuntimeSource {
     repeatAnime: vi.fn(),
     getAnimeEditorScheduleBoard: vi.fn(),
     applyAnimeEditorSchedule: vi.fn(),
+    createAnime: vi.fn(),
     pickFolder: vi.fn().mockResolvedValue(''),
-  } as unknown as AnimeEditorRuntimeSource;
+  } as unknown as AnimeEditorRuntimeSource & AnimeEditorSource;
 }
 
 /** Router context the hook needs, since it reads and writes navigation state. */
@@ -57,7 +61,7 @@ const wrapper = ({ children }: { children: ReactNode }) => <MemoryRouter>{childr
 describe('anime editor selection is not locked after the first pick', () => {
   it('changes the loaded record on each consecutive selection', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource), { wrapper: createEpisodesReadyWrapper(wrapper) });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource, source), { wrapper: createEpisodesReadyWrapper(wrapper) });
 
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
@@ -75,7 +79,7 @@ describe('deactivate confirmation flow', () => {
   it('opens confirmation, runs deactivate only on confirm, then closes', async () => {
     const source = createSource();
     (source.deactivateAnime as ReturnType<typeof vi.fn>).mockResolvedValue({ outcome: 'applied', record: undefined });
-    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource), { wrapper: createEpisodesReadyWrapper(wrapper) });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource, source), { wrapper: createEpisodesReadyWrapper(wrapper) });
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
     expect(result.current.lifecycleConfirmation).toBeUndefined();
@@ -90,7 +94,7 @@ describe('deactivate confirmation flow', () => {
 
   it('closes without deactivating when cancelled', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource), { wrapper: createEpisodesReadyWrapper(wrapper) });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource, source), { wrapper: createEpisodesReadyWrapper(wrapper) });
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
     act(() => result.current.onRequestLifecycleAction('deactivate'));
@@ -105,7 +109,7 @@ describe('restore confirmation flow', () => {
   it('opens confirmation, runs restore (not deactivate) only on confirm, then closes', async () => {
     const source = createSource();
     (source.restoreAnime as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok' });
-    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource), { wrapper: createEpisodesReadyWrapper(wrapper) });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource, source), { wrapper: createEpisodesReadyWrapper(wrapper) });
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
     expect(result.current.lifecycleConfirmation).toBeUndefined();
@@ -124,7 +128,7 @@ describe('repeat confirmation flow', () => {
   it('opens confirmation, runs repeat (not restore) only on confirm, then reloads the rail', async () => {
     const source = createSource();
     (source.repeatAnime as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok' });
-    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource), { wrapper: createEpisodesReadyWrapper(wrapper) });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource, source), { wrapper: createEpisodesReadyWrapper(wrapper) });
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
     expect(result.current.lifecycleConfirmation).toBeUndefined();

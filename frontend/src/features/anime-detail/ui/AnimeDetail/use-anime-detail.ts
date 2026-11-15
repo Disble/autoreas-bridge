@@ -26,12 +26,13 @@ import { useAnimeDetailMutation } from './use-anime-detail-mutation';
  * `anime` module, keyed by id: it stays `loading` while the module starts and
  * while the previous anime's detail would still show, an unknown anime is
  * `not-found`, and any other failure (the module failed, a failed read) is
- * `failure` with its reason. Repeat/Restore and the desktop actions still run
- * through `commands`, which a later slice moves behind its own port.
+ * `failure` with its reason. Repeat/Restore still run through `commands`, which a
+ * later slice moves behind its own port; the desktop actions run through the
+ * anime module (`useAnimeDetailDesktopActions`).
  *
  * @param props The anime the page shows.
  * @param source The anime port the detail and cover are read through.
- * @param commands The Repeat/Restore commands and the desktop actions.
+ * @param commands The Repeat/Restore commands.
  * @returns The page state.
  */
 export function useAnimeDetail(
@@ -60,7 +61,7 @@ export function useAnimeDetail(
     () => toAnimeDetailLoad({ status, data, error, isFetching, isPlaceholderData }),
     [status, data, error, isFetching, isPlaceholderData],
   );
-  const { onCopyFolder, onOpenPage } = useAnimeDetailDesktopActions(props.animeId, commands);
+  const { onCopyFolder, onOpenPage } = useAnimeDetailDesktopActions(props.animeId);
   const mutation = useAnimeDetailMutation({ animeId: props.animeId, detail, commands, refreshDetail });
 
   // 5. Derived State (useMemo)

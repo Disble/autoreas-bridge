@@ -1,8 +1,13 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnimeEditorRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import type { AnimeEditorSource } from '../../../../../shared/contracts/anime-editor-source.types';
 import type { AnimeEditorRecord } from '../../../../../shared/contracts/anime.types';
+import type { ModuleReadiness } from '../../../../../shared/contracts/readiness.types';
 import type { AnimeMetadataSelection } from '../../../../../shared/metadata-lookup/metadata-lookup.types';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
+import { flush, status } from '../../../../../shared/query/test-support/readiness-source.test-support';
 import { ANIME_EDITOR_CALL_TIMEOUT_MESSAGE, ANIME_EDITOR_CALL_TIMEOUT_MS } from '../anime-editor-workspace.constants';
 import { isIntentionalEditorOutcome } from '../anime-editor-workspace.helpers';
 import { useAnimeEditorRecord } from '../use-anime-editor-record';
@@ -16,12 +21,17 @@ beforeEach(() => {
   Object.values(toastMock).forEach((mock) => mock.mockClear());
 });
 
+/** One fake serving both the runtime bindings and the anime module's Editor port. */
+type FakeEditorSources = AnimeEditorRuntimeSource & AnimeEditorSource;
+
 /**
- * Builds a stubbed editor runtime source for one hook test case.
+ * Builds a stubbed editor source for one hook test case: the runtime bindings
+ * (restore, repeat, pickers) and the anime module's Editor port on one object,
+ * so a test asserts on either through the same stub.
  * @param overrides Bindings to replace on the default stub.
  * @returns The stubbed source.
  */
-function createSource(overrides: Partial<AnimeEditorRuntimeSource>): AnimeEditorRuntimeSource {
+function createSource(overrides: Partial<FakeEditorSources>): FakeEditorSources {
   return {
     getAnimes: vi.fn().mockResolvedValue([]),
     getAnimeEditorRecord: vi.fn(),
@@ -31,10 +41,27 @@ function createSource(overrides: Partial<AnimeEditorRuntimeSource>): AnimeEditor
     repeatAnime: vi.fn(),
     getAnimeEditorScheduleBoard: vi.fn(),
     applyAnimeEditorSchedule: vi.fn(),
+    createAnime: vi.fn(),
     pickFolder: vi.fn().mockResolvedValue(''),
     pickFile: vi.fn().mockResolvedValue(''),
     ...overrides,
-  } as unknown as AnimeEditorRuntimeSource;
+  } as unknown as FakeEditorSources;
+}
+
+/**
+ * Renders the record hook over `source` inside a query client whose `anime`
+ * module is in `anime`; `rerender({ selectedAnimeId })` switches the record.
+ * @param source The stubbed sources.
+ * @param selectedAnimeId The initially selected anime.
+ * @param anime The anime module's readiness.
+ * @returns The `renderHook` result.
+ */
+function renderRecord(source: FakeEditorSources, selectedAnimeId?: string, anime: ModuleReadiness = status('anime', 'ready')) {
+  const { wrapper } = createModulesTestWrapper(anime);
+  return renderHook(
+    (props: { readonly selectedAnimeId?: string }) => useAnimeEditorRecord({ selectedAnimeId: props.selectedAnimeId, source, editorSource: source }),
+    { initialProps: { selectedAnimeId }, wrapper },
+  );
 }
 
 /**
@@ -79,19 +106,40 @@ describe('editor record outcome policy', () => {
 });
 
 describe('editor record load failure', () => {
-  it('keeps a failed record load on the surface instead of toasting it', async () => {
-    const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'error' }) });
-    const { result } = renderHook(() => useAnimeEditorRecord({ selectedAnimeId: 'anime-1', source }));
+  it('clears the shown record and keeps a rejected record read on the surface instead of toasting it', async () => {
+    const source = createSource({
+      getAnimeEditorRecord: vi.fn()
+        .mockResolvedValueOnce({ outcome: 'applied', message: 'ok', record: record() })
+        .mockRejectedValueOnce(createBridgeError('internal', 'get anime editor record anime-2: database is locked')),
+    });
+    const { result, rerender } = renderRecord(source, 'anime-1');
+    await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
-    await waitFor(() => expect(result.current.recordLoadError).toBe('The editor record could not be loaded.'));
+    rerender({ selectedAnimeId: 'anime-2' });
+
+    await waitFor(() => expect(result.current.recordLoadError).toBe('get anime editor record anime-2: database is locked'));
+    expect(result.current.selectedRecord).toBeUndefined();
+    expect(result.current.isLoadingRecord).toBe(false);
     expect(toastMock.danger).not.toHaveBeenCalled();
+  });
+
+  it('stays loading with no failure and no record read while the anime module starts', async () => {
+    const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok', record: record() }) });
+    const { result } = renderRecord(source, 'anime-1', status('anime', 'starting'));
+
+    await act(flush);
+
+    expect(result.current.isLoadingRecord).toBe(true);
+    expect(result.current.recordLoadError).toBeUndefined();
+    expect(result.current.selectedRecord).toBeUndefined();
+    expect(source.getAnimeEditorRecord).not.toHaveBeenCalled();
   });
 });
 
 describe('editor record folder picker', () => {
   it('applies the picked folder path to the draft', async () => {
     const source = createSource({ pickFolder: vi.fn().mockResolvedValue('D:/Anime/New Show') });
-    const { result } = renderHook(() => useAnimeEditorRecord({ source }));
+    const { result } = renderRecord(source);
 
     await act(async () => { await result.current.onPickFolder(); });
 
@@ -101,7 +149,7 @@ describe('editor record folder picker', () => {
 
   it('leaves the folder unchanged when the picker is cancelled', async () => {
     const source = createSource({ pickFolder: vi.fn().mockResolvedValue('') });
-    const { result } = renderHook(() => useAnimeEditorRecord({ source }));
+    const { result } = renderRecord(source);
 
     await act(async () => { await result.current.onPickFolder(); });
 
@@ -123,7 +171,7 @@ describe('editor record restore handler', () => {
       getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }),
       restoreAnime: vi.fn().mockResolvedValue({ status: 'ok' }),
     });
-    const { result } = renderHook(() => useAnimeEditorRecord({ selectedAnimeId: 'anime-1', source }));
+    const { result } = renderRecord(source, 'anime-1');
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
     await act(async () => { await result.current.onRestore(); });
@@ -139,7 +187,7 @@ describe('editor record restore handler', () => {
       getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }),
       restoreAnime: vi.fn().mockResolvedValue({ status: 'error' }),
     });
-    const { result } = renderHook(() => useAnimeEditorRecord({ selectedAnimeId: 'anime-1', source }));
+    const { result } = renderRecord(source, 'anime-1');
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
     await act(async () => { await result.current.onRestore(); });
@@ -171,7 +219,7 @@ describe('editor record repeat handler', () => {
       getAnimeEditorRecord,
       repeatAnime: vi.fn().mockResolvedValue({ status: 'ok' }),
     });
-    const { result } = renderHook(() => useAnimeEditorRecord({ selectedAnimeId: 'anime-1', source }));
+    const { result } = renderRecord(source, 'anime-1');
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
     await act(async () => { await result.current.onRepeat(); });
@@ -189,7 +237,7 @@ describe('editor record repeat handler', () => {
       getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }),
       repeatAnime: vi.fn().mockResolvedValue({ status: 'error' }),
     });
-    const { result } = renderHook(() => useAnimeEditorRecord({ selectedAnimeId: 'anime-1', source }));
+    const { result } = renderRecord(source, 'anime-1');
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
     await act(async () => { await result.current.onRepeat(); });
@@ -205,7 +253,7 @@ describe('editor record repeat handler', () => {
 describe('editor record cover-image picker', () => {
   it('applies the picked image path and forces the on-disk cover source', async () => {
     const source = createSource({ pickFile: vi.fn().mockResolvedValue('D:/Anime/Show/cover.jpg') });
-    const { result } = renderHook(() => useAnimeEditorRecord({ source }));
+    const { result } = renderRecord(source);
 
     await act(async () => { await result.current.onPickCoverFile(); });
 
@@ -216,7 +264,7 @@ describe('editor record cover-image picker', () => {
 
   it('leaves the cover unchanged when the picker is cancelled', async () => {
     const source = createSource({ pickFile: vi.fn().mockResolvedValue('') });
-    const { result } = renderHook(() => useAnimeEditorRecord({ source }));
+    const { result } = renderRecord(source);
 
     await act(async () => { await result.current.onPickCoverFile(); });
 
@@ -227,7 +275,7 @@ describe('editor record cover-image picker', () => {
 describe('applied/undo state (D9)', () => {
   it('confirming a candidate patches the draft through the same channel and stores its pre-image', async () => {
     const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok', record: record() }) });
-    const { result } = renderHook(() => useAnimeEditorRecord({ source, selectedAnimeId: 'anime-1' }));
+    const { result } = renderRecord(source, 'anime-1');
     await waitFor(() => expect(result.current.draft.name).toBe('Bleach'));
 
     const selection: AnimeMetadataSelection = { name: 'Bleach: Sennen Kessen-hen', duration: '25', unfilled: ['kind', 'studios'] };
@@ -242,7 +290,7 @@ describe('applied/undo state (D9)', () => {
 
   it('undo replays the pre-image through the same channel, reverting exactly the applied fields', async () => {
     const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok', record: record() }) });
-    const { result } = renderHook(() => useAnimeEditorRecord({ source, selectedAnimeId: 'anime-1' }));
+    const { result } = renderRecord(source, 'anime-1');
     await waitFor(() => expect(result.current.draft.name).toBe('Bleach'));
 
     act(() => result.current.onMetadataApplied({ name: 'Bleach: Sennen Kessen-hen', duration: '25', unfilled: [] }));
@@ -255,7 +303,7 @@ describe('applied/undo state (D9)', () => {
 
   it('does nothing when undo is invoked with nothing applied', async () => {
     const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok', record: record() }) });
-    const { result } = renderHook(() => useAnimeEditorRecord({ source, selectedAnimeId: 'anime-1' }));
+    const { result } = renderRecord(source, 'anime-1');
     await waitFor(() => expect(result.current.draft.name).toBe('Bleach'));
 
     expect(() => act(() => result.current.onMetadataUndo())).not.toThrow();
@@ -268,10 +316,7 @@ describe('applied/undo state (D9)', () => {
         .mockResolvedValueOnce({ outcome: 'applied', message: 'ok', record: record() })
         .mockResolvedValueOnce({ outcome: 'applied', message: 'ok', record: record({ animeId: 'anime-2', frequent: { ...record().frequent, name: 'Naruto' } }) }),
     });
-    const { result, rerender } = renderHook(
-      ({ selectedAnimeId }: { selectedAnimeId: string }) => useAnimeEditorRecord({ source, selectedAnimeId }),
-      { initialProps: { selectedAnimeId: 'anime-1' } },
-    );
+    const { result, rerender } = renderRecord(source, 'anime-1');
     await waitFor(() => expect(result.current.draft.name).toBe('Bleach'));
     act(() => result.current.onMetadataApplied({ name: 'Bleach: Sennen Kessen-hen', unfilled: [] }));
     expect(result.current.appliedMetadata).toBeDefined();
@@ -286,7 +331,7 @@ describe('applied/undo state (D9)', () => {
 describe('never-touched set -- non-negotiable #7, Editor half', () => {
   it('leaves Download page, Folder, Watched episodes, and the watching estado unchanged after confirming a candidate', async () => {
     const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok', record: record() }) });
-    const { result } = renderHook(() => useAnimeEditorRecord({ source, selectedAnimeId: 'anime-1' }));
+    const { result } = renderRecord(source, 'anime-1');
     await waitFor(() => expect(result.current.draft.name).toBe('Bleach'));
 
     const selection: AnimeMetadataSelection = {
@@ -316,7 +361,7 @@ describe('editor record saves anime data only', () => {
   it('sends an anime-only command, clears dirty after an applied save, and exposes no episode draft', async () => {
     const saveAnimeEditor = vi.fn().mockResolvedValue({ outcome: 'applied', record: { ...selectedRecord, frequent: { ...selectedRecord.frequent, name: 'Bleach TYBW' } } });
     const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }), saveAnimeEditor });
-    const { result } = renderHook(() => useAnimeEditorRecord({ selectedAnimeId: 'anime-1', source }));
+    const { result } = renderRecord(source, 'anime-1');
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
     act(() => result.current.onDraftChange('name', 'Bleach TYBW'));
@@ -343,7 +388,7 @@ describe('editor record saves anime data only', () => {
       getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }),
       [binding]: vi.fn().mockReturnValue(new Promise(() => undefined)),
     });
-    const { result } = renderHook(() => useAnimeEditorRecord({ selectedAnimeId: 'anime-1', source }));
+    const { result } = renderRecord(source, 'anime-1');
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
     act(() => result.current.onDraftChange('name', 'Bleach TYBW'));
     vi.useFakeTimers();
@@ -367,7 +412,7 @@ describe('editor record saves anime data only', () => {
   it('Discard changes restores the saved fields after a rejected save', async () => {
     const saveAnimeEditor = vi.fn().mockResolvedValue({ outcome: 'conflict', message: 'stale', modifiedAt: 0 });
     const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }), saveAnimeEditor });
-    const { result } = renderHook(() => useAnimeEditorRecord({ selectedAnimeId: 'anime-1', source }));
+    const { result } = renderRecord(source, 'anime-1');
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
     act(() => result.current.onDraftChange('name', 'Bleach TYBW'));
     await act(async () => { await result.current.onSave(); });

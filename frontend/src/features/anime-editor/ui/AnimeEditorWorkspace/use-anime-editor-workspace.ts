@@ -4,6 +4,8 @@ import type { AnimeEditorRuntimeSource } from '../../../../infrastructure/bridge
 import type { EpisodeDurationRuntimeSource } from '../../../../shared/contracts/episode-durations.types';
 import { metadataLookupSource } from '../../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers';
 import type { CoverPreviewSource } from '../../../../shared/anime-cover/anime-cover.types';
+import type { AnimeEditorSource } from '../../../../shared/contracts/anime-editor-source.types';
+import { BRIDGE_ANIME_EDITOR_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { useEpisodeDurationsSection } from '../EpisodeDurationsSection/use-episode-durations-section';
 import { isAnyCard } from './anime-editor-guard.helpers';
 import { toAnimeEditorListRowViewModels, toEpisodeDurationsSavedAnime } from './anime-editor-workspace.helpers';
@@ -20,12 +22,16 @@ import { useAnimeEditorTransitions } from './use-anime-editor-transitions';
 /**
  * Composes the editor workspace: the list, and three independent cards (S15,
  * S16) -- anime data, Episodes and Schedule -- each saving only its own data,
- * plus one unsaved-changes guard that covers both drafts.
+ * plus one unsaved-changes guard that covers both drafts. The list, the record,
+ * its save and deactivate and the schedule board read and write through the
+ * anime module (`editorSource`); restore, repeat, the pickers and the covers stay
+ * on the runtime source (`source`).
  */
 export function useAnimeEditorWorkspace(
   props: Readonly<AnimeEditorWorkspaceProps>,
   source: AnimeEditorRuntimeSource & AnimeEditorCoverSource = bridgeRuntimeSource,
   episodeSource: EpisodeDurationRuntimeSource | undefined = props.episodeSource,
+  editorSource: AnimeEditorSource = BRIDGE_ANIME_EDITOR_SOURCE,
 ) {
   // 1. Refs
 
@@ -33,11 +39,11 @@ export function useAnimeEditorWorkspace(
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   // 3. Context/3rd Party Hooks
-  const list = useAnimeEditorList({ initialAnimeId: props.initialAnimeId, source });
+  const list = useAnimeEditorList({ initialAnimeId: props.initialAnimeId, source: editorSource });
   const listWindow = useAnimeEditorListWindow(list.items.length);
-  const record = useAnimeEditorRecord({ selectedAnimeId: list.selectedAnimeId, source });
+  const record = useAnimeEditorRecord({ selectedAnimeId: list.selectedAnimeId, source, editorSource });
   const coverCache = useAnimeEditorCovers(list.items, listWindow.visibleCount, record.selectedRecord, source);
-  const schedule = useAnimeEditorSchedule({ selectedAnimeId: list.selectedAnimeId, selectedRecord: record.selectedRecord, source });
+  const schedule = useAnimeEditorSchedule({ selectedAnimeId: list.selectedAnimeId, selectedRecord: record.selectedRecord, source: editorSource });
   // The Episodes card reads the SAVED record, never the anime card's unsaved draft (S15).
   const episodes = useEpisodeDurationsSection(toEpisodeDurationsSavedAnime(record.selectedRecord), episodeSource);
   const isDirty = isAnyCard(record.isDirty, episodes.isDirty);
@@ -78,10 +84,10 @@ export function useAnimeEditorWorkspace(
   // Each holds only what its memoized panel reads, so an async step that changes
   // nothing it shows leaves the slice, and the panel, untouched.
   const listPanel = useMemo(() => ({
-    query: list.query, filter: list.filter, items, listEmptyState: list.emptyState, isLoadingList: list.isLoadingList, listWindow,
+    query: list.query, filter: list.filter, items, listEmptyState: list.emptyState, isLoadingList: list.isLoadingList, listLoadError: list.listLoadError, listWindow,
     onQueryChange: list.setQuery, onFilterChange: list.onFilterChange, onClearCriteria: list.onClearCriteria,
     onSelectAnime: transitions.onSelectAnime, onCoverImageError: coverCache.onCoverImageError,
-  }), [list.query, list.filter, items, list.emptyState, list.isLoadingList, listWindow, list.setQuery, list.onFilterChange, list.onClearCriteria, transitions.onSelectAnime, coverCache.onCoverImageError]);
+  }), [list.query, list.filter, items, list.emptyState, list.isLoadingList, list.listLoadError, listWindow, list.setQuery, list.onFilterChange, list.onClearCriteria, transitions.onSelectAnime, coverCache.onCoverImageError]);
   const formPanel = useMemo(() => ({
     selectedRecord: record.selectedRecord, draft: record.draft, cover, appliedMetadata: record.appliedMetadata, metadataLookupSource,
     coverPreviewSource,

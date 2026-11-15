@@ -1,5 +1,6 @@
 import { toast } from '@heroui/react';
 import { useCallback, type Dispatch, type SetStateAction } from 'react';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
 import {
   createAnimeEditorDraft,
   isIntentionalEditorOutcome,
@@ -16,24 +17,34 @@ import type { AnimeEditorRecordState, UseAnimeEditorRecordOptions } from './anim
  * workspace already models them as one concept -- a single
  * `AnimeEditorLifecycleAction` drives one confirmation dialog for all three --
  * and because each one shares the same shape: guard on a selected record, flip
- * `isSaving`, call one runtime binding, and toast the resolved result message.
+ * `isSaving`, call one binding (deactivate through the anime module's mutation), and
+ * toast the resolved result message.
  *
  * Split out of `useAnimeEditorRecord` so that hook stays under the
  * complexity ceiling: merging the MyAnimeList autofill work with the Repeat
  * work put sixteen hooks in one function, which `fallow audit` blocks.
  */
 export function useAnimeEditorLifecycleActions(
-  source: UseAnimeEditorRecordOptions['source'],
+  sources: Pick<UseAnimeEditorRecordOptions, 'source' | 'editorSource'>,
   selectedRecord: AnimeEditorRecordState['selectedRecord'],
   setState: Dispatch<SetStateAction<AnimeEditorRecordState>>,
   loadRecord: (animeId: string) => Promise<void>,
 ) {
+  // 1. Refs
+  const { source, editorSource } = sources;
+
+  // 4. Queries/Mutations
+  const deactivateMutation = useBridgeMutation({
+    mutationFn: (record: { readonly animeId: string; readonly modifiedAt: number }) => editorSource.deactivateAnime(record.animeId, record.modifiedAt),
+  });
+  const deactivateAnime = deactivateMutation.mutateAsync;
+
   // 6. Callbacks
   const onDeactivate = useCallback(async () => {
     if (selectedRecord === undefined) return undefined;
     setState((current) => ({ ...current, isSaving: true }));
     try {
-      const result = await raceAnimeEditorCall(source.deactivateAnime(selectedRecord.animeId, selectedRecord.modifiedAt));
+      const result = await raceAnimeEditorCall(deactivateAnime(selectedRecord));
       const intentional = isIntentionalEditorOutcome(result);
       setState((current) => ({
         ...current,
@@ -51,7 +62,7 @@ export function useAnimeEditorLifecycleActions(
     } finally {
       setState((current) => ({ ...current, isSaving: false }));
     }
-  }, [source, selectedRecord, setState]);
+  }, [deactivateAnime, selectedRecord, setState]);
 
   const onRestore = useCallback(async () => {
     if (selectedRecord === undefined) return undefined;

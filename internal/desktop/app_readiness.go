@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sync"
 
+	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/apperr"
@@ -64,7 +65,8 @@ var moduleWiringChecks = map[lifecycle.ModuleID]func(*App) error{
 	moduleDevices:  func(a *App) error { return wiredUnless(a.deviceStore == nil, "device store") },
 	moduleSettings: func(a *App) error { return wiredUnless(a.settingsStore == nil, "settings store") },
 	moduleAnime: func(a *App) error {
-		return wiredUnless(a.animeQuery == nil || a.animeWrite == nil, "anime services")
+		return wiredUnless(a.animeQuery == nil || a.animeWrite == nil || a.animeEditorQuery == nil || a.animeEditorWrite == nil ||
+			a.animeEditorScheduleQuery == nil || a.animeEditorScheduleWrite == nil || a.animeCreateBatch == nil, "anime services")
 	},
 	moduleEpisodes: func(a *App) error { return wiredUnless(a.episodeService == nil, "episode service") },
 	moduleAPI: func(a *App) error {
@@ -101,14 +103,22 @@ type observabilityServices struct {
 	syncDiagnostics *telemetry.Reader
 }
 
-// animeServices are the services the anime module's read bindings use: the anime
-// query, the watch-history reader and the cover thumbnails. covers stays nil when
-// the platform has no cache root; the cover bindings then answer the placeholder.
-// bindAnimeModule binds them before configureRuntimeServices marks the module ready.
+// animeServices are the services the anime module's bindings use: the anime
+// query (catalog, detail and the desktop actions' stored page and folder), the
+// watch-history reader, the cover thumbnails, the Editor's record query and
+// writer, its schedule board query and writer, and the batch creator. covers
+// stays nil when the platform has no cache root; the cover bindings then answer
+// the placeholder. bindAnimeModule binds them before configureRuntimeServices
+// marks the module ready.
 type animeServices struct {
-	query        contracts.AnimeQueryService
-	watchHistory watchHistoryReader
-	covers       coverThumbnails
+	query         contracts.AnimeQueryService
+	watchHistory  watchHistoryReader
+	covers        coverThumbnails
+	editorQuery   *anime.QueryService
+	editorWrite   *anime.EditorService
+	scheduleQuery *anime.ScheduleQueryService
+	scheduleWrite *anime.ScheduleService
+	createBatch   anime.BatchCreator
 }
 
 // episodeServices are the services the episodes module's migrated bindings use:

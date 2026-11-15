@@ -28,13 +28,14 @@ export function createEmptyEpisodeDurationSource(): EpisodeDurationRuntimeSource
 
 /**
  * Builds a wrapper for tests that render the whole Editor workspace: the
- * Episodes card reads through `useBridgeQuery`, so the tree needs a query
- * client whose `episodes` module is ready.
+ * Episodes card, the list, the record and the schedule board read through
+ * `useBridgeQuery`, so the tree needs a query client whose `episodes` and
+ * `anime` modules are ready.
  * @param inner An optional wrapper rendered inside it, such as a router.
  * @returns The wrapper component; build one per render.
  */
 export function createEpisodesReadyWrapper(inner?: ComponentType<WrapperProps>): ComponentType<WrapperProps> {
-  const { wrapper: QueryWrapper } = createModulesTestWrapper(status('episodes', 'ready'));
+  const { wrapper: QueryWrapper } = createModulesTestWrapper(status('episodes', 'ready'), status('anime', 'ready'));
   /**
    * Renders the children inside the query client and the optional inner wrapper.
    * @param props The children.

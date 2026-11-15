@@ -28,6 +28,13 @@ const { mockSource } = vi.hoisted(() => {
 vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
   bridgeRuntimeSource: mockSource,
 }));
+vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  /** The workspace's default anime-module Editor port: the same fake. */
+  get BRIDGE_ANIME_EDITOR_SOURCE() {
+    return mockSource;
+  },
+}));
 
 import { AnimeEditorWorkspace } from '../AnimeEditorWorkspace';
 import { createEmptyEpisodeDurationSource, createEpisodesReadyWrapper } from './episode-duration-source.test-support';
