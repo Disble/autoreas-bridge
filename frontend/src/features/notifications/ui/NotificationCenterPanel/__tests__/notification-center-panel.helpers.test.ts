@@ -5,6 +5,7 @@ import {
   toNotificationCenterQuery,
   toNotificationEmptyStateConditions,
   toNotificationRecordId,
+  toNotificationUnreadCount,
   toUnreadNotificationIds,
 } from '../notification-center-panel.helpers';
 
@@ -69,11 +70,11 @@ describe('toUnreadNotificationIds', () => {
 });
 
 describe('toNotificationEmptyStateConditions', () => {
-  it('marks the service available when the page is not degraded', () => {
+  it('marks the service available when the first page answered', () => {
     const conditions = toNotificationEmptyStateConditions({
       totalEverRecorded: 3,
       view: 'active',
-      degraded: false,
+      serviceAvailable: true,
       hasSearch: false,
       hasFacetFilters: false,
     });
@@ -87,11 +88,11 @@ describe('toNotificationEmptyStateConditions', () => {
     });
   });
 
-  it('marks the service unavailable when the page comes back degraded', () => {
+  it('marks the service unavailable when the first page failed', () => {
     const conditions = toNotificationEmptyStateConditions({
       totalEverRecorded: 0,
       view: 'archived',
-      degraded: true,
+      serviceAvailable: false,
       hasSearch: false,
       hasFacetFilters: false,
     });
@@ -103,7 +104,7 @@ describe('toNotificationEmptyStateConditions', () => {
     const conditions = toNotificationEmptyStateConditions({
       totalEverRecorded: 5,
       view: 'unread',
-      degraded: false,
+      serviceAvailable: true,
       hasSearch: false,
       hasFacetFilters: false,
     });
@@ -118,7 +119,7 @@ describe('toNotificationEmptyStateConditions', () => {
     const conditions = toNotificationEmptyStateConditions({
       totalEverRecorded: 5,
       view: 'read',
-      degraded: false,
+      serviceAvailable: true,
       hasSearch: false,
       hasFacetFilters: false,
     });
@@ -130,7 +131,7 @@ describe('toNotificationEmptyStateConditions', () => {
     const conditions = toNotificationEmptyStateConditions({
       totalEverRecorded: 5,
       view: 'active',
-      degraded: false,
+      serviceAvailable: true,
       hasSearch: true,
       hasFacetFilters: false,
     });
@@ -142,7 +143,7 @@ describe('toNotificationEmptyStateConditions', () => {
     const conditions = toNotificationEmptyStateConditions({
       totalEverRecorded: 5,
       view: 'active',
-      degraded: false,
+      serviceAvailable: true,
       hasSearch: false,
       hasFacetFilters: true,
     });
@@ -154,7 +155,7 @@ describe('toNotificationEmptyStateConditions', () => {
     const conditions = toNotificationEmptyStateConditions({
       totalEverRecorded: 5,
       view: 'active',
-      degraded: false,
+      serviceAvailable: true,
       hasSearch: false,
       hasFacetFilters: false,
     });
@@ -187,4 +188,17 @@ describe('toNotificationRecordId', () => {
   it('resolves a negative key to null', () => {
     expect(toNotificationRecordId(-7)).toBeNull();
   });
+});
+
+describe('toNotificationUnreadCount', () => {
+  it('shows the read count once it is ready', () => {
+    expect(toNotificationUnreadCount({ kind: 'ready', data: 4, isRefreshing: false })).toBe(4);
+  });
+
+  it.each([{ kind: 'loading' as const }, { kind: 'empty' as const }, { kind: 'failure' as const, code: 'internal' as const, message: 'boom' }])(
+    'shows 0 while the count is $kind',
+    (view) => {
+      expect(toNotificationUnreadCount(view)).toBe(0);
+    },
+  );
 });

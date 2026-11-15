@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { NotificationAction, NotificationDetailRow as NotificationDetailRowDTO } from '../../../../../shared/contracts/notification-center.types';
 import { NotificationDetailRow } from '../NotificationDetailRow';
+import { notificationsQueryWrapper } from '../../NotificationCenterPanel/__tests__/notification-center.test-support';
 
 afterEach(cleanup);
 
@@ -18,7 +19,7 @@ function buildAction(overrides: Partial<NotificationAction> = {}): NotificationA
 
 describe('NotificationDetailRow', () => {
   it('renders all four parts of a row: cover, name, status, detail, and its action', () => {
-    render(<NotificationDetailRow actions={[buildAction()]} coverEntry={{ dataUrl: 'data:image/png;base64,abc', status: 'cover' }} notificationId={1} row={buildRow()} />);
+    render(<NotificationDetailRow actions={[buildAction()]} coverEntry={{ dataUrl: 'data:image/png;base64,abc', status: 'cover' }} notificationId={1} row={buildRow()} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     expect(screen.getByRole('img', { name: 'Tensei shitara Slime Datta Ken 4th Season' })).toHaveAttribute('src', 'data:image/png;base64,abc');
     expect(screen.getByText('Tensei shitara Slime Datta Ken 4th Season')).toBeInTheDocument();
@@ -28,20 +29,20 @@ describe('NotificationDetailRow', () => {
   });
 
   it('renders a row with no actions without any action button, since not every row carries one', () => {
-    render(<NotificationDetailRow actions={[]} notificationId={1} row={buildRow({ detail: 'Episodes 14-16 -- ready to watch', status: 'Downloaded' })} />);
+    render(<NotificationDetailRow actions={[]} notificationId={1} row={buildRow({ detail: 'Episodes 14-16 -- ready to watch', status: 'Downloaded' })} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(screen.queryByTestId('notification-detail-row-actions')).not.toBeInTheDocument();
   });
 
   it('renders the actions block only once the row actually carries at least one action', () => {
-    render(<NotificationDetailRow actions={[buildAction()]} notificationId={1} row={buildRow()} />);
+    render(<NotificationDetailRow actions={[buildAction()]} notificationId={1} row={buildRow()} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     expect(screen.getByTestId('notification-detail-row-actions')).toBeInTheDocument();
   });
 
   it('renders a refused action inline with its message and a permanently disabled button', () => {
-    render(<NotificationDetailRow actions={[buildAction({ refusedReason: 'target_missing' })]} notificationId={1} row={buildRow()} />);
+    render(<NotificationDetailRow actions={[buildAction({ refusedReason: 'target_missing' })]} notificationId={1} row={buildRow()} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     const button = screen.getByRole('button', { name: 'Run this anime again' });
     expect(button).toBeDisabled();
@@ -49,7 +50,7 @@ describe('NotificationDetailRow', () => {
   });
 
   it('renders no inline refusal message for an action that has not been refused', () => {
-    render(<NotificationDetailRow actions={[buildAction()]} notificationId={1} row={buildRow()} />);
+    render(<NotificationDetailRow actions={[buildAction()]} notificationId={1} row={buildRow()} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     expect(screen.queryByText('The thing this action pointed at is gone.')).not.toBeInTheDocument();
     // Presence, not just text content: an empty <span> would pass the text
@@ -64,7 +65,7 @@ describe('NotificationDetailRow', () => {
     render(
       <MemoryRouter>
         <NotificationDetailRow actions={[]} notificationId={1} row={buildRow({ collapsedCount: 7, detail: '7 other anime finished without incident' })} />
-      </MemoryRouter>,
+      </MemoryRouter>, { wrapper: notificationsQueryWrapper().wrapper },
     );
 
     expect(screen.getByText('7 other anime finished without incident')).toBeInTheDocument();
@@ -77,7 +78,7 @@ describe('NotificationDetailRow', () => {
     render(
       <MemoryRouter>
         <NotificationDetailRow actions={[]} notificationId={1} row={buildRow({ collapsedCount: 7, detail: '7 other anime finished without incident' })} />
-      </MemoryRouter>,
+      </MemoryRouter>, { wrapper: notificationsQueryWrapper().wrapper },
     );
 
     expect(screen.getByRole('link', { name: 'show all in Downloads' })).toBeInTheDocument();
@@ -87,21 +88,21 @@ describe('NotificationDetailRow', () => {
     render(
       <MemoryRouter>
         <NotificationDetailRow actions={[]} notificationId={1} row={buildRow()} />
-      </MemoryRouter>,
+      </MemoryRouter>, { wrapper: notificationsQueryWrapper().wrapper },
     );
 
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
   it('falls back to the placeholder cover art when no cover entry resolved, and never renders a real <img>', () => {
-    render(<NotificationDetailRow actions={[]} notificationId={1} row={buildRow()} />);
+    render(<NotificationDetailRow actions={[]} notificationId={1} row={buildRow()} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     expect(screen.queryByRole('img', { name: buildRow().name })).not.toBeInTheDocument();
     expect(screen.getByLabelText('No cover art')).toBeInTheDocument();
   });
 
   it('falls back to the placeholder cover art when the cover entry resolved to a placeholder', () => {
-    render(<NotificationDetailRow actions={[]} coverEntry={{ status: 'placeholder' }} notificationId={1} row={buildRow()} />);
+    render(<NotificationDetailRow actions={[]} coverEntry={{ status: 'placeholder' }} notificationId={1} row={buildRow()} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     expect(screen.queryByRole('img', { name: buildRow().name })).not.toBeInTheDocument();
     expect(screen.getByLabelText('No cover art')).toBeInTheDocument();
@@ -113,7 +114,7 @@ describe('NotificationDetailRow', () => {
         actions={[buildAction({ id: 'a', label: 'Copy hoster 1' }), buildAction({ id: 'b', label: 'Copy hoster 2' })]}
         notificationId={1}
         row={buildRow()}
-      />,
+      />, { wrapper: notificationsQueryWrapper().wrapper },
     );
 
     expect(screen.getByRole('button', { name: 'Copy hoster 1' })).toBeInTheDocument();

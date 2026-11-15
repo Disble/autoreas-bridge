@@ -49,8 +49,8 @@ export interface NotificationRow {
  * One `ListNotifications` keyset page. `totalEver` counts every record ever
  * recorded, independent of the current view/filter -- it is what
  * distinguishes "nothing has ever been recorded" from "records exist but
- * none match the current filter" (design §9.3). `degraded` is true when the
- * store is unavailable or the query failed; `items` is then an empty array.
+ * none match the current filter" (design §9.3). `degraded` mirrors the Go
+ * field and is never set: a failed read rejects (ADR-032).
  */
 export interface NotificationPage {
   readonly items: readonly NotificationRow[];
@@ -104,7 +104,7 @@ export interface NotificationDetail extends NotificationRow {
   readonly actions: readonly NotificationAction[];
 }
 
-/** `GetNotification` result envelope. */
+/** `GetNotification` result envelope: `found` is false for an unknown id; `degraded` is never set. */
 export interface NotificationDetailResult {
   readonly found: boolean;
   readonly item: NotificationDetail;
@@ -114,8 +114,8 @@ export interface NotificationDetailResult {
 /**
  * Result envelope for the lifecycle mutations (`MarkNotificationsRead`,
  * `ArchiveNotifications`, `RestoreNotifications`): how many records were
- * actually affected, and the fresh unread count so the rail badge can update
- * without a second round trip.
+ * actually affected, and the fresh unread count. `degraded` is never set: a
+ * failed mutation rejects.
  */
 export interface NotificationMutationResult {
   readonly affected: number;
@@ -127,14 +127,32 @@ export interface NotificationMutationResult {
  * The `ExecuteNotificationAction` result envelope (design.md §5.7's
  * `ExecuteResult`, mapped onto the wire). `reason` is absent on success;
  * otherwise one of the four closed refusal reasons. Deliberately carries no
- * `degraded` flag: an executor that is not wired yet degrades to the same
- * `intent_unregistered` refusal an empty `IntentRegistry` already produces
- * -- a refusal is always a first-class, closed-set outcome, never an
- * out-of-band signal.
+ * `degraded` flag: a refusal is always a first-class, closed-set outcome, and
+ * a notifications module that is not ready rejects the call instead.
  */
 export interface NotificationActionResult {
   readonly executed: boolean;
   readonly reason?: string;
   readonly message?: string;
   readonly executedAtMs?: number;
+}
+
+/**
+ * Read/write port over the notification center inbox (ADR-032 §4), backed by
+ * the eight notifications-module bindings (`ListNotifications`,
+ * `GetNotification`, `GetUnreadNotificationCount`, `MarkNotificationsRead`,
+ * `MarkNotificationsUnread`, `ArchiveNotifications`, `RestoreNotifications`,
+ * `ExecuteNotificationAction`). Every method rejects with a `BridgeError` while
+ * the module starts or after it failed, never with an empty or degraded value;
+ * a refused action press is a resolved `NotificationActionResult`.
+ */
+export interface NotificationCenterSource {
+  readonly listNotifications: (request: NotificationListRequest) => Promise<NotificationPage>;
+  readonly getNotification: (id: number) => Promise<NotificationDetailResult>;
+  readonly getUnreadCount: () => Promise<number>;
+  readonly markRead: (ids: readonly number[]) => Promise<NotificationMutationResult>;
+  readonly markUnread: (ids: readonly number[]) => Promise<NotificationMutationResult>;
+  readonly archive: (ids: readonly number[]) => Promise<NotificationMutationResult>;
+  readonly restore: (ids: readonly number[]) => Promise<NotificationMutationResult>;
+  readonly executeAction: (notificationId: number, actionId: string) => Promise<NotificationActionResult>;
 }

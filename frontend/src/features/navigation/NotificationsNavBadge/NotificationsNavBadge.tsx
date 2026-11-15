@@ -4,10 +4,11 @@ import { useNotificationsNavBadge } from './use-notifications-nav-badge';
 
 /**
  * Renders the current unread notification count next to the Notifications
- * nav item, and renders nothing while nothing is unread.
+ * nav item, and renders nothing while nothing is unread or the count has not
+ * loaded (module starting or failed).
  */
-export function NotificationsNavBadge({ centerSource, pushSource }: Readonly<NotificationsNavBadgeProps>) {
-  const unreadCount = useNotificationsNavBadge(centerSource, pushSource);
+export function NotificationsNavBadge({ centerSource }: Readonly<NotificationsNavBadgeProps>) {
+  const unreadCount = useNotificationsNavBadge(centerSource);
 
   if (unreadCount === 0) {
     return null;

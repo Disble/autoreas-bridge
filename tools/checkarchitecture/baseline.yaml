@@ -158,30 +158,6 @@ violations:
     file: internal/desktop/app_download_readiness.go
     symbol: ListDownloadReadiness
   - rule: binding-uses-handle
-    file: internal/desktop/app_notification_center.go
-    symbol: ArchiveNotifications
-  - rule: binding-uses-handle
-    file: internal/desktop/app_notification_center.go
-    symbol: ExecuteNotificationAction
-  - rule: binding-uses-handle
-    file: internal/desktop/app_notification_center.go
-    symbol: GetNotification
-  - rule: binding-uses-handle
-    file: internal/desktop/app_notification_center.go
-    symbol: GetUnreadNotificationCount
-  - rule: binding-uses-handle
-    file: internal/desktop/app_notification_center.go
-    symbol: ListNotifications
-  - rule: binding-uses-handle
-    file: internal/desktop/app_notification_center.go
-    symbol: MarkNotificationsRead
-  - rule: binding-uses-handle
-    file: internal/desktop/app_notification_center.go
-    symbol: MarkNotificationsUnread
-  - rule: binding-uses-handle
-    file: internal/desktop/app_notification_center.go
-    symbol: RestoreNotifications
-  - rule: binding-uses-handle
     file: internal/desktop/app_preferences.go
     symbol: GetKeymap
   - rule: binding-uses-handle

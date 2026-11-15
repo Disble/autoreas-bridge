@@ -68,10 +68,9 @@ const ROUTE_MARKERS = {
   // The default Settings tab is Library, so its field proves the tab body rendered.
   '/#/settings': ['Set where your anime library lives on this computer.', 'Library root'],
   '/#/downloads': ['Configuration', 'Manual check'],
-  // No Wails runtime backs this static-served bundle, so every notification
-  // center binding degrades and the panel settles on the "unavailable"
-  // empty state -- a deterministic marker, not one that depends on live data.
-  '/#/notifications': ['Notifications unavailable'],
+  // No Wails runtime reports the notifications module ready, so the center
+  // stays in its loading state (ADR-032); its static toolbar action is the marker.
+  '/#/notifications': ['Mark all as read'],
   // Both Activity markers are static shell copy rather than data: the Activity
   // bindings degrade here exactly like the notification ones, and a marker that
   // waited on a degraded read would only prove the timeout fired.

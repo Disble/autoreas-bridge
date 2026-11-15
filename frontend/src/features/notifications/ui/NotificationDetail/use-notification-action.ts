@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import type { NotificationAction } from '../../../../shared/contracts/notification-center.types';
-import { createNotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.helpers';
-import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
+import type { NotificationAction, NotificationCenterSource } from '../../../../shared/contracts/notification-center.types';
+import { BRIDGE_NOTIFICATION_CENTER_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
 import { resolveRefusalMessage, resolveServerActionStatus } from './notification-detail.helpers';
 import type { NotificationActionUIStatus, UseNotificationActionResult } from './notification-detail.types';
 
@@ -13,24 +13,39 @@ interface LocalPressState {
 
 /**
  * Drives one detail row's per-action button through the real, Slice-5-wired
- * `ExecuteNotificationAction` binding (`source.executeAction`, injectable so
- * tests can supply a fake -- mirrors `use-notification-detail-covers.ts`'s
- * own injectable-source pattern). A press disables the button optimistically
- * (`'pending'`), then settles to `'executed'` or `'refused'` once the
- * backend answers; an in-flight press is guarded by a ref rather than the
- * `isDisabled` state alone, since two synchronous presses in the same event
- * can both read the same stale `isDisabled` before React re-renders.
+ * `ExecuteNotificationAction` binding (`source.executeAction` through
+ * `useBridgeMutation`, injectable so tests can supply a fake -- mirrors
+ * `use-notification-detail-covers.ts`'s own injectable-source pattern). A press
+ * disables the button optimistically (`'pending'`), then settles to
+ * `'executed'` or `'refused'` once the backend answers; a press the backend
+ * could not take (the notifications module is not ready, or the call failed)
+ * returns the button to what it was before the press. An in-flight press is
+ * guarded by a ref rather than the `isDisabled` state alone, since two
+ * synchronous presses in the same event can both read the same stale
+ * `isDisabled` before React re-renders.
  */
 export function useNotificationAction(
   notificationId: number,
   action: NotificationAction,
-  source: NotificationCenterSource = createNotificationCenterSource(),
+  source: NotificationCenterSource = BRIDGE_NOTIFICATION_CENTER_SOURCE,
 ): UseNotificationActionResult {
   // 3. Refs
   const isPressInFlightRef = useRef(false);
 
   // 4. State
   const [localPress, setLocalPress] = useState<LocalPressState | null>(null);
+
+  // 4. Queries/Mutations
+  const { mutate: execute } = useBridgeMutation({
+    mutationFn: (actionId: string) => source.executeAction(notificationId, actionId),
+    onSuccess: (result) => {
+      setLocalPress(result.executed ? { reason: '', status: 'executed' } : { reason: result.reason ?? '', status: 'refused' });
+    },
+    onError: () => setLocalPress(null),
+    onSettled: () => {
+      isPressInFlightRef.current = false;
+    },
+  });
 
   // 5. Derived state
   const serverStatus = useMemo(() => resolveServerActionStatus(action), [action]);
@@ -59,11 +74,8 @@ export function useNotificationAction(
 
     isPressInFlightRef.current = true;
     setLocalPress({ reason: '', status: 'pending' });
-    void source.executeAction(notificationId, action.id).then((result) => {
-      isPressInFlightRef.current = false;
-      setLocalPress(result.executed ? { reason: '', status: 'executed' } : { reason: result.reason ?? '', status: 'refused' });
-    });
-  }, [action.id, isDisabled, notificationId, source]);
+    execute(action.id);
+  }, [action.id, execute, isDisabled]);
 
   return { isDisabled, press, refusalMessage, status };
 }

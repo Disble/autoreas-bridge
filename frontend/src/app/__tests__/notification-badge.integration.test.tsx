@@ -4,6 +4,8 @@ import { NotificationsNavBadge } from '../../features/navigation/NotificationsNa
 import type { NotificationPage } from '../../shared/contracts/notification-center.types';
 import type { NotificationCenterPanelProps } from '../../features/notifications/ui/NotificationCenterPanel/notification-center-panel.types';
 import { NotificationCenterPanel } from '../../features/notifications/ui/NotificationCenterPanel/NotificationCenterPanel';
+import { createModulesTestWrapper } from '../../shared/query/test-support/bridge-modules.test-support';
+import { status } from '../../shared/query/test-support/readiness-source.test-support';
 
 afterEach(cleanup);
 
@@ -28,7 +30,7 @@ const PAGE: NotificationPage = {
   degraded: false,
 };
 
-/** A push source that never emits; the badge subscribes to it but this seam is about mutations. */
+/** A push source that never emits; this seam is about mutations. */
 const SILENT_PUSH = {
   subscribe: () => () => undefined,
   subscribeArchived: () => () => undefined,
@@ -36,18 +38,20 @@ const SILENT_PUSH = {
 };
 
 /**
- * Renders the rail badge beside the panel over one shared source, which is
- * what `AppLayout` does: the badge lives in the rail, the panel in the route,
- * and the only thing joining them is that they read the same data.
+ * Renders the rail badge beside the panel over one shared source and one query
+ * client, which is what `AppLayout` does: the badge lives in the rail, the
+ * panel in the route, and the only thing joining them is that they read the
+ * same unread-count query.
  * @param source The shared notification-center source.
  * @returns The rendered result.
  */
 function renderRailAndPanel(source: NotificationCenterSourceDouble) {
   return render(
     <>
-      <NotificationsNavBadge centerSource={source} pushSource={SILENT_PUSH} />
+      <NotificationsNavBadge centerSource={source} />
       <NotificationCenterPanel pushSource={SILENT_PUSH} source={source} />
     </>,
+    { wrapper: createModulesTestWrapper(status('notifications', 'ready')).wrapper },
   );
 }
 
@@ -70,7 +74,7 @@ describe('unread badge vs. the master list (integration)', () => {
     const source: NotificationCenterSourceDouble = {
       listNotifications: vi.fn().mockResolvedValue(PAGE),
       getNotification: vi.fn(),
-      getUnreadCount: vi.fn().mockResolvedValue(2),
+      getUnreadCount: vi.fn().mockResolvedValueOnce(2).mockResolvedValue(1),
       markRead,
       markUnread: vi.fn(),
       archive: vi.fn(),
@@ -92,7 +96,7 @@ describe('unread badge vs. the master list (integration)', () => {
     const source: NotificationCenterSourceDouble = {
       listNotifications: vi.fn().mockResolvedValue(PAGE),
       getNotification: vi.fn(),
-      getUnreadCount: vi.fn().mockResolvedValue(1),
+      getUnreadCount: vi.fn().mockResolvedValueOnce(1).mockResolvedValue(0),
       markRead: vi.fn().mockResolvedValue({ affected: 1, unreadCount: 0, degraded: false }),
       markUnread: vi.fn().mockResolvedValue({ affected: 1, unreadCount: 0, degraded: false }),
       archive: vi.fn(),
@@ -113,12 +117,12 @@ describe('unread badge vs. the master list (integration)', () => {
   it('drops the badge count when records are archived, because archiving reads them too', async () => {
     // `Store.Archive` runs a second update carrying `WHERE read_at_ms IS NULL`,
     // so archiving an unread record marks it read as a side effect. The badge
-    // therefore cannot derive its count from the selection size and must take
-    // the server's own `unreadCount`.
+    // therefore cannot derive its count from the selection size and must read
+    // the server's own count again.
     const source: NotificationCenterSourceDouble = {
       listNotifications: vi.fn().mockResolvedValue(PAGE),
       getNotification: vi.fn(),
-      getUnreadCount: vi.fn().mockResolvedValue(2),
+      getUnreadCount: vi.fn().mockResolvedValueOnce(2).mockResolvedValue(1),
       markRead: vi.fn(),
       markUnread: vi.fn(),
       archive: vi.fn().mockResolvedValue({ affected: 1, unreadCount: 1, degraded: false }),

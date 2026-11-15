@@ -55,3 +55,14 @@ export const backupKeys = defineQueryKeys('backup');
  * and `settingsKeys.key('auto-start')`; `settingsKeys.all` is their common prefix.
  */
 export const settingsKeys = defineQueryKeys('settings');
+
+/**
+ * Keys of the notifications module's reads: `notificationsKeys.key('unread-count')`
+ * (the rail badge and the center header), `notificationsKeys.key('list', filters)`
+ * (the center's first page) and `notificationsKeys.key('detail', id)` (the open
+ * record); `notificationsKeys.all` is their common prefix.
+ */
+export const notificationsKeys = defineQueryKeys('notifications');
+
+/** Key of the unread count; an archive invalidates it (`BRIDGE_INVALIDATIONS`). */
+export const NOTIFICATIONS_UNREAD_COUNT_KEY = notificationsKeys.key('unread-count');

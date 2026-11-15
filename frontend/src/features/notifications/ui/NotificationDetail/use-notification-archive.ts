@@ -1,20 +1,21 @@
 import { useCallback, useRef, useState } from 'react';
-import { createNotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.helpers';
-import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
+import type { NotificationCenterSource } from '../../../../shared/contracts/notification-center.types';
+import { BRIDGE_NOTIFICATION_CENTER_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
 import type { UseNotificationArchiveResult } from './notification-detail.types';
 
 /**
  * Drives the detail pane's archive button against the existing
- * `ArchiveNotifications` binding (`source.archive`, injectable so tests can
+ * `ArchiveNotifications` binding (`source.archive` through `useBridgeMutation`, injectable so tests can
  * supply a fake — mirrors `use-notification-action.ts`'s own injectable-source
  * pattern). Archiving is the one lifecycle verb the pane itself carries out;
  * the `Lifecycle.dc.html` artboard's other two live on the master list.
  *
  * A press disables the button optimistically and keeps it down once the store
- * confirms — archiving the same record twice is not a second outcome. A
- * DEGRADED result is the exception: the store was unavailable and nothing was
- * archived, so the button comes back rather than showing the user the shape of
- * a success that did not happen. The in-flight press is guarded by a ref
+ * confirms — archiving the same record twice is not a second outcome. A failed
+ * archive is the exception: the module was not ready or the store failed and
+ * nothing was archived, so the button comes back rather than showing the user
+ * the shape of a success that did not happen. The in-flight press is guarded by a ref
  * rather than the disabled state alone, since two synchronous presses in the
  * same event can both read the same stale state before React re-renders.
  *
@@ -27,13 +28,22 @@ import type { UseNotificationArchiveResult } from './notification-detail.types';
  */
 export function useNotificationArchive(
   notificationId: number,
-  source: NotificationCenterSource = createNotificationCenterSource(),
+  source: NotificationCenterSource = BRIDGE_NOTIFICATION_CENTER_SOURCE,
 ): UseNotificationArchiveResult {
   // 1. Refs
   const isArchiveInFlightRef = useRef(false);
 
   // 2. State
   const [settledId, setSettledId] = useState<number | null>(null);
+
+  // 4. Queries/Mutations
+  const { mutate: archiveRecord } = useBridgeMutation({
+    mutationFn: (id: number) => source.archive([id]),
+    onError: () => setSettledId(null),
+    onSettled: () => {
+      isArchiveInFlightRef.current = false;
+    },
+  });
 
   // 5. Derived state
   const isDisabled = settledId === notificationId;
@@ -46,11 +56,8 @@ export function useNotificationArchive(
 
     isArchiveInFlightRef.current = true;
     setSettledId(notificationId);
-    void source.archive([notificationId]).then((result) => {
-      isArchiveInFlightRef.current = false;
-      setSettledId(result.degraded ? null : notificationId);
-    });
-  }, [isDisabled, notificationId, source]);
+    archiveRecord(notificationId);
+  }, [archiveRecord, isDisabled, notificationId]);
 
   return { archive, isDisabled };
 }

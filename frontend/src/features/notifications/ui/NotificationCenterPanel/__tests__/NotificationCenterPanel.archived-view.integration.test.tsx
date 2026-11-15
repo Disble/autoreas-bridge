@@ -1,9 +1,9 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { NotificationCenterSource } from '../../../../../infrastructure/notification-center-source/notification-center-source.types';
+import type { NotificationCenterSource, NotificationListRequest, NotificationPage } from '../../../../../shared/contracts/notification-center.types';
 import type { NotificationSource } from '../../../../../infrastructure/notification-source/notification-source.types';
-import type { NotificationListRequest, NotificationPage } from '../../../../../shared/contracts/notification-center.types';
 import { NotificationCenterPanel } from '../NotificationCenterPanel';
+import { notificationsQueryWrapper } from './notification-center.test-support';
 
 afterEach(cleanup);
 
@@ -64,7 +64,7 @@ describe('NotificationCenterPanel archived view (integration)', () => {
   it('lists archived records once the user switches to the archived view', async () => {
     const source = makeSource();
 
-    render(<NotificationCenterPanel pushSource={SILENT_PUSH} source={source} />);
+    render(<NotificationCenterPanel pushSource={SILENT_PUSH} source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
     await screen.findByText('Episode ready');
 
     await switchToArchived();
@@ -78,7 +78,7 @@ describe('NotificationCenterPanel archived view (integration)', () => {
     const restore = vi.fn().mockResolvedValue({ affected: 1, unreadCount: 0, degraded: false });
     const source = makeSource({ restore });
 
-    render(<NotificationCenterPanel pushSource={SILENT_PUSH} source={source} />);
+    render(<NotificationCenterPanel pushSource={SILENT_PUSH} source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
     await screen.findByText('Episode ready');
     await switchToArchived();
 
@@ -92,7 +92,7 @@ describe('NotificationCenterPanel archived view (integration)', () => {
   });
 
   it('offers Restore instead of Archive while the archived view is showing', async () => {
-    render(<NotificationCenterPanel pushSource={SILENT_PUSH} source={makeSource()} />);
+    render(<NotificationCenterPanel pushSource={SILENT_PUSH} source={makeSource()} />, { wrapper: notificationsQueryWrapper().wrapper });
     await screen.findByText('Episode ready');
     await switchToArchived();
 
@@ -107,7 +107,7 @@ describe('NotificationCenterPanel archived view (integration)', () => {
   it('goes back to the active view, which is where archiving still applies', async () => {
     const source = makeSource();
 
-    render(<NotificationCenterPanel pushSource={SILENT_PUSH} source={source} />);
+    render(<NotificationCenterPanel pushSource={SILENT_PUSH} source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
     await screen.findByText('Episode ready');
     await switchToArchived();
 
@@ -125,7 +125,7 @@ describe('NotificationCenterPanel archived view (integration)', () => {
       ),
     });
 
-    render(<NotificationCenterPanel pushSource={SILENT_PUSH} source={source} />);
+    render(<NotificationCenterPanel pushSource={SILENT_PUSH} source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
     await screen.findByText('Episode ready');
 
     fireEvent.click(screen.getByRole('button', { name: /archived/i }));

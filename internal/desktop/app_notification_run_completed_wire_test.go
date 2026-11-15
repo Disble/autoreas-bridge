@@ -53,8 +53,11 @@ func TestSuccessfulRunNotificationReachesTheWireWithItsRows(t *testing.T) {
 		t.Fatalf("persist run_completed notification: %v", err)
 	}
 
-	page := app.ListNotifications(contracts.NotificationListRequest{Limit: 10})
-	if page.Degraded || len(page.Items) != 1 {
+	page, err := app.ListNotifications(contracts.NotificationListRequest{Limit: 10})
+	if err != nil {
+		t.Fatalf("ListNotifications: %v", err)
+	}
+	if len(page.Items) != 1 {
 		t.Fatalf("page = %#v, want exactly 1 non-degraded item", page)
 	}
 	listed := page.Items[0]
@@ -65,8 +68,11 @@ func TestSuccessfulRunNotificationReachesTheWireWithItsRows(t *testing.T) {
 		t.Fatalf("Subjects = %#v, want the one anime the run actually downloaded", listed.Subjects)
 	}
 
-	detail := app.GetNotification(listed.ID)
-	if detail.Degraded || !detail.Found {
+	detail, err := app.GetNotification(listed.ID)
+	if err != nil {
+		t.Fatalf("GetNotification: %v", err)
+	}
+	if !detail.Found {
 		t.Fatalf("GetNotification = %#v, want a found, non-degraded record", detail)
 	}
 	if len(detail.Item.Rows) != 2 {

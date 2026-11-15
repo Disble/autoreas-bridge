@@ -96,8 +96,9 @@ func TestProductionStartupGatesTheEpisodeSchedule(t *testing.T) {
 
 // runtimeModuleCalls calls one binding of each of the api, sync and devices modules, the sync
 // binding that reads its bound database, the episodes durations binding that reads its bound
-// database, the observability bindings that read each of its bound services, and the settings
-// binding that reads its bound store.
+// database, the observability bindings that read each of its bound services, the settings
+// binding that reads its bound store, and the notifications bindings that read its store and
+// press through its executor.
 func runtimeModuleCalls(app *App) map[string]error {
 	_, durations := app.GetEpisodeDurationSection(EpisodeDurationAnimeDTO{AnimeID: "anime-1"})
 	_, address := app.GetEffectiveAddress()
@@ -108,10 +109,13 @@ func runtimeModuleCalls(app *App) map[string]error {
 	_, request := app.GetActivityRequest("req-1")
 	_, diagnostics := app.ListDeviceSyncDiagnostics(contracts.DeviceSyncDiagnosticsQuery{})
 	_, libraryRoot := app.GetLibraryRoot()
+	_, unread := app.GetUnreadNotificationCount()
+	_, press := app.ExecuteNotificationAction(1, "act-missing")
 	return map[string]error{
 		"GetEffectiveAddress": address, "GetSyncingAnimeItems": syncing, "GetSQLiteStatus": sqliteStatus,
 		"GetConnectedDevices": devices, "GetLibraryRoot": libraryRoot, "GetEpisodeDurationSection": durations,
 		"SearchActivityFeed": feed, "GetActivityRequest": request, "ListDeviceSyncDiagnostics": diagnostics,
+		"GetUnreadNotificationCount": unread, "ExecuteNotificationAction": press,
 	}
 }
 

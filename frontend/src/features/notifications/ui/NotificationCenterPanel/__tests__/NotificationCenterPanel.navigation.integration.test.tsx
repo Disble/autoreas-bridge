@@ -1,15 +1,13 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { NotificationCenterSource } from '../../../../../infrastructure/notification-center-source/notification-center-source.types';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { NotificationAction, NotificationCenterSource, NotificationDetail, NotificationPage } from '../../../../../shared/contracts/notification-center.types';
 import type { NotificationSource } from '../../../../../infrastructure/notification-source/notification-source.types';
-import type { NotificationAction, NotificationDetail, NotificationPage } from '../../../../../shared/contracts/notification-center.types';
-import { resetNotificationStore } from '../../../../../shared/store/notification-store/notification-store.helpers';
 import { NotificationNavigationListener } from '../../NotificationNavigationListener/NotificationNavigationListener';
 import { NotificationCenterPanel } from '../NotificationCenterPanel';
+import { notificationsQueryWrapper } from './notification-center.test-support';
 
 afterEach(cleanup);
-beforeEach(resetNotificationStore);
 
 /** The one row the master list returns, whose record carries the whole-notification "Open Downloads" token. */
 const LISTED_PAGE: NotificationPage = {
@@ -138,7 +136,7 @@ function renderRoutedApp(source: NotificationCenterSource, navigateSource: Notif
         <Route element={<NotificationCenterPanel source={source} />} path="/notifications" />
         <Route element={<DownloadsScreenStub />} path="/downloads" />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>, { wrapper: notificationsQueryWrapper().wrapper },
   );
 }
 
