@@ -131,11 +131,17 @@ helper and the skill. Deliberate bypass is out of scope.
   in both `CLAUDE.md` and `AGENTS.md`; a parity test fails when the two copies differ. Discovery never
   relies on `.atl/` (git-ignored).
 - Gate messages name the helper, the skill and this ADR.
-- New ESLint restrictions are merged into the existing `no-restricted-imports` block of
-  `frontend/eslint.config.js`; a new block would replace its options (flat config). A RED fixture proves
-  the barrel and `react-aria-components` bans still fire.
+- The frontend gates are local ESLint rules (`async-state/*`, `frontend/scripts/async-state-gates.helpers.mjs`),
+  not new options of the existing `no-restricted-imports` block: a second block setting that rule would
+  replace its options for the files it matches (flat config), and each finding needs an identity the
+  baseline can name. The existing block is untouched; a RED fixture proves the barrel and
+  `react-aria-components` bans still fire, on baselined files too. `zustand/vanilla` is allowed only in
+  a closed list of files, each with its reason.
+- The editor and `dharness check` report every violation the baseline does not name, so editing a legacy
+  file is never blocked by its baselined violations; `frontend/scripts/check-async-state-gates.mjs`
+  (`check:async-state`, `check:async-state:all`) owns the new/stale verdict below.
 - Legacy violations sit in a baseline of identified violations (rule id + file + symbol or import
-  specifier). New violations fail in pre-commit on staged files; a stale entry fails on staged files in
+  specifier; frontend: `frontend/async-state-baseline.json`). New violations fail in pre-commit on staged files; a stale entry fails on staged files in
   pre-commit and whole-tree in `pre-merge-commit`, and its message names the entry to delete. The entry
   count is reported, not gated.
 - Every gate has a RED fixture. One `error-codes.json` is compared by a Go test and a Vitest test.

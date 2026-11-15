@@ -24,7 +24,9 @@
     "postinstall": "node ./scripts/generate-wails-bindings.mjs",
     "generate:bindings": "node ./scripts/generate-wails-bindings.mjs",
     "layout:smoke": "node ./scripts/layout-smoke.mjs",
-    "check:airis-assets": "node ./scripts/check-airis-assets.mjs"
+    "check:airis-assets": "node ./scripts/check-airis-assets.mjs",
+    "check:async-state": "node ./scripts/check-async-state-gates.mjs",
+    "check:async-state:all": "node ./scripts/check-async-state-gates.mjs --all"
   },
   "dependencies": {
     "@dnd-kit/helpers": "^0.5.1",

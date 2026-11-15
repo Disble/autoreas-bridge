@@ -144,6 +144,37 @@ scaffold, gate) is in ADR-032 §5. Instructions live in the skill `bridge-data`,
 Legacy violations sit in an identified-violation baseline. New violations fail in pre-commit; a stale
 entry fails in pre-commit (staged) and in `pre-merge-commit` (whole tree), naming the entry to delete.
 
+Frontend gates (`frontend/scripts/async-state-gates.helpers.mjs`, ESLint plugin `async-state`):
+
+| Rule | Fails when | Scope |
+|---|---|---|
+| `no-infrastructure-import` | an import, re-export or `import()` resolves into `src/infrastructure/**` or the generated `wailsjs/**` | `features/**`, `shared/**` except `shared/query/**` |
+| `no-window-go` | `window.go` or `globalThis.go` is read (through `as` casts too) | everything except `infrastructure/**` |
+| `react-query-in-shared-query` | `@tanstack/react-query` or `@tanstack/query-core` is imported | everything except `shared/query/**` |
+| `zustand-vanilla-allow-list` | `zustand/vanilla` is imported by a file outside `ZUSTAND_VANILLA_ALLOW_LIST` | everything |
+| `no-runtime-subscription` | Wails `EventsOn`/`EventsOnce`/`EventsOnMultiple` is imported or called; a `subscribe<Name>(...)` call; a bare `.subscribe(...)` on a receiver named `*Source` | everything except `shared/query/**` and `infrastructure/**` |
+
+- Test files (`__tests__/`, `*.test.*`, `test-support`, `src/test/`) are out of scope: they fake the
+  boundary these rules guard.
+- `no-runtime-subscription` counts calls, not definitions: a port type or an adapter object that declares
+  `subscribeX` is not a subscription. A bare `.subscribe(...)` counts only on a `*Source` receiver,
+  because that is how a Zustand store is subscribed (`store.subscribe`), and the runtime source ports
+  name their methods `subscribe<Event>` or live in variables named `*Source`. It is a tripwire, not
+  proof: a source stored under another name and subscribed with a bare `.subscribe` slips through.
+- `frontend/eslint.config.js` registers the plugin with `frontend/async-state-baseline.json`, so the
+  editor and `dharness check` report every violation the baseline does not name, in clean and legacy
+  files alike, and stay silent on baselined ones. The existing `no-restricted-imports` block (barrels,
+  `react-aria-components`) is unchanged and still applies to every file.
+- `bun --cwd="frontend" run check:async-state` (pre-commit job `frontend-async-state`) checks staged
+  sources; staging the baseline or the gate code checks the whole tree. `check:async-state:all`
+  (`pre-merge-commit`) checks the whole tree. Both print the entry count per rule, which is not gated.
+  A file that does not parse fails the check and its baseline entries are not judged stale.
+- An entry is an identity (rule, file, import specifier or symbol), not a count: repeating an
+  already-baselined violation in the same file passes. A renamed baselined file fails as new code
+  until its entries move to the new path; the old-path entries show as stale.
+- The allow-list (`zustand/vanilla`) is closed: the Catalog session and keyboard UI stores, and the four
+  ADR-006 read-models (download, notification, preferences, season), which leave it as they migrate.
+
 ## Known drift
 
 Measured on `feat/async-state-standard` after the Go foundation (ADR-032 task T2) and the frontend
@@ -198,5 +229,13 @@ runtime with its gate recovery (tasks T3a, T3d):
   `grep -rlE "from '(\.\./)+infrastructure/" src/<layer> --include=*.ts --include=*.tsx | grep -v __tests__`
   from `frontend/`. One of the 16 is in `shared/query`: the composition module
   `bridge-runtime/bridge-runtime.constants.ts`; the rest of `shared/query` imports none.
-- Server state still lives in 4 Zustand read-models (ADR-006) and in hand-fetching hooks; the ESLint
-  gates that confine `@tanstack/react-query`, `infrastructure/**` and `EventsOn` are not in place yet (T3b).
+- Server state still lives in 4 Zustand read-models (ADR-006) and in hand-fetching hooks.
+- `frontend/async-state-baseline.json` holds 244 entries (task T3b), measured by running the five rules
+  over `src/**/*.{ts,tsx}` and printed by `bun --cwd="frontend" run check:async-state:all`:
+  - `no-infrastructure-import` 228 entries in 143 files (128 feature, 15 shared); 10 of them are direct
+    `wailsjs/**` imports (generated bindings, models and the runtime) in 7 files.
+  - `no-runtime-subscription` 16 entries in 11 files: 9 feature files (activity, download run history,
+    episode schedule, navigation badge, notifications) and 2 shared stores (download runtime, season).
+  - `no-window-go`, `react-query-in-shared-query` and `zustand-vanilla-allow-list` 0 entries: production
+    code outside `infrastructure/**` never reads `window.go` (8 test files fake it), TanStack Query is
+    imported only in `shared/query`, and the 6 `zustand/vanilla` importers are exactly the allow-list.

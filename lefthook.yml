@@ -89,6 +89,17 @@ pre-commit:
         jobs:
           - name: frontend-quality
             run: bun --cwd="frontend" run check:staged
+          # ADR-032 §5 async-state gates on staged files: a violation the baseline
+          # does not name fails, and so does a baseline entry of a staged file that
+          # no longer occurs. Staging the baseline or the gate code checks the whole tree.
+          - name: frontend-async-state
+            glob:
+              - "frontend/src/**"
+              - "frontend/async-state-baseline.json"
+              - "frontend/eslint.config.js"
+              - "frontend/scripts/async-state-gates.helpers.mjs"
+              - "frontend/scripts/check-async-state-gates.mjs"
+            run: bun --cwd="frontend" run check:async-state
           - name: frontend-typecheck
             run: &frontend-typecheck bun --cwd="frontend" run typecheck
           # Copied from the coverage job `dharness sync` writes to .dharness/lefthook.yml,
@@ -157,3 +168,6 @@ pre-merge-commit:
             run: *frontend-render-smoke
           - name: frontend-layout-smoke
             run: *frontend-layout-smoke
+          # Whole tree: every stale async-state baseline entry fails here, staged or not.
+          - name: frontend-async-state
+            run: bun --cwd="frontend" run check:async-state:all
