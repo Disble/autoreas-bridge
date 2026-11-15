@@ -2,6 +2,50 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { SeasonSource } from '../season-source/season-source.types';
+
+/** The coded failure exactly as Wails rejects a season binding while the module starts. */
+const SEASON_STARTING_REJECTION = '{"code":"unavailable","message":"season is starting"}';
+
+/** Every season command: the binding it calls and how the source invokes it. */
+const SEASON_COMMANDS: readonly (readonly [string, (source: SeasonSource) => Promise<string>])[] = [
+  ['CreateSeason', (source) => source.createSeason('Julio 2026')],
+  ['SetSeasonMinApprovalGrade', (source) => source.setMinApprovalGrade(4)],
+  ['SetSeasonSlots', (source) => source.setSlots(12)],
+  ['CloseSeason', (source) => source.closeSeason()],
+  ['SetSeasonAnimeMetadata', (source) => source.setSeasonAnimeMetadata('sa-1', '')],
+  ['ReconcileSeasonIntake', (source) => source.reconcileIntake('Naruto')],
+  ['RunSeasonMatching', (source) => source.runMatching()],
+  ['ResolveSeasonMatch', (source) => source.resolveMatch('sa-1', 'https://jkanime.net/naruto/')],
+  ['DiscardSeasonName', (source) => source.discardName('sa-1')],
+  ['RestoreSeasonName', (source) => source.restoreName('sa-1')],
+  ['SetSeasonGrade', (source) => source.setGrade('anime-1', 5)],
+  ['SkipSeasonGrading', (source) => source.skipGrading('sa-1')],
+  ['SetSeasonConsideration', (source) => source.setConsideration('sa-1', 'none')],
+  ['CreateSeasonAnimes', (source) => source.createSeasonAnimes(['sa-1'], {}, {})],
+  ['SaveSeasonOrderingDraft', (source) => source.saveOrderingDraft('{}')],
+  ['ReopenSeasonOrdering', (source) => source.reopenOrdering()],
+  ['RecheckSeasonAvailability', (source) => source.recheckAvailability()],
+];
+
+/** Every season read: the binding it calls, how the source invokes it, and the fallback its consumers read. */
+const SEASON_READS: readonly (readonly [string, (source: SeasonSource) => Promise<unknown>, unknown])[] = [
+  ['GetSeason', (source) => source.getSeason(), null],
+  ['GetSeasonAnimes', (source) => source.getSeasonAnimes(), []],
+  ['ListSeasons', (source) => source.listSeasons(), []],
+  ['GetPastSeason', (source) => source.getPastSeason('season-1'), null],
+  ['GetPastSeasonAnimes', (source) => source.getPastSeasonAnimes('season-1'), []],
+  ['GetSeasonOrderingBoard', (source) => source.getOrderingBoard(), { rail: [], grid: [] }],
+  ['GetSeasonOrderingSnapshot', (source) => source.getSeasonOrderingSnapshot!('season-1'), { recorded: false, rail: [], grid: [] }],
+];
+
+/** Every season binding whose result carries a status: how the source invokes it, and its runtime-unavailable result. */
+const SEASON_OUTCOMES: readonly (readonly [string, (source: SeasonSource) => Promise<unknown>, Record<string, unknown>])[] = [
+  ['ApplySeasonSchedule', (source) => source.applySchedule(), { applied: 0, failed: [] }],
+  ['ConfirmSeasonSelection', (source) => source.confirmSelection(), { approved: 0, rejected: 0, quotaExceeded: false }],
+  ['SearchSeasonProviders', (source) => source.searchProviders!('Naruto'), { pages: [] }],
+];
+
 describe('season-source', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -217,6 +261,48 @@ describe('season-source', () => {
 
     // The store surfaces this message, so a write with no runtime cannot pass as saved.
     await expect(write).resolves.toBe(SEASON_RUNTIME_UNAVAILABLE);
+  });
+
+  it.each(SEASON_COMMANDS)('reads %s as "ok" once it resolves and as its failure message once it rejects', async (binding, invoke) => {
+    const bindingMock = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error(SEASON_STARTING_REJECTION));
+    window.go = { desktop: { App: { [binding]: bindingMock } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const source = createSeasonSource();
+
+    // The season consumers still read a status string until they migrate, so a void
+    // success is "ok" and a coded rejection is the message they show.
+    await expect(invoke(source)).resolves.toBe('ok');
+    await expect(invoke(source)).resolves.toBe('season is starting');
+    expect(bindingMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('reads an uncoded season refusal, which Wails rejects as a bare string, as its message', async () => {
+    window.go = { desktop: { App: { CloseSeason: vi.fn().mockRejectedValue('no active season') } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+
+    await expect(createSeasonSource().closeSeason()).resolves.toBe('no active season');
+  });
+
+  it.each(SEASON_READS)('reads a rejected %s as the fallback its consumers read before', async (binding, invoke, fallback) => {
+    const bindingMock = vi.fn().mockRejectedValue(new Error(SEASON_STARTING_REJECTION));
+    window.go = { desktop: { App: { [binding]: bindingMock } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+
+    await expect(invoke(createSeasonSource())).resolves.toEqual(fallback);
+    expect(bindingMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(SEASON_OUTCOMES)('reads a rejected %s as its unavailable result carrying the failure message', async (binding, invoke, rest) => {
+    const bindingMock = vi.fn().mockRejectedValue(new Error(SEASON_STARTING_REJECTION));
+    window.go = { desktop: { App: { [binding]: bindingMock } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+
+    await expect(invoke(createSeasonSource())).resolves.toEqual({ ...rest, status: 'season is starting' });
+    expect(bindingMock).toHaveBeenCalledTimes(1);
   });
 
   it('uses the shared Wails binding readiness helper instead of local duplicate plumbing', () => {

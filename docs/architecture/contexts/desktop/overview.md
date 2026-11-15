@@ -30,7 +30,7 @@ For module readiness, failure codes and the `shared/query` layer the frontend re
 | `internal/desktop/app.go` | the `App` struct, `NewApp`, `startup`, `shutdown`, window and quit hooks |
 | `internal/desktop/app_defaults.go` | default constructors for every injectable seam (tests replace them) |
 | `internal/desktop/app_startup_runtime.go`, `app_runtime_services.go` | the wiring steps `startup` runs, and the `register*RuntimeEventBridge` functions |
-| `internal/desktop/app_readiness.go` | module ids, the module set and its handles (`shell`, `backup`, `episodes`, `api`, `sync`, `devices`, `observability`), readiness settling, `GetReadiness`, the `bridge.readiness` bridge, `formatBindingError` |
+| `internal/desktop/app_readiness.go` | module ids, the module set and its handles (`shell`, `backup`, `episodes`, `api`, `sync`, `devices`, `observability`, `season`), readiness settling, `GetReadiness`, the `bridge.readiness` bridge, `formatBindingError` |
 | `internal/desktop/app_<context>*.go` | bindings grouped by the context they serve (anime, episodes, season, downloads, notifications, activity, backup, preferences, devices) |
 | `internal/lifecycle` | readiness registry (`Registry`, read side) and its `Writer`; no Wails import |
 | `internal/modules` | typed module handles (`Handle[S]`) and the always-ready `Shell` handle; no Wails import |
@@ -63,6 +63,7 @@ Bindings that run through a handle today:
 | `sync` (`modules.Handle[syncServices]`) | `syncServices.trigger`, the sync trigger service | `startHTTPServer` (`bindServerModules`), before `configureRuntimeServices` settles `sync` | `TriggerReconcile() error`, `GetSyncingAnimeItems() ([]SyncingAnimeItem, error)` |
 | `devices` (`modules.Handle[deviceServices]`) | device store, a device admin service (sync state from `bridge.db`, presence from the realtime hub), pairing token generator | `bindDevicesModule`, after `configureRealtimeHub`, before `configureRuntimeServices` settles `devices` | `GetPairingToken() (string, error)`, `GetConnectedDevices() ([]DeviceInfo, error)`, `UnpairDevice(id) error` |
 | `observability` (`modules.Handle[observabilityServices]`) | activity reader (`activityread.Reader`), incident store (pins), request capture reader, sync diagnostics reader | `bindObservabilityModule`, after `configureEventLogQueue`, before `configureRuntimeServices` settles `observability` | `SearchActivityFeed`, `GetActivityOverview`, `GetActivityEvent`, `GetActivityChangeContext`, `GetActivityPhoneReport`, `GetActivityIncident`, `GetActivityRequest`, `GetActivityRunStory`, `PinActivityMoment`, `ListDeviceSyncDiagnostics() (DeviceSyncDiagnosticsResult, error)`; `../observability/overview.md`, "Readiness" |
+| `season` (`modules.Handle[seasonServices]`) | `seasonServices.season`, the season service; `seasonServices.animes`, the anime query the season reads and boards use; `seasonServices.settings`, the settings store the create reads the library root from | `bindSeasonModule` (`app_season.go`), right after `wireSeasonMatchingEventBus`, before `startup` settles `season` | the season, intake, matching, grading, selection, ordering, history, availability-recheck and provider-search bindings, and `GetSeasonMode() (bool, error)`; commands return `error`, reads return `(T, error)`; `../season/overview.md`, "Readiness and failures" |
 
 The other episode bindings (`AdjustWatchedEpisodes`, `SetAnimeState`, `SetAnimeDays`,
 `SoftDeleteAnime`, `RestoreAnime`, `RepeatAnime`) still read `App.episodeService` and answer a status
@@ -84,7 +85,7 @@ then settles at the step that wires it:
 | `anime` | anime query and write services are wired | `configureRuntimeServices` |
 | `episodes` | episode service is wired (and bound to the `episodes` handle) | `configureRuntimeServices` |
 | `api` | HTTP server is built (and bound to the `api` handle) and started; a failed bind is `failed` with the bind error | `configureRuntimeServices` |
-| `season` | season service is wired | `wireSeasonMatchingEventBus` |
+| `season` | season service is wired (and bound to the `season` handle) | `startup`, after `wireSeasonMatchingEventBus` |
 | `downloads` | download service and download readiness service are wired | `startDownloadOrchestration` |
 | `notifications` | notification center executor is wired | `wireNotificationCenterIntentExecutor` |
 
@@ -213,6 +214,7 @@ memory and starts over with every process.
 | Frontend error report | `internal/desktop/app_frontend_errors.go` `ReportFrontendError` (handle `shell`) |
 | Native pickers, MyAnimeList lookup, JDownloader limit | `internal/desktop/app_preferences.go` `PickFile`, `PickFolder`, `app_myanimelist.go` `SearchMyAnimeList`, `GetMyAnimeListDetail`, `app_download_concurrency.go` `GetJDMaxSimultaneousDownloads` (handle `shell`) |
 | Activity screen (feed, chart, drawer reads, pin) | `internal/desktop/app_activity_feed.go`, `app_activity_read.go`, `app_activity_pin.go` (handle `observability`); `../observability/overview.md` |
+| Season screens (intake, matching, grading, selection, ordering, history) | `internal/desktop/app_season*.go`, `app_preferences.go` `GetSeasonMode` (handle `season`); `../season/overview.md` |
 | Any other Wails binding | the exported `App` method in `internal/desktop/app_<context>*.go` |
 
 ## Known drift
