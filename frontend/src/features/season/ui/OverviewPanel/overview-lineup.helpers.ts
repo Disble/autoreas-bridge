@@ -1,39 +1,38 @@
-import type { OrderingCard, SeasonAnimeRow, SeasonSource } from '../../../../shared/contracts/season.types';
+import type { OrderingCard, SeasonAnimeRow, SeasonOrderingSnapshot } from '../../../../shared/contracts/season.types';
+import type { AsyncView } from '../../../../shared/query/async-view/async-view.types';
 import { WEEKDAYS } from '../OrderingBoard/ordering-board.constants';
 import { OVERVIEW_LINEUP_LOAD_ERROR, OVERVIEW_LINEUP_LOADING_STATE } from './overview-panel.constants';
-import type { LoadedOverviewLineup, OverviewLineupDay, OverviewLineupState, OverviewLineupView } from './overview-panel.types';
+import type { OverviewLineupDay, OverviewLineupState, OverviewLineupView } from './overview-panel.types';
 
 /**
- * Reads the ordering board a closed season stored at close: its final lineup.
- * A source that cannot read the closure snapshot, or a read that throws, is a
- * failure rather than a claim that nothing was recorded.
+ * The lineup state for the viewed closed season from its closure snapshot
+ * read. A source that cannot read the snapshot, or a failed read, is a failure
+ * rather than a claim that nothing was recorded; a read in flight, or no closed
+ * season viewed, is loading.
  *
- * @param source The season port.
- * @param seasonId The closed season being viewed.
- * @returns The settled read, tagged with its season.
- */
-export async function readOverviewLineup(source: SeasonSource, seasonId: string): Promise<LoadedOverviewLineup> {
-  if (source.getSeasonOrderingSnapshot === undefined) {
-    return { seasonId, state: { status: 'failed', errorMessage: OVERVIEW_LINEUP_LOAD_ERROR } };
-  }
-  try {
-    const snapshot = await source.getSeasonOrderingSnapshot(seasonId);
-    return { seasonId, state: snapshot.recorded ? { status: 'recorded', grid: snapshot.grid, rail: snapshot.rail } : { status: 'unrecorded' } };
-  } catch (error) {
-    return { seasonId, state: { status: 'failed', errorMessage: error instanceof Error ? error.message : OVERVIEW_LINEUP_LOAD_ERROR } };
-  }
-}
-
-/**
- * The lineup state for the viewed season: its own settled read, or loading
- * while none has settled, so a slow read never shows another season's lineup.
- *
- * @param viewSeasonId The closed season being viewed.
- * @param loaded The last settled read, or null.
+ * @param viewSeasonId The closed season being viewed, or null.
+ * @param canRead Whether the source can read the closure snapshot at all.
+ * @param snapshot The viewed season's snapshot read.
  * @returns The current lineup state.
  */
-export function resolveOverviewLineup(viewSeasonId: string | null, loaded: LoadedOverviewLineup | null): OverviewLineupState {
-  return loaded?.seasonId === viewSeasonId ? loaded.state : OVERVIEW_LINEUP_LOADING_STATE;
+export function toOverviewLineupState(
+  viewSeasonId: string | null,
+  canRead: boolean,
+  snapshot: AsyncView<SeasonOrderingSnapshot>,
+): OverviewLineupState {
+  if (viewSeasonId === null) {
+    return OVERVIEW_LINEUP_LOADING_STATE;
+  }
+  if (!canRead) {
+    return { status: 'failed', errorMessage: OVERVIEW_LINEUP_LOAD_ERROR };
+  }
+  if (snapshot.kind === 'failure') {
+    return { status: 'failed', errorMessage: snapshot.message };
+  }
+  if (snapshot.kind !== 'ready') {
+    return OVERVIEW_LINEUP_LOADING_STATE;
+  }
+  return snapshot.data.recorded ? { status: 'recorded', grid: snapshot.data.grid, rail: snapshot.data.rail } : { status: 'unrecorded' };
 }
 
 /**

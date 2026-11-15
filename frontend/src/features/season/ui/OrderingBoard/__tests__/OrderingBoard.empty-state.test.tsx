@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE } from '../../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.constants';
 import {
+  ORDERING_BOARD_LIVE_LOADING_LABEL,
+  ORDERING_BOARD_LOADING_LABEL,
   ORDERING_EMPTY_DESCRIPTION,
   ORDERING_EMPTY_MESSAGE,
   ORDERING_EMPTY_TITLE,
@@ -40,6 +42,8 @@ function mockHook(overrides: Partial<HookReturn> = {}): void {
     isHistoricalLoading: false,
     historicalRecorded: true,
     historicalError: undefined,
+    isLiveLoading: false,
+    liveError: undefined,
     errorMessage: undefined,
     getCoverThumb: () => ({ coverSrc: undefined, isLoading: false }),
     ...overrides,
@@ -124,5 +128,52 @@ describe('OrderingBoard empty states', () => {
     render(<OrderingBoard onNavigate={vi.fn()} />);
 
     expect(screen.getByText('To Place')).toBeInTheDocument();
+  });
+});
+
+describe('OrderingBoard live board read states', () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('shows the loading skeleton instead of the board while the live board is still being read', () => {
+    mockHook({ isLiveLoading: true });
+    render(<OrderingBoard onNavigate={vi.fn()} />);
+
+    expect(screen.getByRole('status', { name: ORDERING_BOARD_LIVE_LOADING_LABEL })).toHaveAttribute('aria-live', 'polite');
+    expect(screen.queryByRole('status', { name: ORDERING_BOARD_LOADING_LABEL })).not.toBeInTheDocument();
+    expect(screen.queryByText(ORDERING_EMPTY_TITLE)).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Lunes' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('shows the failure Alert with its reason instead of the board when the live read failed', () => {
+    mockHook({ liveError: 'season is starting', errorMessage: 'season is starting' });
+    render(<OrderingBoard onNavigate={vi.fn()} />);
+
+    expect(screen.getByText('season is starting')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Lunes' })).not.toBeInTheDocument();
+    expect(screen.queryByText(ORDERING_EMPTY_TITLE)).not.toBeInTheDocument();
+  });
+
+  it('renders the resolved live board with no skeleton and no Alert', () => {
+    mockHook({ rail: [card()], counts: { r: 1 } });
+    render(<OrderingBoard onNavigate={vi.fn()} />);
+
+    expect(screen.getByText('To Place')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Lunes' })).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('keeps a recorded past season board on screen whatever the live read reports', () => {
+    mockHook({ isPastSeason: true, readOnly: true, rail: [card()], counts: { r: 1 }, isLiveLoading: true, liveError: 'live failed' });
+    render(<OrderingBoard onNavigate={vi.fn()} />);
+
+    expect(screen.getByText('To Place')).toBeInTheDocument();
+    expect(screen.queryByText('live failed')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 });

@@ -14,6 +14,7 @@ import { frontendErrorReporter } from '../../../infrastructure/error-reporting/f
 import { createNotificationCenterSource } from '../../../infrastructure/notification-center-source/notification-center-source.helpers';
 import { NOTIFICATION_ARCHIVED_EVENT_NAME, NOTIFICATION_EVENT_NAME } from '../../../infrastructure/notification-source/notification-source.constants';
 import { createReadinessSource } from '../../../infrastructure/readiness/readiness-source.helpers';
+import { createSeasonSource } from '../../../infrastructure/season-source/season-source.helpers';
 import { createSettingsSource } from '../../../infrastructure/settings-source/settings-source.helpers';
 import { createRuntimeEventSource } from '../../../infrastructure/wails-bindings.helpers';
 import { createInvalidationRegistry } from '../invalidation-bridge/invalidation-bridge.helpers';
@@ -78,6 +79,9 @@ export const BRIDGE_SETTINGS_SOURCE = createSettingsSource();
 
 /** The notification center's reads and commands, served by the `notifications` module. */
 export const BRIDGE_NOTIFICATION_CENTER_SOURCE = createNotificationCenterSource();
+
+/** The season screens' reads and commands, served by the `season` module: the one shared season adapter. */
+export const BRIDGE_SEASON_SOURCE = createSeasonSource();
 
 /**
  * Every context's event→invalidation rules, the one place a context registers

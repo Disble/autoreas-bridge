@@ -2,8 +2,14 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SeasonAnimeRow, SeasonSource } from '../../../../../shared/contracts/season.types';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { getSeasonStoreState, resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
 import { useDailyBoard } from '../use-daily-board';
+
+/** A fresh query wrapper with the season module ready, for the closure snapshot read. */
+function seasonReadyWrapper() {
+  return createModulesTestWrapper({ module: 'season', state: 'ready' }).wrapper;
+}
 
 /** Builds the season port this suite drives, overriding only what a case sets. */
 function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
@@ -72,7 +78,7 @@ describe('useDailyBoard', () => {
   it('refreshes on mount and groups created animes by section', async () => {
     const rows = [createdRow('a', 'anime-a', 'Sin ver'), createdRow('b', 'anime-b', 'Ver hoy')];
     const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
-    const { result } = renderHook(() => useDailyBoard(source));
+    const { result } = renderHook(() => useDailyBoard(source), { wrapper: seasonReadyWrapper() });
 
     await waitFor(() => expect(result.current.sections.sinVer).toHaveLength(1));
     expect(result.current.sections.verHoy).toHaveLength(1);
@@ -82,7 +88,7 @@ describe('useDailyBoard', () => {
   it('passes a Sin-ver row\'s availableEpisodes through unchanged', async () => {
     const rows = [{ ...createdRow('a', 'anime-a', 'Sin ver'), availableEpisodes: 4 }];
     const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
-    const { result } = renderHook(() => useDailyBoard(source));
+    const { result } = renderHook(() => useDailyBoard(source), { wrapper: seasonReadyWrapper() });
 
     await waitFor(() => expect(result.current.sections.sinVer).toHaveLength(1));
     expect(result.current.sections.sinVer[0]?.availableEpisodes).toBe(4);
@@ -90,7 +96,7 @@ describe('useDailyBoard', () => {
 
   it('toggleSelect adds and removes anime ids', () => {
     const source = createSource();
-    const { result } = renderHook(() => useDailyBoard(source));
+    const { result } = renderHook(() => useDailyBoard(source), { wrapper: seasonReadyWrapper() });
     act(() => result.current.toggleSelect('anime-a'));
     expect(result.current.selected.has('anime-a')).toBe(true);
     act(() => result.current.toggleSelect('anime-a'));
@@ -99,7 +105,7 @@ describe('useDailyBoard', () => {
 
   it('onSendToVerHoy sends the selection and clears it', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useDailyBoard(source));
+    const { result } = renderHook(() => useDailyBoard(source), { wrapper: seasonReadyWrapper() });
     act(() => result.current.toggleSelect('anime-a'));
     act(() => result.current.toggleSelect('anime-b'));
 
@@ -115,7 +121,7 @@ describe('useDailyBoard', () => {
     const source = createSource({
       sendToVerHoy: vi.fn().mockResolvedValue({ status: 'ok', pastDownloadTime: true, downloadTime: '21:00' }),
     });
-    const { result } = renderHook(() => useDailyBoard(source));
+    const { result } = renderHook(() => useDailyBoard(source), { wrapper: seasonReadyWrapper() });
     act(() => result.current.toggleSelect('anime-a'));
 
     await act(async () => {
@@ -130,7 +136,7 @@ describe('useDailyBoard', () => {
 
   it('keeps no notice when the batch rides the scheduled auto-download', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useDailyBoard(source));
+    const { result } = renderHook(() => useDailyBoard(source), { wrapper: seasonReadyWrapper() });
     act(() => result.current.toggleSelect('anime-a'));
     await act(async () => {
       result.current.onSendToVerHoy();
@@ -140,7 +146,7 @@ describe('useDailyBoard', () => {
 
   it('onSendToVerHoy is a no-op with an empty selection', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useDailyBoard(source));
+    const { result } = renderHook(() => useDailyBoard(source), { wrapper: seasonReadyWrapper() });
     await act(async () => {
       result.current.onSendToVerHoy();
     });
@@ -151,7 +157,7 @@ describe('useDailyBoard', () => {
     const source = createSource({
       sendToVerHoy: vi.fn().mockResolvedValue({ status: 'ok', pastDownloadTime: true, downloadTime: '21:00' }),
     });
-    const { result } = renderHook(() => useDailyBoard(source));
+    const { result } = renderHook(() => useDailyBoard(source), { wrapper: seasonReadyWrapper() });
     act(() => result.current.toggleSelect('anime-b'));
     await act(async () => {
       result.current.onSendToVerHoy();
@@ -179,7 +185,7 @@ describe('useDailyBoard', () => {
     const source = createSource({
       sendToVerHoy: vi.fn().mockResolvedValue({ status: sendStatus, pastDownloadTime: false, downloadTime: '' }),
     });
-    const { result } = renderHook(() => useDailyBoard(source));
+    const { result } = renderHook(() => useDailyBoard(source), { wrapper: seasonReadyWrapper() });
     for (const animeId of selection) {
       act(() => result.current.toggleSelect(animeId));
     }
@@ -195,7 +201,7 @@ describe('useDailyBoard', () => {
   it('onDownloadSelected downloads only the checked animes still in Ver hoy, then clears the selection', async () => {
     const rows = [createdRow('b', 'anime-b', 'Ver hoy'), createdRow('c', 'anime-c', 'Ver hoy')];
     const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
-    const { result } = renderHook(() => useDailyBoard(source));
+    const { result } = renderHook(() => useDailyBoard(source), { wrapper: seasonReadyWrapper() });
     await waitFor(() => expect(result.current.sections.verHoy).toHaveLength(2));
     // anime-gone was checked before it drained out of Ver hoy.
     act(() => result.current.toggleVerHoySelect('anime-gone'));
@@ -217,7 +223,7 @@ describe('useDailyBoard', () => {
       getSeasonAnimes: vi.fn().mockResolvedValue([createdRow('b', 'anime-b', 'Ver hoy')]),
       downloadSeasonAnimes: vi.fn().mockResolvedValue('a download run is already in progress'),
     });
-    const { result } = renderHook(() => useDailyBoard(source));
+    const { result } = renderHook(() => useDailyBoard(source), { wrapper: seasonReadyWrapper() });
     await waitFor(() => expect(result.current.sections.verHoy).toHaveLength(1));
     act(() => result.current.toggleVerHoySelect('anime-b'));
 
@@ -235,7 +241,7 @@ describe('useDailyBoard', () => {
 
   it('onDownloadSelected is a no-op with no checked Ver hoy anime', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useDailyBoard(source));
+    const { result } = renderHook(() => useDailyBoard(source), { wrapper: seasonReadyWrapper() });
     act(() => result.current.toggleVerHoySelect('anime-gone'));
 
     await act(async () => {
@@ -249,7 +255,7 @@ describe('useDailyBoard', () => {
     const rows = [createdRow('a', 'anime-a', 'Sin ver'), createdRow('b', 'anime-b', 'Ver hoy'), createdRow('c', 'anime-c', 'Visto')];
     const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const getAnimeCover = vi.fn((animeId: string) => Promise.resolve({ source: 'cover', dataUrl: `data:${animeId}` }));
-    const { result } = renderHook(() => useDailyBoard(source, { getAnimeCover }));
+    const { result } = renderHook(() => useDailyBoard(source, { getAnimeCover }), { wrapper: seasonReadyWrapper() });
 
     await waitFor(() => expect(result.current.getCoverThumb('anime-b')).toEqual({ coverSrc: 'data:anime-b', isLoading: false }));
     expect(result.current.getCoverThumb('anime-a')).toEqual({ coverSrc: 'data:anime-a', isLoading: false });
@@ -259,7 +265,7 @@ describe('useDailyBoard', () => {
 
   it('onRecheck triggers an availability recheck', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useDailyBoard(source));
+    const { result } = renderHook(() => useDailyBoard(source), { wrapper: seasonReadyWrapper() });
     await act(async () => {
       result.current.onRecheck();
     });
@@ -268,7 +274,7 @@ describe('useDailyBoard', () => {
 
   it('onOpenPage opens the page through the source (the external browser)', () => {
     const source = createSource();
-    const { result } = renderHook(() => useDailyBoard(source));
+    const { result } = renderHook(() => useDailyBoard(source), { wrapper: seasonReadyWrapper() });
     act(() => {
       result.current.onOpenPage('https://example.com/a');
     });
@@ -296,16 +302,16 @@ describe('useDailyBoard', () => {
     ];
     const source = createSource({
       getPastSeasonAnimes: vi.fn().mockResolvedValue(rows),
-      getSeasonOrderingSnapshot: vi.fn().mockResolvedValue(storedSnapshot({ recorded: true, entries })),
+      fetchSeasonOrderingSnapshot: vi.fn().mockResolvedValue(storedSnapshot({ recorded: true, entries })),
     });
     await viewClosedSeason(source);
-    const { result } = renderHook(() => useDailyBoard(source));
+    const { result } = renderHook(() => useDailyBoard(source), { wrapper: seasonReadyWrapper() });
 
     expect(result.current.boardMode).toBe('loading');
     await waitFor(() => expect(result.current.boardMode).toBe('sections'));
     const { sinVer, verHoy, visto } = result.current.sections;
     expect([sinVer, verHoy, visto].map((section) => section.map((row) => row.id))).toEqual([['a'], ['b'], []]);
-    expect(source.getSeasonOrderingSnapshot).toHaveBeenCalledWith('s1');
+    expect(source.fetchSeasonOrderingSnapshot).toHaveBeenCalledWith('s1');
     expect(result.current.getVerHoyRowChip(rows[1])).toBeNull();
   });
 
@@ -313,10 +319,10 @@ describe('useDailyBoard', () => {
     const rows = [createdRow('a', 'anime-a', 'Visto'), createdRow('b', 'anime-b', 'Ver hoy')];
     const source = createSource({
       getPastSeasonAnimes: vi.fn().mockResolvedValue(rows),
-      getSeasonOrderingSnapshot: vi.fn().mockResolvedValue(storedSnapshot({ recorded: false, entries: [] })),
+      fetchSeasonOrderingSnapshot: vi.fn().mockResolvedValue(storedSnapshot({ recorded: false, entries: [] })),
     });
     await viewClosedSeason(source);
-    const { result } = renderHook(() => useDailyBoard(source));
+    const { result } = renderHook(() => useDailyBoard(source), { wrapper: seasonReadyWrapper() });
 
     await waitFor(() => expect(result.current.boardMode).toBe('plain'));
     expect(result.current.plainRows.map((row) => row.id)).toEqual(['a', 'b']);
@@ -324,9 +330,9 @@ describe('useDailyBoard', () => {
   });
 
   it('reports a failed closed-season read instead of a board', async () => {
-    const source = createSource({ getSeasonOrderingSnapshot: vi.fn().mockRejectedValue(new Error('read failed')) });
+    const source = createSource({ fetchSeasonOrderingSnapshot: vi.fn().mockRejectedValue(new Error('read failed')) });
     await viewClosedSeason(source);
-    const { result } = renderHook(() => useDailyBoard(source));
+    const { result } = renderHook(() => useDailyBoard(source), { wrapper: seasonReadyWrapper() });
 
     await waitFor(() => expect(result.current.boardMode).toBe('failed'));
     expect(result.current.historyError).toBe('read failed');
@@ -334,25 +340,25 @@ describe('useDailyBoard', () => {
 
   it('never reads the closure snapshot for the open season, and keeps the live weekday chip', async () => {
     const rows = [createdRow('a', 'anime-a', 'Ver hoy')];
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows), getSeasonOrderingSnapshot: vi.fn() });
-    const { result } = renderHook(() => useDailyBoard(source));
+    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows), fetchSeasonOrderingSnapshot: vi.fn() });
+    const { result } = renderHook(() => useDailyBoard(source), { wrapper: seasonReadyWrapper() });
 
     await waitFor(() => expect(result.current.sections.verHoy).toHaveLength(1));
     expect([result.current.boardMode, result.current.historyError]).toEqual(['sections', undefined]);
-    expect(source.getSeasonOrderingSnapshot).not.toHaveBeenCalled();
+    expect(source.fetchSeasonOrderingSnapshot).not.toHaveBeenCalled();
     expect(result.current.getVerHoyRowChip({ ...rows[0], section: 'Jueves', sectionOrder: 3 })).toEqual({ label: 'Jueves - 3', color: 'accent' });
   });
 
   it('drops a closed-season read that settles after the viewed season changed', async () => {
     /** Settles the first (stale) read once the second season is on screen. */
     let settleFirst: (value: unknown) => void = () => undefined;
-    const getSeasonOrderingSnapshot = vi
+    const fetchSeasonOrderingSnapshot = vi
       .fn()
       .mockImplementationOnce(() => new Promise((resolve) => { settleFirst = resolve; }))
       .mockResolvedValue(storedSnapshot({ recorded: false, entries: [] }));
-    const source = createSource({ getSeasonOrderingSnapshot });
+    const source = createSource({ fetchSeasonOrderingSnapshot });
     await viewClosedSeason(source);
-    const { result } = renderHook(() => useDailyBoard(source));
+    const { result } = renderHook(() => useDailyBoard(source), { wrapper: seasonReadyWrapper() });
     await viewClosedSeason(source, 's2');
     await waitFor(() => expect(result.current.boardMode).toBe('plain'));
 

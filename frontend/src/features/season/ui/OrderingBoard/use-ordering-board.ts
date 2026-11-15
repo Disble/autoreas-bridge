@@ -1,11 +1,17 @@
 import { useCallback, useEffect } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
-import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
 import type { ApplyScheduleResult, SeasonSource } from '../../../../shared/contracts/season.types';
+import { BRIDGE_SEASON_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
 import type { SeasonCoverSource } from '../SeasonCoverThumb/season-cover-thumb.types';
 import { useSeasonCovers } from '../SeasonCoverThumb/use-season-covers';
 import { ORDERING_DUPLICATE_WEEKDAY_ERROR, ORDERING_EMPTY_DRAFT } from './ordering-board.constants';
-import { hasDuplicateWeekdayPlacements, serializeDraft } from './ordering-board.helpers';
+import {
+  hasDuplicateWeekdayPlacements,
+  isOrderingBoardReadOnly,
+  serializeDraft,
+  toOrderingBoardErrorMessage,
+} from './ordering-board.helpers';
 import { useOrderingBoardDerived } from './use-ordering-board-derived';
 import { useOrderingBoardAutosave } from './use-ordering-board-autosave';
 import { useOrderingBoardEdits } from './use-ordering-board-edits';
@@ -19,13 +25,14 @@ import { useOrderingBoardStoreBindings } from './use-ordering-board-store-bindin
  * as cards are dragged via the `move` helper (rejecting a second copy on one day),
  * exposes Duplicate/Delete, and autosaves the draft (debounced) once the user edits it; a
  * reload restores that draft. Apply saves + reconciles the schedule; Reset discards the
- * draft; Reopen makes an applied board editable again. All derivation is pure.
+ * draft; Reopen makes an applied board editable again. Each command runs through
+ * `useBridgeMutation` and then re-reads the live board. All derivation is pure.
  * Covers resolve once per anime on the loaded board.
  *
  * @param source The season port the board reads and writes through.
  * @param coverSource The port each card's cover is resolved through.
  */
-export function useOrderingBoard(source: SeasonSource = seasonSource, coverSource: SeasonCoverSource = bridgeRuntimeSource) {
+export function useOrderingBoard(source: SeasonSource = BRIDGE_SEASON_SOURCE, coverSource: SeasonCoverSource = bridgeRuntimeSource) {
   // 3. Context/3rd Party Hooks
   const {
     closeSeason,
@@ -35,38 +42,46 @@ export function useOrderingBoard(source: SeasonSource = seasonSource, coverSourc
     ensureAnimesLoaded,
     errorMessage,
   } = useOrderingBoardStoreBindings();
-  const { board, state, setState, isHistoricalLoading, historicalRecorded, historicalError, load } = useOrderingBoardLoad({ source, viewSeasonId });
+  const { board, state, setState, isHistoricalLoading, historicalRecorded, historicalError, isLiveLoading, liveError, load } =
+    useOrderingBoardLoad({ source, viewSeasonId });
   const { meta, animeIds, rail, columns, counts, changeCount, scheduledCount, hasInvalidWeekdayPlacements } =
     useOrderingBoardDerived({ board, state, seasonAnimes });
   const { hasEdits, clearEdits, onDragOver, duplicate, removeCard } = useOrderingBoardEdits({ state, setState });
   const desktopActions = useOrderingBoardDesktopActions();
   const getCoverThumb = useSeasonCovers(animeIds, coverSource);
 
+  // 4. Queries/Mutations
+  const { mutate: autosaveDraft, mutateAsync: saveDraft } = useBridgeMutation({
+    mutationFn: (draftJson: string) => source.saveOrderingDraft(draftJson),
+  });
+  const { mutateAsync: applySchedule } = useBridgeMutation({ mutationFn: () => source.applySchedule() });
+  const { mutateAsync: reopenOrdering } = useBridgeMutation({ mutationFn: () => source.reopenOrdering() });
+
   // 5. Derived State
   // A past season (viewed from history) locks the board just like an applied one.
-  const readOnly = typeof board.appliedAt === 'number' || isPastSeason;
+  const readOnly = isOrderingBoardReadOnly(board, isPastSeason);
 
   // 6. Callbacks
   const onApply = useCallback(async (): Promise<ApplyScheduleResult> => {
     if (hasDuplicateWeekdayPlacements(state)) {
       return { status: ORDERING_DUPLICATE_WEEKDAY_ERROR, applied: 0, failed: [] };
     }
-    await source.saveOrderingDraft(serializeDraft(state));
-    const result = await source.applySchedule();
+    await saveDraft(serializeDraft(state));
+    const result = await applySchedule();
     clearEdits();
     await load();
     return result;
-  }, [source, state, load, clearEdits]);
+  }, [saveDraft, applySchedule, state, load, clearEdits]);
   // Reset clears the saved draft too, or the reload would restore the edits it discards.
   const onReset = useCallback(() => {
     clearEdits();
-    void source.saveOrderingDraft(ORDERING_EMPTY_DRAFT).then(load);
-  }, [source, load, clearEdits]);
+    void saveDraft(ORDERING_EMPTY_DRAFT).then(load);
+  }, [saveDraft, load, clearEdits]);
   const onReopen = useCallback(async () => {
-    await source.reopenOrdering();
+    await reopenOrdering();
     clearEdits();
     await load();
-  }, [source, load, clearEdits]);
+  }, [reopenOrdering, load, clearEdits]);
   const onCloseSeason = useCallback(() => {
     void closeSeason(source);
   }, [closeSeason, source]);
@@ -76,7 +91,7 @@ export function useOrderingBoard(source: SeasonSource = seasonSource, coverSourc
   useEffect(() => {
     void ensureAnimesLoaded(source);
   }, [ensureAnimesLoaded, source]);
-  useOrderingBoardAutosave({ source, state, hasEdits, readOnly, hasInvalidWeekdayPlacements });
+  useOrderingBoardAutosave({ saveDraft: autosaveDraft, state, hasEdits, readOnly, hasInvalidWeekdayPlacements });
 
   return {
     rail,
@@ -92,7 +107,9 @@ export function useOrderingBoard(source: SeasonSource = seasonSource, coverSourc
     isHistoricalLoading,
     historicalRecorded,
     historicalError,
-    errorMessage,
+    isLiveLoading,
+    liveError,
+    errorMessage: toOrderingBoardErrorMessage(errorMessage, liveError),
     onDragOver,
     duplicate,
     removeCard,

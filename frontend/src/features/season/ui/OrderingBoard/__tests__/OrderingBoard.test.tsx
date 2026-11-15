@@ -27,6 +27,8 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     isHistoricalLoading: false,
     historicalRecorded: true,
     historicalError: undefined,
+    isLiveLoading: false,
+    liveError: undefined,
     errorMessage: undefined,
     columns: {},
     meta: {},
