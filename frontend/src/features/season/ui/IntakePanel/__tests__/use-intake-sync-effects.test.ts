@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { PreferencesSource } from '../../../../../infrastructure/preferences-source/preferences-source.types';
-import type { SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
+import type { SeasonSource } from '../../../../../shared/contracts/season.types';
 import { disconnectSeasonMatchingStore, getSeasonStoreState, resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
 import { INTAKE_RECONCILE_DEBOUNCE_MS } from '../intake-panel.constants';
 import { useIntakeEditorState } from '../use-intake-editor-state';

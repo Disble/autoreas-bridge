@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow } from '../../../../../shared/contracts/season.types';
 import {
   METADATA_LOOKUP_CANCEL_LABEL,
   METADATA_LOOKUP_CONFIRM_LABEL,

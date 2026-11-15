@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { SEASON_RUNTIME_UNAVAILABLE } from '../../../../../../infrastructure/season-source/season-source.constants';
-import type { SeasonProviderPage } from '../../../../../../infrastructure/season-source/season-source.types';
+import type { SeasonProviderPage } from '../../../../../../shared/contracts/season.types';
 import {
   canFindOnProvider,
   requestProviderSearch,

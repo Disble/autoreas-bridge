@@ -5,7 +5,7 @@ import type {
   SeasonAnimeRow,
   SeasonSnapshot,
   SeasonSource,
-} from '../../../../../infrastructure/season-source/season-source.types';
+} from '../../../../../shared/contracts/season.types';
 import {
   getSeasonStoreState,
   resetSeasonStore,

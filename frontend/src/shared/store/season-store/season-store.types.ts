@@ -7,7 +7,7 @@ import type {
   SeasonSnapshot,
   SeasonSource,
   SendToVerHoyResult,
-} from '../../../infrastructure/season-source/season-source.types';
+} from '../../contracts/season.types';
 
 /** Request state of the open season's animes: `loaded` rows stay on screen across refetches. */
 export type AnimesLoadState = 'idle' | 'loading' | 'loaded' | 'failed';

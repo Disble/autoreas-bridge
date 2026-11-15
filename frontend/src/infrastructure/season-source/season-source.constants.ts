@@ -5,7 +5,7 @@ import type {
   SeasonProviderSearchResult,
   SeasonSource,
   SendToVerHoyResult,
-} from './season-source.types';
+} from '../../shared/contracts/season.types';
 
 /** Runtime-unavailable sentinel returned by season mutators when Wails is not ready. */
 export const SEASON_RUNTIME_UNAVAILABLE = 'runtime unavailable';

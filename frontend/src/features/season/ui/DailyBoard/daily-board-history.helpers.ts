@@ -2,7 +2,7 @@ import type {
   SeasonAnimeRow,
   SeasonDailyBoardEntry,
   SeasonSource,
-} from '../../../../infrastructure/season-source/season-source.types';
+} from '../../../../shared/contracts/season.types';
 import {
   DAILY_BOARD_HISTORY_LOAD_ERROR,
   EMPTY_BOARD_SECTIONS,

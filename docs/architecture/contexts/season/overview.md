@@ -81,13 +81,14 @@ For module readiness, failure codes and the `shared/query` layer, read
 
 - Screens and features: `frontend/src/features/season/ui/...` (intake, evaluation, selection,
   ordering, Daily board, history).
-- Source port and adapter: `frontend/src/infrastructure/season-source/...`. Since the bindings return
+- Source port: `frontend/src/shared/contracts/season.types.ts`. Adapter:
+  `frontend/src/infrastructure/season-source/...`. Since the bindings return
   errors, the adapter maps a rejection back to what its consumers read before: a command resolves to
   `'ok'` or the failure's message, a read to its earlier fallback (`null`, `[]`, an empty board, an
   unrecorded snapshot), a status-carrying result to its unavailable shape with the failure's message.
   `preferences-source` reads a rejected `GetSeasonMode` as `false`.
-- Query keys and `toAsyncView` states: not yet; the consumers migrate to `shared/query` in the next
-  T5j half.
+- Query keys and `toAsyncView` states: not yet; the consumers migrate to `shared/query` in the T5j
+  frontend units.
 
 ## Entry points
 

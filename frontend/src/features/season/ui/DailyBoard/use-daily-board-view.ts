@@ -1,4 +1,4 @@
-import type { SeasonAnimeRow, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow, SeasonSource } from '../../../../shared/contracts/season.types';
 import type { SeasonCoverSource, SeasonCoverThumbProps } from '../SeasonCoverThumb/season-cover-thumb.types';
 import type { DailyBoardView } from './daily-board.types';
 import { useDailyBoardHistory } from './use-daily-board-history';

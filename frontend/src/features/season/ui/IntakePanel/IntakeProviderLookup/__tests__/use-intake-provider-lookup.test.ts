@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonProviderSearchResult } from '../../../../../../infrastructure/season-source/season-source.types';
+import type { SeasonProviderSearchResult } from '../../../../../../shared/contracts/season.types';
 import { METADATA_LOOKUP_DEBOUNCE_MS } from '../../../../../../shared/metadata-lookup/metadata-lookup.constants';
 import type { ProviderSearchPort } from '../intake-provider-lookup.types';
 import { useIntakeProviderLookup } from '../use-intake-provider-lookup';

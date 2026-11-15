@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
-import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonSource } from '../../../../shared/contracts/season.types';
 import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
 import type { SeasonCoverSource, SeasonCoverThumbProps } from '../SeasonCoverThumb/season-cover-thumb.types';
 import { useSeasonCovers } from '../SeasonCoverThumb/use-season-covers';

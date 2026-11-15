@@ -2,7 +2,7 @@ import { SEASON_PROVIDER_SEARCH_UNAVAILABLE } from '../../../../../infrastructur
 import type {
   SeasonProviderPage,
   SeasonProviderSearchResult,
-} from '../../../../../infrastructure/season-source/season-source.types';
+} from '../../../../../shared/contracts/season.types';
 import { rankLookupCandidates } from '../../../../../shared/metadata-lookup/metadata-lookup.helpers';
 import { PROVIDER_LABELS, PROVIDER_LOOKUP_MATCH_STATUSES } from './intake-provider-lookup.constants';
 import type { ProviderLookupSnapshot, ProviderPageView, ProviderSearchPort } from './intake-provider-lookup.types';

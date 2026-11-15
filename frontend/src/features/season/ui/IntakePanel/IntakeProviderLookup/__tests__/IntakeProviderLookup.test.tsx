@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonProviderSearchResult } from '../../../../../../infrastructure/season-source/season-source.types';
+import type { SeasonProviderSearchResult } from '../../../../../../shared/contracts/season.types';
 import { IntakeProviderLookup } from '../IntakeProviderLookup';
 
 /** The one page the fake provider search returns by default. */

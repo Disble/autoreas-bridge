@@ -1,6 +1,6 @@
 import type { DragOverEvent } from '@dnd-kit/react';
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
-import type { OrderingBoard, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import type { OrderingBoard, SeasonSource } from '../../../../shared/contracts/season.types';
 import type { SeasonStoreState } from '../../../../shared/store/season-store/season-store.types';
 import type { SeasonCoverThumbProps } from '../SeasonCoverThumb/season-cover-thumb.types';
 import type { SeasonSectionId } from '../SeasonWorkspace/season-workspace.types';

@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonSource } from '../../../../shared/contracts/season.types';
 import { INTAKE_FOLDER_PICKER_TITLE } from './intake-panel.constants';
 import { buildSeasonCreateMetadata, collectFolderOverrides } from './intake-panel.helpers';
 import type { useIntakeEditorState } from './use-intake-editor-state';

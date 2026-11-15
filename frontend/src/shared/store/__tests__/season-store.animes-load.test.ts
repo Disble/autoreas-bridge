@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonAnimeRow, SeasonSnapshot, SeasonSource } from '../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow, SeasonSnapshot, SeasonSource } from '../../contracts/season.types';
 import { getSeasonStoreState, resetSeasonStore, setSeasonStoreState } from '../season-store/season-store.helpers';
 
 /** Rows the stand-in port serves, enough to tell a loaded list from the empty one. */

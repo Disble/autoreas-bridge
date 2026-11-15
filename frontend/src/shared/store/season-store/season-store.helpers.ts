@@ -1,5 +1,5 @@
 import { seasonSource } from '../../../infrastructure/season-source/season-source.helpers';
-import type { SeasonSnapshot, SeasonSource } from '../../../infrastructure/season-source/season-source.types';
+import type { SeasonSnapshot, SeasonSource } from '../../contracts/season.types';
 import { SEASON_MATCHING_RUNTIME_STATE } from './season-store.constants';
 import { seasonStore } from './season-store.store';
 import type { SeasonStoreState } from './season-store.types';

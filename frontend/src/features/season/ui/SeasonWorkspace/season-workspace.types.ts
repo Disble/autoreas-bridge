@@ -1,4 +1,4 @@
-import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonSource } from '../../../../shared/contracts/season.types';
 import type { SeasonStoreState } from '../../../../shared/store/season-store/season-store.types';
 
 /** Section identifiers for the Season Workspace tab shell. */

@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
-import type { ApplyScheduleResult, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import type { ApplyScheduleResult, SeasonSource } from '../../../../shared/contracts/season.types';
 import type { SeasonCoverSource } from '../SeasonCoverThumb/season-cover-thumb.types';
 import { useSeasonCovers } from '../SeasonCoverThumb/use-season-covers';
 import { ORDERING_DUPLICATE_WEEKDAY_ERROR, ORDERING_EMPTY_DRAFT } from './ordering-board.constants';

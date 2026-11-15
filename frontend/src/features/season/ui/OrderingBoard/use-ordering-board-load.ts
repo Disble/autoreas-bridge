@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { OrderingBoard } from '../../../../infrastructure/season-source/season-source.types';
+import type { OrderingBoard } from '../../../../shared/contracts/season.types';
 import { EMPTY_ORDERING_BOARD, ORDERING_HISTORY_LOAD_ERROR } from './ordering-board.constants';
 import { applyOrderingDraft, initialWorkingState } from './ordering-board.helpers';
 import type { OrderingBoardLoadParams, OrderingBoardLoadResult, OrderingBoardOrigin, WorkingState } from './ordering-board.types';

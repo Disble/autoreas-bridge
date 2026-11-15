@@ -1,5 +1,5 @@
 import type { Key } from 'react';
-import type { SeasonSnapshot } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonSnapshot } from '../../../../shared/contracts/season.types';
 import { SEASON_MONTHS_ES, SEASON_SECTION_TABS } from './season-workspace.constants';
 import type { PastSeasonEntry, SeasonOverview, SeasonSectionId } from './season-workspace.types';
 

@@ -5,7 +5,7 @@ import type {
   SeasonAnimeRow,
   SeasonOrderingSnapshot,
   SeasonSource,
-} from '../../../../../infrastructure/season-source/season-source.types';
+} from '../../../../../shared/contracts/season.types';
 import { OVERVIEW_LINEUP_LOAD_ERROR } from '../overview-panel.constants';
 import {
   buildOverviewLineupView,

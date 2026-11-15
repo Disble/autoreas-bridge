@@ -5,7 +5,7 @@ import type {
   SeasonDailyBoardEntry,
   SeasonOrderingSnapshot,
   SeasonSource,
-} from '../../../../../infrastructure/season-source/season-source.types';
+} from '../../../../../shared/contracts/season.types';
 import {
   groupSnapshotSections,
   listViewAnimeIds,

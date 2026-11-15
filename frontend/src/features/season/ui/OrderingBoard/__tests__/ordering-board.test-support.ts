@@ -3,7 +3,7 @@ import { act } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import { ORDERING_AUTOSAVE_DEBOUNCE_MS } from '../ordering-board.constants';
-import type { OrderingBoard, OrderingCard, SeasonOrderingSnapshot, SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
+import type { OrderingBoard, OrderingCard, SeasonOrderingSnapshot, SeasonSource } from '../../../../../shared/contracts/season.types';
 
 /**
  * Fixtures shared by the ordering board hook suite, so its cases state only the

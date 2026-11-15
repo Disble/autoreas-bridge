@@ -1,4 +1,4 @@
-import type { OrderingCard, SeasonAnimeRow, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import type { OrderingCard, SeasonAnimeRow, SeasonSource } from '../../../../shared/contracts/season.types';
 import { WEEKDAYS } from '../OrderingBoard/ordering-board.constants';
 import { OVERVIEW_LINEUP_LOAD_ERROR, OVERVIEW_LINEUP_LOADING_STATE } from './overview-panel.constants';
 import type { LoadedOverviewLineup, OverviewLineupDay, OverviewLineupState, OverviewLineupView } from './overview-panel.types';

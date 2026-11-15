@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow } from '../../../../shared/contracts/season.types';
 import type { SeasonCoverSource, SeasonCoverThumbProps } from '../SeasonCoverThumb/season-cover-thumb.types';
 import { useSeasonCovers } from '../SeasonCoverThumb/use-season-covers';
 import { listViewAnimeIds, selectDailyBoardView } from './daily-board-history.helpers';

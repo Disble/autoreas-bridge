@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonOrderingSnapshot, SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
+import type { SeasonOrderingSnapshot, SeasonSource } from '../../../../../shared/contracts/season.types';
 import { resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
 import type { SeasonCoverSource } from '../../SeasonCoverThumb/season-cover-thumb.types';
 import { useOverviewLineup } from '../use-overview-lineup';

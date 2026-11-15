@@ -1,7 +1,7 @@
 import { createStore } from 'zustand/vanilla';
 import { SEASON_MATCHING_PHASE_MATCHING } from '../../../infrastructure/season-source/season-source.constants';
 import { seasonSource } from '../../../infrastructure/season-source/season-source.helpers';
-import type { SeasonAnimeRow, SeasonMatchingProgressNotice, SeasonSource } from '../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow, SeasonMatchingProgressNotice, SeasonSource } from '../../contracts/season.types';
 import type { AnimesLoadState, SeasonMatchingRun, SeasonStoreState } from './season-store.types';
 
 /**

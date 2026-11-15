@@ -1,4 +1,4 @@
-import type { SeasonProviderPage, SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
+import type { SeasonProviderPage, SeasonSource } from '../../../../../shared/contracts/season.types';
 import type { LookupModalState } from '../../../../../shared/ui/LookupModal/lookup-modal.types';
 
 /** The one season-port call the provider lookup drives, injected so a test can fake it. */

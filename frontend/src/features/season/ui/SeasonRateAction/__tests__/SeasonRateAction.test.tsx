@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow } from '../../../../../shared/contracts/season.types';
 import { SeasonRateAction } from '../SeasonRateAction';
 import { useSeasonRateAction } from '../use-season-rate-action';
 
@@ -12,8 +12,10 @@ vi.mock('../../RateAnimeModal/RateAnimeModal', () => ({
   ),
 }));
 
+/** The mocked rate-action hook whose answer each test sets. */
 const mockedUseSeasonRateAction = vi.mocked(useSeasonRateAction);
 
+/** A matched season candidate row with grade `grade`. */
 function candidate(grade: number): SeasonAnimeRow {
   return {
     id: 'sa-1',

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import type { PreferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.types';
-import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonSource } from '../../../../shared/contracts/season.types';
 import { connectSeasonMatchingStore, disconnectSeasonMatchingStore } from '../../../../shared/store/season-store/season-store.helpers';
 import { INTAKE_RECONCILE_DEBOUNCE_MS } from './intake-panel.constants';
 import type { useIntakeEditorState } from './use-intake-editor-state';

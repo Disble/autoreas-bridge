@@ -1,6 +1,6 @@
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
-import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonSource } from '../../../../shared/contracts/season.types';
 import type { SeasonCoverSource } from '../SeasonCoverThumb/season-cover-thumb.types';
 import { SELECTION_SORT_OPTIONS } from './selection-board.constants';
 import { useSelectionActions } from './use-selection-actions';

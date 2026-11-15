@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 
-import type { SeasonAnimeRow, SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow, SeasonSource } from '../../../../../shared/contracts/season.types';
 import type { AnimeMetadataSelection } from '../../../../../shared/metadata-lookup/metadata-lookup.types';
 import type { AnimeMetadataLookupSource } from '../../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
 

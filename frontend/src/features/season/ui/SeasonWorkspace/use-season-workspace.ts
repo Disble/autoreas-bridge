@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
-import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonSource } from '../../../../shared/contracts/season.types';
 import { SEASON_SECTION_TABS } from './season-workspace.constants';
 import { buildPastSeasonEntries, buildSeasonOverview, suggestSeasonName } from './season-workspace.helpers';
 import { useSeasonWorkspaceAnimesLoad } from './use-season-workspace-animes-load';

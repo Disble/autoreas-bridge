@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
+import type { SeasonSource } from '../../../../../shared/contracts/season.types';
 import { resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
 import { useRateAnimeModal } from '../use-rate-anime-modal';
 

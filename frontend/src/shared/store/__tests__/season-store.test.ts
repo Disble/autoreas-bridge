@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonSnapshot, SeasonSource } from '../../../infrastructure/season-source/season-source.types';
+import type { SeasonSnapshot, SeasonSource } from '../../contracts/season.types';
 import { getSeasonStoreState, isSeasonOpen, resetSeasonStore, setSeasonStoreState } from '../season-store/season-store.helpers';
 
 /**

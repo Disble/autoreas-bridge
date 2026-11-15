@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { IntakePanel } from '../IntakePanel';
 import { useIntakePanel } from '../use-intake-panel';
-import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow } from '../../../../../shared/contracts/season.types';
 
 vi.mock('../use-intake-panel', () => ({ useIntakePanel: vi.fn() }));
 

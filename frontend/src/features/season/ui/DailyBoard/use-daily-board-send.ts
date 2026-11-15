@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import type { SeasonSource, SendToVerHoyResult } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonSource, SendToVerHoyResult } from '../../../../shared/contracts/season.types';
 import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
 import { toggleSelection } from './daily-board.helpers';
 

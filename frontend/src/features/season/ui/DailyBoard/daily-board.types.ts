@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { SeasonAnimeRow, SeasonDailyBoardEntry } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow, SeasonDailyBoardEntry } from '../../../../shared/contracts/season.types';
 import type { SeasonCoverThumbProps } from '../SeasonCoverThumb/season-cover-thumb.types';
 
 /**

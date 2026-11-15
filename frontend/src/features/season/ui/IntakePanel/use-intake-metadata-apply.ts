@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonSource } from '../../../../shared/contracts/season.types';
 import { buildUndoPatch } from '../../../../shared/metadata-lookup/metadata-lookup.helpers';
 import type { AnimeMetadataSelection } from '../../../../shared/metadata-lookup/metadata-lookup.types';
 import { compactMetadataPatch, toIntakeMetadataPatch, toSeasonCreateMetadata } from './intake-panel.helpers';

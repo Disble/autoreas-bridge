@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow } from '../../../../../shared/contracts/season.types';
 import { resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
 import { DailyBoard } from '../DailyBoard';
 

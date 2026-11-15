@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow } from '../../../../../shared/contracts/season.types';
 import { DailyBoard } from '../DailyBoard';
 import { getScheduledDayChip } from '../daily-board.helpers';
 import { useDailyBoard } from '../use-daily-board';

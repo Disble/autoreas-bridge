@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow } from '../../../../../shared/contracts/season.types';
 import {
   formatAvailableEpisodes,
   getScheduledDay,

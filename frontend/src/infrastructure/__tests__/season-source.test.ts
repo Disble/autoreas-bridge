@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonSource } from '../season-source/season-source.types';
+import type { SeasonSource } from '../../shared/contracts/season.types';
 
 /** The coded failure exactly as Wails rejects a season binding while the module starts. */
 const SEASON_STARTING_REJECTION = '{"code":"unavailable","message":"season is starting"}';
@@ -330,10 +330,10 @@ describe('season-source', () => {
     expect(sourceText).not.toMatch(/function waitForBindings\s*\(/);
   });
 
-  it('keeps source-adapter declarations in colocated sibling modules', () => {
+  it('keeps the season port types in shared contracts and the adapter in its own module', () => {
     const sourceRoot = join(process.cwd(), 'src/infrastructure/season-source');
     const indexPath = join(sourceRoot, 'index.ts');
-    const typesPath = join(sourceRoot, 'season-source.types.ts');
+    const typesPath = join(process.cwd(), 'src/shared/contracts/season.types.ts');
     const helperPath = join(sourceRoot, 'season-source.helpers.ts');
     const helperText = readFileSync(helperPath, 'utf8');
 

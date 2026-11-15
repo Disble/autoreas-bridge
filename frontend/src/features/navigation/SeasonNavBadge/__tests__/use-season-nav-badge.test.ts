@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { SeasonSnapshot } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonSnapshot } from '../../../../shared/contracts/season.types';
 import {
   resetSeasonStore,
   setSeasonStoreState,

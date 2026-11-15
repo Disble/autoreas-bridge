@@ -1,4 +1,4 @@
-import type { OrderingCard } from '../../../../infrastructure/season-source/season-source.types';
+import type { OrderingCard } from '../../../../shared/contracts/season.types';
 import type { SeasonSectionId } from '../SeasonWorkspace/season-workspace.types';
 
 /** The four KPI stat-tile values derived from the season's intake rows. */

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { SeasonAnimeRow, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow, SeasonSource } from '../../../../shared/contracts/season.types';
 import { pruneSelection, toggleSelection } from './daily-board.helpers';
 
 /**

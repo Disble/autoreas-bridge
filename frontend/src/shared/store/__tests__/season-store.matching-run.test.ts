@@ -6,7 +6,7 @@ import type {
   SeasonMatchingProgressNotice,
   SeasonMatchingStartedNotice,
   SeasonSource,
-} from '../../../infrastructure/season-source/season-source.types';
+} from '../../contracts/season.types';
 import {
   connectSeasonMatchingStore,
   disconnectSeasonMatchingStore,

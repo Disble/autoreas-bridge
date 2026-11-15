@@ -63,7 +63,7 @@ import type {
   SeasonOrderingSnapshot,
   SeasonProviderSearchResult,
   SeasonSource,
-} from './season-source.types';
+} from '../../shared/contracts/season.types';
 import { openInDefaultBrowser } from '../../shared/helpers/url.helpers';
 import { withBridgeErrors } from '../bridge-error/bridge-error.helpers';
 import { createRuntimeSubscription, hasGoBinding, invokeGoBinding, waitForBindings } from '../wails-bindings.helpers';

@@ -6,7 +6,7 @@ import type {
   SeasonMatchingFinishedNotice,
   SeasonMatchingProgressNotice,
   SeasonMatchingStartedNotice,
-} from '../../../../../infrastructure/season-source/season-source.types';
+} from '../../../../../shared/contracts/season.types';
 import { disconnectSeasonMatchingStore, getSeasonStoreState, resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
 import { createLibraryRootSource, createMetadataSource, createSource, createSourceWithRows, seasonRow, selection } from './intake-panel.test-support';
 import { useIntakePanel } from '../use-intake-panel';

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow } from '../../../../../shared/contracts/season.types';
 import { findSeasonCandidate } from '../season-rate-action.helpers';
 
+/** A matched season row with `overrides` applied. */
 function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
   return {
     id: 'sa-1',

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonSource } from '../../../../shared/contracts/season.types';
 import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
 
 /**

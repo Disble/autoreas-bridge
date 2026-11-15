@@ -2,7 +2,7 @@ import { metadataLookupSource } from '../../../../infrastructure/metadata-lookup
 import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
 import type { PreferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.types';
 import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
-import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonSource } from '../../../../shared/contracts/season.types';
 import type { AnimeMetadataLookupSource } from '../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
 import type { ProviderSearchPort } from './IntakeProviderLookup/intake-provider-lookup.types';
 import { useIntakeCreationCallbacks } from './use-intake-creation-callbacks';

@@ -1,7 +1,7 @@
 import { toast } from '@heroui/react';
 import { useCallback } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
-import type { ConfirmSelectionResult, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import type { ConfirmSelectionResult, SeasonSource } from '../../../../shared/contracts/season.types';
 import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
 import { SELECTION_CONFIRM_ERROR_MESSAGE } from './selection-board.constants';
 import { formatConfirmSuccess, runDesktopAction } from './selection-board.helpers';
