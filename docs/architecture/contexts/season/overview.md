@@ -81,6 +81,15 @@ For module readiness, failure codes and the `shared/query` layer, read
 
 - Screens and features: `frontend/src/features/season/ui/...` (intake, evaluation, selection,
   ordering, Daily board, history).
+- Ordering board and closure snapshot: the ordering board reads the live board through
+  `useBridgeQuery` (`seasonKeys.key('ordering-board')`, module `season`, no cache kept after unmount)
+  and the closure snapshot through `frontend/src/shared/season/use-season-ordering-snapshot.ts`
+  (`seasonKeys.key('ordering-snapshot', seasonId)`), the one snapshot query the ordering board, the
+  Daily board history and the Overview lineup share. Both use the port's rejecting reads
+  (`fetchOrderingBoard`, `fetchSeasonOrderingSnapshot`), so a module that is starting or failed, or a
+  failed read, is a loading or failure state, never an empty board or an unrecorded season.
+  `saveOrderingDraft`, `applySchedule` and `reopenOrdering` run through `useBridgeMutation`, and each
+  command then re-reads the live board; the 600 ms draft autosave is unchanged.
 - Source port: `frontend/src/shared/contracts/season.types.ts`. Adapter:
   `frontend/src/infrastructure/season-source/...`. Since the bindings return
   errors, the adapter maps a rejection back to what its consumers read before: a command resolves to

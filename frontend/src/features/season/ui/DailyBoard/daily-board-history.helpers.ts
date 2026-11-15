@@ -1,8 +1,9 @@
 import type {
   SeasonAnimeRow,
   SeasonDailyBoardEntry,
-  SeasonSource,
+  SeasonOrderingSnapshot,
 } from '../../../../shared/contracts/season.types';
+import type { AsyncView } from '../../../../shared/query/async-view/async-view.types';
 import {
   DAILY_BOARD_HISTORY_LOAD_ERROR,
   EMPTY_BOARD_SECTIONS,
@@ -10,50 +11,39 @@ import {
   LOADING_DAILY_BOARD_HISTORY,
 } from './daily-board.constants';
 import { groupCreatedBySection, listBoardAnimeIds } from './daily-board.helpers';
-import type { BoardSections, DailyBoardHistory, DailyBoardView, LoadedDailyBoardHistory } from './daily-board.types';
-
-/**
- * Reads the Daily board a closed season stored at close. A source that cannot
- * read the closure snapshot, or a read that throws, is a failure rather than a
- * claim that nothing was recorded; a snapshot without a recorded Daily board is
- * `unrecorded`.
- *
- * @param source The season port.
- * @param seasonId The closed season being viewed.
- * @returns The settled read, tagged with its season.
- */
-export async function readDailyBoardHistory(source: SeasonSource, seasonId: string): Promise<LoadedDailyBoardHistory> {
-  if (source.getSeasonOrderingSnapshot === undefined) {
-    return { seasonId, history: { status: 'failed', errorMessage: DAILY_BOARD_HISTORY_LOAD_ERROR } };
-  }
-  try {
-    const dailyBoard = (await source.getSeasonOrderingSnapshot(seasonId)).dailyBoard;
-    return {
-      seasonId,
-      history: dailyBoard?.recorded === true ? { status: 'recorded', entries: dailyBoard.entries } : { status: 'unrecorded' },
-    };
-  } catch (error) {
-    return {
-      seasonId,
-      history: { status: 'failed', errorMessage: error instanceof Error ? error.message : DAILY_BOARD_HISTORY_LOAD_ERROR },
-    };
-  }
-}
+import type { BoardSections, DailyBoardHistory, DailyBoardView } from './daily-board.types';
 
 /**
  * The history the board renders: live for an open season; for a closed one the
- * settled read for THAT season, or `loading` while none has settled (so a slow
- * read never shows another season's board).
+ * Daily board its closure snapshot stored. A source that cannot read the
+ * snapshot, or a failed read, is a failure rather than a claim that nothing was
+ * recorded; a snapshot without a recorded Daily board is `unrecorded`; a read in
+ * flight is `loading`.
  *
  * @param viewSeasonId The closed season being viewed, or null for the open one.
- * @param loaded The last settled read, or null.
+ * @param canRead Whether the source can read the closure snapshot at all.
+ * @param snapshot The viewed season's snapshot read.
  * @returns The current history.
  */
-export function resolveDailyBoardHistory(viewSeasonId: string | null, loaded: LoadedDailyBoardHistory | null): DailyBoardHistory {
+export function toDailyBoardHistory(
+  viewSeasonId: string | null,
+  canRead: boolean,
+  snapshot: AsyncView<SeasonOrderingSnapshot>,
+): DailyBoardHistory {
   if (viewSeasonId === null) {
     return LIVE_DAILY_BOARD_HISTORY;
   }
-  return loaded?.seasonId === viewSeasonId ? loaded.history : LOADING_DAILY_BOARD_HISTORY;
+  if (!canRead) {
+    return { status: 'failed', errorMessage: DAILY_BOARD_HISTORY_LOAD_ERROR };
+  }
+  if (snapshot.kind === 'failure') {
+    return { status: 'failed', errorMessage: snapshot.message };
+  }
+  if (snapshot.kind !== 'ready') {
+    return LOADING_DAILY_BOARD_HISTORY;
+  }
+  const dailyBoard = snapshot.data.dailyBoard;
+  return dailyBoard?.recorded === true ? { status: 'recorded', entries: dailyBoard.entries } : { status: 'unrecorded' };
 }
 
 /**

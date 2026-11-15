@@ -86,14 +86,6 @@ export type DailyBoardHistory =
   | { readonly status: 'recorded'; readonly entries: readonly SeasonDailyBoardEntry[] }
   | { readonly status: 'unrecorded' };
 
-/** A settled closure-snapshot read, tagged with the season it belongs to. */
-export interface LoadedDailyBoardHistory {
-  /** The season the read was for. */
-  readonly seasonId: string;
-  /** The settled outcome of that read. */
-  readonly history: DailyBoardHistory;
-}
-
 /**
  * What the board renders: the three conveyor sections, one plain list of the
  * season's animes (a closed season that recorded no Daily board), the loading

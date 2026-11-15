@@ -46,19 +46,6 @@ export interface OrderingCardMeta {
 }
 
 /**
- * Which board the hook currently holds: the live schedule, or one past season's
- * stored closure snapshot. The pair is what lets the hook tell "still reading
- * this season's record" from "the record for this season is loaded" without a
- * separate loading flag that a fast switch could leave stale.
- */
-export interface OrderingBoardOrigin {
-  /** The past season whose stored board was read; null when the board is the live schedule. */
-  readonly seasonId: string | null;
-  /** Whether the stored snapshot exists; only meaningful when `seasonId` is set. */
-  readonly recorded: boolean;
-}
-
-/**
  * The board's working state: the shared ordering state specialized to Season's
  * richer card. Declaring it as `OrderingState<OrderingInstance>` rather than a
  * lookalike interface is what lets the shared transitions return Season's own
@@ -182,21 +169,41 @@ export interface OrderingBoardLoadParams {
   readonly viewSeasonId: string | null;
 }
 
+/**
+ * The loaded board the working state was last built from, and the reload
+ * generation it was built in: a new board, or a completed reload of the same
+ * board, rebuilds the working state.
+ */
+export interface OrderingBoardSync {
+  /** The loaded board (live, with its draft, or a past season's stored board). */
+  readonly board: OrderingBoard;
+  /** The reload generation the working state was built in. */
+  readonly generation: number;
+}
+
+/** Where the viewed past season's stored board read stands; the live board is always recorded. */
+export interface OrderingBoardHistory {
+  /** True while the viewed past season's stored board is still unresolved. */
+  readonly isHistoricalLoading: boolean;
+  /** Whether the stored board exists; true for the live schedule. */
+  readonly historicalRecorded: boolean;
+  /** The failure message of the stored-board read, when it failed or cannot be made. */
+  readonly historicalError: string | undefined;
+}
+
 /** What the board load hook holds and exposes to the ordering board hook. */
-export interface OrderingBoardLoadResult {
+export interface OrderingBoardLoadResult extends OrderingBoardHistory {
   /** The last loaded board, the baseline the change count compares against. */
   readonly board: OrderingBoard;
   /** The editable working state. */
   readonly state: WorkingState;
   /** Replaces the working state (drag, duplicate, remove). */
   readonly setState: Dispatch<SetStateAction<WorkingState>>;
-  /** True while the viewed past season's stored board is still unresolved. */
-  readonly isHistoricalLoading: boolean;
-  /** Whether the stored board exists; true for the live schedule. */
-  readonly historicalRecorded: boolean;
-  /** The failure message of the last stored-board read, when it failed. */
-  readonly historicalError: string | undefined;
-  /** Re-reads the board for the current view and resets the working state. */
+  /** True while the live board is shown and its first read has not settled (module starting or read in flight). */
+  readonly isLiveLoading: boolean;
+  /** The failure message of the live board read while the live board is shown, when it failed. */
+  readonly liveError: string | undefined;
+  /** Re-reads the live board and rebuilds the working state from it. */
   readonly load: () => Promise<void>;
 }
 
@@ -234,8 +241,8 @@ export interface OrderingBoardEdits {
 
 /** Inputs of the hook that autosaves the working draft after a user edit. */
 export interface OrderingBoardAutosaveParams {
-  /** The season source the draft is saved through. */
-  readonly source: SeasonSource;
+  /** Saves the serialized draft (the `saveOrderingDraft` command). */
+  readonly saveDraft: (draftJson: string) => void;
   /** The editable working state. */
   readonly state: WorkingState;
   /** Whether the user edited the board since it was last loaded. */

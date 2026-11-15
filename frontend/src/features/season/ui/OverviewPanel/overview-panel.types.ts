@@ -145,14 +145,6 @@ export type OverviewLineupState =
   | { readonly status: 'unrecorded' }
   | { readonly status: 'recorded'; readonly grid: readonly OrderingCard[]; readonly rail: readonly OrderingCard[] };
 
-/** A settled lineup read, tagged with the season it belongs to. */
-export interface LoadedOverviewLineup {
-  /** The season the read was for. */
-  readonly seasonId: string;
-  /** The settled read. */
-  readonly state: OverviewLineupState;
-}
-
 /** One anime placed on a weekday of the recorded lineup. */
 export interface OverviewLineupItem {
   /** A key unique within the lineup. */

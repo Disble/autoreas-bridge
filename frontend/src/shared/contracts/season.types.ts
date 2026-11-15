@@ -371,4 +371,18 @@ export interface SeasonSource {
    * returns something other than `ok`.
    */
   readonly subscribeMatchingFinished?: (listener: (notice: SeasonMatchingFinishedNotice) => void) => () => void;
+  /**
+   * Reads the live ordering board with its saved draft for `useBridgeQuery`:
+   * rejects with a `BridgeError` while the season module is not ready or the
+   * read fails, never answering an empty board. Optional so partial test
+   * doubles stay assignable; the runtime adapter always provides it.
+   */
+  readonly fetchOrderingBoard?: () => Promise<OrderingBoard>;
+  /**
+   * Reads the board a closed season stored at close for `useBridgeQuery`:
+   * rejects with a `BridgeError` while the season module is not ready or the
+   * read fails, never answering an unrecorded snapshot. Optional for the same
+   * reason as `fetchOrderingBoard`.
+   */
+  readonly fetchSeasonOrderingSnapshot?: (seasonId: string) => Promise<SeasonOrderingSnapshot>;
 }

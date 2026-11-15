@@ -65,6 +65,7 @@ import type {
   SeasonSource,
 } from '../../shared/contracts/season.types';
 import { openInDefaultBrowser } from '../../shared/helpers/url.helpers';
+import { createBridgeError } from '../../shared/query/bridge-error/bridge-error.helpers';
 import { withBridgeErrors } from '../bridge-error/bridge-error.helpers';
 import { createRuntimeSubscription, hasGoBinding, invokeGoBinding, waitForBindings } from '../wails-bindings.helpers';
 
@@ -305,6 +306,20 @@ export function createSeasonSource(): SeasonSource {
     },
     openPage(url: string) {
       openInDefaultBrowser(url); // a blank url means no matched slug
+    },
+    fetchOrderingBoard() {
+      return withBridgeErrors(
+        invokeGoBinding('GetSeasonOrderingBoard', GetSeasonOrderingBoard, () =>
+          Promise.reject(createBridgeError('unavailable', 'the GetSeasonOrderingBoard binding is not attached')),
+        ),
+      );
+    },
+    fetchSeasonOrderingSnapshot(seasonId: string) {
+      return withBridgeErrors<SeasonOrderingSnapshot>(
+        invokeGoBinding('GetSeasonOrderingSnapshot', () => GetSeasonOrderingSnapshot(seasonId), () =>
+          Promise.reject(createBridgeError('unavailable', 'the GetSeasonOrderingSnapshot binding is not attached')),
+        ),
+      );
     },
   };
 

@@ -15,6 +15,8 @@ export interface OrderingHistoryStatesProps {
   readonly historicalRecorded: boolean;
   /** Failure message when the stored board could not be read at all. */
   readonly historicalError?: string;
+  /** Accessible name of the loading status; defaults to the recorded board's label. */
+  readonly loadingLabel?: string;
 }
 
 /**
@@ -24,7 +26,12 @@ export interface OrderingHistoryStatesProps {
  * beside the error, and no outcome here ever renders an empty rail and grid as if they
  * were the record.
  */
-export function OrderingHistoryStates({ isHistoricalLoading, historicalRecorded, historicalError }: Readonly<OrderingHistoryStatesProps>) {
+export function OrderingHistoryStates({
+  isHistoricalLoading,
+  historicalRecorded,
+  historicalError,
+  loadingLabel = ORDERING_BOARD_LOADING_LABEL,
+}: Readonly<OrderingHistoryStatesProps>) {
   return (
     <>
       {historicalError !== undefined && (
@@ -36,7 +43,7 @@ export function OrderingHistoryStates({ isHistoricalLoading, historicalRecorded,
       )}
 
       {isHistoricalLoading ? (
-        <LoadingBars barClassName="h-24 w-full rounded-lg" count={2} label={ORDERING_BOARD_LOADING_LABEL} />
+        <LoadingBars barClassName="h-24 w-full rounded-lg" count={2} label={loadingLabel} />
       ) : null}
 
       {!isHistoricalLoading && historicalError === undefined && !historicalRecorded ? (

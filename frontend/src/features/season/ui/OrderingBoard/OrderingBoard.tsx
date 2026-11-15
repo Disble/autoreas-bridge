@@ -7,6 +7,7 @@ import { OrderingLane } from './OrderingLane';
 import { OrderingReadOnlyNotice } from './OrderingReadOnlyNotice';
 import { OrderingWeekdayGrid } from './OrderingWeekdayGrid';
 import {
+  ORDERING_BOARD_LIVE_LOADING_LABEL,
   ORDERING_EMPTY_ACTION_LABEL,
   ORDERING_EMPTY_DESCRIPTION,
   ORDERING_EMPTY_MESSAGE,
@@ -30,7 +31,8 @@ import type { OrderingBoardProps } from './ordering-board.types';
  * While a past season is open the board shows that season's STORED closure snapshot
  * instead of the live schedule. Its unresolved, not-recorded, and failed states return
  * early and REPLACE the board — an empty rail and grid must never stand in for a record
- * that does not exist. This component stays presentational: the notice, the history
+ * that does not exist. The live board's first read in flight and its failed read replace
+ * the board with the same loading skeleton and failure Alert. This component stays presentational: the notice, the history
  * states, and each container are colocated child components of their own.
  */
 export function OrderingBoard({ onNavigate }: Readonly<OrderingBoardProps>) {
@@ -48,6 +50,8 @@ export function OrderingBoard({ onNavigate }: Readonly<OrderingBoardProps>) {
     isHistoricalLoading,
     historicalRecorded,
     historicalError,
+    isLiveLoading,
+    liveError,
     errorMessage,
     onDragOver,
     duplicate,
@@ -102,6 +106,20 @@ export function OrderingBoard({ onNavigate }: Readonly<OrderingBoardProps>) {
   // Covers the read in flight, the read that failed, and the season that stored no
   // board; all three must keep the live/stored board off the screen.
   const isStoredBoardUnresolved = historicalError !== undefined || isHistoricalLoading || !historicalRecorded;
+
+  // The live board's first read in flight, or its failed read, replaces the board the same way.
+  if (!isPastSeason && (isLiveLoading || liveError !== undefined)) {
+    return (
+      <section className="flex flex-col gap-4">
+        <OrderingHistoryStates
+          isHistoricalLoading={isLiveLoading}
+          historicalRecorded
+          historicalError={liveError}
+          loadingLabel={ORDERING_BOARD_LIVE_LOADING_LABEL}
+        />
+      </section>
+    );
+  }
 
   if (isPastSeason && isStoredBoardUnresolved) {
     return (

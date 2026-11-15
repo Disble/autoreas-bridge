@@ -2,8 +2,14 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../shared/contracts/season.types';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
 import { DailyBoard } from '../DailyBoard';
+
+/** A fresh query wrapper with the season module ready, for the board's closure snapshot read. */
+function seasonReadyWrapper() {
+  return createModulesTestWrapper({ module: 'season', state: 'ready' }).wrapper;
+}
 
 // Integration test with the REAL useDailyBoard hook and the REAL HeroUI Checkbox
 // (no hook mock) — this is the test that catches "the checkbox renders no
@@ -48,7 +54,7 @@ describe('DailyBoard Sin ver checkboxes (real component)', () => {
 
   it('renders a real, clickable checkbox per Sin ver row', () => {
     setSeasonStoreState({ seasonAnimes: [createdRow('a', 'anime-a'), createdRow('b', 'anime-b')] });
-    render(<DailyBoard />);
+    render(<DailyBoard />, { wrapper: seasonReadyWrapper() });
 
     // The bug was that no interactive checkbox rendered at all.
     const boxes = screen.getAllByRole('checkbox');
@@ -57,7 +63,7 @@ describe('DailyBoard Sin ver checkboxes (real component)', () => {
 
   it('leads each Sin ver row with its checkbox, named by the anime, before the cover', () => {
     setSeasonStoreState({ seasonAnimes: [createdRow('a', 'anime-a')] });
-    render(<DailyBoard />);
+    render(<DailyBoard />, { wrapper: seasonReadyWrapper() });
 
     const box = screen.getByRole('checkbox', { name: 'A' });
     const cover = within(screen.getByRole('list', { name: 'Sin ver' })).getByTestId('season-cover-thumb');
@@ -66,7 +72,7 @@ describe('DailyBoard Sin ver checkboxes (real component)', () => {
 
   it('selecting a checkbox enables both send actions, with no selected-count text', () => {
     setSeasonStoreState({ seasonAnimes: [createdRow('a', 'anime-a')] });
-    render(<DailyBoard />);
+    render(<DailyBoard />, { wrapper: seasonReadyWrapper() });
 
     /** The two Sin ver send actions, in footer order. */
     const sendButtons = () => [
@@ -93,7 +99,7 @@ describe('DailyBoard Ver hoy checkboxes (real component)', () => {
     setSeasonStoreState({
       seasonAnimes: [createdRow('b', 'anime-b', 'Ver hoy'), createdRow('c', 'anime-c', 'Ver hoy'), createdRow('d', 'anime-d', 'Visto')],
     });
-    render(<DailyBoard />);
+    render(<DailyBoard />, { wrapper: seasonReadyWrapper() });
 
     const verHoy = within(screen.getByRole('list', { name: 'Ver hoy' }));
     expect(verHoy.getAllByRole('checkbox')).toHaveLength(2);
@@ -115,7 +121,7 @@ describe('DailyBoard Ver hoy checkboxes (real component)', () => {
 
   it('renders no Ver hoy checkbox in a read-only season', () => {
     setSeasonStoreState({ readOnly: true, seasonAnimes: [createdRow('b', 'anime-b', 'Ver hoy')] });
-    render(<DailyBoard />);
+    render(<DailyBoard />, { wrapper: seasonReadyWrapper() });
 
     expect(screen.queryByRole('checkbox')).toBeNull();
   });
