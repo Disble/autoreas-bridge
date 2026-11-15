@@ -157,7 +157,8 @@ Frontend gates (`frontend/scripts/async-state-gates.helpers.mjs`, ESLint plugin 
 - Test files (`__tests__/`, `*.test.*`, `test-support`, `src/test/`) are out of scope: they fake the
   boundary these rules guard.
 - `no-runtime-subscription` counts calls, not definitions: a port type or an adapter object that declares
-  `subscribeX` is not a subscription. A bare `.subscribe(...)` counts only on a `*Source` receiver,
+  `subscribeX` is not a subscription. A bare `.subscribe(...)` counts only on a receiver whose name ends
+  in `source` in any letter case (`pushSource`, `source`, also `resource`),
   because that is how a Zustand store is subscribed (`store.subscribe`), and the runtime source ports
   name their methods `subscribe<Event>` or live in variables named `*Source`. It is a tripwire, not
   proof: a source stored under another name and subscribed with a bare `.subscribe` slips through.
@@ -169,6 +170,8 @@ Frontend gates (`frontend/scripts/async-state-gates.helpers.mjs`, ESLint plugin 
   sources; staging the baseline or the gate code checks the whole tree. `check:async-state:all`
   (`pre-merge-commit`) checks the whole tree. Both print the entry count per rule, which is not gated.
   A file that does not parse fails the check and its baseline entries are not judged stale.
+  Staged mode lints the files on disk; lefthook hides the unstaged hunks of a partly staged file
+  during the hook, so the disk matches what is committed, and `pre-merge-commit` re-checks the tree.
 - An entry is an identity (rule, file, import specifier or symbol), not a count: repeating an
   already-baselined violation in the same file passes. A renamed baselined file fails as new code
   until its entries move to the new path; the old-path entries show as stale.

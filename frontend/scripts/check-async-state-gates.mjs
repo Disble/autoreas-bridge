@@ -9,7 +9,7 @@
 // printed on every run; it is reported, never gated.
 
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -111,9 +111,27 @@ export async function runAsyncStateGates({ root = process.cwd(), all = false, st
   return fatal.length + added.length + stale.length === 0 ? 0 : 1;
 }
 
-/** Whether this module is the CLI rather than an imported test subject. */
-const isCli = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isCli) {
+/**
+ * Whether the script path Node was started with is this module. Both sides are resolved through
+ * symlinks and junctions, and compared without letter case on Windows, so a hook started through a
+ * different spelling of the path still runs the gate instead of exiting 0 without checking.
+ * @param {string | undefined} argvPath The script path Node was started with (`process.argv[1]`).
+ * @param {string} moduleUrl This module's `import.meta.url`.
+ * @param {string} [platform] The operating system, `process.platform` by default.
+ * @returns {boolean} True when Node was started with this module.
+ */
+export function isCliEntry(argvPath, moduleUrl, platform = process.platform) {
+  if (!argvPath) return false;
+  /** @param {string} file A path to normalise. @returns {string} The comparable path. */
+  const comparable = (file) => {
+    /** The path with symlinks and junctions resolved when it exists. */
+    const resolved = existsSync(file) ? realpathSync(file) : path.resolve(file);
+    return platform === 'win32' ? resolved.toLowerCase() : resolved;
+  };
+  return comparable(argvPath) === comparable(fileURLToPath(moduleUrl));
+}
+
+if (isCliEntry(process.argv[1], import.meta.url)) {
   try {
     process.exitCode = await runAsyncStateGates({ all: process.argv.includes('--all') });
   } catch (error) {

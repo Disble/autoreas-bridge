@@ -1,12 +1,13 @@
+import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import tsParser from '@typescript-eslint/parser';
 import { ESLint } from 'eslint';
 import { afterAll, describe, expect, it } from 'vitest';
 import { asyncStateRuleSettings, createAsyncStatePlugin, formatStaleEntry } from '../async-state-gates.helpers.mjs';
-import { runAsyncStateGates } from '../check-async-state-gates.mjs';
+import { isCliEntry, runAsyncStateGates } from '../check-async-state-gates.mjs';
 
 /** The frontend workspace, whose eslint.config.js registers the rules. */
 const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -166,6 +167,28 @@ describe('check-async-state-gates', () => {
     await expect(runAsyncStateGates({ root: scratchRoot(sources), log: (line) => lines.push(line), ...options })).resolves.toBe(status);
     expect(lines[0]).toMatch(/^async-state gates: baseline 2 entries \(no-infrastructure-import 1, no-runtime-subscription 1\); checked /u);
     expect(lines.slice(1)).toEqual(reported.map((start) => expect.stringMatching(new RegExp(`^${RegExp.escape(start)}`, 'u'))));
+  });
+
+  /** The check script, run as a CLI by the hooks. */
+  const checkScript = path.join(frontendRoot, 'scripts', 'check-async-state-gates.mjs');
+
+  it.each([
+    ['the script path itself', checkScript, 'linux', true],
+    ['the script path in another letter case on Windows', checkScript.toUpperCase(), 'win32', true],
+    ['another file', path.join(frontendRoot, 'package.json'), 'win32', false],
+    ['no script path', undefined, 'win32', false],
+  ])('recognises the CLI entry for %s', (_name, argvPath, platform, expected) => {
+    expect(isCliEntry(argvPath, pathToFileURL(checkScript).href, platform)).toBe(expected);
+  });
+
+  it.each([
+    ['passes and prints the count', LEGACY, 0],
+    ['fails on a new violation', { ...LEGACY, 'src/features/a/new.ts': 'const go = window.go;' }, 1],
+  ])('runs as a CLI with --all and %s', (_name, sources, status) => {
+    /** The CLI run over a scratch frontend root. */
+    const run = spawnSync(process.execPath, [checkScript, '--all'], { cwd: scratchRoot(sources), encoding: 'utf8' });
+    expect(run.status).toBe(status);
+    expect(run.stdout).toMatch(/^async-state gates: baseline 2 entries/u);
   });
 
   it('names the helper, the skill and the ADR in a new-violation message', async () => {

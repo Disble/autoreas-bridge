@@ -167,7 +167,7 @@ function staticName(node) {
  * Names the runtime-event subscription a call makes, or undefined when it makes none.
  *
  * Counted: Wails `EventsOn*`; any `subscribe<Name>(...)` (the runtime source ports' naming); and a
- * bare `.subscribe(...)` whose receiver is named `*Source` (`pushSource.subscribe`). Not counted:
+ * bare `.subscribe(...)` whose receiver name ends in `source` in any letter case (`pushSource.subscribe`, `source.subscribe`). Not counted:
  * a bare `.subscribe(...)` on anything else, which is how a Zustand store is subscribed.
  * @param {object} callee Callee of a CallExpression.
  * @returns {string|undefined} Symbol that identifies the subscription.
