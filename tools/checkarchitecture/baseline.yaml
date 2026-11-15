@@ -11,27 +11,6 @@
 version: 1
 violations:
   - rule: binding-signature
-    file: internal/desktop/app_download.go
-    symbol: ListDownloadRuns
-  - rule: binding-signature
-    file: internal/desktop/app_download.go
-    symbol: SetHosterPriority
-  - rule: binding-signature
-    file: internal/desktop/app_download.go
-    symbol: SetJDConfig
-  - rule: binding-signature
-    file: internal/desktop/app_download.go
-    symbol: SetScheduleConfig
-  - rule: binding-signature
-    file: internal/desktop/app_download.go
-    symbol: TriggerAnimeDownload
-  - rule: binding-signature
-    file: internal/desktop/app_download.go
-    symbol: TriggerDownloadCheck
-  - rule: binding-signature
-    file: internal/desktop/app_download_cancel.go
-    symbol: CancelDownloadRun
-  - rule: binding-signature
     file: internal/desktop/app_preferences.go
     symbol: GetKeymap
   - rule: binding-signature
@@ -43,45 +22,6 @@ violations:
   - rule: binding-signature
     file: internal/desktop/app_season_availability.go
     symbol: TriggerSeasonDownloads
-  - rule: binding-uses-handle
-    file: internal/desktop/app_download.go
-    symbol: GetDownloadConfig
-  - rule: binding-uses-handle
-    file: internal/desktop/app_download.go
-    symbol: GetJDStatus
-  - rule: binding-uses-handle
-    file: internal/desktop/app_download.go
-    symbol: GetScheduleConfig
-  - rule: binding-uses-handle
-    file: internal/desktop/app_download.go
-    symbol: IgnoreMissedSchedule
-  - rule: binding-uses-handle
-    file: internal/desktop/app_download.go
-    symbol: ListDownloadRuns
-  - rule: binding-uses-handle
-    file: internal/desktop/app_download.go
-    symbol: RunMissedScheduleNow
-  - rule: binding-uses-handle
-    file: internal/desktop/app_download.go
-    symbol: SetHosterPriority
-  - rule: binding-uses-handle
-    file: internal/desktop/app_download.go
-    symbol: SetJDConfig
-  - rule: binding-uses-handle
-    file: internal/desktop/app_download.go
-    symbol: SetScheduleConfig
-  - rule: binding-uses-handle
-    file: internal/desktop/app_download.go
-    symbol: TriggerAnimeDownload
-  - rule: binding-uses-handle
-    file: internal/desktop/app_download.go
-    symbol: TriggerDownloadCheck
-  - rule: binding-uses-handle
-    file: internal/desktop/app_download_cancel.go
-    symbol: CancelDownloadRun
-  - rule: binding-uses-handle
-    file: internal/desktop/app_download_readiness.go
-    symbol: ListDownloadReadiness
   - rule: binding-uses-handle
     file: internal/desktop/app_preferences.go
     symbol: GetKeymap

@@ -192,8 +192,8 @@ Frontend gates (`frontend/scripts/async-state-gates.helpers.mjs`, ESLint plugin 
 - An entry is an identity (rule, file, import specifier or symbol), not a count: repeating an
   already-baselined violation in the same file passes. A renamed baselined file fails as new code
   until its entries move to the new path; the old-path entries show as stale.
-- The allow-list (`zustand/vanilla`) is closed: the Catalog session and keyboard UI stores, and the three
-  ADR-006 read-models (download, preferences, season), which leave it as they migrate.
+- The allow-list (`zustand/vanilla`) is closed: the Catalog session, keyboard and Downloads UI stores, and the two
+  ADR-006 read-models (preferences, season), which leave it as they migrate.
 
 ## Known drift
 
@@ -284,7 +284,8 @@ pilot's frontend (T4b), the Devices bindings (T5a), the Activity reads (T5b) and
   `grep -rlE "from '(\.\./)+infrastructure/" src/<layer> --include=*.ts --include=*.tsx | grep -v __tests__`
   from `frontend/`. One of the 16 is in `shared/query`: the composition module
   `bridge-runtime/bridge-runtime.constants.ts`; the rest of `shared/query` imports none.
-- Server state still lives in 4 Zustand read-models (ADR-006) and in hand-fetching hooks.
+- Server state still lives in 4 Zustand read-models (ADR-006) and in hand-fetching hooks. The
+  download-runtime-store keeps UI state only; download server state uses queries.
 - `frontend/async-state-baseline.json` holds 212 entries (244 at task T3b; the Today pilot, T4b,
   deleted 3; the Devices bindings, T5a, deleted 9; the Activity reads, T5b, deleted 7; the shell
   slice, T5c, deleted 13: the frontend error reporter 3, the backup panels 8, the rail SQLite chip 2), measured by running the five rules over
@@ -293,8 +294,9 @@ pilot's frontend (T4b), the Devices bindings (T5a), the Activity reads (T5b) and
     `wailsjs/**` imports (generated bindings, models and the runtime) in 3 files. Today's
     `episode-schedule-panel.helpers.ts` keeps two (`bridge-runtime-source`, `preferences-source`) for
     the operations that have not migrated.
-  - `no-runtime-subscription` 14 entries in 9 files: 7 feature files (activity, download run history,
-    navigation badge, notifications) and 2 shared stores (download runtime, season).
+  - `no-runtime-subscription` 14 entries in 9 files: feature files (activity,
+    navigation badge, notifications) and shared stores (season). Download run history and the
+    download runtime store no longer subscribe directly.
   - `no-window-go`, `react-query-in-shared-query` and `zustand-vanilla-allow-list` 0 entries: production
     code outside `infrastructure/**` never reads `window.go` (8 test files fake it), TanStack Query is
     imported only in `shared/query`, and the 5 `zustand/vanilla` importers are exactly the allow-list.

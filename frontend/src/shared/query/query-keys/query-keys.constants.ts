@@ -76,3 +76,21 @@ export const NOTIFICATIONS_UNREAD_COUNT_KEY = notificationsKeys.key('unread-coun
 
 /** Keys of the season module's reads; `seasonKeys.all` is their common prefix. */
 export const seasonKeys = defineQueryKeys('season');
+
+/**
+ * Keys of the downloads module's reads (Downloads screen, the missed-day notice
+ * and the Daily board's auto-download chip); `downloadsKeys.all` is their common prefix.
+ */
+export const downloadsKeys = defineQueryKeys('downloads');
+
+/** Key of the schedule config; run events and a settled missed day invalidate it (`BRIDGE_INVALIDATIONS`). */
+export const DOWNLOADS_SCHEDULE_KEY = downloadsKeys.key('schedule');
+
+/** Key of the run history; run events invalidate it (`BRIDGE_INVALIDATIONS`). */
+export const DOWNLOADS_RUNS_KEY = downloadsKeys.key('runs');
+
+/** Key of the download config (rename opt-in, hoster priority); no event invalidates it. */
+export const DOWNLOADS_CONFIG_KEY = downloadsKeys.key('config');
+
+/** Key of the per-anime download readiness the schedule panel and the solo download share; no event invalidates it. */
+export const DOWNLOADS_READINESS_KEY = downloadsKeys.key('readiness');

@@ -5,11 +5,3 @@ export interface EpisodeRenamePanelProps {
 
 /** Loading/ready/error states for the episode-rename toggle. */
 export type EpisodeRenamePanelStatus = 'loading' | 'ready' | 'error';
-
-/** Internal state owned by `useEpisodeRenamePanel`. */
-export interface EpisodeRenamePanelState {
-  readonly enabled: boolean;
-  readonly hasLoaded: boolean;
-  readonly isSaving: boolean;
-  readonly errorMessage?: string;
-}

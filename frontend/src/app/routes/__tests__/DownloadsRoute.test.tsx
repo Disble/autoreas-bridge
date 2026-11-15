@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createDownloadsWrapper } from '../../../shared/hooks/use-missed-schedule-notice/__tests__/downloads.test-support';
 import { DownloadsRoute } from '../DownloadsRoute';
 
 vi.mock('../../../features/download/ui/ManualTriggerButton/ManualTriggerButton', () => ({
@@ -47,7 +48,7 @@ describe('DownloadsRoute', () => {
   // last/next run line is glance information, and splitting the card so the
   // status shows in one tab and the days in another would be worse than either.
   it('lands on the Downloads tab with the act-now panels, the schedule, and the run history', () => {
-    render(<DownloadsRoute />);
+    render(<DownloadsRoute />, { wrapper: createDownloadsWrapper().wrapper });
 
     expect(screen.getByText('manual trigger button')).toBeInTheDocument();
     expect(screen.getByText('solo anime download panel')).toBeInTheDocument();
@@ -58,7 +59,7 @@ describe('DownloadsRoute', () => {
   // Without a story source the run history can only show counts: the route is the one place
   // that may hand it the Activity run-story reader, because features never import each other.
   it('hands the run history the run-story reader', () => {
-    render(<DownloadsRoute />);
+    render(<DownloadsRoute />, { wrapper: createDownloadsWrapper().wrapper });
 
     expect(screen.getByText('run history panel')).toHaveAttribute('data-story-source', 'given');
   });
@@ -67,7 +68,7 @@ describe('DownloadsRoute', () => {
   // observe-then-tune loop (a failed run in history -> reorder hoster priority)
   // has to stay inside this route.
   it('reveals every configuration panel on the Configuration tab', () => {
-    render(<DownloadsRoute />);
+    render(<DownloadsRoute />, { wrapper: createDownloadsWrapper().wrapper });
 
     selectTab('Configuration');
 
@@ -77,7 +78,7 @@ describe('DownloadsRoute', () => {
   });
 
   it('returns to the act-now panels when the Downloads tab is selected again', () => {
-    render(<DownloadsRoute />);
+    render(<DownloadsRoute />, { wrapper: createDownloadsWrapper().wrapper });
 
     selectTab('Configuration');
     selectTab('Downloads');

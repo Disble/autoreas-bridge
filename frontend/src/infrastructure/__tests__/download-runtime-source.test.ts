@@ -1,213 +1,48 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { contracts } from '../../../wailsjs/go/models';
 
-describe('download-runtime-source', () => {
+describe('downloads-source', () => {
   beforeEach(() => {
     vi.resetModules();
-    vi.useFakeTimers();
     Reflect.deleteProperty(window, 'go');
     Reflect.deleteProperty(window, 'runtime');
   });
 
   afterEach(() => {
-    vi.useRealTimers();
     Reflect.deleteProperty(window, 'go');
     Reflect.deleteProperty(window, 'runtime');
   });
 
-  it('degrades getDownloadConfig to a safe empty default when the runtime is unavailable', async () => {
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
-    const source = createDownloadRuntimeSource();
+  it.each([
+    ['getDownloadConfig', 'GetDownloadConfig'],
+    ['listDownloadRuns', 'ListDownloadRuns'],
+    ['triggerDownloadCheck', 'TriggerDownloadCheck'],
+  ] as const)('rejects %s as unavailable while its binding is not attached, answering no fallback', async (call, bindingName) => {
+    vi.useFakeTimers();
+    const { createDownloadsSource } = await import('../download-runtime-source/downloads-source.helpers');
 
-    const resultPromise = source.getDownloadConfig();
-    await vi.advanceTimersByTimeAsync(5000);
-
-    await expect(resultPromise).resolves.toEqual({
-      jd: {
-        email: '',
-        hasPassword: false,
-        deviceName: '',
-        exePathOverride: '',
-        defaultDestDir: '',
-        lastSeenStatus: 'unknown',
-        lastSeenAtMs: 0,
-      },
-      schedule: {
-        mode: 'manual',
-        dailyTimeHHMM: '',
-        enabled: false,
-        lastRunAtMs: 0,
-        lastRunStatus: '',
-        nextRunAtMs: 0,
-        running: false,
-        enabledWeekdays: 127,
-        missedNotice: undefined,
-      },
-      // No runtime means no site to save to, so the editor has nothing to write
-      // back into rather than a guessed scope.
-      hosterPrioritySite: '',
-      hosterPriority: [],
-      renameEpisodes: false,
+    const answer = createDownloadsSource()[call]();
+    const assertion = expect(answer).rejects.toMatchObject({
+      name: 'BridgeError',
+      code: 'unavailable',
+      message: `the ${bindingName} binding is not attached`,
     });
-  });
-
-  it('degrades missed-notice actions to descriptive error results when the runtime is unavailable', async () => {
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
-    const source = createDownloadRuntimeSource();
-
-    const runPromise = source.runMissedScheduleNow('2026-07-26');
-    const ignorePromise = source.ignoreMissedSchedule('2026-07-26');
+    // The binding is waited on for the runtime's attach window before it counts as missing.
     await vi.advanceTimersByTimeAsync(5000);
-
-    await expect(runPromise).resolves.toEqual({
-      kind: 'error',
-      localDate: '2026-07-26',
-      message: 'runtime unavailable',
-    });
-    await expect(ignorePromise).resolves.toEqual({
-      kind: 'error',
-      localDate: '2026-07-26',
-      message: 'runtime unavailable',
-    });
+    await assertion;
+    vi.useRealTimers();
   });
 
-  it('degrades listDownloadRuns to an empty array when the runtime is unavailable', async () => {
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
-    const source = createDownloadRuntimeSource();
-
-    const resultPromise = source.listDownloadRuns();
-    await vi.advanceTimersByTimeAsync(5000);
-
-    await expect(resultPromise).resolves.toEqual([]);
-  });
-
-  it('rejects readiness queries when the runtime is unavailable instead of fabricating an empty snapshot', async () => {
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
-	const source = createDownloadRuntimeSource();
-
-	const resultPromise = source.listDownloadReadiness();
-	const rejection = resultPromise.then(() => undefined, (error: unknown) => error);
-	await vi.advanceTimersByTimeAsync(5000);
-
-	await expect(rejection).resolves.toMatchObject({ message: 'runtime unavailable' });
-  });
-
-  it('degrades triggerDownloadCheck to a descriptive message when the runtime is unavailable', async () => {
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
-    const source = createDownloadRuntimeSource();
-
-    const resultPromise = source.triggerDownloadCheck();
-    await vi.advanceTimersByTimeAsync(5000);
-
-    await expect(resultPromise).resolves.toBe('runtime unavailable');
-  });
-
-  it('degrades subscribeRunEvents to a no-op unsubscribe when the runtime is unavailable', async () => {
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
-    const source = createDownloadRuntimeSource();
-    const listener = vi.fn();
-
-    const unsubscribe = source.subscribeRunEvents(listener);
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    expect(() => unsubscribe()).not.toThrow();
-    expect(listener).not.toHaveBeenCalled();
-  });
-
-  it('subscribes to download run lifecycle/progress events and forwards them to listeners', async () => {
-    const handlers = new Map<string, (payload: unknown) => void>();
-    const eventsOnMultipleMock = vi
-      .fn()
-      .mockImplementation((eventName: string, callback: (payload: unknown) => void) => {
-        handlers.set(eventName, callback);
-        return () => undefined;
-      });
-
-    window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
-
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
-    const source = createDownloadRuntimeSource();
-    const listener = vi.fn();
-    const unsubscribe = source.subscribeRunEvents(listener);
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    handlers.get('download.run_started')?.({ runId: 'run-1' });
-    handlers.get('download.run_progress')?.({ runId: 'run-1' });
-    handlers.get('download.run_finished')?.({ runId: 'run-1', status: 'ok' });
-    // The scheduler's own "outcome stored" signal: run_finished fires before it, from inside the run.
-    handlers.get('schedule.run_settled')?.(undefined);
-
-    expect(listener).toHaveBeenCalledTimes(4);
-    expect(eventsOnMultipleMock).toHaveBeenCalledWith('download.run_started', expect.any(Function), -1);
-    expect(eventsOnMultipleMock).toHaveBeenCalledWith('download.run_progress', expect.any(Function), -1);
-    expect(eventsOnMultipleMock).toHaveBeenCalledWith('download.run_finished', expect.any(Function), -1);
-    expect(eventsOnMultipleMock).toHaveBeenCalledWith('schedule.run_settled', expect.any(Function), -1);
-
-    unsubscribe();
-  });
-
-  it('subscribes to the backend missed-schedule settlement event and forwards it to listeners', async () => {
-    const handlers = new Map<string, (payload: unknown) => void>();
-    const eventsOnMultipleMock = vi
-      .fn()
-      .mockImplementation((eventName: string, callback: (payload: unknown) => void) => {
-        handlers.set(eventName, callback);
-        return () => undefined;
-      });
-
-    window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
-
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
-    const source = createDownloadRuntimeSource();
-    const listener = vi.fn();
-    const unsubscribe = source.subscribeMissedScheduleSettled(listener);
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    // The literal name, not the production constant: this string is the wire
-    // contract with `resolveMissedStartupAction`'s emit, and asserting through
-    // the constant would let a rename move both sides here while every shipped
-    // renderer stopped hearing the settlement.
-    handlers.get('schedule.missed_settled')?.('2026-07-26');
-
-    expect(listener).toHaveBeenCalledTimes(1);
-    expect(eventsOnMultipleMock).toHaveBeenCalledWith('schedule.missed_settled', expect.any(Function), -1);
-
-    unsubscribe();
-  });
-
-  it('keeps the settlement subscription separate from the run-event one', async () => {
-    const handlers = new Map<string, (payload: unknown) => void>();
-    window.runtime = {
-      EventsOnMultiple: vi.fn().mockImplementation((eventName: string, callback: (payload: unknown) => void) => {
-        handlers.set(eventName, callback);
-        return () => undefined;
-      }),
+  it('rejects a refused command with its coded failure', async () => {
+    window.go = {
+      desktop: { App: { CancelDownloadRun: vi.fn().mockRejectedValue(new Error('{"code":"unavailable","message":"downloads is starting"}')) } },
     } as never;
+    const { createDownloadsSource } = await import('../download-runtime-source/downloads-source.helpers');
 
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
-    const source = createDownloadRuntimeSource();
-    const runListener = vi.fn();
-    const settledListener = vi.fn();
-    source.subscribeRunEvents(runListener);
-    source.subscribeMissedScheduleSettled(settledListener);
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    handlers.get('schedule.missed_settled')?.('2026-07-26');
-
-    // Settling a missed day is not a download run. Folding it into the run
-    // subscription would also re-read the run history on every "Ignore", which
-    // starts nothing.
-    expect(settledListener).toHaveBeenCalledTimes(1);
-    expect(runListener).not.toHaveBeenCalled();
+    await expect(createDownloadsSource().cancelDownloadRun()).rejects.toMatchObject({ code: 'unavailable', message: 'downloads is starting' });
   });
 
-  it('forwards getDownloadConfig to the live Wails binding once the runtime is ready', async () => {
+  it('forwards getDownloadConfig to the live Wails binding', async () => {
     const config = {
       jd: {
         email: 'user@example.com',
@@ -230,16 +65,12 @@ describe('download-runtime-source', () => {
       hosterPriority: [{ hoster: 'mega', priority: 0, enabled: true }],
     };
 
-    window.runtime = { EventsOnMultiple: vi.fn().mockReturnValue(() => undefined) } as never;
     window.go = { desktop: { App: { GetDownloadConfig: vi.fn().mockResolvedValue(config) } } } as never;
 
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
-    const source = createDownloadRuntimeSource();
+    const { createDownloadsSource } = await import('../download-runtime-source/downloads-source.helpers');
+    const source = createDownloadsSource();
 
-    const resultPromise = source.getDownloadConfig();
-    await vi.advanceTimersByTimeAsync(5000);
-
-    await expect(resultPromise).resolves.toEqual(config);
+    await expect(source.getDownloadConfig()).resolves.toEqual(config);
   });
 
   it('normalizes null hosterPriority from Wails to an empty array', async () => {
@@ -266,16 +97,12 @@ describe('download-runtime-source', () => {
       hosterPriority: null,
     };
 
-    window.runtime = { EventsOnMultiple: vi.fn().mockReturnValue(() => undefined) } as never;
     window.go = { desktop: { App: { GetDownloadConfig: vi.fn().mockResolvedValue(config) } } } as never;
 
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
-    const source = createDownloadRuntimeSource();
+    const { createDownloadsSource } = await import('../download-runtime-source/downloads-source.helpers');
+    const source = createDownloadsSource();
 
-    const resultPromise = source.getDownloadConfig();
-    await vi.advanceTimersByTimeAsync(5000);
-
-    await expect(resultPromise).resolves.toMatchObject({ hosterPriority: [] });
+    await expect(source.getDownloadConfig()).resolves.toMatchObject({ hosterPriority: [] });
   });
 
   it('preserves status, schedule, and run payloads returned by live Wails bindings', async () => {
@@ -304,8 +131,8 @@ describe('download-runtime-source', () => {
       },
     } as never;
 
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
-    const source = createDownloadRuntimeSource();
+    const { createDownloadsSource } = await import('../download-runtime-source/downloads-source.helpers');
+    const source = createDownloadsSource();
 
     await expect(source.getJDStatus()).resolves.toEqual(jdStatus);
     await expect(source.getScheduleConfig()).resolves.toEqual(scheduleConfig);
@@ -334,17 +161,16 @@ describe('download-runtime-source', () => {
       scheduledReady: 0,
       scheduledBlocked: 1,
     };
-    window.runtime = { EventsOnMultiple: vi.fn().mockReturnValue(() => undefined) } as never;
     window.go = { desktop: { App: { ListDownloadReadiness: vi.fn().mockResolvedValue(snapshot) } } } as never;
 
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
-    const source = createDownloadRuntimeSource();
+    const { createDownloadsSource } = await import('../download-runtime-source/downloads-source.helpers');
+    const source = createDownloadsSource();
 
     await expect(source.listDownloadReadiness()).resolves.toEqual(snapshot);
   });
 
   it('maps generated readiness DTOs into the frontend readiness contract', async () => {
-    const { mapDownloadReadinessSnapshot } = await import('../download-runtime-source/download-runtime-source.helpers');
+    const { mapDownloadReadinessSnapshot } = await import('../download-runtime-source/downloads-source.helpers');
     const generatedSnapshot = new contracts.DownloadReadinessSnapshot({
       items: [
         {
@@ -381,7 +207,7 @@ describe('download-runtime-source', () => {
   });
 
   it('rejects malformed generated readiness reason codes', async () => {
-    const { mapDownloadReadinessSnapshot } = await import('../download-runtime-source/download-runtime-source.helpers');
+    const { mapDownloadReadinessSnapshot } = await import('../download-runtime-source/downloads-source.helpers');
 
     expect(() =>
       mapDownloadReadinessSnapshot(
@@ -398,58 +224,40 @@ describe('download-runtime-source', () => {
   it('preserves top-level readiness query rejections from the Wails binding', async () => {
     const queryError = new Error('catalog unavailable');
     const listDownloadReadinessMock = vi.fn().mockRejectedValue(queryError);
-    window.runtime = { EventsOnMultiple: vi.fn().mockReturnValue(() => undefined) } as never;
     window.go = { desktop: { App: { ListDownloadReadiness: listDownloadReadinessMock } } } as never;
 
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
-    const source = createDownloadRuntimeSource();
+    const { createDownloadsSource } = await import('../download-runtime-source/downloads-source.helpers');
+    const source = createDownloadsSource();
 
     await expect(source.listDownloadReadiness()).rejects.toThrow('catalog unavailable');
     expect(listDownloadReadinessMock).toHaveBeenCalledTimes(1);
   });
 
   it('forwards setHosterPriority to the live Wails binding with the configured site', async () => {
-    const setHosterPriorityMock = vi.fn().mockResolvedValue('ok');
-    window.runtime = { EventsOnMultiple: vi.fn().mockReturnValue(() => undefined) } as never;
+    const setHosterPriorityMock = vi.fn().mockResolvedValue(undefined);
     window.go = { desktop: { App: { SetHosterPriority: setHosterPriorityMock } } } as never;
 
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
-    const source = createDownloadRuntimeSource();
+    const { createDownloadsSource } = await import('../download-runtime-source/downloads-source.helpers');
+    const source = createDownloadsSource();
 
     const items = [{ hoster: 'mega', priority: 0, enabled: true }];
-    const resultPromise = source.setHosterPriority('default', items);
-    await vi.advanceTimersByTimeAsync(5000);
-    await resultPromise;
+    await source.setHosterPriority('default', items);
 
     expect(setHosterPriorityMock).toHaveBeenCalledWith('default', items);
   });
 
-  it('maps the settings module SetEpisodeRenameEnabled back to the status string the rename panel reads', async () => {
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
+
+  it('forwards SetEpisodeRenameEnabled and passes its refusal through as a rejection', async () => {
     const setEpisodeRenameEnabled = vi.fn().mockResolvedValue(undefined);
     window.go = { desktop: { App: { SetEpisodeRenameEnabled: setEpisodeRenameEnabled } } } as never;
+    const { createDownloadsSource } = await import('../download-runtime-source/downloads-source.helpers');
 
-    await expect(createDownloadRuntimeSource().setEpisodeRenameEnabled(true)).resolves.toBe('ok');
+    await expect(createDownloadsSource().setEpisodeRenameEnabled(true)).resolves.toBeUndefined();
     expect(setEpisodeRenameEnabled).toHaveBeenCalledWith(true);
 
     window.go = {
       desktop: { App: { SetEpisodeRenameEnabled: vi.fn().mockRejectedValue(new Error('{"code":"unavailable","message":"settings is starting"}')) } },
     } as never;
-    await expect(createDownloadRuntimeSource().setEpisodeRenameEnabled(true)).resolves.toBe('settings is starting');
+    await expect(createDownloadsSource().setEpisodeRenameEnabled(true)).rejects.toMatchObject({ code: 'unavailable', message: 'settings is starting' });
   });
-
-  it('keeps source-adapter declarations in colocated sibling modules', () => {
-    const sourceRoot = join(process.cwd(), 'src/infrastructure/download-runtime-source');
-    const indexPath = join(sourceRoot, 'index.ts');
-    const typesPath = join(sourceRoot, 'download-runtime-source.types.ts');
-    const helperPath = join(sourceRoot, 'download-runtime-source.helpers.ts');
-    const helperText = readFileSync(helperPath, 'utf8');
-
-    expect(existsSync(indexPath)).toBe(false);
-    expect(existsSync(typesPath)).toBe(true);
-    expect(existsSync(helperPath)).toBe(true);
-    expect(existsSync(join(process.cwd(), 'src/infrastructure/download-runtime-source.ts'))).toBe(false);
-    expect(helperText).toContain("from '../wails-bindings.helpers'");
-  });
-
 });

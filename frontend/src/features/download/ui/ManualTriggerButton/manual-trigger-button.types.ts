@@ -12,7 +12,7 @@ export interface ManualTriggerButtonViewModel {
   readonly errorMessage?: string;
 }
 
-/** Result of mapping `TriggerDownloadCheck`'s raw response string to a typed outcome. */
+/** Result of mapping a `TriggerDownloadCheck` refusal to a typed outcome. */
 export interface ManualTriggerResult {
   readonly status: 'success' | 'already-in-progress' | 'error';
   readonly errorMessage?: string;

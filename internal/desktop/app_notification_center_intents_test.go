@@ -82,7 +82,7 @@ func TestRunMissedScheduleNowAndEquivalentActionTokenInvokeSameHandler(t *testin
 	sched := &fakeAppScheduler{resolveMissedResult: schedule.MissedStartupActionResult{Kind: schedule.MissedStartupActionSettled, LocalDate: "2026-07-26"}}
 	app := &App{ctx: context.Background(), downloadScheduler: sched}
 
-	viaBinding := app.RunMissedScheduleNow("2026-07-26")
+	viaBinding := must(t).value(downloadsReady(app).RunMissedScheduleNow("2026-07-26"))
 	if viaBinding.Kind != string(schedule.MissedStartupActionSettled) {
 		t.Fatalf("expected the pre-existing binding to settle, got %#v", viaBinding)
 	}
@@ -109,7 +109,7 @@ func TestIgnoreMissedScheduleAndEquivalentActionTokenInvokeSameHandler(t *testin
 	sched := &fakeAppScheduler{resolveMissedResult: schedule.MissedStartupActionResult{Kind: schedule.MissedStartupActionSettled, LocalDate: "2026-07-26"}}
 	app := &App{ctx: context.Background(), downloadScheduler: sched}
 
-	viaBinding := app.IgnoreMissedSchedule("2026-07-26")
+	viaBinding := must(t).value(downloadsReady(app).IgnoreMissedSchedule("2026-07-26"))
 	if viaBinding.Kind != string(schedule.MissedStartupActionSettled) {
 		t.Fatalf("expected the pre-existing binding to settle, got %#v", viaBinding)
 	}

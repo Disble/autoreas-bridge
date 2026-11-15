@@ -1,4 +1,4 @@
-import type { DownloadReadinessReason } from '../../../../shared/contracts/download.types';
+import type { AnimeDownloadReadiness, DownloadReadinessReason } from '../../../../shared/contracts/download.types';
 
 /** Empty-state text shown while no anime has been selected. */
 export const SOLO_ANIME_DOWNLOAD_EMPTY_SELECTION = 'Select an anime to start a one-off catch-up download.';
@@ -47,3 +47,6 @@ export const SOLO_ANIME_DOWNLOAD_REASON_TAGS: Readonly<Record<DownloadReadinessR
 
 /** Tag for a blocked row the backend sent without any reason code. */
 export const SOLO_ANIME_DOWNLOAD_GENERIC_BLOCKED_TAG = 'Blocked';
+
+/** The catalog before readiness has answered or after it failed: one shared empty array. */
+export const SOLO_ANIME_DOWNLOAD_NO_ITEMS: readonly AnimeDownloadReadiness[] = [];

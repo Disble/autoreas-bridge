@@ -3,6 +3,7 @@ package desktop
 import (
 	"context"
 
+	"autoreas-bridge/internal/api/contracts"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/schedule"
 )
@@ -67,4 +68,33 @@ func scheduleRunSettledMetadata(settlement schedule.RunSettlement) map[string]an
 		metadata["localDate"] = settlement.LocalDate
 	}
 	return metadata
+}
+
+// RunMissedScheduleNow executes the startup-missed selected date under the scheduler's run
+// guard. Every scheduler outcome, a refusal included, is the result's Kind.
+func (a *App) RunMissedScheduleNow(localDate string) (contracts.ScheduleMissedActionResult, error) {
+	return a.moduleSet().downloads.Use(a.missedScheduleAction(localDate, schedule.MissedStartupActionRunNow))
+}
+
+// IgnoreMissedSchedule settles the startup-missed selected date without rewriting actual run
+// facts. Every scheduler outcome is the result's Kind.
+func (a *App) IgnoreMissedSchedule(localDate string) (contracts.ScheduleMissedActionResult, error) {
+	return a.moduleSet().downloads.Use(a.missedScheduleAction(localDate, schedule.MissedStartupActionIgnore))
+}
+
+// missedScheduleAction is the downloads-module closure that runs one missed-day action.
+func (a *App) missedScheduleAction(localDate string, action schedule.MissedStartupAction) func(downloadServices) (contracts.ScheduleMissedActionResult, error) {
+	return func(downloadServices) (contracts.ScheduleMissedActionResult, error) {
+		return toContractsMissedActionResult(a.resolveMissedStartupAction(a.downloadCtx(), localDate, action)), nil
+	}
+}
+
+// TriggerDownloadCheck asks the scheduler to run an immediate out-of-band download check. A
+// run already in progress (scheduled or manual) is the error schedule.ErrRunInProgress
+// (design-scheduler spec "Concurrent-Run Guard").
+func (a *App) TriggerDownloadCheck() error {
+	_, err := a.moduleSet().downloads.Use(func(s downloadServices) (struct{}, error) {
+		return struct{}{}, s.scheduler.TriggerNow(a.downloadCtx(), "manual")
+	})
+	return err
 }

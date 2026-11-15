@@ -1,9 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useSchedulePanel } from '../use-schedule-panel';
-import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { PreferencesSource } from '../../../../../infrastructure/preferences-source/preferences-source.types';
-import type { DownloadReadinessSnapshot, ScheduleConfig } from '../../../../../shared/contracts/download.types';
+import type { DownloadReadinessSnapshot, DownloadsSource, ScheduleConfig } from '../../../../../shared/contracts/download.types';
+import { createDownloadsSourceFake, createDownloadsWrapper } from '../../../../../shared/hooks/use-missed-schedule-notice/__tests__/downloads.test-support';
 import { resetDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
 import { resetPreferencesStore } from '../../../../../shared/store/preferences-store/preferences-store.helpers';
 
@@ -28,28 +28,30 @@ const emptyReadiness: DownloadReadinessSnapshot = {
   scheduledBlocked: 0,
 };
 
-/** Builds a fully stubbed download runtime port, overridable per case. */
-function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
-  return {
-    getDownloadConfig: vi.fn(),
-    getJDStatus: vi.fn(),
-    getJDMaxSimultaneousDownloads: vi.fn().mockResolvedValue(0),
-    setJDConfig: vi.fn(),
+/**
+ * Builds a fully stubbed downloads port, overridable per case.
+ * @param overrides The calls a case replaces.
+ * @returns The port.
+ */
+function createSource(overrides: Partial<DownloadsSource> = {}): DownloadsSource {
+  return createDownloadsSourceFake({
     getScheduleConfig: vi.fn().mockResolvedValue(baseConfig),
-    setScheduleConfig: vi.fn().mockResolvedValue('ok'),
-    setHosterPriority: vi.fn(),
-    setEpisodeRenameEnabled: vi.fn().mockResolvedValue('ok'),
-    triggerDownloadCheck: vi.fn(),
-    triggerAnimeDownload: vi.fn(),
-    cancelDownloadRun: vi.fn().mockResolvedValue('ok'),
     runMissedScheduleNow: vi.fn().mockResolvedValue({ kind: 'settled', localDate: '2026-07-26', terminalStatus: 'ok' }),
     ignoreMissedSchedule: vi.fn().mockResolvedValue({ kind: 'settled', localDate: '2026-07-26', settlementReason: 'ignored' }),
-    listDownloadRuns: vi.fn(),
     listDownloadReadiness: vi.fn().mockResolvedValue(emptyReadiness),
-    subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
-    subscribeMissedScheduleSettled: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
-  };
+  });
+}
+
+/**
+ * Renders the panel hook under a downloads wrapper whose module is ready.
+ * @param source The downloads port.
+ * @param preferences The preferences port, when a case spells it out.
+ * @returns The hook result and the wrapper controls.
+ */
+function renderPanel(source: DownloadsSource, preferences?: PreferencesSource) {
+  const downloads = createDownloadsWrapper();
+  return { ...renderHook(() => useSchedulePanel(source, preferences), { wrapper: downloads.wrapper }), ...downloads };
 }
 
 /** Builds a fully stubbed preferences port, overridable per case. */
@@ -73,14 +75,14 @@ describe('useSchedulePanel', () => {
 
   it('starts in the loading status', () => {
     const source = createSource();
-    const { result } = renderHook(() => useSchedulePanel(source));
+    const { result } = renderPanel(source);
 
     expect(result.current.status).toBe('loading');
   });
 
   it('loads the schedule config and exposes the view model', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useSchedulePanel(source));
+    const { result } = renderPanel(source);
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -90,7 +92,7 @@ describe('useSchedulePanel', () => {
 
   it('surfaces an error status when getScheduleConfig rejects', async () => {
     const source = createSource({ getScheduleConfig: vi.fn().mockRejectedValue(new Error('boom')) });
-    const { result } = renderHook(() => useSchedulePanel(source));
+    const { result } = renderPanel(source);
 
     await waitFor(() => expect(result.current.status).toBe('error'));
   });
@@ -104,7 +106,7 @@ describe('useSchedulePanel', () => {
         scheduledBlocked: 1,
       }),
     });
-    const { result } = renderHook(() => useSchedulePanel(source));
+    const { result } = renderPanel(source);
 
     await waitFor(() => expect(result.current.viewModel.readiness?.scheduledBlocked).toBe(1));
 
@@ -115,7 +117,7 @@ describe('useSchedulePanel', () => {
   it('surfaces a retryable readiness error without fabricating a readiness summary', async () => {
     const listDownloadReadiness = vi.fn().mockRejectedValue(new Error('readiness unavailable'));
     const source = createSource({ listDownloadReadiness });
-    const { result } = renderHook(() => useSchedulePanel(source));
+    const { result } = renderPanel(source);
 
     await waitFor(() => expect(result.current.readinessErrorMessage).toBe('readiness unavailable'));
 
@@ -131,7 +133,7 @@ describe('useSchedulePanel', () => {
 
   it('setEnabled persists the change via setScheduleConfig', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useSchedulePanel(source));
+    const { result } = renderPanel(source);
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -144,7 +146,7 @@ describe('useSchedulePanel', () => {
 
   it('setDailyTime persists the new time via setScheduleConfig', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useSchedulePanel(source));
+    const { result } = renderPanel(source);
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -157,7 +159,7 @@ describe('useSchedulePanel', () => {
 
   it('setDailyTimeDraft updates the editable time without persisting on each keypress', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useSchedulePanel(source));
+    const { result } = renderPanel(source);
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -171,7 +173,7 @@ describe('useSchedulePanel', () => {
 
   it('commitDailyTime persists the draft once editing finishes', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useSchedulePanel(source));
+    const { result } = renderPanel(source);
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -187,7 +189,7 @@ describe('useSchedulePanel', () => {
 
   it('setWeekdays persists the new weekday mask while preserving enabled/dailyTimeHHMM', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useSchedulePanel(source));
+    const { result } = renderPanel(source);
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -200,9 +202,9 @@ describe('useSchedulePanel', () => {
     );
   });
 
-  it('surfaces the backend reason when setScheduleConfig resolves a non-"ok" result', async () => {
-    const source = createSource({ setScheduleConfig: vi.fn().mockResolvedValue('download store unavailable') });
-    const { result } = renderHook(() => useSchedulePanel(source));
+  it('surfaces the backend reason when setScheduleConfig rejects with it', async () => {
+    const source = createSource({ setScheduleConfig: vi.fn().mockRejectedValue(new Error('download store unavailable')) });
+    const { result } = renderPanel(source);
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -213,12 +215,12 @@ describe('useSchedulePanel', () => {
     expect(result.current.saveErrorMessage).toBe('download store unavailable');
   });
 
-  it('does not flip the view model when the save is rejected by a non-"ok" result', async () => {
+  it('does not flip the view model when the save is rejected', async () => {
     const source = createSource({
       getScheduleConfig: vi.fn().mockResolvedValue({ ...baseConfig, enabled: false }),
-      setScheduleConfig: vi.fn().mockResolvedValue('download store unavailable'),
+      setScheduleConfig: vi.fn().mockRejectedValue(new Error('download store unavailable')),
     });
-    const { result } = renderHook(() => useSchedulePanel(source));
+    const { result } = renderPanel(source);
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -232,7 +234,7 @@ describe('useSchedulePanel', () => {
 
   it('surfaces a saveErrorMessage when setScheduleConfig rejects, without crashing', async () => {
     const source = createSource({ setScheduleConfig: vi.fn().mockRejectedValue(new Error('save failed')) });
-    const { result } = renderHook(() => useSchedulePanel(source));
+    const { result } = renderPanel(source);
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -250,7 +252,7 @@ describe('useSchedulePanel', () => {
         .mockResolvedValueOnce(baseConfig)
         .mockResolvedValueOnce({ ...baseConfig, enabled: false }),
     });
-    const { result } = renderHook(() => useSchedulePanel(source));
+    const { result } = renderPanel(source);
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -261,26 +263,19 @@ describe('useSchedulePanel', () => {
     expect(result.current.viewModel.enabled).toBe(false);
   });
 
-  it('refreshes the view model when a download run lifecycle event invalidates the store', async () => {
-    let listener: (() => void) | undefined;
+  it('refreshes the view model when a download run lifecycle event invalidates the schedule', async () => {
     const source = createSource({
       getScheduleConfig: vi
         .fn()
         .mockResolvedValueOnce({ ...baseConfig, lastRunAtMs: 0, lastRunStatus: '' })
         .mockResolvedValueOnce({ ...baseConfig, lastRunAtMs: 1_700_000_123_000, lastRunStatus: 'ok' }),
-      subscribeRunEvents: vi.fn((nextListener: () => void) => {
-        listener = nextListener;
-        return () => undefined;
-      }),
     });
-    const { result } = renderHook(() => useSchedulePanel(source));
+    const { result, emitEvent } = renderPanel(source);
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(result.current.viewModel.lastRunLabel).toBe('Never');
 
-    await act(async () => {
-      listener?.();
-    });
+    act(() => emitEvent('schedule.run_settled'));
 
     await waitFor(() => expect(result.current.viewModel.lastRunStatus).toBe('ok'));
     expect(result.current.viewModel.lastRunLabel).toBe(new Date(1_700_000_123_000).toLocaleString());
@@ -290,7 +285,7 @@ describe('useSchedulePanel', () => {
     const source = createSource();
     const preferencesSource = createPreferencesSource();
 
-    renderHook(() => useSchedulePanel(source, preferencesSource));
+    renderPanel(source, preferencesSource);
 
     await waitFor(() => expect(preferencesSource.getSeasonMode).toHaveBeenCalledTimes(1));
   });
@@ -299,7 +294,7 @@ describe('useSchedulePanel', () => {
     const source = createSource();
     const preferencesSource = createPreferencesSource({ getSeasonMode: vi.fn().mockResolvedValue(true) });
 
-    const { result } = renderHook(() => useSchedulePanel(source, preferencesSource));
+    const { result } = renderPanel(source, preferencesSource);
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
     await waitFor(() => expect(result.current.viewModel.seasonModeActive).toBe(true));
@@ -309,7 +304,7 @@ describe('useSchedulePanel', () => {
     const source = createSource();
     const preferencesSource = createPreferencesSource({ getSeasonMode: vi.fn().mockResolvedValue(false) });
 
-    const { result } = renderHook(() => useSchedulePanel(source, preferencesSource));
+    const { result } = renderPanel(source, preferencesSource);
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
     await waitFor(() => expect(result.current.viewModel.seasonModeActive).toBe(false));
@@ -322,7 +317,7 @@ describe('useSchedulePanel', () => {
         .mockResolvedValueOnce({ ...baseConfig, missedNotice: { localDate: '2026-07-26', dueAtMs: 1_721_000_000_000 } })
         .mockResolvedValueOnce({ ...baseConfig, missedNotice: undefined }),
     });
-    const { result } = renderHook(() => useSchedulePanel(source));
+    const { result } = renderPanel(source);
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
     await act(async () => {
@@ -340,7 +335,7 @@ describe('useSchedulePanel', () => {
         .mockResolvedValueOnce({ ...baseConfig, missedNotice: { localDate: '2026-07-26', dueAtMs: 1_721_000_000_000 } })
         .mockResolvedValueOnce({ ...baseConfig, missedNotice: undefined }),
     });
-    const { result } = renderHook(() => useSchedulePanel(source));
+    const { result } = renderPanel(source);
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
     await act(async () => {
@@ -362,7 +357,7 @@ describe('useSchedulePanel', () => {
         }),
       runMissedScheduleNow: vi.fn().mockResolvedValue({ kind: 'unresolved_terminal', localDate: '2026-07-26', terminalStatus: 'partial' }),
     });
-    const { result } = renderHook(() => useSchedulePanel(source));
+    const { result } = renderPanel(source);
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
     await act(async () => {

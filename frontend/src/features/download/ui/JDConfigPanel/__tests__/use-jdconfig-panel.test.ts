@@ -1,8 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { useJDConfigPanel } from '../use-jdconfig-panel';
-import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
-import type { JDStatus } from '../../../../../shared/contracts/download.types';
+import type { DownloadsSource, JDStatus } from '../../../../../shared/contracts/download.types';
+import { createDownloadsSourceFake, createDownloadsWrapper } from '../../../../../shared/hooks/use-missed-schedule-notice/__tests__/downloads.test-support';
 
 /** JDownloader status every case starts from. */
 const baseStatus: JDStatus = {
@@ -15,41 +15,29 @@ const baseStatus: JDStatus = {
   lastSeenAtMs: 1_700_000_000_000,
 };
 
-/** Builds a fully stubbed download runtime port, overridable per case. */
-function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
-  return {
-    getDownloadConfig: vi.fn(),
+/**
+ * Builds a fully stubbed downloads port, overridable per case.
+ * @param overrides The calls a case replaces.
+ * @returns The port.
+ */
+function createSource(overrides: Partial<DownloadsSource> = {}): DownloadsSource {
+  return createDownloadsSourceFake({
     getJDStatus: vi.fn().mockResolvedValue(baseStatus),
-    getJDMaxSimultaneousDownloads: vi.fn().mockResolvedValue(0),
-    setJDConfig: vi.fn().mockResolvedValue('ok'),
-    getScheduleConfig: vi.fn(),
-    setScheduleConfig: vi.fn(),
-    setHosterPriority: vi.fn(),
-    setEpisodeRenameEnabled: vi.fn().mockResolvedValue('ok'),
-    triggerDownloadCheck: vi.fn(),
-    triggerAnimeDownload: vi.fn(),
-    cancelDownloadRun: vi.fn().mockResolvedValue('ok'),
-    runMissedScheduleNow: vi.fn(),
-    ignoreMissedSchedule: vi.fn(),
-    listDownloadRuns: vi.fn(),
-    listDownloadReadiness: vi.fn(),
-    subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
-    subscribeMissedScheduleSettled: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
-  };
+  });
 }
 
 describe('useJDConfigPanel', () => {
   it('starts in the loading status', () => {
     const source = createSource();
-    const { result } = renderHook(() => useJDConfigPanel(source));
+    const { result } = renderHook(() => useJDConfigPanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     expect(result.current.status).toBe('loading');
   });
 
   it('loads JD status and maps it to form values without the password', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useJDConfigPanel(source));
+    const { result } = renderHook(() => useJDConfigPanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -60,14 +48,14 @@ describe('useJDConfigPanel', () => {
 
   it('surfaces an error status when getJDStatus rejects', async () => {
     const source = createSource({ getJDStatus: vi.fn().mockRejectedValue(new Error('boom')) });
-    const { result } = renderHook(() => useJDConfigPanel(source));
+    const { result } = renderHook(() => useJDConfigPanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('error'));
   });
 
   it('updateField updates a single form field', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useJDConfigPanel(source));
+    const { result } = renderHook(() => useJDConfigPanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -80,7 +68,7 @@ describe('useJDConfigPanel', () => {
 
   it('save calls setJDConfig with the mapped input and refreshes liveStatus', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useJDConfigPanel(source));
+    const { result } = renderHook(() => useJDConfigPanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -101,7 +89,7 @@ describe('useJDConfigPanel', () => {
 
   it('save surfaces saveErrorMessage and leaves saveSucceeded false when setJDConfig rejects', async () => {
     const source = createSource({ setJDConfig: vi.fn().mockRejectedValue(new Error('save failed')) });
-    const { result } = renderHook(() => useJDConfigPanel(source));
+    const { result } = renderHook(() => useJDConfigPanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -115,7 +103,7 @@ describe('useJDConfigPanel', () => {
 
   it('clears the password field after a successful save (write-only contract)', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useJDConfigPanel(source));
+    const { result } = renderHook(() => useJDConfigPanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 

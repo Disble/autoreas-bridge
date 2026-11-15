@@ -1,8 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { useEpisodeRenamePanel } from '../use-episode-rename-panel';
-import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
-import type { DownloadConfig } from '../../../../../shared/contracts/download.types';
+import type { DownloadConfig, DownloadsSource } from '../../../../../shared/contracts/download.types';
+import { createDownloadsSourceFake, createDownloadsWrapper } from '../../../../../shared/hooks/use-missed-schedule-notice/__tests__/downloads.test-support';
 
 /** Download config every case starts from, with the rename opt-in off. */
 const baseConfig: DownloadConfig = {
@@ -31,48 +31,30 @@ const baseConfig: DownloadConfig = {
   renameEpisodes: false,
 };
 
-/** Builds a fully stubbed download runtime port, overridable per case. */
-function createFakeSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
-  return {
-    getDownloadConfig: vi.fn().mockResolvedValue(baseConfig),
-    getJDStatus: vi.fn(),
-    getJDMaxSimultaneousDownloads: vi.fn().mockResolvedValue(0),
-    setJDConfig: vi.fn(),
-    getScheduleConfig: vi.fn(),
-    setScheduleConfig: vi.fn(),
-    setHosterPriority: vi.fn(),
-    setEpisodeRenameEnabled: vi.fn().mockResolvedValue('ok'),
-    triggerDownloadCheck: vi.fn(),
-    triggerAnimeDownload: vi.fn(),
-    cancelDownloadRun: vi.fn(),
-    runMissedScheduleNow: vi.fn(),
-    ignoreMissedSchedule: vi.fn(),
-    listDownloadRuns: vi.fn(),
-    listDownloadReadiness: vi.fn(),
-    subscribeRunEvents: vi.fn(),
-    subscribeMissedScheduleSettled: vi.fn().mockReturnValue(() => undefined),
-    ...overrides,
-  } as unknown as DownloadRuntimeSource;
+/**
+ * Builds a fully stubbed downloads port, overridable per case.
+ * @param overrides The calls a case replaces.
+ * @returns The port.
+ */
+function createSource(overrides: Partial<DownloadsSource> = {}): DownloadsSource {
+  return createDownloadsSourceFake({ getDownloadConfig: vi.fn().mockResolvedValue(baseConfig), ...overrides });
 }
 
 describe('useEpisodeRenamePanel', () => {
   it('loads the persisted preference', async () => {
-    const source = createFakeSource({
+    const source = createSource({
       getDownloadConfig: vi.fn().mockResolvedValue({ ...baseConfig, renameEpisodes: true }),
     });
 
-    const { result } = renderHook(() => useEpisodeRenamePanel(source));
+    const { result } = renderHook(() => useEpisodeRenamePanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(result.current.enabled).toBe(true);
   });
 
-  // The source is built once outside the render callback on purpose: the hook
-  // reloads whenever its `source` identity changes, so constructing a fresh fake
-  // per render spins an endless effect loop that starves the rest of the file.
   it('starts disabled when the user has never opted in', async () => {
-    const source = createFakeSource();
-    const { result } = renderHook(() => useEpisodeRenamePanel(source));
+    const source = createSource();
+    const { result } = renderHook(() => useEpisodeRenamePanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(result.current.enabled).toBe(false);
@@ -86,9 +68,9 @@ describe('useEpisodeRenamePanel', () => {
     const pending = new Promise<DownloadConfig>((resolve) => {
       resolveConfig = resolve;
     });
-    const source = createFakeSource({ getDownloadConfig: vi.fn().mockReturnValue(pending) });
+    const source = createSource({ getDownloadConfig: vi.fn().mockReturnValue(pending) });
 
-    const { result } = renderHook(() => useEpisodeRenamePanel(source));
+    const { result } = renderHook(() => useEpisodeRenamePanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     expect(result.current.status).toBe('loading');
 
@@ -97,13 +79,29 @@ describe('useEpisodeRenamePanel', () => {
       await pending;
     });
 
-    expect(result.current.status).toBe('ready');
+    await waitFor(() => expect(result.current.status).toBe('ready'));
   });
 
+  it.each([['success', false, 2], ['failure', true, 1]] as const)(
+    'reads config the expected number of times after save %s',
+    async (_outcome, fails, expectedReads) => {
+      const getDownloadConfig = vi.fn().mockResolvedValue(baseConfig);
+      const setEpisodeRenameEnabled = fails ? vi.fn().mockRejectedValue(new Error('save failed')) : vi.fn().mockResolvedValue(undefined);
+      const source = createSource({ getDownloadConfig, setEpisodeRenameEnabled });
+      const { result } = renderHook(() => useEpisodeRenamePanel(source), { wrapper: createDownloadsWrapper().wrapper });
+      await waitFor(() => expect(result.current.status).toBe('ready'));
+      expect(getDownloadConfig).toHaveBeenCalledTimes(1);
+
+      await act(async () => { await result.current.setEnabled(true); });
+
+      expect(getDownloadConfig).toHaveBeenCalledTimes(expectedReads);
+    },
+  );
+
   it('persists the opt-in and keeps the new value', async () => {
-    const setEpisodeRenameEnabled = vi.fn().mockResolvedValue('ok');
-    const source = createFakeSource({ setEpisodeRenameEnabled });
-    const { result } = renderHook(() => useEpisodeRenamePanel(source));
+    const setEpisodeRenameEnabled = vi.fn().mockResolvedValue(undefined);
+    const source = createSource({ setEpisodeRenameEnabled });
+    const { result } = renderHook(() => useEpisodeRenamePanel(source), { wrapper: createDownloadsWrapper().wrapper });
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
     await act(async () => {
@@ -118,10 +116,10 @@ describe('useEpisodeRenamePanel', () => {
   // rejected write has to put it back -- otherwise the UI claims a setting the
   // backend never stored.
   it('rolls the toggle back when the backend refuses the write', async () => {
-    const source = createFakeSource({
-      setEpisodeRenameEnabled: vi.fn().mockResolvedValue('settings store unavailable'),
+    const source = createSource({
+      setEpisodeRenameEnabled: vi.fn().mockRejectedValue(new Error('settings store unavailable')),
     });
-    const { result } = renderHook(() => useEpisodeRenamePanel(source));
+    const { result } = renderHook(() => useEpisodeRenamePanel(source), { wrapper: createDownloadsWrapper().wrapper });
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
     await act(async () => {
@@ -133,10 +131,10 @@ describe('useEpisodeRenamePanel', () => {
   });
 
   it('rolls the toggle back when the write throws', async () => {
-    const source = createFakeSource({
+    const source = createSource({
       setEpisodeRenameEnabled: vi.fn().mockRejectedValue(new Error('bridge is gone')),
     });
-    const { result } = renderHook(() => useEpisodeRenamePanel(source));
+    const { result } = renderHook(() => useEpisodeRenamePanel(source), { wrapper: createDownloadsWrapper().wrapper });
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
     await act(async () => {
@@ -148,11 +146,11 @@ describe('useEpisodeRenamePanel', () => {
   });
 
   it('surfaces a failure to load the preference', async () => {
-    const source = createFakeSource({
+    const source = createSource({
       getDownloadConfig: vi.fn().mockRejectedValue(new Error('config unavailable')),
     });
 
-    const { result } = renderHook(() => useEpisodeRenamePanel(source));
+    const { result } = renderHook(() => useEpisodeRenamePanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('error'));
     expect(result.current.errorMessage).toBe('config unavailable');
@@ -166,8 +164,8 @@ describe('useEpisodeRenamePanel', () => {
     const pending = new Promise<string>((resolve) => {
       resolveWrite = resolve;
     });
-    const source = createFakeSource({ setEpisodeRenameEnabled: vi.fn().mockReturnValue(pending) });
-    const { result } = renderHook(() => useEpisodeRenamePanel(source));
+    const source = createSource({ setEpisodeRenameEnabled: vi.fn().mockReturnValue(pending) });
+    const { result } = renderHook(() => useEpisodeRenamePanel(source), { wrapper: createDownloadsWrapper().wrapper });
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(result.current.isSaving).toBe(false);
 
@@ -182,14 +180,14 @@ describe('useEpisodeRenamePanel', () => {
       await write;
     });
 
-    expect(result.current.isSaving).toBe(false);
+    await waitFor(() => expect(result.current.isSaving).toBe(false));
   });
 
   it('stops reporting isSaving after a refused write', async () => {
-    const source = createFakeSource({
-      setEpisodeRenameEnabled: vi.fn().mockResolvedValue('settings store unavailable'),
+    const source = createSource({
+      setEpisodeRenameEnabled: vi.fn().mockRejectedValue(new Error('settings store unavailable')),
     });
-    const { result } = renderHook(() => useEpisodeRenamePanel(source));
+    const { result } = renderHook(() => useEpisodeRenamePanel(source), { wrapper: createDownloadsWrapper().wrapper });
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
     await act(async () => {
@@ -200,10 +198,10 @@ describe('useEpisodeRenamePanel', () => {
   });
 
   it('stops reporting isSaving after a thrown write', async () => {
-    const source = createFakeSource({
+    const source = createSource({
       setEpisodeRenameEnabled: vi.fn().mockRejectedValue(new Error('bridge is gone')),
     });
-    const { result } = renderHook(() => useEpisodeRenamePanel(source));
+    const { result } = renderHook(() => useEpisodeRenamePanel(source), { wrapper: createDownloadsWrapper().wrapper });
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
     await act(async () => {
@@ -214,9 +212,9 @@ describe('useEpisodeRenamePanel', () => {
   });
 
   it('is disabled before the preference has loaded', () => {
-    const source = createFakeSource({ getDownloadConfig: vi.fn().mockReturnValue(new Promise(() => undefined)) });
+    const source = createSource({ getDownloadConfig: vi.fn().mockReturnValue(new Promise(() => undefined)) });
 
-    const { result, unmount } = renderHook(() => useEpisodeRenamePanel(source));
+    const { result, unmount } = renderHook(() => useEpisodeRenamePanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     expect(result.current.enabled).toBe(false);
     unmount();
@@ -225,8 +223,8 @@ describe('useEpisodeRenamePanel', () => {
   // A rejection with no usable message must still say something actionable
   // rather than rendering an empty error box.
   it('falls back to a readable message when the write rejects with no message', async () => {
-    const source = createFakeSource({ setEpisodeRenameEnabled: vi.fn().mockRejectedValue({}) });
-    const { result } = renderHook(() => useEpisodeRenamePanel(source));
+    const source = createSource({ setEpisodeRenameEnabled: vi.fn().mockRejectedValue({}) });
+    const { result } = renderHook(() => useEpisodeRenamePanel(source), { wrapper: createDownloadsWrapper().wrapper });
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
     await act(async () => {
@@ -237,9 +235,9 @@ describe('useEpisodeRenamePanel', () => {
   });
 
   it('falls back to a readable message when the load rejects with no message', async () => {
-    const source = createFakeSource({ getDownloadConfig: vi.fn().mockRejectedValue({}) });
+    const source = createSource({ getDownloadConfig: vi.fn().mockRejectedValue({}) });
 
-    const { result } = renderHook(() => useEpisodeRenamePanel(source));
+    const { result } = renderHook(() => useEpisodeRenamePanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('error'));
     expect(result.current.errorMessage).toBe('Failed to load the episode rename setting');
@@ -250,10 +248,10 @@ describe('useEpisodeRenamePanel', () => {
   it('rolls back to the value the toggle held when that write started', async () => {
     const setEpisodeRenameEnabled = vi
       .fn()
-      .mockResolvedValueOnce('ok')
-      .mockResolvedValueOnce('settings store unavailable');
-    const source = createFakeSource({ setEpisodeRenameEnabled });
-    const { result } = renderHook(() => useEpisodeRenamePanel(source));
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('settings store unavailable'));
+    const source = createSource({ setEpisodeRenameEnabled });
+    const { result } = renderHook(() => useEpisodeRenamePanel(source), { wrapper: createDownloadsWrapper().wrapper });
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
     await act(async () => {
@@ -268,58 +266,13 @@ describe('useEpisodeRenamePanel', () => {
     expect(result.current.enabled).toBe(true);
   });
 
-  // A response that arrives after the hook moved on must not overwrite newer
-  // state; the effect's cleanup flag is what prevents it.
-  it('ignores a config response that arrives after the source changed', async () => {
-    let resolveStale!: (config: DownloadConfig) => void;
-    const stale = new Promise<DownloadConfig>((resolve) => {
-      resolveStale = resolve;
-    });
-    const staleSource = createFakeSource({ getDownloadConfig: vi.fn().mockReturnValue(stale) });
-    const freshSource = createFakeSource({
-      getDownloadConfig: vi.fn().mockResolvedValue({ ...baseConfig, renameEpisodes: false }),
-    });
-
-    const { result, rerender } = renderHook(({ source }) => useEpisodeRenamePanel(source), {
-      initialProps: { source: staleSource },
-    });
-
-    rerender({ source: freshSource });
-    await waitFor(() => expect(result.current.status).toBe('ready'));
-
-    await act(async () => {
-      resolveStale({ ...baseConfig, renameEpisodes: true });
-      await stale;
-    });
-
-    expect(result.current.enabled).toBe(false);
-  });
-
-  it('reloads the preference when the source changes', async () => {
-    const firstSource = createFakeSource({
-      getDownloadConfig: vi.fn().mockResolvedValue({ ...baseConfig, renameEpisodes: false }),
-    });
-    const secondSource = createFakeSource({
-      getDownloadConfig: vi.fn().mockResolvedValue({ ...baseConfig, renameEpisodes: true }),
-    });
-
-    const { result, rerender } = renderHook(({ source }) => useEpisodeRenamePanel(source), {
-      initialProps: { source: firstSource },
-    });
-    await waitFor(() => expect(result.current.enabled).toBe(false));
-
-    rerender({ source: secondSource });
-
-    await waitFor(() => expect(result.current.enabled).toBe(true));
-  });
-
   it('clears a previous error once a later write succeeds', async () => {
     const setEpisodeRenameEnabled = vi
       .fn()
-      .mockResolvedValueOnce('settings store unavailable')
-      .mockResolvedValueOnce('ok');
-    const source = createFakeSource({ setEpisodeRenameEnabled });
-    const { result } = renderHook(() => useEpisodeRenamePanel(source));
+      .mockRejectedValueOnce(new Error('settings store unavailable'))
+      .mockResolvedValueOnce(undefined);
+    const source = createSource({ setEpisodeRenameEnabled });
+    const { result } = renderHook(() => useEpisodeRenamePanel(source), { wrapper: createDownloadsWrapper().wrapper });
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
     await act(async () => {

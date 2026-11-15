@@ -296,6 +296,7 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 		a.sharedLogger.Warnf("download", "failed to reconcile interrupted download runs at startup: %v", err)
 	}
 	a.startDownloadScheduler(ctx)
+	a.bindDownloadsModule()
 }
 
 // ensureDownloadStore initializes the download store when database access exists.

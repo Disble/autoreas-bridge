@@ -199,6 +199,8 @@ func TestSettleModulesNamesWhatWasNotWired(t *testing.T) {
 		{"season", func(a *App) { a.seasonService = nil }, "season: season service was not wired"},
 		{"downloads service", func(a *App) { a.downloadService = nil }, "downloads: download services was not wired"},
 		{"downloads readiness", func(a *App) { a.readinessService = nil }, "downloads: download services was not wired"},
+		{"downloads store", func(a *App) { a.downloadStore = nil }, "downloads: download services was not wired"},
+		{"downloads scheduler", func(a *App) { a.downloadScheduler = nil }, "downloads: download services was not wired"},
 		{"notifications", func(a *App) { a.notificationCenterExecutor = nil }, "notifications: notification center was not wired"},
 	}
 	for _, tc := range cases {
@@ -245,6 +247,8 @@ func wiredApp() *App {
 		seasonService:              &season.Service{},
 		downloadService:            &download.Service{},
 		readinessService:           &download.ReadinessService{},
+		downloadStore:              &fakeAppDownloadStore{},
+		downloadScheduler:          &fakeAppScheduler{},
 		notificationCenterExecutor: &center.Executor{},
 	}
 }
