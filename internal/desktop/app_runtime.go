@@ -45,17 +45,16 @@ func (a *App) TriggerReconcile() error {
 	return err
 }
 
-// GetSQLiteStatus pings the bridge database and returns "ok" or the failure.
-// A ping rather than a handle check: an open handle over a deleted or locked
-// file still looks healthy.
-func (a *App) GetSQLiteStatus() string {
-	if a.bridgeDB == nil {
-		return "db unavailable"
-	}
-	if err := a.bridgeDB.PingContext(a.appContext()); err != nil {
-		return err.Error()
-	}
-	return "ok"
+// GetSQLiteStatus pings the bridge database through the backup module handle and
+// returns "ok", or the ping failure as an internal error. A ping rather than a
+// handle check: an open handle over a deleted or locked file still looks healthy.
+func (a *App) GetSQLiteStatus() (string, error) {
+	return a.moduleSet().backup.Use(func(services backupServices) (string, error) {
+		if err := services.db.PingContext(a.appContext()); err != nil {
+			return "", err
+		}
+		return "ok", nil
+	})
 }
 
 // GetPairingToken returns the active pairing token, minting one when none is

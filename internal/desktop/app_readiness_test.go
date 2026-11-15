@@ -179,6 +179,7 @@ func TestSettleModulesNamesWhatWasNotWired(t *testing.T) {
 		prune  func(*App)
 		reason string
 	}{
+		{"backup", func(a *App) { a.bridgeDB = nil }, "backup: bridge database was not wired"},
 		{"observability event log", func(a *App) { a.eventQueue = nil }, observabilityNotWired},
 		{"observability capture reader", func(a *App) { a.captureReader = nil }, observabilityNotWired},
 		{"observability sync diagnostics reader", func(a *App) { a.syncDiagReader = nil }, observabilityNotWired},
@@ -219,6 +220,7 @@ func TestSettleModulesNamesWhatWasNotWired(t *testing.T) {
 // toast activation callback) that would race with a test pruning the fields they read.
 func wiredApp() *App {
 	return &App{
+		bridgeDB:                   &sql.DB{},
 		eventQueue:                 &stubEventLogQueue{},
 		captureReader:              &requestcapture.Reader{},
 		syncDiagReader:             &telemetry.Reader{},

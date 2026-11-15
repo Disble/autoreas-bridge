@@ -1,7 +1,7 @@
 package desktop
 
 import (
-	"errors"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -26,10 +26,6 @@ import (
 // place to wire it.
 var bridgeVersion = "dev"
 
-// errExportBackupUnavailable is returned when the bridge database has not
-// finished starting up.
-var errExportBackupUnavailable = errors.New("backup export unavailable: bridge database not ready")
-
 // ExportBackup writes a backup bundle to a user-chosen destination.
 //
 // The destination comes only from the native save dialog -- ExportBackup
@@ -47,11 +43,17 @@ var errExportBackupUnavailable = errors.New("backup export unavailable: bridge d
 // the watched_episodes group's source_activity_id deliberately does not
 // depend on resolving) -- is excluded by never appearing here, not by a flag
 // or a comment.
+//
+// It reads the bridge database through the backup module handle: while that
+// module starts the call is unavailable, after it failed a failed precondition.
 func (a *App) ExportBackup() (BackupExportResult, error) {
-	if a.bridgeDB == nil {
-		return BackupExportResult{}, errExportBackupUnavailable
-	}
+	return a.moduleSet().backup.Use(func(services backupServices) (BackupExportResult, error) {
+		return a.exportBackup(services.db)
+	})
+}
 
+// exportBackup writes the bundle of db to the destination the save dialog returns.
+func (a *App) exportBackup(db *sql.DB) (BackupExportResult, error) {
 	dest, err := a.saveFile(a.appContext(), "Export Backup", defaultBackupFilename(a.currentTime()))
 	if err != nil {
 		return BackupExportResult{}, fmt.Errorf("open save dialog: %w", err)
@@ -61,12 +63,12 @@ func (a *App) ExportBackup() (BackupExportResult, error) {
 	}
 
 	groups := []backup.Group{
-		{Name: "anime_snapshots", Export: bridgeSync.ExportAnimeSnapshots(a.bridgeDB)},
-		{Name: "seasons", Export: season.ExportSeasons(a.bridgeDB)},
-		{Name: "season_animes", Export: season.ExportSeasonAnimes(a.bridgeDB)},
-		{Name: "watched_episodes", Export: watchhistory.ExportWatchHistory(a.bridgeDB)},
-		{Name: "episode_durations", Export: episodes.ExportEpisodeDurations(a.bridgeDB)},
-		{Name: "keyboard_keymap", Export: settings.ExportKeymap(a.bridgeDB)},
+		{Name: "anime_snapshots", Export: bridgeSync.ExportAnimeSnapshots(db)},
+		{Name: "seasons", Export: season.ExportSeasons(db)},
+		{Name: "season_animes", Export: season.ExportSeasonAnimes(db)},
+		{Name: "watched_episodes", Export: watchhistory.ExportWatchHistory(db)},
+		{Name: "episode_durations", Export: episodes.ExportEpisodeDurations(db)},
+		{Name: "keyboard_keymap", Export: settings.ExportKeymap(db)},
 	}
 
 	if err := backup.Export(a.appContext(), dest, bridgeVersion, groups); err != nil {

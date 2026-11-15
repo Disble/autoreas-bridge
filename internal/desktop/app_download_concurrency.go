@@ -1,6 +1,9 @@
 package desktop
 
-import "autoreas-bridge/internal/download/jdownloader"
+import (
+	"autoreas-bridge/internal/download/jdownloader"
+	"autoreas-bridge/internal/modules"
+)
 
 // jdMaxConcurrentAnimes reports how many animes may download at once, taken from
 // JDownloader's own "Max. simultaneous Downloads" setting.
@@ -35,6 +38,9 @@ func jdMaxConcurrentAnimes() int {
 // This is read-only. Changing the setting requires the MyJDownloader /config/set endpoint,
 // which the client does not implement yet; writing JD's cfg JSON directly has no effect
 // while JD is running, because JD holds its config in memory and rewrites the file itself.
-func (a *App) GetJDMaxSimultaneousDownloads() int {
-	return jdMaxConcurrentAnimes()
+// It reads through the always-ready shell handle: the setting depends on no module.
+func (a *App) GetJDMaxSimultaneousDownloads() (int, error) {
+	return a.moduleSet().shell.Use(func(services modules.ShellServices) (int, error) {
+		return services.JDMaxSimultaneousDownloads(), nil
+	})
 }

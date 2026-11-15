@@ -192,12 +192,12 @@ func assertKeymapGroupImportOutcome(t *testing.T, tt keymapGroupImportCase) {
 
 // TestPreviewOfKeymapCarryingBundleOnAnOlderImportGroupsSliceReportsItAsUnknown
 // closes "An Unknown Group Is Ignored With A Warning": simulating a build
-// older than this capability -- app.importGroups()[:3], with no
+// older than this capability -- app.importGroups(app.bridgeDB)[:3], with no
 // keyboard_keymap entry -- previewing a bundle that carries the group lists
 // it among UnknownGroups, and leaves FormatVersion untouched.
 func TestPreviewOfKeymapCarryingBundleOnAnOlderImportGroupsSliceReportsItAsUnknown(t *testing.T) {
 	app, _ := appBackupImportTestApp(t)
-	olderBuildGroups := app.importGroups()[:3]
+	olderBuildGroups := app.importGroups(app.bridgeDB)[:3]
 
 	bundlePath := filepath.Join(t.TempDir(), "keymap-carrying.zip")
 	writeHandBuiltBundle(t, bundlePath, map[string][]string{

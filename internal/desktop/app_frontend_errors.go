@@ -1,11 +1,14 @@
 package desktop
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"unicode/utf8"
 
+	"autoreas-bridge/internal/apperr"
 	sharedlogger "autoreas-bridge/internal/logger"
+	"autoreas-bridge/internal/modules"
 )
 
 const (
@@ -39,19 +42,29 @@ type FrontendErrorReport struct {
 // in runtime_events (P7, docs/observability/architecture.md): before it, a
 // failure inside the WebView left no trace on the bridge. The report is
 // validated and every text field bounded, so a runaway caller cannot bloat the
-// event log. Returns "ok" or an error string.
-func (a *App) ReportFrontendError(report FrontendErrorReport) string {
+// event log. It goes through the always-ready shell handle, so a report sent
+// while the domain modules start is recorded, never refused. An invalid report
+// is invalid_argument; a missing logger is internal.
+func (a *App) ReportFrontendError(report FrontendErrorReport) error {
+	_, err := a.moduleSet().shell.Use(func(services modules.ShellServices) (struct{}, error) {
+		return struct{}{}, recordFrontendError(services.Logger, report)
+	})
+	return err
+}
+
+// recordFrontendError validates report and writes it to logger as one error entry.
+func recordFrontendError(logger sharedlogger.Logger, report FrontendErrorReport) error {
 	if !frontendErrorKinds[report.Kind] {
-		return fmt.Sprintf("unknown frontend error kind %q", report.Kind)
+		return apperr.InvalidArgument(fmt.Sprintf("unknown frontend error kind %q", report.Kind))
 	}
 	if strings.TrimSpace(report.Message) == "" {
-		return "frontend error message is required"
+		return apperr.InvalidArgument("frontend error message is required")
 	}
-	if a.sharedLogger == nil {
-		return "logger unavailable"
+	if logger == nil {
+		return errors.New("logger unavailable")
 	}
 	message := truncateUTF8(report.Message, frontendErrorMessageLimit)
-	a.sharedLogger.Logf(frontendErrorDomain, sharedlogger.LevelError, sharedlogger.Fields{
+	logger.Logf(frontendErrorDomain, sharedlogger.LevelError, sharedlogger.Fields{
 		EventType: frontendErrorEventType,
 		Metadata: map[string]any{
 			"kind":         report.Kind,
@@ -62,7 +75,7 @@ func (a *App) ReportFrontendError(report FrontendErrorReport) string {
 			"occurredAtMs": report.OccurredAtMs,
 		},
 	}, "frontend %s: %s", report.Kind, message)
-	return "ok"
+	return nil
 }
 
 // truncateUTF8 cuts value to at most limit bytes without splitting a rune.

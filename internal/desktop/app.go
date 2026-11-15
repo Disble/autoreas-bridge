@@ -255,6 +255,7 @@ func (a *App) startup(ctx context.Context) {
 		a.failStartingModules("bridge database failed to open")
 		return
 	}
+	a.settleModules(moduleBackup)
 	a.ensureDownloadStore()
 	a.configureRuntimeServices(ctx)
 	a.wireSeasonMatchingEventBus()
@@ -275,19 +276,6 @@ func (a *App) startup(ctx context.Context) {
 	// moment a missed selected day can begin to exist (app_missed_schedule_notification.go).
 	a.notifyMissedSchedule(ctx)
 	a.startSeasonAvailability(ctx)
-}
-
-// initializeBridgeDatabase initializes the bridge database during startup.
-func (a *App) initializeBridgeDatabase(ctx context.Context) bool {
-	a.bridgeDB, a.startupErr = a.bootstrapBridgeDB()
-	// Only a real handle becomes a closer. Assigning a typed nil *sql.DB to the
-	// interface would make it non-nil, so shutdown's guard would pass and Close
-	// would panic on the database the failed bootstrap never opened -- which is
-	// what a restart facing SQLITE_BUSY used to hit.
-	if a.bridgeDB != nil {
-		a.bridgeDBCloser = a.bridgeDB
-	}
-	return a.startupErr == nil
 }
 
 // startHTTPServer constructs and starts the bridge HTTP server.

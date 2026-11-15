@@ -27,12 +27,14 @@
 package modules
 
 import (
+	"context"
 	"fmt"
 	"sync/atomic"
 
 	"autoreas-bridge/internal/apperr"
 	"autoreas-bridge/internal/lifecycle"
 	sharedlogger "autoreas-bridge/internal/logger"
+	"autoreas-bridge/internal/myanimelist"
 )
 
 // readinessError is the failure a handle produces for a module that cannot serve.
@@ -109,6 +111,21 @@ type ShellServices struct {
 	Logger sharedlogger.Logger
 	// Readiness is the module readiness the shell reports to the frontend.
 	Readiness *lifecycle.Registry
+	// PickFile opens the native image file picker; "" when the user cancels.
+	PickFile func(ctx context.Context, title string) (string, error)
+	// PickFolder opens the native directory picker; "" when the user cancels.
+	PickFolder func(ctx context.Context, title string) (string, error)
+	// MetadataLookup is the MyAnimeList client, which by design never waits for the database.
+	MetadataLookup MetadataLookup
+	// JDMaxSimultaneousDownloads reads JDownloader's "Max. simultaneous Downloads"
+	// setting from its config file; 0 when it cannot be read.
+	JDMaxSimultaneousDownloads func() int
+}
+
+// MetadataLookup searches MyAnimeList and loads one anime's page.
+type MetadataLookup interface {
+	Search(ctx context.Context, query string) (myanimelist.SearchResult, error)
+	Detail(ctx context.Context, malID int) (myanimelist.Detail, error)
 }
 
 // Shell is the always-ready handle of the desktop shell.

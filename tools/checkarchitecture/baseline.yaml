@@ -41,20 +41,11 @@ violations:
     file: internal/desktop/app_download_rename.go
     symbol: SetEpisodeRenameEnabled
   - rule: binding-signature
-    file: internal/desktop/app_frontend_errors.go
-    symbol: ReportFrontendError
-  - rule: binding-signature
     file: internal/desktop/app_preferences.go
     symbol: GetKeymap
   - rule: binding-signature
     file: internal/desktop/app_preferences.go
     symbol: GetLibraryRoot
-  - rule: binding-signature
-    file: internal/desktop/app_preferences.go
-    symbol: PickFile
-  - rule: binding-signature
-    file: internal/desktop/app_preferences.go
-    symbol: PickFolder
   - rule: binding-signature
     file: internal/desktop/app_preferences.go
     symbol: SetAutoStartEnabled
@@ -67,9 +58,6 @@ violations:
   - rule: binding-signature
     file: internal/desktop/app_runtime.go
     symbol: GetAnimes
-  - rule: binding-signature
-    file: internal/desktop/app_runtime.go
-    symbol: GetSQLiteStatus
   - rule: binding-signature
     file: internal/desktop/app_season.go
     symbol: CloseSeason
@@ -152,15 +140,6 @@ violations:
     file: internal/desktop/app_api_address.go
     symbol: SetAPIAddress
   - rule: binding-uses-handle
-    file: internal/desktop/app_backup.go
-    symbol: ExportBackup
-  - rule: binding-uses-handle
-    file: internal/desktop/app_backup_import.go
-    symbol: ConfirmBackupImport
-  - rule: binding-uses-handle
-    file: internal/desktop/app_backup_import.go
-    symbol: PreviewBackupImport
-  - rule: binding-uses-handle
     file: internal/desktop/app_cover.go
     symbol: GetAnimeCover
   - rule: binding-uses-handle
@@ -215,9 +194,6 @@ violations:
     file: internal/desktop/app_download_cancel.go
     symbol: CancelDownloadRun
   - rule: binding-uses-handle
-    file: internal/desktop/app_download_concurrency.go
-    symbol: GetJDMaxSimultaneousDownloads
-  - rule: binding-uses-handle
     file: internal/desktop/app_download_readiness.go
     symbol: ListDownloadReadiness
   - rule: binding-uses-handle
@@ -236,17 +212,8 @@ violations:
     file: internal/desktop/app_episode_editor.go
     symbol: SaveEpisodeDurations
   - rule: binding-uses-handle
-    file: internal/desktop/app_frontend_errors.go
-    symbol: ReportFrontendError
-  - rule: binding-uses-handle
     file: internal/desktop/app_library_root.go
     symbol: PreviewLibraryRootChange
-  - rule: binding-uses-handle
-    file: internal/desktop/app_myanimelist.go
-    symbol: GetMyAnimeListDetail
-  - rule: binding-uses-handle
-    file: internal/desktop/app_myanimelist.go
-    symbol: SearchMyAnimeList
   - rule: binding-uses-handle
     file: internal/desktop/app_notification_center.go
     symbol: ArchiveNotifications
@@ -285,12 +252,6 @@ violations:
     symbol: GetSeasonMode
   - rule: binding-uses-handle
     file: internal/desktop/app_preferences.go
-    symbol: PickFile
-  - rule: binding-uses-handle
-    file: internal/desktop/app_preferences.go
-    symbol: PickFolder
-  - rule: binding-uses-handle
-    file: internal/desktop/app_preferences.go
     symbol: SetAutoStartEnabled
   - rule: binding-uses-handle
     file: internal/desktop/app_preferences.go
@@ -313,9 +274,6 @@ violations:
   - rule: binding-uses-handle
     file: internal/desktop/app_runtime.go
     symbol: GetAnimes
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime.go
-    symbol: GetSQLiteStatus
   - rule: binding-uses-handle
     file: internal/desktop/app_runtime.go
     symbol: GetWatchHistoryPage

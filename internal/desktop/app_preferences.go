@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"autoreas-bridge/internal/modules"
 	"autoreas-bridge/internal/settings"
 )
 
@@ -164,30 +165,34 @@ func (a *App) SetKeymap(document string) string {
 	return "ok"
 }
 
-// PickFolder opens the native directory picker and returns the chosen absolute
-// path, or "" when the user cancels (or no runtime is available). Shared by the
-// Options library-root setting and the per-anime folder override in intake.
-func (a *App) PickFolder(title string) string {
-	if a.pickFolder == nil {
-		return ""
-	}
-	path, err := a.pickFolder(a.seasonCtx(), title)
-	if err != nil {
-		return ""
-	}
-	return path
+// PickFolder opens the native directory picker through the always-ready shell
+// handle and returns the chosen absolute path, or "" when the user cancels.
+// Shared by the Options library-root setting and the per-anime folder override
+// in intake. A dialog failure, or no picker wired, is internal.
+func (a *App) PickFolder(title string) (string, error) {
+	return a.moduleSet().shell.Use(func(services modules.ShellServices) (string, error) {
+		return pickPath(a.seasonCtx(), services.PickFolder, title, "folder")
+	})
 }
 
-// PickFile opens the native file picker (filtered to image types) and returns
-// the chosen absolute path, or "" when the user cancels (or no runtime is
-// available). Backs the reusable path-picker field for on-disk anime covers.
-func (a *App) PickFile(title string) string {
-	if a.pickFile == nil {
-		return ""
+// PickFile opens the native file picker (filtered to image types) through the
+// always-ready shell handle and returns the chosen absolute path, or "" when the
+// user cancels. Backs the reusable path-picker field for on-disk anime covers.
+// A dialog failure, or no picker wired, is internal.
+func (a *App) PickFile(title string) (string, error) {
+	return a.moduleSet().shell.Use(func(services modules.ShellServices) (string, error) {
+		return pickPath(a.seasonCtx(), services.PickFile, title, "file")
+	})
+}
+
+// pickPath runs one native picker; what names it in the failure.
+func pickPath(ctx context.Context, picker func(context.Context, string) (string, error), title, what string) (string, error) {
+	if picker == nil {
+		return "", fmt.Errorf("%s picker unavailable", what)
 	}
-	path, err := a.pickFile(a.seasonCtx(), title)
+	path, err := picker(ctx, title)
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("open %s dialog: %w", what, err)
 	}
-	return path
+	return path, nil
 }

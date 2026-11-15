@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -13,10 +14,6 @@ import (
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/watchhistory"
 )
-
-// errBackupImportUnavailable is returned when the bridge database has not
-// finished starting up.
-var errBackupImportUnavailable = errors.New("backup import unavailable: bridge database not ready")
 
 // errConfirmWithoutMatchingPreview is returned when ConfirmBackupImport is
 // called with no pending preview, or with a checksum that does not match the
@@ -35,26 +32,30 @@ type pendingBackupImport struct {
 // importGroups builds the fixed, inline import group slice -- same shape,
 // order, and reasoning as ExportBackup's export slice. Adding another group
 // is one line here and one file in the owning package.
-func (a *App) importGroups() []backup.ImportGroup {
+func (a *App) importGroups(db *sql.DB) []backup.ImportGroup {
 	return []backup.ImportGroup{
-		{Name: "anime_snapshots", Validate: bridgeSync.ValidateAnimeSnapshots(), Import: bridgeSync.ImportAnimeSnapshots(a.bridgeDB)},
-		{Name: "seasons", Validate: season.ValidateSeasons(), Import: season.ImportSeasons(a.bridgeDB)},
-		{Name: "season_animes", Validate: season.ValidateSeasonAnimes(), Import: season.ImportSeasonAnimes(a.bridgeDB)},
-		{Name: "watched_episodes", Validate: watchhistory.ValidateWatchHistory(), Import: watchhistory.ImportWatchHistory(a.bridgeDB)},
-		{Name: "episode_durations", Validate: episodes.ValidateEpisodeDurations(), Import: episodes.ImportEpisodeDurations(a.bridgeDB, time.Now)},
-		{Name: "keyboard_keymap", Validate: settings.ValidateKeymap(), Import: settings.ImportKeymap(a.bridgeDB)},
+		{Name: "anime_snapshots", Validate: bridgeSync.ValidateAnimeSnapshots(), Import: bridgeSync.ImportAnimeSnapshots(db)},
+		{Name: "seasons", Validate: season.ValidateSeasons(), Import: season.ImportSeasons(db)},
+		{Name: "season_animes", Validate: season.ValidateSeasonAnimes(), Import: season.ImportSeasonAnimes(db)},
+		{Name: "watched_episodes", Validate: watchhistory.ValidateWatchHistory(), Import: watchhistory.ImportWatchHistory(db)},
+		{Name: "episode_durations", Validate: episodes.ValidateEpisodeDurations(), Import: episodes.ImportEpisodeDurations(db, time.Now)},
+		{Name: "keyboard_keymap", Validate: settings.ValidateKeymap(), Import: settings.ImportKeymap(db)},
 	}
 }
 
 // PreviewBackupImport opens a bundle chosen from the native open dialog and
 // reports what importing it would do, writing nothing and creating no
 // restore point. A cancelled dialog (empty path, no dialog error) returns a
-// Cancelled result and reads nothing; it is not an error.
+// Cancelled result and reads nothing; it is not an error. It reads the bridge
+// database through the backup module handle, like ExportBackup.
 func (a *App) PreviewBackupImport() (BackupImportPreviewResult, error) {
-	if a.bridgeDB == nil {
-		return BackupImportPreviewResult{}, errBackupImportUnavailable
-	}
+	return a.moduleSet().backup.Use(func(services backupServices) (BackupImportPreviewResult, error) {
+		return a.previewBackupImport(services.db)
+	})
+}
 
+// previewBackupImport previews the bundle the open dialog returns against db.
+func (a *App) previewBackupImport(db *sql.DB) (BackupImportPreviewResult, error) {
 	src, err := a.pickBundle(a.appContext(), "Import Backup")
 	if err != nil {
 		return BackupImportPreviewResult{}, fmt.Errorf("open bundle dialog: %w", err)
@@ -64,7 +65,7 @@ func (a *App) PreviewBackupImport() (BackupImportPreviewResult, error) {
 		return BackupImportPreviewResult{Cancelled: true}, nil
 	}
 
-	report, err := backup.Preview(a.appContext(), src, a.importGroups())
+	report, err := backup.Preview(a.appContext(), src, a.importGroups(db))
 	if err != nil {
 		a.pendingBackupImport = nil
 		return BackupImportPreviewResult{}, fmt.Errorf("preview backup import: %w", err)
@@ -79,17 +80,23 @@ func (a *App) PreviewBackupImport() (BackupImportPreviewResult, error) {
 // re-verify the bundle (inside backup.Apply), create the restore point, then
 // apply each group. The pending preview is cleared on this call regardless
 // of outcome, so a second confirmation can never replay against a database
-// that has already changed underneath it.
+// that has already changed underneath it. It reads the bridge database
+// through the backup module handle: while that module starts the call is
+// unavailable and after it failed a failed precondition, both before the
+// pending preview is read, so neither touches it.
 func (a *App) ConfirmBackupImport(bundleChecksum string) (BackupImportResult, error) {
+	return a.moduleSet().backup.Use(func(services backupServices) (BackupImportResult, error) {
+		return a.confirmBackupImport(services.db, bundleChecksum)
+	})
+}
+
+// confirmBackupImport applies the previewed bundle matching bundleChecksum to db.
+func (a *App) confirmBackupImport(db *sql.DB, bundleChecksum string) (BackupImportResult, error) {
 	pending := a.pendingBackupImport
 	if pending == nil || pending.bundleChecksum != bundleChecksum {
 		return BackupImportResult{}, errConfirmWithoutMatchingPreview
 	}
 	a.pendingBackupImport = nil
-
-	if a.bridgeDB == nil {
-		return BackupImportResult{}, errBackupImportUnavailable
-	}
 
 	dbPath, err := a.resolveBridgeDBPath()
 	if err != nil {
@@ -99,7 +106,7 @@ func (a *App) ConfirmBackupImport(bundleChecksum string) (BackupImportResult, er
 	// The restore point MUST be created before the first group's transaction
 	// begins, and a failure here MUST abort with zero group writes -- a
 	// restore point that might not exist is not a restore point.
-	restorePointPath, err := bridgeSync.CreateRestorePoint(a.appContext(), a.bridgeDB, dbPath, a.currentTime())
+	restorePointPath, err := bridgeSync.CreateRestorePoint(a.appContext(), db, dbPath, a.currentTime())
 	if err != nil {
 		return BackupImportResult{}, fmt.Errorf("create restore point: %w", err)
 	}
@@ -111,7 +118,7 @@ func (a *App) ConfirmBackupImport(bundleChecksum string) (BackupImportResult, er
 	// committed/failed/unattempted breakdown the user needs. Only a gate
 	// failure before the restore point -- where there is nothing meaningful
 	// to report -- surfaces as a real error above.
-	report, applyErr := backup.Apply(a.appContext(), pending.path, a.importGroups())
+	report, applyErr := backup.Apply(a.appContext(), pending.path, a.importGroups(db))
 	// The season groups import with plain SQL, past the repository that signals season writes, so
 	// a phone would never hear of the restored candidacies. Even a partial import may have changed
 	// them, and a publication that finds nothing changed records nothing.

@@ -12,33 +12,6 @@ import (
 	"autoreas-bridge/internal/watchhistory"
 )
 
-func TestGetSQLiteStatusReturnsErrorWhenBridgeDBNil(t *testing.T) {
-	t.Parallel()
-
-	app := &App{}
-	got := app.GetSQLiteStatus()
-	if got == "ok" {
-		t.Fatal("expected non-ok status when bridgeDB is nil")
-	}
-	if got == "" {
-		t.Fatal("expected non-empty error string when bridgeDB is nil")
-	}
-}
-
-func TestGetSQLiteStatusReturnsOkWhenBridgeDBInitialized(t *testing.T) {
-	t.Parallel()
-
-	db, err := openInMemorySQLite(t)
-	if err != nil {
-		t.Skipf("sqlite3 unavailable: %v", err)
-	}
-	app := &App{bridgeDB: db, ctx: context.Background()}
-
-	if got := app.GetSQLiteStatus(); got != "ok" {
-		t.Fatalf("expected %q, got %q", "ok", got)
-	}
-}
-
 func TestGetAnimeDetailReturnsPopulatedDTOForExistingID(t *testing.T) {
 	t.Parallel()
 

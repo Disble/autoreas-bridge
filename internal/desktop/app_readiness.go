@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,6 +25,7 @@ import (
 // (ADR-032 §1). Each becomes ready or failed at the startup step named in
 // moduleWiringChecks; docs/architecture/contexts/desktop/overview.md lists them.
 const (
+	moduleBackup        lifecycle.ModuleID = "backup"
 	moduleObservability lifecycle.ModuleID = "observability"
 	moduleSync          lifecycle.ModuleID = "sync"
 	moduleDevices       lifecycle.ModuleID = "devices"
@@ -38,7 +40,7 @@ const (
 
 // registeredModules is every module, in the order startup wires them.
 var registeredModules = []lifecycle.ModuleID{
-	moduleObservability, moduleSync, moduleDevices, moduleSettings, moduleAnime,
+	moduleBackup, moduleObservability, moduleSync, moduleDevices, moduleSettings, moduleAnime,
 	moduleEpisodes, moduleAPI, moduleSeason, moduleDownloads, moduleNotifications,
 }
 
@@ -48,6 +50,7 @@ var errNotWired = errors.New("was not wired")
 // moduleWiringChecks says, per module, whether its services were wired: nil
 // means ready, an error is the failure reason the frontend shows.
 var moduleWiringChecks = map[lifecycle.ModuleID]func(*App) error{
+	moduleBackup: func(a *App) error { return wiredUnless(a.bridgeDB == nil, "bridge database") },
 	moduleObservability: func(a *App) error {
 		return wiredUnless(a.eventQueue == nil || a.captureReader == nil || a.syncDiagReader == nil,
 			"runtime event log, request capture reader or sync diagnostics reader")
@@ -114,6 +117,14 @@ type syncServices struct {
 	trigger *bridgeSync.TriggerService
 }
 
+// backupServices are the services the backup module's bindings use: the bridge
+// database, which backup export and import read and the SQLite status pings.
+// startup binds them as soon as the database opened, and marks the module ready
+// right after, so a broken sync or anime wiring never takes restore away.
+type backupServices struct {
+	db *sql.DB
+}
+
 // deviceServices are the services the devices module's bindings use.
 // bindDevicesModule binds them before configureRuntimeServices marks the module ready.
 type deviceServices struct {
@@ -130,6 +141,7 @@ type appModules struct {
 	registry      *lifecycle.Registry
 	writer        *lifecycle.Writer
 	shell         *modules.Shell
+	backup        *modules.Handle[backupServices]
 	episodes      *modules.Handle[episodeServices]
 	api           *modules.Handle[apiServices]
 	sync          *modules.Handle[syncServices]
@@ -145,11 +157,8 @@ func (a *App) moduleSet() *appModules {
 	a.modules.once.Do(func() {
 		a.modules.registry, a.modules.writer = lifecycle.New(a.eventBus)
 		a.modules.writer.Register(registeredModules...)
-		services := modules.ShellServices{EffectiveAddress: a.effectiveAddress, Readiness: a.modules.registry}
-		if a.sharedLogger != nil {
-			services.Logger = a.sharedLogger
-		}
-		a.modules.shell = modules.NewShell(services)
+		a.modules.shell = modules.NewShell(a.shellServices())
+		a.modules.backup = modules.NewHandle[backupServices](moduleBackup, a.modules.registry)
 		a.modules.episodes = modules.NewHandle[episodeServices](moduleEpisodes, a.modules.registry)
 		a.modules.api = modules.NewHandle[apiServices](moduleAPI, a.modules.registry)
 		a.modules.sync = modules.NewHandle[syncServices](moduleSync, a.modules.registry)
@@ -157,6 +166,26 @@ func (a *App) moduleSet() *appModules {
 		a.modules.observability = modules.NewHandle[observabilityServices](moduleObservability, a.modules.registry)
 	})
 	return &a.modules
+}
+
+// shellServices collects the shell capabilities NewApp wires: the logger, the
+// native pickers, the MyAnimeList client and the JDownloader limit reader. A nil
+// one stays nil, and the binding that needs it answers internal.
+func (a *App) shellServices() modules.ShellServices {
+	services := modules.ShellServices{
+		EffectiveAddress:           a.effectiveAddress,
+		Readiness:                  a.modules.registry,
+		PickFile:                   a.pickFile,
+		PickFolder:                 a.pickFolder,
+		JDMaxSimultaneousDownloads: jdMaxConcurrentAnimes,
+	}
+	if a.sharedLogger != nil {
+		services.Logger = a.sharedLogger
+	}
+	if a.myanimelistClient != nil {
+		services.MetadataLookup = a.myanimelistClient
+	}
+	return services
 }
 
 // settleModules marks each module ready when its services were wired and
