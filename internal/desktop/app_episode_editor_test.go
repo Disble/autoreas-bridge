@@ -28,11 +28,13 @@ func editorEpisodeApp(t *testing.T) (*App, *bridgeSync.AnimeSnapshotStore) {
 	service := anime.NewEditorService(store, &stubAppCommittedPublisher{})
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: bridgeSync.NewConflictStore(db)})
 	service.SetNow(func() time.Time { return time.UnixMilli(200).UTC() })
-	app := &App{ctx: context.Background(), bridgeDB: db, animeEditorWrite: service,
-		animeEditorQuery: anime.NewQueryService(store)}
+	app := &App{ctx: context.Background(), bridgeDB: db}
+	app.moduleSet().anime.Bind(animeServices{editorWrite: service, editorQuery: anime.NewQueryService(store)})
 	app.moduleSet().episodes.Bind(episodeServices{durations: db})
-	if err := app.moduleSet().writer.MarkReady(moduleEpisodes); err != nil {
-		t.Fatalf("mark episodes ready: %v", err)
+	for _, module := range []lifecycle.ModuleID{moduleAnime, moduleEpisodes} {
+		if err := app.moduleSet().writer.MarkReady(module); err != nil {
+			t.Fatalf("mark %s ready: %v", module, err)
+		}
 	}
 	return app, store
 }
@@ -176,10 +178,10 @@ func TestSaveAnimeEditorStaleBaseConflictsAndStoresNoDuration(t *testing.T) {
 	app, _ := editorEpisodeApp(t)
 	name := "Stale"
 
-	got := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 99, Patch: AnimeEditorPatchDTO{Name: &name}})
+	got, err := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 99, Patch: AnimeEditorPatchDTO{Name: &name}})
 
 	// The conflict hands back the current token (the seed's 100) and the recorded conflict.
-	if got.Outcome != contracts.AnimePatchOutcomeConflict || got.ModifiedAt != 100 || got.ConflictID == "" {
+	if err != nil || got.Outcome != contracts.AnimePatchOutcomeConflict || got.ModifiedAt != 100 || got.ConflictID == "" {
 		t.Fatalf("a stale save conflicts with the current token and a conflict id, got %#v", got)
 	}
 	if rows := storedEpisodes(t, app); len(rows) != 0 {

@@ -51,18 +51,17 @@ type AnimeCreateCommandDTO struct {
 }
 
 // CreateAnime persists one or more new animes plus any reflowed existing
-// neighbor placements as a single atomic batch create.
-func (a *App) CreateAnime(command AnimeCreateCommandDTO) contracts.AnimeCreateResult {
-	if a.animeCreateBatch == nil {
-		return contracts.AnimeCreateResult{Outcome: contracts.AnimePatchOutcomeError, Message: "anime create service unavailable"}
-	}
-	creates := command.toCreates()
-	neighbors := command.toNeighbors()
-	result, err := a.animeCreateBatch.CreateBatch(a.appContext(), creates, neighbors)
-	if err != nil {
-		return contracts.AnimeCreateResult{Outcome: contracts.AnimePatchOutcomeError, Message: fmt.Sprintf("create anime batch: %v", err)}
-	}
-	return result
+// neighbor placements as a single atomic batch create, through the anime module
+// handle: unavailable while the module starts, failed_precondition after it
+// failed, and the batch's error when the create is rejected or fails.
+func (a *App) CreateAnime(command AnimeCreateCommandDTO) (contracts.AnimeCreateResult, error) {
+	return a.moduleSet().anime.Use(func(services animeServices) (contracts.AnimeCreateResult, error) {
+		result, err := services.createBatch.CreateBatch(a.appContext(), command.toCreates(), command.toNeighbors())
+		if err != nil {
+			return contracts.AnimeCreateResult{}, fmt.Errorf("create anime batch: %w", err)
+		}
+		return result, nil
+	})
 }
 
 // toCreates maps the wire batch-create command into contract create requests.

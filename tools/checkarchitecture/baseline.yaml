@@ -107,18 +107,6 @@ violations:
     file: internal/desktop/app_season_runtime.go
     symbol: RecheckSeasonAvailability
   - rule: binding-uses-handle
-    file: internal/desktop/app_desktop_actions.go
-    symbol: CopyAnimeFolder
-  - rule: binding-uses-handle
-    file: internal/desktop/app_desktop_actions.go
-    symbol: CopyAnimePage
-  - rule: binding-uses-handle
-    file: internal/desktop/app_desktop_actions.go
-    symbol: OpenAnimeFolder
-  - rule: binding-uses-handle
-    file: internal/desktop/app_desktop_actions.go
-    symbol: OpenAnimePage
-  - rule: binding-uses-handle
     file: internal/desktop/app_download.go
     symbol: GetDownloadConfig
   - rule: binding-uses-handle
@@ -208,24 +196,6 @@ violations:
   - rule: binding-uses-handle
     file: internal/desktop/app_runtime.go
     symbol: SoftDeleteAnime
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime_create.go
-    symbol: CreateAnime
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime_editor.go
-    symbol: ApplyAnimeEditorSchedule
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime_editor.go
-    symbol: DeactivateAnime
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime_editor.go
-    symbol: GetAnimeEditorRecord
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime_editor.go
-    symbol: GetAnimeEditorScheduleBoard
-  - rule: binding-uses-handle
-    file: internal/desktop/app_runtime_editor.go
-    symbol: SaveAnimeEditor
   - rule: binding-uses-handle
     file: internal/desktop/app_season.go
     symbol: ApplySeasonSchedule
