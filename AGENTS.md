@@ -23,6 +23,7 @@
 - Reusable presentation-only controls belong in `frontend/src/shared/ui/`. Extract a generic shared component when a Label/Input/Select pattern occurs three or more times.
 - A stateful widget shared by multiple features belongs in `frontend/src/shared/<domain>/`, not in `features/`.
 - Loading, empty, and failure states are exclusive: loading is an accessible shape-matching skeleton, resolved empty uses `AirisEmptyState`, and failure uses the surface `Alert`. Loading status uses `role="status"`, `aria-live="polite"`, and an `aria-labelledby` sr-only label; tables retain their structure with skeleton rows, `aria-busy`, and no real rows while loading. Test the negative case and matching row height.
+- Before adding or changing a Wails binding, fetching backend data, showing loading/empty/failure for it, or reacting to a backend event, read the `bridge-data` skill (`.claude/skills/bridge-data/SKILL.md`, identical in `.agents/skills/`) and ADR-032 (`docs/adr/032-async-state-standard.md`): bindings go through a module handle's `Use`, screens through `useBridgeQuery` + `toAsyncView`, events through `BRIDGE_INVALIDATIONS`.
 
 ## Testing and mutation
 

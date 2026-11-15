@@ -138,8 +138,24 @@ still waiting are resolved or failed by the gate itself.
 ## Guidance and gates
 
 Helpers come first; gates only catch what guidance missed. The full table (helper, instructions,
-scaffold, gate) is in ADR-032 §5. Instructions live in the skill `bridge-data`, kept identical in
-`.claude/skills/` and `.agents/skills/`, and in one line of `CLAUDE.md` and `AGENTS.md`.
+scaffold, gate) is in ADR-032 §5.
+
+### Where the guidance lives
+
+- Skill `bridge-data`: `.claude/skills/bridge-data/SKILL.md` and `.agents/skills/bridge-data/SKILL.md`
+  (byte-identical). Its recipes: add a binding, show backend data on a screen, react to a backend
+  event, a binding in an unmigrated module, and what each gate message means.
+- Skill `autoreas-theme` (both folders) points the loading/empty/error states to `toAsyncView` and
+  to `bridge-data`.
+- One identical line in the "Frontend architecture" section of `CLAUDE.md` and `AGENTS.md`. Discovery
+  goes through these tracked files, never through `.atl/` (git-ignored).
+- `tools/checkskillparity` (`go test ./tools/checkskillparity/`) fails when a listed skill
+  (`MirroredSkills`: `autoreas-theme`, `bridge-data`) differs between the two folders, naming each file
+  that differs or exists on one side only. It runs in the pre-commit job `skill-parity`, whose glob
+  (`.claude/skills/**`, `.agents/skills/**`) catches a commit that stages only a skill file, in
+  `pre-merge-commit`, and in `go-cover` with every Go commit.
+
+### Gates
 
 Legacy violations sit in an identified-violation baseline. New violations fail in pre-commit; a stale
 entry fails in pre-commit (staged) and in `pre-merge-commit` (whole tree), naming the entry to delete.
@@ -180,8 +196,8 @@ Frontend gates (`frontend/scripts/async-state-gates.helpers.mjs`, ESLint plugin 
 
 ## Known drift
 
-Measured on `feat/async-state-standard` after the Go foundation (ADR-032 task T2) and the frontend
-runtime with its gate recovery (tasks T3a, T3d):
+Measured on `feat/async-state-standard` after the Go foundation (ADR-032 task T2), the frontend
+runtime with its gate recovery (tasks T3a, T3d), the gates (T3b) and the guidance (T3c):
 
 - The Go foundation exists: `internal/lifecycle` (registry and writer), `internal/apperr` (codes,
   `error-codes.json`), `internal/modules` (`Handle[S]`, `Shell`), `GetReadiness`, the
@@ -242,3 +258,6 @@ runtime with its gate recovery (tasks T3a, T3d):
   - `no-window-go`, `react-query-in-shared-query` and `zustand-vanilla-allow-list` 0 entries: production
     code outside `infrastructure/**` never reads `window.go` (8 test files fake it), TanStack Query is
     imported only in `shared/query`, and the 6 `zustand/vanilla` importers are exactly the allow-list.
+- The skill's "show backend data on a screen" recipe has no migrated example yet: no source adapter is
+  constructed in `bridge-runtime.constants.ts` and no context key factory lives in `shared/query`
+  (both follow ADR-032 §4; the Today pilot, T4, is the first).

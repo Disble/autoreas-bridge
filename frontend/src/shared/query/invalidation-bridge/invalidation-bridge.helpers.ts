@@ -4,7 +4,8 @@ import type { InvalidationRegistry, InvalidationRule, RuntimeEventSource } from 
 
 /**
  * Builds the one event→invalidation registry from every context's rules
- * (`src/app` composes them). Rules naming the same event merge, in rule order.
+ * (`BRIDGE_INVALIDATIONS` in `shared/query/bridge-runtime/bridge-runtime.constants.ts` composes
+ * them). Rules naming the same event merge, in rule order.
  */
 export function createInvalidationRegistry(rules: readonly InvalidationRule[]): InvalidationRegistry {
   const registry = new Map<string, readonly QueryKey[]>();

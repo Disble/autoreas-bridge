@@ -61,6 +61,15 @@ pre-commit:
               - "docs/openapi.yaml"
             env: *go-limits
             run: &openapi go run ./tools/checkopenapi
+          # The skills every agent runtime reads stay byte-identical in both folders
+          # (ADR-032 §5); the glob makes a commit that stages only a skill file run it.
+          - name: skill-parity
+            glob:
+              - ".claude/skills/**"
+              - ".agents/skills/**"
+              - "tools/checkskillparity/**"
+            env: *go-limits
+            run: &skill-parity go test -count=1 ./tools/checkskillparity/
 
     - name: go-heavy
       glob:
@@ -146,6 +155,9 @@ pre-merge-commit:
             run: *app-icons
           - name: airis-assets
             run: *airis-assets
+          - name: skill-parity
+            env: *go-limits
+            run: *skill-parity
     - name: go-heavy
       group:
         piped: true

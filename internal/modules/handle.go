@@ -19,7 +19,8 @@
 //  3. At the wiring point, call Bind with the wired services, then mark the
 //     module ready with the lifecycle Writer: Bind first, so a binding that sees
 //     ready always finds its services.
-//  4. Write the binding as `return a.modules.<context>.Use(func(s ThatStruct) (T, error) {...})`.
+//  4. Write the binding as `return a.moduleSet().<context>.Use(func(s ThatStruct) (T, error) {...})`;
+//     moduleSet builds the module set on first use (internal/desktop/app_readiness.go).
 //
 // The Shell handle carries only shell capabilities and is always ready.
 // The package has no Wails import.
