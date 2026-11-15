@@ -38,10 +38,12 @@ func (a *App) SaveAnimeEditor(command SaveAnimeEditorCommandDTO) contracts.Anime
 	if err != nil {
 		return a.editorWriteFailure("save", command.AnimeID, fmt.Errorf("save anime editor: %w", err))
 	}
+	before := a.editorActivityBefore(command.AnimeID)
 	result, err := a.animeEditorWrite.Save(a.appContext(), domainCommand)
 	if err != nil {
 		return a.editorWriteFailure("save", command.AnimeID, fmt.Errorf("save anime editor: %w", err))
 	}
+	a.recordEditorActivity(before, result)
 	return a.editorSaveResult("save", result)
 }
 
@@ -66,10 +68,12 @@ func (a *App) DeactivateAnime(animeID string, baseModifiedAt int64) contracts.An
 	if a.animeEditorWrite == nil {
 		return editorSaveError("deactivate", "anime editor service unavailable")
 	}
+	before := a.editorActivityBefore(animeID)
 	result, err := a.animeEditorWrite.Deactivate(a.appContext(), animeID, baseModifiedAt)
 	if err != nil {
 		return a.editorWriteFailure("deactivate", animeID, fmt.Errorf("deactivate anime: %w", err))
 	}
+	a.recordEditorActivity(before, result)
 	return a.editorSaveResult("deactivate", result)
 }
 

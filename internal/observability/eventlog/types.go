@@ -5,6 +5,10 @@ package eventlog
 // rather than truncated (unparseable) JSON.
 const maxMetadataBytes = 4 * 1024
 
+// MaxMetadataBytes is the metadata bound for a producer that must fit its
+// record by construction, because a row past it keeps none of its metadata.
+const MaxMetadataBytes = maxMetadataBytes
+
 // EventRecord is one persisted runtime event, mirroring logger.LogEntry plus
 // its surrogate id and epoch-millis timestamp.
 type EventRecord struct {

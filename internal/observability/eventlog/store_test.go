@@ -96,3 +96,39 @@ func TestInsertEventNullableFieldsBindNull(t *testing.T) {
 			correlationID, entityID, eventType, durationMS, metadataJSON)
 	}
 }
+
+// TestHasCorrelatedEventMatchesBothTypeAndCorrelation pins that only a row with
+// the same event type and correlation id counts as already stored.
+func TestHasCorrelatedEventMatchesBothTypeAndCorrelation(t *testing.T) {
+	t.Parallel()
+	db := openStoreTestDB(t)
+	store := NewStore(db)
+	ctx := context.Background()
+	stored := EventRecord{OccurredAtMS: 1, Domain: "api", Level: "error", Message: "stall", EventType: "api.db_stalled", CorrelationID: "stall-1"}
+	if err := store.InsertEvent(ctx, stored); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	for _, tc := range []struct {
+		eventType, correlationID string
+		want                     bool
+	}{
+		{"api.db_stalled", "stall-1", true},
+		{"api.db_stalled", "stall-2", false},
+		{"api.capture_swept", "stall-1", false},
+	} {
+		got, err := store.HasCorrelatedEvent(ctx, tc.eventType, tc.correlationID)
+		if err != nil || got != tc.want {
+			t.Fatalf("HasCorrelatedEvent(%q, %q) = %v, %v; want %v", tc.eventType, tc.correlationID, got, err, tc.want)
+		}
+	}
+}
+
+// TestHasCorrelatedEventWithoutADatabaseIsUnavailable pins the nil-handle refusal.
+func TestHasCorrelatedEventWithoutADatabaseIsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	if _, err := NewStore(nil).HasCorrelatedEvent(context.Background(), "api.db_stalled", "stall-1"); err == nil {
+		t.Fatal("expected a nil database to be refused")
+	}
+}

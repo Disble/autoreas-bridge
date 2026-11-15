@@ -74,6 +74,9 @@ func (a *App) ensureRuntimeDependencies() {
 func (a *App) ensureAnimeRuntimeDependencies() {
 	if a.bootstrapBridgeDB == nil {
 		a.bootstrapBridgeDB = bridgeSync.BootstrapBridgeDB
+		// Only the real database keeps stall evidence: an injected test
+		// database must never read or write the real logs directory.
+		a.resolveStallLogDir = defaultStallLogDir
 	}
 	if a.newCommittedPublisher == nil {
 		a.newCommittedPublisher = func(bus events.Bus) anime.CommittedPublisher {
