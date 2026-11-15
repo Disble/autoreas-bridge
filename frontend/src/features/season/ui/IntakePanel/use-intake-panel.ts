@@ -4,7 +4,6 @@ import type { PreferencesSource } from '../../../../infrastructure/preferences-s
 import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
 import type { SeasonSource } from '../../../../shared/contracts/season.types';
 import type { AnimeMetadataLookupSource } from '../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
-import type { ProviderSearchPort } from './IntakeProviderLookup/intake-provider-lookup.types';
 import { useIntakeCreationCallbacks } from './use-intake-creation-callbacks';
 import { useIntakeEditorState } from './use-intake-editor-state';
 import { useIntakeMatchingProgress } from './use-intake-matching-progress';
@@ -54,8 +53,6 @@ export function useIntakePanel(
   // 3. Context/3rd Party Hooks
   const store = useIntakeStoreSlice();
   // 5. Derived State (useMemo in colocated hooks)
-  // The rows see only the provider search, never the whole season port.
-  const providerSearchSource: ProviderSearchPort = source;
   const rows = useIntakeRows({ store, editor });
   const progress = useIntakeMatchingProgress({ store });
   const metadata = useIntakeMetadataView({ rows, editor });
@@ -89,7 +86,6 @@ export function useIntakePanel(
     metadataByRow: metadata.visibleMetadataByRow,
     appliedMetadataByRow: metadata.appliedMetadataView,
     metadataLookupSource: metadataSource,
-    providerSearchSource,
     onMetadataApplied: applied.onMetadataApplied,
     onMetadataUndo: reverted.onMetadataUndo,
     onMetadataClear: reverted.onMetadataClear,

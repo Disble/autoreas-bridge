@@ -321,6 +321,13 @@ export function createSeasonSource(): SeasonSource {
         ),
       );
     },
+    fetchProviderSearch(query: string) {
+      return withBridgeErrors<SeasonProviderSearchResult>(
+        invokeGoBinding('SearchSeasonProviders', () => SearchSeasonProviders(query), () =>
+          Promise.reject(createBridgeError('unavailable', 'the SearchSeasonProviders binding is not attached')),
+        ),
+      );
+    },
   };
 
   return SEASON_SOURCE_STATE.sharedSource;

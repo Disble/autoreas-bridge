@@ -1,8 +1,21 @@
-import type { SeasonProviderPage, SeasonSource } from '../../../../../shared/contracts/season.types';
+import type { SeasonProviderPage, SeasonProviderSearchResult, SeasonSource } from '../../../../../shared/contracts/season.types';
+import type { AsyncViewSource } from '../../../../../shared/query/async-view/async-view.types';
 import type { LookupModalState } from '../../../../../shared/ui/LookupModal/lookup-modal.types';
 
-/** The one season-port call the provider lookup drives, injected so a test can fake it. */
-export type ProviderSearchPort = Pick<SeasonSource, 'searchProviders'>;
+/** The one season-port read the provider lookup drives, injected so a test can fake it. */
+export type ProviderSearchPort = Pick<SeasonSource, 'fetchProviderSearch'>;
+
+/**
+ * The search a settled debounce asked for: its normalized query and its
+ * sequence number, which makes every debounce its own search.
+ */
+export interface ProviderSearchRequest {
+  readonly query: string;
+  readonly seq: number;
+}
+
+/** The part of the search query's result the lookup reads; a `useBridgeQuery` result fits it. */
+export type ProviderSearchRead = AsyncViewSource<SeasonProviderSearchResult> & { readonly isPlaceholderData: boolean };
 
 /**
  * One immutable snapshot of the provider search: a single discriminant plus
@@ -28,8 +41,6 @@ export type ProviderPageView = Pick<SeasonProviderPage, 'pageUrl' | 'title'> &
 export interface IntakeProviderLookupProps {
   /** The row's raw name, seeded into the search field on the first open only. */
   readonly rawName: string;
-  /** The provider search the modal drives. */
-  readonly source: ProviderSearchPort;
   /** Resolves the row to the confirmed page URL. */
   readonly onResolve: (pageUrl: string) => void;
 }

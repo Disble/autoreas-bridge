@@ -1,5 +1,5 @@
 import type { LookupModalCopy } from '../../../../../shared/ui/LookupModal/lookup-modal.types';
-import type { ProviderLookupSnapshot } from './intake-provider-lookup.types';
+import type { ProviderLookupSnapshot, ProviderSearchRequest } from './intake-provider-lookup.types';
 
 /** Accessible name, tooltip and heading of the "Find on provider" action. */
 export const PROVIDER_LOOKUP_TRIGGER_LABEL = 'Find on provider';
@@ -33,3 +33,6 @@ export const PROVIDER_LOOKUP_IDLE: ProviderLookupSnapshot = { state: 'idle', pag
 
 /** The snapshot of a search in flight. */
 export const PROVIDER_LOOKUP_LOADING: ProviderLookupSnapshot = { state: 'loading', pages: [], errorMessage: '' };
+
+/** The search before the first debounce settles: an empty query, which never searches. */
+export const PROVIDER_SEARCH_NONE: ProviderSearchRequest = { query: '', seq: 0 };
