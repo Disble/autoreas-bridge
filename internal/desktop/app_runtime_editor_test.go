@@ -41,15 +41,19 @@ func TestSaveAnimeEditorDelegatesToEditorService(t *testing.T) {
 	writer := &stubAppCommittedPublisher{}
 	service := anime.NewEditorService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(200).UTC() })
-	app := &App{ctx: context.Background(), animeEditorWrite: service}
+	app := &App{ctx: context.Background(), bridgeDB: db, animeQuery: anime.NewQueryService(store), animeEditorWrite: service}
 	memLogger := attachEditorMemLogger(app)
-	name := "Frieren X"
+	name, sameStatus := "Frieren X", 0
 
-	got := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 100, Patch: AnimeEditorPatchDTO{Name: &name}})
+	got := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 100, Patch: AnimeEditorPatchDTO{Name: &name, Status: &sameStatus}})
 	if got.Outcome != contracts.AnimePatchOutcomeApplied || got.ModifiedAt != 200 {
 		t.Fatalf("unexpected save result: %#v", got)
 	}
 	assertEditorFailuresLogged(t, memLogger, "anime-1", "save", 0)
+	// A rename that resends an unchanged state is not a watch change.
+	if rows := editorActivityRows(t, db); len(rows) != 0 {
+		t.Fatalf("expected no history for a rename, got %#v", rows)
+	}
 }
 
 // attachEditorMemLogger wires an in-memory shared logger into app and returns it.
@@ -175,10 +179,11 @@ func TestSaveAnimeEditorRejectsMalformedNumericAndForbiddenOwnershipWithExplicit
 func TestDeactivateAnimeReturnsAppliedAuthority(t *testing.T) {
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"active":true}`, 100)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"status":1,"active":true}`, 100)
 	service := anime.NewEditorService(store, &stubAppCommittedPublisher{})
 	service.SetNow(func() time.Time { return time.UnixMilli(200).UTC() })
-	app := &App{ctx: context.Background(), animeEditorWrite: service, animeEditorQuery: anime.NewQueryService(store)}
+	query := anime.NewQueryService(store)
+	app := &App{ctx: context.Background(), bridgeDB: db, animeQuery: query, animeEditorWrite: service, animeEditorQuery: query}
 	memLogger := attachEditorMemLogger(app)
 	got := app.DeactivateAnime("anime-1", 100)
 	if got.Outcome != contracts.AnimePatchOutcomeApplied || got.ModifiedAt != 200 || got.Record == nil || got.Record.Frequent.Active {
@@ -189,6 +194,14 @@ func TestDeactivateAnimeReturnsAppliedAuthority(t *testing.T) {
 		t.Fatalf("deactivating a missing anime must fail, got %#v", missing)
 	}
 	assertEditorFailuresLogged(t, memLogger, "anime-missing", "deactivate", 1)
+	// Only the applied deactivation is history, recorded as the card command records it.
+	want := editorActivityRow{
+		source: "desktop", action: anime.ActivityActionAnimeSoftDeleted, name: "Frieren", correlation: "anime.editor:anime-1:200", occurredAtMs: 200,
+		before: anime.ActivityAnimeSnapshot{Estado: 1, NroCapVisto: 2, Activo: 1}, after: anime.ActivityAnimeSnapshot{Estado: 1, NroCapVisto: 2, Activo: 0},
+	}
+	if rows := editorActivityRows(t, db); len(rows) != 1 || rows[0] != want {
+		t.Fatalf("expected one soft-delete row %#v, got %#v", want, rows)
+	}
 }
 
 func TestApplyAnimeEditorScheduleReturnsConflictWithRefreshedBoard(t *testing.T) {
