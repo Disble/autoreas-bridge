@@ -1,12 +1,13 @@
 import { useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
-import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
-import type { Anime } from '../../../../shared/contracts/anime.types';
-import { useAsyncList } from '../../../../shared/hooks/use-async-list/use-async-list';
+import type { AnimeSource } from '../../../../shared/contracts/anime-source.types';
 import { useDebounce } from '../../../../shared/hooks/use-debounce';
 import { usePageProgressiveWindow } from '../../../../shared/hooks/use-page-progressive-window';
 import { ANIME_CREATE_ROUTE } from '../../../../shared/navigation/app-layout.constants';
+import { toAsyncView } from '../../../../shared/query/async-view/async-view.helpers';
+import { BRIDGE_ANIME_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { ANIME_LIST_KEY } from '../../../../shared/query/query-keys/query-keys.constants';
+import { useBridgeQuery } from '../../../../shared/query/use-bridge-query/use-bridge-query';
 import { CATALOG_KIND_OPTIONS, CATALOG_QUERY_DEBOUNCE_MS, CATALOG_SORT_OPTIONS, CATALOG_STATUS_OPTIONS } from './catalog-panel.constants';
 import {
   classifyCatalogEmptyState,
@@ -17,13 +18,18 @@ import {
   hasActiveCatalogCriteria,
   toCatalogCriterionChips,
   toCatalogItemViewModel,
+  toCatalogLoad,
 } from './catalog-panel.helpers';
 import type { CatalogCriteria, CatalogItemViewModel, CatalogPanelState } from './catalog-panel.types';
 import { useCatalogCovers } from './use-catalog-covers';
 import { useCatalogCriteria } from './use-catalog-criteria';
 
-/** Drives the CatalogPanel: reads the catalog, applies the criteria and sort, and windows the result. */
-export function useCatalogPanel(source: BridgeRuntimeSource = bridgeRuntimeSource): CatalogPanelState {
+/**
+ * Drives the CatalogPanel: reads the catalog through the `anime` module (the
+ * skeleton stays while it starts, its failure shows the Alert), applies the
+ * criteria and sort, and windows the result.
+ */
+export function useCatalogPanel(source: AnimeSource = BRIDGE_ANIME_SOURCE): CatalogPanelState {
   // 1. Refs
 
   // 2. State
@@ -34,9 +40,10 @@ export function useCatalogPanel(source: BridgeRuntimeSource = bridgeRuntimeSourc
   const { criteria, sort } = criteriaState;
 
   // 4. Queries/Mutations
-  const { items, isLoading, error } = useAsyncList<Anime>(() => source.getAnimes(), source);
+  const query = useBridgeQuery({ queryKey: ANIME_LIST_KEY, queryFn: () => source.getAnimes(), module: 'anime' });
 
   // 5. Derived State (useMemo)
+  const { items, isLoading, error } = toCatalogLoad(toAsyncView(query));
   const debouncedQuery = useDebounce(criteria.query, CATALOG_QUERY_DEBOUNCE_MS);
   const appliedCriteria = useMemo<CatalogCriteria>(() => ({ ...criteria, query: debouncedQuery }), [criteria, debouncedQuery]);
   const matchingItems = useMemo<readonly CatalogItemViewModel[]>(

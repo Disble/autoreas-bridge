@@ -59,9 +59,9 @@ const RENDER_ATTEMPTS = 2;
 const ROUTE_MARKERS = {
   // The day tabs are static schedule chrome, present before the degraded schedule read settles.
   '/': ['Thursday'],
-  // The degraded `GetAnimes` read resolves to no anime, so the Catalog hides its
-  // toolbar and settles on its actually-empty state.
-  '/#/catalog': ['Your catalog is empty'],
+  // No Wails runtime reports the anime module ready, so the Catalog stays in its
+  // loading state (ADR-032) and its static loading label is the marker.
+  '/#/catalog': ['Loading catalog'],
   // No open season resolves headless, so the create-season card is the deterministic marker.
   '/#/season': ['Create a season to start the selection workflow.'],
   '/#/devices': ['Trigger Reconcile'],

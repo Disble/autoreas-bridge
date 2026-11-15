@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import type { HistoryTimelineEntry, HistoryTimelineGroup, HistoryTimelineState } from '../history-timeline.types';
 import { HistoryTimeline } from '../HistoryTimeline';
 import * as useHistoryTimelineModule from '../use-history-timeline';
@@ -67,6 +68,8 @@ function renderTimeline(overrides: Partial<HistoryTimelineState>, url = '/histor
         <Route element={<div>Anime detail</div>} path="/catalog/detail/:id" />
       </Routes>
     </MemoryRouter>,
+    // The inspector reads the anime module; starting keeps it on its skeleton without a binding call.
+    createModulesTestWrapper({ module: 'anime', state: 'starting' }),
   );
 }
 

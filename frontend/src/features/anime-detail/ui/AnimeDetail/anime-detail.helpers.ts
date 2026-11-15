@@ -2,6 +2,7 @@ import type { contracts } from '../../../../../wailsjs/go/models';
 import { normalizeStoredCoverPath } from '../../../../shared/anime-cover/anime-cover.helpers';
 import { getAnimeEstadoLabel } from '../../../../shared/helpers/anime-estado.helpers';
 import type { AnimeDetail } from '../../../../shared/contracts/anime.types';
+import { toAsyncView } from '../../../../shared/query/async-view/async-view.helpers';
 import {
   ANIME_DETAIL_LONG_DATE_FORMATTER,
   ANIME_DETAIL_NO_DURATION_MESSAGE,
@@ -15,8 +16,9 @@ import type {
   AnimeDetailConfirmationViewModel,
   AnimeDetailDesktopAction,
   AnimeDetailDesktopActionFeedback,
-  AnimeDetailLoadState,
+  AnimeDetailLoad,
   AnimeDetailMutationResolution,
+  AnimeDetailRead,
   AnimeDetailToast,
   AnimeDetailViewModel,
   HeroChipColor,
@@ -304,15 +306,28 @@ export function hasPreviousHistoryEntry(historyState: unknown): boolean {
 }
 
 /**
- * Derives which of the three states Detail renders from the loaded snapshot:
- * `undefined` is still loading, `null` is not found, a record is loaded.
+ * Reads the detail query as the page consumes it: this anime's own loaded
+ * detail is `loaded`, also when a later refresh failed (the mutation feedback
+ * reports that); an unknown anime (`not_found`) is `not-found`; any other
+ * failure, including the anime module having failed, is `failure` with its
+ * message; a pending read (also while the module starts), a failed read being
+ * read again, or the previous anime's detail still shown is `loading`.
+ *
+ * @param read The detail query's result.
+ * @returns The load state, the loaded detail and the failure message.
  */
-export function getAnimeDetailLoadState(detail: AnimeDetail | null | undefined): AnimeDetailLoadState {
-  if (detail === undefined) {
-    return 'loading';
+export function toAnimeDetailLoad(read: AnimeDetailRead): AnimeDetailLoad {
+  if (read.status !== 'pending' && read.data !== undefined && !read.isPlaceholderData) {
+    return { loadState: 'loaded', detail: read.data, failureMessage: undefined };
   }
 
-  return detail === null ? 'not-found' : 'loaded';
+  const view = toAsyncView(read, () => false);
+  if (view.kind === 'failure' && !read.isFetching) {
+    return view.code === 'not_found'
+      ? { loadState: 'not-found', detail: undefined, failureMessage: undefined }
+      : { loadState: 'failure', detail: undefined, failureMessage: view.message };
+  }
+  return { loadState: 'loading', detail: undefined, failureMessage: undefined };
 }
 
 /**

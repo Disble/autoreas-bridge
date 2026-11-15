@@ -1,3 +1,8 @@
+import type { WatchHistoryEntry } from '../../../../shared/contracts/anime.types';
+
+/** The rows the episode list shows while loading, collapsed before loading or failed: one stable empty list. */
+export const ANIME_WATCH_NO_ENTRIES: readonly WatchHistoryEntry[] = [];
+
 /** Accessible label and visible heading for the per-anime watch-history section (the spec bans separate "Episode history" sections). */
 export const ANIME_WATCH_HISTORY_LABEL = 'Watch history';
 

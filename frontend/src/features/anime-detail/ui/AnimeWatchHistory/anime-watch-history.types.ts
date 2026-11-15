@@ -1,5 +1,6 @@
 import type { UIEvent } from 'react';
-import type { AnimeDetail, WatchHistoryEntry } from '../../../../shared/contracts/anime.types';
+import type { AnimeDetail, WatchHistoryEntry, WatchHistoryPage } from '../../../../shared/contracts/anime.types';
+import type { AsyncViewSource } from '../../../../shared/query/async-view/async-view.types';
 import type { HeroChipColor } from '../AnimeDetail/anime-detail.types';
 
 /** Props for the per-anime AnimeWatchHistory section, keyed by the owning anime's id. */
@@ -20,6 +21,46 @@ export interface AnimeWatchEpisodesState {
   readonly fetchNextPage: () => void;
   /** Scroll handler wiring a near-bottom scroll to `fetchNextPage` (ADR-012 live branch). */
   readonly onScroll: (event: UIEvent<HTMLDivElement>) => void;
+}
+
+/** The first-page query as the episode list reads it (a `useBridgeQuery` result fits it). */
+export type AnimeWatchFirstPage = AsyncViewSource<WatchHistoryPage> & {
+  /** True while another anime's or cycle's page is still shown for this one. */
+  readonly isPlaceholderData: boolean;
+  /** When the first page last loaded; older pages belong to that load only. */
+  readonly dataUpdatedAt: number;
+};
+
+/** The rows loaded through the cursor below one first page, for one scope and one first-page load. */
+export interface AnimeWatchOlderPages {
+  /** The JSON of the first-page request the older pages continue. */
+  readonly requestKey: string;
+  /** The `dataUpdatedAt` of the first page they continue. */
+  readonly firstPageAt: number;
+  /** Every row shown: the first page's, then the older pages', oldest page last. */
+  readonly entries: readonly WatchHistoryEntry[];
+  /** The cursor of the next older page; undefined when there is none or paging stopped on a failure. */
+  readonly nextCursor: string | undefined;
+}
+
+/** Everything `toAnimeWatchEpisodePages` reads. */
+export interface AnimeWatchEpisodePagesInput {
+  /** False while the list is collapsed: it reads nothing and is not loading. */
+  readonly isEnabled: boolean;
+  readonly firstPage: AnimeWatchFirstPage;
+  readonly older: AnimeWatchOlderPages | undefined;
+  /** The JSON of the current first-page request. */
+  readonly requestKey: string;
+}
+
+/** What the episode list shows for one scope: its rows, its loading and failure state, and the next cursor. */
+export interface AnimeWatchEpisodePages {
+  /** Every row shown, which a next page extends. */
+  readonly entries: readonly WatchHistoryEntry[];
+  readonly isLoading: boolean;
+  readonly error: Error | undefined;
+  /** The cursor `fetchNextPage` reads next; undefined when there is no further page. */
+  readonly cursor: string | undefined;
 }
 
 /** Dashed pre-log summary dates for one watch that closed before the watch-history log began. */

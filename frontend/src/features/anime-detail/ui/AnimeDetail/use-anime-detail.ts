@@ -1,17 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
-import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import { useAnimeCover } from '../../../../shared/anime-cover/use-anime-cover';
-import type { AnimeDetail } from '../../../../shared/contracts/anime.types';
+import type { AnimeSource } from '../../../../shared/contracts/anime-source.types';
+import { BRIDGE_ANIME_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { animeKeys } from '../../../../shared/query/query-keys/query-keys.constants';
+import { useBridgeQuery } from '../../../../shared/query/use-bridge-query/use-bridge-query';
 import {
-  getAnimeDetailLoadState,
   hasPreviousHistoryEntry,
+  toAnimeDetailLoad,
   toAnimeDetailViewModel,
 } from './anime-detail.helpers';
 import type {
-  AnimeDetailLoadSnapshot,
+  AnimeDetailCommandSource,
   AnimeDetailProps,
   AnimeDetailState,
 } from './anime-detail.types';
@@ -19,39 +21,49 @@ import { useAnimeDetailDesktopActions } from './use-anime-detail-desktop-actions
 import { useAnimeDetailMutation } from './use-anime-detail-mutation';
 
 /**
- * Drives the shared AnimeDetail component by fetching a single anime's rich
- * detail (including repetition history) from the runtime. `undefined` means
- * "still loading"; `null` means "not found" (also the degrade-to-null result
- * when the Wails runtime/binding is unavailable, mirroring
- * `bridgeRuntimeSource.getAnimeDetail`'s own degradation).
+ * Drives the shared AnimeDetail component by reading a single anime's rich
+ * detail (including repetition history) through `useBridgeQuery` on the
+ * `anime` module, keyed by id: it stays `loading` while the module starts and
+ * while the previous anime's detail would still show, an unknown anime is
+ * `not-found`, and any other failure (the module failed, a failed read) is
+ * `failure` with its reason. Repeat/Restore and the desktop actions still run
+ * through `commands`, which a later slice moves behind its own port.
+ *
+ * @param props The anime the page shows.
+ * @param source The anime port the detail and cover are read through.
+ * @param commands The Repeat/Restore commands and the desktop actions.
+ * @returns The page state.
  */
 export function useAnimeDetail(
   props: Readonly<AnimeDetailProps>,
-  source: BridgeRuntimeSource = bridgeRuntimeSource,
+  source: AnimeSource = BRIDGE_ANIME_SOURCE,
+  commands: AnimeDetailCommandSource = bridgeRuntimeSource,
 ): AnimeDetailState {
   // 1. Refs
 
   // 2. State
-  const [detailSnapshot, setDetailSnapshot] = useState<AnimeDetailLoadSnapshot | undefined>(undefined);
   const [failedPortadaAnimeId, setFailedPortadaAnimeId] = useState<string | undefined>(undefined);
 
   // 3. Context/3rd Party Hooks
   const navigate = useNavigate();
-  const { onCopyFolder, onOpenPage } = useAnimeDetailDesktopActions(props.animeId, source);
-  const mutation = useAnimeDetailMutation({
-    animeId: props.animeId,
-    detailSnapshot,
-    source,
-    setDetailSnapshot,
-  });
 
   // 4. Queries/Mutations
+  const query = useBridgeQuery({
+    queryKey: animeKeys.key('detail', props.animeId),
+    queryFn: () => source.getAnimeDetail(props.animeId),
+    module: 'anime',
+  });
+  const { refetch } = query;
+  const refreshDetail = useCallback(async () => (await refetch()).status === 'success', [refetch]);
+  const { status, data, error, isFetching, isPlaceholderData } = query;
+  const { detail, failureMessage, loadState } = useMemo(
+    () => toAnimeDetailLoad({ status, data, error, isFetching, isPlaceholderData }),
+    [status, data, error, isFetching, isPlaceholderData],
+  );
+  const { onCopyFolder, onOpenPage } = useAnimeDetailDesktopActions(props.animeId, commands);
+  const mutation = useAnimeDetailMutation({ animeId: props.animeId, detail, commands, refreshDetail });
 
   // 5. Derived State (useMemo)
-  const detail: AnimeDetail | null | undefined = detailSnapshot?.animeId === props.animeId
-    ? detailSnapshot.detail
-    : undefined;
-  const loadState = getAnimeDetailLoadState(detail);
   const viewModel = useMemo(
     () => (detail ? toAnimeDetailViewModel(detail) : undefined),
     [detail],
@@ -81,34 +93,12 @@ export function useAnimeDetail(
   const onEditAnime = useCallback(() => {
     void navigate(`/editor/${props.animeId}`);
   }, [navigate, props.animeId]);
+
   // 7. Effects
-  useEffect(() => {
-    let active = true;
-
-    void source
-      .getAnimeDetail(props.animeId)
-      .then((result) => {
-        if (!active) {
-          return;
-        }
-
-        setDetailSnapshot({ animeId: props.animeId, detail: result });
-      })
-      .catch(() => {
-        if (!active) {
-          return;
-        }
-
-        setDetailSnapshot({ animeId: props.animeId, detail: null });
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [props.animeId, source]);
 
   return {
     loadState,
+    failureMessage,
     detail: viewModel,
     detailSource: detail,
     cover,

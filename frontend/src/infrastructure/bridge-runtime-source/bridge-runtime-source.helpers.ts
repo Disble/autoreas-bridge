@@ -11,8 +11,6 @@ import {
   GetAnimeEditorRecord,
   GetAnimeEditorScheduleBoard,
   GetAnimes,
-  GetAnimeWatchHistoryPage,
-  GetWatchHistoryPage,
   OpenAnimeFolder,
   OpenAnimePage,
   PickFile,
@@ -43,7 +41,6 @@ import {
   RUNTIME_UNAVAILABLE_COMMAND_RESULT,
   RUNTIME_UNAVAILABLE_CREATE_RESULT,
   RUNTIME_UNAVAILABLE_EDITOR_RESULT,
-  RUNTIME_UNAVAILABLE_WATCH_HISTORY_PAGE,
 } from './bridge-runtime-source.constants';
 import type { AnimeEditorRuntimeSource, BridgeRuntimeSource } from './bridge-runtime-source.types';
 import { invokeGoBinding } from '../wails-bindings.helpers';
@@ -304,7 +301,12 @@ function toApplyAnimeScheduleDraftDTO(command: ApplyAnimeScheduleDraftCommand): 
 
 /**
  * Creates the singleton runtime-backed bridge source. It degrades every missing
- * Wails binding to safe defaults so browser/Vite contexts keep rendering.
+ * Wails binding to safe defaults so browser/Vite contexts keep rendering. The
+ * anime reads it still carries (`getAnimes`, `getAnimeDetail`, `getAnimeCover`,
+ * `previewAnimeCover`) serve consumers of later migration slices: their bindings
+ * now reject while the anime module is not ready, and these keep answering the
+ * pre-migration fallback (`[]`, `null`, the placeholder) for them. Migrated
+ * consumers read through `AnimeSource` (`anime-source.helpers.ts`) instead.
  */
 export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRuntimeSource {
   if (BRIDGE_RUNTIME_SOURCE_STATE.sharedSource !== null) {
@@ -313,10 +315,10 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRu
 
   BRIDGE_RUNTIME_SOURCE_STATE.sharedSource = {
     getAnimes() {
-      return invokeGoBinding('GetAnimes', GetAnimes, () => []);
+      return invokeGoBinding('GetAnimes', GetAnimes, () => []).catch(() => []);
     },
     getAnimeDetail(id) {
-      return invokeGoBinding('GetAnimeDetail', () => GetAnimeDetail(id), () => null);
+      return invokeGoBinding('GetAnimeDetail', () => GetAnimeDetail(id), () => null).catch(() => null);
     },
     getAnimeEditorRecord(id) {
       return invokeGoBinding('GetAnimeEditorRecord', () => GetAnimeEditorRecord(id), () => ({ outcome: 'error', message: 'runtime unavailable' } as wailsContracts.AnimeEditorRecordResult)).then(toAnimeEditorRecordResult);
@@ -340,21 +342,11 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRu
     createAnime(command) {
       return invokeGoBinding('CreateAnime', () => CreateAnime(toAnimeCreateDTO(command)), () => RUNTIME_UNAVAILABLE_CREATE_RESULT as unknown as wailsContracts.AnimeCreateResult).then(toAnimeCreateResult);
     },
-    getWatchHistoryPage(request) {
-      return invokeGoBinding(
-        'GetWatchHistoryPage',
-        () => GetWatchHistoryPage({ ...request, animeIds: [...request.animeIds] }),
-        () => RUNTIME_UNAVAILABLE_WATCH_HISTORY_PAGE,
-      );
-    },
-    getAnimeWatchHistoryPage(request) {
-      return invokeGoBinding('GetAnimeWatchHistoryPage', () => GetAnimeWatchHistoryPage({ ...request }), () => RUNTIME_UNAVAILABLE_WATCH_HISTORY_PAGE);
-    },
     getAnimeCover(animeID) {
-      return invokeGoBinding('GetAnimeCover', () => GetAnimeCover(animeID), () => ({ source: 'placeholder' }));
+      return invokeGoBinding('GetAnimeCover', () => GetAnimeCover(animeID), () => ({ source: 'placeholder' })).catch(() => ({ source: 'placeholder' }));
     },
     previewAnimeCover(value) {
-      return invokeGoBinding('PreviewAnimeCover', () => PreviewAnimeCover(value), () => ({ source: 'placeholder' }));
+      return invokeGoBinding('PreviewAnimeCover', () => PreviewAnimeCover(value), () => ({ source: 'placeholder' })).catch(() => ({ source: 'placeholder' }));
     },
     adjustWatchedEpisodes(animeID, delta, base) {
       return invokeGoBinding('AdjustWatchedEpisodes', () => AdjustWatchedEpisodes(animeID, delta, base), () => RUNTIME_UNAVAILABLE_COMMAND_RESULT);

@@ -1,9 +1,10 @@
 import type { Key, Selection } from '@heroui/react';
 import { ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
 import type { Anime } from '../../../../shared/contracts/anime.types';
+import type { AsyncView } from '../../../../shared/query/async-view/async-view.types';
 import { getAnimeEstadoLabel } from '../../../../shared/helpers/anime-estado.helpers';
 import { getAnimeTipoLabel } from '../../../../shared/helpers/anime-tipo.helpers';
-import { CATALOG_END_LABEL, CATALOG_FILTER_ALL_VALUE, CATALOG_NAME_COLLATOR, CATALOG_SORT_OPTIONS, CATALOG_STATUS_SORT_RANK } from './catalog-panel.constants';
+import { CATALOG_END_LABEL, CATALOG_FILTER_ALL_VALUE, CATALOG_NAME_COLLATOR, CATALOG_NO_ITEMS, CATALOG_SORT_OPTIONS, CATALOG_STATUS_SORT_RANK } from './catalog-panel.constants';
 import type {
   CatalogCover,
   CatalogCoverInput,
@@ -12,6 +13,7 @@ import type {
   CatalogEmptyState,
   CatalogEmptyStateInput,
   CatalogItemViewModel,
+  CatalogLoad,
   CatalogOption,
   CatalogSortKey,
   CatalogStatusColor,
@@ -272,4 +274,21 @@ export function classifyCatalogEmptyState(input: CatalogEmptyStateInput): Catalo
     return 'none';
   }
   return hasActiveCatalogCriteria(input.criteria) ? 'criteria' : 'none';
+}
+
+/**
+ * Reads the catalog query's view as the state the panel consumes: the loaded
+ * rows (none while loading, empty or failed), whether it is still loading
+ * (also while the anime module starts), and the failure with its message, so
+ * a starting or failed backend never reads as an empty catalog.
+ *
+ * @param view The catalog query's async view.
+ * @returns The rows, the loading flag and the failure.
+ */
+export function toCatalogLoad(view: AsyncView<readonly Anime[]>): CatalogLoad {
+  return {
+    items: view.kind === 'ready' ? view.data : CATALOG_NO_ITEMS,
+    isLoading: view.kind === 'loading',
+    error: view.kind === 'failure' ? new Error(view.message) : undefined,
+  };
 }

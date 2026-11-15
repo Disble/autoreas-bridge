@@ -6,7 +6,10 @@ import {
   deriveHistoryInspectorProgressRatio,
   formatHistoryInspectorAdded,
   formatHistoryInspectorLastWatched,
+  toHistoryInspectorState,
+  toInspectedData,
 } from "../history-inspector.helpers";
+import type { HistoryInspectorRead } from "../history-inspector.types";
 
 /** Builds the smallest detail fixture the inspector derivations read. */
 function detail(overrides: Partial<AnimeDetail> = {}): AnimeDetail {
@@ -141,5 +144,66 @@ describe("deriveHistoryInspectorProgressRatio", () => {
     expect(
       deriveHistoryInspectorProgressRatio(detail({ totalEpisodes: 0 })),
     ).toBeUndefined();
+  });
+});
+
+/**
+ * Builds one settled inspector read, overriding only what a case needs.
+ * @param data The loaded answer.
+ * @param overrides The query fields a case cares about.
+ * @returns The read.
+ */
+function read<TData>(data: TData | undefined, overrides: Partial<HistoryInspectorRead<TData>> = {}): HistoryInspectorRead<TData> {
+  return { status: "success", data, error: null, isFetching: false, isPlaceholderData: false, ...overrides };
+}
+
+describe("toInspectedData", () => {
+  it.each([
+    ["a loaded answer", read("x"), "x"],
+    ["a pending read", read(undefined, { status: "pending" }), undefined],
+    ["a failed read", read("x", { status: "error" }), undefined],
+    ["the previous selection's answer", read("x", { isPlaceholderData: true }), undefined],
+  ])("reads %s", (_label, query, expected) => {
+    expect(toInspectedData(query)).toBe(expected);
+  });
+});
+
+describe("toHistoryInspectorState", () => {
+  /** The three recent rows of the selected anime. */
+  const rows = [row(30), row(20)];
+  /** A resolved placeholder cover. */
+  const cover = { status: "placeholder" } as const;
+  /** A loaded recent page. */
+  const recent = read({ status: "ok", items: rows });
+
+  it("prompts with no rows and no selection, whatever the reads hold", () => {
+    expect(toHistoryInspectorState({ animeId: undefined, detail: read(detail()), recent, cover })).toEqual({
+      status: "prompt", detail: undefined, addedMs: undefined, lastWatchedMs: undefined, cover, recentEpisodes: [],
+    });
+  });
+
+  it.each([
+    ["error", read<AnimeDetail>(undefined, { status: "error", error: new Error("not found") })],
+    ["loading", read<AnimeDetail>(undefined, { status: "pending" })],
+    ["loading", read(detail(), { isPlaceholderData: true })],
+  ])("reads %s with the loaded recent rows and no detail", (status, detailRead) => {
+    expect(toHistoryInspectorState({ animeId: "anime-1", detail: detailRead, recent, cover })).toEqual({
+      status, detail: undefined, addedMs: undefined, lastWatchedMs: undefined, cover, recentEpisodes: rows,
+    });
+  });
+
+  it("derives the content dates from the detail and the newest recent row", () => {
+    const loaded = detail({ createdAt: 5, lastWatchedAt: 7 });
+
+    expect(toHistoryInspectorState({ animeId: "anime-1", detail: read(loaded), recent, cover })).toEqual({
+      status: "content", detail: loaded, addedMs: 5, lastWatchedMs: 30, cover, recentEpisodes: rows,
+    });
+  });
+
+  it("reads a pending or failed recent page as no rows while the content stands", () => {
+    for (const page of [read(undefined, { status: "pending" }), read(undefined, { status: "error" })]) {
+      const state = toHistoryInspectorState({ animeId: "anime-1", detail: read(detail({ lastWatchedAt: 7 })), recent: page, cover });
+      expect(state).toMatchObject({ status: "content", recentEpisodes: [], lastWatchedMs: 7 });
+    }
   });
 });

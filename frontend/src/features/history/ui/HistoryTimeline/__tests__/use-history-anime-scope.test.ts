@@ -1,6 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { BridgeRuntimeSource } from "../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types";
+import type { AnimeSource } from "../../../../../shared/contracts/anime-source.types";
+import { createModulesTestWrapper } from "../../../../../shared/query/test-support/bridge-modules.test-support";
 import type { Anime } from "../../../../../shared/contracts/anime.types";
 import { useHistoryAnimeScope } from "../use-history-anime-scope";
 
@@ -21,13 +22,16 @@ function anime(overrides: Partial<Anime> = {}): Anime {
   };
 }
 
-/** Builds a runtime source with a caller-controlled catalog read. */
+/** Builds an anime source with a caller-controlled catalog read. */
 function createSource(
-  getAnimes: BridgeRuntimeSource["getAnimes"],
-): BridgeRuntimeSource {
+  getAnimes: AnimeSource["getAnimes"],
+): AnimeSource {
   return {
     getAnimes,
     getAnimeDetail: vi.fn(),
+    getWatchHistoryPage: vi.fn(),
+    getAnimeWatchHistoryPage: vi.fn(),
+    getAnimeCover: vi.fn(),
   };
 }
 
@@ -35,7 +39,7 @@ describe("useHistoryAnimeScope", () => {
   it.each<
     [
       string,
-      BridgeRuntimeSource["getAnimes"],
+      AnimeSource["getAnimes"],
       number | undefined,
       { readonly scope: unknown; readonly error: Error | undefined },
     ]
@@ -53,8 +57,10 @@ describe("useHistoryAnimeScope", () => {
       { scope: undefined, error: new Error("catalog unavailable") },
     ],
   ])("%s", async (_label, getAnimes, status, expected) => {
-    const { result } = renderHook(() =>
-      useHistoryAnimeScope(status, undefined, createSource(getAnimes)),
+    const source = createSource(getAnimes);
+    const { result } = renderHook(
+      () => useHistoryAnimeScope(status, undefined, source),
+      createModulesTestWrapper({ module: "anime", state: "ready" }),
     );
 
     await waitFor(() =>

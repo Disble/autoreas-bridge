@@ -31,26 +31,17 @@ describe('bridge-runtime-source degraded paths', () => {
     await expect(copyFolderPromise).resolves.toEqual({ message: 'runtime unavailable', modifiedAt: 0, status: 'error' });
   });
 
-  it('degrades getWatchHistoryPage to an error-status page when the Go runtime is absent', async () => {
+  it('keeps the pre-migration anime read fallbacks for later-slice consumers when the anime module rejects', async () => {
     const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
     const source = createBridgeRuntimeSource();
+    const starting = () => vi.fn().mockRejectedValue(new Error('{"code":"unavailable","message":"anime is starting"}'));
+    window.go = { desktop: { App: { GetAnimes: starting(), GetAnimeDetail: starting(), GetAnimeCover: starting(), PreviewAnimeCover: starting() } } } as never;
 
-    const pagePromise = source.getWatchHistoryPage?.({ search: '', animeIds: [], watchedFromMs: 0, watchedToMs: 0, order: 'newest', cursor: '', limit: 50 });
+    const reads = [source.getAnimes(), source.getAnimeDetail('anime-1'), source.getAnimeCover?.('anime-1'), source.previewAnimeCover?.('D:/a.jpg')];
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
-    await vi.advanceTimersByTimeAsync(5000);
-
-    await expect(pagePromise).resolves.toEqual({ items: [], status: 'error', message: 'runtime unavailable' });
-  });
-
-  it('degrades getAnimeWatchHistoryPage to an error-status page when the Go runtime is absent', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
-    const source = createBridgeRuntimeSource();
-
-    const pagePromise = source.getAnimeWatchHistoryPage?.({ animeId: 'anime-1', cycle: 0, cursor: '', limit: 50 });
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    await expect(pagePromise).resolves.toEqual({ items: [], status: 'error', message: 'runtime unavailable' });
+    await expect(Promise.all(reads)).resolves.toEqual([[], null, { source: 'placeholder' }, { source: 'placeholder' }]);
   });
 
   it('degrades getAnimeDetail to null when the Go runtime is absent', async () => {
