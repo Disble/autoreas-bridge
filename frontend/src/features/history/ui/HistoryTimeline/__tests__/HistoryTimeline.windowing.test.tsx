@@ -6,7 +6,7 @@ import type { WatchHistoryEntry, WatchHistoryPage } from '../../../../../shared/
 /** Mirrors the backend's default keyset page size (`defaultPageLimit`, `internal/watchhistory/store_page.go`). */
 const HISTORY_PAGE_SIZE = 50;
 
-/** Fake `bridgeRuntimeSource` serving one incrementing keyset page per call, hoisted for the module mock below. */
+/** Fake anime source serving one incrementing keyset page per call, hoisted for the module mock below. */
 const { mockSource } = vi.hoisted(() => {
   /** Builds one fixture watch-history entry at the given index, strictly older as the index grows. */
   function buildEntry(index: number): WatchHistoryEntry {
@@ -43,10 +43,11 @@ const { mockSource } = vi.hoisted(() => {
   };
 });
 
-vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
-  bridgeRuntimeSource: mockSource,
+vi.mock('../../../../../infrastructure/bridge-runtime-source/anime-source.helpers', () => ({
+  createAnimeSource: () => mockSource,
 }));
 
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { HistoryTimeline } from '../HistoryTimeline';
 
 afterEach(cleanup);
@@ -62,6 +63,7 @@ describe('HistoryTimeline progressive keyset paging (D5a)', () => {
       <MemoryRouter>
         <HistoryTimeline />
       </MemoryRouter>,
+      createModulesTestWrapper({ module: 'anime', state: 'ready' }),
     );
 
     await waitFor(() => expect(countRows()).toBe(HISTORY_PAGE_SIZE));

@@ -7,15 +7,16 @@ import {
   formatAnimeDetailProgressCount,
   formatAnimeDetailProgressRatio,
   getAnimeDetailEstadoColor,
-  getAnimeDetailLoadState,
   getAnimeDetailEstadoLabel,
   getAnimeDetailStatusColor,
   getAnimeDetailStatusLabel,
   getAnimeDetailTipoLabel,
   hasPreviousHistoryEntry,
   runAnimeDetailDesktopAction,
+  toAnimeDetailLoad,
   toAnimeDetailViewModel,
 } from '../anime-detail.helpers';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
 
 /** Minimal detail fixture (no optional fields) reused and overridden per case. */
 const baseDetail: AnimeDetail = {
@@ -348,12 +349,32 @@ describe('runAnimeDetailDesktopAction', () => {
   });
 });
 
-describe('getAnimeDetailLoadState', () => {
+describe('toAnimeDetailLoad', () => {
+  /** A settled detail query, overriding only what a case needs. */
+  const read = (overrides: Partial<Parameters<typeof toAnimeDetailLoad>[0]> = {}) => ({
+    status: 'success' as const,
+    data: baseDetail,
+    error: null,
+    isFetching: false,
+    isPlaceholderData: false,
+    ...overrides,
+  });
+  /** What a state carrying no detail and no failure answers. */
+  const none = { detail: undefined, failureMessage: undefined };
+
   it.each([
-    [undefined, 'loading'],
-    [null, 'not-found'],
-    [baseDetail, 'loaded'],
-  ] as const)('maps the snapshot %j to %s', (detail, expected) => {
-    expect(getAnimeDetailLoadState(detail)).toBe(expected);
+    ['a pending read', read({ status: 'pending', data: undefined }), { loadState: 'loading', ...none }],
+    ["the previous anime's detail", read({ isPlaceholderData: true }), { loadState: 'loading', ...none }],
+    ['an unknown anime', read({ status: 'error', data: undefined, error: createBridgeError('not_found', 'anime x not found') }), { loadState: 'not-found', ...none }],
+    [
+      'a failed anime module',
+      read({ status: 'error', data: undefined, error: createBridgeError('failed_precondition', 'anime: db closed') }),
+      { loadState: 'failure', detail: undefined, failureMessage: 'anime: db closed' },
+    ],
+    ['a failed read being read again', read({ status: 'error', data: undefined, isFetching: true, error: createBridgeError('not_found', 'gone') }), { loadState: 'loading', ...none }],
+    ['a loaded detail', read(), { loadState: 'loaded', detail: baseDetail, failureMessage: undefined }],
+    ['a loaded detail whose refresh failed', read({ status: 'error', error: new Error('refresh failed') }), { loadState: 'loaded', detail: baseDetail, failureMessage: undefined }],
+  ])('reads %s', (_label, query, expected) => {
+    expect(toAnimeDetailLoad(query)).toEqual(expected);
   });
 });

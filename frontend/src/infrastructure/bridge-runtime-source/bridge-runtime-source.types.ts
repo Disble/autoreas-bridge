@@ -8,16 +8,15 @@ import type {
   AnimeEditorSaveResult,
   AnimeEditorScheduleApplyResult,
   AnimeEditorScheduleBoardResult,
-  AnimeWatchHistoryPageRequest,
   ApplyAnimeScheduleDraftCommand,
   SaveAnimeEditorCommand,
-  WatchHistoryPage,
-  WatchHistoryPageRequest,
 } from '../../shared/contracts/anime.types';
 
 /**
  * Request/reply port for the bridge runtime bindings not yet migrated to a
- * module source (ADR-032; the Devices bindings moved to `DevicesSource`).
+ * module source (ADR-032; the Devices bindings moved to `DevicesSource`, the
+ * watch-history pages to `AnimeSource`). Its anime reads remain only for
+ * consumers of later slices and keep their pre-migration fallbacks.
  */
 export interface BridgeRuntimeSource {
   readonly getAnimes: () => Promise<readonly Anime[]>;
@@ -28,8 +27,6 @@ export interface BridgeRuntimeSource {
   readonly getAnimeEditorScheduleBoard?: (originAnimeID: string) => Promise<AnimeEditorScheduleBoardResult>;
   readonly applyAnimeEditorSchedule?: (command: ApplyAnimeScheduleDraftCommand) => Promise<AnimeEditorScheduleApplyResult>;
   readonly createAnime?: (command: AnimeCreateCommand) => Promise<AnimeCreateResult>;
-  readonly getWatchHistoryPage?: (request: WatchHistoryPageRequest) => Promise<WatchHistoryPage>;
-  readonly getAnimeWatchHistoryPage?: (request: AnimeWatchHistoryPageRequest) => Promise<WatchHistoryPage>;
   readonly getAnimeCover?: (animeID: string) => Promise<contracts.AnimeCover>;
   /** Renders an unsaved cover value (a local path or URL a form is editing) the way a saved cover renders. */
   readonly previewAnimeCover?: (value: string) => Promise<contracts.AnimeCover>;

@@ -129,6 +129,28 @@ The episodes reads behind Today are served by the `episodes` module (ADR-032,
 - A rejected row write (`status` other than `ok`) is an outcome, not a read failure: Today shows its
   message in the same Alert until the schedule loads again.
 
+The anime reads behind the Catalog, History and the Detail page are served by the `anime` module the
+same way:
+
+- `GetAnimes`, `GetAnimeDetail`, `GetAnimeDetailView`, `GetWatchHistoryPage`,
+  `GetAnimeWatchHistoryPage`, `GetAnimeCover` and `PreviewAnimeCover` read through the `anime`
+  module handle (`appModules.anime`), which `configureAnimeApplicationServices` binds
+  (`bindAnimeModule`). They reject with `unavailable` while the module is starting,
+  `failed_precondition` with the startup reason after a failed startup, `not_found` for an unknown
+  anime id, `invalid_argument` for an unknown history order and `internal` when a read fails. None
+  answers `[]`, `null` or an error-status page in place of a failure. Once ready, a missing or
+  unreadable cover is still the placeholder, never a failure.
+- The notification center's "run again" action (`runAnimeAgainIntent`,
+  `internal/desktop/app_notification_center.go`) reports a deleted target only for `not_found`; a
+  starting module or a failed read is returned as that error.
+- What each screen shows in each module state:
+
+| `anime` state | Catalog | History timeline and inspector | Detail page and its episode lists |
+|---|---|---|---|
+| `starting` | Skeleton; no read is called | Skeletons; no read is called | Skeleton; no read is called |
+| `ready` | The anime, or the empty state when the catalog is empty | The rows, the filtered-empty or the empty state; the inspector's content | The detail, or "Anime not found." for an unknown id; the episode rows or their empty state |
+| `failed` | The failure Alert with the module's reason | The failure Alert with the reason; the inspector's error Alert | The failure Alert with the reason |
+
 ## Events
 
 - `anime.changed` (`events.AnimeChangedEvent`, `internal/events/event.go`) is published once per
@@ -280,6 +302,71 @@ flowchart LR
   review, Alert and copy. Re-analysis progress stays a per-run `EventsOn` listener
   (`onEpisodeReanalysisProgress`), not an invalidation.
 
+## Frontend: Catalog, History and Detail
+
+The anime reads follow ADR-032 §4 through one port, `AnimeSource`
+(`frontend/src/shared/contracts/anime-source.types.ts`), whose adapter `createAnimeSource`
+(`frontend/src/infrastructure/bridge-runtime-source/anime-source.helpers.ts`) wraps the five read
+bindings in `withBridgeErrors` and rejects as `unavailable` when a binding never attaches. It is built
+once as `BRIDGE_ANIME_SOURCE` (`frontend/src/shared/query/bridge-runtime/bridge-runtime.constants.ts`).
+
+```mermaid
+flowchart LR
+    subgraph features [features]
+        cat[catalog use-catalog-panel]
+        hscope[history use-history-anime-scope]
+        htl[history use-history-timeline]
+        hins[history use-history-inspector]
+        det[anime-detail use-anime-detail]
+        eps[anime-detail use-anime-watch-episodes]
+    end
+    subgraph shared [shared]
+        cover[anime-cover use-anime-cover]
+        ubq[useBridgeQuery module anime]
+        keys[animeKeys / ANIME_LIST_KEY]
+        rt[BRIDGE_ANIME_SOURCE]
+    end
+    subgraph infra [infrastructure]
+        src[createAnimeSource]
+    end
+    cat --> ubq
+    hscope --> ubq
+    htl --> hscope
+    htl --> ubq
+    hins --> ubq
+    hins --> cover
+    det --> ubq
+    det --> cover
+    eps --> ubq
+    cover --> ubq
+    ubq --> keys
+    ubq -->|queryFn| rt --> src
+```
+
+- Queries (all `module: 'anime'`): the catalog under `ANIME_LIST_KEY`, shared by the Catalog and
+  History's Status/Type scope; one anime's detail under `animeKeys.key('detail', id)`, shared by the
+  Detail page and the History inspector; the first page of the global history under
+  `animeKeys.key('watch-history', request)`; one anime's first page under
+  `animeKeys.key('anime-watch-history', request)` (the inspector's 3 recent rows and each episode
+  list); one cover under `animeKeys.key('cover', id)`.
+- Paging: only the first keyset page is a query. Older pages load through the cursor on a
+  near-bottom scroll and belong to one request and one first-page load; a later-page failure stops
+  paging and keeps the rows on screen (`toHistoryTimelinePages`, `toAnimeWatchEpisodePages`).
+- State mapping, in pure helpers: `toCatalogLoad`, `toHistoryCatalogLoad`, `toHistoryTimelinePages`,
+  `toHistoryInspectorState`, `toAnimeWatchEpisodePages`, `toAnimeDetailLoad` and
+  `toAnimeCoverQueryEntry`. A new id's or request's placeholder data (`isPlaceholderData`) reads as
+  loading, never as the previous anime's data. The Detail page tells `not_found` ("Anime not found.")
+  from any other failure (the `failure` load state and its Alert); a loaded detail whose refresh after
+  Repeat/Restore failed stays shown with the warning feedback. A failed cover read is the placeholder.
+- Invalidation: no `BRIDGE_INVALIDATIONS` rule refreshes these queries; as before the migration,
+  each screen reads on mount and on a key change, and the Detail page reads again after a mutation.
+- Not migrated (later tasks): the editor's and create screen's catalog reads (T5i), the download
+  run history's anime names (T5k) and the other cover consumers (notifications T5d, Season T5j,
+  editor T5i, run history T5k) still call `bridgeRuntimeSource`, which keeps their previous `[]`,
+  `null` and placeholder fallbacks; `PreviewAnimeCover` is read only by `CoverPreview` (T5i).
+  Repeat/Restore (T5g) and the Detail page's copy-folder and open-page actions still run through
+  `bridgeRuntimeSource`.
+
 ## Entry points
 
 | Caller | Service method | Trigger |
@@ -290,6 +377,7 @@ flowchart LR
 | `internal/desktop/app.go` (`wireEpisodeServiceWithWriter`) | `EpisodeService` over `WriteService.PatchAnime` | Episode +1 / −1 and watch state |
 | `internal/desktop/app_runtime.go` `GetEpisodeSchedule`, `GetEpisodeDayCounts` | `EpisodeService` reads, through the `episodes` module handle | Today's schedule and day badges |
 | `internal/desktop/app_episode_editor.go` `GetEpisodeDurationSection`, `ReanalyzeEpisodeDurations`, `CancelEpisodeReanalysis`, `SaveEpisodeDurations` | `durationedit.Service`, `episodes.Store.ApplyEdits`, through the `episodes` module handle | The Editor's durations card |
+| `internal/desktop/app_runtime.go` `GetAnimes`, `GetAnimeDetail`, `GetAnimeDetailView`, `GetWatchHistoryPage`, `GetAnimeWatchHistoryPage`; `app_cover.go` `GetAnimeCover`, `PreviewAnimeCover` | Anime query service, watch-history reader and cover thumbnails, through the `anime` module handle | The Catalog, History, the Detail page and covers |
 | `internal/api/router.go` | `PATCH /api/animes/:id`, sync reconcile, WS pending patch, all through `newMobileAnimeWriteService` (`app_runtime_services.go`) | Phones |
 | `internal/desktop/app_season_anime_gateway.go`, `app_season_availability.go` | `WriteService.PatchAnime`, `CreateService` | Season mode |
 

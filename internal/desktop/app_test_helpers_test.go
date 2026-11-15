@@ -170,7 +170,10 @@ type stubAnimeQueryService struct {
 	mobileAnimes []contracts.MobileAnime
 	// byID, when set, answers GetMobileAnime per id instead of mobileAnime.
 	byID map[string]*contracts.MobileAnime
-	err  error
+	// items and detail answer ListAnimeItems and GetAnimeDetail, both beside err.
+	items  []contracts.AnimeListItem
+	detail *contracts.AnimeDetail
+	err    error
 }
 
 func (s *stubAnimeQueryService) GetEffectiveAnime(context.Context, string) (*contracts.EffectiveAnime, error) {
@@ -189,11 +192,11 @@ func (s *stubAnimeQueryService) GetMobileAnime(_ context.Context, id string) (*c
 }
 
 func (s *stubAnimeQueryService) ListAnimeItems(context.Context) ([]contracts.AnimeListItem, error) {
-	return nil, nil
+	return s.items, s.err
 }
 
 func (s *stubAnimeQueryService) GetAnimeDetail(context.Context, string) (*contracts.AnimeDetail, error) {
-	return nil, nil
+	return s.detail, s.err
 }
 
 var _ contracts.AnimeQueryService = (*stubAnimeQueryService)(nil)

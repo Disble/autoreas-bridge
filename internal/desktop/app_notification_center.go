@@ -386,16 +386,20 @@ func (a *App) seasonDownloadNowIntent(ctx context.Context, _ map[string]string) 
 }
 
 // runAnimeAgainIntent is the download.run_anime handler: it re-resolves the
-// anime fresh at press time via GetAnimeDetail (app_runtime.go:147) rather
-// than trusting a frozen snapshot -- GetAnimeDetail returning nil is exactly
-// how a deleted target is detected, potentially days after the record was
-// created.
+// anime fresh at press time via GetAnimeDetail (app_runtime.go) rather than
+// trusting a frozen snapshot -- its not_found answer is exactly how a deleted
+// target is detected, potentially days after the record was created. Any other
+// failure (the anime module starting or failed, a failed read) is returned as
+// is, never reported as a deleted target.
 func (a *App) runAnimeAgainIntent(ctx context.Context, args map[string]string) error {
-	anime := a.GetAnimeDetail(args[center.ArgKeyAnimeID])
-	if anime == nil {
+	anime, err := a.GetAnimeDetail(args[center.ArgKeyAnimeID])
+	if isAnimeNotFound(err) {
 		return center.ErrTargetMissing
 	}
-	_, err := a.downloadService.RunAnime(ctx, notificationActionRunTrigger, *anime)
+	if err != nil {
+		return err
+	}
+	_, err = a.downloadService.RunAnime(ctx, notificationActionRunTrigger, *anime)
 	return err
 }
 

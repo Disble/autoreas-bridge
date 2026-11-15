@@ -73,16 +73,17 @@ func queryFor(coverPath *string, err error) *stubAnimeQueryService {
 	return &stubAnimeQueryService{mobileAnime: &contracts.MobileAnime{ID: "anime-1", Cover: coverPath}, err: err}
 }
 
-// placeholderApp builds an App over one lookup stub and the shared cover service; a nil query leaves
-// the seam unset rather than holding a typed nil in the interface field.
+// coverResult is the smallest servable thumbnail a cover double answers.
+func coverResult() cover.ThumbnailResult {
+	return cover.ThumbnailResult{Bytes: []byte{0x01}, ETag: `"one"`}
+}
+
+// placeholderApp builds an App whose ready anime handle serves one lookup stub and the shared cover
+// service.
 func placeholderApp(t *testing.T, query *stubAnimeQueryService, fetcher cover.Fetcher) *App {
 	t.Helper()
 
-	app := &App{ctx: context.Background(), coverThumbnails: coverService(t, fetcher)}
-	if query != nil {
-		app.animeQuery = query
-	}
-	return app
+	return readyAnimeApp(animeServices{query: query, covers: coverService(t, fetcher)})
 }
 
 // TestGetAnimeCoverReturnsThumbnailJPEGDataURL proves the binding serves the shared service's
@@ -92,7 +93,10 @@ func TestGetAnimeCoverReturnsThumbnailJPEGDataURL(t *testing.T) {
 
 	url := "https://cdn.example.com/cover.jpg"
 	source := tallJPEG(t)
-	got := placeholderApp(t, queryFor(&url, nil), coverFetcher{data: source}).GetAnimeCover("anime-1")
+	got, err := placeholderApp(t, queryFor(&url, nil), coverFetcher{data: source}).GetAnimeCover("anime-1")
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
 
 	if got.Source != contracts.CoverSourceCover {
 		t.Fatalf("source = %q, want %q", got.Source, contracts.CoverSourceCover)
@@ -117,19 +121,16 @@ func TestGetAnimeCoverReturnsThumbnailJPEGDataURL(t *testing.T) {
 	}
 }
 
-// TestGetAnimeCoverPreservesPlaceholderForNilDependencies proves both nil dependencies degrade to
-// the placeholder signal instead of an error.
-func TestGetAnimeCoverPreservesPlaceholderForNilDependencies(t *testing.T) {
+// TestGetAnimeCoverPreservesPlaceholderForANilCoverService proves a ready module without a cover
+// service (no cache root) degrades to the placeholder signal instead of an error.
+func TestGetAnimeCoverPreservesPlaceholderForANilCoverService(t *testing.T) {
 	t.Parallel()
 
-	withService := placeholderApp(t, nil, coverFetcher{data: tallJPEG(t)})
 	url := "https://cdn.example.com/cover.jpg"
-	withoutService := &App{ctx: context.Background(), animeQuery: queryFor(&url, nil)}
+	app := readyAnimeApp(animeServices{query: queryFor(&url, nil)})
 
-	for name, app := range map[string]*App{"nil anime query": withService, "nil cover service": withoutService} {
-		if got := app.GetAnimeCover("anime-1"); got.Source != contracts.CoverSourcePlaceholder || got.DataURL != "" {
-			t.Fatalf("%s: got %#v, want the placeholder signal", name, got)
-		}
+	if got, err := app.GetAnimeCover("anime-1"); err != nil || got.Source != contracts.CoverSourcePlaceholder || got.DataURL != "" {
+		t.Fatalf("got %#v (err %v), want the placeholder signal", got, err)
 	}
 }
 
@@ -158,16 +159,16 @@ func TestGetAnimeCoverGuardsTheLookupAndSeamContract(t *testing.T) {
 		{name: "nil lookup never reaches the port", query: &stubAnimeQueryService{}, seam: stubCoverThumbnails{result: served}},
 		{name: "error beside bytes", query: queryFor(&url, nil), seam: stubCoverThumbnails{result: served, err: errors.New("failed anyway")}},
 		{name: "empty bytes without an error", query: queryFor(&url, nil), seam: stubCoverThumbnails{}},
-		{name: "the smallest servable body is served", query: queryFor(&url, nil), seam: stubCoverThumbnails{result: cover.ThumbnailResult{Bytes: []byte{0x01}, ETag: `"one"`}}, wantCover: true},
+		{name: "the smallest servable body is served", query: queryFor(&url, nil), seam: stubCoverThumbnails{result: coverResult()}, wantCover: true},
 	}
 	for _, tc := range cases {
 		seam := tc.seam
 		if seam == nil {
 			seam = coverService(t, tc.fetcher)
 		}
-		app := &App{ctx: context.Background(), animeQuery: tc.query, coverThumbnails: seam}
-		if got := app.GetAnimeCover("anime-1"); (got.Source == contracts.CoverSourceCover) != tc.wantCover {
-			t.Fatalf("%s: source = %q, want a cover: %v", tc.name, got.Source, tc.wantCover)
+		app := readyAnimeApp(animeServices{query: tc.query, covers: seam})
+		if got, err := app.GetAnimeCover("anime-1"); err != nil || (got.Source == contracts.CoverSourceCover) != tc.wantCover {
+			t.Fatalf("%s: source = %q (err %v), want a cover: %v", tc.name, got.Source, err, tc.wantCover)
 		}
 	}
 }

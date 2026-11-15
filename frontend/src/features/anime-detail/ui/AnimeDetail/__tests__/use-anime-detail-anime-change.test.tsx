@@ -1,9 +1,15 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as ReactRouter from 'react-router';
-import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import type { AnimeSource } from '../../../../../shared/contracts/anime-source.types';
 import type { AnimeDetail } from '../../../../../shared/contracts/anime.types';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
+import type { AnimeDetailCommandSource } from '../anime-detail.types';
 import { useAnimeDetail } from '../use-anime-detail';
+
+/** The reads and the commands the Detail page runs, as one fixture. */
+type DetailFixture = AnimeSource & AnimeDetailCommandSource;
 
 /**
  * Spy instead of `vi.mock`: with `deps.optimizer` enabled, `importOriginal`-based
@@ -26,14 +32,17 @@ const populatedDetail: AnimeDetail = {
   repetitions: [{ numRepetitions: 1, episodesWatched: 24, status: 1, repeatedAt: Date.UTC(2022, 0, 1) }],
 };
 
-/** Builds a minimal `BridgeRuntimeSource` fixture, letting each case override individual members. */
+/** Builds the anime reads and the commands as one fixture, letting each case override individual members. */
 function createSource(
-  resolvedValue: AnimeDetail | null,
-  overrides: Partial<BridgeRuntimeSource> = {},
-): BridgeRuntimeSource {
+  resolvedValue: AnimeDetail,
+  overrides: Partial<DetailFixture> = {},
+): DetailFixture {
   return {
     getAnimes: vi.fn().mockResolvedValue([]),
     getAnimeDetail: vi.fn().mockResolvedValue(resolvedValue),
+    getWatchHistoryPage: vi.fn(),
+    getAnimeWatchHistoryPage: vi.fn(),
+    getAnimeCover: vi.fn().mockResolvedValue({ source: 'placeholder' }),
     restoreAnime: vi.fn().mockResolvedValue({ status: 'ok', outcome: 'applied', modifiedAt: 1 }),
     repeatAnime: vi.fn().mockResolvedValue({ status: 'ok', outcome: 'applied', modifiedAt: 1 }),
     ...overrides,
@@ -43,17 +52,17 @@ function createSource(
 /** Pending per-anime fetches held by `createDeferredDetailSource`. */
 type DeferredById = Map<
   string,
-  { resolve: (value: AnimeDetail | null) => void; reject: (reason: unknown) => void }
+  { resolve: (value: AnimeDetail) => void; reject: (reason: unknown) => void }
 >;
 
 /** Builds a source whose detail fetch stays pending per animeId until the case settles it. */
 function createDeferredDetailSource(): {
-  source: BridgeRuntimeSource;
+  source: DetailFixture;
   deferredById: DeferredById;
 } {
   const deferredById: DeferredById = new Map();
   const getAnimeDetail = vi.fn().mockImplementation(
-    (animeId: string) => new Promise<AnimeDetail | null>((resolve, reject) => {
+    (animeId: string) => new Promise<AnimeDetail>((resolve, reject) => {
       deferredById.set(animeId, { resolve, reject });
     }),
   );
@@ -62,18 +71,19 @@ function createDeferredDetailSource(): {
 
 /** One deferred settlement: either a resolution value or a rejection reason. */
 type DeferredSettlement =
-  | { kind: 'resolve'; value: AnimeDetail | null }
+  | { kind: 'resolve'; value: AnimeDetail }
   | { kind: 'reject'; reason: unknown };
 
 /** Renders the hook for one anime without waiting; cases drive the change themselves. */
-function renderChangeHarness(source: BridgeRuntimeSource, initialId: string) {
-  return renderHook(({ animeId }: { animeId: string }) => useAnimeDetail({ animeId }, source), {
+function renderChangeHarness(source: DetailFixture, initialId: string) {
+  return renderHook(({ animeId }: { animeId: string }) => useAnimeDetail({ animeId }, source, source), {
     initialProps: { animeId: initialId },
+    ...createModulesTestWrapper({ module: 'anime', state: 'ready' }),
   });
 }
 
 /** Renders the hook and waits until the initial anime is loaded. */
-async function renderLoadedDetail(source: BridgeRuntimeSource, initialId = 'anime-1') {
+async function renderLoadedDetail(source: DetailFixture, initialId = 'anime-1') {
   const utils = renderChangeHarness(source, initialId);
   await waitFor(() => expect(utils.result.current.loadState).toBe('loaded'));
   return utils;
@@ -82,7 +92,7 @@ async function renderLoadedDetail(source: BridgeRuntimeSource, initialId = 'anim
 /** Moves to another anime and waits until its detail fetch fires. */
 async function moveToAnime(
   harness: { rerender: (props: { animeId: string }) => void },
-  source: BridgeRuntimeSource,
+  source: DetailFixture,
   targetId: string,
 ): Promise<void> {
   harness.rerender({ animeId: targetId });
@@ -111,11 +121,10 @@ function expectDroppedCommit(loadState: string, detail: unknown): void {
   expect(detail).toBeUndefined();
 }
 
-/** Returning to a dropped anime re-fires its fetch instead of showing stale state. */
-function expectRefireLoading(source: BridgeRuntimeSource, loadState: string, detail: unknown): void {
-  expect(source.getAnimeDetail).toHaveBeenCalledTimes(3);
-  expect(loadState).toBe('loading');
-  expect(detail).toBeUndefined();
+/** Returning to an anime whose read was superseded reads it again. */
+async function expectRefire(source: DetailFixture): Promise<void> {
+  await waitFor(() => expect(source.getAnimeDetail).toHaveBeenCalledTimes(3));
+  expect(source.getAnimeDetail).toHaveBeenLastCalledWith('anime-1');
 }
 
 /**
@@ -211,37 +220,48 @@ describe('useAnimeDetail anime change', () => {
     expect(openAnimePage).toHaveBeenCalledWith('anime-2');
   });
 
-  it('drops a superseded resolution so returning shows loading instead of stale detail', async () => {
+  it("never shows a superseded anime's late detail, and returning reads that anime again", async () => {
     const { source, deferredById } = createDeferredDetailSource();
     const utils = renderChangeHarness(source, 'anime-1');
+    await waitFor(() => expect(source.getAnimeDetail).toHaveBeenCalledWith('anime-1'));
 
     await moveToAnime(utils, source, 'anime-2');
     await settleDeferred(deferredById, 'anime-1', { kind: 'resolve', value: populatedDetail });
     expectDroppedCommit(utils.result.current.loadState, utils.result.current.detail);
 
     utils.rerender({ animeId: 'anime-1' });
-    expectRefireLoading(source, utils.result.current.loadState, utils.result.current.detail);
+    await expectRefire(source);
+    await settleDeferred(deferredById, 'anime-1', { kind: 'resolve', value: populatedDetail });
+    await waitFor(() => expect(utils.result.current.loadState).toBe('loaded'));
+    expect(utils.result.current.detailSource).toEqual(populatedDetail);
   });
 
-  it('drops a superseded rejection so returning shows loading instead of stale not-found', async () => {
+  it('drops a superseded rejection so returning shows loading instead of a stale failure', async () => {
     const { source, deferredById } = createDeferredDetailSource();
     const utils = renderChangeHarness(source, 'anime-1');
+    await waitFor(() => expect(source.getAnimeDetail).toHaveBeenCalledWith('anime-1'));
 
     await moveToAnime(utils, source, 'anime-2');
-    await settleDeferred(deferredById, 'anime-1', { kind: 'reject', reason: new Error('superseded fetch failed') });
+    await settleDeferred(deferredById, 'anime-1', { kind: 'reject', reason: createBridgeError('not_found', 'anime anime-1 not found') });
     expectDroppedCommit(utils.result.current.loadState, utils.result.current.detail);
 
     utils.rerender({ animeId: 'anime-1' });
-    expectRefireLoading(source, utils.result.current.loadState, utils.result.current.detail);
+    await expectRefire(source);
+    expectDroppedCommit(utils.result.current.loadState, utils.result.current.detail);
   });
 
-  it('reports not-found when the initial fetch rejects', async () => {
+  it.each([
+    ['not-found', createBridgeError('not_found', 'anime anime-1 not found'), undefined],
+    ['failure', createBridgeError('internal', 'detail unavailable'), 'detail unavailable'],
+  ])('reports %s when the initial fetch rejects with that code', async (loadState, reason, failureMessage) => {
     const { source, deferredById } = createDeferredDetailSource();
     const utils = renderChangeHarness(source, 'anime-1');
+    await waitFor(() => expect(source.getAnimeDetail).toHaveBeenCalledWith('anime-1'));
 
-    await settleDeferred(deferredById, 'anime-1', { kind: 'reject', reason: new Error('detail unavailable') });
-    await waitFor(() => expect(utils.result.current.loadState).toBe('not-found'));
+    await settleDeferred(deferredById, 'anime-1', { kind: 'reject', reason });
+    await waitFor(() => expect(utils.result.current.loadState).toBe(loadState));
 
     expect(utils.result.current.detail).toBeUndefined();
+    expect(utils.result.current.failureMessage).toBe(failureMessage);
   });
 });

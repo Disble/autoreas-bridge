@@ -2,6 +2,7 @@ import gridIcon from '@iconify-icons/tabler/layout-grid';
 import listIcon from '@iconify-icons/tabler/list';
 import { ANIME_ESTADO_FILTER_ENTRIES, ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
 import { ANIME_TIPO_FILTER_ENTRIES } from '../../../../shared/constants/anime-tipo.constants';
+import type { Anime } from '../../../../shared/contracts/anime.types';
 import type { CatalogCriteria, CatalogEmptyStateCopy, CatalogOption, CatalogSortKey, CatalogView, CatalogViewOption } from './catalog-panel.types';
 
 /**
@@ -10,6 +11,9 @@ import type { CatalogCriteria, CatalogEmptyStateCopy, CatalogOption, CatalogSort
  * as "you have no anime".
  */
 export const CATALOG_PANEL_ERROR_TITLE = 'Catalog unavailable';
+
+/** The rows the panel filters while the catalog is loading, empty or failed: one stable empty list. */
+export const CATALOG_NO_ITEMS: readonly Anime[] = [];
 
 /**
  * Feedback shown, as the accessible name of the loading status region, while

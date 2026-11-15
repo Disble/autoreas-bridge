@@ -24,10 +24,11 @@ const { mockSource } = vi.hoisted(() => {
   return { mockSource: { getAnimes: vi.fn().mockResolvedValue(animes) } };
 });
 
-vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
-  bridgeRuntimeSource: mockSource,
+vi.mock('../../../../../infrastructure/bridge-runtime-source/anime-source.helpers', () => ({
+  createAnimeSource: () => mockSource,
 }));
 
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { CatalogPanel } from '../CatalogPanel';
 
 beforeEach(() => {
@@ -51,6 +52,7 @@ describe('CatalogPanel progressive window (400 anime)', () => {
       <MemoryRouter>
         <CatalogPanel />
       </MemoryRouter>,
+      createModulesTestWrapper({ module: 'anime', state: 'ready' }),
     );
 
     await waitFor(() => expect(screen.getByRole('list', { name: 'Anime catalog' })).toBeInTheDocument());

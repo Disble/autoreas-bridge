@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as useHistoryTimelineModule from '../../../features/history/ui/HistoryTimeline/use-history-timeline';
+import { createModulesTestWrapper } from '../../../shared/query/test-support/bridge-modules.test-support';
 import { HistoryRoute } from '../HistoryRoute';
 
 /** Prints the current route so the test can read what selection, drill-down and Back wrote. */
@@ -50,6 +51,8 @@ describe('the History route URL state', () => {
           <Route element={<DetailStub />} path="/catalog/detail/:id" />
         </Routes>
       </MemoryRouter>,
+      // The inspector reads the anime module; starting keeps it on its skeleton without a binding call.
+      createModulesTestWrapper({ module: 'anime', state: 'starting' }),
     );
     const firstContainer = screen.getByTestId('history-timeline-scroll');
     const row = screen.getByRole('option', { name: /Bocchi/ });

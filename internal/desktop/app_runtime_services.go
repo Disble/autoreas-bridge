@@ -329,7 +329,15 @@ func (a *App) configureAnimeApplicationServices() *bridgeSync.ConflictStore {
 	create.SetQuery(animeQuery)
 	a.animeCreate = create
 	a.animeCreateBatch = create
+	a.bindAnimeModule()
 	return conflictService
+}
+
+// bindAnimeModule binds the anime module's read services to its handle.
+// configureAnimeApplicationServices calls it once they are built, before
+// settleModules marks the module ready, so a read that sees ready finds them.
+func (a *App) bindAnimeModule() {
+	a.moduleSet().anime.Bind(animeServices{query: a.animeQuery, watchHistory: a.watchHistoryQuery, covers: a.coverThumbnails})
 }
 
 // newAnimeWriteDeps builds shared dependencies for anime write services.

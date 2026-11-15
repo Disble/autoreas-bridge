@@ -33,11 +33,11 @@ func (s recordingCoverThumbnails) GetHTTP(context.Context, string) (cover.Thumbn
 func TestPreviewAnimeCoverServesTheTypedValueThroughTheSharedService(t *testing.T) {
 	t.Parallel()
 
-	app := &App{ctx: context.Background(), coverThumbnails: coverService(t, coverFetcher{data: tallJPEG(t)})}
-	got := app.PreviewAnimeCover("https://cdn.example.com/draft.jpg")
+	app := readyAnimeApp(animeServices{covers: coverService(t, coverFetcher{data: tallJPEG(t)})})
+	got, err := app.PreviewAnimeCover("https://cdn.example.com/draft.jpg")
 
-	if got.Source != contracts.CoverSourceCover || !strings.HasPrefix(got.DataURL, coverDataURLPrefix) {
-		t.Fatalf("preview = %#v, want a JPEG data URL cover", got)
+	if err != nil || got.Source != contracts.CoverSourceCover || !strings.HasPrefix(got.DataURL, coverDataURLPrefix) {
+		t.Fatalf("preview = %#v (err %v), want a JPEG data URL cover", got, err)
 	}
 }
 
@@ -65,10 +65,10 @@ func TestPreviewAnimeCoverDegradesToThePlaceholder(t *testing.T) {
 	}
 	for _, tc := range cases {
 		var asked []string
-		app := &App{ctx: context.Background(), coverThumbnails: recordingCoverThumbnails{result: tc.result, err: tc.err, asked: &asked}}
-		got := app.PreviewAnimeCover(tc.value)
-		if (got.Source == contracts.CoverSourceCover) != tc.wantCover {
-			t.Fatalf("%s: source = %q, want a cover: %v", tc.name, got.Source, tc.wantCover)
+		app := readyAnimeApp(animeServices{covers: recordingCoverThumbnails{result: tc.result, err: tc.err, asked: &asked}})
+		got, err := app.PreviewAnimeCover(tc.value)
+		if err != nil || (got.Source == contracts.CoverSourceCover) != tc.wantCover {
+			t.Fatalf("%s: source = %q (err %v), want a cover: %v", tc.name, got.Source, err, tc.wantCover)
 		}
 		if !tc.wantCover && got.DataURL != "" {
 			t.Fatalf("%s: placeholder carried a data URL %q", tc.name, got.DataURL)
@@ -78,7 +78,7 @@ func TestPreviewAnimeCoverDegradesToThePlaceholder(t *testing.T) {
 		}
 	}
 
-	if got := (&App{ctx: context.Background()}).PreviewAnimeCover("D:/a.jpg"); got.Source != contracts.CoverSourcePlaceholder {
-		t.Fatalf("nil cover service: source = %q, want the placeholder", got.Source)
+	if got, err := readyAnimeApp(animeServices{}).PreviewAnimeCover("D:/a.jpg"); err != nil || got.Source != contracts.CoverSourcePlaceholder {
+		t.Fatalf("nil cover service: source = %q (err %v), want the placeholder", got.Source, err)
 	}
 }

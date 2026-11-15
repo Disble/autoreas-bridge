@@ -1,9 +1,9 @@
-import { Card } from '@heroui/react';
+import { Alert, Card } from '@heroui/react';
 import { AnimeWatchHistory } from '../AnimeWatchHistory/AnimeWatchHistory';
 import { AnimeDetailMainCard } from './AnimeDetailMainCard';
 import { AnimeDetailMutationControls } from './AnimeDetailMutationControls';
 import { AnimeDetailSkeleton } from './AnimeDetailSkeleton';
-import { ANIME_DETAIL_LOADING_MESSAGE, ANIME_DETAIL_NOT_FOUND_MESSAGE } from './anime-detail.constants';
+import { ANIME_DETAIL_FAILURE_TITLE, ANIME_DETAIL_LOADING_MESSAGE, ANIME_DETAIL_NOT_FOUND_MESSAGE } from './anime-detail.constants';
 import type { AnimeDetailProps } from './anime-detail.types';
 import { useAnimeDetail } from './use-anime-detail';
 
@@ -18,6 +18,17 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
 
   if (loadState === 'not-found') {
     return <p className="text-sm text-muted">{ANIME_DETAIL_NOT_FOUND_MESSAGE}</p>;
+  }
+
+  if (loadState === 'failure') {
+    return (
+      <Alert className={props.className} status="danger">
+        <Alert.Content>
+          <Alert.Title>{ANIME_DETAIL_FAILURE_TITLE}</Alert.Title>
+          <Alert.Description>{state.failureMessage}</Alert.Description>
+        </Alert.Content>
+      </Alert>
+    );
   }
 
   if (loadState === 'loading' || detail === undefined) {
@@ -60,7 +71,7 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
           onRequestRestore={state.onRequestRestore}
         />
 
-        {detailSource === undefined || detailSource === null ? null : (
+        {detailSource === undefined ? null : (
           <Card className="mt-3">
             <Card.Content>
               <AnimeWatchHistory animeId={props.animeId} detail={detailSource} />

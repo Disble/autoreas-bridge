@@ -6,6 +6,7 @@ import {
 import { backupSource } from '../../../infrastructure/backup-source/backup-source.helpers';
 import { createActivityFeedSource } from '../../../infrastructure/bridge-runtime-source/activity-feed-source.helpers';
 import { createActivityWailsSource } from '../../../infrastructure/bridge-runtime-source/activity-source.helpers';
+import { createAnimeSource } from '../../../infrastructure/bridge-runtime-source/anime-source.helpers';
 import { createDevicesSource } from '../../../infrastructure/bridge-runtime-source/devices-source.helpers';
 import { createEpisodeDurationRuntimeSource } from '../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.helpers';
 import { createEpisodesSource } from '../../../infrastructure/bridge-runtime-source/episodes-source.helpers';
@@ -49,6 +50,11 @@ export const BRIDGE_EPISODES_SOURCE = createEpisodesSource();
 
 /** The Editor durations card's reads and commands, served by the episodes module. */
 export const BRIDGE_EPISODE_DURATIONS_SOURCE = createEpisodeDurationRuntimeSource();
+/**
+ * The anime module's reads (`GetAnimes`, `GetAnimeDetail`, the two watch-history
+ * pages, `GetAnimeCover`), for the Catalog, the anime detail page and History.
+ */
+export const BRIDGE_ANIME_SOURCE = createAnimeSource();
 
 /** The Devices page's bindings: the `api`, `devices` and `sync` modules' reads and commands. */
 export const BRIDGE_DEVICES_SOURCE = createDevicesSource();

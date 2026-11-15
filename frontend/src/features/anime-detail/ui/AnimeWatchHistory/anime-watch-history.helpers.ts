@@ -1,14 +1,15 @@
-import type { AnimeDetail, AnimeRepeticion } from '../../../../shared/contracts/anime.types';
+import type { AnimeDetail, AnimeRepeticion, AnimeWatchHistoryPageRequest } from '../../../../shared/contracts/anime.types';
+import { toAsyncView } from '../../../../shared/query/async-view/async-view.helpers';
 import {
   formatAnimeDetailProgressRatio,
   getAnimeDetailEstadoColor,
   getAnimeDetailEstadoLabel,
 } from '../AnimeDetail/anime-detail.helpers';
 import { ANIME_DETAIL_NO_DATA_LABEL, ANIME_DETAIL_UNKNOWN_LABEL } from '../AnimeDetail/anime-detail.constants';
-import { ANIME_WATCH_HISTORY_SPAN_SEPARATOR } from './anime-watch-history.constants';
+import { ANIME_WATCH_HISTORY_SPAN_SEPARATOR, ANIME_WATCH_NO_ENTRIES } from './anime-watch-history.constants';
 import { WATCH_HISTORY_LOG_START_MS } from '../../../../shared/watch-history/watch-history.constants';
 import { formatCompactDateRange, formatDayHeading, formatEpisodeCount, formatShortDate } from '../../../../shared/watch-history/watch-history.helpers';
-import type { AnimeWatchSummary, AnimeWatchViewModel } from './anime-watch-history.types';
+import type { AnimeWatchEpisodePages, AnimeWatchEpisodePagesInput, AnimeWatchSummary, AnimeWatchViewModel } from './anime-watch-history.types';
 
 /**
  * Ends a past watch at the most authoritative recorded date: the deletion
@@ -128,4 +129,43 @@ export function formatAnimeWatchHistorySubtitle(watchCount: number, logStartMs: 
   const watches = watchCount === 1 ? '1 watch' : `${watchCount} watches`;
 
   return `${watches} · episodes recorded since ${formatDayHeading(logStartMs)}`;
+}
+
+/**
+ * Builds the anime-scoped page request for one anime, watch cycle and keyset
+ * cursor (`cycle: 0` means every cycle).
+ *
+ * @param animeId The anime whose log is read.
+ * @param cycle The watch cycle, `0` for every cycle.
+ * @param cursor The keyset cursor, `''` for the first page.
+ * @returns The page request.
+ */
+export function buildAnimeWatchEpisodesRequest(animeId: string, cycle: number, cursor: string): AnimeWatchHistoryPageRequest {
+  return { animeId, cycle, cursor, limit: 0 };
+}
+
+/**
+ * Derives what the episode list shows: another scope's page still shown, a
+ * pending read, or a collapsed list that never loaded shows no rows, loading
+ * only while enabled (also while the anime module starts); a first-page failure
+ * surfaces as `error` with no rows (design D9); otherwise the first page's
+ * rows, or the older pages loaded below this same request and first-page load.
+ * A collapsed list keeps the rows it loaded.
+ *
+ * @param input Whether the list is enabled, its first-page query and its older pages.
+ * @returns The rows, the loading and failure state and the next cursor.
+ */
+export function toAnimeWatchEpisodePages({ isEnabled, firstPage, older, requestKey }: AnimeWatchEpisodePagesInput): AnimeWatchEpisodePages {
+  const view = toAsyncView(firstPage, () => false);
+  if (view.kind === 'failure') {
+    return { entries: ANIME_WATCH_NO_ENTRIES, isLoading: false, error: new Error(view.message), cursor: undefined };
+  }
+  if (view.kind !== 'ready' || firstPage.isPlaceholderData) {
+    return { entries: ANIME_WATCH_NO_ENTRIES, isLoading: isEnabled, error: undefined, cursor: undefined };
+  }
+
+  const continues = older?.requestKey === requestKey && older?.firstPageAt === firstPage.dataUpdatedAt;
+  return continues && older !== undefined
+    ? { entries: older.entries, isLoading: false, error: undefined, cursor: older.nextCursor }
+    : { entries: view.data.items, isLoading: false, error: undefined, cursor: view.data.nextCursor };
 }

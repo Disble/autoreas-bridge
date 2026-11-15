@@ -150,6 +150,23 @@ describe('AnimeDetail', () => {
     render(<AnimeDetail animeId="missing-id" />);
 
     expect(screen.getByText('Anime not found.')).toBeInTheDocument();
+    expect(screen.queryByText('Anime detail unavailable')).not.toBeInTheDocument();
+  });
+
+  it('renders the failure alert with its reason, never a skeleton or not-found, when loadState is failure', () => {
+    useAnimeDetailMock.mockReturnValue({
+      loadState: 'failure',
+      failureMessage: 'anime: bridge database failed to open',
+      detail: undefined,
+      onPortadaError: vi.fn(),
+    });
+
+    render(<AnimeDetail animeId="anime-1" />);
+
+    expect(screen.getByText('Anime detail unavailable')).toBeInTheDocument();
+    expect(screen.getByText('anime: bridge database failed to open')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByText('Anime not found.')).not.toBeInTheDocument();
   });
 
   it('renders the name as the page h1 with the type alone, then the estado and status chips', () => {

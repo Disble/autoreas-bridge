@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"autoreas-bridge/internal/api"
+	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/apperr"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
@@ -98,6 +99,16 @@ type observabilityServices struct {
 	syncDiagnostics *telemetry.Reader
 }
 
+// animeServices are the services the anime module's read bindings use: the anime
+// query, the watch-history reader and the cover thumbnails. covers stays nil when
+// the platform has no cache root; the cover bindings then answer the placeholder.
+// bindAnimeModule binds them before configureRuntimeServices marks the module ready.
+type animeServices struct {
+	query        contracts.AnimeQueryService
+	watchHistory watchHistoryReader
+	covers       coverThumbnails
+}
+
 // episodeServices are the services the episodes module's migrated bindings use:
 // the episode service and the bridge database the durations editor reads and
 // writes. wireEpisodeServiceWithWriter binds them before configureRuntimeServices
@@ -151,6 +162,7 @@ type appModules struct {
 	writer        *lifecycle.Writer
 	shell         *modules.Shell
 	backup        *modules.Handle[backupServices]
+	anime         *modules.Handle[animeServices]
 	episodes      *modules.Handle[episodeServices]
 	api           *modules.Handle[apiServices]
 	sync          *modules.Handle[syncServices]
@@ -169,6 +181,7 @@ func (a *App) moduleSet() *appModules {
 		a.modules.writer.Register(registeredModules...)
 		a.modules.shell = modules.NewShell(a.shellServices())
 		a.modules.backup = modules.NewHandle[backupServices](moduleBackup, a.modules.registry)
+		a.modules.anime = modules.NewHandle[animeServices](moduleAnime, a.modules.registry)
 		a.modules.episodes = modules.NewHandle[episodeServices](moduleEpisodes, a.modules.registry)
 		a.modules.api = modules.NewHandle[apiServices](moduleAPI, a.modules.registry)
 		a.modules.sync = modules.NewHandle[syncServices](moduleSync, a.modules.registry)

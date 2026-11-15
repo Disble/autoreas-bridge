@@ -1,58 +1,52 @@
-import { useEffect, useMemo, useState } from 'react';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
-import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
-import type { Anime } from '../../../../shared/contracts/anime.types';
-import { resolveHistoryAnimeScope } from './history-timeline.helpers';
+import { useMemo } from 'react';
+import type { AnimeSource } from '../../../../shared/contracts/anime-source.types';
+import { BRIDGE_ANIME_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { ANIME_LIST_KEY } from '../../../../shared/query/query-keys/query-keys.constants';
+import { useBridgeQuery } from '../../../../shared/query/use-bridge-query/use-bridge-query';
+import { resolveHistoryAnimeScope, toHistoryCatalogLoad } from './history-timeline.helpers';
 import type { HistoryAnimeScopeLoadState } from './history-timeline.types';
 
 /**
- * Loads the anime catalog via `getAnimes()` once per History visit and
- * resolves the active Status/Type filter against it (design D2), so
- * `useHistoryTimeline` itself only has to read the result. Returns
- * `undefined` until the catalog has resolved. A rejection remains an explicit
- * error, so the History surface never renders a failed read as empty.
+ * Reads the anime catalog through the `anime` module (the catalog query the
+ * Catalog screen shares) and resolves the active Status/Type filter against it
+ * (design D2), so `useHistoryTimeline` itself only has to read the result.
+ * Returns `undefined` until the catalog has resolved, also while the module
+ * starts. A failed read remains an explicit error, so the History surface never
+ * renders a failed read as empty.
+ *
+ * @param status The active Status filter, or `undefined` for "All".
+ * @param type The active Type filter, or `undefined` for "All".
+ * @param source The anime port the catalog is read through.
+ * @returns The catalog, the resolved scope and the failure.
  */
 export function useHistoryAnimeScope(
   status: number | undefined,
   type: number | undefined,
-  source: BridgeRuntimeSource = bridgeRuntimeSource,
+  source: AnimeSource = BRIDGE_ANIME_SOURCE,
 ): HistoryAnimeScopeLoadState {
+  // 1. Refs
+
   // 2. State
-  const [catalog, setCatalog] = useState<readonly Anime[] | undefined>(undefined);
-  const [error, setError] = useState<Error | undefined>(undefined);
+
+  // 3. Context/3rd Party Hooks
+
+  // 4. Queries/Mutations
+  const query = useBridgeQuery({ queryKey: ANIME_LIST_KEY, queryFn: () => source.getAnimes(), module: 'anime' });
 
   // 5. Derived State (useMemo)
+  const { status: queryStatus, data, error: queryError } = query;
+  const { catalog, error } = useMemo(
+    () => toHistoryCatalogLoad({ status: queryStatus, data, error: queryError, isFetching: false }),
+    [queryStatus, data, queryError],
+  );
   const scope = useMemo(
     () => (catalog === undefined ? undefined : resolveHistoryAnimeScope(catalog, status, type)),
     [catalog, status, type],
   );
 
+  // 6. Callbacks (useCallback calling pure helpers)
+
   // 7. Effects
-  useEffect(() => {
-    let isActive = true;
-
-    source
-      .getAnimes()
-      .then((items) => {
-        if (isActive) {
-          setCatalog(items);
-          setError(undefined);
-        }
-      })
-      .catch((reason: unknown) => {
-        if (isActive) {
-          setError(reason instanceof Error ? reason : new Error('Anime catalog request failed'));
-        }
-      });
-
-    return () => {
-      isActive = false;
-    };
-    // Loads once per History visit (design D2). `source` is intentionally NOT
-    // listed: loading once per mount must not, by itself, depend on a fake
-    // swapped mid-test.
-    // eslint-disable-next-line react-doctor/exhaustive-deps
-  }, []);
 
   return { catalog, scope, error };
 }

@@ -1,19 +1,20 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { BridgeRuntimeSource } from '../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import { createModulesTestWrapper } from '../../query/test-support/bridge-modules.test-support';
+import type { AnimeCoverSource } from '../anime-cover.types';
 import { useAnimeCover } from '../use-anime-cover';
 
 /**
- * Minimal `BridgeRuntimeSource` fixture (mirrors `use-anime-detail.test.tsx`'s
- * own `createSource`): every required member stubbed, `getAnimeCover`
- * overridable so a case can omit it entirely to exercise the degrade path.
+ * Minimal cover port fixture: `getAnimeCover` overridable so a case can omit
+ * it entirely to exercise the degrade path.
  */
-function createSource(overrides: Partial<BridgeRuntimeSource> = {}): BridgeRuntimeSource {
-  return {
-    getAnimes: vi.fn(),
-    getAnimeDetail: vi.fn(),
-    ...overrides,
-  };
+function createSource(overrides: AnimeCoverSource = {}): AnimeCoverSource {
+  return { ...overrides };
+}
+
+/** A query wrapper whose `anime` module is ready. */
+function readyAnime() {
+  return createModulesTestWrapper({ module: 'anime', state: 'ready' });
 }
 
 describe('useAnimeCover', () => {
@@ -21,27 +22,44 @@ describe('useAnimeCover', () => {
     const getAnimeCover = vi.fn();
     const source = createSource({ getAnimeCover });
 
-    const { result } = renderHook(() => useAnimeCover('anime-1', false, source));
+    const { result } = renderHook(() => useAnimeCover('anime-1', false, source), readyAnime());
 
     expect(result.current).toEqual({ status: 'placeholder' });
     expect(getAnimeCover).not.toHaveBeenCalled();
   });
 
-  it('calls getAnimeCover and reports loading while the request is pending', () => {
+  it('calls getAnimeCover and reports loading while the request is pending', async () => {
     const getAnimeCover = vi.fn().mockReturnValue(new Promise(() => {}));
     const source = createSource({ getAnimeCover });
 
-    const { result } = renderHook(() => useAnimeCover('anime-1', true, source));
+    const { result } = renderHook(() => useAnimeCover('anime-1', true, source), readyAnime());
 
     expect(result.current).toEqual({ status: 'loading' });
-    expect(getAnimeCover).toHaveBeenCalledWith('anime-1');
+    await waitFor(() => expect(getAnimeCover).toHaveBeenCalledWith('anime-1'));
+    expect(result.current).toEqual({ status: 'loading' });
+  });
+
+  it('stays loading without calling the binding while the anime module is starting', async () => {
+    const getAnimeCover = vi.fn().mockResolvedValue({ source: 'cover', dataUrl: 'data:a' });
+    const { wrapper, emit } = createModulesTestWrapper({ module: 'anime', state: 'starting' });
+
+    const { result } = renderHook(() => useAnimeCover('anime-1', true, createSource({ getAnimeCover })), { wrapper });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current).toEqual({ status: 'loading' });
+    expect(getAnimeCover).not.toHaveBeenCalled();
+
+    act(() => emit({ module: 'anime', state: 'ready' }));
+    await waitFor(() => expect(result.current).toEqual({ status: 'cover', dataUrl: 'data:a' }));
   });
 
   it('resolves to the cover entry when the binding reports source: cover', async () => {
     const getAnimeCover = vi.fn().mockResolvedValue({ source: 'cover', dataUrl: 'data:image/png;base64,abc' });
     const source = createSource({ getAnimeCover });
 
-    const { result } = renderHook(() => useAnimeCover('anime-1', true, source));
+    const { result } = renderHook(() => useAnimeCover('anime-1', true, source), readyAnime());
 
     await waitFor(() => expect(result.current).toEqual({ status: 'cover', dataUrl: 'data:image/png;base64,abc' }));
   });
@@ -50,7 +68,7 @@ describe('useAnimeCover', () => {
     const getAnimeCover = vi.fn().mockResolvedValue({ source: 'placeholder' });
     const source = createSource({ getAnimeCover });
 
-    const { result } = renderHook(() => useAnimeCover('anime-1', true, source));
+    const { result } = renderHook(() => useAnimeCover('anime-1', true, source), readyAnime());
 
     await waitFor(() => expect(result.current).toEqual({ status: 'placeholder' }));
   });
@@ -59,7 +77,7 @@ describe('useAnimeCover', () => {
     const getAnimeCover = vi.fn().mockResolvedValue({ source: 'cover' });
     const source = createSource({ getAnimeCover });
 
-    const { result } = renderHook(() => useAnimeCover('anime-1', true, source));
+    const { result } = renderHook(() => useAnimeCover('anime-1', true, source), readyAnime());
 
     await waitFor(() => expect(result.current).toEqual({ status: 'placeholder' }));
   });
@@ -68,7 +86,7 @@ describe('useAnimeCover', () => {
     const getAnimeCover = vi.fn().mockResolvedValue({ source: 'unknown', dataUrl: 'data:image/png;base64,abc' });
     const source = createSource({ getAnimeCover });
 
-    const { result } = renderHook(() => useAnimeCover('anime-1', true, source));
+    const { result } = renderHook(() => useAnimeCover('anime-1', true, source), readyAnime());
 
     await waitFor(() => expect(result.current).toEqual({ status: 'placeholder' }));
   });
@@ -77,7 +95,7 @@ describe('useAnimeCover', () => {
     const getAnimeCover = vi.fn().mockRejectedValue(new Error('boom'));
     const source = createSource({ getAnimeCover });
 
-    const { result } = renderHook(() => useAnimeCover('anime-1', true, source));
+    const { result } = renderHook(() => useAnimeCover('anime-1', true, source), readyAnime());
 
     await waitFor(() => expect(result.current).toEqual({ status: 'placeholder' }));
   });
@@ -88,7 +106,7 @@ describe('useAnimeCover', () => {
     });
     const source = createSource({ getAnimeCover });
 
-    const { result } = renderHook(() => useAnimeCover('anime-1', true, source));
+    const { result } = renderHook(() => useAnimeCover('anime-1', true, source), readyAnime());
 
     await waitFor(() => expect(result.current).toEqual({ status: 'placeholder' }));
   });
@@ -96,7 +114,7 @@ describe('useAnimeCover', () => {
   it('degrades to the placeholder without ever fetching when getAnimeCover is absent from the source', () => {
     const source = createSource({ getAnimeCover: undefined });
 
-    const { result } = renderHook(() => useAnimeCover('anime-1', true, source));
+    const { result } = renderHook(() => useAnimeCover('anime-1', true, source), readyAnime());
 
     expect(result.current).toEqual({ status: 'placeholder' });
   });
@@ -106,14 +124,12 @@ describe('useAnimeCover', () => {
     const first = new Promise<{ readonly source: string; readonly dataUrl?: string }>((resolve) => {
       resolveFirst = resolve;
     });
-    const getAnimeCover = vi.fn()
-      .mockImplementationOnce(() => first)
-      .mockResolvedValueOnce({ source: 'cover', dataUrl: 'data:second' });
+    const getAnimeCover = vi.fn((animeId: string) => (animeId === 'anime-1' ? first : Promise.resolve({ source: 'cover', dataUrl: 'data:second' })));
     const source = createSource({ getAnimeCover });
 
     const { rerender, result } = renderHook(
       ({ animeId }: { animeId: string }) => useAnimeCover(animeId, true, source),
-      { initialProps: { animeId: 'anime-1' } },
+      { initialProps: { animeId: 'anime-1' }, ...readyAnime() },
     );
 
     rerender({ animeId: 'anime-2' });
@@ -132,14 +148,12 @@ describe('useAnimeCover', () => {
     const first = new Promise<{ readonly source: string; readonly dataUrl?: string }>((_resolve, reject) => {
       rejectFirst = reject;
     });
-    const getAnimeCover = vi.fn()
-      .mockImplementationOnce(() => first)
-      .mockResolvedValueOnce({ source: 'cover', dataUrl: 'data:second' });
+    const getAnimeCover = vi.fn((animeId: string) => (animeId === 'anime-1' ? first : Promise.resolve({ source: 'cover', dataUrl: 'data:second' })));
     const source = createSource({ getAnimeCover });
 
     const { rerender, result } = renderHook(
       ({ animeId }: { animeId: string }) => useAnimeCover(animeId, true, source),
-      { initialProps: { animeId: 'anime-1' } },
+      { initialProps: { animeId: 'anime-1' }, ...readyAnime() },
     );
 
     rerender({ animeId: 'anime-2' });

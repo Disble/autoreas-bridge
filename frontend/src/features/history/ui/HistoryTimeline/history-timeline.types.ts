@@ -1,5 +1,6 @@
 import type { UIEvent } from 'react';
-import type { Anime, WatchHistoryEntry } from '../../../../shared/contracts/anime.types';
+import type { Anime, WatchHistoryEntry, WatchHistoryPage } from '../../../../shared/contracts/anime.types';
+import type { AsyncViewSource } from '../../../../shared/query/async-view/async-view.types';
 import type { HistoryDayGroup } from '../../../../shared/watch-history/watch-history.types';
 import type { HistoryAnimeScope, HistoryParams } from '../HistoryFilterBar/history-filter-bar.types';
 
@@ -20,11 +21,61 @@ export interface HistoryTimelineGroup extends Omit<HistoryDayGroup, 'entries'> {
   readonly entries: readonly HistoryTimelineEntry[];
 }
 
+/** The catalog read as History consumes it: the loaded rows, or the failure. */
+export interface HistoryCatalogLoad {
+  /** The loaded catalog; undefined while loading or after a failure. */
+  readonly catalog: readonly Anime[] | undefined;
+  /** The failure to show; set only when the read failed. */
+  readonly error: Error | undefined;
+}
+
 /** Result of resolving the catalog-backed Status and Type filter scope. */
 export interface HistoryAnimeScopeLoadState {
   readonly catalog: readonly Anime[] | undefined;
   readonly scope: HistoryAnimeScope | undefined;
   readonly error: Error | undefined;
+}
+
+/** The first-page query as the timeline reads it (a `useBridgeQuery` result fits it). */
+export type HistoryFirstPage = AsyncViewSource<WatchHistoryPage> & {
+  /** True while the previous request's page is still shown for a new request. */
+  readonly isPlaceholderData: boolean;
+  /** When the first page last loaded; older pages belong to that load only. */
+  readonly dataUpdatedAt: number;
+};
+
+/** The older keyset pages loaded below one first page, for one request and one first-page load. */
+export interface HistoryOlderPages {
+  /** The JSON of the first-page request the older pages continue. */
+  readonly requestKey: string;
+  /** The `dataUpdatedAt` of the first page they continue. */
+  readonly firstPageAt: number;
+  /** Every row shown: the first page's, then the older pages', oldest page last. */
+  readonly entries: readonly WatchHistoryEntry[];
+  /** The cursor of the next older page; undefined when there is none or paging stopped on a failure. */
+  readonly nextCursor: string | undefined;
+}
+
+/** Everything `toHistoryTimelinePages` reads. */
+export interface HistoryTimelinePagesInput {
+  /** The catalog load failure, which fails the whole timeline. */
+  readonly catalogError: Error | undefined;
+  /** The resolved Status/Type scope; undefined until the catalog loads. */
+  readonly scope: HistoryAnimeScope | undefined;
+  readonly firstPage: HistoryFirstPage;
+  readonly older: HistoryOlderPages | undefined;
+  /** The JSON of the current first-page request; undefined when no page is read. */
+  readonly requestKey: string | undefined;
+}
+
+/** What the timeline shows for one request: its rows, its loading and failure state, and the next cursor. */
+export interface HistoryTimelinePages {
+  /** Every row shown, which a next page extends. */
+  readonly entries: readonly WatchHistoryEntry[];
+  readonly isLoading: boolean;
+  readonly error: Error | undefined;
+  /** The cursor `fetchNextPage` reads next; undefined when there is no further page. */
+  readonly cursor: string | undefined;
 }
 
 /** Selection state `useHistorySelection` derives from the URL for the History `ListBox` (design D5, D7). */

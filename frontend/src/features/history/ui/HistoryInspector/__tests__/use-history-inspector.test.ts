@@ -1,8 +1,11 @@
 import { createElement } from "react";
 import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { BridgeRuntimeSource } from "../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types";
-import type { AnimeDetail, AnimeWatchHistoryPageRequest, WatchHistoryEntry } from "../../../../../shared/contracts/anime.types";
+import type { AnimeSource } from "../../../../../shared/contracts/anime-source.types";
+import type { AnimeDetail, AnimeWatchHistoryPageRequest, WatchHistoryEntry, WatchHistoryPage } from "../../../../../shared/contracts/anime.types";
+import type { ModuleReadiness } from "../../../../../shared/contracts/readiness.types";
+import { createBridgeError } from "../../../../../shared/query/bridge-error/bridge-error.helpers";
+import { createModulesTestWrapper } from "../../../../../shared/query/test-support/bridge-modules.test-support";
 import { useHistoryInspector } from "../use-history-inspector";
 
 /** Builds the smallest detail fixture the inspector hook resolves. */
@@ -21,14 +24,14 @@ function detail(overrides: Partial<AnimeDetail> = {}): AnimeDetail {
   };
 }
 
-/** Builds a runtime source with a caller-controlled detail read. */
-function createSource(
-  getAnimeDetail: BridgeRuntimeSource["getAnimeDetail"],
-  overrides: Partial<BridgeRuntimeSource> = {},
-): BridgeRuntimeSource {
+/** Builds an anime source with a caller-controlled detail read; the recent page answers no rows by default. */
+function createSource(getAnimeDetail: AnimeSource["getAnimeDetail"], overrides: Partial<AnimeSource> = {}): AnimeSource {
   return {
     getAnimes: vi.fn(),
     getAnimeDetail,
+    getWatchHistoryPage: vi.fn(),
+    getAnimeWatchHistoryPage: vi.fn().mockResolvedValue({ status: "ok", items: [] }),
+    getAnimeCover: vi.fn().mockResolvedValue({ source: "placeholder" }),
     ...overrides,
   };
 }
@@ -46,29 +49,38 @@ function episodeRow(animeId: string, episode: number): WatchHistoryEntry {
   };
 }
 
+/**
+ * Renders the hook for one selection inside a query wrapper reporting the `anime` module.
+ * @param source The anime source the hook reads.
+ * @param animeId The initial selection.
+ * @param anime The `anime` module's readiness.
+ * @returns The rendered hook and `emit`, which pushes a readiness change.
+ */
+function renderInspector(source: AnimeSource, animeId: string | undefined, anime: ModuleReadiness = { module: "anime", state: "ready" }) {
+  const { wrapper, emit } = createModulesTestWrapper(anime);
+  const rendered = renderHook(
+    (props: { readonly animeId: string | undefined }) => useHistoryInspector({ animeId: props.animeId }, source),
+    { initialProps: { animeId }, wrapper },
+  );
+  return { ...rendered, emit };
+}
+
 describe("useHistoryInspector", () => {
-  it("stays on prompt without an animeId and spends no binding call", () => {
-    const getAnimeDetail = vi.fn().mockResolvedValue(detail());
-    const getAnimeWatchHistoryPage = vi.fn();
-    // Hoisted: an inline source refires every effect per render; the cover
-    // hook's placeholder reset would then loop synchronously until OOM.
-    const source = createSource(getAnimeDetail, { getAnimeWatchHistoryPage });
-    const { result } = renderHook(() =>
-      useHistoryInspector({ animeId: undefined }, source),
-    );
+  it("stays on prompt without an animeId and spends no binding call", async () => {
+    const source = createSource(vi.fn().mockResolvedValue(detail()));
+    const { result } = renderInspector(source, undefined);
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     expect(result.current.status).toBe("prompt");
     expect(result.current.recentEpisodes).toEqual([]);
-    expect(getAnimeDetail).not.toHaveBeenCalled();
-    expect(getAnimeWatchHistoryPage).not.toHaveBeenCalled();
+    expect(source.getAnimeDetail).not.toHaveBeenCalled();
+    expect(source.getAnimeWatchHistoryPage).not.toHaveBeenCalled();
   });
 
   it("reads loading with no episodes while the detail resolves", () => {
-    // Hoisted: see above.
-    const source = createSource(vi.fn().mockReturnValue(new Promise<AnimeDetail | null>(() => {})));
-    const { result } = renderHook(() =>
-      useHistoryInspector({ animeId: "anime-1" }, source),
-    );
+    const { result } = renderInspector(createSource(vi.fn().mockReturnValue(new Promise<AnimeDetail>(() => {}))), "anime-1");
 
     expect(result.current.status).toBe("loading");
     expect(result.current.detail).toBeUndefined();
@@ -76,9 +88,7 @@ describe("useHistoryInspector", () => {
   });
 
   it("paints no episodes on the very first commit while loading", () => {
-    // The line-99 reset overwrites the initial rows in the same act cycle,
-    // so only a first-commit probe can tell a seeded initial state apart.
-    const source = createSource(vi.fn().mockReturnValue(new Promise<AnimeDetail | null>(() => {})));
+    const source = createSource(vi.fn().mockReturnValue(new Promise<AnimeDetail>(() => {})));
     let firstPaint: readonly WatchHistoryEntry[] | undefined;
     /** Captures the hook state of the very first commit, before effects flush. */
     function Probe(): null {
@@ -89,44 +99,49 @@ describe("useHistoryInspector", () => {
       return null;
     }
 
-    render(createElement(Probe));
+    render(createElement(Probe), createModulesTestWrapper({ module: "anime", state: "ready" }));
 
     expect(firstPaint).toEqual([]);
   });
 
+  it("stays loading without reading while the anime module starts, then resolves once ready", async () => {
+    const source = createSource(vi.fn().mockResolvedValue(detail()));
+    const { result, emit } = renderInspector(source, "anime-1", { module: "anime", state: "starting" });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current.status).toBe("loading");
+    expect(source.getAnimeDetail).not.toHaveBeenCalled();
+
+    act(() => emit({ module: "anime", state: "ready" }));
+    await waitFor(() => expect(result.current.status).toBe("content"));
+  });
+
   it("resolves content with the detail-derived dates", async () => {
-    // Hoisted: see above.
     const source = createSource(vi.fn().mockResolvedValue(detail({
       lastWatchedAt: new Date(2026, 8, 10, 10, 0, 0).getTime(),
       createdAt: new Date(2026, 6, 31, 12, 0, 0).getTime(),
     })));
-    const { result } = renderHook(() =>
-      useHistoryInspector({ animeId: "anime-1" }, source),
-    );
+    const { result } = renderInspector(source, "anime-1");
 
     await waitFor(() => expect(result.current.status).toBe("content"));
 
+    expect(source.getAnimeDetail).toHaveBeenCalledWith("anime-1");
     expect(result.current.detail?.name).toBe("Frieren");
     expect(result.current.lastWatchedMs).toBe(new Date(2026, 8, 10, 10, 0, 0).getTime());
     expect(result.current.addedMs).toBe(new Date(2026, 6, 31, 12, 0, 0).getTime());
   });
 
   it("ignores a superseded animeId's late response", async () => {
-    let resolveFirst!: (value: AnimeDetail | null) => void;
-    const getAnimeDetail = vi
-      .fn()
-      .mockImplementationOnce(
-        () => new Promise<AnimeDetail | null>((resolve) => { resolveFirst = resolve; }),
-      )
-      .mockImplementationOnce(() => Promise.resolve(detail({ id: "anime-2", name: "Bocchi the Rock" })));
-    // Hoisted: a fresh wrapper per render would refetch on every snapshot
-    // update and exhaust the two planned reads.
-    const source = createSource(getAnimeDetail);
-    const { result, rerender } = renderHook(
-      ({ animeId }: { readonly animeId: string }) =>
-        useHistoryInspector({ animeId }, source),
-      { initialProps: { animeId: "anime-1" } },
+    let resolveFirst!: (value: AnimeDetail) => void;
+    const getAnimeDetail = vi.fn((animeId: string) =>
+      animeId === "anime-1"
+        ? new Promise<AnimeDetail>((resolve) => { resolveFirst = resolve; })
+        : Promise.resolve(detail({ id: "anime-2", name: "Bocchi the Rock" })),
     );
+    const { result, rerender } = renderInspector(createSource(getAnimeDetail), "anime-1");
+    await waitFor(() => expect(getAnimeDetail).toHaveBeenCalledWith("anime-1"));
 
     rerender({ animeId: "anime-2" });
     resolveFirst(detail({ id: "anime-1", name: "Frieren" }));
@@ -137,33 +152,32 @@ describe("useHistoryInspector", () => {
   });
 
   it.each([
-    ["a null detail", vi.fn().mockResolvedValue(null)],
-    ["a rejected detail read", vi.fn().mockRejectedValue(new Error("detail unavailable"))],
-  ])("surfaces an error on %s", async (_label, getAnimeDetail) => {
-    // Hoisted: see above.
-    const source = createSource(getAnimeDetail);
-    const { result } = renderHook(() =>
-      useHistoryInspector({ animeId: "anime-1" }, source),
-    );
+    ["an unknown anime", createBridgeError("not_found", "anime anime-1 not found")],
+    ["a failed detail read", createBridgeError("internal", "detail unavailable")],
+  ])("surfaces an error on %s", async (_label, rejection) => {
+    const { result } = renderInspector(createSource(vi.fn().mockRejectedValue(rejection)), "anime-1");
 
     await waitFor(() => expect(result.current.status).toBe("error"));
+    expect(result.current.detail).toBeUndefined();
+  });
+
+  it("surfaces an error, without reading, when the anime module failed", async () => {
+    const source = createSource(vi.fn().mockResolvedValue(detail()));
+    const { result } = renderInspector(source, "anime-1", { module: "anime", state: "failed", reason: "anime: db closed" });
+
+    await waitFor(() => expect(result.current.status).toBe("error"));
+    expect(source.getAnimeDetail).not.toHaveBeenCalled();
   });
 
   it("calls getAnimeCover only with a stored cover path and surfaces the resolved cover", async () => {
     const getAnimeCover = vi.fn().mockResolvedValue({ source: "cover", dataUrl: "data:image/png;base64,abc" });
-    // Hoisted: an inline source would refetch on every snapshot update.
-    const source = createSource(
-      vi.fn().mockResolvedValue(detail({ cover: "covers/frieren.jpg" })),
-      { getAnimeCover },
-    );
-    const { result } = renderHook(() =>
-      useHistoryInspector({ animeId: "anime-1" }, source),
-    );
+    const source = createSource(vi.fn().mockResolvedValue(detail({ cover: "covers/frieren.jpg" })), { getAnimeCover });
+    const { result } = renderInspector(source, "anime-1");
 
-    await waitFor(() => expect(result.current.status).toBe("content"));
+    await waitFor(() => expect(result.current.cover).toEqual({ status: "cover", dataUrl: "data:image/png;base64,abc" }));
 
     expect(getAnimeCover).toHaveBeenCalledWith("anime-1");
-    expect(result.current.cover).toEqual({ status: "cover", dataUrl: "data:image/png;base64,abc" });
+    expect(result.current.status).toBe("content");
   });
 
   it.each([
@@ -172,14 +186,8 @@ describe("useHistoryInspector", () => {
     ["a missing stored path", undefined],
   ])("never calls getAnimeCover on %s and stays on the placeholder", async (_label, cover) => {
     const getAnimeCover = vi.fn();
-    // Hoisted: an inline source would refetch on every snapshot update.
-    const source = createSource(
-      vi.fn().mockResolvedValue(detail({ cover })),
-      { getAnimeCover },
-    );
-    const { result } = renderHook(() =>
-      useHistoryInspector({ animeId: "anime-1" }, source),
-    );
+    const source = createSource(vi.fn().mockResolvedValue(detail({ cover })), { getAnimeCover });
+    const { result } = renderInspector(source, "anime-1");
 
     await waitFor(() => expect(result.current.status).toBe("content"));
 
@@ -190,66 +198,37 @@ describe("useHistoryInspector", () => {
   it("fetches the 3 most recent episodes for the selected anime", async () => {
     const rows = [episodeRow("anime-1", 8), episodeRow("anime-1", 7), episodeRow("anime-1", 6)];
     const getAnimeWatchHistoryPage = vi.fn().mockResolvedValue({ status: "ok", items: rows });
-    // Hoisted: an inline source would refetch on every snapshot update.
-    const source = createSource(
-      vi.fn().mockResolvedValue(detail()),
-      { getAnimeWatchHistoryPage },
-    );
-    const { result } = renderHook(() =>
-      useHistoryInspector({ animeId: "anime-1" }, source),
-    );
+    const { result } = renderInspector(createSource(vi.fn().mockResolvedValue(detail()), { getAnimeWatchHistoryPage }), "anime-1");
 
-    await waitFor(() => expect(result.current.status).toBe("content"));
+    await waitFor(() => expect(result.current.recentEpisodes).toEqual(rows));
 
     expect(getAnimeWatchHistoryPage).toHaveBeenCalledWith({ animeId: "anime-1", cycle: 0, cursor: "", limit: 3 });
-    expect(result.current.recentEpisodes).toEqual(rows);
+    expect(result.current.status).toBe("content");
   });
 
-  it("ignores a superseded animeId's late episodes page", async () => {    let resolveFirst!: (value: { readonly status: string; readonly items: readonly WatchHistoryEntry[] }) => void;
-    const getAnimeWatchHistoryPage = vi
-      .fn()
-      .mockImplementationOnce(
-        () => new Promise<{ readonly status: string; readonly items: readonly WatchHistoryEntry[] }>((resolve) => { resolveFirst = resolve; }),
-      )
-      .mockImplementationOnce(() => Promise.resolve({ status: "ok", items: [episodeRow("anime-2", 3)] }));
-    const source = createSource(
-      vi.fn().mockImplementation((animeId: string) => Promise.resolve(detail({ id: animeId }))),
-      { getAnimeWatchHistoryPage },
+  it("ignores a superseded animeId's late episodes page", async () => {
+    let resolveFirst!: (value: WatchHistoryPage) => void;
+    const getAnimeWatchHistoryPage = vi.fn((request: AnimeWatchHistoryPageRequest) =>
+      request.animeId === "anime-1"
+        ? new Promise<WatchHistoryPage>((resolve) => { resolveFirst = resolve; })
+        : Promise.resolve({ status: "ok", items: [episodeRow("anime-2", 3)] }),
     );
-    const { result, rerender } = renderHook(
-      ({ animeId }: { readonly animeId: string }) =>
-        useHistoryInspector({ animeId }, source),
-      { initialProps: { animeId: "anime-1" } },
-    );
+    const source = createSource(vi.fn((animeId: string) => Promise.resolve(detail({ id: animeId }))), { getAnimeWatchHistoryPage });
+    const { result, rerender } = renderInspector(source, "anime-1");
+    await waitFor(() => expect(getAnimeWatchHistoryPage).toHaveBeenCalledTimes(1));
 
     rerender({ animeId: "anime-2" });
     resolveFirst({ status: "ok", items: [episodeRow("anime-1", 8)] });
 
-    await waitFor(() => expect(result.current.status).toBe("content"));
-
+    await waitFor(() => expect(result.current.recentEpisodes).toEqual([episodeRow("anime-2", 3)]));
     expect(result.current.detail?.id).toBe("anime-2");
-    expect(result.current.recentEpisodes).toEqual([episodeRow("anime-2", 3)]);
   });
 
-  it("reads a stale snapshot as loading while the next anime resolves", async () => {
-    let resolveFirst!: (value: AnimeDetail | null) => void;
-    const getAnimeDetail = vi
-      .fn()
-      .mockImplementationOnce(
-        () => new Promise<AnimeDetail | null>((resolve) => { resolveFirst = resolve; }),
-      )
-      .mockImplementationOnce(() => new Promise<AnimeDetail | null>(() => {}));
-    const getAnimeWatchHistoryPage = vi.fn().mockResolvedValue({ status: "ok", items: [] });
-    // Hoisted: a fresh wrapper per render would refetch on every snapshot
-    // update and exhaust the two planned reads.
-    const source = createSource(getAnimeDetail, { getAnimeWatchHistoryPage });
-    const { result, rerender } = renderHook(
-      ({ animeId }: { readonly animeId: string }) =>
-        useHistoryInspector({ animeId }, source),
-      { initialProps: { animeId: "anime-1" } },
+  it("reads the previous anime's detail as loading while the next anime resolves", async () => {
+    const getAnimeDetail = vi.fn((animeId: string) =>
+      animeId === "anime-1" ? Promise.resolve(detail({ id: "anime-1", name: "Frieren" })) : new Promise<AnimeDetail>(() => {}),
     );
-
-    resolveFirst(detail({ id: "anime-1", name: "Frieren" }));
+    const { result, rerender } = renderInspector(createSource(getAnimeDetail), "anime-1");
     await waitFor(() => expect(result.current.status).toBe("content"));
 
     rerender({ animeId: "anime-2" });
@@ -260,23 +239,11 @@ describe("useHistoryInspector", () => {
 
   it("clears the previous episodes while the next anime's page loads", async () => {
     const rowsA = [episodeRow("anime-1", 8), episodeRow("anime-1", 7)];
-    const getAnimeWatchHistoryPage = vi
-      .fn()
-      .mockImplementation((request: AnimeWatchHistoryPageRequest) =>
-        request.animeId === "anime-1"
-          ? Promise.resolve({ status: "ok", items: rowsA })
-          : new Promise(() => {}),
-      );
-    // Hoisted: see above.
-    const source = createSource(
-      vi.fn().mockImplementation((animeId: string) => Promise.resolve(detail({ id: animeId }))),
-      { getAnimeWatchHistoryPage },
+    const getAnimeWatchHistoryPage = vi.fn((request: AnimeWatchHistoryPageRequest) =>
+      request.animeId === "anime-1" ? Promise.resolve({ status: "ok", items: rowsA }) : new Promise<WatchHistoryPage>(() => {}),
     );
-    const { result, rerender } = renderHook(
-      ({ animeId }: { readonly animeId: string }) =>
-        useHistoryInspector({ animeId }, source),
-      { initialProps: { animeId: "anime-1" } },
-    );
+    const source = createSource(vi.fn((animeId: string) => Promise.resolve(detail({ id: animeId }))), { getAnimeWatchHistoryPage });
+    const { result, rerender } = renderInspector(source, "anime-1");
 
     await waitFor(() => expect(result.current.recentEpisodes).toEqual(rowsA));
 
@@ -286,21 +253,11 @@ describe("useHistoryInspector", () => {
     expect(result.current.recentEpisodes).toEqual([]);
   });
 
-  it("never contributes an error page's rows", async () => {
-    const getAnimeWatchHistoryPage = vi.fn().mockResolvedValue({
-      status: "error",
-      message: "history unavailable",
-      items: [episodeRow("anime-1", 8)],
-    });
-    // Hoisted: an inline source would refetch on every snapshot update.
-    const source = createSource(
-      vi.fn().mockResolvedValue(detail()),
-      { getAnimeWatchHistoryPage },
-    );
-    const { result } = renderHook(() =>
-      useHistoryInspector({ animeId: "anime-1" }, source),
-    );
+  it("keeps the content with no episodes when the recent page fails", async () => {
+    const getAnimeWatchHistoryPage = vi.fn().mockRejectedValue(createBridgeError("internal", "history unavailable"));
+    const { result } = renderInspector(createSource(vi.fn().mockResolvedValue(detail()), { getAnimeWatchHistoryPage }), "anime-1");
 
+    await waitFor(() => expect(getAnimeWatchHistoryPage).toHaveBeenCalled());
     await waitFor(() => expect(result.current.status).toBe("content"));
 
     expect(result.current.recentEpisodes).toEqual([]);
@@ -308,26 +265,17 @@ describe("useHistoryInspector", () => {
 
   it("never lets a superseded rejection clobber resolved content", async () => {
     let rejectFirst!: (reason: Error) => void;
-    const getAnimeDetail = vi
-      .fn()
-      .mockImplementationOnce(
-        () => new Promise<AnimeDetail | null>((_resolve, reject) => { rejectFirst = reject; }),
-      )
-      .mockImplementationOnce(() => Promise.resolve(detail({ id: "anime-2", name: "Bocchi the Rock" })));
-    // Hoisted: a fresh wrapper per render would refetch on every snapshot
-    // update and exhaust the two planned reads.
-    const source = createSource(getAnimeDetail);
-    const { result, rerender } = renderHook(
-      ({ animeId }: { readonly animeId: string }) =>
-        useHistoryInspector({ animeId }, source),
-      { initialProps: { animeId: "anime-1" } },
+    const getAnimeDetail = vi.fn((animeId: string) =>
+      animeId === "anime-1"
+        ? new Promise<AnimeDetail>((_resolve, reject) => { rejectFirst = reject; })
+        : Promise.resolve(detail({ id: "anime-2", name: "Bocchi the Rock" })),
     );
+    const { result, rerender } = renderInspector(createSource(getAnimeDetail), "anime-1");
+    await waitFor(() => expect(getAnimeDetail).toHaveBeenCalledWith("anime-1"));
 
     rerender({ animeId: "anime-2" });
     await waitFor(() => expect(result.current.detail?.id).toBe("anime-2"));
 
-    // Forced flush: without act the superseded snapshot lands whenever the
-    // loop gets there, so a polling assertion can win the race and go blind.
     await act(async () => {
       rejectFirst(new Error("late detail failure"));
     });

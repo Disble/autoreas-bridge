@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import type { AnimeSource } from '../../../../../shared/contracts/anime-source.types';
 import type {
   Anime,
   WatchHistoryEntry,
@@ -8,6 +8,9 @@ import type {
   WatchHistoryPage,
   WatchHistoryPageRequest,
 } from '../../../../../shared/contracts/anime.types';
+import type { ModuleReadiness } from '../../../../../shared/contracts/readiness.types';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import type { HistoryTimelineFilters } from '../history-timeline.types';
 import { useHistoryTimeline } from '../use-history-timeline';
 
@@ -58,28 +61,37 @@ function anime(overrides: Partial<Anime> = {}): Anime {
 }
 
 /**
- * Minimal BridgeRuntimeSource stub exposing the watch-history page and
- * catalog bindings under test; omit `getWatchHistoryPage` to test the
- * missing-binding path. `getAnimes` defaults to an empty, already-resolved
- * catalog so every pre-existing (unfiltered) test needs no changes of its
- * own to keep resolving past the new catalog-load step (design D2).
+ * Minimal anime source exposing the watch-history page and catalog reads
+ * under test. `getAnimes` defaults to an empty, already-resolved catalog so
+ * every unfiltered test resolves past the catalog-load step (design D2).
  */
 function createSource(
-  getWatchHistoryPage?: BridgeRuntimeSource['getWatchHistoryPage'],
-  getAnimes: BridgeRuntimeSource['getAnimes'] = vi.fn().mockResolvedValue([]),
-): BridgeRuntimeSource {
+  getWatchHistoryPage: AnimeSource['getWatchHistoryPage'] = vi.fn().mockResolvedValue(page({})),
+  getAnimes: AnimeSource['getAnimes'] = vi.fn().mockResolvedValue([]),
+): AnimeSource {
   return {
     getAnimes,
     getAnimeDetail: vi.fn(),
     getWatchHistoryPage,
+    getAnimeWatchHistoryPage: vi.fn(),
+    getAnimeCover: vi.fn(),
   };
+}
+
+/**
+ * A query wrapper reporting the `anime` module, ready by default.
+ * @param anime The `anime` module's readiness.
+ * @returns The wrapper and `emit`, which pushes a readiness change.
+ */
+function modules(anime: ModuleReadiness = { module: 'anime', state: 'ready' }) {
+  return createModulesTestWrapper(anime);
 }
 
 describe('useHistoryTimeline', () => {
   it('starts loading with no groups, then fetches the first page with an empty cursor and groups the result by day', async () => {
     const getWatchHistoryPage = vi.fn().mockResolvedValue(page({ items: [entry({})] }));
     const source = createSource(getWatchHistoryPage);
-    const { result } = renderHook(() => useHistoryTimeline(filters(), source));
+    const { result } = renderHook(() => useHistoryTimeline(filters(), source), modules());
 
     expect(result.current.isLoading).toBe(true);
     expect(result.current.groups).toEqual([]);
@@ -97,7 +109,7 @@ describe('useHistoryTimeline', () => {
     ['no nextCursor is present', undefined, false],
   ])('reports hasMore correctly when %s', async (_label, nextCursor, expected) => {
     const source = createSource(vi.fn().mockResolvedValue(page({ items: [entry({})], nextCursor })));
-    const { result } = renderHook(() => useHistoryTimeline(filters(), source));
+    const { result } = renderHook(() => useHistoryTimeline(filters(), source), modules());
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -112,7 +124,7 @@ describe('useHistoryTimeline', () => {
       )
       .mockResolvedValueOnce(page({ items: [entry({ id: 1, watchedAtMs: new Date(2026, 8, 12, 8, 0, 0).getTime() })] }));
     const source = createSource(getWatchHistoryPage);
-    const { result } = renderHook(() => useHistoryTimeline(filters(), source));
+    const { result } = renderHook(() => useHistoryTimeline(filters(), source), modules());
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -128,7 +140,7 @@ describe('useHistoryTimeline', () => {
   it('does not fetch a next page when there is none', async () => {
     const getWatchHistoryPage = vi.fn().mockResolvedValue(page({ items: [entry({})] }));
     const source = createSource(getWatchHistoryPage);
-    const { result } = renderHook(() => useHistoryTimeline(filters(), source));
+    const { result } = renderHook(() => useHistoryTimeline(filters(), source), modules());
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -140,8 +152,8 @@ describe('useHistoryTimeline', () => {
   });
 
   it('surfaces an error, rather than degrading to an empty result, when the first page fails', async () => {
-    const source = createSource(vi.fn().mockResolvedValue(page({ status: 'error', message: 'boom' })));
-    const { result } = renderHook(() => useHistoryTimeline(filters(), source));
+    const source = createSource(vi.fn().mockRejectedValue(createBridgeError('internal', 'boom')));
+    const { result } = renderHook(() => useHistoryTimeline(filters(), source), modules());
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -150,24 +162,42 @@ describe('useHistoryTimeline', () => {
     expect(result.current.hasMore).toBe(false);
   });
 
-  it('surfaces an error, rather than throwing, when the source has no getWatchHistoryPage binding', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useHistoryTimeline(filters(), source));
+  it('stays loading without reading while the anime module starts, then shows the first page once ready', async () => {
+    const getAnimes = vi.fn().mockResolvedValue([]);
+    const getWatchHistoryPage = vi.fn().mockResolvedValue(page({ items: [entry({})] }));
+    const { wrapper, emit } = modules({ module: 'anime', state: 'starting' });
+    const { result } = renderHook(() => useHistoryTimeline(filters(), createSource(getWatchHistoryPage, getAnimes)), { wrapper });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current).toMatchObject({ isLoading: true, error: undefined, groups: [] });
+    expect(getAnimes).not.toHaveBeenCalled();
+    expect(getWatchHistoryPage).not.toHaveBeenCalled();
+
+    act(() => emit({ module: 'anime', state: 'ready' }));
+    await waitFor(() => expect(result.current.groups[0]?.entries).toHaveLength(1));
+  });
+
+  it('shows the failure reason, never an empty history, when the anime module failed', async () => {
+    const getWatchHistoryPage = vi.fn();
+    const source = createSource(getWatchHistoryPage);
+    const { result } = renderHook(() => useHistoryTimeline(filters(), source), modules({ module: 'anime', state: 'failed', reason: 'anime: db closed' }));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(result.current.error).toEqual(new Error('Watch history request failed'));
+    expect(result.current.error?.message).toBe('anime: db closed');
     expect(result.current.groups).toEqual([]);
-    expect(result.current.hasMore).toBe(false);
+    expect(getWatchHistoryPage).not.toHaveBeenCalled();
   });
 
   it('does not retry a stale cursor once a next-page fetch fails: hasMore, not the cursor alone, gates fetchNextPage', async () => {
     const getWatchHistoryPage = vi
       .fn()
       .mockResolvedValueOnce(page({ items: [entry({})], nextCursor: '100:2' }))
-      .mockResolvedValueOnce(page({ status: 'error', message: 'boom' }));
+      .mockRejectedValueOnce(createBridgeError('internal', 'boom'));
     const source = createSource(getWatchHistoryPage);
-    const { result } = renderHook(() => useHistoryTimeline(filters(), source));
+    const { result } = renderHook(() => useHistoryTimeline(filters(), source), modules());
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -193,6 +223,7 @@ describe('useHistoryTimeline', () => {
     const source = createSource(getWatchHistoryPage);
     const { result, rerender } = renderHook(({ order }) => useHistoryTimeline(filters({ order }), source), {
       initialProps: { order: 'newest' as WatchHistoryOrder },
+      ...modules(),
     });
 
     await waitFor(() => expect(result.current.groups[0]?.entries).toHaveLength(1));
@@ -200,8 +231,8 @@ describe('useHistoryTimeline', () => {
 
     rerender({ order: 'oldest' });
 
-    // The reset (cleared rows, isLoading) is synchronous with the requestKey
-    // change, before the new page has resolved.
+    // The previous request's rows never show for the new request: the timeline
+    // reads loading with no rows before the new page has resolved.
     expect(result.current.isLoading).toBe(true);
     expect(result.current.groups).toEqual([]);
 
@@ -223,6 +254,7 @@ describe('useHistoryTimeline', () => {
     const source = createSource(getWatchHistoryPage);
     const { result, rerender } = renderHook(({ current }) => useHistoryTimeline(current, source), {
       initialProps: { current: filters() },
+      ...modules(),
     });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -232,7 +264,7 @@ describe('useHistoryTimeline', () => {
     expect(getWatchHistoryPage).toHaveBeenNthCalledWith(2, { ...request(''), ...expected });
   });
 
-  it('drops a stale-generation response instead of appending it to a request that has since changed', async () => {
+  it('drops a superseded request\'s late first page instead of showing it for the request that replaced it', async () => {
     let resolveFirstPage!: (value: WatchHistoryPage) => void;
     const firstPage = new Promise<WatchHistoryPage>((resolve) => {
       resolveFirstPage = resolve;
@@ -244,6 +276,7 @@ describe('useHistoryTimeline', () => {
     const source = createSource(getWatchHistoryPage);
     const { result, rerender } = renderHook(({ order }) => useHistoryTimeline(filters({ order }), source), {
       initialProps: { order: 'newest' as WatchHistoryOrder },
+      ...modules(),
     });
 
     await waitFor(() => expect(getWatchHistoryPage).toHaveBeenCalledTimes(1));
@@ -270,7 +303,7 @@ describe('useHistoryTimeline', () => {
       .mockResolvedValueOnce(page({ items: [entry({ id: 1 })], nextCursor: '100:2' }))
       .mockReturnValueOnce(nextPage);
     const source = createSource(getWatchHistoryPage);
-    const { result } = renderHook(() => useHistoryTimeline(filters(), source));
+    const { result } = renderHook(() => useHistoryTimeline(filters(), source), modules());
     const nearBottom = { currentTarget: { scrollTop: 1700, clientHeight: 400, scrollHeight: 2000 } } as never;
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -312,7 +345,7 @@ describe('useHistoryTimeline', () => {
       const getAnimes = vi.fn().mockResolvedValue([anime({})]);
       const getWatchHistoryPage = vi.fn().mockResolvedValue(page({ items: [] }));
       const source = createSource(getWatchHistoryPage, getAnimes);
-      const { result } = renderHook(() => useHistoryTimeline(filters(), source));
+      const { result } = renderHook(() => useHistoryTimeline(filters(), source), modules());
 
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -324,7 +357,7 @@ describe('useHistoryTimeline', () => {
       const getAnimes = vi.fn().mockRejectedValue(new Error('catalog unavailable'));
       const getWatchHistoryPage = vi.fn();
       const source = createSource(getWatchHistoryPage, getAnimes);
-      const { result } = renderHook(() => useHistoryTimeline(filters(), source));
+      const { result } = renderHook(() => useHistoryTimeline(filters(), source), modules());
 
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -340,7 +373,7 @@ describe('useHistoryTimeline', () => {
       const getAnimes = vi.fn().mockResolvedValue([anime({ id: 'a', status: 0 }), anime({ id: 'b', status: 1 })]);
       const getWatchHistoryPage = vi.fn().mockResolvedValue(page({ items: [] }));
       const source = createSource(getWatchHistoryPage, getAnimes);
-      const { result } = renderHook(() => useHistoryTimeline(filters({ status, type }), source));
+      const { result } = renderHook(() => useHistoryTimeline(filters({ status, type }), source), modules());
 
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -351,7 +384,7 @@ describe('useHistoryTimeline', () => {
       const getAnimes = vi.fn().mockResolvedValue([anime({ id: 'a', status: 0 })]);
       const getWatchHistoryPage = vi.fn();
       const source = createSource(getWatchHistoryPage, getAnimes);
-      const { result } = renderHook(() => useHistoryTimeline(filters({ status: 3 }), source));
+      const { result } = renderHook(() => useHistoryTimeline(filters({ status: 3 }), source), modules());
 
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 

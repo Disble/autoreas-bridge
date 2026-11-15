@@ -8,6 +8,7 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/apperr"
 	"autoreas-bridge/internal/device"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/watchhistory"
@@ -138,18 +139,27 @@ func (a *App) bindDevicesModule() {
 	a.moduleSet().devices.Bind(deviceServices{store: a.deviceStore, admin: admin, newToken: newToken})
 }
 
-// GetAnimes returns the flat catalog list model. Degrades to an empty
-// (non-nil) slice on a nil service or any query error: an empty catalog is a
-// valid state and must not be reported to the UI as a failure.
-func (a *App) GetAnimes() []contracts.AnimeListItem {
-	if a.animeQuery == nil {
-		return []contracts.AnimeListItem{}
-	}
-	items, err := a.animeQuery.ListAnimeItems(a.appContext())
-	if err != nil {
-		return []contracts.AnimeListItem{}
-	}
-	return items
+// GetAnimes returns the flat catalog list model through the anime module handle:
+// unavailable while the module starts, failed_precondition after it failed,
+// internal when the query fails. An empty catalog is an empty, non-nil list.
+func (a *App) GetAnimes() ([]contracts.AnimeListItem, error) {
+	return a.moduleSet().anime.Use(func(services animeServices) ([]contracts.AnimeListItem, error) {
+		items, err := services.query.ListAnimeItems(a.appContext())
+		if err != nil {
+			return nil, err
+		}
+		if items == nil {
+			return []contracts.AnimeListItem{}, nil
+		}
+		return items, nil
+	})
+}
+
+// isAnimeNotFound reports whether an anime read failed because the anime does
+// not exist, as opposed to the anime module not being ready or a failed read.
+func isAnimeNotFound(err error) bool {
+	code, _ := apperr.CodeOf(err)
+	return code == apperr.CodeNotFound
 }
 
 // GetAnimeDetail returns the rich MobileAnime DTO for a single anime ID
@@ -157,71 +167,69 @@ func (a *App) GetAnimes() []contracts.AnimeListItem {
 // returns *contracts.MobileAnime directly -- no separate contracts.AnimeDetail
 // Go struct exists, since MobileAnime is already the rich superset the spec's
 // "AnimeDetail DTO" language describes; that naming is satisfied on the
-// TypeScript side instead (frontend AnimeDetail type). Additive only:
-// GetAnimes/AnimeListItem are untouched. Degrades to nil on a nil service or
-// any lookup error (not-found included), matching the not-found scenario's
-// "distinguishable nil result, not a silent zero-value DTO" requirement.
-func (a *App) GetAnimeDetail(id string) *contracts.MobileAnime {
-	if a.animeQuery == nil {
-		return nil
-	}
-	item, err := a.animeQuery.GetMobileAnime(a.appContext(), id)
-	if err != nil {
-		return nil
-	}
-	return item
+// TypeScript side instead (frontend AnimeDetail type). It reads through the
+// anime module handle; an unknown id is not_found, so a missing anime stays
+// distinguishable from a module that is not ready or a failed read.
+func (a *App) GetAnimeDetail(id string) (*contracts.MobileAnime, error) {
+	return a.moduleSet().anime.Use(func(services animeServices) (*contracts.MobileAnime, error) {
+		item, err := services.query.GetMobileAnime(a.appContext(), id)
+		if errors.Is(err, contracts.ErrAnimeNotFound) || (err == nil && item == nil) {
+			return nil, apperr.NotFound("anime " + id + " not found")
+		}
+		return item, err
+	})
 }
 
 // GetWatchHistoryPage returns a keyset page over the global real-watch-
 // history log, narrowed by the request's optional search/watched-range/
 // anime-ID filters and ordered newest- or oldest-first (History UI Redesign
-// spec, "Read Models Are Keyset-Paged"). A nil service, an unrecognized
-// Order, or a query error each surface as Status "error" rather than a
-// silently empty result (design.md D9), because an empty state that hides a
-// failure lies to the frontend.
-func (a *App) GetWatchHistoryPage(request contracts.WatchHistoryPageRequest) contracts.WatchHistoryPage {
-	if a.watchHistoryQuery == nil {
-		return contracts.WatchHistoryPage{Status: "error", Message: "watch history service unavailable"}
-	}
-	query, err := toWatchHistoryPageQuery(request)
-	if err != nil {
-		return contracts.WatchHistoryPage{Status: "error", Message: err.Error()}
-	}
-	page, err := a.watchHistoryQuery.Page(a.appContext(), query)
-	if err != nil {
-		return contracts.WatchHistoryPage{Status: "error", Message: err.Error()}
-	}
-	return toWatchHistoryPage(page)
+// spec, "Read Models Are Keyset-Paged"), through the anime module handle. An
+// unrecognized Order is invalid_argument and a query error is internal, so a
+// failure never reads as an empty page.
+func (a *App) GetWatchHistoryPage(request contracts.WatchHistoryPageRequest) (contracts.WatchHistoryPage, error) {
+	return a.moduleSet().anime.Use(func(services animeServices) (contracts.WatchHistoryPage, error) {
+		query, err := toWatchHistoryPageQuery(request)
+		if err != nil {
+			return contracts.WatchHistoryPage{}, apperr.InvalidArgument(err.Error())
+		}
+		page, err := services.watchHistory.Page(a.appContext(), query)
+		if err != nil {
+			return contracts.WatchHistoryPage{}, err
+		}
+		return toWatchHistoryPage(page), nil
+	})
 }
 
 // GetAnimeWatchHistoryPage returns a keyset page scoped to one anime,
-// optionally narrowed to a single watch cycle, mirroring GetWatchHistoryPage's
-// nil-guard and error-surfacing contract.
-func (a *App) GetAnimeWatchHistoryPage(request contracts.AnimeWatchHistoryPageRequest) contracts.WatchHistoryPage {
-	if a.watchHistoryQuery == nil {
-		return contracts.WatchHistoryPage{Status: "error", Message: "watch history service unavailable"}
-	}
-	page, err := a.watchHistoryQuery.AnimePage(a.appContext(), request.AnimeID, toAnimeWatchHistoryPageQuery(request))
-	if err != nil {
-		return contracts.WatchHistoryPage{Status: "error", Message: err.Error()}
-	}
-	return toWatchHistoryPage(page)
+// optionally narrowed to a single watch cycle, through the anime module
+// handle like GetWatchHistoryPage.
+func (a *App) GetAnimeWatchHistoryPage(request contracts.AnimeWatchHistoryPageRequest) (contracts.WatchHistoryPage, error) {
+	return a.moduleSet().anime.Use(func(services animeServices) (contracts.WatchHistoryPage, error) {
+		page, err := services.watchHistory.AnimePage(a.appContext(), request.AnimeID, toAnimeWatchHistoryPageQuery(request))
+		if err != nil {
+			return contracts.WatchHistoryPage{}, err
+		}
+		return toWatchHistoryPage(page), nil
+	})
 }
 
 // GetAnimeDetailView is the structured detail read model (progress/dates/
 // content/download groups), renamed at merge time: the `GetAnimeDetail` name
 // stays with the flat MobileAnime binding above because the shipped
 // anime-detail UI consumes it; this structured variant has no frontend
-// consumer yet and is kept for UI work built against it.
-func (a *App) GetAnimeDetailView(animeID string) contracts.AnimeDetail {
-	if a.animeQuery == nil {
-		return contracts.AnimeDetail{}
-	}
-	item, err := a.animeQuery.GetAnimeDetail(a.appContext(), animeID)
-	if err != nil || item == nil {
-		return contracts.AnimeDetail{}
-	}
-	return *item
+// consumer yet and is kept for UI work built against it. It reads through the
+// anime module handle; an unknown id is not_found.
+func (a *App) GetAnimeDetailView(animeID string) (contracts.AnimeDetail, error) {
+	return a.moduleSet().anime.Use(func(services animeServices) (contracts.AnimeDetail, error) {
+		item, err := services.query.GetAnimeDetail(a.appContext(), animeID)
+		if errors.Is(err, contracts.ErrAnimeNotFound) || (err == nil && item == nil) {
+			return contracts.AnimeDetail{}, apperr.NotFound("anime " + animeID + " not found")
+		}
+		if err != nil {
+			return contracts.AnimeDetail{}, err
+		}
+		return *item, nil
+	})
 }
 
 // GetEpisodeSchedule returns the episodes airing on the given day, through the

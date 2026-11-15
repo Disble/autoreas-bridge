@@ -1,25 +1,17 @@
-import type { BridgeRuntimeSource } from '../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import type { AnimeCoverResult, AnimeSource } from '../contracts/anime-source.types';
 
 /**
- * The cover-resolution port a cover list depends on: the `getAnimeCover`
- * slice of `BridgeRuntimeSource`, so a test injects a fake without the Wails
- * singleton. Optional because a non-Wails context has no binding, which
- * degrades every row to the placeholder instead of throwing.
+ * The cover-resolution port a cover list depends on: the `getAnimeCover` read
+ * of `AnimeSource`, so a test injects a fake without the Wails singleton.
+ * Optional because a non-Wails context has no binding, which degrades every
+ * row to the placeholder instead of throwing.
  */
-export type AnimeCoverSource = Pick<BridgeRuntimeSource, 'getAnimeCover'>;
-
-/** One cover-binding answer: a base64 data URL, or the explicit placeholder signal. */
-export interface AnimeCoverResult {
-  /** 'cover' when the binding found one; anything else means the placeholder. */
-  readonly source: string;
-  /** The cover as a data URL, when the binding returned one. */
-  readonly dataUrl?: string;
-}
+export type AnimeCoverSource = Partial<Pick<AnimeSource, 'getAnimeCover'>>;
 
 /**
- * The cover-preview port a form depends on: `BridgeRuntimeSource`'s
- * `previewAnimeCover`, which renders an unsaved cover value. Optional for the
- * same reason `getAnimeCover` is: no binding degrades to the placeholder.
+ * The cover-preview port a form depends on: `previewAnimeCover`, which renders
+ * an unsaved cover value. Optional for the same reason `getAnimeCover` is: no
+ * binding degrades to the placeholder.
  */
 export interface CoverPreviewSource {
   readonly previewAnimeCover?: (value: string) => Promise<AnimeCoverResult>;

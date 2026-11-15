@@ -11,6 +11,18 @@ import { defineQueryKeys } from './query-keys.helpers';
 export const episodesKeys = defineQueryKeys('episodes');
 
 /**
+ * Keys of the anime module's reads: `animeKeys.key('list')` (the catalog the
+ * Catalog page and the History filters share), `animeKeys.key('detail', animeId)`,
+ * `animeKeys.key('cover', animeId)`, `animeKeys.key('watch-history', request)` and
+ * `animeKeys.key('anime-watch-history', request)`; `animeKeys.all` is their common
+ * prefix.
+ */
+export const animeKeys = defineQueryKeys('anime');
+
+/** Key of the catalog list, shared by the Catalog page and the History status/type filters. */
+export const ANIME_LIST_KEY = animeKeys.key('list');
+
+/**
  * Keys of the Devices page's reads, served by the `api`, `devices` and `sync`
  * modules: `devicesKeys.key('effective-address')`, `devicesKeys.key('pairing-token')`,
  * `devicesKeys.key('connected')` and `devicesKeys.key('syncing-anime', refreshToken)`;
