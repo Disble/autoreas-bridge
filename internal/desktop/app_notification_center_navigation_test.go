@@ -168,7 +168,10 @@ func TestGetNotificationReportsWhetherAnActionMayBePressedAgain(t *testing.T) {
 		t.Fatalf("insert record: %v", err)
 	}
 
-	detail := app.GetNotification(id)
+	detail, err := app.GetNotification(id)
+	if err != nil {
+		t.Fatalf("GetNotification: %v", err)
+	}
 
 	wire := make(map[string]contracts.NotificationAction, len(detail.Item.Actions))
 	for _, action := range detail.Item.Actions {
@@ -202,7 +205,10 @@ func TestGetNotificationReportsUnregisteredIntentsAsSingleFire(t *testing.T) {
 		t.Fatalf("insert record: %v", err)
 	}
 
-	detail := app.GetNotification(id)
+	detail, err := app.GetNotification(id)
+	if err != nil {
+		t.Fatalf("GetNotification: %v", err)
+	}
 
 	if len(detail.Item.Actions) != 1 {
 		t.Fatalf("wire actions = %#v, want exactly one", detail.Item.Actions)
@@ -218,8 +224,9 @@ func TestGetNotificationReportsUnregisteredIntentsAsSingleFire(t *testing.T) {
 // GetNotification is reachable before wireNotificationCenterIntentExecutor has run -- the
 // executor is built only after startDownloadOrchestration (design §5.8) -- and
 // center.StaticRegistry is a pointer whose Resolve dereferences it, so a record carrying any
-// action at all would panic the binding instead of degrading, exactly where every other read
-// here degrades to Degraded/empty.
+// action at all would panic the binding. In production the notifications module is not ready
+// before the executor is wired, so GetNotification answers unavailable there; the helper's module
+// is ready with only the store bound, which keeps this guard reachable.
 //
 // This test exists because hand-mutation found the guard unpinned: deleting it left every
 // existing test green, since none of them read a record that HAS an action without wiring the
@@ -238,7 +245,10 @@ func TestGetNotificationBeforeTheExecutorIsWiredReportsSingleFireWithoutPanickin
 		t.Fatalf("insert record: %v", err)
 	}
 
-	detail := app.GetNotification(id)
+	detail, err := app.GetNotification(id)
+	if err != nil {
+		t.Fatalf("GetNotification: %v", err)
+	}
 
 	if !detail.Found || len(detail.Item.Actions) != 1 {
 		t.Fatalf("GetNotification = %#v, want the record and its one action", detail)

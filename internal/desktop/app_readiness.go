@@ -14,6 +14,7 @@ import (
 	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/lifecycle"
 	"autoreas-bridge/internal/modules"
+	"autoreas-bridge/internal/notification/center"
 	"autoreas-bridge/internal/observability/activityread"
 	"autoreas-bridge/internal/observability/incident"
 	"autoreas-bridge/internal/observability/requestcapture"
@@ -133,6 +134,14 @@ type deviceServices struct {
 	newToken func() (string, error)
 }
 
+// notificationServices are the services the notifications module's bindings use: the center's
+// store and the executor its action presses run through. wireNotificationCenterIntentExecutor
+// binds them before startup settles the module.
+type notificationServices struct {
+	store    *center.Store
+	executor *center.Executor
+}
+
 // appModules is the module set App holds: the readiness registry, its writer
 // (only the composition root writes) and the module handles. Domain modules get
 // their handle here when they migrate (ADR-032 §3; internal/modules says how).
@@ -147,6 +156,7 @@ type appModules struct {
 	sync          *modules.Handle[syncServices]
 	devices       *modules.Handle[deviceServices]
 	observability *modules.Handle[observabilityServices]
+	notifications *modules.Handle[notificationServices]
 }
 
 // moduleSet builds the module set once, on first use, and registers every module
@@ -164,6 +174,7 @@ func (a *App) moduleSet() *appModules {
 		a.modules.sync = modules.NewHandle[syncServices](moduleSync, a.modules.registry)
 		a.modules.devices = modules.NewHandle[deviceServices](moduleDevices, a.modules.registry)
 		a.modules.observability = modules.NewHandle[observabilityServices](moduleObservability, a.modules.registry)
+		a.modules.notifications = modules.NewHandle[notificationServices](moduleNotifications, a.modules.registry)
 	})
 	return &a.modules
 }

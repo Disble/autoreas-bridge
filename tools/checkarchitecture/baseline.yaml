@@ -215,30 +215,6 @@ violations:
     file: internal/desktop/app_library_root.go
     symbol: PreviewLibraryRootChange
   - rule: binding-uses-handle
-    file: internal/desktop/app_notification_center.go
-    symbol: ArchiveNotifications
-  - rule: binding-uses-handle
-    file: internal/desktop/app_notification_center.go
-    symbol: ExecuteNotificationAction
-  - rule: binding-uses-handle
-    file: internal/desktop/app_notification_center.go
-    symbol: GetNotification
-  - rule: binding-uses-handle
-    file: internal/desktop/app_notification_center.go
-    symbol: GetUnreadNotificationCount
-  - rule: binding-uses-handle
-    file: internal/desktop/app_notification_center.go
-    symbol: ListNotifications
-  - rule: binding-uses-handle
-    file: internal/desktop/app_notification_center.go
-    symbol: MarkNotificationsRead
-  - rule: binding-uses-handle
-    file: internal/desktop/app_notification_center.go
-    symbol: MarkNotificationsUnread
-  - rule: binding-uses-handle
-    file: internal/desktop/app_notification_center.go
-    symbol: RestoreNotifications
-  - rule: binding-uses-handle
     file: internal/desktop/app_preferences.go
     symbol: GetAutoStartEnabled
   - rule: binding-uses-handle
