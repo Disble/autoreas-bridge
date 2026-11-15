@@ -1,7 +1,7 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createInitialFilters, toCalendarBounds } from '../../../feed/activity-feed-filters.helpers';
-import type { ActivityRange } from '../../../feed/activity-feed.types';
+import type { ActivityFeedFilters, ActivityRange } from '../../../feed/activity-feed.types';
 import { ActivityRangeField } from '../ActivityRangeField';
 import { pressDraftDayByKey, toKeyPressedDay, toRangeDraft } from '../activity-toolbar.helpers';
 import { useActivityRangePicker } from '../use-activity-range-picker';
@@ -17,10 +17,32 @@ const INITIAL_FILTERS = createInitialFilters(Date.now());
 /** The pickable days, fixed for the whole file. */
 const BOUNDS = toCalendarBounds(Date.now());
 
+/** Props of the test harness: the screen's filters and where commits go. */
+interface HarnessProps {
+  /** The screen's filters; defaults to no range picked. */
+  readonly filters?: ActivityFeedFilters;
+  /** Receives every committed range. */
+  readonly onRangeChange: (range: ActivityRange | undefined) => void;
+}
+
 /** Mounts the field with its picker hook, as the screen does; commits go to `onRangeChange`. */
-function Harness({ onRangeChange }: { readonly onRangeChange: (range: ActivityRange | undefined) => void }) {
-  const field = useActivityRangePicker(INITIAL_FILTERS, onRangeChange, () => undefined);
+function Harness({ filters = INITIAL_FILTERS, onRangeChange }: HarnessProps) {
+  const field = useActivityRangePicker(filters, onRangeChange, () => undefined);
   return <ActivityRangeField {...field} />;
+}
+
+/** Today as an applied one-day range, whole day. */
+function todayRange(): ActivityRange {
+  const from = new Date();
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(from);
+  to.setHours(23, 59, 59, 999);
+  return { fromMs: from.getTime(), toMs: to.getTime() };
+}
+
+/** The picker's start time field (React Aria labels its root and its input group). */
+function startTimeField(dialog: HTMLElement) {
+  return within(dialog).getAllByRole('group', { name: 'Start time' })[0];
 }
 
 /** Opens the picker on last month and returns its dialog. */
@@ -82,6 +104,23 @@ describe('ActivityRangeField', () => {
     fireEvent.click(apply);
 
     expect(onRangeChange).toHaveBeenCalledExactlyOnceWith(expectedRange(17));
+  });
+
+  it('drops an unapplied pick on Esc and reopens on the applied range', async () => {
+    const onRangeChange = vi.fn();
+    render(<Harness filters={{ ...INITIAL_FILTERS, range: todayRange() }} onRangeChange={onRangeChange} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Time range, / }));
+    let dialog = await screen.findByRole('dialog');
+
+    fireEvent.keyDown(within(startTimeField(dialog)).getAllByRole('spinbutton')[0], { key: 'ArrowUp' });
+    expect(startTimeField(dialog)).toHaveTextContent(/1\D*00\D*AM/);
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /^Time range, / }));
+    dialog = await screen.findByRole('dialog');
+
+    expect(startTimeField(dialog)).toHaveTextContent(/12\D*00\D*AM/);
+    expect(onRangeChange).not.toHaveBeenCalled();
   });
 });
 
