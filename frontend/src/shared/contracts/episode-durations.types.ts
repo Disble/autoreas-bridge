@@ -1,4 +1,4 @@
-import type { EpisodeDurationEdit } from '../../shared/contracts/anime.types';
+import type { EpisodeDurationEdit } from './anime.types';
 
 /** The saved anime the Episodes card reads: its id and its saved folder, total and type. */
 export interface EpisodeDurationRequest {
@@ -23,10 +23,8 @@ export interface EpisodeDurationRow {
   readonly source: EpisodeDurationRowSource;
 }
 
-/** The Episodes section, or why it could not be read. */
+/** The Episodes section; a failed read is the source's rejection (a `BridgeError`). */
 export interface EpisodeDurationSection {
-  readonly outcome: 'ok' | 'error';
-  readonly message?: string;
   readonly folderStatus: EpisodeDurationFolderStatus;
   readonly rows: readonly EpisodeDurationRow[];
   /** Episode numbers found in the folder beyond Total episodes. */

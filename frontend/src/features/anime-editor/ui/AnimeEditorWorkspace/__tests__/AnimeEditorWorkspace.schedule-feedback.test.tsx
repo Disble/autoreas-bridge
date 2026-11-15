@@ -48,7 +48,7 @@ vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-sour
 }));
 
 import { AnimeEditorWorkspace } from '../AnimeEditorWorkspace';
-import { createEmptyEpisodeDurationSource } from './episode-duration-source.test-support';
+import { createEmptyEpisodeDurationSource, createEpisodesReadyWrapper } from './episode-duration-source.test-support';
 
 /** The Episodes section's in-memory source, so no render waits on a Wails binding. */
 const episodeSource = createEmptyEpisodeDurationSource();
@@ -203,7 +203,7 @@ describe('AnimeEditorWorkspace schedule feedback (integration)', () => {
     getAnimeEditorRecordMock.mockResolvedValue({ outcome: 'applied', message: 'loaded', record: makeRecord() });
     getAnimeEditorScheduleBoardMock.mockResolvedValue({ outcome: 'applied', message: 'loaded', board: makeBoard(300) });
 
-    render(<MemoryRouter><AnimeEditorWorkspace episodeSource={episodeSource} /></MemoryRouter>);
+    render(<MemoryRouter><AnimeEditorWorkspace episodeSource={episodeSource} /></MemoryRouter>, { wrapper: createEpisodesReadyWrapper() });
 
     const season = await screen.findByRole('list', { name: 'Season placement' }, { timeout: 4000 });
     expect(within(season).getByRole('listitem', { name: 'Sin ver: 4 of 4' })).toBeInTheDocument();
@@ -219,7 +219,7 @@ describe('AnimeEditorWorkspace schedule feedback (integration)', () => {
       board: { ...withoutSelected, entries: withoutSelected.entries.filter((item) => item.animeId !== 'bang-dream') },
     });
 
-    render(<MemoryRouter><AnimeEditorWorkspace episodeSource={episodeSource} /></MemoryRouter>);
+    render(<MemoryRouter><AnimeEditorWorkspace episodeSource={episodeSource} /></MemoryRouter>, { wrapper: createEpisodesReadyWrapper() });
 
     const season = await screen.findByRole('list', { name: 'Season placement' }, { timeout: 4000 });
     expect(await within(season).findByRole('listitem', { name: 'Sin ver: scheduled' })).toBeInTheDocument();
@@ -237,7 +237,7 @@ describe('AnimeEditorWorkspace schedule feedback (integration)', () => {
       .mockResolvedValueOnce({ outcome: 'conflict', message: 'board changed', modifiedAt: 301, board: conflictBoard })
       .mockResolvedValueOnce({ outcome: 'applied', message: 'apply_schedule applied', modifiedAt: 302, board: appliedBoard });
 
-    render(<MemoryRouter><AnimeEditorWorkspace episodeSource={episodeSource} scheduleTestDriverRef={scheduleTestDriverRef} /></MemoryRouter>);
+    render(<MemoryRouter><AnimeEditorWorkspace episodeSource={episodeSource} scheduleTestDriverRef={scheduleTestDriverRef} /></MemoryRouter>, { wrapper: createEpisodesReadyWrapper() });
 
     // This is the workspace's whole async bootstrap -- list fetch, selection,
     // then the detail form -- landing behind one assertion. The default second

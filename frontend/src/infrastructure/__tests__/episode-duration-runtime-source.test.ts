@@ -20,7 +20,7 @@ describe('episode-duration runtime source', () => {
   it('reads the section for the draft and narrows unknown wire values', async () => {
     const { createEpisodeDurationRuntimeSource } = await import('../bridge-runtime-source/episode-duration-runtime-source.helpers');
     const getSection = vi.fn().mockResolvedValue({
-      outcome: 'ok', folderStatus: 'found', beyondTotal: [13], tv: true,
+      folderStatus: 'found', beyondTotal: [13], tv: true,
       rows: [
         { episode: 1, durationMs: 1_440_000, minutes: 24, long: false, source: 'measured' },
         { episode: 2, durationMs: 0, minutes: 0, long: false, source: 'something-new' },
@@ -31,7 +31,7 @@ describe('episode-duration runtime source', () => {
     await attachBindings({ GetEpisodeDurationSection: getSection });
 
     await expect(pending).resolves.toStrictEqual({
-      outcome: 'ok', folderStatus: 'found', beyondTotal: [13], tv: true,
+      folderStatus: 'found', beyondTotal: [13], tv: true,
       rows: [
         { episode: 1, durationMs: 1_440_000, minutes: 24, long: false, source: 'measured' },
         { episode: 2, durationMs: 0, minutes: 0, long: false, source: 'not_measured' },
@@ -45,7 +45,7 @@ describe('episode-duration runtime source', () => {
     const sources = ['measured', 'manual', 'manual_no_file', 'not_measured', 'not_measured_file_found'];
     const results = ['unchanged', 'update', 'add', 'manual_kept', 'skipped', 'unreadable', 'not_reached'];
     const getSection = vi.fn().mockResolvedValue({
-      outcome: 'ok', folderStatus: 'found', beyondTotal: [], tv: true,
+      folderStatus: 'found', beyondTotal: [], tv: true,
       rows: sources.map((source, index) => ({ episode: index + 1, durationMs: 0, minutes: 0, long: false, source })),
     });
     const reanalyze = vi.fn().mockResolvedValue({
@@ -70,7 +70,7 @@ describe('episode-duration runtime source', () => {
 
   it('keeps a missing folder status', async () => {
     const { createEpisodeDurationRuntimeSource } = await import('../bridge-runtime-source/episode-duration-runtime-source.helpers');
-    const getSection = vi.fn().mockResolvedValue({ outcome: 'ok', folderStatus: 'missing', rows: [], beyondTotal: [], tv: true });
+    const getSection = vi.fn().mockResolvedValue({ folderStatus: 'missing', rows: [], beyondTotal: [], tv: true });
     const pending = createEpisodeDurationRuntimeSource().getEpisodeDurationSection(REQUEST);
 
     await attachBindings({ GetEpisodeDurationSection: getSection });
@@ -78,29 +78,55 @@ describe('episode-duration runtime source', () => {
     await expect(pending).resolves.toEqual(expect.objectContaining({ folderStatus: 'missing' }));
   });
 
-  it('turns an unknown section outcome or folder status into a failure the UI can show', async () => {
+  it('reads an unknown folder status as no folder and missing lists as empty', async () => {
     const { createEpisodeDurationRuntimeSource } = await import('../bridge-runtime-source/episode-duration-runtime-source.helpers');
-    const getSection = vi.fn().mockResolvedValue({ outcome: 'weird', message: 'boom', folderStatus: 'odd', rows: null, beyondTotal: null, tv: false });
+    const getSection = vi.fn().mockResolvedValue({ folderStatus: 'odd', rows: null, beyondTotal: null, tv: false });
     const pending = createEpisodeDurationRuntimeSource().getEpisodeDurationSection(REQUEST);
 
     await attachBindings({ GetEpisodeDurationSection: getSection });
 
-    await expect(pending).resolves.toEqual({ outcome: 'error', message: 'boom', folderStatus: 'none', rows: [], beyondTotal: [], tv: false });
+    await expect(pending).resolves.toStrictEqual({ folderStatus: 'none', rows: [], beyondTotal: [], tv: false });
   });
 
-  it('fails closed with an error section and an error review while the runtime is absent', async () => {
+  it('rejects every binding with the coded failure the episodes module sent', async () => {
+    const { createEpisodeDurationRuntimeSource } = await import('../bridge-runtime-source/episode-duration-runtime-source.helpers');
+    const starting = () => Promise.reject(new Error('{"code":"unavailable","message":"episodes is starting"}'));
+    const source = createEpisodeDurationRuntimeSource();
+    const calls = [
+      source.getEpisodeDurationSection(REQUEST),
+      source.reanalyzeEpisodeDurations(REQUEST),
+      source.cancelEpisodeReanalysis(),
+      source.saveEpisodeDurations('anime-1', []),
+    ];
+    for (const call of calls) call.catch(() => undefined);
+
+    await attachBindings({
+      GetEpisodeDurationSection: starting, ReanalyzeEpisodeDurations: starting, CancelEpisodeReanalysis: starting, SaveEpisodeDurations: starting,
+    });
+
+    for (const call of calls) {
+      await expect(call).rejects.toMatchObject({ name: 'BridgeError', code: 'unavailable', message: 'episodes is starting' });
+    }
+  });
+
+  it('rejects as unavailable, never with a stand-in result, while the runtime is absent', async () => {
     const { createEpisodeDurationRuntimeSource } = await import('../bridge-runtime-source/episode-duration-runtime-source.helpers');
     const { WAILS_BINDINGS_TIMEOUT_MS } = await import('../wails-bindings.helpers');
     const source = createEpisodeDurationRuntimeSource();
-    const section = source.getEpisodeDurationSection(REQUEST);
-    const review = source.reanalyzeEpisodeDurations(REQUEST);
-    const cancel = source.cancelEpisodeReanalysis();
+    const calls = [
+      source.getEpisodeDurationSection(REQUEST),
+      source.reanalyzeEpisodeDurations(REQUEST),
+      source.cancelEpisodeReanalysis(),
+      source.saveEpisodeDurations('anime-1', []),
+    ];
+    for (const call of calls) call.catch(() => undefined);
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_TIMEOUT_MS + 100);
 
-    await expect(section).resolves.toEqual(expect.objectContaining({ outcome: 'error', message: 'runtime unavailable', rows: [] }));
-    await expect(review).resolves.toEqual(expect.objectContaining({ outcome: 'error', message: 'runtime unavailable', rows: [] }));
-    await expect(cancel).resolves.toBeUndefined();
+    const names = ['GetEpisodeDurationSection', 'ReanalyzeEpisodeDurations', 'CancelEpisodeReanalysis', 'SaveEpisodeDurations'];
+    for (const [index, call] of calls.entries()) {
+      await expect(call).rejects.toMatchObject({ name: 'BridgeError', code: 'unavailable', message: `the ${names[index]} binding is not attached` });
+    }
   });
 
   it('re-analyzes, keeps known results and statuses, and cancels through the binding', async () => {
@@ -188,32 +214,23 @@ describe('episode-duration runtime source save', () => {
     expect(save).toHaveBeenCalledWith('anime-1', EDITS);
   });
 
-  it('keeps a no-op and an error with its message, and reads an unknown outcome as an error', async () => {
+  it('keeps a no-op, reads an unknown outcome as an error, and rejects a refused save with its message', async () => {
     const { createEpisodeDurationRuntimeSource } = await import('../bridge-runtime-source/episode-duration-runtime-source.helpers');
     const save = vi.fn()
       .mockResolvedValueOnce({ outcome: 'no_op', changed: 0 })
-      .mockResolvedValueOnce({ outcome: 'error', message: 'disk full', changed: 0 })
+      .mockRejectedValueOnce(new Error('{"code":"internal","message":"save episode durations: disk full"}'))
       .mockResolvedValueOnce({ outcome: 'later', changed: 3 });
     const source = createEpisodeDurationRuntimeSource();
     const noOp = source.saveEpisodeDurations('anime-1', EDITS);
     const failed = source.saveEpisodeDurations('anime-1', EDITS);
     const unknown = source.saveEpisodeDurations('anime-1', EDITS);
+    failed.catch(() => undefined);
 
     await attachBindings({ SaveEpisodeDurations: save });
 
     await expect(noOp).resolves.toStrictEqual({ outcome: 'no_op', changed: 0 });
-    await expect(failed).resolves.toStrictEqual({ outcome: 'error', message: 'disk full', changed: 0 });
+    await expect(failed).rejects.toMatchObject({ name: 'BridgeError', code: 'internal', message: 'save episode durations: disk full' });
     await expect(unknown).resolves.toStrictEqual({ outcome: 'error', changed: 3 });
-  });
-
-  it('fails closed with an error save while the runtime is absent', async () => {
-    const { createEpisodeDurationRuntimeSource } = await import('../bridge-runtime-source/episode-duration-runtime-source.helpers');
-    const { WAILS_BINDINGS_TIMEOUT_MS } = await import('../wails-bindings.helpers');
-    const pending = createEpisodeDurationRuntimeSource().saveEpisodeDurations('anime-1', EDITS);
-
-    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_TIMEOUT_MS + 100);
-
-    await expect(pending).resolves.toStrictEqual({ outcome: 'error', message: 'runtime unavailable', changed: 0 });
   });
 });
 

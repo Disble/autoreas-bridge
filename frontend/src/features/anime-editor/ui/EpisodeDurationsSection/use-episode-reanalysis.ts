@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { EpisodeDurationRequest } from '../../../../shared/contracts/episode-durations.types';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
 import { EPISODE_ANALYSIS_IDLE, EPISODE_REANALYSIS_FAILED_REVIEW } from './episode-durations-section.constants';
 import { toEpisodeErrorMessage } from './episode-durations-section.helpers';
 import type { EpisodeAnalysisState, EpisodeOpenReview, UseEpisodeReanalysisOptions } from './episode-durations-section.types';
@@ -26,6 +28,13 @@ export function useEpisodeReanalysis(options: Readonly<UseEpisodeReanalysisOptio
   // 3. Context/3rd Party Hooks
 
   // 4. Queries/Mutations
+  const reanalyzeMutation = useBridgeMutation({
+    mutationFn: (target: EpisodeDurationRequest) => source.reanalyzeEpisodeDurations(target),
+  });
+  const cancelMutation = useBridgeMutation({ mutationFn: () => source.cancelEpisodeReanalysis() });
+  const reanalyze = reanalyzeMutation.mutateAsync;
+  // `mutate` reports a failed cancel through the mutation instead of an unhandled rejection.
+  const cancel = cancelMutation.mutate;
 
   // 5. Derived State (render-phase reset when the Editor moves to another anime)
   if (animeId !== seenAnimeId) {
@@ -47,7 +56,7 @@ export function useEpisodeReanalysis(options: Readonly<UseEpisodeReanalysisOptio
       if (latestRun.current === run && progress.animeId === request.animeId) setAnalysis({ isRunning: true, progress });
     });
     try {
-      const result = await source.reanalyzeEpisodeDurations(request);
+      const result = await reanalyze(request);
       if (latestRun.current === run && shouldOpenEpisodeReview(result)) setOpenReview({ review: result, folder: request.folder });
     } catch (error) {
       if (latestRun.current === run) {
@@ -60,10 +69,13 @@ export function useEpisodeReanalysis(options: Readonly<UseEpisodeReanalysisOptio
         setAnalysis(EPISODE_ANALYSIS_IDLE);
       }
     }
-  }, [request, source]);
+  }, [reanalyze, request, source]);
+  // Stryker disable ArrayDeclaration: TanStack's `mutate` keeps its identity for the hook's life and
+  // calls the latest `mutationFn` (the current source), so `[]` and `[cancel]` give the same callback.
   const onCancelAnalysis = useCallback(() => {
-    void source.cancelEpisodeReanalysis();
-  }, [source]);
+    cancel();
+  }, [cancel]);
+  // Stryker restore ArrayDeclaration
   // Stryker disable ArrayDeclaration: this deps array is mutation-equivalent whether it is `[]`
   // or a fixed literal such as `["Stryker was here"]`: React compares dependency arrays element by
   // element with `Object.is`, and the callback closes over a state setter only, so its identity
@@ -81,9 +93,9 @@ export function useEpisodeReanalysis(options: Readonly<UseEpisodeReanalysisOptio
     latestRun.current = undefined;
     if (isRunningRef.current) {
       isRunningRef.current = false;
-      void source.cancelEpisodeReanalysis();
+      cancel();
     }
-  }, [animeId, source]);
+  }, [animeId, cancel]);
 
   return { analysis, review, onReanalyze, onCancelAnalysis, onCloseReview, onConfirmReview };
 }

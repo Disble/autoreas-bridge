@@ -7,8 +7,12 @@ import type {
   EpisodeDurationSection,
   EpisodeReanalysisProgress,
   EpisodeReanalysisReview,
-} from '../../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
-import { EPISODE_DURATIONS_LOADING_LABEL, EPISODE_DURATIONS_SKELETON_ROW_COUNT } from '../episode-durations-section.constants';
+} from '../../../../../shared/contracts/episode-durations.types';
+import type { ModuleReadiness } from '../../../../../shared/contracts/readiness.types';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
+import { status } from '../../../../../shared/query/test-support/readiness-source.test-support';
+import { EPISODE_DURATIONS_LOADING_LABEL, EPISODE_DURATIONS_RELOAD_DELAY_MS, EPISODE_DURATIONS_SKELETON_ROW_COUNT } from '../episode-durations-section.constants';
 import type { UseEpisodeDurationsSectionOptions } from '../episode-durations-section.types';
 import { EpisodeDurationsSection } from '../EpisodeDurationsSection';
 import { useEpisodeDurationsSection } from '../use-episode-durations-section';
@@ -31,7 +35,7 @@ function row(episode: number, minutes: number): EpisodeDurationRow {
  * @returns The section.
  */
 function section(overrides: Partial<EpisodeDurationSection> = {}): EpisodeDurationSection {
-  return { outcome: 'ok', folderStatus: 'found', beyondTotal: [], tv: true, rows: [row(1, 47), row(2, 24), row(3, 23)], ...overrides };
+  return { folderStatus: 'found', beyondTotal: [], tv: true, rows: [row(1, 47), row(2, 24), row(3, 23)], ...overrides };
 }
 
 /** A fake source plus the hooks a test drives it with. */
@@ -89,9 +93,10 @@ function Harness({ options, source }: Readonly<HarnessProps>) {
  * @param overrides Saved fields to replace.
  * @returns The render result.
  */
-function renderSection(fake: FakeSource, overrides: Partial<UseEpisodeDurationsSectionOptions> = {}) {
+function renderSection(fake: FakeSource, overrides: Partial<UseEpisodeDurationsSectionOptions> = {}, episodes: ModuleReadiness = status('episodes', 'ready')) {
   const options: UseEpisodeDurationsSectionOptions = { animeId: 'anime-1', folder: 'D:/Anime/Oshi no Ko', totalEpisodes: '12', kind: '0', ...overrides };
-  return render(<Harness options={options} source={fake.source} />);
+  const { wrapper, emit } = createModulesTestWrapper(episodes);
+  return { ...render(<Harness options={options} source={fake.source} />, { wrapper }), emit };
 }
 
 /** Shows the Episodes table. */
@@ -163,7 +168,7 @@ describe('EpisodeDurationsSection exclusive states', () => {
     await waitFor(() => expect(getSection).toHaveBeenCalledTimes(1));
     await act(async () => resolve(section()));
 
-    expect(screen.queryByRole('status', { name: EPISODE_DURATIONS_LOADING_LABEL })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole('status', { name: EPISODE_DURATIONS_LOADING_LABEL })).toBeNull());
     expect(container.querySelector('[aria-busy="true"]')).toBeNull();
     expect(screen.queryAllByTestId('episode-durations-skeleton-row')).toHaveLength(0);
     expect(screen.getAllByTestId('episode-durations-row')).toHaveLength(3);
@@ -193,7 +198,7 @@ describe('EpisodeDurationsSection exclusive states', () => {
   });
 
   it('shows the failure alert alone: no table, no skeleton, no mascot', async () => {
-    renderSection(createFakeSource(vi.fn().mockResolvedValue(section({ outcome: 'error', message: 'disk gone' }))));
+    renderSection(createFakeSource(vi.fn().mockRejectedValue(createBridgeError('internal', 'disk gone'))));
     expand();
 
     expect(await screen.findByText('Episode durations could not be loaded.')).toBeInTheDocument();
@@ -201,6 +206,33 @@ describe('EpisodeDurationsSection exclusive states', () => {
     expect(screen.queryByRole('grid')).toBeNull();
     expect(screen.queryByRole('status', { name: EPISODE_DURATIONS_LOADING_LABEL })).toBeNull();
     expect(document.querySelector('img')).toBeNull();
+  });
+
+  it('shows the skeleton, never a failure, while the episodes module starts, then reads once it is ready', async () => {
+    const getSection = vi.fn().mockResolvedValue(section());
+    const { emit } = renderSection(createFakeSource(getSection), {}, status('episodes', 'starting'));
+    expand();
+
+    // Past the reload delay, so the gated query is waiting on the module when it turns ready.
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, EPISODE_DURATIONS_RELOAD_DELAY_MS + 50)); });
+    expect(await screen.findByRole('status', { name: EPISODE_DURATIONS_LOADING_LABEL })).toBeInTheDocument();
+    expect(screen.queryByText('Episode durations could not be loaded.')).toBeNull();
+    expect(getSection).not.toHaveBeenCalled();
+    act(() => emit(status('episodes', 'ready')));
+
+    await waitFor(() => expect(screen.getAllByTestId('episode-durations-row')).toHaveLength(3));
+    expect(getSection).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the failure alert with the module reason when the episodes module failed, and reads nothing', async () => {
+    const getSection = vi.fn().mockResolvedValue(section());
+    renderSection(createFakeSource(getSection), {}, status('episodes', 'failed', 'disk unavailable'));
+    expand();
+
+    expect(await screen.findByText('Episode durations could not be loaded.')).toBeInTheDocument();
+    expect(screen.getByText(/disk unavailable/)).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: EPISODE_DURATIONS_LOADING_LABEL })).toBeNull();
+    expect(getSection).not.toHaveBeenCalled();
   });
 
   it('shows the inline empty state with Add episode, no table, and Re-analyze disabled without a folder', async () => {
@@ -259,6 +291,8 @@ describe('EpisodeDurationsSection progressive table', () => {
     await waitFor(() => expect(screen.getAllByTestId('episode-durations-row')).toHaveLength(3));
     expect(screen.getByRole('button', { name: 'Re-analyze folder' })).toHaveTextContent(/^$/);
     fireEvent.click(screen.getByRole('button', { name: 'Re-analyze folder' }));
+    // A bridge mutation calls its command a few microtasks after the click.
+    await waitFor(() => expect(fake.source.reanalyzeEpisodeDurations).toHaveBeenCalledTimes(1));
     const rows = Array.from({ length: 150 }, (_unused, index) => ({
       episode: index + 1, basename: `e${index + 1}.mkv`, currentMs: 0, currentMinutes: 0, currentSource: '', measuredMs: 1_440_000, measuredMinutes: 24, result: 'add' as const,
     }));
@@ -353,7 +387,7 @@ describe('EpisodeDurationsSection own draft', () => {
     expect(screen.getByRole('button', { name: 'Re-analyze folder (Analyzing…)' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Save episodes' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(fake.source.cancelEpisodeReanalysis).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(fake.source.cancelEpisodeReanalysis).toHaveBeenCalledTimes(1));
     await act(async () => fake.settleReview({
       outcome: 'ok', status: 'ok', filesRecognized: 3,
       rows: [{ episode: 2, basename: 'e02.mkv', currentMs: 24 * 60_000, currentMinutes: 24, currentSource: 'measured', measuredMs: 46 * 60_000, measuredMinutes: 46, result: 'update' }],
@@ -387,7 +421,7 @@ describe('useEpisodeDurationsSection', () => {
   it('lists no review rows and no progress before a re-analysis, and starts clean and collapsed', () => {
     const fake = createFakeSource(vi.fn().mockResolvedValue(section()));
     const options: UseEpisodeDurationsSectionOptions = { animeId: 'anime-1', folder: 'D:/x', totalEpisodes: '12', kind: '0' };
-    const { result } = renderHook(() => useEpisodeDurationsSection(options, fake.source));
+    const { result } = renderHook(() => useEpisodeDurationsSection(options, fake.source), { wrapper: createModulesTestWrapper(status('episodes', 'ready')).wrapper });
 
     expect(result.current.visibleReviewRows).toEqual([]);
     expect(result.current.progress).toBeUndefined();

@@ -56,7 +56,7 @@ vi.mock('../AnimeEditorFormPanel', (load) => countRenders(load, 'AnimeEditorForm
 vi.mock('../AnimeEditorDialogs', (load) => countRenders(load, 'AnimeEditorDialogs', false));
 
 import { AnimeEditorWorkspace } from '../AnimeEditorWorkspace';
-import { createEmptyEpisodeDurationSource } from './episode-duration-source.test-support';
+import { createEmptyEpisodeDurationSource, createEpisodesReadyWrapper } from './episode-duration-source.test-support';
 
 /** The Episodes section's in-memory source, so no render waits on a Wails binding. */
 const episodeSource = createEmptyEpisodeDurationSource();
@@ -78,7 +78,8 @@ describe('AnimeEditorWorkspace render scope', () => {
           <Route element={<AnimeEditorWorkspace episodeSource={episodeSource} />} path="/editor/:id" />
         </Routes>
       </MemoryRouter>,
-    );
+    { wrapper: createEpisodesReadyWrapper() },
+  );
     await waitFor(() => expect(screen.getByRole('heading', { level: 4, name: /Alpha Show/ })).toBeInTheDocument());
     await selectAnime('Beta Show');
     await selectAnime('Gamma Show');

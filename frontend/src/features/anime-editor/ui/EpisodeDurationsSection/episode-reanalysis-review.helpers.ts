@@ -1,4 +1,4 @@
-import type { EpisodeReanalysisReview, EpisodeReanalysisRow } from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
+import type { EpisodeReanalysisReview, EpisodeReanalysisRow } from '../../../../shared/contracts/episode-durations.types';
 import type { EpisodeDurationEdit } from '../../../../shared/contracts/anime.types';
 import { EPISODE_REANALYSIS_RESULT_VIEWS, EPISODE_SKIPPED_DETAIL_LABELS } from './episode-durations-section.constants';
 import type { EpisodeChipColor, EpisodeOpenReview, EpisodeReviewChipView, EpisodeReviewRowView, EpisodeReviewView } from './episode-durations-section.types';
