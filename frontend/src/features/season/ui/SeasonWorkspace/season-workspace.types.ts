@@ -10,7 +10,7 @@ export type SeasonWorkspaceStoreBindings = Pick<SeasonStoreState, 'errorMessage'
 /** Inputs of the hook that loads the open season's animes for the workspace gate. */
 export interface SeasonWorkspaceAnimesLoadParams {
   /** The season the workspace shows; null when none is open. */
-  readonly season: SeasonStoreState['season'];
+  readonly season: SeasonSnapshot | null;
   /** Whether a past season is being viewed read-only. */
   readonly readOnly: boolean;
   /** Season port the load goes through. */

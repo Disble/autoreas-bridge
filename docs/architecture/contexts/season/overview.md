@@ -140,9 +140,18 @@ For module readiness, failure codes and the `shared/query` layer, read
   refetch before resolving; matching refreshes only when no run started. The discard notice follows
   the refresh. The global Undo toast restores through `useIntakeRestore`, waits for the live rows
   refetch and only then closes; its key includes the discard sequence.
-- The season Zustand store (`shared/store/season-store/`) keeps UI state (`viewSeasonId`,
-  `readOnly`, `lastDiscard`, the banner, the matching run and its per-row event progress). Its
-  legacy server fields and actions remain until T5j-Z removes them.
+- The season Zustand store (`shared/store/season-store/`) keeps UI state only: `viewSeasonId`,
+  `readOnly`, `lastDiscard` with its sequence, the banner (`errorMessage`), `busyMessage`, and the
+  matching run with its per-row event progress, cleared together with the run. It holds no season,
+  no rows and no past-seasons list, and declares no command that fetches or refreshes them: those
+  are `shared/query` reads (`useDisplayedSeason`, `useDisplayedSeasonAnimes`, `useSeasonList`) and
+  mutations. The one backend subscription left (`connectSeasonMatchingStore`) feeds the run state;
+  the rows reload through the invalidation for the finished event. The long commands set
+  `busyMessage` while they run: intake matching, anime creation and availability recheck, and the
+  Daily board's recheck and send to Ver hoy.
+- Viewing a past season switches `viewSeasonId` and `readOnly` only, and only once both past reads
+  succeeded; the past season and its rows stay in the query cache the screens read them from. A read
+  that settles after the user moved on is dropped, and a viewed past season is never refreshed live.
 - Migrated to `shared/season`: `SeasonWorkspace`, `OverviewPanel/use-overview-panel.ts`,
   `OrderingBoard/use-ordering-board-store-bindings.ts`, `SeasonRateAction`, `TodaySeasonBanner`,
   `EvaluationPanel`, `RateAnimeModal`, `SelectionBoard`, `DailyBoard`,
@@ -161,6 +170,6 @@ For module readiness, failure codes and the `shared/query` layer, read
 - Season bindings that call other contexts still read their service from an `App` field:
   `DownloadSeasonAnimes`, `TriggerSeasonDownloads` (downloads), `SendSeasonAnimesToVerHoy` (anime
   editor), `GetSeasonCheckTime`, `SetSeasonCheckTime` (settings). They migrate with those contexts.
-- Every season screen now reads and writes through `shared/query`. What remains is the store side:
-  the legacy server fields and actions, and a past-season view that still copies the past season and
-  its rows into the store. T5j-Z removes both.
+- Every season screen reads and writes through `shared/query`, and the season store holds UI state
+  only. The store's matching subscription is still a direct source subscription rather than a
+  `BRIDGE_INVALIDATIONS` entry; it is allow-listed in `frontend/async-state-baseline.json`.

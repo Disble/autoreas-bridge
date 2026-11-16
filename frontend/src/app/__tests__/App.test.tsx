@@ -23,7 +23,7 @@ describe('App routing', () => {
   beforeEach(() => {
     // Preset the season store so /season resolves synchronously instead of
     // waiting on the real Wails binding timeout in this jsdom integration test.
-    seasonStore.setState({ hasLoaded: true, season: null, pastSeasons: [], readOnly: false });
+    seasonStore.setState({ readOnly: false, viewSeasonId: null });
   });
 
   afterEach(() => {

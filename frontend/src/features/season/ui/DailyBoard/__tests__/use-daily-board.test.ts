@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SeasonAnimeRow, SeasonQuerySource, SeasonSource } from '../../../../../shared/contracts/season.types';
 import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
-import { getSeasonStoreState, resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
+import { getSeasonStoreState, resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
 import { useDailyBoard } from '../use-daily-board';
 
 /** Renders each board with a fresh ready season query client. */
@@ -290,10 +290,10 @@ describe('useDailyBoard', () => {
     expect(source.openPage).toHaveBeenCalledWith('https://example.com/a');
   });
 
-  /** Opens the given closed season read-only through the season store, as the history view does. */
-  async function viewClosedSeason(source: SeasonSource, seasonId = 's1'): Promise<void> {
+  /** Switches the season store to the read-only past-season view, as the history view does. */
+  async function viewClosedSeason(_source: SeasonSource, seasonId = 's1'): Promise<void> {
     await act(async () => {
-      await getSeasonStoreState().viewPastSeason(source, seasonId);
+      setSeasonStoreState({ viewSeasonId: seasonId, readOnly: true });
     });
   }
 
@@ -364,24 +364,5 @@ describe('useDailyBoard', () => {
     expect([result.current.boardMode, result.current.boardError]).toEqual(['sections', undefined]);
     expect(source.fetchSeasonOrderingSnapshot).not.toHaveBeenCalled();
     expect(result.current.getVerHoyRowChip({ ...rows[0], section: 'Jueves', sectionOrder: 3 })).toEqual({ label: 'Jueves - 3', color: 'accent' });
-  });
-
-  it('drops a closed-season read that settles after the viewed season changed', async () => {
-    /** Settles the first (stale) read once the second season is on screen. */
-    let settleFirst: (value: unknown) => void = () => undefined;
-    const fetchSeasonOrderingSnapshot = vi
-      .fn()
-      .mockImplementationOnce(() => new Promise((resolve) => { settleFirst = resolve; }))
-      .mockResolvedValue(storedSnapshot({ recorded: false, entries: [] }));
-    const source = createSource({ fetchSeasonOrderingSnapshot });
-    await viewClosedSeason(source);
-    const { result } = renderHook(() => useDailyBoard(source));
-    await viewClosedSeason(source, 's2');
-    await waitFor(() => expect(result.current.boardMode).toBe('plain'));
-
-    await act(async () => {
-      settleFirst(storedSnapshot({ recorded: true, entries: [] }));
-    });
-    expect(result.current.boardMode).toBe('plain');
   });
 });

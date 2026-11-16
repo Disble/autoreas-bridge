@@ -1,7 +1,6 @@
 import type { DragOverEvent } from '@dnd-kit/react';
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
-import type { OrderingBoard, SeasonSource } from '../../../../shared/contracts/season.types';
-import type { SeasonStoreState } from '../../../../shared/store/season-store/season-store.types';
+import type { OrderingBoard, SeasonAnimeRow, SeasonSource } from '../../../../shared/contracts/season.types';
 import type { SeasonCoverThumbProps } from '../SeasonCoverThumb/season-cover-thumb.types';
 import type { SeasonSectionId } from '../SeasonWorkspace/season-workspace.types';
 import type { OrderingState } from '../../../../shared/ordering/ordering.types';
@@ -155,11 +154,21 @@ export interface OrderingColumnProps {
   readonly children: ReactNode;
 }
 
-/** Season store values and actions consumed by the ordering board hook. */
-export type OrderingBoardStoreBindings = Pick<
-  SeasonStoreState,
-  'closeSeason' | 'readOnly' | 'viewSeasonId' | 'seasonAnimes' | 'ensureAnimesLoaded' | 'errorMessage'
->;
+/** Season view state, the displayed rows and the commands the ordering board hook consumes. */
+export type OrderingBoardStoreBindings = {
+  /** Closes the open season, then reads it again. */
+  readonly closeSeason: () => Promise<void>;
+  /** Whether the board is read-only because a past season is viewed. */
+  readonly readOnly: boolean;
+  /** The past season being viewed, or null for the live season. */
+  readonly viewSeasonId: string | null;
+  /** The displayed season's intake rows, read through `shared/query`. */
+  readonly seasonAnimes: readonly SeasonAnimeRow[];
+  /** Resolves once the rows are loaded; the read owns that, so it never blocks. */
+  readonly ensureAnimesLoaded: () => Promise<void>;
+  /** The shared season banner text. */
+  readonly errorMessage?: string;
+};
 
 /** Inputs of the hook that loads the live or stored board into the working state. */
 export interface OrderingBoardLoadParams {
@@ -214,7 +223,7 @@ export interface OrderingBoardDerivedParams {
   /** The editable working state. */
   readonly state: WorkingState;
   /** The season selection rows that card metadata is joined from. */
-  readonly seasonAnimes: SeasonStoreState['seasonAnimes'];
+  readonly seasonAnimes: readonly SeasonAnimeRow[];
 }
 
 /** Inputs of the hook that owns the user's edits to the working state. */

@@ -83,14 +83,15 @@ export function useOrderingBoard(source: SeasonSource = BRIDGE_SEASON_SOURCE, co
     await load();
   }, [reopenOrdering, load, clearEdits]);
   const onCloseSeason = useCallback(() => {
-    void closeSeason(source);
-  }, [closeSeason, source]);
+    void closeSeason();
+  }, [closeSeason]);
 
   // 7. Effects
-  // Grade + desktop actions come from the season selection rows; load them once.
+  // Grade + desktop actions come from the season selection rows; the displayed
+  // rows read owns loading them, so this resolves at once and only marks intent.
   useEffect(() => {
-    void ensureAnimesLoaded(source);
-  }, [ensureAnimesLoaded, source]);
+    void ensureAnimesLoaded();
+  }, [ensureAnimesLoaded]);
   useOrderingBoardAutosave({ saveDraft: autosaveDraft, state, hasEdits, readOnly, hasInvalidWeekdayPlacements });
 
   return {

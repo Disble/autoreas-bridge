@@ -8,7 +8,7 @@ import type {
   SeasonMatchingProgressNotice,
   SeasonMatchingStartedNotice,
 } from '../../../../../shared/contracts/season.types';
-import { disconnectSeasonMatchingStore, resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
+import { disconnectSeasonMatchingStore, getSeasonStoreState, resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
 import { createLibraryRootSource, createMetadataSource, createSource, createSourceWithRows, seasonRow, selection } from './intake-panel.test-support';
 import { useIntakePanel } from '../use-intake-panel';
 
@@ -99,8 +99,11 @@ describe('useIntakePanel', () => {
     act(() => {
       finished({ seasonId: 'season-1' });
     });
+    // The run's progress is gone with the run, so the row falls back to what the
+    // query holds; the rows themselves reload through the finished event's
+    // invalidation (`use-displayed-season.test.ts`), never from here.
     expect(result.current.matchingProgressMessage).toBeUndefined();
-    await waitFor(() => expect(source.getSeasonAnimes).toHaveBeenCalledTimes(2));
+    expect(getSeasonStoreState().matchingProgress).toEqual({});
   });
 
   it('toggleSelect then onCreate creates the picked rows and clears the selection', async () => {
