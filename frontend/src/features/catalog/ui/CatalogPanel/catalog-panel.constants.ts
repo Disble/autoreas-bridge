@@ -137,8 +137,8 @@ export const CATALOG_VIEW_OPTIONS: readonly CatalogViewOption[] = [
 /** Hint under the Genres group: genres narrow together, not as alternatives. */
 export const CATALOG_GENRES_HINT = 'Shows anime that have every selected genre.';
 
-/** Sort the Catalog opens with. */
-export const CATALOG_DEFAULT_SORT: CatalogSortKey = 'name-asc';
+/** Opens the Catalog with the most recently watched anime first. */
+export const CATALOG_DEFAULT_SORT: CatalogSortKey = 'last-watched';
 
 /** Layout the Catalog opens with. */
 export const CATALOG_DEFAULT_VIEW: CatalogView = 'grid';

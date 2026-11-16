@@ -8,11 +8,11 @@ beforeEach(() => {
 });
 
 describe('useCatalogCriteria', () => {
-  it('opens on the all-records default, sorted A–Z, in the grid', () => {
+  it('opens on the all-records default, sorted by last watched, in the grid', () => {
     const { result } = renderHook(() => useCatalogCriteria());
 
     expect(result.current.criteria).toEqual({ query: '', statuses: [], kinds: [], genres: [] });
-    expect(result.current.sort).toBe('name-asc');
+    expect(result.current.sort).toBe('last-watched');
     expect(result.current.view).toBe('grid');
   });
 

@@ -375,6 +375,8 @@ flowchart LR
   `animeKeys.key('watch-history', request)`; one anime's first page under
   `animeKeys.key('anime-watch-history', request)` (the inspector's 3 recent rows and each episode
   list); one cover under `animeKeys.key('cover', id)`.
+- Catalog sorting: a fresh app session defaults to Last watched (newest first, undated anime last).
+  The user's selected sort is kept while navigating within the session; the other sort options remain available.
 - Paging: only the first keyset page is a query. Older pages load through the cursor on a
   near-bottom scroll and belong to one request and one first-page load; a later-page failure stops
   paging and keeps the rows on screen (`toHistoryTimelinePages`, `toAnimeWatchEpisodePages`).
