@@ -53,7 +53,7 @@ describe('BridgeDataProvider', () => {
     await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
 
     expect(screen.getByText('pending')).toBeInTheDocument();
-    // One listener each, StrictMode included: readiness first, then the invalidation rules (`anime.changed`, the two Devices events, the two notification events, then the finished season matching run).
+    // One listener each, StrictMode included: readiness first, then the invalidation rules (`anime.changed`, the two Devices events, the two notification events, the finished season matching run, then the download run events and the settled missed day).
     expect(calls).toEqual([
       'listen:bridge.readiness',
       'GetReadiness',
@@ -63,6 +63,17 @@ describe('BridgeDataProvider', () => {
       'listen:notification.push',
       'listen:notification.archived',
       'listen:season.matching_finished',
+      'listen:download.run_started',
+      'listen:download.run_progress',
+      'listen:download.run_finished',
+      'listen:download.episode_available',
+      'listen:download.episode_downloaded',
+      'listen:download.failed',
+      'listen:download.skipped',
+      'listen:download.jd_status',
+      'listen:download.episode_downloading',
+      'listen:schedule.run_settled',
+      'listen:schedule.missed_settled',
     ]);
     expect(queryFn).not.toHaveBeenCalled();
 

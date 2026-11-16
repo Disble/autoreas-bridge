@@ -67,6 +67,7 @@ Bindings that run through a handle today:
 | `observability` (`modules.Handle[observabilityServices]`) | activity reader (`activityread.Reader`), incident store (pins), request capture reader, sync diagnostics reader | `bindObservabilityModule`, after `configureEventLogQueue`, before `configureRuntimeServices` settles `observability` | `SearchActivityFeed`, `GetActivityOverview`, `GetActivityEvent`, `GetActivityChangeContext`, `GetActivityPhoneReport`, `GetActivityIncident`, `GetActivityRequest`, `GetActivityRunStory`, `PinActivityMoment`, `ListDeviceSyncDiagnostics() (DeviceSyncDiagnosticsResult, error)`; `../observability/overview.md`, "Readiness" |
 | `notifications` (`modules.Handle[notificationServices]`) | the notification center store and its action executor | `wireNotificationCenterIntentExecutor`, before `startup` settles `notifications` | `ListNotifications`, `GetNotification`, `GetUnreadNotificationCount`, `MarkNotificationsRead`, `MarkNotificationsUnread`, `ArchiveNotifications`, `RestoreNotifications`, `ExecuteNotificationAction`, each `(T, error)` (`TestNotificationBindingsFollowTheirModule`); `../notifications/overview.md` |
 | `season` (`modules.Handle[seasonServices]`) | `seasonServices.season`, the season service; `seasonServices.animes`, the anime query the season reads and boards use; `seasonServices.settings`, the settings store the create reads the library root from | `bindSeasonModule` (`app_season.go`), right after `wireSeasonMatchingEventBus`, before `startup` settles `season` | the season, intake, matching, grading, selection, ordering, history, availability-recheck and provider-search bindings, and `GetSeasonMode() (bool, error)`; commands return `error`, reads return `(T, error)`; `../season/overview.md`, "Readiness and failures" |
+| `downloads` (`modules.Handle[downloadServices]`) | `downloadServices.store` (download store), `service` (download service), `readiness` (download readiness service), `scheduler` (the download scheduler) | `bindDownloadsModule` (`app_download.go`), in `startDownloadOrchestration` right after the scheduler starts, before `startup` settles `downloads` | `GetDownloadConfig`, `GetJDStatus`, `GetScheduleConfig`, `ListDownloadRuns`, `ListDownloadReadiness`, `RunMissedScheduleNow`, `IgnoreMissedSchedule` return `(T, error)`; `SetHosterPriority`, `SetJDConfig`, `SetScheduleConfig`, `TriggerDownloadCheck`, `TriggerAnimeDownload`, `CancelDownloadRun` return `error` (a store failure or a refused command is `internal`, an unknown anime `not_found`) (`TestDownloadBindingsFollowTheirModule`); `../downloads/overview.md`, "Bindings and the Downloads screen" |
 
 ## Readiness and failures
 
@@ -85,7 +86,7 @@ then settles at the step that wires it:
 | `episodes` | episode service is wired (and bound to the `episodes` handle) | `configureRuntimeServices` |
 | `api` | HTTP server is built (and bound to the `api` handle) and started; a failed bind is `failed` with the bind error | `configureRuntimeServices` |
 | `season` | season service is wired (and bound to the `season` handle) | `startup`, after `wireSeasonMatchingEventBus` |
-| `downloads` | download service and download readiness service are wired | `startDownloadOrchestration` |
+| `downloads` | download store, service, readiness service and scheduler are wired (bound to the `downloads` handle) | `startDownloadOrchestration` |
 | `notifications` | notification center store and executor are wired (bound to the `notifications` handle) | `wireNotificationCenterIntentExecutor` |
 
 - `registeredModules` (`app_readiness.go`) lists them in this order. `internal/lifecycle/modules.json`
@@ -145,7 +146,7 @@ event itself for the download and season families), or emitted directly:
 | `bridge.readiness` | a module changes readiness (`ModuleReadiness` DTO) | the frontend readiness gate (ADR-032 §4, task T3) |
 | `anime.changed` | an anime save commits (`contracts.AnimeChangedNotice`) | anime runtime source |
 | `sync.device_acknowledged` | a device acknowledges the changelog | `BRIDGE_INVALIDATIONS` → the paired-device list (`../devices/overview.md`) |
-| `download.*` (`downloadRuntimeEventNames`) | a download run, episode or JD status changes | download runtime source |
+| `download.*` (`downloadRuntimeEventNames`) | a download run, episode or JD status changes | `BRIDGE_INVALIDATIONS` → the download schedule and run history (`../downloads/overview.md`) |
 | `season.matching_*` (`seasonRuntimeEventNames`) | a season matching run progresses | season source |
 | `episode.durations_reanalysis_progress` | an episode duration reanalysis advances | episode duration runtime source |
 | `activity.recorder`, `schedule.run_settled`, `schedule.missed_settled`, `notification.archived`, `notification.navigate`, `pairing.token-consumed` | the matching shell action happens | Activity, scheduler, notification center; `pairing.token-consumed` → `BRIDGE_INVALIDATIONS` (pairing token and paired-device list) |
@@ -218,13 +219,14 @@ memory and starts over with every process.
 | Activity screen (feed, chart, drawer reads, pin) | `internal/desktop/app_activity_feed.go`, `app_activity_read.go`, `app_activity_pin.go` (handle `observability`); `../observability/overview.md` |
 | Notification center and rail badge | `internal/desktop/app_notification_center.go` (handle `notifications`); `../notifications/overview.md` |
 | Season screens (intake, matching, grading, selection, ordering, history) | `internal/desktop/app_season*.go`, `app_preferences.go` `GetSeasonMode` (handle `season`); `../season/overview.md` |
+| Downloads screen, missed-day notice, auto-download chip | `internal/desktop/app_download*.go` (handle `downloads`); `../downloads/overview.md` |
 | Any other Wails binding | the exported `App` method in `internal/desktop/app_<context>*.go` |
 
 ## Known drift
 
 - Every binding except the seven `shell` bindings, `GetEpisodeSchedule`, `GetEpisodeDayCounts`,
-  the six `api`/`sync`/`devices` bindings, the four `backup` bindings and the ten `observability`
-  bindings above still reads its service from an `App` field without a readiness check: 92
+  the six `api`/`sync`/`devices` bindings, the four `backup` bindings, the ten `observability`
+  bindings and the downloads bindings on the `downloads` handle above still reads its service from an `App` field without a readiness check: 92
   `binding-uses-handle` and 41 `binding-signature` entries in `tools/checkarchitecture/baseline.yaml`
   (printed by `go run ./tools/checkarchitecture`).
 - The picker and lookup consumers keep their earlier behaviour through their adapters: the

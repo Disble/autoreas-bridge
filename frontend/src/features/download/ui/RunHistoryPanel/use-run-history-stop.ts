@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react';
-import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
+import type { DownloadsSource } from '../../../../shared/contracts/download.types';
+import { toErrorMessage } from '../../../../shared/helpers/error-message.helpers';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
 
 /**
  * useRunHistoryStop owns the card-level Stop control. A stop stays pending
@@ -9,10 +11,10 @@ import type { DownloadRuntimeSource } from '../../../../infrastructure/download-
  * reports the backend's message.
  *
  * @param runningRunId The run still open, if any.
- * @param source The download port that cancels the run.
+ * @param source The downloads port that cancels the run.
  * @returns The stop action, whether a stop is pending, and a refusal message.
  */
-export function useRunHistoryStop(runningRunId: string | undefined, source: DownloadRuntimeSource) {
+export function useRunHistoryStop(runningRunId: string | undefined, source: DownloadsSource) {
   // 1. Refs
 
   // 2. State
@@ -22,6 +24,7 @@ export function useRunHistoryStop(runningRunId: string | undefined, source: Down
   // 3. Context/3rd Party Hooks
 
   // 4. Queries/Mutations
+  const { mutateAsync: cancelDownloadRun } = useBridgeMutation({ mutationFn: () => source.cancelDownloadRun() });
 
   // 5. Derived State (useMemo)
   const isStopping = stopRequestedRunId !== undefined && stopRequestedRunId === runningRunId;
@@ -35,12 +38,13 @@ export function useRunHistoryStop(runningRunId: string | undefined, source: Down
   const cancelRun = useCallback(async () => {
     setCancelErrorMessage(undefined);
     setStopRequestedRunId(runningRunId);
-    const result = await source.cancelDownloadRun();
-    if (result !== 'ok') {
+    try {
+      await cancelDownloadRun();
+    } catch (error) {
       setStopRequestedRunId(undefined);
-      setCancelErrorMessage(result);
+      setCancelErrorMessage(toErrorMessage(error, 'Failed to stop the download run'));
     }
-  }, [runningRunId, source]);
+  }, [cancelDownloadRun, runningRunId]);
 
   // 7. Effects
 

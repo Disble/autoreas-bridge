@@ -104,13 +104,13 @@ func TestGetDownloadConfigReportsTheEpisodeRenamePreference(t *testing.T) {
 	// the real one has to replace it afterwards, bound to the settings module.
 	withSettingsStore(app, newRenameSettingsStore(t))
 
-	if app.GetDownloadConfig().RenameEpisodes {
+	if must(t).value(app.GetDownloadConfig()).RenameEpisodes {
 		t.Fatal("RenameEpisodes = true before the user opted in")
 	}
 	if err := app.SetEpisodeRenameEnabled(true); err != nil {
 		t.Fatalf("SetEpisodeRenameEnabled: %v", err)
 	}
-	if !app.GetDownloadConfig().RenameEpisodes {
+	if !must(t).value(app.GetDownloadConfig()).RenameEpisodes {
 		t.Fatal("RenameEpisodes = false after the user opted in")
 	}
 }

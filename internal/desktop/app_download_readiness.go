@@ -18,7 +18,9 @@ import (
 // The screen has no run of its own to scope the query to, so it reads through the app-wide
 // context; everything else about the read is shared with the download service's seam below.
 func (a *App) ListDownloadReadiness() (contracts.DownloadReadinessSnapshot, error) {
-	return a.downloadReadinessSnapshot(a.downloadCtx())
+	return a.moduleSet().downloads.Use(func(downloadServices) (contracts.DownloadReadinessSnapshot, error) {
+		return a.downloadReadinessSnapshot(a.downloadCtx())
+	})
 }
 
 // downloadReadinessSnapshot is the download service's readiness seam

@@ -104,6 +104,24 @@ JD lists (LinkGrabber and downloads) and never deletes files.
 Stop goes through `App.CancelDownloadRun` (`internal/desktop/app_download_cancel.go`), which cancels
 the run's context. Where the run honours that cancellation is described in `workflow.md`.
 
+## Bindings and the Downloads screen
+
+The `downloads` module handle (`appModules.downloads` in `internal/desktop/app_readiness.go`) holds the
+store, the service, the readiness service and the scheduler. `bindDownloadsModule`
+(`app_download.go`) binds it once all four exist, after the scheduler starts. Every downloads binding
+goes through that handle (ADR-032): while the module is `starting` it rejects `unavailable`, after it
+failed `failed_precondition`, and a store failure or a refused command is the binding's error
+(`internal`, or `not_found` for an unknown anime). `GetJDMaxSimultaneousDownloads` reads through the
+always-ready `shell` handle, and `SetEpisodeRenameEnabled` through `settings`.
+
+On the frontend, `createDownloadsSource` (`infrastructure/download-runtime-source/downloads-source.helpers.ts`)
+is the `DownloadsSource` port; `shared/query` builds it once as `BRIDGE_DOWNLOADS_SOURCE`. The
+schedule (`DOWNLOADS_SCHEDULE_KEY`), the run history (`DOWNLOADS_RUNS_KEY`), the config, the JD status
+and limit, and the readiness (`DOWNLOADS_READINESS_KEY`) are queries. A run event re-reads the schedule
+and the run history, and `schedule.missed_settled` re-reads the schedule (`BRIDGE_INVALIDATIONS`).
+`shared/store/download-runtime-store` keeps only renderer-session UI state: the selected run and the
+missed-day notice's hidden decision, shown failures and action feedback.
+
 ## Events
 
 The core publishes `DownloadEpisodeAvailableEvent`, `DownloadEpisodeDownloadingEvent`,

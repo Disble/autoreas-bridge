@@ -1,69 +1,18 @@
 import { createStore } from 'zustand/vanilla';
-import { downloadRuntimeSource } from '../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
-import { EMPTY_SCHEDULE_CONFIG } from '../../../infrastructure/download-runtime-source/download-runtime-source.constants';
-import { toErrorMessage } from '../../helpers/error-message.helpers';
-import type { DownloadRuntimeSource } from '../../../infrastructure/download-runtime-source/download-runtime-source.types';
-import { DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE } from './download-runtime-store.constants';
 import type { DownloadRuntimeStoreState } from './download-runtime-store.types';
 
 /**
- * Vanilla backing store for the shared Downloads runtime read-model.
- *
- * A store instance belongs in `.constants.ts`. This one stays here because this file's own
- * `.constants.ts` holds `DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE`, which the
- * connect/reset functions below mutate -- moving the store across would put the
- * initializer and the subscription state on opposite sides of an import this
- * bugfix has no reason to rearrange. Suppressed in place so the debt is visible
- * rather than silently disabled repo-wide.
+ * Vanilla backing store of the Downloads renderer-session UI state. It stays in
+ * this file because the allow-list (`ZUSTAND_VANILLA_ALLOW_LIST`) names it here;
+ * suppressed in place so the placement is visible rather than disabled repo-wide.
  */
-export const downloadRuntimeStore = createStore<DownloadRuntimeStoreState>()((set) => ({ // eslint-disable-line dharness/role-file-shape -- see the block above: pending the same move notification-store already made
-  scheduleConfig: EMPTY_SCHEDULE_CONFIG,
-  scheduleHasLoaded: false,
-  scheduleErrorMessage: undefined,
+export const downloadRuntimeStore = createStore<DownloadRuntimeStoreState>()((set) => ({ // eslint-disable-line dharness/role-file-shape -- see the block above
   hiddenMissedNoticeDate: undefined,
   activeMissedFailureDate: undefined,
   shownMissedFailureDates: [],
   missedNoticeActionMessage: undefined,
   missedNoticeIsResolving: false,
-  runHistory: [],
-  runHistoryHasLoaded: false,
-  runHistoryErrorMessage: undefined,
   selectedRunId: undefined,
-  // Events re-read back to back (run_finished, then schedule.run_settled), and the backend may
-  // answer them out of order: only the answer to the latest read is applied.
-  refreshSchedule: async (source) => {
-    const read = ++DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.scheduleReadCount;
-    try {
-      const scheduleConfig = await source.getScheduleConfig();
-      if (read === DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.scheduleReadCount) {
-        set({ scheduleConfig, scheduleHasLoaded: true, scheduleErrorMessage: undefined });
-      }
-    } catch (error) {
-      if (read === DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.scheduleReadCount) {
-        set({
-          scheduleHasLoaded: true,
-          scheduleErrorMessage: toErrorMessage(error, 'Failed to load schedule config'),
-        });
-      }
-    }
-  },
-  refreshRunHistory: async (source) => {
-    const read = ++DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runHistoryReadCount;
-    try {
-      const runHistory = await source.listDownloadRuns();
-      if (read === DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runHistoryReadCount) {
-        set({ runHistory, runHistoryHasLoaded: true, runHistoryErrorMessage: undefined });
-      }
-    } catch (error) {
-      if (read === DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runHistoryReadCount) {
-        set({
-          runHistory: [],
-          runHistoryHasLoaded: true,
-          runHistoryErrorMessage: toErrorMessage(error, 'Failed to load download run history'),
-        });
-      }
-    }
-  },
   hideMissedNoticeDecision: (localDate) => set({ hiddenMissedNoticeDate: localDate }),
   restoreMissedNoticeDecision: () => set({ hiddenMissedNoticeDate: undefined }),
   showMissedScheduleFailure: (localDate) =>
@@ -83,93 +32,19 @@ export const downloadRuntimeStore = createStore<DownloadRuntimeStoreState>()((se
   selectRun: (selectedRunId) => set({ selectedRunId }),
 }));
 
-/** Reads the current Downloads runtime store snapshot outside React render. */
+/** Reads the current Downloads UI state snapshot outside React render. */
 export function getDownloadRuntimeStoreState(): DownloadRuntimeStoreState {
   return downloadRuntimeStore.getState();
 }
 
-/** Writes a partial Downloads runtime store snapshot outside React render. */
-function setDownloadRuntimeStoreState(partial: Partial<DownloadRuntimeStoreState>): void {
-  downloadRuntimeStore.setState(partial);
-}
-
-/**
- * connectDownloadRuntimeStore wires backend run lifecycle events into the
- * shared read-model and stays idempotent across multiple panels.
- */
-export function connectDownloadRuntimeStore(source: DownloadRuntimeSource = downloadRuntimeSource): () => void {
-  if (DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runtimeUnsubscribe !== null) {
-    return DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runtimeUnsubscribe;
-  }
-
-  const unsubscribe = source.subscribeRunEvents(() => {
-    const state = getDownloadRuntimeStoreState();
-
-    if (state.scheduleHasLoaded) {
-      void state.refreshSchedule(source);
-    }
-
-    if (state.runHistoryHasLoaded) {
-      void state.refreshRunHistory(source);
-    }
-  });
-
-  // A missed day settled somewhere this store cannot see the answer of -- a
-  // "Run now"/"Ignore" token pressed on the persisted notification record,
-  // which returns to the notification center and not to us. Only the schedule
-  // is re-read: settling a day is not a run.
-  const unsubscribeMissedScheduleSettled = source.subscribeMissedScheduleSettled(() => {
-    const state = getDownloadRuntimeStoreState();
-
-    if (state.scheduleHasLoaded) {
-      void state.refreshSchedule(source);
-    }
-  });
-
-  const state = getDownloadRuntimeStoreState();
-
-  if (!state.scheduleHasLoaded) {
-    void state.refreshSchedule(source);
-  }
-
-  if (!state.runHistoryHasLoaded) {
-    void state.refreshRunHistory(source);
-  }
-
-  DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runtimeUnsubscribe = () => {
-    unsubscribe();
-    unsubscribeMissedScheduleSettled();
-    DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runtimeUnsubscribe = null;
-  };
-
-  return DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runtimeUnsubscribe;
-}
-
-/**
- * resetDownloadRuntimeStore disconnects the runtime bridge and restores the
- * empty read-model snapshot.
- */
+/** Restores the empty renderer-session UI state (tests reset between cases). */
 export function resetDownloadRuntimeStore(): void {
-  if (DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runtimeUnsubscribe !== null) {
-    DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runtimeUnsubscribe();
-  }
-
-  // A read still in flight belongs to the snapshot being cleared: it must not land after it.
-  DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.scheduleReadCount += 1;
-  DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runHistoryReadCount += 1;
-
-  setDownloadRuntimeStoreState({
-    scheduleConfig: EMPTY_SCHEDULE_CONFIG,
-    scheduleHasLoaded: false,
-    scheduleErrorMessage: undefined,
+  downloadRuntimeStore.setState({
     hiddenMissedNoticeDate: undefined,
     activeMissedFailureDate: undefined,
     shownMissedFailureDates: [],
     missedNoticeActionMessage: undefined,
     missedNoticeIsResolving: false,
-    runHistory: [],
-    runHistoryHasLoaded: false,
-    runHistoryErrorMessage: undefined,
     selectedRunId: undefined,
   });
 }

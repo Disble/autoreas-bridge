@@ -1,6 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
-import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
-import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
+import { useCallback, useState } from 'react';
+import type { DownloadsSource } from '../../../../shared/contracts/download.types';
+import { toErrorMessage } from '../../../../shared/helpers/error-message.helpers';
+import { toAsyncView } from '../../../../shared/query/async-view/async-view.helpers';
+import { BRIDGE_DOWNLOADS_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { downloadsKeys } from '../../../../shared/query/query-keys/query-keys.constants';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
+import { useBridgeQuery } from '../../../../shared/query/use-bridge-query/use-bridge-query';
 import { JDCONFIG_PANEL_EMPTY_STATUS } from './jdconfig-panel.constants';
 import { toJDConfigFormValues, toJDConfigInput } from './jdconfig-panel.helpers';
 import type { JDConfigFormValues } from './jdconfig-panel.types';
@@ -9,79 +14,57 @@ import type { JDConfigFormValues } from './jdconfig-panel.types';
  * useJDConfigPanel loads the live JD account/device status, exposes an
  * editable form derived from it (with the password field always starting
  * blank — it is write-only and never echoed back), and persists edits via
- * `setJDConfig`, refreshing the live status afterward.
+ * `setJDConfig`, re-reading the live status afterward. The form follows the
+ * status until the user edits it, and again once a save is stored.
+ *
+ * @param source The downloads port the status is read and saved through.
+ * @returns The panel state and its form actions.
  */
-export function useJDConfigPanel(source: DownloadRuntimeSource = downloadRuntimeSource) {
-  // 1. Refs
-
+export function useJDConfigPanel(source: DownloadsSource = BRIDGE_DOWNLOADS_SOURCE) {
   // 2. State
-  const [form, setForm] = useState<JDConfigFormValues>({
-    email: '',
-    plaintextPassword: '',
-    deviceName: '',
-    exePathOverride: '',
-    defaultDestDir: '',
-  });
-  const [liveStatus, setLiveStatus] = useState(JDCONFIG_PANEL_EMPTY_STATUS);
-  const [hasLoaded, setHasLoaded] = useState(false);
-  const [loadErrorMessage, setLoadErrorMessage] = useState<string | undefined>(undefined);
-  const [isSaving, setIsSaving] = useState(false);
+  const [formDraft, setFormDraft] = useState<JDConfigFormValues | undefined>(undefined);
   const [saveErrorMessage, setSaveErrorMessage] = useState<string | undefined>(undefined);
   const [saveSucceeded, setSaveSucceeded] = useState(false);
 
-  // 3. Context/3rd Party Hooks
-
   // 4. Queries/Mutations
+  const statusQuery = useBridgeQuery({ queryKey: downloadsKeys.key('jd-status'), queryFn: () => source.getJDStatus(), module: 'downloads' });
+  const { mutateAsync: saveJDConfig, isPending: isSaving } = useBridgeMutation({
+    mutationFn: (values: JDConfigFormValues) => source.setJDConfig(toJDConfigInput(values)),
+  });
 
   // 5. Derived State (useMemo)
+  const statusView = toAsyncView(statusQuery, () => false);
+  const liveStatus = statusQuery.data ?? JDCONFIG_PANEL_EMPTY_STATUS;
+  const form = formDraft ?? toJDConfigFormValues(liveStatus);
+  let status: 'loading' | 'error' | 'ready' = 'ready';
+  if (statusView.kind === 'loading') {
+    status = 'loading';
+  } else if (statusView.kind === 'failure') {
+    status = 'error';
+  }
+  const { refetch } = statusQuery;
 
   // 6. Callbacks (useCallback calling pure helpers)
-  const refresh = useCallback(async () => {
-    try {
-      const status = await source.getJDStatus();
-      setLiveStatus(status);
-      setForm(toJDConfigFormValues(status));
-      setLoadErrorMessage(undefined);
-    } catch (error) {
-      setLoadErrorMessage(error instanceof Error ? error.message : 'Failed to load JD status');
-    } finally {
-      setHasLoaded(true);
-    }
-  }, [source]);
-
-  const updateField = useCallback(<K extends keyof JDConfigFormValues>(field: K, value: JDConfigFormValues[K]) => {
-    setForm((previous) => ({ ...previous, [field]: value }));
-  }, []);
+  const updateField = useCallback(
+    <K extends keyof JDConfigFormValues>(field: K, value: JDConfigFormValues[K]) => {
+      setFormDraft((previous) => ({ ...(previous ?? form), [field]: value }));
+    },
+    [form],
+  );
 
   const save = useCallback(async () => {
-    setIsSaving(true);
     setSaveErrorMessage(undefined);
     setSaveSucceeded(false);
 
     try {
-      await source.setJDConfig(toJDConfigInput(form));
-      await refresh();
-      setForm((previous) => ({ ...previous, plaintextPassword: '' }));
+      await saveJDConfig(form);
+      await refetch();
+      setFormDraft(undefined);
       setSaveSucceeded(true);
     } catch (error) {
-      setSaveErrorMessage(error instanceof Error ? error.message : 'Failed to save JD configuration');
-    } finally {
-      setIsSaving(false);
+      setSaveErrorMessage(toErrorMessage(error, 'Failed to save JD configuration'));
     }
-  }, [form, refresh, source]);
-
-  // 7. Effects
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  let status: 'loading' | 'error' | 'ready' = 'ready';
-
-  if (!hasLoaded) {
-    status = 'loading';
-  } else if (loadErrorMessage !== undefined) {
-    status = 'error';
-  }
+  }, [form, refetch, saveJDConfig]);
 
   return {
     status,

@@ -15,6 +15,8 @@ type fakeAppDownloadStore struct {
 	openedRuns     []download.Run
 	finalizedRuns  []download.Run
 	finalized      chan download.Run
+	// errs makes the named store method fail with its error.
+	errs map[string]error
 
 	listHosterPrioritySite   string
 	setHosterPrioritySite    string
@@ -26,13 +28,13 @@ type fakeAppDownloadStore struct {
 
 func (f *fakeAppDownloadStore) ListHosterPriority(_ context.Context, site string) ([]download.HosterPriorityEntry, error) {
 	f.listHosterPrioritySite = site
-	return f.hosterPriority, nil
+	return f.hosterPriority, f.errs["ListHosterPriority"]
 }
 
 func (f *fakeAppDownloadStore) SetHosterPriority(_ context.Context, site string, entries []download.HosterPriorityEntry) error {
 	f.setHosterPrioritySite = site
 	f.setHosterPriorityEntries = entries
-	return nil
+	return f.errs["SetHosterPriority"]
 }
 
 func (f *fakeAppDownloadStore) SeedHosterPriorityIfEmpty(context.Context, string, []download.HosterPriorityEntry) error {
@@ -40,13 +42,13 @@ func (f *fakeAppDownloadStore) SeedHosterPriorityIfEmpty(context.Context, string
 }
 
 func (f *fakeAppDownloadStore) GetJDConfig(context.Context) (download.JDConfig, error) {
-	return f.jdConfig, nil
+	return f.jdConfig, f.errs["GetJDConfig"]
 }
 
 func (f *fakeAppDownloadStore) SetJDConfig(_ context.Context, cfg download.JDConfig, password *string) error {
 	f.setJDConfigCfg = cfg
 	f.setJDConfigPassword = password
-	return nil
+	return f.errs["SetJDConfig"]
 }
 
 func (f *fakeAppDownloadStore) SetJDStatus(context.Context, string, int64) error { return nil }
@@ -56,12 +58,12 @@ func (f *fakeAppDownloadStore) DecryptedPassword(context.Context) (string, bool,
 }
 
 func (f *fakeAppDownloadStore) GetScheduleConfig(context.Context) (download.ScheduleConfig, error) {
-	return f.scheduleConfig, nil
+	return f.scheduleConfig, f.errs["GetScheduleConfig"]
 }
 
 func (f *fakeAppDownloadStore) SetScheduleConfig(_ context.Context, cfg download.ScheduleConfig) error {
 	f.setScheduleConfigCfg = cfg
-	return nil
+	return f.errs["SetScheduleConfig"]
 }
 
 func (f *fakeAppDownloadStore) MarkScheduleRun(context.Context, int64, string, int64) error {
@@ -94,7 +96,7 @@ func (f *fakeAppDownloadStore) FinalizeRun(_ context.Context, run download.Run) 
 }
 
 func (f *fakeAppDownloadStore) ListRuns(context.Context, int) ([]download.Run, error) {
-	return f.runs, nil
+	return f.runs, f.errs["ListRuns"]
 }
 
 func (f *fakeAppDownloadStore) ReconcileInterruptedRuns(context.Context, int64) (int, error) {

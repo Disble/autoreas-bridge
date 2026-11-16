@@ -41,11 +41,11 @@ describe('shell binding adapters', () => {
     await expect(source.GetMyAnimeListDetail(1)).resolves.toEqual({ outcome: 'error', message: 'open file dialog: dialog crashed' });
   });
 
-  it('download runtime rejects a failed JDownloader limit read with its plain message', async () => {
+  it('downloads rejects a failed JDownloader limit read with its plain message', async () => {
     window.go = { desktop: { App: { GetJDMaxSimultaneousDownloads: rejectingBinding() } } } as never;
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
+    const { createDownloadsSource } = await import('../download-runtime-source/downloads-source.helpers');
 
-    await expect(createDownloadRuntimeSource().getJDMaxSimultaneousDownloads()).rejects.toMatchObject({
+    await expect(createDownloadsSource().getJDMaxSimultaneousDownloads()).rejects.toMatchObject({
       name: 'BridgeError',
       code: 'internal',
       message: 'open file dialog: dialog crashed',

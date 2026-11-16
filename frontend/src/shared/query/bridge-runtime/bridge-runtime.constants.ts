@@ -9,6 +9,11 @@ import { createActivityWailsSource } from '../../../infrastructure/bridge-runtim
 import { createAnimeSource } from '../../../infrastructure/bridge-runtime-source/anime-source.helpers';
 import { createAnimeDesktopActionsSource, createAnimeEditorSource } from '../../../infrastructure/bridge-runtime-source/anime-editor-source.helpers';
 import { createDevicesSource } from '../../../infrastructure/bridge-runtime-source/devices-source.helpers';
+import {
+  DOWNLOAD_RUN_EVENT_NAMES,
+  MISSED_SCHEDULE_SETTLED_EVENT_NAME,
+} from '../../../infrastructure/download-runtime-source/download-runtime-source.constants';
+import { createDownloadsSource } from '../../../infrastructure/download-runtime-source/downloads-source.helpers';
 import { createEpisodeDurationRuntimeSource } from '../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.helpers';
 import { createEpisodesSource } from '../../../infrastructure/bridge-runtime-source/episodes-source.helpers';
 import { frontendErrorReporter } from '../../../infrastructure/error-reporting/frontend-error-source.helpers';
@@ -24,6 +29,8 @@ import { createBridgeQueryClient } from '../query-client/query-client.helpers';
 import {
   DEVICES_CONNECTED_KEY,
   DEVICES_PAIRING_TOKEN_KEY,
+  DOWNLOADS_RUNS_KEY,
+  DOWNLOADS_SCHEDULE_KEY,
   episodesKeys,
   NOTIFICATIONS_UNREAD_COUNT_KEY,
   notificationsKeys,
@@ -96,6 +103,9 @@ export const BRIDGE_NOTIFICATION_CENTER_SOURCE = createNotificationCenterSource(
 /** The season screens' reads and commands, served by the `season` module: the one shared season adapter. */
 export const BRIDGE_SEASON_SOURCE = createSeasonSource();
 
+/** The Downloads screen's reads and commands, served by the `downloads` module (the rename opt-in by `settings`, the JDownloader limit by the shell). */
+export const BRIDGE_DOWNLOADS_SOURCE = createDownloadsSource();
+
 /**
  * Every context's event→invalidation rules, the one place a context registers
  * them as it migrates (ADR-032, task T4 onward). Episodes: every committed anime
@@ -107,6 +117,10 @@ export const BRIDGE_SEASON_SOURCE = createSeasonSource();
  * the center's first page read again); an archive lowers the unread count.
  * Season: a finished matching run is the one authoritative reload of the open
  * season's intake rows.
+ * Downloads: every run event (started, progress, an episode, a failure, the
+ * settled run) re-reads the schedule and the run history; a settled missed day
+ * re-reads only the schedule, since settling a day is not a run. A refetch
+ * cancels the one in flight, so only the latest read's answer applies.
  */
 export const BRIDGE_INVALIDATIONS = createInvalidationRegistry([
   { event: ANIME_CHANGED_EVENT_NAME, queryKeys: [episodesKeys.all] },
@@ -115,4 +129,6 @@ export const BRIDGE_INVALIDATIONS = createInvalidationRegistry([
   { event: NOTIFICATION_EVENT_NAME, queryKeys: [notificationsKeys.all] },
   { event: NOTIFICATION_ARCHIVED_EVENT_NAME, queryKeys: [NOTIFICATIONS_UNREAD_COUNT_KEY] },
   { event: SEASON_MATCHING_FINISHED_EVENT_NAME, queryKeys: [SEASON_ANIMES_KEY] },
+  ...DOWNLOAD_RUN_EVENT_NAMES.map((event) => ({ event, queryKeys: [DOWNLOADS_SCHEDULE_KEY, DOWNLOADS_RUNS_KEY] })),
+  { event: MISSED_SCHEDULE_SETTLED_EVENT_NAME, queryKeys: [DOWNLOADS_SCHEDULE_KEY] },
 ]);

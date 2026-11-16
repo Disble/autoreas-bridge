@@ -13,6 +13,7 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/apperr"
 	"autoreas-bridge/internal/device"
+	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/lifecycle"
 	"autoreas-bridge/internal/modules"
@@ -21,6 +22,7 @@ import (
 	"autoreas-bridge/internal/observability/incident"
 	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/observability/telemetry"
+	"autoreas-bridge/internal/schedule"
 	"autoreas-bridge/internal/season"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
@@ -78,7 +80,8 @@ var moduleWiringChecks = map[lifecycle.ModuleID]func(*App) error{
 	},
 	moduleSeason: func(a *App) error { return wiredUnless(a.seasonService == nil, "season service") },
 	moduleDownloads: func(a *App) error {
-		return wiredUnless(a.downloadService == nil || a.readinessService == nil, "download services")
+		return wiredUnless(a.downloadStore == nil || a.downloadService == nil || a.readinessService == nil || a.downloadScheduler == nil,
+			"download services")
 	},
 	moduleNotifications: func(a *App) error {
 		return wiredUnless(a.notificationCenterExecutor == nil, "notification center")
@@ -185,6 +188,18 @@ type seasonServices struct {
 	settings appSettingsStore
 }
 
+// downloadServices are the services the downloads module's bindings use: the
+// download store (JDownloader, schedule and hoster configuration and the run
+// history), the download service the single-anime catch-up runs through, the
+// readiness service and the daily download scheduler. bindDownloadsModule binds
+// them at the end of startDownloadOrchestration, before startup settles the module.
+type downloadServices struct {
+	store     download.Store
+	service   *download.Service
+	readiness *download.ReadinessService
+	scheduler schedule.Scheduler
+}
+
 // appModules is the module set App holds: the readiness registry, its writer
 // (only the composition root writes) and the module handles. Domain modules get
 // their handle here when they migrate (ADR-032 §3; internal/modules says how).
@@ -203,6 +218,7 @@ type appModules struct {
 	observability *modules.Handle[observabilityServices]
 	notifications *modules.Handle[notificationServices]
 	season        *modules.Handle[seasonServices]
+	downloads     *modules.Handle[downloadServices]
 }
 
 // moduleSet builds the module set once, on first use, and registers every module
@@ -224,6 +240,7 @@ func (a *App) moduleSet() *appModules {
 		a.modules.observability = modules.NewHandle[observabilityServices](moduleObservability, a.modules.registry)
 		a.modules.notifications = modules.NewHandle[notificationServices](moduleNotifications, a.modules.registry)
 		a.modules.season = modules.NewHandle[seasonServices](moduleSeason, a.modules.registry)
+		a.modules.downloads = modules.NewHandle[downloadServices](moduleDownloads, a.modules.registry)
 	})
 	return &a.modules
 }

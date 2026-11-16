@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
-import type { AnimeDownloadReadiness, DownloadReadinessSnapshot } from '../../../../../shared/contracts/download.types';
+import { createDownloadsSourceFake, createDownloadsWrapper } from '../../../../../shared/hooks/use-missed-schedule-notice/__tests__/downloads.test-support';
+import type { AnimeDownloadReadiness, DownloadReadinessSnapshot, DownloadsSource } from '../../../../../shared/contracts/download.types';
 import { useSoloAnimeDownloadPanel } from '../use-solo-anime-download-panel';
 
 /** A readiness snapshot with nothing in it, the starting point most cases narrow from. */
@@ -20,34 +20,22 @@ function createSnapshot(items: readonly AnimeDownloadReadiness[]): DownloadReadi
   return { items, scheduledTotal: 0, scheduledReady: 0, scheduledBlocked: 0 };
 }
 
-/** Builds a fully stubbed download runtime port, overridable per case. */
-function createDownloadSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
-  return {
-    getDownloadConfig: vi.fn(),
-    getJDStatus: vi.fn(),
-    getJDMaxSimultaneousDownloads: vi.fn().mockResolvedValue(0),
-    setJDConfig: vi.fn(),
-    getScheduleConfig: vi.fn(),
-    setScheduleConfig: vi.fn(),
-    setHosterPriority: vi.fn(),
-    setEpisodeRenameEnabled: vi.fn().mockResolvedValue('ok'),
-    triggerDownloadCheck: vi.fn(),
-    triggerAnimeDownload: vi.fn().mockResolvedValue('ok'),
-    cancelDownloadRun: vi.fn().mockResolvedValue('ok'),
-    runMissedScheduleNow: vi.fn(),
-    ignoreMissedSchedule: vi.fn(),
-    listDownloadRuns: vi.fn(),
+/**
+ * Builds a fully stubbed downloads port, overridable per case.
+ * @param overrides The calls a case replaces.
+ * @returns The port.
+ */
+function createSource(overrides: Partial<DownloadsSource> = {}): DownloadsSource {
+  return createDownloadsSourceFake({
     listDownloadReadiness: vi.fn().mockResolvedValue(snapshot),
-    subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
-    subscribeMissedScheduleSettled: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
-  };
+  });
 }
 
 describe('useSoloAnimeDownloadPanel', () => {
   it('opens on the actionable side of the catalog', async () => {
-    const source = createDownloadSource();
-    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source));
+    const source = createSource();
+    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -57,8 +45,8 @@ describe('useSoloAnimeDownloadPanel', () => {
   });
 
   it('loads blocked records too, reachable from the blocked tab', async () => {
-    const source = createDownloadSource();
-    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source));
+    const source = createSource();
+    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
     act(() => result.current.onFilterChange('blocked'));
@@ -68,8 +56,8 @@ describe('useSoloAnimeDownloadPanel', () => {
   });
 
   it('keeps a blocked selection inspectable and prevents runtime execution', async () => {
-    const source = createDownloadSource();
-    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source));
+    const source = createSource();
+    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
     act(() => result.current.onFilterChange('blocked'));
@@ -82,8 +70,8 @@ describe('useSoloAnimeDownloadPanel', () => {
   });
 
   it('does not drop the selection when the user switches tabs', async () => {
-    const source = createDownloadSource();
-    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source));
+    const source = createSource();
+    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
     act(() => result.current.onSelectAnime('ready'));
@@ -96,8 +84,8 @@ describe('useSoloAnimeDownloadPanel', () => {
   });
 
   it('enables and triggers a ready selection', async () => {
-    const source = createDownloadSource();
-    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source));
+    const source = createSource();
+    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
     act(() => result.current.onSelectAnime('ready'));
@@ -109,7 +97,7 @@ describe('useSoloAnimeDownloadPanel', () => {
   });
 
   it('renders one batch of a large catalog instead of every row', async () => {
-    const source = createDownloadSource({
+    const source = createSource({
       listDownloadReadiness: vi.fn().mockResolvedValue(createSnapshot(
         Array.from({ length: 300 }, (_, index) => ({
           animeId: `anime-${index}`,
@@ -120,7 +108,7 @@ describe('useSoloAnimeDownloadPanel', () => {
         })),
       )),
     });
-    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source));
+    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -130,8 +118,8 @@ describe('useSoloAnimeDownloadPanel', () => {
   });
 
   it('tells the user when their search only matched the other tab', async () => {
-    const source = createDownloadSource();
-    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source));
+    const source = createSource();
+    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
     act(() => result.current.onQueryChange('blocked'));
@@ -141,10 +129,10 @@ describe('useSoloAnimeDownloadPanel', () => {
   });
 
   it('surfaces query failure and retries the backend query', async () => {
-    const source = createDownloadSource({
+    const source = createSource({
       listDownloadReadiness: vi.fn().mockRejectedValueOnce(new Error('readiness failed')).mockResolvedValue(snapshot),
     });
-    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source));
+    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('readiness-error'));
     expect(result.current.errorMessage).toBe('readiness failed');
@@ -154,10 +142,10 @@ describe('useSoloAnimeDownloadPanel', () => {
   });
 
   it('keeps a download-start failure separate from readiness loading', async () => {
-    const source = createDownloadSource({
+    const source = createSource({
       triggerAnimeDownload: vi.fn().mockRejectedValue(new Error('JDownloader is unavailable')),
     });
-    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source));
+    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
     act(() => result.current.onSelectAnime('ready'));
@@ -166,5 +154,21 @@ describe('useSoloAnimeDownloadPanel', () => {
     expect(result.current.status).toBe('trigger-error');
     expect(result.current.errorMessage).toBe('JDownloader is unavailable');
     expect(result.current.canTrigger).toBe(true);
+  });
+});
+
+describe('useSoloAnimeDownloadPanel trigger refusals', () => {
+  it('reads the concurrent-run refusal as already in progress, not as an error', async () => {
+    const source = createSource({
+      triggerAnimeDownload: vi.fn().mockRejectedValue(new Error('schedule: a download run is already in progress')),
+    });
+    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source), { wrapper: createDownloadsWrapper().wrapper });
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    act(() => result.current.onSelectAnime('ready'));
+    await act(async () => result.current.onTriggerDownload());
+
+    expect(result.current.status).toBe('already-in-progress');
+    expect(result.current.errorMessage).toBeUndefined();
   });
 });

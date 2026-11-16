@@ -1,16 +1,20 @@
 import { useCallback, useState } from 'react';
-import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
-import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
-import { toManualTriggerResult } from './manual-trigger-button.helpers';
+import type { DownloadsSource } from '../../../../shared/contracts/download.types';
+import { toErrorMessage } from '../../../../shared/helpers/error-message.helpers';
+import { BRIDGE_DOWNLOADS_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
+import { toManualTriggerFailure } from './manual-trigger-button.helpers';
 import type { ManualTriggerButtonViewModel } from './manual-trigger-button.types';
 
 /**
- * useManualTriggerButton calls `triggerDownloadCheck` and tracks the
+ * useManualTriggerButton runs `triggerDownloadCheck` and tracks the
  * idle/triggering/already-in-progress/error/success lifecycle of a single
- * manual download check. All Wails calls live here; `ManualTriggerButton`
- * renders the returned view model only.
+ * manual download check. `ManualTriggerButton` renders the returned view model only.
+ *
+ * @param source The downloads port the check is started through.
+ * @returns The view model and the trigger action.
  */
-export function useManualTriggerButton(source: DownloadRuntimeSource = downloadRuntimeSource) {
+export function useManualTriggerButton(source: DownloadsSource = BRIDGE_DOWNLOADS_SOURCE) {
   // 1. Refs
 
   // 2. State
@@ -19,6 +23,7 @@ export function useManualTriggerButton(source: DownloadRuntimeSource = downloadR
   // 3. Context/3rd Party Hooks
 
   // 4. Queries/Mutations
+  const { mutateAsync: triggerDownloadCheck } = useBridgeMutation({ mutationFn: () => source.triggerDownloadCheck() });
 
   // 5. Derived State (useMemo)
 
@@ -27,15 +32,12 @@ export function useManualTriggerButton(source: DownloadRuntimeSource = downloadR
     setViewModel({ status: 'triggering' });
 
     try {
-      const response = await source.triggerDownloadCheck();
-      setViewModel(toManualTriggerResult(response));
+      await triggerDownloadCheck();
+      setViewModel({ status: 'success' });
     } catch (error) {
-      setViewModel({
-        status: 'error',
-        errorMessage: error instanceof Error ? error.message : 'Failed to trigger download check',
-      });
+      setViewModel(toManualTriggerFailure(toErrorMessage(error, 'Failed to trigger download check')));
     }
-  }, [source]);
+  }, [triggerDownloadCheck]);
 
   // 7. Effects
 
