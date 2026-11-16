@@ -4,7 +4,6 @@ import type {
   AppliedMetadata,
 } from '../../../../shared/metadata-lookup/metadata-lookup.types';
 import type { AnimeMetadataLookupSource } from '../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
-import type { ProviderSearchPort } from './IntakeProviderLookup/intake-provider-lookup.types';
 
 /** The two intake editing modes: plain-text draft vs rendered rows. */
 export type IntakeMode = 'raw' | 'list';
@@ -49,8 +48,6 @@ export interface IntakeRowProps {
   readonly appliedMetadata: IntakeAppliedMetadata | undefined;
   /** The two Wails-bound MyAnimeList calls this row's lookup modal drives. */
   readonly metadataLookupSource: AnimeMetadataLookupSource;
-  /** The provider search this row's "Find on provider" modal drives. */
-  readonly providerSearchSource: ProviderSearchPort;
   /** Attaches one confirmed lookup's selection to this row. */
   readonly onMetadataApplied: (selection: AnimeMetadataSelection) => void;
   /** Reverts this row's last applied metadata patch, when this session applied it. */
@@ -143,7 +140,6 @@ export interface IntakePanelBodyProps {
   readonly metadataByRow: Readonly<Record<string, IntakeMetadataPatch | undefined>>;
   readonly appliedMetadataByRow: Readonly<Record<string, IntakeAppliedMetadata | undefined>>;
   readonly metadataLookupSource: AnimeMetadataLookupSource;
-  readonly providerSearchSource: ProviderSearchPort;
   /** Switches between Raw and List; the empty state's action opens Raw. */
   readonly switchMode: (mode: IntakeMode) => void;
   readonly onRawChange: (value: string) => void;

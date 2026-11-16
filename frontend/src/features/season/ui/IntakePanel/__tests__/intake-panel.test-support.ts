@@ -3,6 +3,17 @@ import { vi } from 'vitest';
 import type { SeasonAnimeRow, SeasonSource } from '../../../../../shared/contracts/season.types';
 import type { AnimeMetadataSelection } from '../../../../../shared/metadata-lookup/metadata-lookup.types';
 import type { AnimeMetadataLookupSource } from '../../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
+
+/**
+ * The wrapper every rendered intake row needs: a blocked row's "Find on
+ * provider" lookup reads through `useBridgeQuery` on the season module, which
+ * is ready here.
+ * @returns A fresh query wrapper to pass to `render`.
+ */
+export function seasonQueryWrapper() {
+  return createModulesTestWrapper({ module: 'season', state: 'ready' }).wrapper;
+}
 
 /**
  * Fixtures shared by the intake hook suites. They live here rather than in either

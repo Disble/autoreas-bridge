@@ -385,6 +385,13 @@ export interface SeasonSource {
    * reason as `fetchOrderingBoard`.
    */
   readonly fetchSeasonOrderingSnapshot?: (seasonId: string) => Promise<SeasonOrderingSnapshot>;
+  /**
+   * Searches every download provider by free text for `useBridgeQuery`:
+   * rejects with a `BridgeError` while the season module is not ready or the
+   * search fails, never answering a stand-in result. Optional for the same
+   * reason as `fetchOrderingBoard`.
+   */
+  readonly fetchProviderSearch?: (query: string) => Promise<SeasonProviderSearchResult>;
 }
 
 /**

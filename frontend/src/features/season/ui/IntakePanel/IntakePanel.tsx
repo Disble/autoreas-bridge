@@ -34,7 +34,6 @@ export function IntakePanel() {
     metadataByRow,
     appliedMetadataByRow,
     metadataLookupSource,
-    providerSearchSource,
     onMetadataApplied,
     onMetadataUndo,
     onMetadataClear,
@@ -106,7 +105,6 @@ export function IntakePanel() {
             folderPreviews={folderPreviews}
             metadataByRow={metadataByRow}
             metadataLookupSource={metadataLookupSource}
-            providerSearchSource={providerSearchSource}
             mode={mode}
             rawDraft={rawDraft}
             readOnly={readOnly}

@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { IntakePanel } from '../IntakePanel';
 import { useIntakePanel } from '../use-intake-panel';
-import { seasonRow } from './intake-panel.test-support';
+import { seasonQueryWrapper, seasonRow } from './intake-panel.test-support';
 
 vi.mock('../use-intake-panel', () => ({ useIntakePanel: vi.fn() }));
 
@@ -22,13 +22,13 @@ function renderTwoRows(shape: Parameters<typeof seasonRow>[0]): HookReturn {
   const value = {
     readOnly: false, mode: 'list', switchMode: vi.fn(), rawDraft: '', onRawChange: vi.fn(), selected: new Set(), toggleSelect: vi.fn(),
     editableRows: [seasonRow({ id: 'row-1', rawName: 'First', ...shape }), seasonRow({ id: 'row-2', rawName: 'Second', ...shape })],
-    folderOverrides: {}, folderPreviews: {}, onPickFolder: vi.fn(), metadataByRow: {}, appliedMetadataByRow: {}, metadataLookupSource: {}, providerSearchSource: {},
+    folderOverrides: {}, folderPreviews: {}, onPickFolder: vi.fn(), metadataByRow: {}, appliedMetadataByRow: {}, metadataLookupSource: {},
     onMetadataApplied: vi.fn(), onMetadataClear: vi.fn(), onMetadataUndo: vi.fn(), availableCount: 0, availabilityPendingCount: 0, onCreate: vi.fn(),
     unresolvedCount: 0, searchFailedCount: 0, errorMessage: undefined, busyMessage: undefined, onRunMatching: vi.fn(), onRecheckAvailability: vi.fn(), onResolve: vi.fn(),
     onDiscard: vi.fn(), onOpenPage: vi.fn(), discardedRows: [], discardedMetadataByRow: {}, view: 'active', onViewChange: vi.fn(), onRestore: vi.fn(),
   } as unknown as HookReturn;
   mockedUseIntakePanel.mockReturnValue(value);
-  render(<IntakePanel />);
+  render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
   return value;
 }
 

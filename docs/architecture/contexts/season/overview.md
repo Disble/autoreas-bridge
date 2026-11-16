@@ -90,6 +90,13 @@ For module readiness, failure codes and the `shared/query` layer, read
   failed read, is a loading or failure state, never an empty board or an unrecorded season.
   `saveOrderingDraft`, `applySchedule` and `reopenOrdering` run through `useBridgeMutation`, and each
   command then re-reads the live board; the 600 ms draft autosave is unchanged.
+- Provider search: an intake row's "Find on provider" lookup
+  (`features/season/ui/IntakePanel/IntakeProviderLookup/`) reads through `useBridgeQuery` on
+  `BRIDGE_SEASON_SOURCE` (module `season`, no cache kept for a superseded search). Each settled
+  300 ms debounce is a new search, keyed `seasonKeys.key('provider-search', query, seq)`, so only the
+  newest search is shown and retyping a settled query searches again. It uses the port's rejecting
+  read `fetchProviderSearch`: while the module starts the lookup shows its loading state, and a failed
+  module or search shows the modal's failure Alert with the reason, never a stand-in result.
 - Source port: `frontend/src/shared/contracts/season.types.ts`. Adapter:
   `frontend/src/infrastructure/season-source/...`. Since the bindings return
   errors, the adapter maps a rejection back to what its consumers read before: a command resolves to

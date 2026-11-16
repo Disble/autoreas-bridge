@@ -57,10 +57,11 @@ const SEASON_OUTCOMES: readonly (readonly [string, (source: SeasonSource) => Pro
   ['SendSeasonAnimesToVerHoy', (source) => source.sendToVerHoy(['anime-1']), { pastDownloadTime: false, downloadTime: '' }],
 ];
 
-/** The ordering board's query reads: the binding each calls and how the source invokes it. */
+/** The season query reads: the binding each calls and how the source invokes it. */
 const SEASON_ORDERING_QUERY_READS: readonly (readonly [string, (source: SeasonSource) => Promise<unknown>])[] = [
   ['GetSeasonOrderingBoard', (source) => source.fetchOrderingBoard!()],
   ['GetSeasonOrderingSnapshot', (source) => source.fetchSeasonOrderingSnapshot!('season-1')],
+  ['SearchSeasonProviders', (source) => source.fetchProviderSearch!('Naruto')],
 ];
 
 describe('season-source', () => {
