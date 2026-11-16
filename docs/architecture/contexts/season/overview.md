@@ -109,7 +109,8 @@ For module readiness, failure codes and the `shared/query` layer, read
   attaches), never a fallback. The adapter is built once as `BRIDGE_SEASON_SOURCE`
   (`shared/query/bridge-runtime/bridge-runtime.constants.ts`). Keys: `seasonKeys`
   (`shared/query/query-keys/query-keys.constants.ts`): `current`, `animes` (`SEASON_ANIMES_KEY`,
-  invalidated by `season.matching_finished`), `list`, `past/<id>`, `past-animes/<id>`.
+  invalidated by `season.matching_finished`), `list`, `past/<id>`, `past-animes/<id>`,
+  `ordering-snapshot/<id>`.
 - `frontend/src/shared/season/` is the season state the screens share:
   - `useDisplayedSeason` and `useDisplayedSeasonAnimes` read the season and the rows the screens show:
     the open season's, or the past season's that the store's `viewSeasonId` names. Each caller picks
@@ -127,10 +128,18 @@ For module readiness, failure codes and the `shared/query` layer, read
     a failure's message (the intake-rows reads that only need the rows loaded show the fixed
     `Failed to load intake rows`), and a success clears it where the read refreshes the screen. A
     failed refetch keeps the loaded data on screen next to the banner.
+- The evaluation panel, the rate-anime modal, the selection board and the Daily board read through
+  `shared/query` (`useDisplayedSeasonAnimes`, or `useDisplayedSeason` beside it) and write through
+  `useBridgeMutation`; a successful mutation refreshes the season keys it moved, so no screen keeps
+  its own copy of the rows. The Daily board history reads a closed season's stored board through the
+  ordering-snapshot query (`useSeasonOrderingSnapshot`, one cached read per closed season under
+  `ordering-snapshot/<id>`, so any other reader of that closure snapshot shares it).
 - The season Zustand store (`shared/store/season-store/`) keeps the UI state (`viewSeasonId`,
-  `readOnly`, `lastDiscard`, the banner, the matching run).
+  `readOnly`, `lastDiscard`, the banner, the matching run). Its server fields (season and intake
+  rows) are read by the screens that have not migrated yet; they leave the store with T5j-Z.
 - Migrated to `shared/season`: `SeasonWorkspace`, `OverviewPanel/use-overview-panel.ts`,
   `OrderingBoard/use-ordering-board-store-bindings.ts`, `SeasonRateAction`, `TodaySeasonBanner`,
+  `EvaluationPanel`, `RateAnimeModal`, `SelectionBoard`, `DailyBoard`,
   `features/navigation/SeasonNavBadge`.
 
 ## Entry points
@@ -146,9 +155,8 @@ For module readiness, failure codes and the `shared/query` layer, read
 - Season bindings that call other contexts still read their service from an `App` field:
   `DownloadSeasonAnimes`, `TriggerSeasonDownloads` (downloads), `SendSeasonAnimesToVerHoy` (anime
   editor), `GetSeasonCheckTime`, `SetSeasonCheckTime` (settings). They migrate with those contexts.
-- The intake, evaluation, selection, Daily board and ordering-board reads and commands, the closure
-  snapshot and the provider search still read status strings and fallbacks through the adapter, not
-  `shared/query` (`frontend/src/infrastructure/season-source/season-source.helpers.ts`), and still
-  read the season and its rows from the store, which their own refreshes fill. Until they migrate, a
-  past-season view also copies the past season and its rows into the store, and a command run from
-  one of those screens updates the store, not the query cache.
+- The intake panel's reads and commands still read status strings and fallbacks through the adapter,
+  not `shared/query` (`frontend/src/infrastructure/season-source/season-source.helpers.ts`), and
+  still read the season and its rows from the store, which its own refreshes fill. Until it migrates,
+  a past-season view also copies the past season and its rows into the store, and an intake command
+  updates the store, not the query cache.

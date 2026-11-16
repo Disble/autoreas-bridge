@@ -9,6 +9,7 @@ import {
   EMPTY_BOARD_SECTIONS,
   LIVE_DAILY_BOARD_HISTORY,
   LOADING_DAILY_BOARD_HISTORY,
+  READY_DAILY_BOARD_ROWS,
 } from './daily-board.constants';
 import { groupCreatedBySection, listBoardAnimeIds } from './daily-board.helpers';
 import type { BoardSections, DailyBoardHistory, DailyBoardView } from './daily-board.types';
@@ -66,13 +67,27 @@ export function groupSnapshotSections(rows: readonly SeasonAnimeRow[], entries: 
 }
 
 /**
- * Derives the board's render model from the season rows and the history read.
+ * Derives the board's render model from the season rows, the history read and
+ * the rows read. A rows read that is still running or failed decides the board
+ * first, so no section or plain list ever claims a season it has not read; an
+ * empty rows read is a read, so the board shows the season without animes.
  *
- * @param rows The season's rows.
+ * @param rows The season's rows, empty while their read has not answered.
  * @param history Where the Daily board read stands.
+ * @param rowsView How the season rows read stands.
  * @returns What the board renders.
  */
-export function selectDailyBoardView(rows: readonly SeasonAnimeRow[], history: DailyBoardHistory): DailyBoardView {
+export function selectDailyBoardView(
+  rows: readonly SeasonAnimeRow[],
+  history: DailyBoardHistory,
+  rowsView: AsyncView<readonly SeasonAnimeRow[]> = READY_DAILY_BOARD_ROWS,
+): DailyBoardView {
+  if (rowsView.kind === 'failure') {
+    return { mode: 'failed', sections: EMPTY_BOARD_SECTIONS, plainRows: [], boardError: rowsView.message };
+  }
+  if (rowsView.kind === 'loading') {
+    return { mode: 'loading', sections: EMPTY_BOARD_SECTIONS, plainRows: [] };
+  }
   switch (history.status) {
     case 'live':
       return { mode: 'sections', sections: groupCreatedBySection(rows), plainRows: [] };
@@ -81,7 +96,7 @@ export function selectDailyBoardView(rows: readonly SeasonAnimeRow[], history: D
     case 'unrecorded':
       return { mode: 'plain', sections: EMPTY_BOARD_SECTIONS, plainRows: rows.filter((row) => row.availability === 'created') };
     case 'failed':
-      return { mode: 'failed', sections: EMPTY_BOARD_SECTIONS, plainRows: [], historyError: history.errorMessage };
+      return { mode: 'failed', sections: EMPTY_BOARD_SECTIONS, plainRows: [], boardError: history.errorMessage };
     default:
       return { mode: 'loading', sections: EMPTY_BOARD_SECTIONS, plainRows: [] };
   }

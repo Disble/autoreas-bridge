@@ -1,39 +1,36 @@
 import { toast } from '@heroui/react';
 import { useCallback } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
-import type { ConfirmSelectionResult, SeasonSource } from '../../../../shared/contracts/season.types';
-import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
+import type { ConfirmSelectionResult } from '../../../../shared/contracts/season.types';
 import { SELECTION_CONFIRM_ERROR_MESSAGE } from './selection-board.constants';
 import { formatConfirmSuccess, runDesktopAction } from './selection-board.helpers';
+import type { SelectionCommandHandlers } from './selection-board.types';
 
 /**
- * useSelectionActions owns every write the board can trigger: a consideration
- * edit, the reconciliation with its success/danger toast, and the four desktop
- * actions (open/copy page, open/copy folder). Every call goes through the season
- * store or the runtime bridge; nothing here derives or filters the view.
+ * useSelectionActions turns the board's season commands into what the UI calls:
+ * a consideration edit, the reconciliation with its success/danger toast, and
+ * the four desktop actions (open/copy page, open/copy folder). The commands
+ * themselves, and the season reads they refresh, belong to `useSelectionMutations`;
+ * nothing here derives or filters the view.
  *
- * @param source The season port the store writes through.
+ * @param commands The consideration and confirmation commands.
  * @returns The consideration and confirm handlers plus the four desktop actions.
  */
-export function useSelectionActions(source: SeasonSource) {
-  // 3. Context/3rd Party Hooks
-  const setConsideration = useSeasonStore((state) => state.setConsideration);
-  const confirmSelection = useSeasonStore((state) => state.confirmSelection);
-
+export function useSelectionActions({ setConsideration, confirmSelection }: SelectionCommandHandlers) {
   // 6. Callbacks
   const onSetConsideration = useCallback(
-    (rowId: string, consideration: string) => void setConsideration(source, rowId, consideration),
-    [setConsideration, source],
+    (rowId: string, consideration: string) => void setConsideration(rowId, consideration),
+    [setConsideration],
   );
   const onConfirm = useCallback(async (): Promise<ConfirmSelectionResult> => {
-    const result = await confirmSelection(source);
+    const result = await confirmSelection();
     if (result.status === 'ok') {
       toast.success(formatConfirmSuccess(result.approved, result.rejected));
     } else {
       toast.danger(result.status || SELECTION_CONFIRM_ERROR_MESSAGE);
     }
     return result;
-  }, [confirmSelection, source]);
+  }, [confirmSelection]);
   const onOpenPage = useCallback((animeId: string) => runDesktopAction(bridgeRuntimeSource.openAnimePage, animeId), []);
   const onCopyPage = useCallback((animeId: string) => runDesktopAction(bridgeRuntimeSource.copyAnimePage, animeId, 'Page URL copied to clipboard'), []);
   const onOpenFolder = useCallback((animeId: string) => runDesktopAction(bridgeRuntimeSource.openAnimeFolder, animeId), []);

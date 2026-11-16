@@ -37,7 +37,6 @@ const SEASON_READS: readonly (readonly [string, (source: SeasonSource) => Promis
   ['GetPastSeason', (source) => source.getPastSeason('season-1'), null],
   ['GetPastSeasonAnimes', (source) => source.getPastSeasonAnimes('season-1'), []],
   ['GetSeasonOrderingBoard', (source) => source.getOrderingBoard(), { rail: [], grid: [] }],
-  ['GetSeasonOrderingSnapshot', (source) => source.getSeasonOrderingSnapshot!('season-1'), { recorded: false, rail: [], grid: [] }],
 ];
 
 /** Every rejecting season read the queries call: the binding, how the source invokes it, and the arguments the binding receives. */
@@ -166,7 +165,7 @@ describe('season-source', () => {
     expect(listSeasonsMock).toHaveBeenCalledTimes(1);
   });
 
-  it('forwards getSeasonOrderingSnapshot to the live Wails binding and preserves the recorded payload', async () => {
+  it('forwards fetchSeasonOrderingSnapshot to the live Wails binding and preserves the recorded payload', async () => {
     const snapshot = {
       recorded: true,
       capturedAt: 1_700_000_000_000,
@@ -179,24 +178,11 @@ describe('season-source', () => {
 
     const { createSeasonSource } = await import('../season-source/season-source.helpers');
     const source = createSeasonSource();
-    const readSnapshot = source.getSeasonOrderingSnapshot;
+    const readSnapshot = source.fetchSeasonOrderingSnapshot;
     expect(readSnapshot).toBeDefined();
 
     await expect(readSnapshot!('season-2025-fall')).resolves.toEqual(snapshot);
     expect(getSnapshotMock).toHaveBeenCalledWith('season-2025-fall');
-  });
-
-  it('degrades getSeasonOrderingSnapshot to an unrecorded snapshot when the runtime is unavailable', async () => {
-    const { createSeasonSource } = await import('../season-source/season-source.helpers');
-    const source = createSeasonSource();
-    const readSnapshot = source.getSeasonOrderingSnapshot;
-    expect(readSnapshot).toBeDefined();
-
-    const resultPromise = readSnapshot!('season-2025-fall');
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    await expect(resultPromise).resolves.toEqual({ recorded: false, rail: [], grid: [] });
   });
 
   it('forwards the create call with the picked rows, their folders and their metadata', async () => {

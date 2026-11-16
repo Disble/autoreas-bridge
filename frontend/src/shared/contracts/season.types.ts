@@ -298,7 +298,7 @@ export interface SeasonSource {
   readonly resolveMatch: (rowId: string, pageUrl: string) => Promise<string>;
   /**
    * Searches every download provider by free text, for the intake's "Find on
-   * provider" lookup. Optional on the port, like `getSeasonOrderingSnapshot`,
+   * provider" lookup. Optional on the port, like `fetchSeasonOrderingSnapshot`,
    * so pre-existing partial test doubles stay assignable; the runtime adapter
    * always provides it, and a missing search reads as unavailable, never as
    * "no pages".
@@ -332,14 +332,6 @@ export interface SeasonSource {
   readonly setSeasonAnimeMetadata: (rowId: string, metadataJSON: string) => Promise<string>;
   readonly pickFolder: (title: string) => Promise<string>;
   readonly getOrderingBoard: () => Promise<OrderingBoard>;
-  /**
-   * Reads the ordering board stored when a closed season ended. Optional on the
-   * port so pre-existing partial test doubles and degraded sources stay
-   * assignable; the runtime adapter always provides it. A missing read is an
-   * UNAVAILABLE read, never "this season recorded nothing" — the history surface
-   * reports a failure rather than a historical claim it cannot make.
-   */
-  readonly getSeasonOrderingSnapshot?: (seasonId: string) => Promise<SeasonOrderingSnapshot>;
   readonly saveOrderingDraft: (draftJson: string) => Promise<string>;
   readonly applySchedule: () => Promise<ApplyScheduleResult>;
   readonly reopenOrdering: () => Promise<string>;
@@ -352,7 +344,7 @@ export interface SeasonSource {
   /**
    * Fires when a matching run opens, carrying the run total. Optional on the
    * port so pre-existing partial test doubles and degraded sources stay
-   * assignable -- like `getSeasonOrderingSnapshot` above -- the runtime
+   * assignable -- like `fetchSeasonOrderingSnapshot` below -- the runtime
    * adapter always provides it. A missing subscription is a silent run, never
    * a broken command: the rows still reload when the command returns `ok`.
    */

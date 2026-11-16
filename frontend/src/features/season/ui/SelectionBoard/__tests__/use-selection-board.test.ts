@@ -1,7 +1,8 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook as renderBridgeHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonAnimeRow, SeasonSource } from '../../../../../shared/contracts/season.types';
+import type { SeasonAnimeRow, SeasonQuerySource, SeasonSource } from '../../../../../shared/contracts/season.types';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
 import { useSelectionBoard } from '../use-selection-board';
 
@@ -30,8 +31,14 @@ vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-sour
   bridgeRuntimeSource: bridgeRuntimeSourceMock,
 }));
 
+/** Renders with a ready season query client. */
+const renderHook: typeof renderBridgeHook = (callback, options) => renderBridgeHook(callback, {
+  ...options,
+  wrapper: createModulesTestWrapper({ module: 'season', state: 'ready' }).wrapper,
+});
+
 /** Builds the season port this suite drives, overriding only what a case sets. */
-function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
+function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource & SeasonQuerySource {
   return {
     getSeason: vi.fn().mockResolvedValue({ id: 's1', name: 'Julio 2026', minApprovalGrade: 4, slots: 12, status: 'open', createdAt: 0 }),
     createSeason: vi.fn().mockResolvedValue('ok'),
@@ -66,6 +73,11 @@ function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     getCheckTime: vi.fn().mockResolvedValue('21:00'),
     setCheckTime: vi.fn().mockResolvedValue('ok'),
     openPage: vi.fn(),
+    readSeason: overrides.getSeason ?? vi.fn().mockResolvedValue({ id: 's1', name: 'Julio 2026', minApprovalGrade: 4, slots: 12, status: 'open', createdAt: 0 }),
+    readSeasonAnimes: overrides.getSeasonAnimes ?? vi.fn().mockResolvedValue([]),
+    readSeasons: vi.fn().mockResolvedValue([]),
+    readPastSeason: vi.fn().mockResolvedValue(null),
+    readPastSeasonAnimes: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
 }
@@ -123,6 +135,16 @@ describe('useSelectionBoard', () => {
     expect(toastMock.success).toHaveBeenCalledWith('Folder path copied to clipboard');
   });
 
+  it('reads the season and candidates through query methods', async () => {
+    const source = createSource();
+    const { result } = renderHook(() => useSelectionBoard(source));
+    await waitFor(() => expect(result.current.seasonName).toBe('Julio 2026'));
+    expect(source.readSeason).toHaveBeenCalled();
+    expect(source.readSeasonAnimes).toHaveBeenCalled();
+    expect(source.getSeason).not.toHaveBeenCalled();
+    expect(source.getSeasonAnimes).not.toHaveBeenCalled();
+  });
+
   it('loads on mount and derives rows, approved count, and quota', async () => {
     const rows = [created('a', 'anime-a', 5), created('b', 'anime-b', 2)];
     const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
@@ -172,26 +194,31 @@ describe('useSelectionBoard', () => {
     await waitFor(() => expect(result.current.seasonName).toBe('Julio 2026'));
   });
 
-  it('refreshes against a replacement source', async () => {
+  it('keeps the rows on screen when the port is replaced, and reads the new one on the next refresh', async () => {
     const first = createSource();
     const second = createSource();
-    const { rerender } = renderHook(({ source }: { source: SeasonSource }) => useSelectionBoard(source), {
+    const { client, wrapper } = createModulesTestWrapper({ module: 'season', state: 'ready' });
+    const { result, rerender } = renderBridgeHook(({ source }: { source: SeasonSource & SeasonQuerySource }) => useSelectionBoard(source), {
       initialProps: { source: first },
+      wrapper,
     });
-    await waitFor(() => expect(first.getSeasonAnimes).toHaveBeenCalled());
+    await waitFor(() => expect(result.current.seasonName).toBe('Julio 2026'));
 
     rerender({ source: second });
 
-    await waitFor(() => expect(second.getSeasonAnimes).toHaveBeenCalled());
+    expect(result.current.seasonName).toBe('Julio 2026');
+    expect(second.readSeason).not.toHaveBeenCalled();
+    await act(async () => { await client.invalidateQueries(); });
+    await waitFor(() => expect(second.readSeason).toHaveBeenCalled());
   });
 
   it('uses the latest source for its writes', async () => {
     const first = createSource();
     const second = createSource();
-    const { result, rerender } = renderHook(({ source }: { source: SeasonSource }) => useSelectionBoard(source), {
+    const { result, rerender } = renderHook(({ source }: { source: SeasonSource & SeasonQuerySource }) => useSelectionBoard(source), {
       initialProps: { source: first },
     });
-    await waitFor(() => expect(first.getSeasonAnimes).toHaveBeenCalled());
+    await waitFor(() => expect(first.readSeasonAnimes).toHaveBeenCalled());
 
     rerender({ source: second });
     await act(async () => {
@@ -201,7 +228,6 @@ describe('useSelectionBoard', () => {
     expect(second.setConsideration).toHaveBeenCalledWith('sa-1', 'spare_quota');
     expect(first.setConsideration).not.toHaveBeenCalled();
   });
-
   it('counts an asymmetric verdict split, not a symmetric one', async () => {
     const rows = [created('a', 'anime-a', 5), created('b', 'anime-b', 6), created('c', 'anime-c', 5), created('d', 'anime-d', 2)];
     const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
@@ -291,6 +317,16 @@ describe('useSelectionBoard', () => {
     });
     expect(source.setMinApprovalGrade).toHaveBeenCalledWith(5);
     expect(source.setSlots).toHaveBeenCalledWith(9);
+  });
+
+  it('refreshes the season and rows after confirmation', async () => {
+    const source = createSource();
+    const { result } = renderHook(() => useSelectionBoard(source));
+    await waitFor(() => expect(result.current.seasonName).toBe('Julio 2026'));
+    await waitFor(() => expect(source.readSeasonAnimes).toHaveBeenCalledTimes(1));
+    await act(async () => { await result.current.onConfirm(); });
+    expect(source.readSeason).toHaveBeenCalledTimes(2);
+    expect(source.readSeasonAnimes).toHaveBeenCalledTimes(2);
   });
 
   it('onConfirm returns the confirmation result', async () => {

@@ -92,7 +92,7 @@ describe('selectDailyBoardView', () => {
     { history: { status: 'failed', errorMessage: 'boom' } as const, mode: 'failed', historyError: 'boom' },
   ])('renders no row while the closed season is $mode', ({ history, mode, historyError }) => {
     const view = selectDailyBoardView(rows, history);
-    expect([view.mode, sectionIds(view.sections), view.plainRows, view.historyError]).toEqual([mode, [[], [], []], [], historyError]);
+    expect([view.mode, sectionIds(view.sections), view.plainRows, view.boardError]).toEqual([mode, [[], [], []], [], historyError]);
   });
 });
 

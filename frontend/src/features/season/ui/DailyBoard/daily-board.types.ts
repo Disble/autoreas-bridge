@@ -101,8 +101,11 @@ export interface DailyBoardView {
   readonly sections: BoardSections;
   /** The season's created animes in row order; empty unless the mode is `plain`. */
   readonly plainRows: readonly SeasonAnimeRow[];
-  /** Why the closure snapshot could not be read, in the `failed` mode. */
-  readonly historyError?: string;
+  /**
+   * Why the board could not be read, in the `failed` mode: the rows read, or the
+   * closure snapshot that carries a closed season's board.
+   */
+  readonly boardError?: string;
 }
 
 /** Inputs of the plain list a closed season shows when it recorded no Daily board. */
@@ -111,4 +114,22 @@ export interface DailyBoardPlainCardProps {
   readonly rows: readonly SeasonAnimeRow[];
   /** Resolves an anime id to its thumbnail props. */
   readonly getCoverThumb: (animeId: string) => SeasonCoverThumbProps;
+}
+
+/** The late-send notice: the scheduled auto-download time a sent batch missed. */
+export interface DailyBoardDownloadNotice {
+  /** The scheduled auto-download time the batch missed; empty when unknown. */
+  readonly downloadTime: string;
+}
+
+/** Inputs of the board's banners: the screen's failure message and the late-send notice. */
+export interface DailyBoardNoticesProps {
+  /** The screen's failure message, shown above the board; absent renders none. */
+  readonly errorMessage?: string;
+  /** The late-send notice, shown with its own download action; null renders none. */
+  readonly downloadNotice: DailyBoardDownloadNotice | null;
+  /** Runs the whole scheduled download check now. */
+  readonly onDownloadNow: () => void;
+  /** Drops the late-send notice. */
+  readonly onDismissNotice: () => void;
 }

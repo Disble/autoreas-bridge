@@ -1,10 +1,11 @@
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
-import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
-import type { SeasonSource } from '../../../../shared/contracts/season.types';
+import type { SeasonQuerySource, SeasonSource } from '../../../../shared/contracts/season.types';
+import { BRIDGE_SEASON_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import type { SeasonCoverSource } from '../SeasonCoverThumb/season-cover-thumb.types';
 import { SELECTION_SORT_OPTIONS } from './selection-board.constants';
 import { useSelectionActions } from './use-selection-actions';
 import { useSelectionCandidates } from './use-selection-candidates';
+import { useSelectionMutations } from './use-selection-mutations';
 import { useSelectionRules } from './use-selection-rules';
 import { useSelectionView } from './use-selection-view';
 
@@ -12,19 +13,21 @@ import { useSelectionView } from './use-selection-view';
  * useSelectionBoard composes the Selection board's three concerns: the season's
  * decision parameters (`useSelectionRules`), the created candidates with their
  * covers (`useSelectionCandidates`), and the view filters (`useSelectionView`),
- * plus the writes (`useSelectionActions`). The view narrows only what is
- * rendered: the quota, the confirmed milestone and the reconciliation keep
- * using every row. All derivation is pure (helpers) and all Wails I/O flows
- * through the store.
+ * plus the writes (`useSelectionMutations`, whose toast and desktop feedback
+ * `useSelectionActions` owns). The view narrows only what is rendered: the
+ * quota, the confirmed milestone and the reconciliation keep using every row.
+ * All derivation is pure helpers, and every write runs as a bridge mutation
+ * that refreshes the season reads it changed.
  *
  * @param source The season port the store reads and writes through.
  * @param coverSource The port each candidate's cover is resolved through.
  */
-export function useSelectionBoard(source: SeasonSource = seasonSource, coverSource: SeasonCoverSource = bridgeRuntimeSource) {
+export function useSelectionBoard(source: SeasonSource & SeasonQuerySource = BRIDGE_SEASON_SOURCE, coverSource: SeasonCoverSource = bridgeRuntimeSource) {
   const rules = useSelectionRules(source);
   const { rows, getCoverThumb } = useSelectionCandidates(rules.seasonAnimes, rules.minApprovalGrade, coverSource);
   const view = useSelectionView(rows);
-  const actions = useSelectionActions(source);
+  const commands = useSelectionMutations(source);
+  const actions = useSelectionActions(commands);
 
   return {
     readOnly: rules.readOnly,
@@ -49,6 +52,8 @@ export function useSelectionBoard(source: SeasonSource = seasonSource, coverSour
     quota: rules.quota,
     selectionConfirmedAt: rules.selectionConfirmedAt,
     errorMessage: rules.errorMessage,
+    seasonView: rules.seasonView,
+    animeView: rules.animeView,
     onSetMinApprovalGrade: rules.onSetMinApprovalGrade,
     onSetSlots: rules.onSetSlots,
     onSetConsideration: actions.onSetConsideration,

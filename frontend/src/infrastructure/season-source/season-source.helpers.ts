@@ -304,9 +304,6 @@ export function createSeasonSource(): SeasonSource & SeasonQuerySource {
     getOrderingBoard() {
       return invokeSeasonRead('GetSeasonOrderingBoard', GetSeasonOrderingBoard, () => SEASON_EMPTY_BOARD);
     },
-    getSeasonOrderingSnapshot(seasonId: string) {
-      return invokeSeasonRead<SeasonOrderingSnapshot>('GetSeasonOrderingSnapshot', () => GetSeasonOrderingSnapshot(seasonId), () => ({ recorded: false, rail: [], grid: [] }));
-    },
     saveOrderingDraft(draftJson: string) {
       return invokeSeasonCommand('SaveSeasonOrderingDraft', () => SaveSeasonOrderingDraft(draftJson));
     },

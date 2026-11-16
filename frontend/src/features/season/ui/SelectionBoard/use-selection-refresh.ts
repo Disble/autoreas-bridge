@@ -1,20 +1,18 @@
-import { useEffect } from 'react';
-import type { SeasonSource } from '../../../../shared/contracts/season.types';
-import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
+import type { SeasonQuerySource } from '../../../../shared/contracts/season.types';
+import { SEASON_ANIMES_REFRESH_BANNER, SEASON_REFRESH_BANNER } from '../../../../shared/season/season.constants';
+import { useDisplayedSeason } from '../../../../shared/season/use-displayed-season';
+import { useDisplayedSeasonAnimes } from '../../../../shared/season/use-displayed-season-animes';
+import { useSeasonBannerSync } from '../../../../shared/season/use-season-banner-sync';
 
 /**
- * useSelectionRefresh loads the season snapshot and its rows once per source and
- * on a source change. It owns no state: the store holds the result and every
- * selector reads it back, which keeps the load out of the hooks that derive.
- *
- * @param source The season port the store reads through.
+ * Reads the selected season and its candidates, syncing read outcomes to the banner.
+ * @param source The season query port.
+ * @returns The season and anime queries.
  */
-export function useSelectionRefresh(source: SeasonSource): void {
-  const refresh = useSeasonStore((state) => state.refresh);
-  const refreshAnimes = useSeasonStore((state) => state.refreshAnimes);
-
-  useEffect(() => {
-    void refresh(source);
-    void refreshAnimes(source);
-  }, [refresh, refreshAnimes, source]);
+export function useSelectionRefresh(source: SeasonQuerySource) {
+  const seasonQuery = useDisplayedSeason({ refresh: 'mount', source });
+  const animeQuery = useDisplayedSeasonAnimes({ refresh: 'mount', source });
+  useSeasonBannerSync(seasonQuery, SEASON_REFRESH_BANNER);
+  useSeasonBannerSync(animeQuery, SEASON_ANIMES_REFRESH_BANNER);
+  return { seasonQuery, animeQuery };
 }

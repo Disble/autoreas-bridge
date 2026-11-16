@@ -52,7 +52,7 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     readOnly: false,
     boardMode: 'sections',
     plainRows: [],
-    historyError: undefined,
+    boardError: undefined,
     sections: { sinVer: [], verHoy: [], visto: [] },
     selected: new Set<string>(),
     toggleSelect: vi.fn(),
@@ -161,11 +161,14 @@ describe('DailyBoard', () => {
     expect(screen.queryByRole('button', { name: /Visto/ })).not.toBeInTheDocument();
   });
 
-  it('renders nothing below the intake in an open season with no created animes', () => {
+  it('shows the empty state, never section cards, in an open season with no created animes', () => {
     mockHook();
-    const { container } = render(<DailyBoard />);
-    expect(container.querySelector('[data-slot="card"]')).toBeNull();
+    render(<DailyBoard />);
+    expect(screen.getByText('Nothing created yet.')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 3, name: SIN_VER_HEADING })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Re-check now' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(document.querySelector('[data-slot="alert-root"]')).toBeNull();
   });
 
   it.each([
@@ -323,7 +326,7 @@ describe('DailyBoard', () => {
   });
 
   it('shows the failed read instead of any board', () => {
-    mockHook({ readOnly: true, boardMode: 'failed', historyError: 'read failed' });
+    mockHook({ readOnly: true, boardMode: 'failed', boardError: 'read failed' });
     render(<DailyBoard />);
     expect(screen.getByText('read failed')).toBeInTheDocument();
     expect(cardHeadings()).toEqual([]);

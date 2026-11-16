@@ -1,12 +1,19 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook as renderBridgeHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonAnimeRow, SeasonSource } from '../../../../../shared/contracts/season.types';
+import type { SeasonAnimeRow, SeasonQuerySource, SeasonSource } from '../../../../../shared/contracts/season.types';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
 import { useEvaluationPanel } from '../use-evaluation-panel';
 
+/** Renders the hook with a ready season module. */
+const renderHook: typeof renderBridgeHook = (callback, options) => renderBridgeHook(callback, {
+  ...options,
+  wrapper: createModulesTestWrapper({ module: 'season', state: 'ready' }).wrapper,
+});
+
 /** Builds the season port this suite drives, overriding only what a case sets. */
-function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
+function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource & SeasonQuerySource {
   return {
     getSeason: vi.fn().mockResolvedValue(null),
     createSeason: vi.fn().mockResolvedValue('ok'),
@@ -41,6 +48,11 @@ function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     getCheckTime: vi.fn().mockResolvedValue('21:00'),
     setCheckTime: vi.fn().mockResolvedValue('ok'),
     openPage: vi.fn(),
+    readSeason: vi.fn().mockResolvedValue(null),
+    readSeasonAnimes: overrides.getSeasonAnimes ?? vi.fn().mockResolvedValue([]),
+    readSeasons: vi.fn().mockResolvedValue([]),
+    readPastSeason: vi.fn().mockResolvedValue(null),
+    readPastSeasonAnimes: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
 }
@@ -75,7 +87,7 @@ describe('useEvaluationPanel', () => {
 
     await waitFor(() => expect(result.current.items).toHaveLength(2));
     expect(result.current.ungradedCount).toBe(1);
-    expect(source.getSeasonAnimes).toHaveBeenCalled();
+    expect(source.readSeasonAnimes).toHaveBeenCalled();
   });
 
   it('lists ungraded candidates first and resolves each candidate cover once', async () => {
@@ -90,14 +102,24 @@ describe('useEvaluationPanel', () => {
     expect(getAnimeCover.mock.calls).toEqual([['anime-b'], ['anime-a'], ['anime-c']]);
   });
 
+  it('reads through the query rather than the legacy store read', async () => {
+    const source = createSource();
+    const { result } = renderHook(() => useEvaluationPanel(source, {}));
+    await waitFor(() => expect(result.current.view.kind).toBe('empty'));
+    expect(source.readSeasonAnimes).toHaveBeenCalled();
+    expect(source.getSeasonAnimes).not.toHaveBeenCalled();
+  });
+
   it('onSkip records the override for a row', async () => {
     const source = createSource();
     const { result } = renderHook(() => useEvaluationPanel(source, {}));
+    await waitFor(() => expect(result.current.view.kind).toBe('empty'));
 
     await act(async () => {
       result.current.onSkip('sa-1');
     });
 
     expect(source.skipGrading).toHaveBeenCalledWith('sa-1');
+    await waitFor(() => expect(source.readSeasonAnimes).toHaveBeenCalledTimes(2));
   });
 });
