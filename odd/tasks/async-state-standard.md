@@ -20,6 +20,8 @@ Design source until ADR-032 lands: Judgment Day `proposal-r2.md` (sha256 `34533f
 
 ## Tasks
 
+Progress: 23 done, 5 open (T5j-C2, T5j-C3, T5j-Z, T6, T7). Each row is one task; former T5j sub-units are rows of their own (L42).
+
 | ID | Specs | Route | Status | Commit / evidence |
 |---|---|---|---|---|
 | T0 | S8 | inline | done | worktree from `dev` `fe1fa0fa`; `bun install --frozen-lockfile` OK (532 packages), `typecheck` exit 0, `bun.lock` diff empty, CodeGraph initialized |
@@ -37,11 +39,19 @@ Design source until ADR-032 lands: Judgment Day `proposal-r2.md` (sha256 `34533f
 | T5d | S1 S2 S6 | delegated: Writer trigger (b) | done | notifications: 8 bindings, 21 source entries + 18 push-event entries in the same files; `07816141` + `a9f48cd9`, merged `7d3d05fd`; dead store removed `e78d27fb` |
 | T5e | S1 S2 S6 | delegated: Writer trigger (a) | done | settings: 12 bindings (10 S), 11 own entries; shared consumers in season/downloads/anime keep working until their slice; `7ad3fdd0` + `65ede390` |
 | T5f | S1 S2 S6 | delegated: Writer trigger (a) | done | episodes (a) durations editor: 4 bindings, 10 entries; `0b2786a6` + `b6dbc895`, merged `d5fcc5ee` |
-| T5g | S1 S2 S6 | delegated: Writer trigger (b) | open | episodes (b) commands: AdjustWatchedEpisodes, SetAnimeState, SetAnimeDays, SoftDeleteAnime, RestoreAnime, RepeatAnime, SendSeasonAnimesToVerHoy |
+| T5g | S1 S2 S6 | delegated: Writer trigger (b) | done | episodes (b) commands: AdjustWatchedEpisodes, SetAnimeState, SetAnimeDays, SoftDeleteAnime, RestoreAnime, RepeatAnime, SendSeasonAnimesToVerHoy. `f88185a5`, merged `911dc7b1` (with two AnimeEditorWorkspace tests sped up: windowing 3.1 s -> 0.75 s, schedule feedback 2.2 s -> 1.5 s) |
 | T5h | S1 S2 S6 | delegated: Writer trigger (a) | done | anime (a) catalog, detail, history, covers: ~24 entries; `3bfedc45` + `7009e39d`, merged `67bade77` |
 | T5i | S1 S2 S6 | delegated: Writer trigger (a) | done | anime (b) editor + create flow; `b3094aed` + `583d8b2f`, merged `7557c75b` (L41) |
-| T5j | S1 S2 S6 | delegated: Writer trigger (a) | in progress | season: 29 bindings (21 S), 79 entries. Go done (`5c05a34b` + `b74d8458`, merged `4f0f906c`); types move `def5e2ec`; frontend units U0, P1 running, P3, C2, C3, Z pending (L40) |
-| T5k | S1 S2 S6 | delegated: Writer trigger (b) | open | downloads: 15 bindings (9 S), 30 entries; last |
+| T5j-go | S1 S2 S6 | delegated: Writer trigger (a) | done | season Go: 29 bindings (21 S) on the season handle; `5c05a34b` + `b74d8458`, merged `4f0f906c`; port types to shared contracts `def5e2ec` |
+| T5j-U0 | S1 S2 S6 | delegated: Writer trigger (a) | done | season reads + first consumers (`shared/season/**` read hooks, `seasonKeys`, `BRIDGE_SEASON_SOURCE`, `season.matching_finished` invalidation, SeasonWorkspace, OverviewPanel, SeasonRateAction, TodaySeasonBanner, SeasonNavBadge, create/close season). Written; commit pending (layout:smoke fix applied); then merge into integ Committed `b9b6f45c`, merged `50ca5d2b` (ordering board tests of P1 and U0 unified: refactor 14, main 27 cases). |
+| T5j-P1 | S1 S2 S6 | delegated: Writer trigger (a); independent verifier (item 4) | done | ordering board + closure snapshot; merged `4edda325` |
+| T5j-P3 | S1 S2 S6 | delegated: Writer trigger (a) | done | provider search. Written; commit pending; then merge into integ Committed `f29f7232`, merged `a9247c09`. |
+| T5j-C2 | S1 S2 S6 | delegated | open | intake + discard resolver, with the mutation hooks of its own commands. Needs T5j-U0 merged |
+| T5j-C3 | S1 S2 S6 | delegated | open | evaluation, selection, rating and Daily board, with their mutation hooks. Needs T5j-U0 merged |
+| T5j-Z | S1 S2 S6 | delegated | open | season store keeps UI state only (L40): server fields/actions out, store tests rewritten, allow-list reason, docs/drift. Needs T5j-C2 and T5j-C3; blocks T7 |
+| T5k | S1 S2 S6 | delegated: Writer trigger (b); independent verifier (items 3, 4) | done | downloads: 13 bindings on a `downloads` handle, download-runtime-store UI-only; baselines frontend 101 → 73, Go 35 → 15. Written, uncommitted (68 files). Needs independent verify, then commit after T5g, T5j-U0 and T5j-P3 are merged Verify HOLD fixed (re-read tests, docs); useSoloAnimeDownloadPanel cognitive under 15; layout fixture wrapped in BridgeDataProvider. Committed `f0ef94d2`, merged `af97185e` (4967 tests); async-state baseline 69. |
+| T6 | S1 S6 | inline | open | Close-out: T5g verifier probes as tests (Today conflict re-reads the schedule twice; season `SetAnimeDays` conflict → 'ok'); drift counts in `cross-cutting/async-state.md` and the desktop overview; remove merged worktrees and scratch dirs |
+| T7 | S8 | inline | open | Merge `feat/async-state-integ` into `dev`. Only after T5j-Z and T6, and only on owner OK |
 
 ## Log
 
@@ -102,3 +112,4 @@ Design source until ADR-032 lands: Judgment Day `proposal-r2.md` (sha256 `34533f
 
   Frontend mutation was not scored (dry run timed out under instrumentation; budget spent). Go mutation 0.88. Baselines: Go 45 → 35, frontend 107 → 103. The T5i branch also needed the WebView2 test fix (`fe351310`) to pass its own hook. T5g launched from `7557c75b`.
 - **Next:** T5g; U0/P1 → merge → P3, C2/C3 → Z → T5k.
+- **L42 (2026-11-15, owner, task layout):** "me gustaría que empecemos reorganizando las tasks, porque hay tantas subtasks, que aunque en realidad tener varias por delante, en el general parece que fuera solo una, una falacia". The T5j sub-units (go, U0, P1, P3, C2, C3, Z) became rows of their own with their dependencies, T5g/T5k show their real state, and the remaining close-out work became T6 (probes as tests, drift docs, cleanup) and T7 (merge into `dev` on owner OK). A progress line heads the table. IDs are kept so commit messages and earlier Log entries still match.
