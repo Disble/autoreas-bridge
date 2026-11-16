@@ -176,8 +176,12 @@ memory and starts over with every process.
 ## Frontend
 
 - The bindings are generated into `frontend/wailsjs/go/desktop/App` (untracked; `generate:bindings`).
-  Only `frontend/src/infrastructure/**` calls them, through `invokeGoBinding`
-  (`frontend/src/infrastructure/wails-bindings.helpers.ts`).
+  `frontend/src/infrastructure/**` calls them, through `invokeGoBinding`
+  (`frontend/src/infrastructure/wails-bindings.helpers.ts`). Two feature files still import generated
+  code directly: `features/activity/history-source/history-source.helpers.ts` imports
+  `wailsjs/runtime/runtime` for `EventsOn`, and `features/anime-detail/ui/AnimeDetail/anime-detail.helpers.ts`
+  imports `wailsjs/go/models`. Those two are named in `frontend/async-state-baseline.json`, which holds
+  61 entries today (`../../cross-cutting/async-state.md`, "Known drift").
 - Event subscriptions live in the runtime sources under `frontend/src/infrastructure/*-source/`
   (`createRuntimeSubscription`), plus one feature source,
   `frontend/src/features/activity/history-source/history-source.helpers.ts`.

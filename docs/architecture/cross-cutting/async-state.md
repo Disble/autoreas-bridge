@@ -197,16 +197,15 @@ Frontend gates (`frontend/scripts/async-state-gates.helpers.mjs`, ESLint plugin 
 
 ## Known drift
 
-Measured on `feat/async-state-standard` after the Go foundation (ADR-032 task T2), the frontend
-runtime with its gate recovery (tasks T3a, T3d), the gates (T3b), the guidance (T3c), the Today
-pilot's frontend (T4b), the Devices bindings (T5a), the Activity reads (T5b) and the shell slice (T5c):
+Measured on `feat/async-state-t6-docs`; the earlier task-by-task history lives in the work-unit
+commits, not here:
 
 - The Go foundation exists: `internal/lifecycle` (registry and writer), `internal/apperr` (codes,
   `error-codes.json`), `internal/modules` (`Handle[S]`, `Shell`), `GetReadiness`, the
   `bridge.readiness` event and the JSON `ErrorFormatter`. Eleven modules are registered and settled by
   `startup` (`docs/architecture/contexts/desktop/overview.md`, "Readiness and failures").
-- Six domain modules have a handle (`appModules` in `internal/desktop/app_readiness.go`):
-  `backup` (`GetSQLiteStatus` and the three backup bindings, `ExportBackup`, `PreviewBackupImport`,
+- Eleven domain modules have a handle (`appModules` in `internal/desktop/app_readiness.go`), one per
+  registered module id: `backup` (`GetSQLiteStatus` and the three backup bindings, `ExportBackup`, `PreviewBackupImport`,
   `ConfirmBackupImport`, ready as soon as the database opened), `episodes` (`GetEpisodeSchedule`, `GetEpisodeDayCounts`), `api` (`GetEffectiveAddress`), `sync`
   (`TriggerReconcile`, `GetSyncingAnimeItems`), `devices` (`GetPairingToken`,
   `GetConnectedDevices`, `UnpairDevice`) and `observability` (the nine Activity bindings and
@@ -280,26 +279,35 @@ pilot's frontend (T4b), the Devices bindings (T5a), the Activity reads (T5b) and
     placeholder loader that rejects until the author wires the binding.
 - `invokeGoBinding` (`frontend/src/infrastructure/wails-bindings.helpers.ts`) still answers adapter
   fallbacks such as `() => []` when a binding never attaches, for every source that has not migrated.
-- 110 non-test feature files and 15 non-test shared files import `infrastructure/`, measured with
+- 30 non-test feature files and 8 non-test shared files import `infrastructure/`, measured with
   `grep -rlE "from '(\.\./)+infrastructure/" src/<layer> --include=*.ts --include=*.tsx | grep -v __tests__`
-  from `frontend/`. One of the 16 is in `shared/query`: the composition module
+  from `frontend/`. One of the 8 is in `shared/query`: the composition module
   `bridge-runtime/bridge-runtime.constants.ts`; the rest of `shared/query` imports none.
-- Server state still lives in 4 Zustand read-models (ADR-006) and in hand-fetching hooks. The
-  download-runtime-store keeps UI state only; download server state uses queries.
-- `frontend/async-state-baseline.json` holds 212 entries (244 at task T3b; the Today pilot, T4b,
-  deleted 3; the Devices bindings, T5a, deleted 9; the Activity reads, T5b, deleted 7; the shell
-  slice, T5c, deleted 13: the frontend error reporter 3, the backup panels 8, the rail SQLite chip 2), measured by running the five rules over
-  `src/**/*.{ts,tsx}` and printed by `bun --cwd="frontend" run check:async-state:all`:
-  - `no-infrastructure-import` 198 entries in 126 files (112 feature, 14 shared); 3 of them are direct
-    `wailsjs/**` imports (generated bindings, models and the runtime) in 3 files. Today's
+- Server state still reaches exactly one Zustand read-model (ADR-006), the preferences store
+  (`shared/store/preferences-store`): `seasonMode` comes from `preferencesSource.getSeasonMode()` and
+  it keeps `hasLoaded` and `errorMessage` beside it. The season store keeps UI state only (viewed
+  season, read-only mode, banner, busy message, last discard, the matching run and its progress), and
+  so does the download-runtime store; their server reads go through queries. Hand-fetching hooks
+  remain, and they are what the baseline below counts.
+- `frontend/async-state-baseline.json` holds 61 entries (244 at task T3b, 61 now), measured by
+  running the five rules over `src/**/*.{ts,tsx}` and printed by
+  `bun --cwd="frontend" run check:async-state:all`:
+  - `no-infrastructure-import` 51 entries in 38 files (42 feature, 9 shared); 2 of them are direct
+    `wailsjs/**` imports, in 2 files: `wailsjs/runtime/runtime` and `wailsjs/go/models`. Today's
     `episode-schedule-panel.helpers.ts` keeps two (`bridge-runtime-source`, `preferences-source`) for
     the operations that have not migrated.
-  - `no-runtime-subscription` 14 entries in 9 files: feature files (activity,
-    navigation badge, notifications) and shared stores (season). Download run history and the
-    download runtime store no longer subscribe directly.
+  - `no-runtime-subscription` 10 entries in 7 files: the activity feed live refresh
+    (`features/activity/feed/use-activity-live-refresh.ts`), the activity history source
+    (`features/activity/history-source/history-source.helpers.ts`, `EventsOn`), download run history
+    (`features/download/ui/RunHistoryPanel/use-run-history-story.ts`) and three notification hooks
+    (center sync, navigation and the toasts resolver), plus the season store's three
+    `subscribeMatching*` calls in `shared/store/season-store/season-store.helpers.ts`. Those three are
+    ordinary baseline entries: the gate has no per-file subscription allow-list, only the closed
+    `zustand/vanilla` one below. The download runtime store no longer subscribes.
   - `no-window-go`, `react-query-in-shared-query` and `zustand-vanilla-allow-list` 0 entries: production
-    code outside `infrastructure/**` never reads `window.go` (8 test files fake it), TanStack Query is
-    imported only in `shared/query`, and the 5 `zustand/vanilla` importers are exactly the allow-list.
+    code outside `infrastructure/**` never reads `window.go` (28 test files assign a fake), TanStack
+    Query is imported only in `shared/query`, and the 5 `zustand/vanilla` importers are exactly the
+    allow-list.
 - The skill's "show backend data on a screen" recipe has one migrated example: Today
   (`use-episode-schedule-request.ts`, `use-episode-day-counts.ts`), with its adapter built in
   `bridge-runtime.constants.ts` and its key factory in `shared/query/query-keys/query-keys.constants.ts`.
