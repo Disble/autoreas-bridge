@@ -35,7 +35,8 @@ func (a *App) GetAnimeEditorRecord(animeID string) (contracts.AnimeEditorRecordR
 // DTO is converted to the domain command first, so a malformed patch fails as
 // invalid_argument before touching the store. An OCC conflict or a no-op is a
 // result outcome; a failed write is an error, recorded for Activity first.
-// Episode durations are saved apart, through SaveEpisodeDurations.
+// A successful write is recorded in the activity history like the card
+// commands. Episode durations are saved apart, through SaveEpisodeDurations.
 func (a *App) SaveAnimeEditor(command SaveAnimeEditorCommandDTO) (contracts.AnimeEditorSaveResult, error) {
 	return a.moduleSet().anime.Use(func(services animeServices) (contracts.AnimeEditorSaveResult, error) {
 		domainCommand, err := command.toDomain()
@@ -44,12 +45,14 @@ func (a *App) SaveAnimeEditor(command SaveAnimeEditorCommandDTO) (contracts.Anim
 			a.recordEditorWriteFailure("save", command.AnimeID, err)
 			return contracts.AnimeEditorSaveResult{}, apperr.InvalidArgument(err.Error())
 		}
+		before := a.editorActivityBefore(command.AnimeID)
 		result, err := services.editorWrite.Save(a.appContext(), domainCommand)
 		if err != nil {
 			err = fmt.Errorf("save anime editor: %w", err)
 			a.recordEditorWriteFailure("save", command.AnimeID, err)
 			return contracts.AnimeEditorSaveResult{}, err
 		}
+		a.recordEditorActivity(before, result)
 		return a.editorSaveResult(services, "save", result), nil
 	})
 }
@@ -69,15 +72,18 @@ func (a *App) recordEditorWriteFailure(operation, animeID string, err error) {
 }
 
 // DeactivateAnime takes an anime out of the active rotation, under
-// baseModifiedAt optimistic concurrency, through the anime module handle.
+// baseModifiedAt optimistic concurrency, through the anime module handle. A
+// successful deactivation is recorded in the activity history.
 func (a *App) DeactivateAnime(animeID string, baseModifiedAt int64) (contracts.AnimeEditorSaveResult, error) {
 	return a.moduleSet().anime.Use(func(services animeServices) (contracts.AnimeEditorSaveResult, error) {
+		before := a.editorActivityBefore(animeID)
 		result, err := services.editorWrite.Deactivate(a.appContext(), animeID, baseModifiedAt)
 		if err != nil {
 			err = fmt.Errorf("deactivate anime: %w", err)
 			a.recordEditorWriteFailure("deactivate", animeID, err)
 			return contracts.AnimeEditorSaveResult{}, err
 		}
+		a.recordEditorActivity(before, result)
 		return a.editorSaveResult(services, "deactivate", result), nil
 	})
 }

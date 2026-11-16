@@ -56,6 +56,7 @@ var hourlySummaryOutcomes = map[string]struct{}{
 	"closed":                  {},
 	"failed":                  {},
 	"presence_refused":        {},
+	"presence_unanswered":     {},
 	"schema_not_ready":        {},
 	"skipped_owned_by_ticker": {},
 	"unsettled":               {},

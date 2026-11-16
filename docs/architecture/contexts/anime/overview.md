@@ -181,6 +181,14 @@ same way:
   `runtime_events` row with `event_type` `sync.changelog`, `entity_id` the anime, and
   `sourceEventId`, `changeType`, `changedFields` in its metadata. Activity reads it as a step of
   the change (`internal/observability/activityread/change_context.go`, by entity and time range).
+- The domain history (`activity_log`, owned by `internal/activity`) is written by the user-facing
+  commands, not by the save: the card commands (`EpisodeService`) and, for the Editor,
+  `recordEditorActivity` (`internal/desktop/app_editor_activity.go`). An applied Editor save or
+  deactivate compares the anime before and after and writes one `desktop` row with the card
+  commands' action, in the mobile patch's precedence: `anime_soft_deleted` or `anime_restored`, then
+  `episode_adjusted`, then `anime_state_set`. A write that changed none of them (a rename, a folder)
+  writes no row. Activity's Edits line reads these rows; the correlation id is
+  `anime.editor:<anime>:<modifiedAt>`. A failed row logs `anime.editor_activity_failed` (warn).
 
 ## Storage
 
@@ -428,7 +436,7 @@ attaches. They are built once as `BRIDGE_ANIME_EDITOR_SOURCE` (its catalog is
 
 | Caller | Service method | Trigger |
 |---|---|---|
-| `internal/desktop/app_runtime_editor.go` | `EditorService.Save`, `Deactivate`, `ScheduleService.Apply`, through the `anime` module handle | The Editor and the schedule board |
+| `internal/desktop/app_runtime_editor.go` | `EditorService.Save`, `Deactivate` (then `recordEditorActivity`), `ScheduleService.Apply`, through the `anime` module handle | The Editor and the schedule board |
 | `internal/desktop/app_library_root.go` | `EditorService.Save` | Rewriting folders under a new library root |
 | `internal/desktop/app_runtime_create.go` | `CreateService.CreateBatch`, through the `anime` module handle | Creating animes (with reflowed neighbours) |
 | `internal/desktop/app_desktop_actions.go` `OpenAnimePage`, `CopyAnimePage`, `OpenAnimeFolder`, `CopyAnimeFolder` | Anime query service, through the `anime` module handle | Today's rows, the Detail page and Season boards |

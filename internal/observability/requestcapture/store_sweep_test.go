@@ -3,6 +3,7 @@ package requestcapture
 import (
 	"context"
 	"database/sql"
+	"reflect"
 	"testing"
 )
 
@@ -39,15 +40,25 @@ func storePendingArrival(t *testing.T, store *SQLiteStore, id string, capturedAt
 func TestSweepOrphanedCapturesMarksPendingArrivalAbandoned(t *testing.T) {
 	db := openCaptureTestDB(t)
 	store := NewStore(db)
-	storePendingArrival(t, store, "req-orphan", 1_700_000_000_000)
+	reconcile := BuildTransportCaptureRecord("req-orphan", 1_700_000_000_500, "reconcile", "/api/sync/reconcile", "http")
+	reconcile.ClientRequestID = "cycle-1:2"
+	if err := store.UpsertCapture(context.Background(), reconcile); err != nil {
+		t.Fatalf("store pending reconcile arrival: %v", err)
+	}
+	storePendingArrival(t, store, "req-older", 1_700_000_000_000)
 
 	swept, err := SweepOrphanedCaptures(context.Background(), db)
 	if err != nil {
 		t.Fatalf("sweep orphaned captures: %v", err)
 	}
 
-	if swept != 1 {
-		t.Fatalf("expected 1 swept orphan, got %d", swept)
+	// Oldest first, each naming the request a previous process never finished.
+	want := []SweptCapture{
+		{RequestID: "req-older", Route: "/api/seasons/active", Kind: "get", CapturedAtMS: 1_700_000_000_000},
+		{RequestID: "req-orphan", Route: "/api/sync/reconcile", Kind: "reconcile", CapturedAtMS: 1_700_000_000_500, ClientRequestID: "cycle-1:2"},
+	}
+	if !reflect.DeepEqual(swept, want) {
+		t.Fatalf("expected swept captures %#v, got %#v", want, swept)
 	}
 	outcome, status, duration := readOutcomeRow(t, db, "req-orphan")
 	if outcome != OutcomeAbandoned {
@@ -79,8 +90,8 @@ func TestSweepOrphanedCapturesLeavesTerminalRowsUntouched(t *testing.T) {
 		t.Fatalf("sweep orphaned captures: %v", err)
 	}
 
-	if swept != 0 {
-		t.Fatalf("expected no swept orphans, got %d", swept)
+	if len(swept) != 0 {
+		t.Fatalf("expected no swept orphans, got %#v", swept)
 	}
 	gotOutcome, gotStatus, gotDuration := readOutcomeRow(t, db, "req-terminal")
 	if gotOutcome != "completed" {
@@ -107,8 +118,8 @@ func TestSweepOrphanedCapturesIsIdempotent(t *testing.T) {
 		t.Fatalf("second sweep: %v", err)
 	}
 
-	if swept != 0 {
-		t.Fatalf("expected the second sweep to find nothing, got %d", swept)
+	if len(swept) != 0 {
+		t.Fatalf("expected the second sweep to find nothing, got %#v", swept)
 	}
 }
 

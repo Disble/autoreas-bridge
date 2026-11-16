@@ -34,6 +34,12 @@ func (a *App) configureRuntimeServices(ctx context.Context) {
 	a.configureSyncDiagReader()
 	a.configureEventLogQueue(ctx)
 	a.bindObservabilityModule()
+	// Before startHTTPServer: a pending stall is imported before the next can happen.
+	// The import writes its own event row and incident, so it does not depend on
+	// the observability handle bound above; both just have to run before the
+	// server accepts the request that could stall next.
+	a.configureStallEvidence()
+	a.importStallEvidence()
 	a.prepareAnimeRuntime(ctx)
 	a.startSyncChangelogRecorder()
 	a.startIncrementalVacuumLoop(bridgeSync.IncrementalVacuumInterval)
@@ -123,9 +129,36 @@ func (a *App) sweepOrphanedCaptures() {
 		}
 		return
 	}
-	if swept > 0 && a.sharedLogger != nil {
-		a.logCaptureSweep(map[string]any{"swept": swept}, "swept %d orphaned capture row(s) left pending by a previous process", swept)
+	if len(swept) > 0 && a.sharedLogger != nil {
+		a.logCaptureSweep(sweptCapturesMetadata(swept), "swept %d orphaned capture row(s) left pending by a previous process", len(swept))
 	}
+}
+
+// maxSweptCapturesLogged caps the swept rows one sweep record names, so the
+// record stays under the 4 KB metadata bound that would otherwise replace it
+// whole with a marker.
+const maxSweptCapturesLogged = 10
+
+// sweptCapturesMetadata records how many rows were swept and names the newest
+// of them: the last request a hung process accepted is the one that names the
+// hang, and retention deletes the row itself later.
+func sweptCapturesMetadata(swept []requestcapture.SweptCapture) map[string]any {
+	kept := swept[max(len(swept)-maxSweptCapturesLogged, 0):]
+	captures := make([]map[string]any, 0, len(kept))
+	for _, capture := range kept {
+		entry := map[string]any{
+			"requestId": capture.RequestID, "route": capture.Route, "kind": capture.Kind, "capturedAtMs": capture.CapturedAtMS,
+		}
+		if capture.ClientRequestID != "" {
+			entry["clientRequestId"] = capture.ClientRequestID
+		}
+		captures = append(captures, entry)
+	}
+	metadata := map[string]any{"swept": int64(len(swept)), "captures": captures}
+	if omitted := len(swept) - len(kept); omitted > 0 {
+		metadata["capturesOmitted"] = omitted
+	}
+	return metadata
 }
 
 // logCaptureSweep writes one capture-sweep warning with its structured metadata, so the kept
