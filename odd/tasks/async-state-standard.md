@@ -20,7 +20,7 @@ Design source until ADR-032 lands: Judgment Day `proposal-r2.md` (sha256 `34533f
 
 ## Tasks
 
-Progress: 27 done, 1 open (T7). Each row is one task; former T5j sub-units are rows of their own (L42).
+Progress: 28 done, 0 open. Feature complete. Each row is one task; former T5j sub-units are rows of their own (L42).
 
 | ID | Specs | Route | Status | Commit / evidence |
 |---|---|---|---|---|
@@ -51,7 +51,7 @@ Progress: 27 done, 1 open (T7). Each row is one task; former T5j sub-units are r
 | T5j-Z | S1 S2 S6 | delegated | done | season store keeps UI state only (L40): server fields/actions out, store tests rewritten, allow-list reason, docs/drift. Needs T5j-C2 and T5j-C3; blocks T7. Commit 5fe46abc (verify PASS; busy owners restored after a brief error, pinned in use-intake-commands.test.ts), 4944 tests, baseline 61 |
 | T5k | S1 S2 S6 | delegated: Writer trigger (b); independent verifier (items 3, 4) | done | downloads: 13 bindings on a `downloads` handle, download-runtime-store UI-only; baselines frontend 101 → 73, Go 35 → 15. Written, uncommitted (68 files). Needs independent verify, then commit after T5g, T5j-U0 and T5j-P3 are merged Verify HOLD fixed (re-read tests, docs); useSoloAnimeDownloadPanel cognitive under 15; layout fixture wrapped in BridgeDataProvider. Committed `f0ef94d2`, merged `af97185e` (4967 tests); async-state baseline 69. |
 | T6 | S1 S6 | inline | done | Close-out: T5g verifier probes as tests (Today conflict re-reads the schedule twice; season `SetAnimeDays` conflict → 'ok'); drift counts in `cross-cutting/async-state.md` and the desktop overview; remove merged worktrees and scratch dirs. Commit 9b239e1c (4957 tests): conflict probes, Daily board busy owners, selection optimistic rollback and failed-refetch pinned with break/restore; drift docs at baseline 61; duplicate ACTIVITY_KNOWN_LINE_MARKS removed. The slow editor covers test was 1.1-1.25 s without load and was left unchanged |
-| T7 | S8 | inline | open | Merge `feat/async-state-integ` into `dev`. Only after T5j-Z and T6, and only on owner OK |
+| T7 | S8 | inline | done | Merge `feat/async-state-integ` into `dev`. Only after T5j-Z and T6, and only on owner OK. Owner OK; dev merged into integ first (e95d9380: Editor activity and stall evidence folded into the module handles), then integ merged into dev as bb950194 with the whole-tree pre-merge-commit green |
 
 ## Log
 
@@ -114,3 +114,4 @@ Progress: 27 done, 1 open (T7). Each row is one task; former T5j sub-units are r
 - **Next:** T5g; U0/P1 → merge → P3, C2/C3 → Z → T5k.
 - **L42 (2026-11-15, owner, task layout):** "me gustaría que empecemos reorganizando las tasks, porque hay tantas subtasks, que aunque en realidad tener varias por delante, en el general parece que fuera solo una, una falacia". The T5j sub-units (go, U0, P1, P3, C2, C3, Z) became rows of their own with their dependencies, T5g/T5k show their real state, and the remaining close-out work became T6 (probes as tests, drift docs, cleanup) and T7 (merge into `dev` on owner OK). A progress line heads the table. IDs are kept so commit messages and earlier Log entries still match.
 - **L43 (2026-11-15, evidence):** The fix/webview2-fixture-teardown branch (flaky WebView2 engine fixture) was merged into dev as a021c505 with the owner's OK, so T7's whole-tree pre-merge-commit no longer meets that flaky test. During T5j-Z the brief named only two busy-message owners; the five owners on the base (intake matching, creation, recheck; Daily board recheck and send) were restored and pinned.
+- **L44 (2026-11-16, evidence):** T7 landed as bb950194. Closing a merge with `git commit` runs pre-commit over every merged file and dharness fails with a Windows command line too long; a merge is closed through `git merge` so pre-merge-commit checks the whole tree. The main checkout also needed `bun install` to regenerate its untracked Wails bindings before the typecheck passed.

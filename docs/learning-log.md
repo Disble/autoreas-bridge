@@ -372,3 +372,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-11-03]: Release 2.7.4 is a patch: copy-counter file names like 04(2).mp4 now resolve to their lead episode in identity; no wire, DB or config change.
 - [2026-11-07]: Readings of a failed sync: state which start a window runs from; 'that start' and 'latest start' differ when Bridge starts twice before a report arrives.
 - [2026-11-08]: A pre-merge gate takes 10 minutes; a shorter timeout leaves a stale MERGE_HEAD.
+- [2026-11-16]: Close a merge with git merge, not git commit: git commit runs pre-commit over every merged file and dharness hits the Windows command-line limit; pre-merge-commit checks the whole tree. Run bun install first so the untracked Wails bindings are current.
