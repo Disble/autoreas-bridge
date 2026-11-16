@@ -1,13 +1,25 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook as renderBridgeHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonAnimeRow, SeasonSource } from '../../../../../shared/contracts/season.types';
+import type { SeasonAnimeRow, SeasonQuerySource, SeasonSource } from '../../../../../shared/contracts/season.types';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { getSeasonStoreState, resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
 import { useDailyBoard } from '../use-daily-board';
 
+/** Renders each board with a fresh ready season query client. */
+const renderHook: typeof renderBridgeHook = (callback, options) => renderBridgeHook(callback, {
+  ...options,
+  wrapper: createModulesTestWrapper({ module: 'season', state: 'ready' }).wrapper,
+});
+
 /** Builds the season port this suite drives, overriding only what a case sets. */
-function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
+function createSource(overrides: Partial<SeasonSource & SeasonQuerySource> = {}): SeasonSource & SeasonQuerySource {
   return {
+    readSeason: vi.fn().mockResolvedValue(null),
+    readSeasonAnimes: vi.fn().mockResolvedValue([] as readonly SeasonAnimeRow[]),
+    readSeasons: vi.fn().mockResolvedValue([]),
+    readPastSeason: vi.fn().mockResolvedValue(null),
+    readPastSeasonAnimes: vi.fn().mockResolvedValue([] as readonly SeasonAnimeRow[]),
     getSeason: vi.fn().mockResolvedValue(null),
     createSeason: vi.fn().mockResolvedValue('ok'),
     setMinApprovalGrade: vi.fn().mockResolvedValue('ok'),
@@ -71,17 +83,17 @@ describe('useDailyBoard', () => {
 
   it('refreshes on mount and groups created animes by section', async () => {
     const rows = [createdRow('a', 'anime-a', 'Sin ver'), createdRow('b', 'anime-b', 'Ver hoy')];
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useDailyBoard(source));
 
     await waitFor(() => expect(result.current.sections.sinVer).toHaveLength(1));
     expect(result.current.sections.verHoy).toHaveLength(1);
-    expect(source.getSeasonAnimes).toHaveBeenCalled();
+    expect(source.readSeasonAnimes).toHaveBeenCalled();
   });
 
   it('passes a Sin-ver row\'s availableEpisodes through unchanged', async () => {
     const rows = [{ ...createdRow('a', 'anime-a', 'Sin ver'), availableEpisodes: 4 }];
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useDailyBoard(source));
 
     await waitFor(() => expect(result.current.sections.sinVer).toHaveLength(1));
@@ -123,7 +135,10 @@ describe('useDailyBoard', () => {
     });
     expect(result.current.downloadNotice).toEqual({ downloadTime: '21:00' });
 
-    act(() => result.current.onDownloadNow());
+    // The download is a bridge mutation, so it starts on the next microtask.
+    await act(async () => {
+      result.current.onDownloadNow();
+    });
     expect(source.triggerSeasonDownloads).toHaveBeenCalled();
     expect(result.current.downloadNotice).toBeNull();
   });
@@ -194,7 +209,7 @@ describe('useDailyBoard', () => {
 
   it('onDownloadSelected downloads only the checked animes still in Ver hoy, then clears the selection', async () => {
     const rows = [createdRow('b', 'anime-b', 'Ver hoy'), createdRow('c', 'anime-c', 'Ver hoy')];
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useDailyBoard(source));
     await waitFor(() => expect(result.current.sections.verHoy).toHaveLength(2));
     // anime-gone was checked before it drained out of Ver hoy.
@@ -214,7 +229,7 @@ describe('useDailyBoard', () => {
 
   it('onDownloadSelected keeps the selection and surfaces why the run could not start', async () => {
     const source = createSource({
-      getSeasonAnimes: vi.fn().mockResolvedValue([createdRow('b', 'anime-b', 'Ver hoy')]),
+      readSeasonAnimes: vi.fn().mockResolvedValue([createdRow('b', 'anime-b', 'Ver hoy')]),
       downloadSeasonAnimes: vi.fn().mockResolvedValue('a download run is already in progress'),
     });
     const { result } = renderHook(() => useDailyBoard(source));
@@ -247,7 +262,7 @@ describe('useDailyBoard', () => {
 
   it('resolves a cover for every board row, Visto included', async () => {
     const rows = [createdRow('a', 'anime-a', 'Sin ver'), createdRow('b', 'anime-b', 'Ver hoy'), createdRow('c', 'anime-c', 'Visto')];
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const getAnimeCover = vi.fn((animeId: string) => Promise.resolve({ source: 'cover', dataUrl: `data:${animeId}` }));
     const { result } = renderHook(() => useDailyBoard(source, { getAnimeCover }));
 
@@ -295,8 +310,8 @@ describe('useDailyBoard', () => {
       { rowId: 'a', animeId: 'anime-a', section: 'Sin ver', order: 1 },
     ];
     const source = createSource({
-      getPastSeasonAnimes: vi.fn().mockResolvedValue(rows),
-      getSeasonOrderingSnapshot: vi.fn().mockResolvedValue(storedSnapshot({ recorded: true, entries })),
+      readPastSeasonAnimes: vi.fn().mockResolvedValue(rows),
+      fetchSeasonOrderingSnapshot: vi.fn().mockResolvedValue(storedSnapshot({ recorded: true, entries })),
     });
     await viewClosedSeason(source);
     const { result } = renderHook(() => useDailyBoard(source));
@@ -305,15 +320,15 @@ describe('useDailyBoard', () => {
     await waitFor(() => expect(result.current.boardMode).toBe('sections'));
     const { sinVer, verHoy, visto } = result.current.sections;
     expect([sinVer, verHoy, visto].map((section) => section.map((row) => row.id))).toEqual([['a'], ['b'], []]);
-    expect(source.getSeasonOrderingSnapshot).toHaveBeenCalledWith('s1');
+    expect(source.fetchSeasonOrderingSnapshot).toHaveBeenCalledWith('s1');
     expect(result.current.getVerHoyRowChip(rows[1])).toBeNull();
   });
 
   it('lists a closed season that recorded no Daily board as one plain list', async () => {
     const rows = [createdRow('a', 'anime-a', 'Visto'), createdRow('b', 'anime-b', 'Ver hoy')];
     const source = createSource({
-      getPastSeasonAnimes: vi.fn().mockResolvedValue(rows),
-      getSeasonOrderingSnapshot: vi.fn().mockResolvedValue(storedSnapshot({ recorded: false, entries: [] })),
+      readPastSeasonAnimes: vi.fn().mockResolvedValue(rows),
+      fetchSeasonOrderingSnapshot: vi.fn().mockResolvedValue(storedSnapshot({ recorded: false, entries: [] })),
     });
     await viewClosedSeason(source);
     const { result } = renderHook(() => useDailyBoard(source));
@@ -324,33 +339,41 @@ describe('useDailyBoard', () => {
   });
 
   it('reports a failed closed-season read instead of a board', async () => {
-    const source = createSource({ getSeasonOrderingSnapshot: vi.fn().mockRejectedValue(new Error('read failed')) });
+    const source = createSource({ fetchSeasonOrderingSnapshot: vi.fn().mockRejectedValue(new Error('read failed')) });
     await viewClosedSeason(source);
     const { result } = renderHook(() => useDailyBoard(source));
 
     await waitFor(() => expect(result.current.boardMode).toBe('failed'));
-    expect(result.current.historyError).toBe('read failed');
+    expect(result.current.boardError).toBe('read failed');
+  });
+
+  it('reports a failed rows read instead of an empty board', async () => {
+    const source = createSource({ readSeasonAnimes: vi.fn().mockRejectedValue(new Error('rows failed')) });
+    const { result } = renderHook(() => useDailyBoard(source));
+
+    await waitFor(() => expect(result.current.boardMode).toBe('failed'));
+    expect(result.current.boardError).toBe('rows failed');
   });
 
   it('never reads the closure snapshot for the open season, and keeps the live weekday chip', async () => {
     const rows = [createdRow('a', 'anime-a', 'Ver hoy')];
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows), getSeasonOrderingSnapshot: vi.fn() });
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows), fetchSeasonOrderingSnapshot: vi.fn() });
     const { result } = renderHook(() => useDailyBoard(source));
 
     await waitFor(() => expect(result.current.sections.verHoy).toHaveLength(1));
-    expect([result.current.boardMode, result.current.historyError]).toEqual(['sections', undefined]);
-    expect(source.getSeasonOrderingSnapshot).not.toHaveBeenCalled();
+    expect([result.current.boardMode, result.current.boardError]).toEqual(['sections', undefined]);
+    expect(source.fetchSeasonOrderingSnapshot).not.toHaveBeenCalled();
     expect(result.current.getVerHoyRowChip({ ...rows[0], section: 'Jueves', sectionOrder: 3 })).toEqual({ label: 'Jueves - 3', color: 'accent' });
   });
 
   it('drops a closed-season read that settles after the viewed season changed', async () => {
     /** Settles the first (stale) read once the second season is on screen. */
     let settleFirst: (value: unknown) => void = () => undefined;
-    const getSeasonOrderingSnapshot = vi
+    const fetchSeasonOrderingSnapshot = vi
       .fn()
       .mockImplementationOnce(() => new Promise((resolve) => { settleFirst = resolve; }))
       .mockResolvedValue(storedSnapshot({ recorded: false, entries: [] }));
-    const source = createSource({ getSeasonOrderingSnapshot });
+    const source = createSource({ fetchSeasonOrderingSnapshot });
     await viewClosedSeason(source);
     const { result } = renderHook(() => useDailyBoard(source));
     await viewClosedSeason(source, 's2');

@@ -40,9 +40,11 @@ function mockHook(rows: readonly EvaluationRow[] = [], overrides: Partial<HookRe
     readOnly: false,
     items: toEvaluationListItems(rows),
     ungradedCount: 0,
+    view: rows.length === 0 ? { kind: 'empty' } : { kind: 'ready', data: [], isRefreshing: false },
     errorMessage: undefined,
     onSkip: vi.fn(),
     getCoverThumb: () => ({ coverSrc: undefined, isLoading: false }),
+    listWindow: { scrollRef: { current: null }, onScroll: vi.fn(), visibleCount: rows.length },
     ...overrides,
   };
   mockedUseEvaluationPanel.mockReturnValue(value);
@@ -62,6 +64,21 @@ describe('EvaluationPanel', () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+  });
+
+  it('shows a skeleton and no rows or empty state while loading', () => {
+    mockHook([evalRow()], { view: { kind: 'loading' } });
+    render(<EvaluationPanel onNavigate={vi.fn()} />);
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.queryByText('Anime A')).not.toBeInTheDocument();
+    expect(screen.queryByText('No candidates to evaluate yet')).not.toBeInTheDocument();
+  });
+
+  it('shows a query failure instead of an empty state', () => {
+    mockHook([], { view: { kind: 'failure', code: 'internal', message: 'query failed' } });
+    render(<EvaluationPanel onNavigate={vi.fn()} />);
+    expect(screen.getByText('query failed')).toBeInTheDocument();
+    expect(screen.queryByText('No candidates to evaluate yet')).not.toBeInTheDocument();
   });
 
   it('shows the empty state and no list when there are no candidates', () => {

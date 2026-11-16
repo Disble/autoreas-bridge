@@ -55,6 +55,11 @@ const SEASON_OUTCOMES: readonly (readonly [string, (source: SeasonSource) => Pro
   ['SearchSeasonProviders', (source) => source.searchProviders!('Naruto'), { pages: [] }],
 ];
 
+/** The ordering board's query reads: the binding each calls and how the source invokes it. */
+const SEASON_ORDERING_QUERY_READS: readonly (readonly [string, (source: SeasonSource) => Promise<unknown>])[] = [
+  ['GetSeasonOrderingSnapshot', (source) => source.fetchSeasonOrderingSnapshot!('season-1')],
+];
+
 describe('season-source', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -357,6 +362,27 @@ describe('season-source', () => {
 
     await expect(invoke(createSeasonSource())).resolves.toEqual({ ...rest, status: 'season is starting' });
     expect(bindingMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(SEASON_ORDERING_QUERY_READS)('answers %s with the binding payload and rejects its coded failure', async (binding, invoke) => {
+    const payload = { recorded: true, rail: [], grid: [{ animeId: 'a' }] };
+    const bindingMock = vi.fn().mockResolvedValueOnce(payload).mockRejectedValueOnce(new Error(SEASON_STARTING_REJECTION));
+    window.go = { desktop: { App: { [binding]: bindingMock } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const source = createSeasonSource();
+
+    await expect(invoke(source)).resolves.toBe(payload);
+    await expect(invoke(source)).rejects.toMatchObject({ name: 'BridgeError', code: 'unavailable', message: 'season is starting' });
+  });
+
+  it.each(SEASON_ORDERING_QUERY_READS)('rejects %s as unavailable, never a fallback, when its binding never attaches', async (binding, invoke) => {
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const settled = invoke(createSeasonSource()).catch((error: unknown) => error);
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(settled).resolves.toMatchObject({ name: 'BridgeError', code: 'unavailable', message: `the ${binding} binding is not attached` });
   });
 
   it('uses the shared Wails binding readiness helper instead of local duplicate plumbing', () => {

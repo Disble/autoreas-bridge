@@ -1,60 +1,29 @@
 import type {
   SeasonAnimeRow,
   SeasonDailyBoardEntry,
-  SeasonSource,
+  SeasonOrderingSnapshot,
 } from '../../../../shared/contracts/season.types';
+import type { AsyncView } from '../../../../shared/query/async-view/async-view.types';
 import {
   DAILY_BOARD_HISTORY_LOAD_ERROR,
   EMPTY_BOARD_SECTIONS,
   LIVE_DAILY_BOARD_HISTORY,
   LOADING_DAILY_BOARD_HISTORY,
+  READY_DAILY_BOARD_ROWS,
 } from './daily-board.constants';
 import { groupCreatedBySection, listBoardAnimeIds } from './daily-board.helpers';
-import type { BoardSections, DailyBoardHistory, DailyBoardView, LoadedDailyBoardHistory } from './daily-board.types';
+import type { BoardSections, DailyBoardHistory, DailyBoardView } from './daily-board.types';
 
-/**
- * Reads the Daily board a closed season stored at close. A source that cannot
- * read the closure snapshot, or a read that throws, is a failure rather than a
- * claim that nothing was recorded; a snapshot without a recorded Daily board is
- * `unrecorded`.
- *
- * @param source The season port.
- * @param seasonId The closed season being viewed.
- * @returns The settled read, tagged with its season.
- */
-export async function readDailyBoardHistory(source: SeasonSource, seasonId: string): Promise<LoadedDailyBoardHistory> {
-  if (source.getSeasonOrderingSnapshot === undefined) {
-    return { seasonId, history: { status: 'failed', errorMessage: DAILY_BOARD_HISTORY_LOAD_ERROR } };
-  }
-  try {
-    const dailyBoard = (await source.getSeasonOrderingSnapshot(seasonId)).dailyBoard;
-    return {
-      seasonId,
-      history: dailyBoard?.recorded === true ? { status: 'recorded', entries: dailyBoard.entries } : { status: 'unrecorded' },
-    };
-  } catch (error) {
-    return {
-      seasonId,
-      history: { status: 'failed', errorMessage: error instanceof Error ? error.message : DAILY_BOARD_HISTORY_LOAD_ERROR },
-    };
-  }
+/** Maps a closure snapshot query to the Daily board history state. */
+export function toDailyBoardHistory(viewSeasonId: string | null, canRead: boolean, snapshot: AsyncView<SeasonOrderingSnapshot>): DailyBoardHistory {
+  if (viewSeasonId === null) return LIVE_DAILY_BOARD_HISTORY;
+  if (!canRead) return { status: 'failed', errorMessage: DAILY_BOARD_HISTORY_LOAD_ERROR };
+  if (snapshot.kind === 'failure') return { status: 'failed', errorMessage: snapshot.message };
+  if (snapshot.kind !== 'ready') return LOADING_DAILY_BOARD_HISTORY;
+  const dailyBoard = snapshot.data.dailyBoard;
+  return dailyBoard?.recorded === true ? { status: 'recorded', entries: dailyBoard.entries } : { status: 'unrecorded' };
 }
 
-/**
- * The history the board renders: live for an open season; for a closed one the
- * settled read for THAT season, or `loading` while none has settled (so a slow
- * read never shows another season's board).
- *
- * @param viewSeasonId The closed season being viewed, or null for the open one.
- * @param loaded The last settled read, or null.
- * @returns The current history.
- */
-export function resolveDailyBoardHistory(viewSeasonId: string | null, loaded: LoadedDailyBoardHistory | null): DailyBoardHistory {
-  if (viewSeasonId === null) {
-    return LIVE_DAILY_BOARD_HISTORY;
-  }
-  return loaded?.seasonId === viewSeasonId ? loaded.history : LOADING_DAILY_BOARD_HISTORY;
-}
 
 /**
  * Rebuilds the conveyor sections from the stored Daily board: each section
@@ -76,13 +45,27 @@ export function groupSnapshotSections(rows: readonly SeasonAnimeRow[], entries: 
 }
 
 /**
- * Derives the board's render model from the season rows and the history read.
+ * Derives the board's render model from the season rows, the history read and
+ * the rows read. A rows read that is still running or failed decides the board
+ * first, so no section or plain list ever claims a season it has not read; an
+ * empty rows read is a read, so the board shows the season without animes.
  *
- * @param rows The season's rows.
+ * @param rows The season's rows, empty while their read has not answered.
  * @param history Where the Daily board read stands.
+ * @param rowsView How the season rows read stands.
  * @returns What the board renders.
  */
-export function selectDailyBoardView(rows: readonly SeasonAnimeRow[], history: DailyBoardHistory): DailyBoardView {
+export function selectDailyBoardView(
+  rows: readonly SeasonAnimeRow[],
+  history: DailyBoardHistory,
+  rowsView: AsyncView<readonly SeasonAnimeRow[]> = READY_DAILY_BOARD_ROWS,
+): DailyBoardView {
+  if (rowsView.kind === 'failure') {
+    return { mode: 'failed', sections: EMPTY_BOARD_SECTIONS, plainRows: [], boardError: rowsView.message };
+  }
+  if (rowsView.kind === 'loading') {
+    return { mode: 'loading', sections: EMPTY_BOARD_SECTIONS, plainRows: [] };
+  }
   switch (history.status) {
     case 'live':
       return { mode: 'sections', sections: groupCreatedBySection(rows), plainRows: [] };
@@ -91,7 +74,7 @@ export function selectDailyBoardView(rows: readonly SeasonAnimeRow[], history: D
     case 'unrecorded':
       return { mode: 'plain', sections: EMPTY_BOARD_SECTIONS, plainRows: rows.filter((row) => row.availability === 'created') };
     case 'failed':
-      return { mode: 'failed', sections: EMPTY_BOARD_SECTIONS, plainRows: [], historyError: history.errorMessage };
+      return { mode: 'failed', sections: EMPTY_BOARD_SECTIONS, plainRows: [], boardError: history.errorMessage };
     default:
       return { mode: 'loading', sections: EMPTY_BOARD_SECTIONS, plainRows: [] };
   }

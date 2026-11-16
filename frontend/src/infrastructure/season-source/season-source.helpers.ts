@@ -339,6 +339,13 @@ export function createSeasonSource(): SeasonSource & SeasonQuerySource {
     openPage(url: string) {
       openInDefaultBrowser(url); // a blank url means no matched slug
     },
+    fetchSeasonOrderingSnapshot(seasonId: string) {
+      return withBridgeErrors<SeasonOrderingSnapshot>(
+        invokeGoBinding('GetSeasonOrderingSnapshot', () => GetSeasonOrderingSnapshot(seasonId), () =>
+          Promise.reject(createBridgeError('unavailable', 'the GetSeasonOrderingSnapshot binding is not attached')),
+        ),
+      );
+    },
   };
 
   return SEASON_SOURCE_STATE.sharedSource;

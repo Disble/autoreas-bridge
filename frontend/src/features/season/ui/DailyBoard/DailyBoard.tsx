@@ -1,11 +1,15 @@
 import { Alert, Button } from '@heroui/react';
+import seasonAirisArtwork from '../../../../assets/airis-empty-states/season.webp';
 import { LabeledCheckbox } from '../../../../shared/ui/LabeledCheckbox';
+import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
 import { OpenPageButton } from '../../../../shared/ui/OpenPageButton';
 import { LoadingBars } from '../../../../shared/ui/LoadingBars/LoadingBars';
 import { getGradeChip } from '../EvaluationPanel/evaluation-panel.helpers';
 import { SeasonCoverThumb } from '../SeasonCoverThumb/SeasonCoverThumb';
 import { AutoDownloadChip } from './AutoDownloadChip/AutoDownloadChip';
 import {
+  DAILY_BOARD_EMPTY_DESCRIPTION,
+  DAILY_BOARD_EMPTY_TITLE,
   DAILY_BOARD_LOADING_LABEL,
   DAILY_BOARD_SECTION_COPY,
   DAILY_BOARD_SKELETON_BAR_CLASS,
@@ -15,6 +19,7 @@ import {
 } from './daily-board.constants';
 import { formatAvailableEpisodes, getDailyBoardRowNameId, hasBoardRows, isDailyBoardSectionShown } from './daily-board.helpers';
 import { DailyBoardPlainCard } from './DailyBoardPlainCard';
+import { DailyBoardNotices } from './DailyBoardNotices';
 import { DailyBoardSectionCard } from './DailyBoardSectionCard';
 import { DailyBoardWatchList } from './DailyBoardWatchList';
 import { useDailyBoard } from './use-daily-board';
@@ -30,10 +35,11 @@ import { useDailyBoard } from './use-daily-board';
  * scan finds every anime, and every row shows the anime's cover.
  *
  * A closed season's history is immutable: its sections come from the Daily
- * board stored at close, never from live sections. While that read is in flight
- * a placeholder replaces the board; a failed read shows its alert; a season
- * that closed before the board was recorded shows one plain list of its animes
- * (`DailyBoardPlainCard`) and claims no section.
+ * board stored at close, never from live sections. While either read is in
+ * flight a placeholder replaces the board; a failed read shows its alert; a
+ * season that closed before the board was recorded shows one plain list of its
+ * animes (`DailyBoardPlainCard`) and claims no section. An editable season with
+ * no created anime shows its empty state instead of three empty cards.
  *
  * Sin ver and Ver hoy rows lead with their checkbox, then the cover. Sin ver
  * offers "Send & download now" beside "Send to Ver hoy" to skip the wait for the
@@ -63,7 +69,7 @@ export function DailyBoard() {
     boardMode,
     sections,
     plainRows,
-    historyError,
+    boardError,
     selected,
     toggleSelect,
     onSendToVerHoy,
@@ -81,41 +87,32 @@ export function DailyBoard() {
     getVerHoyRowChip,
   } = useDailyBoard();
 
+  const isEmptyBoard = boardMode === 'sections' && !readOnly && !hasBoardRows(sections);
+
   return (
     <section className="flex flex-col gap-4">
-      {errorMessage !== undefined && (
+      <DailyBoardNotices
+        downloadNotice={downloadNotice}
+        errorMessage={errorMessage}
+        onDismissNotice={onDismissNotice}
+        onDownloadNow={onDownloadNow}
+      />
+
+      {boardError !== undefined && (
         <Alert status="danger">
           <Alert.Content>
-            <Alert.Description>{errorMessage}</Alert.Description>
+            <Alert.Description>{boardError}</Alert.Description>
           </Alert.Content>
         </Alert>
       )}
 
-      {downloadNotice !== null && (
-        <Alert status="warning">
-          <Alert.Content>
-            <Alert.Description>
-              Sent to Ver hoy after today&apos;s {downloadNotice.downloadTime || 'scheduled'} auto-download. Download now
-              so you have episodes to watch today.
-            </Alert.Description>
-          </Alert.Content>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="primary" onPress={onDownloadNow}>
-              Download now
-            </Button>
-            <Button size="sm" variant="tertiary" onPress={onDismissNotice}>
-              Dismiss
-            </Button>
-          </div>
-        </Alert>
-      )}
-
-      {historyError !== undefined && (
-        <Alert status="danger">
-          <Alert.Content>
-            <Alert.Description>{historyError}</Alert.Description>
-          </Alert.Content>
-        </Alert>
+      {isEmptyBoard && (
+        <AirisEmptyState
+          description={DAILY_BOARD_EMPTY_DESCRIPTION}
+          imageSrc={seasonAirisArtwork}
+          kind="first-run"
+          title={DAILY_BOARD_EMPTY_TITLE}
+        />
       )}
 
       {boardMode === 'loading' && (
