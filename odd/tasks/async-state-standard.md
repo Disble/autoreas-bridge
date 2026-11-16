@@ -20,7 +20,7 @@ Design source until ADR-032 lands: Judgment Day `proposal-r2.md` (sha256 `34533f
 
 ## Tasks
 
-Progress: 23 done, 5 open (T5j-C2, T5j-C3, T5j-Z, T6, T7). Each row is one task; former T5j sub-units are rows of their own (L42).
+Progress: 25 done, 3 open (T5j-Z, T6, T7). Each row is one task; former T5j sub-units are rows of their own (L42).
 
 | ID | Specs | Route | Status | Commit / evidence |
 |---|---|---|---|---|
@@ -46,8 +46,8 @@ Progress: 23 done, 5 open (T5j-C2, T5j-C3, T5j-Z, T6, T7). Each row is one task;
 | T5j-U0 | S1 S2 S6 | delegated: Writer trigger (a) | done | season reads + first consumers (`shared/season/**` read hooks, `seasonKeys`, `BRIDGE_SEASON_SOURCE`, `season.matching_finished` invalidation, SeasonWorkspace, OverviewPanel, SeasonRateAction, TodaySeasonBanner, SeasonNavBadge, create/close season). Written; commit pending (layout:smoke fix applied); then merge into integ Committed `b9b6f45c`, merged `50ca5d2b` (ordering board tests of P1 and U0 unified: refactor 14, main 27 cases). |
 | T5j-P1 | S1 S2 S6 | delegated: Writer trigger (a); independent verifier (item 4) | done | ordering board + closure snapshot; merged `4edda325` |
 | T5j-P3 | S1 S2 S6 | delegated: Writer trigger (a) | done | provider search. Written; commit pending; then merge into integ Committed `f29f7232`, merged `a9247c09`. |
-| T5j-C2 | S1 S2 S6 | delegated | open | intake + discard resolver, with the mutation hooks of its own commands. Needs T5j-U0 merged |
-| T5j-C3 | S1 S2 S6 | delegated | open | evaluation, selection, rating and Daily board, with their mutation hooks. Needs T5j-U0 merged |
+| T5j-C2 | S1 S2 S6 | delegated | done | intake + discard resolver, with the mutation hooks of its own commands. Needs T5j-U0 merged. Commit c7cc6493 (verify PASS), merged 67567322 (4998 tests, baseline 63) |
+| T5j-C3 | S1 S2 S6 | delegated | done | evaluation, selection, rating and Daily board, with their mutation hooks. Needs T5j-U0 merged. Commit a5bf73ff (verify PASS), merged 6286b70f (4977 tests, baseline 65) |
 | T5j-Z | S1 S2 S6 | delegated | open | season store keeps UI state only (L40): server fields/actions out, store tests rewritten, allow-list reason, docs/drift. Needs T5j-C2 and T5j-C3; blocks T7 |
 | T5k | S1 S2 S6 | delegated: Writer trigger (b); independent verifier (items 3, 4) | done | downloads: 13 bindings on a `downloads` handle, download-runtime-store UI-only; baselines frontend 101 → 73, Go 35 → 15. Written, uncommitted (68 files). Needs independent verify, then commit after T5g, T5j-U0 and T5j-P3 are merged Verify HOLD fixed (re-read tests, docs); useSoloAnimeDownloadPanel cognitive under 15; layout fixture wrapped in BridgeDataProvider. Committed `f0ef94d2`, merged `af97185e` (4967 tests); async-state baseline 69. |
 | T6 | S1 S6 | inline | open | Close-out: T5g verifier probes as tests (Today conflict re-reads the schedule twice; season `SetAnimeDays` conflict → 'ok'); drift counts in `cross-cutting/async-state.md` and the desktop overview; remove merged worktrees and scratch dirs |
