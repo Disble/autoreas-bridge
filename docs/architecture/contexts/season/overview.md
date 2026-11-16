@@ -111,8 +111,15 @@ For module readiness, failure codes and the `shared/query` layer, read
     a failure's message (the intake-rows reads that only need the rows loaded show the fixed
     `Failed to load intake rows`), and a success clears it where the read refreshes the screen. A
     failed refetch keeps the loaded data on screen next to the banner.
-- The season Zustand store (`shared/store/season-store/`) keeps the UI state (`viewSeasonId`,
-  `readOnly`, `lastDiscard`, the banner, the matching run).
+- Intake reads displayed rows through `useDisplayedSeasonAnimes` (module `season`), overlays event-fed
+  per-row matching progress in `intake-matching-overlay.helpers.ts`, and keeps cached rows visible
+  with a banner on a failed refetch. Its commands run through `useBridgeMutation` and await the rows
+  refetch before resolving; matching refreshes only when no run started. The discard notice follows
+  the refresh. The global Undo toast restores through `useIntakeRestore`, waits for the live rows
+  refetch and only then closes; its key includes the discard sequence.
+- The season Zustand store (`shared/store/season-store/`) keeps UI state (`viewSeasonId`,
+  `readOnly`, `lastDiscard`, the banner, the matching run and event progress). Its legacy server
+  fields and actions remain for unmigrated consumers until T5j-Z.
 - Migrated to `shared/season`: `SeasonWorkspace`, `OverviewPanel/use-overview-panel.ts`,
   `OrderingBoard/use-ordering-board-store-bindings.ts`, `SeasonRateAction`, `TodaySeasonBanner`,
   `features/navigation/SeasonNavBadge`.
@@ -130,7 +137,7 @@ For module readiness, failure codes and the `shared/query` layer, read
 - Season bindings that call other contexts still read their service from an `App` field:
   `DownloadSeasonAnimes`, `TriggerSeasonDownloads` (downloads), `SendSeasonAnimesToVerHoy` (anime
   editor), `GetSeasonCheckTime`, `SetSeasonCheckTime` (settings). They migrate with those contexts.
-- The intake, evaluation, selection, Daily board and ordering-board reads and commands, the closure
+- The evaluation, selection, Daily board and ordering-board reads and commands, the closure
   snapshot and the provider search still read status strings and fallbacks through the adapter, not
   `shared/query` (`frontend/src/infrastructure/season-source/season-source.helpers.ts`), and still
   read the season and its rows from the store, which their own refreshes fill. Until they migrate, a

@@ -52,6 +52,8 @@ export type SeasonStoreState = {
   readonly busyMessage?: string;
   /** Ephemeral matching-run progress, null while no run is in flight. */
   readonly matchingRun: SeasonMatchingRun | null;
+  /** Latest event progress per row for the active run, never server rows. */
+  readonly matchingProgress: Readonly<Record<string, SeasonMatchingProgressNotice>>;
   /** The latest successful intake discard, null until one succeeds. */
   readonly lastDiscard: SeasonDiscardNotice | null;
   /** Records the run total a started event opened, resetting the phase count. */

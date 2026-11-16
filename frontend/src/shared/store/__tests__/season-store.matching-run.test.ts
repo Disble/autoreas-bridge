@@ -147,6 +147,20 @@ describe('season store matching run', () => {
     expect(source.getSeasonAnimes).not.toHaveBeenCalled();
   });
 
+  it('retains event progress by row only during the run and clears it on finish and disconnect', () => {
+    const listeners = connectListeners(createMatchingSource());
+    startTrackedRun(listeners);
+    const notice = progressNotice();
+    listeners.progress(notice);
+    expect(getSeasonStoreState().matchingProgress).toEqual({ 'row-1': notice });
+    listeners.finished({ seasonId: 'season-1' });
+    expect(getSeasonStoreState().matchingProgress).toEqual({});
+    startTrackedRun(listeners);
+    listeners.progress(notice);
+    disconnectSeasonMatchingStore();
+    expect(getSeasonStoreState().matchingProgress).toEqual({});
+  });
+
   it('updates a search_failed row live like any other row', () => {
     const listeners = connectListeners(createMatchingSource());
     setSeasonStoreState({ seasonAnimes: [intakeRow()] });
@@ -189,6 +203,7 @@ describe('season store matching run', () => {
     listeners.progress(progressNotice({ phase: 'availability_check', availability: 'available', availableEpisodes: 2 }));
 
     expect(getSeasonStoreState().matchingRun).toBeNull();
+    expect(getSeasonStoreState().matchingProgress).toEqual({});
     expect(getSeasonStoreState().seasonAnimes[0]).toMatchObject({ availability: 'available', availableEpisodes: 2 });
     expect(source.getSeasonAnimes).not.toHaveBeenCalled();
   });
@@ -240,22 +255,24 @@ describe('season store matching run', () => {
 
   it('leaves the progress state when the matching command returns something other than ok', async () => {
     const source = createMatchingSource({ runMatching: vi.fn().mockResolvedValue('searcher unavailable') });
-    setSeasonStoreState({ matchingRun: { total: 2, resolvedInPhase: 1, phase: 'name_matching' } });
+    setSeasonStoreState({ matchingRun: { total: 2, resolvedInPhase: 1, phase: 'name_matching' }, matchingProgress: { 'row-1': progressNotice() } });
 
     await getSeasonStoreState().runMatching(source);
 
     expect(getSeasonStoreState().matchingRun).toBeNull();
+    expect(getSeasonStoreState().matchingProgress).toEqual({});
     expect(getSeasonStoreState().errorMessage).toBe('searcher unavailable');
     expect(source.getSeasonAnimes).not.toHaveBeenCalled();
   });
 
   it('leaves the progress state when the matching command throws', async () => {
     const source = createMatchingSource({ runMatching: vi.fn().mockRejectedValue(new Error('boom')) });
-    setSeasonStoreState({ matchingRun: { total: 2, resolvedInPhase: 1, phase: 'name_matching' } });
+    setSeasonStoreState({ matchingRun: { total: 2, resolvedInPhase: 1, phase: 'name_matching' }, matchingProgress: { 'row-1': progressNotice() } });
 
     await getSeasonStoreState().runMatching(source);
 
     expect(getSeasonStoreState().matchingRun).toBeNull();
+    expect(getSeasonStoreState().matchingProgress).toEqual({});
     expect(getSeasonStoreState().errorMessage).toBe('boom');
   });
 

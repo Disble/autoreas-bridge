@@ -1,8 +1,8 @@
 import { metadataLookupSource } from '../../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers';
 import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
 import type { PreferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.types';
-import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
-import type { SeasonSource } from '../../../../shared/contracts/season.types';
+import type { SeasonQuerySource, SeasonSource } from '../../../../shared/contracts/season.types';
+import { BRIDGE_SEASON_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import type { AnimeMetadataLookupSource } from '../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
 import type { ProviderSearchPort } from './IntakeProviderLookup/intake-provider-lookup.types';
 import { useIntakeCreationCallbacks } from './use-intake-creation-callbacks';
@@ -45,14 +45,14 @@ import { useIntakeView } from './use-intake-view';
  * @returns The panel's state, its derived counts and previews, and its callbacks.
  */
 export function useIntakePanel(
-  source: SeasonSource = seasonSource,
+  source: SeasonSource & SeasonQuerySource = BRIDGE_SEASON_SOURCE,
   libraryRootSource: Pick<PreferencesSource, 'getLibraryRoot'> = preferencesSource,
   metadataSource: AnimeMetadataLookupSource = metadataLookupSource,
 ) {
   // 2. State
   const editor = useIntakeEditorState();
   // 3. Context/3rd Party Hooks
-  const store = useIntakeStoreSlice();
+  const store = useIntakeStoreSlice(source);
   // 5. Derived State (useMemo in colocated hooks)
   // The rows see only the provider search, never the whole season port.
   const providerSearchSource: ProviderSearchPort = source;
@@ -70,6 +70,7 @@ export function useIntakePanel(
   useIntakeSyncEffects({ editor, store, source, libraryRootSource });
 
   return {
+    asyncView: store.asyncView,
     readOnly: store.readOnly,
     mode: editor.mode,
     switchMode: modes.switchMode,

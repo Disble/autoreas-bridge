@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 
-import type { SeasonAnimeRow, SeasonSource } from '../../../../../shared/contracts/season.types';
+import type { SeasonAnimeRow, SeasonQuerySource, SeasonSource } from '../../../../../shared/contracts/season.types';
 import type { AnimeMetadataSelection } from '../../../../../shared/metadata-lookup/metadata-lookup.types';
 import type { AnimeMetadataLookupSource } from '../../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
 
@@ -26,8 +26,8 @@ export function createLibraryRootSource(root = 'D:/Anime') {
  * @param overrides Per-test port replacements.
  * @returns A season port suitable for {@link useIntakePanel}.
  */
-export function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
-  return {
+export function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource & SeasonQuerySource {
+  const source: SeasonSource = {
     getSeason: vi.fn().mockResolvedValue(null),
     createSeason: vi.fn().mockResolvedValue('ok'),
     setMinApprovalGrade: vi.fn().mockResolvedValue('ok'),
@@ -63,6 +63,14 @@ export function createSource(overrides: Partial<SeasonSource> = {}): SeasonSourc
     searchProviders: vi.fn().mockResolvedValue({ status: 'ok', pages: [] }),
     openPage: vi.fn(),
     ...overrides,
+  };
+  return {
+    ...source,
+    readSeason: source.getSeason,
+    readSeasonAnimes: source.getSeasonAnimes,
+    readSeasons: source.listSeasons,
+    readPastSeason: source.getPastSeason,
+    readPastSeasonAnimes: source.getPastSeasonAnimes,
   };
 }
 
@@ -119,6 +127,6 @@ export function selection(overrides: Partial<AnimeMetadataSelection> = {}): Anim
  * @param rows The rows the season port returns.
  * @returns A season port holding `rows`.
  */
-export function createSourceWithRows(rows: readonly SeasonAnimeRow[]): SeasonSource {
+export function createSourceWithRows(rows: readonly SeasonAnimeRow[]): SeasonSource & SeasonQuerySource {
   return createSource({ getSeasonAnimes: vi.fn().mockResolvedValue([...rows]) });
 }

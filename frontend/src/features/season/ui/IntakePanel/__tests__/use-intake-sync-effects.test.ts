@@ -100,7 +100,7 @@ describe('useIntakeSyncEffects', () => {
     vi.useRealTimers();
   });
 
-  it('refreshes the rows on mount and loads the configured library root', async () => {
+  it('leaves row reads to the query and loads the configured library root', async () => {
     const props = harnessProps();
     const { result } = renderSyncEffects(props);
 
@@ -108,12 +108,12 @@ describe('useIntakeSyncEffects', () => {
       await vi.advanceTimersByTimeAsync(0);
     });
 
-    expect(props.spies.refreshAnimes).toHaveBeenCalledWith(props.source);
+    expect(props.spies.refreshAnimes).not.toHaveBeenCalled();
     expect(props.libraryRootSource.getLibraryRoot).toHaveBeenCalled();
     expect(result.current.editor.libraryRoot).toBe('D:/Anime');
   });
 
-  it('refreshes through the current source after it changes', async () => {
+  it('does not call the legacy store refresh when the source changes', async () => {
     const props = harnessProps();
     const nextSource = createSource();
     const { rerender } = renderSyncEffects(props);
@@ -123,7 +123,7 @@ describe('useIntakeSyncEffects', () => {
       await vi.advanceTimersByTimeAsync(0);
     });
 
-    expect(props.spies.refreshAnimes).toHaveBeenCalledWith(nextSource);
+    expect(props.spies.refreshAnimes).not.toHaveBeenCalled();
   });
 
   it('loads the root from the current preferences source after it changes', async () => {

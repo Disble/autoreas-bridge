@@ -30,13 +30,9 @@ interface IntakeSyncEffectsInput {
 export function useIntakeSyncEffects(input: Readonly<IntakeSyncEffectsInput>): void {
   const { editor, store, source, libraryRootSource } = input;
   const { mode, rawDraft, setLibraryRoot } = editor;
-  const { readOnly, refreshAnimes, reconcileIntake } = store;
+  const { readOnly, reconcileIntake } = store;
 
   // 7. Effects
-  useEffect(() => {
-    void refreshAnimes(source);
-  }, [refreshAnimes, source]);
-
   useEffect(() => {
     if (readOnly) {
       return undefined;

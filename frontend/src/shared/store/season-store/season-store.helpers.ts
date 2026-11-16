@@ -39,6 +39,7 @@ export function resetSeasonStore(): void {
     errorMessage: undefined,
     busyMessage: undefined,
     matchingRun: null,
+    matchingProgress: {},
     lastDiscard: null,
     viewSeasonId: null,
     readOnly: false,
@@ -92,5 +93,5 @@ export function connectSeasonMatchingStore(source: SeasonSource = seasonSource):
 export function disconnectSeasonMatchingStore(): void {
   SEASON_MATCHING_RUNTIME_STATE.unsubscribe?.();
   SEASON_MATCHING_RUNTIME_STATE.unsubscribe = null;
-  setSeasonStoreState({ matchingRun: null });
+  setSeasonStoreState({ matchingRun: null, matchingProgress: {} });
 }

@@ -5,6 +5,7 @@ import type { DownloadRuntimeSource } from '../../../../../infrastructure/downlo
 import type { NotificationSource } from '../../../../../infrastructure/notification-source/notification-source.types';
 import type { Notification } from '../../../../../shared/contracts/notification.types';
 import type { ScheduleConfig } from '../../../../../shared/contracts/download.types';
+import { seasonQueryWrapper } from '../../../../../shared/season/__tests__/season.test-support';
 
 /**
  * The two singleton ports `NotificationToasts` reaches through its resolvers'
@@ -118,6 +119,7 @@ function renderToasts(): void {
     <MemoryRouter>
       <NotificationToasts />
     </MemoryRouter>,
+    { wrapper: seasonQueryWrapper().wrapper },
   );
 }
 

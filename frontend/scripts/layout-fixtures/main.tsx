@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router';
+import { BridgeDataProvider } from '../../src/app/BridgeDataProvider/BridgeDataProvider';
 import { NotificationToasts } from '../../src/features/notifications/ui/NotificationToasts/NotificationToasts';
 import { renderAppNotificationToast } from '../../src/features/notifications/ui/NotificationToasts/app-notification.helpers';
 import { ActivityFeedFixture } from './activity-feed-fixture';
@@ -213,11 +214,15 @@ function ToastFixture() {
         The toast surface navigates -- a pressed "View details" opens the record
         -- so it needs the router the real app mounts it under (`src/main.tsx`
         uses HashRouter). Without it the whole fixture throws on mount and the
-        page measures nothing.
+        page measures nothing. The missed-schedule notice it hosts reads the
+        downloads schedule through `shared/query`, so it also needs the app's
+        data provider.
       */}
-      <HashRouter>
-        <NotificationToasts />
-      </HashRouter>
+      <BridgeDataProvider>
+        <HashRouter>
+          <NotificationToasts />
+        </HashRouter>
+      </BridgeDataProvider>
       <VerdictReport checks={checks} />
     </>
   );
