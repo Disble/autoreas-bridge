@@ -1,16 +1,12 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { NotificationCenterSource } from '../../../../../infrastructure/notification-center-source/notification-center-source.types';
-import type { NotificationDetail, NotificationDetailResult } from '../../../../../shared/contracts/notification-center.types';
-import {
-  getNotificationStoreState,
-  resetNotificationStore,
-  setUnreadNotificationCount,
-} from '../../../../../shared/store/notification-store/notification-store.helpers';
+import { describe, expect, it, vi } from 'vitest';
+import type {
+  NotificationCenterSource,
+  NotificationDetail,
+  NotificationDetailResult,
+} from '../../../../../shared/contracts/notification-center.types';
 import { useNotificationOpenRecord } from '../use-notification-open-record';
-
-// The unread count is shared module state, so it outlives each test below.
-beforeEach(resetNotificationStore);
+import { createCenterSource, notificationsQueryWrapper } from './notification-center.test-support';
 
 /** Builds the record a `getNotification` read resolves to, defaulting to id 7. */
 function buildRecord(id = 7): NotificationDetail {
@@ -27,31 +23,29 @@ function buildRecord(id = 7): NotificationDetail {
   };
 }
 
-/** A fake source with only `getNotification`/`markRead` wired; every other method is an unused stub. */
+/**
+ * A fake source whose `getNotification` finds record 7 and whose `markRead` commits.
+ * @param overrides The methods a case cares about.
+ * @returns A `NotificationCenterSource` double.
+ */
 function makeSource(overrides: Partial<NotificationCenterSource> = {}): NotificationCenterSource {
-  return {
-    listNotifications: vi.fn(),
+  return createCenterSource({
     getNotification: vi.fn().mockResolvedValue({ found: true, item: buildRecord(), degraded: false }),
-    getUnreadCount: vi.fn(),
     markRead: vi.fn().mockResolvedValue({ affected: 1, unreadCount: 0, degraded: false }),
-    markUnread: vi.fn().mockResolvedValue({ affected: 1, unreadCount: 0, degraded: false }),
-    archive: vi.fn(),
-    restore: vi.fn(),
-    executeAction: vi.fn(),
     ...overrides,
-  };
+  });
 }
 
 describe('useNotificationOpenRecord', () => {
   it('has no record open before anything is pressed', () => {
-    const { result } = renderHook(() => useNotificationOpenRecord({ source: makeSource() }));
+    const { result } = renderHook(() => useNotificationOpenRecord({ source: makeSource() }), { wrapper: notificationsQueryWrapper().wrapper });
 
     expect(result.current.openRecord).toBeNull();
   });
 
   it('clears the pane when the opened record is not found', async () => {
     const source = makeSource({ getNotification: vi.fn().mockResolvedValue({ found: false, item: buildRecord(), degraded: true }) });
-    const { result } = renderHook(() => useNotificationOpenRecord({ source }));
+    const { result } = renderHook(() => useNotificationOpenRecord({ source }), { wrapper: notificationsQueryWrapper().wrapper });
 
     act(() => {
       result.current.onOpenRecord(7);
@@ -62,12 +56,12 @@ describe('useNotificationOpenRecord', () => {
   });
 
   it('marks the record read on the press itself, even when its read comes back not found', async () => {
-    const markRead = vi.fn().mockResolvedValue({ affected: 0, unreadCount: 0, degraded: true });
+    const markRead = vi.fn().mockRejectedValue(new Error('store closed'));
     const source = makeSource({
       getNotification: vi.fn().mockResolvedValue({ found: false, item: buildRecord(), degraded: true }),
       markRead,
     });
-    const { result } = renderHook(() => useNotificationOpenRecord({ source }));
+    const { result } = renderHook(() => useNotificationOpenRecord({ source }), { wrapper: notificationsQueryWrapper().wrapper });
 
     act(() => {
       result.current.onOpenRecord(7);
@@ -87,38 +81,27 @@ describe('useNotificationOpenRecord', () => {
           pending.set(id, resolve);
         }),
     );
-    const { result } = renderHook(() => useNotificationOpenRecord({ source: makeSource({ getNotification }) }));
+    const { result } = renderHook(() => useNotificationOpenRecord({ source: makeSource({ getNotification }) }), { wrapper: notificationsQueryWrapper().wrapper });
 
     act(() => {
       result.current.onOpenRecord(1);
       result.current.onOpenRecord(2);
     });
 
+    await waitFor(() => expect(getNotification).toHaveBeenCalledWith(2));
     await act(async () => {
       pending.get(2)?.({ found: true, item: buildRecord(2), degraded: false });
       pending.get(1)?.({ found: true, item: buildRecord(1), degraded: false });
     });
 
-    expect(result.current.openRecord?.id).toBe(2);
-  });
-
-  it("feeds the opening mark-read's own fresh unread count into the shared store", async () => {
-    setUnreadNotificationCount(5);
-    const markRead = vi.fn().mockResolvedValue({ affected: 1, unreadCount: 4, degraded: false });
-    const { result } = renderHook(() => useNotificationOpenRecord({ source: makeSource({ markRead }) }));
-
-    act(() => {
-      result.current.onOpenRecord(7);
-    });
-
-    await waitFor(() => expect(getNotificationStoreState().unreadCount).toBe(4));
+    await waitFor(() => expect(result.current.openRecord?.id).toBe(2));
   });
 
   // The rail badge fell on open from the first version of this hook, but the
   // master-list row it was standing on kept its unread dot until a remount.
   it('reports the record it just marked read, so the master-list row can drop its unread dot', async () => {
     const onReadStateChanged = vi.fn();
-    const { result } = renderHook(() => useNotificationOpenRecord({ source: makeSource(), onReadStateChanged }));
+    const { result } = renderHook(() => useNotificationOpenRecord({ source: makeSource(), onReadStateChanged }), { wrapper: notificationsQueryWrapper().wrapper });
 
     act(() => {
       result.current.onOpenRecord(7);
@@ -138,7 +121,7 @@ describe('useNotificationOpenRecord', () => {
     const { rerender, result } = renderHook(
       ({ onReadStateChanged }: { onReadStateChanged: (recordIds: readonly number[], isRead: boolean) => void }) =>
         useNotificationOpenRecord({ source, onReadStateChanged }),
-      { initialProps: { onReadStateChanged: first } },
+      { initialProps: { onReadStateChanged: first }, wrapper: notificationsQueryWrapper().wrapper },
     );
 
     rerender({ onReadStateChanged: second });
@@ -150,10 +133,10 @@ describe('useNotificationOpenRecord', () => {
     expect(first).not.toHaveBeenCalled();
   });
 
-  it('reports nothing when the mark-read degraded, rather than clearing a dot the store still stands behind', async () => {
-    const markRead = vi.fn().mockResolvedValue({ affected: 0, unreadCount: 0, degraded: true });
+  it('reports nothing when the mark-read failed, rather than clearing a dot the store still stands behind', async () => {
+    const markRead = vi.fn().mockRejectedValue(new Error('store closed'));
     const onReadStateChanged = vi.fn();
-    const { result } = renderHook(() => useNotificationOpenRecord({ source: makeSource({ markRead }), onReadStateChanged }));
+    const { result } = renderHook(() => useNotificationOpenRecord({ source: makeSource({ markRead }), onReadStateChanged }), { wrapper: notificationsQueryWrapper().wrapper });
 
     act(() => {
       result.current.onOpenRecord(7);

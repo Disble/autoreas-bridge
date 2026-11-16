@@ -1,6 +1,6 @@
-import type { ActivityChangeContext, ActivityRunStep } from '../activity-source/activity-incident.types';
-import type { ActivityFeedSource } from '../feed-source/feed-source.types';
-import type { ActivityFeedLine } from '../feed-source/feed.types';
+import type { ActivityChangeContext, ActivityRunStep } from '../../../shared/contracts/activity-incident.types';
+import type { ActivityFeedSource } from '../../../shared/contracts/activity.types';
+import type { ActivityFeedLine } from '../../../shared/contracts/activity-feed.types';
 import type { ActivityRead } from '../ui/ActivityRunStory/activity-run-story.types';
 import { toActivityFoundRead } from '../ui/ActivityRunStory/activity-time.helpers';
 import { DRAWER_TASK_DOMAINS } from './drawer.constants';

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import type { EpisodeDurationRow, EpisodeDurationSection } from '../../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
+import { describe, expect, it, vi } from 'vitest';
+import type { EpisodeDurationRow, EpisodeDurationRuntimeSource, EpisodeDurationSection } from '../../../../../shared/contracts/episode-durations.types';
 import type { EpisodeDurationEdit } from '../../../../../shared/contracts/anime.types';
 import {
   classifyEpisodeDurationsView,
@@ -12,6 +12,9 @@ import {
   toEpisodeDurationRowViews,
   toEpisodeDurationsBanner,
   toEpisodeDurationsLoad,
+  isEpisodeDurationsTargetPending,
+  readEpisodeDurationSection,
+  toEpisodeDurationsQueryKey,
   toEpisodeDurationsNotes,
   toEpisodeDurationsOverview,
   toEpisodeEditFormView,
@@ -19,6 +22,7 @@ import {
   toEpisodeReanalyzeButton,
   upsertEpisodeEdit,
 } from '../episode-durations-section.helpers';
+import { EPISODE_DURATIONS_UNSETTLED } from '../episode-durations-section.constants';
 
 /**
  * Builds one stored section row.
@@ -37,7 +41,7 @@ function row(episode: number, minutes: number, source: EpisodeDurationRow['sourc
  * @returns The section.
  */
 function section(overrides: Partial<EpisodeDurationSection> = {}): EpisodeDurationSection {
-  return { outcome: 'ok', folderStatus: 'found', rows: [], beyondTotal: [], tv: true, ...overrides };
+  return { folderStatus: 'found', rows: [], beyondTotal: [], tv: true, ...overrides };
 }
 
 /**
@@ -61,10 +65,58 @@ describe('toEpisodeDurationRequest', () => {
 });
 
 describe('toEpisodeDurationsLoad', () => {
-  it('reads an ok section as ready and anything else as a failure with its message', () => {
-    expect(toEpisodeDurationsLoad(section())).toEqual({ status: 'ready', section: section() });
-    expect(toEpisodeDurationsLoad(section({ outcome: 'error', message: 'disk gone' }))).toEqual({ status: 'failed', message: 'disk gone' });
-    expect(toEpisodeDurationsLoad(section({ outcome: 'error' }))).toEqual({ status: 'failed', message: 'Episode durations could not be read.' });
+  /** A loaded anime's request. */
+  const REQUEST = { animeId: 'anime-1', folder: 'D:/x' };
+
+  it('reads the query as idle with no record, loading, failed with its message, or ready', () => {
+    const ready = { kind: 'ready', data: section(), isRefreshing: false } as const;
+    expect(toEpisodeDurationsLoad(undefined, ready, false)).toEqual({ status: 'idle' });
+    expect(toEpisodeDurationsLoad(REQUEST, { kind: 'loading' }, false)).toEqual({ status: 'loading' });
+    expect(toEpisodeDurationsLoad(REQUEST, { kind: 'failure', code: 'failed_precondition', message: 'episodes: down' }, false)).toEqual({ status: 'failed', message: 'episodes: down' });
+    expect(toEpisodeDurationsLoad(REQUEST, ready, false)).toEqual({ status: 'ready', section: section() });
+  });
+
+  it('reads another key placeholder as loading, never as the previous anime section', () => {
+    expect(toEpisodeDurationsLoad(REQUEST, { kind: 'ready', data: section(), isRefreshing: true }, true)).toEqual({ status: 'loading' });
+  });
+
+  it('reads an older read failure as loading while a newer request settles', () => {
+    expect(toEpisodeDurationsLoad(REQUEST, { kind: 'failure', code: 'internal', message: 'old' }, true)).toEqual({ status: 'loading' });
+  });
+});
+
+describe('isEpisodeDurationsTargetPending', () => {
+  /** One settled request. */
+  const REQUEST = { animeId: 'anime-1', folder: 'D:/x', totalEpisodes: 12, kind: 0 };
+
+  it('is pending before any read settled, or while the request or revision differs from the settled one', () => {
+    expect(isEpisodeDurationsTargetPending(EPISODE_DURATIONS_UNSETTLED, REQUEST, 0)).toBe(true);
+    expect(isEpisodeDurationsTargetPending(EPISODE_DURATIONS_UNSETTLED, undefined, 0)).toBe(false);
+    expect(isEpisodeDurationsTargetPending({ request: REQUEST, revision: 0 }, REQUEST, 0)).toBe(false);
+    expect(isEpisodeDurationsTargetPending({ request: REQUEST, revision: 0 }, { ...REQUEST }, 0)).toBe(true);
+    expect(isEpisodeDurationsTargetPending({ request: REQUEST, revision: 0 }, REQUEST, 1)).toBe(true);
+  });
+});
+
+describe('readEpisodeDurationSection', () => {
+  it('reads the saved anime section, and rejects without calling the source when no record is loaded', async () => {
+    const request = { animeId: 'anime-1', folder: 'D:/x', totalEpisodes: 12, kind: 0 };
+    const getEpisodeDurationSection = vi.fn().mockResolvedValue(section());
+    const source = { getEpisodeDurationSection } as unknown as EpisodeDurationRuntimeSource;
+
+    await expect(readEpisodeDurationSection(source, request)).resolves.toEqual(section());
+    expect(getEpisodeDurationSection).toHaveBeenCalledWith(request);
+    await expect(readEpisodeDurationSection(source, undefined)).rejects.toThrow('no anime selected');
+    expect(getEpisodeDurationSection).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('toEpisodeDurationsQueryKey', () => {
+  it('names every saved field the read depends on and the save revision', () => {
+    expect(toEpisodeDurationsQueryKey({ animeId: 'anime-1', folder: 'D:/x', totalEpisodes: 12, kind: 0 }, 3))
+      .toEqual(['episode-durations', 'section', 'anime-1', 'D:/x', 12, 0, 3]);
+    expect(toEpisodeDurationsQueryKey({ animeId: 'anime-1', folder: '' }, 0)).toEqual(['episode-durations', 'section', 'anime-1', '', null, null, 0]);
+    expect(toEpisodeDurationsQueryKey(undefined, 0)).toEqual(['episode-durations', 'section', null, null, null, null, 0]);
   });
 });
 

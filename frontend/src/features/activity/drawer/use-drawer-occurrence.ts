@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { ActivityIncidentDetail } from '../activity-source/activity-incident.types';
-import type { ActivitySource } from '../activity-source/activity-source.types';
-import type { ActivityFeedSource } from '../feed-source/feed-source.types';
+import type { ActivityIncidentDetail } from '../../../shared/contracts/activity-incident.types';
+import type { ActivitySource } from '../../../shared/contracts/activity.types';
+import type { ActivityFeedSource } from '../../../shared/contracts/activity.types';
 import { readActivityIncident } from '../ui/ActivityIncidents/activity-incident-detail.helpers';
 import { toActivityReadValue } from '../ui/ActivityRunStory/activity-time.helpers';
 import { useActivityRead } from '../ui/ActivityRunStory/use-activity-read';
@@ -43,10 +43,10 @@ export function useDrawerOccurrence(
   const occurrences = useMemo(() => (current === undefined ? [] : toDrawerOccurrences(incident)), [current, incident]);
   const selectedId = pickDrawerOccurrenceId(occurrences, picked, lineKey);
   const earlierId = selectedId === undefined || selectedId === occurrences[0]?.id ? undefined : selectedId;
-  const occurrenceRead = useActivityRead(source, earlierId, readActivityIncident);
+  const occurrenceRead = useActivityRead(source, earlierId, readActivityIncident, 'incident');
   const occurrence = toActivityReadValue(occurrenceRead.read);
   const eventId = earlierId === undefined ? undefined : toDrawerOccurrenceEventId(occurrence);
-  const eventRead = useDrawerFeedRead(feedSource, eventId, readDrawerEvent);
+  const eventRead = useDrawerFeedRead(feedSource, eventId, readDrawerEvent, 'event');
   const event = toActivityReadValue(eventRead.read);
   const status = toDrawerOccurrenceStatus(toDrawerBodyStatus([occurrenceRead.read, eventRead.read]), earlierId !== undefined && occurrence !== undefined && eventId === undefined);
   const windowError = useMemo(() => {

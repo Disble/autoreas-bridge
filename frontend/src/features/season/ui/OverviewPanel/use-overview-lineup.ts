@@ -1,55 +1,46 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
-import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
-import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonQuerySource, SeasonSource } from '../../../../shared/contracts/season.types';
+import { BRIDGE_SEASON_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { SEASON_NO_ROWS } from '../../../../shared/season/season.constants';
+import { useDisplayedSeasonAnimes } from '../../../../shared/season/use-displayed-season-animes';
+import { useSeasonOrderingSnapshot } from '../../../../shared/season/use-season-ordering-snapshot';
 import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
 import type { SeasonCoverSource, SeasonCoverThumbProps } from '../SeasonCoverThumb/season-cover-thumb.types';
 import { useSeasonCovers } from '../SeasonCoverThumb/use-season-covers';
-import { buildOverviewLineupView, listLineupAnimeIds, readOverviewLineup, resolveOverviewLineup } from './overview-lineup.helpers';
-import type { LoadedOverviewLineup, OverviewLineupView } from './overview-panel.types';
+import { buildOverviewLineupView, listLineupAnimeIds, toOverviewLineupState } from './overview-lineup.helpers';
+import type { OverviewLineupView } from './overview-panel.types';
 
 /**
  * Drives a closed season's final lineup: reads the ordering board the season
- * stored at close (never the live schedule), once per viewed season, joins the
- * season-owned grades, and resolves one cover per scheduled anime. A read that
- * settles after the viewed season changed is dropped.
+ * stored at close (never the live schedule) through the shared closure
+ * snapshot query of the viewed season, joins the season-owned grades, and
+ * resolves one cover per scheduled anime. Another season's read never shows
+ * here: the lineup is loading until the viewed season's own read settles.
  *
- * @param source The season port the closure snapshot is read through.
+ * @param source The season port the closure snapshot and the viewed season's
+ * rows are read through.
  * @param coverSource The port each anime's cover is resolved through.
  * @returns The card's render model, and the thumbnail props for an anime id.
  */
 export function useOverviewLineup(
-  source: SeasonSource = seasonSource,
+  source: SeasonSource & SeasonQuerySource = BRIDGE_SEASON_SOURCE,
   coverSource: SeasonCoverSource = bridgeRuntimeSource,
 ): { readonly view: OverviewLineupView; readonly getCoverThumb: (animeId: string) => SeasonCoverThumbProps } {
-  // 2. State
-  const [loaded, setLoaded] = useState<LoadedOverviewLineup | null>(null);
-
   // 3. Context/3rd Party Hooks
   const viewSeasonId = useSeasonStore((state) => state.viewSeasonId);
-  const seasonAnimes = useSeasonStore((state) => state.seasonAnimes);
+
+  // 4. Queries/Mutations
+  const snapshot = useSeasonOrderingSnapshot(viewSeasonId, source);
+  const animesQuery = useDisplayedSeasonAnimes({ refresh: 'never', source });
+  const seasonAnimes = animesQuery.data ?? SEASON_NO_ROWS;
 
   // 5. Derived State
-  const lineup = resolveOverviewLineup(viewSeasonId, loaded);
+  const canRead = source.fetchSeasonOrderingSnapshot !== undefined;
+  const lineup = useMemo(() => toOverviewLineupState(viewSeasonId, canRead, snapshot), [viewSeasonId, canRead, snapshot]);
   const view = useMemo(() => buildOverviewLineupView(lineup, seasonAnimes), [lineup, seasonAnimes]);
   const animeIds = useMemo(() => listLineupAnimeIds(view), [view]);
   const getCoverThumb = useSeasonCovers(animeIds, coverSource);
-
-  // 7. Effects
-  useEffect(() => {
-    if (viewSeasonId === null) {
-      return undefined;
-    }
-    let isCurrent = true;
-    void readOverviewLineup(source, viewSeasonId).then((result) => {
-      if (isCurrent) {
-        setLoaded(result);
-      }
-    });
-    return () => {
-      isCurrent = false;
-    };
-  }, [source, viewSeasonId]);
 
   return { view, getCoverThumb };
 }

@@ -43,6 +43,9 @@ export const EMPTY_ORDERING_BOARD = { rail: [], grid: [] } as const;
 /** Accessible name of the status region shown while a past season's stored board is read. */
 export const ORDERING_BOARD_LOADING_LABEL = 'Loading the recorded ordering board';
 
+/** Accessible name of the status region shown while the open season's live board is read. */
+export const ORDERING_BOARD_LIVE_LOADING_LABEL = 'Loading the ordering board';
+
 /**
  * Read-only notice while viewing a past season. It must never claim the board
  * reflects the live schedule: the board shown is the closure snapshot, and it

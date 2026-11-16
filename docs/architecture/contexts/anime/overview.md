@@ -99,6 +99,73 @@ flowchart LR
 | `CommittedPublisher` | `busCommittedPublisher` over the shared bus (`internal/desktop/app_defaults.go`) | Publishing `anime.changed` after the commit |
 | `WriteServiceDeps.Logger` | shared logger | The `sync.changelog` row in `runtime_events` |
 
+## Readiness and failures
+
+The episodes reads behind Today are served by the `episodes` module (ADR-032,
+`../../cross-cutting/async-state.md`). Its lifecycle is reported in `GetReadiness()` and in each
+`bridge.readiness` event (`../desktop/overview.md`, "Readiness and failures").
+
+- `GetEpisodeSchedule` and `GetEpisodeDayCounts` read through the `episodes` module handle
+  (`appModules.episodes`, `internal/desktop/app_readiness.go`), which `wireEpisodeServiceWithWriter`
+  binds before startup marks the module ready. They reject with `unavailable` while the module is
+  starting (even when the service is already bound), `failed_precondition` with the startup reason
+  after a failed startup, and `internal` when the service fails (ADR-032). Neither answers `[]` in
+  place of a failure; a day with nothing scheduled is an empty list, never null.
+- The Editor's durations card bindings (`internal/desktop/app_episode_editor.go`:
+  `GetEpisodeDurationSection`, `ReanalyzeEpisodeDurations`, `CancelEpisodeReanalysis`,
+  `SaveEpisodeDurations`) run through the same handle, over `episodeServices.durations` (the bridge
+  database). They reject with `unavailable` / `failed_precondition` like the Today reads, and with
+  `internal` when the read, the re-analysis or the save fails (a refused edit stores nothing) or the
+  database is missing; no result carries an `error` outcome. Real outcomes stay results:
+  re-analysis `ok` or `busy` (another one is running), save `applied` or `no_op`.
+- What Today shows in each module state:
+
+| `episodes` state | Today schedule area | Day-tab badges |
+|---|---|---|
+| `starting` | Skeleton (`role="status"`, three shape-matching rows); no read is called | None |
+| `ready` | The rows, or the empty state when the day resolved empty | The loaded counts |
+| `failed` | The failure Alert with the module's reason; no read is called | Not shown (the Alert replaces the tabs) |
+
+- A row write that fails (the command rejects) is not a read failure; a `conflict` outcome resolves
+  silently and Today reads the schedule again. On a failure Today shows its message in the same
+  Alert until the schedule loads again. The episode commands are described in
+  `contexts/episodes/overview.md`.
+
+The anime reads behind the Catalog, History and the Detail page are served by the `anime` module the
+same way:
+
+- `GetAnimes`, `GetAnimeDetail`, `GetAnimeDetailView`, `GetWatchHistoryPage`,
+  `GetAnimeWatchHistoryPage`, `GetAnimeCover` and `PreviewAnimeCover` read through the `anime`
+  module handle (`appModules.anime`), which `configureAnimeApplicationServices` binds
+  (`bindAnimeModule`). They reject with `unavailable` while the module is starting,
+  `failed_precondition` with the startup reason after a failed startup, `not_found` for an unknown
+  anime id, `invalid_argument` for an unknown history order and `internal` when a read fails. None
+  answers `[]`, `null` or an error-status page in place of a failure. Once ready, a missing or
+  unreadable cover is still the placeholder, never a failure.
+- The Editor, create and desktop-action bindings run through the same handle
+  (`internal/desktop/app_runtime_editor.go`, `app_runtime_create.go`, `app_desktop_actions.go`),
+  over `animeServices.editorQuery`, `editorWrite`, `scheduleQuery`, `scheduleWrite`, `createBatch`
+  and `query`. They reject with `unavailable` / `failed_precondition` like the reads, and none answers
+  an `error` outcome or status: `GetAnimeEditorRecord` is `not_found` for an unknown anime;
+  `SaveAnimeEditor` is `invalid_argument` for a patch its DTO conversion rejects; a failed read or
+  write (the editor service's own validation included) is `internal`. A failed save or deactivate is
+  still recorded as `anime.editor_save_failed` before it is returned. `applied`, `no_op` and
+  `conflict` stay result outcomes, and a committed write whose record refresh fails still answers its
+  outcome with `details.refreshError`. A failed schedule apply returns its error without a refreshed
+  board. The four desktop actions are `not_found` for an unknown anime, `invalid_argument` for an
+  anime without a page or folder, and `internal` when the stored value is unsafe or the launch or
+  copy fails; nothing is opened or copied while the module is not ready.
+- The notification center's "run again" action (`runAnimeAgainIntent`,
+  `internal/desktop/app_notification_center.go`) reports a deleted target only for `not_found`; a
+  starting module or a failed read is returned as that error.
+- What each screen shows in each module state:
+
+| `anime` state | Catalog | History timeline and inspector | Detail page and its episode lists |
+|---|---|---|---|
+| `starting` | Skeleton; no read is called | Skeletons; no read is called | Skeleton; no read is called |
+| `ready` | The anime, or the empty state when the catalog is empty | The rows, the filtered-empty or the empty state; the inspector's content | The detail, or "Anime not found." for an unknown id; the episode rows or their empty state |
+| `failed` | The failure Alert with the module's reason | The failure Alert with the reason; the inspector's error Alert | The failure Alert with the reason |
+
 ## Events
 
 - `anime.changed` (`events.AnimeChangedEvent`, `internal/events/event.go`) is published once per
@@ -108,7 +175,8 @@ flowchart LR
   inside the save transaction.
 - Subscribers: the realtime hub that fans it out to phones (`configureRealtimeHub`,
   `internal/desktop/app_runtime_services.go`) and the desktop frontend bridge
-  (`registerAnimeRuntimeEventBridge`, `internal/desktop/app_startup_runtime.go`).
+  (`registerAnimeRuntimeEventBridge`, `internal/desktop/app_startup_runtime.go`). In the frontend,
+  the one `BRIDGE_INVALIDATIONS` rule for it refreshes every Today query ("Frontend: Today" below).
 - Before publishing, `logRecordedChangelog` (`store_gateway_config.go`) writes one
   `runtime_events` row with `event_type` `sync.changelog`, `entity_id` the anime, and
   `sourceEventId`, `changeType`, `changedFields` in its metadata. Activity reads it as a step of
@@ -178,14 +246,204 @@ rewritten by the Season rule), `source_event_id` (unique when not NULL), `status
 - **No call leaves the transaction's connection.** Code inside the save, the Season rule included,
   uses only the `Querier` it is handed.
 
+## Frontend: Today
+
+Today (`frontend/src/features/episodes/ui/EpisodeSchedulePanel/`) is the screen of the episodes
+reads. Its two reads follow ADR-032 §4; its row writes run through `useBridgeMutation` on the
+episodes module (`contexts/episodes/overview.md`).
+
+```mermaid
+flowchart LR
+    subgraph feature [features/episodes EpisodeSchedulePanel]
+        req[use-episode-schedule-request]
+        cnt[use-episode-day-counts]
+        view[toEpisodeScheduleView / toDayBadgeCounts]
+        tsx[EpisodeSchedulePanel.tsx renders view.kind]
+    end
+    subgraph sq [shared/query]
+        ubq[useBridgeQuery module episodes]
+        gate[readiness gate]
+        keys[episodesKeys]
+        rt[bridge-runtime.constants: BRIDGE_EPISODES_SOURCE, BRIDGE_INVALIDATIONS]
+    end
+    subgraph infra [infrastructure]
+        src[createEpisodesSource]
+        rdy[createReadinessSource]
+    end
+    req --> ubq
+    cnt --> ubq
+    ubq --> gate --> rdy
+    req --> keys
+    cnt --> keys
+    ubq -->|queryFn| src
+    rt --> src
+    rt -->|anime.changed invalidates episodesKeys.all| ubq
+    req --> view
+    cnt --> view
+    view --> tsx
+```
+
+- Hooks: `use-episode-schedule-request.ts` reads the selected day with `useBridgeQuery` (module
+  `episodes`, key `episodesKeys.key('schedule', day)`, `enabled` once the season probe chose a day);
+  `use-episode-day-counts.ts` reads the badge counts (key `episodesKeys.key('day-counts')`);
+  `use-episode-schedule-panel.ts` composes them with the covers, the writes and the desktop actions.
+- State mapping (in the hooks, through `episode-schedule-panel.helpers.ts`):
+  `toEpisodeScheduleView` calls `toAsyncView` and adds two Today rules: a new day's placeholder rows
+  (`isPlaceholderData`) are `loading`, never the previous day's anime; a rejected row write is the
+  failure view until the schedule loads again (`toVisibleCommandFailure`). `toDayBadgeCounts` badges
+  only loaded counts. `EpisodeSchedulePanel.tsx` renders exactly one `scheduleView.kind`: skeleton,
+  Alert, `AirisEmptyState`, or the rows with `aria-busy` while a refetch runs.
+- Key factory: `episodesKeys = defineQueryKeys('episodes')` in
+  `frontend/src/shared/query/query-keys/query-keys.constants.ts`.
+- Invalidation: `BRIDGE_INVALIDATIONS` (`frontend/src/shared/query/bridge-runtime/bridge-runtime.constants.ts`)
+  maps `anime.changed` to `episodesKeys.all`, so a change from any writer (this window, a phone, the
+  REST API, downloads) refetches the schedule and the counts. A successful row write also refetches
+  both directly. No feature subscribes to `anime.changed` for Today.
+- Source port and adapter: `EpisodesSource` (`frontend/src/shared/contracts/episodes.types.ts`);
+  `createEpisodesSource` (`frontend/src/infrastructure/bridge-runtime-source/episodes-source.helpers.ts`)
+  wraps both bindings in `withBridgeErrors` and rejects as `unavailable` when a binding never
+  attaches. It is built once as `BRIDGE_EPISODES_SOURCE` and used by `createEpisodeScheduleSource`
+  unless a test injects a source.
+- Readiness recovery: the gate re-reads `GetReadiness()` while a query waits on a `starting`
+  module and retries a failed first snapshot with the same backoff (1 s, 2 s, 4 s, then every 8 s),
+  so a dropped `bridge.readiness` event cannot leave Today on its skeleton or its Alert.
+- The four row desktop actions come from `BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE`; a rejection is panel
+  feedback with its message ("Frontend: Editor and create").
+- Not migrated (task T5): the season probe (`preferencesSource.getSeasonMode`), covers and row
+  writes still call `bridgeRuntimeSource` / `preferencesSource` with their runtime-unavailable
+  fallbacks; no UI state for Today lives in Zustand.
+- Durations card (Editor, `frontend/src/features/anime-editor/ui/EpisodeDurationsSection/`): its
+  adapter `createEpisodeDurationRuntimeSource`
+  (`frontend/src/infrastructure/bridge-runtime-source/episode-duration-runtime-source.helpers.ts`)
+  wraps the four bindings in `withBridgeErrors` and rejects as `unavailable` when a binding never
+  attaches (no fail-closed stand-in results). It is built once as `BRIDGE_EPISODE_DURATIONS_SOURCE`
+  and its port types live in `frontend/src/shared/contracts/episode-durations.types.ts`. The card
+  reads its section with `useBridgeQuery` on module `episodes` under its own `episode-durations` key
+  (saved anime, folder, total, type and the card's save revision; not under the `episodes` keys, so
+  `anime.changed` does not re-read the disk). The key follows the request only after it settles for
+  `EPISODE_DURATIONS_RELOAD_DELAY_MS` (250 ms), so a burst of record reloads reads the disk once; the
+  card shows loading while a newer request settles. A `starting` module shows the skeleton, a
+  `failed` module or a rejected read shows the surface Alert, and another anime's previous section
+  counts as loading. Re-analysis, cancel and save run as `useBridgeMutation`s with the card's own
+  review, Alert and copy. Re-analysis progress stays a per-run `EventsOn` listener
+  (`onEpisodeReanalysisProgress`), not an invalidation.
+
+## Frontend: Catalog, History and Detail
+
+The anime reads follow ADR-032 §4 through one port, `AnimeSource`
+(`frontend/src/shared/contracts/anime-source.types.ts`), whose adapter `createAnimeSource`
+(`frontend/src/infrastructure/bridge-runtime-source/anime-source.helpers.ts`) wraps the five read
+bindings in `withBridgeErrors` and rejects as `unavailable` when a binding never attaches. It is built
+once as `BRIDGE_ANIME_SOURCE` (`frontend/src/shared/query/bridge-runtime/bridge-runtime.constants.ts`).
+
+```mermaid
+flowchart LR
+    subgraph features [features]
+        cat[catalog use-catalog-panel]
+        hscope[history use-history-anime-scope]
+        htl[history use-history-timeline]
+        hins[history use-history-inspector]
+        det[anime-detail use-anime-detail]
+        eps[anime-detail use-anime-watch-episodes]
+    end
+    subgraph shared [shared]
+        cover[anime-cover use-anime-cover]
+        ubq[useBridgeQuery module anime]
+        keys[animeKeys / ANIME_LIST_KEY]
+        rt[BRIDGE_ANIME_SOURCE]
+    end
+    subgraph infra [infrastructure]
+        src[createAnimeSource]
+    end
+    cat --> ubq
+    hscope --> ubq
+    htl --> hscope
+    htl --> ubq
+    hins --> ubq
+    hins --> cover
+    det --> ubq
+    det --> cover
+    eps --> ubq
+    cover --> ubq
+    ubq --> keys
+    ubq -->|queryFn| rt --> src
+```
+
+- Queries (all `module: 'anime'`): the catalog under `ANIME_LIST_KEY`, shared by the Catalog and
+  History's Status/Type scope; one anime's detail under `animeKeys.key('detail', id)`, shared by the
+  Detail page and the History inspector; the first page of the global history under
+  `animeKeys.key('watch-history', request)`; one anime's first page under
+  `animeKeys.key('anime-watch-history', request)` (the inspector's 3 recent rows and each episode
+  list); one cover under `animeKeys.key('cover', id)`.
+- Paging: only the first keyset page is a query. Older pages load through the cursor on a
+  near-bottom scroll and belong to one request and one first-page load; a later-page failure stops
+  paging and keeps the rows on screen (`toHistoryTimelinePages`, `toAnimeWatchEpisodePages`).
+- State mapping, in pure helpers: `toCatalogLoad`, `toHistoryCatalogLoad`, `toHistoryTimelinePages`,
+  `toHistoryInspectorState`, `toAnimeWatchEpisodePages`, `toAnimeDetailLoad` and
+  `toAnimeCoverQueryEntry`. A new id's or request's placeholder data (`isPlaceholderData`) reads as
+  loading, never as the previous anime's data. The Detail page tells `not_found` ("Anime not found.")
+  from any other failure (the `failure` load state and its Alert); a loaded detail whose refresh after
+  Repeat/Restore failed stays shown with the warning feedback. A failed cover read is the placeholder.
+- Invalidation: no `BRIDGE_INVALIDATIONS` rule refreshes these queries; as before the migration,
+  each screen reads on mount and on a key change, and the Detail page reads again after a mutation.
+- Not migrated (later tasks): the download run history's anime names (T5k) and the other cover
+  consumers (notifications T5d, Season T5j, the Editor's rail and header covers, run history T5k)
+  still call `bridgeRuntimeSource`, which keeps their previous `[]`, `null` and placeholder
+  fallbacks; `PreviewAnimeCover` is read only by `CoverPreview` (the Editor and create forms).
+  Repeat/Restore (T5g) still run through `bridgeRuntimeSource`. The Detail page's copy-folder and
+  open-page actions run through `BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE` ("Frontend: Editor and
+  create").
+
+## Frontend: Editor and create
+
+The Editor, the create screen and the desktop actions follow ADR-032 §4 through two ports in
+`frontend/src/shared/contracts/anime-editor-source.types.ts`: `AnimeEditorSource` (the catalog,
+the record, save, deactivate, the schedule board, its apply and the batch create) and
+`AnimeDesktopActionsSource` (open or copy a page or folder). Their adapters `createAnimeEditorSource`
+and `createAnimeDesktopActionsSource`
+(`frontend/src/infrastructure/bridge-runtime-source/anime-editor-source.helpers.ts`) hold the wire
+mappers, wrap each binding in `withBridgeErrors` and reject as `unavailable` when a binding never
+attaches. They are built once as `BRIDGE_ANIME_EDITOR_SOURCE` (its catalog is
+`BRIDGE_ANIME_SOURCE.getAnimes`) and `BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE`.
+
+- Queries (all `module: 'anime'`): the Editor rail and the create name check read the catalog under
+  `ANIME_LIST_KEY`; the Editor record under `animeEditorKeys.key('record', id)` and the schedule
+  board under `animeEditorKeys.key('schedule-board', id)` (the create screen reads it with id `''`),
+  both with `gcTime: 0`. The `anime-editor` prefix keeps catalog invalidations away from a record the
+  Editor holds a draft over. The create screen reads the library root under
+  `settingsKeys.key('library-root')` on module `settings`; a failed read leaves the root unset.
+- Record draft: each settled record read replaces the draft once (`useAnimeEditorRecordRead`, composed
+  by `useAnimeEditorRecord`); a failed
+  read clears the record and shows its message. Save, deactivate, the schedule apply, the create
+  and the desktop actions are `useBridgeMutation`s inside the existing callbacks; the save's
+  sequencing, timeout race, toasts and post-save record read are unchanged.
+- What the Editor and create screen show in each module state:
+
+| `anime` state | Editor rail | Editor form | Week strip | Create screen |
+|---|---|---|---|---|
+| `starting` | Skeleton (`role="status"`) | Loading record | Loading | Board cannot be opened yet; no name conflicts |
+| `ready` | The rows, or the empty state | The record | The board | The form and its board |
+| `failed` | The failure Alert with the reason | The record load error | The failure message | Board cannot be opened |
+
+- A write while the module is not ready rejects; the Editor and create surface its message as a
+  danger toast or feedback, Today's rows as panel feedback and the Detail page as its failure toast.
+- Not migrated: restore, repeat, the folder and cover pickers, the covers and `CoverPreview` run
+  through `bridgeRuntimeSource` (`AnimeEditorRuntimeSource`). Season's ordering and selection boards
+  (T5j) keep the legacy desktop actions, which read a rejection as an `error` status with its
+  message.
+
 ## Entry points
 
 | Caller | Service method | Trigger |
 |---|---|---|
-| `internal/desktop/app_runtime_editor.go` | `EditorService.Save`, `Deactivate` (then `recordEditorActivity`), `ScheduleService.Apply` | The Editor and the schedule board |
+| `internal/desktop/app_runtime_editor.go` | `EditorService.Save`, `Deactivate` (then `recordEditorActivity`), `ScheduleService.Apply`, through the `anime` module handle | The Editor and the schedule board |
 | `internal/desktop/app_library_root.go` | `EditorService.Save` | Rewriting folders under a new library root |
-| `internal/desktop/app_runtime_create.go` | `CreateService.CreateBatch` | Creating animes (with reflowed neighbours) |
+| `internal/desktop/app_runtime_create.go` | `CreateService.CreateBatch`, through the `anime` module handle | Creating animes (with reflowed neighbours) |
+| `internal/desktop/app_desktop_actions.go` `OpenAnimePage`, `CopyAnimePage`, `OpenAnimeFolder`, `CopyAnimeFolder` | Anime query service, through the `anime` module handle | Today's rows, the Detail page and Season boards |
 | `internal/desktop/app.go` (`wireEpisodeServiceWithWriter`) | `EpisodeService` over `WriteService.PatchAnime` | Episode +1 / −1 and watch state |
+| `internal/desktop/app_runtime.go` `GetEpisodeSchedule`, `GetEpisodeDayCounts` | `EpisodeService` reads, through the `episodes` module handle | Today's schedule and day badges |
+| `internal/desktop/app_episode_editor.go` `GetEpisodeDurationSection`, `ReanalyzeEpisodeDurations`, `CancelEpisodeReanalysis`, `SaveEpisodeDurations` | `durationedit.Service`, `episodes.Store.ApplyEdits`, through the `episodes` module handle | The Editor's durations card |
+| `internal/desktop/app_runtime.go` `GetAnimes`, `GetAnimeDetail`, `GetAnimeDetailView`, `GetWatchHistoryPage`, `GetAnimeWatchHistoryPage`; `app_cover.go` `GetAnimeCover`, `PreviewAnimeCover` | Anime query service, watch-history reader and cover thumbnails, through the `anime` module handle | The Catalog, History, the Detail page and covers |
 | `internal/api/router.go` | `PATCH /api/animes/:id`, sync reconcile, WS pending patch, all through `newMobileAnimeWriteService` (`app_runtime_services.go`) | Phones |
 | `internal/desktop/app_season_anime_gateway.go`, `app_season_availability.go` | `WriteService.PatchAnime`, `CreateService` | Season mode |
 

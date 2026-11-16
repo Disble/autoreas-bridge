@@ -16,14 +16,14 @@ const activityPinSourceKind incident.SourceKind = "pin"
 // Unlike the trigger-driven incidents, a failure is returned: the user asked
 // for this write and must see it fail.
 func (a *App) PinActivityMoment() error {
-	if a.bridgeDB == nil {
-		return errActivityUnavailable
-	}
-	now := a.currentTime()
-	pinID := "pin-" + strconv.FormatInt(now.UnixNano(), 10)
-	ctx, cancel := context.WithTimeout(a.seasonCtx(), incidentRecordBudget)
-	defer cancel()
-	return incident.NewStore(a.bridgeDB).Record(ctx, incident.Occurrence{
-		Trigger: incident.ManualPin(pinID), OccurredAt: now, SourceKind: activityPinSourceKind, SourceID: pinID,
+	_, err := a.moduleSet().observability.Use(func(services observabilityServices) (struct{}, error) {
+		now := a.currentTime()
+		pinID := "pin-" + strconv.FormatInt(now.UnixNano(), 10)
+		ctx, cancel := context.WithTimeout(a.seasonCtx(), incidentRecordBudget)
+		defer cancel()
+		return struct{}{}, services.pins.Record(ctx, incident.Occurrence{
+			Trigger: incident.ManualPin(pinID), OccurredAt: now, SourceKind: activityPinSourceKind, SourceID: pinID,
+		})
 	})
+	return err
 }

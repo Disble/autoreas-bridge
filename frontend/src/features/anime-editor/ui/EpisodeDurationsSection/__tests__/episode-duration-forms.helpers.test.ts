@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { EpisodeDurationSection } from '../../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
+import type { EpisodeDurationSection } from '../../../../../shared/contracts/episode-durations.types';
 import { patchEpisodeForm, toAddedEpisodeEdit, toAppliedEpisodeEdit, toEpisodeEditForm, toEpisodeOpenEdit } from '../episode-duration-forms.helpers';
 import { toEpisodeDurationRowViews } from '../episode-durations-section.helpers';
 import type { EpisodeAddFormView } from '../episode-durations-section.types';
 
 /** Episode 4 measured at 23 min 36 s, and episode 5 listed with no value. */
 const SECTION: EpisodeDurationSection = {
-  outcome: 'ok', folderStatus: 'found', beyondTotal: [], tv: true,
+  folderStatus: 'found', beyondTotal: [], tv: true,
   rows: [
     { episode: 4, durationMs: 1_416_000, minutes: 24, long: false, source: 'measured' },
     { episode: 5, durationMs: 0, minutes: 0, long: false, source: 'not_measured' },

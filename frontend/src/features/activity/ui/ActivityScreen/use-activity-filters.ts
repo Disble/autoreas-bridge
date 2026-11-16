@@ -2,7 +2,7 @@ import type { Key } from '@heroui/react';
 import { useCallback, useState } from 'react';
 import { createInitialFilters, setFilterOrigin, setFilterRange, setFilterScale, toggleFailuresOnly, toggleFeedTypes } from '../../feed/activity-feed-filters.helpers';
 import type { ActivityFeedFilters, ActivityRange } from '../../feed/activity-feed.types';
-import type { ActivityChartScale } from '../../feed-source/feed.types';
+import type { ActivityChartScale } from '../../../../shared/contracts/activity-feed.types';
 
 /**
  * Owns the filters the chart and toolbar edit: the scale, origin, types and

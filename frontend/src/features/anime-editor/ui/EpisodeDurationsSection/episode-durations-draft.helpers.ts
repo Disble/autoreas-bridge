@@ -1,8 +1,8 @@
-import type { EpisodeDurationRuntimeSource, EpisodeDurationSaveResult } from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
+import type { EpisodeDurationSaveResult } from '../../../../shared/contracts/episode-durations.types';
 import type { EpisodeDurationEdit } from '../../../../shared/contracts/anime.types';
 import { EPISODE_DURATIONS_HIDE_LABEL, EPISODE_DURATIONS_SAVE_FAILED_MESSAGE, EPISODE_DURATIONS_SHOW_LABEL } from './episode-durations-section.constants';
 import { toEpisodeErrorMessage } from './episode-durations-section.helpers';
-import type { EpisodeDurationsDraftState, EpisodeDurationsFooterInput, EpisodeDurationsFooterView } from './episode-durations-section.types';
+import type { EpisodeDurationSaveCommand, EpisodeDurationsDraftState, EpisodeDurationsFooterInput, EpisodeDurationsFooterView } from './episode-durations-section.types';
 
 /** "1 unsaved change", "3 unsaved changes", or "No unsaved changes". */
 export function formatEpisodeUnsavedChanges(count: number): string {
@@ -30,14 +30,20 @@ export function toEpisodeDurationsFooter(input: EpisodeDurationsFooterInput): Ep
   };
 }
 
-/** Saves the card edits, turning a thrown binding into an error answer the card can show. */
+/**
+ * Saves the card edits, turning a rejected save into an error answer the card can show.
+ * @param save The save command (the card's mutation).
+ * @param animeId The saved anime.
+ * @param edits The card's edits.
+ * @returns The save answer.
+ */
 export async function saveEpisodeDurationEdits(
-  source: EpisodeDurationRuntimeSource,
+  save: (command: EpisodeDurationSaveCommand) => Promise<EpisodeDurationSaveResult>,
   animeId: string,
   edits: readonly EpisodeDurationEdit[],
 ): Promise<EpisodeDurationSaveResult> {
   try {
-    return await source.saveEpisodeDurations(animeId, edits);
+    return await save({ animeId, edits });
   } catch (error) {
     return { outcome: 'error', message: toEpisodeErrorMessage(error), changed: 0 };
   }

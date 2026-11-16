@@ -1,9 +1,8 @@
 import { useCallback, useMemo } from 'react';
-import { createActivitySource } from '../activity-source/activity-source.helpers';
-import type { ActivitySource } from '../activity-source/activity-source.types';
-import type { ActivityFeedLine } from '../feed-source/feed.types';
-import { createActivityFeedSource } from '../feed-source/feed-source.helpers';
-import type { ActivityFeedSource } from '../feed-source/feed-source.types';
+import { BRIDGE_ACTIVITY_FEED_SOURCE, BRIDGE_ACTIVITY_SOURCE } from '../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import type { ActivitySource } from '../../../shared/contracts/activity.types';
+import type { ActivityFeedLine } from '../../../shared/contracts/activity-feed.types';
+import type { ActivityFeedSource } from '../../../shared/contracts/activity.types';
 import { readActivityIncident } from '../ui/ActivityIncidents/activity-incident-detail.helpers';
 import { readActivityRunStory } from '../ui/ActivityRunStory/activity-run-story.helpers';
 import { toActivityReadValue } from '../ui/ActivityRunStory/activity-time.helpers';
@@ -24,11 +23,11 @@ import { useDrawerTechnical } from './use-drawer-technical';
  * model, the technical view (see `useDrawerTechnical`), and "Copy for AI".
  *
  * @param line The open line.
- * @param source The Activity port; the shared Wails source when omitted.
- * @param feedSource The feed port that reads one event; the shared Wails source when omitted.
+ * @param source The Activity port; the shared bridge source when omitted.
+ * @param feedSource The feed port that reads one event; the shared bridge source when omitted.
  * @returns The drawer models and actions.
  */
-export function useActivityDetailDrawer(line: ActivityFeedLine, source: ActivitySource = createActivitySource(), feedSource: ActivityFeedSource = createActivityFeedSource()) {
+export function useActivityDetailDrawer(line: ActivityFeedLine, source: ActivitySource = BRIDGE_ACTIVITY_SOURCE, feedSource: ActivityFeedSource = BRIDGE_ACTIVITY_FEED_SOURCE) {
   // 1. Refs
 
   // 2. State
@@ -37,10 +36,10 @@ export function useActivityDetailDrawer(line: ActivityFeedLine, source: Activity
   const { copy } = useActivityCopy();
 
   // 4. Queries/Mutations
-  const incidentRead = useActivityRead(source, line.incidentId, readActivityIncident);
-  const eventRead = useDrawerFeedRead(feedSource, toDrawerEventId(line), readDrawerEvent);
-  const changeRead = useDrawerFeedRead(feedSource, toDrawerChangeKey(line), readDrawerChangeContext);
-  const storyRead = useActivityRead(source, toDrawerStoryId(line), readActivityRunStory);
+  const incidentRead = useActivityRead(source, line.incidentId, readActivityIncident, 'incident');
+  const eventRead = useDrawerFeedRead(feedSource, toDrawerEventId(line), readDrawerEvent, 'event');
+  const changeRead = useDrawerFeedRead(feedSource, toDrawerChangeKey(line), readDrawerChangeContext, 'change-context');
+  const storyRead = useActivityRead(source, toDrawerStoryId(line), readActivityRunStory, 'run-story');
 
   // 5. Derived State (useMemo)
   const incident = toActivityReadValue(incidentRead.read);

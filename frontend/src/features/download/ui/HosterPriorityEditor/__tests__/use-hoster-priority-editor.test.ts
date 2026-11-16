@@ -2,8 +2,8 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { move } from '@dnd-kit/helpers';
 import { useHosterPriorityEditor } from '../use-hoster-priority-editor';
-import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
-import type { DownloadConfig } from '../../../../../shared/contracts/download.types';
+import type { DownloadConfig, DownloadsSource } from '../../../../../shared/contracts/download.types';
+import { createDownloadsSourceFake, createDownloadsWrapper } from '../../../../../shared/hooks/use-missed-schedule-notice/__tests__/downloads.test-support';
 
 /** Download config every case starts from, carrying the hoster list under edit. */
 const baseConfig: DownloadConfig = {
@@ -35,28 +35,16 @@ const baseConfig: DownloadConfig = {
   renameEpisodes: false,
 };
 
-/** Builds a fully stubbed download runtime port, overridable per case. */
-function createFakeSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
-  return {
+/**
+ * Builds a fully stubbed downloads port, overridable per case.
+ * @param overrides The calls a case replaces.
+ * @returns The port.
+ */
+function createSource(overrides: Partial<DownloadsSource> = {}): DownloadsSource {
+  return createDownloadsSourceFake({
     getDownloadConfig: vi.fn().mockResolvedValue(baseConfig),
-    getJDStatus: vi.fn(),
-    getJDMaxSimultaneousDownloads: vi.fn().mockResolvedValue(0),
-    setJDConfig: vi.fn(),
-    getScheduleConfig: vi.fn(),
-    setScheduleConfig: vi.fn(),
-    setHosterPriority: vi.fn().mockResolvedValue('ok'),
-    setEpisodeRenameEnabled: vi.fn().mockResolvedValue('ok'),
-    triggerDownloadCheck: vi.fn(),
-    triggerAnimeDownload: vi.fn(),
-    cancelDownloadRun: vi.fn().mockResolvedValue('ok'),
-    runMissedScheduleNow: vi.fn(),
-    ignoreMissedSchedule: vi.fn(),
-    listDownloadRuns: vi.fn(),
-    listDownloadReadiness: vi.fn(),
-    subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
-    subscribeMissedScheduleSettled: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
-  };
+  });
 }
 
 // `move` owns dnd-kit's index math; the hook only maps its result onto persistence.
@@ -73,15 +61,15 @@ function dragEndEvent(canceled = false) {
 
 describe('useHosterPriorityEditor', () => {
   it('starts in the loading status before the config resolves', () => {
-    const source = createFakeSource();
-    const { result } = renderHook(() => useHosterPriorityEditor(source));
+    const source = createSource();
+    const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
 
     expect(result.current.status).toBe('loading');
   });
 
   it('loads hoster priority items from getDownloadConfig', async () => {
-    const source = createFakeSource();
-    const { result } = renderHook(() => useHosterPriorityEditor(source));
+    const source = createSource();
+    const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -89,27 +77,43 @@ describe('useHosterPriorityEditor', () => {
   });
 
   it('reports the "empty" status when no hosters are configured', async () => {
-    const source = createFakeSource({
+    const source = createSource({
       getDownloadConfig: vi.fn().mockResolvedValue({ ...baseConfig, hosterPriority: [] }),
     });
-    const { result } = renderHook(() => useHosterPriorityEditor(source));
+    const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('empty'));
   });
 
   it('reports the "error" status when getDownloadConfig rejects', async () => {
-    const source = createFakeSource({
+    const source = createSource({
       getDownloadConfig: vi.fn().mockRejectedValue(new Error('boom')),
     });
-    const { result } = renderHook(() => useHosterPriorityEditor(source));
+    const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('error'));
     expect(result.current.errorMessage).toBeTruthy();
   });
 
+  it.each([['success', false, 2], ['failure', true, 1]] as const)(
+    'reads config the expected number of times after save %s',
+    async (_outcome, fails, expectedReads) => {
+      const getDownloadConfig = vi.fn().mockResolvedValue(baseConfig);
+      const setHosterPriority = fails ? vi.fn().mockRejectedValue(new Error('save failed')) : vi.fn().mockResolvedValue(undefined);
+      const source = createSource({ getDownloadConfig, setHosterPriority });
+      const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
+      await waitFor(() => expect(result.current.status).toBe('ready'));
+      expect(getDownloadConfig).toHaveBeenCalledTimes(1);
+
+      await act(async () => { await result.current.reorder(['mediafire', 'mega']); });
+
+      expect(getDownloadConfig).toHaveBeenCalledTimes(expectedReads);
+    },
+  );
+
   it('persists a reorder via setHosterPriority and reflects the optimistic order immediately', async () => {
-    const source = createFakeSource();
-    const { result } = renderHook(() => useHosterPriorityEditor(source));
+    const source = createSource();
+    const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -128,10 +132,10 @@ describe('useHosterPriorityEditor', () => {
   // to a site name the editor picked itself is how a reorder silently became a
   // no-op: the write landed under "default" while the engine read "jkanime".
   it('persists back to the site the loaded config reported, not a hardcoded one', async () => {
-    const source = createFakeSource({
+    const source = createSource({
       getDownloadConfig: vi.fn().mockResolvedValue({ ...baseConfig, hosterPrioritySite: 'otheranime' }),
     });
-    const { result } = renderHook(() => useHosterPriorityEditor(source));
+    const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -143,10 +147,10 @@ describe('useHosterPriorityEditor', () => {
   });
 
   it('refuses to persist and surfaces an error when the config reported no site', async () => {
-    const source = createFakeSource({
+    const source = createSource({
       getDownloadConfig: vi.fn().mockResolvedValue({ ...baseConfig, hosterPrioritySite: '' }),
     });
-    const { result } = renderHook(() => useHosterPriorityEditor(source));
+    const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -160,10 +164,10 @@ describe('useHosterPriorityEditor', () => {
   });
 
   it('rolls back to the previous order and surfaces an error when persistence fails', async () => {
-    const source = createFakeSource({
+    const source = createSource({
       setHosterPriority: vi.fn().mockRejectedValue(new Error('network down')),
     });
-    const { result } = renderHook(() => useHosterPriorityEditor(source));
+    const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -177,7 +181,7 @@ describe('useHosterPriorityEditor', () => {
 
   it('exposes isSaving=true while a reorder request is in flight', async () => {
     let resolvePersist: (() => void) | undefined;
-    const source = createFakeSource({
+    const source = createSource({
       setHosterPriority: vi.fn().mockImplementation(
         () =>
           new Promise<string>((resolve) => {
@@ -185,7 +189,7 @@ describe('useHosterPriorityEditor', () => {
           }),
       ),
     });
-    const { result } = renderHook(() => useHosterPriorityEditor(source));
+    const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -201,13 +205,13 @@ describe('useHosterPriorityEditor', () => {
       await reorderPromise;
     });
 
-    expect(result.current.isSaving).toBe(false);
+    await waitFor(() => expect(result.current.isSaving).toBe(false));
   });
 
   it('persists the key order that `move` projects for a completed drag', async () => {
     mockedMove.mockReturnValue(['mediafire', 'mega']);
-    const source = createFakeSource();
-    const { result } = renderHook(() => useHosterPriorityEditor(source));
+    const source = createSource();
+    const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -222,8 +226,8 @@ describe('useHosterPriorityEditor', () => {
 
   it('does not persist when the drag was canceled', async () => {
     mockedMove.mockReturnValue(['mediafire', 'mega']);
-    const source = createFakeSource();
-    const { result } = renderHook(() => useHosterPriorityEditor(source));
+    const source = createSource();
+    const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -236,8 +240,8 @@ describe('useHosterPriorityEditor', () => {
 
   it('does not persist when the drag leaves the order unchanged', async () => {
     mockedMove.mockReturnValue(['mega', 'mediafire']);
-    const source = createFakeSource();
-    const { result } = renderHook(() => useHosterPriorityEditor(source));
+    const source = createSource();
+    const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 

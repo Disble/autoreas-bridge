@@ -1,4 +1,5 @@
 import type { NotificationRow } from '../../../../shared/contracts/notification-center.types';
+import type { AsyncView } from '../../../../shared/query/async-view/async-view.types';
 import type { NotificationEmptyStateConditions } from '../NotificationEmptyState/notification-empty-state.types';
 import { isNotificationRowUnread } from '../NotificationTable/notification-table.helpers';
 import type { NotificationTableRowKey } from '../NotificationTable/notification-table.types';
@@ -89,6 +90,16 @@ export function toNotificationEmptyStateConditions(
     view: query.view,
     unreadOnly: query.unreadOnly,
     hasFilters: input.hasSearch || input.hasFacetFilters || input.view === 'read',
-    serviceAvailable: !input.degraded,
+    serviceAvailable: input.serviceAvailable,
   };
+}
+
+/**
+ * The unread count the panel shows: the read value once it is ready, and 0 while it loads or after
+ * it failed, so a missing count never claims unread records.
+ * @param view The unread-count query as an `AsyncView`.
+ * @returns The count to show.
+ */
+export function toNotificationUnreadCount(view: AsyncView<number>): number {
+  return view.kind === 'ready' ? view.data : 0;
 }

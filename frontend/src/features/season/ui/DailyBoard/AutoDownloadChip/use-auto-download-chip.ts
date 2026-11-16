@@ -1,43 +1,34 @@
 import { useEffect, useState } from 'react';
-import { downloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
-import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
-import { useDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store/download-runtime-store';
-import { connectDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
+import type { DownloadsSource } from '../../../../../shared/contracts/download.types';
+import { useDownloadSchedule } from '../../../../../shared/hooks/use-missed-schedule-notice/use-download-schedule';
+import { BRIDGE_DOWNLOADS_SOURCE } from '../../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { AUTO_DOWNLOAD_CLOCK_TICK_MS } from './auto-download-chip.constants';
 import { getAutoDownloadChip } from './auto-download-chip.helpers';
 import type { AutoDownloadChipView } from './auto-download-chip.types';
 
 /**
- * useAutoDownloadChip reads the Downloads schedule from the shared read-model,
- * which run events keep current, and re-reads the clock every minute so the
- * chip moves on at the scheduled time and at midnight. It never writes the
+ * useAutoDownloadChip reads the Downloads schedule from the shared schedule
+ * query, which run events keep current, and re-reads the clock every minute so
+ * the chip moves on at the scheduled time and at midnight. It never writes the
  * schedule: Downloads owns it.
  *
- * @param source The Downloads port the shared read-model loads through.
+ * @param source The downloads port the shared schedule query reads through.
  * @returns The chip to render, or null until the schedule has loaded or when it could not be read.
  */
-export function useAutoDownloadChip(source: DownloadRuntimeSource = downloadRuntimeSource): AutoDownloadChipView | null {
+export function useAutoDownloadChip(source: DownloadsSource = BRIDGE_DOWNLOADS_SOURCE): AutoDownloadChipView | null {
   // 2. State
   const [now, setNow] = useState(() => new Date());
 
-  // 3. Context/3rd Party Hooks
-  const scheduleConfig = useDownloadRuntimeStore((state) => state.scheduleConfig);
-  const scheduleHasLoaded = useDownloadRuntimeStore((state) => state.scheduleHasLoaded);
-  const scheduleErrorMessage = useDownloadRuntimeStore((state) => state.scheduleErrorMessage);
+  // 4. Queries/Mutations
+  const scheduleQuery = useDownloadSchedule(source);
 
   // 5. Derived State
-  // A failed read leaves the empty, disabled config in the store: showing it would claim "Off".
-  const view = scheduleHasLoaded && scheduleErrorMessage === undefined ? getAutoDownloadChip(scheduleConfig, now) : null;
+  // Only a loaded schedule says anything: a starting module or a failed read would otherwise read as "Off".
+  const view = scheduleQuery.status === 'success' ? getAutoDownloadChip(scheduleQuery.data, now) : null;
 
   // 7. Effects
-  // Stryker disable ArrayDeclaration: both deps arrays are mutation-equivalent. `[source]` versus `[]`
-  // differs only when the port changes between renders, which no caller does, and connecting is
-  // idempotent anyway; `[]` versus a fixed literal such as `["Stryker was here"]` never re-runs either,
-  // since React compares each element with `Object.is`.
-  useEffect(() => {
-    connectDownloadRuntimeStore(source);
-  }, [source]);
-
+  // Stryker disable ArrayDeclaration: `[]` versus a fixed literal such as `["Stryker was here"]` never
+  // re-runs either, since React compares each element with `Object.is`.
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), AUTO_DOWNLOAD_CLOCK_TICK_MS);
     return () => clearInterval(interval);

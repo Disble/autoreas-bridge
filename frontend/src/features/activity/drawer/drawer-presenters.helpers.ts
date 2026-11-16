@@ -2,7 +2,7 @@ import { formatActivityDuration } from '../ui/ActivityRunStory/activity-time.hel
 import { getAnimeEstadoLabel } from '../../../shared/helpers/anime-estado.helpers';
 import { toDrawerCause } from './drawer-cause.helpers';
 import { DRAWER_CHANGE_FIELDS, DRAWER_HOUR_MS, DRAWER_MINUTE_MS, DRAWER_NO_RUN_EVENTS_NOTE, DRAWER_RECORDER_RETENTION_MS, DRAWER_TOTALS_ONLY_NOTE, DRAWER_WINDOW_ERROR_KIND_WORDS } from './drawer.constants';
-import type { ActivityLedgerLine } from '../history-source/history.types';
+import type { ActivityLedgerLine } from '../../../shared/contracts/activity-ledger.types';
 import type { DrawerFact, DrawerListItem, DrawerSection, DrawerSummaryInput } from './drawer.types';
 import { drawerFact, formatDrawerKeptUntil, formatDrawerSpan, formatDrawerTime } from './drawer-format.helpers';
 import { drawerPageFact, toDrawerPageName } from './drawer-window-error.helpers';

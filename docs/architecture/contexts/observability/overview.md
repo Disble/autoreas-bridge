@@ -223,7 +223,28 @@ costs nothing while Bridge is healthy: no timer, no poller.
 | `SearchActivityFeed`, `GetActivityOverview` | `Reader.Feed`, `Reader.Overview` | The Activity screen |
 | `GetActivityEvent`, `GetActivityIncident`, `GetActivityRequest`, `GetActivityRunStory`, `GetActivityChangeContext`, `GetActivityPhoneReport` | The matching `Reader` method | Opening a feed line |
 | `PinActivityMoment` | `incident.Store.Record` | "Pin this moment" |
+| `ListDeviceSyncDiagnostics` | `telemetry.Reader` | No screen yet (`docs/observability/mobile-reports.md`) |
 | `cmd/autoreas-request-mcp` | `internal/mcp/requestcapture` tools | `get_status`, `list_incidents`, `get_incident`, `get_request`, `search_history`, `list_runs`, `get_run_story`, `list_recorder`, `list_response_versions`, `get_hourly_totals`, `count_events`. The coverage of `get_incident` and `search_history` gives each report kind's range (`coverage.go`) |
+
+## Readiness
+
+Every Activity binding and `ListDeviceSyncDiagnostics` runs through the `observability` module handle
+(`appModules.observability`, `internal/desktop/app_readiness.go`). `bindObservabilityModule`
+(`app_activity_read.go`) binds the activity reader, the incident store, the request capture reader and the
+sync diagnostics reader once `configureRuntimeServices` wired them; the module settles ready when the
+runtime event log queue and both readers are wired. While it starts, a binding rejects with
+`{"code":"unavailable","message":"observability is starting"}`; once it failed, with `failed_precondition`;
+a failing read is `internal`. No binding answers an empty stand-in any more: `ListDeviceSyncDiagnostics`
+returns `(DeviceSyncDiagnosticsResult, error)` and its envelope lost the `Degraded` flag (each report keeps
+its own `Degraded`).
+
+The Activity screen reads through `useBridgeQuery` with module `observability` (key factory `activityKeys`):
+the overview (`use-activity-overview.ts`), the feed's first page (`use-activity-feed-pages.ts`) and every
+drawer read by id (`useActivityRead`, `useDrawerFeedRead`); "Pin this moment" is a `useBridgeMutation`
+(`use-activity-screen.ts`). So the screen shows its skeletons while the module starts and the surface
+`Alert` once it failed, never an empty feed. The Wails adapters live in
+`frontend/src/infrastructure/bridge-runtime-source/activity-source.helpers.ts` and
+`activity-feed-source.helpers.ts`, built once in `bridge-runtime.constants.ts`.
 
 ## Known drift
 
@@ -252,3 +273,11 @@ costs nothing while Bridge is healthy: no timer, no poller.
   `retention` declares.
 - **The battery does not see mobile incidents.** The POC simulator triggers only on `device_sync_diagnostics`,
   so it cannot measure what a missing incident costs (`docs/observability/mobile-reports.md`).
+- **Activity's live refresh is not an invalidation.** `use-activity-live-refresh.ts` still subscribes to
+  `activity.recorder` through `history-source.helpers.ts` (`EventsOn`) and refetches the overview and the
+  first page after a 1 s debounce. `BRIDGE_INVALIDATIONS` has no debounce, so moving it there would
+  refetch on every recorder row. Older feed pages are read by the hook through the cursor, outside the query
+  cache; `shared/query` has no infinite query. Both stay in `frontend/async-state-baseline.json`.
+- **Downloads still reach the Activity port through the feature.** `features/download` reads a run story
+  through `createActivitySource()` (`features/activity/activity-source/activity-source.helpers.ts`), which
+  now returns the bridge runtime's adapter; the Downloads slice moves that call.

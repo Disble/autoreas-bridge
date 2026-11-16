@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/lifecycle"
 	"autoreas-bridge/internal/observability/obserr"
 	"autoreas-bridge/internal/observability/telemetry"
 )
@@ -110,11 +111,8 @@ func TestListDeviceSyncDiagnosticsReadsTheTableTheWritePathFills(t *testing.T) {
 
 	assertSyncDiagRowCount(t, db, telemetry.KindCycleReport, 1)
 
-	app := &App{bridgeDB: db, syncDiagReader: telemetry.NewReader(db)}
-	result := app.ListDeviceSyncDiagnostics(contracts.DeviceSyncDiagnosticsQuery{DeviceID: "device-1"})
-	if result.Degraded {
-		t.Fatalf("expected a wired read over a live table not to degrade, got %#v", result)
-	}
+	app := observabilityApp(t, db, lifecycle.StateReady)
+	result := listSyncDiag(t, app, contracts.DeviceSyncDiagnosticsQuery{DeviceID: "device-1"})
 	if len(result.Items) != 1 {
 		t.Fatalf("expected the stored report to be read back through the binding, got %#v", result.Items)
 	}
@@ -176,21 +174,21 @@ func TestListDeviceSyncDiagnosticsPreservesCoreAnswers(t *testing.T) {
 	seedSyncDiagReport(t, store, "diag-new", 3000, "device-1", nil, nil)
 
 	core := telemetry.NewReader(db)
-	app := &App{bridgeDB: db, syncDiagReader: core}
+	app := observabilityApp(t, db, lifecycle.StateReady)
 	ctx := context.Background()
 
 	coreAll, err := core.ListCycleReports(ctx, telemetry.CycleReportQuery{})
 	if err != nil {
 		t.Fatalf("core list: %v", err)
 	}
-	desktopAll := app.ListDeviceSyncDiagnostics(contracts.DeviceSyncDiagnosticsQuery{})
+	desktopAll := listSyncDiag(t, app, contracts.DeviceSyncDiagnosticsQuery{})
 	assertSyncDiagReportsMatch(t, desktopAll.Items, coreAll)
 
 	coreDevice, err := core.ListCycleReports(ctx, telemetry.CycleReportQuery{DeviceID: "device-1"})
 	if err != nil {
 		t.Fatalf("core device list: %v", err)
 	}
-	desktopDevice := app.ListDeviceSyncDiagnostics(contracts.DeviceSyncDiagnosticsQuery{DeviceID: "device-1"})
+	desktopDevice := listSyncDiag(t, app, contracts.DeviceSyncDiagnosticsQuery{DeviceID: "device-1"})
 	assertSyncDiagReportsMatch(t, desktopDevice.Items, coreDevice)
 	if len(desktopDevice.Items) != 2 {
 		t.Fatalf("expected the device predicate to return device-1's 2 reports, got %#v", desktopDevice.Items)
@@ -223,8 +221,8 @@ func TestListDeviceSyncDiagnosticsExcludesAnotherKind(t *testing.T) {
 		t.Fatalf("insert episode action: %v", err)
 	}
 
-	app := &App{bridgeDB: db, syncDiagReader: telemetry.NewReader(db)}
-	result := app.ListDeviceSyncDiagnostics(contracts.DeviceSyncDiagnosticsQuery{})
+	app := observabilityApp(t, db, lifecycle.StateReady)
+	result := listSyncDiag(t, app, contracts.DeviceSyncDiagnosticsQuery{})
 	if len(result.Items) != 1 || result.Items[0].CycleID != "diag-only" {
 		t.Fatalf("expected only the cycle_report row through the binding, got %#v", result.Items)
 	}
@@ -247,8 +245,8 @@ func TestListDeviceSyncDiagnosticsReadsACorruptPayloadRow(t *testing.T) {
 		t.Fatalf("seed corrupt payload row: %v", err)
 	}
 
-	app := &App{bridgeDB: db, syncDiagReader: telemetry.NewReader(db)}
-	result := app.ListDeviceSyncDiagnostics(contracts.DeviceSyncDiagnosticsQuery{})
+	app := observabilityApp(t, db, lifecycle.StateReady)
+	result := listSyncDiag(t, app, contracts.DeviceSyncDiagnosticsQuery{})
 	if len(result.Items) != 1 {
 		t.Fatalf("expected the corrupt row to still be listed, got %#v", result)
 	}
@@ -310,26 +308,22 @@ func syncDiagInt64PointerMatches(got, want *int64) bool {
 	return *got == *want
 }
 
-// TestListDeviceSyncDiagnosticsNilReaderReturnsDegradedEmptyNonNilItems
-// asserts an unwired reader degrades to an empty, never-nil list.
-func TestListDeviceSyncDiagnosticsNilReaderReturnsDegradedEmptyNonNilItems(t *testing.T) {
-	t.Parallel()
-
-	result := (&App{}).ListDeviceSyncDiagnostics(contracts.DeviceSyncDiagnosticsQuery{})
-	if !result.Degraded {
-		t.Fatal("expected a nil syncDiagReader to degrade")
+// listSyncDiag reads the device sync diagnostics through the binding, failing the test on an error.
+func listSyncDiag(t *testing.T, app *App, query contracts.DeviceSyncDiagnosticsQuery) contracts.DeviceSyncDiagnosticsResult {
+	t.Helper()
+	result, err := app.ListDeviceSyncDiagnostics(query)
+	if err != nil {
+		t.Fatalf("ListDeviceSyncDiagnostics(%#v) = %v", query, err)
 	}
-	if result.Items == nil || len(result.Items) != 0 {
-		t.Fatalf("expected a non-nil empty Items slice, got %#v", result.Items)
-	}
+	return result
 }
 
 // TestListDeviceSyncDiagnosticsResultIsNeverJSONNull asserts the serialized
-// result carries an empty JSON array, never null, even when degraded.
+// result of a ready module with no reports carries an empty JSON array, never null.
 func TestListDeviceSyncDiagnosticsResultIsNeverJSONNull(t *testing.T) {
 	t.Parallel()
 
-	result := (&App{}).ListDeviceSyncDiagnostics(contracts.DeviceSyncDiagnosticsQuery{})
+	result := listSyncDiag(t, observabilityApp(t, captureAppTestDB(t), lifecycle.StateReady), contracts.DeviceSyncDiagnosticsQuery{})
 	encoded, err := json.Marshal(result)
 	if err != nil {
 		t.Fatalf("marshal result: %v", err)
@@ -474,7 +468,7 @@ func TestListDeviceSyncDiagnosticsAppliesCoreLimitContract(t *testing.T) {
 	for i := range 150 {
 		seedSyncDiagReport(t, store, fmt.Sprintf("diag-limit-%d", i), int64(1000+i), "device-1", nil, nil)
 	}
-	app := &App{bridgeDB: db, syncDiagReader: telemetry.NewReader(db)}
+	app := observabilityApp(t, db, lifecycle.StateReady)
 
 	assertSyncDiagPageCount(t, app, contracts.DeviceSyncDiagnosticsQuery{}, 25)
 	assertSyncDiagPageCount(t, app, contracts.DeviceSyncDiagnosticsQuery{Limit: 1}, 1)
@@ -483,14 +477,11 @@ func TestListDeviceSyncDiagnosticsAppliesCoreLimitContract(t *testing.T) {
 }
 
 // assertSyncDiagPageCount fails unless the bound read returns exactly want
-// reports for the query without degrading.
+// reports for the query.
 func assertSyncDiagPageCount(t *testing.T, app *App, query contracts.DeviceSyncDiagnosticsQuery, want int) {
 	t.Helper()
 
-	result := app.ListDeviceSyncDiagnostics(query)
-	if result.Degraded {
-		t.Fatalf("expected a wired read not to degrade for %#v, got %#v", query, result)
-	}
+	result := listSyncDiag(t, app, query)
 	if len(result.Items) != want {
 		t.Fatalf("expected %d reports for %#v, got %d (%#v)", want, query, len(result.Items), result.Items)
 	}

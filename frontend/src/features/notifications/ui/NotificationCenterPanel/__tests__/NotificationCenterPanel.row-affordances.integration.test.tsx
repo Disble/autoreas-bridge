@@ -1,8 +1,8 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { NotificationCenterSource } from '../../../../../infrastructure/notification-center-source/notification-center-source.types';
-import type { NotificationPage, NotificationRow } from '../../../../../shared/contracts/notification-center.types';
+import type { NotificationCenterSource, NotificationPage, NotificationRow } from '../../../../../shared/contracts/notification-center.types';
 import { NotificationCenterPanel } from '../NotificationCenterPanel';
+import { notificationsQueryWrapper } from './notification-center.test-support';
 
 afterEach(cleanup);
 
@@ -70,7 +70,7 @@ function makeSource(items: readonly NotificationRow[]): NotificationCenterSource
  * @param items The rows the master list is seeded with.
  */
 async function renderSeededList(items: readonly NotificationRow[]): Promise<void> {
-  render(<NotificationCenterPanel source={makeSource(items)} />);
+  render(<NotificationCenterPanel source={makeSource(items)} />, { wrapper: notificationsQueryWrapper().wrapper });
 
   const grid = await screen.findByRole('grid', { name: MASTER_LIST_GRID_NAME });
   await within(grid).findByText(items[0]?.title ?? '');

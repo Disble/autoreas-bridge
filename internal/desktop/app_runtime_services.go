@@ -33,7 +33,11 @@ func (a *App) configureRuntimeServices(ctx context.Context) {
 	a.configureCaptureReader()
 	a.configureSyncDiagReader()
 	a.configureEventLogQueue(ctx)
+	a.bindObservabilityModule()
 	// Before startHTTPServer: a pending stall is imported before the next can happen.
+	// The import writes its own event row and incident, so it does not depend on
+	// the observability handle bound above; both just have to run before the
+	// server accepts the request that could stall next.
 	a.configureStallEvidence()
 	a.importStallEvidence()
 	a.prepareAnimeRuntime(ctx)
@@ -44,10 +48,12 @@ func (a *App) configureRuntimeServices(ctx context.Context) {
 	// Before startHTTPServer: the first contact overwrites the value this keeps.
 	a.captureLastContacts(ctx, changelogStore)
 	a.configureRealtimeHub(ctx)
+	a.bindDevicesModule()
 	a.startSeasonProjectionPublisher(ctx)
 	conflictService := a.configureAnimeApplicationServices()
 	a.wireEpisodeServiceWithWriter(a.animeWrite)
 	a.startHTTPServer(deviceService, a.newMobileAnimeWriteService(), conflictService, changelogStore)
+	a.settleModules(moduleObservability, moduleSync, moduleDevices, moduleSettings, moduleAnime, moduleEpisodes, moduleAPI)
 }
 
 // captureLastContacts keeps each active device's last contact for the start
@@ -184,7 +190,8 @@ func (a *App) configureCaptureReader() {
 // constructor probes device_telemetry_events, and a bare, unopened *sql.DB{}
 // (as a degraded bootstrap or a unit-test fixture supplies) panics on query
 // rather than erroring. Leaving the reader nil there is the correct
-// degradation -- the bound read already reports a nil reader as Degraded.
+// degradation -- the observability module then fails its wiring check, so the
+// bound read answers failed_precondition instead of an empty page.
 func (a *App) configureSyncDiagReader() {
 	if a.syncDiagReader != nil || a.bridgeDB == nil || a.newSyncDiagReader == nil {
 		return
@@ -292,6 +299,7 @@ func (a *App) configureBridgeDeviceServices(ctx context.Context) (device.AuthSer
 	a.seasonService = season.NewService(season.WithProjectionSignal(a.newSeasonStore(a.bridgeDB), a.eventBus), time.Now, func() string { return uuid.New().String() }, jkanimeSearcher)
 	a.seasonService.SetProviderSearchers(a.newSeasonProviderSearchers(jkanimeSearcher))
 	a.settingsStore = settings.NewSQLiteStore(a.bridgeDB)
+	a.bindSettingsModule()
 	deviceService := a.newDeviceService(deviceStore)
 	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(a.bridgeDB))
 	a.attachDeviceSyncStateStore(deviceService, changelogStore)
@@ -354,7 +362,22 @@ func (a *App) configureAnimeApplicationServices() *bridgeSync.ConflictStore {
 	create.SetQuery(animeQuery)
 	a.animeCreate = create
 	a.animeCreateBatch = create
+	a.bindAnimeModule()
 	return conflictService
+}
+
+// bindAnimeModule binds the anime module's services to its handle.
+// configureAnimeApplicationServices calls it once they are built, before
+// settleModules marks the module ready, so a binding that sees ready finds them.
+// The batch creator is stateless over the anime writer and query, so the one
+// startSeasonAvailability builds later over the same two behaves the same.
+func (a *App) bindAnimeModule() {
+	a.moduleSet().anime.Bind(animeServices{
+		query: a.animeQuery, watchHistory: a.watchHistoryQuery, covers: a.coverThumbnails,
+		editorQuery: a.animeEditorQuery, editorWrite: a.animeEditorWrite,
+		scheduleQuery: a.animeEditorScheduleQuery, scheduleWrite: a.animeEditorScheduleWrite,
+		createBatch: a.animeCreateBatch,
+	})
 }
 
 // newAnimeWriteDeps builds shared dependencies for anime write services.

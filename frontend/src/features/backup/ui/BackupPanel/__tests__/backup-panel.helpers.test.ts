@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { BackupExportResultDTO } from '../../../../../infrastructure/backup-source/backup-source.types';
+import type { BackupExportResultDTO } from '../../../../../shared/contracts/backup.types';
 import { classifyExportOutcome, describeExportError, summarizeExportResult } from '../backup-panel.helpers';
 
 /**

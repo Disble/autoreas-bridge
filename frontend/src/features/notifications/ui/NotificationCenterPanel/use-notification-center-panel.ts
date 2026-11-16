@@ -1,10 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { UIEvent } from 'react';
-import { createNotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.helpers';
-import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
 import type { NotificationSource } from '../../../../infrastructure/notification-source/notification-source.types';
+import type { NotificationCenterSource } from '../../../../shared/contracts/notification-center.types';
 import { isNearListBottom } from '../../../../shared/helpers/progressive-list.helpers';
-import { useNotificationStore } from '../../../../shared/store/notification-store/use-notification-store';
+import { BRIDGE_NOTIFICATION_CENTER_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { useNotificationFilters } from '../NotificationFilterBar/use-notification-filters';
 import { useNotificationSourceOptions } from '../NotificationFilterBar/use-notification-source-options';
 import type { NotificationTableRowAction } from '../NotificationTable/notification-table.types';
@@ -20,6 +19,7 @@ import { useNotificationKeyboardScope } from './use-notification-keyboard-scope'
 import { useNotificationMarkAllRead } from './use-notification-mark-all-read';
 import { useNotificationOpenRecord } from './use-notification-open-record';
 import { useNotificationSelection } from './use-notification-selection';
+import { useNotificationUnreadCount } from './use-notification-unread-count';
 
 /** The view the panel opens on: the inbox, not the archive and not a read-state cut of it. */
 const PANEL_INITIAL_VIEW: NotificationCenterView = 'active';
@@ -43,29 +43,24 @@ const PANEL_INITIAL_VIEW: NotificationCenterView = 'active';
  * archive -- so a row carried across the boundary would sit selected under a
  * button that means something else than it did when it was picked.
  *
- * The unread count is READ from the shared notification store rather than
- * fetched: the nav rail badge already seeds it and every lifecycle mutation
- * already feeds it, so a second read here could only introduce a way for the
- * header and the badge to disagree.
+ * The unread count and the refresh after every lifecycle mutation come from
+ * `useNotificationUnreadCount`, which shares the nav rail badge's query key.
  *
  * `pushSource` is forwarded untouched: the sync hook owns its default, so
  * the runtime singleton is named in exactly one place.
  */
 export function useNotificationCenterPanel(
-  source: NotificationCenterSource = createNotificationCenterSource(),
+  source: NotificationCenterSource = BRIDGE_NOTIFICATION_CENTER_SOURCE,
   pushSource?: NotificationSource,
 ): NotificationCenterPanelResult {
   // 2. State
   const [view, setView] = useState<NotificationCenterView>(PANEL_INITIAL_VIEW);
 
-  // 3. Context/3rd Party Hooks
-  const unreadCount = useNotificationStore((state) => state.unreadCount);
-
   // 4. Queries/Mutations
   const { searchInput, debouncedSearch, onSearchInputChange, levels, onLevelsChange, sources, onSourcesChange, hasFacetFilters } =
     useNotificationFilters();
   const query = toNotificationCenterQuery(view);
-  const { rows, totalEverRecorded, degraded, onLoadMore, refetch, applyReadState } = useNotificationCenterSync({
+  const { rows, totalEverRecorded, listState, onLoadMore, refetch, applyReadState } = useNotificationCenterSync({
     source,
     pushSource,
     unreadOnly: query.unreadOnly,
@@ -74,6 +69,7 @@ export function useNotificationCenterPanel(
     levels,
     sources,
   });
+  const { unreadCount, onMutated, onReadStateChanged } = useNotificationUnreadCount({ source, refetchList: refetch, applyReadState });
 
   // 5. Derived State (useMemo)
   // The read view is narrowed here rather than in the query, because the
@@ -87,24 +83,25 @@ export function useNotificationCenterPanel(
       toNotificationEmptyStateConditions({
         totalEverRecorded,
         view,
-        degraded,
+        serviceAvailable: listState !== 'failure',
         hasSearch: debouncedSearch.trim() !== '',
         hasFacetFilters,
       }),
-    [totalEverRecorded, view, degraded, debouncedSearch, hasFacetFilters],
+    [totalEverRecorded, view, listState, debouncedSearch, hasFacetFilters],
   );
+
+  // 6. Callbacks
 
   const sourceOptions = useNotificationSourceOptions(rows);
   const { selectedKeys, selectedCount, onSelectionChange, onMarkRead, onArchive, onRestore, onClearSelection } = useNotificationSelection({
     source,
     rows: visibleRows,
-    onMutated: refetch,
+    onMutated,
   });
-  const { canMarkAllRead, onMarkAllRead } = useNotificationMarkAllRead({ source, rows: visibleRows, onMutated: refetch });
+  const { canMarkAllRead, onMarkAllRead } = useNotificationMarkAllRead({ source, rows: visibleRows, onMutated });
   useNotificationKeyboardScope({ canMarkAllRead, onMarkAllRead });
-  const { openRecord, onOpenRecord } = useNotificationOpenRecord({ source, onReadStateChanged: applyReadState });
+  const { openRecord, onOpenRecord } = useNotificationOpenRecord({ source, onReadStateChanged });
 
-  // 6. Callbacks
   const onViewChange = useCallback(
     (next: NotificationCenterView) => {
       setView(next);
@@ -143,6 +140,7 @@ export function useNotificationCenterPanel(
   );
 
   return {
+    listState,
     rows: visibleRows,
     onScroll,
     emptyStateConditions,
@@ -168,6 +166,6 @@ export function useNotificationCenterPanel(
     canMarkAllRead,
     openRecord,
     onRowAction,
-    onReadStateChanged: applyReadState,
+    onReadStateChanged,
   };
 }

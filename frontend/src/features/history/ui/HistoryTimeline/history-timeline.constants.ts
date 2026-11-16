@@ -1,3 +1,8 @@
+import type { WatchHistoryEntry } from '../../../../shared/contracts/anime.types';
+
+/** The rows the timeline shows while loading, failed or filtered to nothing: one stable empty list. */
+export const HISTORY_TIMELINE_NO_ENTRIES: readonly WatchHistoryEntry[] = [];
+
 /** Accessible label for the global watch-history timeline region. */
 export const HISTORY_TIMELINE_LABEL = 'Watch history';
 

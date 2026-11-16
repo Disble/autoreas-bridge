@@ -22,16 +22,19 @@ type editorActivityRow struct {
 }
 
 // editorActivityApp wires the editor, its query and the bridge database the
-// way the composition root does, over one seeded anime.
+// way the composition root does, over one seeded anime: the anime handle serves
+// the editor services and the app keeps the database and query the activity
+// history is written and read with.
 func editorActivityApp(t *testing.T, snapshot string) (*App, *sql.DB) {
 	t.Helper()
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
 	seedRuntimeAnimeSnapshot(t, store, "anime-1", snapshot, 100)
-	service := anime.NewEditorService(store, &stubAppCommittedPublisher{})
-	service.SetNow(func() time.Time { return time.UnixMilli(200).UTC() })
-	query := anime.NewQueryService(store)
-	return &App{ctx: context.Background(), bridgeDB: db, animeQuery: query, animeEditorQuery: query, animeEditorWrite: service}, db
+	services := editorServices(store)
+	services.editorWrite.SetNow(func() time.Time { return time.UnixMilli(200).UTC() })
+	app := readyAnimeApp(services)
+	app.bridgeDB, app.animeQuery = db, services.query
+	return app, db
 }
 
 // editorActivityRows reads every stored history row through internal/activity,
@@ -81,11 +84,11 @@ func TestSaveAnimeEditorRecordsTheChangeTheCardCommandsWould(t *testing.T) {
 			t.Parallel()
 			app, db := editorActivityApp(t, tc.start)
 
-			got := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 100, Patch: tc.patch})
+			got, err := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 100, Patch: tc.patch})
 
 			rows := editorActivityRows(t, db)
-			if got.Outcome != "applied" || len(rows) != 1 || rows[0].action != tc.action || rows[0].source != "desktop" {
-				t.Fatalf("expected one desktop %s row, got %#v (save %#v)", tc.action, rows, got)
+			if err != nil || got.Outcome != "applied" || len(rows) != 1 || rows[0].action != tc.action || rows[0].source != "desktop" {
+				t.Fatalf("expected one desktop %s row, got %#v (save %#v, %v)", tc.action, rows, got, err)
 			}
 		})
 	}
@@ -97,11 +100,11 @@ func TestEditorActivityThatCannotBeStoredIsLoggedAndTheWriteStands(t *testing.T)
 	memLogger := attachEditorMemLogger(app)
 	app.editorActivity = failingActivityRecorder{}
 
-	got := app.DeactivateAnime("anime-1", 100)
+	got, err := app.DeactivateAnime("anime-1", 100)
 
 	entries := memLogger.Recent()
-	if got.Outcome != "applied" || len(entries) != 1 || entries[0].EventType != editorActivityFailedEventType || entries[0].Level != "warn" {
-		t.Fatalf("expected the write applied and one warning, got %#v and %#v", got, entries)
+	if err != nil || got.Outcome != "applied" || len(entries) != 1 || entries[0].EventType != editorActivityFailedEventType || entries[0].Level != "warn" {
+		t.Fatalf("expected the write applied and one warning, got %#v, %v and %#v", got, err, entries)
 	}
 }
 
@@ -130,9 +133,9 @@ func TestEditorWriteWithoutABridgeDatabaseRecordsNothingAndLogsNothing(t *testin
 	app.bridgeDB = nil
 	memLogger := attachEditorMemLogger(app)
 
-	got := app.DeactivateAnime("anime-1", 100)
+	got, err := app.DeactivateAnime("anime-1", 100)
 
-	if got.Outcome != "applied" || len(memLogger.Recent()) != 0 {
-		t.Fatalf("expected the write applied with no history attempt, got %#v and %#v", got, memLogger.Recent())
+	if err != nil || got.Outcome != "applied" || len(memLogger.Recent()) != 0 {
+		t.Fatalf("expected the write applied with no history attempt, got %#v, %v and %#v", got, err, memLogger.Recent())
 	}
 }

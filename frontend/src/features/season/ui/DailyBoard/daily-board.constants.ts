@@ -1,3 +1,6 @@
+import type { SeasonAnimeRow } from '../../../../shared/contracts/season.types';
+import type { AsyncView } from '../../../../shared/query/async-view/async-view.types';
+import { SEASON_NO_ROWS } from '../../../../shared/season/season.constants';
 import type { BoardSections, DailyBoardHistory, DailyBoardSectionCopy } from './daily-board.types';
 
 /** Weekday dias values (Spanish data literals) — a section outside Estrenos. */
@@ -76,3 +79,30 @@ export const LOADING_DAILY_BOARD_HISTORY: DailyBoardHistory = { status: 'loading
 
 /** No row in any section. */
 export const EMPTY_BOARD_SECTIONS: BoardSections = { sinVer: [], verHoy: [], visto: [] };
+
+/**
+ * The rows read a helper assumes when it is handed the rows themselves: the
+ * derivation then trusts its input, and only an explicit read state hides it.
+ */
+export const READY_DAILY_BOARD_ROWS: AsyncView<readonly SeasonAnimeRow[]> = { kind: 'ready', data: SEASON_NO_ROWS, isRefreshing: false };
+
+/** The status while a Sin ver batch is sent to Ver hoy. */
+export const DAILY_BOARD_SEND_BUSY = 'Sending to Ver hoy…';
+
+/** The banner text of a refused send to Ver hoy. */
+export const DAILY_BOARD_SEND_FAILED = 'Failed to send to Ver hoy';
+
+/** The status while episode availability is rechecked. */
+export const DAILY_BOARD_RECHECK_BUSY = 'Checking episode availability…';
+
+/** The banner text of a refused availability recheck. */
+export const DAILY_BOARD_RECHECK_FAILED = 'Failed to recheck availability';
+
+/** The banner text of a refused season download. */
+export const DAILY_BOARD_DOWNLOAD_FAILED = 'Failed to start the download';
+
+/** The title of the empty board an editable season with no created anime shows. */
+export const DAILY_BOARD_EMPTY_TITLE = 'Nothing created yet.';
+
+/** What the empty board tells the user to do next. */
+export const DAILY_BOARD_EMPTY_DESCRIPTION = 'Create an anime from the intake so it reaches the conveyor.';

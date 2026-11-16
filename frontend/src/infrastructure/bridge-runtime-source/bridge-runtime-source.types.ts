@@ -1,52 +1,21 @@
 import type { contracts } from '../../../wailsjs/go/models';
-import type {
-  Anime,
-  AnimeCreateCommand,
-  AnimeCreateResult,
-  AnimeDetail,
-  AnimeEditorRecordResult,
-  AnimeEditorSaveResult,
-  AnimeEditorScheduleApplyResult,
-  AnimeEditorScheduleBoardResult,
-  AnimeWatchHistoryPageRequest,
-  ApplyAnimeScheduleDraftCommand,
-  SaveAnimeEditorCommand,
-  WatchHistoryPage,
-  WatchHistoryPageRequest,
-} from '../../shared/contracts/anime.types';
-import type { SyncingAnime } from '../../shared/contracts/syncing-anime.types';
-
-/** Payload carried by the Wails `sync.device_acknowledged` runtime event. */
-export interface DeviceAcknowledgedNotice {
-  readonly deviceId: string;
-  readonly lastSeenAtMs: number;
-}
+import type { Anime, AnimeDetail } from '../../shared/contracts/anime.types';
 
 /**
- * Request/reply port for bridge runtime bindings plus the pairing-consumed event stream.
+ * Request/reply port for the bridge runtime bindings not yet migrated to a
+ * module source (ADR-032; the Devices bindings moved to `DevicesSource`, the
+ * watch-history pages to `AnimeSource`, the Editor, create and desktop-action
+ * bindings to `AnimeEditorSource` and `AnimeDesktopActionsSource`, the Today
+ * writes and the Editor's restore and repeat to `EpisodeCommandsSource`). Its
+ * anime reads, desktop actions and lifecycle commands remain only for consumers
+ * of later slices and keep their pre-migration fallbacks.
  */
 export interface BridgeRuntimeSource {
-  readonly getSQLiteStatus: () => Promise<string>;
-  readonly getEffectiveAddress: () => Promise<string>;
-  readonly getPairingToken: () => Promise<string>;
-  readonly getSyncingAnimeItems: () => Promise<readonly SyncingAnime[]>;
   readonly getAnimes: () => Promise<readonly Anime[]>;
   readonly getAnimeDetail: (id: string) => Promise<AnimeDetail | null>;
-  readonly getAnimeEditorRecord?: (id: string) => Promise<AnimeEditorRecordResult>;
-  readonly saveAnimeEditor?: (command: SaveAnimeEditorCommand) => Promise<AnimeEditorSaveResult>;
-  readonly deactivateAnime?: (animeID: string, baseModifiedAt: number) => Promise<AnimeEditorSaveResult>;
-  readonly getAnimeEditorScheduleBoard?: (originAnimeID: string) => Promise<AnimeEditorScheduleBoardResult>;
-  readonly applyAnimeEditorSchedule?: (command: ApplyAnimeScheduleDraftCommand) => Promise<AnimeEditorScheduleApplyResult>;
-  readonly createAnime?: (command: AnimeCreateCommand) => Promise<AnimeCreateResult>;
-  readonly getWatchHistoryPage?: (request: WatchHistoryPageRequest) => Promise<WatchHistoryPage>;
-  readonly getAnimeWatchHistoryPage?: (request: AnimeWatchHistoryPageRequest) => Promise<WatchHistoryPage>;
-  readonly getEpisodeSchedule?: (day: string) => Promise<readonly contracts.EpisodeScheduleItem[]>;
   readonly getAnimeCover?: (animeID: string) => Promise<contracts.AnimeCover>;
   /** Renders an unsaved cover value (a local path or URL a form is editing) the way a saved cover renders. */
   readonly previewAnimeCover?: (value: string) => Promise<contracts.AnimeCover>;
-  readonly getEpisodeDayCounts?: () => Promise<readonly contracts.EpisodeDayCount[]>;
-  readonly adjustWatchedEpisodes?: (animeID: string, delta: number, base: number) => Promise<contracts.EpisodeCommandResult>;
-  readonly setAnimeState?: (animeID: string, estado: number, base: number) => Promise<contracts.EpisodeCommandResult>;
   readonly softDeleteAnime?: (animeID: string, base: number) => Promise<contracts.EpisodeCommandResult>;
   readonly restoreAnime?: (animeID: string, base: number) => Promise<contracts.EpisodeCommandResult>;
   readonly repeatAnime?: (animeID: string, base: number) => Promise<contracts.EpisodeCommandResult>;
@@ -56,23 +25,10 @@ export interface BridgeRuntimeSource {
   readonly copyAnimeFolder?: (animeID: string) => Promise<contracts.EpisodeCommandResult>;
   readonly pickFolder?: (title: string) => Promise<string>;
   readonly pickFile?: (title: string) => Promise<string>;
-  readonly getConnectedDevices?: () => Promise<readonly contracts.DeviceInfo[]>;
-  readonly triggerReconcile: () => Promise<string>;
-  readonly unpairDevice?: (deviceID: string) => Promise<string>;
-  readonly onPairingTokenConsumed: (listener: () => void) => () => void;
-  readonly onDeviceAcknowledged?: (listener: (notice: DeviceAcknowledgedNotice) => void) => () => void;
 }
 
-/** Required editor subset implemented by the production Wails adapter. */
+/** The Editor's bindings not yet behind a module port: the two pickers. */
 export interface AnimeEditorRuntimeSource {
-  readonly getAnimes: BridgeRuntimeSource['getAnimes'];
-  readonly getAnimeEditorRecord: NonNullable<BridgeRuntimeSource['getAnimeEditorRecord']>;
-  readonly saveAnimeEditor: NonNullable<BridgeRuntimeSource['saveAnimeEditor']>;
-  readonly deactivateAnime: NonNullable<BridgeRuntimeSource['deactivateAnime']>;
-  readonly restoreAnime: NonNullable<BridgeRuntimeSource['restoreAnime']>;
-  readonly repeatAnime: NonNullable<BridgeRuntimeSource['repeatAnime']>;
-  readonly getAnimeEditorScheduleBoard: NonNullable<BridgeRuntimeSource['getAnimeEditorScheduleBoard']>;
-  readonly applyAnimeEditorSchedule: NonNullable<BridgeRuntimeSource['applyAnimeEditorSchedule']>;
   readonly pickFolder: NonNullable<BridgeRuntimeSource['pickFolder']>;
   readonly pickFile: NonNullable<BridgeRuntimeSource['pickFile']>;
 }

@@ -3,12 +3,12 @@ import { useLocation } from 'react-router';
 import type { UIEvent } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useRunHistoryPanel } from '../use-run-history-panel';
-import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
-import type { DownloadRunView } from '../../../../../shared/contracts/download.types';
+import type { DownloadRunView, DownloadsSource } from '../../../../../shared/contracts/download.types';
+import { createDownloadsSourceFake } from '../../../../../shared/hooks/use-missed-schedule-notice/__tests__/downloads.test-support';
 import { getDownloadRuntimeStoreState, resetDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
 import type { RunHistoryPanelViewModel, RunHistoryStory, RunHistoryStorySource } from '../run-history-panel.types';
 import { RUN_HISTORY_STORY_REFRESH_DEBOUNCE_MS } from '../run-history-panel.constants';
-import { atRoute } from './run-history-router';
+import { atRoute, emitRunEvent } from './run-history-router';
 
 /** Builds one run history row, numbered so ordering assertions read plainly. */
 function createRun(index: number, overrides: Partial<DownloadRunView> = {}): DownloadRunView {
@@ -49,28 +49,13 @@ function visibleRows(viewModel: RunHistoryPanelViewModel) {
   return viewModel.visibleDays.flatMap((day) => day.rows);
 }
 
-/** Builds a fully stubbed download runtime port, overridable per case. */
-function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
-  return {
-    getDownloadConfig: vi.fn(),
-    getJDStatus: vi.fn(),
-    getJDMaxSimultaneousDownloads: vi.fn().mockResolvedValue(0),
-    setJDConfig: vi.fn(),
-    getScheduleConfig: vi.fn(),
-    setScheduleConfig: vi.fn(),
-    setHosterPriority: vi.fn(),
-    setEpisodeRenameEnabled: vi.fn().mockResolvedValue('ok'),
-    triggerDownloadCheck: vi.fn(),
-    triggerAnimeDownload: vi.fn(),
-    cancelDownloadRun: vi.fn().mockResolvedValue('ok'),
-    runMissedScheduleNow: vi.fn(),
-    ignoreMissedSchedule: vi.fn(),
-    listDownloadRuns: vi.fn().mockResolvedValue(runs),
-    listDownloadReadiness: vi.fn(),
-    subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
-    subscribeMissedScheduleSettled: vi.fn().mockReturnValue(() => undefined),
-    ...overrides,
-  };
+/**
+ * Builds a fully stubbed downloads port, overridable per case.
+ * @param overrides The calls a case replaces.
+ * @returns The port.
+ */
+function createSource(overrides: Partial<DownloadsSource> = {}): DownloadsSource {
+  return createDownloadsSourceFake({ listDownloadRuns: vi.fn().mockResolvedValue(runs), ...overrides });
 }
 
 describe('useRunHistoryPanel', () => {
@@ -192,18 +177,12 @@ describe('useRunHistoryPanel', () => {
     expect(visibleRows(result.current.viewModel)).toHaveLength(12);
   });
 
-  it('reloads runs when a download run lifecycle event invalidates the store', async () => {
-    let listener: (() => void) | undefined;
+  it('reloads runs when a download run lifecycle event invalidates the history', async () => {
     const firstRuns = manyRuns;
     const newestRun = createRun(26);
     const secondRuns = [newestRun, ...manyRuns] as const;
     const listDownloadRuns = vi.fn().mockResolvedValueOnce(firstRuns).mockResolvedValueOnce(secondRuns);
-    const unsubscribe = vi.fn();
-    const subscribeRunEvents = vi.fn().mockImplementation((nextListener: () => void) => {
-      listener = nextListener;
-      return unsubscribe;
-    });
-    const source = createSource({ listDownloadRuns, subscribeRunEvents });
+    const source = createSource({ listDownloadRuns });
 
     const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
@@ -214,7 +193,7 @@ describe('useRunHistoryPanel', () => {
     });
 
     await act(async () => {
-      listener?.();
+      emitRunEvent();
     });
 
     await waitFor(() => expect(result.current.viewModel.rows).toHaveLength(26));
@@ -224,9 +203,6 @@ describe('useRunHistoryPanel', () => {
       visibleRows(result.current.viewModel).length,
     );
     expect(result.current.viewModel.selectedRun?.runId).toBe(firstRuns[19]!.runId);
-
-    resetDownloadRuntimeStore();
-    expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -254,7 +230,7 @@ describe('useRunHistoryPanel stop control', () => {
   });
 
   it('asks the backend to stop the in-flight run', async () => {
-    const cancelDownloadRun = vi.fn().mockResolvedValue('ok');
+    const cancelDownloadRun = vi.fn().mockResolvedValue(undefined);
     const source = createSource({
       listDownloadRuns: vi.fn().mockResolvedValue([createRun(3, { status: 'running' }), ...runs]),
       cancelDownloadRun,
@@ -272,7 +248,7 @@ describe('useRunHistoryPanel stop control', () => {
   it('surfaces the backend message when the run could not be stopped', async () => {
     const source = createSource({
       listDownloadRuns: vi.fn().mockResolvedValue([createRun(3, { status: 'running' }), ...runs]),
-      cancelDownloadRun: vi.fn().mockResolvedValue('no download run in progress'),
+      cancelDownloadRun: vi.fn().mockRejectedValue(new Error('no download run in progress')),
     });
     const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
@@ -310,17 +286,12 @@ describe('useRunHistoryPanel stopping feedback', () => {
   });
 
   it('clears the pending state once the stopped run reaches a terminal status', async () => {
-    let listener: (() => void) | undefined;
     const listDownloadRuns = vi
       .fn()
       .mockResolvedValueOnce([createRun(3, { runId: 'run-live', status: 'running' }), ...runs])
       .mockResolvedValueOnce([createRun(3, { runId: 'run-live', status: 'canceled' }), ...runs]);
     const source = createSource({
       listDownloadRuns,
-      subscribeRunEvents: vi.fn().mockImplementation((nextListener: () => void) => {
-        listener = nextListener;
-        return () => undefined;
-      }),
     });
     const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
@@ -332,7 +303,7 @@ describe('useRunHistoryPanel stopping feedback', () => {
 
     // The run finalizing its own terminal row is what ends the pending state.
     await act(async () => {
-      listener?.();
+      emitRunEvent();
     });
 
     await waitFor(() => expect(result.current.viewModel.runInProgress).toBe(false));
@@ -343,7 +314,7 @@ describe('useRunHistoryPanel stopping feedback', () => {
   it('clears the pending state when the backend refuses the stop', async () => {
     const source = createSource({
       listDownloadRuns: vi.fn().mockResolvedValue([createRun(3, { runId: 'run-live', status: 'running' }), ...runs]),
-      cancelDownloadRun: vi.fn().mockResolvedValue('no download run in progress'),
+      cancelDownloadRun: vi.fn().mockRejectedValue(new Error('no download run in progress')),
     });
     const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
@@ -434,28 +405,23 @@ describe('useRunHistoryPanel run story', () => {
   });
 
   it('reads a live run story again on each download event, and a finished run only once', async () => {
-    let listener: (() => void) | undefined;
-    const subscribeRunEvents = vi.fn().mockImplementation((next: () => void) => {
-      listener = next;
-      return () => undefined;
-    });
     const running = createRun(1, { status: 'running', finishedAtMs: undefined });
     const listDownloadRuns = vi.fn().mockResolvedValueOnce([running]).mockResolvedValueOnce([{ ...running, episodesDownloaded: 2 }]).mockResolvedValue([{ ...running, status: 'ok' }]);
     const storySource = createStorySource();
-    const source = createSource({ listDownloadRuns, subscribeRunEvents });
+    const source = createSource({ listDownloadRuns });
     renderHook(() => useRunHistoryPanel(source, { storySource, coverSource }), { wrapper: atRoute() });
 
     await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(1));
     await act(async () => {
-      listener?.();
+      emitRunEvent();
     });
     await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(2));
     await act(async () => {
-      listener?.();
+      emitRunEvent();
     });
     await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(3));
     await act(async () => {
-      listener?.();
+      emitRunEvent();
     });
     await waitFor(() => expect(listDownloadRuns).toHaveBeenCalledTimes(4));
     expect(storySource.getRunStory).toHaveBeenCalledTimes(3);

@@ -1,6 +1,6 @@
-import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
 import type {
   NotificationAction,
+  NotificationCenterSource,
   NotificationDetail as NotificationDetailDTO,
   NotificationDetailRow as NotificationDetailRowDTO,
 } from '../../../../shared/contracts/notification-center.types';

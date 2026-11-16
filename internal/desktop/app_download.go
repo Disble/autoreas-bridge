@@ -13,14 +13,6 @@ import (
 	jd "github.com/Disble/jdownloader-go/jdownloader"
 )
 
-// downloadSchedulerUnavailableMessage is returned by the scheduler bindings when the
-// download scheduler was never wired.
-const downloadSchedulerUnavailableMessage = "download scheduler unavailable"
-
-// downloadStoreUnavailableMessage is returned by the store-backed bindings when the
-// download store was never wired.
-const downloadStoreUnavailableMessage = "download store unavailable"
-
 // reconfigurableJDClient wraps the real jdownloader.JDClient adapter behind a lazily
 // (re)built client, since MyJDownloader credentials (email/password) can change at runtime
 // via SetJDConfig and jd.NewClient bakes credentials in at construction time (the
@@ -154,204 +146,143 @@ type errJDConfigUnavailableErr struct{}
 
 func (errJDConfigUnavailableErr) Error() string { return "download: JD config store unavailable" }
 
-// ── Wails bindings (SDD-28 PR4b Phase 6, tasks 6.11/6.12) ──────────────────────
+// ── Wails bindings ─────────────────────────────────────────────────────────────
 //
-// Every binding degrades gracefully (never panics) when downloadStore/downloadService/
-// downloadScheduler is nil, mirroring the existing GetPairingToken/GetSyncingAnimeItems
-// nil-degradation convention in app.go.
+// Every binding reaches the download services through the downloads module handle, so a
+// module that is starting answers unavailable and a failed one failed_precondition.
 
-// emptyDownloadConfig returns the safe empty download configuration.
-func emptyDownloadConfig() contracts.DownloadConfig {
-	return contracts.DownloadConfig{
-		HosterPrioritySite: config.DefaultHosterPrioritySite,
-		HosterPriority:     []contracts.HosterPriorityItem{},
+// bindDownloadsModule binds the downloads module's services once
+// startDownloadOrchestration has wired all of them; the module's wiring check fails the
+// module when one is missing, so a module that reads ready always finds them.
+func (a *App) bindDownloadsModule() {
+	if a.downloadStore == nil || a.downloadService == nil || a.readinessService == nil || a.downloadScheduler == nil {
+		return
 	}
-}
-
-// GetDownloadConfig returns the current JD config, schedule config, and hoster priority
-// ordering for the download settings screen. Degrades to a zero-value DownloadConfig when the
-// download store is unavailable.
-func (a *App) GetDownloadConfig() contracts.DownloadConfig {
-	if a.downloadStore == nil {
-		return emptyDownloadConfig()
-	}
-
-	ctx := a.downloadCtx()
-
-	jdCfg, err := a.downloadStore.GetJDConfig(ctx)
-	if err != nil {
-		return emptyDownloadConfig()
-	}
-
-	scheduleCfg, err := a.downloadStore.GetScheduleConfig(ctx)
-	if err != nil {
-		return emptyDownloadConfig()
-	}
-
-	hosterEntries, _ := a.downloadStore.ListHosterPriority(ctx, config.DefaultHosterPrioritySite)
-
-	return contracts.DownloadConfig{
-		JD:                 toContractsJDStatus(jdCfg),
-		Schedule:           a.toContractsScheduleConfig(scheduleCfg),
-		HosterPrioritySite: config.DefaultHosterPrioritySite,
-		HosterPriority:     toContractsHosterPriority(hosterEntries),
-		RenameEpisodes:     a.episodeRenameEnabled(ctx),
-	}
-}
-
-// SetHosterPriority persists the user-configured hoster ordering for a site. Returns "ok" on
-// success or an error string when the store is unavailable or the write fails.
-func (a *App) SetHosterPriority(site string, entries []contracts.HosterPriorityItem) string {
-	if a.downloadStore == nil {
-		return downloadStoreUnavailableMessage
-	}
-
-	domainEntries := make([]download.HosterPriorityEntry, 0, len(entries))
-	for _, e := range entries {
-		domainEntries = append(domainEntries, download.HosterPriorityEntry{
-			Hoster:   e.Hoster,
-			Priority: e.Priority,
-			Enabled:  e.Enabled,
-		})
-	}
-
-	if err := a.downloadStore.SetHosterPriority(a.downloadCtx(), site, domainEntries); err != nil {
-		return err.Error()
-	}
-	return "ok"
-}
-
-// GetJDStatus returns the current MyJDownloader config/connectivity snapshot. Degrades to a
-// zero-value JDStatus when the download store is unavailable.
-func (a *App) GetJDStatus() contracts.JDStatus {
-	if a.downloadStore == nil {
-		return contracts.JDStatus{}
-	}
-	cfg, err := a.downloadStore.GetJDConfig(a.downloadCtx())
-	if err != nil {
-		return contracts.JDStatus{}
-	}
-	return toContractsJDStatus(cfg)
-}
-
-// SetJDConfig persists MyJDownloader credentials/config. A nil PlaintextPassword leaves the
-// existing encrypted blob untouched (design §4.3 "edit email/device without re-entering
-// password"). Returns "ok" on success or an error string when the store is unavailable or the
-// write fails.
-func (a *App) SetJDConfig(input contracts.JDConfigInput) string {
-	if a.downloadStore == nil {
-		return downloadStoreUnavailableMessage
-	}
-
-	cfg := download.JDConfig{
-		Email:           input.Email,
-		DeviceName:      input.DeviceName,
-		ExePathOverride: input.ExePathOverride,
-		DefaultDestDir:  input.DefaultDestDir,
-	}
-
-	if err := a.downloadStore.SetJDConfig(a.downloadCtx(), cfg, input.PlaintextPassword); err != nil {
-		return err.Error()
-	}
-	return "ok"
-}
-
-// GetScheduleConfig returns the current scheduler config, overlaying the live "running" flag
-// from the scheduler itself when available. Degrades to a zero-value ScheduleConfig when the
-// download store is unavailable.
-func (a *App) GetScheduleConfig() contracts.ScheduleConfig {
-	if a.downloadStore == nil {
-		return contracts.ScheduleConfig{}
-	}
-	cfg, err := a.downloadStore.GetScheduleConfig(a.downloadCtx())
-	if err != nil {
-		return contracts.ScheduleConfig{}
-	}
-	return a.toContractsScheduleConfig(cfg)
-}
-
-// SetScheduleConfig persists the scheduler config (mode/daily time/enabled). Returns "ok" on
-// success or an error string when the store is unavailable or the write fails.
-func (a *App) SetScheduleConfig(cfg contracts.ScheduleConfig) string {
-	if a.downloadStore == nil {
-		return downloadStoreUnavailableMessage
-	}
-
-	domainCfg := download.ScheduleConfig{
-		Mode:            cfg.Mode,
-		DailyTimeHHMM:   cfg.DailyTimeHHMM,
-		Enabled:         cfg.Enabled,
-		LastRunAtMs:     cfg.LastRunAtMs,
-		LastRunStatus:   cfg.LastRunStatus,
-		NextRunAtMs:     cfg.NextRunAtMs,
-		EnabledWeekdays: byte(cfg.EnabledWeekdays),
-	}
-
-	if err := a.downloadStore.SetScheduleConfig(a.downloadCtx(), domainCfg); err != nil {
-		return err.Error()
-	}
-	if a.downloadScheduler != nil {
-		a.downloadScheduler.NotifyConfigChanged()
-	}
-	return "ok"
-}
-
-// RunMissedScheduleNow executes the startup-missed selected date under the scheduler's run guard.
-func (a *App) RunMissedScheduleNow(localDate string) contracts.ScheduleMissedActionResult {
-	if a.downloadScheduler == nil {
-		return contracts.ScheduleMissedActionResult{Kind: string(schedule.MissedStartupActionError), LocalDate: localDate, Message: downloadSchedulerUnavailableMessage}
-	}
-	return toContractsMissedActionResult(a.resolveMissedStartupAction(a.downloadCtx(), localDate, schedule.MissedStartupActionRunNow))
-}
-
-// IgnoreMissedSchedule settles the startup-missed selected date without rewriting actual run facts.
-func (a *App) IgnoreMissedSchedule(localDate string) contracts.ScheduleMissedActionResult {
-	if a.downloadScheduler == nil {
-		return contracts.ScheduleMissedActionResult{Kind: string(schedule.MissedStartupActionError), LocalDate: localDate, Message: downloadSchedulerUnavailableMessage}
-	}
-	return toContractsMissedActionResult(a.resolveMissedStartupAction(a.downloadCtx(), localDate, schedule.MissedStartupActionIgnore))
-}
-
-// TriggerDownloadCheck asks the scheduler to run an immediate out-of-band download check.
-// Returns "ok" on success, a descriptive string if the scheduler is unavailable, or surfaces
-// schedule.ErrRunInProgress's message when a run (scheduled or manual) is already active
-// (design-scheduler spec "Concurrent-Run Guard").
-func (a *App) TriggerDownloadCheck() string {
-	if a.downloadScheduler == nil {
-		return downloadSchedulerUnavailableMessage
-	}
-	if err := a.downloadScheduler.TriggerNow(a.downloadCtx(), "manual"); err != nil {
-		return err.Error()
-	}
-	return "ok"
-}
-
-// TriggerAnimeDownload starts a background catch-up run for one selected anime. It reuses the
-// download Service's normal run-history/events path, but scopes candidate selection to the anime
-// id chosen by the Downloads UI instead of today's schedule/season-mode set.
-func (a *App) TriggerAnimeDownload(animeID string) string {
-	return a.startSoloDownload([]string{animeID}, func(ctx context.Context, animes []contracts.MobileAnime) {
-		_, _ = a.downloadService.RunAnime(ctx, "manual_anime", animes[0])
+	a.moduleSet().downloads.Bind(downloadServices{
+		store:     a.downloadStore,
+		service:   a.downloadService,
+		readiness: a.readinessService,
+		scheduler: a.downloadScheduler,
 	})
 }
 
+// GetDownloadConfig returns the current JD config, schedule config, and hoster priority
+// ordering for the download settings screen. A failed store read is the binding's error.
+func (a *App) GetDownloadConfig() (contracts.DownloadConfig, error) {
+	return a.moduleSet().downloads.Use(func(s downloadServices) (contracts.DownloadConfig, error) {
+		ctx := a.downloadCtx()
+		jdCfg, err := s.store.GetJDConfig(ctx)
+		if err != nil {
+			return contracts.DownloadConfig{}, err
+		}
+		scheduleCfg, err := s.store.GetScheduleConfig(ctx)
+		if err != nil {
+			return contracts.DownloadConfig{}, err
+		}
+		hosterEntries, err := s.store.ListHosterPriority(ctx, config.DefaultHosterPrioritySite)
+		if err != nil {
+			return contracts.DownloadConfig{}, err
+		}
+		return contracts.DownloadConfig{
+			JD:                 toContractsJDStatus(jdCfg),
+			Schedule:           a.toContractsScheduleConfig(scheduleCfg),
+			HosterPrioritySite: config.DefaultHosterPrioritySite,
+			HosterPriority:     toContractsHosterPriority(hosterEntries),
+			RenameEpisodes:     a.episodeRenameEnabled(ctx),
+		}, nil
+	})
+}
+
+// SetHosterPriority persists the user-configured hoster ordering for a site.
+func (a *App) SetHosterPriority(site string, entries []contracts.HosterPriorityItem) error {
+	_, err := a.moduleSet().downloads.Use(func(s downloadServices) (struct{}, error) {
+		domainEntries := make([]download.HosterPriorityEntry, 0, len(entries))
+		for _, e := range entries {
+			domainEntries = append(domainEntries, download.HosterPriorityEntry{
+				Hoster:   e.Hoster,
+				Priority: e.Priority,
+				Enabled:  e.Enabled,
+			})
+		}
+		return struct{}{}, s.store.SetHosterPriority(a.downloadCtx(), site, domainEntries)
+	})
+	return err
+}
+
+// GetJDStatus returns the current MyJDownloader config/connectivity snapshot.
+func (a *App) GetJDStatus() (contracts.JDStatus, error) {
+	return a.moduleSet().downloads.Use(func(s downloadServices) (contracts.JDStatus, error) {
+		cfg, err := s.store.GetJDConfig(a.downloadCtx())
+		if err != nil {
+			return contracts.JDStatus{}, err
+		}
+		return toContractsJDStatus(cfg), nil
+	})
+}
+
+// SetJDConfig persists MyJDownloader credentials/config. A nil PlaintextPassword leaves the
+// existing encrypted blob untouched (design §4.3: edit email/device without re-entering the
+// password).
+func (a *App) SetJDConfig(input contracts.JDConfigInput) error {
+	_, err := a.moduleSet().downloads.Use(func(s downloadServices) (struct{}, error) {
+		cfg := download.JDConfig{
+			Email:           input.Email,
+			DeviceName:      input.DeviceName,
+			ExePathOverride: input.ExePathOverride,
+			DefaultDestDir:  input.DefaultDestDir,
+		}
+		return struct{}{}, s.store.SetJDConfig(a.downloadCtx(), cfg, input.PlaintextPassword)
+	})
+	return err
+}
+
+// GetScheduleConfig returns the current scheduler config with the scheduler's live
+// running flag overlaid.
+func (a *App) GetScheduleConfig() (contracts.ScheduleConfig, error) {
+	return a.moduleSet().downloads.Use(func(s downloadServices) (contracts.ScheduleConfig, error) {
+		cfg, err := s.store.GetScheduleConfig(a.downloadCtx())
+		if err != nil {
+			return contracts.ScheduleConfig{}, err
+		}
+		return a.toContractsScheduleConfig(cfg), nil
+	})
+}
+
+// SetScheduleConfig persists the scheduler config (mode/daily time/enabled) and tells the
+// scheduler to re-plan from the stored value.
+func (a *App) SetScheduleConfig(cfg contracts.ScheduleConfig) error {
+	_, err := a.moduleSet().downloads.Use(func(s downloadServices) (struct{}, error) {
+		domainCfg := download.ScheduleConfig{
+			Mode:            cfg.Mode,
+			DailyTimeHHMM:   cfg.DailyTimeHHMM,
+			Enabled:         cfg.Enabled,
+			LastRunAtMs:     cfg.LastRunAtMs,
+			LastRunStatus:   cfg.LastRunStatus,
+			NextRunAtMs:     cfg.NextRunAtMs,
+			EnabledWeekdays: byte(cfg.EnabledWeekdays),
+		}
+		if err := s.store.SetScheduleConfig(a.downloadCtx(), domainCfg); err != nil {
+			return struct{}{}, err
+		}
+		s.scheduler.NotifyConfigChanged()
+		return struct{}{}, nil
+	})
+	return err
+}
+
 // ListDownloadRuns returns the most recent download_runs rows for the run-history view.
-// Degrades to an empty slice when the download store is unavailable.
-func (a *App) ListDownloadRuns() []contracts.DownloadRunView {
-	if a.downloadStore == nil {
-		return []contracts.DownloadRunView{}
-	}
-
-	runs, err := a.downloadStore.ListRuns(a.downloadCtx(), 0)
-	if err != nil {
-		return []contracts.DownloadRunView{}
-	}
-
-	out := make([]contracts.DownloadRunView, 0, len(runs))
-	for _, run := range runs {
-		out = append(out, toContractsDownloadRunView(run))
-	}
-	return out
+func (a *App) ListDownloadRuns() ([]contracts.DownloadRunView, error) {
+	return a.moduleSet().downloads.Use(func(s downloadServices) ([]contracts.DownloadRunView, error) {
+		runs, err := s.store.ListRuns(a.downloadCtx(), 0)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]contracts.DownloadRunView, 0, len(runs))
+		for _, run := range runs {
+			out = append(out, toContractsDownloadRunView(run))
+		}
+		return out, nil
+	})
 }
 
 // downloadCtx returns a.ctx, falling back to context.Background() before startup has set it

@@ -45,6 +45,8 @@ type spyDeviceStore struct {
 	saveErr     error
 	activeToken string
 	pruneCalls  int
+	// findCutoffMs is the created-after bound the last FindActivePairingToken call received.
+	findCutoffMs int64
 }
 
 func (s *spyDeviceStore) SavePairingToken(_ context.Context, token string, _ int64) error {
@@ -52,7 +54,8 @@ func (s *spyDeviceStore) SavePairingToken(_ context.Context, token string, _ int
 	return s.saveErr
 }
 
-func (s *spyDeviceStore) FindActivePairingToken(context.Context, int64) (string, error) {
+func (s *spyDeviceStore) FindActivePairingToken(_ context.Context, createdAfterOrAtMs int64) (string, error) {
+	s.findCutoffMs = createdAfterOrAtMs
 	if s.activeToken == "" {
 		return "", device.ErrInvalidPairingToken
 	}

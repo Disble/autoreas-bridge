@@ -45,7 +45,7 @@ func TestSeasonGradeChangesAreRecordedAsActivity(t *testing.T) {
 	app, recorder := seedGradeActivityApp(t, "Date A Live V")
 
 	// Grade 1 is the lowest grade, so the next change must still carry it as its before.
-	if got := app.SetSeasonGrade("anime-a", 1); got != "ok" {
+	if got := app.SetSeasonGrade("anime-a", 1); got != nil {
 		t.Fatalf("SetSeasonGrade = %q", got)
 	}
 	ratedAt := time.Now().Add(time.Minute).UnixMilli()
@@ -73,11 +73,11 @@ func TestSeasonGradeWritesThatChangeNothingRecordNoActivity(t *testing.T) {
 	app, recorder := seedGradeActivityApp(t, "")
 	// The catalogue knows the anime but has no name for it.
 	app.animeQuery = &stubAnimeQueryService{mobileAnime: &contracts.MobileAnime{ID: "anime-a"}}
-	if got := app.SetSeasonGrade("anime-a", 5); got != "ok" {
+	if got := app.SetSeasonGrade("anime-a", 5); got != nil {
 		t.Fatalf("SetSeasonGrade = %q", got)
 	}
 
-	if got := app.SetSeasonGrade("anime-a", 5); got != "ok" {
+	if got := app.SetSeasonGrade("anime-a", 5); got != nil {
 		t.Fatalf("same-grade SetSeasonGrade = %q", got)
 	}
 	res, err := app.recordSeasonRating()(context.Background(), "anime-a", 2, 1, "")
@@ -99,7 +99,7 @@ func TestSeasonGradeActivityLandsInTheBridgeActivityLog(t *testing.T) {
 	db := openRuntimeBridgeDB(t)
 	app.bridgeDB = db
 
-	if got := app.SetSeasonGrade("anime-a", 6); got != "ok" {
+	if got := app.SetSeasonGrade("anime-a", 6); got != nil {
 		t.Fatalf("SetSeasonGrade = %q", got)
 	}
 
@@ -127,7 +127,7 @@ func TestSeasonGradeActivityFailureKeepsTheGrade(t *testing.T) {
 	app, recorder := seedGradeActivityApp(t, "")
 	recorder.err = errors.New("disk full")
 
-	if got := app.SetSeasonGrade("anime-a", 3); got != "ok" {
+	if got := app.SetSeasonGrade("anime-a", 3); got != nil {
 		t.Fatalf("SetSeasonGrade = %q, want ok: the grade is saved even when the audit fails", got)
 	}
 	_, previous, err := app.seasonService.RecordPremiereGradeInSeason(context.Background(), "", "anime-a", 4, domain.GradeSourceManual, time.Now())

@@ -1,5 +1,5 @@
 import type { DrawerHeaderModel, DrawerSection, DrawerTransitionEnd } from '../../drawer/drawer.types';
-import type { ActivityFeedLine } from '../../feed-source/feed.types';
+import type { ActivityFeedLine } from '../../../../shared/contracts/activity-feed.types';
 
 /**
  * Props of the Activity detail drawer (activity-ui-design-v2.md, Detail drawer).

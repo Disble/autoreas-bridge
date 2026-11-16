@@ -3,12 +3,20 @@ import type {
   ConfirmSelectionResult,
   OrderingBoard,
   SeasonProviderSearchResult,
+  SeasonQuerySource,
   SeasonSource,
   SendToVerHoyResult,
-} from './season-source.types';
+} from '../../shared/contracts/season.types';
 
 /** Runtime-unavailable sentinel returned by season mutators when Wails is not ready. */
 export const SEASON_RUNTIME_UNAVAILABLE = 'runtime unavailable';
+
+/**
+ * Status a season command resolves to once its binding returned without an
+ * error: the season commands' consumers still read a status string, so the
+ * adapter keeps answering the one the binding used to return.
+ */
+export const SEASON_COMMAND_OK = 'ok';
 
 /** Safe degraded confirm-selection result returned when Wails is unavailable. */
 export const SEASON_CONFIRM_UNAVAILABLE: ConfirmSelectionResult = {
@@ -42,7 +50,7 @@ export const SEASON_APPLY_UNAVAILABLE: ApplyScheduleResult = {
 };
 
 /** Module-local singleton container for the shared season source. */
-export const SEASON_SOURCE_STATE: { sharedSource: SeasonSource | null } = {
+export const SEASON_SOURCE_STATE: { sharedSource: (SeasonSource & SeasonQuerySource) | null } = {
   sharedSource: null,
 };
 

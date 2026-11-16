@@ -1,15 +1,19 @@
-import { useCallback, useRef, useState } from 'react';
-import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
-import type { NotificationDetail as NotificationDetailDTO } from '../../../../shared/contracts/notification-center.types';
-import { applyNotificationMutationUnreadCount } from '../../../../shared/store/notification-store/notification-store.helpers';
+import { useCallback, useState } from 'react';
+import type {
+  NotificationCenterSource,
+  NotificationDetail as NotificationDetailDTO,
+} from '../../../../shared/contracts/notification-center.types';
+import { notificationsKeys } from '../../../../shared/query/query-keys/query-keys.constants';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
+import { useBridgeQuery } from '../../../../shared/query/use-bridge-query/use-bridge-query';
 
 /** Everything `useNotificationOpenRecord` needs from its caller. */
 export interface NotificationOpenRecordInput {
   readonly source: NotificationCenterSource;
   /**
    * Told which records the opening mark-read committed, so the master list
-   * can drop their unread dot in place. Absent for callers that render no
-   * list beside the pane.
+   * can drop their unread dot in place and the unread count is read again.
+   * Absent for callers that render no list beside the pane.
    */
   readonly onReadStateChanged?: (recordIds: readonly number[], isRead: boolean) => void;
 }
@@ -23,55 +27,48 @@ export interface NotificationOpenRecordResult {
 
 /**
  * Owns which record the notification center currently has open: the
- * single-record `getNotification` read behind it, and the mark-read that
- * opening one performs (lifecycle spec, "read is set by opening the
- * detail"). Read state is deliberately set on the press rather than on the
- * read's result -- opening is what the user did, and a `getNotification`
- * that comes back degraded does not un-open it.
+ * single-record `getNotification` read behind it (`useBridgeQuery` on the
+ * `notifications` module, keyed by the pressed id, so the pane shows the
+ * record pressed last and never whichever read resolved last), and the
+ * mark-read that opening one performs (lifecycle spec, "read is set by opening
+ * the detail"). Read state is deliberately set on the press rather than on the
+ * read's result -- opening is what the user did, and a failed
+ * `getNotification` does not un-open it.
  *
- * That mark-read's own fresh `unreadCount` goes into the shared
- * notification store, so opening a record lowers the rail badge the same way
- * the selection bar's bulk mark-read does.
- *
- * The badge was the only thing it moved, though: the master-list row the user
- * had just pressed kept its unread dot until a remount, so the same screen
- * showed one record as both read and unread. `onReadStateChanged` closes that,
- * and fires only for a mutation that actually committed -- a degraded
- * mark-read left the record unread in the store, and clearing its dot would
- * make the list state the opposite of what the store holds.
+ * `onReadStateChanged` lets the master-list row the user just pressed drop its
+ * unread dot and the rail badge fall, and fires only for a mutation that
+ * actually committed -- a failed mark-read left the record unread in the
+ * store, and clearing its dot would make the list state the opposite of what
+ * the store holds.
  */
 export function useNotificationOpenRecord(input: Readonly<NotificationOpenRecordInput>): NotificationOpenRecordResult {
   const { onReadStateChanged, source } = input;
 
-  // 1. Refs
-  const openedIdRef = useRef<number | null>(null);
-
   // 2. State
-  const [openRecord, setOpenRecord] = useState<NotificationDetailDTO | null>(null);
+  const [openedId, setOpenedId] = useState<number | null>(null);
+
+  // 4. Queries/Mutations
+  const detail = useBridgeQuery({
+    queryKey: notificationsKeys.key('detail', openedId),
+    queryFn: () => source.getNotification(openedId ?? 0),
+    module: 'notifications',
+    enabled: openedId !== null,
+  });
+  const { mutate: markRead } = useBridgeMutation({
+    mutationFn: (id: number) => source.markRead([id]),
+    onSuccess: (_result, id) => onReadStateChanged?.([id], true),
+  });
+
+  // 5. Derived State
+  const openRecord: NotificationDetailDTO | null = detail.data?.found === true ? detail.data.item : null;
 
   // 6. Callbacks
   const onOpenRecord = useCallback(
     (id: number) => {
-      openedIdRef.current = id;
-
-      void source.getNotification(id).then((result) => {
-        if (openedIdRef.current !== id) {
-          // A later press already won. Dropping this stale read keeps the
-          // pane showing the record the user pressed last, not whichever
-          // fetch happened to resolve last.
-          return;
-        }
-        setOpenRecord(result.found ? result.item : null);
-      });
-
-      void source.markRead([id]).then((result) => {
-        applyNotificationMutationUnreadCount(result);
-        if (!result.degraded) {
-          onReadStateChanged?.([id], true);
-        }
-      });
+      setOpenedId(id);
+      markRead(id);
     },
-    [onReadStateChanged, source],
+    [markRead],
   );
 
   return { onOpenRecord, openRecord };

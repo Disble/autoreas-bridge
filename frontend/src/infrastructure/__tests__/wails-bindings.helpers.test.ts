@@ -119,3 +119,48 @@ describe('wails-bindings.helpers', () => {
     expect(runtimeUnsubscribe).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('createRuntimeEventSource', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    Reflect.deleteProperty(window, 'runtime');
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    Reflect.deleteProperty(window, 'runtime');
+  });
+
+  it('shares one runtime listener per event name and releases it after the last subscriber', async () => {
+    const { createRuntimeEventSource } = await import('../wails-bindings.helpers');
+    const handlers = new Map<string, (payload: unknown) => void>();
+    const released: string[] = [];
+    const eventsOnMultiple = vi.fn((eventName: string, callback: (payload: unknown) => void) => {
+      handlers.set(eventName, callback);
+      return () => released.push(eventName);
+    });
+    window.runtime = { EventsOnMultiple: eventsOnMultiple } as never;
+    const events = createRuntimeEventSource();
+    const first = vi.fn();
+    const second = vi.fn();
+    const other = vi.fn();
+
+    const unsubscribeFirst = events.subscribe('anime.changed', first);
+    const unsubscribeSecond = events.subscribe('anime.changed', second);
+    const unsubscribeOther = events.subscribe('episodes.changed', other);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(eventsOnMultiple.mock.calls.map(([eventName]) => eventName)).toEqual(['anime.changed', 'episodes.changed']);
+    handlers.get('anime.changed')?.({ id: 'a-1' });
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(other).not.toHaveBeenCalled();
+
+    unsubscribeFirst();
+    expect(released).toEqual([]);
+    unsubscribeSecond();
+    unsubscribeOther();
+    expect(released).toEqual(['anime.changed', 'episodes.changed']);
+  });
+});

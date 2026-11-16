@@ -2,6 +2,8 @@ package desktop
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -18,12 +20,14 @@ import (
 // episodeReanalysisProgressEvent is the frontend event a re-analysis emits before each file.
 const episodeReanalysisProgressEvent = "episode.durations_reanalysis_progress"
 
-// Editor binding outcomes.
+// Re-analysis outcomes: a review, or another re-analysis already running. Failures are errors.
 const (
-	episodeEditorOutcomeOK    = "ok"
-	episodeEditorOutcomeBusy  = "busy"
-	episodeEditorOutcomeError = "error"
+	episodeEditorOutcomeOK   = "ok"
+	episodeEditorOutcomeBusy = "busy"
 )
+
+// errEpisodeDurationsUnavailable is the failure of a durations binding whose module has no database.
+var errEpisodeDurationsUnavailable = errors.New("episode durations unavailable")
 
 // EpisodeDurationAnimeDTO is what the Editor draft says about the anime: its id and the folder,
 // total and type it currently shows, saved or not.
@@ -43,10 +47,8 @@ type EpisodeDurationRowDTO struct {
 	Source     string `json:"source"`
 }
 
-// EpisodeDurationSectionResult is the Episodes section, or why it could not be read.
+// EpisodeDurationSectionResult is the Episodes section; a failure is the binding's error.
 type EpisodeDurationSectionResult struct {
-	Outcome      string                  `json:"outcome"`
-	Message      string                  `json:"message,omitempty"`
 	FolderStatus string                  `json:"folderStatus"`
 	Rows         []EpisodeDurationRowDTO `json:"rows"`
 	BeyondTotal  []int                   `json:"beyondTotal"`
@@ -66,7 +68,8 @@ type EpisodeDurationReviewRowDTO struct {
 	Detail          string `json:"detail,omitempty"`
 }
 
-// EpisodeDurationReviewResult is the re-analysis review, or why none ran.
+// EpisodeDurationReviewResult is the re-analysis review, or busy with its message when another
+// re-analysis is running; a failure is the binding's error.
 type EpisodeDurationReviewResult struct {
 	Outcome         string                        `json:"outcome"`
 	Message         string                        `json:"message,omitempty"`
@@ -76,10 +79,9 @@ type EpisodeDurationReviewResult struct {
 }
 
 // EpisodeDurationSaveResult is the outcome of saving the Episodes card: applied when a row
-// changed, no-op when nothing did, error with its reason otherwise.
+// changed, no-op when nothing did. A refused save is the binding's error.
 type EpisodeDurationSaveResult struct {
 	Outcome contracts.AnimePatchOutcome `json:"outcome"`
-	Message string                      `json:"message,omitempty"`
 	Changed int                         `json:"changed"`
 }
 
@@ -113,38 +115,47 @@ func newEpisodeDurationEditor(store durationedit.Durations) *durationedit.Servic
 	return durationedit.New(store, media.New(config.VideoFileExtensions), identity.NewAssigner(), probe.NewFFProbe(""))
 }
 
-// GetEpisodeDurationSection returns the Editor's Episodes section for what the draft shows.
-func (a *App) GetEpisodeDurationSection(request EpisodeDurationAnimeDTO) EpisodeDurationSectionResult {
-	if a.bridgeDB == nil {
-		return EpisodeDurationSectionResult{Outcome: episodeEditorOutcomeError, Message: "episode durations unavailable"}
-	}
-	section, err := newEpisodeDurationEditor(episodes.NewStore(a.bridgeDB, time.Now)).
-		Section(a.appContext(), request.toDomain())
-	if err != nil {
-		return EpisodeDurationSectionResult{Outcome: episodeEditorOutcomeError, Message: fmt.Sprintf("read episode durations: %v", err)}
-	}
-	rows := make([]EpisodeDurationRowDTO, len(section.Rows))
-	for i, row := range section.Rows {
-		rows[i] = EpisodeDurationRowDTO{Episode: row.Episode, DurationMs: row.DurationMS, Minutes: row.Minutes, Long: row.Long, Source: row.Source}
-	}
-	beyond := section.BeyondTotal
-	if beyond == nil {
-		beyond = []int{}
-	}
-	return EpisodeDurationSectionResult{Outcome: episodeEditorOutcomeOK, FolderStatus: section.FolderStatus, Rows: rows,
-		BeyondTotal: beyond, TV: section.TV}
+// GetEpisodeDurationSection returns the Editor's Episodes section for what the draft shows,
+// through the episodes module handle.
+func (a *App) GetEpisodeDurationSection(request EpisodeDurationAnimeDTO) (EpisodeDurationSectionResult, error) {
+	return a.moduleSet().episodes.Use(func(services episodeServices) (EpisodeDurationSectionResult, error) {
+		if services.durations == nil {
+			return EpisodeDurationSectionResult{}, errEpisodeDurationsUnavailable
+		}
+		section, err := newEpisodeDurationEditor(episodes.NewStore(services.durations, time.Now)).
+			Section(a.appContext(), request.toDomain())
+		if err != nil {
+			return EpisodeDurationSectionResult{}, fmt.Errorf("read episode durations: %w", err)
+		}
+		rows := make([]EpisodeDurationRowDTO, len(section.Rows))
+		for i, row := range section.Rows {
+			rows[i] = EpisodeDurationRowDTO{Episode: row.Episode, DurationMs: row.DurationMS, Minutes: row.Minutes, Long: row.Long, Source: row.Source}
+		}
+		beyond := section.BeyondTotal
+		if beyond == nil {
+			beyond = []int{}
+		}
+		return EpisodeDurationSectionResult{FolderStatus: section.FolderStatus, Rows: rows, BeyondTotal: beyond, TV: section.TV}, nil
+	})
 }
 
 // ReanalyzeEpisodeDurations measures the draft's folder and returns the review the user confirms
-// into the draft. It writes nothing. Progress is emitted before each file; only one re-analysis
-// runs at a time, and CancelEpisodeReanalysis ends it.
-func (a *App) ReanalyzeEpisodeDurations(request EpisodeDurationAnimeDTO) EpisodeDurationReviewResult {
-	if a.bridgeDB == nil {
-		return EpisodeDurationReviewResult{Outcome: episodeEditorOutcomeError, Message: "episode durations unavailable"}
-	}
+// into the draft, through the episodes module handle. It writes nothing. Progress is emitted
+// before each file; only one re-analysis runs at a time, and CancelEpisodeReanalysis ends it.
+func (a *App) ReanalyzeEpisodeDurations(request EpisodeDurationAnimeDTO) (EpisodeDurationReviewResult, error) {
+	return a.moduleSet().episodes.Use(func(services episodeServices) (EpisodeDurationReviewResult, error) {
+		if services.durations == nil {
+			return EpisodeDurationReviewResult{}, errEpisodeDurationsUnavailable
+		}
+		return a.reanalyzeEpisodeDurations(services.durations, request)
+	})
+}
+
+// reanalyzeEpisodeDurations runs one re-analysis over db, or answers busy while another runs.
+func (a *App) reanalyzeEpisodeDurations(db *sql.DB, request EpisodeDurationAnimeDTO) (EpisodeDurationReviewResult, error) {
 	state := &a.episodeDurations.reanalysis
 	if !state.running.TryLock() {
-		return EpisodeDurationReviewResult{Outcome: episodeEditorOutcomeBusy, Message: "a re-analysis is already running"}
+		return EpisodeDurationReviewResult{Outcome: episodeEditorOutcomeBusy, Message: "a re-analysis is already running"}, nil
 	}
 	defer state.running.Unlock()
 	ctx, cancel := context.WithCancel(a.appContext())
@@ -158,7 +169,7 @@ func (a *App) ReanalyzeEpisodeDurations(request EpisodeDurationAnimeDTO) Episode
 		state.mu.Unlock()
 	}()
 
-	review, err := newEpisodeDurationEditor(episodes.NewStore(a.bridgeDB, time.Now)).
+	review, err := newEpisodeDurationEditor(episodes.NewStore(db, time.Now)).
 		Reanalyze(ctx, request.toDomain(), func(p durationedit.Progress) {
 			if a.emitFn == nil {
 				return
@@ -168,48 +179,55 @@ func (a *App) ReanalyzeEpisodeDurations(request EpisodeDurationAnimeDTO) Episode
 			})
 		})
 	if err != nil {
-		return EpisodeDurationReviewResult{Outcome: episodeEditorOutcomeError, Message: fmt.Sprintf("re-analyze episode durations: %v", err)}
+		return EpisodeDurationReviewResult{}, fmt.Errorf("re-analyze episode durations: %w", err)
 	}
 	return EpisodeDurationReviewResult{Outcome: episodeEditorOutcomeOK, Status: review.Status,
-		FilesRecognized: review.FilesRecognized, Rows: toReviewRowDTOs(review.Rows)}
+		FilesRecognized: review.FilesRecognized, Rows: toReviewRowDTOs(review.Rows)}, nil
 }
 
-// CancelEpisodeReanalysis ends the running re-analysis, if any.
-func (a *App) CancelEpisodeReanalysis() {
-	state := &a.episodeDurations.reanalysis
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	if state.cancel != nil {
-		state.cancel()
-	}
+// CancelEpisodeReanalysis ends the running re-analysis, if any, through the episodes module handle.
+func (a *App) CancelEpisodeReanalysis() error {
+	_, err := a.moduleSet().episodes.Use(func(episodeServices) (struct{}, error) {
+		state := &a.episodeDurations.reanalysis
+		state.mu.Lock()
+		defer state.mu.Unlock()
+		if state.cancel != nil {
+			state.cancel()
+		}
+		return struct{}{}, nil
+	})
+	return err
 }
 
-// SaveEpisodeDurations saves the Episodes card on its own, in one transaction: either every edit
-// is stored or none is. It never touches the anime, so its modified_at does not move.
-func (a *App) SaveEpisodeDurations(animeID string, edits []EpisodeDurationEditDTO) EpisodeDurationSaveResult {
-	changed, err := a.saveEpisodeEdits(animeID, edits)
-	if err != nil {
-		return EpisodeDurationSaveResult{Outcome: contracts.AnimePatchOutcomeError, Message: fmt.Sprintf("save episode durations: %v", err)}
-	}
-	if changed == 0 {
-		return EpisodeDurationSaveResult{Outcome: contracts.AnimePatchOutcomeNoOp}
-	}
-	return EpisodeDurationSaveResult{Outcome: contracts.AnimePatchOutcomeApplied, Changed: changed}
+// SaveEpisodeDurations saves the Episodes card on its own, in one transaction, through the
+// episodes module handle: either every edit is stored or none is. It never touches the anime, so
+// its modified_at does not move.
+func (a *App) SaveEpisodeDurations(animeID string, edits []EpisodeDurationEditDTO) (EpisodeDurationSaveResult, error) {
+	return a.moduleSet().episodes.Use(func(services episodeServices) (EpisodeDurationSaveResult, error) {
+		if services.durations == nil {
+			return EpisodeDurationSaveResult{}, errEpisodeDurationsUnavailable
+		}
+		changed, err := a.saveEpisodeEdits(services.durations, animeID, edits)
+		if err != nil {
+			return EpisodeDurationSaveResult{}, fmt.Errorf("save episode durations: %w", err)
+		}
+		if changed == 0 {
+			return EpisodeDurationSaveResult{Outcome: contracts.AnimePatchOutcomeNoOp}, nil
+		}
+		return EpisodeDurationSaveResult{Outcome: contracts.AnimePatchOutcomeApplied, Changed: changed}, nil
+	})
 }
 
-// saveEpisodeEdits stores the Editor's episode changes in one write, waking the announcer.
-func (a *App) saveEpisodeEdits(animeID string, edits []EpisodeDurationEditDTO) (int, error) {
+// saveEpisodeEdits stores the Editor's episode changes in one write over db, waking the announcer.
+func (a *App) saveEpisodeEdits(db *sql.DB, animeID string, edits []EpisodeDurationEditDTO) (int, error) {
 	if len(edits) == 0 {
 		return 0, nil
-	}
-	if a.bridgeDB == nil {
-		return 0, fmt.Errorf("episode durations unavailable")
 	}
 	domain := make([]episodes.Edit, len(edits))
 	for i, edit := range edits {
 		domain[i] = episodes.Edit{Episode: edit.Episode, DurationMS: edit.DurationMs, Source: edit.Source, Clear: edit.Clear}
 	}
-	return episodes.NewStore(a.bridgeDB, time.Now).OnPendingMarked(a.episodeDurations.wake).
+	return episodes.NewStore(db, time.Now).OnPendingMarked(a.episodeDurations.wake).
 		ApplyEdits(a.appContext(), animeID, domain)
 }
 

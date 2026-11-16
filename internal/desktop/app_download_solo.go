@@ -2,10 +2,18 @@ package desktop
 
 import (
 	"context"
+	"errors"
 
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/apperr"
 	"autoreas-bridge/internal/schedule"
 )
+
+// soloDownloadStarted is startSoloDownload's status once the run has started.
+const soloDownloadStarted = "ok"
+
+// soloDownloadAnimeNotFound is startSoloDownload's refusal for an id the anime query does not know.
+const soloDownloadAnimeNotFound = "anime not found"
 
 // startSoloDownload resolves animeIDs and runs them in the background as one App-owned download
 // run -- the single-anime catch-up and the season's chosen Ver hoy subset. It refuses while the
@@ -35,7 +43,7 @@ func (a *App) startSoloDownload(animeIDs []string, run func(ctx context.Context,
 		}
 		if anime == nil {
 			a.soloDownloadMu.Unlock()
-			return "anime not found"
+			return soloDownloadAnimeNotFound
 		}
 		animes = append(animes, *anime)
 	}
@@ -52,5 +60,29 @@ func (a *App) startSoloDownload(animeIDs []string, run func(ctx context.Context,
 		run(runCtx, animes)
 	}()
 
-	return "ok"
+	return soloDownloadStarted
+}
+
+// TriggerAnimeDownload starts a background catch-up run for one selected anime. It reuses the
+// download Service's normal run-history/events path, but scopes candidate selection to the anime
+// id chosen by the Downloads UI instead of today's schedule/season-mode set.
+func (a *App) TriggerAnimeDownload(animeID string) error {
+	_, err := a.moduleSet().downloads.Use(func(s downloadServices) (struct{}, error) {
+		return struct{}{}, soloDownloadError(a.startSoloDownload([]string{animeID}, func(ctx context.Context, animes []contracts.MobileAnime) {
+			_, _ = s.service.RunAnime(ctx, "manual_anime", animes[0])
+		}))
+	})
+	return err
+}
+
+// soloDownloadError maps startSoloDownload's status to the binding's error: nil once the run
+// started, not_found for an unknown anime, and the refusal's message otherwise.
+func soloDownloadError(status string) error {
+	switch status {
+	case soloDownloadStarted:
+		return nil
+	case soloDownloadAnimeNotFound:
+		return apperr.NotFound(status)
+	}
+	return errors.New(status)
 }

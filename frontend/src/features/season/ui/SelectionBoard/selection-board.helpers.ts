@@ -1,5 +1,5 @@
 import { toast } from '@heroui/react';
-import type { SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow } from '../../../../shared/contracts/season.types';
 import {
   CONSIDERATION_INSUFFICIENT_QUOTA,
   CONSIDERATION_NONE,

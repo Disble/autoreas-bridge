@@ -1,4 +1,4 @@
-import type { BackupExportResultDTO, BackupSource } from '../../../../infrastructure/backup-source/backup-source.types';
+import type { BackupExportResultDTO, BackupSource } from '../../../../shared/contracts/backup.types';
 
 /** The subset of `BackupSource` this feature needs -- export only, never import. */
 export type BackupExportSource = Pick<BackupSource, 'exportBackup'>;

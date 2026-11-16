@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ActivityFoldedRequest, ActivityIncidentDetail } from '../../../activity-source/activity-incident.types';
-import type { ActivitySource } from '../../../activity-source/activity-source.types';
+import type { ActivityFoldedRequest, ActivityIncidentDetail } from '../../../../../shared/contracts/activity-incident.types';
+import type { ActivitySource } from '../../../../../shared/contracts/activity.types';
 import { readActivityIncident } from '../activity-incident-detail.helpers';
 
 /** Local epoch milliseconds of Oct 17 at the given time. */

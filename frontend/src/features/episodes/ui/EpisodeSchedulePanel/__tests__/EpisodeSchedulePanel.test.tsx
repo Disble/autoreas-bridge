@@ -3,12 +3,12 @@ import type { ReactElement } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EpisodeSchedulePanel } from '../EpisodeSchedulePanel';
-import type { EpisodeScheduleSource } from '../episode-schedule-panel.types';
+import { createEpisodesWrapper, createSource } from './episode-schedule.test-support';
 
 /**
  * Mounts the panel on the routed surface it occupies in production, with a
  * probe on the Create destination so the empty state's navigation is observable
- * rather than mocked.
+ * rather than mocked, under a query wrapper whose episodes module is ready.
  */
 function renderPanel(ui: ReactElement) {
   return render(
@@ -19,28 +19,8 @@ function renderPanel(ui: ReactElement) {
         <Route element={<h2>Season workspace</h2>} path="/season" />
       </Routes>
     </MemoryRouter>,
+    { wrapper: createEpisodesWrapper().wrapper },
   );
-}
-
-/**
- * Builds a fully stubbed episode schedule source so each test only spells out
- * the one port it exercises.
- */
-function createSource(overrides: Partial<EpisodeScheduleSource> = {}): EpisodeScheduleSource {
-  return {
-    adjustWatchedEpisodes: vi.fn().mockResolvedValue({ status: 'ok' }),
-    copyAnimeFolder: vi.fn().mockResolvedValue({ status: 'ok' }),
-    copyAnimePage: vi.fn().mockResolvedValue({ status: 'ok' }),
-    getAnimeCover: vi.fn().mockResolvedValue({ source: 'placeholder' }),
-    getEpisodeDayCounts: vi.fn().mockResolvedValue([]),
-    subscribeAnimeChanges: vi.fn().mockReturnValue(() => undefined),
-    getEpisodeSchedule: vi.fn().mockResolvedValue([]),
-    getSeasonMode: vi.fn().mockResolvedValue(false),
-    openAnimeFolder: vi.fn().mockResolvedValue({ status: 'ok' }),
-    openAnimePage: vi.fn().mockResolvedValue({ status: 'ok' }),
-    setAnimeState: vi.fn().mockResolvedValue({ status: 'ok' }),
-    ...overrides,
-  };
 }
 
 afterEach(() => {
@@ -195,8 +175,8 @@ describe('EpisodeSchedulePanel', () => {
 
       renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
 
-      const viernesOption = await screen.findByRole('radio', { name: /Friday/ });
-      expect(viernesOption).toHaveTextContent('2');
+      // The tabs render before the counts load; the badge follows once they do.
+      await waitFor(() => expect(screen.getByRole('radio', { name: /Friday/ })).toHaveTextContent('2'));
     });
 
     it('shows no badge element for a day with a zero or absent count', async () => {

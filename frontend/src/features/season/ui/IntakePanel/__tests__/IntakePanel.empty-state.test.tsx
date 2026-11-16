@@ -2,7 +2,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { IntakePanel } from '../IntakePanel';
 import { useIntakePanel } from '../use-intake-panel';
-import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
+import { seasonQueryWrapper } from './intake-panel.test-support';
+import type { SeasonAnimeRow } from '../../../../../shared/contracts/season.types';
 
 vi.mock('../use-intake-panel', () => ({ useIntakePanel: vi.fn() }));
 
@@ -19,8 +20,8 @@ function row(): SeasonAnimeRow {
 /** Sets the panel hook to an empty default with selected overrides. */
 function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
   const value: HookReturn = {
-    readOnly: false, mode: 'list', switchMode: vi.fn(), rawDraft: '', onRawChange: vi.fn(), editableRows: [], selected: new Set(), toggleSelect: vi.fn(),
-    folderOverrides: {}, folderPreviews: {}, onPickFolder: vi.fn(), metadataByRow: {}, appliedMetadataByRow: {}, metadataLookupSource: {} as HookReturn['metadataLookupSource'], providerSearchSource: {},
+    asyncView: { kind: 'ready', data: [], isRefreshing: false }, readOnly: false, mode: 'list', switchMode: vi.fn(), rawDraft: '', onRawChange: vi.fn(), editableRows: [], selected: new Set(), toggleSelect: vi.fn(),
+    folderOverrides: {}, folderPreviews: {}, onPickFolder: vi.fn(), metadataByRow: {}, appliedMetadataByRow: {}, metadataLookupSource: {} as HookReturn['metadataLookupSource'],
     onMetadataApplied: vi.fn(), onMetadataClear: vi.fn(), onMetadataUndo: vi.fn(), availableCount: 0, availabilityPendingCount: 0, onCreate: vi.fn(), unresolvedCount: 0, searchFailedCount: 0,
     errorMessage: undefined, busyMessage: undefined, matchingRun: null, matchingProgressMessage: undefined, onRunMatching: vi.fn(), onRecheckAvailability: vi.fn(), onResolve: vi.fn(), onDiscard: vi.fn(), onOpenPage: vi.fn(),
     discardedRows: [], discardedMetadataByRow: {}, view: 'active', onViewChange: vi.fn(), onRestore: vi.fn(), ...overrides,
@@ -32,9 +33,25 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
 describe('IntakePanel empty state', () => {
   afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
+  it('shows only a row-shaped loading skeleton while rows are unavailable', () => {
+    mockHook({ asyncView: { kind: 'loading' }, editableRows: [row()] });
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
+    expect(screen.getByRole('status', { name: 'Loading intake' })).toBeInTheDocument();
+    expect(screen.queryByText('Dr. Stone')).not.toBeInTheDocument();
+    expect(screen.queryByText('No intake rows yet')).not.toBeInTheDocument();
+  });
+
+  it('shows the query failure rather than rows or empty state', () => {
+    mockHook({ asyncView: { kind: 'failure', code: 'internal', message: 'Load failed' }, editableRows: [row()] });
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
+    expect(screen.getByText('Load failed')).toBeInTheDocument();
+    expect(screen.queryByText('Dr. Stone')).not.toBeInTheDocument();
+    expect(screen.queryByText('No intake rows yet')).not.toBeInTheDocument();
+  });
+
   it('offers Paste list and switches to raw mode, without zero counters', () => {
     const hook = mockHook();
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     expect(screen.getByText('No intake rows yet')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Paste list' }));
     expect(hook.switchMode).toHaveBeenCalledWith('raw');
@@ -43,20 +60,20 @@ describe('IntakePanel empty state', () => {
 
   it('hides the zero counters in raw mode too when there are no rows', () => {
     mockHook({ mode: 'raw' });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     expect(screen.queryByText(/unresolved ·/)).not.toBeInTheDocument();
   });
 
   it('shows counters with rows and does not show the empty state', () => {
     mockHook({ editableRows: [row()], unresolvedCount: 1 });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     expect(screen.queryByText('No intake rows yet')).not.toBeInTheDocument();
     expect(screen.getByText(/1 unresolved ·/)).toBeInTheDocument();
   });
 
   it('shows the error instead of the empty state when empty data has failed', () => {
     mockHook({ errorMessage: 'Intake failed' });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     expect(screen.getByText('Intake failed').closest('[data-slot="alert-root"]')).toHaveClass('alert--danger');
     expect(screen.queryByText('No intake rows yet')).not.toBeInTheDocument();
     expect(screen.queryByText(/unresolved ·/)).not.toBeInTheDocument();

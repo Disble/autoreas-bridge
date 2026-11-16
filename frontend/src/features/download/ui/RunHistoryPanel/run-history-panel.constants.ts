@@ -14,6 +14,7 @@ import questionCircleIcon from '@iconify-icons/solar/question-circle-bold';
 import refreshIcon from '@iconify-icons/solar/refresh-bold';
 import stopCircleIcon from '@iconify-icons/solar/stop-circle-bold';
 import type { IconifyIcon } from '@iconify/react';
+import type { DownloadRunView } from '../../../../shared/contracts/download.types';
 import type { RunHistoryPresentation, RunHistoryStoryState, RunHistoryTone } from './run-history-panel.types';
 
 /** Milliseconds in one day, for the Today/Yesterday labels. */
@@ -21,6 +22,9 @@ export const RUN_HISTORY_DAY_MS = 86_400_000;
 
 /** Initial batch size for the run-history master list. */
 export const RUN_HISTORY_PAGE_SIZE = 20;
+
+/** The run list before the history query has answered or after it failed: one shared empty array. */
+export const RUN_HISTORY_NO_RUNS: readonly DownloadRunView[] = [];
 
 /** The detail pane's awaiting-selection copy. */
 export const RUN_HISTORY_DETAIL_AWAITING = {

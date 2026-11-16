@@ -34,11 +34,10 @@ func newOverriddenAutoStartApp(t *testing.T, reconciler autoStartReconciler) *Ap
 	if err := store.SetAutoStartEnabled(context.Background(), true); err != nil {
 		t.Fatalf("SetAutoStartEnabled: %v", err)
 	}
-	return &App{
-		settingsStore:          store,
+	return withSettingsStore(&App{
 		newAutoStartReconciler: func() autoStartReconciler { return reconciler },
 		getenvFn:               dataDirEnv(filepath.Join(t.TempDir(), "dev-data")),
-	}
+	}, store)
 }
 
 func TestReconcileAutoStartNeverTouchesTheRegistryFromADataDirCopy(t *testing.T) {
@@ -60,14 +59,14 @@ func TestSetAutoStartEnabledPersistsButSkipsTheRegistryFromADataDirCopy(t *testi
 	reconciler := &recordingAutoStartReconciler{}
 	app := newOverriddenAutoStartApp(t, reconciler)
 
-	if got := app.SetAutoStartEnabled(false); got != "ok" {
-		t.Fatalf("SetAutoStartEnabled = %q, want ok", got)
+	if err := app.SetAutoStartEnabled(false); err != nil {
+		t.Fatalf("SetAutoStartEnabled: %v", err)
 	}
 	if reconciler.calls != 0 {
 		t.Fatalf("reconciler calls = %d, want 0", reconciler.calls)
 	}
-	if app.GetAutoStartEnabled() {
-		t.Fatal("expected the preference to persist as disabled")
+	if enabled, err := app.GetAutoStartEnabled(); err != nil || enabled {
+		t.Fatalf("GetAutoStartEnabled = %v, %v; want the preference persisted as disabled", enabled, err)
 	}
 }
 
@@ -105,8 +104,8 @@ func TestSetAutoStartEnabledReconcilesTheRegistryWithoutADataDirCopy(t *testing.
 	app := newOverriddenAutoStartApp(t, reconciler)
 	app.getenvFn = dataDirEnv("")
 
-	if got := app.SetAutoStartEnabled(false); got != "ok" {
-		t.Fatalf("SetAutoStartEnabled = %q, want ok", got)
+	if err := app.SetAutoStartEnabled(false); err != nil {
+		t.Fatalf("SetAutoStartEnabled: %v", err)
 	}
 	if reconciler.calls != 1 || reconciler.enabled {
 		t.Fatalf("reconciler calls = %d enabled = %v, want 1 call with false", reconciler.calls, reconciler.enabled)
@@ -121,7 +120,7 @@ func TestAutoStartToleratesAMissingReconciler(t *testing.T) {
 	app.newAutoStartReconciler = nil
 
 	app.reconcileAutoStart(context.Background())
-	if got := app.SetAutoStartEnabled(false); got != "ok" {
-		t.Fatalf("SetAutoStartEnabled = %q, want ok", got)
+	if err := app.SetAutoStartEnabled(false); err != nil {
+		t.Fatalf("SetAutoStartEnabled: %v", err)
 	}
 }

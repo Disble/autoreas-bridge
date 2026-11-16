@@ -18,13 +18,11 @@ type ActivityFeedQuery struct {
 // SearchActivityFeed returns one page of the Activity feed for the query,
 // read with the app clock.
 func (a *App) SearchActivityFeed(query ActivityFeedQuery) (activityread.FeedView, error) {
-	reader, err := a.activityReader()
-	if err != nil {
-		return activityread.FeedView{}, err
-	}
-	return reader.Feed(a.seasonCtx(), activityread.FeedInput{
-		Now: a.currentTime(), FromMS: query.FromMS, ToMS: query.ToMS, Origin: activityread.FeedOrigin(query.Origin),
-		Types: toFeedTypes(query.Types), FailuresOnly: query.FailuresOnly, Cursor: query.Cursor, Limit: query.Limit,
+	return a.moduleSet().observability.Use(func(services observabilityServices) (activityread.FeedView, error) {
+		return services.activity.Feed(a.seasonCtx(), activityread.FeedInput{
+			Now: a.currentTime(), FromMS: query.FromMS, ToMS: query.ToMS, Origin: activityread.FeedOrigin(query.Origin),
+			Types: toFeedTypes(query.Types), FailuresOnly: query.FailuresOnly, Cursor: query.Cursor, Limit: query.Limit,
+		})
 	})
 }
 
@@ -33,13 +31,11 @@ func (a *App) SearchActivityFeed(query ActivityFeedQuery) (activityread.FeedView
 // zero bound means the edge of the scale's window. The bars count the lines
 // of types and failuresOnly, as the feed lists them; no types means every type.
 func (a *App) GetActivityOverview(scale string, fromMS, toMS int64, origin string, types []string, failuresOnly bool) (activityread.OverviewView, error) {
-	reader, err := a.activityReader()
-	if err != nil {
-		return activityread.OverviewView{}, err
-	}
-	return reader.Overview(a.seasonCtx(), activityread.OverviewInput{
-		Now: a.currentTime(), Scale: activityread.ChartScale(scale), FromMS: fromMS, ToMS: toMS, Origin: activityread.FeedOrigin(origin),
-		Types: toFeedTypes(types), FailuresOnly: failuresOnly,
+	return a.moduleSet().observability.Use(func(services observabilityServices) (activityread.OverviewView, error) {
+		return services.activity.Overview(a.seasonCtx(), activityread.OverviewInput{
+			Now: a.currentTime(), Scale: activityread.ChartScale(scale), FromMS: fromMS, ToMS: toMS, Origin: activityread.FeedOrigin(origin),
+			Types: toFeedTypes(types), FailuresOnly: failuresOnly,
+		})
 	})
 }
 
@@ -55,21 +51,17 @@ func toFeedTypes(names []string) []activityread.FeedType {
 // GetActivityEvent returns one runtime event with its metadata, for the
 // Activity drawer; Found is false when no event has that id.
 func (a *App) GetActivityEvent(id int64) (activityread.EventDetail, error) {
-	reader, err := a.activityReader()
-	if err != nil {
-		return activityread.EventDetail{}, err
-	}
-	return reader.Event(a.seasonCtx(), id)
+	return a.moduleSet().observability.Use(func(services observabilityServices) (activityread.EventDetail, error) {
+		return services.activity.Event(a.seasonCtx(), id)
+	})
 }
 
-// GetActivityPhoneReport returns one stored mobile report as Bridge validated it
+// GetActivityPhoneReport returns one stored mobile report as Bridge validated
 // it, for the Activity Technical view; Found is false when no report has that id.
 func (a *App) GetActivityPhoneReport(id int64) (activityread.PhoneReportDetail, error) {
-	reader, err := a.activityReader()
-	if err != nil {
-		return activityread.PhoneReportDetail{}, err
-	}
-	return reader.PhoneReport(a.seasonCtx(), id)
+	return a.moduleSet().observability.Use(func(services observabilityServices) (activityread.PhoneReportDetail, error) {
+		return services.activity.PhoneReport(a.seasonCtx(), id)
+	})
 }
 
 // GetActivityChangeContext returns what one Activity change line, by its id and time,
@@ -78,9 +70,7 @@ func (a *App) GetActivityPhoneReport(id int64) (activityread.PhoneReportDetail, 
 // itself, so the reader matches by anime and time
 // (activityread.ChangeContextWindow); Found is false for an unknown id.
 func (a *App) GetActivityChangeContext(changeID, atMS int64) (activityread.ChangeContext, error) {
-	reader, err := a.activityReader()
-	if err != nil {
-		return activityread.ChangeContext{}, err
-	}
-	return reader.ChangeContext(a.seasonCtx(), changeID, atMS)
+	return a.moduleSet().observability.Use(func(services observabilityServices) (activityread.ChangeContext, error) {
+		return services.activity.ChangeContext(a.seasonCtx(), changeID, atMS)
+	})
 }

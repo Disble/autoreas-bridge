@@ -32,7 +32,7 @@ export function IntakeRowActions(props: Readonly<IntakeRowActionsProps>) {
         />
       )}
       {!readOnly && canFindOnProvider(row.matchStatus) && (
-        <IntakeProviderLookup rawName={row.rawName} source={props.providerSearchSource} onResolve={props.onResolve} />
+        <IntakeProviderLookup rawName={row.rawName} onResolve={props.onResolve} />
       )}
       {row.matchedSlug !== '' && <OpenPageButton name={row.rawName} pageUrl={row.matchedSlug} onOpen={props.onOpenPage} />}
       {props.creatable && !readOnly && (

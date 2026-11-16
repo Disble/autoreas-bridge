@@ -1,7 +1,6 @@
 import type { DragOverEvent } from '@dnd-kit/react';
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
-import type { OrderingBoard, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
-import type { SeasonStoreState } from '../../../../shared/store/season-store/season-store.types';
+import type { OrderingBoard, SeasonAnimeRow, SeasonSource } from '../../../../shared/contracts/season.types';
 import type { SeasonCoverThumbProps } from '../SeasonCoverThumb/season-cover-thumb.types';
 import type { SeasonSectionId } from '../SeasonWorkspace/season-workspace.types';
 import type { OrderingState } from '../../../../shared/ordering/ordering.types';
@@ -43,19 +42,6 @@ export interface OrderingCardMeta {
   readonly hasFolder: boolean;
   readonly pageUrl: string;
   readonly folderPath: string;
-}
-
-/**
- * Which board the hook currently holds: the live schedule, or one past season's
- * stored closure snapshot. The pair is what lets the hook tell "still reading
- * this season's record" from "the record for this season is loaded" without a
- * separate loading flag that a fast switch could leave stale.
- */
-export interface OrderingBoardOrigin {
-  /** The past season whose stored board was read; null when the board is the live schedule. */
-  readonly seasonId: string | null;
-  /** Whether the stored snapshot exists; only meaningful when `seasonId` is set. */
-  readonly recorded: boolean;
 }
 
 /**
@@ -168,11 +154,21 @@ export interface OrderingColumnProps {
   readonly children: ReactNode;
 }
 
-/** Season store values and actions consumed by the ordering board hook. */
-export type OrderingBoardStoreBindings = Pick<
-  SeasonStoreState,
-  'closeSeason' | 'readOnly' | 'viewSeasonId' | 'seasonAnimes' | 'ensureAnimesLoaded' | 'errorMessage'
->;
+/** Season view state, the displayed rows and the commands the ordering board hook consumes. */
+export type OrderingBoardStoreBindings = {
+  /** Closes the open season, then reads it again. */
+  readonly closeSeason: () => Promise<void>;
+  /** Whether the board is read-only because a past season is viewed. */
+  readonly readOnly: boolean;
+  /** The past season being viewed, or null for the live season. */
+  readonly viewSeasonId: string | null;
+  /** The displayed season's intake rows, read through `shared/query`. */
+  readonly seasonAnimes: readonly SeasonAnimeRow[];
+  /** Resolves once the rows are loaded; the read owns that, so it never blocks. */
+  readonly ensureAnimesLoaded: () => Promise<void>;
+  /** The shared season banner text. */
+  readonly errorMessage?: string;
+};
 
 /** Inputs of the hook that loads the live or stored board into the working state. */
 export interface OrderingBoardLoadParams {
@@ -182,21 +178,41 @@ export interface OrderingBoardLoadParams {
   readonly viewSeasonId: string | null;
 }
 
+/**
+ * The loaded board the working state was last built from, and the reload
+ * generation it was built in: a new board, or a completed reload of the same
+ * board, rebuilds the working state.
+ */
+export interface OrderingBoardSync {
+  /** The loaded board (live, with its draft, or a past season's stored board). */
+  readonly board: OrderingBoard;
+  /** The reload generation the working state was built in. */
+  readonly generation: number;
+}
+
+/** Where the viewed past season's stored board read stands; the live board is always recorded. */
+export interface OrderingBoardHistory {
+  /** True while the viewed past season's stored board is still unresolved. */
+  readonly isHistoricalLoading: boolean;
+  /** Whether the stored board exists; true for the live schedule. */
+  readonly historicalRecorded: boolean;
+  /** The failure message of the stored-board read, when it failed or cannot be made. */
+  readonly historicalError: string | undefined;
+}
+
 /** What the board load hook holds and exposes to the ordering board hook. */
-export interface OrderingBoardLoadResult {
+export interface OrderingBoardLoadResult extends OrderingBoardHistory {
   /** The last loaded board, the baseline the change count compares against. */
   readonly board: OrderingBoard;
   /** The editable working state. */
   readonly state: WorkingState;
   /** Replaces the working state (drag, duplicate, remove). */
   readonly setState: Dispatch<SetStateAction<WorkingState>>;
-  /** True while the viewed past season's stored board is still unresolved. */
-  readonly isHistoricalLoading: boolean;
-  /** Whether the stored board exists; true for the live schedule. */
-  readonly historicalRecorded: boolean;
-  /** The failure message of the last stored-board read, when it failed. */
-  readonly historicalError: string | undefined;
-  /** Re-reads the board for the current view and resets the working state. */
+  /** True while the live board is shown and its first read has not settled (module starting or read in flight). */
+  readonly isLiveLoading: boolean;
+  /** The failure message of the live board read while the live board is shown, when it failed. */
+  readonly liveError: string | undefined;
+  /** Re-reads the live board and rebuilds the working state from it. */
   readonly load: () => Promise<void>;
 }
 
@@ -207,7 +223,7 @@ export interface OrderingBoardDerivedParams {
   /** The editable working state. */
   readonly state: WorkingState;
   /** The season selection rows that card metadata is joined from. */
-  readonly seasonAnimes: SeasonStoreState['seasonAnimes'];
+  readonly seasonAnimes: readonly SeasonAnimeRow[];
 }
 
 /** Inputs of the hook that owns the user's edits to the working state. */
@@ -234,8 +250,8 @@ export interface OrderingBoardEdits {
 
 /** Inputs of the hook that autosaves the working draft after a user edit. */
 export interface OrderingBoardAutosaveParams {
-  /** The season source the draft is saved through. */
-  readonly source: SeasonSource;
+  /** Saves the serialized draft (the `saveOrderingDraft` command). */
+  readonly saveDraft: (draftJson: string) => void;
   /** The editable working state. */
   readonly state: WorkingState;
   /** Whether the user edited the board since it was last loaded. */

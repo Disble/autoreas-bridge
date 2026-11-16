@@ -22,6 +22,7 @@ import (
 	"autoreas-bridge/internal/api"
 	"autoreas-bridge/internal/backup"
 	"autoreas-bridge/internal/events"
+	"autoreas-bridge/internal/lifecycle"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
@@ -44,7 +45,7 @@ func appBackupImportTestApp(t *testing.T) (*App, string) {
 	app.pickBundle = func(context.Context, string) (string, error) {
 		return "", errors.New("pickBundle not stubbed for this test")
 	}
-	return app, dbPath
+	return inBackupState(app, lifecycle.StateReady), dbPath
 }
 
 // hashFile returns the hex SHA-256 of path's bytes.
@@ -422,7 +423,7 @@ func TestPendingPreviewIsClearedAfterAnyTerminalOutcome(t *testing.T) {
 
 func TestImportedBundleAppliesExactlyTheSixKnownGroups(t *testing.T) {
 	app, _ := appBackupImportTestApp(t)
-	groups := app.importGroups()
+	groups := app.importGroups(app.bridgeDB)
 
 	wantNames := []string{"anime_snapshots", "seasons", "season_animes", "watched_episodes", "episode_durations", "keyboard_keymap"}
 	if len(groups) != len(wantNames) {

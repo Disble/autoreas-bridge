@@ -15,20 +15,22 @@ describe('SyncingAnimePanel', () => {
 
   it('renders a populated syncing anime list', () => {
     useSyncingAnimePanelMock.mockReturnValue({
-      isLoading: false,
-      isEmpty: false,
-      items: [
-        {
-          animeId: 'anime-7',
-          title: 'Dungeon Meshi',
-          changeLabel: 'Updated',
-          changeTone: 'warning',
-          queueLabel: '2 pending changes',
-          progressLabel: 'Episode 18 / 24',
-          changedFields: ['nrocapvisto'],
-          lastUpdatedLabel: '2026-06-20 18:15:00',
-        },
-      ],
+      view: {
+        kind: 'ready',
+        isRefreshing: false,
+        data: [
+          {
+            animeId: 'anime-7',
+            title: 'Dungeon Meshi',
+            changeLabel: 'Updated',
+            changeTone: 'warning',
+            queueLabel: '2 pending changes',
+            progressLabel: 'Episode 18 / 24',
+            changedFields: ['nrocapvisto'],
+            lastUpdatedLabel: '2026-06-20 18:15:00',
+          },
+        ],
+      },
     });
 
     render(<SyncingAnimePanel refreshToken={0} />);
@@ -40,11 +42,7 @@ describe('SyncingAnimePanel', () => {
   });
 
   it('renders the empty state when no anime is pending', () => {
-    useSyncingAnimePanelMock.mockReturnValue({
-      isLoading: false,
-      isEmpty: true,
-      items: [],
-    });
+    useSyncingAnimePanelMock.mockReturnValue({ view: { kind: 'empty' } });
 
     render(<SyncingAnimePanel refreshToken={0} />);
 
@@ -53,7 +51,7 @@ describe('SyncingAnimePanel', () => {
   });
 
   it('announces loading through a named status region', () => {
-    useSyncingAnimePanelMock.mockReturnValue({ isLoading: true, isEmpty: false, items: [] });
+    useSyncingAnimePanelMock.mockReturnValue({ view: { kind: 'loading' } });
 
     render(<SyncingAnimePanel refreshToken={0} />);
 
@@ -61,7 +59,7 @@ describe('SyncingAnimePanel', () => {
   });
 
   it('mirrors the card grid shape with placeholder cards while loading', () => {
-    useSyncingAnimePanelMock.mockReturnValue({ isLoading: true, isEmpty: false, items: [] });
+    useSyncingAnimePanelMock.mockReturnValue({ view: { kind: 'loading' } });
 
     render(<SyncingAnimePanel refreshToken={0} />);
 
@@ -69,40 +67,22 @@ describe('SyncingAnimePanel', () => {
   });
 
   it('does not render the loading status region or placeholder cards once resolved', () => {
-    useSyncingAnimePanelMock.mockReturnValue({ isLoading: false, isEmpty: true, items: [] });
+    useSyncingAnimePanelMock.mockReturnValue({ view: { kind: 'empty' } });
 
-    render(<SyncingAnimePanel refreshToken={0} />);
+    const { container } = render(<SyncingAnimePanel refreshToken={0} />);
 
     expect(screen.queryByRole('status', { name: 'Loading pending anime queue...' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('syncing-anime-skeleton-card')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-slot="alert"], .alert')).toBeNull();
   });
 
-  it('renders no syncing card while a refetch keeps the previous item and sets isLoading', () => {
-    // The hook is mocked, so this reproduces the exact prop combination a real
-    // refetch produces: isLoading flips back to true before the request
-    // resolves, but the item from the previous, already-resolved read is
-    // still sitting in state until it does. On first mount items start empty,
-    // which is why the same bug on other surfaces was invisible until here.
-    useSyncingAnimePanelMock.mockReturnValue({
-      isLoading: true,
-      isEmpty: false,
-      items: [
-        {
-          animeId: 'anime-7',
-          title: 'Dungeon Meshi',
-          changeLabel: 'Updated',
-          changeTone: 'warning',
-          queueLabel: '2 pending changes',
-          progressLabel: 'Episode 18 / 24',
-          changedFields: ['nrocapvisto'],
-          lastUpdatedLabel: '2026-06-20 18:15:00',
-        },
-      ],
-    });
+  it('renders only the failure Alert when the queue cannot be read', () => {
+    useSyncingAnimePanelMock.mockReturnValue({ view: { kind: 'failure', code: 'failed_precondition', message: 'sync: database locked' } });
 
     render(<SyncingAnimePanel refreshToken={0} />);
 
-    expect(screen.queryByText('Dungeon Meshi')).not.toBeInTheDocument();
-    expect(screen.queryByText('2 pending changes')).not.toBeInTheDocument();
+    expect(screen.getByText('sync: database locked')).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Loading pending anime queue...' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 3, name: 'Nothing is syncing right now.' })).not.toBeInTheDocument();
   });
 });

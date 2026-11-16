@@ -1,5 +1,6 @@
-import type { Anime } from '../../../../shared/contracts/anime.types';
 import type { ReactNode } from 'react';
+import type { EpisodeCommandsSource, EpisodeScheduleItem, EpisodesSource } from '../../../../shared/contracts/episodes.types';
+import type { AsyncView } from '../../../../shared/query/async-view/async-view.types';
 
 /** Which lens groups the Episodes list: season watch states or weekdays. */
 export type EpisodeViewLens = 'season' | 'daily';
@@ -14,37 +15,20 @@ export interface EpisodeSchedulePanelProps {
   readonly banner?: ReactNode;
 }
 
-/** Request/reply port used by the Episodes UI hook. */
-export interface EpisodeScheduleSource {
+/**
+ * Request/reply port used by the Episodes UI hook: the episodes module's two
+ * reads (`EpisodesSource`, read through `useBridgeQuery`) and its two row
+ * writes (`EpisodeCommandsSource`, run through `useBridgeMutation`), plus the
+ * season probe, covers and desktop actions. Live updates come from the
+ * `anime.changed` invalidation rule.
+ */
+export interface EpisodeScheduleSource extends EpisodesSource, Pick<EpisodeCommandsSource, 'adjustWatchedEpisodes' | 'setAnimeState'> {
   readonly getSeasonMode: () => Promise<boolean>;
-  readonly getEpisodeSchedule: (day: string) => Promise<readonly EpisodeScheduleItem[]>;
-  readonly adjustWatchedEpisodes: (animeID: string, delta: number, base: number) => Promise<EpisodeCommandResult>;
-  readonly setAnimeState: (animeID: string, estado: number, base: number) => Promise<EpisodeCommandResult>;
   readonly openAnimePage: (animeID: string) => Promise<EpisodeCommandResult>;
   readonly copyAnimePage: (animeID: string) => Promise<EpisodeCommandResult>;
   readonly openAnimeFolder: (animeID: string) => Promise<EpisodeCommandResult>;
   readonly copyAnimeFolder: (animeID: string) => Promise<EpisodeCommandResult>;
   readonly getAnimeCover: (animeID: string) => Promise<AnimeCover>;
-  readonly getEpisodeDayCounts: () => Promise<readonly EpisodeDayCount[]>;
-  /**
-   * Subscribes to committed anime changes pushed by the backend so the panel
-   * reflects writes made outside this window (mobile, REST API, background
-   * downloads). Returns the unsubscribe handle.
-   */
-  readonly subscribeAnimeChanges: (listener: () => void) => () => void;
-}
-
-/**
- * One Today mark: the NEXT episode number and its stored runtime in whole
- * minutes, in one value so the two facts cannot disagree. Absent means the
- * row is unmarked and carries no chip; nil is omitted on the wire for the
- * same reason. Mirrors the generated `LongEpisodeMark` contract.
- */
-export interface LongEpisodeMark {
-  /** The NEXT episode number: watched progress + 1, looked up in the stored durations. */
-  readonly episode: number;
-  /** The stored runtime in whole minutes. */
-  readonly minutes: number;
 }
 
 /**
@@ -59,38 +43,32 @@ export interface LongEpisodeChip {
   readonly tooltip: string;
 }
 
-/** Wails-facing schedule item returned by the backend episode command service. */
-export type EpisodeScheduleItem = Pick<
-  Anime,
-  'status' | 'episodesWatched' | 'totalEpisodes'
-> & {
-  readonly animeId: string;
-  readonly animeName: string;
-  readonly day: string;
-  readonly dayOrder: number;
-  readonly modified_at: number;
-  readonly folderPath?: string;
-  readonly pageUrl?: string;
-  readonly hasCover: boolean;
-  /**
-   * Marks the anime whose next episode runs long. Absent when unmarked, so
-   * the row renders exactly as it does today, with no chip and no placeholder.
-   */
-  readonly longNextEpisode?: LongEpisodeMark;
-  readonly lastWatched?: number;
-  readonly firstWatched?: number;
-};
-
 /** Cover resolution result for one anime, fetched lazily and cached per session. */
 export interface AnimeCover {
   readonly dataUrl?: string;
   readonly source: 'cover' | 'placeholder';
 }
 
-/** Per-weekday count of active, unresolved-progress anime (mirrors Legacy's buscarMedalla). */
-export interface EpisodeDayCount {
-  readonly day: string;
-  readonly count: number;
+/** The one state Today's schedule area renders (ADR-032 §4), its rows view-ready. */
+export type EpisodeScheduleView = AsyncView<readonly EpisodeScheduleRow[]>;
+
+/**
+ * The message of the last rejected row write ('' once a later write cleared
+ * it) and when it was raised (epoch ms): it shows until the schedule loads again.
+ */
+export interface EpisodeCommandFailure {
+  readonly message: string;
+  readonly raisedAt: number;
+}
+
+/** The part of the schedule query `toEpisodeScheduleView` reads. */
+export interface EpisodeScheduleQueryState {
+  readonly status: 'pending' | 'error' | 'success';
+  readonly data: readonly EpisodeScheduleItem[] | undefined;
+  readonly error: unknown;
+  readonly isFetching: boolean;
+  /** True while a new day's key shows the previous day's rows. */
+  readonly isPlaceholderData: boolean;
 }
 
 /** In-memory, per-session cover cache entry keyed by anime id. */
@@ -164,6 +142,16 @@ export interface EpisodeEmptyStateCopy {
   readonly kind: 'first-run' | 'waiting-on-step';
   /** Where the empty state's one action sends the user. */
   readonly action: EpisodeEmptyStateAction;
+}
+
+/**
+ * One Today row write: the anime, the change (the watched-episode delta, or
+ * the new state), and the row's `modifiedAt` as the optimistic-concurrency base.
+ */
+export interface EpisodeRowWrite {
+  readonly animeID: string;
+  readonly value: number;
+  readonly base: number;
 }
 
 /** Collaborators the Today write commands need, and nothing more. */

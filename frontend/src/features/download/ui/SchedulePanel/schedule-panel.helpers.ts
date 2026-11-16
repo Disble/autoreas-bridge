@@ -1,3 +1,4 @@
+import type { AsyncView } from '../../../../shared/query/async-view/async-view.types';
 import type { DownloadReadinessSnapshot, ScheduleConfig, ScheduleMissedNotice } from '../../../../shared/contracts/download.types';
 import { getDownloadReadinessReasonLabel } from '../../../../shared/constants/download-readiness';
 import { ALL_WEEKDAYS_MASK, WEEKDAY_OPTIONS } from './schedule-panel.constants';
@@ -8,6 +9,13 @@ import type {
   ScheduleReadinessViewModel,
   ScheduleSaveEdits,
 } from './schedule-panel.types';
+
+/** Maps the schedule query state to the panel status. */
+export function scheduleLoadStatus(kind: AsyncView<unknown>['kind']): 'loading' | 'error' | 'ready' {
+  if (kind === 'failure') return 'error';
+  if (kind === 'ready') return 'ready';
+  return 'loading';
+}
 
 /**
  * Maps a 7-bit weekday mask (bit i = `time.Weekday(i)`, Sunday=0..Saturday=6)

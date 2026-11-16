@@ -1,20 +1,43 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { bridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
+import { status } from '../../../../../shared/query/test-support/readiness-source.test-support';
 import { AnimeCreate } from '../AnimeCreate';
 
-vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
-  bridgeRuntimeSource: {
+/** The anime module's board, create and catalog reads, and the settings module's library root. */
+const { editorSource, settingsSource } = vi.hoisted(() => ({
+  editorSource: {
     getAnimeEditorScheduleBoard: vi.fn(),
     createAnime: vi.fn(),
-    pickFolder: vi.fn(),
     getAnimes: vi.fn().mockResolvedValue([]),
+  },
+  settingsSource: { getLibraryRoot: vi.fn().mockResolvedValue('D:\\Anime') },
+}));
+
+vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
+  bridgeRuntimeSource: { pickFolder: vi.fn() },
+}));
+
+vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  /** The create hooks' default anime-module port. */
+  get BRIDGE_ANIME_EDITOR_SOURCE() {
+    return editorSource;
+  },
+  /** The create bootstrap's default settings port. */
+  get BRIDGE_SETTINGS_SOURCE() {
+    return settingsSource;
   },
 }));
 
-vi.mock('../../../../../infrastructure/preferences-source/preferences-source.helpers', () => ({
-  preferencesSource: { getLibraryRoot: vi.fn().mockResolvedValue('D:\\Anime') },
-}));
+/**
+ * A query client whose `anime` and `settings` modules are ready, so the board,
+ * the catalog and the library root read at once.
+ * @returns The wrapper; build one per render.
+ */
+function createReadyWrapper() {
+  return createModulesTestWrapper(status('anime', 'ready'), status('settings', 'ready')).wrapper;
+}
 
 /** A loaded schedule board with one weekday and no existing entries, so the cases
  * exercise placement without any stored anime getting in the way. */
@@ -31,9 +54,9 @@ describe('AnimeCreate', () => {
   });
 
   it('renders the compact form and keeps placement gated until a row has a name and page', async () => {
-    vi.mocked(bridgeRuntimeSource.getAnimeEditorScheduleBoard).mockResolvedValue(boardResult as never);
+    vi.mocked(editorSource.getAnimeEditorScheduleBoard).mockResolvedValue(boardResult as never);
 
-    render(<AnimeCreate />);
+    render(<AnimeCreate />, { wrapper: createReadyWrapper() });
 
     expect(screen.queryByRole('heading', { name: 'Create anime' })).toBeNull();
     expect(screen.getByLabelText('Name')).toBeInTheDocument();
@@ -44,18 +67,18 @@ describe('AnimeCreate', () => {
   });
 
   it('shows the entered title in the card header instead of the row number', () => {
-    vi.mocked(bridgeRuntimeSource.getAnimeEditorScheduleBoard).mockResolvedValue(boardResult as never);
+    vi.mocked(editorSource.getAnimeEditorScheduleBoard).mockResolvedValue(boardResult as never);
 
-    render(<AnimeCreate />);
+    render(<AnimeCreate />, { wrapper: createReadyWrapper() });
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Tengen Toppa Gurren Lagann' } });
 
     expect(screen.getByText('Tengen Toppa Gurren Lagann')).toBeInTheDocument();
   });
 
   it('opens the create-scoped board only after the row is filled, keeping create disabled while the draft is unplaced', async () => {
-    vi.mocked(bridgeRuntimeSource.getAnimeEditorScheduleBoard).mockResolvedValue(boardResult as never);
+    vi.mocked(editorSource.getAnimeEditorScheduleBoard).mockResolvedValue(boardResult as never);
 
-    render(<AnimeCreate />);
+    render(<AnimeCreate />, { wrapper: createReadyWrapper() });
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Frieren' } });
     fireEvent.change(screen.getByLabelText('Download page'), { target: { value: 'https://example.test/frieren' } });
@@ -67,13 +90,13 @@ describe('AnimeCreate', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Place your new anime' })).toBeInTheDocument());
     expect(screen.getAllByText('Frieren').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Create anime' })).toBeDisabled();
-    expect(bridgeRuntimeSource.createAnime).not.toHaveBeenCalled();
+    expect(editorSource.createAnime).not.toHaveBeenCalled();
   });
 
   it('removes an empty row directly, but confirms before removing one with data', () => {
-    vi.mocked(bridgeRuntimeSource.getAnimeEditorScheduleBoard).mockResolvedValue(boardResult as never);
+    vi.mocked(editorSource.getAnimeEditorScheduleBoard).mockResolvedValue(boardResult as never);
 
-    render(<AnimeCreate />);
+    render(<AnimeCreate />, { wrapper: createReadyWrapper() });
 
     fireEvent.click(screen.getByRole('button', { name: 'Add another anime' }));
     expect(screen.getAllByLabelText('Name')).toHaveLength(2);
@@ -99,11 +122,11 @@ describe('AnimeCreate duplicate name', () => {
   });
 
   it('shows the clash under the Name field instead of waiting for the schedule step', async () => {
-    vi.mocked(bridgeRuntimeSource.getAnimeEditorScheduleBoard).mockResolvedValue(boardResult as never);
-    vi.mocked(bridgeRuntimeSource.getAnimes).mockResolvedValue([{ id: 'existing', name: 'Comic Girls' }] as never);
+    vi.mocked(editorSource.getAnimeEditorScheduleBoard).mockResolvedValue(boardResult as never);
+    vi.mocked(editorSource.getAnimes).mockResolvedValue([{ id: 'existing', name: 'Comic Girls' }] as never);
 
-    render(<AnimeCreate />);
-    await waitFor(() => expect(bridgeRuntimeSource.getAnimes).toHaveBeenCalled());
+    render(<AnimeCreate />, { wrapper: createReadyWrapper() });
+    await waitFor(() => expect(editorSource.getAnimes).toHaveBeenCalled());
 
     fireEvent.change(screen.getByPlaceholderText('e.g. Shokugeki no Souma'), { target: { value: 'Comic Girls' } });
 

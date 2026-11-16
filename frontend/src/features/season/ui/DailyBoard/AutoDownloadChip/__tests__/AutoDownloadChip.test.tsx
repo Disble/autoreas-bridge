@@ -4,9 +4,9 @@ import offIcon from '@iconify-icons/solar/forbidden-circle-linear';
 import type { IconifyIcon } from '@iconify/react';
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DownloadRuntimeSource } from '../../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { ScheduleConfig } from '../../../../../../shared/contracts/download.types';
-import { resetDownloadRuntimeStore } from '../../../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
+import { createDownloadsSourceFake, createDownloadsWrapper } from '../../../../../../shared/hooks/use-missed-schedule-notice/__tests__/downloads.test-support';
+import type { DownloadsSource } from '../../../../../../shared/contracts/download.types';
 import { AutoDownloadChip } from '../AutoDownloadChip';
 
 // Renders each icon as an svg carrying its path data, so a case can tell which icon a state shows.
@@ -55,19 +55,28 @@ const SCHEDULE: ScheduleConfig = {
   enabledWeekdays: 127,
 };
 
-/** A Downloads port whose schedule read resolves to the given config; nothing else is used. */
-function createSource(config: ScheduleConfig): DownloadRuntimeSource {
-  return {
-    getScheduleConfig: vi.fn().mockResolvedValue(config),
-    listDownloadRuns: vi.fn().mockResolvedValue([]),
-    subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
-    subscribeMissedScheduleSettled: vi.fn().mockReturnValue(() => undefined),
-  } as unknown as DownloadRuntimeSource;
+/**
+ * A downloads port whose schedule read resolves to the given config.
+ * @param config The schedule the read answers.
+ * @returns The port.
+ */
+function createSource(config: ScheduleConfig): DownloadsSource {
+  return createDownloadsSourceFake({ getScheduleConfig: vi.fn().mockResolvedValue(config) });
+}
+
+/**
+ * Renders the chip over source under a downloads wrapper whose module is ready.
+ * @param source The downloads port.
+ * @returns The render result and the wrapper's client.
+ */
+function renderWithDownloads(source: DownloadsSource) {
+  const { client, wrapper } = createDownloadsWrapper();
+  return { ...render(<AutoDownloadChip source={source} />, { wrapper }), client };
 }
 
 /** Renders the chip and lets the schedule read settle. */
 async function renderChip(config: ScheduleConfig) {
-  render(<AutoDownloadChip source={createSource(config)} />);
+  renderWithDownloads(createSource(config));
   await act(async () => {
     await vi.advanceTimersByTimeAsync(0);
   });
@@ -82,18 +91,17 @@ describe('AutoDownloadChip', () => {
 
   afterEach(() => {
     vi.useRealTimers();
-    resetDownloadRuntimeStore();
   });
 
   it('renders nothing until the schedule has loaded', () => {
-    const { container } = render(<AutoDownloadChip source={createSource(SCHEDULE)} />);
+    const { container } = renderWithDownloads(createSource(SCHEDULE));
 
     expect(container).toBeEmptyDOMElement();
   });
 
   it('renders nothing when the schedule could not be read, rather than claiming it is off', async () => {
     const source = { ...createSource(SCHEDULE), getScheduleConfig: vi.fn().mockRejectedValue(new Error('store unavailable')) };
-    const { container } = render(<AutoDownloadChip source={source} />);
+    const { container } = renderWithDownloads(source);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
@@ -125,10 +133,13 @@ describe('AutoDownloadChip', () => {
   });
 
   it('stops re-reading the clock once it unmounts', async () => {
-    render(<AutoDownloadChip source={createSource(SCHEDULE)} />).unmount();
+    const { unmount, client } = renderWithDownloads(createSource(SCHEDULE));
+    unmount();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
+    // The query cache keeps its own garbage-collection timer; only the chip's clock is under test.
+    client.clear();
 
     expect(vi.getTimerCount()).toBe(0);
   });

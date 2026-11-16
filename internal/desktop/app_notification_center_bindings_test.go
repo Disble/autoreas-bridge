@@ -21,7 +21,12 @@ func notificationCenterAppTestDB(t *testing.T) *App {
 		t.Fatalf("open bridge db: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return &App{bridgeDB: db, notificationCenterStore: center.NewStore(db, center.StoreConfig{})}
+	app := &App{bridgeDB: db, notificationCenterStore: center.NewStore(db, center.StoreConfig{})}
+	// The notifications module serves the bindings once ready. The executor is wired only by
+	// tests that call wireNotificationCenterIntentExecutor, which rebinds every service.
+	app.moduleSet().notifications.Bind(notificationServices{store: app.notificationCenterStore})
+	_ = app.moduleSet().writer.MarkReady(moduleNotifications)
+	return app
 }
 
 // findWireNotificationRow returns the row with the given id from a wire page,
@@ -57,11 +62,11 @@ func TestListNotificationsMapsStoreValuesToContractDTOs(t *testing.T) {
 		t.Fatalf("insert record: %v", err)
 	}
 
-	page := app.ListNotifications(contracts.NotificationListRequest{Limit: 10})
-
-	if page.Degraded {
-		t.Fatal("expected a populated page not to be degraded")
+	page, err := app.ListNotifications(contracts.NotificationListRequest{Limit: 10})
+	if err != nil {
+		t.Fatalf("ListNotifications: %v", err)
 	}
+
 	if len(page.Items) != 1 {
 		t.Fatalf("expected 1 item, got %d (%#v)", len(page.Items), page.Items)
 	}
@@ -108,11 +113,11 @@ func TestListNotificationsAppliesSearchAndSourceFilters(t *testing.T) {
 		t.Fatalf("insert wrong-title record: %v", err)
 	}
 
-	page := app.ListNotifications(contracts.NotificationListRequest{Search: "Download", Sources: []string{"download"}, Limit: 10})
-
-	if page.Degraded {
-		t.Fatal("expected a populated filtered page not to be degraded")
+	page, err := app.ListNotifications(contracts.NotificationListRequest{Search: "Download", Sources: []string{"download"}, Limit: 10})
+	if err != nil {
+		t.Fatalf("ListNotifications: %v", err)
 	}
+
 	if len(page.Items) != 1 || page.Items[0].ID != matchID {
 		t.Fatalf("expected exactly the record matching both the search text and the source filter, got %#v", page.Items)
 	}
@@ -143,13 +148,13 @@ func TestGetNotificationFoundMapsRowsAndActions(t *testing.T) {
 		t.Fatalf("insert record: %v", err)
 	}
 
-	result := app.GetNotification(id)
+	result, err := app.GetNotification(id)
+	if err != nil {
+		t.Fatalf("GetNotification: %v", err)
+	}
 
 	if !result.Found {
 		t.Fatalf("expected the just-inserted record to be found, got %#v", result)
-	}
-	if result.Degraded {
-		t.Fatal("expected a found result not to be degraded")
 	}
 	if result.Item.ActionCount != 1 {
 		t.Fatalf("expected ActionCount 1 (Store.Record loads full actions), got %d", result.Item.ActionCount)
@@ -162,20 +167,20 @@ func TestGetNotificationFoundMapsRowsAndActions(t *testing.T) {
 	}
 }
 
-// TestGetNotificationNotFoundReturnsFoundFalseNotDegraded asserts a missing
-// id reports Found=false without a Degraded flag -- distinguishing "no such
-// id" from a broken store.
-func TestGetNotificationNotFoundReturnsFoundFalseNotDegraded(t *testing.T) {
+// TestGetNotificationNotFoundReturnsFoundFalseWithoutError asserts a missing
+// id reports Found=false without an error -- distinguishing "no such id" from
+// a broken store, which is the binding's error.
+func TestGetNotificationNotFoundReturnsFoundFalseWithoutError(t *testing.T) {
 	t.Parallel()
 	app := notificationCenterAppTestDB(t)
 
-	result := app.GetNotification(999999)
+	result, err := app.GetNotification(999999)
+	if err != nil {
+		t.Fatalf("GetNotification: %v", err)
+	}
 
 	if result.Found {
 		t.Fatal("expected a missing id not to be found")
-	}
-	if result.Degraded {
-		t.Fatal("expected a not-found (but reachable) result not to be degraded")
 	}
 }
 
@@ -191,19 +196,22 @@ func TestMarkNotificationsReadUpdatesUnreadCountExactlyOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("insert record: %v", err)
 	}
-	if got := app.GetUnreadNotificationCount(); got != 1 {
+	if got, err := app.GetUnreadNotificationCount(); err != nil || got != 1 {
 		t.Fatalf("expected 1 unread record seeded, got %d", got)
 	}
 
-	result := app.MarkNotificationsRead([]int64{id})
-	if result.Degraded {
-		t.Fatal("expected a successful mark-read not to be degraded")
+	result, err := app.MarkNotificationsRead([]int64{id})
+	if err != nil {
+		t.Fatalf("MarkNotificationsRead: %v", err)
 	}
 	if result.Affected != 1 || result.UnreadCount != 0 {
 		t.Fatalf("expected Affected=1 UnreadCount=0 after marking the only record read, got %#v", result)
 	}
 
-	again := app.MarkNotificationsRead([]int64{id})
+	again, err := app.MarkNotificationsRead([]int64{id})
+	if err != nil {
+		t.Fatalf("MarkNotificationsRead: %v", err)
+	}
 	if again.Affected != 0 || again.UnreadCount != 0 {
 		t.Fatalf("expected marking an already-read record read again to be a no-op, got %#v", again)
 	}
@@ -221,19 +229,28 @@ func TestArchiveNotificationsRemovesFromDefaultListAndMarksRead(t *testing.T) {
 		t.Fatalf("insert record: %v", err)
 	}
 
-	result := app.ArchiveNotifications([]int64{id})
-	if result.Degraded || result.Affected != 1 {
+	result, err := app.ArchiveNotifications([]int64{id})
+	if err != nil {
+		t.Fatalf("ArchiveNotifications: %v", err)
+	}
+	if result.Affected != 1 {
 		t.Fatalf("expected a successful archive of 1 record, got %#v", result)
 	}
 
-	activePage := app.ListNotifications(contracts.NotificationListRequest{View: "active", Limit: 10})
+	activePage, err := app.ListNotifications(contracts.NotificationListRequest{View: "active", Limit: 10})
+	if err != nil {
+		t.Fatalf("ListNotifications: %v", err)
+	}
 	for _, row := range activePage.Items {
 		if row.ID == id {
 			t.Fatal("expected the archived record to be absent from the default active view")
 		}
 	}
 
-	archivedPage := app.ListNotifications(contracts.NotificationListRequest{View: "archived", Limit: 10})
+	archivedPage, err := app.ListNotifications(contracts.NotificationListRequest{View: "archived", Limit: 10})
+	if err != nil {
+		t.Fatalf("ListNotifications: %v", err)
+	}
 	found := false
 	for _, row := range archivedPage.Items {
 		if row.ID == id {
@@ -270,8 +287,11 @@ func TestArchiveNotificationsEmitsArchivedEvent(t *testing.T) {
 		gotData = optionalData
 	}
 
-	result := app.ArchiveNotifications([]int64{id})
-	if result.Degraded || result.Affected != 1 {
+	result, err := app.ArchiveNotifications([]int64{id})
+	if err != nil {
+		t.Fatalf("ArchiveNotifications: %v", err)
+	}
+	if result.Affected != 1 {
 		t.Fatalf("expected a successful archive of 1 record, got %#v", result)
 	}
 
@@ -299,8 +319,11 @@ func TestArchiveNotificationsNilEmitFnNeverPanics(t *testing.T) {
 		t.Fatalf("insert record: %v", err)
 	}
 
-	result := app.ArchiveNotifications([]int64{id})
-	if result.Degraded || result.Affected != 1 {
+	result, err := app.ArchiveNotifications([]int64{id})
+	if err != nil {
+		t.Fatalf("ArchiveNotifications: %v", err)
+	}
+	if result.Affected != 1 {
 		t.Fatalf("expected a successful archive of 1 record even with a nil emitFn, got %#v", result)
 	}
 }
@@ -316,16 +339,22 @@ func TestRestoreNotificationsClearsArchivedButKeepsRead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("insert record: %v", err)
 	}
-	if archived := app.ArchiveNotifications([]int64{id}); archived.Degraded {
+	if archived, err := app.ArchiveNotifications([]int64{id}); err != nil {
 		t.Fatalf("expected archive to succeed: %#v", archived)
 	}
 
-	result := app.RestoreNotifications([]int64{id})
-	if result.Degraded || result.Affected != 1 {
+	result, err := app.RestoreNotifications([]int64{id})
+	if err != nil {
+		t.Fatalf("RestoreNotifications: %v", err)
+	}
+	if result.Affected != 1 {
 		t.Fatalf("expected a successful restore of 1 record, got %#v", result)
 	}
 
-	activePage := app.ListNotifications(contracts.NotificationListRequest{View: "active", Limit: 10})
+	activePage, err := app.ListNotifications(contracts.NotificationListRequest{View: "active", Limit: 10})
+	if err != nil {
+		t.Fatalf("ListNotifications: %v", err)
+	}
 	found := false
 	for _, row := range activePage.Items {
 		if row.ID == id {
@@ -337,47 +366,6 @@ func TestRestoreNotificationsClearsArchivedButKeepsRead(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("expected the restored record to be visible again in the default active view")
-	}
-}
-
-// TestBindingsReturnDegradedTrueWhenStoreNilNeverPanic constructs an *App
-// with notificationCenterStore == nil and asserts every binding degrades
-// gracefully (Degraded: true, or the equivalent zero/empty result) instead
-// of panicking.
-func TestBindingsReturnDegradedTrueWhenStoreNilNeverPanic(t *testing.T) {
-	t.Parallel()
-	app := &App{}
-
-	page := app.ListNotifications(contracts.NotificationListRequest{})
-	if !page.Degraded {
-		t.Fatal("expected ListNotifications to degrade when the store is nil")
-	}
-	if page.Items == nil {
-		t.Fatal("expected a nil-safe (non-nil) empty Items slice")
-	}
-
-	if result := app.GetNotification(1); !result.Degraded {
-		t.Fatal("expected GetNotification to degrade when the store is nil")
-	}
-
-	if got := app.GetUnreadNotificationCount(); got != 0 {
-		t.Fatalf("expected GetUnreadNotificationCount to return 0 when the store is nil, got %d", got)
-	}
-
-	if result := app.MarkNotificationsRead([]int64{1}); !result.Degraded {
-		t.Fatal("expected MarkNotificationsRead to degrade when the store is nil")
-	}
-
-	if result := app.MarkNotificationsUnread([]int64{1}); !result.Degraded {
-		t.Fatal("expected MarkNotificationsUnread to degrade when the store is nil")
-	}
-
-	if result := app.ArchiveNotifications([]int64{1}); !result.Degraded {
-		t.Fatal("expected ArchiveNotifications to degrade when the store is nil")
-	}
-
-	if result := app.RestoreNotifications([]int64{1}); !result.Degraded {
-		t.Fatal("expected RestoreNotifications to degrade when the store is nil")
 	}
 }
 
@@ -393,19 +381,22 @@ func TestMarkNotificationsUnreadRaisesUnreadCountExactlyOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("insert record: %v", err)
 	}
-	if read := app.MarkNotificationsRead([]int64{id}); read.Degraded || read.UnreadCount != 0 {
+	if read, err := app.MarkNotificationsRead([]int64{id}); err != nil || read.UnreadCount != 0 {
 		t.Fatalf("expected the seeded record to be read with 0 unread left, got %#v", read)
 	}
 
-	result := app.MarkNotificationsUnread([]int64{id})
-	if result.Degraded {
-		t.Fatal("expected a successful mark-unread not to be degraded")
+	result, err := app.MarkNotificationsUnread([]int64{id})
+	if err != nil {
+		t.Fatalf("MarkNotificationsUnread: %v", err)
 	}
 	if result.Affected != 1 || result.UnreadCount != 1 {
 		t.Fatalf("expected Affected=1 UnreadCount=1 after putting the only record back to unread, got %#v", result)
 	}
 
-	again := app.MarkNotificationsUnread([]int64{id})
+	again, err := app.MarkNotificationsUnread([]int64{id})
+	if err != nil {
+		t.Fatalf("MarkNotificationsUnread: %v", err)
+	}
 	if again.Affected != 0 || again.UnreadCount != 1 {
 		t.Fatalf("expected marking an already-unread record unread again to be a no-op, got %#v", again)
 	}
@@ -425,24 +416,33 @@ func TestMarkNotificationsUnreadKeepsAnArchivedRecordArchived(t *testing.T) {
 	if err != nil {
 		t.Fatalf("insert record: %v", err)
 	}
-	if archived := app.ArchiveNotifications([]int64{id}); archived.Degraded {
+	if archived, err := app.ArchiveNotifications([]int64{id}); err != nil {
 		t.Fatalf("expected archive to succeed: %#v", archived)
 	}
 
-	result := app.MarkNotificationsUnread([]int64{id})
-	if result.Degraded || result.Affected != 1 {
+	result, err := app.MarkNotificationsUnread([]int64{id})
+	if err != nil {
+		t.Fatalf("MarkNotificationsUnread: %v", err)
+	}
+	if result.Affected != 1 {
 		t.Fatalf("expected a successful mark-unread of 1 archived record, got %#v", result)
 	}
 	if result.UnreadCount != 1 {
 		t.Fatalf("expected an archived-but-unread record to count toward the rail badge, got UnreadCount=%d", result.UnreadCount)
 	}
 
-	activePage := app.ListNotifications(contracts.NotificationListRequest{View: "active", Limit: 10})
+	activePage, err := app.ListNotifications(contracts.NotificationListRequest{View: "active", Limit: 10})
+	if err != nil {
+		t.Fatalf("ListNotifications: %v", err)
+	}
 	if _, onActiveList := findWireNotificationRow(activePage, id); onActiveList {
 		t.Fatal("expected mark unread NOT to pull the record back onto the active view -- that is Restore's job")
 	}
 
-	archivedPage := app.ListNotifications(contracts.NotificationListRequest{View: "archived", Limit: 10})
+	archivedPage, err := app.ListNotifications(contracts.NotificationListRequest{View: "archived", Limit: 10})
+	if err != nil {
+		t.Fatalf("ListNotifications: %v", err)
+	}
 	row, found := findWireNotificationRow(archivedPage, id)
 	if !found {
 		t.Fatal("expected the archived record to remain queryable through the archived view")

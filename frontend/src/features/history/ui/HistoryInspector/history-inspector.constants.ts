@@ -1,3 +1,11 @@
+import type { WatchHistoryEntry } from "../../../../shared/contracts/anime.types";
+
+/** The recent episodes shown while the page loads or failed: one stable empty list. */
+export const HISTORY_INSPECTOR_NO_EPISODES: readonly WatchHistoryEntry[] = [];
+
+/** The unscoped 3-row page the inspector reads per anime (design D8). */
+export const HISTORY_INSPECTOR_RECENT_PAGE = { cycle: 0, cursor: "", limit: 3 } as const;
+
 /** Title of the inspector's empty state while no history row is selected. */
 export const HISTORY_INSPECTOR_PROMPT_TITLE = "No episode selected";
 

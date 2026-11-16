@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonSource } from '../../../../shared/contracts/season.types';
 import { buildRawText } from './intake-panel.helpers';
 import type { IntakeMode } from './intake-panel.types';
 import type { useIntakeEditorState } from './use-intake-editor-state';

@@ -440,7 +440,7 @@ export function reduceAnimeEditorGuard(state: AnimeEditorGuardState, event: Anim
  * would be a dead end.
  */
 export function classifyAnimeEditorEmptyState(input: AnimeEditorEmptyStateInput): AnimeEditorEmptyState {
-  if (input.isLoadingList) {
+  if (input.isLoadingList || input.listLoadError !== undefined) {
     return 'none';
   }
   if (input.sourceCount === 0) {
@@ -451,4 +451,14 @@ export function classifyAnimeEditorEmptyState(input: AnimeEditorEmptyStateInput)
   }
   const hasActiveCriteria = input.query.trim().length > 0 || input.filter !== 'all';
   return hasActiveCriteria ? 'criteria' : 'none';
+}
+
+/**
+ * The anime the Editor opens on when no route or user choice picked one: the
+ * first scheduled anime of the catalog, else its first row.
+ * @param items The loaded catalog.
+ * @returns The anime id to select, or undefined for an empty catalog.
+ */
+export function toAnimeEditorDefaultSelection(items: readonly Anime[]): string | undefined {
+  return items.find((anime) => isScheduledAnime(anime))?.id ?? items[0]?.id;
 }

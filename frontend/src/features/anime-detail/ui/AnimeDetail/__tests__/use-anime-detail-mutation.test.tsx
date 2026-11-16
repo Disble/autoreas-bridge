@@ -1,8 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeDetail } from '../../../../../shared/contracts/anime.types';
+import type { AnimeDetailCommandSource } from '../anime-detail.types';
 import { useAnimeDetailMutation } from '../use-anime-detail-mutation';
 
 /** A minimal populated anime detail fixture shared across this file's cases. */
@@ -18,17 +18,9 @@ const detail: AnimeDetail = {
   modified_at: 0,
 };
 
-/** Builds a runtime source stubbing every binding `useAnimeDetailMutation` calls. */
-function createSource(): BridgeRuntimeSource {
+/** Builds the commands `useAnimeDetailMutation` runs. */
+function createSource(): AnimeDetailCommandSource {
   return {
-    getSQLiteStatus: vi.fn(),
-    getEffectiveAddress: vi.fn(),
-    getPairingToken: vi.fn(),
-    getSyncingAnimeItems: vi.fn(),
-    getAnimes: vi.fn(),
-    getAnimeDetail: vi.fn().mockResolvedValue({ ...detail, modified_at: 11 }),
-    triggerReconcile: vi.fn(),
-    onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
     repeatAnime: vi.fn().mockResolvedValue({ status: 'ok', outcome: 'applied', modifiedAt: 11 }),
     restoreAnime: vi.fn(),
   };
@@ -37,24 +29,37 @@ function createSource(): BridgeRuntimeSource {
 describe('useAnimeDetailMutation', () => {
   it('confirms with the exact zero base and returns the refreshed Detail', async () => {
     const source = createSource();
-    const setDetailSnapshot = vi.fn();
+    const refreshDetail = vi.fn().mockResolvedValue(true);
     const { result } = renderHook(() => useAnimeDetailMutation({
       animeId: 'anime-1',
-      detailSnapshot: { animeId: 'anime-1', detail },
-      source,
-      setDetailSnapshot,
+      detail,
+      commands: source,
+      refreshDetail,
     }));
 
     act(() => result.current.onRequestRepeat());
     await act(async () => result.current.onConfirmAction());
 
     expect(source.repeatAnime).toHaveBeenCalledWith('anime-1', 0);
-    expect(source.getAnimeDetail).toHaveBeenCalledWith('anime-1');
-    expect(setDetailSnapshot).toHaveBeenCalledWith({
+    expect(refreshDetail).toHaveBeenCalledTimes(1);
+    expect(result.current.feedback).toMatchObject({ title: 'Repeat applied', status: 'success' });
+  });
+
+  it('warns that the Detail could not be refreshed when the read after the mutation fails', async () => {
+    const refreshDetail = vi.fn().mockResolvedValue(false);
+    const { result } = renderHook(() => useAnimeDetailMutation({
       animeId: 'anime-1',
-      detail: expect.objectContaining({ modified_at: 11 }),
-    });
-    expect(result.current.feedback?.title).toBe('Repeat applied');
+      detail,
+      commands: createSource(),
+      refreshDetail,
+    }));
+
+    act(() => result.current.onRequestRepeat());
+    await act(async () => result.current.onConfirmAction());
+
+    expect(refreshDetail).toHaveBeenCalledTimes(1);
+    expect(result.current.feedback?.status).toBe('warning');
+    expect(result.current.feedback?.description).toMatch(/Anime Detail could not be refreshed\.$/);
   });
 
   it('invalidates pending state and stale completion across route visits', async () => {
@@ -74,15 +79,15 @@ describe('useAnimeDetailMutation', () => {
       .mockReturnValueOnce(firstMutation)
       .mockResolvedValueOnce({ status: 'ok', outcome: 'applied', modifiedAt: 21 });
     const source = { ...createSource(), repeatAnime };
-    const setDetailSnapshot = vi.fn();
+    const refreshDetail = vi.fn().mockResolvedValue(true);
     const animeTwoDetail = { ...detail, id: 'anime-2', name: 'Dungeon Meshi' };
     const { result, rerender } = renderHook(
       ({ animeId, currentDetail }: { animeId: string; currentDetail: AnimeDetail }) => (
         useAnimeDetailMutation({
           animeId,
-          detailSnapshot: { animeId, detail: currentDetail },
-          source,
-          setDetailSnapshot,
+          detail: currentDetail,
+          commands: source,
+          refreshDetail,
         })
       ),
       { initialProps: { animeId: 'anime-1', currentDetail: detail } },
@@ -110,8 +115,7 @@ describe('useAnimeDetailMutation', () => {
     });
 
     expect(result.current.feedback).toBeUndefined();
-    expect(source.getAnimeDetail).not.toHaveBeenCalled();
-    expect(setDetailSnapshot).not.toHaveBeenCalled();
+    expect(refreshDetail).not.toHaveBeenCalled();
 
     act(() => result.current.onRequestRepeat());
     expect(result.current.confirmation?.action).toBe('repeat');
@@ -143,15 +147,15 @@ describe('useAnimeDetailMutation', () => {
         .mockReturnValueOnce(pendingMutation)
         .mockResolvedValueOnce({ status: 'ok', outcome: 'applied', modifiedAt: 21 });
       const source = { ...createSource(), repeatAnime };
-      const staleSetDetailSnapshot = vi.fn();
+      const staleRefreshDetail = vi.fn().mockResolvedValue(true);
       const wrapper = ({ children }: Readonly<{ children: React.ReactNode }>) => (
         <StrictMode>{children}</StrictMode>
       );
       const staleHook = renderHook(() => useAnimeDetailMutation({
         animeId: 'anime-1',
-        detailSnapshot: { animeId: 'anime-1', detail },
-        source,
-        setDetailSnapshot: staleSetDetailSnapshot,
+        detail,
+        commands: source,
+        refreshDetail: staleRefreshDetail,
       }), { wrapper });
 
       act(() => staleHook.result.current.onRequestRepeat());
@@ -164,12 +168,12 @@ describe('useAnimeDetailMutation', () => {
       expect(stateAtUnmount.confirmation?.action).toBe('repeat');
       staleHook.unmount();
 
-      const freshSetDetailSnapshot = vi.fn();
+      const freshRefreshDetail = vi.fn().mockResolvedValue(true);
       const freshHook = renderHook(() => useAnimeDetailMutation({
         animeId: 'anime-1',
-        detailSnapshot: { animeId: 'anime-1', detail },
-        source,
-        setDetailSnapshot: freshSetDetailSnapshot,
+        detail,
+        commands: source,
+        refreshDetail: freshRefreshDetail,
       }), { wrapper });
       act(() => freshHook.result.current.onRequestRepeat());
 
@@ -182,9 +186,8 @@ describe('useAnimeDetailMutation', () => {
         await staleCompletion;
       });
 
-      expect(source.getAnimeDetail).not.toHaveBeenCalled();
-      expect(staleSetDetailSnapshot).not.toHaveBeenCalled();
-      expect(freshSetDetailSnapshot).not.toHaveBeenCalled();
+      expect(staleRefreshDetail).not.toHaveBeenCalled();
+      expect(freshRefreshDetail).not.toHaveBeenCalled();
       expect(staleHook.result.current).toBe(stateAtUnmount);
       expect(staleHook.result.current.feedback).toBeUndefined();
       expect(staleHook.result.current.confirmation?.action).toBe('repeat');
@@ -194,8 +197,8 @@ describe('useAnimeDetailMutation', () => {
       await act(async () => freshHook.result.current.onConfirmAction());
 
       expect(repeatAnime).toHaveBeenCalledTimes(2);
-      expect(source.getAnimeDetail).toHaveBeenCalledTimes(1);
-      expect(freshSetDetailSnapshot).toHaveBeenCalledTimes(1);
+      expect(staleRefreshDetail).not.toHaveBeenCalled();
+      expect(freshRefreshDetail).toHaveBeenCalledTimes(1);
       expect(freshHook.result.current.feedback?.title).toBe('Repeat applied');
     },
   );

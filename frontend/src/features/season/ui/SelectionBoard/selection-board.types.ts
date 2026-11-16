@@ -1,5 +1,6 @@
 import type { SeasonSectionId } from '../SeasonWorkspace/season-workspace.types';
 import type { AnimeDesktopActionsProps } from '../../../../shared/ui/AnimeDesktopActions.types';
+import type { ConfirmSelectionResult } from '../../../../shared/contracts/season.types';
 import type { SeasonCoverThumbProps } from '../SeasonCoverThumb/season-cover-thumb.types';
 
 /** Props for the Selection board's cross-section recovery action. */
@@ -203,4 +204,12 @@ export interface SelectionFilterToolbarProps {
   readonly onResetFilters: () => void;
   /** Applies a sort mode. */
   readonly onSortChange: (sort: SelectionSort) => void;
+}
+
+/** The board's season commands, as the colocated mutations hook runs them. */
+export interface SelectionCommandHandlers {
+  /** Records one row's consideration; a refusal reaches the shared banner. */
+  readonly setConsideration: (rowId: string, consideration: string) => void;
+  /** Reconciles the approved and rejected verdicts into anime writes, refreshing the season reads. */
+  readonly confirmSelection: () => Promise<ConfirmSelectionResult>;
 }

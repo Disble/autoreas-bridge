@@ -5,7 +5,7 @@ import { feedLineKey, maybeFeedLineKey, stepFeedLine } from '../../feed/activity
 import type { ActivityFeedRowModel } from '../../feed/activity-feed.types';
 import { useActivityDrawerDismiss } from '../../feed/use-activity-drawer-dismiss';
 import { useActivityFeedKeyboardScope } from '../../feed/use-activity-feed-keyboard-scope';
-import type { ActivityFeedDay, ActivityFeedLine } from '../../feed-source/feed.types';
+import type { ActivityFeedDay, ActivityFeedLine } from '../../../../shared/contracts/activity-feed.types';
 import { useActivityCopy } from '../ActivityRunStory/use-activity-copy';
 
 /**

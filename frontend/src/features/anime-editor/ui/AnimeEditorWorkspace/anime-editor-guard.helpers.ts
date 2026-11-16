@@ -1,4 +1,4 @@
-import type { EpisodeDurationSaveResult } from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
+import type { EpisodeDurationSaveResult } from '../../../../shared/contracts/episode-durations.types';
 import type { AnimeEditorSaveResult } from '../../../../shared/contracts/anime.types';
 import type { AnimeEditorGuardCardSave } from './anime-editor-workspace.types';
 import { isIntentionalEditorOutcome } from './anime-editor-workspace.helpers';

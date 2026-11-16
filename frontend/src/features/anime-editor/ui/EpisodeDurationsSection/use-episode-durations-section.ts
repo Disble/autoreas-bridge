@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
-import { createEpisodeDurationRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.helpers';
-import type { EpisodeDurationRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
+import { BRIDGE_EPISODE_DURATIONS_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import type { EpisodeDurationRuntimeSource } from '../../../../shared/contracts/episode-durations.types';
 import { useProgressiveListWindow } from '../../../../shared/hooks/use-progressive-list-window';
 import { isEpisodeEditingLocked, toEpisodeDurationsFooter, toEpisodeDurationsToggleLabel } from './episode-durations-draft.helpers';
 import { toEpisodeDurationsOverview, toEpisodeReanalysisProgressView, toEpisodeReanalyzeButton } from './episode-durations-section.helpers';
@@ -17,7 +17,7 @@ import { useEpisodeReanalysis } from './use-episode-reanalysis';
  * Show/Hide toggle and the progressive table window. Nothing here touches the
  * anime data draft, and the anime Save never carries these edits.
  */
-export function useEpisodeDurationsSection(options: Readonly<UseEpisodeDurationsSectionOptions>, source: EpisodeDurationRuntimeSource = createEpisodeDurationRuntimeSource()) {
+export function useEpisodeDurationsSection(options: Readonly<UseEpisodeDurationsSectionOptions>, source: EpisodeDurationRuntimeSource = BRIDGE_EPISODE_DURATIONS_SOURCE) {
   // 1. Refs
 
   // 2. State

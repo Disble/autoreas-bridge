@@ -1,8 +1,13 @@
 # Bridge architecture
 
-This folder documents how the Bridge backend and its bounded contexts are built: who owns which
-state, which ports and adapters exist, and how each workflow runs from trigger to outcome. It is the
-architecture counterpart of `docs/design/`, which covers visual design only.
+This folder documents how the Bridge and its bounded contexts are built, on both sides of the Wails
+bridge: the Go backend and the frontend that renders it. It says who owns which state, which ports and
+adapters exist, and how each workflow runs from trigger to outcome. It is the architecture counterpart
+of `docs/design/`, which covers visual design only.
+
+A module page covers the module end to end: its Go packages and its frontend features, query keys and
+sources. When a unit refactors, creates or changes a module, it brings that module's whole page up to
+date, including parts the unit did not touch.
 
 The code is the execution contract. When a document here disagrees with the code, the code wins as
 runtime truth; record the drift in the document's "Known drift" section and fix it in the same unit
@@ -18,9 +23,15 @@ that touches that code.
 | `contexts/downloads/workflow.md` | Following one download run end to end: run, anime, episode, hoster, rename, Stop |
 | `contexts/downloads/hoster-attempt-phases.md` | Changing how one hoster attempt is watched: grace probes, JD verdict, completion poll |
 | `contexts/anime/overview.md` | Touching `internal/anime`: its services, the store gateway, the save transaction, events, storage and invariants |
+| `contexts/episodes/overview.md` | Touching the episode schedule reads or the episode commands: the `episodes` module, its bindings and Today's row writes |
 | `contexts/anime/workflow.md` | Following one anime save end to end: decide, stamp, Season rule, commit, publish, conflict |
 | `contexts/observability/overview.md` | Touching `internal/observability`: its packages, ports, adapters, events, storage and invariants |
 | `contexts/observability/workflow.md` | Following one mobile report end to end: arrival, store, reading, incident gate, feed line, drawer, Technical view |
+| `contexts/desktop/overview.md` | Touching `internal/desktop`: the composition root, startup order, bindings, module readiness and handles, failure codes and the events the WebView receives |
+| `contexts/devices/overview.md` | Touching pairing, connected devices or sync reconcile: the `api`, `sync` and `devices` modules, their bindings and the Devices, Pairing and Syncing panels |
+| `contexts/settings/overview.md` | Touching `internal/settings` or a preference binding: the `settings` module, its bindings, the `app_settings` keys and the Library and auto-start panels |
+| `contexts/notifications/overview.md` | Touching `internal/notification` or the notification center: the `notifications` module, its bindings, records, events, the rail badge and the toasts |
+| `contexts/season/overview.md` | Touching `internal/season` or its bindings: the `season` module, its ports, events, storage, invariants and the season source adapter |
 
 ### Cross-cutting
 
@@ -29,6 +40,13 @@ that touches that code.
 | `cross-cutting/persistence.md` | Opening `bridge.db`, choosing `InTx` or `InWriteTx`, the schema bootstrap order, or how `name_key` is computed and enforced |
 | `cross-cutting/child-processes.md` | Starting any external program from Go: background console programs (ffprobe, the solver child) versus visible GUI launches, and the gate that keeps console windows from flashing |
 | `cross-cutting/deprecations.md` | Removing upgrade-only migrations, or deciding whether new compatibility code must be marked for removal in a future major release |
+| `cross-cutting/async-state.md` | Adding or changing a binding, reading backend data on a screen, or showing loading, empty and failure states: module readiness, failure codes versus outcomes, and the `shared/query` layer (ADR-032) |
+
+### Templates
+
+| Path | Read it when |
+|---|---|
+| `templates/overview.md` | Creating a context's `overview.md`: copy it and fill every section, backend and frontend |
 
 Related documents kept where they are:
 
@@ -46,8 +64,9 @@ Related documents kept where they are:
 
 - One folder per bounded context under `contexts/`, named after its `internal/` package in plain
   English (`internal/download` → `contexts/downloads/`).
-- Every context folder starts with `overview.md`: responsibility, package map, ports and adapters,
-  events, storage, invariants, entry points and known drift.
+- Every context folder starts with `overview.md`, copied from `templates/overview.md`:
+  responsibility, package map, ports and adapters, readiness and failures, events, storage,
+  invariants, frontend, entry points and known drift.
 - Add `workflow.md` when the context runs a multi-step process. Write it as one decision tree from
   trigger to every terminal outcome, so a reader can check that no path is a dead end.
 - Put a sub-process that needs its own detail in a separate kebab-case file and link it from the

@@ -1,8 +1,8 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { buildFrontendErrorReport } from './error-reporting.helpers';
+import { buildFrontendErrorReport, readBrowserErrorContext } from './error-reporting.helpers';
 import type { FrontendErrorBoundaryProps, FrontendErrorBoundaryState } from './error-reporting.types';
 import { FrontendErrorFallback } from './FrontendErrorFallback';
-import { frontendErrorReporter, readBrowserErrorContext } from './install-global-error-handlers';
+import { frontendErrorReporter } from './install-global-error-handlers';
 
 /**
  * Reloads the running window.

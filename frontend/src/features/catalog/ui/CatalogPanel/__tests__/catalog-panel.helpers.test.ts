@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Anime } from '../../../../../shared/contracts/anime.types';
 import { CATALOG_DEFAULT_CRITERIA } from '../catalog-panel.constants';
+import { createAnime } from './catalog-panel.test-support';
 import {
+  toCatalogLoad,
   classifyCatalogEmptyState,
   compareCatalogAnimes,
   countActiveCatalogFilters,
@@ -348,5 +350,25 @@ describe('classifyCatalogEmptyState', () => {
 
   it('refuses to call zero visible rows criteria-empty when only whitespace is searched', () => {
     expect(classifyCatalogEmptyState({ ...resolved, criteria: criteria({ query: '   ' }) })).toBe('none');
+  });
+});
+
+describe('toCatalogLoad', () => {
+  /** One loaded catalog row. */
+  const rows = [createAnime({ id: 'anime-a' })];
+
+  it.each([
+    { name: 'a loading read', view: { kind: 'loading' as const }, expected: { items: [], isLoading: true, error: undefined } },
+    { name: 'an empty catalog', view: { kind: 'empty' as const }, expected: { items: [], isLoading: false, error: undefined } },
+    { name: 'a loaded catalog', view: { kind: 'ready' as const, data: rows, isRefreshing: false }, expected: { items: rows, isLoading: false, error: undefined } },
+  ])('reads $name', ({ view, expected }) => {
+    expect(toCatalogLoad(view)).toEqual(expected);
+  });
+
+  it('reads a failure as its message with no rows, never as an empty catalog', () => {
+    const load = toCatalogLoad({ kind: 'failure', code: 'failed_precondition', message: 'anime: db closed' });
+
+    expect(load).toMatchObject({ items: [], isLoading: false });
+    expect(load.error?.message).toBe('anime: db closed');
   });
 });

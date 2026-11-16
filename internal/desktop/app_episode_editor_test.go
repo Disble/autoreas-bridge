@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"sync"
@@ -12,6 +13,8 @@ import (
 	"autoreas-bridge/internal/anime/durationedit"
 	"autoreas-bridge/internal/anime/episodes"
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/apperr"
+	"autoreas-bridge/internal/lifecycle"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
@@ -25,8 +28,94 @@ func editorEpisodeApp(t *testing.T) (*App, *bridgeSync.AnimeSnapshotStore) {
 	service := anime.NewEditorService(store, &stubAppCommittedPublisher{})
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: bridgeSync.NewConflictStore(db)})
 	service.SetNow(func() time.Time { return time.UnixMilli(200).UTC() })
-	return &App{ctx: context.Background(), bridgeDB: db, animeEditorWrite: service,
-		animeEditorQuery: anime.NewQueryService(store)}, store
+	app := &App{ctx: context.Background(), bridgeDB: db}
+	app.moduleSet().anime.Bind(animeServices{editorWrite: service, editorQuery: anime.NewQueryService(store)})
+	app.moduleSet().episodes.Bind(episodeServices{durations: db})
+	for _, module := range []lifecycle.ModuleID{moduleAnime, moduleEpisodes} {
+		if err := app.moduleSet().writer.MarkReady(module); err != nil {
+			t.Fatalf("mark %s ready: %v", module, err)
+		}
+	}
+	return app, store
+}
+
+// durationEditorApp returns an App whose episodes handle serves the bridge database db in the given state.
+func durationEditorApp(db *sql.DB, state lifecycle.State) *App {
+	app := &App{ctx: context.Background(), bridgeDB: db}
+	app.moduleSet().episodes.Bind(episodeServices{durations: db})
+	switch state {
+	case lifecycle.StateReady:
+		_ = app.moduleSet().writer.MarkReady(moduleEpisodes)
+	case lifecycle.StateFailed:
+		_ = app.moduleSet().writer.MarkFailed(moduleEpisodes, "episodes: episode service was not wired")
+	}
+	return app
+}
+
+// episodeDurationBindings calls each durations-editor binding and returns its error; needsDB says
+// whether the binding reads the bridge database.
+var episodeDurationBindings = []struct {
+	name    string
+	needsDB bool
+	call    func(*App) error
+}{
+	{"GetEpisodeDurationSection", true, func(a *App) error {
+		_, err := a.GetEpisodeDurationSection(EpisodeDurationAnimeDTO{AnimeID: "anime-1"})
+		return err
+	}},
+	{"ReanalyzeEpisodeDurations", true, func(a *App) error {
+		_, err := a.ReanalyzeEpisodeDurations(EpisodeDurationAnimeDTO{AnimeID: "anime-1"})
+		return err
+	}},
+	{"CancelEpisodeReanalysis", false, func(a *App) error { return a.CancelEpisodeReanalysis() }},
+	{"SaveEpisodeDurations", true, func(a *App) error {
+		_, err := a.SaveEpisodeDurations("anime-1", []EpisodeDurationEditDTO{{Episode: 1, DurationMs: 60_000, Source: episodes.SourceManual}})
+		return err
+	}},
+}
+
+// TestEpisodeDurationBindingsFollowTheEpisodesModule: no durations-editor binding answers a
+// stand-in outcome while the episodes module starts, after it failed, or without a database.
+func TestEpisodeDurationBindingsFollowTheEpisodesModule(t *testing.T) {
+	cases := []struct {
+		name     string
+		state    lifecycle.State
+		withDB   bool
+		wantCode apperr.Code
+		wantMsg  string
+	}{
+		{"starting is unavailable", lifecycle.StateStarting, true, apperr.CodeUnavailable, "episodes is starting"},
+		{"failed is a failed precondition", lifecycle.StateFailed, true, apperr.CodeFailedPrecondition, "episodes: episode service was not wired"},
+		{"ready without a database is internal", lifecycle.StateReady, false, apperr.CodeInternal, "episode durations unavailable"},
+	}
+	for _, binding := range episodeDurationBindings {
+		for _, tc := range cases {
+			t.Run(binding.name+"/"+tc.name, func(t *testing.T) {
+				var db *sql.DB
+				if tc.withDB {
+					db = openRuntimeBridgeDB(t)
+				}
+				err := binding.call(durationEditorApp(db, tc.state))
+
+				if !binding.needsDB && !tc.withDB {
+					tc.wantCode, tc.wantMsg = "", "" // it never reads the database, so it cannot miss one
+				}
+				assertCodedFailure(t, err, tc.wantCode, tc.wantMsg)
+			})
+		}
+	}
+}
+
+// assertCodedFailure checks that err carries wantCode and wantMsg, or that it is nil when wantCode is empty.
+func assertCodedFailure(t *testing.T, err error, wantCode apperr.Code, wantMsg string) {
+	t.Helper()
+	code, _ := apperr.CodeOf(err)
+	if wantCode == "" && err == nil {
+		return
+	}
+	if err == nil || code != wantCode || err.Error() != wantMsg {
+		t.Fatalf("got code %q (err %v), want %q %q", code, err, wantCode, wantMsg)
+	}
 }
 
 // storedEpisodes reads anime-1's stored durations.
@@ -44,10 +133,10 @@ func TestSaveEpisodeDurationsStoresTheEditsAndNeverTouchesTheAnime(t *testing.T)
 	app, store := editorEpisodeApp(t)
 	edit := EpisodeDurationEditDTO{Episode: 3, DurationMs: (46 * time.Minute).Milliseconds(), Source: episodes.SourceManual}
 
-	got := app.SaveEpisodeDurations("anime-1", []EpisodeDurationEditDTO{edit})
+	got, err := app.SaveEpisodeDurations("anime-1", []EpisodeDurationEditDTO{edit})
 
-	if got.Outcome != contracts.AnimePatchOutcomeApplied || got.Changed != 1 {
-		t.Fatalf("want applied with one changed row, got %#v", got)
+	if err != nil || got.Outcome != contracts.AnimePatchOutcomeApplied || got.Changed != 1 {
+		t.Fatalf("want applied with one changed row, got %#v (err %v)", got, err)
 	}
 	if rows := storedEpisodes(t, app); len(rows) != 1 || rows[0].Episode != 3 || rows[0].Source != episodes.SourceManual {
 		t.Fatalf("want episode 3 stored by hand, got %+v", rows)
@@ -56,43 +145,32 @@ func TestSaveEpisodeDurationsStoresTheEditsAndNeverTouchesTheAnime(t *testing.T)
 		t.Fatalf("the anime must be untouched, got %+v (%v)", record, err)
 	}
 
-	if again := app.SaveEpisodeDurations("anime-1", []EpisodeDurationEditDTO{edit}); again.Outcome != contracts.AnimePatchOutcomeNoOp || again.Changed != 0 {
-		t.Fatalf("an identical save is a no-op, got %#v", again)
+	if again, err := app.SaveEpisodeDurations("anime-1", []EpisodeDurationEditDTO{edit}); err != nil || again.Outcome != contracts.AnimePatchOutcomeNoOp || again.Changed != 0 {
+		t.Fatalf("an identical save is a no-op, got %#v (err %v)", again, err)
 	}
 }
 
 func TestSaveEpisodeDurationsWithNoEditsIsANoOp(t *testing.T) {
 	app, _ := editorEpisodeApp(t)
 
-	if got := app.SaveEpisodeDurations("anime-1", nil); got.Outcome != contracts.AnimePatchOutcomeNoOp {
-		t.Fatalf("want a no-op, got %#v", got)
+	if got, err := app.SaveEpisodeDurations("anime-1", nil); err != nil || got.Outcome != contracts.AnimePatchOutcomeNoOp {
+		t.Fatalf("want a no-op, got %#v (err %v)", got, err)
 	}
 }
 
 func TestSaveEpisodeDurationsRefusesABadEditAndSavesNothing(t *testing.T) {
 	app, _ := editorEpisodeApp(t)
 
-	got := app.SaveEpisodeDurations("anime-1", []EpisodeDurationEditDTO{
+	got, err := app.SaveEpisodeDurations("anime-1", []EpisodeDurationEditDTO{
 		{Episode: 1, DurationMs: 60_000, Source: episodes.SourceManual},
 		{Episode: 0, DurationMs: 60_000, Source: episodes.SourceManual},
 	})
 
-	if got.Outcome != contracts.AnimePatchOutcomeError || got.Message == "" {
-		t.Fatalf("a bad edit must fail the save with a reason, got %#v", got)
+	if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal || got != (EpisodeDurationSaveResult{}) {
+		t.Fatalf("a bad edit must fail the save with a coded error and no result, got %#v (err %v)", got, err)
 	}
 	if rows := storedEpisodes(t, app); len(rows) != 0 {
 		t.Fatalf("nothing may be stored, got %+v", rows)
-	}
-}
-
-func TestSaveEpisodeDurationsWithoutADatabaseFails(t *testing.T) {
-	app, _ := editorEpisodeApp(t)
-	app.bridgeDB = nil
-
-	got := app.SaveEpisodeDurations("anime-1", []EpisodeDurationEditDTO{{Episode: 1, DurationMs: 60_000, Source: episodes.SourceManual}})
-
-	if got.Outcome != contracts.AnimePatchOutcomeError {
-		t.Fatalf("want an error without a database, got %#v", got)
 	}
 }
 
@@ -100,10 +178,10 @@ func TestSaveAnimeEditorStaleBaseConflictsAndStoresNoDuration(t *testing.T) {
 	app, _ := editorEpisodeApp(t)
 	name := "Stale"
 
-	got := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 99, Patch: AnimeEditorPatchDTO{Name: &name}})
+	got, err := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 99, Patch: AnimeEditorPatchDTO{Name: &name}})
 
 	// The conflict hands back the current token (the seed's 100) and the recorded conflict.
-	if got.Outcome != contracts.AnimePatchOutcomeConflict || got.ModifiedAt != 100 || got.ConflictID == "" {
+	if err != nil || got.Outcome != contracts.AnimePatchOutcomeConflict || got.ModifiedAt != 100 || got.ConflictID == "" {
 		t.Fatalf("a stale save conflicts with the current token and a conflict id, got %#v", got)
 	}
 	if rows := storedEpisodes(t, app); len(rows) != 0 {
@@ -119,19 +197,14 @@ func TestGetEpisodeDurationSectionReadsTheDraftsFolder(t *testing.T) {
 	}
 	tv, total := 0, 2
 
-	got := app.GetEpisodeDurationSection(EpisodeDurationAnimeDTO{AnimeID: "anime-1", Folder: folder, TotalEpisodes: &total, Kind: &tv})
+	got, err := app.GetEpisodeDurationSection(EpisodeDurationAnimeDTO{AnimeID: "anime-1", Folder: folder, TotalEpisodes: &total, Kind: &tv})
 
-	if got.Outcome != episodeEditorOutcomeOK || got.FolderStatus != durationedit.FolderFound || !got.TV {
-		t.Fatalf("want a found folder of a TV anime, got %+v", got)
+	if err != nil || got.FolderStatus != durationedit.FolderFound || !got.TV {
+		t.Fatalf("want a found folder of a TV anime, got %+v (err %v)", got, err)
 	}
 	want := []EpisodeDurationRowDTO{{Episode: 1, Source: durationedit.SourceNotMeasured}, {Episode: 2, Source: durationedit.SourceNotMeasuredFileFound}}
 	if len(got.Rows) != 2 || got.Rows[0] != want[0] || got.Rows[1] != want[1] || got.BeyondTotal == nil {
 		t.Fatalf("want rows %+v and an empty beyond list, got %+v", want, got)
-	}
-
-	app.bridgeDB = nil
-	if got := app.GetEpisodeDurationSection(EpisodeDurationAnimeDTO{AnimeID: "anime-1"}); got.Outcome != episodeEditorOutcomeError {
-		t.Fatalf("want an error without a database, got %+v", got)
 	}
 }
 
@@ -154,12 +227,12 @@ func TestReanalyzeEpisodeDurationsEmitsProgressAndWritesNothing(t *testing.T) {
 		progress = append(progress, data[0].(EpisodeDurationReanalysisProgress))
 	}
 
-	got := app.ReanalyzeEpisodeDurations(EpisodeDurationAnimeDTO{AnimeID: "anime-1", Folder: folder})
+	got, err := app.ReanalyzeEpisodeDurations(EpisodeDurationAnimeDTO{AnimeID: "anime-1", Folder: folder})
 
 	// The files are not videos: with ffprobe each one is unreadable, without it the analysis stops
 	// at the first file. Either way the first file announced its progress and nothing was stored.
-	if got.Outcome != episodeEditorOutcomeOK || got.FilesRecognized != 2 || got.Rows == nil {
-		t.Fatalf("want a review of the 2 files, got %+v", got)
+	if err != nil || got.Outcome != episodeEditorOutcomeOK || got.FilesRecognized != 2 || got.Rows == nil {
+		t.Fatalf("want a review of the 2 files, got %+v (err %v)", got, err)
 	}
 	if got.Status != durationedit.StatusOK && got.Status != durationedit.StatusProbeUnavailable {
 		t.Fatalf("want ok or probe unavailable, got %+v", got)
@@ -176,31 +249,27 @@ func TestReanalyzeEpisodeDurationsRunsOneAtATimeAndCancels(t *testing.T) {
 	app, _ := editorEpisodeApp(t)
 
 	app.episodeDurations.reanalysis.running.Lock()
-	busy := app.ReanalyzeEpisodeDurations(EpisodeDurationAnimeDTO{AnimeID: "anime-1"})
+	busy, err := app.ReanalyzeEpisodeDurations(EpisodeDurationAnimeDTO{AnimeID: "anime-1"})
 	app.episodeDurations.reanalysis.running.Unlock()
-	if busy.Outcome != episodeEditorOutcomeBusy {
-		t.Fatalf("a second re-analysis must be refused, got %+v", busy)
+	if err != nil || busy.Outcome != episodeEditorOutcomeBusy || busy.Message == "" {
+		t.Fatalf("a second re-analysis must be refused as an outcome with its reason, got %+v (err %v)", busy, err)
 	}
 
 	cancelled := false
 	app.episodeDurations.reanalysis.cancel = func() { cancelled = true }
-	app.CancelEpisodeReanalysis()
-	if !cancelled {
-		t.Fatal("Cancel must end the running re-analysis")
+	if err := app.CancelEpisodeReanalysis(); err != nil || !cancelled {
+		t.Fatalf("Cancel must end the running re-analysis, got cancelled %t (err %v)", cancelled, err)
 	}
 	app.episodeDurations.reanalysis.cancel = nil
-	app.CancelEpisodeReanalysis()
+	if err := app.CancelEpisodeReanalysis(); err != nil {
+		t.Fatalf("Cancel with nothing running must succeed, got %v", err)
+	}
 
-	noFolder := app.ReanalyzeEpisodeDurations(EpisodeDurationAnimeDTO{AnimeID: "anime-1"})
-	if noFolder.Outcome != episodeEditorOutcomeOK || noFolder.Status != durationedit.StatusNoFolder || noFolder.Rows == nil {
-		t.Fatalf("want no folder, got %+v", noFolder)
+	noFolder, err := app.ReanalyzeEpisodeDurations(EpisodeDurationAnimeDTO{AnimeID: "anime-1"})
+	if err != nil || noFolder.Outcome != episodeEditorOutcomeOK || noFolder.Status != durationedit.StatusNoFolder || noFolder.Rows == nil {
+		t.Fatalf("want no folder, got %+v (err %v)", noFolder, err)
 	}
 	if app.episodeDurations.reanalysis.cancel != nil {
 		t.Error("a finished re-analysis must drop its cancel")
-	}
-
-	app.bridgeDB = nil
-	if got := app.ReanalyzeEpisodeDurations(EpisodeDurationAnimeDTO{AnimeID: "anime-1"}); got.Outcome != episodeEditorOutcomeError {
-		t.Fatalf("want an error without a database, got %+v", got)
 	}
 }

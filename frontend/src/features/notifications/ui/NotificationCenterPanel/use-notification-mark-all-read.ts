@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from 'react';
-import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
-import type { NotificationRow } from '../../../../shared/contracts/notification-center.types';
-import { applyNotificationMutationUnreadCount } from '../../../../shared/store/notification-store/notification-store.helpers';
+import type { NotificationCenterSource, NotificationRow } from '../../../../shared/contracts/notification-center.types';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
 import { toUnreadNotificationIds } from './notification-center-panel.helpers';
 
 /** Everything `useNotificationMarkAllRead` needs from its caller. */
@@ -9,7 +8,7 @@ export interface NotificationMarkAllReadInput {
   readonly source: NotificationCenterSource;
   /** The rows the master list currently holds -- the records this action can reach. */
   readonly rows: readonly NotificationRow[];
-  /** Called once the mutation resolves, so the caller can refetch the list. */
+  /** Called once the mutation settles, so the caller can refetch the list and the unread count. */
   readonly onMutated: () => void;
 }
 
@@ -21,8 +20,8 @@ export interface NotificationMarkAllReadResult {
 
 /**
  * Owns the header's "Mark all as read": it marks every unread record the
- * master list currently holds, feeds the mutation's own fresh unread count
- * into the shared store (which is what lowers the rail badge), and refetches.
+ * master list currently holds through `useBridgeMutation`, then lets the
+ * caller refetch the list and the unread count (which lowers the rail badge).
  *
  * "All" is bounded by what has been loaded, and deliberately so: there is no
  * bulk-all binding on the Go side, only `MarkNotificationsRead(ids)`, and the
@@ -33,6 +32,12 @@ export interface NotificationMarkAllReadResult {
 export function useNotificationMarkAllRead(input: Readonly<NotificationMarkAllReadInput>): NotificationMarkAllReadResult {
   const { source, rows, onMutated } = input;
 
+  // 4. Queries/Mutations
+  const { mutate: markRead } = useBridgeMutation({
+    mutationFn: (ids: readonly number[]) => source.markRead(ids),
+    onSettled: () => onMutated(),
+  });
+
   // 5. Derived State
   const unreadIds = useMemo(() => toUnreadNotificationIds(rows), [rows]);
 
@@ -41,11 +46,8 @@ export function useNotificationMarkAllRead(input: Readonly<NotificationMarkAllRe
     if (unreadIds.length === 0) {
       return;
     }
-    void source.markRead(unreadIds).then((result) => {
-      applyNotificationMutationUnreadCount(result);
-      onMutated();
-    });
-  }, [source, unreadIds, onMutated]);
+    markRead(unreadIds);
+  }, [markRead, unreadIds]);
 
   return { canMarkAllRead: unreadIds.length > 0, onMarkAllRead };
 }

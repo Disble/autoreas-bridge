@@ -68,6 +68,8 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     approvedCount: 0,
     quota: 'under',
     selectionConfirmedAt: undefined,
+    seasonView: { kind: 'ready', data: null, isRefreshing: false },
+    animeView: { kind: 'ready', data: [], isRefreshing: false },
     errorMessage: undefined,
     onSetMinApprovalGrade: vi.fn(),
     onSetSlots: vi.fn(),
@@ -149,6 +151,21 @@ describe('SelectionBoard', () => {
     mockHook({ rows: [selRow()], errorMessage: 'selection save failed' });
     render(<SelectionBoard onNavigate={vi.fn()} />);
     expect(screen.getByText('Anime A')).toBeInTheDocument();
+    expect(screen.queryByText('No candidates to select yet')).not.toBeInTheDocument();
+  });
+
+  it('shows only the loading skeleton, never the empty or a row, while the candidates read', () => {
+    mockHook({ animeView: { kind: 'loading' } });
+    render(<SelectionBoard onNavigate={vi.fn()} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Loading selection candidates');
+    expect(screen.queryByText('No candidates to select yet')).not.toBeInTheDocument();
+    expect(screen.queryByText('Anime A')).not.toBeInTheDocument();
+  });
+
+  it('shows the read failure in the surface alert, never the empty state', () => {
+    mockHook({ animeView: { kind: 'failure', code: 'internal', message: 'season read failed' } });
+    render(<SelectionBoard onNavigate={vi.fn()} />);
+    expect(screen.getByText('season read failed')).toBeInTheDocument();
     expect(screen.queryByText('No candidates to select yet')).not.toBeInTheDocument();
   });
 

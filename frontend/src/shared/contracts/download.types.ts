@@ -150,3 +150,44 @@ export interface DownloadRunView {
   readonly errorSummary?: string;
   readonly manualLinks?: readonly ManualLink[];
 }
+
+/**
+ * The downloads module's bindings (ADR-032 §4): the Downloads screen's settings,
+ * schedule, run history and commands, and the readiness snapshot. Every call
+ * rejects with a `BridgeError` (`unavailable` while the module starts,
+ * `failed_precondition` once it failed, the command's refusal otherwise) and
+ * never answers a fallback value or a status string. Adapter:
+ * `createDownloadsSource` (`infrastructure/download-runtime-source`).
+ */
+export interface DownloadsSource {
+  /** The JD config, schedule config, hoster ordering and rename opt-in, read together. */
+  readonly getDownloadConfig: () => Promise<DownloadConfig>;
+  /** The MyJDownloader config and connectivity snapshot. */
+  readonly getJDStatus: () => Promise<JDStatus>;
+  /** JDownloader's "Max. simultaneous Downloads" setting; 0 when it could not be read. */
+  readonly getJDMaxSimultaneousDownloads: () => Promise<number>;
+  /** Persists the MyJDownloader config; an absent password keeps the stored one. */
+  readonly setJDConfig: (input: JDConfigInput) => Promise<void>;
+  /** The schedule config with the scheduler's live running flag and missed-day notice. */
+  readonly getScheduleConfig: () => Promise<ScheduleConfig>;
+  /** Persists the schedule config. */
+  readonly setScheduleConfig: (config: ScheduleConfig) => Promise<void>;
+  /** Persists one site's hoster ordering. */
+  readonly setHosterPriority: (site: string, items: readonly HosterPriorityItem[]) => Promise<void>;
+  /** Persists the episode auto-rename opt-in (served by the settings module). */
+  readonly setEpisodeRenameEnabled: (enabled: boolean) => Promise<void>;
+  /** Starts a manual download check; a run in progress rejects with the scheduler's message. */
+  readonly triggerDownloadCheck: () => Promise<void>;
+  /** Starts a catch-up run for one anime. */
+  readonly triggerAnimeDownload: (animeId: string) => Promise<void>;
+  /** Stops the run in flight; with none it rejects with the backend's message. */
+  readonly cancelDownloadRun: () => Promise<void>;
+  /** Runs a startup-missed day now; every scheduler outcome is the result's `kind`. */
+  readonly runMissedScheduleNow: (localDate: string) => Promise<ScheduleMissedActionResult>;
+  /** Settles a startup-missed day without running it; every scheduler outcome is the result's `kind`. */
+  readonly ignoreMissedSchedule: (localDate: string) => Promise<ScheduleMissedActionResult>;
+  /** The most recent download runs, newest first. */
+  readonly listDownloadRuns: () => Promise<readonly DownloadRunView[]>;
+  /** Which catalog anime can download right now. */
+  readonly listDownloadReadiness: () => Promise<DownloadReadinessSnapshot>;
+}

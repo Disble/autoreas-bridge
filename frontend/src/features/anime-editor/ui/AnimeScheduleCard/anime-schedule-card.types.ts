@@ -1,4 +1,4 @@
-import type { AnimeEditorScheduleBoard } from '../../../../shared/contracts/anime.types';
+import type { AnimeEditorScheduleBoard, AnimeEditorScheduleBoardResult } from '../../../../shared/contracts/anime.types';
 
 /**
  * Where the editor schedule board read stands. A failed read may still carry a
@@ -54,4 +54,18 @@ export interface AnimeScheduleCardProps {
   readonly week: AnimeScheduleWeekView;
   /** Opens the schedule editor, behind the unsaved-changes guard. */
   readonly onOpenSchedule: () => void;
+}
+
+/** What the week strip reads of the board query for the selected anime. */
+export interface AnimeEditorBoardQueryRead {
+  /** Whether an anime is selected, so the board is read at all. */
+  readonly isSelected: boolean;
+  readonly status: 'pending' | 'error' | 'success';
+  /** Whether the shown data still belongs to the previously selected anime. */
+  readonly isPlaceholderData: boolean;
+  readonly data?: AnimeEditorScheduleBoardResult;
+  /** The failed read's message. */
+  readonly errorMessage?: string;
+  /** The board an apply answered after the shown read, which supersedes it. */
+  readonly appliedBoard?: AnimeEditorScheduleBoard;
 }

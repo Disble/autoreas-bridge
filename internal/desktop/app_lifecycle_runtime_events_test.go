@@ -472,15 +472,15 @@ func TestRunSeasonMatchingPublishesExactlyOneFinished(t *testing.T) {
 		nil,
 	)
 	svc.SetEventBus(bus)
-	app := &App{ctx: context.Background(), seasonService: svc, eventBus: bus}
+	app := seasonReady(&App{ctx: context.Background(), seasonService: svc, eventBus: bus})
 
-	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+	if got := app.CreateSeason("Julio 2026"); got != nil {
 		t.Fatalf("CreateSeason: %q", got)
 	}
-	if got := app.ImportSeasonIntake("Good Anime\nTypo Anime"); got != "ok" {
+	if got := app.ImportSeasonIntake("Good Anime\nTypo Anime"); got != nil {
 		t.Fatalf("ImportSeasonIntake: %q", got)
 	}
-	if got := app.RunSeasonMatching(); got != "ok" {
+	if got := app.RunSeasonMatching(); got != nil {
 		t.Fatalf("RunSeasonMatching: %q", got)
 	}
 

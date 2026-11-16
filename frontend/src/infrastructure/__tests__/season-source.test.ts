@@ -2,6 +2,67 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { SeasonQuerySource, SeasonSource } from '../../shared/contracts/season.types';
+
+/** The coded failure exactly as Wails rejects a season binding while the module starts. */
+const SEASON_STARTING_REJECTION = '{"code":"unavailable","message":"season is starting"}';
+
+/** Every season command: the binding it calls and how the source invokes it. */
+const SEASON_COMMANDS: readonly (readonly [string, (source: SeasonSource) => Promise<string>])[] = [
+  ['CreateSeason', (source) => source.createSeason('Julio 2026')],
+  ['SetSeasonMinApprovalGrade', (source) => source.setMinApprovalGrade(4)],
+  ['SetSeasonSlots', (source) => source.setSlots(12)],
+  ['CloseSeason', (source) => source.closeSeason()],
+  ['SetSeasonAnimeMetadata', (source) => source.setSeasonAnimeMetadata('sa-1', '')],
+  ['ReconcileSeasonIntake', (source) => source.reconcileIntake('Naruto')],
+  ['RunSeasonMatching', (source) => source.runMatching()],
+  ['ResolveSeasonMatch', (source) => source.resolveMatch('sa-1', 'https://jkanime.net/naruto/')],
+  ['DiscardSeasonName', (source) => source.discardName('sa-1')],
+  ['RestoreSeasonName', (source) => source.restoreName('sa-1')],
+  ['SetSeasonGrade', (source) => source.setGrade('anime-1', 5)],
+  ['SkipSeasonGrading', (source) => source.skipGrading('sa-1')],
+  ['SetSeasonConsideration', (source) => source.setConsideration('sa-1', 'none')],
+  ['CreateSeasonAnimes', (source) => source.createSeasonAnimes(['sa-1'], {}, {})],
+  ['SaveSeasonOrderingDraft', (source) => source.saveOrderingDraft('{}')],
+  ['ReopenSeasonOrdering', (source) => source.reopenOrdering()],
+  ['RecheckSeasonAvailability', (source) => source.recheckAvailability()],
+  ['SetAnimeDays', (source) => source.setAnimeDays('anime-1', ['Ver hoy'])],
+];
+
+/** Every season read: the binding it calls, how the source invokes it, and the fallback its consumers read. */
+const SEASON_READS: readonly (readonly [string, (source: SeasonSource) => Promise<unknown>, unknown])[] = [
+  ['GetSeason', (source) => source.getSeason(), null],
+  ['GetSeasonAnimes', (source) => source.getSeasonAnimes(), []],
+  ['ListSeasons', (source) => source.listSeasons(), []],
+  ['GetPastSeason', (source) => source.getPastSeason('season-1'), null],
+  ['GetPastSeasonAnimes', (source) => source.getPastSeasonAnimes('season-1'), []],
+  ['GetSeasonOrderingBoard', (source) => source.getOrderingBoard(), { rail: [], grid: [] }],
+];
+
+/** Every rejecting season read the queries call: the binding, how the source invokes it, and the arguments the binding receives. */
+const SEASON_QUERY_READS: readonly (readonly [string, (source: SeasonQuerySource) => Promise<unknown>, readonly unknown[]])[] = [
+  ['GetSeason', (source) => source.readSeason(), []],
+  ['GetSeasonAnimes', (source) => source.readSeasonAnimes(), []],
+  ['ListSeasons', (source) => source.readSeasons(), []],
+  ['GetPastSeason', (source) => source.readPastSeason('season-1'), ['season-1']],
+  ['GetPastSeasonAnimes', (source) => source.readPastSeasonAnimes('season-1'), ['season-1']],
+];
+
+/** Every season binding whose result carries a status: how the source invokes it, and its runtime-unavailable result. */
+const SEASON_OUTCOMES: readonly (readonly [string, (source: SeasonSource) => Promise<unknown>, Record<string, unknown>])[] = [
+  ['ApplySeasonSchedule', (source) => source.applySchedule(), { applied: 0, failed: [] }],
+  ['ConfirmSeasonSelection', (source) => source.confirmSelection(), { approved: 0, rejected: 0, quotaExceeded: false }],
+  ['SearchSeasonProviders', (source) => source.searchProviders!('Naruto'), { pages: [] }],
+  ['SendSeasonAnimesToVerHoy', (source) => source.sendToVerHoy(['anime-1']), { pastDownloadTime: false, downloadTime: '' }],
+];
+
+/** The season query reads: the binding each calls and how the source invokes it. */
+const SEASON_ORDERING_QUERY_READS: readonly (readonly [string, (source: SeasonSource) => Promise<unknown>])[] = [
+  ['GetSeasonOrderingBoard', (source) => source.fetchOrderingBoard!()],
+  ['GetSeasonOrderingSnapshot', (source) => source.fetchSeasonOrderingSnapshot!('season-1')],
+  ['SearchSeasonProviders', (source) => source.fetchProviderSearch!('Naruto')],
+];
+
 describe('season-source', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -104,7 +165,7 @@ describe('season-source', () => {
     expect(listSeasonsMock).toHaveBeenCalledTimes(1);
   });
 
-  it('forwards getSeasonOrderingSnapshot to the live Wails binding and preserves the recorded payload', async () => {
+  it('forwards fetchSeasonOrderingSnapshot to the live Wails binding and preserves the recorded payload', async () => {
     const snapshot = {
       recorded: true,
       capturedAt: 1_700_000_000_000,
@@ -117,24 +178,11 @@ describe('season-source', () => {
 
     const { createSeasonSource } = await import('../season-source/season-source.helpers');
     const source = createSeasonSource();
-    const readSnapshot = source.getSeasonOrderingSnapshot;
+    const readSnapshot = source.fetchSeasonOrderingSnapshot;
     expect(readSnapshot).toBeDefined();
 
     await expect(readSnapshot!('season-2025-fall')).resolves.toEqual(snapshot);
     expect(getSnapshotMock).toHaveBeenCalledWith('season-2025-fall');
-  });
-
-  it('degrades getSeasonOrderingSnapshot to an unrecorded snapshot when the runtime is unavailable', async () => {
-    const { createSeasonSource } = await import('../season-source/season-source.helpers');
-    const source = createSeasonSource();
-    const readSnapshot = source.getSeasonOrderingSnapshot;
-    expect(readSnapshot).toBeDefined();
-
-    const resultPromise = readSnapshot!('season-2025-fall');
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    await expect(resultPromise).resolves.toEqual({ recorded: false, rail: [], grid: [] });
   });
 
   it('forwards the create call with the picked rows, their folders and their metadata', async () => {
@@ -219,6 +267,132 @@ describe('season-source', () => {
     await expect(write).resolves.toBe(SEASON_RUNTIME_UNAVAILABLE);
   });
 
+  it('maps the settings module SetSeasonCheckTime back to the status string the check-time control reads', async () => {
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const setSeasonCheckTime = vi.fn().mockResolvedValue(undefined);
+    window.go = { desktop: { App: { SetSeasonCheckTime: setSeasonCheckTime } } } as never;
+
+    await expect(createSeasonSource().setCheckTime('07:30')).resolves.toBe('ok');
+    expect(setSeasonCheckTime).toHaveBeenCalledWith('07:30');
+
+    window.go = {
+      desktop: {
+        App: { SetSeasonCheckTime: vi.fn().mockRejectedValue(new Error('{"code":"invalid_argument","message":"invalid time \\"9:00\\": use HH:MM (00:00-23:59)"}')) },
+      },
+    } as never;
+    await expect(createSeasonSource().setCheckTime('9:00')).resolves.toBe('invalid time "9:00": use HH:MM (00:00-23:59)');
+  });
+
+  it.each(SEASON_COMMANDS)('reads %s as "ok" once it resolves and as its failure message once it rejects', async (binding, invoke) => {
+    const bindingMock = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error(SEASON_STARTING_REJECTION));
+    window.go = { desktop: { App: { [binding]: bindingMock } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const source = createSeasonSource();
+
+    // The season consumers still read a status string until they migrate, so a void
+    // success is "ok" and a coded rejection is the message they show.
+    await expect(invoke(source)).resolves.toBe('ok');
+    await expect(invoke(source)).resolves.toBe('season is starting');
+    expect(bindingMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('reads an uncoded season refusal, which Wails rejects as a bare string, as its message', async () => {
+    window.go = { desktop: { App: { CloseSeason: vi.fn().mockRejectedValue('no active season') } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+
+    await expect(createSeasonSource().closeSeason()).resolves.toBe('no active season');
+  });
+
+  it.each(SEASON_READS)('reads a rejected %s as the fallback its consumers read before', async (binding, invoke, fallback) => {
+    const bindingMock = vi.fn().mockRejectedValue(new Error(SEASON_STARTING_REJECTION));
+    window.go = { desktop: { App: { [binding]: bindingMock } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+
+    await expect(invoke(createSeasonSource())).resolves.toEqual(fallback);
+    expect(bindingMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(SEASON_QUERY_READS)('answers the %s query read with what the binding returned', async (binding, invoke, args) => {
+    const payload = { answered: binding };
+    const bindingMock = vi.fn().mockResolvedValue(payload);
+    window.go = { desktop: { App: { [binding]: bindingMock } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+
+    await expect(invoke(createSeasonSource())).resolves.toBe(payload);
+    expect(bindingMock).toHaveBeenCalledExactlyOnceWith(...args);
+  });
+
+  it.each(SEASON_QUERY_READS)('rejects the %s query read with the coded failure the binding rejected with', async (binding, invoke) => {
+    window.go = { desktop: { App: { [binding]: vi.fn().mockRejectedValue(new Error(SEASON_STARTING_REJECTION)) } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+
+    await expect(invoke(createSeasonSource())).rejects.toMatchObject({ code: 'unavailable', message: 'season is starting' });
+  });
+
+  it.each(SEASON_QUERY_READS)('rejects the %s query read as unavailable when its binding never attaches', async (binding, invoke) => {
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+
+    const read = invoke(createSeasonSource());
+    const settled = expect(read).rejects.toMatchObject({ code: 'unavailable', message: `the ${binding} binding is not attached` });
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await settled;
+  });
+
+  it.each(SEASON_OUTCOMES)('reads a rejected %s as its unavailable result carrying the failure message', async (binding, invoke, rest) => {
+    const bindingMock = vi.fn().mockRejectedValue(new Error(SEASON_STARTING_REJECTION));
+    window.go = { desktop: { App: { [binding]: bindingMock } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+
+    await expect(invoke(createSeasonSource())).resolves.toEqual({ ...rest, status: 'season is starting' });
+    expect(bindingMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(SEASON_ORDERING_QUERY_READS)('answers %s with the binding payload and rejects its coded failure', async (binding, invoke) => {
+    const payload = { recorded: true, rail: [], grid: [{ animeId: 'a' }] };
+    const bindingMock = vi.fn().mockResolvedValueOnce(payload).mockRejectedValueOnce(new Error(SEASON_STARTING_REJECTION));
+    window.go = { desktop: { App: { [binding]: bindingMock } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const source = createSeasonSource();
+
+    await expect(invoke(source)).resolves.toBe(payload);
+    await expect(invoke(source)).rejects.toMatchObject({ name: 'BridgeError', code: 'unavailable', message: 'season is starting' });
+  });
+
+  it.each(SEASON_ORDERING_QUERY_READS)('rejects %s as unavailable, never a fallback, when its binding never attaches', async (binding, invoke) => {
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const settled = invoke(createSeasonSource()).catch((error: unknown) => error);
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(settled).resolves.toMatchObject({ name: 'BridgeError', code: 'unavailable', message: `the ${binding} binding is not attached` });
+  });
+
+  it('reads a SetAnimeDays failure without a message as the move failure the season store shows', async () => {
+    window.go = { desktop: { App: { SetAnimeDays: vi.fn().mockRejectedValue(new Error('{"code":"internal","message":""}')) } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+
+    await expect(createSeasonSource().setAnimeDays('anime-1', ['Ver hoy'])).resolves.toBe('Failed to move anime');
+  });
+
+  it('reads a staged Ver hoy batch as "ok" with the download window the binding answered', async () => {
+    const send = vi.fn().mockResolvedValue({ pastDownloadTime: true, downloadTime: '21:00' });
+    window.go = { desktop: { App: { SendSeasonAnimesToVerHoy: send } } } as never;
+
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+
+    await expect(createSeasonSource().sendToVerHoy(['anime-1', 'anime-2'])).resolves.toEqual({ status: 'ok', pastDownloadTime: true, downloadTime: '21:00' });
+    expect(send).toHaveBeenCalledExactlyOnceWith(['anime-1', 'anime-2']);
+  });
+
   it('uses the shared Wails binding readiness helper instead of local duplicate plumbing', () => {
     const seasonSourcePath = join(process.cwd(), 'src/infrastructure/season-source/season-source.helpers.ts');
     const sourceText = readFileSync(seasonSourcePath, 'utf8');
@@ -228,10 +402,10 @@ describe('season-source', () => {
     expect(sourceText).not.toMatch(/function waitForBindings\s*\(/);
   });
 
-  it('keeps source-adapter declarations in colocated sibling modules', () => {
+  it('keeps the season port types in shared contracts and the adapter in its own module', () => {
     const sourceRoot = join(process.cwd(), 'src/infrastructure/season-source');
     const indexPath = join(sourceRoot, 'index.ts');
-    const typesPath = join(sourceRoot, 'season-source.types.ts');
+    const typesPath = join(process.cwd(), 'src/shared/contracts/season.types.ts');
     const helperPath = join(sourceRoot, 'season-source.helpers.ts');
     const helperText = readFileSync(helperPath, 'utf8');
 

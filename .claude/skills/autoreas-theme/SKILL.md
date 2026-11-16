@@ -3,7 +3,7 @@ name: autoreas-theme
 description: "Design-system fundamentals for the autoreas-bridge frontend, with an index into docs/design for the detail. Use BEFORE building or refactoring ANY UI under frontend/src: which HeroUI v3 component to use instead of hand-rolling divs/buttons/tables, semantic color tokens, chips, the loading/empty/error states, empty-state kinds and the mascot, and mockup fidelity and pricing. Keywords: theme, design system, UI, rebrand, restyle, frontend component, HeroUI, Tailwind, styling, feature UI, empty state, skeleton, mockup."
 metadata:
   author: autoreas-bridge
-  version: "2.8.0"
+  version: "2.9.0"
   scope: project
   updates: living
 ---
@@ -70,6 +70,11 @@ carries meaning, with `Chip.Label`. Other variants move to `soft` when their fil
 The placeholder replaces the content; gate content on the request, not on `rows.length`. Every
 loading test asserts the negative (real rows absent while loading). Table placeholders are a plain
 `<table>`, never rows inside a React Aria `Table`.
+
+For backend data, the hook produces the state with `toAsyncView`
+(`frontend/src/shared/query/async-view/async-view.helpers.ts`): `loading` → skeleton, `empty` → empty
+state, `failure` → `Alert`, `ready` (with `isRefreshing`) → the rows and `aria-busy`; the `.tsx` only
+renders `view.kind`. Reading the data and wiring the query: skill `bridge-data`.
 
 ## 5. Empty-state kinds
 

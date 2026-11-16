@@ -2,9 +2,12 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import type { AnimeSource } from '../../../../../shared/contracts/anime-source.types';
 import type { Anime } from '../../../../../shared/contracts/anime.types';
+import type { ModuleReadiness } from '../../../../../shared/contracts/readiness.types';
 import { ANIME_CREATE_ROUTE } from '../../../../../shared/navigation/app-layout.constants';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import type { CatalogPanelState } from '../catalog-panel.types';
 import { resetCatalogSession } from '../catalog-session.store';
 import { useCatalogPanel } from '../use-catalog-panel';
@@ -17,40 +20,36 @@ const alpha = createAnime({ id: 'anime-a', name: 'Alpha', status: 1, kind: 0, ge
 const beta = createAnime({ id: 'anime-b', name: 'Beta', status: 0, kind: 3, genres: ['Drama'] });
 
 /**
- * Builds a runtime source that resolves the given records, or rejects.
+ * Builds an anime source that resolves the given records, or rejects.
  * @param items The records `getAnimes` resolves.
  * @param shouldReject Rejects `getAnimes` instead.
- * @returns A runtime source the hook reads through.
+ * @returns An anime source the hook reads through.
  */
-function createSource(items: readonly Anime[], shouldReject = false): BridgeRuntimeSource {
+function createSource(items: readonly Anime[], shouldReject = false): AnimeSource {
   return {
-    getSQLiteStatus: vi.fn(),
-    getEffectiveAddress: vi.fn(),
-    getPairingToken: vi.fn(),
-    getSyncingAnimeItems: vi.fn(),
-    getAnimes: shouldReject ? vi.fn().mockRejectedValue(new Error('boom')) : vi.fn().mockResolvedValue(items),
-    getAnimeDetail: vi.fn().mockResolvedValue(null),
-    triggerReconcile: vi.fn(),
-    onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
+    getAnimes: shouldReject ? vi.fn().mockRejectedValue(createBridgeError('internal', 'boom')) : vi.fn().mockResolvedValue(items),
+    getAnimeDetail: vi.fn(),
+    getWatchHistoryPage: vi.fn(),
+    getAnimeWatchHistoryPage: vi.fn(),
+    getAnimeCover: vi.fn().mockResolvedValue({ source: 'placeholder' }),
   };
 }
 
 /**
- * Router the hook needs for `useNavigate`.
- * @param props The rendered hook host.
- * @returns The host inside a memory router opened on the Catalog.
+ * Renders the hook beside the current location, so navigation is observable,
+ * inside a memory router and a query wrapper reporting the `anime` module.
+ * @param source The anime source the hook reads.
+ * @param anime The `anime` module's readiness.
+ * @returns The rendered hook result and `emit`, which pushes a readiness change.
  */
-function RouterWrapper({ children }: { readonly children: ReactNode }) {
-  return createElement(MemoryRouter, { initialEntries: ['/catalog'] }, children);
-}
-
-/**
- * Renders the hook beside the current location, so navigation is observable.
- * @param source The runtime source the hook reads.
- * @returns The rendered hook result.
- */
-function renderCatalogPanel(source: BridgeRuntimeSource) {
-  return renderHook(() => ({ panel: useCatalogPanel(source), pathname: useLocation().pathname }), { wrapper: RouterWrapper });
+function renderCatalogPanel(source: AnimeSource, anime: ModuleReadiness = { module: 'anime', state: 'ready' }) {
+  const modules = createModulesTestWrapper(anime);
+  /** Router the hook needs for `useNavigate`, around the query wrapper. */
+  function Wrapper({ children }: { readonly children: ReactNode }) {
+    return createElement(MemoryRouter, { initialEntries: ['/catalog'] }, createElement(modules.wrapper, null, children));
+  }
+  const rendered = renderHook(() => ({ panel: useCatalogPanel(source), pathname: useLocation().pathname }), { wrapper: Wrapper });
+  return { ...rendered, emit: modules.emit };
 }
 
 /**
@@ -140,6 +139,29 @@ describe('useCatalogPanel', () => {
     act(() => result.current.panel.onKindSelectionChange(new Set(['3'])));
 
     expect(result.current.panel).toMatchObject({ emptyState: 'criteria', hasCatalog: true, matchingCount: 0, totalCount: 1 });
+  });
+
+  it('stays loading without reading the catalog while the anime module starts, then shows it once ready', async () => {
+    const source = createSource([alpha]);
+    const { result, emit } = renderCatalogPanel(source, { module: 'anime', state: 'starting' });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current.panel).toMatchObject({ isLoading: true, emptyState: 'none', items: [], error: undefined });
+    expect(source.getAnimes).not.toHaveBeenCalled();
+
+    act(() => emit({ module: 'anime', state: 'ready' }));
+    await waitFor(() => expect(itemIds(result.current.panel)).toEqual(['anime-a']));
+  });
+
+  it('shows the failure reason, never an empty catalog, when the anime module failed', async () => {
+    const source = createSource([alpha]);
+    const { result } = renderCatalogPanel(source, { module: 'anime', state: 'failed', reason: 'anime: bridge database failed to open' });
+
+    await waitFor(() => expect(result.current.panel.error?.message).toBe('anime: bridge database failed to open'));
+    expect(result.current.panel).toMatchObject({ isLoading: false, emptyState: 'none', hasCatalog: true, items: [] });
+    expect(source.getAnimes).not.toHaveBeenCalled();
   });
 
   it('surfaces a rejected catalog request as an error rather than an empty catalog', async () => {

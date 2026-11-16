@@ -30,8 +30,7 @@ export const NUMPAD_CODE_PATTERN = /^Numpad/;
 /**
  * Vanilla backing store for the shared keyboard read-model. It lives in the
  * constants file rather than beside its helpers because
- * `dharness/role-file-shape` reserves `.helpers` for functions — the same
- * shape `notification-store.constants.ts` uses (D4).
+ * `dharness/role-file-shape` reserves `.helpers` for functions (D4).
  */
 export const keyboardStore = createStore<KeyboardStoreState>()(() => ({
   frames: [],

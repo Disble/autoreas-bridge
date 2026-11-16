@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"autoreas-bridge/internal/apperr"
+	"autoreas-bridge/internal/lifecycle"
 	sharedlogger "autoreas-bridge/internal/logger"
 )
 
@@ -22,7 +24,7 @@ func TestReportFrontendErrorLogsOneErrorEntry(t *testing.T) {
 	t.Parallel()
 
 	app, memLogger := newFrontendErrorTestApp(t)
-	got := app.ReportFrontendError(FrontendErrorReport{
+	err := app.ReportFrontendError(FrontendErrorReport{
 		Kind:         "unhandledrejection",
 		Message:      "boom %d",
 		Stack:        "Error: boom\n    at main.tsx:1",
@@ -31,8 +33,8 @@ func TestReportFrontendErrorLogsOneErrorEntry(t *testing.T) {
 		OccurredAtMs: 1_700_000_000_123,
 	})
 
-	if got != "ok" {
-		t.Fatalf("ReportFrontendError = %q, want ok", got)
+	if err != nil {
+		t.Fatalf("ReportFrontendError = %v, want nil", err)
 	}
 	entries := memLogger.Recent()
 	if len(entries) != 1 {
@@ -67,7 +69,7 @@ func TestReportFrontendErrorLogsOneErrorEntry(t *testing.T) {
 	}
 }
 
-// Invalid reports are refused with an error string and log nothing, so a
+// Invalid reports are refused as invalid_argument and log nothing, so a
 // misbehaving caller cannot flood runtime_events with junk.
 func TestReportFrontendErrorRejectsInvalidReports(t *testing.T) {
 	t.Parallel()
@@ -85,8 +87,9 @@ func TestReportFrontendErrorRejectsInvalidReports(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			app, memLogger := newFrontendErrorTestApp(t)
-			if got := app.ReportFrontendError(tc.report); got != tc.want {
-				t.Fatalf("ReportFrontendError = %q, want %q", got, tc.want)
+			err := app.ReportFrontendError(tc.report)
+			if code, _ := apperr.CodeOf(err); code != apperr.CodeInvalidArgument || err.Error() != tc.want {
+				t.Fatalf("ReportFrontendError = %v (code %q), want invalid_argument %q", err, code, tc.want)
 			}
 			if entries := memLogger.Recent(); len(entries) != 0 {
 				t.Fatalf("a rejected report logged %#v", entries)
@@ -101,8 +104,8 @@ func TestReportFrontendErrorAcceptsEveryKind(t *testing.T) {
 
 	for _, kind := range []string{"error", "unhandledrejection", "render"} {
 		app, memLogger := newFrontendErrorTestApp(t)
-		if got := app.ReportFrontendError(FrontendErrorReport{Kind: kind, Message: "m"}); got != "ok" {
-			t.Fatalf("kind %q: ReportFrontendError = %q, want ok", kind, got)
+		if err := app.ReportFrontendError(FrontendErrorReport{Kind: kind, Message: "m"}); err != nil {
+			t.Fatalf("kind %q: ReportFrontendError = %v, want nil", kind, err)
 		}
 		if entries := memLogger.Recent(); len(entries) != 1 || entries[0].Metadata["kind"] != kind {
 			t.Fatalf("kind %q: entries = %#v", kind, entries)
@@ -119,11 +122,11 @@ func TestReportFrontendErrorBoundsEveryField(t *testing.T) {
 	// "é" is two bytes and the leading "a" puts every one on an odd offset, so a
 	// plain byte cut at any of the (even) limits would split a rune.
 	huge := "a" + strings.Repeat("é", frontendErrorStackLimit)
-	got := app.ReportFrontendError(FrontendErrorReport{
+	err := app.ReportFrontendError(FrontendErrorReport{
 		Kind: "error", Message: huge, Stack: huge, Source: huge, Route: huge,
 	})
-	if got != "ok" {
-		t.Fatalf("ReportFrontendError = %q, want ok", got)
+	if err != nil {
+		t.Fatalf("ReportFrontendError = %v, want nil", err)
 	}
 	metadata := memLogger.Recent()[0].Metadata
 	limits := map[string]int{
@@ -160,14 +163,38 @@ func TestFrontendErrorTruncateKeepsAValueAtItsLimit(t *testing.T) {
 	}
 }
 
-// Without a logger the report cannot be kept; the binding says so instead of
-// panicking.
+// Without a logger the report cannot be kept; the binding says so as an
+// internal failure instead of panicking.
 func TestReportFrontendErrorWithoutALogger(t *testing.T) {
 	t.Parallel()
 
 	app := newAppTestApp(t)
 	app.sharedLogger = nil
-	if got := app.ReportFrontendError(FrontendErrorReport{Kind: "error", Message: "m"}); got != "logger unavailable" {
-		t.Fatalf("ReportFrontendError = %q, want logger unavailable", got)
+	err := app.ReportFrontendError(FrontendErrorReport{Kind: "error", Message: "m"})
+	if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal || err.Error() != "logger unavailable" {
+		t.Fatalf("ReportFrontendError = %v (code %q), want internal logger unavailable", err, code)
+	}
+}
+
+// A report sent while every domain module is still starting, or after they failed, is recorded:
+// the shell handle never waits for a module, so no frontend error is lost during startup.
+func TestReportFrontendErrorIsRecordedWhateverTheModulesState(t *testing.T) {
+	t.Parallel()
+
+	for _, state := range []lifecycle.State{lifecycle.StateStarting, lifecycle.StateFailed} {
+		t.Run(string(state), func(t *testing.T) {
+			t.Parallel()
+			app, memLogger := newFrontendErrorTestApp(t)
+			if state == lifecycle.StateFailed {
+				app.moduleSet().writer.FailStarting("bridge database failed to open: locked")
+			}
+
+			if err := app.ReportFrontendError(FrontendErrorReport{Kind: "error", Message: "early"}); err != nil {
+				t.Fatalf("ReportFrontendError = %v, want nil", err)
+			}
+			if entries := memLogger.Recent(); len(entries) != 1 {
+				t.Fatalf("logged %d entries, want 1", len(entries))
+			}
+		})
 	}
 }

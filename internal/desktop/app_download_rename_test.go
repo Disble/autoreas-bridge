@@ -39,10 +39,10 @@ func (failingRenameSettingsStore) SetEpisodeRenameEnabled(context.Context, bool)
 func TestSetEpisodeRenameEnabledPersistsTheOptIn(t *testing.T) {
 	t.Parallel()
 
-	app := &App{settingsStore: newRenameSettingsStore(t)}
+	app := withSettingsStore(&App{}, newRenameSettingsStore(t))
 
-	if result := app.SetEpisodeRenameEnabled(true); result != "ok" {
-		t.Fatalf("SetEpisodeRenameEnabled = %q, want \"ok\"", result)
+	if err := app.SetEpisodeRenameEnabled(true); err != nil {
+		t.Fatalf("SetEpisodeRenameEnabled: %v", err)
 	}
 	if !app.episodeRenameEnabled(context.Background()) {
 		t.Fatal("expected the opt-in to be readable back")
@@ -64,8 +64,8 @@ func TestSetEpisodeRenameEnabledReportsAMissingSettingsStore(t *testing.T) {
 
 	app := &App{}
 
-	if app.SetEpisodeRenameEnabled(true) == "ok" {
-		t.Fatal("SetEpisodeRenameEnabled reported ok with no settings store")
+	if app.SetEpisodeRenameEnabled(true) == nil {
+		t.Fatal("SetEpisodeRenameEnabled reported success with no settings store")
 	}
 	if app.episodeRenameEnabled(context.Background()) {
 		t.Fatal("expected episode renaming off with no settings store")
@@ -75,10 +75,10 @@ func TestSetEpisodeRenameEnabledReportsAMissingSettingsStore(t *testing.T) {
 func TestSetEpisodeRenameEnabledSurfacesAWriteFailure(t *testing.T) {
 	t.Parallel()
 
-	app := &App{settingsStore: failingRenameSettingsStore{newRenameSettingsStore(t)}}
+	app := withSettingsStore(&App{}, failingRenameSettingsStore{newRenameSettingsStore(t)})
 
-	if app.SetEpisodeRenameEnabled(true) == "ok" {
-		t.Fatal("SetEpisodeRenameEnabled reported ok despite a write failure")
+	if app.SetEpisodeRenameEnabled(true) == nil {
+		t.Fatal("SetEpisodeRenameEnabled reported success despite a write failure")
 	}
 }
 
@@ -101,16 +101,16 @@ func TestGetDownloadConfigReportsTheEpisodeRenamePreference(t *testing.T) {
 	app := newAppTestApp(t)
 	app.startup(context.Background())
 	// startup installs a settings store over the harness's unusable stub DB, so
-	// the real one has to replace it afterwards.
-	app.settingsStore = newRenameSettingsStore(t)
+	// the real one has to replace it afterwards, bound to the settings module.
+	withSettingsStore(app, newRenameSettingsStore(t))
 
-	if app.GetDownloadConfig().RenameEpisodes {
+	if must(t).value(app.GetDownloadConfig()).RenameEpisodes {
 		t.Fatal("RenameEpisodes = true before the user opted in")
 	}
-	if result := app.SetEpisodeRenameEnabled(true); result != "ok" {
-		t.Fatalf("SetEpisodeRenameEnabled = %q, want \"ok\"", result)
+	if err := app.SetEpisodeRenameEnabled(true); err != nil {
+		t.Fatalf("SetEpisodeRenameEnabled: %v", err)
 	}
-	if !app.GetDownloadConfig().RenameEpisodes {
+	if !must(t).value(app.GetDownloadConfig()).RenameEpisodes {
 		t.Fatal("RenameEpisodes = false after the user opted in")
 	}
 }

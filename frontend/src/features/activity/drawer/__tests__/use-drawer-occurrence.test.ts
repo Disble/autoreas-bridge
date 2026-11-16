@@ -1,10 +1,11 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { ActivityIncidentDetail, ActivityRunStep } from '../../activity-source/activity-incident.types';
-import type { ActivitySource } from '../../activity-source/activity-source.types';
-import type { ActivityFeedSource } from '../../feed-source/feed-source.types';
+import type { ActivityIncidentDetail, ActivityRunStep } from '../../../../shared/contracts/activity-incident.types';
+import type { ActivitySource } from '../../../../shared/contracts/activity.types';
+import type { ActivityFeedSource } from '../../../../shared/contracts/activity.types';
 import type { DrawerWindowErrorDetail } from '../drawer.types';
 import { useDrawerOccurrence } from '../use-drawer-occurrence';
+import { createModulesTestWrapper } from '../../../../shared/query/test-support/bridge-modules.test-support';
 import { incident } from './drawer.fixtures';
 
 /** The line's own stored window error. */
@@ -49,7 +50,7 @@ describe('useDrawerOccurrence', () => {
   ])('lists no occurrences for %s', (_name, detail, current) => {
     const source = sourceWith(vi.fn());
     const feed = feedWith(vi.fn());
-    const { result } = renderHook(() => useDrawerOccurrence(source, feed, 'line', detail, current));
+    const { result } = renderHook(() => useDrawerOccurrence(source, feed, 'line', detail, current), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     expect(result.current.occurrences).toEqual([]);
     expect(result.current.selectedOccurrenceId).toBeUndefined();
@@ -59,7 +60,7 @@ describe('useDrawerOccurrence', () => {
     const getIncident = vi.fn();
     const source = sourceWith(getIncident);
     const feed = feedWith(vi.fn());
-    const { result } = renderHook(() => useDrawerOccurrence(source, feed, 'line', REPEATED, CURRENT));
+    const { result } = renderHook(() => useDrawerOccurrence(source, feed, 'line', REPEATED, CURRENT), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     expect(result.current.occurrences.map((occurrence) => occurrence.id)).toEqual([93, 92]);
     expect(result.current.selectedOccurrenceId).toBe(93);
@@ -73,7 +74,7 @@ describe('useDrawerOccurrence', () => {
     const getEvent = vi.fn(() => Promise.resolve(EVENT));
     const source = sourceWith(getIncident);
     const feed = feedWith(getEvent);
-    const { result } = renderHook(() => useDrawerOccurrence(source, feed, 'line', REPEATED, CURRENT));
+    const { result } = renderHook(() => useDrawerOccurrence(source, feed, 'line', REPEATED, CURRENT), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     act(() => result.current.pickOccurrence(92));
 
@@ -90,7 +91,7 @@ describe('useDrawerOccurrence', () => {
     const getEvent = vi.fn();
     const source = sourceWith(getIncident);
     const feed = feedWith(getEvent);
-    const { result } = renderHook(() => useDrawerOccurrence(source, feed, 'line', REPEATED, CURRENT));
+    const { result } = renderHook(() => useDrawerOccurrence(source, feed, 'line', REPEATED, CURRENT), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     act(() => result.current.pickOccurrence(92));
 
@@ -104,7 +105,7 @@ describe('useDrawerOccurrence', () => {
   it('forgets a pick made in another line', () => {
     const source = sourceWith(vi.fn(() => new Promise<never>(() => {})));
     const feed = feedWith(vi.fn());
-    const { result, rerender } = renderHook(({ lineKey }) => useDrawerOccurrence(source, feed, lineKey, REPEATED, CURRENT), {
+    const { result, rerender } = renderHook(({ lineKey }) => useDrawerOccurrence(source, feed, lineKey, REPEATED, CURRENT), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper,
       initialProps: { lineKey: 'a' },
     });
 

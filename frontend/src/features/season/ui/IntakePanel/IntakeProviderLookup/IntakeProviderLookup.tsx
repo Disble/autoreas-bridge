@@ -13,8 +13,8 @@ import { useIntakeProviderLookup } from './use-intake-provider-lookup';
  * Cancel closes without writing. Provider results are a single search page, so
  * the list renders whole rather than through a progressive window.
  */
-export function IntakeProviderLookup({ rawName, source, onResolve }: Readonly<IntakeProviderLookupProps>) {
-  const lookup = useIntakeProviderLookup(rawName, source, onResolve);
+export function IntakeProviderLookup({ rawName, onResolve }: Readonly<IntakeProviderLookupProps>) {
+  const lookup = useIntakeProviderLookup(rawName, onResolve);
 
   return (
     <LookupModal

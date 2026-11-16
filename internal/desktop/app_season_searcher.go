@@ -47,19 +47,19 @@ func (a *App) newSeasonProviderSearchers(jkanimeSearcher season.NameSearcher) []
 
 // SearchSeasonProviders searches every download provider for query and
 // returns every page they returned, ranked by similarity and tagged with
-// their provider. Status is "ok" or the failure message; Pages is never nil.
-// A read: it changes nothing and broadcasts nothing.
-func (a *App) SearchSeasonProviders(query string) SeasonProviderSearchDTO {
-	if a.seasonService == nil {
-		return SeasonProviderSearchDTO{Status: seasonServiceUnavailableMessage, Pages: []SeasonProviderPageDTO{}}
-	}
-	pages, err := a.seasonService.SearchProviders(a.seasonCtx(), query)
-	if err != nil {
-		return SeasonProviderSearchDTO{Status: err.Error(), Pages: []SeasonProviderPageDTO{}}
-	}
-	out := make([]SeasonProviderPageDTO, 0, len(pages))
-	for _, p := range pages {
-		out = append(out, SeasonProviderPageDTO{Title: p.Title, PageURL: p.PageURL, Provider: p.Provider, ImageURL: p.ImageURL})
-	}
-	return SeasonProviderSearchDTO{Status: "ok", Pages: out}
+// their provider, through the season module handle. Status is "ok" and Pages is
+// never nil; a failed search is the binding's error. A read: it changes nothing
+// and broadcasts nothing.
+func (a *App) SearchSeasonProviders(query string) (SeasonProviderSearchDTO, error) {
+	return a.moduleSet().season.Use(func(s seasonServices) (SeasonProviderSearchDTO, error) {
+		pages, err := s.season.SearchProviders(a.seasonCtx(), query)
+		if err != nil {
+			return SeasonProviderSearchDTO{}, err
+		}
+		out := make([]SeasonProviderPageDTO, 0, len(pages))
+		for _, p := range pages {
+			out = append(out, SeasonProviderPageDTO{Title: p.Title, PageURL: p.PageURL, Provider: p.Provider, ImageURL: p.ImageURL})
+		}
+		return SeasonProviderSearchDTO{Status: "ok", Pages: out}, nil
+	})
 }

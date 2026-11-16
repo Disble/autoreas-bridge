@@ -10,6 +10,7 @@ vi.mock('../use-anime-editor-workspace', () => ({
 }));
 
 import { AnimeEditorWorkspace } from '../AnimeEditorWorkspace';
+import { createEpisodesReadyWrapper } from './episode-duration-source.test-support';
 
 /**
  * Renders the workspace over a complete stub view model.
@@ -67,7 +68,7 @@ function renderWorkspace(overrides: Record<string, unknown> = {}) {
   // The panels read their memoized slices; the full view model carries every field they read.
   useAnimeEditorWorkspaceMock.mockReturnValue({ ...viewModel, listPanel: viewModel, formPanel: viewModel });
 
-  return render(<MemoryRouter><AnimeEditorWorkspace /></MemoryRouter>);
+  return render(<MemoryRouter><AnimeEditorWorkspace /></MemoryRouter>, { wrapper: createEpisodesReadyWrapper() });
 }
 
 describe('AnimeEditorWorkspace', () => {

@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AnimeDetail, AnimeRepeticion } from '../../../../../shared/contracts/anime.types';
-import { formatAnimeWatchHistorySubtitle, formatAnimeWatchSummaryDate, toAnimeWatchViewModels } from '../anime-watch-history.helpers';
+import type { AnimeDetail, AnimeRepeticion, WatchHistoryEntry, WatchHistoryPage } from '../../../../../shared/contracts/anime.types';
+import {
+  buildAnimeWatchEpisodesRequest,
+  formatAnimeWatchHistorySubtitle,
+  formatAnimeWatchSummaryDate,
+  toAnimeWatchEpisodePages,
+  toAnimeWatchViewModels,
+} from '../anime-watch-history.helpers';
+import type { AnimeWatchFirstPage, AnimeWatchOlderPages } from '../anime-watch-history.types';
 
 /** Local-midnight start of the watch-history log; written out so the suite never pins the production constant itself. */
 const LOG_START_MS = new Date(2026, 6, 5).getTime();
@@ -259,5 +266,61 @@ describe('formatAnimeWatchHistorySubtitle', () => {
     { count: 2, want: '2 watches · episodes recorded since July 5, 2026' },
   ])('reads $count as "$want"', ({ count, want }) => {
     expect(formatAnimeWatchHistorySubtitle(count, LOG_START_MS)).toBe(want);
+  });
+});
+
+describe('buildAnimeWatchEpisodesRequest', () => {
+  it('scopes the default-size page to one anime, cycle and cursor', () => {
+    expect(buildAnimeWatchEpisodesRequest('anime-1', 2, 'c:1')).toEqual({ animeId: 'anime-1', cycle: 2, cursor: 'c:1', limit: 0 });
+  });
+});
+
+describe('toAnimeWatchEpisodePages', () => {
+  /** One row of the first page. */
+  const first = { id: 1 } as WatchHistoryEntry;
+  /** One row of an older page. */
+  const second = { id: 2 } as WatchHistoryEntry;
+  /** The loaded first page, with a next cursor. */
+  const loaded: AnimeWatchFirstPage = {
+    status: 'success',
+    data: { items: [first], nextCursor: 'c:1', status: 'ok' } as WatchHistoryPage,
+    error: null,
+    isFetching: false,
+    isPlaceholderData: false,
+    dataUpdatedAt: 10,
+  };
+  /** Older pages loaded below that same first page. */
+  const older: AnimeWatchOlderPages = { requestKey: 'k', firstPageAt: 10, entries: [first, second], nextCursor: undefined };
+  /** The input of an enabled, loaded list. */
+  const input = { isEnabled: true, firstPage: loaded, older: undefined, requestKey: 'k' };
+  /** A pending first page. */
+  const pending = { ...loaded, status: 'pending' as const, data: undefined };
+
+  it.each([
+    ['a pending read', { firstPage: pending }, { isLoading: true, error: undefined }],
+    ['a collapsed list that never loaded', { isEnabled: false, firstPage: pending }, { isLoading: false, error: undefined }],
+    ['another scope still shown', { firstPage: { ...loaded, isPlaceholderData: true } }, { isLoading: true, error: undefined }],
+    ['another scope still shown while collapsed', { isEnabled: false, firstPage: { ...loaded, isPlaceholderData: true } }, { isLoading: false, error: undefined }],
+    ['a failed read', { firstPage: { ...pending, status: 'error' as const, error: new Error('boom') } }, { isLoading: false, error: new Error('boom') }],
+  ])('shows no rows and no next page for %s', (_label, overrides, expected) => {
+    expect(toAnimeWatchEpisodePages({ ...input, ...overrides })).toEqual({ entries: [], cursor: undefined, ...expected });
+  });
+
+  it('shows the first page and its cursor, also once collapsed', () => {
+    const expected = { entries: [first], isLoading: false, error: undefined, cursor: 'c:1' };
+
+    expect(toAnimeWatchEpisodePages(input)).toEqual(expected);
+    expect(toAnimeWatchEpisodePages({ ...input, isEnabled: false })).toEqual(expected);
+  });
+
+  it('shows the older pages and their cursor when they continue this scope and first-page load', () => {
+    expect(toAnimeWatchEpisodePages({ ...input, older })).toEqual({ entries: [first, second], isLoading: false, error: undefined, cursor: undefined });
+  });
+
+  it.each([
+    ['another scope', { ...older, requestKey: 'other' }],
+    ['an earlier first-page load', { ...older, firstPageAt: 9 }],
+  ])('drops older pages loaded for %s', (_label, stale) => {
+    expect(toAnimeWatchEpisodePages({ ...input, older: stale })).toMatchObject({ entries: [first], cursor: 'c:1' });
   });
 });

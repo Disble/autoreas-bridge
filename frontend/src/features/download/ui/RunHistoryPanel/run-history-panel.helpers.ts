@@ -1,3 +1,5 @@
+import { toErrorMessage } from '../../../../shared/helpers/error-message.helpers';
+import type { AsyncView } from '../../../../shared/query/async-view/async-view.types';
 import type { DownloadRunView } from '../../../../shared/contracts/download.types';
 import {
   RUN_HISTORY_DAY_MS,
@@ -14,6 +16,14 @@ import type {
   RunHistoryPresentation,
   RunHistoryRowViewModel,
 } from './run-history-panel.types';
+
+/** Maps the history query state to its load outcome. */
+export function runHistoryLoad(kind: AsyncView<unknown>['kind'], error: unknown) {
+  return {
+    hasLoaded: kind !== 'loading',
+    errorMessage: kind === 'failure' ? toErrorMessage(error, 'Failed to load download run history') : undefined,
+  };
+}
 
 /**
  * Maps the raw `DownloadRunView[]` (Wails wire shape, newest-first per

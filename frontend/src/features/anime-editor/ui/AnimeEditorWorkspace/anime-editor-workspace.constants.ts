@@ -1,5 +1,6 @@
 import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
 import { ANIME_ESTADO_LABELS, ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
+import type { Anime } from '../../../../shared/contracts/anime.types';
 import type { AnimeEditorDraft, AnimeEditorEmptyStateCopy, AnimeEditorStatusOption } from './anime-editor-workspace.types';
 
 /** The Folder field's "(?)" help (S17): a folder change does not re-measure episode durations. */
@@ -151,3 +152,9 @@ export const ANIME_EDITOR_CALL_TIMEOUT_MS = 20_000;
 
 /** Feedback shown when a write binding outlives {@link ANIME_EDITOR_CALL_TIMEOUT_MS}. */
 export const ANIME_EDITOR_CALL_TIMEOUT_MESSAGE = 'Saving is taking too long. The anime may still be saving, so check the record before trying again.';
+
+/** The rail's catalog before the anime module answered it: no rows, one stable reference. */
+export const ANIME_EDITOR_NO_ITEMS: readonly Anime[] = [];
+
+/** Title of the rail's Alert when the catalog read failed. */
+export const ANIME_EDITOR_LIST_FAILED_TITLE = 'The library could not be loaded';

@@ -3,6 +3,7 @@ import closeCircleIcon from '@iconify-icons/solar/close-circle-bold-duotone';
 import pauseCircleIcon from '@iconify-icons/solar/pause-circle-bold-duotone';
 import playCircleIcon from '@iconify-icons/solar/play-circle-bold-duotone';
 import { ANIME_ESTADO_LABELS } from '../../../../shared/constants/anime-estado.constants';
+import type { EpisodeDayCount, EpisodeScheduleItem } from '../../../../shared/contracts/episodes.types';
 import type { EpisodeViewLens, CoverEntry } from './episode-schedule-panel.types';
 
 /** Legacy weekday keys supported by anime schedule records. */
@@ -41,6 +42,9 @@ export const EPISODE_LENS_OPTIONS: readonly { readonly id: EpisodeViewLens; read
  */
 export const EPISODES_LOADING_MESSAGE = 'Loading the schedule...';
 
+/** Title of the Alert shown in place of the schedule when its read or a row write failed. */
+export const EPISODE_SCHEDULE_UNAVAILABLE_TITLE = 'Episode schedule unavailable';
+
 /** How many placeholder rows Today draws while its schedule request is unresolved. */
 export const EPISODES_SKELETON_ROW_COUNT = 3;
 
@@ -51,8 +55,11 @@ export const EPISODES_SKELETON_ROW_COUNT = 3;
  */
 export const EPISODE_STATE_LABELS: Readonly<Record<number, string>> = ANIME_ESTADO_LABELS;
 
-/** Runtime fallback result used when Wails bindings are not ready. */
-export const EPISODE_RUNTIME_UNAVAILABLE_RESULT = { status: 'error', message: 'runtime unavailable' } as const;
+/** The day counts badged while none loaded: one stable empty list, so renders compare equal. */
+export const NO_EPISODE_DAY_COUNTS: readonly EpisodeDayCount[] = [];
+
+/** The rows covers are fetched for while the schedule has not loaded: one stable empty list. */
+export const NO_EPISODE_SCHEDULE_ITEMS: readonly EpisodeScheduleItem[] = [];
 
 /** State transition options exposed by the Episodes operational panel. */
 export const EPISODE_STATE_OPTIONS = [

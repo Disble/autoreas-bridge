@@ -1,8 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
 import type { AppNotification } from '../../../../shared/contracts/app-notification.types';
 import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
-import { getSeasonStoreState } from '../../../../shared/store/season-store/season-store.helpers';
+import { useIntakeRestore } from '../../../../shared/season/use-intake-restore';
 import { INTAKE_DISCARD_TOAST_ID_PREFIX } from './notification-resolver.constants';
 
 /**
@@ -24,11 +23,16 @@ export function useIntakeDiscardResolver(
   // 3. Context/3rd Party Hooks
   const lastDiscard = useSeasonStore((state) => state.lastDiscard);
 
+  // 4. Queries/Mutations
+  const restore = useIntakeRestore();
+  const restoreRef = useRef(restore);
+
   // 7. Effects
   // Refreshed in an effect rather than during render, like the missed-schedule resolver.
   useEffect(() => {
     pushRef.current = push;
     removeRef.current = remove;
+    restoreRef.current = restore;
   });
 
   useEffect(() => {
@@ -44,8 +48,7 @@ export function useIntakeDiscardResolver(
         {
           label: 'Undo',
           onPress: () => {
-            void getSeasonStoreState().restoreName(seasonSource, lastDiscard.rowId);
-            removeRef.current(toastKey);
+            void restoreRef.current(lastDiscard.rowId).then(() => removeRef.current(toastKey));
           },
         },
       ],

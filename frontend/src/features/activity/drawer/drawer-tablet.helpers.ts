@@ -1,5 +1,5 @@
 import { formatActivityDuration } from '../ui/ActivityRunStory/activity-time.helpers';
-import type { ActivityTabletSummary } from '../feed-source/feed.types';
+import type { ActivityTabletSummary } from '../../../shared/contracts/activity-feed.types';
 import { DRAWER_PROCESS_DEATHS_TITLE, DRAWER_TABLET_TITLE } from './drawer.constants';
 import type { DrawerFact, DrawerReportChoice, DrawerSection } from './drawer.types';
 import { drawerFact, formatDrawerTime, formatDrawerWhen } from './drawer-format.helpers';

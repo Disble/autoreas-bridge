@@ -1,4 +1,4 @@
-import type { OrderingCard } from '../../../../infrastructure/season-source/season-source.types';
+import type { OrderingCard } from '../../../../shared/contracts/season.types';
 import type { SeasonSectionId } from '../SeasonWorkspace/season-workspace.types';
 
 /** The four KPI stat-tile values derived from the season's intake rows. */
@@ -144,14 +144,6 @@ export type OverviewLineupState =
   | { readonly status: 'failed'; readonly errorMessage: string }
   | { readonly status: 'unrecorded' }
   | { readonly status: 'recorded'; readonly grid: readonly OrderingCard[]; readonly rail: readonly OrderingCard[] };
-
-/** A settled lineup read, tagged with the season it belongs to. */
-export interface LoadedOverviewLineup {
-  /** The season the read was for. */
-  readonly seasonId: string;
-  /** The settled read. */
-  readonly state: OverviewLineupState;
-}
 
 /** One anime placed on a weekday of the recorded lineup. */
 export interface OverviewLineupItem {

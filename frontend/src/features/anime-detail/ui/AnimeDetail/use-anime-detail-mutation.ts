@@ -19,7 +19,7 @@ import { useAnimeDetailMutationVisit } from './use-anime-detail-mutation-visit';
 export function useAnimeDetailMutation(
   props: Readonly<AnimeDetailMutationHookProps>,
 ): AnimeDetailMutationController {
-  const { animeId, detailSnapshot, setDetailSnapshot, source } = props;
+  const { animeId, commands, detail, refreshDetail: readDetailAgain } = props;
 
   // 1. Refs
 
@@ -38,9 +38,6 @@ export function useAnimeDetailMutation(
   // 4. Queries/Mutations
 
   // 5. Derived State (useMemo)
-  const detail = detailSnapshot?.animeId === animeId
-    ? detailSnapshot.detail
-    : undefined;
   const isCurrentRouteState = isAnimeDetailMutationRouteActive(
     animeId,
     routeGeneration,
@@ -53,7 +50,7 @@ export function useAnimeDetailMutation(
   const feedback = isCurrentRouteState ? mutationState.feedback : undefined;
   const isMutating = isCurrentRouteState && mutationState.isMutating;
   const confirmation = useMemo(
-    () => confirmationAction === undefined || detail === null || detail === undefined
+    () => confirmationAction === undefined || detail === undefined
       ? undefined
       : toAnimeDetailConfirmation(confirmationAction, detail.name),
     [confirmationAction, detail],
@@ -61,7 +58,7 @@ export function useAnimeDetailMutation(
 
   // 6. Callbacks (useCallback calling pure helpers)
   const onRequestRepeat = useCallback(() => {
-    if (detail !== null && detail !== undefined && detail.status > 0) {
+    if (detail !== undefined && detail.status > 0) {
       setMutationState({
         animeId,
         routeGeneration,
@@ -96,7 +93,7 @@ export function useAnimeDetailMutation(
     action: AnimeDetailAction,
     currentDetail: AnimeDetail,
   ): Promise<AnimeDetailMutationResolution> => {
-    const binding = action === 'repeat' ? source.repeatAnime : source.restoreAnime;
+    const binding = action === 'repeat' ? commands.repeatAnime : commands.restoreAnime;
     if (binding === undefined) {
       return resolveAnimeDetailMutation(action, {
         status: 'error',
@@ -117,42 +114,26 @@ export function useAnimeDetailMutation(
         modifiedAt: currentDetail.modified_at,
       });
     }
-  }, [source]);
+  }, [commands]);
   const refreshDetail = useCallback(async (
     animeId: string,
     actionRouteGeneration: number,
-    currentDetail: AnimeDetail,
     resolution: AnimeDetailMutationResolution,
   ) => {
     if (!resolution.shouldRefetch) {
       return;
     }
 
-    try {
-      const refreshedDetail = await source.getAnimeDetail(currentDetail.id);
-      if (!isActive(animeId, actionRouteGeneration)) {
-        return;
-      }
-      if (refreshedDetail === null) {
-        setMutationState((previous) => ({
-          ...previous,
-          feedback: withAnimeDetailRefreshFailure(resolution).feedback,
-        }));
-        return;
-      }
-
-      setDetailSnapshot({ animeId, detail: refreshedDetail });
-    } catch {
-      if (isActive(animeId, actionRouteGeneration)) {
-        setMutationState((previous) => ({
-          ...previous,
-          feedback: withAnimeDetailRefreshFailure(resolution).feedback,
-        }));
-      }
+    const isRefreshed = await readDetailAgain();
+    if (!isRefreshed && isActive(animeId, actionRouteGeneration)) {
+      setMutationState((previous) => ({
+        ...previous,
+        feedback: withAnimeDetailRefreshFailure(resolution).feedback,
+      }));
     }
-  }, [isActive, setDetailSnapshot, source]);
+  }, [isActive, readDetailAgain]);
   const onConfirmAction = useCallback(async () => {
-    if (confirmationAction === undefined || detail === null || detail === undefined || isMutating) {
+    if (confirmationAction === undefined || detail === undefined || isMutating) {
       return;
     }
 
@@ -168,7 +149,7 @@ export function useAnimeDetailMutation(
           confirmationAction: undefined,
           feedback: resolution.feedback,
         }));
-        await refreshDetail(actionAnimeId, actionRouteGeneration, detail, resolution);
+        await refreshDetail(actionAnimeId, actionRouteGeneration, resolution);
       }
     } finally {
       if (isActive(actionAnimeId, actionRouteGeneration)) {

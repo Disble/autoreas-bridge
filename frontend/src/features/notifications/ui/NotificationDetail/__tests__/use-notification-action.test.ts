@@ -1,8 +1,8 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { NotificationAction, NotificationActionResult } from '../../../../../shared/contracts/notification-center.types';
-import type { NotificationCenterSource } from '../../../../../infrastructure/notification-center-source/notification-center-source.types';
+import type { NotificationAction, NotificationActionResult, NotificationCenterSource } from '../../../../../shared/contracts/notification-center.types';
 import { useNotificationAction } from '../use-notification-action';
+import { notificationsQueryWrapper } from '../../NotificationCenterPanel/__tests__/notification-center.test-support';
 
 /** Minimal action fixture builder, matching `notification-detail.helpers.test.ts`'s own. */
 function buildAction(overrides: Partial<NotificationAction> = {}): NotificationAction {
@@ -16,7 +16,7 @@ function buildActionSource(result: NotificationActionResult): NotificationCenter
 
 describe('useNotificationAction', () => {
   it('starts idle and enabled for a fresh action', () => {
-    const { result } = renderHook(() => useNotificationAction(1, buildAction(), buildActionSource({ executed: false, reason: 'intent_unregistered' })));
+    const { result } = renderHook(() => useNotificationAction(1, buildAction(), buildActionSource({ executed: false, reason: 'intent_unregistered' })), { wrapper: notificationsQueryWrapper().wrapper });
 
     expect(result.current.status).toBe('idle');
     expect(result.current.isDisabled).toBe(false);
@@ -25,7 +25,7 @@ describe('useNotificationAction', () => {
 
   it('reports executed and permanently disabled for an already-executed action, without ever entering pending or calling executeAction', () => {
     const source = buildActionSource({ executed: true, executedAtMs: 1_700_000_000_000 });
-    const { result } = renderHook(() => useNotificationAction(1, buildAction({ executedAtMs: 1_700_000_000_000 }), source));
+    const { result } = renderHook(() => useNotificationAction(1, buildAction({ executedAtMs: 1_700_000_000_000 }), source), { wrapper: notificationsQueryWrapper().wrapper });
 
     act(() => {
       result.current.press();
@@ -38,7 +38,7 @@ describe('useNotificationAction', () => {
 
   it('reports the server-known refusal reason for an already-refused action', () => {
     const source = buildActionSource({ executed: false, reason: 'target_missing' });
-    const { result } = renderHook(() => useNotificationAction(1, buildAction({ refusedReason: 'target_missing' }), source));
+    const { result } = renderHook(() => useNotificationAction(1, buildAction({ refusedReason: 'target_missing' }), source), { wrapper: notificationsQueryWrapper().wrapper });
 
     expect(result.current.status).toBe('refused');
     expect(result.current.isDisabled).toBe(true);
@@ -47,7 +47,7 @@ describe('useNotificationAction', () => {
 
   it('reports no refusal message for an executed action, even though refusedReason happens to be set too', () => {
     const source = buildActionSource({ executed: true, executedAtMs: 1 });
-    const { result } = renderHook(() => useNotificationAction(1, buildAction({ executedAtMs: 1, refusedReason: 'target_missing' }), source));
+    const { result } = renderHook(() => useNotificationAction(1, buildAction({ executedAtMs: 1, refusedReason: 'target_missing' }), source), { wrapper: notificationsQueryWrapper().wrapper });
 
     expect(result.current.status).toBe('executed');
     expect(result.current.refusalMessage).toBeUndefined();
@@ -55,7 +55,7 @@ describe('useNotificationAction', () => {
 
   it('recomputes the server-known status when a fresh action prop is passed in', () => {
     const source = buildActionSource({ executed: false, reason: 'intent_unregistered' });
-    const { rerender, result } = renderHook((action: NotificationAction) => useNotificationAction(1, action, source), { initialProps: buildAction() });
+    const { rerender, result } = renderHook((action: NotificationAction) => useNotificationAction(1, action, source), { wrapper: notificationsQueryWrapper().wrapper, initialProps: buildAction() });
 
     expect(result.current.status).toBe('idle');
 
@@ -66,7 +66,7 @@ describe('useNotificationAction', () => {
 
   it('disables optimistically the instant it is pressed, before executeAction resolves', () => {
     const source = buildActionSource({ executed: false, reason: 'intent_unregistered' });
-    const { result } = renderHook(() => useNotificationAction(1, buildAction(), source));
+    const { result } = renderHook(() => useNotificationAction(1, buildAction(), source), { wrapper: notificationsQueryWrapper().wrapper });
 
     act(() => {
       result.current.press();
@@ -78,7 +78,7 @@ describe('useNotificationAction', () => {
 
   it('calls executeAction with the notification id and action id, settling to executed on success', async () => {
     const source = buildActionSource({ executed: true, executedAtMs: 1_700_000_000_000 });
-    const { result } = renderHook(() => useNotificationAction(42, buildAction(), source));
+    const { result } = renderHook(() => useNotificationAction(42, buildAction(), source), { wrapper: notificationsQueryWrapper().wrapper });
 
     await act(async () => {
       result.current.press();
@@ -92,7 +92,7 @@ describe('useNotificationAction', () => {
 
   it('falls back to an empty refusal reason -- and therefore no refusal message -- when the server result omits it', async () => {
     const source = buildActionSource({ executed: false });
-    const { result } = renderHook(() => useNotificationAction(1, buildAction(), source));
+    const { result } = renderHook(() => useNotificationAction(1, buildAction(), source), { wrapper: notificationsQueryWrapper().wrapper });
 
     await act(async () => {
       result.current.press();
@@ -106,7 +106,7 @@ describe('useNotificationAction', () => {
 
   it('settles a press to the server-returned refusal reason', async () => {
     const source = buildActionSource({ executed: false, reason: 'target_missing' });
-    const { result } = renderHook(() => useNotificationAction(1, buildAction(), source));
+    const { result } = renderHook(() => useNotificationAction(1, buildAction(), source), { wrapper: notificationsQueryWrapper().wrapper });
 
     await act(async () => {
       result.current.press();
@@ -122,7 +122,7 @@ describe('useNotificationAction', () => {
     const source = buildActionSource({ executed: true, executedAtMs: 1 });
     const { rerender, result } = renderHook(
       (props: { action: NotificationAction; notificationId: number }) => useNotificationAction(props.notificationId, props.action, source),
-      { initialProps: { action: buildAction({ id: 'action-1' }), notificationId: 1 } },
+      { wrapper: notificationsQueryWrapper().wrapper, initialProps: { action: buildAction({ id: 'action-1' }), notificationId: 1 } },
     );
 
     rerender({ action: buildAction({ id: 'action-2' }), notificationId: 2 });
@@ -143,7 +143,7 @@ describe('useNotificationAction', () => {
   // and the second one never leaves the frontend.
   it('returns a repeatable action to idle once its press settles, so it can be pressed again', async () => {
     const source = buildActionSource({ executed: true, executedAtMs: 1_700_000_000_000 });
-    const { result } = renderHook(() => useNotificationAction(1, buildAction({ intent: 'navigation.open', repeatable: true }), source));
+    const { result } = renderHook(() => useNotificationAction(1, buildAction({ intent: 'navigation.open', repeatable: true }), source), { wrapper: notificationsQueryWrapper().wrapper });
 
     await act(async () => {
       result.current.press();
@@ -156,7 +156,7 @@ describe('useNotificationAction', () => {
 
   it('actually invokes executeAction a second time for a repeatable action', async () => {
     const source = buildActionSource({ executed: true, executedAtMs: 1_700_000_000_000 });
-    const { result } = renderHook(() => useNotificationAction(1, buildAction({ intent: 'navigation.open', repeatable: true }), source));
+    const { result } = renderHook(() => useNotificationAction(1, buildAction({ intent: 'navigation.open', repeatable: true }), source), { wrapper: notificationsQueryWrapper().wrapper });
 
     await act(async () => {
       result.current.press();
@@ -175,7 +175,7 @@ describe('useNotificationAction', () => {
     // persisted the first press, so the re-read carries executedAtMs.
     const source = buildActionSource({ executed: true, executedAtMs: 1 });
     const { result } = renderHook(() =>
-      useNotificationAction(1, buildAction({ executedAtMs: 1_700_000_000_000, intent: 'navigation.open', repeatable: true }), source),
+      useNotificationAction(1, buildAction({ executedAtMs: 1_700_000_000_000, intent: 'navigation.open', repeatable: true }), source), { wrapper: notificationsQueryWrapper().wrapper },
     );
 
     expect(result.current.status).toBe('idle');
@@ -186,7 +186,7 @@ describe('useNotificationAction', () => {
     // Repeatability widens exactly one gate, mirroring the Executor: an
     // in-flight press must still not fire the handler a second time.
     const source = buildActionSource({ executed: true, executedAtMs: 1 });
-    const { result } = renderHook(() => useNotificationAction(1, buildAction({ intent: 'navigation.open', repeatable: true }), source));
+    const { result } = renderHook(() => useNotificationAction(1, buildAction({ intent: 'navigation.open', repeatable: true }), source), { wrapper: notificationsQueryWrapper().wrapper });
 
     act(() => {
       result.current.press();
@@ -198,7 +198,7 @@ describe('useNotificationAction', () => {
 
   it('keeps a refused repeatable action disabled, because repeatability widens only the executed gate', async () => {
     const source = buildActionSource({ executed: false, reason: 'target_missing' });
-    const { result } = renderHook(() => useNotificationAction(1, buildAction({ intent: 'navigation.open', repeatable: true }), source));
+    const { result } = renderHook(() => useNotificationAction(1, buildAction({ intent: 'navigation.open', repeatable: true }), source), { wrapper: notificationsQueryWrapper().wrapper });
 
     await act(async () => {
       result.current.press();
@@ -211,7 +211,7 @@ describe('useNotificationAction', () => {
 
   it('ignores a second press received while the first is still pending, invoking executeAction exactly once', async () => {
     const source = buildActionSource({ executed: false, reason: 'intent_unregistered' });
-    const { result } = renderHook(() => useNotificationAction(1, buildAction(), source));
+    const { result } = renderHook(() => useNotificationAction(1, buildAction(), source), { wrapper: notificationsQueryWrapper().wrapper });
 
     await act(async () => {
       result.current.press();
@@ -221,5 +221,24 @@ describe('useNotificationAction', () => {
 
     expect(result.current.status).toBe('refused');
     expect(source.executeAction).toHaveBeenCalledTimes(1);
+  });
+
+  // A press the backend could not take (the module is not ready, or the call
+  // failed) executed nothing and refused nothing, so the button goes back to
+  // what it was and can be pressed again.
+  it('returns the button to idle when the press fails, and a second press really calls again', async () => {
+    const source = { executeAction: vi.fn().mockRejectedValue(new Error('not ready')) } as unknown as NotificationCenterSource;
+    const { result } = renderHook(() => useNotificationAction(1, buildAction(), source), { wrapper: notificationsQueryWrapper().wrapper });
+
+    act(() => {
+      result.current.press();
+    });
+    await waitFor(() => expect(result.current.status).toBe('idle'));
+    expect(result.current.isDisabled).toBe(false);
+    act(() => {
+      result.current.press();
+    });
+
+    await waitFor(() => expect(source.executeAction).toHaveBeenCalledTimes(2));
   });
 });

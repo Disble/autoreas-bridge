@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { createModulesTestWrapper } from '../../../shared/query/test-support/bridge-modules.test-support';
 import { AppLayout } from '../AppLayout';
 
 vi.mock('../../NotificationToasts', () => ({
@@ -28,6 +29,8 @@ describe('AppLayout', () => {
           </Route>
         </Routes>
       </MemoryRouter>,
+      // The rail's sync chip reads through the backup module; starting, it renders no chip.
+      { wrapper: createModulesTestWrapper({ module: 'backup', state: 'starting' }).wrapper },
     );
 
     expect(screen.getByTestId('notification-toasts')).toBeInTheDocument();

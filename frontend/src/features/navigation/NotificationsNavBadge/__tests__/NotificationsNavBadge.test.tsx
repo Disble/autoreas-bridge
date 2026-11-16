@@ -1,27 +1,27 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
-import type { NotificationSource } from '../../../../infrastructure/notification-source/notification-source.types';
-import type { Notification } from '../../../../shared/contracts/notification.types';
-import {
-  resetNotificationStore,
-  setUnreadNotificationCount,
-} from '../../../../shared/store/notification-store/notification-store.helpers';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { NotificationCenterSource } from '../../../../shared/contracts/notification-center.types';
+import type { ModuleReadiness } from '../../../../shared/contracts/readiness.types';
+import { createBridgeError } from '../../../../shared/query/bridge-error/bridge-error.helpers';
+import { connectBridgeEvents, createModulesTestWrapper } from '../../../../shared/query/test-support/bridge-modules.test-support';
+import { status } from '../../../../shared/query/test-support/readiness-source.test-support';
 import { NotificationsNavBadge } from '../NotificationsNavBadge';
 
 afterEach(cleanup);
 
-// The unread count is shared module state now, so it outlives an unmount.
-// Without this every assertion below would read whatever the previous test
-// left behind instead of what its own source reported.
-beforeEach(resetNotificationStore);
+/** The notifications module, ready. */
+const READY = status('notifications', 'ready');
 
-/** A fake source with only `getUnreadCount` wired; every other method is an unused stub. */
-function makeCenterSource(unreadCount: number): NotificationCenterSource {
+/**
+ * A fake source with only `getUnreadCount` wired; every other method is an unused stub.
+ * @param getUnreadCount The unread-count read.
+ * @returns The source.
+ */
+function makeCenterSource(getUnreadCount: NotificationCenterSource['getUnreadCount']): NotificationCenterSource {
   return {
     listNotifications: vi.fn(),
     getNotification: vi.fn(),
-    getUnreadCount: vi.fn().mockResolvedValue(unreadCount),
+    getUnreadCount,
     markRead: vi.fn(),
     markUnread: vi.fn(),
     archive: vi.fn(),
@@ -30,86 +30,74 @@ function makeCenterSource(unreadCount: number): NotificationCenterSource {
   };
 }
 
-/** A fake push source whose `push` helper lets a test emit a `notification.push` event on demand. */
-function makePushSource(): { source: NotificationSource; push: (notification: Notification) => void } {
-  const listeners = new Set<(notification: Notification) => void>();
-
-  return {
-    source: {
-      subscribe(listener) {
-        listeners.add(listener);
-        return () => listeners.delete(listener);
-      },
-      subscribeArchived() {
-        return () => undefined;
-      },
-      subscribeNavigate() {
-        return () => undefined;
-      },
-    },
-    push(notification) {
-      for (const listener of listeners) {
-        listener(notification);
-      }
-    },
-  };
+/**
+ * Renders the badge with the notifications module in `readiness`.
+ * @param centerSource The source the count is read through.
+ * @param readiness The module's readiness.
+ * @returns The render result plus the query client.
+ */
+function renderBadge(centerSource: NotificationCenterSource, readiness: ModuleReadiness = READY) {
+  const { client, wrapper } = createModulesTestWrapper(readiness);
+  return { client, ...render(<NotificationsNavBadge centerSource={centerSource} />, { wrapper }) };
 }
-
-/** One fake push payload; its content is irrelevant, only its arrival increments the count. */
-const FAKE_PUSH: Notification = {
-  Title: 'Episode ready',
-  Body: '',
-  Level: 'info',
-  Source: 'download',
-  CorrelationID: '',
-  Timestamp: '',
-};
 
 describe('NotificationsNavBadge', () => {
   it('shows a badge reflecting the unread count while it is greater than zero', async () => {
-    render(<NotificationsNavBadge centerSource={makeCenterSource(3)} pushSource={makePushSource().source} />);
+    renderBadge(makeCenterSource(vi.fn().mockResolvedValue(3)));
 
-    await waitFor(() => expect(screen.getByText('3')).toBeInTheDocument());
+    expect(await screen.findByText('3')).toBeInTheDocument();
   });
 
   it('shows no badge while the unread count is zero', async () => {
-    const centerSource = makeCenterSource(0);
+    const getUnreadCount = vi.fn().mockResolvedValue(0);
 
-    const { container } = render(
-      <NotificationsNavBadge centerSource={centerSource} pushSource={makePushSource().source} />,
-    );
+    const { container } = renderBadge(makeCenterSource(getUnreadCount));
 
-    await waitFor(() => expect(centerSource.getUnreadCount).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(getUnreadCount).toHaveBeenCalledTimes(1));
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('follows an unread count lowered elsewhere, because the count is shared rather than owned here', async () => {
-    // What a mark-read in the notification center does to the store. The
-    // badge must fall with it: owning the count locally is what previously
-    // left the rail contradicting the master list on screen.
-    render(<NotificationsNavBadge centerSource={makeCenterSource(2)} pushSource={makePushSource().source} />);
-    await waitFor(() => expect(screen.getByText('2')).toBeInTheDocument());
+  it('shows no badge and reads nothing while the notifications module is starting', async () => {
+    const getUnreadCount = vi.fn().mockResolvedValue(3);
 
-    act(() => {
-      setUnreadNotificationCount(1);
-    });
+    const { container } = renderBadge(makeCenterSource(getUnreadCount), status('notifications', 'starting'));
 
-    await waitFor(() => expect(screen.getByText('1')).toBeInTheDocument());
-    expect(screen.queryByText('2')).not.toBeInTheDocument();
+    await act(async () => undefined);
+    expect(getUnreadCount).not.toHaveBeenCalled();
+    expect(container).toBeEmptyDOMElement();
   });
 
-  it('updates the badge count as soon as a notification.push event arrives, without a reload', async () => {
-    const centerSource = makeCenterSource(0);
-    const { source: pushSource, push } = makePushSource();
+  it('shows no badge once the notifications module failed, rather than a count it never read', async () => {
+    const getUnreadCount = vi.fn().mockResolvedValue(3);
 
-    render(<NotificationsNavBadge centerSource={centerSource} pushSource={pushSource} />);
+    const { container } = renderBadge(makeCenterSource(getUnreadCount), status('notifications', 'failed', 'notifications: db closed'));
 
-    await waitFor(() => expect(centerSource.getUnreadCount).toHaveBeenCalledTimes(1));
+    await act(async () => undefined);
+    expect(getUnreadCount).not.toHaveBeenCalled();
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('shows no badge when the count read fails', async () => {
+    const getUnreadCount = vi.fn().mockRejectedValue(createBridgeError('internal', 'disk I/O error'));
+
+    const { container } = renderBadge(makeCenterSource(getUnreadCount));
+
+    await waitFor(() => expect(getUnreadCount).toHaveBeenCalled());
+    await act(async () => undefined);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it.each(['notification.push', 'notification.archived'])('reads the count again when %s arrives, without a reload', async (eventName) => {
+    const getUnreadCount = vi.fn().mockResolvedValueOnce(1).mockResolvedValue(2);
+    const { client } = renderBadge(makeCenterSource(getUnreadCount));
+    const events = connectBridgeEvents(client);
+    expect(await screen.findByText('1')).toBeInTheDocument();
 
     act(() => {
-      push(FAKE_PUSH);
+      events.emit(eventName);
     });
 
-    await waitFor(() => expect(screen.getByText('1')).toBeInTheDocument());
+    expect(await screen.findByText('2')).toBeInTheDocument();
+    events.disconnect();
   });
 });

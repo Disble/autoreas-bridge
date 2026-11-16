@@ -1,4 +1,4 @@
-import type { SeasonAnimeCandidate, SeasonAnimeRow, SeasonCreateMetadata } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeCandidate, SeasonAnimeRow, SeasonCreateMetadata } from '../../../../shared/contracts/season.types';
 import type { SeasonMatchingRun } from '../../../../shared/store/season-store/season-store.types';
 import type { AnimeMetadataSelection } from '../../../../shared/metadata-lookup/metadata-lookup.types';
 import { getAnimeTipoLabel } from '../../../../shared/helpers/anime-tipo.helpers';

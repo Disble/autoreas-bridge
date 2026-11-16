@@ -24,7 +24,9 @@
     "postinstall": "node ./scripts/generate-wails-bindings.mjs",
     "generate:bindings": "node ./scripts/generate-wails-bindings.mjs",
     "layout:smoke": "node ./scripts/layout-smoke.mjs",
-    "check:airis-assets": "node ./scripts/check-airis-assets.mjs"
+    "check:airis-assets": "node ./scripts/check-airis-assets.mjs",
+    "check:async-state": "node ./scripts/check-async-state-gates.mjs",
+    "check:async-state:all": "node ./scripts/check-async-state-gates.mjs --all"
   },
   "dependencies": {
     "@dnd-kit/helpers": "^0.5.1",
@@ -36,6 +38,7 @@
     "@iconify/react": "^6.0.3",
     "@internationalized/date": "^3.12.4",
     "@nivo/bar": "^0.99.0",
+    "@tanstack/react-query": "^5.107.1",
     "qrcode": "1.5.4",
     "react": "19.3.1",
     "react-dom": "19.3.1",

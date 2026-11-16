@@ -95,14 +95,13 @@ func TestAppStartupInitializesDownloadStoreBeforeHTTPServerFailure(t *testing.T)
 	if !errors.Is(app.startupErr, wantErr) {
 		t.Fatalf("expected startupErr %v, got %v", wantErr, app.startupErr)
 	}
-	got := app.SetScheduleConfig(contracts.ScheduleConfig{
+	if err := app.SetScheduleConfig(contracts.ScheduleConfig{
 		Mode:            "in_process",
 		DailyTimeHHMM:   "09:00",
 		Enabled:         true,
 		EnabledWeekdays: 127,
-	})
-	if got != "ok" {
-		t.Fatalf("expected schedule config to persist through the initialized download store, got %q", got)
+	}); err != nil {
+		t.Fatalf("expected schedule config to persist through the initialized download store, got %v", err)
 	}
 }
 

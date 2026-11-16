@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import type { ActivityFeedLine } from '../feed-source/feed.types';
+import type { ActivityFeedLine } from '../../../shared/contracts/activity-feed.types';
 import { DRAWER_PRESENCE_CLOSED } from './drawer.constants';
 import { isDrawerSlideOutEnd, nextDrawerPresence, settleDrawerPresence } from './drawer-presence.helpers';
 import type { DrawerPresence, DrawerTransitionEnd } from './drawer.types';

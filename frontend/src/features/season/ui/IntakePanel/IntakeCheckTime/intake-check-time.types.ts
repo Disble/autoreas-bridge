@@ -1,5 +1,5 @@
 import type { Time } from '@internationalized/date';
-import type { SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
+import type { SeasonSource } from '../../../../../shared/contracts/season.types';
 
 /** The two season-port calls the daily check time control drives, injected so a test can fake them. */
 export type CheckTimePort = Pick<SeasonSource, 'getCheckTime' | 'setCheckTime'>;

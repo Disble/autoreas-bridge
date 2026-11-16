@@ -1,0 +1,36 @@
+# Legacy binding violations (ADR-032 §5), one identified entry per rule, file and
+# exported App method. tools/checkarchitecture fails on a violation this file does
+# not list and on an entry that no longer occurs (the message names the entry to
+# delete). The count is printed on every run; it is reported, not gated.
+#
+# Maintenance rules:
+# - Delete an entry in the same unit that migrates its binding to a module handle
+#   (skill bridge-data; internal/modules says how to create a handle).
+# - Never add an entry for a new binding: a new binding uses its module's handle.
+# - A renamed or moved binding is a new binding; migrate it rather than re-listing it.
+version: 1
+violations:
+  - rule: binding-signature
+    file: internal/desktop/app_preferences.go
+    symbol: GetKeymap
+  - rule: binding-signature
+    file: internal/desktop/app_preferences.go
+    symbol: SetKeymap
+  - rule: binding-signature
+    file: internal/desktop/app_season_availability.go
+    symbol: DownloadSeasonAnimes
+  - rule: binding-signature
+    file: internal/desktop/app_season_availability.go
+    symbol: TriggerSeasonDownloads
+  - rule: binding-uses-handle
+    file: internal/desktop/app_preferences.go
+    symbol: GetKeymap
+  - rule: binding-uses-handle
+    file: internal/desktop/app_preferences.go
+    symbol: SetKeymap
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season_availability.go
+    symbol: DownloadSeasonAnimes
+  - rule: binding-uses-handle
+    file: internal/desktop/app_season_availability.go
+    symbol: TriggerSeasonDownloads

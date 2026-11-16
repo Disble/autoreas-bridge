@@ -1,23 +1,17 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { NotificationCenterSource } from '../../../../../infrastructure/notification-center-source/notification-center-source.types';
 import type { NotificationSource } from '../../../../../infrastructure/notification-source/notification-source.types';
-import type { Notification } from '../../../../../shared/contracts/notification.types';
-import type { NotificationRow } from '../../../../../shared/contracts/notification-center.types';
+import type { NotificationCenterSource, NotificationRow } from '../../../../../shared/contracts/notification-center.types';
 import { useNotificationCenterSync } from '../use-notification-center-sync';
+import { createCenterSource, notificationsQueryWrapper } from './notification-center.test-support';
 
-/** A fake source with only `listNotifications` wired; every other method is an unused stub. */
+/**
+ * A fake source with only `listNotifications` wired.
+ * @param listNotifications The spy to answer `listNotifications` with.
+ * @returns A `NotificationCenterSource` double.
+ */
 function makeSource(listNotifications: NotificationCenterSource['listNotifications']): NotificationCenterSource {
-  return {
-    listNotifications,
-    getNotification: vi.fn(),
-    getUnreadCount: vi.fn(),
-    markRead: vi.fn(),
-    markUnread: vi.fn(),
-    archive: vi.fn(),
-    restore: vi.fn(),
-    executeAction: vi.fn(),
-  };
+  return createCenterSource({ listNotifications });
 }
 
 /** Builds one master-list row; only the id and title distinguish the fixtures below. */
@@ -25,40 +19,22 @@ function makeRow(id: number): NotificationRow {
   return { id, createdAtMs: id * 1000, title: `Row ${id}`, body: '', level: 'info', source: 'download', actionCount: 0 };
 }
 
-/** A controllable stand-in for the `notification.push` and `notification.archived` runtime streams. */
+/** A controllable stand-in for the `notification.archived` runtime stream; a push goes through the query wrapper's `emitEvent`. */
 function makePushSource(): {
   readonly source: NotificationSource;
-  emit: () => void;
   emitArchived: (recordIds: readonly number[]) => void;
 } {
-  const listeners: ((notification: Notification) => void)[] = [];
   const archivedListeners: ((recordIds: readonly number[]) => void)[] = [];
 
   return {
-    emit() {
-      const pushed: Notification = {
-        Title: 'Download run started',
-        Body: '',
-        Level: 'info',
-        Source: 'download',
-        CorrelationID: 'run-9',
-        Timestamp: '2026-08-24T12:00:00Z',
-      };
-      for (const listener of listeners) {
-        listener(pushed);
-      }
-    },
     emitArchived(recordIds) {
       for (const listener of archivedListeners) {
         listener(recordIds);
       }
     },
     source: {
-      subscribe(listener) {
-        listeners.push(listener);
-        return () => {
-          listeners.splice(listeners.indexOf(listener), 1);
-        };
+      subscribe() {
+        return () => undefined;
       },
       subscribeArchived(listener) {
         archivedListeners.push(listener);
@@ -72,7 +48,6 @@ function makePushSource(): {
     },
   };
 }
-
 
 /**
  * The half of `useNotificationCenterSync` that reacts to something other than
@@ -92,19 +67,20 @@ describe('useNotificationCenterSync (live updates)', () => {
       .mockResolvedValueOnce({ items: [makeRow(1)], appliedLimit: 2, totalEver: 3, degraded: false })
       .mockResolvedValue({ items: [makeRow(4), makeRow(3), makeRow(2)], nextCursor: 'cursor-1', appliedLimit: 2, totalEver: 4, degraded: false });
     const push = makePushSource();
+    const query = notificationsQueryWrapper();
     const source = makeSource(listNotifications);
     const { result } = renderHook(() =>
-      useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: false, view: 'active' }),
+      useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: false, view: 'active' }), { wrapper: query.wrapper },
     );
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(result.current.listState).toBe('ready'));
     act(() => {
       result.current.onLoadMore();
     });
     await waitFor(() => expect(result.current.rows.map((row) => row.id)).toEqual([3, 2, 1]));
 
     act(() => {
-      push.emit();
+      query.emitEvent('notification.push');
     });
 
     await waitFor(() => expect(result.current.rows.map((row) => row.id)).toEqual([4, 3, 2, 1]));
@@ -118,15 +94,16 @@ describe('useNotificationCenterSync (live updates)', () => {
       // rewind pagination to the top of the list.
       .mockResolvedValue({ items: [makeRow(4), makeRow(3)], nextCursor: 'cursor-after-4', appliedLimit: 1, totalEver: 4, degraded: false });
     const push = makePushSource();
+    const query = notificationsQueryWrapper();
     const source = makeSource(listNotifications);
     const { result } = renderHook(() =>
-      useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: false, view: 'active' }),
+      useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: false, view: 'active' }), { wrapper: query.wrapper },
     );
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(result.current.listState).toBe('ready'));
 
     act(() => {
-      push.emit();
+      query.emitEvent('notification.push');
     });
     await waitFor(() => expect(result.current.rows).toHaveLength(2));
 
@@ -140,15 +117,16 @@ describe('useNotificationCenterSync (live updates)', () => {
   it('refreshes under the filters currently applied rather than an unfiltered first page', async () => {
     const listNotifications = vi.fn().mockResolvedValue({ items: [makeRow(1)], appliedLimit: 25, totalEver: 1, degraded: false });
     const push = makePushSource();
+    const query = notificationsQueryWrapper();
     const source = makeSource(listNotifications);
     const { result } = renderHook(() =>
-      useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: true, view: 'archived', search: 'one piece' }),
+      useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: true, view: 'archived', search: 'one piece' }), { wrapper: query.wrapper },
     );
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(result.current.listState).toBe('ready'));
 
     act(() => {
-      push.emit();
+      query.emitEvent('notification.push');
     });
 
     await waitFor(() => expect(listNotifications).toHaveBeenCalledTimes(2));
@@ -157,19 +135,20 @@ describe('useNotificationCenterSync (live updates)', () => {
     );
   });
 
-  it('stops listening once unmounted', async () => {
+  it('reads nothing on a push once unmounted', async () => {
     const listNotifications = vi.fn().mockResolvedValue({ items: [makeRow(1)], appliedLimit: 25, totalEver: 1, degraded: false });
     const push = makePushSource();
+    const query = notificationsQueryWrapper();
     const source = makeSource(listNotifications);
     const { result, unmount } = renderHook(() =>
-      useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: false, view: 'active' }),
+      useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: false, view: 'active' }), { wrapper: query.wrapper },
     );
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(result.current.listState).toBe('ready'));
     unmount();
 
     act(() => {
-      push.emit();
+      query.emitEvent('notification.push');
     });
 
     expect(listNotifications).toHaveBeenCalledTimes(1);
@@ -184,12 +163,13 @@ describe('useNotificationCenterSync (live updates)', () => {
       .mockResolvedValueOnce({ items: [makeRow(3), makeRow(2)], nextCursor: 'cursor-1', appliedLimit: 2, totalEver: 3, degraded: false })
       .mockResolvedValueOnce({ items: [makeRow(1)], appliedLimit: 2, totalEver: 3, degraded: false });
     const push = makePushSource();
+    const query = notificationsQueryWrapper();
     const source = makeSource(listNotifications);
     const { result } = renderHook(() =>
-      useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: false, view: 'active' }),
+      useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: false, view: 'active' }), { wrapper: query.wrapper },
     );
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(result.current.listState).toBe('ready'));
     act(() => {
       result.current.onLoadMore();
     });
@@ -210,12 +190,13 @@ describe('useNotificationCenterSync (live updates)', () => {
       .fn()
       .mockResolvedValue({ items: [makeRow(3), makeRow(2), makeRow(1)], appliedLimit: 25, totalEver: 3, degraded: false });
     const push = makePushSource();
+    const query = notificationsQueryWrapper();
     const source = makeSource(listNotifications);
     const { result } = renderHook(() =>
-      useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: false, view: 'active' }),
+      useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: false, view: 'active' }), { wrapper: query.wrapper },
     );
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(result.current.listState).toBe('ready'));
 
     act(() => {
       push.emitArchived([99]);
@@ -237,12 +218,13 @@ describe('useNotificationCenterSync (live updates)', () => {
       .mockResolvedValueOnce({ items: [makeRow(1)], appliedLimit: 25, totalEver: 2, degraded: false })
       .mockResolvedValue({ items: [makeRow(5), makeRow(1)], appliedLimit: 25, totalEver: 2, degraded: false });
     const push = makePushSource();
+    const query = notificationsQueryWrapper();
     const source = makeSource(listNotifications);
     const { result } = renderHook(() =>
-      useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: false, view: 'archived' }),
+      useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: false, view: 'archived' }), { wrapper: query.wrapper },
     );
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(result.current.listState).toBe('ready'));
 
     act(() => {
       push.emitArchived([5]);
@@ -263,11 +245,12 @@ describe('useNotificationCenterSync (live updates)', () => {
       .mockResolvedValueOnce({ items: [makeRow(9)], appliedLimit: 25, totalEver: 3, degraded: false })
       .mockResolvedValue({ items: [makeRow(7), makeRow(9)], appliedLimit: 25, totalEver: 3, degraded: false });
     const push = makePushSource();
+    const query = notificationsQueryWrapper();
     const source = makeSource(listNotifications);
 
     const { rerender, result } = renderHook<ReturnType<typeof useNotificationCenterSync>, { view: 'active' | 'archived' }>(
       ({ view }) => useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: false, view }),
-      { initialProps: { view: 'active' } },
+      { initialProps: { view: 'active' }, wrapper: query.wrapper },
     );
 
     await waitFor(() => expect(result.current.rows.map((row) => row.id)).toEqual([2, 1]));
@@ -291,9 +274,9 @@ describe('useNotificationCenterSync (live updates)', () => {
       .fn()
       .mockResolvedValue({ items: [makeRow(2), makeRow(1)], appliedLimit: 25, totalEver: 2, degraded: false });
     const source = makeSource(listNotifications);
-    const { result } = renderHook(() => useNotificationCenterSync({ source, unreadOnly: false, view: 'active' }));
+    const { result } = renderHook(() => useNotificationCenterSync({ source, unreadOnly: false, view: 'active' }), { wrapper: notificationsQueryWrapper().wrapper });
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(result.current.listState).toBe('ready'));
     expect(result.current.rows.map((row) => row.readAtMs)).toEqual([undefined, undefined]);
 
     act(() => {
@@ -313,9 +296,9 @@ describe('useNotificationCenterSync (live updates)', () => {
       degraded: false,
     });
     const source = makeSource(listNotifications);
-    const { result } = renderHook(() => useNotificationCenterSync({ source, unreadOnly: false, view: 'active' }));
+    const { result } = renderHook(() => useNotificationCenterSync({ source, unreadOnly: false, view: 'active' }), { wrapper: notificationsQueryWrapper().wrapper });
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(result.current.listState).toBe('ready'));
 
     act(() => {
       result.current.applyReadState([2], false);
@@ -328,9 +311,9 @@ describe('useNotificationCenterSync (live updates)', () => {
   it('leaves the loaded rows untouched when the read state names nothing on screen', async () => {
     const listNotifications = vi.fn().mockResolvedValue({ items: [makeRow(1)], appliedLimit: 25, totalEver: 1, degraded: false });
     const source = makeSource(listNotifications);
-    const { result } = renderHook(() => useNotificationCenterSync({ source, unreadOnly: false, view: 'active' }));
+    const { result } = renderHook(() => useNotificationCenterSync({ source, unreadOnly: false, view: 'active' }), { wrapper: notificationsQueryWrapper().wrapper });
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(result.current.listState).toBe('ready'));
     const before = result.current.rows;
 
     act(() => {
@@ -348,9 +331,9 @@ describe('useNotificationCenterSync (live updates)', () => {
     // and re-render the table to land on the state already showing.
     const listNotifications = vi.fn().mockResolvedValue({ items: [makeRow(1)], appliedLimit: 25, totalEver: 1, degraded: false });
     const source = makeSource(listNotifications);
-    const { result } = renderHook(() => useNotificationCenterSync({ source, unreadOnly: false, view: 'active' }));
+    const { result } = renderHook(() => useNotificationCenterSync({ source, unreadOnly: false, view: 'active' }), { wrapper: notificationsQueryWrapper().wrapper });
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(result.current.listState).toBe('ready'));
     const before = result.current.rows;
 
     act(() => {
@@ -363,9 +346,9 @@ describe('useNotificationCenterSync (live updates)', () => {
   it('keeps applyReadState stable across renders, so the callbacks built on it do not churn', async () => {
     const listNotifications = vi.fn().mockResolvedValue({ items: [makeRow(1)], appliedLimit: 25, totalEver: 1, degraded: false });
     const source = makeSource(listNotifications);
-    const { rerender, result } = renderHook(() => useNotificationCenterSync({ source, unreadOnly: false, view: 'active' }));
+    const { rerender, result } = renderHook(() => useNotificationCenterSync({ source, unreadOnly: false, view: 'active' }), { wrapper: notificationsQueryWrapper().wrapper });
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(result.current.listState).toBe('ready'));
     const first = result.current.applyReadState;
 
     rerender();
@@ -378,12 +361,13 @@ describe('useNotificationCenterSync (live updates)', () => {
   it('stops listening for archived records once unmounted', async () => {
     const listNotifications = vi.fn().mockResolvedValue({ items: [makeRow(1)], appliedLimit: 25, totalEver: 1, degraded: false });
     const push = makePushSource();
+    const query = notificationsQueryWrapper();
     const source = makeSource(listNotifications);
     const { result, unmount } = renderHook(() =>
-      useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: false, view: 'active' }),
+      useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: false, view: 'active' }), { wrapper: query.wrapper },
     );
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(result.current.listState).toBe('ready'));
     unmount();
 
     act(() => {

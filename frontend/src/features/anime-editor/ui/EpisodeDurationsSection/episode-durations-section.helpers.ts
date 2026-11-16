@@ -1,12 +1,17 @@
 import type {
   EpisodeDurationRequest,
   EpisodeDurationRow,
+  EpisodeDurationRuntimeSource,
   EpisodeDurationSection,
   EpisodeReanalysisProgress,
-} from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
+} from '../../../../shared/contracts/episode-durations.types';
 import type { EpisodeDurationEdit } from '../../../../shared/contracts/anime.types';
+import type { AsyncView } from '../../../../shared/query/async-view/async-view.types';
 import {
   EPISODE_DURATIONS_EMPTY_COPY,
+  EPISODE_DURATIONS_IDLE_LOAD,
+  EPISODE_DURATIONS_NO_ANIME_MESSAGE,
+  EPISODE_DURATIONS_QUERY_KEYS,
   EPISODE_LONG_THRESHOLD_MS,
   EPISODE_MINUTE_MS,
   EPISODE_NOT_TV_NOTE,
@@ -22,6 +27,7 @@ import type {
   EpisodeDurationsLoad,
   EpisodeDurationsOverview,
   EpisodeDurationsSummary,
+  EpisodeDurationsTarget,
   EpisodeDurationsView,
   EpisodeEditFormState,
   EpisodeEditFormView,
@@ -65,11 +71,56 @@ export function toEpisodeErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** Reads a section result as ready, or as a failure carrying its message. */
-export function toEpisodeDurationsLoad(section: EpisodeDurationSection): EpisodeDurationsLoad {
-  return section.outcome === 'ok'
-    ? { status: 'ready', section }
-    : { status: 'failed', message: section.message ?? 'Episode durations could not be read.' };
+/**
+ * The section query's key: the saved anime the request names and the card's
+ * save revision, so a saved change or an episodes save reads again.
+ * @param request The section request, or undefined while no record is loaded.
+ * @param revision The card's save revision.
+ * @returns The query key.
+ */
+export function toEpisodeDurationsQueryKey(request: EpisodeDurationRequest | undefined, revision: number) {
+  return EPISODE_DURATIONS_QUERY_KEYS.key('section', request?.animeId ?? null, request?.folder ?? null, request?.totalEpisodes ?? null, request?.kind ?? null, revision);
+}
+
+/**
+ * The section query's read: the saved anime's section, or a rejection when no
+ * record is loaded (the query stays disabled then, so this guards only types).
+ * @param source The card's source.
+ * @param request The section request, or undefined while no record is loaded.
+ * @returns The section.
+ */
+export function readEpisodeDurationSection(source: EpisodeDurationRuntimeSource, request: EpisodeDurationRequest | undefined): Promise<EpisodeDurationSection> {
+  return request === undefined ? Promise.reject(new Error(EPISODE_DURATIONS_NO_ANIME_MESSAGE)) : source.getEpisodeDurationSection(request);
+}
+
+/**
+ * Tells whether the current request or save revision has not settled yet, so
+ * the query still answers for an older read.
+ * @param settled The read the query is keyed on (`EPISODE_DURATIONS_UNSETTLED` before any settled).
+ * @param request The current request.
+ * @param revision The current save revision.
+ * @returns Whether a newer read is waiting for the reload delay.
+ */
+export function isEpisodeDurationsTargetPending(settled: EpisodeDurationsTarget, request: EpisodeDurationRequest | undefined, revision: number): boolean {
+  return settled.request !== request || settled.revision !== revision;
+}
+
+/**
+ * Reads the section query as the card's load: idle with no record, loading
+ * while a newer request waits to settle, the module starts, or the query (or
+ * another key's placeholder) is pending, failed with the rejection's message,
+ * or ready with the section.
+ * @param request The section request, or undefined while no record is loaded.
+ * @param view The query's async view.
+ * @param isStale Whether the query answers for an older read: another key's placeholder or a request still settling.
+ * @returns The load.
+ */
+export function toEpisodeDurationsLoad(request: EpisodeDurationRequest | undefined, view: AsyncView<EpisodeDurationSection>, isStale: boolean): EpisodeDurationsLoad {
+  if (request === undefined) return EPISODE_DURATIONS_IDLE_LOAD;
+  if (isStale) return { status: 'loading' };
+  if (view.kind === 'failure') return { status: 'failed', message: view.message };
+  if (view.kind !== 'ready') return { status: 'loading' };
+  return { status: 'ready', section: view.data };
 }
 
 /** Rounds a runtime to whole minutes, like the backend's `lengths.WholeMinutes`. */

@@ -206,4 +206,6 @@ validated record Bridge stored, so the screen calls it the stored report. A grou
 Data tab offers a picker.
 
 The frontend side lives in `frontend/src/features/activity/drawer/drawer-reading.helpers.ts`,
-`use-drawer-stored-report.ts` and `ui/ActivityTechnicalView/`.
+`use-drawer-stored-report.ts` and `ui/ActivityTechnicalView/`. The report is read by `useDrawerFeedRead`, a
+`useBridgeQuery` on the `observability` module keyed `activityKeys.key('phone-report', id)`, so the Data tab
+shows loading while the module starts and fails when it failed (`overview.md`, "Readiness").

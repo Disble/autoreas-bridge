@@ -1,5 +1,5 @@
-import type { ActivityRunStory } from '../../activity-source/activity-incident.types';
-import type { ActivitySource } from '../../activity-source/activity-source.types';
+import type { ActivityRunStory } from '../../../../shared/contracts/activity-incident.types';
+import type { ActivitySource } from '../../../../shared/contracts/activity.types';
 
 /** The semantic tone of a mark, a chip or a step. */
 export type ActivityTone = 'danger' | 'warning' | 'success' | 'default';
@@ -59,10 +59,8 @@ export interface ActivityReadState<T, Absent = never> {
   readonly retry: () => void;
 }
 
-/** A resolved, failed or gone read, tagged with the request it answers. */
-export interface ActivityTaggedRead<T> {
-  /** Key of the request that produced it, such as `<id>#<attempt>`. */
-  readonly key: string;
-  /** What that request produced. */
-  readonly read: ActivityRead<T>;
-}
+/**
+ * What a by-id read reads; with its id it keys the read's query
+ * (`activityKeys.key(name, id)`), so two reads of one id never share an answer.
+ */
+export type ActivityReadName = 'incident' | 'request' | 'run-story' | 'event' | 'change-context' | 'phone-report';

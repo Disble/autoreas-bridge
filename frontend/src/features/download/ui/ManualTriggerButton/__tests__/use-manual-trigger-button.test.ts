@@ -1,52 +1,38 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { useManualTriggerButton } from '../use-manual-trigger-button';
-import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
+import type { DownloadsSource } from '../../../../../shared/contracts/download.types';
+import { createDownloadsSourceFake, createDownloadsWrapper } from '../../../../../shared/hooks/use-missed-schedule-notice/__tests__/downloads.test-support';
 
-/** Builds a fully stubbed download runtime port, overridable per case. */
-function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
-  return {
-    getDownloadConfig: vi.fn(),
-    getJDStatus: vi.fn(),
-    getJDMaxSimultaneousDownloads: vi.fn().mockResolvedValue(0),
-    setJDConfig: vi.fn(),
-    getScheduleConfig: vi.fn(),
-    setScheduleConfig: vi.fn(),
-    setHosterPriority: vi.fn(),
-    setEpisodeRenameEnabled: vi.fn().mockResolvedValue('ok'),
-    triggerDownloadCheck: vi.fn().mockResolvedValue('ok'),
-    triggerAnimeDownload: vi.fn(),
-    cancelDownloadRun: vi.fn().mockResolvedValue('ok'),
-    runMissedScheduleNow: vi.fn(),
-    ignoreMissedSchedule: vi.fn(),
-    listDownloadRuns: vi.fn(),
-    listDownloadReadiness: vi.fn(),
-    subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
-    subscribeMissedScheduleSettled: vi.fn().mockReturnValue(() => undefined),
-    ...overrides,
-  };
+/**
+ * Builds a fully stubbed downloads port, overridable per case.
+ * @param overrides The calls a case replaces.
+ * @returns The port.
+ */
+function createSource(overrides: Partial<DownloadsSource> = {}): DownloadsSource {
+  return createDownloadsSourceFake(overrides);
 }
 
 describe('useManualTriggerButton', () => {
   it('starts in the "idle" status', () => {
     const source = createSource();
-    const { result } = renderHook(() => useManualTriggerButton(source));
+    const { result } = renderHook(() => useManualTriggerButton(source), { wrapper: createDownloadsWrapper().wrapper });
 
     expect(result.current.viewModel.status).toBe('idle');
   });
 
   it('moves to "triggering" while the call is in flight, then "success"', async () => {
-    let resolveTrigger: (value: string) => void = () => {};
+    let resolveTrigger: (value: undefined) => void = () => {};
     let pendingTrigger: Promise<void> | undefined;
     const source = createSource({
       triggerDownloadCheck: vi.fn().mockImplementation(
         () =>
-          new Promise<string>((resolve) => {
+          new Promise<undefined>((resolve) => {
             resolveTrigger = resolve;
           }),
       ),
     });
-    const { result } = renderHook(() => useManualTriggerButton(source));
+    const { result } = renderHook(() => useManualTriggerButton(source), { wrapper: createDownloadsWrapper().wrapper });
 
     act(() => {
       pendingTrigger = result.current.trigger();
@@ -55,19 +41,18 @@ describe('useManualTriggerButton', () => {
     await waitFor(() => expect(result.current.viewModel.status).toBe('triggering'));
 
     await act(async () => {
-      resolveTrigger('ok');
+      resolveTrigger(undefined);
       await pendingTrigger;
     });
 
     await waitFor(() => expect(result.current.viewModel.status).toBe('success'));
   });
 
-  it('moves to "already-in-progress" when the backend reports a concurrent run', async () => {
+  it('moves to "already-in-progress" when the backend refuses with the concurrent-run guard', async () => {
     const source = createSource({
-      triggerDownloadCheck: vi.fn().mockResolvedValue('schedule: a download run is already in progress'),
-    triggerAnimeDownload: vi.fn(),
+      triggerDownloadCheck: vi.fn().mockRejectedValue(new Error('schedule: a download run is already in progress')),
     });
-    const { result } = renderHook(() => useManualTriggerButton(source));
+    const { result } = renderHook(() => useManualTriggerButton(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await act(async () => {
       await result.current.trigger();
@@ -76,12 +61,11 @@ describe('useManualTriggerButton', () => {
     expect(result.current.viewModel.status).toBe('already-in-progress');
   });
 
-  it('moves to "error" with the message when the backend reports a generic failure', async () => {
+  it('moves to "error" with the message when the backend refuses for another reason', async () => {
     const source = createSource({
-      triggerDownloadCheck: vi.fn().mockResolvedValue('download scheduler unavailable'),
-    triggerAnimeDownload: vi.fn(),
+      triggerDownloadCheck: vi.fn().mockRejectedValue(new Error('download scheduler unavailable')),
     });
-    const { result } = renderHook(() => useManualTriggerButton(source));
+    const { result } = renderHook(() => useManualTriggerButton(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await act(async () => {
       await result.current.trigger();
@@ -93,7 +77,7 @@ describe('useManualTriggerButton', () => {
 
   it('moves to "error" when triggerDownloadCheck rejects', async () => {
     const source = createSource({ triggerDownloadCheck: vi.fn().mockRejectedValue(new Error('network down')) });
-    const { result } = renderHook(() => useManualTriggerButton(source));
+    const { result } = renderHook(() => useManualTriggerButton(source), { wrapper: createDownloadsWrapper().wrapper });
 
     await act(async () => {
       await result.current.trigger();

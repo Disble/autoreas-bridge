@@ -20,7 +20,7 @@ func TestCloseSeasonCapturesDailyBoard(t *testing.T) {
 	t.Parallel()
 	repo := newFakeSeasonRepo()
 	app := newTestSeasonApp(repo, nil)
-	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+	if got := app.CreateSeason("Julio 2026"); got != nil {
 		t.Fatalf("CreateSeason: %q", got)
 	}
 	ctx := context.Background()
@@ -51,13 +51,15 @@ func TestCloseSeasonCapturesDailyBoard(t *testing.T) {
 		animes = append(animes, live)
 	}
 	app.animeQuery = &stubAnimeQueryService{mobileAnimes: animes}
+	seasonReady(app)
 
-	if got := app.CloseSeason(); got != "ok" {
+	if got := app.CloseSeason(); got != nil {
 		t.Fatalf("CloseSeason: %q", got)
 	}
 	app.animeQuery = &stubAnimeQueryService{}
+	seasonReady(app)
 
-	got := app.GetSeasonOrderingSnapshot(active.ID).DailyBoard
+	got := must(t).value(app.GetSeasonOrderingSnapshot(active.ID)).DailyBoard
 	want := []SeasonDailyBoardEntryDTO{
 		{RowID: "row-sin-1", AnimeID: "anime-sin-1", Section: "Sin ver", Order: 1},
 		{RowID: "row-hoy", AnimeID: "anime-hoy", Section: "Ver hoy", Order: 1},
@@ -93,7 +95,7 @@ func TestSeasonClosureDailyBoardRecordedState(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			app, _, seasonID := newSeasonAppWithClosure(t, tc.payload)
-			got := app.GetSeasonOrderingSnapshot(seasonID).DailyBoard
+			got := must(t).value(app.GetSeasonOrderingSnapshot(seasonID)).DailyBoard
 			if got.Recorded != tc.recorded || got.Entries == nil || len(got.Entries) != tc.entries {
 				t.Fatalf("daily board = %+v, want recorded=%v with %d non-nil entries", got, tc.recorded, tc.entries)
 			}
@@ -108,14 +110,14 @@ func TestCloseSeasonWithoutCreatedAnimesRecordsEmptyDailyBoard(t *testing.T) {
 	t.Parallel()
 	repo := newFakeSeasonRepo()
 	app := newTestSeasonApp(repo, nil)
-	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+	if got := app.CreateSeason("Julio 2026"); got != nil {
 		t.Fatalf("CreateSeason: %q", got)
 	}
 	active, _ := app.seasonService.ActiveSeason(context.Background())
-	if got := app.CloseSeason(); got != "ok" {
+	if got := app.CloseSeason(); got != nil {
 		t.Fatalf("CloseSeason: %q", got)
 	}
-	if got := app.GetSeasonOrderingSnapshot(active.ID).DailyBoard; !got.Recorded || len(got.Entries) != 0 {
+	if got := must(t).value(app.GetSeasonOrderingSnapshot(active.ID)).DailyBoard; !got.Recorded || len(got.Entries) != 0 {
 		t.Fatalf("an empty close must record an empty daily board, got %+v", got)
 	}
 }
@@ -125,7 +127,7 @@ func TestCloseSeasonWithoutCreatedAnimesRecordsEmptyDailyBoard(t *testing.T) {
 // on disk and the history read decodes it back with every section and order.
 func TestCloseSeasonDailyBoardRoundTripsThroughSQLite(t *testing.T) {
 	fixture := newSQLiteSeasonFixture(t)
-	if got := fixture.app.CreateSeason("Julio 2026"); got != "ok" {
+	if got := fixture.app.CreateSeason("Julio 2026"); got != nil {
 		t.Fatalf("CreateSeason: %q", got)
 	}
 	ctx := context.Background()
@@ -149,12 +151,13 @@ func TestCloseSeasonDailyBoardRoundTripsThroughSQLite(t *testing.T) {
 		animes = append(animes, contracts.MobileAnime{ID: animeID, Name: animeID, Days: live[animeID]})
 	}
 	fixture.app.animeQuery = &stubAnimeQueryService{mobileAnimes: animes}
+	seasonReady(fixture.app)
 
-	if got := fixture.app.CloseSeason(); got != "ok" {
+	if got := fixture.app.CloseSeason(); got != nil {
 		t.Fatalf("CloseSeason: %q", got)
 	}
 
-	got := fixture.app.GetSeasonOrderingSnapshot(active.ID).DailyBoard
+	got := must(t).value(fixture.app.GetSeasonOrderingSnapshot(active.ID)).DailyBoard
 	want := []SeasonDailyBoardEntryDTO{
 		{RowID: "row-anime-weekday", AnimeID: "anime-weekday", Section: "Visto", Order: 1},
 		{RowID: "row-anime-hoy", AnimeID: "anime-hoy", Section: "Ver hoy", Order: 1},

@@ -1,0 +1,309 @@
+import type { ActivityLedgerLine } from './activity-ledger.types';
+
+/**
+ * Frontend contracts of the Activity feed and overview reads
+ * (`internal/observability/activityread/feed_types.go`, `overview.go`).
+ *
+ * They mirror the Go types field for field, renamed to camelCase and made
+ * readonly. Nil pointers become `undefined` and nil slices become empty arrays.
+ */
+
+/** One type toggle of the feed, the Go `FeedType` values. */
+export type ActivityFeedType = 'change' | 'traffic' | 'download' | 'task' | 'edit' | 'system';
+
+/** Where a line happened. `all` is a filter value only, never a line's origin. */
+export type ActivityFeedOrigin = 'all' | 'phone' | 'bridge';
+
+/** One scale of the time chart, the Go `ChartScale` values. */
+export type ActivityChartScale = '24h' | '7d' | '30d' | '90d';
+
+/** One hour of the request rollup, every route and device. */
+export interface ActivityTrafficHour {
+  /** Start of the hour, epoch milliseconds. */
+  readonly hourStartMs: number;
+  /** Requests answered in the hour. */
+  readonly requests: number;
+  /** Requests answered with a 4xx or 5xx status. */
+  readonly failed: number;
+  /** Slowest request of the hour, milliseconds. */
+  readonly maxDurationMs: number;
+}
+
+/** One stored download run. */
+export interface ActivityDownloadRun {
+  /** Run id; it is also the correlation id of the run's events. */
+  readonly runId: string;
+  /** What started the run, as stored (`manual_anime`, `scheduled`, `season-availability`, or empty). */
+  readonly trigger: string;
+  /** Run status as stored (`ok`, `error`, `interrupted`, …). */
+  readonly status: string;
+  /** Start, epoch milliseconds. */
+  readonly startedAtMs: number;
+  /** End, epoch milliseconds; undefined while the run has not finished. */
+  readonly finishedAtMs: number | undefined;
+  /** Anime the run checked. */
+  readonly animesChecked: number;
+  /** Episodes the run found. */
+  readonly episodesFound: number;
+  /** Episodes the run downloaded. */
+  readonly episodesDownloaded: number;
+  /** Episodes the run failed to download. */
+  readonly episodesFailed: number;
+  /** Anime the run skipped. */
+  readonly skippedCount: number;
+  /** Anime already up to date. */
+  readonly upToDateCount: number;
+  /** Stored error summary; empty when none. */
+  readonly errorSummary: string;
+}
+
+/** What one System line groups: the events of one hour sharing a domain, event type, level and message. */
+export interface ActivitySystemGroup {
+  /** Start of the hour, epoch milliseconds. */
+  readonly hourStartMs: number;
+  /** Events in the group. */
+  readonly count: number;
+  /** The first event's time, epoch milliseconds. */
+  readonly firstAtMs: number;
+  /** The last event's time, epoch milliseconds; the line's own time. */
+  readonly lastAtMs: number;
+}
+
+/** What Bridge makes of one failed sync report, the Go `syncreading.Reading` values. */
+export type ActivitySyncReadingKind = 'bridge_off' | 'tablet_late' | 'real_failure';
+
+/** What a reading rests on. An undefined time means that fact does not exist. */
+export interface ActivitySyncEvidence {
+  /** When the device failed, epoch milliseconds. */
+  readonly failedAtMs: number;
+  /** When Bridge received the report, epoch milliseconds. */
+  readonly arrivedAtMs: number;
+  /** The device's last contact recorded by the next start, epoch milliseconds. */
+  readonly lastContactMs: number | undefined;
+  /** The first Bridge start after the failure, epoch milliseconds. */
+  readonly nextStartMs: number | undefined;
+  /** When the grace period after the next start ends: the next start plus 20 minutes, epoch milliseconds. */
+  readonly graceUntilMs: number | undefined;
+  /** The device's first report of any kind received at or after the next start, epoch milliseconds. */
+  readonly firstReportMs: number | undefined;
+  /** How long after the grace period the first report came, milliseconds; only for a late tablet. */
+  readonly overdueMs: number | undefined;
+}
+
+/** Bridge's reading of one failed sync report. It is computed, never stored in the report. */
+export interface ActivitySyncReading {
+  /** The stored report, read with `GetActivityPhoneReport`. */
+  readonly reportId: number;
+  /** The reading. */
+  readonly reading: ActivitySyncReadingKind;
+  /** What it rests on. */
+  readonly evidence: ActivitySyncEvidence;
+}
+
+/** What one `bridge_off` line stands for: a Bridge start and the reports that waited for it. */
+export interface ActivityBridgeOffGroup {
+  /** The start, epoch milliseconds; the line's own time. */
+  readonly bridgeStartMs: number;
+  /** The reports, newest arrival first; their count is the group's size. */
+  readonly reports: readonly ActivitySyncReading[];
+}
+
+/**
+ * The stored fields a phone report line is worded from (S6 P2 and P3), as
+ * stored. A runtime transition carries the process, subject, transition and an
+ * optional reason; a failed cycle report carries the last stage it reached.
+ */
+export interface ActivityPhoneReportFacts {
+  /** The reporting process, such as `sync`; empty for a cycle report. */
+  readonly processName: string;
+  /** What changed, such as `process`; empty for a cycle report. */
+  readonly subject: string;
+  /** The change, such as `died`; empty for a cycle report. */
+  readonly transition: string;
+  /** The recorded reason of a transition; undefined when it recorded none. */
+  readonly reason: string | undefined;
+  /** The last stage a failed cycle reached, such as `http`; empty for a transition. */
+  readonly stage: string;
+}
+
+/** One scheduler and outcome pair of a tablet hour: the attempts it counted, as stored. */
+export interface ActivityTabletCount {
+  /** The scheduler, such as `foreground_service`. */
+  readonly triggerSource: string;
+  /** How the attempts ended, such as `presence_refused`. */
+  readonly outcome: string;
+  /** The number of attempts. */
+  readonly count: number;
+  /** The slowest attempt, milliseconds; undefined when the tablet measured none. */
+  readonly maxDurationMs: number | undefined;
+}
+
+/** One process and reason pair of a tablet hour's process deaths, as stored. */
+export interface ActivityProcessDeath {
+  /** The process, `main` or `sync`. */
+  readonly processName: string;
+  /** The recorded reason code, such as `low_memory`. */
+  readonly reason: string;
+  /** How many times it died for that reason. */
+  readonly count: number;
+}
+
+/** What one device reported for a traffic hour in its hourly summary (S6 P1), as stored and never interpreted. */
+export interface ActivityTabletSummary {
+  /** Stored report id, read with `GetActivityPhoneReport`. */
+  readonly reportId: number;
+  /** The device that reported it. */
+  readonly deviceId: string;
+  /** When it reached Bridge, epoch milliseconds: after its hour closed, possibly much later. */
+  readonly receivedAtMs: number;
+  /** Its counts per scheduler and outcome, in the order the tablet sent them. */
+  readonly counts: readonly ActivityTabletCount[];
+  /** How many of the hour's reports the tablet dropped. */
+  readonly droppedCount: number;
+  /** Its process deaths, in the order the tablet sent them. */
+  readonly processDeaths: readonly ActivityProcessDeath[];
+}
+
+/** One stored report that bounds a tablet silence: its kind and when Bridge received it. */
+export interface ActivitySilenceReport {
+  /** The stored report kind, such as `cycle_report`. */
+  readonly kind: string;
+  /** When Bridge received it, epoch milliseconds; the end or start of `hourStartMs`'s hour when heard only by the hour. */
+  readonly receivedAtMs: number;
+  /** The hour the device was heard in, by its hourly summary, before its oldest retained cycle report; undefined otherwise. */
+  readonly hourStartMs: number | undefined;
+}
+
+/**
+ * One tablet silence (S6 P4): 60 minutes or more in which Bridge was on and
+ * received no report from a device, computed when Activity reads.
+ */
+export interface ActivityTabletSilence {
+  /** The silent device. */
+  readonly deviceId: string;
+  /** When it began: the later of the last report and the Bridge start, epoch milliseconds. */
+  readonly startMs: number;
+  /** When it ended, epoch milliseconds; undefined while it lasts. */
+  readonly endMs: number | undefined;
+  /** The device's last report before it. */
+  readonly lastReport: ActivitySilenceReport;
+  /** The report that ended it; undefined while it lasts or when Bridge stopped first. */
+  readonly nextReport: ActivitySilenceReport | undefined;
+  /** The start of the Bridge run it happened in, epoch milliseconds. */
+  readonly bridgeStartedAtMs: number;
+  /** When that run stopped, when it ended the silence before a report did; undefined otherwise. */
+  readonly bridgeStoppedAtMs: number | undefined;
+}
+
+/**
+ * How the run before one Bridge start ended, read from stored rows (S6 P5).
+ * Neither time set: no close is stored before the start, so it is unknown.
+ */
+export interface ActivityBridgeStartFacts {
+  /** Its clean close, epoch milliseconds; undefined when it recorded none. */
+  readonly closedAtMs: number | undefined;
+  /** The last row it wrote, epoch milliseconds; set only when it did not close normally. */
+  readonly lastEventAtMs: number | undefined;
+}
+
+/**
+ * One feed row. `traffic`, `run`, `system` and `bridgeOff` are set only for
+ * their own lines. A System line is an event line standing for its group:
+ * `line` is the group's newest recorded event.
+ */
+export interface ActivityFeedLine {
+  /** The type toggle the line belongs to. */
+  readonly type: ActivityFeedType;
+  /** Where it happened. */
+  readonly origin: Exclude<ActivityFeedOrigin, 'all'>;
+  /** Whether the line failed. */
+  readonly failed: boolean;
+  /** Whether the line was slow or a warning. */
+  readonly slow: boolean;
+  /** Newest incident occurrence recorded for this fact; undefined when none. */
+  readonly incidentId: number | undefined;
+  /** The fields every kind has, as History renders them. */
+  readonly line: ActivityLedgerLine;
+  /** The hour's totals, for a `traffic_hour` line. */
+  readonly traffic: ActivityTrafficHour | undefined;
+  /** The run, for a `download_run` line. */
+  readonly run: ActivityDownloadRun | undefined;
+  /** The group, for a System line. */
+  readonly system: ActivitySystemGroup | undefined;
+  /** Bridge's reading, for a phone report line that has one; undefined keeps it a plain failure. */
+  readonly syncReading: ActivitySyncReading | undefined;
+  /** The start and its reports, for a `bridge_off` line. */
+  readonly bridgeOff: ActivityBridgeOffGroup | undefined;
+  /** The stored facts of a runtime transition or of a failed cycle report with a stage; undefined otherwise. */
+  readonly report: ActivityPhoneReportFacts | undefined;
+  /** The hourly summaries of a `traffic_hour` line, one per device that reported that hour; empty otherwise. */
+  readonly tabletSummaries: readonly ActivityTabletSummary[];
+  /** How the run before a start ended, for a System line of starts; undefined otherwise. */
+  readonly bridgeStart: ActivityBridgeStartFacts | undefined;
+  /** The silence, for a `tablet_silence` line; undefined otherwise. */
+  readonly silence: ActivityTabletSilence | undefined;
+}
+
+/** One local day's feed lines, newest first. */
+export interface ActivityFeedDay {
+  /** Local midnight of the day, epoch milliseconds. */
+  readonly dayStartMs: number;
+  /** The day's lines, newest first. */
+  readonly lines: readonly ActivityFeedLine[];
+}
+
+/** One feed page. */
+export interface ActivityFeedView {
+  /** Day groups, newest first. */
+  readonly days: readonly ActivityFeedDay[];
+  /** Cursor of the next older page; empty when none remains. */
+  readonly nextCursor: string;
+}
+
+/** One feed page request. A zero bound means the edge of the 90-day span; no types means every type. */
+export interface ActivityFeedQuery {
+  /** Oldest line time, epoch milliseconds, or 0. */
+  readonly fromMs: number;
+  /** Newest line time, epoch milliseconds, or 0. */
+  readonly toMs: number;
+  /** Origin filter. */
+  readonly origin: ActivityFeedOrigin;
+  /** Selected types; System lines too are read only when selected. */
+  readonly types: readonly ActivityFeedType[];
+  /** Keep only failed lines of `types`. */
+  readonly failuresOnly: boolean;
+  /** Cursor of the page; empty for the first. */
+  readonly cursor: string;
+  /** Page size. */
+  readonly limit: number;
+}
+
+/** One chart bar: the lines whose time falls in [startMs, endMs). */
+export interface ActivityChartSlot {
+  /** Slot start, epoch milliseconds. */
+  readonly startMs: number;
+  /** Slot end (exclusive), epoch milliseconds. */
+  readonly endMs: number;
+  /** Feed lines in the slot. */
+  readonly count: number;
+  /** Failed feed lines in the slot. */
+  readonly failed: number;
+}
+
+/** How many lines of one type the range and origin hold. */
+export interface ActivityTypeCount {
+  /** The type. */
+  readonly type: ActivityFeedType;
+  /** Lines of the type. */
+  readonly lines: number;
+  /** Failed lines of the type. */
+  readonly failed: number;
+}
+
+/** The chart of every origin and the per-type counts of one range and origin. */
+export interface ActivityOverview {
+  /** Chart slots, oldest first. */
+  readonly slots: readonly ActivityChartSlot[];
+  /** One count per type, in toolbar order. */
+  readonly types: readonly ActivityTypeCount[];
+}

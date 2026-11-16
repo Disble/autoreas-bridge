@@ -1,10 +1,11 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { ActivityChangeContext, ActivityRunStep } from '../../activity-source/activity-incident.types';
-import type { ActivitySource } from '../../activity-source/activity-source.types';
-import type { ActivityFeedSource } from '../../feed-source/feed-source.types';
-import type { ActivityFeedLine } from '../../feed-source/feed.types';
+import type { ActivityChangeContext, ActivityRunStep } from '../../../../shared/contracts/activity-incident.types';
+import type { ActivitySource } from '../../../../shared/contracts/activity.types';
+import type { ActivityFeedSource } from '../../../../shared/contracts/activity.types';
+import type { ActivityFeedLine } from '../../../../shared/contracts/activity-feed.types';
 import { useActivityDetailDrawer } from '../use-activity-detail-drawer';
+import { createModulesTestWrapper } from '../../../../shared/query/test-support/bridge-modules.test-support';
 import { feedLine, incident, readingLine, run, syncReading } from './drawer.fixtures';
 
 /** A source whose reads are spies; unset reads reject. */
@@ -53,7 +54,7 @@ describe('useActivityDetailDrawer', () => {
     const getChangeContext = vi.fn(() => Promise.resolve(undefined));
     const feed = feedWith(() => Promise.resolve(undefined), getChangeContext);
     const line = feedLine({}, { kind: 'traffic_hour' });
-    const { result } = renderHook(() => useActivityDetailDrawer(line, source, feed));
+    const { result } = renderHook(() => useActivityDetailDrawer(line, source, feed), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     expect(result.current.status).toBe('ready');
     expect(source.getIncident).not.toHaveBeenCalled();
@@ -66,7 +67,7 @@ describe('useActivityDetailDrawer', () => {
     const line = feedLine({ type: 'change', origin: 'phone' }, { kind: 'change', id: '872' });
     const source = sourceWith({});
     const feed = feedWith(() => Promise.resolve(undefined), getChangeContext);
-    const { result } = renderHook(() => useActivityDetailDrawer(line, source, feed));
+    const { result } = renderHook(() => useActivityDetailDrawer(line, source, feed), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     expect(result.current.status).toBe('ready');
     await waitFor(() => expect(result.current.events).toHaveLength(1));
@@ -81,7 +82,7 @@ describe('useActivityDetailDrawer', () => {
     const line = feedLine({ type: 'change', origin: 'phone' }, { kind: 'change', id: '872' });
     const source = sourceWith({});
     const feed = feedWith(() => Promise.resolve(undefined), getChangeContext);
-    const { result } = renderHook(() => useActivityDetailDrawer(line, source, feed));
+    const { result } = renderHook(() => useActivityDetailDrawer(line, source, feed), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     await waitFor(() => expect(result.current.eventsEmpty).toBe('The events linked to this change could not be read.'));
     expect(result.current.status).toBe('ready');
@@ -93,7 +94,7 @@ describe('useActivityDetailDrawer', () => {
   it('loads the incident once, then builds the summary from it', async () => {
     const getIncident = vi.fn(() => Promise.resolve(DETAIL));
     const source = sourceWith({ getIncident });
-    const { result } = renderHook(() => useActivityDetailDrawer(TRAFFIC, source, FEED));
+    const { result } = renderHook(() => useActivityDetailDrawer(TRAFFIC, source, FEED), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     expect(result.current.status).toBe('loading');
     await waitFor(() => expect(result.current.status).toBe('ready'));
@@ -104,7 +105,7 @@ describe('useActivityDetailDrawer', () => {
   it('fails when the incident read rejects, and reads again on retry', async () => {
     const getIncident = vi.fn(() => Promise.reject(new Error('db')));
     const source = sourceWith({ getIncident });
-    const { result } = renderHook(() => useActivityDetailDrawer(TRAFFIC, source, FEED));
+    const { result } = renderHook(() => useActivityDetailDrawer(TRAFFIC, source, FEED), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('failed'));
     act(() => result.current.retry());
@@ -114,7 +115,7 @@ describe('useActivityDetailDrawer', () => {
   it('reads the picked request only in the Requests tab, and the newly picked group on a pick', async () => {
     const getRequest = vi.fn(() => Promise.resolve(undefined));
     const source = sourceWith({ getIncident: vi.fn(() => Promise.resolve(DETAIL)), getRequest });
-    const { result } = renderHook(() => useActivityDetailDrawer(TRAFFIC, source, FEED));
+    const { result } = renderHook(() => useActivityDetailDrawer(TRAFFIC, source, FEED), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(getRequest).not.toHaveBeenCalled();
 
@@ -127,7 +128,7 @@ describe('useActivityDetailDrawer', () => {
 
   it('keeps the technical view and tab across lines, falling back when a line lacks the tab', async () => {
     const source = sourceWith({ getIncident: vi.fn(() => Promise.resolve(DETAIL)), getRequest: vi.fn(() => Promise.resolve(undefined)) });
-    const { result, rerender } = renderHook(({ line }: { readonly line: ActivityFeedLine }) => useActivityDetailDrawer(line, source, FEED), { initialProps: { line: TRAFFIC } });
+    const { result, rerender } = renderHook(({ line }: { readonly line: ActivityFeedLine }) => useActivityDetailDrawer(line, source, FEED), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper, initialProps: { line: TRAFFIC } });
     act(() => result.current.toggleTechnical());
 
     rerender({ line: feedLine({}, { kind: 'event', detail: 'x.y' }) });
@@ -144,7 +145,7 @@ describe('useActivityDetailDrawer', () => {
     const getRunStory = vi.fn(() => Promise.resolve({ correlationId: 'run-1', steps, truncated: false }));
     const source = sourceWith({ getRunStory });
     const line = feedLine({ type: 'download', failed: true, run: run() }, { kind: 'download_run', correlationId: 'run-1' });
-    const { result } = renderHook(() => useActivityDetailDrawer(line, source, FEED));
+    const { result } = renderHook(() => useActivityDetailDrawer(line, source, FEED), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     await waitFor(() => expect(getRunStory).toHaveBeenCalledExactlyOnceWith('run-1'));
     await waitFor(() => expect(result.current.events.map((event) => event.message)).toEqual(messages));
@@ -157,7 +158,7 @@ describe('useActivityDetailDrawer', () => {
     const feed = feedWith(getEvent);
     const source = sourceWith({});
     const line = feedLine({}, { kind: 'event', id: '12', detail: 'x.y', correlationId: 'c-1' });
-    const { result } = renderHook(() => useActivityDetailDrawer(line, source, feed));
+    const { result } = renderHook(() => useActivityDetailDrawer(line, source, feed), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     expect(result.current.status).toBe('loading');
     await waitFor(() => expect(result.current.status).toBe('ready'));
@@ -171,7 +172,7 @@ describe('useActivityDetailDrawer', () => {
     const metadata = '{"kind":"render","route":"/editor","message":"boom","stack":"at A","source":"index.js:1:2","occurredAtMs":1}';
     const feed = feedWith(vi.fn(() => Promise.resolve(stored(metadata))));
     const line = feedLine({ failed: true }, { kind: 'event', id: '12', domain: 'frontend', level: 'error', detail: 'frontend.error' });
-    const { result } = renderHook(() => useActivityDetailDrawer(line, sourceWith({}), feed));
+    const { result } = renderHook(() => useActivityDetailDrawer(line, sourceWith({}), feed), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(result.current.summary.gaps).toEqual([]);
@@ -183,7 +184,7 @@ describe('useActivityDetailDrawer', () => {
     Object.assign(navigator, { clipboard: { writeText } });
     const feed = { getPhoneReport: () => Promise.resolve('{"failed":true}') } as unknown as ActivityFeedSource;
     const line = readingLine(syncReading());
-    const { result } = renderHook(() => useActivityDetailDrawer(line, sourceWith({}), feed));
+    const { result } = renderHook(() => useActivityDetailDrawer(line, sourceWith({}), feed), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     act(() => result.current.toggleTechnical());
     act(() => result.current.selectTab('data'));
@@ -199,7 +200,7 @@ describe('useActivityDetailDrawer', () => {
   ])('%s', async (_name, answer, status) => {
     const getEvent = vi.fn(answer);
     const feed = feedWith(getEvent);
-    const { result } = renderHook(() => useActivityDetailDrawer(feedLine({}, { kind: 'event', id: '12', detail: 'x.y' }), sourceWith({}), feed));
+    const { result } = renderHook(() => useActivityDetailDrawer(feedLine({}, { kind: 'event', id: '12', detail: 'x.y' }), sourceWith({}), feed), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     await waitFor(() => expect(result.current.status).toBe(status));
     expect(result.current.summary.sections.some((section) => section.key === 'recorded')).toBe(false);

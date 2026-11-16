@@ -1,24 +1,32 @@
 import { useCallback, useEffect, useState } from 'react';
-import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
-import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
 import type { PreferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.types';
+import type { DownloadsSource, ScheduleConfig } from '../../../../shared/contracts/download.types';
 import { toErrorMessage } from '../../../../shared/helpers/error-message.helpers';
+import { useDownloadSchedule } from '../../../../shared/hooks/use-missed-schedule-notice/use-download-schedule';
 import { useMissedScheduleNotice } from '../../../../shared/hooks/use-missed-schedule-notice/use-missed-schedule-notice';
-import { useDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store/download-runtime-store';
+import { toAsyncView } from '../../../../shared/query/async-view/async-view.helpers';
+import { BRIDGE_DOWNLOADS_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { DOWNLOADS_READINESS_KEY } from '../../../../shared/query/query-keys/query-keys.constants';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
+import { useBridgeQuery } from '../../../../shared/query/use-bridge-query/use-bridge-query';
 import { usePreferencesStore } from '../../../../shared/store/preferences-store/preferences-store';
-import type { DownloadReadinessSnapshot } from '../../../../shared/contracts/download.types';
-import { toSchedulePanelViewModel, toScheduleReadinessViewModel, toScheduleSaveRequest } from './schedule-panel.helpers';
+import { SCHEDULE_PANEL_LOADING_CONFIG } from './schedule-panel.constants';
+import { scheduleLoadStatus, toSchedulePanelViewModel, toScheduleReadinessViewModel, toScheduleSaveRequest } from './schedule-panel.helpers';
 import type { ScheduleSaveEdits } from './schedule-panel.types';
 
 /**
  * useSchedulePanel loads the persisted scheduler config and exposes
  * `setEnabled`/`setDailyTime` mutations that persist the full
  * `ScheduleConfig` via `setScheduleConfig`, refreshing the view model
- * afterward.
+ * afterward. The schedule and the readiness snapshot are downloads-module queries.
+ *
+ * @param source The downloads port the panel reads and writes through.
+ * @param prefSource The preferences port the season-mode flag loads through.
+ * @returns The panel state and its actions.
  */
 export function useSchedulePanel(
-  source: DownloadRuntimeSource = downloadRuntimeSource,
+  source: DownloadsSource = BRIDGE_DOWNLOADS_SOURCE,
   prefSource: PreferencesSource = preferencesSource,
 ) {
   // 1. Refs
@@ -27,35 +35,41 @@ export function useSchedulePanel(
   const [isSaving, setIsSaving] = useState(false);
   const [saveErrorMessage, setSaveErrorMessage] = useState<string | undefined>(undefined);
   const [dailyTimeEdit, setDailyTimeEdit] = useState<string | undefined>(undefined);
-  const [readinessSnapshot, setReadinessSnapshot] = useState<DownloadReadinessSnapshot | undefined>(undefined);
-  const [readinessErrorMessage, setReadinessErrorMessage] = useState<string | undefined>(undefined);
 
   // 3. Context/3rd Party Hooks
   const missedScheduleNotice = useMissedScheduleNotice(source);
-  const config = useDownloadRuntimeStore((state) => state.scheduleConfig);
-  const hasLoaded = useDownloadRuntimeStore((state) => state.scheduleHasLoaded);
-  const loadErrorMessage = useDownloadRuntimeStore((state) => state.scheduleErrorMessage);
-  const refreshSchedule = useDownloadRuntimeStore((state) => state.refreshSchedule);
   const seasonMode = usePreferencesStore((state) => state.seasonMode);
   const refreshPreferences = usePreferencesStore((state) => state.refresh);
 
   // 4. Queries/Mutations
+  const scheduleQuery = useDownloadSchedule(source);
+  const readinessQuery = useBridgeQuery({
+    queryKey: DOWNLOADS_READINESS_KEY,
+    queryFn: () => source.listDownloadReadiness(),
+    module: 'downloads',
+  });
+  const { mutateAsync: setScheduleConfig } = useBridgeMutation({ mutationFn: (request: ScheduleConfig) => source.setScheduleConfig(request) });
 
   // 5. Derived State (useMemo)
+  const scheduleView = toAsyncView(scheduleQuery);
+  const config = scheduleQuery.data ?? SCHEDULE_PANEL_LOADING_CONFIG;
   const dailyTimeDraft = dailyTimeEdit ?? config.dailyTimeHHMM;
+  const { refetch: refetchSchedule } = scheduleQuery;
+  const { refetch: refetchReadiness } = readinessQuery;
+  // A failed readiness read shows no snapshot, and its banner steps aside while the retry runs.
+  const readinessSnapshot = readinessQuery.isError ? undefined : readinessQuery.data;
+  const readinessErrorMessage =
+    readinessQuery.isError && !readinessQuery.isFetching ? toErrorMessage(readinessQuery.error, 'Failed to load download readiness') : undefined;
+  const status = scheduleLoadStatus(scheduleView.kind);
 
   // 6. Callbacks (useCallback calling pure helpers)
-  const refresh = useCallback(() => refreshSchedule(source), [refreshSchedule, source]);
+  const refresh = useCallback(async () => {
+    await refetchSchedule();
+  }, [refetchSchedule]);
 
   const refreshReadiness = useCallback(async () => {
-    try {
-      setReadinessErrorMessage(undefined);
-      setReadinessSnapshot(await source.listDownloadReadiness());
-    } catch (error) {
-      setReadinessSnapshot(undefined);
-      setReadinessErrorMessage(toErrorMessage(error, 'Failed to load download readiness'));
-    }
-  }, [source]);
+    await refetchReadiness();
+  }, [refetchReadiness]);
 
   const save = useCallback(
     async (edits: ScheduleSaveEdits) => {
@@ -63,16 +77,7 @@ export function useSchedulePanel(
       setSaveErrorMessage(undefined);
 
       try {
-        const result = await source.setScheduleConfig(toScheduleSaveRequest(config, edits));
-
-        // The Wails binding reports outcome as a string ("ok" or a human-readable
-        // reason) rather than throwing, so a non-"ok" result must be surfaced
-        // explicitly — otherwise a rejected save reverts silently with no feedback.
-        if (result !== 'ok') {
-          setSaveErrorMessage(result || 'Failed to save schedule config');
-          return;
-        }
-
+        await setScheduleConfig(toScheduleSaveRequest(config, edits));
         await refresh();
       } catch (error) {
         setSaveErrorMessage(toErrorMessage(error, 'Failed to save schedule config'));
@@ -80,7 +85,7 @@ export function useSchedulePanel(
         setIsSaving(false);
       }
     },
-    [config, refresh, source],
+    [config, refresh, setScheduleConfig],
   );
 
   const setEnabled = useCallback(
@@ -119,17 +124,6 @@ export function useSchedulePanel(
     void refreshPreferences(prefSource);
   }, [refreshPreferences, prefSource]);
 
-  useEffect(() => {
-    void refreshReadiness();
-  }, [refreshReadiness]);
-
-  let status: 'loading' | 'error' | 'ready' = 'ready';
-
-  if (!hasLoaded) {
-    status = 'loading';
-  } else if (loadErrorMessage !== undefined) {
-    status = 'error';
-  }
 
   return {
     status,

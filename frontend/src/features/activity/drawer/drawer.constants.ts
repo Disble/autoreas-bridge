@@ -1,4 +1,4 @@
-import type { ActivitySyncReadingKind } from '../feed-source/feed.types';
+import type { ActivitySyncReadingKind } from '../../../shared/contracts/activity-feed.types';
 
 /**
  * Layer 2 of the event presentation model: one sentence per error code,

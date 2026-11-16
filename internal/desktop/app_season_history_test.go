@@ -2,7 +2,6 @@ package desktop
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -16,56 +15,42 @@ func TestListSeasonsAndPastSeasonReads(t *testing.T) {
 
 	// A first season with one intake row, closed (a "past" season), then a
 	// second currently-open season.
-	if s := app.CreateSeason("Abril 2026"); s != "ok" {
+	if s := app.CreateSeason("Abril 2026"); s != nil {
 		t.Fatalf("CreateSeason first: %s", s)
 	}
 	first, _ := app.seasonService.ActiveSeason(context.Background())
-	if s := app.ImportSeasonIntake("Naruto"); s != "ok" {
+	if s := app.ImportSeasonIntake("Naruto"); s != nil {
 		t.Fatalf("ImportSeasonIntake: %s", s)
 	}
-	if s := app.CloseSeason(); s != "ok" {
+	if s := app.CloseSeason(); s != nil {
 		t.Fatalf("CloseSeason: %s", s)
 	}
-	if s := app.CreateSeason("Julio 2026"); s != "ok" {
+	if s := app.CreateSeason("Julio 2026"); s != nil {
 		t.Fatalf("CreateSeason second: %s", s)
 	}
 
-	seasons := app.ListSeasons()
+	seasons := must(t).value(app.ListSeasons())
 	if len(seasons) != 2 {
 		t.Fatalf("ListSeasons = %d, want 2", len(seasons))
 	}
 
-	past := app.GetPastSeason(first.ID)
+	past := must(t).value(app.GetPastSeason(first.ID))
 	if past == nil || past.ID != first.ID {
 		t.Fatalf("GetPastSeason(%q) = %+v, want the first season", first.ID, past)
 	}
 	if past.ClosedAt == nil {
 		t.Fatal("a past season must carry its closedAt milestone")
 	}
-	if app.GetPastSeason("does-not-exist") != nil {
+	if must(t).value(app.GetPastSeason("does-not-exist")) != nil {
 		t.Fatal("GetPastSeason(missing) must be nil")
 	}
 
-	animes := app.GetPastSeasonAnimes(first.ID)
+	animes := must(t).value(app.GetPastSeasonAnimes(first.ID))
 	if len(animes) != 1 || animes[0].RawName != "Naruto" {
 		t.Fatalf("GetPastSeasonAnimes(%q) = %+v, want the single Naruto row", first.ID, animes)
 	}
-	if got := app.GetPastSeasonAnimes("does-not-exist"); len(got) != 0 {
+	if got := must(t).value(app.GetPastSeasonAnimes("does-not-exist")); len(got) != 0 {
 		t.Fatalf("GetPastSeasonAnimes(missing) = %+v, want empty", got)
-	}
-}
-
-func TestPastSeasonReadsNilServiceSafe(t *testing.T) {
-	t.Parallel()
-	app := &App{ctx: context.Background()}
-	if got := app.ListSeasons(); len(got) != 0 {
-		t.Fatalf("ListSeasons with nil service = %+v, want empty", got)
-	}
-	if app.GetPastSeason("x") != nil {
-		t.Fatal("GetPastSeason with nil service must be nil")
-	}
-	if got := app.GetPastSeasonAnimes("x"); len(got) != 0 {
-		t.Fatalf("GetPastSeasonAnimes with nil service = %+v, want empty", got)
 	}
 }
 
@@ -106,7 +91,8 @@ func TestGetSeasonOrderingSnapshotReturnsStoredBoard(t *testing.T) {
 			t.Parallel()
 			app, _, seasonID := newSeasonAppWithClosure(t, storedSeasonClosureJSON)
 			tc.arrange(app)
-			assertStoredSeasonOrderingSnapshot(t, app.GetSeasonOrderingSnapshot(seasonID))
+			seasonReady(app)
+			assertStoredSeasonOrderingSnapshot(t, must(t).value(app.GetSeasonOrderingSnapshot(seasonID)))
 		})
 	}
 }
@@ -133,9 +119,9 @@ func assertStoredSeasonOrderingSnapshot(t *testing.T, got SeasonOrderingSnapshot
 }
 
 // TestGetSeasonOrderingSnapshotWithoutCapturedBoard proves every "we never
-// captured a board" and "we could not read one" path reports the explicit
-// not-recorded state instead of an error, a panic, a live board, or null
-// collections.
+// captured a board" path reports the explicit not-recorded state instead of an
+// error, a panic, a live board, or null collections. A failed season read is the
+// binding's error (TestSeasonReadFailuresAreInternal).
 func TestGetSeasonOrderingSnapshotWithoutCapturedBoard(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -184,20 +170,6 @@ func TestGetSeasonOrderingSnapshotWithoutCapturedBoard(t *testing.T) {
 				return app, "does-not-exist"
 			},
 		},
-		{
-			name: "the season read fails",
-			arrange: func(t *testing.T) (*App, string) {
-				app, repo, seasonID := newSeasonAppWithClosure(t, storedSeasonClosureJSON)
-				repo.seasonByIDErr = errors.New("season read failed")
-				return app, seasonID
-			},
-		},
-		{
-			name: "the season service is unwired",
-			arrange: func(t *testing.T) (*App, string) {
-				return &App{ctx: context.Background()}, "any-season"
-			},
-		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -213,7 +185,7 @@ func TestGetSeasonOrderingSnapshotWithoutCapturedBoard(t *testing.T) {
 // frontend never receives JSON null for rail or grid.
 func assertSeasonOrderingSnapshotNotRecorded(t *testing.T, app *App, seasonID string) {
 	t.Helper()
-	got := app.GetSeasonOrderingSnapshot(seasonID)
+	got := must(t).value(app.GetSeasonOrderingSnapshot(seasonID))
 	if got.Recorded {
 		t.Fatalf("an uncaptured board must report Recorded=false: %+v", got)
 	}
@@ -232,7 +204,7 @@ func TestGetSeasonOrderingSnapshotRecordedWithoutCollections(t *testing.T) {
 	t.Parallel()
 	app, _, seasonID := newSeasonAppWithClosure(t, `{"capturedAt":1700000000000,"rail":null}`)
 
-	got := app.GetSeasonOrderingSnapshot(seasonID)
+	got := must(t).value(app.GetSeasonOrderingSnapshot(seasonID))
 	if !got.Recorded {
 		t.Fatalf("a stored payload is a recorded board even when it holds no cards: %+v", got)
 	}
@@ -267,7 +239,7 @@ func TestGetSeasonOrderingSnapshotCaptureInstantBoundary(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			app, _, seasonID := newSeasonAppWithClosure(t, tc.payload)
-			if got := app.GetSeasonOrderingSnapshot(seasonID); got.Recorded != tc.recorded {
+			if got := must(t).value(app.GetSeasonOrderingSnapshot(seasonID)); got.Recorded != tc.recorded {
 				t.Fatalf("Recorded = %v, want %v for payload %s", got.Recorded, tc.recorded, tc.payload)
 			}
 		})
@@ -282,15 +254,16 @@ func TestGetSeasonOrderingBoardReadsLiveData(t *testing.T) {
 	t.Parallel()
 	repo := newFakeSeasonRepo()
 	app := newTestSeasonApp(repo, nil)
-	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+	if got := app.CreateSeason("Julio 2026"); got != nil {
 		t.Fatalf("CreateSeason: %q", got)
 	}
 	app.animeQuery = &stubAnimeQueryService{mobileAnimes: []contracts.MobileAnime{{
 		ID: "anime-live", Name: "Live", Active: 1,
 		Days: []contracts.MobileAnimeDay{{Day: "Viernes", Order: 9}},
 	}}}
+	seasonReady(app)
 
-	board := app.GetSeasonOrderingBoard()
+	board := must(t).value(app.GetSeasonOrderingBoard())
 	if len(board.Grid) != 1 || board.Grid[0].AnimeID != "anime-live" || board.Grid[0].Dia != "Viernes" || board.Grid[0].Orden != 9 {
 		t.Fatalf("the live getter must surface the stubbed live board, got %+v", board.Grid)
 	}
@@ -302,7 +275,7 @@ func newSeasonAppWithClosure(t *testing.T, closureJSON string) (*App, *fakeSeaso
 	t.Helper()
 	repo := newFakeSeasonRepo()
 	app := newTestSeasonApp(repo, nil)
-	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+	if got := app.CreateSeason("Julio 2026"); got != nil {
 		t.Fatalf("CreateSeason: %q", got)
 	}
 	ctx := context.Background()

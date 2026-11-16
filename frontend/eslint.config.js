@@ -12,12 +12,18 @@
 // What stays here is only what this repository decided for itself and no
 // external preset knows about. Everything below is either an ADR guard or a
 // hard-fail path asserted by a test — do not fold it back into a preset.
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import tsParser from '@typescript-eslint/parser';
 import reactDoctor from 'eslint-plugin-react-doctor';
+import { asyncStateRuleSettings, createAsyncStatePlugin, loadAsyncStateBaseline } from './scripts/async-state-gates.helpers.mjs';
 // dharness:eslint-import begin — rewritten by `dharness sync`; edits here are lost.
 import dharnessPlugin from "dharness-eslint-plugin";
 import dharnessLayer from "../.dharness/eslint.config.mjs";
 // dharness:eslint-import end
+
+/** Frontend root; async-state rules judge paths relative to it, whatever cwd the editor uses. */
+const frontendRoot = path.dirname(fileURLToPath(import.meta.url));
 
 export default [
   // dharness:eslint-layer begin — rewritten by `dharness sync`; edits here are lost.
@@ -102,6 +108,22 @@ export default [
         },
       ],
     },
+  },
+  // ADR-032 §5 async-state boundaries: features/shared reach the backend only
+  // through shared/query, TanStack Query stays in shared/query, zustand/vanilla
+  // stays in its closed allow-list, and runtime-event subscriptions stay in
+  // shared/query and infrastructure. Local rules, not new options of the
+  // `no-restricted-imports` block above: a second block setting that rule
+  // would replace the barrel and react-aria bans for the files it matches.
+  // Violations named in async-state-baseline.json are silent here, so editing
+  // a legacy file is not blocked; scripts/check-async-state-gates.mjs reports
+  // new violations and stale entries in pre-commit and pre-merge-commit.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    plugins: {
+      'async-state': createAsyncStatePlugin({ root: frontendRoot, baseline: loadAsyncStateBaseline(frontendRoot) }),
+    },
+    rules: asyncStateRuleSettings(),
   },
   // Icon-only standard (docs/design/foundations/iconography.md): every
   // icon-only action goes through IconActionButton, which always carries a

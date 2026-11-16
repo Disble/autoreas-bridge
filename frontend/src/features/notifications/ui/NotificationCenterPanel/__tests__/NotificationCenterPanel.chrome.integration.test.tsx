@@ -1,16 +1,11 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { NotificationCenterSource } from '../../../../../infrastructure/notification-center-source/notification-center-source.types';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { NotificationCenterSource, NotificationListRequest, NotificationPage, NotificationRow } from '../../../../../shared/contracts/notification-center.types';
 import type { NotificationSource } from '../../../../../infrastructure/notification-source/notification-source.types';
-import type { NotificationListRequest, NotificationPage, NotificationRow } from '../../../../../shared/contracts/notification-center.types';
-import {
-  resetNotificationStore,
-  setUnreadNotificationCount,
-} from '../../../../../shared/store/notification-store/notification-store.helpers';
 import { NotificationCenterPanel } from '../NotificationCenterPanel';
+import { notificationsQueryWrapper } from './notification-center.test-support';
 
 afterEach(cleanup);
-beforeEach(resetNotificationStore);
 
 /** A push source that never emits: this seam is about the screen chrome, not live inserts. */
 const SILENT_PUSH: NotificationSource = {
@@ -67,7 +62,7 @@ function makeSource(overrides: Partial<NotificationCenterSource> = {}): Notifica
  * @returns Nothing; resolves once the inbox is on screen.
  */
 async function renderPanel(source: NotificationCenterSource): Promise<void> {
-  render(<NotificationCenterPanel pushSource={SILENT_PUSH} source={source} />);
+  render(<NotificationCenterPanel pushSource={SILENT_PUSH} source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
   await screen.findByText('Download stopped');
 }
 
@@ -204,14 +199,10 @@ describe('NotificationCenterPanel header (integration)', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Notifications' })).toBeInTheDocument();
   });
 
-  it('shows the shared store live unread count as the title-row chip', async () => {
-    await renderPanel(makeSource());
+  it('shows the unread count the rail badge also reads as the title-row chip', async () => {
+    await renderPanel(makeSource({ getUnreadCount: vi.fn().mockResolvedValue(12) }));
 
-    setUnreadNotificationCount(12);
-
-    await waitFor(() =>
-      expect(screen.getByText('12 unread')).toBeInTheDocument(),
-    );
+    expect(await screen.findByText('12 unread')).toBeInTheDocument();
   });
 
   it('never claims the list is sorted unread first, because the store sorts by creation time alone', async () => {
@@ -222,8 +213,8 @@ describe('NotificationCenterPanel header (integration)', () => {
 
   it('marks every loaded unread record read from the header, and lowers the badge with it', async () => {
     const markRead = vi.fn().mockResolvedValue({ affected: 1, unreadCount: 0, degraded: false });
-    setUnreadNotificationCount(1);
-    await renderPanel(makeSource({ markRead }));
+    const getUnreadCount = vi.fn().mockResolvedValueOnce(1).mockResolvedValue(0);
+    await renderPanel(makeSource({ getUnreadCount, markRead }));
     expect(await screen.findByText('1 unread')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Mark all as read' }));

@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
-import { bridgeRuntimeSource } from '../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
+import { BRIDGE_DEVICES_SOURCE } from '../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { ACTIVITY_PHONE_STATUS_TICK_MS } from './activity-feed.constants';
 import type { ActivityPhoneDevice } from './activity-feed.types';
 import { toPhoneStatus } from './activity-phone-status.helpers';
 
-/** Reads the paired devices through the same binding the Devices page uses; none without a Wails runtime. */
-const readBridgeDevices = (): Promise<readonly ActivityPhoneDevice[]> => bridgeRuntimeSource.getConnectedDevices?.() ?? Promise.resolve([]);
+/**
+ * Reads the paired devices through the same Devices port the Devices page uses. It rejects while
+ * the devices module starts or after it failed, which keeps the last devices (none at first).
+ */
+const readBridgeDevices = (): Promise<readonly ActivityPhoneDevice[]> => BRIDGE_DEVICES_SOURCE.getConnectedDevices();
 
 /**
  * The phone status line under the Activity title (S13). It reads the paired

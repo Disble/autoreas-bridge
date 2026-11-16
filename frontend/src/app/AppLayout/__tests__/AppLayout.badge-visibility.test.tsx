@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { createModulesTestWrapper } from '../../../shared/query/test-support/bridge-modules.test-support';
 import { AppLayout } from '../AppLayout';
 
 // Without this the first test's tree stays mounted into the second, which
@@ -53,6 +54,8 @@ function renderLayout() {
         </Route>
       </Routes>
     </MemoryRouter>,
+    // The rail's sync chip reads through the backup module; starting, it renders no chip.
+    { wrapper: createModulesTestWrapper({ module: 'backup', state: 'starting' }).wrapper },
   );
 }
 

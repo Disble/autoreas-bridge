@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { HashRouter } from 'react-router';
+import { BridgeDataProvider } from '../../src/app/BridgeDataProvider/BridgeDataProvider';
 import { AnimeEditorListRow } from '../../src/features/anime-editor/ui/AnimeEditorWorkspace/AnimeEditorListRow';
 import { AnimeEditorListSkeleton } from '../../src/features/anime-editor/ui/AnimeEditorWorkspace/AnimeEditorListSkeleton';
 import { CatalogCard } from '../../src/features/catalog/ui/CatalogPanel/CatalogCard';
@@ -277,13 +278,18 @@ function ComparisonFixture({ comparison }: Readonly<{ comparison: SkeletonCompar
   );
 }
 
-/** Every skeleton-versus-row comparison on the shared fixture page. */
+/**
+ * Every skeleton-versus-row comparison on the shared fixture page. The Episodes card embeds the
+ * season rate action, which reads through `shared/query`, so the page mounts the app's provider.
+ */
 export function LoadingSkeletonsFixture() {
   return (
-    <HashRouter>
-      {COMPARISONS.map((comparison) => (
-        <ComparisonFixture comparison={comparison} key={comparison.subject} />
-      ))}
-    </HashRouter>
+    <BridgeDataProvider>
+      <HashRouter>
+        {COMPARISONS.map((comparison) => (
+          <ComparisonFixture comparison={comparison} key={comparison.subject} />
+        ))}
+      </HashRouter>
+    </BridgeDataProvider>
   );
 }

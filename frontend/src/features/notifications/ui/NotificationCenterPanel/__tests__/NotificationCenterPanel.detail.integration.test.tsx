@@ -1,12 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { NotificationCenterSource } from '../../../../../infrastructure/notification-center-source/notification-center-source.types';
-import type { NotificationActionResult, NotificationDetail, NotificationPage } from '../../../../../shared/contracts/notification-center.types';
-import { getNotificationStoreState, resetNotificationStore } from '../../../../../shared/store/notification-store/notification-store.helpers';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { NotificationActionResult, NotificationCenterSource, NotificationDetail, NotificationPage } from '../../../../../shared/contracts/notification-center.types';
 import { NotificationCenterPanel } from '../NotificationCenterPanel';
+import { notificationsQueryWrapper } from './notification-center.test-support';
 
 afterEach(cleanup);
-beforeEach(resetNotificationStore);
 
 /** The one row the master list returns in every case here. */
 const LISTED_PAGE: NotificationPage = {
@@ -36,12 +34,21 @@ const RECORD: NotificationDetail = {
  * @returns A `NotificationCenterSource` double.
  */
 function makeSource(overrides: Partial<NotificationCenterSource> = {}): NotificationCenterSource {
+  // The unread count follows the read-state verbs, as the store's does, so a
+  // count read again after a press reports what the press changed.
+  let unread = 1;
   return {
     listNotifications: vi.fn().mockResolvedValue(LISTED_PAGE),
     getNotification: vi.fn().mockResolvedValue({ found: true, item: RECORD, degraded: false }),
-    getUnreadCount: vi.fn().mockResolvedValue(1),
-    markRead: vi.fn().mockResolvedValue({ affected: 1, unreadCount: 0, degraded: false }),
-    markUnread: vi.fn().mockResolvedValue({ affected: 1, unreadCount: 1, degraded: false }),
+    getUnreadCount: vi.fn(() => Promise.resolve(unread)),
+    markRead: vi.fn(() => {
+      unread = 0;
+      return Promise.resolve({ affected: 1, unreadCount: 0, degraded: false });
+    }),
+    markUnread: vi.fn(() => {
+      unread = 1;
+      return Promise.resolve({ affected: 1, unreadCount: 1, degraded: false });
+    }),
     archive: vi.fn(),
     restore: vi.fn(),
     executeAction: vi.fn(),
@@ -64,7 +71,7 @@ describe('NotificationCenterPanel -> NotificationDetail (integration)', () => {
   it('opens the pressed record in the detail pane', async () => {
     const source = makeSource();
 
-    render(<NotificationCenterPanel source={source} />);
+    render(<NotificationCenterPanel source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
     await pressListedRow();
 
     // The detail block, not the list row: the row list is what only the
@@ -75,7 +82,7 @@ describe('NotificationCenterPanel -> NotificationDetail (integration)', () => {
   });
 
   it('prompts for a selection before any record has been opened', () => {
-    render(<NotificationCenterPanel source={makeSource()} />);
+    render(<NotificationCenterPanel source={makeSource()} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     expect(screen.getByRole('heading', { level: 3, name: 'No notification selected' })).toBeInTheDocument();
   });
@@ -87,7 +94,7 @@ describe('NotificationCenterPanel -> NotificationDetail (integration)', () => {
     // fire five detail reads and five mark-reads behind the user's back.
     const source = makeSource();
 
-    render(<NotificationCenterPanel source={source} />);
+    render(<NotificationCenterPanel source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
     await screen.findByText('Download run finished');
 
     // Index 1: index 0 is the header's "select all".
@@ -102,7 +109,7 @@ describe('NotificationCenterPanel -> NotificationDetail (integration)', () => {
     const markRead = vi.fn().mockResolvedValue({ affected: 1, unreadCount: 0, degraded: false });
     const source = makeSource({ markRead });
 
-    render(<NotificationCenterPanel source={source} />);
+    render(<NotificationCenterPanel source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
     await pressListedRow();
 
     await waitFor(() => expect(markRead).toHaveBeenCalledWith([7]));
@@ -112,7 +119,7 @@ describe('NotificationCenterPanel -> NotificationDetail (integration)', () => {
     const executeAction = vi.fn().mockResolvedValue({ executed: true } satisfies Partial<NotificationActionResult> as NotificationActionResult);
     const source = makeSource({ executeAction });
 
-    render(<NotificationCenterPanel source={source} />);
+    render(<NotificationCenterPanel source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
     await pressListedRow();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Run this anime again' }));
@@ -127,26 +134,26 @@ describe('NotificationCenterPanel -> NotificationDetail (integration)', () => {
   it('leaves the record unread after mark unread, without the open pane re-marking it read', async () => {
     const source = makeSource();
 
-    render(<NotificationCenterPanel source={source} />);
+    render(<NotificationCenterPanel source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
     await pressListedRow();
     await waitFor(() => expect(source.markRead).toHaveBeenCalledWith([7]));
-    await waitFor(() => expect(getNotificationStoreState().unreadCount).toBe(0));
+    await waitFor(() => expect(screen.queryByText('1 unread')).not.toBeInTheDocument());
 
     fireEvent.click(await screen.findByRole('button', { name: 'Mark unread' }));
 
     await waitFor(() => expect(source.markUnread).toHaveBeenCalledWith([7]));
     // The count is the assertion, not the call: it must CLIMB, and it must
     // still be up once everything the press set in motion has settled.
-    await waitFor(() => expect(getNotificationStoreState().unreadCount).toBe(1));
+    expect(await screen.findByText('1 unread')).toBeInTheDocument();
     expect(source.markRead).toHaveBeenCalledTimes(1);
-    expect(getNotificationStoreState().unreadCount).toBe(1);
+    expect(screen.getByText('1 unread')).toBeInTheDocument();
   });
 
-  // The header subtitle and the nav rail badge read the same store value, so
+  // The header subtitle and the nav rail badge read the same query, so
   // asserting the rendered copy proves the number reached a surface the user
   // can see rather than only the store.
   it('shows the climbed count in the title-row unread chip after mark unread', async () => {
-    render(<NotificationCenterPanel source={makeSource()} />);
+    render(<NotificationCenterPanel source={makeSource()} />, { wrapper: notificationsQueryWrapper().wrapper });
     await pressListedRow();
     await waitFor(() => expect(screen.queryByText(/\d+ unread/)).not.toBeInTheDocument());
 
@@ -162,7 +169,7 @@ describe('NotificationCenterPanel -> NotificationDetail (integration)', () => {
   // real buttons through the real panel, which is the only level a forgotten
   // prop shows up at.
   it('clears the master-list unread dot when a record is opened, and restores it on mark unread', async () => {
-    render(<NotificationCenterPanel source={makeSource()} />);
+    render(<NotificationCenterPanel source={makeSource()} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     expect(await screen.findByRole('img', { name: 'Unread' })).toBeInTheDocument();
 
@@ -174,10 +181,10 @@ describe('NotificationCenterPanel -> NotificationDetail (integration)', () => {
     await waitFor(() => expect(screen.getByRole('img', { name: 'Unread' })).toBeInTheDocument());
   });
 
-  it('leaves the unread dot alone when the opening mark-read degraded', async () => {
-    const markRead = vi.fn().mockResolvedValue({ affected: 0, unreadCount: 0, degraded: true });
+  it('leaves the unread dot alone when the opening mark-read failed', async () => {
+    const markRead = vi.fn().mockRejectedValue(new Error('store closed'));
 
-    render(<NotificationCenterPanel source={makeSource({ markRead })} />);
+    render(<NotificationCenterPanel source={makeSource({ markRead })} />, { wrapper: notificationsQueryWrapper().wrapper });
     await pressListedRow();
 
     await waitFor(() => expect(markRead).toHaveBeenCalledWith([7]));
@@ -207,7 +214,7 @@ describe('NotificationCenterPanel -> NotificationDetail (integration)', () => {
       subscribeNavigate: () => () => undefined,
     };
 
-    render(<NotificationCenterPanel pushSource={pushSource} source={makeSource({ archive })} />);
+    render(<NotificationCenterPanel pushSource={pushSource} source={makeSource({ archive })} />, { wrapper: notificationsQueryWrapper().wrapper });
     await pressListedRow();
 
     // The title renders twice while the record is open: once as the master-list
@@ -226,7 +233,7 @@ describe('NotificationCenterPanel -> NotificationDetail (integration)', () => {
     const executeAction = vi.fn().mockResolvedValue({ executed: false, reason: 'target_missing' } satisfies Partial<NotificationActionResult> as NotificationActionResult);
     const source = makeSource({ executeAction });
 
-    render(<NotificationCenterPanel source={source} />);
+    render(<NotificationCenterPanel source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
     await pressListedRow();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Run this anime again' }));

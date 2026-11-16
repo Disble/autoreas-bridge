@@ -37,9 +37,16 @@ const { fakeSource, getAnimeEditorRecordMock } = vi.hoisted(() => {
 vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
   bridgeRuntimeSource: fakeSource,
 }));
+vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  /** The workspace's default anime-module Editor port: the same fake. */
+  get BRIDGE_ANIME_EDITOR_SOURCE() {
+    return fakeSource;
+  },
+}));
 
 import { AnimeEditorWorkspace } from '../AnimeEditorWorkspace';
-import { createEmptyEpisodeDurationSource } from './episode-duration-source.test-support';
+import { createEmptyEpisodeDurationSource, createEpisodesReadyWrapper } from './episode-duration-source.test-support';
 
 /** The Episodes section's in-memory source, so no render waits on a Wails binding. */
 const episodeSource = createEmptyEpisodeDurationSource();
@@ -75,7 +82,7 @@ describe('AnimeEditorWorkspace Type field (e2e)', () => {
   it('treats a concrete tipo=0 as a satisfied Type — no "Type is required" alarm', async () => {
     getAnimeEditorRecordMock.mockResolvedValue({ outcome: 'applied', message: 'loaded', record: recordWithKind(0) });
 
-    render(<MemoryRouter><AnimeEditorWorkspace episodeSource={episodeSource} /></MemoryRouter>);
+    render(<MemoryRouter><AnimeEditorWorkspace episodeSource={episodeSource} /></MemoryRouter>, { wrapper: createEpisodesReadyWrapper() });
 
     // Wait for the record to finish loading into the form.
     expect(await screen.findByDisplayValue('BanG Dream! Yume∞Mita')).toBeInTheDocument();
@@ -87,7 +94,7 @@ describe('AnimeEditorWorkspace Type field (e2e)', () => {
   it('still demands a Type for an anime that genuinely has none (contrast)', async () => {
     getAnimeEditorRecordMock.mockResolvedValue({ outcome: 'applied', message: 'loaded', record: recordWithKind(undefined) });
 
-    render(<MemoryRouter><AnimeEditorWorkspace episodeSource={episodeSource} /></MemoryRouter>);
+    render(<MemoryRouter><AnimeEditorWorkspace episodeSource={episodeSource} /></MemoryRouter>, { wrapper: createEpisodesReadyWrapper() });
 
     // A truly absent type is the ONLY case that should surface the requirement,
     // proving the fix distinguishes a real 0 from a missing value.

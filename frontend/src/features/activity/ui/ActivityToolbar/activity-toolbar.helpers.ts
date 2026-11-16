@@ -1,7 +1,7 @@
 import { type CalendarDate, parseDate } from '@internationalized/date';
 import { formatRangeLabel, fromCalendarPick, scaleWindowStart, toCalendarBounds, toCalendarRange, toRangeTimes } from '../../feed/activity-feed-filters.helpers';
 import type { ActivityRange, ActivityRangeTimes } from '../../feed/activity-feed.types';
-import type { ActivityChartScale } from '../../feed-source/feed.types';
+import type { ActivityChartScale } from '../../../../shared/contracts/activity-feed.types';
 import type { ActivityDayKey, ActivityRangeDraft, ActivityRangeFieldModel } from './activity-toolbar.types';
 
 /**

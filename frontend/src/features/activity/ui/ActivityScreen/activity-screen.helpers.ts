@@ -1,6 +1,6 @@
 import { ACTIVITY_RANGE_END_MARK, ACTIVITY_SCALE_OPTIONS } from '../../feed/activity-feed.constants';
 import type { ActivityFeedFilters, ActivityFeedResolvedView } from '../../feed/activity-feed.types';
-import type { ActivityFeedDay, ActivityFeedQuery } from '../../feed-source/feed.types';
+import type { ActivityFeedDay, ActivityFeedQuery } from '../../../../shared/contracts/activity-feed.types';
 
 /**
  * Picks the feed's resolved view: a prompt when no type is selected (no read

@@ -2,37 +2,12 @@ import { useSeasonStore } from '../../../../shared/store/season-store/season-sto
 import type { SeasonWorkspaceStoreBindings } from './season-workspace.types';
 
 /**
- * Subscribes to the Season store slices used by the Season Workspace.
- * @returns The season state and actions consumed by the workspace hook.
+ * Subscribes to the Season store UI state used by the Season Workspace.
+ * @returns The shared banner text and the read-only view flag.
  */
 export function useSeasonWorkspaceStoreBindings(): SeasonWorkspaceStoreBindings {
-  const season = useSeasonStore((state) => state.season);
-  const hasLoaded = useSeasonStore((state) => state.hasLoaded);
-  const animesLoadState = useSeasonStore((state) => state.animesLoadState);
   const errorMessage = useSeasonStore((state) => state.errorMessage);
   const readOnly = useSeasonStore((state) => state.readOnly);
-  const pastSeasons = useSeasonStore((state) => state.pastSeasons);
-  const refresh = useSeasonStore((state) => state.refresh);
-  const ensureAnimesLoaded = useSeasonStore((state) => state.ensureAnimesLoaded);
-  const createSeason = useSeasonStore((state) => state.createSeason);
-  const closeSeason = useSeasonStore((state) => state.closeSeason);
-  const loadPastSeasons = useSeasonStore((state) => state.loadPastSeasons);
-  const viewPastSeason = useSeasonStore((state) => state.viewPastSeason);
-  const exitPastSeason = useSeasonStore((state) => state.exitPastSeason);
 
-  return {
-    season,
-    hasLoaded,
-    animesLoadState,
-    errorMessage,
-    readOnly,
-    pastSeasons,
-    refresh,
-    ensureAnimesLoaded,
-    createSeason,
-    closeSeason,
-    loadPastSeasons,
-    viewPastSeason,
-    exitPastSeason,
-  };
+  return { errorMessage, readOnly };
 }

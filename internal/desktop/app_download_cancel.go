@@ -1,6 +1,12 @@
 package desktop
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+// errNoDownloadRunInProgress is CancelDownloadRun's error when no run is in flight.
+var errNoDownloadRunInProgress = errors.New("no download run in progress")
 
 // Stopping a download run in flight. The scheduler's concurrent-run guard means at
 // most one run is ever active, so there is at most one thing to stop. Split out of
@@ -25,20 +31,24 @@ func (a *App) clearSoloDownloadCancel() {
 // started it: a scheduled/manual full check owned by the scheduler, or a
 // single-anime catch-up owned by this App. The stopped run still writes its own
 // terminal "canceled" row -- this only cancels the context it runs under, it never
-// finalizes the row itself. Returns "ok" when something was stopped.
-func (a *App) CancelDownloadRun() string {
-	canceled := a.downloadScheduler != nil && a.downloadScheduler.CancelRun()
+// finalizes the row itself. With no run in flight the binding's error is
+// errNoDownloadRunInProgress.
+func (a *App) CancelDownloadRun() error {
+	_, err := a.moduleSet().downloads.Use(func(s downloadServices) (struct{}, error) {
+		canceled := s.scheduler.CancelRun()
 
-	a.soloDownloadCancelMu.Lock()
-	soloCancel := a.soloDownloadCancel
-	a.soloDownloadCancelMu.Unlock()
-	if soloCancel != nil {
-		soloCancel()
-		canceled = true
-	}
+		a.soloDownloadCancelMu.Lock()
+		soloCancel := a.soloDownloadCancel
+		a.soloDownloadCancelMu.Unlock()
+		if soloCancel != nil {
+			soloCancel()
+			canceled = true
+		}
 
-	if !canceled {
-		return "no download run in progress"
-	}
-	return "ok"
+		if !canceled {
+			return struct{}{}, errNoDownloadRunInProgress
+		}
+		return struct{}{}, nil
+	})
+	return err
 }

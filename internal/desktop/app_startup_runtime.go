@@ -240,6 +240,7 @@ func (a *App) onPairingTokenConsumed() func() {
 
 // startDownloadOrchestration wires and starts download scheduling services.
 func (a *App) startDownloadOrchestration(ctx context.Context) {
+	defer a.settleModules(moduleDownloads)
 	if a.bridgeDB == nil {
 		return
 	}
@@ -296,6 +297,7 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 		a.sharedLogger.Warnf("download", "failed to reconcile interrupted download runs at startup: %v", err)
 	}
 	a.startDownloadScheduler(ctx)
+	a.bindDownloadsModule()
 }
 
 // ensureDownloadStore initializes the download store when database access exists.

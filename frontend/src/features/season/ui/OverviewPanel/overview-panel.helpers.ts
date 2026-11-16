@@ -1,4 +1,4 @@
-import type { SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow } from '../../../../shared/contracts/season.types';
 import { getMatchStatusColor } from '../IntakePanel/intake-panel.helpers';
 import { countApproved } from '../SelectionBoard/selection-board.helpers';
 import {

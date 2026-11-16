@@ -33,6 +33,16 @@ func (panickingSeasonCheckTimeStore) SeasonCheckTime(context.Context) (string, e
 	panic("unusable settings database")
 }
 
+// effectiveCheckTime reads the check time through the binding, failing the test on an error.
+func effectiveCheckTime(t *testing.T, app *App) string {
+	t.Helper()
+	hhmm, err := app.GetSeasonCheckTime()
+	if err != nil {
+		t.Fatalf("GetSeasonCheckTime: %v", err)
+	}
+	return hhmm
+}
+
 func TestGetSeasonCheckTimeFallsBackToTheDefault(t *testing.T) {
 	t.Parallel()
 
@@ -40,7 +50,6 @@ func TestGetSeasonCheckTimeFallsBackToTheDefault(t *testing.T) {
 		name  string
 		store func(t *testing.T) appSettingsStore
 	}{
-		{name: "no settings store", store: func(*testing.T) appSettingsStore { return nil }},
 		{name: "unset", store: func(t *testing.T) appSettingsStore { return newRenameSettingsStore(t) }},
 		{name: "read error", store: func(t *testing.T) appSettingsStore {
 			return failingSeasonCheckTimeStore{SQLiteStore: newRenameSettingsStore(t)}
@@ -59,9 +68,8 @@ func TestGetSeasonCheckTimeFallsBackToTheDefault(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			app := newAppTestApp(t)
-			app.settingsStore = tc.store(t)
-			if got := app.GetSeasonCheckTime(); got != "21:00" {
+			app := withSettingsStore(newAppTestApp(t), tc.store(t))
+			if got := effectiveCheckTime(t, app); got != "21:00" {
 				t.Fatalf("GetSeasonCheckTime = %q, want the 21:00 default", got)
 			}
 		})
@@ -71,15 +79,14 @@ func TestGetSeasonCheckTimeFallsBackToTheDefault(t *testing.T) {
 func TestSetSeasonCheckTimePersistsAndWakesTheSeasonScheduler(t *testing.T) {
 	t.Parallel()
 
-	app := newAppTestApp(t)
-	app.settingsStore = newRenameSettingsStore(t)
+	app := withSettingsStore(newAppTestApp(t), newRenameSettingsStore(t))
 	scheduler := &fakeAppScheduler{}
 	app.seasonScheduler = scheduler
 
-	if got := app.SetSeasonCheckTime("07:30"); got != "ok" {
-		t.Fatalf("SetSeasonCheckTime = %q, want \"ok\"", got)
+	if err := app.SetSeasonCheckTime("07:30"); err != nil {
+		t.Fatalf("SetSeasonCheckTime: %v", err)
 	}
-	if got := app.GetSeasonCheckTime(); got != "07:30" {
+	if got := effectiveCheckTime(t, app); got != "07:30" {
 		t.Fatalf("GetSeasonCheckTime = %q, want the saved 07:30", got)
 	}
 	if scheduler.notifyConfigChangedCalls != 1 {
@@ -93,16 +100,15 @@ func TestSetSeasonCheckTimeRejectsAnythingButHHMM(t *testing.T) {
 	for _, value := range []string{"", "9:00", "24:00", "12:60", "12:5", "noon", " 07:30", "07:30:00"} {
 		t.Run(value, func(t *testing.T) {
 			t.Parallel()
-			app := newAppTestApp(t)
-			app.settingsStore = newRenameSettingsStore(t)
+			app := withSettingsStore(newAppTestApp(t), newRenameSettingsStore(t))
 			scheduler := &fakeAppScheduler{}
 			app.seasonScheduler = scheduler
 
 			want := "invalid time \"" + value + "\": use HH:MM (00:00-23:59)"
-			if got := app.SetSeasonCheckTime(value); got != want {
-				t.Fatalf("SetSeasonCheckTime(%q) = %q, want %q", value, got, want)
+			if err := app.SetSeasonCheckTime(value); err == nil || err.Error() != want {
+				t.Fatalf("SetSeasonCheckTime(%q) = %v, want %q", value, err, want)
 			}
-			if got := app.GetSeasonCheckTime(); got != "21:00" {
+			if got := effectiveCheckTime(t, app); got != "21:00" {
 				t.Fatalf("GetSeasonCheckTime = %q, want the untouched 21:00 default", got)
 			}
 			if scheduler.notifyConfigChangedCalls != 0 {
@@ -116,12 +122,11 @@ func TestSetSeasonCheckTimeAcceptsTheDayBoundaries(t *testing.T) {
 	t.Parallel()
 
 	for _, value := range []string{"00:00", "23:59"} {
-		app := newAppTestApp(t)
-		app.settingsStore = newRenameSettingsStore(t)
-		if got := app.SetSeasonCheckTime(value); got != "ok" {
-			t.Fatalf("SetSeasonCheckTime(%q) = %q, want \"ok\"", value, got)
+		app := withSettingsStore(newAppTestApp(t), newRenameSettingsStore(t))
+		if err := app.SetSeasonCheckTime(value); err != nil {
+			t.Fatalf("SetSeasonCheckTime(%q): %v", value, err)
 		}
-		if got := app.GetSeasonCheckTime(); got != value {
+		if got := effectiveCheckTime(t, app); got != value {
 			t.Fatalf("GetSeasonCheckTime = %q, want %q", got, value)
 		}
 	}
@@ -130,17 +135,11 @@ func TestSetSeasonCheckTimeAcceptsTheDayBoundaries(t *testing.T) {
 func TestSetSeasonCheckTimeSurfacesStoreFailures(t *testing.T) {
 	t.Parallel()
 
-	app := newAppTestApp(t)
-	app.settingsStore = nil
-	if got := app.SetSeasonCheckTime("07:30"); got != "settings store unavailable" {
-		t.Fatalf("SetSeasonCheckTime without a store = %q", got)
-	}
-
-	app.settingsStore = failingSeasonCheckTimeStore{SQLiteStore: newRenameSettingsStore(t)}
+	app := withSettingsStore(newAppTestApp(t), failingSeasonCheckTimeStore{SQLiteStore: newRenameSettingsStore(t)})
 	scheduler := &fakeAppScheduler{}
 	app.seasonScheduler = scheduler
-	if got := app.SetSeasonCheckTime("07:30"); got != "check time unwritable" {
-		t.Fatalf("SetSeasonCheckTime = %q, want the store error surfaced", got)
+	if err := app.SetSeasonCheckTime("07:30"); err == nil || err.Error() != "check time unwritable" {
+		t.Fatalf("SetSeasonCheckTime = %v, want the store error surfaced", err)
 	}
 	if scheduler.notifyConfigChangedCalls != 0 {
 		t.Fatalf("a failed save must not wake the scheduler")
@@ -150,8 +149,7 @@ func TestSetSeasonCheckTimeSurfacesStoreFailures(t *testing.T) {
 func TestSeasonScheduleStoreReadsTheConfiguredTime(t *testing.T) {
 	t.Parallel()
 
-	app := newAppTestApp(t)
-	app.settingsStore = newRenameSettingsStore(t)
+	app := withSettingsStore(newAppTestApp(t), newRenameSettingsStore(t))
 	store := &seasonScheduleStore{checkTime: app.seasonCheckTime}
 
 	cfg, err := store.GetScheduleConfig(context.Background())
@@ -162,8 +160,8 @@ func TestSeasonScheduleStoreReadsTheConfiguredTime(t *testing.T) {
 		t.Fatalf("default config = %+v, want enabled every day at 21:00", cfg)
 	}
 
-	if got := app.SetSeasonCheckTime("06:15"); got != "ok" {
-		t.Fatalf("SetSeasonCheckTime = %q", got)
+	if err := app.SetSeasonCheckTime("06:15"); err != nil {
+		t.Fatalf("SetSeasonCheckTime: %v", err)
 	}
 	cfg, err = store.GetScheduleConfig(context.Background())
 	if err != nil {

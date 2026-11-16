@@ -1,7 +1,7 @@
 import type { Key } from '@heroui/react';
 import type { CalendarDate, Time } from '@internationalized/date';
 import type { ActivityCalendarRange, ActivityTypeToggleModel } from '../../feed/activity-feed.types';
-import type { ActivityFeedOrigin } from '../../feed-source/feed.types';
+import type { ActivityFeedOrigin } from '../../../../shared/contracts/activity-feed.types';
 
 /** Props of the failure switch. */
 export interface ActivityFailureButtonProps {

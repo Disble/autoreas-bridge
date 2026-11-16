@@ -1,6 +1,7 @@
 import type { Key, Selection } from '@heroui/react';
 import type { IconifyIcon } from '@iconify/react';
 import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
+import type { Anime } from '../../../../shared/contracts/anime.types';
 import type { PageProgressiveWindow } from '../../../../shared/hooks/use-page-progressive-window.types';
 import type { LabeledSelectOption } from '../../../../shared/ui/LabeledSelect.types';
 
@@ -144,6 +145,15 @@ export interface CatalogCoverSlotProps {
 /** Props for the loading placeholder of the active view. */
 export interface CatalogSkeletonProps {
   readonly view: CatalogView;
+}
+
+/** The catalog read as the panel consumes it: the loaded rows, the loading flag and the failure. */
+export interface CatalogLoad {
+  /** The loaded rows; none while loading or after a failure. */
+  readonly items: readonly Anime[];
+  readonly isLoading: boolean;
+  /** The failure to show; set only when the read failed. */
+  readonly error: Error | undefined;
 }
 
 /** Which Catalog empty state a resolved request produced, if any. */

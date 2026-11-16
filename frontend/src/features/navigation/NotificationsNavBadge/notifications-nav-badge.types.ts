@@ -1,8 +1,6 @@
-import type { NotificationCenterSource } from '../../../infrastructure/notification-center-source/notification-center-source.types';
-import type { NotificationSource } from '../../../infrastructure/notification-source/notification-source.types';
+import type { NotificationCenterSource } from '../../../shared/contracts/notification-center.types';
 
-/** Props accepted by `NotificationsNavBadge`. Both sources default to the runtime-backed singletons. */
+/** Props accepted by `NotificationsNavBadge`. The source defaults to the app's notification-center adapter. */
 export interface NotificationsNavBadgeProps {
   readonly centerSource?: NotificationCenterSource;
-  readonly pushSource?: NotificationSource;
 }

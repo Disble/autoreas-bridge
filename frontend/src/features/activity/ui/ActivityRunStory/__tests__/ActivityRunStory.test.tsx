@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ActivityRunStory as ActivityRunStoryData } from '../../../activity-source/activity-incident.types';
-import type { ActivitySource } from '../../../activity-source/activity-source.types';
+import type { ActivityRunStory as ActivityRunStoryData } from '../../../../../shared/contracts/activity-incident.types';
+import type { ActivitySource } from '../../../../../shared/contracts/activity.types';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { ActivityRunStory } from '../ActivityRunStory';
 
 /** The story every resolved case reads: a start, a retried probe, and the save. */
@@ -31,8 +32,12 @@ const getRunStory = vi.fn<ActivitySource['getRunStory']>();
 /** The one source instance the screen reads, as the real singleton is. */
 const source = { getRunStory } as unknown as ActivitySource;
 
-vi.mock('../../../activity-source/activity-source.helpers', () => ({
-  createActivitySource: () => source,
+vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  /** The run story's default Activity port. */
+  get BRIDGE_ACTIVITY_SOURCE() {
+    return source;
+  },
 }));
 
 describe('ActivityRunStory', () => {
@@ -42,7 +47,7 @@ describe('ActivityRunStory', () => {
 
   it('shows only the loading region while the story is unresolved', () => {
     getRunStory.mockReturnValue(new Promise(() => undefined));
-    render(<ActivityRunStory correlationId="dl-7" />);
+    render(<ActivityRunStory correlationId="dl-7" />, { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     expect(screen.getByRole('status', { name: 'Loading the run story' })).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Steps' })).toBeNull();
@@ -51,7 +56,7 @@ describe('ActivityRunStory', () => {
 
   it('shows only the failure, and reads again on "Try again"', async () => {
     getRunStory.mockRejectedValueOnce(new Error('locked')).mockResolvedValueOnce(STORY);
-    render(<ActivityRunStory correlationId="dl-7" />);
+    render(<ActivityRunStory correlationId="dl-7" />, { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     const retry = await screen.findByRole('button', { name: 'Try again' });
     expect(screen.getByText('The run story could not be read')).toBeInTheDocument();
@@ -66,7 +71,7 @@ describe('ActivityRunStory', () => {
 
   it('draws the run as a timeline: time, a dot in its tone, the step and its sub-line, in order', async () => {
     getRunStory.mockResolvedValueOnce({ ...STORY, truncated: true });
-    const { rerender } = render(<ActivityRunStory correlationId="dl-7" />);
+    const { rerender } = render(<ActivityRunStory correlationId="dl-7" />, { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     const rows = within(await screen.findByRole('list', { name: 'Steps' })).getAllByRole('listitem');
     expect(rows.map((row) => row.textContent)).toEqual([
@@ -84,7 +89,7 @@ describe('ActivityRunStory', () => {
     getRunStory.mockResolvedValueOnce({ correlationId: 'dl-8', steps: [], truncated: false });
     rerender(<ActivityRunStory correlationId="dl-8" />);
 
-    await waitFor(() => expect(screen.queryByText(/longer run/)).toBeNull());
-    expect(within(screen.getByRole('list', { name: 'Steps' })).queryAllByRole('listitem')).toEqual([]);
+    await waitFor(() => expect(within(screen.getByRole('list', { name: 'Steps' })).queryAllByRole('listitem')).toEqual([]));
+    expect(screen.queryByText(/longer run/)).toBeNull();
   });
 });
