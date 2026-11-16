@@ -61,7 +61,7 @@ func TestMissedScheduleSettlementCarriesTheSchedulerAnswerNotTheRequestedDate(t 
 	}}
 	app := &App{ctx: context.Background(), downloadScheduler: sched, emitFn: recorder.emit}
 
-	app.RunMissedScheduleNow("2026-07-26")
+	_, _ = downloadsReady(app).RunMissedScheduleNow("2026-07-26")
 
 	if len(recorder.payload) != 1 {
 		t.Fatalf("emitted %#v, want exactly one runtime event", recorder.names)
@@ -92,7 +92,7 @@ func TestMissedScheduleSettlementEmitsNothingWhenNothingSettled(t *testing.T) {
 			sched := &fakeAppScheduler{resolveMissedResult: schedule.MissedStartupActionResult{Kind: kind}}
 			app := &App{ctx: context.Background(), downloadScheduler: sched, emitFn: recorder.emit}
 
-			app.IgnoreMissedSchedule("2026-07-26")
+			_, _ = downloadsReady(app).IgnoreMissedSchedule("2026-07-26")
 
 			if len(recorder.names) != 0 {
 				t.Fatalf("emitted %#v for a %q result, want nothing emitted", recorder.names, kind)

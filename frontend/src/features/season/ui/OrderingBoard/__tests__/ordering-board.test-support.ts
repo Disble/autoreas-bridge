@@ -1,9 +1,14 @@
 import type { DragOverEvent } from '@dnd-kit/react';
-import { act } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import { ORDERING_AUTOSAVE_DEBOUNCE_MS } from '../ordering-board.constants';
-import type { OrderingBoard, OrderingCard, SeasonOrderingSnapshot, SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
+import type { OrderingBoard, OrderingCard, SeasonAnimeRow, SeasonOrderingSnapshot, SeasonSource } from '../../../../../shared/contracts/season.types';
+import { SEASON_ANIMES_KEY } from '../../../../../shared/query/query-keys/query-keys.constants';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
+import { status } from '../../../../../shared/query/test-support/readiness-source.test-support';
+import type { SeasonCoverSource } from '../../SeasonCoverThumb/season-cover-thumb.types';
+import { useOrderingBoard } from '../use-ordering-board';
 
 /**
  * Fixtures shared by the ordering board hook suite, so its cases state only the
@@ -43,6 +48,7 @@ export function createSource(board: OrderingBoard, overrides: Partial<SeasonSour
     getPastSeason: vi.fn().mockResolvedValue(null),
     getPastSeasonAnimes: vi.fn().mockResolvedValue([]),
     getOrderingBoard: vi.fn().mockResolvedValue(board),
+    fetchOrderingBoard: vi.fn().mockResolvedValue(board),
     saveOrderingDraft: vi.fn().mockResolvedValue('ok'),
     applySchedule: vi.fn().mockResolvedValue({ status: 'ok', applied: 1, failed: [] }),
     reopenOrdering: vi.fn().mockResolvedValue('ok'),
@@ -53,6 +59,16 @@ export function createSource(board: OrderingBoard, overrides: Partial<SeasonSour
     openPage: vi.fn(),
     ...overrides,
   };
+}
+
+/**
+ * Renders the ordering board hook over `source` in a fresh query client with the
+ * season module ready (or in the given state), passing the cover port when a case
+ * sets one.
+ */
+export function renderOrderingBoard(source: SeasonSource, coverSource?: SeasonCoverSource, seasonState: 'ready' | 'starting' = 'ready') {
+  const { wrapper } = orderingQueryWrapper([], seasonState);
+  return renderHook(() => (coverSource === undefined ? useOrderingBoard(source) : useOrderingBoard(source, coverSource)), { wrapper });
 }
 
 /** Builds the drag-over event the hook's reshuffle callback receives. */
@@ -85,4 +101,19 @@ export async function waitPastAutosave(): Promise<void> {
 /** Builds a stored closure snapshot, recorded by default. */
 export function snapshot(overrides: Partial<SeasonOrderingSnapshot> = {}): SeasonOrderingSnapshot {
   return { recorded: true, rail: [], grid: [], ...overrides };
+}
+
+/**
+ * A query wrapper with the season module ready and the open season's rows
+ * already read, so the board's season bindings show `rows` without a fetch.
+ * @param rows The open season's rows; null leaves them unread, so the bindings fetch them.
+ * @param seasonState The readiness state of the season module.
+ * @returns The client (to change the rows while mounted) and the wrapper.
+ */
+export function orderingQueryWrapper(rows: readonly SeasonAnimeRow[] | null = [], seasonState: 'ready' | 'starting' = 'ready') {
+  const { client, wrapper } = createModulesTestWrapper(status('season', seasonState));
+  if (rows !== null) {
+    client.setQueryData(SEASON_ANIMES_KEY, rows);
+  }
+  return { client, wrapper };
 }

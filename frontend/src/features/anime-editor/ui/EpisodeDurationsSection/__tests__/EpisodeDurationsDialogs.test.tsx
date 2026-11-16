@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { EpisodeReanalysisRow } from '../../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
+import type { EpisodeReanalysisRow } from '../../../../../shared/contracts/episode-durations.types';
 import { toEpisodeDurationRowViews } from '../episode-durations-section.helpers';
 import type { EpisodeDurationsSectionViewModel } from '../episode-durations-section.types';
 import { toEpisodeReviewView } from '../episode-reanalysis-review.helpers';
@@ -14,7 +14,7 @@ const WINDOW = { scrollRef: { current: null }, onScroll: vi.fn(), visibleCount: 
 
 /** Episode 1 measured at 24 min, and episode 2 listed with no value. */
 const ROWS = toEpisodeDurationRowViews({
-  outcome: 'ok', folderStatus: 'found', beyondTotal: [], tv: true,
+  folderStatus: 'found', beyondTotal: [], tv: true,
   rows: [
     { episode: 1, durationMs: 24 * 60_000, minutes: 24, long: false, source: 'measured' },
     { episode: 2, durationMs: 0, minutes: 0, long: false, source: 'not_measured' },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ActivityChangeContext, ActivityRequestDetail } from '../../activity-source/activity-incident.types';
+import type { ActivityChangeContext, ActivityRequestDetail } from '../../../../shared/contracts/activity-incident.types';
 import type { DrawerSummaryInput } from '../drawer.types';
 import {
   pickDrawerTab,

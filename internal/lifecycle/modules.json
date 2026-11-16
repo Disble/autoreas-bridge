@@ -1,0 +1,4 @@
+{
+  "$comment": "Every module the composition root registers, in startup order (ADR-032 §1). internal/desktop registeredModules owns the list; a Go test (internal/desktop) and a frontend Vitest test (MODULE_IDS) fail when either side drifts from it.",
+  "modules": ["backup", "observability", "sync", "devices", "settings", "anime", "episodes", "api", "season", "downloads", "notifications"]
+}

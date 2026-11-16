@@ -1,5 +1,6 @@
 import type { AnimeCoverEntry } from "../../../../shared/anime-cover/use-anime-cover";
-import type { AnimeDetail, WatchHistoryEntry } from "../../../../shared/contracts/anime.types";
+import type { AnimeDetail, WatchHistoryEntry, WatchHistoryPage } from "../../../../shared/contracts/anime.types";
+import type { AsyncViewSource } from "../../../../shared/query/async-view/async-view.types";
 
 /** Props accepted by the `HistoryInspector` panel. */
 export interface HistoryInspectorProps {
@@ -15,12 +16,21 @@ export interface HistoryInspectorHookProps {
   readonly animeId: string | undefined;
 }
 
-/** One in-flight detail read, keyed by the `animeId` that requested it. */
-export interface HistoryInspectorSnapshot {
-  /** The `animeId` that requested this snapshot. */
-  readonly animeId: string;
-  /** The resolved detail, or `null` when it failed or is missing. */
-  readonly detail: AnimeDetail | null;
+/** One inspector query as the inspector reads it (a `useBridgeQuery` result fits it). */
+export type HistoryInspectorRead<TData> = AsyncViewSource<TData> & {
+  /** True while the previous anime's answer is still shown for a new selection. */
+  readonly isPlaceholderData: boolean;
+};
+
+/** Everything `toHistoryInspectorState` reads. */
+export interface HistoryInspectorStateInput {
+  /** The selected anime ID, or `undefined` when no row is selected. */
+  readonly animeId: string | undefined;
+  /** The selected anime's detail query. */
+  readonly detail: HistoryInspectorRead<AnimeDetail>;
+  /** The selected anime's 3-row recent-episodes page query. */
+  readonly recent: HistoryInspectorRead<WatchHistoryPage>;
+  readonly cover: AnimeCoverEntry;
 }
 
 /** Exclusive inspector states (design D8). */

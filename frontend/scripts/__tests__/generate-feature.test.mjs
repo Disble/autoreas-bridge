@@ -1,6 +1,6 @@
 // fallow-ignore-file unused-file
 
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -78,9 +78,57 @@ describe('generate-feature scaffolding', () => {
 
     expect(helperTestText).toContain("returns fallback title when omitted");
     expect(hookTestText).toContain("returns fallback values when omitted");
-    expect(componentTestText).toContain("renders fallback content when props are omitted");
-    expect(componentTestText).toContain('render(<BridgeStatusCard />);');
+    expect(componentTestText).toContain("renders fallback content and the loading region");
+    expect(componentTestText).toContain('render(<BridgeStatusCard />, createBridgeQueryTestWrapper());');
     expect(componentTestText).toContain("expect(screen.getByText('BridgeStatusCard')).toBeInTheDocument();");
     expect(componentTestText).toContain("expect(screen.getByText('Replace this scaffold with real feature content.')).toBeInTheDocument();");
+  });
+
+  it('emits a hook that reads backend data through useBridgeQuery and toAsyncView, never a binding', () => {
+    const workspace = createWorkspace();
+
+    execFileSync(execPath, [path.join('scripts', 'generate-feature.js'), 'dashboard', 'BridgeStatusCard'], {
+      cwd: workspace,
+      stdio: 'pipe',
+    });
+
+    const componentRoot = path.join(workspace, 'src', 'features', 'dashboard', 'ui', 'BridgeStatusCard');
+    const generated = ['BridgeStatusCard.tsx', 'use-bridge-status-card.ts', 'bridge-status-card.helpers.ts', 'bridge-status-card.constants.ts']
+      .map((name) => readFileSync(path.join(componentRoot, name), 'utf8'));
+    const [componentText, hookText, helpersText, constantsText] = generated;
+
+    expect(hookText).toContain('useBridgeQuery({ queryKey: BridgeStatusCardQueryKey, queryFn: loadBridgeStatusCard })');
+    expect(hookText).toContain('const view = toAsyncView(query);');
+    expect(hookText).toContain('TODO(bridge-data): add the Go binding GetBridgeStatusCard');
+    expect(helpersText).toContain("Promise.reject(new Error('BridgeStatusCard is not bound to GetBridgeStatusCard yet'))");
+    expect(constantsText).toContain("defineQueryKeys('dashboard').key('bridge-status-card')");
+    for (const kind of ['loading', 'failure', 'empty', 'ready']) {
+      expect(componentText).toContain(`view.kind === '${kind}'`);
+    }
+    for (const text of generated) {
+      expect(text).not.toMatch(/infrastructure\/|wailsjs|@tanstack\/react-query/);
+    }
+  });
+
+  it('imports shared modules by paths that exist from a real feature folder', () => {
+    const workspace = createWorkspace();
+
+    execFileSync(execPath, [path.join('scripts', 'generate-feature.js'), 'dashboard', 'BridgeStatusCard'], {
+      cwd: workspace,
+      stdio: 'pipe',
+    });
+
+    const componentRoot = path.join(workspace, 'src', 'features', 'dashboard', 'ui', 'BridgeStatusCard');
+    const realComponentRoot = path.join(frontendRoot, 'src', 'features', 'dashboard', 'ui', 'BridgeStatusCard');
+    const sharedImports = ['', '__tests__']
+      .flatMap((folder) => readdirSync(path.join(componentRoot, folder), { withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) => [folder, readFileSync(path.join(componentRoot, folder, entry.name), 'utf8')]))
+      .flatMap(([folder, text]) => [...text.matchAll(/from '(\.[^']*\/shared\/[^']*)'/g)].map((match) => path.resolve(realComponentRoot, folder, match[1])));
+
+    expect(sharedImports.length).toBeGreaterThan(0);
+    for (const target of sharedImports) {
+      expect(['.ts', '.tsx'].some((extension) => existsSync(`${target}${extension}`)), target).toBe(true);
+    }
   });
 });

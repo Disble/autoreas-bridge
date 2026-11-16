@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
+import type { SeasonSource } from '../../../../../shared/contracts/season.types';
 import { useIntakeEditorState } from '../use-intake-editor-state';
 import { useIntakeRowCallbacks } from '../use-intake-row-callbacks';
 import type { useIntakeStoreSlice } from '../use-intake-store-slice';

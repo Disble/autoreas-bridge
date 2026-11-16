@@ -1,5 +1,5 @@
 import { seasonSource } from '../../../infrastructure/season-source/season-source.helpers';
-import type { SeasonSnapshot, SeasonSource } from '../../../infrastructure/season-source/season-source.types';
+import type { SeasonSnapshot, SeasonSource } from '../../contracts/season.types';
 import { SEASON_MATCHING_RUNTIME_STATE } from './season-store.constants';
 import { seasonStore } from './season-store.store';
 import type { SeasonStoreState } from './season-store.types';
@@ -31,28 +31,24 @@ export function setSeasonStoreState(partial: Partial<SeasonStoreState>): void {
 /** Resets the season read-model back to its initial disconnected state for tests. */
 export function resetSeasonStore(): void {
   setSeasonStoreState({
-    season: null,
-    seasonAnimes: [],
-    hasLoaded: false,
-    hasLoadedAnimes: false,
-    animesLoadState: 'idle',
     errorMessage: undefined,
     busyMessage: undefined,
     matchingRun: null,
+    matchingProgress: {},
     lastDiscard: null,
     viewSeasonId: null,
     readOnly: false,
-    pastSeasons: [],
   });
 }
 
 /**
  * connectSeasonMatchingStore wires the backend matching lifecycle events
  * into the shared read-model and stays idempotent across multiple panels:
- * started records the run total, progress patches its row in place (never a
- * whole-list refetch per event), and the terminal signal clears the
- * ephemeral run state before the one authoritative row reload. A source
- * without matching subscriptions degrades to a working no-op disconnect.
+ * started records the run total, progress records this run's per-row facts
+ * (never a whole-list refetch per event), and the terminal signal clears the
+ * ephemeral run state. The rows themselves belong to the query: its
+ * invalidation for the finished event reloads them once. A source without
+ * matching subscriptions degrades to a working no-op disconnect.
  */
 export function connectSeasonMatchingStore(source: SeasonSource = seasonSource): () => void {
   if (SEASON_MATCHING_RUNTIME_STATE.unsubscribe !== null) {
@@ -69,9 +65,7 @@ export function connectSeasonMatchingStore(source: SeasonSource = seasonSource):
     }) ?? (() => undefined);
   const unsubscribeFinished =
     source.subscribeMatchingFinished?.(() => {
-      const state = getSeasonStoreState();
-      state.finishMatchingRun();
-      void state.refreshAnimes(source);
+      getSeasonStoreState().finishMatchingRun();
     }) ?? (() => undefined);
 
   SEASON_MATCHING_RUNTIME_STATE.unsubscribe = () => {
@@ -92,5 +86,5 @@ export function connectSeasonMatchingStore(source: SeasonSource = seasonSource):
 export function disconnectSeasonMatchingStore(): void {
   SEASON_MATCHING_RUNTIME_STATE.unsubscribe?.();
   SEASON_MATCHING_RUNTIME_STATE.unsubscribe = null;
-  setSeasonStoreState({ matchingRun: null });
+  setSeasonStoreState({ matchingRun: null, matchingProgress: {} });
 }

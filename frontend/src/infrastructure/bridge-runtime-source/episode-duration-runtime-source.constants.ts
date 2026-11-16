@@ -1,34 +1,7 @@
-import type { desktop as wailsDesktop } from '../../../wailsjs/go/models';
-import type { EpisodeDurationRowSource, EpisodeDurationSaveOutcome, EpisodeReanalysisResult, EpisodeReanalysisStatus, EpisodeDurationRuntimeSource } from './episode-duration-runtime-source.types';
+import type { EpisodeDurationRowSource, EpisodeDurationSaveOutcome, EpisodeReanalysisResult, EpisodeReanalysisStatus, EpisodeDurationRuntimeSource } from '../../shared/contracts/episode-durations.types';
 
 /** Event a running re-analysis emits before each file it measures. */
 export const EPISODE_REANALYSIS_PROGRESS_EVENT_NAME = 'episode.durations_reanalysis_progress';
-
-/** Fail-closed section served when the Go bindings are unreachable. */
-export const RUNTIME_UNAVAILABLE_EPISODE_SECTION = {
-  outcome: 'error',
-  message: 'runtime unavailable',
-  folderStatus: 'none',
-  rows: [],
-  beyondTotal: [],
-  tv: false,
-} as unknown as wailsDesktop.EpisodeDurationSectionResult;
-
-/** Fail-closed review served when the Go bindings are unreachable. */
-export const RUNTIME_UNAVAILABLE_EPISODE_REVIEW = {
-  outcome: 'error',
-  message: 'runtime unavailable',
-  status: 'ok',
-  filesRecognized: 0,
-  rows: [],
-} as unknown as wailsDesktop.EpisodeDurationReviewResult;
-
-/** Fail-closed save served when the Go bindings are unreachable: nothing was written. */
-export const RUNTIME_UNAVAILABLE_EPISODE_SAVE = {
-  outcome: 'error',
-  message: 'runtime unavailable',
-  changed: 0,
-} as unknown as wailsDesktop.EpisodeDurationSaveResult;
 
 /** Every row source the section can carry; anything else reads as not measured. */
 export const EPISODE_DURATION_ROW_SOURCES: readonly EpisodeDurationRowSource[] = [

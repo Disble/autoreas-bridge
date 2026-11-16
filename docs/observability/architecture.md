@@ -13,6 +13,7 @@ old readers. `rollout.md` tracks what is left. For the packages, ports and invar
 | WebSocket lifecycle and broadcasts | `request_captures` (`ws_*` kinds) | recorder, ledger |
 | Bridge runtime events | `runtime_events` | recorder, ledger (non-noise events only); the Activity feed gives each event one section (Tasks, its download run, or System) |
 | Mobile telemetry and sync diagnostics | `device_telemetry_events`; `device_sync_diagnostics` is retired and unread (ADR-026) | unchanged table; a failure report triggers an incident, unless it is a failed sync that reads "Bridge was off" (`mobile-reports.md`) |
+| A held bridge.db connection | `logs/db-stall.log` beside bridge.db, written only when a request is abandoned and the pool probe times out; imported at the next start as `api.db_stalled` (Stall evidence in `docs/architecture/contexts/observability/overview.md`) | unchanged: an error event, so it triggers an incident |
 | Frontend and WebView errors | `runtime_events`, domain `frontend`, type `frontend.error` (P7, `ReportFrontendError`) | unchanged: error events, so they trigger incidents and appear as System lines |
 | Domain history | `activity_log` (the staged-write and outbox tables were dropped on 2026-10-26) | unchanged: months deep in every design |
 

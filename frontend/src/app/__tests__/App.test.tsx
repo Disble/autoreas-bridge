@@ -5,12 +5,25 @@ import App from '../../App';
 import { APP_LAYOUT_NAV_GROUPS } from '../../shared/navigation/app-layout.constants';
 import { flattenNavItems } from '../../shared/navigation/app-layout.helpers';
 import { seasonStore } from '../../shared/store/season-store/season-store.store';
+import { createReadinessGate } from '../../shared/query/readiness-gate/readiness-gate.helpers';
+import { createBridgeQueryTestWrapper } from '../../shared/query/test-support/bridge-query.test-support';
+import { staticSource, status } from '../../shared/query/test-support/readiness-source.test-support';
+
+/**
+ * The query runtime `main.tsx` mounts above `App` (`BridgeQueryProvider`): a
+ * fresh client and a readiness gate whose episodes module is ready, so Today's
+ * `useBridgeQuery` reads resolve as they do in the app.
+ * @returns The wrapper to pass to `render`.
+ */
+function appQueryWrapper() {
+  return createBridgeQueryTestWrapper({ readinessGate: createReadinessGate(staticSource(status('episodes', 'ready')).source) }).wrapper;
+}
 
 describe('App routing', () => {
   beforeEach(() => {
     // Preset the season store so /season resolves synchronously instead of
     // waiting on the real Wails binding timeout in this jsdom integration test.
-    seasonStore.setState({ hasLoaded: true, season: null, pastSeasons: [], readOnly: false });
+    seasonStore.setState({ readOnly: false, viewSeasonId: null });
   });
 
   afterEach(() => {
@@ -22,6 +35,7 @@ describe('App routing', () => {
       <MemoryRouter initialEntries={['/']}>
         <App />
       </MemoryRouter>,
+      { wrapper: appQueryWrapper() },
     );
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Today' })).toBeInTheDocument();
@@ -32,6 +46,7 @@ describe('App routing', () => {
       <MemoryRouter initialEntries={['/today']}>
         <App />
       </MemoryRouter>,
+      { wrapper: appQueryWrapper() },
     );
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Today' })).toBeInTheDocument();
@@ -50,6 +65,7 @@ describe('App routing', () => {
         <MemoryRouter initialEntries={[path]}>
           <App />
         </MemoryRouter>,
+        { wrapper: appQueryWrapper() },
       );
 
       expect(await screen.findByRole('heading', { level: 1, name: label })).toBeInTheDocument();
@@ -61,6 +77,7 @@ describe('App routing', () => {
       <MemoryRouter initialEntries={['/downloads']}>
         <App />
       </MemoryRouter>,
+      { wrapper: appQueryWrapper() },
     );
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Downloads' })).toBeInTheDocument();
@@ -71,6 +88,7 @@ describe('App routing', () => {
       <MemoryRouter initialEntries={['/editor']}>
         <App />
       </MemoryRouter>,
+      { wrapper: appQueryWrapper() },
     );
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Editor' })).toBeInTheDocument();
@@ -81,6 +99,7 @@ describe('App routing', () => {
       <MemoryRouter initialEntries={['/editor/anime-1']}>
         <App />
       </MemoryRouter>,
+      { wrapper: appQueryWrapper() },
     );
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Editor' })).toBeInTheDocument();
@@ -91,6 +110,7 @@ describe('App routing', () => {
       <MemoryRouter initialEntries={['/catalog']}>
         <App />
       </MemoryRouter>,
+      { wrapper: appQueryWrapper() },
     );
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Catalog' })).toBeInTheDocument();
@@ -101,6 +121,7 @@ describe('App routing', () => {
       <MemoryRouter initialEntries={['/catalog/detail/anime-1']}>
         <App />
       </MemoryRouter>,
+      { wrapper: appQueryWrapper() },
     );
 
     expect(screen.getByText('Loading anime detail...')).toBeInTheDocument();
@@ -111,6 +132,7 @@ describe('App routing', () => {
       <MemoryRouter initialEntries={['/history']}>
         <App />
       </MemoryRouter>,
+      { wrapper: appQueryWrapper() },
     );
 
     expect(await screen.findByRole('heading', { level: 1, name: 'History' })).toBeInTheDocument();
@@ -121,6 +143,7 @@ describe('App routing', () => {
       <MemoryRouter initialEntries={['/catalog/history']}>
         <App />
       </MemoryRouter>,
+      { wrapper: appQueryWrapper() },
     );
 
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
@@ -131,6 +154,7 @@ describe('App routing', () => {
       <MemoryRouter initialEntries={['/devices']}>
         <App />
       </MemoryRouter>,
+      { wrapper: appQueryWrapper() },
     );
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Devices' })).toBeInTheDocument();
@@ -141,6 +165,7 @@ describe('App routing', () => {
       <MemoryRouter initialEntries={['/activity']}>
         <App />
       </MemoryRouter>,
+      { wrapper: appQueryWrapper() },
     );
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Activity' })).toBeInTheDocument();
@@ -151,6 +176,7 @@ describe('App routing', () => {
       <MemoryRouter initialEntries={['/events']}>
         <App />
       </MemoryRouter>,
+      { wrapper: appQueryWrapper() },
     );
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Activity' })).toBeInTheDocument();
@@ -162,6 +188,7 @@ describe('App routing', () => {
       <MemoryRouter initialEntries={['/season']}>
         <App />
       </MemoryRouter>,
+      { wrapper: appQueryWrapper() },
     );
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Season' })).toBeInTheDocument();
@@ -172,6 +199,7 @@ describe('App routing', () => {
       <MemoryRouter initialEntries={['/settings']}>
         <App />
       </MemoryRouter>,
+      { wrapper: appQueryWrapper() },
     );
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument();
@@ -182,6 +210,7 @@ describe('App routing', () => {
       <MemoryRouter initialEntries={['/does-not-exist']}>
         <App />
       </MemoryRouter>,
+      { wrapper: appQueryWrapper() },
     );
 
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
@@ -194,6 +223,7 @@ describe('App routing', () => {
         <MemoryRouter initialEntries={['/today']}>
           <App />
         </MemoryRouter>,
+        { wrapper: appQueryWrapper() },
       );
 
       const nav = await screen.findByRole('navigation', { name: 'Bridge primary navigation' });
@@ -253,6 +283,7 @@ describe('App routing', () => {
         <MemoryRouter initialEntries={[path]}>
           <App />
         </MemoryRouter>,
+        { wrapper: appQueryWrapper() },
       );
 
       const heading = await screen.findByRole('heading', { level: 1, name: label });
@@ -280,6 +311,7 @@ describe('App editor routes', () => {
       <MemoryRouter initialEntries={['/editor/create']}>
         <App />
       </MemoryRouter>,
+      { wrapper: appQueryWrapper() },
     );
 
     expect(await screen.findByRole('tab', { name: 'Create', selected: true })).toBeInTheDocument();
@@ -291,6 +323,7 @@ describe('App editor routes', () => {
         <CreateNavigationProbe />
         <App />
       </MemoryRouter>,
+      { wrapper: appQueryWrapper() },
     );
 
     expect(await screen.findByRole('heading', { name: 'Editor' })).toBeInTheDocument();

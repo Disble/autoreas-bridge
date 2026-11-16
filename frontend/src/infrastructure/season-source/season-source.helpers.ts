@@ -37,6 +37,7 @@ import {
 import { EventsOn } from '../../../wailsjs/runtime/runtime';
 import {
   SEASON_APPLY_UNAVAILABLE,
+  SEASON_COMMAND_OK,
   SEASON_CONFIRM_UNAVAILABLE,
   SEASON_EMPTY_BOARD,
   SEASON_MATCHING_FINISHED_EVENT_NAME,
@@ -50,6 +51,7 @@ import {
   SEASON_SOURCE_STATE,
 } from './season-source.constants';
 import type {
+  SeasonAnimeRow,
   SeasonCreateMetadata,
   SeasonMatchingFinishedNotice,
   SeasonMatchingFinishedWire,
@@ -61,10 +63,66 @@ import type {
   SeasonMatchingStartedWire,
   SeasonOrderingSnapshot,
   SeasonProviderSearchResult,
+  SeasonQuerySource,
+  SeasonSnapshot,
   SeasonSource,
-} from './season-source.types';
+  SendToVerHoyResult,
+} from '../../shared/contracts/season.types';
 import { openInDefaultBrowser } from '../../shared/helpers/url.helpers';
-import { createRuntimeSubscription, hasGoBinding, invokeGoBinding, waitForBindings } from '../wails-bindings.helpers';
+import { createBridgeError } from '../../shared/query/bridge-error/bridge-error.helpers';
+import { withBridgeErrors } from '../bridge-error/bridge-error.helpers';
+import { createRuntimeSubscription, invokeGoBinding } from '../wails-bindings.helpers';
+
+/**
+ * Calls a season command binding, which returns only an error since the season
+ * module handle, and answers the status string its consumers still read:
+ * `'ok'` once it resolves, the failure's message once it rejects (a module
+ * still starting or failed included), and the runtime-unavailable sentinel when
+ * the binding never attaches.
+ */
+function invokeSeasonCommand(bindingName: string, invoke: () => Promise<void>): Promise<string> {
+  return invokeGoBinding(
+    bindingName,
+    () => withBridgeErrors(invoke()).then(() => SEASON_COMMAND_OK, (error: Error) => error.message),
+    () => SEASON_RUNTIME_UNAVAILABLE,
+  );
+}
+
+/**
+ * Calls a season read binding and maps its rejection back to the fallback its
+ * consumers still read as "nothing yet", which is what the binding answered
+ * before it returned an error.
+ */
+function invokeSeasonRead<T>(bindingName: string, invoke: () => Promise<T>, fallback: () => T): Promise<T> {
+  return invokeGoBinding(bindingName, () => withBridgeErrors(invoke()).catch(fallback), fallback);
+}
+
+/**
+ * Calls a season read binding for a query: its rejection becomes a
+ * `BridgeError`, and a binding that never attaches rejects as `unavailable`, so
+ * the query reports loading or failure instead of an empty answer.
+ * @param bindingName The `App` method name, as `window.go` exposes it.
+ * @param call The generated binding call.
+ * @returns What the binding answered.
+ */
+function callSeasonQuery<T>(bindingName: string, call: () => Promise<T>): Promise<T> {
+  return withBridgeErrors(
+    invokeGoBinding(bindingName, call, () => Promise.reject(createBridgeError('unavailable', `the ${bindingName} binding is not attached`))),
+  );
+}
+
+/**
+ * Calls a season binding whose result carries a status and maps its rejection
+ * back to `unavailable` carrying the failure's message as that status, which is
+ * what the binding answered before it returned an error.
+ */
+function invokeSeasonOutcome<T extends { readonly status: string }>(bindingName: string, invoke: () => Promise<T>, unavailable: T): Promise<T> {
+  return invokeGoBinding(
+    bindingName,
+    () => withBridgeErrors(invoke()).catch((error: Error) => ({ ...unavailable, status: error.message })),
+    () => unavailable,
+  );
+}
 
 /**
  * Narrows a backend matching phase onto the closed frontend union, throwing
@@ -118,7 +176,7 @@ function mapSeasonMatchingFinishedNotice(wire: SeasonMatchingFinishedWire): Seas
 /**
  * Creates the singleton runtime-backed season source with browser-safe degraded fallbacks.
  */
-export function createSeasonSource(): SeasonSource {
+export function createSeasonSource(): SeasonSource & SeasonQuerySource {
   if (SEASON_SOURCE_STATE.sharedSource !== null) {
     return SEASON_SOURCE_STATE.sharedSource;
   }
@@ -137,72 +195,82 @@ export function createSeasonSource(): SeasonSource {
 
   SEASON_SOURCE_STATE.sharedSource = {
     getSeason() {
-      return invokeGoBinding('GetSeason', GetSeason, () => null);
+      return invokeSeasonRead('GetSeason', GetSeason, () => null);
     },
     createSeason(name: string) {
-      return invokeGoBinding('CreateSeason', () => CreateSeason(name), () => SEASON_RUNTIME_UNAVAILABLE);
+      return invokeSeasonCommand('CreateSeason', () => CreateSeason(name));
     },
     setMinApprovalGrade(grade: number) {
-      return invokeGoBinding('SetSeasonMinApprovalGrade', () => SetSeasonMinApprovalGrade(grade), () => SEASON_RUNTIME_UNAVAILABLE);
+      return invokeSeasonCommand('SetSeasonMinApprovalGrade', () => SetSeasonMinApprovalGrade(grade));
     },
     setSlots(slots: number) {
-      return invokeGoBinding('SetSeasonSlots', () => SetSeasonSlots(slots), () => SEASON_RUNTIME_UNAVAILABLE);
+      return invokeSeasonCommand('SetSeasonSlots', () => SetSeasonSlots(slots));
     },
     closeSeason() {
-      return invokeGoBinding('CloseSeason', CloseSeason, () => SEASON_RUNTIME_UNAVAILABLE);
+      return invokeSeasonCommand('CloseSeason', CloseSeason);
     },
     getSeasonAnimes() {
-      return invokeGoBinding('GetSeasonAnimes', GetSeasonAnimes, () => []);
+      return invokeSeasonRead('GetSeasonAnimes', GetSeasonAnimes, () => []);
     },
     setSeasonAnimeMetadata(rowId: string, metadataJSON: string) {
-      return invokeGoBinding(
-        'SetSeasonAnimeMetadata',
-        () => SetSeasonAnimeMetadata(rowId, metadataJSON),
-        () => SEASON_RUNTIME_UNAVAILABLE,
-      );
+      return invokeSeasonCommand('SetSeasonAnimeMetadata', () => SetSeasonAnimeMetadata(rowId, metadataJSON));
     },
     listSeasons() {
-      return invokeGoBinding('ListSeasons', ListSeasons, () => []);
+      return invokeSeasonRead('ListSeasons', ListSeasons, () => []);
     },
     getPastSeason(seasonId: string) {
-      return invokeGoBinding('GetPastSeason', () => GetPastSeason(seasonId), () => null);
+      return invokeSeasonRead('GetPastSeason', () => GetPastSeason(seasonId), () => null);
     },
     getPastSeasonAnimes(seasonId: string) {
-      return invokeGoBinding('GetPastSeasonAnimes', () => GetPastSeasonAnimes(seasonId), () => []);
+      return invokeSeasonRead('GetPastSeasonAnimes', () => GetPastSeasonAnimes(seasonId), () => []);
+    },
+    readSeason() {
+      return callSeasonQuery<SeasonSnapshot | null>('GetSeason', GetSeason);
+    },
+    readSeasonAnimes() {
+      return callSeasonQuery<readonly SeasonAnimeRow[]>('GetSeasonAnimes', GetSeasonAnimes);
+    },
+    readSeasons() {
+      return callSeasonQuery<readonly SeasonSnapshot[]>('ListSeasons', ListSeasons);
+    },
+    readPastSeason(seasonId: string) {
+      return callSeasonQuery<SeasonSnapshot | null>('GetPastSeason', () => GetPastSeason(seasonId));
+    },
+    readPastSeasonAnimes(seasonId: string) {
+      return callSeasonQuery<readonly SeasonAnimeRow[]>('GetPastSeasonAnimes', () => GetPastSeasonAnimes(seasonId));
     },
     reconcileIntake(rawText: string) {
-      return invokeGoBinding('ReconcileSeasonIntake', () => ReconcileSeasonIntake(rawText), () => SEASON_RUNTIME_UNAVAILABLE);
+      return invokeSeasonCommand('ReconcileSeasonIntake', () => ReconcileSeasonIntake(rawText));
     },
     runMatching() {
-      return invokeGoBinding('RunSeasonMatching', RunSeasonMatching, () => SEASON_RUNTIME_UNAVAILABLE);
+      return invokeSeasonCommand('RunSeasonMatching', RunSeasonMatching);
     },
     resolveMatch(rowId: string, pageUrl: string) {
-      return invokeGoBinding('ResolveSeasonMatch', () => ResolveSeasonMatch(rowId, pageUrl), () => SEASON_RUNTIME_UNAVAILABLE);
+      return invokeSeasonCommand('ResolveSeasonMatch', () => ResolveSeasonMatch(rowId, pageUrl));
     },
     searchProviders(query: string) {
-      return invokeGoBinding<SeasonProviderSearchResult>(
-        'SearchSeasonProviders',
-        () => SearchSeasonProviders(query),
-        () => SEASON_PROVIDER_SEARCH_UNAVAILABLE,
-      );
+      return invokeSeasonOutcome<SeasonProviderSearchResult>('SearchSeasonProviders', () => SearchSeasonProviders(query), SEASON_PROVIDER_SEARCH_UNAVAILABLE);
     },
     discardName(rowId: string) {
-      return invokeGoBinding('DiscardSeasonName', () => DiscardSeasonName(rowId), () => SEASON_RUNTIME_UNAVAILABLE);
+      return invokeSeasonCommand('DiscardSeasonName', () => DiscardSeasonName(rowId));
     },
     restoreName(rowId: string) {
-      return invokeGoBinding('RestoreSeasonName', () => RestoreSeasonName(rowId), () => SEASON_RUNTIME_UNAVAILABLE);
+      return invokeSeasonCommand('RestoreSeasonName', () => RestoreSeasonName(rowId));
     },
     setAnimeDays(animeId: string, dias: readonly string[]) {
-      return waitForBindings(() => hasGoBinding('SetAnimeDays')).then((isReady) => {
-        if (!isReady) {
-          return Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
-        }
-
-        return SetAnimeDays(animeId, [...dias], 0).then((result) => result.status === 'ok' ? 'ok' : result.message || 'Failed to move anime');
-      });
+      // The binding is an episodes module command that rejects on failure; the season store reads
+      // 'ok', the failure's message, or 'Failed to move anime' for a failure without one.
+      return invokeSeasonCommand('SetAnimeDays', () => SetAnimeDays(animeId, [...dias], 0).then(() => undefined))
+        .then((status) => status || 'Failed to move anime');
     },
     sendToVerHoy(animeIds: readonly string[]) {
-      return invokeGoBinding('SendSeasonAnimesToVerHoy', () => SendSeasonAnimesToVerHoy([...animeIds]), () => SEASON_SEND_UNAVAILABLE);
+      // The episodes module answers only the download window and rejects on failure; the season
+      // store reads the status 'ok' beside it, or the failure's message as the status.
+      return invokeSeasonOutcome<SendToVerHoyResult>(
+        'SendSeasonAnimesToVerHoy',
+        () => SendSeasonAnimesToVerHoy([...animeIds]).then((result) => ({ status: SEASON_COMMAND_OK, pastDownloadTime: result.pastDownloadTime, downloadTime: result.downloadTime })),
+        SEASON_SEND_UNAVAILABLE,
+      );
     },
     triggerSeasonDownloads() {
       return invokeGoBinding('TriggerSeasonDownloads', TriggerSeasonDownloads, () => SEASON_RUNTIME_UNAVAILABLE);
@@ -211,54 +279,54 @@ export function createSeasonSource(): SeasonSource {
       return invokeGoBinding('DownloadSeasonAnimes', () => DownloadSeasonAnimes([...animeIds]), () => SEASON_RUNTIME_UNAVAILABLE);
     },
     setGrade(animeId: string, grade: number) {
-      return invokeGoBinding('SetSeasonGrade', () => SetSeasonGrade(animeId, grade), () => SEASON_RUNTIME_UNAVAILABLE);
+      return invokeSeasonCommand('SetSeasonGrade', () => SetSeasonGrade(animeId, grade));
     },
     skipGrading(rowId: string) {
-      return invokeGoBinding('SkipSeasonGrading', () => SkipSeasonGrading(rowId), () => SEASON_RUNTIME_UNAVAILABLE);
+      return invokeSeasonCommand('SkipSeasonGrading', () => SkipSeasonGrading(rowId));
     },
     setConsideration(rowId: string, consideration: string) {
-      return invokeGoBinding('SetSeasonConsideration', () => SetSeasonConsideration(rowId, consideration), () => SEASON_RUNTIME_UNAVAILABLE);
+      return invokeSeasonCommand('SetSeasonConsideration', () => SetSeasonConsideration(rowId, consideration));
     },
     confirmSelection() {
-      return invokeGoBinding('ConfirmSeasonSelection', ConfirmSeasonSelection, () => SEASON_CONFIRM_UNAVAILABLE);
+      return invokeSeasonOutcome('ConfirmSeasonSelection', ConfirmSeasonSelection, SEASON_CONFIRM_UNAVAILABLE);
     },
     createSeasonAnimes(
       rowIds: readonly string[],
       folders: Readonly<Record<string, string>>,
       metadata: Readonly<Record<string, SeasonCreateMetadata>>,
     ) {
-      return invokeGoBinding(
-        'CreateSeasonAnimes',
-        () => CreateSeasonAnimes([...rowIds], { ...folders }, { ...metadata }),
-        () => SEASON_RUNTIME_UNAVAILABLE,
-      );
+      return invokeSeasonCommand('CreateSeasonAnimes', () => CreateSeasonAnimes([...rowIds], { ...folders }, { ...metadata }));
     },
     pickFolder(title: string) {
-      return invokeGoBinding('PickFolder', () => PickFolder(title), () => '');
+      // A failed dialog rejects as internal since the shell slice; its pickers still read it as a cancel.
+      return invokeGoBinding('PickFolder', () => PickFolder(title), () => '').catch(() => '');
     },
     getOrderingBoard() {
-      return invokeGoBinding('GetSeasonOrderingBoard', GetSeasonOrderingBoard, () => SEASON_EMPTY_BOARD);
-    },
-    getSeasonOrderingSnapshot(seasonId: string) {
-      return invokeGoBinding<SeasonOrderingSnapshot>('GetSeasonOrderingSnapshot', () => GetSeasonOrderingSnapshot(seasonId), () => ({ recorded: false, rail: [], grid: [] }));
+      return invokeSeasonRead('GetSeasonOrderingBoard', GetSeasonOrderingBoard, () => SEASON_EMPTY_BOARD);
     },
     saveOrderingDraft(draftJson: string) {
-      return invokeGoBinding('SaveSeasonOrderingDraft', () => SaveSeasonOrderingDraft(draftJson), () => SEASON_RUNTIME_UNAVAILABLE);
+      return invokeSeasonCommand('SaveSeasonOrderingDraft', () => SaveSeasonOrderingDraft(draftJson));
     },
     applySchedule() {
-      return invokeGoBinding('ApplySeasonSchedule', ApplySeasonSchedule, () => SEASON_APPLY_UNAVAILABLE);
+      return invokeSeasonOutcome('ApplySeasonSchedule', ApplySeasonSchedule, SEASON_APPLY_UNAVAILABLE);
     },
     reopenOrdering() {
-      return invokeGoBinding('ReopenSeasonOrdering', ReopenSeasonOrdering, () => SEASON_RUNTIME_UNAVAILABLE);
+      return invokeSeasonCommand('ReopenSeasonOrdering', ReopenSeasonOrdering);
     },
     recheckAvailability() {
-      return invokeGoBinding('RecheckSeasonAvailability', RecheckSeasonAvailability, () => SEASON_RUNTIME_UNAVAILABLE);
+      return invokeSeasonCommand('RecheckSeasonAvailability', RecheckSeasonAvailability);
     },
     getCheckTime() {
       return invokeGoBinding('GetSeasonCheckTime', GetSeasonCheckTime, () => '');
     },
     setCheckTime(hhmm: string) {
-      return invokeGoBinding('SetSeasonCheckTime', () => SetSeasonCheckTime(hhmm), () => SEASON_RUNTIME_UNAVAILABLE);
+      // The binding moved to the settings module and rejects on failure; the intake check time
+      // still reads the old status string ('ok' or the failure message) until its own slice migrates it.
+      return invokeGoBinding(
+        'SetSeasonCheckTime',
+        () => withBridgeErrors(SetSeasonCheckTime(hhmm)).then(() => 'ok', (error: Error) => error.message),
+        () => SEASON_RUNTIME_UNAVAILABLE,
+      );
     },
     subscribeMatchingStarted(listener) {
       return matchingStartedSubscription.subscribe(listener);
@@ -271,6 +339,27 @@ export function createSeasonSource(): SeasonSource {
     },
     openPage(url: string) {
       openInDefaultBrowser(url); // a blank url means no matched slug
+    },
+    fetchOrderingBoard() {
+      return withBridgeErrors(
+        invokeGoBinding('GetSeasonOrderingBoard', GetSeasonOrderingBoard, () =>
+          Promise.reject(createBridgeError('unavailable', 'the GetSeasonOrderingBoard binding is not attached')),
+        ),
+      );
+    },
+    fetchSeasonOrderingSnapshot(seasonId: string) {
+      return withBridgeErrors<SeasonOrderingSnapshot>(
+        invokeGoBinding('GetSeasonOrderingSnapshot', () => GetSeasonOrderingSnapshot(seasonId), () =>
+          Promise.reject(createBridgeError('unavailable', 'the GetSeasonOrderingSnapshot binding is not attached')),
+        ),
+      );
+    },
+    fetchProviderSearch(query: string) {
+      return withBridgeErrors<SeasonProviderSearchResult>(
+        invokeGoBinding('SearchSeasonProviders', () => SearchSeasonProviders(query), () =>
+          Promise.reject(createBridgeError('unavailable', 'the SearchSeasonProviders binding is not attached')),
+        ),
+      );
     },
   };
 

@@ -1,20 +1,26 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getDefaultEpisodeDay, getDefaultLensSelection, getInitialEpisodeSelection } from './episode-schedule-panel.helpers';
-import type { EpisodeScheduleItem, EpisodeScheduleSource, EpisodeViewLens } from './episode-schedule-panel.types';
+import { episodesKeys } from '../../../../shared/query/query-keys/query-keys.constants';
+import { useBridgeQuery } from '../../../../shared/query/use-bridge-query/use-bridge-query';
+import { getDefaultEpisodeDay, getDefaultLensSelection, getInitialEpisodeSelection, toVisibleCommandFailure } from './episode-schedule-panel.helpers';
+import type { EpisodeCommandFailure, EpisodeScheduleSource, EpisodeViewLens } from './episode-schedule-panel.types';
 
 /**
  * Owns which slice of the schedule is being looked at — the selected day and
- * lens — and the request that fills it, including whether that request has
- * resolved.
+ * lens — and the query that fills it: `useBridgeQuery`, gated on the `episodes`
+ * module, keyed by the day (`episodesKeys.key('schedule', day)`), refreshed on
+ * `anime.changed` by the `BRIDGE_INVALIDATIONS` rule.
  *
- * `isLoadingSchedule` starts true and stays true until a request settles,
- * because before the season probe answers there is no day to request yet.
- * Reporting "resolved and empty" in that window is what made an unresolved
- * board show creation guidance for anime the user already has.
+ * The query stays pending until the season probe chose a day (`enabled`) and
+ * while the episodes module starts, so an unresolved board is never reported
+ * as "resolved and empty" (that showed creation guidance for anime the user
+ * already has, and S9's "Nothing scheduled" during startup).
+ *
+ * It also keeps the last rejected row write, stamped with when it was raised,
+ * so it shows until the schedule loads again.
  *
  * @param source The schedule port the rows are read through.
  * @param initialDay A caller-supplied day, which also skips the season probe.
- * @returns The selection, the loaded rows, the request state, and the refresh.
+ * @returns The selection, the schedule query, the visible write failure, and the refresh.
  */
 export function useEpisodeScheduleRequest(source: EpisodeScheduleSource, initialDay?: string) {
   // 1. Refs
@@ -22,35 +28,30 @@ export function useEpisodeScheduleRequest(source: EpisodeScheduleSource, initial
   // 2. State
   const [selectedDay, setSelectedDay] = useState(initialDay ?? '');
   const [lens, setLens] = useState<EpisodeViewLens>('daily');
-  const [items, setItems] = useState<readonly EpisodeScheduleItem[]>([]);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [isLoadingSchedule, setIsLoadingSchedule] = useState(true);
+  const [commandFailure, setCommandFailure] = useState<EpisodeCommandFailure | undefined>(undefined);
 
   // 3. Context/3rd Party Hooks
 
   // 4. Queries/Mutations
+  const query = useBridgeQuery({
+    queryKey: episodesKeys.key('schedule', selectedDay),
+    queryFn: () => source.getEpisodeSchedule(selectedDay),
+    module: 'episodes',
+    enabled: selectedDay !== '',
+  });
 
   // 5. Derived State (useMemo)
+  const { dataUpdatedAt, refetch } = query;
+  const errorMessage = toVisibleCommandFailure(commandFailure, dataUpdatedAt);
 
   // 6. Callbacks (useCallback calling pure helpers)
   const refresh = useCallback(() => {
-    if (selectedDay === '') {
-      return;
-    }
-    setErrorMessage('');
-    setIsLoadingSchedule(true);
-    void source
-      .getEpisodeSchedule(selectedDay)
-      .then((nextItems) => {
-        setItems(nextItems);
-      })
-      .catch(() => {
-        setErrorMessage('Could not load episode schedule.');
-      })
-      .finally(() => {
-        setIsLoadingSchedule(false);
-      });
-  }, [selectedDay, source]);
+    void refetch();
+  }, [refetch]);
+
+  const setErrorMessage = useCallback((message: string) => {
+    setCommandFailure({ message, raisedAt: Date.now() });
+  }, []);
 
   const selectDay = useCallback((day: string) => {
     setSelectedDay(day);
@@ -80,8 +81,7 @@ export function useEpisodeScheduleRequest(source: EpisodeScheduleSource, initial
         if (isActive) {
           setLens('daily');
           // Also pick the daily default. Without it the selected day stays
-          // blank, no schedule request is ever made, and the panel waits on a
-          // request that will never start.
+          // blank, the schedule query never runs, and the panel waits forever.
           setSelectedDay(getDefaultEpisodeDay());
         }
       });
@@ -90,10 +90,5 @@ export function useEpisodeScheduleRequest(source: EpisodeScheduleSource, initial
     };
   }, [initialDay, source]);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-doctor/no-derived-state -- The selected day is interactive UI state that starts from runtime defaults and then diverges through user selection.
-    refresh();
-  }, [refresh]);
-
-  return { selectedDay, lens, items, errorMessage, setErrorMessage, isLoadingSchedule, refresh, selectDay, selectLens };
+  return { selectedDay, lens, query, errorMessage, setErrorMessage, refresh, selectDay, selectLens };
 }

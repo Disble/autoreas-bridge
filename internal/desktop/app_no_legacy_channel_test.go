@@ -34,8 +34,8 @@ func TestAppStartupSucceedsWithNoLegacyFileOnDisk(t *testing.T) {
 	if app.startupErr != nil {
 		t.Fatalf("expected startup to succeed with no Legacy file on disk, got %v", app.startupErr)
 	}
-	if got := app.GetAnimes(); got == nil || len(got) != 0 {
-		t.Fatalf("expected an empty (non-nil) catalog, got %#v", got)
+	if got, err := app.GetAnimes(); err != nil || got == nil || len(got) != 0 {
+		t.Fatalf("expected an empty (non-nil) catalog, got %#v (err %v)", got, err)
 	}
 }
 
@@ -62,8 +62,8 @@ func TestAppStartupOnEmptyRealSQLiteServesEmptyCatalogWithoutWaiting(t *testing.
 	if app.startupErr != nil {
 		t.Fatalf("expected startup to succeed on empty SQLite, got %v", app.startupErr)
 	}
-	if got := app.GetAnimes(); got == nil || len(got) != 0 {
-		t.Fatalf("expected an empty (non-nil) catalog with no panic or wait, got %#v", got)
+	if got, err := app.GetAnimes(); err != nil || got == nil || len(got) != 0 {
+		t.Fatalf("expected an empty (non-nil) catalog with no panic or wait, got %#v (err %v)", got, err)
 	}
 }
 

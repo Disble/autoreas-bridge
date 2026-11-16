@@ -30,14 +30,12 @@ export interface HosterPriorityEditorViewModelOptions {
   readonly errorMessage?: string;
 }
 
-/** Internal hook state consolidating load + optimistic-save concerns into a single object. */
-export interface HosterPriorityEditorState {
-  readonly items: readonly HosterPriorityItem[];
+/** One hoster-priority write: the order and the site it belongs to. */
+export interface HosterPrioritySave {
   /** Site scope the loaded items came from; reorders are persisted back to it. */
   readonly site: string;
-  readonly hasLoaded: boolean;
-  readonly isSaving: boolean;
-  readonly errorMessage: string | undefined;
+  /** The new order. */
+  readonly items: readonly HosterPriorityItem[];
 }
 
 /** Props for one draggable hoster row rendered by `SortableHosterRow`. */

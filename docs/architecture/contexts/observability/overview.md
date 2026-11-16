@@ -34,6 +34,7 @@ Everything on this page was read from the code on 2026-11-06.
 | `internal/observability/retention` | `Sweep` and `RunLoop`: the 2-hour recorder, the 90-day ledger, the incident trim and the response-body strip |
 | `internal/observability/activityread` | The read models: `Feed`, `Overview`, `Now`, `Incidents`, `IncidentDetail`, `History`, `Recorder`, `Runs`, `RunStory`, `SyncStarts`, `PhoneReport` and others. It only reads |
 | `internal/observability/obserr` | The structured error envelope shared by the read tools |
+| `internal/observability/dbstall` | The stall evidence file: `Write`, `ReadPending`, `Rotate`, and `Suspects`/`Header.Metadata`, which read a goroutine dump into the Activity record. Pure file and text work, no database |
 
 Adapters and wiring outside the context:
 
@@ -46,6 +47,8 @@ Adapters and wiring outside the context:
 | `internal/desktop/app_incidents.go` | The persist hooks, `recordMobileIncident` and the `waitedForBridge` gate |
 | `internal/desktop/app_sync_diagnostics.go` | `ingestSyncDiagnostics`: store, event, incident |
 | `internal/desktop/app_runtime_services.go` | `captureLastContacts`, the orphan capture sweep and `startRetentionSweepLoop` |
+| `internal/api/abandoned_request.go` | `reportAbandonedRequests`: tells `Config.OnRequestAbandoned` the route of a request whose client gave up |
+| `internal/desktop/app_db_stall.go` | The stall evidence: the pool probe, the dump, and its import at the next start |
 | `internal/desktop/app_activity_feed.go`, `app_activity_read.go`, `app_activity_live.go`, `app_activity_pin.go` | The Wails bindings of Activity, the `activity.recorder` event and "pin this moment" |
 | `internal/mcp/requestcapture`, `cmd/autoreas-request-mcp` | The MCP sidecar: 11 read-only tools over `activityread` on a read-only handle |
 
@@ -123,7 +126,10 @@ writes itself:
 | `api.last_contacts_unread` | warn | `internal/desktop/app_runtime_services.go` | The last contacts could not be read at start; readings go by start times alone |
 | `incident.sync_reading_failed` | warn | `internal/desktop/app_incidents.go` | The starts or the device's first report could not be read for a failed sync report; it opens its incident |
 | `incident.record_failed` | error | `internal/desktop/app_incidents.go` | An incident could not be stored. The event hook skips this type, so it cannot loop |
-| `api.capture_swept` | warn | `internal/desktop/app_runtime_services.go` | Pending captures left by a previous process were swept |
+| `api.capture_swept` | warn | `internal/desktop/app_runtime_services.go` | Pending captures left by a previous process were swept. Metadata `swept` (the count) and `captures`, the newest 10 swept rows as `requestId`, `route`, `kind`, `capturedAtMs` and `clientRequestId` (mobile's `<cycleId>:<n>`, omitted when absent); `capturesOmitted` counts the older ones left out. A request the previous process never finished is named here, because retention usually deletes the row itself after 2 hours |
+| `api.db_stalled` | error | `internal/desktop/app_db_stall.go` | A previous process found the bridge.db connection held (see Stall evidence). Written at the next start with the stall's own `occurred_at_ms`; `correlation_id` is the stall id in the file's header. Metadata `route`, `poolMaxOpen`, `poolInUse`, `poolIdle`, `poolWaitCount`, `poolWaitDurationMs`, `suspectsFound` and `suspects` (`goroutine`, `state`, `frames`, and `waitMinutes` when the runtime printed one), cut to fit 4 KB with `suspectsTruncated`. Opens an incident in the sync area |
+| `api.db_stall_import_failed` | warn | `internal/desktop/app_db_stall.go` | A pending stall file could not be read or stored at start. An unreadable file is rotated; a failed store keeps it for the next start |
+| `api.db_stall_write_failed` | error | `internal/desktop/app_db_stall.go` | The evidence file could not be written. The database is stuck, so only the logger's file and stdout sinks see it |
 
 `activity.recorder` is a Wails event, not a row: it streams each persisted capture and event to the screen.
 
@@ -141,6 +147,31 @@ writes itself:
 | `device_sync_diagnostics` | Retired (ADR-026) | Never created on a fresh install; on an existing one its rows stay, unread |
 
 A reading has no storage: it is computed on each read. The start record is metadata on an existing row.
+
+### Stall evidence
+
+The pool has one connection (`SetMaxOpenConns(1)`), so one goroutine that keeps it leaves every request
+waiting with no log line. The stall evidence names that goroutine while it still holds the connection, and
+costs nothing while Bridge is healthy: no timer, no poller.
+
+1. **Trigger.** `reportAbandonedRequests` sees a request (never `/ws`) whose context ended before its handler
+   returned: the client gave up. It calls `App.onRequestAbandoned` on that request's goroutine.
+2. **Probe.** One probe at a time asks the pool for the connection with a 1-second budget. A connection that
+   comes back means the client simply left. A closed database (shutdown) is not a stall either: only a
+   `context.DeadlineExceeded` is.
+3. **Evidence.** The first failed probe of a process writes `logs/db-stall.log` beside bridge.db:
+   one JSON header line (`id`, `occurredAtMs`, `route`, `pool`) and a `debug=2` goroutine dump. Later
+   abandoned requests of that process do nothing. Only the real bootstrap sets the directory
+   (`resolveStallLogDir`), so an App built on an injected test database keeps no evidence.
+4. **Import.** At the next start, before the HTTP server listens, a pending file becomes one `api.db_stalled`
+   row and its incident, written directly rather than through the event queue. The file is rotated only after
+   the row is stored, Ollama-style: `db-stall.log` becomes `db-stall-1.log`, and the chain keeps 5. The stall id
+   stops a second row when a rotation failed after the store.
+
+| File | Kept |
+|---|---|
+| `logs/db-stall.log` | Until the next start imports it |
+| `logs/db-stall-1.log` … `db-stall-5.log` | The 5 newest imported stalls; the 6th is deleted on rotation |
 
 ## Invariants
 
@@ -187,10 +218,33 @@ A reading has no storage: it is computed on each read. The start record is metad
 | `CaptureMiddleware`, `internal/realtime/hub.go` | `requestcapture.Queue.TryEnqueue` | Every HTTP request, WebSocket connect, disconnect and broadcast |
 | `logger.Logger.Logf` | `eventlog.Sink.WriteEntry` | Every logged fact above the debug filter |
 | `App.startRetentionSweepLoop` | `retention.Sweep`, `RunLoop` | Once after bootstrap, then every 5 minutes |
+| `reportAbandonedRequests` | `App.onRequestAbandoned` | A client gave up on a request |
+| `App.configureRuntimeServices` | `App.importStallEvidence` | Each start, before the HTTP server listens |
 | `SearchActivityFeed`, `GetActivityOverview` | `Reader.Feed`, `Reader.Overview` | The Activity screen |
 | `GetActivityEvent`, `GetActivityIncident`, `GetActivityRequest`, `GetActivityRunStory`, `GetActivityChangeContext`, `GetActivityPhoneReport` | The matching `Reader` method | Opening a feed line |
 | `PinActivityMoment` | `incident.Store.Record` | "Pin this moment" |
+| `ListDeviceSyncDiagnostics` | `telemetry.Reader` | No screen yet (`docs/observability/mobile-reports.md`) |
 | `cmd/autoreas-request-mcp` | `internal/mcp/requestcapture` tools | `get_status`, `list_incidents`, `get_incident`, `get_request`, `search_history`, `list_runs`, `get_run_story`, `list_recorder`, `list_response_versions`, `get_hourly_totals`, `count_events`. The coverage of `get_incident` and `search_history` gives each report kind's range (`coverage.go`) |
+
+## Readiness
+
+Every Activity binding and `ListDeviceSyncDiagnostics` runs through the `observability` module handle
+(`appModules.observability`, `internal/desktop/app_readiness.go`). `bindObservabilityModule`
+(`app_activity_read.go`) binds the activity reader, the incident store, the request capture reader and the
+sync diagnostics reader once `configureRuntimeServices` wired them; the module settles ready when the
+runtime event log queue and both readers are wired. While it starts, a binding rejects with
+`{"code":"unavailable","message":"observability is starting"}`; once it failed, with `failed_precondition`;
+a failing read is `internal`. No binding answers an empty stand-in any more: `ListDeviceSyncDiagnostics`
+returns `(DeviceSyncDiagnosticsResult, error)` and its envelope lost the `Degraded` flag (each report keeps
+its own `Degraded`).
+
+The Activity screen reads through `useBridgeQuery` with module `observability` (key factory `activityKeys`):
+the overview (`use-activity-overview.ts`), the feed's first page (`use-activity-feed-pages.ts`) and every
+drawer read by id (`useActivityRead`, `useDrawerFeedRead`); "Pin this moment" is a `useBridgeMutation`
+(`use-activity-screen.ts`). So the screen shows its skeletons while the module starts and the surface
+`Alert` once it failed, never an empty feed. The Wails adapters live in
+`frontend/src/infrastructure/bridge-runtime-source/activity-source.helpers.ts` and
+`activity-feed-source.helpers.ts`, built once in `bridge-runtime.constants.ts`.
 
 ## Known drift
 
@@ -219,3 +273,11 @@ A reading has no storage: it is computed on each read. The start record is metad
   `retention` declares.
 - **The battery does not see mobile incidents.** The POC simulator triggers only on `device_sync_diagnostics`,
   so it cannot measure what a missing incident costs (`docs/observability/mobile-reports.md`).
+- **Activity's live refresh is not an invalidation.** `use-activity-live-refresh.ts` still subscribes to
+  `activity.recorder` through `history-source.helpers.ts` (`EventsOn`) and refetches the overview and the
+  first page after a 1 s debounce. `BRIDGE_INVALIDATIONS` has no debounce, so moving it there would
+  refetch on every recorder row. Older feed pages are read by the hook through the cursor, outside the query
+  cache; `shared/query` has no infinite query. Both stay in `frontend/async-state-baseline.json`.
+- **Downloads still reach the Activity port through the feature.** `features/download` reads a run story
+  through `createActivitySource()` (`features/activity/activity-source/activity-source.helpers.ts`), which
+  now returns the bridge runtime's adapter; the Downloads slice moves that call.

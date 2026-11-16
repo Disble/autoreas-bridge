@@ -29,12 +29,25 @@ const { mockSource } = vi.hoisted(() => {
   };
 });
 
+// The rail is the subject; unrelated cards add DOM and accessibility-query cost.
+vi.mock('../AnimeEditorFormPanel', () => ({ AnimeEditorFormPanel: () => null }));
+vi.mock('../AnimeEditorDialogs', () => ({ AnimeEditorDialogs: () => null }));
+vi.mock('../../EpisodeDurationsSection/EpisodeDurationsSection', () => ({ EpisodeDurationsSection: () => null }));
+vi.mock('../../AnimeScheduleCard/AnimeScheduleCard', () => ({ AnimeScheduleCard: () => null }));
+
 vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
   bridgeRuntimeSource: mockSource,
 }));
+vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  /** The workspace's default anime-module Editor port: the same fake. */
+  get BRIDGE_ANIME_EDITOR_SOURCE() {
+    return mockSource;
+  },
+}));
 
 import { AnimeEditorWorkspace } from '../AnimeEditorWorkspace';
-import { createEmptyEpisodeDurationSource } from './episode-duration-source.test-support';
+import { createEmptyEpisodeDurationSource, createEpisodesReadyWrapper } from './episode-duration-source.test-support';
 
 /** The Episodes section's in-memory source, so no render waits on a Wails binding. */
 const episodeSource = createEmptyEpisodeDurationSource();
@@ -55,7 +68,8 @@ describe('AnimeEditorWorkspace progressive list (150 items)', () => {
           <Route element={<AnimeEditorWorkspace episodeSource={episodeSource} />} path="/editor/:id" />
         </Routes>
       </MemoryRouter>,
-    );
+    { wrapper: createEpisodesReadyWrapper() },
+  );
 
     // The chip reports the true total (150) — but the DOM must NOT hold 150 rows.
     await waitFor(() => expect(screen.getByText('150 animes')).toBeInTheDocument());

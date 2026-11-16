@@ -1,5 +1,5 @@
 import { Button, Card, Toolbar } from '@heroui/react';
-import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
+import type { NotificationCenterSource } from '../../../../shared/contracts/notification-center.types';
 import {
   NOTIFICATION_DETAIL_ARCHIVE_LABEL,
   NOTIFICATION_DETAIL_FOOTER_TESTID,

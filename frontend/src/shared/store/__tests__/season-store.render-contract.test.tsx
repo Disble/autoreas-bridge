@@ -38,10 +38,10 @@ describe('season store subscription shape', () => {
 
   it('does not re-render four separate primitive selectors on an unrelated write', () => {
     const rerenders = countRerendersOnUnrelatedWrite(() => {
-      useSeasonStore((state) => state.seasonAnimes);
+      useSeasonStore((state) => state.viewSeasonId);
       useSeasonStore((state) => state.readOnly);
-      useSeasonStore((state) => state.hasLoaded);
-      useSeasonStore((state) => state.pastSeasons);
+      useSeasonStore((state) => state.lastDiscard);
+      useSeasonStore((state) => state.matchingRun);
     });
 
     expect(rerenders).toBe(0);
@@ -51,10 +51,10 @@ describe('season store subscription shape', () => {
     const rerenders = countRerendersOnUnrelatedWrite(() =>
       useSeasonStore(
         useShallow((state) => ({
-          seasonAnimes: state.seasonAnimes,
+          viewSeasonId: state.viewSeasonId,
           readOnly: state.readOnly,
-          hasLoaded: state.hasLoaded,
-          pastSeasons: state.pastSeasons,
+          lastDiscard: state.lastDiscard,
+          matchingRun: state.matchingRun,
         })),
       ),
     );
@@ -78,10 +78,10 @@ describe('season store subscription shape', () => {
           <Probe
             subscribe={() =>
               useSeasonStore((state) => ({
-                seasonAnimes: state.seasonAnimes,
+                viewSeasonId: state.viewSeasonId,
                 readOnly: state.readOnly,
-                hasLoaded: state.hasLoaded,
-                pastSeasons: state.pastSeasons,
+                lastDiscard: state.lastDiscard,
+                matchingRun: state.matchingRun,
               }))
             }
           />,
@@ -108,7 +108,7 @@ describe('season store action identity', () => {
   it('keeps every action reference stable across a state write', () => {
     const before = getSeasonStoreState();
 
-    setSeasonStoreState({ busyMessage: 'working', hasLoaded: true });
+    setSeasonStoreState({ busyMessage: 'working', readOnly: true });
 
     const after = getSeasonStoreState();
     const actions = Object.keys(before).filter(

@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { NotificationAction, NotificationDetailRow as NotificationDetailRowDTO } from '../../../../../shared/contracts/notification-center.types';
 import { NotificationDetailRows } from '../NotificationDetailRows';
+import { notificationsQueryWrapper } from '../../NotificationCenterPanel/__tests__/notification-center.test-support';
 
 vi.mock('../use-notification-detail-covers', () => ({
   useNotificationDetailCovers: vi.fn().mockReturnValue(new Map()),
@@ -24,7 +25,7 @@ describe('NotificationDetailRows', () => {
   it('renders every row it is given, in order', () => {
     const rows = [buildRow({ name: 'First', refId: 'anime-1' }), buildRow({ name: 'Second', refId: 'anime-2' })];
 
-    render(<NotificationDetailRows actions={[]} notificationId={1} rows={rows} />);
+    render(<NotificationDetailRows actions={[]} notificationId={1} rows={rows} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     const rendered = screen.getAllByText(/^(First|Second)$/);
     expect(rendered.map((element) => element.textContent)).toStrictEqual(['First', 'Second']);
@@ -34,7 +35,7 @@ describe('NotificationDetailRows', () => {
     const action = buildAction({ id: 'run-1', label: 'Run this anime again' });
     const rows = [buildRow({ actionIds: ['run-1'] })];
 
-    render(<NotificationDetailRows actions={[action]} notificationId={1} rows={rows} />);
+    render(<NotificationDetailRows actions={[action]} notificationId={1} rows={rows} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     expect(screen.getByRole('button', { name: 'Run this anime again' })).toBeInTheDocument();
   });
@@ -45,7 +46,7 @@ describe('NotificationDetailRows', () => {
     render(
       <MemoryRouter>
         <NotificationDetailRows actions={[]} notificationId={1} rows={rows} />
-      </MemoryRouter>,
+      </MemoryRouter>, { wrapper: notificationsQueryWrapper().wrapper },
     );
 
     expect(screen.getByText('Ordinary')).toBeInTheDocument();
@@ -53,7 +54,7 @@ describe('NotificationDetailRows', () => {
   });
 
   it('renders nothing when there are no rows at all', () => {
-    render(<NotificationDetailRows actions={[]} notificationId={1} rows={[]} />);
+    render(<NotificationDetailRows actions={[]} notificationId={1} rows={[]} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });

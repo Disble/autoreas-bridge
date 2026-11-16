@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonMatchingProgressWire } from '../season-source.types';
+import type { SeasonMatchingProgressWire } from '../../../shared/contracts/season.types';
 
 /**
  * Builds one wire progress payload in the exact capitalized shape the desktop

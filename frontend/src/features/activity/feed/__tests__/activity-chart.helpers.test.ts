@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ActivityChartSlot } from '../../feed-source/feed.types';
+import type { ActivityChartSlot } from '../../../../shared/contracts/activity-feed.types';
 import { selectionFromDrag, toChartBars, toTableSlots } from '../activity-chart.helpers';
 import { countFailures, toTypeToggles } from '../activity-feed-counts.helpers';
 import { NOW_MS, buildOverview, dayStart } from './activity-feed.fixtures';

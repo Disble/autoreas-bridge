@@ -2,6 +2,7 @@ import { cleanup, render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { createDownloadsWrapper } from '../../../shared/hooks/use-missed-schedule-notice/__tests__/downloads.test-support';
 import { DownloadsRoute } from '../DownloadsRoute';
 
 afterEach(cleanup);
@@ -18,6 +19,7 @@ describe('DownloadsRoute boot', () => {
       <MemoryRouter>
         <DownloadsRoute />
       </MemoryRouter>,
+      { wrapper: createDownloadsWrapper().wrapper },
     );
 
     expect(container.querySelector('section')).not.toBeNull();

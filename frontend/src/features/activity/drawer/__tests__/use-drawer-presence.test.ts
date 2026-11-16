@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { ActivityFeedLine } from '../../feed-source/feed.types';
+import type { ActivityFeedLine } from '../../../../shared/contracts/activity-feed.types';
 import { useDrawerPresence } from '../use-drawer-presence';
 import { feedLine } from './drawer.fixtures';
 

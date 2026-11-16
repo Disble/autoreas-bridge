@@ -51,12 +51,19 @@ async function countRenders(load: () => Promise<Record<string, unknown>>, name: 
 }
 
 vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({ bridgeRuntimeSource: mockSource }));
+vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  /** The workspace's default anime-module Editor port: the same fake. */
+  get BRIDGE_ANIME_EDITOR_SOURCE() {
+    return mockSource;
+  },
+}));
 vi.mock('../AnimeEditorListPanel', (load) => countRenders(load, 'AnimeEditorListPanel', true));
 vi.mock('../AnimeEditorFormPanel', (load) => countRenders(load, 'AnimeEditorFormPanel', true));
 vi.mock('../AnimeEditorDialogs', (load) => countRenders(load, 'AnimeEditorDialogs', false));
 
 import { AnimeEditorWorkspace } from '../AnimeEditorWorkspace';
-import { createEmptyEpisodeDurationSource } from './episode-duration-source.test-support';
+import { createEmptyEpisodeDurationSource, createEpisodesReadyWrapper } from './episode-duration-source.test-support';
 
 /** The Episodes section's in-memory source, so no render waits on a Wails binding. */
 const episodeSource = createEmptyEpisodeDurationSource();
@@ -78,7 +85,8 @@ describe('AnimeEditorWorkspace render scope', () => {
           <Route element={<AnimeEditorWorkspace episodeSource={episodeSource} />} path="/editor/:id" />
         </Routes>
       </MemoryRouter>,
-    );
+    { wrapper: createEpisodesReadyWrapper() },
+  );
     await waitFor(() => expect(screen.getByRole('heading', { level: 4, name: /Alpha Show/ })).toBeInTheDocument());
     await selectAnime('Beta Show');
     await selectAnime('Gamma Show');

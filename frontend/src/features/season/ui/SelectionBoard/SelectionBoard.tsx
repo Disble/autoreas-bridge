@@ -1,4 +1,4 @@
-import { Alert } from '@heroui/react';
+import { Alert, Card, Skeleton } from '@heroui/react';
 import seasonAirisArtwork from '../../../../assets/airis-empty-states/season.webp';
 import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
 import { SELECTION_EMPTY_ACTION_LABEL, SELECTION_EMPTY_DESCRIPTION, SELECTION_EMPTY_TITLE } from './selection-board.constants';
@@ -38,6 +38,7 @@ export function SelectionBoard({ onNavigate }: Readonly<SelectionBoardProps>) {
     quota,
     selectionConfirmedAt,
     errorMessage,
+    animeView,
     onSetMinApprovalGrade,
     onSetSlots,
     onSetConsideration,
@@ -50,13 +51,15 @@ export function SelectionBoard({ onNavigate }: Readonly<SelectionBoardProps>) {
   } = useSelectionBoard();
 
   const hasRows = rows.length > 0;
+  const isLoading = animeView.kind === 'loading';
+  const failureMessage = errorMessage ?? (animeView.kind === 'failure' ? animeView.message : undefined);
 
   return (
     <section className="flex flex-col gap-4">
-      {errorMessage !== undefined && (
+      {failureMessage !== undefined && (
         <Alert status="danger">
           <Alert.Content>
-            <Alert.Description>{errorMessage}</Alert.Description>
+            <Alert.Description>{failureMessage}</Alert.Description>
           </Alert.Content>
         </Alert>
       )}
@@ -75,7 +78,17 @@ export function SelectionBoard({ onNavigate }: Readonly<SelectionBoardProps>) {
         onSetSlots={onSetSlots}
       />
 
-      {!hasRows && errorMessage === undefined ? (
+      {isLoading && (
+        <Card><Card.Content>
+          <div aria-labelledby="selection-loading-label" aria-live="polite" role="status">
+            <span className="sr-only" id="selection-loading-label">Loading selection candidates</span>
+            <div className="flex min-h-13 items-center gap-3 py-2"><Skeleton className="size-11 rounded-lg" /><Skeleton className="h-4 w-40" /></div>
+            <div className="flex min-h-13 items-center gap-3 py-2"><Skeleton className="size-11 rounded-lg" /><Skeleton className="h-4 w-40" /></div>
+          </div>
+        </Card.Content></Card>
+      )}
+
+      {!isLoading && !hasRows && failureMessage === undefined ? (
         <AirisEmptyState
           action={{ label: SELECTION_EMPTY_ACTION_LABEL, onPress: () => onNavigate('evaluation') }}
           description={SELECTION_EMPTY_DESCRIPTION}
@@ -83,7 +96,7 @@ export function SelectionBoard({ onNavigate }: Readonly<SelectionBoardProps>) {
           kind="waiting-on-step"
           title={SELECTION_EMPTY_TITLE}
         />
-      ) : hasRows ? (
+      ) : !isLoading && hasRows ? (
         <SelectionCandidateList
           body={{
             getCoverThumb,

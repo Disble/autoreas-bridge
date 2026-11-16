@@ -1,5 +1,5 @@
-import type { ActivityFeedSource } from '../feed-source/feed-source.types';
-import type { ActivityFeedLine, ActivitySyncEvidence, ActivitySyncReading } from '../feed-source/feed.types';
+import type { ActivityFeedSource } from '../../../shared/contracts/activity.types';
+import type { ActivityFeedLine, ActivitySyncEvidence, ActivitySyncReading } from '../../../shared/contracts/activity-feed.types';
 import { ACTIVITY_SYNC_READING_WORDS } from '../feed/activity-feed.constants';
 import { toBridgeOffSubject } from '../feed/activity-feed-rows.helpers';
 import type { ActivityRead } from '../ui/ActivityRunStory/activity-run-story.types';

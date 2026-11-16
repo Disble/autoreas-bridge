@@ -16,7 +16,7 @@ import { useDevicesWorkspace } from './use-devices-workspace';
  * relocated destination for the removed Dashboard and Pairing routes.
  */
 export function DevicesWorkspace() {
-  const { isSyncing, onTriggerSync, syncResult, syncingAnimeRefreshToken } = useDevicesWorkspace();
+  const { isSyncFailed, isSyncing, onTriggerSync, syncResult, syncingAnimeRefreshToken } = useDevicesWorkspace();
 
   return (
     <div className="flex flex-col gap-6">
@@ -41,7 +41,7 @@ export function DevicesWorkspace() {
       />
 
       {hasSyncResult(syncResult) ? (
-        <Alert status="success">
+        <Alert status={isSyncFailed ? 'danger' : 'success'}>
           <Alert.Content>
             <Alert.Description>
               <span id="sync-result">{syncResult}</span>

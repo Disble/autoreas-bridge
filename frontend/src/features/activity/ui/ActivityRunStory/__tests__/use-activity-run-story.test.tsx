@@ -1,7 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { ActivityRunStep, ActivityRunStory } from '../../../activity-source/activity-incident.types';
-import type { ActivitySource } from '../../../activity-source/activity-source.types';
+import type { ActivityRunStep, ActivityRunStory } from '../../../../../shared/contracts/activity-incident.types';
+import type { ActivitySource } from '../../../../../shared/contracts/activity.types';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { useActivityRunStory } from '../use-activity-run-story';
 
 /** One run step with defaults. */
@@ -36,7 +37,7 @@ describe('useActivityRunStory', () => {
   it('reads the story once and words its steps', async () => {
     const getRunStory = vi.fn(() => Promise.resolve(STORY));
     const source = sourceWith(getRunStory);
-    const { result } = renderHook(() => useActivityRunStory('c-1', source));
+    const { result } = renderHook(() => useActivityRunStory('c-1', source), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
 
     expect(result.current.read.status).toBe('loading');
     expect(result.current.model).toBeUndefined();
@@ -49,11 +50,10 @@ describe('useActivityRunStory', () => {
   it('shows the failure, then reads again on every retry', async () => {
     const getRunStory = vi.fn().mockRejectedValueOnce(new Error('locked')).mockRejectedValueOnce(new Error('locked')).mockResolvedValueOnce(STORY);
     const source = sourceWith(getRunStory);
-    const { result } = renderHook(() => useActivityRunStory('c-1', source));
+    const { result } = renderHook(() => useActivityRunStory('c-1', source), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
     await waitFor(() => expect(result.current.read.status).toBe('failed'));
 
     act(() => result.current.retry());
-    expect(result.current.read.status).toBe('loading');
     await waitFor(() => expect(result.current.read.status).toBe('failed'));
     act(() => result.current.retry());
 
@@ -68,7 +68,9 @@ describe('useActivityRunStory', () => {
       .mockImplementationOnce(() => new Promise<ActivityRunStory>((resolve) => (resolveFirst = resolve)))
       .mockResolvedValueOnce({ ...STORY, correlationId: 'c-2', steps: [step({ id: 9, correlationId: 'c-2' }), step({ id: 10, correlationId: 'c-2' })] });
     const source = sourceWith(getRunStory);
-    const { result, rerender } = renderHook(({ id }) => useActivityRunStory(id, source), { initialProps: { id: 'c-1' } });
+    const { result, rerender } = renderHook(({ id }) => useActivityRunStory(id, source), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper, initialProps: { id: 'c-1' } });
+    // The first read starts once the module gate lets it through.
+    await waitFor(() => expect(getRunStory).toHaveBeenCalledOnce());
 
     rerender({ id: 'c-2' });
     await waitFor(() => expect(result.current.read.status).toBe('ready'));

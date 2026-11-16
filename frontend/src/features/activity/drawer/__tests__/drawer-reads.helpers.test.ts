@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ActivityRunStep } from '../../activity-source/activity-incident.types';
-import type { ActivityFeedSource } from '../../feed-source/feed-source.types';
+import type { ActivityRunStep } from '../../../../shared/contracts/activity-incident.types';
+import type { ActivityFeedSource } from '../../../../shared/contracts/activity.types';
 import { readDrawerChangeContext, readDrawerEvent, toDrawerChangeKey, toDrawerEventId, toDrawerEventMetadata, toDrawerStoryId } from '../drawer-reads.helpers';
 import { feedLine } from './drawer.fixtures';
 

@@ -24,7 +24,7 @@ import (
 // declaredImportGroupFootprints is the guard's registry: every shipped
 // import group name mapped to the exact footprint label
 // (footprintFields' keys) it is permitted to modify. A group present in
-// app.importGroups() with no entry here fails the guard -- proven by
+// app.importGroups(app.bridgeDB) with no entry here fails the guard -- proven by
 // TestUndeclaredImportGroupFailsTheFootprintGuard's deliberate inversion.
 var declaredImportGroupFootprints = map[string]string{
 	"anime_snapshots":   "anime_snapshots",
@@ -344,7 +344,7 @@ func assertGroupRespectsItsFootprint(t *testing.T, groupName string) {
 	mutateFootprintFixture(t, app.bridgeDB, ids, "state-b")
 	stateB := snapshotFootprintState(t, app.bridgeDB)
 
-	oneGroup := importGroupNamed(t, app.importGroups(), groupName)
+	oneGroup := importGroupNamed(t, app.importGroups(app.bridgeDB), groupName)
 	if _, err := backup.Apply(context.Background(), result.DestinationPath, []backup.ImportGroup{oneGroup}); err != nil {
 		t.Fatalf("apply group %q: %v", groupName, err)
 	}
@@ -355,7 +355,7 @@ func assertGroupRespectsItsFootprint(t *testing.T, groupName string) {
 
 // TestImportGroupFootprintsAreDeclaredAndRespected closes "An Importer
 // Modifies Only Its Declared Footprint": table-driven over the REAL
-// app.importGroups() slice (design.md D3). For each group: seed state A
+// app.importGroups(app.bridgeDB) slice (design.md D3). For each group: seed state A
 // across every table and app_settings["keyboard.keymap"], export a full
 // bundle, mutate everything to a distinct state B, apply ONLY that group
 // from the bundle, then assert its declared footprint reads back A while
@@ -363,7 +363,7 @@ func assertGroupRespectsItsFootprint(t *testing.T, groupName string) {
 func TestImportGroupFootprintsAreDeclaredAndRespected(t *testing.T) {
 	app := footprintTestApp(t)
 
-	groups := app.importGroups()
+	groups := app.importGroups(app.bridgeDB)
 	if undeclared := undeclaredImportGroups(groups, declaredImportGroupFootprints); len(undeclared) != 0 {
 		t.Fatalf("import groups with no declared footprint: %v", undeclared)
 	}
@@ -383,7 +383,7 @@ func TestImportGroupFootprintsAreDeclaredAndRespected(t *testing.T) {
 // (frontend/src/shared/keyboard/__tests__/command-registry.constants.test.ts).
 func TestUndeclaredImportGroupFailsTheFootprintGuard(t *testing.T) {
 	app := footprintTestApp(t)
-	local := append(slices.Clone(app.importGroups()), backup.ImportGroup{Name: "synthetic_undeclared_group"})
+	local := append(slices.Clone(app.importGroups(app.bridgeDB)), backup.ImportGroup{Name: "synthetic_undeclared_group"})
 
 	undeclared := undeclaredImportGroups(local, declaredImportGroupFootprints)
 	if len(undeclared) != 1 || undeclared[0] != "synthetic_undeclared_group" {

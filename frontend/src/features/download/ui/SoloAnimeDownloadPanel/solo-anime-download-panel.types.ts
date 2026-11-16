@@ -1,4 +1,3 @@
-import type { AnimeDownloadReadiness } from '../../../../shared/contracts/download.types';
 import type { ProgressiveListWindow } from '../../../../shared/hooks/use-progressive-list-window.types';
 
 /** Props for the solo anime download panel. */
@@ -35,9 +34,8 @@ export type SoloAnimeDownloadStatus =
   | 'readiness-error'
   | 'trigger-error';
 
-/** Internal state shape for the hook. */
+/** The hook's renderer-session state: search, filter, selection and the trigger lifecycle. */
 export interface SoloAnimeDownloadState {
-  readonly items: readonly AnimeDownloadReadiness[];
   readonly query: string;
   readonly filter: SoloAnimeDownloadFilter;
   readonly selectedAnimeID: string | undefined;

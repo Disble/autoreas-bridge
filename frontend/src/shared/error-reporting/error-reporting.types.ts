@@ -26,7 +26,7 @@ export type FrontendErrorContext = {
 export type ReportFrontendError = (report: FrontendErrorReport) => void;
 
 /** Delivers a report to the bridge; may throw or reject, the reporter contains both. */
-export type SendFrontendErrorReport = (report: FrontendErrorReport) => Promise<string>;
+export type SendFrontendErrorReport = (report: FrontendErrorReport) => Promise<void>;
 
 /** Dependencies of `createErrorReporter`. */
 export type ErrorReporterOptions = {

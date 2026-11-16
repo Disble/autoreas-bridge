@@ -1,9 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { NotificationCenterSource } from '../../../../../infrastructure/notification-center-source/notification-center-source.types';
+import type { NotificationCenterSource, NotificationListRequest, NotificationPage } from '../../../../../shared/contracts/notification-center.types';
 import type { NotificationSource } from '../../../../../infrastructure/notification-source/notification-source.types';
-import type { NotificationListRequest, NotificationPage } from '../../../../../shared/contracts/notification-center.types';
 import { useNotificationCenterPanel } from '../use-notification-center-panel';
+import { notificationsQueryWrapper } from './notification-center.test-support';
 
 /** A push source that never emits: these assertions are about view state, not live inserts. */
 const SILENT_PUSH: NotificationSource = {
@@ -47,14 +47,14 @@ function makeSource(): NotificationCenterSource {
 
 describe('useNotificationCenterPanel', () => {
   it('opens on the active view', async () => {
-    const { result } = renderHook(() => useNotificationCenterPanel(makeSource(), SILENT_PUSH));
+    const { result } = renderHook(() => useNotificationCenterPanel(makeSource(), SILENT_PUSH), { wrapper: notificationsQueryWrapper().wrapper });
 
     await waitFor(() => expect(result.current.rows).toHaveLength(1));
     expect(result.current.view).toBe('active');
   });
 
   it('drops the selection when the view changes, so a row picked for archiving is not carried into restore', async () => {
-    const { result } = renderHook(() => useNotificationCenterPanel(makeSource(), SILENT_PUSH));
+    const { result } = renderHook(() => useNotificationCenterPanel(makeSource(), SILENT_PUSH), { wrapper: notificationsQueryWrapper().wrapper });
     await waitFor(() => expect(result.current.rows).toHaveLength(1));
 
     act(() => {
@@ -73,7 +73,7 @@ describe('useNotificationCenterPanel', () => {
   });
 
   it('reports the archived view to the empty-state conditions, which is what makes that rendering reachable', async () => {
-    const { result } = renderHook(() => useNotificationCenterPanel(makeSource(), SILENT_PUSH));
+    const { result } = renderHook(() => useNotificationCenterPanel(makeSource(), SILENT_PUSH), { wrapper: notificationsQueryWrapper().wrapper });
     await waitFor(() => expect(result.current.rows).toHaveLength(1));
 
     act(() => {

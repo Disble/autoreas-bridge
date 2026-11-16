@@ -1,16 +1,7 @@
-import {
-  GetAutoStartEnabled,
-  GetLibraryRoot,
-  GetKeymap,
-  GetSeasonMode,
-  PickFolder,
-  PreviewLibraryRootChange,
-  SetAutoStartEnabled,
-  SetLibraryRoot,
-  SetKeymap,
-} from '../../../wailsjs/go/desktop/App';
+import { GetLibraryRoot, GetKeymap, GetSeasonMode, PickFolder, SetKeymap } from '../../../wailsjs/go/desktop/App';
 import { PREFERENCES_SOURCE_STATE } from './preferences-source.constants';
-import type { LibraryRootChangePreview, PreferencesSource } from './preferences-source.types';
+import type { PreferencesSource } from './preferences-source.types';
+import { withBridgeErrors } from '../bridge-error/bridge-error.helpers';
 import { hasGoBinding, waitForBindings } from '../wails-bindings.helpers';
 
 /**
@@ -24,39 +15,21 @@ export function createPreferencesSource(): PreferencesSource {
   PREFERENCES_SOURCE_STATE.sharedSource = {
     getSeasonMode() {
       return waitForBindings(() => hasGoBinding('GetSeasonMode')).then((isReady) => {
-        return isReady ? GetSeasonMode() : Promise.resolve(false);
+        // The season module handle rejects while season is starting or failed; its consumers still read that as off.
+        return isReady ? withBridgeErrors(GetSeasonMode()).catch(() => false) : Promise.resolve(false);
       });
     },
     getLibraryRoot() {
       return waitForBindings(() => hasGoBinding('GetLibraryRoot')).then((isReady) => {
-        return isReady ? GetLibraryRoot() : Promise.resolve('');
-      });
-    },
-    setLibraryRoot(path: string) {
-      return waitForBindings(() => hasGoBinding('SetLibraryRoot')).then((isReady) => {
-        return isReady ? SetLibraryRoot(path) : Promise.resolve('runtime unavailable');
-      });
-    },
-    previewLibraryRootChange(path: string) {
-      return waitForBindings(() => hasGoBinding('PreviewLibraryRootChange')).then((isReady): Promise<LibraryRootChangePreview> => {
-        return isReady
-          ? PreviewLibraryRootChange(path)
-          : Promise.resolve({ oldRoot: '', moves: [], kept: [], message: 'runtime unavailable' });
+        // The settings module rejects while it starts or after it failed; anime create and
+        // season intake still read that as an unset root, as the binding answered before.
+        return isReady ? GetLibraryRoot().catch(() => '') : Promise.resolve('');
       });
     },
     pickFolder(title: string) {
       return waitForBindings(() => hasGoBinding('PickFolder')).then((isReady) => {
-        return isReady ? PickFolder(title) : Promise.resolve('');
-      });
-    },
-    getAutoStartEnabled() {
-      return waitForBindings(() => hasGoBinding('GetAutoStartEnabled')).then((isReady) => {
-        return isReady ? GetAutoStartEnabled() : Promise.resolve(true);
-      });
-    },
-    setAutoStartEnabled(enabled: boolean) {
-      return waitForBindings(() => hasGoBinding('SetAutoStartEnabled')).then((isReady) => {
-        return isReady ? SetAutoStartEnabled(enabled) : Promise.resolve('runtime unavailable');
+        // A failed dialog rejects as internal since the shell slice; its pickers still read it as a cancel.
+        return isReady ? PickFolder(title).catch(() => '') : Promise.resolve('');
       });
     },
     getKeymap() {

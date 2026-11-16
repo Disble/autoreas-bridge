@@ -9,30 +9,40 @@ import (
 	"autoreas-bridge/internal/settings"
 )
 
-func TestGetAPIAddressIsEmptyWithoutASettingsStore(t *testing.T) {
-	t.Parallel()
+// apiAddressApp returns a test App whose settings module serves a fresh settings store.
+func apiAddressApp(t *testing.T) *App {
+	t.Helper()
+	return withSettingsStore(newAppTestApp(t), newRenameSettingsStore(t))
+}
 
-	app := newAppTestApp(t)
-	app.settingsStore = nil
+// storedAPIAddress reads the address back through the binding, failing the test on an error.
+func storedAPIAddress(t *testing.T, app *App) string {
+	t.Helper()
+	addr, err := app.GetAPIAddress()
+	if err != nil {
+		t.Fatalf("GetAPIAddress: %v", err)
+	}
+	return addr
+}
 
-	if got := app.GetAPIAddress(); got != "" {
-		t.Fatalf("GetAPIAddress = %q, want empty when settings are unavailable", got)
+// saveAPIAddress persists addr through the binding, failing the test on an error.
+func saveAPIAddress(t *testing.T, app *App, addr string) {
+	t.Helper()
+	if err := app.SetAPIAddress(addr); err != nil {
+		t.Fatalf("SetAPIAddress(%q): %v", addr, err)
 	}
 }
 
 func TestSetAPIAddressRoundTripsThroughSettings(t *testing.T) {
 	t.Parallel()
 
-	app := newAppTestApp(t)
-	app.settingsStore = newRenameSettingsStore(t)
+	app := apiAddressApp(t)
 
-	if got := app.GetAPIAddress(); got != "" {
+	if got := storedAPIAddress(t, app); got != "" {
 		t.Fatalf("GetAPIAddress = %q, want empty before anything is configured", got)
 	}
-	if result := app.SetAPIAddress("0.0.0.0:9999"); result != "ok" {
-		t.Fatalf("SetAPIAddress = %q, want \"ok\"", result)
-	}
-	if got := app.GetAPIAddress(); got != "0.0.0.0:9999" {
+	saveAPIAddress(t, app, "0.0.0.0:9999")
+	if got := storedAPIAddress(t, app); got != "0.0.0.0:9999" {
 		t.Fatalf("GetAPIAddress = %q, want the persisted address", got)
 	}
 }
@@ -44,16 +54,13 @@ func TestSetAPIAddressRoundTripsThroughSettings(t *testing.T) {
 func TestSetAPIAddressRefusesAnUnusableValueWithoutPersistingIt(t *testing.T) {
 	t.Parallel()
 
-	app := newAppTestApp(t)
-	app.settingsStore = newRenameSettingsStore(t)
+	app := apiAddressApp(t)
 
-	if result := app.SetAPIAddress("0.0.0.0:9999"); result != "ok" {
-		t.Fatalf("SetAPIAddress = %q, want \"ok\"", result)
-	}
-	if app.SetAPIAddress("not-a-port") == "ok" {
+	saveAPIAddress(t, app, "0.0.0.0:9999")
+	if err := app.SetAPIAddress("not-a-port"); err == nil {
 		t.Fatal("SetAPIAddress accepted an unusable address")
 	}
-	if got := app.GetAPIAddress(); got != "0.0.0.0:9999" {
+	if got := storedAPIAddress(t, app); got != "0.0.0.0:9999" {
 		t.Fatalf("GetAPIAddress = %q, want the previous address left intact", got)
 	}
 }
@@ -61,16 +68,11 @@ func TestSetAPIAddressRefusesAnUnusableValueWithoutPersistingIt(t *testing.T) {
 func TestSetAPIAddressClearsBackToTheDefault(t *testing.T) {
 	t.Parallel()
 
-	app := newAppTestApp(t)
-	app.settingsStore = newRenameSettingsStore(t)
+	app := apiAddressApp(t)
 
-	if result := app.SetAPIAddress("9999"); result != "ok" {
-		t.Fatalf("SetAPIAddress = %q, want \"ok\"", result)
-	}
-	if result := app.SetAPIAddress(""); result != "ok" {
-		t.Fatalf("SetAPIAddress(\"\") = %q, want \"ok\"", result)
-	}
-	if got := app.GetAPIAddress(); got != "" {
+	saveAPIAddress(t, app, "9999")
+	saveAPIAddress(t, app, "")
+	if got := storedAPIAddress(t, app); got != "" {
 		t.Fatalf("GetAPIAddress = %q, want empty after clearing", got)
 	}
 	if got := app.resolveAPIAddr(); got != "0.0.0.0:9876" {
@@ -81,12 +83,9 @@ func TestSetAPIAddressClearsBackToTheDefault(t *testing.T) {
 func TestResolveAPIAddrUsesThePersistedSetting(t *testing.T) {
 	t.Parallel()
 
-	app := newAppTestApp(t)
-	app.settingsStore = newRenameSettingsStore(t)
+	app := apiAddressApp(t)
 
-	if result := app.SetAPIAddress("9999"); result != "ok" {
-		t.Fatalf("SetAPIAddress = %q, want \"ok\"", result)
-	}
+	saveAPIAddress(t, app, "9999")
 	if got := app.resolveAPIAddr(); got != "0.0.0.0:9999" {
 		t.Fatalf("resolveAPIAddr = %q, want the persisted address", got)
 	}
@@ -97,12 +96,9 @@ func TestResolveAPIAddrUsesThePersistedSetting(t *testing.T) {
 func TestResolveAPIAddrLetsTheEnvironmentOverrideAStoredAddress(t *testing.T) {
 	t.Parallel()
 
-	app := newAppTestApp(t)
-	app.settingsStore = newRenameSettingsStore(t)
+	app := apiAddressApp(t)
 
-	if result := app.SetAPIAddress("0.0.0.0:9999"); result != "ok" {
-		t.Fatalf("SetAPIAddress = %q, want \"ok\"", result)
-	}
+	saveAPIAddress(t, app, "0.0.0.0:9999")
 	app.getenvFn = func(name string) string {
 		if name == "AUTOREAS_BRIDGE_ADDR" {
 			return "127.0.0.1:7777"

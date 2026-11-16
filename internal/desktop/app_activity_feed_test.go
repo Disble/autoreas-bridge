@@ -2,7 +2,6 @@ package desktop
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -66,22 +65,6 @@ func TestGetActivityPhoneReportReturnsTheStoredPayload(t *testing.T) {
 	}
 }
 
-// TestActivityFeedBindingsReportAnUnwiredDatabase asserts the feed bindings
-// fail like every Activity read before the database is wired.
-func TestActivityFeedBindingsReportAnUnwiredDatabase(t *testing.T) {
-	t.Parallel()
-	app := &App{}
-	if _, err := app.GetActivityPhoneReport(1); !errors.Is(err, errActivityUnavailable) {
-		t.Fatalf("report: err = %v, want errActivityUnavailable", err)
-	}
-	if _, err := app.SearchActivityFeed(ActivityFeedQuery{}); !errors.Is(err, errActivityUnavailable) {
-		t.Fatalf("feed: err = %v, want errActivityUnavailable", err)
-	}
-	if _, err := app.GetActivityOverview("24h", 0, 0, "all", nil, false); !errors.Is(err, errActivityUnavailable) {
-		t.Fatalf("overview: err = %v, want errActivityUnavailable", err)
-	}
-}
-
 // TestGetActivityOverviewPassesItsInputs asserts the binding reads the chart
 // of its scale, types and failures-only and the counts of its range and
 // origin with the app clock.
@@ -131,15 +114,11 @@ func TestGetActivityEventReadsOneEventByID(t *testing.T) {
 	if missing, err := app.GetActivityEvent(id + 1); err != nil || missing.Found {
 		t.Fatalf("missing event = %#v, %v; want not found", missing, err)
 	}
-	if _, err := (&App{}).GetActivityEvent(id); !errors.Is(err, errActivityUnavailable) {
-		t.Fatalf("unwired: err = %v, want errActivityUnavailable", err)
-	}
 }
 
 // TestGetActivityChangeContextReadsTheAnimesEventsAndCaptures asserts the
 // binding returns the events and captures stored for the anime around the
-// change it is asked for by id, not found for an unknown id, and
-// errActivityUnavailable before the reader is wired.
+// change it is asked for by id, and not found for an unknown id.
 func TestGetActivityChangeContextReadsTheAnimesEventsAndCaptures(t *testing.T) {
 	t.Parallel()
 	app := newActivityTestApp(t)
@@ -177,8 +156,5 @@ func TestGetActivityChangeContextReadsTheAnimesEventsAndCaptures(t *testing.T) {
 	}
 	if missing, err := app.GetActivityChangeContext(changeID+1, at); err != nil || missing.Found || len(missing.Events) != 0 {
 		t.Fatalf("unknown change = %#v, %v; want not found", missing, err)
-	}
-	if _, err := (&App{}).GetActivityChangeContext(changeID, at); !errors.Is(err, errActivityUnavailable) {
-		t.Fatalf("unwired: err = %v, want errActivityUnavailable", err)
 	}
 }

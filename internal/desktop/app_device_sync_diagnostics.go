@@ -9,25 +9,25 @@ import (
 // diagnostics reports over the kind-discriminated device_telemetry_events
 // store -- the only store that can attribute a report to a device. It reads
 // the cycle_report kind, which is the same kind the ingestion path writes, so
-// a report stored by mobile is visible here. Never panics: a nil reader, an
-// absent table, or a query error degrades to an empty, Degraded result whose
-// Items slice is never JSON null.
-func (a *App) ListDeviceSyncDiagnostics(query contracts.DeviceSyncDiagnosticsQuery) contracts.DeviceSyncDiagnosticsResult {
-	if a.syncDiagReader == nil {
-		return contracts.DeviceSyncDiagnosticsResult{Items: []contracts.DeviceSyncDiagnosticReport{}, Degraded: true}
-	}
-	reports, err := a.syncDiagReader.ListCycleReports(a.seasonCtx(), telemetry.CycleReportQuery{
-		DeviceID: query.DeviceID,
-		Limit:    query.Limit,
+// a report stored by mobile is visible here. It runs through the observability
+// module handle: while the module starts or after it failed, and when the read
+// fails, it returns the error instead of an empty page. A read with no reports
+// answers an Items slice that is never JSON null.
+func (a *App) ListDeviceSyncDiagnostics(query contracts.DeviceSyncDiagnosticsQuery) (contracts.DeviceSyncDiagnosticsResult, error) {
+	return a.moduleSet().observability.Use(func(services observabilityServices) (contracts.DeviceSyncDiagnosticsResult, error) {
+		reports, err := services.syncDiagnostics.ListCycleReports(a.seasonCtx(), telemetry.CycleReportQuery{
+			DeviceID: query.DeviceID,
+			Limit:    query.Limit,
+		})
+		if err != nil {
+			return contracts.DeviceSyncDiagnosticsResult{}, err
+		}
+		items := make([]contracts.DeviceSyncDiagnosticReport, 0, len(reports))
+		for _, report := range reports {
+			items = append(items, toDeviceSyncDiagnosticReport(report))
+		}
+		return contracts.DeviceSyncDiagnosticsResult{Items: items}, nil
 	})
-	if err != nil {
-		return contracts.DeviceSyncDiagnosticsResult{Items: []contracts.DeviceSyncDiagnosticReport{}, Degraded: true}
-	}
-	items := make([]contracts.DeviceSyncDiagnosticReport, 0, len(reports))
-	for _, report := range reports {
-		items = append(items, toDeviceSyncDiagnosticReport(report))
-	}
-	return contracts.DeviceSyncDiagnosticsResult{Items: items}
 }
 
 // toDeviceSyncDiagnosticReport maps one projected cycle report into the bound

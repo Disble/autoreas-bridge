@@ -1,3 +1,6 @@
+import { EventsOn } from '../../wailsjs/runtime/runtime';
+import type { RuntimeEventSource } from '../shared/query/invalidation-bridge/invalidation-bridge.types';
+
 /** Poll interval (ms) while waiting for Wails bindings to become ready. */
 export const WAILS_BINDINGS_POLL_MS = 50; // eslint-disable-line dharness/role-file-shape
 
@@ -130,6 +133,28 @@ export function createRuntimeSubscription<T>(
           releaseRuntimeListeners();
         }
       };
+    },
+  };
+}
+
+/**
+ * The Wails adapter of the `RuntimeEventSource` port the invalidation bridge
+ * (`shared/query`) listens through. Each event name gets one shared
+ * `createRuntimeSubscription`, so StrictMode double mounts and several
+ * subscribers attach one runtime listener, released after the last one leaves.
+ */
+export function createRuntimeEventSource(): RuntimeEventSource {
+  const subscriptions = new Map<string, ReturnType<typeof createRuntimeSubscription<unknown>>>();
+
+  return {
+    subscribe(eventName, listener) {
+      let subscription = subscriptions.get(eventName);
+      if (subscription === undefined) {
+        subscription = createRuntimeSubscription<unknown>((emit) => EventsOn(eventName, emit));
+        subscriptions.set(eventName, subscription);
+      }
+
+      return subscription.subscribe(() => listener());
     },
   };
 }

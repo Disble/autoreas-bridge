@@ -1,21 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { toManualTriggerResult } from '../manual-trigger-button.helpers';
+import { toManualTriggerFailure } from '../manual-trigger-button.helpers';
 
-describe('toManualTriggerResult', () => {
-  it('maps "ok" to a success result', () => {
-    expect(toManualTriggerResult('ok')).toEqual({ status: 'success' });
-  });
-
+describe('toManualTriggerFailure', () => {
   it('maps the scheduler concurrent-run-guard message to "already-in-progress"', () => {
-    expect(toManualTriggerResult('schedule: a download run is already in progress')).toEqual({
+    expect(toManualTriggerFailure('schedule: a download run is already in progress')).toEqual({
       status: 'already-in-progress',
     });
   });
 
-  it('maps any other non-"ok" response to an error result carrying the message', () => {
-    expect(toManualTriggerResult('download scheduler unavailable')).toEqual({
+  it('maps any other refusal to an error result carrying the message', () => {
+    expect(toManualTriggerFailure('downloads is starting')).toEqual({
       status: 'error',
-      errorMessage: 'download scheduler unavailable',
+      errorMessage: 'downloads is starting',
     });
   });
 });

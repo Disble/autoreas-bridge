@@ -1,5 +1,4 @@
 import type { contracts } from '../../../wailsjs/go/models';
-import type { AnimeCreateResult, AnimeEditorSaveResult, WatchHistoryPage } from '../../shared/contracts/anime.types';
 import type { BridgeRuntimeSource } from './bridge-runtime-source.types';
 
 /** Event emitted when the active pairing token gets consumed. */
@@ -13,31 +12,6 @@ export const RUNTIME_UNAVAILABLE_COMMAND_RESULT: contracts.EpisodeCommandResult 
   message: 'runtime unavailable',
   modifiedAt: 0,
   status: 'error',
-};
-
-/** Fail-closed result for anime editor/runtime mutations that require an explicit outcome. */
-export const RUNTIME_UNAVAILABLE_EDITOR_RESULT: AnimeEditorSaveResult = {
-  animeId: '',
-  message: 'runtime unavailable',
-  outcome: 'error',
-};
-
-/** Fail-closed result for a batch anime create when the runtime is unavailable. */
-export const RUNTIME_UNAVAILABLE_CREATE_RESULT: AnimeCreateResult = {
-  message: 'runtime unavailable',
-  modifiedAt: 0,
-  outcome: 'error',
-};
-
-/**
- * Fail-closed page for `getWatchHistoryPage`/`getAnimeWatchHistoryPage` when
- * the runtime is unavailable. `status: 'error'` keeps the failure visible to
- * the caller rather than degrading to an empty array.
- */
-export const RUNTIME_UNAVAILABLE_WATCH_HISTORY_PAGE: WatchHistoryPage = {
-  items: [],
-  status: 'error',
-  message: 'runtime unavailable',
 };
 
 /** Module-local singleton container for the shared bridge runtime source. */

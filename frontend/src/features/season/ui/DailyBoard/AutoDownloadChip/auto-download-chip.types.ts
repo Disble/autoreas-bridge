@@ -1,4 +1,4 @@
-import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
+import type { DownloadsSource } from '../../../../../shared/contracts/download.types';
 
 /**
  * What today's scheduled download looks like from the Daily board:
@@ -25,6 +25,6 @@ export interface AutoDownloadChipView {
 
 /** Props of the read-only scheduled-download chip. */
 export interface AutoDownloadChipProps {
-  /** The Downloads port the shared schedule read-model loads through. */
-  readonly source?: DownloadRuntimeSource;
+  /** The downloads port the shared schedule query reads through. */
+  readonly source?: DownloadsSource;
 }

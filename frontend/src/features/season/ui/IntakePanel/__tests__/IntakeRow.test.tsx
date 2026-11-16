@@ -3,7 +3,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { IntakeRow } from '../IntakeRow';
 import type { IntakeAppliedMetadata, IntakeRowProps } from '../intake-panel.types';
-import { createMetadataSource, createSource, seasonRow } from './intake-panel.test-support';
+import { createMetadataSource, seasonQueryWrapper, seasonRow } from './intake-panel.test-support';
+
+/** The default season port's provider search read, which the Find on provider case programs. */
+const fetchProviderSearch = vi.hoisted(() => vi.fn());
+
+vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  /** The provider lookup's default season port. */
+  BRIDGE_SEASON_SOURCE: { fetchProviderSearch },
+}));
 
 /** A matched row whose episode 1 is online, so every row action applies to it. */
 const CREATABLE = { matchStatus: 'matched', matchedSlug: 'https://jkanime.net/dr-stone/', availability: 'available' };
@@ -33,7 +42,6 @@ function renderRow(overrides: Partial<IntakeRowProps> = {}): IntakeRowProps {
     heldMetadata: undefined,
     appliedMetadata: undefined,
     metadataLookupSource: createMetadataSource(),
-    providerSearchSource: createSource(),
     onMetadataApplied: vi.fn(),
     onMetadataUndo: vi.fn(),
     onMetadataClear: vi.fn(),
@@ -48,6 +56,7 @@ function renderRow(overrides: Partial<IntakeRowProps> = {}): IntakeRowProps {
     <ul>
       <IntakeRow {...props} />
     </ul>,
+    { wrapper: seasonQueryWrapper() },
   );
   return props;
 }
@@ -158,8 +167,8 @@ describe('IntakeRow', () => {
 
   it('resolves the row to the page picked in Find on provider', async () => {
     const pageUrl = 'https://jkanime.net/dr-stone/';
-    const searchProviders = vi.fn().mockResolvedValue({ status: 'ok', pages: [{ title: 'Dr. Stone', pageUrl, provider: 'jkanime' }] });
-    const props = renderRow({ row: seasonRow({ matchStatus: 'not_found' }), providerSearchSource: { searchProviders } });
+    fetchProviderSearch.mockResolvedValue({ status: 'ok', pages: [{ title: 'Dr. Stone', pageUrl, provider: 'jkanime' }] });
+    const props = renderRow({ row: seasonRow({ matchStatus: 'not_found' }) });
 
     fireEvent.click(screen.getByRole('button', { name: 'Find on provider' }));
     fireEvent.click(await screen.findByRole('button', { name: /jkanime\.net\/dr-stone/ }));

@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
-import type { AnimeEditorScheduleBoard } from '../../../../shared/contracts/anime.types';
+import type { AnimeCreateCommand } from '../../../../shared/contracts/anime.types';
+import { BRIDGE_ANIME_EDITOR_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
 import { isValidDownloadPageUrl } from '../../../../shared/helpers/url.helpers';
 import type { AnimeScheduleOrderingCreateSubmit } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
 import { ANIME_CREATE_RUNTIME_UNAVAILABLE_MESSAGE } from './anime-create.constants';
@@ -11,8 +13,9 @@ import { useAnimeCreateNameConflicts } from './use-anime-create-name-conflicts';
 import { useAnimeCreateRows } from './use-anime-create-rows';
 
 /**
- * Owns the batch-create rows, the shared schedule board fetch, and the single
- * deferred submit that persists the whole batch through `createAnime`.
+ * Owns the batch-create rows, the shared schedule board read, and the single
+ * deferred submit that persists the whole batch through the anime module's
+ * `createAnime` mutation.
  *
  * Row editing and the mount-time fetches live in their own hooks. They were
  * split out on 2026-08-14: this function held twenty-four hook calls, eleven of
@@ -22,18 +25,19 @@ export function useAnimeCreate(): AnimeCreateViewModel {
   // 1. Refs
 
   // 2. State
-  const [board, setBoard] = useState<AnimeEditorScheduleBoard>();
   const [feedback, setFeedback] = useState<string>();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBoardOpen, setIsBoardOpen] = useState(false);
-  const [libraryRoot, setLibraryRoot] = useState('');
 
   // 3. Context/3rd Party Hooks
+  const { board, libraryRoot, reloadBoard } = useAnimeCreateBootstrap();
   const rowState = useAnimeCreateRows(libraryRoot);
   const { rows, resetRows } = rowState;
   const { nameConflicts, hasNameConflict } = useAnimeCreateNameConflicts(rows);
 
   // 4. Queries/Mutations
+  const createMutation = useBridgeMutation({ mutationFn: (command: AnimeCreateCommand) => BRIDGE_ANIME_EDITOR_SOURCE.createAnime(command) });
+  const createAnime = createMutation.mutateAsync;
 
   // 5. Derived State (useMemo)
   const draftEntries = useMemo(() => rows.map((row) => ({ draftId: row.draftId, name: row.name.trim() === '' ? 'New anime' : row.name })), [rows]);
@@ -60,28 +64,22 @@ export function useAnimeCreate(): AnimeCreateViewModel {
     setFeedback(undefined);
     try {
       const command = buildAnimeCreateCommand(rows, submit.creates, submit.changedNeighbors);
-      const result = await bridgeRuntimeSource.createAnime?.(command);
-      if (result === undefined) {
-        setFeedback(ANIME_CREATE_RUNTIME_UNAVAILABLE_MESSAGE);
-        return;
-      }
+      const result = await createAnime(command);
       if (result.outcome !== 'applied') {
         setFeedback(result.message);
         return;
       }
       resetRows();
       setIsBoardOpen(false);
-      const refreshed = await bridgeRuntimeSource.getAnimeEditorScheduleBoard?.('');
-      setBoard(refreshed?.board);
+      await reloadBoard();
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : ANIME_CREATE_RUNTIME_UNAVAILABLE_MESSAGE);
     } finally {
       setIsSubmitting(false);
     }
-  }, [resetRows, rows]);
+  }, [createAnime, reloadBoard, resetRows, rows]);
 
   // 7. Effects
-  useAnimeCreateBootstrap(setBoard, setLibraryRoot);
 
   return {
     rows,

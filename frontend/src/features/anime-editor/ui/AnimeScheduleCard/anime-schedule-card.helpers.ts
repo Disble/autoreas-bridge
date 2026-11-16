@@ -7,8 +7,8 @@ import type {
   AnimeSchedulePlacement,
 } from '../../../../shared/contracts/anime.types';
 import { resolveAnimeEditorFeedbackMessage } from '../AnimeEditorWorkspace/anime-editor-workspace.helpers';
-import { ANIME_SCHEDULE_WEEK_FAILED_MESSAGE } from './anime-schedule-card.constants';
-import type { AnimeScheduleBoardLoad, AnimeScheduleWeekDayView, AnimeScheduleWeekView } from './anime-schedule-card.types';
+import { ANIME_SCHEDULE_BOARD_IDLE_LOAD, ANIME_SCHEDULE_WEEK_FAILED_MESSAGE } from './anime-schedule-card.constants';
+import type { AnimeEditorBoardQueryRead, AnimeScheduleBoardLoad, AnimeScheduleWeekDayView, AnimeScheduleWeekView } from './anime-schedule-card.types';
 
 /** One anime on one day: its first (lowest) order there. */
 interface AnimeDayOrder {
@@ -87,4 +87,20 @@ export function toAnimeScheduleBoardLoad(result: AnimeEditorScheduleBoardResult)
   if (result.board !== undefined && result.outcome !== 'error') return { status: 'ready', board: result.board };
   const message = resolveAnimeEditorFeedbackMessage(result, ANIME_SCHEDULE_WEEK_FAILED_MESSAGE);
   return { status: 'failed', message, board: result.board };
+}
+
+/**
+ * The week strip's board state from the board query: idle with no anime
+ * selected, loading while the first read for this anime is in flight (and while
+ * the anime module starts), failed with the read's message, else the read board
+ * or the board an apply answered since that read.
+ * @param read The board query's state for the selected anime.
+ * @returns The board load the week strip renders.
+ */
+export function toAnimeEditorBoardQueryLoad(read: AnimeEditorBoardQueryRead): AnimeScheduleBoardLoad {
+  if (!read.isSelected) return ANIME_SCHEDULE_BOARD_IDLE_LOAD;
+  if (read.status === 'pending' || read.isPlaceholderData) return { status: 'loading' };
+  if (read.status === 'error') return { status: 'failed', message: read.errorMessage ?? ANIME_SCHEDULE_WEEK_FAILED_MESSAGE };
+  if (read.appliedBoard !== undefined) return { status: 'ready', board: read.appliedBoard };
+  return read.data === undefined ? { status: 'loading' } : toAnimeScheduleBoardLoad(read.data);
 }

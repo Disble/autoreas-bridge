@@ -44,68 +44,53 @@ const notificationNavigateEventName = "notification.navigate"
 const missedScheduleSettledEventName = "schedule.missed_settled"
 
 // ListNotifications is the Wails-bound keyset-paginated read of the
-// notification center's inbox (design §10). Never panics: a nil store or a
-// query error degrades to an empty, Degraded page.
-func (a *App) ListNotifications(request contracts.NotificationListRequest) contracts.NotificationPage {
-	if a.notificationCenterStore == nil {
-		return contracts.NotificationPage{Items: []contracts.NotificationRow{}, Degraded: true}
-	}
-	ctx := a.notificationCenterCtx()
-
-	page, err := a.notificationCenterStore.List(ctx, toListQuery(request))
-	if err != nil {
-		return contracts.NotificationPage{Items: []contracts.NotificationRow{}, Degraded: true}
-	}
-	totalEver, err := a.notificationCenterStore.TotalEverRecorded(ctx)
-	if err != nil {
-		return contracts.NotificationPage{Items: []contracts.NotificationRow{}, Degraded: true}
-	}
-	return toNotificationPage(page, totalEver)
+// notification center's inbox (design §10), served by the notifications
+// module: while it starts or after it failed the read answers that failure,
+// and a store error answers internal, never an empty page.
+func (a *App) ListNotifications(request contracts.NotificationListRequest) (contracts.NotificationPage, error) {
+	return a.moduleSet().notifications.Use(func(services notificationServices) (contracts.NotificationPage, error) {
+		ctx := a.notificationCenterCtx()
+		page, err := services.store.List(ctx, toListQuery(request))
+		if err != nil {
+			return contracts.NotificationPage{}, err
+		}
+		totalEver, err := services.store.TotalEverRecorded(ctx)
+		if err != nil {
+			return contracts.NotificationPage{}, err
+		}
+		return toNotificationPage(page, totalEver), nil
+	})
 }
 
-// GetNotification is the Wails-bound single-record detail read.
-// Found=false with Degraded=false means "no such id"; Degraded=true means
-// the store itself is unavailable or the query failed.
-func (a *App) GetNotification(id int64) contracts.NotificationDetailResult {
-	if a.notificationCenterStore == nil {
-		return contracts.NotificationDetailResult{Degraded: true}
-	}
-	record, found, err := a.notificationCenterStore.Record(a.notificationCenterCtx(), id)
-	if err != nil {
-		return contracts.NotificationDetailResult{Degraded: true}
-	}
-	if !found {
-		return contracts.NotificationDetailResult{}
-	}
-	return contracts.NotificationDetailResult{Found: true, Item: toNotificationDetail(record, a.isRepeatableIntent)}
+// GetNotification is the Wails-bound single-record detail read. Found=false
+// means "no such id", an outcome; a store failure is the binding's error.
+func (a *App) GetNotification(id int64) (contracts.NotificationDetailResult, error) {
+	return a.moduleSet().notifications.Use(func(services notificationServices) (contracts.NotificationDetailResult, error) {
+		record, found, err := services.store.Record(a.notificationCenterCtx(), id)
+		if err != nil || !found {
+			return contracts.NotificationDetailResult{}, err
+		}
+		return contracts.NotificationDetailResult{Found: true, Item: toNotificationDetail(record, a.isRepeatableIntent)}, nil
+	})
 }
 
 // GetUnreadNotificationCount is the Wails-bound read the nav rail badge
-// polls. Degrades to 0 when the store is unavailable or the query fails.
-func (a *App) GetUnreadNotificationCount() int {
-	if a.notificationCenterStore == nil {
-		return 0
-	}
-	count, err := a.notificationCenterStore.UnreadCount(a.notificationCenterCtx())
-	if err != nil {
-		return 0
-	}
-	return count
+// renders. It never answers 0 for a module that is not ready or a failed query.
+func (a *App) GetUnreadNotificationCount() (int, error) {
+	return a.moduleSet().notifications.Use(func(services notificationServices) (int, error) {
+		return services.store.UnreadCount(a.notificationCenterCtx())
+	})
 }
 
 // MarkNotificationsRead marks the given ids read. Returns how many were
 // actually transitioned plus the fresh unread count, so the rail badge can
 // update without a second round trip.
-func (a *App) MarkNotificationsRead(ids []int64) contracts.NotificationMutationResult {
-	if a.notificationCenterStore == nil {
-		return contracts.NotificationMutationResult{Degraded: true}
-	}
-	ctx := a.notificationCenterCtx()
-	affected, err := a.notificationCenterStore.MarkRead(ctx, ids, a.currentTime().UnixMilli())
-	if err != nil {
-		return contracts.NotificationMutationResult{Degraded: true}
-	}
-	return a.notificationMutationResult(ctx, affected)
+func (a *App) MarkNotificationsRead(ids []int64) (contracts.NotificationMutationResult, error) {
+	return a.moduleSet().notifications.Use(func(services notificationServices) (contracts.NotificationMutationResult, error) {
+		ctx := a.notificationCenterCtx()
+		affected, err := services.store.MarkRead(ctx, ids, a.currentTime().UnixMilli())
+		return notificationMutationResult(ctx, services.store, affected, err)
+	})
 }
 
 // MarkNotificationsUnread puts the given ids back to unread, the reverse of
@@ -117,60 +102,52 @@ func (a *App) MarkNotificationsRead(ids []int64) contracts.NotificationMutationR
 // It emits no event, unlike ArchiveNotifications: archiving has to reach the
 // toast layer because it closes a live toast, while a read-state flip changes
 // nothing any other surface is showing.
-func (a *App) MarkNotificationsUnread(ids []int64) contracts.NotificationMutationResult {
-	if a.notificationCenterStore == nil {
-		return contracts.NotificationMutationResult{Degraded: true}
-	}
-	ctx := a.notificationCenterCtx()
-	affected, err := a.notificationCenterStore.MarkUnread(ctx, ids)
-	if err != nil {
-		return contracts.NotificationMutationResult{Degraded: true}
-	}
-	return a.notificationMutationResult(ctx, affected)
+func (a *App) MarkNotificationsUnread(ids []int64) (contracts.NotificationMutationResult, error) {
+	return a.moduleSet().notifications.Use(func(services notificationServices) (contracts.NotificationMutationResult, error) {
+		ctx := a.notificationCenterCtx()
+		affected, err := services.store.MarkUnread(ctx, ids)
+		return notificationMutationResult(ctx, services.store, affected, err)
+	})
 }
 
 // ArchiveNotifications archives the given ids -- also marking any of them
 // still unread as read, in the same store operation (design §5.6). On
 // success it also emits notificationArchivedEventName carrying ids, so a
 // live toast for one of them can close itself (design §3 Decision G).
-func (a *App) ArchiveNotifications(ids []int64) contracts.NotificationMutationResult {
-	if a.notificationCenterStore == nil {
-		return contracts.NotificationMutationResult{Degraded: true}
-	}
-	ctx := a.notificationCenterCtx()
-	affected, err := a.notificationCenterStore.Archive(ctx, ids, a.currentTime().UnixMilli())
-	if err != nil {
-		return contracts.NotificationMutationResult{Degraded: true}
-	}
-	if a.emitFn != nil {
-		a.emitFn(ctx, notificationArchivedEventName, ids)
-	}
-	return a.notificationMutationResult(ctx, affected)
+func (a *App) ArchiveNotifications(ids []int64) (contracts.NotificationMutationResult, error) {
+	return a.moduleSet().notifications.Use(func(services notificationServices) (contracts.NotificationMutationResult, error) {
+		ctx := a.notificationCenterCtx()
+		affected, err := services.store.Archive(ctx, ids, a.currentTime().UnixMilli())
+		if err == nil && a.emitFn != nil {
+			a.emitFn(ctx, notificationArchivedEventName, ids)
+		}
+		return notificationMutationResult(ctx, services.store, affected, err)
+	})
 }
 
 // RestoreNotifications restores the given ids from the archived view.
 // Deliberately does NOT mark them unread again (design §5.6 -- "you already
 // saw it").
-func (a *App) RestoreNotifications(ids []int64) contracts.NotificationMutationResult {
-	if a.notificationCenterStore == nil {
-		return contracts.NotificationMutationResult{Degraded: true}
-	}
-	ctx := a.notificationCenterCtx()
-	affected, err := a.notificationCenterStore.Restore(ctx, ids)
-	if err != nil {
-		return contracts.NotificationMutationResult{Degraded: true}
-	}
-	return a.notificationMutationResult(ctx, affected)
+func (a *App) RestoreNotifications(ids []int64) (contracts.NotificationMutationResult, error) {
+	return a.moduleSet().notifications.Use(func(services notificationServices) (contracts.NotificationMutationResult, error) {
+		ctx := a.notificationCenterCtx()
+		affected, err := services.store.Restore(ctx, ids)
+		return notificationMutationResult(ctx, services.store, affected, err)
+	})
 }
 
-// notificationMutationResult builds the shared mutation-result envelope,
-// overlaying a fresh UnreadCount read after the mutation committed.
-func (a *App) notificationMutationResult(ctx context.Context, affected int) contracts.NotificationMutationResult {
-	unread, err := a.notificationCenterStore.UnreadCount(ctx)
-	if err != nil {
-		return contracts.NotificationMutationResult{Affected: affected, Degraded: true}
+// notificationMutationResult builds the shared lifecycle-mutation envelope,
+// overlaying a fresh UnreadCount read after the mutation committed. A failed
+// mutation (mutationErr) or count read is the binding's error.
+func notificationMutationResult(ctx context.Context, store *center.Store, affected int, mutationErr error) (contracts.NotificationMutationResult, error) {
+	if mutationErr != nil {
+		return contracts.NotificationMutationResult{}, mutationErr
 	}
-	return contracts.NotificationMutationResult{Affected: affected, UnreadCount: unread}
+	unread, err := store.UnreadCount(ctx)
+	if err != nil {
+		return contracts.NotificationMutationResult{}, err
+	}
+	return contracts.NotificationMutationResult{Affected: affected, UnreadCount: unread}, nil
 }
 
 // notificationCenterCtx returns a.ctx, falling back to context.Background()
@@ -386,16 +363,20 @@ func (a *App) seasonDownloadNowIntent(ctx context.Context, _ map[string]string) 
 }
 
 // runAnimeAgainIntent is the download.run_anime handler: it re-resolves the
-// anime fresh at press time via GetAnimeDetail (app_runtime.go:147) rather
-// than trusting a frozen snapshot -- GetAnimeDetail returning nil is exactly
-// how a deleted target is detected, potentially days after the record was
-// created.
+// anime fresh at press time via GetAnimeDetail (app_runtime.go) rather than
+// trusting a frozen snapshot -- its not_found answer is exactly how a deleted
+// target is detected, potentially days after the record was created. Any other
+// failure (the anime module starting or failed, a failed read) is returned as
+// is, never reported as a deleted target.
 func (a *App) runAnimeAgainIntent(ctx context.Context, args map[string]string) error {
-	anime := a.GetAnimeDetail(args[center.ArgKeyAnimeID])
-	if anime == nil {
+	anime, err := a.GetAnimeDetail(args[center.ArgKeyAnimeID])
+	if isAnimeNotFound(err) {
 		return center.ErrTargetMissing
 	}
-	_, err := a.downloadService.RunAnime(ctx, notificationActionRunTrigger, *anime)
+	if err != nil {
+		return err
+	}
+	_, err = a.downloadService.RunAnime(ctx, notificationActionRunTrigger, *anime)
 	return err
 }
 
@@ -416,16 +397,17 @@ func (a *App) navigationOpenIntent(ctx context.Context, args map[string]string) 
 // wireNotificationCenterIntentExecutor constructs a.notificationCenterExecutor
 // once the subsystems its intents close over exist -- called from startup
 // AFTER startDownloadOrchestration, never before, since a.downloadService
-// and a.downloadScheduler are only assigned there (design §5.8). A nil
-// notificationCenterStore (bridge DB unusable) leaves the executor nil;
-// ExecuteNotificationAction degrades that to the same intent_unregistered
-// outcome an empty registry already produces.
+// and a.downloadScheduler are only assigned there (design §5.8). It binds the
+// notifications module's services before startup settles the module, so a
+// binding that sees ready finds them. A nil notificationCenterStore (bridge DB
+// unusable) binds nothing and leaves the executor nil, which fails the module.
 func (a *App) wireNotificationCenterIntentExecutor() {
 	if a.notificationCenterStore == nil {
 		return
 	}
 	a.notificationCenterIntents = a.registerNotificationIntents()
 	a.notificationCenterExecutor = center.NewExecutor(a.notificationCenterStore, a.notificationCenterIntents)
+	a.moduleSet().notifications.Bind(notificationServices{store: a.notificationCenterStore, executor: a.notificationCenterExecutor})
 	a.wireDesktopActivation()
 }
 
@@ -440,15 +422,15 @@ func (a *App) wireNotificationCenterIntentExecutor() {
 // request to OPEN the record, which is the frontend's job, so it goes out as the same navigation
 // event a "View details" press already uses rather than through the executor.
 //
-// Registered once at startup, after the executor exists -- a press arriving before then finds a
-// nil executor and degrades to the same intent_unregistered refusal an empty registry produces.
+// Registered once at startup, after the executor exists -- a press arriving before the
+// notifications module settles is refused as unavailable and dropped, like any other failure here.
 func (a *App) wireDesktopActivation() {
 	notification.SetDesktopActivationHandler(func(recordID int64, actionID string) {
 		if actionID == "" {
 			a.navigateToNotificationRecord(recordID)
 			return
 		}
-		_ = a.ExecuteNotificationAction(recordID, actionID)
+		_, _ = a.ExecuteNotificationAction(recordID, actionID)
 	})
 }
 
@@ -476,18 +458,16 @@ func (a *App) isRepeatableIntent(intent string) bool {
 }
 
 // ExecuteNotificationAction is the Wails-bound press-time entry point
-// (design §5.8/§5.7). A nil executor (store unavailable, or called before
-// wireNotificationCenterIntentExecutor ran) degrades to the same
-// intent_unregistered outcome an empty IntentResolver already produces.
-func (a *App) ExecuteNotificationAction(notificationID int64, actionID string) contracts.NotificationActionResult {
-	if a.notificationCenterExecutor == nil {
-		return contracts.NotificationActionResult{Reason: string(center.RefusalIntentUnregistered)}
-	}
-	result := a.notificationCenterExecutor.Execute(a.notificationCenterCtx(), notificationID, actionID)
-	return contracts.NotificationActionResult{
-		Executed:     result.Executed,
-		Reason:       string(result.Reason),
-		Message:      result.Message,
-		ExecutedAtMs: result.ExecutedAtMS,
-	}
+// (design §5.8/§5.7), served by the notifications module. A refusal is an
+// outcome (Reason); a module that is not ready answers its failure instead.
+func (a *App) ExecuteNotificationAction(notificationID int64, actionID string) (contracts.NotificationActionResult, error) {
+	return a.moduleSet().notifications.Use(func(services notificationServices) (contracts.NotificationActionResult, error) {
+		result := services.executor.Execute(a.notificationCenterCtx(), notificationID, actionID)
+		return contracts.NotificationActionResult{
+			Executed:     result.Executed,
+			Reason:       string(result.Reason),
+			Message:      result.Message,
+			ExecutedAtMs: result.ExecutedAtMS,
+		}, nil
+	})
 }

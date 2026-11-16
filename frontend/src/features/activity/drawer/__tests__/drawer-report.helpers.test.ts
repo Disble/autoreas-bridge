@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ActivityPhoneReportFacts } from '../../feed-source/feed.types';
+import type { ActivityPhoneReportFacts } from '../../../../shared/contracts/activity-feed.types';
 import type { DrawerSection, DrawerSummaryInput } from '../drawer.types';
 import { toDrawerHeader, toDrawerSummary } from '../drawer-summary.helpers';
 import { feedLine, incident } from './drawer.fixtures';

@@ -36,6 +36,19 @@ func nullableDuration(durationMS int64) *int64 {
 	return &durationMS
 }
 
+// HasCorrelatedEvent reports whether an event of eventType with correlationID
+// is stored, so a producer that writes one row per fact can skip a repeat.
+func (s *SQLiteStore) HasCorrelatedEvent(ctx context.Context, eventType, correlationID string) (bool, error) {
+	if s.db == nil {
+		return false, obserr.Unavailable("event store unavailable")
+	}
+	var exists bool
+	err := s.db.QueryRowContext(ctx, `
+		SELECT EXISTS (SELECT 1 FROM runtime_events WHERE correlation_id = ? AND event_type = ?)
+	`, correlationID, eventType).Scan(&exists)
+	return exists, err
+}
+
 // InsertEvent stores one event record: marshal + redact + bound metadata via
 // metadata.go before bind, then BEGIN/INSERT/COMMIT. Retention is the
 // retention sweeper's job, not the write path's.

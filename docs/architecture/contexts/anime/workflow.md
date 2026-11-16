@@ -5,7 +5,8 @@ step names the function that takes it. Outcomes are the `AnimePatchOutcome` valu
 receives (`applied`, `no_op`, `conflict`) or a returned error. The packages and ports the steps use
 are in `overview.md`; the transaction helpers are in `../../cross-cutting/persistence.md`.
 
-"Stored token" means the anime's `modified_at` as the save transaction reads it.
+"Stored token" means the anime's `modified_at` as the save transaction reads it. Section 7 follows a
+committed change to the Today screen's episodes reads in the frontend.
 
 ## The whole tree
 
@@ -171,3 +172,35 @@ rewrite, so a reconcile reports that final token.
   result is `conflict` with the stored (winning) token and the conflict id
   `<animeId>-<nowMs>`. A failing conflict insert returns its error.
 - **Error.** Nothing was written, nothing is published, and the caller receives the error.
+
+## 7. Today after a change — the episodes reads (frontend)
+
+`anime.changed` reaches the desktop frontend through `registerAnimeRuntimeEventBridge`
+(`internal/desktop/app_startup_runtime.go`). Today never subscribes to it: the invalidation bridge
+mounted by `BridgeQueryProvider` holds the one rule (`BRIDGE_INVALIDATIONS`,
+`frontend/src/shared/query/bridge-runtime/bridge-runtime.constants.ts`) and refetches every query
+under `episodesKeys.all` (ADR-032 §4; `overview.md`, "Frontend: Today").
+
+```mermaid
+sequenceDiagram
+  participant W as Writer (row write, phone, REST, download)
+  participant B as anime.changed (Wails event)
+  participant I as Invalidation bridge (shared/query)
+  participant G as Readiness gate
+  participant S as createEpisodesSource
+  participant T as Today (toEpisodeScheduleView)
+  W->>B: committed change (section 6)
+  B->>I: anime.changed
+  I->>I: invalidate episodesKeys.all
+  I->>G: refetch schedule + day counts (module episodes)
+  G-->>S: run at once when episodes is ready
+  S-->>T: rows / counts, or a BridgeError
+  T->>T: ready with aria-busy, then ready / empty / failure
+```
+
+- While `episodes` is `starting`, the gate holds both queries without calling the bindings and Today
+  shows its skeleton; once `failed`, both fail with `failed_precondition` and Today shows the Alert
+  with the reason (`overview.md`, "Readiness and failures").
+- A successful row write refetches both queries itself, so Today does not wait for its own event.
+- A rejected row write calls nothing and stays on screen as the Alert until the next reload of the
+  schedule, from either path above.

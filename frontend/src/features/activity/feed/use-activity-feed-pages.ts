@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ActivityFeedQuery } from '../../../shared/contracts/activity-feed.types';
+import type { ActivityFeedSource } from '../../../shared/contracts/activity.types';
 import { isNearListBottom } from '../../../shared/helpers/progressive-list.helpers';
-import type { ActivityFeedSource } from '../feed-source/feed-source.types';
-import type { ActivityFeedDay, ActivityFeedQuery } from '../feed-source/feed.types';
-import { mergeFeedDays, mergeLivePage } from './activity-feed-rows.helpers';
-import type { ActivityReadStatus } from './activity-feed.types';
+import { activityKeys } from '../../../shared/query/query-keys/query-keys.constants';
+import { useBridgeQuery } from '../../../shared/query/use-bridge-query/use-bridge-query';
+import { shouldLoadOlderFeedPage, toActivityFeedPageStatus } from './activity-feed-query.helpers';
+import { mergeFeedDays, toShownFeedPage } from './activity-feed-rows.helpers';
+import type { ActivityFeedWindow } from './activity-feed.types';
 
 /**
- * Owns the feed's paged reads for one query: the first page, read again
- * whenever the query changes; older pages read through the cursor once the
- * page nears its bottom (the feed flows with the page, so the document is what
- * scrolls); and a live refresh that merges a fresh first page
- * without shrinking the loaded window (ADR-012, live variant). A read started
+ * Owns the feed's paged reads for one query: the first page through
+ * `useBridgeQuery` on the `observability` module, read again whenever the
+ * query changes and on a live refresh; older pages read through the cursor
+ * once the page nears its bottom (the feed flows with the page, so the
+ * document is what scrolls), kept below a refreshed first page without
+ * shrinking the loaded window (ADR-012, live variant). An older page read
  * under an older query is dropped when it resolves. A failed older page or
  * live refresh keeps the rows on screen.
  *
@@ -20,114 +24,80 @@ import type { ActivityReadStatus } from './activity-feed.types';
  */
 export function useActivityFeedPages(source: ActivityFeedSource, query: ActivityFeedQuery | undefined) {
   // 1. Refs
-  const requestIdRef = useRef(0);
-  const isLoadingMoreRef = useRef(false);
-  const daysRef = useRef<readonly ActivityFeedDay[]>([]);
-  const cursorRef = useRef('');
+  const queryRef = useRef(query);
+  const loadingMoreRef = useRef<ActivityFeedQuery | undefined>(undefined);
 
   // 2. State
-  const [status, setStatus] = useState<ActivityReadStatus>('loading');
-  const [days, setDays] = useState<readonly ActivityFeedDay[]>([]);
-  const [cursor, setCursor] = useState('');
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [olderWindow, setOlderWindow] = useState<ActivityFeedWindow | undefined>();
+  const [loadingMoreFor, setLoadingMoreFor] = useState<ActivityFeedQuery | undefined>();
 
   // 3. Context/3rd Party Hooks
 
   // 4. Queries/Mutations
+  const firstPage = useBridgeQuery({
+    queryKey: activityKeys.key('feed', query),
+    queryFn: () => (query === undefined ? Promise.resolve({ days: [], nextCursor: '' }) : source.searchFeed(query)),
+    module: 'observability',
+    enabled: query !== undefined,
+  });
 
   // 5. Derived State (useMemo)
+  const isLoadingMore = query !== undefined && loadingMoreFor === query;
+  const shown = toShownFeedPage(query === undefined ? undefined : firstPage.data, firstPage.dataUpdatedAt, olderWindow?.query === query ? olderWindow : undefined);
+  const status = toActivityFeedPageStatus(query !== undefined, firstPage);
 
   // 6. Callbacks (useCallback calling pure helpers)
-  const showPage = useCallback((nextDays: readonly ActivityFeedDay[], nextCursor: string) => {
-    daysRef.current = nextDays;
-    cursorRef.current = nextCursor;
-    setDays(nextDays);
-    setCursor(nextCursor);
-  }, []);
-
-  const loadFirstPage = useCallback(() => {
-    requestIdRef.current += 1;
-    const requestId = requestIdRef.current;
-    isLoadingMoreRef.current = false;
-    setIsLoadingMore(false);
-    if (query === undefined) {
-      showPage([], '');
-      setStatus('ready');
-      return;
-    }
-    setStatus('loading');
-    source
-      .searchFeed(query)
-      .then((view) => {
-        if (requestId === requestIdRef.current) {
-          showPage(view.days, view.nextCursor);
-          setStatus('ready');
-        }
-      })
-      .catch(() => {
-        if (requestId === requestIdRef.current) {
-          setStatus('failed');
-        }
-      });
-  }, [query, showPage, source]);
-
   const loadOlderPage = useCallback(
-    (older: ActivityFeedQuery) => {
-      const requestId = requestIdRef.current;
-      isLoadingMoreRef.current = true;
-      setIsLoadingMore(true);
+    (older: ActivityFeedQuery, firstPageAt: number, days: ActivityFeedWindow['days'], cursor: string) => {
+      loadingMoreRef.current = older;
+      setLoadingMoreFor(older);
       source
-        .searchFeed({ ...older, cursor: cursorRef.current })
+        .searchFeed({ ...older, cursor })
         .then((view) => {
-          if (requestId === requestIdRef.current) {
-            showPage(mergeFeedDays(daysRef.current, view.days), view.nextCursor);
+          if (queryRef.current === older) {
+            setOlderWindow({ query: older, firstPageAt, days: mergeFeedDays(days, view.days), cursor: view.nextCursor });
           }
         })
         .catch(() => undefined)
         .finally(() => {
-          if (requestId === requestIdRef.current) {
-            isLoadingMoreRef.current = false;
-            setIsLoadingMore(false);
+          if (loadingMoreRef.current === older) {
+            loadingMoreRef.current = undefined;
+            setLoadingMoreFor(undefined);
           }
         });
     },
-    [showPage, source],
+    [source],
   );
 
+  const { refetch } = firstPage;
   const refreshLive = useCallback(() => {
-    if (query === undefined) {
-      return;
+    if (query !== undefined) {
+      void refetch();
     }
-    const requestId = requestIdRef.current;
-    source
-      .searchFeed(query)
-      .then((view) => {
-        if (requestId === requestIdRef.current) {
-          const merged = mergeLivePage(daysRef.current, cursorRef.current, view);
-          showPage(merged.days, merged.cursor);
-          setStatus('ready');
-        }
-      })
-      .catch(() => undefined);
-  }, [query, showPage, source]);
+  }, [query, refetch]);
+
+  const retry = useCallback(() => {
+    setOlderWindow(undefined);
+    void refetch();
+  }, [refetch]);
 
   const onPageScroll = useCallback(() => {
-    const page = document.documentElement;
+    const isNearBottom = isNearListBottom(window.scrollY, window.innerHeight, document.documentElement.scrollHeight);
     // A cursor exists only after a query read a page, so the query check never fails first.
-    if (cursorRef.current !== '' && !isLoadingMoreRef.current && isNearListBottom(window.scrollY, window.innerHeight, page.scrollHeight) && query !== undefined) {
-      loadOlderPage(query);
+    if (shouldLoadOlderFeedPage(shown.cursor, loadingMoreRef.current === query, isNearBottom) && query !== undefined) {
+      loadOlderPage(query, firstPage.dataUpdatedAt, shown.days, shown.cursor);
     }
-  }, [loadOlderPage, query]);
+  }, [firstPage.dataUpdatedAt, loadOlderPage, query, shown.cursor, shown.days]);
 
   // 7. Effects
   useEffect(() => {
-    loadFirstPage();
-  }, [loadFirstPage]);
+    queryRef.current = query;
+  }, [query]);
 
   useEffect(() => {
     window.addEventListener('scroll', onPageScroll, { passive: true });
     return () => window.removeEventListener('scroll', onPageScroll);
   }, [onPageScroll]);
 
-  return { status, days, hasMore: cursor !== '', isLoadingMore, refreshLive, retry: loadFirstPage };
+  return { status, days: shown.days, hasMore: shown.cursor !== '', isLoadingMore, refreshLive, retry };
 }

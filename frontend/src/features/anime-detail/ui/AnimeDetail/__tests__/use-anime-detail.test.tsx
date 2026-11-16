@@ -1,10 +1,19 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import * as HeroUI from '@heroui/react';
 import * as ReactRouter from 'react-router';
-import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import type { AnimeDesktopActionResult } from '../../../../../shared/contracts/anime-editor-source.types';
+import type { AnimeSource } from '../../../../../shared/contracts/anime-source.types';
 import type { AnimeDetail } from '../../../../../shared/contracts/anime.types';
+import type { ModuleReadiness } from '../../../../../shared/contracts/readiness.types';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
+import { BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE } from '../../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
+import type { AnimeDetailCommandSource } from '../anime-detail.types';
 import { useAnimeDetail } from '../use-anime-detail';
+
+/** The reads and the commands the Detail page runs, as one fixture. */
+type DetailFixture = AnimeSource & AnimeDetailCommandSource;
 
 /**
  * Spy instead of `vi.mock`: with `deps.optimizer` enabled, `importOriginal`-based
@@ -27,24 +36,46 @@ const populatedDetail: AnimeDetail = {
   repetitions: [{ numRepetitions: 1, episodesWatched: 24, status: 1, repeatedAt: Date.UTC(2022, 0, 1) }],
 };
 
-/** Builds a minimal `BridgeRuntimeSource` fixture, letting each case override individual members. */
+/**
+ * Builds the anime reads and the commands as one fixture, letting each case
+ * override individual members; a `null` detail rejects as an unknown anime.
+ */
 function createSource(
   resolvedValue: AnimeDetail | null,
-  overrides: Partial<BridgeRuntimeSource> = {},
-): BridgeRuntimeSource {
+  overrides: Partial<DetailFixture> = {},
+): DetailFixture {
   return {
-    getSQLiteStatus: vi.fn(),
-    getEffectiveAddress: vi.fn(),
-    getPairingToken: vi.fn(),
-    getSyncingAnimeItems: vi.fn(),
     getAnimes: vi.fn().mockResolvedValue([]),
-    getAnimeDetail: vi.fn().mockResolvedValue(resolvedValue),
-    triggerReconcile: vi.fn(),
-    onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
+    getAnimeDetail: resolvedValue === null
+      ? vi.fn().mockRejectedValue(createBridgeError('not_found', 'anime not found'))
+      : vi.fn().mockResolvedValue(resolvedValue),
+    getWatchHistoryPage: vi.fn(),
+    getAnimeWatchHistoryPage: vi.fn(),
+    getAnimeCover: vi.fn().mockResolvedValue({ source: 'placeholder' }),
     restoreAnime: vi.fn().mockResolvedValue({ status: 'ok', outcome: 'applied', modifiedAt: 1 }),
     repeatAnime: vi.fn().mockResolvedValue({ status: 'ok', outcome: 'applied', modifiedAt: 1 }),
     ...overrides,
   };
+}
+
+/**
+ * A query wrapper reporting the `anime` module, ready by default.
+ * @param anime The `anime` module's readiness.
+ * @returns The wrapper and `emit`, which pushes a readiness change.
+ */
+function modules(anime: ModuleReadiness = { module: 'anime', state: 'ready' }) {
+  return createModulesTestWrapper(anime);
+}
+
+/**
+ * Replaces one of the anime module's desktop actions, which Detail runs by
+ * default, for the current test only.
+ * @param name The desktop action.
+ * @param action Its stand-in.
+ */
+function stubDesktopAction(name: 'copyAnimeFolder' | 'openAnimePage', action: (animeId: string) => Promise<AnimeDesktopActionResult>) {
+  const spy = vi.spyOn(BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE, name).mockImplementation(action);
+  onTestFinished(() => spy.mockRestore());
 }
 
 describe('useAnimeDetail', () => {
@@ -56,7 +87,7 @@ describe('useAnimeDetail', () => {
 
   it('returns loading while the fetch is in flight', () => {
     const source = createSource(populatedDetail);
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
 
     expect(result.current.loadState).toBe('loading');
     expect(result.current.detail).toBeUndefined();
@@ -65,7 +96,7 @@ describe('useAnimeDetail', () => {
   it('never calls getAnimeCover while the anime detail itself is still loading', () => {
     const getAnimeCover = vi.fn();
     const source = createSource(populatedDetail, { getAnimeCover });
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
 
     expect(result.current.loadState).toBe('loading');
     expect(getAnimeCover).not.toHaveBeenCalled();
@@ -73,7 +104,7 @@ describe('useAnimeDetail', () => {
 
   it('returns loaded with the detail view model and its raw source at the same freshness', async () => {
     const source = createSource(populatedDetail);
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
 
@@ -84,28 +115,42 @@ describe('useAnimeDetail', () => {
 
   it('returns not-found when the id does not resolve to a record', async () => {
     const source = createSource(null);
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'missing-id' }, source));
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'missing-id' }, source, source), modules());
 
     await waitFor(() => expect(result.current.loadState).toBe('not-found'));
 
     expect(result.current.detail).toBeUndefined();
   });
 
-  it('degrades to not-found when the runtime/binding is unavailable', async () => {
-    // bridgeRuntimeSource.getAnimeDetail resolves null (never rejects) when the
-    // Wails runtime or the GetAnimeDetail binding is unavailable, so this is
-    // the same code path as the not-found case above.
-    const source = createSource(null);
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+  it('stays loading without reading while the anime module starts, then loads once ready', async () => {
+    const source = createSource(populatedDetail);
+    const { wrapper, emit } = modules({ module: 'anime', state: 'starting' });
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), { wrapper });
+    await act(async () => {});
 
-    await waitFor(() => expect(result.current.loadState).toBe('not-found'));
+    expect(result.current).toMatchObject({ loadState: 'loading', detail: undefined, failureMessage: undefined });
+    expect(source.getAnimeDetail).not.toHaveBeenCalled();
+
+    act(() => emit({ module: 'anime', state: 'ready' }));
+    await waitFor(() => expect(result.current.loadState).toBe('loaded'));
+  });
+
+  it.each<[string, ModuleReadiness, Partial<DetailFixture>, string]>([
+    ['the anime module failed', { module: 'anime', state: 'failed', reason: 'anime: db closed' }, {}, 'anime: db closed'],
+    ['the read failed', { module: 'anime', state: 'ready' }, { getAnimeDetail: vi.fn().mockRejectedValue(createBridgeError('internal', 'read failed')) }, 'read failed'],
+  ])('shows the failure, never not-found, when %s', async (_label, anime, overrides, message) => {
+    const source = createSource(populatedDetail, overrides);
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules(anime));
+
+    await waitFor(() => expect(result.current.loadState).toBe('failure'));
+    expect(result.current).toMatchObject({ failureMessage: message, detail: undefined, detailSource: undefined });
   });
 
   it('re-fetches when the animeId prop changes', async () => {
     const source = createSource(populatedDetail);
     const { rerender, result } = renderHook(
-      ({ animeId }: { animeId: string }) => useAnimeDetail({ animeId }, source),
-      { initialProps: { animeId: 'anime-1' } },
+      ({ animeId }: { animeId: string }) => useAnimeDetail({ animeId }, source, source),
+      { initialProps: { animeId: 'anime-1' }, ...modules() },
     );
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
@@ -117,7 +162,7 @@ describe('useAnimeDetail', () => {
 
   it('resolves the cover as a placeholder when the detail has no stored cover', async () => {
     const source = createSource(populatedDetail);
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
 
@@ -130,7 +175,7 @@ describe('useAnimeDetail', () => {
       { ...populatedDetail, cover: 'C:/legacy/portadas/frieren.jpg' },
       { getAnimeCover },
     );
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
     await waitFor(() => expect(result.current.cover).toEqual({ status: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' }));
@@ -150,8 +195,8 @@ describe('useAnimeDetail', () => {
       { getAnimeCover },
     );
     const { rerender, result } = renderHook(
-      ({ animeId }: { animeId: string }) => useAnimeDetail({ animeId }, source),
-      { initialProps: { animeId: 'anime-1' } },
+      ({ animeId }: { animeId: string }) => useAnimeDetail({ animeId }, source, source),
+      { initialProps: { animeId: 'anime-1' }, ...modules() },
     );
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
@@ -175,7 +220,7 @@ describe('useAnimeDetail', () => {
       { ...populatedDetail, cover: 'C:/legacy/portadas/frieren.jpg' },
       { getAnimeCover },
     );
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
     await waitFor(() => expect(result.current.cover).toEqual({ status: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' }));
@@ -193,7 +238,7 @@ describe('useAnimeDetail', () => {
       { ...populatedDetail, cover: 'C:/legacy/portadas/frieren.jpg' },
       { getAnimeCover },
     );
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
     await waitFor(() => expect(result.current.cover).toEqual({ status: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' }));
@@ -207,7 +252,7 @@ describe('useAnimeDetail', () => {
 
   it('calls navigate("/history") when there is no previous history entry', async () => {
     const source = createSource(populatedDetail);
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
 
@@ -221,7 +266,7 @@ describe('useAnimeDetail', () => {
   it('calls navigate(-1) when a previous history entry exists', async () => {
     window.history.replaceState({ idx: 1 }, '');
     const source = createSource(populatedDetail);
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
 
@@ -234,7 +279,7 @@ describe('useAnimeDetail', () => {
 
   it('deep-links Edit anime to /editor/:id', async () => {
     const source = createSource(populatedDetail);
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
 
@@ -246,13 +291,14 @@ describe('useAnimeDetail', () => {
   });
 
   it.each([
-    ['success', { status: 'ok' }, 'Folder path copied'],
-    ['danger', { status: 'error', message: 'No folder' }, 'Could not copy the folder path'],
-  ] as const)('copies the folder through the binding and raises a %s toast', async (status, copyResult, message) => {
+    ['success', () => Promise.resolve({ status: 'ok' }), 'Folder path copied'],
+    ['danger', () => Promise.reject(createBridgeError('invalid_argument', 'anime anime-1 has no folder')), 'Could not copy the folder path'],
+  ] as const)('copies the folder through the anime module and raises a %s toast', async (status, copyResult, message) => {
     const toastSpy = vi.spyOn(HeroUI.toast, status).mockReturnValue('toast-1');
-    const copyAnimeFolder = vi.fn().mockResolvedValue(copyResult);
-    const source = createSource(populatedDetail, { copyAnimeFolder });
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+    const copyAnimeFolder = vi.fn(copyResult);
+    stubDesktopAction('copyAnimeFolder', copyAnimeFolder);
+    const source = createSource(populatedDetail);
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
 
     await act(async () => {
@@ -263,7 +309,7 @@ describe('useAnimeDetail', () => {
     expect(toastSpy).toHaveBeenCalledWith(message);
   });
 
-  it('opens the page through the binding for the current anime, silent on success and with a danger toast on failure', async () => {
+  it('opens the page through the anime module for the current anime, silent on success and with a danger toast on a rejection', async () => {
     const successSpy = vi.spyOn(HeroUI.toast, 'success').mockReturnValue('toast-1');
     const dangerSpy = vi.spyOn(HeroUI.toast, 'danger').mockReturnValue('toast-2');
     successSpy.mockClear();
@@ -271,11 +317,12 @@ describe('useAnimeDetail', () => {
     const openAnimePage = vi.fn()
       .mockResolvedValueOnce({ status: 'ok' })
       .mockResolvedValueOnce({ status: 'ok' })
-      .mockResolvedValueOnce({ status: 'error', message: 'No page' });
-    const source = createSource(populatedDetail, { openAnimePage });
+      .mockRejectedValueOnce(createBridgeError('unavailable', 'anime is starting'));
+    stubDesktopAction('openAnimePage', openAnimePage);
+    const source = createSource(populatedDetail);
     const { result, rerender } = renderHook(
-      ({ animeId }) => useAnimeDetail({ animeId }, source),
-      { initialProps: { animeId: 'anime-2' } },
+      ({ animeId }) => useAnimeDetail({ animeId }, source, source),
+      { initialProps: { animeId: 'anime-2' }, ...modules() },
     );
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
     await act(async () => {
@@ -301,7 +348,7 @@ describe('useAnimeDetail', () => {
 
   it('cancels an explicit confirmation without invoking either binding', async () => {
     const source = createSource(populatedDetail);
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
 
     act(() => result.current.onRequestRepeat());
@@ -320,7 +367,7 @@ describe('useAnimeDetail', () => {
       .mockResolvedValueOnce(refreshed);
     const repeatAnime = vi.fn().mockResolvedValue({ status: 'ok', outcome: 'applied', modifiedAt: 11 });
     const source = createSource(populatedDetail, { getAnimeDetail, repeatAnime });
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
 
     act(() => result.current.onRequestRepeat());
@@ -343,7 +390,7 @@ describe('useAnimeDetail', () => {
     const getAnimeDetail = vi.fn().mockResolvedValueOnce(inactive).mockResolvedValueOnce(refreshed);
     const restoreAnime = vi.fn().mockResolvedValue({ status: 'ok', outcome: 'no_op', modifiedAt: 41 });
     const source = createSource(inactive, { getAnimeDetail, restoreAnime });
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
 
     act(() => result.current.onRequestRestore());
@@ -371,7 +418,7 @@ describe('useAnimeDetail', () => {
       conflictId: 'conflict-7',
     });
     const source = createSource(populatedDetail, { getAnimeDetail, repeatAnime });
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
 
     act(() => result.current.onRequestRepeat());
@@ -394,7 +441,7 @@ describe('useAnimeDetail', () => {
       modifiedAt: 0,
     });
     const source = createSource(populatedDetail, { repeatAnime });
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
 
     act(() => result.current.onRequestRepeat());
@@ -412,10 +459,10 @@ describe('useAnimeDetail', () => {
   it('keeps an applied outcome accurate when the required Detail refetch fails', async () => {
     const getAnimeDetail = vi.fn()
       .mockResolvedValueOnce(populatedDetail)
-      .mockRejectedValueOnce(new Error('refresh unavailable'));
+      .mockRejectedValueOnce(createBridgeError('internal', 'refresh unavailable'));
     const repeatAnime = vi.fn().mockResolvedValue({ status: 'ok', outcome: 'applied', modifiedAt: 11 });
     const source = createSource(populatedDetail, { getAnimeDetail, repeatAnime });
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
 
     act(() => result.current.onRequestRepeat());
@@ -460,18 +507,20 @@ describe('useAnimeDetail', () => {
       expectedTitle: 'Repeat not applied',
       expectedDescription: 'The anime changed before Repeat could be applied. Current version: 42. Conflict: conflict-null-refresh. Anime Detail could not be refreshed.',
     },
-  ])('preserves the prior Detail and $label feedback when refresh resolves null', async ({
+  ])('preserves the prior Detail and $label feedback when the refresh finds no anime', async ({
     currentDetail,
     action,
     mutationResult,
     expectedTitle,
     expectedDescription,
   }) => {
-    const getAnimeDetail = vi.fn().mockResolvedValueOnce(currentDetail).mockResolvedValueOnce(null);
+    const getAnimeDetail = vi.fn()
+      .mockResolvedValueOnce(currentDetail)
+      .mockRejectedValueOnce(createBridgeError('not_found', 'anime not found'));
     const repeatAnime = vi.fn().mockResolvedValue(mutationResult);
     const restoreAnime = vi.fn().mockResolvedValue(mutationResult);
     const source = createSource(currentDetail, { getAnimeDetail, repeatAnime, restoreAnime });
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
 
     act(() => {
@@ -497,7 +546,7 @@ describe('useAnimeDetail', () => {
 
   it('fails closed when the selected runtime binding is unavailable', async () => {
     const source = createSource(populatedDetail, { repeatAnime: undefined });
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
 
     act(() => result.current.onRequestRepeat());

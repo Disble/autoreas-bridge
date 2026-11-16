@@ -1485,7 +1485,8 @@ components:
                 description: The scheduler that ran the attempts, in the words of `previous_cycle.trigger_source`. `local_mutation_write`, which a `cycle_report` still accepts there, is not counted here and answers `field_rejected`.
               outcome:
                 type: string
-                enum: [closed, failed, presence_refused, schema_not_ready, skipped_owned_by_ticker, unsettled, crashed]
+                enum: [closed, failed, presence_refused, presence_unanswered, schema_not_ready, skipped_owned_by_ticker, unsettled, crashed]
+                description: How the attempts ended. `presence_refused` means no connection to Bridge was made (connect refused or timed out); `presence_unanswered` means the connection was made but no complete HTTP response arrived within the budget (read timeout or the connection closed mid-response). Any completed HTTP exchange, whatever its status, is presence.
               count:
                 type: integer
                 minimum: 0

@@ -18,8 +18,11 @@ func listOneNotification(t *testing.T, record center.Record) contracts.Notificat
 	if _, err := app.notificationCenterStore.InsertRecord(app.notificationCenterCtx(), record); err != nil {
 		t.Fatalf("insert record: %v", err)
 	}
-	page := app.ListNotifications(contracts.NotificationListRequest{Limit: 10})
-	if page.Degraded || len(page.Items) != 1 {
+	page, err := app.ListNotifications(contracts.NotificationListRequest{Limit: 10})
+	if err != nil {
+		t.Fatalf("ListNotifications: %v", err)
+	}
+	if len(page.Items) != 1 {
 		t.Fatalf("page = %#v, want exactly 1 non-degraded item", page)
 	}
 	return page.Items[0]
@@ -196,12 +199,18 @@ func TestNotificationKindReachesBothWireReads(t *testing.T) {
 		t.Fatalf("insert record: %v", err)
 	}
 
-	page := app.ListNotifications(contracts.NotificationListRequest{Limit: 10})
+	page, err := app.ListNotifications(contracts.NotificationListRequest{Limit: 10})
+	if err != nil {
+		t.Fatalf("ListNotifications: %v", err)
+	}
 	if len(page.Items) != 1 || page.Items[0].Kind != "download.run_stopped_early" {
 		t.Fatalf("listed items = %#v, want the kind on the list read", page.Items)
 	}
 
-	detail := app.GetNotification(id)
+	detail, err := app.GetNotification(id)
+	if err != nil {
+		t.Fatalf("GetNotification: %v", err)
+	}
 	if !detail.Found || detail.Item.Kind != "download.run_stopped_early" {
 		t.Fatalf("detail = %#v, want the kind on the detail read", detail.Item)
 	}

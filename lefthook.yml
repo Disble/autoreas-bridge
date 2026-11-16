@@ -22,7 +22,9 @@ pre-commit:
             env: *go-limits
             run: &go-filesize go run ./tools/checkgofilesize
           - name: architecture
-            glob: "*.go"
+            glob:
+              - "*.go"
+              - "tools/checkarchitecture/**"
             env: *go-limits
             run: &architecture go run ./tools/checkarchitecture
           - name: golangci-lint
@@ -59,6 +61,15 @@ pre-commit:
               - "docs/openapi.yaml"
             env: *go-limits
             run: &openapi go run ./tools/checkopenapi
+          # The skills every agent runtime reads stay byte-identical in both folders
+          # (ADR-032 §5); the glob makes a commit that stages only a skill file run it.
+          - name: skill-parity
+            glob:
+              - ".claude/skills/**"
+              - ".agents/skills/**"
+              - "tools/checkskillparity/**"
+            env: *go-limits
+            run: &skill-parity go test -count=1 ./tools/checkskillparity/
 
     - name: go-heavy
       glob:
@@ -87,6 +98,17 @@ pre-commit:
         jobs:
           - name: frontend-quality
             run: bun --cwd="frontend" run check:staged
+          # ADR-032 §5 async-state gates on staged files: a violation the baseline
+          # does not name fails, and so does a baseline entry of a staged file that
+          # no longer occurs. Staging the baseline or the gate code checks the whole tree.
+          - name: frontend-async-state
+            glob:
+              - "frontend/src/**"
+              - "frontend/async-state-baseline.json"
+              - "frontend/eslint.config.js"
+              - "frontend/scripts/async-state-gates.helpers.mjs"
+              - "frontend/scripts/check-async-state-gates.mjs"
+            run: bun --cwd="frontend" run check:async-state
           - name: frontend-typecheck
             run: &frontend-typecheck bun --cwd="frontend" run typecheck
           # Copied from the coverage job `dharness sync` writes to .dharness/lefthook.yml,
@@ -133,6 +155,9 @@ pre-merge-commit:
             run: *app-icons
           - name: airis-assets
             run: *airis-assets
+          - name: skill-parity
+            env: *go-limits
+            run: *skill-parity
     - name: go-heavy
       group:
         piped: true
@@ -155,3 +180,6 @@ pre-merge-commit:
             run: *frontend-render-smoke
           - name: frontend-layout-smoke
             run: *frontend-layout-smoke
+          # Whole tree: every stale async-state baseline entry fails here, staged or not.
+          - name: frontend-async-state
+            run: bun --cwd="frontend" run check:async-state:all

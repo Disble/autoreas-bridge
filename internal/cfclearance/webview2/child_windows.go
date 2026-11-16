@@ -23,6 +23,12 @@ func runChild(ctx context.Context, exe string, args []string, stdout io.Writer) 
 		return err
 	}
 	defer job.close()
+	return runChildInJob(ctx, job, exe, args, stdout)
+}
+
+// runChildInJob runs the solver child to completion inside job, with its stdout copied to
+// stdout. Context expiry closes job, killing the child and every browser process it spawned.
+func runChildInJob(ctx context.Context, job *jobHandle, exe string, args []string, stdout io.Writer) error {
 	cmd := childproc.Background(ctx, exe, args...)
 	cmd.Stdout = stdout
 	cmd.WaitDelay = waitDelay

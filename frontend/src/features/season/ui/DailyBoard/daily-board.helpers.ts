@@ -1,4 +1,4 @@
-import type { SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow } from '../../../../shared/contracts/season.types';
 import { WEEKDAY_SECTIONS } from './daily-board.constants';
 import type { BoardSections, DailyBoardMode, DailyBoardRowChip } from './daily-board.types';
 

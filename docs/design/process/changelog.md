@@ -5,6 +5,12 @@ whose `.claude` (`1.1.2`) and `.agents` (`1.3.0`) copies had drifted; both histo
 Entries name the views that prompted them as a historical record; the rules themselves live in the
 files of `docs/design/`. Superseded entries are kept and marked.
 
+- `2.9.0` — Loading, empty and failure come from one helper (ADR-032). A screen that reads backend
+  data gets its state from `toAsyncView` (`frontend/src/shared/query/async-view/async-view.helpers.ts`),
+  called in the hook: pending is the skeleton, a failure is the surface `Alert` and is never shown as
+  the empty state, and only a resolved empty result shows `AirisEmptyState`. The `autoreas-theme`
+  skill points to it and to the `bridge-data` skill; the visual rules in
+  `patterns/loading-empty-error.md` are unchanged.
 - `2.8.0` — Action results are toasts. The user asked that messages reacting to events (submit
   status, errors) show mainly as a toast, as Seasons does. The result of a user action (saved,
   no-op, conflict, error, timeout) is a `toast` called from the hook callback; `Alert` is reserved

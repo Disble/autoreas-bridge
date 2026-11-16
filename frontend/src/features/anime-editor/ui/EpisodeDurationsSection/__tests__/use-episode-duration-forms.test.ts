@@ -1,13 +1,13 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { EpisodeDurationSection } from '../../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
+import type { EpisodeDurationSection } from '../../../../../shared/contracts/episode-durations.types';
 import type { EpisodeDurationEdit } from '../../../../../shared/contracts/anime.types';
 import { toEpisodeDurationRowViews } from '../episode-durations-section.helpers';
 import { useEpisodeDurationForms } from '../use-episode-duration-forms';
 
 /** Episodes 4 (23 min, measured) and 5 (24 min, measured) of a found TV folder. */
 const SECTION: EpisodeDurationSection = {
-  outcome: 'ok', folderStatus: 'found', beyondTotal: [], tv: true,
+  folderStatus: 'found', beyondTotal: [], tv: true,
   rows: [
     { episode: 4, durationMs: 23 * 60_000, minutes: 23, long: false, source: 'measured' },
     { episode: 5, durationMs: 24 * 60_000, minutes: 24, long: false, source: 'measured' },

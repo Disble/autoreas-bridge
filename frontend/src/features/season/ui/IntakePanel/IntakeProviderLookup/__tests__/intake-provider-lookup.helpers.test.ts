@@ -1,13 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { SEASON_RUNTIME_UNAVAILABLE } from '../../../../../../infrastructure/season-source/season-source.constants';
-import type { SeasonProviderPage } from '../../../../../../infrastructure/season-source/season-source.types';
+import type { SeasonProviderPage } from '../../../../../../shared/contracts/season.types';
+import { createBridgeError } from '../../../../../../shared/query/bridge-error/bridge-error.helpers';
 import {
   canFindOnProvider,
-  requestProviderSearch,
+  fetchProviderSearch,
+  nextProviderSearch,
   toProviderLookupSnapshot,
   toProviderPageViews,
 } from '../intake-provider-lookup.helpers';
+import type { ProviderSearchRead } from '../intake-provider-lookup.types';
 
 /**
  * Builds one provider page, so a case states only the fields it is about.
@@ -16,6 +18,15 @@ import {
  */
 function page(overrides: Partial<SeasonProviderPage> = {}): SeasonProviderPage {
   return { title: 'Ao Ashi', pageUrl: 'https://jkanime.net/ao-ashi/', provider: 'jkanime', ...overrides };
+}
+
+/**
+ * Builds the search read a case is about, settled with one page unless overridden.
+ * @param overrides Per-case read replacements.
+ * @returns A provider search read.
+ */
+function read(overrides: Partial<ProviderSearchRead> = {}): ProviderSearchRead {
+  return { status: 'success', data: { status: 'ok', pages: [page()] }, error: null, isFetching: false, isPlaceholderData: false, ...overrides };
 }
 
 describe('intake provider lookup helpers', () => {
@@ -55,21 +66,33 @@ describe('intake provider lookup helpers', () => {
   });
 
   it.each([
-    { result: { status: 'ok', pages: [page()] }, snapshot: { state: 'resolved', pages: [page()], errorMessage: '' } },
-    { result: { status: 'ok', pages: [] }, snapshot: { state: 'resolved', pages: [], errorMessage: '' } },
-    { result: { status: 'jkanime timed out', pages: [] }, snapshot: { state: 'failed', pages: [], errorMessage: 'jkanime timed out' } },
-  ])('maps the "$result.status" search status onto the $snapshot.state lookup state', ({ result, snapshot }) => {
-    expect(toProviderLookupSnapshot(result)).toStrictEqual(snapshot);
+    { name: 'a settled search', query: 'ao ashi', search: read(), snapshot: { state: 'resolved', pages: [page()], errorMessage: '' } },
+    { name: 'a search that found nothing', query: 'ao ashi', search: read({ data: { status: 'ok', pages: [] } }), snapshot: { state: 'resolved', pages: [], errorMessage: '' } },
+    { name: 'a search in flight', query: 'ao ashi', search: read({ status: 'pending', data: undefined, isFetching: true }), snapshot: { state: 'loading', pages: [], errorMessage: '' } },
+    { name: 'a newer search over the previous pages', query: 'ao ashi', search: read({ isFetching: true, isPlaceholderData: true }), snapshot: { state: 'loading', pages: [], errorMessage: '' } },
+    {
+      name: 'a rejected search',
+      query: 'ao ashi',
+      search: read({ status: 'error', data: undefined, error: createBridgeError('failed_precondition', 'season failed to start') }),
+      snapshot: { state: 'failed', pages: [], errorMessage: 'season failed to start' },
+    },
+    { name: 'a query below the length floor', query: 'ao', search: read(), snapshot: { state: 'idle', pages: [], errorMessage: '' } },
+  ])('maps $name onto the $snapshot.state lookup state', ({ query, search, snapshot }) => {
+    expect(toProviderLookupSnapshot(query, search)).toStrictEqual(snapshot);
+  });
+
+  it('turns each settled debounce into a new search of the normalized query', () => {
+    expect(nextProviderSearch({ query: 'ao ashi', seq: 4 }, '  Ao   Ashi ')).toStrictEqual({ query: 'ao ashi', seq: 5 });
   });
 
   it('asks the port for the query when it can search', async () => {
-    const searchProviders = vi.fn().mockResolvedValue({ status: 'ok', pages: [page()] });
+    const fetch = vi.fn().mockResolvedValue({ status: 'ok', pages: [page()] });
 
-    await expect(requestProviderSearch({ searchProviders }, 'ao ashi')).resolves.toStrictEqual({ status: 'ok', pages: [page()] });
-    expect(searchProviders).toHaveBeenCalledExactlyOnceWith('ao ashi');
+    await expect(fetchProviderSearch({ fetchProviderSearch: fetch }, 'ao ashi')).resolves.toStrictEqual({ status: 'ok', pages: [page()] });
+    expect(fetch).toHaveBeenCalledExactlyOnceWith('ao ashi');
   });
 
-  it('reads a port without a provider search as unavailable, never as no pages', async () => {
-    await expect(requestProviderSearch({}, 'ao ashi')).resolves.toStrictEqual({ status: SEASON_RUNTIME_UNAVAILABLE, pages: [] });
+  it('rejects for a port without a provider search, never resolving as no pages', async () => {
+    await expect(fetchProviderSearch({}, 'ao ashi')).rejects.toThrow('the season source cannot search the providers');
   });
 });

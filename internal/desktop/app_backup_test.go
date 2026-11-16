@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -14,6 +13,8 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api"
+	"autoreas-bridge/internal/apperr"
+	"autoreas-bridge/internal/lifecycle"
 	"autoreas-bridge/internal/settings"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
@@ -30,7 +31,7 @@ func appBackupTestDB(t *testing.T) *App {
 	app.saveFile = func(context.Context, string, string) (string, error) {
 		return filepath.Join(t.TempDir(), "backup.zip"), nil
 	}
-	return app
+	return inBackupState(app, lifecycle.StateReady)
 }
 
 func TestExportBackupRejectsEmptyDialogResult(t *testing.T) {
@@ -255,11 +256,8 @@ func TestExportBackupPropagatesExportError(t *testing.T) {
 	}
 
 	_, err := app.ExportBackup()
-	if err == nil {
-		t.Fatal("expected an error when the underlying export fails against a closed database")
-	}
-	if errors.Is(err, errExportBackupUnavailable) {
-		t.Fatalf("expected the closed-DB export error, not the nil-DB guard error: %v", err)
+	if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal {
+		t.Fatalf("err = %v (code %q), want the closed-DB export error as internal", err, code)
 	}
 }
 
@@ -274,15 +272,5 @@ func TestNoRESTRouteOrWSEventExposesExport(t *testing.T) {
 		if strings.Contains(name, "backup") || strings.Contains(name, "export") {
 			t.Fatalf("api.Config field %q exposes backup/export over the wire; backup is desktop-only", field.Name)
 		}
-	}
-}
-
-func TestExportBackupUnavailableWithoutBridgeDB(t *testing.T) {
-	app := newAppTestApp(t)
-	app.bridgeDB = nil
-
-	_, err := app.ExportBackup()
-	if !errors.Is(err, errExportBackupUnavailable) {
-		t.Fatalf("expected errExportBackupUnavailable, got %v", err)
 	}
 }

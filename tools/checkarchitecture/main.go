@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -52,7 +53,7 @@ var providerEgressRules = []ownedTableRule{
 }
 
 func main() {
-	if err := run("."); err != nil {
+	if err := runReport(".", osArchitectureFS{}, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -65,7 +66,14 @@ func run(root string) error {
 
 // runWithArchitectureFS runs the architecture checks against a filesystem port.
 func runWithArchitectureFS(root string, source architectureFS) error {
+	return runReport(root, source, io.Discard)
+}
+
+// runReport runs the architecture checks against a filesystem port and prints
+// the binding baseline count to out.
+func runReport(root string, source architectureFS, out io.Writer) error {
 	var violations []string
+	var bindings []bindingViolation
 	err := walkArchitectureFiles(root, source, func(path string, content []byte) error {
 		normalized, err := relativePath(root, path)
 		if err != nil {
@@ -76,11 +84,19 @@ func runWithArchitectureFS(root string, source architectureFS) error {
 		violations = append(violations, transactionViolations(normalized, string(content))...)
 		violations = append(violations, nameKeyWriterViolations(normalized, string(content))...)
 		violations = append(violations, childProcessViolations(normalized, string(content))...)
+		found, unparsable := bindingViolations(normalized, string(content))
+		bindings = append(bindings, found...)
+		violations = append(violations, unparsable...)
 		return nil
 	})
 	if err != nil {
 		return err
 	}
+	bindingMessages, err := checkBindingBaseline(root, source, bindings, out)
+	if err != nil {
+		return err
+	}
+	violations = append(violations, bindingMessages...)
 	if len(violations) > 0 {
 		sort.Strings(violations)
 		return fmt.Errorf("architecture violations:\n- %s", strings.Join(violations, "\n- "))

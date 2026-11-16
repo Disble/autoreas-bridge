@@ -98,3 +98,22 @@ linters:
               desc: "the composition root wires internal/cfclearance, never the other way around (ADR-030)"
             - pkg: "github.com/wailsapp/wails/v2"
               desc: "internal/cfclearance imports only the standard library, x/net/publicsuffix, internal/events and the WebView2 engine; the Wails runtime stays at the edge (ADR-030)"
+
+        # Module readiness has one writer, the composition root (ADR-032 §1, §3):
+        # internal/lifecycle is written by internal/desktop and read by the module
+        # handles, and the handles in internal/modules are built and used only by
+        # internal/desktop. A domain that imported either could mark itself ready
+        # or reach another module's services around its readiness.
+        readiness-owned-by-composition-root:
+          files:
+            - "**/internal/**"
+            - "!**/internal/desktop/**"
+            - "!**/internal/modules/**"
+            - "!**/internal/lifecycle/**"
+            # apperr tests prove CodeOf honours readiness codes from the real handles only.
+            - "!**/internal/apperr/*_test.go"
+          deny:
+            - pkg: "autoreas-bridge/internal/lifecycle"
+              desc: "only the composition root (internal/desktop) and the module handles read or write module readiness; domains never import it (ADR-032 §1, skill bridge-data)"
+            - pkg: "autoreas-bridge/internal/modules"
+              desc: "module handles are built and used only by internal/desktop; a domain receives its services, never a handle (ADR-032 §3, skill bridge-data)"

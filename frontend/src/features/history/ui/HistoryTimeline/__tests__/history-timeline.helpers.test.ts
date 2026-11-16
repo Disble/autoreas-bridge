@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import type { Anime } from '../../../../../shared/contracts/anime.types';
+import type { Anime, WatchHistoryEntry, WatchHistoryPage } from '../../../../../shared/contracts/anime.types';
 import type { HistoryAnimeScope } from '../../HistoryFilterBar/history-filter-bar.types';
-import type { HistoryTimelineGroup } from '../history-timeline.types';
+import type { HistoryFirstPage, HistoryOlderPages, HistoryTimelineGroup } from '../history-timeline.types';
 import {
+  buildHistoryPageRequest,
   findHistoryTimelineEntry,
   getHistoryStatusColor,
   resolveEventRowKey,
   resolveHistoryAnimeScope,
   resolveHistorySelectedKey,
+  toHistoryCatalogLoad,
+  toHistoryFirstPageRequest,
   toHistoryTimelineGroups,
+  toHistoryTimelinePages,
 } from '../history-timeline.helpers';
 
 /** Builds a minimal catalog `Anime` fixture, overriding only what a case needs. */
@@ -121,5 +125,91 @@ describe('history row status presentation', () => {
       expect.objectContaining({ statusLabel: 'Finalizado', statusColor: 'success' }),
       expect.not.objectContaining({ statusLabel: expect.anything(), statusColor: expect.anything() }),
     ]);
+  });
+});
+
+describe('buildHistoryPageRequest and toHistoryFirstPageRequest', () => {
+  /** The unfiltered, newest-first filters. */
+  const unfiltered = { search: 'fri', order: 'oldest' as const };
+
+  it('narrows an ids scope, sends no ids for all, and turns a range into half-open local-day millis', () => {
+    expect(buildHistoryPageRequest({ ...unfiltered, range: { from: '2026-09-01', to: '2026-09-02' } }, { kind: 'ids', ids: ['a'] }, 'c:1')).toEqual({
+      search: 'fri',
+      animeIds: ['a'],
+      watchedFromMs: new Date(2026, 8, 1).getTime(),
+      watchedToMs: new Date(2026, 8, 3).getTime(),
+      order: 'oldest',
+      cursor: 'c:1',
+      limit: 0,
+    });
+    expect(buildHistoryPageRequest(unfiltered, { kind: 'all' }, '')).toMatchObject({ animeIds: [], watchedFromMs: 0, watchedToMs: 0 });
+  });
+
+  it.each<[string, HistoryAnimeScope | undefined, boolean]>([
+    ['an unresolved scope', undefined, false],
+    ['a scope matching nothing', { kind: 'none' }, false],
+    ['the all scope', { kind: 'all' }, true],
+  ])('reads a first page for %s only when one is read', (_label, scope, isRead) => {
+    expect(toHistoryFirstPageRequest(unfiltered, scope)).toEqual(isRead ? buildHistoryPageRequest(unfiltered, { kind: 'all' }, '') : undefined);
+  });
+});
+
+describe('toHistoryTimelinePages', () => {
+  /** One row of the first page. */
+  const first = { id: 1 } as WatchHistoryEntry;
+  /** One row of an older page. */
+  const second = { id: 2 } as WatchHistoryEntry;
+  /** The loaded first page, with a next cursor. */
+  const loaded: HistoryFirstPage = {
+    status: 'success',
+    data: { items: [first], nextCursor: 'c:1', status: 'ok' } as WatchHistoryPage,
+    error: null,
+    isFetching: false,
+    isPlaceholderData: false,
+    dataUpdatedAt: 10,
+  };
+  /** Older pages loaded below that same first page. */
+  const older: HistoryOlderPages = { requestKey: 'k', firstPageAt: 10, entries: [first, second], nextCursor: undefined };
+  /** The input of a resolved, all-scope timeline. */
+  const input = { catalogError: undefined, scope: { kind: 'all' } as const, firstPage: loaded, older: undefined, requestKey: 'k' };
+
+  it.each([
+    ['a catalog failure', { catalogError: new Error('catalog down') }, { isLoading: false, error: new Error('catalog down') }],
+    ['a scope matching nothing', { scope: { kind: 'none' } as const }, { isLoading: false, error: undefined }],
+    ['an unresolved scope', { scope: undefined }, { isLoading: true, error: undefined }],
+    ['a pending first page', { firstPage: { ...loaded, status: 'pending' as const, data: undefined } }, { isLoading: true, error: undefined }],
+    ['a previous request page', { firstPage: { ...loaded, isPlaceholderData: true } }, { isLoading: true, error: undefined }],
+    ['a failed first page', { firstPage: { ...loaded, status: 'error' as const, error: new Error('boom') } }, { isLoading: false, error: new Error('boom') }],
+  ])('shows no rows and no next page for %s', (_label, overrides, expected) => {
+    expect(toHistoryTimelinePages({ ...input, ...overrides })).toEqual({ entries: [], cursor: undefined, ...expected });
+  });
+
+  it('shows the first page and its cursor when no older page continues it', () => {
+    expect(toHistoryTimelinePages(input)).toEqual({ entries: [first], isLoading: false, error: undefined, cursor: 'c:1' });
+  });
+
+  it('shows the older pages and their cursor when they continue this request and first-page load', () => {
+    expect(toHistoryTimelinePages({ ...input, older })).toEqual({ entries: [first, second], isLoading: false, error: undefined, cursor: undefined });
+  });
+
+  it.each([
+    ['another request', { ...older, requestKey: 'other' }],
+    ['an earlier first-page load', { ...older, firstPageAt: 9 }],
+  ])('drops older pages loaded for %s', (_label, stale) => {
+    expect(toHistoryTimelinePages({ ...input, older: stale })).toMatchObject({ entries: [first], cursor: 'c:1' });
+  });
+});
+
+describe('toHistoryCatalogLoad', () => {
+  /** A loaded catalog. */
+  const catalog = [anime()];
+
+  it.each([
+    ['a loaded catalog', { status: 'success' as const, data: catalog }, { catalog, error: undefined }],
+    ['a loaded empty catalog', { status: 'success' as const, data: [] }, { catalog: [], error: undefined }],
+    ['a pending read', { status: 'pending' as const, data: undefined }, { catalog: undefined, error: undefined }],
+    ['a failed read', { status: 'error' as const, data: undefined, error: new Error('anime: db closed') }, { catalog: undefined, error: new Error('anime: db closed') }],
+  ])('reads %s', (_label, query, expected) => {
+    expect(toHistoryCatalogLoad({ error: null, isFetching: false, ...query })).toEqual(expected);
   });
 });

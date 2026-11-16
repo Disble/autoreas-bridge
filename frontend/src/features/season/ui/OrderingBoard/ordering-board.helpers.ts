@@ -1,6 +1,7 @@
 import type { DragOverEvent } from '@dnd-kit/react';
-import type { OrderingBoard, OrderingCard, SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
+import type { OrderingBoard, OrderingCard, SeasonAnimeRow, SeasonOrderingSnapshot, SeasonSource } from '../../../../shared/contracts/season.types';
 import type { AnimeEditorScheduleBoard } from '../../../../shared/contracts/anime.types';
+import type { AsyncView } from '../../../../shared/query/async-view/async-view.types';
 import {
   applyOrdering,
   duplicateOrderingCard,
@@ -11,8 +12,8 @@ import {
 import {
   createAnimeScheduleOrderingState,
 } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.helpers';
-import { ORDERING_LAST_CARD_TOOLTIP, RAIL_CONTAINER_ID, WEEKDAYS } from './ordering-board.constants';
-import type { DraftPlacement, OrderingCardMeta, OrderingInstance, WorkingState } from './ordering-board.types';
+import { ORDERING_HISTORY_LOAD_ERROR, ORDERING_LAST_CARD_TOOLTIP, RAIL_CONTAINER_ID, WEEKDAYS } from './ordering-board.constants';
+import type { DraftPlacement, OrderingBoardHistory, OrderingCardMeta, OrderingInstance, WorkingState } from './ordering-board.types';
 import { buildAnimeScheduleDraftPlacements, validateAnimeScheduleDraft } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-payload.helpers';
 
 /**
@@ -104,7 +105,7 @@ function parseOrderingDraft(raw: string | undefined): Record<string, readonly Dr
  * @param board The applied board plus its saved draft.
  * @returns The board to edit.
  */
-export function applyOrderingDraft(board: OrderingBoard): OrderingBoard {
+function applyOrderingDraft(board: OrderingBoard): OrderingBoard {
   if (typeof board.appliedAt === 'number') return board;
   const draft = parseOrderingDraft(board.draft);
   const cards: OrderingCard[] = [];
@@ -134,6 +135,98 @@ function draftedCards(card: OrderingCard, placements: readonly DraftPlacement[])
   return placements.map(({ dia, orden }) => ((WEEKDAYS as readonly string[]).includes(dia)
     ? { ...card, dia, orden }
     : { ...card, dia: '', orden, section: dia }));
+}
+
+/**
+ * Reads the live ordering board through the source's query read. A source that
+ * cannot read it rejects, so the board reports a failure, never an empty schedule.
+ * @param source The season port slice the live board is read through.
+ * @returns The live board with its saved draft.
+ */
+export function fetchLiveOrderingBoard(source: Pick<SeasonSource, 'fetchOrderingBoard'>): Promise<OrderingBoard> {
+  return source.fetchOrderingBoard?.() ?? Promise.reject(new Error('the season source cannot read the ordering board'));
+}
+
+/**
+ * The board a closure snapshot stored, shown read-only for its past season.
+ * @param snapshot The past season's closure snapshot.
+ * @returns The stored board.
+ */
+export function toStoredOrderingBoard(snapshot: SeasonOrderingSnapshot): OrderingBoard {
+  return { rail: snapshot.rail, grid: snapshot.grid, appliedAt: snapshot.appliedAt };
+}
+
+/**
+ * Where the stored-board read of the viewed past season stands. The live board
+ * is recorded and never loading. A source that cannot read the snapshot, or a
+ * failed read, is a failure and never a season that recorded nothing; a read in
+ * flight is loading.
+ * @param viewSeasonId The past season being viewed, or null for the live board.
+ * @param canRead Whether the source can read the closure snapshot at all.
+ * @param snapshot The viewed season's snapshot read.
+ * @returns The loading flag, the recorded flag and the failure message.
+ */
+export function toOrderingBoardHistory(
+  viewSeasonId: string | null,
+  canRead: boolean,
+  snapshot: AsyncView<SeasonOrderingSnapshot>,
+): OrderingBoardHistory {
+  if (viewSeasonId === null) {
+    return { isHistoricalLoading: false, historicalRecorded: true, historicalError: undefined };
+  }
+  if (!canRead) {
+    return { isHistoricalLoading: false, historicalRecorded: false, historicalError: ORDERING_HISTORY_LOAD_ERROR };
+  }
+  if (snapshot.kind === 'failure') {
+    return { isHistoricalLoading: false, historicalRecorded: false, historicalError: snapshot.message };
+  }
+  if (snapshot.kind === 'ready') {
+    return { isHistoricalLoading: false, historicalRecorded: snapshot.data.recorded, historicalError: undefined };
+  }
+  return { isHistoricalLoading: true, historicalRecorded: false, historicalError: undefined };
+}
+
+/**
+ * The working state a loaded board starts from: the live board with its saved
+ * draft restored, or a past season's stored board as it was recorded.
+ * @param viewSeasonId The past season being viewed, or null for the live board.
+ * @param loaded The loaded board.
+ * @returns The editable working state.
+ */
+export function toLoadedWorkingState(viewSeasonId: string | null, loaded: OrderingBoard): WorkingState {
+  return initialWorkingState(viewSeasonId === null ? applyOrderingDraft(loaded) : loaded);
+}
+
+/**
+ * The failure message of the live board read, reported only while the live
+ * board is the one shown.
+ * @param viewSeasonId The past season being viewed, or null for the live board.
+ * @param live The live board read.
+ * @returns The failure message, or undefined.
+ */
+export function toLiveOrderingError(viewSeasonId: string | null, live: AsyncView<OrderingBoard>): string | undefined {
+  return viewSeasonId === null && live.kind === 'failure' ? live.message : undefined;
+}
+
+/**
+ * Whether the board is locked: an applied schedule, or a past season viewed from history.
+ * @param board The loaded board.
+ * @param isPastSeason Whether a past season is being viewed.
+ * @returns True when cards cannot be edited.
+ */
+export function isOrderingBoardReadOnly(board: OrderingBoard, isPastSeason: boolean): boolean {
+  return typeof board.appliedAt === 'number' || isPastSeason;
+}
+
+/**
+ * The board's error message: the season store's last failure, else the live
+ * board read failure, so a failed read keeps the rail's empty state off the screen.
+ * @param storeError The season store's last failure message.
+ * @param liveError The live board read failure message.
+ * @returns The message to show, or undefined.
+ */
+export function toOrderingBoardErrorMessage(storeError: string | undefined, liveError: string | undefined): string | undefined {
+  return storeError ?? liveError;
 }
 
 /** Builds the Season adapter state through the reusable schedule-specific core. */

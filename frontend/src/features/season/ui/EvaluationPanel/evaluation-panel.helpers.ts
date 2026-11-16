@@ -1,4 +1,4 @@
-import type { SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow } from '../../../../shared/contracts/season.types';
 import { EVALUATION_NOT_RATED_META } from './evaluation-panel.constants';
 import type { EvaluationListItem, EvaluationRow, EvaluationView, GradeChip } from './evaluation-panel.types';
 

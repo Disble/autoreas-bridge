@@ -19,9 +19,16 @@ const { mockSource } = vi.hoisted(() => ({
 vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
   bridgeRuntimeSource: mockSource,
 }));
+vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  /** The workspace's default anime-module Editor port: the same fake. */
+  get BRIDGE_ANIME_EDITOR_SOURCE() {
+    return mockSource;
+  },
+}));
 
 import { AnimeEditorWorkspace } from '../AnimeEditorWorkspace';
-import { createEmptyEpisodeDurationSource } from './episode-duration-source.test-support';
+import { createEmptyEpisodeDurationSource, createEpisodesReadyWrapper } from './episode-duration-source.test-support';
 
 /** The Episodes section's in-memory source, so no render waits on a Wails binding. */
 const episodeSource = createEmptyEpisodeDurationSource();
@@ -49,6 +56,7 @@ function renderWorkspace() {
         <Route element={<h2>Create workspace</h2>} path="/editor/create" />
       </Routes>
     </MemoryRouter>,
+  { wrapper: createEpisodesReadyWrapper() },
   );
 }
 

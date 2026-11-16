@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"strings"
 	"testing"
 
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/apperr"
 	"autoreas-bridge/internal/myanimelist"
 )
 
@@ -38,9 +38,9 @@ func (f *fakeMyAnimeListClient) Detail(_ context.Context, malID int) (myanimelis
 
 func TestSearchMyAnimeListReturnsErrorWhenClientUnavailable(t *testing.T) {
 	app := &App{}
-	got := app.SearchMyAnimeList("bleach")
-	if got.Outcome != contracts.AnimePatchOutcomeError || len(got.Candidates) != 0 {
-		t.Fatalf("expected explicit error when myanimelist client is unavailable, got %#v", got)
+	got, err := app.SearchMyAnimeList("bleach")
+	if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal || err.Error() != "myanimelist client unavailable" || len(got.Candidates) != 0 {
+		t.Fatalf("expected an internal failure when myanimelist client is unavailable, got %#v, %v", got, err)
 	}
 }
 
@@ -54,7 +54,7 @@ func TestSearchMyAnimeListMapsClientOutcomeToPatchOutcome(t *testing.T) {
 		client         *fakeMyAnimeListClient
 		wantOutcome    contracts.AnimePatchOutcome
 		wantCandidates int
-		wantMessageHas string
+		wantErr        string
 	}{
 		{
 			name: "candidates present maps to applied",
@@ -70,22 +70,22 @@ func TestSearchMyAnimeListMapsClientOutcomeToPatchOutcome(t *testing.T) {
 			wantOutcome: contracts.AnimePatchOutcomeNoOp,
 		},
 		{
-			name:           "drift error maps to error naming the anchor",
-			client:         &fakeMyAnimeListClient{searchErr: &myanimelist.DriftError{Anchor: "Type:", URL: "https://myanimelist.net/anime/1"}},
-			wantOutcome:    contracts.AnimePatchOutcomeError,
-			wantMessageHas: "Type:",
+			name:    "drift error maps to error naming the anchor",
+			client:  &fakeMyAnimeListClient{searchErr: &myanimelist.DriftError{Anchor: "Type:", URL: "https://myanimelist.net/anime/1"}},
+			wantErr: `MyAnimeList changed its page at "Type:"; metadata autofill cannot continue`,
 		},
 		{
-			name:        "transport failure maps to error",
-			client:      &fakeMyAnimeListClient{searchErr: myanimelist.ErrUnexpectedStatus},
-			wantOutcome: contracts.AnimePatchOutcomeError,
+			name:    "transport failure maps to error",
+			client:  &fakeMyAnimeListClient{searchErr: myanimelist.ErrUnexpectedStatus},
+			wantErr: "myanimelist request failed: " + myanimelist.ErrUnexpectedStatus.Error(),
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			app := &App{ctx: context.Background(), myanimelistClient: test.client}
 
-			got := app.SearchMyAnimeList("bleach")
+			got, err := app.SearchMyAnimeList("bleach")
+			assertMyAnimeListFailure(t, err, test.wantErr)
 			if got.Outcome != test.wantOutcome {
 				t.Fatalf("outcome: got %q want %q (result %#v)", got.Outcome, test.wantOutcome, got)
 			}
@@ -94,9 +94,6 @@ func TestSearchMyAnimeListMapsClientOutcomeToPatchOutcome(t *testing.T) {
 			}
 			if len(got.Candidates) != test.wantCandidates {
 				t.Fatalf("candidates: got %d want %d", len(got.Candidates), test.wantCandidates)
-			}
-			if test.wantMessageHas != "" && !strings.Contains(got.Message, test.wantMessageHas) {
-				t.Fatalf("message %q does not name the anchor %q", got.Message, test.wantMessageHas)
 			}
 		})
 	}
@@ -111,8 +108,8 @@ func TestSearchMyAnimeListMapsCandidateFields(t *testing.T) {
 	}}}
 	app := &App{ctx: context.Background(), myanimelistClient: client}
 
-	got := app.SearchMyAnimeList("Bleach: Sennen Kessen-hen")
-	if len(got.Candidates) != 1 {
+	got, err := app.SearchMyAnimeList("Bleach: Sennen Kessen-hen")
+	if err != nil || len(got.Candidates) != 1 {
 		t.Fatalf("expected one candidate, got %#v", got.Candidates)
 	}
 	want := contracts.CandidateDTO{MalID: 41467, Name: "Bleach: Sennen Kessen-hen", Image: "https://cdn.myanimelist.net/images/anime/41467.jpg", MediaType: "TV", StartYear: 2022, Score: "8.98"}
@@ -182,9 +179,9 @@ func TestMyanimelistUserAgentNamesTheRunningBridgeVersion(t *testing.T) {
 
 func TestGetMyAnimeListDetailReturnsErrorWhenClientUnavailable(t *testing.T) {
 	app := &App{}
-	got := app.GetMyAnimeListDetail(41467)
-	if got.Outcome != contracts.AnimePatchOutcomeError || got.Title != "" {
-		t.Fatalf("expected explicit error when myanimelist client is unavailable, got %#v", got)
+	got, err := app.GetMyAnimeListDetail(41467)
+	if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal || err.Error() != "myanimelist client unavailable" || got.Title != "" {
+		t.Fatalf("expected an internal failure when myanimelist client is unavailable, got %#v, %v", got, err)
 	}
 }
 
@@ -193,10 +190,10 @@ func TestGetMyAnimeListDetailReturnsErrorWhenClientUnavailable(t *testing.T) {
 // it either resolves to one page or fails.
 func TestGetMyAnimeListDetailMapsClientOutcomeToPatchOutcome(t *testing.T) {
 	tests := []struct {
-		name           string
-		client         *fakeMyAnimeListClient
-		wantOutcome    contracts.AnimePatchOutcome
-		wantMessageHas string
+		name        string
+		client      *fakeMyAnimeListClient
+		wantOutcome contracts.AnimePatchOutcome
+		wantErr     string
 	}{
 		{
 			name:        "detail present maps to applied",
@@ -204,30 +201,27 @@ func TestGetMyAnimeListDetailMapsClientOutcomeToPatchOutcome(t *testing.T) {
 			wantOutcome: contracts.AnimePatchOutcomeApplied,
 		},
 		{
-			name:           "drift error maps to error naming the anchor",
-			client:         &fakeMyAnimeListClient{detailErr: &myanimelist.DriftError{Anchor: "Duration:", URL: "https://myanimelist.net/anime/41467"}},
-			wantOutcome:    contracts.AnimePatchOutcomeError,
-			wantMessageHas: "Duration:",
+			name:    "drift error maps to error naming the anchor",
+			client:  &fakeMyAnimeListClient{detailErr: &myanimelist.DriftError{Anchor: "Duration:", URL: "https://myanimelist.net/anime/41467"}},
+			wantErr: `MyAnimeList changed its page at "Duration:"; metadata autofill cannot continue`,
 		},
 		{
-			name:        "transport failure maps to error",
-			client:      &fakeMyAnimeListClient{detailErr: myanimelist.ErrNotFound},
-			wantOutcome: contracts.AnimePatchOutcomeError,
+			name:    "transport failure maps to error",
+			client:  &fakeMyAnimeListClient{detailErr: myanimelist.ErrNotFound},
+			wantErr: "myanimelist request failed: " + myanimelist.ErrNotFound.Error(),
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			app := &App{ctx: context.Background(), myanimelistClient: test.client}
 
-			got := app.GetMyAnimeListDetail(41467)
+			got, err := app.GetMyAnimeListDetail(41467)
+			assertMyAnimeListFailure(t, err, test.wantErr)
 			if got.Outcome != test.wantOutcome {
 				t.Fatalf("outcome: got %q want %q (result %#v)", got.Outcome, test.wantOutcome, got)
 			}
 			if got.Outcome == contracts.AnimePatchOutcomeConflict {
 				t.Fatalf("conflict outcome must never be produced, got %#v", got)
-			}
-			if test.wantMessageHas != "" && !strings.Contains(got.Message, test.wantMessageHas) {
-				t.Fatalf("message %q does not name the anchor %q", got.Message, test.wantMessageHas)
 			}
 		})
 	}
@@ -245,7 +239,10 @@ func TestGetMyAnimeListDetailMapsDetailFields(t *testing.T) {
 	}}
 	app := &App{ctx: context.Background(), myanimelistClient: client}
 
-	got := app.GetMyAnimeListDetail(41467)
+	got, err := app.GetMyAnimeListDetail(41467)
+	if err != nil {
+		t.Fatalf("GetMyAnimeListDetail = %v", err)
+	}
 	want := contracts.MyAnimeListDetailResult{
 		Outcome: contracts.AnimePatchOutcomeApplied, Message: got.Message,
 		Title: "Bleach: Sennen Kessen-hen", Type: "TV", Episodes: "13", Duration: "24",
@@ -257,5 +254,20 @@ func TestGetMyAnimeListDetailMapsDetailFields(t *testing.T) {
 	}
 	if client.lastMalID != 41467 {
 		t.Fatalf("expected malID to reach the client, got %d", client.lastMalID)
+	}
+}
+
+// assertMyAnimeListFailure checks that a lookup failed as internal with exactly want, the message
+// the lookup shows, or succeeded when want is empty: a failure is never an outcome.
+func assertMyAnimeListFailure(t *testing.T, err error, want string) {
+	t.Helper()
+	if want == "" {
+		if err != nil {
+			t.Fatalf("lookup = %v, want success", err)
+		}
+		return
+	}
+	if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal || err.Error() != want {
+		t.Fatalf("lookup = %v (code %q), want internal %q", err, code, want)
 	}
 }

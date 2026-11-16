@@ -1,18 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import type {
-  OrderingCard,
-  SeasonAnimeRow,
-  SeasonOrderingSnapshot,
-  SeasonSource,
-} from '../../../../../infrastructure/season-source/season-source.types';
+import type { OrderingCard, SeasonAnimeRow, SeasonOrderingSnapshot } from '../../../../../shared/contracts/season.types';
+import type { AsyncView } from '../../../../../shared/query/async-view/async-view.types';
 import { OVERVIEW_LINEUP_LOAD_ERROR } from '../overview-panel.constants';
-import {
-  buildOverviewLineupView,
-  listLineupAnimeIds,
-  readOverviewLineup,
-  resolveOverviewLineup,
-} from '../overview-lineup.helpers';
+import { buildOverviewLineupView, listLineupAnimeIds, toOverviewLineupState } from '../overview-lineup.helpers';
 import type { OverviewLineupState } from '../overview-panel.types';
 
 /** Builds a stored ordering card on a weekday (or the rail) at a position. */
@@ -25,55 +16,43 @@ function row(animeId: string, grade: number): SeasonAnimeRow {
   return { animeId, grade } as SeasonAnimeRow;
 }
 
-/** Builds a season port whose snapshot read is the given implementation, or absent. */
-function sourceWith(read?: SeasonSource['getSeasonOrderingSnapshot']): SeasonSource {
-  return { getSeasonOrderingSnapshot: read } as SeasonSource;
-}
-
 /** A recorded lineup state holding the given grid and rail. */
 function recorded(grid: readonly OrderingCard[], rail: readonly OrderingCard[] = []): OverviewLineupState {
   return { status: 'recorded', grid, rail };
 }
 
-describe('readOverviewLineup', () => {
+/** A settled snapshot read answering the given snapshot. */
+function settled(data: SeasonOrderingSnapshot): AsyncView<SeasonOrderingSnapshot> {
+  return { kind: 'ready', data, isRefreshing: false };
+}
+
+describe('toOverviewLineupState', () => {
   /** The stored weekday cards a recorded read returns. */
   const grid = [card('a', 'Lunes', 1)];
   /** The stored rail cards a recorded read returns. */
   const rail = [card('b', '', 0)];
 
-  it.each([
+  it.each<{ name: string; viewSeasonId: string | null; canRead: boolean; snapshot: AsyncView<SeasonOrderingSnapshot>; want: OverviewLineupState }>([
+    { name: 'no closed season viewed', viewSeasonId: null, canRead: false, snapshot: { kind: 'loading' }, want: { status: 'loading' } },
+    { name: 'a read in flight', viewSeasonId: 's1', canRead: true, snapshot: { kind: 'loading' }, want: { status: 'loading' } },
+    { name: 'a recorded board', viewSeasonId: 's1', canRead: true, snapshot: settled({ recorded: true, rail, grid }), want: { status: 'recorded', grid, rail } },
+    { name: 'a board recorded as absent', viewSeasonId: 's1', canRead: true, snapshot: settled({ recorded: false, rail, grid }), want: { status: 'unrecorded' } },
     {
-      name: 'a recorded board',
-      read: { recorded: true, rail, grid } satisfies SeasonOrderingSnapshot,
-      want: { status: 'recorded', grid, rail },
+      name: 'a source that cannot read the snapshot as a failure',
+      viewSeasonId: 's1',
+      canRead: false,
+      snapshot: { kind: 'loading' },
+      want: { status: 'failed', errorMessage: OVERVIEW_LINEUP_LOAD_ERROR },
     },
-    { name: 'a board recorded as absent', read: { recorded: false, rail: [], grid: [] }, want: { status: 'unrecorded' } },
-  ])('settles $name for the season it read', async ({ read, want }) => {
-    const getSeasonOrderingSnapshot = vi.fn().mockResolvedValue(read);
-
-    await expect(readOverviewLineup(sourceWith(getSeasonOrderingSnapshot), 's1')).resolves.toEqual({ seasonId: 's1', state: want });
-    expect(getSeasonOrderingSnapshot).toHaveBeenCalledWith('s1');
-  });
-
-  it.each([
-    { name: 'a source that cannot read the snapshot', source: sourceWith(), message: OVERVIEW_LINEUP_LOAD_ERROR },
-    { name: 'a read that throws an error', source: sourceWith(vi.fn().mockRejectedValue(new Error('boom'))), message: 'boom' },
-    { name: 'a read that throws a non-error', source: sourceWith(vi.fn().mockRejectedValue('boom')), message: OVERVIEW_LINEUP_LOAD_ERROR },
-  ])('reports $name as a failure, never as unrecorded', async ({ source, message }) => {
-    await expect(readOverviewLineup(source, 's1')).resolves.toEqual({ seasonId: 's1', state: { status: 'failed', errorMessage: message } });
-  });
-});
-
-describe('resolveOverviewLineup', () => {
-  /** A settled read for the season it belongs to. */
-  const settled: OverviewLineupState = { status: 'unrecorded' };
-
-  it.each([
-    { name: 'no read settled yet', viewSeasonId: 's1', loaded: null, want: { status: 'loading' } },
-    { name: 'a settled read for another season', viewSeasonId: 's2', loaded: { seasonId: 's1', state: settled }, want: { status: 'loading' } },
-    { name: 'the viewed season’s own settled read', viewSeasonId: 's1', loaded: { seasonId: 's1', state: settled }, want: settled },
-  ])('resolves $name', ({ viewSeasonId, loaded, want }) => {
-    expect(resolveOverviewLineup(viewSeasonId, loaded)).toEqual(want);
+    {
+      name: 'a failed read as a failure carrying its message',
+      viewSeasonId: 's1',
+      canRead: true,
+      snapshot: { kind: 'failure', code: 'internal', message: 'boom' },
+      want: { status: 'failed', errorMessage: 'boom' },
+    },
+  ])('resolves $name', ({ viewSeasonId, canRead, snapshot, want }) => {
+    expect(toOverviewLineupState(viewSeasonId, canRead, snapshot)).toEqual(want);
   });
 });
 

@@ -1,72 +1,80 @@
 import type { DragEndEvent } from '@dnd-kit/dom';
 import { move } from '@dnd-kit/helpers';
-import { useCallback, useEffect, useState } from 'react';
-import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
-import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
-import type { HosterPriorityItem } from '../../../../shared/contracts/download.types';
+import { useCallback, useState } from 'react';
+import type { DownloadsSource, HosterPriorityItem } from '../../../../shared/contracts/download.types';
+import { toErrorMessage } from '../../../../shared/helpers/error-message.helpers';
+import { toAsyncView } from '../../../../shared/query/async-view/async-view.helpers';
+import { BRIDGE_DOWNLOADS_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { DOWNLOADS_CONFIG_KEY } from '../../../../shared/query/query-keys/query-keys.constants';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
+import { useBridgeQuery } from '../../../../shared/query/use-bridge-query/use-bridge-query';
+import { HOSTER_PRIORITY_NO_ITEMS } from './hoster-priority-editor.constants';
 import {
   applyHosterPriorityOrder,
   toHosterPriorityEditorViewModel,
   toHosterPriorityRequestItems,
 } from './hoster-priority-editor.helpers';
-import type { HosterPriorityEditorState } from './hoster-priority-editor.types';
+import type { HosterPrioritySave } from './hoster-priority-editor.types';
 
 /**
  * useHosterPriorityEditor loads the persisted hoster priority order together with
  * the site scope it belongs to, and exposes an optimistic `reorder` mutation that
  * saves back to that same site — the backend owns the site name. The new order
- * is applied to local state immediately, persisted via `setHosterPriority`,
- * and rolled back (with an error surfaced) if persistence fails. `onDragEnd`
- * is the @dnd-kit/react boundary: dnd-kit's `move` helper owns the index math,
- * and the resulting key order is what gets persisted — once, on drop.
+ * is applied immediately, persisted via `setHosterPriority`, and rolled back
+ * (with an error surfaced) if persistence fails. `onDragEnd` is the
+ * @dnd-kit/react boundary: dnd-kit's `move` helper owns the index math, and the
+ * resulting key order is what gets persisted — once, on drop.
+ *
+ * @param source The downloads port the order is read and saved through.
+ * @returns The editor state and its reorder actions.
  */
-export function useHosterPriorityEditor(source: DownloadRuntimeSource = downloadRuntimeSource) {
-  // 1. Refs
-
+export function useHosterPriorityEditor(source: DownloadsSource = BRIDGE_DOWNLOADS_SOURCE) {
   // 2. State
-  const [state, setState] = useState<HosterPriorityEditorState>({
-    items: [],
-    site: '',
-    hasLoaded: false,
-    isSaving: false,
-    errorMessage: undefined,
-  });
-
-  // 3. Context/3rd Party Hooks
+  const [orderedItems, setOrderedItems] = useState<readonly HosterPriorityItem[] | undefined>(undefined);
+  const [saveErrorMessage, setSaveErrorMessage] = useState<string | undefined>(undefined);
 
   // 4. Queries/Mutations
+  const configQuery = useBridgeQuery({ queryKey: DOWNLOADS_CONFIG_KEY, queryFn: () => source.getDownloadConfig(), module: 'downloads' });
+  const { mutateAsync: saveOrder, isPending: isSaving } = useBridgeMutation({
+    mutationFn: ({ site, items }: HosterPrioritySave) =>
+      source.setHosterPriority(site, toHosterPriorityRequestItems(toHosterPriorityEditorViewModel(items, { isSaving: false }).items)),
+    // A stored order re-reads the config, so a later mount starts from what was saved.
+    onSuccess: () => {
+      void configQuery.refetch();
+    },
+  });
 
   // 5. Derived State (useMemo)
+  const configView = toAsyncView(configQuery, () => false);
+  const config = configView.kind === 'ready' ? configView.data : undefined;
+  const items = orderedItems ?? config?.hosterPriority ?? HOSTER_PRIORITY_NO_ITEMS;
+  const site = config?.hosterPrioritySite ?? '';
+  const loadErrorMessage = configView.kind === 'failure' ? toErrorMessage(configQuery.error, 'Failed to load hoster priority') : undefined;
+  const errorMessage = saveErrorMessage ?? loadErrorMessage;
 
   // 6. Callbacks (useCallback calling pure helpers)
   const reorder = useCallback(
     async (orderedKeys: readonly string[]) => {
       // Never guess a site: writing to the wrong scope persists an ordering the
       // download engine never reads, which looks exactly like a silent success.
-      if (state.site === '') {
-        setState((prev) => ({ ...prev, errorMessage: 'Hoster priority has no site to save to.' }));
+      if (site === '') {
+        setSaveErrorMessage('Hoster priority has no site to save to.');
         return;
       }
 
-      const previousItems = state.items;
-      const nextItems = applyHosterPriorityOrder(state.items, orderedKeys);
-
-      setState((prev) => ({ ...prev, items: nextItems, isSaving: true, errorMessage: undefined }));
+      const previousItems = items;
+      const nextItems = applyHosterPriorityOrder(items, orderedKeys);
+      setOrderedItems(nextItems);
+      setSaveErrorMessage(undefined);
 
       try {
-        const rows = toHosterPriorityEditorViewModel(nextItems, { isSaving: false }).items;
-        await source.setHosterPriority(state.site, toHosterPriorityRequestItems(rows));
-        setState((prev) => ({ ...prev, isSaving: false }));
+        await saveOrder({ site, items: nextItems });
       } catch (error) {
-        setState((prev) => ({
-          ...prev,
-          items: previousItems,
-          isSaving: false,
-          errorMessage: error instanceof Error ? error.message : 'Failed to save hoster priority',
-        }));
+        setOrderedItems(previousItems);
+        setSaveErrorMessage(toErrorMessage(error, 'Failed to save hoster priority'));
       }
     },
-    [state.items, state.site, source],
+    [items, saveOrder, site],
   );
 
   // Persist once on drop. A canceled drag, or one that lands the item back where
@@ -77,7 +85,7 @@ export function useHosterPriorityEditor(source: DownloadRuntimeSource = download
         return;
       }
 
-      const currentKeys = state.items.map((item) => item.hoster);
+      const currentKeys = items.map((item) => item.hoster);
       const nextKeys = move(currentKeys, event);
 
       if (nextKeys.length === currentKeys.length && nextKeys.every((key, index) => key === currentKeys[index])) {
@@ -86,52 +94,17 @@ export function useHosterPriorityEditor(source: DownloadRuntimeSource = download
 
       await reorder(nextKeys);
     },
-    [state.items, reorder],
+    [items, reorder],
   );
 
-  // 7. Effects
-  useEffect(() => {
-    let active = true;
-
-    source
-      .getDownloadConfig()
-      .then((config) => ({ items: config.hosterPriority, site: config.hosterPrioritySite, errorMessage: undefined }))
-      .catch((error: unknown) => ({
-        items: [] as readonly HosterPriorityItem[],
-        site: '',
-        errorMessage: error instanceof Error ? error.message : 'Failed to load hoster priority',
-      }))
-      .then((outcome) => {
-        if (!active) {
-          return;
-        }
-
-        setState((prev) => ({
-          ...prev,
-          items: outcome.items,
-          site: outcome.site,
-          hasLoaded: true,
-          errorMessage: outcome.errorMessage,
-        }));
-      })
-      .catch(() => undefined);
-
-    return () => {
-      active = false;
-    };
-  }, [source]);
-
-  const viewModel = toHosterPriorityEditorViewModel(state.items, {
-    isSaving: state.isSaving,
-    errorMessage: state.errorMessage,
-  });
-  const status = !state.hasLoaded && state.errorMessage === undefined ? 'loading' : viewModel.status;
+  const viewModel = toHosterPriorityEditorViewModel(items, { isSaving, errorMessage });
+  const status = configView.kind === 'loading' ? 'loading' : viewModel.status;
 
   return {
     status,
     items: viewModel.items,
-    isSaving: state.isSaving,
-    errorMessage: state.errorMessage,
+    isSaving,
+    errorMessage,
     reorder,
     onDragEnd,
   };

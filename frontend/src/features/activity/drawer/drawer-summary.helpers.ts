@@ -1,5 +1,5 @@
 import { describeActivityChange } from '../change-words/change-words.helpers';
-import type { ActivityFeedLine } from '../feed-source/feed.types';
+import type { ActivityFeedLine } from '../../../shared/contracts/activity-feed.types';
 import { toDrawerCauseGap } from './drawer-cause.helpers';
 import { DRAWER_ORIGIN_LABELS, DRAWER_TASK_DOMAINS, DRAWER_WINDOW_ERROR_EVENT_TYPE } from './drawer.constants';
 import type { DrawerHeaderModel, DrawerSection, DrawerSummaryInput, DrawerSummaryModel } from './drawer.types';

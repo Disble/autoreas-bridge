@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ActivityRequestDetail } from '../../../activity-source/activity-incident.types';
-import type { ActivitySource } from '../../../activity-source/activity-source.types';
+import type { ActivityRequestDetail } from '../../../../../shared/contracts/activity-incident.types';
+import type { ActivitySource } from '../../../../../shared/contracts/activity.types';
 import { readActivityRequest } from '../activity-request-detail.helpers';
 
 /** A captured request with both bodies. */

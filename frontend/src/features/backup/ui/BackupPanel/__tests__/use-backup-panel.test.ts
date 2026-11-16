@@ -1,8 +1,10 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { BackupExportResultDTO } from '../../../../../infrastructure/backup-source/backup-source.types';
+import type { BackupExportResultDTO } from '../../../../../shared/contracts/backup.types';
+import { createBridgeQueryTestWrapper } from '../../../../../shared/query/test-support/bridge-query.test-support';
 import { useBackupPanel } from '../use-backup-panel';
 
+/** Builds a valid export result DTO, overriding only what a case needs. */
 function buildResult(overrides: Partial<BackupExportResultDTO> = {}): BackupExportResultDTO {
   return {
     cancelled: false,
@@ -17,7 +19,7 @@ function buildResult(overrides: Partial<BackupExportResultDTO> = {}): BackupExpo
 
 describe('useBackupPanel', () => {
   it('starts idle with no result and no error', () => {
-    const { result } = renderHook(() => useBackupPanel({ exportBackup: vi.fn() }));
+    const { result } = renderHook(() => useBackupPanel({ exportBackup: vi.fn() }), { wrapper: createBridgeQueryTestWrapper().wrapper });
 
     expect(result.current.status).toBe('idle');
     expect(result.current.result).toBeNull();
@@ -26,7 +28,7 @@ describe('useBackupPanel', () => {
 
   it('reports success and stores the result after a completed export', async () => {
     const exportBackup = vi.fn().mockResolvedValue(buildResult());
-    const { result } = renderHook(() => useBackupPanel({ exportBackup }));
+    const { result } = renderHook(() => useBackupPanel({ exportBackup }), { wrapper: createBridgeQueryTestWrapper().wrapper });
 
     act(() => {
       result.current.onExport();
@@ -39,7 +41,7 @@ describe('useBackupPanel', () => {
 
   it('reports cancelled without an error when the dialog is dismissed', async () => {
     const exportBackup = vi.fn().mockResolvedValue(buildResult({ cancelled: true }));
-    const { result } = renderHook(() => useBackupPanel({ exportBackup }));
+    const { result } = renderHook(() => useBackupPanel({ exportBackup }), { wrapper: createBridgeQueryTestWrapper().wrapper });
 
     act(() => {
       result.current.onExport();
@@ -51,7 +53,7 @@ describe('useBackupPanel', () => {
 
   it('surfaces a binding error through describeExportError', async () => {
     const exportBackup = vi.fn().mockRejectedValue(new Error('save dialog failed'));
-    const { result } = renderHook(() => useBackupPanel({ exportBackup }));
+    const { result } = renderHook(() => useBackupPanel({ exportBackup }), { wrapper: createBridgeQueryTestWrapper().wrapper });
 
     act(() => {
       result.current.onExport();
@@ -61,20 +63,38 @@ describe('useBackupPanel', () => {
     expect(result.current.errorMessage).toBe('save dialog failed');
   });
 
+  it('clears a failed export when the next export succeeds', async () => {
+    const exportBackup = vi.fn().mockRejectedValueOnce(new Error('backup is starting')).mockResolvedValueOnce(buildResult());
+    const { result } = renderHook(() => useBackupPanel({ exportBackup }), { wrapper: createBridgeQueryTestWrapper().wrapper });
+
+    act(() => {
+      result.current.onExport();
+    });
+    await waitFor(() => expect(result.current.errorMessage).toBe('backup is starting'));
+    act(() => {
+      result.current.onExport();
+    });
+
+    await waitFor(() => expect(result.current.status).toBe('success'));
+    expect(result.current.errorMessage).toBeNull();
+    expect(exportBackup).toHaveBeenCalledTimes(2);
+  });
+
   it('does not fire a second export while one is already in flight', async () => {
     const deferred: { resolve: (value: BackupExportResultDTO) => void } = { resolve: () => undefined };
     const pending = new Promise<BackupExportResultDTO>((resolve) => {
       deferred.resolve = resolve;
     });
     const exportBackup = vi.fn().mockImplementation(() => pending);
-    const { result } = renderHook(() => useBackupPanel({ exportBackup }));
+    const { result } = renderHook(() => useBackupPanel({ exportBackup }), { wrapper: createBridgeQueryTestWrapper().wrapper });
 
     act(() => {
       result.current.onExport();
     });
     await waitFor(() => expect(result.current.status).toBe('busy'));
 
-    act(() => {
+    // Async act flushes the microtasks a mutation runs its function in, so an unguarded call shows.
+    await act(async () => {
       result.current.onExport();
       result.current.onExport();
     });

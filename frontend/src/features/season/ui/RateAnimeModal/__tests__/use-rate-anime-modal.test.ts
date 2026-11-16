@@ -1,8 +1,12 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
-import { resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
+import type { SeasonSource } from '../../../../../shared/contracts/season.types';
+import { BRIDGE_SEASON_SOURCE } from '../../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { SEASON_ANIMES_KEY } from '../../../../../shared/query/query-keys/query-keys.constants';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
+import { useBridgeQuery } from '../../../../../shared/query/use-bridge-query/use-bridge-query';
+import { getSeasonStoreState, resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
 import { useRateAnimeModal } from '../use-rate-anime-modal';
 
 /** Builds the season port this suite drives, overriding only what a case sets. */
@@ -51,9 +55,50 @@ describe('useRateAnimeModal', () => {
     vi.clearAllMocks();
   });
 
+  it('refreshes the shared rows after a grade is recorded', async () => {
+    const read = vi.fn().mockResolvedValue([]);
+    const source = createSource();
+    const querySource = { ...BRIDGE_SEASON_SOURCE, readSeasonAnimes: read };
+    const { wrapper } = createModulesTestWrapper({ module: 'season', state: 'ready' });
+    const { result } = renderHook(() => {
+      useBridgeQuery({ queryKey: SEASON_ANIMES_KEY, queryFn: read, module: 'season' });
+      return useRateAnimeModal('anime-a', source, querySource);
+    }, { wrapper });
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+
+    await act(async () => { result.current.onSelectGrade(5); });
+
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+  });
+
+  it('keeps the rows and reports a refused grade without refreshing', async () => {
+    const read = vi.fn().mockResolvedValue([]);
+    const source = createSource({ setGrade: vi.fn().mockResolvedValue('refused') });
+    const querySource = { ...BRIDGE_SEASON_SOURCE, readSeasonAnimes: read };
+    const { wrapper } = createModulesTestWrapper({ module: 'season', state: 'ready' });
+    const { result } = renderHook(() => {
+      useBridgeQuery({ queryKey: SEASON_ANIMES_KEY, queryFn: read, module: 'season' });
+      return useRateAnimeModal('anime-a', source, querySource);
+    }, { wrapper });
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    await act(async () => { result.current.onSelectGrade(5); });
+    await waitFor(() => expect(getSeasonStoreState().errorMessage).toBe('refused'));
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not write in a read-only season', async () => {
+    setSeasonStoreState({ readOnly: true });
+    const source = createSource();
+    const { wrapper } = createModulesTestWrapper({ module: 'season', state: 'ready' });
+    const { result } = renderHook(() => useRateAnimeModal('anime-a', source), { wrapper });
+    await act(async () => { result.current.onSelectGrade(5); });
+    expect(source.setGrade).not.toHaveBeenCalled();
+  });
+
   it('records the picked grade against the anime', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useRateAnimeModal('anime-a', source));
+    const { wrapper } = createModulesTestWrapper({ module: 'season', state: 'ready' });
+    const { result } = renderHook(() => useRateAnimeModal('anime-a', source), { wrapper });
 
     await act(async () => {
       result.current.onSelectGrade(5);

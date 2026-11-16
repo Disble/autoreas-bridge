@@ -72,6 +72,16 @@ export function buildFrontendErrorReport(
 }
 
 /**
+ * Captures where and when a failure happened in the running window.
+ * @param source The blamed location, blank when unknown.
+ * @param componentStack React's component stack, for render errors.
+ * @returns The report context.
+ */
+export function readBrowserErrorContext(source: string, componentStack?: string): FrontendErrorContext {
+  return { source, route: window.location.hash || '#/', occurredAtMs: Date.now(), componentStack };
+}
+
+/**
  * Formats the location of a window error.
  * @param filename The script the browser blamed.
  * @param line Its line.

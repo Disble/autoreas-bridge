@@ -1,53 +1,57 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
-import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
-import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonQuerySource, SeasonSource } from '../../../../shared/contracts/season.types';
+import { useProgressiveListWindow } from '../../../../shared/hooks/use-progressive-list-window';
+import { toAsyncView } from '../../../../shared/query/async-view/async-view.helpers';
+import { BRIDGE_SEASON_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
+import { SEASON_ANIMES_REFRESH_BANNER, SEASON_NO_ROWS } from '../../../../shared/season/season.constants';
+import { runSeasonCommand, settleSeasonCommand, toSeasonBannerMessage } from '../../../../shared/season/season.helpers';
+import { useDisplayedSeasonAnimes } from '../../../../shared/season/use-displayed-season-animes';
+import { useSeasonBannerSync } from '../../../../shared/season/use-season-banner-sync';
 import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
+import { setSeasonStoreState } from '../../../../shared/store/season-store/season-store.helpers';
 import type { SeasonCoverSource } from '../SeasonCoverThumb/season-cover-thumb.types';
 import { useSeasonCovers } from '../SeasonCoverThumb/use-season-covers';
 import { buildEvaluationView } from './evaluation-panel.helpers';
 
 /**
- * useEvaluationPanel drives the Evaluation progress list: created candidates with
- * their grade, source, rated-at and cover, ungraded first, plus a per-row skip
- * override. Grading itself flows through the shared RateAnimeModal; this hook
- * owns the list + skip. All Wails I/O flows through the season store and
- * refreshes on mount or mutation; covers resolve once per anime.
- *
- * @param source The season port the store reads and writes through.
- * @param coverSource The port each row's cover is resolved through.
+ * Reads evaluation candidates through the shared season query and records skip overrides.
+ * @param source The season read and command port.
+ * @param coverSource The cover port.
+ * @returns The evaluation view and its actions.
  */
-export function useEvaluationPanel(source: SeasonSource = seasonSource, coverSource: SeasonCoverSource = bridgeRuntimeSource) {
+export function useEvaluationPanel(
+  source: SeasonSource & SeasonQuerySource = BRIDGE_SEASON_SOURCE,
+  coverSource: SeasonCoverSource = bridgeRuntimeSource,
+) {
   // 3. Context/3rd Party Hooks
-  const seasonAnimes = useSeasonStore((state) => state.seasonAnimes);
   const readOnly = useSeasonStore((state) => state.readOnly);
   const errorMessage = useSeasonStore((state) => state.errorMessage);
-  const refreshAnimes = useSeasonStore((state) => state.refreshAnimes);
-  const skipGrading = useSeasonStore((state) => state.skipGrading);
 
-  // 5. Derived State (useMemo)
+  // 4. Queries/Mutations
+  const query = useDisplayedSeasonAnimes({ refresh: 'mount', source });
+  const { mutateAsync } = useBridgeMutation({
+    mutationFn: (rowId: string) => runSeasonCommand(() => source.skipGrading(rowId), 'Failed to skip grading'),
+    onSuccess: async () => {
+      setSeasonStoreState({ errorMessage: undefined });
+      await query.refetch();
+    },
+    onError: (error) => setSeasonStoreState({ errorMessage: toSeasonBannerMessage(error, { fallback: 'Failed to skip grading', fixedMessage: false }) }),
+  });
+  useSeasonBannerSync(query, SEASON_ANIMES_REFRESH_BANNER);
+
+  // 5. Derived State
+  const seasonAnimes = query.isPlaceholderData ? SEASON_NO_ROWS : query.data ?? SEASON_NO_ROWS;
   const { items, ungradedCount, animeIds } = useMemo(() => buildEvaluationView(seasonAnimes), [seasonAnimes]);
+  const view = query.isPlaceholderData ? { kind: 'loading' as const } : toAsyncView(query, () => items.length === 0);
   const getCoverThumb = useSeasonCovers(animeIds, coverSource);
+  const window = useProgressiveListWindow(items.length);
 
   // 6. Callbacks
-  const onSkip = useCallback(
-    (rowId: string) => {
-      void skipGrading(source, rowId);
-    },
-    [skipGrading, source],
-  );
+  const onSkip = useCallback((rowId: string) => {
+    if (!readOnly) void settleSeasonCommand(mutateAsync(rowId));
+  }, [readOnly, mutateAsync]);
 
-  // 7. Effects
-  useEffect(() => {
-    void refreshAnimes(source);
-  }, [refreshAnimes, source]);
-
-  return {
-    readOnly,
-    items,
-    ungradedCount,
-    errorMessage,
-    onSkip,
-    getCoverThumb,
-  };
+  return { readOnly, items: items.slice(0, window.visibleCount), ungradedCount, errorMessage, view, onSkip, getCoverThumb, listWindow: window };
 }

@@ -90,7 +90,7 @@ describe('formatErrorSource', () => {
 
 describe('createErrorReporter', () => {
   it('sends a report to the bridge once', () => {
-    const send = vi.fn().mockResolvedValue('ok');
+    const send = vi.fn().mockResolvedValue(undefined);
     const reporter = createErrorReporter({ send, now: () => 0, throttleMs: 1_000 });
 
     reporter(report('boom'));
@@ -100,7 +100,7 @@ describe('createErrorReporter', () => {
   });
 
   it('drops a duplicate inside the throttle window and sends it again after', () => {
-    const send = vi.fn().mockResolvedValue('ok');
+    const send = vi.fn().mockResolvedValue(undefined);
     // A non-zero start keeps the window relative to the last send, not to the epoch.
     let now = 500;
     const reporter = createErrorReporter({ send, now: () => now, throttleMs: 1_000 });
@@ -119,7 +119,7 @@ describe('createErrorReporter', () => {
   });
 
   it('forgets the oldest throttle key once the key limit is reached', () => {
-    const send = vi.fn().mockResolvedValue('ok');
+    const send = vi.fn().mockResolvedValue(undefined);
     const reporter = createErrorReporter({ send, now: () => 0, throttleMs: 1_000 });
 
     for (let index = 0; index <= FRONTEND_ERROR_THROTTLE_KEY_LIMIT; index += 1) {
@@ -148,7 +148,7 @@ describe('createErrorReporter', () => {
       send: (value) => {
         sent.push(value.message);
         reporter(report('raised by the send'));
-        return Promise.resolve('ok');
+        return Promise.resolve();
       },
       now: () => 0,
       throttleMs: 0,

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"autoreas-bridge/internal/modules"
 	"autoreas-bridge/internal/settings"
 )
 
@@ -14,9 +15,14 @@ var errAutoStartSettingsUnavailable = errors.New("auto-start settings unavailabl
 // GetSeasonMode reports whether the bridge is in season mode. Season mode is a
 // DERIVED state (SDD-41b): it is on exactly while a season is open. The manual
 // Options toggle was removed — the Season section is the single source of truth,
-// so opening a season turns season mode on and closing it turns it off.
-func (a *App) GetSeasonMode() bool {
-	return a.seasonModeReader()(a.seasonCtx())
+// so opening a season turns season mode on and closing it turns it off. It runs
+// through the season module handle: a module that is not ready, or a failed
+// read, is the binding's error, never "off".
+func (a *App) GetSeasonMode() (bool, error) {
+	return a.moduleSet().season.Use(func(s seasonServices) (bool, error) {
+		active, err := s.season.ActiveSeason(a.seasonCtx())
+		return active != nil, err
+	})
 }
 
 // seasonModeReader returns a ctx-aware reader for the derived season-mode flag,
@@ -33,17 +39,22 @@ func (a *App) seasonModeReader() func(context.Context) bool {
 	}
 }
 
-// GetLibraryRoot returns the configured global library root, or "" when it
-// has never been set. It degrades to "" when the settings store is unavailable.
-func (a *App) GetLibraryRoot() string {
+// bindSettingsModule binds the settings store to the settings handle. Startup calls
+// it where it wires the store, before configureRuntimeServices marks the module
+// ready, so a binding that sees ready finds the store.
+func (a *App) bindSettingsModule() {
 	if a.settingsStore == nil {
-		return ""
+		return
 	}
-	root, err := a.settingsStore.LibraryRoot(a.seasonCtx())
-	if err != nil {
-		return ""
-	}
-	return root
+	a.moduleSet().settings.Bind(settingsServices{store: a.settingsStore})
+}
+
+// GetLibraryRoot returns the configured global library root through the
+// settings module handle, or "" when it has never been set.
+func (a *App) GetLibraryRoot() (string, error) {
+	return a.moduleSet().settings.Use(func(services settingsServices) (string, error) {
+		return services.store.LibraryRoot(a.seasonCtx())
+	})
 }
 
 // libraryRoot is the download-context settings seam used by readiness and execution.
@@ -56,49 +67,43 @@ func (a *App) libraryRoot(ctx context.Context) (string, error) {
 
 // SetLibraryRoot persists the global library root — the base folder joined
 // with a sanitized anime name to form a newly-created season anime's default
-// download folder. The active animes under the previous root first follow it (ADR 027 D4); if
-// any cannot, the root is kept. Returns "ok" or an error string.
-func (a *App) SetLibraryRoot(path string) string {
-	if a.settingsStore == nil {
-		return "settings store unavailable"
-	}
-	if err := a.rebaseActiveFolders(a.seasonCtx(), path); err != nil {
-		return err.Error()
-	}
-	if err := a.settingsStore.SetLibraryRoot(a.seasonCtx(), path); err != nil {
-		return err.Error()
-	}
-	return "ok"
+// download folder — through the settings module handle. The active animes under
+// the previous root first follow it (ADR 027 D4); if any cannot, the root is
+// kept and the failure names them.
+func (a *App) SetLibraryRoot(path string) error {
+	_, err := a.moduleSet().settings.Use(func(services settingsServices) (struct{}, error) {
+		if err := a.rebaseActiveFolders(a.seasonCtx(), path); err != nil {
+			return struct{}{}, err
+		}
+		return struct{}{}, services.store.SetLibraryRoot(a.seasonCtx(), path)
+	})
+	return err
 }
 
-// GetAutoStartEnabled returns the persisted login-launch preference. The
-// preference defaults to enabled when settings have not been initialized yet.
-func (a *App) GetAutoStartEnabled() bool {
-	if a.settingsStore == nil {
-		return true
-	}
-	enabled, err := a.autoStartEnabled(a.seasonCtx())
-	return err == nil && enabled
+// GetAutoStartEnabled returns the persisted login-launch preference through the
+// settings module handle; it defaults to enabled until the user changes it.
+func (a *App) GetAutoStartEnabled() (bool, error) {
+	return a.moduleSet().settings.Use(func(services settingsServices) (bool, error) {
+		return autoStartEnabled(a.seasonCtx(), services.store)
+	})
 }
 
 // SetAutoStartEnabled persists and immediately reconciles the login-launch
-// preference. Registry failures leave the preference intact for the next start.
-func (a *App) SetAutoStartEnabled(enabled bool) string {
-	if a.settingsStore == nil {
-		return "settings store unavailable"
-	}
-	if err := a.settingsStore.SetAutoStartEnabled(a.seasonCtx(), enabled); err != nil {
-		return err.Error()
-	}
-	// A data directory copy is a development build: the registry belongs to the
-	// everyday bridge, so the copy only records the preference.
-	if a.newAutoStartReconciler == nil || a.dataDirOverridden() {
-		return "ok"
-	}
-	if err := a.newAutoStartReconciler().Reconcile(enabled); err != nil {
-		return err.Error()
-	}
-	return "ok"
+// preference through the settings module handle. Registry failures leave the
+// preference intact for the next start.
+func (a *App) SetAutoStartEnabled(enabled bool) error {
+	_, err := a.moduleSet().settings.Use(func(services settingsServices) (struct{}, error) {
+		if err := services.store.SetAutoStartEnabled(a.seasonCtx(), enabled); err != nil {
+			return struct{}{}, err
+		}
+		// A data directory copy is a development build: the registry belongs to the
+		// everyday bridge, so the copy only records the preference.
+		if a.newAutoStartReconciler == nil || a.dataDirOverridden() {
+			return struct{}{}, nil
+		}
+		return struct{}{}, a.newAutoStartReconciler().Reconcile(enabled)
+	})
+	return err
 }
 
 // reconcileAutoStart makes registration best effort so registry access can
@@ -109,7 +114,7 @@ func (a *App) reconcileAutoStart(ctx context.Context) {
 	if a.settingsStore == nil || a.newAutoStartReconciler == nil || a.dataDirOverridden() {
 		return
 	}
-	enabled, err := a.autoStartEnabled(ctx)
+	enabled, err := autoStartEnabled(ctx, a.settingsStore)
 	if err != nil {
 		if errors.Is(err, errAutoStartSettingsUnavailable) || errors.Is(err, settings.ErrDatabaseUnavailable) {
 			return
@@ -124,15 +129,15 @@ func (a *App) reconcileAutoStart(ctx context.Context) {
 	}
 }
 
-// autoStartEnabled reads the startup preference without allowing an unavailable
-// settings boundary to prevent the resident application from starting.
-func (a *App) autoStartEnabled(ctx context.Context) (enabled bool, err error) {
+// autoStartEnabled reads the startup preference from store without allowing an
+// unavailable settings boundary to prevent the resident application from starting.
+func autoStartEnabled(ctx context.Context, store appSettingsStore) (enabled bool, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			err = fmt.Errorf("%w: %v", errAutoStartSettingsUnavailable, recovered)
 		}
 	}()
-	return a.settingsStore.AutoStartEnabled(ctx)
+	return store.AutoStartEnabled(ctx)
 }
 
 // GetKeymap returns the persisted keymap document, or "" when the settings
@@ -164,30 +169,34 @@ func (a *App) SetKeymap(document string) string {
 	return "ok"
 }
 
-// PickFolder opens the native directory picker and returns the chosen absolute
-// path, or "" when the user cancels (or no runtime is available). Shared by the
-// Options library-root setting and the per-anime folder override in intake.
-func (a *App) PickFolder(title string) string {
-	if a.pickFolder == nil {
-		return ""
-	}
-	path, err := a.pickFolder(a.seasonCtx(), title)
-	if err != nil {
-		return ""
-	}
-	return path
+// PickFolder opens the native directory picker through the always-ready shell
+// handle and returns the chosen absolute path, or "" when the user cancels.
+// Shared by the Options library-root setting and the per-anime folder override
+// in intake. A dialog failure, or no picker wired, is internal.
+func (a *App) PickFolder(title string) (string, error) {
+	return a.moduleSet().shell.Use(func(services modules.ShellServices) (string, error) {
+		return pickPath(a.seasonCtx(), services.PickFolder, title, "folder")
+	})
 }
 
-// PickFile opens the native file picker (filtered to image types) and returns
-// the chosen absolute path, or "" when the user cancels (or no runtime is
-// available). Backs the reusable path-picker field for on-disk anime covers.
-func (a *App) PickFile(title string) string {
-	if a.pickFile == nil {
-		return ""
+// PickFile opens the native file picker (filtered to image types) through the
+// always-ready shell handle and returns the chosen absolute path, or "" when the
+// user cancels. Backs the reusable path-picker field for on-disk anime covers.
+// A dialog failure, or no picker wired, is internal.
+func (a *App) PickFile(title string) (string, error) {
+	return a.moduleSet().shell.Use(func(services modules.ShellServices) (string, error) {
+		return pickPath(a.seasonCtx(), services.PickFile, title, "file")
+	})
+}
+
+// pickPath runs one native picker; what names it in the failure.
+func pickPath(ctx context.Context, picker func(context.Context, string) (string, error), title, what string) (string, error) {
+	if picker == nil {
+		return "", fmt.Errorf("%s picker unavailable", what)
 	}
-	path, err := a.pickFile(a.seasonCtx(), title)
+	path, err := picker(ctx, title)
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("open %s dialog: %w", what, err)
 	}
-	return path
+	return path, nil
 }

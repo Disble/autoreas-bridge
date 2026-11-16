@@ -1,9 +1,6 @@
-import { GetActivityIncident, GetActivityRequest, GetActivityRunStory, PinActivityMoment } from '../../../../wailsjs/go/desktop/App';
-import { invokeGoBinding } from '../../../infrastructure/wails-bindings.helpers';
-import { mapActivityIncidentResult, mapActivityRequestResult, mapActivityRunStory } from './activity-incident.helpers';
-import { ACTIVITY_RUNTIME_UNAVAILABLE_MESSAGE, ACTIVITY_SOURCE_STATE } from './activity-source.constants';
+import type { ActivitySource } from '../../../shared/contracts/activity.types';
+import { BRIDGE_ACTIVITY_SOURCE } from '../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import type { ActivityRecorderEntry, ActivityRecorderPayload, ActivityRecorderSource } from './activity.types';
-import type { ActivitySource } from './activity-source.types';
 
 /**
  * Whether a Go recorder source belongs to the closed union.
@@ -49,36 +46,13 @@ export function mapActivityRecorderEntry(entry: ActivityRecorderPayload): Activi
   };
 }
 
-/** Rejects a read whose bindings never attached; Activity shows its failure state. */
-function rejectRuntimeUnavailable(): never {
-  throw new Error(ACTIVITY_RUNTIME_UNAVAILABLE_MESSAGE);
-}
-
 /**
- * Creates the singleton Activity source over the Wails bindings.
+ * The shared Activity source, as `src/app/routes/DownloadsRoute.tsx` hands the
+ * run history its run story. Activity's own hooks read `BRIDGE_ACTIVITY_SOURCE`
+ * directly; this stays for the downloads consumer until its slice migrates.
  *
  * @returns The shared source.
  */
 export function createActivitySource(): ActivitySource {
-  if (ACTIVITY_SOURCE_STATE.sharedSource !== null) {
-    return ACTIVITY_SOURCE_STATE.sharedSource;
-  }
-
-  const source: ActivitySource = {
-    pinMoment() {
-      return invokeGoBinding('PinActivityMoment', PinActivityMoment, rejectRuntimeUnavailable);
-    },
-    getIncident(id) {
-      return invokeGoBinding('GetActivityIncident', () => GetActivityIncident(id), rejectRuntimeUnavailable).then(mapActivityIncidentResult);
-    },
-    getRequest(requestId) {
-      return invokeGoBinding('GetActivityRequest', () => GetActivityRequest(requestId), rejectRuntimeUnavailable).then(mapActivityRequestResult);
-    },
-    getRunStory(correlationId) {
-      return invokeGoBinding('GetActivityRunStory', () => GetActivityRunStory(correlationId), rejectRuntimeUnavailable).then(mapActivityRunStory);
-    },
-  };
-
-  ACTIVITY_SOURCE_STATE.sharedSource = source;
-  return source;
+  return BRIDGE_ACTIVITY_SOURCE;
 }

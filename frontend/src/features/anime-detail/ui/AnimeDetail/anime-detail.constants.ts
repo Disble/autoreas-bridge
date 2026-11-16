@@ -52,6 +52,9 @@ export const ANIME_DETAIL_FIELD_COUNT = 8;
 /** Message rendered when the anime id does not resolve to a record. */
 export const ANIME_DETAIL_NOT_FOUND_MESSAGE = 'Anime not found.';
 
+/** Heading of the alert shown when the detail read itself failed, kept distinct from "not found". */
+export const ANIME_DETAIL_FAILURE_TITLE = 'Anime detail unavailable';
+
 /** Label for the status chip when the anime record is active (`activo` = 1). */
 export const ANIME_DETAIL_STATUS_ACTIVE_LABEL = 'Active';
 

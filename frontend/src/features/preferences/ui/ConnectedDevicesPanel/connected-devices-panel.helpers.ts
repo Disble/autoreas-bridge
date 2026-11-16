@@ -1,4 +1,7 @@
-import type { ConnectedDevice, ConnectedDeviceChipColor, ConnectedDeviceViewModel } from './connected-devices-panel.types';
+import type { ConnectedDevice } from '../../../../shared/contracts/devices.types';
+import { toAsyncView } from '../../../../shared/query/async-view/async-view.helpers';
+import type { AsyncViewSource } from '../../../../shared/query/async-view/async-view.types';
+import type { ConnectedDeviceChipColor, ConnectedDeviceViewModel, ConnectedDevicesView, UnpairMutationState } from './connected-devices-panel.types';
 
 /**
  * Converts raw connected-device DTOs into stable UI rows so the component only renders data.
@@ -40,4 +43,33 @@ export function getConnectionStatusColor(connectionStatus: string, syncStatus: s
     return 'warning';
   }
   return 'default';
+}
+
+/**
+ * The rejected unpair to show: its message until the device list loads again
+ * (a pairing, an acknowledgment, or a later successful unpair re-reads it), as
+ * the panel cleared it on every reload.
+ * @param unpair The unpair mutation's state.
+ * @param dataUpdatedAt When the device list last loaded, epoch milliseconds.
+ * @returns The failure message, or '' when there is none to show.
+ */
+export function toVisibleUnpairFailure(unpair: UnpairMutationState, dataUpdatedAt: number): string {
+  return unpair.status === 'error' && unpair.submittedAt >= dataUpdatedAt ? (unpair.error?.message ?? '') : '';
+}
+
+/**
+ * The one state the panel renders (ADR-032 §4): a visible unpair failure wins,
+ * otherwise the device-list query's view with its rows made render-ready. A
+ * refetch after an event keeps the previous rows in place (`isRefreshing`).
+ * @param query The device-list query.
+ * @param unpairFailure The visible unpair failure, or ''.
+ * @returns The panel view.
+ */
+export function toConnectedDevicesView(query: AsyncViewSource<readonly ConnectedDevice[]>, unpairFailure: string): ConnectedDevicesView {
+  if (unpairFailure !== '') {
+    return { kind: 'failure', code: 'internal', message: unpairFailure };
+  }
+
+  const view = toAsyncView(query);
+  return view.kind === 'ready' ? { ...view, data: toConnectedDeviceRows(view.data) } : view;
 }

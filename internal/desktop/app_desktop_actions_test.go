@@ -3,36 +3,36 @@ package desktop
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
-	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/apperr"
 	sharedlogger "autoreas-bridge/internal/logger"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
-func TestOpenAnimePageOpensPageAndRecordsActivity(t *testing.T) {
-	ctx := context.Background()
-	db := openRuntimeBridgeDB(t)
-	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"status":0,"active":true,"sourceUrl":"https://anime.example/frieren"}`, 1000)
-
-	var openedURL string
+// desktopActionApp returns an App whose ready anime module reads one stored anime with payload,
+// and the logger its actions record to.
+func desktopActionApp(t *testing.T, payload string) (*App, *sharedlogger.MemLogger) {
+	t.Helper()
+	store := bridgeSync.NewAnimeSnapshotStore(openRuntimeBridgeDB(t))
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", payload, 1000)
+	app := readyAnimeApp(editorServices(store))
 	memLogger := sharedlogger.NewMemLogger(sharedlogger.MemLoggerConfig{})
-	app := &App{
-		ctx:          ctx,
-		bridgeDB:     db,
-		animeQuery:   anime.NewQueryService(store),
-		sharedLogger: sharedlogger.NewFanoutLogger(memLogger),
-		openURL: func(_ context.Context, url string) {
-			openedURL = url
-		},
-	}
+	app.sharedLogger = sharedlogger.NewFanoutLogger(memLogger)
+	return app, memLogger
+}
 
-	got := app.OpenAnimePage("anime-1")
+func TestOpenAnimePageOpensPageAndRecordsActivity(t *testing.T) {
+	app, memLogger := desktopActionApp(t, `{"id":"anime-1","name":"Frieren","episodesWatched":2,"status":0,"active":true,"sourceUrl":"https://anime.example/frieren"}`)
+	var openedURL string
+	app.openURL = func(_ context.Context, url string) { openedURL = url }
 
-	if got.Status != "ok" {
-		t.Fatalf("expected ok result, got %#v", got)
+	got, err := app.OpenAnimePage("anime-1")
+
+	if err != nil || got.Status != "ok" || got.AnimeID != "anime-1" || got.AnimeName != "Frieren" {
+		t.Fatalf("expected ok result, got %#v, %v", got, err)
 	}
 	if openedURL != "https://anime.example/frieren" {
 		t.Fatalf("expected page URL to be opened, got %q", openedURL)
@@ -41,28 +41,17 @@ func TestOpenAnimePageOpensPageAndRecordsActivity(t *testing.T) {
 }
 
 func TestCopyAnimeFolderCopiesFolderAndRecordsActivity(t *testing.T) {
-	ctx := context.Background()
-	db := openRuntimeBridgeDB(t)
-	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"status":0,"active":true,"folder":"C:/Anime/Frieren"}`, 1000)
-
+	app, memLogger := desktopActionApp(t, `{"id":"anime-1","name":"Frieren","episodesWatched":2,"status":0,"active":true,"folder":"C:/Anime/Frieren"}`)
 	var copiedText string
-	memLogger := sharedlogger.NewMemLogger(sharedlogger.MemLoggerConfig{})
-	app := &App{
-		ctx:          ctx,
-		bridgeDB:     db,
-		animeQuery:   anime.NewQueryService(store),
-		sharedLogger: sharedlogger.NewFanoutLogger(memLogger),
-		copyText: func(_ context.Context, value string) error {
-			copiedText = value
-			return nil
-		},
+	app.copyText = func(_ context.Context, value string) error {
+		copiedText = value
+		return nil
 	}
 
-	got := app.CopyAnimeFolder("anime-1")
+	got, err := app.CopyAnimeFolder("anime-1")
 
-	if got.Status != "ok" {
-		t.Fatalf("expected ok result, got %#v", got)
+	if err != nil || got.Status != "ok" {
+		t.Fatalf("expected ok result, got %#v, %v", got, err)
 	}
 	if copiedText != "C:/Anime/Frieren" {
 		t.Fatalf("expected folder path to be copied, got %q", copiedText)
@@ -80,47 +69,55 @@ func TestRecordDesktopAnimeActionDegradesSilentlyWithoutASharedLogger(t *testing
 	app.recordDesktopAnimeAction(contracts.MobileAnime{ID: "anime-1", Name: "Frieren"}, "anime.folder_copied", "anime.desktop-action:anime-1:1000")
 }
 
-func TestOpenAnimePageRejectsMissingPage(t *testing.T) {
-	ctx := context.Background()
-	db := openRuntimeBridgeDB(t)
-	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"status":0,"active":true}`, 1000)
-
-	opened := false
-	memLogger := sharedlogger.NewMemLogger(sharedlogger.MemLoggerConfig{})
-	app := &App{
-		ctx:          ctx,
-		bridgeDB:     db,
-		animeQuery:   anime.NewQueryService(store),
-		sharedLogger: sharedlogger.NewFanoutLogger(memLogger),
-		openURL: func(context.Context, string) {
-			opened = true
-		},
+// TestDesktopActionsMapTheirFailures pins each failure the ready actions answer as a coded error
+// with a zero result, without launching anything or recording an action.
+func TestDesktopActionsMapTheirFailures(t *testing.T) {
+	cases := []struct {
+		name     string
+		payload  string
+		call     func(*App) (contracts.EpisodeCommandResult, error)
+		copyErr  error
+		wantCode apperr.Code
+		wantMsg  string
+	}{
+		{"unknown anime is not found", `{"id":"anime-1","name":"Frieren"}`, func(a *App) (contracts.EpisodeCommandResult, error) { return a.OpenAnimePage("missing") }, nil, apperr.CodeNotFound, "anime not found"},
+		{"missing page is an invalid argument", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"status":0,"active":true}`, openPageOfAnime1, nil, apperr.CodeInvalidArgument, "anime action value unavailable"},
+		{"blank folder is an invalid argument", `{"id":"anime-1","name":"Frieren","folder":"  "}`, copyFolderOfAnime1, nil, apperr.CodeInvalidArgument, "anime action value unavailable"},
+		{"failed copy is internal", `{"id":"anime-1","name":"Frieren","folder":"C:/Anime/Frieren"}`, copyFolderOfAnime1, errors.New("clipboard busy"), apperr.CodeInternal, "clipboard busy"},
 	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			app, memLogger := desktopActionApp(t, tc.payload)
+			app.openURL = func(context.Context, string) { t.Fatal("a failed action opened a page") }
+			app.copyText = func(context.Context, string) error { return tc.copyErr }
 
-	got := app.OpenAnimePage("anime-1")
+			got, err := tc.call(app)
 
-	if got.Status != "error" {
-		t.Fatalf("expected error result, got %#v", got)
-	}
-	if opened {
-		t.Fatal("expected missing page not to open anything")
-	}
-	if entries := memLogger.Recent(); len(entries) != 0 {
-		t.Fatalf("expected no telemetry for a rejected action, got %#v", entries)
+			assertAnimeFailure(t, got, err, tc.wantCode, tc.wantMsg)
+			if entries := memLogger.Recent(); len(entries) != 0 {
+				t.Fatalf("expected no telemetry for a rejected action, got %#v", entries)
+			}
+		})
 	}
 }
 
+// openPageOfAnime1 opens the page of the anime the failure cases store.
+func openPageOfAnime1(a *App) (contracts.EpisodeCommandResult, error) {
+	return a.OpenAnimePage("anime-1")
+}
+
+// copyFolderOfAnime1 copies the folder of the anime the failure cases store.
+func copyFolderOfAnime1(a *App) (contracts.EpisodeCommandResult, error) {
+	return a.CopyAnimeFolder("anime-1")
+}
+
 func TestOpenAnimePageRejectsUnsafeStoredURLAtLaunchSink(t *testing.T) {
-	ctx := context.Background()
-	db := openRuntimeBridgeDB(t)
-	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"sourceUrl":"file:///C:/Windows/System32/calc.exe"}`, 1000)
+	app, _ := desktopActionApp(t, `{"id":"anime-1","name":"Frieren","episodesWatched":2,"sourceUrl":"file:///C:/Windows/System32/calc.exe"}`)
 	opened := false
-	app := &App{ctx: ctx, animeQuery: anime.NewQueryService(store), openURL: func(context.Context, string) { opened = true }}
-	got := app.OpenAnimePage("anime-1")
-	if got.Status != "error" || opened {
-		t.Fatalf("unsafe stored URL reached BrowserOpenURL: result=%#v opened=%v", got, opened)
+	app.openURL = func(context.Context, string) { opened = true }
+	got, err := app.OpenAnimePage("anime-1")
+	if code, _ := apperr.CodeOf(err); err == nil || code != apperr.CodeInternal || got.Status != "" || opened {
+		t.Fatalf("unsafe stored URL reached BrowserOpenURL: result=%#v err=%v opened=%v", got, err, opened)
 	}
 }
 
@@ -128,15 +125,12 @@ func TestOpenAnimeFolderRejectsUnsafeStoredPathsAtLaunchSink(t *testing.T) {
 	unsafePaths := []string{`\\server\share\anime`, `\\?\C:\Anime`, `relative\anime`, `C:\Anime\..\Windows`}
 	for _, unsafePath := range unsafePaths {
 		t.Run(unsafePath, func(t *testing.T) {
-			ctx := context.Background()
-			db := openRuntimeBridgeDB(t)
-			store := bridgeSync.NewAnimeSnapshotStore(db)
-			seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"folder":`+mustJSONText(t, unsafePath)+`}`, 1000)
+			app, _ := desktopActionApp(t, `{"id":"anime-1","name":"Frieren","episodesWatched":2,"folder":`+mustJSONText(t, unsafePath)+`}`)
 			opened := false
-			app := &App{ctx: ctx, animeQuery: anime.NewQueryService(store), openFolder: func(string) error { opened = true; return nil }}
-			got := app.OpenAnimeFolder("anime-1")
-			if got.Status != "error" || opened {
-				t.Fatalf("unsafe stored folder reached explorer: result=%#v opened=%v", got, opened)
+			app.openFolder = func(string) error { opened = true; return nil }
+			got, err := app.OpenAnimeFolder("anime-1")
+			if code, _ := apperr.CodeOf(err); err == nil || code != apperr.CodeInternal || got.Status != "" || opened {
+				t.Fatalf("unsafe stored folder reached explorer: result=%#v err=%v opened=%v", got, err, opened)
 			}
 		})
 	}

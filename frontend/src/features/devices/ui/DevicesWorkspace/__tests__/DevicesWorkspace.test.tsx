@@ -1,13 +1,17 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+/** The reconcile action the mocked hook hands the button. */
 const onTriggerSync = vi.fn();
+
+/** The reconcile feedback the mocked hook reports; a case sets it. */
+const feedback = { syncResult: '', isSyncFailed: false };
 
 vi.mock('../use-devices-workspace', () => ({
   useDevicesWorkspace: () => ({
     isSyncing: false,
     onTriggerSync,
-    syncResult: '',
+    ...feedback,
     syncingAnimeRefreshToken: 0,
   }),
 }));
@@ -46,5 +50,17 @@ describe('DevicesWorkspace', () => {
 
     expect(onTriggerSync).toHaveBeenCalledTimes(1);
     expect(catchHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['a succeeded reconcile as success', 'ok', false, 'alert--success'],
+    ['a rejected reconcile as danger', 'sync is starting', true, 'alert--danger'],
+  ])('shows %s', (_case, syncResult, isSyncFailed, alertClass) => {
+    Object.assign(feedback, { syncResult, isSyncFailed });
+
+    render(<DevicesWorkspace />);
+
+    expect(screen.getByText(syncResult).closest('[data-slot="alert-root"]')).toHaveClass(alertClass);
+    Object.assign(feedback, { syncResult: '', isSyncFailed: false });
   });
 });

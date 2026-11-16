@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/modules"
 	"autoreas-bridge/internal/myanimelist"
 )
 
@@ -48,56 +49,66 @@ func myanimelistUserAgent() string {
 	return "autoreas-bridge/" + bridgeVersion
 }
 
-// SearchMyAnimeList queries MyAnimeList for anime matching query. A
-// zero-candidate result is AnimePatchOutcomeNoOp, never an error (design
-// D4): an empty match list is a legitimate result the UI renders as its own
-// empty state, not a failure to surface as an alert.
-func (a *App) SearchMyAnimeList(query string) contracts.MyAnimeListSearchResult {
-	if a.myanimelistClient == nil {
-		return contracts.MyAnimeListSearchResult{Outcome: contracts.AnimePatchOutcomeError, Message: "myanimelist client unavailable"}
-	}
-	result, err := a.myanimelistClient.Search(a.appContext(), query)
-	if err != nil {
-		return contracts.MyAnimeListSearchResult{Outcome: contracts.AnimePatchOutcomeError, Message: myanimelistErrorMessage(err)}
-	}
-	if len(result.Candidates) == 0 {
-		return contracts.MyAnimeListSearchResult{Outcome: contracts.AnimePatchOutcomeNoOp, Message: "no MyAnimeList matches found"}
-	}
-	return contracts.MyAnimeListSearchResult{
-		Outcome: contracts.AnimePatchOutcomeApplied, Message: "MyAnimeList search complete",
-		Candidates: toCandidateDTOs(result.Candidates),
-	}
+// SearchMyAnimeList queries MyAnimeList for anime matching query, through the
+// always-ready shell handle: the client never waits for the database. A
+// zero-candidate result is AnimePatchOutcomeNoOp, never an error (design D4): an
+// empty match list is a legitimate result the UI renders as its own empty state.
+// A failed request, or no client wired, is internal with the message the lookup
+// shows.
+func (a *App) SearchMyAnimeList(query string) (contracts.MyAnimeListSearchResult, error) {
+	return a.moduleSet().shell.Use(func(services modules.ShellServices) (contracts.MyAnimeListSearchResult, error) {
+		if services.MetadataLookup == nil {
+			return contracts.MyAnimeListSearchResult{}, errMyAnimeListUnavailable
+		}
+		result, err := services.MetadataLookup.Search(a.appContext(), query)
+		if err != nil {
+			return contracts.MyAnimeListSearchResult{}, myanimelistError(err)
+		}
+		if len(result.Candidates) == 0 {
+			return contracts.MyAnimeListSearchResult{Outcome: contracts.AnimePatchOutcomeNoOp, Message: "no MyAnimeList matches found"}, nil
+		}
+		return contracts.MyAnimeListSearchResult{
+			Outcome: contracts.AnimePatchOutcomeApplied, Message: "MyAnimeList search complete",
+			Candidates: toCandidateDTOs(result.Candidates),
+		}, nil
+	})
 }
 
-// GetMyAnimeListDetail fetches malID's anime page and returns it flattened
-// into MyAnimeList's own vocabulary (design D4). The bridge-vocabulary
-// translation happens one hop later, in the frontend's metadata-lookup
-// module -- this binding never performs it.
-func (a *App) GetMyAnimeListDetail(malID int) contracts.MyAnimeListDetailResult {
-	if a.myanimelistClient == nil {
-		return contracts.MyAnimeListDetailResult{Outcome: contracts.AnimePatchOutcomeError, Message: "myanimelist client unavailable"}
-	}
-	detail, err := a.myanimelistClient.Detail(a.appContext(), malID)
-	if err != nil {
-		return contracts.MyAnimeListDetailResult{Outcome: contracts.AnimePatchOutcomeError, Message: myanimelistErrorMessage(err)}
-	}
-	return contracts.MyAnimeListDetailResult{
-		Outcome: contracts.AnimePatchOutcomeApplied, Message: "MyAnimeList detail loaded",
-		Title: detail.Title, Type: detail.Type, Episodes: detail.Episodes, Duration: detail.Duration,
-		Source: detail.Source, Studios: detail.Studios, Genres: detail.Genres, Unfilled: detail.Unfilled,
-	}
+// GetMyAnimeListDetail fetches malID's anime page through the always-ready shell
+// handle and returns it flattened into MyAnimeList's own vocabulary (design D4).
+// The bridge-vocabulary translation happens one hop later, in the frontend's
+// metadata-lookup module -- this binding never performs it. A failed request, or
+// no client wired, is internal with the message the lookup shows.
+func (a *App) GetMyAnimeListDetail(malID int) (contracts.MyAnimeListDetailResult, error) {
+	return a.moduleSet().shell.Use(func(services modules.ShellServices) (contracts.MyAnimeListDetailResult, error) {
+		if services.MetadataLookup == nil {
+			return contracts.MyAnimeListDetailResult{}, errMyAnimeListUnavailable
+		}
+		detail, err := services.MetadataLookup.Detail(a.appContext(), malID)
+		if err != nil {
+			return contracts.MyAnimeListDetailResult{}, myanimelistError(err)
+		}
+		return contracts.MyAnimeListDetailResult{
+			Outcome: contracts.AnimePatchOutcomeApplied, Message: "MyAnimeList detail loaded",
+			Title: detail.Title, Type: detail.Type, Episodes: detail.Episodes, Duration: detail.Duration,
+			Source: detail.Source, Studios: detail.Studios, Genres: detail.Genres, Unfilled: detail.Unfilled,
+		}, nil
+	})
 }
 
-// myanimelistErrorMessage formats err for a result DTO's Message field. A
+// errMyAnimeListUnavailable is the failure of a lookup with no client wired.
+var errMyAnimeListUnavailable = errors.New("myanimelist client unavailable")
+
+// myanimelistError turns a client failure into the error the lookup shows. A
 // *myanimelist.DriftError names its failing anchor so the user sees
-// "MyAnimeList changed its page", never a generic transport error (design
-// D4's outcome table).
-func myanimelistErrorMessage(err error) string {
+// "MyAnimeList changed its page", never a generic transport error (design D4's
+// outcome table).
+func myanimelistError(err error) error {
 	var drift *myanimelist.DriftError
 	if errors.As(err, &drift) {
-		return fmt.Sprintf("MyAnimeList changed its page at %q; metadata autofill cannot continue", drift.Anchor)
+		return fmt.Errorf("MyAnimeList changed its page at %q; metadata autofill cannot continue", drift.Anchor)
 	}
-	return fmt.Sprintf("myanimelist request failed: %v", err)
+	return fmt.Errorf("myanimelist request failed: %w", err)
 }
 
 // toCandidateDTOs maps myanimelist.Candidate values to their flat DTO shape

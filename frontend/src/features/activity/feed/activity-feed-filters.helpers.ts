@@ -1,6 +1,6 @@
 import type { Key } from '@heroui/react';
 import { CalendarDate, Time } from '@internationalized/date';
-import type { ActivityChartScale, ActivityFeedOrigin, ActivityFeedQuery, ActivityFeedType } from '../feed-source/feed.types';
+import type { ActivityChartScale, ActivityFeedOrigin, ActivityFeedQuery, ActivityFeedType } from '../../../shared/contracts/activity-feed.types';
 import {
   ACTIVITY_ALL_TYPES_KEY,
   ACTIVITY_DAILY_SCALES,

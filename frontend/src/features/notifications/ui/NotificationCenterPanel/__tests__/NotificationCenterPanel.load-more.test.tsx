@@ -1,9 +1,9 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { NotificationCenterSource } from '../../../../../infrastructure/notification-center-source/notification-center-source.types';
-import type { NotificationPage, NotificationRow } from '../../../../../shared/contracts/notification-center.types';
+import type { NotificationCenterSource, NotificationPage, NotificationRow } from '../../../../../shared/contracts/notification-center.types';
 import { triggerIntersectionObservers } from '../../../../../test/setup';
 import { NotificationCenterPanel } from '../NotificationCenterPanel';
+import { notificationsQueryWrapper } from './notification-center.test-support';
 
 afterEach(cleanup);
 
@@ -124,7 +124,7 @@ describe('NotificationCenterPanel load-more trigger', () => {
   it('fetches exactly one page on mount and never pages on its own, however many pages the backend offers', async () => {
     const { listNotifications, source } = createEndlessSource();
 
-    render(<NotificationCenterPanel source={source} />);
+    render(<NotificationCenterPanel source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     await screen.findByText('Notification 25');
 
@@ -137,7 +137,7 @@ describe('NotificationCenterPanel load-more trigger', () => {
   it('does not fetch when a load-more sentinel reports itself visible, because the rail mounts none', async () => {
     const { listNotifications, source } = createEndlessSource();
 
-    render(<NotificationCenterPanel source={source} />);
+    render(<NotificationCenterPanel source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     await screen.findByText('Notification 25');
 
@@ -153,7 +153,7 @@ describe('NotificationCenterPanel load-more trigger', () => {
   it('fetches the next page on a scroll near the bottom, so the guards above cannot be met by breaking pagination', async () => {
     const { listNotifications, source } = createEndlessSource();
 
-    render(<NotificationCenterPanel source={source} />);
+    render(<NotificationCenterPanel source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     await screen.findByText('Notification 25');
 
@@ -170,7 +170,7 @@ describe('NotificationCenterPanel load-more trigger', () => {
   it('does not fetch when the scroll lands far from the bottom, so the near-bottom gate is a real gate', async () => {
     const { listNotifications, source } = createEndlessSource();
 
-    render(<NotificationCenterPanel source={source} />);
+    render(<NotificationCenterPanel source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     await screen.findByText('Notification 25');
 

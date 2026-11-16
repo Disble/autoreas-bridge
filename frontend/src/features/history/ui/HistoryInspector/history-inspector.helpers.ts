@@ -1,5 +1,7 @@
 import type { AnimeDetail, WatchHistoryEntry } from "../../../../shared/contracts/anime.types";
 import { formatDayHeading, formatRowTime, toLocalDayKey } from "../../../../shared/watch-history/watch-history.helpers";
+import { HISTORY_INSPECTOR_NO_EPISODES } from "./history-inspector.constants";
+import type { HistoryInspectorRead, HistoryInspectorState, HistoryInspectorStateInput } from "./history-inspector.types";
 
 /**
  * Derives the inspector "Added" date (design D8): the first repetition's
@@ -65,4 +67,52 @@ export function deriveHistoryInspectorProgressRatio(detail: AnimeDetail): number
   }
 
   return detail.episodesWatched / detail.totalEpisodes;
+}
+
+/**
+ * The selected anime's own loaded answer: undefined while the read is pending,
+ * failed, or still shows the previous selection's answer, so arrow-keying
+ * through rows never shows another anime's data.
+ *
+ * @param read One inspector query.
+ * @returns The loaded data, or undefined.
+ */
+export function toInspectedData<TData>(read: HistoryInspectorRead<TData>): TData | undefined {
+  return read.status === "success" && !read.isPlaceholderData ? read.data : undefined;
+}
+
+/**
+ * Derives the exclusive inspector state (design D8): `prompt` with no
+ * selection; `error` when the detail read failed (an unknown anime, or the
+ * anime module failed); `loading` while it is pending (also while the module
+ * starts) or still shows the previous selection; `content` otherwise. The
+ * 3-row recent page is supplementary: until it loads, and when it fails, it
+ * reads as no rows while the detail-driven state stands.
+ *
+ * @param input The selection, its detail and recent-page queries and its cover.
+ * @returns The inspector state.
+ */
+export function toHistoryInspectorState({ animeId, detail, recent, cover }: HistoryInspectorStateInput): HistoryInspectorState {
+  const recentEpisodes = toInspectedData(recent)?.items ?? HISTORY_INSPECTOR_NO_EPISODES;
+  const none = { detail: undefined, addedMs: undefined, lastWatchedMs: undefined, cover };
+  if (animeId === undefined) {
+    return { status: "prompt", ...none, recentEpisodes: HISTORY_INSPECTOR_NO_EPISODES };
+  }
+  if (detail.status === "error") {
+    return { status: "error", ...none, recentEpisodes };
+  }
+
+  const loaded = toInspectedData(detail);
+  if (loaded === undefined) {
+    return { status: "loading", ...none, recentEpisodes };
+  }
+
+  return {
+    status: "content",
+    detail: loaded,
+    addedMs: deriveHistoryInspectorAddedMs(loaded),
+    lastWatchedMs: deriveHistoryInspectorLastWatchedMs(loaded, recentEpisodes),
+    cover,
+    recentEpisodes,
+  };
 }

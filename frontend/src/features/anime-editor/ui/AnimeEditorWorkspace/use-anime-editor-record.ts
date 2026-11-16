@@ -1,18 +1,20 @@
 import { toast } from '@heroui/react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { AnimeEditorSaveResult } from '../../../../shared/contracts/anime.types';
+import { useCallback, useMemo, useState } from 'react';
+import type { AnimeEditorSaveResult, SaveAnimeEditorCommand } from '../../../../shared/contracts/anime.types';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
+import { toShownRecordLoadError } from './anime-editor-record.helpers';
 import { ANIME_EDITOR_DEFAULT_DRAFT } from './anime-editor-workspace.constants';
 import { createAnimeEditorDraft, createAnimeEditorSaveCommand, hasAnimeEditorChanges, isIntentionalEditorOutcome, raceAnimeEditorCall, resolveAnimeEditorFeedbackMessage, toAnimeEditorToastKind, toEditorErrorMessage, validateAnimeEditorDraft } from './anime-editor-workspace.helpers';
-import type { AnimeEditorDraft, AnimeEditorRecordState, UseAnimeEditorRecordOptions } from './anime-editor-workspace.types';
+import type { AnimeEditorDraft, AnimeEditorRecordState, AnimeEditorSettledRecordRead, UseAnimeEditorRecordOptions } from './anime-editor-workspace.types';
 import { useAnimeEditorDraftPickers } from './use-anime-editor-draft-pickers';
 import { useAnimeEditorLifecycleActions } from './use-anime-editor-lifecycle-actions';
 import { useAnimeEditorMetadataPatch } from './use-anime-editor-metadata-patch';
+import { useAnimeEditorRecordRead } from './use-anime-editor-record-read';
 
 /** Owns one selected record's authority, attempted draft, validation, and mutations. */
 export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptions>) {
   // 1. Refs
-  const loadSequence = useRef(0);
-  const source = options.source;
+  const { source, editorSource } = options;
 
   // 2. State
   const [state, setState] = useState<AnimeEditorRecordState>({
@@ -35,8 +37,27 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
   }, []);
   const metadataPatch = useAnimeEditorMetadataPatch(state.draft, patchDraft);
   const draftPickers = useAnimeEditorDraftPickers(source, patchDraft);
+  const { resetAppliedMetadata } = metadataPatch;
+  /**
+   * Replaces the draft from one settled read of the selected record; a failed
+   * read clears the record and shows why. A pending Undo's pre-image belongs to
+   * the record it was captured against, so a record swap drops it (design D9).
+   */
+  const applySettledRead = useCallback((read: AnimeEditorSettledRecordRead) => {
+    setState((current) => ({
+      ...current,
+      selectedRecord: read.selectedRecord,
+      draft: createAnimeEditorDraft(read.selectedRecord),
+      retainsAttemptedDraft: false,
+      recordLoadError: read.recordLoadError,
+    }));
+    resetAppliedMetadata();
+  }, [resetAppliedMetadata]);
+  const { isLoadingRecord, loadRecord } = useAnimeEditorRecordRead(editorSource, options.selectedAnimeId, applySettledRead);
 
   // 4. Queries/Mutations
+  const saveMutation = useBridgeMutation({ mutationFn: (command: SaveAnimeEditorCommand) => editorSource.saveAnimeEditor(command) });
+  const saveAnimeEditor = saveMutation.mutateAsync;
 
   // 5. Derived State (useMemo)
   const validationMessage = useMemo(() => state.selectedRecord === undefined ? undefined : validateAnimeEditorDraft(state.draft), [state.draft, state.selectedRecord]);
@@ -47,31 +68,6 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
   const canSave = useMemo(() => state.selectedRecord !== undefined && isDirty && validationMessage === undefined, [isDirty, state.selectedRecord, validationMessage]);
 
   // 6. Callbacks (useCallback calling pure helpers)
-  const loadRecord = useCallback(async (animeId: string) => {
-    const request = loadSequence.current + 1;
-    loadSequence.current = request;
-    setState((current) => ({ ...current, isLoadingRecord: true, recordLoadError: undefined }));
-    try {
-      const result = await source.getAnimeEditorRecord(animeId);
-      if (loadSequence.current !== request) return;
-      setState((current) => ({
-        ...current,
-        selectedRecord: result.record,
-        draft: createAnimeEditorDraft(result.record),
-        retainsAttemptedDraft: false,
-        recordLoadError: result.outcome === 'error' ? resolveAnimeEditorFeedbackMessage(result, 'The editor record could not be loaded.') : undefined,
-      }));
-      // A pending Undo's pre-image belongs to the record it was captured
-      // against -- swapping records without clearing it would let Undo
-      // replay a stale pre-image onto an unrelated draft (design D9, "not
-      // persisted").
-      metadataPatch.resetAppliedMetadata();
-    } catch (error) {
-      if (loadSequence.current === request) setState((current) => ({ ...current, recordLoadError: toEditorErrorMessage(error) }));
-    } finally {
-      if (loadSequence.current === request) setState((current) => ({ ...current, isLoadingRecord: false }));
-    }
-  }, [source, metadataPatch.resetAppliedMetadata]);
   const onDraftChange = useCallback((field: keyof AnimeEditorDraft, value: string) => {
     patchDraft({ [field]: field === 'status' ? Number(value) : value } as Partial<AnimeEditorDraft>);
   }, [patchDraft]);
@@ -89,9 +85,9 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
     }
     setState((current) => ({ ...current, isSaving: true }));
     try {
-      const result = await raceAnimeEditorCall(source.saveAnimeEditor(createAnimeEditorSaveCommand(state.selectedRecord, state.draft)));
+      const result = await raceAnimeEditorCall(saveAnimeEditor(createAnimeEditorSaveCommand(state.selectedRecord, state.draft)));
       if (isIntentionalEditorOutcome(result)) {
-        const authority = result.record ?? (await source.getAnimeEditorRecord(state.selectedRecord.animeId)).record;
+        const authority = result.record ?? (await editorSource.getAnimeEditorRecord(state.selectedRecord.animeId)).record;
         setState((current) => ({
           ...current, selectedRecord: authority, draft: createAnimeEditorDraft(authority),
           retainsAttemptedDraft: false,
@@ -110,20 +106,13 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
     } finally {
       setState((current) => ({ ...current, isSaving: false }));
     }
-  }, [source, state.draft, state.selectedRecord]);
-  const lifecycle = useAnimeEditorLifecycleActions(source, state.selectedRecord, setState, loadRecord);
-
-  // 7. Effects
-  useEffect(() => {
-    if (options.selectedAnimeId === undefined) {
-      loadSequence.current += 1;
-      return;
-    }
-    void loadRecord(options.selectedAnimeId);
-  }, [loadRecord, options.selectedAnimeId]);
+  }, [editorSource, saveAnimeEditor, state.draft, state.selectedRecord]);
+  const lifecycle = useAnimeEditorLifecycleActions({ source, editorSource }, state.selectedRecord, setState, loadRecord);
 
   return {
     ...state,
+    isLoadingRecord,
+    recordLoadError: toShownRecordLoadError(isLoadingRecord, state.recordLoadError),
     appliedMetadata: metadataPatch.appliedMetadata,
     validationMessage, isDirty, canSave, onDraftChange, onDiscardChanges,
     onMetadataApplied: metadataPatch.onMetadataApplied,

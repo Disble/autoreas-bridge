@@ -14,6 +14,25 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [2.9.0] — 2026-11-16
+
+**Wire-visible, additive:** hourly summaries accepted by `POST /api/sync/diagnostics` can report `presence_unanswered` when the tablet connected to Bridge but received no complete HTTP response within its time budget. Existing report outcomes remain accepted. See `docs/openapi.yaml`.
+
+### Changed
+
+- Catalog now opens sorted by Last watched, with the most recently watched anime first and undated anime last. Choosing another order still keeps it while you navigate within the app session.
+- Screens migrated to the shared data layer distinguish a backend that is still starting, a failed load and a genuinely empty result, instead of displaying unavailable data as an empty list. Failed refreshes keep the loaded data visible where supported.
+
+### Fixed
+
+- Saving or deactivating an anime in the Editor now records the change in Activity, just like the corresponding card actions.
+
+### Internal
+
+- Bridge records which operation holds its database connection when requests stall and imports pending stall evidence on the next startup, improving investigation of requests that receive no response.
+- Backend module readiness, coded binding errors and shared frontend queries now centralize data loading and refreshes across the migrated screens. The season store keeps interface state rather than duplicate server records; the remaining migration debt is documented.
+- The real WebView2 engine test checks that its browsers belong to the kill-on-close job instead of relying on how quickly Windows tears them down under load, and removes its temporary profile after a successful test.
+
 ## [2.8.0] — 2026-11-08
 
 **Requires this version or newer for mobile 2.8.0:** older Bridges refuse the phone's new reports and episode changes stall behind them.

@@ -33,6 +33,13 @@ func (a *App) configureRuntimeServices(ctx context.Context) {
 	a.configureCaptureReader()
 	a.configureSyncDiagReader()
 	a.configureEventLogQueue(ctx)
+	a.bindObservabilityModule()
+	// Before startHTTPServer: a pending stall is imported before the next can happen.
+	// The import writes its own event row and incident, so it does not depend on
+	// the observability handle bound above; both just have to run before the
+	// server accepts the request that could stall next.
+	a.configureStallEvidence()
+	a.importStallEvidence()
 	a.prepareAnimeRuntime(ctx)
 	a.startSyncChangelogRecorder()
 	a.startIncrementalVacuumLoop(bridgeSync.IncrementalVacuumInterval)
@@ -41,10 +48,12 @@ func (a *App) configureRuntimeServices(ctx context.Context) {
 	// Before startHTTPServer: the first contact overwrites the value this keeps.
 	a.captureLastContacts(ctx, changelogStore)
 	a.configureRealtimeHub(ctx)
+	a.bindDevicesModule()
 	a.startSeasonProjectionPublisher(ctx)
 	conflictService := a.configureAnimeApplicationServices()
 	a.wireEpisodeServiceWithWriter(a.animeWrite)
 	a.startHTTPServer(deviceService, a.newMobileAnimeWriteService(), conflictService, changelogStore)
+	a.settleModules(moduleObservability, moduleSync, moduleDevices, moduleSettings, moduleAnime, moduleEpisodes, moduleAPI)
 }
 
 // captureLastContacts keeps each active device's last contact for the start
@@ -120,9 +129,36 @@ func (a *App) sweepOrphanedCaptures() {
 		}
 		return
 	}
-	if swept > 0 && a.sharedLogger != nil {
-		a.logCaptureSweep(map[string]any{"swept": swept}, "swept %d orphaned capture row(s) left pending by a previous process", swept)
+	if len(swept) > 0 && a.sharedLogger != nil {
+		a.logCaptureSweep(sweptCapturesMetadata(swept), "swept %d orphaned capture row(s) left pending by a previous process", len(swept))
 	}
+}
+
+// maxSweptCapturesLogged caps the swept rows one sweep record names, so the
+// record stays under the 4 KB metadata bound that would otherwise replace it
+// whole with a marker.
+const maxSweptCapturesLogged = 10
+
+// sweptCapturesMetadata records how many rows were swept and names the newest
+// of them: the last request a hung process accepted is the one that names the
+// hang, and retention deletes the row itself later.
+func sweptCapturesMetadata(swept []requestcapture.SweptCapture) map[string]any {
+	kept := swept[max(len(swept)-maxSweptCapturesLogged, 0):]
+	captures := make([]map[string]any, 0, len(kept))
+	for _, capture := range kept {
+		entry := map[string]any{
+			"requestId": capture.RequestID, "route": capture.Route, "kind": capture.Kind, "capturedAtMs": capture.CapturedAtMS,
+		}
+		if capture.ClientRequestID != "" {
+			entry["clientRequestId"] = capture.ClientRequestID
+		}
+		captures = append(captures, entry)
+	}
+	metadata := map[string]any{"swept": int64(len(swept)), "captures": captures}
+	if omitted := len(swept) - len(kept); omitted > 0 {
+		metadata["capturesOmitted"] = omitted
+	}
+	return metadata
 }
 
 // logCaptureSweep writes one capture-sweep warning with its structured metadata, so the kept
@@ -154,7 +190,8 @@ func (a *App) configureCaptureReader() {
 // constructor probes device_telemetry_events, and a bare, unopened *sql.DB{}
 // (as a degraded bootstrap or a unit-test fixture supplies) panics on query
 // rather than erroring. Leaving the reader nil there is the correct
-// degradation -- the bound read already reports a nil reader as Degraded.
+// degradation -- the observability module then fails its wiring check, so the
+// bound read answers failed_precondition instead of an empty page.
 func (a *App) configureSyncDiagReader() {
 	if a.syncDiagReader != nil || a.bridgeDB == nil || a.newSyncDiagReader == nil {
 		return
@@ -262,6 +299,7 @@ func (a *App) configureBridgeDeviceServices(ctx context.Context) (device.AuthSer
 	a.seasonService = season.NewService(season.WithProjectionSignal(a.newSeasonStore(a.bridgeDB), a.eventBus), time.Now, func() string { return uuid.New().String() }, jkanimeSearcher)
 	a.seasonService.SetProviderSearchers(a.newSeasonProviderSearchers(jkanimeSearcher))
 	a.settingsStore = settings.NewSQLiteStore(a.bridgeDB)
+	a.bindSettingsModule()
 	deviceService := a.newDeviceService(deviceStore)
 	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(a.bridgeDB))
 	a.attachDeviceSyncStateStore(deviceService, changelogStore)
@@ -324,7 +362,22 @@ func (a *App) configureAnimeApplicationServices() *bridgeSync.ConflictStore {
 	create.SetQuery(animeQuery)
 	a.animeCreate = create
 	a.animeCreateBatch = create
+	a.bindAnimeModule()
 	return conflictService
+}
+
+// bindAnimeModule binds the anime module's services to its handle.
+// configureAnimeApplicationServices calls it once they are built, before
+// settleModules marks the module ready, so a binding that sees ready finds them.
+// The batch creator is stateless over the anime writer and query, so the one
+// startSeasonAvailability builds later over the same two behaves the same.
+func (a *App) bindAnimeModule() {
+	a.moduleSet().anime.Bind(animeServices{
+		query: a.animeQuery, watchHistory: a.watchHistoryQuery, covers: a.coverThumbnails,
+		editorQuery: a.animeEditorQuery, editorWrite: a.animeEditorWrite,
+		scheduleQuery: a.animeEditorScheduleQuery, scheduleWrite: a.animeEditorScheduleWrite,
+		createBatch: a.animeCreateBatch,
+	})
 }
 
 // newAnimeWriteDeps builds shared dependencies for anime write services.

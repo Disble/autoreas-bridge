@@ -2,6 +2,7 @@ import gridIcon from '@iconify-icons/tabler/layout-grid';
 import listIcon from '@iconify-icons/tabler/list';
 import { ANIME_ESTADO_FILTER_ENTRIES, ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
 import { ANIME_TIPO_FILTER_ENTRIES } from '../../../../shared/constants/anime-tipo.constants';
+import type { Anime } from '../../../../shared/contracts/anime.types';
 import type { CatalogCriteria, CatalogEmptyStateCopy, CatalogOption, CatalogSortKey, CatalogView, CatalogViewOption } from './catalog-panel.types';
 
 /**
@@ -10,6 +11,9 @@ import type { CatalogCriteria, CatalogEmptyStateCopy, CatalogOption, CatalogSort
  * as "you have no anime".
  */
 export const CATALOG_PANEL_ERROR_TITLE = 'Catalog unavailable';
+
+/** The rows the panel filters while the catalog is loading, empty or failed: one stable empty list. */
+export const CATALOG_NO_ITEMS: readonly Anime[] = [];
 
 /**
  * Feedback shown, as the accessible name of the loading status region, while
@@ -133,8 +137,8 @@ export const CATALOG_VIEW_OPTIONS: readonly CatalogViewOption[] = [
 /** Hint under the Genres group: genres narrow together, not as alternatives. */
 export const CATALOG_GENRES_HINT = 'Shows anime that have every selected genre.';
 
-/** Sort the Catalog opens with. */
-export const CATALOG_DEFAULT_SORT: CatalogSortKey = 'name-asc';
+/** Opens the Catalog with the most recently watched anime first. */
+export const CATALOG_DEFAULT_SORT: CatalogSortKey = 'last-watched';
 
 /** Layout the Catalog opens with. */
 export const CATALOG_DEFAULT_VIEW: CatalogView = 'grid';

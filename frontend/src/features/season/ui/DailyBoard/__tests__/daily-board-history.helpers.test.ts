@@ -1,18 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import type {
-  SeasonAnimeRow,
-  SeasonDailyBoardEntry,
-  SeasonOrderingSnapshot,
-  SeasonSource,
-} from '../../../../../infrastructure/season-source/season-source.types';
-import {
-  groupSnapshotSections,
-  listViewAnimeIds,
-  readDailyBoardHistory,
-  resolveDailyBoardHistory,
-  selectDailyBoardView,
-} from '../daily-board-history.helpers';
+import type { SeasonAnimeRow, SeasonDailyBoardEntry, SeasonOrderingSnapshot } from '../../../../../shared/contracts/season.types';
+import type { AsyncView } from '../../../../../shared/query/async-view/async-view.types';
+import { groupSnapshotSections, listViewAnimeIds, selectDailyBoardView, toDailyBoardHistory } from '../daily-board-history.helpers';
 import { DAILY_BOARD_HISTORY_LOAD_ERROR } from '../daily-board.constants';
 import type { DailyBoardHistory } from '../daily-board.types';
 
@@ -26,14 +16,9 @@ function entry(rowId: string, section: string, order: number): SeasonDailyBoardE
   return { rowId, animeId: `anime-${rowId}`, section, order };
 }
 
-/** Builds a season port whose snapshot read is the given implementation, or absent. */
-function sourceWith(read?: SeasonSource['getSeasonOrderingSnapshot']): SeasonSource {
-  return { getSeasonOrderingSnapshot: read } as SeasonSource;
-}
-
-/** A stored ordering snapshot carrying the given Daily board. */
-function snapshot(dailyBoard?: SeasonOrderingSnapshot['dailyBoard']): SeasonOrderingSnapshot {
-  return { recorded: true, rail: [], grid: [], dailyBoard };
+/** A settled snapshot read whose stored snapshot carries the given Daily board. */
+function settled(dailyBoard?: SeasonOrderingSnapshot['dailyBoard']): AsyncView<SeasonOrderingSnapshot> {
+  return { kind: 'ready', data: { recorded: true, rail: [], grid: [], dailyBoard }, isRefreshing: false };
 }
 
 /** Ids of every row in each section. */
@@ -41,38 +26,31 @@ function sectionIds(sections: ReturnType<typeof groupSnapshotSections>) {
   return [sections.sinVer, sections.verHoy, sections.visto].map((rows) => rows.map((r) => r.id));
 }
 
-describe('readDailyBoardHistory', () => {
+describe('toDailyBoardHistory', () => {
   const entries = [entry('a', 'Visto', 1)];
 
-  it.each([
-    { name: 'a recorded Daily board', read: snapshot({ recorded: true, entries }), want: { status: 'recorded', entries } },
-    { name: 'a board recorded as absent', read: snapshot({ recorded: false, entries: [] }), want: { status: 'unrecorded' } },
-    { name: 'a snapshot without a Daily board', read: snapshot(), want: { status: 'unrecorded' } },
-  ])('settles $name for the season it read', async ({ read, want }) => {
-    const getSeasonOrderingSnapshot = vi.fn().mockResolvedValue(read);
-    await expect(readDailyBoardHistory(sourceWith(getSeasonOrderingSnapshot), 's1')).resolves.toEqual({ seasonId: 's1', history: want });
-    expect(getSeasonOrderingSnapshot).toHaveBeenCalledWith('s1');
-  });
-
-  it.each([
-    { name: 'a source that cannot read the snapshot', source: sourceWith(), message: DAILY_BOARD_HISTORY_LOAD_ERROR },
-    { name: 'a read that throws an error', source: sourceWith(vi.fn().mockRejectedValue(new Error('boom'))), message: 'boom' },
-    { name: 'a read that throws a non-error', source: sourceWith(vi.fn().mockRejectedValue('boom')), message: DAILY_BOARD_HISTORY_LOAD_ERROR },
-  ])('reports $name as a failure, never as unrecorded', async ({ source, message }) => {
-    await expect(readDailyBoardHistory(source, 's1')).resolves.toEqual({ seasonId: 's1', history: { status: 'failed', errorMessage: message } });
-  });
-});
-
-describe('resolveDailyBoardHistory', () => {
-  const recorded: DailyBoardHistory = { status: 'unrecorded' };
-
-  it.each([
-    { name: 'an open season', viewSeasonId: null, loaded: { seasonId: 's1', history: recorded }, want: { status: 'live' } },
-    { name: 'a closed season before any read settled', viewSeasonId: 's1', loaded: null, want: { status: 'loading' } },
-    { name: 'a closed season whose settled read is another season’s', viewSeasonId: 's2', loaded: { seasonId: 's1', history: recorded }, want: { status: 'loading' } },
-    { name: 'a closed season with its own settled read', viewSeasonId: 's1', loaded: { seasonId: 's1', history: recorded }, want: recorded },
-  ])('resolves $name', ({ viewSeasonId, loaded, want }) => {
-    expect(resolveDailyBoardHistory(viewSeasonId, loaded)).toEqual(want);
+  it.each<{ name: string; viewSeasonId: string | null; canRead: boolean; snapshot: AsyncView<SeasonOrderingSnapshot>; want: DailyBoardHistory }>([
+    { name: 'an open season', viewSeasonId: null, canRead: true, snapshot: settled(), want: { status: 'live' } },
+    { name: 'a closed season whose read is in flight', viewSeasonId: 's1', canRead: true, snapshot: { kind: 'loading' }, want: { status: 'loading' } },
+    { name: 'a recorded Daily board', viewSeasonId: 's1', canRead: true, snapshot: settled({ recorded: true, entries }), want: { status: 'recorded', entries } },
+    { name: 'a board recorded as absent', viewSeasonId: 's1', canRead: true, snapshot: settled({ recorded: false, entries: [] }), want: { status: 'unrecorded' } },
+    { name: 'a snapshot without a Daily board', viewSeasonId: 's1', canRead: true, snapshot: settled(), want: { status: 'unrecorded' } },
+    {
+      name: 'a source that cannot read the snapshot as a failure',
+      viewSeasonId: 's1',
+      canRead: false,
+      snapshot: { kind: 'loading' },
+      want: { status: 'failed', errorMessage: DAILY_BOARD_HISTORY_LOAD_ERROR },
+    },
+    {
+      name: 'a failed read as a failure carrying its message',
+      viewSeasonId: 's1',
+      canRead: true,
+      snapshot: { kind: 'failure', code: 'internal', message: 'boom' },
+      want: { status: 'failed', errorMessage: 'boom' },
+    },
+  ])('resolves $name', ({ viewSeasonId, canRead, snapshot, want }) => {
+    expect(toDailyBoardHistory(viewSeasonId, canRead, snapshot)).toEqual(want);
   });
 });
 
@@ -114,7 +92,7 @@ describe('selectDailyBoardView', () => {
     { history: { status: 'failed', errorMessage: 'boom' } as const, mode: 'failed', historyError: 'boom' },
   ])('renders no row while the closed season is $mode', ({ history, mode, historyError }) => {
     const view = selectDailyBoardView(rows, history);
-    expect([view.mode, sectionIds(view.sections), view.plainRows, view.historyError]).toEqual([mode, [[], [], []], [], historyError]);
+    expect([view.mode, sectionIds(view.sections), view.plainRows, view.boardError]).toEqual([mode, [[], [], []], [], historyError]);
   });
 });
 

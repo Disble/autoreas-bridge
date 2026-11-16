@@ -1,8 +1,9 @@
 import type { DragOverEvent } from '@dnd-kit/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { OrderingBoard, OrderingCard, SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
-import { ORDERING_LAST_CARD_TOOLTIP, RAIL_CONTAINER_ID } from '../ordering-board.constants';
+import type { OrderingBoard, OrderingCard, SeasonAnimeRow, SeasonOrderingSnapshot } from '../../../../../shared/contracts/season.types';
+import type { AsyncView } from '../../../../../shared/query/async-view/async-view.types';
+import { ORDERING_HISTORY_LOAD_ERROR, ORDERING_LAST_CARD_TOOLTIP, RAIL_CONTAINER_ID } from '../ordering-board.constants';
 import {
   applyOrder,
   buildDraft,
@@ -10,16 +11,24 @@ import {
   cardCounts,
   countChanges,
   duplicate,
+  fetchLiveOrderingBoard,
   getRemoveDisabledReason,
   hasDuplicateWeekdayPlacements,
   initialWorkingState,
   instancesIn,
+  isOrderingBoardReadOnly,
   orderingAnimeIds,
   removeCard,
   scheduledCount,
   serializeDraft,
   shouldCancelForbiddenWeekdayHover,
+  toLiveOrderingError,
+  toLoadedWorkingState,
+  toOrderingBoardErrorMessage,
+  toOrderingBoardHistory,
+  toStoredOrderingBoard,
 } from '../ordering-board.helpers';
+import type { OrderingBoardHistory } from '../ordering-board.types';
 
 /** Builds one stored ordering card, overriding only the fields a case sets. */
 function card(overrides: Partial<OrderingCard> = {}): OrderingCard {
@@ -325,5 +334,90 @@ describe('orderingAnimeIds', () => {
 
   it('returns no ids for an empty board', () => {
     expect(orderingAnimeIds(board())).toStrictEqual([]);
+  });
+});
+
+describe('fetchLiveOrderingBoard', () => {
+  it('reads the live board through the source query read', async () => {
+    const live = board({ rail: [card({ animeId: 'live' })] });
+    await expect(fetchLiveOrderingBoard({ fetchOrderingBoard: () => Promise.resolve(live) })).resolves.toBe(live);
+  });
+
+  it('rejects when the source cannot read the board', async () => {
+    await expect(fetchLiveOrderingBoard({})).rejects.toThrow('the season source cannot read the ordering board');
+  });
+});
+
+describe('toStoredOrderingBoard', () => {
+  it('keeps the stored rail, grid and applied instant', () => {
+    const rail = [card({ animeId: 'r' })];
+    const grid = [card({ animeId: 'g', dia: 'Lunes' })];
+    expect(toStoredOrderingBoard({ recorded: true, rail, grid, appliedAt: 7 })).toStrictEqual({ rail, grid, appliedAt: 7 });
+  });
+});
+
+describe('toOrderingBoardHistory', () => {
+  /** The stored-board read states each case starts from. */
+  const READY: AsyncView<SeasonOrderingSnapshot> = { kind: 'ready', data: { recorded: false, rail: [], grid: [] }, isRefreshing: false };
+
+  it.each<[string, string | null, boolean, AsyncView<SeasonOrderingSnapshot>, OrderingBoardHistory]>([
+    ['the live board', null, false, { kind: 'loading' }, { isHistoricalLoading: false, historicalRecorded: true, historicalError: undefined }],
+    ['a source that cannot read', 's1', false, READY, { isHistoricalLoading: false, historicalRecorded: false, historicalError: ORDERING_HISTORY_LOAD_ERROR }],
+    ['a failed read', 's1', true, { kind: 'failure', code: 'internal', message: 'boom' }, { isHistoricalLoading: false, historicalRecorded: false, historicalError: 'boom' }],
+    ['an unrecorded season', 's1', true, READY, { isHistoricalLoading: false, historicalRecorded: false, historicalError: undefined }],
+    ['a recorded season', 's1', true, { kind: 'ready', data: { recorded: true, rail: [], grid: [] }, isRefreshing: false }, { isHistoricalLoading: false, historicalRecorded: true, historicalError: undefined }],
+    ['a read in flight', 's1', true, { kind: 'loading' }, { isHistoricalLoading: true, historicalRecorded: false, historicalError: undefined }],
+  ])('reports %s', (_name, viewSeasonId, canRead, snapshotView, expected) => {
+    expect(toOrderingBoardHistory(viewSeasonId, canRead, snapshotView)).toStrictEqual(expected);
+  });
+});
+
+describe('toLoadedWorkingState', () => {
+  /** A board whose saved draft moves its rail card onto Lunes. */
+  const DRAFTED = board({ rail: [card({ animeId: 'z' })], draft: JSON.stringify({ z: [{ dia: 'Lunes', orden: 1 }] }) });
+
+  it('restores the saved draft on the live board', () => {
+    const state = toLoadedWorkingState(null, DRAFTED);
+    expect(instancesIn(state, 'Lunes').map((i) => i.animeId)).toEqual(['z']);
+    expect(instancesIn(state, RAIL_CONTAINER_ID)).toEqual([]);
+  });
+
+  it('keeps a stored board as it was recorded', () => {
+    const state = toLoadedWorkingState('s1', DRAFTED);
+    expect(instancesIn(state, RAIL_CONTAINER_ID).map((i) => i.animeId)).toEqual(['z']);
+    expect(instancesIn(state, 'Lunes')).toEqual([]);
+  });
+});
+
+describe('toLiveOrderingError', () => {
+  /** A failed live read. */
+  const FAILED: AsyncView<OrderingBoard> = { kind: 'failure', code: 'unavailable', message: 'season is starting' };
+
+  it.each<[string, string | null, AsyncView<OrderingBoard>, string | undefined]>([
+    ['a failed live read', null, FAILED, 'season is starting'],
+    ['a failed read behind a past season', 's1', FAILED, undefined],
+    ['a live read in flight', null, { kind: 'loading' }, undefined],
+  ])('reports %s', (_name, viewSeasonId, live, expected) => {
+    expect(toLiveOrderingError(viewSeasonId, live)).toBe(expected);
+  });
+});
+
+describe('isOrderingBoardReadOnly', () => {
+  it.each<[string, OrderingBoard, boolean, boolean]>([
+    ['an editable live board', board(), false, false],
+    ['an applied board', board({ appliedAt: 0 }), false, true],
+    ['a past season', board(), true, true],
+  ])('locks %s accordingly', (_name, loaded, isPastSeason, expected) => {
+    expect(isOrderingBoardReadOnly(loaded, isPastSeason)).toBe(expected);
+  });
+});
+
+describe('toOrderingBoardErrorMessage', () => {
+  it.each<[string | undefined, string | undefined, string | undefined]>([
+    ['store failed', 'live failed', 'store failed'],
+    [undefined, 'live failed', 'live failed'],
+    [undefined, undefined, undefined],
+  ])('prefers the store failure (%s, %s)', (storeError, liveError, expected) => {
+    expect(toOrderingBoardErrorMessage(storeError, liveError)).toBe(expected);
   });
 });

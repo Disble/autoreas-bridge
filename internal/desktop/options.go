@@ -38,6 +38,9 @@ func buildAppOptions(app *App, assets embed.FS) *options.App {
 		},
 		OnStartup:  app.startup,
 		OnShutdown: app.shutdown,
+		// Coded failures travel as a JSON string; every other error keeps its
+		// plain message (ADR-032 §2, app_readiness.go).
+		ErrorFormatter: formatBindingError,
 		Bind: []any{
 			app,
 		},

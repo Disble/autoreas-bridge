@@ -1,0 +1,134 @@
+import { ANIME_CHANGED_EVENT_NAME } from '../../../infrastructure/anime-runtime-source/anime-runtime-source.constants';
+import {
+  DEVICE_ACKNOWLEDGED_EVENT_NAME,
+  PAIRING_TOKEN_CONSUMED_EVENT_NAME,
+} from '../../../infrastructure/bridge-runtime-source/bridge-runtime-source.constants';
+import { backupSource } from '../../../infrastructure/backup-source/backup-source.helpers';
+import { createActivityFeedSource } from '../../../infrastructure/bridge-runtime-source/activity-feed-source.helpers';
+import { createActivityWailsSource } from '../../../infrastructure/bridge-runtime-source/activity-source.helpers';
+import { createAnimeSource } from '../../../infrastructure/bridge-runtime-source/anime-source.helpers';
+import { createAnimeDesktopActionsSource, createAnimeEditorSource } from '../../../infrastructure/bridge-runtime-source/anime-editor-source.helpers';
+import { createDevicesSource } from '../../../infrastructure/bridge-runtime-source/devices-source.helpers';
+import {
+  DOWNLOAD_RUN_EVENT_NAMES,
+  MISSED_SCHEDULE_SETTLED_EVENT_NAME,
+} from '../../../infrastructure/download-runtime-source/download-runtime-source.constants';
+import { createDownloadsSource } from '../../../infrastructure/download-runtime-source/downloads-source.helpers';
+import { createEpisodeDurationRuntimeSource } from '../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.helpers';
+import { createEpisodesSource } from '../../../infrastructure/bridge-runtime-source/episodes-source.helpers';
+import { frontendErrorReporter } from '../../../infrastructure/error-reporting/frontend-error-source.helpers';
+import { createNotificationCenterSource } from '../../../infrastructure/notification-center-source/notification-center-source.helpers';
+import { NOTIFICATION_ARCHIVED_EVENT_NAME, NOTIFICATION_EVENT_NAME } from '../../../infrastructure/notification-source/notification-source.constants';
+import { createReadinessSource } from '../../../infrastructure/readiness/readiness-source.helpers';
+import { SEASON_MATCHING_FINISHED_EVENT_NAME } from '../../../infrastructure/season-source/season-source.constants';
+import { createSeasonSource } from '../../../infrastructure/season-source/season-source.helpers';
+import { createSettingsSource } from '../../../infrastructure/settings-source/settings-source.helpers';
+import { createRuntimeEventSource } from '../../../infrastructure/wails-bindings.helpers';
+import { createInvalidationRegistry } from '../invalidation-bridge/invalidation-bridge.helpers';
+import { createBridgeQueryClient } from '../query-client/query-client.helpers';
+import {
+  DEVICES_CONNECTED_KEY,
+  DEVICES_PAIRING_TOKEN_KEY,
+  DOWNLOADS_RUNS_KEY,
+  DOWNLOADS_SCHEDULE_KEY,
+  episodesKeys,
+  NOTIFICATIONS_UNREAD_COUNT_KEY,
+  notificationsKeys,
+  SEASON_ANIMES_KEY,
+} from '../query-keys/query-keys.constants';
+import { createReadinessGate } from '../readiness-gate/readiness-gate.helpers';
+
+// The one composition module of `shared/query` (ADR-032 §4): the only file here
+// that imports `infrastructure/**`. Every other `shared/query` file depends on
+// ports; `src/app` only mounts `BridgeQueryProvider` with these values, and
+// feature hooks read each context's source from here.
+
+/** The app's one query client, with the Bridge IPC defaults. */
+export const BRIDGE_QUERY_CLIENT = createBridgeQueryClient();
+
+/** The app's one readiness gate, over the Wails `GetReadiness` + `bridge.readiness` adapter. */
+export const BRIDGE_READINESS_GATE = createReadinessGate(createReadinessSource());
+
+/**
+ * The app's one frontend error reporter, over the `ReportFrontendError` adapter
+ * (served by the always-ready shell handle); `shared/error-reporting` reads it here.
+ */
+export const BRIDGE_FRONTEND_ERROR_REPORTER = frontendErrorReporter;
+
+/**
+ * The backup module's bindings: the SQLite status the rail chip reads and the
+ * backup export and import commands of Settings.
+ */
+export const BRIDGE_BACKUP_SOURCE = backupSource;
+
+/** The Wails runtime events the invalidation bridge listens through. */
+export const BRIDGE_EVENT_SOURCE = createRuntimeEventSource();
+
+/** The episodes module's reads (`GetEpisodeSchedule`, `GetEpisodeDayCounts`) and commands (progress, state, restore, repeat), for Today and the Editor. */
+export const BRIDGE_EPISODES_SOURCE = createEpisodesSource();
+
+/** The Editor durations card's reads and commands, served by the episodes module. */
+export const BRIDGE_EPISODE_DURATIONS_SOURCE = createEpisodeDurationRuntimeSource();
+/**
+ * The anime module's reads (`GetAnimes`, `GetAnimeDetail`, the two watch-history
+ * pages, `GetAnimeCover`), for the Catalog, the anime detail page and History.
+ */
+export const BRIDGE_ANIME_SOURCE = createAnimeSource();
+
+/**
+ * The anime module's Editor and create bindings: the record, its save and
+ * deactivate, the schedule board and its apply, and the batch create, with the
+ * strict catalog list of `BRIDGE_ANIME_SOURCE`.
+ */
+export const BRIDGE_ANIME_EDITOR_SOURCE = createAnimeEditorSource(BRIDGE_ANIME_SOURCE);
+
+/** The anime module's four desktop actions: open or copy an anime's page or folder. */
+export const BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE = createAnimeDesktopActionsSource();
+
+/** The Devices page's bindings: the `api`, `devices` and `sync` modules' reads and commands. */
+export const BRIDGE_DEVICES_SOURCE = createDevicesSource();
+
+/** The Activity screen's pin and detail reads, served by the `observability` module. */
+export const BRIDGE_ACTIVITY_SOURCE = createActivityWailsSource();
+
+/** The Activity feed's page, overview and drawer reads, served by the `observability` module. */
+export const BRIDGE_ACTIVITY_FEED_SOURCE = createActivityFeedSource();
+
+/** The Settings page's bindings: the `settings` module's library root and auto-start reads and commands. */
+export const BRIDGE_SETTINGS_SOURCE = createSettingsSource();
+
+/** The notification center's reads and commands, served by the `notifications` module. */
+export const BRIDGE_NOTIFICATION_CENTER_SOURCE = createNotificationCenterSource();
+
+/** The season screens' reads and commands, served by the `season` module: the one shared season adapter. */
+export const BRIDGE_SEASON_SOURCE = createSeasonSource();
+
+/** The Downloads screen's reads and commands, served by the `downloads` module (the rename opt-in by `settings`, the JDownloader limit by the shell). */
+export const BRIDGE_DOWNLOADS_SOURCE = createDownloadsSource();
+
+/**
+ * Every context's event→invalidation rules, the one place a context registers
+ * them as it migrates (ADR-032, task T4 onward). Episodes: every committed anime
+ * change (`anime.changed`, from any writer: this window, mobile, the REST API,
+ * downloads) can move a row between days or change a day count. Devices: a
+ * consumed pairing token means a new device paired, so the token is spent and
+ * the device list grew; a device acknowledgment advances that device's last sync.
+ * Notifications: every pushed notification is a new unread record (the badge and
+ * the center's first page read again); an archive lowers the unread count.
+ * Season: a finished matching run is the one authoritative reload of the open
+ * season's intake rows.
+ * Downloads: every run event (started, progress, an episode, a failure, the
+ * settled run) re-reads the schedule and the run history; a settled missed day
+ * re-reads only the schedule, since settling a day is not a run. A refetch
+ * cancels the one in flight, so only the latest read's answer applies.
+ */
+export const BRIDGE_INVALIDATIONS = createInvalidationRegistry([
+  { event: ANIME_CHANGED_EVENT_NAME, queryKeys: [episodesKeys.all] },
+  { event: PAIRING_TOKEN_CONSUMED_EVENT_NAME, queryKeys: [DEVICES_PAIRING_TOKEN_KEY, DEVICES_CONNECTED_KEY] },
+  { event: DEVICE_ACKNOWLEDGED_EVENT_NAME, queryKeys: [DEVICES_CONNECTED_KEY] },
+  { event: NOTIFICATION_EVENT_NAME, queryKeys: [notificationsKeys.all] },
+  { event: NOTIFICATION_ARCHIVED_EVENT_NAME, queryKeys: [NOTIFICATIONS_UNREAD_COUNT_KEY] },
+  { event: SEASON_MATCHING_FINISHED_EVENT_NAME, queryKeys: [SEASON_ANIMES_KEY] },
+  ...DOWNLOAD_RUN_EVENT_NAMES.map((event) => ({ event, queryKeys: [DOWNLOADS_SCHEDULE_KEY, DOWNLOADS_RUNS_KEY] })),
+  { event: MISSED_SCHEDULE_SETTLED_EVENT_NAME, queryKeys: [DOWNLOADS_SCHEDULE_KEY] },
+]);

@@ -106,9 +106,9 @@ export interface WatchHistoryEntry {
 
 /**
  * WatchHistoryPage is a keyset-paged batch of `WatchHistoryEntry` rows. A
- * fetch failure is surfaced through `status`/`message` rather than an empty
- * `items` array, so the loading/error states never mistake a failure for an
- * empty history.
+ * failed read rejects with a `BridgeError` (`AnimeSource`), so the loading and
+ * failure states never mistake a failure for an empty history; a page that
+ * arrives always carries `status` `"ok"`, and `message` is unused.
  */
 export interface WatchHistoryPage {
   readonly items: readonly WatchHistoryEntry[];

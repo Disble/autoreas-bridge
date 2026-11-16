@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EpisodeReanalysisReview, EpisodeReanalysisRow } from '../../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
+import type { EpisodeReanalysisReview, EpisodeReanalysisRow } from '../../../../../shared/contracts/episode-durations.types';
 import { shouldOpenEpisodeReview, toEpisodeReviewEdits, toEpisodeReviewView } from '../episode-reanalysis-review.helpers';
 
 /** The folder every review in this suite read. */

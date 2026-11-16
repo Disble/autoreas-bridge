@@ -3,8 +3,9 @@ import { createElement } from 'react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnimeEditorRecord, AnimeEditorSaveResult } from '../../../../../shared/contracts/anime.types';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
 import { useAnimeEditorWorkspace } from '../use-anime-editor-workspace';
-import { createEmptyEpisodeDurationSource } from './episode-duration-source.test-support';
+import { createEmptyEpisodeDurationSource, createEpisodesReadyWrapper } from './episode-duration-source.test-support';
 
 /** Toast stub, hoisted so the HeroUI module mock can close over it. */
 const toastMock = vi.hoisted(() => ({ success: vi.fn(), info: vi.fn(), warning: vi.fn(), danger: vi.fn() }));
@@ -88,7 +89,7 @@ function createSource() {
  * @returns The render result plus the source it was given.
  */
 async function loadHook(source = createSource()) {
-  const rendered = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-1' }, source as never, episodeSource), { wrapper });
+  const rendered = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-1' }, source as never, episodeSource, source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
   await waitFor(() => expect(rendered.result.current.selectedRecord?.animeId).toBe('anime-1'));
   return { ...rendered, source };
 }
@@ -96,14 +97,14 @@ async function loadHook(source = createSource()) {
 describe('useAnimeEditorWorkspace', () => {
   it('loads the requested deep-link anime', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-2' }, source as never, episodeSource), { wrapper });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-2' }, source as never, episodeSource, source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-2'));
   });
 
   it('reads the Episodes section for the loaded anime and its draft', async () => {
     const reads = createEmptyEpisodeDurationSource();
     const source = createSource();
-    const { result } = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-2' }, source as never, reads), { wrapper });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-2' }, source as never, reads, source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
 
     await waitFor(() => expect(reads.getEpisodeDurationSection).toHaveBeenCalledWith(expect.objectContaining({ animeId: 'anime-2' })));
     expect(result.current.episodes.view).not.toBe('idle');
@@ -214,7 +215,7 @@ describe('useAnimeEditorWorkspace', () => {
     vi.mocked(source.getAnimeEditorRecord)
       .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
       .mockResolvedValueOnce({ outcome: 'applied', message: 'loaded', record: record('anime-2', 'Newest') });
-    const { result } = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-1' }, source as never, episodeSource), { wrapper });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-1' }, source as never, episodeSource, source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
     await waitFor(() => expect(source.getAnimeEditorRecord).toHaveBeenCalledWith('anime-1'));
     act(() => result.current.onSelectAnime('anime-2'));
     await waitFor(() => expect(result.current.selectedRecord?.frequent.name).toBe('Newest'));
@@ -257,5 +258,36 @@ describe('useAnimeEditorWorkspace', () => {
     expect(result.current.scheduleBoard?.boardModifiedAt).toBe(201);
     expect(result.current.scheduleFeedback).toBeUndefined();
     expect(result.current.isApplyingSchedule).toBe(false);
+  });
+
+  it('reads the stored board again when an apply fails, then shows the failure', async () => {
+    const { result, source } = await loadHook();
+    await act(() => result.current.onOpenSchedule());
+    const stored = { originAnimeId: 'anime-1', boardModifiedAt: 300, destinations: [], entries: [] };
+    vi.mocked(source.getAnimeEditorScheduleBoard).mockClear().mockResolvedValueOnce({ outcome: 'applied', message: 'loaded', board: stored });
+    vi.mocked(source.applyAnimeEditorSchedule).mockRejectedValueOnce(createBridgeError('internal', 'apply anime editor schedule: non-contiguous positions for Domingo'));
+
+    await act(() => result.current.onApplySchedule([]));
+
+    expect(source.getAnimeEditorScheduleBoard).toHaveBeenCalledWith('anime-1');
+    expect(result.current.scheduleBoard).toEqual(stored);
+    expect(result.current.scheduleFeedback).toBe('apply anime editor schedule: non-contiguous positions for Domingo');
+    expect(result.current.isApplyingSchedule).toBe(false);
+  });
+
+  it('shows the week strip loading while a save reads the board again', async () => {
+    const { result, source } = await loadHook();
+    await waitFor(() => expect(result.current.scheduleWeek.status).toBe('ready'));
+    vi.mocked(source.getAnimeEditorScheduleBoard).mockClear().mockReturnValueOnce(new Promise(() => undefined));
+    act(() => result.current.onDraftChange('name', 'Attempted'));
+
+    // The save itself resolves; the transition then waits on the held board read.
+    act(() => {
+      void result.current.onSave();
+    });
+
+    await waitFor(() => expect(source.saveAnimeEditor).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(source.getAnimeEditorScheduleBoard).toHaveBeenCalledTimes(1));
+    expect(result.current.scheduleWeek.status).toBe('loading');
   });
 });

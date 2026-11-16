@@ -66,3 +66,12 @@ export const NOTIFICATION_TABLE_UNREAD_TITLE_CLASS = 'font-semibold';
 
 /** Class carried by a read row's title: the artboard de-emphasizes it once the record has been seen. */
 export const NOTIFICATION_TABLE_READ_TITLE_CLASS = 'text-default-500';
+
+/** How many placeholder rows the loading table draws. */
+export const NOTIFICATION_TABLE_SKELETON_ROW_COUNT = 6;
+
+/** The id of the loading table's screen-reader label. */
+export const NOTIFICATION_TABLE_LOADING_LABEL_ID = 'notification-table-loading-label';
+
+/** What the loading table announces. */
+export const NOTIFICATION_TABLE_LOADING_LABEL = 'Loading notifications';

@@ -1,10 +1,9 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { NotificationSource } from '../../../../../infrastructure/notification-source/notification-source.types';
 import type { Notification } from '../../../../../shared/contracts/notification.types';
-import type { ScheduleConfig } from '../../../../../shared/contracts/download.types';
+import type { DownloadsSource, ScheduleConfig } from '../../../../../shared/contracts/download.types';
 
 /**
  * The two singleton ports `NotificationToasts` reaches through its resolvers'
@@ -40,7 +39,7 @@ vi.mock('../../../../../infrastructure/notification-source/notification-source.h
   return { notificationSource: source, createNotificationSource: () => source };
 });
 
-vi.mock('../../../../../infrastructure/download-runtime-source/download-runtime-source.helpers', () => {
+vi.mock('../../../../../infrastructure/download-runtime-source/downloads-source.helpers', async (importOriginal) => {
   const source = {
     getDownloadConfig: vi.fn(),
     getJDStatus: vi.fn(),
@@ -57,15 +56,15 @@ vi.mock('../../../../../infrastructure/download-runtime-source/download-runtime-
     ignoreMissedSchedule: ports.ignoreMissedSchedule,
     listDownloadRuns: vi.fn().mockResolvedValue([]),
     listDownloadReadiness: vi.fn(),
-    subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
-    subscribeMissedScheduleSettled: vi.fn().mockReturnValue(() => undefined),
-  } satisfies DownloadRuntimeSource;
-  return { downloadRuntimeSource: source, createDownloadRuntimeSource: () => source };
+  } satisfies DownloadsSource;
+  return { ...(await importOriginal<object>()), createDownloadsSource: () => source };
 });
 
 import { NotificationToasts } from '../NotificationToasts';
 import { appToastQueue } from '../app-toast-queue';
-import { resetDownloadRuntimeStore, getDownloadRuntimeStoreState } from '../../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
+import { resetDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
+import { DOWNLOADS_SCHEDULE_KEY } from '../../../../../shared/query/query-keys/query-keys.constants';
+import { createDownloadsWrapper } from '../../../../../shared/hooks/use-missed-schedule-notice/__tests__/downloads.test-support';
 
 /** The missed day both the backend record and the local notice are about. */
 const MISSED_LOCAL_DATE = '2026-07-26';
@@ -112,13 +111,20 @@ function emitBackendNotification(notification: Notification): void {
   });
 }
 
-/** Mounts the real toast surface with both resolvers live and unmocked. */
-function renderToasts(): void {
+/**
+ * Mounts the real toast surface with both resolvers live and unmocked, under a
+ * query client whose downloads module is ready.
+ * @returns The query client the schedule read lands in.
+ */
+function renderToasts() {
+  const downloads = createDownloadsWrapper();
   render(
     <MemoryRouter>
       <NotificationToasts />
     </MemoryRouter>,
+    { wrapper: downloads.wrapper },
   );
+  return downloads.client;
 }
 
 describe('NotificationToasts + the missed-schedule seam', () => {
@@ -173,7 +179,7 @@ describe('NotificationToasts + the missed-schedule seam', () => {
   it('settles the day from the surviving toast and stops the schedule read-model showing it', async () => {
     ports.getScheduleConfig.mockResolvedValueOnce(SCHEDULE_WITH_MISSED_DAY).mockResolvedValue(SCHEDULE_SETTLED);
 
-    renderToasts();
+    const client = renderToasts();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Ignore' })).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Ignore' }));
@@ -182,8 +188,8 @@ describe('NotificationToasts + the missed-schedule seam', () => {
     // shared schedule read-model, not only the backend. A toast whose press
     // settled the day while the Downloads panel kept showing it would be worse
     // than the duplicate it replaced.
-    expect(ports.ignoreMissedSchedule).toHaveBeenCalledWith(MISSED_LOCAL_DATE);
-    await waitFor(() => expect(getDownloadRuntimeStoreState().scheduleConfig.missedNotice).toBeUndefined());
+    await waitFor(() => expect(ports.ignoreMissedSchedule).toHaveBeenCalledWith(MISSED_LOCAL_DATE));
+    await waitFor(() => expect(client.getQueryData<ScheduleConfig>(DOWNLOADS_SCHEDULE_KEY)?.missedNotice).toBeUndefined());
     await waitFor(() => expect(screen.queryByText('Missed selected day')).not.toBeInTheDocument());
   });
 });

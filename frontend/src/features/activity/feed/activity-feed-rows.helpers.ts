@@ -1,7 +1,7 @@
 import { describeActivityChange } from '../change-words/change-words.helpers';
 import { formatDrawerSpan } from '../drawer/drawer-format.helpers';
-import type { ActivityLedgerLine } from '../history-source/history.types';
-import type { ActivityDownloadRun, ActivityFeedDay, ActivityFeedLine, ActivityFeedView, ActivityPhoneReportFacts, ActivitySystemGroup, ActivityTabletSilence } from '../feed-source/feed.types';
+import type { ActivityLedgerLine } from '../../../shared/contracts/activity-ledger.types';
+import type { ActivityDownloadRun, ActivityFeedDay, ActivityFeedLine, ActivityFeedView, ActivityPhoneReportFacts, ActivitySystemGroup, ActivityTabletSilence } from '../../../shared/contracts/activity-feed.types';
 import {
   ACTIVITY_BRIDGE_CLOSED,
   ACTIVITY_BRIDGE_STARTED,
@@ -22,7 +22,7 @@ import {
   ACTIVITY_TRANSITION_PROCESS_WORDS,
   ACTIVITY_TRANSITION_SUBJECT_WORDS,
 } from './activity-feed.constants';
-import type { ActivityFeedDayModel, ActivityFeedRowModel, ActivityRowHealth, ActivityRowRepeat } from './activity-feed.types';
+import type { ActivityFeedDayModel, ActivityFeedRowModel, ActivityFeedWindow, ActivityRowHealth, ActivityRowRepeat } from './activity-feed.types';
 
 /**
  * The key of a feed line: `kind:id`, unique across the feed.
@@ -308,4 +308,28 @@ export function stepFeedLine(days: readonly ActivityFeedDay[], openKey: string |
     return undefined;
   }
   return lines[Math.min(lines.length - 1, Math.max(0, index + delta))];
+}
+
+/**
+ * The days and cursor the feed shows: the first page alone; once older pages
+ * were read, the loaded window; and after a live refresh answered a newer first
+ * page, that page over the window without shrinking it (`mergeLivePage`).
+ *
+ * @param first The first page, undefined before it answered or without a query.
+ * @param firstPageAt When the first page was answered.
+ * @param loaded The window loaded past the first page under the same query, if any.
+ * @returns The days and cursor to show.
+ */
+export function toShownFeedPage(
+  first: ActivityFeedView | undefined,
+  firstPageAt: number,
+  loaded: Pick<ActivityFeedWindow, 'days' | 'cursor' | 'firstPageAt'> | undefined,
+): { readonly days: readonly ActivityFeedDay[]; readonly cursor: string } {
+  if (first === undefined) {
+    return { days: [], cursor: '' };
+  }
+  if (loaded === undefined) {
+    return { days: first.days, cursor: first.nextCursor };
+  }
+  return loaded.firstPageAt === firstPageAt ? { days: loaded.days, cursor: loaded.cursor } : mergeLivePage(loaded.days, loaded.cursor, first);
 }

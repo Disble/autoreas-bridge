@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { useBackendEventResolver } from '../use-backend-event-resolver';
 import type { Notification } from '../../../../../shared/contracts/notification.types';
 import type { NotificationSource } from '../../../../../infrastructure/notification-source/notification-source.types';
+import type { NotificationCenterSource } from '../../../../../shared/contracts/notification-center.types';
+import type { AppNotification } from '../../../../../shared/contracts/app-notification.types';
 
 /** A fake source whose `subscribe`/`subscribeArchived` fire once, synchronously, with the given fixtures. */
 function createFakeSource(
@@ -170,6 +172,32 @@ describe('useBackendEventResolver', () => {
     // never "some resolver has claimed this". Reading absence as a claim would
     // silently mute every producer that has not been given a kind.
     expect(push).toHaveBeenCalledTimes(1);
+  });
+
+  it('executes a pressed toast action against its record, and drops a press the module cannot take', async () => {
+    const push = vi.fn();
+    const rejected = Promise.reject(new Error('not ready'));
+    const handled = vi.spyOn(rejected, 'catch');
+    const executeAction = vi.fn().mockReturnValue(rejected);
+    const centerSource = { executeAction } as unknown as NotificationCenterSource;
+    const notification: Notification = {
+      Title: 'Download finished',
+      Body: '',
+      Level: 'success',
+      Source: 'download',
+      CorrelationID: 'corr-7',
+      Timestamp: '2026-08-23T10:00:00.000Z',
+      RecordID: 42,
+      Actions: [{ ID: 'act-open', Label: 'Open Downloads', Intent: 'navigation.open', Args: {}, RowRef: '' }],
+    };
+    renderHook(() => useBackendEventResolver(push, vi.fn(), createFakeSource(notification, undefined), centerSource));
+
+    const pushed = push.mock.calls[0]?.[0] as AppNotification;
+    pushed.actions?.[0]?.onPress();
+    await Promise.resolve();
+
+    expect(executeAction).toHaveBeenCalledExactlyOnceWith(42, 'act-open');
+    expect(handled).toHaveBeenCalledOnce();
   });
 
   it('a notification.archived event calls remove(...) for each archived record id (Decision G)', () => {

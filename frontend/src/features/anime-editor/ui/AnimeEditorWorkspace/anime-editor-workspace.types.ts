@@ -1,7 +1,9 @@
+import type { useBridgeQuery } from '../../../../shared/query/use-bridge-query/use-bridge-query';
 import type { AnimeEditorRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
-import type { EpisodeDurationRuntimeSource, EpisodeDurationSaveResult } from '../../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.types';
+import type { AnimeEditorSource } from '../../../../shared/contracts/anime-editor-source.types';
+import type { EpisodeDurationRuntimeSource, EpisodeDurationSaveResult } from '../../../../shared/contracts/episode-durations.types';
 import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
-import type { AnimeEditorRecord, AnimeEditorSaveResult, AnimeEditorScheduleApplyResult, ApplyAnimeScheduleDraftEntry } from '../../../../shared/contracts/anime.types';
+import type { AnimeEditorRecord, AnimeEditorRecordResult, AnimeEditorSaveResult, AnimeEditorScheduleApplyResult, ApplyAnimeScheduleDraftEntry } from '../../../../shared/contracts/anime.types';
 import type { AnimeMetadataSelection, AppliedMetadata } from '../../../../shared/metadata-lookup/metadata-lookup.types';
 import type { AnimeScheduleOrderingTestDriverRef } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
 
@@ -71,7 +73,10 @@ export type AnimeEditorGuardEvent =
 /** Inputs for the focused authoritative record-editing hook. */
 export interface UseAnimeEditorRecordOptions {
   readonly selectedAnimeId?: string;
+  /** The Editor bindings not yet behind a module port: the pickers and the covers. */
   readonly source: AnimeEditorRuntimeSource;
+  /** The anime module's record read, save and deactivate. */
+  readonly editorSource: AnimeEditorSource;
 }
 
 /**
@@ -101,13 +106,18 @@ export interface UseAnimeEditorScheduleOptions {
   readonly selectedAnimeId?: string;
   /** The saved record, whose placements paint an anime the board leaves out (a history anime). */
   readonly selectedRecord?: AnimeEditorRecord;
-  readonly source: AnimeEditorRuntimeSource;
+  /** The anime module's board read and apply. */
+  readonly source: AnimeEditorSource;
 }
+
+/** The anime module's catalog list the Editor list reads. */
+export type AnimeEditorListSource = Pick<AnimeEditorSource, 'getAnimes'>;
 
 /** Inputs for the watching-first list hook. */
 export interface UseAnimeEditorListOptions {
   readonly initialAnimeId?: string;
-  readonly source: AnimeEditorRuntimeSource;
+  /** The anime module's catalog list. */
+  readonly source: AnimeEditorListSource;
 }
 
 /** Controlled form draft for the general anime editor. */
@@ -319,9 +329,17 @@ export interface UseAnimeEditorTransitionsOptions {
 /** Which Library empty state a resolved request produced, if any. */
 export type AnimeEditorEmptyState = 'none' | 'actual' | 'criteria';
 
+/** The selected record query's read, as the record hook sees it. */
+export type AnimeEditorRecordQueryRead = Pick<ReturnType<typeof useBridgeQuery<AnimeEditorRecordResult>>, 'status' | 'isFetching' | 'isPlaceholderData' | 'dataUpdatedAt' | 'errorUpdatedAt' | 'data' | 'error'>;
+
+/** One settled record read that has not yet replaced the draft; `stamp` names the read so it applies once. */
+export type AnimeEditorSettledRecordRead = Pick<AnimeEditorRecordState, 'selectedRecord' | 'recordLoadError'> & { readonly stamp: string };
+
 /** Everything the Library empty-state classifier reads, and nothing more. */
 export interface AnimeEditorEmptyStateInput {
   readonly isLoadingList: boolean;
+  /** The catalog read's failure, shown in place of any empty state. */
+  readonly listLoadError?: string;
   /** Rows the resolved source returned, before search and filters. */
   readonly sourceCount: number;
   /** Rows left after search and filters. */

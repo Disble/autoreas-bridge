@@ -39,9 +39,12 @@ type App struct {
 	ctx                        context.Context // NOSONAR godre:S8242 -- Wails hands this to OnStartup, and the bindings and tray callbacks that need it have fixed signatures with no ctx to pass in.
 	bridgeDB                   *sql.DB
 	bridgeDBCloser             interface{ Close() error }
+	dbStall                    *stallEvidence // held-connection evidence; nil until configureStallEvidence
+	resolveStallLogDir         func() (string, error)
 	startupErr                 error
 	sharedLogger               *sharedlogger.FanoutLogger
 	seasonGradeActivity        seasonGradeActivityRecorder // nil → built from bridgeDB
+	editorActivity             anime.ActivityRecorder      // nil → built from bridgeDB
 	syncTrigger                *bridgeSync.TriggerService
 	bootstrapBridgeDB          func() (*sql.DB, error)
 	newCommittedPublisher      func(bus events.Bus) anime.CommittedPublisher
@@ -132,6 +135,9 @@ type App struct {
 	// the HTTP server starts. The start record stores it; a report arriving
 	// before that row is flushed reads it from here.
 	startLastContacts map[string]int64
+	// modules holds the readiness registry, its writer and the module handles
+	// (ADR-032); app_readiness.go builds it and lists the modules.
+	modules appModules
 }
 
 const pairingTokenConsumedEventName = "pairing.token-consumed"
@@ -141,8 +147,8 @@ type tracerBulletRunner interface {
 }
 
 // appSettingsStore is the narrow port for reading/writing global user
-// preferences (app_settings). Nil-tolerant at every binding: a nil store
-// degrades to an unset ("") library root.
+// preferences (app_settings). Bindings reach it through the settings module
+// handle; the startup and download seams that read it directly stay nil-tolerant.
 type appSettingsStore interface {
 	LibraryRoot(ctx context.Context) (string, error)
 	SetLibraryRoot(ctx context.Context, path string) error
@@ -236,6 +242,7 @@ func (a *App) startup(ctx context.Context) {
 		a.processStartedAt = a.currentTime()
 	}
 	a.ensureRuntimeDependencies()
+	a.registerReadinessRuntimeEventBridge(ctx)
 	a.registerDownloadRuntimeEventBridge(ctx)
 	a.registerSeasonRuntimeEventBridge(ctx)
 	a.registerAnimeRuntimeEventBridge(ctx)
@@ -243,15 +250,20 @@ func (a *App) startup(ctx context.Context) {
 	a.tracerBulletRunner = a.newTracerBulletRunner(a.eventBus, a.newTracerBulletSink(), a.sharedLogger)
 	a.tracerBulletRunner.Start()
 	if !a.configureTray(ctx) {
+		a.failStartingModules("system tray failed to start")
 		return
 	}
 
 	if !a.initializeBridgeDatabase(ctx) {
+		a.failStartingModules("bridge database failed to open")
 		return
 	}
+	a.settleModules(moduleBackup)
 	a.ensureDownloadStore()
 	a.configureRuntimeServices(ctx)
 	a.wireSeasonMatchingEventBus()
+	a.bindSeasonModule()
+	a.settleModules(moduleSeason)
 	// A failed HTTP bind is reported through startupErr but must not abort the
 	// rest: the server serves mobile sync, while readiness, the download service
 	// and the scheduler are local. When a second instance lost the port race a
@@ -262,24 +274,12 @@ func (a *App) startup(ctx context.Context) {
 	a.startDownloadOrchestration(ctx)
 	a.startEpisodeBackfill()
 	a.wireNotificationCenterIntentExecutor()
+	a.settleModules(moduleNotifications)
 	// After the executor, so the two tokens this record carries already have their handlers
 	// registered by the time it can be pressed -- and once only, because startup is the single
 	// moment a missed selected day can begin to exist (app_missed_schedule_notification.go).
 	a.notifyMissedSchedule(ctx)
 	a.startSeasonAvailability(ctx)
-}
-
-// initializeBridgeDatabase initializes the bridge database during startup.
-func (a *App) initializeBridgeDatabase(ctx context.Context) bool {
-	a.bridgeDB, a.startupErr = a.bootstrapBridgeDB()
-	// Only a real handle becomes a closer. Assigning a typed nil *sql.DB to the
-	// interface would make it non-nil, so shutdown's guard would pass and Close
-	// would panic on the database the failed bootstrap never opened -- which is
-	// what a restart facing SQLITE_BUSY used to hit.
-	if a.bridgeDB != nil {
-		a.bridgeDBCloser = a.bridgeDB
-	}
-	return a.startupErr == nil
 }
 
 // startHTTPServer constructs and starts the bridge HTTP server.
@@ -293,6 +293,7 @@ func (a *App) startHTTPServer(deviceService device.AuthService, mobileAnimeWrite
 	syncTrigger := bridgeSync.NewTriggerService(a.eventBus, changelogStore, a.sharedLogger)
 	a.syncTrigger = syncTrigger
 	a.httpServer = a.buildHTTPServer(deviceService, mobileAnimeWrite, conflictService, statusService, syncTrigger)
+	a.bindServerModules(syncTrigger)
 	if err := a.httpServer.Start(); err != nil {
 		a.startupErr = err
 	}
@@ -316,6 +317,8 @@ func (a *App) wireEpisodeServiceWithWriter(writer contracts.AnimePatcher) {
 		deps.Logger = a.sharedLogger
 	}
 	a.episodeService = anime.NewEpisodeService(deps)
+	// Bound before settleModules marks episodes ready, so a binding that sees ready finds it.
+	a.moduleSet().episodes.Bind(episodeServices{episodes: a.episodeService, durations: a.bridgeDB})
 }
 
 // wireEpisodeService constructs the episode service and its write dependencies.

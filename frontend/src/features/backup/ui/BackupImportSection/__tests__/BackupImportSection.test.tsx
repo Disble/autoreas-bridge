@@ -1,11 +1,15 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { BackupImportPreviewDTO, BackupImportResultDTO } from '../../../../../infrastructure/backup-source/backup-source.types';
+import type { BackupImportPreviewDTO, BackupImportResultDTO } from '../../../../../shared/contracts/backup.types';
 import type { BackupImportPhase } from '../backup-import-section.types';
 
+/** Spy for the hook's preview action. */
 const onPreview = vi.fn();
+/** Spy for the hook's confirm action. */
 const onConfirm = vi.fn();
+/** Spy for the hook's cancel action. */
 const onCancel = vi.fn();
+/** The mocked hook's state; each case sets the fields it renders. */
 const hookState: {
   phase: BackupImportPhase;
   preview: BackupImportPreviewDTO | null;
@@ -30,6 +34,7 @@ vi.mock('../use-backup-import', () => ({
 
 import { BackupImportSection } from '../BackupImportSection';
 
+/** A previewed bundle with every disclosure line populated. */
 const basePreview: BackupImportPreviewDTO = {
   cancelled: false,
   bundlePath: 'C:/backups/autoreas-backup-20260731-120000.zip',
@@ -43,6 +48,7 @@ const basePreview: BackupImportPreviewDTO = {
   versionNotes: ['v2 added foo'],
 };
 
+/** An apply that failed partway, with a restore point. */
 const baseFailedResult: BackupImportResultDTO = {
   importedGroups: [],
   failedGroup: 'seasons',

@@ -6,15 +6,12 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/activity"
+	"autoreas-bridge/internal/api/contracts"
 	apiHandlers "autoreas-bridge/internal/api/handlers"
 	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/season/domain"
 )
-
-// seasonServiceUnavailableMessage is what every season binding returns when the season
-// service was never wired, so the frontend sees one stable string instead of many.
-const seasonServiceUnavailableMessage = "season service unavailable"
 
 // seasonWeekdays is the weekday vocabulary (Spanish data literals — they ARE the
 // dias values) used to discriminate a weekday placement from an Estrenos section.
@@ -22,93 +19,94 @@ var seasonWeekdays = map[string]struct{}{
 	"Lunes": {}, "Martes": {}, "Miércoles": {}, "Jueves": {}, "Viernes": {}, "Sábado": {}, "Domingo": {},
 }
 
-// GetSeason returns the active (open) season, or null when none is open or the
-// season service is unavailable. Never panics.
-func (a *App) GetSeason() *SeasonDTO {
+// bindSeasonModule binds the season module's services before startup marks it
+// ready. Without the season service it binds nothing: the wiring check then
+// fails the module, so no binding ever runs without it.
+func (a *App) bindSeasonModule() {
 	if a.seasonService == nil {
-		return nil
+		return
 	}
-	active, err := a.seasonService.ActiveSeason(a.seasonCtx())
-	if err != nil || active == nil {
-		return nil
-	}
-	dto := seasonToDTO(active)
-	return &dto
+	a.moduleSet().season.Bind(seasonServices{season: a.seasonService, animes: a.animeQuery, settings: a.settingsStore})
 }
 
-// CreateSeason opens a new season. Returns "ok" on success, or a descriptive
-// error string (service unavailable, a season already open, write failure).
-func (a *App) CreateSeason(name string) string {
-	if a.seasonService == nil {
-		return seasonServiceUnavailableMessage
-	}
-	if _, err := a.seasonService.CreateSeason(a.seasonCtx(), name); err != nil {
-		return err.Error()
-	}
-	return "ok"
+// GetSeason returns the active (open) season, or null when none is open. A
+// season module that is not ready, or a failed read, is the binding's error.
+func (a *App) GetSeason() (*SeasonDTO, error) {
+	return a.moduleSet().season.Use(func(s seasonServices) (*SeasonDTO, error) {
+		active, err := s.season.ActiveSeason(a.seasonCtx())
+		if err != nil || active == nil {
+			return nil, err
+		}
+		dto := seasonToDTO(active)
+		return &dto, nil
+	})
+}
+
+// CreateSeason opens a new season. A season already open or a failed write is
+// the binding's error.
+func (a *App) CreateSeason(name string) error {
+	_, err := a.moduleSet().season.Use(func(s seasonServices) (struct{}, error) {
+		_, err := s.season.CreateSeason(a.seasonCtx(), name)
+		return struct{}{}, err
+	})
+	return err
 }
 
 // SetSeasonMinApprovalGrade updates the open season's minimum approval grade.
-func (a *App) SetSeasonMinApprovalGrade(grade int) string {
-	if a.seasonService == nil {
-		return seasonServiceUnavailableMessage
-	}
-	if err := a.seasonService.SetMinApprovalGrade(a.seasonCtx(), grade); err != nil {
-		return err.Error()
-	}
-	return "ok"
+func (a *App) SetSeasonMinApprovalGrade(grade int) error {
+	_, err := a.moduleSet().season.Use(func(s seasonServices) (struct{}, error) {
+		return struct{}{}, s.season.SetMinApprovalGrade(a.seasonCtx(), grade)
+	})
+	return err
 }
 
 // SetSeasonSlots updates the open season's approved-anime cap.
-func (a *App) SetSeasonSlots(slots int) string {
-	if a.seasonService == nil {
-		return seasonServiceUnavailableMessage
-	}
-	if err := a.seasonService.SetSlots(a.seasonCtx(), slots); err != nil {
-		return err.Error()
-	}
-	return "ok"
+func (a *App) SetSeasonSlots(slots int) error {
+	_, err := a.moduleSet().season.Use(func(s seasonServices) (struct{}, error) {
+		return struct{}{}, s.season.SetSlots(a.seasonCtx(), slots)
+	})
+	return err
 }
 
 // CloseSeason transitions the open season to its terminal closed state, capturing
 // the ACTUAL ordering board (from live data) into the season in the same write.
 // A failed capture returns the error and leaves the season open with no snapshot.
-func (a *App) CloseSeason() string {
-	if a.seasonService == nil {
-		return seasonServiceUnavailableMessage
-	}
-	closureJSON, err := a.captureSeasonClosure()
-	if err != nil {
-		return err.Error()
-	}
-	if err := a.seasonService.CloseSeason(a.seasonCtx(), closureJSON); err != nil {
-		return err.Error()
-	}
-	return "ok"
+func (a *App) CloseSeason() error {
+	_, err := a.moduleSet().season.Use(func(s seasonServices) (struct{}, error) {
+		closureJSON, err := a.captureSeasonClosure(s)
+		if err != nil {
+			return struct{}{}, err
+		}
+		return struct{}{}, s.season.CloseSeason(a.seasonCtx(), closureJSON)
+	})
+	return err
 }
 
 // GetSeasonAnimes returns the active season's intake rows, or an empty list when
-// no season is open or the service is unavailable.
-func (a *App) GetSeasonAnimes() []SeasonAnimeDTO {
-	if a.seasonService == nil {
-		return []SeasonAnimeDTO{}
-	}
-	active, err := a.seasonService.ActiveSeason(a.seasonCtx())
-	if err != nil || active == nil {
-		return []SeasonAnimeDTO{}
-	}
-	rows, err := a.seasonService.ListSeasonAnimes(a.seasonCtx(), active.ID)
-	if err != nil {
-		return []SeasonAnimeDTO{}
-	}
-	return a.seasonAnimeDTOs(a.seasonCtx(), rows)
+// no season is open. A failed read is the binding's error, never an empty list.
+func (a *App) GetSeasonAnimes() ([]SeasonAnimeDTO, error) {
+	return a.moduleSet().season.Use(func(s seasonServices) ([]SeasonAnimeDTO, error) {
+		ctx := a.seasonCtx()
+		active, err := s.season.ActiveSeason(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if active == nil {
+			return []SeasonAnimeDTO{}, nil
+		}
+		rows, err := s.season.ListSeasonAnimes(ctx, active.ID)
+		if err != nil {
+			return nil, err
+		}
+		return seasonAnimeDTOs(ctx, s.animes, rows), nil
+	})
 }
 
 // seasonAnimeDTOs maps a season's intake rows to DTOs, overlaying each created
 // anime's current Estrenos section plus its desktop-action folder/page targets.
 // Shared by the active and past-season reads.
-func (a *App) seasonAnimeDTOs(ctx context.Context, rows []domain.SeasonAnime) []SeasonAnimeDTO {
-	overlays := a.animeOverlaysByID(ctx)
+func seasonAnimeDTOs(ctx context.Context, animes contracts.AnimeQueryService, rows []domain.SeasonAnime) []SeasonAnimeDTO {
+	overlays := animeOverlaysByID(ctx, animes)
 	out := make([]SeasonAnimeDTO, 0, len(rows))
 	for _, r := range rows {
 		dto := seasonAnimeToDTO(r)
@@ -125,20 +123,26 @@ func (a *App) seasonAnimeDTOs(ctx context.Context, rows []domain.SeasonAnime) []
 }
 
 // ImportSeasonIntake imports a plain-text intake list into the active season.
-func (a *App) ImportSeasonIntake(rawText string) string {
-	return a.withActiveSeason(func(seasonID string) error {
-		_, err := a.seasonService.ImportIntake(a.seasonCtx(), seasonID, rawText)
-		return err
+func (a *App) ImportSeasonIntake(rawText string) error {
+	_, err := a.moduleSet().season.Use(func(s seasonServices) (struct{}, error) {
+		return struct{}{}, a.withActiveSeason(s.season, func(seasonID string) error {
+			_, err := s.season.ImportIntake(a.seasonCtx(), seasonID, rawText)
+			return err
+		})
 	})
+	return err
 }
 
 // ReconcileSeasonIntake sets the active season's uncreated intake to exactly the
 // pasted names (the raw editor's source of truth): add missing, discard removed,
 // preserve created rows.
-func (a *App) ReconcileSeasonIntake(rawText string) string {
-	return a.withActiveSeason(func(seasonID string) error {
-		return a.seasonService.ReconcileIntake(a.seasonCtx(), seasonID, rawText)
+func (a *App) ReconcileSeasonIntake(rawText string) error {
+	_, err := a.moduleSet().season.Use(func(s seasonServices) (struct{}, error) {
+		return struct{}{}, a.withActiveSeason(s.season, func(seasonID string) error {
+			return s.season.ReconcileIntake(a.seasonCtx(), seasonID, rawText)
+		})
 	})
+	return err
 }
 
 // RunSeasonMatching resolves every pending intake row against jkanime, then
@@ -148,23 +152,26 @@ func (a *App) ReconcileSeasonIntake(rawText string) string {
 // terminal signal exactly once, after both phases have completed -- including
 // when the availability deps are unwired (that tolerated skip still ends the
 // run, so the panel must still hear it end). An infrastructure failure in
-// either phase aborts with the error string and no terminal signal: the caller
-// learns the run ended from the command result itself.
-func (a *App) RunSeasonMatching() string {
-	return a.withActiveSeason(func(seasonID string) error {
-		if err := a.seasonService.RunMatching(a.seasonCtx(), seasonID); err != nil {
-			return err
-		}
-		res, err := a.seasonService.RecheckAvailability(a.seasonCtx(), seasonID)
-		if err != nil && !errors.Is(err, season.ErrAvailabilityDepsUnavailable) {
-			return err
-		}
-		if len(res.Available) > 0 {
-			a.notifySeasonAvailable(a.seasonCtx(), res.Available)
-		}
-		a.publishSeasonMatchingFinished(seasonID)
-		return nil
+// either phase aborts with the binding's error and no terminal signal: the
+// caller learns the run ended from the command result itself.
+func (a *App) RunSeasonMatching() error {
+	_, err := a.moduleSet().season.Use(func(s seasonServices) (struct{}, error) {
+		return struct{}{}, a.withActiveSeason(s.season, func(seasonID string) error {
+			if err := s.season.RunMatching(a.seasonCtx(), seasonID); err != nil {
+				return err
+			}
+			res, err := s.season.RecheckAvailability(a.seasonCtx(), seasonID)
+			if err != nil && !errors.Is(err, season.ErrAvailabilityDepsUnavailable) {
+				return err
+			}
+			if len(res.Available) > 0 {
+				a.notifySeasonAvailable(a.seasonCtx(), res.Available)
+			}
+			a.publishSeasonMatchingFinished(seasonID)
+			return nil
+		})
 	})
+	return err
 }
 
 // publishSeasonMatchingFinished emits the run's terminal signal on the shared
@@ -193,15 +200,15 @@ func (a *App) wireSeasonMatchingEventBus() {
 // availability on the spot so it can become available without another
 // matching run. The recheck is best effort: it never undoes or fails the
 // resolve (see recheckResolvedRow).
-func (a *App) ResolveSeasonMatch(rowID, pageURL string) string {
-	if a.seasonService == nil {
-		return seasonServiceUnavailableMessage
-	}
-	if err := a.seasonService.ResolveMatch(a.seasonCtx(), rowID, pageURL); err != nil {
-		return err.Error()
-	}
-	a.recheckResolvedRow(rowID)
-	return "ok"
+func (a *App) ResolveSeasonMatch(rowID, pageURL string) error {
+	_, err := a.moduleSet().season.Use(func(s seasonServices) (struct{}, error) {
+		if err := s.season.ResolveMatch(a.seasonCtx(), rowID, pageURL); err != nil {
+			return struct{}{}, err
+		}
+		a.recheckResolvedRow(s.season, rowID)
+		return struct{}{}, nil
+	})
+	return err
 }
 
 // recheckResolvedRow probes the just-resolved row's availability and raises
@@ -210,8 +217,8 @@ func (a *App) ResolveSeasonMatch(rowID, pageURL string) string {
 // other failure leaves the row's previous availability in place (the next
 // matching run or daily recheck probes it again), is logged as a warning and
 // notifies nothing, since the availability it found was never saved.
-func (a *App) recheckResolvedRow(rowID string) {
-	res, err := a.seasonService.RecheckRowAvailability(a.seasonCtx(), rowID)
+func (a *App) recheckResolvedRow(service *season.Service, rowID string) {
+	res, err := service.RecheckRowAvailability(a.seasonCtx(), rowID)
 	if err != nil {
 		if !errors.Is(err, season.ErrAvailabilityDepsUnavailable) && a.sharedLogger != nil {
 			a.sharedLogger.Warnf("season", "availability recheck after resolving row %s failed: %v", rowID, err)
@@ -224,113 +231,92 @@ func (a *App) recheckResolvedRow(rowID string) {
 }
 
 // DiscardSeasonName marks an intake row discarded.
-func (a *App) DiscardSeasonName(rowID string) string {
-	if a.seasonService == nil {
-		return seasonServiceUnavailableMessage
-	}
-	if err := a.seasonService.DiscardName(a.seasonCtx(), rowID); err != nil {
-		return err.Error()
-	}
-	return "ok"
+func (a *App) DiscardSeasonName(rowID string) error {
+	_, err := a.moduleSet().season.Use(func(s seasonServices) (struct{}, error) {
+		return struct{}{}, s.season.DiscardName(a.seasonCtx(), rowID)
+	})
+	return err
 }
 
 // RestoreSeasonName brings a discarded intake row back with its matched page.
-func (a *App) RestoreSeasonName(rowID string) string {
-	if a.seasonService == nil {
-		return seasonServiceUnavailableMessage
-	}
-	if err := a.seasonService.RestoreName(a.seasonCtx(), rowID); err != nil {
-		return err.Error()
-	}
-	return "ok"
+func (a *App) RestoreSeasonName(rowID string) error {
+	_, err := a.moduleSet().season.Use(func(s seasonServices) (struct{}, error) {
+		return struct{}{}, s.season.RestoreName(a.seasonCtx(), rowID)
+	})
+	return err
 }
 
 // SetSeasonGrade records a MANUAL first-episode grade (1–6) for an anime in the
 // active season — the Episodes card / Evaluation panel rate action. A manual edit
-// always applies and is audited in Activity. Returns "ok" or a descriptive error string.
-func (a *App) SetSeasonGrade(animeID string, grade int) string {
-	if a.seasonService == nil {
-		return seasonServiceUnavailableMessage
-	}
-	ratedAt := time.Now()
-	row, previous, err := a.seasonService.RecordPremiereGradeInSeason(a.seasonCtx(), "", animeID, grade, domain.GradeSourceManual, ratedAt)
-	if err != nil {
-		return err.Error()
-	}
-	a.recordSeasonGradeActivity(a.seasonCtx(), row, previous, activity.SourceDesktop, ratedAt)
-	return "ok"
+// always applies and is audited in Activity. A refused grade is the binding's error.
+func (a *App) SetSeasonGrade(animeID string, grade int) error {
+	_, err := a.moduleSet().season.Use(func(s seasonServices) (struct{}, error) {
+		ratedAt := time.Now()
+		row, previous, err := s.season.RecordPremiereGradeInSeason(a.seasonCtx(), "", animeID, grade, domain.GradeSourceManual, ratedAt)
+		if err != nil {
+			return struct{}{}, err
+		}
+		a.recordSeasonGradeActivity(a.seasonCtx(), row, previous, activity.SourceDesktop, ratedAt)
+		return struct{}{}, nil
+	})
+	return err
 }
 
 // SkipSeasonGrading records the explicit "no grade" override for a season row
 // (visible at selection; never a lock).
-func (a *App) SkipSeasonGrading(rowID string) string {
-	if a.seasonService == nil {
-		return seasonServiceUnavailableMessage
-	}
-	if err := a.seasonService.SkipGrading(a.seasonCtx(), rowID); err != nil {
-		return err.Error()
-	}
-	return "ok"
+func (a *App) SkipSeasonGrading(rowID string) error {
+	_, err := a.moduleSet().season.Use(func(s seasonServices) (struct{}, error) {
+		return struct{}{}, s.season.SkipGrading(a.seasonCtx(), rowID)
+	})
+	return err
 }
 
 // SaveSeasonOrderingDraft persists the ordering board's scratch draft (weekday
 // placements as JSON) on the open season.
-func (a *App) SaveSeasonOrderingDraft(draftJSON string) string {
-	if a.seasonService == nil {
-		return seasonServiceUnavailableMessage
-	}
-	if err := a.seasonService.SaveOrderingDraft(a.seasonCtx(), draftJSON); err != nil {
-		return err.Error()
-	}
-	return "ok"
+func (a *App) SaveSeasonOrderingDraft(draftJSON string) error {
+	_, err := a.moduleSet().season.Use(func(s seasonServices) (struct{}, error) {
+		return struct{}{}, s.season.SaveOrderingDraft(a.seasonCtx(), draftJSON)
+	})
+	return err
 }
 
 // ApplySeasonSchedule writes the drafted day+order to every changed anime (soft
-// state only) and stamps the applied milestone on a clean run; a partial failure
-// reports the failed anime ids and leaves the milestone unset for a safe re-apply.
-func (a *App) ApplySeasonSchedule() ApplyScheduleDTO {
-	if a.seasonService == nil {
-		return ApplyScheduleDTO{Status: seasonServiceUnavailableMessage}
-	}
-	res, err := a.seasonService.ApplySchedule(a.seasonCtx())
-	if err != nil {
-		return ApplyScheduleDTO{Status: err.Error(), Applied: res.Applied, Failed: res.Failed}
-	}
-	status := "ok"
-	if len(res.Failed) > 0 {
-		status = "partial"
-	}
-	return ApplyScheduleDTO{Status: status, Applied: res.Applied, Failed: res.Failed}
+// state only) and stamps the applied milestone on a clean run. A failed write is
+// the binding's error: the anime written before it stay written and the
+// milestone stays unset, so a re-apply is safe.
+func (a *App) ApplySeasonSchedule() (ApplyScheduleDTO, error) {
+	return a.moduleSet().season.Use(func(s seasonServices) (ApplyScheduleDTO, error) {
+		res, err := s.season.ApplySchedule(a.seasonCtx())
+		if err != nil {
+			return ApplyScheduleDTO{}, err
+		}
+		status := "ok"
+		if len(res.Failed) > 0 {
+			status = "partial"
+		}
+		return ApplyScheduleDTO{Status: status, Applied: res.Applied, Failed: res.Failed}, nil
+	})
 }
 
 // ReopenSeasonOrdering clears the applied milestone so the board is editable again.
-func (a *App) ReopenSeasonOrdering() string {
-	if a.seasonService == nil {
-		return seasonServiceUnavailableMessage
-	}
-	if err := a.seasonService.ReopenOrdering(a.seasonCtx()); err != nil {
-		return err.Error()
-	}
-	return "ok"
+func (a *App) ReopenSeasonOrdering() error {
+	_, err := a.moduleSet().season.Use(func(s seasonServices) (struct{}, error) {
+		return struct{}{}, s.season.ReopenOrdering(a.seasonCtx())
+	})
+	return err
 }
 
-// withActiveSeason resolves the open season id and runs fn, broadcasting on
-// success. Returns "ok" or a descriptive error string.
-func (a *App) withActiveSeason(fn func(seasonID string) error) string {
-	if a.seasonService == nil {
-		return seasonServiceUnavailableMessage
-	}
-	active, err := a.seasonService.ActiveSeason(a.seasonCtx())
+// withActiveSeason resolves the open season id and runs fn with it. No open
+// season is season.ErrNoActiveSeason.
+func (a *App) withActiveSeason(service *season.Service, fn func(seasonID string) error) error {
+	active, err := service.ActiveSeason(a.seasonCtx())
 	if err != nil {
-		return err.Error()
+		return err
 	}
 	if active == nil {
-		return "no active season"
+		return season.ErrNoActiveSeason
 	}
-	if err := fn(active.ID); err != nil {
-		return err.Error()
-	}
-	return "ok"
+	return fn(active.ID)
 }
 
 // CreateSeasonAnimes is the explicit, user-initiated creation gate: it creates
@@ -343,67 +329,58 @@ func (a *App) withActiveSeason(fn func(seasonID string) error) string {
 // call and no lookup of its own); a row with no entry, an empty map and a nil map
 // all behave exactly as before metadata existed. No download is triggered — that
 // happens only on Send to Ver hoy.
-func (a *App) CreateSeasonAnimes(rowIDs []string, folders map[string]string, metadata map[string]season.AnimeCreateMetadata) string {
-	if a.seasonService == nil {
-		return seasonServiceUnavailableMessage
-	}
-	root := ""
-	if a.settingsStore != nil {
-		r, err := a.settingsStore.LibraryRoot(a.seasonCtx())
-		if err != nil {
-			return err.Error()
+func (a *App) CreateSeasonAnimes(rowIDs []string, folders map[string]string, metadata map[string]season.AnimeCreateMetadata) error {
+	_, err := a.moduleSet().season.Use(func(s seasonServices) (struct{}, error) {
+		root := ""
+		if s.settings != nil {
+			r, err := s.settings.LibraryRoot(a.seasonCtx())
+			if err != nil {
+				return struct{}{}, err
+			}
+			root = r
 		}
-		root = r
-	}
-	if _, err := a.seasonService.CreateSeasonAnimes(a.seasonCtx(), rowIDs, root, folders, metadata); err != nil {
-		return err.Error()
-	}
-	return "ok"
+		_, err := s.season.CreateSeasonAnimes(a.seasonCtx(), rowIDs, root, folders, metadata)
+		return struct{}{}, err
+	})
+	return err
 }
 
 // SetSeasonConsideration sets a candidate's selection override (the Consideración
 // Select in the selection board).
-func (a *App) SetSeasonConsideration(rowID, consideration string) string {
-	if a.seasonService == nil {
-		return seasonServiceUnavailableMessage
-	}
-	if err := a.seasonService.SetConsideration(a.seasonCtx(), rowID, domain.Consideration(consideration)); err != nil {
-		return err.Error()
-	}
-	return "ok"
+func (a *App) SetSeasonConsideration(rowID, consideration string) error {
+	_, err := a.moduleSet().season.Use(func(s seasonServices) (struct{}, error) {
+		return struct{}{}, s.season.SetConsideration(a.seasonCtx(), rowID, domain.Consideration(consideration))
+	})
+	return err
 }
 
 // SetSeasonAnimeMetadata records (or, with an empty string, clears) the
 // confirmed MyAnimeList lookup for one intake row, so it survives leaving the
 // Season screen and reopening the app. The payload must be a JSON object; the
 // row must exist and must not already be created. This binding starts no network
-// call — the lookup already happened. Returns "ok" or a descriptive error.
-func (a *App) SetSeasonAnimeMetadata(rowID, metadataJSON string) string {
-	if a.seasonService == nil {
-		return seasonServiceUnavailableMessage
-	}
-	if err := a.seasonService.SetSeasonAnimeMetadata(a.seasonCtx(), rowID, metadataJSON); err != nil {
-		return err.Error()
-	}
-	return "ok"
+// call — the lookup already happened. A refused payload is the binding's error.
+func (a *App) SetSeasonAnimeMetadata(rowID, metadataJSON string) error {
+	_, err := a.moduleSet().season.Use(func(s seasonServices) (struct{}, error) {
+		return struct{}{}, s.season.SetSeasonAnimeMetadata(a.seasonCtx(), rowID, metadataJSON)
+	})
+	return err
 }
 
 // ConfirmSeasonSelection reconciles the open season's verdicts into anime writes
 // (approve → Viendo/active, reject → No me gusto/inactive; soft delete only).
-// Repeatable while the season is open. A quota overflow blocks and is flagged.
-func (a *App) ConfirmSeasonSelection() ConfirmSelectionDTO {
-	if a.seasonService == nil {
-		return ConfirmSelectionDTO{Status: seasonServiceUnavailableMessage}
-	}
-	res, err := a.seasonService.ConfirmSelection(a.seasonCtx())
-	if err != nil {
-		return ConfirmSelectionDTO{
-			Status:        err.Error(),
-			Approved:      res.Approved,
-			QuotaExceeded: errors.Is(err, season.ErrQuotaExceeded),
+// Repeatable while the season is open. A quota overflow is an outcome, not a
+// failure: it blocks, is flagged and carries the reason in Status.
+func (a *App) ConfirmSeasonSelection() (ConfirmSelectionDTO, error) {
+	return a.moduleSet().season.Use(func(s seasonServices) (ConfirmSelectionDTO, error) {
+		res, err := s.season.ConfirmSelection(a.seasonCtx())
+		if errors.Is(err, season.ErrQuotaExceeded) {
+			return ConfirmSelectionDTO{Status: err.Error(), Approved: res.Approved, QuotaExceeded: true}, nil
 		}
-	}
-	return ConfirmSelectionDTO{Status: "ok", Approved: res.Approved, Rejected: res.Rejected}
+		if err != nil {
+			return ConfirmSelectionDTO{}, err
+		}
+		return ConfirmSelectionDTO{Status: "ok", Approved: res.Approved, Rejected: res.Rejected}, nil
+	})
 }
 
 // recordSeasonRating is the API seam for mobile-sourced grade ingestion: it maps

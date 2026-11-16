@@ -1,26 +1,48 @@
 import { useCallback, useState } from 'react';
-import type { SeasonSource, SendToVerHoyResult } from '../../../../infrastructure/season-source/season-source.types';
-import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
+import type { SeasonQuerySource, SeasonSource, SendToVerHoyResult } from '../../../../shared/contracts/season.types';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
+import { settleSeasonCommand, toSeasonBannerMessage } from '../../../../shared/season/season.helpers';
+import { useDisplayedSeasonAnimes } from '../../../../shared/season/use-displayed-season-animes';
+import { setSeasonStoreState } from '../../../../shared/store/season-store/season-store.helpers';
+import {
+  DAILY_BOARD_SEND_BUSY,
+  DAILY_BOARD_SEND_FAILED,
+} from './daily-board.constants';
 import { toggleSelection } from './daily-board.helpers';
 
 /**
  * useDailyBoardSend owns the Daily board's download flow: the multi-select over
  * the Sin ver pool, sending it to Ver hoy (which downloads at the scheduled
  * time, or at once through "Send & download now"), the late-send notice, and
- * the manual season download. Downloads only consume the season port's
- * `triggerSeasonDownloads`; the download run reports its own progress through
- * notifications.
+ * the manual season download. Every command runs as a bridge mutation: a sent
+ * batch refreshes the season rows it moved, and the download run reports its
+ * own progress through notifications.
  *
  * @param source The season port the batch is sent and the download started through.
  */
-export function useDailyBoardSend(source: SeasonSource) {
+export function useDailyBoardSend(source: SeasonSource & SeasonQuerySource) {
   // 2. State
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   // Set when a batch is sent after the daily auto-download window: prompts a manual download.
   const [downloadNotice, setDownloadNotice] = useState<{ readonly downloadTime: string } | null>(null);
 
-  // 3. Context/3rd Party Hooks
-  const sendToVerHoy = useSeasonStore((state) => state.sendToVerHoy);
+  // 4. Queries/Mutations
+  const { refetch: refetchAnimes } = useDisplayedSeasonAnimes({ refresh: 'never', source });
+  const send = useBridgeMutation({
+    mutationFn: (animeIds: readonly string[]) => source.sendToVerHoy(animeIds),
+    onMutate: () => setSeasonStoreState({ busyMessage: DAILY_BOARD_SEND_BUSY }),
+    onSettled: () => setSeasonStoreState({ busyMessage: undefined }),
+    onSuccess: async (result) => {
+      if (result.status !== 'ok') {
+        setSeasonStoreState({ errorMessage: result.status || DAILY_BOARD_SEND_FAILED });
+        return;
+      }
+      setSeasonStoreState({ errorMessage: undefined });
+      await refetchAnimes();
+    },
+    onError: (error) => setSeasonStoreState({ errorMessage: toSeasonBannerMessage(error, { fallback: DAILY_BOARD_SEND_FAILED, fixedMessage: false }) }),
+  });
+  const download = useBridgeMutation({ mutationFn: () => source.triggerSeasonDownloads() });
 
   // 6. Callbacks
   const toggleSelect = useCallback((animeId: string) => {
@@ -33,8 +55,14 @@ export function useDailyBoardSend(source: SeasonSource) {
     }
     const ids = [...selected];
     setSelected(new Set());
-    return sendToVerHoy(source, ids);
-  }, [selected, sendToVerHoy, source]);
+    try {
+      return await send.mutateAsync(ids);
+    } catch (error) {
+      return { status: toSeasonBannerMessage(error, { fallback: DAILY_BOARD_SEND_FAILED, fixedMessage: false }), pastDownloadTime: false, downloadTime: '' };
+    }
+  }, [selected, send]);
+  /** Starts the season download in the background; the run reports itself. */
+  const startDownload = useCallback(() => settleSeasonCommand(download.mutateAsync()), [download]);
   const onSendToVerHoy = useCallback(() => {
     void sendSelection().then((result) => {
       if (result !== null) {
@@ -49,13 +77,13 @@ export function useDailyBoardSend(source: SeasonSource) {
         return;
       }
       setDownloadNotice(null);
-      void source.triggerSeasonDownloads();
+      startDownload();
     });
-  }, [sendSelection, source]);
+  }, [sendSelection, startDownload]);
   const onDownloadNow = useCallback(() => {
     setDownloadNotice(null);
-    void source.triggerSeasonDownloads();
-  }, [source]);
+    startDownload();
+  }, [startDownload]);
   const onDismissNotice = useCallback(() => {
     setDownloadNotice(null);
   }, []);

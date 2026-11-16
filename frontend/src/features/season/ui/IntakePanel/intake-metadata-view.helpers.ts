@@ -1,4 +1,4 @@
-import type { SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow } from '../../../../shared/contracts/season.types';
 import type { AppliedMetadata } from '../../../../shared/metadata-lookup/metadata-lookup.types';
 import { toHeldMetadataPatch } from './intake-panel.helpers';
 import type { IntakeAppliedMetadata, IntakeMetadataPatch } from './intake-panel.types';

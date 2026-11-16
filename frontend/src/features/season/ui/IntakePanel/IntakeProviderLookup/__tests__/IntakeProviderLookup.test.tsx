@@ -1,8 +1,18 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonProviderSearchResult } from '../../../../../../infrastructure/season-source/season-source.types';
+import type { SeasonProviderSearchResult } from '../../../../../../shared/contracts/season.types';
+import { createModulesTestWrapper } from '../../../../../../shared/query/test-support/bridge-modules.test-support';
 import { IntakeProviderLookup } from '../IntakeProviderLookup';
+
+/** The default season port's provider search read, which each case programs. */
+const fetchProviderSearch = vi.hoisted(() => vi.fn());
+
+vi.mock('../../../../../../shared/query/bridge-runtime/bridge-runtime.constants', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  /** The lookup's default season port. */
+  BRIDGE_SEASON_SOURCE: { fetchProviderSearch },
+}));
 
 /** The one page the fake provider search returns by default. */
 const AO_ASHI = {
@@ -13,20 +23,23 @@ const AO_ASHI = {
 };
 
 /**
- * Mounts the lookup for the row "Ao Ashi" over a fake provider search and
+ * Mounts the lookup for the row "Ao Ashi" with the season module ready and
  * opens it from its icon trigger, which seeds and fires the first search.
- * @param result What the fake provider search resolves with.
- * @returns The resolve spy and the search spy.
+ * @returns The resolve spy.
  */
-function openLookup(result: SeasonProviderSearchResult = { status: 'ok', pages: [AO_ASHI] }) {
+function openLookup() {
   const onResolve = vi.fn();
-  const searchProviders = vi.fn().mockResolvedValue(result);
-  render(<IntakeProviderLookup rawName="Ao Ashi" source={{ searchProviders }} onResolve={onResolve} />);
+  const { wrapper } = createModulesTestWrapper({ module: 'season', state: 'ready' });
+  render(<IntakeProviderLookup rawName="Ao Ashi" onResolve={onResolve} />, { wrapper });
   fireEvent.click(screen.getByRole('button', { name: 'Find on provider' }));
-  return { onResolve, searchProviders };
+  return { onResolve };
 }
 
 describe('IntakeProviderLookup', () => {
+  beforeEach(() => {
+    fetchProviderSearch.mockReset().mockResolvedValue({ status: 'ok', pages: [AO_ASHI] } satisfies SeasonProviderSearchResult);
+  });
+
   afterEach(() => {
     cleanup();
   });
@@ -40,9 +53,8 @@ describe('IntakeProviderLookup', () => {
   });
 
   it('announces the in-flight search as "Searching providers..."', async () => {
-    const onResolve = vi.fn();
-    render(<IntakeProviderLookup rawName="Ao Ashi" source={{ searchProviders: () => new Promise(() => undefined) }} onResolve={onResolve} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Find on provider' }));
+    fetchProviderSearch.mockReturnValue(new Promise(() => undefined));
+    openLookup();
 
     expect(await screen.findByRole('status', { name: 'Searching providers...' })).toBeInTheDocument();
   });
@@ -60,13 +72,14 @@ describe('IntakeProviderLookup', () => {
 
   it.each([
     {
-      result: { status: 'ok', pages: [] },
+      search: () => Promise.resolve({ status: 'ok', pages: [] }),
       title: 'No provider pages for "Ao Ashi"',
       detail: 'Try a shorter title or a different romanization in the search field above.',
     },
-    { result: { status: 'jkanime timed out', pages: [] }, title: 'Provider search failed', detail: 'jkanime timed out' },
-  ])('tells "$title" when the search returns no page to pick', async ({ result, title, detail }) => {
-    openLookup(result);
+    { search: () => Promise.reject(new Error('jkanime timed out')), title: 'Provider search failed', detail: 'jkanime timed out' },
+  ])('tells "$title" when the search returns no page to pick', async ({ search, title, detail }) => {
+    fetchProviderSearch.mockImplementation(search);
+    openLookup();
 
     expect(await screen.findByText(title)).toBeInTheDocument();
     expect(screen.getByText(detail)).toBeInTheDocument();

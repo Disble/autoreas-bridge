@@ -1,50 +1,70 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
-import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
-import { toErrorMessage } from '../../../../shared/helpers/error-message.helpers';
+import { useCallback, useMemo, useState } from 'react';
+import type { DownloadsSource } from '../../../../shared/contracts/download.types';
 import { useProgressiveListWindow } from '../../../../shared/hooks/use-progressive-list-window';
-import { SOLO_ANIME_DOWNLOAD_IN_PROGRESS_MESSAGE } from './solo-anime-download-panel.constants';
+import { toAsyncView } from '../../../../shared/query/async-view/async-view.helpers';
+import { BRIDGE_DOWNLOADS_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { DOWNLOADS_READINESS_KEY } from '../../../../shared/query/query-keys/query-keys.constants';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
+import { useBridgeQuery } from '../../../../shared/query/use-bridge-query/use-bridge-query';
 import {
+  canTriggerSoloDownload,
   countSoloAnimeDownloadReadiness,
   getSoloAnimeDownloadEmptyMessage,
+  findSoloAnimeDownloadSelection,
   getSoloAnimeDownloadOptions,
-  toSoloAnimeDownloadOption,
+  soloReadinessItems,
+  soloReadinessStatus,
+  toSoloAnimeDownloadFilter,
+  toSoloTriggerFailureState,
 } from './solo-anime-download-panel.helpers';
 import type { SoloAnimeDownloadFilter, SoloAnimeDownloadState } from './solo-anime-download-panel.types';
 
 /**
  * useSoloAnimeDownloadPanel loads the catalog, owns search/filter/selection
  * state, windows the rail, and calls the one-off anime download binding. The TSX
- * remains dumb: no Wails calls, no effects, no data shaping.
+ * remains dumb: no Wails calls, no effects, no data shaping. The catalog is the
+ * downloads module's readiness query; a failed read shows no anime.
+ *
+ * @param downloadSource The downloads port the catalog and the trigger go through.
+ * @returns The panel state and its actions.
  */
 export function useSoloAnimeDownloadPanel(
-  downloadSource: DownloadRuntimeSource = downloadRuntimeSource,
+  downloadSource: DownloadsSource = BRIDGE_DOWNLOADS_SOURCE,
 ) {
   // 1. Refs
 
   // 2. State
   const [state, setState] = useState<SoloAnimeDownloadState>({
-    items: [],
     query: '',
     filter: 'ready',
     selectedAnimeID: undefined,
-    status: 'loading',
+    status: 'ready',
     errorMessage: undefined,
   });
-  const [retryCount, setRetryCount] = useState(0);
 
   // 3. Context/3rd Party Hooks
 
   // 4. Queries/Mutations
+  const readinessQuery = useBridgeQuery({
+    queryKey: DOWNLOADS_READINESS_KEY,
+    queryFn: () => downloadSource.listDownloadReadiness(),
+    module: 'downloads',
+  });
+  const { mutateAsync: triggerAnimeDownload } = useBridgeMutation({
+    mutationFn: (animeId: string) => downloadSource.triggerAnimeDownload(animeId),
+  });
 
   // 5. Derived State (useMemo)
+  const readinessView = toAsyncView(readinessQuery, () => false);
+  const items = soloReadinessItems(readinessView);
+  const { status, errorMessage } = soloReadinessStatus(readinessView.kind, state.status, state.errorMessage, readinessQuery.error);
   const options = useMemo(
-    () => getSoloAnimeDownloadOptions(state.items, state.query, state.filter),
-    [state.items, state.query, state.filter],
+    () => getSoloAnimeDownloadOptions(items, state.query, state.filter),
+    [items, state.query, state.filter],
   );
   const counts = useMemo(
-    () => countSoloAnimeDownloadReadiness(state.items, state.query),
-    [state.items, state.query],
+    () => countSoloAnimeDownloadReadiness(items, state.query),
+    [items, state.query],
   );
   const emptyMessage = useMemo(
     () => getSoloAnimeDownloadEmptyMessage(state.filter, state.query, counts),
@@ -52,19 +72,20 @@ export function useSoloAnimeDownloadPanel(
   );
   // Selection resolves against the whole catalog, not the visible tab, so
   // switching tabs or typing a search never silently drops what the user picked.
-  const selected = useMemo(() => {
-    const item = state.items.find((candidate) => candidate.animeId === state.selectedAnimeID);
-    return item === undefined ? undefined : toSoloAnimeDownloadOption(item);
-  }, [state.items, state.selectedAnimeID]);
+  const selected = useMemo(
+    () => findSoloAnimeDownloadSelection(items, state.selectedAnimeID),
+    [items, state.selectedAnimeID],
+  );
   const canTrigger = useMemo(
-    () => selected !== undefined && selected.ready && state.status !== 'triggering',
-    [selected, state.status],
+    () => canTriggerSoloDownload(selected, status),
+    [selected, status],
   );
   const listWindow = useProgressiveListWindow(options.length);
   const visibleOptions = useMemo(
     () => options.slice(0, listWindow.visibleCount),
     [options, listWindow.visibleCount],
   );
+  const { refetch } = readinessQuery;
 
   // 6. Callbacks (useCallback calling pure helpers)
   const onQueryChange = useCallback((query: string) => {
@@ -72,7 +93,7 @@ export function useSoloAnimeDownloadPanel(
   }, []);
 
   const onFilterChange = useCallback((value: string) => {
-    const filter: SoloAnimeDownloadFilter = value === 'blocked' ? 'blocked' : 'ready';
+    const filter = toSoloAnimeDownloadFilter(value);
     setState((previous) => ({ ...previous, filter }));
   }, []);
 
@@ -81,75 +102,38 @@ export function useSoloAnimeDownloadPanel(
   }, []);
 
   const onRetry = useCallback(() => {
-    setRetryCount((count) => count + 1);
-  }, []);
+    setState((previous) => ({ ...previous, status: 'ready', errorMessage: undefined }));
+    void refetch();
+  }, [refetch]);
 
   const onTriggerDownload = useCallback(async () => {
-    const selectedItem = state.items.find((candidate) => candidate.animeId === state.selectedAnimeID);
+    const selectedItem = items.find((candidate) => candidate.animeId === state.selectedAnimeID);
 
-    if (selectedItem === undefined || !selectedItem.ready) {
+    if (selectedItem?.ready !== true) {
       return;
     }
 
     setState((previous) => ({ ...previous, status: 'triggering', errorMessage: undefined }));
 
     try {
-      const response = await downloadSource.triggerAnimeDownload(selectedItem.animeId);
-      if (response === 'ok') {
-        setState((previous) => ({ ...previous, status: 'success' }));
-        return;
-      }
-      if (response === SOLO_ANIME_DOWNLOAD_IN_PROGRESS_MESSAGE) {
-        setState((previous) => ({ ...previous, status: 'already-in-progress' }));
-        return;
-      }
-      setState((previous) => ({ ...previous, status: 'trigger-error', errorMessage: response }));
+      await triggerAnimeDownload(selectedItem.animeId);
+      setState((previous) => ({ ...previous, status: 'success' }));
     } catch (error) {
-      setState((previous) => ({
-        ...previous,
-        status: 'trigger-error',
-        errorMessage: toErrorMessage(error, 'Failed to start anime download'),
-      }));
+      setState((previous) => toSoloTriggerFailureState(previous, error));
     }
-  }, [downloadSource, state.items, state.selectedAnimeID]);
+  }, [items, state.selectedAnimeID, triggerAnimeDownload]);
 
   // 7. Effects
-  useEffect(() => {
-    let active = true;
-
-    downloadSource.listDownloadReadiness()
-      .then((snapshot) => {
-        if (!active) {
-          return;
-        }
-        setState((previous) => ({ ...previous, items: snapshot.items, status: 'ready', errorMessage: undefined }));
-      })
-      .catch((error: unknown) => {
-        if (!active) {
-          return;
-        }
-        setState((previous) => ({
-          ...previous,
-          items: [],
-          status: 'readiness-error',
-          errorMessage: toErrorMessage(error, 'Failed to load animes'),
-        }));
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [downloadSource, retryCount]);
 
   return {
-    status: state.status,
+    status,
     query: state.query,
     filter: state.filter,
     options: visibleOptions,
     counts,
     emptyMessage,
     selected,
-    errorMessage: state.errorMessage,
+    errorMessage,
     canTrigger,
     listWindow,
     onRetry,

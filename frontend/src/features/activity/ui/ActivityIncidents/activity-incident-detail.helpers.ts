@@ -1,5 +1,5 @@
-import type { ActivityIncidentDetail } from '../../activity-source/activity-incident.types';
-import type { ActivitySource } from '../../activity-source/activity-source.types';
+import type { ActivityIncidentDetail } from '../../../../shared/contracts/activity-incident.types';
+import type { ActivitySource } from '../../../../shared/contracts/activity.types';
 import type { ActivityRead } from '../ActivityRunStory/activity-run-story.types';
 import { toActivityFoundRead } from '../ActivityRunStory/activity-time.helpers';
 

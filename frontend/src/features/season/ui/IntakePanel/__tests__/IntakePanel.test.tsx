@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
+import type { SeasonAnimeRow } from '../../../../../shared/contracts/season.types';
 import {
   METADATA_LOOKUP_CANCEL_LABEL,
   METADATA_LOOKUP_CONFIRM_LABEL,
@@ -10,6 +10,7 @@ import {
 import type { AnimeMetadataLookupSource } from '../../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
 import { IntakePanel } from '../IntakePanel';
 import { useIntakePanel } from '../use-intake-panel';
+import { seasonQueryWrapper } from './intake-panel.test-support';
 
 vi.mock('../use-intake-panel', () => ({
   useIntakePanel: vi.fn(),
@@ -78,6 +79,7 @@ function createMetadataSource(overrides: Partial<AnimeMetadataLookupSource> = {}
  */
 function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
   const value: HookReturn = {
+    asyncView: { kind: 'ready', data: [], isRefreshing: false },
     readOnly: false,
     mode: 'list',
     switchMode: vi.fn(),
@@ -92,7 +94,6 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     metadataByRow: {},
     appliedMetadataByRow: {},
     metadataLookupSource: createMetadataSource(),
-    providerSearchSource: {},
     onMetadataApplied: vi.fn(),
     onMetadataClear: vi.fn(),
     onMetadataUndo: vi.fn(),
@@ -128,7 +129,7 @@ describe('IntakePanel', () => {
 
   it('renders editable rows with status chips in list mode', () => {
     mockHook({ editableRows: [row({ matchStatus: 'ambiguous' })], unresolvedCount: 1 });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     expect(screen.getByText('Dr. Stone')).toBeInTheDocument();
     expect(screen.getByText('Ambiguous')).toBeInTheDocument();
     expect(screen.getByText(/1 unresolved/)).toBeInTheDocument();
@@ -136,21 +137,21 @@ describe('IntakePanel', () => {
 
   it('surfaces a failed search as its own footer counter', () => {
     mockHook({ editableRows: [row({ matchStatus: 'search_failed' })], unresolvedCount: 0, searchFailedCount: 1 });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     expect(screen.getByText('Search failed')).toBeInTheDocument();
     expect(screen.getByText(/1 search failed/)).toBeInTheDocument();
   });
 
   it('hides the search-failed suffix while every search succeeded', () => {
     mockHook({ editableRows: [row()], unresolvedCount: 1, searchFailedCount: 0 });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     expect(screen.getByText(/1 unresolved/)).toBeInTheDocument();
     expect(screen.queryByText(/search failed/)).not.toBeInTheDocument();
   });
 
   it('shows the raw textarea in raw mode', () => {
     mockHook({ mode: 'raw', rawDraft: 'Anime A\nAnime B' });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     const textarea = screen.getByRole('textbox');
     expect(textarea).toBeInTheDocument();
     expect((textarea as HTMLTextAreaElement).value).toBe('Anime A\nAnime B');
@@ -162,7 +163,7 @@ describe('IntakePanel', () => {
   ] as const)('the mode toggle marks $mode as current and switches to $other', ({ mode, other }) => {
     const switchMode = vi.fn();
     mockHook({ mode, switchMode });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     const label = (key: string) => (key === 'raw' ? 'Raw' : 'List');
     expect(screen.getByRole('button', { name: label(mode) })).toHaveClass('button--primary');
     expect(screen.getByRole('button', { name: label(other) })).toHaveClass('button--tertiary');
@@ -175,7 +176,7 @@ describe('IntakePanel', () => {
       editableRows: [row({ matchStatus: 'matched', matchedSlug: 'https://jkanime.net/x/', availability: 'available', availableEpisodes: 3 })],
       availableCount: 1,
     });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     expect(screen.getByText('3 episodes available')).toBeInTheDocument();
     expect(screen.getByRole('checkbox')).toBeInTheDocument(); // creatable → checkbox
     expect(screen.getByText(/1 available to create/)).toBeInTheDocument();
@@ -189,14 +190,14 @@ describe('IntakePanel', () => {
       selected: new Set(['sa-1']),
       onCreate,
     });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     fireEvent.click(screen.getByRole('button', { name: 'Create 1' }));
     expect(onCreate).toHaveBeenCalled();
   });
 
   it('shows a disabled checkbox for a not-yet-available row', () => {
     mockHook({ editableRows: [row({ matchStatus: 'matched', availability: 'waiting' })], availabilityPendingCount: 1 });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     // The checkbox is always shown for alignment, but disabled until available.
     expect(screen.getByRole('checkbox')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Check availability' })).toBeEnabled();
@@ -209,7 +210,7 @@ describe('IntakePanel', () => {
       availabilityPendingCount: 1,
       onRecheckAvailability,
     });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     fireEvent.click(screen.getByRole('button', { name: 'Check availability' }));
     expect(onRecheckAvailability).toHaveBeenCalled();
   });
@@ -219,7 +220,7 @@ describe('IntakePanel', () => {
       editableRows: [row({ matchStatus: 'matched', availability: 'available', availableEpisodes: 1 })],
       folderPreviews: { 'sa-1': 'D:/Anime/Dr. Stone' },
     });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
 
     fireEvent.keyDown(document.body, { key: 'Tab' });
     act(() => screen.getByRole('button', { name: /^Set download folder for/ }).focus());
@@ -233,7 +234,7 @@ describe('IntakePanel', () => {
       editableRows: [row({ matchStatus: 'matched', matchedSlug: 'https://jkanime.net/dr-stone/', availability: 'available', availableEpisodes: 1 })],
       onOpenPage,
     });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     fireEvent.click(screen.getByRole('button', { name: 'Open the page for Dr. Stone' }));
     expect(onOpenPage).toHaveBeenCalledWith('https://jkanime.net/dr-stone/');
   });
@@ -241,7 +242,7 @@ describe('IntakePanel', () => {
   it('discards an editable row', () => {
     const onDiscard = vi.fn();
     mockHook({ editableRows: [row()], onDiscard });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     fireEvent.click(screen.getByRole('button', { name: 'More actions for Dr. Stone' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Discard' }));
     expect(onDiscard).toHaveBeenCalledWith('sa-1');
@@ -254,7 +255,7 @@ describe('IntakePanel', () => {
       availabilityPendingCount: 1,
       editableRows: [row({ matchStatus: 'matched', availability: 'available', availableEpisodes: 1 })],
     });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
 
     expect(screen.queryByRole('button', { name: /^Create/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Run matching' })).not.toBeInTheDocument();
@@ -272,7 +273,7 @@ describe('IntakePanel', () => {
       metadataLookupSource: metadataSource,
       onMetadataApplied,
     });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
 
     const triggers = screen.getAllByRole('button', { name: METADATA_LOOKUP_TRIGGER_LABEL });
     expect(triggers).toHaveLength(2);
@@ -295,7 +296,7 @@ describe('IntakePanel', () => {
     const metadataSource = createMetadataSource();
     const onMetadataApplied = vi.fn();
     mockHook({ editableRows: [row()], metadataLookupSource: metadataSource, onMetadataApplied });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
 
     fireEvent.click(screen.getByRole('button', { name: METADATA_LOOKUP_TRIGGER_LABEL }));
     fireEvent.click(screen.getByRole('button', { name: METADATA_LOOKUP_CANCEL_LABEL }));
@@ -316,7 +317,7 @@ describe('IntakePanel', () => {
       onMetadataUndo,
       onMetadataClear,
     });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
 
     expect(screen.getByText('Anime (TV)')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'More actions for Dr. Stone' }));
@@ -335,7 +336,7 @@ describe('IntakePanel', () => {
         row({ id: 'sa-3', availability: 'waiting', availableEpisodes: 0 }),
       ],
     });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
 
     expect(screen.getByText('3 episodes available')).toBeInTheDocument();
     // One episode reads as singular, not as "1 episodes".
@@ -351,12 +352,12 @@ describe('IntakePanel', () => {
     'renders the $label footer action only when it can act',
     ({ label, shown, hidden }) => {
       mockHook(hidden);
-      const { unmount } = render(<IntakePanel />);
+      const { unmount } = render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
       expect(screen.queryByRole('button', { name: new RegExp(`^${label}`) })).not.toBeInTheDocument();
       unmount();
 
       mockHook(shown);
-      render(<IntakePanel />);
+      render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
       expect(screen.getByRole('button', { name: new RegExp(`^${label}`) })).toBeEnabled();
     },
   );
@@ -364,25 +365,25 @@ describe('IntakePanel', () => {
   // The selection is never pruned, so a stale pick must keep Create pressable exactly as before the redesign.
   it('keeps Create pressable for a stale selection when nothing is available to create', () => {
     mockHook({ availableCount: 0, selected: new Set(['sa-1']) });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     expect(screen.getByRole('button', { name: 'Create 1' })).toBeEnabled();
   });
 
   it('keeps Create disabled while nothing is selected', () => {
     mockHook({ availableCount: 1, selected: new Set<string>() });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
   });
 
   it('surfaces an error message', () => {
     mockHook({ errorMessage: 'no active season' });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     expect(screen.getByText('no active season')).toBeInTheDocument();
   });
 
   it('shows a processing indicator while an operation is in flight', () => {
     mockHook({ busyMessage: 'Checking episode availability…' });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     expect(screen.getByRole('status')).toHaveTextContent('Checking episode availability…');
   });
 
@@ -391,7 +392,7 @@ describe('IntakePanel', () => {
       matchingRun: { total: 4, resolvedInPhase: 1, phase: 'name_matching' },
       matchingProgressMessage: 'Matching names… 1 of 4',
     });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     expect(screen.getByRole('status')).toHaveTextContent('Matching names… 1 of 4');
   });
 
@@ -400,7 +401,7 @@ describe('IntakePanel', () => {
       matchingRun: { total: 4, resolvedInPhase: 2, phase: 'availability_check' },
       matchingProgressMessage: 'Checking episode availability… 2 checked',
     });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     expect(screen.getByRole('status')).toHaveTextContent('Checking episode availability… 2 checked');
   });
 
@@ -410,7 +411,7 @@ describe('IntakePanel', () => {
       matchingRun: { total: 4, resolvedInPhase: 1, phase: 'name_matching' },
       matchingProgressMessage: 'Matching names… 1 of 4',
     });
-    render(<IntakePanel />);
+    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     expect(screen.getByRole('status')).toHaveTextContent('Matching names… 1 of 4');
     expect(screen.queryByText('Matching names against jkanime…')).not.toBeInTheDocument();
   });

@@ -11,6 +11,7 @@ import {
   setKeymapOverrides,
 } from '../../../../../shared/keyboard/keyboard-scope.helpers';
 import type { CommandDefinition } from '../../../../../shared/keyboard/keyboard.types';
+import { createBridgeQueryTestWrapper } from '../../../../../shared/query/test-support/bridge-query.test-support';
 import { useBackupImport } from '../use-backup-import';
 
 vi.mock('../../../../../infrastructure/preferences-source/preferences-source.helpers', () => ({
@@ -101,7 +102,7 @@ describe('a restored keymap reaches the running dispatcher without a restart', (
       restorePointPath: 'C:/data/bridge-restore-point.db',
       errorMessage: '',
     });
-    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport }));
+    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport }), { wrapper: createBridgeQueryTestWrapper().wrapper });
 
     act(() => {
       result.current.onPreview();

@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { activityread } from '../../../../../wailsjs/go/models';
 import type { ActivityRecorderPayload } from '../../activity-source/activity.types';
 
 /** A complete Go RecorderEntry payload, the shape Wails hands over. */
@@ -20,26 +19,6 @@ function goRecorderRow(overrides: Partial<ActivityRecorderPayload>): ActivityRec
     EventType: '',
     Message: '',
     CorrelationID: '',
-    ...overrides,
-  };
-}
-
-/** A complete Go LedgerLine payload. */
-function goLedgerLine(overrides: Record<string, unknown>): Record<string, unknown> {
-  return {
-    Kind: 'change',
-    ID: '1',
-    AtMS: 10,
-    PhoneAtMS: null,
-    Domain: 'anime',
-    Source: 'mobile',
-    Level: '',
-    Title: 'Date A Live IV',
-    Detail: 'episode_adjusted',
-    CorrelationID: 'c-1',
-    BeforeJSON: '{"NroCapVisto":10}',
-    AfterJSON: '{"NroCapVisto":11}',
-    Marks: null,
     ...overrides,
   };
 }
@@ -68,36 +47,6 @@ describe('history-source', () => {
     vi.useRealTimers();
     Reflect.deleteProperty(window, 'go');
     Reflect.deleteProperty(window, 'runtime');
-  });
-
-  it('maps a Go ledger line onto the readonly camelCase contract', async () => {
-    const { mapLedgerLine } = await import('../history-source.helpers');
-
-    expect(mapLedgerLine(activityread.LedgerLine.createFrom(goLedgerLine({ PhoneAtMS: 4, Marks: ['arrived_late', 'recovered', 'incident'] })))).toEqual({
-      kind: 'change',
-      id: '1',
-      atMs: 10,
-      phoneAtMs: 4,
-      domain: 'anime',
-      source: 'mobile',
-      level: '',
-      title: 'Date A Live IV',
-      detail: 'episode_adjusted',
-      correlationId: 'c-1',
-      beforeJson: '{"NroCapVisto":10}',
-      afterJson: '{"NroCapVisto":11}',
-      marks: ['arrived_late', 'recovered', 'incident'],
-    });
-  });
-
-  it('turns a nil phone time into undefined, nil marks into empty, and drops unknown marks', async () => {
-    const { mapLedgerLine } = await import('../history-source.helpers');
-
-    const line = mapLedgerLine(activityread.LedgerLine.createFrom(goLedgerLine({ Marks: ['unclean_stop', 'recovered'] })));
-
-    expect(line.phoneAtMs).toBeUndefined();
-    expect(line.marks).toEqual(['recovered']);
-    expect(mapLedgerLine(activityread.LedgerLine.createFrom(goLedgerLine({ Marks: null }))).marks).toEqual([]);
   });
 
   it('streams live recorder rows and skips an unknown source without throwing out of the callback', async () => {

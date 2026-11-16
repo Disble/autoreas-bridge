@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"database/sql"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -32,6 +33,18 @@ func warnEntries(mem *sharedlogger.MemLogger) []sharedlogger.LogEntry {
 // starts with wantMessage and whose metadata holds key alone, and returns that value.
 func onlySweepWarning(t *testing.T, mem *sharedlogger.MemLogger, wantMessage, key string) any {
 	t.Helper()
+	entry := onlySweepEntry(t, mem, wantMessage)
+	value, ok := entry.Metadata[key]
+	if !ok || len(entry.Metadata) != 1 {
+		t.Fatalf("expected only %q in metadata, got %#v", key, entry.Metadata)
+	}
+	return value
+}
+
+// onlySweepEntry asserts the sink holds exactly one api.capture_swept warning whose message
+// starts with wantMessage, and returns it.
+func onlySweepEntry(t *testing.T, mem *sharedlogger.MemLogger, wantMessage string) sharedlogger.LogEntry {
+	t.Helper()
 	entries := warnEntries(mem)
 	if len(entries) != 1 {
 		t.Fatalf("expected exactly one warning, got %#v", entries)
@@ -43,11 +56,7 @@ func onlySweepWarning(t *testing.T, mem *sharedlogger.MemLogger, wantMessage, ke
 	if !strings.HasPrefix(entry.Message, wantMessage) {
 		t.Fatalf("expected message to start with %q, got %q", wantMessage, entry.Message)
 	}
-	value, ok := entry.Metadata[key]
-	if !ok || len(entry.Metadata) != 1 {
-		t.Fatalf("expected only %q in metadata, got %#v", key, entry.Metadata)
-	}
-	return value
+	return entry
 }
 
 // TestSweepOrphanedCapturesRecordsDiagnosableMetadata pins the structured fields every sweep
@@ -61,16 +70,26 @@ func TestSweepOrphanedCapturesRecordsDiagnosableMetadata(t *testing.T) {
 		t.Fatalf("close db: %v", err)
 	}
 	sweptDB := captureAppTestDB(t)
-	seedPendingCaptureRow(t, sweptDB, "req-orphan-1", 100)
 	seedPendingCaptureRow(t, sweptDB, "req-orphan-2", 110)
+	seedPendingCaptureRow(t, sweptDB, "req-orphan-1", 100)
+	if _, err := sweptDB.Exec(`UPDATE request_captures SET client_request_id = 'cycle-9:1' WHERE request_id = 'req-orphan-2'`); err != nil {
+		t.Fatalf("set client request id: %v", err)
+	}
 	const failed = "failed to sweep orphaned capture rows: "
 
 	t.Run("swept", func(t *testing.T) {
 		shared, mem := sweepTestLogger()
 		(&App{bridgeDB: sweptDB, sharedLogger: shared}).sweepOrphanedCaptures()
-		value := onlySweepWarning(t, mem, "swept 2 orphaned capture row(s) left pending by a previous process", "swept")
-		if !reflect.DeepEqual(value, int64(2)) {
-			t.Fatalf("expected swept=2, got %#v", value)
+		entry := onlySweepEntry(t, mem, "swept 2 orphaned capture row(s) left pending by a previous process")
+		want := map[string]any{
+			"swept": int64(2),
+			"captures": []map[string]any{
+				{"requestId": "req-orphan-1", "route": "/api/seasons/active", "kind": "get", "capturedAtMs": int64(100)},
+				{"requestId": "req-orphan-2", "route": "/api/seasons/active", "kind": "get", "capturedAtMs": int64(110), "clientRequestId": "cycle-9:1"},
+			},
+		}
+		if !reflect.DeepEqual(entry.Metadata, want) {
+			t.Fatalf("expected metadata %#v, got %#v", want, entry.Metadata)
 		}
 	})
 
@@ -89,4 +108,27 @@ func TestSweepOrphanedCapturesRecordsDiagnosableMetadata(t *testing.T) {
 			t.Fatalf("expected the recovered value as a non-empty cause, got %#v", cause)
 		}
 	})
+}
+
+// TestSweepOrphanedCapturesNamesOnlyTheNewestRows pins the bound on the named rows: the newest
+// are kept, because the last request before a hang is the one that matters, and the rest are
+// counted.
+func TestSweepOrphanedCapturesNamesOnlyTheNewestRows(t *testing.T) {
+	t.Parallel()
+	db := captureAppTestDB(t)
+	for i := range maxSweptCapturesLogged + 1 {
+		seedPendingCaptureRow(t, db, fmt.Sprintf("req-%02d", i), int64(1000+i))
+	}
+	shared, mem := sweepTestLogger()
+
+	(&App{bridgeDB: db, sharedLogger: shared}).sweepOrphanedCaptures()
+
+	entry := onlySweepEntry(t, mem, fmt.Sprintf("swept %d orphaned", maxSweptCapturesLogged+1))
+	captures, ok := entry.Metadata["captures"].([]map[string]any)
+	if !ok || len(captures) != maxSweptCapturesLogged {
+		t.Fatalf("expected %d captures, got %#v", maxSweptCapturesLogged, entry.Metadata["captures"])
+	}
+	if captures[0]["requestId"] != "req-01" || entry.Metadata["capturesOmitted"] != 1 {
+		t.Fatalf("expected the oldest one omitted, got first %#v and omitted %#v", captures[0], entry.Metadata["capturesOmitted"])
+	}
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import type { CoverEntry, EpisodeScheduleItem, EpisodeScheduleSource } from './episode-schedule-panel.types';
+import type { EpisodeScheduleItem } from '../../../../shared/contracts/episodes.types';
+import type { CoverEntry, EpisodeScheduleSource } from './episode-schedule-panel.types';
 
 /**
  * Fetches one cover per anime that has one, at most once per session, and hands

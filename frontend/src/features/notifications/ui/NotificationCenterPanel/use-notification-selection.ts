@@ -1,14 +1,17 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
-import type { NotificationMutationResult, NotificationRow } from '../../../../shared/contracts/notification-center.types';
-import { applyNotificationMutationUnreadCount } from '../../../../shared/store/notification-store/notification-store.helpers';
+import type {
+  NotificationCenterSource,
+  NotificationMutationResult,
+  NotificationRow,
+} from '../../../../shared/contracts/notification-center.types';
+import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
 import type { NotificationTableSelection } from '../NotificationTable/notification-table.types';
 
 /** Everything `useNotificationSelection` needs from its caller. */
 export interface NotificationSelectionInput {
   readonly source: NotificationCenterSource;
   readonly rows: readonly NotificationRow[];
-  /** Called once a bulk action's mutation resolves, so the caller can refetch the list (e.g. the sync hook's `refetch`). */
+  /** Called once a bulk action's mutation settles, so the caller can refetch the list and the unread count. */
   readonly onMutated: () => void;
 }
 
@@ -22,6 +25,12 @@ export interface NotificationSelectionResult {
   /** Un-archives every selected row -- the archived view's counterpart to `onArchive`. */
   readonly onRestore: () => void;
   readonly onClearSelection: () => void;
+}
+
+/** One bulk action: the ids it acts on and the source method that acts on them. */
+interface NotificationBulkMutation {
+  readonly ids: readonly number[];
+  readonly mutate: (ids: readonly number[]) => Promise<NotificationMutationResult>;
 }
 
 /**
@@ -42,20 +51,18 @@ function toSelectedIds(selectedKeys: NotificationTableSelection, rows: readonly 
 
 /**
  * Owns the notification master list's multi-row selection and the selection
- * bar's bulk actions (mark read, archive, restore). Every action clears the
- * selection and calls `onMutated` once its mutation resolves, so the caller
- * can refetch the list instead of leaving it showing stale, already-mutated
- * rows -- satisfying notification-center spec "A selection bar appears only
- * while rows are selected" together with `NotificationSelectionBar`'s own
- * render guard, which reads `selectedCount`.
+ * bar's bulk actions (mark read, archive, restore), run through
+ * `useBridgeMutation`. Every action clears the selection and calls `onMutated`
+ * once its mutation settles, so the caller can refetch the list and the unread
+ * count instead of leaving them showing stale, already-mutated rows --
+ * satisfying notification-center spec "A selection bar appears only while rows
+ * are selected" together with `NotificationSelectionBar`'s own render guard,
+ * which reads `selectedCount`.
  *
- * Each also feeds the mutation's own fresh `unreadCount` into the shared
- * notification store, which is what lowers the rail badge. Archive included:
- * `Store.Archive` marks the records it archives read as a side effect, so an
- * archive that skipped this step would leave the badge standing over
- * records nothing can reach any more. Restore included for the mirror
- * reason: it moves records back into the view the badge counts, so only the
- * count the server just computed can be trusted.
+ * The unread count is read again after every action, archive and restore
+ * included: `Store.Archive` marks the records it archives read as a side
+ * effect, and restore moves records back into the view the badge counts, so
+ * only the count the server computes can be trusted.
  *
  * Archive and restore are two views' worth of the same gesture and are never
  * offered together: which one the selection bar shows follows the panel's
@@ -67,6 +74,20 @@ export function useNotificationSelection(input: Readonly<NotificationSelectionIn
   // 2. State
   const [selectedKeys, setSelectedKeys] = useState<NotificationTableSelection>(new Set());
 
+  // 4. Queries/Mutations
+  // The three bulk actions differ only in which source method they call, so
+  // they share one mutation rather than three copies of the same
+  // settle-then-clear-then-refetch sequence -- a sequence whose steps must
+  // stay identical across them, since the badge, the selection and the list
+  // are the same three things in each case.
+  const { mutate: runBulkMutation } = useBridgeMutation<NotificationMutationResult, NotificationBulkMutation>({
+    mutationFn: ({ ids, mutate }) => mutate(ids),
+    onSettled: () => {
+      setSelectedKeys(new Set());
+      onMutated();
+    },
+  });
+
   // 5. Derived state
   const selectedCount = useMemo(() => toSelectedIds(selectedKeys, rows).length, [selectedKeys, rows]);
 
@@ -75,37 +96,28 @@ export function useNotificationSelection(input: Readonly<NotificationSelectionIn
     setSelectedKeys(new Set());
   }, []);
 
-  // The three bulk actions differ only in which source method they call, so
-  // they share one runner rather than three copies of the same
-  // resolve-then-clear-then-refetch sequence -- a sequence whose steps must
-  // stay identical across them, since the badge, the selection and the list
-  // are the same three things in each case.
-  const runBulkMutation = useCallback(
+  const runOnSelection = useCallback(
     (mutate: (ids: readonly number[]) => Promise<NotificationMutationResult>) => {
       const ids = toSelectedIds(selectedKeys, rows);
       if (ids.length === 0) {
         return;
       }
-      void mutate(ids).then((result) => {
-        applyNotificationMutationUnreadCount(result);
-        onClearSelection();
-        onMutated();
-      });
+      runBulkMutation({ ids, mutate });
     },
-    [selectedKeys, rows, onClearSelection, onMutated],
+    [selectedKeys, rows, runBulkMutation],
   );
 
   const onMarkRead = useCallback(() => {
-    runBulkMutation((ids) => source.markRead(ids));
-  }, [runBulkMutation, source]);
+    runOnSelection((ids) => source.markRead(ids));
+  }, [runOnSelection, source]);
 
   const onArchive = useCallback(() => {
-    runBulkMutation((ids) => source.archive(ids));
-  }, [runBulkMutation, source]);
+    runOnSelection((ids) => source.archive(ids));
+  }, [runOnSelection, source]);
 
   const onRestore = useCallback(() => {
-    runBulkMutation((ids) => source.restore(ids));
-  }, [runBulkMutation, source]);
+    runOnSelection((ids) => source.restore(ids));
+  }, [runOnSelection, source]);
 
   return { selectedKeys, selectedCount, onSelectionChange: setSelectedKeys, onMarkRead, onArchive, onRestore, onClearSelection };
 }

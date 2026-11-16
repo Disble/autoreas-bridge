@@ -12,8 +12,10 @@ import (
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/anime/domain"
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/apperr"
 	"autoreas-bridge/internal/download/sites"
 	"autoreas-bridge/internal/events"
+	"autoreas-bridge/internal/lifecycle"
 	"autoreas-bridge/internal/season"
 	seasondomain "autoreas-bridge/internal/season/domain"
 	bridgeSync "autoreas-bridge/internal/sync"
@@ -111,7 +113,7 @@ func TestAnimeOverlaysByIDUsesEnglishReadRecords(t *testing.T) {
 		{Value: domain.Anime{ID: "anime-2", Days: []domain.AnimeDay{{Day: "Visto", Order: 2}}}},
 	}}}
 
-	got := app.animeOverlaysByID(context.Background())
+	got := animeOverlaysByID(context.Background(), app.animeQuery)
 	if got["anime-1"].section != "Sin ver" || got["anime-1"].order != 1 || got["anime-1"].folderPath != folder1 || got["anime-1"].pageURL != page1 {
 		t.Fatalf("animeOverlaysByID()[anime-1] = %#v, want section=Sin ver order=1 folderPath=%q pageURL=%q", got["anime-1"], folder1, page1)
 	}
@@ -359,5 +361,58 @@ func TestSeasonWatchedRuleMovesAWatchedVerHoyAnimeToVistoInTheSameSave(t *testin
 	}
 	if !bytes.Equal(rows[0].SnapshotJSON, stored.CanonicalJSON) || rows[0].SourceEventID != published[0].EventID {
 		t.Fatalf("want the row to carry the Visto snapshot and the event id %q, got %+v", published[0].EventID, rows[0])
+	}
+}
+
+// outcomeDaysEpisodeService answers every SetAnimeDays with outcome, recording the command.
+type outcomeDaysEpisodeService struct {
+	*stubAppEpisodeService
+	outcome anime.PatchOutcome
+}
+
+func (s *outcomeDaysEpisodeService) SetAnimeDays(_ context.Context, cmd anime.SetAnimeDaysCommand) (anime.EpisodeCommandResult, error) {
+	s.lastDays = cmd
+	return anime.EpisodeCommandResult{AnimeID: cmd.AnimeID, Outcome: s.outcome, ModifiedAt: 7, ConflictID: "c-1"}, s.err
+}
+
+// TestSendSeasonAnimesToVerHoyFollowsTheEpisodesModule pins S1 for the Ver hoy batch: it moves no
+// anime while the episodes module starts or after it failed, and a move that fails or does not
+// apply stops the batch as the binding's error with no window result.
+func TestSendSeasonAnimesToVerHoyFollowsTheEpisodesModule(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name     string
+		state    lifecycle.State
+		outcome  anime.PatchOutcome
+		err      error
+		wantCode apperr.Code
+		wantMsg  string
+	}{
+		{"starting is unavailable", lifecycle.StateStarting, anime.PatchOutcomeApplied, nil, apperr.CodeUnavailable, "episodes is starting"},
+		{"failed is a failed precondition", lifecycle.StateFailed, anime.PatchOutcomeApplied, nil, apperr.CodeFailedPrecondition, "bridge database failed to open: locked"},
+		{"service error is internal", lifecycle.StateReady, "", errors.New("anime write failed"), apperr.CodeInternal, "anime write failed"},
+		{"conflict is internal", lifecycle.StateReady, anime.PatchOutcomeConflict, nil, apperr.CodeInternal, "anime mutation conflict: anime=anime-1 modifiedAt=7 conflictId=c-1"},
+		{"unknown outcome is internal", lifecycle.StateReady, "rewound", nil, apperr.CodeInternal, `unexpected anime mutation outcome "rewound"`},
+		{"no-op is staged", lifecycle.StateReady, anime.PatchOutcomeNoOp, nil, "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			episode := &outcomeDaysEpisodeService{stubAppEpisodeService: &stubAppEpisodeService{err: tc.err}, outcome: tc.outcome}
+
+			got, err := episodesApp(episode, tc.state).SendSeasonAnimesToVerHoy([]string{"anime-1", "anime-2"})
+
+			code, _ := apperr.CodeOf(err)
+			if code != tc.wantCode || (err != nil && (err.Error() != tc.wantMsg || got != SendToVerHoyDTO{})) {
+				t.Fatalf("got %+v, code %q (err %v), want code %q %q and no result", got, code, err, tc.wantCode, tc.wantMsg)
+			}
+			wantMoved := map[lifecycle.State]string{lifecycle.StateReady: "anime-1"}[tc.state]
+			if err == nil {
+				wantMoved = "anime-2"
+			}
+			if episode.lastDays.AnimeID != wantMoved {
+				t.Fatalf("last anime moved = %q, want %q", episode.lastDays.AnimeID, wantMoved)
+			}
+		})
 	}
 }

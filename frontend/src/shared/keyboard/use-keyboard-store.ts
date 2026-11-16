@@ -4,8 +4,7 @@ import type { KeyboardStoreState } from './keyboard.types';
 
 /**
  * Reads and subscribes to the keyboard store, optionally through a selector.
- * Mirrors `use-notification-store.ts` verbatim (D4): both wrap a vanilla
- * `createStore()` instance with zustand's `useStore` so a React consumer can
+ * Wraps the vanilla `createStore()` instance with zustand's `useStore` (D4) so a React consumer can
  * re-render on change while `dispatch.helpers.ts` still reads the same store
  * outside React via `.getState()`.
  */

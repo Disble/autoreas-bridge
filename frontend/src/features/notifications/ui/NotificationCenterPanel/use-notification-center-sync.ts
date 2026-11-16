@@ -1,8 +1,7 @@
 import { useCallback, useEffect } from 'react';
-import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
 import { notificationSource } from '../../../../infrastructure/notification-source/notification-source.helpers';
 import type { NotificationSource } from '../../../../infrastructure/notification-source/notification-source.types';
-import type { NotificationRow } from '../../../../shared/contracts/notification-center.types';
+import type { NotificationCenterSource, NotificationRow } from '../../../../shared/contracts/notification-center.types';
 import { NO_FACET_FILTER, useNotificationCenterPage } from './use-notification-center-page';
 import type { NotificationCenterPageResult, NotificationCenterSyncView } from './use-notification-center-page';
 
@@ -19,7 +18,7 @@ export interface NotificationCenterSyncInput {
   readonly levels?: readonly string[];
   /** Sources the query is narrowed to, under the same empty-means-everything contract as `levels`. */
   readonly sources?: readonly string[];
-  /** Runtime push stream the list live-refreshes from; defaults to the runtime-backed singleton. */
+  /** Runtime stream of `notification.archived` events the list follows; defaults to the runtime-backed singleton. */
   readonly pushSource?: NotificationSource;
 }
 
@@ -88,16 +87,15 @@ function patchRowsReadState(
  * change what is on screen without the user asking, and the read state the
  * detail pane commits beside it.
  *
- * It subscribes to the `notification.push` runtime event the rail badge
- * already listens to, so a record that arrives while the panel is open shows
- * up without a remount. The pushed payload is deliberately NOT appended: it
- * is a `Notification`, carrying no persisted record id, and a list keyed by
- * id cannot hold it. The subscription instead re-reads the first page under
- * the current filters and merges it in, which is also what keeps the
- * backend's own ordering and read state authoritative.
+ * A record that arrives while the panel is open shows up without a remount
+ * through the `notification.push` rule in `BRIDGE_INVALIDATIONS`: the first
+ * page is read again under the current filters and merged in. The pushed
+ * payload is deliberately NOT appended: it carries no persisted record id, and
+ * a list keyed by id cannot hold it.
  *
- * It subscribes to `notification.archived` for a sharper reason -- that one
- * closes a real defect rather than adding a nicety. Archiving from the detail
+ * It subscribes to `notification.archived` itself, because that event edits the
+ * rows in place rather than re-reading them -- it closes a real defect rather
+ * than adding a nicety. Archiving from the detail
  * pane went straight to `ArchiveNotifications` and told nobody, so the record
  * left the store and stayed on screen: the Archived tab showed it while the
  * active list still did too. Listening to the event rather than threading a
@@ -148,10 +146,6 @@ export function useNotificationCenterSync(input: Readonly<NotificationCenterSync
   );
 
   // 7. Effects
-  useEffect(() => {
-    return pushSource.subscribe(refreshTopPage);
-  }, [pushSource, refreshTopPage]);
-
   useEffect(() => {
     return pushSource.subscribeArchived(applyArchivedRecords);
   }, [applyArchivedRecords, pushSource]);

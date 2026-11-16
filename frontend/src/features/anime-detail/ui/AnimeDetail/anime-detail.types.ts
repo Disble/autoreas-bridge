@@ -1,8 +1,9 @@
-import type { Dispatch, ReactNode, SetStateAction, SyntheticEvent } from 'react';
-import type { contracts } from '../../../../../wailsjs/go/models';
+import type { ReactNode, SyntheticEvent } from 'react';
 import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import type { AnimeDesktopActionResult, AnimeDesktopActionsSource } from '../../../../shared/contracts/anime-editor-source.types';
 import type { AnimeDetail as AnimeDetailDto } from '../../../../shared/contracts/anime.types';
 import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
+import type { AsyncViewSource } from '../../../../shared/query/async-view/async-view.types';
 
 /**
  * Props for the shared AnimeDetail component. Reached by route from either
@@ -63,8 +64,26 @@ export interface AnimeDetailViewModel {
   readonly isFirstWatch: boolean;
 }
 
-/** Discriminates the three states the shared detail can render. */
-export type AnimeDetailLoadState = 'loading' | 'loaded' | 'not-found';
+/** Discriminates the four states the shared detail can render. */
+export type AnimeDetailLoadState = 'loading' | 'loaded' | 'not-found' | 'failure';
+
+/** The detail query as the page reads it (a `useBridgeQuery` result fits it). */
+export type AnimeDetailRead = AsyncViewSource<AnimeDetailDto> & {
+  /** True while the previous anime's detail is still shown for a new id. */
+  readonly isPlaceholderData: boolean;
+};
+
+/** The detail read as the page consumes it. */
+export interface AnimeDetailLoad {
+  readonly loadState: AnimeDetailLoadState;
+  /** This anime's own loaded detail; undefined in every other state. */
+  readonly detail: AnimeDetailDto | undefined;
+  /** Why the read failed; set only in the `failure` state. */
+  readonly failureMessage: string | undefined;
+}
+
+/** The commands the detail page runs, not yet behind a module port. */
+export type AnimeDetailCommandSource = Pick<BridgeRuntimeSource, 'repeatAnime' | 'restoreAnime'>;
 
 /** Destructive anime command selected by the user for explicit confirmation. */
 export type AnimeDetailAction = 'repeat' | 'restore';
@@ -102,18 +121,14 @@ export interface AnimeDetailMutationState {
   readonly isMutating: boolean;
 }
 
-/** Loaded raw detail keyed by route id so prop changes render loading without an effect reset. */
-export interface AnimeDetailLoadSnapshot {
-  readonly animeId: string;
-  readonly detail: AnimeDetailDto | null;
-}
-
 /** Inputs for the mutation-focused hook extracted from the Detail query hook. */
 export interface AnimeDetailMutationHookProps {
   readonly animeId: string;
-  readonly detailSnapshot: AnimeDetailLoadSnapshot | undefined;
-  readonly source: BridgeRuntimeSource;
-  readonly setDetailSnapshot: Dispatch<SetStateAction<AnimeDetailLoadSnapshot | undefined>>;
+  /** This anime's own loaded detail; undefined while loading or failed. */
+  readonly detail: AnimeDetailDto | undefined;
+  readonly commands: AnimeDetailCommandSource;
+  /** Reads the detail again after a mutation; resolves false when that read failed. */
+  readonly refreshDetail: () => Promise<boolean>;
 }
 
 /** Route-visit identity and guard used by asynchronous AnimeDetail mutations. */
@@ -140,7 +155,7 @@ export interface AnimeDetailMutationControlsProps extends AnimeDetailMutationCon
 }
 
 /** A desktop-action binding such as `copyAnimeFolder` or `openAnimePage`, keyed by anime id. */
-export type AnimeDetailDesktopAction = (animeId: string) => Promise<contracts.EpisodeCommandResult>;
+export type AnimeDetailDesktopAction = (animeId: string) => Promise<AnimeDesktopActionResult>;
 
 /** The toasts one desktop action raises: an optional success and a required failure. */
 export interface AnimeDetailDesktopActionFeedback {
@@ -148,8 +163,8 @@ export interface AnimeDetailDesktopActionFeedback {
   readonly failure: string;
 }
 
-/** The desktop-action bindings Detail uses; each is optional, and an absent one fails closed. */
-export type AnimeDetailDesktopActionSource = Pick<BridgeRuntimeSource, 'copyAnimeFolder' | 'openAnimePage'>;
+/** The anime module's desktop actions Detail uses. */
+export type AnimeDetailDesktopActionSource = Pick<AnimeDesktopActionsSource, 'copyAnimeFolder' | 'openAnimePage'>;
 
 /** The Detail callbacks that leave the app: copy the folder path, open the page in the default browser. */
 export interface AnimeDetailDesktopActions {
@@ -198,16 +213,18 @@ export interface AnimeDetailFieldProps {
 }
 
 /** Props for the main card: toolbar, cover, identity and General data. */
-export type AnimeDetailMainCardProps = Omit<AnimeDetailState, 'loadState' | 'detail' | 'detailSource' | 'confirmation' | 'feedback' | 'onCancelAction' | 'onConfirmationOpenChange' | 'onConfirmAction'> & {
+export type AnimeDetailMainCardProps = Omit<AnimeDetailState, 'loadState' | 'failureMessage' | 'detail' | 'detailSource' | 'confirmation' | 'feedback' | 'onCancelAction' | 'onConfirmationOpenChange' | 'onConfirmAction'> & {
   readonly detail: AnimeDetailViewModel;
 };
 
 /** State returned by the `useAnimeDetail` hook. */
 export interface AnimeDetailState {
   readonly loadState: AnimeDetailLoadState;
+  /** Why the detail read failed; set only in the `failure` state. */
+  readonly failureMessage: string | undefined;
   readonly detail: AnimeDetailViewModel | undefined;
-  /** Raw detail DTO backing `detail`, exposed so Watch history derives per-watch view models at the same freshness. `null` when the anime was not found; the section mounts only when this is non-null. */
-  readonly detailSource: AnimeDetailDto | null | undefined;
+  /** Raw detail DTO backing `detail`, exposed so Watch history derives per-watch view models at the same freshness. Undefined unless loaded; the section mounts only when it is set. */
+  readonly detailSource: AnimeDetailDto | undefined;
   readonly cover: AnimeCoverEntry;
   readonly onPortadaError: () => void;
   readonly onPortadaLoad: (event: SyntheticEvent<HTMLImageElement>) => void;

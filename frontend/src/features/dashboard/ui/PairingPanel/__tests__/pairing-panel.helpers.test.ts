@@ -9,7 +9,7 @@ vi.mock('qrcode', () => ({
   toDataURL: toDataURLMock,
 }));
 
-import { buildPairingQrImageUrl, buildPairingQrValue, parseEffectiveAddress } from '../pairing-panel.helpers';
+import { buildPairingQrImageUrl, buildPairingQrValue, parseEffectiveAddress, toPairingPanelReadings } from '../pairing-panel.helpers';
 
 describe('parseEffectiveAddress', () => {
   it('splits ip and port from a valid address', () => {
@@ -67,5 +67,29 @@ describe('buildPairingQrImageUrl', () => {
     await buildPairingQrImageUrl(value, options);
 
     expect(toDataURLMock).toHaveBeenLastCalledWith(value, options);
+  });
+});
+
+describe('toPairingPanelReadings', () => {
+  /** A ready view of value. */
+  const ready = (data: string, isRefreshing = false) => ({ kind: 'ready' as const, data, isRefreshing });
+
+  it('shows both values once ready', () => {
+    expect(toPairingPanelReadings({ address: ready('192.168.1.10:9876'), token: ready('token-123') })).toEqual({
+      address: '192.168.1.10:9876',
+      token: 'token-123',
+      failureMessage: '',
+    });
+  });
+
+  it('hides a token being re-read after it was consumed, and anything still loading', () => {
+    expect(toPairingPanelReadings({ address: { kind: 'loading' }, token: ready('token-123', true) })).toEqual({ address: '', token: '', failureMessage: '' });
+  });
+
+  it.each([
+    ['address', { address: { kind: 'failure' as const, code: 'failed_precondition' as const, message: 'api: bind failed' }, token: ready('token-123') }, 'api: bind failed'],
+    ['token', { address: ready('192.168.1.10:9876'), token: { kind: 'failure' as const, code: 'internal' as const, message: 'token lookup failed' } }, 'token lookup failed'],
+  ])('reports the %s failure', (_read, views, message) => {
+    expect(toPairingPanelReadings(views).failureMessage).toBe(message);
   });
 });

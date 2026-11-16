@@ -1,6 +1,6 @@
-import type { ActivityIncidentDetail } from '../../activity-source/activity-incident.types';
-import type { ActivityFeedLine, ActivitySyncEvidence, ActivitySyncReading, ActivityTabletSummary } from '../../feed-source/feed.types';
-import type { ActivityLedgerLine } from '../../history-source/history.types';
+import type { ActivityIncidentDetail } from '../../../../shared/contracts/activity-incident.types';
+import type { ActivityFeedLine, ActivitySyncEvidence, ActivitySyncReading, ActivityTabletSummary } from '../../../../shared/contracts/activity-feed.types';
+import type { ActivityLedgerLine } from '../../../../shared/contracts/activity-ledger.types';
 
 /** A ledger line with every field empty, overridden per test. */
 function ledgerLine(overrides: Partial<ActivityLedgerLine> = {}): ActivityLedgerLine {

@@ -5,30 +5,32 @@ import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmpt
 import { PageHeader } from '../../../../shared/ui/PageHeader/PageHeader';
 import { EpisodeScheduleCard } from './EpisodeScheduleCard';
 import { EpisodeScheduleSkeleton } from './EpisodeScheduleSkeleton';
-import { EPISODE_LENS_OPTIONS, EPISODE_SCHEDULE_PAGE_TITLE, EPISODE_LENS_TOGGLE_LABEL, EPISODE_TODAY_DOT_CLASS, EPISODE_TODAY_MARKER_LABEL, EPISODES_LOADING_MESSAGE } from './episode-schedule-panel.constants';
+import { EPISODE_LENS_OPTIONS, EPISODE_SCHEDULE_PAGE_TITLE, EPISODE_SCHEDULE_UNAVAILABLE_TITLE, EPISODE_LENS_TOGGLE_LABEL, EPISODE_TODAY_DOT_CLASS, EPISODE_TODAY_MARKER_LABEL, EPISODES_LOADING_MESSAGE } from './episode-schedule-panel.constants';
 import { dayBadge, episodeDayLabel, getEpisodeEmptyStateNavigation, toEpisodeViewLens } from './episode-schedule-panel.helpers';
 import type { EpisodeSchedulePanelProps } from './episode-schedule-panel.types';
 import { useEpisodeSchedulePanel } from './use-episode-schedule-panel';
 
 /**
  * Renders the Today screen: the title row carrying the view-lens toggle, the
- * optional banner slot, the day tabs, then the operational schedule for
- * updating anime episode progress.
+ * optional banner slot, the day tabs, then exactly one state of the schedule
+ * (`scheduleView.kind`, ADR-032 §4): the skeleton while it loads (including
+ * while the episodes module starts), the failure Alert, the empty state, or
+ * the rows.
  */
 export function EpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProps>) {
-  const { adjustWatchedEpisodes, copyAnimeFolder, copyAnimePage, dayCounts, emptyStateCopy, errorMessage, filterOptions, isLoadingSchedule, lens, openAnimeFolder, openAnimePage, rows, selectDay, selectLens, selectedDay, setAnimeState, todayDay } = useEpisodeSchedulePanel(props);
+  const { adjustWatchedEpisodes, copyAnimeFolder, copyAnimePage, dayCounts, emptyStateCopy, filterOptions, isScheduleRefreshing, lens, openAnimeFolder, openAnimePage, scheduleView, selectDay, selectLens, selectedDay, setAnimeState, todayDay } = useEpisodeSchedulePanel(props);
   const navigate = useNavigate();
   const emptyNavigation = getEpisodeEmptyStateNavigation(emptyStateCopy.action);
 
-  if (errorMessage !== '') {
+  if (scheduleView.kind === 'failure') {
     return (
       <section className="flex flex-col gap-4">
         <PageHeader title={EPISODE_SCHEDULE_PAGE_TITLE} />
         {props.banner}
         <Alert status="danger">
           <Alert.Content>
-            <Alert.Title>Episode schedule unavailable</Alert.Title>
-            <Alert.Description>{errorMessage}</Alert.Description>
+            <Alert.Title>{EPISODE_SCHEDULE_UNAVAILABLE_TITLE}</Alert.Title>
+            <Alert.Description>{scheduleView.message}</Alert.Description>
           </Alert.Content>
         </Alert>
       </section>
@@ -71,14 +73,14 @@ export function EpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProps>)
         </ToggleButtonGroup>
       </div>
 
-      {isLoadingSchedule ? (
+      {scheduleView.kind === 'loading' ? (
         <div aria-labelledby="episode-schedule-loading-label" aria-live="polite" className="grid gap-3" role="status">
           <span className="sr-only" id="episode-schedule-loading-label">{EPISODES_LOADING_MESSAGE}</span>
           <EpisodeScheduleSkeleton />
         </div>
       ) : null}
 
-      {!isLoadingSchedule && rows.length === 0 ? (
+      {scheduleView.kind === 'empty' ? (
         <AirisEmptyState
           action={{ label: emptyNavigation.label, onPress: () => void navigate(emptyNavigation.route) }}
           description={emptyStateCopy.description}
@@ -89,13 +91,12 @@ export function EpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProps>)
       ) : null}
 
       {/*
-        Gated on the request, not just on having rows. `items` keeps the
-        previous day's rows while the next day is in flight, so an ungated map
-        renders the stale cards UNDER the placeholders — both blocks at once,
-        which is the opposite of what a placeholder is for.
+        Only the ready state renders rows: a new day's request shows the
+        skeleton (the view maps the previous day's placeholder rows to
+        loading), so stale cards never sit under the placeholders.
       */}
-      <div className="grid gap-3">
-        {isLoadingSchedule ? null : rows.map((row) => (
+      <div aria-busy={isScheduleRefreshing} className="grid gap-3">
+        {scheduleView.kind === 'ready' ? scheduleView.data.map((row) => (
           <EpisodeScheduleCard
             key={row.id}
             row={row}
@@ -106,7 +107,7 @@ export function EpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProps>)
             openAnimePage={openAnimePage}
             setAnimeState={setAnimeState}
           />
-        ))}
+        )) : null}
       </div>
     </section>
   );

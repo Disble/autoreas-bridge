@@ -4,13 +4,11 @@ import { ACTIVITY_PHONE_STATUS_TICK_MS } from '../activity-feed.constants';
 import type { ActivityPhoneDevice } from '../activity-feed.types';
 import { useActivityPhoneStatus } from '../use-activity-phone-status';
 
-/** The bridge binding the default reader calls; a test removes it to stand for a runtime without Wails. */
-const bridge = vi.hoisted(() => ({ source: {} as { getConnectedDevices?: () => Promise<readonly ActivityPhoneDevice[]> } }));
+/** The Devices port read the default reader calls; a test makes it reject to stand for a module that is not ready. */
+const bridge = vi.hoisted(() => ({ getConnectedDevices: (): Promise<readonly ActivityPhoneDevice[]> => Promise.resolve([]) }));
 
-vi.mock('../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
-  get bridgeRuntimeSource() {
-    return bridge.source;
-  },
+vi.mock('../../../../shared/query/bridge-runtime/bridge-runtime.constants', () => ({
+  BRIDGE_DEVICES_SOURCE: { getConnectedDevices: () => bridge.getConnectedDevices() },
 }));
 
 /** The current time of every case, epoch milliseconds. */
@@ -91,10 +89,10 @@ describe('useActivityPhoneStatus', () => {
   });
 
   it.each([
-    ['reads the devices through the bridge binding by default', true, 'Phone connected · last sync 2m ago'],
-    ['hides the line without a Wails runtime to read from', false, undefined],
-  ])('%s', async (_case, hasBinding, expected) => {
-    bridge.source = hasBinding ? { getConnectedDevices: () => Promise.resolve([PHONE]) } : {};
+    ['reads the devices through the Devices port by default', true, 'Phone connected · last sync 2m ago'],
+    ['hides the line while the devices module cannot answer', false, undefined],
+  ])('%s', async (_case, canRead, expected) => {
+    bridge.getConnectedDevices = canRead ? () => Promise.resolve([PHONE]) : () => Promise.reject(new Error('devices is starting'));
     const { result } = renderHook(() => useActivityPhoneStatus());
     await settle();
 

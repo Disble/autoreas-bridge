@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"autoreas-bridge/internal/lifecycle"
 	"autoreas-bridge/internal/observability/requestcapture"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
@@ -48,7 +49,7 @@ func TestGetActivityRequestMapsTheStoredDetail(t *testing.T) {
 		t.Fatalf("seed request body: %v", err)
 	}
 
-	app := &App{bridgeDB: db, captureReader: requestcapture.NewReader(db)}
+	app := observabilityApp(t, db, lifecycle.StateReady)
 	result, err := app.GetActivityRequest("req-1")
 	if err != nil || !result.Found {
 		t.Fatalf("GetActivityRequest = %#v, %v; want found", result, err)
