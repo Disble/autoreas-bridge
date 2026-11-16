@@ -20,7 +20,7 @@ const AMBIGUOUS = { matchStatus: 'ambiguous', candidates: [{ title: 'Dr. Stone',
 /** Mounts the panel in List mode over two rows and returns the mocked hook. */
 function renderTwoRows(shape: Parameters<typeof seasonRow>[0]): HookReturn {
   const value = {
-    readOnly: false, mode: 'list', switchMode: vi.fn(), rawDraft: '', onRawChange: vi.fn(), selected: new Set(), toggleSelect: vi.fn(),
+    asyncView: { kind: 'ready', data: [], isRefreshing: false }, readOnly: false, mode: 'list', switchMode: vi.fn(), rawDraft: '', onRawChange: vi.fn(), selected: new Set(), toggleSelect: vi.fn(),
     editableRows: [seasonRow({ id: 'row-1', rawName: 'First', ...shape }), seasonRow({ id: 'row-2', rawName: 'Second', ...shape })],
     folderOverrides: {}, folderPreviews: {}, onPickFolder: vi.fn(), metadataByRow: {}, appliedMetadataByRow: {}, metadataLookupSource: {},
     onMetadataApplied: vi.fn(), onMetadataClear: vi.fn(), onMetadataUndo: vi.fn(), availableCount: 0, availabilityPendingCount: 0, onCreate: vi.fn(),

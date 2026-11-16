@@ -134,9 +134,15 @@ For module readiness, failure codes and the `shared/query` layer, read
   its own copy of the rows. The Daily board history reads a closed season's stored board through the
   ordering-snapshot query (`useSeasonOrderingSnapshot`, one cached read per closed season under
   `ordering-snapshot/<id>`, so any other reader of that closure snapshot shares it).
-- The season Zustand store (`shared/store/season-store/`) keeps the UI state (`viewSeasonId`,
-  `readOnly`, `lastDiscard`, the banner, the matching run). Its server fields (season and intake
-  rows) are read by the screens that have not migrated yet; they leave the store with T5j-Z.
+- Intake reads displayed rows through `useDisplayedSeasonAnimes` (module `season`), overlays event-fed
+  per-row matching progress in `intake-matching-overlay.helpers.ts`, and keeps cached rows visible
+  with a banner on a failed refetch. Its commands run through `useBridgeMutation` and await the rows
+  refetch before resolving; matching refreshes only when no run started. The discard notice follows
+  the refresh. The global Undo toast restores through `useIntakeRestore`, waits for the live rows
+  refetch and only then closes; its key includes the discard sequence.
+- The season Zustand store (`shared/store/season-store/`) keeps UI state (`viewSeasonId`,
+  `readOnly`, `lastDiscard`, the banner, the matching run and its per-row event progress). Its
+  legacy server fields and actions remain until T5j-Z removes them.
 - Migrated to `shared/season`: `SeasonWorkspace`, `OverviewPanel/use-overview-panel.ts`,
   `OrderingBoard/use-ordering-board-store-bindings.ts`, `SeasonRateAction`, `TodaySeasonBanner`,
   `EvaluationPanel`, `RateAnimeModal`, `SelectionBoard`, `DailyBoard`,
@@ -155,8 +161,6 @@ For module readiness, failure codes and the `shared/query` layer, read
 - Season bindings that call other contexts still read their service from an `App` field:
   `DownloadSeasonAnimes`, `TriggerSeasonDownloads` (downloads), `SendSeasonAnimesToVerHoy` (anime
   editor), `GetSeasonCheckTime`, `SetSeasonCheckTime` (settings). They migrate with those contexts.
-- The intake panel's reads and commands still read status strings and fallbacks through the adapter,
-  not `shared/query` (`frontend/src/infrastructure/season-source/season-source.helpers.ts`), and
-  still read the season and its rows from the store, which its own refreshes fill. Until it migrates,
-  a past-season view also copies the past season and its rows into the store, and an intake command
-  updates the store, not the query cache.
+- Every season screen now reads and writes through `shared/query`. What remains is the store side:
+  the legacy server fields and actions, and a past-season view that still copies the past season and
+  its rows into the store. T5j-Z removes both.

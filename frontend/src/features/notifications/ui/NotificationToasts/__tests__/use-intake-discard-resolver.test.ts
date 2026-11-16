@@ -1,7 +1,8 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { seasonSource } from '../../../../../infrastructure/season-source/season-source.helpers';
+import { BRIDGE_SEASON_SOURCE } from '../../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { seasonQueryWrapper } from '../../../../../shared/season/__tests__/season.test-support';
 import type { AppNotification } from '../../../../../shared/contracts/app-notification.types';
 import { getSeasonStoreState, resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
 import { useIntakeDiscardResolver } from '../use-intake-discard-resolver';
@@ -21,14 +22,14 @@ interface ResolverProps {
 function renderResolver() {
   const push = vi.fn<(notification: AppNotification) => void>();
   const remove = vi.fn<(key: string | number) => void>();
-  const { rerender } = renderHook((props: ResolverProps) => useIntakeDiscardResolver(props.push, props.remove), { initialProps: { push, remove } });
+  const { rerender } = renderHook((props: ResolverProps) => useIntakeDiscardResolver(props.push, props.remove), { initialProps: { push, remove }, wrapper: seasonQueryWrapper().wrapper });
   return { push, remove, rerender };
 }
 
 describe('useIntakeDiscardResolver', () => {
   afterEach(() => {
     resetSeasonStore();
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   it('pushes nothing until a discard succeeds', () => {
@@ -37,9 +38,9 @@ describe('useIntakeDiscardResolver', () => {
     expect(push).not.toHaveBeenCalled();
   });
 
-  it('pushes one Undo toast per successful discard, and Undo restores that row and closes its toast', () => {
-    const restoreName = vi.fn().mockResolvedValue(true);
-    setSeasonStoreState({ restoreName });
+  it('pushes one Undo toast per successful discard, and Undo restores that row and closes its toast', async () => {
+    const restoreName = vi.spyOn(BRIDGE_SEASON_SOURCE, 'restoreName').mockResolvedValue('ok');
+    vi.spyOn(BRIDGE_SEASON_SOURCE, 'readSeasonAnimes').mockResolvedValue([]);
     const { push, remove } = renderResolver();
 
     act(() => {
@@ -56,7 +57,8 @@ describe('useIntakeDiscardResolver', () => {
     act(() => {
       push.mock.calls[0][0].actions?.[0].onPress();
     });
-    expect(restoreName).toHaveBeenCalledExactlyOnceWith(seasonSource, 'sa-1');
+    await waitFor(() => expect(restoreName).toHaveBeenCalledExactlyOnceWith('sa-1'));
+    await waitFor(() => expect(BRIDGE_SEASON_SOURCE.readSeasonAnimes).toHaveBeenCalled());
     expect(remove).toHaveBeenCalledExactlyOnceWith('intake-discard-1');
 
     act(() => {
@@ -67,11 +69,25 @@ describe('useIntakeDiscardResolver', () => {
     expect(getSeasonStoreState().lastDiscard?.sequence).toBe(2);
   });
 
-  it('pushes and closes through the latest callbacks it was handed', () => {
+  it('waits for restore and its row refresh before closing the toast', async () => {
+    let release: (value: string) => void = () => undefined;
+    vi.spyOn(BRIDGE_SEASON_SOURCE, 'restoreName').mockReturnValue(new Promise((resolve) => { release = resolve; }));
+    vi.spyOn(BRIDGE_SEASON_SOURCE, 'readSeasonAnimes').mockResolvedValue([]);
+    const { push, remove } = renderResolver();
+    act(() => setSeasonStoreState({ lastDiscard: { rowId: 'sa-1', rawName: 'Name', sequence: 1 } }));
+    act(() => push.mock.calls[0][0].actions?.[0].onPress());
+    expect(remove).not.toHaveBeenCalled();
+    await act(async () => { release('ok'); });
+    await waitFor(() => expect(remove).toHaveBeenCalledExactlyOnceWith('intake-discard-1'));
+    expect(BRIDGE_SEASON_SOURCE.readSeasonAnimes).toHaveBeenCalled();
+  });
+
+  it('pushes and closes through the latest callbacks it was handed', async () => {
     const { push, rerender } = renderResolver();
     const nextPush = vi.fn<(notification: AppNotification) => void>();
     const nextRemove = vi.fn<(key: string | number) => void>();
-    setSeasonStoreState({ restoreName: vi.fn().mockResolvedValue(true) });
+    vi.spyOn(BRIDGE_SEASON_SOURCE, 'restoreName').mockResolvedValue('ok');
+    vi.spyOn(BRIDGE_SEASON_SOURCE, 'readSeasonAnimes').mockResolvedValue([]);
 
     rerender({ push: nextPush, remove: nextRemove });
     act(() => {
@@ -82,6 +98,6 @@ describe('useIntakeDiscardResolver', () => {
     });
 
     expect(push).not.toHaveBeenCalled();
-    expect(nextRemove).toHaveBeenCalledExactlyOnceWith('intake-discard-1');
+    await waitFor(() => expect(nextRemove).toHaveBeenCalledExactlyOnceWith('intake-discard-1'));
   });
 });

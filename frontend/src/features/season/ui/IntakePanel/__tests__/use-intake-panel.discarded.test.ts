@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { seasonQueryWrapper } from '../../../../../shared/season/__tests__/season.test-support';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { disconnectSeasonMatchingStore, resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
@@ -17,7 +18,7 @@ describe('useIntakePanel discarded rows', () => {
     const discarded = seasonRow({ id: 'd', rawName: 'D', matchStatus: 'discarded', matchedSlug: 'https://jkanime.net/d/', metadata: { kind: 2, totalEpisodes: 12 } });
     const getSeasonAnimes = vi.fn().mockResolvedValue([active, discarded]);
     const source = createSource({ getSeasonAnimes });
-    const { result } = renderHook(() => useIntakePanel(source));
+    const { result } = renderHook(() => useIntakePanel(source), { wrapper: seasonQueryWrapper().wrapper });
     await waitFor(() => expect(result.current.discardedRows.map((row) => row.id)).toEqual(['d']));
     expect(result.current.editableRows.map((row) => row.id)).toEqual(['a']);
     expect(Object.keys(result.current.discardedMetadataByRow)).toEqual(['d']);

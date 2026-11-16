@@ -79,6 +79,7 @@ function createMetadataSource(overrides: Partial<AnimeMetadataLookupSource> = {}
  */
 function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
   const value: HookReturn = {
+    asyncView: { kind: 'ready', data: [], isRefreshing: false },
     readOnly: false,
     mode: 'list',
     switchMode: vi.fn(),

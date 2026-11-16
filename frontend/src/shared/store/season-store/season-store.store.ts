@@ -103,18 +103,20 @@ export const seasonStore = createStore<SeasonStoreState>()((set, get) => ({
   errorMessage: undefined,
   busyMessage: undefined,
   matchingRun: null,
+  matchingProgress: {},
   lastDiscard: null,
   beginMatchingRun: (total) => {
-    set({ matchingRun: { total, resolvedInPhase: 0, phase: SEASON_MATCHING_PHASE_MATCHING } });
+    set({ matchingRun: { total, resolvedInPhase: 0, phase: SEASON_MATCHING_PHASE_MATCHING }, matchingProgress: {} });
   },
   applyMatchingProgress: (notice) => {
     set((state) => ({
       seasonAnimes: state.seasonAnimes.map((row) => (row.id === notice.rowId ? patchRowWithProgress(row, notice) : row)),
       matchingRun: advanceMatchingRun(state.matchingRun, notice),
+      matchingProgress: state.matchingRun === null ? state.matchingProgress : { ...state.matchingProgress, [notice.rowId]: notice },
     }));
   },
   finishMatchingRun: () => {
-    set({ matchingRun: null });
+    set({ matchingRun: null, matchingProgress: {} });
   },
   viewSeasonId: null,
   readOnly: false,
@@ -285,7 +287,7 @@ export const seasonStore = createStore<SeasonStoreState>()((set, get) => ({
     try {
       const result = await source.runMatching();
       if (result !== 'ok') {
-        set({ errorMessage: result || 'Failed to run matching', matchingRun: null });
+        set({ errorMessage: result || 'Failed to run matching', matchingRun: null, matchingProgress: {} });
         return;
       }
       set({ errorMessage: undefined });
@@ -293,7 +295,7 @@ export const seasonStore = createStore<SeasonStoreState>()((set, get) => ({
         await get().refreshAnimes(source);
       }
     } catch (error) {
-      set({ errorMessage: error instanceof Error ? error.message : 'Failed to run matching', matchingRun: null });
+      set({ errorMessage: error instanceof Error ? error.message : 'Failed to run matching', matchingRun: null, matchingProgress: {} });
     } finally {
       set({ busyMessage: undefined });
     }

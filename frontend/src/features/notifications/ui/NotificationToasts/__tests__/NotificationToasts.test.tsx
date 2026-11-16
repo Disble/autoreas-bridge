@@ -1,6 +1,7 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
+import { seasonQueryWrapper } from '../../../../../shared/season/__tests__/season.test-support';
 import { NotificationToasts } from '../NotificationToasts';
 import { appToastQueue } from '../app-toast-queue';
 import { useBackendEventResolver } from '../use-backend-event-resolver';
@@ -50,6 +51,7 @@ describe('NotificationToasts', () => {
       <MemoryRouter>
         <NotificationToasts />
       </MemoryRouter>,
+      { wrapper: seasonQueryWrapper().wrapper },
     );
 
     expect(useBackendEventResolver).toHaveBeenCalledWith(expect.any(Function), expect.any(Function));
@@ -64,6 +66,7 @@ describe('NotificationToasts', () => {
         <MemoryRouter>
           <NotificationToasts />
         </MemoryRouter>,
+        { wrapper: seasonQueryWrapper().wrapper },
       );
       const push = capturePush();
 

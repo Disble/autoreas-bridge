@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook as renderQueryHook, waitFor } from '@testing-library/react';
+import { seasonQueryWrapper } from '../../../../../shared/season/__tests__/season.test-support';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -7,9 +8,16 @@ import type {
   SeasonMatchingProgressNotice,
   SeasonMatchingStartedNotice,
 } from '../../../../../shared/contracts/season.types';
-import { disconnectSeasonMatchingStore, getSeasonStoreState, resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
+import { disconnectSeasonMatchingStore, resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
 import { createLibraryRootSource, createMetadataSource, createSource, createSourceWithRows, seasonRow, selection } from './intake-panel.test-support';
 import { useIntakePanel } from '../use-intake-panel';
+
+/**
+ * Mounts each panel case with its own season query cache, or with the cache a
+ * case passes so its assertions act on the client the hook actually uses.
+ */
+const renderHook: typeof renderQueryHook = (callback, options) =>
+  renderQueryHook(callback, { ...options, wrapper: options?.wrapper ?? seasonQueryWrapper().wrapper });
 
 describe('useIntakePanel', () => {
   afterEach(() => {
@@ -135,7 +143,7 @@ describe('useIntakePanel', () => {
     const { result } = renderHook(() => useIntakePanel(source, libraryRootSource));
 
     await waitFor(() => expect(libraryRootSource.getLibraryRoot).toHaveBeenCalled());
-    expect(result.current.folderPreviews['sa-1']).toBe('D:/Anime/Re Zero');
+    await waitFor(() => expect(result.current.folderPreviews['sa-1']).toBe('D:/Anime/Re Zero'));
   });
 
   it('ignores a cancelled folder picker (no override recorded)', async () => {
@@ -363,13 +371,13 @@ describe('useIntakePanel', () => {
     const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
     await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
 
-    act(() => result.current.onMetadataApplied('sa-1', selection({ kind: '0', totalEpisodes: '24', genres: 'Action' })));
+    await act(async () => result.current.onMetadataApplied('sa-1', selection({ kind: '0', totalEpisodes: '24', genres: 'Action' })));
 
     // Exactly the fields creation will receive, so what the row shows and what the
     // anime gets cannot drift.
     expect(source.setSeasonAnimeMetadata).toHaveBeenCalledWith('sa-1', '{"kind":0,"totalEpisodes":24,"genres":["Action"]}');
 
-    act(() => result.current.onMetadataClear('sa-1'));
+    await act(async () => result.current.onMetadataClear('sa-1'));
 
     // Clear removes the stored record AND the local state the user sees.
     expect(source.setSeasonAnimeMetadata).toHaveBeenLastCalledWith('sa-1', '');
@@ -381,10 +389,10 @@ describe('useIntakePanel', () => {
     const source = createSourceWithRows([seasonRow({ id: 'sa-1' }), seasonRow({ id: 'sa-2', rawName: 'Bleach' })]);
     const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
     await waitFor(() => expect(result.current.editableRows).toHaveLength(2));
-    act(() => result.current.onMetadataApplied('sa-1', selection()));
-    act(() => result.current.onMetadataApplied('sa-2', selection({ name: 'Bleach' })));
+    await act(async () => { await result.current.onMetadataApplied('sa-1', selection()); });
+    await act(async () => result.current.onMetadataApplied('sa-2', selection({ name: 'Bleach' })));
 
-    act(() => result.current.onMetadataClear('sa-1'));
+    await act(async () => result.current.onMetadataClear('sa-1'));
 
     expect(source.setSeasonAnimeMetadata).toHaveBeenLastCalledWith('sa-1', '');
     expect(result.current.metadataByRow['sa-1']).toBeUndefined();
@@ -417,7 +425,8 @@ describe('useIntakePanel', () => {
 
   it('refuses to attach metadata to a row the intake list does not show', async () => {
     const source = createSourceWithRows([seasonRow({ id: 'sa-1' })]);
-    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
+    const { client, wrapper } = seasonQueryWrapper();
+    const { result } = renderQueryHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()), { wrapper });
     await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
 
     act(() => result.current.onMetadataApplied('sa-2', selection()));
@@ -429,10 +438,10 @@ describe('useIntakePanel', () => {
     // And it must not resurface later: a row that appears afterwards never owned
     // that lookup, so it cannot inherit an autofill nobody confirmed for it.
     await act(async () => {
-      await getSeasonStoreState().refreshAnimes(
-        createSourceWithRows([seasonRow({ id: 'sa-1' }), seasonRow({ id: 'sa-2', rawName: 'Bleach' })]),
-      );
+      vi.mocked(source.readSeasonAnimes).mockResolvedValue([seasonRow({ id: 'sa-1' }), seasonRow({ id: 'sa-2', rawName: 'Bleach' })]);
+      await client.invalidateQueries();
     });
+    await waitFor(() => expect(result.current.editableRows).toHaveLength(2));
     expect(result.current.metadataByRow['sa-2']).toBeUndefined();
     expect(result.current.appliedMetadataByRow['sa-2']).toBeUndefined();
   });
@@ -460,20 +469,29 @@ describe('useIntakePanel', () => {
   it('keeps the metadata across a refreshed, reordered list and drops it with the row that left', async () => {
     const rows = [seasonRow({ id: 'sa-1' }), seasonRow({ id: 'sa-2', rawName: 'Bleach' }) ];
     const source = createSourceWithRows(rows);
-    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
+    const { wrapper, client: queryClient } = seasonQueryWrapper();
+    const { result } = renderQueryHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()), { wrapper });
     await waitFor(() => expect(result.current.editableRows).toHaveLength(2));
-    act(() => result.current.onMetadataApplied('sa-1', selection()));
+    // Awaited: the applied metadata runs a command that refreshes the rows, so the
+    // refetch it starts must settle before a later refresh reorders the list.
+    await act(async () => { await result.current.onMetadataApplied('sa-1', selection()); });
 
     // A reordered refresh keeps the row ids, so the lookup stays attached.
     await act(async () => {
-      await getSeasonStoreState().refreshAnimes(createSourceWithRows([rows[1], rows[0]]));
+      vi.mocked(source.readSeasonAnimes).mockResolvedValue([rows[1], rows[0]]);
+      await queryClient.invalidateQueries();
     });
+    await waitFor(() => expect(result.current.editableRows.map((row) => row.id)).toEqual(['sa-2', 'sa-1']));
     expect(result.current.metadataByRow['sa-1']).toEqual({ name: 'Dr. Stone', kind: '0' });
 
     // A refresh without that row drops its lookup with it.
     await act(async () => {
-      await getSeasonStoreState().refreshAnimes(createSourceWithRows([rows[1]]));
+      vi.mocked(source.readSeasonAnimes).mockResolvedValue([rows[1]]);
+      await queryClient.invalidateQueries();
     });
+    // Awaited: React Query publishes a refetch to the component on a scheduled
+    // macrotask, so the row leaving the list is observed before its lookup is.
+    await waitFor(() => expect(result.current.editableRows.map((row) => row.id)).toEqual(['sa-2']));
     expect(result.current.metadataByRow['sa-1']).toBeUndefined();
     expect(result.current.appliedMetadataByRow['sa-1']).toBeUndefined();
   });

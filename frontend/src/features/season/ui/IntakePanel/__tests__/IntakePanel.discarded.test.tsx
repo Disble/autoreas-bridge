@@ -20,7 +20,7 @@ const ACTIVE_ROWS = [seasonRow({ id: 'row-1', rawName: 'Romeria Senki' }), seaso
  */
 function renderPanel(overrides: Partial<Record<keyof HookReturn, unknown>> = {}): HookReturn {
   const value = {
-    readOnly: false, mode: 'list', switchMode: vi.fn(), rawDraft: '', onRawChange: vi.fn(), selected: new Set(), toggleSelect: vi.fn(),
+    asyncView: { kind: 'ready', data: [], isRefreshing: false }, readOnly: false, mode: 'list', switchMode: vi.fn(), rawDraft: '', onRawChange: vi.fn(), selected: new Set(), toggleSelect: vi.fn(),
     editableRows: ACTIVE_ROWS, discardedRows: [], discardedMetadataByRow: {}, view: 'active', onViewChange: vi.fn(), onRestore: vi.fn(),
     folderOverrides: {}, folderPreviews: {}, onPickFolder: vi.fn(), metadataByRow: {}, appliedMetadataByRow: {}, metadataLookupSource: {},
     onMetadataApplied: vi.fn(), onMetadataClear: vi.fn(), onMetadataUndo: vi.fn(), availableCount: 0, availabilityPendingCount: 0, onCreate: vi.fn(),

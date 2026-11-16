@@ -1,4 +1,4 @@
-import { Alert, Card } from '@heroui/react';
+import { Alert, Card, Skeleton } from '@heroui/react';
 import { IntakePanelBody } from './IntakePanelBody';
 import { IntakePanelFooter } from './IntakePanelFooter';
 import { IntakePanelHeader } from './IntakePanelHeader';
@@ -15,6 +15,7 @@ import { useIntakePanel } from './use-intake-panel';
  */
 export function IntakePanel() {
   const {
+    asyncView,
     readOnly,
     mode,
     switchMode,
@@ -53,8 +54,24 @@ export function IntakePanel() {
     onOpenPage,
   } = useIntakePanel();
 
+  if (asyncView.kind === 'loading') {
+    return (
+      <Card><Card.Content>
+        <div aria-labelledby="intake-loading-label" aria-live="polite" role="status">
+          <span className="sr-only" id="intake-loading-label">Loading intake</span>
+          <ul className="flex flex-col gap-2" aria-hidden="true">
+            {[0, 1, 2].map((item) => <li key={item} className="flex items-center gap-3 border-b border-divider py-2"><Skeleton className="size-5 rounded" /><Skeleton className="size-11 rounded-lg" /><Skeleton className="h-4 flex-1 rounded" /><Skeleton className="h-8 w-20 rounded" /></li>)}
+          </ul>
+        </div>
+      </Card.Content></Card>
+    );
+  }
+  if (asyncView.kind === 'failure') {
+    return <Alert status="danger"><Alert.Content><Alert.Description>{asyncView.message}</Alert.Description></Alert.Content></Alert>;
+  }
+
   return (
-    <section className="flex flex-col gap-4">
+    <section aria-busy={asyncView.kind === 'ready' && asyncView.isRefreshing} className="flex flex-col gap-4">
       {matchingProgressMessage !== undefined && (
         <output
           aria-live="polite"
