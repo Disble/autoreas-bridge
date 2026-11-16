@@ -44,7 +44,7 @@ afterEach(() => {
  */
 function seedBoard(rows: readonly SeasonAnimeRow[], store: Parameters<typeof setSeasonStoreState>[0] = {}): void {
   client.setQueryData(SEASON_ANIMES_KEY, rows);
-  setSeasonStoreState({ ...store, seasonAnimes: rows });
+  setSeasonStoreState(store);
 }
 
 /** Builds a created row in the given section for the real store. */

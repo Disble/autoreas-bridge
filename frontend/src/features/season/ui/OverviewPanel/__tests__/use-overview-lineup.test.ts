@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonOrderingSnapshot, SeasonSource } from '../../../../../shared/contracts/season.types';
+import type { SeasonOrderingSnapshot, SeasonQuerySource, SeasonSource } from '../../../../../shared/contracts/season.types';
 import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
 import type { SeasonCoverSource } from '../../SeasonCoverThumb/season-cover-thumb.types';
@@ -21,7 +21,7 @@ function coverSource(): SeasonCoverSource {
 /** Renders the lineup hook over `source` with the season module ready. */
 function renderLineup(source: Partial<SeasonSource>, covers: SeasonCoverSource = coverSource()) {
   const { wrapper } = createModulesTestWrapper({ module: 'season', state: 'ready' });
-  return renderHook(() => useOverviewLineup(source as SeasonSource, covers), { wrapper });
+  return renderHook(() => useOverviewLineup(source as SeasonSource & SeasonQuerySource, covers), { wrapper });
 }
 
 describe('useOverviewLineup', () => {

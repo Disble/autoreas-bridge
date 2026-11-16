@@ -46,14 +46,10 @@ export const SEASON_LIST_BANNER: SeasonBannerPolicy = { fallback: SEASON_LIST_LO
 
 /**
  * The store's view state when the live season is shown again after a past one.
- * It also empties the store's season and rows, which the season screens that
- * still read the store show, so none of them keeps showing the past season.
+ * The season and its rows follow the view through the query keys, so returning
+ * to the live view switches them without any copy to empty here.
  */
 export const SEASON_LIVE_VIEW_STATE = {
   viewSeasonId: null,
   readOnly: false,
-  season: null,
-  seasonAnimes: [],
-  hasLoadedAnimes: false,
-  animesLoadState: 'idle',
 } as const;

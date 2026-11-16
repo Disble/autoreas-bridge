@@ -56,7 +56,7 @@ describe('useOrderingBoardStoreBindings', () => {
     const { result } = renderBindings(source);
     await waitFor(() => expect(result.current.season.data).toEqual(makeSeason()));
 
-    await act(() => result.current.bindings.closeSeason(source as never));
+    await act(() => result.current.bindings.closeSeason());
 
     expect(source.closeSeason).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(result.current.season.data).toBeNull());

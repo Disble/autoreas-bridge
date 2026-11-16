@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getSeasonStoreState, resetSeasonStore, setSeasonStoreState } from '../../store/season-store/season-store.helpers';
 import { useDisplayedSeason } from '../use-displayed-season';
+import { useDisplayedSeasonAnimes } from '../use-displayed-season-animes';
 import { usePastSeasonView } from '../use-past-season-view';
 import { useSeasonLifecycleCommands } from '../use-season-lifecycle-commands';
 import { createSeasonDataSource, makeSeason, makeSeasonRow, seasonQueryWrapper } from './season.test-support';
@@ -16,6 +17,7 @@ function renderSeason(source: SeasonDataSource) {
   return renderHook(
     () => ({
       season: useDisplayedSeason({ refresh: 'mount', source }),
+      animes: useDisplayedSeasonAnimes({ refresh: 'mount', source }),
       commands: useSeasonLifecycleCommands(source),
       pastView: usePastSeasonView(source),
     }),
@@ -98,9 +100,11 @@ describe('usePastSeasonView', () => {
     await act(async () => answerRows([makeSeasonRow({ id: 'past-row' })]));
 
     await waitFor(() => expect(getSeasonStoreState().viewSeasonId).toBe('old'));
+    // The past season and its rows come from the reads the view is keyed on,
+    // and the store switches once: it holds no copy of either.
     expect(result.current.season.data).toEqual(past);
-    expect(getSeasonStoreState()).toMatchObject({ readOnly: true, season: past, errorMessage: undefined });
-    expect(getSeasonStoreState().seasonAnimes.map((row) => row.id)).toEqual(['past-row']);
+    expect(result.current.animes.data?.map((row: { id: string }) => row.id)).toEqual(['past-row']);
+    expect(getSeasonStoreState()).toMatchObject({ readOnly: true, errorMessage: undefined });
     expect(source.readPastSeason).toHaveBeenCalledTimes(1);
   });
 
@@ -118,13 +122,69 @@ describe('usePastSeasonView', () => {
   it('returns to the live season and reads it again', async () => {
     const readSeason = vi.fn().mockResolvedValue(null);
     const source = createSeasonDataSource({ readSeason });
-    setSeasonStoreState({ viewSeasonId: 'old', readOnly: true, season: makeSeason({ id: 'old' }), seasonAnimes: [makeSeasonRow()], animesLoadState: 'loaded', hasLoadedAnimes: true });
+    setSeasonStoreState({ viewSeasonId: 'old', readOnly: true });
     const { result } = renderSeason(source);
 
     await act(() => result.current.pastView.exitPastSeason());
 
-    expect(getSeasonStoreState()).toMatchObject({ viewSeasonId: null, readOnly: false, season: null, seasonAnimes: [], hasLoadedAnimes: false, animesLoadState: 'idle' });
+    expect(getSeasonStoreState()).toMatchObject({ viewSeasonId: null, readOnly: false });
     expect(readSeason).toHaveBeenCalled();
     await waitFor(() => expect(result.current.season.data).toBeNull());
+  });
+
+  /**
+   * Guards the stale-read drop: the view is keyed by the season being loaded, so
+   * a read that settles after the user moved on answers a season nobody views.
+   * It must not switch the view nor replace the rows on screen.
+   */
+  it('drops a past read that settles after the viewed season changed', async () => {
+    let answerOlderRows: (rows: ReturnType<typeof makeSeasonRow>[]) => void = () => undefined;
+    const source = createSeasonDataSource({
+      readPastSeason: vi.fn((seasonId: string) => Promise.resolve(makeSeason({ id: seasonId, status: 'closed' }))),
+      readPastSeasonAnimes: vi.fn((seasonId: string): Promise<ReturnType<typeof makeSeasonRow>[]> =>
+        seasonId === 'older'
+          ? new Promise<ReturnType<typeof makeSeasonRow>[]>((resolve) => (answerOlderRows = resolve))
+          : Promise.resolve([makeSeasonRow({ id: 'newer-row' })]),
+      ),
+    });
+    const { result } = renderSeason(source);
+    await waitFor(() => expect(result.current.season.data).toBeNull());
+
+    act(() => result.current.pastView.viewPastSeason('older'));
+    act(() => result.current.pastView.viewPastSeason('newer'));
+    await waitFor(() => expect(getSeasonStoreState().viewSeasonId).toBe('newer'));
+
+    await act(async () => answerOlderRows([makeSeasonRow({ id: 'older-row' })]));
+
+    expect(getSeasonStoreState().viewSeasonId).toBe('newer');
+    expect(result.current.animes.data?.map((row: { id: string }) => row.id)).toEqual(['newer-row']);
+    expect(result.current.season.data).toEqual(makeSeason({ id: 'newer', status: 'closed' }));
+  });
+
+  /**
+   * Guards that a viewed past season is never refreshed live: its reads are
+   * cache-only, so no background read can replace what history shows.
+   */
+  it('never reads the live season or its rows again while a past season is viewed', async () => {
+    const readSeason = vi.fn().mockResolvedValue(null);
+    const source = createSeasonDataSource({
+      readSeason,
+      readPastSeason: vi.fn().mockResolvedValue(makeSeason({ id: 'old', status: 'closed' })),
+      readPastSeasonAnimes: vi.fn().mockResolvedValue([makeSeasonRow({ id: 'past-row' })]),
+    });
+    const first = renderSeason(source);
+    await waitFor(() => expect(first.result.current.season.data).toBeNull());
+    act(() => first.result.current.pastView.viewPastSeason('old'));
+    await waitFor(() => expect(getSeasonStoreState().viewSeasonId).toBe('old'));
+    const liveSeasonReads = readSeason.mock.calls.length;
+    first.unmount();
+
+    const second = renderSeason(source);
+    await waitFor(() => expect(second.result.current.season.data).toEqual(makeSeason({ id: 'old', status: 'closed' })));
+
+    // Both readers are keyed on the viewed season, so no mount while viewing can
+    // refresh the live season the user is not looking at.
+    expect(readSeason).toHaveBeenCalledTimes(liveSeasonReads);
+    expect(second.result.current.animes.data?.[0]?.id).toBe('past-row');
   });
 });

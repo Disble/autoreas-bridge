@@ -9,10 +9,9 @@ import { createSource, seasonRow } from './intake-panel.test-support';
 describe('useIntakeQuery', () => {
   afterEach(() => resetSeasonStore());
 
-  it('supplies the panel with query rows rather than stale store rows', async () => {
+  it('supplies the panel with the query rows the screens read', async () => {
     const row = seasonRow({ id: 'query-row' });
     const source = { ...createSource(), ...createSeasonDataSource({ readSeasonAnimes: vi.fn().mockResolvedValue([row]) }) };
-    setSeasonStoreState({ seasonAnimes: [seasonRow({ id: 'stale-row' })] });
     const { result } = renderHook(() => useIntakePanel(source), { wrapper: seasonQueryWrapper().wrapper });
     await waitFor(() => expect(result.current.editableRows.map((item) => item.id)).toEqual(['query-row']));
   });

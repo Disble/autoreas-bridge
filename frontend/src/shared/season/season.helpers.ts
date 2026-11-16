@@ -111,9 +111,9 @@ export function settleSeasonCommand(command: Promise<unknown>): Promise<void> {
 /**
  * Decides what the past-season view does with its two reads: wait while
  * either is unresolved or still showing the previous season's data, report
- * the first failure, or show both at once. The ready state also carries the
- * past season and its rows for the store, because the season screens that
- * still read the store show them in the read-only view.
+ * the first failure, or switch the view. Only the view switches: the past
+ * season and its rows stay in the query cache the screens read them from, so
+ * the swap happens once and no copy of them is left behind.
  * @param seasonId The past season being loaded.
  * @param reads The past season's two reads.
  * @returns The next step.
@@ -129,15 +129,6 @@ export function resolvePastSeasonLoad(seasonId: string, reads: PastSeasonReads):
   }
   return {
     kind: 'ready',
-    state: {
-      season: season.data,
-      seasonAnimes: animes.data,
-      viewSeasonId: seasonId,
-      readOnly: true,
-      hasLoaded: true,
-      hasLoadedAnimes: true,
-      animesLoadState: 'loaded',
-      errorMessage: undefined,
-    },
+    state: { viewSeasonId: seasonId, readOnly: true, errorMessage: undefined },
   };
 }

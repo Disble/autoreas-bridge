@@ -115,19 +115,11 @@ describe('season.helpers', () => {
     expect(resolvePastSeasonLoad('old', reads)).toEqual({ kind: 'failed', errorMessage });
   });
 
-  it('shows the past season and its rows read-only once both loaded', () => {
-    expect(resolvePastSeasonLoad('old', LOADED)).toEqual({
-      kind: 'ready',
-      state: {
-        season: LOADED.season.data,
-        seasonAnimes: LOADED.animes.data,
-        viewSeasonId: 'old',
-        readOnly: true,
-        hasLoaded: true,
-        hasLoadedAnimes: true,
-        animesLoadState: 'loaded',
-        errorMessage: undefined,
-      },
-    });
+  it('switches the view read-only once both loads succeeded, carrying no server data', () => {
+    const outcome = resolvePastSeasonLoad('old', LOADED);
+
+    // Only the view switches: the season and its rows stay in the query cache
+    // the screens read them from, so the store never holds a stale copy.
+    expect(outcome).toEqual({ kind: 'ready', state: { viewSeasonId: 'old', readOnly: true, errorMessage: undefined } });
   });
 });

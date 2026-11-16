@@ -1,4 +1,4 @@
-import type { SeasonQuerySource, SeasonSource } from '../contracts/season.types';
+import type { SeasonAnimeRow, SeasonQuerySource, SeasonSnapshot, SeasonSource } from '../contracts/season.types';
 import type { SeasonStoreState } from '../store/season-store/season-store.types';
 
 /** What the season reads and the season lifecycle commands go through: the runtime adapter, or a test double. */
@@ -65,9 +65,9 @@ export interface SeasonBannerSource {
 /** The two reads of a past season, as the past-season view waits on them. */
 export interface PastSeasonReads {
   /** The past season's read. */
-  readonly season: SeasonPendingRead<SeasonStoreState['season']>;
+  readonly season: SeasonPendingRead<SeasonSnapshot | null>;
   /** The past season's intake rows read. */
-  readonly animes: SeasonPendingRead<SeasonStoreState['seasonAnimes']>;
+  readonly animes: SeasonPendingRead<readonly SeasonAnimeRow[]>;
 }
 
 /** The part of a query result the past-season view reads. */

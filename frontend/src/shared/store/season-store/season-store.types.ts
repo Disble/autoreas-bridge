@@ -1,16 +1,4 @@
-import type {
-  ConfirmSelectionResult,
-  SeasonAnimeRow,
-  SeasonCreateMetadata,
-  SeasonMatchingPhase,
-  SeasonMatchingProgressNotice,
-  SeasonSnapshot,
-  SeasonSource,
-  SendToVerHoyResult,
-} from '../../contracts/season.types';
-
-/** Request state of the open season's animes: `loaded` rows stay on screen across refetches. */
-export type AnimesLoadState = 'idle' | 'loading' | 'loaded' | 'failed';
+import type { SeasonMatchingPhase, SeasonMatchingProgressNotice } from '../../contracts/season.types';
 
 /**
  * Ephemeral matching-run progress: the run total plus how many rows resolved
@@ -41,14 +29,22 @@ export interface SeasonDiscardNotice {
   readonly sequence: number;
 }
 
-/** Zustand state contract for the shared Season read-model. */
+/**
+ * Zustand state contract for the shared Season read-model: UI state only.
+ *
+ * The season, its intake rows and the past-seasons list are server state and
+ * live in `shared/query` (ADR-032), read through `useDisplayedSeason`,
+ * `useDisplayedSeasonAnimes` and `useSeasonList`. Nothing here copies them, so
+ * a stale copy can never disagree with the read the screens show.
+ */
 export type SeasonStoreState = {
-  readonly season: SeasonSnapshot | null;
-  readonly seasonAnimes: readonly SeasonAnimeRow[];
-  readonly hasLoaded: boolean;
-  readonly hasLoadedAnimes: boolean;
-  readonly animesLoadState: AnimesLoadState;
+  /** The past season being viewed read-only, or null for the live season. */
+  readonly viewSeasonId: string | null;
+  /** Whether the screens are read-only because a past season is viewed. */
+  readonly readOnly: boolean;
+  /** The shared season banner text, cleared by the command that resolved it. */
   readonly errorMessage?: string;
+  /** The long-running command the screens announce, null while nothing runs. */
   readonly busyMessage?: string;
   /** Ephemeral matching-run progress, null while no run is in flight. */
   readonly matchingRun: SeasonMatchingRun | null;
@@ -59,43 +55,11 @@ export type SeasonStoreState = {
   /** Records the run total a started event opened, resetting the phase count. */
   readonly beginMatchingRun: (total: number) => void;
   /**
-   * Patches the resolved row in place and advances the phase count while a
-   * run is in flight. A progress event with no run around it (the scheduled
-   * availability refresh) patches the row but starts no run.
+   * Records this run's latest progress for one row and advances the phase
+   * count. A progress event with no run around it (the scheduled availability
+   * refresh) records nothing.
    */
   readonly applyMatchingProgress: (notice: SeasonMatchingProgressNotice) => void;
   /** Drops the ephemeral run state, e.g. on the terminal signal. */
   readonly finishMatchingRun: () => void;
-  readonly refresh: (source?: SeasonSource) => Promise<void>;
-  readonly ensureAnimesLoaded: (source?: SeasonSource) => Promise<void>;
-  readonly createSeason: (source: SeasonSource, name: string) => Promise<void>;
-  readonly setMinApprovalGrade: (source: SeasonSource, grade: number) => Promise<void>;
-  readonly setSlots: (source: SeasonSource, slots: number) => Promise<void>;
-  readonly closeSeason: (source: SeasonSource) => Promise<void>;
-  readonly refreshAnimes: (source?: SeasonSource) => Promise<void>;
-  readonly reconcileIntake: (source: SeasonSource, rawText: string) => Promise<void>;
-  readonly runMatching: (source: SeasonSource) => Promise<void>;
-  readonly resolveMatch: (source: SeasonSource, rowId: string, pageUrl: string) => Promise<void>;
-  readonly discardName: (source: SeasonSource, rowId: string) => Promise<boolean>;
-  readonly restoreName: (source: SeasonSource, rowId: string) => Promise<boolean>;
-  readonly setAnimeDays: (source: SeasonSource, animeId: string, dias: readonly string[]) => Promise<void>;
-  readonly sendToVerHoy: (source: SeasonSource, animeIds: readonly string[]) => Promise<SendToVerHoyResult>;
-  readonly setGrade: (source: SeasonSource, animeId: string, grade: number) => Promise<void>;
-  readonly skipGrading: (source: SeasonSource, rowId: string) => Promise<void>;
-  readonly setConsideration: (source: SeasonSource, rowId: string, consideration: string) => Promise<void>;
-  readonly confirmSelection: (source: SeasonSource) => Promise<ConfirmSelectionResult>;
-  readonly createSeasonAnimes: (
-    source: SeasonSource,
-    rowIds: readonly string[],
-    folders: Readonly<Record<string, string>>,
-    metadata: Readonly<Record<string, SeasonCreateMetadata>>,
-  ) => Promise<void>;
-  readonly setSeasonAnimeMetadata: (source: SeasonSource, rowId: string, metadataJSON: string) => Promise<void>;
-  readonly recheckAvailability: (source: SeasonSource) => Promise<void>;
-  readonly viewSeasonId: string | null;
-  readonly readOnly: boolean;
-  readonly pastSeasons: readonly SeasonSnapshot[];
-  readonly loadPastSeasons: (source?: SeasonSource) => Promise<void>;
-  readonly viewPastSeason: (source: SeasonSource, seasonId: string) => Promise<void>;
-  readonly exitPastSeason: (source?: SeasonSource) => Promise<void>;
 };

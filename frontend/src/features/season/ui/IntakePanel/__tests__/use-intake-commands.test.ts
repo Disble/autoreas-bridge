@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { seasonQueryWrapper } from '../../../../../shared/season/__tests__/season.test-support';
 import { getSeasonStoreState, resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
+import { seasonStore } from '../../../../../shared/store/season-store/season-store.store';
 import { useIntakeCommands } from '../use-intake-commands';
 import { createSource } from './intake-panel.test-support';
 
@@ -70,5 +71,46 @@ describe('useIntakeCommands', () => {
     expect(getSeasonStoreState().matchingProgress).toEqual({});
     expect(getSeasonStoreState().errorMessage).toBe('failed');
     expect(refetch).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Pins who may own the shared busy message: the matching run, the anime
+   * creation and the availability recheck announce themselves while they run
+   * and clear it once settled.
+   */
+  it.each([
+    ['runMatching', 'Matching names against jkanime…', (c: ReturnType<typeof useIntakeCommands>, s: ReturnType<typeof createSource>) => c.runMatching(s)],
+    ['createSeasonAnimes', 'Creating animes…', (c: ReturnType<typeof useIntakeCommands>, s: ReturnType<typeof createSource>) => c.createSeasonAnimes(s, ['row'], {}, {})],
+    ['recheckAvailability', 'Checking episode availability…', (c: ReturnType<typeof useIntakeCommands>, s: ReturnType<typeof createSource>) => c.recheckAvailability(s)],
+  ] as const)('announces %s on the shared busy message while it runs', async (method, message, call) => {
+    let release: (value: never) => void = () => undefined;
+    const source = createSource({ [method]: vi.fn().mockReturnValue(new Promise<never>((resolve) => { release = resolve; })) });
+    const refetch = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useIntakeCommands(refetch, []), { wrapper: seasonQueryWrapper().wrapper });
+
+    let running: Promise<void>;
+    await act(async () => { running = call(result.current, source); await Promise.resolve(); });
+    expect(getSeasonStoreState().busyMessage).toBe(message);
+    await act(async () => { release('ok' as never); await running; });
+    expect(getSeasonStoreState().busyMessage).toBeUndefined();
+  });
+
+  /** Pins that the short intake commands never claim the shared busy message. */
+  it('leaves the busy message alone for the short intake commands', async () => {
+    const source = createSource();
+    const refetch = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useIntakeCommands(refetch, []), { wrapper: seasonQueryWrapper().wrapper });
+    const seen: (string | undefined)[] = [];
+    const stop = seasonStore.subscribe((state, previous) => { if (state.busyMessage !== previous.busyMessage) seen.push(state.busyMessage); });
+
+    await act(async () => {
+      await result.current.reconcileIntake(source, 'raw');
+      await result.current.resolveMatch(source, 'row', 'url');
+      await result.current.discardName(source, 'row');
+      await result.current.restoreName(source, 'row');
+      await result.current.setSeasonAnimeMetadata(source, 'row', '{}');
+    });
+    stop();
+    expect(seen).toEqual([]);
   });
 });
