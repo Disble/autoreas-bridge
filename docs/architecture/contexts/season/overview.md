@@ -167,9 +167,10 @@ For module readiness, failure codes and the `shared/query` layer, read
 
 ## Known drift
 
-- Season bindings that call other contexts still read their service from an `App` field:
-  `DownloadSeasonAnimes`, `TriggerSeasonDownloads` (downloads), `SendSeasonAnimesToVerHoy` (anime
-  editor), `GetSeasonCheckTime`, `SetSeasonCheckTime` (settings). They migrate with those contexts.
+- None for the bindings: the season bindings that call other contexts answer through that
+  context's module handle: `DownloadSeasonAnimes`, `TriggerSeasonDownloads` (downloads; a refusal
+  such as a run already in progress is the binding's error, shown on the Daily Board banner),
+  `SendSeasonAnimesToVerHoy` (episodes), `GetSeasonCheckTime`, `SetSeasonCheckTime` (settings).
 - Every season screen reads and writes through `shared/query`, and the season store holds UI state
   only. The store's matching subscription is still a direct source subscription rather than a
   `BRIDGE_INVALIDATIONS` entry; it is allow-listed in `frontend/async-state-baseline.json`.

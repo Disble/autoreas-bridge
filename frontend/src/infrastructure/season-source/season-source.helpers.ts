@@ -98,9 +98,9 @@ function invokeSeasonRead<T>(bindingName: string, invoke: () => Promise<T>, fall
 }
 
 /**
- * Calls a season read binding for a query: its rejection becomes a
+ * Calls a season binding for a query or a mutation: its rejection becomes a
  * `BridgeError`, and a binding that never attaches rejects as `unavailable`, so
- * the query reports loading or failure instead of an empty answer.
+ * the caller reports loading or failure instead of an empty answer or an "ok".
  * @param bindingName The `App` method name, as `window.go` exposes it.
  * @param call The generated binding call.
  * @returns What the binding answered.
@@ -273,10 +273,10 @@ export function createSeasonSource(): SeasonSource & SeasonQuerySource {
       );
     },
     triggerSeasonDownloads() {
-      return invokeGoBinding('TriggerSeasonDownloads', TriggerSeasonDownloads, () => SEASON_RUNTIME_UNAVAILABLE);
+      return callSeasonQuery('TriggerSeasonDownloads', () => TriggerSeasonDownloads());
     },
     downloadSeasonAnimes(animeIds: readonly string[]) {
-      return invokeGoBinding('DownloadSeasonAnimes', () => DownloadSeasonAnimes([...animeIds]), () => SEASON_RUNTIME_UNAVAILABLE);
+      return callSeasonQuery('DownloadSeasonAnimes', () => DownloadSeasonAnimes([...animeIds]));
     },
     setGrade(animeId: string, grade: number) {
       return invokeSeasonCommand('SetSeasonGrade', () => SetSeasonGrade(animeId, grade));

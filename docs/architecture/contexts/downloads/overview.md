@@ -96,10 +96,10 @@ JD lists (LinkGrabber and downloads) and never deletes files.
 
 | Caller | Method | Trigger |
 |---|---|---|
-| `internal/schedule` scheduler, through `internal/desktop/app_download_scheduler.go` | `RunOnce` | The daily schedule (`scheduled`) and the manual full check (`manual`) |
+| `internal/schedule` scheduler, through `internal/desktop/app_download_scheduler.go` | `RunOnce` | The daily schedule (`scheduled`), the manual full check (`manual`) and the season's "download now" or post-recheck run (`season-availability`, `TriggerSeasonDownloads`) |
 | `internal/desktop/app_download.go` | `RunAnime` | Downloading one anime from its screen |
 | `internal/desktop/app_notification_center.go` | `RunAnime` | A notification action |
-| `internal/desktop/app_season_availability.go` | `RunAnimes` | A season-mode selection |
+| `internal/desktop/app_season_availability.go` | `RunAnimes` | A season-mode selection (`DownloadSeasonAnimes`, through the downloads handle and the solo-run guard) |
 
 Stop goes through `App.CancelDownloadRun` (`internal/desktop/app_download_cancel.go`), which cancels
 the run's context. Where the run honours that cancellation is described in `workflow.md`.

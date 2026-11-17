@@ -9,6 +9,7 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/apperr"
 	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/download/sites"
 	"autoreas-bridge/internal/download/sites/jkanime"
@@ -205,12 +206,19 @@ func (a *App) SendSeasonAnimesToVerHoy(animeIDs []string) (SendToVerHoyDTO, erro
 	})
 }
 
+// seasonDownloadTrigger attributes a download the season context started in run history: the
+// Daily Board's "download now" and the run chained after an availability recheck.
+const seasonDownloadTrigger = "season-availability"
+
 // TriggerSeasonDownloads is the manual "download now" the Daily Board offers when a
-// Ver hoy batch missed the daily auto-download window. Degrades to "ok" (no-op)
-// when the scheduler is unavailable, mirroring the season bindings' nil-tolerance.
-func (a *App) TriggerSeasonDownloads() string {
-	a.triggerDownloadsForSeason(a.seasonCtx())
-	return "ok"
+// Ver hoy batch missed the daily auto-download window. It answers through the downloads
+// module handle: nil once the scheduler started the run, and the scheduler's refusal
+// (a run already in progress) or failure otherwise.
+func (a *App) TriggerSeasonDownloads() error {
+	_, err := a.moduleSet().downloads.Use(func(s downloadServices) (struct{}, error) {
+		return struct{}{}, s.scheduler.TriggerNow(a.downloadCtx(), seasonDownloadTrigger)
+	})
+	return err
 }
 
 // seasonSelectionRunTrigger attributes a Ver hoy subset download in run history.
@@ -220,15 +228,19 @@ const seasonSelectionRunTrigger = "season_selection"
 const seasonNoAnimesSelectedMessage = "no animes selected"
 
 // DownloadSeasonAnimes is the Daily Board's Ver hoy "Download now": it downloads only the animes
-// the user checked, as one background run, instead of every anime scheduled for today. Returns
-// "ok" once the run has started, or why it could not start (one run at a time).
-func (a *App) DownloadSeasonAnimes(animeIDs []string) string {
-	if len(animeIDs) == 0 {
-		return seasonNoAnimesSelectedMessage
-	}
-	return a.startSoloDownload(animeIDs, func(ctx context.Context, animes []contracts.MobileAnime) {
-		_, _ = a.downloadService.RunAnimes(ctx, seasonSelectionRunTrigger, animes)
+// the user checked, as one background run, instead of every anime scheduled for today. It answers
+// through the downloads module handle: nil once the run has started, invalid_argument for an empty
+// selection, not_found for an unknown anime, and the refusal otherwise (one run at a time).
+func (a *App) DownloadSeasonAnimes(animeIDs []string) error {
+	_, err := a.moduleSet().downloads.Use(func(s downloadServices) (struct{}, error) {
+		if len(animeIDs) == 0 {
+			return struct{}{}, apperr.InvalidArgument(seasonNoAnimesSelectedMessage)
+		}
+		return struct{}{}, soloDownloadError(a.startSoloDownload(animeIDs, func(ctx context.Context, animes []contracts.MobileAnime) {
+			_, _ = s.service.RunAnimes(ctx, seasonSelectionRunTrigger, animes)
+		}))
 	})
+	return err
 }
 
 // seasonDownloadWindowPassed reports the configured daily download time and whether
@@ -351,7 +363,7 @@ func (a *App) triggerDownloadsForSeason(ctx context.Context) {
 	if a.downloadScheduler == nil {
 		return
 	}
-	if err := a.downloadScheduler.TriggerNow(ctx, "season-availability"); err != nil &&
+	if err := a.downloadScheduler.TriggerNow(ctx, seasonDownloadTrigger); err != nil &&
 		!errors.Is(err, schedule.ErrRunInProgress) && a.sharedLogger != nil {
 		a.sharedLogger.Warnf("season", "failed to chain download run after availability: %v", err)
 	}

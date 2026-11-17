@@ -5,6 +5,7 @@ import { settleSeasonCommand, toSeasonBannerMessage } from '../../../../shared/s
 import { useDisplayedSeasonAnimes } from '../../../../shared/season/use-displayed-season-animes';
 import { setSeasonStoreState } from '../../../../shared/store/season-store/season-store.helpers';
 import {
+  DAILY_BOARD_DOWNLOAD_FAILED,
   DAILY_BOARD_SEND_BUSY,
   DAILY_BOARD_SEND_FAILED,
 } from './daily-board.constants';
@@ -15,8 +16,9 @@ import { toggleSelection } from './daily-board.helpers';
  * the Sin ver pool, sending it to Ver hoy (which downloads at the scheduled
  * time, or at once through "Send & download now"), the late-send notice, and
  * the manual season download. Every command runs as a bridge mutation: a sent
- * batch refreshes the season rows it moved, and the download run reports its
- * own progress through notifications.
+ * batch refreshes the season rows it moved, a download that could not start
+ * shows why in the season banner, and a started run reports its own progress
+ * through notifications.
  *
  * @param source The season port the batch is sent and the download started through.
  */
@@ -42,7 +44,10 @@ export function useDailyBoardSend(source: SeasonSource & SeasonQuerySource) {
     },
     onError: (error) => setSeasonStoreState({ errorMessage: toSeasonBannerMessage(error, { fallback: DAILY_BOARD_SEND_FAILED, fixedMessage: false }) }),
   });
-  const download = useBridgeMutation({ mutationFn: () => source.triggerSeasonDownloads() });
+  const download = useBridgeMutation({
+    mutationFn: () => source.triggerSeasonDownloads(),
+    onError: (error) => setSeasonStoreState({ errorMessage: toSeasonBannerMessage(error, { fallback: DAILY_BOARD_DOWNLOAD_FAILED, fixedMessage: false }) }),
+  });
 
   // 6. Callbacks
   const toggleSelect = useCallback((animeId: string) => {
@@ -61,7 +66,7 @@ export function useDailyBoardSend(source: SeasonSource & SeasonQuerySource) {
       return { status: toSeasonBannerMessage(error, { fallback: DAILY_BOARD_SEND_FAILED, fixedMessage: false }), pastDownloadTime: false, downloadTime: '' };
     }
   }, [selected, send]);
-  /** Starts the season download in the background; the run reports itself. */
+  /** Starts the season download in the background; the run reports itself, a refusal reaches the banner. */
   const startDownload = useCallback(() => settleSeasonCommand(download.mutateAsync()), [download]);
   const onSendToVerHoy = useCallback(() => {
     void sendSelection().then((result) => {

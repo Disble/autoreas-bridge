@@ -16,21 +16,9 @@ violations:
   - rule: binding-signature
     file: internal/desktop/app_preferences.go
     symbol: SetKeymap
-  - rule: binding-signature
-    file: internal/desktop/app_season_availability.go
-    symbol: DownloadSeasonAnimes
-  - rule: binding-signature
-    file: internal/desktop/app_season_availability.go
-    symbol: TriggerSeasonDownloads
   - rule: binding-uses-handle
     file: internal/desktop/app_preferences.go
     symbol: GetKeymap
   - rule: binding-uses-handle
     file: internal/desktop/app_preferences.go
     symbol: SetKeymap
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season_availability.go
-    symbol: DownloadSeasonAnimes
-  - rule: binding-uses-handle
-    file: internal/desktop/app_season_availability.go
-    symbol: TriggerSeasonDownloads

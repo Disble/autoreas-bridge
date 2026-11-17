@@ -28,8 +28,8 @@ function createSource(overrides: Partial<SeasonSource & SeasonQuerySource> = {})
     getSeasonAnimes: vi.fn().mockResolvedValue([] as SeasonAnimeRow[]),
     reconcileIntake: vi.fn().mockResolvedValue('ok'),
     sendToVerHoy: vi.fn().mockResolvedValue({ status: 'ok', pastDownloadTime: false, downloadTime: '21:00' }),
-    triggerSeasonDownloads: vi.fn().mockResolvedValue('ok'),
-    downloadSeasonAnimes: vi.fn().mockResolvedValue('ok'),
+    triggerSeasonDownloads: vi.fn().mockResolvedValue(undefined),
+    downloadSeasonAnimes: vi.fn().mockResolvedValue(undefined),
     runMatching: vi.fn().mockResolvedValue('ok'),
     resolveMatch: vi.fn().mockResolvedValue('ok'),
     discardName: vi.fn().mockResolvedValue('ok'),
@@ -141,6 +141,23 @@ describe('useDailyBoard', () => {
     });
     expect(source.triggerSeasonDownloads).toHaveBeenCalled();
     expect(result.current.downloadNotice).toBeNull();
+    expect(result.current.errorMessage).toBeUndefined();
+  });
+
+  it('surfaces why the season download could not start instead of confirming it', async () => {
+    const source = createSource({
+      readSeasonAnimes: vi.fn().mockResolvedValue([createdRow('b', 'anime-b', 'Ver hoy')]),
+      triggerSeasonDownloads: vi.fn().mockRejectedValue(new Error('a download run is already in progress')),
+    });
+    const { result } = renderHook(() => useDailyBoard(source));
+    await waitFor(() => expect(result.current.sections.verHoy).toHaveLength(1));
+
+    await act(async () => {
+      result.current.onDownloadNow();
+    });
+
+    await waitFor(() => expect(result.current.errorMessage).toBe('a download run is already in progress'));
+    expect(source.triggerSeasonDownloads).toHaveBeenCalledTimes(1);
   });
 
   it('keeps no notice when the batch rides the scheduled auto-download', async () => {
@@ -230,7 +247,7 @@ describe('useDailyBoard', () => {
   it('onDownloadSelected keeps the selection and surfaces why the run could not start', async () => {
     const source = createSource({
       readSeasonAnimes: vi.fn().mockResolvedValue([createdRow('b', 'anime-b', 'Ver hoy')]),
-      downloadSeasonAnimes: vi.fn().mockResolvedValue('a download run is already in progress'),
+      downloadSeasonAnimes: vi.fn().mockRejectedValue(new Error('a download run is already in progress')),
     });
     const { result } = renderHook(() => useDailyBoard(source));
     await waitFor(() => expect(result.current.sections.verHoy).toHaveLength(1));
