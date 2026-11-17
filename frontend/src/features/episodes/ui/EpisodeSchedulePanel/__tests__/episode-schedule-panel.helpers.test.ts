@@ -1,13 +1,35 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createEpisodeScheduleSource, dayBadge, episodeDayLabel, formatLongEpisodeChipLabel, formatLongEpisodeChipTooltip, getEpisodeEmptyStateCopy, getEpisodeEmptyStateNavigation, getEpisodeFilterOptions, getDefaultEpisodeDay, getDefaultLensSelection, getInitialEpisodeSelection, toEpisodeScheduleRows, toEpisodeViewLens } from '../episode-schedule-panel.helpers';
 import type { EpisodeDayCount, EpisodeScheduleItem } from '../../../../../shared/contracts/episodes.types';
 import type { EpisodeScheduleSource, CoverEntry } from '../episode-schedule-panel.types';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
+import { BRIDGE_ANIME_SOURCE, BRIDGE_SEASON_SOURCE } from '../../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 
 describe('toEpisodeScheduleRows', () => {
   it('preserves an explicitly injected source for isolated hook tests', () => {
     const source = {} as EpisodeScheduleSource;
 
     expect(createEpisodeScheduleSource(source)).toBe(source);
+  });
+
+  it('reads covers through the anime module and the open season through the season module by default', async () => {
+    const getAnimeCover = vi.spyOn(BRIDGE_ANIME_SOURCE, 'getAnimeCover').mockImplementation((id) => Promise.resolve(id === 'a1' ? { source: 'cover', dataUrl: 'data:image/png;base64,AA' } : { source: 'placeholder' }));
+    const readSeason = vi.spyOn(BRIDGE_SEASON_SOURCE, 'readSeason').mockResolvedValue(null);
+    const source = createEpisodeScheduleSource();
+
+    await expect(source.getAnimeCover('a1')).resolves.toEqual({ source: 'cover', dataUrl: 'data:image/png;base64,AA' });
+    await expect(source.getAnimeCover('a2')).resolves.toEqual({ source: 'placeholder' });
+    await expect(source.readSeason()).resolves.toBeNull();
+    expect(getAnimeCover.mock.calls).toEqual([['a1'], ['a2']]);
+    expect(readSeason).toHaveBeenCalledTimes(1);
+    vi.restoreAllMocks();
+  });
+
+  it('rejects a cover read the anime module rejects', async () => {
+    vi.spyOn(BRIDGE_ANIME_SOURCE, 'getAnimeCover').mockRejectedValue(createBridgeError('unavailable', 'anime is starting'));
+
+    await expect(createEpisodeScheduleSource().getAnimeCover('a1')).rejects.toMatchObject({ code: 'unavailable' });
+    vi.restoreAllMocks();
   });
 
   it('maps progress and remaining labels without hiding fractional progress', () => {

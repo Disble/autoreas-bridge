@@ -121,6 +121,13 @@ and limit, and the readiness (`DOWNLOADS_READINESS_KEY`) are queries. A run even
 and the run history, and `schedule.missed_settled` re-reads the schedule (`BRIDGE_INVALIDATIONS`).
 `shared/store/download-runtime-store` keeps only renderer-session UI state: the selected run and the
 missed-day notice's hidden decision, shown failures and action feedback.
+The schedule panel's season-mode banner reads the open-season query (`useSeasonMode`,
+`shared/season/season-mode/`, module `season`): it shows while a season is open and stays hidden while
+`season` starts, after it failed or when its read failed, since the banner only announces an open
+season. The run detail (`RunHistoryPanel/use-run-history-detail.ts`) resolves covers and the names an
+older run left unnamed through the anime module's port (`BRIDGE_ANIME_SOURCE`, `getAnimeCover` and
+`getAnimeDetail`); a rejected name read, `not_found` included, keeps the step's stored name or id,
+and a rejected cover renders the placeholder.
 
 ## Events
 

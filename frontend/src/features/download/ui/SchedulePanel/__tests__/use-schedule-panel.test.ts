@@ -1,11 +1,15 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useSchedulePanel } from '../use-schedule-panel';
-import type { PreferencesSource } from '../../../../../infrastructure/preferences-source/preferences-source.types';
 import type { DownloadReadinessSnapshot, DownloadsSource, ScheduleConfig } from '../../../../../shared/contracts/download.types';
-import { createDownloadsSourceFake, createDownloadsWrapper } from '../../../../../shared/hooks/use-missed-schedule-notice/__tests__/downloads.test-support';
+import type { ModuleReadiness } from '../../../../../shared/contracts/readiness.types';
+import { createDownloadsSourceFake } from '../../../../../shared/hooks/use-missed-schedule-notice/__tests__/downloads.test-support';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
+import { connectBridgeEvents, createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
+import { status } from '../../../../../shared/query/test-support/readiness-source.test-support';
+import { makeSeason } from '../../../../../shared/season/__tests__/season.test-support';
+import type { SeasonModeSource } from '../../../../../shared/season/season-mode/season-mode.types';
 import { resetDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
-import { resetPreferencesStore } from '../../../../../shared/store/preferences-store/preferences-store.helpers';
 
 /** Schedule config every case starts from, with no missed day pending. */
 const baseConfig: ScheduleConfig = {
@@ -44,30 +48,26 @@ function createSource(overrides: Partial<DownloadsSource> = {}): DownloadsSource
 }
 
 /**
- * Renders the panel hook under a downloads wrapper whose module is ready.
+ * Renders the panel hook under a wrapper whose downloads module is ready and
+ * whose season module is in `season`, connected to the app's invalidation rules.
  * @param source The downloads port.
- * @param preferences The preferences port, when a case spells it out.
- * @returns The hook result and the wrapper controls.
+ * @param seasonSource The open-season port; no season is open by default.
+ * @param season The season module's readiness.
+ * @returns The hook result, `emitEvent` (fires one backend event) and `emitReadiness`.
  */
-function renderPanel(source: DownloadsSource, preferences?: PreferencesSource) {
-  const downloads = createDownloadsWrapper();
-  return { ...renderHook(() => useSchedulePanel(source, preferences), { wrapper: downloads.wrapper }), ...downloads };
-}
-
-/** Builds a fully stubbed preferences port, overridable per case. */
-function createPreferencesSource(overrides: Partial<PreferencesSource> = {}): PreferencesSource {
-  return {
-    getSeasonMode: vi.fn().mockResolvedValue(false),
-    getLibraryRoot: vi.fn().mockResolvedValue(''),
-    pickFolder: vi.fn().mockResolvedValue(''),
-    ...overrides,
-  };
+function renderPanel(
+  source: DownloadsSource,
+  seasonSource: SeasonModeSource = { readSeason: vi.fn().mockResolvedValue(null) },
+  season: ModuleReadiness = status('season', 'ready'),
+) {
+  const { client, wrapper, emit } = createModulesTestWrapper(status('downloads', 'ready'), season);
+  const { emit: emitEvent } = connectBridgeEvents(client);
+  return { ...renderHook(() => useSchedulePanel(source, seasonSource), { wrapper }), emitEvent, emitReadiness: emit };
 }
 
 describe('useSchedulePanel', () => {
   afterEach(() => {
     resetDownloadRuntimeStore();
-    resetPreferencesStore();
     vi.clearAllMocks();
   });
 
@@ -279,33 +279,47 @@ describe('useSchedulePanel', () => {
     expect(result.current.viewModel.lastRunLabel).toBe(new Date(1_700_000_123_000).toLocaleString());
   });
 
-  it('calls preferences refresh on mount', async () => {
-    const source = createSource();
-    const preferencesSource = createPreferencesSource();
+  it('seasonModeActive is true while a season is open', async () => {
+    const seasonSource = { readSeason: vi.fn().mockResolvedValue(makeSeason()) };
 
-    renderPanel(source, preferencesSource);
-
-    await waitFor(() => expect(preferencesSource.getSeasonMode).toHaveBeenCalledTimes(1));
-  });
-
-  it('seasonModeActive is true when the preferences store reports seasonMode true', async () => {
-    const source = createSource();
-    const preferencesSource = createPreferencesSource({ getSeasonMode: vi.fn().mockResolvedValue(true) });
-
-    const { result } = renderPanel(source, preferencesSource);
+    const { result } = renderPanel(createSource(), seasonSource);
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
     await waitFor(() => expect(result.current.viewModel.seasonModeActive).toBe(true));
+    expect(seasonSource.readSeason).toHaveBeenCalledTimes(1);
   });
 
-  it('seasonModeActive is false when the preferences store reports seasonMode false', async () => {
-    const source = createSource();
-    const preferencesSource = createPreferencesSource({ getSeasonMode: vi.fn().mockResolvedValue(false) });
+  it('seasonModeActive is false when no season is open', async () => {
+    const seasonSource = { readSeason: vi.fn().mockResolvedValue(null) };
 
-    const { result } = renderPanel(source, preferencesSource);
+    const { result } = renderPanel(createSource(), seasonSource);
+
+    await waitFor(() => expect(seasonSource.readSeason).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(result.current.viewModel.seasonModeActive).toBe(false);
+  });
+
+  it('seasonModeActive stays false without reading while the season module starts, then follows the open season once it is ready', async () => {
+    const seasonSource = { readSeason: vi.fn().mockResolvedValue(makeSeason()) };
+    const { result, emitReadiness } = renderPanel(createSource(), seasonSource, status('season', 'starting'));
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
-    await waitFor(() => expect(result.current.viewModel.seasonModeActive).toBe(false));
+    expect(result.current.viewModel.seasonModeActive).toBe(false);
+    expect(seasonSource.readSeason).not.toHaveBeenCalled();
+
+    act(() => emitReadiness(status('season', 'ready')));
+
+    await waitFor(() => expect(result.current.viewModel.seasonModeActive).toBe(true));
+  });
+
+  it('seasonModeActive is false when the season read fails, because the banner only announces an open season', async () => {
+    const seasonSource = { readSeason: vi.fn().mockRejectedValue(createBridgeError('internal', 'read failed')) };
+
+    const { result } = renderPanel(createSource(), seasonSource);
+
+    await waitFor(() => expect(seasonSource.readSeason).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(result.current.viewModel.seasonModeActive).toBe(false);
   });
 
   it('runMissedScheduleNow delegates to the runtime source and refreshes the schedule overlay', async () => {

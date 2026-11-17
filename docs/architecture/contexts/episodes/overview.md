@@ -86,6 +86,16 @@ card writes the episode durations table (`../anime/overview.md`, "Storage").
   `useBridgeMutation` over `BRIDGE_EPISODES_SOURCE.restoreAnime` / `repeatAnime`, raced against the
   Editor's call timeout. A resolved `ok` result reloads the record and toasts success; a rejection
   toasts its message, or "Restore anime was not applied." / "Repeat anime was not applied.".
+- Today's other reads (`features/episodes/ui/EpisodeSchedulePanel/episode-schedule-panel.helpers.ts`,
+  `createEpisodeScheduleSource`): covers through `BRIDGE_ANIME_SOURCE.getAnimeCover` (a rejected cover
+  renders the placeholder), and the open season through `BRIDGE_SEASON_SOURCE.readSeason`.
+- Today's initial lens (`use-episode-schedule-request.ts`) follows season mode, which is exactly "a
+  season is open" (`useSeasonMode`, `frontend/src/shared/season/season-mode/`, the
+  `SEASON_CURRENT_KEY` query on module `season`), until the user picks a lens or a day: while the
+  `season` module starts or the read is in flight, Today keeps its skeleton and reads no schedule; an
+  open season opens the season lens on `Ver hoy`; no open season, a failed `season` module or a
+  failed read open the daily lens on today's weekday, since the daily schedule does not depend on
+  season. A caller-supplied `initialDay` opens the daily lens and skips the season read.
 - Not migrated, kept working through adapters (see Known drift): the season store's `setAnimeDays`
   and `sendToVerHoy`, and the anime Detail page's Restore and Repeat.
 
@@ -114,5 +124,3 @@ card writes the episode durations table (`../anime/overview.md`, "Storage").
   `frontend/src/infrastructure/bridge-runtime-source/bridge-runtime-source.helpers.ts`).
 - `SoftDeleteAnime` has no frontend caller; `bridgeRuntimeSource.softDeleteAnime` keeps the same
   mapping and is pinned only by `frontend/src/infrastructure/__tests__/bridge-runtime-source-commands.test.ts`.
-- Today's covers still come from `bridgeRuntimeSource.getAnimeCover`, so
-  `episode-schedule-panel.helpers.ts` keeps its `no-infrastructure-import` baseline entry.

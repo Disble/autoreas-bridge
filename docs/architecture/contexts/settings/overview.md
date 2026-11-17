@@ -113,10 +113,12 @@ state. Keys: `library.root`, `system.auto_start` (anything but `"false"` is enab
   `failed`, which the Shortcuts panel shows as its error state. The panel publishes a rebind, revert
   or reset only once `setKeymap` resolves; a rejection shows the bridge failure's message.
 - Consumers outside this screen keep their adapters until their own slice: `preferencesSource`
-  (`getLibraryRoot` reads a refusal as `""` for anime create and season intake; `getSeasonMode`,
-  `pickFolder`), `downloadRuntimeSource.setEpisodeRenameEnabled` and
-  `seasonSource.setCheckTime` (both map the binding back to `"ok"` or the failure message), and
-  `seasonSource.getCheckTime`.
+  (`getLibraryRoot` reads a refusal as `""` for anime create and season intake; `pickFolder`),
+  `downloadRuntimeSource.setEpisodeRenameEnabled` and `seasonSource.setCheckTime` (both map the
+  binding back to `"ok"` or the failure message), and `seasonSource.getCheckTime`.
+- Season mode has no preferences read-model: Today and the schedule panel derive it from the
+  open-season query (`useSeasonMode`, `frontend/src/shared/season/season-mode/`), which answers the
+  same "a season is open" as `GetSeasonMode`.
 
 ## Entry points
 

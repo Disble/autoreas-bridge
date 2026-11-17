@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EpisodeSchedulePanel } from '../EpisodeSchedulePanel';
+import { makeSeason } from '../../../../../shared/season/__tests__/season.test-support';
 import { createEpisodesWrapper, createSource } from './episode-schedule.test-support';
 
 /**
@@ -156,7 +157,7 @@ describe('EpisodeSchedulePanel', () => {
 
   describe('view lens toggle', () => {
     it('switches the filter row from season lenses to weekdays when Daily is selected, with season mode on', async () => {
-      const source = createSource({ getSeasonMode: vi.fn().mockResolvedValue(true) });
+      const source = createSource({ readSeason: vi.fn().mockResolvedValue(makeSeason()) });
 
       renderPanel(<EpisodeSchedulePanel source={source} />);
 
@@ -228,7 +229,7 @@ describe('EpisodeSchedulePanel resolved-empty guidance', () => {
   });
 
   it('names the season lens instead of a weekday when the season lens is selected', async () => {
-    const source = createSource({ getSeasonMode: vi.fn().mockResolvedValue(true) });
+    const source = createSource({ readSeason: vi.fn().mockResolvedValue(makeSeason()) });
 
     renderPanel(<EpisodeSchedulePanel source={source} />);
 
@@ -237,7 +238,7 @@ describe('EpisodeSchedulePanel resolved-empty guidance', () => {
   });
 
   it('sends the season lens to Season, where Ver hoy is filled, when Go to Season is pressed', async () => {
-    const source = createSource({ getSeasonMode: vi.fn().mockResolvedValue(true) });
+    const source = createSource({ readSeason: vi.fn().mockResolvedValue(makeSeason()) });
 
     renderPanel(<EpisodeSchedulePanel source={source} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Go to Season' }));

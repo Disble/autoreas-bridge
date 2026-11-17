@@ -1,16 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
-import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
-import type { PreferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.types';
+import { useCallback, useState } from 'react';
 import type { DownloadsSource, ScheduleConfig } from '../../../../shared/contracts/download.types';
 import { toErrorMessage } from '../../../../shared/helpers/error-message.helpers';
 import { useDownloadSchedule } from '../../../../shared/hooks/use-missed-schedule-notice/use-download-schedule';
 import { useMissedScheduleNotice } from '../../../../shared/hooks/use-missed-schedule-notice/use-missed-schedule-notice';
 import { toAsyncView } from '../../../../shared/query/async-view/async-view.helpers';
-import { BRIDGE_DOWNLOADS_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { BRIDGE_DOWNLOADS_SOURCE, BRIDGE_SEASON_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { DOWNLOADS_READINESS_KEY } from '../../../../shared/query/query-keys/query-keys.constants';
 import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
 import { useBridgeQuery } from '../../../../shared/query/use-bridge-query/use-bridge-query';
-import { usePreferencesStore } from '../../../../shared/store/preferences-store/preferences-store';
+import type { SeasonModeSource } from '../../../../shared/season/season-mode/season-mode.types';
+import { useSeasonMode } from '../../../../shared/season/season-mode/use-season-mode';
 import { SCHEDULE_PANEL_LOADING_CONFIG } from './schedule-panel.constants';
 import { scheduleLoadStatus, toSchedulePanelViewModel, toScheduleReadinessViewModel, toScheduleSaveRequest } from './schedule-panel.helpers';
 import type { ScheduleSaveEdits } from './schedule-panel.types';
@@ -19,16 +18,15 @@ import type { ScheduleSaveEdits } from './schedule-panel.types';
  * useSchedulePanel loads the persisted scheduler config and exposes
  * `setEnabled`/`setDailyTime` mutations that persist the full
  * `ScheduleConfig` via `setScheduleConfig`, refreshing the view model
- * afterward. The schedule and the readiness snapshot are downloads-module queries.
+ * afterward. The schedule and the readiness snapshot are downloads-module
+ * queries; the season-mode banner shows while the open-season query (module
+ * `season`) answers an open season, and stays hidden while it starts or failed.
  *
  * @param source The downloads port the panel reads and writes through.
- * @param prefSource The preferences port the season-mode flag loads through.
+ * @param seasonSource The port the open season is read through.
  * @returns The panel state and its actions.
  */
-export function useSchedulePanel(
-  source: DownloadsSource = BRIDGE_DOWNLOADS_SOURCE,
-  prefSource: PreferencesSource = preferencesSource,
-) {
+export function useSchedulePanel(source: DownloadsSource = BRIDGE_DOWNLOADS_SOURCE, seasonSource: SeasonModeSource = BRIDGE_SEASON_SOURCE) {
   // 1. Refs
 
   // 2. State
@@ -38,8 +36,6 @@ export function useSchedulePanel(
 
   // 3. Context/3rd Party Hooks
   const missedScheduleNotice = useMissedScheduleNotice(source);
-  const seasonMode = usePreferencesStore((state) => state.seasonMode);
-  const refreshPreferences = usePreferencesStore((state) => state.refresh);
 
   // 4. Queries/Mutations
   const scheduleQuery = useDownloadSchedule(source);
@@ -48,6 +44,7 @@ export function useSchedulePanel(
     queryFn: () => source.listDownloadReadiness(),
     module: 'downloads',
   });
+  const seasonMode = useSeasonMode(seasonSource);
   const { mutateAsync: setScheduleConfig } = useBridgeMutation({ mutationFn: (request: ScheduleConfig) => source.setScheduleConfig(request) });
 
   // 5. Derived State (useMemo)
@@ -120,16 +117,12 @@ export function useSchedulePanel(
     [config.dailyTimeHHMM, config.enabled, save],
   );
   // 7. Effects
-  useEffect(() => {
-    void refreshPreferences(prefSource);
-  }, [refreshPreferences, prefSource]);
-
 
   return {
     status,
     viewModel: {
       ...toSchedulePanelViewModel(config, missedScheduleNotice.decisionNotice),
-      seasonModeActive: seasonMode,
+      seasonModeActive: seasonMode === 'open',
       readiness: readinessSnapshot === undefined ? undefined : toScheduleReadinessViewModel(readinessSnapshot),
     },
     dailyTimeDraft,
