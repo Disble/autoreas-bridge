@@ -7,16 +7,5 @@
   ],
   "version": 1,
   "violations": [
-    {"rule":"no-infrastructure-import","file":"src/features/anime-create/ui/AnimeCreate/use-anime-create-rows.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers"},
-    {"rule":"no-infrastructure-import","file":"src/features/anime-create/ui/AnimeCreate/use-anime-create-rows.ts","specifier":"../../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers"},
-    {"rule":"no-infrastructure-import","file":"src/features/anime-create/ui/AnimeCreate/use-anime-create.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers"},
-    {"rule":"no-infrastructure-import","file":"src/features/anime-detail/ui/AnimeDetail/anime-detail.helpers.ts","specifier":"../../../../../wailsjs/go/models"},
-    {"rule":"no-infrastructure-import","file":"src/features/anime-detail/ui/AnimeDetail/anime-detail.types.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types"},
-    {"rule":"no-infrastructure-import","file":"src/features/anime-detail/ui/AnimeDetail/use-anime-detail.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers"},
-    {"rule":"no-infrastructure-import","file":"src/features/anime-editor/ui/AnimeEditorWorkspace/anime-editor-workspace.types.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types"},
-    {"rule":"no-infrastructure-import","file":"src/features/anime-editor/ui/AnimeEditorWorkspace/use-anime-editor-draft-pickers.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types"},
-    {"rule":"no-infrastructure-import","file":"src/features/anime-editor/ui/AnimeEditorWorkspace/use-anime-editor-workspace.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers"},
-    {"rule":"no-infrastructure-import","file":"src/features/anime-editor/ui/AnimeEditorWorkspace/use-anime-editor-workspace.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types"},
-    {"rule":"no-infrastructure-import","file":"src/features/anime-editor/ui/AnimeEditorWorkspace/use-anime-editor-workspace.ts","specifier":"../../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers"}
   ]
 }

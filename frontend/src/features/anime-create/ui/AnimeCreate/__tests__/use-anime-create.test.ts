@@ -1,23 +1,20 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { bridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
 import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { status } from '../../../../../shared/query/test-support/readiness-source.test-support';
 import { useAnimeCreate } from '../use-anime-create';
 
 /** The anime module's board, create and catalog reads, and the settings module's library root. */
-const { editorSource, settingsSource } = vi.hoisted(() => ({
+const { editorSource, settingsSource, pickerSource, animeSource } = vi.hoisted(() => ({
   editorSource: {
     getAnimeEditorScheduleBoard: vi.fn(),
     createAnime: vi.fn(),
     getAnimes: vi.fn().mockResolvedValue([]),
   },
   settingsSource: { getLibraryRoot: vi.fn().mockResolvedValue('') },
-}));
-
-vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
-  bridgeRuntimeSource: { pickFolder: vi.fn() },
+  pickerSource: { pickFolder: vi.fn(), pickFile: vi.fn() },
+  animeSource: { previewAnimeCover: vi.fn() },
 }));
 
 vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', async (importOriginal) => ({
@@ -29,6 +26,14 @@ vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', a
   /** The create bootstrap's default settings port. */
   get BRIDGE_SETTINGS_SOURCE() {
     return settingsSource;
+  },
+  /** The rows' default native pickers. */
+  get BRIDGE_PICKER_SOURCE() {
+    return pickerSource;
+  },
+  /** The anime module's port the cover previews render through. */
+  get BRIDGE_ANIME_SOURCE() {
+    return animeSource;
   },
 }));
 
@@ -81,9 +86,9 @@ describe('useAnimeCreate', () => {
     expect(result.current.rows).toHaveLength(1);
   });
 
-  it('picks a folder for the given row via the runtime source', async () => {
+  it('picks a folder for the given row via the shell picker port', async () => {
     vi.mocked(editorSource.getAnimeEditorScheduleBoard).mockResolvedValue(emptyBoardResult as never);
-    vi.mocked(bridgeRuntimeSource.pickFolder).mockResolvedValue('D:/Anime/Frieren');
+    vi.mocked(pickerSource.pickFolder).mockResolvedValue('D:/Anime/Frieren');
     const { result } = renderHook(() => useAnimeCreate(), { wrapper: createReadyWrapper() });
     const draftId = result.current.rows[0].draftId;
 
@@ -93,8 +98,15 @@ describe('useAnimeCreate', () => {
       await Promise.resolve();
     });
 
-    expect(bridgeRuntimeSource.pickFolder).toHaveBeenCalledWith('Select anime folder');
+    expect(pickerSource.pickFolder).toHaveBeenCalledWith('Select anime folder');
     expect(result.current.rows[0].folder).toBe('D:/Anime/Frieren');
+  });
+
+  it('renders every row cover preview through the anime module port', () => {
+    vi.mocked(editorSource.getAnimeEditorScheduleBoard).mockResolvedValue(emptyBoardResult as never);
+    const { result } = renderHook(() => useAnimeCreate(), { wrapper: createReadyWrapper() });
+
+    expect(result.current.coverPreviewSource).toBe(animeSource);
   });
 
   it('patches a row field via onRowChange', async () => {

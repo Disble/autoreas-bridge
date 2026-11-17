@@ -7,12 +7,3 @@ import type { AnimeCoverResult, AnimeSource } from '../contracts/anime-source.ty
  * row to the placeholder instead of throwing.
  */
 export type AnimeCoverSource = Partial<Pick<AnimeSource, 'getAnimeCover'>>;
-
-/**
- * The cover-preview port a form depends on: `previewAnimeCover`, which renders
- * an unsaved cover value. Optional for the same reason `getAnimeCover` is: no
- * binding degrades to the placeholder.
- */
-export interface CoverPreviewSource {
-  readonly previewAnimeCover?: (value: string) => Promise<AnimeCoverResult>;
-}

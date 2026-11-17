@@ -22,6 +22,7 @@ import { metadataLookupSource } from '../../../infrastructure/metadata-lookup-so
 import { createNotificationCenterSource } from '../../../infrastructure/notification-center-source/notification-center-source.helpers';
 import { NOTIFICATION_ARCHIVED_EVENT_NAME, NOTIFICATION_EVENT_NAME } from '../../../infrastructure/notification-source/notification-source.constants';
 import { createNotificationSource } from '../../../infrastructure/notification-source/notification-source.helpers';
+import { createPickerSource } from '../../../infrastructure/picker-source/picker-source.helpers';
 import { createReadinessSource } from '../../../infrastructure/readiness/readiness-source.helpers';
 import { SEASON_MATCHING_FINISHED_EVENT_NAME } from '../../../infrastructure/season-source/season-source.constants';
 import { createSeasonSource } from '../../../infrastructure/season-source/season-source.helpers';
@@ -119,6 +120,9 @@ export const BRIDGE_NOTIFICATION_CENTER_SOURCE = createNotificationCenterSource(
  * center's in-place archive and the navigation command.
  */
 export const BRIDGE_NOTIFICATION_PUSH_SOURCE = createNotificationSource();
+
+/** The native folder and image-file pickers, served by the always-ready shell module; `''` is a cancel, a failed dialog rejects. */
+export const BRIDGE_PICKER_SOURCE = createPickerSource();
 
 /** The MyAnimeList search and detail lookups, served by the shell's metadata client. */
 export const BRIDGE_METADATA_LOOKUP_SOURCE = metadataLookupSource;

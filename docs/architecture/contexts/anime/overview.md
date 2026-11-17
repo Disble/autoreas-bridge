@@ -393,15 +393,20 @@ flowchart LR
   loading, never as the previous anime's data. The Detail page tells `not_found` ("Anime not found.")
   from any other failure (the `failure` load state and its Alert); a loaded detail whose refresh after
   Repeat/Restore failed stays shown with the warning feedback. A failed cover read is the placeholder.
+- Repeat/Restore: the Detail page runs them through the episodes module's commands
+  (`BRIDGE_EPISODES_SOURCE`, typed `Pick<EpisodeCommandsSource, 'repeatAnime' | 'restoreAnime'>`).
+  An answer goes through `resolveAnimeDetailMutation` (applied, no-op, conflict with its id, or a
+  failed `status`); a rejection (the module starting or failed, an unattached binding, a failed
+  write) is the danger feedback carrying the `BridgeError` message
+  (`toAnimeDetailCommandFailureMessage`), and the Detail is not read again.
 - Invalidation: no `BRIDGE_INVALIDATIONS` rule refreshes these queries; as before the migration,
   each screen reads on mount and on a key change, and the Detail page reads again after a mutation.
 - Not migrated (later tasks): the download run history's anime names (T5k) and the other cover
-  consumers (notifications T5d, Season T5j, the Editor's rail and header covers, run history T5k)
-  still call `bridgeRuntimeSource`, which keeps their previous `[]`, `null` and placeholder
-  fallbacks; `PreviewAnimeCover` is read only by `CoverPreview` (the Editor and create forms).
-  Repeat/Restore (T5g) still run through `bridgeRuntimeSource`. The Detail page's copy-folder and
-  open-page actions run through `BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE` ("Frontend: Editor and
-  create").
+  consumers outside this context (notifications, Season, run history) still call
+  `bridgeRuntimeSource`, which keeps their previous `[]`, `null` and placeholder fallbacks. The
+  Editor's rail and header covers and `CoverPreview` read through `BRIDGE_ANIME_SOURCE` ("Frontend:
+  Editor and create"). The Detail page's copy-folder and open-page actions run through
+  `BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE`.
 
 ## Frontend: Editor and create
 
@@ -436,10 +441,38 @@ attaches. They are built once as `BRIDGE_ANIME_EDITOR_SOURCE` (its catalog is
 
 - A write while the module is not ready rejects; the Editor and create surface its message as a
   danger toast or feedback, Today's rows as panel feedback and the Detail page as its failure toast.
-- Not migrated: restore, repeat, the folder and cover pickers, the covers and `CoverPreview` run
-  through `bridgeRuntimeSource` (`AnimeEditorRuntimeSource`). Season's ordering and selection boards
-  (T5j) keep the legacy desktop actions, which read a rejection as an `error` status with its
-  message.
+- The Editor's restore and repeat run through the episodes module's commands
+  (`BRIDGE_EPISODES_SOURCE`).
+- Pickers: the Editor (`useAnimeEditorDraftPickers`) and the create rows (`useAnimeCreateRows`) open
+  the native folder and image-file dialogs through the `PickerSource` port
+  (`frontend/src/shared/contracts/picker.types.ts`; adapter `createPickerSource`,
+  `frontend/src/infrastructure/picker-source/picker-source.helpers.ts`; built once as
+  `BRIDGE_PICKER_SOURCE`), served by the always-ready shell. `''` is a cancel and changes nothing; a
+  failed dialog, or a binding that never attached, rejects with a `BridgeError`, and the screen keeps
+  the draft or row as it was and shows a danger toast with that message (a generic one when the
+  rejection carries none).
+- MyAnimeList lookup: both screens hand their lookup modal `BRIDGE_METADATA_LOOKUP_SOURCE`, the shell
+  metadata client's adapter, whose failed lookup is an `error` outcome with the binding's message.
+- Covers: the Editor's rail and header thumbnails (`useAnimeEditorCovers`) call
+  `BRIDGE_ANIME_SOURCE.getAnimeCover` (port `AnimeEditorCoverSource`, `Pick<AnimeSource,
+  'getAnimeCover'>`) for the rows the progressive window shows; the rail only renders rows after the
+  catalog read, so the module is ready by then, and a rejected lookup degrades its row to the
+  placeholder (a missing cover is never a rail failure).
+- Cover preview: `CoverPreview` (`frontend/src/shared/anime-cover/CoverPreview/`) renders the cover
+  value a form holds through `BRIDGE_ANIME_SOURCE.previewAnimeCover` (port `AnimeCoverPreviewSource`),
+  read with `useBridgeQuery` on module `anime` under `animeKeys.key('cover-preview', value)` once the
+  typed value settled for `COVER_PREVIEW_SETTLE_MS` (400 ms). `toCoverPreviewState` maps it:
+
+| Situation | Preview |
+|---|---|
+| Blank or `"null"` value | No Cover poster; the binding is never called |
+| Value still settling, read pending, `anime` starting, or the previous value's answer still shown | Skeleton (`role="status"`) |
+| Binding answers `placeholder` (nothing to render, including an unreadable file) | No Cover poster |
+| Binding answers a cover | The image; a failed decode falls back to the No Cover poster |
+| Read rejected (`anime` failed, an unattached binding, an internal failure) | Error tile with the reason in a HeroUI tooltip and the accessible name `Cover preview failed: <reason>` |
+
+- Season's ordering and selection boards (T5j) keep the legacy desktop actions, which read a
+  rejection as an `error` status with its message.
 
 ## Entry points
 

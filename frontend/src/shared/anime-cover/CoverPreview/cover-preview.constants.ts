@@ -20,3 +20,9 @@ export const COVER_PREVIEW_PLACEHOLDER: AnimeCoverEntry = { status: 'placeholder
 
 /** The one loading entry, for the same reason. */
 export const COVER_PREVIEW_LOADING: AnimeCoverEntry = { status: 'loading' };
+
+/** Accessible name prefix of the thumbnail shown when the preview read itself failed. */
+export const COVER_PREVIEW_FAILURE_LABEL = 'Cover preview failed';
+
+/** The failed preview frame: the same thumbnail shape, tinted as an error. */
+export const COVER_PREVIEW_FAILURE_CLASS = 'grid size-full place-items-center border border-danger/30 bg-danger/10 text-danger';

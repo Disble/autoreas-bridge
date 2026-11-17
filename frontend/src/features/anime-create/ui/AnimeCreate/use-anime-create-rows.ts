@@ -1,12 +1,13 @@
 import { useCallback, useState } from 'react';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
-import { metadataLookupSource } from '../../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers';
+import type { PickerSource } from '../../../../shared/contracts/picker.types';
+import { BRIDGE_METADATA_LOOKUP_SOURCE, BRIDGE_PICKER_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { buildUndoPatch } from '../../../../shared/metadata-lookup/metadata-lookup.helpers';
 import type { AnimeMetadataSelection, AppliedMetadata } from '../../../../shared/metadata-lookup/metadata-lookup.types';
 import { toCreateRowPatch } from './anime-create-metadata.helpers';
 import { ANIME_CREATE_MIN_ROWS } from './anime-create.constants';
-import { applyRowCover, applyRowFolder, applyRowPatch, createAnimeCreateRow, rowHasData } from './anime-create.helpers';
+import { applyRowPatch, createAnimeCreateRow, rowHasData } from './anime-create.helpers';
 import type { AnimeCreateRowDraft, AnimeCreateRowPatch } from './anime-create.types';
+import { useAnimeCreateRowPickers } from './use-anime-create-row-pickers';
 
 /**
  * Owns the batch's editable rows: adding, patching, folder and cover pickers,
@@ -15,16 +16,21 @@ import type { AnimeCreateRowDraft, AnimeCreateRowPatch } from './anime-create.ty
  * Split out of `useAnimeCreate` on 2026-08-14, where these three state slices
  * and eight callbacks were eleven of its twenty-four hook calls. Nothing here
  * knows about the schedule board or the submit; the only thing it needs from
- * outside is the library root a folder patch is resolved against.
+ * outside is the library root a folder patch is resolved against. The pickers
+ * run through the shell's picker port: a cancel (`''`) changes nothing, and a
+ * failed dialog leaves the row as it was and shows an error toast.
  * @param libraryRoot The configured library root, used to resolve folders.
+ * @param pickerSource The native folder and image-file pickers.
  * @returns The rows plus every editing callback and a reset for after submit.
  */
-export function useAnimeCreateRows(libraryRoot: string) {
+export function useAnimeCreateRows(libraryRoot: string, pickerSource: PickerSource = BRIDGE_PICKER_SOURCE) {
   const [rows, setRows] = useState<readonly AnimeCreateRowDraft[]>(() => [createAnimeCreateRow(1)]);
   const [nextRowIndex, setNextRowIndex] = useState(2);
   const [pendingRemoveId, setPendingRemoveId] = useState<string>();
   /** One row's pending Undo, keyed by draftId (design D9) -- absent once undone or never applied. */
   const [appliedMetadataByRow, setAppliedMetadataByRow] = useState<Readonly<Record<string, AppliedMetadata<AnimeCreateRowPatch>>>>({});
+
+  const { onBrowseFolder, onBrowseCover } = useAnimeCreateRowPickers(setRows, pickerSource);
 
   const canRemoveRow = rows.length > ANIME_CREATE_MIN_ROWS;
   const isRemoveConfirmOpen = pendingRemoveId !== undefined;
@@ -87,16 +93,6 @@ export function useAnimeCreateRows(libraryRoot: string) {
     onRowChange(draftId, applied.previous);
     setAppliedMetadataByRow((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== draftId)));
   }, [appliedMetadataByRow, onRowChange]);
-  const onBrowseFolder = useCallback((draftId: string) => {
-    void bridgeRuntimeSource.pickFolder?.('Select anime folder').then((folder) => {
-      setRows((current) => applyRowFolder(current, draftId, folder));
-    });
-  }, []);
-  const onBrowseCover = useCallback((draftId: string) => {
-    void bridgeRuntimeSource.pickFile?.('Select cover image').then((path) => {
-      setRows((current) => applyRowCover(current, draftId, path));
-    });
-  }, []);
   const resetRows = useCallback(() => {
     setRows([createAnimeCreateRow(1)]);
     setNextRowIndex(2);
@@ -107,7 +103,7 @@ export function useAnimeCreateRows(libraryRoot: string) {
     canRemoveRow,
     isRemoveConfirmOpen,
     appliedMetadataByRow,
-    metadataLookupSource,
+    metadataLookupSource: BRIDGE_METADATA_LOOKUP_SOURCE,
     onAddRow,
     onRemoveRow,
     onConfirmRemove,

@@ -31,9 +31,9 @@ import type { AnimeEditorCoverCache, AnimeEditorCoverSource, AnimeEditorListItem
  * @param items The projected rail rows, before the window is applied.
  * @param visibleCount How many rows the progressive window currently renders.
  * @param record The selected authoritative editor record, when one is loaded.
- * @param source The runtime port `getAnimeCover` is called through. The binding
- * is optional on `AnimeEditorCoverSource`, so a non-Wails context degrades every
- * target to the placeholder instead of throwing.
+ * @param source The anime module's port `getAnimeCover` is called through. A
+ * failed lookup (an unattached binding included) degrades its target to the
+ * placeholder, because a missing cover is never a rail failure.
  * @returns The per-anime cover cache and the decoder-failure handler the rows
  * and the header report a broken image through.
  */
@@ -93,14 +93,6 @@ export function useAnimeEditorCovers(
     }
 
     const getAnimeCover = source.getAnimeCover;
-
-    if (getAnimeCover === undefined) {
-      for (const animeId of requests) {
-        requestTicketsRef.current.delete(animeId);
-      }
-      setCovers((previous) => withAnimeEditorCoverPlaceholders(previous, requests));
-      return;
-    }
 
     // eslint-disable-next-line react-doctor/no-adjust-state-on-prop-change -- Cover entries are async fetch state keyed by freshly loaded rows, so the loading map must update when those rows change.
     setCovers((previous) => withAnimeEditorCoverEntries(previous, requests, ANIME_EDITOR_COVER_LOADING));

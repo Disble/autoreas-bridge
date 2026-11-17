@@ -1,7 +1,7 @@
 import type { ReactNode, SyntheticEvent } from 'react';
-import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeDesktopActionResult, AnimeDesktopActionsSource } from '../../../../shared/contracts/anime-editor-source.types';
 import type { AnimeDetail as AnimeDetailDto } from '../../../../shared/contracts/anime.types';
+import type { EpisodeCommandsSource, EpisodeWriteResult } from '../../../../shared/contracts/episodes.types';
 import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
 import type { AsyncViewSource } from '../../../../shared/query/async-view/async-view.types';
 
@@ -82,8 +82,15 @@ export interface AnimeDetailLoad {
   readonly failureMessage: string | undefined;
 }
 
-/** The commands the detail page runs, not yet behind a module port. */
-export type AnimeDetailCommandSource = Pick<BridgeRuntimeSource, 'repeatAnime' | 'restoreAnime'>;
+/**
+ * A Repeat or Restore answer as the Detail reads it: the episodes port's
+ * result plus the conflict id the generated `EpisodeCommandResult` carries
+ * through the adapter and `EpisodeWriteResult` does not declare.
+ */
+export type AnimeDetailCommandResult = EpisodeWriteResult & { readonly conflictId?: string };
+
+/** The episodes module's commands the detail page runs: Repeat and Restore. */
+export type AnimeDetailCommandSource = Pick<EpisodeCommandsSource, 'repeatAnime' | 'restoreAnime'>;
 
 /** Destructive anime command selected by the user for explicit confirmation. */
 export type AnimeDetailAction = 'repeat' | 'restore';

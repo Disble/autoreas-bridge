@@ -2,7 +2,8 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
-import type { AnimeEditorRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import type { PickerSource } from '../../../../../shared/contracts/picker.types';
+import type { AnimeCoverPreviewSource, AnimeSource } from '../../../../../shared/contracts/anime-source.types';
 import type { AnimeEditorSource } from '../../../../../shared/contracts/anime-editor-source.types';
 import type { EpisodeCommandsSource } from '../../../../../shared/contracts/episodes.types';
 import { useAnimeEditorWorkspace } from '../use-anime-editor-workspace';
@@ -46,14 +47,14 @@ function makeRecord(id: string) {
   };
 }
 
-/** One fake serving the runtime pickers, the anime module's Editor port and the episodes module's restore and repeat. */
-type FakeEditorSources = AnimeEditorRuntimeSource & AnimeEditorSource & Pick<EpisodeCommandsSource, 'restoreAnime' | 'repeatAnime'>;
+/** One fake serving the shell pickers, the anime module's Editor and cover ports and the episodes module's restore and repeat. */
+type FakeEditorSources = PickerSource & AnimeEditorSource & Pick<AnimeSource, 'getAnimeCover'> & AnimeCoverPreviewSource & Pick<EpisodeCommandsSource, 'restoreAnime' | 'repeatAnime'>;
 
 /**
  * Builds the editor's data sources with every call this suite needs stubbed:
- * the runtime pickers, the anime module's Editor port and the episodes module's
- * restore and repeat on one object, passed as the workspace's `source` and its
- * `editorSource`, and served as the episodes port.
+ * the shell pickers, the anime module's Editor and cover ports and the episodes
+ * module's restore and repeat on one object, passed as the workspace's picker,
+ * Editor and cover sources, and served as the episodes port.
  * @returns The stubbed sources.
  */
 function createSource(): FakeEditorSources {
@@ -68,6 +69,9 @@ function createSource(): FakeEditorSources {
     applyAnimeEditorSchedule: vi.fn(),
     createAnime: vi.fn(),
     pickFolder: vi.fn().mockResolvedValue(''),
+    pickFile: vi.fn().mockResolvedValue(''),
+    getAnimeCover: vi.fn().mockResolvedValue({ source: 'placeholder' }),
+    previewAnimeCover: vi.fn().mockResolvedValue({ source: 'placeholder' }),
   } as unknown as FakeEditorSources;
   episodesPort.current = source;
   return source;
@@ -79,7 +83,7 @@ const wrapper = ({ children }: { children: ReactNode }) => <MemoryRouter>{childr
 describe('anime editor selection is not locked after the first pick', () => {
   it('changes the loaded record on each consecutive selection', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource, source), { wrapper: createEpisodesReadyWrapper(wrapper) });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource, source, source), { wrapper: createEpisodesReadyWrapper(wrapper) });
 
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
@@ -97,7 +101,7 @@ describe('deactivate confirmation flow', () => {
   it('opens confirmation, runs deactivate only on confirm, then closes', async () => {
     const source = createSource();
     (source.deactivateAnime as ReturnType<typeof vi.fn>).mockResolvedValue({ outcome: 'applied', record: undefined });
-    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource, source), { wrapper: createEpisodesReadyWrapper(wrapper) });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource, source, source), { wrapper: createEpisodesReadyWrapper(wrapper) });
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
     expect(result.current.lifecycleConfirmation).toBeUndefined();
@@ -112,7 +116,7 @@ describe('deactivate confirmation flow', () => {
 
   it('closes without deactivating when cancelled', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource, source), { wrapper: createEpisodesReadyWrapper(wrapper) });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource, source, source), { wrapper: createEpisodesReadyWrapper(wrapper) });
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
     act(() => result.current.onRequestLifecycleAction('deactivate'));
@@ -127,7 +131,7 @@ describe('restore confirmation flow', () => {
   it('opens confirmation, runs restore (not deactivate) only on confirm, then closes', async () => {
     const source = createSource();
     (source.restoreAnime as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok' });
-    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource, source), { wrapper: createEpisodesReadyWrapper(wrapper) });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource, source, source), { wrapper: createEpisodesReadyWrapper(wrapper) });
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
     expect(result.current.lifecycleConfirmation).toBeUndefined();
@@ -146,7 +150,7 @@ describe('repeat confirmation flow', () => {
   it('opens confirmation, runs repeat (not restore) only on confirm, then reloads the rail', async () => {
     const source = createSource();
     (source.repeatAnime as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok' });
-    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource, source), { wrapper: createEpisodesReadyWrapper(wrapper) });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source, episodeSource, source, source), { wrapper: createEpisodesReadyWrapper(wrapper) });
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
     expect(result.current.lifecycleConfirmation).toBeUndefined();

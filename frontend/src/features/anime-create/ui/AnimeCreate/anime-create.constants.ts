@@ -25,3 +25,6 @@ export const ANIME_CREATE_NAME_CHECK_DEBOUNCE_MS = 300;
 
 /** Why a card's Remove is locked: a batch keeps at least one card. */
 export const ANIME_CREATE_LAST_ROW_REASON = 'Keep at least one anime to create';
+
+/** Toast shown when a folder or cover dialog fails without a reason of its own. */
+export const ANIME_CREATE_PICKER_FAILED_MESSAGE = 'The file dialog could not open.';
