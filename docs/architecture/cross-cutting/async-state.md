@@ -248,10 +248,13 @@ commits, not here:
     a Vitest test (`infrastructure/readiness`) and a Go test (`internal/desktop`) pin both sides to
     `internal/lifecycle/modules.json`.
   - `shared/query/invalidation-bridge/invalidation-bridge.helpers.ts`: one registry, mounted once by
-    `shared/query/BridgeQueryProvider/BridgeQueryProvider.tsx`; three rules are registered
+    `shared/query/BridgeQueryProvider/BridgeQueryProvider.tsx`; the rules
     (`BRIDGE_INVALIDATIONS` in `shared/query/bridge-runtime/bridge-runtime.constants.ts`):
-    `anime.changed` → `episodesKeys.all`; `pairing.token-consumed` → the pairing token and the
-    paired-device list; `sync.device_acknowledged` → the paired-device list.
+    `anime.changed` → `episodesKeys.all`, the catalog list, every anime detail and both watch
+    histories (never covers or `animeEditorKeys`); `pairing.token-consumed` → the pairing token and
+    the paired-device list; `sync.device_acknowledged` → the paired-device list; a notification →
+    `notificationsKeys.all`; an archive → the unread count; `season.matching_finished` → the season
+    rows; every download run event → the schedule and the run history.
   - Two context key factories: `episodesKeys` and `devicesKeys`
     (`shared/query/query-keys/query-keys.constants.ts`).
   - Two context source adapters, each built once in the composition module: `createEpisodesSource`

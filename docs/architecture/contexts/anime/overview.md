@@ -375,6 +375,13 @@ flowchart LR
   `animeKeys.key('watch-history', request)`; one anime's first page under
   `animeKeys.key('anime-watch-history', request)` (the inspector's 3 recent rows and each episode
   list); one cover under `animeKeys.key('cover', id)`.
+- Invalidation: `BRIDGE_INVALIDATIONS` maps `anime.changed` to the catalog list, every detail and
+  both watch-history prefixes, so a change from any writer refreshes the mounted Catalog, Detail and
+  History. Covers are not invalidated (one change would re-read every cover on screen), and the
+  Editor's record reads under `animeEditorKeys`, so its draft is never reloaded by the event. The
+  Editor rail reads `ANIME_LIST_KEY` too: a refetch from the event keeps its loaded rows and scroll
+  position, and only the Editor's own reload after a save or a lifecycle change shows the skeleton
+  (`useAnimeEditorList`).
 - Catalog sorting: a fresh app session defaults to Last watched (newest first, undated anime last).
   The user's selected sort is kept while navigating within the session; the other sort options remain available.
 - Paging: only the first keyset page is a query. Older pages load through the cursor on a

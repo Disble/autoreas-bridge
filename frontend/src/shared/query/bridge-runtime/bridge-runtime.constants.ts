@@ -27,6 +27,8 @@ import { createRuntimeEventSource } from '../../../infrastructure/wails-bindings
 import { createInvalidationRegistry } from '../invalidation-bridge/invalidation-bridge.helpers';
 import { createBridgeQueryClient } from '../query-client/query-client.helpers';
 import {
+  ANIME_LIST_KEY,
+  animeKeys,
   DEVICES_CONNECTED_KEY,
   DEVICES_PAIRING_TOKEN_KEY,
   DOWNLOADS_RUNS_KEY,
@@ -110,7 +112,10 @@ export const BRIDGE_DOWNLOADS_SOURCE = createDownloadsSource();
  * Every context's event→invalidation rules, the one place a context registers
  * them as it migrates (ADR-032, task T4 onward). Episodes: every committed anime
  * change (`anime.changed`, from any writer: this window, mobile, the REST API,
- * downloads) can move a row between days or change a day count. Devices: a
+ * downloads) can move a row between days or change a day count. Anime: the same
+ * change edits what the catalog list, an anime's detail and the watch histories
+ * show; covers stay cached (one change would re-read every cover on screen), and
+ * the Editor's `animeEditorKeys` record is never invalidated under its draft. Devices: a
  * consumed pairing token means a new device paired, so the token is spent and
  * the device list grew; a device acknowledgment advances that device's last sync.
  * Notifications: every pushed notification is a new unread record (the badge and
@@ -123,7 +128,16 @@ export const BRIDGE_DOWNLOADS_SOURCE = createDownloadsSource();
  * cancels the one in flight, so only the latest read's answer applies.
  */
 export const BRIDGE_INVALIDATIONS = createInvalidationRegistry([
-  { event: ANIME_CHANGED_EVENT_NAME, queryKeys: [episodesKeys.all] },
+  {
+    event: ANIME_CHANGED_EVENT_NAME,
+    queryKeys: [
+      episodesKeys.all,
+      ANIME_LIST_KEY,
+      animeKeys.key('detail'),
+      animeKeys.key('watch-history'),
+      animeKeys.key('anime-watch-history'),
+    ],
+  },
   { event: PAIRING_TOKEN_CONSUMED_EVENT_NAME, queryKeys: [DEVICES_PAIRING_TOKEN_KEY, DEVICES_CONNECTED_KEY] },
   { event: DEVICE_ACKNOWLEDGED_EVENT_NAME, queryKeys: [DEVICES_CONNECTED_KEY] },
   { event: NOTIFICATION_EVENT_NAME, queryKeys: [notificationsKeys.all] },

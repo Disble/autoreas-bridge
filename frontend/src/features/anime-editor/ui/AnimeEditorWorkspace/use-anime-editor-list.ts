@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 import { ANIME_LIST_KEY } from '../../../../shared/query/query-keys/query-keys.constants';
 import { useBridgeQuery } from '../../../../shared/query/use-bridge-query/use-bridge-query';
+import { isAnimeEditorListLoading } from './anime-editor-list.helpers';
 import { classifyAnimeEditorEmptyState, createAnimeEditorListItems, toAnimeEditorDefaultSelection, toEditorErrorMessage } from './anime-editor-workspace.helpers';
 import { ANIME_EDITOR_NO_ITEMS } from './anime-editor-workspace.constants';
 import type { AnimeEditorFilter, UseAnimeEditorListOptions } from './anime-editor-workspace.types';
@@ -23,6 +24,8 @@ export function useAnimeEditorList(options: Readonly<UseAnimeEditorListOptions>)
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<AnimeEditorFilter>(() => (params.id === undefined ? 'watching' : 'all'));
   const [selectedAnimeId, setSelectedAnimeId] = useState<string | undefined>(options.initialAnimeId);
+  // True while the Editor's own reload (after a save or a lifecycle change) runs.
+  const [isReloadingList, setIsReloadingList] = useState(false);
 
   // 3. Context/3rd Party Hooks
 
@@ -31,7 +34,12 @@ export function useAnimeEditorList(options: Readonly<UseAnimeEditorListOptions>)
 
   // 5. Derived State (useMemo)
   const items = listQuery.data ?? ANIME_EDITOR_NO_ITEMS;
-  const isLoadingList = listQuery.isPending || listQuery.isFetching;
+  const isLoadingList = isAnimeEditorListLoading({
+    isPending: listQuery.isPending,
+    isFetching: listQuery.isFetching,
+    hasCatalog: listQuery.data !== undefined,
+    isReloading: isReloadingList,
+  });
   const listLoadError = listQuery.status === 'error' && !listQuery.isFetching ? toEditorErrorMessage(listQuery.error) : undefined;
   const itemViewModels = useMemo(() => createAnimeEditorListItems(items, filter, query, selectedAnimeId), [filter, items, query, selectedAnimeId]);
   const emptyState = useMemo(
@@ -45,9 +53,10 @@ export function useAnimeEditorList(options: Readonly<UseAnimeEditorListOptions>)
     setFilter('all');
   }, []);
   const refetchList = listQuery.refetch;
-  /** Reads the catalog again, after a save or a lifecycle change moved a row. */
+  /** Reads the catalog again, after a save or a lifecycle change moved a row, behind the skeleton. */
   const loadItems = useCallback(async () => {
-    await refetchList();
+    setIsReloadingList(true);
+    await refetchList().finally(() => setIsReloadingList(false));
   }, [refetchList]);
   const onFilterChange = useCallback((value: string) => setFilter(value === 'all' ? 'all' : 'watching'), []);
 

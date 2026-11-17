@@ -353,3 +353,15 @@ export interface AnimeEditorEmptyStateCopy {
   readonly title: string;
   readonly description: string;
 }
+
+/** What decides whether the Editor rail shows its skeleton. */
+export interface AnimeEditorListLoadingInput {
+  /** The catalog query has no answer yet. */
+  readonly isPending: boolean;
+  /** A catalog read is in flight. */
+  readonly isFetching: boolean;
+  /** A catalog answer is cached. */
+  readonly hasCatalog: boolean;
+  /** The Editor's own reload, after a save or a lifecycle change, is running. */
+  readonly isReloading: boolean;
+}
