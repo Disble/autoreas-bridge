@@ -21,6 +21,10 @@ async function callSettings(method: string): Promise<unknown> {
       return source.previewLibraryRootChange('F:/Anime');
     case 'getAutoStartEnabled':
       return source.getAutoStartEnabled();
+    case 'getKeymap':
+      return source.getKeymap();
+    case 'setKeymap':
+      return source.setKeymap('');
     default:
       return source.setAutoStartEnabled(false);
   }
@@ -33,6 +37,8 @@ const SETTINGS_CALLS = [
   ['previewLibraryRootChange', 'PreviewLibraryRootChange'],
   ['getAutoStartEnabled', 'GetAutoStartEnabled'],
   ['setAutoStartEnabled', 'SetAutoStartEnabled'],
+  ['getKeymap', 'GetKeymap'],
+  ['setKeymap', 'SetKeymap'],
 ] as const;
 
 describe('settings-source', () => {
@@ -66,6 +72,8 @@ describe('settings-source', () => {
       GetAutoStartEnabled: vi.fn().mockResolvedValue(true),
       SetAutoStartEnabled: vi.fn().mockResolvedValue(undefined),
       PickFolder: vi.fn().mockResolvedValue('F:/Chosen'),
+      GetKeymap: vi.fn().mockResolvedValue(''),
+      SetKeymap: vi.fn().mockResolvedValue(undefined),
     };
     window.go = { desktop: { App: app } } as never;
     const { createSettingsSource } = await import('../settings-source/settings-source.helpers');
@@ -77,6 +85,10 @@ describe('settings-source', () => {
     await expect(source.getAutoStartEnabled()).resolves.toBe(true);
     await expect(source.setAutoStartEnabled(false)).resolves.toBeUndefined();
     await expect(source.pickFolder('Choose library root folder')).resolves.toBe('F:/Chosen');
+    // An empty keymap is a valid "nothing rebound" answer, passed through as the opaque document it is.
+    await expect(source.getKeymap()).resolves.toBe('');
+    await expect(source.setKeymap('{"version":1,"bindings":{}}')).resolves.toBeUndefined();
+    expect(app.SetKeymap).toHaveBeenCalledWith('{"version":1,"bindings":{}}');
     expect(app.SetLibraryRoot).toHaveBeenCalledWith('F:/Anime');
     expect(app.PreviewLibraryRootChange).toHaveBeenCalledWith('F:/Anime');
     expect(app.SetAutoStartEnabled).toHaveBeenCalledWith(false);

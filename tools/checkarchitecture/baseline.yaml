@@ -9,16 +9,4 @@
 # - Never add an entry for a new binding: a new binding uses its module's handle.
 # - A renamed or moved binding is a new binding; migrate it rather than re-listing it.
 version: 1
-violations:
-  - rule: binding-signature
-    file: internal/desktop/app_preferences.go
-    symbol: GetKeymap
-  - rule: binding-signature
-    file: internal/desktop/app_preferences.go
-    symbol: SetKeymap
-  - rule: binding-uses-handle
-    file: internal/desktop/app_preferences.go
-    symbol: GetKeymap
-  - rule: binding-uses-handle
-    file: internal/desktop/app_preferences.go
-    symbol: SetKeymap
+violations: []

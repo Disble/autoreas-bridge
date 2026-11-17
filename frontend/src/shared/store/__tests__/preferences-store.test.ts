@@ -18,8 +18,6 @@ function createSource(overrides: Partial<PreferencesSource> = {}): PreferencesSo
     getSeasonMode: vi.fn().mockResolvedValue(false),
     getLibraryRoot: vi.fn().mockResolvedValue(''),
     pickFolder: vi.fn().mockResolvedValue(''),
-    getKeymap: vi.fn().mockResolvedValue(''),
-    setKeymap: vi.fn().mockResolvedValue('ok'),
     ...overrides,
   };
 }

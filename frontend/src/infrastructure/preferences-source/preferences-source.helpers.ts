@@ -1,4 +1,4 @@
-import { GetLibraryRoot, GetKeymap, GetSeasonMode, PickFolder, SetKeymap } from '../../../wailsjs/go/desktop/App';
+import { GetLibraryRoot, GetSeasonMode, PickFolder } from '../../../wailsjs/go/desktop/App';
 import { PREFERENCES_SOURCE_STATE } from './preferences-source.constants';
 import type { PreferencesSource } from './preferences-source.types';
 import { withBridgeErrors } from '../bridge-error/bridge-error.helpers';
@@ -30,16 +30,6 @@ export function createPreferencesSource(): PreferencesSource {
       return waitForBindings(() => hasGoBinding('PickFolder')).then((isReady) => {
         // A failed dialog rejects as internal since the shell slice; its pickers still read it as a cancel.
         return isReady ? PickFolder(title).catch(() => '') : Promise.resolve('');
-      });
-    },
-    getKeymap() {
-      return waitForBindings(() => hasGoBinding('GetKeymap')).then((isReady) => {
-        return isReady ? GetKeymap() : Promise.resolve('');
-      });
-    },
-    setKeymap(document: string) {
-      return waitForBindings(() => hasGoBinding('SetKeymap')).then((isReady) => {
-        return isReady ? SetKeymap(document) : Promise.resolve('runtime unavailable');
       });
     },
   };

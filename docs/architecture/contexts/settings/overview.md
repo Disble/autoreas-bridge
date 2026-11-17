@@ -27,7 +27,7 @@ For the readiness, failure codes and query runtime it relies on, read
 |---|---|
 | `internal/settings` (`store.go`) | `SQLiteStore`: `Get`/`Set` over `app_settings`, one typed accessor pair per preference |
 | `internal/settings` (`backup_export.go`, `backup_import.go`) | the keymap backup group |
-| `internal/desktop/app_preferences.go` | `bindSettingsModule`, `GetLibraryRoot`, `SetLibraryRoot`, `GetAutoStartEnabled`, `SetAutoStartEnabled`, the startup auto-start reconcile; `GetKeymap`/`SetKeymap` (not yet on the handle) |
+| `internal/desktop/app_preferences.go` | `bindSettingsModule`, `GetLibraryRoot`, `SetLibraryRoot`, `GetAutoStartEnabled`, `SetAutoStartEnabled`, the startup auto-start reconcile, `GetKeymap`, `SetKeymap` |
 | `internal/desktop/app_library_root.go` | `PreviewLibraryRootChange` and the folder rebase `SetLibraryRoot` runs first |
 | `internal/desktop/app_api_address.go` | `GetAPIAddress`, `SetAPIAddress`, the startup address resolution |
 | `internal/desktop/app_download_rename.go` | `SetEpisodeRenameEnabled` and the download service's read seam |
@@ -77,8 +77,9 @@ state. Keys: `library.root`, `system.auto_start` (anything but `"false"` is enab
 
 ## Invariants
 
-- Every settings binding but `GetKeymap`/`SetKeymap` answers through the handle and returns an error
-  (`tools/checkarchitecture`, rules `binding-uses-handle` and `binding-signature`).
+- Every settings binding answers through the handle and returns an error (`tools/checkarchitecture`,
+  rules `binding-uses-handle` and `binding-signature`). `GetKeymap` answers `""` only when nothing
+  has been rebound; a starting or failed module or a failed read is its error.
 - Production startup binds the handle: `runtimeModuleCalls` in `app_readiness_startup_test.go` calls
   `GetLibraryRoot` after a real startup and fails with `"settings is ready without services"` when the
   bind is missing.
@@ -105,9 +106,15 @@ state. Keys: `library.root`, `system.auto_start` (anything but `"false"` is enab
   - AutoStartPanel (module `settings`): a labelled skeleton of the switch, the "Windows auto-start
     unavailable" Alert, or the switch. A save runs through `useBridgeMutation`, toasts, and re-reads
     the preference; a rejection shows its message.
+- Keymap (module `settings`, `shared/keyboard/**`): `getKeymap`/`setKeymap` are on the
+  `SettingsSource` port (`BRIDGE_SETTINGS_SOURCE`). `loadKeymapOverrides` waits for `settings` through
+  `BRIDGE_READINESS_GATE.whenReady` before it reads, so the keyboard store stays `pending` (every
+  command on its declared chord) while `settings` starts; a failed module or a rejected read is
+  `failed`, which the Shortcuts panel shows as its error state. The panel publishes a rebind, revert
+  or reset only once `setKeymap` resolves; a rejection shows the bridge failure's message.
 - Consumers outside this screen keep their adapters until their own slice: `preferencesSource`
   (`getLibraryRoot` reads a refusal as `""` for anime create and season intake; `getSeasonMode`,
-  `pickFolder`, `getKeymap`, `setKeymap`), `downloadRuntimeSource.setEpisodeRenameEnabled` and
+  `pickFolder`), `downloadRuntimeSource.setEpisodeRenameEnabled` and
   `seasonSource.setCheckTime` (both map the binding back to `"ok"` or the failure message), and
   `seasonSource.getCheckTime`.
 
@@ -120,10 +127,6 @@ state. Keys: `library.root`, `system.auto_start` (anything but `"false"` is enab
 
 ## Known drift
 
-- `GetKeymap`/`SetKeymap` still read `App.settingsStore` and answer `""`/a status string (4 baseline
-  entries). Their consumers live in `frontend/src/shared/keyboard/**` (keymap load at startup, the
-  Shortcuts panel), and the keymap is read once at startup into the keyboard store, so moving it to
-  the handle needs the keymap load to wait for `settings`.
 - `GetSeasonCheckTime` now rejects while `settings` starts; the season intake check time reads that
   as unknown and hides the control until it remounts, where it showed `21:00` before
   (`features/season/ui/IntakePanel/IntakeCheckTime`).

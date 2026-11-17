@@ -140,33 +140,26 @@ func autoStartEnabled(ctx context.Context, store appSettingsStore) (enabled bool
 	return store.AutoStartEnabled(ctx)
 }
 
-// GetKeymap returns the persisted keymap document, or "" when the settings
-// store is unavailable or nothing has been rebound yet. The document is
-// opaque here -- normalizeChord (TypeScript) is the sole authority on chord
-// grammar, not this binding (design.md D5).
-func (a *App) GetKeymap() string {
-	if a.settingsStore == nil {
-		return ""
-	}
-	document, err := a.settingsStore.Keymap(a.seasonCtx())
-	if err != nil {
-		return ""
-	}
-	return document
+// GetKeymap returns the persisted keymap document through the settings module
+// handle: "" means nothing has been rebound yet, and a starting or failed module
+// or a failed read is the binding's error, never "". The document is opaque
+// here -- normalizeChord (TypeScript) is the sole authority on chord grammar,
+// not this binding (design.md D5).
+func (a *App) GetKeymap() (string, error) {
+	return a.moduleSet().settings.Use(func(services settingsServices) (string, error) {
+		return services.store.Keymap(a.seasonCtx())
+	})
 }
 
-// SetKeymap persists the keymap document verbatim. Returns "ok" or an error
-// string. No validation happens here -- normalizeChord (TypeScript) is the
-// sole authority on chord grammar (design.md D5); an empty document clears
-// back to the shipped defaults.
-func (a *App) SetKeymap(document string) string {
-	if a.settingsStore == nil {
-		return "settings store unavailable"
-	}
-	if err := a.settingsStore.SetKeymap(a.seasonCtx(), document); err != nil {
-		return err.Error()
-	}
-	return "ok"
+// SetKeymap persists the keymap document verbatim through the settings module handle. No
+// validation happens here -- normalizeChord (TypeScript) is the sole authority on chord grammar
+// (design.md D5); an empty document clears back to the shipped defaults. A failed write is the
+// binding's error.
+func (a *App) SetKeymap(document string) error {
+	_, err := a.moduleSet().settings.Use(func(services settingsServices) (struct{}, error) {
+		return struct{}{}, services.store.SetKeymap(a.seasonCtx(), document)
+	})
+	return err
 }
 
 // PickFolder opens the native directory picker through the always-ready shell

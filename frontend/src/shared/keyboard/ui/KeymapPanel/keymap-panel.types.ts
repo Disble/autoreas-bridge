@@ -1,5 +1,5 @@
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
-import type { PreferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.types';
+import type { SettingsSource } from '../../../contracts/settings.types';
 import type { Chord, CommandBinding, CommandSection, KeymapLoadState } from '../../keyboard.types';
 import type { ChordHazard } from '../../keymap.types';
 
@@ -40,8 +40,8 @@ export interface KeymapPanelSection {
 
 /** Public props contract for the Settings keymap panel (design D10, `shared/keyboard/ui/KeymapPanel/`). */
 export interface KeymapPanelProps {
-  /** Injectable, mirroring `AutoStartPanelProps.source`; defaults to the real `preferencesSource` singleton inside `use-keymap-panel`. */
-  readonly source?: Pick<PreferencesSource, 'setKeymap'>;
+  /** Injectable, mirroring `AutoStartPanelProps.source`; defaults to the app's settings source inside `use-keymap-panel`. */
+  readonly source?: Pick<SettingsSource, 'setKeymap'>;
 }
 
 /**

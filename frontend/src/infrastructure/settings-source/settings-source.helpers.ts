@@ -1,9 +1,11 @@
 import {
   GetAutoStartEnabled,
+  GetKeymap,
   GetLibraryRoot,
   PickFolder,
   PreviewLibraryRootChange,
   SetAutoStartEnabled,
+  SetKeymap,
   SetLibraryRoot,
 } from '../../../wailsjs/go/desktop/App';
 import type { LibraryRootChangePreview, SettingsSource } from '../../shared/contracts/settings.types';
@@ -42,5 +44,7 @@ export function createSettingsSource(): SettingsSource {
     pickFolder: (title) => callSettingsBinding('PickFolder', () => PickFolder(title)).catch(() => ''),
     getAutoStartEnabled: () => callSettingsBinding('GetAutoStartEnabled', () => GetAutoStartEnabled()),
     setAutoStartEnabled: (enabled) => callSettingsBinding('SetAutoStartEnabled', () => SetAutoStartEnabled(enabled)),
+    getKeymap: () => callSettingsBinding('GetKeymap', () => GetKeymap()),
+    setKeymap: (document) => callSettingsBinding('SetKeymap', () => SetKeymap(document)),
   };
 }
