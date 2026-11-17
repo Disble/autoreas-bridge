@@ -1,14 +1,14 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { NotificationCenterSource, NotificationListRequest, NotificationPage, NotificationRow } from '../../../../../shared/contracts/notification-center.types';
-import type { NotificationSource } from '../../../../../infrastructure/notification-source/notification-source.types';
+import type { NotificationPushSource } from '../../../../../shared/contracts/notification-push.types';
 import { NotificationCenterPanel } from '../NotificationCenterPanel';
 import { notificationsQueryWrapper } from './notification-center.test-support';
 
 afterEach(cleanup);
 
 /** A push source that never emits: this seam is about the screen chrome, not live inserts. */
-const SILENT_PUSH: NotificationSource = {
+const SILENT_PUSH: NotificationPushSource = {
   subscribe: () => () => undefined,
   subscribeArchived: () => () => undefined,
   subscribeNavigate: () => () => undefined,

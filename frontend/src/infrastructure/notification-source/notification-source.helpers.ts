@@ -62,15 +62,3 @@ export function createNotificationSource(): NotificationPushSource {
 
   return NOTIFICATION_SOURCE_STATE.sharedSource;
 }
-
-/**
- * Shared notification source singleton used by the app shell.
- *
- * All nine infrastructure source modules export their singleton from their
- * own `.helpers` file, so relocating just this one would diverge from every
- * sibling. It cannot move to `.constants.ts` either: that file holds the
- * state container this one imports, so the move would introduce a cycle.
- * The rule stays on for genuinely new violations; this one is suppressed in
- * place so the debt is visible rather than silently disabled repo-wide.
- */
-export const notificationSource = createNotificationSource(); // eslint-disable-line dharness/role-file-shape

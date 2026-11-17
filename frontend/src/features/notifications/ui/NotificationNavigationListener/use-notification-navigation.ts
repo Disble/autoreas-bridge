@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { notificationSource } from '../../../../infrastructure/notification-source/notification-source.helpers';
-import type { NotificationSource } from '../../../../infrastructure/notification-source/notification-source.types';
+import { BRIDGE_NOTIFICATION_PUSH_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import type { NotificationPushSource } from '../../../../shared/contracts/notification-push.types';
 
 /**
  * Subscribes to the backend `notification.navigate` event stream and moves the
@@ -19,11 +19,12 @@ import type { NotificationSource } from '../../../../infrastructure/notification
  * and a listener that recognised only the first would strand the second
  * silently, which is the same failure this hook exists to close.
  *
- * `source` is injectable, defaulting to the runtime-backed singleton, exactly
- * as `useBackendEventResolver` does.
+ * `source` is injectable, defaulting to the `notifications` push port
+ * (`BRIDGE_NOTIFICATION_PUSH_SOURCE`), exactly as `useBackendEventResolver`
+ * does.
  * @param source The runtime navigate stream to subscribe to.
  */
-export function useNotificationNavigation(source: NotificationSource = notificationSource): void {
+export function useNotificationNavigation(source: NotificationPushSource = BRIDGE_NOTIFICATION_PUSH_SOURCE): void {
   // 3. Context / 3rd party hooks
   const navigate = useNavigate();
 

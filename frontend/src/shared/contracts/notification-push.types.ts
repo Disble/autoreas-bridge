@@ -5,8 +5,9 @@ import type { Notification } from './notification.types';
  * `notifications` module pushes, consumed by the toasts, the center's archived
  * projection and the navigation listener. The Wails adapter is
  * `createNotificationSource`
- * (`infrastructure/notification-source/notification-source.helpers.ts`), shared
- * as its `notificationSource` singleton.
+ * (`infrastructure/notification-source/notification-source.helpers.ts`),
+ * exposed once as `BRIDGE_NOTIFICATION_PUSH_SOURCE` in
+ * `shared/query/bridge-runtime/bridge-runtime.constants.ts`.
  */
 export interface NotificationPushSource {
   /** Subscribes to the `notification.push` runtime event, invoking `listener` with each pushed notification. */

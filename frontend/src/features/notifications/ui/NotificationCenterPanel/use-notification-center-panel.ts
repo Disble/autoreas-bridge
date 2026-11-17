@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { UIEvent } from 'react';
-import type { NotificationSource } from '../../../../infrastructure/notification-source/notification-source.types';
+import type { NotificationPushSource } from '../../../../shared/contracts/notification-push.types';
 import type { NotificationCenterSource } from '../../../../shared/contracts/notification-center.types';
 import { isNearListBottom } from '../../../../shared/helpers/progressive-list.helpers';
 import { BRIDGE_NOTIFICATION_CENTER_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
@@ -47,11 +47,11 @@ const PANEL_INITIAL_VIEW: NotificationCenterView = 'active';
  * `useNotificationUnreadCount`, which shares the nav rail badge's query key.
  *
  * `pushSource` is forwarded untouched: the sync hook owns its default, so
- * the runtime singleton is named in exactly one place.
+ * `BRIDGE_NOTIFICATION_PUSH_SOURCE` is named in exactly one place.
  */
 export function useNotificationCenterPanel(
   source: NotificationCenterSource = BRIDGE_NOTIFICATION_CENTER_SOURCE,
-  pushSource?: NotificationSource,
+  pushSource?: NotificationPushSource,
 ): NotificationCenterPanelResult {
   // 2. State
   const [view, setView] = useState<NotificationCenterView>(PANEL_INITIAL_VIEW);

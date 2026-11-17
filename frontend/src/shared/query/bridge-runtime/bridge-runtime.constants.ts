@@ -20,6 +20,7 @@ import { createEpisodesSource } from '../../../infrastructure/bridge-runtime-sou
 import { frontendErrorReporter } from '../../../infrastructure/error-reporting/frontend-error-source.helpers';
 import { createNotificationCenterSource } from '../../../infrastructure/notification-center-source/notification-center-source.helpers';
 import { NOTIFICATION_ARCHIVED_EVENT_NAME, NOTIFICATION_EVENT_NAME } from '../../../infrastructure/notification-source/notification-source.constants';
+import { createNotificationSource } from '../../../infrastructure/notification-source/notification-source.helpers';
 import { createReadinessSource } from '../../../infrastructure/readiness/readiness-source.helpers';
 import { SEASON_MATCHING_FINISHED_EVENT_NAME } from '../../../infrastructure/season-source/season-source.constants';
 import { createSeasonSource } from '../../../infrastructure/season-source/season-source.helpers';
@@ -110,6 +111,13 @@ export const BRIDGE_SETTINGS_SOURCE = createSettingsSource();
 
 /** The notification center's reads and commands, served by the `notifications` module. */
 export const BRIDGE_NOTIFICATION_CENTER_SOURCE = createNotificationCenterSource();
+
+/**
+ * The `notifications` module's push stream (`notification.push`, `.archived`,
+ * `.navigate`), for the UI projections the registry cannot express: toasts, the
+ * center's in-place archive and the navigation command.
+ */
+export const BRIDGE_NOTIFICATION_PUSH_SOURCE = createNotificationSource();
 
 /** The season screens' reads and commands, served by the `season` module: the one shared season adapter. */
 export const BRIDGE_SEASON_SOURCE = createSeasonSource();

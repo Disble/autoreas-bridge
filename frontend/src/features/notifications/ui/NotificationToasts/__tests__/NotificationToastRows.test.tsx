@@ -1,10 +1,15 @@
 import { cleanup, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppNotificationRow } from '../../../../../shared/contracts/app-notification.types';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
+import { BRIDGE_ANIME_SOURCE } from '../../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { NotificationToastRows } from '../NotificationToastRows';
 import { useNotificationToastCovers } from '../use-notification-toast-covers';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 /** Builds one toast row, defaulting to the anime shape every producer attaches. */
 function buildRow(overrides: Partial<AppNotificationRow> = {}): AppNotificationRow {
@@ -83,6 +88,25 @@ describe('NotificationToastRows', () => {
 });
 
 describe('useNotificationToastCovers', () => {
+  it('reads covers through the anime module port by default', async () => {
+    const getAnimeCover = vi.spyOn(BRIDGE_ANIME_SOURCE, 'getAnimeCover').mockResolvedValue({ dataUrl: 'data:image/png;base64,BBB', source: 'cover' });
+
+    const { result } = renderHook(() => useNotificationToastCovers([buildRow()]));
+
+    await waitFor(() => expect(result.current.get('a-1')).toBe('data:image/png;base64,BBB'));
+    expect(getAnimeCover).toHaveBeenCalledWith('a-1');
+  });
+
+  // A starting anime module rejects the read; the toast keeps the placeholder.
+  it('records nothing while the anime module is starting', async () => {
+    const getAnimeCover = vi.spyOn(BRIDGE_ANIME_SOURCE, 'getAnimeCover').mockRejectedValue(createBridgeError('unavailable', 'anime is starting'));
+
+    const { result } = renderHook(() => useNotificationToastCovers([buildRow()]));
+
+    await waitFor(() => expect(getAnimeCover).toHaveBeenCalledWith('a-1'));
+    expect(result.current.get('a-1')).toBeUndefined();
+  });
+
   it('resolves the cover for each anime row, keyed by ref id', async () => {
     const getAnimeCover = vi.fn().mockResolvedValue({ dataUrl: 'data:image/png;base64,AAA', source: 'cover' });
 

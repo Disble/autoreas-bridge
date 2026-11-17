@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { NotificationAction, NotificationCenterSource, NotificationDetail, NotificationPage } from '../../../../../shared/contracts/notification-center.types';
-import type { NotificationSource } from '../../../../../infrastructure/notification-source/notification-source.types';
+import type { NotificationPushSource } from '../../../../../shared/contracts/notification-push.types';
 import { NotificationNavigationListener } from '../../NotificationNavigationListener/NotificationNavigationListener';
 import { NotificationCenterPanel } from '../NotificationCenterPanel';
 import { notificationsQueryWrapper } from './notification-center.test-support';
@@ -43,7 +43,7 @@ function buildRecord(action: NotificationAction): NotificationDetail {
 const FRESH_OPEN_ACTION: NotificationAction = { id: 'act-open', label: 'Open Downloads', intent: 'navigation.open', repeatable: true };
 
 /**
- * A `NotificationSource` stub whose navigate stream a test drives by hand.
+ * A `NotificationPushSource` stub whose navigate stream a test drives by hand.
  *
  * It stands in for the Go runtime event: `navigationOpenIntent` emits
  * `notification.navigate` carrying the frozen route, and nothing else about
@@ -52,7 +52,7 @@ const FRESH_OPEN_ACTION: NotificationAction = { id: 'act-open', label: 'Open Dow
  * runs, before the press result returns.
  * @returns The stub source plus the hand-crank that emits a route on it.
  */
-function makeNavigateBus(): { readonly emitNavigate: (route: string) => void; readonly source: NotificationSource } {
+function makeNavigateBus(): { readonly emitNavigate: (route: string) => void; readonly source: NotificationPushSource } {
   const listeners = new Set<(route: string) => void>();
 
   return {
@@ -127,7 +127,7 @@ function DownloadsScreenStub() {
  * @param source The notification-center source the panel reads and presses against.
  * @param navigateSource The runtime navigate stream the listener subscribes to.
  */
-function renderRoutedApp(source: NotificationCenterSource, navigateSource: NotificationSource): void {
+function renderRoutedApp(source: NotificationCenterSource, navigateSource: NotificationPushSource): void {
   render(
     <MemoryRouter initialEntries={['/notifications']}>
       <NotificationNavigationListener source={navigateSource} />
