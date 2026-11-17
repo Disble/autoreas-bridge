@@ -20,10 +20,10 @@ export function seasonQueryWrapper() {
  * suite so both drive the hook with the SAME rows, ports and selections.
  */
 /**
- * Builds the preferences port the hook reads the library root from, so a case
+ * Builds the settings port the hook reads the library root from, so a case
  * only states the root it cares about.
  * @param root The library root the port reports.
- * @returns A preferences port suitable for {@link useIntakePanel}.
+ * @returns A settings port suitable for {@link useIntakePanel}.
  */
 export function createLibraryRootSource(root = 'D:/Anime') {
   return {
@@ -46,7 +46,7 @@ export function createSource(overrides: Partial<SeasonSource> = {}): SeasonSourc
     closeSeason: vi.fn().mockResolvedValue('ok'),
     getSeasonAnimes: vi.fn().mockResolvedValue([] as SeasonAnimeRow[]),
     reconcileIntake: vi.fn().mockResolvedValue('ok'),
-    sendToVerHoy: vi.fn().mockResolvedValue('ok'),
+    sendToVerHoy: vi.fn().mockResolvedValue({ pastDownloadTime: false, downloadTime: '' }),
     triggerSeasonDownloads: vi.fn().mockResolvedValue(undefined),
     downloadSeasonAnimes: vi.fn().mockResolvedValue(undefined),
     runMatching: vi.fn().mockResolvedValue('ok'),

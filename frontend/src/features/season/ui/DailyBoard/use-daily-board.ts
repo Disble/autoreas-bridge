@@ -1,9 +1,8 @@
 import { useCallback } from 'react';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import type { SeasonAnimeRow, SeasonQuerySource, SeasonSource } from '../../../../shared/contracts/season.types';
 import { toAsyncView } from '../../../../shared/query/async-view/async-view.helpers';
 import type { AsyncView } from '../../../../shared/query/async-view/async-view.types';
-import { BRIDGE_SEASON_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { BRIDGE_ANIME_SOURCE, BRIDGE_SEASON_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
 import { SEASON_ANIMES_REFRESH_BANNER, SEASON_NO_ROWS } from '../../../../shared/season/season.constants';
 import { runSeasonCommand, settleSeasonCommand, toSeasonBannerMessage } from '../../../../shared/season/season.helpers';
@@ -36,7 +35,7 @@ import { useVerHoyDownload } from './use-ver-hoy-download';
  */
 export function useDailyBoard(
   source: SeasonSource & SeasonQuerySource = BRIDGE_SEASON_SOURCE,
-  coverSource: SeasonCoverSource = bridgeRuntimeSource,
+  coverSource: SeasonCoverSource = BRIDGE_ANIME_SOURCE,
 ) {
   // 3. Context/3rd Party Hooks
   const readOnly = useSeasonStore((state) => state.readOnly);

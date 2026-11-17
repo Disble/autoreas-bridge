@@ -31,7 +31,7 @@ export function makeSeasonPort(overrides: Partial<SeasonSource & SeasonQuerySour
     setSlots: ok(),
     closeSeason: ok(),
     reconcileIntake: ok(),
-    sendToVerHoy: vi.fn().mockResolvedValue({ status: 'ok', pastDownloadTime: false, downloadTime: '21:00' }),
+    sendToVerHoy: vi.fn().mockResolvedValue({ pastDownloadTime: false, downloadTime: '21:00' }),
     triggerSeasonDownloads: vi.fn().mockResolvedValue(undefined),
     downloadSeasonAnimes: vi.fn().mockResolvedValue(undefined),
     runMatching: ok(),

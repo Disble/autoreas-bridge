@@ -2,6 +2,7 @@ import { act, renderHook as renderBridgeHook, waitFor } from '@testing-library/r
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SeasonAnimeRow, SeasonQuerySource, SeasonSource } from '../../../../../shared/contracts/season.types';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
 import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
 import { useSelectionBoard } from '../use-selection-board';
@@ -14,21 +15,19 @@ const toastMock = vi.hoisted(() => ({
   warning: vi.fn(),
 }));
 
-/** Runtime-source spy the hooks under test use for desktop actions. */
-const bridgeRuntimeSourceMock = vi.hoisted(() => ({
+/** Anime desktop-actions port the board's desktop actions run through. */
+const desktopSource = {
   openAnimePage: vi.fn().mockResolvedValue({ status: 'ok' }),
   copyAnimePage: vi.fn().mockResolvedValue({ status: 'ok' }),
   openAnimeFolder: vi.fn().mockResolvedValue({ status: 'ok' }),
   copyAnimeFolder: vi.fn().mockResolvedValue({ status: 'ok' }),
-  getAnimeCover: vi.fn().mockResolvedValue({ source: 'placeholder' }),
-}));
+};
+
+/** Cover port answering the placeholder for every anime. */
+const coverSource = { getAnimeCover: vi.fn().mockResolvedValue({ source: 'placeholder' }) };
 
 vi.mock('@heroui/react', () => ({
   toast: toastMock,
-}));
-
-vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
-  bridgeRuntimeSource: bridgeRuntimeSourceMock,
 }));
 
 /** Renders with a ready season query client. */
@@ -47,7 +46,7 @@ function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource & Sea
     closeSeason: vi.fn().mockResolvedValue('ok'),
     getSeasonAnimes: vi.fn().mockResolvedValue([]),
     reconcileIntake: vi.fn().mockResolvedValue('ok'),
-    sendToVerHoy: vi.fn().mockResolvedValue('ok'),
+    sendToVerHoy: vi.fn().mockResolvedValue({ pastDownloadTime: false, downloadTime: '' }),
     triggerSeasonDownloads: vi.fn().mockResolvedValue(undefined),
     downloadSeasonAnimes: vi.fn().mockResolvedValue(undefined),
     runMatching: vi.fn().mockResolvedValue('ok'),
@@ -108,31 +107,31 @@ describe('useSelectionBoard', () => {
     vi.clearAllMocks();
   });
 
-  it('exposes open/copy desktop actions sourced from bridgeRuntimeSource', async () => {
+  it('exposes open/copy desktop actions sourced from the anime desktop-actions port', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useSelectionBoard(source));
+    const { result } = renderHook(() => useSelectionBoard(source, coverSource, desktopSource));
 
     await act(async () => {
-      await result.current.onOpenPage('anime-1');
+      result.current.onOpenPage('anime-1');
     });
-    expect(bridgeRuntimeSourceMock.openAnimePage).toHaveBeenCalledWith('anime-1');
+    await waitFor(() => expect(desktopSource.openAnimePage).toHaveBeenCalledWith('anime-1'));
 
     await act(async () => {
-      await result.current.onCopyPage('anime-1');
+      result.current.onCopyPage('anime-1');
     });
-    expect(bridgeRuntimeSourceMock.copyAnimePage).toHaveBeenCalledWith('anime-1');
-    expect(toastMock.success).toHaveBeenCalledWith('Page URL copied to clipboard');
+    await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith('Page URL copied to clipboard'));
+    expect(desktopSource.copyAnimePage).toHaveBeenCalledWith('anime-1');
 
     await act(async () => {
-      await result.current.onOpenFolder('anime-1');
+      result.current.onOpenFolder('anime-1');
     });
-    expect(bridgeRuntimeSourceMock.openAnimeFolder).toHaveBeenCalledWith('anime-1');
+    await waitFor(() => expect(desktopSource.openAnimeFolder).toHaveBeenCalledWith('anime-1'));
 
     await act(async () => {
-      await result.current.onCopyFolder('anime-1');
+      result.current.onCopyFolder('anime-1');
     });
-    expect(bridgeRuntimeSourceMock.copyAnimeFolder).toHaveBeenCalledWith('anime-1');
-    expect(toastMock.success).toHaveBeenCalledWith('Folder path copied to clipboard');
+    await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith('Folder path copied to clipboard'));
+    expect(desktopSource.copyAnimeFolder).toHaveBeenCalledWith('anime-1');
   });
 
   it('reads the season and candidates through query methods', async () => {
@@ -361,6 +360,30 @@ describe('useSelectionBoard', () => {
       await result.current.onConfirm();
     });
     expect(toastMock.danger).toHaveBeenCalledWith('quota exceeded');
+    expect(toastMock.success).not.toHaveBeenCalled();
+  });
+
+  it('onConfirm shows a rejected confirmation as a danger toast with the bridge message', async () => {
+    const source = createSource({ confirmSelection: vi.fn().mockRejectedValue(createBridgeError('unavailable', 'season is starting')) });
+    const { result } = renderHook(() => useSelectionBoard(source));
+    await act(async () => {
+      await result.current.onConfirm();
+    });
+    expect(toastMock.danger).toHaveBeenCalledExactlyOnceWith('season is starting');
+    expect(toastMock.success).not.toHaveBeenCalled();
+    expect(source.readSeason).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a rejected desktop action as a danger toast with the bridge message', async () => {
+    const source = createSource();
+    const failing = { ...desktopSource, copyAnimePage: vi.fn().mockRejectedValue(createBridgeError('not_found', 'anime anime-1 not found')) };
+    const { result } = renderHook(() => useSelectionBoard(source, coverSource, failing));
+
+    await act(async () => {
+      result.current.onCopyPage('anime-1');
+    });
+
+    await waitFor(() => expect(toastMock.danger).toHaveBeenCalledExactlyOnceWith('anime anime-1 not found'));
     expect(toastMock.success).not.toHaveBeenCalled();
   });
 });

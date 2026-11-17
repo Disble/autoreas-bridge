@@ -150,16 +150,18 @@ export interface SeasonCreateMetadata {
   readonly cover?: SeasonCreateCover;
 }
 
-/** Result returned after applying the season schedule. */
+/**
+ * Result returned after applying the season schedule: `status` is `ok`, or
+ * `partial` when some anime failed (`failed`). A failed apply rejects instead.
+ */
 export interface ApplyScheduleResult {
   readonly status: string;
   readonly applied: number;
   readonly failed: readonly string[];
 }
 
-/** Result returned after sending a batch into Ver hoy. */
+/** Result returned after sending a batch into Ver hoy; a failed send rejects instead. */
 export interface SendToVerHoyResult {
-  readonly status: string;
   readonly pastDownloadTime: boolean;
   readonly downloadTime: string;
 }
@@ -272,7 +274,11 @@ export interface SeasonProviderSearchResult {
   readonly pages: readonly SeasonProviderPage[];
 }
 
-/** Result returned after confirming the season selection reconciliation. */
+/**
+ * Result returned after confirming the season selection reconciliation:
+ * `status` is `ok`, or the quota overflow's reason with `quotaExceeded` set
+ * (an outcome, not a failure). A failed confirmation rejects instead.
+ */
 export interface ConfirmSelectionResult {
   readonly status: string;
   readonly approved: number;
@@ -309,6 +315,7 @@ export interface SeasonSource {
   /** Brings a discarded intake row back with its matched page; "ok" or an error message. */
   readonly restoreName: (rowId: string) => Promise<string>;
   readonly setAnimeDays: (animeId: string, dias: readonly string[]) => Promise<string>;
+  /** Stages created animes into Ver hoy; rejects with a `BridgeError` when the send failed or the module is not ready. */
   readonly sendToVerHoy: (animeIds: readonly string[]) => Promise<SendToVerHoyResult>;
   /** Starts the season download run; resolves once it started, rejects with the refusal (a run in progress) or the module's failure. */
   readonly triggerSeasonDownloads: () => Promise<void>;
@@ -317,6 +324,7 @@ export interface SeasonSource {
   readonly setGrade: (animeId: string, grade: number) => Promise<string>;
   readonly skipGrading: (rowId: string) => Promise<string>;
   readonly setConsideration: (rowId: string, consideration: string) => Promise<string>;
+  /** Reconciles the verdicts into anime writes; rejects with a `BridgeError` when it failed or the module is not ready. */
   readonly confirmSelection: () => Promise<ConfirmSelectionResult>;
   readonly createSeasonAnimes: (
     rowIds: readonly string[],
@@ -334,6 +342,7 @@ export interface SeasonSource {
   readonly pickFolder: (title: string) => Promise<string>;
   readonly getOrderingBoard: () => Promise<OrderingBoard>;
   readonly saveOrderingDraft: (draftJson: string) => Promise<string>;
+  /** Writes the drafted schedule; rejects with a `BridgeError` when a write failed or the module is not ready. */
   readonly applySchedule: () => Promise<ApplyScheduleResult>;
   readonly reopenOrdering: () => Promise<string>;
   readonly recheckAvailability: () => Promise<string>;

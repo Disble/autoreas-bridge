@@ -1,8 +1,8 @@
 import { Time } from '@internationalized/date';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { CHECK_TIME_EMPTY_MESSAGE } from '../intake-check-time.constants';
-import { formatCheckTime, readCheckTime, saveCheckTime, toCheckTimeValue } from '../intake-check-time.helpers';
+import { formatCheckTime, toCheckTimeSaveRequest, toCheckTimeValue } from '../intake-check-time.helpers';
 
 describe('toCheckTimeValue', () => {
   it.each([
@@ -29,39 +29,12 @@ describe('formatCheckTime', () => {
   });
 });
 
-describe('readCheckTime', () => {
-  it('returns the stored time when it is a valid HH:MM', async () => {
-    await expect(readCheckTime({ getCheckTime: vi.fn().mockResolvedValue('06:15') })).resolves.toBe('06:15');
+describe('toCheckTimeSaveRequest', () => {
+  it('formats a complete time as the zero-padded HH:MM to send', () => {
+    expect(toCheckTimeSaveRequest(new Time(6, 5))).toEqual({ ok: true, time: '06:05' });
   });
 
-  it.each([
-    ['an unavailable runtime', vi.fn().mockResolvedValue('')],
-    ['a rejected read', vi.fn().mockRejectedValue(new Error('down'))],
-  ])('returns null for %s', async (_case, getCheckTime) => {
-    await expect(readCheckTime({ getCheckTime })).resolves.toBeNull();
-  });
-});
-
-describe('saveCheckTime', () => {
-  it('sends the zero-padded time and reports it saved on "ok"', async () => {
-    const setCheckTime = vi.fn().mockResolvedValue('ok');
-    await expect(saveCheckTime({ setCheckTime }, new Time(6, 5))).resolves.toEqual({ ok: true, time: '06:05' });
-    expect(setCheckTime).toHaveBeenCalledWith('06:05');
-  });
-
-  it('does not call the backend without a complete time', async () => {
-    const setCheckTime = vi.fn();
-    await expect(saveCheckTime({ setCheckTime }, null)).resolves.toEqual({ ok: false, message: CHECK_TIME_EMPTY_MESSAGE });
-    expect(setCheckTime).not.toHaveBeenCalled();
-  });
-
-  it('surfaces the backend status when it is not "ok"', async () => {
-    const setCheckTime = vi.fn().mockResolvedValue('settings store unavailable');
-    await expect(saveCheckTime({ setCheckTime }, new Time(6, 5))).resolves.toEqual({ ok: false, message: 'settings store unavailable' });
-  });
-
-  it('surfaces a rejected save as its error message', async () => {
-    const setCheckTime = vi.fn().mockRejectedValue(new Error('bridge down'));
-    await expect(saveCheckTime({ setCheckTime }, new Time(6, 5))).resolves.toEqual({ ok: false, message: 'bridge down' });
+  it('refuses an incomplete field with the message to show', () => {
+    expect(toCheckTimeSaveRequest(null)).toEqual({ ok: false, message: CHECK_TIME_EMPTY_MESSAGE });
   });
 });

@@ -34,11 +34,7 @@ export function useDailyBoardSend(source: SeasonSource & SeasonQuerySource) {
     mutationFn: (animeIds: readonly string[]) => source.sendToVerHoy(animeIds),
     onMutate: () => setSeasonStoreState({ busyMessage: DAILY_BOARD_SEND_BUSY }),
     onSettled: () => setSeasonStoreState({ busyMessage: undefined }),
-    onSuccess: async (result) => {
-      if (result.status !== 'ok') {
-        setSeasonStoreState({ errorMessage: result.status || DAILY_BOARD_SEND_FAILED });
-        return;
-      }
+    onSuccess: async () => {
       setSeasonStoreState({ errorMessage: undefined });
       await refetchAnimes();
     },
@@ -53,18 +49,15 @@ export function useDailyBoardSend(source: SeasonSource & SeasonQuerySource) {
   const toggleSelect = useCallback((animeId: string) => {
     setSelected((prev) => toggleSelection(prev, animeId));
   }, []);
-  // Sends the selection to Ver hoy and clears it; resolves null when nothing was selected.
+  // Sends the selection to Ver hoy and clears it; resolves null when nothing was selected or the
+  // send failed, whose rejection the mutation already showed on the banner.
   const sendSelection = useCallback(async (): Promise<SendToVerHoyResult | null> => {
     if (selected.size === 0) {
       return null;
     }
     const ids = [...selected];
     setSelected(new Set());
-    try {
-      return await send.mutateAsync(ids);
-    } catch (error) {
-      return { status: toSeasonBannerMessage(error, { fallback: DAILY_BOARD_SEND_FAILED, fixedMessage: false }), pastDownloadTime: false, downloadTime: '' };
-    }
+    return send.mutateAsync(ids).catch(() => null);
   }, [selected, send]);
   /** Starts the season download in the background; the run reports itself, a refusal reaches the banner. */
   const startDownload = useCallback(() => settleSeasonCommand(download.mutateAsync()), [download]);
@@ -78,7 +71,7 @@ export function useDailyBoardSend(source: SeasonSource & SeasonQuerySource) {
   // The download starts at once, so a missed auto-download window needs no notice.
   const onSendAndDownload = useCallback(() => {
     void sendSelection().then((result) => {
-      if (result?.status !== 'ok') {
+      if (result === null) {
         return;
       }
       setDownloadNotice(null);

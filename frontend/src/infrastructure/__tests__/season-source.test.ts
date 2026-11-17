@@ -39,21 +39,26 @@ const SEASON_READS: readonly (readonly [string, (source: SeasonSource) => Promis
   ['GetSeasonOrderingBoard', (source) => source.getOrderingBoard(), { rail: [], grid: [] }],
 ];
 
-/** Every rejecting season read the queries call: the binding, how the source invokes it, and the arguments the binding receives. */
-const SEASON_QUERY_READS: readonly (readonly [string, (source: SeasonQuerySource) => Promise<unknown>, readonly unknown[]])[] = [
+/**
+ * Every rejecting season call a query or a mutation makes: the binding, how the
+ * source invokes it, and the arguments the binding receives. The three outcome
+ * commands (apply, confirm, send to Ver hoy) answer the binding's result and
+ * reject its failure like the reads, so their mutation's `onError` fires.
+ */
+const SEASON_QUERY_READS: readonly (readonly [string, (source: SeasonSource & SeasonQuerySource) => Promise<unknown>, readonly unknown[]])[] = [
   ['GetSeason', (source) => source.readSeason(), []],
   ['GetSeasonAnimes', (source) => source.readSeasonAnimes(), []],
   ['ListSeasons', (source) => source.readSeasons(), []],
   ['GetPastSeason', (source) => source.readPastSeason('season-1'), ['season-1']],
   ['GetPastSeasonAnimes', (source) => source.readPastSeasonAnimes('season-1'), ['season-1']],
+  ['ApplySeasonSchedule', (source) => source.applySchedule(), []],
+  ['ConfirmSeasonSelection', (source) => source.confirmSelection(), []],
+  ['SendSeasonAnimesToVerHoy', (source) => source.sendToVerHoy(['anime-1', 'anime-2']), [['anime-1', 'anime-2']]],
 ];
 
 /** Every season binding whose result carries a status: how the source invokes it, and its runtime-unavailable result. */
 const SEASON_OUTCOMES: readonly (readonly [string, (source: SeasonSource) => Promise<unknown>, Record<string, unknown>])[] = [
-  ['ApplySeasonSchedule', (source) => source.applySchedule(), { applied: 0, failed: [] }],
-  ['ConfirmSeasonSelection', (source) => source.confirmSelection(), { approved: 0, rejected: 0, quotaExceeded: false }],
   ['SearchSeasonProviders', (source) => source.searchProviders!('Naruto'), { pages: [] }],
-  ['SendSeasonAnimesToVerHoy', (source) => source.sendToVerHoy(['anime-1']), { pastDownloadTime: false, downloadTime: '' }],
 ];
 
 /** The season query reads: the binding each calls and how the source invokes it. */
@@ -383,13 +388,13 @@ describe('season-source', () => {
     await expect(createSeasonSource().setAnimeDays('anime-1', ['Ver hoy'])).resolves.toBe('Failed to move anime');
   });
 
-  it('reads a staged Ver hoy batch as "ok" with the download window the binding answered', async () => {
+  it('answers a staged Ver hoy batch with the download window the binding answered', async () => {
     const send = vi.fn().mockResolvedValue({ pastDownloadTime: true, downloadTime: '21:00' });
     window.go = { desktop: { App: { SendSeasonAnimesToVerHoy: send } } } as never;
 
     const { createSeasonSource } = await import('../season-source/season-source.helpers');
 
-    await expect(createSeasonSource().sendToVerHoy(['anime-1', 'anime-2'])).resolves.toEqual({ status: 'ok', pastDownloadTime: true, downloadTime: '21:00' });
+    await expect(createSeasonSource().sendToVerHoy(['anime-1', 'anime-2'])).resolves.toEqual({ pastDownloadTime: true, downloadTime: '21:00' });
     expect(send).toHaveBeenCalledExactlyOnceWith(['anime-1', 'anime-2']);
   });
 

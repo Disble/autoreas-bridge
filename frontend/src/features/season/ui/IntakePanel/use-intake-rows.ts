@@ -14,8 +14,10 @@ import type { useIntakeStoreSlice } from './use-intake-store-slice';
 interface IntakeRowsInput {
   /** The Season store slice holding the rows. */
   readonly store: ReturnType<typeof useIntakeStoreSlice>;
-  /** The editor state holding the library root and folder overrides. */
+  /** The editor state holding the folder overrides. */
   readonly editor: ReturnType<typeof useIntakeEditorState>;
+  /** The configured library root; `''` (not read yet, or its read failed) disables default previews. */
+  readonly libraryRoot: string;
 }
 
 /**
@@ -25,13 +27,13 @@ interface IntakeRowsInput {
  * Every memo is a one-line pure-helper call, so this hook adds no complexity of
  * its own. Split out of `useIntakePanel` with the counters unchanged —
  * `searchFailedCount` stays its own counter outside `countUnresolved`.
- * @param input The store slice and editor state the derivations read.
+ * @param input The store slice, editor state and library root the derivations read.
  * @returns The editable rows, their counters, previews, and id set.
  */
 export function useIntakeRows(input: Readonly<IntakeRowsInput>) {
-  const { store, editor } = input;
+  const { store, editor, libraryRoot } = input;
   const { seasonAnimes } = store;
-  const { libraryRoot, folderOverrides } = editor;
+  const { folderOverrides } = editor;
 
   // 5. Derived State (useMemo)
   const { editable, discarded } = useMemo(() => splitIntakeRows(seasonAnimes), [seasonAnimes]);

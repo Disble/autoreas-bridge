@@ -8,6 +8,10 @@ import type {
   SeasonMatchingProgressNotice,
   SeasonMatchingStartedNotice,
 } from '../../../../../shared/contracts/season.types';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
+import { settingsKeys } from '../../../../../shared/query/query-keys/query-keys.constants';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
+import { status } from '../../../../../shared/query/test-support/readiness-source.test-support';
 import { disconnectSeasonMatchingStore, getSeasonStoreState, resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
 import { createLibraryRootSource, createMetadataSource, createSource, createSourceWithRows, seasonRow, selection } from './intake-panel.test-support';
 import { useIntakePanel } from '../use-intake-panel';
@@ -143,10 +147,30 @@ describe('useIntakePanel', () => {
     ];
     const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const libraryRootSource = createLibraryRootSource('D:/Anime');
-    const { result } = renderHook(() => useIntakePanel(source, libraryRootSource));
+    const { client, wrapper } = createModulesTestWrapper(status('season', 'ready'), status('settings', 'ready'));
+    const { result } = renderHook(() => useIntakePanel(source, libraryRootSource), { wrapper });
 
-    await waitFor(() => expect(libraryRootSource.getLibraryRoot).toHaveBeenCalled());
     await waitFor(() => expect(result.current.folderPreviews['sa-1']).toBe('D:/Anime/Re Zero'));
+    expect(libraryRootSource.getLibraryRoot).toHaveBeenCalledTimes(1);
+    // The same cache entry the anime create form reads, so both share one library-root read.
+    expect(client.getQueryData(settingsKeys.key('library-root'))).toBe('D:/Anime');
+  });
+
+  it.each([
+    ['while the settings module starts', status('settings', 'starting'), 0],
+    ['once the library-root read failed', status('settings', 'ready'), 1],
+  ] as const)('shows no default folder preview %s', async (_case, settings, reads) => {
+    const rows: SeasonAnimeRow[] = [
+      { id: 'sa-1', rawName: 'Re:Zero', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'available', availableEpisodes: 1, animeId: '', section: '', sectionOrder: 0, grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
+    ];
+    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const libraryRootSource = { getLibraryRoot: vi.fn().mockRejectedValue(createBridgeError('internal', 'read settings failed')) };
+    const { wrapper } = createModulesTestWrapper(status('season', 'ready'), settings);
+    const { result } = renderHook(() => useIntakePanel(source, libraryRootSource), { wrapper });
+
+    await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
+    await waitFor(() => expect(libraryRootSource.getLibraryRoot).toHaveBeenCalledTimes(reads));
+    expect(result.current.folderPreviews).toEqual({});
   });
 
   it('ignores a cancelled folder picker (no override recorded)', async () => {

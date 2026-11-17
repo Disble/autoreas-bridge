@@ -1,7 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { AnimeDesktopActionsSource } from '../../../../../shared/contracts/anime-editor-source.types';
 import type { OrderingBoard, SeasonAnimeRow } from '../../../../../shared/contracts/season.types';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
 import { BRIDGE_SEASON_SOURCE } from '../../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { SEASON_ANIMES_KEY } from '../../../../../shared/query/query-keys/query-keys.constants';
 import { resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
@@ -9,22 +11,28 @@ import { ORDERING_AUTOSAVE_DEBOUNCE_MS } from '../ordering-board.constants';
 import { useOrderingBoard } from '../use-ordering-board';
 import { card, createSource, dragOverEvent, orderingQueryWrapper, renderOrderingBoard, snapshot, waitPastAutosave } from './ordering-board.test-support';
 
-/** Toast spy the desktop actions call for copy feedback. */
-const toastMock = vi.hoisted(() => ({ success: vi.fn() }));
-
-/** Runtime-source spy the desktop actions delegate to. */
-const bridgeRuntimeSourceMock = vi.hoisted(() => ({
-  openAnimePage: vi.fn().mockResolvedValue({ status: 'ok' }),
-  copyAnimePage: vi.fn().mockResolvedValue({ status: 'ok' }),
-  openAnimeFolder: vi.fn().mockResolvedValue({ status: 'ok' }),
-  copyAnimeFolder: vi.fn().mockResolvedValue({ status: 'ok' }),
-}));
+/** Toast spy the desktop actions report their outcome through. */
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), danger: vi.fn() }));
 
 vi.mock('@heroui/react', () => ({ toast: toastMock }));
 
-vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
-  bridgeRuntimeSource: bridgeRuntimeSourceMock,
-}));
+/**
+ * Builds the anime desktop-actions port the board's cards run through.
+ * @param overrides The actions a case replaces.
+ * @returns The fake port.
+ */
+function createDesktopSource(overrides: Partial<AnimeDesktopActionsSource> = {}): AnimeDesktopActionsSource {
+  return {
+    openAnimePage: vi.fn().mockResolvedValue({ status: 'ok' }),
+    copyAnimePage: vi.fn().mockResolvedValue({ status: 'ok' }),
+    openAnimeFolder: vi.fn().mockResolvedValue({ status: 'ok' }),
+    copyAnimeFolder: vi.fn().mockResolvedValue({ status: 'ok' }),
+    ...overrides,
+  };
+}
+
+/** Cover port with no binding: every card renders the placeholder. */
+const NO_COVERS = {};
 
 /** Builds one selection row with the fields the card metadata join reads. */
 function row(overrides: Partial<SeasonAnimeRow>): SeasonAnimeRow {
@@ -46,14 +54,27 @@ describe('useOrderingBoard sub-hook behavior', () => {
     ['onCopyFolder', 'copyAnimeFolder', 'Folder path copied to clipboard'],
   ] as const)('%s runs %s and toasts only for copies', async (callback, action, toast) => {
     const source = createSource({ rail: [], grid: [] });
-    const { result } = renderOrderingBoard(source);
+    const desktop = createDesktopSource();
+    const { result } = renderHook(() => useOrderingBoard(source, NO_COVERS, desktop), { wrapper: orderingQueryWrapper([]).wrapper });
 
     await act(async () => {
       result.current[callback]('anime-1');
     });
 
-    expect(bridgeRuntimeSourceMock[action]).toHaveBeenCalledExactlyOnceWith('anime-1');
-    expect(toastMock.success.mock.calls).toEqual(toast === undefined ? [] : [[toast]]);
+    await waitFor(() => expect(desktop[action]).toHaveBeenCalledExactlyOnceWith('anime-1'));
+    await waitFor(() => expect(toastMock.success.mock.calls).toEqual(toast === undefined ? [] : [[toast]]));
+  });
+
+  it('shows a rejected desktop action as a danger toast with the bridge message', async () => {
+    const source = createSource({ rail: [], grid: [] });
+    const desktop = createDesktopSource({ openAnimeFolder: vi.fn().mockRejectedValue(createBridgeError('invalid_argument', 'anime g has no folder')) });
+    const { result } = renderHook(() => useOrderingBoard(source, NO_COVERS, desktop), { wrapper: orderingQueryWrapper([]).wrapper });
+
+    await act(async () => {
+      result.current.onOpenFolder('g');
+    });
+
+    await waitFor(() => expect(toastMock.danger).toHaveBeenCalledExactlyOnceWith('anime g has no folder'));
   });
 
   it('joins grade and desktop-action metadata from the season selection rows', async () => {

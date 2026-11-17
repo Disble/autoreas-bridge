@@ -63,6 +63,9 @@ export const backupKeys = defineQueryKeys('backup');
  */
 export const settingsKeys = defineQueryKeys('settings');
 
+/** Key of the daily season check time, read by the season intake panel and written by its time field. */
+export const SETTINGS_SEASON_CHECK_TIME_KEY = settingsKeys.key('season-check-time');
+
 /**
  * Keys of the notifications module's reads: `notificationsKeys.key('unread-count')`
  * (the rail badge and the center header), `notificationsKeys.key('list', filters)`

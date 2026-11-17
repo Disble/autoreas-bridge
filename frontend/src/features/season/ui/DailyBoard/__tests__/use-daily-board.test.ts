@@ -27,7 +27,7 @@ function createSource(overrides: Partial<SeasonSource & SeasonQuerySource> = {})
     closeSeason: vi.fn().mockResolvedValue('ok'),
     getSeasonAnimes: vi.fn().mockResolvedValue([] as SeasonAnimeRow[]),
     reconcileIntake: vi.fn().mockResolvedValue('ok'),
-    sendToVerHoy: vi.fn().mockResolvedValue({ status: 'ok', pastDownloadTime: false, downloadTime: '21:00' }),
+    sendToVerHoy: vi.fn().mockResolvedValue({ pastDownloadTime: false, downloadTime: '21:00' }),
     triggerSeasonDownloads: vi.fn().mockResolvedValue(undefined),
     downloadSeasonAnimes: vi.fn().mockResolvedValue(undefined),
     runMatching: vi.fn().mockResolvedValue('ok'),
@@ -125,7 +125,7 @@ describe('useDailyBoard', () => {
 
   it('raises a manual-download notice when the batch missed the auto-download window', async () => {
     const source = createSource({
-      sendToVerHoy: vi.fn().mockResolvedValue({ status: 'ok', pastDownloadTime: true, downloadTime: '21:00' }),
+      sendToVerHoy: vi.fn().mockResolvedValue({ pastDownloadTime: true, downloadTime: '21:00' }),
     });
     const { result } = renderHook(() => useDailyBoard(source));
     act(() => result.current.toggleSelect('anime-a'));
@@ -181,7 +181,7 @@ describe('useDailyBoard', () => {
 
   it('onSendAndDownload sends the selection, clears it, then starts the season download and drops a late-send notice', async () => {
     const source = createSource({
-      sendToVerHoy: vi.fn().mockResolvedValue({ status: 'ok', pastDownloadTime: true, downloadTime: '21:00' }),
+      sendToVerHoy: vi.fn().mockResolvedValue({ pastDownloadTime: true, downloadTime: '21:00' }),
     });
     const { result } = renderHook(() => useDailyBoard(source));
     act(() => result.current.toggleSelect('anime-b'));
@@ -205,12 +205,10 @@ describe('useDailyBoard', () => {
   });
 
   it.each([
-    { name: 'an empty selection', selection: [], sendStatus: 'ok' },
-    { name: 'a failed send', selection: ['anime-a'], sendStatus: 'send failed' },
-  ])('onSendAndDownload starts no download after $name', async ({ selection, sendStatus }) => {
-    const source = createSource({
-      sendToVerHoy: vi.fn().mockResolvedValue({ status: sendStatus, pastDownloadTime: false, downloadTime: '' }),
-    });
+    { name: 'an empty selection', selection: [], send: () => Promise.resolve({ pastDownloadTime: false, downloadTime: '' }) },
+    { name: 'a failed send', selection: ['anime-a'], send: () => Promise.reject(new Error('send failed')) },
+  ])('onSendAndDownload starts no download after $name', async ({ selection, send }) => {
+    const source = createSource({ sendToVerHoy: vi.fn(send) });
     const { result } = renderHook(() => useDailyBoard(source));
     for (const animeId of selection) {
       act(() => result.current.toggleSelect(animeId));
@@ -222,6 +220,21 @@ describe('useDailyBoard', () => {
 
     expect(source.sendToVerHoy).toHaveBeenCalledTimes(selection.length);
     expect(source.triggerSeasonDownloads).not.toHaveBeenCalled();
+  });
+
+  it('shows why a rejected Ver hoy send failed on the banner and keeps the rows unrefreshed', async () => {
+    const source = createSource({ sendToVerHoy: vi.fn().mockRejectedValue(new Error('season is starting')) });
+    const { result } = renderHook(() => useDailyBoard(source));
+    act(() => result.current.toggleSelect('anime-a'));
+    await waitFor(() => expect(source.readSeasonAnimes).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      result.current.onSendToVerHoy();
+    });
+
+    await waitFor(() => expect(result.current.errorMessage).toBe('season is starting'));
+    expect(result.current.downloadNotice).toBeNull();
+    expect(source.readSeasonAnimes).toHaveBeenCalledTimes(1);
   });
 
   it('onDownloadSelected downloads only the checked animes still in Ver hoy, then clears the selection', async () => {

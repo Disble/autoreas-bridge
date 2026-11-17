@@ -1,5 +1,5 @@
-import { seasonSource } from '../../../infrastructure/season-source/season-source.helpers';
 import type { SeasonSnapshot, SeasonSource } from '../../contracts/season.types';
+import { BRIDGE_SEASON_SOURCE } from '../../query/bridge-runtime/bridge-runtime.constants';
 import { SEASON_MATCHING_RUNTIME_STATE } from './season-store.constants';
 import { seasonStore } from './season-store.store';
 import type { SeasonStoreState } from './season-store.types';
@@ -50,7 +50,7 @@ export function resetSeasonStore(): void {
  * invalidation for the finished event reloads them once. A source without
  * matching subscriptions degrades to a working no-op disconnect.
  */
-export function connectSeasonMatchingStore(source: SeasonSource = seasonSource): () => void {
+export function connectSeasonMatchingStore(source: SeasonSource = BRIDGE_SEASON_SOURCE): () => void {
   if (SEASON_MATCHING_RUNTIME_STATE.unsubscribe !== null) {
     return SEASON_MATCHING_RUNTIME_STATE.unsubscribe;
   }

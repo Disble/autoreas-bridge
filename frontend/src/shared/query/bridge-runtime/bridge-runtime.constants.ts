@@ -18,6 +18,7 @@ import { createDownloadsSource } from '../../../infrastructure/download-runtime-
 import { createEpisodeDurationRuntimeSource } from '../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.helpers';
 import { createEpisodesSource } from '../../../infrastructure/bridge-runtime-source/episodes-source.helpers';
 import { frontendErrorReporter } from '../../../infrastructure/error-reporting/frontend-error-source.helpers';
+import { metadataLookupSource } from '../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers';
 import { createNotificationCenterSource } from '../../../infrastructure/notification-center-source/notification-center-source.helpers';
 import { NOTIFICATION_ARCHIVED_EVENT_NAME, NOTIFICATION_EVENT_NAME } from '../../../infrastructure/notification-source/notification-source.constants';
 import { createNotificationSource } from '../../../infrastructure/notification-source/notification-source.helpers';
@@ -118,6 +119,9 @@ export const BRIDGE_NOTIFICATION_CENTER_SOURCE = createNotificationCenterSource(
  * center's in-place archive and the navigation command.
  */
 export const BRIDGE_NOTIFICATION_PUSH_SOURCE = createNotificationSource();
+
+/** The MyAnimeList search and detail lookups, served by the shell's metadata client. */
+export const BRIDGE_METADATA_LOOKUP_SOURCE = metadataLookupSource;
 
 /** The season screens' reads and commands, served by the `season` module: the one shared season adapter. */
 export const BRIDGE_SEASON_SOURCE = createSeasonSource();

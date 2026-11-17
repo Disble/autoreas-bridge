@@ -17,20 +17,6 @@
     {"rule":"no-infrastructure-import","file":"src/features/anime-editor/ui/AnimeEditorWorkspace/use-anime-editor-draft-pickers.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types"},
     {"rule":"no-infrastructure-import","file":"src/features/anime-editor/ui/AnimeEditorWorkspace/use-anime-editor-workspace.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers"},
     {"rule":"no-infrastructure-import","file":"src/features/anime-editor/ui/AnimeEditorWorkspace/use-anime-editor-workspace.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types"},
-    {"rule":"no-infrastructure-import","file":"src/features/anime-editor/ui/AnimeEditorWorkspace/use-anime-editor-workspace.ts","specifier":"../../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers"},
-    {"rule":"no-infrastructure-import","file":"src/features/season/ui/DailyBoard/use-daily-board.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers"},
-    {"rule":"no-infrastructure-import","file":"src/features/season/ui/EvaluationPanel/use-evaluation-panel.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers"},
-    {"rule":"no-infrastructure-import","file":"src/features/season/ui/IntakePanel/IntakeCheckTime/use-intake-check-time.ts","specifier":"../../../../../infrastructure/season-source/season-source.helpers"},
-    {"rule":"no-infrastructure-import","file":"src/features/season/ui/IntakePanel/use-intake-panel.ts","specifier":"../../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers"},
-    {"rule":"no-infrastructure-import","file":"src/features/season/ui/IntakePanel/use-intake-panel.ts","specifier":"../../../../infrastructure/preferences-source/preferences-source.helpers"},
-    {"rule":"no-infrastructure-import","file":"src/features/season/ui/IntakePanel/use-intake-panel.ts","specifier":"../../../../infrastructure/preferences-source/preferences-source.types"},
-    {"rule":"no-infrastructure-import","file":"src/features/season/ui/IntakePanel/use-intake-sync-effects.ts","specifier":"../../../../infrastructure/preferences-source/preferences-source.types"},
-    {"rule":"no-infrastructure-import","file":"src/features/season/ui/OrderingBoard/use-ordering-board-desktop-actions.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers"},
-    {"rule":"no-infrastructure-import","file":"src/features/season/ui/OrderingBoard/use-ordering-board.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers"},
-    {"rule":"no-infrastructure-import","file":"src/features/season/ui/OverviewPanel/use-overview-lineup.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers"},
-    {"rule":"no-infrastructure-import","file":"src/features/season/ui/SeasonCoverThumb/season-cover-thumb.types.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types"},
-    {"rule":"no-infrastructure-import","file":"src/features/season/ui/SelectionBoard/use-selection-actions.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers"},
-    {"rule":"no-infrastructure-import","file":"src/features/season/ui/SelectionBoard/use-selection-board.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers"},
-    {"rule":"no-infrastructure-import","file":"src/shared/store/season-store/season-store.helpers.ts","specifier":"../../../infrastructure/season-source/season-source.helpers"}
+    {"rule":"no-infrastructure-import","file":"src/features/anime-editor/ui/AnimeEditorWorkspace/use-anime-editor-workspace.ts","specifier":"../../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers"}
   ]
 }

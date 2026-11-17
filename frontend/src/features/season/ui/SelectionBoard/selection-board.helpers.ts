@@ -1,4 +1,3 @@
-import { toast } from '@heroui/react';
 import type { SeasonAnimeRow } from '../../../../shared/contracts/season.types';
 import {
   CONSIDERATION_INSUFFICIENT_QUOTA,
@@ -135,27 +134,4 @@ export function toConsiderationToken(value: string | number | null): string {
 /** getConsiderationLabel maps a consideration token to its English display label. */
 export function getConsiderationLabel(token: string): string {
   return CONSIDERATION_OPTIONS.find((o) => o.value === token)?.label ?? token;
-}
-
-/**
- * Runs a bridgeRuntimeSource desktop-action command (open/copy page or
- * folder), surfacing a success toast only for copy actions. Mirrors the
- * Episodes card's `runDesktopAction` pattern. No-ops when the binding is
- * absent (non-Wails/browser context), keeping the caller type-safe.
- */
-export async function runDesktopAction(
-  action: ((animeID: string) => Promise<{ readonly status: string }>) | undefined,
-  animeID: string,
-  successToast?: string,
-): Promise<void> {
-  if (action === undefined) {
-    return;
-  }
-  const result = await action(animeID);
-  if (result.status !== 'ok') {
-    return;
-  }
-  if (successToast !== undefined) {
-    toast.success(successToast);
-  }
 }

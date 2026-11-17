@@ -36,9 +36,7 @@ import {
 } from '../../../wailsjs/go/desktop/App';
 import { EventsOn } from '../../../wailsjs/runtime/runtime';
 import {
-  SEASON_APPLY_UNAVAILABLE,
   SEASON_COMMAND_OK,
-  SEASON_CONFIRM_UNAVAILABLE,
   SEASON_EMPTY_BOARD,
   SEASON_MATCHING_FINISHED_EVENT_NAME,
   SEASON_MATCHING_PHASE_AVAILABILITY_CHECK,
@@ -47,10 +45,11 @@ import {
   SEASON_MATCHING_STARTED_EVENT_NAME,
   SEASON_PROVIDER_SEARCH_UNAVAILABLE,
   SEASON_RUNTIME_UNAVAILABLE,
-  SEASON_SEND_UNAVAILABLE,
   SEASON_SOURCE_STATE,
 } from './season-source.constants';
 import type {
+  ApplyScheduleResult,
+  ConfirmSelectionResult,
   SeasonAnimeRow,
   SeasonCreateMetadata,
   SeasonMatchingFinishedNotice,
@@ -264,13 +263,7 @@ export function createSeasonSource(): SeasonSource & SeasonQuerySource {
         .then((status) => status || 'Failed to move anime');
     },
     sendToVerHoy(animeIds: readonly string[]) {
-      // The episodes module answers only the download window and rejects on failure; the season
-      // store reads the status 'ok' beside it, or the failure's message as the status.
-      return invokeSeasonOutcome<SendToVerHoyResult>(
-        'SendSeasonAnimesToVerHoy',
-        () => SendSeasonAnimesToVerHoy([...animeIds]).then((result) => ({ status: SEASON_COMMAND_OK, pastDownloadTime: result.pastDownloadTime, downloadTime: result.downloadTime })),
-        SEASON_SEND_UNAVAILABLE,
-      );
+      return callSeasonQuery<SendToVerHoyResult>('SendSeasonAnimesToVerHoy', () => SendSeasonAnimesToVerHoy([...animeIds]));
     },
     triggerSeasonDownloads() {
       return callSeasonQuery('TriggerSeasonDownloads', () => TriggerSeasonDownloads());
@@ -288,7 +281,7 @@ export function createSeasonSource(): SeasonSource & SeasonQuerySource {
       return invokeSeasonCommand('SetSeasonConsideration', () => SetSeasonConsideration(rowId, consideration));
     },
     confirmSelection() {
-      return invokeSeasonOutcome('ConfirmSeasonSelection', ConfirmSeasonSelection, SEASON_CONFIRM_UNAVAILABLE);
+      return callSeasonQuery<ConfirmSelectionResult>('ConfirmSeasonSelection', ConfirmSeasonSelection);
     },
     createSeasonAnimes(
       rowIds: readonly string[],
@@ -308,7 +301,7 @@ export function createSeasonSource(): SeasonSource & SeasonQuerySource {
       return invokeSeasonCommand('SaveSeasonOrderingDraft', () => SaveSeasonOrderingDraft(draftJson));
     },
     applySchedule() {
-      return invokeSeasonOutcome('ApplySeasonSchedule', ApplySeasonSchedule, SEASON_APPLY_UNAVAILABLE);
+      return callSeasonQuery<ApplyScheduleResult>('ApplySeasonSchedule', ApplySeasonSchedule);
     },
     reopenOrdering() {
       return invokeSeasonCommand('ReopenSeasonOrdering', ReopenSeasonOrdering);
