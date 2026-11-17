@@ -1,6 +1,5 @@
 import { Card, Tabs } from '@heroui/react';
 import { createActivitySource } from '../../features/activity/activity-source/activity-source.helpers';
-import { createHistorySource } from '../../features/activity/history-source/history-source.helpers';
 import { EpisodeRenamePanel } from '../../features/download/ui/EpisodeRenamePanel/EpisodeRenamePanel';
 import { HosterPriorityEditor } from '../../features/download/ui/HosterPriorityEditor/HosterPriorityEditor';
 import { JDConfigPanel } from '../../features/download/ui/JDConfigPanel/JDConfigPanel';
@@ -9,22 +8,20 @@ import { ManualTriggerButton } from '../../features/download/ui/ManualTriggerBut
 import { RunHistoryPanel } from '../../features/download/ui/RunHistoryPanel/RunHistoryPanel';
 import { SchedulePanel } from '../../features/download/ui/SchedulePanel/SchedulePanel';
 import { SoloAnimeDownloadPanel } from '../../features/download/ui/SoloAnimeDownloadPanel/SoloAnimeDownloadPanel';
+import { BRIDGE_ACTIVITY_RECORDER_SOURCE } from '../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { PageHeader } from '../../shared/ui/PageHeader/PageHeader';
 
 /** activitySource is the shared Activity source the run story is read through. */
 const activitySource = createActivitySource();
 
-/** historySource is the shared History source whose recorder announces each stored row. */
-const historySource = createHistorySource();
-
 /**
  * runStorySource reads a run's stored steps for the run history's per-anime breakdown, and hears
- * when more of them are stored. Both come from the shared Activity sources, handed over here
+ * when more of them are stored, through the shared recorder source. Both are handed over here
  * because one feature never imports another.
  */
 const runStorySource = {
   getRunStory: (runId: string) => activitySource.getRunStory(runId),
-  subscribeRecorder: historySource.subscribeRecorder,
+  subscribeRecorder: BRIDGE_ACTIVITY_RECORDER_SOURCE.subscribeRecorder,
 };
 
 /**

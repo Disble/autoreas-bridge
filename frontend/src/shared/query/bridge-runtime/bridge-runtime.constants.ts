@@ -1,3 +1,4 @@
+import { createActivityRecorderSource } from '../../../infrastructure/activity-recorder-source/activity-recorder-source.helpers';
 import { ANIME_CHANGED_EVENT_NAME } from '../../../infrastructure/anime-runtime-source/anime-runtime-source.constants';
 import {
   DEVICE_ACKNOWLEDGED_EVENT_NAME,
@@ -73,7 +74,8 @@ export const BRIDGE_EPISODES_SOURCE = createEpisodesSource();
 export const BRIDGE_EPISODE_DURATIONS_SOURCE = createEpisodeDurationRuntimeSource();
 /**
  * The anime module's reads (`GetAnimes`, `GetAnimeDetail`, the two watch-history
- * pages, `GetAnimeCover`), for the Catalog, the anime detail page and History.
+ * pages, `GetAnimeCover`), for the Catalog, the anime detail page and History,
+ * and the cover preview (`PreviewAnimeCover`) of the Editor and the create form.
  */
 export const BRIDGE_ANIME_SOURCE = createAnimeSource();
 
@@ -96,7 +98,14 @@ export const BRIDGE_ACTIVITY_SOURCE = createActivityWailsSource();
 /** The Activity feed's page, overview and drawer reads, served by the `observability` module. */
 export const BRIDGE_ACTIVITY_FEED_SOURCE = createActivityFeedSource();
 
-/** The Settings page's bindings: the `settings` module's library root and auto-start reads and commands. */
+/**
+ * The live recorder stream (`activity.recorder`), served by the `observability`
+ * module: the Activity feed's and the run story's debounced refreshes subscribe
+ * to it (sanctioned exceptions in `frontend/async-state-exceptions.json`).
+ */
+export const BRIDGE_ACTIVITY_RECORDER_SOURCE = createActivityRecorderSource();
+
+/** The `settings` module's bindings: the library root, auto-start, keymap and daily season check time reads and commands. */
 export const BRIDGE_SETTINGS_SOURCE = createSettingsSource();
 
 /** The notification center's reads and commands, served by the `notifications` module. */

@@ -25,6 +25,10 @@ async function callSettings(method: string): Promise<unknown> {
       return source.getKeymap();
     case 'setKeymap':
       return source.setKeymap('');
+    case 'getSeasonCheckTime':
+      return source.getSeasonCheckTime();
+    case 'setSeasonCheckTime':
+      return source.setSeasonCheckTime('07:30');
     default:
       return source.setAutoStartEnabled(false);
   }
@@ -39,6 +43,8 @@ const SETTINGS_CALLS = [
   ['setAutoStartEnabled', 'SetAutoStartEnabled'],
   ['getKeymap', 'GetKeymap'],
   ['setKeymap', 'SetKeymap'],
+  ['getSeasonCheckTime', 'GetSeasonCheckTime'],
+  ['setSeasonCheckTime', 'SetSeasonCheckTime'],
 ] as const;
 
 describe('settings-source', () => {
@@ -74,6 +80,8 @@ describe('settings-source', () => {
       PickFolder: vi.fn().mockResolvedValue('F:/Chosen'),
       GetKeymap: vi.fn().mockResolvedValue(''),
       SetKeymap: vi.fn().mockResolvedValue(undefined),
+      GetSeasonCheckTime: vi.fn().mockResolvedValue('21:00'),
+      SetSeasonCheckTime: vi.fn().mockResolvedValue(undefined),
     };
     window.go = { desktop: { App: app } } as never;
     const { createSettingsSource } = await import('../settings-source/settings-source.helpers');
@@ -89,6 +97,9 @@ describe('settings-source', () => {
     await expect(source.getKeymap()).resolves.toBe('');
     await expect(source.setKeymap('{"version":1,"bindings":{}}')).resolves.toBeUndefined();
     expect(app.SetKeymap).toHaveBeenCalledWith('{"version":1,"bindings":{}}');
+    await expect(source.getSeasonCheckTime()).resolves.toBe('21:00');
+    await expect(source.setSeasonCheckTime('07:30')).resolves.toBeUndefined();
+    expect(app.SetSeasonCheckTime).toHaveBeenCalledWith('07:30');
     expect(app.SetLibraryRoot).toHaveBeenCalledWith('F:/Anime');
     expect(app.PreviewLibraryRootChange).toHaveBeenCalledWith('F:/Anime');
     expect(app.SetAutoStartEnabled).toHaveBeenCalledWith(false);

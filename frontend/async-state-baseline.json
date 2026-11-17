@@ -7,8 +7,6 @@
   ],
   "version": 1,
   "violations": [
-    {"rule":"no-infrastructure-import","file":"src/features/activity/history-source/history-source.helpers.ts","specifier":"../../../../wailsjs/runtime/runtime"},
-    {"rule":"no-infrastructure-import","file":"src/features/activity/history-source/history-source.helpers.ts","specifier":"../../../infrastructure/wails-bindings.helpers"},
     {"rule":"no-infrastructure-import","file":"src/features/anime-create/ui/AnimeCreate/use-anime-create-rows.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers"},
     {"rule":"no-infrastructure-import","file":"src/features/anime-create/ui/AnimeCreate/use-anime-create-rows.ts","specifier":"../../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers"},
     {"rule":"no-infrastructure-import","file":"src/features/anime-create/ui/AnimeCreate/use-anime-create.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers"},
@@ -51,16 +49,6 @@
     {"rule":"no-infrastructure-import","file":"src/features/season/ui/SelectionBoard/use-selection-board.ts","specifier":"../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers"},
     {"rule":"no-infrastructure-import","file":"src/shared/store/preferences-store/preferences-store.helpers.ts","specifier":"../../../infrastructure/preferences-source/preferences-source.helpers"},
     {"rule":"no-infrastructure-import","file":"src/shared/store/preferences-store/preferences-store.types.ts","specifier":"../../../infrastructure/preferences-source/preferences-source.types"},
-    {"rule":"no-infrastructure-import","file":"src/shared/store/season-store/season-store.helpers.ts","specifier":"../../../infrastructure/season-source/season-source.helpers"},
-    {"rule":"no-runtime-subscription","file":"src/features/activity/feed/use-activity-live-refresh.ts","symbol":"subscribeRecorder"},
-    {"rule":"no-runtime-subscription","file":"src/features/activity/history-source/history-source.helpers.ts","symbol":"EventsOn"},
-    {"rule":"no-runtime-subscription","file":"src/features/download/ui/RunHistoryPanel/use-run-history-story.ts","symbol":"subscribeRecorder"},
-    {"rule":"no-runtime-subscription","file":"src/features/notifications/ui/NotificationCenterPanel/use-notification-center-sync.ts","symbol":"subscribeArchived"},
-    {"rule":"no-runtime-subscription","file":"src/features/notifications/ui/NotificationNavigationListener/use-notification-navigation.ts","symbol":"subscribeNavigate"},
-    {"rule":"no-runtime-subscription","file":"src/features/notifications/ui/NotificationToasts/use-backend-event-resolver.ts","symbol":"source.subscribe"},
-    {"rule":"no-runtime-subscription","file":"src/features/notifications/ui/NotificationToasts/use-backend-event-resolver.ts","symbol":"subscribeArchived"},
-    {"rule":"no-runtime-subscription","file":"src/shared/store/season-store/season-store.helpers.ts","symbol":"subscribeMatchingFinished"},
-    {"rule":"no-runtime-subscription","file":"src/shared/store/season-store/season-store.helpers.ts","symbol":"subscribeMatchingProgress"},
-    {"rule":"no-runtime-subscription","file":"src/shared/store/season-store/season-store.helpers.ts","symbol":"subscribeMatchingStarted"}
+    {"rule":"no-infrastructure-import","file":"src/shared/store/season-store/season-store.helpers.ts","specifier":"../../../infrastructure/season-source/season-source.helpers"}
   ]
 }

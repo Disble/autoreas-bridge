@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import tsParser from '@typescript-eslint/parser';
 import { ESLint } from 'eslint';
 import { afterAll, describe, expect, it } from 'vitest';
-import { asyncStateRuleSettings, createAsyncStatePlugin, formatStaleEntry } from '../async-state-gates.helpers.mjs';
+import { asyncStateRuleSettings, createAsyncStatePlugin, formatStaleEntry, formatStaleException } from '../async-state-gates.helpers.mjs';
 import { isCliEntry, runAsyncStateGates } from '../check-async-state-gates.mjs';
 
 /** The frontend workspace, whose eslint.config.js registers the rules. */
@@ -71,18 +71,56 @@ describe('async-state rules', () => {
   });
 });
 
+/** A baselined import and an excepted subscription, each one named for `src/features/a/named.ts`. */
+const NAMED_ENTRIES = {
+  baseline: [{ rule: 'no-infrastructure-import', file: 'src/features/a/named.ts', specifier: '../../infrastructure/x' }],
+  exceptions: [{ rule: 'no-runtime-subscription', file: 'src/features/a/named.ts', symbol: 'subscribeArchived', reason: 'Push projection.' }],
+};
+
+/** The named import and subscription, plus one import and one subscription neither list names. */
+const NAMED_CODE = `import { x } from '../../infrastructure/x';
+import { y } from '../../infrastructure/y';
+source.subscribeArchived(() => {});
+source.subscribeNavigate(() => {});
+export const all = [x, y];
+`;
+
+describe('async-state plugin silencing', () => {
+  /** ESLint over the rules with both lists, as eslint.config.js registers them. */
+  const silenced = new ESLint({
+    cwd: frontendRoot,
+    overrideConfigFile: true,
+    overrideConfig: [
+      {
+        files: ['**/*.{ts,tsx}'],
+        languageOptions: { parser: tsParser, ecmaVersion: 'latest', sourceType: 'module' },
+        plugins: { 'async-state': createAsyncStatePlugin({ root: frontendRoot, ...NAMED_ENTRIES }) },
+        rules: asyncStateRuleSettings(),
+      },
+    ],
+  });
+
+  it.each([
+    ['the named file', 'src/features/a/named.ts', ['async-state/no-infrastructure-import 2', 'async-state/no-runtime-subscription 4']],
+    ['another file', 'src/features/a/other.ts', ['async-state/no-infrastructure-import 1', 'async-state/no-infrastructure-import 2', 'async-state/no-runtime-subscription 3', 'async-state/no-runtime-subscription 4']],
+  ])('reports what neither the baseline nor the exception list names in %s', async (_name, file, expected) => {
+    const [result] = await silenced.lintText(NAMED_CODE, { filePath: path.join(frontendRoot, file) });
+    expect(result.messages.map((message) => `${message.ruleId} ${message.line}`).sort()).toEqual(expected.sort());
+  });
+});
+
 /** ESLint with the real workspace config: the editor and `dharness check` view. */
 const workspace = new ESLint({ cwd: frontendRoot });
 
-/** A legacy file whose `wailsjs/runtime/runtime` import and `EventsOn` are in the baseline. */
-const BASELINED_FILE = 'src/features/activity/history-source/history-source.helpers.ts';
+/** A file whose `subscribeRecorder` is in the committed exception list. */
+const EXCEPTED_FILE = 'src/features/activity/feed/use-activity-live-refresh.ts';
 
-/** The legacy imports plus one new infrastructure import, a barrel and react-aria-components. */
-const MIXED_CODE = `import { EventsOn } from '../../../../wailsjs/runtime/runtime';
-import { y } from '../../../infrastructure/brand-new';
+/** The excepted subscription plus one new infrastructure import, a barrel, react-aria-components and another subscription. */
+const MIXED_CODE = `import { y } from '../../../infrastructure/brand-new';
 import { z } from './z/index';
 import { Button } from 'react-aria-components';
-EventsOn('x', () => {});
+source.subscribeRecorder(() => {});
+source.subscribeArchived(() => {});
 export const all = [y, z, Button];
 `;
 
@@ -100,19 +138,19 @@ async function workspaceFindings(file, code) {
 }
 
 // Pay the cold config load before any test budget starts (see eslint-icon-only-rule.test.mjs).
-await workspaceFindings(BASELINED_FILE, MIXED_CODE);
+await workspaceFindings(EXCEPTED_FILE, MIXED_CODE);
 
 describe('workspace ESLint config', () => {
   it.each([
     [
-      BASELINED_FILE,
-      ['async-state/no-infrastructure-import 2', 'no-restricted-imports 3', 'no-restricted-imports 4'],
+      EXCEPTED_FILE,
+      ['async-state/no-infrastructure-import 1', 'no-restricted-imports 2', 'no-restricted-imports 3', 'async-state/no-runtime-subscription 5'],
     ],
     [
-      'src/features/activity/history-source/clean-file.ts',
-      ['async-state/no-infrastructure-import 1', 'async-state/no-runtime-subscription 1', 'async-state/no-infrastructure-import 2', 'no-restricted-imports 3', 'no-restricted-imports 4', 'async-state/no-runtime-subscription 5'],
+      'src/features/activity/feed/clean-file.ts',
+      ['async-state/no-infrastructure-import 1', 'no-restricted-imports 2', 'no-restricted-imports 3', 'async-state/no-runtime-subscription 4', 'async-state/no-runtime-subscription 5'],
     ],
-  ])('keeps the barrel and react-aria bans and silences only baselined findings in %s', async (file, expected) => {
+  ])('keeps the barrel and react-aria bans and silences only the committed exception in %s', async (file, expected) => {
     expect((await workspaceFindings(file, MIXED_CODE)).sort()).toEqual(expected.sort());
   });
 });
@@ -131,15 +169,19 @@ const SCRATCH_BASELINE = [
 ];
 
 /**
- * Creates a scratch frontend root holding the baseline and the given sources.
+ * Creates a scratch frontend root holding the baseline, the exception list when given, and the sources.
  * @param {Record<string, string>} sources Source text by path relative to the root.
+ * @param {Array<object>} [exceptions] Exception entries; no exception file when omitted.
  * @returns {string} The root.
  */
-function scratchRoot(sources) {
+function scratchRoot(sources, exceptions) {
   /** Fresh root outside the worktree. */
   const root = mkdtempSync(path.join(os.tmpdir(), 'async-state-gates-'));
   roots.push(root);
   writeFileSync(path.join(root, 'async-state-baseline.json'), JSON.stringify({ version: 1, violations: SCRATCH_BASELINE }));
+  if (exceptions !== undefined) {
+    writeFileSync(path.join(root, 'async-state-exceptions.json'), JSON.stringify({ version: 1, exceptions }));
+  }
   for (const [file, code] of Object.entries(sources)) {
     mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
     writeFileSync(path.join(root, file), code);
@@ -165,7 +207,7 @@ describe('check-async-state-gates', () => {
     /** Lines the run printed. */
     const lines = [];
     await expect(runAsyncStateGates({ root: scratchRoot(sources), log: (line) => lines.push(line), ...options })).resolves.toBe(status);
-    expect(lines[0]).toMatch(/^async-state gates: baseline 2 entries \(no-infrastructure-import 1, no-runtime-subscription 1\); checked /u);
+    expect(lines[0]).toMatch(/^async-state gates: baseline 2 entries \(no-infrastructure-import 1, no-runtime-subscription 1\); exceptions 0 entries \(none\); checked /u);
     expect(lines.slice(1)).toEqual(reported.map((start) => expect.stringMatching(new RegExp(`^${RegExp.escape(start)}`, 'u'))));
   });
 
@@ -189,6 +231,56 @@ describe('check-async-state-gates', () => {
     const run = spawnSync(process.execPath, [checkScript, '--all'], { cwd: scratchRoot(sources), encoding: 'utf8' });
     expect(run.status).toBe(status);
     expect(run.stdout).toMatch(/^async-state gates: baseline 2 entries/u);
+  });
+
+  /** One justified exception: the push subscription of src/features/a/push.ts. */
+  const EXCEPTION = { rule: 'no-runtime-subscription', file: 'src/features/a/push.ts', symbol: 'subscribeArchived', reason: 'Push projection the registry cannot express.' };
+
+  /** The legacy violations plus the excepted subscription. */
+  const WITH_PUSH = { ...LEGACY, 'src/features/a/push.ts': 'source.subscribeArchived(() => {});' };
+
+  /** The legacy violations, with the excepted subscription gone. */
+  const WITHOUT_PUSH = { ...LEGACY, 'src/features/a/push.ts': 'export {};' };
+
+  it.each([
+    ['a staged file keeps its excepted violation', WITH_PUSH, { staged: ['src/features/a/push.ts'] }, 0, []],
+    ['the whole tree keeps an excepted violation', WITH_PUSH, { all: true }, 0, []],
+    ['a staged file drops its excepted violation', WITHOUT_PUSH, { staged: ['src/features/a/push.ts'] }, 1, [formatStaleException(EXCEPTION)]],
+    ['the whole tree sees a stale exception', WITHOUT_PUSH, { all: true }, 1, [formatStaleException(EXCEPTION)]],
+    ['an unstaged file drops its excepted violation', WITHOUT_PUSH, { staged: ['src/features/a/other.ts'] }, 0, []],
+    ['a staged exception list checks the whole tree', WITHOUT_PUSH, { staged: ['async-state-exceptions.json'] }, 1, [formatStaleException(EXCEPTION)]],
+  ])('%s', async (_name, sources, options, status, reported) => {
+    /** Lines the run printed. */
+    const lines = [];
+    await expect(runAsyncStateGates({ root: scratchRoot(sources, [EXCEPTION]), log: (line) => lines.push(line), ...options })).resolves.toBe(status);
+    expect(lines[0]).toMatch(/; exceptions 1 entries \(no-runtime-subscription 1\); checked /u);
+    expect(lines.slice(1)).toEqual(reported);
+  });
+
+  it('names the exception file in a stale-exception line', () => {
+    expect(formatStaleException(EXCEPTION)).toBe(
+      'stale exception, no longer found; delete it from frontend/async-state-exceptions.json: {"rule":"no-runtime-subscription","file":"src/features/a/push.ts","symbol":"subscribeArchived"}',
+    );
+  });
+
+  it.each([
+    ['has no reason', { rule: EXCEPTION.rule, file: EXCEPTION.file, symbol: EXCEPTION.symbol }],
+    ['has a blank reason', { ...EXCEPTION, reason: '   ' }],
+    ['names no specifier or symbol', { rule: EXCEPTION.rule, file: EXCEPTION.file, reason: EXCEPTION.reason }],
+    ['names an unknown rule', { ...EXCEPTION, rule: 'no-such-rule' }],
+  ])('refuses to run when an exception %s', async (_name, exception) => {
+    await expect(runAsyncStateGates({ root: scratchRoot(WITH_PUSH, [exception]), all: true, log: () => {} })).rejects.toThrow(
+      /^async-state-exceptions\.json: /u,
+    );
+  });
+
+  it('fails as a CLI when an exception has no reason', () => {
+    /** Root whose one exception lacks its reason. */
+    const root = scratchRoot(WITH_PUSH, [{ rule: EXCEPTION.rule, file: EXCEPTION.file, symbol: EXCEPTION.symbol }]);
+    /** The CLI run over it. */
+    const run = spawnSync(process.execPath, [checkScript, '--all'], { cwd: root, encoding: 'utf8' });
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain('async-state-exceptions.json: an exception needs a written reason');
   });
 
   it('names the helper, the skill and the ADR in a new-violation message', async () => {

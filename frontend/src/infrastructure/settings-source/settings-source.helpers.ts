@@ -2,11 +2,13 @@ import {
   GetAutoStartEnabled,
   GetKeymap,
   GetLibraryRoot,
+  GetSeasonCheckTime,
   PickFolder,
   PreviewLibraryRootChange,
   SetAutoStartEnabled,
   SetKeymap,
   SetLibraryRoot,
+  SetSeasonCheckTime,
 } from '../../../wailsjs/go/desktop/App';
 import type { LibraryRootChangePreview, SettingsSource } from '../../shared/contracts/settings.types';
 import { createBridgeError } from '../../shared/query/bridge-error/bridge-error.helpers';
@@ -46,5 +48,7 @@ export function createSettingsSource(): SettingsSource {
     setAutoStartEnabled: (enabled) => callSettingsBinding('SetAutoStartEnabled', () => SetAutoStartEnabled(enabled)),
     getKeymap: () => callSettingsBinding('GetKeymap', () => GetKeymap()),
     setKeymap: (document) => callSettingsBinding('SetKeymap', () => SetKeymap(document)),
+    getSeasonCheckTime: () => callSettingsBinding('GetSeasonCheckTime', GetSeasonCheckTime),
+    setSeasonCheckTime: (value) => callSettingsBinding('SetSeasonCheckTime', () => SetSeasonCheckTime(value)),
   };
 }

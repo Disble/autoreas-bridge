@@ -6,14 +6,14 @@ import {
   NOTIFICATION_NAVIGATE_EVENT_NAME,
   NOTIFICATION_SOURCE_STATE,
 } from './notification-source.constants';
-import type { NotificationSource } from './notification-source.types';
+import type { NotificationPushSource } from '../../shared/contracts/notification-push.types';
 import { createRuntimeSubscription } from '../wails-bindings.helpers';
 
 /**
  * Creates the singleton runtime-backed notification source. Browser contexts
  * degrade to a no-op subscription while still preserving the unsubscribe contract.
  */
-export function createNotificationSource(): NotificationSource {
+export function createNotificationSource(): NotificationPushSource {
   if (NOTIFICATION_SOURCE_STATE.sharedSource !== null) {
     return NOTIFICATION_SOURCE_STATE.sharedSource;
   }

@@ -1,13 +1,13 @@
 /**
- * Frontend contracts of the Activity read service (`internal/observability/activityread`).
+ * Frontend contracts of the live recorder stream (`activity.recorder`, `app_activity_live.go`).
  *
- * They mirror the Go types field for field, renamed to camelCase and made
- * readonly. Optional Go pointers become `number | undefined` and nil slices
- * become empty arrays, so no component ever branches on `null`.
+ * They mirror the Go `activityread.RecorderEntry` field for field, renamed to
+ * camelCase and made readonly. Optional Go pointers become `number | undefined`,
+ * so no component ever branches on `null`.
  */
 
 /** Where a recorder row came from. */
-export type ActivityRecorderSource = 'request' | 'event';
+export type ActivityRecorderOrigin = 'request' | 'event';
 
 /**
  * The Go `activityread.RecorderEntry` as the `activity.recorder` event carries
@@ -52,7 +52,7 @@ export interface ActivityRecorderPayload {
  */
 export interface ActivityRecorderEntry {
   /** Request capture or runtime event. */
-  readonly source: ActivityRecorderSource;
+  readonly source: ActivityRecorderOrigin;
   /** Request id, or the event row id; empty for an event without one. */
   readonly id: string;
   /** Capture or occurrence time, epoch milliseconds. */
@@ -81,4 +81,17 @@ export interface ActivityRecorderEntry {
   readonly message: string;
   /** Correlation id, when recorded. */
   readonly correlationId: string;
+}
+
+/**
+ * Port of the live recorder stream (ADR-032 §4): every persisted recorder row,
+ * pushed by the `observability` module. The Wails adapter is
+ * `createActivityRecorderSource`
+ * (`infrastructure/activity-recorder-source/activity-recorder-source.helpers.ts`),
+ * exposed once as `BRIDGE_ACTIVITY_RECORDER_SOURCE` in
+ * `shared/query/bridge-runtime/bridge-runtime.constants.ts`.
+ */
+export interface ActivityRecorderSource {
+  /** Streams every persisted recorder row with a known source; returns the unsubscribe. */
+  readonly subscribeRecorder: (listener: (entry: ActivityRecorderEntry) => void) => () => void;
 }

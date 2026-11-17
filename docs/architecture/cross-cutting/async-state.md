@@ -158,8 +158,11 @@ scaffold, gate) is in ADR-032 §5.
 
 ### Gates
 
-Legacy violations sit in an identified-violation baseline. New violations fail in pre-commit; a stale
-entry fails in pre-commit (staged) and in `pre-merge-commit` (whole tree), naming the entry to delete.
+Legacy violations sit in an identified-violation baseline (`frontend/async-state-baseline.json`), which
+is debt only and only shrinks. Sanctioned violations sit in a separate, closed exception list
+(`frontend/async-state-exceptions.json`, owner decision D5 of `odd/tasks/async-state-residuals.md`).
+New violations fail in pre-commit; a stale baseline entry or exception fails in pre-commit (staged) and
+in `pre-merge-commit` (whole tree), naming the entry to delete.
 
 Frontend gates (`frontend/scripts/async-state-gates.helpers.mjs`, ESLint plugin `async-state`):
 
@@ -179,19 +182,42 @@ Frontend gates (`frontend/scripts/async-state-gates.helpers.mjs`, ESLint plugin 
   because that is how a Zustand store is subscribed (`store.subscribe`), and the runtime source ports
   name their methods `subscribe<Event>` or live in variables named `*Source`. It is a tripwire, not
   proof: a source stored under another name and subscribed with a bare `.subscribe` slips through.
-- `frontend/eslint.config.js` registers the plugin with `frontend/async-state-baseline.json`, so the
-  editor and `dharness check` report every violation the baseline does not name, in clean and legacy
-  files alike, and stay silent on baselined ones. The existing `no-restricted-imports` block (barrels,
+- `frontend/eslint.config.js` registers the plugin with `frontend/async-state-baseline.json`, and the
+  plugin reads `frontend/async-state-exceptions.json` itself, so the editor and `dharness check`
+  report every violation neither list names, in clean and legacy files alike, and stay silent on
+  baselined and excepted ones. The existing `no-restricted-imports` block (barrels,
   `react-aria-components`) is unchanged and still applies to every file.
 - `bun --cwd="frontend" run check:async-state` (pre-commit job `frontend-async-state`) checks staged
-  sources; staging the baseline or the gate code checks the whole tree. `check:async-state:all`
-  (`pre-merge-commit`) checks the whole tree. Both print the entry count per rule, which is not gated.
+  sources; staging either list or the gate code checks the whole tree. `check:async-state:all`
+  (`pre-merge-commit`) checks the whole tree. Both print the baseline and exception counts per rule,
+  which are not gated.
   A file that does not parse fails the check and its baseline entries are not judged stale.
   Staged mode lints the files on disk; lefthook hides the unstaged hunks of a partly staged file
   during the hook, so the disk matches what is committed, and `pre-merge-commit` re-checks the tree.
 - An entry is an identity (rule, file, import specifier or symbol), not a count: repeating an
   already-baselined violation in the same file passes. A renamed baselined file fails as new code
   until its entries move to the new path; the old-path entries show as stale.
+- An exception has the baseline's identity (rule, file, specifier or symbol) plus a required `reason`:
+  the written answer to who owns the data's freshness and who owns the UI state. A violation an exception
+  names passes; an exception whose violation is gone is stale and fails
+  (`stale exception, no longer found; delete it from frontend/async-state-exceptions.json: {…}`); an
+  exception without a non-blank reason, or with an incomplete identity, stops the gate and ESLint before
+  anything is checked. An exception is not debt: it never moves back to the baseline, and new code
+  never joins the list without an owner decision.
+- The exception list holds 9 `no-runtime-subscription` sites, UI projections of a backend event that
+  `BRIDGE_INVALIDATIONS` cannot express (paths under `frontend/src/`):
+
+  | File | Symbol | Reason |
+  |---|---|---|
+  | `features/activity/feed/use-activity-live-refresh.ts` | `subscribeRecorder` | The Activity feed owns its freshness here: a burst of recorder rows refreshes the first feed page and the counts once, 1000 ms after the burst goes quiet, keeping the older pages already loaded. BRIDGE_INVALIDATIONS invalidates a key on every event and would re-read every page per row. |
+  | `features/download/ui/RunHistoryPanel/use-run-history-story.ts` | `subscribeRecorder` | The run story owns its freshness here: only stored rows of the selected run trigger a re-read, 250 ms after the burst goes quiet, and a failed refresh keeps the ready story on screen. A registry rule cannot filter by run id or debounce. |
+  | `features/notifications/ui/NotificationCenterPanel/use-notification-center-sync.ts` | `subscribeArchived` | UI-state projection: an archive drops the archived rows in place from the keyset pages already loaded. Freshness of the unread count is owned by BRIDGE_INVALIDATIONS; invalidating the pages would reset the user's paging and scroll. |
+  | `features/notifications/ui/NotificationNavigationListener/use-notification-navigation.ts` | `subscribeNavigate` | An ephemeral backend command, not data: a pressed navigation token tells the window which route to open. There is no query whose freshness it changes. |
+  | `features/notifications/ui/NotificationToasts/use-backend-event-resolver.ts` | `source.subscribe` | Push toasts are a UI projection of each pushed notification. Freshness of the notification queries is owned in parallel by the BRIDGE_INVALIDATIONS rule on the same event. |
+  | `features/notifications/ui/NotificationToasts/use-backend-event-resolver.ts` | `subscribeArchived` | Dismisses the toasts of archived notifications, a UI projection. Freshness of the unread count is owned in parallel by the BRIDGE_INVALIDATIONS rule on the same event. |
+  | `shared/store/season-store/season-store.helpers.ts` | `subscribeMatchingFinished` | Ends the matching progress the season store shows while a run is live, a UI projection. The authoritative reload of the intake rows on a finished run is owned by BRIDGE_INVALIDATIONS (SEASON_ANIMES_KEY). |
+  | `shared/store/season-store/season-store.helpers.ts` | `subscribeMatchingProgress` | Per-row matching progress is a UI projection of each progress event; it is not stored data a query could re-read. |
+  | `shared/store/season-store/season-store.helpers.ts` | `subscribeMatchingStarted` | Starts the progress of a matching run with its total, a UI projection of the event; it is not stored data a query could re-read. |
 - The allow-list (`zustand/vanilla`) is closed: the Catalog session, keyboard and Downloads UI stores, and the two
   ADR-006 read-models (preferences, season), which leave it as they migrate.
 
@@ -292,21 +318,15 @@ commits, not here:
   season, read-only mode, banner, busy message, last discard, the matching run and its progress), and
   so does the download-runtime store; their server reads go through queries. Hand-fetching hooks
   remain, and they are what the baseline below counts.
-- `frontend/async-state-baseline.json` holds 61 entries (244 at task T3b, 61 now), measured by
-  running the five rules over `src/**/*.{ts,tsx}` and printed by
+- `frontend/async-state-baseline.json` holds 43 entries (244 at task T3b, 55 after the keymap move, 43 now), measured
+  by running the five rules over `src/**/*.{ts,tsx}` and printed by
   `bun --cwd="frontend" run check:async-state:all`:
-  - `no-infrastructure-import` 51 entries in 38 files (42 feature, 9 shared); 2 of them are direct
-    `wailsjs/**` imports, in 2 files: `wailsjs/runtime/runtime` and `wailsjs/go/models`. Today's
-    `episode-schedule-panel.helpers.ts` keeps two (`bridge-runtime-source`, `preferences-source`) for
-    the operations that have not migrated.
-  - `no-runtime-subscription` 10 entries in 7 files: the activity feed live refresh
-    (`features/activity/feed/use-activity-live-refresh.ts`), the activity history source
-    (`features/activity/history-source/history-source.helpers.ts`, `EventsOn`), download run history
-    (`features/download/ui/RunHistoryPanel/use-run-history-story.ts`) and three notification hooks
-    (center sync, navigation and the toasts resolver), plus the season store's three
-    `subscribeMatching*` calls in `shared/store/season-store/season-store.helpers.ts`. Those three are
-    ordinary baseline entries: the gate has no per-file subscription allow-list, only the closed
-    `zustand/vanilla` one below. The download runtime store no longer subscribes.
+  - `no-infrastructure-import` 43 entries; 1 of them is a direct `wailsjs/**` import
+    (`wailsjs/go/models`). Today's `episode-schedule-panel.helpers.ts` keeps two
+    (`bridge-runtime-source`, `preferences-source`) for the operations that have not migrated.
+  - `no-runtime-subscription` 0 entries: the activity recorder adapter moved to
+    `infrastructure/activity-recorder-source` (`BRIDGE_ACTIVITY_RECORDER_SOURCE`), and the other 9
+    subscriptions are sanctioned exceptions (above), not debt.
   - `no-window-go`, `react-query-in-shared-query` and `zustand-vanilla-allow-list` 0 entries: production
     code outside `infrastructure/**` never reads `window.go` (28 test files assign a fake), TanStack
     Query is imported only in `shared/query`, and the 5 `zustand/vanilla` importers are exactly the

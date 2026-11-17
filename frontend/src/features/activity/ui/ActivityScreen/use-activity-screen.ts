@@ -8,11 +8,14 @@ import { ACTIVITY_FEED_PAGE_LIMIT } from '../../feed/activity-feed.constants';
 import { useActivityFeedPages } from '../../feed/use-activity-feed-pages';
 import { useActivityLiveRefresh } from '../../feed/use-activity-live-refresh';
 import { useActivityOverview } from '../../feed/use-activity-overview';
-import { BRIDGE_ACTIVITY_FEED_SOURCE, BRIDGE_ACTIVITY_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import {
+  BRIDGE_ACTIVITY_FEED_SOURCE,
+  BRIDGE_ACTIVITY_RECORDER_SOURCE,
+  BRIDGE_ACTIVITY_SOURCE,
+} from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
 import type { ActivityFeedSource } from '../../../../shared/contracts/activity.types';
-import { createHistorySource } from '../../history-source/history-source.helpers';
-import type { HistorySource } from '../../history-source/history-source.types';
+import type { ActivityRecorderSource } from '../../../../shared/contracts/activity-recorder.types';
 import { useActivityRangePicker } from '../ActivityToolbar/use-activity-range-picker';
 import { ACTIVITY_PIN_FAILURE_MESSAGE, ACTIVITY_PIN_SUCCESS_MESSAGE } from './activity-screen.constants';
 import { toFeedEndMark, toFeedResolvedView, toOverviewRange } from './activity-screen.helpers';
@@ -27,13 +30,13 @@ import { useActivityOpenLine } from './use-activity-open-line';
  * ↑ / ↓ / Esc keys, and "Pin this moment".
  *
  * @param feedSource The feed port; the shared bridge source when omitted.
- * @param historySource The port that carries the recorder subscription.
+ * @param recorderSource The port that carries the recorder subscription.
  * @param activitySource The port that pins a moment.
  * @returns Everything the dumb screen renders and the callbacks it wires.
  */
 export function useActivityScreen(
   feedSource: ActivityFeedSource = BRIDGE_ACTIVITY_FEED_SOURCE,
-  historySource: HistorySource = createHistorySource(),
+  recorderSource: ActivityRecorderSource = BRIDGE_ACTIVITY_RECORDER_SOURCE,
   activitySource: ActivitySource = BRIDGE_ACTIVITY_SOURCE,
 ) {
   // 1. Refs
@@ -80,7 +83,7 @@ export function useActivityScreen(
   }, [pinMoment]);
 
   // 7. Effects
-  useActivityLiveRefresh(historySource, onLive);
+  useActivityLiveRefresh(recorderSource, onLive);
 
   return {
     scale: filters.scale,

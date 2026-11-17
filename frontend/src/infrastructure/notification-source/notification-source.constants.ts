@@ -1,4 +1,4 @@
-import type { NotificationSource } from './notification-source.types';
+import type { NotificationPushSource } from '../../shared/contracts/notification-push.types';
 
 /** Runtime event name used for frontend notification toasts. */
 export const NOTIFICATION_EVENT_NAME = 'notification.push';
@@ -24,6 +24,6 @@ export const NOTIFICATION_ARCHIVED_EVENT_NAME = 'notification.archived';
 export const NOTIFICATION_NAVIGATE_EVENT_NAME = 'notification.navigate';
 
 /** Module-local singleton container for the shared notification source. */
-export const NOTIFICATION_SOURCE_STATE: { sharedSource: NotificationSource | null } = {
+export const NOTIFICATION_SOURCE_STATE: { sharedSource: NotificationPushSource | null } = {
   sharedSource: null,
 };

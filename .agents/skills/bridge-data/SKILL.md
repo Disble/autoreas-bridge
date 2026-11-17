@@ -31,6 +31,7 @@ Go binding (App method) -> modules.<Context>.Use -> domain service
 4. No `useEffect` + `useState` fetch for backend data: use `useBridgeQuery` / `useBridgeMutation`.
 5. Hooks call `toAsyncView`; `.tsx` files only render `view.kind`.
 6. Never add a baseline entry to silence a new violation. A moved or renamed file is new code.
+7. Never add an exception to `frontend/async-state-exceptions.json` without an owner decision.
 
 | I am about to… | Do this |
 |---|---|
@@ -166,6 +167,13 @@ export const BRIDGE_INVALIDATIONS = createInvalidationRegistry([
 (`internal/desktop/app_startup_runtime.go`, e.g. `anime.changed`). Never call `EventsOn` or a source's
 `subscribe<Name>` from a feature or a shared store. When you migrate one, delete its baseline entry.
 
+`frontend/async-state-exceptions.json` lists the few subscriptions that stay: UI projections a registry
+rule cannot express (a debounced or per-run refresh, an in-place drop over loaded pages, push toasts,
+a navigation command, matching progress). Each entry is the baseline's identity plus a `reason` naming
+who owns the data's freshness and who owns the UI state. Read it before touching one of those files:
+the subscription keeps its exact symbol, or the exception turns stale. It is not a place for new code;
+an entry needs the owner's decision, and one whose subscription is gone is deleted.
+
 ## Recipe 4 — binding in an unmigrated module
 
 A module without a handle still has its services in `App` fields. Do not add another binding that reads
@@ -205,6 +213,8 @@ Frontend: ESLint `async-state/*` (editor, `check:staged`) and `bun --cwd="fronte
 | `zustand-vanilla-allow-list` | Server state is a query; the allow-list (`ZUSTAND_VANILLA_ALLOW_LIST`, `frontend/scripts/async-state-gates.helpers.mjs`) is closed |
 | `no-runtime-subscription` | Recipe 3 |
 | `stale entry, no longer found; delete it from frontend/async-state-baseline.json: {…}` | Delete exactly that entry in the same commit |
+| `stale exception, no longer found; delete it from frontend/async-state-exceptions.json: {…}` | The sanctioned subscription is gone or renamed: delete that exception in the same commit (a rename needs the owner's decision to re-add it) |
+| `async-state-exceptions.json: an exception needs a written reason {…}` | Write the reason the owner accepted; a blank one is refused |
 | `cannot check, parse error: …` | Fix the syntax error; that file's entries are not judged until it parses |
 
 A baseline entry is deleted only when its violation is gone; the gate names it. Never add one, never widen
