@@ -31,10 +31,12 @@ func TestGatewayStampsPastTheStoredTokenWhenTheClockLagsIt(t *testing.T) {
 		{"batch, clock one behind", 98, true, []int64{101, 102}},
 		{"batch, clock ahead", 150, true, []int64{151, 152}},
 	}
+	// One database serves every case: each case re-seeds both animes at
+	// modified_at 100, the only rows a save stamps.
+	db := openGatewayDB(t)
+	snapshots := bridgeSync.NewAnimeSnapshotStore(db)
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			db := openGatewayDB(t)
-			snapshots := bridgeSync.NewAnimeSnapshotStore(db)
 			seeded := seedStampAnimes(t, snapshots)
 			gateway := newGateway(t, gatewayConfig{db: db, clock: tc.clock})
 

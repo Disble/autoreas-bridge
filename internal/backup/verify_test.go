@@ -276,11 +276,10 @@ func TestOversizedEntryIsRefused(t *testing.T) {
 	oversizeBy := int64(1)
 	size := int64(maxEntryBytes) + oversizeBy
 
-	h := sha256.New()
-	if _, err := io.Copy(h, &zeroReader{n: size}); err != nil {
-		t.Fatalf("hash oversized payload: %v", err)
-	}
-	declaredSHA256 := hex.EncodeToString(h.Sum(nil))
+	// The declared checksum is never the payload's: without the size refusal
+	// the read ends in ErrChecksumMismatch or success, never ErrEntryTooLarge,
+	// so hashing the 512 MiB payload up front would add time and no guard.
+	declaredSHA256 := hex.EncodeToString(make([]byte, sha256.Size))
 
 	dest := filepath.Join(t.TempDir(), "bundle.zip")
 	bw, err := newBundleWriter(dest)

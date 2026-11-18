@@ -29,7 +29,7 @@ func TestDevAssetRetryServesAModuleThroughWailsProxyOnceViteListens(t *testing.T
 	_ = reserved.Close()
 	devServerURL, _ := url.Parse("http://" + addr + "/")
 
-	middleware := buildAppOptions(devApp(devServerURL.String()), embed.FS{}).AssetServer.Middleware
+	middleware := buildAppOptions(devApp(devServerURL.String(), 10*time.Millisecond), embed.FS{}).AssetServer.Middleware
 	proxy := assetserver.NewExternalAssetsHandler(nil, assetserverOptions.Options{Middleware: middleware}, devServerURL)
 
 	served := make(chan *httptest.ResponseRecorder, 1)
@@ -39,7 +39,8 @@ func TestDevAssetRetryServesAModuleThroughWailsProxyOnceViteListens(t *testing.T
 		served <- rec
 	}()
 
-	time.Sleep(400 * time.Millisecond)
+	// Vite comes up well inside the 40 attempts 10 ms apart.
+	time.Sleep(50 * time.Millisecond)
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		t.Fatalf("reopen dev-server port: %v", err)

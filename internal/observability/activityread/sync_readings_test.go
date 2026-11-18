@@ -372,9 +372,12 @@ func TestFailedSyncsReadsAreBounded(t *testing.T) {
 	db, r := openTestReader(t)
 	insertStart(t, db, 900, "")
 	insertStart(t, db, 300, "")
-	for i := range syncReportLimit + 1 {
-		insertTelemetry(t, db, fmt.Sprintf("off-%d", i), minutesAgo(290)+int64(i), minutesAgo(400), failedSyncPayload)
-	}
+	// One statement stores the syncReportLimit+1 reports: a row-by-row insert
+	// commits each one and cost seconds.
+	exec(t, db, `WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
+		INSERT INTO device_telemetry_events (device_id, reported_at_ms, kind, event_id, observed_at_ms, payload_json)
+		SELECT 'device-1', ? + i, 'episode_action', 'off-' || i, ?, ? FROM n`,
+		syncReportLimit, minutesAgo(290), minutesAgo(400), failedSyncPayload)
 
 	reads, err := r.readFailedSyncs(context.Background(), minutesAgo(900))
 	if err != nil {
