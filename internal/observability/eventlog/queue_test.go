@@ -97,6 +97,7 @@ func TestNewQueueShutdownCeilingDefaultsToFiveSeconds(t *testing.T) {
 		{"unset", 0, 5 * time.Second},
 		{"negative", -time.Second, 5 * time.Second},
 		{"configured", 50 * time.Millisecond, 50 * time.Millisecond},
+		{"smallest positive", time.Nanosecond, time.Nanosecond},
 	} {
 		queue := NewQueue(nil, QueueConfig{StopTimeout: tc.set})
 		if queue.stopTimeout != tc.want {
