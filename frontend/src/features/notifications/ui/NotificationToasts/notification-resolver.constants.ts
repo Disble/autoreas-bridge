@@ -48,7 +48,7 @@ export const KINDS_OWNED_BY_A_DEDICATED_RESOLVER: ReadonlySet<string> = new Set(
 
 /**
  * Maps each `AppNotificationSeverity` to the HeroUI toast variant it renders
- * as. Pinned by `app-toast-queue.test.ts` against the four convenience
+ * as. Pinned by `app-toast-queue.node.test.ts` against the four convenience
  * methods (`toast.success/warning/danger/info`) the app-owned queue
  * replaces -- `info` maps to `'accent'`, matching `toast.info`'s own
  * variant, not a literal `'info'` (HeroUI's variant union has no such

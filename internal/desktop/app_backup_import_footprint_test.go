@@ -380,7 +380,7 @@ func TestImportGroupFootprintsAreDeclaredAndRespected(t *testing.T) {
 // slice, absent from declaredImportGroupFootprints, MUST be reported by
 // undeclaredImportGroups -- proving the guard's failure path actually
 // fires, the same shape as the APP_LAYOUT_NAV_GROUPS coverage test
-// (frontend/src/shared/keyboard/__tests__/command-registry.constants.test.ts).
+// (frontend/src/shared/keyboard/__tests__/command-registry.constants.node.test.ts).
 func TestUndeclaredImportGroupFailsTheFootprintGuard(t *testing.T) {
 	app := footprintTestApp(t)
 	local := append(slices.Clone(app.importGroups(app.bridgeDB)), backup.ImportGroup{Name: "synthetic_undeclared_group"})

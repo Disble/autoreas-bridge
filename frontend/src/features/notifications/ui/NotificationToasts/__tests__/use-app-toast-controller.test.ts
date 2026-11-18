@@ -20,7 +20,7 @@ import { useAppToastController } from '../use-app-toast-controller';
  * app-owned `appToastQueue` every toast is actually added to. The whole file
  * was green while `remove` closed nothing at all, because a mocked close
  * cannot tell you it addressed the wrong queue. That outcome is now pinned
- * against the real queue in `app-toast-queue.test.ts` and end to end in
+ * against the real queue in `app-toast-queue.node.test.ts` and end to end in
  * `NotificationToasts.missed-schedule.integration.test.tsx`; what stays here
  * is the ledger bookkeeping those two cannot see.
  */
