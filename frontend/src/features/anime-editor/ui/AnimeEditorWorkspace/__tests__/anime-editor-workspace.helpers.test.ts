@@ -206,6 +206,24 @@ describe('anime-editor-workspace.helpers', () => {
     expect(items[0]).toMatchObject({ animeId: 'rezero' });
   });
 
+  it('keeps only the rows whose status and type were picked, on top of the rail lens', () => {
+    const row = { episodesWatched: 1, active: 1, genres: [], hasDownloadPage: false, hasFolder: false, hasCover: false };
+    const animes = [
+      { ...row, id: 'tv-watching', name: 'A', status: 0, kind: 0, days: ['Lunes'] },
+      { ...row, id: 'movie-paused', name: 'B', status: 3, kind: 1, days: [] },
+      { ...row, id: 'tv-paused', name: 'C', status: 3, kind: 0, days: ['Martes'] },
+      { ...row, id: 'no-kind-paused', name: 'D', status: 3, days: [] },
+    ];
+    const ids = (filter: 'all' | 'watching', facets: { statuses: string[]; kinds: string[] }) =>
+      createAnimeEditorListItems(animes, filter, '', undefined, facets).map((item) => item.animeId);
+
+    expect(ids('all', { statuses: ['3'], kinds: [] })).toEqual(['tv-paused', 'movie-paused', 'no-kind-paused']);
+    expect(ids('all', { statuses: [], kinds: ['1'] })).toEqual(['movie-paused']);
+    expect(ids('all', { statuses: ['0', '3'], kinds: ['0'] })).toEqual(['tv-watching', 'tv-paused']);
+    expect(ids('watching', { statuses: ['3'], kinds: [] })).toEqual(['tv-paused']);
+    expect(ids('all', { statuses: [], kinds: [] })).toHaveLength(4);
+  });
+
   it('normalizes runtime feedback messages to a safe string', () => {
     expect(resolveAnimeEditorFeedbackMessage({ message: 'runtime unavailable' }, 'fallback')).toBe('runtime unavailable');
     expect(resolveAnimeEditorFeedbackMessage({ message: 42 }, 'fallback')).toBe('fallback');
@@ -255,7 +273,7 @@ describe('toAnimeEditorLifecycleConfirmation', () => {
 
 describe('classifyAnimeEditorEmptyState', () => {
   /** Baseline: a resolved library holding rows, with no criteria narrowing it. */
-  const resolved = { isLoadingList: false, sourceCount: 3, visibleCount: 3, query: '', filter: 'all' } as const;
+  const resolved = { isLoadingList: false, sourceCount: 3, visibleCount: 3, hasActiveCriteria: false } as const;
 
   it('classifies nothing while the library request is unresolved', () => {
     expect(classifyAnimeEditorEmptyState({ ...resolved, isLoadingList: true, sourceCount: 0, visibleCount: 0 })).toBe('none');
@@ -269,30 +287,22 @@ describe('classifyAnimeEditorEmptyState', () => {
     expect(classifyAnimeEditorEmptyState(resolved)).toBe('none');
   });
 
-  it('classifies zero visible rows under an active search as criteria-empty', () => {
-    expect(classifyAnimeEditorEmptyState({ ...resolved, visibleCount: 0, query: 'frieren' })).toBe('criteria');
-  });
-
-  it('classifies zero visible rows under a non-default filter as criteria-empty', () => {
-    expect(classifyAnimeEditorEmptyState({ ...resolved, visibleCount: 0, filter: 'watching' })).toBe('criteria');
+  it('classifies zero visible rows under active criteria as criteria-empty', () => {
+    expect(classifyAnimeEditorEmptyState({ ...resolved, visibleCount: 0, hasActiveCriteria: true })).toBe('criteria');
   });
 
   it('refuses to call zero visible rows criteria-empty when no criteria are active', () => {
     expect(classifyAnimeEditorEmptyState({ ...resolved, visibleCount: 0 })).toBe('none');
   });
-
-  it('treats a whitespace-only search as no search at all', () => {
-    expect(classifyAnimeEditorEmptyState({ ...resolved, visibleCount: 0, query: '   ' })).toBe('none');
-  });
 });
 
 describe('classifyAnimeEditorEmptyState with visible rows', () => {
   it('keeps visible rows out of every empty state even while a search is active', () => {
-    expect(classifyAnimeEditorEmptyState({ isLoadingList: false, sourceCount: 3, visibleCount: 1, query: 'frieren', filter: 'all' })).toBe('none');
+    expect(classifyAnimeEditorEmptyState({ isLoadingList: false, sourceCount: 3, visibleCount: 1, hasActiveCriteria: true })).toBe('none');
   });
 
   it('keeps visible rows out of every empty state even under a non-default filter', () => {
-    expect(classifyAnimeEditorEmptyState({ isLoadingList: false, sourceCount: 3, visibleCount: 2, query: '', filter: 'watching' })).toBe('none');
+    expect(classifyAnimeEditorEmptyState({ isLoadingList: false, sourceCount: 3, visibleCount: 2, hasActiveCriteria: true })).toBe('none');
   });
 });
 

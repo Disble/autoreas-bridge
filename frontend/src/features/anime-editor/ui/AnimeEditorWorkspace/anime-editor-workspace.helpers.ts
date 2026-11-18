@@ -3,8 +3,9 @@ import { normalizeStoredCoverPath } from '../../../../shared/anime-cover/anime-c
 import type { Anime, AnimeEditorOutcome, AnimeEditorRecord, AnimeEditorSaveResult, SaveAnimeEditorCommand } from '../../../../shared/contracts/anime.types';
 import { isScheduledAnime, isValidAnimeEstado } from '../../../../shared/helpers/anime-estado.helpers';
 import { isValidDownloadPageUrl } from '../../../../shared/helpers/url.helpers';
-import { ANIME_EDITOR_CALL_TIMEOUT_MESSAGE, ANIME_EDITOR_CALL_TIMEOUT_MS, ANIME_EDITOR_COVER_PLACEHOLDER, ANIME_EDITOR_DEFAULT_DRAFT } from './anime-editor-workspace.constants';
-import type { AnimeEditorChipColor, AnimeEditorCoverRequestPlan, AnimeEditorCoverResult, AnimeEditorCoverTarget, AnimeEditorDraft, AnimeEditorEmptyState, AnimeEditorEmptyStateInput, AnimeEditorFilter, AnimeEditorGuardEvent, AnimeEditorGuardState, AnimeEditorLifecycleAction, AnimeEditorLifecycleConfirmation, AnimeEditorListItemViewModel, AnimeEditorListRowViewModel, AnimeEditorToastKind } from './anime-editor-workspace.types';
+import { matchesAnimeEditorFacets } from './anime-editor-list.helpers';
+import { ANIME_EDITOR_CALL_TIMEOUT_MESSAGE, ANIME_EDITOR_CALL_TIMEOUT_MS, ANIME_EDITOR_COVER_PLACEHOLDER, ANIME_EDITOR_DEFAULT_DRAFT, ANIME_EDITOR_NO_FACETS } from './anime-editor-workspace.constants';
+import type { AnimeEditorChipColor, AnimeEditorCoverRequestPlan, AnimeEditorCoverResult, AnimeEditorCoverTarget, AnimeEditorDraft, AnimeEditorEmptyState, AnimeEditorEmptyStateInput, AnimeEditorFacets, AnimeEditorFilter, AnimeEditorGuardEvent, AnimeEditorGuardState, AnimeEditorLifecycleAction, AnimeEditorLifecycleConfirmation, AnimeEditorListItemViewModel, AnimeEditorListRowViewModel, AnimeEditorToastKind } from './anime-editor-workspace.types';
 import { ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
 import type { UseEpisodeDurationsSectionOptions } from '../EpisodeDurationsSection/episode-durations-section.types';
 
@@ -195,10 +196,16 @@ export function createAnimeEditorSaveCommand(record: AnimeEditorRecord, draft: A
  * filter restricts to that set; "All anime" keeps everything but still bubbles
  * the scheduled ones to the top.
  */
-export function createAnimeEditorListItems(animes: readonly Anime[], filter: AnimeEditorFilter, query: string, selectedAnimeId?: string): readonly AnimeEditorListItemViewModel[] {
+export function createAnimeEditorListItems(
+  animes: readonly Anime[],
+  filter: AnimeEditorFilter,
+  query: string,
+  selectedAnimeId?: string,
+  facets: AnimeEditorFacets = ANIME_EDITOR_NO_FACETS,
+): readonly AnimeEditorListItemViewModel[] {
   const normalizedQuery = query.trim().toLowerCase();
   return animes
-    .filter((anime) => (filter === 'all' || isScheduledAnime(anime)) && (normalizedQuery.length === 0 || anime.name.toLowerCase().includes(normalizedQuery)))
+    .filter((anime) => (filter === 'all' || isScheduledAnime(anime)) && (normalizedQuery.length === 0 || anime.name.toLowerCase().includes(normalizedQuery)) && matchesAnimeEditorFacets(anime, facets))
     .toSorted((left, right) => {
       const scheduledDifference = Number(!isScheduledAnime(left)) - Number(!isScheduledAnime(right));
       return scheduledDifference === 0 ? left.name.localeCompare(right.name) : scheduledDifference;
@@ -369,6 +376,16 @@ export function toEditorErrorMessage(error: unknown) {
 }
 
 /**
+ * The rail's failure message: the catalog read's error once it settled, never
+ * while a retry is in flight.
+ * @param query The catalog query's status, fetching flag and error.
+ * @returns The message to show, or undefined when the rail did not fail.
+ */
+export function toAnimeEditorListLoadError(query: { readonly status: string; readonly isFetching: boolean; readonly error: unknown }): string | undefined {
+  return query.status === 'error' && !query.isFetching ? toEditorErrorMessage(query.error) : undefined;
+}
+
+/**
  * Races one runtime binding against a timeout so a call that never settles
  * cannot keep the editor busy forever. The binding's own outcome wins when it
  * settles first; otherwise the promise rejects with the timeout feedback, which
@@ -449,8 +466,7 @@ export function classifyAnimeEditorEmptyState(input: AnimeEditorEmptyStateInput)
   if (input.visibleCount > 0) {
     return 'none';
   }
-  const hasActiveCriteria = input.query.trim().length > 0 || input.filter !== 'all';
-  return hasActiveCriteria ? 'criteria' : 'none';
+  return input.hasActiveCriteria ? 'criteria' : 'none';
 }
 
 /**

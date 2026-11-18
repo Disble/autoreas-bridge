@@ -375,6 +375,12 @@ flowchart LR
   `animeKeys.key('watch-history', request)`; one anime's first page under
   `animeKeys.key('anime-watch-history', request)` (the inspector's 3 recent rows and each episode
   list); one cover under `animeKeys.key('cover', id)`.
+- Filters: the Catalog's Filters popover and the Editor rail's both render the shared
+  `FiltersPopover` and `FilterTagGroup` (`frontend/src/shared/ui/FilterTagGroup/`) with the Status
+  and Type tags of `ANIME_STATUS_FILTER_OPTIONS` and `ANIME_KIND_FILTER_OPTIONS`
+  (`frontend/src/shared/constants/anime-filter.constants.ts`). A group with nothing picked shows All
+  and filters nothing; picked values keep only the anime carrying one of them. Filtering runs on the
+  loaded catalog, with no extra read.
 - Invalidation: `BRIDGE_INVALIDATIONS` maps `anime.changed` to the catalog list, every detail and
   both watch-history prefixes, so a change from any writer refreshes the mounted Catalog, Detail and
   History. Covers are not invalidated (one change would re-read every cover on screen), and the
@@ -425,6 +431,9 @@ attaches. They are built once as `BRIDGE_ANIME_EDITOR_SOURCE` (its catalog is
   both with `gcTime: 0`. The `anime-editor` prefix keeps catalog invalidations away from a record the
   Editor holds a draft over. The create screen reads the library root under
   `settingsKeys.key('library-root')` on module `settings`; a failed read leaves the root unset.
+- Rail criteria (`useAnimeEditorList`): the Watching now / All anime lens, the search and the
+  Status and Type filters combine, all on the loaded catalog. The Filters button shows how many
+  values are picked; "Clear search and filters" resets all three to All anime with no filters.
 - Record draft: each settled record read replaces the draft once (`useAnimeEditorRecordRead`, composed
   by `useAnimeEditorRecord`); a failed
   read clears the record and shows its message. Save, deactivate, the schedule apply, the create

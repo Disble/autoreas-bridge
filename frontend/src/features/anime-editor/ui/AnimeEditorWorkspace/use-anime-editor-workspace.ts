@@ -93,10 +93,16 @@ export function useAnimeEditorWorkspace(
   // Each holds only what its memoized panel reads, so an async step that changes
   // nothing it shows leaves the slice, and the panel, untouched.
   const listPanel = useMemo(() => ({
-    query: list.query, filter: list.filter, items, listEmptyState: list.emptyState, isLoadingList: list.isLoadingList, listLoadError: list.listLoadError, listWindow,
+    query: list.query, filter: list.filter, facets: list.facets, activeFacetCount: list.activeFacetCount, items, listEmptyState: list.emptyState,
+    isLoadingList: list.isLoadingList, listLoadError: list.listLoadError, listWindow,
     onQueryChange: list.setQuery, onFilterChange: list.onFilterChange, onClearCriteria: list.onClearCriteria,
+    onStatusSelectionChange: list.onStatusSelectionChange, onKindSelectionChange: list.onKindSelectionChange, onFacetsReset: list.onFacetsReset,
     onSelectAnime: transitions.onSelectAnime, onCoverImageError: coverCache.onCoverImageError,
-  }), [list.query, list.filter, items, list.emptyState, list.isLoadingList, list.listLoadError, listWindow, list.setQuery, list.onFilterChange, list.onClearCriteria, transitions.onSelectAnime, coverCache.onCoverImageError]);
+  }), [
+    list.query, list.filter, list.facets, list.activeFacetCount, items, list.emptyState, list.isLoadingList, list.listLoadError, listWindow,
+    list.setQuery, list.onFilterChange, list.onClearCriteria, list.onStatusSelectionChange, list.onKindSelectionChange, list.onFacetsReset,
+    transitions.onSelectAnime, coverCache.onCoverImageError,
+  ]);
   const formPanel = useMemo(() => ({
     selectedRecord: record.selectedRecord, draft: record.draft, cover, appliedMetadata: record.appliedMetadata, metadataLookupSource,
     coverPreviewSource,

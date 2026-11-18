@@ -201,3 +201,38 @@ describe('AnimeEditorListPanel empty states', () => {
     expect(screen.queryByTestId('anime-editor-list-scroll')).toBeNull();
   });
 });
+
+describe('AnimeEditorListPanel filters', () => {
+  const PAUSED_MOVIE = { id: 'anime-2', name: 'Kimi no Na wa', status: 3, kind: 1, active: 1, episodesWatched: 1, days: [] };
+
+  it('narrows the rail to the picked status and counts the active filters', async () => {
+    mockSource.getAnimes.mockResolvedValue([SCHEDULED_ANIME, PAUSED_MOVIE]);
+    renderWorkspace();
+    await screen.findByText('Frieren');
+    fireEvent.click(screen.getByRole('radio', { name: 'All anime' }));
+    await screen.findByText('Kimi no Na wa');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    fireEvent.click(await screen.findByRole('row', { name: 'En pausa' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Show 1 anime' }));
+
+    await waitFor(() => expect(screen.queryByText('Frieren')).toBeNull());
+    expect(screen.getByText('Kimi no Na wa')).toBeInTheDocument();
+    expect(screen.getByText('1 animes')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Filters, 1 active' })).toBeInTheDocument();
+  });
+
+  it('clears the picked status and type with the criteria recovery', async () => {
+    mockSource.getAnimes.mockResolvedValue([SCHEDULED_ANIME]);
+    renderWorkspace();
+    await screen.findByText('Frieren');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    fireEvent.click(await screen.findByRole('row', { name: 'Película' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Show 0 anime' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Clear search and filters' }));
+
+    await waitFor(() => expect(screen.getByText('Frieren')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Filters' })).toBeInTheDocument();
+  });
+});

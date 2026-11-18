@@ -21,6 +21,8 @@ function renderWorkspace(overrides: Record<string, unknown> = {}) {
   const viewModel = {
     query: '',
     filter: 'watching',
+    facets: { statuses: [], kinds: [] },
+    activeFacetCount: 0,
     items: [{ id: 'anime-1', animeId: 'anime-1', nombre: 'Frieren', subtitle: '12 watched', selected: true, hasCover: false, cover: { status: 'placeholder' } }],
     listEmptyState: 'none',
     listWindow: { scrollRef: { current: null }, onScroll: vi.fn(), visibleCount: 1 },
@@ -43,6 +45,9 @@ function renderWorkspace(overrides: Record<string, unknown> = {}) {
     canSave: true,
     onQueryChange: vi.fn(),
     onFilterChange: vi.fn(),
+    onStatusSelectionChange: vi.fn(),
+    onKindSelectionChange: vi.fn(),
+    onFacetsReset: vi.fn(),
     onClearCriteria: vi.fn(),
     onSelectAnime: vi.fn(),
     onDraftChange: vi.fn(),

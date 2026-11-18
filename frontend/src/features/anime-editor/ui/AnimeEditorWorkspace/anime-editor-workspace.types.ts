@@ -19,6 +19,12 @@ export interface AnimeEditorWorkspaceProps {
 /** Filter lenses supported by the left editor rail. */
 export type AnimeEditorFilter = 'watching' | 'all';
 
+/** The Library rail's Status and Type filters: the picked values of each, empty when it filters nothing. */
+export interface AnimeEditorFacets {
+  readonly statuses: readonly string[];
+  readonly kinds: readonly string[];
+}
+
 /** Semantic HeroUI chip/select colors used by editor estado presentation. */
 export type AnimeEditorChipColor = 'accent' | 'default' | 'success' | 'warning' | 'danger';
 
@@ -339,14 +345,8 @@ export interface AnimeEditorEmptyStateInput {
   readonly sourceCount: number;
   /** Rows left after search and filters. */
   readonly visibleCount: number;
-  readonly query: string;
-  readonly filter: AnimeEditorFilter;
-}
-
-/** Title and description shown by one Library empty state. */
-export interface AnimeEditorEmptyStateCopy {
-  readonly title: string;
-  readonly description: string;
+  /** The search, the Watching now lens, or a picked Status or Type narrows the rail. */
+  readonly hasActiveCriteria: boolean;
 }
 
 /** What decides whether the Editor rail shows its skeleton. */
