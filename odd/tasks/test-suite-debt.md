@@ -29,7 +29,7 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
 | T7c | S2, S3 | delegated (parallel, worktree `tsd-season`) | done (e829be63) | 76 → 56 files (58 → 38 jsdom), 946 → 944 cases (2 duplicates, guards cited), autosave and lookup waits on a fake clock, 9 hand mutations, closed a pre-existing gap in the duplicate-weekday autosave guard; B: fewer jsdom files in `features/season` (58 jsdom / 18 node) |
 | T7d | S2, S3 | delegated (parallel, worktree `tsd-fe-slow`) | done (37d38efa) | 13 of 14 cases faster (e.g. readiness 1115 → 119 ms, run-history 909 → 154 ms), test files only, 13 hand mutations; A: frontend tests >= 500 ms outside anime-editor and season (13 files, ~12 s cumulative) |
 | T7e | S2, S3 | delegated (parallel, worktree `tsd-go-slow`) | done (863a45c9) | verifier FAIL on 2 lost guards (dev asset retry default, AwaitState upper bound), one correction batch, recheck PASS; 11 tests into band (e.g. activityread bound 5840 → 100 ms, schedule tie-break 3540 → 150 ms, AwaitState 2000 → 20 ms), one desktop seam with a pinned 250 ms default, 11 hand mutations; template-DB copy (~7 ms vs ~45 ms bootstrap) noted as follow-up; A: Go tests >= 500 ms except webview2 and the T2 deadline tests (~15 packages, ~20 s cumulative) |
-| T8 | S2, S3 | — | pending | mutation check of the reduced suites, last |
+| T8 | S2, S3 | inline | done (003e0fb9, 893253c9) | `ditto changed --since fe516e48` over the 6 changed Go production files: 18/18 killed (score 1.00, bar 0.80) after two 1 ns rows killed the only survivors; no frontend production logic in range |
 
 ## Log
 
@@ -115,4 +115,13 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
   Go full suite (-p 4): three pairs, wall 77/66/66 s vs 59/70/78 s; contention noise exceeds the effect
   (untouched internal/sync varied by 4 s). Changed packages run alone: activityread 13.3 -> 7.7 s, desktop
   12.1 -> 12.2 s, anime 14.8 -> 7.3 s avg, eventlog 7.0 -> 1.9 s, requestcapture 5.8 -> 2.0 s. No regression.
-- Next: T8 mutation check of the committed range, then the final report.
+- L22 (2026-11-18): T8. First runs: queues + async 12/14 (0.86), desktop 3/4 (0.75); the survivors were
+  the same mutant in all three seams, `<= 0` -> `<= 1` on a duration (1 ns configured would fall back to
+  the default). One table row each kills it (hand-proven, then ditto 14/14 and 4/4). Frontend range has no
+  production logic (vite.config.ts and a comment), so per-test hand mutations stand as evidence.
+  Pre-existing gaps found, outside this refactor's diff, left as follow-ups: the provider-lookup debounce
+  (`use-intake-provider-lookup.ts:59`, set to 0 passes all tests) and the anime schedule tie-break at
+  `schedule_service_normalization.go:92` (survives on the base code too); a migrated-template DB copy
+  (~7 ms vs ~45 ms bootstrap) for every SQLite test; NotificationTable.windowing ~650 ms needs a smaller
+  production page size.
+- Next: final report to the owner. Push, PR and merge to dev are the owner's decisions.
