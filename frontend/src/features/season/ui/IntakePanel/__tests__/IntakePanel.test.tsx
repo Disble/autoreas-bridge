@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../shared/contracts/season.types';
+import { METADATA_LOOKUP_DEBOUNCE_MS } from '../../../../../shared/metadata-lookup/metadata-lookup.constants';
 import {
   METADATA_LOOKUP_CANCEL_LABEL,
   METADATA_LOOKUP_CONFIRM_LABEL,
@@ -136,6 +137,7 @@ describe('IntakePanel', () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
   it('renders editable rows with status chips in list mode', () => {
@@ -277,6 +279,9 @@ describe('IntakePanel', () => {
   });
 
   it('offers one lookup per row and attaches a confirmed result to that row only', async () => {
+    // A clock that still ticks with real time, so `findBy` keeps polling while
+    // the case jumps past the search debounce.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const metadataSource = createMetadataSource();
     const onMetadataApplied = vi.fn();
     mockHook({
@@ -291,6 +296,9 @@ describe('IntakePanel', () => {
 
     fireEvent.click(triggers[1]);
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'bleach' } });
+    act(() => {
+      vi.advanceTimersByTime(METADATA_LOOKUP_DEBOUNCE_MS);
+    });
     fireEvent.click(await screen.findByRole('button', { name: /Bleach/ }));
     fireEvent.click(screen.getByRole('button', { name: METADATA_LOOKUP_CONFIRM_LABEL }));
 

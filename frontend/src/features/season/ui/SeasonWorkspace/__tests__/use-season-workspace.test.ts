@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
+import type { Key } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
@@ -6,7 +7,10 @@ import { status } from '../../../../../shared/query/test-support/readiness-sourc
 import { createSeasonDataSource, makeSeason, makeSeasonRow, seasonQueryWrapper } from '../../../../../shared/season/__tests__/season.test-support';
 import type { SeasonDataSource } from '../../../../../shared/season/season.types';
 import { getSeasonStoreState, resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
+import { SEASON_SECTION_TABS } from '../season-workspace.constants';
+import type { SeasonSectionId } from '../season-workspace.types';
 import { useSeasonWorkspace } from '../use-season-workspace';
+import { useSeasonWorkspaceTab } from '../use-season-workspace-tab';
 
 /**
  * Renders the workspace hook with the season module ready.
@@ -195,5 +199,19 @@ describe('useSeasonWorkspace', () => {
     act(() => result.current.onCloseSeason());
 
     await waitFor(() => expect(source.closeSeason).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe('useSeasonWorkspaceTab', () => {
+  it.each([
+    ['evaluation', 'evaluation'],
+    ['not-a-tab', 'overview'],
+  ] as const)('selecting %s leaves the active tab at %s', (key, expected) => {
+    const { result } = renderHook(() => useSeasonWorkspaceTab());
+
+    expect(result.current.activeTab).toBe('overview');
+    act(() => result.current.selectTab(key as Key));
+    expect(result.current.activeTab).toBe(expected satisfies SeasonSectionId);
+    expect(SEASON_SECTION_TABS.some((tab) => tab.id === result.current.activeTab)).toBe(true);
   });
 });

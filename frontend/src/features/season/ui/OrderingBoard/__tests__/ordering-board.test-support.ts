@@ -80,10 +80,22 @@ export function dragOverEvent(sourceId: string, targetId: string): DragOverEvent
   } as unknown as DragOverEvent;
 }
 
-/** Waits on real timers past the autosave debounce, so a stray autosave would have fired. */
+/**
+ * Installs a fake clock that still ticks with real time, so `waitFor` keeps
+ * polling while `waitPastAutosave` can jump past the debounce. Call it before the
+ * case's first render, so every autosave timer the hook schedules is fake.
+ */
+export function installAutosaveClock(): void {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+}
+
+/**
+ * Advances the fake clock past the autosave debounce, so a stray autosave would
+ * have fired. Throws when `installAutosaveClock` was not called first.
+ */
 export async function waitPastAutosave(): Promise<void> {
   await act(async () => {
-    await new Promise((resolve) => { setTimeout(resolve, ORDERING_AUTOSAVE_DEBOUNCE_MS + 50); });
+    await vi.advanceTimersByTimeAsync(ORDERING_AUTOSAVE_DEBOUNCE_MS + 50);
   });
 }
 

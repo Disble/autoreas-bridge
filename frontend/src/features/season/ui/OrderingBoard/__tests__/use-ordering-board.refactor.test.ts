@@ -6,10 +6,13 @@ import type { OrderingBoard, SeasonAnimeRow } from '../../../../../shared/contra
 import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
 import { BRIDGE_SEASON_SOURCE } from '../../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { SEASON_ANIMES_KEY } from '../../../../../shared/query/query-keys/query-keys.constants';
-import { resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
+import { getSeasonStoreState, resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
 import { ORDERING_AUTOSAVE_DEBOUNCE_MS } from '../ordering-board.constants';
 import { useOrderingBoard } from '../use-ordering-board';
-import { card, createSource, dragOverEvent, orderingQueryWrapper, renderOrderingBoard, snapshot, waitPastAutosave } from './ordering-board.test-support';
+import { card, createSource, dragOverEvent, installAutosaveClock, orderingQueryWrapper, renderOrderingBoard, snapshot, waitPastAutosave } from './ordering-board.test-support';
+import { createSeasonDataSource, makeSeason, makeSeasonRow, seasonQueryWrapper } from '../../../../../shared/season/__tests__/season.test-support';
+import { useDisplayedSeason } from '../../../../../shared/season/use-displayed-season';
+import { useOrderingBoardStoreBindings } from '../use-ordering-board-store-bindings';
 
 /** Toast spy the desktop actions report their outcome through. */
 const toastMock = vi.hoisted(() => ({ success: vi.fn(), danger: vi.fn() }));
@@ -119,6 +122,7 @@ describe('useOrderingBoard sub-hook behavior', () => {
   });
 
   it('onReset discards the working edits and the saved draft, then re-reads the board', async () => {
+    installAutosaveClock();
     const applied = { rail: [card({ animeId: 'g', section: 'Visto' })], grid: [] };
     const source = createSource(applied, {
       fetchOrderingBoard: vi.fn()
@@ -158,6 +162,7 @@ describe('useOrderingBoard sub-hook behavior', () => {
   });
 
   it('onApply saves the draft, applies the schedule, re-reads the board and returns the result', async () => {
+    installAutosaveClock();
     const source = createSource({ rail: [], grid: [card({ animeId: 'g', dia: 'Lunes', orden: 1 })] });
     const { result } = renderOrderingBoard(source);
     await waitFor(() => expect(result.current.columns['Lunes']).toHaveLength(1));
@@ -271,5 +276,62 @@ describe('useOrderingBoard sub-hook behavior', () => {
     act(() => result.current.onDragOver(event));
 
     expect(event.preventDefault).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * Renders the bindings next to a reader of the displayed season, every read through `source`.
+ * @param source The port the reads and the close command go through.
+ * @returns The render result.
+ */
+function renderBindings(source: ReturnType<typeof createSeasonDataSource>) {
+  return renderHook(
+    () => ({ bindings: useOrderingBoardStoreBindings(source), season: useDisplayedSeason({ refresh: 'mount', source }) }),
+    { wrapper: seasonQueryWrapper().wrapper },
+  );
+}
+
+describe('useOrderingBoardStoreBindings', () => {
+  afterEach(() => {
+    resetSeasonStore();
+    vi.clearAllMocks();
+  });
+
+  it('loads the open season rows once and keeps the same empty list until they arrive', async () => {
+    const source = createSeasonDataSource({ readSeasonAnimes: vi.fn().mockResolvedValue([makeSeasonRow()]) });
+    const { result, rerender } = renderBindings(source);
+    const before = result.current.bindings.seasonAnimes;
+    rerender();
+
+    expect(result.current.bindings.seasonAnimes).toBe(before);
+    expect(before).toEqual([]);
+    await waitFor(() => expect(result.current.bindings.seasonAnimes).toHaveLength(1));
+    await act(() => expect(result.current.bindings.ensureAnimesLoaded()).resolves.toBeUndefined());
+    expect(source.readSeasonAnimes).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes the store view state and banner through', () => {
+    setSeasonStoreState({ readOnly: true, viewSeasonId: 'old', errorMessage: 'earlier failure' });
+    const { result } = renderBindings(createSeasonDataSource());
+
+    expect(result.current.bindings).toMatchObject({ readOnly: true, viewSeasonId: 'old', errorMessage: 'earlier failure' });
+  });
+
+  it('shows the fixed banner text when the rows fail to load', async () => {
+    renderBindings(createSeasonDataSource({ readSeasonAnimes: vi.fn().mockRejectedValue(new Error('rows down')) }));
+
+    await waitFor(() => expect(getSeasonStoreState().errorMessage).toBe('Failed to load intake rows'));
+  });
+
+  it('closes the season through the command and reads the season again', async () => {
+    const readSeason = vi.fn().mockResolvedValueOnce(makeSeason()).mockResolvedValue(null);
+    const source = createSeasonDataSource({ readSeason });
+    const { result } = renderBindings(source);
+    await waitFor(() => expect(result.current.season.data).toEqual(makeSeason()));
+
+    await act(() => result.current.bindings.closeSeason());
+
+    expect(source.closeSeason).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(result.current.season.data).toBeNull());
   });
 });
