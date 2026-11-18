@@ -66,7 +66,7 @@ func TestDevAssetRetryDefaultsTo40AttemptsSpaced250Milliseconds(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct{ set, want time.Duration }{
-		{0, 250 * time.Millisecond}, {-time.Millisecond, 250 * time.Millisecond}, {5 * time.Millisecond, 5 * time.Millisecond},
+		{0, 250 * time.Millisecond}, {-time.Millisecond, 250 * time.Millisecond}, {time.Nanosecond, time.Nanosecond}, {5 * time.Millisecond, 5 * time.Millisecond},
 	} {
 		if got := devAssetRetryDelayOr(tc.set); got != tc.want {
 			t.Errorf("devAssetRetryDelayOr(%s) = %s, want %s", tc.set, got, tc.want)
