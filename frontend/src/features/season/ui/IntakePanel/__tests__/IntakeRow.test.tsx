@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { METADATA_LOOKUP_DEBOUNCE_MS } from '../../../../../shared/metadata-lookup/metadata-lookup.constants';
 import { IntakeRow } from '../IntakeRow';
 import type { IntakeAppliedMetadata, IntakeRowProps } from '../intake-panel.types';
 import { createMetadataSource, seasonQueryWrapper, seasonRow } from './intake-panel.test-support';
@@ -83,6 +84,7 @@ describe('IntakeRow', () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
   it.each([
@@ -166,11 +168,17 @@ describe('IntakeRow', () => {
   });
 
   it('resolves the row to the page picked in Find on provider', async () => {
+    // A clock that still ticks with real time, so `findBy` keeps polling while
+    // the case jumps past the search debounce.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const pageUrl = 'https://jkanime.net/dr-stone/';
     fetchProviderSearch.mockResolvedValue({ status: 'ok', pages: [{ title: 'Dr. Stone', pageUrl, provider: 'jkanime' }] });
     const props = renderRow({ row: seasonRow({ matchStatus: 'not_found' }) });
 
     fireEvent.click(screen.getByRole('button', { name: 'Find on provider' }));
+    act(() => {
+      vi.advanceTimersByTime(METADATA_LOOKUP_DEBOUNCE_MS);
+    });
     fireEvent.click(await screen.findByRole('button', { name: /jkanime\.net\/dr-stone/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Use this page' }));
 

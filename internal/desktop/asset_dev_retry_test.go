@@ -9,9 +9,11 @@ import (
 	"time"
 )
 
-// devApp returns an App whose environment says it runs under `wails dev` against the given URL.
-func devApp(frontendDevServerURL string) *App {
+// devApp returns an App whose environment says it runs under `wails dev` against the given URL,
+// with retryDelay between asset retries.
+func devApp(frontendDevServerURL string, retryDelay time.Duration) *App {
 	app := NewApp()
+	app.assetRetryDelay = retryDelay
 	app.getenvFn = func(key string) string {
 		if key == frontendDevServerURLEnv {
 			return frontendDevServerURL
@@ -42,7 +44,7 @@ func flakyHandler(failures int, calls *int) http.Handler {
 func TestDevAssetServerRetriesAnUnreachableViteUntilItAnswers(t *testing.T) {
 	t.Parallel()
 
-	middleware := buildAppOptions(devApp("http://localhost:5173/"), embed.FS{}).AssetServer.Middleware
+	middleware := buildAppOptions(devApp("http://localhost:5173/", time.Millisecond), embed.FS{}).AssetServer.Middleware
 	if middleware == nil {
 		t.Fatal("expected wails dev to install the asset retry middleware")
 	}
@@ -56,12 +58,49 @@ func TestDevAssetServerRetriesAnUnreachableViteUntilItAnswers(t *testing.T) {
 	}
 }
 
+// TestDevAssetRetryDefaultsTo40AttemptsSpaced250Milliseconds pins the values the retry falls back
+// to: devAssetRetryDelayOr maps an unset or negative delay to 250 ms and keeps a positive one, and
+// the retry makes 40 attempts. TestDevAssetServerWaitsTheDefaultDelayWhenTheAppSetsNone proves the
+// asset server applies that fallback.
+func TestDevAssetRetryDefaultsTo40AttemptsSpaced250Milliseconds(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct{ set, want time.Duration }{
+		{0, 250 * time.Millisecond}, {-time.Millisecond, 250 * time.Millisecond}, {5 * time.Millisecond, 5 * time.Millisecond},
+	} {
+		if got := devAssetRetryDelayOr(tc.set); got != tc.want {
+			t.Errorf("devAssetRetryDelayOr(%s) = %s, want %s", tc.set, got, tc.want)
+		}
+	}
+	if devAssetRetryAttempts != 40 {
+		t.Errorf("devAssetRetryAttempts = %d, want 40", devAssetRetryAttempts)
+	}
+}
+
+// TestDevAssetServerWaitsTheDefaultDelayWhenTheAppSetsNone runs the asset server with the delay
+// production leaves unset: after one 502 it waits the 250 ms default before the attempt that serves
+// the module, rather than retrying at once.
+func TestDevAssetServerWaitsTheDefaultDelayWhenTheAppSetsNone(t *testing.T) {
+	t.Parallel()
+
+	middleware := buildAppOptions(devApp("http://localhost:5173/", 0), embed.FS{}).AssetServer.Middleware
+	calls := 0
+	rec := httptest.NewRecorder()
+	start := time.Now()
+	middleware(flakyHandler(1, &calls)).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/src/main.tsx", nil))
+
+	if elapsed := time.Since(start); rec.Code != http.StatusOK || calls != 2 || elapsed < 250*time.Millisecond {
+		t.Fatalf("expected the second attempt's module after a 250 ms wait, got status=%d calls=%d after %s",
+			rec.Code, calls, elapsed)
+	}
+}
+
 // TestProductionAssetServerInstallsNoRetry keeps the production build untouched: its assets are
 // embedded, never proxied, so there is nothing to retry.
 func TestProductionAssetServerInstallsNoRetry(t *testing.T) {
 	t.Parallel()
 
-	if middleware := buildAppOptions(devApp(""), embed.FS{}).AssetServer.Middleware; middleware != nil {
+	if middleware := buildAppOptions(devApp("", time.Millisecond), embed.FS{}).AssetServer.Middleware; middleware != nil {
 		t.Fatal("expected no asset middleware outside wails dev")
 	}
 }

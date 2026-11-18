@@ -26,7 +26,7 @@ For module readiness, failure codes and the `shared/query` layer the frontend re
 | Package | Role |
 |---|---|
 | `main.go` (repository root) | embeds `frontend/dist`, serves the `internal/cfclearance` solver mode, calls `wails.Run(desktop.Options(assets))` |
-| `internal/desktop/options.go` | builds `options.App`: startup, shutdown, single-instance lock, `ErrorFormatter`, `Bind: app` |
+| `internal/desktop/options.go` | builds `options.App`: startup, shutdown, single-instance lock, `ErrorFormatter`, `Bind: app`, and under `wails dev` the asset retry of an unreachable Vite (`asset_dev_retry.go`: 40 attempts spaced by `App.assetRetryDelay`, 250 ms when unset, which is what `NewApp` leaves) |
 | `internal/desktop/app.go` | the `App` struct, `NewApp`, `startup`, `shutdown`, window and quit hooks |
 | `internal/desktop/app_defaults.go` | default constructors for every injectable seam (tests replace them) |
 | `internal/desktop/app_startup_runtime.go`, `app_runtime_services.go` | the wiring steps `startup` runs, and the `register*RuntimeEventBridge` functions |

@@ -10,6 +10,7 @@ import type { ActivityFeedLine, ActivityFeedView } from '../../../../../shared/c
 import { buildDay, buildLine, buildOverview, buildView } from '../../../feed/__tests__/activity-feed.fixtures';
 import type { ActivityDetailDrawerProps } from '../../ActivityDetailDrawer/activity-detail-drawer.types';
 import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
+import { ICON_ACTION_TOOLTIP_DELAY_MS } from '../../../../../shared/ui/IconActionButton/icon-action-button.constants';
 import { ActivityScreen } from '../ActivityScreen';
 import { ACTIVITY_PIN_FAILURE_MESSAGE, ACTIVITY_PIN_SUCCESS_MESSAGE } from '../activity-screen.constants';
 
@@ -92,6 +93,15 @@ function rows() {
   return document.querySelectorAll('[data-feed-row]');
 }
 
+/**
+ * Moves a fake clock (installed with `shouldAdvanceTime`, so `waitFor` still polls) inside `act`,
+ * so a tooltip delay elapses without a real wait.
+ * @param ms How far to move the clock.
+ */
+async function elapse(ms: number) {
+  await act(() => vi.advanceTimersByTimeAsync(ms));
+}
+
 beforeEach(() => {
   recorderListeners.length = 0;
   feedSource.searchFeed.mockReset();
@@ -116,8 +126,11 @@ describe('ActivityScreen', () => {
     expect(status.closest('[title]')).toBeNull();
     fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
     fireEvent.pointerUp(document.body, { pointerType: 'mouse' });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     fireEvent.pointerOver(status, { pointerType: 'mouse' });
-    await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent('Last contact from the phone'));
+    await elapse(ICON_ACTION_TOOLTIP_DELAY_MS);
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Last contact from the phone');
+    vi.useRealTimers();
 
     cleanup();
     getConnectedDevices.mockResolvedValueOnce([{ connection_status: 'disconnected', last_seen_at_ms: Date.now() - 5 * 60_000 }]);
@@ -415,6 +428,7 @@ describe('ActivityScreen chart and toolbar', () => {
   it('reads the dragged range, shows its ×, and reads the whole window again once cleared', async () => {
     await renderChart();
     const group = screen.getByRole('group', { name: /Drag across bars/ });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
 
     fireEvent.pointerDown(bars()[0]);
     fireEvent.pointerEnter(bars()[2]);
@@ -424,13 +438,14 @@ describe('ActivityScreen chart and toolbar', () => {
     expect(bars()[0].closest('[title]')).toBeNull();
     // React derives pointerenter from pointerover, so the hover stays on the drag's last bar.
     fireEvent.pointerOver(bars()[2], { pointerType: 'mouse' });
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    await elapse(ICON_ACTION_TOOLTIP_DELAY_MS + 100);
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
     fireEvent.pointerUp(group);
     expect(group).not.toHaveAttribute('data-chart-dragging');
     fireEvent.pointerOut(bars()[2], { pointerType: 'mouse' });
     fireEvent.pointerOver(bars()[0], { pointerType: 'mouse' });
-    await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent(bars()[0].getAttribute('aria-label') ?? '-'));
+    await elapse(ICON_ACTION_TOOLTIP_DELAY_MS);
+    expect(screen.getByRole('tooltip')).toHaveTextContent(bars()[0].getAttribute('aria-label') ?? '-');
 
     await waitFor(() => expect(lastQuery()).toMatchObject({ fromMs: slots[0].startMs }));
     expect(lastQuery()?.toMs).toBeGreaterThan(slots[2].startMs);
@@ -537,7 +552,11 @@ describe('ActivityScreen chart and toolbar', () => {
 
   it('clears the range and closes from Clear', async () => {
     await renderChart();
-    await applyToday();
+    // The range comes from a chart click, the cheaper path; applying one in the picker is the test above.
+    fireEvent.pointerDown(bars()[1]);
+    fireEvent.pointerUp(screen.getByRole('group', { name: /Drag across bars/ }));
+    await waitFor(() => expect(lastQuery()).toMatchObject({ fromMs: slots[1].startMs }));
+    expect(screen.getByRole('button', { name: 'Clear time range' })).toBeInTheDocument();
     const dialog = await openPicker();
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Clear' }));

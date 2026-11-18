@@ -46,7 +46,9 @@ func assertNewerOrderedProgressBlocked(t *testing.T, store *orderedProgressStore
 	if snapshot := store.waitForProgress(func(run Run) bool { return run.AnimesChecked >= 2 }, 150*time.Millisecond); snapshot != nil {
 		t.Fatalf("expected newer snapshot to stay blocked until older persistence finishes, got %#v", snapshot)
 	}
-	if count := waitForCheckedProgressEvent(progressChecks, 2, 150*time.Millisecond); count != nil {
+	// The store wait above already gave a leaked newer snapshot 150 ms; its event, published
+	// synchronously after persistence, would be buffered by now.
+	if count := waitForCheckedProgressEvent(progressChecks, 2, 10*time.Millisecond); count != nil {
 		t.Fatalf("expected newer progress event to stay blocked until older persistence finishes, got checked=%d", *count)
 	}
 }
@@ -73,7 +75,8 @@ func assertOrderedProgressSequences(t *testing.T, store *orderedProgressStore, p
 	if !isNonDecreasing(checkedSequence) {
 		t.Fatalf("expected persisted progress counters to stay monotonic, got %v", checkedSequence)
 	}
-	eventSequence := collectCheckedProgressEvents(progressChecks, 250*time.Millisecond)
+	// RunOnce has returned and the bus publishes synchronously, so every event is already buffered.
+	eventSequence := collectCheckedProgressEvents(progressChecks, 25*time.Millisecond)
 	if !isNonDecreasing(eventSequence) || !containsInt(eventSequence, 1) || !containsInt(eventSequence, 2) {
 		t.Fatalf("expected monotonic incremental progress events, got %v", eventSequence)
 	}

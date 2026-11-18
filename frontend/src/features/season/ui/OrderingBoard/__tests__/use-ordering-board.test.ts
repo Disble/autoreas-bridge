@@ -4,8 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { OrderingBoard, SeasonOrderingSnapshot, SeasonSource } from '../../../../../shared/contracts/season.types';
 import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
 import { resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
-import { ORDERING_AUTOSAVE_DEBOUNCE_MS, ORDERING_DUPLICATE_WEEKDAY_ERROR, ORDERING_HISTORY_LOAD_ERROR } from '../ordering-board.constants';
-import { card, createSource, dragOverEvent, renderOrderingBoard, snapshot, waitPastAutosave } from './ordering-board.test-support';
+import { ORDERING_DUPLICATE_WEEKDAY_ERROR, ORDERING_HISTORY_LOAD_ERROR } from '../ordering-board.constants';
+import { card, createSource, dragOverEvent, installAutosaveClock, renderOrderingBoard, snapshot, waitPastAutosave } from './ordering-board.test-support';
 
 describe('useOrderingBoard', () => {
   afterEach(() => {
@@ -196,6 +196,7 @@ describe('useOrderingBoard', () => {
   });
 
   it('skips autosave when the working state already contains a duplicate weekday placement', async () => {
+    installAutosaveClock();
     const source = createSource({
       rail: [],
       grid: [card({ animeId: 'g', dia: 'Lunes', orden: 1 }), card({ animeId: 'g', dia: 'Lunes', orden: 2 })],
@@ -203,11 +204,10 @@ describe('useOrderingBoard', () => {
     const { result } = renderOrderingBoard(source);
 
     await waitFor(() => expect(result.current.columns['Lunes']).toHaveLength(2));
-    vi.mocked(source.saveOrderingDraft).mockClear();
+    act(() => result.current.duplicate('g'));
+    expect(result.current.rail).toHaveLength(1);
 
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, ORDERING_AUTOSAVE_DEBOUNCE_MS + 50));
-    });
+    await waitPastAutosave();
 
     expect(source.saveOrderingDraft).not.toHaveBeenCalled();
   });
@@ -322,6 +322,7 @@ describe('useOrderingBoard', () => {
   });
 
   it('reopens an applied board when reload returns appliedAt null', async () => {
+    installAutosaveClock();
     const source = createSource(
       { rail: [], grid: [], appliedAt: 1_700_000_000_000 },
       {
@@ -492,10 +493,12 @@ describe('useOrderingBoard', () => {
 describe('useOrderingBoard reopen', () => {
   afterEach(() => {
     resetSeasonStore();
+    vi.useRealTimers();
     vi.clearAllMocks();
   });
 
   it('never autosaves after reopen when an edit landed during the apply reload', async () => {
+    installAutosaveClock();
     const open: OrderingBoard = { rail: [card({ animeId: 'g', section: 'Visto' })], grid: [] };
     const applied: OrderingBoard = { ...open, appliedAt: 1_700_000_000_000 };
     let resolveApplyReload: (board: OrderingBoard) => void = () => undefined;

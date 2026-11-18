@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SendToVerHoyResult } from '../../../../../shared/contracts/season.types';
+import type { SeasonAnimeRow, SendToVerHoyResult } from '../../../../../shared/contracts/season.types';
 import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
 import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { getSeasonStoreState, resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
@@ -9,6 +9,7 @@ import { DAILY_BOARD_RECHECK_BUSY, DAILY_BOARD_SEND_BUSY } from '../daily-board.
 import { useDailyBoard } from '../use-daily-board';
 import { useDailyBoardSend } from '../use-daily-board-send';
 import { deferred, makeSeasonPort } from '../../../__tests__/season-port.test-support';
+import { useDailyBoardSections } from '../use-daily-board-sections';
 
 /** Renders one season screen hook over a ready season query client. */
 const renderSeasonHook = renderHook;
@@ -63,5 +64,41 @@ describe('Daily board busy feedback', () => {
 
     await waitFor(() => expect(getSeasonStoreState().busyMessage).toBeUndefined());
     expect(getSeasonStoreState().errorMessage).toBe(expectedError);
+  });
+});
+
+/** Builds created rows in one section, carrying only the fields this hook reads. */
+function rows(section: string, ...animeIds: readonly string[]): SeasonAnimeRow[] {
+  return animeIds.map((animeId) => ({ id: `${section}-${animeId}`, animeId, availability: 'created', section }) as SeasonAnimeRow);
+}
+
+/** Builds a cover port whose binding resolves every id to its own data URL. */
+function coverSource() {
+  return { getAnimeCover: vi.fn((animeId: string) => Promise.resolve({ source: 'cover', dataUrl: `data:${animeId}` })) };
+}
+
+describe('useDailyBoardSections', () => {
+  it('groups the rows and shows a requested cover loading, then resolved', async () => {
+    const source = coverSource();
+    const { result } = renderHook(() => useDailyBoardSections(rows('Sin ver', 'a'), source));
+
+    expect(result.current.view.sections.sinVer.map((row) => row.animeId)).toEqual(['a']);
+    expect(result.current.getCoverThumb('a')).toEqual({ coverSrc: undefined, isLoading: true });
+    await waitFor(() => expect(result.current.getCoverThumb('a')).toEqual({ coverSrc: 'data:a', isLoading: false }));
+  });
+
+  it('requests each non-empty board id once, across sections, duplicates and re-renders', async () => {
+    const source = coverSource();
+    const { result, rerender } = renderHook(({ board }) => useDailyBoardSections(board, source), {
+      initialProps: { board: [...rows('Sin ver', 'a', 'a', ''), ...rows('Visto', 'v')] },
+    });
+    await waitFor(() => expect(result.current.getCoverThumb('a').coverSrc).toBe('data:a'));
+
+    rerender({ board: [...rows('Sin ver', 'a'), ...rows('Ver hoy', 'b'), ...rows('Visto', 'v')] });
+    rerender({ board: [...rows('Sin ver', 'b'), ...rows('Lunes', 'a'), ...rows('Ver hoy', 'v')] });
+    await waitFor(() => expect(result.current.getCoverThumb('b').coverSrc).toBe('data:b'));
+
+    expect(source.getAnimeCover.mock.calls).toEqual([['a'], ['v'], ['b']]);
+    expect(result.current.getCoverThumb('v')).toEqual({ coverSrc: 'data:v', isLoading: false });
   });
 });

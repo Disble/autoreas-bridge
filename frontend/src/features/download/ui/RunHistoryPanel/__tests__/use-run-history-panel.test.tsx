@@ -358,7 +358,16 @@ describe('useRunHistoryPanel stopping feedback', () => {
 describe('useRunHistoryPanel run story', () => {
   afterEach(() => {
     resetDownloadRuntimeStore();
+    vi.useRealTimers();
   });
+
+  /**
+   * Moves the fake clock past timers inside `act`, so the stored-row debounce fires without a real wait.
+   * @param ms How far to move the clock.
+   */
+  async function elapse(ms: number) {
+    await act(() => vi.advanceTimersByTimeAsync(ms));
+  }
 
   /** One stored story: Frieren downloaded episode 4. */
   const story: RunHistoryStory = {
@@ -373,6 +382,27 @@ describe('useRunHistoryPanel run story', () => {
 
   /** A cover port answering one cover per anime. */
   const coverSource = { getAnimeCover: vi.fn().mockResolvedValue({ source: 'cover', dataUrl: 'data:image/png;base64,AA' }) };
+
+  /**
+   * Mounts the hook on one finished run whose story port also announces stored rows, on a fake clock
+   * (`shouldAdvanceTime` keeps `waitFor` polling).
+   * @param stopListening What unsubscribing from stored rows calls.
+   * @returns The spied story port, the unmount, and a function announcing one stored row of a run.
+   */
+  function renderWithStoredRows(stopListening: () => void = () => undefined) {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let announceStored: ((row: { readonly correlationId: string }) => void) | undefined;
+    const storySource = {
+      ...createStorySource(),
+      subscribeRecorder: vi.fn().mockImplementation((next: (row: { readonly correlationId: string }) => void) => {
+        announceStored = next;
+        return stopListening;
+      }),
+    };
+    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue([createRun(1, { status: 'ok' })]) });
+    const { unmount } = renderHook(() => useRunHistoryPanel(source, { storySource, coverSource }), { wrapper: atRoute() });
+    return { storySource, unmount, announce: (correlationId: string) => announceStored?.({ correlationId }) };
+  }
 
   it('builds the selected run detail from its story and resolves the covers of its anime', async () => {
     const storySource = createStorySource();
@@ -430,54 +460,35 @@ describe('useRunHistoryPanel run story', () => {
   it('reads a finished run story again once rows of that run are stored after it, once per burst, and stops listening on unmount', async () => {
     // download.run_finished reaches the WebView before the eventlog queue has persisted the run's
     // last rows, so the read on that status flip can miss them; each stored row is announced.
-    let announceStored: ((row: { readonly correlationId: string }) => void) | undefined;
     const stopListening = vi.fn();
-    const storySource = {
-      ...createStorySource(),
-      subscribeRecorder: vi.fn().mockImplementation((next: (row: { readonly correlationId: string }) => void) => {
-        announceStored = next;
-        return stopListening;
-      }),
-    };
-    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue([createRun(1, { status: 'ok' })]) });
-    const { unmount } = renderHook(() => useRunHistoryPanel(source, { storySource, coverSource }), { wrapper: atRoute() });
+    const { storySource, unmount, announce } = renderWithStoredRows(stopListening);
     await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(1));
 
-    act(() => {
-      announceStored?.({ correlationId: 'run-1' });
-      announceStored?.({ correlationId: 'run-1' });
-      announceStored?.({ correlationId: 'run-1' });
-    });
-
+    // Three rows 50 ms apart, then quiet. Each row restarts the debounce; the clock moves in 50 ms
+    // steps so timers that each fired on their own would each read. The steps stay far below the
+    // debounce, so a stalled worker adding real time between rows cannot split the burst.
+    for (const row of ['run-1', 'run-1', 'run-1', undefined, undefined]) {
+      if (row !== undefined) {
+        act(() => announce(row));
+      }
+      await elapse(50);
+    }
     await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(2));
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 2 * RUN_HISTORY_STORY_REFRESH_DEBOUNCE_MS));
-    });
+    await elapse(2 * RUN_HISTORY_STORY_REFRESH_DEBOUNCE_MS);
     expect(storySource.getRunStory.mock.calls).toEqual([['run-1'], ['run-1']]);
     unmount();
     expect(stopListening).toHaveBeenCalled();
   });
 
   it('reads the story again for every later burst of stored rows, not only the first', async () => {
-    let announceStored: ((row: { readonly correlationId: string }) => void) | undefined;
-    const storySource = {
-      ...createStorySource(),
-      subscribeRecorder: vi.fn().mockImplementation((next: (row: { readonly correlationId: string }) => void) => {
-        announceStored = next;
-        return () => undefined;
-      }),
-    };
-    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue([createRun(1, { status: 'ok' })]) });
-    renderHook(() => useRunHistoryPanel(source, { storySource, coverSource }), { wrapper: atRoute() });
+    const { storySource, announce } = renderWithStoredRows();
     await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(1));
 
-    act(() => {
-      announceStored?.({ correlationId: 'run-1' });
-    });
+    act(() => announce('run-1'));
+    await elapse(RUN_HISTORY_STORY_REFRESH_DEBOUNCE_MS);
     await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(2));
-    act(() => {
-      announceStored?.({ correlationId: 'run-1' });
-    });
+    act(() => announce('run-1'));
+    await elapse(RUN_HISTORY_STORY_REFRESH_DEBOUNCE_MS);
 
     await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(3));
   });
@@ -493,24 +504,11 @@ describe('useRunHistoryPanel run story', () => {
   });
 
   it('reads nothing more for rows of another run', async () => {
-    let announceStored: ((row: { readonly correlationId: string }) => void) | undefined;
-    const storySource = {
-      ...createStorySource(),
-      subscribeRecorder: vi.fn().mockImplementation((next: (row: { readonly correlationId: string }) => void) => {
-        announceStored = next;
-        return () => undefined;
-      }),
-    };
-    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue([createRun(1, { status: 'ok' })]) });
-    renderHook(() => useRunHistoryPanel(source, { storySource, coverSource }), { wrapper: atRoute() });
+    const { storySource, announce } = renderWithStoredRows();
     await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(1));
 
-    act(() => {
-      announceStored?.({ correlationId: 'run-9' });
-    });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 2 * RUN_HISTORY_STORY_REFRESH_DEBOUNCE_MS));
-    });
+    act(() => announce('run-9'));
+    await elapse(2 * RUN_HISTORY_STORY_REFRESH_DEBOUNCE_MS);
 
     expect(storySource.getRunStory).toHaveBeenCalledTimes(1);
   });

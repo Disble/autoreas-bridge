@@ -116,6 +116,7 @@ type App struct {
 	seasonService              *season.Service
 	settingsStore              appSettingsStore
 	getenvFn                   func(string) string
+	assetRetryDelay            time.Duration // zero means devAssetRetryDelay; see assetServerMiddleware
 	animeWrite                 *anime.WriteService
 	animeCreate                anime.Creator
 	animeCreateBatch           anime.BatchCreator
