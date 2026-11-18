@@ -5,21 +5,26 @@ import { createBridgeError } from '../../../../../shared/query/bridge-error/brid
 import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { status } from '../../../../../shared/query/test-support/readiness-source.test-support';
 import { LIBRARY_ROOT_LOADING_LABEL, LIBRARY_ROOT_UNAVAILABLE_TITLE } from '../library-root-panel.constants';
+import type { PickerSource } from '../../../../../shared/contracts/picker.types';
 import type { LibraryRootSource } from '../library-root-panel.types';
 import { LibraryRootPanel } from '../LibraryRootPanel';
 
 /** A preview where no active anime moves, so the root saves straight away. */
 const NO_MOVES = { oldRoot: 'D:/Anime', moves: [], kept: [] };
 
+/** A folder picker the user cancels, for the cases that never browse. */
+const CANCELLING_PICKER: PickerSource = { pickFolder: vi.fn().mockResolvedValue(''), pickFile: vi.fn() };
+
 /**
  * Renders the panel under a query wrapper whose `settings` module is `state`.
  * @param source The Settings port.
  * @param state The settings module's state.
+ * @param pickerSource The folder picker port.
  * @returns The render result.
  */
-function renderPanel(source: LibraryRootSource, state: 'starting' | 'ready' = 'ready') {
+function renderPanel(source: LibraryRootSource, state: 'starting' | 'ready' = 'ready', pickerSource: PickerSource = CANCELLING_PICKER) {
   const { wrapper } = createModulesTestWrapper(status('settings', state));
-  return render(<LibraryRootPanel source={source} />, { wrapper });
+  return render(<LibraryRootPanel source={source} pickerSource={pickerSource} />, { wrapper });
 }
 
 // Spy instead of vi.mock: @heroui/react is pre-bundled by deps.optimizer,
@@ -40,7 +45,6 @@ describe('LibraryRootPanel', () => {
       getLibraryRoot: vi.fn().mockResolvedValue('D:/Anime'),
       setLibraryRoot: vi.fn().mockResolvedValue(undefined),
       previewLibraryRootChange: vi.fn().mockResolvedValue(NO_MOVES),
-      pickFolder: vi.fn(),
     };
 
     renderPanel(source);
@@ -61,10 +65,9 @@ describe('LibraryRootPanel', () => {
       getLibraryRoot: vi.fn().mockResolvedValue(''),
       setLibraryRoot: vi.fn().mockResolvedValue(undefined),
       previewLibraryRootChange: vi.fn().mockResolvedValue(NO_MOVES),
-      pickFolder: vi.fn().mockResolvedValue('F:/Chosen'),
     };
 
-    renderPanel(source);
+    renderPanel(source, 'ready', { pickFolder: vi.fn().mockResolvedValue('F:/Chosen'), pickFile: vi.fn() });
 
     fireEvent.click(await screen.findByRole('button', { name: 'Browse' }));
 
@@ -83,7 +86,6 @@ describe('LibraryRootPanel', () => {
         ],
         kept: [{ animeId: 'e', name: 'Eureka', folder: 'E:\\Anime\\Eureka' }],
       }),
-      pickFolder: vi.fn(),
     };
 
     renderPanel(source);
@@ -106,7 +108,7 @@ describe('LibraryRootPanel', () => {
   });
 
   it('shows a labelled skeleton and no field while the settings module starts', () => {
-    const source = { getLibraryRoot: vi.fn().mockResolvedValue('D:/Anime'), setLibraryRoot: vi.fn(), previewLibraryRootChange: vi.fn(), pickFolder: vi.fn() };
+    const source = { getLibraryRoot: vi.fn().mockResolvedValue('D:/Anime'), setLibraryRoot: vi.fn(), previewLibraryRootChange: vi.fn() };
 
     renderPanel(source, 'starting');
 
@@ -122,7 +124,6 @@ describe('LibraryRootPanel', () => {
       getLibraryRoot: vi.fn().mockRejectedValue(createBridgeError('internal', 'settings disk I/O error')),
       setLibraryRoot: vi.fn(),
       previewLibraryRootChange: vi.fn(),
-      pickFolder: vi.fn(),
     };
 
     renderPanel(source);

@@ -37,14 +37,12 @@ const renderHook: typeof renderBridgeHook = (callback, options) => renderBridgeH
 });
 
 /** Builds the season port this suite drives, overriding only what a case sets. */
-function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource & SeasonQuerySource {
+function createSource(overrides: Partial<SeasonSource & SeasonQuerySource> = {}): SeasonSource & SeasonQuerySource {
   return {
-    getSeason: vi.fn().mockResolvedValue({ id: 's1', name: 'Julio 2026', minApprovalGrade: 4, slots: 12, status: 'open', createdAt: 0 }),
     createSeason: vi.fn().mockResolvedValue('ok'),
     setMinApprovalGrade: vi.fn().mockResolvedValue('ok'),
     setSlots: vi.fn().mockResolvedValue('ok'),
     closeSeason: vi.fn().mockResolvedValue('ok'),
-    getSeasonAnimes: vi.fn().mockResolvedValue([]),
     reconcileIntake: vi.fn().mockResolvedValue('ok'),
     sendToVerHoy: vi.fn().mockResolvedValue({ pastDownloadTime: false, downloadTime: '' }),
     triggerSeasonDownloads: vi.fn().mockResolvedValue(undefined),
@@ -53,27 +51,19 @@ function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource & Sea
     resolveMatch: vi.fn().mockResolvedValue('ok'),
     discardName: vi.fn().mockResolvedValue('ok'),
     restoreName: vi.fn().mockResolvedValue('ok'),
-    setAnimeDays: vi.fn().mockResolvedValue('ok'),
     setGrade: vi.fn().mockResolvedValue('ok'),
     skipGrading: vi.fn().mockResolvedValue('ok'),
     setConsideration: vi.fn().mockResolvedValue('ok'),
     confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 1, rejected: 1, quotaExceeded: false }),
     setSeasonAnimeMetadata: vi.fn().mockResolvedValue('ok'),
     createSeasonAnimes: vi.fn().mockResolvedValue('ok'),
-    pickFolder: vi.fn().mockResolvedValue(''),
-    listSeasons: vi.fn().mockResolvedValue([]),
-    getPastSeason: vi.fn().mockResolvedValue(null),
-    getPastSeasonAnimes: vi.fn().mockResolvedValue([]),
-    getOrderingBoard: vi.fn().mockResolvedValue({ rail: [], grid: [] }),
     saveOrderingDraft: vi.fn().mockResolvedValue('ok'),
     applySchedule: vi.fn().mockResolvedValue({ status: 'ok', applied: 0, failed: [] }),
     reopenOrdering: vi.fn().mockResolvedValue('ok'),
     recheckAvailability: vi.fn().mockResolvedValue('ok'),
-    getCheckTime: vi.fn().mockResolvedValue('21:00'),
-    setCheckTime: vi.fn().mockResolvedValue('ok'),
     openPage: vi.fn(),
-    readSeason: overrides.getSeason ?? vi.fn().mockResolvedValue({ id: 's1', name: 'Julio 2026', minApprovalGrade: 4, slots: 12, status: 'open', createdAt: 0 }),
-    readSeasonAnimes: overrides.getSeasonAnimes ?? vi.fn().mockResolvedValue([]),
+    readSeason: vi.fn().mockResolvedValue({ id: 's1', name: 'Julio 2026', minApprovalGrade: 4, slots: 12, status: 'open', createdAt: 0 }),
+    readSeasonAnimes: vi.fn().mockResolvedValue([]),
     readSeasons: vi.fn().mockResolvedValue([]),
     readPastSeason: vi.fn().mockResolvedValue(null),
     readPastSeasonAnimes: vi.fn().mockResolvedValue([]),
@@ -140,13 +130,11 @@ describe('useSelectionBoard', () => {
     await waitFor(() => expect(result.current.seasonName).toBe('Julio 2026'));
     expect(source.readSeason).toHaveBeenCalled();
     expect(source.readSeasonAnimes).toHaveBeenCalled();
-    expect(source.getSeason).not.toHaveBeenCalled();
-    expect(source.getSeasonAnimes).not.toHaveBeenCalled();
   });
 
   it('loads on mount and derives rows, approved count, and quota', async () => {
     const rows = [created('a', 'anime-a', 5), created('b', 'anime-b', 2)];
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useSelectionBoard(source));
 
     await waitFor(() => expect(result.current.rows).toHaveLength(2));
@@ -158,7 +146,7 @@ describe('useSelectionBoard', () => {
 
   it('groups the rows by verdict and resolves one cover per candidate', async () => {
     const rows = [created('a', 'anime-a', 5), created('b', 'anime-b', 2), created('c', 'anime-c', 6)];
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const getAnimeCover = vi.fn((animeId: string) => Promise.resolve({ source: 'cover', dataUrl: `data:${animeId}` }));
     const { result } = renderHook(() => useSelectionBoard(source, { getAnimeCover }));
 
@@ -172,7 +160,7 @@ describe('useSelectionBoard', () => {
 
   it('applies successive view edits without dropping the previous one', async () => {
     const rows = [created('a', 'anime-a', 6), created('b', 'anime-b', 3), created('c', 'anime-c', 5)];
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useSelectionBoard(source));
     await waitFor(() => expect(result.current.rows).toHaveLength(3));
 
@@ -229,7 +217,7 @@ describe('useSelectionBoard', () => {
   });
   it('counts an asymmetric verdict split, not a symmetric one', async () => {
     const rows = [created('a', 'anime-a', 5), created('b', 'anime-b', 6), created('c', 'anime-c', 5), created('d', 'anime-d', 2)];
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useSelectionBoard(source));
 
     await waitFor(() => expect(result.current.rows).toHaveLength(4));
@@ -238,7 +226,7 @@ describe('useSelectionBoard', () => {
 
   it('narrows the groups by criteria without touching the approved count', async () => {
     const rows = [created('a', 'anime-a', 5), created('b', 'anime-b', 2), created('c', 'anime-c', 6), created('d', 'anime-d', 0)];
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useSelectionBoard(source));
     await waitFor(() => expect(result.current.rows).toHaveLength(4));
 
@@ -256,7 +244,7 @@ describe('useSelectionBoard', () => {
 
   it('sorts the visible rows inside each verdict group and keeps the group totals', async () => {
     const rows = [created('a', 'anime-a', 5), created('b', 'anime-b', 2), created('c', 'anime-c', 6), created('d', 'anime-d', 0)];
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useSelectionBoard(source));
     await waitFor(() => expect(result.current.rows).toHaveLength(4));
 
@@ -273,7 +261,7 @@ describe('useSelectionBoard', () => {
 
   it('resets the filters while keeping the order, and resets the whole view', async () => {
     const rows = [created('a', 'anime-a', 5), created('b', 'anime-b', 2), created('c', 'anime-c', 6)];
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useSelectionBoard(source));
     await waitFor(() => expect(result.current.rows).toHaveLength(3));
 
@@ -291,7 +279,7 @@ describe('useSelectionBoard', () => {
 
   it('exposes the selection-confirmed milestone from the season snapshot', async () => {
     const source = createSource({
-      getSeason: vi.fn().mockResolvedValue({ id: 's1', name: 'Julio 2026', minApprovalGrade: 4, slots: 12, status: 'open', createdAt: 0, selectionConfirmedAt: 1_753_000_000_000 }),
+      readSeason: vi.fn().mockResolvedValue({ id: 's1', name: 'Julio 2026', minApprovalGrade: 4, slots: 12, status: 'open', createdAt: 0, selectionConfirmedAt: 1_753_000_000_000 }),
     });
     const { result } = renderHook(() => useSelectionBoard(source));
     await waitFor(() => expect(result.current.selectionConfirmedAt).toBe(1_753_000_000_000));

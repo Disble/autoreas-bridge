@@ -8,6 +8,7 @@ import { useEpisodeSchedulePanel } from '../use-episode-schedule-panel';
 import { getDefaultEpisodeDay } from '../episode-schedule-panel.helpers';
 import type { EpisodeSchedulePanelProps } from '../episode-schedule-panel.types';
 import { makeSeason } from '../../../../../shared/season/__tests__/season.test-support';
+import { SEASON_CURRENT_KEY } from '../../../../../shared/season/season.constants';
 import { createEpisodesWrapper, createSource, scheduleItem } from './episode-schedule.test-support';
 
 /** Toast stub, hoisted so the HeroUI module mock can close over it. */
@@ -105,6 +106,22 @@ describe('useEpisodeSchedulePanel', () => {
     expect(result.current.filterOptions).toContain('Sábado');
     expect(result.current.selectedDay).toBe(getDefaultEpisodeDay());
     expect(readSeason).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a lens the user picked while the season read was pending, through later season reads', async () => {
+    let resolveSeason: (season: ReturnType<typeof makeSeason>) => void = () => undefined;
+    const readSeason = vi.fn().mockReturnValueOnce(new Promise((resolve) => { resolveSeason = resolve; })).mockResolvedValue(null);
+    const { result, client } = renderPanelHook({ source: createSource({ readSeason }) });
+
+    act(() => result.current.selectLens('daily'));
+    await act(async () => resolveSeason(makeSeason()));
+    await waitFor(() => expect(result.current.filterOptions).toContain('Sábado'));
+    expect(result.current.lens).toBe('daily');
+    await act(async () => client.invalidateQueries({ queryKey: SEASON_CURRENT_KEY }));
+
+    await waitFor(() => expect(readSeason).toHaveBeenCalledTimes(2));
+    expect(result.current.lens).toBe('daily');
+    expect(result.current.selectedDay).toBe(getDefaultEpisodeDay());
   });
 
   it('switches back to the season lens and reopens on Ver hoy', async () => {

@@ -267,7 +267,8 @@ export type SeasonProviderPage = Omit<SeasonAnimeCandidate, 'score'> & Readonly<
 
 /**
  * Result of searching every download provider by free text. `status` is `ok`
- * or the failure's message; `pages` is empty, never null, when nothing matched.
+ * (a failed search rejects instead); `pages` is empty, never null, when nothing
+ * matched.
  */
 export interface SeasonProviderSearchResult {
   readonly status: string;
@@ -287,34 +288,24 @@ export interface ConfirmSelectionResult {
 }
 
 /**
- * Request/reply port for season Wails bindings with browser-safe degraded fallbacks.
+ * Request/reply port for the season module's commands and push events. Its
+ * status commands resolve `'ok'` or the failure's message; the commands with a
+ * result and the `fetch*` reads reject with a `BridgeError`. The reads screens
+ * render live in {@link SeasonQuerySource}; the folder picker is `PickerSource`
+ * and the daily check time belongs to `SettingsSource`.
  */
 export interface SeasonSource {
-  readonly getSeason: () => Promise<SeasonSnapshot | null>;
   readonly createSeason: (name: string) => Promise<string>;
   readonly setMinApprovalGrade: (grade: number) => Promise<string>;
   readonly setSlots: (slots: number) => Promise<string>;
   readonly closeSeason: () => Promise<string>;
-  readonly getSeasonAnimes: () => Promise<readonly SeasonAnimeRow[]>;
-  readonly listSeasons: () => Promise<readonly SeasonSnapshot[]>;
-  readonly getPastSeason: (seasonId: string) => Promise<SeasonSnapshot | null>;
-  readonly getPastSeasonAnimes: (seasonId: string) => Promise<readonly SeasonAnimeRow[]>;
   readonly reconcileIntake: (rawText: string) => Promise<string>;
   readonly runMatching: () => Promise<string>;
   readonly resolveMatch: (rowId: string, pageUrl: string) => Promise<string>;
-  /**
-   * Searches every download provider by free text, for the intake's "Find on
-   * provider" lookup. Optional on the port, like `fetchSeasonOrderingSnapshot`,
-   * so pre-existing partial test doubles stay assignable; the runtime adapter
-   * always provides it, and a missing search reads as unavailable, never as
-   * "no pages".
-   */
-  readonly searchProviders?: (query: string) => Promise<SeasonProviderSearchResult>;
   /** Marks an intake row discarded; "ok" or an error message. */
   readonly discardName: (rowId: string) => Promise<string>;
   /** Brings a discarded intake row back with its matched page; "ok" or an error message. */
   readonly restoreName: (rowId: string) => Promise<string>;
-  readonly setAnimeDays: (animeId: string, dias: readonly string[]) => Promise<string>;
   /** Stages created animes into Ver hoy; rejects with a `BridgeError` when the send failed or the module is not ready. */
   readonly sendToVerHoy: (animeIds: readonly string[]) => Promise<SendToVerHoyResult>;
   /** Starts the season download run; resolves once it started, rejects with the refusal (a run in progress) or the module's failure. */
@@ -339,17 +330,11 @@ export interface SeasonSource {
    * does here.
    */
   readonly setSeasonAnimeMetadata: (rowId: string, metadataJSON: string) => Promise<string>;
-  readonly pickFolder: (title: string) => Promise<string>;
-  readonly getOrderingBoard: () => Promise<OrderingBoard>;
   readonly saveOrderingDraft: (draftJson: string) => Promise<string>;
   /** Writes the drafted schedule; rejects with a `BridgeError` when a write failed or the module is not ready. */
   readonly applySchedule: () => Promise<ApplyScheduleResult>;
   readonly reopenOrdering: () => Promise<string>;
   readonly recheckAvailability: () => Promise<string>;
-  /** Reads the local HH:MM of the daily availability check; `''` when the runtime is unavailable. */
-  readonly getCheckTime: () => Promise<string>;
-  /** Saves the local HH:MM of the daily availability check; resolves `'ok'` or the failure message. */
-  readonly setCheckTime: (hhmm: string) => Promise<string>;
   readonly openPage: (url: string) => void;
   /**
    * Fires when a matching run opens, carrying the run total. Optional on the

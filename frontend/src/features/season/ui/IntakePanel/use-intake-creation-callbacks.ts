@@ -1,6 +1,9 @@
+import { toast } from '@heroui/react';
 import { useCallback } from 'react';
+import type { PickerSource } from '../../../../shared/contracts/picker.types';
 import type { SeasonSource } from '../../../../shared/contracts/season.types';
-import { INTAKE_FOLDER_PICKER_TITLE } from './intake-panel.constants';
+import { toErrorMessage } from '../../../../shared/helpers/error-message.helpers';
+import { INTAKE_FOLDER_PICKER_FAILED_MESSAGE, INTAKE_FOLDER_PICKER_TITLE } from './intake-panel.constants';
 import { buildSeasonCreateMetadata, collectFolderOverrides } from './intake-panel.helpers';
 import type { useIntakeEditorState } from './use-intake-editor-state';
 import type { useIntakeMetadataView } from './use-intake-metadata-view';
@@ -16,6 +19,8 @@ interface IntakeCreationCallbacksInput {
   readonly store: ReturnType<typeof useIntakeStoreSlice>;
   /** The season port every row mutation goes through. */
   readonly source: SeasonSource;
+  /** The native folder picker the per-row override goes through. */
+  readonly pickerSource: PickerSource;
 }
 
 /**
@@ -23,12 +28,14 @@ interface IntakeCreationCallbacksInput {
  * override picker and the explicit Create action over the picked rows. Only
  * the picked rows travel, and each one carries only the metadata it holds —
  * whether from this session's lookup or from storage — because that is exactly
- * what the row displays above the Create button.
- * @param input The editor state, metadata view, store slice, and source.
+ * what the row displays above the Create button. A cancelled folder dialog
+ * (`''`) changes nothing; a failed one records nothing and shows an error toast
+ * carrying the bridge's reason.
+ * @param input The editor state, metadata view, store slice, season source and picker.
  * @returns The folder picker and the Create action.
  */
 export function useIntakeCreationCallbacks(input: Readonly<IntakeCreationCallbacksInput>) {
-  const { editor, metadata, store, source } = input;
+  const { editor, metadata, store, source, pickerSource } = input;
   const { selected, setSelected, folderOverrides, setFolderOverrides } = editor;
   const { heldByRow } = metadata;
   const { createSeasonAnimes } = store;
@@ -36,13 +43,15 @@ export function useIntakeCreationCallbacks(input: Readonly<IntakeCreationCallbac
   // 6. Callbacks
   const onPickFolder = useCallback(
     (rowId: string) => {
-      void source.pickFolder(INTAKE_FOLDER_PICKER_TITLE).then((picked) => {
+      void pickerSource.pickFolder(INTAKE_FOLDER_PICKER_TITLE).then((picked) => {
         if (picked !== '') {
           setFolderOverrides((prev) => ({ ...prev, [rowId]: picked }));
         }
+      }, (error: unknown) => {
+        toast.danger(toErrorMessage(error, INTAKE_FOLDER_PICKER_FAILED_MESSAGE));
       });
     },
-    [source],
+    [pickerSource],
   );
   const onCreate = useCallback(() => {
     if (selected.size === 0) {

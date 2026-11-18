@@ -12,26 +12,6 @@ function rejectingBinding() {
 describe('shell binding adapters', () => {
   useIsolatedWailsRuntime();
 
-  it.each([
-    ['bridge runtime pickFile', 'PickFile', async () => (await import('../bridge-runtime-source/bridge-runtime-source.helpers')).bridgeRuntimeSource.pickFile('Cover')],
-    ['bridge runtime pickFolder', 'PickFolder', async () => (await import('../bridge-runtime-source/bridge-runtime-source.helpers')).bridgeRuntimeSource.pickFolder('Folder')],
-    ['season pickFolder', 'PickFolder', async () => (await import('../season-source/season-source.helpers')).seasonSource.pickFolder('Folder')],
-    ['preferences pickFolder', 'PickFolder', async () => (await import('../preferences-source/preferences-source.helpers')).createPreferencesSource().pickFolder('Folder')],
-  ] as const)('%s reads a failed dialog as a cancel, as the pickers did before', async (_name, binding, pick) => {
-    window.go = { desktop: { App: { [binding]: rejectingBinding() } } } as never;
-
-    await expect(pick()).resolves.toBe('');
-  });
-
-  it('bridge runtime pickFile still resolves the chosen path', async () => {
-    const pickFile = vi.fn().mockResolvedValue('C:/covers/a.png');
-    window.go = { desktop: { App: { PickFile: pickFile } } } as never;
-    const { bridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
-
-    await expect(bridgeRuntimeSource.pickFile('Cover')).resolves.toBe('C:/covers/a.png');
-    expect(pickFile).toHaveBeenCalledWith('Cover');
-  });
-
   it('metadata lookup reports a failed search and detail as the error outcome carrying the binding message', async () => {
     window.go = { desktop: { App: { SearchMyAnimeList: rejectingBinding(), GetMyAnimeListDetail: rejectingBinding() } } } as never;
     const { createMetadataLookupSource } = await import('../metadata-lookup-source/metadata-lookup-source.helpers');

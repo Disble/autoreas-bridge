@@ -77,7 +77,6 @@ describe('settings-source', () => {
       PreviewLibraryRootChange: vi.fn().mockResolvedValue(preview),
       GetAutoStartEnabled: vi.fn().mockResolvedValue(true),
       SetAutoStartEnabled: vi.fn().mockResolvedValue(undefined),
-      PickFolder: vi.fn().mockResolvedValue('F:/Chosen'),
       GetKeymap: vi.fn().mockResolvedValue(''),
       SetKeymap: vi.fn().mockResolvedValue(undefined),
       GetSeasonCheckTime: vi.fn().mockResolvedValue('21:00'),
@@ -92,7 +91,6 @@ describe('settings-source', () => {
     await expect(source.previewLibraryRootChange('F:/Anime')).resolves.toBe(preview);
     await expect(source.getAutoStartEnabled()).resolves.toBe(true);
     await expect(source.setAutoStartEnabled(false)).resolves.toBeUndefined();
-    await expect(source.pickFolder('Choose library root folder')).resolves.toBe('F:/Chosen');
     // An empty keymap is a valid "nothing rebound" answer, passed through as the opaque document it is.
     await expect(source.getKeymap()).resolves.toBe('');
     await expect(source.setKeymap('{"version":1,"bindings":{}}')).resolves.toBeUndefined();
@@ -103,15 +101,5 @@ describe('settings-source', () => {
     expect(app.SetLibraryRoot).toHaveBeenCalledWith('F:/Anime');
     expect(app.PreviewLibraryRootChange).toHaveBeenCalledWith('F:/Anime');
     expect(app.SetAutoStartEnabled).toHaveBeenCalledWith(false);
-    expect(app.PickFolder).toHaveBeenCalledWith('Choose library root folder');
-  });
-
-  it('reads a failed folder dialog as a cancel, as every folder picker does', async () => {
-    window.go = {
-      desktop: { App: { PickFolder: vi.fn().mockRejectedValue(new Error('{"code":"internal","message":"open folder dialog: crashed"}')) } },
-    } as never;
-    const { createSettingsSource } = await import('../settings-source/settings-source.helpers');
-
-    await expect(createSettingsSource().pickFolder('Choose library root folder')).resolves.toBe('');
   });
 });

@@ -1,9 +1,4 @@
-import type {
-  OrderingBoard,
-  SeasonProviderSearchResult,
-  SeasonQuerySource,
-  SeasonSource,
-} from '../../shared/contracts/season.types';
+import type { SeasonQuerySource, SeasonSource } from '../../shared/contracts/season.types';
 
 /** Runtime-unavailable sentinel returned by season mutators when Wails is not ready. */
 export const SEASON_RUNTIME_UNAVAILABLE = 'runtime unavailable';
@@ -14,15 +9,6 @@ export const SEASON_RUNTIME_UNAVAILABLE = 'runtime unavailable';
  * adapter keeps answering the one the binding used to return.
  */
 export const SEASON_COMMAND_OK = 'ok';
-
-/** Safe degraded provider-search result returned when Wails is unavailable. */
-export const SEASON_PROVIDER_SEARCH_UNAVAILABLE: SeasonProviderSearchResult = {
-  status: SEASON_RUNTIME_UNAVAILABLE,
-  pages: [],
-};
-
-/** Empty ordering board used while runtime bindings are unavailable. */
-export const SEASON_EMPTY_BOARD: OrderingBoard = { rail: [], grid: [] };
 
 /** Module-local singleton container for the shared season source. */
 export const SEASON_SOURCE_STATE: { sharedSource: (SeasonSource & SeasonQuerySource) | null } = {

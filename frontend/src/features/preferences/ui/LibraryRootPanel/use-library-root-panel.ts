@@ -1,11 +1,13 @@
 import { useCallback, useState } from 'react';
 import { toast } from '@heroui/react';
+import { toErrorMessage } from '../../../../shared/helpers/error-message.helpers';
 import { toAsyncView } from '../../../../shared/query/async-view/async-view.helpers';
-import { BRIDGE_SETTINGS_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { BRIDGE_PICKER_SOURCE, BRIDGE_SETTINGS_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
 import { useBridgeQuery } from '../../../../shared/query/use-bridge-query/use-bridge-query';
 import {
   LIBRARY_ROOT_ERROR_MESSAGE,
+  LIBRARY_ROOT_PICKER_FAILED_MESSAGE,
   LIBRARY_ROOT_PICKER_TITLE,
   LIBRARY_ROOT_QUERY_KEY,
   LIBRARY_ROOT_SAVED_MESSAGE,
@@ -21,7 +23,10 @@ import { useLibraryRootChange } from './use-library-root-change';
  * useLibraryRootChange, which waits for confirmation when active animes would
  * follow the new root. The field is "dirty" while an edit differs from the
  * stored root; a successful save re-reads the stored root and drops the edit.
- * @param props The panel props; `source` replaces the Settings port in tests.
+ * Browse opens the shell's folder picker: a cancelled dialog (`''`) changes
+ * nothing, and a failed one keeps the root and shows an error toast carrying
+ * the bridge's reason.
+ * @param props The panel props; `source` and `pickerSource` replace the ports in tests.
  * @returns The root view, the field state and the panel actions.
  */
 export function useLibraryRootPanel(props: Readonly<LibraryRootPanelProps> = {}) {
@@ -31,6 +36,7 @@ export function useLibraryRootPanel(props: Readonly<LibraryRootPanelProps> = {})
 
   // 3. Context/3rd Party Hooks
   const source = props.source ?? BRIDGE_SETTINGS_SOURCE;
+  const pickerSource = props.pickerSource ?? BRIDGE_PICKER_SOURCE;
 
   // 4. Queries/Mutations
   const query = useBridgeQuery({
@@ -67,12 +73,14 @@ export function useLibraryRootPanel(props: Readonly<LibraryRootPanelProps> = {})
   }, []);
 
   const onBrowse = useCallback(() => {
-    return source.pickFolder(LIBRARY_ROOT_PICKER_TITLE).then((picked) => {
+    return pickerSource.pickFolder(LIBRARY_ROOT_PICKER_TITLE).then((picked) => {
       if (picked !== '') {
         setDraft(picked);
       }
+    }, (error: unknown) => {
+      toast.danger(toErrorMessage(error, LIBRARY_ROOT_PICKER_FAILED_MESSAGE));
     });
-  }, [source]);
+  }, [pickerSource]);
 
   const fail = useCallback((message: string) => {
     setErrorMessage(message);

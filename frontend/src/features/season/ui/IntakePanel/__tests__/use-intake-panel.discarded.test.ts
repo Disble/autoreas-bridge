@@ -16,8 +16,8 @@ describe('useIntakePanel discarded rows', () => {
   it('keeps discarded rows apart, restores one, and returns to the active rows once none is left', async () => {
     const active = seasonRow({ id: 'a', rawName: 'A' });
     const discarded = seasonRow({ id: 'd', rawName: 'D', matchStatus: 'discarded', matchedSlug: 'https://jkanime.net/d/', metadata: { kind: 2, totalEpisodes: 12 } });
-    const getSeasonAnimes = vi.fn().mockResolvedValue([active, discarded]);
-    const source = createSource({ getSeasonAnimes });
+    const readSeasonAnimes = vi.fn().mockResolvedValue([active, discarded]);
+    const source = createSource({ readSeasonAnimes });
     const { result } = renderHook(() => useIntakePanel(source), { wrapper: seasonQueryWrapper().wrapper });
     await waitFor(() => expect(result.current.discardedRows.map((row) => row.id)).toEqual(['d']));
     expect(result.current.editableRows.map((row) => row.id)).toEqual(['a']);
@@ -29,7 +29,7 @@ describe('useIntakePanel discarded rows', () => {
     });
     expect(result.current.view).toBe('discarded');
 
-    getSeasonAnimes.mockResolvedValue([active, { ...discarded, matchStatus: 'matched' }]);
+    readSeasonAnimes.mockResolvedValue([active, { ...discarded, matchStatus: 'matched' }]);
     await act(async () => {
       result.current.onRestore('d');
     });

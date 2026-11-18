@@ -3,7 +3,6 @@ import {
   GetKeymap,
   GetLibraryRoot,
   GetSeasonCheckTime,
-  PickFolder,
   PreviewLibraryRootChange,
   SetAutoStartEnabled,
   SetKeymap,
@@ -42,8 +41,6 @@ export function createSettingsSource(): SettingsSource {
     setLibraryRoot: (path) => callSettingsBinding('SetLibraryRoot', () => SetLibraryRoot(path)),
     previewLibraryRootChange: (path) =>
       callSettingsBinding<LibraryRootChangePreview>('PreviewLibraryRootChange', () => PreviewLibraryRootChange(path)),
-    // A failed dialog rejects as internal since the shell slice; the picker reads it as a cancel.
-    pickFolder: (title) => callSettingsBinding('PickFolder', () => PickFolder(title)).catch(() => ''),
     getAutoStartEnabled: () => callSettingsBinding('GetAutoStartEnabled', () => GetAutoStartEnabled()),
     setAutoStartEnabled: (enabled) => callSettingsBinding('SetAutoStartEnabled', () => SetAutoStartEnabled(enabled)),
     getKeymap: () => callSettingsBinding('GetKeymap', () => GetKeymap()),

@@ -309,9 +309,9 @@ flowchart LR
   so a dropped `bridge.readiness` event cannot leave Today on its skeleton or its Alert.
 - The four row desktop actions come from `BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE`; a rejection is panel
   feedback with its message ("Frontend: Editor and create").
-- Not migrated (task T5): the season probe (`preferencesSource.getSeasonMode`), covers and row
-  writes still call `bridgeRuntimeSource` / `preferencesSource` with their runtime-unavailable
-  fallbacks; no UI state for Today lives in Zustand.
+- Today's season probe is `useSeasonMode` (the open-season query, module `season`), its covers read
+  through `BRIDGE_ANIME_SOURCE.getAnimeCover` and its row writes through `BRIDGE_EPISODES_SOURCE`
+  (`../episodes/overview.md`); no UI state for Today lives in Zustand.
 - Durations card (Editor, `frontend/src/features/anime-editor/ui/EpisodeDurationsSection/`): its
   adapter `createEpisodeDurationRuntimeSource`
   (`frontend/src/infrastructure/bridge-runtime-source/episode-duration-runtime-source.helpers.ts`)
@@ -401,11 +401,10 @@ flowchart LR
   (`toAnimeDetailCommandFailureMessage`), and the Detail is not read again.
 - Invalidation: no `BRIDGE_INVALIDATIONS` rule refreshes these queries; as before the migration,
   each screen reads on mount and on a key change, and the Detail page reads again after a mutation.
-- Not migrated (later tasks): the download run history's anime names (T5k) and the other cover
-  consumers outside this context (notifications, Season, run history) still call
-  `bridgeRuntimeSource`, which keeps their previous `[]`, `null` and placeholder fallbacks. The
-  Editor's rail and header covers and `CoverPreview` read through `BRIDGE_ANIME_SOURCE` ("Frontend:
-  Editor and create"). The Detail page's copy-folder and open-page actions run through
+- Every anime read outside this context goes through `BRIDGE_ANIME_SOURCE` too: the download run
+  history's anime names (`use-run-history-detail.ts`) and the covers of notifications, Season and
+  Today. The Editor's rail and header covers and `CoverPreview` (`animeKeys.key('cover-preview', path)`)
+  read through it as well ("Frontend: Editor and create"). The Detail page's copy-folder and open-page actions run through
   `BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE`.
 
 ## Frontend: Editor and create

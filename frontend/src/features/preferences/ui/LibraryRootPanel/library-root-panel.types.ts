@@ -1,13 +1,16 @@
+import type { PickerSource } from '../../../../shared/contracts/picker.types';
 import type { LibraryRootKept, LibraryRootMove, SettingsSource } from '../../../../shared/contracts/settings.types';
 import type { AsyncView } from '../../../../shared/query/async-view/async-view.types';
 
-/** Props for the LibraryRootPanel; source is injectable for tests. */
+/** Props for the LibraryRootPanel; both ports are injectable for tests. */
 export interface LibraryRootPanelProps {
   readonly source?: LibraryRootSource;
+  /** The native folder picker Browse opens; `BRIDGE_PICKER_SOURCE` by default. */
+  readonly pickerSource?: PickerSource;
 }
 
-/** The Settings port calls the panel makes: read and save the root, preview its change, and pick a folder. */
-export type LibraryRootSource = Pick<SettingsSource, 'getLibraryRoot' | 'setLibraryRoot' | 'previewLibraryRootChange' | 'pickFolder'>;
+/** The Settings port calls the panel makes: read and save the root, and preview its change. */
+export type LibraryRootSource = Pick<SettingsSource, 'getLibraryRoot' | 'setLibraryRoot' | 'previewLibraryRootChange'>;
 
 /** The one state the panel renders for the stored root: loading, failure or the root ('' when unset). */
 export type LibraryRootView = AsyncView<string>;

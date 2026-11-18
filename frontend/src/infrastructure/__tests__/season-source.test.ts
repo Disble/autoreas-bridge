@@ -26,17 +26,6 @@ const SEASON_COMMANDS: readonly (readonly [string, (source: SeasonSource) => Pro
   ['SaveSeasonOrderingDraft', (source) => source.saveOrderingDraft('{}')],
   ['ReopenSeasonOrdering', (source) => source.reopenOrdering()],
   ['RecheckSeasonAvailability', (source) => source.recheckAvailability()],
-  ['SetAnimeDays', (source) => source.setAnimeDays('anime-1', ['Ver hoy'])],
-];
-
-/** Every season read: the binding it calls, how the source invokes it, and the fallback its consumers read. */
-const SEASON_READS: readonly (readonly [string, (source: SeasonSource) => Promise<unknown>, unknown])[] = [
-  ['GetSeason', (source) => source.getSeason(), null],
-  ['GetSeasonAnimes', (source) => source.getSeasonAnimes(), []],
-  ['ListSeasons', (source) => source.listSeasons(), []],
-  ['GetPastSeason', (source) => source.getPastSeason('season-1'), null],
-  ['GetPastSeasonAnimes', (source) => source.getPastSeasonAnimes('season-1'), []],
-  ['GetSeasonOrderingBoard', (source) => source.getOrderingBoard(), { rail: [], grid: [] }],
 ];
 
 /**
@@ -54,11 +43,6 @@ const SEASON_QUERY_READS: readonly (readonly [string, (source: SeasonSource & Se
   ['ApplySeasonSchedule', (source) => source.applySchedule(), []],
   ['ConfirmSeasonSelection', (source) => source.confirmSelection(), []],
   ['SendSeasonAnimesToVerHoy', (source) => source.sendToVerHoy(['anime-1', 'anime-2']), [['anime-1', 'anime-2']]],
-];
-
-/** Every season binding whose result carries a status: how the source invokes it, and its runtime-unavailable result. */
-const SEASON_OUTCOMES: readonly (readonly [string, (source: SeasonSource) => Promise<unknown>, Record<string, unknown>])[] = [
-  ['SearchSeasonProviders', (source) => source.searchProviders!('Naruto'), { pages: [] }],
 ];
 
 /** The season query reads: the binding each calls and how the source invokes it. */
@@ -82,21 +66,6 @@ describe('season-source', () => {
     Reflect.deleteProperty(window, 'runtime');
   });
 
-  it('degrades read methods to safe defaults when the runtime is unavailable', async () => {
-    const { createSeasonSource } = await import('../season-source/season-source.helpers');
-    const source = createSeasonSource();
-
-    const seasonPromise = source.getSeason();
-    const animesPromise = source.getSeasonAnimes();
-    const seasonsPromise = source.listSeasons();
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    await expect(seasonPromise).resolves.toBeNull();
-    await expect(animesPromise).resolves.toEqual([]);
-    await expect(seasonsPromise).resolves.toEqual([]);
-  });
-
   it('degrades mutators without calling a missing Wails binding', async () => {
     const createSeasonMock = vi.fn().mockResolvedValue('created');
     window.go = { desktop: { App: { CreateSeason: createSeasonMock } } } as never;
@@ -113,7 +82,7 @@ describe('season-source', () => {
     expect(createSeasonMock).not.toHaveBeenCalled();
   });
 
-  it('forwards getSeason to the live Wails binding once it becomes ready', async () => {
+  it('forwards readSeason to the live Wails binding once it becomes ready', async () => {
     const season = {
       id: 'season-1',
       name: 'Winter 2026',
@@ -127,7 +96,7 @@ describe('season-source', () => {
     const { createSeasonSource } = await import('../season-source/season-source.helpers');
     const source = createSeasonSource();
 
-    const resultPromise = source.getSeason();
+    const resultPromise = source.readSeason();
 
     window.go = { desktop: { App: { GetSeason: getSeasonMock } } } as never;
     await vi.advanceTimersByTimeAsync(50);
@@ -162,9 +131,9 @@ describe('season-source', () => {
     const { createSeasonSource } = await import('../season-source/season-source.helpers');
     const source = createSeasonSource();
 
-    await expect(source.getSeasonAnimes()).resolves.toEqual(seasonAnimes);
-    await expect(source.getPastSeason('season-2025-fall')).resolves.toEqual(season);
-    await expect(source.listSeasons()).resolves.toEqual([season]);
+    await expect(source.readSeasonAnimes()).resolves.toEqual(seasonAnimes);
+    await expect(source.readPastSeason('season-2025-fall')).resolves.toEqual(season);
+    await expect(source.readSeasons()).resolves.toEqual([season]);
     expect(getSeasonAnimesMock).toHaveBeenCalledTimes(1);
     expect(getPastSeasonMock).toHaveBeenCalledWith('season-2025-fall');
     expect(listSeasonsMock).toHaveBeenCalledTimes(1);
@@ -272,22 +241,6 @@ describe('season-source', () => {
     await expect(write).resolves.toBe(SEASON_RUNTIME_UNAVAILABLE);
   });
 
-  it('maps the settings module SetSeasonCheckTime back to the status string the check-time control reads', async () => {
-    const { createSeasonSource } = await import('../season-source/season-source.helpers');
-    const setSeasonCheckTime = vi.fn().mockResolvedValue(undefined);
-    window.go = { desktop: { App: { SetSeasonCheckTime: setSeasonCheckTime } } } as never;
-
-    await expect(createSeasonSource().setCheckTime('07:30')).resolves.toBe('ok');
-    expect(setSeasonCheckTime).toHaveBeenCalledWith('07:30');
-
-    window.go = {
-      desktop: {
-        App: { SetSeasonCheckTime: vi.fn().mockRejectedValue(new Error('{"code":"invalid_argument","message":"invalid time \\"9:00\\": use HH:MM (00:00-23:59)"}')) },
-      },
-    } as never;
-    await expect(createSeasonSource().setCheckTime('9:00')).resolves.toBe('invalid time "9:00": use HH:MM (00:00-23:59)');
-  });
-
   it.each(SEASON_COMMANDS)('reads %s as "ok" once it resolves and as its failure message once it rejects', async (binding, invoke) => {
     const bindingMock = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error(SEASON_STARTING_REJECTION));
     window.go = { desktop: { App: { [binding]: bindingMock } } } as never;
@@ -308,16 +261,6 @@ describe('season-source', () => {
     const { createSeasonSource } = await import('../season-source/season-source.helpers');
 
     await expect(createSeasonSource().closeSeason()).resolves.toBe('no active season');
-  });
-
-  it.each(SEASON_READS)('reads a rejected %s as the fallback its consumers read before', async (binding, invoke, fallback) => {
-    const bindingMock = vi.fn().mockRejectedValue(new Error(SEASON_STARTING_REJECTION));
-    window.go = { desktop: { App: { [binding]: bindingMock } } } as never;
-
-    const { createSeasonSource } = await import('../season-source/season-source.helpers');
-
-    await expect(invoke(createSeasonSource())).resolves.toEqual(fallback);
-    expect(bindingMock).toHaveBeenCalledTimes(1);
   });
 
   it.each(SEASON_QUERY_READS)('answers the %s query read with what the binding returned', async (binding, invoke, args) => {
@@ -349,16 +292,6 @@ describe('season-source', () => {
     await settled;
   });
 
-  it.each(SEASON_OUTCOMES)('reads a rejected %s as its unavailable result carrying the failure message', async (binding, invoke, rest) => {
-    const bindingMock = vi.fn().mockRejectedValue(new Error(SEASON_STARTING_REJECTION));
-    window.go = { desktop: { App: { [binding]: bindingMock } } } as never;
-
-    const { createSeasonSource } = await import('../season-source/season-source.helpers');
-
-    await expect(invoke(createSeasonSource())).resolves.toEqual({ ...rest, status: 'season is starting' });
-    expect(bindingMock).toHaveBeenCalledTimes(1);
-  });
-
   it.each(SEASON_ORDERING_QUERY_READS)('answers %s with the binding payload and rejects its coded failure', async (binding, invoke) => {
     const payload = { recorded: true, rail: [], grid: [{ animeId: 'a' }] };
     const bindingMock = vi.fn().mockResolvedValueOnce(payload).mockRejectedValueOnce(new Error(SEASON_STARTING_REJECTION));
@@ -378,14 +311,6 @@ describe('season-source', () => {
     await vi.advanceTimersByTimeAsync(5000);
 
     await expect(settled).resolves.toMatchObject({ name: 'BridgeError', code: 'unavailable', message: `the ${binding} binding is not attached` });
-  });
-
-  it('reads a SetAnimeDays failure without a message as the move failure the season store shows', async () => {
-    window.go = { desktop: { App: { SetAnimeDays: vi.fn().mockRejectedValue(new Error('{"code":"internal","message":""}')) } } } as never;
-
-    const { createSeasonSource } = await import('../season-source/season-source.helpers');
-
-    await expect(createSeasonSource().setAnimeDays('anime-1', ['Ver hoy'])).resolves.toBe('Failed to move anime');
   });
 
   it('answers a staged Ver hoy batch with the download window the binding answered', async () => {

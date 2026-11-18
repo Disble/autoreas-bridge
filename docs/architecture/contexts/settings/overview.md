@@ -94,10 +94,14 @@ state. Keys: `library.root`, `system.auto_start` (anything but `"false"` is enab
 - Source port and adapter: `SettingsSource` (`frontend/src/shared/contracts/settings.types.ts`),
   `createSettingsSource` (`frontend/src/infrastructure/settings-source/settings-source.helpers.ts`),
   built once as `BRIDGE_SETTINGS_SOURCE` in `shared/query/bridge-runtime/bridge-runtime.constants.ts`.
-  Its `pickFolder` calls the shell `PickFolder` and reads a failed dialog as a cancel.
+  Every call rejects with a `BridgeError`. The Library tab's Browse opens the shell folder picker
+  through `BRIDGE_PICKER_SOURCE` (`PickerSource`, `shared/contracts/picker.types.ts`): a cancelled
+  dialog (`""`) changes nothing, a failed one keeps the root and shows a danger toast with the
+  bridge's message.
 - Query keys: `settingsKeys` (`frontend/src/shared/query/query-keys/query-keys.constants.ts`):
-  `settingsKeys.key('library-root')`, `settingsKeys.key('auto-start')`. No event invalidates them; a
-  save re-reads its key.
+  `settingsKeys.key('library-root')`, `settingsKeys.key('auto-start')` and
+  `SETTINGS_SEASON_CHECK_TIME_KEY` (`settingsKeys.key('season-check-time')`). No event invalidates
+  them; a save re-reads its key.
 - Loading, empty and failure:
   - LibraryRootPanel (module `settings`): the field label over a labelled skeleton of the field and
     buttons, the "Library root unavailable" Alert, or the field (an unset root is an empty field).
@@ -112,10 +116,13 @@ state. Keys: `library.root`, `system.auto_start` (anything but `"false"` is enab
   command on its declared chord) while `settings` starts; a failed module or a rejected read is
   `failed`, which the Shortcuts panel shows as its error state. The panel publishes a rebind, revert
   or reset only once `setKeymap` resolves; a rejection shows the bridge failure's message.
-- Consumers outside this screen keep their adapters until their own slice: `preferencesSource`
-  (`getLibraryRoot` reads a refusal as `""` for anime create and season intake; `pickFolder`),
-  `downloadRuntimeSource.setEpisodeRenameEnabled` and `seasonSource.setCheckTime` (both map the
-  binding back to `"ok"` or the failure message), and `seasonSource.getCheckTime`.
+- Consumers outside this screen read through the same port: anime create
+  (`use-anime-create-bootstrap.ts`) and season intake (`use-intake-panel.ts`) read the library root
+  through `BRIDGE_SETTINGS_SOURCE.getLibraryRoot` under `settingsKeys.key('library-root')`, the cache
+  entry this panel uses; the season intake check time (`IntakeCheckTime`) reads and saves through
+  `getSeasonCheckTime` / `setSeasonCheckTime` under `SETTINGS_SEASON_CHECK_TIME_KEY`. The episode
+  rename switch saves through `BRIDGE_DOWNLOADS_SOURCE.setEpisodeRenameEnabled`
+  (`../downloads/overview.md`).
 - Season mode has no preferences read-model: Today and the schedule panel derive it from the
   open-season query (`useSeasonMode`, `frontend/src/shared/season/season-mode/`), which answers the
   same "a season is open" as `GetSeasonMode`.
@@ -129,8 +136,6 @@ state. Keys: `library.root`, `system.auto_start` (anything but `"false"` is enab
 
 ## Known drift
 
-- `GetSeasonCheckTime` now rejects while `settings` starts; the season intake check time reads that
-  as unknown and hides the control until it remounts, where it showed `21:00` before
-  (`features/season/ui/IntakePanel/IntakeCheckTime`).
-- The episode-rename and check-time panels (downloads, season) and anime create and season intake
-  still read through the legacy adapters listed above.
+- None for the frontend consumers: every settings read and command goes through a port
+  (`BRIDGE_SETTINGS_SOURCE`; the episode-rename switch through `BRIDGE_DOWNLOADS_SOURCE`), and `GetSeasonCheckTime` rejecting while `settings` starts shows the
+  check-time control's skeleton (`../season/overview.md`, "Frontend").

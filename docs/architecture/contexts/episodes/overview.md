@@ -96,8 +96,10 @@ card writes the episode durations table (`../anime/overview.md`, "Storage").
   open season opens the season lens on `Ver hoy`; no open season, a failed `season` module or a
   failed read open the daily lens on today's weekday, since the daily schedule does not depend on
   season. A caller-supplied `initialDay` opens the daily lens and skips the season read.
-- Not migrated, kept working through adapters (see Known drift): the season store's `setAnimeDays`
-  and `sendToVerHoy`, and the anime Detail page's Restore and Repeat.
+- The anime Detail page's Restore and Repeat (`features/anime-detail/ui/AnimeDetail/use-anime-detail.ts`)
+  run through `BRIDGE_EPISODES_SOURCE.restoreAnime` / `repeatAnime` (`../anime/overview.md`), and the
+  Daily Board's "watch today" through `BRIDGE_SEASON_SOURCE.sendToVerHoy`, which rejects with a
+  `BridgeError` (`../season/overview.md`).
 
 ## Entry points
 
@@ -106,21 +108,12 @@ card writes the episode durations table (`../anime/overview.md`, "Storage").
 | Today schedule and day badges | `internal/desktop/app_runtime.go` `GetEpisodeSchedule`, `GetEpisodeDayCounts` |
 | Today row writes | `internal/desktop/app_runtime.go` `AdjustWatchedEpisodes`, `SetAnimeState` |
 | Editor Restore and Repeat, anime Detail Restore and Repeat | `internal/desktop/app_runtime.go` `RestoreAnime`, `RepeatAnime` |
-| Season store moves an anime to a day | `internal/desktop/app_runtime.go` `SetAnimeDays` |
+| Move an anime to a day | `internal/desktop/app_runtime.go` `SetAnimeDays` (no frontend caller) |
 | Daily Board "watch today" | `internal/desktop/app_season_availability.go` `SendSeasonAnimesToVerHoy` |
 | Soft delete | `internal/desktop/app_runtime.go` `SoftDeleteAnime` (no frontend caller) |
 | Editor durations card | `internal/desktop/app_episode_editor.go` |
 
 ## Known drift
 
-- The season store (`frontend/src/shared/store/season-store/**`) still reads status strings:
-  `seasonSource.setAnimeDays` maps a rejection to its message (`'Failed to move anime'` when it has
-  none) and `seasonSource.sendToVerHoy` adds `status: 'ok'` to the window or puts the failure's
-  message in `status` (`frontend/src/infrastructure/season-source/season-source.helpers.ts`), until
-  T5j migrates the store.
-- The anime Detail page (`features/anime-detail/ui/AnimeDetail/use-anime-detail-mutation.ts`) still
-  calls `bridgeRuntimeSource.restoreAnime` / `repeatAnime`, which map a rejection back to
-  `{ status: 'error', message }` (`runLegacyDesktopAction`,
-  `frontend/src/infrastructure/bridge-runtime-source/bridge-runtime-source.helpers.ts`).
-- `SoftDeleteAnime` has no frontend caller; `bridgeRuntimeSource.softDeleteAnime` keeps the same
-  mapping and is pinned only by `frontend/src/infrastructure/__tests__/bridge-runtime-source-commands.test.ts`.
+- `SoftDeleteAnime` and `SetAnimeDays` have no frontend caller and no frontend adapter member; the
+  bindings remain exported on `App`.

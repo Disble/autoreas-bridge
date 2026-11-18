@@ -100,19 +100,20 @@ For module readiness, failure codes and the `shared/query` layer, read
   newest search is shown and retyping a settled query searches again. It uses the port's rejecting
   read `fetchProviderSearch`: while the module starts the lookup shows its loading state, and a failed
   module or search shows the modal's failure Alert with the reason, never a stand-in result.
-- Source port: `frontend/src/shared/contracts/season.types.ts`. Adapter:
-  `frontend/src/infrastructure/season-source/...`. Since the bindings return
-  errors, the adapter maps a rejection back to what its unmigrated consumers read before: a command
-  resolves to `'ok'` or the failure's message, a legacy read to its earlier fallback (`null`, `[]`, an
-  empty board, an unrecorded snapshot), and `searchProviders` to its unavailable shape with the
-  failure's message. The outcome commands `sendToVerHoy`, `confirmSelection` and `applySchedule`, and
+- Source port: `SeasonSource` in `frontend/src/shared/contracts/season.types.ts`. Adapter:
+  `frontend/src/infrastructure/season-source/season-source.helpers.ts`. A status command (create,
+  slots, reconcile, matching, grading, discard and restore, create animes, the ordering draft) still
+  resolves to `'ok'` or the failure's message, and to `'runtime unavailable'` when its binding never
+  attaches; the season store reads that string. The `fetch*` reads (`fetchOrderingBoard`,
+  `fetchSeasonOrderingSnapshot`, `fetchProviderSearch`) reject with a `BridgeError`. The outcome commands `sendToVerHoy`, `confirmSelection` and `applySchedule`, and
   the download pair `triggerSeasonDownloads` / `downloadSeasonAnimes`, reject instead with a
   `BridgeError` (`unavailable` when the binding never attaches), so their `useBridgeMutation`'s
   `onError` reports the failure: the Daily board's send and the ordering board's apply on the season
   banner, the selection's confirmation in a danger toast. Their results carry only outcomes:
   `ApplyScheduleResult.status` is `ok` or `partial`, `ConfirmSelectionResult.status` is `ok` or the
   quota overflow's reason (`quotaExceeded`), and `SendToVerHoyResult` is the download window alone.
-  `preferences-source` reads a rejected `GetSeasonMode` as `false`.
+  Season mode outside the Season screens is `useSeasonMode` (`shared/season/season-mode/`), the
+  open-season query (`SEASON_CURRENT_KEY`) every Season screen reads.
 - Ports from other contexts, all built once in `shared/query/bridge-runtime/bridge-runtime.constants.ts`:
   - Covers: every season list resolves covers through `BRIDGE_ANIME_SOURCE` (`SeasonCoverSource` is
     the shared `AnimeCoverSource`, `shared/anime-cover/anime-cover.types.ts`).
@@ -132,6 +133,9 @@ For module readiness, failure codes and the `shared/query` layer, read
     form shares. Until it is read, or after its read failed, the root is `''`, which turns the default
     folder previews off.
   - Intake MyAnimeList lookup: `BRIDGE_METADATA_LOOKUP_SOURCE`.
+  - Intake folder override: a row's folder picker opens through `BRIDGE_PICKER_SOURCE`
+    (`useIntakeCreationCallbacks`). A cancelled dialog (`''`) records nothing; a failed one records
+    nothing and shows a danger toast with the bridge's message.
 - Query reads (`shared/query`): the port `SeasonQuerySource` (same file) holds the reads the queries
   call, `readSeason`, `readSeasonAnimes`, `readSeasons`, `readPastSeason` and `readPastSeasonAnimes`;
   each rejects with a `BridgeError` (`unavailable` while the module starts or the binding never
@@ -191,7 +195,7 @@ For module readiness, failure codes and the `shared/query` layer, read
 
 | Trigger | Entry |
 |---|---|
-| Wails binding | `internal/desktop/app_season.go`, `app_season_history.go`, `app_season_ordering.go`, `app_season_runtime.go`, `app_season_searcher.go`; `app_preferences.go` `GetSeasonMode` |
+| Wails binding | `internal/desktop/app_season.go`, `app_season_availability.go` (`SendSeasonAnimesToVerHoy`, `TriggerSeasonDownloads`, `DownloadSeasonAnimes`), `app_season_check_time.go` (`GetSeasonCheckTime`, `SetSeasonCheckTime`, settings handle), `app_season_history.go`, `app_season_ordering.go`, `app_season_runtime.go`, `app_season_searcher.go`; `app_preferences.go` `GetSeasonMode` |
 | Daily availability check | `internal/desktop/app_season_availability.go` (`startSeasonAvailability`) |
 | REST | the season rating route (`recordSeasonRating`, `internal/desktop/app_season.go`) |
 
@@ -206,7 +210,9 @@ For module readiness, failure codes and the `shared/query` layer, read
   matching subscriptions stay direct source subscriptions rather than `BRIDGE_INVALIDATIONS`
   entries: they are sanctioned in `frontend/async-state-exceptions.json` (per-row progress is a UI
   projection of each event, not stored data a query could re-read).
-- The legacy `SeasonSource` members `getCheckTime` and `setCheckTime` (and the fallback readers
-  `getSeason`, `getSeasonAnimes`, `listSeasons`, `getPastSeason`, `getPastSeasonAnimes`,
-  `getOrderingBoard`) remain on the adapter and the port with no production consumer; their removal
-  belongs to the dead-adapter cleanup.
+- `SeasonSource` no longer carries a fallback reader, a folder picker or the check time: the reads
+  are `SeasonQuerySource` and the `fetch*` members, the picker is `BRIDGE_PICKER_SOURCE` and the
+  check time is `BRIDGE_SETTINGS_SOURCE` (`app_season_check_time.go`, settings handle). The status
+  commands keep their `'ok'`-or-message string, the one legacy shape left.
+- `GetSeasonMode` (`app_preferences.go`) has no frontend caller: season mode is read from the
+  open-season query.

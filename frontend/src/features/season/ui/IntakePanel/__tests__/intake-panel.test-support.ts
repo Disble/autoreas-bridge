@@ -37,14 +37,17 @@ export function createLibraryRootSource(root = 'D:/Anime') {
  * @param overrides Per-test port replacements.
  * @returns A season port suitable for {@link useIntakePanel}.
  */
-export function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource & SeasonQuerySource {
-  const source: SeasonSource = {
-    getSeason: vi.fn().mockResolvedValue(null),
+export function createSource(overrides: Partial<SeasonSource & SeasonQuerySource> = {}): SeasonSource & SeasonQuerySource {
+  return {
+    readSeason: vi.fn().mockResolvedValue(null),
+    readSeasonAnimes: vi.fn().mockResolvedValue([] as SeasonAnimeRow[]),
+    readSeasons: vi.fn().mockResolvedValue([]),
+    readPastSeason: vi.fn().mockResolvedValue(null),
+    readPastSeasonAnimes: vi.fn().mockResolvedValue([]),
     createSeason: vi.fn().mockResolvedValue('ok'),
     setMinApprovalGrade: vi.fn().mockResolvedValue('ok'),
     setSlots: vi.fn().mockResolvedValue('ok'),
     closeSeason: vi.fn().mockResolvedValue('ok'),
-    getSeasonAnimes: vi.fn().mockResolvedValue([] as SeasonAnimeRow[]),
     reconcileIntake: vi.fn().mockResolvedValue('ok'),
     sendToVerHoy: vi.fn().mockResolvedValue({ pastDownloadTime: false, downloadTime: '' }),
     triggerSeasonDownloads: vi.fn().mockResolvedValue(undefined),
@@ -53,35 +56,18 @@ export function createSource(overrides: Partial<SeasonSource> = {}): SeasonSourc
     resolveMatch: vi.fn().mockResolvedValue('ok'),
     discardName: vi.fn().mockResolvedValue('ok'),
     restoreName: vi.fn().mockResolvedValue('ok'),
-    setAnimeDays: vi.fn().mockResolvedValue('ok'),
     setGrade: vi.fn().mockResolvedValue('ok'),
     skipGrading: vi.fn().mockResolvedValue('ok'),
     setConsideration: vi.fn().mockResolvedValue('ok'),
     confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 0, rejected: 0, quotaExceeded: false }),
     setSeasonAnimeMetadata: vi.fn().mockResolvedValue('ok'),
     createSeasonAnimes: vi.fn().mockResolvedValue('ok'),
-    pickFolder: vi.fn().mockResolvedValue(''),
-    listSeasons: vi.fn().mockResolvedValue([]),
-    getPastSeason: vi.fn().mockResolvedValue(null),
-    getPastSeasonAnimes: vi.fn().mockResolvedValue([]),
-    getOrderingBoard: vi.fn().mockResolvedValue({ rail: [], grid: [] }),
     saveOrderingDraft: vi.fn().mockResolvedValue('ok'),
     applySchedule: vi.fn().mockResolvedValue({ status: 'ok', applied: 0, failed: [] }),
     reopenOrdering: vi.fn().mockResolvedValue('ok'),
     recheckAvailability: vi.fn().mockResolvedValue('ok'),
-    getCheckTime: vi.fn().mockResolvedValue('21:00'),
-    setCheckTime: vi.fn().mockResolvedValue('ok'),
-    searchProviders: vi.fn().mockResolvedValue({ status: 'ok', pages: [] }),
     openPage: vi.fn(),
     ...overrides,
-  };
-  return {
-    ...source,
-    readSeason: source.getSeason,
-    readSeasonAnimes: source.getSeasonAnimes,
-    readSeasons: source.listSeasons,
-    readPastSeason: source.getPastSeason,
-    readPastSeasonAnimes: source.getPastSeasonAnimes,
   };
 }
 
@@ -139,5 +125,5 @@ export function selection(overrides: Partial<AnimeMetadataSelection> = {}): Anim
  * @returns A season port holding `rows`.
  */
 export function createSourceWithRows(rows: readonly SeasonAnimeRow[]): SeasonSource & SeasonQuerySource {
-  return createSource({ getSeasonAnimes: vi.fn().mockResolvedValue([...rows]) });
+  return createSource({ readSeasonAnimes: vi.fn().mockResolvedValue([...rows]) });
 }

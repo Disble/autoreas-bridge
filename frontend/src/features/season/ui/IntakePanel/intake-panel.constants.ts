@@ -26,6 +26,8 @@ export const INTAKE_EMPTY_ACTION_LABEL = 'Paste list';
 export const INTAKE_RECONCILE_DEBOUNCE_MS = 600;
 /** Native folder-picker dialog title for a per-anime download folder override. */
 export const INTAKE_FOLDER_PICKER_TITLE = 'Choose download folder for this anime';
+/** Toast shown when the folder dialog fails without a reason of its own. */
+export const INTAKE_FOLDER_PICKER_FAILED_MESSAGE = 'The folder dialog could not open.';
 /**
  * Readable labels for the metadata fields a confirmed MyAnimeList lookup can
  * attach to an intake row, used by the row's one-line applied summary. Typed by

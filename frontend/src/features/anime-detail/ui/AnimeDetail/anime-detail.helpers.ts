@@ -1,6 +1,7 @@
 import { normalizeStoredCoverPath } from '../../../../shared/anime-cover/anime-cover.helpers';
 import { getAnimeEstadoLabel } from '../../../../shared/helpers/anime-estado.helpers';
 import type { AnimeDetail } from '../../../../shared/contracts/anime.types';
+import type { EpisodeWriteResult } from '../../../../shared/contracts/episodes.types';
 import { toAsyncView } from '../../../../shared/query/async-view/async-view.helpers';
 import { isBridgeError } from '../../../../shared/query/bridge-error/bridge-error.helpers';
 import {
@@ -14,7 +15,6 @@ import {
 } from './anime-detail.constants';
 import type {
   AnimeDetailAction,
-  AnimeDetailCommandResult,
   AnimeDetailConfirmationViewModel,
   AnimeDetailDesktopAction,
   AnimeDetailDesktopActionFeedback,
@@ -99,7 +99,7 @@ export function toAnimeDetailConfirmation(
  */
 export function resolveAnimeDetailMutation(
   action: AnimeDetailAction,
-  result: AnimeDetailCommandResult,
+  result: EpisodeWriteResult,
 ): AnimeDetailMutationResolution {
   const actionLabel = action === 'repeat' ? 'Repeat' : 'Restore';
   const failure = (description: string): AnimeDetailMutationResolution => ({

@@ -1,7 +1,9 @@
+import type { PickerSource } from '../../../../shared/contracts/picker.types';
 import type { SeasonQuerySource, SeasonSource } from '../../../../shared/contracts/season.types';
 import type { SettingsSource } from '../../../../shared/contracts/settings.types';
 import {
   BRIDGE_METADATA_LOOKUP_SOURCE,
+  BRIDGE_PICKER_SOURCE,
   BRIDGE_SEASON_SOURCE,
   BRIDGE_SETTINGS_SOURCE,
 } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
@@ -47,12 +49,14 @@ import { useIntakeView } from './use-intake-view';
  * under the cache key the anime create form shares; `''` while it loads or
  * after it failed turns the default folder previews off.
  * @param metadataSource The two MyAnimeList calls each row's lookup modal drives.
+ * @param pickerSource The native folder picker a row's download folder override opens.
  * @returns The panel's state, its derived counts and previews, and its callbacks.
  */
 export function useIntakePanel(
   source: SeasonSource & SeasonQuerySource = BRIDGE_SEASON_SOURCE,
   libraryRootSource: Pick<SettingsSource, 'getLibraryRoot'> = BRIDGE_SETTINGS_SOURCE,
   metadataSource: AnimeMetadataLookupSource = BRIDGE_METADATA_LOOKUP_SOURCE,
+  pickerSource: PickerSource = BRIDGE_PICKER_SOURCE,
 ) {
   // 2. State
   const editor = useIntakeEditorState();
@@ -68,7 +72,7 @@ export function useIntakePanel(
   // 6. Callbacks (useCallback in colocated hooks)
   const modes = useIntakeModeCallbacks({ editor, store, source });
   const rowActions = useIntakeRowCallbacks({ store, editor, source });
-  const creation = useIntakeCreationCallbacks({ editor, metadata, store, source });
+  const creation = useIntakeCreationCallbacks({ editor, metadata, store, source, pickerSource });
   const applied = useIntakeMetadataApply({ rows, editor, metadata, store, source });
   const reverted = useIntakeMetadataRevert({ rows, editor, store, source });
   // 7. Effects

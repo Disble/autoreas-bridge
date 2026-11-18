@@ -26,14 +26,12 @@ export interface LibraryRootChangePreview {
  * library root (read, change preview, save), the Windows auto-start
  * preference, the daily season check time and the keymap document (read at startup by the keyboard
  * dispatcher, written by the Shortcuts panel). Every call rejects with a `BridgeError` whose message is the plain
- * text the UI shows, except `pickFolder` (an always-ready shell binding), which
- * reads a failed dialog as a cancel (''), as every folder picker does.
+ * text the UI shows. The folder picker is `PickerSource` (`picker.types.ts`).
  */
 export interface SettingsSource {
   readonly getLibraryRoot: () => Promise<string>;
   readonly setLibraryRoot: (path: string) => Promise<void>;
   readonly previewLibraryRootChange: (path: string) => Promise<LibraryRootChangePreview>;
-  readonly pickFolder: (title: string) => Promise<string>;
   readonly getAutoStartEnabled: () => Promise<boolean>;
   readonly setAutoStartEnabled: (enabled: boolean) => Promise<void>;
   /** The persisted keymap document, opaque here; `''` means nothing has been rebound. */
