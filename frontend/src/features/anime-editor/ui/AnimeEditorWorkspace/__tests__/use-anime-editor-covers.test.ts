@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import { waitFor } from './wait-for.test-support';
 import { describe, expect, it, vi } from 'vitest';
 import type { AnimeCoverEntry } from '../../../../../shared/anime-cover/use-anime-cover';
 import type { AnimeEditorRecord } from '../../../../../shared/contracts/anime.types';
@@ -354,5 +355,22 @@ describe('useAnimeEditorCovers', () => {
     result.current.onCoverImageError('anime-1');
 
     await waitFor(() => expect(result.current.covers.get('anime-1')).toEqual({ status: 'placeholder' }));
+  });
+});
+
+/** A cache holding one already-resolved thumbnail for the selected anime. */
+const RESOLVED_CACHE: ReadonlyMap<string, AnimeCoverEntry> = new Map([['anime-1', COVER_ENTRY]]);
+
+describe('useAnimeEditorCover', () => {
+  it.each<[string, AnimeEditorRecord | undefined, ReadonlyMap<string, AnimeCoverEntry>, AnimeCoverEntry]>([
+    ['no loaded record at all', undefined, RESOLVED_CACHE, { status: 'placeholder' }],
+    ['a record whose stored cover was cleared', savedRecord('anime-1'), RESOLVED_CACHE, { status: 'placeholder' }],
+    ['a record whose stored cover is the null sentinel', savedRecord('anime-1', 'null'), RESOLVED_CACHE, { status: 'placeholder' }],
+    ['a saved cover with a resolved cache entry', savedRecord('anime-1', 'https://example.com/c.jpg'), RESOLVED_CACHE, COVER_ENTRY],
+    ['a saved cover the cache has not resolved yet', savedRecord('anime-1', 'D:/covers/frieren.jpg'), new Map(), { status: 'loading' }],
+  ])('resolves %s', (_label, record, covers, expected) => {
+    const { result } = renderHook(() => useAnimeEditorCover(record, covers));
+
+    expect(result.current).toEqual(expected);
   });
 });

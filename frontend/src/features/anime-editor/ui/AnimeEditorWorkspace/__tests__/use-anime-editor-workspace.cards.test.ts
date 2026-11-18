@@ -1,9 +1,11 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import { waitFor } from './wait-for.test-support';
 import { createElement } from 'react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EpisodeDurationRuntimeSource } from '../../../../../shared/contracts/episode-durations.types';
 import type { AnimeEditorRecord, AnimeEditorScheduleBoard } from '../../../../../shared/contracts/anime.types';
+import { EPISODE_DURATIONS_RELOAD_DELAY_MS } from '../../EpisodeDurationsSection/episode-durations-section.constants';
 import { useAnimeEditorWorkspace } from '../use-anime-editor-workspace';
 import { createEmptyEpisodeDurationSource, createEpisodesReadyWrapper } from './episode-duration-source.test-support';
 
@@ -11,6 +13,14 @@ import { createEmptyEpisodeDurationSource, createEpisodesReadyWrapper } from './
 const toastMock = vi.hoisted(() => ({ success: vi.fn(), info: vi.fn(), warning: vi.fn(), danger: vi.fn() }));
 
 vi.mock('@heroui/react', () => ({ toast: toastMock }));
+
+// The Episodes card's reload debounce is guarded in use-episode-durations-load.test.ts;
+// here every render would otherwise wait it out before the card reads.
+vi.mock('../../EpisodeDurationsSection/episode-durations-section.constants', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  /** No settle wait: the card reads on the next task. */
+  EPISODE_DURATIONS_RELOAD_DELAY_MS: 0,
+}));
 
 beforeEach(() => {
   Object.values(toastMock).forEach((mock) => mock.mockClear());
@@ -288,7 +298,7 @@ describe('useAnimeEditorWorkspace independent cards', () => {
     const { result, episodeSource } = await loadHook();
 
     act(() => result.current.onDraftChange('folder', 'D:/Anime/Typed'));
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await act(() => new Promise((resolve) => setTimeout(resolve, EPISODE_DURATIONS_RELOAD_DELAY_MS + 50)));
 
     expect(episodeSource.getEpisodeDurationSection).toHaveBeenCalledTimes(1);
     expect(episodeSource.getEpisodeDurationSection).toHaveBeenCalledWith(expect.objectContaining({ folder: 'D:/Anime/Frieren' }));

@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import { waitFor } from './wait-for.test-support';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnimeEditorSource } from '../../../../../shared/contracts/anime-editor-source.types';
 import type { AnimeEditorRecord } from '../../../../../shared/contracts/anime.types';

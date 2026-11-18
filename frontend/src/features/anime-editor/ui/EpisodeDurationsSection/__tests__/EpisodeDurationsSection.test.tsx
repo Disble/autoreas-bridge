@@ -17,6 +17,14 @@ import type { UseEpisodeDurationsSectionOptions } from '../episode-durations-sec
 import { EpisodeDurationsSection } from '../EpisodeDurationsSection';
 import { useEpisodeDurationsSection } from '../use-episode-durations-section';
 
+// The reload debounce is guarded in use-episode-durations-load.test.ts; here every
+// render would otherwise wait it out before the card reads.
+vi.mock('../episode-durations-section.constants', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  /** No settle wait: the card reads on the next task. */
+  EPISODE_DURATIONS_RELOAD_DELAY_MS: 0,
+}));
+
 afterEach(cleanup);
 
 /**

@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import { waitFor } from '../../AnimeEditorWorkspace/__tests__/wait-for.test-support';
 import { describe, expect, it, vi } from 'vitest';
 import type { ModuleReadiness } from '../../../../../shared/contracts/readiness.types';
 import type { EpisodeDurationRuntimeSource, EpisodeDurationSection } from '../../../../../shared/contracts/episode-durations.types';
@@ -8,6 +9,21 @@ import { status } from '../../../../../shared/query/test-support/readiness-sourc
 import { EPISODE_DURATIONS_RELOAD_DELAY_MS } from '../episode-durations-section.constants';
 import type { UseEpisodeDurationsLoadOptions } from '../episode-durations-section.types';
 import { useEpisodeDurationsLoad } from '../use-episode-durations-load';
+
+/** The reload delay the hook reads: none by default, the shipped value for the debounce test. */
+const reloadDelay = vi.hoisted(() => ({ current: 0, shipped: 0 }));
+
+vi.mock('../episode-durations-section.constants', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../episode-durations-section.constants')>();
+  reloadDelay.shipped = actual.EPISODE_DURATIONS_RELOAD_DELAY_MS;
+  return {
+    ...actual,
+    /** The current test's reload delay. */
+    get EPISODE_DURATIONS_RELOAD_DELAY_MS() {
+      return reloadDelay.current;
+    },
+  };
+});
 
 /** A found-folder TV section with one measured episode. */
 const SECTION: EpisodeDurationSection = {
@@ -132,6 +148,7 @@ describe('useEpisodeDurationsLoad', () => {
 
   it('reads the disk once for a burst of record reloads, with the last request, and shows loading meanwhile', async () => {
     vi.useFakeTimers();
+    reloadDelay.current = reloadDelay.shipped;
     try {
       const getSection = vi.fn().mockResolvedValue(SECTION);
       const { result, rerender } = renderLoad(createSource(getSection), options({ folder: 'D:/Anime/A' }));
@@ -160,6 +177,7 @@ describe('useEpisodeDurationsLoad', () => {
       expect(result.current.rows).toEqual([]);
     } finally {
       vi.useRealTimers();
+      reloadDelay.current = 0;
     }
   });
 
