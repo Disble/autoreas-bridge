@@ -25,6 +25,10 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
 | T5 | S2 | inline | pending | real sleeps and timers replaced where they cost measurable time |
 | T6 | S2 | inline | done | owner approved ("ok"); `docs/reports/2026-11-18-coverage-tier-draft.md`: tier per Go and frontend module, speed band per test type, 5 open questions; `coverage-tiers.json` unchanged until approved |
 | T7 | S2 | inline | in progress | 7a: 3 INFRASTRUCTURE suites deleted (keymap-panel.constants, keymap-panel.types, keymap.constants), each behavior covered elsewhere; 3 constants suites kept (they guard rules) |
+| T7b | S2, S3 | delegated (parallel, worktree `tsd-anime-editor`) | in progress | B: fewer jsdom files in `features/anime-editor` (27 jsdom / 10 node); pure logic tested in `node` |
+| T7c | S2, S3 | delegated (parallel, worktree `tsd-season`) | in progress | B: fewer jsdom files in `features/season` (58 jsdom / 18 node) |
+| T7d | S2, S3 | delegated (parallel, worktree `tsd-fe-slow`) | in progress | A: frontend tests >= 500 ms outside anime-editor and season (13 files, ~12 s cumulative) |
+| T7e | S2, S3 | delegated (parallel, worktree `tsd-go-slow`) | in progress | A: Go tests >= 500 ms except webview2 and the T2 deadline tests (~15 packages, ~20 s cumulative) |
 | T8 | S2, S3 | — | pending | mutation check of the reduced suites, last |
 
 ## Log
@@ -87,5 +91,12 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
   `use-notification-keyboard-scope.test.ts`, the version in `keymap.helpers.test.ts` (hand mutation
   version 1 -> 2 failed 6 remaining tests, reverted); the panel types now have 6 real consumers.
   Typecheck clean; keyboard + notification panel suites 37 files, 340 tests pass.
-- Next: T7 continues with Go INFRASTRUCTURE
-  tests and integration tests over 500 ms.
+- L17 (2026-11-18): T7a committed (afa04fb4), full gate green; its time gain is ~0 (node suites under 10 ms). Baseline
+  tests >= 500 ms: 68 in 39 files, 78.9 s cumulative; minus webview2 (kept, 18.9 s) and the T2 deadline tests
+  (fixed, 10 s) leaves ~50 s cumulative spread over ~35 files. The larger remaining cost is jsdom per-file
+  overhead (environment ~160 s cumulative over 312 files).
+- L18 (2026-11-18, owner): "sigue nomás autonomanete, igual al final tendras que hacer los dos lados".
+  Route: four parallel writers (Writer trigger a: independent units, disjoint surfaces, each several
+  minutes of work), one sibling worktree each off this branch, heavy commands behind a machine lock,
+  90-minute box each; parent owns git, merges locally, verifier per unit before its commit.
+- Next: run T7b-T7e, verify, commit and merge each; then T8 (mutation) and the final report.
