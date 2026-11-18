@@ -1,10 +1,9 @@
-import adjustmentsIcon from '@iconify-icons/tabler/adjustments-horizontal';
 import sortIcon from '@iconify-icons/tabler/arrows-sort';
 import { Icon } from '@iconify/react';
-import { Button, Chip, CloseButton, ListBox, Popover, SearchField, Select, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '@heroui/react';
+import { ListBox, SearchField, Select, ToggleButton, ToggleButtonGroup, Tooltip } from '@heroui/react';
+import { FiltersPopover } from '../../../../shared/ui/FilterTagGroup/FiltersPopover';
 import { CatalogFilters } from './CatalogFilters';
 import { CATALOG_VIEW_OPTIONS } from './catalog-panel.constants';
-import { formatCatalogFiltersLabel } from './catalog-panel.helpers';
 import type { CatalogSectionProps } from './catalog-panel.types';
 
 /** Search, the Filters popover, the sort select and the grid/list toggle, in one wrapping row. */
@@ -19,26 +18,9 @@ export function CatalogToolbar({ state }: Readonly<CatalogSectionProps>) {
         </SearchField.Group>
       </SearchField>
 
-      <Popover>
-        <Button aria-label={formatCatalogFiltersLabel(state.activeFilterCount)} variant="secondary">
-          <Icon aria-hidden="true" className="size-4" icon={adjustmentsIcon} />
-          Filters
-          {state.activeFilterCount > 0 ? (
-            <Chip aria-hidden="true" color="accent" data-testid="catalog-filter-count" size="sm" variant="soft">
-              <Chip.Label>{state.activeFilterCount}</Chip.Label>
-            </Chip>
-          ) : null}
-        </Button>
-        <Popover.Content className="w-[min(26rem,calc(100vw-2rem))]" placement="bottom end">
-          <Popover.Dialog aria-label="Filters" className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <Typography type="h6">Filters</Typography>
-              <CloseButton aria-label="Close filters" slot="close" />
-            </div>
-            <CatalogFilters state={state} />
-          </Popover.Dialog>
-        </Popover.Content>
-      </Popover>
+      <FiltersPopover activeFilterCount={state.activeFilterCount}>
+        <CatalogFilters state={state} />
+      </FiltersPopover>
 
       <Select aria-label="Sort by" className="w-44 max-sm:flex-1" value={state.sort} variant="secondary" onChange={state.onSortChange}>
         <Select.Trigger className="items-center gap-2">

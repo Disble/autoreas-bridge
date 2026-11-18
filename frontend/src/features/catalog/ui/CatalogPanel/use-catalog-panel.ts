@@ -8,7 +8,8 @@ import { toAsyncView } from '../../../../shared/query/async-view/async-view.help
 import { BRIDGE_ANIME_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { ANIME_LIST_KEY } from '../../../../shared/query/query-keys/query-keys.constants';
 import { useBridgeQuery } from '../../../../shared/query/use-bridge-query/use-bridge-query';
-import { CATALOG_KIND_OPTIONS, CATALOG_QUERY_DEBOUNCE_MS, CATALOG_SORT_OPTIONS, CATALOG_STATUS_OPTIONS } from './catalog-panel.constants';
+import { ANIME_KIND_FILTER_OPTIONS, ANIME_STATUS_FILTER_OPTIONS } from '../../../../shared/constants/anime-filter.constants';
+import { CATALOG_QUERY_DEBOUNCE_MS, CATALOG_SORT_OPTIONS } from './catalog-panel.constants';
 import {
   classifyCatalogEmptyState,
   compareCatalogAnimes,
@@ -84,8 +85,8 @@ export function useCatalogPanel(source: AnimeSource = BRIDGE_ANIME_SOURCE): Cata
     activeFilterCount: countActiveCatalogFilters(criteria),
     criterionChips,
     hasCriteria: hasActiveCatalogCriteria(criteria),
-    statusOptions: CATALOG_STATUS_OPTIONS,
-    kindOptions: CATALOG_KIND_OPTIONS,
+    statusOptions: ANIME_STATUS_FILTER_OPTIONS,
+    kindOptions: ANIME_KIND_FILTER_OPTIONS,
     genreOptions,
     sortOptions: CATALOG_SORT_OPTIONS,
     onCreate,

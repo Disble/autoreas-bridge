@@ -1,10 +1,9 @@
 import { vi } from 'vitest';
+import { ANIME_KIND_FILTER_OPTIONS, ANIME_STATUS_FILTER_OPTIONS } from '../../../../../shared/constants/anime-filter.constants';
 import type { Anime } from '../../../../../shared/contracts/anime.types';
 import {
   CATALOG_DEFAULT_CRITERIA,
-  CATALOG_KIND_OPTIONS,
   CATALOG_SORT_OPTIONS,
-  CATALOG_STATUS_OPTIONS,
 } from '../catalog-panel.constants';
 import type { CatalogItemViewModel, CatalogPanelState } from '../catalog-panel.types';
 
@@ -86,8 +85,8 @@ export function createCatalogState(overrides: Partial<CatalogPanelState> = {}): 
     activeFilterCount: 0,
     criterionChips: [],
     hasCriteria: false,
-    statusOptions: CATALOG_STATUS_OPTIONS,
-    kindOptions: CATALOG_KIND_OPTIONS,
+    statusOptions: ANIME_STATUS_FILTER_OPTIONS,
+    kindOptions: ANIME_KIND_FILTER_OPTIONS,
     genreOptions: [{ value: 'Drama', label: 'Drama' }],
     sortOptions: CATALOG_SORT_OPTIONS,
     onCreate: vi.fn(),

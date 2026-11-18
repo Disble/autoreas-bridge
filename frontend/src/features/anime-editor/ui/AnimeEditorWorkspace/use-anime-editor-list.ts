@@ -2,13 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 import { ANIME_LIST_KEY } from '../../../../shared/query/query-keys/query-keys.constants';
 import { useBridgeQuery } from '../../../../shared/query/use-bridge-query/use-bridge-query';
-import { isAnimeEditorListLoading } from './anime-editor-list.helpers';
-import { classifyAnimeEditorEmptyState, createAnimeEditorListItems, toAnimeEditorDefaultSelection, toEditorErrorMessage } from './anime-editor-workspace.helpers';
+import { hasActiveAnimeEditorCriteria, isAnimeEditorListLoading } from './anime-editor-list.helpers';
+import { classifyAnimeEditorEmptyState, createAnimeEditorListItems, toAnimeEditorDefaultSelection, toAnimeEditorListLoadError } from './anime-editor-workspace.helpers';
 import { ANIME_EDITOR_NO_ITEMS } from './anime-editor-workspace.constants';
 import type { AnimeEditorFilter, UseAnimeEditorListOptions } from './anime-editor-workspace.types';
+import { useAnimeEditorFacets } from './use-anime-editor-facets';
 
 /**
- * Owns watching-first catalog loading, filters, search, and selected identity.
+ * Owns watching-first catalog loading, the rail lens, the Status and Type
+ * filters, search, and selected identity.
  * The catalog reads through the anime module: the rail stays loading while the
  * module starts and shows the failure once it failed, never an empty library.
  */
@@ -28,6 +30,7 @@ export function useAnimeEditorList(options: Readonly<UseAnimeEditorListOptions>)
   const [isReloadingList, setIsReloadingList] = useState(false);
 
   // 3. Context/3rd Party Hooks
+  const { facets, activeFacetCount, onStatusSelectionChange, onKindSelectionChange, onFacetsReset } = useAnimeEditorFacets();
 
   // 4. Queries/Mutations
   const listQuery = useBridgeQuery({ queryKey: ANIME_LIST_KEY, queryFn: () => options.source.getAnimes(), module: 'anime' });
@@ -40,18 +43,20 @@ export function useAnimeEditorList(options: Readonly<UseAnimeEditorListOptions>)
     hasCatalog: listQuery.data !== undefined,
     isReloading: isReloadingList,
   });
-  const listLoadError = listQuery.status === 'error' && !listQuery.isFetching ? toEditorErrorMessage(listQuery.error) : undefined;
-  const itemViewModels = useMemo(() => createAnimeEditorListItems(items, filter, query, selectedAnimeId), [filter, items, query, selectedAnimeId]);
+  const listLoadError = toAnimeEditorListLoadError(listQuery);
+  const hasActiveCriteria = hasActiveAnimeEditorCriteria(query, filter, facets);
+  const itemViewModels = useMemo(() => createAnimeEditorListItems(items, filter, query, selectedAnimeId, facets), [facets, filter, items, query, selectedAnimeId]);
   const emptyState = useMemo(
-    () => classifyAnimeEditorEmptyState({ isLoadingList, listLoadError, sourceCount: items.length, visibleCount: itemViewModels.length, query, filter }),
-    [filter, isLoadingList, itemViewModels.length, items.length, listLoadError, query],
+    () => classifyAnimeEditorEmptyState({ isLoadingList, listLoadError, sourceCount: items.length, visibleCount: itemViewModels.length, hasActiveCriteria }),
+    [hasActiveCriteria, isLoadingList, itemViewModels.length, items.length, listLoadError],
   );
 
   // 6. Callbacks (useCallback calling pure helpers)
   const onClearCriteria = useCallback(() => {
     setQuery('');
     setFilter('all');
-  }, []);
+    onFacetsReset();
+  }, [onFacetsReset]);
   const refetchList = listQuery.refetch;
   /** Reads the catalog again, after a save or a lifecycle change moved a row, behind the skeleton. */
   const loadItems = useCallback(async () => {
@@ -66,5 +71,8 @@ export function useAnimeEditorList(options: Readonly<UseAnimeEditorListOptions>)
     if (listQuery.data !== undefined) setSelectedAnimeId((current) => current ?? toAnimeEditorDefaultSelection(listQuery.data));
   }, [listQuery.data]);
 
-  return { query, filter, items: itemViewModels, emptyState, selectedAnimeId, isLoadingList, listLoadError, setQuery, setSelectedAnimeId, onFilterChange, onClearCriteria, loadItems };
+  return {
+    query, filter, facets, activeFacetCount, items: itemViewModels, emptyState, selectedAnimeId, isLoadingList, listLoadError,
+    setQuery, setSelectedAnimeId, onFilterChange, onStatusSelectionChange, onKindSelectionChange, onFacetsReset, onClearCriteria, loadItems,
+  };
 }

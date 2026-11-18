@@ -62,3 +62,6 @@ interface AirisIconEmptyStateProps extends AirisEmptyStateBaseProps {
 
 /** Presentation-only inputs for one surface-owned Airis empty state. */
 export type AirisEmptyStateProps = AirisMascotEmptyStateProps | AirisIconEmptyStateProps;
+
+/** The title and description one screen's Airis empty state shows. */
+export type AirisEmptyStateCopy = Pick<AirisEmptyStateBaseProps, 'title' | 'description'>;

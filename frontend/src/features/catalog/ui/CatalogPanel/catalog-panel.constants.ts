@@ -1,9 +1,9 @@
 import gridIcon from '@iconify-icons/tabler/layout-grid';
 import listIcon from '@iconify-icons/tabler/list';
-import { ANIME_ESTADO_FILTER_ENTRIES, ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
-import { ANIME_TIPO_FILTER_ENTRIES } from '../../../../shared/constants/anime-tipo.constants';
+import { ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
 import type { Anime } from '../../../../shared/contracts/anime.types';
-import type { CatalogCriteria, CatalogEmptyStateCopy, CatalogOption, CatalogSortKey, CatalogView, CatalogViewOption } from './catalog-panel.types';
+import type { AirisEmptyStateCopy } from '../../../../shared/ui/AirisEmptyState/airis-empty-state.types';
+import type { CatalogCriteria, CatalogSortKey, CatalogView, CatalogViewOption } from './catalog-panel.types';
 
 /**
  * Heading of the alert shown when the catalog request itself failed. Kept
@@ -64,7 +64,7 @@ export const CATALOG_SKELETON_ROW_COUNT = 8;
  * claims the catalog is empty, because the anime are there — the filters are
  * hiding them.
  */
-export const CATALOG_PANEL_EMPTY_STATE_COPY: Readonly<Record<'actual' | 'criteria', CatalogEmptyStateCopy>> = {
+export const CATALOG_PANEL_EMPTY_STATE_COPY: Readonly<Record<'actual' | 'criteria', AirisEmptyStateCopy>> = {
   actual: {
     title: 'Your catalog is empty',
     description: 'No anime are stored yet. Create one to start your catalog.',
@@ -75,33 +75,11 @@ export const CATALOG_PANEL_EMPTY_STATE_COPY: Readonly<Record<'actual' | 'criteri
   },
 };
 
-/** Sentinel value a single-choice filter uses to mean "no filter applied". */
-export const CATALOG_FILTER_ALL_VALUE = 'all';
-
 /**
  * Debounce delay applied to the free-text search query before it is used to
  * filter the anime list.
  */
 export const CATALOG_QUERY_DEBOUNCE_MS = 200;
-
-/**
- * Status filter options in the order the Status sort uses: what is being
- * watched first, the dropped last. Labels come from the canonical shared
- * vocabulary; only the "All" sentinel is feature-local.
- */
-export const CATALOG_STATUS_OPTIONS: readonly CatalogOption[] = [
-  { value: CATALOG_FILTER_ALL_VALUE, label: 'All' },
-  ...[0, 1, 3, 2].map((status) => ANIME_ESTADO_FILTER_ENTRIES[status]),
-];
-
-/**
- * Type filter options. `tipo` is a closed enum, so the options are static and
- * named from the canonical shared vocabulary, never discovered from the data.
- */
-export const CATALOG_KIND_OPTIONS: readonly CatalogOption[] = [
-  { value: CATALOG_FILTER_ALL_VALUE, label: 'All' },
-  ...ANIME_TIPO_FILTER_ENTRIES,
-];
 
 /**
  * Rank of each `estado` under the Status sort: Viendo, Finalizado, En pausa,
