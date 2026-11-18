@@ -22,21 +22,28 @@ type QueueConfig struct {
 	// safe no-op. Used to emit the Live recorder row and record incidents from
 	// the one choke point where a record is known to have actually persisted.
 	OnPersist func(CaptureRecord)
+	// StopTimeout caps how long Stop waits for the drain, whatever deadline
+	// the caller's context carries. Zero or negative uses defaultStopTimeout.
+	StopTimeout time.Duration
 }
+
+// defaultStopTimeout is the shutdown ceiling when QueueConfig leaves it unset.
+const defaultStopTimeout = 5 * time.Second
 
 // Queue is the non-blocking capture worker.
 type Queue struct {
-	store     Upserter
-	onPersist func(CaptureRecord)
-	ch        chan CaptureRecord
-	stopped   chan struct{}
-	stopOnce  sync.Once
-	mu        sync.Mutex
-	stopping  bool
-	err       atomic.Pointer[error]
-	dropped   atomic.Int64
-	queued    atomic.Int64
-	dequeued  atomic.Int64
+	store       Upserter
+	onPersist   func(CaptureRecord)
+	stopTimeout time.Duration
+	ch          chan CaptureRecord
+	stopped     chan struct{}
+	stopOnce    sync.Once
+	mu          sync.Mutex
+	stopping    bool
+	err         atomic.Pointer[error]
+	dropped     atomic.Int64
+	queued      atomic.Int64
+	dequeued    atomic.Int64
 }
 
 // NewQueue starts a bounded capture worker.
@@ -45,11 +52,16 @@ func NewQueue(store Upserter, config QueueConfig) *Queue {
 	if capacity <= 0 {
 		capacity = 256
 	}
+	stopTimeout := config.StopTimeout
+	if stopTimeout <= 0 {
+		stopTimeout = defaultStopTimeout
+	}
 	queue := &Queue{
-		store:     store,
-		onPersist: config.OnPersist,
-		ch:        make(chan CaptureRecord, capacity),
-		stopped:   make(chan struct{}),
+		store:       store,
+		onPersist:   config.OnPersist,
+		stopTimeout: stopTimeout,
+		ch:          make(chan CaptureRecord, capacity),
+		stopped:     make(chan struct{}),
 	}
 	go queue.run()
 	return queue
@@ -101,7 +113,7 @@ func (q *Queue) TryEnqueue(record CaptureRecord) bool {
 
 // Stop closes the queue and waits until drained or ctx expires.
 func (q *Queue) Stop(ctx context.Context) QueueStopResult {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, q.stopTimeout)
 	defer cancel()
 	q.stopOnce.Do(func() {
 		q.mu.Lock()

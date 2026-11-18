@@ -18,8 +18,13 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
 | ID | Specs | Route | Status | Evidence |
 |---|---|---|---|---|
 | T1 | S1 | inline | done | `docs/reports/2026-11-18-test-suite-inventory.md` + CSV, `scripts/test-inventory/` |
-| T2 | S2 | — | pending owner decision | reduction plan from the T1 observations |
-| T3 | S2, S3 | — | pending | mutation check of the reduced suites, last |
+| T2 | S2 | inline | done | Go queue Stop ceiling injectable (`StopTimeout`): deadline tests 5.0 s → 0.05 s each; eventlog pkg 6.5 → 1.4 s, requestcapture 5.4 → 1.9 s; verifier PASS |
+| T3 | S2 | inline | pending | `node` project stops loading the React Testing Library setup it never uses (measure first) |
+| T4 | S2 | inline | pending | DOM-free jsdom suites move to the `node` project |
+| T5 | S2 | inline | pending | real sleeps and timers replaced where they cost measurable time |
+| T6 | S2 | — | pending | coverage tier per module in `coverage-tiers.json`, before any deletion |
+| T7 | S2 | — | pending | merge or delete low-tier and duplicated tests, guided by T6 |
+| T8 | S2, S3 | — | pending | mutation check of the reduced suites, last |
 
 ## Log
 
@@ -32,4 +37,10 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
   cumulative, 0 failures. Vitest: 320 s wall, 5,022 cases, 0 failures; per-file overhead (386 s
   cumulative) exceeds test bodies (197 s). The repo scripts reproduce the scratch CSV byte for byte.
   One glob-mirror bug (`shared/store/**` matching zero directories) was found and fixed before export.
-- Next: owner picks the reduction levers for T2.
+- L3 (2026-11-18, owner): "about your plan i approve". Approved order: speed-ups that delete no tests
+  first (T2-T5), then coverage tiers (T6) before any deletion (T7).
+- L4 (2026-11-18): T2 verifier PASS; it found the 5 s production default no longer pinned (a 1 h ceiling
+  would pass). Restored with `TestNewQueueShutdownCeilingDefaultsToFiveSeconds` in both packages; a hand
+  mutation to `time.Hour` failed it and was reverted. The old `-short` skip is gone, so mutation runs now
+  include the deadline test.
+- Next: T3, measured before and after.
