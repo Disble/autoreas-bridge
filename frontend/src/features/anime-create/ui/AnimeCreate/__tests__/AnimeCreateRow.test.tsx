@@ -1,5 +1,8 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
+import { status } from '../../../../../shared/query/test-support/readiness-source.test-support';
 import type { AnimeMetadataLookupSource } from '../../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
 import { AnimeCreateRow } from '../AnimeCreateRow';
 import { createAnimeCreateRow } from '../anime-create.helpers';
@@ -32,7 +35,7 @@ function createViewModel(overrides: Partial<AnimeCreateViewModel> = {}): AnimeCr
     nameConflicts: {},
     appliedMetadataByRow: {},
     metadataLookupSource: fakeMetadataLookupSource(),
-    coverPreviewSource: {},
+    coverPreviewSource: { previewAnimeCover: vi.fn().mockResolvedValue({ source: 'placeholder' }) },
     isSubmitting: false,
     canRemoveRow: true,
     canOpenBoard: false,
@@ -63,6 +66,16 @@ function draftRow(overrides: Partial<AnimeCreateRowDraft> = {}): AnimeCreateRowD
   return { ...createAnimeCreateRow(1), ...overrides };
 }
 
+/**
+ * Renders one row inside a query client whose `anime` module is ready, which
+ * its cover preview reads through.
+ * @param ui The row element.
+ * @returns The render result.
+ */
+function renderRow(ui: ReactElement) {
+  return render(ui, { wrapper: createModulesTestWrapper(status('anime', 'ready')).wrapper });
+}
+
 describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () => {
   afterEach(() => {
     cleanup();
@@ -71,7 +84,7 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
 
   it('renders the Fetch metadata action outside the optional-metadata disclosure, reachable while it is collapsed', () => {
     const row = draftRow({ name: 'Bleach' });
-    render(<AnimeCreateRow index={0} row={row} viewModel={createViewModel()} />);
+    renderRow(<AnimeCreateRow index={0} row={row} viewModel={createViewModel()} />);
 
     // Disclosure starts collapsed -- its own content is not visible.
     expect(screen.getByLabelText('Watched episodes')).not.toBeVisible();
@@ -81,7 +94,7 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
 
   it('groups the card actions in its header, icon-only: Fetch metadata, then Remove at the outer edge', () => {
     const row = draftRow({ name: 'Bleach' });
-    render(<AnimeCreateRow index={0} row={row} viewModel={createViewModel()} />);
+    renderRow(<AnimeCreateRow index={0} row={row} viewModel={createViewModel()} />);
 
     const header = screen.getByRole('group', { name: 'Actions for Bleach' });
     const names = within(header).getAllByRole('button').map((button) => button.getAttribute('aria-label'));
@@ -93,7 +106,7 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
 
   it('explains a locked Remove while the card is the only one', () => {
     const row = draftRow({ name: 'Bleach' });
-    render(<AnimeCreateRow index={0} row={row} viewModel={createViewModel({ canRemoveRow: false })} />);
+    renderRow(<AnimeCreateRow index={0} row={row} viewModel={createViewModel({ canRemoveRow: false })} />);
     const remove = screen.getByRole('button', { name: 'Remove Bleach' });
 
     expect(remove).toBeDisabled();
@@ -106,7 +119,7 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
 
   it('keeps the Fetch metadata action reachable once the disclosure is expanded', () => {
     const row = draftRow({ name: 'Bleach' });
-    render(<AnimeCreateRow index={0} row={row} viewModel={createViewModel()} />);
+    renderRow(<AnimeCreateRow index={0} row={row} viewModel={createViewModel()} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Optional details' }));
 
@@ -116,7 +129,7 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
 
   it('opens the folder and cover pickers from icon-only buttons named by what they choose', () => {
     const viewModel = createViewModel();
-    render(<AnimeCreateRow index={0} row={draftRow({ name: 'Bleach', coverType: 'image' })} viewModel={viewModel} />);
+    renderRow(<AnimeCreateRow index={0} row={draftRow({ name: 'Bleach', coverType: 'image' })} viewModel={viewModel} />);
     fireEvent.click(screen.getByRole('button', { name: 'Optional details' }));
 
     const folder = screen.getByRole('button', { name: 'Choose folder' });
@@ -133,7 +146,7 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
 
   it('previews the row cover beside its cover field before the anime is created', async () => {
     const previewAnimeCover = vi.fn().mockResolvedValue({ source: 'cover', dataUrl: 'data:image/jpeg;base64,row' });
-    render(<AnimeCreateRow index={0} row={draftRow({ name: 'Bleach', coverType: 'image', coverPath: 'D:/Anime/Bleach/cover.jpg' })} viewModel={createViewModel({ coverPreviewSource: { previewAnimeCover } })} />);
+    renderRow(<AnimeCreateRow index={0} row={draftRow({ name: 'Bleach', coverType: 'image', coverPath: 'D:/Anime/Bleach/cover.jpg' })} viewModel={createViewModel({ coverPreviewSource: { previewAnimeCover } })} />);
     fireEvent.click(screen.getByRole('button', { name: 'Optional details' }));
 
     expect(await screen.findByRole('img', { name: 'Cover preview' })).toHaveAttribute('src', 'data:image/jpeg;base64,row');
@@ -142,14 +155,14 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
 
   it('disables the Fetch metadata action while Name is empty', () => {
     const row = draftRow({ name: '' });
-    render(<AnimeCreateRow index={0} row={row} viewModel={createViewModel()} />);
+    renderRow(<AnimeCreateRow index={0} row={row} viewModel={createViewModel()} />);
 
     expect(screen.getByRole('button', { name: 'Fetch metadata' })).toBeDisabled();
   });
 
   it('shows no Undo affordance for a row with nothing applied', () => {
     const row = draftRow({ name: 'Bleach' });
-    render(<AnimeCreateRow index={0} row={row} viewModel={createViewModel()} />);
+    renderRow(<AnimeCreateRow index={0} row={row} viewModel={createViewModel()} />);
 
     expect(screen.queryByRole('button', { name: 'Undo autofill' })).not.toBeInTheDocument();
   });
@@ -168,7 +181,7 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
       },
       onMetadataUndo,
     });
-    render(<AnimeCreateRow index={0} row={row} viewModel={viewModel} />);
+    renderRow(<AnimeCreateRow index={0} row={row} viewModel={viewModel} />);
 
     expect(screen.queryByText(/MyAnimeList did not provide/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Undo autofill' }));
@@ -188,7 +201,7 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
         },
       },
     });
-    render(<AnimeCreateRow index={0} row={row} viewModel={viewModel} />);
+    renderRow(<AnimeCreateRow index={0} row={row} viewModel={viewModel} />);
 
     expect(screen.getByRole('button', { name: 'Undo autofill' })).toBeInTheDocument();
     expect(screen.queryByText(/MyAnimeList did not provide/)).not.toBeInTheDocument();
@@ -205,7 +218,7 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
       }),
       GetMyAnimeListDetail: vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok', title: 'Bleach: Sennen Kessen-hen' }),
     };
-    render(<AnimeCreateRow index={0} row={row} viewModel={createViewModel({ metadataLookupSource: source, onMetadataApplied })} />);
+    renderRow(<AnimeCreateRow index={0} row={row} viewModel={createViewModel({ metadataLookupSource: source, onMetadataApplied })} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Fetch metadata' }));
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'bleach' } });

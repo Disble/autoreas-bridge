@@ -1,12 +1,12 @@
 import { useCallback } from 'react';
 import { useStore } from 'zustand';
+import { toFilterGroupValues } from '../../../../shared/ui/FilterTagGroup/filter-tag-group.helpers';
 import { CATALOG_DEFAULT_CRITERIA } from './catalog-panel.constants';
 import type { Key, Selection } from '@heroui/react';
 import {
   removeCatalogCriterionChips,
   toCatalogCriterionChips,
   toCatalogGenres,
-  toCatalogGroupValues,
   toCatalogSortKey,
   toCatalogView,
 } from './catalog-panel.helpers';
@@ -38,11 +38,11 @@ export function useCatalogCriteria(): UseCatalogCriteriaResult {
   }, []);
   const onQueryChange = useCallback((query: string) => updateCriteria((previous) => ({ ...previous, query })), [updateCriteria]);
   const onStatusSelectionChange = useCallback(
-    (selection: Selection) => updateCriteria((previous) => ({ ...previous, statuses: toCatalogGroupValues(selection, previous.statuses) })),
+    (selection: Selection) => updateCriteria((previous) => ({ ...previous, statuses: toFilterGroupValues(selection, previous.statuses) })),
     [updateCriteria],
   );
   const onKindSelectionChange = useCallback(
-    (selection: Selection) => updateCriteria((previous) => ({ ...previous, kinds: toCatalogGroupValues(selection, previous.kinds) })),
+    (selection: Selection) => updateCriteria((previous) => ({ ...previous, kinds: toFilterGroupValues(selection, previous.kinds) })),
     [updateCriteria],
   );
   const onGenresSelectionChange = useCallback(

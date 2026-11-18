@@ -1,9 +1,18 @@
 import type { ReactNode } from 'react';
 import type { EpisodeCommandsSource, EpisodeScheduleItem, EpisodesSource } from '../../../../shared/contracts/episodes.types';
 import type { AsyncView } from '../../../../shared/query/async-view/async-view.types';
+import type { SeasonModeSource } from '../../../../shared/season/season-mode/season-mode.types';
 
 /** Which lens groups the Episodes list: season watch states or weekdays. */
 export type EpisodeViewLens = 'season' | 'daily';
+
+/** A lens and the day (or season status) selected in it. */
+export interface EpisodeLensSelection {
+  /** The lens the list is grouped by. */
+  readonly lens: EpisodeViewLens;
+  /** The selected weekday key, or the season status literal. */
+  readonly day: string;
+}
 
 /** Props accepted by the operational episode schedule panel. */
 export interface EpisodeSchedulePanelProps {
@@ -19,11 +28,10 @@ export interface EpisodeSchedulePanelProps {
  * Request/reply port used by the Episodes UI hook: the episodes module's two
  * reads (`EpisodesSource`, read through `useBridgeQuery`) and its two row
  * writes (`EpisodeCommandsSource`, run through `useBridgeMutation`), plus the
- * season probe, covers and desktop actions. Live updates come from the
- * `anime.changed` invalidation rule.
+ * open-season read that picks the initial lens (`SeasonModeSource`), covers and
+ * desktop actions. Live updates come from the `anime.changed` invalidation rule.
  */
-export interface EpisodeScheduleSource extends EpisodesSource, Pick<EpisodeCommandsSource, 'adjustWatchedEpisodes' | 'setAnimeState'> {
-  readonly getSeasonMode: () => Promise<boolean>;
+export interface EpisodeScheduleSource extends EpisodesSource, Pick<EpisodeCommandsSource, 'adjustWatchedEpisodes' | 'setAnimeState'>, SeasonModeSource {
   readonly openAnimePage: (animeID: string) => Promise<EpisodeCommandResult>;
   readonly copyAnimePage: (animeID: string) => Promise<EpisodeCommandResult>;
   readonly openAnimeFolder: (animeID: string) => Promise<EpisodeCommandResult>;

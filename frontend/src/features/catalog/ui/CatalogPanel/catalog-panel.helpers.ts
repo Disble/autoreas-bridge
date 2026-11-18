@@ -4,7 +4,8 @@ import type { Anime } from '../../../../shared/contracts/anime.types';
 import type { AsyncView } from '../../../../shared/query/async-view/async-view.types';
 import { getAnimeEstadoLabel } from '../../../../shared/helpers/anime-estado.helpers';
 import { getAnimeTipoLabel } from '../../../../shared/helpers/anime-tipo.helpers';
-import { CATALOG_END_LABEL, CATALOG_FILTER_ALL_VALUE, CATALOG_NAME_COLLATOR, CATALOG_NO_ITEMS, CATALOG_SORT_OPTIONS, CATALOG_STATUS_SORT_RANK } from './catalog-panel.constants';
+import { matchesFilterGroup } from '../../../../shared/ui/FilterTagGroup/filter-tag-group.helpers';
+import { CATALOG_END_LABEL, CATALOG_NAME_COLLATOR, CATALOG_NO_ITEMS, CATALOG_SORT_OPTIONS, CATALOG_STATUS_SORT_RANK } from './catalog-panel.constants';
 import type {
   CatalogCover,
   CatalogCoverInput,
@@ -86,11 +87,6 @@ export function toCatalogView(selection: Selection, current: CatalogView): Catal
   return next === 'grid' || next === 'list' ? next : current;
 }
 
-/** True when a filter group is set to All or names the record's value among its picks. */
-function matchesAny(selected: readonly string[], value: number | undefined): boolean {
-  return selected.length === 0 || selected.includes(String(value));
-}
-
 /** True when the record carries every selected genre, compared case-insensitively. */
 function hasEveryGenre(item: Anime, genres: readonly string[]): boolean {
   const carried = new Set(item.genres.map((genre) => genre.toLowerCase()));
@@ -103,8 +99,8 @@ export function filterCatalogAnimes(items: readonly Anime[], criteria: CatalogCr
   return items.filter(
     (item) =>
       item.name.toLowerCase().includes(query) &&
-      matchesAny(criteria.statuses, item.status) &&
-      matchesAny(criteria.kinds, item.kind) &&
+      matchesFilterGroup(criteria.statuses, item.status) &&
+      matchesFilterGroup(criteria.kinds, item.kind) &&
       hasEveryGenre(item, criteria.genres),
   );
 }
@@ -159,27 +155,6 @@ export function toCatalogChoice(selection: Selection, current: string): string {
   return first === undefined ? current : String(first);
 }
 
-/**
- * Reads the Status or Type group's selection. The group offers an All tag
- * beside its values: picking All clears the group, and picking a value while
- * All is shown replaces it.
- */
-export function toCatalogGroupValues(selection: Selection, current: readonly string[]): readonly string[] {
-  if (selection === 'all') {
-    return current;
-  }
-  const picked = Array.from(selection, String);
-  if (current.length > 0 && picked.includes(CATALOG_FILTER_ALL_VALUE)) {
-    return [];
-  }
-  return picked.filter((value) => value !== CATALOG_FILTER_ALL_VALUE);
-}
-
-/** The tags a Status or Type group shows selected: All while the group is empty. */
-export function toCatalogGroupKeys(values: readonly string[]): readonly string[] {
-  return values.length === 0 ? [CATALOG_FILTER_ALL_VALUE] : values;
-}
-
 /** Reads the Genres group's selection, in the order the genres were picked. */
 export function toCatalogGenres(selection: Selection, current: readonly string[]): readonly string[] {
   return selection === 'all' ? current : Array.from(selection, String);
@@ -205,16 +180,6 @@ export function getCatalogStatusColor(status: number): CatalogStatusColor {
     [ANIME_ESTADO_VALID_VALUES[3]]: 'warning',
   };
   return colorByStatus[status] ?? 'default';
-}
-
-/** Accessible name of the Filters button, counting the active filters. */
-export function formatCatalogFiltersLabel(activeFilterCount: number): string {
-  return activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : 'Filters';
-}
-
-/** Label of the action that closes the Filters popover onto the result. */
-export function formatCatalogShowLabel(matchingCount: number): string {
-  return `Show ${matchingCount} anime`;
 }
 
 /** Results footer: how many the progressive window still hides, or the end of the catalog. */

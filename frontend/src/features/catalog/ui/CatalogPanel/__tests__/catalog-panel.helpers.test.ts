@@ -13,16 +13,12 @@ import {
   isCatalogSortKey,
   removeCatalogCriterion,
   removeCatalogCriterionChips,
-  formatCatalogFiltersLabel,
   formatCatalogFooter,
-  formatCatalogShowLabel,
   toCatalogChoice,
   toCatalogCover,
   toCatalogCriterionChips,
   toCatalogDetailPath,
   toCatalogGenres,
-  toCatalogGroupKeys,
-  toCatalogGroupValues,
   toCatalogItemViewModel,
   toCatalogSortKey,
   toCatalogView,
@@ -229,23 +225,6 @@ describe('toCatalogChoice', () => {
   });
 });
 
-describe('toCatalogGroupValues and toCatalogGroupKeys', () => {
-  it.each<[string, Selection, readonly string[], readonly string[]]>([
-    ['picking a value replaces All', new Set(['all', '1']), [], ['1']],
-    ['picking another value adds it', new Set(['1', 3]), ['1'], ['1', '3']],
-    ['picking All clears the group', new Set(['1', 'all']), ['1'], []],
-    ['dropping the last value clears the group', new Set(), ['1'], []],
-    ['select-all keeps the current values', 'all', ['1'], ['1']],
-  ])('%s', (_case, selection, current, expected) => {
-    expect(toCatalogGroupValues(selection, current)).toEqual(expected);
-  });
-
-  it('shows All selected only while the group is empty', () => {
-    expect(toCatalogGroupKeys([])).toEqual(['all']);
-    expect(toCatalogGroupKeys(['0', '1'])).toEqual(['0', '1']);
-  });
-});
-
 describe('toCatalogGenres', () => {
   it('takes every selected genre in selection order, and keeps the current ones for select-all', () => {
     expect(toCatalogGenres(new Set(['Mecha', 'Drama']), ['Drama'])).toEqual(['Mecha', 'Drama']);
@@ -294,9 +273,6 @@ describe('catalog paths and footer', () => {
     expect(toCatalogDetailPath('abc')).toBe('/catalog/detail/abc');
     expect(formatCatalogFooter(20, 36)).toBe('Showing 20 of 36 — scroll for more');
     expect(formatCatalogFooter(36, 36)).toBe('End of catalog');
-    expect(formatCatalogShowLabel(7)).toBe('Show 7 anime');
-    expect(formatCatalogFiltersLabel(0)).toBe('Filters');
-    expect(formatCatalogFiltersLabel(2)).toBe('Filters, 2 active');
   });
 });
 

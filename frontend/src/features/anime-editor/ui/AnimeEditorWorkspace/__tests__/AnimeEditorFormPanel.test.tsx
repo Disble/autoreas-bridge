@@ -1,10 +1,23 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render as renderWithoutClient, screen } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AnimeMetadataLookupSource } from '../../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
+import { status } from '../../../../../shared/query/test-support/readiness-source.test-support';
 import { AnimeEditorFormPanel } from '../AnimeEditorFormPanel';
 import type { AnimeEditorWorkspaceViewModel } from '../anime-editor-workspace.types';
 
 afterEach(cleanup);
+
+/**
+ * Renders inside a query client whose `anime` module is ready, which the
+ * cover field's preview reads through; `rerender` keeps the same client.
+ * @param ui The element under test.
+ * @returns The render result.
+ */
+function render(ui: ReactElement) {
+  return renderWithoutClient(ui, { wrapper: createModulesTestWrapper(status('anime', 'ready')).wrapper });
+}
 
 /**
  * A fake lookup source resolving with no candidates by default, so a test
@@ -33,7 +46,7 @@ function createViewModel(overrides: Partial<AnimeEditorWorkspaceViewModel> = {})
     appliedMetadata: undefined,
     cover: { status: 'placeholder' },
     metadataLookupSource: fakeMetadataLookupSource(),
-    coverPreviewSource: {},
+    coverPreviewSource: { previewAnimeCover: vi.fn().mockResolvedValue({ source: 'placeholder' }) },
     isLoadingList: false, isLoadingRecord: false, isSaving: false, isApplyingSchedule: false, isDirty: false, isRecordDirty: false,
     isScheduleModalOpen: false, scheduleBoard: undefined, feedback: undefined, validationMessage: undefined, scheduleFeedback: undefined,
     isDetailsOpen: false, isGuardOpen: false, canSave: false,

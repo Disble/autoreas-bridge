@@ -117,15 +117,6 @@ export interface CatalogSectionProps {
   readonly state: CatalogPanelState;
 }
 
-/** Props for one tag group inside the Filters popover. */
-export interface CatalogFilterGroupProps {
-  readonly label: string;
-  readonly hint?: string;
-  readonly options: readonly CatalogOption[];
-  readonly selectedKeys: readonly string[];
-  readonly onSelectionChange: (selection: Selection) => void;
-}
-
 /** Props for one Catalog card or row. */
 export interface CatalogItemProps {
   readonly item: CatalogItemViewModel;
@@ -169,12 +160,6 @@ export interface CatalogEmptyStateInput {
   /** Rows left after search and filters. */
   readonly visibleCount: number;
   readonly criteria: CatalogCriteria;
-}
-
-/** Title and description shown by one Catalog empty state. */
-export interface CatalogEmptyStateCopy {
-  readonly title: string;
-  readonly description: string;
 }
 
 /**

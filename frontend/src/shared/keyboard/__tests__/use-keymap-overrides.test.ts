@@ -1,13 +1,16 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { PreferencesSource } from '../../../infrastructure/preferences-source/preferences-source.types';
+import type { SettingsSource } from '../../contracts/settings.types';
 import { getKeyboardState, resetKeyboardStore } from '../keyboard-scope.helpers';
 import { useKeymapOverrides } from '../use-keymap-overrides';
 
 /** Builds a minimal injectable source stubbing only `getKeymap`, the sole method this hook reads. */
-function buildSource(getKeymap: () => Promise<string>): Pick<PreferencesSource, 'getKeymap'> {
+function buildSource(getKeymap: () => Promise<string>): Pick<SettingsSource, 'getKeymap'> {
   return { getKeymap };
 }
+
+/** A settings module that is already ready. */
+const settingsReady = () => Promise.resolve();
 
 beforeEach(resetKeyboardStore);
 afterEach(resetKeyboardStore);
@@ -32,7 +35,7 @@ describe('useKeymapOverrides', () => {
   it('resolves a valid serialized document to its overrides', async () => {
     const document = JSON.stringify({ version: 1, bindings: { 'nav.today': 'ctrl+1' } });
 
-    renderHook(() => useKeymapOverrides(buildSource(() => Promise.resolve(document))));
+    renderHook(() => useKeymapOverrides(buildSource(() => Promise.resolve(document)), settingsReady));
 
     await waitFor(() => expect(getKeyboardState().keymapLoadState).toBe('loaded'));
     expect(getKeyboardState().overrides).toEqual({ 'nav.today': 'ctrl+1' });
@@ -43,7 +46,7 @@ describe('useKeymapOverrides', () => {
     const secondDocument = JSON.stringify({ version: 1, bindings: { 'nav.today': 'ctrl+2' } });
     const secondSource = buildSource(() => Promise.resolve(secondDocument));
 
-    const { rerender } = renderHook(({ source }) => useKeymapOverrides(source), { initialProps: { source: firstSource } });
+    const { rerender } = renderHook(({ source }) => useKeymapOverrides(source, settingsReady), { initialProps: { source: firstSource } });
     await waitFor(() => expect(getKeyboardState().keymapLoadState).toBe('loaded'));
 
     rerender({ source: secondSource });

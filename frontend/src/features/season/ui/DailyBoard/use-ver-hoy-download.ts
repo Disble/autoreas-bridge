@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { SeasonAnimeRow, SeasonQuerySource, SeasonSource } from '../../../../shared/contracts/season.types';
 import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
+import { toSeasonBannerMessage } from '../../../../shared/season/season.helpers';
 import { useDisplayedSeasonAnimes } from '../../../../shared/season/use-displayed-season-animes';
 import { DAILY_BOARD_DOWNLOAD_FAILED } from './daily-board.constants';
 import { pruneSelection, toggleSelection } from './daily-board.helpers';
@@ -46,14 +47,13 @@ export function useVerHoyDownload(source: SeasonSource & SeasonQuerySource, verH
     if (verHoySelected.size === 0) {
       return;
     }
-    void download.mutateAsync([...verHoySelected]).then((status) => {
-      if (status === 'ok') {
+    void download.mutateAsync([...verHoySelected]).then(
+      () => {
         setChecked(new Set());
         setDownloadError(undefined);
-      } else {
-        setDownloadError(status || DAILY_BOARD_DOWNLOAD_FAILED);
-      }
-    }, () => setDownloadError(DAILY_BOARD_DOWNLOAD_FAILED));
+      },
+      (error: unknown) => setDownloadError(toSeasonBannerMessage(error, { fallback: DAILY_BOARD_DOWNLOAD_FAILED, fixedMessage: false }) || DAILY_BOARD_DOWNLOAD_FAILED),
+    );
   }, [download, verHoySelected]);
 
   return { verHoySelected, toggleVerHoySelect, onDownloadSelected, downloadError };

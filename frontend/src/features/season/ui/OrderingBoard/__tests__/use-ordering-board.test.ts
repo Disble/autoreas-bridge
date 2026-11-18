@@ -2,6 +2,7 @@ import { act, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrderingBoard, SeasonOrderingSnapshot, SeasonSource } from '../../../../../shared/contracts/season.types';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
 import { resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
 import { ORDERING_AUTOSAVE_DEBOUNCE_MS, ORDERING_DUPLICATE_WEEKDAY_ERROR, ORDERING_HISTORY_LOAD_ERROR } from '../ordering-board.constants';
 import { card, createSource, dragOverEvent, renderOrderingBoard, snapshot, waitPastAutosave } from './ordering-board.test-support';
@@ -274,6 +275,36 @@ describe('useOrderingBoard', () => {
     });
     expect(source.saveOrderingDraft).toHaveBeenCalled();
     expect(source.applySchedule).toHaveBeenCalled();
+  });
+
+  it('shows a rejected apply on the season banner and still reloads the board', async () => {
+    const source = createSource(
+      { rail: [], grid: [card({ animeId: 'g', dia: 'Lunes', orden: 1 })] },
+      { applySchedule: vi.fn<SeasonSource['applySchedule']>().mockRejectedValue(createBridgeError('internal', 'write anime g: disk full')) },
+    );
+    const { result } = renderOrderingBoard(source);
+    await waitFor(() => expect(result.current.columns['Lunes']).toHaveLength(1));
+    const readsBefore = vi.mocked(source.fetchOrderingBoard!).mock.calls.length;
+
+    await act(async () => {
+      await expect(result.current.onApply()).resolves.toBeUndefined();
+    });
+
+    expect(result.current.errorMessage).toBe('write anime g: disk full');
+    expect(vi.mocked(source.fetchOrderingBoard!).mock.calls.length).toBe(readsBefore + 1);
+  });
+
+  it('clears the season banner once an apply succeeds', async () => {
+    setSeasonStoreState({ errorMessage: 'previous failure' });
+    const source = createSource({ rail: [], grid: [card({ animeId: 'g', dia: 'Lunes', orden: 1 })] });
+    const { result } = renderOrderingBoard(source);
+    await waitFor(() => expect(result.current.columns['Lunes']).toHaveLength(1));
+
+    await act(async () => {
+      await expect(result.current.onApply()).resolves.toEqual({ status: 'ok', applied: 1, failed: [] });
+    });
+
+    expect(result.current.errorMessage).toBeUndefined();
   });
 
   it('marks an already-applied board read-only', async () => {

@@ -64,7 +64,7 @@ describe('CatalogToolbar', () => {
     renderControls({ activeFilterCount });
 
     expect(screen.getByRole('button', { name })).toBeInTheDocument();
-    expect(screen.queryByTestId('catalog-filter-count')?.textContent ?? null).toBe(badge);
+    expect(screen.queryByTestId('filters-active-count')?.textContent ?? null).toBe(badge);
   });
 
   it('shows the current filters selected, selects tags, resets them and closes onto the result', async () => {

@@ -1,7 +1,6 @@
 package desktop
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -25,8 +24,7 @@ func TestDownloadSeasonAnimesRunsTheChosenAnimesAsOneRun(t *testing.T) {
 		Clock:    func() time.Time { return time.UnixMilli(1_750_000_000_000) },
 		NewRunID: func() string { return "run-season" },
 	})
-	app := &App{
-		ctx:             context.Background(),
+	app := downloadsReady(&App{
 		downloadService: service,
 		// An idle scheduler must not block the run; only a running one refuses it.
 		downloadScheduler: &fakeAppScheduler{},
@@ -34,10 +32,10 @@ func TestDownloadSeasonAnimesRunsTheChosenAnimesAsOneRun(t *testing.T) {
 			"anime-a": seasonDownloadAnime("anime-a"),
 			"anime-b": seasonDownloadAnime("anime-b"),
 		}},
-	}
+	})
 
-	if got := app.DownloadSeasonAnimes([]string{"anime-a", "anime-b"}); got != "ok" {
-		t.Fatalf("expected ok, got %q", got)
+	if err := app.DownloadSeasonAnimes([]string{"anime-a", "anime-b"}); err != nil {
+		t.Fatalf("expected the run to start, got %v", err)
 	}
 
 	select {
@@ -50,6 +48,8 @@ func TestDownloadSeasonAnimesRunsTheChosenAnimesAsOneRun(t *testing.T) {
 	}
 }
 
+// TestDownloadSeasonAnimesRejectsWithoutStartingARun pins that every refusal is the binding's
+// error and releases the solo-run guard, including an unknown id after a known one was resolved.
 func TestDownloadSeasonAnimesRejectsWithoutStartingARun(t *testing.T) {
 	t.Parallel()
 
@@ -60,25 +60,22 @@ func TestDownloadSeasonAnimesRejectsWithoutStartingARun(t *testing.T) {
 		ids  []string
 		want string
 	}{
-		{"no selection", &App{downloadService: download.NewService(download.ServiceDeps{}), animeQuery: &stubAnimeQueryService{byID: known}}, nil, seasonNoAnimesSelectedMessage},
-		{"no download service", &App{animeQuery: &stubAnimeQueryService{byID: known}}, []string{"anime-a"}, "download service unavailable"},
-		{"no anime query", &App{downloadService: download.NewService(download.ServiceDeps{})}, []string{"anime-a"}, "anime query unavailable"},
+		{"no selection", &App{animeQuery: &stubAnimeQueryService{byID: known}}, nil, seasonNoAnimesSelectedMessage},
 		{"scheduler running", &App{
-			downloadService:   download.NewService(download.ServiceDeps{}),
 			animeQuery:        &stubAnimeQueryService{byID: known},
 			downloadScheduler: &fakeAppScheduler{status: schedule.Status{Running: true}},
 		}, []string{"anime-a"}, schedule.ErrRunInProgress.Error()},
-		{"unknown anime", &App{downloadService: download.NewService(download.ServiceDeps{}), animeQuery: &stubAnimeQueryService{byID: known}}, []string{"anime-a", "anime-x"}, "anime not found"},
+		{"unknown anime", &App{animeQuery: &stubAnimeQueryService{byID: known}}, []string{"anime-a", "anime-x"}, soloDownloadAnimeNotFound},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			tc.app.ctx = context.Background()
-			if got := tc.app.DownloadSeasonAnimes(tc.ids); got != tc.want {
-				t.Fatalf("expected %q, got %q", tc.want, got)
+			app := downloadsReady(tc.app)
+			if err := app.DownloadSeasonAnimes(tc.ids); err == nil || err.Error() != tc.want {
+				t.Fatalf("expected %q, got %v", tc.want, err)
 			}
 			// A rejected call must release the solo-run guard, or no later download could start.
-			if !tc.app.soloDownloadMu.TryLock() {
+			if !app.soloDownloadMu.TryLock() {
 				t.Fatal("expected the solo-run guard to be released after a rejection")
 			}
 		})

@@ -334,9 +334,9 @@ func TestSendSeasonAnimesToVerHoyPastWindowOffersManual(t *testing.T) {
 func TestTriggerSeasonDownloads(t *testing.T) {
 	t.Parallel()
 	sched := &fakeAppScheduler{}
-	app := &App{ctx: context.Background(), downloadScheduler: sched}
-	if got := app.TriggerSeasonDownloads(); got != "ok" {
-		t.Fatalf("TriggerSeasonDownloads: %q", got)
+	app := downloadsReady(&App{downloadScheduler: sched})
+	if err := app.TriggerSeasonDownloads(); err != nil {
+		t.Fatalf("TriggerSeasonDownloads: %v", err)
 	}
 	if sched.triggerNowCalls != 1 {
 		t.Fatalf("expected one manual download trigger, got %d", sched.triggerNowCalls)

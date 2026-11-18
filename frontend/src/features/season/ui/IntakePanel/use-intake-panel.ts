@@ -1,8 +1,14 @@
-import { metadataLookupSource } from '../../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers';
-import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
-import type { PreferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.types';
+import type { PickerSource } from '../../../../shared/contracts/picker.types';
 import type { SeasonQuerySource, SeasonSource } from '../../../../shared/contracts/season.types';
-import { BRIDGE_SEASON_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import type { SettingsSource } from '../../../../shared/contracts/settings.types';
+import {
+  BRIDGE_METADATA_LOOKUP_SOURCE,
+  BRIDGE_PICKER_SOURCE,
+  BRIDGE_SEASON_SOURCE,
+  BRIDGE_SETTINGS_SOURCE,
+} from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { settingsKeys } from '../../../../shared/query/query-keys/query-keys.constants';
+import { useBridgeQuery } from '../../../../shared/query/use-bridge-query/use-bridge-query';
 import type { AnimeMetadataLookupSource } from '../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
 import { useIntakeCreationCallbacks } from './use-intake-creation-callbacks';
 import { useIntakeEditorState } from './use-intake-editor-state';
@@ -39,32 +45,38 @@ import { useIntakeView } from './use-intake-view';
  * Season store slice, the row and metadata derivations, the callback groups,
  * and the sync effects. Its returned object is the panel's whole contract.
  * @param source The season port every row mutation goes through.
- * @param libraryRootSource The port that supplies the configured library root.
+ * @param libraryRootSource The settings port the library root is read through,
+ * under the cache key the anime create form shares; `''` while it loads or
+ * after it failed turns the default folder previews off.
  * @param metadataSource The two MyAnimeList calls each row's lookup modal drives.
+ * @param pickerSource The native folder picker a row's download folder override opens.
  * @returns The panel's state, its derived counts and previews, and its callbacks.
  */
 export function useIntakePanel(
   source: SeasonSource & SeasonQuerySource = BRIDGE_SEASON_SOURCE,
-  libraryRootSource: Pick<PreferencesSource, 'getLibraryRoot'> = preferencesSource,
-  metadataSource: AnimeMetadataLookupSource = metadataLookupSource,
+  libraryRootSource: Pick<SettingsSource, 'getLibraryRoot'> = BRIDGE_SETTINGS_SOURCE,
+  metadataSource: AnimeMetadataLookupSource = BRIDGE_METADATA_LOOKUP_SOURCE,
+  pickerSource: PickerSource = BRIDGE_PICKER_SOURCE,
 ) {
   // 2. State
   const editor = useIntakeEditorState();
   // 3. Context/3rd Party Hooks
   const store = useIntakeStoreSlice(source);
+  // 4. Queries/Mutations
+  const libraryRootQuery = useBridgeQuery({ queryKey: settingsKeys.key('library-root'), queryFn: () => libraryRootSource.getLibraryRoot(), module: 'settings' });
   // 5. Derived State (useMemo in colocated hooks)
-  const rows = useIntakeRows({ store, editor });
+  const rows = useIntakeRows({ store, editor, libraryRoot: libraryRootQuery.data ?? '' });
   const progress = useIntakeMatchingProgress({ store });
   const metadata = useIntakeMetadataView({ rows, editor });
   const view = useIntakeView(rows.discarded.length, editor.mode);
   // 6. Callbacks (useCallback in colocated hooks)
   const modes = useIntakeModeCallbacks({ editor, store, source });
   const rowActions = useIntakeRowCallbacks({ store, editor, source });
-  const creation = useIntakeCreationCallbacks({ editor, metadata, store, source });
+  const creation = useIntakeCreationCallbacks({ editor, metadata, store, source, pickerSource });
   const applied = useIntakeMetadataApply({ rows, editor, metadata, store, source });
   const reverted = useIntakeMetadataRevert({ rows, editor, store, source });
   // 7. Effects
-  useIntakeSyncEffects({ editor, store, source, libraryRootSource });
+  useIntakeSyncEffects({ editor, store, source });
 
   return {
     asyncView: store.asyncView,

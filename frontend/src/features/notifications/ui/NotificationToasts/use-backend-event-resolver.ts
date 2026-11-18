@@ -1,9 +1,8 @@
 import { useEffect, useRef } from 'react';
 import type { AppNotification } from '../../../../shared/contracts/app-notification.types';
-import { notificationSource } from '../../../../infrastructure/notification-source/notification-source.helpers';
-import type { NotificationSource } from '../../../../infrastructure/notification-source/notification-source.types';
 import type { NotificationCenterSource } from '../../../../shared/contracts/notification-center.types';
-import { BRIDGE_NOTIFICATION_CENTER_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import type { NotificationPushSource } from '../../../../shared/contracts/notification-push.types';
+import { BRIDGE_NOTIFICATION_CENTER_SOURCE, BRIDGE_NOTIFICATION_PUSH_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { toBackendAppNotification } from './backend-toast.helpers';
 import { KINDS_OWNED_BY_A_DEDICATED_RESOLVER } from './notification-resolver.constants';
 
@@ -32,7 +31,7 @@ import { KINDS_OWNED_BY_A_DEDICATED_RESOLVER } from './notification-resolver.con
 export function useBackendEventResolver(
   push: (notification: AppNotification) => void,
   remove: (key: string | number) => void,
-  source: NotificationSource = notificationSource,
+  source: NotificationPushSource = BRIDGE_NOTIFICATION_PUSH_SOURCE,
   centerSource: NotificationCenterSource = BRIDGE_NOTIFICATION_CENTER_SOURCE,
 ): void {
   const pushRef = useRef(push);

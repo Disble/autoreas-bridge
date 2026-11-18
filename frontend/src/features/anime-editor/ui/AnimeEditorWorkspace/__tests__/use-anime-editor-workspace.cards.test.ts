@@ -75,7 +75,7 @@ function createSource() {
 async function loadHook(episodeSource: EpisodeDurationRuntimeSource = createEmptyEpisodeDurationSource(), configure?: (source: ReturnType<typeof createSource>) => void) {
   const source = createSource();
   configure?.(source);
-  const rendered = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-1' }, source as never, episodeSource, source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
+  const rendered = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-1' }, source as never, episodeSource, source as never, source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
   await waitFor(() => expect(rendered.result.current.selectedRecord?.animeId).toBe('anime-1'));
   await waitFor(() => expect(rendered.result.current.episodes.view).not.toBe('loading'));
   return { ...rendered, source, episodeSource };
@@ -120,7 +120,7 @@ describe('useAnimeEditorWorkspace Schedule card reads', () => {
   it('shows the week loading while the board read is in flight', async () => {
     const source = createSource();
     source.getAnimeEditorScheduleBoard.mockReturnValue(new Promise(() => undefined));
-    const { result } = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-1' }, source as never, createEmptyEpisodeDurationSource(), source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-1' }, source as never, createEmptyEpisodeDurationSource(), source as never, source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
 
     await waitFor(() => expect(result.current.scheduleWeek).toEqual({ status: 'loading', days: [], seasonDays: [] }));
   });
@@ -128,7 +128,7 @@ describe('useAnimeEditorWorkspace Schedule card reads', () => {
   it('reads no board before any anime is selected', async () => {
     const source = createSource();
     source.getAnimes.mockReturnValue(new Promise(() => undefined));
-    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source as never, createEmptyEpisodeDurationSource(), source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source as never, createEmptyEpisodeDurationSource(), source as never, source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
     await act(async () => undefined);
 
     expect(source.getAnimeEditorScheduleBoard).not.toHaveBeenCalled();
@@ -138,7 +138,7 @@ describe('useAnimeEditorWorkspace Schedule card reads', () => {
   it('neither opens the schedule editor nor saves anything before any anime is selected', async () => {
     const source = createSource();
     source.getAnimes.mockReturnValue(new Promise(() => undefined));
-    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source as never, createEmptyEpisodeDurationSource(), source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source as never, createEmptyEpisodeDurationSource(), source as never, source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
 
     await act(() => result.current.onOpenSchedule());
     let saved: unknown = 'pending';

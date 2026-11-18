@@ -1,20 +1,20 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { NotificationSource } from '../../../../../infrastructure/notification-source/notification-source.types';
+import type { NotificationPushSource } from '../../../../../shared/contracts/notification-push.types';
 import { NotificationNavigationListener } from '../NotificationNavigationListener';
 
 afterEach(cleanup);
 
 /**
- * A `NotificationSource` stub whose navigate stream a test drives by hand,
+ * A `NotificationPushSource` stub whose navigate stream a test drives by hand,
  * standing in for the Go `notification.navigate` runtime event.
  * @returns The stub source, the hand-crank, and a live subscriber count.
  */
 function makeNavigateBus(): {
   readonly emitNavigate: (route: string) => void;
   readonly listenerCount: () => number;
-  readonly source: NotificationSource;
+  readonly source: NotificationPushSource;
 } {
   const listeners = new Set<(route: string) => void>();
 
@@ -51,7 +51,7 @@ function LocationProbe() {
  * @param source The navigate stream the listener subscribes to.
  * @returns The element tree to render.
  */
-function buildTree(source: NotificationSource) {
+function buildTree(source: NotificationPushSource) {
   return (
     <MemoryRouter initialEntries={['/notifications']}>
       <NotificationNavigationListener source={source} />
@@ -70,7 +70,7 @@ function buildTree(source: NotificationSource) {
  * @param source The navigate stream the listener subscribes to.
  * @returns The Testing Library render result, so a test can unmount or re-render.
  */
-function renderListener(source: NotificationSource) {
+function renderListener(source: NotificationPushSource) {
   return render(buildTree(source));
 }
 
@@ -139,7 +139,7 @@ describe('NotificationNavigationListener', () => {
 
   it('subscribes exactly once across re-renders, never re-subscribing per render', () => {
     const subscribeNavigate = vi.fn().mockReturnValue(() => undefined);
-    const source: NotificationSource = {
+    const source: NotificationPushSource = {
       subscribe: () => () => undefined,
       subscribeArchived: () => () => undefined,
       subscribeNavigate,

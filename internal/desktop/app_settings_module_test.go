@@ -56,6 +56,8 @@ func (failingSettingsStore) SetEpisodeRenameEnabled(context.Context, bool) error
 func (failingSettingsStore) APIAddr(context.Context) (string, error)          { return "", errSettingsDisk }
 func (failingSettingsStore) SetAPIAddr(context.Context, string) error         { return errSettingsDisk }
 func (failingSettingsStore) SetSeasonCheckTime(context.Context, string) error { return errSettingsDisk }
+func (failingSettingsStore) Keymap(context.Context) (string, error)           { return "", errSettingsDisk }
+func (failingSettingsStore) SetKeymap(context.Context, string) error          { return errSettingsDisk }
 
 // settingsModuleBindings is every binding the settings module serves, each reporting whether it
 // served a value.
@@ -76,6 +78,8 @@ var settingsModuleBindings = []struct {
 	{"SetEpisodeRenameEnabled", func(a *App) (bool, error) { return true, a.SetEpisodeRenameEnabled(true) }},
 	{"GetSeasonCheckTime", func(a *App) (bool, error) { got, err := a.GetSeasonCheckTime(); return got != "", err }},
 	{"SetSeasonCheckTime", func(a *App) (bool, error) { return true, a.SetSeasonCheckTime("07:30") }},
+	{"GetKeymap", func(a *App) (bool, error) { _, err := a.GetKeymap(); return true, err }},
+	{"SetKeymap", func(a *App) (bool, error) { return true, a.SetKeymap(`{"version":1,"overrides":{}}`) }},
 }
 
 // TestSettingsBindingsFollowTheSettingsModule pins S1 for settings: no binding answers a default,
@@ -133,6 +137,14 @@ func TestSettingsStoreFailuresAreInternal(t *testing.T) {
 		{"SetAPIAddress", func(a *App) error { return a.SetAPIAddress("9999") }},
 		{"SetEpisodeRenameEnabled", func(a *App) error { return a.SetEpisodeRenameEnabled(true) }},
 		{"SetSeasonCheckTime", func(a *App) error { return a.SetSeasonCheckTime("07:30") }},
+		{"GetKeymap", func(a *App) error {
+			got, err := a.GetKeymap()
+			if got != "" {
+				t.Errorf("GetKeymap answered %q beside its error", got)
+			}
+			return err
+		}},
+		{"SetKeymap", func(a *App) error { return a.SetKeymap(`{"version":1,"overrides":{}}`) }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

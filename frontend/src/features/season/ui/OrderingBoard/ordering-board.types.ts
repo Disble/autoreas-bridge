@@ -281,15 +281,3 @@ export interface OrderingBoardDerived {
   /** True when one anime holds two cards on the same weekday. */
   readonly hasInvalidWeekdayPlacements: boolean;
 }
-
-/** The anime page and folder desktop actions the ordering cards expose. */
-export interface OrderingBoardDesktopActions {
-  /** Opens the anime's page in the browser. */
-  readonly onOpenPage: (animeId: string) => void;
-  /** Copies the anime's page URL. */
-  readonly onCopyPage: (animeId: string) => void;
-  /** Opens the anime's download folder. */
-  readonly onOpenFolder: (animeId: string) => void;
-  /** Copies the anime's download folder path. */
-  readonly onCopyFolder: (animeId: string) => void;
-}

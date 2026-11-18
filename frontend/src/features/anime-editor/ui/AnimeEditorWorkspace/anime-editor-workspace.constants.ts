@@ -1,7 +1,8 @@
 import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
 import { ANIME_ESTADO_LABELS, ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
 import type { Anime } from '../../../../shared/contracts/anime.types';
-import type { AnimeEditorDraft, AnimeEditorEmptyStateCopy, AnimeEditorStatusOption } from './anime-editor-workspace.types';
+import type { AirisEmptyStateCopy } from '../../../../shared/ui/AirisEmptyState/airis-empty-state.types';
+import type { AnimeEditorDraft, AnimeEditorFacets, AnimeEditorStatusOption } from './anime-editor-workspace.types';
 
 /** The Folder field's "(?)" help (S17): a folder change does not re-measure episode durations. */
 export const ANIME_EDITOR_FOLDER_HELP = {
@@ -132,7 +133,7 @@ export const ANIME_EDITOR_HEADER_COVER_LOADING_LABEL = 'Loading anime cover...';
  * a filtered-down rail that claims the library is empty sends the user off to
  * re-create anime they already have.
  */
-export const ANIME_EDITOR_EMPTY_STATE_COPY: Readonly<Record<'actual' | 'criteria', AnimeEditorEmptyStateCopy>> = {
+export const ANIME_EDITOR_EMPTY_STATE_COPY: Readonly<Record<'actual' | 'criteria', AirisEmptyStateCopy>> = {
   actual: {
     title: 'Your library is empty',
     description: 'No anime are stored yet. Create one to start building your library.',
@@ -155,6 +156,9 @@ export const ANIME_EDITOR_CALL_TIMEOUT_MESSAGE = 'Saving is taking too long. The
 
 /** The rail's catalog before the anime module answered it: no rows, one stable reference. */
 export const ANIME_EDITOR_NO_ITEMS: readonly Anime[] = [];
+
+/** The rail's Status and Type filters with nothing picked. */
+export const ANIME_EDITOR_NO_FACETS: AnimeEditorFacets = { statuses: [], kinds: [] };
 
 /** Title of the rail's Alert when the catalog read failed. */
 export const ANIME_EDITOR_LIST_FAILED_TITLE = 'The library could not be loaded';

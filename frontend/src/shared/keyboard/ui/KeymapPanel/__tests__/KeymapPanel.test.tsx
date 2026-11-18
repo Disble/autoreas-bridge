@@ -58,7 +58,7 @@ describe('KeymapPanel', () => {
     });
 
     it("wires each row's captured chord to the panel's real onRebind (design D6/D8, Slice 62j) rather than a no-op stub", async () => {
-      const setKeymap = vi.fn().mockResolvedValue('ok');
+      const setKeymap = vi.fn().mockResolvedValue(undefined);
       render(<KeymapPanel source={{ setKeymap }} />);
 
       const [firstRebindButton] = screen.getAllByRole('button', { name: 'Rebind' });
@@ -70,7 +70,7 @@ describe('KeymapPanel', () => {
 
     it('wires a row\'s Revert button to the panel\'s real onRevert, not a no-op stub (task 11.2.3, spec "Recovery Is Always Reachable By Pointer Alone")', async () => {
       setKeymapOverrides({ 'nav.today': 'ctrl+1', 'nav.downloads': 'ctrl+2' });
-      const setKeymap = vi.fn().mockResolvedValue('ok');
+      const setKeymap = vi.fn().mockResolvedValue(undefined);
       render(<KeymapPanel source={{ setKeymap }} />);
 
       const revertButtons = screen.getAllByRole('button', { name: 'Revert' });
@@ -84,7 +84,7 @@ describe('KeymapPanel', () => {
 
     it('wires the reset-to-defaults button to onResetToDefaults using only a pointer click, restoring every shipped chord (task 11.2.4, spec "Reset-to-defaults restores every shipped chord using only pointer input")', async () => {
       setKeymapOverrides({ 'nav.today': 'ctrl+1', 'nav.downloads': 'ctrl+2' });
-      const setKeymap = vi.fn().mockResolvedValue('ok');
+      const setKeymap = vi.fn().mockResolvedValue(undefined);
       render(<KeymapPanel source={{ setKeymap }} />);
 
       fireEvent.click(screen.getByRole('button', { name: 'Reset to defaults' }));

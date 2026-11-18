@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { AnimeDetail } from '../../../../../shared/contracts/anime.types';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
 import type { AnimeDetailCommandSource } from '../anime-detail.types';
 import { useAnimeDetailMutation } from '../use-anime-detail-mutation';
 
@@ -60,6 +61,22 @@ describe('useAnimeDetailMutation', () => {
     expect(refreshDetail).toHaveBeenCalledTimes(1);
     expect(result.current.feedback?.status).toBe('warning');
     expect(result.current.feedback?.description).toMatch(/Anime Detail could not be refreshed\.$/);
+  });
+
+  it.each([
+    ['the episodes module reason', createBridgeError('unavailable', 'episodes: module is starting'), 'episodes: module is starting'],
+    ['the generic message for an uncoded failure', new Error('boom'), 'Runtime request failed.'],
+  ])('reports a rejected command with %s, without refreshing the Detail', async (_label, failure, description) => {
+    const commands = { repeatAnime: vi.fn().mockRejectedValue(failure), restoreAnime: vi.fn().mockRejectedValue(failure) };
+    const refreshDetail = vi.fn().mockResolvedValue(true);
+    const { result } = renderHook(() => useAnimeDetailMutation({ animeId: 'anime-1', detail, commands, refreshDetail }));
+
+    act(() => result.current.onRequestRestore());
+    await act(async () => result.current.onConfirmAction());
+
+    expect(commands.restoreAnime).toHaveBeenCalledWith('anime-1', 0);
+    expect(refreshDetail).not.toHaveBeenCalled();
+    expect(result.current.feedback).toEqual({ status: 'danger', title: 'Restore failed', description });
   });
 
   it('invalidates pending state and stale completion across route visits', async () => {

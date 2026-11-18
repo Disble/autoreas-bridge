@@ -12,7 +12,7 @@ function row(animeId: string, hasCover = true): AnimeEditorListItemViewModel {
 }
 
 /** Builds the rail's cover lookup around one caller-controlled binding. */
-function sourceWith(getAnimeCover?: AnimeEditorCoverSource['getAnimeCover']): AnimeEditorCoverSource {
+function sourceWith(getAnimeCover: AnimeEditorCoverSource['getAnimeCover']): AnimeEditorCoverSource {
   return { getAnimeCover };
 }
 
@@ -326,41 +326,6 @@ describe('useAnimeEditorCovers', () => {
     const { result } = renderHook(() => useAnimeEditorCovers([row('anime-1')], 1, undefined, source));
 
     await waitFor(() => expect(result.current.covers.get('anime-1')).toEqual({ status: 'placeholder' }));
-  });
-
-  it('degrades to the placeholder when the runtime exposes no cover binding at all', async () => {
-    const { result } = renderHook(() => useAnimeEditorCovers([row('anime-1')], 1, undefined, sourceWith(undefined)));
-
-    await waitFor(() => expect(result.current.covers.get('anime-1')).toEqual({ status: 'placeholder' }));
-  });
-
-  it('drops an in-flight lookup when the runtime exposes no cover binding', async () => {
-    let resolveLookup: (result: AnimeEditorCoverResult) => void = () => undefined;
-    const binding = vi.fn().mockReturnValue(
-      new Promise<AnimeEditorCoverResult>((resolve) => {
-        resolveLookup = resolve;
-      }),
-    );
-    const { result, rerender } = renderHook(
-      ({ record, source }: { readonly record: AnimeEditorRecord | undefined; readonly source: AnimeEditorCoverSource }) => useAnimeEditorCovers([], 0, record, source),
-      { initialProps: { record: savedRecord('anime-1', 'https://a.jpg'), source: sourceWith(binding) } },
-    );
-
-    await waitFor(() => expect(binding).toHaveBeenCalledTimes(1));
-
-    // The runtime loses the binding, so the rail can only degrade -- and the
-    // answer still owed by the binding it no longer has must not land on top of
-    // that placeholder when it finally arrives.
-    rerender({ record: savedRecord('anime-1', 'https://b.jpg'), source: sourceWith(undefined) });
-    await waitFor(() => expect(result.current.covers.get('anime-1')).toEqual({ status: 'placeholder' }));
-
-    await act(async () => {
-      resolveLookup(art('A'));
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(result.current.covers.get('anime-1')).toEqual({ status: 'placeholder' });
   });
 
   it('keeps the decoder-failure handler identity stable across rerenders', async () => {

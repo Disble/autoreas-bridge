@@ -91,9 +91,22 @@ For the readiness, failure codes and query runtime it relies on, read
   (`use-notification-center-page.ts`).
 - Commands: mark read/unread, archive, restore and actions run through `useBridgeMutation`; the
   panel re-reads the list and the unread count after each one.
-- The runtime streams the toasts, the archived-row drop and the navigation listener subscribe to stay
-  in `frontend/src/infrastructure/notification-source/` (baseline entries in
-  `frontend/async-state-baseline.json`).
+- Push port and adapter: `NotificationPushSource`
+  (`frontend/src/shared/contracts/notification-push.types.ts`: `subscribe`, `subscribeArchived`,
+  `subscribeNavigate`), `createNotificationSource`
+  (`frontend/src/infrastructure/notification-source/notification-source.helpers.ts`, one shared
+  instance per window), built once as `BRIDGE_NOTIFICATION_PUSH_SOURCE` in
+  `shared/query/bridge-runtime/bridge-runtime.constants.ts`. The toasts
+  (`use-backend-event-resolver.ts`), the archived-row drop (`use-notification-center-sync.ts`) and
+  the navigation listener (`use-notification-navigation.ts`) take it as their default source. Their
+  four subscriptions are the sanctioned entries of `frontend/async-state-exceptions.json`: UI
+  projections a `BRIDGE_INVALIDATIONS` rule cannot express (push toasts, an in-place drop over the
+  loaded keyset pages, a navigation command).
+- Covers: the detail rows (`use-notification-detail-covers.ts`) and the toast rows
+  (`use-notification-toast-covers.ts`) resolve anime covers through `BRIDGE_ANIME_SOURCE.getAnimeCover`
+  (port `AnimeCoverSource`, `frontend/src/shared/anime-cover/anime-cover.types.ts`), each id once per
+  mount. A read the `anime` module rejects (starting, failed) or that fails keeps the placeholder for
+  that mount: a missing cover is never a notification failure.
 - Loading, empty and failure:
   - Rail badge (module `notifications`): hidden while the count loads or failed; shown only for a
     count above zero.

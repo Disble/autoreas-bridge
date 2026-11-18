@@ -144,10 +144,10 @@ event itself for the download and season families), or emitted directly:
 | Event | Published when | Consumers |
 |---|---|---|
 | `bridge.readiness` | a module changes readiness (`ModuleReadiness` DTO) | the frontend readiness gate (ADR-032 §4, task T3) |
-| `anime.changed` | an anime save commits (`contracts.AnimeChangedNotice`) | anime runtime source |
+| `anime.changed` | an anime save commits (`contracts.AnimeChangedNotice`) | `BRIDGE_INVALIDATIONS` → Today, the catalog list, every anime detail and both watch histories (`../anime/overview.md`) |
 | `sync.device_acknowledged` | a device acknowledges the changelog | `BRIDGE_INVALIDATIONS` → the paired-device list (`../devices/overview.md`) |
 | `download.*` (`downloadRuntimeEventNames`) | a download run, episode or JD status changes | `BRIDGE_INVALIDATIONS` → the download schedule and run history (`../downloads/overview.md`) |
-| `season.matching_*` (`seasonRuntimeEventNames`) | a season matching run progresses | season source |
+| `season.matching_*` (`seasonRuntimeEventNames`) | a season matching run progresses | the season store's progress through `BRIDGE_SEASON_SOURCE` (sanctioned exceptions); `season.matching_finished` → `BRIDGE_INVALIDATIONS` (the intake rows) |
 | `episode.durations_reanalysis_progress` | an episode duration reanalysis advances | episode duration runtime source |
 | `activity.recorder`, `schedule.run_settled`, `schedule.missed_settled`, `notification.archived`, `notification.navigate`, `pairing.token-consumed` | the matching shell action happens | Activity, scheduler, notification center; `pairing.token-consumed` → `BRIDGE_INVALIDATIONS` (pairing token and paired-device list) |
 
@@ -177,14 +177,13 @@ memory and starts over with every process.
 
 - The bindings are generated into `frontend/wailsjs/go/desktop/App` (untracked; `generate:bindings`).
   `frontend/src/infrastructure/**` calls them, through `invokeGoBinding`
-  (`frontend/src/infrastructure/wails-bindings.helpers.ts`). Two feature files still import generated
-  code directly: `features/activity/history-source/history-source.helpers.ts` imports
-  `wailsjs/runtime/runtime` for `EventsOn`, and `features/anime-detail/ui/AnimeDetail/anime-detail.helpers.ts`
-  imports `wailsjs/go/models`. Those two are named in `frontend/async-state-baseline.json`, which holds
-  61 entries today (`../../cross-cutting/async-state.md`, "Known drift").
+  (`frontend/src/infrastructure/wails-bindings.helpers.ts`). No feature or shared file imports
+  generated code; `frontend/async-state-baseline.json` holds 0 entries
+  (`../../cross-cutting/async-state.md`, "Known drift").
 - Event subscriptions live in the runtime sources under `frontend/src/infrastructure/*-source/`
-  (`createRuntimeSubscription`), plus one feature source,
-  `frontend/src/features/activity/history-source/history-source.helpers.ts`.
+  (`createRuntimeSubscription`), the `activity.recorder` stream included
+  (`infrastructure/activity-recorder-source/`, the `ActivityRecorderSource` port in
+  `shared/contracts/activity-recorder.types.ts`, built once as `BRIDGE_ACTIVITY_RECORDER_SOURCE`).
 - Frontend errors: `infrastructure/error-reporting/frontend-error-source.helpers.ts` sends a report
   through `ReportFrontendError` (`unavailable` at once when the binding is not attached) and builds the
   shared throttled reporter; `shared/error-reporting` reads it as `BRIDGE_FRONTEND_ERROR_REPORTER`
@@ -228,13 +227,11 @@ memory and starts over with every process.
 
 ## Known drift
 
-- Every binding except the seven `shell` bindings, `GetEpisodeSchedule`, `GetEpisodeDayCounts`,
-  the six `api`/`sync`/`devices` bindings, the four `backup` bindings, the ten `observability`
-  bindings and the downloads bindings on the `downloads` handle above still reads its service from an `App` field without a readiness check: 92
-  `binding-uses-handle` and 41 `binding-signature` entries in `tools/checkarchitecture/baseline.yaml`
-  (printed by `go run ./tools/checkarchitecture`).
-- The picker and lookup consumers keep their earlier behaviour through their adapters: the
-  `bridge-runtime-source`, `season-source` and `preferences-source` pickers read a rejected dialog
-  as a cancel (`""`), and `metadata-lookup-source` turns a rejected lookup into the `error` outcome
-  carrying the binding's message, which the lookup modal already shows.
+- None for the bindings: every exported `App` method answers through a module handle, and
+  `tools/checkarchitecture/baseline.yaml` is `violations: []` (`go run ./tools/checkarchitecture`
+  prints `binding baseline: 0 entries`).
+- The pickers read through `BRIDGE_PICKER_SOURCE` (`infrastructure/picker-source/`): `""` is a
+  cancel and a failed dialog rejects, which each picker shows as a danger toast with the bridge's
+  message. `metadata-lookup-source` still turns a rejected lookup into the `error` outcome carrying
+  the binding's message, which the lookup modal shows.
 - ADR-018's field count (~110) predates this page; `App` grew by one field, `modules`.

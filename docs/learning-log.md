@@ -374,3 +374,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-11-08]: A pre-merge gate takes 10 minutes; a shorter timeout leaves a stale MERGE_HEAD.
 - [2026-11-16]: Close a merge with git merge, not git commit: git commit runs pre-commit over every merged file and dharness hits the Windows command-line limit; pre-merge-commit checks the whole tree. Run bun install first so the untracked Wails bindings are current.
 - [2026-11-16]: Release 2.9.0 groups readiness-aware screen loading, Catalog Last watched ordering and Editor activity fixes; presence_unanswered extends mobile telemetry without breaking existing reports, so this is a minor release.
+- [2026-11-18]: Release 2.10.0 is minor: the Editor Library gains Status and Type filters, and the async-state migration closes with failures surfaced instead of shown as empty or ok; no REST/WS change since 2.9.0

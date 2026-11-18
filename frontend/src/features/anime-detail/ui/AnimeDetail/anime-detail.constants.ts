@@ -121,3 +121,6 @@ export const ANIME_DETAIL_NO_DATA_LABEL = 'No data';
 
 /** Accessible name of the no-cover poster and the pill it shows at full size. */
 export const ANIME_DETAIL_NO_COVER_LABEL = 'No cover';
+
+/** Feedback for a Repeat or Restore that rejected without a reason of its own. */
+export const ANIME_DETAIL_COMMAND_FAILED_MESSAGE = 'Runtime request failed.';

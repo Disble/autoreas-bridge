@@ -14,37 +14,35 @@ import type { EpisodeDayCount, EpisodeScheduleItem, LongEpisodeMark } from '../.
 import { ANIME_CREATE_ROUTE } from '../../../../shared/navigation/app-layout.constants';
 import { toAsyncView } from '../../../../shared/query/async-view/async-view.helpers';
 import type { AsyncView } from '../../../../shared/query/async-view/async-view.types';
-import { BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE, BRIDGE_EPISODES_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE, BRIDGE_ANIME_SOURCE, BRIDGE_EPISODES_SOURCE, BRIDGE_SEASON_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { AIRIS_CREATE_ANIME_LABEL } from '../../../../shared/ui/AirisEmptyState/airis-empty-state.constants';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
-import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
-import type { AnimeCover, EpisodeCommandFailure, EpisodeEmptyStateAction, EpisodeEmptyStateCopy, EpisodeScheduleQueryState, EpisodeScheduleRow, EpisodeScheduleSource, EpisodeScheduleView, EpisodeViewLens, CoverEntry, InitialEpisodeSelectionInput, LongEpisodeChip } from './episode-schedule-panel.types';
+import type { SeasonModeStatus } from '../../../../shared/season/season-mode/season-mode.types';
+import type { AnimeCover, EpisodeCommandFailure, EpisodeLensSelection, EpisodeEmptyStateAction, EpisodeEmptyStateCopy, EpisodeScheduleQueryState, EpisodeScheduleRow, EpisodeScheduleSource, EpisodeScheduleView, EpisodeViewLens, CoverEntry, InitialEpisodeSelectionInput, LongEpisodeChip } from './episode-schedule-panel.types';
 
 /**
  * Returns an injected schedule source when supplied, otherwise assembles the
  * runtime-backed source outside the React hook: the two reads and the two row
  * writes come from the episodes adapter (`BRIDGE_EPISODES_SOURCE`, rejecting
- * with a `BridgeError`, never `[]`); the four desktop actions come from the
- * anime module's adapter (`BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE`, rejecting with
- * a `BridgeError`).
+ * with a `BridgeError`, never `[]`); the covers and the four desktop actions
+ * come from the anime module's adapters (`BRIDGE_ANIME_SOURCE`,
+ * `BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE`) and the open season from the season
+ * module's (`BRIDGE_SEASON_SOURCE`), each rejecting with a `BridgeError`.
  */
 export function createEpisodeScheduleSource(source?: EpisodeScheduleSource): EpisodeScheduleSource {
   if (source !== undefined) {
     return source;
   }
 
-  const getAnimeCover = bridgeRuntimeSource.getAnimeCover;
-
   return {
     adjustWatchedEpisodes: BRIDGE_EPISODES_SOURCE.adjustWatchedEpisodes,
     copyAnimeFolder: BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE.copyAnimeFolder,
     copyAnimePage: BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE.copyAnimePage,
-    getAnimeCover: getAnimeCover ? (animeID: string) => getAnimeCover(animeID).then(toAnimeCover) : () => Promise.resolve({ source: 'placeholder' }),
+    getAnimeCover: (animeID: string) => BRIDGE_ANIME_SOURCE.getAnimeCover(animeID).then(toAnimeCover),
     getEpisodeDayCounts: BRIDGE_EPISODES_SOURCE.getEpisodeDayCounts,
     getEpisodeSchedule: BRIDGE_EPISODES_SOURCE.getEpisodeSchedule,
-    getSeasonMode: preferencesSource.getSeasonMode,
     openAnimeFolder: BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE.openAnimeFolder,
     openAnimePage: BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE.openAnimePage,
+    readSeason: BRIDGE_SEASON_SOURCE.readSeason,
     setAnimeState: BRIDGE_EPISODES_SOURCE.setAnimeState,
   };
 }
@@ -233,6 +231,24 @@ export function getInitialEpisodeSelection(input: InitialEpisodeSelectionInput):
     return input.initialDay;
   }
   return getDefaultLensSelection(input.isSeasonMode ? 'season' : 'daily', input.today);
+}
+
+/**
+ * The lens and day Today opens on: a caller-supplied day on the daily lens;
+ * otherwise nothing while season mode is pending (Today keeps its skeleton),
+ * the season lens on Ver hoy while a season is open, and the daily lens on
+ * today's weekday when none is open or season mode failed, since the daily
+ * schedule does not depend on the season module.
+ * @param seasonMode The season mode status.
+ * @param initialDay A caller-supplied day, which skips season mode.
+ * @returns The initial selection, or undefined while it waits on season mode.
+ */
+export function toInitialEpisodeLens(seasonMode: SeasonModeStatus, initialDay?: string): EpisodeLensSelection | undefined {
+  if (initialDay === undefined && seasonMode === 'pending') {
+    return undefined;
+  }
+  const isSeasonMode = initialDay === undefined && seasonMode === 'open';
+  return { lens: isSeasonMode ? 'season' : 'daily', day: getInitialEpisodeSelection({ isSeasonMode, initialDay }) };
 }
 
 /**

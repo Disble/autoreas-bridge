@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react';
-import { notificationSource } from '../../../../infrastructure/notification-source/notification-source.helpers';
-import type { NotificationSource } from '../../../../infrastructure/notification-source/notification-source.types';
+import { BRIDGE_NOTIFICATION_PUSH_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import type { NotificationPushSource } from '../../../../shared/contracts/notification-push.types';
 import type { NotificationCenterSource, NotificationRow } from '../../../../shared/contracts/notification-center.types';
 import { NO_FACET_FILTER, useNotificationCenterPage } from './use-notification-center-page';
 import type { NotificationCenterPageResult, NotificationCenterSyncView } from './use-notification-center-page';
@@ -18,8 +18,8 @@ export interface NotificationCenterSyncInput {
   readonly levels?: readonly string[];
   /** Sources the query is narrowed to, under the same empty-means-everything contract as `levels`. */
   readonly sources?: readonly string[];
-  /** Runtime stream of `notification.archived` events the list follows; defaults to the runtime-backed singleton. */
-  readonly pushSource?: NotificationSource;
+  /** Runtime stream of `notification.archived` events the list follows; defaults to the `notifications` push port, `BRIDGE_NOTIFICATION_PUSH_SOURCE`. */
+  readonly pushSource?: NotificationPushSource;
 }
 
 /** The accumulated master-list state `useNotificationCenterSync` exposes. */
@@ -115,7 +115,7 @@ export function useNotificationCenterSync(input: Readonly<NotificationCenterSync
     search = '',
     levels = NO_FACET_FILTER,
     sources = NO_FACET_FILTER,
-    pushSource = notificationSource,
+    pushSource = BRIDGE_NOTIFICATION_PUSH_SOURCE,
   } = input;
 
   // 4. Queries

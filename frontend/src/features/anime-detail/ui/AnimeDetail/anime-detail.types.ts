@@ -1,7 +1,7 @@
 import type { ReactNode, SyntheticEvent } from 'react';
-import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeDesktopActionResult, AnimeDesktopActionsSource } from '../../../../shared/contracts/anime-editor-source.types';
 import type { AnimeDetail as AnimeDetailDto } from '../../../../shared/contracts/anime.types';
+import type { EpisodeCommandsSource } from '../../../../shared/contracts/episodes.types';
 import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
 import type { AsyncViewSource } from '../../../../shared/query/async-view/async-view.types';
 
@@ -82,8 +82,8 @@ export interface AnimeDetailLoad {
   readonly failureMessage: string | undefined;
 }
 
-/** The commands the detail page runs, not yet behind a module port. */
-export type AnimeDetailCommandSource = Pick<BridgeRuntimeSource, 'repeatAnime' | 'restoreAnime'>;
+/** The episodes module's commands the detail page runs: Repeat and Restore. */
+export type AnimeDetailCommandSource = Pick<EpisodeCommandsSource, 'repeatAnime' | 'restoreAnime'>;
 
 /** Destructive anime command selected by the user for explicit confirmation. */
 export type AnimeDetailAction = 'repeat' | 'restore';

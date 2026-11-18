@@ -3,6 +3,7 @@ import type { AnimeDetail } from '../../../../shared/contracts/anime.types';
 import {
   isAnimeDetailMutationRouteActive,
   resolveAnimeDetailMutation,
+  toAnimeDetailCommandFailureMessage,
   toAnimeDetailConfirmation,
   withAnimeDetailRefreshFailure,
 } from './anime-detail.helpers';
@@ -94,23 +95,15 @@ export function useAnimeDetailMutation(
     currentDetail: AnimeDetail,
   ): Promise<AnimeDetailMutationResolution> => {
     const binding = action === 'repeat' ? commands.repeatAnime : commands.restoreAnime;
-    if (binding === undefined) {
-      return resolveAnimeDetailMutation(action, {
-        status: 'error',
-        message: 'Runtime binding is unavailable.',
-        modifiedAt: currentDetail.modified_at,
-      });
-    }
-
     try {
       return resolveAnimeDetailMutation(
         action,
         await binding(currentDetail.id, currentDetail.modified_at),
       );
-    } catch {
+    } catch (error) {
       return resolveAnimeDetailMutation(action, {
         status: 'error',
-        message: 'Runtime request failed.',
+        message: toAnimeDetailCommandFailureMessage(error),
         modifiedAt: currentDetail.modified_at,
       });
     }

@@ -1,5 +1,5 @@
 import type { UIEvent } from 'react';
-import type { NotificationSource } from '../../../../infrastructure/notification-source/notification-source.types';
+import type { NotificationPushSource } from '../../../../shared/contracts/notification-push.types';
 import type {
   NotificationCenterSource,
   NotificationDetail as NotificationDetailDTO,
@@ -29,7 +29,7 @@ export interface NotificationCenterQuery {
 export interface NotificationCenterPanelProps {
   readonly source?: NotificationCenterSource;
   /** Runtime stream of `notification.archived` events the master list follows. */
-  readonly pushSource?: NotificationSource;
+  readonly pushSource?: NotificationPushSource;
 }
 
 /**

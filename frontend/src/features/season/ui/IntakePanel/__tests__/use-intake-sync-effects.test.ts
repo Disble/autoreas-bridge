@@ -1,14 +1,13 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { PreferencesSource } from '../../../../../infrastructure/preferences-source/preferences-source.types';
 import type { SeasonSource } from '../../../../../shared/contracts/season.types';
 import { disconnectSeasonMatchingStore, getSeasonStoreState, resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
 import { INTAKE_RECONCILE_DEBOUNCE_MS } from '../intake-panel.constants';
 import { useIntakeEditorState } from '../use-intake-editor-state';
 import type { useIntakeStoreSlice } from '../use-intake-store-slice';
 import { useIntakeSyncEffects } from '../use-intake-sync-effects';
-import { createLibraryRootSource, createSource } from './intake-panel.test-support';
+import { createSource } from './intake-panel.test-support';
 
 /** The store actions the sync effects drive, as spies. */
 interface SyncActionSpies {
@@ -33,8 +32,6 @@ function createSyncSpies(): SyncActionSpies {
 interface SyncHarnessProps {
   /** The season port the effects call into. */
   readonly source: SeasonSource;
-  /** The port that supplies the configured library root. */
-  readonly libraryRootSource: Pick<PreferencesSource, 'getLibraryRoot'>;
   /** The store-action spies the slice exposes. */
   readonly spies: SyncActionSpies;
   /** Whether the panel reads a closed season: no live run may banner over it. */
@@ -59,18 +56,18 @@ function createMatchingSource(overrides: Partial<SeasonSource> = {}): SeasonSour
 /**
  * Renders the sync effects over a real editor state, exposing the editor so a
  * case can flip the mode and edit the draft like the panel does.
- * @param initial The source, library-root source, and spies to render with.
+ * @param initial The source and spies to render with.
  * @returns The hook result for the case to drive.
  */
 function renderSyncEffects(initial: SyncHarnessProps) {
-  return renderHook(({ source, libraryRootSource, spies, readOnly }: SyncHarnessProps) => {
+  return renderHook(({ source, spies, readOnly }: SyncHarnessProps) => {
     const editor = useIntakeEditorState();
     const store = {
       readOnly: readOnly ?? false,
       refreshAnimes: spies.refreshAnimes,
       reconcileIntake: spies.reconcileIntake,
     } as unknown as ReturnType<typeof useIntakeStoreSlice>;
-    useIntakeSyncEffects({ editor, store, source, libraryRootSource });
+    useIntakeSyncEffects({ editor, store, source });
     return { editor };
   }, { initialProps: initial });
 }
@@ -78,12 +75,11 @@ function renderSyncEffects(initial: SyncHarnessProps) {
 /**
  * Builds the default harness props, so a case overrides only what it changes.
  * @param overrides Per-test prop replacements.
- * @returns Harness props with a fresh source, root source, and spies.
+ * @returns Harness props with a fresh source and spies.
  */
 function harnessProps(overrides: Partial<SyncHarnessProps> = {}): SyncHarnessProps {
   return {
     source: createSource(),
-    libraryRootSource: createLibraryRootSource('D:/Anime'),
     spies: createSyncSpies(),
     ...overrides,
   };
@@ -100,17 +96,15 @@ describe('useIntakeSyncEffects', () => {
     vi.useRealTimers();
   });
 
-  it('leaves row reads to the query and loads the configured library root', async () => {
+  it('leaves row reads to the query', async () => {
     const props = harnessProps();
-    const { result } = renderSyncEffects(props);
+    renderSyncEffects(props);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
 
     expect(props.spies.refreshAnimes).not.toHaveBeenCalled();
-    expect(props.libraryRootSource.getLibraryRoot).toHaveBeenCalled();
-    expect(result.current.editor.libraryRoot).toBe('D:/Anime');
   });
 
   it('does not call the legacy store refresh when the source changes', async () => {
@@ -124,20 +118,6 @@ describe('useIntakeSyncEffects', () => {
     });
 
     expect(props.spies.refreshAnimes).not.toHaveBeenCalled();
-  });
-
-  it('loads the root from the current preferences source after it changes', async () => {
-    const props = harnessProps();
-    const nextRootSource = createLibraryRootSource('E:/Shows');
-    const { result, rerender } = renderSyncEffects(props);
-
-    rerender({ ...props, libraryRootSource: nextRootSource });
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
-    });
-
-    expect(nextRootSource.getLibraryRoot).toHaveBeenCalled();
-    expect(result.current.editor.libraryRoot).toBe('E:/Shows');
   });
 
   it('reconciles the edited draft after the debounce while in raw mode', async () => {

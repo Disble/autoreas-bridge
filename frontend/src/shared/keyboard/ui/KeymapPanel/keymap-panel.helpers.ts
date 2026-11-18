@@ -1,9 +1,10 @@
+import { isBridgeError } from '../../../query/bridge-error/bridge-error.helpers';
 import { KEYBOARD_COMMANDS } from '../../command-registry.constants';
 import { effectiveChord, findChordHazard } from '../../keymap.helpers';
 import { SCOPED_COMMAND_BINDINGS } from '../../keymap.constants';
 import type { CommandBinding, CommandSection } from '../../keyboard.types';
 import type { KeymapOverrides } from '../../keymap.types';
-import { KEYMAP_SCOPE_NOTE_BY_SCOPE } from './keymap-panel.constants';
+import { KEYMAP_PANEL_ERROR_MESSAGE, KEYMAP_SCOPE_NOTE_BY_SCOPE } from './keymap-panel.constants';
 import type { KeymapBindingSection, KeymapPanelRow } from './keymap-panel.types';
 
 /**
@@ -63,4 +64,15 @@ export function resolveKeymapPanelRows(bindings: readonly CommandBinding[], over
       scopeNote: KEYMAP_SCOPE_NOTE_BY_SCOPE[binding.scope],
     };
   });
+}
+
+/**
+ * The message a failed keymap save shows: the bridge failure's own text (the
+ * settings module starting or failed, a store write error), or the panel's
+ * generic failure for anything that is not a bridge failure.
+ * @param error What `setKeymap` rejected with.
+ * @returns The message for `saveErrorMessage`.
+ */
+export function toKeymapSaveErrorMessage(error: unknown): string {
+  return isBridgeError(error) && error.message !== '' ? error.message : KEYMAP_PANEL_ERROR_MESSAGE;
 }

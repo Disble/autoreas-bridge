@@ -261,9 +261,11 @@ describe('notification-source', () => {
     const helperText = readFileSync(helperPath, 'utf8');
 
     expect(existsSync(indexPath)).toBe(false);
-    expect(existsSync(typesPath)).toBe(true);
+    // The port is `NotificationPushSource` in shared/contracts; the adapter declares no type of its own.
+    expect(existsSync(typesPath)).toBe(false);
     expect(existsSync(helperPath)).toBe(true);
     expect(existsSync(join(process.cwd(), 'src/infrastructure/notification-source.ts'))).toBe(false);
     expect(helperText).toContain("from '../wails-bindings.helpers'");
+    expect(helperText).toContain("from '../../shared/contracts/notification-push.types'");
   });
 });

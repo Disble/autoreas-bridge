@@ -161,5 +161,9 @@ folder and split that both predate that change.
 `use-progressive-list-window`, and the `download-runtime-store`,
 `network-store`, `preferences-store` and `season-store` modules — are correct as
 they stand under this ADR; the rule, not the code, is what does not apply here.
+That list is the tree as it stood then: `use-elapsed-clock`, `network-store` and
+`preferences-store` have since been deleted (the season-mode read moved to
+`useSeasonMode` in `shared/season/`), so `download-runtime-store` and
+`season-store` are the stores left under `shared/store/`.
 `role-file-shape`, `max-file-lines`, `pure-index-barrel`, `require-jsdoc` and
 `require-variable-jsdoc` stay on in both hosts.

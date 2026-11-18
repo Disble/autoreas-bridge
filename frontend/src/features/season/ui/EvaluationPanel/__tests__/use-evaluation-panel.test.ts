@@ -13,43 +13,33 @@ const renderHook: typeof renderBridgeHook = (callback, options) => renderBridgeH
 });
 
 /** Builds the season port this suite drives, overriding only what a case sets. */
-function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource & SeasonQuerySource {
+function createSource(overrides: Partial<SeasonSource & SeasonQuerySource> = {}): SeasonSource & SeasonQuerySource {
   return {
-    getSeason: vi.fn().mockResolvedValue(null),
     createSeason: vi.fn().mockResolvedValue('ok'),
     setMinApprovalGrade: vi.fn().mockResolvedValue('ok'),
     setSlots: vi.fn().mockResolvedValue('ok'),
     closeSeason: vi.fn().mockResolvedValue('ok'),
-    getSeasonAnimes: vi.fn().mockResolvedValue([]),
     reconcileIntake: vi.fn().mockResolvedValue('ok'),
-    sendToVerHoy: vi.fn().mockResolvedValue('ok'),
-    triggerSeasonDownloads: vi.fn().mockResolvedValue('ok'),
-    downloadSeasonAnimes: vi.fn().mockResolvedValue('ok'),
+    sendToVerHoy: vi.fn().mockResolvedValue({ pastDownloadTime: false, downloadTime: '' }),
+    triggerSeasonDownloads: vi.fn().mockResolvedValue(undefined),
+    downloadSeasonAnimes: vi.fn().mockResolvedValue(undefined),
     runMatching: vi.fn().mockResolvedValue('ok'),
     resolveMatch: vi.fn().mockResolvedValue('ok'),
     discardName: vi.fn().mockResolvedValue('ok'),
     restoreName: vi.fn().mockResolvedValue('ok'),
-    setAnimeDays: vi.fn().mockResolvedValue('ok'),
     setGrade: vi.fn().mockResolvedValue('ok'),
     skipGrading: vi.fn().mockResolvedValue('ok'),
     setConsideration: vi.fn().mockResolvedValue('ok'),
     confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 0, rejected: 0, quotaExceeded: false }),
     setSeasonAnimeMetadata: vi.fn().mockResolvedValue('ok'),
     createSeasonAnimes: vi.fn().mockResolvedValue('ok'),
-    pickFolder: vi.fn().mockResolvedValue(''),
-    listSeasons: vi.fn().mockResolvedValue([]),
-    getPastSeason: vi.fn().mockResolvedValue(null),
-    getPastSeasonAnimes: vi.fn().mockResolvedValue([]),
-    getOrderingBoard: vi.fn().mockResolvedValue({ rail: [], grid: [] }),
     saveOrderingDraft: vi.fn().mockResolvedValue('ok'),
     applySchedule: vi.fn().mockResolvedValue({ status: 'ok', applied: 0, failed: [] }),
     reopenOrdering: vi.fn().mockResolvedValue('ok'),
     recheckAvailability: vi.fn().mockResolvedValue('ok'),
-    getCheckTime: vi.fn().mockResolvedValue('21:00'),
-    setCheckTime: vi.fn().mockResolvedValue('ok'),
     openPage: vi.fn(),
     readSeason: vi.fn().mockResolvedValue(null),
-    readSeasonAnimes: overrides.getSeasonAnimes ?? vi.fn().mockResolvedValue([]),
+    readSeasonAnimes: vi.fn().mockResolvedValue([]),
     readSeasons: vi.fn().mockResolvedValue([]),
     readPastSeason: vi.fn().mockResolvedValue(null),
     readPastSeasonAnimes: vi.fn().mockResolvedValue([]),
@@ -82,7 +72,7 @@ describe('useEvaluationPanel', () => {
 
   it('loads candidates on mount and counts the ungraded ones', async () => {
     const rows = [created('a', 'anime-a', 0), created('b', 'anime-b', 5)];
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useEvaluationPanel(source, {}));
 
     await waitFor(() => expect(result.current.items).toHaveLength(2));
@@ -92,7 +82,7 @@ describe('useEvaluationPanel', () => {
 
   it('lists ungraded candidates first and resolves each candidate cover once', async () => {
     const rows = [created('a', 'anime-a', 5), created('b', 'anime-b', 0), created('c', 'anime-c', 0, true)];
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const getAnimeCover = vi.fn((animeId: string) => Promise.resolve({ source: 'cover', dataUrl: `data:${animeId}` }));
     const { result } = renderHook(() => useEvaluationPanel(source, { getAnimeCover }));
 
@@ -107,7 +97,6 @@ describe('useEvaluationPanel', () => {
     const { result } = renderHook(() => useEvaluationPanel(source, {}));
     await waitFor(() => expect(result.current.view.kind).toBe('empty'));
     expect(source.readSeasonAnimes).toHaveBeenCalled();
-    expect(source.getSeasonAnimes).not.toHaveBeenCalled();
   });
 
   it('onSkip records the override for a row', async () => {

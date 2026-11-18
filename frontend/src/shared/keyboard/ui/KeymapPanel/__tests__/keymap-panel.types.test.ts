@@ -43,7 +43,7 @@ describe('KeymapPanelProps', () => {
   });
 
   it('accepts an injected source narrowed to setKeymap only', () => {
-    const props: KeymapPanelProps = { source: { setKeymap: () => Promise.resolve('ok') } };
+    const props: KeymapPanelProps = { source: { setKeymap: () => Promise.resolve() } };
 
     expect(typeof props.source?.setKeymap).toBe('function');
   });

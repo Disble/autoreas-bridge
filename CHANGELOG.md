@@ -14,6 +14,32 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [2.10.0] — 2026-11-17
+
+No wire changes: REST and WS contracts are unchanged from 2.9.0.
+
+### Added
+
+- The Editor's Library now has a Filters button beside the search, like the Catalog's: pick one or more statuses and types, and they combine with Watching now / All anime and the search. The button shows how many filters are active, and Clear search and filters resets them too.
+
+### Changed
+
+- Catalog, anime detail, History and Today refresh on their own when an anime changes anywhere — in this window, on the phone, through the REST API or by a download — instead of waiting for you to reopen the screen.
+- Today waits for the season state before choosing between the daily and season view, and falls back to the daily view if the season cannot be read. A view you pick yourself is kept when the season state arrives.
+
+### Fixed
+
+- Starting a season download that Bridge refuses now shows why, instead of reporting success.
+- In Season, opening or copying an anime's page or folder shows an error when it fails, and the daily check time shows a loading or failure state instead of disappearing.
+- Sending an anime to Ver hoy, confirming the season selection and applying a schedule now report the real failure instead of passing silently.
+- Folder and image pickers (Create, Intake and the Library root setting) show an error when the dialog fails to open, instead of acting as if you cancelled.
+- The cover preview tells a missing cover apart from a cover that failed to load.
+- Your keyboard shortcuts load once settings are ready, so a slow start no longer leaves the shipped defaults in place.
+
+### Internal
+
+- Every screen now reads backend data through its module's shared query layer; the legacy runtime adapters are removed and the few live event subscriptions left are listed, each with its reason, in a gate exception list.
+
 ## [2.9.0] — 2026-11-16
 
 **Wire-visible, additive:** hourly summaries accepted by `POST /api/sync/diagnostics` can report `presence_unanswered` when the tablet connected to Bridge but received no complete HTTP response within its time budget. Existing report outcomes remain accepted. See `docs/openapi.yaml`.

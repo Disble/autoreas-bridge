@@ -3,17 +3,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { createModulesTestWrapper } from '../../../shared/query/test-support/bridge-modules.test-support';
 import { AppLayout } from '../AppLayout';
+import { BRIDGE_READINESS_GATE } from '../../../shared/query/bridge-runtime/bridge-runtime.constants';
 
 // Without this the first test's tree stays mounted into the second, which
 // then sees two rails and two badges. This file is not configured for
 // auto-cleanup; every other suite in the repo calls it explicitly.
 afterEach(cleanup);
 
-// AppLayout mounts KeyboardDispatcherListener, which now also loads the
-// persisted keymap on mount (Slice 4, D11). With no Go binding attached that
-// load would poll via a real, unawaited setInterval (wails-bindings.helpers.ts)
-// before degrading; stubbing GetKeymap makes it resolve immediately instead.
+// KeyboardDispatcherListener loads the persisted keymap on mount (design
+// D11), once the settings module is ready. The readiness gate is stubbed
+// ready and GetKeymap attached, so the load resolves at once with no binding
+// poll left running; these suites are about the dispatcher, not the loader.
 beforeEach(() => {
+  vi.spyOn(BRIDGE_READINESS_GATE, 'whenReady').mockResolvedValue();
   window.go = { desktop: { App: { GetKeymap: () => Promise.resolve('') } } } as never;
 });
 afterEach(() => {

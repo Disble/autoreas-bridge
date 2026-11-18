@@ -1,5 +1,12 @@
-import { GetAnimeCover, GetAnimeDetail, GetAnimes, GetAnimeWatchHistoryPage, GetWatchHistoryPage } from '../../../wailsjs/go/desktop/App';
-import type { AnimeCoverResult, AnimeSource } from '../../shared/contracts/anime-source.types';
+import {
+  GetAnimeCover,
+  GetAnimeDetail,
+  GetAnimes,
+  GetAnimeWatchHistoryPage,
+  GetWatchHistoryPage,
+  PreviewAnimeCover,
+} from '../../../wailsjs/go/desktop/App';
+import type { AnimeCoverPreviewSource, AnimeCoverResult, AnimeSource } from '../../shared/contracts/anime-source.types';
 import type { Anime, AnimeDetail, WatchHistoryPage } from '../../shared/contracts/anime.types';
 import { createBridgeError } from '../../shared/query/bridge-error/bridge-error.helpers';
 import { withBridgeErrors } from '../bridge-error/bridge-error.helpers';
@@ -20,14 +27,14 @@ function callAnimeBinding<T>(bindingName: string, call: () => Promise<T>): Promi
 }
 
 /**
- * The Wails adapter of the `AnimeSource` port (ADR-032 §4), built once in
+ * The Wails adapter of the `AnimeSource` and `AnimeCoverPreviewSource` ports (ADR-032 §4), built once in
  * `shared/query/bridge-runtime/bridge-runtime.constants.ts`. Every read rejects
  * with the module's `unavailable` / `failed_precondition` failure rather than
  * answer `[]`, `null` or an error-status page, so the catalog, the detail page
  * and History never mistake a starting backend for an empty one.
  * @returns The source.
  */
-export function createAnimeSource(): AnimeSource {
+export function createAnimeSource(): AnimeSource & AnimeCoverPreviewSource {
   return {
     getAnimes: () => callAnimeBinding<readonly Anime[]>('GetAnimes', () => GetAnimes()),
     getAnimeDetail: (animeId) => callAnimeBinding<AnimeDetail>('GetAnimeDetail', () => GetAnimeDetail(animeId)),
@@ -36,5 +43,6 @@ export function createAnimeSource(): AnimeSource {
     getAnimeWatchHistoryPage: (request) =>
       callAnimeBinding<WatchHistoryPage>('GetAnimeWatchHistoryPage', () => GetAnimeWatchHistoryPage({ ...request })),
     getAnimeCover: (animeId) => callAnimeBinding<AnimeCoverResult>('GetAnimeCover', () => GetAnimeCover(animeId)),
+    previewAnimeCover: (value) => callAnimeBinding<AnimeCoverResult>('PreviewAnimeCover', () => PreviewAnimeCover(value)),
   };
 }

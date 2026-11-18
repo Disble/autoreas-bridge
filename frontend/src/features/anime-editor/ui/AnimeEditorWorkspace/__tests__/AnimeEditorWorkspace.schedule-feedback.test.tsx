@@ -46,13 +46,18 @@ const { expectedScheduleEntries, fakeSource, getAnimeEditorRecordMock, getAnimeE
 // The Episodes card is independent of schedule feedback and its DOM is not under test.
 vi.mock('../../EpisodeDurationsSection/EpisodeDurationsSection', () => ({ EpisodeDurationsSection: () => null }));
 
-vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
-  bridgeRuntimeSource: fakeSource,
-}));
 vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   /** The workspace's default anime-module Editor port: the same fake. */
   get BRIDGE_ANIME_EDITOR_SOURCE() {
+    return fakeSource;
+  },
+  /** The workspace's default shell pickers: the same fake. */
+  get BRIDGE_PICKER_SOURCE() {
+    return fakeSource;
+  },
+  /** The workspace's default anime-module cover port: the same fake. */
+  get BRIDGE_ANIME_SOURCE() {
     return fakeSource;
   },
 }));

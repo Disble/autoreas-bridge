@@ -2,8 +2,8 @@ import type { AnimeMetadataLookupSource } from '../../shared/metadata-lookup/ui/
 
 /**
  * Module-local singleton container's shape for the shared metadata lookup
- * source, mirroring `PREFERENCES_SOURCE_STATE`'s own container -- `null`
- * until `createMetadataLookupSource` builds the shared instance once.
+ * source: `null` until `createMetadataLookupSource` builds the shared
+ * instance once.
  */
 export interface MetadataLookupSourceState {
   sharedSource: AnimeMetadataLookupSource | null;

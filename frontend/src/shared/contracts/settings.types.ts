@@ -23,16 +23,23 @@ export interface LibraryRootChangePreview {
 
 /**
  * Port of the Settings page's bindings, served by the `settings` module: the
- * library root (read, change preview, save) and the Windows auto-start
- * preference. Every call rejects with a `BridgeError` whose message is the plain
- * text the UI shows, except `pickFolder` (an always-ready shell binding), which
- * reads a failed dialog as a cancel (''), as every folder picker does.
+ * library root (read, change preview, save), the Windows auto-start
+ * preference, the daily season check time and the keymap document (read at startup by the keyboard
+ * dispatcher, written by the Shortcuts panel). Every call rejects with a `BridgeError` whose message is the plain
+ * text the UI shows. The folder picker is `PickerSource` (`picker.types.ts`).
  */
 export interface SettingsSource {
   readonly getLibraryRoot: () => Promise<string>;
   readonly setLibraryRoot: (path: string) => Promise<void>;
   readonly previewLibraryRootChange: (path: string) => Promise<LibraryRootChangePreview>;
-  readonly pickFolder: (title: string) => Promise<string>;
   readonly getAutoStartEnabled: () => Promise<boolean>;
   readonly setAutoStartEnabled: (enabled: boolean) => Promise<void>;
+  /** The persisted keymap document, opaque here; `''` means nothing has been rebound. */
+  readonly getKeymap: () => Promise<string>;
+  /** Persists the keymap document verbatim; `''` clears it back to the shipped defaults. */
+  readonly setKeymap: (document: string) => Promise<void>;
+  /** The local HH:MM of the daily season availability check: the effective time, the shipped default when none is stored. */
+  readonly getSeasonCheckTime: () => Promise<string>;
+  /** Persists a new HH:MM check time; a value that is not HH:MM rejects with `invalid_argument`. */
+  readonly setSeasonCheckTime: (value: string) => Promise<void>;
 }

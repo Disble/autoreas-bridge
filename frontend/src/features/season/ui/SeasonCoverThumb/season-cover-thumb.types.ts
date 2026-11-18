@@ -1,4 +1,4 @@
-import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import type { AnimeCoverSource } from '../../../../shared/anime-cover/anime-cover.types';
 
 /**
  * What a season row's 44px cover slot renders: a resolved image source, a
@@ -13,9 +13,9 @@ export interface SeasonCoverThumbProps {
 }
 
 /**
- * The cover-resolution port a season list depends on: the `getAnimeCover`
- * slice of `BridgeRuntimeSource`, so a test injects a fake without the Wails
- * singleton. Optional because a non-Wails context has no binding, which
- * degrades every row to the placeholder instead of throwing.
+ * The cover-resolution port a season list depends on: the shared
+ * `AnimeCoverSource` (`getAnimeCover` of the anime module's port), so a test
+ * injects a fake without the Wails singleton. Its absence degrades every row
+ * to the placeholder instead of throwing.
  */
-export type SeasonCoverSource = Pick<BridgeRuntimeSource, 'getAnimeCover'>;
+export type SeasonCoverSource = AnimeCoverSource;

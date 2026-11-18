@@ -1,6 +1,10 @@
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
+import type { AnimeDesktopActionsSource } from '../../../../shared/contracts/anime-editor-source.types';
 import type { SeasonQuerySource, SeasonSource } from '../../../../shared/contracts/season.types';
-import { BRIDGE_SEASON_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import {
+  BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE,
+  BRIDGE_ANIME_SOURCE,
+  BRIDGE_SEASON_SOURCE,
+} from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import type { SeasonCoverSource } from '../SeasonCoverThumb/season-cover-thumb.types';
 import { SELECTION_SORT_OPTIONS } from './selection-board.constants';
 import { useSelectionActions } from './use-selection-actions';
@@ -21,13 +25,18 @@ import { useSelectionView } from './use-selection-view';
  *
  * @param source The season port the store reads and writes through.
  * @param coverSource The port each candidate's cover is resolved through.
+ * @param desktopActionsSource The anime module's port the rows open or copy a page or folder through.
  */
-export function useSelectionBoard(source: SeasonSource & SeasonQuerySource = BRIDGE_SEASON_SOURCE, coverSource: SeasonCoverSource = bridgeRuntimeSource) {
+export function useSelectionBoard(
+  source: SeasonSource & SeasonQuerySource = BRIDGE_SEASON_SOURCE,
+  coverSource: SeasonCoverSource = BRIDGE_ANIME_SOURCE,
+  desktopActionsSource: AnimeDesktopActionsSource = BRIDGE_ANIME_DESKTOP_ACTIONS_SOURCE,
+) {
   const rules = useSelectionRules(source);
   const { rows, getCoverThumb } = useSelectionCandidates(rules.seasonAnimes, rules.minApprovalGrade, coverSource);
   const view = useSelectionView(rows);
   const commands = useSelectionMutations(source);
-  const actions = useSelectionActions(commands);
+  const actions = useSelectionActions(commands, desktopActionsSource);
 
   return {
     readOnly: rules.readOnly,

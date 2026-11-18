@@ -1,3 +1,4 @@
+import { createActivityRecorderSource } from '../../../infrastructure/activity-recorder-source/activity-recorder-source.helpers';
 import { ANIME_CHANGED_EVENT_NAME } from '../../../infrastructure/anime-runtime-source/anime-runtime-source.constants';
 import {
   DEVICE_ACKNOWLEDGED_EVENT_NAME,
@@ -17,8 +18,11 @@ import { createDownloadsSource } from '../../../infrastructure/download-runtime-
 import { createEpisodeDurationRuntimeSource } from '../../../infrastructure/bridge-runtime-source/episode-duration-runtime-source.helpers';
 import { createEpisodesSource } from '../../../infrastructure/bridge-runtime-source/episodes-source.helpers';
 import { frontendErrorReporter } from '../../../infrastructure/error-reporting/frontend-error-source.helpers';
+import { metadataLookupSource } from '../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers';
 import { createNotificationCenterSource } from '../../../infrastructure/notification-center-source/notification-center-source.helpers';
 import { NOTIFICATION_ARCHIVED_EVENT_NAME, NOTIFICATION_EVENT_NAME } from '../../../infrastructure/notification-source/notification-source.constants';
+import { createNotificationSource } from '../../../infrastructure/notification-source/notification-source.helpers';
+import { createPickerSource } from '../../../infrastructure/picker-source/picker-source.helpers';
 import { createReadinessSource } from '../../../infrastructure/readiness/readiness-source.helpers';
 import { SEASON_MATCHING_FINISHED_EVENT_NAME } from '../../../infrastructure/season-source/season-source.constants';
 import { createSeasonSource } from '../../../infrastructure/season-source/season-source.helpers';
@@ -27,6 +31,8 @@ import { createRuntimeEventSource } from '../../../infrastructure/wails-bindings
 import { createInvalidationRegistry } from '../invalidation-bridge/invalidation-bridge.helpers';
 import { createBridgeQueryClient } from '../query-client/query-client.helpers';
 import {
+  ANIME_LIST_KEY,
+  animeKeys,
   DEVICES_CONNECTED_KEY,
   DEVICES_PAIRING_TOKEN_KEY,
   DOWNLOADS_RUNS_KEY,
@@ -71,7 +77,8 @@ export const BRIDGE_EPISODES_SOURCE = createEpisodesSource();
 export const BRIDGE_EPISODE_DURATIONS_SOURCE = createEpisodeDurationRuntimeSource();
 /**
  * The anime module's reads (`GetAnimes`, `GetAnimeDetail`, the two watch-history
- * pages, `GetAnimeCover`), for the Catalog, the anime detail page and History.
+ * pages, `GetAnimeCover`), for the Catalog, the anime detail page and History,
+ * and the cover preview (`PreviewAnimeCover`) of the Editor and the create form.
  */
 export const BRIDGE_ANIME_SOURCE = createAnimeSource();
 
@@ -94,11 +101,31 @@ export const BRIDGE_ACTIVITY_SOURCE = createActivityWailsSource();
 /** The Activity feed's page, overview and drawer reads, served by the `observability` module. */
 export const BRIDGE_ACTIVITY_FEED_SOURCE = createActivityFeedSource();
 
-/** The Settings page's bindings: the `settings` module's library root and auto-start reads and commands. */
+/**
+ * The live recorder stream (`activity.recorder`), served by the `observability`
+ * module: the Activity feed's and the run story's debounced refreshes subscribe
+ * to it (sanctioned exceptions in `frontend/async-state-exceptions.json`).
+ */
+export const BRIDGE_ACTIVITY_RECORDER_SOURCE = createActivityRecorderSource();
+
+/** The `settings` module's bindings: the library root, auto-start, keymap and daily season check time reads and commands. */
 export const BRIDGE_SETTINGS_SOURCE = createSettingsSource();
 
 /** The notification center's reads and commands, served by the `notifications` module. */
 export const BRIDGE_NOTIFICATION_CENTER_SOURCE = createNotificationCenterSource();
+
+/**
+ * The `notifications` module's push stream (`notification.push`, `.archived`,
+ * `.navigate`), for the UI projections the registry cannot express: toasts, the
+ * center's in-place archive and the navigation command.
+ */
+export const BRIDGE_NOTIFICATION_PUSH_SOURCE = createNotificationSource();
+
+/** The native folder and image-file pickers, served by the always-ready shell module; `''` is a cancel, a failed dialog rejects. */
+export const BRIDGE_PICKER_SOURCE = createPickerSource();
+
+/** The MyAnimeList search and detail lookups, served by the shell's metadata client. */
+export const BRIDGE_METADATA_LOOKUP_SOURCE = metadataLookupSource;
 
 /** The season screens' reads and commands, served by the `season` module: the one shared season adapter. */
 export const BRIDGE_SEASON_SOURCE = createSeasonSource();
@@ -110,7 +137,10 @@ export const BRIDGE_DOWNLOADS_SOURCE = createDownloadsSource();
  * Every context's event→invalidation rules, the one place a context registers
  * them as it migrates (ADR-032, task T4 onward). Episodes: every committed anime
  * change (`anime.changed`, from any writer: this window, mobile, the REST API,
- * downloads) can move a row between days or change a day count. Devices: a
+ * downloads) can move a row between days or change a day count. Anime: the same
+ * change edits what the catalog list, an anime's detail and the watch histories
+ * show; covers stay cached (one change would re-read every cover on screen), and
+ * the Editor's `animeEditorKeys` record is never invalidated under its draft. Devices: a
  * consumed pairing token means a new device paired, so the token is spent and
  * the device list grew; a device acknowledgment advances that device's last sync.
  * Notifications: every pushed notification is a new unread record (the badge and
@@ -123,7 +153,16 @@ export const BRIDGE_DOWNLOADS_SOURCE = createDownloadsSource();
  * cancels the one in flight, so only the latest read's answer applies.
  */
 export const BRIDGE_INVALIDATIONS = createInvalidationRegistry([
-  { event: ANIME_CHANGED_EVENT_NAME, queryKeys: [episodesKeys.all] },
+  {
+    event: ANIME_CHANGED_EVENT_NAME,
+    queryKeys: [
+      episodesKeys.all,
+      ANIME_LIST_KEY,
+      animeKeys.key('detail'),
+      animeKeys.key('watch-history'),
+      animeKeys.key('anime-watch-history'),
+    ],
+  },
   { event: PAIRING_TOKEN_CONSUMED_EVENT_NAME, queryKeys: [DEVICES_PAIRING_TOKEN_KEY, DEVICES_CONNECTED_KEY] },
   { event: DEVICE_ACKNOWLEDGED_EVENT_NAME, queryKeys: [DEVICES_CONNECTED_KEY] },
   { event: NOTIFICATION_EVENT_NAME, queryKeys: [notificationsKeys.all] },

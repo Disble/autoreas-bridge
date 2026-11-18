@@ -34,13 +34,18 @@ const { fakeSource, getAnimeEditorRecordMock } = vi.hoisted(() => {
   return { fakeSource: new Proxy(fakeSource, { get: (target, key) => Reflect.get(target, key) ?? noop }), getAnimeEditorRecordMock };
 });
 
-vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
-  bridgeRuntimeSource: fakeSource,
-}));
 vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   /** The workspace's default anime-module Editor port: the same fake. */
   get BRIDGE_ANIME_EDITOR_SOURCE() {
+    return fakeSource;
+  },
+  /** The workspace's default shell pickers: the same fake. */
+  get BRIDGE_PICKER_SOURCE() {
+    return fakeSource;
+  },
+  /** The workspace's default anime-module cover port: the same fake. */
+  get BRIDGE_ANIME_SOURCE() {
     return fakeSource;
   },
 }));

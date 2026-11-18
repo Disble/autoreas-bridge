@@ -1,5 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createBridgeError } from '../../../../query/bridge-error/bridge-error.helpers';
 import { failKeymapLoad, resetKeyboardStore, setKeymapOverrides } from '../../../keyboard-scope.helpers';
 import { KEYMAP_PANEL_ERROR_MESSAGE } from '../keymap-panel.constants';
 import type { KeymapRebindOutcome } from '../keymap-panel.types';
@@ -85,7 +86,7 @@ describe('onRebind (task 10.2.1, design D6/D8)', () => {
 
   it('saves and warns on a cross-scope shadow, naming the scoped command that takes precedence (spec "A cross-scope shadow is saved with a warning")', async () => {
     setKeymapOverrides({});
-    const source = { setKeymap: vi.fn().mockResolvedValue('ok') };
+    const source = { setKeymap: vi.fn().mockResolvedValue(undefined) };
     const { result } = renderHook(() => useKeymapPanel({ source }));
 
     let outcome: KeymapRebindOutcome | undefined;
@@ -99,9 +100,9 @@ describe('onRebind (task 10.2.1, design D6/D8)', () => {
     expect(findRow(result.current.sections, 'notification-center.mark-all-read')?.effectiveChord).toBe('alt+1');
   });
 
-  it('publishes the candidate override only once setKeymap resolves "ok" (design D6: persist then publish)', async () => {
+  it('publishes the candidate override only once setKeymap resolves (design D6: persist then publish)', async () => {
     setKeymapOverrides({});
-    const source = { setKeymap: vi.fn().mockResolvedValue('ok') };
+    const source = { setKeymap: vi.fn().mockResolvedValue(undefined) };
     const { result } = renderHook(() => useKeymapPanel({ source }));
 
     let outcome: KeymapRebindOutcome | undefined;
@@ -114,9 +115,9 @@ describe('onRebind (task 10.2.1, design D6/D8)', () => {
     expect(result.current.saveErrorMessage).toBeNull();
   });
 
-  it('leaves overrides untouched and surfaces the raw status when setKeymap does not resolve "ok" (design D6: no optimistic publish)', async () => {
+  it('leaves overrides untouched and surfaces the bridge failure message when setKeymap rejects with one (design D6: no optimistic publish)', async () => {
     setKeymapOverrides({});
-    const source = { setKeymap: vi.fn().mockResolvedValue('disk is full') };
+    const source = { setKeymap: vi.fn().mockRejectedValue(createBridgeError('internal', 'disk is full')) };
     const { result } = renderHook(() => useKeymapPanel({ source }));
 
     let outcome: KeymapRebindOutcome | undefined;
@@ -129,7 +130,7 @@ describe('onRebind (task 10.2.1, design D6/D8)', () => {
     expect(result.current.saveErrorMessage).toBe('disk is full');
   });
 
-  it('surfaces a generic failure and leaves overrides untouched when setKeymap rejects outright', async () => {
+  it('surfaces a generic failure and leaves overrides untouched when setKeymap rejects with no bridge failure', async () => {
     setKeymapOverrides({});
     const source = { setKeymap: vi.fn().mockRejectedValue(new Error('network down')) };
     const { result } = renderHook(() => useKeymapPanel({ source }));
@@ -146,7 +147,7 @@ describe('onRebind (task 10.2.1, design D6/D8)', () => {
 
   it('does not throw for an id absent from the registry, and persists nothing new for it', async () => {
     setKeymapOverrides({});
-    const source = { setKeymap: vi.fn().mockResolvedValue('ok') };
+    const source = { setKeymap: vi.fn().mockResolvedValue(undefined) };
     const { result } = renderHook(() => useKeymapPanel({ source }));
 
     await act(async () => {
@@ -158,7 +159,7 @@ describe('onRebind (task 10.2.1, design D6/D8)', () => {
 
   it('reads fresh overrides on a second rebind in the same session, persisting both together rather than a frozen first snapshot', async () => {
     setKeymapOverrides({});
-    const source = { setKeymap: vi.fn().mockResolvedValue('ok') };
+    const source = { setKeymap: vi.fn().mockResolvedValue(undefined) };
     const { result } = renderHook(() => useKeymapPanel({ source }));
 
     await act(async () => {
@@ -175,8 +176,8 @@ describe('onRebind (task 10.2.1, design D6/D8)', () => {
 
   it('re-derives the injected source when the prop changes across a render, instead of freezing the first one', async () => {
     setKeymapOverrides({});
-    const firstSource = { setKeymap: vi.fn().mockResolvedValue('ok') };
-    const secondSource = { setKeymap: vi.fn().mockResolvedValue('ok') };
+    const firstSource = { setKeymap: vi.fn().mockResolvedValue(undefined) };
+    const secondSource = { setKeymap: vi.fn().mockResolvedValue(undefined) };
     const { result, rerender } = renderHook(({ source }) => useKeymapPanel({ source }), {
       initialProps: { source: firstSource },
     });
@@ -194,7 +195,7 @@ describe('onRebind (task 10.2.1, design D6/D8)', () => {
 describe('onRevert (task 11.2.1/11.2.2, design D6, spec "Recovery Is Always Reachable By Pointer Alone")', () => {
   it('restores one command\'s shipped chord, leaving every other override unchanged (spec "Per-binding revert restores one command\'s shipped chord")', async () => {
     setKeymapOverrides({ 'nav.today': 'ctrl+1', 'nav.downloads': 'ctrl+2' });
-    const source = { setKeymap: vi.fn().mockResolvedValue('ok') };
+    const source = { setKeymap: vi.fn().mockResolvedValue(undefined) };
     const { result } = renderHook(() => useKeymapPanel({ source }));
 
     await act(async () => {
@@ -207,9 +208,9 @@ describe('onRevert (task 11.2.1/11.2.2, design D6, spec "Recovery Is Always Reac
     expect(document.bindings).toEqual({ 'nav.downloads': 'ctrl+2' });
   });
 
-  it('leaves the override in place and surfaces the failure when the persisted write does not resolve "ok" (design D6: no optimistic publish)', async () => {
+  it('leaves the override in place and surfaces the failure when the persisted write rejects with a bridge failure (design D6: no optimistic publish)', async () => {
     setKeymapOverrides({ 'nav.today': 'ctrl+1' });
-    const source = { setKeymap: vi.fn().mockResolvedValue('disk is full') };
+    const source = { setKeymap: vi.fn().mockRejectedValue(createBridgeError('internal', 'disk is full')) };
     const { result } = renderHook(() => useKeymapPanel({ source }));
 
     await act(async () => {
@@ -220,7 +221,7 @@ describe('onRevert (task 11.2.1/11.2.2, design D6, spec "Recovery Is Always Reac
     expect(result.current.saveErrorMessage).toBe('disk is full');
   });
 
-  it('surfaces a generic failure and leaves the override in place when setKeymap rejects outright', async () => {
+  it('surfaces a generic failure and leaves the override in place when setKeymap rejects with no bridge failure', async () => {
     setKeymapOverrides({ 'nav.today': 'ctrl+1' });
     const source = { setKeymap: vi.fn().mockRejectedValue(new Error('network down')) };
     const { result } = renderHook(() => useKeymapPanel({ source }));
@@ -235,7 +236,7 @@ describe('onRevert (task 11.2.1/11.2.2, design D6, spec "Recovery Is Always Reac
 
   it('reads fresh overrides on a second revert in the same session, rather than a frozen first snapshot', async () => {
     setKeymapOverrides({ 'nav.today': 'ctrl+1', 'nav.downloads': 'ctrl+2' });
-    const source = { setKeymap: vi.fn().mockResolvedValue('ok') };
+    const source = { setKeymap: vi.fn().mockResolvedValue(undefined) };
     const { result } = renderHook(() => useKeymapPanel({ source }));
 
     await act(async () => {
@@ -250,8 +251,8 @@ describe('onRevert (task 11.2.1/11.2.2, design D6, spec "Recovery Is Always Reac
 
   it('re-derives the injected source when the prop changes across a render, instead of freezing the first one', async () => {
     setKeymapOverrides({ 'nav.today': 'ctrl+1' });
-    const firstSource = { setKeymap: vi.fn().mockResolvedValue('ok') };
-    const secondSource = { setKeymap: vi.fn().mockResolvedValue('ok') };
+    const firstSource = { setKeymap: vi.fn().mockResolvedValue(undefined) };
+    const secondSource = { setKeymap: vi.fn().mockResolvedValue(undefined) };
     const { result, rerender } = renderHook(({ source }) => useKeymapPanel({ source }), {
       initialProps: { source: firstSource },
     });
@@ -269,7 +270,7 @@ describe('onRevert (task 11.2.1/11.2.2, design D6, spec "Recovery Is Always Reac
 describe('onResetToDefaults (task 11.2.1/11.2.2, design D5/D6, spec "Recovery Is Always Reachable By Pointer Alone")', () => {
   it('restores every shipped chord via SetKeymap("") rather than a document enumerating the defaults (design D5)', async () => {
     setKeymapOverrides({ 'nav.today': 'ctrl+1', 'nav.downloads': 'ctrl+2' });
-    const source = { setKeymap: vi.fn().mockResolvedValue('ok') };
+    const source = { setKeymap: vi.fn().mockResolvedValue(undefined) };
     const { result } = renderHook(() => useKeymapPanel({ source }));
 
     await act(async () => {
@@ -281,9 +282,9 @@ describe('onResetToDefaults (task 11.2.1/11.2.2, design D5/D6, spec "Recovery Is
     expect(findRow(result.current.sections, 'nav.downloads')?.effectiveChord).toBe('alt+2');
   });
 
-  it('leaves every override in place and surfaces the failure when the persisted write does not resolve "ok" (design D6: no optimistic publish)', async () => {
+  it('leaves every override in place and surfaces the failure when the persisted write rejects with a bridge failure (design D6: no optimistic publish)', async () => {
     setKeymapOverrides({ 'nav.today': 'ctrl+1' });
-    const source = { setKeymap: vi.fn().mockResolvedValue('disk is full') };
+    const source = { setKeymap: vi.fn().mockRejectedValue(createBridgeError('internal', 'disk is full')) };
     const { result } = renderHook(() => useKeymapPanel({ source }));
 
     await act(async () => {
@@ -296,8 +297,8 @@ describe('onResetToDefaults (task 11.2.1/11.2.2, design D5/D6, spec "Recovery Is
 
   it('re-derives the injected source when the prop changes across a render, instead of freezing the first one', async () => {
     setKeymapOverrides({ 'nav.today': 'ctrl+1' });
-    const firstSource = { setKeymap: vi.fn().mockResolvedValue('ok') };
-    const secondSource = { setKeymap: vi.fn().mockResolvedValue('ok') };
+    const firstSource = { setKeymap: vi.fn().mockResolvedValue(undefined) };
+    const secondSource = { setKeymap: vi.fn().mockResolvedValue(undefined) };
     const { result, rerender } = renderHook(({ source }) => useKeymapPanel({ source }), {
       initialProps: { source: firstSource },
     });

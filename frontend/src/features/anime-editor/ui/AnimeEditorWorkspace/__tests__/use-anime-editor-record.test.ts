@@ -1,9 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AnimeEditorRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeEditorSource } from '../../../../../shared/contracts/anime-editor-source.types';
 import type { AnimeEditorRecord } from '../../../../../shared/contracts/anime.types';
 import type { EpisodeCommandsSource } from '../../../../../shared/contracts/episodes.types';
+import type { PickerSource } from '../../../../../shared/contracts/picker.types';
 import type { ModuleReadiness } from '../../../../../shared/contracts/readiness.types';
 import type { AnimeMetadataSelection } from '../../../../../shared/metadata-lookup/metadata-lookup.types';
 import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
@@ -33,8 +33,8 @@ beforeEach(() => {
   Object.values(toastMock).forEach((mock) => mock.mockClear());
 });
 
-/** One fake serving the runtime pickers, the anime module's Editor port and the episodes module's restore and repeat. */
-type FakeEditorSources = AnimeEditorRuntimeSource & AnimeEditorSource & Pick<EpisodeCommandsSource, 'restoreAnime' | 'repeatAnime'>;
+/** One fake serving the shell pickers, the anime module's Editor port and the episodes module's restore and repeat. */
+type FakeEditorSources = PickerSource & AnimeEditorSource & Pick<EpisodeCommandsSource, 'restoreAnime' | 'repeatAnime'>;
 
 /**
  * Builds a stubbed editor source for one hook test case: the runtime pickers,
@@ -167,6 +167,18 @@ describe('editor record folder picker', () => {
     await act(async () => { await result.current.onPickFolder(); });
 
     expect(result.current.draft.folder).toBe('');
+    expect(toastMock.danger).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed dialog with the bridge reason and leaves the draft unchanged', async () => {
+    const source = createSource({ pickFolder: vi.fn().mockRejectedValue(createBridgeError('internal', 'shell: the folder dialog failed')) });
+    const { result } = renderRecord(source);
+    const draft = result.current.draft;
+
+    await act(async () => { await result.current.onPickFolder(); });
+
+    expect(result.current.draft).toBe(draft);
+    expect(toastMock.danger).toHaveBeenCalledExactlyOnceWith('shell: the folder dialog failed');
   });
 });
 
@@ -288,6 +300,18 @@ describe('editor record cover-image picker', () => {
     await act(async () => { await result.current.onPickCoverFile(); });
 
     expect(result.current.draft.coverPath).toBe('');
+    expect(toastMock.danger).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed dialog with the bridge reason and leaves the cover unchanged', async () => {
+    const source = createSource({ pickFile: vi.fn().mockRejectedValue(createBridgeError('unavailable', 'the PickFile binding is not attached')) });
+    const { result } = renderRecord(source);
+    const draft = result.current.draft;
+
+    await act(async () => { await result.current.onPickCoverFile(); });
+
+    expect(result.current.draft).toBe(draft);
+    expect(toastMock.danger).toHaveBeenCalledExactlyOnceWith('the PickFile binding is not attached');
   });
 });
 

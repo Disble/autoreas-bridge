@@ -7,15 +7,12 @@ import { resetKeyboardStore } from '../../../../../shared/keyboard/keyboard-scop
 import type { ActivitySource } from '../../../../../shared/contracts/activity.types';
 import type { ActivityFeedSource } from '../../../../../shared/contracts/activity.types';
 import type { ActivityFeedLine, ActivityFeedView } from '../../../../../shared/contracts/activity-feed.types';
-import type { HistorySource } from '../../../history-source/history-source.types';
 import { buildDay, buildLine, buildOverview, buildView } from '../../../feed/__tests__/activity-feed.fixtures';
 import type { ActivityDetailDrawerProps } from '../../ActivityDetailDrawer/activity-detail-drawer.types';
 import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { ActivityScreen } from '../ActivityScreen';
 import { ACTIVITY_PIN_FAILURE_MESSAGE, ACTIVITY_PIN_SUCCESS_MESSAGE } from '../activity-screen.constants';
 
-/** Recorder listeners the screen subscribed. */
-const recorderListeners: (() => void)[] = [];
 
 /** The feed port: each test sets what `searchFeed` resolves with. Hoisted: the mocked bridge runtime hands it out at import. */
 const feedSource = vi.hoisted(() => ({
@@ -23,18 +20,24 @@ const feedSource = vi.hoisted(() => ({
   getOverview: vi.fn<ActivityFeedSource['getOverview']>(),
 }));
 
-/** The History port: only its recorder subscription is used. */
-const historySource: HistorySource = {
-  subscribeRecorder: (listener) => {
-    recorderListeners.push(() => listener({} as never));
-    return () => undefined;
-  },
-};
+/** The recorder port and the listeners the screen subscribed. Hoisted: the mocked bridge runtime hands it out at import. */
+const { recorderListeners, recorderSource } = vi.hoisted(() => {
+  /** Recorder listeners the screen subscribed. */
+  const listeners: (() => void)[] = [];
+  return {
+    recorderListeners: listeners,
+    recorderSource: {
+      subscribeRecorder: (listener: (entry: never) => void) => {
+        listeners.push(() => listener({} as never));
+        return () => undefined;
+      },
+    },
+  };
+});
 
 /** The Activity port: only the pin is used. Hoisted: the mocked bridge runtime hands it out at import. */
 const activitySource = vi.hoisted(() => ({ pinMoment: vi.fn(() => Promise.resolve()) }) as unknown as ActivitySource);
 
-vi.mock('../../../history-source/history-source.helpers', () => ({ createHistorySource: () => historySource }));
 /** The paired devices the phone status line reads: none unless a test sets them. */
 const getConnectedDevices = vi.fn(() => Promise.resolve<readonly { connection_status: string; last_seen_at_ms: number }[]>([]));
 
@@ -42,6 +45,7 @@ vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', (
   BRIDGE_DEVICES_SOURCE: { getConnectedDevices: () => getConnectedDevices() },
   BRIDGE_ACTIVITY_FEED_SOURCE: feedSource,
   BRIDGE_ACTIVITY_SOURCE: activitySource,
+  BRIDGE_ACTIVITY_RECORDER_SOURCE: recorderSource,
 }));
 vi.mock('../../ActivityDetailDrawer/ActivityDetailDrawer', () => ({
   /** Stands in for writer B's drawer: shows which line is open. */

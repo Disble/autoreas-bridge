@@ -5,12 +5,13 @@ import editorLibraryAirisArtwork from '../../../../assets/airis-empty-states/edi
 import { ANIME_CREATE_ROUTE } from '../../../../shared/navigation/app-layout.constants';
 import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
 import { AIRIS_CLEAR_CRITERIA_LABEL, AIRIS_CREATE_ANIME_LABEL } from '../../../../shared/ui/AirisEmptyState/airis-empty-state.constants';
+import { AnimeEditorListFilters } from './AnimeEditorListFilters';
 import { AnimeEditorListRow } from './AnimeEditorListRow';
 import { AnimeEditorListSkeleton } from './AnimeEditorListSkeleton';
 import { ANIME_EDITOR_EMPTY_STATE_COPY, ANIME_EDITOR_FILTER_OPTIONS, ANIME_EDITOR_LIST_FAILED_TITLE, ANIME_EDITOR_LIST_LOADING_LABEL } from './anime-editor-workspace.constants';
 import type { AnimeEditorListPanelProps } from './anime-editor-workspace.types';
 
-/** Renders the progressively loaded watching-first search and selection rail (800+ items). */
+/** Renders the progressively loaded watching-first search, filter and selection rail (800+ items). */
 export const AnimeEditorListPanel = memo(function AnimeEditorListPanel({ viewModel }: Readonly<AnimeEditorListPanelProps>) {
   const navigate = useNavigate();
   const { scrollRef, onScroll, visibleCount } = viewModel.listWindow;
@@ -22,9 +23,12 @@ export const AnimeEditorListPanel = memo(function AnimeEditorListPanel({ viewMod
         <Typography type="h4">Library</Typography>
         <Chip color="default" size="sm" variant="soft"><Chip.Label>{viewModel.items.length} animes</Chip.Label></Chip>
       </div>
-      <SearchField aria-label="Search anime editor list" fullWidth onChange={viewModel.onQueryChange} value={viewModel.query} variant="secondary">
-        <SearchField.Group><SearchField.SearchIcon /><SearchField.Input placeholder="Search an anime..." /><SearchField.ClearButton /></SearchField.Group>
-      </SearchField>
+      <div className="flex items-center gap-2">
+        <SearchField aria-label="Search anime editor list" className="min-w-0 flex-1" onChange={viewModel.onQueryChange} value={viewModel.query} variant="secondary">
+          <SearchField.Group><SearchField.SearchIcon /><SearchField.Input placeholder="Search an anime..." /><SearchField.ClearButton /></SearchField.Group>
+        </SearchField>
+        <AnimeEditorListFilters viewModel={viewModel} />
+      </div>
       <ToggleButtonGroup aria-label="Anime editor filters" disallowEmptySelection fullWidth selectedKeys={[viewModel.filter]} selectionMode="single" size="sm" onSelectionChange={(keys) => viewModel.onFilterChange(String(Array.from(keys)[0] ?? viewModel.filter))}>
         {ANIME_EDITOR_FILTER_OPTIONS.map((option) => <ToggleButton id={option.id} key={option.id}>{option.label}</ToggleButton>)}
       </ToggleButtonGroup>

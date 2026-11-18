@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { HistorySource } from '../history-source/history-source.types';
+import type { ActivityRecorderSource } from '../../../shared/contracts/activity-recorder.types';
 import { ACTIVITY_LIVE_DEBOUNCE_MS } from './activity-feed.constants';
 
 /**
@@ -7,10 +7,10 @@ import { ACTIVITY_LIVE_DEBOUNCE_MS } from './activity-feed.constants';
  * `activity.recorder` event, so a burst of phone requests reads the feed and
  * the counts once rather than once per request (S8).
  *
- * @param source The History port that carries the recorder subscription.
+ * @param source The recorder port that carries the subscription.
  * @param onLive What to do after live activity.
  */
-export function useActivityLiveRefresh(source: HistorySource, onLive: () => void): void {
+export function useActivityLiveRefresh(source: ActivityRecorderSource, onLive: () => void): void {
   // 1. Refs
   const onLiveRef = useRef(onLive);
 

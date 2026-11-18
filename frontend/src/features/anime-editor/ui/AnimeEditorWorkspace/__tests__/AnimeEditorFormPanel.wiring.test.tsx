@@ -1,10 +1,23 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render as renderWithoutClient, screen, within } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getAnimeEstadoLabel } from '../../../../../shared/helpers/anime-estado.helpers';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
+import { status } from '../../../../../shared/query/test-support/readiness-source.test-support';
 import { AnimeEditorFormPanel } from '../AnimeEditorFormPanel';
 import type { AnimeEditorFormPanelViewModel } from '../anime-editor-workspace.types';
 
 afterEach(cleanup);
+
+/**
+ * Renders inside a query client whose `anime` module is ready, which the
+ * cover field's preview reads through; `rerender` keeps the same client.
+ * @param ui The element under test.
+ * @returns The render result.
+ */
+function render(ui: ReactElement) {
+  return renderWithoutClient(ui, { wrapper: createModulesTestWrapper(status('anime', 'ready')).wrapper });
+}
 
 /** The saved record of the default fixture: an active anime with status 0. */
 const RECORD = {
@@ -24,7 +37,7 @@ function slice(overrides: Partial<AnimeEditorFormPanelViewModel> = {}): AnimeEdi
     draft: { name: 'Frieren', status: 0, progress: '12', totalEpisodes: '28', kind: '1', page: 'https://x', folder: 'D:/a', origin: 'Manga', duration: '24', genres: '', studios: '', coverType: 'url', coverPath: 'https://c.jpg' },
     cover: { status: 'placeholder' }, appliedMetadata: undefined,
     metadataLookupSource: { SearchMyAnimeList: vi.fn(), GetMyAnimeListDetail: vi.fn() },
-    coverPreviewSource: {},
+    coverPreviewSource: { previewAnimeCover: vi.fn().mockResolvedValue({ source: 'placeholder' }) },
     isLoadingRecord: false, isSaving: false, isRecordDirty: false, canSave: false, isDetailsOpen: true,
     onCoverImageError: vi.fn(), onDraftChange: vi.fn(), onToggleDetails: vi.fn(), onDiscardChanges: vi.fn(),
     onPickFolder: vi.fn(), onPickCoverFile: vi.fn(), onSave: vi.fn(), onMetadataApplied: vi.fn(), onMetadataUndo: vi.fn(),

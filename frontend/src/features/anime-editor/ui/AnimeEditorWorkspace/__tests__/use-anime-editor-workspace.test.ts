@@ -89,7 +89,7 @@ function createSource() {
  * @returns The render result plus the source it was given.
  */
 async function loadHook(source = createSource()) {
-  const rendered = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-1' }, source as never, episodeSource, source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
+  const rendered = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-1' }, source as never, episodeSource, source as never, source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
   await waitFor(() => expect(rendered.result.current.selectedRecord?.animeId).toBe('anime-1'));
   return { ...rendered, source };
 }
@@ -97,14 +97,14 @@ async function loadHook(source = createSource()) {
 describe('useAnimeEditorWorkspace', () => {
   it('loads the requested deep-link anime', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-2' }, source as never, episodeSource, source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-2' }, source as never, episodeSource, source as never, source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-2'));
   });
 
   it('reads the Episodes section for the loaded anime and its draft', async () => {
     const reads = createEmptyEpisodeDurationSource();
     const source = createSource();
-    const { result } = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-2' }, source as never, reads, source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-2' }, source as never, reads, source as never, source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
 
     await waitFor(() => expect(reads.getEpisodeDurationSection).toHaveBeenCalledWith(expect.objectContaining({ animeId: 'anime-2' })));
     expect(result.current.episodes.view).not.toBe('idle');
@@ -215,7 +215,7 @@ describe('useAnimeEditorWorkspace', () => {
     vi.mocked(source.getAnimeEditorRecord)
       .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
       .mockResolvedValueOnce({ outcome: 'applied', message: 'loaded', record: record('anime-2', 'Newest') });
-    const { result } = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-1' }, source as never, episodeSource, source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-1' }, source as never, episodeSource, source as never, source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
     await waitFor(() => expect(source.getAnimeEditorRecord).toHaveBeenCalledWith('anime-1'));
     act(() => result.current.onSelectAnime('anime-2'));
     await waitFor(() => expect(result.current.selectedRecord?.frequent.name).toBe('Newest'));

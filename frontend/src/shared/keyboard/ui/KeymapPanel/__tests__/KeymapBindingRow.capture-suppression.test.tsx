@@ -1,10 +1,11 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getKeyboardState, resetKeyboardStore } from '../../../keyboard-scope.helpers';
 import type { CommandBinding } from '../../../keyboard.types';
 import { KeyboardDispatcherListener } from '../../KeyboardDispatcherListener/KeyboardDispatcherListener';
 import { KeymapBindingRow } from '../../KeymapBindingRow/KeymapBindingRow';
+import { BRIDGE_READINESS_GATE } from '../../../../query/bridge-runtime/bridge-runtime.constants';
 
 /** Renders the live router location so a navigation assertion reads where the app landed, not which function ran (mirrors `KeyboardDispatcherListener.react-aria.test.tsx`). */
 function LocationProbe() {
@@ -20,11 +21,11 @@ function buildBinding(): CommandBinding {
 
 beforeEach(() => {
   resetKeyboardStore();
-  // KeyboardDispatcherListener also mounts useKeymapOverrides (design D11),
-  // which calls preferencesSource.getKeymap() on mount. Stubbing GetKeymap
-  // makes hasGoBinding true immediately, so the load resolves synchronously
-  // with no real timer left running -- mirrors
-  // KeyboardDispatcherListener.react-aria.test.tsx's own setup exactly.
+  // KeyboardDispatcherListener loads the persisted keymap on mount (design
+  // D11), once the settings module is ready. The readiness gate is stubbed
+  // ready and GetKeymap attached, so the load resolves at once with no binding
+  // poll left running; these suites are about the dispatcher, not the loader.
+  vi.spyOn(BRIDGE_READINESS_GATE, 'whenReady').mockResolvedValue();
   window.go = { desktop: { App: { GetKeymap: () => Promise.resolve('') } } } as never;
 });
 afterEach(() => {

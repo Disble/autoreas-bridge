@@ -55,14 +55,17 @@ export interface EpisodesSource {
 
 /**
  * What an episodes command answers once it ran: `status` is `ok` and `outcome`
- * is `applied`, `no_op` or `conflict`, at the anime's `modifiedAt` stamp.
- * Mirrors the generated `EpisodeCommandResult` contract.
+ * is `applied`, `no_op` or `conflict`, at the anime's `modifiedAt` stamp; a
+ * `conflict` carries its `conflictId`. Mirrors the generated
+ * `EpisodeCommandResult` contract.
  */
 export interface EpisodeWriteResult {
   readonly status: string;
   readonly message?: string;
   readonly outcome?: string;
   readonly modifiedAt: number;
+  /** The recorded conflict's id when `outcome` is `conflict`; absent or `''` otherwise. */
+  readonly conflictId?: string;
 }
 
 /**

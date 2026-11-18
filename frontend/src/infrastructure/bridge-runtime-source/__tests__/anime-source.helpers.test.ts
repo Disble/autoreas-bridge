@@ -8,7 +8,7 @@ const FRIEREN_ROW = { id: 'anime-1', name: 'Frieren' };
 /** One watch-history page as both page bindings answer it. */
 const PAGE = { items: [], nextCursor: '1700000000000:1', status: 'ok' };
 
-/** The five anime read bindings, each answering `answer` or rejecting with `rejection`. */
+/** The six anime read bindings, each answering `answer` or rejecting with `rejection`. */
 function animeBindings(answer: (name: string) => unknown, rejection?: string) {
   const binding = (name: string) => (rejection === undefined ? vi.fn().mockResolvedValue(answer(name)) : vi.fn().mockRejectedValue(new Error(rejection)));
   return {
@@ -17,6 +17,7 @@ function animeBindings(answer: (name: string) => unknown, rejection?: string) {
     GetWatchHistoryPage: binding('GetWatchHistoryPage'),
     GetAnimeWatchHistoryPage: binding('GetAnimeWatchHistoryPage'),
     GetAnimeCover: binding('GetAnimeCover'),
+    PreviewAnimeCover: binding('PreviewAnimeCover'),
   };
 }
 
@@ -33,6 +34,7 @@ function callEveryRead(source: Awaited<ReturnType<typeof importSource>>) {
     source.getWatchHistoryPage({ search: '', animeIds: ['anime-1'], watchedFromMs: 0, watchedToMs: 0, order: 'newest', cursor: '', limit: 0 }),
     source.getAnimeWatchHistoryPage({ animeId: 'anime-1', cycle: 0, cursor: '', limit: 3 }),
     source.getAnimeCover('anime-1'),
+    source.previewAnimeCover('C:/covers/frieren.jpg'),
   ];
 }
 
@@ -52,6 +54,7 @@ describe('createAnimeSource', () => {
       GetWatchHistoryPage: PAGE,
       GetAnimeWatchHistoryPage: PAGE,
       GetAnimeCover: { source: 'cover', dataUrl: 'data:image/jpeg;base64,AA' },
+      PreviewAnimeCover: { source: 'cover', dataUrl: 'data:image/jpeg;base64,BB' },
     };
     const bindings = animeBindings((name) => answers[name]);
     attachBindings(bindings);
@@ -61,6 +64,7 @@ describe('createAnimeSource', () => {
     expect(bindings.GetWatchHistoryPage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ animeIds: ['anime-1'], order: 'newest' }));
     expect(bindings.GetAnimeWatchHistoryPage).toHaveBeenCalledExactlyOnceWith({ animeId: 'anime-1', cycle: 0, cursor: '', limit: 3 });
     expect(bindings.GetAnimeCover).toHaveBeenCalledExactlyOnceWith('anime-1');
+    expect(bindings.PreviewAnimeCover).toHaveBeenCalledExactlyOnceWith('C:/covers/frieren.jpg');
   });
 
   it('hands GetWatchHistoryPage a copy of the anime id list, never the caller array', async () => {

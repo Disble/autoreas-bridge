@@ -10,6 +10,9 @@ export const LIBRARY_ROOT_DESCRIPTION =
 /** Native folder-picker dialog title. */
 export const LIBRARY_ROOT_PICKER_TITLE = 'Choose library root folder';
 
+/** Toast shown when the folder dialog fails without a reason of its own. */
+export const LIBRARY_ROOT_PICKER_FAILED_MESSAGE = 'The folder dialog could not open.';
+
 /** Toast message shown after the root is persisted. */
 export const LIBRARY_ROOT_SAVED_MESSAGE = 'Library root saved';
 

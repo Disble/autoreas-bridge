@@ -10,11 +10,9 @@ import {
   GetPastSeasonAnimes,
   GetSeason,
   GetSeasonAnimes,
-  GetSeasonCheckTime,
   GetSeasonOrderingBoard,
   GetSeasonOrderingSnapshot,
   ListSeasons,
-  PickFolder,
   RecheckSeasonAvailability,
   ReconcileSeasonIntake,
   ReopenSeasonOrdering,
@@ -24,11 +22,9 @@ import {
   SaveSeasonOrderingDraft,
   SearchSeasonProviders,
   SendSeasonAnimesToVerHoy,
-  SetAnimeDays,
   SetSeasonConsideration,
   SetSeasonGrade,
   SetSeasonAnimeMetadata,
-  SetSeasonCheckTime,
   SetSeasonMinApprovalGrade,
   SetSeasonSlots,
   SkipSeasonGrading,
@@ -36,21 +32,18 @@ import {
 } from '../../../wailsjs/go/desktop/App';
 import { EventsOn } from '../../../wailsjs/runtime/runtime';
 import {
-  SEASON_APPLY_UNAVAILABLE,
   SEASON_COMMAND_OK,
-  SEASON_CONFIRM_UNAVAILABLE,
-  SEASON_EMPTY_BOARD,
   SEASON_MATCHING_FINISHED_EVENT_NAME,
   SEASON_MATCHING_PHASE_AVAILABILITY_CHECK,
   SEASON_MATCHING_PHASE_MATCHING,
   SEASON_MATCHING_PROGRESS_EVENT_NAME,
   SEASON_MATCHING_STARTED_EVENT_NAME,
-  SEASON_PROVIDER_SEARCH_UNAVAILABLE,
   SEASON_RUNTIME_UNAVAILABLE,
-  SEASON_SEND_UNAVAILABLE,
   SEASON_SOURCE_STATE,
 } from './season-source.constants';
 import type {
+  ApplyScheduleResult,
+  ConfirmSelectionResult,
   SeasonAnimeRow,
   SeasonCreateMetadata,
   SeasonMatchingFinishedNotice,
@@ -89,18 +82,9 @@ function invokeSeasonCommand(bindingName: string, invoke: () => Promise<void>): 
 }
 
 /**
- * Calls a season read binding and maps its rejection back to the fallback its
- * consumers still read as "nothing yet", which is what the binding answered
- * before it returned an error.
- */
-function invokeSeasonRead<T>(bindingName: string, invoke: () => Promise<T>, fallback: () => T): Promise<T> {
-  return invokeGoBinding(bindingName, () => withBridgeErrors(invoke()).catch(fallback), fallback);
-}
-
-/**
- * Calls a season read binding for a query: its rejection becomes a
+ * Calls a season binding for a query or a mutation: its rejection becomes a
  * `BridgeError`, and a binding that never attaches rejects as `unavailable`, so
- * the query reports loading or failure instead of an empty answer.
+ * the caller reports loading or failure instead of an empty answer or an "ok".
  * @param bindingName The `App` method name, as `window.go` exposes it.
  * @param call The generated binding call.
  * @returns What the binding answered.
@@ -108,19 +92,6 @@ function invokeSeasonRead<T>(bindingName: string, invoke: () => Promise<T>, fall
 function callSeasonQuery<T>(bindingName: string, call: () => Promise<T>): Promise<T> {
   return withBridgeErrors(
     invokeGoBinding(bindingName, call, () => Promise.reject(createBridgeError('unavailable', `the ${bindingName} binding is not attached`))),
-  );
-}
-
-/**
- * Calls a season binding whose result carries a status and maps its rejection
- * back to `unavailable` carrying the failure's message as that status, which is
- * what the binding answered before it returned an error.
- */
-function invokeSeasonOutcome<T extends { readonly status: string }>(bindingName: string, invoke: () => Promise<T>, unavailable: T): Promise<T> {
-  return invokeGoBinding(
-    bindingName,
-    () => withBridgeErrors(invoke()).catch((error: Error) => ({ ...unavailable, status: error.message })),
-    () => unavailable,
   );
 }
 
@@ -174,7 +145,10 @@ function mapSeasonMatchingFinishedNotice(wire: SeasonMatchingFinishedWire): Seas
 }
 
 /**
- * Creates the singleton runtime-backed season source with browser-safe degraded fallbacks.
+ * Creates the singleton runtime-backed season source. Its reads and outcome
+ * commands reject with a `BridgeError` (`unavailable` while the module starts
+ * or the binding never attaches); its status commands answer `'ok'` or the
+ * failure's message.
  */
 export function createSeasonSource(): SeasonSource & SeasonQuerySource {
   if (SEASON_SOURCE_STATE.sharedSource !== null) {
@@ -194,9 +168,6 @@ export function createSeasonSource(): SeasonSource & SeasonQuerySource {
   });
 
   SEASON_SOURCE_STATE.sharedSource = {
-    getSeason() {
-      return invokeSeasonRead('GetSeason', GetSeason, () => null);
-    },
     createSeason(name: string) {
       return invokeSeasonCommand('CreateSeason', () => CreateSeason(name));
     },
@@ -209,20 +180,8 @@ export function createSeasonSource(): SeasonSource & SeasonQuerySource {
     closeSeason() {
       return invokeSeasonCommand('CloseSeason', CloseSeason);
     },
-    getSeasonAnimes() {
-      return invokeSeasonRead('GetSeasonAnimes', GetSeasonAnimes, () => []);
-    },
     setSeasonAnimeMetadata(rowId: string, metadataJSON: string) {
       return invokeSeasonCommand('SetSeasonAnimeMetadata', () => SetSeasonAnimeMetadata(rowId, metadataJSON));
-    },
-    listSeasons() {
-      return invokeSeasonRead('ListSeasons', ListSeasons, () => []);
-    },
-    getPastSeason(seasonId: string) {
-      return invokeSeasonRead('GetPastSeason', () => GetPastSeason(seasonId), () => null);
-    },
-    getPastSeasonAnimes(seasonId: string) {
-      return invokeSeasonRead('GetPastSeasonAnimes', () => GetPastSeasonAnimes(seasonId), () => []);
     },
     readSeason() {
       return callSeasonQuery<SeasonSnapshot | null>('GetSeason', GetSeason);
@@ -248,35 +207,20 @@ export function createSeasonSource(): SeasonSource & SeasonQuerySource {
     resolveMatch(rowId: string, pageUrl: string) {
       return invokeSeasonCommand('ResolveSeasonMatch', () => ResolveSeasonMatch(rowId, pageUrl));
     },
-    searchProviders(query: string) {
-      return invokeSeasonOutcome<SeasonProviderSearchResult>('SearchSeasonProviders', () => SearchSeasonProviders(query), SEASON_PROVIDER_SEARCH_UNAVAILABLE);
-    },
     discardName(rowId: string) {
       return invokeSeasonCommand('DiscardSeasonName', () => DiscardSeasonName(rowId));
     },
     restoreName(rowId: string) {
       return invokeSeasonCommand('RestoreSeasonName', () => RestoreSeasonName(rowId));
     },
-    setAnimeDays(animeId: string, dias: readonly string[]) {
-      // The binding is an episodes module command that rejects on failure; the season store reads
-      // 'ok', the failure's message, or 'Failed to move anime' for a failure without one.
-      return invokeSeasonCommand('SetAnimeDays', () => SetAnimeDays(animeId, [...dias], 0).then(() => undefined))
-        .then((status) => status || 'Failed to move anime');
-    },
     sendToVerHoy(animeIds: readonly string[]) {
-      // The episodes module answers only the download window and rejects on failure; the season
-      // store reads the status 'ok' beside it, or the failure's message as the status.
-      return invokeSeasonOutcome<SendToVerHoyResult>(
-        'SendSeasonAnimesToVerHoy',
-        () => SendSeasonAnimesToVerHoy([...animeIds]).then((result) => ({ status: SEASON_COMMAND_OK, pastDownloadTime: result.pastDownloadTime, downloadTime: result.downloadTime })),
-        SEASON_SEND_UNAVAILABLE,
-      );
+      return callSeasonQuery<SendToVerHoyResult>('SendSeasonAnimesToVerHoy', () => SendSeasonAnimesToVerHoy([...animeIds]));
     },
     triggerSeasonDownloads() {
-      return invokeGoBinding('TriggerSeasonDownloads', TriggerSeasonDownloads, () => SEASON_RUNTIME_UNAVAILABLE);
+      return callSeasonQuery('TriggerSeasonDownloads', () => TriggerSeasonDownloads());
     },
     downloadSeasonAnimes(animeIds: readonly string[]) {
-      return invokeGoBinding('DownloadSeasonAnimes', () => DownloadSeasonAnimes([...animeIds]), () => SEASON_RUNTIME_UNAVAILABLE);
+      return callSeasonQuery('DownloadSeasonAnimes', () => DownloadSeasonAnimes([...animeIds]));
     },
     setGrade(animeId: string, grade: number) {
       return invokeSeasonCommand('SetSeasonGrade', () => SetSeasonGrade(animeId, grade));
@@ -288,7 +232,7 @@ export function createSeasonSource(): SeasonSource & SeasonQuerySource {
       return invokeSeasonCommand('SetSeasonConsideration', () => SetSeasonConsideration(rowId, consideration));
     },
     confirmSelection() {
-      return invokeSeasonOutcome('ConfirmSeasonSelection', ConfirmSeasonSelection, SEASON_CONFIRM_UNAVAILABLE);
+      return callSeasonQuery<ConfirmSelectionResult>('ConfirmSeasonSelection', ConfirmSeasonSelection);
     },
     createSeasonAnimes(
       rowIds: readonly string[],
@@ -297,36 +241,17 @@ export function createSeasonSource(): SeasonSource & SeasonQuerySource {
     ) {
       return invokeSeasonCommand('CreateSeasonAnimes', () => CreateSeasonAnimes([...rowIds], { ...folders }, { ...metadata }));
     },
-    pickFolder(title: string) {
-      // A failed dialog rejects as internal since the shell slice; its pickers still read it as a cancel.
-      return invokeGoBinding('PickFolder', () => PickFolder(title), () => '').catch(() => '');
-    },
-    getOrderingBoard() {
-      return invokeSeasonRead('GetSeasonOrderingBoard', GetSeasonOrderingBoard, () => SEASON_EMPTY_BOARD);
-    },
     saveOrderingDraft(draftJson: string) {
       return invokeSeasonCommand('SaveSeasonOrderingDraft', () => SaveSeasonOrderingDraft(draftJson));
     },
     applySchedule() {
-      return invokeSeasonOutcome('ApplySeasonSchedule', ApplySeasonSchedule, SEASON_APPLY_UNAVAILABLE);
+      return callSeasonQuery<ApplyScheduleResult>('ApplySeasonSchedule', ApplySeasonSchedule);
     },
     reopenOrdering() {
       return invokeSeasonCommand('ReopenSeasonOrdering', ReopenSeasonOrdering);
     },
     recheckAvailability() {
       return invokeSeasonCommand('RecheckSeasonAvailability', RecheckSeasonAvailability);
-    },
-    getCheckTime() {
-      return invokeGoBinding('GetSeasonCheckTime', GetSeasonCheckTime, () => '');
-    },
-    setCheckTime(hhmm: string) {
-      // The binding moved to the settings module and rejects on failure; the intake check time
-      // still reads the old status string ('ok' or the failure message) until its own slice migrates it.
-      return invokeGoBinding(
-        'SetSeasonCheckTime',
-        () => withBridgeErrors(SetSeasonCheckTime(hhmm)).then(() => 'ok', (error: Error) => error.message),
-        () => SEASON_RUNTIME_UNAVAILABLE,
-      );
     },
     subscribeMatchingStarted(listener) {
       return matchingStartedSubscription.subscribe(listener);
@@ -365,6 +290,3 @@ export function createSeasonSource(): SeasonSource & SeasonQuerySource {
 
   return SEASON_SOURCE_STATE.sharedSource;
 }
-
-/** Shared season source singleton used across season hooks and stores. */
-export const seasonSource = createSeasonSource(); // eslint-disable-line dharness/role-file-shape

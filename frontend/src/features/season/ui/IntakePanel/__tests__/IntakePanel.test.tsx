@@ -8,6 +8,7 @@ import {
   METADATA_LOOKUP_TRIGGER_LABEL,
 } from '../../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/anime-metadata-lookup.constants';
 import type { AnimeMetadataLookupSource } from '../../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
+import { CHECK_TIME_LOADING_LABEL } from '../IntakeCheckTime/intake-check-time.constants';
 import { IntakePanel } from '../IntakePanel';
 import { useIntakePanel } from '../use-intake-panel';
 import { seasonQueryWrapper } from './intake-panel.test-support';
@@ -18,6 +19,16 @@ vi.mock('../use-intake-panel', () => ({
 
 /** The mocked panel hook, so a case can state the state it renders. */
 const mockedUseIntakePanel = vi.mocked(useIntakePanel);
+
+/**
+ * The panel's progress indicator: the one live status besides the header's
+ * check-time skeleton, which stays loading because this wrapper never readies
+ * the settings module.
+ * @returns The progress status element.
+ */
+function progressStatus(): HTMLElement {
+  return screen.getByRole('status', { name: (name) => name !== CHECK_TIME_LOADING_LABEL });
+}
 /** Everything the mocked panel hook returns. */
 type HookReturn = ReturnType<typeof useIntakePanel>;
 
@@ -384,7 +395,7 @@ describe('IntakePanel', () => {
   it('shows a processing indicator while an operation is in flight', () => {
     mockHook({ busyMessage: 'Checking episode availability…' });
     render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
-    expect(screen.getByRole('status')).toHaveTextContent('Checking episode availability…');
+    expect(progressStatus()).toHaveTextContent('Checking episode availability…');
   });
 
   it('names the matching phase with its counts while a run is in flight', () => {
@@ -393,7 +404,7 @@ describe('IntakePanel', () => {
       matchingProgressMessage: 'Matching names… 1 of 4',
     });
     render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
-    expect(screen.getByRole('status')).toHaveTextContent('Matching names… 1 of 4');
+    expect(progressStatus()).toHaveTextContent('Matching names… 1 of 4');
   });
 
   it('names the availability check instead of the matching while episodes are checked', () => {
@@ -402,7 +413,7 @@ describe('IntakePanel', () => {
       matchingProgressMessage: 'Checking episode availability… 2 checked',
     });
     render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
-    expect(screen.getByRole('status')).toHaveTextContent('Checking episode availability… 2 checked');
+    expect(progressStatus()).toHaveTextContent('Checking episode availability… 2 checked');
   });
 
   it('shows the run progress instead of the generic busy indicator while a run is in flight', () => {
@@ -412,7 +423,7 @@ describe('IntakePanel', () => {
       matchingProgressMessage: 'Matching names… 1 of 4',
     });
     render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
-    expect(screen.getByRole('status')).toHaveTextContent('Matching names… 1 of 4');
+    expect(progressStatus()).toHaveTextContent('Matching names… 1 of 4');
     expect(screen.queryByText('Matching names against jkanime…')).not.toBeInTheDocument();
   });
 });

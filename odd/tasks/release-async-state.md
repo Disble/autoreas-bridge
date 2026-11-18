@@ -1,6 +1,6 @@
 # Release — async-state standard and Catalog default
 Publish the approved contents of dev using the repository's main/tag/CI release path.
-Status: preparing 2.9.0; minor release, no breaking REST/WS/DB/config change found.
+Status: complete. v2.9.0 published from main; CI run 43907090894 and downloaded artifact checksums verified.
 
 ## Specs
 1. **S1** — "revisado en dev, aprobado y puedes saccar release de todo esto"
@@ -8,9 +8,9 @@ Status: preparing 2.9.0; minor release, no breaking REST/WS/DB/config change fou
 
 ## Tasks
 - T1 | S1 S2 | inline | done | Catalog committed (4bbccc59, all frontend hooks green); version 2.9.0, changelog and learning log prepared; real Windows/NSIS build passed and generated installer include matches 2.9.0. Release metadata is committed with T2 after verification.
-- T2 | S1 S2 | independent verify | in_progress | Independent verifier mwjgnujq-3-h3g6 PASS: 101 Catalog tests, typecheck, render smoke and staged diff checks exit 0; matching 2.9.0 NSIS and real Windows installer. Native ASSESS risk item 5 requires independent verify (satisfied), reviewDue=false. Release metadata commit and hooks pending.
-- T3 | S1 | inline | pending | Merge dev into main, push branches, tag main and publish through the Release workflow. Commit/tag/run: pending.
-- T4 | S1 | inline | pending | Read back published release assets/guards and record completion or concrete blockers. Evidence: pending.
+- T2 | S1 S2 | independent verify | done | Verifier mwjgnujq-3-h3g6 PASS; 101 Catalog tests, typecheck, render smoke and diff checks exit 0; matching 2.9.0 NSIS and real Windows installer. Native ASSESS risk item 5 independent verification satisfied, reviewDue=false. Metadata commit aa3270ec with hooks green; main merge whole-tree hooks green.
+- T3 | S1 | inline | done | dev/main pushed; tag v2.9.0 on main merge 33178e4f2a5254e45ab3937752288a67ce4d76d9 published. Release workflow run 43907090894 succeeded: branch policy, Windows, Linux and publication. Release is public, not draft or prerelease.
+- T4 | S1 | inline | done | Published release/API readback confirms installer.exe, Linux tar.gz/deb and two SHA256SUMS assets; all jobs/guards succeeded. Downloaded all assets and verified all three artifact SHA256 hashes. Installer interaction and tray runtime remain explicitly unverified.
 
 ## Log
 - L1 — Original request: "revisado en dev, aprobado y puedes saccar release de todo esto"
@@ -18,3 +18,6 @@ Status: preparing 2.9.0; minor release, no breaking REST/WS/DB/config change fou
 - L3 — Actual git history/OpenAPI diff since v2.8.0 shows additive presence_unanswered hourly-summary support; version 2.9.0 selected. The explorer lacked git and its initial unchanged-wire claim was corrected from that diff.
 - L4 — First local build failed when -clean attempted to delete running build/bin/autoreas-bridge-dev.exe (Access is denied). No process was stopped. Building without -clean succeeded with the same compilation/NSIS checks and preserved the running app. Generated INFO_PRODUCTVERSION and build ldflags are 2.9.0, CGO_ENABLED=1. Logs: .git/agent-release/windows-build.log and windows-build-preserve-dev.log. Installer interaction/tray checks remain unverified.
 - L5 — Independent release verification PASS. CI must still prove that the version -X symbol resolves (TestBridgeVersionIsStampable), validate tray build wiring, build Linux and publish assets. No binaries are staged. The inspected release workflows retain these guards.
+- L6 — Metadata committed as aa3270ec; dev/main pushed, main merge 33178e4f tagged v2.9.0. Whole-tree pre-merge-commit passed. CI: https://github.com/Disble/autoreas-bridge/actions/runs/43907090894 (exact head 33178e4f2a5254e45ab3937752288a67ce4d76d9). Published tag is immutable.
+- L7 — Release published at https://github.com/Disble/autoreas-bridge/releases/tag/v2.9.0 (not draft/prerelease). Branch policy, Windows build, Linux build and publication all succeeded. CI readback confirms tray bindings compiled, version symbol probe passed and generated INFO_PRODUCTVERSION=2.9.0.
+- L8 — All five assets downloaded to ignored .git/agent-release/published-v2.9.0; Windows installer, Linux tarball and Debian package hashes match their published SHA256SUMS. Initial sha256sum failed because the Windows checksum text used CRLF (CR included in filename); normalizing only that text stream validated the original unmodified artifacts. Local Wails/NSIS build and production render smoke passed. Not exercised: interactive install/upgrade, tray behavior or Linux runtime.

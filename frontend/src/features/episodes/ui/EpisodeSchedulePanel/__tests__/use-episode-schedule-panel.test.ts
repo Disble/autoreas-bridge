@@ -7,6 +7,8 @@ import { status } from '../../../../../shared/query/test-support/readiness-sourc
 import { useEpisodeSchedulePanel } from '../use-episode-schedule-panel';
 import { getDefaultEpisodeDay } from '../episode-schedule-panel.helpers';
 import type { EpisodeSchedulePanelProps } from '../episode-schedule-panel.types';
+import { makeSeason } from '../../../../../shared/season/__tests__/season.test-support';
+import { SEASON_CURRENT_KEY } from '../../../../../shared/season/season.constants';
 import { createEpisodesWrapper, createSource, scheduleItem } from './episode-schedule.test-support';
 
 /** Toast stub, hoisted so the HeroUI module mock can close over it. */
@@ -65,10 +67,20 @@ describe('useEpisodeSchedulePanel', () => {
     await waitFor(() => expect(rowsOf(result.current)).toHaveLength(1));
     expect(source.getEpisodeSchedule).toHaveBeenCalledWith('Viernes');
     expect(rowsOf(result.current)[0]?.name).toBe('Frieren');
+    expect(source.readSeason).not.toHaveBeenCalled();
+  });
+
+  it('starts on the current weekday when no season is open', async () => {
+    const source = createSource({ readSeason: vi.fn().mockResolvedValue(null) });
+    const { result } = renderPanelHook({ source });
+
+    await waitFor(() => expect(result.current.selectedDay).toBe(getDefaultEpisodeDay()));
+    expect(result.current.lens).toBe('daily');
+    expect(source.getEpisodeSchedule).toHaveBeenCalledWith(getDefaultEpisodeDay());
   });
 
   it('starts on Ver hoy when season mode is enabled', async () => {
-    const source = createSource({ getSeasonMode: vi.fn().mockResolvedValue(true) });
+    const source = createSource({ readSeason: vi.fn().mockResolvedValue(makeSeason()) });
 
     const { result } = renderPanelHook({ source });
 
@@ -78,14 +90,14 @@ describe('useEpisodeSchedulePanel', () => {
   });
 
   it('initializes the view lens from the global season mode preference', async () => {
-    const { result } = renderPanelHook({ source: createSource({ getSeasonMode: vi.fn().mockResolvedValue(true) }) });
+    const { result } = renderPanelHook({ source: createSource({ readSeason: vi.fn().mockResolvedValue(makeSeason()) }) });
 
     await waitFor(() => expect(result.current.lens).toBe('season'));
   });
 
   it('overrides the episode lens to daily without mutating the global season mode', async () => {
-    const getSeasonMode = vi.fn().mockResolvedValue(true);
-    const { result } = renderPanelHook({ source: createSource({ getSeasonMode }) });
+    const readSeason = vi.fn().mockResolvedValue(makeSeason());
+    const { result } = renderPanelHook({ source: createSource({ readSeason }) });
 
     await waitFor(() => expect(result.current.selectedDay).toBe('Ver hoy'));
     act(() => result.current.selectLens('daily'));
@@ -93,11 +105,27 @@ describe('useEpisodeSchedulePanel', () => {
     await waitFor(() => expect(result.current.lens).toBe('daily'));
     expect(result.current.filterOptions).toContain('Sábado');
     expect(result.current.selectedDay).toBe(getDefaultEpisodeDay());
-    expect(getSeasonMode).toHaveBeenCalledTimes(1);
+    expect(readSeason).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a lens the user picked while the season read was pending, through later season reads', async () => {
+    let resolveSeason: (season: ReturnType<typeof makeSeason>) => void = () => undefined;
+    const readSeason = vi.fn().mockReturnValueOnce(new Promise((resolve) => { resolveSeason = resolve; })).mockResolvedValue(null);
+    const { result, client } = renderPanelHook({ source: createSource({ readSeason }) });
+
+    act(() => result.current.selectLens('daily'));
+    await act(async () => resolveSeason(makeSeason()));
+    await waitFor(() => expect(result.current.filterOptions).toContain('Sábado'));
+    expect(result.current.lens).toBe('daily');
+    await act(async () => client.invalidateQueries({ queryKey: SEASON_CURRENT_KEY }));
+
+    await waitFor(() => expect(readSeason).toHaveBeenCalledTimes(2));
+    expect(result.current.lens).toBe('daily');
+    expect(result.current.selectedDay).toBe(getDefaultEpisodeDay());
   });
 
   it('switches back to the season lens and reopens on Ver hoy', async () => {
-    const { result } = renderPanelHook({ source: createSource({ getSeasonMode: vi.fn().mockResolvedValue(true) }) });
+    const { result } = renderPanelHook({ source: createSource({ readSeason: vi.fn().mockResolvedValue(makeSeason()) }) });
     await waitFor(() => expect(result.current.lens).toBe('season'));
 
     act(() => result.current.selectLens('daily'));
@@ -385,8 +413,8 @@ describe('useEpisodeSchedulePanel request lifecycle', () => {
     await waitFor(() => expect(result.current.scheduleView).toEqual({ kind: 'failure', code: 'internal', message: 'binding missing' }));
   });
 
-  it('falls back to the daily selection so a failed season probe still requests a schedule', async () => {
-    const source = createSource({ getSeasonMode: vi.fn().mockRejectedValue(new Error('runtime unavailable')) });
+  it('falls back to the daily selection so a failed season read still requests a schedule', async () => {
+    const source = createSource({ readSeason: vi.fn().mockRejectedValue(createBridgeError('internal', 'season read failed')) });
     const { result } = renderPanelHook({ source });
 
     await waitFor(() => expect(result.current.selectedDay).toBe(getDefaultEpisodeDay()));
@@ -401,8 +429,8 @@ describe('useEpisodeSchedulePanel request lifecycle', () => {
     expect(result.current.emptyStateCopy.title).toBe('Nothing scheduled for Friday');
   });
 
-  it('reports loading before the season probe has chosen a day to request', async () => {
-    const source = createSource({ getSeasonMode: vi.fn().mockReturnValue(new Promise(() => undefined)) });
+  it('reports loading before the season read has chosen a day to request', async () => {
+    const source = createSource({ readSeason: vi.fn().mockReturnValue(new Promise(() => undefined)) });
     const { result } = renderPanelHook({ source });
 
     await act(async () => {
