@@ -24,7 +24,7 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
 | T4b | S2 | delegated (context backstop) | done (ed401e95) | `ActivityRangeField` Esc test: wait for the HeroUI trigger refocus before reopening; solo 6-8/8 fail → 10/10 pass |
 | T5 | S2 | inline | pending | real sleeps and timers replaced where they cost measurable time |
 | T6 | S2 | inline | done | owner approved ("ok"); `docs/reports/2026-11-18-coverage-tier-draft.md`: tier per Go and frontend module, speed band per test type, 5 open questions; `coverage-tiers.json` unchanged until approved |
-| T7 | S2 | — | pending | merge or delete low-tier and duplicated tests, guided by T6 |
+| T7 | S2 | inline | in progress | 7a: 3 INFRASTRUCTURE suites deleted (keymap-panel.constants, keymap-panel.types, keymap.constants), each behavior covered elsewhere; 3 constants suites kept (they guard rules) |
 | T8 | S2, S3 | — | pending | mutation check of the reduced suites, last |
 
 ## Log
@@ -81,5 +81,11 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
 - L14 (2026-11-18): question 5 decided with evidence: the WebView2 engine test stays in the commit
   gate; `go-cover` in `lefthook.yml:89` is its only runner (CI has no full Go suite; `-short` skips it).
 - L15 (2026-11-18, owner): "ok" to the T6 draft; T7 starts.
-- Next: T7 starts with INFRASTRUCTURE-only
+- L16 (2026-11-18): T7a. Kept `command-registry.constants` (no conflicting chords), `metadata-lookup.constants`
+  (an unmapped MAL type is never filed as TV) and `app-layout.constants` (visible nav order). Deleted three
+  whose behavior other suites guard: skeleton count and label in `KeymapPanel.test.tsx`, the binding in
+  `use-notification-keyboard-scope.test.ts`, the version in `keymap.helpers.test.ts` (hand mutation
+  version 1 -> 2 failed 6 remaining tests, reverted); the panel types now have 6 real consumers.
+  Typecheck clean; keyboard + notification panel suites 37 files, 340 tests pass.
+- Next: T7 continues with Go INFRASTRUCTURE
   tests and integration tests over 500 ms.
