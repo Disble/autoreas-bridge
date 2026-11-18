@@ -85,8 +85,9 @@ describe('NotificationTable progressive load (500-record backing collection)', (
     const source = makeFakeSource();
     render(<NotificationCenterPanel source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
 
-    await screen.findByText('Notification 25');
-    expect(countDataRows()).toBe(PAGE_SIZE);
+    // Waits on the row count: a text query rescans the whole table on every poll.
+    await waitFor(() => expect(countDataRows()).toBe(PAGE_SIZE));
+    expect(screen.getByText('Notification 25')).toBeInTheDocument();
 
     // One page fetch is enough to prove the list grows on demand rather than
     // merely starting small. A third page cost another full Table re-render

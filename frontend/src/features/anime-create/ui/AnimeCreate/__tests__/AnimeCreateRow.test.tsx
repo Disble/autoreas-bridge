@@ -1,6 +1,7 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { METADATA_LOOKUP_DEBOUNCE_MS } from '../../../../../shared/metadata-lookup/metadata-lookup.constants';
 import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { status } from '../../../../../shared/query/test-support/readiness-source.test-support';
 import type { AnimeMetadataLookupSource } from '../../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
@@ -80,6 +81,7 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
   it('renders the Fetch metadata action outside the optional-metadata disclosure, reachable while it is collapsed', () => {
@@ -219,9 +221,12 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
       GetMyAnimeListDetail: vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok', title: 'Bleach: Sennen Kessen-hen' }),
     };
     renderRow(<AnimeCreateRow index={0} row={row} viewModel={createViewModel({ metadataLookupSource: source, onMetadataApplied })} />);
+    // Fake clock for the search debounce; `shouldAdvanceTime` keeps `findBy*` polling.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
 
     fireEvent.click(screen.getByRole('button', { name: 'Fetch metadata' }));
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'bleach' } });
+    await act(() => vi.advanceTimersByTimeAsync(METADATA_LOOKUP_DEBOUNCE_MS));
     fireEvent.click(await screen.findByRole('button', { name: /Bleach: Sennen Kessen-hen/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Use this match' }));
 
