@@ -22,7 +22,7 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
 | T3 | S2 | inline | done (dbd91d3c) | `setupFiles` in the `dom` project only: node project setup 18.6 s → 0, wall ~23.5 → 14.5 s |
 | T4 | S2 | inline | done (dbd91d3c) | 20 DOM-free suites renamed `*.node.test.ts(x)` (R100); full suite 319.75 s → 244–276 s over three runs, 463/463 files, 5,022/5,022 tests; verifier PASS |
 | T4b | S2 | delegated (context backstop) | done (ed401e95) | `ActivityRangeField` Esc test: wait for the HeroUI trigger refocus before reopening; solo 6-8/8 fail → 10/10 pass |
-| T5 | S2 | inline | pending | real sleeps and timers replaced where they cost measurable time |
+| T5 | S2 | folded into T7c-T7e | done (37d38efa, e829be63, 863a45c9) | real sleeps and timers replaced where they cost measurable time: fake clocks in frontend suites, injected waits in Go |
 | T6 | S2 | inline | done | owner approved ("ok"); `docs/reports/2026-11-18-coverage-tier-draft.md`: tier per Go and frontend module, speed band per test type, 5 open questions; `coverage-tiers.json` unchanged until approved |
 | T7 | S2 | inline | done (merge 43ca1627) | 7a: 3 INFRASTRUCTURE suites deleted (keymap-panel.constants, keymap-panel.types, keymap.constants), each behavior covered elsewhere; 3 constants suites kept (they guard rules) |
 | T7b | S2, S3 | delegated (parallel, worktree `tsd-anime-editor`) | done (bf3fb412) | 37 → 29 files (27 → 19 jsdom), 456 → 452 cases (4 folded into lifecycle flows), real 250 ms reload debounce mocked to 0 outside its own burst test, 5 ms waitFor poll for hook suites, summed tests ~52 → ~30 s, 11 hand mutations; B: fewer jsdom files in `features/anime-editor` (27 jsdom / 10 node); pure logic tested in `node` |
