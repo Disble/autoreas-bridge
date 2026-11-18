@@ -24,11 +24,11 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
 | T4b | S2 | delegated (context backstop) | done (ed401e95) | `ActivityRangeField` Esc test: wait for the HeroUI trigger refocus before reopening; solo 6-8/8 fail → 10/10 pass |
 | T5 | S2 | inline | pending | real sleeps and timers replaced where they cost measurable time |
 | T6 | S2 | inline | done | owner approved ("ok"); `docs/reports/2026-11-18-coverage-tier-draft.md`: tier per Go and frontend module, speed band per test type, 5 open questions; `coverage-tiers.json` unchanged until approved |
-| T7 | S2 | inline | in progress | 7a: 3 INFRASTRUCTURE suites deleted (keymap-panel.constants, keymap-panel.types, keymap.constants), each behavior covered elsewhere; 3 constants suites kept (they guard rules) |
-| T7b | S2, S3 | delegated (parallel, worktree `tsd-anime-editor`) | in progress | B: fewer jsdom files in `features/anime-editor` (27 jsdom / 10 node); pure logic tested in `node` |
-| T7c | S2, S3 | delegated (parallel, worktree `tsd-season`) | in progress | B: fewer jsdom files in `features/season` (58 jsdom / 18 node) |
-| T7d | S2, S3 | delegated (parallel, worktree `tsd-fe-slow`) | in progress | A: frontend tests >= 500 ms outside anime-editor and season (13 files, ~12 s cumulative) |
-| T7e | S2, S3 | delegated (parallel, worktree `tsd-go-slow`) | in progress | A: Go tests >= 500 ms except webview2 and the T2 deadline tests (~15 packages, ~20 s cumulative) |
+| T7 | S2 | inline | done (merge 43ca1627) | 7a: 3 INFRASTRUCTURE suites deleted (keymap-panel.constants, keymap-panel.types, keymap.constants), each behavior covered elsewhere; 3 constants suites kept (they guard rules) |
+| T7b | S2, S3 | delegated (parallel, worktree `tsd-anime-editor`) | done (bf3fb412) | 37 → 29 files (27 → 19 jsdom), 456 → 452 cases (4 folded into lifecycle flows), real 250 ms reload debounce mocked to 0 outside its own burst test, 5 ms waitFor poll for hook suites, summed tests ~52 → ~30 s, 11 hand mutations; B: fewer jsdom files in `features/anime-editor` (27 jsdom / 10 node); pure logic tested in `node` |
+| T7c | S2, S3 | delegated (parallel, worktree `tsd-season`) | done (e829be63) | 76 → 56 files (58 → 38 jsdom), 946 → 944 cases (2 duplicates, guards cited), autosave and lookup waits on a fake clock, 9 hand mutations, closed a pre-existing gap in the duplicate-weekday autosave guard; B: fewer jsdom files in `features/season` (58 jsdom / 18 node) |
+| T7d | S2, S3 | delegated (parallel, worktree `tsd-fe-slow`) | done (37d38efa) | 13 of 14 cases faster (e.g. readiness 1115 → 119 ms, run-history 909 → 154 ms), test files only, 13 hand mutations; A: frontend tests >= 500 ms outside anime-editor and season (13 files, ~12 s cumulative) |
+| T7e | S2, S3 | delegated (parallel, worktree `tsd-go-slow`) | done (863a45c9) | verifier FAIL on 2 lost guards (dev asset retry default, AwaitState upper bound), one correction batch, recheck PASS; 11 tests into band (e.g. activityread bound 5840 → 100 ms, schedule tie-break 3540 → 150 ms, AwaitState 2000 → 20 ms), one desktop seam with a pinned 250 ms default, 11 hand mutations; template-DB copy (~7 ms vs ~45 ms bootstrap) noted as follow-up; A: Go tests >= 500 ms except webview2 and the T2 deadline tests (~15 packages, ~20 s cumulative) |
 | T8 | S2, S3 | — | pending | mutation check of the reduced suites, last |
 
 ## Log
@@ -99,4 +99,20 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
   Route: four parallel writers (Writer trigger a: independent units, disjoint surfaces, each several
   minutes of work), one sibling worktree each off this branch, heavy commands behind a machine lock,
   90-minute box each; parent owns git, merges locally, verifier per unit before its commit.
-- Next: run T7b-T7e, verify, commit and merge each; then T8 (mutation) and the final report.
+- L19 (2026-11-18): T7c verifier PASS. Pre-existing gap for T8: setting the provider-lookup debounce
+  (`use-intake-provider-lookup.ts:59`) to 0 passes all 19 `IntakeProviderLookup.test.tsx` cases; no
+  test pins that debounce. T7d verifier PASS; parent fixed its two notes (run-history burst steps
+  100 -> 50 ms, still fails without clearTimeout, 5/5 green; JSDoc on `snapshotReads`).
+- L20 (2026-11-18): commit gates run in the background were reaped under memory pressure; the T7d gate
+  had failed to start layout-smoke with 0xc0000142 (process could not start). Owner: "you know, it exactly
+  problem of "the machine ran low on memory" is one of the reasons of this refactors, because the
+  machine was not ran high demand process". Measured then: WSL 6.4 GB, 43 MCP node servers 1.5 GB, a
+  browser 3.3 GB, plus this run's parallel writers and verifiers. Owner: "please" to retrying T7d alone.
+- L21 (2026-11-18): all four units merged with one whole-tree pre-merge-commit gate, green (43ca1627).
+  Same-conditions comparison, baseline worktree at fe516e48 vs HEAD, run back to back:
+  frontend vitest 338.7 s -> 253.2 s (463 -> 432 files, 5,022 -> 5,003 tests; environment 236.6 -> 172.6 s,
+  setup 82.1 -> 43.0 s); peak memory added by the run 1,225 MB -> 933 MB.
+  Go full suite (-p 4): three pairs, wall 77/66/66 s vs 59/70/78 s; contention noise exceeds the effect
+  (untouched internal/sync varied by 4 s). Changed packages run alone: activityread 13.3 -> 7.7 s, desktop
+  12.1 -> 12.2 s, anime 14.8 -> 7.3 s avg, eventlog 7.0 -> 1.9 s, requestcapture 5.8 -> 2.0 s. No regression.
+- Next: T8 mutation check of the committed range, then the final report.
