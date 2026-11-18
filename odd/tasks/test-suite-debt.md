@@ -18,12 +18,12 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
 | ID | Specs | Route | Status | Evidence |
 |---|---|---|---|---|
 | T1 | S1 | inline | done | `docs/reports/2026-11-18-test-suite-inventory.md` + CSV, `scripts/test-inventory/` |
-| T2 | S2 | inline | done | Go queue Stop ceiling injectable (`StopTimeout`): deadline tests 5.0 s → 0.05 s each; eventlog pkg 6.5 → 1.4 s, requestcapture 5.4 → 1.9 s; verifier PASS |
-| T3 | S2 | inline | done | `setupFiles` in the `dom` project only: node project setup 18.6 s → 0, wall ~23.5 → 14.5 s |
-| T4 | S2 | inline | done | 20 DOM-free suites renamed `*.node.test.ts(x)` (R100); full suite 319.75 s → 244–276 s over three runs, 463/463 files, 5,022/5,022 tests; verifier PASS |
-| T4b | S2 | delegated (context backstop) | done | `ActivityRangeField` Esc test: wait for the HeroUI trigger refocus before reopening; solo 6-8/8 fail → 10/10 pass |
+| T2 | S2 | inline | done (acf468c4) | Go queue Stop ceiling injectable (`StopTimeout`): deadline tests 5.0 s → 0.05 s each; eventlog pkg 6.5 → 1.4 s, requestcapture 5.4 → 1.9 s; verifier PASS |
+| T3 | S2 | inline | done (dbd91d3c) | `setupFiles` in the `dom` project only: node project setup 18.6 s → 0, wall ~23.5 → 14.5 s |
+| T4 | S2 | inline | done (dbd91d3c) | 20 DOM-free suites renamed `*.node.test.ts(x)` (R100); full suite 319.75 s → 244–276 s over three runs, 463/463 files, 5,022/5,022 tests; verifier PASS |
+| T4b | S2 | delegated (context backstop) | done (ed401e95) | `ActivityRangeField` Esc test: wait for the HeroUI trigger refocus before reopening; solo 6-8/8 fail → 10/10 pass |
 | T5 | S2 | inline | pending | real sleeps and timers replaced where they cost measurable time |
-| T6 | S2 | — | pending | coverage tier per module in `coverage-tiers.json`, before any deletion |
+| T6 | S2 | inline | done | owner approved ("ok"); `docs/reports/2026-11-18-coverage-tier-draft.md`: tier per Go and frontend module, speed band per test type, 5 open questions; `coverage-tiers.json` unchanged until approved |
 | T7 | S2 | — | pending | merge or delete low-tier and duplicated tests, guided by T6 |
 | T8 | S2, S3 | — | pending | mutation check of the reduced suites, last |
 
@@ -65,4 +65,21 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
   that frame is closed by `useOverlay`'s blur, and `findByRole` had returned the dying dialog. Not time
   of day, not a product bug (a user cannot reopen within one frame). Fix: wait for the trigger to have
   focus before reopening. Worker 10/10 solo, parent 5/5 solo. The L6/L7 hypotheses were wrong.
-- Next: verifier over T3+T4+test fix, then two commits (test fix, then T3+T4).
+- L9 (2026-11-18, owner): speed bands as the reference per test type: unit "< 10ms por test",
+  integration "100-500ms por test", E2E "1-10 segundos por test". Measured: frontend `node` pure
+  2,010/2,014 under 10 ms, Go unit 1,018/1,369; ~50 integration tests over 500 ms; no flow E2E exists.
+  Owner: "dale" to the tier draft. The native coverage gate is Vitest-only, so Go tiers are guidance
+  for T7 and mutation scope, not a gate.
+- L10 (2026-11-18, owner): "sincronizacion con mobile es core". `internal/sync` is CORE as a whole.
+- L11 (2026-11-18, owner): "descargas core". `internal/download` with `jdownloader` and `sites` is CORE.
+- L12 (2026-11-18, owner): "es menos core que los anteriores, pero mas que important", then
+  "ponle el orden important entonces". `shared/ordering` is IMPORTANT as a whole, helpers included.
+- L13 (2026-11-18, owner): "a ver, a ver, primero dice que si  y luego que no. Decidete!" after the
+  parent first proposed INFRASTRUCTURE for `internal/tracerbullet` without checking its consumers.
+  Evidence: `activityread/bridge_runs.go:23-24` uses its "tracer bullet ready" entry as the boot marker;
+  `retention/sweep.go:23-25` keeps it. Decision: IMPORTANT.
+- L14 (2026-11-18): question 5 decided with evidence: the WebView2 engine test stays in the commit
+  gate; `go-cover` in `lefthook.yml:89` is its only runner (CI has no full Go suite; `-short` skips it).
+- L15 (2026-11-18, owner): "ok" to the T6 draft; T7 starts.
+- Next: T7 starts with INFRASTRUCTURE-only
+  tests and integration tests over 500 ms.
