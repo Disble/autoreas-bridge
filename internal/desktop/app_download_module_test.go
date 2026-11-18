@@ -106,6 +106,13 @@ var downloadBindings = []struct {
 	{"TriggerAnimeDownload", func(a *App) (bool, error) {
 		return servedAs(a.TriggerAnimeDownload("anime-unknown"), errors.New(soloDownloadAnimeNotFound))
 	}},
+	{"TriggerSeasonDownloads", func(a *App) (bool, error) {
+		err := a.TriggerSeasonDownloads()
+		return err == nil, err
+	}},
+	{"DownloadSeasonAnimes", func(a *App) (bool, error) {
+		return servedAs(a.DownloadSeasonAnimes([]string{"anime-unknown"}), errors.New(soloDownloadAnimeNotFound))
+	}},
 	{"CancelDownloadRun", func(a *App) (bool, error) {
 		return servedAs(a.CancelDownloadRun(), errNoDownloadRunInProgress)
 	}},
@@ -206,6 +213,16 @@ func TestDownloadCommandRefusalsAreErrors(t *testing.T) {
 		{"solo download of an unknown anime", &App{},
 			func(a *App) error { return a.TriggerAnimeDownload("anime-1") }, apperr.CodeNotFound, soloDownloadAnimeNotFound},
 		{"stop with no run in flight", &App{}, (*App).CancelDownloadRun, apperr.CodeInternal, "no download run in progress"},
+		{"season download while a run is in progress", &App{downloadScheduler: &fakeAppScheduler{triggerNowErr: schedule.ErrRunInProgress}},
+			(*App).TriggerSeasonDownloads, apperr.CodeInternal, schedule.ErrRunInProgress.Error()},
+		{"season download the scheduler cannot start", &App{downloadScheduler: &fakeAppScheduler{triggerNowErr: errors.New("jdownloader unreachable")}},
+			(*App).TriggerSeasonDownloads, apperr.CodeInternal, "jdownloader unreachable"},
+		{"season selection with nothing selected", &App{},
+			func(a *App) error { return a.DownloadSeasonAnimes(nil) }, apperr.CodeInvalidArgument, seasonNoAnimesSelectedMessage},
+		{"season selection while the scheduler runs", &App{downloadScheduler: running},
+			func(a *App) error { return a.DownloadSeasonAnimes([]string{"anime-1"}) }, apperr.CodeInternal, schedule.ErrRunInProgress.Error()},
+		{"season selection of an unknown anime", &App{},
+			func(a *App) error { return a.DownloadSeasonAnimes([]string{"anime-1"}) }, apperr.CodeNotFound, soloDownloadAnimeNotFound},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

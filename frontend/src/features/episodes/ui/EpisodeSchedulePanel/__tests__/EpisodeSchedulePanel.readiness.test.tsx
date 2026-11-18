@@ -10,6 +10,8 @@ import { createReadinessGate } from '../../../../../shared/query/readiness-gate/
 import { fakeSource, status } from '../../../../../shared/query/test-support/readiness-source.test-support';
 import { EpisodeSchedulePanel } from '../EpisodeSchedulePanel';
 import type { EpisodeScheduleSource } from '../episode-schedule-panel.types';
+import { makeSeason } from '../../../../../shared/season/__tests__/season.test-support';
+import { getDefaultEpisodeDay } from '../episode-schedule-panel.helpers';
 import { createEpisodesWrapper, createSource, scheduleItem } from './episode-schedule.test-support';
 
 afterEach(() => {
@@ -20,11 +22,12 @@ afterEach(() => {
  * Mounts Today on a router under the given query wrapper.
  * @param source The schedule source.
  * @param wrapper The query wrapper (client + readiness gate).
+ * @param props The day Today opens on; without one, season mode chooses it.
  */
-function renderToday(source: EpisodeScheduleSource, wrapper: (props: { readonly children: ReactNode }) => ReactNode) {
+function renderToday(source: EpisodeScheduleSource, wrapper: (props: { readonly children: ReactNode }) => ReactNode, props: Readonly<{ initialDay?: string }> = { initialDay: 'Viernes' }) {
   return render(
     <MemoryRouter>
-      <EpisodeSchedulePanel initialDay="Viernes" source={source} />
+      <EpisodeSchedulePanel {...props} source={source} />
     </MemoryRouter>,
     { wrapper },
   );
@@ -90,6 +93,41 @@ describe('Today while the episodes module starts, is ready, or failed (S9)', () 
     expect(emptyStateAction()).toBeNull();
     expect(loadingStatus()).toBeNull();
     expect(source.getEpisodeSchedule).not.toHaveBeenCalled();
+  });
+});
+
+describe('Today initial lens while the season module starts, is ready, or failed (D2)', () => {
+  it('shows the skeleton without reading the schedule while the season module starts, then opens on Ver hoy once a season is open', async () => {
+    const source = createSource({ readSeason: vi.fn().mockResolvedValue(makeSeason()), getEpisodeSchedule: vi.fn().mockResolvedValue([scheduleItem('anime-1', { animeName: 'Frieren' })]) });
+    const { wrapper, emit } = createEpisodesWrapper(status('episodes', 'ready'), status('season', 'starting'));
+
+    renderToday(source, wrapper, {});
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(loadingStatus()).toBeInTheDocument();
+    expect(emptyStateAction()).toBeNull();
+    expect(failureAlert()).toBeNull();
+    expect(source.readSeason).not.toHaveBeenCalled();
+    expect(source.getEpisodeSchedule).not.toHaveBeenCalled();
+
+    act(() => emit(status('season', 'ready')));
+
+    expect(await screen.findByRole('heading', { name: 'Frieren' })).toBeInTheDocument();
+    expect(source.getEpisodeSchedule).toHaveBeenCalledWith('Ver hoy');
+    expect(source.getEpisodeSchedule).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to the daily lens, never waiting on season, once the season module failed', async () => {
+    const source = createSource({ readSeason: vi.fn().mockResolvedValue(makeSeason()), getEpisodeSchedule: vi.fn().mockResolvedValue([scheduleItem('anime-1', { animeName: 'Frieren' })]) });
+
+    renderToday(source, createEpisodesWrapper(status('episodes', 'ready'), status('season', 'failed', 'season: db closed')).wrapper, {});
+
+    expect(await screen.findByRole('heading', { name: 'Frieren' })).toBeInTheDocument();
+    expect(source.readSeason).not.toHaveBeenCalled();
+    expect(source.getEpisodeSchedule).toHaveBeenCalledWith(getDefaultEpisodeDay());
+    expect(failureAlert()).toBeNull();
   });
 });
 

@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { NotificationSource } from '../../../../../infrastructure/notification-source/notification-source.types';
+import type { NotificationPushSource } from '../../../../../shared/contracts/notification-push.types';
 import type { Notification } from '../../../../../shared/contracts/notification.types';
 import type { DownloadsSource, ScheduleConfig } from '../../../../../shared/contracts/download.types';
 
@@ -23,7 +23,7 @@ const ports = vi.hoisted(() => {
 });
 
 vi.mock('../../../../../infrastructure/notification-source/notification-source.helpers', () => {
-  const source: NotificationSource = {
+  const source: NotificationPushSource = {
     subscribe(listener) {
       ports.notificationListeners.add(listener);
       return () => ports.notificationListeners.delete(listener);
@@ -36,7 +36,7 @@ vi.mock('../../../../../infrastructure/notification-source/notification-source.h
     // `NotificationNavigationListener`, mounted separately in `AppLayout`.
     subscribeNavigate: () => () => undefined,
   };
-  return { notificationSource: source, createNotificationSource: () => source };
+  return { createNotificationSource: () => source };
 });
 
 vi.mock('../../../../../infrastructure/download-runtime-source/downloads-source.helpers', async (importOriginal) => {

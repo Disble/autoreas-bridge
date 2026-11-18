@@ -1,0 +1,19 @@
+{
+  "$comment": [
+    "Sanctioned async-state violations (ADR-032 §5): the closed set of sites where a feature or store owns a UI projection of a backend event that BRIDGE_INVALIDATIONS cannot express. Each entry has the baseline's identity (rule, file, specifier or symbol) plus the written reason the owner accepted.",
+    "frontend/scripts/check-async-state-gates.mjs passes a violation named here, fails on an exception that no longer occurs (the message names the entry to delete), and refuses to run when an exception has no reason.",
+    "This is not debt: frontend/async-state-baseline.json holds the debt. Never add an exception without an owner decision; new code reads through useBridgeQuery / useBridgeMutation and BRIDGE_INVALIDATIONS (skill bridge-data)."
+  ],
+  "version": 1,
+  "exceptions": [
+    {"rule":"no-runtime-subscription","file":"src/features/activity/feed/use-activity-live-refresh.ts","symbol":"subscribeRecorder","reason":"The Activity feed owns its freshness here: a burst of recorder rows refreshes the first feed page and the counts once, 1000 ms after the burst goes quiet, keeping the older pages already loaded. BRIDGE_INVALIDATIONS invalidates a key on every event and would re-read every page per row."},
+    {"rule":"no-runtime-subscription","file":"src/features/download/ui/RunHistoryPanel/use-run-history-story.ts","symbol":"subscribeRecorder","reason":"The run story owns its freshness here: only stored rows of the selected run trigger a re-read, 250 ms after the burst goes quiet, and a failed refresh keeps the ready story on screen. A registry rule cannot filter by run id or debounce."},
+    {"rule":"no-runtime-subscription","file":"src/features/notifications/ui/NotificationCenterPanel/use-notification-center-sync.ts","symbol":"subscribeArchived","reason":"UI-state projection: an archive drops the archived rows in place from the keyset pages already loaded. Freshness of the unread count is owned by BRIDGE_INVALIDATIONS; invalidating the pages would reset the user's paging and scroll."},
+    {"rule":"no-runtime-subscription","file":"src/features/notifications/ui/NotificationNavigationListener/use-notification-navigation.ts","symbol":"subscribeNavigate","reason":"An ephemeral backend command, not data: a pressed navigation token tells the window which route to open. There is no query whose freshness it changes."},
+    {"rule":"no-runtime-subscription","file":"src/features/notifications/ui/NotificationToasts/use-backend-event-resolver.ts","symbol":"source.subscribe","reason":"Push toasts are a UI projection of each pushed notification. Freshness of the notification queries is owned in parallel by the BRIDGE_INVALIDATIONS rule on the same event."},
+    {"rule":"no-runtime-subscription","file":"src/features/notifications/ui/NotificationToasts/use-backend-event-resolver.ts","symbol":"subscribeArchived","reason":"Dismisses the toasts of archived notifications, a UI projection. Freshness of the unread count is owned in parallel by the BRIDGE_INVALIDATIONS rule on the same event."},
+    {"rule":"no-runtime-subscription","file":"src/shared/store/season-store/season-store.helpers.ts","symbol":"subscribeMatchingFinished","reason":"Ends the matching progress the season store shows while a run is live, a UI projection. The authoritative reload of the intake rows on a finished run is owned by BRIDGE_INVALIDATIONS (SEASON_ANIMES_KEY)."},
+    {"rule":"no-runtime-subscription","file":"src/shared/store/season-store/season-store.helpers.ts","symbol":"subscribeMatchingProgress","reason":"Per-row matching progress is a UI projection of each progress event; it is not stored data a query could re-read."},
+    {"rule":"no-runtime-subscription","file":"src/shared/store/season-store/season-store.helpers.ts","symbol":"subscribeMatchingStarted","reason":"Starts the progress of a matching run with its total, a UI projection of the event; it is not stored data a query could re-read."}
+  ]
+}

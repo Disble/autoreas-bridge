@@ -96,10 +96,10 @@ JD lists (LinkGrabber and downloads) and never deletes files.
 
 | Caller | Method | Trigger |
 |---|---|---|
-| `internal/schedule` scheduler, through `internal/desktop/app_download_scheduler.go` | `RunOnce` | The daily schedule (`scheduled`) and the manual full check (`manual`) |
+| `internal/schedule` scheduler, through `internal/desktop/app_download_scheduler.go` | `RunOnce` | The daily schedule (`scheduled`), the manual full check (`manual`) and the season's "download now" or post-recheck run (`season-availability`, `TriggerSeasonDownloads`) |
 | `internal/desktop/app_download.go` | `RunAnime` | Downloading one anime from its screen |
 | `internal/desktop/app_notification_center.go` | `RunAnime` | A notification action |
-| `internal/desktop/app_season_availability.go` | `RunAnimes` | A season-mode selection |
+| `internal/desktop/app_season_availability.go` | `RunAnimes` | A season-mode selection (`DownloadSeasonAnimes`, through the downloads handle and the solo-run guard) |
 
 Stop goes through `App.CancelDownloadRun` (`internal/desktop/app_download_cancel.go`), which cancels
 the run's context. Where the run honours that cancellation is described in `workflow.md`.
@@ -121,6 +121,13 @@ and limit, and the readiness (`DOWNLOADS_READINESS_KEY`) are queries. A run even
 and the run history, and `schedule.missed_settled` re-reads the schedule (`BRIDGE_INVALIDATIONS`).
 `shared/store/download-runtime-store` keeps only renderer-session UI state: the selected run and the
 missed-day notice's hidden decision, shown failures and action feedback.
+The schedule panel's season-mode banner reads the open-season query (`useSeasonMode`,
+`shared/season/season-mode/`, module `season`): it shows while a season is open and stays hidden while
+`season` starts, after it failed or when its read failed, since the banner only announces an open
+season. The run detail (`RunHistoryPanel/use-run-history-detail.ts`) resolves covers and the names an
+older run left unnamed through the anime module's port (`BRIDGE_ANIME_SOURCE`, `getAnimeCover` and
+`getAnimeDetail`); a rejected name read, `not_found` included, keeps the step's stored name or id,
+and a rejected cover renders the placeholder.
 
 ## Events
 

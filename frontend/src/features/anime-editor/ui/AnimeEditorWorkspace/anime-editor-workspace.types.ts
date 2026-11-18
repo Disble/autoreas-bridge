@@ -1,10 +1,11 @@
 import type { useBridgeQuery } from '../../../../shared/query/use-bridge-query/use-bridge-query';
-import type { AnimeEditorRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import type { AnimeSource } from '../../../../shared/contracts/anime-source.types';
 import type { AnimeEditorSource } from '../../../../shared/contracts/anime-editor-source.types';
 import type { EpisodeDurationRuntimeSource, EpisodeDurationSaveResult } from '../../../../shared/contracts/episode-durations.types';
 import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
 import type { AnimeEditorRecord, AnimeEditorRecordResult, AnimeEditorSaveResult, AnimeEditorScheduleApplyResult, ApplyAnimeScheduleDraftEntry } from '../../../../shared/contracts/anime.types';
 import type { AnimeMetadataSelection, AppliedMetadata } from '../../../../shared/metadata-lookup/metadata-lookup.types';
+import type { PickerSource } from '../../../../shared/contracts/picker.types';
 import type { AnimeScheduleOrderingTestDriverRef } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
 
 /** Route input for the ID-driven Anime Editor workspace. */
@@ -73,8 +74,8 @@ export type AnimeEditorGuardEvent =
 /** Inputs for the focused authoritative record-editing hook. */
 export interface UseAnimeEditorRecordOptions {
   readonly selectedAnimeId?: string;
-  /** The Editor bindings not yet behind a module port: the pickers and the covers. */
-  readonly source: AnimeEditorRuntimeSource;
+  /** The shell's native folder and cover-file pickers. */
+  readonly source: PickerSource;
   /** The anime module's record read, save and deactivate. */
   readonly editorSource: AnimeEditorSource;
 }
@@ -203,18 +204,12 @@ export interface AnimeEditorHeaderCoverProps {
 }
 
 /**
- * The minimal cover-resolution port the rail depends on, matching
- * `bridgeRuntimeSource.getAnimeCover`'s shape so a test can inject a fake
- * without touching the Wails-backed singleton -- the same seam
- * `NotificationDetailCoverSource` and `EpisodeScheduleSource` already expose.
- * Optional because a non-Wails (browser/Vite) context has no binding at all,
- * which degrades to the placeholder instead of throwing.
+ * The cover-resolution port the rail depends on: the anime module's
+ * `getAnimeCover` (`BRIDGE_ANIME_SOURCE`), narrowed so a test injects a fake
+ * without the Wails-backed singleton. A binding that never attached rejects
+ * like any failed lookup, which the rail degrades to the placeholder.
  */
-export interface AnimeEditorCoverSource {
-  readonly getAnimeCover?: (animeId: string) => Promise<AnimeEditorCoverResult>;
-  /** Renders the draft's unsaved cover value for the form's preview. */
-  readonly previewAnimeCover?: (value: string) => Promise<AnimeEditorCoverResult>;
-}
+export type AnimeEditorCoverSource = Pick<AnimeSource, 'getAnimeCover'>;
 
 /** One cover-binding result: a base64 data URL, or the explicit placeholder signal. */
 export interface AnimeEditorCoverResult {
@@ -352,4 +347,16 @@ export interface AnimeEditorEmptyStateInput {
 export interface AnimeEditorEmptyStateCopy {
   readonly title: string;
   readonly description: string;
+}
+
+/** What decides whether the Editor rail shows its skeleton. */
+export interface AnimeEditorListLoadingInput {
+  /** The catalog query has no answer yet. */
+  readonly isPending: boolean;
+  /** A catalog read is in flight. */
+  readonly isFetching: boolean;
+  /** A catalog answer is cached. */
+  readonly hasCatalog: boolean;
+  /** The Editor's own reload, after a save or a lifecycle change, is running. */
+  readonly isReloading: boolean;
 }

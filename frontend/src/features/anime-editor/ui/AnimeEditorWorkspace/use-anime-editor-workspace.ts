@@ -1,11 +1,14 @@
 import { useCallback, useMemo, useState } from 'react';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
-import type { AnimeEditorRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import type { AnimeCoverPreviewSource } from '../../../../shared/contracts/anime-source.types';
 import type { EpisodeDurationRuntimeSource } from '../../../../shared/contracts/episode-durations.types';
-import { metadataLookupSource } from '../../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers';
-import type { CoverPreviewSource } from '../../../../shared/anime-cover/anime-cover.types';
 import type { AnimeEditorSource } from '../../../../shared/contracts/anime-editor-source.types';
-import { BRIDGE_ANIME_EDITOR_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import type { PickerSource } from '../../../../shared/contracts/picker.types';
+import {
+  BRIDGE_ANIME_EDITOR_SOURCE,
+  BRIDGE_ANIME_SOURCE,
+  BRIDGE_METADATA_LOOKUP_SOURCE,
+  BRIDGE_PICKER_SOURCE,
+} from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { useEpisodeDurationsSection } from '../EpisodeDurationsSection/use-episode-durations-section';
 import { isAnyCard } from './anime-editor-guard.helpers';
 import { toAnimeEditorListRowViewModels, toEpisodeDurationsSavedAnime } from './anime-editor-workspace.helpers';
@@ -25,13 +28,18 @@ import { useAnimeEditorTransitions } from './use-anime-editor-transitions';
  * plus one unsaved-changes guard that covers both drafts. The list, the record,
  * its save and deactivate and the schedule board read and write through the
  * anime module (`editorSource`); restore and repeat run through the episodes module
- * (`BRIDGE_EPISODES_SOURCE`); the pickers and the covers stay on the runtime source (`source`).
+ * (`BRIDGE_EPISODES_SOURCE`); the pickers run through the shell's picker port
+ * (`pickerSource`), the rail and header covers and the cover field's preview
+ * through the anime module's cover port (`coverSource`), and the MyAnimeList
+ * lookup through `BRIDGE_METADATA_LOOKUP_SOURCE`. Drafts live in the record and
+ * Episodes hooks, so no read refreshes over an unsaved draft.
  */
 export function useAnimeEditorWorkspace(
   props: Readonly<AnimeEditorWorkspaceProps>,
-  source: AnimeEditorRuntimeSource & AnimeEditorCoverSource = bridgeRuntimeSource,
+  pickerSource: PickerSource = BRIDGE_PICKER_SOURCE,
   episodeSource: EpisodeDurationRuntimeSource | undefined = props.episodeSource,
   editorSource: AnimeEditorSource = BRIDGE_ANIME_EDITOR_SOURCE,
+  coverSource: AnimeEditorCoverSource & AnimeCoverPreviewSource = BRIDGE_ANIME_SOURCE,
 ) {
   // 1. Refs
 
@@ -41,8 +49,8 @@ export function useAnimeEditorWorkspace(
   // 3. Context/3rd Party Hooks
   const list = useAnimeEditorList({ initialAnimeId: props.initialAnimeId, source: editorSource });
   const listWindow = useAnimeEditorListWindow(list.items.length);
-  const record = useAnimeEditorRecord({ selectedAnimeId: list.selectedAnimeId, source, editorSource });
-  const coverCache = useAnimeEditorCovers(list.items, listWindow.visibleCount, record.selectedRecord, source);
+  const record = useAnimeEditorRecord({ selectedAnimeId: list.selectedAnimeId, source: pickerSource, editorSource });
+  const coverCache = useAnimeEditorCovers(list.items, listWindow.visibleCount, record.selectedRecord, coverSource);
   const schedule = useAnimeEditorSchedule({ selectedAnimeId: list.selectedAnimeId, selectedRecord: record.selectedRecord, source: editorSource });
   // The Episodes card reads the SAVED record, never the anime card's unsaved draft (S15).
   const episodes = useEpisodeDurationsSection(toEpisodeDurationsSavedAnime(record.selectedRecord), episodeSource);
@@ -75,8 +83,9 @@ export function useAnimeEditorWorkspace(
   // 5. Derived State (useMemo)
   const items = useMemo(() => toAnimeEditorListRowViewModels(list.items, coverCache.covers), [list.items, coverCache.covers]);
   const cover = useAnimeEditorCover(record.selectedRecord, coverCache.covers);
-  // The cover field's preview renders the draft's unsaved value through the same runtime source, narrowed to its port.
-  const coverPreviewSource: CoverPreviewSource = source;
+  // The cover field's preview renders the draft's unsaved value through the anime module's cover port, narrowed to its preview.
+  const coverPreviewSource: AnimeCoverPreviewSource = coverSource;
+  const metadataLookupSource = BRIDGE_METADATA_LOOKUP_SOURCE;
 
   // 6. Callbacks (useCallback calling pure helpers)
   const onToggleDetails = useCallback(() => setIsDetailsOpen((current) => !current), []);

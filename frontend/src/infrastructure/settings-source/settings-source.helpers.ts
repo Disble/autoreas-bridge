@@ -1,10 +1,13 @@
 import {
   GetAutoStartEnabled,
+  GetKeymap,
   GetLibraryRoot,
-  PickFolder,
+  GetSeasonCheckTime,
   PreviewLibraryRootChange,
   SetAutoStartEnabled,
+  SetKeymap,
   SetLibraryRoot,
+  SetSeasonCheckTime,
 } from '../../../wailsjs/go/desktop/App';
 import type { LibraryRootChangePreview, SettingsSource } from '../../shared/contracts/settings.types';
 import { createBridgeError } from '../../shared/query/bridge-error/bridge-error.helpers';
@@ -38,9 +41,11 @@ export function createSettingsSource(): SettingsSource {
     setLibraryRoot: (path) => callSettingsBinding('SetLibraryRoot', () => SetLibraryRoot(path)),
     previewLibraryRootChange: (path) =>
       callSettingsBinding<LibraryRootChangePreview>('PreviewLibraryRootChange', () => PreviewLibraryRootChange(path)),
-    // A failed dialog rejects as internal since the shell slice; the picker reads it as a cancel.
-    pickFolder: (title) => callSettingsBinding('PickFolder', () => PickFolder(title)).catch(() => ''),
     getAutoStartEnabled: () => callSettingsBinding('GetAutoStartEnabled', () => GetAutoStartEnabled()),
     setAutoStartEnabled: (enabled) => callSettingsBinding('SetAutoStartEnabled', () => SetAutoStartEnabled(enabled)),
+    getKeymap: () => callSettingsBinding('GetKeymap', () => GetKeymap()),
+    setKeymap: (document) => callSettingsBinding('SetKeymap', () => SetKeymap(document)),
+    getSeasonCheckTime: () => callSettingsBinding('GetSeasonCheckTime', GetSeasonCheckTime),
+    setSeasonCheckTime: (value) => callSettingsBinding('SetSeasonCheckTime', () => SetSeasonCheckTime(value)),
   };
 }

@@ -35,13 +35,18 @@ vi.mock('../AnimeEditorDialogs', () => ({ AnimeEditorDialogs: () => null }));
 vi.mock('../../EpisodeDurationsSection/EpisodeDurationsSection', () => ({ EpisodeDurationsSection: () => null }));
 vi.mock('../../AnimeScheduleCard/AnimeScheduleCard', () => ({ AnimeScheduleCard: () => null }));
 
-vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
-  bridgeRuntimeSource: mockSource,
-}));
 vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   /** The workspace's default anime-module Editor port: the same fake. */
   get BRIDGE_ANIME_EDITOR_SOURCE() {
+    return mockSource;
+  },
+  /** The workspace's default shell pickers: the same fake. */
+  get BRIDGE_PICKER_SOURCE() {
+    return mockSource;
+  },
+  /** The workspace's default anime-module cover port: the same fake. */
+  get BRIDGE_ANIME_SOURCE() {
     return mockSource;
   },
 }));

@@ -1,7 +1,7 @@
 import { Time } from '@internationalized/date';
 import { toErrorMessage } from '../../../../../shared/helpers/error-message.helpers';
 import { CHECK_TIME_EMPTY_MESSAGE, CHECK_TIME_PATTERN, CHECK_TIME_SAVE_FAILED_MESSAGE } from './intake-check-time.constants';
-import type { CheckTimeDraft, CheckTimePort, CheckTimeSaveResult } from './intake-check-time.types';
+import type { CheckTimeDraft, CheckTimeSaveRequest } from './intake-check-time.types';
 
 /**
  * Parses a stored HH:MM into the time field's value.
@@ -26,35 +26,24 @@ export function formatCheckTime(value: Pick<Time, 'hour' | 'minute'>): string {
 }
 
 /**
- * Reads the daily check time, treating an unavailable runtime, a rejected read
- * and a malformed value alike as "unknown" so the control stays hidden.
- * @param port The check time port.
- * @returns The stored HH:MM, or `null` when it cannot be shown.
- */
-export async function readCheckTime(port: Pick<CheckTimePort, 'getCheckTime'>): Promise<string | null> {
-  try {
-    const hhmm = await port.getCheckTime();
-    return toCheckTimeValue(hhmm) === null ? null : hhmm;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Saves the field's time, refusing an incomplete field without a backend call.
- * @param port The check time port.
+ * Turns the field's value into the HH:MM to save, refusing an incomplete field
+ * so no backend call is made for it.
  * @param value The time field value.
- * @returns The saved HH:MM, or the message explaining why nothing was saved.
+ * @returns The HH:MM to send, or the message explaining why nothing is sent.
  */
-export async function saveCheckTime(port: Pick<CheckTimePort, 'setCheckTime'>, value: CheckTimeDraft): Promise<CheckTimeSaveResult> {
+export function toCheckTimeSaveRequest(value: CheckTimeDraft): CheckTimeSaveRequest {
   if (value === null) {
     return { ok: false, message: CHECK_TIME_EMPTY_MESSAGE };
   }
-  const time = formatCheckTime(value);
-  try {
-    const status = await port.setCheckTime(time);
-    return status === 'ok' ? { ok: true, time } : { ok: false, message: status };
-  } catch (error) {
-    return { ok: false, message: toErrorMessage(error, CHECK_TIME_SAVE_FAILED_MESSAGE) };
-  }
+  return { ok: true, time: formatCheckTime(value) };
+}
+
+/**
+ * The danger toast text of a rejected save: the bridge's message, or the
+ * generic failure when it carries none.
+ * @param error What the save rejected with.
+ * @returns The toast text.
+ */
+export function toCheckTimeSaveError(error: unknown): string {
+  return toErrorMessage(error, CHECK_TIME_SAVE_FAILED_MESSAGE);
 }

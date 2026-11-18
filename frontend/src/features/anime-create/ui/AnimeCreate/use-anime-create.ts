@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import type { AnimeCreateCommand } from '../../../../shared/contracts/anime.types';
-import { BRIDGE_ANIME_EDITOR_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { BRIDGE_ANIME_EDITOR_SOURCE, BRIDGE_ANIME_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { useBridgeMutation } from '../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
 import { isValidDownloadPageUrl } from '../../../../shared/helpers/url.helpers';
 import type { AnimeScheduleOrderingCreateSubmit } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
@@ -19,7 +18,8 @@ import { useAnimeCreateRows } from './use-anime-create-rows';
  *
  * Row editing and the mount-time fetches live in their own hooks. They were
  * split out on 2026-08-14: this function held twenty-four hook calls, eleven of
- * them row editing that knows nothing about the board or the submit.
+ * them row editing that knows nothing about the board or the submit. Each
+ * row's cover preview renders through the anime module's `previewAnimeCover`.
  */
 export function useAnimeCreate(): AnimeCreateViewModel {
   // 1. Refs
@@ -89,7 +89,7 @@ export function useAnimeCreate(): AnimeCreateViewModel {
     nameConflicts,
     appliedMetadataByRow: rowState.appliedMetadataByRow,
     metadataLookupSource: rowState.metadataLookupSource,
-    coverPreviewSource: bridgeRuntimeSource,
+    coverPreviewSource: BRIDGE_ANIME_SOURCE,
     feedback,
     isSubmitting,
     canRemoveRow: rowState.canRemoveRow,

@@ -1,12 +1,12 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { NotificationCenterSource, NotificationListRequest, NotificationPage } from '../../../../../shared/contracts/notification-center.types';
-import type { NotificationSource } from '../../../../../infrastructure/notification-source/notification-source.types';
+import type { NotificationPushSource } from '../../../../../shared/contracts/notification-push.types';
 import { useNotificationCenterPanel } from '../use-notification-center-panel';
 import { notificationsQueryWrapper } from './notification-center.test-support';
 
 /** A push source that never emits: these assertions are about view state, not live inserts. */
-const SILENT_PUSH: NotificationSource = {
+const SILENT_PUSH: NotificationPushSource = {
   subscribe: () => () => undefined,
   subscribeArchived: () => () => undefined,
   subscribeNavigate: () => () => undefined,

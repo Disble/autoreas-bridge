@@ -8,7 +8,7 @@ import type { EpisodeScheduleSource } from '../episode-schedule-panel.types';
 
 /**
  * Builds a fully stubbed schedule source so each case names only the port it
- * exercises: both reads answer [], the season probe answers daily, and every
+ * exercises: both reads answer [], no season is open (the daily lens), and every
  * write answers ok.
  * @param overrides The ports a case spells out.
  * @returns The source.
@@ -21,9 +21,9 @@ export function createSource(overrides: Partial<EpisodeScheduleSource> = {}): Ep
     getAnimeCover: vi.fn().mockResolvedValue({ source: 'placeholder' }),
     getEpisodeDayCounts: vi.fn().mockResolvedValue([]),
     getEpisodeSchedule: vi.fn().mockResolvedValue([]),
-    getSeasonMode: vi.fn().mockResolvedValue(false),
     openAnimeFolder: vi.fn().mockResolvedValue({ status: 'ok' }),
     openAnimePage: vi.fn().mockResolvedValue({ status: 'ok' }),
+    readSeason: vi.fn().mockResolvedValue(null),
     setAnimeState: vi.fn().mockResolvedValue({ status: 'ok' }),
     ...overrides,
   };
@@ -31,13 +31,14 @@ export function createSource(overrides: Partial<EpisodeScheduleSource> = {}): Ep
 
 /**
  * The query wrapper Today's hooks need: a fresh client and a readiness gate
- * whose snapshot holds the episodes module in `episodes` (ready by default).
- * `emit` pushes a later `bridge.readiness` transition.
+ * whose snapshot holds the episodes module in `episodes` and the season module
+ * in `season` (both ready by default). `emit` pushes a later `bridge.readiness` transition.
  * @param episodes The episodes module's readiness in the snapshot.
+ * @param season The season module's readiness in the snapshot.
  * @returns The wrapper, its client, and `emit`.
  */
-export function createEpisodesWrapper(episodes: ModuleReadiness = status('episodes', 'ready')) {
-  const readiness = staticSource(episodes);
+export function createEpisodesWrapper(episodes: ModuleReadiness = status('episodes', 'ready'), season: ModuleReadiness = status('season', 'ready')) {
+  const readiness = staticSource(episodes, season);
   const { client, wrapper } = createBridgeQueryTestWrapper({ readinessGate: createReadinessGate(readiness.source) });
 
   return { client, wrapper, emit: readiness.emit };

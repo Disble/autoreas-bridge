@@ -2,7 +2,8 @@ import { ANIME_SCHEDULE_DRAFT_ID_PREFIX } from '../../../../shared/ordering/ui/A
 import type { AnimeCreateCommand, AnimeCreateItem, AnimeCreatePlacement, ApplyAnimeScheduleDraftEntry } from '../../../../shared/contracts/anime.types';
 import { deriveDownloadFolder } from '../../../../shared/helpers/download-folder.helpers';
 import { isValidDownloadPageUrl } from '../../../../shared/helpers/url.helpers';
-import { ANIME_CREATE_DEFAULT_KIND, ANIME_CREATE_UNSET_FIELD } from './anime-create.constants';
+import { isBridgeError } from '../../../../shared/query/bridge-error/bridge-error.helpers';
+import { ANIME_CREATE_DEFAULT_KIND, ANIME_CREATE_PICKER_FAILED_MESSAGE, ANIME_CREATE_UNSET_FIELD } from './anime-create.constants';
 import type { AnimeCreateRowDraft, AnimeCreateRowPatch } from './anime-create.types';
 
 /**
@@ -281,4 +282,15 @@ export function findAnimeCreateNameConflicts(
     seen.add(key);
   }
   return conflicts;
+}
+
+/**
+ * The toast text of a failed folder or cover dialog: the bridge's reason when
+ * it carries one, the generic message otherwise. A cancel never gets here: it
+ * resolves `''`.
+ * @param error What the picker rejected with.
+ * @returns The message to show.
+ */
+export function toAnimeCreatePickerErrorMessage(error: unknown): string {
+  return isBridgeError(error) && error.message !== '' ? error.message : ANIME_CREATE_PICKER_FAILED_MESSAGE;
 }

@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { SendToVerHoyResult } from '../../../../../shared/contracts/season.types';
 import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
 import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { getSeasonStoreState, resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
@@ -44,10 +45,10 @@ describe('Daily board busy feedback', () => {
   });
 
   it.each([
-    ['settles', (settle: { resolve: (value: { status: string; pastDownloadTime: boolean; downloadTime: string }) => void }) => settle.resolve({ status: 'ok', pastDownloadTime: false, downloadTime: '' }), undefined],
+    ['settles', (settle: { resolve: (value: SendToVerHoyResult) => void }) => settle.resolve({ pastDownloadTime: false, downloadTime: '' }), undefined],
     ['fails', (settle: { reject: (error: unknown) => void }) => settle.reject(createBridgeError('internal', 'send down')), 'send down'],
   ] as const)('reports the send busy message while the batch is in flight and clears it once it %s', async (_case, settle, expectedError) => {
-    const send = deferred<{ status: string; pastDownloadTime: boolean; downloadTime: string }>();
+    const send = deferred<SendToVerHoyResult>();
     const source = makeSeasonPort({ sendToVerHoy: vi.fn().mockReturnValue(send.promise) });
     const { result } = renderWithSeasonClient(() => useDailyBoardSend(source));
     act(() => result.current.toggleSelect('anime-1'));

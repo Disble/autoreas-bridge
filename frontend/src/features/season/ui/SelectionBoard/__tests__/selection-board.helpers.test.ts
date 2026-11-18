@@ -13,7 +13,6 @@ import {
   getVerdictLabel,
   groupSelectionRows,
   quotaStatus,
-  runDesktopAction,
   toConsiderationToken,
   toSelectionRows,
 } from '../selection-board.helpers';
@@ -212,22 +211,5 @@ describe('labels', () => {
       'temporarily_approved',
       'spare_quota',
     ]);
-  });
-});
-
-describe('runDesktopAction', () => {
-  it('no-ops when the binding is absent (non-Wails context)', async () => {
-    await expect(runDesktopAction(undefined, 'a1', 'copied')).resolves.toBeUndefined();
-  });
-
-  it('runs the action and skips the toast on a non-copy (open) call', async () => {
-    const action = vi.fn().mockResolvedValue({ status: 'ok' });
-    await runDesktopAction(action, 'a1');
-    expect(action).toHaveBeenCalledWith('a1');
-  });
-
-  it('does not throw when the action reports a non-ok status', async () => {
-    const action = vi.fn().mockResolvedValue({ status: 'error' });
-    await expect(runDesktopAction(action, 'a1', 'copied')).resolves.toBeUndefined();
   });
 });

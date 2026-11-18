@@ -1,6 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { preferencesSource } from '../../../../../infrastructure/preferences-source/preferences-source.helpers';
 import { dispatchKeyboardEvent } from '../../../../../shared/keyboard/dispatch.helpers';
 import type { KeyboardDispatchEvent } from '../../../../../shared/keyboard/dispatch.helpers';
 import {
@@ -11,19 +10,17 @@ import {
   setKeymapOverrides,
 } from '../../../../../shared/keyboard/keyboard-scope.helpers';
 import type { CommandDefinition } from '../../../../../shared/keyboard/keyboard.types';
+import { BRIDGE_READINESS_GATE, BRIDGE_SETTINGS_SOURCE } from '../../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { createBridgeQueryTestWrapper } from '../../../../../shared/query/test-support/bridge-query.test-support';
 import { useBackupImport } from '../use-backup-import';
-
-vi.mock('../../../../../infrastructure/preferences-source/preferences-source.helpers', () => ({
-  preferencesSource: { getKeymap: vi.fn() },
-}));
 
 /**
  * Mandatory end-to-end proof for the "A Restored Keymap Reaches The Running
  * Dispatcher Without A Restart" requirement. Unlike `use-backup-import.test.ts`,
  * this file does NOT mock `keymap-load.helpers`: the real `loadKeymapOverrides`
  * must run so the observable is genuine chord resolution, not a mocked call.
- * Only the preferences runtime source is faked, at its `getKeymap` seam.
+ * Only the settings source is faked, at its `getKeymap` seam, with the
+ * settings module reported ready.
  */
 
 /** Builds the dispatchable keydown-shaped event for the shared test chord, `ctrl+shift+t`. */
@@ -81,7 +78,8 @@ describe('a restored keymap reaches the running dispatcher without a restart', (
 
     // A bundle's keyboard_keymap group rebinds the SAME chord to command B.
     const restoredDocument = JSON.stringify({ version: 1, bindings: { [commandB.id]: sharedChord } });
-    vi.mocked(preferencesSource.getKeymap).mockResolvedValue(restoredDocument);
+    vi.spyOn(BRIDGE_READINESS_GATE, 'whenReady').mockResolvedValue();
+    vi.spyOn(BRIDGE_SETTINGS_SOURCE, 'getKeymap').mockResolvedValue(restoredDocument);
 
     const previewBackupImport = vi.fn().mockResolvedValue({
       cancelled: false,

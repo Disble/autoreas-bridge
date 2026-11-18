@@ -34,6 +34,9 @@ export const ORDERING_AUTOSAVE_DEBOUNCE_MS = 600;
 /** Frontend invariant message when one weekday column contains the same anime twice. */
 export const ORDERING_DUPLICATE_WEEKDAY_ERROR = 'Duplicate weekday placements are not allowed.';
 
+/** Season banner text of a rejected schedule apply that carries no message. */
+export const ORDERING_APPLY_FAILED = 'Failed to apply the schedule';
+
 /** dnd-kit container id for the rail (a real string — '' cannot be a droppable id). */
 export const RAIL_CONTAINER_ID = '__rail__';
 

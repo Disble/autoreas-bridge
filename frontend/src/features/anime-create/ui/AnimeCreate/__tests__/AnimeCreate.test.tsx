@@ -14,10 +14,6 @@ const { editorSource, settingsSource } = vi.hoisted(() => ({
   settingsSource: { getLibraryRoot: vi.fn().mockResolvedValue('D:\\Anime') },
 }));
 
-vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
-  bridgeRuntimeSource: { pickFolder: vi.fn() },
-}));
-
 vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   /** The create hooks' default anime-module port. */

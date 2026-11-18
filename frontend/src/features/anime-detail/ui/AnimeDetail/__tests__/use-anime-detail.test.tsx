@@ -544,8 +544,9 @@ describe('useAnimeDetail', () => {
     });
   });
 
-  it('fails closed when the selected runtime binding is unavailable', async () => {
-    const source = createSource(populatedDetail, { repeatAnime: undefined });
+  it('fails closed with the episodes port reason when the selected binding is not attached', async () => {
+    const repeatAnime = vi.fn().mockRejectedValue(createBridgeError('unavailable', 'the RepeatAnime binding is not attached'));
+    const source = createSource(populatedDetail, { repeatAnime });
     const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
 
@@ -553,7 +554,7 @@ describe('useAnimeDetail', () => {
     await act(async () => result.current.onConfirmAction());
 
     expect(result.current.feedback?.status).toBe('danger');
-    expect(result.current.feedback?.description).toContain('unavailable');
+    expect(result.current.feedback?.description).toBe('the RepeatAnime binding is not attached');
     expect(source.getAnimeDetail).toHaveBeenCalledTimes(1);
   });
 });

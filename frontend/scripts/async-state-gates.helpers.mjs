@@ -1,4 +1,8 @@
-// ADR-032 §5 async-state gates: five local ESLint rules plus the identified-violation baseline.
+// ADR-032 §5 async-state gates: five local ESLint rules plus two lists of identified violations.
+// The baseline (async-state-baseline.json) is legacy debt that only shrinks. The exception list
+// (async-state-exceptions.json) is the closed set of sanctioned violations, each carrying the written
+// reason the owner accepted; an exception without a reason stops the gate, and one that no longer
+// occurs is stale exactly like a baseline entry.
 //
 // They are local rules rather than new `no-restricted-imports` / `no-restricted-syntax` options for
 // three reasons. Each finding needs an identity (rule + file + specifier or symbol) that the baseline
@@ -12,11 +16,14 @@
 // files alike. check-async-state-gates.mjs registers it with a collector and no baseline, then compares
 // what it found with the baseline to report new violations and stale entries.
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 /** Baseline file name, relative to the frontend root. */
 export const BASELINE_FILE = 'async-state-baseline.json';
+
+/** Exception list file name, relative to the frontend root. */
+export const EXCEPTIONS_FILE = 'async-state-exceptions.json';
 
 /** Rule ids, in the order ADR-032 §5 lists them; each is `async-state/<id>` in ESLint. */
 const ASYNC_STATE_RULE_IDS = [
@@ -35,13 +42,12 @@ const ZUSTAND_VANILLA_ALLOW_LIST = {
   'src/features/catalog/ui/CatalogPanel/catalog-session.store.ts': 'Catalog session UI state (filters, view), which ADR-032 §4 leaves in Zustand.',
   'src/shared/keyboard/keyboard.constants.ts': 'Keyboard scope stack and keymap UI state (ADR-019, ADR-020).',
   'src/shared/store/download-runtime-store/download-runtime-store.helpers.ts': 'Downloads screen and missed-day notice UI state (selected run, hidden or shown missed day, notice feedback), which ADR-032 §4 leaves in Zustand.',
-  'src/shared/store/preferences-store/preferences-store.helpers.ts': 'ADR-006 preferences read-model; leaves this list when it migrates.',
   'src/shared/store/season-store/season-store.store.ts': 'ADR-006 season read-model; leaves this list when it migrates (last, per ADR-032).',
 };
 
 /** Where the helpers and the skill live; every message ends with it. */
 const GUIDE =
-  'Skill: bridge-data. ADR-032: docs/adr/032-async-state-standard.md. Legacy entries: frontend/async-state-baseline.json (never add one for new code).';
+  'Skill: bridge-data. ADR-032: docs/adr/032-async-state-standard.md. Legacy entries: frontend/async-state-baseline.json (never add one for new code). Sanctioned exceptions: frontend/async-state-exceptions.json (only by owner decision, each with its reason).';
 
 /** The query helpers every boundary message points to. */
 const QUERY_HELPERS =
@@ -75,6 +81,15 @@ function entryKey(entry) {
 }
 
 /**
+ * Whether an entry names one identified violation: a known rule, a file, and a specifier or symbol.
+ * @param {{rule?: string, file?: unknown, specifier?: string, symbol?: string}} entry Baseline entry or exception.
+ * @returns {boolean} True when the entry has a complete identity.
+ */
+function hasIdentity(entry) {
+  return ASYNC_STATE_RULE_IDS.includes(entry.rule) && typeof entry.file === 'string' && (entry.specifier ?? entry.symbol) !== undefined;
+}
+
+/**
  * Reads and validates the committed baseline.
  * @param {string} root Frontend root holding the baseline file.
  * @returns {Array<{rule: string, file: string, specifier?: string, symbol?: string}>} Baseline entries.
@@ -83,11 +98,34 @@ export function loadAsyncStateBaseline(root) {
   /** Parsed baseline document. */
   const document = JSON.parse(readFileSync(path.join(root, BASELINE_FILE), 'utf8'));
   for (const entry of document.violations) {
-    if (!ASYNC_STATE_RULE_IDS.includes(entry.rule) || typeof entry.file !== 'string' || (entry.specifier ?? entry.symbol) === undefined) {
+    if (!hasIdentity(entry)) {
       throw new Error(`${BASELINE_FILE}: invalid entry ${JSON.stringify(entry)}`);
     }
   }
   return document.violations;
+}
+
+/**
+ * Reads and validates the committed exception list: the closed set of sanctioned violations, each
+ * with the written reason the owner accepted. A missing file is an empty list.
+ * @param {string} root Frontend root holding the exception file.
+ * @returns {Array<{rule: string, file: string, specifier?: string, symbol?: string, reason: string}>} Exceptions.
+ */
+export function loadAsyncStateExceptions(root) {
+  /** Absolute path of the exception list. */
+  const file = path.join(root, EXCEPTIONS_FILE);
+  if (!existsSync(file)) return [];
+  /** Parsed exception document. */
+  const document = JSON.parse(readFileSync(file, 'utf8'));
+  for (const entry of document.exceptions) {
+    if (!hasIdentity(entry)) {
+      throw new Error(`${EXCEPTIONS_FILE}: invalid exception ${JSON.stringify(entry)}`);
+    }
+    if (typeof entry.reason !== 'string' || entry.reason.trim() === '') {
+      throw new Error(`${EXCEPTIONS_FILE}: an exception needs a written reason ${JSON.stringify(entry)}`);
+    }
+  }
+  return document.exceptions;
 }
 
 /**
@@ -102,21 +140,30 @@ export function summarizeBaseline(baseline) {
 }
 
 /**
- * Splits found violations into those the baseline does not name, and baseline entries no longer found.
+ * Splits found violations into those neither the baseline nor the exception list names, and the
+ * baseline entries and exceptions no longer found.
  * @param {object} params Comparison input.
  * @param {Array<object>} params.found Violations found in the checked files.
  * @param {Array<object>} params.baseline Baseline entries.
+ * @param {Array<object>} [params.exceptions] Exceptions.
  * @param {(file: string) => boolean} params.inScope Whether a file was checked, so its entries can be judged stale.
- * @returns {{added: Array<object>, stale: Array<object>}} New violations and stale entries.
+ * @returns {{added: Array<object>, stale: Array<object>, staleExceptions: Array<object>}} New violations, stale entries and stale exceptions.
  */
-export function compareWithBaseline({ found, baseline, inScope }) {
-  /** Identities of the baseline entries. */
-  const baselineKeys = new Set(baseline.map(entryKey));
+export function compareWithBaseline({ found, baseline, exceptions = [], inScope }) {
+  /** Identities the baseline or the exception list names. */
+  const namedKeys = new Set([...baseline, ...exceptions].map(entryKey));
   /** Identities of the violations found. */
   const foundKeys = new Set(found.map(entryKey));
+  /**
+   * Whether a named entry's file was checked and its violation is gone.
+   * @param {{file: string}} entry Baseline entry or exception.
+   * @returns {boolean} True when the entry is stale.
+   */
+  const isStale = (entry) => inScope(entry.file) && !foundKeys.has(entryKey(entry));
   return {
-    added: found.filter((violation) => !baselineKeys.has(entryKey(violation))),
-    stale: baseline.filter((entry) => inScope(entry.file) && !foundKeys.has(entryKey(entry))),
+    added: found.filter((violation) => !namedKeys.has(entryKey(violation))),
+    stale: baseline.filter(isStale),
+    staleExceptions: exceptions.filter(isStale),
   };
 }
 
@@ -281,12 +328,13 @@ function createRule(id, begin) {
  * @param {object} options Plugin options.
  * @param {string} options.root Frontend root that file paths are relative to.
  * @param {Array<object>} [options.baseline] Entries not reported to ESLint (editor, dharness check).
- * @param {(violation: object) => void} [options.onViolation] Receives every violation, baselined or not.
+ * @param {Array<object>} [options.exceptions] Sanctioned violations not reported to ESLint; the committed exception list by default.
+ * @param {(violation: object) => void} [options.onViolation] Receives every violation, baselined, excepted or not.
  * @returns {object} ESLint plugin with one rule per id in ASYNC_STATE_RULE_IDS.
  */
-export function createAsyncStatePlugin({ root, baseline = [], onViolation }) {
+export function createAsyncStatePlugin({ root, baseline = [], exceptions = loadAsyncStateExceptions(root), onViolation }) {
   /** Identities ESLint stays silent about. */
-  const silenced = new Set(baseline.map(entryKey));
+  const silenced = new Set([...baseline, ...exceptions].map(entryKey));
   /**
    * Prepares the reporter of one rule for one file.
    * @param {object} context ESLint rule context.
@@ -338,4 +386,15 @@ export function formatStaleEntry(entry) {
   /** Entry in the baseline's own field order. */
   const named = { rule: entry.rule, file: entry.file, ...(entry.specifier === undefined ? { symbol: entry.symbol } : { specifier: entry.specifier }) };
   return `stale entry, no longer found; delete it from frontend/${BASELINE_FILE}: ${JSON.stringify(named)}`;
+}
+
+/**
+ * Renders a stale exception exactly as it must be deleted from the exception list.
+ * @param {{rule: string, file: string, specifier?: string, symbol?: string}} entry Stale exception.
+ * @returns {string} One report line naming the exception.
+ */
+export function formatStaleException(entry) {
+  /** Exception identity in the list's own field order. */
+  const named = { rule: entry.rule, file: entry.file, ...(entry.specifier === undefined ? { symbol: entry.symbol } : { specifier: entry.specifier }) };
+  return `stale exception, no longer found; delete it from frontend/${EXCEPTIONS_FILE}: ${JSON.stringify(named)}`;
 }

@@ -1,9 +1,11 @@
-import type { contracts } from '../../../../../wailsjs/go/models';
 import { normalizeStoredCoverPath } from '../../../../shared/anime-cover/anime-cover.helpers';
 import { getAnimeEstadoLabel } from '../../../../shared/helpers/anime-estado.helpers';
 import type { AnimeDetail } from '../../../../shared/contracts/anime.types';
+import type { EpisodeWriteResult } from '../../../../shared/contracts/episodes.types';
 import { toAsyncView } from '../../../../shared/query/async-view/async-view.helpers';
+import { isBridgeError } from '../../../../shared/query/bridge-error/bridge-error.helpers';
 import {
+  ANIME_DETAIL_COMMAND_FAILED_MESSAGE,
   ANIME_DETAIL_LONG_DATE_FORMATTER,
   ANIME_DETAIL_NO_DURATION_MESSAGE,
   ANIME_DETAIL_NO_TOTAL_EPISODES_MESSAGE,
@@ -97,7 +99,7 @@ export function toAnimeDetailConfirmation(
  */
 export function resolveAnimeDetailMutation(
   action: AnimeDetailAction,
-  result: contracts.EpisodeCommandResult,
+  result: EpisodeWriteResult,
 ): AnimeDetailMutationResolution {
   const actionLabel = action === 'repeat' ? 'Repeat' : 'Restore';
   const failure = (description: string): AnimeDetailMutationResolution => ({
@@ -399,4 +401,15 @@ export function toAnimeDetailViewModel(detail: AnimeDetail): AnimeDetailViewMode
     origin: detail.origin ?? ANIME_DETAIL_UNKNOWN_LABEL,
     isFirstWatch: detail.firstCycle === 1,
   };
+}
+
+/**
+ * The reason a rejected Repeat or Restore shows: the episodes module's own
+ * message (starting, failed, or the write's failure) when it carries one, the
+ * generic message otherwise.
+ * @param error What the command rejected with.
+ * @returns The feedback description.
+ */
+export function toAnimeDetailCommandFailureMessage(error: unknown): string {
+  return isBridgeError(error) && error.message !== '' ? error.message : ANIME_DETAIL_COMMAND_FAILED_MESSAGE;
 }

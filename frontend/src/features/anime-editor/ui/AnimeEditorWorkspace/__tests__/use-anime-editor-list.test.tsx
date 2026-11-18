@@ -4,7 +4,8 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { AnimeEditorSource } from '../../../../../shared/contracts/anime-editor-source.types';
 import type { ModuleReadiness } from '../../../../../shared/contracts/readiness.types';
-import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
+import { ANIME_CHANGED_EVENT_NAME } from '../../../../../infrastructure/anime-runtime-source/anime-runtime-source.constants';
+import { connectBridgeEvents, createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { flush, status } from '../../../../../shared/query/test-support/readiness-source.test-support';
 import { useAnimeEditorList } from '../use-anime-editor-list';
 
@@ -25,8 +26,18 @@ function createSource(): Pick<AnimeEditorSource, 'getAnimes'> {
  * renderHook renders its hook-runner as the Route element children.
  */
 function wrapperFor(path: string, anime: ModuleReadiness = status('anime', 'ready')) {
-  const { wrapper: QueryWrapper } = createModulesTestWrapper(anime);
-  return function RouteWrapper({ children }: { readonly children: ReactNode }) {
+  return routedModules(path, anime).wrapper;
+}
+
+/**
+ * `wrapperFor` with its query client, so a test can push backend events into it.
+ * @param path The route the hook renders under.
+ * @param anime The `anime` module's readiness.
+ * @returns The query client and the route-aware wrapper.
+ */
+function routedModules(path: string, anime: ModuleReadiness = status('anime', 'ready')) {
+  const { client, wrapper: QueryWrapper } = createModulesTestWrapper(anime);
+  return { client, wrapper: function RouteWrapper({ children }: { readonly children: ReactNode }) {
     return (
       <QueryWrapper>
         <MemoryRouter initialEntries={[path]}>
@@ -37,7 +48,7 @@ function wrapperFor(path: string, anime: ModuleReadiness = status('anime', 'read
         </MemoryRouter>
       </QueryWrapper>
     );
-  };
+  } };
 }
 
 describe('useAnimeEditorList default filter', () => {
@@ -81,5 +92,23 @@ describe('useAnimeEditorList through the anime module', () => {
     expect(result.current.isLoadingList).toBe(false);
     expect(result.current.emptyState).toBe('none');
     expect(source.getAnimes).not.toHaveBeenCalled();
+  });
+});
+
+describe('useAnimeEditorList on a backend anime change', () => {
+  it('keeps the loaded rail rows, never the skeleton, while an anime.changed refetch runs', async () => {
+    const rows = [makeAnime('anime-1', 'Alpha'), makeAnime('anime-2', 'Beta')];
+    const getAnimes = vi.fn().mockResolvedValueOnce(rows).mockReturnValueOnce(new Promise(() => {}));
+    const { client, wrapper } = routedModules('/editor/anime-1');
+    const { emit, disconnect } = connectBridgeEvents(client);
+    const { result } = renderHook(() => useAnimeEditorList({ source: { getAnimes } }), { wrapper });
+    await waitFor(() => expect(result.current.isLoadingList).toBe(false));
+
+    emit(ANIME_CHANGED_EVENT_NAME);
+
+    await waitFor(() => expect(getAnimes).toHaveBeenCalledTimes(2));
+    expect(result.current.isLoadingList).toBe(false);
+    expect(result.current.items).toHaveLength(2);
+    disconnect();
   });
 });

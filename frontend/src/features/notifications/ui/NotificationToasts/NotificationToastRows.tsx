@@ -1,7 +1,7 @@
 import { CoverPlaceholderScene } from '../../../../shared/ui/CoverPlaceholderScene';
 import type { AppNotificationRow } from '../../../../shared/contracts/app-notification.types';
 import { NOTIFICATION_TOAST_ROWS_LIMIT, NOTIFICATION_TOAST_ROWS_TESTID } from './notification-resolver.constants';
-import type { NotificationToastCoverSource } from './use-notification-toast-covers';
+import type { AnimeCoverSource } from '../../../../shared/anime-cover/anime-cover.types';
 import { useNotificationToastCovers } from './use-notification-toast-covers';
 
 /**
@@ -22,7 +22,7 @@ import { useNotificationToastCovers } from './use-notification-toast-covers';
 export function NotificationToastRows({
   rows,
   coverSource,
-}: Readonly<{ readonly rows: readonly AppNotificationRow[]; readonly coverSource?: NotificationToastCoverSource }>) {
+}: Readonly<{ readonly rows: readonly AppNotificationRow[]; readonly coverSource?: AnimeCoverSource }>) {
   const shown = rows.slice(0, NOTIFICATION_TOAST_ROWS_LIMIT);
   const covers = useNotificationToastCovers(shown, coverSource);
   const hidden = rows.length - shown.length;

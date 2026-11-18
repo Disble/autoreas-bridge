@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { pushKeyboardScopeFrame, resetKeyboardStore } from '../../../keyboard-scope.helpers';
 import type { CommandDefinition, KeyboardScopeFrame } from '../../../keyboard.types';
 import { KeyboardDispatcherListener } from '../KeyboardDispatcherListener';
+import { BRIDGE_READINESS_GATE } from '../../../../query/bridge-runtime/bridge-runtime.constants';
 
 /** Renders the live router location so an assertion reads where the app landed, not which function ran. */
 function LocationProbe() {
@@ -32,13 +33,11 @@ function pushProbeCommand(id: number, chord: string, run: () => void): KeyboardS
 
 beforeEach(() => {
   resetKeyboardStore();
-  // KeyboardDispatcherListener now also mounts useKeymapOverrides (Slice 4,
-  // D11), which calls preferencesSource.getKeymap() on mount. With no Go
-  // binding attached, that would poll via a real setInterval for up to
-  // WAILS_BINDINGS_TIMEOUT_MS (wails-bindings.helpers.ts) before degrading --
-  // a leaked real timer this file never awaits. Stubbing GetKeymap makes
-  // hasGoBinding true immediately, so the load resolves synchronously with no
-  // interval ever created; this suite is about the dispatcher, not the loader.
+  // KeyboardDispatcherListener loads the persisted keymap on mount (design
+  // D11), once the settings module is ready. The readiness gate is stubbed
+  // ready and GetKeymap attached, so the load resolves at once with no binding
+  // poll left running; these suites are about the dispatcher, not the loader.
+  vi.spyOn(BRIDGE_READINESS_GATE, 'whenReady').mockResolvedValue();
   window.go = { desktop: { App: { GetKeymap: () => Promise.resolve('') } } } as never;
 });
 afterEach(() => {

@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { NotificationSource } from '../../../../../infrastructure/notification-source/notification-source.types';
+import type { NotificationPushSource } from '../../../../../shared/contracts/notification-push.types';
 import type { NotificationCenterSource, NotificationRow } from '../../../../../shared/contracts/notification-center.types';
 import { useNotificationCenterSync } from '../use-notification-center-sync';
 import { createCenterSource, notificationsQueryWrapper } from './notification-center.test-support';
@@ -21,7 +21,7 @@ function makeRow(id: number): NotificationRow {
 
 /** A controllable stand-in for the `notification.archived` runtime stream; a push goes through the query wrapper's `emitEvent`. */
 function makePushSource(): {
-  readonly source: NotificationSource;
+  readonly source: NotificationPushSource;
   emitArchived: (recordIds: readonly number[]) => void;
 } {
   const archivedListeners: ((recordIds: readonly number[]) => void)[] = [];

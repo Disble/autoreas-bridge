@@ -2,7 +2,7 @@ import { renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { useBackendEventResolver } from '../use-backend-event-resolver';
 import type { Notification } from '../../../../../shared/contracts/notification.types';
-import type { NotificationSource } from '../../../../../infrastructure/notification-source/notification-source.types';
+import type { NotificationPushSource } from '../../../../../shared/contracts/notification-push.types';
 import type { NotificationCenterSource } from '../../../../../shared/contracts/notification-center.types';
 import type { AppNotification } from '../../../../../shared/contracts/app-notification.types';
 
@@ -10,7 +10,7 @@ import type { AppNotification } from '../../../../../shared/contracts/app-notifi
 function createFakeSource(
   notification: Notification | undefined,
   archivedIds: readonly number[] | undefined,
-): NotificationSource {
+): NotificationPushSource {
   return {
     subscribe(listener) {
       if (notification) {
@@ -35,7 +35,7 @@ function createFakeSource(
  * test can re-render the hook first and then deliver an event.
  */
 function createDeferredSource(): {
-  readonly source: NotificationSource;
+  readonly source: NotificationPushSource;
   readonly emit: (notification: Notification) => void;
 } {
   let captured: ((notification: Notification) => void) | undefined;

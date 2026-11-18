@@ -20,7 +20,7 @@ const { client, wrapper } = createModulesTestWrapper({ module: 'season', state: 
 const render = (ui: ReactElement) => renderBridge(ui, { wrapper });
 
 /** The Ver hoy subset download the real season port answers. */
-const downloadSeasonAnimes = vi.fn().mockResolvedValue('ok');
+const downloadSeasonAnimes = vi.fn().mockResolvedValue(undefined);
 
 beforeEach(() => {
   // The rows read stays pending, so the mount refresh never replaces seeded rows.

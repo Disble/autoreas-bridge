@@ -3,9 +3,10 @@
 //   node ./scripts/check-async-state-gates.mjs         staged files (pre-commit)
 //   node ./scripts/check-async-state-gates.mjs --all   whole tree (pre-merge-commit)
 //
-// A violation the baseline does not name fails. A baseline entry whose file was checked and no longer
-// has that violation is stale and fails, naming the entry to delete. Staging the baseline or the gate
-// code itself checks the whole tree, because either can make any entry stale. The entry count is
+// A violation neither the baseline nor the exception list names fails. A baseline entry or exception
+// whose file was checked and no longer has that violation is stale and fails, naming the entry to
+// delete; an exception without a written reason stops the run. Staging either list or the gate code
+// itself checks the whole tree, because any of them can make any entry stale. The entry count is
 // printed on every run; it is reported, never gated.
 
 import { execFileSync } from 'node:child_process';
@@ -18,12 +19,15 @@ import { ESLint } from 'eslint';
 
 import {
   BASELINE_FILE,
+  EXCEPTIONS_FILE,
   asyncStateRuleSettings,
   compareWithBaseline,
   createAsyncStatePlugin,
   formatStaleEntry,
+  formatStaleException,
   formatViolation,
   loadAsyncStateBaseline,
+  loadAsyncStateExceptions,
   summarizeBaseline,
 } from './async-state-gates.helpers.mjs';
 
@@ -31,7 +35,7 @@ import {
 const SOURCE_FILE = /^src\/.+\.(ts|tsx)$/u;
 
 /** Staged files that can change any entry's verdict, so they widen the check to the whole tree. */
-const GATE_FILES = new Set([BASELINE_FILE, 'eslint.config.js', 'scripts/async-state-gates.helpers.mjs', 'scripts/check-async-state-gates.mjs']);
+const GATE_FILES = new Set([BASELINE_FILE, EXCEPTIONS_FILE, 'eslint.config.js', 'scripts/async-state-gates.helpers.mjs', 'scripts/check-async-state-gates.mjs']);
 
 /**
  * Lists staged paths relative to the frontend root, deletions included.
@@ -62,7 +66,7 @@ async function collectViolations(root, patterns) {
       {
         files: ['**/*.{ts,tsx}'],
         languageOptions: { parser: tsParser, ecmaVersion: 'latest', sourceType: 'module', parserOptions: { ecmaFeatures: { jsx: true } } },
-        plugins: { 'async-state': createAsyncStatePlugin({ root, onViolation: (violation) => found.push(violation) }) },
+        plugins: { 'async-state': createAsyncStatePlugin({ root, exceptions: [], onViolation: (violation) => found.push(violation) }) },
         rules: asyncStateRuleSettings(),
       },
     ],
@@ -92,6 +96,8 @@ async function collectViolations(root, patterns) {
 export async function runAsyncStateGates({ root = process.cwd(), all = false, staged, log = console.log } = {}) {
   /** Committed baseline. */
   const baseline = loadAsyncStateBaseline(root);
+  /** Committed exception list; an exception without a reason throws before anything is linted. */
+  const exceptions = loadAsyncStateExceptions(root);
   /** Staged paths, only needed outside whole-tree mode. */
   const stagedFiles = all ? [] : (staged ?? readStagedFiles(root));
   /** Whole tree when asked, or when the baseline or the gate code is staged. */
@@ -103,12 +109,12 @@ export async function runAsyncStateGates({ root = process.cwd(), all = false, st
   const { found, checked, fatal, unparsed } = await collectViolations(root, patterns);
   /** Staged sources whose baseline entries are judged. */
   const scope = new Set(stagedSources);
-  const { added, stale } = compareWithBaseline({ found, baseline, inScope: (file) => !unparsed.has(file) && (wholeTree || scope.has(file)) });
-  log(`async-state gates: baseline ${summarizeBaseline(baseline)}; checked ${wholeTree ? 'the whole tree' : `${checked.size} staged file(s)`}.`);
-  for (const line of [...fatal.map((message) => `cannot check, parse error: ${message}`), ...added.map(formatViolation), ...stale.map(formatStaleEntry)]) {
+  const { added, stale, staleExceptions } = compareWithBaseline({ found, baseline, exceptions, inScope: (file) => !unparsed.has(file) && (wholeTree || scope.has(file)) });
+  log(`async-state gates: baseline ${summarizeBaseline(baseline)}; exceptions ${summarizeBaseline(exceptions)}; checked ${wholeTree ? 'the whole tree' : `${checked.size} staged file(s)`}.`);
+  for (const line of [...fatal.map((message) => `cannot check, parse error: ${message}`), ...added.map(formatViolation), ...stale.map(formatStaleEntry), ...staleExceptions.map(formatStaleException)]) {
     log(line);
   }
-  return fatal.length + added.length + stale.length === 0 ? 0 : 1;
+  return fatal.length + added.length + stale.length + staleExceptions.length === 0 ? 0 : 1;
 }
 
 /**

@@ -1,10 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { useAnimeCover } from '../../../../shared/anime-cover/use-anime-cover';
 import type { AnimeSource } from '../../../../shared/contracts/anime-source.types';
-import { BRIDGE_ANIME_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { BRIDGE_ANIME_SOURCE, BRIDGE_EPISODES_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { animeKeys } from '../../../../shared/query/query-keys/query-keys.constants';
 import { useBridgeQuery } from '../../../../shared/query/use-bridge-query/use-bridge-query';
 import {
@@ -26,19 +25,20 @@ import { useAnimeDetailMutation } from './use-anime-detail-mutation';
  * `anime` module, keyed by id: it stays `loading` while the module starts and
  * while the previous anime's detail would still show, an unknown anime is
  * `not-found`, and any other failure (the module failed, a failed read) is
- * `failure` with its reason. Repeat/Restore still run through `commands`, which a
- * later slice moves behind its own port; the desktop actions run through the
- * anime module (`useAnimeDetailDesktopActions`).
+ * `failure` with its reason. Repeat/Restore run through the episodes module's
+ * commands (`BRIDGE_EPISODES_SOURCE`), whose rejection reason reaches the
+ * feedback; the desktop actions run through the anime module
+ * (`useAnimeDetailDesktopActions`).
  *
  * @param props The anime the page shows.
  * @param source The anime port the detail and cover are read through.
- * @param commands The Repeat/Restore commands.
+ * @param commands The episodes module's Repeat/Restore commands.
  * @returns The page state.
  */
 export function useAnimeDetail(
   props: Readonly<AnimeDetailProps>,
   source: AnimeSource = BRIDGE_ANIME_SOURCE,
-  commands: AnimeDetailCommandSource = bridgeRuntimeSource,
+  commands: AnimeDetailCommandSource = BRIDGE_EPISODES_SOURCE,
 ): AnimeDetailState {
   // 1. Refs
 

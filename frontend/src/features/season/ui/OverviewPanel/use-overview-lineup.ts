@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import type { SeasonQuerySource, SeasonSource } from '../../../../shared/contracts/season.types';
-import { BRIDGE_SEASON_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { BRIDGE_ANIME_SOURCE, BRIDGE_SEASON_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 import { SEASON_NO_ROWS } from '../../../../shared/season/season.constants';
 import { useDisplayedSeasonAnimes } from '../../../../shared/season/use-displayed-season-animes';
 import { useSeasonOrderingSnapshot } from '../../../../shared/season/use-season-ordering-snapshot';
@@ -25,7 +24,7 @@ import type { OverviewLineupView } from './overview-panel.types';
  */
 export function useOverviewLineup(
   source: SeasonSource & SeasonQuerySource = BRIDGE_SEASON_SOURCE,
-  coverSource: SeasonCoverSource = bridgeRuntimeSource,
+  coverSource: SeasonCoverSource = BRIDGE_ANIME_SOURCE,
 ): { readonly view: OverviewLineupView; readonly getCoverThumb: (animeId: string) => SeasonCoverThumbProps } {
   // 3. Context/3rd Party Hooks
   const viewSeasonId = useSeasonStore((state) => state.viewSeasonId);

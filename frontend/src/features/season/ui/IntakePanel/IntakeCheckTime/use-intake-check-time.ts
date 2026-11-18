@@ -1,23 +1,50 @@
+import { toast } from '@heroui/react';
 import { Time } from '@internationalized/date';
-import { useCallback, useEffect, useState } from 'react';
-import { seasonSource } from '../../../../../infrastructure/season-source/season-source.helpers';
-import { readCheckTime, saveCheckTime, toCheckTimeValue } from './intake-check-time.helpers';
+import { useCallback, useState } from 'react';
+import { toAsyncView } from '../../../../../shared/query/async-view/async-view.helpers';
+import { BRIDGE_SETTINGS_SOURCE } from '../../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { SETTINGS_SEASON_CHECK_TIME_KEY } from '../../../../../shared/query/query-keys/query-keys.constants';
+import { useBridgeMutation } from '../../../../../shared/query/use-bridge-mutation/use-bridge-mutation';
+import { useBridgeQuery } from '../../../../../shared/query/use-bridge-query/use-bridge-query';
+import { toCheckTimeSaveError, toCheckTimeSaveRequest, toCheckTimeValue } from './intake-check-time.helpers';
 import type { CheckTimeDraft, CheckTimePort } from './intake-check-time.types';
 
 /**
- * Drives the intake card's daily availability check time: loads the saved
- * time once, opens a popover seeded with it, and saves an edited time,
- * closing on success and keeping the popover open with the reason on failure.
+ * Drives the intake card's daily availability check time: reads the saved time
+ * through the `settings` module (loading while it starts, a failure once it
+ * failed or the read rejected), opens a popover seeded with it, and saves an
+ * edited time, closing and re-reading on success. A rejected save keeps the
+ * popover open and shows the bridge's message in a danger toast; an incomplete
+ * field is refused under the field without a backend call.
  * @param source The check time port.
- * @returns The saved time (`null` until known), the popover state and its handlers.
+ * @returns The read's view, the popover state and its handlers.
  */
-export function useIntakeCheckTime(source: CheckTimePort = seasonSource) {
+export function useIntakeCheckTime(source: CheckTimePort = BRIDGE_SETTINGS_SOURCE) {
   // 2. State
-  const [checkTime, setCheckTime] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [draft, setDraft] = useState<CheckTimeDraft>(null);
-  const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
+
+  // 4. Queries/Mutations
+  const query = useBridgeQuery({
+    queryKey: SETTINGS_SEASON_CHECK_TIME_KEY,
+    queryFn: () => source.getSeasonCheckTime(),
+    module: 'settings',
+  });
+  const { refetch } = query;
+  const save = useBridgeMutation({
+    mutationFn: (time: string) => source.setSeasonCheckTime(time),
+    onSuccess: async () => {
+      setIsOpen(false);
+      await refetch();
+    },
+    onError: (error) => toast.danger(toCheckTimeSaveError(error)),
+  });
+  const { mutate: saveTime } = save;
+
+  // 5. Derived State
+  const view = toAsyncView(query);
+  const checkTime = view.kind === 'ready' ? view.data : '';
 
   // 6. Callbacks
   const onOpenChange = useCallback(
@@ -25,8 +52,7 @@ export function useIntakeCheckTime(source: CheckTimePort = seasonSource) {
       setIsOpen(open);
       // Stryker disable next-line ConditionalExpression: resetting on close too is unobservable, the closed popover renders neither draft nor error and the next open resets both.
       if (open) {
-        // Stryker disable next-line StringLiteral: equivalent and unreachable, the trigger only renders once the time is known, and any non-HH:MM fallback parses to null alike.
-        setDraft(toCheckTimeValue(checkTime ?? ''));
+        setDraft(toCheckTimeValue(checkTime));
         setErrorMessage(undefined);
       }
     },
@@ -41,31 +67,16 @@ export function useIntakeCheckTime(source: CheckTimePort = seasonSource) {
     [],
   );
 
-  const onSave = useCallback(async () => {
-    setIsSaving(true);
-    const result = await saveCheckTime(source, draft);
-    setIsSaving(false);
-    if (result.ok) {
-      setCheckTime(result.time);
-      setIsOpen(false);
+  const onSave = useCallback(() => {
+    const request = toCheckTimeSaveRequest(draft);
+    if (!request.ok) {
+      setErrorMessage(request.message);
       return;
     }
-    setErrorMessage(result.message);
-  }, [source, draft]);
-
-  // 7. Effects
-  useEffect(() => {
-    let isCurrent = true;
-    void readCheckTime(source).then((hhmm) => {
-      if (isCurrent) {
-        setCheckTime(hhmm);
-      }
-    });
-    return () => {
-      isCurrent = false;
-    };
-  }, [source]);
+    setErrorMessage(undefined);
+    saveTime(request.time);
+  }, [draft, saveTime]);
 
   // 8. Return
-  return { checkTime, isOpen, onOpenChange, draft, onDraftChange, isSaving, errorMessage, onSave };
+  return { view, isOpen, onOpenChange, draft, onDraftChange, isSaving: save.isPending, errorMessage, onSave };
 }

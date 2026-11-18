@@ -8,6 +8,10 @@ import type {
   SeasonMatchingProgressNotice,
   SeasonMatchingStartedNotice,
 } from '../../../../../shared/contracts/season.types';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
+import { settingsKeys } from '../../../../../shared/query/query-keys/query-keys.constants';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
+import { status } from '../../../../../shared/query/test-support/readiness-source.test-support';
 import { disconnectSeasonMatchingStore, getSeasonStoreState, resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
 import { createLibraryRootSource, createMetadataSource, createSource, createSourceWithRows, seasonRow, selection } from './intake-panel.test-support';
 import { useIntakePanel } from '../use-intake-panel';
@@ -29,7 +33,7 @@ describe('useIntakePanel', () => {
   it('refreshes the intake rows on mount', async () => {
     const source = createSource();
     renderHook(() => useIntakePanel(source));
-    await waitFor(() => expect(source.getSeasonAnimes).toHaveBeenCalled());
+    await waitFor(() => expect(source.readSeasonAnimes).toHaveBeenCalled());
   });
 
   it('keeps only editable rows (created rows leave intake) and counts unresolved + available', async () => {
@@ -38,7 +42,7 @@ describe('useIntakePanel', () => {
       { id: 'b', rawName: 'B', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'available', availableEpisodes: 2, animeId: '', section: '', sectionOrder: 0, grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
       { id: 'c', rawName: 'C', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'created', availableEpisodes: 0, animeId: 'anime-c', section: 'Sin ver', sectionOrder: 0, grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
     ];
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useIntakePanel(source));
 
     await waitFor(() => expect(result.current.editableRows).toHaveLength(2)); // a + b; c (created) excluded
@@ -51,7 +55,7 @@ describe('useIntakePanel', () => {
       { id: 'a', rawName: 'A', matchStatus: 'search_failed', matchedSlug: '', candidates: [], availability: 'waiting', availableEpisodes: 0, animeId: '', section: '', sectionOrder: 0, grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
       { id: 'b', rawName: 'B', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', availableEpisodes: 0, animeId: '', section: '', sectionOrder: 0, grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
     ];
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useIntakePanel(source));
 
     await waitFor(() => expect(result.current.editableRows).toHaveLength(2));
@@ -64,13 +68,13 @@ describe('useIntakePanel', () => {
     const subscribeProgress = vi.fn().mockReturnValue(() => undefined);
     const subscribeFinished = vi.fn().mockReturnValue(() => undefined);
     const source = createSource({
-      getSeasonAnimes: vi.fn().mockResolvedValue([seasonRow({ id: 'sa-1', rawName: 'Good Anime' })]),
+      readSeasonAnimes: vi.fn().mockResolvedValue([seasonRow({ id: 'sa-1', rawName: 'Good Anime' })]),
       subscribeMatchingStarted: subscribeStarted,
       subscribeMatchingProgress: subscribeProgress,
       subscribeMatchingFinished: subscribeFinished,
     });
     const { result } = renderHook(() => useIntakePanel(source));
-    await waitFor(() => expect(source.getSeasonAnimes).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(source.readSeasonAnimes).toHaveBeenCalledTimes(1));
     const started = subscribeStarted.mock.calls[0][0] as (notice: SeasonMatchingStartedNotice) => void;
     const progress = subscribeProgress.mock.calls[0][0] as (notice: SeasonMatchingProgressNotice) => void;
     const finished = subscribeFinished.mock.calls[0][0] as (notice: SeasonMatchingFinishedNotice) => void;
@@ -121,8 +125,9 @@ describe('useIntakePanel', () => {
   });
 
   it('onPickFolder records a per-row override that onCreate forwards for that row only', async () => {
-    const source = createSource({ pickFolder: vi.fn().mockResolvedValue('E:/Custom/Naruto S2') });
-    const { result } = renderHook(() => useIntakePanel(source));
+    const source = createSource();
+    const picker = { pickFolder: vi.fn().mockResolvedValue('E:/Custom/Naruto S2'), pickFile: vi.fn() };
+    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource(), picker));
 
     act(() => result.current.toggleSelect('sa-1'));
     act(() => result.current.toggleSelect('sa-2'));
@@ -141,17 +146,38 @@ describe('useIntakePanel', () => {
     const rows: SeasonAnimeRow[] = [
       { id: 'sa-1', rawName: 'Re:Zero', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'available', availableEpisodes: 1, animeId: '', section: '', sectionOrder: 0, grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
     ];
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const libraryRootSource = createLibraryRootSource('D:/Anime');
-    const { result } = renderHook(() => useIntakePanel(source, libraryRootSource));
+    const { client, wrapper } = createModulesTestWrapper(status('season', 'ready'), status('settings', 'ready'));
+    const { result } = renderHook(() => useIntakePanel(source, libraryRootSource), { wrapper });
 
-    await waitFor(() => expect(libraryRootSource.getLibraryRoot).toHaveBeenCalled());
     await waitFor(() => expect(result.current.folderPreviews['sa-1']).toBe('D:/Anime/Re Zero'));
+    expect(libraryRootSource.getLibraryRoot).toHaveBeenCalledTimes(1);
+    // The same cache entry the anime create form reads, so both share one library-root read.
+    expect(client.getQueryData(settingsKeys.key('library-root'))).toBe('D:/Anime');
+  });
+
+  it.each([
+    ['while the settings module starts', status('settings', 'starting'), 0],
+    ['once the library-root read failed', status('settings', 'ready'), 1],
+  ] as const)('shows no default folder preview %s', async (_case, settings, reads) => {
+    const rows: SeasonAnimeRow[] = [
+      { id: 'sa-1', rawName: 'Re:Zero', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'available', availableEpisodes: 1, animeId: '', section: '', sectionOrder: 0, grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
+    ];
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const libraryRootSource = { getLibraryRoot: vi.fn().mockRejectedValue(createBridgeError('internal', 'read settings failed')) };
+    const { wrapper } = createModulesTestWrapper(status('season', 'ready'), settings);
+    const { result } = renderHook(() => useIntakePanel(source, libraryRootSource), { wrapper });
+
+    await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
+    await waitFor(() => expect(libraryRootSource.getLibraryRoot).toHaveBeenCalledTimes(reads));
+    expect(result.current.folderPreviews).toEqual({});
   });
 
   it('ignores a cancelled folder picker (no override recorded)', async () => {
-    const source = createSource({ pickFolder: vi.fn().mockResolvedValue('') });
-    const { result } = renderHook(() => useIntakePanel(source));
+    const source = createSource();
+    const picker = { pickFolder: vi.fn().mockResolvedValue(''), pickFile: vi.fn() };
+    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource(), picker));
 
     act(() => result.current.toggleSelect('sa-1'));
     await act(async () => {
@@ -211,7 +237,7 @@ describe('useIntakePanel', () => {
       { id: 'a', rawName: 'Anime A', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', availableEpisodes: 0, animeId: '', section: '', sectionOrder: 0, grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
       { id: 'b', rawName: 'Anime B', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'created', availableEpisodes: 0, animeId: 'anime-b', section: 'Sin ver', sectionOrder: 0, grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
     ];
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useIntakePanel(source));
     await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
 
@@ -256,7 +282,7 @@ describe('useIntakePanel', () => {
       { id: 'a', rawName: 'Anime A', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'waiting', availableEpisodes: 0, animeId: '', section: '', sectionOrder: 0, grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
       { id: 'b', rawName: 'Anime B', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'available', availableEpisodes: 1, animeId: '', section: '', sectionOrder: 0, grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
     ];
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useIntakePanel(source));
 
     await waitFor(() => expect(result.current.availabilityPendingCount).toBe(1));

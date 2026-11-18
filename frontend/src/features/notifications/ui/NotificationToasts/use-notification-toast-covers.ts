@@ -1,15 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
+import type { AnimeCoverSource } from '../../../../shared/anime-cover/anime-cover.types';
 import type { AppNotificationRow } from '../../../../shared/contracts/app-notification.types';
-
-/**
- * The minimal cover-resolution port this hook depends on -- the same shape
- * `use-notification-detail-covers.ts` takes, so a test injects a fake without
- * touching the Wails-backed singleton.
- */
-export interface NotificationToastCoverSource {
-  readonly getAnimeCover?: (animeID: string) => Promise<{ readonly dataUrl?: string; readonly source: string }>;
-}
+import { BRIDGE_ANIME_SOURCE } from '../../../../shared/query/bridge-runtime/bridge-runtime.constants';
 
 /**
  * Resolves cover art for each `refType: 'anime'` row a toast is about, keyed
@@ -23,13 +15,15 @@ export interface NotificationToastCoverSource {
  * that lives for four seconds.
  *
  * A row never carries embedded image bytes (notification-center spec), which
- * is why the art is fetched here and not sent on the wire.
+ * is why the art is fetched here and not sent on the wire. Covers read through
+ * the `anime` module's port (`BRIDGE_ANIME_SOURCE`); a read the module rejects
+ * (starting, failed) records nothing, so the toast keeps the placeholder.
+ * @param rows The toast rows whose anime covers are resolved.
+ * @param source The port `getAnimeCover` is called through; its absence (a
+ * non-Wails context) records nothing.
+ * @returns The cover data URL per anime ref id resolved so far.
  */
-export function useNotificationToastCovers(
-  rows: readonly AppNotificationRow[],
-  coverSource: NotificationToastCoverSource | undefined = bridgeRuntimeSource,
-): ReadonlyMap<string, string> {
-  const source = coverSource ?? bridgeRuntimeSource;
+export function useNotificationToastCovers(rows: readonly AppNotificationRow[], source: AnimeCoverSource = BRIDGE_ANIME_SOURCE): ReadonlyMap<string, string> {
   // 1. Refs
   const requestedIdsRef = useRef<Set<string>>(new Set());
 

@@ -6,14 +6,14 @@ import {
   NOTIFICATION_NAVIGATE_EVENT_NAME,
   NOTIFICATION_SOURCE_STATE,
 } from './notification-source.constants';
-import type { NotificationSource } from './notification-source.types';
+import type { NotificationPushSource } from '../../shared/contracts/notification-push.types';
 import { createRuntimeSubscription } from '../wails-bindings.helpers';
 
 /**
  * Creates the singleton runtime-backed notification source. Browser contexts
  * degrade to a no-op subscription while still preserving the unsubscribe contract.
  */
-export function createNotificationSource(): NotificationSource {
+export function createNotificationSource(): NotificationPushSource {
   if (NOTIFICATION_SOURCE_STATE.sharedSource !== null) {
     return NOTIFICATION_SOURCE_STATE.sharedSource;
   }
@@ -62,15 +62,3 @@ export function createNotificationSource(): NotificationSource {
 
   return NOTIFICATION_SOURCE_STATE.sharedSource;
 }
-
-/**
- * Shared notification source singleton used by the app shell.
- *
- * All nine infrastructure source modules export their singleton from their
- * own `.helpers` file, so relocating just this one would diverge from every
- * sibling. It cannot move to `.constants.ts` either: that file holds the
- * state container this one imports, so the move would introduce a cycle.
- * The rule stays on for genuinely new violations; this one is suppressed in
- * place so the debt is visible rather than silently disabled repo-wide.
- */
-export const notificationSource = createNotificationSource(); // eslint-disable-line dharness/role-file-shape

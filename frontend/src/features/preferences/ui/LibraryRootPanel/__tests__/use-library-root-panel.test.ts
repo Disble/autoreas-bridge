@@ -4,7 +4,13 @@ import type { ModuleReadiness } from '../../../../../shared/contracts/readiness.
 import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
 import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
 import { status } from '../../../../../shared/query/test-support/readiness-source.test-support';
-import { LIBRARY_ROOT_ERROR_MESSAGE, LIBRARY_ROOT_SAVED_MESSAGE } from '../library-root-panel.constants';
+import type { PickerSource } from '../../../../../shared/contracts/picker.types';
+import {
+  LIBRARY_ROOT_ERROR_MESSAGE,
+  LIBRARY_ROOT_PICKER_FAILED_MESSAGE,
+  LIBRARY_ROOT_PICKER_TITLE,
+  LIBRARY_ROOT_SAVED_MESSAGE,
+} from '../library-root-panel.constants';
 import type { LibraryRootSource } from '../library-root-panel.types';
 import { useLibraryRootPanel } from '../use-library-root-panel';
 
@@ -37,29 +43,39 @@ function createSource(overrides: Partial<LibraryRootSource> = {}): LibraryRootSo
       return Promise.resolve();
     }),
     previewLibraryRootChange: vi.fn().mockResolvedValue(NO_MOVES),
-    pickFolder: vi.fn().mockResolvedValue(''),
     ...overrides,
   };
+}
+
+/**
+ * Builds the picker port double, cancelling unless a case says otherwise.
+ * @param pickFolder The folder-picker answer the case drives.
+ * @returns A picker port whose file picker is never used here.
+ */
+function createPicker(pickFolder = vi.fn().mockResolvedValue('')): PickerSource {
+  return { pickFolder, pickFile: vi.fn() };
 }
 
 /**
  * Renders the hook under a query wrapper whose `settings` module reports `settings`.
  * @param source The Settings port.
  * @param settings The settings module's readiness.
+ * @param pickerSource The folder picker port.
  * @returns The hook render and the readiness `emit`.
  */
-function renderPanel(source: LibraryRootSource, settings: ModuleReadiness = status('settings', 'ready')) {
+function renderPanel(source: LibraryRootSource, settings: ModuleReadiness = status('settings', 'ready'), pickerSource: PickerSource = createPicker()) {
   const { wrapper, emit } = createModulesTestWrapper(settings);
-  return { ...renderHook(() => useLibraryRootPanel({ source }), { wrapper }), emit };
+  return { ...renderHook(() => useLibraryRootPanel({ source, pickerSource }), { wrapper }), emit };
 }
 
 /**
  * Renders the hook and waits until the stored root is shown.
  * @param source The Settings port.
+ * @param pickerSource The folder picker port.
  * @returns The hook render.
  */
-async function renderLoaded(source: LibraryRootSource) {
-  const rendered = renderPanel(source);
+async function renderLoaded(source: LibraryRootSource, pickerSource: PickerSource = createPicker()) {
+  const rendered = renderPanel(source, status('settings', 'ready'), pickerSource);
   await waitFor(() => expect(rendered.result.current.view.kind).toBe('ready'));
   return rendered;
 }
@@ -209,15 +225,17 @@ describe('useLibraryRootPanel', () => {
   });
 
   it('fills the root from the folder picker', async () => {
-    const source = createSource({ getLibraryRoot: vi.fn().mockResolvedValue(''), pickFolder: vi.fn().mockResolvedValue('F:/Chosen') });
-    const { result } = await renderLoaded(source);
+    const picker = createPicker(vi.fn().mockResolvedValue('F:/Chosen'));
+    const { result } = await renderLoaded(createSource({ getLibraryRoot: vi.fn().mockResolvedValue('') }), picker);
 
     await act(async () => {
       await result.current.onBrowse();
     });
 
+    expect(picker.pickFolder).toHaveBeenCalledExactlyOnceWith(LIBRARY_ROOT_PICKER_TITLE);
     expect(result.current.root).toBe('F:/Chosen');
     expect(result.current.isDirty).toBe(true);
+    expect(toastMock.danger).not.toHaveBeenCalled();
   });
 
   it('ignores a cancelled folder picker', async () => {
@@ -229,6 +247,23 @@ describe('useLibraryRootPanel', () => {
 
     expect(result.current.root).toBe('D:/Anime');
     expect(result.current.isDirty).toBe(false);
+    expect(toastMock.danger).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['the bridge reason', createBridgeError('internal', 'shell: the folder dialog failed'), 'shell: the folder dialog failed'],
+    ['the fallback without a reason', createBridgeError('internal', ''), LIBRARY_ROOT_PICKER_FAILED_MESSAGE],
+  ])('keeps the root and toasts %s when the folder dialog fails', async (_name, failure, message) => {
+    const { result } = await renderLoaded(createSource(), createPicker(vi.fn().mockRejectedValue(failure)));
+
+    await act(async () => {
+      await result.current.onBrowse();
+    });
+
+    expect(result.current.root).toBe('D:/Anime');
+    expect(result.current.isDirty).toBe(false);
+    expect(result.current.errorMessage).toBe('');
+    expect(toastMock.danger).toHaveBeenCalledExactlyOnceWith(message);
   });
 
   it('surfaces an error and does not clear dirty when the save fails, then clears it on the next save', async () => {

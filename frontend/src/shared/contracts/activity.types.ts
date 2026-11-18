@@ -24,7 +24,7 @@ export interface ActivitySource {
  * Port of the Activity feed's reads (ADR-032 §4), served by the backend
  * `observability` module like `ActivitySource`; the Wails adapter is
  * `createActivityFeedSource` (`infrastructure/bridge-runtime-source/activity-feed-source.helpers.ts`).
- * Live rows come from `HistorySource.subscribeRecorder`.
+ * Live rows come from `ActivityRecorderSource.subscribeRecorder` (`activity-recorder.types.ts`).
  */
 export interface ActivityFeedSource {
   /** Reads one feed page. */

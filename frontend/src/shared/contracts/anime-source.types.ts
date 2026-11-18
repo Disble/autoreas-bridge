@@ -36,3 +36,15 @@ export interface AnimeSource {
   /** One saved cover as a data URL, or the placeholder signal for an anime without one. */
   readonly getAnimeCover: (animeId: string) => Promise<AnimeCoverResult>;
 }
+
+/**
+ * The anime module's cover preview, served by the same adapter as
+ * `AnimeSource` (`BRIDGE_ANIME_SOURCE`): a cover value typed in the Editor or
+ * the create form (a URL or an on-disk path) as a data URL, or the placeholder
+ * signal for an empty value. A failure rejects with a `BridgeError` like the
+ * reads of `AnimeSource`, never with a placeholder.
+ */
+export interface AnimeCoverPreviewSource {
+  /** One cover value as a data URL, or the placeholder signal for an empty one. */
+  readonly previewAnimeCover: (value: string) => Promise<AnimeCoverResult>;
+}

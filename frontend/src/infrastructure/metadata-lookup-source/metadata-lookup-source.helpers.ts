@@ -10,7 +10,7 @@ import { hasGoBinding, waitForBindings } from '../wails-bindings.helpers';
 
 /**
  * Creates the singleton runtime-backed metadata lookup source with safe
- * degraded defaults (mirrors `createPreferencesSource`). Every call waits
+ * degraded defaults. Every call waits
  * for its own Wails binding to attach -- `SearchMyAnimeList`/
  * `GetMyAnimeListDetail` are generated bindings, so calling them before
  * `window.go.desktop.App` exists throws; a feature must never import them

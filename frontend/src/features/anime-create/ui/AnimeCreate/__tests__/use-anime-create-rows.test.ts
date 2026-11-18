@@ -1,14 +1,35 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { PickerSource } from '../../../../../shared/contracts/picker.types';
 import type { AnimeMetadataSelection } from '../../../../../shared/metadata-lookup/metadata-lookup.types';
+import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
+import { BRIDGE_METADATA_LOOKUP_SOURCE } from '../../../../../shared/query/bridge-runtime/bridge-runtime.constants';
+import { ANIME_CREATE_PICKER_FAILED_MESSAGE } from '../anime-create.constants';
 import { useAnimeCreateRows } from '../use-anime-create-rows';
 
-vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
-  bridgeRuntimeSource: {
-    pickFolder: vi.fn(),
-    pickFile: vi.fn(),
-  },
-}));
+/** The toast spies a failed dialog reports through. */
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), info: vi.fn(), warning: vi.fn(), danger: vi.fn() }));
+
+vi.mock('@heroui/react', () => ({ toast: toastMock }));
+
+/**
+ * Builds a picker port whose two dialogs answer with `answer`.
+ * @param answer What both dialogs settle with.
+ * @returns The fake port.
+ */
+function pickerAnswering(answer: () => Promise<string>): PickerSource {
+  return { pickFolder: vi.fn(answer), pickFile: vi.fn(answer) };
+}
+
+/**
+ * Lets the picker's answer land.
+ */
+async function flushPicker() {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
 
 describe('useAnimeCreateRows -- metadata autofill (SDD-70 slice 6)', () => {
   afterEach(() => {
@@ -162,6 +183,60 @@ describe('useAnimeCreateRows -- metadata autofill (SDD-70 slice 6)', () => {
       expect(row?.page).toBe('https://example.test/bleach');
       expect(row?.folder).toBe('D:\\Anime\\Manual');
       expect(row?.episodesWatched).toBe('12');
+    });
+  });
+
+  it('hands every row the shared MyAnimeList lookup port', () => {
+    const { result } = renderHook(() => useAnimeCreateRows('D:\Anime'));
+
+    expect(result.current.metadataLookupSource).toBe(BRIDGE_METADATA_LOOKUP_SOURCE);
+  });
+
+  describe('folder and cover pickers -- the shell picker port', () => {
+    it('writes the picked folder and cover path into the targeted row', async () => {
+      const picker = pickerAnswering(() => Promise.resolve('D:\Anime\Frieren'));
+      const { result } = renderHook(() => useAnimeCreateRows('D:\Anime', picker));
+      const draftId = result.current.rows[0].draftId;
+
+      act(() => result.current.onBrowseFolder(draftId));
+      act(() => result.current.onBrowseCover(draftId));
+      await flushPicker();
+
+      expect(picker.pickFolder).toHaveBeenCalledExactlyOnceWith('Select anime folder');
+      expect(picker.pickFile).toHaveBeenCalledExactlyOnceWith('Select cover image');
+      expect(result.current.rows[0]).toMatchObject({ folder: 'D:\Anime\Frieren', folderManual: true, coverType: 'image', coverPath: 'D:\Anime\Frieren' });
+      expect(toastMock.danger).not.toHaveBeenCalled();
+    });
+
+    it('changes nothing and reports nothing when the user cancels a dialog', async () => {
+      const picker = pickerAnswering(() => Promise.resolve(''));
+      const { result } = renderHook(() => useAnimeCreateRows('D:\Anime', picker));
+      const before = result.current.rows;
+
+      act(() => result.current.onBrowseFolder(before[0].draftId));
+      act(() => result.current.onBrowseCover(before[0].draftId));
+      await flushPicker();
+
+      expect(result.current.rows).toBe(before);
+      expect(toastMock.danger).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['the bridge reason', createBridgeError('internal', 'shell: the folder dialog failed'), 'shell: the folder dialog failed'],
+      ['the generic message for an uncoded failure', new Error('boom'), ANIME_CREATE_PICKER_FAILED_MESSAGE],
+    ])('reports a failed dialog with %s and leaves the row unchanged', async (_label, failure, message) => {
+      const picker = pickerAnswering(() => Promise.reject(failure));
+      const { result } = renderHook(() => useAnimeCreateRows('D:\Anime', picker));
+      const before = result.current.rows;
+
+      act(() => result.current.onBrowseFolder(before[0].draftId));
+      act(() => result.current.onBrowseCover(before[0].draftId));
+      await flushPicker();
+
+      expect(result.current.rows).toBe(before);
+      expect(toastMock.danger).toHaveBeenCalledTimes(2);
+      expect(toastMock.danger).toHaveBeenNthCalledWith(1, message);
+      expect(toastMock.danger).toHaveBeenNthCalledWith(2, message);
     });
   });
 });

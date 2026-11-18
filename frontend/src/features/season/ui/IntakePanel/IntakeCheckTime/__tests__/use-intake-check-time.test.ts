@@ -1,72 +1,100 @@
 import { Time } from '@internationalized/date';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CHECK_TIME_EMPTY_MESSAGE } from '../intake-check-time.constants';
+import type { ModuleReadiness } from '../../../../../../shared/contracts/readiness.types';
+import { createBridgeError } from '../../../../../../shared/query/bridge-error/bridge-error.helpers';
+import { createModulesTestWrapper } from '../../../../../../shared/query/test-support/bridge-modules.test-support';
+import { CHECK_TIME_EMPTY_MESSAGE, CHECK_TIME_SAVE_FAILED_MESSAGE } from '../intake-check-time.constants';
 import type { CheckTimePort } from '../intake-check-time.types';
 import { useIntakeCheckTime } from '../use-intake-check-time';
 
+/** Toast spy a rejected save reports through. */
+const toastMock = vi.hoisted(() => ({ danger: vi.fn() }));
+
+vi.mock('@heroui/react', () => ({ toast: toastMock }));
+
 /**
- * Builds a fake check time port.
+ * Builds a fake settings port for the check time.
  * @param stored The time the fake backend reports.
- * @param saveStatus The status every save resolves with.
- * @returns The port with spy-able calls.
+ * @returns The port with spy-able calls; every save resolves.
  */
-function fakePort(stored = '21:00', saveStatus = 'ok') {
+function fakePort(stored = '21:00') {
   return {
-    getCheckTime: vi.fn<CheckTimePort['getCheckTime']>().mockResolvedValue(stored),
-    setCheckTime: vi.fn<CheckTimePort['setCheckTime']>().mockResolvedValue(saveStatus),
+    getSeasonCheckTime: vi.fn<CheckTimePort['getSeasonCheckTime']>().mockResolvedValue(stored),
+    setSeasonCheckTime: vi.fn<CheckTimePort['setSeasonCheckTime']>().mockResolvedValue(undefined),
   };
 }
 
 /**
- * Mounts the hook and waits for the stored time to load.
+ * Mounts the hook over a settings module in the given state.
+ * @param port The fake port.
+ * @param settings The settings module's readiness.
+ * @returns The hook handle.
+ */
+function renderCheckTime(port: CheckTimePort, settings: Omit<ModuleReadiness, 'module'> = { state: 'ready' }) {
+  return renderHook(() => useIntakeCheckTime(port), {
+    wrapper: createModulesTestWrapper({ module: 'settings', ...settings }).wrapper,
+  });
+}
+
+/**
+ * Mounts the hook over a ready settings module and waits for the stored time.
  * @param port The fake port.
  * @returns The hook handle.
  */
 async function renderLoaded(port: CheckTimePort) {
-  const hook = renderHook(() => useIntakeCheckTime(port));
-  await waitFor(() => expect(hook.result.current.checkTime).not.toBeNull());
+  const hook = renderCheckTime(port);
+  await waitFor(() => expect(hook.result.current.view.kind).toBe('ready'));
   return hook;
 }
 
 describe('useIntakeCheckTime', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('loads the stored check time closed', async () => {
     const { result } = await renderLoaded(fakePort('06:15'));
-    expect(result.current.checkTime).toBe('06:15');
+    expect(result.current.view).toEqual({ kind: 'ready', data: '06:15', isRefreshing: false });
     expect(result.current.isOpen).toBe(false);
   });
 
-  it('stays unknown when the runtime has no time to report', async () => {
-    const port = fakePort('');
-    const { result } = renderHook(() => useIntakeCheckTime(port));
-    await waitFor(() => expect(port.getCheckTime).toHaveBeenCalled());
-    expect(result.current.checkTime).toBeNull();
-  });
+  it('stays loading without a read while the settings module starts', async () => {
+    const port = fakePort();
+    const { result } = renderCheckTime(port, { state: 'starting' });
 
-  it('reads from a replaced source and ignores the superseded read', async () => {
-    let finishStale: (hhmm: string) => void = () => undefined;
-    const stale = fakePort();
-    stale.getCheckTime.mockReturnValue(new Promise((resolve) => (finishStale = resolve)));
-    const fresh = fakePort('06:15');
-    const { result, rerender } = renderHook(({ port }) => useIntakeCheckTime(port), { initialProps: { port: stale as CheckTimePort } });
-
-    rerender({ port: fresh });
-    await waitFor(() => expect(result.current.checkTime).toBe('06:15'));
     await act(async () => {
-      finishStale('21:00');
       await Promise.resolve();
     });
 
-    expect(result.current.checkTime).toBe('06:15');
+    expect(result.current.view).toEqual({ kind: 'loading' });
+    expect(port.getSeasonCheckTime).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed settings module as a failure, never as a loaded time', async () => {
+    const port = fakePort();
+    const { result } = renderCheckTime(port, { state: 'failed', reason: 'settings store corrupt' });
+
+    await waitFor(() => expect(result.current.view.kind).toBe('failure'));
+    expect(result.current.view).toMatchObject({ code: 'failed_precondition' });
+    expect(port.getSeasonCheckTime).not.toHaveBeenCalled();
+  });
+
+  it('reports a rejected read as a failure carrying the bridge message', async () => {
+    const port = fakePort();
+    port.getSeasonCheckTime.mockRejectedValue(createBridgeError('internal', 'read settings: disk I/O error'));
+    const { result } = renderCheckTime(port);
+
+    await waitFor(() => expect(result.current.view).toEqual({ kind: 'failure', code: 'internal', message: 'read settings: disk I/O error' }));
   });
 
   it('opens with the saved time in the field and no stale error', async () => {
-    const port = fakePort('21:00', 'settings store unavailable');
-    const { result } = await renderLoaded(port);
+    const { result } = await renderLoaded(fakePort('21:00'));
     act(() => result.current.onOpenChange(true));
-    await act(() => result.current.onSave());
-    expect(result.current.errorMessage).toBe('settings store unavailable');
+    act(() => result.current.onDraftChange(null));
+    act(() => result.current.onSave());
+    expect(result.current.errorMessage).toBe(CHECK_TIME_EMPTY_MESSAGE);
 
     act(() => result.current.onOpenChange(false));
     act(() => result.current.onDraftChange(new Time(5, 0)));
@@ -77,32 +105,38 @@ describe('useIntakeCheckTime', () => {
     expect(result.current.errorMessage).toBeUndefined();
   });
 
-  it('saves the edited time, shows it and closes', async () => {
+  it('saves the edited time, shows it re-read and closes', async () => {
     const port = fakePort('21:00');
     const { result } = await renderLoaded(port);
     act(() => result.current.onOpenChange(true));
     act(() => result.current.onDraftChange(new Time(6, 15)));
+    port.getSeasonCheckTime.mockResolvedValue('06:15');
 
-    await act(() => result.current.onSave());
+    act(() => result.current.onSave());
 
-    expect(port.setCheckTime).toHaveBeenCalledWith('06:15');
-    expect(result.current.checkTime).toBe('06:15');
-    expect(result.current.isOpen).toBe(false);
+    await waitFor(() => expect(result.current.isOpen).toBe(false));
+    expect(port.setSeasonCheckTime).toHaveBeenCalledExactlyOnceWith('06:15');
+    await waitFor(() => expect(result.current.view).toMatchObject({ kind: 'ready', data: '06:15' }));
     expect(result.current.isSaving).toBe(false);
+    expect(toastMock.danger).not.toHaveBeenCalled();
   });
 
-  it('keeps the popover open with the failure and the old time', async () => {
-    const port = fakePort('21:00', 'settings store unavailable');
+  it.each([
+    ['the bridge message', createBridgeError('invalid_argument', 'invalid time "9:00": use HH:MM (00:00-23:59)'), 'invalid time "9:00": use HH:MM (00:00-23:59)'],
+    ['the fallback without one', new Error(''), CHECK_TIME_SAVE_FAILED_MESSAGE],
+  ])('toasts a rejected save with %s and keeps the popover open on the old time', async (_case, failure, expected) => {
+    const port = fakePort('21:00');
+    port.setSeasonCheckTime.mockRejectedValue(failure);
     const { result } = await renderLoaded(port);
     act(() => result.current.onOpenChange(true));
     act(() => result.current.onDraftChange(new Time(6, 15)));
 
-    await act(() => result.current.onSave());
+    act(() => result.current.onSave());
 
+    await waitFor(() => expect(toastMock.danger).toHaveBeenCalledExactlyOnceWith(expected));
     expect(result.current.isOpen).toBe(true);
-    expect(result.current.errorMessage).toBe('settings store unavailable');
-    expect(result.current.checkTime).toBe('21:00');
-    expect(result.current.isSaving).toBe(false);
+    expect(result.current.view).toMatchObject({ kind: 'ready', data: '21:00' });
+    await waitFor(() => expect(result.current.isSaving).toBe(false));
   });
 
   it('refuses an incomplete field without calling the backend', async () => {
@@ -111,29 +145,25 @@ describe('useIntakeCheckTime', () => {
     act(() => result.current.onOpenChange(true));
     act(() => result.current.onDraftChange(null));
 
-    await act(() => result.current.onSave());
+    act(() => result.current.onSave());
 
-    expect(port.setCheckTime).not.toHaveBeenCalled();
+    expect(port.setSeasonCheckTime).not.toHaveBeenCalled();
     expect(result.current.errorMessage).toBe(CHECK_TIME_EMPTY_MESSAGE);
   });
 
   it('reports saving while the backend call is in flight', async () => {
     const port = fakePort('21:00');
-    let finish: (status: string) => void = () => undefined;
-    port.setCheckTime.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    let finish: () => void = () => undefined;
+    port.setSeasonCheckTime.mockReturnValue(new Promise<void>((resolve) => (finish = resolve)));
     const { result } = await renderLoaded(port);
     act(() => result.current.onOpenChange(true));
 
-    let pending: Promise<void> = Promise.resolve();
-    act(() => {
-      pending = result.current.onSave();
-    });
-    expect(result.current.isSaving).toBe(true);
+    act(() => result.current.onSave());
+    await waitFor(() => expect(result.current.isSaving).toBe(true));
 
     await act(async () => {
-      finish('ok');
-      await pending;
+      finish();
     });
-    expect(result.current.isSaving).toBe(false);
+    await waitFor(() => expect(result.current.isSaving).toBe(false));
   });
 });

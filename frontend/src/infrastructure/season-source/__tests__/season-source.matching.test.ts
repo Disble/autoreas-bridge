@@ -168,7 +168,7 @@ describe('season matching source seam', () => {
     window.go = { desktop: { App: { SearchSeasonProviders: searchMock } } } as never;
     const { createSeasonSource } = await import('../season-source.helpers');
 
-    const search = createSeasonSource().searchProviders?.('Ao Ashi');
+    const search = createSeasonSource().fetchProviderSearch?.('Ao Ashi');
     await vi.advanceTimersByTimeAsync(5000);
 
     await expect(search).resolves.toEqual({ status: 'ok', pages: [page] });
@@ -195,15 +195,5 @@ describe('season matching source seam', () => {
     await vi.advanceTimersByTimeAsync(5000);
 
     await expect(restore).resolves.toBe(SEASON_RUNTIME_UNAVAILABLE);
-  });
-
-  it('degrades the provider search to an unavailable status with no pages when no binding exists', async () => {
-    const { createSeasonSource } = await import('../season-source.helpers');
-    const { SEASON_RUNTIME_UNAVAILABLE } = await import('../season-source.constants');
-
-    const search = createSeasonSource().searchProviders?.('Ao Ashi');
-    await vi.advanceTimersByTimeAsync(5000);
-
-    await expect(search).resolves.toEqual({ status: SEASON_RUNTIME_UNAVAILABLE, pages: [] });
   });
 });

@@ -273,11 +273,15 @@ drawer read by id (`useActivityRead`, `useDrawerFeedRead`); "Pin this moment" is
   `retention` declares.
 - **The battery does not see mobile incidents.** The POC simulator triggers only on `device_sync_diagnostics`,
   so it cannot measure what a missing incident costs (`docs/observability/mobile-reports.md`).
-- **Activity's live refresh is not an invalidation.** `use-activity-live-refresh.ts` still subscribes to
-  `activity.recorder` through `history-source.helpers.ts` (`EventsOn`) and refetches the overview and the
-  first page after a 1 s debounce. `BRIDGE_INVALIDATIONS` has no debounce, so moving it there would
-  refetch on every recorder row. Older feed pages are read by the hook through the cursor, outside the query
-  cache; `shared/query` has no infinite query. Both stay in `frontend/async-state-baseline.json`.
+- **Activity's live refresh is not an invalidation.** `use-activity-live-refresh.ts` subscribes to
+  `activity.recorder` through the recorder port (`ActivityRecorderSource`,
+  `shared/contracts/activity-recorder.types.ts`; adapter `infrastructure/activity-recorder-source/`,
+  built once as `BRIDGE_ACTIVITY_RECORDER_SOURCE`) and refetches the overview and the first page after a
+  1 s debounce. `BRIDGE_INVALIDATIONS` has no debounce, so moving it there would refetch on every
+  recorder row. Older feed pages are read by the hook through the cursor, outside the query cache;
+  `shared/query` has no infinite query. The subscription, and the run story's in
+  `use-run-history-story.ts`, are sanctioned exceptions in `frontend/async-state-exceptions.json`, not
+  baseline debt.
 - **Downloads still reach the Activity port through the feature.** `features/download` reads a run story
   through `createActivitySource()` (`features/activity/activity-source/activity-source.helpers.ts`), which
   now returns the bridge runtime's adapter; the Downloads slice moves that call.
