@@ -35,10 +35,15 @@ describe('NotificationDetailRow', () => {
     expect(screen.queryByTestId('notification-detail-row-actions')).not.toBeInTheDocument();
   });
 
-  it('renders the actions block only once the row actually carries at least one action', () => {
+  it('renders the actions block for an unrefused action with no refusal message', () => {
     render(<NotificationDetailRow actions={[buildAction()]} notificationId={1} row={buildRow()} />, { wrapper: notificationsQueryWrapper().wrapper });
 
     expect(screen.getByTestId('notification-detail-row-actions')).toBeInTheDocument();
+    expect(screen.queryByText('The thing this action pointed at is gone.')).not.toBeInTheDocument();
+    // Presence, not just text content: an empty <span> would pass the text
+    // assertion above too, so this is the check that actually proves the
+    // "no message" branch renders nothing at all.
+    expect(screen.queryByTestId('notification-detail-row-refusal-message')).not.toBeInTheDocument();
   });
 
   it('renders a refused action inline with its message and a permanently disabled button', () => {
@@ -47,16 +52,6 @@ describe('NotificationDetailRow', () => {
     const button = screen.getByRole('button', { name: 'Run this anime again' });
     expect(button).toBeDisabled();
     expect(screen.getByText('The thing this action pointed at is gone.')).toBeInTheDocument();
-  });
-
-  it('renders no inline refusal message for an action that has not been refused', () => {
-    render(<NotificationDetailRow actions={[buildAction()]} notificationId={1} row={buildRow()} />, { wrapper: notificationsQueryWrapper().wrapper });
-
-    expect(screen.queryByText('The thing this action pointed at is gone.')).not.toBeInTheDocument();
-    // Presence, not just text content: an empty <span> would pass the text
-    // assertion above too, so this is the check that actually proves the
-    // "no message" branch renders nothing at all.
-    expect(screen.queryByTestId('notification-detail-row-refusal-message')).not.toBeInTheDocument();
   });
 
   // Wrapped in a router because the collapsed line now carries the artboard's
