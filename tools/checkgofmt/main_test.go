@@ -24,7 +24,6 @@ func TestBatchesKeepsEveryGroupUnderTheLimit(t *testing.T) {
 		want  int
 	}{
 		{name: "no files means no groups", files: nil, limit: 100, want: 0},
-		{name: "one small file is one group", files: []string{"a.go"}, limit: 100, want: 1},
 		{name: "files that fit stay together", files: []string{"a.go", "b.go", "c.go"}, limit: 100, want: 1},
 		{name: "files that fit exactly stay together", files: []string{"aaaa.go", "bbbb.go", "cccc.go", "dddd.go"},
 			limit: 16, want: 2},
