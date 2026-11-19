@@ -181,20 +181,17 @@ func TestReportFrontendErrorWithoutALogger(t *testing.T) {
 func TestReportFrontendErrorIsRecordedWhateverTheModulesState(t *testing.T) {
 	t.Parallel()
 
-	for _, state := range []lifecycle.State{lifecycle.StateStarting, lifecycle.StateFailed} {
-		t.Run(string(state), func(t *testing.T) {
-			t.Parallel()
-			app, memLogger := newFrontendErrorTestApp(t)
-			if state == lifecycle.StateFailed {
-				app.moduleSet().writer.FailStarting("bridge database failed to open: locked")
-			}
+	app, memLogger := newFrontendErrorTestApp(t)
+	for i, state := range []lifecycle.State{lifecycle.StateStarting, lifecycle.StateFailed} {
+		if state == lifecycle.StateFailed {
+			app.moduleSet().writer.FailStarting("bridge database failed to open: locked")
+		}
 
-			if err := app.ReportFrontendError(FrontendErrorReport{Kind: "error", Message: "early"}); err != nil {
-				t.Fatalf("ReportFrontendError = %v, want nil", err)
-			}
-			if entries := memLogger.Recent(); len(entries) != 1 {
-				t.Fatalf("logged %d entries, want 1", len(entries))
-			}
-		})
+		if err := app.ReportFrontendError(FrontendErrorReport{Kind: "error", Message: "early"}); err != nil {
+			t.Fatalf("%s: ReportFrontendError = %v, want nil", state, err)
+		}
+		if entries := memLogger.Recent(); len(entries) != i+1 {
+			t.Fatalf("%s: logged %d entries, want %d", state, len(entries), i+1)
+		}
 	}
 }

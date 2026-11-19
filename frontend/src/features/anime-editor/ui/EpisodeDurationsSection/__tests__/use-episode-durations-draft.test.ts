@@ -1,9 +1,12 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import { waitFor } from '../../AnimeEditorWorkspace/__tests__/wait-for.test-support';
 import { describe, expect, it, vi } from 'vitest';
-import type { EpisodeDurationRuntimeSource, EpisodeDurationSaveResult } from '../../../../../shared/contracts/episode-durations.types';
+import type { EpisodeDurationRuntimeSource, EpisodeDurationSaveResult, EpisodeDurationSection } from '../../../../../shared/contracts/episode-durations.types';
 import type { EpisodeDurationEdit } from '../../../../../shared/contracts/anime.types';
 import { createBridgeQueryTestWrapper } from '../../../../../shared/query/test-support/bridge-query.test-support';
 import { EPISODE_DURATIONS_SAVE_FAILED_MESSAGE } from '../episode-durations-section.constants';
+import { toEpisodeDurationRowViews } from '../episode-durations-section.helpers';
+import { useEpisodeDurationForms } from '../use-episode-duration-forms';
 import { useEpisodeDurationsDraft } from '../use-episode-durations-draft';
 
 /** One unsaved hand value for episode 4. */
@@ -54,9 +57,12 @@ describe('useEpisodeDurationsDraft', () => {
     expect(result.current.isSaving).toBe(false);
   });
 
-  it('keeps the draft and shows the message when the save fails', async () => {
-    const save = vi.fn().mockResolvedValue({ outcome: 'error', message: 'disk full', changed: 0 });
-    const { result } = renderDraft(createSource(save));
+  it('keeps the draft with the failure message, a generic message when the failure has none, or the thrown message; discards the edits and the error; and starts empty for another anime', async () => {
+    const save = vi.fn()
+      .mockResolvedValueOnce({ outcome: 'error', message: 'disk full', changed: 0 })
+      .mockResolvedValueOnce({ outcome: 'error', changed: 0 })
+      .mockRejectedValueOnce(new Error('offline'));
+    const { result, rerender } = renderDraft(createSource(save));
 
     await act(async () => { await result.current.onSave(); });
 
@@ -64,13 +70,6 @@ describe('useEpisodeDurationsDraft', () => {
     expect(result.current.revision).toBe(0);
     expect(result.current.saveError).toBe('disk full');
     expect(result.current.isSaving).toBe(false);
-  });
-
-  it('keeps the draft with a generic message when the failure has none, and with the thrown message when the binding throws', async () => {
-    const save = vi.fn()
-      .mockResolvedValueOnce({ outcome: 'error', changed: 0 })
-      .mockRejectedValueOnce(new Error('offline'));
-    const { result } = renderDraft(createSource(save));
 
     await act(async () => { await result.current.onSave(); });
     expect(result.current.saveError).toBe(EPISODE_DURATIONS_SAVE_FAILED_MESSAGE);
@@ -80,6 +79,17 @@ describe('useEpisodeDurationsDraft', () => {
     expect(answer).toEqual({ outcome: 'error', message: 'offline', changed: 0 });
     expect(result.current.saveError).toBe('offline');
     expect(result.current.edits).toEqual(EDITS);
+
+    // Discard drops the edits and the error.
+    act(() => result.current.onDiscard());
+    expect(result.current.edits).toEqual([]);
+    expect(result.current.saveError).toBeUndefined();
+
+    // Another anime starts empty.
+    act(() => result.current.onEditsChange(EDITS));
+    rerender({ animeId: 'anime-2' });
+    expect(result.current.edits).toEqual([]);
+    expect(result.current.isDirty).toBe(false);
   });
 
   it('marks the draft as saving while the save is in flight and clears an old error', async () => {
@@ -115,21 +125,6 @@ describe('useEpisodeDurationsDraft', () => {
     expect(save).not.toHaveBeenCalled();
   });
 
-  it('discards the edits and the error, and starts empty for another anime', async () => {
-    const save = vi.fn().mockResolvedValue({ outcome: 'error', message: 'disk full', changed: 0 });
-    const { result, rerender } = renderDraft(createSource(save));
-    await act(async () => { await result.current.onSave(); });
-
-    act(() => result.current.onDiscard());
-    expect(result.current.edits).toEqual([]);
-    expect(result.current.saveError).toBeUndefined();
-
-    act(() => result.current.onEditsChange(EDITS));
-    rerender({ animeId: 'anime-2' });
-    expect(result.current.edits).toEqual([]);
-    expect(result.current.isDirty).toBe(false);
-  });
-
   it('drops the answer of a save that settles after the Editor moved to another anime', async () => {
     let settle: (result: EpisodeDurationSaveResult) => void = () => undefined;
     const save = vi.fn(() => new Promise<EpisodeDurationSaveResult>((resolve) => { settle = resolve; }));
@@ -145,5 +140,129 @@ describe('useEpisodeDurationsDraft', () => {
 
     expect(result.current.edits).toEqual(EDITS);
     expect(result.current.revision).toBe(0);
+  });
+});
+
+/** Episodes 4 (23 min, measured) and 5 (24 min, measured) of a found TV folder. */
+const SECTION: EpisodeDurationSection = {
+  folderStatus: 'found', beyondTotal: [], tv: true,
+  rows: [
+    { episode: 4, durationMs: 23 * 60_000, minutes: 23, long: false, source: 'measured' },
+    { episode: 5, durationMs: 24 * 60_000, minutes: 24, long: false, source: 'measured' },
+  ],
+};
+
+/** The rendered rows of {@link SECTION} with no unsaved edit. */
+const ROWS = toEpisodeDurationRowViews(SECTION, []);
+
+/**
+ * Renders the forms hook over the section's rows.
+ * @param edits The draft's unsaved edits.
+ * @returns The hook result and its edits spy.
+ */
+function renderForms(edits: readonly EpisodeDurationEdit[] = []) {
+  const onEditsChange = vi.fn();
+  const hook = renderHook(() => useEpisodeDurationForms({ rows: ROWS, edits, onEditsChange, isTV: true }));
+  return { ...hook, onEditsChange };
+}
+
+describe('useEpisodeDurationForms edit modal', () => {
+  it('refuses minutes that are not a whole number above zero and cancels without a change, opens prefilled with the current minutes and applies a manual value, and clears a stored duration with a clear edit', () => {
+    const { result, onEditsChange } = renderForms();
+
+    act(() => result.current.onOpenEdit(4));
+    act(() => result.current.onEditMinutesChange('0'));
+    act(() => result.current.onApplyEdit());
+    expect(onEditsChange).not.toHaveBeenCalled();
+    expect(result.current.editView?.canApply).toBe(false);
+    act(() => result.current.onCloseEdit());
+
+    expect(result.current.editForm).toBeUndefined();
+    expect(onEditsChange).not.toHaveBeenCalled();
+
+    act(() => result.current.onOpenEdit(4));
+    expect(result.current.editForm).toEqual({ episode: 4, minutes: '23' });
+    expect(result.current.editView).toEqual({ title: 'Episode 04 duration', minutes: '23', sourceLine: 'Measured from the file', canApply: true, canClear: true });
+    act(() => result.current.onEditMinutesChange('46'));
+    act(() => result.current.onApplyEdit());
+
+    expect(onEditsChange).toHaveBeenLastCalledWith([{ episode: 4, durationMs: 46 * 60_000, source: 'manual', clear: false }]);
+    expect(result.current.editForm).toBeUndefined();
+
+    act(() => result.current.onOpenEdit(5));
+    act(() => result.current.onClearEdit());
+
+    expect(onEditsChange).toHaveBeenLastCalledWith([{ episode: 5, durationMs: 0, source: 'manual', clear: true }]);
+    expect(result.current.editForm).toBeUndefined();
+  });
+});
+
+describe('useEpisodeDurationForms add modal', () => {
+  it('closes without a change, blocks a number that already has a duration and switches to editing it, and prefills the next episode and adds a manual value', () => {
+    const { result, onEditsChange } = renderForms();
+
+    act(() => result.current.onOpenAdd());
+    act(() => result.current.onCloseAdd());
+
+    expect(result.current.addForm).toBeUndefined();
+    expect(onEditsChange).not.toHaveBeenCalled();
+
+    act(() => result.current.onOpenAdd());
+    act(() => result.current.onAddEpisodeChange('5'));
+    act(() => result.current.onAddMinutesChange('45'));
+    act(() => result.current.onApplyAdd());
+    expect(onEditsChange).not.toHaveBeenCalled();
+    expect(result.current.addView?.duplicateMessage).toBe('Episode 5 already has 24 min.');
+    act(() => result.current.onEditInstead());
+
+    expect(result.current.addForm).toBeUndefined();
+    expect(result.current.editForm).toEqual({ episode: 5, minutes: '24' });
+
+    act(() => result.current.onCloseEdit());
+    act(() => result.current.onOpenAdd());
+    expect(result.current.addForm).toEqual({ episode: '6', minutes: '' });
+    act(() => result.current.onAddMinutesChange('62'));
+    expect(result.current.addView).toEqual(expect.objectContaining({ isLongHintVisible: true, canAdd: true }));
+    act(() => result.current.onApplyAdd());
+
+    expect(onEditsChange).toHaveBeenCalledExactlyOnceWith([{ episode: 6, durationMs: 62 * 60_000, source: 'manual', clear: false }]);
+    expect(result.current.addForm).toBeUndefined();
+  });
+});
+
+describe('useEpisodeDurationForms with nothing open', () => {
+  it('ignores typing, Apply, Clear, Add and Edit instead while no modal is open', () => {
+    const { result, onEditsChange } = renderForms();
+
+    act(() => {
+      result.current.onEditMinutesChange('30');
+      result.current.onAddEpisodeChange('9');
+      result.current.onAddMinutesChange('30');
+    });
+    act(() => {
+      result.current.onApplyEdit();
+      result.current.onClearEdit();
+      result.current.onApplyAdd();
+      result.current.onEditInstead();
+    });
+
+    expect(result.current.editForm).toBeUndefined();
+    expect(result.current.editView).toBeUndefined();
+    expect(result.current.addForm).toBeUndefined();
+    expect(result.current.addView).toBeUndefined();
+    expect(onEditsChange).not.toHaveBeenCalled();
+  });
+
+  it('opens Edit and Add from the rows the table lists now', () => {
+    const onEditsChange = vi.fn();
+    const later = toEpisodeDurationRowViews({ ...SECTION, rows: [...SECTION.rows, { episode: 9, durationMs: 30 * 60_000, minutes: 30, long: false, source: 'manual' }] }, []);
+    const { result, rerender } = renderHook((rows: typeof ROWS) => useEpisodeDurationForms({ rows, edits: [], onEditsChange, isTV: true }), { initialProps: ROWS });
+
+    rerender(later);
+    act(() => result.current.onOpenEdit(9));
+    act(() => result.current.onOpenAdd());
+
+    expect(result.current.editForm).toEqual({ episode: 9, minutes: '30' });
+    expect(result.current.addForm).toEqual({ episode: '10', minutes: '' });
   });
 });

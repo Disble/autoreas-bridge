@@ -33,15 +33,16 @@ func readyAnimeApp(services animeServices) *App {
 	return animeApp(services, lifecycle.StateReady)
 }
 
-// assertAnimeFailure checks a read failed with wantCode and wantMsg and answered its zero value.
-func assertAnimeFailure(t *testing.T, value any, err error, wantCode apperr.Code, wantMsg string) {
+// assertAnimeFailure checks, without stopping the test, that the read named label failed with
+// wantCode and wantMsg and answered its zero value.
+func assertAnimeFailure(t *testing.T, label string, value any, err error, wantCode apperr.Code, wantMsg string) {
 	t.Helper()
 	code, _ := apperr.CodeOf(err)
-	if code != wantCode || err.Error() != wantMsg {
-		t.Fatalf("err = %v (code %q), want code %q and message %q", err, code, wantCode, wantMsg)
+	if code != wantCode || err == nil || err.Error() != wantMsg {
+		t.Errorf("%s: err = %v (code %q), want code %q and message %q", label, err, code, wantCode, wantMsg)
 	}
 	if !reflect.ValueOf(value).IsZero() {
-		t.Fatalf("a failed read answered %#v, want its zero value", value)
+		t.Errorf("%s: a failed read answered %#v, want its zero value", label, value)
 	}
 }
 
@@ -74,24 +75,14 @@ func TestAnimeReadsFollowTheAnimeModule(t *testing.T) {
 		watchHistory: &stubWatchHistoryQuery{},
 		covers:       stubCoverThumbnails{result: coverResult()},
 	}
-	cases := []struct {
-		name     string
-		state    lifecycle.State
-		wantCode apperr.Code
-		wantMsg  string
-	}{
-		{"starting is unavailable", lifecycle.StateStarting, apperr.CodeUnavailable, "anime is starting"},
-		{"failed is a failed precondition", lifecycle.StateFailed, apperr.CodeFailedPrecondition, "bridge database failed to open: locked"},
-	}
 	for _, read := range animeReads {
-		for _, tc := range cases {
-			t.Run(read.name+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-				value, err := read.call(animeApp(services, tc.state))
+		app := animeApp(services, lifecycle.StateStarting)
+		value, err := read.call(app)
+		assertAnimeFailure(t, read.name+" starting", value, err, apperr.CodeUnavailable, "anime is starting")
 
-				assertAnimeFailure(t, value, err, tc.wantCode, tc.wantMsg)
-			})
-		}
+		inModuleState(app, moduleAnime, lifecycle.StateFailed)
+		value, err = read.call(app)
+		assertAnimeFailure(t, read.name+" failed", value, err, apperr.CodeFailedPrecondition, "bridge database failed to open: locked")
 	}
 }
 
@@ -124,12 +115,9 @@ func TestAnimeReadsMapTheirFailures(t *testing.T) {
 		{"anime history page store error is internal", queryFails, animeReads[4].call, apperr.CodeInternal, "snapshot read failed"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			value, err := tc.call(readyAnimeApp(tc.services))
+		value, err := tc.call(readyAnimeApp(tc.services))
 
-			assertAnimeFailure(t, value, err, tc.wantCode, tc.wantMsg)
-		})
+		assertAnimeFailure(t, tc.name, value, err, tc.wantCode, tc.wantMsg)
 	}
 }
 
@@ -149,15 +137,12 @@ func TestRunAnimeAgainIntentReportsOnlyAMissingAnimeAsATargetMissing(t *testing.
 		{"a failed read stays internal", readyAnimeApp(animeServices{query: &stubAnimeQueryService{err: errors.New("read failed")}}), apperr.CodeInternal},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			err := tc.app.runAnimeAgainIntent(context.Background(), map[string]string{center.ArgKeyAnimeID: "anime-1"})
+		err := tc.app.runAnimeAgainIntent(context.Background(), map[string]string{center.ArgKeyAnimeID: "anime-1"})
 
-			code, _ := apperr.CodeOf(err)
-			if errors.Is(err, center.ErrTargetMissing) != (tc.wantCode == "") || code != tc.wantCode {
-				t.Fatalf("err = %v (code %q), want code %q and a missing target only for an unknown anime", err, code, tc.wantCode)
-			}
-		})
+		code, _ := apperr.CodeOf(err)
+		if errors.Is(err, center.ErrTargetMissing) != (tc.wantCode == "") || code != tc.wantCode {
+			t.Errorf("%s: err = %v (code %q), want code %q and a missing target only for an unknown anime", tc.name, err, code, tc.wantCode)
+		}
 	}
 }
 
@@ -232,23 +217,19 @@ func TestGetWatchHistoryPageForwardsRequestToStore(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+		stub := &stubWatchHistoryQuery{}
+		app := readyAnimeApp(animeServices{watchHistory: stub})
 
-			stub := &stubWatchHistoryQuery{}
-			app := readyAnimeApp(animeServices{watchHistory: stub})
+		if _, err := app.GetWatchHistoryPage(contracts.WatchHistoryPageRequest{Cursor: "1700000000000:5", Order: tc.order}); err != nil {
+			t.Errorf("%s: unexpected error %v", tc.name, err)
+		}
 
-			if _, err := app.GetWatchHistoryPage(contracts.WatchHistoryPageRequest{Cursor: "1700000000000:5", Order: tc.order}); err != nil {
-				t.Fatalf("unexpected error %v", err)
-			}
-
-			if stub.lastQuery.Cursor != "1700000000000:5" {
-				t.Fatalf("expected cursor %q forwarded to Store.Page, got %q", "1700000000000:5", stub.lastQuery.Cursor)
-			}
-			if stub.lastQuery.Order != tc.wantOrder {
-				t.Fatalf("expected order %v forwarded to Store.Page, got %v", tc.wantOrder, stub.lastQuery.Order)
-			}
-		})
+		if stub.lastQuery.Cursor != "1700000000000:5" {
+			t.Errorf("%s: expected cursor %q forwarded to Store.Page, got %q", tc.name, "1700000000000:5", stub.lastQuery.Cursor)
+		}
+		if stub.lastQuery.Order != tc.wantOrder {
+			t.Errorf("%s: expected order %v forwarded to Store.Page, got %v", tc.name, tc.wantOrder, stub.lastQuery.Order)
+		}
 	}
 }
 

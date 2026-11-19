@@ -85,32 +85,22 @@ describe('useAnimeDetail', () => {
     window.history.replaceState(null, '');
   });
 
-  it('returns loading while the fetch is in flight', () => {
-    const source = createSource(populatedDetail);
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
-
-    expect(result.current.loadState).toBe('loading');
-    expect(result.current.detail).toBeUndefined();
-  });
-
-  it('never calls getAnimeCover while the anime detail itself is still loading', () => {
+  it('loads from a cover-free loading state to the view model, raw source and placeholder cover', async () => {
     const getAnimeCover = vi.fn();
     const source = createSource(populatedDetail, { getAnimeCover });
     const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
 
     expect(result.current.loadState).toBe('loading');
+    expect(result.current.detail).toBeUndefined();
     expect(getAnimeCover).not.toHaveBeenCalled();
-  });
-
-  it('returns loaded with the detail view model and its raw source at the same freshness', async () => {
-    const source = createSource(populatedDetail);
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
 
     expect(result.current.detail).toBeDefined();
     expect(result.current.detailSource).toEqual(populatedDetail);
     expect(source.getAnimeDetail).toHaveBeenCalledWith('anime-1');
+    // The detail has no stored cover, so the cover resolves as a placeholder.
+    expect(result.current.cover).toEqual({ status: 'placeholder' });
   });
 
   it('returns not-found when the id does not resolve to a record', async () => {
@@ -160,15 +150,6 @@ describe('useAnimeDetail', () => {
     await waitFor(() => expect(source.getAnimeDetail).toHaveBeenLastCalledWith('anime-2'));
   });
 
-  it('resolves the cover as a placeholder when the detail has no stored cover', async () => {
-    const source = createSource(populatedDetail);
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
-
-    await waitFor(() => expect(result.current.loadState).toBe('loaded'));
-
-    expect(result.current.cover).toEqual({ status: 'placeholder' });
-  });
-
   it('resolves the cover via getAnimeCover, then folds a later onPortadaError into a placeholder', async () => {
     const getAnimeCover = vi.fn().mockResolvedValue({ source: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' });
     const source = createSource(
@@ -214,25 +195,7 @@ describe('useAnimeDetail', () => {
     await waitFor(() => expect(result.current.cover).toEqual({ status: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' }));
   });
 
-  it('folds a zero natural-width onPortadaLoad into a placeholder', async () => {
-    const getAnimeCover = vi.fn().mockResolvedValue({ source: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' });
-    const source = createSource(
-      { ...populatedDetail, cover: 'C:/legacy/portadas/frieren.jpg' },
-      { getAnimeCover },
-    );
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
-
-    await waitFor(() => expect(result.current.loadState).toBe('loaded'));
-    await waitFor(() => expect(result.current.cover).toEqual({ status: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' }));
-
-    act(() => {
-      result.current.onPortadaLoad({ currentTarget: { naturalWidth: 0 } } as never);
-    });
-
-    expect(result.current.cover).toEqual({ status: 'placeholder' });
-  });
-
-  it('keeps the resolved cover when onPortadaLoad fires with a nonzero natural width', async () => {
+  it('keeps the cover on a nonzero-width load and folds a zero-width load into a placeholder', async () => {
     const getAnimeCover = vi.fn().mockResolvedValue({ source: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' });
     const source = createSource(
       { ...populatedDetail, cover: 'C:/legacy/portadas/frieren.jpg' },
@@ -248,9 +211,15 @@ describe('useAnimeDetail', () => {
     });
 
     expect(result.current.cover).toEqual({ status: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' });
+
+    act(() => {
+      result.current.onPortadaLoad({ currentTarget: { naturalWidth: 0 } } as never);
+    });
+
+    expect(result.current.cover).toEqual({ status: 'placeholder' });
   });
 
-  it('calls navigate("/history") when there is no previous history entry', async () => {
+  it('navigates Back to /history without a previous entry and Edit to /editor/:id', async () => {
     const source = createSource(populatedDetail);
     const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
 
@@ -261,6 +230,12 @@ describe('useAnimeDetail', () => {
     });
 
     expect(navigateMock).toHaveBeenCalledWith('/history');
+
+    act(() => {
+      result.current.onEditAnime();
+    });
+
+    expect(navigateMock).toHaveBeenCalledWith('/editor/anime-1');
   });
 
   it('calls navigate(-1) when a previous history entry exists', async () => {
@@ -275,19 +250,6 @@ describe('useAnimeDetail', () => {
     });
 
     expect(navigateMock).toHaveBeenCalledWith(-1);
-  });
-
-  it('deep-links Edit anime to /editor/:id', async () => {
-    const source = createSource(populatedDetail);
-    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source, source), modules());
-
-    await waitFor(() => expect(result.current.loadState).toBe('loaded'));
-
-    act(() => {
-      result.current.onEditAnime();
-    });
-
-    expect(navigateMock).toHaveBeenCalledWith('/editor/anime-1');
   });
 
   it.each([

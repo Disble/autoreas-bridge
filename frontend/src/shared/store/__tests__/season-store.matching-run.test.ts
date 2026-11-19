@@ -95,106 +95,54 @@ describe('season store matching run', () => {
     resetSeasonStore();
   });
 
-  it('records the run total with zero resolved in the name-matching phase on started', () => {
-    const listeners = connectListeners(createMatchingSource());
 
-    startTrackedRun(listeners, 4);
-
-    expect(getSeasonStoreState().matchingRun).toEqual({ total: 4, resolvedInPhase: 0, phase: 'name_matching' });
-  });
-
-  it('records event progress per row without touching any server data', () => {
+  /**
+   * Drives one run through every lifecycle event and guards the read-model
+   * boundary: no lifecycle handler issues a source call, because the rows
+   * reload through the finished event's query invalidation.
+   */
+  it('tracks one run from started through both phases to finished, and clears progress on disconnect', () => {
     const source = createMatchingSource();
     const listeners = connectListeners(source);
-    startTrackedRun(listeners);
-
-    listeners.progress(progressNotice());
-
-    expect(getSeasonStoreState().matchingProgress).toEqual({ 'row-1': progressNotice() });
-    // The rows belong to the query: the event is stored here and merged over
-    // them by `mergeIntakeMatchingProgress`, never written into a store copy.
-    expect(source.runMatching).not.toHaveBeenCalled();
-  });
-
-  it('clears the progress together with the run on finish and on disconnect', () => {
-    const listeners = connectListeners(createMatchingSource());
-    startTrackedRun(listeners);
     const notice = progressNotice();
-    listeners.progress(notice);
-    expect(getSeasonStoreState().matchingProgress).toEqual({ 'row-1': notice });
 
-    listeners.finished({ seasonId: 'season-1' });
+    listeners.progress(progressNotice({ phase: 'availability_check', availability: 'available', availableEpisodes: 2 }));
+
     expect(getSeasonStoreState().matchingRun).toBeNull();
     expect(getSeasonStoreState().matchingProgress).toEqual({});
 
-    startTrackedRun(listeners);
-    listeners.progress(notice);
-    disconnectSeasonMatchingStore();
-    expect(getSeasonStoreState().matchingProgress).toEqual({});
-  });
-
-  it('counts progress within the phase while the run resolves names', () => {
-    const listeners = connectListeners(createMatchingSource());
     startTrackedRun(listeners, 3);
 
-    listeners.progress(progressNotice());
+    expect(getSeasonStoreState().matchingRun).toEqual({ total: 3, resolvedInPhase: 0, phase: 'name_matching' });
+
+    listeners.progress(notice);
+
+    expect(getSeasonStoreState().matchingProgress).toEqual({ 'row-1': notice });
+
     listeners.progress(progressNotice({ rowId: 'row-2' }));
 
     expect(getSeasonStoreState().matchingRun).toEqual({ total: 3, resolvedInPhase: 2, phase: 'name_matching' });
-  });
-
-  it('renames the phase and restarts the count when the run reaches the availability check', () => {
-    const listeners = connectListeners(createMatchingSource());
-    startTrackedRun(listeners, 3);
-    listeners.progress(progressNotice());
-    listeners.progress(progressNotice({ rowId: 'row-2' }));
 
     listeners.progress(progressNotice({ phase: 'availability_check', availability: 'available', availableEpisodes: 2 }));
 
     expect(getSeasonStoreState().matchingRun).toEqual({ total: 3, resolvedInPhase: 1, phase: 'availability_check' });
-  });
 
-  it('never treats a progress event as proof of a run: without started it records nothing', () => {
-    const listeners = connectListeners(createMatchingSource());
-
-    listeners.progress(progressNotice({ phase: 'availability_check', availability: 'available', availableEpisodes: 2 }));
+    listeners.finished({ seasonId: 'season-1' });
 
     expect(getSeasonStoreState().matchingRun).toBeNull();
     expect(getSeasonStoreState().matchingProgress).toEqual({});
-  });
-
-  /**
-   * Guards the read-model boundary: applying one progress event and resolving
-   * the terminal signal issue no source call at all. The rows reload through
-   * the finished event's query invalidation, so a future persistent side effect
-   * added to the lifecycle handlers would be caught here.
-   */
-  it('issues no source call while progress lands or the terminal signal resolves', () => {
-    const source = createMatchingSource();
-    const listeners = connectListeners(source);
-    startTrackedRun(listeners);
-
-    listeners.progress(progressNotice());
-    listeners.finished({ seasonId: 'season-1' });
-
     expect(source.runMatching).not.toHaveBeenCalled();
     expect(source.reconcileIntake).not.toHaveBeenCalled();
     expect(source.recheckAvailability).not.toHaveBeenCalled();
+
+    startTrackedRun(listeners);
+    listeners.progress(notice);
+    disconnectSeasonMatchingStore();
+
+    expect(getSeasonStoreState().matchingProgress).toEqual({});
   });
 
-  it('subscribes once however many panels connect', () => {
-    const source = createMatchingSource();
-
-    const first = connectSeasonMatchingStore(source);
-    const second = connectSeasonMatchingStore(source);
-
-    expect(source.subscribeMatchingStarted).toHaveBeenCalledTimes(1);
-    expect(source.subscribeMatchingProgress).toHaveBeenCalledTimes(1);
-    expect(source.subscribeMatchingFinished).toHaveBeenCalledTimes(1);
-    expect(second).toBe(first);
-  });
-
-  it('disconnecting unsubscribes every lifecycle event and drops the ephemeral run', () => {
+  it('subscribes once however many panels connect, and disconnecting unsubscribes all and drops the run', () => {
     const startedUnsubscribe = vi.fn();
     const progressUnsubscribe = vi.fn();
     const finishedUnsubscribe = vi.fn();
@@ -203,9 +151,16 @@ describe('season store matching run', () => {
       subscribeMatchingProgress: vi.fn().mockReturnValue(progressUnsubscribe),
       subscribeMatchingFinished: vi.fn().mockReturnValue(finishedUnsubscribe),
     });
-    connectSeasonMatchingStore(source);
-    setSeasonStoreState({ matchingRun: { total: 2, resolvedInPhase: 1, phase: 'name_matching' } });
 
+    const first = connectSeasonMatchingStore(source);
+    const second = connectSeasonMatchingStore(source);
+
+    expect(source.subscribeMatchingStarted).toHaveBeenCalledTimes(1);
+    expect(source.subscribeMatchingProgress).toHaveBeenCalledTimes(1);
+    expect(source.subscribeMatchingFinished).toHaveBeenCalledTimes(1);
+    expect(second).toBe(first);
+
+    setSeasonStoreState({ matchingRun: { total: 2, resolvedInPhase: 1, phase: 'name_matching' } });
     disconnectSeasonMatchingStore();
 
     expect(startedUnsubscribe).toHaveBeenCalledTimes(1);

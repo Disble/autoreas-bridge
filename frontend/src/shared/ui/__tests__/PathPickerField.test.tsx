@@ -11,10 +11,23 @@ afterEach(() => {
 });
 
 describe('PathPickerField', () => {
-  it('renders the label, current path value, and an icon-only trigger named by its browse label', async () => {
-    render(<PathPickerField browseIcon={folderIcon} browseLabel="Choose folder" label="Folder" value="D:/Anime/Show" onBrowse={vi.fn()} onChange={vi.fn()} />);
+  it('renders label, value, description and an icon-only trigger, then reports edits and browse presses', async () => {
+    const onBrowse = vi.fn();
+    const onChange = vi.fn();
+    render(
+      <PathPickerField
+        browseIcon={folderIcon}
+        browseLabel="Choose folder"
+        description="Local image file on disk."
+        label="Folder"
+        value="D:/Anime/Show"
+        onBrowse={onBrowse}
+        onChange={onChange}
+      />,
+    );
 
     expect(screen.getByText('Folder')).toBeInTheDocument();
+    expect(screen.getByText('Local image file on disk.')).toBeInTheDocument();
     expect(screen.getByRole('textbox')).toHaveValue('D:/Anime/Show');
     const trigger = screen.getByRole('button', { name: 'Choose folder' });
     // An icon-only trigger: its name is the label, never visible text, and its tooltip says it.
@@ -22,30 +35,15 @@ describe('PathPickerField', () => {
     expect(trigger.querySelector('svg')).not.toBeNull();
     trigger.focus();
     expect(await screen.findByRole('tooltip')).toHaveTextContent('Choose folder');
-  });
-
-  it('reports typed path edits through onChange', () => {
-    const onChange = vi.fn();
-    render(<PathPickerField browseIcon={folderIcon} browseLabel="Choose folder" label="Folder" value="" onBrowse={vi.fn()} onChange={onChange} />);
 
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'D:/Anime/New' } });
 
     expect(onChange).toHaveBeenCalledWith('D:/Anime/New');
-  });
+    expect(onBrowse).not.toHaveBeenCalled();
 
-  it('opens the native picker through onBrowse when the trigger is pressed', () => {
-    const onBrowse = vi.fn();
-    render(<PathPickerField browseIcon={folderIcon} browseLabel="Choose cover image" label="Cover file path" value="" onBrowse={onBrowse} onChange={vi.fn()} />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Choose cover image' }));
+    fireEvent.click(trigger);
 
     expect(onBrowse).toHaveBeenCalledTimes(1);
-  });
-
-  it('renders an optional description', () => {
-    render(<PathPickerField browseIcon={folderIcon} browseLabel="Choose cover image" description="Local image file on disk." label="Cover file path" value="" onBrowse={vi.fn()} onChange={vi.fn()} />);
-
-    expect(screen.getByText('Local image file on disk.')).toBeInTheDocument();
   });
 
   it('disables the input and the trigger together', () => {

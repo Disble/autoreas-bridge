@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"testing"
 	"time"
 
@@ -35,7 +36,7 @@ func seedSeasonAnimeFixture(t *testing.T, store *SQLiteStore, seasonID, id, rawN
 	return sa
 }
 
-func TestExportSeasonsEmitsOneLinePerRow(t *testing.T) {
+func TestExportSeasonsEmitsOneLinePerRowAndPropagatesAQueryError(t *testing.T) {
 	db := openTestSeasonDB(t)
 	store := NewSQLiteStore(db)
 	seeded := seedSeasonFixture(t, store)
@@ -77,57 +78,12 @@ func TestExportSeasonsEmitsOneLinePerRow(t *testing.T) {
 	if rec.ClosedAt != nil {
 		t.Fatalf("expected closed_at to stay null, got %v", *rec.ClosedAt)
 	}
-}
 
-func TestExportSeasonAnimesEmitsOneLinePerRow(t *testing.T) {
-	db := openTestSeasonDB(t)
-	store := NewSQLiteStore(db)
-	seeded := seedSeasonFixture(t, store)
-	sa := seedSeasonAnimeFixture(t, store, seeded.ID, "sa-1", "Some Anime", time.UnixMilli(1_700_000_000_000))
-
-	exportFn := ExportSeasonAnimes(db)
-	var buf bytes.Buffer
-	count, err := exportFn(context.Background(), &buf)
-	if err != nil {
-		t.Fatalf("export season animes: %v", err)
+	if err := db.Close(); err != nil {
+		t.Fatalf("close test db: %v", err)
 	}
-	if count != 1 {
-		t.Fatalf("expected 1 season anime exported, got %d", count)
-	}
-
-	lines := bytes.Split(bytes.TrimRight(buf.Bytes(), "\n"), []byte("\n"))
-	if len(lines) != 1 {
-		t.Fatalf("expected exactly one JSONL line, got %d: %s", len(lines), buf.String())
-	}
-
-	var rec seasonAnimeRecord
-	if err := json.Unmarshal(lines[0], &rec); err != nil {
-		t.Fatalf("decode exported JSONL line: %v", err)
-	}
-	if rec.ID != sa.ID {
-		t.Fatalf("unexpected id: got %q want %q", rec.ID, sa.ID)
-	}
-	if rec.SeasonID != sa.SeasonID {
-		t.Fatalf("unexpected season_id: got %q want %q", rec.SeasonID, sa.SeasonID)
-	}
-	if rec.MatchStatus != string(sa.MatchStatus) {
-		t.Fatalf("unexpected match_status: got %q want %q", rec.MatchStatus, sa.MatchStatus)
-	}
-	// matched_slug and anime_id are populated by CreateSeasonAnime as empty
-	// strings, not NULL, for a fresh unmatched row -- only the columns
-	// CreateSeasonAnime omits entirely (or nullifies via a *Ptr helper) come
-	// back as SQL NULL. first_available_at is one of the omitted columns.
-	if rec.MatchedSlug == nil || *rec.MatchedSlug != "" {
-		t.Fatalf("expected matched_slug to be an empty string, got %v", rec.MatchedSlug)
-	}
-	if rec.AnimeID == nil || *rec.AnimeID != "" {
-		t.Fatalf("expected anime_id to be an empty string, got %v", rec.AnimeID)
-	}
-	if rec.PremiereGrade != nil {
-		t.Fatalf("expected premiere_grade to stay null, got %v", *rec.PremiereGrade)
-	}
-	if rec.FirstAvailableAt != nil {
-		t.Fatalf("expected first_available_at to stay null, got %v", *rec.FirstAvailableAt)
+	if _, err := exportFn(context.Background(), &buf); err == nil {
+		t.Fatal("expected export to propagate the query error from a closed database")
 	}
 }
 
@@ -165,7 +121,7 @@ func TestExportSeasonAnimesEmitsMetadataJSONField(t *testing.T) {
 }
 
 // countingSeasonWriter records how many times Write was called, so
-// TestSeasonExportWritesIncrementally can assert one call per record instead
+// TestExportSeasonAnimesStreamsOneLinePerRowAndCountsIt can assert one call per record instead
 // of one call for the whole document.
 type countingSeasonWriter struct {
 	writes int
@@ -176,7 +132,7 @@ func (w *countingSeasonWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func TestExportFuncReportsCountItWrote(t *testing.T) {
+func TestExportSeasonAnimesStreamsOneLinePerRowAndCountsIt(t *testing.T) {
 	db := openTestSeasonDB(t)
 	store := NewSQLiteStore(db)
 	seeded := seedSeasonFixture(t, store)
@@ -187,7 +143,8 @@ func TestExportFuncReportsCountItWrote(t *testing.T) {
 
 	exportFn := ExportSeasonAnimes(db)
 	var buf bytes.Buffer
-	count, err := exportFn(context.Background(), &buf)
+	cw := &countingSeasonWriter{}
+	count, err := exportFn(context.Background(), io.MultiWriter(&buf, cw))
 	if err != nil {
 		t.Fatalf("export season animes: %v", err)
 	}
@@ -199,41 +156,44 @@ func TestExportFuncReportsCountItWrote(t *testing.T) {
 	if count != 3 {
 		t.Fatalf("expected 3 season animes exported, got %d", count)
 	}
-}
-
-func TestSeasonExportWritesIncrementally(t *testing.T) {
-	db := openTestSeasonDB(t)
-	store := NewSQLiteStore(db)
-	seeded := seedSeasonFixture(t, store)
-
-	for i, name := range []string{"one", "two", "three"} {
-		seedSeasonAnimeFixture(t, store, seeded.ID, "sa-"+name, name, time.UnixMilli(1_700_000_000_000+int64(i)))
-	}
-
-	exportFn := ExportSeasonAnimes(db)
-	cw := &countingSeasonWriter{}
-	count, err := exportFn(context.Background(), cw)
-	if err != nil {
-		t.Fatalf("export season animes: %v", err)
-	}
-	if count != 3 {
-		t.Fatalf("expected count 3, got %d", count)
-	}
 	if cw.writes != 3 {
 		t.Fatalf("expected one write call per record (3), got %d -- rows are being accumulated instead of streamed", cw.writes)
 	}
+
+	var rec seasonAnimeRecord
+	if err := json.Unmarshal(lines[0], &rec); err != nil {
+		t.Fatalf("decode exported JSONL line: %v", err)
+	}
+	assertFreshSeasonAnimeRecord(t, rec, seeded.ID)
 }
 
-func TestExportSeasonsPropagatesQueryError(t *testing.T) {
-	db := openTestSeasonDB(t)
-	if err := db.Close(); err != nil {
-		t.Fatalf("close test db: %v", err)
-	}
+// assertFreshSeasonAnimeRecord checks the exported record of the fresh unmatched row sa-one.
+func assertFreshSeasonAnimeRecord(t *testing.T, rec seasonAnimeRecord, seasonID string) {
+	t.Helper()
 
-	exportFn := ExportSeasons(db)
-	var buf bytes.Buffer
-	_, err := exportFn(context.Background(), &buf)
-	if err == nil {
-		t.Fatal("expected export to propagate the query error from a closed database")
+	if rec.ID != "sa-one" {
+		t.Fatalf("unexpected id: got %q want %q", rec.ID, "sa-one")
+	}
+	if rec.SeasonID != seasonID {
+		t.Fatalf("unexpected season_id: got %q want %q", rec.SeasonID, seasonID)
+	}
+	if rec.MatchStatus != string(domain.MatchPending) {
+		t.Fatalf("unexpected match_status: got %q want %q", rec.MatchStatus, domain.MatchPending)
+	}
+	// matched_slug and anime_id are populated by CreateSeasonAnime as empty
+	// strings, not NULL, for a fresh unmatched row -- only the columns
+	// CreateSeasonAnime omits entirely (or nullifies via a *Ptr helper) come
+	// back as SQL NULL. first_available_at is one of the omitted columns.
+	if rec.MatchedSlug == nil || *rec.MatchedSlug != "" {
+		t.Fatalf("expected matched_slug to be an empty string, got %v", rec.MatchedSlug)
+	}
+	if rec.AnimeID == nil || *rec.AnimeID != "" {
+		t.Fatalf("expected anime_id to be an empty string, got %v", rec.AnimeID)
+	}
+	if rec.PremiereGrade != nil {
+		t.Fatalf("expected premiere_grade to stay null, got %v", *rec.PremiereGrade)
+	}
+	if rec.FirstAvailableAt != nil {
+		t.Fatalf("expected first_available_at to stay null, got %v", *rec.FirstAvailableAt)
 	}
 }

@@ -169,7 +169,7 @@ func TestChangeContextReadsNothingWithoutAnAnime(t *testing.T) {
 	}
 }
 
-func TestChangeContextReportsAnUnknownChangeAsNotFound(t *testing.T) {
+func TestChangeContextFindsOnlyTheKnownChangeAtItsTime(t *testing.T) {
 	db, r := openTestReader(t)
 	id := insertChangeRow(t, db, changeAnime)
 	insertEntityEvent(t, db, changeAtMS, changeAnime, "sync.changelog", "recorded pending changelog for "+changeAnime)
@@ -188,14 +188,9 @@ func TestChangeContextReportsAnUnknownChangeAsNotFound(t *testing.T) {
 			t.Fatalf("%s: change context = %+v, %v; want not found", tc.name, got, err)
 		}
 	}
-}
 
-func TestChangeContextFindsTheChangeAmongOthersAtTheSameTime(t *testing.T) {
-	db, r := openTestReader(t)
-	id := insertChangeRow(t, db, changeAnime)
+	// Another change stored at the same time does not hide the first one.
 	insertChangeRow(t, db, "dEyhTxMNBs71Pu6B")
-	insertEntityEvent(t, db, changeAtMS, changeAnime, "sync.changelog", "recorded pending changelog for "+changeAnime)
-
 	got, err := r.ChangeContext(t.Context(), id, changeAtMS)
 	if err != nil || !got.Found || len(got.Events) != 1 {
 		t.Fatalf("change context = %+v, %v; want the first change's event", got, err)

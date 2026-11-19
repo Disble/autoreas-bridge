@@ -52,36 +52,40 @@ describe('the drawer of a tablet silence', () => {
     expect(toDrawerHeader(input(silence({ endMs: undefined, nextReport: undefined })).line)).toMatchObject({ title: 'Tablet silent', phrase: 'since 11:56' });
   });
 
-  it.each([
-    [
-      'ended by a report: the last and next report and the start',
-      silence(),
-      [['last', 'Last report received at', '11:56'], ['next', 'Next report received at', '13:04'], ['started', 'Bridge started', '08:58']],
-    ],
-    ['ongoing: no next report', silence({ endMs: undefined, nextReport: undefined }), [['last', 'Last report received at', '11:56'], ['started', 'Bridge started', '08:58']]],
-    [
-      'ended because Bridge stopped first',
-      silence({ endMs: LAST + 90 * 60_000, nextReport: undefined, bridgeStoppedAtMs: LAST + 90 * 60_000 }),
-      [['last', 'Last report received at', '11:56'], ['started', 'Bridge started', '08:58'], ['stopped', 'Bridge stopped', '13:26']],
-    ],
-    [
-      'with a report of another day by its date',
-      silence({ lastReport: { kind: 'cycle_report', receivedAtMs: LAST - 24 * 3_600_000, hourStartMs: undefined }, startMs: STARTED }),
-      [['last', 'Last report received at', formatDrawerWhen(LAST - 24 * 3_600_000)], ['next', 'Next report received at', '13:04'], ['started', 'Bridge started', '08:58']],
-    ],
-    [
-      'heard only by the hour, by its hour',
-      silence({ lastReport: { kind: 'hourly_summary', receivedAtMs: HOUR + 3_600_000, hourStartMs: HOUR }, startMs: HOUR + 3_600_000 }),
-      [['last', 'Last report received at', 'in the 09:00 – 10:00 hour'], ['next', 'Next report received at', '13:04'], ['started', 'Bridge started', '08:58']],
-    ],
-  ] as const)('states what it means and shows the times it rests on, %s', (_case, value, rows) => {
-    const { sections, gaps } = toDrawerSummary(input(value));
+  it('states what each silence means and shows the times it rests on', () => {
+    const cases = [
+      [
+        'ended by a report: the last and next report and the start',
+        silence(),
+        [['last', 'Last report received at', '11:56'], ['next', 'Next report received at', '13:04'], ['started', 'Bridge started', '08:58']],
+      ],
+      ['ongoing: no next report', silence({ endMs: undefined, nextReport: undefined }), [['last', 'Last report received at', '11:56'], ['started', 'Bridge started', '08:58']]],
+      [
+        'ended because Bridge stopped first',
+        silence({ endMs: LAST + 90 * 60_000, nextReport: undefined, bridgeStoppedAtMs: LAST + 90 * 60_000 }),
+        [['last', 'Last report received at', '11:56'], ['started', 'Bridge started', '08:58'], ['stopped', 'Bridge stopped', '13:26']],
+      ],
+      [
+        'with a report of another day by its date',
+        silence({ lastReport: { kind: 'cycle_report', receivedAtMs: LAST - 24 * 3_600_000, hourStartMs: undefined }, startMs: STARTED }),
+        [['last', 'Last report received at', formatDrawerWhen(LAST - 24 * 3_600_000)], ['next', 'Next report received at', '13:04'], ['started', 'Bridge started', '08:58']],
+      ],
+      [
+        'heard only by the hour, by its hour',
+        silence({ lastReport: { kind: 'hourly_summary', receivedAtMs: HOUR + 3_600_000, hourStartMs: HOUR }, startMs: HOUR + 3_600_000 }),
+        [['last', 'Last report received at', 'in the 09:00 – 10:00 hour'], ['next', 'Next report received at', '13:04'], ['started', 'Bridge started', '08:58']],
+      ],
+    ] as const;
 
-    expect(shape(sections)).toEqual([
-      ['meaning', MEANING],
-      ['when', '', rows],
-    ]);
-    expect(gaps).toEqual([]);
+    for (const [caseName, value, rows] of cases) {
+      const { sections, gaps } = toDrawerSummary(input(value));
+
+      expect.soft(shape(sections), caseName).toEqual([
+        ['meaning', MEANING],
+        ['when', '', rows],
+      ]);
+      expect.soft(gaps, caseName).toEqual([]);
+    }
   });
 
   it('has only a Data tab, holding what it was read from', () => {

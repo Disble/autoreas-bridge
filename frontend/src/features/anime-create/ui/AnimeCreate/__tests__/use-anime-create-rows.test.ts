@@ -37,21 +37,16 @@ describe('useAnimeCreateRows -- metadata autofill (SDD-70 slice 6)', () => {
   });
 
   describe('D10 -- name autofill re-derives folder through the existing onRowChange channel', () => {
-    it('re-derives folder from the applied name when folderManual is false', () => {
+    it('re-derives folder from the applied name when folderManual is false, and keeps folder byte-identical once folderManual is true', () => {
       const { result } = renderHook(() => useAnimeCreateRows('D:\\Anime'));
       const draftId = result.current.rows[0].draftId;
       expect(result.current.rows[0].folderManual).toBe(false);
 
       act(() => result.current.onRowChange(draftId, { name: 'Attack on Titan' }));
 
-      const row = result.current.rows.find((candidate) => candidate.draftId === draftId);
-      expect(row?.folder).toBe('D:\\Anime\\Attack on Titan');
-      expect(row?.folderManual).toBe(false);
-    });
-
-    it('keeps folder byte-identical when folderManual is true', () => {
-      const { result } = renderHook(() => useAnimeCreateRows('D:\\Anime'));
-      const draftId = result.current.rows[0].draftId;
+      const derived = result.current.rows.find((candidate) => candidate.draftId === draftId);
+      expect(derived?.folder).toBe('D:\\Anime\\Attack on Titan');
+      expect(derived?.folderManual).toBe(false);
 
       act(() => result.current.onRowChange(draftId, { folder: 'D:\\Anime\\Custom' }));
       expect(result.current.rows.find((candidate) => candidate.draftId === draftId)?.folderManual).toBe(true);
@@ -65,10 +60,19 @@ describe('useAnimeCreateRows -- metadata autofill (SDD-70 slice 6)', () => {
   });
 
   describe('applied/undo state (D9)', () => {
-    it('confirming a candidate patches the row through onRowChange and stores its pre-image', () => {
+    it('ignores an undo with nothing applied, patches the row and stores its pre-image on a confirmed candidate, undo reverts exactly the applied fields, and a full candidate leaves the never-touched set unchanged (non-negotiable #7, Create surface)', () => {
       const { result } = renderHook(() => useAnimeCreateRows('D:\\Anime'));
       const draftId = result.current.rows[0].draftId;
-      act(() => result.current.onRowChange(draftId, { folder: 'D:\\Anime\\Manual' }));
+
+      // Undo with nothing applied does nothing.
+      expect(() => act(() => result.current.onMetadataUndo(draftId))).not.toThrow();
+      expect(result.current.rows[0].name).toBe('');
+
+      act(() => result.current.onRowChange(draftId, {
+        page: 'https://example.test/bleach',
+        folder: 'D:\\Anime\\Manual',
+        episodesWatched: '12',
+      }));
 
       const selection: AnimeMetadataSelection = {
         name: 'Bleach: Sennen Kessen-hen',
@@ -85,88 +89,18 @@ describe('useAnimeCreateRows -- metadata autofill (SDD-70 slice 6)', () => {
       expect(applied?.patch).toEqual({ name: 'Bleach: Sennen Kessen-hen', duration: '24' });
       expect(applied?.previous).toEqual({ name: '', duration: '' });
       expect(applied?.unfilled).toEqual(['kind', 'studios']);
-    });
 
-    it('undo replays the pre-image through onRowChange, reverting exactly the applied fields', () => {
-      const { result } = renderHook(() => useAnimeCreateRows('D:\\Anime'));
-      const draftId = result.current.rows[0].draftId;
-      act(() => result.current.onRowChange(draftId, { folder: 'D:\\Anime\\Manual' }));
-
-      const selection: AnimeMetadataSelection = {
-        name: 'Bleach: Sennen Kessen-hen',
-        duration: '24',
-        unfilled: [],
-      };
-      act(() => result.current.onMetadataApplied(draftId, selection));
+      // Undo replays the pre-image through onRowChange, reverting exactly the applied fields.
       act(() => result.current.onMetadataUndo(draftId));
 
-      const row = result.current.rows.find((candidate) => candidate.draftId === draftId);
-      expect(row?.name).toBe('');
-      expect(row?.duration).toBe('');
-      expect(row?.folder).toBe('D:\\Anime\\Manual');
+      const undone = result.current.rows.find((candidate) => candidate.draftId === draftId);
+      expect(undone?.name).toBe('');
+      expect(undone?.duration).toBe('');
+      expect(undone?.folder).toBe('D:\\Anime\\Manual');
       expect(result.current.appliedMetadataByRow[draftId]).toBeUndefined();
-    });
-  });
 
-  describe('multiple rows -- the targeted draftId, never a different row', () => {
-    it('records the targeted row\'s own pre-image, not a different row\'s, when a second row exists', () => {
-      const { result } = renderHook(() => useAnimeCreateRows('D:\\Anime'));
-      act(() => result.current.onAddRow());
-      const [firstId, secondId] = result.current.rows.map((row) => row.draftId);
-      act(() => result.current.onRowChange(firstId, { duration: '10' }));
-      act(() => result.current.onRowChange(secondId, { duration: '20' }));
-
-      act(() => result.current.onMetadataApplied(secondId, { name: 'Bleach', duration: '24', unfilled: [] }));
-
-      expect(result.current.appliedMetadataByRow[secondId]?.previous.duration).toBe('20');
-      expect(result.current.appliedMetadataByRow[firstId]).toBeUndefined();
-    });
-
-    it('clears only the undone row\'s entry, leaving a second row\'s pending Undo intact', () => {
-      const { result } = renderHook(() => useAnimeCreateRows('D:\\Anime'));
-      act(() => result.current.onAddRow());
-      const [firstId, secondId] = result.current.rows.map((row) => row.draftId);
-      act(() => result.current.onMetadataApplied(firstId, { name: 'Bleach', unfilled: [] }));
-      act(() => result.current.onMetadataApplied(secondId, { name: 'Naruto', unfilled: [] }));
-
-      act(() => result.current.onMetadataUndo(firstId));
-
-      expect(result.current.appliedMetadataByRow[firstId]).toBeUndefined();
-      expect(result.current.appliedMetadataByRow[secondId]).toBeDefined();
-      expect(result.current.rows.find((row) => row.draftId === secondId)?.name).toBe('Naruto');
-    });
-  });
-
-  describe('guards against a draftId with nothing to act on', () => {
-    it('does nothing when onMetadataApplied targets a draftId that does not exist', () => {
-      const { result } = renderHook(() => useAnimeCreateRows('D:\\Anime'));
-
-      expect(() => act(() => result.current.onMetadataApplied('missing-draft-id', { name: 'Bleach', unfilled: [] }))).not.toThrow();
-
-      expect(result.current.appliedMetadataByRow).toEqual({});
-    });
-
-    it('does nothing when onMetadataUndo targets a row with nothing applied', () => {
-      const { result } = renderHook(() => useAnimeCreateRows('D:\\Anime'));
-      const draftId = result.current.rows[0].draftId;
-
-      expect(() => act(() => result.current.onMetadataUndo(draftId))).not.toThrow();
-
-      expect(result.current.rows[0].name).toBe('');
-    });
-  });
-
-  describe('never-touched set -- non-negotiable #7, Create surface', () => {
-    it('leaves Download page, a manual Folder, and Watched episodes unchanged after confirming a candidate', () => {
-      const { result } = renderHook(() => useAnimeCreateRows('D:\\Anime'));
-      const draftId = result.current.rows[0].draftId;
-      act(() => result.current.onRowChange(draftId, {
-        page: 'https://example.test/bleach',
-        folder: 'D:\\Anime\\Manual',
-        episodesWatched: '12',
-      }));
-
-      const selection: AnimeMetadataSelection = {
+      // A candidate filling every field leaves Download page, a manual Folder, and Watched episodes unchanged.
+      act(() => result.current.onMetadataApplied(draftId, {
         name: 'Bleach: Sennen Kessen-hen',
         kind: '0',
         totalEpisodes: '25',
@@ -176,13 +110,38 @@ describe('useAnimeCreateRows -- metadata autofill (SDD-70 slice 6)', () => {
         studios: 'Pierrot',
         coverURL: 'https://cdn.example/bleach.jpg',
         unfilled: [],
-      };
-      act(() => result.current.onMetadataApplied(draftId, selection));
+      }));
 
-      const row = result.current.rows.find((candidate) => candidate.draftId === draftId);
-      expect(row?.page).toBe('https://example.test/bleach');
-      expect(row?.folder).toBe('D:\\Anime\\Manual');
-      expect(row?.episodesWatched).toBe('12');
+      const full = result.current.rows.find((candidate) => candidate.draftId === draftId);
+      expect(full?.page).toBe('https://example.test/bleach');
+      expect(full?.folder).toBe('D:\\Anime\\Manual');
+      expect(full?.episodesWatched).toBe('12');
+    });
+  });
+
+  describe('multiple rows -- the targeted draftId, never a different row', () => {
+    it('ignores a missing draftId, records the targeted row\'s own pre-image, and clears only the undone row\'s entry, leaving a second row\'s pending Undo intact', () => {
+      const { result } = renderHook(() => useAnimeCreateRows('D:\\Anime'));
+
+      expect(() => act(() => result.current.onMetadataApplied('missing-draft-id', { name: 'Bleach', unfilled: [] }))).not.toThrow();
+      expect(result.current.appliedMetadataByRow).toEqual({});
+
+      act(() => result.current.onAddRow());
+      const [firstId, secondId] = result.current.rows.map((row) => row.draftId);
+      act(() => result.current.onRowChange(firstId, { duration: '10' }));
+      act(() => result.current.onRowChange(secondId, { duration: '20' }));
+
+      act(() => result.current.onMetadataApplied(secondId, { name: 'Bleach', duration: '24', unfilled: [] }));
+
+      expect(result.current.appliedMetadataByRow[secondId]?.previous.duration).toBe('20');
+      expect(result.current.appliedMetadataByRow[firstId]).toBeUndefined();
+
+      act(() => result.current.onMetadataApplied(firstId, { name: 'Naruto', unfilled: [] }));
+      act(() => result.current.onMetadataUndo(firstId));
+
+      expect(result.current.appliedMetadataByRow[firstId]).toBeUndefined();
+      expect(result.current.appliedMetadataByRow[secondId]).toBeDefined();
+      expect(result.current.rows.find((row) => row.draftId === secondId)?.name).toBe('Bleach');
     });
   });
 
@@ -193,8 +152,9 @@ describe('useAnimeCreateRows -- metadata autofill (SDD-70 slice 6)', () => {
   });
 
   describe('folder and cover pickers -- the shell picker port', () => {
-    it('writes the picked folder and cover path into the targeted row', async () => {
-      const picker = pickerAnswering(() => Promise.resolve('D:\Anime\Frieren'));
+    it('writes the picked folder and cover path into the targeted row, then changes nothing and reports nothing when the user cancels a dialog', async () => {
+      const answers = ['D:\Anime\Frieren', 'D:\Anime\Frieren', '', ''];
+      const picker = pickerAnswering(() => Promise.resolve(answers.shift() ?? ''));
       const { result } = renderHook(() => useAnimeCreateRows('D:\Anime', picker));
       const draftId = result.current.rows[0].draftId;
 
@@ -206,11 +166,8 @@ describe('useAnimeCreateRows -- metadata autofill (SDD-70 slice 6)', () => {
       expect(picker.pickFile).toHaveBeenCalledExactlyOnceWith('Select cover image');
       expect(result.current.rows[0]).toMatchObject({ folder: 'D:\Anime\Frieren', folderManual: true, coverType: 'image', coverPath: 'D:\Anime\Frieren' });
       expect(toastMock.danger).not.toHaveBeenCalled();
-    });
 
-    it('changes nothing and reports nothing when the user cancels a dialog', async () => {
-      const picker = pickerAnswering(() => Promise.resolve(''));
-      const { result } = renderHook(() => useAnimeCreateRows('D:\Anime', picker));
+      // A cancelled dialog changes nothing and reports nothing.
       const before = result.current.rows;
 
       act(() => result.current.onBrowseFolder(before[0].draftId));

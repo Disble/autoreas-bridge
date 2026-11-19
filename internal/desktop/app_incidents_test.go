@@ -120,17 +120,14 @@ func TestCapturePersistRecordsIncidentOnlyForFailures(t *testing.T) {
 			incidentTestProcessStart.Add(time.Hour).UnixMilli(), "patch", "/api/animes/a1", "http"), nil},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			app := newIncidentTestApp(t)
+		app := newIncidentTestApp(t)
 
-			persistThroughDefaultCaptureQueue(t, app, tt.record)
+		persistThroughDefaultCaptureQueue(t, app, tt.record)
 
-			got := readIncidentRows(t, app.bridgeDB)
-			if len(got) != len(tt.want) || (len(got) == 1 && got[0] != tt.want[0]) {
-				t.Fatalf("incidents = %#v, want %#v", got, tt.want)
-			}
-		})
+		got := readIncidentRows(t, app.bridgeDB)
+		if len(got) != len(tt.want) || (len(got) == 1 && got[0] != tt.want[0]) {
+			t.Errorf("%s: incidents = %#v, want %#v", tt.name, got, tt.want)
+		}
 	}
 }
 
@@ -392,17 +389,14 @@ func TestMobileReportRecordsIncidentOnlyForFailures(t *testing.T) {
 		}, nil},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			app := newIncidentTestApp(t)
+		app := newIncidentTestApp(t)
 
-			app.recordMobileIncident(tt.event(t))
+		app.recordMobileIncident(tt.event(t))
 
-			got := readIncidentRows(t, app.bridgeDB)
-			if len(got) != len(tt.want) || (len(got) == 1 && got[0] != tt.want[0]) {
-				t.Fatalf("incidents = %#v, want %#v", got, tt.want)
-			}
-		})
+		got := readIncidentRows(t, app.bridgeDB)
+		if len(got) != len(tt.want) || (len(got) == 1 && got[0] != tt.want[0]) {
+			t.Errorf("%s: incidents = %#v, want %#v", tt.name, got, tt.want)
+		}
 	}
 }
 

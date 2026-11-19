@@ -21,7 +21,9 @@ func seedSeasonRow(t *testing.T, db *sql.DB, s domain.Season) {
 	}
 }
 
-func TestImportSeasonsReplacesExistingRows(t *testing.T) {
+// TestImportSeasonsReplacesExistingRowsAndReportsTheCountItApplied refreshes the
+// table with one season, then with three, checking the count each time.
+func TestImportSeasonsReplacesExistingRowsAndReportsTheCountItApplied(t *testing.T) {
 	db := openTestSeasonDB(t)
 	seedSeasonRow(t, db, domain.NewSeason("old-season", "Old", time.UnixMilli(1)))
 
@@ -63,6 +65,40 @@ func TestImportSeasonsReplacesExistingRows(t *testing.T) {
 	// A bundle whose record omits closure_json decodes to SQL NULL ("not
 	// captured"), never to an empty snapshot.
 	assertClosureRawNull(t, db, "new-season")
+	assertImportSeasonsReportsTheCountItApplied(t, db)
+}
+
+// assertImportSeasonsReportsTheCountItApplied imports three seasons, one open
+// and two closed, and checks the reported count matches the stored rows.
+func assertImportSeasonsReportsTheCountItApplied(t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	for i := range 3 {
+		status := "closed"
+		if i == 0 {
+			status = "open"
+		}
+		rec := seasonRecord{ID: string(rune('a' + i)), Name: "n", MinApprovalGrade: 4, Slots: 12, Status: status, CreatedAt: int64(i)}
+		if err := enc.Encode(rec); err != nil {
+			t.Fatalf("encode: %v", err)
+		}
+	}
+	count, err := ImportSeasons(db)(context.Background(), &buf)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if count != 3 {
+		t.Fatalf("expected count 3, got %d", count)
+	}
+	var rowCount int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM seasons`).Scan(&rowCount); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if rowCount != 3 {
+		t.Fatalf("expected 3 rows in seasons, got %d", rowCount)
+	}
 }
 
 func TestImportSeasonAnimesReplacesExistingRows(t *testing.T) {
@@ -105,10 +141,16 @@ func TestImportSeasonAnimesReplacesExistingRows(t *testing.T) {
 	}
 }
 
-func TestImportSeasonsRoundTripsNullableColumnsAsNull(t *testing.T) {
+func TestImportSeasonsRoundTripsNullColumnsAndAClosureValue(t *testing.T) {
 	srcDB := openTestSeasonDB(t)
 	seedSeasonRow(t, srcDB, domain.NewSeason("season-1", "Julio", time.UnixMilli(1)))
 	// NewSeason leaves selection_confirmed_at/applied_at/closed_at NULL.
+	const closure = `{"capturedAt":1700000000000,"rail":[],"grid":[{"animeId":"anime-a","dia":"Lunes","orden":3}]}`
+	if _, err := srcDB.Exec(`INSERT INTO seasons
+		(id, name, min_approval_grade, slots, status, closed_at, ordering_draft_json, closure_json, created_at)
+		VALUES ('season-closed', 'Abril', 4, 12, 'closed', 2, '', ?, 1)`, closure); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
 
 	var buf bytes.Buffer
 	if _, err := ExportSeasons(srcDB)(context.Background(), &buf); err != nil {
@@ -128,30 +170,9 @@ func TestImportSeasonsRoundTripsNullableColumnsAsNull(t *testing.T) {
 		t.Fatalf("expected selection_confirmed_at to remain NULL, got %v", selectionConfirmedAt.Int64)
 	}
 	assertClosureRawNull(t, dstDB, "season-1")
-}
 
-// TestImportSeasonsRoundTripsClosureJSONValue proves a captured board survives
-// export→import byte-for-byte, so history is never rebuilt from live data.
-func TestImportSeasonsRoundTripsClosureJSONValue(t *testing.T) {
-	srcDB := openTestSeasonDB(t)
-	const closure = `{"capturedAt":1700000000000,"rail":[],"grid":[{"animeId":"anime-a","dia":"Lunes","orden":3}]}`
-	if _, err := srcDB.Exec(`INSERT INTO seasons
-		(id, name, min_approval_grade, slots, status, closed_at, ordering_draft_json, closure_json, created_at)
-		VALUES ('season-1', 'Julio', 4, 12, 'closed', 2, '', ?, 1)`, closure); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-
-	var buf bytes.Buffer
-	if _, err := ExportSeasons(srcDB)(context.Background(), &buf); err != nil {
-		t.Fatalf("export: %v", err)
-	}
-
-	dstDB := openTestSeasonDB(t)
-	if _, err := ImportSeasons(dstDB)(context.Background(), &buf); err != nil {
-		t.Fatalf("import: %v", err)
-	}
-
-	got, err := NewSQLiteStore(dstDB).SeasonByID(context.Background(), "season-1")
+	// A captured board survives export->import byte-for-byte, so history is never rebuilt from live data.
+	got, err := NewSQLiteStore(dstDB).SeasonByID(context.Background(), "season-closed")
 	if err != nil || got == nil {
 		t.Fatalf("SeasonByID: %v (%+v)", err, got)
 	}
@@ -169,6 +190,11 @@ func TestImportSeasonAnimesRoundTripsEveryColumn(t *testing.T) {
 		VALUES ('a1', 's1', 'Show A', 'matched', 'show-a', '["show-a"]', 'available', 100, 12,
 			'anime-a', 5, 'auto', 4, 200, 0, 'considered', 300, 1)
 	`); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if _, err := srcDB.Exec(`INSERT INTO season_animes (id, season_id, raw_name, created_at, metadata_json) VALUES
+		('sa-confirmed', 's1', 'Frieren', 1, ?),
+		('sa-none', 's1', 'Dandadan', 2, NULL)`, confirmedMetadataJSON); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 
@@ -197,30 +223,13 @@ func TestImportSeasonAnimesRoundTripsEveryColumn(t *testing.T) {
 	if !premiereGrade.Valid || premiereGrade.Int64 != 5 {
 		t.Fatalf("expected premiere_grade 5, got %+v", premiereGrade)
 	}
+	assertImportedMetadata(t, dstDB)
 }
 
-// TestImportSeasonAnimesRoundTripsMetadataJSON proves a confirmed lookup
-// survives export→import byte-for-byte while a row that never had one stays
-// SQL NULL, so the bundle preserves "not recorded" as absent, not as an
-// empty record. The bundle format is unchanged: an absent key decodes to the
-// honest empty string, following the closure_json precedent.
-func TestImportSeasonAnimesRoundTripsMetadataJSON(t *testing.T) {
-	srcDB := openTestSeasonDB(t)
-	if _, err := srcDB.Exec(`INSERT INTO season_animes (id, season_id, raw_name, created_at, metadata_json) VALUES
-		('sa-confirmed', 's1', 'Frieren', 1, ?),
-		('sa-none', 's1', 'Dandadan', 2, NULL)`, confirmedMetadataJSON); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-
-	var buf bytes.Buffer
-	if _, err := ExportSeasonAnimes(srcDB)(context.Background(), &buf); err != nil {
-		t.Fatalf("export: %v", err)
-	}
-
-	dstDB := openTestSeasonDB(t)
-	if _, err := ImportSeasonAnimes(dstDB)(context.Background(), &buf); err != nil {
-		t.Fatalf("import: %v", err)
-	}
+// assertImportedMetadata checks a confirmed lookup survives export->import byte-for-byte while a
+// row that never had one reads back as the honest empty string and stays SQL NULL.
+func assertImportedMetadata(t *testing.T, dstDB *sql.DB) {
+	t.Helper()
 
 	store := NewSQLiteStore(dstDB)
 	confirmed, err := store.SeasonAnimeByID(context.Background(), "sa-confirmed")
@@ -304,38 +313,5 @@ func TestValidateSeasonsRejectsMalformedLine(t *testing.T) {
 	_, err := validateFn(context.Background(), bytes.NewBufferString("not json\n"))
 	if err == nil {
 		t.Fatal("expected validation to reject a malformed JSONL line")
-	}
-}
-
-func TestImportSeasonsReportsTheCountItApplied(t *testing.T) {
-	db := openTestSeasonDB(t)
-
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	for i := range 3 {
-		status := "closed"
-		if i == 0 {
-			status = "open"
-		}
-		rec := seasonRecord{ID: string(rune('a' + i)), Name: "n", MinApprovalGrade: 4, Slots: 12, Status: status, CreatedAt: int64(i)}
-		if err := enc.Encode(rec); err != nil {
-			t.Fatalf("encode: %v", err)
-		}
-	}
-
-	count, err := ImportSeasons(db)(context.Background(), &buf)
-	if err != nil {
-		t.Fatalf("import: %v", err)
-	}
-	if count != 3 {
-		t.Fatalf("expected count 3, got %d", count)
-	}
-
-	var rowCount int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM seasons`).Scan(&rowCount); err != nil {
-		t.Fatalf("count: %v", err)
-	}
-	if rowCount != 3 {
-		t.Fatalf("expected 3 rows in seasons, got %d", rowCount)
 	}
 }

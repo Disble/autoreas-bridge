@@ -61,10 +61,10 @@ func readIncidents(t *testing.T, db *sql.DB) []storedIncident {
 	return got
 }
 
-// TestStoreRecordPersistsOneRowWithItsWindow asserts Record inserts exactly
-// one row carrying the trigger, the source and the Window around the
-// occurrence time.
-func TestStoreRecordPersistsOneRowWithItsWindow(t *testing.T) {
+// TestStoreRecordPersistsEveryOccurrenceWithItsWindow asserts Record inserts
+// exactly one row carrying the trigger, the source and the Window around the
+// occurrence time, and keeps every repeated occurrence of one fingerprint.
+func TestStoreRecordPersistsEveryOccurrenceWithItsWindow(t *testing.T) {
 	t.Parallel()
 
 	db := openIncidentTestDB(t)
@@ -76,7 +76,8 @@ func TestStoreRecordPersistsOneRowWithItsWindow(t *testing.T) {
 		SourceID:   "req-1",
 	}
 
-	if err := NewStore(db).Record(context.Background(), occurrence); err != nil {
+	store := NewStore(db)
+	if err := store.Record(context.Background(), occurrence); err != nil {
 		t.Fatalf("record: %v", err)
 	}
 
@@ -90,27 +91,20 @@ func TestStoreRecordPersistsOneRowWithItsWindow(t *testing.T) {
 	if len(got) != 1 || got[0] != want[0] {
 		t.Fatalf("expected %#v, got %#v", want, got)
 	}
-}
 
-// TestStoreRecordKeepsEveryOccurrence asserts Record never trims: keeping
-// only the first and latest occurrences is the sweeper's job (T6b).
-func TestStoreRecordKeepsEveryOccurrence(t *testing.T) {
-	t.Parallel()
-
-	db := openIncidentTestDB(t)
-	store := NewStore(db)
+	// Repeated occurrences of one fingerprint are each kept, never collapsed.
 	for i := range 8 {
-		occurrence := Occurrence{
+		repeated := Occurrence{
 			Trigger:    Trigger{Reason: ReasonErrorEvent, Fingerprint: "error_event|sync|x"},
 			OccurredAt: time.UnixMilli(int64(1000 * (i + 1))),
 			SourceKind: SourceEvent,
 		}
-		if err := store.Record(context.Background(), occurrence); err != nil {
+		if err := store.Record(context.Background(), repeated); err != nil {
 			t.Fatalf("record %d: %v", i, err)
 		}
 	}
-	if got := len(readIncidents(t, db)); got != 8 {
-		t.Fatalf("expected all 8 occurrences kept, got %d", got)
+	if got := len(readIncidents(t, db)); got != 9 {
+		t.Fatalf("expected the first row and all 8 repeated occurrences kept, got %d", got)
 	}
 }
 

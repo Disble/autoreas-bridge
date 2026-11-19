@@ -15,21 +15,10 @@ beforeEach(resetKeyboardStore);
 afterEach(resetKeyboardStore);
 
 describe('useKeymapPanel', () => {
-  it('reads keymapLoadState from the store rather than a fixed value', () => {
+  it('reads load state from the store, keeps errorMessage null, and recomputes sections on later overrides', () => {
     const { result } = renderHook(() => useKeymapPanel());
 
     expect(result.current.keymapLoadState).toBe('pending');
-
-    act(() => {
-      setKeymapOverrides({});
-    });
-
-    expect(result.current.keymapLoadState).toBe('loaded');
-  });
-
-  it('errorMessage stays null while pending and while loaded, distinct from a "loaded with zero overrides" outcome (task 8.2.2)', () => {
-    const { result } = renderHook(() => useKeymapPanel());
-
     expect(result.current.errorMessage).toBeNull();
 
     act(() => {
@@ -38,6 +27,13 @@ describe('useKeymapPanel', () => {
 
     expect(result.current.keymapLoadState).toBe('loaded');
     expect(result.current.errorMessage).toBeNull();
+    expect(findRow(result.current.sections, 'nav.today')?.effectiveChord).toBe('alt+1');
+
+    act(() => {
+      setKeymapOverrides({ 'nav.today': 'ctrl+1' });
+    });
+
+    expect(findRow(result.current.sections, 'nav.today')?.effectiveChord).toBe('ctrl+1');
   });
 
   it('errorMessage becomes KEYMAP_PANEL_ERROR_MESSAGE when the load fails, without waiting on saveErrorMessage', () => {
@@ -52,25 +48,40 @@ describe('useKeymapPanel', () => {
     expect(result.current.saveErrorMessage).toBeNull();
   });
 
-  it('recomputes sections when the store overrides change after mount, rather than closing over the first render forever', () => {
-    setKeymapOverrides({});
-    const { result } = renderHook(() => useKeymapPanel());
-    const findTodayRow = () => result.current.sections.flatMap((section) => section.rows).find((row) => row.binding.id === 'nav.today');
-
-    expect(findTodayRow()?.effectiveChord).toBe('alt+1');
-
-    act(() => {
-      setKeymapOverrides({ 'nav.today': 'ctrl+1' });
+  it('routes rebind, revert and reset through the source injected by the latest render', async () => {
+    setKeymapOverrides({ 'nav.today': 'ctrl+1' });
+    const firstSource = { setKeymap: vi.fn().mockResolvedValue(undefined) };
+    const secondSource = { setKeymap: vi.fn().mockResolvedValue(undefined) };
+    const { result, rerender } = renderHook(({ source }) => useKeymapPanel({ source }), {
+      initialProps: { source: firstSource },
     });
 
-    expect(findTodayRow()?.effectiveChord).toBe('ctrl+1');
+    rerender({ source: secondSource });
+    await act(async () => {
+      await result.current.onRebind('nav.downloads', 'ctrl+2');
+    });
+
+    expect(secondSource.setKeymap).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await result.current.onRevert('nav.today');
+    });
+
+    expect(secondSource.setKeymap).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      await result.current.onResetToDefaults();
+    });
+
+    expect(secondSource.setKeymap).toHaveBeenCalledTimes(3);
+    expect(firstSource.setKeymap).not.toHaveBeenCalled();
   });
 });
 
 describe('onRebind (task 10.2.1, design D6/D8)', () => {
-  it('refuses a same-scope duplicate, names the colliding command, and leaves overrides unchanged (spec "A same-scope duplicate is refused")', async () => {
+  it('refuses a duplicate, saves two rebinds from fresh overrides, then saves a cross-scope shadow with a warning', async () => {
     setKeymapOverrides({});
-    const source = { setKeymap: vi.fn() };
+    const source = { setKeymap: vi.fn().mockResolvedValue(undefined) };
     const { result } = renderHook(() => useKeymapPanel({ source }));
 
     let outcome: KeymapRebindOutcome | undefined;
@@ -82,30 +93,7 @@ describe('onRebind (task 10.2.1, design D6/D8)', () => {
     expect(outcome?.message).toContain('Today');
     expect(source.setKeymap).not.toHaveBeenCalled();
     expect(findRow(result.current.sections, 'nav.downloads')?.effectiveChord).toBe('alt+2');
-  });
 
-  it('saves and warns on a cross-scope shadow, naming the scoped command that takes precedence (spec "A cross-scope shadow is saved with a warning")', async () => {
-    setKeymapOverrides({});
-    const source = { setKeymap: vi.fn().mockResolvedValue(undefined) };
-    const { result } = renderHook(() => useKeymapPanel({ source }));
-
-    let outcome: KeymapRebindOutcome | undefined;
-    await act(async () => {
-      outcome = await result.current.onRebind('notification-center.mark-all-read', 'alt+1');
-    });
-
-    expect(outcome?.status).toBe('shadowed');
-    expect(outcome?.message).toContain('Mark all as read');
-    expect(source.setKeymap).toHaveBeenCalledTimes(1);
-    expect(findRow(result.current.sections, 'notification-center.mark-all-read')?.effectiveChord).toBe('alt+1');
-  });
-
-  it('publishes the candidate override only once setKeymap resolves (design D6: persist then publish)', async () => {
-    setKeymapOverrides({});
-    const source = { setKeymap: vi.fn().mockResolvedValue(undefined) };
-    const { result } = renderHook(() => useKeymapPanel({ source }));
-
-    let outcome: KeymapRebindOutcome | undefined;
     await act(async () => {
       outcome = await result.current.onRebind('nav.downloads', 'ctrl+2');
     });
@@ -113,11 +101,33 @@ describe('onRebind (task 10.2.1, design D6/D8)', () => {
     expect(outcome).toEqual({ status: 'saved', message: null });
     expect(findRow(result.current.sections, 'nav.downloads')?.effectiveChord).toBe('ctrl+2');
     expect(result.current.saveErrorMessage).toBeNull();
+
+    await act(async () => {
+      await result.current.onRebind('nav.editor', 'ctrl+3');
+    });
+
+    expect(source.setKeymap).toHaveBeenCalledTimes(2);
+    const secondDocument = JSON.parse(source.setKeymap.mock.calls[1][0] as string) as { bindings: Record<string, string> };
+    expect(secondDocument.bindings).toEqual({ 'nav.downloads': 'ctrl+2', 'nav.editor': 'ctrl+3' });
+
+    await act(async () => {
+      outcome = await result.current.onRebind('notification-center.mark-all-read', 'alt+1');
+    });
+
+    expect(outcome?.status).toBe('shadowed');
+    expect(outcome?.message).toContain('Mark all as read');
+    expect(source.setKeymap).toHaveBeenCalledTimes(3);
+    expect(findRow(result.current.sections, 'notification-center.mark-all-read')?.effectiveChord).toBe('alt+1');
   });
 
-  it('leaves overrides untouched and surfaces the bridge failure message when setKeymap rejects with one (design D6: no optimistic publish)', async () => {
+  it('keeps overrides and surfaces the bridge message, then the generic message, when setKeymap rejects', async () => {
     setKeymapOverrides({});
-    const source = { setKeymap: vi.fn().mockRejectedValue(createBridgeError('internal', 'disk is full')) };
+    const source = {
+      setKeymap: vi
+        .fn()
+        .mockRejectedValueOnce(createBridgeError('internal', 'disk is full'))
+        .mockRejectedValueOnce(new Error('network down')),
+    };
     const { result } = renderHook(() => useKeymapPanel({ source }));
 
     let outcome: KeymapRebindOutcome | undefined;
@@ -128,14 +138,7 @@ describe('onRebind (task 10.2.1, design D6/D8)', () => {
     expect(outcome?.status).toBe('failed');
     expect(findRow(result.current.sections, 'nav.downloads')?.effectiveChord).toBe('alt+2');
     expect(result.current.saveErrorMessage).toBe('disk is full');
-  });
 
-  it('surfaces a generic failure and leaves overrides untouched when setKeymap rejects with no bridge failure', async () => {
-    setKeymapOverrides({});
-    const source = { setKeymap: vi.fn().mockRejectedValue(new Error('network down')) };
-    const { result } = renderHook(() => useKeymapPanel({ source }));
-
-    let outcome: KeymapRebindOutcome | undefined;
     await act(async () => {
       outcome = await result.current.onRebind('nav.downloads', 'ctrl+2');
     });
@@ -156,44 +159,10 @@ describe('onRebind (task 10.2.1, design D6/D8)', () => {
 
     expect(source.setKeymap).toHaveBeenCalledWith('');
   });
-
-  it('reads fresh overrides on a second rebind in the same session, persisting both together rather than a frozen first snapshot', async () => {
-    setKeymapOverrides({});
-    const source = { setKeymap: vi.fn().mockResolvedValue(undefined) };
-    const { result } = renderHook(() => useKeymapPanel({ source }));
-
-    await act(async () => {
-      await result.current.onRebind('nav.downloads', 'ctrl+2');
-    });
-    await act(async () => {
-      await result.current.onRebind('nav.editor', 'ctrl+3');
-    });
-
-    expect(source.setKeymap).toHaveBeenCalledTimes(2);
-    const secondDocument = JSON.parse(source.setKeymap.mock.calls[1][0] as string) as { bindings: Record<string, string> };
-    expect(secondDocument.bindings).toEqual({ 'nav.downloads': 'ctrl+2', 'nav.editor': 'ctrl+3' });
-  });
-
-  it('re-derives the injected source when the prop changes across a render, instead of freezing the first one', async () => {
-    setKeymapOverrides({});
-    const firstSource = { setKeymap: vi.fn().mockResolvedValue(undefined) };
-    const secondSource = { setKeymap: vi.fn().mockResolvedValue(undefined) };
-    const { result, rerender } = renderHook(({ source }) => useKeymapPanel({ source }), {
-      initialProps: { source: firstSource },
-    });
-
-    rerender({ source: secondSource });
-    await act(async () => {
-      await result.current.onRebind('nav.downloads', 'ctrl+2');
-    });
-
-    expect(secondSource.setKeymap).toHaveBeenCalledTimes(1);
-    expect(firstSource.setKeymap).not.toHaveBeenCalled();
-  });
 });
 
 describe('onRevert (task 11.2.1/11.2.2, design D6, spec "Recovery Is Always Reachable By Pointer Alone")', () => {
-  it('restores one command\'s shipped chord, leaving every other override unchanged (spec "Per-binding revert restores one command\'s shipped chord")', async () => {
+  it('restores one shipped chord leaving other overrides, then a second revert reads fresh overrides', async () => {
     setKeymapOverrides({ 'nav.today': 'ctrl+1', 'nav.downloads': 'ctrl+2' });
     const source = { setKeymap: vi.fn().mockResolvedValue(undefined) };
     const { result } = renderHook(() => useKeymapPanel({ source }));
@@ -206,11 +175,22 @@ describe('onRevert (task 11.2.1/11.2.2, design D6, spec "Recovery Is Always Reac
     expect(findRow(result.current.sections, 'nav.downloads')?.effectiveChord).toBe('ctrl+2');
     const document = JSON.parse(source.setKeymap.mock.calls[0][0] as string) as { bindings: Record<string, string> };
     expect(document.bindings).toEqual({ 'nav.downloads': 'ctrl+2' });
+
+    await act(async () => {
+      await result.current.onRevert('nav.downloads');
+    });
+
+    expect(source.setKeymap).toHaveBeenLastCalledWith('');
   });
 
-  it('leaves the override in place and surfaces the failure when the persisted write rejects with a bridge failure (design D6: no optimistic publish)', async () => {
+  it('keeps the override and surfaces the bridge message, then the generic message, when setKeymap rejects', async () => {
     setKeymapOverrides({ 'nav.today': 'ctrl+1' });
-    const source = { setKeymap: vi.fn().mockRejectedValue(createBridgeError('internal', 'disk is full')) };
+    const source = {
+      setKeymap: vi
+        .fn()
+        .mockRejectedValueOnce(createBridgeError('internal', 'disk is full'))
+        .mockRejectedValueOnce(new Error('network down')),
+    };
     const { result } = renderHook(() => useKeymapPanel({ source }));
 
     await act(async () => {
@@ -219,12 +199,6 @@ describe('onRevert (task 11.2.1/11.2.2, design D6, spec "Recovery Is Always Reac
 
     expect(findRow(result.current.sections, 'nav.today')?.effectiveChord).toBe('ctrl+1');
     expect(result.current.saveErrorMessage).toBe('disk is full');
-  });
-
-  it('surfaces a generic failure and leaves the override in place when setKeymap rejects with no bridge failure', async () => {
-    setKeymapOverrides({ 'nav.today': 'ctrl+1' });
-    const source = { setKeymap: vi.fn().mockRejectedValue(new Error('network down')) };
-    const { result } = renderHook(() => useKeymapPanel({ source }));
 
     await act(async () => {
       await result.current.onRevert('nav.today');
@@ -233,58 +207,14 @@ describe('onRevert (task 11.2.1/11.2.2, design D6, spec "Recovery Is Always Reac
     expect(findRow(result.current.sections, 'nav.today')?.effectiveChord).toBe('ctrl+1');
     expect(result.current.saveErrorMessage).toBe(KEYMAP_PANEL_ERROR_MESSAGE);
   });
-
-  it('reads fresh overrides on a second revert in the same session, rather than a frozen first snapshot', async () => {
-    setKeymapOverrides({ 'nav.today': 'ctrl+1', 'nav.downloads': 'ctrl+2' });
-    const source = { setKeymap: vi.fn().mockResolvedValue(undefined) };
-    const { result } = renderHook(() => useKeymapPanel({ source }));
-
-    await act(async () => {
-      await result.current.onRevert('nav.today');
-    });
-    await act(async () => {
-      await result.current.onRevert('nav.downloads');
-    });
-
-    expect(source.setKeymap).toHaveBeenLastCalledWith('');
-  });
-
-  it('re-derives the injected source when the prop changes across a render, instead of freezing the first one', async () => {
-    setKeymapOverrides({ 'nav.today': 'ctrl+1' });
-    const firstSource = { setKeymap: vi.fn().mockResolvedValue(undefined) };
-    const secondSource = { setKeymap: vi.fn().mockResolvedValue(undefined) };
-    const { result, rerender } = renderHook(({ source }) => useKeymapPanel({ source }), {
-      initialProps: { source: firstSource },
-    });
-
-    rerender({ source: secondSource });
-    await act(async () => {
-      await result.current.onRevert('nav.today');
-    });
-
-    expect(secondSource.setKeymap).toHaveBeenCalledTimes(1);
-    expect(firstSource.setKeymap).not.toHaveBeenCalled();
-  });
 });
 
 describe('onResetToDefaults (task 11.2.1/11.2.2, design D5/D6, spec "Recovery Is Always Reachable By Pointer Alone")', () => {
-  it('restores every shipped chord via SetKeymap("") rather than a document enumerating the defaults (design D5)', async () => {
+  it('keeps every override on a rejected write, then restores every shipped chord via SetKeymap("")', async () => {
     setKeymapOverrides({ 'nav.today': 'ctrl+1', 'nav.downloads': 'ctrl+2' });
-    const source = { setKeymap: vi.fn().mockResolvedValue(undefined) };
-    const { result } = renderHook(() => useKeymapPanel({ source }));
-
-    await act(async () => {
-      await result.current.onResetToDefaults();
-    });
-
-    expect(source.setKeymap).toHaveBeenCalledWith('');
-    expect(findRow(result.current.sections, 'nav.today')?.effectiveChord).toBe('alt+1');
-    expect(findRow(result.current.sections, 'nav.downloads')?.effectiveChord).toBe('alt+2');
-  });
-
-  it('leaves every override in place and surfaces the failure when the persisted write rejects with a bridge failure (design D6: no optimistic publish)', async () => {
-    setKeymapOverrides({ 'nav.today': 'ctrl+1' });
-    const source = { setKeymap: vi.fn().mockRejectedValue(createBridgeError('internal', 'disk is full')) };
+    const source = {
+      setKeymap: vi.fn().mockRejectedValueOnce(createBridgeError('internal', 'disk is full')).mockResolvedValue(undefined),
+    };
     const { result } = renderHook(() => useKeymapPanel({ source }));
 
     await act(async () => {
@@ -293,22 +223,13 @@ describe('onResetToDefaults (task 11.2.1/11.2.2, design D5/D6, spec "Recovery Is
 
     expect(findRow(result.current.sections, 'nav.today')?.effectiveChord).toBe('ctrl+1');
     expect(result.current.saveErrorMessage).toBe('disk is full');
-  });
 
-  it('re-derives the injected source when the prop changes across a render, instead of freezing the first one', async () => {
-    setKeymapOverrides({ 'nav.today': 'ctrl+1' });
-    const firstSource = { setKeymap: vi.fn().mockResolvedValue(undefined) };
-    const secondSource = { setKeymap: vi.fn().mockResolvedValue(undefined) };
-    const { result, rerender } = renderHook(({ source }) => useKeymapPanel({ source }), {
-      initialProps: { source: firstSource },
-    });
-
-    rerender({ source: secondSource });
     await act(async () => {
       await result.current.onResetToDefaults();
     });
 
-    expect(secondSource.setKeymap).toHaveBeenCalledTimes(1);
-    expect(firstSource.setKeymap).not.toHaveBeenCalled();
+    expect(source.setKeymap).toHaveBeenLastCalledWith('');
+    expect(findRow(result.current.sections, 'nav.today')?.effectiveChord).toBe('alt+1');
+    expect(findRow(result.current.sections, 'nav.downloads')?.effectiveChord).toBe('alt+2');
   });
 });

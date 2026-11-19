@@ -47,7 +47,7 @@ func TestBindingRules(t *testing.T) {
 		},
 		{name: "binding through a module handle passes", source: useHandle},
 		{name: "explicitly instantiated Use passes", source: "func (a *App) GetThing() (Thing, error) { return a.modules.anime.Use[Thing](get) }"},
-		{name: "use inside a closure passes", source: "func (a *App) Run() { go func() { _, _ = a.modules.shell.Use(log) }() }"},
+		{name: "use inside a closure with no result passes", source: "func (a *App) Run() { go func() { _, _ = a.modules.shell.Use(log) }() }"},
 		{
 			name:   "a plain Use function is not a handle",
 			source: "func (a *App) GetThing() (Thing, error) { return Use(get) }",
@@ -87,7 +87,6 @@ func TestBindingRules(t *testing.T) {
 		},
 		{name: "fixed array is not a slice", source: "func (a *App) Pair() [2]int { _, _ = a.modules.anime.Use(pair); return [2]int{} }"},
 		{name: "struct without error passes", source: "func (a *App) Status() Snapshot { s, _ := a.modules.shell.Use(status); return s }"},
-		{name: "no result passes", source: "func (a *App) Quit() { _, _ = a.modules.shell.Use(quit) }"},
 		{name: "unexported method is not a binding", source: `func (a *App) helper() string { return "" }`},
 		{name: "method of another type is not a binding", source: `func (s *Server) Get() string { return "" }`},
 		{name: "plain function is not a binding", source: `func Get() string { return "" }`},

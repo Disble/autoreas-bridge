@@ -66,17 +66,8 @@ func TestQueueDropsOverflowWithoutBlockingCanonicalFlow(t *testing.T) {
 func TestQueueStopReportsUnfinishedItemsAfterDeadline(t *testing.T) {
 	t.Parallel()
 
-	// Skipped under -short: this test spends 5s waiting out Stop's internal
-	// deadline, which is ~80% of the package's test time. tools/mutationstaged
-	// runs -short because it re-runs this suite once per mutant, and a mutant
-	// that only this test would catch is one whose effect is a hang -- which
-	// surfaces as a timeout anyway.
-	if testing.Short() {
-		t.Skip("skipping the 5s shutdown-deadline wait under -short")
-	}
-
 	store := &blockingQueueStore{release: make(chan struct{})}
-	queue := NewQueue(store, QueueConfig{Capacity: 2})
+	queue := NewQueue(store, QueueConfig{Capacity: 2, StopTimeout: 50 * time.Millisecond})
 
 	if !queue.TryEnqueue(NewCaptureRecord("patch", "device-1")) {
 		t.Fatal("expected enqueue to succeed")
@@ -90,12 +81,36 @@ func TestQueueStopReportsUnfinishedItemsAfterDeadline(t *testing.T) {
 	if result.UnfinishedItems == 0 {
 		t.Fatal("expected unfinished_items to be reported when drain times out")
 	}
-	if elapsed := time.Since(started); elapsed > 6*time.Second {
-		t.Fatalf("expected internal shutdown deadline, took %s", elapsed)
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("expected Stop to honour its configured shutdown deadline, took %s", elapsed)
 	}
 	close(store.release)
 	if err := queue.Err(); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected queue error to wrap context deadline, got %v", err)
+	}
+}
+
+// TestNewQueueShutdownCeilingDefaultsToFiveSeconds pins the production
+// shutdown ceiling: the composition root leaves StopTimeout unset, so an
+// unset or negative value must give 5s and a positive one is kept as given.
+func TestNewQueueShutdownCeilingDefaultsToFiveSeconds(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		set  time.Duration
+		want time.Duration
+	}{
+		{"unset", 0, 5 * time.Second},
+		{"negative", -time.Second, 5 * time.Second},
+		{"configured", 50 * time.Millisecond, 50 * time.Millisecond},
+		{"smallest positive", time.Nanosecond, time.Nanosecond},
+	} {
+		queue := NewQueue(nil, QueueConfig{StopTimeout: tc.set})
+		if queue.stopTimeout != tc.want {
+			t.Errorf("%s: stop timeout = %s, want %s", tc.name, queue.stopTimeout, tc.want)
+		}
+		queue.Stop(context.Background())
 	}
 }
 

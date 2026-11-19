@@ -52,9 +52,13 @@ import { HistoryTimeline } from '../HistoryTimeline';
 
 afterEach(cleanup);
 
-/** Counts rendered watch-history rows, each a selectable ListBox option. */
+/**
+ * Counts watch-history rows in the DOM, each a ListBox option. A selector, not `getAllByRole`: the
+ * windowing claim is about mounted nodes, hidden or not, and it skips the role query's costly
+ * accessibility pass over every row on every poll.
+ */
 function countRows() {
-  return screen.getAllByRole('option').length;
+  return document.querySelectorAll('[role="option"]').length;
 }
 
 describe('HistoryTimeline progressive keyset paging (D5a)', () => {

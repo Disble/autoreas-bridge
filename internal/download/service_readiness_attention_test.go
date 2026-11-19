@@ -82,17 +82,18 @@ func partitionActionsByLevel(actions []notification.ActionSpec) (rowBound, unbou
 	return rowBound, unbound
 }
 
-// TestScheduledRunWarnsAboutBlockedScheduledAnime is the notification's whole anatomy on the
+// TestOnlyScheduledRunsWarnAboutBlockedScheduledAnimeOnEveryRun checks a manual run stays silent, every scheduled run warns, and is the notification's whole anatomy on the
 // only trigger that raises it: identity, level, the per-anime rows the design canvas draws, and
 // the editor route frozen into each row's own action.
-func TestScheduledRunWarnsAboutBlockedScheduledAnime(t *testing.T) {
+func TestOnlyScheduledRunsWarnAboutBlockedScheduledAnimeOnEveryRun(t *testing.T) {
 	t.Parallel()
 
 	deps, notifier := readinessAttentionDeps(t,
 		blockedReadinessItem("anime-eureka", "Nijuuseiki Denki Mokuroku: Eureka", contracts.DownloadReadinessMissingSource),
 	)
 
-	got := runOnceForReadiness(t, deps, notifier, "scheduled")
+	assertManualThenRepeatedScheduledRunsWarnOnlyOnSchedule(t, deps, notifier)
+	got := findNotificationByTitle(notifier, "Scheduled anime need attention")
 	if got == nil {
 		t.Fatal("scheduled run raised no readiness attention notification")
 	}
@@ -137,6 +138,38 @@ func TestScheduledRunWarnsAboutBlockedScheduledAnime(t *testing.T) {
 	}
 }
 
+// assertManualThenRepeatedScheduledRunsWarnOnlyOnSchedule runs one service
+// manually, then three times on schedule. The notice warns that a SCHEDULED run
+// will skip these silently; a manual run is the user standing at the controls,
+// so the same catalog state is not news. The firing policy the user chose is
+// predictability over silence: nothing suppresses, dedupes or cools down a
+// second warning about the same anime -- it repeats until the anime is fixed.
+func assertManualThenRepeatedScheduledRunsWarnOnlyOnSchedule(t *testing.T, deps ServiceDeps, notifier *svcFakeNotifier) {
+	t.Helper()
+	service := NewService(deps)
+
+	if _, err := service.RunOnce(context.Background(), "manual"); err != nil {
+		t.Fatalf("RunOnce(manual): %v", err)
+	}
+	if got := findNotificationByTitle(notifier, "Scheduled anime need attention"); got != nil {
+		t.Fatalf("manual run raised %#v, want no readiness attention notification", got)
+	}
+	for i := range 3 {
+		if _, err := service.RunOnce(context.Background(), "scheduled"); err != nil {
+			t.Fatalf("RunOnce #%d: %v", i+1, err)
+		}
+	}
+	raised := 0
+	for _, n := range notifier.notifications() {
+		if n.Kind == "readiness_attention" {
+			raised++
+		}
+	}
+	if raised != 3 {
+		t.Fatalf("readiness_attention raised %d times across 3 scheduled runs, want 3", raised)
+	}
+}
+
 // TestReadinessAttentionBodyCountsTheBlockedAnime pins the body sentence: the canvas moved the
 // count out of a chip and back into prose, so the number has to be in the body.
 func TestReadinessAttentionBodyCountsTheBlockedAnime(t *testing.T) {
@@ -154,21 +187,6 @@ func TestReadinessAttentionBodyCountsTheBlockedAnime(t *testing.T) {
 	}
 	if got.Body != "2 scheduled anime cannot download and will be skipped on this run." {
 		t.Fatalf("Body = %q, want it to count only the blocked anime", got.Body)
-	}
-}
-
-// TestManualRunNeverWarnsAboutReadiness holds the firing policy's other half. The notice warns
-// that a SCHEDULED run will skip these silently; a manual run is the user standing at the
-// controls, so the same catalog state is not news.
-func TestManualRunNeverWarnsAboutReadiness(t *testing.T) {
-	t.Parallel()
-
-	deps, notifier := readinessAttentionDeps(t,
-		blockedReadinessItem("anime-eureka", "Eureka", contracts.DownloadReadinessMissingSource),
-	)
-
-	if got := runOnceForReadiness(t, deps, notifier, "manual"); got != nil {
-		t.Fatalf("manual run raised %#v, want no readiness attention notification", got)
 	}
 }
 
@@ -324,34 +342,6 @@ func TestReadinessAttentionCollapsedRowNamesItsCohort(t *testing.T) {
 	_, unbound := partitionActionsByLevel(got.Actions)
 	if len(unbound) != 1 || unbound[0].Label != "See this run" {
 		t.Fatalf("unbound actions = %#v, want only the whole-notification token", unbound)
-	}
-}
-
-// TestReadinessAttentionRepeatsOnEveryScheduledRun pins the firing policy the user chose:
-// predictability over silence. Nothing suppresses, dedupes or cools down a second warning about
-// the same anime -- it repeats until the anime is fixed.
-func TestReadinessAttentionRepeatsOnEveryScheduledRun(t *testing.T) {
-	t.Parallel()
-
-	deps, notifier := readinessAttentionDeps(t,
-		blockedReadinessItem("anime-eureka", "Eureka", contracts.DownloadReadinessMissingSource),
-	)
-	service := NewService(deps)
-
-	for i := range 3 {
-		if _, err := service.RunOnce(context.Background(), "scheduled"); err != nil {
-			t.Fatalf("RunOnce #%d: %v", i+1, err)
-		}
-	}
-
-	raised := 0
-	for _, n := range notifier.notifications() {
-		if n.Kind == "readiness_attention" {
-			raised++
-		}
-	}
-	if raised != 3 {
-		t.Fatalf("readiness_attention raised %d times across 3 scheduled runs, want 3", raised)
 	}
 }
 

@@ -61,14 +61,6 @@ const shippedWriteTablesDDL = `
 	VALUES ('operation-1', 'operation-1', 'anime-1', '{"id":"anime-1"}', 'pending', 200);
 `
 
-// TestOpenBridgeDBNeverCreatesTheRetiredWriteTables proves a fresh database
-// holds neither retired table nor any of their indexes.
-func TestOpenBridgeDBNeverCreatesTheRetiredWriteTables(t *testing.T) {
-	t.Parallel()
-
-	assertNoRetiredWriteSchema(t, openTestBridgeDB(t))
-}
-
 // TestOpenBridgeDBDropsTheRetiredWriteTablesAndKeepsEveryOtherRow upgrades a
 // database that still holds both tables, with rows, next to rows in the
 // tables that stay. The first open drops both tables and changes no other

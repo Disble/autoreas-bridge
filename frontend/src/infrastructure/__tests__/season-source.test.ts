@@ -66,7 +66,7 @@ describe('season-source', () => {
     Reflect.deleteProperty(window, 'runtime');
   });
 
-  it('degrades mutators without calling a missing Wails binding', async () => {
+  it('degrades mutators to the runtime-unavailable message without calling a missing Wails binding', async () => {
     const createSeasonMock = vi.fn().mockResolvedValue('created');
     window.go = { desktop: { App: { CreateSeason: createSeasonMock } } } as never;
 
@@ -74,12 +74,19 @@ describe('season-source', () => {
     const { SEASON_RUNTIME_UNAVAILABLE } = await import('../season-source/season-source.constants');
     const source = createSeasonSource();
 
-    const resultPromise = source.closeSeason();
+    const closePromise = source.closeSeason();
+    const createPromise = source.createSeasonAnimes(['sa-1'], {}, { 'sa-1': { totalEpisodes: 24 } });
+    const writePromise = source.setSeasonAnimeMetadata('sa-1', '{"kind":0}');
 
     await vi.advanceTimersByTimeAsync(5000);
 
-    await expect(resultPromise).resolves.toBe(SEASON_RUNTIME_UNAVAILABLE);
+    await expect(closePromise).resolves.toBe(SEASON_RUNTIME_UNAVAILABLE);
     expect(createSeasonMock).not.toHaveBeenCalled();
+    // The caller shows this message: resolving to undefined would report success
+    // for a creation that never happened.
+    await expect(createPromise).resolves.toBe(SEASON_RUNTIME_UNAVAILABLE);
+    // The store surfaces this message, so a write with no runtime cannot pass as saved.
+    await expect(writePromise).resolves.toBe(SEASON_RUNTIME_UNAVAILABLE);
   });
 
   it('forwards readSeason to the live Wails binding once it becomes ready', async () => {
@@ -105,7 +112,7 @@ describe('season-source', () => {
     expect(getSeasonMock).toHaveBeenCalledTimes(1);
   });
 
-  it('preserves Wails collection and historical snapshot payloads once their bindings are ready', async () => {
+  it('preserves Wails collection, historical, ordering snapshot and Ver hoy payloads once their bindings are ready', async () => {
     const season = {
       id: 'season-2025-fall',
       name: 'Fall 2025',
@@ -118,12 +125,23 @@ describe('season-source', () => {
     const getSeasonAnimesMock = vi.fn().mockResolvedValue(seasonAnimes);
     const getPastSeasonMock = vi.fn().mockResolvedValue(season);
     const listSeasonsMock = vi.fn().mockResolvedValue([season]);
+    const snapshot = {
+      recorded: true,
+      capturedAt: 1_700_000_000_000,
+      appliedAt: 1_699_000_000_000,
+      rail: [{ animeId: 'anime-1', name: 'Dandadan', dia: '', orden: 0, section: 'Visto', isNewcomer: true }],
+      grid: [],
+    };
+    const getSnapshotMock = vi.fn().mockResolvedValue(snapshot);
+    const send = vi.fn().mockResolvedValue({ pastDownloadTime: true, downloadTime: '21:00' });
     window.go = {
       desktop: {
         App: {
           GetPastSeason: getPastSeasonMock,
           GetSeasonAnimes: getSeasonAnimesMock,
           ListSeasons: listSeasonsMock,
+          GetSeasonOrderingSnapshot: getSnapshotMock,
+          SendSeasonAnimesToVerHoy: send,
         },
       },
     } as never;
@@ -137,36 +155,28 @@ describe('season-source', () => {
     expect(getSeasonAnimesMock).toHaveBeenCalledTimes(1);
     expect(getPastSeasonMock).toHaveBeenCalledWith('season-2025-fall');
     expect(listSeasonsMock).toHaveBeenCalledTimes(1);
-  });
 
-  it('forwards fetchSeasonOrderingSnapshot to the live Wails binding and preserves the recorded payload', async () => {
-    const snapshot = {
-      recorded: true,
-      capturedAt: 1_700_000_000_000,
-      appliedAt: 1_699_000_000_000,
-      rail: [{ animeId: 'anime-1', name: 'Dandadan', dia: '', orden: 0, section: 'Visto', isNewcomer: true }],
-      grid: [],
-    };
-    const getSnapshotMock = vi.fn().mockResolvedValue(snapshot);
-    window.go = { desktop: { App: { GetSeasonOrderingSnapshot: getSnapshotMock } } } as never;
-
-    const { createSeasonSource } = await import('../season-source/season-source.helpers');
-    const source = createSeasonSource();
     const readSnapshot = source.fetchSeasonOrderingSnapshot;
     expect(readSnapshot).toBeDefined();
-
     await expect(readSnapshot!('season-2025-fall')).resolves.toEqual(snapshot);
     expect(getSnapshotMock).toHaveBeenCalledWith('season-2025-fall');
+
+    // A staged Ver hoy batch answers the download window the binding answered.
+    await expect(source.sendToVerHoy(['anime-1', 'anime-2'])).resolves.toEqual({ pastDownloadTime: true, downloadTime: '21:00' });
+    expect(send).toHaveBeenCalledExactlyOnceWith(['anime-1', 'anime-2']);
   });
 
-  it('forwards the create call with the picked rows, their folders and their metadata', async () => {
+  it('forwards the create call with its rows, folders and metadata, and stores or clears one row session metadata', async () => {
     const createMock = vi.fn().mockResolvedValue('ok');
-    window.go = { desktop: { App: { CreateSeasonAnimes: createMock } } } as never;
+    const setMock = vi.fn().mockResolvedValue('ok');
+    window.go = { desktop: { App: { CreateSeasonAnimes: createMock, SetSeasonAnimeMetadata: setMock } } } as never;
 
     const { createSeasonSource } = await import('../season-source/season-source.helpers');
     const source = createSeasonSource();
 
     const resultPromise = source.createSeasonAnimes(['sa-1', 'sa-2'], { 'sa-2': 'E:/Anime/Bleach' }, { 'sa-1': { totalEpisodes: 24, genres: ['Action'] } });
+    const write = source.setSeasonAnimeMetadata('sa-1', '{"kind":0}');
+    const clear = source.setSeasonAnimeMetadata('sa-1', '');
 
     await vi.advanceTimersByTimeAsync(5000);
 
@@ -178,20 +188,11 @@ describe('season-source', () => {
       { 'sa-2': 'E:/Anime/Bleach' },
       { 'sa-1': { totalEpisodes: 24, genres: ['Action'] } },
     );
-  });
-
-  it('degrades the create call to its runtime-unavailable message when no binding exists', async () => {
-    const { createSeasonSource } = await import('../season-source/season-source.helpers');
-    const { SEASON_RUNTIME_UNAVAILABLE } = await import('../season-source/season-source.constants');
-    const source = createSeasonSource();
-
-    const resultPromise = source.createSeasonAnimes(['sa-1'], {}, { 'sa-1': { totalEpisodes: 24 } });
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    // The caller shows this message: resolving to undefined would report success
-    // for a creation that never happened.
-    await expect(resultPromise).resolves.toBe(SEASON_RUNTIME_UNAVAILABLE);
+    await expect(write).resolves.toBe('ok');
+    await expect(clear).resolves.toBe('ok');
+    expect(setMock).toHaveBeenNthCalledWith(1, 'sa-1', '{"kind":0}');
+    // An empty payload is how the row's metadata is cleared, so it must reach Go as empty.
+    expect(setMock).toHaveBeenNthCalledWith(2, 'sa-1', '');
   });
 
   it('agrees with the Go create-metadata contract on every field name it can emit', () => {
@@ -208,37 +209,6 @@ describe('season-source', () => {
     // not the intake row's own held shape: the title is identity (never metadata),
     // and the cover travels as the typed {type, path} shape, so its key is `cover`.
     expect(tags).toEqual(['kind', 'totalEpisodes', 'durationMinutes', 'origin', 'genres', 'studios', 'cover']);
-  });
-
-  it('stores or clears one row session metadata through the live binding', async () => {
-    const setMock = vi.fn().mockResolvedValue('ok');
-    window.go = { desktop: { App: { SetSeasonAnimeMetadata: setMock } } } as never;
-
-    const { createSeasonSource } = await import('../season-source/season-source.helpers');
-    const source = createSeasonSource();
-
-    const write = source.setSeasonAnimeMetadata('sa-1', '{"kind":0}');
-    const clear = source.setSeasonAnimeMetadata('sa-1', '');
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    await expect(write).resolves.toBe('ok');
-    await expect(clear).resolves.toBe('ok');
-    expect(setMock).toHaveBeenNthCalledWith(1, 'sa-1', '{"kind":0}');
-    // An empty payload is how the row's metadata is cleared, so it must reach Go as empty.
-    expect(setMock).toHaveBeenNthCalledWith(2, 'sa-1', '');
-  });
-
-  it('degrades the metadata write to its runtime-unavailable message when no binding exists', async () => {
-    const { createSeasonSource } = await import('../season-source/season-source.helpers');
-    const { SEASON_RUNTIME_UNAVAILABLE } = await import('../season-source/season-source.constants');
-
-    const write = createSeasonSource().setSeasonAnimeMetadata('sa-1', '{"kind":0}');
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    // The store surfaces this message, so a write with no runtime cannot pass as saved.
-    await expect(write).resolves.toBe(SEASON_RUNTIME_UNAVAILABLE);
   });
 
   it.each(SEASON_COMMANDS)('reads %s as "ok" once it resolves and as its failure message once it rejects', async (binding, invoke) => {
@@ -263,23 +233,17 @@ describe('season-source', () => {
     await expect(createSeasonSource().closeSeason()).resolves.toBe('no active season');
   });
 
-  it.each(SEASON_QUERY_READS)('answers the %s query read with what the binding returned', async (binding, invoke, args) => {
+  it.each(SEASON_QUERY_READS)('answers the %s query read with what the binding returned and rejects the coded failure it rejected with', async (binding, invoke, args) => {
     const payload = { answered: binding };
-    const bindingMock = vi.fn().mockResolvedValue(payload);
+    const bindingMock = vi.fn().mockResolvedValueOnce(payload).mockRejectedValueOnce(new Error(SEASON_STARTING_REJECTION));
     window.go = { desktop: { App: { [binding]: bindingMock } } } as never;
 
     const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const source = createSeasonSource();
 
-    await expect(invoke(createSeasonSource())).resolves.toBe(payload);
+    await expect(invoke(source)).resolves.toBe(payload);
     expect(bindingMock).toHaveBeenCalledExactlyOnceWith(...args);
-  });
-
-  it.each(SEASON_QUERY_READS)('rejects the %s query read with the coded failure the binding rejected with', async (binding, invoke) => {
-    window.go = { desktop: { App: { [binding]: vi.fn().mockRejectedValue(new Error(SEASON_STARTING_REJECTION)) } } } as never;
-
-    const { createSeasonSource } = await import('../season-source/season-source.helpers');
-
-    await expect(invoke(createSeasonSource())).rejects.toMatchObject({ code: 'unavailable', message: 'season is starting' });
+    await expect(invoke(source)).rejects.toMatchObject({ code: 'unavailable', message: 'season is starting' });
   });
 
   it.each(SEASON_QUERY_READS)('rejects the %s query read as unavailable when its binding never attaches', async (binding, invoke) => {
@@ -313,26 +277,7 @@ describe('season-source', () => {
     await expect(settled).resolves.toMatchObject({ name: 'BridgeError', code: 'unavailable', message: `the ${binding} binding is not attached` });
   });
 
-  it('answers a staged Ver hoy batch with the download window the binding answered', async () => {
-    const send = vi.fn().mockResolvedValue({ pastDownloadTime: true, downloadTime: '21:00' });
-    window.go = { desktop: { App: { SendSeasonAnimesToVerHoy: send } } } as never;
-
-    const { createSeasonSource } = await import('../season-source/season-source.helpers');
-
-    await expect(createSeasonSource().sendToVerHoy(['anime-1', 'anime-2'])).resolves.toEqual({ pastDownloadTime: true, downloadTime: '21:00' });
-    expect(send).toHaveBeenCalledExactlyOnceWith(['anime-1', 'anime-2']);
-  });
-
-  it('uses the shared Wails binding readiness helper instead of local duplicate plumbing', () => {
-    const seasonSourcePath = join(process.cwd(), 'src/infrastructure/season-source/season-source.helpers.ts');
-    const sourceText = readFileSync(seasonSourcePath, 'utf8');
-
-    expect(sourceText).toContain("from '../wails-bindings.helpers'");
-    expect(sourceText).not.toMatch(/function hasGoBinding\s*\(/);
-    expect(sourceText).not.toMatch(/function waitForBindings\s*\(/);
-  });
-
-  it('keeps the season port types in shared contracts and the adapter in its own module', () => {
+  it('keeps the season port types in shared contracts and the adapter in its own module on the shared readiness helper', () => {
     const sourceRoot = join(process.cwd(), 'src/infrastructure/season-source');
     const indexPath = join(sourceRoot, 'index.ts');
     const typesPath = join(process.cwd(), 'src/shared/contracts/season.types.ts');
@@ -344,5 +289,8 @@ describe('season-source', () => {
     expect(existsSync(helperPath)).toBe(true);
     expect(existsSync(join(process.cwd(), 'src/infrastructure/season-source.ts'))).toBe(false);
     expect(helperText).toContain("from '../wails-bindings.helpers'");
+    // No local duplicate of the shared readiness plumbing.
+    expect(helperText).not.toMatch(/function hasGoBinding\s*\(/);
+    expect(helperText).not.toMatch(/function waitForBindings\s*\(/);
   });
 });

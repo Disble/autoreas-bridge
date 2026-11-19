@@ -23,14 +23,13 @@ describe('combineGuardSaveResults', () => {
   /** An applied anime save. */
   const applied = { outcome: 'applied' as const, message: 'saved' };
 
-  it('continues on the last answer when every dirty card saved, and on a no-op when none was dirty', () => {
+  it('continues on the last answer when every dirty card saved or a no-op when none was dirty, and stops on the first card that did not save', () => {
     const noOp = { outcome: 'no_op' as const, message: '' };
     expect(combineGuardSaveResults([applied, noOp])).toBe(noOp);
     expect(combineGuardSaveResults([applied, { ...applied }, noOp])).toBe(noOp);
     expect(combineGuardSaveResults([])).toEqual({ outcome: 'no_op', message: '' });
-  });
 
-  it('stops on the first card that did not save, wherever it is', () => {
+    // The first card that did not save stops it, wherever it is.
     const failed = { outcome: 'error' as const, message: 'disk full' };
     expect(combineGuardSaveResults([applied, failed])).toBe(failed);
     expect(combineGuardSaveResults([failed, applied])).toBe(failed);
@@ -39,7 +38,7 @@ describe('combineGuardSaveResults', () => {
 });
 
 describe('saveDirtyCards', () => {
-  it('saves only the dirty cards, each in order, and answers the first that did not save', async () => {
+  it('saves only the dirty cards, each in order, answering the first that did not save or a no-op when nothing is dirty', async () => {
     const calls: string[] = [];
     const failed = { outcome: 'error' as const, message: 'disk full' };
     const result = await saveDirtyCards([
@@ -50,9 +49,6 @@ describe('saveDirtyCards', () => {
 
     expect(calls).toEqual(['anime', 'episodes']);
     expect(result).toBe(failed);
-  });
-
-  it('continues on a no-op when nothing is dirty', async () => {
     expect(await saveDirtyCards([{ isDirty: false, save: vi.fn() }])).toEqual({ outcome: 'no_op', message: '' });
   });
 });

@@ -28,53 +28,21 @@ function createSource(overrides: Partial<DownloadsSource> = {}): DownloadsSource
 }
 
 describe('useJDConfigPanel', () => {
-  it('starts in the loading status', () => {
+  it('loads the account into the form without the password, edits it and saves it write-only', async () => {
     const source = createSource();
     const { result } = renderHook(() => useJDConfigPanel(source), { wrapper: createDownloadsWrapper().wrapper });
 
     expect(result.current.status).toBe('loading');
-  });
-
-  it('loads JD status and maps it to form values without the password', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useJDConfigPanel(source), { wrapper: createDownloadsWrapper().wrapper });
-
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
     expect(result.current.form.email).toBe('user@example.com');
     expect(result.current.form.plaintextPassword).toBe('');
     expect(result.current.liveStatus.hasPassword).toBe(true);
-  });
-
-  it('surfaces an error status when getJDStatus rejects', async () => {
-    const source = createSource({ getJDStatus: vi.fn().mockRejectedValue(new Error('boom')) });
-    const { result } = renderHook(() => useJDConfigPanel(source), { wrapper: createDownloadsWrapper().wrapper });
-
-    await waitFor(() => expect(result.current.status).toBe('error'));
-  });
-
-  it('updateField updates a single form field', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useJDConfigPanel(source), { wrapper: createDownloadsWrapper().wrapper });
-
-    await waitFor(() => expect(result.current.status).toBe('ready'));
 
     act(() => {
       result.current.updateField('plaintextPassword', 'new-secret');
     });
-
     expect(result.current.form.plaintextPassword).toBe('new-secret');
-  });
-
-  it('save calls setJDConfig with the mapped input and refreshes liveStatus', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useJDConfigPanel(source), { wrapper: createDownloadsWrapper().wrapper });
-
-    await waitFor(() => expect(result.current.status).toBe('ready'));
-
-    act(() => {
-      result.current.updateField('plaintextPassword', 'new-secret');
-    });
 
     await act(async () => {
       await result.current.save();
@@ -85,6 +53,14 @@ describe('useJDConfigPanel', () => {
     );
     expect(result.current.saveSucceeded).toBe(true);
     expect(source.getJDStatus).toHaveBeenCalledTimes(2);
+    expect(result.current.form.plaintextPassword).toBe('');
+  });
+
+  it('surfaces an error status when getJDStatus rejects', async () => {
+    const source = createSource({ getJDStatus: vi.fn().mockRejectedValue(new Error('boom')) });
+    const { result } = renderHook(() => useJDConfigPanel(source), { wrapper: createDownloadsWrapper().wrapper });
+
+    await waitFor(() => expect(result.current.status).toBe('error'));
   });
 
   it('save surfaces saveErrorMessage and leaves saveSucceeded false when setJDConfig rejects', async () => {
@@ -99,22 +75,5 @@ describe('useJDConfigPanel', () => {
 
     expect(result.current.saveErrorMessage).toBe('save failed');
     expect(result.current.saveSucceeded).toBe(false);
-  });
-
-  it('clears the password field after a successful save (write-only contract)', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useJDConfigPanel(source), { wrapper: createDownloadsWrapper().wrapper });
-
-    await waitFor(() => expect(result.current.status).toBe('ready'));
-
-    act(() => {
-      result.current.updateField('plaintextPassword', 'new-secret');
-    });
-
-    await act(async () => {
-      await result.current.save();
-    });
-
-    expect(result.current.form.plaintextPassword).toBe('');
   });
 });

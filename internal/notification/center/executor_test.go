@@ -60,87 +60,6 @@ func newTestExecutor(t *testing.T, registered bool, handler *spyIntentHandler) (
 	return NewExecutor(store, registry), registry, recordID
 }
 
-// TestExecuteForeignActionRefusedPreResolution asserts an actionID belonging
-// to one record, pressed as if it belonged to a different one, refuses
-// foreign_action WITHOUT ever consulting the registry or invoking a
-// handler.
-func TestExecuteForeignActionRefusedPreResolution(t *testing.T) {
-	t.Parallel()
-	handler := &spyIntentHandler{}
-	executor, registry, recordID := newTestExecutor(t, true, handler)
-
-	result := executor.Execute(context.Background(), recordID+1, "act-1")
-
-	if result.Reason != RefusalForeignAction || result.Executed {
-		t.Fatalf("expected foreign_action, got %#v", result)
-	}
-	if registry.resolveCalls != 0 {
-		t.Fatalf("expected no registry lookup for a foreign action, got %d", registry.resolveCalls)
-	}
-	if handler.calls != 0 {
-		t.Fatalf("expected no handler invocation for a foreign action, got %d", handler.calls)
-	}
-}
-
-// TestExecuteAlreadyExecutedRefusedHandlerNotReinvoked asserts a second
-// press of an already-executed, non-repeatable action returns
-// already_executed and does not invoke the handler again.
-func TestExecuteAlreadyExecutedRefusedHandlerNotReinvoked(t *testing.T) {
-	t.Parallel()
-	handler := &spyIntentHandler{}
-	executor, _, recordID := newTestExecutor(t, true, handler)
-	ctx := context.Background()
-
-	first := executor.Execute(ctx, recordID, "act-1")
-	if !first.Executed {
-		t.Fatalf("expected the first press to succeed, got %#v", first)
-	}
-	if handler.calls != 1 {
-		t.Fatalf("expected exactly 1 handler invocation after the first press, got %d", handler.calls)
-	}
-
-	second := executor.Execute(ctx, recordID, "act-1")
-
-	if second.Reason != RefusalAlreadyExecuted || second.Executed {
-		t.Fatalf("expected already_executed on the second press, got %#v", second)
-	}
-	if handler.calls != 1 {
-		t.Fatalf("expected the handler NOT to be invoked again, got %d calls", handler.calls)
-	}
-}
-
-// TestExecuteAlreadyExecutedOutranksIntentUnregistered pins the precedence
-// between the two refusals that can both be true at once. Each reason has its
-// own test, but nothing else here would notice the checks being reordered.
-//
-// The order matters to the human reading the row. An action that ran, on a
-// build where its subsystem is no longer wired, is an action that HAPPENED --
-// saying "that intent is not registered" would be a true statement about the
-// process and a false one about their notification.
-func TestExecuteAlreadyExecutedOutranksIntentUnregistered(t *testing.T) {
-	t.Parallel()
-	handler := &spyIntentHandler{}
-	executor, registry, recordID := newTestExecutor(t, true, handler)
-	ctx := context.Background()
-
-	if first := executor.Execute(ctx, recordID, "act-1"); !first.Executed {
-		t.Fatalf("expected the first press to succeed, got %#v", first)
-	}
-
-	// The subsystem goes away after the action already ran -- a restart with
-	// that context unavailable, which Decision C makes an ordinary state.
-	registry.registered = false
-
-	second := executor.Execute(ctx, recordID, "act-1")
-
-	if second.Reason != "already_executed" {
-		t.Fatalf("expected the press to report what happened to the record, not the state of the registry; got %q", second.Reason)
-	}
-	if handler.calls != 1 {
-		t.Fatalf("expected the handler NOT to be invoked again, got %d calls", handler.calls)
-	}
-}
-
 // TestExecuteIntentUnregisteredRefusedNoHandlerInvoked asserts an
 // unregistered intent refuses intent_unregistered and never invokes a
 // handler.
@@ -216,22 +135,6 @@ func TestExecuteEmptyRegistryNeverPanics(t *testing.T) {
 	}
 }
 
-// TestExecuteFirstPressSucceedsAndStampsExecutedAtMs asserts the happy
-// path: a nil-returning handler stamps executedAtMs and reports success.
-func TestExecuteFirstPressSucceedsAndStampsExecutedAtMs(t *testing.T) {
-	t.Parallel()
-	executor, _, recordID := newTestExecutor(t, true, &spyIntentHandler{})
-
-	result := executor.Execute(context.Background(), recordID, "act-1")
-
-	if !result.Executed || result.Reason != RefusalNone {
-		t.Fatalf("expected success with no refusal reason, got %#v", result)
-	}
-	if result.ExecutedAtMS == 0 {
-		t.Fatal("expected ExecutedAtMS to be stamped on a successful press")
-	}
-}
-
 // TestRefusalReasonIsAlwaysOneOfExactlyFour tables every failure path above
 // and asserts the returned Reason is always a member of the closed 4-value
 // set (notification-actions spec, "A refusal is always one of exactly four
@@ -273,5 +176,57 @@ func TestRefusalReasonIsAlwaysOneOfExactlyFour(t *testing.T) {
 		if !closedSet[result.Reason] {
 			t.Fatalf("case %q: expected one of the four closed refusal reasons, got %q", name, result.Reason)
 		}
+	}
+}
+
+// TestExecuteAlreadyExecutedOutranksIntentUnregistered drives one executor through an action's presses:
+// a press on a foreign record is refused before any registry lookup, the first
+// press runs the handler once and stamps executedAtMs, a second press is
+// already_executed without re-invoking the handler, and already_executed still
+// wins once the intent is no longer registered: the press reports what
+// happened to the record, not the state of the registry.
+func TestExecuteAlreadyExecutedOutranksIntentUnregistered(t *testing.T) {
+	t.Parallel()
+	handler := &spyIntentHandler{}
+	executor, registry, recordID := newTestExecutor(t, true, handler)
+	ctx := context.Background()
+
+	foreign := executor.Execute(ctx, recordID+1, "act-1")
+	if foreign.Reason != RefusalForeignAction || foreign.Executed {
+		t.Fatalf("expected foreign_action, got %#v", foreign)
+	}
+	if registry.resolveCalls != 0 {
+		t.Fatalf("expected no registry lookup for a foreign action, got %d", registry.resolveCalls)
+	}
+	if handler.calls != 0 {
+		t.Fatalf("expected no handler invocation for a foreign action, got %d", handler.calls)
+	}
+
+	first := executor.Execute(ctx, recordID, "act-1")
+	if !first.Executed || first.Reason != RefusalNone {
+		t.Fatalf("expected the first press to succeed with no refusal reason, got %#v", first)
+	}
+	if first.ExecutedAtMS == 0 {
+		t.Fatal("expected ExecutedAtMS to be stamped on a successful press")
+	}
+	if handler.calls != 1 {
+		t.Fatalf("expected exactly 1 handler invocation after the first press, got %d", handler.calls)
+	}
+
+	second := executor.Execute(ctx, recordID, "act-1")
+	if second.Reason != RefusalAlreadyExecuted || second.Executed {
+		t.Fatalf("expected already_executed on the second press, got %#v", second)
+	}
+	if handler.calls != 1 {
+		t.Fatalf("expected the handler NOT to be invoked again, got %d calls", handler.calls)
+	}
+
+	registry.registered = false
+	third := executor.Execute(ctx, recordID, "act-1")
+	if third.Reason != "already_executed" {
+		t.Fatalf("expected the press to report what happened to the record, not the state of the registry; got %q", third.Reason)
+	}
+	if handler.calls != 1 {
+		t.Fatalf("expected the handler NOT to be invoked again, got %d calls", handler.calls)
 	}
 }

@@ -20,20 +20,14 @@ func newTestStore(t *testing.T) *settings.SQLiteStore {
 	return settings.NewSQLiteStore(db)
 }
 
-func TestLibraryRootDefaultsToEmptyWhenUnset(t *testing.T) {
-	store := newTestStore(t)
-	got, err := store.LibraryRoot(context.Background())
-	if err != nil {
-		t.Fatalf("LibraryRoot: %v", err)
-	}
-	if got != "" {
-		t.Fatalf("unset library root = %q, want empty", got)
-	}
-}
-
-func TestSetLibraryRootRoundTrips(t *testing.T) {
+// TestLibraryRootIsEmptyWhenUnsetThenRoundTrips reads the unset root as empty,
+// then persists one and reads it back.
+func TestLibraryRootIsEmptyWhenUnsetThenRoundTrips(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
+	if got, err := store.LibraryRoot(ctx); err != nil || got != "" {
+		t.Fatalf("unset library root = %q (%v), want empty", got, err)
+	}
 	want := filepath.Join("D:", "Anime")
 	if err := store.SetLibraryRoot(ctx, want); err != nil {
 		t.Fatalf("SetLibraryRoot: %v", err)

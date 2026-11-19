@@ -11,25 +11,24 @@ function modulesOf(...statuses: ModuleReadiness[]): ReadonlyMap<string, ModuleRe
 }
 
 describe('mergeModuleReadiness', () => {
-  it.each([
-    ['starting → ready', status('episodes', 'starting'), status('episodes', 'ready'), 'ready'],
-    ['starting → failed', status('episodes', 'starting'), status('episodes', 'failed', 'db'), 'failed'],
-    ['ready stays ready on a stale starting', status('episodes', 'ready'), status('episodes', 'starting'), 'ready'],
-    ['failed stays failed on a stale starting', status('episodes', 'failed', 'db'), status('episodes', 'starting'), 'failed'],
-    ['ready never turns failed', status('episodes', 'ready'), status('episodes', 'failed', 'db'), 'ready'],
-    ['failed never turns ready', status('episodes', 'failed', 'db'), status('episodes', 'ready'), 'failed'],
-  ])('%s', (_label, current, incoming, expected) => {
-    const merged = mergeModuleReadiness(modulesOf(current), incoming);
+  it('keeps a terminal state over a later contradiction, adds unknown modules and leaves its input intact', () => {
+    const cases: ReadonlyArray<readonly [string, ModuleReadiness, ModuleReadiness, ModuleReadiness['state']]> = [
+      ['starting → ready', status('episodes', 'starting'), status('episodes', 'ready'), 'ready'],
+      ['starting → failed', status('episodes', 'starting'), status('episodes', 'failed', 'db'), 'failed'],
+      ['ready stays ready on a stale starting', status('episodes', 'ready'), status('episodes', 'starting'), 'ready'],
+      ['failed stays failed on a stale starting', status('episodes', 'failed', 'db'), status('episodes', 'starting'), 'failed'],
+      ['ready never turns failed', status('episodes', 'ready'), status('episodes', 'failed', 'db'), 'ready'],
+      ['failed never turns ready', status('episodes', 'failed', 'db'), status('episodes', 'ready'), 'failed'],
+    ];
+    for (const [name, current, incoming, expected] of cases) {
+      expect.soft(mergeModuleReadiness(modulesOf(current), incoming).get('episodes')?.state, name).toBe(expected);
+    }
 
-    expect(merged.get('episodes')?.state).toBe(expected);
-  });
-
-  it('adds an unknown module and leaves the input map untouched', () => {
     const current = modulesOf(status('anime', 'ready'));
     const merged = mergeModuleReadiness(current, status('episodes', 'starting'));
 
-    expect([...merged.values()]).toEqual([status('anime', 'ready'), status('episodes', 'starting')]);
-    expect(current.has('episodes')).toBe(false);
+    expect.soft([...merged.values()], 'unknown module is added').toEqual([status('anime', 'ready'), status('episodes', 'starting')]);
+    expect.soft(current.has('episodes'), 'input map is untouched').toBe(false);
   });
 });
 
@@ -46,30 +45,36 @@ describe('mergeReadinessSnapshot', () => {
 });
 
 describe('decideGate', () => {
-  it.each([
-    ['ready runs', modulesOf(status('episodes', 'ready')), false, { kind: 'run' }],
-    ['starting waits', modulesOf(status('episodes', 'starting')), true, { kind: 'wait' }],
-    ['unknown before the snapshot waits', modulesOf(), false, { kind: 'wait' }],
-  ])('%s', (_label, modules, snapshotLoaded, expected) => {
-    expect(decideGate({ modules, snapshotLoaded }, 'episodes')).toEqual(expected);
-  });
+  it('runs a ready module, waits on a starting or not-yet-known one and fails a failed or unregistered one', () => {
+    const exact: ReadonlyArray<readonly [string, ReadonlyMap<string, ModuleReadiness>, boolean, unknown]> = [
+      ['ready runs', modulesOf(status('episodes', 'ready')), false, { kind: 'run' }],
+      ['starting waits', modulesOf(status('episodes', 'starting')), true, { kind: 'wait' }],
+      ['unknown before the snapshot waits', modulesOf(), false, { kind: 'wait' }],
+    ];
+    for (const [name, modules, snapshotLoaded, expected] of exact) {
+      expect.soft(decideGate({ modules, snapshotLoaded }, 'episodes'), name).toEqual(expected);
+    }
 
-  it('fails a failed module with failed_precondition carrying its reason', () => {
-    const decision = decideGate({ modules: modulesOf(status('episodes', 'failed', 'episodes: db closed')), snapshotLoaded: true }, 'episodes');
-
-    expect(decision).toMatchObject({ kind: 'fail', error: { name: 'BridgeError', code: 'failed_precondition', message: 'episodes: db closed' } });
-  });
-
-  it('names the module when a failed one carries no reason', () => {
-    const decision = decideGate({ modules: modulesOf(status('episodes', 'failed')), snapshotLoaded: true }, 'episodes');
-
-    expect(decision).toMatchObject({ kind: 'fail', error: { code: 'failed_precondition', message: 'episodes failed to start' } });
-  });
-
-  it('fails a module the loaded snapshot does not register as internal', () => {
-    const decision = decideGate({ modules: modulesOf(status('anime', 'ready')), snapshotLoaded: true }, 'episodes');
-
-    expect(decision).toMatchObject({ kind: 'fail', error: { code: 'internal', message: 'episodes is not a registered module' } });
+    const failures: ReadonlyArray<readonly [string, ReadonlyMap<string, ModuleReadiness>, object]> = [
+      [
+        'failed module carries its reason as failed_precondition',
+        modulesOf(status('episodes', 'failed', 'episodes: db closed')),
+        { kind: 'fail', error: { name: 'BridgeError', code: 'failed_precondition', message: 'episodes: db closed' } },
+      ],
+      [
+        'failed module without a reason is named',
+        modulesOf(status('episodes', 'failed')),
+        { kind: 'fail', error: { code: 'failed_precondition', message: 'episodes failed to start' } },
+      ],
+      [
+        'module the loaded snapshot does not register is internal',
+        modulesOf(status('anime', 'ready')),
+        { kind: 'fail', error: { code: 'internal', message: 'episodes is not a registered module' } },
+      ],
+    ];
+    for (const [name, modules, expected] of failures) {
+      expect.soft(decideGate({ modules, snapshotLoaded: true }, 'episodes'), name).toMatchObject(expected);
+    }
   });
 });
 

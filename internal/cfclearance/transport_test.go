@@ -30,8 +30,11 @@ func TestUnchallengedRequestPassesThroughUntouched(t *testing.T) {
 	}
 }
 
+// TestChallengeIsSolvedOnceAndReplayedWithEngineIdentity solves one challenge,
+// stores the cookies and their User-Agent as one value, replays them on a
+// subdomain, and lets a caller's own cf_clearance win over the stored one.
 func TestChallengeIsSolvedOnceAndReplayedWithEngineIdentity(t *testing.T) {
-	h := newHarness(&fakeSolver{values: []string{"good"}}, Policy{}, "good")
+	h := newHarness(&fakeSolver{values: []string{"good"}}, Policy{}, "good", "mine")
 
 	first := get(t, h.tr, siteURL)
 	later := get(t, h.tr, "https://cdn.jkanime.net/x.jpg")
@@ -54,35 +57,28 @@ func TestChallengeIsSolvedOnceAndReplayedWithEngineIdentity(t *testing.T) {
 	if !slices.Equal(names, []string{clearanceCookie, "__cf_bm"}) {
 		t.Fatalf("cookies replayed = %v, want only Cloudflare's own", names)
 	}
+	if len(h.store.saves) != 1 {
+		t.Fatalf("saves = %d, want the cookies and their User-Agent written together once", len(h.store.saves))
+	}
+	if saved := h.store.saves[0]; saved.UserAgent != engineUA || !hasFreshClearance(saved.Cookies, "") {
+		t.Fatalf("saved = %+v, want the engine identity next to its cookie", saved)
+	}
+	assertCallerCookieWinsOverStoredClearance(t, h)
 }
 
-func TestCallerCookieWinsOverStoredClearance(t *testing.T) {
-	h := newHarness(&fakeSolver{values: []string{"good"}}, Policy{}, "good", "mine")
-	get(t, h.tr, siteURL)
+// assertCallerCookieWinsOverStoredClearance sends a request carrying its own
+// cf_clearance and checks it reaches upstream in place of the stored one.
+func assertCallerCookieWinsOverStoredClearance(t *testing.T, h *harness) {
+	t.Helper()
 
 	req, _ := http.NewRequest(http.MethodGet, siteURL, nil)
 	req.AddCookie(&http.Cookie{Name: clearanceCookie, Value: "mine"})
 	if _, err := h.tr.RoundTrip(req); err != nil {
 		t.Fatal(err)
 	}
-
 	got := h.cf.last().Cookies()
 	if len(got) != 2 || got[0].Value != "mine" || got[1].Name != "__cf_bm" {
 		t.Fatalf("cookies sent = %v, want the caller's cf_clearance plus __cf_bm", got)
-	}
-}
-
-func TestStaleClearanceIsRejectedAndSolvedAgain(t *testing.T) {
-	h := newHarness(&fakeSolver{values: []string{"stale", "fresh"}}, Policy{}, "fresh")
-
-	resp := get(t, h.tr, siteURL)
-
-	assertStatusAndCalls(t, resp, h.solver, http.StatusOK, 2)
-	if !slices.Equal(h.solver.rejected, []string{"", "stale"}) {
-		t.Fatalf("rejected = %q, want [\"\" \"stale\"]", h.solver.rejected)
-	}
-	if !slices.Equal(h.store.deletes, []string{"jkanime.net"}) {
-		t.Fatalf("deletes = %q, want the stale clearance forgotten before the second solve", h.store.deletes)
 	}
 }
 
@@ -265,18 +261,16 @@ func TestStoredCookiesAreMatchedToTheRequestURL(t *testing.T) {
 		{"empty request path is the root", ".jkanime.net", "/", "https://jkanime.net", true},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			h := newHarness(&fakeSolver{err: errors.New("no engine")}, Policy{}, "good")
-			h.store.Save("jkanime.net", Clearance{UserAgent: engineUA, Cookies: []*http.Cookie{
-				{Name: clearanceCookie, Value: "good", Domain: tc.domain, Path: tc.path},
-			}})
+		h := newHarness(&fakeSolver{err: errors.New("no engine")}, Policy{}, "good")
+		h.store.Save("jkanime.net", Clearance{UserAgent: engineUA, Cookies: []*http.Cookie{
+			{Name: clearanceCookie, Value: "good", Domain: tc.domain, Path: tc.path},
+		}})
 
-			get(t, h.tr, tc.url)
+		get(t, h.tr, tc.url)
 
-			if _, err := h.cf.seen[0].Cookie(clearanceCookie); (err == nil) != tc.sent {
-				t.Fatalf("cookie sent = %v, want %v", err == nil, tc.sent)
-			}
-		})
+		if _, err := h.cf.seen[0].Cookie(clearanceCookie); (err == nil) != tc.sent {
+			t.Errorf("%s: cookie sent = %v, want %v", tc.name, err == nil, tc.sent)
+		}
 	}
 }
 

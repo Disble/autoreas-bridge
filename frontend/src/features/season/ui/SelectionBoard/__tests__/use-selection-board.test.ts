@@ -124,12 +124,37 @@ describe('useSelectionBoard', () => {
     expect(desktopSource.copyAnimeFolder).toHaveBeenCalledWith('anime-1');
   });
 
-  it('reads the season and candidates through query methods', async () => {
+  it('reads through the query methods, confirms with a refresh, then delegates its writes', async () => {
     const source = createSource();
     const { result } = renderHook(() => useSelectionBoard(source));
+
+    // The defaults show while the snapshot resolves.
+    expect(result.current.minApprovalGrade).toBe(4);
+    expect(result.current.slots).toBe(12);
     await waitFor(() => expect(result.current.seasonName).toBe('Julio 2026'));
     expect(source.readSeason).toHaveBeenCalled();
-    expect(source.readSeasonAnimes).toHaveBeenCalled();
+    await waitFor(() => expect(source.readSeasonAnimes).toHaveBeenCalledTimes(1));
+
+    let confirmResult: Awaited<ReturnType<typeof result.current.onConfirm>> | undefined;
+    await act(async () => {
+      confirmResult = await result.current.onConfirm();
+    });
+    expect(source.confirmSelection).toHaveBeenCalled();
+    expect(confirmResult?.status).toBe('ok');
+    expect(source.readSeason).toHaveBeenCalledTimes(2);
+    expect(source.readSeasonAnimes).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      result.current.onSetConsideration('sa-1', 'spare_quota');
+    });
+    expect(source.setConsideration).toHaveBeenCalledWith('sa-1', 'spare_quota');
+
+    await act(async () => {
+      result.current.onSetMinApprovalGrade(5);
+      result.current.onSetSlots(9);
+    });
+    expect(source.setMinApprovalGrade).toHaveBeenCalledWith(5);
+    expect(source.setSlots).toHaveBeenCalledWith(9);
   });
 
   it('loads on mount and derives rows, approved count, and quota', async () => {
@@ -170,15 +195,6 @@ describe('useSelectionBoard', () => {
 
     expect(result.current.criteria).toEqual({ grades: ['6'], verdicts: ['approved'], considerations: [], sort: 'grade-desc' });
     expect(result.current.matchingCount).toBe(1);
-  });
-
-  it('exposes the defaults and the season name while the snapshot resolves and after it', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useSelectionBoard(source));
-
-    expect(result.current.minApprovalGrade).toBe(4);
-    expect(result.current.slots).toBe(12);
-    await waitFor(() => expect(result.current.seasonName).toBe('Julio 2026'));
   });
 
   it('keeps the rows on screen when the port is replaced, and reads the new one on the next refresh', async () => {
@@ -224,25 +240,7 @@ describe('useSelectionBoard', () => {
     expect(result.current.groupTotals).toEqual({ approved: 3, rejected: 1 });
   });
 
-  it('narrows the groups by criteria without touching the approved count', async () => {
-    const rows = [created('a', 'anime-a', 5), created('b', 'anime-b', 2), created('c', 'anime-c', 6), created('d', 'anime-d', 0)];
-    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
-    const { result } = renderHook(() => useSelectionBoard(source));
-    await waitFor(() => expect(result.current.rows).toHaveLength(4));
-
-    act(() => result.current.onGroupChange('grades', ['6']));
-    expect(result.current.matchingCount).toBe(1);
-    expect(result.current.groups.map((group) => group.rows.map((row) => row.id))).toEqual([['c']]);
-    expect(result.current.approvedCount).toBe(2);
-    expect(result.current.groupTotals).toEqual({ approved: 2, rejected: 2 });
-
-    act(() => result.current.onGroupChange('verdicts', ['rejected']));
-    expect(result.current.matchingCount).toBe(0);
-    expect(result.current.groups).toEqual([]);
-    expect(result.current.activeFilterCount).toBe(2);
-  });
-
-  it('sorts the visible rows inside each verdict group and keeps the group totals', async () => {
+  it('sorts inside each verdict group, then narrows by criteria, keeping the totals and approved count', async () => {
     const rows = [created('a', 'anime-a', 5), created('b', 'anime-b', 2), created('c', 'anime-c', 6), created('d', 'anime-d', 0)];
     const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useSelectionBoard(source));
@@ -254,9 +252,19 @@ describe('useSelectionBoard', () => {
       ['Rejected', ['b', 'd']],
     ]);
     expect(result.current.groupTotals).toEqual({ approved: 2, rejected: 2 });
-
     act(() => result.current.onSortChange('grade-desc'));
     expect(result.current.groups.map((group) => group.rows.map((row) => row.id))).toEqual([['c', 'a'], ['b', 'd']]);
+
+    act(() => result.current.onGroupChange('grades', ['6']));
+    expect(result.current.matchingCount).toBe(1);
+    expect(result.current.groups.map((group) => group.rows.map((row) => row.id))).toEqual([['c']]);
+    expect(result.current.approvedCount).toBe(2);
+    expect(result.current.groupTotals).toEqual({ approved: 2, rejected: 2 });
+
+    act(() => result.current.onGroupChange('verdicts', ['rejected']));
+    expect(result.current.matchingCount).toBe(0);
+    expect(result.current.groups).toEqual([]);
+    expect(result.current.activeFilterCount).toBe(2);
   });
 
   it('resets the filters while keeping the order, and resets the whole view', async () => {
@@ -283,48 +291,6 @@ describe('useSelectionBoard', () => {
     });
     const { result } = renderHook(() => useSelectionBoard(source));
     await waitFor(() => expect(result.current.selectionConfirmedAt).toBe(1_753_000_000_000));
-  });
-
-  it('onSetConsideration delegates to the store', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useSelectionBoard(source));
-    await act(async () => {
-      result.current.onSetConsideration('sa-1', 'spare_quota');
-    });
-    expect(source.setConsideration).toHaveBeenCalledWith('sa-1', 'spare_quota');
-  });
-
-  it('onSetMinApprovalGrade and onSetSlots delegate', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useSelectionBoard(source));
-    await waitFor(() => expect(result.current.minApprovalGrade).toBe(4));
-    await act(async () => {
-      result.current.onSetMinApprovalGrade(5);
-      result.current.onSetSlots(9);
-    });
-    expect(source.setMinApprovalGrade).toHaveBeenCalledWith(5);
-    expect(source.setSlots).toHaveBeenCalledWith(9);
-  });
-
-  it('refreshes the season and rows after confirmation', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useSelectionBoard(source));
-    await waitFor(() => expect(result.current.seasonName).toBe('Julio 2026'));
-    await waitFor(() => expect(source.readSeasonAnimes).toHaveBeenCalledTimes(1));
-    await act(async () => { await result.current.onConfirm(); });
-    expect(source.readSeason).toHaveBeenCalledTimes(2);
-    expect(source.readSeasonAnimes).toHaveBeenCalledTimes(2);
-  });
-
-  it('onConfirm returns the confirmation result', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useSelectionBoard(source));
-    let confirmResult: Awaited<ReturnType<typeof result.current.onConfirm>> | undefined;
-    await act(async () => {
-      confirmResult = await result.current.onConfirm();
-    });
-    expect(source.confirmSelection).toHaveBeenCalled();
-    expect(confirmResult?.status).toBe('ok');
   });
 
   it('onConfirm shows a success toast with the applied counts', async () => {

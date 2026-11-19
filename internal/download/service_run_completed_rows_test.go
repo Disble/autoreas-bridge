@@ -74,10 +74,10 @@ func collapsedRow(rows []notification.DetailItem) (notification.DetailItem, bool
 	return notification.DetailItem{}, false
 }
 
-// TestRunCompletedNotificationNamesWhatItDownloaded is the regression this slice exists for: a
+// TestRunCompletedNotificationNamesWhatItDownloadedAndOffersToWatchIt is the regression this slice exists for: a
 // fully successful run used to attach no rows at all, so the detail pane showed a title, a
 // sentence and a correlation id. What downloaded is exactly what the pane must name.
-func TestRunCompletedNotificationNamesWhatItDownloaded(t *testing.T) {
+func TestRunCompletedNotificationNamesWhatItDownloadedAndOffersToWatchIt(t *testing.T) {
 	t.Parallel()
 
 	deps, notifier := cleanMixedRunScenario(t)
@@ -128,31 +128,20 @@ func TestRunCompletedNotificationNamesWhatItDownloaded(t *testing.T) {
 	if current.Name != "Current Anime" || current.Status != "up to date" {
 		t.Fatalf("up-to-date row = %#v, want Name=%q Status=%q", current, "Current Anime", "up to date")
 	}
+
+	assertCompletedRunWatchTokens(t, sent.Actions)
 }
 
-// TestRunCompletedNotificationOffersToWatchWhatItDownloaded proves the rows are wired through the
-// outcome-aware notify helper, not attached by hand: the helper is what mints the per-row token,
-// so a run_completed that named its anime but offered nothing to do with them would fail here.
-//
-// It used to assert the opposite. A run that finished cleanly offered "Run this anime again" on
-// the very anime whose episode was already on disk, and this test held that in place -- which is
-// how a category error survives a green suite. The episode is downloaded; the verb is to go watch
-// it (docs/notification-cta-policy.md).
-func TestRunCompletedNotificationOffersToWatchWhatItDownloaded(t *testing.T) {
-	t.Parallel()
+// assertCompletedRunWatchTokens checks a clean run offers [See this run, Watch today] run-wide and
+// exactly one watch token, never a re-run token, on the anime it downloaded.
+func assertCompletedRunWatchTokens(t *testing.T, actions []notification.ActionSpec) {
+	t.Helper()
 
-	deps, notifier := cleanMixedRunScenario(t)
-	if _, err := NewService(deps).RunOnce(context.Background(), "manual"); err != nil {
-		t.Fatalf("RunOnce: %v", err)
+	if got := runWideLabels(actions); len(got) != 2 || got[0] != "See this run" || got[1] != "Watch today" {
+		t.Fatalf("run-wide labels = %#v, want [See this run, Watch today]", got)
 	}
-
-	sent, found := notificationWithTitle(notifier, "Download run completed")
-	if !found {
-		t.Fatalf("no run_completed notification in %#v", notifier.notifications())
-	}
-
 	bound := 0
-	for _, action := range sent.Actions {
+	for _, action := range actions {
 		if action.RowRef != "anime-ok" {
 			continue
 		}
@@ -164,7 +153,7 @@ func TestRunCompletedNotificationOffersToWatchWhatItDownloaded(t *testing.T) {
 		}
 	}
 	if bound != 1 {
-		t.Fatalf("Actions = %#v, want exactly one watch token bound to anime-ok", sent.Actions)
+		t.Fatalf("Actions = %#v, want exactly one watch token bound to anime-ok", actions)
 	}
 }
 
@@ -195,6 +184,9 @@ func TestSingleAnimeRunCompletedNotificationNamesWhatItDownloaded(t *testing.T) 
 	}
 	if !strings.Contains(row.Detail, "Episode 5") {
 		t.Fatalf("row Detail = %q, want it to name episode 5", row.Detail)
+	}
+	if got := kindOf(t, notifier, "Download run completed"); got != "run_completed" {
+		t.Fatalf("single-anime clean kind = %q, want %q", got, "run_completed")
 	}
 }
 

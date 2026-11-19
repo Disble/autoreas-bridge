@@ -89,24 +89,11 @@ func countRows(db *sql.DB, query string) int {
 // or after it failed.
 func TestObservabilityBindingsFollowTheirModule(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		name     string
-		state    lifecycle.State
-		wantCode apperr.Code
-		wantMsg  string
-	}{
-		{"starting is unavailable", lifecycle.StateStarting, apperr.CodeUnavailable, "observability is starting"},
-		{"failed is a failed precondition", lifecycle.StateFailed, apperr.CodeFailedPrecondition, moduleFailureReason},
-		{"ready answers the value", lifecycle.StateReady, "", ""},
-	}
 	for _, binding := range observabilityBindings {
-		for _, tc := range cases {
-			t.Run(binding.name+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-				served, err := binding.call(observabilityApp(t, captureAppTestDB(t), tc.state))
-				assertModuleAnswer(t, served, err, tc.wantCode, tc.wantMsg)
-			})
-		}
+		app := observabilityApp(t, captureAppTestDB(t), lifecycle.StateStarting)
+		assertStartingThenFailed(t, binding.name, app, moduleObservability, "observability is starting", binding.call)
+		served, err := binding.call(observabilityApp(t, captureAppTestDB(t), lifecycle.StateReady))
+		assertModuleAnswer(t, binding.name+" ready", served, err, "", "")
 	}
 }
 
@@ -115,20 +102,17 @@ func TestObservabilityBindingsFollowTheirModule(t *testing.T) {
 func TestObservabilityServiceFailuresAreInternal(t *testing.T) {
 	t.Parallel()
 	for _, binding := range observabilityBindings {
-		t.Run(binding.name, func(t *testing.T) {
-			t.Parallel()
-			db := captureAppTestDB(t)
-			app := observabilityApp(t, db, lifecycle.StateReady)
-			if err := db.Close(); err != nil {
-				t.Fatalf("close db: %v", err)
-			}
+		db := captureAppTestDB(t)
+		app := observabilityApp(t, db, lifecycle.StateReady)
+		if err := db.Close(); err != nil {
+			t.Fatalf("close db: %v", err)
+		}
 
-			_, err := binding.call(app)
+		_, err := binding.call(app)
 
-			if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal {
-				t.Fatalf("err = %v (code %q), want internal", err, code)
-			}
-		})
+		if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal {
+			t.Errorf("%s: err = %v (code %q), want internal", binding.name, err, code)
+		}
 	}
 }
 
@@ -146,21 +130,18 @@ func TestBindObservabilityModuleNeedsEveryReader(t *testing.T) {
 		{"no sync diagnostics reader", func(a *App) { a.syncDiagReader = nil }},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			app := &App{bridgeDB: captureAppTestDB(t)}
-			app.ensureCaptureRuntimeDependencies()
-			app.configureCaptureReader()
-			app.configureSyncDiagReader()
-			tc.prune(app)
+		app := &App{bridgeDB: captureAppTestDB(t)}
+		app.ensureCaptureRuntimeDependencies()
+		app.configureCaptureReader()
+		app.configureSyncDiagReader()
+		tc.prune(app)
 
-			app.bindObservabilityModule()
-			_ = app.moduleSet().writer.MarkReady(moduleObservability)
+		app.bindObservabilityModule()
+		_ = app.moduleSet().writer.MarkReady(moduleObservability)
 
-			// An unbound handle is the only way a ready module answers this; a bound one reads.
-			if _, err := app.SearchActivityFeed(ActivityFeedQuery{}); err == nil || !strings.Contains(err.Error(), "observability is ready without services") {
-				t.Fatalf("SearchActivityFeed = %v; want the unbound-module failure", err)
-			}
-		})
+		// An unbound handle is the only way a ready module answers this; a bound one reads.
+		if _, err := app.SearchActivityFeed(ActivityFeedQuery{}); err == nil || !strings.Contains(err.Error(), "observability is ready without services") {
+			t.Errorf("%s: SearchActivityFeed = %v; want the unbound-module failure", tc.name, err)
+		}
 	}
 }

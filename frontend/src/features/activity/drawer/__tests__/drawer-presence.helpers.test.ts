@@ -19,11 +19,15 @@ describe('nextDrawerPresence', () => {
     expect(nextDrawerPresence(presence({ line: A, open: true, session: 1 }), B)).toEqual({ line: B, open: true, session: 1 });
   });
 
-  it.each([
-    ['the same open line', presence({ line: A, open: true, session: 1 }), A],
-    ['a closed drawer staying closed', presence({ line: A, open: false, session: 1 }), undefined],
-  ])('returns the held presence itself for %s', (_name, held, line) => {
-    expect(nextDrawerPresence(held, line)).toBe(held);
+  it('returns the held presence itself when nothing changes', () => {
+    const cases = [
+      ['the same open line', presence({ line: A, open: true, session: 1 }), A],
+      ['a closed drawer staying closed', presence({ line: A, open: false, session: 1 }), undefined],
+    ] as const;
+
+    for (const [caseName, held, line] of cases) {
+      expect.soft(nextDrawerPresence(held, line), caseName).toBe(held);
+    }
   });
 });
 

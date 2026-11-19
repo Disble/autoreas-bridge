@@ -18,18 +18,18 @@ func TestMobileAnimeSeasonWireShape(t *testing.T) {
 		{name: "graded candidate", season: &MobileAnimeSeason{SeasonID: "s1", Grade: &grade}, want: `"season":{"seasonId":"s1","grade":4}`},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			encoded, err := json.Marshal(MobileAnime{ID: "a", Season: tc.season})
-			if err != nil {
-				t.Fatalf("marshal: %v", err)
-			}
-			body := string(encoded)
-			if tc.want == "" && strings.Contains(body, `"season"`) {
-				t.Fatalf("non-candidate serialized a season: %s", body)
-			}
-			if tc.want != "" && !strings.Contains(body, tc.want) {
-				t.Fatalf("body %s, want it to contain %s", body, tc.want)
-			}
-		})
+		encoded, err := json.Marshal(MobileAnime{ID: "a", Season: tc.season})
+		if err != nil {
+			t.Errorf("%s: marshal: %v", tc.name, err)
+			continue
+		}
+		body := string(encoded)
+		if tc.want == "" && strings.Contains(body, `"season"`) {
+			t.Errorf("%s: non-candidate serialized a season: %s", tc.name, body)
+			continue
+		}
+		if tc.want != "" && !strings.Contains(body, tc.want) {
+			t.Errorf("%s: body %s, want it to contain %s", tc.name, body, tc.want)
+		}
 	}
 }

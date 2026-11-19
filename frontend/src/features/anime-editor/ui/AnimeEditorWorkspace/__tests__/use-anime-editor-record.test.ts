@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import { waitFor } from './wait-for.test-support';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnimeEditorSource } from '../../../../../shared/contracts/anime-editor-source.types';
 import type { AnimeEditorRecord } from '../../../../../shared/contracts/anime.types';
@@ -150,33 +151,27 @@ describe('editor record load failure', () => {
 });
 
 describe('editor record folder picker', () => {
-  it('applies the picked folder path to the draft', async () => {
-    const source = createSource({ pickFolder: vi.fn().mockResolvedValue('D:/Anime/New Show') });
+  it('applies the picked folder path to the draft, leaves it unchanged on a cancel, and reports a failed dialog with the bridge reason leaving the draft unchanged', async () => {
+    const source = createSource({
+      pickFolder: vi.fn()
+        .mockResolvedValueOnce('D:/Anime/New Show')
+        .mockResolvedValueOnce('')
+        .mockRejectedValueOnce(createBridgeError('internal', 'shell: the folder dialog failed')),
+    });
     const { result } = renderRecord(source);
 
     await act(async () => { await result.current.onPickFolder(); });
-
     expect(source.pickFolder).toHaveBeenCalledWith('Select anime folder');
     expect(result.current.draft.folder).toBe('D:/Anime/New Show');
-  });
 
-  it('leaves the folder unchanged when the picker is cancelled', async () => {
-    const source = createSource({ pickFolder: vi.fn().mockResolvedValue('') });
-    const { result } = renderRecord(source);
-
+    // A cancelled picker leaves the folder unchanged and reports nothing.
     await act(async () => { await result.current.onPickFolder(); });
-
-    expect(result.current.draft.folder).toBe('');
+    expect(result.current.draft.folder).toBe('D:/Anime/New Show');
     expect(toastMock.danger).not.toHaveBeenCalled();
-  });
 
-  it('reports a failed dialog with the bridge reason and leaves the draft unchanged', async () => {
-    const source = createSource({ pickFolder: vi.fn().mockRejectedValue(createBridgeError('internal', 'shell: the folder dialog failed')) });
-    const { result } = renderRecord(source);
+    // A failed dialog reports the bridge reason and leaves the draft unchanged.
     const draft = result.current.draft;
-
     await act(async () => { await result.current.onPickFolder(); });
-
     expect(result.current.draft).toBe(draft);
     expect(toastMock.danger).toHaveBeenCalledExactlyOnceWith('shell: the folder dialog failed');
   });
@@ -191,40 +186,32 @@ describe('editor record restore handler', () => {
     details: { genres: [], studios: { kind: 'values' as const, values: [] } },
   };
 
-  it('calls restoreAnime, reloads the record on success, and reports Restore feedback', async () => {
+  it('does not reload the record and reports the fallback or the failure message on a refused restore, then reloads the record on success and reports Restore feedback', async () => {
     const source = createSource({
       getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }),
-      restoreAnime: vi.fn().mockResolvedValue({ status: 'ok' }),
+      restoreAnime: vi.fn()
+        .mockRejectedValueOnce(createBridgeError('unavailable', ''))
+        .mockRejectedValueOnce(createBridgeError('unavailable', 'episodes is starting'))
+        .mockResolvedValueOnce({ status: 'ok' }),
     });
     const { result } = renderRecord(source, 'anime-1');
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
+    // Pins the renamed fallback literal (`use-anime-editor-record.ts`): easy to
+    // miss because it is copy, not a button label.
+    for (const toast of ['Restore anime was not applied.', 'episodes is starting']) {
+      await act(async () => { await result.current.onRestore(); });
+      expect(source.restoreAnime).toHaveBeenLastCalledWith('anime-1', 42);
+      expect(source.getAnimeEditorRecord).toHaveBeenCalledTimes(1);
+      expect(toastMock.danger).toHaveBeenLastCalledWith(toast);
+    }
+
     await act(async () => { await result.current.onRestore(); });
 
-    expect(source.restoreAnime).toHaveBeenCalledWith('anime-1', 42);
+    expect(source.restoreAnime).toHaveBeenLastCalledWith('anime-1', 42);
     // Mandatory guard (design D11 corollary): success reloads the record.
     expect(source.getAnimeEditorRecord).toHaveBeenCalledTimes(2);
     expect(toastMock.success).toHaveBeenCalledWith('Anime restored.');
-  });
-
-  it.each([
-    ['the Restore-not-applied fallback when the failure carries no message', '', 'Restore anime was not applied.'],
-    ['the failure message', 'episodes is starting', 'episodes is starting'],
-  ])('does not reload the record and reports %s', async (_label, message, toast) => {
-    const source = createSource({
-      getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }),
-      restoreAnime: vi.fn().mockRejectedValue(createBridgeError('unavailable', message)),
-    });
-    const { result } = renderRecord(source, 'anime-1');
-    await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
-
-    await act(async () => { await result.current.onRestore(); });
-
-    expect(source.restoreAnime).toHaveBeenCalledWith('anime-1', 42);
-    expect(source.getAnimeEditorRecord).toHaveBeenCalledTimes(1);
-    // Pins the renamed fallback literal (`use-anime-editor-record.ts`): easy to
-    // miss because it is copy, not a button label.
-    expect(toastMock.danger).toHaveBeenCalledWith(toast);
   });
 });
 
@@ -239,88 +226,79 @@ describe('editor record repeat handler', () => {
   /** Authority fixture the post-repeat reload returns: a fresh cycle at zero progress. */
   const repeatedRecord = { ...selectedRecord, frequent: { ...selectedRecord.frequent, status: 0, progress: 0 } };
 
-  it('calls repeatAnime, reloads the record on success, and proves the reload through zeroed watched episodes', async () => {
+  it('does not reload the record and reports the fallback or the failure message on a refused repeat, then reloads on success, proven through zeroed watched episodes', async () => {
     const getAnimeEditorRecord = vi.fn()
       .mockResolvedValueOnce({ outcome: 'applied', record: selectedRecord })
       .mockResolvedValueOnce({ outcome: 'applied', record: repeatedRecord });
     const source = createSource({
       getAnimeEditorRecord,
-      repeatAnime: vi.fn().mockResolvedValue({ status: 'ok' }),
+      repeatAnime: vi.fn()
+        .mockRejectedValueOnce(createBridgeError('internal', ''))
+        .mockRejectedValueOnce(createBridgeError('internal', 'anime write failed'))
+        .mockResolvedValueOnce({ status: 'ok' }),
     });
     const { result } = renderRecord(source, 'anime-1');
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
 
+    // Pins the Repeat feedback literal (`use-anime-editor-record.ts`): easy to
+    // miss because it is copy, not a button label.
+    for (const toast of ['Repeat anime was not applied.', 'anime write failed']) {
+      await act(async () => { await result.current.onRepeat(); });
+      expect(source.repeatAnime).toHaveBeenLastCalledWith('anime-1', 42);
+      expect(getAnimeEditorRecord).toHaveBeenCalledTimes(1);
+      expect(toastMock.danger).toHaveBeenLastCalledWith(toast);
+    }
+
     await act(async () => { await result.current.onRepeat(); });
 
-    expect(source.repeatAnime).toHaveBeenCalledWith('anime-1', 42);
+    expect(source.repeatAnime).toHaveBeenLastCalledWith('anime-1', 42);
     // Mandatory guard (design D11): success reloads the record, proven by the
     // watched-episode count actually reading the reset value -- not just a spy call.
     expect(getAnimeEditorRecord).toHaveBeenCalledTimes(2);
     expect(result.current.draft.progress).toBe('0');
     expect(toastMock.success).toHaveBeenCalledWith('Anime repeated.');
   });
-
-  it.each([
-    ['the Repeat-not-applied fallback when the failure carries no message', '', 'Repeat anime was not applied.'],
-    ['the failure message', 'anime write failed', 'anime write failed'],
-  ])('does not reload the record and reports %s', async (_label, message, toast) => {
-    const source = createSource({
-      getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }),
-      repeatAnime: vi.fn().mockRejectedValue(createBridgeError('internal', message)),
-    });
-    const { result } = renderRecord(source, 'anime-1');
-    await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
-
-    await act(async () => { await result.current.onRepeat(); });
-
-    expect(source.repeatAnime).toHaveBeenCalledWith('anime-1', 42);
-    expect(source.getAnimeEditorRecord).toHaveBeenCalledTimes(1);
-    // Pins the Repeat feedback literal (`use-anime-editor-record.ts`): easy to
-    // miss because it is copy, not a button label.
-    expect(toastMock.danger).toHaveBeenCalledWith(toast);
-  });
 });
 
 describe('editor record cover-image picker', () => {
-  it('applies the picked image path and forces the on-disk cover source', async () => {
-    const source = createSource({ pickFile: vi.fn().mockResolvedValue('D:/Anime/Show/cover.jpg') });
+  it('applies the picked image path forcing the on-disk cover source, leaves the cover unchanged on a cancel, and reports a failed dialog with the bridge reason', async () => {
+    const source = createSource({
+      pickFile: vi.fn()
+        .mockResolvedValueOnce('D:/Anime/Show/cover.jpg')
+        .mockResolvedValueOnce('')
+        .mockRejectedValueOnce(createBridgeError('unavailable', 'the PickFile binding is not attached')),
+    });
     const { result } = renderRecord(source);
 
     await act(async () => { await result.current.onPickCoverFile(); });
-
     expect(source.pickFile).toHaveBeenCalledWith('Select cover image');
     expect(result.current.draft.coverPath).toBe('D:/Anime/Show/cover.jpg');
     expect(result.current.draft.coverType).toBe('image');
-  });
 
-  it('leaves the cover unchanged when the picker is cancelled', async () => {
-    const source = createSource({ pickFile: vi.fn().mockResolvedValue('') });
-    const { result } = renderRecord(source);
-
+    // A cancelled picker leaves the cover unchanged and reports nothing.
     await act(async () => { await result.current.onPickCoverFile(); });
-
-    expect(result.current.draft.coverPath).toBe('');
+    expect(result.current.draft.coverPath).toBe('D:/Anime/Show/cover.jpg');
     expect(toastMock.danger).not.toHaveBeenCalled();
-  });
 
-  it('reports a failed dialog with the bridge reason and leaves the cover unchanged', async () => {
-    const source = createSource({ pickFile: vi.fn().mockRejectedValue(createBridgeError('unavailable', 'the PickFile binding is not attached')) });
-    const { result } = renderRecord(source);
+    // A failed dialog reports the bridge reason and leaves the cover unchanged.
     const draft = result.current.draft;
-
     await act(async () => { await result.current.onPickCoverFile(); });
-
     expect(result.current.draft).toBe(draft);
     expect(toastMock.danger).toHaveBeenCalledExactlyOnceWith('the PickFile binding is not attached');
   });
 });
 
 describe('applied/undo state (D9)', () => {
-  it('confirming a candidate patches the draft through the same channel and stores its pre-image', async () => {
+  it('ignores an undo with nothing applied, patches the draft and stores its pre-image on a confirmed candidate, undo reverts exactly the applied fields, and a full candidate leaves the never-touched set unchanged (non-negotiable #7, Editor half)', async () => {
     const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok', record: record() }) });
     const { result } = renderRecord(source, 'anime-1');
     await waitFor(() => expect(result.current.draft.name).toBe('Bleach'));
 
+    // Undo with nothing applied does nothing.
+    expect(() => act(() => result.current.onMetadataUndo())).not.toThrow();
+    expect(result.current.draft.name).toBe('Bleach');
+
+    // Confirming a candidate patches the draft through the same channel and stores its pre-image.
     const selection: AnimeMetadataSelection = { name: 'Bleach: Sennen Kessen-hen', duration: '25', unfilled: ['kind', 'studios'] };
     act(() => result.current.onMetadataApplied(selection));
 
@@ -329,28 +307,31 @@ describe('applied/undo state (D9)', () => {
     expect(result.current.appliedMetadata?.patch).toEqual({ name: 'Bleach: Sennen Kessen-hen', duration: '25' });
     expect(result.current.appliedMetadata?.previous).toEqual({ name: 'Bleach', duration: '24' });
     expect(result.current.appliedMetadata?.unfilled).toEqual(['kind', 'studios']);
-  });
 
-  it('undo replays the pre-image through the same channel, reverting exactly the applied fields', async () => {
-    const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok', record: record() }) });
-    const { result } = renderRecord(source, 'anime-1');
-    await waitFor(() => expect(result.current.draft.name).toBe('Bleach'));
-
-    act(() => result.current.onMetadataApplied({ name: 'Bleach: Sennen Kessen-hen', duration: '25', unfilled: [] }));
+    // Undo replays the pre-image, reverting exactly the applied fields.
     act(() => result.current.onMetadataUndo());
 
     expect(result.current.draft.name).toBe('Bleach');
     expect(result.current.draft.duration).toBe('24');
     expect(result.current.appliedMetadata).toBeUndefined();
-  });
 
-  it('does nothing when undo is invoked with nothing applied', async () => {
-    const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok', record: record() }) });
-    const { result } = renderRecord(source, 'anime-1');
-    await waitFor(() => expect(result.current.draft.name).toBe('Bleach'));
+    // A candidate filling every field leaves Download page, Folder, Watched episodes, and the watching estado unchanged.
+    act(() => result.current.onMetadataApplied({
+      name: 'Bleach: Sennen Kessen-hen',
+      kind: '0',
+      totalEpisodes: '25',
+      duration: '24',
+      origin: 'Manga',
+      genres: 'Action',
+      studios: 'Pierrot',
+      coverURL: 'https://cdn.example/bleach.jpg',
+      unfilled: [],
+    }));
 
-    expect(() => act(() => result.current.onMetadataUndo())).not.toThrow();
-    expect(result.current.draft.name).toBe('Bleach');
+    expect(result.current.draft.page).toBe('https://example.test/bleach');
+    expect(result.current.draft.folder).toBe('D:/Anime/Bleach');
+    expect(result.current.draft.progress).toBe('12');
+    expect(result.current.draft.status).toBe(1);
   });
 
   it('clears a pending Undo once a different record is loaded, so a stale pre-image is never replayed onto it', async () => {
@@ -371,47 +352,31 @@ describe('applied/undo state (D9)', () => {
   });
 });
 
-describe('never-touched set -- non-negotiable #7, Editor half', () => {
-  it('leaves Download page, Folder, Watched episodes, and the watching estado unchanged after confirming a candidate', async () => {
-    const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok', record: record() }) });
-    const { result } = renderRecord(source, 'anime-1');
-    await waitFor(() => expect(result.current.draft.name).toBe('Bleach'));
-
-    const selection: AnimeMetadataSelection = {
-      name: 'Bleach: Sennen Kessen-hen',
-      kind: '0',
-      totalEpisodes: '25',
-      duration: '24',
-      origin: 'Manga',
-      genres: 'Action',
-      studios: 'Pierrot',
-      coverURL: 'https://cdn.example/bleach.jpg',
-      unfilled: [],
-    };
-    act(() => result.current.onMetadataApplied(selection));
-
-    expect(result.current.draft.page).toBe('https://example.test/bleach');
-    expect(result.current.draft.folder).toBe('D:/Anime/Bleach');
-    expect(result.current.draft.progress).toBe('12');
-    expect(result.current.draft.status).toBe(1);
-  });
-});
-
 describe('editor record saves anime data only', () => {
   /** Authority fixture whose draft starts clean. */
   const selectedRecord = record();
 
-  it('sends an anime-only command, clears dirty after an applied save, and exposes no episode draft', async () => {
-    const saveAnimeEditor = vi.fn().mockResolvedValue({ outcome: 'applied', record: { ...selectedRecord, frequent: { ...selectedRecord.frequent, name: 'Bleach TYBW' } } });
+  it('Discard changes restores the saved fields after a rejected save; a later save sends an anime-only command, clears dirty once applied, and exposes no episode draft', async () => {
+    const saveAnimeEditor = vi.fn()
+      .mockResolvedValueOnce({ outcome: 'conflict', message: 'stale', modifiedAt: 0 })
+      .mockResolvedValueOnce({ outcome: 'applied', record: { ...selectedRecord, frequent: { ...selectedRecord.frequent, name: 'Bleach TYBW' } } });
     const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }), saveAnimeEditor });
     const { result } = renderRecord(source, 'anime-1');
     await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
+    act(() => result.current.onDraftChange('name', 'Bleach TYBW'));
+    await act(async () => { await result.current.onSave(); });
+    expect(toastMock.warning).toHaveBeenCalledWith('stale');
+
+    act(() => result.current.onDiscardChanges());
+
+    expect(result.current.draft.name).toBe('Bleach');
+    expect(result.current.isDirty).toBe(false);
 
     act(() => result.current.onDraftChange('name', 'Bleach TYBW'));
     expect(result.current.isDirty).toBe(true);
     await act(async () => { await result.current.onSave(); });
 
-    const [command] = saveAnimeEditor.mock.calls[0] as [Record<string, unknown>];
+    const [command] = saveAnimeEditor.mock.calls[1] as [Record<string, unknown>];
     expect(command).not.toHaveProperty('episodes');
     expect(command).toEqual(expect.objectContaining({ animeId: 'anime-1', patch: expect.objectContaining({ name: 'Bleach TYBW' }) }));
     expect(result.current.isDirty).toBe(false);
@@ -450,20 +415,5 @@ describe('editor record saves anime data only', () => {
     } finally {
       vi.useRealTimers();
     }
-  });
-
-  it('Discard changes restores the saved fields after a rejected save', async () => {
-    const saveAnimeEditor = vi.fn().mockResolvedValue({ outcome: 'conflict', message: 'stale', modifiedAt: 0 });
-    const source = createSource({ getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }), saveAnimeEditor });
-    const { result } = renderRecord(source, 'anime-1');
-    await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
-    act(() => result.current.onDraftChange('name', 'Bleach TYBW'));
-    await act(async () => { await result.current.onSave(); });
-    expect(toastMock.warning).toHaveBeenCalledWith('stale');
-
-    act(() => result.current.onDiscardChanges());
-
-    expect(result.current.draft.name).toBe('Bleach');
-    expect(result.current.isDirty).toBe(false);
   });
 });

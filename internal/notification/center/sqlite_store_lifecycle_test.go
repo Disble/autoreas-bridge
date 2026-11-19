@@ -84,20 +84,33 @@ func TestMarkReadDecrementsUnreadCountExactlyOnce(t *testing.T) {
 	}
 }
 
-// TestArchiveRemovesFromDefaultActiveListAndMarksReadIfUnread asserts
+// TestArchiveRestoreAndMarkUnreadMoveOneRecordAcrossBothAxes asserts
 // archiving an unread record removes it from the default active list view,
 // keeps it queryable through the archived view, and marks it read in the
 // same operation. Satisfies notification-center spec "Archiving a record
-// removes it from the default active list."
-func TestArchiveRemovesFromDefaultActiveListAndMarksReadIfUnread(t *testing.T) {
+// removes it from the default active list." Restore then clears archived but
+// not read, and mark unread clears read but leaves archived untouched.
+func TestArchiveRestoreAndMarkUnreadMoveOneRecordAcrossBothAxes(t *testing.T) {
 	t.Parallel()
 
 	db := openBootstrappedTestDB(t)
 	seedNotificationRecords(t, db, 1, 1000)
 	store := NewStore(db, StoreConfig{})
-	ctx := context.Background()
 	targetID := notificationRecordIDAt(t, db, 1000)
 
+	assertArchiveMovesRecordToArchivedViewAndMarksItRead(t, store, targetID)
+	// Restore clears archived but not read.
+	assertRestoreClearsArchivedButNotRead(t, store, targetID)
+	// Mark unread leaves archived untouched: the record is archived and read
+	// again before the mark-unread.
+	assertMarkUnreadLeavesArchivedUntouched(t, store, targetID)
+}
+
+// assertArchiveMovesRecordToArchivedViewAndMarksItRead archives one unread record and checks
+// it leaves the active view, stays in the archived view and by id, and is stamped read and archived.
+func assertArchiveMovesRecordToArchivedViewAndMarksItRead(t *testing.T, store *Store, targetID int64) {
+	t.Helper()
+	ctx := context.Background()
 	affected, err := store.Archive(ctx, []int64{targetID}, 5000)
 	if err != nil {
 		t.Fatalf("archive: %v", err)
@@ -137,22 +150,11 @@ func TestArchiveRemovesFromDefaultActiveListAndMarksReadIfUnread(t *testing.T) {
 	}
 }
 
-// TestRestoreClearsArchivedButNotRead asserts Restore clears archived_at_ms
-// and deliberately leaves read_at_ms untouched: a restored record does not
-// become unread again (design §5.6 -- "you already saw it").
-func TestRestoreClearsArchivedButNotRead(t *testing.T) {
-	t.Parallel()
-
-	db := openBootstrappedTestDB(t)
-	seedNotificationRecords(t, db, 1, 1000)
-	store := NewStore(db, StoreConfig{})
+// assertRestoreClearsArchivedButNotRead restores one archived, read record and checks it
+// keeps its read stamp, loses its archived stamp and shows again in the active view.
+func assertRestoreClearsArchivedButNotRead(t *testing.T, store *Store, targetID int64) {
+	t.Helper()
 	ctx := context.Background()
-	targetID := notificationRecordIDAt(t, db, 1000)
-
-	if _, err := store.Archive(ctx, []int64{targetID}, 5000); err != nil {
-		t.Fatalf("archive: %v", err)
-	}
-
 	affected, err := store.Restore(ctx, []int64{targetID})
 	if err != nil {
 		t.Fatalf("restore: %v", err)
@@ -160,7 +162,6 @@ func TestRestoreClearsArchivedButNotRead(t *testing.T) {
 	if affected != 1 {
 		t.Fatalf("expected exactly 1 row restored, got %d", affected)
 	}
-
 	record, found, err := store.Record(ctx, targetID)
 	if err != nil {
 		t.Fatalf("load record: %v", err)
@@ -174,7 +175,6 @@ func TestRestoreClearsArchivedButNotRead(t *testing.T) {
 	if record.ReadAtMS == 0 {
 		t.Fatal("expected read_at_ms to remain stamped after restore -- restoring must NOT mark the record unread again")
 	}
-
 	activePage, err := store.List(ctx, ListQuery{View: ViewActive, Limit: 10})
 	if err != nil {
 		t.Fatalf("list active view: %v", err)
@@ -184,7 +184,37 @@ func TestRestoreClearsArchivedButNotRead(t *testing.T) {
 	}
 }
 
-// TestTotalEverRecordedCountsAllRowsRegardlessOfView is an ADDED test, not
+// assertMarkUnreadLeavesArchivedUntouched archives the record again, marks it unread and
+// checks the read stamp clears while the archived stamp and the active-view absence stay.
+func assertMarkUnreadLeavesArchivedUntouched(t *testing.T, store *Store, targetID int64) {
+	t.Helper()
+	ctx := context.Background()
+	if _, err := store.Archive(ctx, []int64{targetID}, 5000); err != nil {
+		t.Fatalf("archive: %v", err)
+	}
+	if _, err := store.MarkUnread(ctx, []int64{targetID}); err != nil {
+		t.Fatalf("mark unread: %v", err)
+	}
+	record, found, err := store.Record(ctx, targetID)
+	if err != nil || !found {
+		t.Fatalf("load record: found=%v err=%v", found, err)
+	}
+	if record.ReadAtMS != 0 {
+		t.Fatalf("expected read_at_ms cleared after mark unread, got %d", record.ReadAtMS)
+	}
+	if record.ArchivedAtMS != 5000 {
+		t.Fatalf("expected archived_at_ms left exactly as archiving stamped it (5000), got %d", record.ArchivedAtMS)
+	}
+	activePage, err := store.List(ctx, ListQuery{View: ViewActive, Limit: 10})
+	if err != nil {
+		t.Fatalf("list active view: %v", err)
+	}
+	if containsRecordID(activePage.Items, targetID) {
+		t.Fatal("expected mark unread NOT to pull an archived record back onto the active list -- that is Restore's job, on the other axis")
+	}
+}
+
+// TestTotalEverRecordedCountsAllRowsAndRefusalsSurviveRestart is an ADDED test, not
 // named by the task text: design §10's NotificationPage.TotalEver ("drives
 // empty state 1 vs 2" -- distinguishing "nothing has ever been recorded"
 // from "records exist but none match the current filter") has no store
@@ -193,7 +223,7 @@ func TestRestoreClearsArchivedButNotRead(t *testing.T) {
 // closure (unlike Search/Sources/Levels' undefined matching semantics):
 // TotalEverRecorded is a bare, filter-independent COUNT(*), so archived and
 // read rows both count.
-func TestTotalEverRecordedCountsAllRowsRegardlessOfView(t *testing.T) {
+func TestTotalEverRecordedCountsAllRowsAndRefusalsSurviveRestart(t *testing.T) {
 	t.Parallel()
 
 	db := openBootstrappedTestDB(t)
@@ -220,6 +250,32 @@ func TestTotalEverRecordedCountsAllRowsRegardlessOfView(t *testing.T) {
 	}
 	if total != 3 {
 		t.Fatalf("expected TotalEverRecorded to count all 3 rows regardless of archived/active split, got %d", total)
+	}
+
+	// Stamp refused persists reason across restart.
+	// It asserts a refusal reason
+	// survives a process restart: StampRefused, then a NEW Store over the same
+	// DB (simulated restart), LoadAction returns the same RefusedReason -- this
+	// is what makes "permanently disabled" true even across a reload (design
+	// Decision D).
+	{
+		seedLifecycleAction(t, store, "act-1", 1000)
+
+		if err := store.StampRefused(ctx, "act-1", RefusalTargetMissing); err != nil {
+			t.Fatalf("stamp refused: %v", err)
+		}
+
+		restarted := NewStore(db, StoreConfig{})
+		action, found, err := restarted.LoadAction(ctx, "act-1")
+		if err != nil {
+			t.Fatalf("load action after restart: %v", err)
+		}
+		if !found {
+			t.Fatal("expected the action to still be found after restart")
+		}
+		if action.RefusedReason != RefusalTargetMissing {
+			t.Fatalf("expected the refusal reason to survive a restart, got %q", action.RefusedReason)
+		}
 	}
 }
 
@@ -250,7 +306,7 @@ func TestStampExecutedTwiceKeepsTheFirstTimestamp(t *testing.T) {
 	db := openBootstrappedTestDB(t)
 	store := NewStore(db, StoreConfig{})
 	ctx := context.Background()
-	seedLifecycleAction(t, store, "act-1", 1000)
+	originalArgs := seedLifecycleAction(t, store, "act-1", 1000)
 
 	if err := store.StampExecuted(ctx, "act-1", 5000); err != nil {
 		t.Fatalf("first stamp executed: %v", err)
@@ -266,61 +322,8 @@ func TestStampExecutedTwiceKeepsTheFirstTimestamp(t *testing.T) {
 	if action.ExecutedAtMS != 5000 {
 		t.Fatalf("expected the second StampExecuted call to leave the first timestamp (5000) untouched, got %d", action.ExecutedAtMS)
 	}
-}
-
-// TestStampRefusedPersistsReasonAcrossRestart asserts a refusal reason
-// survives a process restart: StampRefused, then a NEW Store over the same
-// DB (simulated restart), LoadAction returns the same RefusedReason -- this
-// is what makes "permanently disabled" true even across a reload (design
-// Decision D).
-func TestStampRefusedPersistsReasonAcrossRestart(t *testing.T) {
-	t.Parallel()
-
-	db := openBootstrappedTestDB(t)
-	store := NewStore(db, StoreConfig{})
-	ctx := context.Background()
-	seedLifecycleAction(t, store, "act-1", 1000)
-
-	if err := store.StampRefused(ctx, "act-1", RefusalTargetMissing); err != nil {
-		t.Fatalf("stamp refused: %v", err)
-	}
-
-	restarted := NewStore(db, StoreConfig{})
-	action, found, err := restarted.LoadAction(ctx, "act-1")
-	if err != nil {
-		t.Fatalf("load action after restart: %v", err)
-	}
-	if !found {
-		t.Fatal("expected the action to still be found after restart")
-	}
-	if action.RefusedReason != RefusalTargetMissing {
-		t.Fatalf("expected the refusal reason to survive a restart, got %q", action.RefusedReason)
-	}
-}
-
-// TestArgsJSONNeverUpdatedByAnyStatement round-trips: an action's Args after
-// StampExecuted is byte-identical to the Args at creation time
-// (notification-actions spec, "An action's args cannot be altered after
-// creation").
-func TestArgsJSONNeverUpdatedByAnyStatement(t *testing.T) {
-	t.Parallel()
-
-	db := openBootstrappedTestDB(t)
-	store := NewStore(db, StoreConfig{})
-	ctx := context.Background()
-	originalArgs := seedLifecycleAction(t, store, "act-1", 1000)
-
-	if err := store.StampExecuted(ctx, "act-1", 5000); err != nil {
-		t.Fatalf("stamp executed: %v", err)
-	}
-
-	action, found, err := store.LoadAction(ctx, "act-1")
-	if err != nil {
-		t.Fatalf("load action: %v", err)
-	}
-	if !found {
-		t.Fatal("expected the action to be found")
-	}
+	// An action's args cannot be altered after creation (notification-actions
+	// spec): they stay byte-identical to their creation-time value.
 	if !reflect.DeepEqual(action.Args, originalArgs) {
 		t.Fatalf("expected Args to be byte-identical to their creation-time value after StampExecuted, got %#v (want %#v)", action.Args, originalArgs)
 	}
@@ -420,51 +423,6 @@ func TestMarkUnreadClearsReadAtAndRaisesUnreadCountExactlyOnce(t *testing.T) {
 	}
 	if afterSecond != 3 {
 		t.Fatalf("expected the unread count unchanged by the second mark-unread, got %d", afterSecond)
-	}
-}
-
-// TestMarkUnreadLeavesArchivedUntouched asserts read and archive stay
-// separate axes that compose rather than overwrite each other
-// (design-canvas Lifecycle.dc.html -- "Each keeps its own timestamp, so they
-// compose instead of overwriting each other"; a record can be off the active
-// list and still unread). MarkUnread is the mirror image of Restore, which
-// clears only archived_at_ms and deliberately leaves read_at_ms alone.
-func TestMarkUnreadLeavesArchivedUntouched(t *testing.T) {
-	t.Parallel()
-
-	db := openBootstrappedTestDB(t)
-	seedNotificationRecords(t, db, 1, 1000)
-	store := NewStore(db, StoreConfig{})
-	ctx := context.Background()
-	targetID := notificationRecordIDAt(t, db, 1000)
-
-	// Archiving stamps read_at_ms as a side effect, so this record is both
-	// archived and read before the mark-unread under test.
-	if _, err := store.Archive(ctx, []int64{targetID}, 5000); err != nil {
-		t.Fatalf("archive: %v", err)
-	}
-
-	if _, err := store.MarkUnread(ctx, []int64{targetID}); err != nil {
-		t.Fatalf("mark unread: %v", err)
-	}
-
-	record, found, err := store.Record(ctx, targetID)
-	if err != nil || !found {
-		t.Fatalf("load record: found=%v err=%v", found, err)
-	}
-	if record.ReadAtMS != 0 {
-		t.Fatalf("expected read_at_ms cleared after mark unread, got %d", record.ReadAtMS)
-	}
-	if record.ArchivedAtMS != 5000 {
-		t.Fatalf("expected archived_at_ms left exactly as archiving stamped it (5000), got %d", record.ArchivedAtMS)
-	}
-
-	activePage, err := store.List(ctx, ListQuery{View: ViewActive, Limit: 10})
-	if err != nil {
-		t.Fatalf("list active view: %v", err)
-	}
-	if containsRecordID(activePage.Items, targetID) {
-		t.Fatal("expected mark unread NOT to pull an archived record back onto the active list -- that is Restore's job, on the other axis")
 	}
 }
 

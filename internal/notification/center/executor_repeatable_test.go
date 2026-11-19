@@ -20,45 +20,11 @@ func (h *repeatableIntentHandler) Execute(context.Context, map[string]string) er
 
 func (*repeatableIntentHandler) Repeatable() bool { return true }
 
-// TestExecuteRepeatableHandlerRunsAgainOnASecondPress pins that a handler
-// declaring itself repeatable is re-invoked instead of refused.
-//
-// IntentHandler.Repeatable has existed on the port since the model was
-// designed ("Repeatable reports whether a second press may re-invoke this
-// handler"), and the Executor never called it: the already-executed guard ran
-// unconditionally before the handler was even resolved, so the method governed
-// nothing. It was a dead contract, and the cost was user-facing -- copying a
-// hoster link is idempotent, and "Copy hoster 1" refused with already_executed
-// the second time it was pressed.
-func TestExecuteRepeatableHandlerRunsAgainOnASecondPress(t *testing.T) {
-	t.Parallel()
-	handler := &repeatableIntentHandler{}
-	executor, _, recordID := newRepeatableTestExecutor(t, true, handler)
-	ctx := context.Background()
-
-	first := executor.Execute(ctx, recordID, "act-1")
-	if !first.Executed {
-		t.Fatalf("expected the first press to succeed, got %#v", first)
-	}
-
-	second := executor.Execute(ctx, recordID, "act-1")
-
-	if !second.Executed {
-		t.Fatalf("expected a repeatable action to run again on the second press, got %#v", second)
-	}
-	if second.Reason != "" {
-		t.Fatalf("expected no refusal reason on a repeated press, got %q", second.Reason)
-	}
-	if handler.calls != 2 {
-		t.Fatalf("expected the handler to be invoked twice, got %d", handler.calls)
-	}
-}
-
-// TestExecuteRepeatableStillRefusesAForeignAction pins that repeatability
+// TestExecuteRepeatableRefusesAForeignActionAndRunsAgainOnASecondPress pins that repeatability
 // widens exactly one gate and no other. Ownership is not a spend-once budget:
 // an action that never belonged to this record must stay refused however many
 // times it is pressed, or "repeatable" would quietly become "unchecked".
-func TestExecuteRepeatableStillRefusesAForeignAction(t *testing.T) {
+func TestExecuteRepeatableRefusesAForeignActionAndRunsAgainOnASecondPress(t *testing.T) {
 	t.Parallel()
 	handler := &repeatableIntentHandler{}
 	executor, _, recordID := newRepeatableTestExecutor(t, true, handler)
@@ -71,6 +37,36 @@ func TestExecuteRepeatableStillRefusesAForeignAction(t *testing.T) {
 	}
 	if handler.calls != 0 {
 		t.Fatalf("expected the handler never to run for a foreign action, got %d calls", handler.calls)
+	}
+
+	// Execute repeatable handler runs again on a second press.
+	// It pins that a handler
+	// declaring itself repeatable is re-invoked instead of refused.
+	//
+	// IntentHandler.Repeatable has existed on the port since the model was
+	// designed ("Repeatable reports whether a second press may re-invoke this
+	// handler"), and the Executor never called it: the already-executed guard ran
+	// unconditionally before the handler was even resolved, so the method governed
+	// nothing. It was a dead contract, and the cost was user-facing -- copying a
+	// hoster link is idempotent, and "Copy hoster 1" refused with already_executed
+	// the second time it was pressed.
+	{
+		first := executor.Execute(ctx, recordID, "act-1")
+		if !first.Executed {
+			t.Fatalf("expected the first press to succeed, got %#v", first)
+		}
+
+		second := executor.Execute(ctx, recordID, "act-1")
+
+		if !second.Executed {
+			t.Fatalf("expected a repeatable action to run again on the second press, got %#v", second)
+		}
+		if second.Reason != "" {
+			t.Fatalf("expected no refusal reason on a repeated press, got %q", second.Reason)
+		}
+		if handler.calls != 2 {
+			t.Fatalf("expected the handler to be invoked twice, got %d", handler.calls)
+		}
 	}
 }
 

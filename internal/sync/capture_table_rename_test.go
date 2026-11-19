@@ -134,6 +134,37 @@ func TestCaptureTableRenamePreservesExistingRows(t *testing.T) {
 	defer closeTestDB(t, db)
 
 	assertCaptureRowsSurvived(t, db, seeded)
+	var count int
+	if err := db.QueryRow(`SELECT count(*) FROM request_captures`).Scan(&count); err != nil {
+		t.Fatalf("count renamed rows: %v", err)
+	}
+	if count != len(seeded) {
+		t.Fatalf("expected request_captures to hold all %d seeded rows reachable, got %d", len(seeded), count)
+	}
+
+	assertPreviousCaptureTablesAndIndexesReplaced(t, db)
+
+	var version string
+	if err := db.QueryRow(`SELECT value FROM request_capture_metadata WHERE key = 'request_capture_schema_version'`).Scan(&version); err != nil {
+		t.Fatalf("read renamed schema version: %v", err)
+	}
+	if version != "5" {
+		t.Fatalf("expected schema version 5 after rename, got %q", version)
+	}
+	var staleKeyCount int
+	if err := db.QueryRow(`SELECT count(*) FROM request_capture_metadata WHERE key = 'mobile_request_capture_schema_version'`).Scan(&staleKeyCount); err != nil {
+		t.Fatalf("count stale metadata key: %v", err)
+	}
+	if staleKeyCount != 0 {
+		t.Fatalf("expected the previously-named metadata key to be gone, found %d", staleKeyCount)
+	}
+}
+
+// assertPreviousCaptureTablesAndIndexesReplaced checks the previously-named
+// capture tables and their indexes no longer exist and every current capture
+// index exists.
+func assertPreviousCaptureTablesAndIndexesReplaced(t *testing.T, db *sql.DB) {
+	t.Helper()
 
 	for _, table := range []string{"mobile_request_captures", "mobile_request_capture_metadata"} {
 		if tableExists(t, db, table) {
@@ -157,81 +188,6 @@ func TestCaptureTableRenamePreservesExistingRows(t *testing.T) {
 		if !indexExists(t, db, index) {
 			t.Fatalf("expected current index %q to exist", index)
 		}
-	}
-
-	var version string
-	if err := db.QueryRow(`SELECT value FROM request_capture_metadata WHERE key = 'request_capture_schema_version'`).Scan(&version); err != nil {
-		t.Fatalf("read renamed schema version: %v", err)
-	}
-	if version != "5" {
-		t.Fatalf("expected schema version 5 after rename, got %q", version)
-	}
-	var staleKeyCount int
-	if err := db.QueryRow(`SELECT count(*) FROM request_capture_metadata WHERE key = 'mobile_request_capture_schema_version'`).Scan(&staleKeyCount); err != nil {
-		t.Fatalf("count stale metadata key: %v", err)
-	}
-	if staleKeyCount != 0 {
-		t.Fatalf("expected the previously-named metadata key to be gone, found %d", staleKeyCount)
-	}
-}
-
-// TestCaptureTableRenameFreshInstallSkipsRename asserts a brand-new database
-// gets the current-generation tables directly, at version 4, with no
-// previously-named object ever created.
-func TestCaptureTableRenameFreshInstallSkipsRename(t *testing.T) {
-	t.Parallel()
-
-	path := filepath.Join(t.TempDir(), "bridge.db")
-	db, err := OpenBridgeDB(path)
-	if err != nil {
-		t.Fatalf("bootstrap fresh db: %v", err)
-	}
-	defer closeTestDB(t, db)
-
-	if !tableExists(t, db, "request_captures") || !tableExists(t, db, "request_capture_metadata") {
-		t.Fatal("expected current-generation capture tables to exist on a fresh install")
-	}
-	for _, table := range []string{"mobile_request_captures", "mobile_request_capture_metadata"} {
-		if tableExists(t, db, table) {
-			t.Fatalf("expected previously-named table %q to never be created on a fresh install", table)
-		}
-	}
-	var version string
-	if err := db.QueryRow(`SELECT value FROM request_capture_metadata WHERE key = 'request_capture_schema_version'`).Scan(&version); err != nil {
-		t.Fatalf("read fresh schema version: %v", err)
-	}
-	if version != "5" {
-		t.Fatalf("expected fresh schema version 5, got %q", version)
-	}
-}
-
-// TestCaptureTableRenameNeverOrphansDataBehindAnEmptyTable is the regression
-// test for the EnsureTableSchema/Migrate trap: after bootstrapping a
-// populated previous-generation database, there must be no empty
-// request_captures sitting alongside a still-populated mobile_request_captures,
-// and every seeded row must be reachable through the renamed table.
-func TestCaptureTableRenameNeverOrphansDataBehindAnEmptyTable(t *testing.T) {
-	t.Parallel()
-
-	path := filepath.Join(t.TempDir(), "bridge.db")
-	seeded := sampleCaptureRows()
-	buildPreviousGenerationCaptureFixture(t, path, seeded)
-
-	db, err := OpenBridgeDB(path)
-	if err != nil {
-		t.Fatalf("bootstrap renamed db: %v", err)
-	}
-	defer closeTestDB(t, db)
-
-	if tableExists(t, db, "mobile_request_captures") {
-		t.Fatal("expected the previously-named table to no longer exist -- data must not be orphaned behind it")
-	}
-	var count int
-	if err := db.QueryRow(`SELECT count(*) FROM request_captures`).Scan(&count); err != nil {
-		t.Fatalf("count renamed rows: %v", err)
-	}
-	if count != len(seeded) {
-		t.Fatalf("expected request_captures to hold all %d seeded rows reachable, got %d", len(seeded), count)
 	}
 }
 

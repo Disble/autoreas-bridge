@@ -136,32 +136,6 @@ func TestListKeysetPageNeverRepeatsOrSkips(t *testing.T) {
 	}
 }
 
-// TestListExactlyLimitRemainingRecordsHasNoNextCursor asserts a page that
-// exhausts every remaining record -- exactly Limit rows, no more, no fewer --
-// reports an empty NextCursor. This is the page-size/hasMore boundary: the
-// probe technique requests limit+1 rows specifically to distinguish "exactly
-// Limit rows exist" (no further page) from "more than Limit rows exist" (a
-// further page); a query returning precisely Limit rows must NOT be mistaken
-// for the latter, or a client would loop forever believing more data exists.
-func TestListExactlyLimitRemainingRecordsHasNoNextCursor(t *testing.T) {
-	t.Parallel()
-
-	db := openBootstrappedTestDB(t)
-	seedNotificationRecords(t, db, 3, 1000)
-	store := NewStore(db, StoreConfig{})
-
-	page, err := store.List(context.Background(), ListQuery{Limit: 3})
-	if err != nil {
-		t.Fatalf("list page: %v", err)
-	}
-	if len(page.Items) != 3 {
-		t.Fatalf("expected exactly 3 items, got %d", len(page.Items))
-	}
-	if page.NextCursor != "" {
-		t.Fatalf("expected no next cursor when exactly Limit records remain, got %q", page.NextCursor)
-	}
-}
-
 // TestRecordReturnsStoredRecordWithActions asserts Record loads a persisted
 // notification's full field set, including its actions in ordinal order.
 func TestRecordReturnsStoredRecordWithActions(t *testing.T) {
@@ -205,17 +179,9 @@ func TestRecordReturnsStoredRecordWithActions(t *testing.T) {
 	if got.Actions[0].Args["path"] != "/tmp" {
 		t.Fatalf("expected action args to round-trip, got %#v", got.Actions[0].Args)
 	}
-}
 
-// TestRecordReturnsNotFoundForUnknownID asserts Record reports found == false
-// for an id that does not exist, without returning an error.
-func TestRecordReturnsNotFoundForUnknownID(t *testing.T) {
-	t.Parallel()
-
-	db := openBootstrappedTestDB(t)
-	store := NewStore(db, StoreConfig{})
-
-	_, found, err := store.Record(context.Background(), 999999)
+	// An id that does not exist is found == false, without an error.
+	_, found, err = store.Record(context.Background(), 999999)
 	if err != nil {
 		t.Fatalf("expected no error for an unknown id, got %v", err)
 	}

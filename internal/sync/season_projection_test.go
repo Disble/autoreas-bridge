@@ -177,37 +177,32 @@ func TestSeasonProjectionPublisherStampsPastTheAnimesLastRow(t *testing.T) {
 	}
 }
 
-func TestSeasonProjectionPublisherSkipsAnAnimeThatNoLongerExists(t *testing.T) {
+// TestSeasonProjectionPublisherWritesNothingOnAFailedReadThenSkipsAVanishedAnime
+// fails a publish while the projection cannot be read, then after recovery
+// publishes only the anime still stored and never retries the vanished one.
+func TestSeasonProjectionPublisherWritesNothingOnAFailedReadThenSkipsAVanishedAnime(t *testing.T) {
 	db := openTestBridgeDB(t)
 	storeSnapshot(t, db, "a", 1)
-	publisher := newTestPublisher(db, &projection{candidacies: []SeasonCandidacy{
+	source := &projection{candidacies: []SeasonCandidacy{
 		{AnimeID: "a", SeasonID: "s1"},
 		{AnimeID: "gone", SeasonID: "s1"},
-	}}, 1000)
-
-	published := mustPublish(t, publisher)
-
-	if got := animeIDsOf(seasonRows(t, db)); !slices.Equal(got, []string{"a"}) || !slices.Equal(published, []string{"a"}) {
-		t.Fatalf("rows %v, published %v, want only the stored anime", got, published)
-	}
-	if again := mustPublish(t, publisher); len(again) != 0 {
-		t.Fatalf("missing anime retried: %v", again)
-	}
-}
-
-func TestSeasonProjectionPublisherWritesNothingWhenTheProjectionCannotBeRead(t *testing.T) {
-	db := openTestBridgeDB(t)
-	storeSnapshot(t, db, "a", 1)
-	source := &projection{candidacies: []SeasonCandidacy{{AnimeID: "a", SeasonID: "s1"}}, err: errors.New("season store down")}
+	}, err: errors.New("season store down")}
 	publisher := newTestPublisher(db, source, 1000)
 
 	if _, err := publisher.Publish(context.Background()); err == nil {
 		t.Fatal("publish succeeded on a failed read")
 	}
+	if rows := seasonRows(t, db); len(rows) != 0 {
+		t.Fatalf("rows after a failed read = %+v, want none", rows)
+	}
 	source.err = nil
 
-	if published := mustPublish(t, publisher); !slices.Equal(published, []string{"a"}) {
-		t.Fatalf("published %v after recovery, want [a]", published)
+	published := mustPublish(t, publisher)
+	if got := animeIDsOf(seasonRows(t, db)); !slices.Equal(got, []string{"a"}) || !slices.Equal(published, []string{"a"}) {
+		t.Fatalf("rows %v, published %v after recovery, want only the stored anime", got, published)
+	}
+	if again := mustPublish(t, publisher); len(again) != 0 {
+		t.Fatalf("missing anime retried: %v", again)
 	}
 }
 

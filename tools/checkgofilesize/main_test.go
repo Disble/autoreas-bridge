@@ -71,14 +71,10 @@ func TestCountEffectiveLines(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := countEffectiveLines(tt.content)
-			if got != tt.want {
-				t.Fatalf("countEffectiveLines() = %d, want %d", got, tt.want)
-			}
-		})
+		got := countEffectiveLines(tt.content)
+		if got != tt.want {
+			t.Errorf("%s: countEffectiveLines() = %d, want %d", tt.name, got, tt.want)
+		}
 	}
 }
 

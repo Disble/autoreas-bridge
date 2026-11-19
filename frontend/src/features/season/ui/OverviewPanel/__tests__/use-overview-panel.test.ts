@@ -1,11 +1,15 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonAnimeRow } from '../../../../../shared/contracts/season.types';
+import type { SeasonAnimeRow, SeasonOrderingSnapshot, SeasonQuerySource, SeasonSource } from '../../../../../shared/contracts/season.types';
 import { createSeasonDataSource, makeSeason, seasonQueryWrapper } from '../../../../../shared/season/__tests__/season.test-support';
 import type { SeasonDataSource } from '../../../../../shared/season/season.types';
 import { resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
 import { useOverviewPanel } from '../use-overview-panel';
+import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
+import type { SeasonCoverSource } from '../../SeasonCoverThumb/season-cover-thumb.types';
+import { OVERVIEW_LINEUP_LOAD_ERROR } from '../overview-panel.constants';
+import { useOverviewLineup } from '../use-overview-lineup';
 
 /** Builds a created season anime row with the given grade and section. */
 function createdRow(id: string, animeId: string, grade: number, section = 'Visto'): SeasonAnimeRow {
@@ -42,14 +46,16 @@ describe('useOverviewPanel', () => {
     vi.clearAllMocks();
   });
 
-  it('fetches both the season and its animes on mount', async () => {
+  it('fetches the season and its animes on mount, passing readOnly and errorMessage through unchanged', async () => {
     const source = createSeasonDataSource();
-    renderOverview(source);
+    const { result } = renderOverview(source);
 
     await waitFor(() => {
       expect(source.readSeason).toHaveBeenCalledTimes(1);
       expect(source.readSeasonAnimes).toHaveBeenCalledTimes(1);
     });
+    expect(result.current.readOnly).toBe(false);
+    expect(result.current.errorMessage).toBeUndefined();
   });
 
   it('reflects the loaded rows in the derived view model', async () => {
@@ -81,15 +87,6 @@ describe('useOverviewPanel', () => {
     expect(result.current.outcomeSteps[0]?.value).toBe('0');
   });
 
-  it('passes readOnly and errorMessage through from the store unchanged', async () => {
-    const source = createSeasonDataSource();
-    const { result } = renderOverview(source);
-
-    await waitFor(() => expect(source.readSeasonAnimes).toHaveBeenCalled());
-    expect(result.current.readOnly).toBe(false);
-    expect(result.current.errorMessage).toBeUndefined();
-  });
-
   it('clears an earlier banner once the season and its rows read again', async () => {
     setSeasonStoreState({ errorMessage: 'earlier failure' });
     const { result } = renderOverview(createSeasonDataSource());
@@ -118,5 +115,83 @@ describe('useOverviewPanel', () => {
 
     await waitFor(() => expect(result.current.errorMessage).toBe('rows down'));
     expect(result.current.kpi.createdCount).toBe(1);
+  });
+});
+
+/** A recorded snapshot with one Lunes card for the given anime. */
+function snapshotWith(animeId: string): SeasonOrderingSnapshot {
+  return { recorded: true, rail: [], grid: [{ animeId, name: animeId, dia: 'Lunes', orden: 1, section: 'Visto', isNewcomer: false }] };
+}
+
+/** A cover port that answers every id with a placeholder. */
+function coverSource(): SeasonCoverSource {
+  return { getAnimeCover: vi.fn().mockResolvedValue({ source: 'placeholder' }) };
+}
+
+/** Renders the lineup hook over `source` with the season module ready. */
+function renderLineup(source: Partial<SeasonSource>, covers: SeasonCoverSource = coverSource()) {
+  const { wrapper } = createModulesTestWrapper({ module: 'season', state: 'ready' });
+  return renderHook(() => useOverviewLineup(source as SeasonSource & SeasonQuerySource, covers), { wrapper });
+}
+
+describe('useOverviewLineup', () => {
+  afterEach(() => {
+    resetSeasonStore();
+    vi.clearAllMocks();
+  });
+
+  it('reads the viewed season lineup, asks each cover, and keeps the model identity while unchanged', async () => {
+    setSeasonStoreState({ viewSeasonId: 's1' });
+    const fetchSeasonOrderingSnapshot = vi.fn().mockResolvedValue(snapshotWith('a'));
+    const covers = coverSource();
+
+    const { result, rerender } = renderLineup({ fetchSeasonOrderingSnapshot }, covers);
+
+    expect(result.current.view.display).toBe('loading');
+    await waitFor(() => expect(result.current.view.display).toBe('lineup'));
+    expect(fetchSeasonOrderingSnapshot).toHaveBeenCalledWith('s1');
+    expect(covers.getAnimeCover).toHaveBeenCalledWith('a');
+
+    const settled = result.current.view;
+    rerender();
+    expect(result.current.view).toBe(settled);
+  });
+
+  it('reads nothing while no past season is viewed', async () => {
+    const fetchSeasonOrderingSnapshot = vi.fn().mockResolvedValue(snapshotWith('a'));
+
+    const { result } = renderLineup({ fetchSeasonOrderingSnapshot });
+
+    await act(() => Promise.resolve());
+    expect(fetchSeasonOrderingSnapshot).not.toHaveBeenCalled();
+    expect(result.current.view.display).toBe('loading');
+  });
+
+  it.each([
+    ['a failed read', { fetchSeasonOrderingSnapshot: vi.fn().mockRejectedValue(new Error('read failed')) }, 'read failed'],
+    ['a source that cannot read the snapshot', {}, OVERVIEW_LINEUP_LOAD_ERROR],
+  ])('reports %s as a failure, never as an unrecorded lineup', async (_case, source, message) => {
+    setSeasonStoreState({ viewSeasonId: 's1' });
+
+    const { result } = renderLineup(source);
+
+    await waitFor(() => expect(result.current.view).toMatchObject({ display: 'failed', errorMessage: message }));
+  });
+
+  it('drops a read that settles after the viewed season changed', async () => {
+    let settleFirst: (snapshot: SeasonOrderingSnapshot) => void = () => undefined;
+    const fetchSeasonOrderingSnapshot = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<SeasonOrderingSnapshot>((resolve) => (settleFirst = resolve)))
+      .mockResolvedValueOnce(snapshotWith('second'));
+    setSeasonStoreState({ viewSeasonId: 's1' });
+    const { result } = renderLineup({ fetchSeasonOrderingSnapshot });
+    await waitFor(() => expect(fetchSeasonOrderingSnapshot).toHaveBeenCalledWith('s1'));
+
+    act(() => setSeasonStoreState({ viewSeasonId: 's2' }));
+    await waitFor(() => expect(result.current.view.days[0]?.items[0].animeId).toBe('second'));
+    await act(async () => settleFirst(snapshotWith('first')));
+
+    expect(result.current.view.days[0].items[0].animeId).toBe('second');
   });
 });

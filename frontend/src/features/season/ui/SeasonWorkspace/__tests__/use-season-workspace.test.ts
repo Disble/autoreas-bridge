@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
+import type { Key } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createModulesTestWrapper } from '../../../../../shared/query/test-support/bridge-modules.test-support';
@@ -6,7 +7,10 @@ import { status } from '../../../../../shared/query/test-support/readiness-sourc
 import { createSeasonDataSource, makeSeason, makeSeasonRow, seasonQueryWrapper } from '../../../../../shared/season/__tests__/season.test-support';
 import type { SeasonDataSource } from '../../../../../shared/season/season.types';
 import { getSeasonStoreState, resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
+import { SEASON_SECTION_TABS } from '../season-workspace.constants';
+import type { SeasonSectionId } from '../season-workspace.types';
 import { useSeasonWorkspace } from '../use-season-workspace';
+import { useSeasonWorkspaceTab } from '../use-season-workspace-tab';
 
 /**
  * Renders the workspace hook with the season module ready.
@@ -23,20 +27,23 @@ describe('useSeasonWorkspace', () => {
     vi.clearAllMocks();
   });
 
-  it('starts on overview and changes the active tab when selected', () => {
-    const { result } = renderWorkspace(createSeasonDataSource());
+  it('with no open season: suggests a name, switches tabs, reads once and requests no animes', async () => {
+    const source = createSeasonDataSource();
+    const { result } = renderWorkspace(source);
 
+    expect(result.current.suggestedName).toMatch(/^[A-Za-zÁÉÍÓÚáéíóú]+ \d{4}$/);
     expect(result.current.activeTab).toBe('overview');
     act(() => result.current.selectTab('evaluation'));
     expect(result.current.activeTab).toBe('evaluation');
-  });
-
-  it('keeps the active tab when the selected key is not a declared tab', () => {
-    const { result } = renderWorkspace(createSeasonDataSource());
-
-    act(() => result.current.selectTab('evaluation'));
+    // A key that is not a declared tab keeps the active tab.
     act(() => result.current.selectTab('not-a-tab'));
     expect(result.current.activeTab).toBe('evaluation');
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(source.readSeason).toHaveBeenCalledTimes(1);
+    expect(result.current.season).toBeNull();
+    expect(result.current.overview).toBeNull();
+    expect(source.readSeasonAnimes).not.toHaveBeenCalled();
   });
 
   it('exposes the store banner and the read-only view flag', () => {
@@ -56,17 +63,7 @@ describe('useSeasonWorkspace', () => {
     expect(source.readSeason).not.toHaveBeenCalled();
   });
 
-  it('reads on mount and exposes a null overview when no season is open', async () => {
-    const source = createSeasonDataSource();
-    const { result } = renderWorkspace(source);
-
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(source.readSeason).toHaveBeenCalledTimes(1);
-    expect(result.current.season).toBeNull();
-    expect(result.current.overview).toBeNull();
-  });
-
-  it('builds the overview view model for an open season', async () => {
+  it('builds the overview view model for an open season and closes it through the source', async () => {
     const source = createSeasonDataSource({ readSeason: vi.fn().mockResolvedValue(makeSeason()) });
     const { result } = renderWorkspace(source);
 
@@ -74,6 +71,9 @@ describe('useSeasonWorkspace', () => {
     expect(result.current.overview?.title).toBe('Julio 2026');
     expect(result.current.overview?.statusLabel).toBe('Open');
     expect(result.current.overview?.minApprovalGrade).toBe(4);
+
+    act(() => result.current.onCloseSeason());
+    await waitFor(() => expect(source.closeSeason).toHaveBeenCalledTimes(1));
   });
 
   it('stays loading while the season request is unresolved and requests no animes', () => {
@@ -117,11 +117,8 @@ describe('useSeasonWorkspace', () => {
     expect(result.current.isLoading).toBe(false);
   });
 
-  it.each([
-    ['a closed season', { readSeason: vi.fn().mockResolvedValue(makeSeason({ status: 'closed' })) }],
-    ['no season', {}],
-  ])('requests no animes for %s', async (_name, overrides) => {
-    const source = createSeasonDataSource(overrides);
+  it('requests no animes for a closed season', async () => {
+    const source = createSeasonDataSource({ readSeason: vi.fn().mockResolvedValue(makeSeason({ status: 'closed' })) });
     const { result } = renderWorkspace(source);
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -170,11 +167,6 @@ describe('useSeasonWorkspace', () => {
     expect(getSeasonStoreState().viewSeasonId).toBeNull();
   });
 
-  it('exposes a date-derived suggested name', () => {
-    const { result } = renderWorkspace(createSeasonDataSource());
-    expect(result.current.suggestedName).toMatch(/^[A-Za-zÁÉÍÓÚáéíóú]+ \d{4}$/);
-  });
-
   it('onCreateSeason delegates to the source and reads the season again', async () => {
     const readSeason = vi.fn().mockResolvedValueOnce(null).mockResolvedValue(makeSeason());
     const source = createSeasonDataSource({ readSeason });
@@ -186,14 +178,18 @@ describe('useSeasonWorkspace', () => {
     await waitFor(() => expect(source.createSeason).toHaveBeenCalledWith('Julio 2026'));
     await waitFor(() => expect(result.current.season?.name).toBe('Julio 2026'));
   });
+});
 
-  it('onCloseSeason delegates to the source', async () => {
-    const source = createSeasonDataSource({ readSeason: vi.fn().mockResolvedValue(makeSeason()) });
-    const { result } = renderWorkspace(source);
+describe('useSeasonWorkspaceTab', () => {
+  it.each([
+    ['evaluation', 'evaluation'],
+    ['not-a-tab', 'overview'],
+  ] as const)('selecting %s leaves the active tab at %s', (key, expected) => {
+    const { result } = renderHook(() => useSeasonWorkspaceTab());
 
-    await waitFor(() => expect(result.current.overview).not.toBeNull());
-    act(() => result.current.onCloseSeason());
-
-    await waitFor(() => expect(source.closeSeason).toHaveBeenCalledTimes(1));
+    expect(result.current.activeTab).toBe('overview');
+    act(() => result.current.selectTab(key as Key));
+    expect(result.current.activeTab).toBe(expected satisfies SeasonSectionId);
+    expect(SEASON_SECTION_TABS.some((tab) => tab.id === result.current.activeTab)).toBe(true);
   });
 });

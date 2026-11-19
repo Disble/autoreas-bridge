@@ -15,12 +15,29 @@ function buildActionSource(result: NotificationActionResult): NotificationCenter
 }
 
 describe('useNotificationAction', () => {
-  it('starts idle and enabled for a fresh action', () => {
-    const { result } = renderHook(() => useNotificationAction(1, buildAction(), buildActionSource({ executed: false, reason: 'intent_unregistered' })), { wrapper: notificationsQueryWrapper().wrapper });
+  it('starts idle, disables on press, and ignores a second press while pending', async () => {
+    const source = buildActionSource({ executed: false, reason: 'intent_unregistered' });
+    const { result } = renderHook(() => useNotificationAction(1, buildAction(), source), { wrapper: notificationsQueryWrapper().wrapper });
 
     expect(result.current.status).toBe('idle');
     expect(result.current.isDisabled).toBe(false);
     expect(result.current.refusalMessage).toBeUndefined();
+
+    act(() => {
+      result.current.press();
+      result.current.press();
+    });
+
+    // Disabled the instant it is pressed, before executeAction resolves.
+    expect(result.current.status).toBe('pending');
+    expect(result.current.isDisabled).toBe(true);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current.status).toBe('refused');
+    expect(source.executeAction).toHaveBeenCalledTimes(1);
   });
 
   it('reports executed and permanently disabled for an already-executed action, without ever entering pending or calling executeAction', () => {
@@ -62,18 +79,6 @@ describe('useNotificationAction', () => {
     rerender(buildAction({ executedAtMs: 1_700_000_000_000 }));
 
     expect(result.current.status).toBe('executed');
-  });
-
-  it('disables optimistically the instant it is pressed, before executeAction resolves', () => {
-    const source = buildActionSource({ executed: false, reason: 'intent_unregistered' });
-    const { result } = renderHook(() => useNotificationAction(1, buildAction(), source), { wrapper: notificationsQueryWrapper().wrapper });
-
-    act(() => {
-      result.current.press();
-    });
-
-    expect(result.current.status).toBe('pending');
-    expect(result.current.isDisabled).toBe(true);
   });
 
   it('calls executeAction with the notification id and action id, settling to executed on success', async () => {
@@ -136,32 +141,31 @@ describe('useNotificationAction', () => {
     expect(source.executeAction).not.toHaveBeenCalledWith(1, 'action-1');
   });
 
-  // The four below are the frontend half of `center.Executor`'s repeatable
+  // The three below are the frontend half of `center.Executor`'s repeatable
   // gate. That gate is unreachable from the UI on its own: the Executor stamps
   // executedAtMs for repeatable and single-fire presses alike, so a pane that
   // disables on executedAtMs alone grays the button out after the first press
   // and the second one never leaves the frontend.
-  it('returns a repeatable action to idle once its press settles, so it can be pressed again', async () => {
+  it('cycles a repeatable action from in-flight back to idle and executes it again', async () => {
     const source = buildActionSource({ executed: true, executedAtMs: 1_700_000_000_000 });
     const { result } = renderHook(() => useNotificationAction(1, buildAction({ intent: 'navigation.open', repeatable: true }), source), { wrapper: notificationsQueryWrapper().wrapper });
 
-    await act(async () => {
+    act(() => {
       result.current.press();
+    });
+
+    // Repeatability widens exactly one gate, mirroring the Executor: an
+    // in-flight press must still not fire the handler a second time.
+    expect(result.current.status).toBe('pending');
+    expect(result.current.isDisabled).toBe(true);
+
+    await act(async () => {
       await Promise.resolve();
     });
 
     expect(result.current.status).toBe('idle');
     expect(result.current.isDisabled).toBe(false);
-  });
 
-  it('actually invokes executeAction a second time for a repeatable action', async () => {
-    const source = buildActionSource({ executed: true, executedAtMs: 1_700_000_000_000 });
-    const { result } = renderHook(() => useNotificationAction(1, buildAction({ intent: 'navigation.open', repeatable: true }), source), { wrapper: notificationsQueryWrapper().wrapper });
-
-    await act(async () => {
-      result.current.press();
-      await Promise.resolve();
-    });
     await act(async () => {
       result.current.press();
       await Promise.resolve();
@@ -182,20 +186,6 @@ describe('useNotificationAction', () => {
     expect(result.current.isDisabled).toBe(false);
   });
 
-  it('keeps a repeatable action disabled while its press is still in flight', () => {
-    // Repeatability widens exactly one gate, mirroring the Executor: an
-    // in-flight press must still not fire the handler a second time.
-    const source = buildActionSource({ executed: true, executedAtMs: 1 });
-    const { result } = renderHook(() => useNotificationAction(1, buildAction({ intent: 'navigation.open', repeatable: true }), source), { wrapper: notificationsQueryWrapper().wrapper });
-
-    act(() => {
-      result.current.press();
-    });
-
-    expect(result.current.status).toBe('pending');
-    expect(result.current.isDisabled).toBe(true);
-  });
-
   it('keeps a refused repeatable action disabled, because repeatability widens only the executed gate', async () => {
     const source = buildActionSource({ executed: false, reason: 'target_missing' });
     const { result } = renderHook(() => useNotificationAction(1, buildAction({ intent: 'navigation.open', repeatable: true }), source), { wrapper: notificationsQueryWrapper().wrapper });
@@ -207,20 +197,6 @@ describe('useNotificationAction', () => {
 
     expect(result.current.status).toBe('refused');
     expect(result.current.isDisabled).toBe(true);
-  });
-
-  it('ignores a second press received while the first is still pending, invoking executeAction exactly once', async () => {
-    const source = buildActionSource({ executed: false, reason: 'intent_unregistered' });
-    const { result } = renderHook(() => useNotificationAction(1, buildAction(), source), { wrapper: notificationsQueryWrapper().wrapper });
-
-    await act(async () => {
-      result.current.press();
-      result.current.press();
-      await Promise.resolve();
-    });
-
-    expect(result.current.status).toBe('refused');
-    expect(source.executeAction).toHaveBeenCalledTimes(1);
   });
 
   // A press the backend could not take (the module is not ready, or the call

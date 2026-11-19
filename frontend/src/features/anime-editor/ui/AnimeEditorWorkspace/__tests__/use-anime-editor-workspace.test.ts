@@ -1,4 +1,5 @@
-import { act, fireEvent, renderHook, waitFor } from '@testing-library/react';
+import { act, fireEvent, renderHook } from '@testing-library/react';
+import { waitFor } from './wait-for.test-support';
 import { createElement } from 'react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -9,6 +10,14 @@ import { createEmptyEpisodeDurationSource, createEpisodesReadyWrapper } from './
 
 /** Toast stub, hoisted so the HeroUI module mock can close over it. */
 const toastMock = vi.hoisted(() => ({ success: vi.fn(), info: vi.fn(), warning: vi.fn(), danger: vi.fn() }));
+
+// The Episodes card's reload debounce is guarded in use-episode-durations-load.test.ts;
+// here every render would otherwise wait it out before the card reads.
+vi.mock('../../EpisodeDurationsSection/episode-durations-section.constants', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  /** No settle wait: the card reads on the next task. */
+  EPISODE_DURATIONS_RELOAD_DELAY_MS: 0,
+}));
 
 vi.mock('@heroui/react', () => ({ toast: toastMock }));
 

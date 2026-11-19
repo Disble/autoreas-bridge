@@ -82,11 +82,80 @@ func seedReadings(t *testing.T, db *sql.DB) {
 	insertFailedSync(t, db, "old", 700, 650)
 }
 
-func TestFeedShowsEachFailedSyncAsItsReading(t *testing.T) {
+// TestSeededReadingsShowOnEveryView reads one seeded set of failed syncs
+// through the feed, the failure filter, the overview, a phone report, History
+// and stored incidents, each of which must show every reading as stored.
+func TestSeededReadingsShowOnEveryView(t *testing.T) {
 	db, r := openTestReader(t)
 	seedReadings(t, db)
 
+	// Reading counts equal the lines of every range.
+	{
+		ranges := []struct {
+			name         string
+			fromMS, toMS int64
+		}{
+			{"everything", 0, 0},
+			{"the group's start alone", minutesAgo(301), minutesAgo(299)},
+			{"the group's reports without its start", minutesAgo(295), minutesAgo(270)},
+			{"the group and one failed line", minutesAgo(310), minutesAgo(190)},
+			{"the failures after the group", minutesAgo(250), 0},
+		}
+		for _, tc := range ranges {
+			t.Run(tc.name, readingCountsEqualTheLinesOfRange(r, tc.fromMS, tc.toMS))
+		}
+	}
+
 	lines := trafficLines(t, r, FeedInput{})
+	assertSeededReadingsAndTheirEvidence(t, lines)
+	assertBridgeOffGroupLine(t, lines[3])
+
+	// Bridge off group is whole in a range that ends before its reports.
+	{
+		lines := trafficLines(t, r, FeedInput{FromMS: minutesAgo(301), ToMS: minutesAgo(299)})
+		if len(lines) != 1 || lines[0].BridgeOff == nil || len(lines[0].BridgeOff.Reports) != 2 {
+			t.Fatalf("lines = %+v, want the group with both reports that arrived after the range", lines)
+		}
+	}
+
+	assertBridgeOffIsNotAFailure(t, r)
+	assertPhoneReportReturnsTheStoredReport(t, r)
+	assertHistoryKeepsEveryReportAsStored(t, r)
+
+	// Stored incidents stay on their readings and never on a group.
+	{
+		insertIncident(t, db, "mobile_failure|episode_action|sync|network", "mobile_failure", minutesAgo(290), "mobile", "off-1")
+		late := insertIncident(t, db, "mobile_failure|episode_action|sync|network", "mobile_failure", minutesAgo(200), "mobile", "late")
+
+		lines := trafficLines(t, r, FeedInput{})
+		if lines[1].IncidentID != late || lines[3].IncidentID != 0 {
+			t.Fatalf("incidents = %d and %d, want %d on the late line and none on the group", lines[1].IncidentID, lines[3].IncidentID, late)
+		}
+	}
+}
+
+// readingCountsEqualTheLinesOfRange returns a subtest checking that the overview's traffic
+// count of the range equals its traffic lines and their failed lines.
+func readingCountsEqualTheLinesOfRange(r *Reader, fromMS, toMS int64) func(t *testing.T) {
+	return func(t *testing.T) {
+		lines := trafficLines(t, r, FeedInput{Origin: OriginAll, FromMS: fromMS, ToMS: toMS})
+		var failed int64
+		for _, line := range lines {
+			if line.Failed {
+				failed++
+			}
+		}
+		got := countOf(t, overviewOf(t, r, OverviewInput{Scale: Scale90d, FromMS: fromMS, ToMS: toMS}), FeedTraffic)
+		if got.Lines != int64(len(lines)) || got.Failed != failed {
+			t.Fatalf("count = %+v, want %d lines and %d failed: %v", got, len(lines), failed, readingsOf(lines))
+		}
+	}
+}
+
+// assertSeededReadingsAndTheirEvidence checks the reading and failed flag of every seeded
+// traffic line, newest first, and the evidence of the heard and the late report.
+func assertSeededReadingsAndTheirEvidence(t *testing.T, lines []FeedLine) {
+	t.Helper()
 	want := []string{"real_failure", "tablet_late", "real_failure", "group of 2", "plain"}
 	if got := readingsOf(lines); !slices.Equal(got, want) {
 		t.Fatalf("lines = %v, want %v", got, want)
@@ -109,8 +178,12 @@ func TestFeedShowsEachFailedSyncAsItsReading(t *testing.T) {
 	if !reflect.DeepEqual(late, wantLate) {
 		t.Errorf("late evidence = %+v, want Bridge off to 230, grace to 210, its own arrival first, 10 minutes overdue", late)
 	}
+}
 
-	group := lines[3]
+// assertBridgeOffGroupLine checks that the Bridge off group is a phone traffic line at its
+// start holding both reports, newest first, with the group's first report and grace.
+func assertBridgeOffGroupLine(t *testing.T, group FeedLine) {
+	t.Helper()
 	if group.Type != FeedTraffic || group.Origin != OriginPhone || group.Line.Kind != LineBridgeOff || group.Line.AtMS != minutesAgo(300) {
 		t.Errorf("group line = %+v, want a phone traffic line at its start", group)
 	}
@@ -124,6 +197,70 @@ func TestFeedShowsEachFailedSyncAsItsReading(t *testing.T) {
 			!reflect.DeepEqual(report.Evidence.GraceUntilMS, ptr(minutesAgo(280))) || report.Evidence.OverdueMS != nil {
 			t.Errorf("group report %d = %+v, want the report that arrived %d minutes ago, first report at 290", i, report, arrivedAt)
 		}
+	}
+}
+
+// assertBridgeOffIsNotAFailure checks that the failure filter drops the Bridge off group from
+// the seeded traffic lines, while the type count keeps it and the slots count only failures.
+func assertBridgeOffIsNotAFailure(t *testing.T, r *Reader) {
+	t.Helper()
+	failures := trafficLines(t, r, FeedInput{FailuresOnly: true})
+	if got, want := readingsOf(failures), []string{"real_failure", "tablet_late", "real_failure", "plain"}; !slices.Equal(got, want) {
+		t.Fatalf("failures = %v, want %v", got, want)
+	}
+	view := overviewOf(t, r, OverviewInput{Scale: Scale90d, Origin: OriginPhone, Types: []FeedType{FeedTraffic}, FailuresOnly: true})
+	if got := countOf(t, view, FeedTraffic); got.Lines != 5 || got.Failed != 4 {
+		t.Fatalf("traffic count = %+v, want 5 lines and 4 failed", got)
+	}
+	var slotLines, slotFailed int64
+	for _, slot := range view.Slots {
+		slotLines, slotFailed = slotLines+slot.Count, slotFailed+slot.Failed
+	}
+	if slotLines != 4 || slotFailed != 4 {
+		t.Fatalf("slots = %d lines, %d failed; want the 4 failures", slotLines, slotFailed)
+	}
+}
+
+// assertPhoneReportReturnsTheStoredReport checks that a grouped report reads back as stored
+// with its payload, and that an unknown report id is not found.
+func assertPhoneReportReturnsTheStoredReport(t *testing.T, r *Reader) {
+	t.Helper()
+	group := trafficLines(t, r, FeedInput{})[3].BridgeOff
+
+	detail, err := r.PhoneReport(context.Background(), group.Reports[0].ReportID)
+	if err != nil {
+		t.Fatalf("phone report: %v", err)
+	}
+	want := PhoneReport{ID: group.Reports[0].ReportID, AtMS: minutesAgo(280), PhoneAtMS: ptr(minutesAgo(350)), DeviceID: "device-1",
+		Kind: "episode_action", Outcome: "failed"}
+	if !detail.Found || detail.PayloadJSON != failedSyncPayload || !reflect.DeepEqual(detail.Report, want) {
+		t.Fatalf("detail = %+v, want the stored report %+v with its payload", detail, want)
+	}
+
+	missing, err := r.PhoneReport(context.Background(), 999_999)
+	if err != nil || missing.Found {
+		t.Fatalf("missing report = %+v, %v; want not found", missing, err)
+	}
+}
+
+// assertHistoryKeepsEveryReportAsStored checks that the phone History holds all six seeded
+// failed reports.
+func assertHistoryKeepsEveryReportAsStored(t *testing.T, r *Reader) {
+	t.Helper()
+	view, err := r.History(context.Background(), HistoryInput{Now: testNow, Where: WherePhone})
+	if err != nil {
+		t.Fatalf("history: %v", err)
+	}
+	reports := 0
+	for _, day := range view.Days {
+		for _, line := range day.Lines {
+			if line.Kind == LinePhoneReport && line.Detail == "failed" {
+				reports++
+			}
+		}
+	}
+	if reports != 6 {
+		t.Fatalf("failed reports in History = %d, want all 6", reports)
 	}
 }
 
@@ -179,13 +316,17 @@ func TestFeedMeasuresTheFirstReportAfterTheNextStart(t *testing.T) {
 	}
 }
 
-func TestBridgeOffGroupKeepsItsIdentityAsItGrows(t *testing.T) {
+func TestBridgeOffGroupSortsAboveItsStartAndKeepsItsIdentityAsItGrows(t *testing.T) {
 	db, r := openTestReader(t)
 	insertStart(t, db, 600, "")
 	insertStart(t, db, 300, "")
 	insertFailedSync(t, db, "off-1", 400, 295)
 
 	before := trafficLines(t, r, FeedInput{})
+	lines := feedLines(feedOf(t, r, FeedInput{Types: []FeedType{FeedTraffic, FeedSystem}, ToMS: minutesAgo(299), FromMS: minutesAgo(301)}))
+	if got := typesOf(lines); len(lines) != 2 || lines[0].BridgeOff == nil || lines[1].System == nil {
+		t.Fatalf("lines = %v, want the group, then the start's System line", got)
+	}
 	insertFailedSync(t, db, "off-2", 400, 280)
 	after := trafficLines(t, r, FeedInput{})
 
@@ -194,80 +335,6 @@ func TestBridgeOffGroupKeepsItsIdentityAsItGrows(t *testing.T) {
 	}
 	if got := len(after[0].BridgeOff.Reports); got != 2 {
 		t.Fatalf("group = %d reports, want 2", got)
-	}
-}
-
-func TestBridgeOffGroupIsWholeInARangeThatEndsBeforeItsReports(t *testing.T) {
-	db, r := openTestReader(t)
-	seedReadings(t, db)
-
-	lines := trafficLines(t, r, FeedInput{FromMS: minutesAgo(301), ToMS: minutesAgo(299)})
-	if len(lines) != 1 || lines[0].BridgeOff == nil || len(lines[0].BridgeOff.Reports) != 2 {
-		t.Fatalf("lines = %+v, want the group with both reports that arrived after the range", lines)
-	}
-}
-
-func TestBridgeOffLineSortsAboveTheSystemLineOfItsStart(t *testing.T) {
-	db, r := openTestReader(t)
-	insertStart(t, db, 600, "")
-	insertStart(t, db, 300, "")
-	insertFailedSync(t, db, "off", 400, 295)
-
-	lines := feedLines(feedOf(t, r, FeedInput{Types: []FeedType{FeedTraffic, FeedSystem}, ToMS: minutesAgo(299), FromMS: minutesAgo(301)}))
-	if got := typesOf(lines); len(lines) != 2 || lines[0].BridgeOff == nil || lines[1].System == nil {
-		t.Fatalf("lines = %v, want the group, then the start's System line", got)
-	}
-}
-
-func TestBridgeOffIsNotAFailure(t *testing.T) {
-	db, r := openTestReader(t)
-	seedReadings(t, db)
-
-	failures := trafficLines(t, r, FeedInput{FailuresOnly: true})
-	if got, want := readingsOf(failures), []string{"real_failure", "tablet_late", "real_failure", "plain"}; !slices.Equal(got, want) {
-		t.Fatalf("failures = %v, want %v", got, want)
-	}
-	view := overviewOf(t, r, OverviewInput{Scale: Scale90d, Origin: OriginPhone, Types: []FeedType{FeedTraffic}, FailuresOnly: true})
-	if got := countOf(t, view, FeedTraffic); got.Lines != 5 || got.Failed != 4 {
-		t.Fatalf("traffic count = %+v, want 5 lines and 4 failed", got)
-	}
-	var slotLines, slotFailed int64
-	for _, slot := range view.Slots {
-		slotLines, slotFailed = slotLines+slot.Count, slotFailed+slot.Failed
-	}
-	if slotLines != 4 || slotFailed != 4 {
-		t.Fatalf("slots = %d lines, %d failed; want the 4 failures", slotLines, slotFailed)
-	}
-}
-
-func TestReadingCountsEqualTheLinesOfEveryRange(t *testing.T) {
-	db, r := openTestReader(t)
-	seedReadings(t, db)
-
-	ranges := []struct {
-		name         string
-		fromMS, toMS int64
-	}{
-		{"everything", 0, 0},
-		{"the group's start alone", minutesAgo(301), minutesAgo(299)},
-		{"the group's reports without its start", minutesAgo(295), minutesAgo(270)},
-		{"the group and one failed line", minutesAgo(310), minutesAgo(190)},
-		{"the failures after the group", minutesAgo(250), 0},
-	}
-	for _, tc := range ranges {
-		t.Run(tc.name, func(t *testing.T) {
-			lines := trafficLines(t, r, FeedInput{Origin: OriginAll, FromMS: tc.fromMS, ToMS: tc.toMS})
-			var failed int64
-			for _, line := range lines {
-				if line.Failed {
-					failed++
-				}
-			}
-			got := countOf(t, overviewOf(t, r, OverviewInput{Scale: Scale90d, FromMS: tc.fromMS, ToMS: tc.toMS}), FeedTraffic)
-			if got.Lines != int64(len(lines)) || got.Failed != failed {
-				t.Fatalf("count = %+v, want %d lines and %d failed: %v", got, len(lines), failed, readingsOf(lines))
-			}
-		})
 	}
 }
 
@@ -356,25 +423,16 @@ func TestOnlyFailedSyncActionsGetAReading(t *testing.T) {
 	}
 }
 
-func TestStoredIncidentsStayOnTheirReadingsAndNeverOnAGroup(t *testing.T) {
-	db, r := openTestReader(t)
-	seedReadings(t, db)
-	insertIncident(t, db, "mobile_failure|episode_action|sync|network", "mobile_failure", minutesAgo(290), "mobile", "off-1")
-	late := insertIncident(t, db, "mobile_failure|episode_action|sync|network", "mobile_failure", minutesAgo(200), "mobile", "late")
-
-	lines := trafficLines(t, r, FeedInput{})
-	if lines[1].IncidentID != late || lines[3].IncidentID != 0 {
-		t.Fatalf("incidents = %d and %d, want %d on the late line and none on the group", lines[1].IncidentID, lines[3].IncidentID, late)
-	}
-}
-
 func TestFailedSyncsReadsAreBounded(t *testing.T) {
 	db, r := openTestReader(t)
 	insertStart(t, db, 900, "")
 	insertStart(t, db, 300, "")
-	for i := range syncReportLimit + 1 {
-		insertTelemetry(t, db, fmt.Sprintf("off-%d", i), minutesAgo(290)+int64(i), minutesAgo(400), failedSyncPayload)
-	}
+	// One statement stores the syncReportLimit+1 reports: a row-by-row insert
+	// commits each one and cost seconds.
+	exec(t, db, `WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
+		INSERT INTO device_telemetry_events (device_id, reported_at_ms, kind, event_id, observed_at_ms, payload_json)
+		SELECT 'device-1', ? + i, 'episode_action', 'off-' || i, ?, ? FROM n`,
+		syncReportLimit, minutesAgo(290), minutesAgo(400), failedSyncPayload)
 
 	reads, err := r.readFailedSyncs(context.Background(), minutesAgo(900))
 	if err != nil {
@@ -402,48 +460,6 @@ func TestSyncStartsReadOldestFirstWithTheirRecordsOnly(t *testing.T) {
 		{AtMS: minutesAgo(100), LastContacts: map[string]int64{"device-1": minutesAgo(150)}}}
 	if !reflect.DeepEqual(starts, want) {
 		t.Fatalf("starts = %+v, want %+v", starts, want)
-	}
-}
-
-func TestPhoneReportReturnsTheStoredReportUnchanged(t *testing.T) {
-	db, r := openTestReader(t)
-	seedReadings(t, db)
-	group := trafficLines(t, r, FeedInput{})[3].BridgeOff
-
-	detail, err := r.PhoneReport(context.Background(), group.Reports[0].ReportID)
-	if err != nil {
-		t.Fatalf("phone report: %v", err)
-	}
-	want := PhoneReport{ID: group.Reports[0].ReportID, AtMS: minutesAgo(280), PhoneAtMS: ptr(minutesAgo(350)), DeviceID: "device-1",
-		Kind: "episode_action", Outcome: "failed"}
-	if !detail.Found || detail.PayloadJSON != failedSyncPayload || !reflect.DeepEqual(detail.Report, want) {
-		t.Fatalf("detail = %+v, want the stored report %+v with its payload", detail, want)
-	}
-
-	missing, err := r.PhoneReport(context.Background(), 999_999)
-	if err != nil || missing.Found {
-		t.Fatalf("missing report = %+v, %v; want not found", missing, err)
-	}
-}
-
-func TestHistoryKeepsEveryReportAsStored(t *testing.T) {
-	db, r := openTestReader(t)
-	seedReadings(t, db)
-
-	view, err := r.History(context.Background(), HistoryInput{Now: testNow, Where: WherePhone})
-	if err != nil {
-		t.Fatalf("history: %v", err)
-	}
-	reports := 0
-	for _, day := range view.Days {
-		for _, line := range day.Lines {
-			if line.Kind == LinePhoneReport && line.Detail == "failed" {
-				reports++
-			}
-		}
-	}
-	if reports != 6 {
-		t.Fatalf("failed reports in History = %d, want all 6", reports)
 	}
 }
 

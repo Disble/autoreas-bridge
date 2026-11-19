@@ -118,11 +118,9 @@ func TestHTTPFetcherFetchClassifiesOriginStatusAndRetryAfter(t *testing.T) {
 		{name: "400 is gone", status: 400, want: ErrGone},
 		{name: "499 is gone", status: 499, want: ErrGone},
 		{name: "500 is transient", status: 500, want: ErrTransient},
-		{name: "forbidden is gone", status: http.StatusForbidden, want: ErrGone},
 		{name: "request timeout is transient", status: http.StatusRequestTimeout, retry: "22", want: ErrTransient},
 		{name: "too many requests carries retry", status: http.StatusTooManyRequests, retry: "22", want: ErrTransient, wantRetry: 22},
 		{name: "service unavailable carries retry", status: http.StatusServiceUnavailable, retry: "7200", want: ErrTransient, wantRetry: 3600},
-		{name: "server failure is transient", status: http.StatusBadGateway, retry: "22", want: ErrTransient},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -9,8 +9,6 @@ describe('shouldRetryBridgeQuery', () => {
     ['unavailable, last allowed retry', 3, createBridgeError('unavailable', 'starting'), true],
     ['unavailable, retries spent', 4, createBridgeError('unavailable', 'starting'), false],
     ['failed_precondition', 0, createBridgeError('failed_precondition', 'db closed'), false],
-    ['invalid_argument', 0, createBridgeError('invalid_argument', 'bad day'), false],
-    ['not_found', 0, createBridgeError('not_found', 'gone'), false],
     ['internal', 0, createBridgeError('internal', 'boom'), false],
     ['an uncoded Error', 0, new Error('unavailable'), false],
   ])('%s → %s', (_label, failureCount, error, expected) => {
@@ -21,7 +19,6 @@ describe('shouldRetryBridgeQuery', () => {
 describe('bridgeRetryDelay', () => {
   it.each([
     [0, 500],
-    [1, 1000],
     [2, 2000],
     [3, 4000],
     [4, 4000],

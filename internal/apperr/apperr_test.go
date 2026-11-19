@@ -59,16 +59,13 @@ func TestConstructorsCarryTheirCode(t *testing.T) {
 		{"handle failed precondition is honoured", fmt.Errorf("load: %w", handleFailure(true)), apperr.CodeFailedPrecondition, "load: database locked"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			code, ok := apperr.CodeOf(tc.err)
-			if !ok || code != tc.code {
-				t.Fatalf("CodeOf() = %q, %v; want %q, true", code, ok, tc.code)
-			}
-			if tc.err.Error() != tc.message {
-				t.Fatalf("Error() = %q, want %q", tc.err.Error(), tc.message)
-			}
-		})
+		code, ok := apperr.CodeOf(tc.err)
+		if !ok || code != tc.code {
+			t.Errorf("%s: CodeOf() = %q, %v; want %q, true", tc.name, code, ok, tc.code)
+		}
+		if tc.err.Error() != tc.message {
+			t.Errorf("%s: Error() = %q, want %q", tc.name, tc.err.Error(), tc.message)
+		}
 	}
 }
 

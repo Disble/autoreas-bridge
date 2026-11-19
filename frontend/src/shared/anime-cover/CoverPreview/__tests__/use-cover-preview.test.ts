@@ -61,9 +61,13 @@ describe('useCoverPreview', () => {
     expect(previewAnimeCover).not.toHaveBeenCalled();
   });
 
-  it('loads while the typed value settles, then renders the cover the binding returns', async () => {
-    const { source, previewAnimeCover } = sourceAnswering(Promise.resolve(RENDERED));
-    const { result } = renderHook(() => useCoverPreview('  D:/Anime/cover.jpg ', source), animeModule());
+
+  it('loads while a value settles, renders its cover, then loads again and reads only the settled newer value', async () => {
+    let answerSecond: (value: AnimeCoverResult) => void = () => undefined;
+    const previewAnimeCover = vi.fn()
+      .mockResolvedValueOnce(RENDERED)
+      .mockReturnValueOnce(new Promise((resolve) => { answerSecond = resolve; }));
+    const { result, rerender } = renderHook(({ value }) => useCoverPreview(value, { previewAnimeCover }), { initialProps: { value: '  D:/Anime/cover.jpg ' }, ...animeModule() });
 
     expect(result.current).toEqual({ status: 'loading' });
     await elapse(COVER_PREVIEW_SETTLE_MS - 1);
@@ -73,35 +77,17 @@ describe('useCoverPreview', () => {
     await elapse(0);
 
     expect(previewAnimeCover).toHaveBeenCalledExactlyOnceWith('D:/Anime/cover.jpg');
-    expect(result.current).toEqual({ status: 'cover', dataUrl: 'data:image/jpeg;base64,draft' });
-  });
+    expect(result.current).toEqual(toCover(RENDERED));
 
-  it('asks only for the value the user settled on while typing', async () => {
-    const { source, previewAnimeCover } = sourceAnswering(Promise.resolve(RENDERED));
-    const { rerender } = renderHook(({ value }) => useCoverPreview(value, source), { initialProps: { value: 'D:/a' }, ...animeModule() });
-
+    rerender({ value: 'D:/a' });
+    expect(result.current).toEqual({ status: 'loading' });
     await elapse(COVER_PREVIEW_SETTLE_MS / 2);
     rerender({ value: 'D:/a.jpg' });
     await elapse(COVER_PREVIEW_SETTLE_MS);
     await elapse(0);
 
-    expect(previewAnimeCover).toHaveBeenCalledExactlyOnceWith('D:/a.jpg');
-  });
-
-  it('loads instead of showing the previous cover while a newer value settles and reads', async () => {
-    let answerSecond: (value: AnimeCoverResult) => void = () => undefined;
-    const previewAnimeCover = vi.fn()
-      .mockResolvedValueOnce(RENDERED)
-      .mockReturnValueOnce(new Promise((resolve) => { answerSecond = resolve; }));
-    const { result, rerender } = renderHook(({ value }) => useCoverPreview(value, { previewAnimeCover }), { initialProps: { value: 'D:/first.jpg' }, ...animeModule() });
-    await elapse(COVER_PREVIEW_SETTLE_MS);
-    await elapse(0);
-    expect(result.current).toEqual(toCover(RENDERED));
-
-    rerender({ value: 'D:/second.jpg' });
-    expect(result.current).toEqual({ status: 'loading' });
-    await elapse(COVER_PREVIEW_SETTLE_MS);
-    await elapse(0);
+    expect(previewAnimeCover).toHaveBeenCalledTimes(2);
+    expect(previewAnimeCover).toHaveBeenLastCalledWith('D:/a.jpg');
     expect(result.current).toEqual({ status: 'loading' });
     await act(async () => answerSecond({ source: 'cover', dataUrl: 'data:image/jpeg;base64,second' }));
     await elapse(0);
@@ -109,52 +95,48 @@ describe('useCoverPreview', () => {
     expect(result.current).toEqual({ status: 'cover', dataUrl: 'data:image/jpeg;base64,second' });
   });
 
-  it('never lets an earlier answer overwrite the cover of a newer value', async () => {
+  it('never lets an earlier answer or an earlier failure overwrite the cover of a newer value', async () => {
     let answerFirst: (value: AnimeCoverResult) => void = () => undefined;
+    let failSecond: (error: Error) => void = () => undefined;
     const previewAnimeCover = vi.fn()
       .mockReturnValueOnce(new Promise((resolve) => { answerFirst = resolve; }))
-      .mockResolvedValueOnce({ source: 'cover', dataUrl: 'data:image/jpeg;base64,second' });
+      .mockReturnValueOnce(new Promise((_resolve, reject) => { failSecond = reject; }))
+      .mockResolvedValueOnce({ source: 'cover', dataUrl: 'data:image/jpeg;base64,third' });
     const { result, rerender } = renderHook(({ value }) => useCoverPreview(value, { previewAnimeCover }), { initialProps: { value: 'D:/first.jpg' }, ...animeModule() });
 
     await elapse(COVER_PREVIEW_SETTLE_MS);
     rerender({ value: 'D:/second.jpg' });
     await elapse(COVER_PREVIEW_SETTLE_MS);
+    rerender({ value: 'D:/third.jpg' });
+    await elapse(COVER_PREVIEW_SETTLE_MS);
+    await elapse(0);
+
+    expect(previewAnimeCover).toHaveBeenCalledTimes(3);
+    expect(result.current).toEqual({ status: 'cover', dataUrl: 'data:image/jpeg;base64,third' });
+
     await act(async () => answerFirst(RENDERED));
     await elapse(0);
 
-    expect(result.current).toEqual({ status: 'cover', dataUrl: 'data:image/jpeg;base64,second' });
-  });
+    expect(result.current).toEqual({ status: 'cover', dataUrl: 'data:image/jpeg;base64,third' });
 
-  it('never lets an earlier failure drop the cover of a newer value', async () => {
-    let failFirst: (error: Error) => void = () => undefined;
-    const previewAnimeCover = vi.fn()
-      .mockReturnValueOnce(new Promise((_resolve, reject) => { failFirst = reject; }))
-      .mockResolvedValueOnce({ source: 'cover', dataUrl: 'data:image/jpeg;base64,second' });
-    const { result, rerender } = renderHook(({ value }) => useCoverPreview(value, { previewAnimeCover }), { initialProps: { value: 'D:/first.jpg' }, ...animeModule() });
-
-    await elapse(COVER_PREVIEW_SETTLE_MS);
-    rerender({ value: 'D:/second.jpg' });
-    await elapse(COVER_PREVIEW_SETTLE_MS);
-    await act(async () => failFirst(createBridgeError('internal', 'late')));
+    await act(async () => failSecond(createBridgeError('internal', 'late')));
     await elapse(0);
 
-    expect(result.current).toEqual({ status: 'cover', dataUrl: 'data:image/jpeg;base64,second' });
+    expect(result.current).toEqual({ status: 'cover', dataUrl: 'data:image/jpeg;base64,third' });
   });
 
-  it('shows the placeholder when the binding answers that the value renders no cover', async () => {
-    const { source } = sourceAnswering(Promise.resolve({ source: 'placeholder' }));
-    const { result } = renderHook(() => useCoverPreview('D:/a.jpg', source), animeModule());
+  it('shows the placeholder for a no-cover answer, then a failed read with its reason instead', async () => {
+    const previewAnimeCover = vi.fn()
+      .mockResolvedValueOnce({ source: 'placeholder' })
+      .mockRejectedValueOnce(createBridgeError('internal', 'anime: cover thumbnail service crashed'));
+    const { result, rerender } = renderHook(({ value }) => useCoverPreview(value, { previewAnimeCover }), { initialProps: { value: 'D:/a.jpg' }, ...animeModule() });
 
     await elapse(COVER_PREVIEW_SETTLE_MS);
     await elapse(0);
 
     expect(result.current).toEqual({ status: 'placeholder' });
-  });
 
-  it('reports a failed read with its reason instead of the no-cover placeholder', async () => {
-    const previewAnimeCover = vi.fn().mockRejectedValue(createBridgeError('internal', 'anime: cover thumbnail service crashed'));
-    const { result } = renderHook(() => useCoverPreview('D:/a.jpg', { previewAnimeCover }), animeModule());
-
+    rerender({ value: 'D:/b.jpg' });
     await elapse(COVER_PREVIEW_SETTLE_MS);
     await elapse(0);
 

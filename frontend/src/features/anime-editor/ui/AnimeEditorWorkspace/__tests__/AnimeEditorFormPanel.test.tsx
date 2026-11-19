@@ -62,24 +62,72 @@ function createViewModel(overrides: Partial<AnimeEditorWorkspaceViewModel> = {})
 }
 
 describe('AnimeEditorFormPanel spurious-dirty guard', () => {
-  it('does not emit any draft change while merely rendering a loaded record', async () => {
+  it('renders a loaded active record without emitting a draft change: placeholder cover, icon-only Fetch metadata, no Undo, no schedule or Episodes card', async () => {
     const onDraftChange = vi.fn();
-    const viewModel = createViewModel({ onDraftChange });
-
-    render(<AnimeEditorFormPanel viewModel={viewModel} />);
+    render(<AnimeEditorFormPanel viewModel={createViewModel({ onDraftChange })} />);
     await Promise.resolve();
 
     expect(onDraftChange).not.toHaveBeenCalled();
+    // The Fetch metadata action sits beside Name, enabled once Name is non-empty.
+    expect(screen.getByRole('button', { name: 'Fetch metadata' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Fetch metadata' })).toHaveTextContent(/^$/);
+    // No Undo affordance when nothing has been applied.
+    expect(screen.queryByRole('button', { name: 'Undo autofill' })).not.toBeInTheDocument();
+    // The shared placeholder when the selected record has no saved cover.
+    expect(screen.getByTestId('anime-editor-header-cover-placeholder')).toBeInTheDocument();
+    expect(screen.queryByTestId('anime-editor-header-cover-image')).toBeNull();
+    // The anime data card holds neither the schedule button nor the Episodes card.
+    expect(screen.queryByRole('button', { name: 'Open schedule editor' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Show episodes' })).toBeNull();
+    // The status line tells the user the selected anime has no unsaved edits.
+    expect(screen.getByText('Selected anime stays highlighted after each refresh.')).toBeInTheDocument();
   });
 
-  it('does not emit draft changes on mount even with the details section open', async () => {
+  it('forwards Name, status and cover source edits and the Deactivate request, and explains the Folder label', async () => {
     const onDraftChange = vi.fn();
-    const viewModel = createViewModel({ onDraftChange, isDetailsOpen: true });
+    const onRequestLifecycleAction = vi.fn();
+    const onDeactivate = vi.fn();
+    render(<AnimeEditorFormPanel viewModel={createViewModel({ onDraftChange, onRequestLifecycleAction, onDeactivate })} />);
 
-    render(<AnimeEditorFormPanel viewModel={viewModel} />);
+    // A typed Name reaches onDraftChange exactly as hand-typing any other field would.
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Naruto' } });
+    expect(onDraftChange).toHaveBeenCalledWith('name', 'Naruto');
+
+    // The custom status chip options survive a status change through the local select.
+    fireEvent.click(screen.getByRole('button', { name: /Viendo Status/i }));
+    fireEvent.click(screen.getByRole('option', { name: 'Finalizado' }));
+    expect(onDraftChange).toHaveBeenCalledWith('status', '1');
+    expect(screen.getAllByText('Viendo').length).toBeGreaterThan(0);
+
+    // Deactivate asks for confirmation instead of deactivating immediately.
+    const deactivate = screen.getByRole('button', { name: 'Deactivate anime' });
+    // Icon-only like Repeat and Restore, tinting danger on hover; its confirm dialog keeps the words.
+    expect(deactivate).toHaveTextContent(/^$/);
+    expect(deactivate).toHaveClass('hover:text-danger');
+    fireEvent.click(deactivate);
+    expect(onRequestLifecycleAction).toHaveBeenCalledWith('deactivate');
+    expect(onDeactivate).not.toHaveBeenCalled();
+
+    // The plain cover source select uses the shared labeled-select semantics.
+    fireEvent.click(screen.getByRole('button', { name: 'More details' }));
+    fireEvent.click(screen.getByLabelText('Cover source'));
+    fireEvent.click(screen.getByRole('option', { name: 'Image' }));
+    expect(onDraftChange).toHaveBeenCalledWith('coverType', 'image');
+
+    // A folder change does not re-measure episode durations, as the Folder label explains.
+    screen.getByRole('button', { name: 'About the folder and episode durations' }).focus();
+    expect(await screen.findByText('Changing the folder does not recalculate episode durations. To measure them again, use "Re-analyze folder" in the Episodes card.')).toBeInTheDocument();
+  });
+
+  it('does not emit draft changes on mount with the details section open, and never offers a Premiere date input', async () => {
+    const onDraftChange = vi.fn();
+    render(<AnimeEditorFormPanel viewModel={createViewModel({ onDraftChange, isDetailsOpen: true })} />);
     await Promise.resolve();
 
     expect(onDraftChange).not.toHaveBeenCalled();
+    // premieredAt is set by the backend on the first zero-to-positive watched
+    // progress transition; authoring it here would let the UI overwrite it.
+    expect(screen.queryByLabelText('Premiere date')).not.toBeInTheDocument();
   });
 
   it('does not emit draft changes when the record (and its status) is swapped', async () => {
@@ -108,56 +156,39 @@ describe('AnimeEditorFormPanel spurious-dirty guard', () => {
     expect(screen.queryByLabelText('Name')).not.toBeInTheDocument();
   });
 
-  it('asks for confirmation instead of deactivating immediately', () => {
-    const onRequestLifecycleAction = vi.fn();
-    const onDeactivate = vi.fn();
-    const viewModel = createViewModel({ onRequestLifecycleAction, onDeactivate });
-
-    render(<AnimeEditorFormPanel viewModel={viewModel} />);
-    const deactivate = screen.getByRole('button', { name: 'Deactivate anime' });
-    // Icon-only like Repeat and Restore, tinting danger on hover; its confirm dialog keeps the words.
-    expect(deactivate).toHaveTextContent(/^$/);
-    expect(deactivate).toHaveClass('hover:text-danger');
-    fireEvent.click(deactivate);
-
-    expect(onRequestLifecycleAction).toHaveBeenCalledWith('deactivate');
-    expect(onDeactivate).not.toHaveBeenCalled();
-  });
-
-  it('shows Restore (not Deactivate) for an already-deactivated anime', () => {
-    const inactiveRecord = { ...createViewModel().selectedRecord, frequent: { ...createViewModel().selectedRecord!.frequent, active: false } } as AnimeEditorWorkspaceViewModel['selectedRecord'];
-    const viewModel = createViewModel({ selectedRecord: inactiveRecord });
-
-    render(<AnimeEditorFormPanel viewModel={viewModel} />);
-
-    expect(screen.getByRole('button', { name: 'Restore' })).toHaveTextContent(/^$/);
-    expect(screen.queryByRole('button', { name: 'Deactivate anime' })).not.toBeInTheDocument();
-  });
-
-  it('asks for confirmation instead of restoring immediately', () => {
+  it('shows Restore (not Deactivate) for an already-deactivated anime and asks for confirmation instead of restoring immediately', () => {
     const onRequestLifecycleAction = vi.fn();
     const onRestore = vi.fn();
     const inactiveRecord = { ...createViewModel().selectedRecord, frequent: { ...createViewModel().selectedRecord!.frequent, active: false } } as AnimeEditorWorkspaceViewModel['selectedRecord'];
     const viewModel = createViewModel({ selectedRecord: inactiveRecord, onRequestLifecycleAction, onRestore });
 
     render(<AnimeEditorFormPanel viewModel={viewModel} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
 
+    expect(screen.getByRole('button', { name: 'Restore' })).toHaveTextContent(/^$/);
+    expect(screen.queryByRole('button', { name: 'Deactivate anime' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
     expect(onRequestLifecycleAction).toHaveBeenCalledWith('restore');
     expect(onRestore).not.toHaveBeenCalled();
   });
 
-  it('keeps Repeat visible when the draft Status changes, because the gate reads the saved record (D10)', () => {
+  it('keeps Repeat visible when the draft Status changes, because the gate reads the saved record (D10), and asks before repeating', () => {
     // Record is finished (status > 0); draft is deliberately left at 0
     // ("Viendo") to prove the gate cannot be reading the draft -- if it read
     // `viewModel.draft.status` instead of `record.frequent.status`, Repeat
     // would be hidden here even though the saved record says it is finished.
     const finishedRecord = { ...createViewModel().selectedRecord, frequent: { ...createViewModel().selectedRecord!.frequent, status: 1 } } as AnimeEditorWorkspaceViewModel['selectedRecord'];
     const onDraftChange = vi.fn();
-    const viewModel = createViewModel({ selectedRecord: finishedRecord, draft: { ...createViewModel().draft, status: 0 }, onDraftChange });
+    const onRequestLifecycleAction = vi.fn();
+    const onRepeat = vi.fn();
+    const viewModel = createViewModel({ selectedRecord: finishedRecord, draft: { ...createViewModel().draft, status: 0 }, onDraftChange, onRequestLifecycleAction, onRepeat });
 
     const { rerender } = render(<AnimeEditorFormPanel viewModel={viewModel} />);
     expect(screen.getByRole('button', { name: 'Repeat' })).toHaveTextContent(/^$/);
+
+    // Repeat asks for confirmation instead of repeating immediately.
+    fireEvent.click(screen.getByRole('button', { name: 'Repeat' }));
+    expect(onRequestLifecycleAction).toHaveBeenCalledWith('repeat');
+    expect(onRepeat).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: /Viendo Status/i }));
     fireEvent.click(screen.getByRole('option', { name: 'Finalizado' }));
@@ -187,31 +218,6 @@ describe('AnimeEditorFormPanel spurious-dirty guard', () => {
     });
   });
 
-  it('asks for confirmation instead of repeating immediately', () => {
-    const onRequestLifecycleAction = vi.fn();
-    const onRepeat = vi.fn();
-    const finishedRecord = { ...createViewModel().selectedRecord, frequent: { ...createViewModel().selectedRecord!.frequent, status: 1 } } as AnimeEditorWorkspaceViewModel['selectedRecord'];
-    const viewModel = createViewModel({ selectedRecord: finishedRecord, onRequestLifecycleAction, onRepeat });
-
-    render(<AnimeEditorFormPanel viewModel={viewModel} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Repeat' }));
-
-    expect(onRequestLifecycleAction).toHaveBeenCalledWith('repeat');
-    expect(onRepeat).not.toHaveBeenCalled();
-  });
-
-  it('keeps the custom status chip options while changing status through the local select', () => {
-    const onDraftChange = vi.fn();
-    const viewModel = createViewModel({ onDraftChange, draft: { ...createViewModel().draft, status: 0 } });
-
-    render(<AnimeEditorFormPanel viewModel={viewModel} />);
-    fireEvent.click(screen.getByRole('button', { name: /Viendo Status/i }));
-    fireEvent.click(screen.getByRole('option', { name: 'Finalizado' }));
-
-    expect(onDraftChange).toHaveBeenCalledWith('status', '1');
-    expect(screen.getAllByText('Viendo').length).toBeGreaterThan(0);
-  });
-
   it('changes the plain type select through the shared labeled-select semantics', () => {
     const onDraftChange = vi.fn();
     const viewModel = createViewModel({ onDraftChange, draft: { ...createViewModel().draft, kind: '' } });
@@ -222,64 +228,15 @@ describe('AnimeEditorFormPanel spurious-dirty guard', () => {
 
     expect(onDraftChange).toHaveBeenCalledWith('kind', '3');
   });
-
-  it('changes the plain cover source select through the shared labeled-select semantics', () => {
-    const onDraftChange = vi.fn();
-    const viewModel = createViewModel({ onDraftChange });
-
-    render(<AnimeEditorFormPanel viewModel={viewModel} />);
-    fireEvent.click(screen.getByRole('button', { name: 'More details' }));
-    fireEvent.click(screen.getByLabelText('Cover source'));
-    fireEvent.click(screen.getByRole('option', { name: 'Image' }));
-
-    expect(onDraftChange).toHaveBeenCalledWith('coverType', 'image');
-  });
-
-  it('never offers a Premiere date input, because the first watch date is derived, never authored', () => {
-    // premieredAt is set by the backend on the first zero-to-positive watched
-    // progress transition; authoring it here would let the UI overwrite it.
-    const viewModel = createViewModel({ isDetailsOpen: true });
-
-    render(<AnimeEditorFormPanel viewModel={viewModel} />);
-
-    expect(screen.queryByLabelText('Premiere date')).not.toBeInTheDocument();
-  });
 });
 
 describe('AnimeEditorFormPanel -- MyAnimeList metadata lookup (SDD-70 slice 7)', () => {
-  it('renders the Fetch metadata action beside Name, enabled once Name is non-empty', () => {
-    const viewModel = createViewModel({ draft: { ...createViewModel().draft, name: 'Bleach' } });
-
-    render(<AnimeEditorFormPanel viewModel={viewModel} />);
-
-    expect(screen.getByRole('button', { name: 'Fetch metadata' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Fetch metadata' })).toHaveTextContent(/^$/);
-  });
-
   it('disables the Fetch metadata action while Name is empty', () => {
     const viewModel = createViewModel({ draft: { ...createViewModel().draft, name: '' } });
 
     render(<AnimeEditorFormPanel viewModel={viewModel} />);
 
     expect(screen.getByRole('button', { name: 'Fetch metadata' })).toBeDisabled();
-  });
-
-  it('shows no Undo affordance when nothing has been applied', () => {
-    const viewModel = createViewModel();
-
-    render(<AnimeEditorFormPanel viewModel={viewModel} />);
-
-    expect(screen.queryByRole('button', { name: 'Undo autofill' })).not.toBeInTheDocument();
-  });
-
-  it('forwards a typed Name to onDraftChange, exactly as hand-typing any other field would', () => {
-    const onDraftChange = vi.fn();
-    const viewModel = createViewModel({ onDraftChange });
-
-    render(<AnimeEditorFormPanel viewModel={viewModel} />);
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Naruto' } });
-
-    expect(onDraftChange).toHaveBeenCalledWith('name', 'Naruto');
   });
 
   it('shows Undo without an unfilled report when nothing was left unfilled', () => {
@@ -348,8 +305,9 @@ describe('AnimeEditorFormPanel -- MyAnimeList metadata lookup (SDD-70 slice 7)',
 });
 
 describe('AnimeEditorFormPanel saved-cover header', () => {
-  it('renders the selected record cover before the title', () => {
-    const viewModel = createViewModel({ cover: { status: 'cover', dataUrl: 'data:image/jpeg;base64,x' } });
+  it('renders the selected record cover before the title and reports its decode failure for the selected anime', () => {
+    const onCoverImageError = vi.fn();
+    const viewModel = createViewModel({ cover: { status: 'cover', dataUrl: 'data:image/jpeg;base64,x' }, onCoverImageError });
 
     render(<AnimeEditorFormPanel viewModel={viewModel} />);
 
@@ -357,27 +315,11 @@ describe('AnimeEditorFormPanel saved-cover header', () => {
     expect(cover).toHaveAttribute('src', 'data:image/jpeg;base64,x');
     // "before title" is a layout claim, so assert the document order.
     expect(cover.compareDocumentPosition(screen.getByText('Frieren')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
 
-  it('reports a header thumbnail decode failure for the selected anime', () => {
-    const onCoverImageError = vi.fn();
-    const viewModel = createViewModel({ cover: { status: 'cover', dataUrl: 'data:image/jpeg;base64,x' }, onCoverImageError });
-
-    render(<AnimeEditorFormPanel viewModel={viewModel} />);
-    fireEvent.error(screen.getByTestId('anime-editor-header-cover-image'));
-
+    fireEvent.error(cover);
     // The workspace owns the degradation: the panel only names the anime whose
     // thumbnail failed, so a silent handler would leave the broken image up.
     expect(onCoverImageError).toHaveBeenCalledExactlyOnceWith('anime-1');
-  });
-
-  it('renders the shared placeholder when the selected record has no saved cover', () => {
-    const viewModel = createViewModel();
-
-    render(<AnimeEditorFormPanel viewModel={viewModel} />);
-
-    expect(screen.getByTestId('anime-editor-header-cover-placeholder')).toBeInTheDocument();
-    expect(screen.queryByTestId('anime-editor-header-cover-image')).toBeNull();
   });
 
   it('announces a pending cover with a shape-matching skeleton, and never a bare image', () => {
@@ -390,12 +332,13 @@ describe('AnimeEditorFormPanel saved-cover header', () => {
     expect(screen.queryByTestId('anime-editor-header-cover-placeholder')).toBeNull();
   });
 
-  it('renders no header cover at all until a record is loaded', () => {
-    const viewModel = createViewModel({ selectedRecord: undefined });
-
-    render(<AnimeEditorFormPanel viewModel={viewModel} />);
+  it('renders no header cover and prompts for a selection, as a title, until a record is loaded', () => {
+    render(<AnimeEditorFormPanel viewModel={createViewModel({ selectedRecord: undefined })} />);
 
     expect(screen.queryByTestId('anime-editor-header-cover')).toBeNull();
+    // The empty selection is the only case with no anime name to show, so the
+    // header must fall back to the prompt rather than render a blank heading.
+    expect(screen.getByRole('heading', { name: 'Select an anime' })).toBeInTheDocument();
   });
 
   it('leaves the header thumbnail untouched when the cover source draft changes', () => {
@@ -409,25 +352,6 @@ describe('AnimeEditorFormPanel saved-cover header', () => {
   });
 });
 
-describe('AnimeEditorFormPanel header title and status line', () => {
-  it('prompts for a selection, as a title, while no anime is selected', () => {
-    render(<AnimeEditorFormPanel viewModel={createViewModel({ selectedRecord: undefined })} />);
-
-    // The empty selection is the only case with no anime name to show, so the
-    // header must fall back to the prompt rather than render a blank heading.
-    expect(screen.getByRole('heading', { name: 'Select an anime' })).toBeInTheDocument();
-  });
-
-  it.each([
-    { isRecordDirty: false, statusLine: 'Selected anime stays highlighted after each refresh.' },
-    { isRecordDirty: true, statusLine: 'You have unsaved changes.' },
-  ])('tells the user whether the selected anime has unsaved edits ($statusLine)', ({ isRecordDirty, statusLine }) => {
-    render(<AnimeEditorFormPanel viewModel={createViewModel({ isRecordDirty })} />);
-
-    expect(screen.getByText(statusLine)).toBeInTheDocument();
-  });
-});
-
 describe('AnimeEditorFormPanel anime data card only', () => {
   it('reads only the anime data draft: episode edits elsewhere neither mark it unsaved nor enable its Discard changes', () => {
     render(<AnimeEditorFormPanel viewModel={createViewModel({ isDirty: true, isRecordDirty: false })} />);
@@ -436,27 +360,13 @@ describe('AnimeEditorFormPanel anime data card only', () => {
     expect(screen.getByRole('button', { name: 'Discard changes' })).toBeDisabled();
   });
 
-  it('enables its Discard changes for its own unsaved fields and discards through its own handler', () => {
+  it('tells the user about its own unsaved fields and discards them through its own handler', () => {
     const onDiscardChanges = vi.fn();
     render(<AnimeEditorFormPanel viewModel={createViewModel({ isRecordDirty: true, onDiscardChanges })} />);
 
+    expect(screen.getByText('You have unsaved changes.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
 
     expect(onDiscardChanges).toHaveBeenCalledTimes(1);
-  });
-
-  it('holds neither the schedule button nor the Episodes card', () => {
-    render(<AnimeEditorFormPanel viewModel={createViewModel()} />);
-
-    expect(screen.queryByRole('button', { name: 'Open schedule editor' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Show episodes' })).toBeNull();
-  });
-
-  it('explains next to the Folder label that a folder change does not re-measure episode durations', async () => {
-    render(<AnimeEditorFormPanel viewModel={createViewModel()} />);
-
-    screen.getByRole('button', { name: 'About the folder and episode durations' }).focus();
-
-    expect(await screen.findByText('Changing the folder does not recalculate episode durations. To measure them again, use "Re-analyze folder" in the Episodes card.')).toBeInTheDocument();
   });
 });

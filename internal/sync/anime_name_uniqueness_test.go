@@ -176,7 +176,7 @@ func TestAnimeNameKey(t *testing.T) {
 	}
 }
 
-func TestFreshSchemaRejectsASecondAnimeHoldingTheSameName(t *testing.T) {
+func TestFreshSchemaRejectsTheSameNameInAnyCaseOrPaddingButAcceptsDistinctAndNamelessRecords(t *testing.T) {
 	db := openNameUniquenessDB(t)
 	if err := ensureAnimeSnapshotsSchema(db); err != nil {
 		t.Fatalf("ensure schema: %v", err)
@@ -188,33 +188,28 @@ func TestFreshSchemaRejectsASecondAnimeHoldingTheSameName(t *testing.T) {
 	if err := insertAnimeNamed(db, "second", "Comic Girls"); err == nil {
 		t.Fatal("a second anime holding the same name must be rejected by the database")
 	}
-}
 
-func TestNameUniquenessIgnoresCaseAndSurroundingSpace(t *testing.T) {
-	db := openNameUniquenessDB(t)
-	if err := ensureAnimeSnapshotsSchema(db); err != nil {
-		t.Fatalf("ensure schema: %v", err)
-	}
-	if err := insertAnimeNamed(db, "first", "Tensei Shitara Slime Datta Ken"); err != nil {
+	if err := insertAnimeNamed(db, "third", "Tensei Shitara Slime Datta Ken"); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-
-	if err := insertAnimeNamed(db, "second", "  tensei shitara slime datta ken  "); err == nil {
+	if err := insertAnimeNamed(db, "fourth", "  tensei shitara slime datta ken  "); err == nil {
 		t.Fatal("names differing only by case or padding are the same name")
 	}
-}
-
-func TestNameUniquenessStillAllowsADistinctName(t *testing.T) {
-	db := openNameUniquenessDB(t)
-	if err := ensureAnimeSnapshotsSchema(db); err != nil {
-		t.Fatalf("ensure schema: %v", err)
-	}
-	if err := insertAnimeNamed(db, "series", "Tensei Shitara Slime Datta Ken"); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-
 	if err := insertAnimeNamed(db, "ova", "Tensei Shitara Slime Datta Ken OVA"); err != nil {
 		t.Fatalf("a different name must still be accepted: %v", err)
+	}
+
+	// The backup import defaults an absent snapshot_json to the empty string,
+	// and a record can legitimately carry JSON without a name.
+	for _, record := range []struct{ animeID, snapshot string }{
+		{"empty-one", ""},
+		{"empty-two", ""},
+		{"nameless-one", `{"id":"nameless-one"}`},
+		{"nameless-two", `{"id":"nameless-two"}`},
+	} {
+		if err := insertAnimeSnapshot(db, record.animeID, record.snapshot); err != nil {
+			t.Fatalf("a record with no readable name must still be storable (%s): %v", record.animeID, err)
+		}
 	}
 }
 
@@ -400,25 +395,5 @@ func TestMigrationIsIdempotentOverAnAlreadyMigratedDatabase(t *testing.T) {
 	}
 	if got := readNameKeys(t, db); len(got) != 1 || got["kept"].String != "written by the app" {
 		t.Fatalf("re-running the bootstrap must not touch stored rows, got %v", got)
-	}
-}
-
-func TestNameUniquenessLeavesRecordsWithoutAReadableNameUnconstrained(t *testing.T) {
-	db := openNameUniquenessDB(t)
-	if err := ensureAnimeSnapshotsSchema(db); err != nil {
-		t.Fatalf("ensure schema: %v", err)
-	}
-
-	// The backup import defaults an absent snapshot_json to the empty string,
-	// and a record can legitimately carry JSON without a name.
-	for _, record := range []struct{ animeID, snapshot string }{
-		{"empty-one", ""},
-		{"empty-two", ""},
-		{"nameless-one", `{"id":"nameless-one"}`},
-		{"nameless-two", `{"id":"nameless-two"}`},
-	} {
-		if err := insertAnimeSnapshot(db, record.animeID, record.snapshot); err != nil {
-			t.Fatalf("a record with no readable name must still be storable (%s): %v", record.animeID, err)
-		}
 	}
 }

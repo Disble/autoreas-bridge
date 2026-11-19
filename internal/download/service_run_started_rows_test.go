@@ -27,24 +27,9 @@ func TestBuildRunStartedRowsNamesEveryAnimeTheRunWillTouch(t *testing.T) {
 		if rows[i].RefType != "anime" {
 			t.Fatalf("row %d RefType = %q, want anime", i, rows[i].RefType)
 		}
-	}
-}
-
-// TestBuildRunStartedRowsClaimsNoOutcome is the honesty guard. The run has not processed anything
-// yet, so a row must not borrow the vocabulary a finished run writes -- "downloaded", "failed",
-// "up to date" and "checked" each claim something that has not happened.
-func TestBuildRunStartedRowsClaimsNoOutcome(t *testing.T) {
-	t.Parallel()
-
-	rows := buildRunStartedRows([]contracts.MobileAnime{{ID: "anime-1", Name: "Bocchi the Rock"}})
-
-	for _, forbidden := range []string{"downloaded", "failed", "manual", "up to date", "checked", "skipped"} {
-		if rows[0].Status == forbidden {
-			t.Fatalf("a started row claims outcome %q before the run has processed anything", forbidden)
+		if rows[i].Status != "queued" {
+			t.Fatalf("row %d Status = %q, want queued: a started row claims no outcome", i, rows[i].Status)
 		}
-	}
-	if rows[0].Status != "queued" {
-		t.Fatalf("row Status = %q, want queued", rows[0].Status)
 	}
 }
 

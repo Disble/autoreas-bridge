@@ -17,16 +17,24 @@ async function attachBindings(app: Record<string, unknown>): Promise<void> {
 describe('episode-duration runtime source', () => {
   useIsolatedWailsRuntime();
 
-  it('reads the section for the draft and narrows unknown wire values', async () => {
+  it('creates one shared source that reads the section for the draft, keeps a missing folder, and narrows unknown wire values', async () => {
     const { createEpisodeDurationRuntimeSource } = await import('../bridge-runtime-source/episode-duration-runtime-source.helpers');
-    const getSection = vi.fn().mockResolvedValue({
-      folderStatus: 'found', beyondTotal: [13], tv: true,
-      rows: [
-        { episode: 1, durationMs: 1_440_000, minutes: 24, long: false, source: 'measured' },
-        { episode: 2, durationMs: 0, minutes: 0, long: false, source: 'something-new' },
-      ],
-    });
-    const pending = createEpisodeDurationRuntimeSource().getEpisodeDurationSection(REQUEST);
+    expect(createEpisodeDurationRuntimeSource()).toBe(createEpisodeDurationRuntimeSource());
+
+    const getSection = vi.fn()
+      .mockResolvedValueOnce({
+        folderStatus: 'found', beyondTotal: [13], tv: true,
+        rows: [
+          { episode: 1, durationMs: 1_440_000, minutes: 24, long: false, source: 'measured' },
+          { episode: 2, durationMs: 0, minutes: 0, long: false, source: 'something-new' },
+        ],
+      })
+      .mockResolvedValueOnce({ folderStatus: 'missing', rows: [], beyondTotal: [], tv: true })
+      .mockResolvedValueOnce({ folderStatus: 'odd', rows: null, beyondTotal: null, tv: false });
+    const source = createEpisodeDurationRuntimeSource();
+    const pending = source.getEpisodeDurationSection(REQUEST);
+    const missing = source.getEpisodeDurationSection(REQUEST);
+    const odd = source.getEpisodeDurationSection(REQUEST);
 
     await attachBindings({ GetEpisodeDurationSection: getSection });
 
@@ -38,6 +46,9 @@ describe('episode-duration runtime source', () => {
       ],
     });
     expect(getSection).toHaveBeenCalledWith(REQUEST);
+    await expect(missing).resolves.toEqual(expect.objectContaining({ folderStatus: 'missing' }));
+    // An unknown folder status reads as no folder, and missing lists as empty.
+    await expect(odd).resolves.toStrictEqual({ folderStatus: 'none', rows: [], beyondTotal: [], tv: false });
   });
 
   it('keeps every row source and every review result the backend knows', async () => {
@@ -60,32 +71,6 @@ describe('episode-duration runtime source', () => {
 
     expect((await section).rows.map((row) => row.source)).toEqual(sources);
     expect((await review).rows.map((row) => row.result)).toEqual(results);
-  });
-
-  it('creates the source once and shares it', async () => {
-    const { createEpisodeDurationRuntimeSource } = await import('../bridge-runtime-source/episode-duration-runtime-source.helpers');
-
-    expect(createEpisodeDurationRuntimeSource()).toBe(createEpisodeDurationRuntimeSource());
-  });
-
-  it('keeps a missing folder status', async () => {
-    const { createEpisodeDurationRuntimeSource } = await import('../bridge-runtime-source/episode-duration-runtime-source.helpers');
-    const getSection = vi.fn().mockResolvedValue({ folderStatus: 'missing', rows: [], beyondTotal: [], tv: true });
-    const pending = createEpisodeDurationRuntimeSource().getEpisodeDurationSection(REQUEST);
-
-    await attachBindings({ GetEpisodeDurationSection: getSection });
-
-    await expect(pending).resolves.toEqual(expect.objectContaining({ folderStatus: 'missing' }));
-  });
-
-  it('reads an unknown folder status as no folder and missing lists as empty', async () => {
-    const { createEpisodeDurationRuntimeSource } = await import('../bridge-runtime-source/episode-duration-runtime-source.helpers');
-    const getSection = vi.fn().mockResolvedValue({ folderStatus: 'odd', rows: null, beyondTotal: null, tv: false });
-    const pending = createEpisodeDurationRuntimeSource().getEpisodeDurationSection(REQUEST);
-
-    await attachBindings({ GetEpisodeDurationSection: getSection });
-
-    await expect(pending).resolves.toStrictEqual({ folderStatus: 'none', rows: [], beyondTotal: [], tv: false });
   });
 
   it('rejects every binding with the coded failure the episodes module sent', async () => {
@@ -129,18 +114,23 @@ describe('episode-duration runtime source', () => {
     }
   });
 
-  it('re-analyzes, keeps known results and statuses, and cancels through the binding', async () => {
+  it('re-analyzes, keeps known results and statuses, narrows an unknown outcome to an error, keeps busy, and cancels through the binding', async () => {
     const { createEpisodeDurationRuntimeSource } = await import('../bridge-runtime-source/episode-duration-runtime-source.helpers');
-    const reanalyze = vi.fn().mockResolvedValue({
-      outcome: 'ok', status: 'interrupted', filesRecognized: 2,
-      rows: [
-        { episode: 4, basename: 'e04.mkv', currentMs: 1_380_000, currentMinutes: 23, currentSource: 'measured', measuredMs: 2_760_000, measuredMinutes: 46, result: 'update' },
-        { episode: 5, basename: 'e05.mkv', currentMs: 0, currentMinutes: 0, currentSource: '', measuredMs: 0, measuredMinutes: 0, result: 'mystery', detail: 'x' },
-      ],
-    });
+    const reanalyze = vi.fn()
+      .mockResolvedValueOnce({
+        outcome: 'ok', status: 'interrupted', filesRecognized: 2,
+        rows: [
+          { episode: 4, basename: 'e04.mkv', currentMs: 1_380_000, currentMinutes: 23, currentSource: 'measured', measuredMs: 2_760_000, measuredMinutes: 46, result: 'update' },
+          { episode: 5, basename: 'e05.mkv', currentMs: 0, currentMinutes: 0, currentSource: '', measuredMs: 0, measuredMinutes: 0, result: 'mystery', detail: 'x' },
+        ],
+      })
+      .mockResolvedValueOnce({ outcome: 'busy', message: 'a re-analysis is already running', status: '', filesRecognized: 0, rows: null })
+      .mockResolvedValueOnce({ outcome: 'later', status: 'ok', filesRecognized: 0, rows: [] });
     const cancelBinding = vi.fn().mockResolvedValue(undefined);
     const source = createEpisodeDurationRuntimeSource();
     const pending = source.reanalyzeEpisodeDurations(REQUEST);
+    const busy = source.reanalyzeEpisodeDurations(REQUEST);
+    const unknown = source.reanalyzeEpisodeDurations(REQUEST);
     const cancel = source.cancelEpisodeReanalysis();
 
     await attachBindings({ ReanalyzeEpisodeDurations: reanalyze, CancelEpisodeReanalysis: cancelBinding });
@@ -155,21 +145,8 @@ describe('episode-duration runtime source', () => {
     expect(review.rows[0]).not.toHaveProperty('detail');
     expect(reanalyze).toHaveBeenCalledWith(REQUEST);
     expect(cancelBinding).toHaveBeenCalledTimes(1);
-  });
-
-  it('narrows an unknown review outcome to an error and keeps busy', async () => {
-    const { createEpisodeDurationRuntimeSource } = await import('../bridge-runtime-source/episode-duration-runtime-source.helpers');
-    const reanalyze = vi.fn()
-      .mockResolvedValueOnce({ outcome: 'busy', message: 'a re-analysis is already running', status: '', filesRecognized: 0, rows: null })
-      .mockResolvedValueOnce({ outcome: 'later', status: 'ok', filesRecognized: 0, rows: [] });
-    const source = createEpisodeDurationRuntimeSource();
-    const first = source.reanalyzeEpisodeDurations(REQUEST);
-    const second = source.reanalyzeEpisodeDurations(REQUEST);
-
-    await attachBindings({ ReanalyzeEpisodeDurations: reanalyze });
-
-    await expect(first).resolves.toEqual({ outcome: 'busy', message: 'a re-analysis is already running', status: 'ok', filesRecognized: 0, rows: [] });
-    await expect(second).resolves.toEqual(expect.objectContaining({ outcome: 'error' }));
+    await expect(busy).resolves.toEqual({ outcome: 'busy', message: 'a re-analysis is already running', status: 'ok', filesRecognized: 0, rows: [] });
+    await expect(unknown).resolves.toEqual(expect.objectContaining({ outcome: 'error' }));
   });
 
   it('delivers re-analysis progress to every listener and stops after unsubscribe', async () => {
@@ -203,24 +180,15 @@ describe('episode-duration runtime source save', () => {
     { episode: 5, durationMs: 0, source: 'manual' as const, clear: true },
   ];
 
-  it('saves the card edits for the anime through their own binding', async () => {
-    const { createEpisodeDurationRuntimeSource } = await import('../bridge-runtime-source/episode-duration-runtime-source.helpers');
-    const save = vi.fn().mockResolvedValue({ outcome: 'applied', changed: 2 });
-    const pending = createEpisodeDurationRuntimeSource().saveEpisodeDurations('anime-1', EDITS);
-
-    await attachBindings({ SaveEpisodeDurations: save });
-
-    await expect(pending).resolves.toStrictEqual({ outcome: 'applied', changed: 2 });
-    expect(save).toHaveBeenCalledWith('anime-1', EDITS);
-  });
-
-  it('keeps a no-op, reads an unknown outcome as an error, and rejects a refused save with its message', async () => {
+  it('saves the card edits through their own binding, keeps a no-op, reads an unknown outcome as an error, and rejects a refused save with its message', async () => {
     const { createEpisodeDurationRuntimeSource } = await import('../bridge-runtime-source/episode-duration-runtime-source.helpers');
     const save = vi.fn()
+      .mockResolvedValueOnce({ outcome: 'applied', changed: 2 })
       .mockResolvedValueOnce({ outcome: 'no_op', changed: 0 })
       .mockRejectedValueOnce(new Error('{"code":"internal","message":"save episode durations: disk full"}'))
       .mockResolvedValueOnce({ outcome: 'later', changed: 3 });
     const source = createEpisodeDurationRuntimeSource();
+    const applied = source.saveEpisodeDurations('anime-1', EDITS);
     const noOp = source.saveEpisodeDurations('anime-1', EDITS);
     const failed = source.saveEpisodeDurations('anime-1', EDITS);
     const unknown = source.saveEpisodeDurations('anime-1', EDITS);
@@ -228,6 +196,8 @@ describe('episode-duration runtime source save', () => {
 
     await attachBindings({ SaveEpisodeDurations: save });
 
+    await expect(applied).resolves.toStrictEqual({ outcome: 'applied', changed: 2 });
+    expect(save).toHaveBeenCalledWith('anime-1', EDITS);
     await expect(noOp).resolves.toStrictEqual({ outcome: 'no_op', changed: 0 });
     await expect(failed).rejects.toMatchObject({ name: 'BridgeError', code: 'internal', message: 'save episode durations: disk full' });
     await expect(unknown).resolves.toStrictEqual({ outcome: 'error', changed: 3 });

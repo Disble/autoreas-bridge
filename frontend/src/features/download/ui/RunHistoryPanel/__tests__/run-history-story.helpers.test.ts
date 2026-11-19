@@ -84,16 +84,21 @@ describe('toRunHistoryDetailViewModel per-anime rows', () => {
     expect(finished).toMatchObject({ label: 'Not attempted', isLive: false, tone: 'default' });
   });
 
-  it.each([
-    [[4], 'Episode 4'],
-    [[4, 5, 6], 'Episodes 4–6'],
-    [[6, 4, 5], 'Episodes 4–6'],
-    [[2, 5], 'Episode 2 | Episode 5'],
-    [[1, 2, 5], 'Episodes 1–2 | Episode 5'],
-  ])('labels downloaded episodes %j as "%s"', (episodes, label) => {
-    const story = ready(episodes.map((episode) => step('a1', 'download.episode_downloaded', { animeName: 'Frieren', episode })));
+  it('labels downloaded episodes as one, a range or a list', () => {
+    const cases = [
+      [[4], 'Episode 4'],
+      [[4, 5, 6], 'Episodes 4–6'],
+      [[6, 4, 5], 'Episodes 4–6'],
+      [[2, 5], 'Episode 2 | Episode 5'],
+      [[1, 2, 5], 'Episodes 1–2 | Episode 5'],
+    ] as const;
 
-    expect(lines(story, createRun(), 'downloaded')).toEqual([`Frieren: ${label}`]);
+    for (const [episodes, label] of cases) {
+      const caseName = `labels downloaded episodes ${JSON.stringify(episodes)} as "${String(label)}"`;
+      const story = ready(episodes.map((episode) => step('a1', 'download.episode_downloaded', { animeName: 'Frieren', episode })));
+
+      expect.soft(lines(story, createRun(), 'downloaded'), caseName).toEqual([`Frieren: ${label}`]);
+    }
   });
 
   it('gives each run of consecutive episodes from one site host its own line, and omits an unknown site host', () => {
@@ -205,16 +210,20 @@ describe('toRunHistoryDetailViewModel groups and notes', () => {
     expect(detail.storyNote).toEqual({ kind: 'expired', label: 'Per-anime detail is kept for 90 days' });
   });
 
-  it.each<[string, RunHistoryStoryState]>([
-    ['kept no steps', ready([])],
-    ['could not be read', { status: 'error' }],
-  ])('still lists the run manual links under Not attempted when the story %s', (_case, state) => {
-    const run = createRun({ manualLinks: [{ animeId: 'a1', anime: 'Frieren', episode: 4, links: ['https://x/a'] }] });
-    const detail = toRunHistoryDetailViewModel(run, state);
+  it('still lists the run manual links under Not attempted whatever the story holds', () => {
+    const cases: ReadonlyArray<[string, RunHistoryStoryState]> = [
+      ['kept no steps', ready([])],
+      ['could not be read', { status: 'error' }],
+    ];
 
-    expect(lines(state, run, 'pending')).toEqual(['Frieren: Episode 4']);
-    expect(detail.groups.find((group) => group.id === 'pending')?.allLinks).toEqual(['https://x/a']);
-    expect(detail.groups.filter((group) => group.id !== 'pending').every((group) => group.rows === undefined)).toBe(true);
+    for (const [caseName, state] of cases) {
+      const run = createRun({ manualLinks: [{ animeId: 'a1', anime: 'Frieren', episode: 4, links: ['https://x/a'] }] });
+      const detail = toRunHistoryDetailViewModel(run, state);
+
+      expect.soft(lines(state, run, 'pending'), caseName).toEqual(['Frieren: Episode 4']);
+      expect.soft(detail.groups.find((group) => group.id === 'pending')?.allLinks, caseName).toEqual(['https://x/a']);
+      expect.soft(detail.groups.filter((group) => group.id !== 'pending').every((group) => group.rows === undefined), caseName).toBe(true);
+    }
   });
 
   // A run stored before per-anime events (no anime_checked) has its pending count but no lines for it.

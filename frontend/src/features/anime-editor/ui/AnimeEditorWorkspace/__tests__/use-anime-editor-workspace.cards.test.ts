@@ -1,9 +1,11 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import { waitFor } from './wait-for.test-support';
 import { createElement } from 'react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EpisodeDurationRuntimeSource } from '../../../../../shared/contracts/episode-durations.types';
 import type { AnimeEditorRecord, AnimeEditorScheduleBoard } from '../../../../../shared/contracts/anime.types';
+import { EPISODE_DURATIONS_RELOAD_DELAY_MS } from '../../EpisodeDurationsSection/episode-durations-section.constants';
 import { useAnimeEditorWorkspace } from '../use-anime-editor-workspace';
 import { createEmptyEpisodeDurationSource, createEpisodesReadyWrapper } from './episode-duration-source.test-support';
 
@@ -11,6 +13,14 @@ import { createEmptyEpisodeDurationSource, createEpisodesReadyWrapper } from './
 const toastMock = vi.hoisted(() => ({ success: vi.fn(), info: vi.fn(), warning: vi.fn(), danger: vi.fn() }));
 
 vi.mock('@heroui/react', () => ({ toast: toastMock }));
+
+// The Episodes card's reload debounce is guarded in use-episode-durations-load.test.ts;
+// here every render would otherwise wait it out before the card reads.
+vi.mock('../../EpisodeDurationsSection/episode-durations-section.constants', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  /** No settle wait: the card reads on the next task. */
+  EPISODE_DURATIONS_RELOAD_DELAY_MS: 0,
+}));
 
 beforeEach(() => {
   Object.values(toastMock).forEach((mock) => mock.mockClear());
@@ -125,7 +135,7 @@ describe('useAnimeEditorWorkspace Schedule card reads', () => {
     await waitFor(() => expect(result.current.scheduleWeek).toEqual({ status: 'loading', days: [], seasonDays: [] }));
   });
 
-  it('reads no board before any anime is selected', async () => {
+  it('reads no board, neither opens the schedule editor nor saves anything before any anime is selected', async () => {
     const source = createSource();
     source.getAnimes.mockReturnValue(new Promise(() => undefined));
     const { result } = renderHook(() => useAnimeEditorWorkspace({}, source as never, createEmptyEpisodeDurationSource(), source as never, source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
@@ -133,12 +143,6 @@ describe('useAnimeEditorWorkspace Schedule card reads', () => {
 
     expect(source.getAnimeEditorScheduleBoard).not.toHaveBeenCalled();
     expect(result.current.scheduleWeek).toEqual({ status: 'idle', days: [], seasonDays: [] });
-  });
-
-  it('neither opens the schedule editor nor saves anything before any anime is selected', async () => {
-    const source = createSource();
-    source.getAnimes.mockReturnValue(new Promise(() => undefined));
-    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source as never, createEmptyEpisodeDurationSource(), source as never, source as never), { wrapper: createEpisodesReadyWrapper(wrapper) });
 
     await act(() => result.current.onOpenSchedule());
     let saved: unknown = 'pending';
@@ -150,15 +154,24 @@ describe('useAnimeEditorWorkspace Schedule card reads', () => {
     expect(source.saveAnimeEditor).not.toHaveBeenCalled();
   });
 
-  it('keeps the week when a schedule apply answers without a board', async () => {
+  it('keeps the week when a schedule apply answers without a board, and follows the applied board, which carries no origin, for the selected anime', async () => {
     const { result, source } = await loadHook();
     await act(() => result.current.onOpenSchedule());
-    source.applyAnimeEditorSchedule.mockResolvedValueOnce({ outcome: 'conflict', message: 'stale', modifiedAt: 0 });
+    source.applyAnimeEditorSchedule
+      .mockResolvedValueOnce({ outcome: 'conflict', message: 'stale', modifiedAt: 0 })
+      .mockResolvedValueOnce({
+        outcome: 'applied', message: 'applied', modifiedAt: 101,
+        board: { ...board(101), originAnimeId: '', entries: [{ ...board().entries[1]!, placements: [{ day: 'Martes', order: 1 }] }] },
+      });
 
     await act(() => result.current.onApplySchedule([]));
 
     expect(result.current.scheduleWeek.days.map((day) => day.ariaLabel)).toEqual(['Lunes: 2 of 2', 'Martes: not scheduled']);
     expect(result.current.scheduleFeedback).toBe('stale');
+
+    await act(() => result.current.onApplySchedule([]));
+
+    expect(result.current.scheduleWeek.days.map((day) => day.ariaLabel)).toEqual(['Lunes: not scheduled', 'Martes: 1 of 1']);
   });
 
   it.each([
@@ -174,16 +187,6 @@ describe('useAnimeEditorWorkspace Schedule card reads', () => {
     act(() => result.current.onSelectAnime('anime-2'));
     await waitFor(() => expect(result.current.scheduleWeek.days.map((day) => day.ariaLabel)).toEqual(['Lunes: not scheduled', 'Martes: 1 of 1']));
     await act(async () => late(first));
-
-    expect(result.current.scheduleWeek.days.map((day) => day.ariaLabel)).toEqual(['Lunes: not scheduled', 'Martes: 1 of 1']);
-  });
-
-  it('places the anime on the week from the board the schedule editor opened with', async () => {
-    const { result, source } = await loadHook();
-    await waitFor(() => expect(result.current.scheduleWeek.status).toBe('ready'));
-    source.getAnimeEditorScheduleBoard.mockResolvedValueOnce(boardAnswer('anime-1', 'Martes'));
-
-    await act(() => result.current.onOpenSchedule());
 
     expect(result.current.scheduleWeek.days.map((day) => day.ariaLabel)).toEqual(['Lunes: not scheduled', 'Martes: 1 of 1']);
   });
@@ -218,7 +221,7 @@ describe('useAnimeEditorWorkspace Schedule card reads', () => {
     expect(source.getAnimeEditorScheduleBoard).toHaveBeenLastCalledWith('anime-2');
   });
 
-  it('does not read the board or the list again when the anime save fails', async () => {
+  it('does not read the board or the list again when the anime save fails, and reads the board again after an applied save', async () => {
     const { result, source } = await loadHook();
     await waitFor(() => expect(result.current.scheduleWeek.status).toBe('ready'));
     source.saveAnimeEditor.mockResolvedValueOnce({ outcome: 'conflict', message: 'stale', modifiedAt: 0 });
@@ -228,39 +231,28 @@ describe('useAnimeEditorWorkspace Schedule card reads', () => {
 
     expect(source.getAnimeEditorScheduleBoard).toHaveBeenCalledTimes(1);
     expect(source.getAnimes).toHaveBeenCalledTimes(1);
+
+    await act(() => result.current.onSave());
+
+    expect(source.getAnimeEditorScheduleBoard).toHaveBeenCalledTimes(2);
   });
 });
 
 describe('useAnimeEditorWorkspace Schedule card', () => {
-  it('reads the board as soon as the anime is selected and places it on the week', async () => {
+  it('reads the board as soon as the anime is selected and places it on the week, then opens the schedule editor right away when nothing is unsaved and places the anime from the board it opened with', async () => {
     const { result, source } = await loadHook();
 
     await waitFor(() => expect(result.current.scheduleWeek.status).toBe('ready'));
     expect(source.getAnimeEditorScheduleBoard).toHaveBeenCalledWith('anime-1');
     expect(result.current.scheduleWeek.days.map((day) => day.ariaLabel)).toEqual(['Lunes: 2 of 2', 'Martes: not scheduled']);
     expect(result.current.isScheduleModalOpen).toBe(false);
-  });
 
-  it('reads the board again after an anime save', async () => {
-    const { result, source } = await loadHook();
-    await waitFor(() => expect(result.current.scheduleWeek.status).toBe('ready'));
-    act(() => result.current.onDraftChange('name', 'Renamed'));
+    source.getAnimeEditorScheduleBoard.mockResolvedValueOnce(boardAnswer('anime-1', 'Martes'));
 
-    await act(() => result.current.onSave());
-
-    expect(source.getAnimeEditorScheduleBoard).toHaveBeenCalledTimes(2);
-  });
-
-  it('follows the applied board, which carries no origin, for the selected anime', async () => {
-    const { result, source } = await loadHook();
     await act(() => result.current.onOpenSchedule());
-    vi.mocked(source.applyAnimeEditorSchedule).mockResolvedValueOnce({
-      outcome: 'applied', message: 'applied', modifiedAt: 101,
-      board: { ...board(101), originAnimeId: '', entries: [{ ...board().entries[1]!, placements: [{ day: 'Martes', order: 1 }] }] },
-    });
 
-    await act(() => result.current.onApplySchedule([]));
-
+    expect(result.current.isGuardOpen).toBe(false);
+    expect(result.current.isScheduleModalOpen).toBe(true);
     expect(result.current.scheduleWeek.days.map((day) => day.ariaLabel)).toEqual(['Lunes: not scheduled', 'Martes: 1 of 1']);
   });
 
@@ -273,29 +265,18 @@ describe('useAnimeEditorWorkspace Schedule card', () => {
     await waitFor(() => expect(result.current.scheduleWeek).toEqual({ status: 'failed', days: [], seasonDays: [], failureMessage: 'offline' }));
   });
 
-  it('still opens the schedule editor right away when nothing is unsaved', async () => {
-    const { result } = await loadHook();
-
-    await act(() => result.current.onOpenSchedule());
-
-    expect(result.current.isGuardOpen).toBe(false);
-    expect(result.current.isScheduleModalOpen).toBe(true);
-  });
 });
 
 describe('useAnimeEditorWorkspace independent cards', () => {
-  it('reads the Episodes card for the saved folder, not for an unsaved folder in the anime draft', async () => {
+  it('reads the Episodes card for the saved folder, not for an unsaved folder in the anime draft, and again from the new saved record after an anime save changes the folder', async () => {
     const { result, episodeSource } = await loadHook();
 
     act(() => result.current.onDraftChange('folder', 'D:/Anime/Typed'));
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await act(() => new Promise((resolve) => setTimeout(resolve, EPISODE_DURATIONS_RELOAD_DELAY_MS + 50)));
 
     expect(episodeSource.getEpisodeDurationSection).toHaveBeenCalledTimes(1);
     expect(episodeSource.getEpisodeDurationSection).toHaveBeenCalledWith(expect.objectContaining({ folder: 'D:/Anime/Frieren' }));
-  });
 
-  it('reads the Episodes card again from the new saved record after an anime save changes the folder', async () => {
-    const { result, episodeSource } = await loadHook();
     act(() => result.current.onDraftChange('folder', 'D:/Anime/Moved'));
 
     await act(() => result.current.onSave());
@@ -331,21 +312,7 @@ describe('useAnimeEditorWorkspace independent cards', () => {
     expect(result.current.isDirty).toBe(false);
   });
 
-  it('Discard changes on the schedule guard drops both drafts and opens the editor', async () => {
-    const { result } = await loadHook();
-    addEpisode(result);
-    act(() => result.current.onDraftChange('name', 'Renamed'));
-    await act(() => result.current.onOpenSchedule());
-
-    await act(() => result.current.onDiscardAndContinue());
-
-    expect(result.current.isRecordDirty).toBe(false);
-    expect(result.current.episodes.isDirty).toBe(false);
-    expect(result.current.draft.name).toBe('anime-1');
-    expect(result.current.isScheduleModalOpen).toBe(true);
-  });
-
-  it('guards opening the schedule while only the Episodes card is dirty', async () => {
+  it('guards opening the schedule while only the Episodes card is dirty, and Discard changes on that guard drops both drafts and opens the editor', async () => {
     const { result } = await loadHook();
     addEpisode(result);
     expect(result.current.isRecordDirty).toBe(false);
@@ -354,19 +321,14 @@ describe('useAnimeEditorWorkspace independent cards', () => {
 
     expect(result.current.isGuardOpen).toBe(true);
     expect(result.current.isScheduleModalOpen).toBe(false);
-  });
 
-  it('Save and continue saves each dirty card on its own, then continues', async () => {
-    const { result, source, episodeSource } = await loadHook();
-    addEpisode(result);
     act(() => result.current.onDraftChange('name', 'Renamed'));
-    act(() => result.current.onSelectAnime('anime-2'));
+    await act(() => result.current.onDiscardAndContinue());
 
-    await act(() => result.current.onSaveAndContinue());
-
-    expect(source.saveAnimeEditor).toHaveBeenCalledTimes(1);
-    expect(episodeSource.saveEpisodeDurations).toHaveBeenCalledWith('anime-1', [{ episode: 1, durationMs: 24 * 60_000, source: 'manual', clear: false }]);
-    await waitFor(() => expect(result.current.selectedAnimeId).toBe('anime-2'));
+    expect(result.current.isRecordDirty).toBe(false);
+    expect(result.current.episodes.isDirty).toBe(false);
+    expect(result.current.draft.name).toBe('anime-1');
+    expect(result.current.isScheduleModalOpen).toBe(true);
   });
 
   it('Save and continue saves only the dirty Episodes card, and stays with its error when that save fails', async () => {
@@ -404,7 +366,7 @@ describe('useAnimeEditorWorkspace independent cards', () => {
     expect(result.current.isGuardSaveBlocked).toBe(false);
   });
 
-  it('Save and continue stays when the anime save fails, even after the Episodes card saved', async () => {
+  it('Save and continue saves each dirty card on its own, stays when the anime save fails even after the Episodes card saved, then continues once the anime save applies', async () => {
     const { result, source, episodeSource } = await loadHook();
     vi.mocked(source.saveAnimeEditor).mockResolvedValueOnce({ outcome: 'conflict', message: 'stale', modifiedAt: 0 });
     addEpisode(result);
@@ -413,9 +375,15 @@ describe('useAnimeEditorWorkspace independent cards', () => {
 
     await act(() => result.current.onSaveAndContinue());
 
-    expect(episodeSource.saveEpisodeDurations).toHaveBeenCalledTimes(1);
+    expect(source.saveAnimeEditor).toHaveBeenCalledTimes(1);
+    expect(episodeSource.saveEpisodeDurations).toHaveBeenCalledExactlyOnceWith('anime-1', [{ episode: 1, durationMs: 24 * 60_000, source: 'manual', clear: false }]);
     expect(result.current.selectedAnimeId).toBe('anime-1');
     expect(result.current.isGuardOpen).toBe(true);
     expect(toastMock.warning).toHaveBeenCalledWith('stale');
+
+    await act(() => result.current.onSaveAndContinue());
+
+    expect(source.saveAnimeEditor).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(result.current.selectedAnimeId).toBe('anime-2'));
   });
 });

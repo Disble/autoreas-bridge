@@ -62,13 +62,19 @@ describe('OrderingBoard', () => {
     vi.clearAllMocks();
   });
 
-  it('shows the empty rail state and the seven weekday columns', () => {
-    mockHook();
+  it('shows the empty rail, the seven weekday columns and locked Reset and Apply without changes', () => {
+    const hook = mockHook();
     render(<OrderingBoard onNavigate={vi.fn()} />);
     expect(screen.getByText(/No approved animes to place yet/)).toBeInTheDocument();
     for (const day of ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']) {
       expect(screen.getByText(day)).toBeInTheDocument();
     }
+
+    const reset = screen.getByRole('button', { name: 'Reset draft' });
+    expect(reset.hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Apply schedule' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.click(reset);
+    expect(hook.onReset).toHaveBeenCalledTimes(0);
   });
 
   it('renders a rail card and a placed grid card', () => {
@@ -234,7 +240,7 @@ describe('OrderingBoard', () => {
     expect(screen.queryByText(/Approved to place/)).toBeNull();
   });
 
-  it('renders every empty weekday as an empty container and wires Remove to the card it belongs to', () => {
+  it('renders empty weekdays as empty containers and explains and wires Remove to its card', () => {
     const removeCard = vi.fn();
     mockHook({
       columns: { Lunes: [card({ key: 'a#0', animeId: 'a', name: 'Anime A' })] },
@@ -242,6 +248,11 @@ describe('OrderingBoard', () => {
       removeCard,
     });
     render(<OrderingBoard onNavigate={vi.fn()} />);
+
+    // The Remove tooltip shows once the button takes keyboard focus.
+    fireEvent.keyDown(document.body, { key: 'Tab' });
+    act(() => screen.getByRole('button', { name: 'Remove Anime A' }).focus());
+    expect(screen.getByText('Remove')).toBeInTheDocument();
 
     // Six of the seven weekdays hold no card, and each says so instead of rendering a
     // phantom one: a placeholder card here would silently invent a scheduled anime.
@@ -254,11 +265,8 @@ describe('OrderingBoard', () => {
     expect(removeCard).toHaveBeenCalledWith('a#0');
   });
 
-  it.each<{ scenario: string; counts: Record<string, number> }>([
-    { scenario: 'holds its only card', counts: { a: 1 } },
-    { scenario: 'has no card count', counts: {} },
-  ])('disables Remove while an anime $scenario', ({ counts }) => {
-    mockHook({ columns: { Lunes: [card({ key: 'a#0', animeId: 'a', name: 'Anime A' })] }, counts });
+  it('disables Remove while an anime has no card count', () => {
+    mockHook({ columns: { Lunes: [card({ key: 'a#0', animeId: 'a', name: 'Anime A' })] }, counts: {} });
     render(<OrderingBoard onNavigate={vi.fn()} />);
 
     expect(screen.getByRole('button', { name: 'Remove Anime A' })).toBeDisabled();
@@ -319,13 +327,22 @@ describe('OrderingBoard', () => {
     expect(screen.queryAllByLabelText(/^Approval grade/).map((element) => element.getAttribute('aria-label'))).toEqual(chip === undefined ? [] : [chip]);
   });
 
-  it('renders a bare card without grade or desktop actions when the anime has no metadata', () => {
+  it('renders an only card bare and grabbable, with Remove locked and its reason shown on hover', async () => {
     mockHook({ columns: { Lunes: [card({ key: 'a#0', animeId: 'a', name: 'Anime A' })] }, counts: { a: 1 } });
     render(<OrderingBoard onNavigate={vi.fn()} />);
 
+    // Without metadata the card shows no grade and no desktop actions.
     expect(screen.queryByLabelText(/^Approval grade/)).toBeNull();
     expect(screen.queryByRole('button', { name: /Open (page|folder) for Anime A/ })).toBeNull();
     expect(screen.getByRole('button', { name: 'Duplicate Anime A to another day' })).toBeInTheDocument();
+    expect(screen.getByText('Anime A').closest('li')).toHaveClass('cursor-grab');
+
+    const remove = screen.getByRole('button', { name: 'Remove Anime A' });
+    expect(remove).toBeDisabled();
+    fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
+    fireEvent.pointerUp(document.body, { pointerType: 'mouse' });
+    fireEvent.pointerOver(remove.parentElement as HTMLElement, { pointerType: 'mouse' });
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Remove · An anime must stay on at least one day');
   });
 
   it('locks every card action and the draft controls while an applied open season is read-only', () => {
@@ -343,19 +360,16 @@ describe('OrderingBoard', () => {
     expect(screen.getByRole('button', { name: 'Apply schedule' })).toBeDisabled();
   });
 
-  it.each([
-    { changeCount: 0, enabled: false },
-    { changeCount: 1, enabled: true },
-  ])('enables Reset and Apply only with pending changes (changeCount $changeCount)', ({ changeCount, enabled }) => {
+  it('enables Reset and Apply with a pending change', () => {
     const onReset = vi.fn();
-    mockHook({ changeCount, onReset });
+    mockHook({ changeCount: 1, onReset });
     render(<OrderingBoard onNavigate={vi.fn()} />);
 
     const reset = screen.getByRole('button', { name: 'Reset draft' });
-    expect(reset.hasAttribute('disabled')).toBe(!enabled);
-    expect(screen.getByRole('button', { name: 'Apply schedule' }).hasAttribute('disabled')).toBe(!enabled);
+    expect(reset.hasAttribute('disabled')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Apply schedule' }).hasAttribute('disabled')).toBe(false);
     fireEvent.click(reset);
-    expect(onReset).toHaveBeenCalledTimes(enabled ? 1 : 0);
+    expect(onReset).toHaveBeenCalledTimes(1);
   });
 
   it.each([
@@ -368,38 +382,11 @@ describe('OrderingBoard', () => {
     expect(screen.queryByText(/one card per anime/) !== null).toBe(shown);
   });
 
-  it.each([
-    { scenario: 'an editable', readOnly: false, cursor: 'cursor-grab' },
-    { scenario: 'a read-only', readOnly: true, cursor: 'cursor-default' },
-  ])('gives cards on $scenario board the $cursor cursor', ({ readOnly, cursor }) => {
-    mockHook({ readOnly, columns: { Lunes: [card({ key: 'a#0', animeId: 'a', name: 'Anime A' })] }, counts: { a: 1 } });
+  it('gives cards on a read-only board the cursor-default cursor', () => {
+    mockHook({ readOnly: true, columns: { Lunes: [card({ key: 'a#0', animeId: 'a', name: 'Anime A' })] }, counts: { a: 1 } });
     render(<OrderingBoard onNavigate={vi.fn()} />);
 
-    expect(screen.getByText('Anime A').closest('li')).toHaveClass(cursor);
-  });
-
-  it('explains Remove in its tooltip once the button takes keyboard focus', () => {
-    mockHook({ columns: { Lunes: [card({ key: 'a#0', animeId: 'a', name: 'Anime A' })] }, counts: { a: 2 } });
-    render(<OrderingBoard onNavigate={vi.fn()} />);
-    const remove = screen.getByRole('button', { name: 'Remove Anime A' });
-
-    fireEvent.keyDown(document.body, { key: 'Tab' });
-    act(() => remove.focus());
-
-    expect(screen.getByText('Remove')).toBeInTheDocument();
-  });
-
-  it('explains a locked Remove on hover, with the reason after the action name', async () => {
-    mockHook({ columns: { Lunes: [card({ key: 'a#0', animeId: 'a', name: 'Anime A' })] }, counts: { a: 1 } });
-    render(<OrderingBoard onNavigate={vi.fn()} />);
-    const remove = screen.getByRole('button', { name: 'Remove Anime A' });
-
-    expect(remove).toBeDisabled();
-    fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
-    fireEvent.pointerUp(document.body, { pointerType: 'mouse' });
-    fireEvent.pointerOver(remove.parentElement as HTMLElement, { pointerType: 'mouse' });
-
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('Remove · An anime must stay on at least one day');
+    expect(screen.getByText('Anime A').closest('li')).toHaveClass('cursor-default');
   });
 
   it('offers no draft controls and no reopen or close actions on a recorded past season', () => {

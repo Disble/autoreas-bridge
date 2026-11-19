@@ -10,16 +10,12 @@ afterEach(() => {
 });
 
 describe('LabeledTextField', () => {
-  it('renders the label and current value in a text input by default', () => {
-    render(<LabeledTextField label="Origin" value="Manga" onChange={vi.fn()} />);
+  it('renders the label and value in a text input by default, and reports typed edits as the raw string', () => {
+    const onChange = vi.fn();
+    render(<LabeledTextField label="Origin" value="Manga" onChange={onChange} />);
 
     expect(screen.getByText('Origin')).toBeInTheDocument();
     expect(screen.getByRole('textbox')).toHaveValue('Manga');
-  });
-
-  it('reports typed edits through onChange as the raw string value', () => {
-    const onChange = vi.fn();
-    render(<LabeledTextField label="Origin" value="" onChange={onChange} />);
 
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Light novel' } });
 
@@ -52,16 +48,14 @@ describe('LabeledTextField', () => {
 describe('LabeledTextField rejection', () => {
   afterEach(cleanup);
 
-  it('renders the rejection through the field error slot', () => {
-    render(<LabeledTextField errorMessage="That name is taken." label="Name" value="x" onChange={() => {}} />);
-
-    expect(screen.getByText('That name is taken.')).toBeInTheDocument();
-  });
-
-  it('says nothing when the value is accepted', () => {
-    render(<LabeledTextField description="Helper text." label="Name" value="x" onChange={() => {}} />);
+  it('says nothing while the value is accepted, then renders a rejection through the field error slot', () => {
+    const { rerender } = render(<LabeledTextField description="Helper text." label="Name" value="x" onChange={() => {}} />);
 
     expect(screen.getByText('Helper text.')).toBeInTheDocument();
     expect(screen.queryByText('That name is taken.')).not.toBeInTheDocument();
+
+    rerender(<LabeledTextField errorMessage="That name is taken." label="Name" value="x" onChange={() => {}} />);
+
+    expect(screen.getByText('That name is taken.')).toBeInTheDocument();
   });
 });

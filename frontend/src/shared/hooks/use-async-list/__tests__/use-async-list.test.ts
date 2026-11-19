@@ -3,53 +3,30 @@ import { describe, expect, it, vi } from 'vitest';
 import { useAsyncList } from '../use-async-list';
 
 describe('useAsyncList', () => {
-  it('exposes loaded items and clears the loading state', async () => {
+  it('loads items with no error, then reloads on a refresh key, an explicit reload and a source key', async () => {
     const load = vi.fn().mockResolvedValue(['one', 'two']);
-    const { result } = renderHook(() => useAsyncList(load));
+    const { result, rerender } = renderHook(({ refreshKey, sourceKey }) => useAsyncList(load, refreshKey, sourceKey), {
+      initialProps: { refreshKey: 0, sourceKey: 'catalog' },
+    });
 
     expect(result.current.isLoading).toBe(true);
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(result.current.items).toEqual(['one', 'two']);
-  });
-
-  it('degrades a rejected request to an empty list', async () => {
-    const load = vi.fn().mockRejectedValue(new Error('runtime unavailable'));
-    const { result } = renderHook(() => useAsyncList(load));
-
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    expect(result.current.items).toEqual([]);
-  });
-
-  it('reloads when the refresh key or explicit reload changes', async () => {
-    const load = vi.fn().mockResolvedValue(['initial']);
-    const { result, rerender } = renderHook(({ refreshKey }) => useAsyncList(load, refreshKey), {
-      initialProps: { refreshKey: 0 },
-    });
-
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.error).toBeUndefined();
 
     load.mockResolvedValue(['updated']);
-    rerender({ refreshKey: 1 });
+    rerender({ refreshKey: 1, sourceKey: 'catalog' });
     expect(result.current.isLoading).toBe(true);
     await waitFor(() => expect(result.current.items).toEqual(['updated']));
 
     load.mockResolvedValue(['reloaded']);
     act(() => result.current.reload());
     await waitFor(() => expect(result.current.items).toEqual(['reloaded']));
-  });
-
-  it('marks loading immediately when the source key changes', async () => {
-    const load = vi.fn().mockResolvedValue(['initial']);
-    const { result, rerender } = renderHook(({ sourceKey }) => useAsyncList(load, undefined, sourceKey), {
-      initialProps: { sourceKey: 'catalog' },
-    });
-
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     load.mockResolvedValue(['history']);
-    rerender({ sourceKey: 'history' });
+    rerender({ refreshKey: 1, sourceKey: 'history' });
 
     expect(result.current.isLoading).toBe(true);
     await waitFor(() => expect(result.current.items).toEqual(['history']));
@@ -57,7 +34,7 @@ describe('useAsyncList', () => {
 });
 
 describe('useAsyncList error lifecycle', () => {
-  it('exposes the rejection reason while still settling with an empty list', async () => {
+  it('settles a rejection to an empty list with its reason, normalizes a non-Error one, and clears it on reload', async () => {
     const load = vi.fn().mockRejectedValue(new Error('runtime unavailable'));
     const { result } = renderHook(() => useAsyncList(load));
 
@@ -65,32 +42,12 @@ describe('useAsyncList error lifecycle', () => {
 
     expect(result.current.error?.message).toBe('runtime unavailable');
     expect(result.current.items).toEqual([]);
-  });
 
-  it('normalizes a non-Error rejection into an Error', async () => {
-    const load = vi.fn().mockRejectedValue('binding missing');
-    const { result } = renderHook(() => useAsyncList(load));
-
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    load.mockRejectedValue('binding missing');
+    act(() => result.current.reload());
+    await waitFor(() => expect(result.current.error?.message).toBe('binding missing'));
 
     expect(result.current.error).toBeInstanceOf(Error);
-    expect(result.current.error?.message).toBe('binding missing');
-  });
-
-  it('reports no error for a successful request', async () => {
-    const load = vi.fn().mockResolvedValue(['one']);
-    const { result } = renderHook(() => useAsyncList(load));
-
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    expect(result.current.error).toBeUndefined();
-  });
-
-  it('clears a previous error as soon as an explicit reload starts', async () => {
-    const load = vi.fn().mockRejectedValue(new Error('runtime unavailable'));
-    const { result } = renderHook(() => useAsyncList(load));
-
-    await waitFor(() => expect(result.current.error?.message).toBe('runtime unavailable'));
 
     load.mockReturnValue(new Promise(() => undefined));
     act(() => result.current.reload());

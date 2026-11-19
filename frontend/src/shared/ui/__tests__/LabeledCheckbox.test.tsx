@@ -8,23 +8,16 @@ import { LabeledCheckbox } from '../LabeledCheckbox';
 describe('LabeledCheckbox', () => {
   afterEach(cleanup);
 
-  it('renders a real, clickable checkbox with its label', () => {
-    render(
-      <LabeledCheckbox isSelected={false} onChange={vi.fn()}>
-        Anime A
-      </LabeledCheckbox>,
-    );
-    expect(screen.getByRole('checkbox')).toBeInTheDocument();
-    expect(screen.getByText('Anime A')).toBeInTheDocument();
-  });
-
-  it('reports selection changes on click', () => {
+  it('renders a real checkbox with its label and reports selection changes on click', () => {
     const onChange = vi.fn();
     render(
       <LabeledCheckbox isSelected={false} onChange={onChange}>
         Anime A
       </LabeledCheckbox>,
     );
+    expect(screen.getByRole('checkbox')).toBeInTheDocument();
+    expect(screen.getByText('Anime A')).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole('checkbox'));
     expect(onChange).toHaveBeenCalledWith(true);
   });

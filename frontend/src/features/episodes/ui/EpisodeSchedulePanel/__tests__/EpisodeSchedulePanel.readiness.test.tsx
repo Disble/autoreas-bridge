@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -16,6 +16,7 @@ import { createEpisodesWrapper, createSource, scheduleItem } from './episode-sch
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
 });
 
 /**
@@ -175,15 +176,21 @@ describe('Today under the app query runtime', () => {
   });
 
   it('recovers when the first readiness snapshot failed and the ready event was dropped', async () => {
+    // Fake clock for the 1 s snapshot retry; `shouldAdvanceTime` keeps `findBy*` polling.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const readiness = fakeSource();
     const source = createSource({ getEpisodeSchedule: vi.fn().mockResolvedValue([scheduleItem('anime-1', { animeName: 'Frieren' })]) });
+    /** The readiness snapshot reads made so far. */
+    const snapshotReads = () => readiness.calls.filter((call) => call === 'getReadiness');
 
     renderToday(source, appRuntime(readiness.source).wrapper);
     await act(() => readiness.fail(createBridgeError('internal', 'registry gone')));
     expect(await screen.findByText('Episode schedule unavailable')).toBeInTheDocument();
+    expect(snapshotReads()).toHaveLength(1);
 
     // No `bridge.readiness` event arrives: only the snapshot retry (after 1 s) can settle the module.
-    await waitFor(() => expect(readiness.calls.filter((call) => call === 'getReadiness')).toHaveLength(2), { timeout: 3000 });
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+    expect(snapshotReads()).toHaveLength(2);
     await act(() => readiness.answer(status('episodes', 'ready')));
 
     expect(await screen.findByRole('heading', { name: 'Frieren' })).toBeInTheDocument();

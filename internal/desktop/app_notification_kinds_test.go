@@ -52,6 +52,8 @@ func TestNotifyDeviceSyncHealthNamesItsKind(t *testing.T) {
 		if got.Source != "sync" {
 			t.Fatalf("received[%d].Source = %q, want %q -- kind never replaces source", i, got.Source, "sync")
 		}
+		// Both branches share a destination too: the screen where a paired device is looked at.
+		assertNavigatesTo(t, singleWholeNotificationAction(t, got), "Open Devices", "/devices")
 	}
 	if notifier.received[0].Title == notifier.received[1].Title {
 		t.Fatalf("both branches produced title %q; the shared kind is only defensible while the title still separates the two causes", notifier.received[0].Title)
@@ -104,5 +106,14 @@ func TestNotifySeasonPastDownloadWindowNamesItsKind(t *testing.T) {
 	}
 	if got := notifier.received[0].Source; got != "season" {
 		t.Fatalf("Source = %q, want %q", got, "season")
+	}
+	// The body tells the user to download manually, so the record offers the Daily Board's own
+	// "Download now" operation behind a registered intent.
+	action := singleWholeNotificationAction(t, notifier.received[0])
+	if action.Label != "Download now" {
+		t.Fatalf("action label = %q, want %q", action.Label, "Download now")
+	}
+	if action.Intent != "season.download_now" {
+		t.Fatalf("action intent = %q, want season.download_now", action.Intent)
 	}
 }

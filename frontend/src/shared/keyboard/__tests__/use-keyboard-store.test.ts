@@ -13,14 +13,10 @@ describe('useKeyboardStore', () => {
     expect(result.current).toEqual({ frames: [], isHelpOpen: false, overrides: {}, keymapLoadState: 'pending' });
   });
 
-  it('projects the state through a selector', () => {
+  it('projects the state through a selector and re-renders once the store changes, proving it subscribes', () => {
     const { result } = renderHook(() => useKeyboardStore((state) => state.isHelpOpen));
 
     expect(result.current).toBe(false);
-  });
-
-  it('re-renders with the new value once the store changes, proving the hook actually subscribes', () => {
-    const { result } = renderHook(() => useKeyboardStore((state) => state.isHelpOpen));
 
     act(() => {
       setKeyboardHelpOpen(true);

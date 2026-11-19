@@ -30,20 +30,19 @@ func TestReasonNames(t *testing.T) {
 			ctx: Context{ProgressSet: true, Progress: 12, ExpectedNextSet: true, ExpectedNext: 13}, wantEp: 13},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got := New().Identify(Request{Entries: tc.entries, Context: tc.ctx})
-			if tc.wantBase == "" {
-				if got.Next != nil {
-					t.Fatalf("next = %+v, want abstention", got.Next)
-				}
-			} else if got.Next == nil || got.Next.Episode != tc.wantEp || got.Next.Basename != tc.wantBase {
-				t.Fatalf("next = %+v, want episode=%d basename=%q", got.Next, tc.wantEp, tc.wantBase)
+		got := New().Identify(Request{Entries: tc.entries, Context: tc.ctx})
+		if tc.wantBase == "" {
+			if got.Next != nil {
+				t.Errorf("%s: next = %+v, want abstention", tc.name, got.Next)
+				continue
 			}
-			assertReasonShape(t, got.Reason)
-			if token := "episode " + strconv.Itoa(tc.wantEp); !strings.Contains(got.Reason, token) {
-				t.Errorf("reason %q does not name %q", got.Reason, token)
-			}
-		})
+		} else if got.Next == nil || got.Next.Episode != tc.wantEp || got.Next.Basename != tc.wantBase {
+			t.Errorf("%s: next = %+v, want episode=%d basename=%q", tc.name, got.Next, tc.wantEp, tc.wantBase)
+			continue
+		}
+		assertReasonShape(t, tc.name, got.Reason)
+		if token := "episode " + strconv.Itoa(tc.wantEp); !strings.Contains(got.Reason, token) {
+			t.Errorf("%s: reason %q does not name %q", tc.name, got.Reason, token)
+		}
 	}
 }

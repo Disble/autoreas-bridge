@@ -3,23 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { KeymapPanelSkeleton } from '../KeymapPanelSkeleton';
 
 describe('KeymapPanelSkeleton', () => {
-  it('announces itself through a named live region, because role="status" takes its name from the author and would otherwise compute an empty one', () => {
+  it('announces a named live region over six placeholders that share the real row-shape class', () => {
     render(<KeymapPanelSkeleton />);
 
+    // role="status" takes its name from the author and would otherwise compute an empty one.
     const region = screen.getByRole('status');
 
     expect(region).toHaveAttribute('aria-live', 'polite');
     expect(region).toHaveAccessibleName('Loading keyboard shortcuts...');
-  });
-
-  it('renders six row-shaped placeholders, the count the panel reserves', () => {
-    render(<KeymapPanelSkeleton />);
-
     expect(screen.getAllByTestId('keymap-panel-skeleton-row')).toHaveLength(6);
-  });
-
-  it('gives every placeholder the same row-shape class the real row carries, which is what makes the height a measurable contract', () => {
-    render(<KeymapPanelSkeleton />);
 
     // Asserted as a literal rather than against KEYMAP_ROW_CLASS: a test that
     // reads the constant it is pinning passes even when the constant changes,

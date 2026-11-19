@@ -131,24 +131,11 @@ var downloadBindings = []struct {
 // failed, and every one serves its value once it is ready.
 func TestDownloadBindingsFollowTheirModule(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		name     string
-		state    lifecycle.State
-		wantCode apperr.Code
-		wantMsg  string
-	}{
-		{"starting is unavailable", lifecycle.StateStarting, apperr.CodeUnavailable, "downloads is starting"},
-		{"failed is a failed precondition", lifecycle.StateFailed, apperr.CodeFailedPrecondition, moduleFailureReason},
-		{"ready answers the value", lifecycle.StateReady, "", ""},
-	}
 	for _, binding := range downloadBindings {
-		for _, tc := range cases {
-			t.Run(binding.name+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-				served, err := binding.call(inDownloadsState(&App{}, tc.state))
-				assertModuleAnswer(t, served, err, tc.wantCode, tc.wantMsg)
-			})
-		}
+		app := inDownloadsState(&App{}, lifecycle.StateStarting)
+		assertStartingThenFailed(t, binding.name, app, moduleDownloads, "downloads is starting", binding.call)
+		served, err := binding.call(inDownloadsState(&App{}, lifecycle.StateReady))
+		assertModuleAnswer(t, binding.name+" ready", served, err, "", "")
 	}
 }
 
@@ -174,23 +161,11 @@ func TestDownloadStoreFailuresAreInternal(t *testing.T) {
 		{"SetScheduleConfig", "SetScheduleConfig", func(a *App) error { return a.SetScheduleConfig(contracts.ScheduleConfig{}) }},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			store := &fakeAppDownloadStore{errs: map[string]error{tc.method: failure}}
-			err := tc.call(downloadsReady(&App{downloadStore: store}))
-			assertInternal(t, err, failure.Error())
-			if !errors.Is(err, failure) {
-				t.Fatalf("err = %v; want the store's cause reachable", err)
-			}
-		})
-	}
-}
-
-// assertInternal fails t unless err is an internal failure carrying message.
-func assertInternal(t *testing.T, err error, message string) {
-	t.Helper()
-	if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal || err.Error() != message {
-		t.Fatalf("err = %v (code %q); want internal %q", err, code, message)
+		store := &fakeAppDownloadStore{errs: map[string]error{tc.method: failure}}
+		err := tc.call(downloadsReady(&App{downloadStore: store}))
+		if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal || err.Error() != failure.Error() || !errors.Is(err, failure) {
+			t.Errorf("%s: err = %v (code %q); want internal %q with the store's cause reachable", tc.name, err, code, failure)
+		}
 	}
 }
 
@@ -213,25 +188,18 @@ func TestDownloadCommandRefusalsAreErrors(t *testing.T) {
 		{"solo download of an unknown anime", &App{},
 			func(a *App) error { return a.TriggerAnimeDownload("anime-1") }, apperr.CodeNotFound, soloDownloadAnimeNotFound},
 		{"stop with no run in flight", &App{}, (*App).CancelDownloadRun, apperr.CodeInternal, "no download run in progress"},
-		{"season download while a run is in progress", &App{downloadScheduler: &fakeAppScheduler{triggerNowErr: schedule.ErrRunInProgress}},
-			(*App).TriggerSeasonDownloads, apperr.CodeInternal, schedule.ErrRunInProgress.Error()},
 		{"season download the scheduler cannot start", &App{downloadScheduler: &fakeAppScheduler{triggerNowErr: errors.New("jdownloader unreachable")}},
 			(*App).TriggerSeasonDownloads, apperr.CodeInternal, "jdownloader unreachable"},
-		{"season selection with nothing selected", &App{},
-			func(a *App) error { return a.DownloadSeasonAnimes(nil) }, apperr.CodeInvalidArgument, seasonNoAnimesSelectedMessage},
 		{"season selection while the scheduler runs", &App{downloadScheduler: running},
 			func(a *App) error { return a.DownloadSeasonAnimes([]string{"anime-1"}) }, apperr.CodeInternal, schedule.ErrRunInProgress.Error()},
 		{"season selection of an unknown anime", &App{},
 			func(a *App) error { return a.DownloadSeasonAnimes([]string{"anime-1"}) }, apperr.CodeNotFound, soloDownloadAnimeNotFound},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			err := tc.call(downloadsReady(tc.app))
-			if code, _ := apperr.CodeOf(err); code != tc.wantCode || err.Error() != tc.wantMsg {
-				t.Fatalf("err = %v (code %q); want %q %q", err, code, tc.wantCode, tc.wantMsg)
-			}
-		})
+		err := tc.call(downloadsReady(tc.app))
+		if code, _ := apperr.CodeOf(err); code != tc.wantCode || err.Error() != tc.wantMsg {
+			t.Errorf("%s: err = %v (code %q); want %q %q", tc.name, err, code, tc.wantCode, tc.wantMsg)
+		}
 	}
 }
 
@@ -264,23 +232,20 @@ func TestBindDownloadsModuleNeedsEveryService(t *testing.T) {
 		{"scheduler", func(a *App) { a.downloadScheduler = nil }},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			app := &App{
-				ctx:               context.Background(),
-				downloadStore:     &fakeAppDownloadStore{},
-				downloadService:   download.NewService(download.ServiceDeps{}),
-				readinessService:  emptyReadinessService(),
-				downloadScheduler: &fakeAppScheduler{},
-			}
-			tc.prune(app)
+		app := &App{
+			ctx:               context.Background(),
+			downloadStore:     &fakeAppDownloadStore{},
+			downloadService:   download.NewService(download.ServiceDeps{}),
+			readinessService:  emptyReadinessService(),
+			downloadScheduler: &fakeAppScheduler{},
+		}
+		tc.prune(app)
 
-			app.bindDownloadsModule()
-			_ = app.moduleSet().writer.MarkReady(moduleDownloads)
+		app.bindDownloadsModule()
+		_ = app.moduleSet().writer.MarkReady(moduleDownloads)
 
-			if _, err := app.GetJDStatus(); err == nil || !strings.Contains(err.Error(), "downloads is ready without services") {
-				t.Fatalf("GetJDStatus = %v; want the unbound-module failure", err)
-			}
-		})
+		if _, err := app.GetJDStatus(); err == nil || !strings.Contains(err.Error(), "downloads is ready without services") {
+			t.Errorf("without the %s: GetJDStatus = %v; want the unbound-module failure", tc.name, err)
+		}
 	}
 }

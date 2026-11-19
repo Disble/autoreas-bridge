@@ -60,38 +60,41 @@ func TestEpisodeReadsFollowTheEpisodesModule(t *testing.T) {
 		wantCode apperr.Code
 		wantMsg  string
 	}{
-		{"starting is unavailable", rows, lifecycle.StateStarting, 0, apperr.CodeUnavailable, "episodes is starting"},
-		{"failed is a failed precondition", rows, lifecycle.StateFailed, 0, apperr.CodeFailedPrecondition, "bridge database failed to open: locked"},
 		{"service error is internal", stubAppEpisodeService{err: errors.New("snapshot read failed")}, lifecycle.StateReady, 0, apperr.CodeInternal, "snapshot read failed"},
 		{"ready answers the rows", rows, lifecycle.StateReady, 1, "", ""},
 		{"ready empty day is an empty list", stubAppEpisodeService{}, lifecycle.StateReady, 0, "", ""},
 	}
 	for _, read := range episodeReads {
-		for _, tc := range cases {
-			t.Run(read.name+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-				service := tc.service // a copy per subtest: the stub records the day it was asked
-				rows, isNil, err := read.call(episodesApp(&service, tc.state))
+		service := rows
+		app := episodesApp(&service, lifecycle.StateStarting)
+		got, isNil, err := read.call(app)
+		assertEpisodeRead(t, read.name+" starting", got, isNil, err, 0, apperr.CodeUnavailable, "episodes is starting")
 
-				assertEpisodeRead(t, rows, isNil, err, tc.wantRows, tc.wantCode, tc.wantMsg)
-			})
+		inModuleState(app, moduleEpisodes, lifecycle.StateFailed)
+		got, isNil, err = read.call(app)
+		assertEpisodeRead(t, read.name+" failed", got, isNil, err, 0, apperr.CodeFailedPrecondition, "bridge database failed to open: locked")
+		for _, tc := range cases {
+			service := tc.service // a copy per case: the stub records the day it was asked
+			n, isNil, err := read.call(episodesApp(&service, tc.state))
+
+			assertEpisodeRead(t, read.name+" "+tc.name, n, isNil, err, tc.wantRows, tc.wantCode, tc.wantMsg)
 		}
 	}
 }
 
-// assertEpisodeRead checks one episodes read: a failure carries its code and message and no slice;
-// a success carries wantRows rows in a non-nil slice.
-func assertEpisodeRead(t *testing.T, rows int, isNil bool, err error, wantRows int, wantCode apperr.Code, wantMsg string) {
+// assertEpisodeRead checks, without stopping the test, the episodes read named label: a failure
+// carries its code and message and no slice; a success carries wantRows rows in a non-nil slice.
+func assertEpisodeRead(t *testing.T, label string, rows int, isNil bool, err error, wantRows int, wantCode apperr.Code, wantMsg string) {
 	t.Helper()
 	code, _ := apperr.CodeOf(err)
 	if code != wantCode || rows != wantRows {
-		t.Fatalf("got %d rows, code %q (err %v), want %d rows, code %q", rows, code, err, wantRows, wantCode)
+		t.Errorf("%s: got %d rows, code %q (err %v), want %d rows, code %q", label, rows, code, err, wantRows, wantCode)
 	}
 	if err != nil && (err.Error() != wantMsg || !isNil) {
-		t.Fatalf("err = %q with nil slice %t, want %q and no slice", err, isNil, wantMsg)
+		t.Errorf("%s: err = %q with nil slice %t, want %q and no slice", label, err, isNil, wantMsg)
 	}
 	if err == nil && isNil {
-		t.Fatal("a ready read answered a nil slice; the frontend needs [] for an empty day")
+		t.Errorf("%s: a ready read answered a nil slice; the frontend needs [] for an empty day", label)
 	}
 }
 
@@ -198,38 +201,45 @@ func TestEpisodeCommandsFollowTheEpisodesModule(t *testing.T) {
 		wantCode apperr.Code
 		wantMsg  string
 	}{
-		{"starting is unavailable", stubAppEpisodeService{}, lifecycle.StateStarting, apperr.CodeUnavailable, "episodes is starting"},
-		{"failed is a failed precondition", stubAppEpisodeService{}, lifecycle.StateFailed, apperr.CodeFailedPrecondition, "bridge database failed to open: locked"},
 		{"service error is internal", stubAppEpisodeService{err: errors.New("anime write failed")}, lifecycle.StateReady, apperr.CodeInternal, "anime write failed"},
 		{"ready answers the outcome", stubAppEpisodeService{}, lifecycle.StateReady, "", ""},
 	}
 	for _, command := range episodeCommands {
-		for _, tc := range cases {
-			t.Run(command.name+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-				service := tc.service // a copy per subtest: the stub records the command it received
-				got, err := command.call(episodesApp(&service, tc.state))
+		service := stubAppEpisodeService{}
+		app := episodesApp(&service, lifecycle.StateStarting)
+		got, err := command.call(app)
+		assertEpisodeCommand(t, command.name+" starting", got, err, apperr.CodeUnavailable, "episodes is starting")
 
-				assertEpisodeCommand(t, got, err, tc.wantCode, tc.wantMsg)
-				reachedService := tc.state == lifecycle.StateReady
-				if delegated := command.delegated(&service); (delegated == command.want) != reachedService {
-					t.Fatalf("service received %q; reached the service %t, want %t", delegated, delegated == command.want, reachedService)
-				}
-			})
+		inModuleState(app, moduleEpisodes, lifecycle.StateFailed)
+		got, err = command.call(app)
+		assertEpisodeCommand(t, command.name+" failed", got, err, apperr.CodeFailedPrecondition, "bridge database failed to open: locked")
+
+		if delegated := command.delegated(&service); delegated == command.want {
+			t.Errorf("%s: service received %q before the module was ready", command.name, delegated)
+		}
+		for _, tc := range cases {
+			service := tc.service // a copy per case: the stub records the command it received
+			got, err := command.call(episodesApp(&service, tc.state))
+
+			assertEpisodeCommand(t, command.name+" "+tc.name, got, err, tc.wantCode, tc.wantMsg)
+			reachedService := tc.state == lifecycle.StateReady
+			if delegated := command.delegated(&service); (delegated == command.want) != reachedService {
+				t.Errorf("%s %s: service received %q; reached the service %t, want %t", command.name, tc.name, delegated, delegated == command.want, reachedService)
+			}
 		}
 	}
 }
 
-// assertEpisodeCommand checks one episodes command: a failure carries its code and message and no
-// outcome; a success is the ok outcome for anime-1.
-func assertEpisodeCommand(t *testing.T, got contracts.EpisodeCommandResult, err error, wantCode apperr.Code, wantMsg string) {
+// assertEpisodeCommand checks, without stopping the test, the episodes command named label: a
+// failure carries its code and message and no outcome; a success is the ok outcome for anime-1.
+func assertEpisodeCommand(t *testing.T, label string, got contracts.EpisodeCommandResult, err error, wantCode apperr.Code, wantMsg string) {
 	t.Helper()
 	code, _ := apperr.CodeOf(err)
 	if code != wantCode || (err != nil && (err.Error() != wantMsg || got != contracts.EpisodeCommandResult{})) {
-		t.Fatalf("got %#v, code %q (err %v), want code %q %q and no outcome", got, code, err, wantCode, wantMsg)
+		t.Errorf("%s: got %#v, code %q (err %v), want code %q %q and no outcome", label, got, code, err, wantCode, wantMsg)
 	}
 	if err == nil && (got.Status != "ok" || got.AnimeID != "anime-1") {
-		t.Fatalf("got %#v, want the ok outcome for anime-1", got)
+		t.Errorf("%s: got %#v, want the ok outcome for anime-1", label, got)
 	}
 }
 

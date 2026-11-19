@@ -29,19 +29,14 @@ afterEach(() => {
 });
 
 describe('useKeyboardDispatcher', () => {
-  it('binds exactly one keydown listener on window', () => {
-    const addSpy = vi.spyOn(window, 'addEventListener');
-
-    renderHook(() => useKeyboardDispatcher(), { wrapper: routerWrapper });
-
-    expect(callsForEventType(addSpy, 'keydown')).toHaveLength(1);
-  });
-
-  it('removes the listener on unmount with the exact reference it was added with', () => {
+  it('binds exactly one keydown listener on window and removes that exact reference on unmount', () => {
     const addSpy = vi.spyOn(window, 'addEventListener');
     const removeSpy = vi.spyOn(window, 'removeEventListener');
 
     const { unmount } = renderHook(() => useKeyboardDispatcher(), { wrapper: routerWrapper });
+
+    expect(callsForEventType(addSpy, 'keydown')).toHaveLength(1);
+    expect(callsForEventType(removeSpy, 'keydown')).toHaveLength(0);
     const [, addedHandler] = callsForEventType(addSpy, 'keydown')[0] ?? [];
 
     unmount();

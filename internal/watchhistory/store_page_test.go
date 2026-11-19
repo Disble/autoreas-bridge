@@ -51,12 +51,9 @@ func TestClampPageLimitAppliesDefaultAndCeiling(t *testing.T) {
 		{name: "in-range passes through", limit: 10, want: 10},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if got := clampPageLimit(tc.limit); got != tc.want {
-				t.Fatalf("clampPageLimit(%d) = %d, want %d", tc.limit, got, tc.want)
-			}
-		})
+		if got := clampPageLimit(tc.limit); got != tc.want {
+			t.Errorf("%s: clampPageLimit(%d) = %d, want %d", tc.name, tc.limit, got, tc.want)
+		}
 	}
 }
 

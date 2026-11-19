@@ -101,18 +101,17 @@ func TestPageSearchMatchesAsciiCaseFoldedLikeEscapedSubstring(t *testing.T) {
 		{name: "underscore matches its literal text, excluding a different character", order: OrderNewestFirst, search: "a_b", want: []int64{3}},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Not t.Parallel(): these rows share one in-memory *sql.DB, and
-			// database/sql opens a second, separately-empty ":memory:"
-			// connection under concurrent load, which would flake this table.
-			page, err := store.Page(ctx, PageQuery{Limit: 10, Order: tc.order, Search: tc.search})
-			if err != nil {
-				t.Fatalf("page: %v", err)
-			}
-			if got := itemIDs(page); !slices.Equal(got, tc.want) {
-				t.Fatalf("item IDs = %v, want %v", got, tc.want)
-			}
-		})
+		// Not t.Parallel(): these rows share one in-memory *sql.DB, and
+		// database/sql opens a second, separately-empty ":memory:"
+		// connection under concurrent load, which would flake this table.
+		page, err := store.Page(ctx, PageQuery{Limit: 10, Order: tc.order, Search: tc.search})
+		if err != nil {
+			t.Errorf("%s: page: %v", tc.name, err)
+			continue
+		}
+		if got := itemIDs(page); !slices.Equal(got, tc.want) {
+			t.Errorf("%s: item IDs = %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }
 

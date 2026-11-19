@@ -103,11 +103,9 @@ func TestNormalizeFoldsEveryAccent(t *testing.T) {
 		{"Ñoño", "nono"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.in, func(t *testing.T) {
-			if got := Normalize(tc.in); got != tc.want {
-				t.Fatalf("Normalize(%q) = %q, want %q", tc.in, got, tc.want)
-			}
-		})
+		if got := Normalize(tc.in); got != tc.want {
+			t.Errorf("Normalize(%q) = %q, want %q", tc.in, got, tc.want)
+		}
 	}
 }
 

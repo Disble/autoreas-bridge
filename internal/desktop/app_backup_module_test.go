@@ -82,24 +82,11 @@ var backupBindings = []struct {
 // after it failed.
 func TestBackupBindingsFollowTheBackupModule(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		name     string
-		state    lifecycle.State
-		wantCode apperr.Code
-		wantMsg  string
-	}{
-		{"starting is unavailable", lifecycle.StateStarting, apperr.CodeUnavailable, "backup is starting"},
-		{"failed is a failed precondition", lifecycle.StateFailed, apperr.CodeFailedPrecondition, moduleFailureReason},
-		{"ready answers the value", lifecycle.StateReady, "", ""},
-	}
 	for _, binding := range backupBindings {
-		for _, tc := range cases {
-			t.Run(binding.name+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-				served, err := binding.call(t, backupApp(t, tc.state))
-				assertModuleAnswer(t, served, err, tc.wantCode, tc.wantMsg)
-			})
-		}
+		call := func(a *App) (bool, error) { return binding.call(t, a) }
+		assertStartingThenFailed(t, binding.name, backupApp(t, lifecycle.StateStarting), moduleBackup, "backup is starting", call)
+		served, err := binding.call(t, backupApp(t, lifecycle.StateReady))
+		assertModuleAnswer(t, binding.name+" ready", served, err, "", "")
 	}
 }
 
@@ -107,23 +94,21 @@ func TestBackupBindingsFollowTheBackupModule(t *testing.T) {
 // nothing: no restore point, and the pending preview it never read stays as it was.
 func TestConfirmBackupImportNotReadyKeepsThePendingPreview(t *testing.T) {
 	t.Parallel()
+	app := backupApp(t, lifecycle.StateStarting)
+	dbPath, _ := app.resolveBridgeDBPath()
+	checksum := previewedBundle(t, app)
+	pending := app.pendingBackupImport
 	for _, state := range []lifecycle.State{lifecycle.StateStarting, lifecycle.StateFailed} {
-		t.Run(string(state), func(t *testing.T) {
-			t.Parallel()
-			app := backupApp(t, state)
-			dbPath, _ := app.resolveBridgeDBPath()
-			checksum := previewedBundle(t, app)
-			pending := app.pendingBackupImport
+		inModuleState(app, moduleBackup, state)
 
-			if _, err := app.ConfirmBackupImport(checksum); err == nil {
-				t.Fatal("a module that is not ready confirmed an import")
-			}
+		if _, err := app.ConfirmBackupImport(checksum); err == nil {
+			t.Fatalf("%s: a module that is not ready confirmed an import", state)
+		}
 
-			if app.pendingBackupImport != pending {
-				t.Fatalf("pending preview = %+v, want it untouched", app.pendingBackupImport)
-			}
-			assertNoRestorePoint(t, dbPath)
-		})
+		if app.pendingBackupImport != pending {
+			t.Fatalf("%s: pending preview = %+v, want it untouched", state, app.pendingBackupImport)
+		}
+		assertNoRestorePoint(t, dbPath)
 	}
 }
 
@@ -161,20 +146,17 @@ func TestBackupServiceFailuresAreInternal(t *testing.T) {
 		}, pathFailure},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			app := backupApp(t, lifecycle.StateReady)
-			tc.breakIt(app)
+		app := backupApp(t, lifecycle.StateReady)
+		tc.breakIt(app)
 
-			err := tc.call(t, app)
+		err := tc.call(t, app)
 
-			if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal {
-				t.Fatalf("err = %v (code %q), want internal", err, code)
-			}
-			if tc.cause != nil && !errors.Is(err, tc.cause) {
-				t.Fatalf("err = %v, want it to carry %v", err, tc.cause)
-			}
-		})
+		if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal {
+			t.Errorf("%s: err = %v (code %q), want internal", tc.name, err, code)
+		}
+		if tc.cause != nil && !errors.Is(err, tc.cause) {
+			t.Errorf("%s: err = %v, want it to carry %v", tc.name, err, tc.cause)
+		}
 	}
 }
 
@@ -192,7 +174,7 @@ func TestBackupAnswersWhileSyncIsBroken(t *testing.T) {
 	for _, binding := range backupBindings {
 		t.Run(binding.name, func(t *testing.T) {
 			served, err := binding.call(t, app)
-			assertModuleAnswer(t, served, err, "", "")
+			assertModuleAnswer(t, binding.name, served, err, "", "")
 		})
 	}
 }

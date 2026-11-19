@@ -10,6 +10,7 @@ import {
   compactMetadataPatch,
   countMatchedWaitingForAvailability,
   countSearchFailed,
+  formatMatchingProgress,
   countUnresolved,
   isCreatableRow,
   deriveIntakeDownloadFolder,
@@ -410,5 +411,23 @@ describe('pickRowEntries', () => {
 
   it('narrows every entry away when no row is left', () => {
     expect(pickRowEntries({ 'sa-1': 'one' }, new Set<string>())).toEqual({});
+  });
+});
+
+describe('formatMatchingProgress', () => {
+  it('reports nothing while no run is in flight', () => {
+    expect(formatMatchingProgress(null)).toBeUndefined();
+  });
+
+  it('names the name-matching phase with its counts', () => {
+    expect(formatMatchingProgress({ total: 4, resolvedInPhase: 1, phase: 'name_matching' })).toBe(
+      'Matching names… 1 of 4',
+    );
+  });
+
+  it('names the availability check instead of the matching while episodes are checked', () => {
+    expect(formatMatchingProgress({ total: 4, resolvedInPhase: 2, phase: 'availability_check' })).toBe(
+      'Checking episode availability… 2 checked',
+    );
   });
 });

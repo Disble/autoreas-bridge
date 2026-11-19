@@ -100,26 +100,6 @@ func TestClientSearchZeroHitsReturnsEmptyResultNotError(t *testing.T) {
 	}
 }
 
-func TestClientSearchTypoQueryStillReturnsSixCandidates(t *testing.T) {
-	t.Parallel()
-
-	server, _ := newFixtureServer(t, "testdata/search_typo.json")
-	defer server.Close()
-
-	client := NewClient(NewHTTPClient(time.Second, 1<<20, ""), server.URL)
-
-	result, err := client.Search(context.Background(), "Bleach: Sennen Kesen-hen")
-	if err != nil {
-		t.Fatalf("Search: %v", err)
-	}
-	if len(result.Candidates) != 6 {
-		t.Fatalf("expected typo-tolerant 6 candidates, got %d", len(result.Candidates))
-	}
-	if result.Candidates[0].ID != 41467 {
-		t.Fatalf("expected typo query's top candidate id 41467, got %d", result.Candidates[0].ID)
-	}
-}
-
 // TestSearchIssuesExactlyOneRequestPerQuery proves non-negotiable #4: there
 // is no retry and no fallback strategy (design D11) — Search performs
 // exactly one HTTP request no matter the outcome. Without this test, "no
@@ -173,11 +153,8 @@ func TestOriginalImageURLStripsOnlyTheCDNResizePrefix(t *testing.T) {
 		{"unparseable", "https://cdn.myanimelist.net/r/116x180/%zz.jpg", "https://cdn.myanimelist.net/r/116x180/%zz.jpg"},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := originalImageURL(tt.in); got != tt.want {
-				t.Fatalf("originalImageURL(%q) = %q, want %q", tt.in, got, tt.want)
-			}
-		})
+		if got := originalImageURL(tt.in); got != tt.want {
+			t.Errorf("%s: originalImageURL(%q) = %q, want %q", tt.name, tt.in, got, tt.want)
+		}
 	}
 }

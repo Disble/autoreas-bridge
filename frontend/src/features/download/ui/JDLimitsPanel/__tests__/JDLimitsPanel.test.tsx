@@ -39,12 +39,19 @@ describe('JDLimitsPanel', () => {
     expect(screen.getByRole('status', { name: 'Loading JDownloader download limit' })).toBeInTheDocument();
   });
 
-  it('shows the configured limit', () => {
-    mockHook({ maxSimultaneousDownloads: 3 });
+  // The panel is deliberately read-only: writing the setting needs the MyJDownloader
+  // /config API, which the client does not implement yet.
+  it('shows the configured limit read-only and re-reads it when refresh is pressed', () => {
+    const value = mockHook({ maxSimultaneousDownloads: 3 });
 
     render(<JDLimitsPanel />);
 
     expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+
+    expect(value.refresh).toHaveBeenCalled();
   });
 
   // An unreadable setting must not render as "0": that reads as a real limit and would
@@ -66,31 +73,11 @@ describe('JDLimitsPanel', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('cfg unreadable');
   });
 
-  it('re-reads the setting when refresh is pressed', () => {
-    const value = mockHook();
-
-    render(<JDLimitsPanel />);
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
-
-    expect(value.refresh).toHaveBeenCalled();
-  });
-
   it('disables refresh while a read is in flight', () => {
     mockHook({ isRefreshing: true });
 
     render(<JDLimitsPanel />);
 
     expect(screen.getByRole('button', { name: 'Refreshing…' })).toBeDisabled();
-  });
-
-  // The panel is deliberately read-only: writing the setting needs the MyJDownloader
-  // /config API, which the client does not implement yet.
-  it('offers no control that edits the setting', () => {
-    mockHook();
-
-    render(<JDLimitsPanel />);
-
-    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 });

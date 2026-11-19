@@ -88,37 +88,6 @@ func TestServiceNotifyPersistFailureStillDispatches(t *testing.T) {
 	}
 }
 
-func TestServiceNotifyPersistSuccessDispatchesAndReturnsNil(t *testing.T) {
-	t.Parallel()
-
-	db := openBootstrappedTestDB(t)
-	store := NewStore(db, StoreConfig{})
-	spy := &spyNotifier{}
-	svc := Wrap(spy, store)
-
-	want := notification.Notification{
-		Title:  "download finished",
-		Body:   "One Piece is ready",
-		Level:  notification.LevelSuccess,
-		Source: "download",
-	}
-	err := svc.Notify(context.Background(), want)
-
-	if err != nil {
-		t.Fatalf("expected Notify to return nil on persist success, got %v", err)
-	}
-	if len(spy.calls) != 1 {
-		t.Fatalf("expected the wrapped notifier to be invoked exactly once, got %d calls", len(spy.calls))
-	}
-	// Rows/Actions are slices, so Notification is no longer comparable via == -- DeepEqual is the
-	// direct replacement, not a weaker check: both nil-vs-nil and populated-vs-populated compare
-	// correctly, unlike a field-by-field comparison that would need updating every time
-	// Notification grows another field.
-	if !reflect.DeepEqual(spy.calls[0], want) {
-		t.Fatalf("expected the wrapped notifier to receive the identical Notification value, got %#v", spy.calls[0])
-	}
-}
-
 // TestServiceNotifyUnopenedDBDegradesWithoutPanic mirrors
 // app_test_helpers_test.go:30's exact bare &sql.DB{} shape (used by every
 // app package test that never opens a real bridge database).
@@ -146,11 +115,12 @@ func TestServiceNotifyUnopenedDBDegradesWithoutPanic(t *testing.T) {
 	}
 }
 
-// TestNotifyConvertsProducerAttachedRowsAndActionsIntoPersistedRecord is the mandatory port-
+// TestNotifyDispatchesAndPersistsProducerAttachedRowsAndActions is the mandatory port-
 // conversion guard: a Notification carrying producer-attached DetailItems/ActionSpecs must
 // persist as a Record whose Rows/Actions reflect them, with a freshly generated Action.ID --
-// dropping a row or an action here must fail this test.
-func TestNotifyConvertsProducerAttachedRowsAndActionsIntoPersistedRecord(t *testing.T) {
+// dropping a row or an action here must fail this test. The persist success returns nil and
+// hands the wrapped notifier the identical Notification exactly once.
+func TestNotifyDispatchesAndPersistsProducerAttachedRowsAndActions(t *testing.T) {
 	t.Parallel()
 
 	db := openBootstrappedTestDB(t)
@@ -173,7 +143,15 @@ func TestNotifyConvertsProducerAttachedRowsAndActionsIntoPersistedRecord(t *test
 	}
 
 	if err := svc.Notify(context.Background(), n); err != nil {
-		t.Fatalf("Notify: %v", err)
+		t.Fatalf("expected Notify to return nil on persist success, got %v", err)
+	}
+	if len(spy.calls) != 1 {
+		t.Fatalf("expected the wrapped notifier to be invoked exactly once, got %d calls", len(spy.calls))
+	}
+	// Rows/Actions are slices, so Notification is not comparable via == -- DeepEqual
+	// compares nil-vs-nil and populated-vs-populated alike.
+	if !reflect.DeepEqual(spy.calls[0], n) {
+		t.Fatalf("expected the wrapped notifier to receive the identical Notification value, got %#v", spy.calls[0])
 	}
 
 	page, err := store.List(context.Background(), ListQuery{View: ViewActive, Limit: 10})
@@ -188,6 +166,14 @@ func TestNotifyConvertsProducerAttachedRowsAndActionsIntoPersistedRecord(t *test
 		t.Fatalf("Record: found=%v err=%v", found, err)
 	}
 
+	assertPersistedProducerRows(t, record)
+	assertPersistedProducerActions(t, record)
+}
+
+// assertPersistedProducerRows checks that a persisted record keeps both producer-attached
+// rows with their ref, name and status.
+func assertPersistedProducerRows(t *testing.T, record Record) {
+	t.Helper()
 	if len(record.Rows) != 2 {
 		t.Fatalf("persisted %d rows, want 2 -- dropping a row must fail this test", len(record.Rows))
 	}
@@ -197,7 +183,12 @@ func TestNotifyConvertsProducerAttachedRowsAndActionsIntoPersistedRecord(t *test
 	if record.Rows[1].Ref.ID != "anime-2" || record.Rows[1].Status != "manual" {
 		t.Fatalf("row[1] = %#v, want it to carry the producer's ref/status", record.Rows[1])
 	}
+}
 
+// assertPersistedProducerActions checks that a persisted record keeps the producer-attached
+// action with a freshly generated id and the producer's label, intent and args.
+func assertPersistedProducerActions(t *testing.T, record Record) {
+	t.Helper()
 	if len(record.Actions) != 1 {
 		t.Fatalf("persisted %d actions, want 1 -- dropping an action must fail this test", len(record.Actions))
 	}

@@ -137,38 +137,11 @@ describe('useAnimeMetadataLookup', () => {
     });
   });
 
-  describe('cache hit -- non-negotiable #9', () => {
-    it('issues no request for a query already resolved once its normalized form is cached', async () => {
+  describe('one search session -- non-negotiable #9 and #5', () => {
+    it('skips a sub-minimum query, coalesces rapid changes, hits the cache, and fetches detail only on confirm', async () => {
       const search = vi.fn().mockResolvedValue(searchResult([candidate(1, 'Bleach: Sennen Kessen-hen')]));
-      const source = createFakeSource({ SearchMyAnimeList: search });
-      const { result } = renderHook(() => useAnimeMetadataLookup('', source));
-
-      act(() => {
-        result.current.onQueryChange('bleach');
-      });
-      advancePastDebounce();
-      await flushMicrotasks();
-
-      expect(search).toHaveBeenCalledTimes(1);
-      expect(result.current.state).toBe('resolved');
-
-      // Re-typing a differently-cased, differently-spaced form of the same
-      // normalized query must hit the cache, not the source.
-      act(() => {
-        result.current.onQueryChange('  Bleach  ');
-      });
-      advancePastDebounce();
-      await flushMicrotasks();
-
-      expect(search).toHaveBeenCalledTimes(1);
-      expect(result.current.candidates).toEqual([candidate(1, 'Bleach: Sennen Kessen-hen')]);
-    });
-  });
-
-  describe('sub-minimum query -- non-negotiable #9 and #5 (frontend half)', () => {
-    it('issues no request and settles to idle for a query below the script-aware floor', async () => {
-      const search = vi.fn().mockResolvedValue(searchResult([]));
-      const source = createFakeSource({ SearchMyAnimeList: search });
+      const detail = vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok' } satisfies MyAnimeListDetailResultDTO);
+      const source = createFakeSource({ SearchMyAnimeList: search, GetMyAnimeListDetail: detail });
       const { result } = renderHook(() => useAnimeMetadataLookup('', source));
 
       act(() => {
@@ -180,21 +153,7 @@ describe('useAnimeMetadataLookup', () => {
       expect(search).not.toHaveBeenCalled();
       expect(result.current.state).toBe('idle');
       expect(result.current.candidates).toEqual([]);
-    });
-  });
 
-  describe('debounce coalescing', () => {
-    it('issues exactly one request for the final query after several rapid changes', async () => {
-      const search = vi.fn().mockResolvedValue(searchResult([candidate(1, 'Bleach: Sennen Kessen-hen')]));
-      const source = createFakeSource({ SearchMyAnimeList: search });
-      const { result } = renderHook(() => useAnimeMetadataLookup('', source));
-
-      act(() => {
-        result.current.onQueryChange('bl');
-      });
-      act(() => {
-        vi.advanceTimersByTime(METADATA_LOOKUP_DEBOUNCE_MS - 50);
-      });
       act(() => {
         result.current.onQueryChange('ble');
       });
@@ -209,22 +168,19 @@ describe('useAnimeMetadataLookup', () => {
 
       expect(search).toHaveBeenCalledTimes(1);
       expect(search).toHaveBeenCalledWith('bleach');
-    });
-  });
+      expect(result.current.state).toBe('resolved');
+      expect(detail).not.toHaveBeenCalled();
 
-  describe('detail fetch gated on confirmation -- non-negotiable #5 (hook half)', () => {
-    it('calls GetMyAnimeListDetail through no path other than confirmCandidate', async () => {
-      const detail = vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok' } satisfies MyAnimeListDetailResultDTO);
-      const source = createFakeSource({ GetMyAnimeListDetail: detail });
-      const { result } = renderHook(() => useAnimeMetadataLookup('', source));
-
+      // Re-typing a differently-cased, differently-spaced form of the same
+      // normalized query must hit the cache, not the source.
       act(() => {
-        result.current.onQueryChange('bleach');
+        result.current.onQueryChange('  Bleach  ');
       });
       advancePastDebounce();
       await flushMicrotasks();
 
-      expect(detail).not.toHaveBeenCalled();
+      expect(search).toHaveBeenCalledTimes(1);
+      expect(result.current.candidates).toEqual([candidate(1, 'Bleach: Sennen Kessen-hen')]);
 
       await act(async () => {
         await result.current.confirmCandidate(41467);
@@ -235,10 +191,15 @@ describe('useAnimeMetadataLookup', () => {
   });
 
   describe('name pre-fill, first-open-only', () => {
-    it('seeds the query from the passed-in name only on the first open', async () => {
+    it('seeds the query from the latest name prop on the first open only', async () => {
       const search = vi.fn().mockResolvedValue(searchResult([candidate(1, 'Bleach: Sennen Kessen-hen')]));
       const source = createFakeSource({ SearchMyAnimeList: search });
-      const { result } = renderHook(() => useAnimeMetadataLookup('Bleach: Sennen Kessen-hen', source));
+      const { result, rerender } = renderHook(
+        ({ name }: { name: string }) => useAnimeMetadataLookup(name, source),
+        { initialProps: { name: 'Old Name' } },
+      );
+
+      rerender({ name: 'Bleach: Sennen Kessen-hen' });
 
       act(() => {
         result.current.onOpenChange(true);
@@ -268,9 +229,12 @@ describe('useAnimeMetadataLookup', () => {
     });
   });
 
-  describe('a failed source call', () => {
-    it('moves the state to failed rather than to resolved with empty candidates', async () => {
-      const search = vi.fn().mockResolvedValue({ outcome: 'error', message: 'MyAnimeList changed its page at "Type:"' } satisfies MyAnimeListSearchResultDTO);
+  describe('search outcomes', () => {
+    it('moves to failed on an error outcome, then resolves a zero-candidate no_op with no error message', async () => {
+      const search = vi
+        .fn()
+        .mockResolvedValueOnce({ outcome: 'error', message: 'MyAnimeList changed its page at "Type:"' } satisfies MyAnimeListSearchResultDTO)
+        .mockResolvedValueOnce({ outcome: 'no_op', message: 'no MyAnimeList matches found' } satisfies MyAnimeListSearchResultDTO);
       const source = createFakeSource({ SearchMyAnimeList: search });
       const { result } = renderHook(() => useAnimeMetadataLookup('', source));
 
@@ -283,25 +247,30 @@ describe('useAnimeMetadataLookup', () => {
       expect(result.current.state).toBe('failed');
       expect(result.current.candidates).toEqual([]);
       expect(result.current.errorMessage).toBe('MyAnimeList changed its page at "Type:"');
+
+      act(() => {
+        result.current.onQueryChange('shokuguemi no soma');
+      });
+      advancePastDebounce();
+      await flushMicrotasks();
+
+      expect(result.current.state).toBe('resolved');
+      expect(result.current.candidates).toEqual([]);
+      expect(result.current.errorMessage).toBe('');
     });
   });
 
   describe('initial and in-flight snapshots', () => {
-    it('starts idle, with an empty query, before any interaction', () => {
-      const source = createFakeSource();
+    it('starts idle with an empty query, then reports loading with no candidates or error while in flight', async () => {
+      const pending = createDeferred<MyAnimeListSearchResultDTO>();
+      const search = vi.fn().mockReturnValue(pending.promise);
+      const source = createFakeSource({ SearchMyAnimeList: search });
       const { result } = renderHook(() => useAnimeMetadataLookup('', source));
 
       expect(result.current.query).toBe('');
       expect(result.current.state).toBe('idle');
       expect(result.current.candidates).toEqual([]);
       expect(result.current.errorMessage).toBe('');
-    });
-
-    it('reports loading, with no candidates and no error message, while a request is in flight', async () => {
-      const pending = createDeferred<MyAnimeListSearchResultDTO>();
-      const search = vi.fn().mockReturnValue(pending.promise);
-      const source = createFakeSource({ SearchMyAnimeList: search });
-      const { result } = renderHook(() => useAnimeMetadataLookup('', source));
 
       act(() => {
         result.current.onQueryChange('bleach');
@@ -318,30 +287,14 @@ describe('useAnimeMetadataLookup', () => {
     });
   });
 
-  describe('a zero-candidate search -- AnimePatchOutcomeNoOp', () => {
-    it('resolves with an empty candidate list rather than failing, and carries no error message', async () => {
-      const search = vi.fn().mockResolvedValue({ outcome: 'no_op', message: 'no MyAnimeList matches found' } satisfies MyAnimeListSearchResultDTO);
-      const source = createFakeSource({ SearchMyAnimeList: search });
-      const { result } = renderHook(() => useAnimeMetadataLookup('', source));
-
-      act(() => {
-        result.current.onQueryChange('shokuguemi no soma');
-      });
-      advancePastDebounce();
-      await flushMicrotasks();
-
-      expect(result.current.state).toBe('resolved');
-      expect(result.current.candidates).toEqual([]);
-      expect(result.current.errorMessage).toBe('');
-    });
-  });
-
   describe('reacting to a changed source across re-renders', () => {
-    it('runs a new search through the latest source rather than a stale closure', async () => {
+    it('searches and confirms through the latest source rather than a stale closure', async () => {
       const staleSearch = vi.fn().mockResolvedValue(searchResult([candidate(1, 'Stale')]));
       const freshSearch = vi.fn().mockResolvedValue(searchResult([candidate(2, 'Fresh')]));
-      const staleSource = createFakeSource({ SearchMyAnimeList: staleSearch });
-      const freshSource = createFakeSource({ SearchMyAnimeList: freshSearch });
+      const staleDetail = vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok' } satisfies MyAnimeListDetailResultDTO);
+      const freshDetail = vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok' } satisfies MyAnimeListDetailResultDTO);
+      const staleSource = createFakeSource({ SearchMyAnimeList: staleSearch, GetMyAnimeListDetail: staleDetail });
+      const freshSource = createFakeSource({ SearchMyAnimeList: freshSearch, GetMyAnimeListDetail: freshDetail });
       const { result, rerender } = renderHook(
         ({ source }: { source: AnimeMetadataLookupSource }) => useAnimeMetadataLookup('', source),
         { initialProps: { source: staleSource } },
@@ -358,19 +311,6 @@ describe('useAnimeMetadataLookup', () => {
       expect(staleSearch).not.toHaveBeenCalled();
       expect(freshSearch).toHaveBeenCalledWith('bleach');
       expect(result.current.candidates).toEqual([candidate(2, 'Fresh')]);
-    });
-
-    it('confirms a candidate through the latest source rather than a stale closure', async () => {
-      const staleDetail = vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok' } satisfies MyAnimeListDetailResultDTO);
-      const freshDetail = vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok' } satisfies MyAnimeListDetailResultDTO);
-      const staleSource = createFakeSource({ GetMyAnimeListDetail: staleDetail });
-      const freshSource = createFakeSource({ GetMyAnimeListDetail: freshDetail });
-      const { result, rerender } = renderHook(
-        ({ source }: { source: AnimeMetadataLookupSource }) => useAnimeMetadataLookup('', source),
-        { initialProps: { source: staleSource } },
-      );
-
-      rerender({ source: freshSource });
 
       await act(async () => {
         await result.current.confirmCandidate(41467);
@@ -378,25 +318,6 @@ describe('useAnimeMetadataLookup', () => {
 
       expect(staleDetail).not.toHaveBeenCalled();
       expect(freshDetail).toHaveBeenCalledExactlyOnceWith(41467);
-    });
-  });
-
-  describe('reacting to a changed name across re-renders before the first open', () => {
-    it('seeds the query from the latest name prop rather than a stale one', () => {
-      const search = vi.fn().mockResolvedValue(searchResult([]));
-      const source = createFakeSource({ SearchMyAnimeList: search });
-      const { result, rerender } = renderHook(
-        ({ name }: { name: string }) => useAnimeMetadataLookup(name, source),
-        { initialProps: { name: 'Old Name' } },
-      );
-
-      rerender({ name: 'New Name' });
-
-      act(() => {
-        result.current.onOpenChange(true);
-      });
-
-      expect(result.current.query).toBe('New Name');
     });
   });
 

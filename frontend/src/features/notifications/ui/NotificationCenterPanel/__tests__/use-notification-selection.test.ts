@@ -20,34 +20,22 @@ function renderSelection(input: NotificationSelectionInput) {
 }
 
 describe('useNotificationSelection', () => {
-  it('starts with an empty selection', () => {
+  it('starts empty, counts a key set, resolves "all" to every row, and clears', () => {
     const { result } = renderSelection({ source: createCenterSource(), rows: ROWS, onMutated: vi.fn() });
 
     expect(result.current.selectedCount).toBe(0);
-  });
-
-  it('reports the selected count for a concrete key set', () => {
-    const { result } = renderSelection({ source: createCenterSource(), rows: ROWS, onMutated: vi.fn() });
 
     act(() => {
       result.current.onSelectionChange(new Set([1, 2]));
     });
 
     expect(result.current.selectedCount).toBe(2);
-  });
-
-  it('resolves an "all" selection to every currently loaded row', () => {
-    const { result } = renderSelection({ source: createCenterSource(), rows: ROWS, onMutated: vi.fn() });
 
     act(() => {
       result.current.onSelectionChange('all');
     });
 
     expect(result.current.selectedCount).toBe(ROWS.length);
-  });
-
-  it('onClearSelection resets the selection to empty', () => {
-    const { result } = renderSelection({ source: createCenterSource(), rows: ROWS, onMutated: vi.fn() });
 
     act(() => {
       result.current.onSelectionChange(new Set([1]));
@@ -114,28 +102,20 @@ describe('useNotificationSelection', () => {
     expect(result.current.selectedCount).toBe(0);
   });
 
-  it('onRestore is a no-op when nothing is selected', () => {
+  it('onRestore and onMarkRead are no-ops when nothing is selected', () => {
     const restore = vi.fn();
+    const markRead = vi.fn();
     const onMutated = vi.fn();
-    const { result } = renderSelection({ source: createCenterSource({ restore }), rows: ROWS, onMutated });
+    const { result } = renderSelection({ source: createCenterSource({ restore, markRead }), rows: ROWS, onMutated });
 
     act(() => {
       result.current.onRestore();
     });
-
-    expect(restore).not.toHaveBeenCalled();
-    expect(onMutated).not.toHaveBeenCalled();
-  });
-
-  it('onMarkRead is a no-op when nothing is selected', () => {
-    const markRead = vi.fn();
-    const onMutated = vi.fn();
-    const { result } = renderSelection({ source: createCenterSource({ markRead }), rows: ROWS, onMutated });
-
     act(() => {
       result.current.onMarkRead();
     });
 
+    expect(restore).not.toHaveBeenCalled();
     expect(markRead).not.toHaveBeenCalled();
     expect(onMutated).not.toHaveBeenCalled();
   });

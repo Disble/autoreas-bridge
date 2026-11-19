@@ -106,9 +106,10 @@ describe('SelectionBoard', () => {
     vi.clearAllMocks();
   });
 
-  it('shows the waiting empty state and hides the status chips and confirm while there are no candidates', () => {
+  it('shows the waiting empty state without chips or confirm, and navigates to Evaluation', () => {
+    const onNavigate = vi.fn();
     mockHook();
-    const { container } = render(<SelectionBoard onNavigate={vi.fn()} />);
+    const { container } = render(<SelectionBoard onNavigate={onNavigate} />);
     expect(screen.getByText('No candidates to select yet')).toBeInTheDocument();
     expect(container.querySelector('img')?.className).toContain(AIRIS_WAITING_ARTWORK_CLASS);
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
@@ -117,34 +118,22 @@ describe('SelectionBoard', () => {
     expect(screen.queryByRole('button', { name: 'Confirm selection' })).not.toBeInTheDocument();
     expect(screen.getByText('Minimum approval grade')).toBeInTheDocument();
     expect(screen.getByText('Slots')).toBeInTheDocument();
-  });
 
-  it('offers navigation to Evaluation while keeping the selection controls', () => {
-    const onNavigate = vi.fn();
-    mockHook();
-    render(<SelectionBoard onNavigate={onNavigate} />);
-    expect(screen.getByText('Minimum approval grade')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Go to Evaluation' }));
     expect(onNavigate).toHaveBeenCalledWith('evaluation');
   });
 
-  it('shows the store error only when there is one', () => {
+  it('shows the store error alone, with no empty candidates card, and no alert without one', () => {
     mockHook({ errorMessage: 'season load failed' });
     render(<SelectionBoard onNavigate={vi.fn()} />);
     expect(screen.getByText('season load failed')).toBeInTheDocument();
     expect(screen.queryByText('No candidates to select yet')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Selection candidates' })).not.toBeInTheDocument();
     cleanup();
 
     mockHook();
     render(<SelectionBoard onNavigate={vi.fn()} />);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-  });
-
-  it('shows only the error, with no empty candidates card, when there are no rows and an error', () => {
-    mockHook({ errorMessage: 'season load failed' });
-    render(<SelectionBoard onNavigate={vi.fn()} />);
-    expect(screen.getByText('season load failed')).toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: 'Selection candidates' })).not.toBeInTheDocument();
   });
 
   it('keeps populated rows visible and suppresses the empty state when an action error exists', () => {
@@ -169,12 +158,6 @@ describe('SelectionBoard', () => {
     expect(screen.queryByText('No candidates to select yet')).not.toBeInTheDocument();
   });
 
-  it('renders the decision header with grade, slots and quota', () => {
-    mockHook({ approvedCount: 9, rows: [selRow()] });
-    render(<SelectionBoard onNavigate={vi.fn()} />);
-    expect(screen.getByText('9 / 12 approved')).toBeInTheDocument();
-  });
-
   it.each([undefined, null, 0])('shows "Not confirmed yet" without a date when the confirmation is absent (%s)', (absent) => {
     mockHook({ rows: [selRow()], approvedCount: 1, selectionConfirmedAt: absent });
     render(<SelectionBoard onNavigate={vi.fn()} />);
@@ -191,16 +174,19 @@ describe('SelectionBoard', () => {
     expect(screen.getByText(`Confirmed ${new Date(ms).toLocaleString()}`).closest('.chip')).toHaveClass('chip--success');
   });
 
-  it.each([
-    ['Decrease minimum approval grade', 'onSetMinApprovalGrade', 3],
-    ['Increase minimum approval grade', 'onSetMinApprovalGrade', 5],
-    ['Decrease slots', 'onSetSlots', 11],
-    ['Increase slots', 'onSetSlots', 13],
-  ] as const)('%s steps its rule by one', (name, handler, next) => {
-    const hook = mockHook({ rows: [selRow()] });
+  it('renders the decision header quota, then steps each rule by one from its stepper', () => {
+    const hook = mockHook({ approvedCount: 9, rows: [selRow()] });
     render(<SelectionBoard onNavigate={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name }));
-    expect(hook[handler]).toHaveBeenCalledWith(next);
+    expect(screen.getByText('9 / 12 approved')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Decrease minimum approval grade' }));
+    expect(hook.onSetMinApprovalGrade).toHaveBeenLastCalledWith(3);
+    fireEvent.click(screen.getByRole('button', { name: 'Increase minimum approval grade' }));
+    expect(hook.onSetMinApprovalGrade).toHaveBeenLastCalledWith(5);
+    fireEvent.click(screen.getByRole('button', { name: 'Decrease slots' }));
+    expect(hook.onSetSlots).toHaveBeenLastCalledWith(11);
+    fireEvent.click(screen.getByRole('button', { name: 'Increase slots' }));
+    expect(hook.onSetSlots).toHaveBeenLastCalledWith(13);
   });
 
   it.each([
@@ -223,19 +209,8 @@ describe('SelectionBoard', () => {
     expect(screen.queryByRole('button', { name: 'Confirm selection' })).not.toBeInTheDocument();
   });
 
-  it('confirms through the modal, summarizing approved and rejected counts', async () => {
-    const hook = mockHook({ rows: MIXED_ROWS, approvedCount: 2, quota: 'under' });
-    render(<SelectionBoard onNavigate={vi.fn()} />);
-    const dialog = await openConfirmDialog();
-    expect(within(dialog).getByText(/^2 approved · 1 rejected\./)).toBeInTheDocument();
-    expect(within(dialog).queryByText(/Over quota/)).not.toBeInTheDocument();
-
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply reconciliation' }));
-    expect(hook.onConfirm).toHaveBeenCalledTimes(1);
-  });
-
-  it.each(['under', 'at'] as const)('keeps the over-quota warning out of the modal when the quota is %s', async (quota) => {
-    mockHook({ rows: MIXED_ROWS, approvedCount: 2, slots: 2, quota });
+  it('keeps the over-quota warning out of the modal when the quota is at', async () => {
+    mockHook({ rows: MIXED_ROWS, approvedCount: 2, slots: 2, quota: 'at' });
     render(<SelectionBoard onNavigate={vi.fn()} />);
     const dialog = await openConfirmDialog();
     expect(within(dialog).queryByText(/Over quota/)).not.toBeInTheDocument();
@@ -248,8 +223,8 @@ describe('SelectionBoard', () => {
     expect(within(dialog).getByText(/Over quota \(2 \/ 1\)/)).toBeInTheDocument();
   });
 
-  it('groups the candidates under Approved and Rejected with their counts, each in row order', () => {
-    mockHook({ rows: MIXED_ROWS, approvedCount: 2 });
+  it('groups candidates with covers, grades and the toolbar, then confirms through the modal', async () => {
+    const hook = mockHook({ rows: MIXED_ROWS, approvedCount: 2, quota: 'under' });
     render(<SelectionBoard onNavigate={vi.fn()} />);
     const approved = screen.getByRole('list', { name: 'Approved · 2 / 2' });
     const rejected = screen.getByRole('list', { name: 'Rejected · 1 / 1' });
@@ -259,33 +234,23 @@ describe('SelectionBoard', () => {
     ]);
     expect(within(rejected).getAllByRole('listitem')).toHaveLength(1);
     expect(within(rejected).getByText('Black Torch')).toBeInTheDocument();
-  });
 
-  it('shows each candidate cover and grade, with None for an ungraded one', () => {
-    mockHook({ rows: MIXED_ROWS, approvedCount: 2 });
-    render(<SelectionBoard onNavigate={vi.fn()} />);
+    // Each candidate shows its cover and grade, with None for an ungraded one.
     const items = screen.getAllByRole('listitem');
     expect(items.map((item) => item.querySelector('img')?.getAttribute('src'))).toEqual(['data:anime-a1', 'data:anime-a2', 'data:anime-r1']);
     expect(items.map((item) => within(item).getByTestId('selection-grade').textContent)).toEqual(['6', '1', 'None']);
-  });
 
-  it('places the grade before the consideration control and the actions', () => {
-    mockHook({ rows: [DR_STONE], approvedCount: 1 });
-    render(<SelectionBoard onNavigate={vi.fn()} />);
-    const item = screen.getByRole('listitem');
-    const grade = within(item).getByTestId('selection-grade');
-
-    expect(grade.nextElementSibling?.querySelector('[aria-label^="Consideration for"]')).not.toBeNull();
-    expect(grade.parentElement?.lastElementChild?.textContent).not.toBe(grade.textContent);
-  });
-
-  it('renders the filter toolbar with the visible count and the view-only scope', () => {
-    mockHook({ rows: MIXED_ROWS, approvedCount: 2 });
-    render(<SelectionBoard onNavigate={vi.fn()} />);
-
+    // The filter toolbar shows the visible count and the view-only scope.
     expect(screen.getByRole('button', { name: 'Filters' })).toBeInTheDocument();
     expect(screen.getByText('3 of 3 candidates')).toBeInTheDocument();
     expect(screen.getByText(/Confirm selection still applies to all 3 candidates/)).toBeInTheDocument();
+
+    // Confirming through the modal summarizes approved and rejected counts.
+    const dialog = await openConfirmDialog();
+    expect(within(dialog).getByText(/^2 approved · 1 rejected\./)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Over quota/)).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply reconciliation' }));
+    expect(hook.onConfirm).toHaveBeenCalledTimes(1);
   });
 
   it('shows the filtered empty state, not the mascot, when the criteria hide every row', () => {
@@ -301,12 +266,22 @@ describe('SelectionBoard', () => {
     expect(onResetView).toHaveBeenCalledTimes(1);
   });
 
-  it('edits a candidate consideration through its select', () => {
+  it('places the grade before the consideration and the actions, then edits it and opens page and folder', () => {
     const hook = mockHook({ rows: [DR_STONE], approvedCount: 1 });
     render(<SelectionBoard onNavigate={vi.fn()} />);
+    const item = screen.getByRole('listitem');
+    const grade = within(item).getByTestId('selection-grade');
+    expect(grade.nextElementSibling?.querySelector('[aria-label^="Consideration for"]')).not.toBeNull();
+    expect(grade.parentElement?.lastElementChild?.textContent).not.toBe(grade.textContent);
+
     fireEvent.click(screen.getByRole('button', { name: /Consideration for Dr\. Stone/ }));
     fireEvent.click(screen.getByRole('option', { name: 'Spare quota' }));
     expect(hook.onSetConsideration).toHaveBeenCalledWith('r-1', 'spare_quota');
+
+    fireEvent.click(screen.getByRole('button', { name: /open page/i }));
+    expect(hook.onOpenPage).toHaveBeenCalledWith('anime-1');
+    fireEvent.click(screen.getByRole('button', { name: /open folder/i }));
+    expect(hook.onOpenFolder).toHaveBeenCalledWith('anime-1');
   });
 
   it('shows the consideration as plain text, without a select, on a read-only season', () => {
@@ -316,8 +291,8 @@ describe('SelectionBoard', () => {
     expect(screen.queryByRole('button', { name: /Consideration for/ })).not.toBeInTheDocument();
   });
 
-  it.each([false, true])('opens the page and folder through the desktop actions (read-only: %s)', (readOnly) => {
-    const hook = mockHook({ rows: [DR_STONE], approvedCount: 1, readOnly });
+  it('opens the page and folder through the desktop actions on a read-only season', () => {
+    const hook = mockHook({ rows: [DR_STONE], approvedCount: 1, readOnly: true });
     render(<SelectionBoard onNavigate={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /open page/i }));
     expect(hook.onOpenPage).toHaveBeenCalledWith('anime-1');

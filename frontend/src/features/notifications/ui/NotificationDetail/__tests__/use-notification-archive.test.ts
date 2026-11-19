@@ -20,15 +20,11 @@ function buildPendingArchiveSource(): NotificationCenterSource {
 }
 
 describe('useNotificationArchive', () => {
-  it('starts enabled, with nothing archived yet', () => {
-    const { result } = renderHook(() => useNotificationArchive(7, buildArchiveSource()), { wrapper: notificationsQueryWrapper().wrapper });
-
-    expect(result.current.isDisabled).toBe(false);
-  });
-
-  it('archives exactly the record it was given, as the single-id batch the binding takes', async () => {
+  it('archives exactly its record once, then stays disabled', async () => {
     const source = buildArchiveSource();
     const { result } = renderHook(() => useNotificationArchive(7, source), { wrapper: notificationsQueryWrapper().wrapper });
+
+    expect(result.current.isDisabled).toBe(false);
 
     act(() => {
       result.current.archive();
@@ -37,36 +33,16 @@ describe('useNotificationArchive', () => {
     await waitFor(() => {
       expect(source.archive).toHaveBeenCalledWith([7]);
     });
-  });
-
-  it('disables itself once the record is archived, since archiving it twice is not a second outcome', async () => {
-    const source = buildArchiveSource();
-    const { result } = renderHook(() => useNotificationArchive(7, source), { wrapper: notificationsQueryWrapper().wrapper });
-
-    act(() => {
-      result.current.archive();
-    });
-
     await waitFor(() => {
       expect(result.current.isDisabled).toBe(true);
     });
-  });
-
-  it('disables itself immediately on press, before the backend has answered', () => {
-    const { result } = renderHook(() => useNotificationArchive(7, buildPendingArchiveSource()), { wrapper: notificationsQueryWrapper().wrapper });
-
-    act(() => {
-      result.current.archive();
-    });
-
-    expect(result.current.isDisabled).toBe(true);
   });
 
   // Two synchronous presses in the same event both read the same stale
   // `isDisabled` before React re-renders, so the in-flight guard has to be a
   // ref rather than the state alone -- the same guard `useNotificationAction`
   // carries, for the same reason.
-  it('never issues a second archive for a press that lands while the first is still in flight', async () => {
+  it('disables on press and ignores a second press while the archive is in flight', async () => {
     const source = buildPendingArchiveSource();
     const { result } = renderHook(() => useNotificationArchive(7, source), { wrapper: notificationsQueryWrapper().wrapper });
 
@@ -75,30 +51,17 @@ describe('useNotificationArchive', () => {
       result.current.archive();
     });
 
+    expect(result.current.isDisabled).toBe(true);
     await waitFor(() => expect(source.archive).toHaveBeenCalledTimes(1));
     expect(result.current.isDisabled).toBe(true);
   });
 
   // A failed archive means the module was not ready or the store failed and
   // NOTHING was archived. Leaving the button disabled there would show the user the
-  // shape of success for an operation that did not happen.
-  it('re-enables itself after a failed archive, because nothing was archived', async () => {
-    const source = buildFailingArchiveSource();
-    const { result } = renderHook(() => useNotificationArchive(7, source), { wrapper: notificationsQueryWrapper().wrapper });
-
-    act(() => {
-      result.current.archive();
-    });
-
-    await waitFor(() => {
-      expect(result.current.isDisabled).toBe(false);
-    });
-  });
-
-  // Re-enabling is worth nothing if the press it invites is swallowed: the
-  // in-flight ref has to be released too, and `isDisabled` alone cannot prove
-  // that it was.
-  it('really issues a second archive when a press follows a failed one', async () => {
+  // shape of success for an operation that did not happen. Re-enabling is worth
+  // nothing if the press it invites is swallowed: the in-flight ref has to be
+  // released too, and `isDisabled` alone cannot prove that it was.
+  it('re-enables itself after a failed archive and really issues a second archive on the next press', async () => {
     const source = buildFailingArchiveSource();
     const { result } = renderHook(() => useNotificationArchive(7, source), { wrapper: notificationsQueryWrapper().wrapper });
 

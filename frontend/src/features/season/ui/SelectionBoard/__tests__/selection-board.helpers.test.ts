@@ -24,8 +24,13 @@ describe('formatConfirmSuccess', () => {
 });
 
 describe('formatSelectionConfirmedLabel', () => {
-  it.each([undefined, null, 0])('reports "Not confirmed yet" when the milestone is absent (%s)', (absent) => {
-    expect(formatSelectionConfirmedLabel(absent)).toBe('Not confirmed yet');
+  it('reports "Not confirmed yet" when the milestone is absent', () => {
+    const cases = [undefined, null, 0];
+
+    for (const absent of cases) {
+      const caseName = `reports "Not confirmed yet" when the milestone is absent (${String(absent)})`;
+      expect.soft(formatSelectionConfirmedLabel(absent), caseName).toBe('Not confirmed yet');
+    }
   });
 
   it('reports a localized "Confirmed <time>" label when the milestone exists', () => {
@@ -132,31 +137,46 @@ describe('quotaStatus', () => {
 });
 
 describe('getQuotaColor', () => {
-  it.each([
-    ['under', 'success'],
-    ['at', 'warning'],
-    ['over', 'danger'],
-  ] as const)('colors a quota %s the cap as %s', (quota, color) => {
-    expect(getQuotaColor(quota)).toBe(color);
+  it('colors a quota by where it stands against the cap', () => {
+    const cases = [
+      ['under', 'success'],
+      ['at', 'warning'],
+      ['over', 'danger'],
+    ] as const;
+
+    for (const [quota, color] of cases) {
+      const caseName = `colors a quota ${String(quota)} the cap as ${String(color)}`;
+      expect.soft(getQuotaColor(quota), caseName).toBe(color);
+    }
   });
 });
 
 describe('formatSelectionGrade', () => {
-  it.each([
-    [6, '6'],
-    [1, '1'],
-    [0, 'None'],
-  ])('shows grade %i as %s', (grade, label) => {
-    expect(formatSelectionGrade(grade)).toBe(label);
+  it('shows each grade as its label', () => {
+    const cases = [
+      [6, '6'],
+      [1, '1'],
+      [0, 'None'],
+    ] as const;
+
+    for (const [grade, label] of cases) {
+      const caseName = `shows grade ${String(grade)} as ${String(label)}`;
+      expect.soft(formatSelectionGrade(grade), caseName).toBe(label);
+    }
   });
 });
 
 describe('toConsiderationToken', () => {
-  it.each([
-    ['spare_quota', 'spare_quota'],
-    [null, 'none'],
-  ])('stores the Select value %s as %s', (value, token) => {
-    expect(toConsiderationToken(value)).toBe(token);
+  it('stores each Select value as its consideration token', () => {
+    const cases = [
+      ['spare_quota', 'spare_quota'],
+      [null, 'none'],
+    ] as const;
+
+    for (const [value, token] of cases) {
+      const caseName = `stores the Select value ${String(value)} as ${String(token)}`;
+      expect.soft(toConsiderationToken(value), caseName).toBe(token);
+    }
   });
 });
 
@@ -177,13 +197,18 @@ describe('groupSelectionRows', () => {
     ]);
   });
 
-  it.each([
-    ['approved', 'Approved'],
-    ['rejected', 'Rejected'],
-  ] as const)('leaves out the empty group when every row is %s', (verdict, label) => {
-    const groups = groupSelectionRows([selectionRow('x', verdict)]);
+  it('leaves out the empty group when every row shares one decision', () => {
+    const cases = [
+      ['approved', 'Approved'],
+      ['rejected', 'Rejected'],
+    ] as const;
 
-    expect(groups.map((group) => group.label)).toEqual([label]);
+    for (const [verdict, label] of cases) {
+      const caseName = `leaves out the empty group when every row is ${String(verdict)}`;
+      const groups = groupSelectionRows([selectionRow('x', verdict)]);
+
+      expect.soft(groups.map((group) => group.label), caseName).toEqual([label]);
+    }
   });
 
   it('returns no group for no rows', () => {

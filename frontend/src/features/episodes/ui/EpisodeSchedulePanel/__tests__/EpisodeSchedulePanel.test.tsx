@@ -39,10 +39,16 @@ function pinToday(date: Date): void {
 }
 
 describe('EpisodeSchedulePanel', () => {
-  it('keeps episode adjustments to one plus and one minus action with secondary-click half steps', async () => {
+  it('shows a scheduled row and forwards its progress, copy and status actions', async () => {
     const adjustWatchedEpisodes = vi.fn().mockResolvedValue({ status: 'ok' });
+    const copyAnimePage = vi.fn().mockResolvedValue({ status: 'ok' });
+    const copyAnimeFolder = vi.fn().mockResolvedValue({ status: 'ok' });
+    const setAnimeState = vi.fn().mockResolvedValue({ status: 'ok' });
     const source = createSource({
       adjustWatchedEpisodes,
+      copyAnimeFolder,
+      copyAnimePage,
+      setAnimeState,
       getEpisodeSchedule: vi.fn().mockResolvedValue([
         {
           animeId: 'anime-1',
@@ -62,75 +68,27 @@ describe('EpisodeSchedulePanel', () => {
 
     renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
 
-    expect(await screen.findByText('Frieren')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Frieren' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create an anime' })).toBeNull();
+    expect(document.querySelector('img[aria-hidden="true"]')).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.queryByTestId('episode-schedule-skeleton-row')).toBeNull();
     expect(screen.getByText('10.5 watched')).toHaveClass('group-hover:hidden');
     expect(screen.getByText('17.5 remaining')).toHaveClass('group-hover:inline');
-    expect(screen.getByRole('button', { name: 'Open page for Frieren. Secondary click copies page URL.' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Add one episode for Frieren. Secondary click adds half episode.' }));
     fireEvent.contextMenu(screen.getByRole('button', { name: 'Add one episode for Frieren. Secondary click adds half episode.' }));
-
     await waitFor(() => expect(adjustWatchedEpisodes).toHaveBeenCalledWith('anime-1', 1, 1000));
     expect(adjustWatchedEpisodes).toHaveBeenCalledWith('anime-1', 0.5, 1000);
-  });
 
-  it('uses one status button that opens the state modal', async () => {
-    const setAnimeState = vi.fn().mockResolvedValue({ status: 'ok' });
-    const source = createSource({
-      getEpisodeSchedule: vi.fn().mockResolvedValue([
-        {
-          animeId: 'anime-1',
-          animeName: 'Frieren',
-          day: 'Viernes',
-          dayOrder: 1,
-          status: 0,
-          hasCover: false,
-          modified_at: 1000,
-          episodesWatched: 10,
-          totalEpisodes: 28,
-        },
-      ]),
-      setAnimeState,
-    });
-
-    renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Open page for Frieren. Secondary click copies page URL.' }));
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Open folder for Frieren. Secondary click copies folder path.' }));
+    await waitFor(() => expect(copyAnimePage).toHaveBeenCalledWith('anime-1'));
+    expect(copyAnimeFolder).toHaveBeenCalledWith('anime-1');
 
     fireEvent.click(await screen.findByRole('button', { name: 'Change status for Frieren. Current status: Viendo.' }));
     fireEvent.click(screen.getByRole('button', { name: 'Set Frieren as Finalizado' }));
-
     await waitFor(() => expect(setAnimeState).toHaveBeenCalledWith('anime-1', 1, 1000));
-  });
-
-  it('delegates page and folder right-click copy actions', async () => {
-    const copyAnimePage = vi.fn().mockResolvedValue({ status: 'ok' });
-    const copyAnimeFolder = vi.fn().mockResolvedValue({ status: 'ok' });
-    const source = createSource({
-      copyAnimeFolder,
-      copyAnimePage,
-      getEpisodeSchedule: vi.fn().mockResolvedValue([
-        {
-          animeId: 'anime-1',
-          animeName: 'Frieren',
-          day: 'Viernes',
-          dayOrder: 1,
-          status: 0,
-          folderPath: '/anime/frieren',
-          hasCover: false,
-          modified_at: 1000,
-          episodesWatched: 10,
-          pageUrl: 'https://example.com/frieren',
-          totalEpisodes: 28,
-        },
-      ]),
-    });
-
-    renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
-
-    fireEvent.contextMenu(await screen.findByRole('button', { name: 'Open page for Frieren. Secondary click copies page URL.' }));
-    fireEvent.contextMenu(screen.getByRole('button', { name: 'Open folder for Frieren. Secondary click copies folder path.' }));
-
-    await waitFor(() => expect(copyAnimePage).toHaveBeenCalledWith('anime-1'));
-    expect(copyAnimeFolder).toHaveBeenCalledWith('anime-1');
   });
 
   it('disables progress buttons for paused/completed/dropped anime', async () => {
@@ -153,21 +111,6 @@ describe('EpisodeSchedulePanel', () => {
 
     expect(await screen.findByRole('heading', { name: 'Paused' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add one episode for Paused. Secondary click adds half episode.' })).toBeDisabled();
-  });
-
-  describe('view lens toggle', () => {
-    it('switches the filter row from season lenses to weekdays when Daily is selected, with season mode on', async () => {
-      const source = createSource({ readSeason: vi.fn().mockResolvedValue(makeSeason()) });
-
-      renderPanel(<EpisodeSchedulePanel source={source} />);
-
-      expect(await screen.findByRole('radio', { name: /Sin ver/ })).toBeInTheDocument();
-
-      fireEvent.click(screen.getByRole('radio', { name: 'Daily' }));
-
-      expect(await screen.findByRole('radio', { name: /Monday/ })).toBeInTheDocument();
-      expect(screen.queryByRole('radio', { name: /Sin ver/ })).not.toBeInTheDocument();
-    });
   });
 
   describe('day count badges', () => {
@@ -215,7 +158,7 @@ describe('EpisodeSchedulePanel', () => {
 });
 
 describe('EpisodeSchedulePanel resolved-empty guidance', () => {
-  it('guides creation with day context once the schedule resolves with no rows', async () => {
+  it('guides creation with day context, keeps the day and lens controls, and opens Create', async () => {
     renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={createSource()} />);
 
     expect(await screen.findByText('Nothing scheduled for Friday')).toBeInTheDocument();
@@ -226,15 +169,27 @@ describe('EpisodeSchedulePanel resolved-empty guidance', () => {
       throw new Error('Expected the Today Airis artwork.');
     }
     expect(image).toHaveAttribute('width', '512');
+    expect(screen.getByRole('radio', { name: /Friday/ })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Daily' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create an anime' }));
+
+    expect(await screen.findByRole('heading', { name: 'Create workspace' })).toBeInTheDocument();
   });
 
-  it('names the season lens instead of a weekday when the season lens is selected', async () => {
+  it('names the season lens when empty, then switches the filter row to weekdays on Daily', async () => {
     const source = createSource({ readSeason: vi.fn().mockResolvedValue(makeSeason()) });
 
     renderPanel(<EpisodeSchedulePanel source={source} />);
 
     expect(await screen.findByText('Nothing being watched today')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create an anime' })).toBeNull();
+    expect(screen.getByRole('radio', { name: /Sin ver/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Daily' }));
+
+    expect(await screen.findByRole('radio', { name: /Monday/ })).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /Sin ver/ })).not.toBeInTheDocument();
   });
 
   it('sends the season lens to Season, where Ver hoy is filled, when Go to Season is pressed', async () => {
@@ -246,23 +201,7 @@ describe('EpisodeSchedulePanel resolved-empty guidance', () => {
     expect(await screen.findByRole('heading', { name: 'Season workspace' })).toBeInTheDocument();
   });
 
-  it('navigates to the Create workspace when Create an anime is pressed', async () => {
-    renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={createSource()} />);
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Create an anime' }));
-
-    expect(await screen.findByRole('heading', { name: 'Create workspace' })).toBeInTheDocument();
-  });
-
-  it('keeps the day and lens controls available while the empty state shows', async () => {
-    renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={createSource()} />);
-
-    expect(await screen.findByRole('button', { name: 'Create an anime' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: /Friday/ })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Daily' })).toBeInTheDocument();
-  });
-
-  it('shows loading feedback instead of empty guidance while the request is unresolved', async () => {
+  it('shows loading feedback with exactly three placeholder rows while the request is unresolved', async () => {
     const source = createSource({ getEpisodeSchedule: vi.fn().mockReturnValue(new Promise(() => undefined)) });
 
     renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
@@ -270,55 +209,21 @@ describe('EpisodeSchedulePanel resolved-empty guidance', () => {
     expect(await screen.findByRole('status', { name: 'Loading the schedule...' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create an anime' })).toBeNull();
     expect(document.querySelector('img[aria-hidden="true"]')).toBeNull();
-  });
-
-  it('renders exactly three placeholder rows while the schedule request is unresolved', async () => {
-    const source = createSource({ getEpisodeSchedule: vi.fn().mockReturnValue(new Promise(() => undefined)) });
-
-    renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
-
-    await screen.findByRole('status', { name: 'Loading the schedule...' });
     expect(screen.getAllByTestId('episode-schedule-skeleton-row')).toHaveLength(3);
   });
 
-  it('shows the failure alert instead of empty guidance when the request rejects', async () => {
+  it('shows the failure alert under the Today title and banner instead of empty guidance', async () => {
     const source = createSource({ getEpisodeSchedule: vi.fn().mockRejectedValue(new Error('binding missing')) });
 
-    renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
+    renderPanel(<EpisodeSchedulePanel banner={<p>Season banner</p>} initialDay="Viernes" source={source} />);
 
     expect(await screen.findByText('Episode schedule unavailable')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create an anime' })).toBeNull();
     expect(document.querySelector('img[aria-hidden="true"]')).toBeNull();
     expect(screen.queryByRole('status')).toBeNull();
     expect(screen.queryByTestId('episode-schedule-skeleton-row')).toBeNull();
-  });
-});
-
-describe('EpisodeSchedulePanel resolved-non-empty precedence', () => {
-  it('shows the rows and no empty guidance once the schedule resolves with anime', async () => {
-    const source = createSource({
-      getEpisodeSchedule: vi.fn().mockResolvedValue([
-        {
-          animeId: 'anime-1',
-          animeName: 'Frieren',
-          day: 'Viernes',
-          dayOrder: 1,
-          status: 0,
-          hasCover: false,
-          modified_at: 1000,
-          episodesWatched: 10,
-          totalEpisodes: 28,
-        },
-      ]),
-    });
-
-    renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
-
-    expect(await screen.findByRole('heading', { name: 'Frieren' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Create an anime' })).toBeNull();
-    expect(document.querySelector('img[aria-hidden="true"]')).toBeNull();
-    expect(screen.queryByRole('status')).toBeNull();
-    expect(screen.queryByTestId('episode-schedule-skeleton-row')).toBeNull();
+    expect(screen.getByRole('heading', { level: 1, name: 'Today' })).toBeInTheDocument();
+    expect(screen.getByText('Season banner')).toBeInTheDocument();
   });
 });
 
@@ -363,15 +268,5 @@ describe('EpisodeSchedulePanel Today header', () => {
     expect(header?.compareDocumentPosition(banner)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(banner.compareDocumentPosition(screen.getByRole('radio', { name: /Friday/ }))).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(screen.queryByRole('heading', { level: 2, name: 'Friday' })).toBeNull();
-  });
-
-  it('keeps the Today title and the banner above the failure alert', async () => {
-    const source = createSource({ getEpisodeSchedule: vi.fn().mockRejectedValue(new Error('binding missing')) });
-
-    renderPanel(<EpisodeSchedulePanel banner={<p>Season banner</p>} initialDay="Viernes" source={source} />);
-
-    expect(await screen.findByText('Episode schedule unavailable')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 1, name: 'Today' })).toBeInTheDocument();
-    expect(screen.getByText('Season banner')).toBeInTheDocument();
   });
 });

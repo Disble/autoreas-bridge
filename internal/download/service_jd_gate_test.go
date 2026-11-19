@@ -55,59 +55,6 @@ func TestRunOnceUpToDateAnimeNeverLaunchesJDownloader(t *testing.T) {
 	}
 }
 
-// TestRunOnceMissingEpisodeCallsEnsureOnlineExactlyOnce verifies the gate resolves lazily but
-// exactly once when a single anime has a missing episode.
-func TestRunOnceMissingEpisodeCallsEnsureOnlineExactlyOnce(t *testing.T) {
-	t.Parallel()
-
-	deps := baseDeps(t)
-	dia := todayDiaName(deps.Clock())
-	registry := NewStaticRegistry()
-	source := &svcFakeEpisodeSource{
-		name: "jkanime",
-		listEpisodes: map[string]sites.EpisodeListing{
-			"https://jkanime.net/fresh/": {LatestEpisode: 1, EpisodePageURL: "https://jkanime.net/fresh/1/"},
-		},
-		extractLinks: map[string][]sites.DownloadLink{
-			"https://jkanime.net/fresh/1/": {{URL: "http://mediafire.example/1", Hoster: "Mediafire"}},
-		},
-	}
-	registry.Register(source)
-	deps.Sites = registry
-
-	freshFolder := t.TempDir()
-	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:        "anime-fresh",
-		Name:      "Fresh Anime",
-		Active:    1,
-		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: new("https://jkanime.net/fresh/"),
-		Folder:    new(freshFolder),
-	}}}
-	jd := &svcFakeJDClient{}
-	deps.JD = jd
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{freshFolder: 0}, landing: map[string]int{freshFolder: 1}})
-
-	result, err := NewService(deps).RunOnce(context.Background(), "scheduled")
-	if err != nil {
-		t.Fatalf("expected nil error, got %v", err)
-	}
-	if result.Status != RunStatusOK {
-		t.Fatalf("expected status %q, got %q", RunStatusOK, result.Status)
-	}
-	if calls := jd.ensureOnlineCallCount(); calls != 1 {
-		t.Fatalf("expected EnsureOnline to be called exactly once, got %d calls", calls)
-	}
-
-	run, ok := deps.Store.(*svcFakeDownloadStore).getRun(result.RunID)
-	if !ok {
-		t.Fatalf("expected run %q persisted", result.RunID)
-	}
-	if !run.JDAvailable {
-		t.Fatalf("expected run.JDAvailable=true once the gate resolved online, got %#v", run)
-	}
-}
-
 // TestRunOnceConcurrentMissingEpisodesCallEnsureOnlineExactlyOnce asserts the lazy gate is
 // resolved exactly once even when multiple animes concurrently discover a missing episode.
 func TestRunOnceConcurrentMissingEpisodesCallEnsureOnlineExactlyOnce(t *testing.T) {

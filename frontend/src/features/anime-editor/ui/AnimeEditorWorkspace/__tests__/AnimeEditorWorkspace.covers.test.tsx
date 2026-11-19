@@ -106,6 +106,14 @@ const { buildAnimes, mockSource, resetMockSource } = vi.hoisted(() => {
   return { buildAnimes, mockSource: source, resetMockSource };
 });
 
+// The Episodes card's reload debounce is guarded in use-episode-durations-load.test.ts;
+// here every render would otherwise wait it out before the card reads.
+vi.mock('../../EpisodeDurationsSection/episode-durations-section.constants', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  /** No settle wait: the card reads on the next task. */
+  EPISODE_DURATIONS_RELOAD_DELAY_MS: 0,
+}));
+
 vi.mock('../../../../../shared/query/bridge-runtime/bridge-runtime.constants', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   /** The workspace's default anime-module Editor port: the same fake. */

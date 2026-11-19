@@ -116,6 +116,8 @@ describe('ActivityRangeField', () => {
     expect(startTimeField(dialog)).toHaveTextContent(/1\D*00\D*AM/);
     fireEvent.keyDown(dialog, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    // A keyboard close refocuses the trigger on the next animation frame; that focus would blur and close a popover reopened before it.
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Time range, / })).toHaveFocus());
     fireEvent.click(screen.getByRole('button', { name: /^Time range, / }));
     dialog = await screen.findByRole('dialog');
 

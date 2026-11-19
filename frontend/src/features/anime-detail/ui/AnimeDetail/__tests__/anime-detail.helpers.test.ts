@@ -43,13 +43,18 @@ describe('formatAnimeDetailLongDate', () => {
 });
 
 describe('getAnimeDetailEstadoLabel', () => {
-  it.each([
-    [0, 'Viendo'],
-    [1, 'Finalizado'],
-    [2, 'No me gusto'],
-    [3, 'En pausa'],
-  ])('maps estado %i to %s', (estado, label) => {
-    expect(getAnimeDetailEstadoLabel(estado)).toBe(label);
+  it('maps every estado to its label', () => {
+    const cases = [
+      [0, 'Viendo'],
+      [1, 'Finalizado'],
+      [2, 'No me gusto'],
+      [3, 'En pausa'],
+    ] as const;
+
+    for (const [estado, label] of cases) {
+      const caseName = `maps estado ${String(estado)} to ${String(label)}`;
+      expect.soft(getAnimeDetailEstadoLabel(estado), caseName).toBe(label);
+    }
   });
 
   it('falls back to the raw value for an unrecognized estado', () => {
@@ -58,13 +63,18 @@ describe('getAnimeDetailEstadoLabel', () => {
 });
 
 describe('getAnimeDetailEstadoColor', () => {
-  it.each([
-    [0, 'accent'],
-    [1, 'success'],
-    [2, 'danger'],
-    [3, 'warning'],
-  ])('maps estado %i to chip color %s', (estado, color) => {
-    expect(getAnimeDetailEstadoColor(estado)).toBe(color);
+  it('maps every estado to its chip color', () => {
+    const cases = [
+      [0, 'accent'],
+      [1, 'success'],
+      [2, 'danger'],
+      [3, 'warning'],
+    ] as const;
+
+    for (const [estado, color] of cases) {
+      const caseName = `maps estado ${String(estado)} to chip color ${String(color)}`;
+      expect.soft(getAnimeDetailEstadoColor(estado), caseName).toBe(color);
+    }
   });
 
   it('falls back to the default color for an unrecognized estado', () => {
@@ -77,13 +87,18 @@ describe('getAnimeDetailTipoLabel', () => {
   // values are 0 (626), 1 (49), 2 (11), 3 (27) + null (82), matching Legacy's
   // dropdown order Anime (TV) / Película / Especial / OVA. The previous
   // Serie/Película/OVA(=2) mapping mislabeled Especial animes as OVA.
-  it.each([
-    [0, 'Anime (TV)'],
-    [1, 'Película'],
-    [2, 'Especial'],
-    [3, 'OVA'],
-  ])('maps tipo %i to %s', (tipo, label) => {
-    expect(getAnimeDetailTipoLabel(tipo)).toBe(label);
+  it('maps every tipo to its label', () => {
+    const cases = [
+      [0, 'Anime (TV)'],
+      [1, 'Película'],
+      [2, 'Especial'],
+      [3, 'OVA'],
+    ] as const;
+
+    for (const [tipo, label] of cases) {
+      const caseName = `maps tipo ${String(tipo)} to ${String(label)}`;
+      expect.soft(getAnimeDetailTipoLabel(tipo), caseName).toBe(label);
+    }
   });
 
   it('falls back to Unknown when tipo is absent', () => {
@@ -112,11 +127,16 @@ describe('formatAnimeDetailProgressCount', () => {
     expect(formatAnimeDetailProgressCount(12, 28)).toBe('12 of 28 episodes');
   });
 
-  it.each([
-    [12, '12 episodes · No total episodes data'],
-    [1, '1 episode · No total episodes data'],
-  ])('renders %i watched with an explicit fallback when total is missing', (watched, expected) => {
-    expect(formatAnimeDetailProgressCount(watched, undefined)).toBe(expected);
+  it('renders the watched count with an explicit fallback when total is missing', () => {
+    const cases = [
+      [12, '12 episodes · No total episodes data'],
+      [1, '1 episode · No total episodes data'],
+    ] as const;
+
+    for (const [watched, expected] of cases) {
+      const caseName = `renders ${String(watched)} watched with an explicit fallback when total is missing`;
+      expect.soft(formatAnimeDetailProgressCount(watched, undefined), caseName).toBe(expected);
+    }
   });
 });
 
@@ -262,14 +282,16 @@ describe('toAnimeDetailViewModel', () => {
   // the literal string 'null'. Neither is a renderable cover, so the view
   // model must never expose a raw path at all -- only whether a cover is
   // stored, gating whether the cover binding is called (design D1/D2).
-  it.each([[''], ['   '], ['null']])(
-    'maps the blank/sentinel portada path %j to hasStoredCover: false',
-    (portada) => {
-      const viewModel = toAnimeDetailViewModel({ ...baseDetail, cover: portada });
+  it('maps a blank or sentinel portada path to hasStoredCover: false', () => {
+    const cases = [[''], ['   '], ['null']] as const;
 
-      expect(viewModel.hasStoredCover).toBe(false);
-    },
-  );
+    for (const [portada] of cases) {
+      const caseName = `maps the blank/sentinel portada path ${JSON.stringify(portada)} to hasStoredCover: false`;
+        const viewModel = toAnimeDetailViewModel({ ...baseDetail, cover: portada });
+
+        expect.soft(viewModel.hasStoredCover, caseName).toBe(false);
+    }
+  });
 
   it('reports hasStoredCover: true for a surrounding-whitespace portada path', () => {
     const viewModel = toAnimeDetailViewModel({
@@ -333,19 +355,23 @@ describe('runAnimeDetailDesktopAction', () => {
     expect(open).toHaveBeenCalledWith('anime-1');
   });
 
-  it.each([
-    ['a missing binding', undefined],
-    ['a non-ok result', vi.fn().mockResolvedValue({ status: 'error', message: 'No folder' })],
-    ['a rejected request', vi.fn().mockRejectedValue(new Error('offline'))],
-  ])('reports the failure toast for %s', async (_case, action) => {
-    await expect(runAnimeDetailDesktopAction(action, 'anime-1', ANIME_DETAIL_COPY_FOLDER_FEEDBACK)).resolves.toEqual({
-      status: 'danger',
-      message: 'Could not copy the folder path',
-    });
-    await expect(runAnimeDetailDesktopAction(action, 'anime-1', ANIME_DETAIL_OPEN_PAGE_FEEDBACK)).resolves.toEqual({
-      status: 'danger',
-      message: 'Could not open the page',
-    });
+  it('reports the failure toast for a missing, failed or rejected action', async () => {
+    const cases = [
+      ['a missing binding', undefined],
+      ['a non-ok result', vi.fn().mockResolvedValue({ status: 'error', message: 'No folder' })],
+      ['a rejected request', vi.fn().mockRejectedValue(new Error('offline'))],
+    ] as const;
+
+    for (const [caseName, action] of cases) {
+      expect.soft(await runAnimeDetailDesktopAction(action, 'anime-1', ANIME_DETAIL_COPY_FOLDER_FEEDBACK).catch((error: unknown) => error), caseName).toEqual({
+        status: 'danger',
+        message: 'Could not copy the folder path',
+      });
+      expect.soft(await runAnimeDetailDesktopAction(action, 'anime-1', ANIME_DETAIL_OPEN_PAGE_FEEDBACK).catch((error: unknown) => error), caseName).toEqual({
+        status: 'danger',
+        message: 'Could not open the page',
+      });
+    }
   });
 });
 
@@ -362,19 +388,23 @@ describe('toAnimeDetailLoad', () => {
   /** What a state carrying no detail and no failure answers. */
   const none = { detail: undefined, failureMessage: undefined };
 
-  it.each([
-    ['a pending read', read({ status: 'pending', data: undefined }), { loadState: 'loading', ...none }],
-    ["the previous anime's detail", read({ isPlaceholderData: true }), { loadState: 'loading', ...none }],
-    ['an unknown anime', read({ status: 'error', data: undefined, error: createBridgeError('not_found', 'anime x not found') }), { loadState: 'not-found', ...none }],
-    [
-      'a failed anime module',
-      read({ status: 'error', data: undefined, error: createBridgeError('failed_precondition', 'anime: db closed') }),
-      { loadState: 'failure', detail: undefined, failureMessage: 'anime: db closed' },
-    ],
-    ['a failed read being read again', read({ status: 'error', data: undefined, isFetching: true, error: createBridgeError('not_found', 'gone') }), { loadState: 'loading', ...none }],
-    ['a loaded detail', read(), { loadState: 'loaded', detail: baseDetail, failureMessage: undefined }],
-    ['a loaded detail whose refresh failed', read({ status: 'error', error: new Error('refresh failed') }), { loadState: 'loaded', detail: baseDetail, failureMessage: undefined }],
-  ])('reads %s', (_label, query, expected) => {
-    expect(toAnimeDetailLoad(query)).toEqual(expected);
+  it('reads each detail query state as its load', () => {
+    const cases = [
+      ['a pending read', read({ status: 'pending', data: undefined }), { loadState: 'loading', ...none }],
+      ["the previous anime's detail", read({ isPlaceholderData: true }), { loadState: 'loading', ...none }],
+      ['an unknown anime', read({ status: 'error', data: undefined, error: createBridgeError('not_found', 'anime x not found') }), { loadState: 'not-found', ...none }],
+      [
+        'a failed anime module',
+        read({ status: 'error', data: undefined, error: createBridgeError('failed_precondition', 'anime: db closed') }),
+        { loadState: 'failure', detail: undefined, failureMessage: 'anime: db closed' },
+      ],
+      ['a failed read being read again', read({ status: 'error', data: undefined, isFetching: true, error: createBridgeError('not_found', 'gone') }), { loadState: 'loading', ...none }],
+      ['a loaded detail', read(), { loadState: 'loaded', detail: baseDetail, failureMessage: undefined }],
+      ['a loaded detail whose refresh failed', read({ status: 'error', error: new Error('refresh failed') }), { loadState: 'loaded', detail: baseDetail, failureMessage: undefined }],
+    ] as const;
+
+    for (const [caseName, query, expected] of cases) {
+      expect.soft(toAnimeDetailLoad(query), caseName).toEqual(expected);
+    }
   });
 });

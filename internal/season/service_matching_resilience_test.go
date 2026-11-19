@@ -54,7 +54,7 @@ func rowsByName(rows []domain.SeasonAnime) map[string]domain.SeasonAnime {
 	return byName
 }
 
-func TestServiceRunMatchingSurvivesPerRowSearchFailure(t *testing.T) {
+func TestServiceRunMatchingSurvivesClearsAndRetriesAPerRowSearchFailure(t *testing.T) {
 	repo := newFakeRepo()
 	searcher := &queryFailSearcher{
 		byQuery: map[string][]match.Candidate{
@@ -67,12 +67,20 @@ func TestServiceRunMatchingSurvivesPerRowSearchFailure(t *testing.T) {
 	season, _ := svc.CreateSeason(ctx, "Julio 2026")
 	_, _ = svc.ImportIntake(ctx, season.ID, "Bad Typo Anime\nGood Anime")
 
+	// A backup bundle carries match_status and matched_slug as opaque values, so a
+	// row can arrive pending while still holding a slug and a candidate list.
+	stale := rowsByName(mustListSeasonAnimes(t, svc, season.ID))["Bad Typo Anime"]
+	stale.MatchedSlug = "https://jkanime.net/bad-typo-anime/"
+	stale.Candidates = []domain.MatchCandidate{{Title: "Bad Typo Anime", PageURL: stale.MatchedSlug, Score: 0.9}}
+	if err := repo.UpdateSeasonAnime(ctx, stale); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
 	if err := svc.RunMatching(ctx, season.ID); err != nil {
 		t.Fatalf("a per-row search failure must not fail the run, got %v", err)
 	}
 
-	rows, _ := svc.ListSeasonAnimes(ctx, season.ID)
-	byName := rowsByName(rows)
+	byName := rowsByName(mustListSeasonAnimes(t, svc, season.ID))
 	if got := byName["Good Anime"]; got.MatchStatus != domain.MatchMatched {
 		t.Fatalf("the row after the failure must still be matched, got %+v", got)
 	}
@@ -80,74 +88,29 @@ func TestServiceRunMatchingSurvivesPerRowSearchFailure(t *testing.T) {
 		t.Fatalf("the failing row must be search_failed, got %+v", got)
 	}
 	if got := byName["Bad Typo Anime"]; got.MatchedSlug != "" || len(got.Candidates) != 0 {
-		t.Fatalf("a search_failed row must clear slug and candidates, got %+v", got)
-	}
-}
-
-// TestServiceRunMatchingClearsStaleResolutionOnFailure pins the invariant that
-// a row never shows a resolution its failed search contradicts. The state is
-// reachable rather than theoretical: a backup bundle carries match_status and
-// matched_slug as opaque values, so a row can arrive pending while still
-// holding a slug and a candidate list.
-func TestServiceRunMatchingClearsStaleResolutionOnFailure(t *testing.T) {
-	repo := newFakeRepo()
-	searcher := &queryFailSearcher{failQuery: map[string]error{"Stale Anime": errors.New("search 503")}}
-	svc := newTestServiceWithSearcher(repo, searcher)
-	ctx := context.Background()
-	season, _ := svc.CreateSeason(ctx, "Julio 2026")
-	_, _ = svc.ImportIntake(ctx, season.ID, "Stale Anime")
-
-	rows, _ := svc.ListSeasonAnimes(ctx, season.ID)
-	rows[0].MatchedSlug = "https://jkanime.net/stale-anime/"
-	rows[0].Candidates = []domain.MatchCandidate{
-		{Title: "Stale Anime", PageURL: "https://jkanime.net/stale-anime/", Score: 0.9},
-	}
-	if err := repo.UpdateSeasonAnime(ctx, rows[0]); err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-
-	if err := svc.RunMatching(ctx, season.ID); err != nil {
-		t.Fatalf("RunMatching: %v", err)
-	}
-
-	rows, _ = svc.ListSeasonAnimes(ctx, season.ID)
-	if rows[0].MatchStatus != domain.MatchSearchFailed {
-		t.Fatalf("expected search_failed, got %q", rows[0].MatchStatus)
-	}
-	if rows[0].MatchedSlug != "" || len(rows[0].Candidates) != 0 {
-		t.Fatalf("a failed search must clear the stale resolution, got %+v", rows[0])
-	}
-}
-
-func TestServiceRunMatchingRetriesSearchFailedRows(t *testing.T) {
-	repo := newFakeRepo()
-	searcher := &queryFailSearcher{
-		byQuery:   map[string][]match.Candidate{},
-		failQuery: map[string]error{"Flaky Anime": errors.New("search 500")},
-	}
-	svc := newTestServiceWithSearcher(repo, searcher)
-	ctx := context.Background()
-	season, _ := svc.CreateSeason(ctx, "Julio 2026")
-	_, _ = svc.ImportIntake(ctx, season.ID, "Flaky Anime")
-
-	if err := svc.RunMatching(ctx, season.ID); err != nil {
-		t.Fatalf("RunMatching: %v", err)
-	}
-	rows, _ := svc.ListSeasonAnimes(ctx, season.ID)
-	if rows[0].MatchStatus != domain.MatchSearchFailed {
-		t.Fatalf("first run should leave search_failed, got %q", rows[0].MatchStatus)
+		t.Fatalf("a failed search must clear the stale resolution, got %+v", got)
 	}
 
 	// The search recovers: the next run must attempt the row again and resolve it.
-	delete(searcher.failQuery, "Flaky Anime")
-	searcher.byQuery["Flaky Anime"] = []match.Candidate{{Title: "Flaky Anime", PageURL: "https://jkanime.net/flaky-anime/"}}
+	delete(searcher.failQuery, "Bad Typo Anime")
+	searcher.byQuery["Bad Typo Anime"] = []match.Candidate{{Title: "Bad Typo Anime", PageURL: "https://jkanime.net/bad-typo-anime/"}}
 	if err := svc.RunMatching(ctx, season.ID); err != nil {
 		t.Fatalf("RunMatching: %v", err)
 	}
-	rows, _ = svc.ListSeasonAnimes(ctx, season.ID)
-	if rows[0].MatchStatus != domain.MatchMatched {
-		t.Fatalf("a recovered search_failed row must move to matched, got %+v", rows[0])
+	if got := rowsByName(mustListSeasonAnimes(t, svc, season.ID))["Bad Typo Anime"]; got.MatchStatus != domain.MatchMatched {
+		t.Fatalf("a recovered search_failed row must move to matched, got %+v", got)
 	}
+}
+
+// mustListSeasonAnimes lists a season's rows, failing the test on error.
+func mustListSeasonAnimes(t *testing.T, svc *Service, seasonID string) []domain.SeasonAnime {
+	t.Helper()
+
+	rows, err := svc.ListSeasonAnimes(context.Background(), seasonID)
+	if err != nil {
+		t.Fatalf("ListSeasonAnimes: %v", err)
+	}
+	return rows
 }
 
 func TestServiceRunMatchingSkipsDecidedRows(t *testing.T) {

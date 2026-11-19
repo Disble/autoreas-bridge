@@ -226,25 +226,12 @@ var seasonBindings = []struct {
 // failed, and every one serves its value once it is ready.
 func TestSeasonBindingsFollowTheirModule(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		name     string
-		state    lifecycle.State
-		wantCode apperr.Code
-		wantMsg  string
-	}{
-		{"starting is unavailable", lifecycle.StateStarting, apperr.CodeUnavailable, "season is starting"},
-		{"failed is a failed precondition", lifecycle.StateFailed, apperr.CodeFailedPrecondition, moduleFailureReason},
-		{"ready answers the value", lifecycle.StateReady, "", ""},
-	}
 	for _, binding := range seasonBindings {
-		for _, tc := range cases {
-			t.Run(binding.name+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-				app, _ := seasonModuleApp(t, tc.state)
-				served, err := binding.call(app)
-				assertModuleAnswer(t, served, err, tc.wantCode, tc.wantMsg)
-			})
-		}
+		app, _ := seasonModuleApp(t, lifecycle.StateStarting)
+		assertStartingThenFailed(t, binding.name, app, moduleSeason, "season is starting", binding.call)
+		ready, _ := seasonModuleApp(t, lifecycle.StateReady)
+		served, err := binding.call(ready)
+		assertModuleAnswer(t, binding.name+" ready", served, err, "", "")
 	}
 }
 
@@ -270,17 +257,14 @@ func TestSeasonReadFailuresAreInternal(t *testing.T) {
 		{"ImportSeasonIntake", func(r *fakeSeasonRepo) { r.activeErr = failure }, func(a *App) error { return a.ImportSeasonIntake("Anime C") }},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			app, repo := seasonModuleApp(t, lifecycle.StateReady)
-			tc.fail(repo)
+		app, repo := seasonModuleApp(t, lifecycle.StateReady)
+		tc.fail(repo)
 
-			err := tc.call(app)
+		err := tc.call(app)
 
-			if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal || !errors.Is(err, failure) {
-				t.Fatalf("err = %v (code %q), want internal wrapping %v", err, code, failure)
-			}
-		})
+		if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal || !errors.Is(err, failure) {
+			t.Errorf("%s: err = %v (code %q), want internal wrapping %v", tc.name, err, code, failure)
+		}
 	}
 }
 
@@ -306,16 +290,13 @@ func TestSeasonCommandRefusalsAreErrors(t *testing.T) {
 		{"no provider searcher", func(a *App) error { _, err := a.SearchSeasonProviders("Anime B"); return err }, season.ErrSearcherUnavailable},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			app, _ := seasonModuleApp(t, lifecycle.StateReady)
+		app, _ := seasonModuleApp(t, lifecycle.StateReady)
 
-			err := tc.call(app)
+		err := tc.call(app)
 
-			if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal || !errors.Is(err, tc.want) || err.Error() != tc.want.Error() {
-				t.Fatalf("err = %v (code %q), want internal %q", err, code, tc.want)
-			}
-		})
+		if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal || !errors.Is(err, tc.want) || err.Error() != tc.want.Error() {
+			t.Errorf("%s: err = %v (code %q), want internal %q", tc.name, err, code, tc.want)
+		}
 	}
 }
 
@@ -335,21 +316,18 @@ func TestRecheckSeasonAvailabilityResolvesTheScheduler(t *testing.T) {
 		{"a refused trigger", &fakeAppScheduler{triggerNowErr: refused}, refused},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			app, _ := seasonModuleApp(t, lifecycle.StateReady)
-			// Set after the module is ready, as startSeasonAvailability does.
-			app.seasonScheduler = tc.scheduler
+		app, _ := seasonModuleApp(t, lifecycle.StateReady)
+		// Set after the module is ready, as startSeasonAvailability does.
+		app.seasonScheduler = tc.scheduler
 
-			err := app.RecheckSeasonAvailability()
+		err := app.RecheckSeasonAvailability()
 
-			if !errors.Is(err, tc.want) || (tc.want == nil) != (err == nil) {
-				t.Fatalf("RecheckSeasonAvailability() = %v, want %v", err, tc.want)
-			}
-			if code, _ := apperr.CodeOf(err); tc.want != nil && code != apperr.CodeInternal {
-				t.Fatalf("code = %q, want internal", code)
-			}
-		})
+		if !errors.Is(err, tc.want) || (tc.want == nil) != (err == nil) {
+			t.Errorf("%s: RecheckSeasonAvailability() = %v, want %v", tc.name, err, tc.want)
+		}
+		if code, _ := apperr.CodeOf(err); tc.want != nil && code != apperr.CodeInternal {
+			t.Errorf("%s: code = %q, want internal", tc.name, code)
+		}
 	}
 }
 

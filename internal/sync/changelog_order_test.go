@@ -203,9 +203,9 @@ func TestAFailedSnapshotReadStoresNothingAndReportsIt(t *testing.T) {
 	}
 }
 
-// TestARowOfAVanishedAnimeIsNotStoredUnlessItIsADelete keeps a late update from resurrecting an
+// TestOnlyADeleteIsStoredForAVanishedAnimeOrARowWithoutFields keeps a late update from resurrecting an
 // anime on installed phones: only a delete row may outlive its anime, with the event's snapshot.
-func TestARowOfAVanishedAnimeIsNotStoredUnlessItIsADelete(t *testing.T) {
+func TestOnlyADeleteIsStoredForAVanishedAnimeOrARowWithoutFields(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
@@ -225,18 +225,8 @@ func TestARowOfAVanishedAnimeIsNotStoredUnlessItIsADelete(t *testing.T) {
 	if rows := rowsOf(t, db, "gone"); len(rows) != 1 || rows[0].version != 3 {
 		t.Fatalf("a delete row keeps the event snapshot, got %+v", rows)
 	}
-}
 
-// TestARowWithoutChangedFieldsIsNotStored keeps the contract that every update names what changed:
-// a write that changed no field is nothing a phone can apply. A delete names no field by nature.
-func TestARowWithoutChangedFieldsIsNotStored(t *testing.T) {
-	t.Parallel()
-
-	db := openTestBridgeDB(t)
-	store := NewChangelogStore(NewSQLiteProvider(db))
-	ctx := context.Background()
 	storeSnapshot(t, db, "a", 1)
-
 	for _, fields := range [][]string{nil, {}} {
 		for _, changeType := range []string{ChangelogTypeUpdate, ChangelogTypeCreate} {
 			must(t, store.InsertPending(ctx, ChangelogEntry{AnimeID: "a", ChangeType: changeType, ChangedFields: fields,

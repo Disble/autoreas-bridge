@@ -60,6 +60,19 @@ func TestNotifyMissedScheduleWritesARecordCarryingBothActions(t *testing.T) {
 	if got.Body == "" || got.Title == "" {
 		t.Fatalf("notification = %#v, want a title and a body saying which day was missed", got)
 	}
+	// A day nobody has tried yet grows no sentence about an attempt with an empty outcome.
+	if strings.Contains(got.Body, "last attempt") || strings.Contains(got.Body, "The last attempt") {
+		t.Fatalf("Body = %q, want no attempt sentence when nothing has been attempted", got.Body)
+	}
+	assertMissedScheduleActions(t, got)
+}
+
+// assertMissedScheduleActions checks the two whole-notification actions a missed-schedule record
+// carries: run now, then ignore, each labelled, bound to no row, and holding its own frozen copy of
+// the missed local date.
+func assertMissedScheduleActions(t *testing.T, got notification.Notification) {
+	t.Helper()
+
 	if len(got.Actions) != 2 {
 		t.Fatalf("Actions = %#v, want exactly the two the artboard draws", got.Actions)
 	}
@@ -80,24 +93,11 @@ func TestNotifyMissedScheduleWritesARecordCarryingBothActions(t *testing.T) {
 			t.Fatalf("Actions[%d].Args = %#v, want the missed local date frozen at creation", i, action.Args)
 		}
 	}
-}
-
-// TestNotifyMissedScheduleFreezesArgsPerActionRatherThanSharingOneMap pins that the two actions
-// do not share one Args map. A shared literal would let one action's frozen arguments be
-// rewritten through the other's -- precisely the immutability the token pattern exists to
-// provide (runWideActions makes the same call for the same reason).
-func TestNotifyMissedScheduleFreezesArgsPerActionRatherThanSharingOneMap(t *testing.T) {
-	t.Parallel()
-
-	notifier := &recordingAppNotifier{}
-	app := missedScheduleApp(notifier)
-
-	app.notifyMissedSchedule(context.Background())
-
-	actions := notifier.received[0].Actions
-	actions[0].Args["localDate"] = "rewritten"
-	if actions[1].Args["localDate"] != "2026-07-26" {
-		t.Fatalf("Actions[1].Args = %#v, want it untouched by a write through Actions[0]", actions[1].Args)
+	// The two actions do not share one Args map: a write through one never rewrites the other's
+	// frozen arguments (runWideActions makes the same call for the same reason).
+	got.Actions[0].Args["localDate"] = "rewritten"
+	if got.Actions[1].Args["localDate"] != "2026-07-26" {
+		t.Fatalf("Actions[1].Args = %#v, want it untouched by a write through Actions[0]", got.Actions[1].Args)
 	}
 }
 
@@ -261,20 +261,5 @@ func TestNotifyMissedScheduleBodyReportsAPreviousFailedAttempt(t *testing.T) {
 	}
 	if !strings.Contains(body, "2026-07-26") {
 		t.Fatalf("Body = %q, want it to name the missed day", body)
-	}
-}
-
-// TestNotifyMissedScheduleBodyOmitsAnAttemptThatNeverHappened is the other side of that branch: a
-// day nobody has tried yet must not grow a sentence about an attempt with an empty outcome.
-func TestNotifyMissedScheduleBodyOmitsAnAttemptThatNeverHappened(t *testing.T) {
-	t.Parallel()
-
-	notifier := &recordingAppNotifier{}
-	app := missedScheduleApp(notifier)
-
-	app.notifyMissedSchedule(context.Background())
-
-	if body := notifier.received[0].Body; strings.Contains(body, "last attempt") || strings.Contains(body, "The last attempt") {
-		t.Fatalf("Body = %q, want no attempt sentence when nothing has been attempted", body)
 	}
 }

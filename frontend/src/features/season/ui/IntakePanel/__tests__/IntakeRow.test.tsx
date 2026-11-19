@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { METADATA_LOOKUP_DEBOUNCE_MS } from '../../../../../shared/metadata-lookup/metadata-lookup.constants';
 import { IntakeRow } from '../IntakeRow';
 import type { IntakeAppliedMetadata, IntakeRowProps } from '../intake-panel.types';
 import { createMetadataSource, seasonQueryWrapper, seasonRow } from './intake-panel.test-support';
@@ -83,17 +84,37 @@ describe('IntakeRow', () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
-  it.each([
-    { matchStatus: 'pending', label: 'Pending' },
-    { matchStatus: 'ambiguous', label: 'Ambiguous' },
-    { matchStatus: 'not_found', label: 'Not found' },
-    { matchStatus: 'discarded', label: 'Discarded' },
-  ])('flags the $matchStatus row with its status chip', ({ matchStatus, label }) => {
-    renderRow({ row: seasonRow({ matchStatus }) });
+  it('flags a pending row and offers Find on provider, with no summary line and no availability dot', () => {
+    renderRow();
 
-    expect(screen.getByText(label)).toBeInTheDocument();
+    expect(screen.getByText('Pending')).toBeInTheDocument();
+    expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toStrictEqual([
+      'Fetch metadata',
+      'Find on provider',
+      'More actions for Dr. Stone',
+    ]);
+    expect(screen.queryByTestId('intake-row-summary')).toBeNull();
+    expect(screen.queryByLabelText(/Available to create|Waiting for episode 1/)).toBeNull();
+  });
+
+  it('flags an ambiguous row with its status chip and offers Find on provider', () => {
+    renderRow({ row: seasonRow({ matchStatus: 'ambiguous' }) });
+
+    expect(screen.getByText('Ambiguous')).toBeInTheDocument();
+    expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toStrictEqual([
+      'Fetch metadata',
+      'Find on provider',
+      'More actions for Dr. Stone',
+    ]);
+  });
+
+  it('flags the discarded row with its status chip', () => {
+    renderRow({ row: seasonRow({ matchStatus: 'discarded' }) });
+
+    expect(screen.getByText('Discarded')).toBeInTheDocument();
   });
 
   it('shows no status chip for a matched row', () => {
@@ -126,17 +147,14 @@ describe('IntakeRow', () => {
     expect(screen.getByText('Anime (TV) · 24 eps · 23 min · TMS')).toBeInTheDocument();
   });
 
-  it.each([
-    { held: undefined, case: 'nothing held' },
-    { held: { name: 'Dr. Stone' }, case: 'no summarized field' },
-  ])('renders no summary line for $case', ({ held }) => {
-    renderRow({ heldMetadata: held });
+  it('renders no summary line when no held field is summarized', () => {
+    renderRow({ heldMetadata: { name: 'Dr. Stone' } });
 
     expect(screen.queryByTestId('intake-row-summary')).toBeNull();
   });
 
-  it('orders the row actions lookup, page, folder, more', () => {
-    renderRow({ row: seasonRow(CREATABLE) });
+  it('orders a creatable row actions, marks it available, picks it and names its default folder', () => {
+    const props = renderRow({ row: seasonRow(CREATABLE) });
 
     expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toStrictEqual([
       'Fetch metadata',
@@ -144,10 +162,27 @@ describe('IntakeRow', () => {
       'Set download folder for Dr. Stone',
       'More actions for Dr. Stone',
     ]);
+    expect(screen.getByLabelText('Available to create')).toHaveClass('size-2.5', 'rounded-full', 'bg-success');
+
+    // The checkbox leading the row picks it for creation.
+    const checkbox = screen.getByRole('checkbox', { name: 'Dr. Stone' });
+    expect(checkbox.compareDocumentPosition(screen.getByTestId('season-cover-thumb-placeholder')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(checkbox).toBeEnabled();
+    fireEvent.click(checkbox);
+    expect(props.onToggleSelect).toHaveBeenCalledOnce();
+
+    // One tooltip naming the action, the default folder after it; no native title tooltip.
+    const folder = screen.getByRole('button', { name: 'Set download folder for Dr. Stone' });
+    fireEvent.keyDown(document.body, { key: 'Tab' });
+    act(() => folder.focus());
+    const lines = screen.getByRole('tooltip').querySelectorAll('span > span');
+    expect([...lines].map((line) => line.textContent)).toEqual(['Set download folder', 'Default download folder']);
+    expect(screen.queryByTitle('Default download folder')).toBeNull();
+    expect(folder).toHaveClass('hover:text-success');
   });
 
-  it.each(['pending', 'not_found', 'ambiguous', 'search_failed'])('offers Find on provider right after Fetch metadata, and no page or folder action, on a %s row', (matchStatus) => {
-    renderRow({ row: seasonRow({ matchStatus }) });
+  it('offers Find on provider right after Fetch metadata, and no page or folder action, on a search_failed row', () => {
+    renderRow({ row: seasonRow({ matchStatus: 'search_failed' }) });
 
     expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toStrictEqual([
       'Fetch metadata',
@@ -165,20 +200,49 @@ describe('IntakeRow', () => {
     expect(screen.queryAllByRole('button').map((button) => button.getAttribute('aria-label'))).toStrictEqual(actions);
   });
 
-  it('resolves the row to the page picked in Find on provider', async () => {
+  it('flags a not-found row, offers Find on provider and resolves it to the picked page', async () => {
+    // A clock that still ticks with real time, so `findBy` keeps polling while
+    // the case jumps past the search debounce.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const pageUrl = 'https://jkanime.net/dr-stone/';
     fetchProviderSearch.mockResolvedValue({ status: 'ok', pages: [{ title: 'Dr. Stone', pageUrl, provider: 'jkanime' }] });
     const props = renderRow({ row: seasonRow({ matchStatus: 'not_found' }) });
 
+    expect(screen.getByText('Not found')).toBeInTheDocument();
+    expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toStrictEqual([
+      'Fetch metadata',
+      'Find on provider',
+      'More actions for Dr. Stone',
+    ]);
+
     fireEvent.click(screen.getByRole('button', { name: 'Find on provider' }));
+    act(() => {
+      vi.advanceTimersByTime(METADATA_LOOKUP_DEBOUNCE_MS);
+    });
     fireEvent.click(await screen.findByRole('button', { name: /jkanime\.net\/dr-stone/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Use this page' }));
 
     expect(props.onResolve).toHaveBeenCalledExactlyOnceWith(pageUrl);
   });
 
+  it('offers Undo, Clear and Discard for an undoable autofill and runs each from its menu item', () => {
+    const props = renderRow({ appliedMetadata: applied(true) });
+    const menu = openMoreMenu();
+
+    expect(menuItemNames(menu)).toStrictEqual(['Undo autofill', 'Clear metadata', 'Discard']);
+    expect(within(menu).getByRole('menuitem', { name: 'Discard' })).toHaveAccessibleDescription(
+      'Moves it to Discarded. Restore it there, or type the same name in Raw again.',
+    );
+
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Undo autofill' }));
+    expect(props.onMetadataUndo).toHaveBeenCalledOnce();
+    fireEvent.click(within(openMoreMenu()).getByRole('menuitem', { name: 'Clear metadata' }));
+    expect(props.onMetadataClear).toHaveBeenCalledOnce();
+    fireEvent.click(within(openMoreMenu()).getByRole('menuitem', { name: 'Discard' }));
+    expect(props.onDiscard).toHaveBeenCalledOnce();
+  });
+
   it.each([
-    { appliedMetadata: applied(true), items: ['Undo autofill', 'Clear metadata', 'Discard'] },
     { appliedMetadata: applied(false), items: ['Clear metadata', 'Discard'] },
     { appliedMetadata: undefined, items: ['Discard'] },
   ])('offers $items in the more-actions menu, explaining where a discard goes', ({ appliedMetadata, items }) => {
@@ -191,29 +255,6 @@ describe('IntakeRow', () => {
     );
   });
 
-  it.each([
-    { item: 'Undo autofill', callback: 'onMetadataUndo' },
-    { item: 'Clear metadata', callback: 'onMetadataClear' },
-    { item: 'Discard', callback: 'onDiscard' },
-  ] as const)('runs $callback from the $item menu item', ({ item, callback }) => {
-    const props = renderRow({ appliedMetadata: applied(true) });
-
-    fireEvent.click(within(openMoreMenu()).getByRole('menuitem', { name: item }));
-
-    expect(props[callback]).toHaveBeenCalledOnce();
-  });
-
-  it('lets a creatable row be picked for creation from the checkbox leading the row', () => {
-    const props = renderRow({ row: seasonRow(CREATABLE) });
-    const checkbox = screen.getByRole('checkbox', { name: 'Dr. Stone' });
-
-    expect(checkbox.compareDocumentPosition(screen.getByTestId('season-cover-thumb-placeholder')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(checkbox).toBeEnabled();
-    fireEvent.click(checkbox);
-
-    expect(props.onToggleSelect).toHaveBeenCalledOnce();
-  });
-
   it('resolves an unresolved match to the pressed candidate', () => {
     const candidates = [{ title: 'Dr. Stone', pageUrl: 'https://jkanime.net/dr-stone/', score: 0.91 }];
     const props = renderRow({ row: seasonRow({ matchStatus: 'ambiguous', candidates }) });
@@ -223,11 +264,10 @@ describe('IntakeRow', () => {
     expect(props.onResolve).toHaveBeenCalledExactlyOnceWith('https://jkanime.net/dr-stone/');
   });
 
-  it.each([
-    { folderOverride: undefined, folderPreview: undefined, title: 'Default download folder', tint: 'hover:text-success' },
-    { folderOverride: 'E:/Anime/Stone', folderPreview: 'E:/Anime/Stone', title: 'E:/Anime/Stone', tint: 'text-success' },
-  ])('names the folder action with $title on the second line and tints it $tint', ({ folderOverride, folderPreview, title, tint }) => {
-    renderRow({ row: seasonRow(CREATABLE), folderOverride, folderPreview });
+  it('names the folder action with the chosen folder on the second line and tints it text-success', () => {
+    const title = 'E:/Anime/Stone';
+    const tint = 'text-success';
+    renderRow({ row: seasonRow(CREATABLE), folderOverride: title, folderPreview: title });
     const folder = screen.getByRole('button', { name: 'Set download folder for Dr. Stone' });
 
     fireEvent.keyDown(document.body, { key: 'Tab' });
@@ -240,18 +280,9 @@ describe('IntakeRow', () => {
     expect(folder).toHaveClass(tint);
   });
 
-  it.each([
-    { availability: 'available', label: 'Available to create', color: 'bg-success' },
-    { availability: 'waiting', label: 'Waiting for episode 1', color: 'bg-danger' },
-  ])('ends a matched row with the $color availability dot', ({ availability, label, color }) => {
-    renderRow({ row: seasonRow({ ...CREATABLE, availability }) });
+  it('ends a matched row waiting for episode 1 with the bg-danger availability dot', () => {
+    renderRow({ row: seasonRow({ ...CREATABLE, availability: 'waiting' }) });
 
-    expect(screen.getByLabelText(label)).toHaveClass('size-2.5', 'rounded-full', color);
-  });
-
-  it('shows no availability dot while the row is still being matched', () => {
-    renderRow();
-
-    expect(screen.queryByLabelText(/Available to create|Waiting for episode 1/)).toBeNull();
+    expect(screen.getByLabelText('Waiting for episode 1')).toHaveClass('size-2.5', 'rounded-full', 'bg-danger');
   });
 });

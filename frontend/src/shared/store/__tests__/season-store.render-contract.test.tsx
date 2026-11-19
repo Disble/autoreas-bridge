@@ -105,33 +105,25 @@ describe('season store action identity', () => {
     resetSeasonStore();
   });
 
-  it('keeps every action reference stable across a state write', () => {
+  it('keeps every action reference stable across a state write and then across resetSeasonStore', () => {
     const before = getSeasonStoreState();
-
-    setSeasonStoreState({ busyMessage: 'working', readOnly: true });
-
-    const after = getSeasonStoreState();
     const actions = Object.keys(before).filter(
       (key) => typeof before[key as keyof typeof before] === 'function',
     );
 
+    setSeasonStoreState({ busyMessage: 'working', readOnly: true });
+
+    const afterWrite = getSeasonStoreState();
     expect(actions.length).toBeGreaterThan(0);
     for (const name of actions) {
-      expect(after[name as keyof typeof after]).toBe(before[name as keyof typeof before]);
+      expect(afterWrite[name as keyof typeof afterWrite]).toBe(before[name as keyof typeof before]);
     }
-  });
-
-  it('keeps every action reference stable across resetSeasonStore', () => {
-    const before = getSeasonStoreState();
 
     resetSeasonStore();
 
-    const after = getSeasonStoreState();
-    for (const name of Object.keys(before)) {
-      if (typeof before[name as keyof typeof before] !== 'function') {
-        continue;
-      }
-      expect(after[name as keyof typeof after]).toBe(before[name as keyof typeof before]);
+    const afterReset = getSeasonStoreState();
+    for (const name of actions) {
+      expect(afterReset[name as keyof typeof afterReset]).toBe(before[name as keyof typeof before]);
     }
   });
 });

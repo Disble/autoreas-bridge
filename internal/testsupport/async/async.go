@@ -79,7 +79,14 @@ func EventuallyWithin(t TestingT, timeout time.Duration, condition func() bool, 
 // goroutine it is watching.
 func AwaitState(t TestingT, observe func() bool, format string, args ...any) {
 	t.Helper()
-	deadline := time.Now().Add(DefaultTimeout)
+	awaitStateWithin(t, DefaultTimeout, observe, format, args...)
+}
+
+// awaitStateWithin is AwaitState with an explicit timeout, so the package's
+// own tests can prove the bound without waiting out DefaultTimeout.
+func awaitStateWithin(t TestingT, timeout time.Duration, observe func() bool, format string, args ...any) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		if observe() {
 			return

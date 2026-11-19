@@ -40,17 +40,21 @@ func (f fakeEpisodeSource) ExtractLinks(ctx context.Context, episodePageURL stri
 
 var _ sites.EpisodeSource = fakeEpisodeSource{}
 
-func TestStaticRegistryResolveReturnsRegisteredAdapterForMatchingURL(t *testing.T) {
+// TestStaticRegistryResolveReturnsTheMatchingAdapterOrErrSiteUnsupported
+// refuses a URL on an empty registry, then resolves the registered adapter for
+// its URL and refuses a URL no adapter matches.
+func TestStaticRegistryResolveReturnsTheMatchingAdapterOrErrSiteUnsupported(t *testing.T) {
 	t.Parallel()
 
-	jkanime := fakeEpisodeSource{
-		descriptor: sites.SiteDescriptor{Name: "jkanime", Priority: 0},
-		matches:    func(pageURL string) bool { return pageURL == "https://jkanime.net/some-anime/" },
+	registry := NewStaticRegistry()
+	if _, err := registry.Resolve("https://jkanime.net/some-anime/"); !errors.Is(err, ErrSiteUnsupported) {
+		t.Fatalf("expected ErrSiteUnsupported on empty registry, got %v", err)
 	}
 
-	registry := NewStaticRegistry()
-	registry.Register(jkanime)
-
+	registry.Register(fakeEpisodeSource{
+		descriptor: sites.SiteDescriptor{Name: "jkanime", Priority: 0},
+		matches:    func(pageURL string) bool { return pageURL == "https://jkanime.net/some-anime/" },
+	})
 	got, err := registry.Resolve("https://jkanime.net/some-anime/")
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
@@ -58,33 +62,8 @@ func TestStaticRegistryResolveReturnsRegisteredAdapterForMatchingURL(t *testing.
 	if got.Descriptor().Name != "jkanime" {
 		t.Fatalf("expected resolved adapter %q, got %q", "jkanime", got.Descriptor().Name)
 	}
-}
-
-func TestStaticRegistryResolveReturnsErrSiteUnsupportedWhenNoneMatch(t *testing.T) {
-	t.Parallel()
-
-	jkanime := fakeEpisodeSource{
-		descriptor: sites.SiteDescriptor{Name: "jkanime", Priority: 0},
-		matches:    func(pageURL string) bool { return false },
-	}
-
-	registry := NewStaticRegistry()
-	registry.Register(jkanime)
-
-	_, err := registry.Resolve("https://unknown-site.example/anime/")
-	if !errors.Is(err, ErrSiteUnsupported) {
+	if _, err := registry.Resolve("https://unknown-site.example/anime/"); !errors.Is(err, ErrSiteUnsupported) {
 		t.Fatalf("expected ErrSiteUnsupported, got %v", err)
-	}
-}
-
-func TestStaticRegistryResolveOnEmptyRegistryReturnsErrSiteUnsupported(t *testing.T) {
-	t.Parallel()
-
-	registry := NewStaticRegistry()
-
-	_, err := registry.Resolve("https://jkanime.net/some-anime/")
-	if !errors.Is(err, ErrSiteUnsupported) {
-		t.Fatalf("expected ErrSiteUnsupported on empty registry, got %v", err)
 	}
 }
 

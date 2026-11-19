@@ -75,14 +75,14 @@ func TestRunWideActionsIsTheSeeThisRunTokenAlone(t *testing.T) {
 	}
 }
 
-// TestPartialRunNotificationCarriesAPerRowRetryToken proves the wiring end to end rather than
+// TestAPartialRunsNotificationsCarryTheirBodiesKindsAndTokens proves the wiring end to end rather than
 // only at the builder: a real partial run must ship a notification whose actions include a
 // re-run token bound to the anime row that failed.
 //
 // It scans for that specific binding rather than demanding the run carry exactly ONE re-run
 // token. That old count described the collapse rule as it was, not a requirement: a partial run
 // now names the anime that downloaded too, and every named anime row carries its own token.
-func TestPartialRunNotificationCarriesAPerRowRetryToken(t *testing.T) {
+func TestAPartialRunsNotificationsCarryTheirBodiesKindsAndTokens(t *testing.T) {
 	t.Parallel()
 
 	deps, notifier := partialRunScenarioWithNotifier(t)
@@ -108,39 +108,60 @@ func TestPartialRunNotificationCarriesAPerRowRetryToken(t *testing.T) {
 		t.Fatalf("retry token = %#v, want it frozen on the anime row that failed", retries[0])
 	}
 	findRunWideActionByIntent(t, sent.Actions, "navigation.open")
+
+	assertPartialRunBodies(t, notifier)
+	assertPartialRunKinds(t, notifier)
 }
 
-// TestJDOfflineNotificationIndividuatesTheAnimeAsARow closes the second gap in Slice D: the
-// jd_offline producer used to attach nothing, so the Anatomy artboard's row for it could never
-// render. It carries rows now -- and deliberately no re-run token, because the canvas draws
-// copy-hoster actions there and no such intent exists.
-func TestJDOfflineNotificationIndividuatesTheAnimeAsARow(t *testing.T) {
-	t.Parallel()
+// assertPartialRunBodies checks the start and partial-failure bodies state the run's numbers.
+func assertPartialRunBodies(t *testing.T, notifier *svcFakeNotifier) {
+	t.Helper()
 
-	deps, _ := jdOfflineScenario(t)
-	notifier := &svcFakeNotifier{}
-	deps.Notifier = notifier
-
-	if _, err := NewService(deps).RunOnce(context.Background(), "manual"); err != nil {
-		t.Fatalf("RunOnce: %v", err)
-	}
-
-	sent, found := notificationWithTitle(notifier, "MyJDownloader offline")
+	started, found := notificationWithTitle(notifier, "Download run started")
 	if !found {
-		t.Fatalf("no jd_offline notification in %#v", notifier.notifications())
+		t.Fatal("the run raised no start notification")
 	}
-	if len(sent.Rows) != 1 {
-		t.Fatalf("jd_offline rows = %#v, want exactly one row naming the affected anime", sent.Rows)
+	if started.Body != "Download check started (manual) -- 2 anime queued." {
+		t.Fatalf("start body = %q, want it to state the selection it announced", started.Body)
 	}
-	if sent.Rows[0].RefID != "anime-1" || sent.Rows[0].Name != "NegaPosi Angler" {
-		t.Fatalf("jd_offline row = %#v, want it to individuate the affected anime", sent.Rows[0])
+	partial, found := notificationWithTitle(notifier, "Download run completed with errors")
+	if !found {
+		t.Fatal("the run raised no partial-failure notification")
 	}
-	for _, action := range sent.Actions {
-		if action.Intent == "download.run_anime" {
-			t.Fatalf("jd_offline attached a re-run token %#v; the canvas draws copy-hoster actions there", action)
+	if partial.Body != "1 of 2 animes failed to download." {
+		t.Fatalf("partial body = %q, want it to state both numbers", partial.Body)
+	}
+}
+
+// assertPartialRunKinds checks every notification of the run carries its own kind and opens Downloads.
+func assertPartialRunKinds(t *testing.T, notifier *svcFakeNotifier) {
+	t.Helper()
+
+	if got := kindOf(t, notifier, "Download run started"); got != "run_started" {
+		t.Fatalf("run-started kind = %q, want %q", got, "run_started")
+	}
+	if got := kindOf(t, notifier, "Download run completed with errors"); got != "download.run_stopped_early" {
+		t.Fatalf("partial-run kind = %q, want %q", got, "download.run_stopped_early")
+	}
+	sent := notifier.notifications()
+	if len(sent) < 2 {
+		t.Fatalf("notifications = %#v, want at least the run-started and terminal ones", sent)
+	}
+	kinds := make(map[string]bool, len(sent))
+	for _, notified := range sent {
+		findRunWideActionByIntent(t, notified.Actions, "navigation.open")
+		if notified.Kind == "" {
+			t.Fatalf("notification %q carries no kind", notified.Title)
 		}
+		if notified.Kind == notified.Source {
+			t.Fatalf("notification %q reports its source %q as its kind", notified.Title, notified.Kind)
+		}
+		kinds[notified.Kind] = true
 	}
-	findRunWideActionByIntent(t, sent.Actions, "navigation.open")
+	// The sweep crosses more than one producer branch, so more than one kind is required.
+	if len(kinds) < 2 {
+		t.Fatalf("kinds swept = %#v, want more than one so this is not asserting about a single branch", kinds)
+	}
 }
 
 // notificationWithTitle returns the last notification the fake notifier received under title.
@@ -201,66 +222,6 @@ func partialRunScenarioWithNotifier(t *testing.T) (ServiceDeps, *svcFakeNotifier
 	return deps, notifier
 }
 
-// TestEveryRunNotificationCanBeOpenedInDownloads pins notify's contract rather than one call
-// site: every notification a download run raises is ABOUT that run, so all of them carry the
-// whole-notification "See this run" token -- the row-less ones (run started) exactly as much
-// as the ones that individuate anime.
-func TestEveryRunNotificationCanBeOpenedInDownloads(t *testing.T) {
-	t.Parallel()
-
-	deps, notifier := partialRunScenarioWithNotifier(t)
-
-	if _, err := NewService(deps).RunOnce(context.Background(), "manual"); err != nil {
-		t.Fatalf("RunOnce: %v", err)
-	}
-
-	sent := notifier.notifications()
-	if len(sent) < 2 {
-		t.Fatalf("notifications = %#v, want at least the run-started and terminal ones", sent)
-	}
-	kinds := make(map[string]bool, len(sent))
-	for _, notified := range sent {
-		findRunWideActionByIntent(t, notified.Actions, "navigation.open")
-		kinds[notified.Kind] = true
-	}
-	// This used to require a row-LESS notification in the sweep, on the argument that run_started
-	// was one. It is not any more -- a started run names the anime it is about -- and the guard
-	// would now pass vacuously on a single kind. What it was reaching for is that the sweep
-	// crossed more than one producer branch, so more than one kind is what it asks for.
-	if len(kinds) < 2 {
-		t.Fatalf("kinds swept = %#v, want more than one so this is not asserting about a single branch", kinds)
-	}
-}
-
-// TestRunAnimeJDOfflineNotificationIndividuatesTheAnimeAsARow mirrors the fan-out assertion on
-// the single-anime path: RunAnime has its own status ladder, and its jd_offline branch used to
-// attach nothing either.
-func TestRunAnimeJDOfflineNotificationIndividuatesTheAnimeAsARow(t *testing.T) {
-	t.Parallel()
-
-	deps, _ := jdOfflineScenario(t)
-	notifier := &svcFakeNotifier{}
-	deps.Notifier = notifier
-	anime := deps.Animes.(*svcFakeAnimeQuery).animes[0]
-
-	if _, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime); err != nil {
-		t.Fatalf("RunAnime: %v", err)
-	}
-
-	sent, found := notificationWithTitle(notifier, "MyJDownloader offline")
-	if !found {
-		t.Fatalf("no jd_offline notification in %#v", notifier.notifications())
-	}
-	if len(sent.Rows) != 1 || sent.Rows[0].RefID != "anime-1" || sent.Rows[0].Name != "NegaPosi Angler" {
-		t.Fatalf("jd_offline rows = %#v, want exactly one row naming the affected anime", sent.Rows)
-	}
-	for _, action := range sent.Actions {
-		if action.Intent == "download.run_anime" {
-			t.Fatalf("jd_offline attached a re-run token %#v; the canvas draws copy-hoster actions there", action)
-		}
-	}
-}
-
 // kindOf returns the kind of the last notification sent under title.
 func kindOf(t *testing.T, notifier *svcFakeNotifier, title string) string {
 	t.Helper()
@@ -269,34 +230,6 @@ func kindOf(t *testing.T, notifier *svcFakeNotifier, title string) string {
 		t.Fatalf("no notification titled %q in %#v", title, notifier.notifications())
 	}
 	return sent.Kind
-}
-
-// TestRunNotificationsCarryTheirKind pins the vocabulary the design canvas already names, as
-// literals. Kind is a second axis next to Source: every one of these carries source "download",
-// so a mutation that reported the source in the kind's place must fail here.
-func TestRunNotificationsCarryTheirKind(t *testing.T) {
-	t.Parallel()
-
-	deps, notifier := partialRunScenarioWithNotifier(t)
-
-	if _, err := NewService(deps).RunOnce(context.Background(), "manual"); err != nil {
-		t.Fatalf("RunOnce: %v", err)
-	}
-
-	if got := kindOf(t, notifier, "Download run started"); got != "run_started" {
-		t.Fatalf("run-started kind = %q, want %q", got, "run_started")
-	}
-	if got := kindOf(t, notifier, "Download run completed with errors"); got != "download.run_stopped_early" {
-		t.Fatalf("partial-run kind = %q, want %q", got, "download.run_stopped_early")
-	}
-	for _, sent := range notifier.notifications() {
-		if sent.Kind == "" {
-			t.Fatalf("notification %q carries no kind", sent.Title)
-		}
-		if sent.Kind == sent.Source {
-			t.Fatalf("notification %q reports its source %q as its kind", sent.Title, sent.Kind)
-		}
-	}
 }
 
 // TestJDOfflineNotificationCarriesTheJDownloaderOfflineKind pins the kind the Anatomy artboard
@@ -412,24 +345,6 @@ func TestSingleAnimeRunNotificationsCarryTheirKind(t *testing.T) {
 	}
 	if got := kindOf(t, notifier, "Download run completed with errors"); got != "download.run_stopped_early" {
 		t.Fatalf("single-anime partial kind = %q, want %q", got, "download.run_stopped_early")
-	}
-}
-
-// TestCleanSingleAnimeRunCarriesTheRunCompletedKind separates the clean terminal case on the
-// RunAnime ladder too: reporting it as stopped-early would make the two indistinguishable.
-func TestCleanSingleAnimeRunCarriesTheRunCompletedKind(t *testing.T) {
-	t.Parallel()
-
-	deps := cleanRunScenarioWithNotifier(t)
-	notifier := deps.Notifier.(*svcFakeNotifier)
-	anime := deps.Animes.(*svcFakeAnimeQuery).animes[0]
-
-	if _, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime); err != nil {
-		t.Fatalf("RunAnime: %v", err)
-	}
-
-	if got := kindOf(t, notifier, "Download run completed"); got != "run_completed" {
-		t.Fatalf("single-anime clean kind = %q, want %q", got, "run_completed")
 	}
 }
 

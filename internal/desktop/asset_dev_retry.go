@@ -22,12 +22,21 @@ const (
 
 // assetServerMiddleware returns the asset-server middleware for this process: under `wails dev`,
 // the retry of an unreachable Vite dev server; in a production build, none, since the assets are
-// embedded and never proxied.
-func assetServerMiddleware(getenv func(string) string) assetserver.Middleware {
+// embedded and never proxied. retryDelay spaces the retries; zero or negative means
+// devAssetRetryDelay.
+func assetServerMiddleware(getenv func(string) string, retryDelay time.Duration) assetserver.Middleware {
 	if getenv(frontendDevServerURLEnv) == "" {
 		return nil
 	}
-	return retryUnreachableDevAssets(devAssetRetryAttempts, devAssetRetryDelay)
+	return retryUnreachableDevAssets(devAssetRetryAttempts, devAssetRetryDelayOr(retryDelay))
+}
+
+// devAssetRetryDelayOr returns delay, or devAssetRetryDelay when delay is zero or negative.
+func devAssetRetryDelayOr(delay time.Duration) time.Duration {
+	if delay <= 0 {
+		return devAssetRetryDelay
+	}
+	return delay
 }
 
 // retryUnreachableDevAssets retries a window GET while Wails' proxy to the Vite dev server answers

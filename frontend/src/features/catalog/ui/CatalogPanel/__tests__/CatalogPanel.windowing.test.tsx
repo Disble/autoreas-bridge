@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CatalogView } from '../catalog-panel.types';
@@ -38,11 +38,20 @@ beforeEach(() => {
 afterEach(cleanup);
 
 /**
- * Counts the anime rendered in the results, never the skeleton placeholders.
- * @returns How many anime the results list holds.
+ * The results list, a `ul` named "Anime catalog"; the skeleton list carries no name. A selector, not
+ * `getByRole`: it skips the role query's costly accessibility pass over the whole catalog on every poll.
+ * @returns The list, or null before the catalog resolved.
+ */
+function resultsList(): HTMLUListElement | null {
+  return document.querySelector<HTMLUListElement>('ul[aria-label="Anime catalog"]');
+}
+
+/**
+ * Counts the anime mounted in the results, never the skeleton placeholders.
+ * @returns How many anime items the results list holds.
  */
 function countRenderedAnime(): number {
-  return within(screen.getByRole('list', { name: 'Anime catalog' })).getAllByRole('listitem').length;
+  return resultsList()?.querySelectorAll('li').length ?? 0;
 }
 
 describe('CatalogPanel progressive window (400 anime)', () => {
@@ -55,7 +64,7 @@ describe('CatalogPanel progressive window (400 anime)', () => {
       createModulesTestWrapper({ module: 'anime', state: 'ready' }),
     );
 
-    await waitFor(() => expect(screen.getByRole('list', { name: 'Anime catalog' })).toBeInTheDocument());
+    await waitFor(() => expect(resultsList()).toBeInTheDocument());
     expect(countRenderedAnime()).toBe(20); // PROGRESSIVE_LIST_INITIAL_COUNT
 
     fireEvent.scroll(window);

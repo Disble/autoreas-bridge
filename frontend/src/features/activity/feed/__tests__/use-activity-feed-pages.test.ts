@@ -97,19 +97,6 @@ describe('useActivityFeedPages', () => {
     expect(client.getQueryCache().findAll({ queryKey: activityKeys.all }).map((query) => query.state.dataUpdateCount)).toEqual([0]);
   });
 
-  it('drops the rows when the query goes away, never keeping the previous query page', async () => {
-    const { searchFeed } = pagedFeed();
-    const { result, rerender } = renderHook(({ query }: { readonly query: ActivityFeedQuery | undefined }) => useActivityFeedPages(feedSourceWith(searchFeed), query), {
-      wrapper: observabilityReady(),
-      initialProps: { query: QUERY as ActivityFeedQuery | undefined },
-    });
-    await waitFor(() => expect(ids(result.current.days)).toEqual(['2']));
-
-    rerender({ query: undefined });
-
-    expect([result.current.status, result.current.days, result.current.hasMore]).toEqual(['ready', [], false]);
-  });
-
   it('keeps the loaded rows when an older page or a live refresh fails', async () => {
     const source = fakeSource(onePage('2', 'c1'), new Error('older'), new Error('live'));
     const { result } = renderHook(() => useActivityFeedPages(source, QUERY), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
@@ -125,7 +112,7 @@ describe('useActivityFeedPages', () => {
     expect(result.current.status).toBe('ready');
   });
 
-  it('reads no older page while the page is far from its bottom, nor after unmount', async () => {
+  it('reads an older page only near the bottom, one at a time, while one remains and the hook is mounted', async () => {
     const source = fakeSource(onePage('2', 'c1'), onePage('1'));
     const { result, unmount } = renderHook(() => useActivityFeedPages(source, QUERY), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
     await waitFor(() => expect(result.current.status).toBe('ready'));
@@ -135,15 +122,6 @@ describe('useActivityFeedPages', () => {
 
     expect(source.searchFeed).toHaveBeenCalledTimes(1);
     Reflect.deleteProperty(document.documentElement, 'scrollHeight');
-    unmount();
-    scrollPage();
-    expect(source.searchFeed).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not read an older page while one is loading or when none remains', async () => {
-    const source = fakeSource(onePage('2', 'c1'), onePage('1'));
-    const { result } = renderHook(() => useActivityFeedPages(source, QUERY), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
-    await waitFor(() => expect(result.current.status).toBe('ready'));
 
     act(() => {
       scrollPage();
@@ -154,6 +132,10 @@ describe('useActivityFeedPages', () => {
 
     expect(source.searchFeed).toHaveBeenCalledTimes(2);
     expect(ids(result.current.days)).toEqual(['2', '1']);
+
+    unmount();
+    scrollPage();
+    expect(source.searchFeed).toHaveBeenCalledTimes(2);
   });
 
   it('drops a page or a failure that resolves after the query changed', async () => {
@@ -229,9 +211,12 @@ describe('useActivityFeedPages', () => {
     await waitFor(() => expect(ids(result.current.days)).toEqual(['new']));
   });
 
-  it('loads more only while an older page of the shown query is pending', async () => {
+  it('loads more only while an older page is pending, and drops that window on a query change or unmount', async () => {
     const { searchFeed, settle } = pagedFeed();
-    const { result } = renderHook(() => useActivityFeedPages(feedSourceWith(searchFeed), QUERY), { wrapper: observabilityReady() });
+    const { result, rerender } = renderHook(({ query }: { readonly query: ActivityFeedQuery | undefined }) => useActivityFeedPages(feedSourceWith(searchFeed), query), {
+      wrapper: observabilityReady(),
+      initialProps: { query: QUERY as ActivityFeedQuery | undefined },
+    });
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(result.current.isLoadingMore).toBe(false);
 
@@ -241,6 +226,15 @@ describe('useActivityFeedPages', () => {
 
     await waitFor(() => expect(result.current.isLoadingMore).toBe(false));
     expect(ids(result.current.days)).toEqual(['2', '1']);
+
+    rerender({ query: PHONE });
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(ids(result.current.days)).toEqual(['p']);
+
+    rerender({ query: undefined });
+
+    expect([result.current.status, result.current.days, result.current.hasMore]).toEqual(['ready', [], false]);
   });
 
   it('stops loading more when the query changes, and keeps the new query loading more when an older page of the previous one settles', async () => {
@@ -282,23 +276,5 @@ describe('useActivityFeedPages', () => {
     rerender({ query: QUERY });
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(ids(result.current.days)).toEqual(['2']);
-  });
-
-  it('shows a new query without the older window loaded under the previous one', async () => {
-    const { searchFeed, settle } = pagedFeed();
-    const { result, rerender } = renderHook(({ query }) => useActivityFeedPages(feedSourceWith(searchFeed), query), {
-      wrapper: observabilityReady(),
-      initialProps: { query: QUERY },
-    });
-    await waitFor(() => expect(result.current.status).toBe('ready'));
-    act(() => scrollPage());
-    await waitFor(() => expect(searchFeed).toHaveBeenCalledTimes(2));
-    await act(async () => settle('c1', pageAt([['1', NOW_MS - 10]])));
-    await waitFor(() => expect(ids(result.current.days)).toEqual(['2', '1']));
-
-    rerender({ query: PHONE });
-
-    await waitFor(() => expect(result.current.status).toBe('ready'));
-    expect(ids(result.current.days)).toEqual(['p']);
   });
 });

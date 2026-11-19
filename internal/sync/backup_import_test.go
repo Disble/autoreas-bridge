@@ -158,7 +158,10 @@ func TestImportDecodesIncrementally(t *testing.T) {
 	}
 }
 
-func TestImportAnimeSnapshotsIgnoresUnknownFields(t *testing.T) {
+// TestImportAnimeSnapshotsIgnoresUnknownFieldsBindsEveryValueAndDefaultsAbsentOnes
+// imports a record with an unknown field, one whose hash carries SQL
+// metacharacters, and one holding only its id, checking each stored value.
+func TestImportAnimeSnapshotsIgnoresUnknownFieldsBindsEveryValueAndDefaultsAbsentOnes(t *testing.T) {
 	db := openTestBridgeDB(t)
 
 	body := `{"anime_id":"x","snapshot_json":"{}","snapshot_hash":"h","modified_at":1,"future_field":"ignored"}` + "\n"
@@ -180,20 +183,24 @@ func TestImportAnimeSnapshotsIgnoresUnknownFields(t *testing.T) {
 	if got.ModifiedAt != 1 {
 		t.Fatalf("unexpected modified_at: %d", got.ModifiedAt)
 	}
-}
 
-func TestImportAnimeSnapshotsDefaultsAbsentFields(t *testing.T) {
-	db := openTestBridgeDB(t)
-
-	body := `{"anime_id":"y"}` + "\n"
-
-	importFn := ImportAnimeSnapshots(db)
+	malicious := `'); DROP TABLE anime_snapshots; --`
+	body = `{"anime_id":"z","snapshot_json":"{}","snapshot_hash":"` + malicious + `","modified_at":1}` + "\n"
 	if _, err := importFn(context.Background(), strings.NewReader(body)); err != nil {
 		t.Fatalf("import: %v", err)
 	}
+	got, err = store.GetSnapshot(context.Background(), "z")
+	if err != nil {
+		t.Fatalf("GetSnapshot: %v", err)
+	}
+	if got.Hash != malicious {
+		t.Fatalf("expected the metacharacter-laden hash to round-trip verbatim, got %q", got.Hash)
+	}
 
-	store := NewAnimeSnapshotStore(db)
-	got, err := store.GetSnapshot(context.Background(), "y")
+	if _, err := importFn(context.Background(), strings.NewReader(`{"anime_id":"y"}`+"\n")); err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	got, err = store.GetSnapshot(context.Background(), "y")
 	if err != nil {
 		t.Fatalf("GetSnapshot: %v", err)
 	}
@@ -202,27 +209,6 @@ func TestImportAnimeSnapshotsDefaultsAbsentFields(t *testing.T) {
 	}
 	if string(got.CanonicalJSON) != "" {
 		t.Fatalf("expected absent snapshot_json to default to empty, got %q", got.CanonicalJSON)
-	}
-}
-
-func TestImportUsesBoundParameters(t *testing.T) {
-	db := openTestBridgeDB(t)
-
-	malicious := `'); DROP TABLE anime_snapshots; --`
-	body := `{"anime_id":"z","snapshot_json":"{}","snapshot_hash":"` + malicious + `","modified_at":1}` + "\n"
-
-	importFn := ImportAnimeSnapshots(db)
-	if _, err := importFn(context.Background(), strings.NewReader(body)); err != nil {
-		t.Fatalf("import: %v", err)
-	}
-
-	store := NewAnimeSnapshotStore(db)
-	got, err := store.GetSnapshot(context.Background(), "z")
-	if err != nil {
-		t.Fatalf("GetSnapshot: %v", err)
-	}
-	if got.Hash != malicious {
-		t.Fatalf("expected the metacharacter-laden hash to round-trip verbatim, got %q", got.Hash)
 	}
 }
 
