@@ -13,12 +13,16 @@ describe('hasSyncResult', () => {
 });
 
 describe('toSyncResult', () => {
-  it.each([
-    ['idle', { status: 'idle', error: null }, ''],
-    ['pending', { status: 'pending', error: null }, ''],
-    ['success', { status: 'success', error: null }, 'ok'],
-    ['error', { status: 'error', error: createBridgeError('unavailable', 'sync is starting') }, 'sync is starting'],
-  ] as const)('answers the feedback of a %s reconcile', (_case, mutation, expected) => {
-    expect(toSyncResult(mutation)).toBe(expected);
+  it('answers the feedback of each reconcile state', () => {
+    const cases = [
+      ['idle', { status: 'idle', error: null }, ''],
+      ['pending', { status: 'pending', error: null }, ''],
+      ['success', { status: 'success', error: null }, 'ok'],
+      ['error', { status: 'error', error: createBridgeError('unavailable', 'sync is starting') }, 'sync is starting'],
+    ] as const;
+
+    for (const [caseName, mutation, expected] of cases) {
+      expect.soft(toSyncResult(mutation), caseName).toBe(expected);
+    }
   });
 });

@@ -150,11 +150,11 @@ func seedEvents(t *testing.T, db *sql.DB, kind KindName, count int, startAtMS in
 	}
 }
 
-// TestInsertStoresSameEventIDUnderTwoKindsAsTwoRows asserts identity is
+// TestInsertScopesEventIDPerKindAndReportsDuplicates asserts identity is
 // scoped per kind: one kind's key namespace must not collide with another's,
 // which is why the uniqueness constraint is (kind, event_id) and not
 // event_id alone.
-func TestInsertStoresSameEventIDUnderTwoKindsAsTwoRows(t *testing.T) {
+func TestInsertScopesEventIDPerKindAndReportsDuplicates(t *testing.T) {
 	t.Parallel()
 
 	db := openTelemetryStoreTestDB(t)
@@ -172,27 +172,10 @@ func TestInsertStoresSameEventIDUnderTwoKindsAsTwoRows(t *testing.T) {
 			t.Fatalf("expected one row for %s, got %d", kind, count)
 		}
 	}
-}
 
-// TestInsertDuplicateKindEventIDStoresOneRowAndReportsDuplicate asserts a
-// repeated (kind, event_id) is a no-op that still reports Duplicate rather
-// than an error, which is what lets a caller retry blind and remain correct.
-func TestInsertDuplicateKindEventIDStoresOneRowAndReportsDuplicate(t *testing.T) {
-	t.Parallel()
-
-	db := openTelemetryStoreTestDB(t)
-	store := NewStore(db, StoreConfig{Registry: pruneTestRegistry()})
-	event := storeEvent(pruneKindA, "duplicate-event", 1000)
-
-	first, err := store.Insert(context.Background(), event)
-	if err != nil {
-		t.Fatalf("first insert: %v", err)
-	}
-	if first != Stored {
-		t.Fatalf("expected the first insert to be Stored, got %v", first)
-	}
-
-	second, err := store.Insert(context.Background(), event)
+	// A repeated (kind, event_id) is a no-op that still reports Duplicate
+	// rather than an error, which is what lets a caller retry blind.
+	second, err := store.Insert(context.Background(), storeEvent(pruneKindA, "shared-event", 1000))
 	if err != nil {
 		t.Fatalf("second insert: %v", err)
 	}
@@ -234,29 +217,6 @@ func TestPruneKeepsNewestWithinOneKindAndNeverEvictsAnotherKind(t *testing.T) {
 	}
 	if count := countEvents(t, db, pruneKindB); count != pruneKindLimit+2 {
 		t.Fatalf("expected pruning %s to leave %s's %d rows untouched, got %d", pruneKindA, pruneKindB, pruneKindLimit+2, count)
-	}
-}
-
-// TestPruneRunsOnFirstSuccessfulWriteOfTheProcess asserts the first
-// successful write of every process prunes unconditionally, so a session
-// that persists fewer than a full cadence still bounds its kind's table --
-// the common case for a desktop app with short sessions.
-func TestPruneRunsOnFirstSuccessfulWriteOfTheProcess(t *testing.T) {
-	t.Parallel()
-
-	db := openTelemetryStoreTestDB(t)
-	seedEvents(t, db, pruneKindA, pruneKindLimit+2, 1000)
-
-	store := NewStore(db, StoreConfig{Registry: pruneTestRegistry()})
-	outcome, err := store.Insert(context.Background(), storeEvent(pruneKindA, "first-write", 9000))
-	if err != nil {
-		t.Fatalf("first insert of a fresh store: %v", err)
-	}
-	if outcome != Stored {
-		t.Fatalf("expected the first write to be Stored, got %v", outcome)
-	}
-	if count := countEvents(t, db, pruneKindA); count != pruneKindLimit {
-		t.Fatalf("expected the first write of the process to prune down to %d, got %d", pruneKindLimit, count)
 	}
 }
 

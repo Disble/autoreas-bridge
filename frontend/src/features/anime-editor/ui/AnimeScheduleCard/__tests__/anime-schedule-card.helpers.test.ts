@@ -46,7 +46,7 @@ function record(animeId: string, placements: readonly AnimeSchedulePlacement[]):
 }
 
 describe('toAnimeScheduleDays', () => {
-  it('gives one cell per weekday, ranks the selected anime by normalized order, and counts that day', () => {
+  it('gives one cell per weekday, ranks the selected anime by normalized order at its first place, and counts that day', () => {
     const days = toAnimeScheduleDays(board([
       entry('a', [{ day: 'Lunes', order: 10 }]),
       entry('me', [{ day: 'Lunes', order: 30 }, { day: 'Martes', order: 2 }]),
@@ -59,9 +59,23 @@ describe('toAnimeScheduleDays', () => {
       { id: 'Martes', label: 'Martes', isScheduled: true, position: { order: 1, total: 2 }, ariaLabel: 'Martes: 1 of 2' },
       { id: 'Jueves', label: 'Jueves', isScheduled: false, ariaLabel: 'Jueves: not scheduled' },
     ]);
+
+    // An anime placed twice on one day counts once, at its first place.
+    const twice = toAnimeScheduleDays(board([
+      entry('me', [{ day: 'Lunes', order: 4 }, { day: 'Lunes', order: 1 }]),
+      entry('a', [{ day: 'Lunes', order: 2 }]),
+    ]), 'me', 'weekday', []);
+    expect(twice[0]).toEqual({ id: 'Lunes', label: 'Lunes', isScheduled: true, position: { order: 1, total: 2 }, ariaLabel: 'Lunes: 1 of 2' });
+
+    // Animes that share one order value keep board order.
+    const tied = toAnimeScheduleDays(board([
+      entry('a', [{ day: 'Lunes', order: 1 }]),
+      entry('me', [{ day: 'Lunes', order: 1 }]),
+    ]), 'me', 'weekday', []);
+    expect(tied[0]?.position).toEqual({ order: 2, total: 2 });
   });
 
-  it('gives one cell per season section, ranked the same way, whatever the season mode', () => {
+  it('gives one cell per season section, ranked the same way, painting saved days off the board unranked and trusting the board over them', () => {
     const days = toAnimeScheduleDays(board([
       entry('a', [{ day: 'Ver hoy', order: 1 }]),
       entry('me', [{ day: 'Ver hoy', order: 2 }]),
@@ -71,39 +85,17 @@ describe('toAnimeScheduleDays', () => {
       { id: 'Sin ver', label: 'Sin ver', isScheduled: false, ariaLabel: 'Sin ver: not scheduled' },
       { id: 'Ver hoy', label: 'Ver hoy', isScheduled: true, position: { order: 2, total: 2 }, ariaLabel: 'Ver hoy: 2 of 2' },
     ]);
-  });
 
-  it('paints the saved days of an anime off the board without a place, since it is not ranked', () => {
-    const days = toAnimeScheduleDays(board([entry('a', [{ day: 'Sin ver', order: 1 }])]), 'me', 'special', [{ day: 'Sin ver', order: 3 }]);
-
-    expect(days).toEqual([
+    // The saved days of an anime off the board are painted without a place, since it is not ranked.
+    const offBoard = toAnimeScheduleDays(board([entry('a', [{ day: 'Sin ver', order: 1 }])]), 'me', 'special', [{ day: 'Sin ver', order: 3 }]);
+    expect(offBoard).toEqual([
       { id: 'Sin ver', label: 'Sin ver', isScheduled: true, ariaLabel: 'Sin ver: scheduled' },
       { id: 'Ver hoy', label: 'Ver hoy', isScheduled: false, ariaLabel: 'Ver hoy: not scheduled' },
     ]);
-  });
 
-  it('trusts the board over the saved days for an anime on the board', () => {
-    const days = toAnimeScheduleDays(board([entry('me', [{ day: 'Ver hoy', order: 1 }])]), 'me', 'special', [{ day: 'Sin ver', order: 1 }]);
-
-    expect(days.map((day) => day.ariaLabel)).toEqual(['Sin ver: not scheduled', 'Ver hoy: 1 of 1']);
-  });
-
-  it('counts an anime placed twice on one day once, at its first place', () => {
-    const days = toAnimeScheduleDays(board([
-      entry('me', [{ day: 'Lunes', order: 4 }, { day: 'Lunes', order: 1 }]),
-      entry('a', [{ day: 'Lunes', order: 2 }]),
-    ]), 'me', 'weekday', []);
-
-    expect(days[0]).toEqual({ id: 'Lunes', label: 'Lunes', isScheduled: true, position: { order: 1, total: 2 }, ariaLabel: 'Lunes: 1 of 2' });
-  });
-
-  it('keeps board order for animes that share one order value', () => {
-    const days = toAnimeScheduleDays(board([
-      entry('a', [{ day: 'Lunes', order: 1 }]),
-      entry('me', [{ day: 'Lunes', order: 1 }]),
-    ]), 'me', 'weekday', []);
-
-    expect(days[0]?.position).toEqual({ order: 2, total: 2 });
+    // For an anime on the board, the board wins over the saved days.
+    const onBoard = toAnimeScheduleDays(board([entry('me', [{ day: 'Ver hoy', order: 1 }])]), 'me', 'special', [{ day: 'Sin ver', order: 1 }]);
+    expect(onBoard.map((day) => day.ariaLabel)).toEqual(['Sin ver: not scheduled', 'Ver hoy: 1 of 1']);
   });
 });
 
@@ -118,22 +110,19 @@ describe('toAnimeScheduleSavedPlacements', () => {
 });
 
 describe('toAnimeScheduleWeekView', () => {
-  it('serves the weekdays and the season sections of a read board for the selected anime', () => {
+  it('serves the weekdays and season sections of a read board, the saved days the board leaves out, and no days until it is read', () => {
     const view = toAnimeScheduleWeekView({ status: 'ready', board: board([entry('me', [{ day: 'Jueves', order: 1 }])]) }, 'me', [{ day: 'Ver hoy', order: 1 }]);
 
     expect(view.status).toBe('ready');
     expect(view.days.map((day) => day.ariaLabel)).toEqual(['Lunes: not scheduled', 'Martes: not scheduled', 'Jueves: 1 of 1']);
     expect(view.seasonDays.map((day) => day.ariaLabel)).toEqual(['Sin ver: not scheduled', 'Ver hoy: not scheduled']);
     expect(view.failureMessage).toBeUndefined();
-  });
 
-  it('serves the saved days of an anime the board leaves out', () => {
-    const view = toAnimeScheduleWeekView({ status: 'ready', board: board([]) }, 'me', [{ day: 'Ver hoy', order: 1 }]);
+    // The saved days of an anime the board leaves out.
+    const leftOut = toAnimeScheduleWeekView({ status: 'ready', board: board([]) }, 'me', [{ day: 'Ver hoy', order: 1 }]);
+    expect(leftOut.seasonDays.map((day) => day.ariaLabel)).toEqual(['Sin ver: not scheduled', 'Ver hoy: scheduled']);
 
-    expect(view.seasonDays.map((day) => day.ariaLabel)).toEqual(['Sin ver: not scheduled', 'Ver hoy: scheduled']);
-  });
-
-  it('serves no days while idle, loading or failed, and the failure message', () => {
+    // No days while idle, loading or failed, and the failure message.
     expect(toAnimeScheduleWeekView({ status: 'idle' }, 'me', [])).toEqual({ status: 'idle', days: [], seasonDays: [] });
     expect(toAnimeScheduleWeekView({ status: 'loading' }, 'me', [])).toEqual({ status: 'loading', days: [], seasonDays: [] });
     expect(toAnimeScheduleWeekView({ status: 'failed', message: 'offline', board: board([]) }, 'me', [])).toEqual({ status: 'failed', days: [], seasonDays: [], failureMessage: 'offline' });
@@ -141,17 +130,12 @@ describe('toAnimeScheduleWeekView', () => {
 });
 
 describe('toAnimeScheduleBoardLoad', () => {
-  it('reads a loaded board as ready', () => {
+  it('reads a loaded board as ready, an error as failed with its message and fallback board, and a missing board as failed generically', () => {
     const loaded = board([]);
     expect(toAnimeScheduleBoardLoad({ outcome: 'applied', message: 'loaded', board: loaded })).toEqual({ status: 'ready', board: loaded });
-  });
-
-  it('reads an error outcome as failed with its message and keeps the fallback board', () => {
     const fallback = board([]);
     expect(toAnimeScheduleBoardLoad({ outcome: 'error', message: 'runtime unavailable', board: fallback })).toEqual({ status: 'failed', message: 'runtime unavailable', board: fallback });
-  });
 
-  it('reads a missing board as failed with the generic message', () => {
     expect(toAnimeScheduleBoardLoad({ outcome: 'applied', message: '' })).toEqual({ status: 'failed', message: 'The schedule board could not be loaded.' });
     expect(toAnimeScheduleBoardLoad({ outcome: 'error', message: 'offline' }).board).toBeUndefined();
   });

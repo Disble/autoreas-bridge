@@ -56,7 +56,9 @@ Adapters and wiring outside the context:
 
 The capture and event writers sit behind bounded queues, so a slow database never blocks a request. Each
 queue has one drain goroutine and an `OnPersist` hook; the composition root uses it to stream the Live row
-and to record incidents. The classifier and the reading are pure, so the composition root hands them
+and to record incidents. On shutdown `Stop` waits for the drain at most `QueueConfig.StopTimeout` (5 s
+when unset, which is what the composition root uses), then reports the records still in flight instead of
+hanging. The classifier and the reading are pure, so the composition root hands them
 everything they need.
 
 ```mermaid

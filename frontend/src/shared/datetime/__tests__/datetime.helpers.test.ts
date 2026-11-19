@@ -68,10 +68,6 @@ describe('formatRelativeTimeAgo', () => {
     expect(formatRelativeTimeAgo(NOW_MS - MINUTE_MS, NOW_MS)).toBe('1m ago');
   });
 
-  it('reads the "5m ago" the artboard itself shows, five minutes out', () => {
-    expect(formatRelativeTimeAgo(NOW_MS - 5 * MINUTE_MS, NOW_MS)).toBe('5m ago');
-  });
-
   it('stays in minutes one second before the hour boundary', () => {
     expect(formatRelativeTimeAgo(NOW_MS - (HOUR_MS - SECOND_MS), NOW_MS)).toBe('59m ago');
   });

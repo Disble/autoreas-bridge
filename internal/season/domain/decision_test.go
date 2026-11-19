@@ -44,12 +44,10 @@ func TestDecisionExcelParity(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := Decision(tc.grade, tc.minApprovalGrade, tc.consideration)
-			if got != tc.want {
-				t.Fatalf("Decision(%d, %d, %q) = %q, want %q", tc.grade, tc.minApprovalGrade, tc.consideration, got, tc.want)
-			}
-		})
+		got := Decision(tc.grade, tc.minApprovalGrade, tc.consideration)
+		if got != tc.want {
+			t.Errorf("%s: Decision(%d, %d, %q) = %q, want %q", tc.name, tc.grade, tc.minApprovalGrade, tc.consideration, got, tc.want)
+		}
 	}
 }
 

@@ -107,7 +107,7 @@ describe('AnimeWatchHistory', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders the By-watch tab by default with the live watch first and its Current chip', () => {
+  it('opens on the counted By-watch tab with the live watch first, open, and chipped Current', () => {
     const calls: EpisodeHookCall[] = [];
     renderSection(calls);
 
@@ -120,30 +120,18 @@ describe('AnimeWatchHistory', () => {
     );
     expect(liveHeading.textContent).toMatch(/Current/);
     expect(pastHeading.textContent).not.toMatch(/Current/);
-  });
 
-  it('states how many watches the section holds under its heading', () => {
-    const calls: EpisodeHookCall[] = [];
-    renderSection(calls);
-
+    // The section states how many watches it holds under its heading.
     expect(screen.getByRole('heading', { name: 'Watch history' })).toBeInTheDocument();
     expect(screen.getByText('2 watches · episodes recorded since July 5, 2026')).toBeInTheDocument();
-  });
 
-  it('shows status and episode count in every watch heading', () => {
-    const calls: EpisodeHookCall[] = [];
-    renderSection(calls);
-
-    expect(screen.getByRole('button', { name: /Watch 2/ }).textContent).toMatch(/Viendo/);
-    expect(screen.getByRole('button', { name: /Watch 1/ }).textContent).toMatch(/Finalizado/);
+    // Every watch heading shows its status and episode count.
+    expect(liveHeading.textContent).toMatch(/Viendo/);
+    expect(pastHeading.textContent).toMatch(/Finalizado/);
     expect(screen.getByText('12 of 24 episodes')).toBeInTheDocument();
     expect(screen.getByText('24 episodes')).toBeInTheDocument();
-  });
 
-  it('opens the current watch by default into its own cycle-scoped episode list, leaving past watches unfetched', () => {
-    const calls: EpisodeHookCall[] = [];
-    renderSection(calls);
-
+    // The current watch opens by default into its own cycle-scoped list, leaving past watches unfetched.
     expect(screen.getByRole('button', { name: /Watch 2/ })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('button', { name: /Watch 1/ })).toHaveAttribute('aria-expanded', 'false');
     expect(calls).toContainEqual({ animeId: 'anime-1', cycle: 2, enabled: true });

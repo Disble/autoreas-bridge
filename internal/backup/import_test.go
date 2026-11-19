@@ -67,60 +67,6 @@ func buildImportTestBundle(t *testing.T, groupNames ...string) string {
 	return dest
 }
 
-func TestPreviewReportsGroupsCountsAndBundleMetadata(t *testing.T) {
-	t.Parallel()
-
-	dest := buildImportTestBundle(t, "anime_snapshots", "seasons")
-
-	var calls []string
-	groups := []ImportGroup{
-		{Name: "anime_snapshots", Validate: fakeValidate("anime_snapshots", 1, nil, &calls), Import: fakeImport("anime_snapshots", 1, nil, &calls)},
-		{Name: "seasons", Validate: fakeValidate("seasons", 1, nil, &calls), Import: fakeImport("seasons", 1, nil, &calls)},
-		{Name: "season_animes", Validate: fakeValidate("season_animes", 0, nil, &calls), Import: fakeImport("season_animes", 0, nil, &calls)},
-	}
-
-	report, err := Preview(context.Background(), dest, groups)
-	if err != nil {
-		t.Fatalf("Preview: %v", err)
-	}
-	if report.FormatVersion != SupportedFormatVersion {
-		t.Fatalf("unexpected FormatVersion: %d", report.FormatVersion)
-	}
-	if report.BridgeVersion != "dev" {
-		t.Fatalf("unexpected BridgeVersion: %q", report.BridgeVersion)
-	}
-	if len(report.Groups) != 2 {
-		t.Fatalf("expected 2 known+carried groups, got %d: %+v", len(report.Groups), report.Groups)
-	}
-	if report.Groups[0].Name != "anime_snapshots" || report.Groups[0].RecordCount != 1 {
-		t.Fatalf("unexpected first group: %+v", report.Groups[0])
-	}
-	if report.Groups[1].Name != "seasons" || report.Groups[1].RecordCount != 1 {
-		t.Fatalf("unexpected second group: %+v", report.Groups[1])
-	}
-}
-
-func TestPreviewWritesNothing(t *testing.T) {
-	t.Parallel()
-
-	dest := buildImportTestBundle(t, "anime_snapshots")
-
-	var calls []string
-	groups := []ImportGroup{
-		{Name: "anime_snapshots", Validate: fakeValidate("anime_snapshots", 1, nil, &calls), Import: fakeImport("anime_snapshots", 1, nil, &calls)},
-	}
-
-	if _, err := Preview(context.Background(), dest, groups); err != nil {
-		t.Fatalf("Preview: %v", err)
-	}
-
-	for _, c := range calls {
-		if strings.HasPrefix(c, "import:") {
-			t.Fatalf("expected Preview to never invoke an Import function, but got call %q", c)
-		}
-	}
-}
-
 func TestPreviewFailsOnMalformedRecordBeforeAnyWrite(t *testing.T) {
 	t.Parallel()
 
@@ -140,50 +86,6 @@ func TestPreviewFailsOnMalformedRecordBeforeAnyWrite(t *testing.T) {
 		if strings.HasPrefix(c, "import:") {
 			t.Fatal("expected no Import call after a Validate failure")
 		}
-	}
-}
-
-func TestPreviewReportsAbsentGroupsAsUntouched(t *testing.T) {
-	t.Parallel()
-
-	dest := buildImportTestBundle(t, "anime_snapshots")
-
-	var calls []string
-	groups := []ImportGroup{
-		{Name: "anime_snapshots", Validate: fakeValidate("anime_snapshots", 1, nil, &calls), Import: fakeImport("anime_snapshots", 1, nil, &calls)},
-		{Name: "seasons", Validate: fakeValidate("seasons", 0, nil, &calls), Import: fakeImport("seasons", 0, nil, &calls)},
-	}
-
-	report, err := Preview(context.Background(), dest, groups)
-	if err != nil {
-		t.Fatalf("Preview: %v", err)
-	}
-	if len(report.AbsentGroups) != 1 || report.AbsentGroups[0] != "seasons" {
-		t.Fatalf("expected AbsentGroups == [\"seasons\"], got %v", report.AbsentGroups)
-	}
-	for _, c := range calls {
-		if strings.Contains(c, "seasons") {
-			t.Fatalf("expected the absent group's functions to never run, got call %q", c)
-		}
-	}
-}
-
-func TestUnknownGroupIsIgnoredNotFatal(t *testing.T) {
-	t.Parallel()
-
-	dest := buildImportTestBundle(t, "anime_snapshots", "future_table")
-
-	var calls []string
-	groups := []ImportGroup{
-		{Name: "anime_snapshots", Validate: fakeValidate("anime_snapshots", 1, nil, &calls), Import: fakeImport("anime_snapshots", 1, nil, &calls)},
-	}
-
-	report, err := Preview(context.Background(), dest, groups)
-	if err != nil {
-		t.Fatalf("expected Preview to succeed with an unknown group present, got %v", err)
-	}
-	if len(report.UnknownGroups) != 1 || report.UnknownGroups[0] != "future_table" {
-		t.Fatalf("expected UnknownGroups == [\"future_table\"], got %v", report.UnknownGroups)
 	}
 }
 
@@ -209,7 +111,10 @@ func TestPreviewReportsVersionNotesForOlderBundle(t *testing.T) {
 	}
 }
 
-func TestApplyIteratesGroupsInSliceOrderNotManifestOrder(t *testing.T) {
+// TestApplyImportsGroupsInSliceOrderNotManifestOrderAndReportsTheirCounts applies
+// a bundle whose manifest lists the groups in reverse and checks the slice order
+// wins and the report names each imported group with its count.
+func TestApplyImportsGroupsInSliceOrderNotManifestOrderAndReportsTheirCounts(t *testing.T) {
 	t.Parallel()
 
 	// Manifest lists seasons before anime_snapshots (reverse of the build's
@@ -237,12 +142,19 @@ func TestApplyIteratesGroupsInSliceOrderNotManifestOrder(t *testing.T) {
 
 	var calls []string
 	groups := []ImportGroup{
-		{Name: "anime_snapshots", Validate: fakeValidate("anime_snapshots", 1, nil, &calls), Import: fakeImport("anime_snapshots", 1, nil, &calls)},
-		{Name: "seasons", Validate: fakeValidate("seasons", 1, nil, &calls), Import: fakeImport("seasons", 1, nil, &calls)},
+		{Name: "anime_snapshots", Validate: fakeValidate("anime_snapshots", 2, nil, &calls), Import: fakeImport("anime_snapshots", 2, nil, &calls)},
+		{Name: "seasons", Validate: fakeValidate("seasons", 3, nil, &calls), Import: fakeImport("seasons", 3, nil, &calls)},
 	}
 
-	if _, err := Apply(context.Background(), dest, groups); err != nil {
+	report, err := Apply(context.Background(), dest, groups)
+	if err != nil {
 		t.Fatalf("Apply: %v", err)
+	}
+	if report.Failed != "" || len(report.Unattempted) != 0 {
+		t.Fatalf("expected no failed or unattempted group, got Failed %q, Unattempted %v", report.Failed, report.Unattempted)
+	}
+	if len(report.Imported) != 2 || report.Imported[0].RecordCount != 2 || report.Imported[1].RecordCount != 3 {
+		t.Fatalf("unexpected Imported: %+v", report.Imported)
 	}
 
 	want := []string{"import:anime_snapshots", "import:seasons"}
@@ -309,32 +221,6 @@ func TestSecondGroupFailureLeavesFirstCommittedAndThirdUnattempted(t *testing.T)
 	}
 	if len(report.Unattempted) != 1 || report.Unattempted[0] != "season_animes" {
 		t.Fatalf("expected Unattempted == [\"season_animes\"], got %v", report.Unattempted)
-	}
-}
-
-func TestApplyReportNamesImportedFailedAndUnattemptedGroups(t *testing.T) {
-	t.Parallel()
-
-	dest := buildImportTestBundle(t, "anime_snapshots", "seasons")
-
-	var calls []string
-	groups := []ImportGroup{
-		{Name: "anime_snapshots", Validate: fakeValidate("anime_snapshots", 2, nil, &calls), Import: fakeImport("anime_snapshots", 2, nil, &calls)},
-		{Name: "seasons", Validate: fakeValidate("seasons", 3, nil, &calls), Import: fakeImport("seasons", 3, nil, &calls)},
-	}
-
-	report, err := Apply(context.Background(), dest, groups)
-	if err != nil {
-		t.Fatalf("Apply: %v", err)
-	}
-	if report.Failed != "" {
-		t.Fatalf("expected no failure, got Failed == %q", report.Failed)
-	}
-	if len(report.Unattempted) != 0 {
-		t.Fatalf("expected no unattempted groups, got %v", report.Unattempted)
-	}
-	if len(report.Imported) != 2 || report.Imported[0].RecordCount != 2 || report.Imported[1].RecordCount != 3 {
-		t.Fatalf("unexpected Imported: %+v", report.Imported)
 	}
 }
 

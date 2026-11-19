@@ -60,7 +60,7 @@ func TestServicePairDeviceConsumesPairingTokenAndReturnsAuthToken(t *testing.T) 
 	}
 }
 
-func TestServicePairDeviceMarksSyncStateActive(t *testing.T) {
+func TestServicePairThenRevokeMarksSyncStateActiveThenRevoked(t *testing.T) {
 	t.Parallel()
 
 	store := &stubStore{}
@@ -85,6 +85,16 @@ func TestServicePairDeviceMarksSyncStateActive(t *testing.T) {
 
 	if syncStates.activeDeviceID != "device-1" || syncStates.activeAtMs != 1234 {
 		t.Fatalf("expected active sync state, got device=%q at=%d", syncStates.activeDeviceID, syncStates.activeAtMs)
+	}
+
+	if err := service.RevokeDevice(context.Background(), "device-1"); err != nil {
+		t.Fatalf("revoke device: %v", err)
+	}
+	if store.deletedDeviceID != "device-1" {
+		t.Fatalf("expected deleted device id device-1, got %q", store.deletedDeviceID)
+	}
+	if syncStates.revokedDeviceID != "device-1" || syncStates.revokedAtMs != 1234 {
+		t.Fatalf("expected revoked sync state, got device=%q at=%d", syncStates.revokedDeviceID, syncStates.revokedAtMs)
 	}
 }
 
@@ -112,12 +122,10 @@ func TestServicePairDeviceRejectsInvalidRequest(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := service.PairDevice(context.Background(), tt.req)
-			if !errors.Is(err, ErrInvalidPairingRequest) {
-				t.Fatalf("expected ErrInvalidPairingRequest, got %v", err)
-			}
-		})
+		_, err := service.PairDevice(context.Background(), tt.req)
+		if !errors.Is(err, ErrInvalidPairingRequest) {
+			t.Errorf("%s: expected ErrInvalidPairingRequest, got %v", tt.name, err)
+		}
 	}
 }
 
@@ -238,26 +246,6 @@ func TestServiceListDevicesConnectionStatusDefaultsDisconnectedWithoutPresenceSt
 	}
 	if len(got) != 1 || got[0].ConnectionStatus != "disconnected" {
 		t.Fatalf("expected degraded disconnected default without a presence store, got %#v", got)
-	}
-}
-
-func TestServiceRevokeDeviceMarksSyncStateRevoked(t *testing.T) {
-	t.Parallel()
-
-	store := &stubStore{}
-	syncStates := &stubSyncStateStore{}
-	service := NewService(store)
-	service.SetSyncStateStore(syncStates)
-	service.now = func() time.Time { return time.UnixMilli(1234) }
-
-	if err := service.RevokeDevice(context.Background(), "device-1"); err != nil {
-		t.Fatalf("revoke device: %v", err)
-	}
-	if store.deletedDeviceID != "device-1" {
-		t.Fatalf("expected deleted device id device-1, got %q", store.deletedDeviceID)
-	}
-	if syncStates.revokedDeviceID != "device-1" || syncStates.revokedAtMs != 1234 {
-		t.Fatalf("expected revoked sync state, got device=%q at=%d", syncStates.revokedDeviceID, syncStates.revokedAtMs)
 	}
 }
 

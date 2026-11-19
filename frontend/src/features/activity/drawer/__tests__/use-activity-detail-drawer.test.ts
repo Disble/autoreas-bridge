@@ -91,15 +91,30 @@ describe('useActivityDetailDrawer', () => {
     expect(getChangeContext).toHaveBeenCalledTimes(2);
   });
 
-  it('loads the incident once, then builds the summary from it', async () => {
+  it('loads the incident once, reads the picked request in the Requests tab, and keeps the tab across lines', async () => {
     const getIncident = vi.fn(() => Promise.resolve(DETAIL));
-    const source = sourceWith({ getIncident });
-    const { result } = renderHook(() => useActivityDetailDrawer(TRAFFIC, source, FEED), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
+    const getRequest = vi.fn(() => Promise.resolve(undefined));
+    const source = sourceWith({ getIncident, getRequest });
+    const { result, rerender } = renderHook(({ line }: { readonly line: ActivityFeedLine }) => useActivityDetailDrawer(line, source, FEED), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper, initialProps: { line: TRAFFIC } });
 
     expect(result.current.status).toBe('loading');
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(getIncident).toHaveBeenCalledExactlyOnceWith(7);
     expect(result.current.summary.sections.some((section) => section.kind === 'list')).toBe(true);
+    expect(getRequest).not.toHaveBeenCalled();
+
+    act(() => result.current.toggleTechnical());
+    await waitFor(() => expect(getRequest).toHaveBeenCalledWith('r1'));
+    act(() => result.current.pickGroup(result.current.requestGroups[1]!.key));
+    await waitFor(() => expect(getRequest).toHaveBeenCalledWith('r2'));
+    expect(result.current.selectedGroupKey).toBe(result.current.requestGroups[1]!.key);
+
+    // A line without the Requests tab keeps the technical view and falls back to its first tab.
+    rerender({ line: feedLine({}, { kind: 'event', detail: 'x.y' }) });
+
+    expect(result.current.technical).toBe(true);
+    expect(result.current.tabs).toEqual(['events', 'data']);
+    expect(result.current.tab).toBe('events');
   });
 
   it('fails when the incident read rejects, and reads again on retry', async () => {
@@ -110,32 +125,6 @@ describe('useActivityDetailDrawer', () => {
     await waitFor(() => expect(result.current.status).toBe('failed'));
     act(() => result.current.retry());
     await waitFor(() => expect(getIncident).toHaveBeenCalledTimes(2));
-  });
-
-  it('reads the picked request only in the Requests tab, and the newly picked group on a pick', async () => {
-    const getRequest = vi.fn(() => Promise.resolve(undefined));
-    const source = sourceWith({ getIncident: vi.fn(() => Promise.resolve(DETAIL)), getRequest });
-    const { result } = renderHook(() => useActivityDetailDrawer(TRAFFIC, source, FEED), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper });
-    await waitFor(() => expect(result.current.status).toBe('ready'));
-    expect(getRequest).not.toHaveBeenCalled();
-
-    act(() => result.current.toggleTechnical());
-    await waitFor(() => expect(getRequest).toHaveBeenCalledWith('r1'));
-    act(() => result.current.pickGroup(result.current.requestGroups[1]!.key));
-    await waitFor(() => expect(getRequest).toHaveBeenCalledWith('r2'));
-    expect(result.current.selectedGroupKey).toBe(result.current.requestGroups[1]!.key);
-  });
-
-  it('keeps the technical view and tab across lines, falling back when a line lacks the tab', async () => {
-    const source = sourceWith({ getIncident: vi.fn(() => Promise.resolve(DETAIL)), getRequest: vi.fn(() => Promise.resolve(undefined)) });
-    const { result, rerender } = renderHook(({ line }: { readonly line: ActivityFeedLine }) => useActivityDetailDrawer(line, source, FEED), { wrapper: createModulesTestWrapper({ module: 'observability', state: 'ready' }).wrapper, initialProps: { line: TRAFFIC } });
-    act(() => result.current.toggleTechnical());
-
-    rerender({ line: feedLine({}, { kind: 'event', detail: 'x.y' }) });
-
-    expect(result.current.technical).toBe(true);
-    expect(result.current.tabs).toEqual(['events', 'data']);
-    expect(result.current.tab).toBe('events');
   });
 
   it.each([

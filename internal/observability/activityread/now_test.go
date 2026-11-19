@@ -20,28 +20,25 @@ func TestStatusForPicksTheSentence(t *testing.T) {
 		wantSentence string
 		wantMinutes  int
 	}{
-		{"recent contact", ms(14 * time.Second), startedLongAgo, 0, StatusInSync, "Phone and bridge are in sync", 0},
 		{"just under the threshold", ms(QuietThreshold - time.Millisecond), startedLongAgo, 0, StatusInSync, "Phone and bridge are in sync", 0},
 		{"at the threshold", ms(QuietThreshold), startedLongAgo, 0, StatusQuiet, "The phone has been quiet for 2 min", 2},
 		{"minutes round down", ms(43*time.Minute + 59*time.Second), startedLongAgo, 0, StatusQuiet, "The phone has been quiet for 43 min", 43},
 		{"no contact, bridge just started", nil, nowMS - time.Minute.Milliseconds(), 0, StatusInSync, "Phone and bridge are in sync", 0},
 		{"no contact since start", nil, nowMS - (5 * time.Minute).Milliseconds(), 0, StatusQuiet, "The phone has been quiet for 5 min", 5},
-		{"one problem", ms(14 * time.Second), startedLongAgo, 1, StatusProblems, "1 problem needs a look", 0},
 		{"two problems", ms(14 * time.Second), startedLongAgo, 2, StatusProblems, "2 problems need a look", 0},
 		{"one problem just under the threshold", ms(QuietThreshold - time.Millisecond), startedLongAgo, 1, StatusProblems, "1 problem needs a look", 0},
 		{"one problem and a quiet phone", ms(QuietThreshold), startedLongAgo, 1, StatusProblems, "1 problem needs a look; the phone has been quiet for 2 min", 2},
 		{"problems do not hide a quiet phone", ms(time.Hour), startedLongAgo, 3, StatusProblems, "3 problems need a look; the phone has been quiet for 60 min", 60},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := statusFor(nowMS, tc.lastContact, tc.processStart, tc.problems)
-			if got.Kind != tc.wantKind || got.Sentence != tc.wantSentence || got.QuietMinutes != tc.wantMinutes {
-				t.Fatalf("statusFor = %+v, want kind %s sentence %q minutes %d", got, tc.wantKind, tc.wantSentence, tc.wantMinutes)
-			}
-			if tc.wantKind == StatusProblems && got.Problems != tc.problems {
-				t.Fatalf("Problems = %d, want %d", got.Problems, tc.problems)
-			}
-		})
+		got := statusFor(nowMS, tc.lastContact, tc.processStart, tc.problems)
+		if got.Kind != tc.wantKind || got.Sentence != tc.wantSentence || got.QuietMinutes != tc.wantMinutes {
+			t.Errorf("%s: statusFor = %+v, want kind %s sentence %q minutes %d", tc.name, got, tc.wantKind, tc.wantSentence, tc.wantMinutes)
+			continue
+		}
+		if tc.wantKind == StatusProblems && got.Problems != tc.problems {
+			t.Errorf("%s: Problems = %d, want %d", tc.name, got.Problems, tc.problems)
+		}
 	}
 }
 

@@ -31,52 +31,28 @@ function buildProps(overrides: Partial<KeymapBindingRowProps> = {}): KeymapBindi
 }
 
 describe('KeymapBindingRow', () => {
-  it('renders the binding label and its formatted effective chord', () => {
-    render(
-      <KeymapBindingRow
-        {...buildProps({ binding: buildBinding({ label: 'Focus catalog search' }), effectiveChord: 'alt+f' })}
-      />,
-    );
+  it('renders label and chord, then hazard chip, scope note and an enabled Revert once props call for them', () => {
+    const onRevert = vi.fn();
+    const props = buildProps({ binding: buildBinding({ label: 'Focus catalog search' }), effectiveChord: 'alt+f', onRevert });
+    const { rerender } = render(<KeymapBindingRow {...props} />);
 
     expect(screen.getByText('Focus catalog search')).toBeInTheDocument();
     expect(screen.getByText('Alt + F')).toBeInTheDocument();
-  });
-
-  it('renders a hazard chip only when the hazard is browser-zoom', () => {
-    const { rerender } = render(<KeymapBindingRow {...buildProps({ hazard: null })} />);
     expect(screen.queryByText('Browser zoom')).not.toBeInTheDocument();
-
-    rerender(<KeymapBindingRow {...buildProps({ hazard: 'browser-zoom' })} />);
-    expect(screen.getByText('Browser zoom')).toBeInTheDocument();
-  });
-
-  it('renders the scope note only for a scoped binding', () => {
-    const { rerender } = render(<KeymapBindingRow {...buildProps({ scopeNote: null })} />);
     expect(screen.queryByTestId('keymap-binding-row-scope-note')).not.toBeInTheDocument();
-
-    rerender(<KeymapBindingRow {...buildProps({ scopeNote: 'while the Notification Center is open' })} />);
-    expect(screen.getByTestId('keymap-binding-row-scope-note')).toHaveTextContent(
-      'while the Notification Center is open',
-    );
-  });
-
-  it('shows a capture prompt once armed, then the recorded candidate chord once a key is captured', () => {
-    render(<KeymapBindingRow {...buildProps({ effectiveChord: 'alt+1' })} />);
-    const rebindButton = screen.getByRole('button', { name: 'Rebind' });
-
-    fireEvent.click(rebindButton);
-    expect(screen.getByTestId('keymap-binding-row-chord')).toHaveTextContent('Press a key...');
-
-    fireEvent.keyDown(rebindButton, { key: '1', code: 'Digit1', ctrlKey: true });
-    expect(screen.getByTestId('keymap-binding-row-chord')).toHaveTextContent('Ctrl + 1');
-  });
-
-  it('disables Revert when the binding is not overridden, and calls onRevert when pressed while overridden', () => {
-    const onRevert = vi.fn();
-    const { rerender } = render(<KeymapBindingRow {...buildProps({ isOverridden: false, onRevert })} />);
     expect(screen.getByRole('button', { name: 'Revert' })).toBeDisabled();
 
-    rerender(<KeymapBindingRow {...buildProps({ isOverridden: true, onRevert })} />);
+    rerender(
+      <KeymapBindingRow
+        {...props}
+        hazard="browser-zoom"
+        isOverridden
+        scopeNote="while the Notification Center is open"
+      />,
+    );
+
+    expect(screen.getByText('Browser zoom')).toBeInTheDocument();
+    expect(screen.getByTestId('keymap-binding-row-scope-note')).toHaveTextContent('while the Notification Center is open');
     const revertButton = screen.getByRole('button', { name: 'Revert' });
     expect(revertButton).not.toBeDisabled();
 
@@ -85,73 +61,46 @@ describe('KeymapBindingRow', () => {
     expect(onRevert).toHaveBeenCalledTimes(1);
   });
 
-  it('calls onCaptureChord with the captured chord, and displays the returned refusal message in the danger color (spec "A same-scope duplicate is refused")', async () => {
-    const onCaptureChord = vi.fn().mockResolvedValue({
-      status: 'refused',
-      message: '"Today" already uses this chord in this scope.',
-    });
-    render(<KeymapBindingRow {...buildProps({ onCaptureChord })} />);
+  it('prompts once armed, shows refusals in danger and stays armed, clears them on Rebind, warns a shadow', async () => {
+    const onCaptureChord = vi
+      .fn()
+      .mockResolvedValueOnce({ status: 'refused', message: '"Today" already uses this chord in this scope.' })
+      .mockResolvedValueOnce({ status: 'refused', message: 'refused once' })
+      .mockResolvedValueOnce({
+        status: 'shadowed',
+        message: '"Mark all as read" takes precedence over this chord while its scope is active.',
+      });
+    render(<KeymapBindingRow {...buildProps({ effectiveChord: 'alt+1', onCaptureChord })} />);
     const rebindButton = screen.getByRole('button', { name: 'Rebind' });
 
     fireEvent.click(rebindButton);
-    fireEvent.keyDown(rebindButton, { key: '1', code: 'Digit1', altKey: true });
+    expect(screen.getByTestId('keymap-binding-row-chord')).toHaveTextContent('Press a key...');
 
-    expect(onCaptureChord).toHaveBeenCalledWith('alt+1');
-    const message = await screen.findByText('"Today" already uses this chord in this scope.');
-    expect(message).toHaveClass('text-danger');
-    expect(message).not.toHaveClass('text-warning');
-  });
-
-  it('displays a returned shadow warning in the warning color, distinct from a refusal (spec "A cross-scope shadow is saved with a warning")', async () => {
-    const onCaptureChord = vi.fn().mockResolvedValue({
-      status: 'shadowed',
-      message: '"Mark all as read" takes precedence over this chord while its scope is active.',
-    });
-    render(<KeymapBindingRow {...buildProps({ onCaptureChord })} />);
-    const rebindButton = screen.getByRole('button', { name: 'Rebind' });
-
-    fireEvent.click(rebindButton);
     fireEvent.keyDown(rebindButton, { key: '1', code: 'Digit1', ctrlKey: true });
-
-    const message = await screen.findByText('"Mark all as read" takes precedence over this chord while its scope is active.');
-    expect(message).toHaveClass('text-warning');
-    expect(message).not.toHaveClass('text-danger');
-  });
-
-  it('stays armed after a refusal, so a second attempt is still captured (design D8: "stay armed")', async () => {
-    const onCaptureChord = vi.fn().mockResolvedValue({ status: 'refused', message: 'refused' });
-    render(<KeymapBindingRow {...buildProps({ onCaptureChord })} />);
-    const rebindButton = screen.getByRole('button', { name: 'Rebind' });
-
-    fireEvent.click(rebindButton);
-    fireEvent.keyDown(rebindButton, { key: '1', code: 'Digit1', altKey: true });
-    await screen.findByText('refused');
+    expect(screen.getByTestId('keymap-binding-row-chord')).toHaveTextContent('Ctrl + 1');
+    expect(onCaptureChord).toHaveBeenCalledWith('ctrl+1');
+    const refusal = await screen.findByText('"Today" already uses this chord in this scope.');
+    expect(refusal).toHaveClass('text-danger');
+    expect(refusal).not.toHaveClass('text-warning');
 
     fireEvent.keyDown(rebindButton, { key: '2', code: 'Digit2', altKey: true });
 
     expect(onCaptureChord).toHaveBeenCalledTimes(2);
     expect(onCaptureChord).toHaveBeenLastCalledWith('alt+2');
-  });
-
-  it('disarms once a captured chord saves, so a later stray keypress no longer records or persists anything', async () => {
-    const onCaptureChord = vi.fn().mockResolvedValue({ status: 'saved', message: null });
-    render(<KeymapBindingRow {...buildProps({ onCaptureChord })} />);
-    const rebindButton = screen.getByRole('button', { name: 'Rebind' });
+    await screen.findByText('refused once');
 
     fireEvent.click(rebindButton);
-    fireEvent.keyDown(rebindButton, { key: '1', code: 'Digit1', ctrlKey: true });
 
-    await waitFor(() => expect(onCaptureChord).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText('refused once')).not.toBeInTheDocument();
 
-    fireEvent.keyDown(rebindButton, { key: '2', code: 'Digit2', ctrlKey: true });
+    fireEvent.keyDown(rebindButton, { key: '3', code: 'Digit3', ctrlKey: true });
 
-    expect(onCaptureChord).toHaveBeenCalledTimes(1);
-    // A `{status: 'saved', message: null}` outcome has nothing to show --
-    // distinct from an outcome existing at all (the `outcome !== null` half).
-    expect(screen.queryByTestId('keymap-binding-row-message')).not.toBeInTheDocument();
+    const warning = await screen.findByText('"Mark all as read" takes precedence over this chord while its scope is active.');
+    expect(warning).toHaveClass('text-warning');
+    expect(warning).not.toHaveClass('text-danger');
   });
 
-  it('calls the CURRENT onCaptureChord after Rebind is pressed again with a new prop, not a frozen first one', async () => {
+  it('calls the CURRENT onCaptureChord after a new prop, then disarms once it saves so stray keys persist nothing', async () => {
     const firstOnCaptureChord = vi.fn().mockResolvedValue({ status: 'saved', message: null });
     const secondOnCaptureChord = vi.fn().mockResolvedValue({ status: 'saved', message: null });
     const { rerender } = render(<KeymapBindingRow {...buildProps({ onCaptureChord: firstOnCaptureChord })} />);
@@ -163,19 +112,14 @@ describe('KeymapBindingRow', () => {
 
     expect(secondOnCaptureChord).toHaveBeenCalledTimes(1);
     expect(firstOnCaptureChord).not.toHaveBeenCalled();
-  });
 
-  it('clears a stale refusal/warning message when Rebind is pressed again', async () => {
-    const onCaptureChord = vi.fn().mockResolvedValue({ status: 'refused', message: 'refused once' });
-    render(<KeymapBindingRow {...buildProps({ onCaptureChord })} />);
-    const rebindButton = screen.getByRole('button', { name: 'Rebind' });
+    await waitFor(() => expect(secondOnCaptureChord).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(rebindButton);
-    fireEvent.keyDown(rebindButton, { key: '1', code: 'Digit1', altKey: true });
-    await screen.findByText('refused once');
+    fireEvent.keyDown(rebindButton, { key: '2', code: 'Digit2', ctrlKey: true });
 
-    fireEvent.click(rebindButton);
-
-    expect(screen.queryByText('refused once')).not.toBeInTheDocument();
+    expect(secondOnCaptureChord).toHaveBeenCalledTimes(1);
+    // A `{status: 'saved', message: null}` outcome has nothing to show --
+    // distinct from an outcome existing at all (the `outcome !== null` half).
+    expect(screen.queryByTestId('keymap-binding-row-message')).not.toBeInTheDocument();
   });
 });

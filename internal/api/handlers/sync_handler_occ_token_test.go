@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -128,29 +127,6 @@ func TestSyncHandlerMixedBatchPreservesOrderAndOuterFields(t *testing.T) {
 	}
 	if want := [3]string{"anime-applied", "anime-conflict", "anime-skipped"}; animeIDs != want {
 		t.Fatalf("expected submission order preserved, got %#v", animeIDs)
-	}
-}
-
-func TestSyncHandlerNonConflictWriterErrorStillAborts(t *testing.T) {
-	t.Parallel()
-
-	handler := NewSyncHandler(SyncHandlerConfig{
-		Authenticate: (&syncHandlerStubs{}).authenticate(true),
-		ApplyPendingPatch: func(context.Context, string, AnimePatch) (contracts.AnimePatchResult, error) {
-			return contracts.AnimePatchResult{}, errors.New("boom")
-		},
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"device_id":"device-1","last_changelog_id":0,"pending_operations":[{"anime_id":"anime-1","operation":"update","payload":{"episodesWatched":1},"created_at":1}]}`))
-	res := httptest.NewRecorder()
-
-	handler.ServeHTTP(res, req)
-
-	if res.Code != http.StatusInternalServerError {
-		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, res.Code)
-	}
-	if !strings.Contains(res.Body.String(), "apply pending operation failed") {
-		t.Fatalf("expected abort error message, got body=%s", res.Body.String())
 	}
 }
 

@@ -11,8 +11,11 @@ import (
 
 func TestScheduleServiceApplyBreaksEqualLegacyOrdersDeterministicallyByAnimeID(t *testing.T) {
 	ctx := context.Background()
+	// One database serves every iteration: each one re-seeds the same three
+	// snapshots, so only the in-process tie-break varies between them.
+	store := openAnimeServiceTestStore(t)
 	for iteration := range 40 {
-		env := newDeterministicScheduleTestEnv(t)
+		env := newDeterministicScheduleTestEnv(t, store)
 		result, err := env.service.Apply(ctx, anime.ApplyAnimeScheduleDraftCommand{BoardModifiedAt: 103, Entries: []anime.ApplyAnimeScheduleDraftEntry{{
 			AnimeID:        "anime-c",
 			BaseModifiedAt: 103,
@@ -31,10 +34,10 @@ type deterministicScheduleTestEnv struct {
 	publisher *editorRecordingPublisher
 }
 
-// newDeterministicScheduleTestEnv builds the deterministic schedule fixture.
-func newDeterministicScheduleTestEnv(t *testing.T) deterministicScheduleTestEnv {
+// newDeterministicScheduleTestEnv seeds the deterministic schedule fixture into
+// store, overwriting the previous iteration's snapshots and OCC tokens.
+func newDeterministicScheduleTestEnv(t *testing.T, store *bridgeSync.AnimeSnapshotStore) deterministicScheduleTestEnv {
 	t.Helper()
-	store := openAnimeServiceTestStore(t)
 	payloads := []string{
 		`{"id":"anime-b","name":"Anime B","active":true,"days":[{"day":"Lunes","order":1}]}`,
 		`{"id":"anime-a","name":"Anime A","active":true,"days":[{"day":"Lunes","order":1}]}`,

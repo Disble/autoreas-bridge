@@ -73,13 +73,18 @@ describe('resolveRowActions', () => {
 });
 
 describe('resolveLevelChipColor', () => {
-  it.each([
-    ['info', 'accent'],
-    ['success', 'success'],
-    ['warning', 'warning'],
-    ['error', 'danger'],
-  ] as const)('maps level %s to chip color %s', (level, expectedColor) => {
-    expect(resolveLevelChipColor(level)).toBe(expectedColor);
+  it('maps every level to its chip color', () => {
+    const cases = [
+      ['info', 'accent'],
+      ['success', 'success'],
+      ['warning', 'warning'],
+      ['error', 'danger'],
+    ] as const;
+
+    for (const [level, expectedColor] of cases) {
+      const caseName = `maps level ${String(level)} to chip color ${String(expectedColor)}`;
+      expect.soft(resolveLevelChipColor(level), caseName).toBe(expectedColor);
+    }
   });
 
   it('falls back to the info color for an unrecognized level', () => {
@@ -132,13 +137,18 @@ describe('resolveRefusalMessage', () => {
     expect(resolveRefusalMessage('')).toBeUndefined();
   });
 
-  it.each([
-    ['intent_unregistered', 'This action is not available yet.'],
-    ['target_missing', 'The thing this action pointed at is gone.'],
-    ['already_executed', 'This action already ran.'],
-    ['foreign_action', "This action doesn't belong to this notification."],
-  ])('maps the closed reason %s to its inline message', (reason, expectedMessage) => {
-    expect(resolveRefusalMessage(reason)).toBe(expectedMessage);
+  it('maps every closed reason to its inline message', () => {
+    const cases = [
+      ['intent_unregistered', 'This action is not available yet.'],
+      ['target_missing', 'The thing this action pointed at is gone.'],
+      ['already_executed', 'This action already ran.'],
+      ['foreign_action', "This action doesn't belong to this notification."],
+    ] as const;
+
+    for (const [reason, expectedMessage] of cases) {
+      const caseName = `maps the closed reason ${String(reason)} to its inline message`;
+      expect.soft(resolveRefusalMessage(reason), caseName).toBe(expectedMessage);
+    }
   });
 
   it('falls back to a generic message for a reason outside the closed set', () => {

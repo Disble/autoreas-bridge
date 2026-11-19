@@ -28,12 +28,19 @@ func TestEventNames(t *testing.T) {
 	}
 }
 
-func TestEventsTellTheStoryOfASolveWithoutCookieValues(t *testing.T) {
+func TestAStaleClearanceIsForgottenAndSolvedAgainAndTheEventsTellTheStoryWithoutCookieValues(t *testing.T) {
 	h := newHarness(&fakeSolver{values: []string{"secret-stale", "secret-fresh"}}, Policy{}, "secret-fresh")
 	h.clock.step = 1500 * time.Millisecond
 
-	get(t, h.tr, siteURL)
+	resp := get(t, h.tr, siteURL)
 
+	assertStatusAndCalls(t, resp, h.solver, http.StatusOK, 2)
+	if !slices.Equal(h.solver.rejected, []string{"", "secret-stale"}) {
+		t.Fatalf("rejected = %q, want [\"\" \"secret-stale\"]", h.solver.rejected)
+	}
+	if !slices.Equal(h.store.deletes, []string{"jkanime.net"}) {
+		t.Fatalf("deletes = %q, want the stale clearance forgotten before the second solve", h.store.deletes)
+	}
 	want := []string{
 		"clearance.challenge_detected {Domain:jkanime.net Attempt:1 Reason:cf_mitigated}",
 		"clearance.solved {Domain:jkanime.net Attempt:1 DurationMs:1500}",
@@ -58,7 +65,10 @@ func TestEventsTellTheStoryOfASolveWithoutCookieValues(t *testing.T) {
 	}
 }
 
-func TestFailedEventCarriesDurationAndReasonButNoCookie(t *testing.T) {
+// TestAFailedSolveEmitsDurationAndReasonButNoCookieAndForgetsTheRejectedClearance
+// fails a solve over a stored clearance, checks the failed event and log row,
+// and checks the refused clearance is deleted and never sent again.
+func TestAFailedSolveEmitsDurationAndReasonButNoCookieAndForgetsTheRejectedClearance(t *testing.T) {
 	h := newHarness(&fakeSolver{err: errors.New("engine said secret-value")}, Policy{}, "good")
 	h.store.Save("jkanime.net", Clearance{UserAgent: engineUA, Cookies: engineCookies("secret-old")})
 	h.clock.step = 250 * time.Millisecond
@@ -82,19 +92,13 @@ func TestFailedEventCarriesDurationAndReasonButNoCookie(t *testing.T) {
 			t.Fatalf("log row carries the rejected cookie value: %s", row)
 		}
 	}
-}
-
-func TestClearanceIsStoredAsOneValueWithItsUserAgent(t *testing.T) {
-	h := newHarness(&fakeSolver{values: []string{"good"}}, Policy{}, "good")
 
 	get(t, h.tr, siteURL)
-
-	if len(h.store.saves) != 1 {
-		t.Fatalf("saves = %d, want the cookies and their User-Agent written together once", len(h.store.saves))
+	if _, ok := h.store.Load("jkanime.net"); ok || !slices.Equal(h.store.deletes, []string{"jkanime.net"}) {
+		t.Fatalf("stored=%v deletes=%q, want the refused clearance gone even though the solve failed", ok, h.store.deletes)
 	}
-	saved := h.store.saves[0]
-	if saved.UserAgent != engineUA || !hasFreshClearance(saved.Cookies, "") {
-		t.Fatalf("saved = %+v, want the engine identity next to its cookie", saved)
+	if _, err := h.cf.last().Cookie(clearanceCookie); err == nil {
+		t.Fatal("the refused clearance was sent again")
 	}
 }
 

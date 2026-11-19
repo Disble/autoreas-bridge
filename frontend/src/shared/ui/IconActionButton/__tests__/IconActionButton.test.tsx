@@ -43,18 +43,21 @@ describe('IconActionButton', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent('Restore');
   });
 
-  it('renders an icon-only button named by its aria-label, with no visible text', () => {
-    renderButton();
+  it('renders an icon-only named button, names the action on keyboard focus, and runs it on press', () => {
+    const onPress = vi.fn();
+    renderButton({ onPress });
+    const button = screen.getByRole('button', { name: 'Restore Frieren' });
 
-    expect(screen.getByRole('button', { name: 'Restore Frieren' })).toHaveTextContent(/^$/);
-  });
+    expect(button).toHaveTextContent(/^$/);
 
-  it('names the action in its tooltip on keyboard focus', () => {
-    renderButton();
-
-    focusByKeyboard(screen.getByRole('button', { name: 'Restore Frieren' }));
+    focusByKeyboard(button);
 
     expect(screen.getByRole('tooltip')).toHaveTextContent('Restore');
+    expect(onPress).not.toHaveBeenCalled();
+
+    fireEvent.click(button);
+
+    expect(onPress).toHaveBeenCalledTimes(1);
   });
 
   it('shows the extra data on a second line after the name', () => {
@@ -74,15 +77,6 @@ describe('IconActionButton', () => {
     hoverWithMouse(button.parentElement as HTMLElement);
 
     expect(await screen.findByRole('tooltip')).toHaveTextContent('Restore · Nothing to restore');
-  });
-
-  it('runs the action on press', () => {
-    const onPress = vi.fn();
-    renderButton({ onPress });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Restore Frieren' }));
-
-    expect(onPress).toHaveBeenCalledTimes(1);
   });
 
   it('runs the secondary action on a context menu and suppresses the browser menu', () => {

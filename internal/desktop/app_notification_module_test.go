@@ -78,24 +78,11 @@ var notificationBindings = append(notificationStoreBindings[:len(notificationSto
 // an empty page, a zero count or a degraded envelope while its module starts or after it failed.
 func TestNotificationBindingsFollowTheirModule(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		name     string
-		state    lifecycle.State
-		wantCode apperr.Code
-		wantMsg  string
-	}{
-		{"starting is unavailable", lifecycle.StateStarting, apperr.CodeUnavailable, "notifications is starting"},
-		{"failed is a failed precondition", lifecycle.StateFailed, apperr.CodeFailedPrecondition, moduleFailureReason},
-		{"ready answers the value", lifecycle.StateReady, "", ""},
-	}
 	for _, binding := range notificationBindings {
-		for _, tc := range cases {
-			t.Run(binding.name+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-				served, err := binding.call(notificationModuleApp(t, tc.state))
-				assertModuleAnswer(t, served, err, tc.wantCode, tc.wantMsg)
-			})
-		}
+		app := notificationModuleApp(t, lifecycle.StateStarting)
+		assertStartingThenFailed(t, binding.name, app, moduleNotifications, "notifications is starting", binding.call)
+		served, err := binding.call(notificationModuleApp(t, lifecycle.StateReady))
+		assertModuleAnswer(t, binding.name+" ready", served, err, "", "")
 	}
 }
 
@@ -104,19 +91,16 @@ func TestNotificationBindingsFollowTheirModule(t *testing.T) {
 func TestNotificationStoreFailuresAreInternal(t *testing.T) {
 	t.Parallel()
 	for _, binding := range notificationStoreBindings {
-		t.Run(binding.name, func(t *testing.T) {
-			t.Parallel()
-			app := notificationModuleApp(t, lifecycle.StateReady)
-			if err := app.bridgeDB.Close(); err != nil {
-				t.Fatalf("close db: %v", err)
-			}
+		app := notificationModuleApp(t, lifecycle.StateReady)
+		if err := app.bridgeDB.Close(); err != nil {
+			t.Fatalf("close db: %v", err)
+		}
 
-			_, err := binding.call(app)
+		_, err := binding.call(app)
 
-			if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal {
-				t.Fatalf("err = %v (code %q), want internal", err, code)
-			}
-		})
+		if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal {
+			t.Errorf("%s: err = %v (code %q), want internal", binding.name, err, code)
+		}
 	}
 }
 

@@ -20,23 +20,30 @@ type QueueConfig struct {
 	// succeeds for it, from the single serialized drain goroutine. Nil is a
 	// safe no-op. It mirrors requestcapture.QueueConfig.OnPersist.
 	OnPersist func(EventRecord)
+	// StopTimeout caps how long Stop waits for the drain, whatever deadline
+	// the caller's context carries. Zero or negative uses defaultStopTimeout.
+	StopTimeout time.Duration
 }
+
+// defaultStopTimeout is the shutdown ceiling when QueueConfig leaves it unset.
+const defaultStopTimeout = 5 * time.Second
 
 // Queue is the non-blocking event-persistence worker. It mirrors
 // requestcapture.Queue's zero-wait enqueue and single serialized drain
 // goroutine exactly, over EventRecord instead of CaptureRecord.
 type Queue struct {
-	store     Inserter
-	onPersist func(EventRecord)
-	ch        chan EventRecord
-	stopped   chan struct{}
-	stopOnce  sync.Once
-	mu        sync.Mutex
-	stopping  bool
-	err       atomic.Pointer[error]
-	dropped   atomic.Int64
-	queued    atomic.Int64
-	dequeued  atomic.Int64
+	store       Inserter
+	onPersist   func(EventRecord)
+	stopTimeout time.Duration
+	ch          chan EventRecord
+	stopped     chan struct{}
+	stopOnce    sync.Once
+	mu          sync.Mutex
+	stopping    bool
+	err         atomic.Pointer[error]
+	dropped     atomic.Int64
+	queued      atomic.Int64
+	dequeued    atomic.Int64
 }
 
 // NewQueue starts a bounded event-persistence worker.
@@ -45,11 +52,16 @@ func NewQueue(store Inserter, config QueueConfig) *Queue {
 	if capacity <= 0 {
 		capacity = 256
 	}
+	stopTimeout := config.StopTimeout
+	if stopTimeout <= 0 {
+		stopTimeout = defaultStopTimeout
+	}
 	queue := &Queue{
-		store:     store,
-		onPersist: config.OnPersist,
-		ch:        make(chan EventRecord, capacity),
-		stopped:   make(chan struct{}),
+		store:       store,
+		onPersist:   config.OnPersist,
+		stopTimeout: stopTimeout,
+		ch:          make(chan EventRecord, capacity),
+		stopped:     make(chan struct{}),
 	}
 	go queue.run()
 	return queue
@@ -101,7 +113,7 @@ func (q *Queue) TryEnqueue(record EventRecord) bool {
 
 // Stop closes the queue and waits until drained or ctx expires.
 func (q *Queue) Stop(ctx context.Context) QueueStopResult {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, q.stopTimeout)
 	defer cancel()
 	q.stopOnce.Do(func() {
 		q.mu.Lock()

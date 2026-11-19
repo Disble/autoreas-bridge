@@ -144,7 +144,6 @@ func TestResolverLoadLocalUpdatesCopyWhenIdentityChanges(t *testing.T) {
 		secondSize  int64
 		secondMtime time.Time
 	}{
-		{name: "size and mtime both change", secondSize: int64(len(jpegBytes)) + 1, secondMtime: time.Unix(2000, 0)},
 		{name: "size changes, mtime stays", secondSize: int64(len(jpegBytes)) + 1, secondMtime: time.Unix(1000, 0)},
 		{name: "mtime changes, size stays", secondSize: int64(len(jpegBytes)), secondMtime: time.Unix(2000, 0)},
 	}

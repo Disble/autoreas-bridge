@@ -19,10 +19,10 @@ describe('AnimeMetadataLookupCandidate', () => {
     cleanup();
   });
 
-  it('renders the cover image when the search payload carries one', () => {
+  it('renders the cover image and joins format, year and score with a middot when all are known', () => {
     const { container } = render(
       <AnimeMetadataLookupCandidate
-        candidate={candidate({ image: 'https://cdn.example/bleach.jpg' })}
+        candidate={candidate({ image: 'https://cdn.example/bleach.jpg', mediaType: 'TV', startYear: 2022, score: '8.98' })}
         isSelected={false}
         onSelect={vi.fn()}
       />,
@@ -35,26 +35,6 @@ describe('AnimeMetadataLookupCandidate', () => {
     expect(image).toHaveAttribute('width', '40');
     expect(image).toHaveAttribute('height', '40');
     expect(screen.queryByLabelText('No cover art')).toBeNull();
-  });
-
-  it('renders the placeholder cover when the search payload carries no image', () => {
-    const { container } = render(
-      <AnimeMetadataLookupCandidate candidate={candidate()} isSelected={false} onSelect={vi.fn()} />,
-    );
-
-    expect(container.querySelector('img')).toBeNull();
-    expect(screen.getByLabelText('No cover art')).toBeInTheDocument();
-  });
-
-  it('joins format, year and score with a middot when all three are known', () => {
-    render(
-      <AnimeMetadataLookupCandidate
-        candidate={candidate({ mediaType: 'TV', startYear: 2022, score: '8.98' })}
-        isSelected={false}
-        onSelect={vi.fn()}
-      />,
-    );
-
     expect(screen.getByText('TV · 2022 · 8.98')).toBeInTheDocument();
   });
 
@@ -70,41 +50,28 @@ describe('AnimeMetadataLookupCandidate', () => {
     expect(screen.getByText('TV')).toBeInTheDocument();
   });
 
-  it('renders no subtitle line at all when none of the three are known', () => {
-    render(
-      <AnimeMetadataLookupCandidate
-        candidate={candidate({ mediaType: undefined, startYear: undefined, score: undefined })}
-        isSelected={false}
-        onSelect={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByRole('button')).toHaveTextContent('Bleach: Sennen Kessen-hen');
-    expect(screen.getByRole('button').querySelectorAll('p')).toHaveLength(1);
-  });
-
-  it('calls onSelect with the candidate\'s malId when pressed', () => {
+  it('renders a bare unselected row with a placeholder, then highlights once selected and reports its malId', () => {
     const onSelect = vi.fn();
-    render(<AnimeMetadataLookupCandidate candidate={candidate({ malId: 58567 })} isSelected={false} onSelect={onSelect} />);
+    const { container, rerender } = render(
+      <AnimeMetadataLookupCandidate candidate={candidate({ malId: 58567 })} isSelected={false} onSelect={onSelect} />,
+    );
+    const button = screen.getByRole('button');
+
+    expect(container.querySelector('img')).toBeNull();
+    expect(screen.getByLabelText('No cover art')).toBeInTheDocument();
+    expect(button).toHaveTextContent('Bleach: Sennen Kessen-hen');
+    expect(button.querySelectorAll('p')).toHaveLength(1);
+    expect(button).toHaveAttribute('aria-pressed', 'false');
+    expect(button.className).not.toContain('border-accent');
+
+    rerender(<AnimeMetadataLookupCandidate candidate={candidate({ malId: 58567 })} isSelected onSelect={onSelect} />);
+
+    expect(screen.getByRole('button')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button').className).toContain('border-accent');
+    expect(onSelect).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button'));
 
     expect(onSelect).toHaveBeenCalledExactlyOnceWith(58567);
-  });
-
-  it('reports aria-pressed=true and the highlighted style once selected', () => {
-    render(<AnimeMetadataLookupCandidate candidate={candidate()} isSelected onSelect={vi.fn()} />);
-
-    const button = screen.getByRole('button');
-    expect(button).toHaveAttribute('aria-pressed', 'true');
-    expect(button.className).toContain('border-accent');
-  });
-
-  it('reports aria-pressed=false and no highlighted style while not selected', () => {
-    render(<AnimeMetadataLookupCandidate candidate={candidate()} isSelected={false} onSelect={vi.fn()} />);
-
-    const button = screen.getByRole('button');
-    expect(button).toHaveAttribute('aria-pressed', 'false');
-    expect(button.className).not.toContain('border-accent');
   });
 });

@@ -136,9 +136,12 @@ describe('NotificationToasts + the missed-schedule seam', () => {
 
   afterEach(async () => {
     cleanup();
+    // HeroUI 3.2.6 keeps a closed toast queued for its exit animation; a fake clock moves past it.
+    vi.useFakeTimers();
     appToastQueue.clear();
-    // HeroUI 3.2.6 keeps a closed toast queued for its exit animation; let it leave before the next test.
-    await vi.waitFor(() => expect(appToastQueue.visibleToasts).toHaveLength(0));
+    await vi.advanceTimersByTimeAsync(1000);
+    vi.useRealTimers();
+    expect(appToastQueue.visibleToasts).toHaveLength(0);
     resetDownloadRuntimeStore();
     ports.notificationListeners.clear();
     ports.archivedListeners.clear();

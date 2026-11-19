@@ -10,31 +10,20 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// TestResolveCaptureTablesPrefersCurrentGeneration asserts resolveCaptureTables
-// picks the transport-neutral names when they exist.
-func TestResolveCaptureTablesPrefersCurrentGeneration(t *testing.T) {
+// TestResolveCaptureTablesFollowsTheGenerationsPresent grows one schema: with no
+// capture table generation resolveCaptureTables is a schema mismatch, with only
+// the previously-named tables it falls back to them, and once the
+// transport-neutral tables exist too the current generation wins.
+func TestResolveCaptureTablesFollowsTheGenerationsPresent(t *testing.T) {
 	t.Parallel()
 
 	db := openInMemoryDB(t)
-	createCurrentGenerationSchema(t, db)
+	db.SetMaxOpenConns(1)
 
-	tables, err := resolveCaptureTables(db)
-	if err != nil {
-		t.Fatalf("resolve capture tables: %v", err)
-	}
-	if tables != currentCaptureTables {
-		t.Fatalf("expected current generation, got %#v", tables)
-	}
-}
+	_, err := resolveCaptureTables(db)
+	assertRequestCaptureErrorCode(t, err, "schema_mismatch")
 
-// TestResolveCaptureTablesFallsBackToPreviousGeneration asserts resolveCaptureTables
-// falls back to the previously-named tables when only they exist.
-func TestResolveCaptureTablesFallsBackToPreviousGeneration(t *testing.T) {
-	t.Parallel()
-
-	db := openInMemoryDB(t)
 	createPreviousGenerationSchema(t, db)
-
 	tables, err := resolveCaptureTables(db)
 	if err != nil {
 		t.Fatalf("resolve capture tables: %v", err)
@@ -42,35 +31,15 @@ func TestResolveCaptureTablesFallsBackToPreviousGeneration(t *testing.T) {
 	if tables != previousCaptureTables {
 		t.Fatalf("expected previous generation, got %#v", tables)
 	}
-}
 
-// TestResolveCaptureTablesPrefersCurrentWhenBothGenerationsExist asserts the
-// current generation wins when both table sets are present.
-func TestResolveCaptureTablesPrefersCurrentWhenBothGenerationsExist(t *testing.T) {
-	t.Parallel()
-
-	db := openInMemoryDB(t)
 	createCurrentGenerationSchema(t, db)
-	createPreviousGenerationSchema(t, db)
-
-	tables, err := resolveCaptureTables(db)
+	tables, err = resolveCaptureTables(db)
 	if err != nil {
 		t.Fatalf("resolve capture tables: %v", err)
 	}
 	if tables != currentCaptureTables {
 		t.Fatalf("expected current generation to win, got %#v", tables)
 	}
-}
-
-// TestResolveCaptureTablesErrorsWhenNeitherGenerationExists asserts a
-// schema-mismatch error when no capture table generation is present.
-func TestResolveCaptureTablesErrorsWhenNeitherGenerationExists(t *testing.T) {
-	t.Parallel()
-
-	db := openInMemoryDB(t)
-
-	_, err := resolveCaptureTables(db)
-	assertRequestCaptureErrorCode(t, err, "schema_mismatch")
 }
 
 // openInMemoryDB opens a fresh in-memory SQLite handle for resolution tests.

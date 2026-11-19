@@ -2,14 +2,24 @@ import { describe, expect, it } from 'vitest';
 import { formatUnreadChipLabel } from '../notification-center-header.helpers';
 
 describe('formatUnreadChipLabel', () => {
-  it.each([
-    [12, '12 unread'],
-    [1, '1 unread'],
-  ])('labels %i unread records as "%s"', (unreadCount, label) => {
-    expect(formatUnreadChipLabel(unreadCount)).toBe(label);
+  it('labels the unread count', () => {
+    const cases = [
+      [12, '12 unread'],
+      [1, '1 unread'],
+    ] as const;
+
+    for (const [unreadCount, label] of cases) {
+      const caseName = `labels ${String(unreadCount)} unread records as "${String(label)}"`;
+      expect.soft(formatUnreadChipLabel(unreadCount), caseName).toBe(label);
+    }
   });
 
-  it.each([0, -1])('hides the chip when %i records are unread', (unreadCount) => {
-    expect(formatUnreadChipLabel(unreadCount)).toBeNull();
+  it('hides the chip when no record is unread', () => {
+    const cases = [0, -1];
+
+    for (const unreadCount of cases) {
+      const caseName = `hides the chip when ${String(unreadCount)} records are unread`;
+      expect.soft(formatUnreadChipLabel(unreadCount), caseName).toBeNull();
+    }
   });
 });

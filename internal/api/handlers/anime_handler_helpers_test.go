@@ -16,7 +16,7 @@ import (
 // Transport-level telemetry (duration_ms, response headers/body, http_status)
 // now belongs entirely to internal/api's CaptureMiddleware -- see
 // TestCaptureMiddlewareCapturesResponseBodyOnNon2xx and
-// TestCaptureMiddlewareEnqueuesArrivalThenTerminalSharingOneRequestID in
+// TestCaptureMiddlewareCapturesEachExchangeAsServed in
 // internal/api/capture_middleware_test.go. This file only asserts the
 // semantic facts handlePatchAnime contributes via requestcapture.Enrich.
 

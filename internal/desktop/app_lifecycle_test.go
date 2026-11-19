@@ -155,21 +155,7 @@ func TestAppShutdownCancelsAnimeCatchUp(t *testing.T) {
 	}
 }
 
-func TestAppStartupStartsHTTPServerWhenConfigured(t *testing.T) {
-	t.Parallel()
-
-	server := &stubAppHTTPServer{}
-	app := newAppTestApp(t)
-	app.newHTTPServer = func(api.Config) api.Server { return server }
-
-	app.startup(context.Background())
-
-	if !server.started {
-		t.Fatal("expected startup to start http server")
-	}
-}
-
-func TestAppStartupWiresStatusAndConflictServicesIntoHTTPServer(t *testing.T) {
+func TestAppStartupWiresItsServicesIntoHTTPServer(t *testing.T) {
 	t.Parallel()
 
 	server := &stubAppHTTPServer{}
@@ -181,25 +167,6 @@ func TestAppStartupWiresStatusAndConflictServicesIntoHTTPServer(t *testing.T) {
 		if config.Conflicts == nil {
 			t.Fatal("expected startup to wire conflict service into http server config")
 		}
-		return server
-	}
-
-	app.startup(context.Background())
-
-	if !server.started {
-		t.Fatal("expected startup to start http server")
-	}
-	if app.startupErr != nil {
-		t.Fatalf("expected startupErr nil, got %v", app.startupErr)
-	}
-}
-
-func TestAppStartupWiresMobileActivityWriterIntoHTTPServer(t *testing.T) {
-	t.Parallel()
-
-	server := &stubAppHTTPServer{}
-	app := newAppTestApp(t)
-	app.newHTTPServer = func(config api.Config) api.Server {
 		if _, ok := config.AnimeWrite.(activityAnimeWriteService); !ok {
 			t.Fatalf("expected mobile activity writer, got %T", config.AnimeWrite)
 		}
@@ -210,6 +177,9 @@ func TestAppStartupWiresMobileActivityWriterIntoHTTPServer(t *testing.T) {
 
 	if !server.started {
 		t.Fatal("expected startup to start http server")
+	}
+	if app.startupErr != nil {
+		t.Fatalf("expected startupErr nil, got %v", app.startupErr)
 	}
 }
 

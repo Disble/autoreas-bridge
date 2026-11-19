@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import { waitFor } from './wait-for.test-support';
 import { describe, expect, it, vi } from 'vitest';
 import type { AnimeCoverEntry } from '../../../../../shared/anime-cover/use-anime-cover';
 import type { AnimeEditorRecord } from '../../../../../shared/contracts/anime.types';
@@ -107,21 +108,7 @@ describe('useAnimeEditorCovers', () => {
     expect(source.getAnimeCover).toHaveBeenCalledWith('anime-9');
   });
 
-  it('resolves the same anime again when its saved cover source changes', async () => {
-    const source = sourceWith(vi.fn().mockResolvedValueOnce(art('A')).mockResolvedValueOnce(art('B')));
-    const { result, rerender } = renderHook(({ record }: { readonly record: AnimeEditorRecord | undefined }) => useAnimeEditorCovers([], 0, record, source), {
-      initialProps: { record: savedRecord('anime-1', 'https://a.jpg') },
-    });
-
-    await waitFor(() => expect(result.current.covers.get('anime-1')).toEqual(artEntry('A')));
-
-    rerender({ record: savedRecord('anime-1', 'https://b.jpg') });
-
-    await waitFor(() => expect(result.current.covers.get('anime-1')).toEqual(artEntry('B')));
-    expect(source.getAnimeCover).toHaveBeenCalledTimes(2);
-  });
-
-  it('moves the detail header and the rail row to the new cover together', async () => {
+  it('resolves the same anime again when its saved cover source changes, moving the detail header and the rail row together', async () => {
     const source = sourceWith(vi.fn().mockResolvedValueOnce(art('A')).mockResolvedValueOnce(art('B')));
     const { result, rerender } = renderHook(
       ({ record }: { readonly record: AnimeEditorRecord | undefined }) => {
@@ -137,6 +124,7 @@ describe('useAnimeEditorCovers', () => {
 
     await waitFor(() => expect(result.current.header).toEqual(artEntry('B')));
     expect(result.current.cache.covers.get('anime-1')).toEqual(artEntry('B'));
+    expect(source.getAnimeCover).toHaveBeenCalledTimes(2);
   });
 
   it('does not resolve again when the record changes without a new saved cover source', async () => {
@@ -242,19 +230,6 @@ describe('useAnimeEditorCovers', () => {
     expect(source.getAnimeCover).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back to the placeholder when a row reloads without a cover', async () => {
-    const source = sourceWith(resolving(RESOLVED_COVER));
-    const { result, rerender } = renderHook(({ items }: { readonly items: readonly AnimeEditorListItemViewModel[] }) => useAnimeEditorCovers(items, 1, undefined, source), {
-      initialProps: { items: [row('anime-1')] },
-    });
-
-    await waitFor(() => expect(result.current.covers.get('anime-1')).toEqual(COVER_ENTRY));
-
-    rerender({ items: [row('anime-1', false)] });
-
-    await waitFor(() => expect(result.current.covers.get('anime-1')).toEqual({ status: 'placeholder' }));
-  });
-
   it('drops an in-flight lookup when the row is reloaded as coverless', async () => {
     let resolveLookup: (result: AnimeEditorCoverResult) => void = () => undefined;
     const source = sourceWith(
@@ -285,7 +260,7 @@ describe('useAnimeEditorCovers', () => {
     expect(result.current.covers.get('anime-1')).toEqual({ status: 'placeholder' });
   });
 
-  it('resolves a cover again after a removal, rather than showing the art it had before', async () => {
+  it('falls back to the placeholder when a row reloads without a cover, and resolves again after that removal rather than showing the old art', async () => {
     const source = sourceWith(vi.fn().mockResolvedValueOnce(art('A')).mockResolvedValueOnce(art('C')));
     const { result, rerender } = renderHook(({ items }: { readonly items: readonly AnimeEditorListItemViewModel[] }) => useAnimeEditorCovers(items, 1, undefined, source), {
       initialProps: { items: [row('anime-1')] },
@@ -328,7 +303,7 @@ describe('useAnimeEditorCovers', () => {
     await waitFor(() => expect(result.current.covers.get('anime-1')).toEqual({ status: 'placeholder' }));
   });
 
-  it('keeps the decoder-failure handler identity stable across rerenders', async () => {
+  it('keeps the decoder-failure handler identity stable across rerenders and degrades one anime to the placeholder after its image fails', async () => {
     // Contract, not mutant-killer: the ArrayDeclaration mutant that swaps `[]` for a fixed
     // literal survives this, because React's element-wise dep comparison keeps the identity.
     // It fails the moment the deps argument is dropped (recreated every render) or given a
@@ -344,15 +319,26 @@ describe('useAnimeEditorCovers', () => {
     rerender({ items: [row('anime-1')] });
 
     expect(result.current.onCoverImageError).toBe(handler);
-  });
-
-  it('degrades one anime to the placeholder after its decoded image fails', async () => {
-    const { result } = renderHook(() => useAnimeEditorCovers([row('anime-1')], 1, undefined, sourceWith(resolving(RESOLVED_COVER))));
-
-    await waitFor(() => expect(result.current.covers.get('anime-1')).toEqual(COVER_ENTRY));
 
     result.current.onCoverImageError('anime-1');
 
     await waitFor(() => expect(result.current.covers.get('anime-1')).toEqual({ status: 'placeholder' }));
+  });
+});
+
+/** A cache holding one already-resolved thumbnail for the selected anime. */
+const RESOLVED_CACHE: ReadonlyMap<string, AnimeCoverEntry> = new Map([['anime-1', COVER_ENTRY]]);
+
+describe('useAnimeEditorCover', () => {
+  it.each<[string, AnimeEditorRecord | undefined, ReadonlyMap<string, AnimeCoverEntry>, AnimeCoverEntry]>([
+    ['no loaded record at all', undefined, RESOLVED_CACHE, { status: 'placeholder' }],
+    ['a record whose stored cover was cleared', savedRecord('anime-1'), RESOLVED_CACHE, { status: 'placeholder' }],
+    ['a record whose stored cover is the null sentinel', savedRecord('anime-1', 'null'), RESOLVED_CACHE, { status: 'placeholder' }],
+    ['a saved cover with a resolved cache entry', savedRecord('anime-1', 'https://example.com/c.jpg'), RESOLVED_CACHE, COVER_ENTRY],
+    ['a saved cover the cache has not resolved yet', savedRecord('anime-1', 'D:/covers/frieren.jpg'), new Map(), { status: 'loading' }],
+  ])('resolves %s', (_label, record, covers, expected) => {
+    const { result } = renderHook(() => useAnimeEditorCover(record, covers));
+
+    expect(result.current).toEqual(expected);
   });
 });

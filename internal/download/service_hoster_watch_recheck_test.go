@@ -81,6 +81,56 @@ func TestAFileThatLandsBetweenProbesProducesADiskConfirmedSuccess(t *testing.T) 
 	// No probe ever saw a .part file, so only the count check can see the episode.
 	assertOutcome(t, outcome, hosterOutcomeSuccess, "grace_disk_confirmed")
 	assertNoPackageRemoval(t, recorder, jd)
+
+	// Without the rename the file keeps the downloader's raw name, where the highest-
+	// episode read resolves to 0 and the cursor survives on the file count alone -- so one
+	// duplicate video makes the next run skip a real episode.
+	if got := len(recorder.byEventType("download.renamed")); got != 1 {
+		t.Fatalf("expected a disk-confirmed success to complete the episode exactly once, got %d download.renamed entries", got)
+	}
+
+	// The grace ends on the probe that saw the episode, and that probe says WHICH signal ended it:
+	// landed, not a .part file. Without the flag a reader cannot tell this success from a transfer.
+	entry := recorder.only(t, "download.detect_start_succeeded")
+	if entry.level != "info" {
+		t.Fatalf("expected the probe timeline to persist at info level, got %q", entry.level)
+	}
+	if got := len(recorder.byEventType("download.detect_start_failed")); got != 0 {
+		t.Fatalf("expected no detect_start_failed entry on a disk-confirmed attempt, got %d", got)
+	}
+	probes := metadataProbes(t, entry)
+	if len(probes) != 4 {
+		t.Fatalf("expected the grace to stop at the fourth probe, got %#v", probes)
+	}
+	for i, p := range probes[:3] {
+		if p["found"] != false || p["landed"] != false {
+			t.Fatalf("expected the probes before the landing to see nothing, got probe %d: %#v", i, p)
+		}
+	}
+	if probes[3]["landed"] != true || probes[3]["found"] != false {
+		t.Fatalf("expected the last probe to report landed=true and found=false, got %#v", probes[3])
+	}
+
+	assertProbeOffsetsAdvance(t, probes)
+}
+
+// assertProbeOffsetsAdvance fails unless the four probe offsets strictly increase and span 15000ms.
+// A fixed clock makes the grace guard's own tests pass while measuring nothing, and the offsets are
+// where that shows: under a frozen clock every probe records the same number.
+func assertProbeOffsetsAdvance(t *testing.T, probes []map[string]any) {
+	t.Helper()
+
+	previous := int64(-1)
+	for i := range probes {
+		elapsed := probeOffset(t, probes, i)
+		if elapsed <= previous {
+			t.Fatalf("expected strictly increasing probe offsets under a moving clock, got %#v", probes)
+		}
+		previous = elapsed
+	}
+	if got := probeOffset(t, probes, 3) - probeOffset(t, probes, 0); got != 15000 {
+		t.Fatalf("expected the first and last probe to be 15000ms apart, got %d", got)
+	}
 }
 
 func TestAnEpisodeThatLandsBeforeTheFirstProbeIsConfirmedOnThatProbe(t *testing.T) {
@@ -151,72 +201,4 @@ func TestADiskConfirmedSuccessIsIndependentOfChainPosition(t *testing.T) {
 
 // --- the probe timeline of a disk-confirmed attempt ---
 
-func TestADiskConfirmedAttemptPersistsItsProbeTimeline(t *testing.T) {
-	t.Parallel()
-
-	folder := "folder-" + t.Name()
-
-	_, recorder, _ := recheckAttempt(t, folder, recheckCounters(folder, 4), true, true)
-
-	// The grace ends on the probe that saw the episode, and that probe says WHICH signal ended it:
-	// landed, not a .part file. Without the flag a reader cannot tell this success from a transfer.
-	entry := recorder.only(t, "download.detect_start_succeeded")
-	if entry.level != "info" {
-		t.Fatalf("expected the probe timeline to persist at info level, got %q", entry.level)
-	}
-	if got := len(recorder.byEventType("download.detect_start_failed")); got != 0 {
-		t.Fatalf("expected no detect_start_failed entry on a disk-confirmed attempt, got %d", got)
-	}
-	probes := metadataProbes(t, entry)
-	if len(probes) != 4 {
-		t.Fatalf("expected the grace to stop at the fourth probe, got %#v", probes)
-	}
-	for i, p := range probes[:3] {
-		if p["found"] != false || p["landed"] != false {
-			t.Fatalf("expected the probes before the landing to see nothing, got probe %d: %#v", i, p)
-		}
-	}
-	if probes[3]["landed"] != true || probes[3]["found"] != false {
-		t.Fatalf("expected the last probe to report landed=true and found=false, got %#v", probes[3])
-	}
-}
-
-func TestProbeOffsetsStillAdvanceOnTheDiskConfirmedPath(t *testing.T) {
-	t.Parallel()
-
-	folder := "folder-" + t.Name()
-
-	_, recorder, _ := recheckAttempt(t, folder, recheckCounters(folder, 4), true, true)
-
-	// A fixed clock makes this guard's own tests pass while measuring nothing, and the offsets are
-	// where that shows: under a frozen clock every probe records the same number.
-	probes := metadataProbes(t, recorder.only(t, "download.detect_start_succeeded"))
-	previous := int64(-1)
-	for i := range probes {
-		elapsed := probeOffset(t, probes, i)
-		if elapsed <= previous {
-			t.Fatalf("expected strictly increasing probe offsets under a moving clock, got %#v", probes)
-		}
-		previous = elapsed
-	}
-	if got := probeOffset(t, probes, 3) - probeOffset(t, probes, 0); got != 15000 {
-		t.Fatalf("expected the first and last probe to be 15000ms apart, got %d", got)
-	}
-}
-
 // --- completion handling on the disk-confirmed path ---
-
-func TestADiskConfirmedSuccessCompletesTheEpisode(t *testing.T) {
-	t.Parallel()
-
-	folder := "folder-" + t.Name()
-
-	_, recorder, _ := recheckAttempt(t, folder, recheckCounters(folder, 4), true, true)
-
-	// Without the rename the file keeps the downloader's raw name, where the highest-
-	// episode read resolves to 0 and the cursor survives on the file count alone -- so one
-	// duplicate video makes the next run skip a real episode.
-	if got := len(recorder.byEventType("download.renamed")); got != 1 {
-		t.Fatalf("expected a disk-confirmed success to complete the episode exactly once, got %d download.renamed entries", got)
-	}
-}

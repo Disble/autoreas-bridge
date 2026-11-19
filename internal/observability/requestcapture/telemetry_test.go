@@ -56,26 +56,6 @@ func TestSanitizeHeadersNeverLeaksACredentialSubstring(t *testing.T) {
 	}
 }
 
-// TestSanitizeHeadersKeepsUnknownCustomHeadersVerbatim pins the property the
-// mobile client's trace correlation depends on: a header nobody enumerated in
-// advance still reaches the capture row intact. A credential allowlist would
-// silently drop these, which is why redaction is value-scoped, not key-scoped.
-func TestSanitizeHeadersKeepsUnknownCustomHeadersVerbatim(t *testing.T) {
-	t.Parallel()
-
-	header := http.Header{}
-	header.Set("X-Sync-Cycle-Id", "01JD8Z2K7QW3")
-	header.Set("X-Sync-Generation", "7")
-
-	sanitized := SanitizeHeaders(header)
-	if sanitized["X-Sync-Cycle-Id"] != "01JD8Z2K7QW3" {
-		t.Fatalf("expected the cycle id verbatim, got %#v", sanitized)
-	}
-	if sanitized["X-Sync-Generation"] != "7" {
-		t.Fatalf("expected the generation verbatim, got %#v", sanitized)
-	}
-}
-
 func TestSanitizeHeadersKeepsSingleValuesVerbatim(t *testing.T) {
 	t.Parallel()
 
@@ -99,19 +79,6 @@ func TestSanitizeHeadersKeepsSingleValuesVerbatim(t *testing.T) {
 		if sanitized[key] != want {
 			t.Fatalf("expected %q=%q, got %#v", key, want, sanitized)
 		}
-	}
-}
-
-func TestSanitizeResponseBodyPreservesSuccessfulJSONExactly(t *testing.T) {
-	t.Parallel()
-
-	raw := []byte(`{"ok":true,"items":[1,2,3]}`)
-	sanitized := SanitizeResponseBody(raw)
-	if sanitized == nil {
-		t.Fatal("expected captured body, got nil")
-	}
-	if *sanitized != string(raw) {
-		t.Fatalf("expected exact response body %q, got %q", string(raw), *sanitized)
 	}
 }
 

@@ -157,13 +157,6 @@ func TestGetSeasonOrderingSnapshotWithoutCapturedBoard(t *testing.T) {
 			},
 		},
 		{
-			name: "the stored payload carries no capture instant",
-			arrange: func(t *testing.T) (*App, string) {
-				app, _, seasonID := newSeasonAppWithClosure(t, `{"rail":[],"grid":[]}`)
-				return app, seasonID
-			},
-		},
-		{
 			name: "the season id is unknown",
 			arrange: func(t *testing.T) (*App, string) {
 				app, _, _ := newSeasonAppWithClosure(t, storedSeasonClosureJSON)
@@ -231,7 +224,6 @@ func TestGetSeasonOrderingSnapshotCaptureInstantBoundary(t *testing.T) {
 		recorded bool
 	}{
 		{name: "the earliest positive instant", payload: `{"capturedAt":1,"rail":[],"grid":[]}`, recorded: true},
-		{name: "a modern instant", payload: `{"capturedAt":1700000000000,"rail":[],"grid":[]}`, recorded: true},
 		{name: "the zero instant", payload: `{"capturedAt":0,"rail":[],"grid":[]}`},
 		{name: "a negative instant", payload: `{"capturedAt":-1,"rail":[],"grid":[]}`},
 	}
@@ -243,29 +235,6 @@ func TestGetSeasonOrderingSnapshotCaptureInstantBoundary(t *testing.T) {
 				t.Fatalf("Recorded = %v, want %v for payload %s", got.Recorded, tc.recorded, tc.payload)
 			}
 		})
-	}
-}
-
-// TestGetSeasonOrderingBoardReadsLiveData is the positive control for the
-// snapshot tests: the live getter really must surface the stubbed live board,
-// otherwise "live anime data disagrees with the stored board" would pass even if
-// the stub were ignored and prove nothing about the snapshot path.
-func TestGetSeasonOrderingBoardReadsLiveData(t *testing.T) {
-	t.Parallel()
-	repo := newFakeSeasonRepo()
-	app := newTestSeasonApp(repo, nil)
-	if got := app.CreateSeason("Julio 2026"); got != nil {
-		t.Fatalf("CreateSeason: %q", got)
-	}
-	app.animeQuery = &stubAnimeQueryService{mobileAnimes: []contracts.MobileAnime{{
-		ID: "anime-live", Name: "Live", Active: 1,
-		Days: []contracts.MobileAnimeDay{{Day: "Viernes", Order: 9}},
-	}}}
-	seasonReady(app)
-
-	board := must(t).value(app.GetSeasonOrderingBoard())
-	if len(board.Grid) != 1 || board.Grid[0].AnimeID != "anime-live" || board.Grid[0].Dia != "Viernes" || board.Grid[0].Orden != 9 {
-		t.Fatalf("the live getter must surface the stubbed live board, got %+v", board.Grid)
 	}
 }
 

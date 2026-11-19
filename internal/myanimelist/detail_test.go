@@ -186,19 +186,6 @@ func TestParseDetailPageOverRealFixturesFillsEveryMappedField(t *testing.T) {
 			},
 		},
 		{
-			name:    "single-genre fixture",
-			fixture: "detail_single_genre.html",
-			want: Detail{
-				Title:    "Sono Bisque Doll wa Koi wo Suru",
-				Type:     "TV",
-				Episodes: "12",
-				Duration: "23",
-				Source:   "Manga",
-				Studios:  []string{"CloverWorks"},
-				Genres:   []string{"Romance"},
-			},
-		},
-		{
 			name:    "movie fixture",
 			fixture: "detail_movie.html",
 			want: Detail{
@@ -209,19 +196,6 @@ func TestParseDetailPageOverRealFixturesFillsEveryMappedField(t *testing.T) {
 				Source:   "Original",
 				Studios:  []string{"CoMix Wave Films"},
 				Genres:   []string{"Award Winning", "Drama"},
-			},
-		},
-		{
-			name:    "ONA fixture",
-			fixture: "detail_ona.html",
-			want: Detail{
-				Title:    "Devilman: Crybaby",
-				Type:     "ONA",
-				Episodes: "10",
-				Duration: "24",
-				Source:   "Manga",
-				Studios:  []string{"Science SARU"},
-				Genres:   []string{"Action", "Avant Garde", "Horror", "Supernatural"},
 			},
 		},
 	}

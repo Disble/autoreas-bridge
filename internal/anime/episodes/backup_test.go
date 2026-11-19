@@ -134,14 +134,13 @@ func TestValidateEpisodeDurationsChecksEveryRecord(t *testing.T) {
 		{name: "other source", line: strings.Replace(valid, `"manual"`, `"other"`, 1), wantErr: true},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			count, err := episodes.ValidateEpisodeDurations()(context.Background(), strings.NewReader(valid+"\n"+tc.line+"\n"))
-			if tc.wantErr != (err != nil) {
-				t.Fatalf("validate error = %v, want error %v", err, tc.wantErr)
-			}
-			if !tc.wantErr && count != 2 {
-				t.Fatalf("validate count = %d, want 2", count)
-			}
-		})
+		count, err := episodes.ValidateEpisodeDurations()(context.Background(), strings.NewReader(valid+"\n"+tc.line+"\n"))
+		if tc.wantErr != (err != nil) {
+			t.Errorf("%s: validate error = %v, want error %v", tc.name, err, tc.wantErr)
+			continue
+		}
+		if !tc.wantErr && count != 2 {
+			t.Errorf("%s: validate count = %d, want 2", tc.name, count)
+		}
 	}
 }

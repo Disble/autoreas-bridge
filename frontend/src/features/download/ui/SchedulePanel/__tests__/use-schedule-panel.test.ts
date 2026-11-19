@@ -71,21 +71,31 @@ describe('useSchedulePanel', () => {
     vi.clearAllMocks();
   });
 
-  it('starts in the loading status', () => {
+  it('loads the schedule and saves the time draft only once editing finishes', async () => {
     const source = createSource();
-    const { result } = renderPanel(source);
+    const seasonSource = { readSeason: vi.fn().mockResolvedValue(null) };
+    const { result } = renderPanel(source, seasonSource);
 
     expect(result.current.status).toBe('loading');
-  });
-
-  it('loads the schedule config and exposes the view model', async () => {
-    const source = createSource();
-    const { result } = renderPanel(source);
-
+    await waitFor(() => expect(seasonSource.readSeason).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
     expect(result.current.viewModel.enabled).toBe(true);
     expect(result.current.viewModel.dailyTimeHHMM).toBe('03:30');
+    expect(result.current.viewModel.seasonModeActive).toBe(false);
+
+    act(() => {
+      result.current.setDailyTimeDraft('05:00');
+    });
+
+    expect(result.current.dailyTimeDraft).toBe('05:00');
+    expect(source.setScheduleConfig).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.commitDailyTime();
+    });
+
+    expect(source.setScheduleConfig).toHaveBeenCalledWith(expect.objectContaining({ dailyTimeHHMM: '05:00' }));
   });
 
   it('surfaces an error status when getScheduleConfig rejects', async () => {
@@ -129,64 +139,13 @@ describe('useSchedulePanel', () => {
     expect(listDownloadReadiness).toHaveBeenCalledTimes(2);
   });
 
-  it('setEnabled persists the change via setScheduleConfig', async () => {
-    const source = createSource();
-    const { result } = renderPanel(source);
-
-    await waitFor(() => expect(result.current.status).toBe('ready'));
-
-    await act(async () => {
-      await result.current.setEnabled(false);
+  it('saves weekdays, time and enabled flag, refreshing after each save', async () => {
+    const source = createSource({
+      getScheduleConfig: vi
+        .fn()
+        .mockResolvedValueOnce(baseConfig)
+        .mockResolvedValue({ ...baseConfig, enabled: false }),
     });
-
-    expect(source.setScheduleConfig).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
-  });
-
-  it('setDailyTime persists the new time via setScheduleConfig', async () => {
-    const source = createSource();
-    const { result } = renderPanel(source);
-
-    await waitFor(() => expect(result.current.status).toBe('ready'));
-
-    await act(async () => {
-      await result.current.setDailyTime('05:00');
-    });
-
-    expect(source.setScheduleConfig).toHaveBeenCalledWith(expect.objectContaining({ dailyTimeHHMM: '05:00' }));
-  });
-
-  it('setDailyTimeDraft updates the editable time without persisting on each keypress', async () => {
-    const source = createSource();
-    const { result } = renderPanel(source);
-
-    await waitFor(() => expect(result.current.status).toBe('ready'));
-
-    act(() => {
-      result.current.setDailyTimeDraft('05:00');
-    });
-
-    expect(result.current.dailyTimeDraft).toBe('05:00');
-    expect(source.setScheduleConfig).not.toHaveBeenCalled();
-  });
-
-  it('commitDailyTime persists the draft once editing finishes', async () => {
-    const source = createSource();
-    const { result } = renderPanel(source);
-
-    await waitFor(() => expect(result.current.status).toBe('ready'));
-
-    act(() => {
-      result.current.setDailyTimeDraft('05:00');
-    });
-    await act(async () => {
-      await result.current.commitDailyTime();
-    });
-
-    expect(source.setScheduleConfig).toHaveBeenCalledWith(expect.objectContaining({ dailyTimeHHMM: '05:00' }));
-  });
-
-  it('setWeekdays persists the new weekday mask while preserving enabled/dailyTimeHHMM', async () => {
-    const source = createSource();
     const { result } = renderPanel(source);
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
@@ -195,25 +154,25 @@ describe('useSchedulePanel', () => {
       await result.current.setWeekdays(96);
     });
 
-    expect(source.setScheduleConfig).toHaveBeenCalledWith(
+    expect(source.setScheduleConfig).toHaveBeenLastCalledWith(
       expect.objectContaining({ enabledWeekdays: 96, enabled: true, dailyTimeHHMM: '03:30' }),
     );
-  });
+    expect(result.current.viewModel.enabled).toBe(false);
 
-  it('surfaces the backend reason when setScheduleConfig rejects with it', async () => {
-    const source = createSource({ setScheduleConfig: vi.fn().mockRejectedValue(new Error('download store unavailable')) });
-    const { result } = renderPanel(source);
+    await act(async () => {
+      await result.current.setDailyTime('05:00');
+    });
 
-    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(source.setScheduleConfig).toHaveBeenLastCalledWith(expect.objectContaining({ dailyTimeHHMM: '05:00' }));
 
     await act(async () => {
       await result.current.setEnabled(true);
     });
 
-    expect(result.current.saveErrorMessage).toBe('download store unavailable');
+    expect(source.setScheduleConfig).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: true }));
   });
 
-  it('does not flip the view model when the save is rejected', async () => {
+  it('surfaces the backend reason and does not flip the view model when the save is rejected', async () => {
     const source = createSource({
       getScheduleConfig: vi.fn().mockResolvedValue({ ...baseConfig, enabled: false }),
       setScheduleConfig: vi.fn().mockRejectedValue(new Error('download store unavailable')),
@@ -226,39 +185,9 @@ describe('useSchedulePanel', () => {
       await result.current.setEnabled(true);
     });
 
+    expect(result.current.saveErrorMessage).toBe('download store unavailable');
     expect(result.current.viewModel.enabled).toBe(false);
     expect(source.getScheduleConfig).toHaveBeenCalledTimes(1); // no refresh after a failed save
-  });
-
-  it('surfaces a saveErrorMessage when setScheduleConfig rejects, without crashing', async () => {
-    const source = createSource({ setScheduleConfig: vi.fn().mockRejectedValue(new Error('save failed')) });
-    const { result } = renderPanel(source);
-
-    await waitFor(() => expect(result.current.status).toBe('ready'));
-
-    await act(async () => {
-      await result.current.setEnabled(false);
-    });
-
-    expect(result.current.saveErrorMessage).toBe('save failed');
-  });
-
-  it('refreshes the view model after a successful setScheduleConfig save', async () => {
-    const source = createSource({
-      getScheduleConfig: vi
-        .fn()
-        .mockResolvedValueOnce(baseConfig)
-        .mockResolvedValueOnce({ ...baseConfig, enabled: false }),
-    });
-    const { result } = renderPanel(source);
-
-    await waitFor(() => expect(result.current.status).toBe('ready'));
-
-    await act(async () => {
-      await result.current.setEnabled(false);
-    });
-
-    expect(result.current.viewModel.enabled).toBe(false);
   });
 
   it('refreshes the view model when a download run lifecycle event invalidates the schedule', async () => {
@@ -287,16 +216,6 @@ describe('useSchedulePanel', () => {
     await waitFor(() => expect(result.current.status).toBe('ready'));
     await waitFor(() => expect(result.current.viewModel.seasonModeActive).toBe(true));
     expect(seasonSource.readSeason).toHaveBeenCalledTimes(1);
-  });
-
-  it('seasonModeActive is false when no season is open', async () => {
-    const seasonSource = { readSeason: vi.fn().mockResolvedValue(null) };
-
-    const { result } = renderPanel(createSource(), seasonSource);
-
-    await waitFor(() => expect(seasonSource.readSeason).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(result.current.status).toBe('ready'));
-    expect(result.current.viewModel.seasonModeActive).toBe(false);
   });
 
   it('seasonModeActive stays false without reading while the season module starts, then follows the open season once it is ready', async () => {

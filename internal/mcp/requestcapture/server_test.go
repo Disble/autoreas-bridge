@@ -53,30 +53,9 @@ func TestServerRegistersOnlyTheActivityTools(t *testing.T) {
 	}
 }
 
-// TestToolNamesMatchesTheRoster checks the declared roster and that callers
-// get a copy.
-func TestToolNamesMatchesTheRoster(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "bridge.db")
-	bootstrapDB(t, path)
-	reader, err := OpenReader(path)
-	if err != nil {
-		t.Fatalf("open reader: %v", err)
-	}
-	t.Cleanup(func() { _ = reader.Close() })
-	server := NewServer(reader, nil)
-	got := server.ToolNames()
-	if !slices.Equal(got, newToolRoster) {
-		t.Fatalf("tool names = %v, want %v", got, newToolRoster)
-	}
-	got[0] = "mutated"
-	if server.ToolNames()[0] != "get_status" {
-		t.Fatal("ToolNames must return a copy")
-	}
-}
-
-// TestReaderIsQueryOnly checks that the sidecar's handle cannot write and
+// TestReaderIsQueryOnlyAndServesTheToolRoster checks that the sidecar's handle cannot write and
 // that a missing database fails closed.
-func TestReaderIsQueryOnly(t *testing.T) {
+func TestReaderIsQueryOnlyAndServesTheToolRoster(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "bridge.db")
 	bootstrapDB(t, path)
 	reader, err := OpenReader(path)
@@ -92,5 +71,20 @@ func TestReaderIsQueryOnly(t *testing.T) {
 	}
 	if _, err := OpenReader(filepath.Join(t.TempDir(), "missing.db")); err == nil {
 		t.Fatal("expected a missing database to fail closed")
+	}
+
+	// Tool names matches the roster.
+	// It checks the declared roster and that callers
+	// get a copy.
+	{
+		server := NewServer(reader, nil)
+		got := server.ToolNames()
+		if !slices.Equal(got, newToolRoster) {
+			t.Fatalf("tool names = %v, want %v", got, newToolRoster)
+		}
+		got[0] = "mutated"
+		if server.ToolNames()[0] != "get_status" {
+			t.Fatal("ToolNames must return a copy")
+		}
 	}
 }

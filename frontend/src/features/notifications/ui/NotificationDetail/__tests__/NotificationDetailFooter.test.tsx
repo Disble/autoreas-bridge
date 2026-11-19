@@ -20,22 +20,17 @@ function buildFooterSource(): NotificationCenterSource {
   } as unknown as NotificationCenterSource;
 }
 
-// NOSONAR typescript:S5976 -- these cases share an assertion shape but not an
-// intent, and the intent lives in the names: one records that the pane used to
-// fetch this action and drop it, another that archive is the single lifecycle
-// verb the pane itself can carry out. An it.each collapses both into a loop
-// parameterised on a button label, which is the one part that does not matter.
 describe('NotificationDetailFooter', () => {
-  it("renders the record's own whole-notification action, which the pane used to fetch and drop", () => {
+  // The artboard's footer (`Main.dc.html`): `Open Downloads · Archive · Mark unread`.
+  it("renders the record's own action, then archive and mark unread as the artboard draws them", () => {
     render(<NotificationDetailFooter actions={[buildAction()]} notificationId={1} source={buildFooterSource()} />, { wrapper: notificationsQueryWrapper().wrapper });
 
+    // The record's own whole-notification action, which the pane used to fetch and drop.
     expect(screen.getByRole('button', { name: 'Open Downloads' })).toBeInTheDocument();
-  });
-
-  it('renders archive beside it, the one lifecycle verb the pane itself can carry out', () => {
-    render(<NotificationDetailFooter actions={[buildAction()]} notificationId={1} source={buildFooterSource()} />, { wrapper: notificationsQueryWrapper().wrapper });
-
+    // Archive beside it, the one lifecycle verb the pane itself can carry out.
     expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument();
+    // Mark unread as the third footer action.
+    expect(screen.getByRole('button', { name: 'Mark unread' })).toBeInTheDocument();
   });
 
   it('executes a pressed whole-notification action against the record it belongs to', async () => {
@@ -92,15 +87,10 @@ describe('NotificationDetailFooter', () => {
     expect(screen.getAllByRole('button')).toHaveLength(2);
   });
 
-  // The artboard's third footer button (`Main.dc.html`): `Open Downloads ·
-  // Archive · Mark unread`.
-  it('renders mark unread as the third footer action the artboard draws', () => {
-    render(<NotificationDetailFooter actions={[buildAction()]} notificationId={1} source={buildFooterSource()} />, { wrapper: notificationsQueryWrapper().wrapper });
-
-    expect(screen.getByRole('button', { name: 'Mark unread' })).toBeInTheDocument();
-  });
-
-  it('marks exactly the open record unread when mark unread is pressed', async () => {
+  // Archiving stamps read_at_ms as a side effect, so the two verbs move the
+  // same axis in opposite directions and must not be wired to each other's
+  // binding.
+  it('marks only the open record unread on its own binding, never archive', async () => {
     const source = buildFooterSource();
     render(<NotificationDetailFooter actions={[buildAction()]} notificationId={42} source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
 
@@ -109,6 +99,8 @@ describe('NotificationDetailFooter', () => {
     await waitFor(() => {
       expect(source.markUnread).toHaveBeenCalledWith([42]);
     });
+    expect(source.markUnread).toHaveBeenCalledTimes(1);
+    expect(source.archive).not.toHaveBeenCalled();
   });
 
   // Firing the mutation is only half the button. The panel re-reads the unread
@@ -132,20 +124,5 @@ describe('NotificationDetailFooter', () => {
     await waitFor(() => {
       expect(onReadStateChanged).toHaveBeenCalledWith([42], false);
     });
-  });
-
-  // Archiving stamps read_at_ms as a side effect, so the two verbs move the
-  // same axis in opposite directions and must not be wired to each other's
-  // binding.
-  it('keeps mark unread and archive on separate bindings', async () => {
-    const source = buildFooterSource();
-    render(<NotificationDetailFooter actions={[buildAction()]} notificationId={42} source={source} />, { wrapper: notificationsQueryWrapper().wrapper });
-
-    screen.getByRole('button', { name: 'Mark unread' }).click();
-
-    await waitFor(() => {
-      expect(source.markUnread).toHaveBeenCalledTimes(1);
-    });
-    expect(source.archive).not.toHaveBeenCalled();
   });
 });

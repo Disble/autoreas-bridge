@@ -148,60 +148,6 @@ func TestRunOnceFallsBackToNextHosterWhenFirstHosterEnqueueFails(t *testing.T) {
 	}
 }
 
-func TestRunOnceAccountsSkipsSeparatelyFromAnimesChecked(t *testing.T) {
-	t.Parallel()
-
-	deps := baseDeps(t)
-	dia := todayDiaName(deps.Clock())
-	registry := NewStaticRegistry()
-	source := &svcFakeEpisodeSource{
-		name: "jkanime",
-		listEpisodes: map[string]sites.EpisodeListing{
-			"https://jkanime.net/serie/": {LatestEpisode: 1, EpisodePageURL: "https://jkanime.net/serie/1/"},
-		},
-		extractLinks: map[string][]sites.DownloadLink{
-			"https://jkanime.net/serie/1/": {{URL: "http://mediafire.example/1", Hoster: "Mediafire"}},
-		},
-	}
-	registry.Register(source)
-	deps.Sites = registry
-	destFolder := t.TempDir()
-	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:        "anime-blocked",
-		Name:      "Blocked Anime",
-		Active:    1,
-		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: nil,
-		Folder:    new(t.TempDir()),
-	}, {
-		ID:        "anime-no-folder",
-		Name:      "No Folder Anime",
-		Active:    1,
-		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: new("https://jkanime.net/no-folder/"),
-	}, {
-		ID:        "anime-serie",
-		Name:      "A Serie",
-		Active:    1,
-		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: new("https://jkanime.net/serie/"),
-		Folder:    new(destFolder),
-	}}}
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, landing: map[string]int{destFolder: 1}})
-
-	result, err := NewService(deps).RunOnce(context.Background(), "manual")
-	if err != nil {
-		t.Fatalf("expected nil error, got %v", err)
-	}
-	run, ok := deps.Store.(*svcFakeDownloadStore).getRun(result.RunID)
-	if !ok {
-		t.Fatalf("expected run %q persisted", result.RunID)
-	}
-	if run.SkippedCount != 2 || run.AnimesChecked != 1 {
-		t.Fatalf("expected SkippedCount=2 and AnimesChecked=1, got %#v", run)
-	}
-}
-
 func TestServiceDepsHasNoAnimeWriteServiceDependency(t *testing.T) {
 	t.Parallel()
 
@@ -348,7 +294,9 @@ func TestProcessAnimeReportsUpToDateWhenNoNewEpisodeOnline(t *testing.T) {
 	}
 }
 
-func TestRunOnceCountsUpToDateWithinAnimesChecked(t *testing.T) {
+// TestRunOnceCountsUpToDateWithinAnimesCheckedAndSkipsApart runs a catalog with
+// one anime to download, one up to date, and two that must be skipped.
+func TestRunOnceCountsUpToDateWithinAnimesCheckedAndSkipsApart(t *testing.T) {
 	t.Parallel()
 
 	deps := baseDeps(t)
@@ -370,6 +318,19 @@ func TestRunOnceCountsUpToDateWithinAnimesChecked(t *testing.T) {
 	freshFolder := t.TempDir()
 	currentFolder := t.TempDir()
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
+		ID:        "anime-blocked",
+		Name:      "Blocked Anime",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: nil,
+		Folder:    new(t.TempDir()),
+	}, {
+		ID:        "anime-no-folder",
+		Name:      "No Folder Anime",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: new("https://jkanime.net/no-folder/"),
+	}, {
 		ID:        "anime-fresh",
 		Name:      "Fresh Anime",
 		Active:    1,
@@ -398,9 +359,10 @@ func TestRunOnceCountsUpToDateWithinAnimesChecked(t *testing.T) {
 		t.Fatalf("expected run %q persisted", result.RunID)
 	}
 	// animes_checked stays the count of everything evaluated (2); up_to_date_count is the
-	// subset that had nothing new to download (1); neither is a skip.
-	if run.AnimesChecked != 2 || run.UpToDateCount != 1 || run.SkippedCount != 0 {
-		t.Fatalf("expected AnimesChecked=2, UpToDateCount=1, SkippedCount=0, got %#v", run)
+	// subset that had nothing new to download (1) and is not a skip; the anime without a
+	// source and the one without a folder are skips (2), counted apart from animes_checked.
+	if run.AnimesChecked != 2 || run.UpToDateCount != 1 || run.SkippedCount != 2 {
+		t.Fatalf("expected AnimesChecked=2, UpToDateCount=1, SkippedCount=2, got %#v", run)
 	}
 	if run.EpisodesDownloaded != 1 {
 		t.Fatalf("expected EpisodesDownloaded=1, got %#v", run)

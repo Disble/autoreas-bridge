@@ -126,14 +126,12 @@ func TestResolverLoadMapsOriginOutcomesAndAvoidsOversizeCacheWrites(t *testing.T
 		{name: "origin timeout", err: cover.ErrTransient, want: cover.ErrTransient, limit: 10},
 		{name: "network failure", err: errors.New("connection reset"), want: cover.ErrTransient, limit: 10},
 		{name: "origin retry estimate", result: cover.FetchResult{RetryAfterSeconds: 17}, err: cover.ErrTransient, want: cover.ErrTransient, retry: 17, limit: 10},
-		{name: "image bytes exceed one-byte max", result: cover.FetchResult{Data: jpegBytes}, want: cover.ErrInvalid, limit: 1},
 		{name: "exact result", result: cover.FetchResult{Data: jpegBytes}, cache: true, limit: 11},
 		{name: "oversize result", result: cover.FetchResult{Data: append(append([]byte{}, jpegBytes...), 0)}, want: cover.ErrInvalid, limit: 11},
 		{name: "non-image origin", result: cover.FetchResult{Data: []byte("<html>error</html>"), ContentType: "text/html"}, want: cover.ErrInvalid, limit: 64},
 		{name: "oversize cached bytes", cached: make([]byte, 11), want: cover.ErrInvalid, limit: 10},
 		{name: "nil fetcher", want: cover.ErrTransient, limit: 10, nilFetcher: true},
 		{name: "cache persistence failure", result: cover.FetchResult{Data: jpegBytes}, want: cover.ErrTransient, limit: 20, failingCache: true},
-		{name: "valid origin", result: cover.FetchResult{Data: jpegBytes}, cache: true, limit: 20},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

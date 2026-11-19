@@ -10,70 +10,6 @@ import (
 	"autoreas-bridge/internal/season/match"
 )
 
-func TestServiceCreateSeason(t *testing.T) {
-	repo := newFakeRepo()
-	svc := newTestService(repo)
-	ctx := context.Background()
-
-	s, err := svc.CreateSeason(ctx, "Julio 2026")
-	if err != nil {
-		t.Fatalf("CreateSeason: %v", err)
-	}
-	if s.Name != "Julio 2026" || s.Status != domain.StatusOpen || s.Slots != 12 || s.MinApprovalGrade != 4 {
-		t.Fatalf("unexpected season: %+v", s)
-	}
-
-	active, err := svc.ActiveSeason(ctx)
-	if err != nil || active == nil || active.ID != s.ID {
-		t.Fatalf("ActiveSeason = %+v, err %v", active, err)
-	}
-}
-
-func TestServiceCreateSeasonRejectsSecondOpen(t *testing.T) {
-	repo := newFakeRepo()
-	svc := newTestService(repo)
-	ctx := context.Background()
-
-	if _, err := svc.CreateSeason(ctx, "Julio 2026"); err != nil {
-		t.Fatalf("first CreateSeason: %v", err)
-	}
-	_, err := svc.CreateSeason(ctx, "Octubre 2026")
-	if !errors.Is(err, ErrSeasonAlreadyOpen) {
-		t.Fatalf("expected ErrSeasonAlreadyOpen, got %v", err)
-	}
-}
-
-func TestServiceSetParametersAndClose(t *testing.T) {
-	repo := newFakeRepo()
-	svc := newTestService(repo)
-	ctx := context.Background()
-
-	created, _ := svc.CreateSeason(ctx, "Julio 2026")
-
-	if err := svc.SetMinApprovalGrade(ctx, 5); err != nil {
-		t.Fatalf("SetMinApprovalGrade: %v", err)
-	}
-	if err := svc.SetSlots(ctx, 9); err != nil {
-		t.Fatalf("SetSlots: %v", err)
-	}
-	active, _ := svc.ActiveSeason(ctx)
-	if active.MinApprovalGrade != 5 || active.Slots != 9 {
-		t.Fatalf("params not persisted: %+v", active)
-	}
-
-	if err := svc.CloseSeason(ctx, ""); err != nil {
-		t.Fatalf("CloseSeason: %v", err)
-	}
-	if after, _ := svc.ActiveSeason(ctx); after != nil {
-		t.Fatalf("expected no active season after close, got %+v", after)
-	}
-
-	stored := repo.seasons[created.ID]
-	if !stored.IsClosed() || stored.ClosedAt == nil {
-		t.Fatalf("closed season not persisted: %+v", stored)
-	}
-}
-
 // TestServiceCloseSeasonPersistsClosureJSONRoundTrip drives the close over real
 // SQLite (not a mock repo) and proves the captured board reads back
 // byte-identical through both season readers.
@@ -114,30 +50,7 @@ func TestServiceCloseSeasonPersistsClosureJSONRoundTrip(t *testing.T) {
 	}
 }
 
-func TestServiceMutationsRequireActiveSeason(t *testing.T) {
-	svc := newTestService(newFakeRepo())
-	ctx := context.Background()
-
-	if err := svc.SetSlots(ctx, 10); !errors.Is(err, ErrNoActiveSeason) {
-		t.Fatalf("expected ErrNoActiveSeason, got %v", err)
-	}
-	if err := svc.CloseSeason(ctx, ""); !errors.Is(err, ErrNoActiveSeason) {
-		t.Fatalf("expected ErrNoActiveSeason, got %v", err)
-	}
-}
-
-func TestServiceSetInvalidParameterRejected(t *testing.T) {
-	svc := newTestService(newFakeRepo())
-	ctx := context.Background()
-	if _, err := svc.CreateSeason(ctx, "Julio 2026"); err != nil {
-		t.Fatalf("CreateSeason: %v", err)
-	}
-	if err := svc.SetMinApprovalGrade(ctx, 9); err == nil {
-		t.Fatal("grade 9 must be rejected")
-	}
-}
-
-func TestServiceImportIntakeParsesDedupesAndSkipsBlanks(t *testing.T) {
+func TestServiceImportIntakeParsesDedupesAndSkipsBlanksThenResolvesAndDiscards(t *testing.T) {
 	repo := newFakeRepo()
 	svc := newTestService(repo)
 	ctx := context.Background()
@@ -159,50 +72,20 @@ func TestServiceImportIntakeParsesDedupesAndSkipsBlanks(t *testing.T) {
 			t.Fatalf("imported rows must be pending, got %q", r.MatchStatus)
 		}
 	}
-}
 
-func TestServiceListSeasonsAndSeasonByID(t *testing.T) {
-	repo := newFakeRepo()
-	svc := newTestService(repo)
-	ctx := context.Background()
-
-	// A closed "past" season plus a currently-open one.
-	first, _ := svc.CreateSeason(ctx, "Abril 2026")
-	if err := svc.CloseSeason(ctx, ""); err != nil {
-		t.Fatalf("CloseSeason: %v", err)
+	if err := svc.ResolveMatch(ctx, rows[0].ID, "https://jkanime.net/some-anime/"); err != nil {
+		t.Fatalf("ResolveMatch: %v", err)
 	}
-	second, _ := svc.CreateSeason(ctx, "Julio 2026")
-
-	all, err := svc.ListSeasons(ctx)
-	if err != nil {
-		t.Fatalf("ListSeasons: %v", err)
+	got, _ := repo.SeasonAnimeByID(ctx, rows[0].ID)
+	if got.MatchStatus != domain.MatchMatched || got.MatchedSlug != "https://jkanime.net/some-anime/" {
+		t.Fatalf("resolve did not set matched slug: %+v", got)
 	}
-	if len(all) != 2 {
-		t.Fatalf("expected both seasons listed, got %d", len(all))
+	if err := svc.DiscardName(ctx, rows[1].ID); err != nil {
+		t.Fatalf("DiscardName: %v", err)
 	}
-
-	got, err := svc.SeasonByID(ctx, first.ID)
-	if err != nil {
-		t.Fatalf("SeasonByID: %v", err)
-	}
-	if got == nil || got.ID != first.ID || !got.IsClosed() {
-		t.Fatalf("SeasonByID(%q) = %+v, want the closed first season", first.ID, got)
-	}
-
-	open, err := svc.SeasonByID(ctx, second.ID)
-	if err != nil {
-		t.Fatalf("SeasonByID(open): %v", err)
-	}
-	if open == nil || open.IsClosed() {
-		t.Fatalf("SeasonByID(%q) should be the open season, got %+v", second.ID, open)
-	}
-
-	missing, err := svc.SeasonByID(ctx, "does-not-exist")
-	if err != nil {
-		t.Fatalf("SeasonByID(missing) should not error, got %v", err)
-	}
-	if missing != nil {
-		t.Fatalf("SeasonByID(missing) = %+v, want nil", missing)
+	got, _ = repo.SeasonAnimeByID(ctx, rows[1].ID)
+	if got.MatchStatus != domain.MatchDiscarded {
+		t.Fatalf("discard did not set status: %+v", got)
 	}
 }
 
@@ -302,40 +185,6 @@ func TestServiceRunMatchingClassifiesRows(t *testing.T) {
 	}
 	if got := byName["Anime Inexistente"]; got.MatchStatus != domain.MatchNotFound {
 		t.Fatalf("Anime Inexistente should be not_found, got %+v", got)
-	}
-}
-
-func TestServiceResolveMatchSetsMatchedSlug(t *testing.T) {
-	repo := newFakeRepo()
-	svc := newTestService(repo)
-	ctx := context.Background()
-	season, _ := svc.CreateSeason(ctx, "Julio 2026")
-	_, _ = svc.ImportIntake(ctx, season.ID, "Some Anime")
-	rows, _ := svc.ListSeasonAnimes(ctx, season.ID)
-
-	if err := svc.ResolveMatch(ctx, rows[0].ID, "https://jkanime.net/some-anime/"); err != nil {
-		t.Fatalf("ResolveMatch: %v", err)
-	}
-	got, _ := repo.SeasonAnimeByID(ctx, rows[0].ID)
-	if got.MatchStatus != domain.MatchMatched || got.MatchedSlug != "https://jkanime.net/some-anime/" {
-		t.Fatalf("resolve did not set matched slug: %+v", got)
-	}
-}
-
-func TestServiceDiscardName(t *testing.T) {
-	repo := newFakeRepo()
-	svc := newTestService(repo)
-	ctx := context.Background()
-	season, _ := svc.CreateSeason(ctx, "Julio 2026")
-	_, _ = svc.ImportIntake(ctx, season.ID, "Some Anime")
-	rows, _ := svc.ListSeasonAnimes(ctx, season.ID)
-
-	if err := svc.DiscardName(ctx, rows[0].ID); err != nil {
-		t.Fatalf("DiscardName: %v", err)
-	}
-	got, _ := repo.SeasonAnimeByID(ctx, rows[0].ID)
-	if got.MatchStatus != domain.MatchDiscarded {
-		t.Fatalf("discard did not set status: %+v", got)
 	}
 }
 

@@ -61,10 +61,10 @@ func runCompletedDelivery() Delivery {
 	}
 }
 
-// TestWindowsToastOffersItsWholeNotificationVerbs is the gap this closes: the adapter set four
+// TestWindowsToastProjectsARunCompletedDelivery reads one run-completed toast. Its verbs close the gap: the adapter set four
 // fields and ignored the actions entirely, so a Windows notification was a sentence with no way
 // to act on it (ADR-016).
-func TestWindowsToastOffersItsWholeNotificationVerbs(t *testing.T) {
+func TestWindowsToastProjectsARunCompletedDelivery(t *testing.T) {
 	xml := deliverToastXML(t, runCompletedDelivery())
 
 	if !strings.Contains(xml, "Open Downloads") {
@@ -73,38 +73,35 @@ func TestWindowsToastOffersItsWholeNotificationVerbs(t *testing.T) {
 	if !strings.Contains(xml, "autoreas-notification:42:act-1") {
 		t.Fatalf("the button froze no argument addressing its token:\n%s", xml)
 	}
-}
 
-// TestWindowsToastLeavesRowVerbsToTheOtherSurfaces: the medium has no row to bind one to, and a
-// button reading "Watch" with no row beside it names no anime.
-func TestWindowsToastLeavesRowVerbsToTheOtherSurfaces(t *testing.T) {
-	xml := deliverToastXML(t, runCompletedDelivery())
-
-	if strings.Contains(xml, "act-2") {
-		t.Fatalf("a row verb reached the Windows toast, which has no row to bind it to:\n%s", xml)
+	// Windows toast leaves row verbs to the other surfaces.
+	// The medium has no row to bind one to, and a
+	// button reading "Watch" with no row beside it names no anime.
+	{
+		if strings.Contains(xml, "act-2") {
+			t.Fatalf("a row verb reached the Windows toast, which has no row to bind it to:\n%s", xml)
+		}
 	}
-}
 
-// TestWindowsToastFoldsItsRowsIntoTheBody: Windows has images, buttons and inputs but no
-// repeatable row. Collapsing is a translation; dropping would not be.
-func TestWindowsToastFoldsItsRowsIntoTheBody(t *testing.T) {
-	xml := deliverToastXML(t, runCompletedDelivery())
-
-	if !strings.Contains(xml, "Frieren") {
-		t.Fatalf("the toast names no anime, so it says a run completed and not which one:\n%s", xml)
+	// Windows toast folds its rows into the body.
+	// Windows has images, buttons and inputs but no
+	// repeatable row. Collapsing is a translation; dropping would not be.
+	{
+		if !strings.Contains(xml, "Frieren") {
+			t.Fatalf("the toast names no anime, so it says a run completed and not which one:\n%s", xml)
+		}
+		if !strings.Contains(xml, "Episode 19 -- ready to watch") {
+			t.Fatalf("the row's detail line did not reach the body:\n%s", xml)
+		}
 	}
-	if !strings.Contains(xml, "Episode 19 -- ready to watch") {
-		t.Fatalf("the row's detail line did not reach the body:\n%s", xml)
-	}
-}
 
-// TestWindowsToastAddressesItsRecordOnAWholeToastPress covers the click on the body rather than
-// on a button: there is a record to open and no verb to run.
-func TestWindowsToastAddressesItsRecordOnAWholeToastPress(t *testing.T) {
-	xml := deliverToastXML(t, runCompletedDelivery())
-
-	if !strings.Contains(xml, "autoreas-notification:42:") {
-		t.Fatalf("the toast itself addresses no record:\n%s", xml)
+	// Windows toast addresses its record on a whole toast press.
+	// It covers the click on the body rather than
+	// on a button: there is a record to open and no verb to run.
+	{
+		if !strings.Contains(xml, "autoreas-notification:42:") {
+			t.Fatalf("the toast itself addresses no record:\n%s", xml)
+		}
 	}
 }
 

@@ -92,6 +92,7 @@ describe('AnimeMetadataLookupModal', () => {
     cleanup();
   });
 
+
   describe('the Fetch metadata trigger', () => {
     it('is disabled while Name is empty', () => {
       render(<AnimeMetadataLookupModal name="" onConfirm={vi.fn()} source={createFakeSource()} />);
@@ -99,14 +100,10 @@ describe('AnimeMetadataLookupModal', () => {
       expect(screen.getByRole('button', { name: METADATA_LOOKUP_TRIGGER_LABEL })).toBeDisabled();
     });
 
-    it('is enabled once Name is non-empty', () => {
+    it('is enabled once Name is non-empty, and opening seeds the search field from Name', () => {
       render(<AnimeMetadataLookupModal name="Bleach" onConfirm={vi.fn()} source={createFakeSource()} />);
 
       expect(screen.getByRole('button', { name: METADATA_LOOKUP_TRIGGER_LABEL })).toBeEnabled();
-    });
-
-    it('seeds the search field from Name only on the first open', () => {
-      render(<AnimeMetadataLookupModal name="Bleach" onConfirm={vi.fn()} source={createFakeSource()} />);
 
       openModal();
 
@@ -115,10 +112,17 @@ describe('AnimeMetadataLookupModal', () => {
   });
 
   describe('the three exclusive candidate-list states -- non-negotiable #11', () => {
-    it('shows the loading skeleton and no candidate while a search is in flight', async () => {
+    it('shows only the skeleton while in flight, only the error alert on failure, then only the empty state', async () => {
       const pending = createDeferred<MyAnimeListSearchResultDTO>();
-      const source = createFakeSource({ SearchMyAnimeList: vi.fn().mockReturnValue(pending.promise) });
-      render(<AnimeMetadataLookupModal name="Bleach" onConfirm={vi.fn()} source={source} />);
+      const search = vi
+        .fn()
+        .mockReturnValueOnce(pending.promise)
+        .mockResolvedValueOnce({
+          outcome: 'no_op',
+          message: 'no MyAnimeList matches found',
+          candidates: [],
+        } satisfies MyAnimeListSearchResultDTO);
+      render(<AnimeMetadataLookupModal name="Bleach" onConfirm={vi.fn()} source={createFakeSource({ SearchMyAnimeList: search })} />);
 
       openModal();
       typeQuery('bleach');
@@ -129,20 +133,10 @@ describe('AnimeMetadataLookupModal', () => {
       expect(screen.queryByText(/No MyAnimeList matches/)).toBeNull();
       expect(screen.queryByLabelText('MyAnimeList candidates')).toBeNull();
 
-      pending.resolve({ outcome: 'applied', message: 'ok', candidates: [] });
-    });
-
-    it('shows the error alert and neither the skeleton nor candidates when the search fails', async () => {
-      const source = createFakeSource({
-        SearchMyAnimeList: vi.fn().mockResolvedValue({
-          outcome: 'error',
-          message: 'MyAnimeList changed its page at "Type:"; metadata autofill cannot continue',
-        } satisfies MyAnimeListSearchResultDTO),
+      pending.resolve({
+        outcome: 'error',
+        message: 'MyAnimeList changed its page at "Type:"; metadata autofill cannot continue',
       });
-      render(<AnimeMetadataLookupModal name="Bleach" onConfirm={vi.fn()} source={source} />);
-
-      openModal();
-      typeQuery('bleach');
 
       expect(await screen.findByText(METADATA_LOOKUP_ERROR_TITLE)).toBeInTheDocument();
       expect(screen.getByText(/MyAnimeList changed its page at "Type:"/)).toBeInTheDocument();
@@ -150,19 +144,7 @@ describe('AnimeMetadataLookupModal', () => {
       expect(screen.queryByRole('button', { name: /Bleach: Sennen Kessen-hen/ })).toBeNull();
       expect(screen.queryByText(/No MyAnimeList matches/)).toBeNull();
       expect(screen.queryByLabelText('MyAnimeList candidates')).toBeNull();
-    });
 
-    it('shows the empty state, naming the query, when the search resolves with zero candidates', async () => {
-      const source = createFakeSource({
-        SearchMyAnimeList: vi.fn().mockResolvedValue({
-          outcome: 'no_op',
-          message: 'no MyAnimeList matches found',
-          candidates: [],
-        } satisfies MyAnimeListSearchResultDTO),
-      });
-      render(<AnimeMetadataLookupModal name="Bleach" onConfirm={vi.fn()} source={source} />);
-
-      openModal();
       typeQuery('shokuguemi no soma');
 
       expect(await screen.findByText('No MyAnimeList matches for "shokuguemi no soma"')).toBeInTheDocument();
@@ -175,26 +157,7 @@ describe('AnimeMetadataLookupModal', () => {
       expect(screen.queryByRole('button', { name: /clear|refine|search again/i })).toBeNull();
     });
 
-    it('shows the candidate list, and neither the skeleton, the error, nor the empty state, once resolved with matches', async () => {
-      const source = createFakeSource({
-        SearchMyAnimeList: vi.fn().mockResolvedValue({
-          outcome: 'applied',
-          message: 'ok',
-          candidates: [candidate()],
-        } satisfies MyAnimeListSearchResultDTO),
-      });
-      render(<AnimeMetadataLookupModal name="Bleach" onConfirm={vi.fn()} source={source} />);
-
-      openModal();
-      typeQuery('bleach');
-
-      expect(await screen.findByRole('button', { name: /Bleach: Sennen Kessen-hen/ })).toBeInTheDocument();
-      expect(screen.queryByRole('status')).toBeNull();
-      expect(screen.queryByText(METADATA_LOOKUP_ERROR_TITLE)).toBeNull();
-      expect(screen.queryByText(/No MyAnimeList matches/)).toBeNull();
-    });
-
-    it('reorders MyAnimeList\'s own order by similarity to the typed query -- design D11', async () => {
+    it('reorders MyAnimeList\'s own order by similarity to the query, and highlights only the pressed row', async () => {
       const sequel = candidate({ malId: 58567, name: 'Jujutsu Kaisen: Shimetsu Kaiyuu' });
       const original = candidate({ malId: 40748, name: 'Jujutsu Kaisen' });
       const source = createFakeSource({
@@ -213,52 +176,17 @@ describe('AnimeMetadataLookupModal', () => {
       expect(rendered).toHaveLength(2);
       expect(rendered[0]).toHaveTextContent('Jujutsu Kaisen');
       expect(rendered[0]).not.toHaveTextContent('Shimetsu Kaiyuu');
-    });
-  });
 
-  describe('candidate selection and the confirm gate -- non-negotiable #5, UI half', () => {
-    it('fires no detail fetch when a candidate is selected without confirming', async () => {
-      const detail = vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok' } satisfies MyAnimeListDetailResultDTO);
-      const source = createFakeSource({
-        SearchMyAnimeList: vi.fn().mockResolvedValue({
-          outcome: 'applied',
-          message: 'ok',
-          candidates: [candidate()],
-        } satisfies MyAnimeListSearchResultDTO),
-        GetMyAnimeListDetail: detail,
-      });
-      render(<AnimeMetadataLookupModal name="Bleach" onConfirm={vi.fn()} source={source} />);
-
-      openModal();
-      typeQuery('bleach');
-      fireEvent.click(await screen.findByRole('button', { name: /Bleach: Sennen Kessen-hen/ }));
-
-      expect(detail).not.toHaveBeenCalled();
-    });
-
-    it('highlights exactly the pressed candidate, leaving the other row unselected', async () => {
-      const sequel = candidate({ malId: 58567, name: 'Jujutsu Kaisen: Shimetsu Kaiyuu' });
-      const original = candidate({ malId: 40748, name: 'Jujutsu Kaisen' });
-      const source = createFakeSource({
-        SearchMyAnimeList: vi.fn().mockResolvedValue({
-          outcome: 'applied',
-          message: 'ok',
-          candidates: [sequel, original],
-        } satisfies MyAnimeListSearchResultDTO),
-      });
-      render(<AnimeMetadataLookupModal name="Bleach" onConfirm={vi.fn()} source={source} />);
-
-      openModal();
-      typeQuery('Jujutsu Kaisen');
-      const rows = await screen.findAllByRole('button', { name: /Jujutsu Kaisen/ });
-      fireEvent.click(rows[0]);
+      fireEvent.click(rendered[0]);
 
       const rowsAfterSelection = screen.getAllByRole('button', { name: /Jujutsu Kaisen/ });
       expect(rowsAfterSelection[0]).toHaveAttribute('aria-pressed', 'true');
       expect(rowsAfterSelection[1]).toHaveAttribute('aria-pressed', 'false');
     });
+  });
 
-    it('fetches the detail page and reports a mapped selection only once the primary action is pressed with a candidate selected', async () => {
+  describe('candidate selection and the confirm gate -- non-negotiable #5, UI half', () => {
+    it('lists matches alone, gates the primary action on a selection, and fetches detail only once confirmed', async () => {
       const onConfirm = vi.fn();
       const detail = vi.fn().mockResolvedValue({
         outcome: 'applied',
@@ -283,7 +211,17 @@ describe('AnimeMetadataLookupModal', () => {
 
       openModal();
       typeQuery('bleach');
-      fireEvent.click(await screen.findByRole('button', { name: /Bleach: Sennen Kessen-hen/ }));
+
+      const row = await screen.findByRole('button', { name: /Bleach: Sennen Kessen-hen/ });
+      expect(screen.queryByRole('status')).toBeNull();
+      expect(screen.queryByText(METADATA_LOOKUP_ERROR_TITLE)).toBeNull();
+      expect(screen.queryByText(/No MyAnimeList matches/)).toBeNull();
+      expect(screen.getByRole('button', { name: 'Use this match' })).toBeDisabled();
+
+      fireEvent.click(row);
+
+      expect(detail).not.toHaveBeenCalled();
+
       fireEvent.click(screen.getByRole('button', { name: 'Use this match' }));
 
       await vi.waitFor(() => {
@@ -299,7 +237,7 @@ describe('AnimeMetadataLookupModal', () => {
       });
     });
 
-    it('keeps the modal open and calls no onConfirm when the detail fetch fails', async () => {
+    it('keeps the modal open without onConfirm when detail fails, then Cancel closes it without onConfirm', async () => {
       const onConfirm = vi.fn();
       const detail = vi.fn().mockResolvedValue({
         outcome: 'error',
@@ -323,41 +261,7 @@ describe('AnimeMetadataLookupModal', () => {
       expect(await screen.findByText('MyAnimeList changed its page at "Type:"; metadata autofill cannot continue')).toBeInTheDocument();
       expect(onConfirm).not.toHaveBeenCalled();
       expect(screen.getByRole('dialog')).toBeInTheDocument();
-    });
 
-    it('disables the primary action until a candidate is selected', async () => {
-      const source = createFakeSource({
-        SearchMyAnimeList: vi.fn().mockResolvedValue({
-          outcome: 'applied',
-          message: 'ok',
-          candidates: [candidate()],
-        } satisfies MyAnimeListSearchResultDTO),
-      });
-      render(<AnimeMetadataLookupModal name="Bleach" onConfirm={vi.fn()} source={source} />);
-
-      openModal();
-      typeQuery('bleach');
-      await screen.findByRole('button', { name: /Bleach: Sennen Kessen-hen/ });
-
-      expect(screen.getByRole('button', { name: 'Use this match' })).toBeDisabled();
-    });
-  });
-
-  describe('cancel -- leaves the form byte-identical at the modal level', () => {
-    it('closes the modal and calls onConfirm with nothing', async () => {
-      const onConfirm = vi.fn();
-      const source = createFakeSource({
-        SearchMyAnimeList: vi.fn().mockResolvedValue({
-          outcome: 'applied',
-          message: 'ok',
-          candidates: [candidate()],
-        } satisfies MyAnimeListSearchResultDTO),
-      });
-      render(<AnimeMetadataLookupModal name="Bleach" onConfirm={onConfirm} source={source} />);
-
-      openModal();
-      typeQuery('bleach');
-      fireEvent.click(await screen.findByRole('button', { name: /Bleach: Sennen Kessen-hen/ }));
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();

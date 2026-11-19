@@ -12,22 +12,24 @@ describe('isAnimeDetailMutationVisitActive', () => {
     expect(isAnimeDetailMutationVisitActive(true, 'anime-1', 3, 'anime-1', 3)).toBe(true);
   });
 
-  it.each([
-    [false, 'anime-1', 3],
-    [true, 'anime-2', 3],
-    [true, 'anime-1', 4],
-  ] as const)(
-    'rejects mounted=%s route scope for %s generation %i',
-    (isMounted, activeAnimeId, activeGeneration) => {
-      expect(isAnimeDetailMutationVisitActive(
-        isMounted,
-        activeAnimeId,
-        activeGeneration,
-        'anime-1',
-        3,
-      )).toBe(false);
-    },
-  );
+  it('rejects an unmounted, other-route or other-generation visit', () => {
+    const cases = [
+      [false, 'anime-1', 3],
+      [true, 'anime-2', 3],
+      [true, 'anime-1', 4],
+    ] as const;
+
+    for (const [isMounted, activeAnimeId, activeGeneration] of cases) {
+      const caseName = `rejects mounted=${String(isMounted)} route scope for ${String(activeAnimeId)} generation ${String(activeGeneration)}`;
+        expect.soft(isAnimeDetailMutationVisitActive(
+          isMounted,
+          activeAnimeId,
+          activeGeneration,
+          'anime-1',
+          3,
+        ), caseName).toBe(false);
+    }
+  });
 });
 
 describe('nextAnimeDetailMutationRouteGeneration', () => {
@@ -41,28 +43,38 @@ describe('nextAnimeDetailMutationRouteGeneration', () => {
 });
 
 describe('toAnimeDetailConfirmation', () => {
-  it.each([
-    ['repeat', 'Repeat Frieren?', 'This starts a new watch cycle.', 'Confirm Repeat'],
-    ['restore', 'Restore Frieren?', 'This makes the anime active again.', 'Confirm Restore'],
-  ] as const)('builds explicit English confirmation copy for %s', (action, heading, description, confirmLabel) => {
-    expect(toAnimeDetailConfirmation(action, 'Frieren')).toEqual({
-      action,
-      heading,
-      description,
-      confirmLabel,
-    });
+  it('builds explicit English confirmation copy for each action', () => {
+    const cases = [
+      ['repeat', 'Repeat Frieren?', 'This starts a new watch cycle.', 'Confirm Repeat'],
+      ['restore', 'Restore Frieren?', 'This makes the anime active again.', 'Confirm Restore'],
+    ] as const;
+
+    for (const [action, heading, description, confirmLabel] of cases) {
+      const caseName = `builds explicit English confirmation copy for ${String(action)}`;
+      expect.soft(toAnimeDetailConfirmation(action, 'Frieren'), caseName).toEqual({
+        action,
+        heading,
+        description,
+        confirmLabel,
+      });
+    }
   });
 });
 
 describe('resolveAnimeDetailMutation', () => {
-  it.each([
-    ['applied', 'success', 'Repeat applied', 'Repeat was applied. Current version: 0.'],
-    ['no_op', 'accent', 'Repeat not needed', 'No changes were needed. Current version: 0.'],
-  ] as const)('maps %s to accurate feedback and a detail refetch', (outcome, status, title, description) => {
-    expect(resolveAnimeDetailMutation('repeat', { status: 'ok', outcome, modifiedAt: 0 } as never)).toEqual({
-      feedback: { status, title, description },
-      shouldRefetch: true,
-    });
+  it('maps each mutation outcome to accurate feedback and a detail refetch', () => {
+    const cases = [
+      ['applied', 'success', 'Repeat applied', 'Repeat was applied. Current version: 0.'],
+      ['no_op', 'accent', 'Repeat not needed', 'No changes were needed. Current version: 0.'],
+    ] as const;
+
+    for (const [outcome, status, title, description] of cases) {
+      const caseName = `maps ${String(outcome)} to accurate feedback and a detail refetch`;
+      expect.soft(resolveAnimeDetailMutation('repeat', { status: 'ok', outcome, modifiedAt: 0 } as never), caseName).toEqual({
+        feedback: { status, title, description },
+        shouldRefetch: true,
+      });
+    }
   });
 
   it('reports conflict authority and identity without claiming success', () => {

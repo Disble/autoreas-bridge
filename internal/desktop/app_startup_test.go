@@ -49,6 +49,9 @@ func TestAppStartupBootstrapsSQLite(t *testing.T) {
 	if app.bridgeDB != wantDB {
 		t.Fatal("expected startup to store bootstrapped db handle")
 	}
+	if app.notifier == nil {
+		t.Fatal("expected startup to default-construct a notifier when no override is provided")
+	}
 	if app.startupErr != nil {
 		t.Fatalf("expected startupErr nil, got %v", app.startupErr)
 	}
@@ -209,24 +212,6 @@ func TestCaptureLastContactsLogsAFailedRead(t *testing.T) {
 	}
 }
 
-func TestAppStartupBootstrapsSQLiteAndWiresCommittedPublisher(t *testing.T) {
-	t.Parallel()
-
-	wantDB := &sql.DB{}
-	app := newAppTestApp(t)
-	configureStartupRuntimeDependencies(t, app, wantDB)
-
-	ctx := context.Background()
-	app.startup(ctx)
-
-	if app.bridgeDB != wantDB {
-		t.Fatal("expected sqlite db handle to be retained")
-	}
-	if app.startupErr != nil {
-		t.Fatalf("expected startupErr nil, got %v", app.startupErr)
-	}
-}
-
 func TestAppStartupNewNotifierOverrideSeamInjectsFakeNotifier(t *testing.T) {
 	t.Parallel()
 
@@ -250,20 +235,6 @@ func TestAppStartupNewNotifierOverrideSeamInjectsFakeNotifier(t *testing.T) {
 	}
 	if receivedLoggers == nil {
 		t.Fatal("expected newNotifier to receive the shared loggers")
-	}
-	if app.startupErr != nil {
-		t.Fatalf("expected startupErr nil, got %v", app.startupErr)
-	}
-}
-
-func TestAppStartupDefaultsNewNotifierWhenOverrideAbsent(t *testing.T) {
-	t.Parallel()
-
-	app := newAppTestApp(t)
-	app.startup(context.Background())
-
-	if app.notifier == nil {
-		t.Fatal("expected startup to default-construct a notifier when no override is provided")
 	}
 	if app.startupErr != nil {
 		t.Fatalf("expected startupErr nil, got %v", app.startupErr)

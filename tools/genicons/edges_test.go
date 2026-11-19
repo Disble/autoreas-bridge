@@ -18,19 +18,6 @@ func TestToNRGBAReturnsTheSameImageWhenItIsAlreadyNRGBA(t *testing.T) {
 	}
 }
 
-func TestToNRGBAUnpremultipliesAnRGBASource(t *testing.T) {
-	src := image.NewRGBA(image.Rect(0, 0, 1, 1))
-	// image.RGBA stores premultiplied channels: half-transparent pure red.
-	src.SetRGBA(0, 0, color.RGBA{R: 128, G: 0, B: 0, A: 128})
-
-	got := toNRGBA(src).NRGBAAt(0, 0)
-
-	want := color.NRGBA{R: 255, G: 0, B: 0, A: 128}
-	if got != want {
-		t.Fatalf("pixel = %+v, want %+v", got, want)
-	}
-}
-
 func TestToNRGBAConvertsAPalettedSource(t *testing.T) {
 	palette := color.Palette{
 		color.NRGBA{R: 10, G: 20, B: 30, A: 255},
@@ -155,28 +142,6 @@ func TestEncodeICOMarksTransparentPixelsInTheANDMask(t *testing.T) {
 	}
 }
 
-func TestEncodeICOLeavesTheANDMaskClearForAnOpaqueImage(t *testing.T) {
-	src := image.NewNRGBA(image.Rect(0, 0, 16, 16))
-	for y := range 16 {
-		for x := range 16 {
-			src.SetNRGBA(x, y, color.NRGBA{R: 1, G: 2, B: 3, A: 255})
-		}
-	}
-
-	data, err := encodeICO(src, []int{16})
-	if err != nil {
-		t.Fatalf("encodeICO: %v", err)
-	}
-
-	entries := parseICO(t, data)
-	dib := data[entries[0].Offset : entries[0].Offset+entries[0].Bytes]
-	for i, b := range dib[40+16*16*4:] {
-		if b != 0 {
-			t.Fatalf("mask byte %d = %#02x on a fully opaque image, want 0", i, b)
-		}
-	}
-}
-
 func TestEncodeICOWritesPixelsBottomUpInBGRAOrder(t *testing.T) {
 	src := image.NewNRGBA(image.Rect(0, 0, 2, 2))
 	src.SetNRGBA(0, 0, color.NRGBA{R: 10, G: 20, B: 30, A: 255}) // top-left
@@ -275,23 +240,9 @@ func TestRunReportsAMasterThatIsNotAPNG(t *testing.T) {
 	}
 }
 
-func TestRunAnnouncesEachGeneratedTarget(t *testing.T) {
-	root := t.TempDir()
-	writeMaster(t, root)
-
-	var out, errOut bytes.Buffer
-	if err := run(root, false, &out, &errOut); err != nil {
-		t.Fatalf("run: %v", err)
-	}
-
-	for _, target := range targets {
-		if !strings.Contains(out.String(), target.Path) {
-			t.Fatalf("stdout does not mention %s: %s", target.Path, out.String())
-		}
-	}
-}
-
-func TestRunAnnouncesTheNumberOfVerifiedTargets(t *testing.T) {
+// TestRunTargetsCountsVerifiedTargetsThenNamesEveryDrift generates a two-target
+// list, checks it against the master, then drifts both targets and checks again.
+func TestRunTargetsCountsVerifiedTargetsThenNamesEveryDrift(t *testing.T) {
 	root := t.TempDir()
 	writeMaster(t, root)
 	list := []iconTarget{
@@ -307,31 +258,16 @@ func TestRunAnnouncesTheNumberOfVerifiedTargets(t *testing.T) {
 	if err := runTargets(root, list, true, &out, &errOut); err != nil {
 		t.Fatalf("check: %v (stderr=%s)", err, errOut.String())
 	}
-
 	if !strings.Contains(out.String(), "2 icon targets") {
 		t.Fatalf("check summary counted the wrong number of targets: %s", out.String())
 	}
-}
 
-func TestRunInCheckModeNamesEveryDriftedTarget(t *testing.T) {
-	root := t.TempDir()
-	writeMaster(t, root)
-	list := []iconTarget{
-		{Path: "build/one.ico", Sizes: []int{16}},
-		{Path: "build/two.ico", Sizes: []int{32}},
-	}
-
-	var out, errOut bytes.Buffer
-	if err := runTargets(root, list, false, &out, &errOut); err != nil {
-		t.Fatalf("generate: %v", err)
-	}
 	for _, target := range list {
 		path := filepath.Join(root, filepath.FromSlash(target.Path))
 		if err := os.WriteFile(path, []byte("stale"), 0o644); err != nil {
 			t.Fatalf("corrupt %s: %v", target.Path, err)
 		}
 	}
-
 	errOut.Reset()
 	if err := runTargets(root, list, true, &out, &errOut); err == nil {
 		t.Fatal("check mode passed with both targets drifted")

@@ -53,16 +53,15 @@ func TestValidateWatchHistoryRejectsInvalidRecords(t *testing.T) {
 		{name: "negative id", rec: func() watchHistoryRecord { r := validRecord; r.ID = -1; return r }()},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			raw, err := json.Marshal(tc.rec)
-			if err != nil {
-				t.Fatalf("marshal fixture: %v", err)
-			}
-			validateFn := ValidateWatchHistory()
-			if _, err := validateFn(context.Background(), bytes.NewReader(raw)); err == nil {
-				t.Fatalf("expected validation to reject a record with %s", tc.name)
-			}
-		})
+		raw, err := json.Marshal(tc.rec)
+		if err != nil {
+			t.Errorf("%s: marshal fixture: %v", tc.name, err)
+			continue
+		}
+		validateFn := ValidateWatchHistory()
+		if _, err := validateFn(context.Background(), bytes.NewReader(raw)); err == nil {
+			t.Errorf("%s: expected validation to reject a record with %s", tc.name, tc.name)
+		}
 	}
 }
 

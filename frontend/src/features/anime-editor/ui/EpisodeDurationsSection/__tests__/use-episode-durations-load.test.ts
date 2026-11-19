@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import { waitFor } from '../../AnimeEditorWorkspace/__tests__/wait-for.test-support';
 import { describe, expect, it, vi } from 'vitest';
 import type { ModuleReadiness } from '../../../../../shared/contracts/readiness.types';
 import type { EpisodeDurationRuntimeSource, EpisodeDurationSection } from '../../../../../shared/contracts/episode-durations.types';
@@ -8,6 +9,21 @@ import { status } from '../../../../../shared/query/test-support/readiness-sourc
 import { EPISODE_DURATIONS_RELOAD_DELAY_MS } from '../episode-durations-section.constants';
 import type { UseEpisodeDurationsLoadOptions } from '../episode-durations-section.types';
 import { useEpisodeDurationsLoad } from '../use-episode-durations-load';
+
+/** The reload delay the hook reads: none by default, the shipped value for the debounce test. */
+const reloadDelay = vi.hoisted(() => ({ current: 0, shipped: 0 }));
+
+vi.mock('../episode-durations-section.constants', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../episode-durations-section.constants')>();
+  reloadDelay.shipped = actual.EPISODE_DURATIONS_RELOAD_DELAY_MS;
+  return {
+    ...actual,
+    /** The current test's reload delay. */
+    get EPISODE_DURATIONS_RELOAD_DELAY_MS() {
+      return reloadDelay.current;
+    },
+  };
+});
 
 /** A found-folder TV section with one measured episode. */
 const SECTION: EpisodeDurationSection = {
@@ -47,9 +63,9 @@ function renderLoad(source: EpisodeDurationRuntimeSource, initial = options(), e
 }
 
 describe('useEpisodeDurationsLoad', () => {
-  it('reads the section for the draft, showing loading with no rows until it resolves', async () => {
+  it('reads the section for the draft, showing loading with no rows until it resolves, reloads after a save bumps the revision, and applies the draft edits to the rows it serves', async () => {
     const getSection = vi.fn().mockResolvedValue(SECTION);
-    const { result } = renderLoad(createSource(getSection));
+    const { result, rerender } = renderLoad(createSource(getSection));
 
     expect(result.current.load.status).toBe('loading');
     expect(result.current.rows).toEqual([]);
@@ -57,6 +73,16 @@ describe('useEpisodeDurationsLoad', () => {
     expect(result.current.rows.map((row) => row.episode)).toEqual([1]);
     expect(getSection).toHaveBeenCalledTimes(1);
     expect(getSection).toHaveBeenCalledWith({ animeId: 'anime-1', folder: 'D:/Anime/Frieren', totalEpisodes: 12, kind: 0 });
+
+    rerender(options({ revision: 1 }));
+
+    await waitFor(() => expect(getSection).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.load.status).toBe('ready'));
+
+    const edit = { episode: 2, durationMs: 1_500_000, source: 'manual' as const, clear: false };
+    rerender(options({ revision: 1, edits: [edit] }));
+
+    expect(result.current.rows.map((row) => [row.episode, row.isUnsaved])).toEqual([[1, false], [2, true]]);
   });
 
   it('reads nothing while no record is loaded, and starts no query', async () => {
@@ -132,6 +158,7 @@ describe('useEpisodeDurationsLoad', () => {
 
   it('reads the disk once for a burst of record reloads, with the last request, and shows loading meanwhile', async () => {
     vi.useFakeTimers();
+    reloadDelay.current = reloadDelay.shipped;
     try {
       const getSection = vi.fn().mockResolvedValue(SECTION);
       const { result, rerender } = renderLoad(createSource(getSection), options({ folder: 'D:/Anime/A' }));
@@ -160,17 +187,8 @@ describe('useEpisodeDurationsLoad', () => {
       expect(result.current.rows).toEqual([]);
     } finally {
       vi.useRealTimers();
+      reloadDelay.current = 0;
     }
-  });
-
-  it('reloads after a save bumps the revision', async () => {
-    const getSection = vi.fn().mockResolvedValue(SECTION);
-    const { result, rerender } = renderLoad(createSource(getSection));
-    await waitFor(() => expect(result.current.load.status).toBe('ready'));
-
-    rerender(options({ revision: 1 }));
-
-    await waitFor(() => expect(getSection).toHaveBeenCalledTimes(2));
   });
 
   it('fails with the rejection message and never keeps rows', async () => {
@@ -178,13 +196,5 @@ describe('useEpisodeDurationsLoad', () => {
 
     await waitFor(() => expect(result.current.load).toEqual({ status: 'failed', message: 'read episode durations: disk gone' }));
     expect(result.current.rows).toEqual([]);
-  });
-
-  it('applies the draft edits to the rows it serves', async () => {
-    const edit = { episode: 2, durationMs: 1_500_000, source: 'manual' as const, clear: false };
-    const { result } = renderLoad(createSource(vi.fn().mockResolvedValue(SECTION)), options({ edits: [edit] }));
-
-    await waitFor(() => expect(result.current.load.status).toBe('ready'));
-    expect(result.current.rows.map((row) => [row.episode, row.isUnsaved])).toEqual([[1, false], [2, true]]);
   });
 });

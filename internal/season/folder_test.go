@@ -22,11 +22,9 @@ func TestSanitizeFolderName(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := sanitizeFolderName(tt.in); got != tt.want {
-				t.Fatalf("sanitizeFolderName(%q) = %q, want %q", tt.in, got, tt.want)
-			}
-		})
+		if got := sanitizeFolderName(tt.in); got != tt.want {
+			t.Errorf("%s: sanitizeFolderName(%q) = %q, want %q", tt.name, tt.in, got, tt.want)
+		}
 	}
 }
 

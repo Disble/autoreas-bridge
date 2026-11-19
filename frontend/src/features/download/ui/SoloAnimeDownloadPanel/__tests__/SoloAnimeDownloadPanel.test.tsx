@@ -44,13 +44,27 @@ function mockHook(overrides: Partial<ReturnType<typeof useSoloAnimeDownloadPanel
 describe('SoloAnimeDownloadPanel', () => {
   afterEach(() => cleanup());
 
-  it('gives a ready row no status marker, because every ready row would carry the same one', () => {
-    mockHook();
+  it('renders the resolved rail: unmarked ready rows, counted tabs that switch, and a growing scroll', () => {
+    const onFilterChange = vi.fn();
+    const onScroll = vi.fn();
+    mockHook({ onFilterChange, listWindow: { scrollRef: { current: null }, onScroll, visibleCount: 20 } });
     render(<SoloAnimeDownloadPanel />);
 
+    // Every ready row would carry the same marker, so a ready row carries none.
     expect(screen.getByRole('button', { name: /ready anime/i })).toBeInTheDocument();
     expect(screen.queryByText('Ready for download check')).not.toBeInTheDocument();
     expect(screen.queryByText('Needs attention')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Loading readiness...' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('solo-anime-download-skeleton-row')).not.toBeInTheDocument();
+
+    const blockedTab = screen.getByRole('radio', { name: /blocked/i });
+    expect(screen.getByRole('radio', { name: /ready/i })).toHaveTextContent('1');
+    expect(blockedTab).toHaveTextContent('1');
+    fireEvent.click(blockedTab);
+    expect(onFilterChange).toHaveBeenCalledWith('blocked');
+
+    fireEvent.scroll(screen.getByTestId('solo-anime-download-scroll'));
+    expect(onScroll).toHaveBeenCalled();
   });
 
   it('shows a blocked row as a compact tag, never the full sentence', () => {
@@ -59,19 +73,6 @@ describe('SoloAnimeDownloadPanel', () => {
 
     expect(screen.getByText('No destination')).toBeInTheDocument();
     expect(screen.queryByText('Download destination could not be resolved.')).not.toBeInTheDocument();
-  });
-
-  it('labels both tabs with their counts and switches on press', () => {
-    const onFilterChange = vi.fn();
-    mockHook({ onFilterChange });
-    render(<SoloAnimeDownloadPanel />);
-
-    const blockedTab = screen.getByRole('radio', { name: /blocked/i });
-    expect(screen.getByRole('radio', { name: /ready/i })).toHaveTextContent('1');
-    expect(blockedTab).toHaveTextContent('1');
-
-    fireEvent.click(blockedTab);
-    expect(onFilterChange).toHaveBeenCalledWith('blocked');
   });
 
   it('explains an empty rail instead of rendering nothing', () => {
@@ -83,15 +84,6 @@ describe('SoloAnimeDownloadPanel', () => {
     render(<SoloAnimeDownloadPanel />);
 
     expect(screen.getByText('No ready anime match "oshi" — 3 blocked matches.')).toBeInTheDocument();
-  });
-
-  it('grows the rail when the user scrolls near the bottom', () => {
-    const onScroll = vi.fn();
-    mockHook({ listWindow: { scrollRef: { current: null }, onScroll, visibleCount: 20 } });
-    render(<SoloAnimeDownloadPanel />);
-
-    fireEvent.scroll(screen.getByTestId('solo-anime-download-scroll'));
-    expect(onScroll).toHaveBeenCalled();
   });
 
   it('spells out the blocker for the selection and disables Download', () => {
@@ -139,14 +131,7 @@ describe('SoloAnimeDownloadPanel', () => {
     expect(screen.getByRole('button', { name: 'Download missing episodes' })).toBeEnabled();
   });
 
-  it('announces loading through a named status region while readiness resolves', () => {
-    mockHook({ status: 'loading', options: [] });
-    render(<SoloAnimeDownloadPanel />);
-
-    expect(screen.getByRole('status', { name: 'Loading readiness...' })).toBeInTheDocument();
-  });
-
-  it('mirrors the rail row shape with placeholder rows while readiness resolves', () => {
+  it('announces loading and mirrors the rail row shape with placeholder rows while readiness resolves', () => {
     // `options` is deliberately NOT empty. With an empty list the rail returns
     // early on `options.length === 0`, so the loading guard is never the branch
     // that decides anything and a broken guard still passes. A reload keeps the
@@ -154,17 +139,10 @@ describe('SoloAnimeDownloadPanel', () => {
     mockHook({ status: 'loading', options: [readyOption, blockedOption] });
     render(<SoloAnimeDownloadPanel />);
 
+    expect(screen.getByRole('status', { name: 'Loading readiness...' })).toBeInTheDocument();
     expect(screen.getAllByTestId('solo-anime-download-skeleton-row').length).toBeGreaterThan(0);
     expect(screen.queryByText('Ready Anime')).toBeNull();
     expect(screen.queryByText('Blocked Anime')).toBeNull();
     expect(screen.queryByTestId('solo-anime-download-scroll')).toBeNull();
-  });
-
-  it('does not render the loading status region or the empty-selection message once resolved', () => {
-    mockHook();
-    render(<SoloAnimeDownloadPanel />);
-
-    expect(screen.queryByRole('status', { name: 'Loading readiness...' })).not.toBeInTheDocument();
-    expect(screen.queryByTestId('solo-anime-download-skeleton-row')).not.toBeInTheDocument();
   });
 });

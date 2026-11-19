@@ -101,9 +101,10 @@ func TestAwaitStateReturnsOnceStateObserved(t *testing.T) {
 func TestAwaitStateFailsWhenStateNeverReached(t *testing.T) {
 	t.Parallel()
 
+	const timeout = 20 * time.Millisecond
 	recorder := &recordingT{}
 	start := time.Now()
-	AwaitState(recorder, func() bool { return false }, "state %q never reached", "bound")
+	awaitStateWithin(recorder, timeout, func() bool { return false }, "state %q never reached", "bound")
 
 	if !recorder.failed {
 		t.Fatal("expected AwaitState to fail when the state never arrives")
@@ -111,7 +112,48 @@ func TestAwaitStateFailsWhenStateNeverReached(t *testing.T) {
 	if recorder.message != `state "bound" never reached` {
 		t.Fatalf("expected the caller's formatted message, got %q", recorder.message)
 	}
-	if elapsed := time.Since(start); elapsed > 2*DefaultTimeout {
-		t.Fatalf("expected AwaitState to respect DefaultTimeout, took %s", elapsed)
+	if elapsed := time.Since(start); elapsed < timeout || elapsed > DefaultTimeout {
+		t.Fatalf("expected AwaitState to give up at its %s timeout, took %s", timeout, elapsed)
+	}
+}
+
+// TestAwaitStateGivesUpAtDefaultTimeout asserts AwaitState itself is bounded by
+// DefaultTimeout: a state that never arrives fails after DefaultTimeout and
+// well before twice it. The test stops waiting at twice DefaultTimeout, so a
+// longer bound fails here instead of hanging the suite.
+func TestAwaitStateGivesUpAtDefaultTimeout(t *testing.T) {
+	t.Parallel()
+
+	recorder := &recordingT{}
+	done := make(chan struct{})
+	start := time.Now()
+	go func() {
+		defer close(done)
+		AwaitState(recorder, func() bool { return false }, "state never reached")
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * DefaultTimeout):
+		t.Fatalf("expected AwaitState to give up within %s", 2*DefaultTimeout)
+	}
+	if elapsed := time.Since(start); !recorder.failed || elapsed < DefaultTimeout {
+		t.Fatalf("expected AwaitState to fail after waiting %s, failed=%t after %s", DefaultTimeout, recorder.failed, elapsed)
+	}
+}
+
+// TestAwaitStateWaitsBeyondAShortDelay asserts AwaitState keeps its generous
+// DefaultTimeout: a state that arrives after a short delay is still observed.
+func TestAwaitStateWaitsBeyondAShortDelay(t *testing.T) {
+	t.Parallel()
+
+	var reached atomic.Bool
+	time.AfterFunc(50*time.Millisecond, func() { reached.Store(true) })
+
+	recorder := &recordingT{}
+	AwaitState(recorder, reached.Load, "state never reached")
+
+	if recorder.failed {
+		t.Fatalf("expected AwaitState to wait for a late state, got %q", recorder.message)
 	}
 }

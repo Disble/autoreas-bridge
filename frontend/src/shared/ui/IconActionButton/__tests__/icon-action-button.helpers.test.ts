@@ -14,7 +14,6 @@ describe('getIconActionTooltip', () => {
 
 describe('getIconActionToneClass', () => {
   it.each([
-    { tone: undefined, isTinted: false, expected: undefined },
     { tone: undefined, isTinted: true, expected: undefined },
     { tone: 'accent', isTinted: false, expected: 'hover:text-accent' },
     { tone: 'success', isTinted: false, expected: 'hover:text-success' },

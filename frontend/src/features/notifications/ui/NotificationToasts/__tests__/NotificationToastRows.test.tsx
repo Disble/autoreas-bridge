@@ -107,12 +107,16 @@ describe('useNotificationToastCovers', () => {
     expect(result.current.get('a-1')).toBeUndefined();
   });
 
-  it('resolves the cover for each anime row, keyed by ref id', async () => {
+  it('resolves each anime cover by ref id, asking once per anime across re-renders', async () => {
     const getAnimeCover = vi.fn().mockResolvedValue({ dataUrl: 'data:image/png;base64,AAA', source: 'cover' });
+    const rows = [buildRow()];
 
-    const { result } = renderHook(() => useNotificationToastCovers([buildRow()], { getAnimeCover }));
+    const { result, rerender } = renderHook(() => useNotificationToastCovers(rows, { getAnimeCover }));
+    rerender();
+    rerender();
 
     await waitFor(() => expect(result.current.get('a-1')).toBe('data:image/png;base64,AAA'));
+    expect(getAnimeCover).toHaveBeenCalledTimes(1);
   });
 
   // A toast has no loading state to show: it appears, and whatever resolved by paint time is what
@@ -160,16 +164,5 @@ describe('useNotificationToastCovers', () => {
     renderHook(() => useNotificationToastCovers([buildRow({ refId: '' })], { getAnimeCover }));
 
     await waitFor(() => expect(getAnimeCover).not.toHaveBeenCalled());
-  });
-
-  it('asks once per anime however often it re-renders', async () => {
-    const getAnimeCover = vi.fn().mockResolvedValue({ dataUrl: 'data:image/png;base64,AAA', source: 'cover' });
-    const rows = [buildRow()];
-
-    const { rerender } = renderHook(() => useNotificationToastCovers(rows, { getAnimeCover }));
-    rerender();
-    rerender();
-
-    await waitFor(() => expect(getAnimeCover).toHaveBeenCalledTimes(1));
   });
 });

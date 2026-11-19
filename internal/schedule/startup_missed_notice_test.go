@@ -91,16 +91,14 @@ func TestEvaluateStartupMissedSelectedDaySuppressesUnselectedDatesAndLaterSettle
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			notice := EvaluateStartupMissedSelectedDay(StartupMissedSelectedDayInput{
-				Now:              time.Date(2026, 7, 26, 21, 30, 0, 0, loc),
-				ProcessStartedAt: time.Date(2026, 7, 26, 21, 5, 0, 0, loc),
-				Config:           tt.config,
-			})
-			if notice != nil {
-				t.Fatalf("expected no notice, got %#v", notice)
-			}
+		notice := EvaluateStartupMissedSelectedDay(StartupMissedSelectedDayInput{
+			Now:              time.Date(2026, 7, 26, 21, 30, 0, 0, loc),
+			ProcessStartedAt: time.Date(2026, 7, 26, 21, 5, 0, 0, loc),
+			Config:           tt.config,
 		})
+		if notice != nil {
+			t.Errorf("%s: expected no notice, got %#v", tt.name, notice)
+		}
 	}
 }
 

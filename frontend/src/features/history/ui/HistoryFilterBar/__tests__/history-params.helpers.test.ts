@@ -3,30 +3,34 @@ import { formatHistoryRangeLabel, hasActiveHistoryFilters, parseHistoryParams, s
 import type { HistoryParams } from '../history-filter-bar.types';
 
 describe('parseHistoryParams', () => {
-  it.each<[string, string, Partial<HistoryParams>]>([
-    ['no params at all', '', {}],
-    ['a search query', 'q=frieren', { search: 'frieren' }],
-    ['a known status', 'status=2', { status: 2 }],
-    ['an out-of-domain status is absent, not an error', 'status=9', {}],
-    ['a non-numeric status is absent, not an error', 'status=abc', {}],
-    ['a known type', 'type=3', { type: 3 }],
-    ['sort=oldest', 'sort=oldest', { order: 'oldest' }],
-    ['an unrecognized sort value defaults to newest', 'sort=sideways', {}],
-    ['a valid watched range', 'from=2026-09-01&to=2026-09-13', { range: { from: '2026-09-01', to: '2026-09-13' } }],
-    ['from after to is absent, not an error', 'from=2026-09-13&to=2026-09-01', {}],
-    ['a malformed date is absent, not an error', 'from=not-a-date&to=2026-09-13', {}],
-    ['a malformed to bound is absent, not an error', 'from=2026-09-01&to=not-a-date', {}],
-    ['a single-day range is a real range', 'from=2026-09-13&to=2026-09-13', { range: { from: '2026-09-13', to: '2026-09-13' } }],
-    ['only one bound present is absent', 'from=2026-09-01', {}],
-    ['an anime id and its row id', 'anime=anime-1&row=42', { animeId: 'anime-1', rowId: 42 }],
-    ['a non-integer row id is absent, not an error', 'anime=anime-1&row=abc', { animeId: 'anime-1' }],
-    ['a negative row id is absent', 'anime=anime-1&row=-1', { animeId: 'anime-1' }],
-    ['row id zero is a real row', 'anime=anime-1&row=0', { animeId: 'anime-1', rowId: 0 }],
-    ['an empty anime id is absent', 'anime=&row=4', { rowId: 4 }],
-  ])('parses %s', (_label, query, overrides) => {
-    const expected: HistoryParams = { search: '', order: 'newest', ...overrides };
+  it('parses every history param and ignores invalid ones', () => {
+    const cases: ReadonlyArray<[string, string, Partial<HistoryParams>]> = [
+      ['no params at all', '', {}],
+      ['a search query', 'q=frieren', { search: 'frieren' }],
+      ['a known status', 'status=2', { status: 2 }],
+      ['an out-of-domain status is absent, not an error', 'status=9', {}],
+      ['a non-numeric status is absent, not an error', 'status=abc', {}],
+      ['a known type', 'type=3', { type: 3 }],
+      ['sort=oldest', 'sort=oldest', { order: 'oldest' }],
+      ['an unrecognized sort value defaults to newest', 'sort=sideways', {}],
+      ['a valid watched range', 'from=2026-09-01&to=2026-09-13', { range: { from: '2026-09-01', to: '2026-09-13' } }],
+      ['from after to is absent, not an error', 'from=2026-09-13&to=2026-09-01', {}],
+      ['a malformed date is absent, not an error', 'from=not-a-date&to=2026-09-13', {}],
+      ['a malformed to bound is absent, not an error', 'from=2026-09-01&to=not-a-date', {}],
+      ['a single-day range is a real range', 'from=2026-09-13&to=2026-09-13', { range: { from: '2026-09-13', to: '2026-09-13' } }],
+      ['only one bound present is absent', 'from=2026-09-01', {}],
+      ['an anime id and its row id', 'anime=anime-1&row=42', { animeId: 'anime-1', rowId: 42 }],
+      ['a non-integer row id is absent, not an error', 'anime=anime-1&row=abc', { animeId: 'anime-1' }],
+      ['a negative row id is absent', 'anime=anime-1&row=-1', { animeId: 'anime-1' }],
+      ['row id zero is a real row', 'anime=anime-1&row=0', { animeId: 'anime-1', rowId: 0 }],
+      ['an empty anime id is absent', 'anime=&row=4', { rowId: 4 }],
+    ];
 
-    expect(parseHistoryParams(new URLSearchParams(query))).toEqual(expected);
+    for (const [caseName, query, overrides] of cases) {
+      const expected: HistoryParams = { search: '', order: 'newest', ...overrides };
+
+      expect.soft(parseHistoryParams(new URLSearchParams(query)), caseName).toEqual(expected);
+    }
   });
 });
 
@@ -57,14 +61,18 @@ describe('serializeHistoryParams', () => {
 });
 
 describe('hasActiveHistoryFilters', () => {
-  it.each<[string, Partial<HistoryParams>, boolean]>([
-    ['only the sort and selection are set', { order: 'oldest', animeId: 'anime-1', rowId: 1 }, false],
-    ['a search is set', { search: 'fri' }, true],
-    ['a status is set', { status: 0 }, true],
-    ['a type is set', { type: 0 }, true],
-    ['a watched range is set', { range: { from: '2026-09-01', to: '2026-09-02' } }, true],
-  ])('when %s: %s', (_label, params, expected) => {
-    expect(hasActiveHistoryFilters({ search: '', order: 'newest', ...params })).toBe(expected);
+  it('reports active filters only when a real filter is set', () => {
+    const cases: ReadonlyArray<[string, Partial<HistoryParams>, boolean]> = [
+      ['only the sort and selection are set', { order: 'oldest', animeId: 'anime-1', rowId: 1 }, false],
+      ['a search is set', { search: 'fri' }, true],
+      ['a status is set', { status: 0 }, true],
+      ['a type is set', { type: 0 }, true],
+      ['a watched range is set', { range: { from: '2026-09-01', to: '2026-09-02' } }, true],
+    ];
+
+    for (const [caseName, params, expected] of cases) {
+      expect.soft(hasActiveHistoryFilters({ search: '', order: 'newest', ...params }), caseName).toBe(expected);
+    }
   });
 });
 
@@ -92,11 +100,15 @@ describe('toLocalDayRangeMs', () => {
 });
 
 describe('formatHistoryRangeLabel', () => {
-  it.each([
-    ['names a shared year once', { from: '2026-09-01', to: '2026-09-13' }, 'Sep 1 – Sep 13, 2026'],
-    ['names both years across a year boundary', { from: '2025-12-30', to: '2026-01-02' }, 'Dec 30, 2025 – Jan 2, 2026'],
-    ['keeps a single-day range on its own day', { from: '2026-09-13', to: '2026-09-13' }, 'Sep 13 – Sep 13, 2026'],
-  ])('%s', (_case, range, expected) => {
-    expect(formatHistoryRangeLabel(range)).toBe(expected);
+  it('labels a range with its years named once or on both ends', () => {
+    const cases = [
+      ['names a shared year once', { from: '2026-09-01', to: '2026-09-13' }, 'Sep 1 – Sep 13, 2026'],
+      ['names both years across a year boundary', { from: '2025-12-30', to: '2026-01-02' }, 'Dec 30, 2025 – Jan 2, 2026'],
+      ['keeps a single-day range on its own day', { from: '2026-09-13', to: '2026-09-13' }, 'Sep 13 – Sep 13, 2026'],
+    ] as const;
+
+    for (const [caseName, range, expected] of cases) {
+      expect.soft(formatHistoryRangeLabel(range), caseName).toBe(expected);
+    }
   });
 });

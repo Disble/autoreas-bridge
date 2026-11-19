@@ -29,9 +29,16 @@ describe('notification-source', () => {
     expect(listener).not.toHaveBeenCalled();
   });
 
-  it('shares a single singleton across multiple subscribers (no duplicate Wails subscriptions)', async () => {
+  it('shares one source and one exact "notification.push" subscription across subscribers, forwards live push events, and releases the runtime listener once the last subscriber unsubscribes', async () => {
     const { createNotificationSource } = await import('../notification-source/notification-source.helpers');
-    const eventsOnMultipleMock = vi.fn().mockReturnValue(() => undefined);
+    let handler: ((payload: unknown) => void) | undefined;
+    const runtimeUnsubscribeMock = vi.fn();
+    const eventsOnMultipleMock = vi
+      .fn()
+      .mockImplementation((_eventName: string, callback: (payload: unknown) => void) => {
+        handler = callback;
+        return runtimeUnsubscribeMock;
+      });
 
     window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
 
@@ -40,34 +47,14 @@ describe('notification-source', () => {
 
     expect(sourceA).toBe(sourceB);
 
-    const unsubscribeA = sourceA.subscribe(vi.fn());
+    const listener = vi.fn();
+    const unsubscribeA = sourceA.subscribe(listener);
     const unsubscribeB = sourceB.subscribe(vi.fn());
 
     await vi.advanceTimersByTimeAsync(5000);
 
-    expect(eventsOnMultipleMock).toHaveBeenCalledTimes(1);
-
-    unsubscribeA();
-    unsubscribeB();
-  });
-
-  it('forwards live notification.push events to subscribed listeners', async () => {
-    const { createNotificationSource } = await import('../notification-source/notification-source.helpers');
-    let handler: ((payload: unknown) => void) | undefined;
-    const eventsOnMultipleMock = vi
-      .fn()
-      .mockImplementation((_eventName: string, callback: (payload: unknown) => void) => {
-        handler = callback;
-        return () => undefined;
-      });
-
-    window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
-
-    const source = createNotificationSource();
-    const listener = vi.fn();
-    const unsubscribe = source.subscribe(listener);
-
-    await vi.advanceTimersByTimeAsync(5000);
+    // No duplicate Wails subscriptions, on the literal event name the backend emits.
+    expect(eventsOnMultipleMock).toHaveBeenCalledExactlyOnceWith('notification.push', expect.any(Function), -1);
 
     const payload = {
       Title: 'Download finished',
@@ -82,10 +69,14 @@ describe('notification-source', () => {
 
     expect(listener).toHaveBeenCalledWith(payload);
 
-    unsubscribe();
+    unsubscribeA();
+    expect(runtimeUnsubscribeMock).not.toHaveBeenCalled();
+    unsubscribeB();
+
+    expect(runtimeUnsubscribeMock).toHaveBeenCalledTimes(1);
   });
 
-  it('forwards notification.archived events to archived subscribers', async () => {
+  it('subscribes the exact "notification.archived" and "notification.navigate" event names, forwards each stream only to its own subscribers, and drops a navigate payload that is not a usable route', async () => {
     const { createNotificationSource } = await import('../notification-source/notification-source.helpers');
     const handlers = new Map<string, (payload: unknown) => void>();
     const eventsOnMultipleMock = vi
@@ -99,146 +90,36 @@ describe('notification-source', () => {
 
     const source = createNotificationSource();
     const archivedListener = vi.fn();
+    const navigateListener = vi.fn();
     const pushListener = vi.fn();
     const unsubscribeArchived = source.subscribeArchived(archivedListener);
+    const unsubscribeNavigate = source.subscribeNavigate(navigateListener);
     const unsubscribePush = source.subscribe(pushListener);
 
     await vi.advanceTimersByTimeAsync(5000);
+
+    // Spelled as literals on purpose: app_notification_center.go emits these
+    // exact strings, so reading the constants under test would pin nothing --
+    // and a mismatch here is precisely the bug that shipped, where the backend
+    // emitted and no frontend name matched.
+    expect(eventsOnMultipleMock).toHaveBeenCalledWith('notification.archived', expect.any(Function), -1);
+    expect(eventsOnMultipleMock).toHaveBeenCalledWith('notification.navigate', expect.any(Function), -1);
 
     handlers.get('notification.archived')?.([7, 9]);
 
     expect(archivedListener).toHaveBeenCalledWith([7, 9]);
-    // The two streams are independent: an archive must not reach the toast
+    expect(navigateListener).not.toHaveBeenCalled();
+    // The streams are independent: an archive must not reach the toast
     // push listener, which would render a toast for a record being closed.
     expect(pushListener).not.toHaveBeenCalled();
 
-    unsubscribeArchived();
-    unsubscribePush();
-  });
-
-  it('subscribes to the exact "notification.archived" event name', async () => {
-    const { createNotificationSource } = await import('../notification-source/notification-source.helpers');
-    const eventsOnMultipleMock = vi.fn().mockReturnValue(() => undefined);
-
-    window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
-
-    const source = createNotificationSource();
-    const unsubscribe = source.subscribeArchived(vi.fn());
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    // Spelled as a literal on purpose: the backend emits this exact string,
-    // so reading the constant under test would pin nothing.
-    expect(eventsOnMultipleMock).toHaveBeenCalledWith('notification.archived', expect.any(Function), -1);
-
-    unsubscribe();
-  });
-
-  it('subscribes to the exact "notification.push" event name', async () => {
-    const { createNotificationSource } = await import('../notification-source/notification-source.helpers');
-    const eventsOnMultipleMock = vi.fn().mockReturnValue(() => undefined);
-
-    window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
-
-    const source = createNotificationSource();
-    const unsubscribe = source.subscribe(vi.fn());
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    expect(eventsOnMultipleMock).toHaveBeenCalledWith(
-      'notification.push',
-      expect.any(Function),
-      -1,
-    );
-
-    unsubscribe();
-  });
-
-  it('releases the runtime listener once the last subscriber unsubscribes', async () => {
-    const { createNotificationSource } = await import('../notification-source/notification-source.helpers');
-    const runtimeUnsubscribeMock = vi.fn();
-    const eventsOnMultipleMock = vi.fn().mockReturnValue(runtimeUnsubscribeMock);
-
-    window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
-
-    const source = createNotificationSource();
-    const unsubscribe = source.subscribe(vi.fn());
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    unsubscribe();
-
-    expect(runtimeUnsubscribeMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('forwards notification.navigate events to navigate subscribers, without crossing the other streams', async () => {
-    const { createNotificationSource } = await import('../notification-source/notification-source.helpers');
-    const handlers = new Map<string, (payload: unknown) => void>();
-    const eventsOnMultipleMock = vi
-      .fn()
-      .mockImplementation((eventName: string, callback: (payload: unknown) => void) => {
-        handlers.set(eventName, callback);
-        return () => undefined;
-      });
-
-    window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
-
-    const source = createNotificationSource();
-    const navigateListener = vi.fn();
-    const pushListener = vi.fn();
-    const unsubscribeNavigate = source.subscribeNavigate(navigateListener);
-    const unsubscribePush = source.subscribe(pushListener);
-
-    await vi.advanceTimersByTimeAsync(5000);
-
     handlers.get('notification.navigate')?.('/downloads');
 
-    expect(navigateListener).toHaveBeenCalledWith('/downloads');
+    expect(navigateListener).toHaveBeenCalledExactlyOnceWith('/downloads');
+    expect(archivedListener).toHaveBeenCalledTimes(1);
     // A navigation must not reach the toast push listener: it carries a route,
     // not a notification, and rendering it as one would toast a bare path.
     expect(pushListener).not.toHaveBeenCalled();
-
-    unsubscribeNavigate();
-    unsubscribePush();
-  });
-
-  it('subscribes to the exact "notification.navigate" event name', async () => {
-    const { createNotificationSource } = await import('../notification-source/notification-source.helpers');
-    const eventsOnMultipleMock = vi.fn().mockReturnValue(() => undefined);
-
-    window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
-
-    const source = createNotificationSource();
-    const unsubscribe = source.subscribeNavigate(vi.fn());
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    // Spelled as a literal on purpose: app_notification_center.go emits this
-    // exact string, so reading the constant under test would pin nothing --
-    // and a mismatch here is precisely the bug that shipped, where the backend
-    // emitted and no frontend name matched.
-    expect(eventsOnMultipleMock).toHaveBeenCalledWith('notification.navigate', expect.any(Function), -1);
-
-    unsubscribe();
-  });
-
-  it('drops a navigate payload that is not a usable route', async () => {
-    const { createNotificationSource } = await import('../notification-source/notification-source.helpers');
-    const handlers = new Map<string, (payload: unknown) => void>();
-    const eventsOnMultipleMock = vi
-      .fn()
-      .mockImplementation((eventName: string, callback: (payload: unknown) => void) => {
-        handlers.set(eventName, callback);
-        return () => undefined;
-      });
-
-    window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
-
-    const source = createNotificationSource();
-    const navigateListener = vi.fn();
-    const unsubscribeNavigate = source.subscribeNavigate(navigateListener);
-
-    await vi.advanceTimersByTimeAsync(5000);
 
     // The backend refuses a route-less token rather than emitting one, so
     // neither of these can arrive from the intent. The boundary still refuses
@@ -248,9 +129,11 @@ describe('notification-source', () => {
     handlers.get('notification.navigate')?.(undefined);
     handlers.get('notification.navigate')?.({ route: '/downloads' });
 
-    expect(navigateListener).not.toHaveBeenCalled();
+    expect(navigateListener).toHaveBeenCalledTimes(1);
 
+    unsubscribeArchived();
     unsubscribeNavigate();
+    unsubscribePush();
   });
 
   it('keeps source-adapter declarations in colocated sibling modules', () => {

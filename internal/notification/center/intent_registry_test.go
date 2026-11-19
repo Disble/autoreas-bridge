@@ -30,26 +30,6 @@ func TestEmptyRegistryResolveReturnsNotFoundWithoutPanic(t *testing.T) {
 	}
 }
 
-// TestDownloadRetryRunAbsentFromRegistryKeys is MANDATORY: builds a
-// StaticRegistry with the three real intents registered exactly as the
-// composition root would, then asserts "download.retry_run" is NOT among
-// Keys() -- asserted against LIVE registry state, never a source grep
-// (notification-actions spec, "download.retry_run is absent from the
-// registry").
-func TestDownloadRetryRunAbsentFromRegistryKeys(t *testing.T) {
-	t.Parallel()
-	registry := NewStaticRegistry()
-	registry.Register(IntentDownloadRunAnime, noopHandler{})
-	registry.Register(IntentScheduleRunMissedNow, noopHandler{})
-	registry.Register(IntentScheduleIgnoreMissed, noopHandler{})
-
-	for _, key := range registry.Keys() {
-		if key == "download.retry_run" {
-			t.Fatal(`expected "download.retry_run" to never be registered -- the download service exposes only RunOnce/RunAnime`)
-		}
-	}
-}
-
 // TestDownloadCompletionActionResolvesToRunAnime pins the shared
 // IntentDownloadRunAnime constant's literal value and guards against a
 // future retry-shaped rename (notification-actions spec, "A download
@@ -60,23 +40,6 @@ func TestDownloadCompletionActionResolvesToRunAnime(t *testing.T) {
 
 	if action.Intent != "download.run_anime" {
 		t.Fatalf(`expected the completion action's intent to be exactly "download.run_anime", got %q`, action.Intent)
-	}
-}
-
-// TestStaticRegistryKeysAreSorted asserts Keys() returns a deterministic,
-// sorted order regardless of registration order.
-func TestStaticRegistryKeysAreSorted(t *testing.T) {
-	t.Parallel()
-	registry := NewStaticRegistry()
-	registry.Register("z.last", noopHandler{})
-	registry.Register("a.first", noopHandler{})
-
-	got := registry.Keys()
-	if !sort.StringsAreSorted(got) {
-		t.Fatalf("expected sorted keys, got %v", got)
-	}
-	if len(got) != 2 || got[0] != "a.first" || got[1] != "z.last" {
-		t.Fatalf(`expected ["a.first" "z.last"], got %v`, got)
 	}
 }
 
@@ -102,5 +65,33 @@ func TestStaticRegistryResolveFindsRegisteredHandler(t *testing.T) {
 	got, found := registry.Resolve("some.intent")
 	if !found || got != handler {
 		t.Fatalf("expected Resolve to find the registered handler, got (%v, %v)", got, found)
+	}
+}
+
+// TestStaticRegistryKeysAreSortedAndNeverDownloadRetryRun asserts Keys returns
+// the registered intents sorted, and that the production intents never include
+// "download.retry_run": the download service exposes only RunOnce/RunAnime.
+func TestStaticRegistryKeysAreSortedAndNeverDownloadRetryRun(t *testing.T) {
+	t.Parallel()
+	registry := NewStaticRegistry()
+	registry.Register("z.last", noopHandler{})
+	registry.Register("a.first", noopHandler{})
+
+	got := registry.Keys()
+	if !sort.StringsAreSorted(got) {
+		t.Fatalf("expected sorted keys, got %v", got)
+	}
+	if len(got) != 2 || got[0] != "a.first" || got[1] != "z.last" {
+		t.Fatalf(`expected ["a.first" "z.last"], got %v`, got)
+	}
+
+	production := NewStaticRegistry()
+	production.Register(IntentDownloadRunAnime, noopHandler{})
+	production.Register(IntentScheduleRunMissedNow, noopHandler{})
+	production.Register(IntentScheduleIgnoreMissed, noopHandler{})
+	for _, key := range production.Keys() {
+		if key == "download.retry_run" {
+			t.Fatal(`expected "download.retry_run" to never be registered -- the download service exposes only RunOnce/RunAnime`)
+		}
 	}
 }

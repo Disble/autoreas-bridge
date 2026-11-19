@@ -55,12 +55,16 @@ describe('toDayBadgeCounts', () => {
     expect(toDayBadgeCounts({ kind: 'ready', data: counts, isRefreshing: false })).toBe(counts);
   });
 
-  it.each([
-    ['loading', { kind: 'loading' } as const],
-    ['empty', { kind: 'empty' } as const],
-    ['failed', { kind: 'failure', code: 'unavailable', message: 'starting' } as const],
-  ])('shows no badges while the counts are %s', (_label, view) => {
-    expect(toDayBadgeCounts(view)).toEqual([]);
+  it('shows no badges while the counts are not ready', () => {
+    const cases = [
+      ['loading', { kind: 'loading' } as const],
+      ['empty', { kind: 'empty' } as const],
+      ['failed', { kind: 'failure', code: 'unavailable', message: 'starting' } as const],
+    ] as const;
+
+    for (const [caseName, view] of cases) {
+      expect.soft(toDayBadgeCounts(view), caseName).toEqual([]);
+    }
   });
 });
 

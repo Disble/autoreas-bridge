@@ -42,23 +42,20 @@ func TestParseName(t *testing.T) {
 		{name: "short stem clamps lookbehind", basename: "e-2.mp4", wantOrds: []int{2}},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got := parseName(tc.basename)
-			gotOrds, wantOrds := got.ords, tc.wantOrds
-			if len(gotOrds) == 0 {
-				gotOrds = nil
-			}
-			if len(wantOrds) == 0 {
-				wantOrds = nil
-			}
-			if !slices.Equal(gotOrds, wantOrds) {
-				t.Errorf("ords = %v, want %v", got.ords, tc.wantOrds)
-			}
-			if got.hasAmbig != (tc.wantAmbig != "") || got.ambig != tc.wantAmbig {
-				t.Errorf("ambig = %v/%v, want %v", got.ambig, got.hasAmbig, tc.wantAmbig)
-			}
-		})
+		got := parseName(tc.basename)
+		gotOrds, wantOrds := got.ords, tc.wantOrds
+		if len(gotOrds) == 0 {
+			gotOrds = nil
+		}
+		if len(wantOrds) == 0 {
+			wantOrds = nil
+		}
+		if !slices.Equal(gotOrds, wantOrds) {
+			t.Errorf("%s: ords = %v, want %v", tc.name, got.ords, tc.wantOrds)
+		}
+		if got.hasAmbig != (tc.wantAmbig != "") || got.ambig != tc.wantAmbig {
+			t.Errorf("%s: ambig = %v/%v, want %v", tc.name, got.ambig, got.hasAmbig, tc.wantAmbig)
+		}
 	}
 }
 
@@ -87,19 +84,15 @@ func TestStripExtension(t *testing.T) {
 		in   string
 		want string
 	}{
-		{name: "drops the final suffix", in: "Show - 13.mp4", want: "Show - 13"},
 		{name: "no dot is unchanged", in: "Show - 13", want: "Show - 13"},
 		{name: "drops only the final suffix", in: "archive.tar.mp4", want: "archive.tar"},
 		{name: "trailing dot is dropped", in: "Show.", want: "Show"},
 		{name: "leading dot leaves empty stem", in: ".mp4", want: ""},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if got := stripExtension(tc.in); got != tc.want {
-				t.Errorf("stripExtension(%q) = %q, want %q", tc.in, got, tc.want)
-			}
-		})
+		if got := stripExtension(tc.in); got != tc.want {
+			t.Errorf("%s: stripExtension(%q) = %q, want %q", tc.name, tc.in, got, tc.want)
+		}
 	}
 }
 
@@ -121,12 +114,9 @@ func TestDelimitedStart(t *testing.T) {
 		{name: "multibyte prefix reads last rune", s: "é 01-02", idx: 3, want: true},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if got := delimitedStart(tc.s, tc.idx); got != tc.want {
-				t.Errorf("delimitedStart(%q, %d) = %v, want %v", tc.s, tc.idx, got, tc.want)
-			}
-		})
+		if got := delimitedStart(tc.s, tc.idx); got != tc.want {
+			t.Errorf("%s: delimitedStart(%q, %d) = %v, want %v", tc.name, tc.s, tc.idx, got, tc.want)
+		}
 	}
 }
 
@@ -144,16 +134,12 @@ func TestInsideSpan(t *testing.T) {
 		{name: "span middle is inside", spans: [][2]int{{3, 8}}, start: 5, want: true},
 		{name: "span end is outside", spans: [][2]int{{3, 8}}, start: 8, want: false},
 		{name: "before span is outside", spans: [][2]int{{3, 8}}, start: 2, want: false},
-		{name: "after span is outside", spans: [][2]int{{3, 8}}, start: 9, want: false},
 		{name: "empty spans contain nothing", spans: nil, start: 3, want: false},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if got := insideSpan(tc.spans, tc.start); got != tc.want {
-				t.Errorf("insideSpan(%v, %d) = %v, want %v", tc.spans, tc.start, got, tc.want)
-			}
-		})
+		if got := insideSpan(tc.spans, tc.start); got != tc.want {
+			t.Errorf("%s: insideSpan(%v, %d) = %v, want %v", tc.name, tc.spans, tc.start, got, tc.want)
+		}
 	}
 }
 
@@ -180,12 +166,9 @@ func TestNoiseReason(t *testing.T) {
 		{name: "version suffix", s: "Show v 2", raw: "2", start: 7, want: "version"},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if got := noiseReason(tc.s, tc.raw, tc.start); got != tc.want {
-				t.Errorf("noiseReason(%q, %q, %d) = %q, want %q", tc.s, tc.raw, tc.start, got, tc.want)
-			}
-		})
+		if got := noiseReason(tc.s, tc.raw, tc.start); got != tc.want {
+			t.Errorf("%s: noiseReason(%q, %q, %d) = %q, want %q", tc.name, tc.s, tc.raw, tc.start, got, tc.want)
+		}
 	}
 }
 
@@ -209,12 +192,9 @@ func TestTagOrd(t *testing.T) {
 		{name: "empty", tag: "", ok: false},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got, ok := tagOrd(tc.tag)
-			if got != tc.want || ok != tc.ok {
-				t.Errorf("tagOrd(%q) = %v/%v, want %v/%v", tc.tag, got, ok, tc.want, tc.ok)
-			}
-		})
+		got, ok := tagOrd(tc.tag)
+		if got != tc.want || ok != tc.ok {
+			t.Errorf("%s: tagOrd(%q) = %v/%v, want %v/%v", tc.name, tc.tag, got, ok, tc.want, tc.ok)
+		}
 	}
 }

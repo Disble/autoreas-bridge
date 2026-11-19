@@ -9,6 +9,7 @@ import (
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api"
 	"autoreas-bridge/internal/api/contracts"
+	bridgeSync "autoreas-bridge/internal/sync"
 )
 
 func TestWriteServicePatchAnimePublishesMergedSnapshotWithFractionalProgress(t *testing.T) {
@@ -182,9 +183,12 @@ func TestWriteServicePatchAnimeDerivesFirstWatchPremiere(t *testing.T) {
 		},
 	}
 
+	// One database serves every row: each row re-seeds anime-1 whole, the only
+	// row a patch writes.
+	store := openAnimeServiceTestStore(t)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assertPatchFirstWatchPremiere(t, tc.seed, tc.patch, tc.wantPremiered)
+			assertPatchFirstWatchPremiere(t, store, tc.seed, tc.patch, tc.wantPremiered)
 		})
 	}
 }
@@ -192,10 +196,9 @@ func TestWriteServicePatchAnimeDerivesFirstWatchPremiere(t *testing.T) {
 // assertPatchFirstWatchPremiere runs one patch case and checks the derived
 // first-watch instant, kept as a helper so the table stays below the cognitive
 // complexity gate.
-func assertPatchFirstWatchPremiere(t *testing.T, seed string, patch api.AnimePatch, wantPremiered *int64) {
+func assertPatchFirstWatchPremiere(t *testing.T, store *bridgeSync.AnimeSnapshotStore, seed string, patch api.AnimePatch, wantPremiered *int64) {
 	t.Helper()
 	ctx := context.Background()
-	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-1", seed)
 	// A non-UTC clock proves the derived instant is the observation instant,
 	// not the wall location it was read in.
@@ -266,10 +269,11 @@ func TestWriteServicePatchAnimeStampsLastWatchedOnExplicitChanges(t *testing.T) 
 		{name: "ordered days", patch: api.AnimePatch{DiasOrdered: []contracts.MobileAnimeDay{{Day: "Lunes", Order: 1}}}},
 	}
 
+	// One database serves every row: each row re-seeds anime-1 whole.
+	store := openAnimeServiceTestStore(t)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
-			store := openAnimeServiceTestStore(t)
 			seedAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Fresh","episodesWatched":0,"status":0,"active":true}`)
 			service := anime.NewWriteService(store, &stubCommittedPublisher{})
 			now := time.UnixMilli(1710000000123).UTC()

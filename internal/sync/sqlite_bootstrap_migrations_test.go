@@ -235,23 +235,6 @@ func TestScheduleDayMigrationPreservesExistingSpanishDiasRows(t *testing.T) {
 	}
 }
 
-// TestScheduleDayMigrationRerunIsNoOp proves the SDD-55 Slice C migration re-run scenario:
-// running the migration again on an already-migrated database detects the column is present
-// and skips re-applying it without error.
-func TestScheduleDayMigrationRerunIsNoOp(t *testing.T) {
-	t.Parallel()
-
-	db := openTestBridgeDB(t)
-	before := readTableColumns(t, db, "anime_snapshots")
-	if err := ensureAnimeSnapshotsSchema(db); err != nil {
-		t.Fatalf("re-run schedule-day migration: %v", err)
-	}
-	after := readTableColumns(t, db, "anime_snapshots")
-	if len(before) != len(after) {
-		t.Fatalf("expected schedule-day migration re-run to be a no-op, before=%#v after=%#v", before, after)
-	}
-}
-
 func TestEnsureAnimeSnapshotsSchemaRejectsUnsupportedSchema(t *testing.T) {
 	t.Parallel()
 

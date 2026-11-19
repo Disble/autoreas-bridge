@@ -252,34 +252,6 @@ func TestWSReconcileAcceptedCapture(t *testing.T) {
 	}
 }
 
-func TestWSReconcileRejectedCapture(t *testing.T) {
-	t.Parallel()
-
-	captures := []requestcapture.CaptureRecord{}
-	_, wsURL, cleanup := newWebsocketTestServer(t, Config{
-		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1", Name: "Phone", AuthToken: "good-token"}},
-		RealtimeHub:   realtime.NewMemoryHub(context.Background(), realtime.MemoryHubConfig{}),
-		AnimeWrite:    stubWebSocketAnimeWrite{err: context.DeadlineExceeded},
-		SyncTrigger:   stubSyncService{},
-		Capture: func(record requestcapture.CaptureRecord) bool {
-			captures = append(captures, record)
-			return true
-		},
-	})
-	defer cleanup()
-
-	conn := dialWebSocketWithToken(t, wsURL, "good-token")
-	defer closeWebsocket(t, conn)
-	readControlMessage(t, conn)
-	if err := conn.WriteJSON(map[string]any{"type": "reconcile", "last_changelog_id": 7, "pending_operations": []map[string]any{{"anime_id": "anime-1", "operation": "update", "payload": map[string]any{"episodesWatched": 3}, "created_at": 1710000000123}}}); err != nil {
-		t.Fatalf("write websocket reconcile: %v", err)
-	}
-	waitForCaptureCount(t, &captures, 2)
-	if captures[1].Outcome != "rejected" {
-		t.Fatalf("unexpected rejected capture %#v", captures[1])
-	}
-}
-
 func TestWSReconcileCapturesResponseBodyOnReject(t *testing.T) {
 	t.Parallel()
 
@@ -314,7 +286,7 @@ func TestWSReconcileCapturesResponseBodyOnReject(t *testing.T) {
 	}
 }
 
-func TestWSNonReconcileNoCapture(t *testing.T) {
+func TestWSNonReconcileAndMalformedTrafficIsNotCaptured(t *testing.T) {
 	t.Parallel()
 
 	captures := []requestcapture.CaptureRecord{}
@@ -338,30 +310,15 @@ func TestWSNonReconcileNoCapture(t *testing.T) {
 	if len(captures) != 0 {
 		t.Fatalf("expected no capture for non-reconcile traffic, got %#v", captures)
 	}
-}
 
-func TestWSMalformedNoCapture(t *testing.T) {
-	t.Parallel()
-
-	captures := []requestcapture.CaptureRecord{}
-	_, wsURL, cleanup := newWebsocketTestServer(t, Config{
-		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1", Name: "Phone", AuthToken: "good-token"}},
-		RealtimeHub:   realtime.NewMemoryHub(context.Background(), realtime.MemoryHubConfig{}),
-		Capture: func(record requestcapture.CaptureRecord) bool {
-			captures = append(captures, record)
-			return true
-		},
-	})
-	defer cleanup()
-
-	conn := dialWebSocketWithToken(t, wsURL, "good-token")
-	defer closeWebsocket(t, conn)
-	readControlMessage(t, conn)
-	if err := conn.WriteMessage(websocket.TextMessage, []byte(`{`)); err != nil {
-		t.Fatalf("write malformed websocket message: %v", err)
-	}
-	time.Sleep(50 * time.Millisecond)
-	if len(captures) != 0 {
-		t.Fatalf("expected no capture for malformed websocket payload, got %#v", captures)
+	// Ws malformed no capture.
+	{
+		if err := conn.WriteMessage(websocket.TextMessage, []byte(`{`)); err != nil {
+			t.Fatalf("write malformed websocket message: %v", err)
+		}
+		time.Sleep(50 * time.Millisecond)
+		if len(captures) != 0 {
+			t.Fatalf("expected no capture for malformed websocket payload, got %#v", captures)
+		}
 	}
 }

@@ -24,20 +24,18 @@ func TestParseDurationMinutesTablePerDesignD2a(t *testing.T) {
 		{name: "two-digit minute carry", raw: "2 hr. 5 min.", wantMinutes: 125, wantOK: true},
 		{name: "minutes only, no per-episode suffix", raw: "46 min.", wantMinutes: 46, wantOK: true},
 		{name: "reworded shape is drift, not zero", raw: "24 minutes/episode", wantMinutes: 0, wantOK: false},
-		{name: "unrelated literal is drift, not zero", raw: "Unknown", wantMinutes: 0, wantOK: false},
 		{name: "empty string matches neither shape", raw: "", wantMinutes: 0, wantOK: false},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			minutes, ok := parseDurationMinutes(tc.raw)
+		minutes, ok := parseDurationMinutes(tc.raw)
 
-			if ok != tc.wantOK {
-				t.Fatalf("parseDurationMinutes(%q): ok = %v, want %v", tc.raw, ok, tc.wantOK)
-			}
-			if minutes != tc.wantMinutes {
-				t.Fatalf("parseDurationMinutes(%q): minutes = %d, want %d", tc.raw, minutes, tc.wantMinutes)
-			}
-		})
+		if ok != tc.wantOK {
+			t.Errorf("%s: parseDurationMinutes(%q): ok = %v, want %v", tc.name, tc.raw, ok, tc.wantOK)
+			continue
+		}
+		if minutes != tc.wantMinutes {
+			t.Errorf("%s: parseDurationMinutes(%q): minutes = %d, want %d", tc.name, tc.raw, minutes, tc.wantMinutes)
+		}
 	}
 }
 

@@ -18,23 +18,22 @@ type deriveCase struct {
 	want        Effect
 }
 
-// assertDeriveCase checks one row's Effect against its expectation. It takes the
-// whole row so the table's loop stays under gocognit's limit, the same shape
-// store_test.go's assertStepSequence uses.
+// assertDeriveCase checks one row's Effect against its expectation and reports
+// the first mismatch under the row's name without stopping the table. It takes
+// the whole row so the table's loop stays under gocognit's limit, the same
+// shape store_test.go's assertStepSequence uses.
 func assertDeriveCase(t *testing.T, tc deriveCase) {
 	t.Helper()
 	got := Derive(tc.change)
-	if got.Kind != tc.want.Kind {
-		t.Fatalf("Kind = %v, want %v", got.Kind, tc.want.Kind)
-	}
-	if got.Kind == EffectRetract && got.Floor != tc.want.Floor {
-		t.Fatalf("Floor = %v, want %v", got.Floor, tc.want.Floor)
-	}
-	if got.Kind == EffectRecord && !reflect.DeepEqual(got.Episodes, tc.want.Episodes) {
-		t.Fatalf("Episodes = %v, want %v", got.Episodes, tc.want.Episodes)
-	}
-	if got.Kind == EffectRecord && got.LandingAtMS != tc.wantLanding {
-		t.Fatalf("LandingAtMS = %d, want %d", got.LandingAtMS, tc.wantLanding)
+	switch {
+	case got.Kind != tc.want.Kind:
+		t.Errorf("%s: Kind = %v, want %v", tc.name, got.Kind, tc.want.Kind)
+	case got.Kind == EffectRetract && got.Floor != tc.want.Floor:
+		t.Errorf("%s: Floor = %v, want %v", tc.name, got.Floor, tc.want.Floor)
+	case got.Kind == EffectRecord && !reflect.DeepEqual(got.Episodes, tc.want.Episodes):
+		t.Errorf("%s: Episodes = %v, want %v", tc.name, got.Episodes, tc.want.Episodes)
+	case got.Kind == EffectRecord && got.LandingAtMS != tc.wantLanding:
+		t.Errorf("%s: LandingAtMS = %d, want %d", tc.name, got.LandingAtMS, tc.wantLanding)
 	}
 }
 
@@ -192,10 +191,7 @@ func TestDeriveGuardOrder(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			assertDeriveCase(t, tc)
-		})
+		assertDeriveCase(t, tc)
 	}
 }
 

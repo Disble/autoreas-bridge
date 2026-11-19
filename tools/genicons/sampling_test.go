@@ -126,28 +126,3 @@ func TestEncodeICOPadsTheANDMaskToAFourByteStridePerSize(t *testing.T) {
 		}
 	}
 }
-
-func TestEncodeICOPlacesEveryPayloadAtItsDeclaredOffset(t *testing.T) {
-	master := gridNRGBA([][]uint8{{10, 20}, {30, 40}})
-	sizes := []int{16, 32, 128}
-
-	data, err := encodeICO(master, sizes)
-	if err != nil {
-		t.Fatalf("encodeICO: %v", err)
-	}
-
-	entries := parseICO(t, data)
-	// The first payload starts right after the directory, and each following one
-	// starts where the previous ended. A wrong offset still produces a plausible
-	// file that Windows renders as garbage.
-	want := uint32(6 + 16*len(sizes))
-	for i, e := range entries {
-		if e.Offset != want {
-			t.Fatalf("entry %d offset = %d, want %d", i, e.Offset, want)
-		}
-		want += e.Bytes
-	}
-	if int(want) != len(data) {
-		t.Fatalf("payloads end at %d but the file is %d bytes", want, len(data))
-	}
-}

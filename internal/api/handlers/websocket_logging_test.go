@@ -63,28 +63,17 @@ func TestIncomingMessageFailureLogsInTheWebsocketDomain(t *testing.T) {
 	if entry.Domain != "websocket" {
 		t.Fatalf("expected domain %q, got %q", "websocket", entry.Domain)
 	}
-	if !strings.Contains(entry.Message, "device-7") || !strings.Contains(entry.Message, "boom") {
-		t.Fatalf("expected the message to name the device and the error, got %q", entry.Message)
-	}
-	if strings.Contains(entry.Message, "%!") {
-		t.Fatalf("expected no format-verb residue in the message, got %q", entry.Message)
-	}
-}
-
-// TestIncomingMessageFailureCarriesItsDimensions proves the entry can be found
-// by what happened and to what, rather than only by free-text search.
-func TestIncomingMessageFailureCarriesItsDimensions(t *testing.T) {
-	t.Parallel()
-
-	log := &capturingLogger{}
-	logIncomingWebSocketMessageFailure(log, "device-7", fmt.Errorf("boom"))
-
-	entry := log.entries[0]
 	if entry.EntityID != "device-7" {
 		t.Fatalf("expected entity id %q, got %q", "device-7", entry.EntityID)
 	}
 	if entry.EventType != "websocket.message_failed" {
 		t.Fatalf("expected event type %q, got %q", "websocket.message_failed", entry.EventType)
+	}
+	if !strings.Contains(entry.Message, "device-7") || !strings.Contains(entry.Message, "boom") {
+		t.Fatalf("expected the message to name the device and the error, got %q", entry.Message)
+	}
+	if strings.Contains(entry.Message, "%!") {
+		t.Fatalf("expected no format-verb residue in the message, got %q", entry.Message)
 	}
 }
 

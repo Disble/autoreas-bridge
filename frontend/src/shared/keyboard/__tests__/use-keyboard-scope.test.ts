@@ -13,45 +13,36 @@ beforeEach(resetKeyboardStore);
 afterEach(resetKeyboardStore);
 
 describe('useKeyboardScope', () => {
-  it('pushes exactly one frame on mount and pops it on unmount', () => {
-    const { unmount } = renderHook(() => useKeyboardScope({ scope: 'notification-center', commands: [buildCommand()] }));
+  it('keeps one frame across new commands and a new scope, numbers a second consumer next, and pops on unmount', () => {
+    const firstCommands = [buildCommand({ id: 'first' })];
+    const secondCommands = [buildCommand({ id: 'second' })];
+    const first = renderHook(({ scope, commands }: { scope: KeyboardScope; commands: CommandDefinition[] }) => useKeyboardScope({ scope, commands }), {
+      initialProps: { scope: 'global', commands: firstCommands },
+    });
 
     expect(getKeyboardState().frames).toHaveLength(1);
 
-    unmount();
-
-    expect(getKeyboardState().frames).toHaveLength(0);
-  });
-
-  it('gives two concurrently mounted consumers distinct, sequential frame ids', () => {
-    renderHook(() => useKeyboardScope({ scope: 'notification-center', commands: [buildCommand()] }));
-    renderHook(() => useKeyboardScope({ scope: 'notification-center', commands: [buildCommand()] }));
-
-    const [firstId, secondId] = getKeyboardState().frames.map((frame) => frame.id);
-    expect(secondId).toBe((firstId ?? 0) + 1);
-  });
-
-  it('refreshes the commands a mounted frame reads, without pushing a second frame, when the caller re-renders with new commands', () => {
-    const firstCommands = [buildCommand({ id: 'first' })];
-    const secondCommands = [buildCommand({ id: 'second' })];
-    const { rerender } = renderHook(({ commands }) => useKeyboardScope({ scope: 'notification-center', commands }), {
-      initialProps: { commands: firstCommands },
-    });
-
-    rerender({ commands: secondCommands });
+    first.rerender({ scope: 'global', commands: secondCommands });
 
     expect(getKeyboardState().frames).toHaveLength(1);
     expect(getKeyboardState().frames[0]?.getCommands()).toBe(secondCommands);
-  });
 
-  it('re-pushes under the new scope when the caller re-renders with a different scope', () => {
-    const { rerender } = renderHook(({ scope }: { scope: KeyboardScope }) => useKeyboardScope({ scope, commands: [buildCommand()] }), {
-      initialProps: { scope: 'global' },
-    });
-
-    rerender({ scope: 'notification-center' });
+    first.rerender({ scope: 'notification-center', commands: secondCommands });
 
     expect(getKeyboardState().frames).toHaveLength(1);
     expect(getKeyboardState().frames[0]?.scope).toBe('notification-center');
+
+    const second = renderHook(() => useKeyboardScope({ scope: 'notification-center', commands: [buildCommand()] }));
+
+    const [firstId, secondId] = getKeyboardState().frames.map((frame) => frame.id);
+    expect(secondId).toBe((firstId ?? 0) + 1);
+
+    first.unmount();
+
+    expect(getKeyboardState().frames).toHaveLength(1);
+
+    second.unmount();
+
+    expect(getKeyboardState().frames).toHaveLength(0);
   });
 });

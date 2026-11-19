@@ -7,12 +7,17 @@ describe('CodeBlock', () => {
     cleanup();
   });
 
-  it('renders a Pretty/Raw switch with Pretty selected by default for a JSON object', () => {
+  it('renders a Pretty/Raw switch with Pretty selected for a JSON object, and the verbatim text on Raw', () => {
     render(<CodeBlock label="Body" raw='{"status":"accepted","code":"ok"}' state="captured" />);
 
     const radios = screen.getAllByRole('radio');
     expect(radios).toHaveLength(2);
     expect(screen.getByRole('radio', { name: 'Pretty' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.queryByText('{"status":"accepted","code":"ok"}')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Raw' }));
+
+    expect(screen.getByText('{"status":"accepted","code":"ok"}')).toBeInTheDocument();
   });
 
   it('renders no switch for non-JSON text', () => {
@@ -26,14 +31,6 @@ describe('CodeBlock', () => {
     render(<CodeBlock label="Body" raw="123" state="captured" />);
 
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();
-  });
-
-  it('renders the verbatim raw text when Raw is clicked', () => {
-    render(<CodeBlock label="Body" raw='{"a":1}' state="captured" />);
-
-    fireEvent.click(screen.getByRole('radio', { name: 'Raw' }));
-
-    expect(screen.getByText('{"a":1}')).toBeInTheDocument();
   });
 
   it('renders the caller notice and no code area/copy/switch when not captured', () => {

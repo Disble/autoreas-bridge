@@ -108,50 +108,31 @@ const special = (id: string) => ({ id, label: id, kind: 'special' as const });
 // chain, and no test reached it: measured 2026-08-13, line 33 alone carried 9
 // surviving mutants and the ternary below it another 4. The three boards here
 // walk the chain's three rungs.
-describe('createAnimeScheduleOrderingState — an entry with no placements', () => {
-  it('parks it on the first special destination, not the first destination', () => {
-    const state = createAnimeScheduleOrderingState(boardWith([weekday('Lunes'), special('Sin ver'), special('Visto')], []));
+describe('createAnimeScheduleOrderingState', () => {
+  it('places each entry\'s cards in placement order and parks an unplaced entry on the default chain', () => {
+    const cases: ReadonlyArray<readonly [string, Parameters<typeof createAnimeScheduleOrderingState>[0], Record<string, readonly string[]>]> = [
+      ['no placements: first special destination, not the first destination', boardWith([weekday('Lunes'), special('Sin ver'), special('Visto')], []), { 'Sin ver': ['x#0'], Lunes: [] }],
+      ['no placements, no special destination: first destination', boardWith([weekday('Lunes'), weekday('Martes')], []), { Lunes: ['x#0'], Martes: [] }],
+      ['no placements, no destination at all: a literal Sin ver bucket', boardWith([], []), { 'Sin ver': ['x#0'] }],
+      ['the baseline board', board, { Lunes: ['anime-1#0'] }],
+      [
+        'keys minted in placement order, not arrival order',
+        boardWith([weekday('Lunes'), weekday('Miercoles')], [{ day: 'Miercoles', order: 2 }, { day: 'Lunes', order: 1 }]),
+        { Lunes: ['x#0'], Miercoles: ['x#1'] },
+      ],
+      ['undeclared destination materializes a bucket', boardWith([weekday('Lunes')], [{ day: 'Ghost Day', order: 1 }]), { 'Ghost Day': ['x#0'], Lunes: [] }],
+    ];
+    for (const [name, source, expected] of cases) {
+      const { order } = createAnimeScheduleOrderingState(source);
 
-    expect(state.order['Sin ver']).toEqual(['x#0']);
-    expect(state.order.Lunes).toEqual([]);
-  });
-
-  it('falls back to the first destination when the board declares no special one', () => {
-    const state = createAnimeScheduleOrderingState(boardWith([weekday('Lunes'), weekday('Martes')], []));
-
-    expect(state.order.Lunes).toEqual(['x#0']);
-    expect(state.order.Martes).toEqual([]);
-  });
-
-  it('falls back to a literal Sin ver bucket when the board declares no destination at all', () => {
-    const state = createAnimeScheduleOrderingState(boardWith([], []));
-
-    expect(state.order['Sin ver']).toEqual(['x#0']);
+      for (const [destination, keys] of Object.entries(expected)) {
+        expect.soft(order[destination], `${name}: ${destination}`).toEqual(keys);
+      }
+    }
   });
 });
 
 describe('anime-schedule-ordering.helpers', () => {
-  it('builds the editable state from the board', () => {
-    const state = createAnimeScheduleOrderingState(board);
-    expect(state.order.Lunes).toHaveLength(1);
-  });
-
-  it('mints keys in placement order, not in the order the placements arrive', () => {
-    const state = createAnimeScheduleOrderingState(
-      boardWith([weekday('Lunes'), weekday('Miercoles')], [{ day: 'Miercoles', order: 2 }, { day: 'Lunes', order: 1 }]),
-    );
-
-    expect(state.order.Lunes).toEqual(['x#0']);
-    expect(state.order.Miercoles).toEqual(['x#1']);
-  });
-
-  it('materializes a bucket for a placement whose destination the board never declared', () => {
-    const state = createAnimeScheduleOrderingState(boardWith([weekday('Lunes')], [{ day: 'Ghost Day', order: 1 }]));
-
-    expect(state.order['Ghost Day']).toEqual(['x#0']);
-    expect(state.order.Lunes).toEqual([]);
-  });
-
   it('flags duplicate cards in one destination', () => {
     const invalid = duplicateOrderingCard(createAnimeScheduleOrderingState(board), 'anime-1');
     expect(validateAnimeScheduleDraft(invalid)).toContain('Each destination');
@@ -330,33 +311,36 @@ describe('anime-schedule-ordering.helpers', () => {
 
   // Both directions matter: the comparator sees the pair in board order, so a
   // single board only ever exercises one side of the no-placement check.
-  it.each([
-    ['unplaced first', 'beta', 'alpha'],
-    ['unplaced second', 'alpha', 'beta'],
-  ])('sorts a placed entry against an unplaced one — %s', (_case, first, second) => {
-    const mixedBoard = {
-      originAnimeId: first,
-      boardModifiedAt: 500,
-      destinations: [
-        { id: 'Lunes', label: 'Lunes', kind: 'weekday' },
-        { id: 'Martes', label: 'Martes', kind: 'weekday' },
-        { id: 'Rail', label: 'Rail', kind: 'special' },
-      ],
-      entries: [first, second].map((animeId, index) => ({
-        animeId, name: animeId, active: true, modifiedAt: 500 + index,
-        placements: [{ day: 'Lunes', order: index + 1 }],
-        status: 0, progress: 0, originHighlighted: false,
-      })),
-    } as unknown as Parameters<typeof createAnimeScheduleApplyEntries>[0];
+  it('sorts a placed entry against an unplaced one in both board orders', () => {
+    const cases: ReadonlyArray<readonly [string, string, string]> = [
+      ['unplaced first', 'beta', 'alpha'],
+      ['unplaced second', 'alpha', 'beta'],
+    ];
+    for (const [name, first, second] of cases) {
+      const mixedBoard = {
+        originAnimeId: first,
+        boardModifiedAt: 500,
+        destinations: [
+          { id: 'Lunes', label: 'Lunes', kind: 'weekday' },
+          { id: 'Martes', label: 'Martes', kind: 'weekday' },
+          { id: 'Rail', label: 'Rail', kind: 'special' },
+        ],
+        entries: [first, second].map((animeId, index) => ({
+          animeId, name: animeId, active: true, modifiedAt: 500 + index,
+          placements: [{ day: 'Lunes', order: index + 1 }],
+          status: 0, progress: 0, originHighlighted: false,
+        })),
+      } as unknown as Parameters<typeof createAnimeScheduleApplyEntries>[0];
 
-    let state: AnimeScheduleOrderingState = { ...createAnimeScheduleOrderingState(mixedBoard), duplicateAllowedDestinations: ['Rail'] };
-    state = moveOrderingCard(state, { animeId: 'beta', destinationId: 'Rail', order: 1 });
-    state = moveOrderingCard(state, { animeId: 'alpha', destinationId: 'Martes', order: 1 });
+      let state: AnimeScheduleOrderingState = { ...createAnimeScheduleOrderingState(mixedBoard), duplicateAllowedDestinations: ['Rail'] };
+      state = moveOrderingCard(state, { animeId: 'beta', destinationId: 'Rail', order: 1 });
+      state = moveOrderingCard(state, { animeId: 'alpha', destinationId: 'Martes', order: 1 });
 
-    const entries = createAnimeScheduleApplyEntries(mixedBoard, state);
+      const entries = createAnimeScheduleApplyEntries(mixedBoard, state);
 
-    expect(entries.map((entry) => entry.animeId)).toEqual(['alpha', 'beta']);
-    expect(entries.find((entry) => entry.animeId === 'beta')?.placements).toEqual([]);
+      expect.soft(entries.map((entry) => entry.animeId), `${name}: order`).toEqual(['alpha', 'beta']);
+      expect.soft(entries.find((entry) => entry.animeId === 'beta')?.placements, `${name}: unplaced placements`).toEqual([]);
+    }
   });
 
   it('orders two destinations the board no longer declares by name, not by anime id', () => {
@@ -400,49 +384,33 @@ describe('anime-schedule-ordering.helpers', () => {
     ]);
   });
 
-  it('seeds one draft entry per row into the staging area with a synthetic id', () => {
-    const seeded = seedDraftEntries(withStagingDestination(createAnimeScheduleOrderingState(board)), [
+  it('seeds one non-origin draft card per row into the staging area, and nothing without rows', () => {
+    const staged = withStagingDestination(createAnimeScheduleOrderingState(board));
+    const seeded = seedDraftEntries(staged, [
       { draftId: '__draft__:1', name: 'New Anime One' },
       { draftId: '__draft__:2', name: 'New Anime Two' },
     ]);
-
-    expect(seeded.order[ANIME_SCHEDULE_STAGING_CONTAINER_ID]).toHaveLength(2);
     const seededInstances = seeded.order[ANIME_SCHEDULE_STAGING_CONTAINER_ID].map((key) => seeded.instances[key]);
-    expect(seededInstances.map((instance) => instance.animeId)).toEqual(['__draft__:1', '__draft__:2']);
-    expect(seededInstances.map((instance) => instance.name)).toEqual(['New Anime One', 'New Anime Two']);
+
+    expect.soft(seeded.order[ANIME_SCHEDULE_STAGING_CONTAINER_ID], 'one card per row').toHaveLength(2);
+    expect.soft(seededInstances.map((instance) => instance.animeId), 'synthetic ids').toEqual(['__draft__:1', '__draft__:2']);
+    expect.soft(seededInstances.map((instance) => instance.name), 'names').toEqual(['New Anime One', 'New Anime Two']);
+    expect.soft(seeded.instances['__draft__:1#0'].originHighlighted, 'never the origin anime').toBe(false);
+    // Edit-mode regression: no rows is a no-op.
+    expect.soft(seedDraftEntries(staged, undefined), 'undefined rows').toBe(staged);
+    expect.soft(seedDraftEntries(staged, []), 'empty rows').toBe(staged);
+    expect
+      .soft(seedDraftEntries(createAnimeScheduleOrderingState(board), [{ draftId: '__draft__:1', name: 'New Anime' }]).order[ANIME_SCHEDULE_STAGING_CONTAINER_ID], 'no wildcard declared')
+      .toEqual(['__draft__:1#0']);
   });
 
-  it('is a no-op when no draft entries are supplied (edit-mode regression)', () => {
-    const state = withStagingDestination(createAnimeScheduleOrderingState(board));
-    expect(seedDraftEntries(state, undefined)).toBe(state);
-    expect(seedDraftEntries(state, [])).toBe(state);
-  });
-
-  it('seeds into the staging container when the state declares no wildcard destination', () => {
-    const seeded = seedDraftEntries(createAnimeScheduleOrderingState(board), [{ draftId: '__draft__:1', name: 'New Anime' }]);
-
-    expect(seeded.order[ANIME_SCHEDULE_STAGING_CONTAINER_ID]).toEqual(['__draft__:1#0']);
-  });
-
-  it('never marks a seeded draft card as the origin anime', () => {
-    const seeded = seedDraftEntries(withStagingDestination(createAnimeScheduleOrderingState(board)), [
-      { draftId: '__draft__:1', name: 'New Anime' },
-    ]);
-
-    expect(seeded.instances['__draft__:1#0'].originHighlighted).toBe(false);
-  });
-
-  it('marks the matching instances as locked without touching others', () => {
+  it('locks the matching instances and is a no-op without locked ids', () => {
     const state = createAnimeScheduleOrderingState(board);
-    const locked = applyLockedAnimeIds(state, ['anime-1']);
 
-    expect(locked.instances['anime-1#0'].locked).toBe(true);
-  });
-
-  it('is a no-op when no locked ids are supplied (edit-mode regression)', () => {
-    const state = createAnimeScheduleOrderingState(board);
-    expect(applyLockedAnimeIds(state, undefined)).toBe(state);
-    expect(applyLockedAnimeIds(state, [])).toBe(state);
+    expect.soft(applyLockedAnimeIds(state, ['anime-1']).instances['anime-1#0'].locked, 'matching id').toBe(true);
+    // Edit-mode regression: no ids is a no-op.
+    expect.soft(applyLockedAnimeIds(state, undefined), 'undefined ids').toBe(state);
+    expect.soft(applyLockedAnimeIds(state, []), 'empty ids').toBe(state);
   });
 
   it('reconciles draft entries: seeds new rows, renames existing ones, and removes dropped rows', () => {
@@ -464,27 +432,20 @@ describe('anime-schedule-ordering.helpers', () => {
     expect(state.instances[state.order[ANIME_SCHEDULE_STAGING_CONTAINER_ID][0]].animeId).toBe('__draft__:2');
   });
 
-  it('is a no-op when nothing changed (regression against re-render loops)', () => {
-    const state = reconcileDraftEntries(withStagingDestination(createAnimeScheduleOrderingState(board)), [{ draftId: '__draft__:1', name: 'New anime' }]);
-    expect(reconcileDraftEntries(state, [{ draftId: '__draft__:1', name: 'New anime' }])).toBe(state);
-    expect(reconcileDraftEntries(state, undefined)).toBe(state);
-  });
-
-  // An empty list is not "every row was deleted": create mode clears the prop
-  // between renders, and treating that as a removal wiped the staged cards.
-  it('keeps the staged draft cards when the row list arrives empty', () => {
+  it('returns a reconciled state unchanged when nothing changed and renames without touching the order', () => {
     const state = reconcileDraftEntries(withStagingDestination(createAnimeScheduleOrderingState(board)), [{ draftId: '__draft__:1', name: 'New anime' }]);
 
-    expect(reconcileDraftEntries(state, [])).toBe(state);
-  });
-
-  it('renames a draft card without touching the board cards or the order map', () => {
-    const state = reconcileDraftEntries(withStagingDestination(createAnimeScheduleOrderingState(board)), [{ draftId: '__draft__:1', name: 'New anime' }]);
+    // Regression against re-render loops.
+    expect.soft(reconcileDraftEntries(state, [{ draftId: '__draft__:1', name: 'New anime' }]), 'same rows').toBe(state);
+    expect.soft(reconcileDraftEntries(state, undefined), 'undefined rows').toBe(state);
+    // An empty list is not "every row was deleted": create mode clears the prop
+    // between renders, and treating that as a removal wiped the staged cards.
+    expect.soft(reconcileDraftEntries(state, []), 'empty rows').toBe(state);
 
     const renamed = reconcileDraftEntries(state, [{ draftId: '__draft__:1', name: 'Renamed' }]);
 
-    expect(renamed.instances['__draft__:1#0'].name).toBe('Renamed');
-    expect(renamed.instances['anime-1#0'].name).toBe('Frieren');
-    expect(renamed.order).toBe(state.order);
+    expect.soft(renamed.instances['__draft__:1#0'].name, 'renamed draft card').toBe('Renamed');
+    expect.soft(renamed.instances['anime-1#0'].name, 'board card untouched').toBe('Frieren');
+    expect.soft(renamed.order, 'order map untouched').toBe(state.order);
   });
 });

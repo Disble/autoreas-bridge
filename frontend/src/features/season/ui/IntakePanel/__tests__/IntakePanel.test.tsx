@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../shared/contracts/season.types';
+import { METADATA_LOOKUP_DEBOUNCE_MS } from '../../../../../shared/metadata-lookup/metadata-lookup.constants';
 import {
   METADATA_LOOKUP_CANCEL_LABEL,
   METADATA_LOOKUP_CONFIRM_LABEL,
@@ -136,14 +137,16 @@ describe('IntakePanel', () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
-  it('renders editable rows with status chips in list mode', () => {
-    mockHook({ editableRows: [row({ matchStatus: 'ambiguous' })], unresolvedCount: 1 });
+  it('renders editable rows with status chips in list mode, without a search-failed suffix', () => {
+    mockHook({ editableRows: [row({ matchStatus: 'ambiguous' })], unresolvedCount: 1, searchFailedCount: 0 });
     render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     expect(screen.getByText('Dr. Stone')).toBeInTheDocument();
     expect(screen.getByText('Ambiguous')).toBeInTheDocument();
     expect(screen.getByText(/1 unresolved/)).toBeInTheDocument();
+    expect(screen.queryByText(/search failed/)).not.toBeInTheDocument();
   });
 
   it('surfaces a failed search as its own footer counter', () => {
@@ -151,13 +154,6 @@ describe('IntakePanel', () => {
     render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     expect(screen.getByText('Search failed')).toBeInTheDocument();
     expect(screen.getByText(/1 search failed/)).toBeInTheDocument();
-  });
-
-  it('hides the search-failed suffix while every search succeeded', () => {
-    mockHook({ editableRows: [row()], unresolvedCount: 1, searchFailedCount: 0 });
-    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
-    expect(screen.getByText(/1 unresolved/)).toBeInTheDocument();
-    expect(screen.queryByText(/search failed/)).not.toBeInTheDocument();
   });
 
   it('shows the raw textarea in raw mode', () => {
@@ -182,81 +178,54 @@ describe('IntakePanel', () => {
     expect(switchMode).toHaveBeenCalledExactlyOnceWith(other);
   });
 
-  it('shows an available row with its episode count and a create checkbox', () => {
-    mockHook({
-      editableRows: [row({ matchStatus: 'matched', matchedSlug: 'https://jkanime.net/x/', availability: 'available', availableEpisodes: 3 })],
+  it('shows a creatable row with episodes and folder preview, then opens its page and creates the pick', () => {
+    const hook = mockHook({
+      editableRows: [row({ matchStatus: 'matched', matchedSlug: 'https://jkanime.net/dr-stone/', availability: 'available', availableEpisodes: 3 })],
       availableCount: 1,
+      selected: new Set(['sa-1']),
+      folderPreviews: { 'sa-1': 'D:/Anime/Dr. Stone' },
     });
     render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     expect(screen.getByText('3 episodes available')).toBeInTheDocument();
     expect(screen.getByRole('checkbox')).toBeInTheDocument(); // creatable → checkbox
     expect(screen.getByText(/1 available to create/)).toBeInTheDocument();
-  });
 
-  it('creates the picked rows', () => {
-    const onCreate = vi.fn();
-    mockHook({
-      editableRows: [row({ matchStatus: 'matched', availability: 'available', availableEpisodes: 1 })],
-      availableCount: 1,
-      selected: new Set(['sa-1']),
-      onCreate,
-    });
-    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
+    // The folder trigger tooltip previews the default folder path.
+    fireEvent.keyDown(document.body, { key: 'Tab' });
+    act(() => screen.getByRole('button', { name: /^Set download folder for/ }).focus());
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Set download folderD:/Anime/Dr. Stone');
+
+    // The link button opens the matched page in the system browser.
+    fireEvent.click(screen.getByRole('button', { name: 'Open the page for Dr. Stone' }));
+    expect(hook.onOpenPage).toHaveBeenCalledWith('https://jkanime.net/dr-stone/');
+
     fireEvent.click(screen.getByRole('button', { name: 'Create 1' }));
-    expect(onCreate).toHaveBeenCalled();
+    expect(hook.onCreate).toHaveBeenCalled();
   });
 
-  it('shows a disabled checkbox for a not-yet-available row', () => {
-    mockHook({ editableRows: [row({ matchStatus: 'matched', availability: 'waiting' })], availabilityPendingCount: 1 });
+  it('shows a disabled checkbox for a not-yet-available row and triggers an availability check', () => {
+    const hook = mockHook({ editableRows: [row({ matchStatus: 'matched', availability: 'waiting' })], availabilityPendingCount: 1 });
     render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     // The checkbox is always shown for alignment, but disabled until available.
     expect(screen.getByRole('checkbox')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Check availability' })).toBeEnabled();
-  });
-
-  it('triggers an availability check from the intake list', () => {
-    const onRecheckAvailability = vi.fn();
-    mockHook({
-      editableRows: [row({ matchStatus: 'matched', availability: 'waiting' })],
-      availabilityPendingCount: 1,
-      onRecheckAvailability,
-    });
-    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     fireEvent.click(screen.getByRole('button', { name: 'Check availability' }));
-    expect(onRecheckAvailability).toHaveBeenCalled();
+    expect(hook.onRecheckAvailability).toHaveBeenCalled();
   });
 
-  it('shows the default folder path preview on the folder trigger', () => {
-    mockHook({
-      editableRows: [row({ matchStatus: 'matched', availability: 'available', availableEpisodes: 1 })],
-      folderPreviews: { 'sa-1': 'D:/Anime/Dr. Stone' },
-    });
+  it('fetches no detail page for a cancelled lookup, then discards the row from its menu', () => {
+    const metadataSource = createMetadataSource();
+    const hook = mockHook({ editableRows: [row()], metadataLookupSource: metadataSource });
     render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
 
-    fireEvent.keyDown(document.body, { key: 'Tab' });
-    act(() => screen.getByRole('button', { name: /^Set download folder for/ }).focus());
+    fireEvent.click(screen.getByRole('button', { name: METADATA_LOOKUP_TRIGGER_LABEL }));
+    fireEvent.click(screen.getByRole('button', { name: METADATA_LOOKUP_CANCEL_LABEL }));
+    expect(metadataSource.GetMyAnimeListDetail).not.toHaveBeenCalled();
+    expect(hook.onMetadataApplied).not.toHaveBeenCalled();
 
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Set download folderD:/Anime/Dr. Stone');
-  });
-
-  it('opens the matched page in the system browser from the link button', () => {
-    const onOpenPage = vi.fn();
-    mockHook({
-      editableRows: [row({ matchStatus: 'matched', matchedSlug: 'https://jkanime.net/dr-stone/', availability: 'available', availableEpisodes: 1 })],
-      onOpenPage,
-    });
-    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
-    fireEvent.click(screen.getByRole('button', { name: 'Open the page for Dr. Stone' }));
-    expect(onOpenPage).toHaveBeenCalledWith('https://jkanime.net/dr-stone/');
-  });
-
-  it('discards an editable row', () => {
-    const onDiscard = vi.fn();
-    mockHook({ editableRows: [row()], onDiscard });
-    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
     fireEvent.click(screen.getByRole('button', { name: 'More actions for Dr. Stone' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Discard' }));
-    expect(onDiscard).toHaveBeenCalledWith('sa-1');
+    expect(hook.onDiscard).toHaveBeenCalledWith('sa-1');
   });
 
   it('hides mutation controls in read-only mode', () => {
@@ -277,6 +246,9 @@ describe('IntakePanel', () => {
   });
 
   it('offers one lookup per row and attaches a confirmed result to that row only', async () => {
+    // A clock that still ticks with real time, so `findBy` keeps polling while
+    // the case jumps past the search debounce.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const metadataSource = createMetadataSource();
     const onMetadataApplied = vi.fn();
     mockHook({
@@ -291,6 +263,9 @@ describe('IntakePanel', () => {
 
     fireEvent.click(triggers[1]);
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'bleach' } });
+    act(() => {
+      vi.advanceTimersByTime(METADATA_LOOKUP_DEBOUNCE_MS);
+    });
     fireEvent.click(await screen.findByRole('button', { name: /Bleach/ }));
     fireEvent.click(screen.getByRole('button', { name: METADATA_LOOKUP_CONFIRM_LABEL }));
 
@@ -301,19 +276,6 @@ describe('IntakePanel', () => {
       );
     });
     expect(metadataSource.GetMyAnimeListDetail).toHaveBeenCalledExactlyOnceWith(2);
-  });
-
-  it('fetches no detail page for a lookup that is only opened and cancelled', () => {
-    const metadataSource = createMetadataSource();
-    const onMetadataApplied = vi.fn();
-    mockHook({ editableRows: [row()], metadataLookupSource: metadataSource, onMetadataApplied });
-    render(<IntakePanel />, { wrapper: seasonQueryWrapper() });
-
-    fireEvent.click(screen.getByRole('button', { name: METADATA_LOOKUP_TRIGGER_LABEL }));
-    fireEvent.click(screen.getByRole('button', { name: METADATA_LOOKUP_CANCEL_LABEL }));
-
-    expect(metadataSource.GetMyAnimeListDetail).not.toHaveBeenCalled();
-    expect(onMetadataApplied).not.toHaveBeenCalled();
   });
 
   it('wires the row menu Undo and Clear to the row that has metadata', () => {

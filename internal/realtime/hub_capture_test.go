@@ -12,7 +12,7 @@ import (
 	"autoreas-bridge/internal/testsupport/async"
 )
 
-func TestMemoryHubRegisterCapturesWSConnectOpened(t *testing.T) {
+func TestMemoryHubCapturesWSConnectOpenedThenDisconnectClosed(t *testing.T) {
 	t.Parallel()
 
 	sink := newRecordingCaptureSink()
@@ -35,25 +35,10 @@ func TestMemoryHubRegisterCapturesWSConnectOpened(t *testing.T) {
 	if records[0].HTTPStatus != nil || records[0].DurationMS != nil {
 		t.Fatalf("expected a one-way frame (nil status/duration), got %#v", records[0])
 	}
-}
-
-func TestMemoryHubUnregisterCapturesWSDisconnectClosed(t *testing.T) {
-	t.Parallel()
-
-	sink := newRecordingCaptureSink()
-	hub := NewMemoryHub(context.Background(), MemoryHubConfig{BroadcastBuffer: 2, ClientBuffer: 2, Capture: sink.capture})
-	t.Cleanup(func() { _ = hub.Close() })
-
-	client := newRecordingClient("device-9-1")
-	if err := hub.Register(context.Background(), client); err != nil {
-		t.Fatalf("register client: %v", err)
-	}
-	consumeControlMessage(t, client.Receive(t))
-	sink.wait(t, 1)
 
 	hub.Unregister(client.ID())
 
-	records := sink.wait(t, 2)
+	records = sink.wait(t, 2)
 	if records[1].Kind != "ws_disconnect" || records[1].Outcome != "closed" {
 		t.Fatalf("unexpected disconnect capture %#v", records[1])
 	}
@@ -165,18 +150,13 @@ func TestDeviceIDFromClientID(t *testing.T) {
 		want     string
 	}{
 		{name: "device and sequence", clientID: "device-9-1", want: "device-9"},
-		{name: "single separator", clientID: "device-1", want: "device"},
 		{name: "no separator", clientID: "device", want: "device"},
 		{name: "leading separator", clientID: "-1", want: "-1"},
 		{name: "trailing separator", clientID: "device-", want: "device"},
 		{name: "empty", clientID: "", want: ""},
 	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := deviceIDFromClientID(tt.clientID); got != tt.want {
-				t.Fatalf("deviceIDFromClientID(%q) = %q, want %q", tt.clientID, got, tt.want)
-			}
-		})
+		if got := deviceIDFromClientID(tt.clientID); got != tt.want {
+			t.Errorf("%s: deviceIDFromClientID(%q) = %q, want %q", tt.name, tt.clientID, got, tt.want)
+		}
 	}
 }

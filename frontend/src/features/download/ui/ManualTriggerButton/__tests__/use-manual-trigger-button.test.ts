@@ -14,14 +14,7 @@ function createSource(overrides: Partial<DownloadsSource> = {}): DownloadsSource
 }
 
 describe('useManualTriggerButton', () => {
-  it('starts in the "idle" status', () => {
-    const source = createSource();
-    const { result } = renderHook(() => useManualTriggerButton(source), { wrapper: createDownloadsWrapper().wrapper });
-
-    expect(result.current.viewModel.status).toBe('idle');
-  });
-
-  it('moves to "triggering" while the call is in flight, then "success"', async () => {
+  it('starts in the "idle" status, moves to "triggering" while the call is in flight, then "success"', async () => {
     let resolveTrigger: (value: undefined) => void = () => {};
     let pendingTrigger: Promise<void> | undefined;
     const source = createSource({
@@ -33,6 +26,8 @@ describe('useManualTriggerButton', () => {
       ),
     });
     const { result } = renderHook(() => useManualTriggerButton(source), { wrapper: createDownloadsWrapper().wrapper });
+
+    expect(result.current.viewModel.status).toBe('idle');
 
     act(() => {
       pendingTrigger = result.current.trigger();
@@ -73,17 +68,5 @@ describe('useManualTriggerButton', () => {
 
     expect(result.current.viewModel.status).toBe('error');
     expect(result.current.viewModel.errorMessage).toBe('download scheduler unavailable');
-  });
-
-  it('moves to "error" when triggerDownloadCheck rejects', async () => {
-    const source = createSource({ triggerDownloadCheck: vi.fn().mockRejectedValue(new Error('network down')) });
-    const { result } = renderHook(() => useManualTriggerButton(source), { wrapper: createDownloadsWrapper().wrapper });
-
-    await act(async () => {
-      await result.current.trigger();
-    });
-
-    expect(result.current.viewModel.status).toBe('error');
-    expect(result.current.viewModel.errorMessage).toBe('network down');
   });
 });

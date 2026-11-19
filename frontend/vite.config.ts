@@ -24,7 +24,10 @@ defineConfig(
     // the `dom` project — `src/infrastructure/**` stays out of these globs on
     // purpose because its helper suites touch `window`. A misfiled suite fails
     // loudly with `document is not defined`; move it out of these globs then.
+    // A DOM-free suite whose name fits no family below opts in by its name:
+    // `*.node.test.ts(x)`, anywhere under `src/`.
     const nodeTestInclude = [
+      'src/**/__tests__/*.node.test.{ts,tsx}',
       'src/features/**/__tests__/*.helpers.test.ts',
       'src/shared/**/__tests__/*.helpers.test.ts',
       'src/shared/store/**/__tests__/*.test.ts',
@@ -38,7 +41,6 @@ defineConfig(
       plugins: mode === 'test' ? [react()] : [tailwindcss(), react()],
       test: {
         environment: 'jsdom',
-        setupFiles: './src/test/setup.ts',
         forbidOnly: true,
         // Bounded file parallelism. This was `fileParallelism: false` because
         // the old pre-commit gate ran 14 jobs at once and left vitest no CPU to
@@ -88,6 +90,10 @@ defineConfig(
             test: {
               name: 'dom',
               environment: 'jsdom',
+              // Only DOM suites load the Testing Library setup. Set at the root,
+              // `extends: true` would hand it to the node project too, which
+              // spent 18.6s of setup on it to run 3s of pure tests.
+              setupFiles: './src/test/setup.ts',
               // Setting `exclude` replaces Vitest's defaults, so keep them.
               exclude: [
                 ...configDefaults.exclude,

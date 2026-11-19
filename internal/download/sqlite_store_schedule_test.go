@@ -5,11 +5,18 @@ import (
 	"testing"
 )
 
-func TestSQLiteStoreScheduleConfigRoundTrips(t *testing.T) {
+// TestSQLiteStoreScheduleConfigDefaultsDisabledThenRoundTripsFieldsAndMasks
+// reads the disabled default of a never-set config, round-trips every
+// settlement and missed-attempt field and the MarkScheduleRun facts, then an
+// arbitrary and an empty weekday mask.
+func TestSQLiteStoreScheduleConfigDefaultsDisabledThenRoundTripsFieldsAndMasks(t *testing.T) {
 	t.Parallel()
 	db := openTestBridgeDB(t)
 	store := NewSQLiteStore(db)
 	ctx := context.Background()
+
+	assertScheduleConfigDefaultsDisabled(t, store)
+
 	cfg := ScheduleConfig{
 		Mode:                    "in_process",
 		DailyTimeHHMM:           "03:30",
@@ -45,21 +52,43 @@ func TestSQLiteStoreScheduleConfigRoundTrips(t *testing.T) {
 	if got.LastRunAtMs != 1000 || got.LastRunStatus != "ok" || got.NextRunAtMs != 2000 {
 		t.Fatalf("expected MarkScheduleRun fields to persist, got %#v", got)
 	}
+	const mask byte = (1 << 4) | (1 << 5) | (1 << 6) | (1 << 0)
+	assertEnabledWeekdaysRoundTrip(t, store, mask)
+	assertEnabledWeekdaysRoundTrip(t, store, 0)
 }
 
-func TestSQLiteStoreGetScheduleConfigReturnsDisabledDefaultWhenNeverSet(t *testing.T) {
-	t.Parallel()
-	db := openTestBridgeDB(t)
-	store := NewSQLiteStore(db)
-	got, err := store.GetScheduleConfig(context.Background())
+// assertScheduleConfigDefaultsDisabled reads a never-set config as disabled
+// on every weekday, with empty settlement and missed-attempt fields.
+func assertScheduleConfigDefaultsDisabled(t *testing.T, store *SQLiteStore) {
+	t.Helper()
+
+	def, err := store.GetScheduleConfig(context.Background())
 	if err != nil {
 		t.Fatalf("GetScheduleConfig: %v", err)
 	}
-	if got.Enabled || got.EnabledWeekdays != 127 {
-		t.Fatalf("unexpected default schedule config: %#v", got)
+	if def.Enabled || def.EnabledWeekdays != 127 {
+		t.Fatalf("unexpected default schedule config: %#v", def)
 	}
-	if got.LastSettledLocalDate != "" || got.LastSettlementReason != "" || got.LastMissedAttemptDate != "" || got.LastMissedAttemptStatus != "" {
-		t.Fatalf("expected additive columns to default empty, got %#v", got)
+	if def.LastSettledLocalDate != "" || def.LastSettlementReason != "" || def.LastMissedAttemptDate != "" || def.LastMissedAttemptStatus != "" {
+		t.Fatalf("expected additive columns to default empty, got %#v", def)
+	}
+}
+
+// assertEnabledWeekdaysRoundTrip saves an enabled config with mask and reads
+// the same mask back, an empty mask included.
+func assertEnabledWeekdaysRoundTrip(t *testing.T, store *SQLiteStore, mask byte) {
+	t.Helper()
+	ctx := context.Background()
+
+	if err := store.SetScheduleConfig(ctx, ScheduleConfig{Mode: "in_process", DailyTimeHHMM: "09:00", Enabled: true, EnabledWeekdays: mask}); err != nil {
+		t.Fatalf("SetScheduleConfig: %v", err)
+	}
+	got, err := store.GetScheduleConfig(ctx)
+	if err != nil {
+		t.Fatalf("GetScheduleConfig: %v", err)
+	}
+	if got.EnabledWeekdays != mask {
+		t.Fatalf("expected EnabledWeekdays = %d, got %d", mask, got.EnabledWeekdays)
 	}
 }
 
@@ -80,41 +109,6 @@ func TestSQLiteStoreGetScheduleConfigDefaultsEnabledWeekdaysTo127WhenColumnIsNul
 	}
 	if got.EnabledWeekdays != 127 {
 		t.Fatalf("expected EnabledWeekdays = 127 for a NULL column, got %d", got.EnabledWeekdays)
-	}
-}
-
-func TestSQLiteStoreScheduleConfigEnabledWeekdaysRoundTripsArbitraryMask(t *testing.T) {
-	t.Parallel()
-	db := openTestBridgeDB(t)
-	store := NewSQLiteStore(db)
-	ctx := context.Background()
-	const mask byte = (1 << 4) | (1 << 5) | (1 << 6) | (1 << 0)
-	if err := store.SetScheduleConfig(ctx, ScheduleConfig{Mode: "in_process", DailyTimeHHMM: "09:00", Enabled: true, EnabledWeekdays: mask}); err != nil {
-		t.Fatalf("SetScheduleConfig: %v", err)
-	}
-	got, err := store.GetScheduleConfig(ctx)
-	if err != nil {
-		t.Fatalf("GetScheduleConfig: %v", err)
-	}
-	if got.EnabledWeekdays != mask {
-		t.Fatalf("expected EnabledWeekdays = %d, got %d", mask, got.EnabledWeekdays)
-	}
-}
-
-func TestSQLiteStoreScheduleConfigEnabledWeekdaysRoundTripsEmptyMask(t *testing.T) {
-	t.Parallel()
-	db := openTestBridgeDB(t)
-	store := NewSQLiteStore(db)
-	ctx := context.Background()
-	if err := store.SetScheduleConfig(ctx, ScheduleConfig{Mode: "in_process", DailyTimeHHMM: "09:00", Enabled: true, EnabledWeekdays: 0}); err != nil {
-		t.Fatalf("SetScheduleConfig: %v", err)
-	}
-	got, err := store.GetScheduleConfig(ctx)
-	if err != nil {
-		t.Fatalf("GetScheduleConfig: %v", err)
-	}
-	if got.EnabledWeekdays != 0 {
-		t.Fatalf("expected EnabledWeekdays = 0 (explicit empty mask), got %d", got.EnabledWeekdays)
 	}
 }
 

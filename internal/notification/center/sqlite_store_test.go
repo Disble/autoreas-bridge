@@ -167,45 +167,6 @@ func TestPruneRunsOnFirstWriteOfNewProcessRegardlessOfCadence(t *testing.T) {
 	}
 }
 
-// TestUnreadRowsAreNotPinnedDuringPrune asserts unread rows are not protected
-// from pruning.
-func TestUnreadRowsAreNotPinnedDuringPrune(t *testing.T) {
-	t.Parallel()
-
-	db := openBootstrappedTestDB(t)
-	seedNotificationRecords(t, db, 3, 1) // every seeded row is unread by construction
-	store := NewStore(db, StoreConfig{RowCap: 3, PruneEvery: 1})
-
-	if _, err := store.InsertRecord(context.Background(), Record{CreatedAtMS: 4, Title: "t", Body: "b", Level: "info", Source: "seed"}); err != nil {
-		t.Fatalf("insert record: %v", err)
-	}
-
-	if notificationRecordExistsAt(t, db, 1) {
-		t.Fatal("expected the oldest unread row to be pruned; unread rows are not protected")
-	}
-}
-
-// TestArchivedRowsAreNotPinnedDuringPrune asserts archived rows are not
-// protected from pruning.
-func TestArchivedRowsAreNotPinnedDuringPrune(t *testing.T) {
-	t.Parallel()
-
-	db := openBootstrappedTestDB(t)
-	seedNotificationRecords(t, db, 3, 1)
-	if _, err := db.Exec(`UPDATE notification_records SET archived_at_ms = 999 WHERE created_at_ms = 1`); err != nil {
-		t.Fatalf("archive oldest row: %v", err)
-	}
-	store := NewStore(db, StoreConfig{RowCap: 3, PruneEvery: 1})
-
-	if _, err := store.InsertRecord(context.Background(), Record{CreatedAtMS: 4, Title: "t", Body: "b", Level: "info", Source: "seed"}); err != nil {
-		t.Fatalf("insert record: %v", err)
-	}
-
-	if notificationRecordExistsAt(t, db, 1) {
-		t.Fatal("expected the oldest archived row to be pruned; archived rows are not protected")
-	}
-}
-
 // TestNoRowPrunedOnAgeAloneBelowCap asserts a row far older than any
 // freshness window survives when the table is under its row cap.
 func TestNoRowPrunedOnAgeAloneBelowCap(t *testing.T) {
@@ -257,5 +218,33 @@ func TestPruneDeletesActionsBeforeRecordsNoOrphans(t *testing.T) {
 	}
 	if actionCount != 0 {
 		t.Fatalf("expected the pruned record's actions to be gone, got %d orphaned rows", actionCount)
+	}
+}
+
+// TestArchivedAndUnreadRowsAreNotPinnedDuringPrune drives one capped store:
+// the oldest row is archived and pruned by the next insert, then the oldest
+// remaining row, unread by construction, is pruned by the insert after it.
+func TestArchivedAndUnreadRowsAreNotPinnedDuringPrune(t *testing.T) {
+	t.Parallel()
+
+	db := openBootstrappedTestDB(t)
+	seedNotificationRecords(t, db, 3, 1) // every seeded row is unread by construction
+	if _, err := db.Exec(`UPDATE notification_records SET archived_at_ms = 999 WHERE created_at_ms = 1`); err != nil {
+		t.Fatalf("archive oldest row: %v", err)
+	}
+	store := NewStore(db, StoreConfig{RowCap: 3, PruneEvery: 1})
+
+	if _, err := store.InsertRecord(context.Background(), Record{CreatedAtMS: 4, Title: "t", Body: "b", Level: "info", Source: "seed"}); err != nil {
+		t.Fatalf("insert record: %v", err)
+	}
+	if notificationRecordExistsAt(t, db, 1) {
+		t.Fatal("expected the oldest archived row to be pruned; archived rows are not protected")
+	}
+
+	if _, err := store.InsertRecord(context.Background(), Record{CreatedAtMS: 5, Title: "t", Body: "b", Level: "info", Source: "seed"}); err != nil {
+		t.Fatalf("insert record: %v", err)
+	}
+	if notificationRecordExistsAt(t, db, 2) {
+		t.Fatal("expected the oldest unread row to be pruned; unread rows are not protected")
 	}
 }

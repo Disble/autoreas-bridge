@@ -37,7 +37,16 @@ func storePendingArrival(t *testing.T, store *SQLiteStore, id string, capturedAt
 	}
 }
 
-func TestSweepOrphanedCapturesMarksPendingArrivalAbandoned(t *testing.T) {
+func TestSweepOrphanedCapturesRejectsNilDB(t *testing.T) {
+	if _, err := SweepOrphanedCaptures(context.Background(), nil); err == nil {
+		t.Fatal("expected a nil database handle to be rejected")
+	}
+}
+
+// TestSweepOrphanedCapturesAbandonsOnlyPendingArrivalsOnce drives one store:
+// the sweep marks every pending arrival abandoned, oldest first, leaves a
+// terminal row untouched, and a second sweep finds nothing.
+func TestSweepOrphanedCapturesAbandonsOnlyPendingArrivalsOnce(t *testing.T) {
 	db := openCaptureTestDB(t)
 	store := NewStore(db)
 	reconcile := BuildTransportCaptureRecord("req-orphan", 1_700_000_000_500, "reconcile", "/api/sync/reconcile", "http")
@@ -46,35 +55,6 @@ func TestSweepOrphanedCapturesMarksPendingArrivalAbandoned(t *testing.T) {
 		t.Fatalf("store pending reconcile arrival: %v", err)
 	}
 	storePendingArrival(t, store, "req-older", 1_700_000_000_000)
-
-	swept, err := SweepOrphanedCaptures(context.Background(), db)
-	if err != nil {
-		t.Fatalf("sweep orphaned captures: %v", err)
-	}
-
-	// Oldest first, each naming the request a previous process never finished.
-	want := []SweptCapture{
-		{RequestID: "req-older", Route: "/api/seasons/active", Kind: "get", CapturedAtMS: 1_700_000_000_000},
-		{RequestID: "req-orphan", Route: "/api/sync/reconcile", Kind: "reconcile", CapturedAtMS: 1_700_000_000_500, ClientRequestID: "cycle-1:2"},
-	}
-	if !reflect.DeepEqual(swept, want) {
-		t.Fatalf("expected swept captures %#v, got %#v", want, swept)
-	}
-	outcome, status, duration := readOutcomeRow(t, db, "req-orphan")
-	if outcome != OutcomeAbandoned {
-		t.Fatalf("expected swept orphan outcome %q, got %q", OutcomeAbandoned, outcome)
-	}
-	if status.Valid {
-		t.Fatalf("expected swept orphan to keep a NULL http_status, got %#v", status)
-	}
-	if duration.Valid {
-		t.Fatalf("expected swept orphan to keep a NULL duration_ms, got %#v", duration)
-	}
-}
-
-func TestSweepOrphanedCapturesLeavesTerminalRowsUntouched(t *testing.T) {
-	db := openCaptureTestDB(t)
-	store := NewStore(db)
 	status := 404
 	duration := int64(7)
 	terminal := BuildTransportCaptureRecord("req-terminal", 1_700_000_000_000, "get", "/api/seasons/active", "http")
@@ -90,8 +70,23 @@ func TestSweepOrphanedCapturesLeavesTerminalRowsUntouched(t *testing.T) {
 		t.Fatalf("sweep orphaned captures: %v", err)
 	}
 
-	if len(swept) != 0 {
-		t.Fatalf("expected no swept orphans, got %#v", swept)
+	// Oldest first, each naming the request a previous process never finished.
+	want := []SweptCapture{
+		{RequestID: "req-older", Route: "/api/seasons/active", Kind: "get", CapturedAtMS: 1_700_000_000_000},
+		{RequestID: "req-orphan", Route: "/api/sync/reconcile", Kind: "reconcile", CapturedAtMS: 1_700_000_000_500, ClientRequestID: "cycle-1:2"},
+	}
+	if !reflect.DeepEqual(swept, want) {
+		t.Fatalf("expected swept captures %#v, got %#v", want, swept)
+	}
+	outcome, orphanStatus, orphanDuration := readOutcomeRow(t, db, "req-orphan")
+	if outcome != OutcomeAbandoned {
+		t.Fatalf("expected swept orphan outcome %q, got %q", OutcomeAbandoned, outcome)
+	}
+	if orphanStatus.Valid {
+		t.Fatalf("expected swept orphan to keep a NULL http_status, got %#v", orphanStatus)
+	}
+	if orphanDuration.Valid {
+		t.Fatalf("expected swept orphan to keep a NULL duration_ms, got %#v", orphanDuration)
 	}
 	gotOutcome, gotStatus, gotDuration := readOutcomeRow(t, db, "req-terminal")
 	if gotOutcome != "completed" {
@@ -103,28 +98,12 @@ func TestSweepOrphanedCapturesLeavesTerminalRowsUntouched(t *testing.T) {
 	if !gotDuration.Valid || gotDuration.Int64 != 7 {
 		t.Fatalf("expected terminal duration_ms 7 preserved, got %#v", gotDuration)
 	}
-}
 
-func TestSweepOrphanedCapturesIsIdempotent(t *testing.T) {
-	db := openCaptureTestDB(t)
-	store := NewStore(db)
-	storePendingArrival(t, store, "req-orphan", 1_700_000_000_000)
-
-	if _, err := SweepOrphanedCaptures(context.Background(), db); err != nil {
-		t.Fatalf("first sweep: %v", err)
-	}
-	swept, err := SweepOrphanedCaptures(context.Background(), db)
+	again, err := SweepOrphanedCaptures(context.Background(), db)
 	if err != nil {
 		t.Fatalf("second sweep: %v", err)
 	}
-
-	if len(swept) != 0 {
-		t.Fatalf("expected the second sweep to find nothing, got %#v", swept)
-	}
-}
-
-func TestSweepOrphanedCapturesRejectsNilDB(t *testing.T) {
-	if _, err := SweepOrphanedCaptures(context.Background(), nil); err == nil {
-		t.Fatal("expected a nil database handle to be rejected")
+	if len(again) != 0 {
+		t.Fatalf("expected the second sweep to find nothing, got %#v", again)
 	}
 }

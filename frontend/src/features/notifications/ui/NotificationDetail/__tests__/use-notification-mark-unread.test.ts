@@ -20,15 +20,12 @@ function buildPendingMarkUnreadSource(): NotificationCenterSource {
 }
 
 describe('useNotificationMarkUnread', () => {
-  it('starts enabled, with nothing marked unread yet', () => {
-    const { result } = renderHook(() => useNotificationMarkUnread(7, buildMarkUnreadSource()), { wrapper: notificationsQueryWrapper().wrapper });
+  it('marks its record unread, reports it, and re-enables for a second real press', async () => {
+    const source = buildMarkUnreadSource();
+    const onReadStateChanged = vi.fn();
+    const { result } = renderHook(() => useNotificationMarkUnread(7, source, onReadStateChanged), { wrapper: notificationsQueryWrapper().wrapper });
 
     expect(result.current.isDisabled).toBe(false);
-  });
-
-  it('marks exactly the record it was given unread, as the single-id batch the binding takes', async () => {
-    const source = buildMarkUnreadSource();
-    const { result } = renderHook(() => useNotificationMarkUnread(7, source), { wrapper: notificationsQueryWrapper().wrapper });
 
     act(() => {
       result.current.markUnread();
@@ -37,23 +34,34 @@ describe('useNotificationMarkUnread', () => {
     await waitFor(() => {
       expect(source.markUnread).toHaveBeenCalledWith([7]);
     });
-  });
+    // The badge climbed from the first version of this hook, but the row beside
+    // the pane kept rendering as read -- the button moved a number and left the
+    // list telling the opposite story.
+    await waitFor(() => expect(onReadStateChanged).toHaveBeenCalledWith([7], false));
+    // Unlike archive, this button does NOT latch down once it settles. A record
+    // that is already unread is put unread again to exactly the same state, and
+    // re-opening the pane's record marks it read behind the button -- a latched
+    // button would then be a control claiming there is nothing left to do about
+    // a record that is, once again, read.
+    await waitFor(() => {
+      expect(result.current.isDisabled).toBe(false);
+    });
 
-  it('disables itself while the press is in flight, before the backend has answered', () => {
-    const { result } = renderHook(() => useNotificationMarkUnread(7, buildPendingMarkUnreadSource()), { wrapper: notificationsQueryWrapper().wrapper });
-
+    // Re-enabling is worth nothing if the press it invites is swallowed: the
+    // in-flight ref has to be released too, and `isDisabled` alone cannot prove
+    // that it was.
     act(() => {
       result.current.markUnread();
     });
 
-    expect(result.current.isDisabled).toBe(true);
+    await waitFor(() => expect(source.markUnread).toHaveBeenCalledTimes(2));
   });
 
   // Two synchronous presses in the same event both read the same stale
   // `isDisabled` before React re-renders, so the in-flight guard has to be a
   // ref rather than the state alone -- the same guard `useNotificationArchive`
   // carries, for the same reason.
-  it('never issues a second mark-unread for a press that lands while the first is still in flight', async () => {
+  it('disables while in flight and ignores a second press meanwhile', async () => {
     const source = buildPendingMarkUnreadSource();
     const { result } = renderHook(() => useNotificationMarkUnread(7, source), { wrapper: notificationsQueryWrapper().wrapper });
 
@@ -62,46 +70,9 @@ describe('useNotificationMarkUnread', () => {
       result.current.markUnread();
     });
 
+    expect(result.current.isDisabled).toBe(true);
     await waitFor(() => expect(source.markUnread).toHaveBeenCalledTimes(1));
     expect(result.current.isDisabled).toBe(true);
-  });
-
-  // Unlike archive, this button does NOT latch down once it settles. A record
-  // that is already unread is put unread again to exactly the same state, and
-  // re-opening the pane's record marks it read behind the button -- a latched
-  // button would then be a control claiming there is nothing left to do about
-  // a record that is, once again, read.
-  it('comes back enabled once the mutation settles, because the verb is idempotent', async () => {
-    const source = buildMarkUnreadSource();
-    const { result } = renderHook(() => useNotificationMarkUnread(7, source), { wrapper: notificationsQueryWrapper().wrapper });
-
-    act(() => {
-      result.current.markUnread();
-    });
-
-    await waitFor(() => {
-      expect(result.current.isDisabled).toBe(false);
-    });
-  });
-
-  // Re-enabling is worth nothing if the press it invites is swallowed: the
-  // in-flight ref has to be released too, and `isDisabled` alone cannot prove
-  // that it was.
-  it('really issues a second mark-unread when a press follows a settled one', async () => {
-    const source = buildMarkUnreadSource();
-    const { result } = renderHook(() => useNotificationMarkUnread(7, source), { wrapper: notificationsQueryWrapper().wrapper });
-
-    act(() => {
-      result.current.markUnread();
-    });
-    await waitFor(() => {
-      expect(result.current.isDisabled).toBe(false);
-    });
-    act(() => {
-      result.current.markUnread();
-    });
-
-    await waitFor(() => expect(source.markUnread).toHaveBeenCalledTimes(2));
   });
 
   // The pane does not remount between records: pressing another row swaps
@@ -119,20 +90,6 @@ describe('useNotificationMarkUnread', () => {
     await waitFor(() => {
       expect(source.markUnread).toHaveBeenCalledWith([9]);
     });
-  });
-
-  // The badge climbed from the first version of this hook, but the row beside
-  // the pane kept rendering as read -- the button moved a number and left the
-  // list telling the opposite story.
-  it('reports the record it just put back to unread, so the master-list row regains its dot', async () => {
-    const onReadStateChanged = vi.fn();
-    const { result } = renderHook(() => useNotificationMarkUnread(7, buildMarkUnreadSource(), onReadStateChanged), { wrapper: notificationsQueryWrapper().wrapper });
-
-    act(() => {
-      result.current.markUnread();
-    });
-
-    await waitFor(() => expect(onReadStateChanged).toHaveBeenCalledWith([7], false));
   });
 
   it('reports nothing when the mutation failed, rather than showing a dot for a record still marked read', async () => {

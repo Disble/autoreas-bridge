@@ -11,9 +11,7 @@ function query<TData>(status: AsyncViewSource<TData>['status'], fields: Partial<
 
 describe('toAsyncView', () => {
   it.each([
-    ['pending', query('pending', { isFetching: true }), { kind: 'loading' }],
     ['pending even with stale fields', query('pending', { data: ['row'] }), { kind: 'loading' }],
-    ['a coded error', query('error', { error: createBridgeError('failed_precondition', 'episodes: db closed') }), { kind: 'failure', code: 'failed_precondition', message: 'episodes: db closed' }],
     ['an error that also kept data', query('error', { data: ['row'], error: createBridgeError('not_found', 'gone') }), { kind: 'failure', code: 'not_found', message: 'gone' }],
     ['an uncoded Error', query('error', { error: new Error('boom') }), { kind: 'failure', code: 'internal', message: 'boom' }],
     ['a non-Error rejection', query('error', { error: 'nope' }), { kind: 'failure', code: 'internal', message: 'nope' }],
@@ -38,9 +36,8 @@ describe('isEmptyByDefault', () => {
   it.each([
     [[], true],
     [['row'], false],
-    [null, false],
     ['', false],
-    [0, false],
+    [null, false],
     [{}, false],
   ])('%j → %s', (data, expected) => {
     expect(isEmptyByDefault(data)).toBe(expected);

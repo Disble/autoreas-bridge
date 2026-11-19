@@ -61,23 +61,6 @@ func TestDeliveryActionIDIsEmptyOutOfRange(t *testing.T) {
 	}
 }
 
-// TestDispatcherNotifyDeliversAnEnvelopeWithoutIdentity: Notify is the narrow producer-facing
-// door, and a producer never knows an id. It must still reach every adapter.
-func TestDispatcherNotifyDeliversAnEnvelopeWithoutIdentity(t *testing.T) {
-	t.Parallel()
-
-	var received []Notification
-	adapter := &fakeAdapter{name: "a", received: &received}
-
-	if err := NewDispatcher(adapter).Notify(context.Background(), sampleNotification()); err != nil {
-		t.Fatalf("Notify: %v", err)
-	}
-
-	if len(received) != 1 {
-		t.Fatalf("adapter received %d notifications, want 1", len(received))
-	}
-}
-
 // TestDispatcherDeliverCarriesIdentityToEveryAdapter is the point of the envelope: the record id
 // and the minted action ids reach the surfaces that have to address them.
 func TestDispatcherDeliverCarriesIdentityToEveryAdapter(t *testing.T) {

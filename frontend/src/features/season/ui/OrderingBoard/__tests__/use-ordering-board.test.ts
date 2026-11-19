@@ -4,8 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { OrderingBoard, SeasonOrderingSnapshot, SeasonSource } from '../../../../../shared/contracts/season.types';
 import { createBridgeError } from '../../../../../shared/query/bridge-error/bridge-error.helpers';
 import { resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
-import { ORDERING_AUTOSAVE_DEBOUNCE_MS, ORDERING_DUPLICATE_WEEKDAY_ERROR, ORDERING_HISTORY_LOAD_ERROR } from '../ordering-board.constants';
-import { card, createSource, dragOverEvent, renderOrderingBoard, snapshot, waitPastAutosave } from './ordering-board.test-support';
+import { ORDERING_DUPLICATE_WEEKDAY_ERROR, ORDERING_HISTORY_LOAD_ERROR } from '../ordering-board.constants';
+import { card, createSource, dragOverEvent, installAutosaveClock, renderOrderingBoard, snapshot, waitPastAutosave } from './ordering-board.test-support';
 
 describe('useOrderingBoard', () => {
   afterEach(() => {
@@ -131,7 +131,7 @@ describe('useOrderingBoard', () => {
     expect([result.current.historicalRecorded, result.current.isLiveLoading]).toEqual([true, false]);
   });
 
-  it('duplicate stages a rail copy and removeCard keeps the last card (min-one)', async () => {
+  it('duplicates and removes keeping the last card, then saves the draft and applies the schedule', async () => {
     const source = createSource({ rail: [], grid: [card({ animeId: 'g', dia: 'Lunes', orden: 1 })] });
     const { result } = renderOrderingBoard(source);
     await waitFor(() => expect(result.current.columns['Lunes']).toHaveLength(1));
@@ -147,6 +147,12 @@ describe('useOrderingBoard', () => {
     const lunesKey = result.current.columns['Lunes'][0].key;
     act(() => result.current.removeCard(lunesKey)); // blocked: last card
     expect(result.current.columns['Lunes']).toHaveLength(1);
+
+    await act(async () => {
+      await result.current.onApply();
+    });
+    expect(source.saveOrderingDraft).toHaveBeenCalled();
+    expect(source.applySchedule).toHaveBeenCalled();
   });
 
   it('duplicate stages repeated pending rail copies from an approved rail card', async () => {
@@ -195,24 +201,8 @@ describe('useOrderingBoard', () => {
     expect(result.current.counts['g']).toBe(3);
   });
 
-  it('skips autosave when the working state already contains a duplicate weekday placement', async () => {
-    const source = createSource({
-      rail: [],
-      grid: [card({ animeId: 'g', dia: 'Lunes', orden: 1 }), card({ animeId: 'g', dia: 'Lunes', orden: 2 })],
-    });
-    const { result } = renderOrderingBoard(source);
-
-    await waitFor(() => expect(result.current.columns['Lunes']).toHaveLength(2));
-    vi.mocked(source.saveOrderingDraft).mockClear();
-
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, ORDERING_AUTOSAVE_DEBOUNCE_MS + 50));
-    });
-
-    expect(source.saveOrderingDraft).not.toHaveBeenCalled();
-  });
-
-  it('blocks apply when the working state contains a duplicate weekday placement', async () => {
+  it('blocks apply and skips autosave while a weekday holds the same anime twice', async () => {
+    installAutosaveClock();
     const source = createSource({
       rail: [],
       grid: [card({ animeId: 'g', dia: 'Lunes', orden: 1 }), card({ animeId: 'g', dia: 'Lunes', orden: 2 })],
@@ -224,9 +214,13 @@ describe('useOrderingBoard', () => {
     await act(async () => {
       await expect(result.current.onApply()).resolves.toEqual({ status: ORDERING_DUPLICATE_WEEKDAY_ERROR, applied: 0, failed: [] });
     });
-
     expect(source.saveOrderingDraft).not.toHaveBeenCalled();
     expect(source.applySchedule).not.toHaveBeenCalled();
+
+    act(() => result.current.duplicate('g'));
+    expect(result.current.rail).toHaveLength(1);
+    await waitPastAutosave();
+    expect(source.saveOrderingDraft).not.toHaveBeenCalled();
   });
 
   it('cancels forbidden same-anime weekday hover before projected move state is applied', async () => {
@@ -243,38 +237,13 @@ describe('useOrderingBoard', () => {
     expect(railDuplicateKey).toBeDefined();
     expect(juevesKey).toBeDefined();
 
-    act(() => result.current.onDragOver(dragOverEvent(railDuplicateKey!, juevesKey!)));
+    const event = dragOverEvent(railDuplicateKey!, juevesKey!);
+    act(() => result.current.onDragOver(event));
 
+    expect(event.preventDefault).toHaveBeenCalledTimes(1);
     expect(result.current.rail.some((instance) => instance.key === railDuplicateKey)).toBe(true);
     expect(result.current.columns['Jueves'].map((instance) => instance.animeId)).toEqual(['g']);
     expect(result.current.hasInvalidWeekdayPlacements).toBe(false);
-  });
-
-  it('keeps valid dragover behavior for allowed targets', async () => {
-    const source = createSource({ rail: [card({ animeId: 'g', section: 'Visto', orden: 2 })], grid: [card({ animeId: 'other', dia: 'Jueves', orden: 1 })] });
-    const { result } = renderOrderingBoard(source);
-
-    await waitFor(() => expect(result.current.rail).toHaveLength(1));
-
-    const railSourceKey = result.current.rail[0].key;
-    const juevesKey = result.current.columns['Jueves'][0].key;
-
-    act(() => result.current.onDragOver(dragOverEvent(railSourceKey, juevesKey)));
-
-    expect(result.current.rail).toHaveLength(0);
-    expect(result.current.columns['Jueves'].map((instance) => instance.animeId)).toEqual(['g', 'other']);
-  });
-
-  it('onApply saves the serialized draft then applies the schedule', async () => {
-    const source = createSource({ rail: [], grid: [card({ animeId: 'g', dia: 'Lunes', orden: 1 })] });
-    const { result } = renderOrderingBoard(source);
-    await waitFor(() => expect(result.current.columns['Lunes']).toHaveLength(1));
-
-    await act(async () => {
-      await result.current.onApply();
-    });
-    expect(source.saveOrderingDraft).toHaveBeenCalled();
-    expect(source.applySchedule).toHaveBeenCalled();
   });
 
   it('shows a rejected apply on the season banner and still reloads the board', async () => {
@@ -307,12 +276,6 @@ describe('useOrderingBoard', () => {
     expect(result.current.errorMessage).toBeUndefined();
   });
 
-  it('marks an already-applied board read-only', async () => {
-    const source = createSource({ rail: [], grid: [], appliedAt: 1_700_000_000_000 });
-    const { result } = renderOrderingBoard(source);
-    await waitFor(() => expect(result.current.readOnly).toBe(true));
-  });
-
   it('keeps the board editable when appliedAt is null', async () => {
     const source = createSource({ rail: [], grid: [], appliedAt: null as unknown as number });
     const { result } = renderOrderingBoard(source);
@@ -322,6 +285,7 @@ describe('useOrderingBoard', () => {
   });
 
   it('reopens an applied board when reload returns appliedAt null', async () => {
+    installAutosaveClock();
     const source = createSource(
       { rail: [], grid: [], appliedAt: 1_700_000_000_000 },
       {
@@ -492,10 +456,12 @@ describe('useOrderingBoard', () => {
 describe('useOrderingBoard reopen', () => {
   afterEach(() => {
     resetSeasonStore();
+    vi.useRealTimers();
     vi.clearAllMocks();
   });
 
   it('never autosaves after reopen when an edit landed during the apply reload', async () => {
+    installAutosaveClock();
     const open: OrderingBoard = { rail: [card({ animeId: 'g', section: 'Visto' })], grid: [] };
     const applied: OrderingBoard = { ...open, appliedAt: 1_700_000_000_000 };
     let resolveApplyReload: (board: OrderingBoard) => void = () => undefined;

@@ -20,25 +20,16 @@ const PICKER_CALLS = [
 describe('picker-source', () => {
   useIsolatedWailsRuntime();
 
-  it.each(PICKER_CALLS)('%s passes the title and resolves the chosen path', async (method, binding) => {
-    const call = vi.fn().mockResolvedValue('F:/Chosen');
+  it.each(PICKER_CALLS)('%s passes the title and resolves the chosen path, "" on a cancel, and rejects a failed dialog with its code, never as a cancel', async (method, binding) => {
+    const call = vi.fn()
+      .mockResolvedValueOnce('F:/Chosen')
+      .mockResolvedValueOnce('')
+      .mockRejectedValueOnce(new Error('{"code":"internal","message":"open dialog: crashed"}'));
     window.go = { desktop: { App: { [binding]: call } } } as never;
 
     await expect(callPicker(method)).resolves.toBe('F:/Chosen');
     expect(call).toHaveBeenCalledExactlyOnceWith('Choose');
-  });
-
-  it.each(PICKER_CALLS)('%s resolves "" when the user cancels', async (method, binding) => {
-    window.go = { desktop: { App: { [binding]: vi.fn().mockResolvedValue('') } } } as never;
-
     await expect(callPicker(method)).resolves.toBe('');
-  });
-
-  it.each(PICKER_CALLS)('%s rejects a failed dialog with its code and plain message, never a cancel', async (method, binding) => {
-    window.go = {
-      desktop: { App: { [binding]: vi.fn().mockRejectedValue(new Error('{"code":"internal","message":"open dialog: crashed"}')) } },
-    } as never;
-
     await expect(callPicker(method)).rejects.toMatchObject({ name: 'BridgeError', code: 'internal', message: 'open dialog: crashed' });
   });
 

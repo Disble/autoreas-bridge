@@ -53,17 +53,21 @@ const ROWS: readonly SelectionRow[] = [
 const ids = (rows: readonly SelectionRow[]) => rows.map((entry) => entry.id);
 
 describe('filterSelectionRows', () => {
-  it.each([
-    ['no criteria keeps every row', criteria(), ['a1', 'a2', 'a3', 'a4', 'r1', 'r2', 'r3']],
-    ['grades OR together', criteria({ grades: ['6', '1'] }), ['a1', 'r2']],
-    ['the ungraded grade filters on None', criteria({ grades: ['0'] }), ['a3', 'r3']],
-    ['verdicts OR together', criteria({ verdicts: ['rejected'] }), ['r1', 'r2', 'r3']],
-    ['considerations OR together', criteria({ considerations: ['spare_quota', 'insufficient_quota'] }), ['a4', 'r1']],
-    ['dimensions AND together', criteria({ grades: ['0'], verdicts: ['approved'] }), ['a3']],
-    ['an approved low grade survives a consideration filter', criteria({ considerations: ['temporarily_approved'], verdicts: ['approved'] }), ['a3']],
-    ['an empty intersection returns no row', criteria({ grades: ['6'], verdicts: ['rejected'] }), []],
-  ])('%s', (_name, view, expected) => {
-    expect(ids(filterSelectionRows(ROWS, view))).toEqual(expected);
+  it('filters rows by every criterion, OR within one and AND across them', () => {
+    const cases = [
+      ['no criteria keeps every row', criteria(), ['a1', 'a2', 'a3', 'a4', 'r1', 'r2', 'r3']],
+      ['grades OR together', criteria({ grades: ['6', '1'] }), ['a1', 'r2']],
+      ['the ungraded grade filters on None', criteria({ grades: ['0'] }), ['a3', 'r3']],
+      ['verdicts OR together', criteria({ verdicts: ['rejected'] }), ['r1', 'r2', 'r3']],
+      ['considerations OR together', criteria({ considerations: ['spare_quota', 'insufficient_quota'] }), ['a4', 'r1']],
+      ['dimensions AND together', criteria({ grades: ['0'], verdicts: ['approved'] }), ['a3']],
+      ['an approved low grade survives a consideration filter', criteria({ considerations: ['temporarily_approved'], verdicts: ['approved'] }), ['a3']],
+      ['an empty intersection returns no row', criteria({ grades: ['6'], verdicts: ['rejected'] }), []],
+    ] as const;
+
+    for (const [caseName, view, expected] of cases) {
+      expect.soft(ids(filterSelectionRows(ROWS, view)), caseName).toEqual(expected);
+    }
   });
 
   it('never mutates the rows it filters', () => {
@@ -134,64 +138,97 @@ describe('sortSelectionRows', () => {
 });
 
 describe('countSelectionFilterValues', () => {
-  it.each([
-    [criteria(), 0],
-    [criteria({ grades: ['6', '1'] }), 2],
-    [criteria({ grades: ['6'], verdicts: ['approved', 'rejected'], considerations: [CONSIDERATION_NONE] }), 4],
-  ])('counts the selected values (%o)', (view, expected) => {
-    expect(countSelectionFilterValues(view)).toBe(expected);
+  it('counts the selected values', () => {
+    const cases = [
+      [criteria(), 0],
+      [criteria({ grades: ['6', '1'] }), 2],
+      [criteria({ grades: ['6'], verdicts: ['approved', 'rejected'], considerations: [CONSIDERATION_NONE] }), 4],
+    ] as const;
+
+    for (const [view, expected] of cases) {
+      const caseName = `counts the selected values (${JSON.stringify(view)})`;
+      expect.soft(countSelectionFilterValues(view), caseName).toBe(expected);
+    }
   });
 });
 
 describe('hasSelectionViewCriteria', () => {
-  it.each([
-    [criteria(), false],
-    [criteria({ sort: 'grade-desc' }), true],
-    [criteria({ considerations: ['spare_quota'] }), true],
-  ])('reports whether anything but the default view is active (%o)', (view, expected) => {
-    expect(hasSelectionViewCriteria(view)).toBe(expected);
+  it('reports whether anything but the default view is active', () => {
+    const cases = [
+      [criteria(), false],
+      [criteria({ sort: 'grade-desc' }), true],
+      [criteria({ considerations: ['spare_quota'] }), true],
+    ] as const;
+
+    for (const [view, expected] of cases) {
+      const caseName = `reports whether anything but the default view is active (${JSON.stringify(view)})`;
+      expect.soft(hasSelectionViewCriteria(view), caseName).toBe(expected);
+    }
   });
 });
 
 describe('filter labels', () => {
-  it.each([
-    [0, 'Filters'],
-    [2, 'Filters, 2 active'],
-  ])('renders the trigger label for %i active values', (count, label) => {
-    expect(formatSelectionFiltersLabel(count)).toBe(label);
+  it('renders the trigger label with the active value count', () => {
+    const cases = [
+      [0, 'Filters'],
+      [2, 'Filters, 2 active'],
+    ] as const;
+
+    for (const [count, label] of cases) {
+      const caseName = `renders the trigger label for ${String(count)} active values`;
+      expect.soft(formatSelectionFiltersLabel(count), caseName).toBe(label);
+    }
   });
 
-  it.each([
-    [1, 'Show 1 candidate'],
-    [24, 'Show 24 candidates'],
-  ])('renders the popover close action for %i matches', (count, label) => {
-    expect(formatSelectionShowLabel(count)).toBe(label);
+  it('renders the popover close action with the match count', () => {
+    const cases = [
+      [1, 'Show 1 candidate'],
+      [24, 'Show 24 candidates'],
+    ] as const;
+
+    for (const [count, label] of cases) {
+      const caseName = `renders the popover close action for ${String(count)} matches`;
+      expect.soft(formatSelectionShowLabel(count), caseName).toBe(label);
+    }
   });
 
-  it.each([
-    [1, 1, '1 of 1 candidate'],
-    [24, 24, '24 of 24 candidates'],
-    [0, 24, '0 of 24 candidates'],
-  ])('renders the visible/total count %i of %i', (visible, total, label) => {
-    expect(formatSelectionVisibleCount(visible, total)).toBe(label);
+  it('renders the visible/total count', () => {
+    const cases = [
+      [1, 1, '1 of 1 candidate'],
+      [24, 24, '24 of 24 candidates'],
+      [0, 24, '0 of 24 candidates'],
+    ] as const;
+
+    for (const [visible, total, label] of cases) {
+      const caseName = `renders the visible/total count ${String(visible)} of ${String(total)}`;
+      expect.soft(formatSelectionVisibleCount(visible, total), caseName).toBe(label);
+    }
   });
 });
 
 describe('filter tag keys', () => {
-  it.each([
-    ['an unrestricted dimension shows All', [], ['all']],
-    ['a restricted dimension shows its values', ['approved', 'rejected'], ['approved', 'rejected']],
-  ])('%s', (_name, values, keys) => {
-    expect(toSelectionFilterTagKeys(values)).toEqual(keys);
+  it('shows All for an unrestricted dimension and the values otherwise', () => {
+    const cases = [
+      ['an unrestricted dimension shows All', [], ['all']],
+      ['a restricted dimension shows its values', ['approved', 'rejected'], ['approved', 'rejected']],
+    ] as const;
+
+    for (const [caseName, values, keys] of cases) {
+      expect.soft(toSelectionFilterTagKeys(values), caseName).toEqual(keys);
+    }
   });
 
-  it.each([
-    ['a plain selection keeps its values', ['approved'], ['approved']],
-    ['adding a value to All keeps only the specifics', ['all', '1'], ['1']],
-    ['clicking All from specifics clears the dimension', ['1', 'all'], []],
-  ])('%s', (_name, keys, expected) => {
-    const previous = keys.includes('all') && keys.length === 2 ? (keys[0] === 'all' ? [] : ['1']) : keys;
-    expect(toSelectionFilterValues(keys, previous)).toEqual(expected);
+  it('turns the picked tag keys into filter values around All', () => {
+    const cases: ReadonlyArray<readonly [string, readonly string[], readonly string[]]> = [
+      ['a plain selection keeps its values', ['approved'], ['approved']],
+      ['adding a value to All keeps only the specifics', ['all', '1'], ['1']],
+      ['clicking All from specifics clears the dimension', ['1', 'all'], []],
+    ];
+
+    for (const [caseName, keys, expected] of cases) {
+      const previous = keys.includes('all') && keys.length === 2 ? (keys[0] === 'all' ? [] : ['1']) : keys;
+      expect.soft(toSelectionFilterValues(keys, previous), caseName).toEqual(expected);
+    }
   });
 });
 

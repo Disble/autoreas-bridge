@@ -203,7 +203,9 @@ func (f *deadJDClient) RemoveByDestination(ctx context.Context, deviceName, dest
 	return f.removeErr
 }
 
-func TestAwaitHosterOutcomeReturnsDeadAndRemovesThePackage(t *testing.T) {
+// TestAwaitHosterOutcomeReturnsDeadAndRemovesThePackageEvenWhenRemoveFails
+// returns dead and removes the package, then still advances when Remove fails.
+func TestAwaitHosterOutcomeReturnsDeadAndRemovesThePackageEvenWhenRemoveFails(t *testing.T) {
 	t.Parallel()
 
 	folder := "folder-c"
@@ -219,20 +221,13 @@ func TestAwaitHosterOutcomeReturnsDeadAndRemovesThePackage(t *testing.T) {
 	if len(jd.removeCalls) != 1 || jd.removeCalls[0] != folder {
 		t.Fatalf("expected RemoveByDestination to be called for %q, got %v", folder, jd.removeCalls)
 	}
-}
 
-func TestAwaitHosterOutcomeAdvancesEvenWhenRemoveFails(t *testing.T) {
-	t.Parallel()
-
-	folder := "folder-d"
-	now := time.Now()
-	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, landing: map[string]int{folder: 4}}
-	jd := &deadJDClient{svcFakeJDClient: &svcFakeJDClient{}, removeErr: errors.New("remove failed")}
-	s := newWatchTestService(t, jd, counter, &now)
-
-	outcome := s.awaitHosterOutcome(context.Background(), "run-1", testAnime(folder), "Mediafire", 4, 1, true)
-	if outcome.kind != hosterOutcomeDead {
-		t.Fatalf("expected dead outcome even when Remove fails, got %#v", outcome)
+	jd.removeErr = errors.New("remove failed")
+	if again := s.awaitHosterOutcome(context.Background(), "run-1", testAnime(folder), "Mediafire", 4, 1, true); again.kind != hosterOutcomeDead {
+		t.Fatalf("expected dead outcome even when Remove fails, got %#v", again)
+	}
+	if len(jd.removeCalls) != 2 {
+		t.Fatalf("expected the failing Remove to be attempted, got %v", jd.removeCalls)
 	}
 }
 
@@ -347,26 +342,9 @@ func TestHasPartFilesRecursiveSkipsInaccessiblePaths(t *testing.T) {
 
 // --- detectDownloadStartPhase ---
 
-func TestDetectDownloadStartPhasePartFoundImmediatelyReturnsStarted(t *testing.T) {
-	t.Parallel()
-
-	deps := baseDeps(t)
-	deps.DetectStartPhaseDisabled = false
-	deps.HasPartFiles = func(root string) bool { return true }
-	bus := events.NewBus()
-	deps.Bus = bus
-	s := NewService(deps)
-
-	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 0, 3, deps.Clock())
-	if !started {
-		t.Fatalf("expected started=true when HasPartFiles returns true, got probes=%#v", probes)
-	}
-	if len(probes) != 1 {
-		t.Fatalf("expected the immediate hit to record 1 probe, got %#v", probes)
-	}
-}
-
-func TestDetectDownloadStartPhasePublishesEventWhenPartFound(t *testing.T) {
+// TestDetectDownloadStartPhasePartFoundImmediatelyStartsWithOneProbeAndPublishesTheEvent
+// finds a part file on the first probe and publishes the downloading event.
+func TestDetectDownloadStartPhasePartFoundImmediatelyStartsWithOneProbeAndPublishesTheEvent(t *testing.T) {
 	t.Parallel()
 
 	deps := baseDeps(t)
@@ -383,9 +361,12 @@ func TestDetectDownloadStartPhasePublishesEventWhenPartFound(t *testing.T) {
 		}
 	})
 
-	started, _ := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 0, 3, deps.Clock())
+	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", testAnime("/fake/folder"), "/fake/folder", 0, 3, deps.Clock())
 	if !started {
-		t.Fatal("expected started=true")
+		t.Fatalf("expected started=true when HasPartFiles returns true, got probes=%#v", probes)
+	}
+	if len(probes) != 1 {
+		t.Fatalf("expected the immediate hit to record 1 probe, got %#v", probes)
 	}
 	if published.RunID != "run-1" || published.AnimeID != "anime-1" || published.Episode != 3 {
 		t.Fatalf("expected published event with run-1/anime-1/3, got %#v", published)

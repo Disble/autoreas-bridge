@@ -19,17 +19,15 @@ const SUCCESS: AnimeEditorRecordQueryRead = {
 };
 
 describe('toAnimeEditorSettledRecordRead', () => {
-  it('holds back a read that is fetching, placeholder or not yet answered', () => {
+  it('holds back an unsettled read, hands a settled success its record and stamp, and a failed read its message and no record', () => {
+    // Fetching, placeholder or not yet answered.
     expect(toAnimeEditorSettledRecordRead({ ...SUCCESS, isFetching: true })).toBeUndefined();
     expect(toAnimeEditorSettledRecordRead({ ...SUCCESS, isPlaceholderData: true })).toBeUndefined();
     expect(toAnimeEditorSettledRecordRead({ ...SUCCESS, status: 'pending', data: undefined })).toBeUndefined();
-  });
 
-  it('hands a settled success its record and a stamp naming that read', () => {
     expect(toAnimeEditorSettledRecordRead(SUCCESS)).toEqual({ stamp: 'success:10:0', selectedRecord: RECORD, recordLoadError: undefined });
-  });
 
-  it('hands a failed read its message and no record, even with stale data', () => {
+    // A failure drops the record even with stale data.
     const failed = toAnimeEditorSettledRecordRead({
       ...SUCCESS,
       status: 'error',

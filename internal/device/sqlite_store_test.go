@@ -49,19 +49,32 @@ func TestSQLiteStoreConsumesPairingTokenAndPersistsDevice(t *testing.T) {
 	}
 }
 
-func TestSQLiteStoreRejectsUnknownPairingToken(t *testing.T) {
+func TestSQLiteStoreRejectsUnknownAndExpiredPairingTokens(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
 	store := NewSQLiteStore(db)
+	ctx := context.Background()
 
-	err := store.ConsumePairingToken(context.Background(), "missing", 100, 0)
+	err := store.ConsumePairingToken(ctx, "missing", 100, 0)
 	if err == nil {
 		t.Fatal("expected unknown pairing token error")
 	}
+
+	// An expired pairing token is invalid on consume.
+	{
+		if err := store.SavePairingToken(ctx, "expired", 100); err != nil {
+			t.Fatalf("save expired token: %v", err)
+		}
+
+		err := store.ConsumePairingToken(ctx, "expired", 1000, 500)
+		if !errors.Is(err, ErrInvalidPairingToken) {
+			t.Fatalf("expected ErrInvalidPairingToken for expired token, got %v", err)
+		}
+	}
 }
 
-func TestSQLiteStoreReusesOnlyActiveUnconsumedPairingTokens(t *testing.T) {
+func TestSQLiteStoreReusesOnlyActiveTokensAndPrunesExpiredUnconsumedOnes(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
@@ -88,22 +101,8 @@ func TestSQLiteStoreReusesOnlyActiveUnconsumedPairingTokens(t *testing.T) {
 	if got != "active" {
 		t.Fatalf("expected active token, got %q", got)
 	}
-}
 
-func TestSQLiteStorePrunesExpiredUnconsumedPairingTokens(t *testing.T) {
-	t.Parallel()
-
-	db := openTestBridgeDB(t)
-	store := NewSQLiteStore(db)
-	ctx := context.Background()
-
-	if err := store.SavePairingToken(ctx, "expired", 100); err != nil {
-		t.Fatalf("save expired token: %v", err)
-	}
-	if err := store.SavePairingToken(ctx, "active", 900); err != nil {
-		t.Fatalf("save active token: %v", err)
-	}
-
+	// Pruning removes only the expired unconsumed token.
 	deleted, err := store.PruneExpiredPairingTokens(ctx, 500)
 	if err != nil {
 		t.Fatalf("prune expired pairing tokens: %v", err)
@@ -111,29 +110,11 @@ func TestSQLiteStorePrunesExpiredUnconsumedPairingTokens(t *testing.T) {
 	if deleted != 1 {
 		t.Fatalf("expected 1 pruned token, got %d", deleted)
 	}
-
 	if _, err := store.FindActivePairingToken(ctx, 0); err != nil {
 		t.Fatalf("expected active token to remain: %v", err)
 	}
 	if err := store.ConsumePairingToken(ctx, "expired", 1000, 0); err == nil {
 		t.Fatal("expected pruned token to be unusable")
-	}
-}
-
-func TestSQLiteStoreRejectsExpiredPairingTokenOnConsume(t *testing.T) {
-	t.Parallel()
-
-	db := openTestBridgeDB(t)
-	store := NewSQLiteStore(db)
-	ctx := context.Background()
-
-	if err := store.SavePairingToken(ctx, "expired", 100); err != nil {
-		t.Fatalf("save expired token: %v", err)
-	}
-
-	err := store.ConsumePairingToken(ctx, "expired", 1000, 500)
-	if !errors.Is(err, ErrInvalidPairingToken) {
-		t.Fatalf("expected ErrInvalidPairingToken for expired token, got %v", err)
 	}
 }
 
