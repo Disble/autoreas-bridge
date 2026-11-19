@@ -14,11 +14,11 @@ func mk(name, birth, mtime string) Entry {
 }
 
 // assertReasonShape asserts the IMPORTANT-tier contract: one short human
-// sentence, never pinned prose.
-func assertReasonShape(t *testing.T, reason string) {
+// sentence, never pinned prose. The failure names the row it belongs to.
+func assertReasonShape(t *testing.T, row, reason string) {
 	t.Helper()
 	if reason == "" || strings.Contains(reason, "\n") || !strings.HasSuffix(reason, ".") {
-		t.Errorf("reason is not one sentence: %q", reason)
+		t.Errorf("%s: reason is not one sentence: %q", row, reason)
 	}
 }
 
@@ -153,23 +153,21 @@ func TestSelect(t *testing.T) {
 			wantEp: 2, wantBase: "Show v   1.2.mp4", wantBasis: BasisDirectNumber, wantP: 1},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got := New().Identify(Request{Entries: tc.entries, Context: tc.ctx})
-			if got.Next == nil || got.Next.Episode != tc.wantEp || got.Next.Basename != tc.wantBase {
-				t.Fatalf("next = %+v, want episode=%d basename=%q", got.Next, tc.wantEp, tc.wantBase)
-			}
-			if got.Basis != tc.wantBasis {
-				t.Errorf("basis = %q, want %q", got.Basis, tc.wantBasis)
-			}
-			if got.Watched != tc.wantW || got.Pending != tc.wantP {
-				t.Errorf("watched/pending = %d/%d, want %d/%d", got.Watched, got.Pending, tc.wantW, tc.wantP)
-			}
-			if !slices.Equal(got.Diagnostics, tc.wantDiags) {
-				t.Errorf("diagnostics = %+v, want %+v", got.Diagnostics, tc.wantDiags)
-			}
-			assertReasonShape(t, got.Reason)
-		})
+		got := New().Identify(Request{Entries: tc.entries, Context: tc.ctx})
+		if got.Next == nil || got.Next.Episode != tc.wantEp || got.Next.Basename != tc.wantBase {
+			t.Errorf("%s: next = %+v, want episode=%d basename=%q", tc.name, got.Next, tc.wantEp, tc.wantBase)
+			continue
+		}
+		if got.Basis != tc.wantBasis {
+			t.Errorf("%s: basis = %q, want %q", tc.name, got.Basis, tc.wantBasis)
+		}
+		if got.Watched != tc.wantW || got.Pending != tc.wantP {
+			t.Errorf("%s: watched/pending = %d/%d, want %d/%d", tc.name, got.Watched, got.Pending, tc.wantW, tc.wantP)
+		}
+		if !slices.Equal(got.Diagnostics, tc.wantDiags) {
+			t.Errorf("%s: diagnostics = %+v, want %+v", tc.name, got.Diagnostics, tc.wantDiags)
+		}
+		assertReasonShape(t, tc.name, got.Reason)
 	}
 }
 
@@ -296,23 +294,21 @@ func TestAbstain(t *testing.T) {
 			ctx: Context{ProgressSet: true, Progress: 5, ExpectedNextSet: true, ExpectedNext: 6}, wantW: 5},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got := New().Identify(Request{Entries: tc.entries, Context: tc.ctx})
-			if got.Next != nil {
-				t.Fatalf("next = %+v, want abstention", got.Next)
-			}
-			if got.Basis != BasisNone {
-				t.Errorf("basis = %q, want none", got.Basis)
-			}
-			if got.Watched != tc.wantW || got.Pending != tc.wantP {
-				t.Errorf("watched/pending = %d/%d, want %d/%d", got.Watched, got.Pending, tc.wantW, tc.wantP)
-			}
-			if !slices.Equal(got.Diagnostics, tc.wantDiags) {
-				t.Errorf("diagnostics = %+v, want %+v", got.Diagnostics, tc.wantDiags)
-			}
-			assertReasonShape(t, got.Reason)
-		})
+		got := New().Identify(Request{Entries: tc.entries, Context: tc.ctx})
+		if got.Next != nil {
+			t.Errorf("%s: next = %+v, want abstention", tc.name, got.Next)
+			continue
+		}
+		if got.Basis != BasisNone {
+			t.Errorf("%s: basis = %q, want none", tc.name, got.Basis)
+		}
+		if got.Watched != tc.wantW || got.Pending != tc.wantP {
+			t.Errorf("%s: watched/pending = %d/%d, want %d/%d", tc.name, got.Watched, got.Pending, tc.wantW, tc.wantP)
+		}
+		if !slices.Equal(got.Diagnostics, tc.wantDiags) {
+			t.Errorf("%s: diagnostics = %+v, want %+v", tc.name, got.Diagnostics, tc.wantDiags)
+		}
+		assertReasonShape(t, tc.name, got.Reason)
 	}
 }
 

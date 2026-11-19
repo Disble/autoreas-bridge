@@ -261,18 +261,16 @@ func TestStoredCookiesAreMatchedToTheRequestURL(t *testing.T) {
 		{"empty request path is the root", ".jkanime.net", "/", "https://jkanime.net", true},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			h := newHarness(&fakeSolver{err: errors.New("no engine")}, Policy{}, "good")
-			h.store.Save("jkanime.net", Clearance{UserAgent: engineUA, Cookies: []*http.Cookie{
-				{Name: clearanceCookie, Value: "good", Domain: tc.domain, Path: tc.path},
-			}})
+		h := newHarness(&fakeSolver{err: errors.New("no engine")}, Policy{}, "good")
+		h.store.Save("jkanime.net", Clearance{UserAgent: engineUA, Cookies: []*http.Cookie{
+			{Name: clearanceCookie, Value: "good", Domain: tc.domain, Path: tc.path},
+		}})
 
-			get(t, h.tr, tc.url)
+		get(t, h.tr, tc.url)
 
-			if _, err := h.cf.seen[0].Cookie(clearanceCookie); (err == nil) != tc.sent {
-				t.Fatalf("cookie sent = %v, want %v", err == nil, tc.sent)
-			}
-		})
+		if _, err := h.cf.seen[0].Cookie(clearanceCookie); (err == nil) != tc.sent {
+			t.Errorf("%s: cookie sent = %v, want %v", tc.name, err == nil, tc.sent)
+		}
 	}
 }
 

@@ -61,17 +61,16 @@ func TestCountEventsCountsOneTypeInTheRangeAndRejectsBadInput(t *testing.T) {
 		}}},
 	}
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := reader.CountEvents(context.Background(), EventCountInput{
-				EventType: countedEventType, GroupBy: tc.groupBy, From: from, To: to,
-			})
-			if err != nil {
-				t.Fatalf("CountEvents: %v", err)
-			}
-			if !reflect.DeepEqual(got, tc.want) {
-				t.Fatalf("counts = %s\nwant %s", describeCounts(got), describeCounts(tc.want))
-			}
+		got, err := reader.CountEvents(context.Background(), EventCountInput{
+			EventType: countedEventType, GroupBy: tc.groupBy, From: from, To: to,
 		})
+		if err != nil {
+			t.Errorf("%s: CountEvents: %v", tc.name, err)
+			continue
+		}
+		if !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s: counts = %s\nwant %s", tc.name, describeCounts(got), describeCounts(tc.want))
+		}
 	}
 
 	// Count events rejects bad input.

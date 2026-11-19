@@ -49,11 +49,9 @@ func TestRequestReasons(t *testing.T) {
 			[]Reason{ReasonClientError, ReasonRejected, ReasonSlow}},
 	}
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := RequestReasons(tc.fact); !reflect.DeepEqual(got, tc.want) {
-				t.Fatalf("RequestReasons() = %v, want %v", got, tc.want)
-			}
-		})
+		if got := RequestReasons(tc.fact); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s: RequestReasons() = %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }
 
@@ -70,13 +68,11 @@ func TestRequestReasonsStartupGrace(t *testing.T) {
 		{"slow exactly at grace end triggers", 2 * time.Minute, []Reason{ReasonSlow}},
 	}
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			fact := request(intPtr(200), "accepted", msPtr(1001))
-			fact.ObservedAt = processStart.Add(tc.elapsed)
-			if got := RequestReasons(fact); !reflect.DeepEqual(got, tc.want) {
-				t.Fatalf("RequestReasons() = %v, want %v", got, tc.want)
-			}
-		})
+		fact := request(intPtr(200), "accepted", msPtr(1001))
+		fact.ObservedAt = processStart.Add(tc.elapsed)
+		if got := RequestReasons(fact); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s: RequestReasons() = %v, want %v", tc.name, got, tc.want)
+		}
 	}
 	failing := request(intPtr(500), "accepted", msPtr(1001))
 	failing.ObservedAt = processStart
@@ -103,12 +99,10 @@ func TestClassifyRequest(t *testing.T) {
 			Trigger{ReasonSlow, "slow|http|patch"}, true},
 	}
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got, ok := ClassifyRequest(tc.fact)
-			if got != tc.want || ok != tc.ok {
-				t.Fatalf("ClassifyRequest() = %+v, %v; want %+v, %v", got, ok, tc.want, tc.ok)
-			}
-		})
+		got, ok := ClassifyRequest(tc.fact)
+		if got != tc.want || ok != tc.ok {
+			t.Errorf("%s: ClassifyRequest() = %+v, %v; want %+v, %v", tc.name, got, ok, tc.want, tc.ok)
+		}
 	}
 }
 
@@ -123,12 +117,10 @@ func TestClassifyEvent(t *testing.T) {
 		{"warning never triggers", "warn", Trigger{}, false},
 	}
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got, ok := ClassifyEvent(EventFact{Domain: "downloads", Level: tc.level, EventType: "hoster_dead"})
-			if got != tc.want || ok != tc.ok {
-				t.Fatalf("ClassifyEvent() = %+v, %v; want %+v, %v", got, ok, tc.want, tc.ok)
-			}
-		})
+		got, ok := ClassifyEvent(EventFact{Domain: "downloads", Level: tc.level, EventType: "hoster_dead"})
+		if got != tc.want || ok != tc.ok {
+			t.Errorf("%s: ClassifyEvent() = %+v, %v; want %+v, %v", tc.name, got, ok, tc.want, tc.ok)
+		}
 	}
 }
 
@@ -157,12 +149,10 @@ func TestClassifyMobileReport(t *testing.T) {
 		{"stall below threshold", MobileReportFact{Kind: "screen_stall", Phase: "app_active", DurationMS: 9999}, Trigger{}, false},
 	}
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got, ok := ClassifyMobileReport(tc.fact)
-			if got != tc.want || ok != tc.ok {
-				t.Fatalf("ClassifyMobileReport() = %+v, %v; want %+v, %v", got, ok, tc.want, tc.ok)
-			}
-		})
+		got, ok := ClassifyMobileReport(tc.fact)
+		if got != tc.want || ok != tc.ok {
+			t.Errorf("%s: ClassifyMobileReport() = %+v, %v; want %+v, %v", tc.name, got, ok, tc.want, tc.ok)
+		}
 	}
 }
 

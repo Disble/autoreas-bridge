@@ -209,12 +209,10 @@ func TestNewHTTPClientTimeoutBoundary(t *testing.T) {
 		{name: "smallest positive passes through unchanged", timeout: 1 * time.Nanosecond, wantTimeout: 1 * time.Nanosecond},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			client := NewHTTPClient(tc.timeout, 1<<20, "")
-			if client.client.Timeout != tc.wantTimeout {
-				t.Fatalf("timeout=%v: expected %v, got %v", tc.timeout, tc.wantTimeout, client.client.Timeout)
-			}
-		})
+		client := NewHTTPClient(tc.timeout, 1<<20, "")
+		if client.client.Timeout != tc.wantTimeout {
+			t.Errorf("%s: timeout=%v: expected %v, got %v", tc.name, tc.timeout, tc.wantTimeout, client.client.Timeout)
+		}
 	}
 }
 
@@ -241,18 +239,17 @@ func TestHTTPClientFetchMaxBytesBoundary(t *testing.T) {
 		{name: "smallest positive passes through unchanged", maxBytes: 1, wantBodyLen: 1},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			client := NewHTTPClient(time.Second, tc.maxBytes, "")
-			client.client.Transport = rt
+		client := NewHTTPClient(time.Second, tc.maxBytes, "")
+		client.client.Transport = rt
 
-			body, err := client.Fetch(context.Background(), "https://myanimelist.example/search/prefix.json")
-			if err != nil {
-				t.Fatalf("Fetch: %v", err)
-			}
-			if len(body) != tc.wantBodyLen {
-				t.Fatalf("maxBytes=%d: expected body length %d, got %d", tc.maxBytes, tc.wantBodyLen, len(body))
-			}
-		})
+		body, err := client.Fetch(context.Background(), "https://myanimelist.example/search/prefix.json")
+		if err != nil {
+			t.Errorf("%s: Fetch: %v", tc.name, err)
+			continue
+		}
+		if len(body) != tc.wantBodyLen {
+			t.Errorf("%s: maxBytes=%d: expected body length %d, got %d", tc.name, tc.maxBytes, tc.wantBodyLen, len(body))
+		}
 	}
 }
 

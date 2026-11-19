@@ -56,24 +56,21 @@ var editorBindings = []struct {
 func TestEditorBindingsFollowTheAnimeModule(t *testing.T) {
 	t.Parallel()
 	for _, binding := range editorBindings {
-		t.Run(binding.name+"/starting then failed", func(t *testing.T) {
-			t.Parallel()
-			launched := false
-			app := animeApp(animeServices{}, lifecycle.StateStarting)
-			app.openURL = func(context.Context, string) { launched = true }
-			app.openFolder = func(string) error { launched = true; return nil }
-			app.copyText = func(context.Context, string) error { launched = true; return nil }
+		launched := false
+		app := animeApp(animeServices{}, lifecycle.StateStarting)
+		app.openURL = func(context.Context, string) { launched = true }
+		app.openFolder = func(string) error { launched = true; return nil }
+		app.copyText = func(context.Context, string) error { launched = true; return nil }
 
-			value, err := binding.call(app)
-			assertAnimeFailure(t, value, err, apperr.CodeUnavailable, "anime is starting")
-			inModuleState(app, moduleAnime, lifecycle.StateFailed)
-			value, err = binding.call(app)
-			assertAnimeFailure(t, value, err, apperr.CodeFailedPrecondition, "bridge database failed to open: locked")
+		value, err := binding.call(app)
+		assertAnimeFailure(t, binding.name+" starting", value, err, apperr.CodeUnavailable, "anime is starting")
+		inModuleState(app, moduleAnime, lifecycle.StateFailed)
+		value, err = binding.call(app)
+		assertAnimeFailure(t, binding.name+" failed", value, err, apperr.CodeFailedPrecondition, "bridge database failed to open: locked")
 
-			if launched {
-				t.Fatal("a desktop action launched while the anime module was not ready")
-			}
-		})
+		if launched {
+			t.Errorf("%s: a desktop action launched while the anime module was not ready", binding.name)
+		}
 	}
 }
 

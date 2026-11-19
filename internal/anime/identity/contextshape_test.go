@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/big"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -38,21 +39,26 @@ type contextRow struct {
 }
 
 // assertContextRow checks one shape: selection or abstention plus the typed
-// diagnostic kinds present.
+// diagnostic kinds present. Every failure names the row and none stops the
+// caller's loop.
 func assertContextRow(t *testing.T, tc contextRow) {
 	t.Helper()
 	got := New().Identify(Request{Entries: tc.entries, Context: tc.ctx})
 	if tc.wantBase == "" {
 		if got.Next != nil {
-			t.Fatalf("next = %+v, want abstention", got.Next)
+			t.Errorf("%s: next = %+v, want abstention", tc.name, got.Next)
+			return
 		}
 	} else if got.Next == nil || got.Next.Episode != tc.wantEp || got.Next.Basename != tc.wantBase {
-		t.Fatalf("next = %+v, want episode=%d basename=%q", got.Next, tc.wantEp, tc.wantBase)
+		t.Errorf("%s: next = %+v, want episode=%d basename=%q", tc.name, got.Next, tc.wantEp, tc.wantBase)
+		return
 	}
 	if kinds := kindsOf(got.Diagnostics); !slices.Equal(kinds, tc.wantKinds) {
-		t.Errorf("diagnostic kinds = %v, want %v (full=%+v)", kinds, tc.wantKinds, got.Diagnostics)
+		t.Errorf("%s: diagnostic kinds = %v, want %v (full=%+v)", tc.name, kinds, tc.wantKinds, got.Diagnostics)
 	}
-	assertReasonShape(t, got.Reason)
+	if reason := got.Reason; reason == "" || strings.Contains(reason, "\n") || !strings.HasSuffix(reason, ".") {
+		t.Errorf("%s: reason is not one sentence: %q", tc.name, reason)
+	}
 }
 
 func TestContextShapes(t *testing.T) {
@@ -74,10 +80,7 @@ func TestContextShapes(t *testing.T) {
 			ctx: Context{ProgressSet: true, Progress: 12, ExpectedNextSet: true, ExpectedNext: 13}, wantEp: 13, wantBase: "b-cut.mp4"},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			assertContextRow(t, tc)
-		})
+		assertContextRow(t, tc)
 	}
 }
 
@@ -102,12 +105,9 @@ func TestUsableProgressBoundaries(t *testing.T) {
 		{name: "unset is unusable", ctx: Context{}, ok: false},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if got, ok := usableProgress(tc.ctx); got != tc.want || ok != tc.ok {
-				t.Errorf("usableProgress(%+v) = %v/%v, want %v/%v", tc.ctx, got, ok, tc.want, tc.ok)
-			}
-		})
+		if got, ok := usableProgress(tc.ctx); got != tc.want || ok != tc.ok {
+			t.Errorf("%s: usableProgress(%+v) = %v/%v, want %v/%v", tc.name, tc.ctx, got, ok, tc.want, tc.ok)
+		}
 	}
 }
 
@@ -129,12 +129,9 @@ func TestUsableExpectedBoundaries(t *testing.T) {
 		{name: "unset is unusable", ctx: Context{}, ok: false},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if got, ok := usableExpected(tc.ctx); got != tc.want || ok != tc.ok {
-				t.Errorf("usableExpected(%+v) = %v/%v, want %v/%v", tc.ctx, got, ok, tc.want, tc.ok)
-			}
-		})
+		if got, ok := usableExpected(tc.ctx); got != tc.want || ok != tc.ok {
+			t.Errorf("%s: usableExpected(%+v) = %v/%v, want %v/%v", tc.name, tc.ctx, got, ok, tc.want, tc.ok)
+		}
 	}
 }
 
@@ -157,12 +154,9 @@ func TestUsableNextShapes(t *testing.T) {
 		{name: "fractional progress abstains", ctx: Context{ProgressSet: true, Progress: 12.5}, ok: false},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if got, ok := usableNext(tc.ctx); got != tc.want || ok != tc.ok {
-				t.Errorf("usableNext(%+v) = %v/%v, want %v/%v", tc.ctx, got, ok, tc.want, tc.ok)
-			}
-		})
+		if got, ok := usableNext(tc.ctx); got != tc.want || ok != tc.ok {
+			t.Errorf("%s: usableNext(%+v) = %v/%v, want %v/%v", tc.name, tc.ctx, got, ok, tc.want, tc.ok)
+		}
 	}
 }
 
@@ -190,12 +184,9 @@ func TestUsableOrdinalBoundaries(t *testing.T) {
 		{name: "negative infinity is unusable", f: math.Inf(-1), min: 0, ok: false},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if got, ok := usableOrdinal(tc.f, tc.min); got != tc.want || ok != tc.ok {
-				t.Errorf("usableOrdinal(%v, %d) = %v/%v, want %v/%v", tc.f, tc.min, got, ok, tc.want, tc.ok)
-			}
-		})
+		if got, ok := usableOrdinal(tc.f, tc.min); got != tc.want || ok != tc.ok {
+			t.Errorf("%s: usableOrdinal(%v, %d) = %v/%v, want %v/%v", tc.name, tc.f, tc.min, got, ok, tc.want, tc.ok)
+		}
 	}
 }
 
@@ -215,12 +206,9 @@ func TestFractionalProgressShapes(t *testing.T) {
 		{name: "unset does not", ctx: Context{}, want: false},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if got := fractionalProgress(tc.ctx); got != tc.want {
-				t.Errorf("fractionalProgress(%+v) = %v, want %v", tc.ctx, got, tc.want)
-			}
-		})
+		if got := fractionalProgress(tc.ctx); got != tc.want {
+			t.Errorf("%s: fractionalProgress(%+v) = %v, want %v", tc.name, tc.ctx, got, tc.want)
+		}
 	}
 }
 
@@ -244,16 +232,12 @@ func TestParseNsShapes(t *testing.T) {
 		{name: "beyond int64 stays exact", in: "170141183460469231731687303715884105730", want: "170141183460469231731687303715884105730", ok: true},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got, ok := parseNs(tc.in)
-			if ok != tc.ok {
-				t.Fatalf("parseNs(%q) ok = %v, want %v", tc.in, ok, tc.ok)
-			}
-			if ok && got.String() != tc.want {
-				t.Errorf("parseNs(%q) = %v, want %v", tc.in, got, tc.want)
-			}
-		})
+		got, ok := parseNs(tc.in)
+		if ok != tc.ok {
+			t.Errorf("%s: parseNs(%q) ok = %v, want %v", tc.name, tc.in, ok, tc.ok)
+		} else if ok && got.String() != tc.want {
+			t.Errorf("%s: parseNs(%q) = %v, want %v", tc.name, tc.in, got, tc.want)
+		}
 	}
 }
 
@@ -286,15 +270,11 @@ func TestChronologyOrderShapes(t *testing.T) {
 		{name: "beyond int64 stays exact", stamps: []stamp{{birth: mustNs("340282366920938463463374607431768211457"), mtime: mustNs("340282366920938463463374607431768211460")}, {birth: mustNs("340282366920938463463374607431768211456"), mtime: mustNs("340282366920938463463374607431768211458")}}, want: []int{1, 0}, ok: true},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got, ok := chronologyOrder(tc.stamps)
-			if ok != tc.ok {
-				t.Fatalf("chronologyOrder ok = %v, want %v", ok, tc.ok)
-			}
-			if ok && !slices.Equal(got, tc.want) {
-				t.Errorf("chronologyOrder = %v, want %v", got, tc.want)
-			}
-		})
+		got, ok := chronologyOrder(tc.stamps)
+		if ok != tc.ok {
+			t.Errorf("%s: chronologyOrder ok = %v, want %v", tc.name, ok, tc.ok)
+		} else if ok && !slices.Equal(got, tc.want) {
+			t.Errorf("%s: chronologyOrder = %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }

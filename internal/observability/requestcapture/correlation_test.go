@@ -27,11 +27,8 @@ func TestAcceptClientRequestID(t *testing.T) {
 		{"two separators", "a:1:2", ""},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if got := AcceptClientRequestID(tc.value); got != tc.want {
-				t.Fatalf("AcceptClientRequestID(%q) = %q, want %q", tc.value, got, tc.want)
-			}
-		})
+		if got := AcceptClientRequestID(tc.value); got != tc.want {
+			t.Errorf("%s: AcceptClientRequestID(%q) = %q, want %q", tc.name, tc.value, got, tc.want)
+		}
 	}
 }

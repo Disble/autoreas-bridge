@@ -296,14 +296,18 @@ describe('toAnimeWatchEpisodePages', () => {
   /** A pending first page. */
   const pending = { ...loaded, status: 'pending' as const, data: undefined };
 
-  it.each([
-    ['a pending read', { firstPage: pending }, { isLoading: true, error: undefined }],
-    ['a collapsed list that never loaded', { isEnabled: false, firstPage: pending }, { isLoading: false, error: undefined }],
-    ['another scope still shown', { firstPage: { ...loaded, isPlaceholderData: true } }, { isLoading: true, error: undefined }],
-    ['another scope still shown while collapsed', { isEnabled: false, firstPage: { ...loaded, isPlaceholderData: true } }, { isLoading: false, error: undefined }],
-    ['a failed read', { firstPage: { ...pending, status: 'error' as const, error: new Error('boom') } }, { isLoading: false, error: new Error('boom') }],
-  ])('shows no rows and no next page for %s', (_label, overrides, expected) => {
-    expect(toAnimeWatchEpisodePages({ ...input, ...overrides })).toEqual({ entries: [], cursor: undefined, ...expected });
+  it('shows no rows and no next page while pending, collapsed, failed or on another scope', () => {
+    const cases = [
+      ['a pending read', { firstPage: pending }, { isLoading: true, error: undefined }],
+      ['a collapsed list that never loaded', { isEnabled: false, firstPage: pending }, { isLoading: false, error: undefined }],
+      ['another scope still shown', { firstPage: { ...loaded, isPlaceholderData: true } }, { isLoading: true, error: undefined }],
+      ['another scope still shown while collapsed', { isEnabled: false, firstPage: { ...loaded, isPlaceholderData: true } }, { isLoading: false, error: undefined }],
+      ['a failed read', { firstPage: { ...pending, status: 'error' as const, error: new Error('boom') } }, { isLoading: false, error: new Error('boom') }],
+    ] as const;
+
+    for (const [caseName, overrides, expected] of cases) {
+      expect.soft(toAnimeWatchEpisodePages({ ...input, ...overrides }), caseName).toEqual({ entries: [], cursor: undefined, ...expected });
+    }
   });
 
   it('shows the first page and its cursor, also once collapsed', () => {
@@ -317,10 +321,14 @@ describe('toAnimeWatchEpisodePages', () => {
     expect(toAnimeWatchEpisodePages({ ...input, older })).toEqual({ entries: [first, second], isLoading: false, error: undefined, cursor: undefined });
   });
 
-  it.each([
-    ['another scope', { ...older, requestKey: 'other' }],
-    ['an earlier first-page load', { ...older, firstPageAt: 9 }],
-  ])('drops older pages loaded for %s', (_label, stale) => {
-    expect(toAnimeWatchEpisodePages({ ...input, older: stale })).toMatchObject({ entries: [first], cursor: 'c:1' });
+  it('drops older pages loaded for another scope or an earlier first page', () => {
+    const cases = [
+      ['another scope', { ...older, requestKey: 'other' }],
+      ['an earlier first-page load', { ...older, firstPageAt: 9 }],
+    ] as const;
+
+    for (const [caseName, stale] of cases) {
+      expect.soft(toAnimeWatchEpisodePages({ ...input, older: stale }), caseName).toMatchObject({ entries: [first], cursor: 'c:1' });
+    }
   });
 });

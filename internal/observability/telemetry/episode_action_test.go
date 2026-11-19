@@ -3,6 +3,7 @@ package telemetry
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"sort"
 	"strings"
@@ -41,38 +42,54 @@ func decodeEpisodeActionBody(t *testing.T, body string) Validated {
 	return validated
 }
 
-// assertEpisodeActionNamesField asserts a body is rejected by a
-// *syncdiag.FieldError naming one field. That type is the endpoint's
-// which-field 400 shape, so a rejection that names nothing would reach mobile
-// as an undiagnosable generic error.
-func assertEpisodeActionNamesField(t *testing.T, body string, field string) {
-	t.Helper()
+// episodeActionCase is one named body for a table of rejections.
+type episodeActionCase struct {
+	name string
+	body string
+}
 
+// episodeActionFieldRejection reports why a body is not rejected by a
+// *syncdiag.FieldError naming one field, or nil when it is. That type is the
+// endpoint's which-field 400 shape, so a rejection that names nothing would
+// reach mobile as an undiagnosable generic error.
+func episodeActionFieldRejection(body string, field string) error {
 	_, err := EpisodeActionKind{}.Decode([]byte(body))
 	if err == nil {
-		t.Fatalf("expected %s to be rejected, got no error", body)
+		return fmt.Errorf("expected %s to be rejected, got no error", body)
 	}
 	var fieldErr *syncdiag.FieldError
 	if !errors.As(err, &fieldErr) {
-		t.Fatalf("expected a *syncdiag.FieldError naming %s, got %T: %v", field, err, err)
+		return fmt.Errorf("expected a *syncdiag.FieldError naming %s, got %T: %v", field, err, err)
 	}
 	if fieldErr.Field != field {
-		t.Fatalf("expected the rejection to name %s, got %s (%v)", field, fieldErr.Field, err)
+		return fmt.Errorf("expected the rejection to name %s, got %s (%v)", field, fieldErr.Field, err)
+	}
+	return nil
+}
+
+// assertEpisodeActionCasesNameField asserts every case is rejected naming one
+// field, reporting each failing case by name without stopping at the first.
+func assertEpisodeActionCasesNameField(t *testing.T, cases []episodeActionCase, field string) {
+	t.Helper()
+
+	for _, tc := range cases {
+		if err := episodeActionFieldRejection(tc.body, field); err != nil {
+			t.Errorf("%s: %v", tc.name, err)
+		}
 	}
 }
 
-// assertEpisodeActionPayloadShape asserts the stored payload is the fixed
-// seven-key shape: a stable key set rather than a sparse one, so a later
-// reader can query payload_json without first establishing which keys a phase
-// happens to carry. It also pins the three keys the envelope columns own --
-// kind, observation_id and observed_at_ms are never repeated inside the
-// payload, where a copy could only contradict the column that owns it.
-func assertEpisodeActionPayloadShape(t *testing.T, payload []byte) {
-	t.Helper()
-
+// episodeActionPayloadShapeError reports why the stored payload is not the
+// fixed seven-key shape, or nil when it is: a stable key set rather than a
+// sparse one, so a later reader can query payload_json without first
+// establishing which keys a phase happens to carry. It also pins the three
+// keys the envelope columns own -- kind, observation_id and observed_at_ms are
+// never repeated inside the payload, where a copy could only contradict the
+// column that owns it.
+func episodeActionPayloadShapeError(payload []byte) error {
 	var decoded map[string]json.RawMessage
 	if err := json.Unmarshal(payload, &decoded); err != nil {
-		t.Fatalf("stored payload %s is not a JSON object: %v", payload, err)
+		return fmt.Errorf("stored payload %s is not a JSON object: %v", payload, err)
 	}
 
 	keys := make([]string, 0, len(decoded))
@@ -82,13 +99,51 @@ func assertEpisodeActionPayloadShape(t *testing.T, payload []byte) {
 	sort.Strings(keys)
 	want := []string{"action", "cause", "correlation_id", "duration_ms", "outcome", "phase", "reason"}
 	if !reflect.DeepEqual(keys, want) {
-		t.Fatalf("stored payload keys = %v, want exactly %v (payload %s)", keys, want, payload)
+		return fmt.Errorf("stored payload keys = %v, want exactly %v (payload %s)", keys, want, payload)
 	}
 	for _, envelopeOwned := range []string{"kind", "observation_id", "observed_at_ms"} {
 		if _, repeated := decoded[envelopeOwned]; repeated {
-			t.Fatalf("stored payload repeats %s, which the envelope columns own: %s", envelopeOwned, payload)
+			return fmt.Errorf("stored payload repeats %s, which the envelope columns own: %s", envelopeOwned, payload)
 		}
 	}
+	return nil
+}
+
+// assertEpisodeActionPayloadShape fails the test when the stored payload is
+// not the fixed seven-key shape.
+func assertEpisodeActionPayloadShape(t *testing.T, payload []byte) {
+	t.Helper()
+
+	if err := episodeActionPayloadShapeError(payload); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// episodeActionPhaseCase is one valid body and the envelope values it decodes to.
+type episodeActionPhaseCase struct {
+	name         string
+	body         string
+	eventID      string
+	observedAtMS int64
+}
+
+// episodeActionPhaseError reports why a valid body does not decode to its
+// envelope values and fixed payload shape, or nil when it does.
+func episodeActionPhaseError(tc episodeActionPhaseCase) error {
+	validated, err := EpisodeActionKind{}.Decode([]byte(tc.body))
+	switch {
+	case err != nil:
+		return fmt.Errorf("expected %s to decode, got error: %v", tc.body, err)
+	case validated.EventID != tc.eventID:
+		return fmt.Errorf("event id = %q, want the wire observation_id %q", validated.EventID, tc.eventID)
+	case validated.ObservedAtMS == nil:
+		return errors.New("observed_at_ms must reach the envelope, got nil")
+	case *validated.ObservedAtMS != tc.observedAtMS:
+		return fmt.Errorf("observed_at_ms = %d, want the wire value %d", *validated.ObservedAtMS, tc.observedAtMS)
+	case validated.Degraded != nil:
+		return fmt.Errorf("this kind declares no fidelity signal, but degraded = %q", *validated.Degraded)
+	}
+	return episodeActionPayloadShapeError(validated.Payload)
 }
 
 // TestEpisodeActionKindDecodesEveryPhase asserts each of the four phases has a
@@ -99,12 +154,7 @@ func assertEpisodeActionPayloadShape(t *testing.T, payload []byte) {
 func TestEpisodeActionKindDecodesEveryPhase(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name         string
-		body         string
-		eventID      string
-		observedAtMS int64
-	}{
+	cases := []episodeActionPhaseCase{
 		{"received", episodeActionReceivedBody, "obs-received", 1710000000000},
 		// Zero is a legal observed_at_ms: the rule is non-negative, and the
 		// epoch is the one non-negative value a truthiness check would reject.
@@ -115,23 +165,9 @@ func TestEpisodeActionKindDecodesEveryPhase(t *testing.T) {
 		{"sync", episodeActionSyncBody, "obs-sync", 1710000000004},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			validated := decodeEpisodeActionBody(t, tc.body)
-
-			if validated.EventID != tc.eventID {
-				t.Fatalf("event id = %q, want the wire observation_id %q", validated.EventID, tc.eventID)
-			}
-			if validated.ObservedAtMS == nil {
-				t.Fatal("observed_at_ms must reach the envelope, got nil")
-			}
-			if *validated.ObservedAtMS != tc.observedAtMS {
-				t.Fatalf("observed_at_ms = %d, want the wire value %d", *validated.ObservedAtMS, tc.observedAtMS)
-			}
-			if validated.Degraded != nil {
-				t.Fatalf("this kind declares no fidelity signal, but degraded = %q", *validated.Degraded)
-			}
-			assertEpisodeActionPayloadShape(t, validated.Payload)
-		})
+		if err := episodeActionPhaseError(tc); err != nil {
+			t.Errorf("%s: %v", tc.name, err)
+		}
 	}
 }
 
@@ -141,19 +177,16 @@ func TestEpisodeActionKindDecodesEveryPhase(t *testing.T) {
 func TestEpisodeActionKindRejectsOffListVocabularyMembers(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name string
-		body string
-	}{
+	cases := []episodeActionCase{
 		{"action", episodeActionWith(episodeActionFinishedBody, `"action":"episode_plus_one"`, `"action":"episode_plus_two"`)},
 		{"phase", episodeActionWith(episodeActionFinishedBody, `"phase":"finished"`, `"phase":"dropped"`)},
 		{"reason", episodeActionWith(episodeActionSkippedBody, `"reason":"in_flight"`, `"reason":"not_ready"`)},
 		{"cause", episodeActionWith(episodeActionFailedBody, `"cause":"disk_full"`, `"cause":"solar_flare"`)},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			assertEpisodeActionNamesField(t, tc.body, strings.Fields(tc.name)[0])
-		})
+		if err := episodeActionFieldRejection(tc.body, strings.Fields(tc.name)[0]); err != nil {
+			t.Errorf("%s: %v", tc.name, err)
+		}
 	}
 }
 
@@ -165,18 +198,10 @@ func TestEpisodeActionKindRejectsOffListVocabularyMembers(t *testing.T) {
 func TestEpisodeActionKindOutcomeIsOneCrossFieldRule(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name string
-		body string
-	}{
+	assertEpisodeActionCasesNameField(t, []episodeActionCase{
 		{"finished with the sync-only outcome", episodeActionWith(episodeActionFinishedBody, `"outcome":"committed"`, `"outcome":"ok"`)},
 		{"sync with the finished-only outcome", episodeActionWith(episodeActionSyncBody, `"outcome":"ok"`, `"outcome":"committed"`)},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			assertEpisodeActionNamesField(t, tc.body, "outcome")
-		})
-	}
+	}, "outcome")
 }
 
 // TestEpisodeActionKindGatesOutcomeByPhasePresence asserts the other half of
@@ -186,20 +211,12 @@ func TestEpisodeActionKindOutcomeIsOneCrossFieldRule(t *testing.T) {
 func TestEpisodeActionKindGatesOutcomeByPhasePresence(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name string
-		body string
-	}{
+	assertEpisodeActionCasesNameField(t, []episodeActionCase{
 		{"outcome present on received", episodeActionWith(episodeActionReceivedBody, `"correlation_id":"corr-received",`, `"correlation_id":"corr-received","outcome":"committed",`)},
 		{"null outcome on received", episodeActionWith(episodeActionReceivedBody, `"correlation_id":"corr-received",`, `"correlation_id":"corr-received","outcome":null,`)},
 		{"outcome absent on finished", episodeActionWith(episodeActionFinishedBody, `"outcome":"committed",`, ``)},
 		{"outcome absent on sync", episodeActionWith(episodeActionSyncBody, `"outcome":"ok",`, ``)},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			assertEpisodeActionNamesField(t, tc.body, "outcome")
-		})
-	}
+	}, "outcome")
 }
 
 // TestEpisodeActionKindGatesReasonToSkipped asserts reason belongs to the
@@ -209,21 +226,13 @@ func TestEpisodeActionKindGatesOutcomeByPhasePresence(t *testing.T) {
 func TestEpisodeActionKindGatesReasonToSkipped(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name string
-		body string
-	}{
+	assertEpisodeActionCasesNameField(t, []episodeActionCase{
 		{"reason absent on skipped", episodeActionWith(episodeActionSkippedBody, `"reason":"in_flight",`, ``)},
 		{"null reason on skipped", episodeActionWith(episodeActionSkippedBody, `"reason":"in_flight"`, `"reason":null`)},
 		{"reason on received", episodeActionWith(episodeActionReceivedBody, `"correlation_id":"corr-received",`, `"correlation_id":"corr-received","reason":"in_flight",`)},
 		{"reason on finished", episodeActionWith(episodeActionFinishedBody, `"outcome":"committed",`, `"outcome":"committed","reason":"in_flight",`)},
 		{"reason on sync", episodeActionWith(episodeActionSyncBody, `"outcome":"ok",`, `"outcome":"ok","reason":"in_flight",`)},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			assertEpisodeActionNamesField(t, tc.body, "reason")
-		})
-	}
+	}, "reason")
 }
 
 // TestEpisodeActionKindGatesCauseToFinishedFailure asserts cause is admissible
@@ -234,10 +243,7 @@ func TestEpisodeActionKindGatesReasonToSkipped(t *testing.T) {
 func TestEpisodeActionKindGatesCauseToFinishedFailure(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name string
-		body string
-	}{
+	assertEpisodeActionCasesNameField(t, []episodeActionCase{
 		{"cause absent on finished failure", episodeActionWith(episodeActionFailedBody, `"cause":"disk_full",`, ``)},
 		{"null cause on finished failure", episodeActionWith(episodeActionFailedBody, `"cause":"disk_full"`, `"cause":null`)},
 		{"cause on finished success", episodeActionWith(episodeActionFinishedBody, `"outcome":"committed",`, `"outcome":"committed","cause":"disk_full",`)},
@@ -246,12 +252,7 @@ func TestEpisodeActionKindGatesCauseToFinishedFailure(t *testing.T) {
 		{"cause on sync failure", episodeActionWith(episodeActionSyncBody, `"outcome":"ok",`, `"outcome":"failed","cause":"disk_full",`)},
 		{"cause on received", episodeActionWith(episodeActionReceivedBody, `"correlation_id":"corr-received",`, `"correlation_id":"corr-received","cause":"disk_full",`)},
 		{"cause on skipped", episodeActionWith(episodeActionSkippedBody, `"correlation_id":"corr-skipped",`, `"correlation_id":"corr-skipped","cause":"disk_full",`)},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			assertEpisodeActionNamesField(t, tc.body, "cause")
-		})
-	}
+	}, "cause")
 }
 
 // TestEpisodeActionKindGatesDurationNotNullOnFinishedOnly asserts the key is
@@ -262,22 +263,14 @@ func TestEpisodeActionKindGatesCauseToFinishedFailure(t *testing.T) {
 func TestEpisodeActionKindGatesDurationNotNullOnFinishedOnly(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name string
-		body string
-	}{
+	assertEpisodeActionCasesNameField(t, []episodeActionCase{
 		{"null duration on finished", episodeActionWith(episodeActionFinishedBody, `"duration_ms":137`, `"duration_ms":null`)},
 		{"duration on received", episodeActionWith(episodeActionReceivedBody, `"duration_ms":null`, `"duration_ms":0`)},
 		{"duration on skipped", episodeActionWith(episodeActionSkippedBody, `"duration_ms":null`, `"duration_ms":0`)},
 		{"duration on sync", episodeActionWith(episodeActionSyncBody, `"duration_ms":null`, `"duration_ms":0`)},
 		{"duration absent on finished", episodeActionWith(episodeActionFinishedBody, `,"duration_ms":137`, ``)},
 		{"duration absent on received", episodeActionWith(episodeActionReceivedBody, `,"duration_ms":null`, ``)},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			assertEpisodeActionNamesField(t, tc.body, "duration_ms")
-		})
-	}
+	}, "duration_ms")
 }
 
 // TestEpisodeActionKindRejectsUndeclaredKeys asserts the body is
@@ -290,24 +283,18 @@ func TestEpisodeActionKindGatesDurationNotNullOnFinishedOnly(t *testing.T) {
 func TestEpisodeActionKindRejectsUndeclaredKeys(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name string
-		body string
-	}{
+	cases := []episodeActionCase{
 		{"device_id", episodeActionWith(episodeActionFinishedBody, `"correlation_id":"corr-finished",`, `"correlation_id":"corr-finished","device_id":"spoofed",`)},
 		{"unknown trailing key", episodeActionWith(episodeActionFinishedBody, `"duration_ms":137}`, `"duration_ms":137,"extra":1}`)},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			_, err := EpisodeActionKind{}.Decode([]byte(tc.body))
-			if err == nil {
-				t.Fatalf("expected %s to be rejected as an undeclared key, got no error", tc.body)
-			}
-			var fieldErr *syncdiag.FieldError
-			if errors.As(err, &fieldErr) {
-				t.Fatalf("an undeclared key is a malformed body, not a field this kind validates, but the error named %s", fieldErr.Field)
-			}
-		})
+		_, err := EpisodeActionKind{}.Decode([]byte(tc.body))
+		var fieldErr *syncdiag.FieldError
+		if err == nil {
+			t.Errorf("%s: expected %s to be rejected as an undeclared key, got no error", tc.name, tc.body)
+		} else if errors.As(err, &fieldErr) {
+			t.Errorf("%s: an undeclared key is a malformed body, not a field this kind validates, but the error named %s", tc.name, fieldErr.Field)
+		}
 	}
 }
 
@@ -332,9 +319,9 @@ func TestEpisodeActionKindRejectsUnusableIdentityAndObservationTime(t *testing.T
 		{"empty correlation_id", episodeActionWith(episodeActionFinishedBody, `"correlation_id":"corr-finished"`, `"correlation_id":""`), "correlation_id"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			assertEpisodeActionNamesField(t, tc.body, tc.field)
-		})
+		if err := episodeActionFieldRejection(tc.body, tc.field); err != nil {
+			t.Errorf("%s: %v", tc.name, err)
+		}
 	}
 }
 

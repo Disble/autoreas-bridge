@@ -2,11 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { prettyActivityJson, toActivityJsonTokens } from '../activity-technical-json.helpers';
 
 describe('prettyActivityJson', () => {
-  it.each([
-    ['indents a JSON body two spaces deep', '{"a":1}', '{\n  "a": 1\n}'],
-    ['keeps a cut body exactly as stored', '{"a":"tru', '{"a":"tru'],
-  ])('%s', (_name, raw, expected) => {
-    expect(prettyActivityJson(raw)).toBe(expected);
+  it('indents a JSON body and keeps a cut body as stored', () => {
+    const cases = [
+      ['indents a JSON body two spaces deep', '{"a":1}', '{\n  "a": 1\n}'],
+      ['keeps a cut body exactly as stored', '{"a":"tru', '{"a":"tru'],
+    ] as const;
+
+    for (const [caseName, raw, expected] of cases) {
+      expect.soft(prettyActivityJson(raw), caseName).toBe(expected);
+    }
   });
 });
 

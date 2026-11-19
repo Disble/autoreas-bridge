@@ -28,13 +28,9 @@ func TestClassify(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := Classify(tc.runtime); got != tc.expected {
-				t.Fatalf("Classify(%v) = %v, want %v", tc.runtime, got, tc.expected)
-			}
-		})
+		if got := Classify(tc.runtime); got != tc.expected {
+			t.Errorf("%s: Classify(%v) = %v, want %v", tc.name, tc.runtime, got, tc.expected)
+		}
 	}
 }
 
@@ -65,12 +61,8 @@ func TestKindString(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.expected, func(t *testing.T) {
-			t.Parallel()
-
-			if got := tc.kind.String(); got != tc.expected {
-				t.Fatalf("Kind(%d).String() = %q, want %q", int(tc.kind), got, tc.expected)
-			}
-		})
+		if got := tc.kind.String(); got != tc.expected {
+			t.Errorf("%s: Kind(%d).String() = %q, want %q", tc.expected, int(tc.kind), got, tc.expected)
+		}
 	}
 }

@@ -54,22 +54,20 @@ func TestRunWithArchitectureFSSkipsNestedWorktrees(t *testing.T) {
 		{"nested worktree", ".worktrees", false},
 		{"ordinary directory", "internal", true},
 	} {
-		t.Run(test.name, func(t *testing.T) {
-			root := filepath.Clean(".")
-			dir := filepath.Join(root, test.dir)
-			fake := fakeArchitectureFS{
-				directories: map[string][]fs.DirEntry{
-					root: {fakeDirEntry{name: test.dir, mode: fs.ModeDir}},
-					dir:  {fakeDirEntry{name: "leak.go"}},
-				},
-				files: map[string][]byte{filepath.Join(dir, "leak.go"): violation},
-			}
+		root := filepath.Clean(".")
+		dir := filepath.Join(root, test.dir)
+		fake := fakeArchitectureFS{
+			directories: map[string][]fs.DirEntry{
+				root: {fakeDirEntry{name: test.dir, mode: fs.ModeDir}},
+				dir:  {fakeDirEntry{name: "leak.go"}},
+			},
+			files: map[string][]byte{filepath.Join(dir, "leak.go"): violation},
+		}
 
-			err := runWithArchitectureFS(root, fake)
-			if gotErr := err != nil; gotErr != test.wantErr {
-				t.Fatalf("runWithArchitectureFS error = %v, want error %v", err, test.wantErr)
-			}
-		})
+		err := runWithArchitectureFS(root, fake)
+		if gotErr := err != nil; gotErr != test.wantErr {
+			t.Errorf("%s: runWithArchitectureFS error = %v, want error %v", test.name, err, test.wantErr)
+		}
 	}
 }
 

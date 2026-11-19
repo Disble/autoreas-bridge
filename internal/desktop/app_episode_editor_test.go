@@ -78,32 +78,30 @@ var episodeDurationBindings = []struct {
 // stand-in outcome while the episodes module starts, after it failed, or without a database.
 func TestEpisodeDurationBindingsFollowTheEpisodesModule(t *testing.T) {
 	for _, binding := range episodeDurationBindings {
-		t.Run(binding.name+"/starting then failed", func(t *testing.T) {
-			app := durationEditorApp(openRuntimeBridgeDB(t), lifecycle.StateStarting)
-			assertCodedFailure(t, binding.call(app), apperr.CodeUnavailable, "episodes is starting")
+		app := durationEditorApp(openRuntimeBridgeDB(t), lifecycle.StateStarting)
+		assertCodedFailure(t, binding.name+" starting", binding.call(app), apperr.CodeUnavailable, "episodes is starting")
 
-			_ = app.moduleSet().writer.MarkFailed(moduleEpisodes, "episodes: episode service was not wired")
-			assertCodedFailure(t, binding.call(app), apperr.CodeFailedPrecondition, "episodes: episode service was not wired")
-		})
-		t.Run(binding.name+"/ready without a database is internal", func(t *testing.T) {
-			wantCode, wantMsg := apperr.CodeInternal, "episode durations unavailable"
-			if !binding.needsDB {
-				wantCode, wantMsg = "", "" // it never reads the database, so it cannot miss one
-			}
-			assertCodedFailure(t, binding.call(durationEditorApp(nil, lifecycle.StateReady)), wantCode, wantMsg)
-		})
+		_ = app.moduleSet().writer.MarkFailed(moduleEpisodes, "episodes: episode service was not wired")
+		assertCodedFailure(t, binding.name+" failed", binding.call(app), apperr.CodeFailedPrecondition, "episodes: episode service was not wired")
+
+		wantCode, wantMsg := apperr.CodeInternal, "episode durations unavailable"
+		if !binding.needsDB {
+			wantCode, wantMsg = "", "" // it never reads the database, so it cannot miss one
+		}
+		assertCodedFailure(t, binding.name+" ready without a database", binding.call(durationEditorApp(nil, lifecycle.StateReady)), wantCode, wantMsg)
 	}
 }
 
-// assertCodedFailure checks that err carries wantCode and wantMsg, or that it is nil when wantCode is empty.
-func assertCodedFailure(t *testing.T, err error, wantCode apperr.Code, wantMsg string) {
+// assertCodedFailure checks, without stopping the test, that the err of the call named label
+// carries wantCode and wantMsg, or that it is nil when wantCode is empty.
+func assertCodedFailure(t *testing.T, label string, err error, wantCode apperr.Code, wantMsg string) {
 	t.Helper()
 	code, _ := apperr.CodeOf(err)
 	if wantCode == "" && err == nil {
 		return
 	}
 	if err == nil || code != wantCode || err.Error() != wantMsg {
-		t.Fatalf("got code %q (err %v), want %q %q", code, err, wantCode, wantMsg)
+		t.Errorf("%s: got code %q (err %v), want %q %q", label, code, err, wantCode, wantMsg)
 	}
 }
 

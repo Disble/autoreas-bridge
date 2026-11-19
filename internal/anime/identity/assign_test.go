@@ -87,16 +87,13 @@ func TestAssign(t *testing.T) {
 			wantSkipped: []Diagnostic{{Kind: DiagnosticUnreadable, Basename: "03(4).mp4"}, totalHint("04(4).mp4")}},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got := NewAssigner().Assign(Request{Entries: tc.entries, Context: tc.ctx})
-			if !slices.Equal(got.Assigned, tc.wantAssign) {
-				t.Errorf("assigned = %+v, want %+v", got.Assigned, tc.wantAssign)
-			}
-			if !slices.Equal(got.Skipped, tc.wantSkipped) {
-				t.Errorf("skipped = %+v, want %+v", got.Skipped, tc.wantSkipped)
-			}
-		})
+		got := NewAssigner().Assign(Request{Entries: tc.entries, Context: tc.ctx})
+		if !slices.Equal(got.Assigned, tc.wantAssign) {
+			t.Errorf("%s: assigned = %+v, want %+v", tc.name, got.Assigned, tc.wantAssign)
+		}
+		if !slices.Equal(got.Skipped, tc.wantSkipped) {
+			t.Errorf("%s: skipped = %+v, want %+v", tc.name, got.Skipped, tc.wantSkipped)
+		}
 	}
 }
 

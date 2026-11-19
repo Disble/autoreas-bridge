@@ -38,10 +38,8 @@ func TestLegacyJSONEqual(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := legacyJSONEqual(tt.want, tt.got); got != tt.eq {
-				t.Fatalf("legacyJSONEqual() = %v, want %v", got, tt.eq)
-			}
-		})
+		if got := legacyJSONEqual(tt.want, tt.got); got != tt.eq {
+			t.Errorf("%s: legacyJSONEqual() = %v, want %v", tt.name, got, tt.eq)
+		}
 	}
 }

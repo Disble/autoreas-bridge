@@ -83,16 +83,10 @@ var backupBindings = []struct {
 func TestBackupBindingsFollowTheBackupModule(t *testing.T) {
 	t.Parallel()
 	for _, binding := range backupBindings {
-		t.Run(binding.name+"/starting then failed", func(t *testing.T) {
-			t.Parallel()
-			call := func(a *App) (bool, error) { return binding.call(t, a) }
-			assertStartingThenFailed(t, backupApp(t, lifecycle.StateStarting), moduleBackup, "backup is starting", call)
-		})
-		t.Run(binding.name+"/ready answers the value", func(t *testing.T) {
-			t.Parallel()
-			served, err := binding.call(t, backupApp(t, lifecycle.StateReady))
-			assertModuleAnswer(t, served, err, "", "")
-		})
+		call := func(a *App) (bool, error) { return binding.call(t, a) }
+		assertStartingThenFailed(t, binding.name, backupApp(t, lifecycle.StateStarting), moduleBackup, "backup is starting", call)
+		served, err := binding.call(t, backupApp(t, lifecycle.StateReady))
+		assertModuleAnswer(t, binding.name+" ready", served, err, "", "")
 	}
 }
 
@@ -152,20 +146,17 @@ func TestBackupServiceFailuresAreInternal(t *testing.T) {
 		}, pathFailure},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			app := backupApp(t, lifecycle.StateReady)
-			tc.breakIt(app)
+		app := backupApp(t, lifecycle.StateReady)
+		tc.breakIt(app)
 
-			err := tc.call(t, app)
+		err := tc.call(t, app)
 
-			if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal {
-				t.Fatalf("err = %v (code %q), want internal", err, code)
-			}
-			if tc.cause != nil && !errors.Is(err, tc.cause) {
-				t.Fatalf("err = %v, want it to carry %v", err, tc.cause)
-			}
-		})
+		if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal {
+			t.Errorf("%s: err = %v (code %q), want internal", tc.name, err, code)
+		}
+		if tc.cause != nil && !errors.Is(err, tc.cause) {
+			t.Errorf("%s: err = %v, want it to carry %v", tc.name, err, tc.cause)
+		}
 	}
 }
 
@@ -183,7 +174,7 @@ func TestBackupAnswersWhileSyncIsBroken(t *testing.T) {
 	for _, binding := range backupBindings {
 		t.Run(binding.name, func(t *testing.T) {
 			served, err := binding.call(t, app)
-			assertModuleAnswer(t, served, err, "", "")
+			assertModuleAnswer(t, binding.name, served, err, "", "")
 		})
 	}
 }

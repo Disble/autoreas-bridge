@@ -204,21 +204,19 @@ func TestSettleModulesNamesWhatWasNotWired(t *testing.T) {
 		{"notifications", func(a *App) { a.notificationCenterExecutor = nil }, "notifications: notification center was not wired"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			app := wiredApp()
-			tc.prune(app)
+		app := wiredApp()
+		tc.prune(app)
 
-			app.settleModules(registeredModules...)
+		app.settleModules(registeredModules...)
 
-			snapshot := readinessOf(t, app)
-			failed := modulesInState(snapshot, "failed")
-			if len(failed) != 1 || failed[0].Reason != tc.reason {
-				t.Fatalf("failed modules = %v, want one with reason %q", failed, tc.reason)
-			}
-			if ready := modulesInState(snapshot, "ready"); len(ready) != len(registeredModules)-1 {
-				t.Fatalf("ready modules = %v, want every other module settled ready", ready)
-			}
-		})
+		snapshot := readinessOf(t, app)
+		failed := modulesInState(snapshot, "failed")
+		if len(failed) != 1 || failed[0].Reason != tc.reason {
+			t.Errorf("without the %s: failed modules = %v, want one with reason %q", tc.name, failed, tc.reason)
+		}
+		if ready := modulesInState(snapshot, "ready"); len(ready) != len(registeredModules)-1 {
+			t.Errorf("without the %s: ready modules = %v, want every other module settled ready", tc.name, ready)
+		}
 	}
 }
 
@@ -276,19 +274,16 @@ func TestReadinessBridgeSkipsMissingSeams(t *testing.T) {
 		{"no emitter", func(a *App, _ *readinessEmits) { a.ensureRuntimeDependencies(); a.emitFn = nil }},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			app := newAppTestApp(t)
-			emits := &readinessEmits{}
-			tc.prepare(app, emits)
+		app := newAppTestApp(t)
+		emits := &readinessEmits{}
+		tc.prepare(app, emits)
 
-			app.registerReadinessRuntimeEventBridge(context.Background())
-			app.failStartingModules("stopped")
+		app.registerReadinessRuntimeEventBridge(context.Background())
+		app.failStartingModules("stopped")
 
-			if len(emits.payloads) != 0 {
-				t.Fatalf("emitted %v, want nothing", emits.payloads)
-			}
-		})
+		if len(emits.payloads) != 0 {
+			t.Errorf("%s: emitted %v, want nothing", tc.name, emits.payloads)
+		}
 	}
 }
 
@@ -322,12 +317,9 @@ func TestFormatBindingError(t *testing.T) {
 		{"legacy error keeps its plain message", errors.New("episode service unavailable"), "episode service unavailable"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if got := formatter(tc.err); got != tc.want {
-				t.Fatalf("ErrorFormatter() = %#v, want %#v", got, tc.want)
-			}
-		})
+		if got := formatter(tc.err); got != tc.want {
+			t.Errorf("%s: ErrorFormatter() = %#v, want %#v", tc.name, got, tc.want)
+		}
 	}
 }
 

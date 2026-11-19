@@ -147,44 +147,38 @@ var runtimeModuleBindings = []struct {
 func TestRuntimeModuleBindingsFollowTheirModule(t *testing.T) {
 	t.Parallel()
 	for _, binding := range runtimeModuleBindings {
-		t.Run(binding.name+"/starting then failed", func(t *testing.T) {
-			t.Parallel()
-			app := binding.app(lifecycle.StateStarting)
-			assertStartingThenFailed(t, app, lifecycle.ModuleID(binding.module), binding.module+" is starting", binding.call)
-		})
-		t.Run(binding.name+"/ready answers the value", func(t *testing.T) {
-			t.Parallel()
-			served, err := binding.call(binding.app(lifecycle.StateReady))
-			assertModuleAnswer(t, served, err, "", "")
-		})
+		app := binding.app(lifecycle.StateStarting)
+		assertStartingThenFailed(t, binding.name, app, lifecycle.ModuleID(binding.module), binding.module+" is starting", binding.call)
+		served, err := binding.call(binding.app(lifecycle.StateReady))
+		assertModuleAnswer(t, binding.name+" ready", served, err, "", "")
 	}
 }
 
-// assertStartingThenFailed drives one binding on app while module id starts and then fails to
-// start: it answers unavailable with startingMsg, then a failed precondition carrying
+// assertStartingThenFailed drives the binding named label on app while module id starts and then
+// fails to start: it answers unavailable with startingMsg, then a failed precondition carrying
 // moduleFailureReason.
-func assertStartingThenFailed(t *testing.T, app *App, id lifecycle.ModuleID, startingMsg string, call func(*App) (bool, error)) {
+func assertStartingThenFailed(t *testing.T, label string, app *App, id lifecycle.ModuleID, startingMsg string, call func(*App) (bool, error)) {
 	t.Helper()
 	served, err := call(app)
-	assertModuleAnswer(t, served, err, apperr.CodeUnavailable, startingMsg)
+	assertModuleAnswer(t, label+" starting", served, err, apperr.CodeUnavailable, startingMsg)
 	inModuleState(app, id, lifecycle.StateFailed)
 	served, err = call(app)
-	assertModuleAnswer(t, served, err, apperr.CodeFailedPrecondition, moduleFailureReason)
+	assertModuleAnswer(t, label+" failed", served, err, apperr.CodeFailedPrecondition, moduleFailureReason)
 }
 
-// assertModuleAnswer checks one binding answer: the failure code and message when wantMsg is set,
-// otherwise no error and a served value.
-func assertModuleAnswer(t *testing.T, served bool, err error, wantCode apperr.Code, wantMsg string) {
+// assertModuleAnswer checks the binding answer named label without stopping the test: the
+// failure code and message when wantMsg is set, otherwise no error and a served value.
+func assertModuleAnswer(t *testing.T, label string, served bool, err error, wantCode apperr.Code, wantMsg string) {
 	t.Helper()
-	code, _ := apperr.CodeOf(err)
-	if code != wantCode {
-		t.Fatalf("code %q (err %v), want %q", code, err, wantCode)
+	if code, _ := apperr.CodeOf(err); code != wantCode {
+		t.Errorf("%s: code %q (err %v), want %q", label, code, err, wantCode)
+		return
 	}
-	if wantMsg != "" && err.Error() != wantMsg {
-		t.Fatalf("err = %q, want %q", err, wantMsg)
+	if wantMsg != "" && (err == nil || err.Error() != wantMsg) {
+		t.Errorf("%s: err = %v, want %q", label, err, wantMsg)
 	}
 	if wantMsg == "" && !served {
-		t.Fatal("a ready module did not serve its value")
+		t.Errorf("%s: a ready module did not serve its value", label)
 	}
 }
 
@@ -227,14 +221,11 @@ func TestRuntimeModuleServiceFailuresAreInternal(t *testing.T) {
 		}, "disk I/O error"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			err := tc.call()
+		err := tc.call()
 
-			if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal || err.Error() != tc.wantMsg {
-				t.Fatalf("err = %v (code %q), want internal %q", err, code, tc.wantMsg)
-			}
-		})
+		if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal || err.Error() != tc.wantMsg {
+			t.Errorf("%s: err = %v (code %q), want internal %q", tc.name, err, code, tc.wantMsg)
+		}
 	}
 }
 

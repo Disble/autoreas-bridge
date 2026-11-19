@@ -104,15 +104,19 @@ describe('chart ticks', () => {
   /** One hourly slot starting at `hour` today. */
   const hourSlot = (hour: number): ActivityChartSlot => ({ startMs: new Date(2026, 9, 22, hour).getTime(), endMs: new Date(2026, 9, 22, hour + 1).getTime(), count: 1, failed: 0 });
 
-  it.each([
-    ['24 h marks every third hour and midnight as Today', '24h', [hourSlot(0), hourSlot(2), hourSlot(3)], ['Today', '', '03']],
-    ['7 days names each weekday and date', '7d', [daySlot(2), daySlot(1), daySlot(0)], ['Tue 20', 'Wed 21', 'Today']],
-    ['30 days marks every seventh day from today', '30d', Array.from({ length: 8 }, (_unused, index) => daySlot(7 - index)), ['Oct 15', '', '', '', '', '', '', 'Today']],
-    ['90 days names the first of each month', '90d', [daySlot(22), daySlot(21), daySlot(0)], ['', 'Oct', 'Today']],
-  ] as const)('%s', (_case, scale, slots, ticks) => {
-    const bars = toChartBars(slots, scale, undefined);
+  it('labels the ticks of every chart scale', () => {
+    const cases = [
+      ['24 h marks every third hour and midnight as Today', '24h', [hourSlot(0), hourSlot(2), hourSlot(3)], ['Today', '', '03']],
+      ['7 days names each weekday and date', '7d', [daySlot(2), daySlot(1), daySlot(0)], ['Tue 20', 'Wed 21', 'Today']],
+      ['30 days marks every seventh day from today', '30d', Array.from({ length: 8 }, (_unused, index) => daySlot(7 - index)), ['Oct 15', '', '', '', '', '', '', 'Today']],
+      ['90 days names the first of each month', '90d', [daySlot(22), daySlot(21), daySlot(0)], ['', 'Oct', 'Today']],
+    ] as const;
 
-    expect(bars.map((bar) => bar.tick)).toEqual(ticks);
-    expect(bars.map((bar) => bar.isTodayTick)).toEqual(ticks.map((tick) => tick === 'Today'));
+    for (const [caseName, scale, slots, ticks] of cases) {
+      const bars = toChartBars(slots, scale, undefined);
+
+      expect.soft(bars.map((bar) => bar.tick), caseName).toEqual(ticks);
+      expect.soft(bars.map((bar) => bar.isTodayTick), caseName).toEqual(ticks.map((tick) => tick === 'Today'));
+    }
   });
 });

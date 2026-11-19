@@ -32,12 +32,8 @@ func TestIsFirstWatchTransition(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := IsFirstWatchTransition(tc.from, tc.to, tc.premieredAt); got != tc.want {
-				t.Fatalf("IsFirstWatchTransition(%v, %v, %v) = %v, want %v", tc.from, tc.to, tc.premieredAt, got, tc.want)
-			}
-		})
+		if got := IsFirstWatchTransition(tc.from, tc.to, tc.premieredAt); got != tc.want {
+			t.Errorf("%s: IsFirstWatchTransition(%v, %v, %v) = %v, want %v", tc.name, tc.from, tc.to, tc.premieredAt, got, tc.want)
+		}
 	}
 }

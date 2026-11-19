@@ -3,14 +3,18 @@ import { drawerPageFact, isDrawerStackCut, pickDrawerOccurrenceId, toDrawerOccur
 import { incident } from './drawer.fixtures';
 
 describe('toDrawerPageName', () => {
-  it.each([
-    ['a plain route', '/editor', 'Editor'],
-    ['a hash route', '#/activity', 'Activity'],
-    ['a nested route with a query', '#/catalog/12?tab=a', 'Catalog'],
-    ['an unknown route', '/nowhere', undefined],
-    ['an empty route', '', undefined],
-  ])('%s', (_name, route, expected) => {
-    expect(toDrawerPageName(route)).toBe(expected);
+  it('names the page of a route, and nothing for an unknown or empty one', () => {
+    const cases = [
+      ['a plain route', '/editor', 'Editor'],
+      ['a hash route', '#/activity', 'Activity'],
+      ['a nested route with a query', '#/catalog/12?tab=a', 'Catalog'],
+      ['an unknown route', '/nowhere', undefined],
+      ['an empty route', '', undefined],
+    ] as const;
+
+    for (const [caseName, route, expected] of cases) {
+      expect.soft(toDrawerPageName(route), caseName).toBe(expected);
+    }
   });
 });
 
@@ -25,12 +29,16 @@ describe('drawerPageFact', () => {
 });
 
 describe('isDrawerStackCut', () => {
-  it.each([
-    ['a stack at the 8 KiB limit minus a split rune', 'a'.repeat(8189), true],
-    ['a shorter stack', 'a'.repeat(8188), false],
-    ['multi-byte text counted in UTF-8 bytes', 'é'.repeat(4095), true],
-  ])('%s', (_name, stack, expected) => {
-    expect(isDrawerStackCut(stack)).toBe(expected);
+  it('flags a stack cut at the 8 KiB limit counted in UTF-8 bytes', () => {
+    const cases = [
+      ['a stack at the 8 KiB limit minus a split rune', 'a'.repeat(8189), true],
+      ['a shorter stack', 'a'.repeat(8188), false],
+      ['multi-byte text counted in UTF-8 bytes', 'é'.repeat(4095), true],
+    ] as const;
+
+    for (const [caseName, stack, expected] of cases) {
+      expect.soft(isDrawerStackCut(stack), caseName).toBe(expected);
+    }
   });
 });
 
@@ -41,11 +49,15 @@ describe('toDrawerOccurrences', () => {
     expect(toDrawerOccurrences(detail).map((occurrence) => occurrence.id)).toEqual([detail.incident.id, 3]);
   });
 
-  it.each([
-    ['no incident', undefined],
-    ['no earlier occurrence', incident({ earlier: [] })],
-  ])('is empty with %s', (_name, detail) => {
-    expect(toDrawerOccurrences(detail)).toEqual([]);
+  it('is empty without an incident or an earlier occurrence', () => {
+    const cases = [
+      ['no incident', undefined],
+      ['no earlier occurrence', incident({ earlier: [] })],
+    ] as const;
+
+    for (const [caseName, detail] of cases) {
+      expect.soft(toDrawerOccurrences(detail), caseName).toEqual([]);
+    }
   });
 });
 
@@ -76,13 +88,17 @@ describe('pickDrawerOccurrenceId', () => {
     { id: 3, time: '11:21' },
   ];
 
-  it.each([
-    ['nothing picked shows this occurrence', undefined, 7],
-    ['a pick in this line shows it', { lineKey: 'event:1', id: 3 }, 3],
-    ['a pick in another line is ignored', { lineKey: 'event:2', id: 3 }, 7],
-    ['a pick no longer listed is ignored', { lineKey: 'event:1', id: 99 }, 7],
-  ])('%s', (_name, picked, expected) => {
-    expect(pickDrawerOccurrenceId(OCCURRENCES, picked, 'event:1')).toBe(expected);
+  it('picks this occurrence unless a pick in this line names another', () => {
+    const cases = [
+      ['nothing picked shows this occurrence', undefined, 7],
+      ['a pick in this line shows it', { lineKey: 'event:1', id: 3 }, 3],
+      ['a pick in another line is ignored', { lineKey: 'event:2', id: 3 }, 7],
+      ['a pick no longer listed is ignored', { lineKey: 'event:1', id: 99 }, 7],
+    ] as const;
+
+    for (const [caseName, picked, expected] of cases) {
+      expect.soft(pickDrawerOccurrenceId(OCCURRENCES, picked, 'event:1'), caseName).toBe(expected);
+    }
   });
 
   it('is undefined without occurrences', () => {
@@ -91,37 +107,49 @@ describe('pickDrawerOccurrenceId', () => {
 });
 
 describe('toDrawerOccurrenceEventId', () => {
-  it.each([
-    ['an event-fired occurrence reads its event', 'event', '41', 41],
-    ['a request-fired occurrence reads nothing', 'request', '41', undefined],
-    ['a non-numeric id reads nothing', 'event', 'x1', undefined],
-  ])('%s', (_name, sourceKind, sourceId, expected) => {
-    const detail = incident();
+  it('reads the event of an event-fired occurrence and nothing otherwise', () => {
+    const cases = [
+      ['an event-fired occurrence reads its event', 'event', '41', 41],
+      ['a request-fired occurrence reads nothing', 'request', '41', undefined],
+      ['a non-numeric id reads nothing', 'event', 'x1', undefined],
+    ] as const;
 
-    expect(toDrawerOccurrenceEventId({ ...detail, incident: { ...detail.incident, sourceKind, sourceId } })).toBe(expected);
+    for (const [caseName, sourceKind, sourceId, expected] of cases) {
+      const detail = incident();
+
+      expect.soft(toDrawerOccurrenceEventId({ ...detail, incident: { ...detail.incident, sourceKind, sourceId } }), caseName).toBe(expected);
+    }
   });
 
   it('reads nothing before the detail is read', () => {
     expect(toDrawerOccurrenceEventId(undefined)).toBeUndefined();
   });
 
-  it.each([
-    ['the window event stored at the occurrence time', 0, 40467],
-    ['nothing when no window event matches its time', 1, undefined],
-  ])('without a stored source id reads %s', (_name, offsetMs, expected) => {
-    const detail = incident();
-    const event = { id: 40467, atMs: detail.incident.occurredAtMs + offsetMs, domain: 'frontend', level: 'error', eventType: 'frontend.error', message: 'boom', correlationId: '' };
-    const other = { ...event, id: 40466, atMs: detail.incident.occurredAtMs - 5000 };
+  it('without a stored source id reads the window event at the occurrence time', () => {
+    const cases = [
+      ['the window event stored at the occurrence time', 0, 40467],
+      ['nothing when no window event matches its time', 1, undefined],
+    ] as const;
 
-    expect(toDrawerOccurrenceEventId({ ...detail, incident: { ...detail.incident, sourceKind: 'event', sourceId: '' }, events: [other, event] })).toBe(expected);
+    for (const [caseName, offsetMs, expected] of cases) {
+      const detail = incident();
+      const event = { id: 40467, atMs: detail.incident.occurredAtMs + offsetMs, domain: 'frontend', level: 'error', eventType: 'frontend.error', message: 'boom', correlationId: '' };
+      const other = { ...event, id: 40466, atMs: detail.incident.occurredAtMs - 5000 };
+
+      expect.soft(toDrawerOccurrenceEventId({ ...detail, incident: { ...detail.incident, sourceKind: 'event', sourceId: '' }, events: [other, event] }), caseName).toBe(expected);
+    }
   });
 });
 
 describe('toDrawerOccurrenceStatus', () => {
-  it.each([
-    ['keeps the reads state while the event is known', 'loading', false, 'loading'],
-    ['fails when the occurrence has no firing event', 'ready', true, 'failed'],
-  ] as const)('%s', (_name, status, eventMissing, expected) => {
-    expect(toDrawerOccurrenceStatus(status, eventMissing)).toBe(expected);
+  it('reads the occurrence status from the reads state and the firing event', () => {
+    const cases = [
+      ['keeps the reads state while the event is known', 'loading', false, 'loading'],
+      ['fails when the occurrence has no firing event', 'ready', true, 'failed'],
+    ] as const;
+
+    for (const [caseName, status, eventMissing, expected] of cases) {
+      expect.soft(toDrawerOccurrenceStatus(status, eventMissing), caseName).toBe(expected);
+    }
   });
 });

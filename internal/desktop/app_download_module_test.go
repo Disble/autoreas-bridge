@@ -132,16 +132,10 @@ var downloadBindings = []struct {
 func TestDownloadBindingsFollowTheirModule(t *testing.T) {
 	t.Parallel()
 	for _, binding := range downloadBindings {
-		t.Run(binding.name+"/starting then failed", func(t *testing.T) {
-			t.Parallel()
-			app := inDownloadsState(&App{}, lifecycle.StateStarting)
-			assertStartingThenFailed(t, app, moduleDownloads, "downloads is starting", binding.call)
-		})
-		t.Run(binding.name+"/ready answers the value", func(t *testing.T) {
-			t.Parallel()
-			served, err := binding.call(inDownloadsState(&App{}, lifecycle.StateReady))
-			assertModuleAnswer(t, served, err, "", "")
-		})
+		app := inDownloadsState(&App{}, lifecycle.StateStarting)
+		assertStartingThenFailed(t, binding.name, app, moduleDownloads, "downloads is starting", binding.call)
+		served, err := binding.call(inDownloadsState(&App{}, lifecycle.StateReady))
+		assertModuleAnswer(t, binding.name+" ready", served, err, "", "")
 	}
 }
 
@@ -167,23 +161,11 @@ func TestDownloadStoreFailuresAreInternal(t *testing.T) {
 		{"SetScheduleConfig", "SetScheduleConfig", func(a *App) error { return a.SetScheduleConfig(contracts.ScheduleConfig{}) }},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			store := &fakeAppDownloadStore{errs: map[string]error{tc.method: failure}}
-			err := tc.call(downloadsReady(&App{downloadStore: store}))
-			assertInternal(t, err, failure.Error())
-			if !errors.Is(err, failure) {
-				t.Fatalf("err = %v; want the store's cause reachable", err)
-			}
-		})
-	}
-}
-
-// assertInternal fails t unless err is an internal failure carrying message.
-func assertInternal(t *testing.T, err error, message string) {
-	t.Helper()
-	if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal || err.Error() != message {
-		t.Fatalf("err = %v (code %q); want internal %q", err, code, message)
+		store := &fakeAppDownloadStore{errs: map[string]error{tc.method: failure}}
+		err := tc.call(downloadsReady(&App{downloadStore: store}))
+		if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal || err.Error() != failure.Error() || !errors.Is(err, failure) {
+			t.Errorf("%s: err = %v (code %q); want internal %q with the store's cause reachable", tc.name, err, code, failure)
+		}
 	}
 }
 
@@ -214,13 +196,10 @@ func TestDownloadCommandRefusalsAreErrors(t *testing.T) {
 			func(a *App) error { return a.DownloadSeasonAnimes([]string{"anime-1"}) }, apperr.CodeNotFound, soloDownloadAnimeNotFound},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			err := tc.call(downloadsReady(tc.app))
-			if code, _ := apperr.CodeOf(err); code != tc.wantCode || err.Error() != tc.wantMsg {
-				t.Fatalf("err = %v (code %q); want %q %q", err, code, tc.wantCode, tc.wantMsg)
-			}
-		})
+		err := tc.call(downloadsReady(tc.app))
+		if code, _ := apperr.CodeOf(err); code != tc.wantCode || err.Error() != tc.wantMsg {
+			t.Errorf("%s: err = %v (code %q); want %q %q", tc.name, err, code, tc.wantCode, tc.wantMsg)
+		}
 	}
 }
 
@@ -253,23 +232,20 @@ func TestBindDownloadsModuleNeedsEveryService(t *testing.T) {
 		{"scheduler", func(a *App) { a.downloadScheduler = nil }},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			app := &App{
-				ctx:               context.Background(),
-				downloadStore:     &fakeAppDownloadStore{},
-				downloadService:   download.NewService(download.ServiceDeps{}),
-				readinessService:  emptyReadinessService(),
-				downloadScheduler: &fakeAppScheduler{},
-			}
-			tc.prune(app)
+		app := &App{
+			ctx:               context.Background(),
+			downloadStore:     &fakeAppDownloadStore{},
+			downloadService:   download.NewService(download.ServiceDeps{}),
+			readinessService:  emptyReadinessService(),
+			downloadScheduler: &fakeAppScheduler{},
+		}
+		tc.prune(app)
 
-			app.bindDownloadsModule()
-			_ = app.moduleSet().writer.MarkReady(moduleDownloads)
+		app.bindDownloadsModule()
+		_ = app.moduleSet().writer.MarkReady(moduleDownloads)
 
-			if _, err := app.GetJDStatus(); err == nil || !strings.Contains(err.Error(), "downloads is ready without services") {
-				t.Fatalf("GetJDStatus = %v; want the unbound-module failure", err)
-			}
-		})
+		if _, err := app.GetJDStatus(); err == nil || !strings.Contains(err.Error(), "downloads is ready without services") {
+			t.Errorf("without the %s: GetJDStatus = %v; want the unbound-module failure", tc.name, err)
+		}
 	}
 }

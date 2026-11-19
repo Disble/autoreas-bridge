@@ -46,18 +46,16 @@ func TestTransformResizeReceiptsArePinnedToSpecVersionTwo(t *testing.T) {
 		{name: "pre-shrink skipped", source: encode(t, gradientImage(1001, 640), "png"), wantSHA256: "586df4f87fd8c0731440317745e830b368b654010d7a1d85cda8175d7897ddb3"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			result, err := thumbnail.Transform(tc.source, thumbnail.Options{})
-			if err != nil {
-				t.Fatalf("Transform: %v", err)
-			}
-			sum := sha256.Sum256(result.Bytes)
-			gotSHA256, wantETag := hex.EncodeToString(sum[:]), `"`+hex.EncodeToString(sum[:])+`"`
-			if gotSHA256 != tc.wantSHA256 || result.ETag != wantETag {
-				t.Fatalf("served %d bytes sha256 %s ETag %s, want sha256 %s ETag %s", len(result.Bytes), gotSHA256, result.ETag, tc.wantSHA256, wantETag)
-			}
-		})
+		result, err := thumbnail.Transform(tc.source, thumbnail.Options{})
+		if err != nil {
+			t.Errorf("%s: Transform: %v", tc.name, err)
+			continue
+		}
+		sum := sha256.Sum256(result.Bytes)
+		gotSHA256, wantETag := hex.EncodeToString(sum[:]), `"`+hex.EncodeToString(sum[:])+`"`
+		if gotSHA256 != tc.wantSHA256 || result.ETag != wantETag {
+			t.Errorf("%s: served %d bytes sha256 %s ETag %s, want sha256 %s ETag %s", tc.name, len(result.Bytes), gotSHA256, result.ETag, tc.wantSHA256, wantETag)
+		}
 	}
 }
 
@@ -148,13 +146,10 @@ func TestTransformRejectsInvalidSources(t *testing.T) {
 		{name: "SVG", data: []byte(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>`)},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			_, err := thumbnail.Transform(tc.data, thumbnail.Options{})
-			if !errors.Is(err, thumbnail.ErrInvalidSource) || strings.Contains(err.Error(), "pixel cap") != tc.wantCapReason {
-				t.Fatalf("Transform() error = %v, want ErrInvalidSource naming pixel-cap=%v", err, tc.wantCapReason)
-			}
-		})
+		_, err := thumbnail.Transform(tc.data, thumbnail.Options{})
+		if !errors.Is(err, thumbnail.ErrInvalidSource) || strings.Contains(err.Error(), "pixel cap") != tc.wantCapReason {
+			t.Errorf("%s: Transform() error = %v, want ErrInvalidSource naming pixel-cap=%v", tc.name, err, tc.wantCapReason)
+		}
 	}
 }
 

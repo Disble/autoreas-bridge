@@ -122,12 +122,10 @@ func TestServicePairDeviceRejectsInvalidRequest(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := service.PairDevice(context.Background(), tt.req)
-			if !errors.Is(err, ErrInvalidPairingRequest) {
-				t.Fatalf("expected ErrInvalidPairingRequest, got %v", err)
-			}
-		})
+		_, err := service.PairDevice(context.Background(), tt.req)
+		if !errors.Is(err, ErrInvalidPairingRequest) {
+			t.Errorf("%s: expected ErrInvalidPairingRequest, got %v", tt.name, err)
+		}
 	}
 }
 

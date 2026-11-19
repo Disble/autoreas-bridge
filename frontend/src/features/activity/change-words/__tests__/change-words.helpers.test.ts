@@ -34,13 +34,18 @@ describe('describeActivityChange', () => {
     expect(describeActivityChange(change({ actionType: 'season_grade_set', beforeJson: '', afterJson: '{}' }))).toBe('grade changed · from the phone');
   });
 
-  it.each([
-    ['anime_soft_deleted', 'removed'],
-    ['anime_restored', 'restored'],
-    ['anime_repeated', 'watching again'],
-    ['cover_refreshed', 'cover refreshed'],
-  ])('words %s as %s', (actionType, expected) => {
-    expect(describeActivityChange(change({ source: 'system', actionType }))).toBe(`${expected} · by the bridge`);
+  it('words each lifecycle action by its verb', () => {
+    const cases = [
+      ['anime_soft_deleted', 'removed'],
+      ['anime_restored', 'restored'],
+      ['anime_repeated', 'watching again'],
+      ['cover_refreshed', 'cover refreshed'],
+    ] as const;
+
+    for (const [actionType, expected] of cases) {
+      const caseName = `words ${String(actionType)} as ${String(expected)}`;
+      expect.soft(describeActivityChange(change({ source: 'system', actionType })), caseName).toBe(`${expected} · by the bridge`);
+    }
   });
 
   it('falls back to the action words when a snapshot cannot be read', () => {

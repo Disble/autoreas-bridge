@@ -88,16 +88,10 @@ var settingsModuleBindings = []struct {
 func TestSettingsBindingsFollowTheSettingsModule(t *testing.T) {
 	t.Parallel()
 	for _, binding := range settingsModuleBindings {
-		t.Run(binding.name+"/starting then failed", func(t *testing.T) {
-			t.Parallel()
-			app := settingsApp(t, lifecycle.StateStarting)
-			assertStartingThenFailed(t, app, moduleSettings, "settings is starting", binding.call)
-		})
-		t.Run(binding.name+"/ready answers the value", func(t *testing.T) {
-			t.Parallel()
-			served, err := binding.call(settingsApp(t, lifecycle.StateReady))
-			assertModuleAnswer(t, served, err, "", "")
-		})
+		app := settingsApp(t, lifecycle.StateStarting)
+		assertStartingThenFailed(t, binding.name, app, moduleSettings, "settings is starting", binding.call)
+		served, err := binding.call(settingsApp(t, lifecycle.StateReady))
+		assertModuleAnswer(t, binding.name+" ready", served, err, "", "")
 	}
 }
 
@@ -140,15 +134,12 @@ func TestSettingsStoreFailuresAreInternal(t *testing.T) {
 		{"SetKeymap", func(a *App) error { return a.SetKeymap(`{"version":1,"overrides":{}}`) }},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			err := tc.call(withSettingsStore(&App{}, failingSettingsStore{}))
+		err := tc.call(withSettingsStore(&App{}, failingSettingsStore{}))
 
-			code, _ := apperr.CodeOf(err)
-			if code != apperr.CodeInternal || !errors.Is(err, errSettingsDisk) {
-				t.Fatalf("err = %v (code %q), want internal wrapping %v", err, code, errSettingsDisk)
-			}
-		})
+		code, _ := apperr.CodeOf(err)
+		if code != apperr.CodeInternal || !errors.Is(err, errSettingsDisk) {
+			t.Errorf("%s: err = %v (code %q), want internal wrapping %v", tc.name, err, code, errSettingsDisk)
+		}
 	}
 }
 
@@ -165,13 +156,10 @@ func TestSettingsBindingsRefuseBadInputAsInvalidArgument(t *testing.T) {
 		{"SetSeasonCheckTime", func(a *App) error { return a.SetSeasonCheckTime("9:00") }, `invalid time "9:00": use HH:MM (00:00-23:59)`},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			err := tc.call(withSettingsStore(&App{}, untouchableSettingsStore{}))
+		err := tc.call(withSettingsStore(&App{}, untouchableSettingsStore{}))
 
-			if code, _ := apperr.CodeOf(err); code != apperr.CodeInvalidArgument || err.Error() != tc.wantMsg {
-				t.Fatalf("err = %v (code %q), want invalid_argument %q", err, code, tc.wantMsg)
-			}
-		})
+		if code, _ := apperr.CodeOf(err); code != apperr.CodeInvalidArgument || err.Error() != tc.wantMsg {
+			t.Errorf("%s: err = %v (code %q), want invalid_argument %q", tc.name, err, code, tc.wantMsg)
+		}
 	}
 }

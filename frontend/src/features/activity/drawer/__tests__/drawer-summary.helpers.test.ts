@@ -27,6 +27,11 @@ function sectionOf<K extends DrawerSection['kind']>(sections: readonly DrawerSec
   return found as Extract<DrawerSection, { kind: K }>;
 }
 
+/** The one section of a kind, or undefined, so a missing section fails one row of a loop without stopping the rest. */
+function maybeSectionOf<K extends DrawerSection['kind']>(sections: readonly DrawerSection[], kind: K): Extract<DrawerSection, { kind: K }> | undefined {
+  return sections.find((section): section is Extract<DrawerSection, { kind: K }> => section.kind === kind);
+}
+
 /** The rows of a section that must be a facts section. */
 function rowsOf(section: DrawerSection | undefined): readonly DrawerFact[] {
   if (section?.kind !== 'facts') {
@@ -226,24 +231,28 @@ describe('toDrawerSummary', () => {
 });
 
 describe('toDrawerHeader', () => {
-  it.each([
-    ['a change reads the anime and the change words', CHANGE, 'Hotaru no Yomeiri', 'episode 1 → 2 · from the phone'],
-    [
-      'a traffic hour reads its check-ins and refusals',
-      feedLine({ type: 'traffic', origin: 'phone', traffic: { hourStartMs: AT, requests: 39, failed: 2, maxDurationMs: 1 } }, { kind: 'traffic_hour' }),
-      'Phone checked in',
-      '39 times · 2 refused',
-    ],
-    ['an event reads its recorded message', feedLine({}, { kind: 'event', title: 'Bridge started', detail: 'api.listening' }), 'Bridge started', ''],
-    [
-      'a repeated System group reads its count',
-      feedLine({ system: { hourStartMs: AT, count: 4, firstAtMs: AT, lastAtMs: AT + 60_000 } }, { kind: 'event', title: 'Bridge started', detail: 'api.listening' }),
-      'Bridge started',
-      '4 times',
-    ],
-    ['a System group of one event reads no count', feedLine({ system: { hourStartMs: AT, count: 1, firstAtMs: AT, lastAtMs: AT } }, { kind: 'event', title: 'boom' }), 'boom', ''],
-  ])('%s', (_name, line, title, phrase) => {
-    expect(toDrawerHeader(line)).toMatchObject({ title, phrase });
+  it('titles a change, a traffic hour, an event and a System group with their phrase', () => {
+    const cases = [
+      ['a change reads the anime and the change words', CHANGE, 'Hotaru no Yomeiri', 'episode 1 → 2 · from the phone'],
+      [
+        'a traffic hour reads its check-ins and refusals',
+        feedLine({ type: 'traffic', origin: 'phone', traffic: { hourStartMs: AT, requests: 39, failed: 2, maxDurationMs: 1 } }, { kind: 'traffic_hour' }),
+        'Phone checked in',
+        '39 times · 2 refused',
+      ],
+      ['an event reads its recorded message', feedLine({}, { kind: 'event', title: 'Bridge started', detail: 'api.listening' }), 'Bridge started', ''],
+      [
+        'a repeated System group reads its count',
+        feedLine({ system: { hourStartMs: AT, count: 4, firstAtMs: AT, lastAtMs: AT + 60_000 } }, { kind: 'event', title: 'Bridge started', detail: 'api.listening' }),
+        'Bridge started',
+        '4 times',
+      ],
+      ['a System group of one event reads no count', feedLine({ system: { hourStartMs: AT, count: 1, firstAtMs: AT, lastAtMs: AT } }, { kind: 'event', title: 'boom' }), 'boom', ''],
+    ] as const;
+
+    for (const [name, line, title, phrase] of cases) {
+      expect.soft(toDrawerHeader(line), name).toMatchObject({ title, phrase });
+    }
   });
 });
 
@@ -259,14 +268,18 @@ const SLOW_REQUESTS = [
 ];
 
 describe('toDrawerSummary edge cases', () => {
-  it.each([
-    ['an unreadable snapshot reads as a dash', '{bad', '{"NroCapVisto":2}', 'episode_adjusted', '—', '2'],
-    ['a state reads as its label', '{"Estado":1}', '{"Estado":2}', 'anime_state_set', 'Finalizado', 'No me gusto'],
-    ['an object value reads as JSON and null as a dash', '{"grade":{"a":1}}', '{"grade":null}', 'season_grade_set', '{"a":1}', '—'],
-  ])('%s', (_name, beforeJson, afterJson, detail, before, after) => {
-    const line = feedLine({ type: 'edit' }, { kind: 'change', source: 'desktop', detail, beforeJson, afterJson });
+  it('reads an unreadable snapshot as a dash, a state as its label and an object as JSON', () => {
+    const cases = [
+      ['an unreadable snapshot reads as a dash', '{bad', '{"NroCapVisto":2}', 'episode_adjusted', '—', '2'],
+      ['a state reads as its label', '{"Estado":1}', '{"Estado":2}', 'anime_state_set', 'Finalizado', 'No me gusto'],
+      ['an object value reads as JSON and null as a dash', '{"grade":{"a":1}}', '{"grade":null}', 'season_grade_set', '{"a":1}', '—'],
+    ] as const;
 
-    expect(sectionOf(toDrawerSummary(input({ line })).sections, 'before-after')).toMatchObject({ before, after });
+    for (const [name, beforeJson, afterJson, detail, before, after] of cases) {
+      const line = feedLine({ type: 'edit' }, { kind: 'change', source: 'desktop', detail, beforeJson, afterJson });
+
+      expect.soft(maybeSectionOf(toDrawerSummary(input({ line })).sections, 'before-after'), name).toMatchObject({ before, after });
+    }
   });
 
   it('shows a change without a phone time as its bridge time alone', () => {
@@ -282,21 +295,27 @@ describe('toDrawerSummary edge cases', () => {
     expect(sectionOf(toDrawerSummary(input({ line, incident: detail })).sections, 'list')).toMatchObject({ title: 'Happened 2 times', items: [{ key: '7' }, { key: '3' }] });
   });
 
-  it.each([
-    ['a slow hour lists its slowest requests first and adds no note', AT, true, ['/b · 900 ms', '/a · 0 ms']],
-    ['a recent fine hour without incident adds no note', AT + 23 * 3_600_000, false, []],
-  ])('%s', (_name, hourStartMs, hasIncident, texts) => {
-    const traffic = { hourStartMs, requests: 4, failed: 0, maxDurationMs: 900 };
-    const line = feedLine({ type: 'traffic', origin: 'phone', slow: true, incidentId: hasIncident ? 7 : undefined, traffic }, { kind: 'traffic_hour' });
+  it('lists a slow hour slowest first, and adds no note to it nor to a recent fine hour', () => {
+    const cases = [
+      ['a slow hour lists its slowest requests first and adds no note', AT, true, ['/b · 900 ms', '/a · 0 ms']],
+      ['a recent fine hour without incident adds no note', AT + 23 * 3_600_000, false, []],
+    ] as const;
 
-    const { sections } = toDrawerSummary(input({ line, incident: hasIncident ? incident({ requests: SLOW_REQUESTS }) : undefined }));
+    for (const [name, hourStartMs, hasIncident, texts] of cases) {
+      const traffic = { hourStartMs, requests: 4, failed: 0, maxDurationMs: 900 };
+      const line = feedLine({ type: 'traffic', origin: 'phone', slow: true, incidentId: hasIncident ? 7 : undefined, traffic }, { kind: 'traffic_hour' });
 
-    expect(listTexts(sections)).toEqual(texts);
-    expect(sections.some((section) => section.kind === 'note')).toBe(false);
+      const { sections } = toDrawerSummary(input({ line, incident: hasIncident ? incident({ requests: SLOW_REQUESTS }) : undefined }));
+
+      expect.soft(listTexts(sections), name).toEqual(texts);
+      expect.soft(sections.some((section) => section.kind === 'note'), `${name}: note`).toBe(false);
+    }
   });
 
-  it.each(['traffic_hour', 'download_run'])('a %s line without its row shows no tailored section', (kind) => {
-    expect(toDrawerSummary(input({ line: feedLine({}, { kind }) })).sections).toEqual([]);
+  it('shows no tailored section for a traffic or run line without its row', () => {
+    for (const kind of ['traffic_hour', 'download_run']) {
+      expect.soft(toDrawerSummary(input({ line: feedLine({}, { kind }) })).sections, kind).toEqual([]);
+    }
   });
 
   it('shows a failed run as its run story then its failure, without stored figures or error summary', () => {
@@ -352,15 +371,19 @@ describe('toDrawerSummary edge cases', () => {
 });
 
 describe('toDrawerHeader edge cases', () => {
-  it.each([
-    ['a run without failures', feedLine({ run: run({ episodesFailed: 0, episodesDownloaded: 2 }) }, { kind: 'download_run' }), 'Download run', '2 downloaded', 'neutral'],
-    ['a run with failures', feedLine({ failed: true, run: run() }, { kind: 'download_run' }), 'Download run', '0 downloaded · 1 failed', 'failed'],
-    ['a run line without its row', feedLine({}, { kind: 'download_run' }), 'Download run', '', 'neutral'],
-    ['a traffic line without its row', feedLine({ slow: true }, { kind: 'traffic_hour' }), 'Phone checked in', '', 'slow'],
-    ['a fine hour', feedLine({ traffic: { hourStartMs: AT, requests: 5, failed: 0, maxDurationMs: 1 } }, { kind: 'traffic_hour' }), 'Phone checked in', '5 times', 'neutral'],
-    ['a failed phone report reads its stored title with the generic header', feedLine({ failed: true, slow: true }, { kind: 'phone_report', title: 'cycle_report', detail: 'failed' }), 'cycle_report', '', 'failed'],
-  ])('%s', (_name, line, title, phrase, tone) => {
-    expect(toDrawerHeader(line)).toMatchObject({ title, phrase, tone });
+  it('titles runs, traffic lines and a failed phone report with their phrase and tone', () => {
+    const cases = [
+      ['a run without failures', feedLine({ run: run({ episodesFailed: 0, episodesDownloaded: 2 }) }, { kind: 'download_run' }), 'Download run', '2 downloaded', 'neutral'],
+      ['a run with failures', feedLine({ failed: true, run: run() }, { kind: 'download_run' }), 'Download run', '0 downloaded · 1 failed', 'failed'],
+      ['a run line without its row', feedLine({}, { kind: 'download_run' }), 'Download run', '', 'neutral'],
+      ['a traffic line without its row', feedLine({ slow: true }, { kind: 'traffic_hour' }), 'Phone checked in', '', 'slow'],
+      ['a fine hour', feedLine({ traffic: { hourStartMs: AT, requests: 5, failed: 0, maxDurationMs: 1 } }, { kind: 'traffic_hour' }), 'Phone checked in', '5 times', 'neutral'],
+      ['a failed phone report reads its stored title with the generic header', feedLine({ failed: true, slow: true }, { kind: 'phone_report', title: 'cycle_report', detail: 'failed' }), 'cycle_report', '', 'failed'],
+    ] as const;
+
+    for (const [name, line, title, phrase, tone] of cases) {
+      expect.soft(toDrawerHeader(line), name).toMatchObject({ title, phrase, tone });
+    }
   });
 });
 
@@ -409,13 +432,17 @@ describe('a failed sync with a reading', () => {
     expect(gaps).toEqual([]);
   });
 
-  it.each([
-    ['real_failure', ['Last contact', 'Bridge started']],
-    ['tablet_late', ['Bridge off', 'Grace period', 'First report', 'Overdue by', 'Last contact']],
-  ] as const)('reads a %s time that does not exist as not recorded', (reading, labels) => {
-    const { sections } = toDrawerSummary(input({ line: readingLine(syncReading({ reading })) }));
+  it('reads a time that does not exist as not recorded for either reading', () => {
+    const cases = [
+      ['real_failure', ['Last contact', 'Bridge started']],
+      ['tablet_late', ['Bridge off', 'Grace period', 'First report', 'Overdue by', 'Last contact']],
+    ] as const;
 
-    expect(sectionOf(sections, 'facts').rows.filter((row) => row.value === 'Not recorded').map((row) => row.label)).toEqual(labels);
+    for (const [reading, labels] of cases) {
+      const { sections } = toDrawerSummary(input({ line: readingLine(syncReading({ reading })) }));
+
+      expect.soft(maybeSectionOf(sections, 'facts')?.rows.filter((row) => row.value === 'Not recorded').map((row) => row.label), reading).toEqual(labels);
+    }
   });
 
   it('reads a period with one missing bound as not recorded', () => {
@@ -450,11 +477,15 @@ describe('a Bridge off group', () => {
   /** Words a period the way the drawer does. */
   const period = (fromMs: number, untilMs: number): string => `${formatDrawerWhen(fromMs)} – ${formatDrawerWhen(untilMs)}`;
 
-  it.each([
-    [REPORTS.slice(0, 1), '1 change waited for Bridge'],
-    [REPORTS, '2 changes waited for Bridge'],
-  ])('reads as a neutral header with the reading, not a failure', (reports, title) => {
-    expect(toDrawerHeader(bridgeOffLine(reports, START))).toMatchObject({ title, phrase: 'Bridge was off', failed: false, tone: 'neutral' });
+  it('reads as a neutral header with the reading, not a failure', () => {
+    const cases = [
+      [REPORTS.slice(0, 1), '1 change waited for Bridge'],
+      [REPORTS, '2 changes waited for Bridge'],
+    ] as const;
+
+    for (const [reports, title] of cases) {
+      expect.soft(toDrawerHeader(bridgeOffLine(reports, START)), title).toMatchObject({ title, phrase: 'Bridge was off', failed: false, tone: 'neutral' });
+    }
   });
 
   it('states its meaning and grace period once, then each report with its own times, in order', () => {

@@ -87,16 +87,14 @@ func TestHourlySummaryKindAcceptsEveryBoundaryAndVocabularyMember(t *testing.T) 
 		{"same reason in another process", deaths, deaths[:len(deaths)-1] + `,{"process_name":"main","reason":"low_memory","count":2}]`, `"process_name":"main","reason":"low_memory","count":2`},
 	}
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			validated, err := HourlySummaryKind{}.Decode([]byte(hourlySummaryWith(tc.from, tc.to)))
-			if err != nil {
-				t.Fatalf("Decode() error = %v", err)
-			}
-			if !strings.Contains(string(validated.Payload), tc.stored) {
-				t.Fatalf("Payload %s does not store %s", validated.Payload, tc.stored)
-			}
-		})
+		validated, err := HourlySummaryKind{}.Decode([]byte(hourlySummaryWith(tc.from, tc.to)))
+		if err != nil {
+			t.Errorf("%s: Decode() error = %v", tc.name, err)
+			continue
+		}
+		if !strings.Contains(string(validated.Payload), tc.stored) {
+			t.Errorf("%s: Payload %s does not store %s", tc.name, validated.Payload, tc.stored)
+		}
 	}
 }
 
@@ -179,17 +177,15 @@ func TestHourlySummaryKindRejectsAndNamesTheField(t *testing.T) {
 		{"undeclared top-level key", `"dropped_count":0`, `"dropped_count":0,"device_id":"spoofed"`, "device_id"},
 	}
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			_, err := HourlySummaryKind{}.Decode([]byte(hourlySummaryWith(tc.from, tc.to)))
-			var fieldErr *syncdiag.FieldError
-			if !errors.As(err, &fieldErr) {
-				t.Fatalf("Decode() error = %v, want a *syncdiag.FieldError naming %s", err, tc.field)
-			}
-			if fieldErr.Field != tc.field {
-				t.Fatalf("rejection names %q, want %q (%v)", fieldErr.Field, tc.field, err)
-			}
-		})
+		_, err := HourlySummaryKind{}.Decode([]byte(hourlySummaryWith(tc.from, tc.to)))
+		var fieldErr *syncdiag.FieldError
+		if !errors.As(err, &fieldErr) {
+			t.Errorf("%s: Decode() error = %v, want a *syncdiag.FieldError naming %s", tc.name, err, tc.field)
+			continue
+		}
+		if fieldErr.Field != tc.field {
+			t.Errorf("%s: rejection names %q, want %q (%v)", tc.name, fieldErr.Field, tc.field, err)
+		}
 	}
 }
 

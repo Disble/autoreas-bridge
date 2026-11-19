@@ -97,23 +97,33 @@ describe('toRunHistoryPanelViewModel', () => {
   });
 
   // An interrupted run's finishedAt is the next app start, not the end of the work.
-  it.each([
-    ['interrupted', 1_700_000_100_000],
-    ['running', undefined],
-  ])('gives a %s run no duration', (status, finishedAtMs) => {
-    const [row] = toRunHistoryPanelViewModel([createRun(1, { status, finishedAtMs })], undefined, 20).rows;
+  it('gives an interrupted or running run no duration', () => {
+    const cases = [
+      ['interrupted', 1_700_000_100_000],
+      ['running', undefined],
+    ] as const;
 
-    expect(row?.durationLabel).toBeUndefined();
+    for (const [status, finishedAtMs] of cases) {
+      const caseName = `gives a ${String(status)} run no duration`;
+      const [row] = toRunHistoryPanelViewModel([createRun(1, { status, finishedAtMs })], undefined, 20).rows;
+
+      expect.soft(row?.durationLabel, caseName).toBeUndefined();
+    }
   });
 
-  it.each([
-    [9_000, '9 s'],
-    [148_000, '2 min 28 s'],
-    [3_900_000, '1 h 05 min'],
-  ])('formats a %d ms run as "%s"', (elapsedMs, label) => {
-    const [row] = toRunHistoryPanelViewModel([createRun(1, { startedAtMs: 0, finishedAtMs: elapsedMs })], undefined, 20).rows;
+  it('formats a finished run duration in seconds and minutes', () => {
+    const cases = [
+      [9_000, '9 s'],
+      [148_000, '2 min 28 s'],
+      [3_900_000, '1 h 05 min'],
+    ] as const;
 
-    expect(row?.durationLabel).toBe(label);
+    for (const [elapsedMs, label] of cases) {
+      const caseName = `formats a ${String(elapsedMs)} ms run as "${String(label)}"`;
+      const [row] = toRunHistoryPanelViewModel([createRun(1, { startedAtMs: 0, finishedAtMs: elapsedMs })], undefined, 20).rows;
+
+      expect.soft(row?.durationLabel, caseName).toBe(label);
+    }
   });
 
   it('puts the visible rows under Today, Yesterday and dated day headers', () => {

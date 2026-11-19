@@ -42,82 +42,94 @@ function row(watchedAtMs: number): WatchHistoryEntry {
 }
 
 describe("deriveHistoryInspectorAddedMs", () => {
-  it.each([
-    [
-      "prefers the first repetition's creation over the reset detail creation",
-      detail({
-        createdAt: new Date(2026, 7, 29, 12, 0, 0).getTime(),
-        repetitions: [
-          {
-            numRepetitions: 0,
-            episodesWatched: 8,
-            status: 0,
-            createdAt: new Date(2021, 7, 16, 12, 0, 0).getTime(),
-          },
-        ],
-      }),
-      new Date(2021, 7, 16, 12, 0, 0).getTime(),
-    ],
-    [
-      "falls back to the detail creation without repetitions",
-      detail({ createdAt: new Date(2026, 6, 31, 12, 0, 0).getTime() }),
-      new Date(2026, 6, 31, 12, 0, 0).getTime(),
-    ],
-    [
-      "falls back to the detail creation with an empty repetitions list",
-      detail({
-        createdAt: new Date(2026, 6, 31, 12, 0, 0).getTime(),
-        repetitions: [],
-      }),
-      new Date(2026, 6, 31, 12, 0, 0).getTime(),
-    ],
-    ["returns undefined when neither source carries a date", detail(), undefined],
-  ])("%s", (_label, input, expected) => {
-    expect(deriveHistoryInspectorAddedMs(input)).toBe(expected);
+  it('derives the added time from the first repetition, else the detail creation', () => {
+    const cases = [
+      [
+        "prefers the first repetition's creation over the reset detail creation",
+        detail({
+          createdAt: new Date(2026, 7, 29, 12, 0, 0).getTime(),
+          repetitions: [
+            {
+              numRepetitions: 0,
+              episodesWatched: 8,
+              status: 0,
+              createdAt: new Date(2021, 7, 16, 12, 0, 0).getTime(),
+            },
+          ],
+        }),
+        new Date(2021, 7, 16, 12, 0, 0).getTime(),
+      ],
+      [
+        "falls back to the detail creation without repetitions",
+        detail({ createdAt: new Date(2026, 6, 31, 12, 0, 0).getTime() }),
+        new Date(2026, 6, 31, 12, 0, 0).getTime(),
+      ],
+      [
+        "falls back to the detail creation with an empty repetitions list",
+        detail({
+          createdAt: new Date(2026, 6, 31, 12, 0, 0).getTime(),
+          repetitions: [],
+        }),
+        new Date(2026, 6, 31, 12, 0, 0).getTime(),
+      ],
+      ["returns undefined when neither source carries a date", detail(), undefined],
+    ] as const;
+
+    for (const [caseName, input, expected] of cases) {
+      expect.soft(deriveHistoryInspectorAddedMs(input), caseName).toBe(expected);
+    }
   });
 });
 
 describe("deriveHistoryInspectorLastWatchedMs", () => {
-  it.each([
-    [
-      "prefers the newest recent row over the stored last-watched stamp",
-      detail({ lastWatchedAt: new Date(2026, 8, 10, 10, 0, 0).getTime() }),
+  it('derives the last-watched time from the newest recent row, else the stored stamp', () => {
+    const cases = [
       [
-        row(new Date(2026, 8, 11, 20, 3, 0).getTime()),
-        row(new Date(2026, 8, 12, 17, 16, 0).getTime()),
+        "prefers the newest recent row over the stored last-watched stamp",
+        detail({ lastWatchedAt: new Date(2026, 8, 10, 10, 0, 0).getTime() }),
+        [
+          row(new Date(2026, 8, 11, 20, 3, 0).getTime()),
+          row(new Date(2026, 8, 12, 17, 16, 0).getTime()),
+        ],
+        new Date(2026, 8, 12, 17, 16, 0).getTime(),
       ],
-      new Date(2026, 8, 12, 17, 16, 0).getTime(),
-    ],
-    [
-      "prefers the newest row even when rows arrive newest-first",
-      detail({ lastWatchedAt: new Date(2026, 8, 10, 10, 0, 0).getTime() }),
       [
-        row(new Date(2026, 8, 12, 17, 16, 0).getTime()),
-        row(new Date(2026, 8, 11, 20, 3, 0).getTime()),
+        "prefers the newest row even when rows arrive newest-first",
+        detail({ lastWatchedAt: new Date(2026, 8, 10, 10, 0, 0).getTime() }),
+        [
+          row(new Date(2026, 8, 12, 17, 16, 0).getTime()),
+          row(new Date(2026, 8, 11, 20, 3, 0).getTime()),
+        ],
+        new Date(2026, 8, 12, 17, 16, 0).getTime(),
       ],
-      new Date(2026, 8, 12, 17, 16, 0).getTime(),
-    ],
-    [
-      "falls back to the stored last-watched stamp without recent rows",
-      detail({ lastWatchedAt: new Date(2026, 8, 10, 10, 0, 0).getTime() }),
-      [],
-      new Date(2026, 8, 10, 10, 0, 0).getTime(),
-    ],
-    ["returns undefined when neither source carries a date", detail(), [], undefined],
-  ])("%s", (_label, input, rows, expected) => {
-    expect(deriveHistoryInspectorLastWatchedMs(input, rows)).toBe(expected);
+      [
+        "falls back to the stored last-watched stamp without recent rows",
+        detail({ lastWatchedAt: new Date(2026, 8, 10, 10, 0, 0).getTime() }),
+        [],
+        new Date(2026, 8, 10, 10, 0, 0).getTime(),
+      ],
+      ["returns undefined when neither source carries a date", detail(), [], undefined],
+    ] as const;
+
+    for (const [caseName, input, rows, expected] of cases) {
+      expect.soft(deriveHistoryInspectorLastWatchedMs(input, rows), caseName).toBe(expected);
+    }
   });
 });
 
 describe("formatHistoryInspectorLastWatched", () => {
   const now = new Date(2026, 8, 13, 12, 0, 0).getTime();
 
-  it.each([
-    ["names today", new Date(2026, 8, 13, 9, 5, 0).getTime(), "Today, 09:05"],
-    ["names yesterday", new Date(2026, 8, 12, 17, 16, 0).getTime(), "Yesterday, 17:16"],
-    ["reads an older day in full", new Date(2026, 8, 11, 20, 3, 0).getTime(), "September 11, 2026, 20:03"],
-  ])("%s", (_case, millis, expected) => {
-    expect(formatHistoryInspectorLastWatched(millis, now)).toBe(expected);
+  it('formats the last-watched time relative to today', () => {
+    const cases = [
+      ["names today", new Date(2026, 8, 13, 9, 5, 0).getTime(), "Today, 09:05"],
+      ["names yesterday", new Date(2026, 8, 12, 17, 16, 0).getTime(), "Yesterday, 17:16"],
+      ["reads an older day in full", new Date(2026, 8, 11, 20, 3, 0).getTime(), "September 11, 2026, 20:03"],
+    ] as const;
+
+    for (const [caseName, millis, expected] of cases) {
+      expect.soft(formatHistoryInspectorLastWatched(millis, now), caseName).toBe(expected);
+    }
   });
 });
 
@@ -158,13 +170,17 @@ function read<TData>(data: TData | undefined, overrides: Partial<HistoryInspecto
 }
 
 describe("toInspectedData", () => {
-  it.each([
-    ["a loaded answer", read("x"), "x"],
-    ["a pending read", read(undefined, { status: "pending" }), undefined],
-    ["a failed read", read("x", { status: "error" }), undefined],
-    ["the previous selection's answer", read("x", { isPlaceholderData: true }), undefined],
-  ])("reads %s", (_label, query, expected) => {
-    expect(toInspectedData(query)).toBe(expected);
+  it('reads the inspected data only from a loaded answer', () => {
+    const cases = [
+      ["a loaded answer", read("x"), "x"],
+      ["a pending read", read(undefined, { status: "pending" }), undefined],
+      ["a failed read", read("x", { status: "error" }), undefined],
+      ["the previous selection's answer", read("x", { isPlaceholderData: true }), undefined],
+    ] as const;
+
+    for (const [caseName, query, expected] of cases) {
+      expect.soft(toInspectedData(query), caseName).toBe(expected);
+    }
   });
 });
 
@@ -182,14 +198,18 @@ describe("toHistoryInspectorState", () => {
     });
   });
 
-  it.each([
-    ["error", read<AnimeDetail>(undefined, { status: "error", error: new Error("not found") })],
-    ["loading", read<AnimeDetail>(undefined, { status: "pending" })],
-    ["loading", read(detail(), { isPlaceholderData: true })],
-  ])("reads %s with the loaded recent rows and no detail", (status, detailRead) => {
-    expect(toHistoryInspectorState({ animeId: "anime-1", detail: detailRead, recent, cover })).toEqual({
-      status, detail: undefined, addedMs: undefined, lastWatchedMs: undefined, cover, recentEpisodes: rows,
-    });
+  it('reads a failed or pending detail with the loaded recent rows and no detail', () => {
+    const cases = [
+      ["a failed detail", "error", read<AnimeDetail>(undefined, { status: "error", error: new Error("not found") })],
+      ["a pending detail", "loading", read<AnimeDetail>(undefined, { status: "pending" })],
+      ["placeholder detail data", "loading", read(detail(), { isPlaceholderData: true })],
+    ] as const;
+
+    for (const [caseName, status, detailRead] of cases) {
+      expect.soft(toHistoryInspectorState({ animeId: "anime-1", detail: detailRead, recent, cover }), caseName).toEqual({
+        status, detail: undefined, addedMs: undefined, lastWatchedMs: undefined, cover, recentEpisodes: rows,
+      });
+    }
   });
 
   it("derives the content dates from the detail and the newest recent row", () => {
