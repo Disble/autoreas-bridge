@@ -106,12 +106,9 @@ func TestCopyDatabaseRefusesUnsafeTargets(t *testing.T) {
 		{"no directory", "", "-to"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if _, err := copyDatabase(src, tc.dstDir); err == nil || !strings.Contains(err.Error(), tc.wantErr) {
-				t.Fatalf("expected an error containing %q, got %v", tc.wantErr, err)
-			}
-		})
+		if _, err := copyDatabase(src, tc.dstDir); err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+			t.Errorf("%s: expected an error containing %q, got %v", tc.name, tc.wantErr, err)
+		}
 	}
 	if rows := readRows(t, src); strings.Join(rows, ",") != "live" {
 		t.Fatalf("source rows = %v after refused copies, want them unchanged", rows)

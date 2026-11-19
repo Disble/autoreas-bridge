@@ -232,12 +232,9 @@ func TestIsWatchHistoryBoundaryFile(t *testing.T) {
 		{name: "an unrelated path matches none of the terms", path: "internal/anime/service.go", want: false},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if got := isWatchHistoryBoundaryFile(tc.path); got != tc.want {
-				t.Fatalf("isWatchHistoryBoundaryFile(%q) = %v, want %v", tc.path, got, tc.want)
-			}
-		})
+		if got := isWatchHistoryBoundaryFile(tc.path); got != tc.want {
+			t.Errorf("%s: isWatchHistoryBoundaryFile(%q) = %v, want %v", tc.name, tc.path, got, tc.want)
+		}
 	}
 }
 
@@ -272,11 +269,8 @@ func TestIsEpisodesBoundaryFile(t *testing.T) {
 		{name: "a sibling anime path matches none of the terms", path: "internal/anime/episode_service.go", want: false},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if got := isEpisodesBoundaryFile(tc.path); got != tc.want {
-				t.Fatalf("isEpisodesBoundaryFile(%q) = %v, want %v", tc.path, got, tc.want)
-			}
-		})
+		if got := isEpisodesBoundaryFile(tc.path); got != tc.want {
+			t.Errorf("%s: isEpisodesBoundaryFile(%q) = %v, want %v", tc.name, tc.path, got, tc.want)
+		}
 	}
 }
