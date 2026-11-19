@@ -36,7 +36,7 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
 | T9b | S2, S3 | delegated (parallel, worktree `t9-fe-season`) | done f0e94647 | features/season, shared/ordering, shared/season: 1,112 -> 968 (-13%), quota >= 223 missed by 79: the rest are boundary rows of pure helpers. Verifier PASS, 9 hand mutations |
 | T9c | S2, S3 | delegated (parallel, worktree `t9-fe-notify`) | done 586974e6 | notifications, history, anime-detail, catalog, dashboard, devices, navigation, preferences: 1,081 -> 1,033 (-4%), merges only. Verifier FAIL fixed: a Back+Edit merge clicked both before asserting; now asserts after each click |
 | T9d | S2, S3 | delegated (parallel, worktree `t9-fe-download`) | done 661e8684 | download, activity, episodes, backup: 1,052 -> 928 (-12%). Verifier FAIL fixed: a schedule merge made setEnabled(false) vacuous after a refetch already returned false; now setEnabled(true) |
-| T9e | S2, S3 | delegated (parallel, worktree `t9-fe-editor`) | blocked on owner | anime-editor, anime-create, infrastructure, app, scripts: 966 -> 858 strict, 771 with 87 disputed (71 pure-helper case merges + 16 it.each folds). Verifier PASS. Uncommitted until the owner rules on folded cases |
+| T9e | S2, S3 | delegated (parallel, worktree `t9-fe-editor`) | done a15adc45 | anime-editor, anime-create, infrastructure, app, scripts: 966 -> 858 strict, 771 with 87 disputed (71 pure-helper case merges + 16 it.each folds). Verifier PASS. Uncommitted until the owner rules on folded cases |
 | T9f | S2, S3 | delegated (parallel, worktree `t9-fe-shared`) | done 6eb3d3f2 | src/shared except ordering and season: 792 -> 631 (-20%), quota met. Verifier PASS; restored the idle empty-array row; 15 cases are static-render merges (disputed) |
 | T9g-T9k | S2, S3 | delegated (parallel, one worktree per unit) | done | Go leaves: desktop 1,134 -> 973 (46ead607), anime 1,050 -> 987 (9cca2506), observe 1,131 -> 994 (f1d5c7f7), sync 1,110 -> 906 (219d129e), tools 186 -> 173 (afeec2d7). Verifiers: observe FAIL fixed (2 restored validator rows, route test decodes each payload); others PASS. Gate gocognit fixes by helper extraction, no limit change. Merged in 68233410 |
 | T9z | S2, S3 | inline | pending | ditto on CORE packages touched, final count against the target |
@@ -157,5 +157,10 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
   its folds (771), 8,400 (-13.1%). Target <= 7,730 is not met under the strict rule. Verifiers flagged about
   215 committed cuts as merges of independent checks that share a fixture (desktop starting->failed 125,
   sync 43, observe about 30, shared 15, tools 2); if the owner rules those out they would be split back.
-- Next: owner ruling on folded and independent-case merges; then fe-editor commit, T9z ditto on touched CORE
-  packages, final report.
+- L28 (2026-11-18, owner, to "Should folding a simple function's cases, or independent checks on shared
+  setup, into one test that keeps every check count toward the 20%?"): "yeah". The ~215 committed
+  independent-check merges stay; fe-editor commits with its 87 folds; a second round (T9l-T9o) folds
+  table rows and pure-function cases into one test per function, keeping every input, expected value and
+  boundary, with non-fatal per-case assertions that name the case.
+- Next: fe-editor commit; T9l-T9o folding round toward Go <= 3,712 and frontend <= 4,017; T9z ditto on
+  touched CORE packages; final report.
