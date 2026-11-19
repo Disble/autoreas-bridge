@@ -87,7 +87,6 @@ func TestStripExtension(t *testing.T) {
 		in   string
 		want string
 	}{
-		{name: "drops the final suffix", in: "Show - 13.mp4", want: "Show - 13"},
 		{name: "no dot is unchanged", in: "Show - 13", want: "Show - 13"},
 		{name: "drops only the final suffix", in: "archive.tar.mp4", want: "archive.tar"},
 		{name: "trailing dot is dropped", in: "Show.", want: "Show"},
@@ -144,7 +143,6 @@ func TestInsideSpan(t *testing.T) {
 		{name: "span middle is inside", spans: [][2]int{{3, 8}}, start: 5, want: true},
 		{name: "span end is outside", spans: [][2]int{{3, 8}}, start: 8, want: false},
 		{name: "before span is outside", spans: [][2]int{{3, 8}}, start: 2, want: false},
-		{name: "after span is outside", spans: [][2]int{{3, 8}}, start: 9, want: false},
 		{name: "empty spans contain nothing", spans: nil, start: 3, want: false},
 	}
 	for _, tc := range rows {

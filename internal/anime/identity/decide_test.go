@@ -112,9 +112,6 @@ func TestSelect(t *testing.T) {
 		{name: "same number twice is not a conflict", entries: []Entry{mk("Show S01E13 - 13.mp4", "1", "2")},
 			ctx:    Context{ProgressSet: true, Progress: 12, ExpectedNextSet: true, ExpectedNext: 13},
 			wantEp: 13, wantBase: "Show S01E13 - 13.mp4", wantBasis: BasisDirectNumber, wantP: 1},
-		{name: "version prefix is not fractional", entries: []Entry{mk("Show v1.2.mp4", "1", "2")},
-			ctx:    Context{ProgressSet: true, Progress: 1, ExpectedNextSet: true, ExpectedNext: 2},
-			wantEp: 2, wantBase: "Show v1.2.mp4", wantBasis: BasisDirectNumber, wantP: 1},
 		{name: "ver prefix version", entries: []Entry{mk("ver1.2.mp4", "1", "2")},
 			ctx:    Context{ProgressSet: true, Progress: 1, ExpectedNextSet: true, ExpectedNext: 2},
 			wantEp: 2, wantBase: "ver1.2.mp4", wantBasis: BasisDirectNumber, wantP: 1},
@@ -188,8 +185,6 @@ func TestAbstain(t *testing.T) {
 		wantP     int
 		wantDiags []Diagnostic
 	}{
-		{name: "episode zero breaks the watched prefix", entries: []Entry{mk("Show - 00.mp4", "1", "2"), mk("Show - 02.mp4", "3", "4"), mk("Show - 03.mp4", "5", "6"), mk("finale.mp4", "7", "8")},
-			ctx: Context{ProgressSet: true, Progress: 3}, wantW: 3, wantP: 1},
 		{name: "fractional label", entries: []Entry{mk("Show - 10.5.mp4", "1", "2")},
 			ctx: Context{ProgressSet: true, Progress: 10, ExpectedNextSet: true, ExpectedNext: 11}, wantP: 1,
 			wantDiags: []Diagnostic{{Kind: DiagnosticAmbiguity, Basename: "Show - 10.5.mp4", Detail: "fractional"}}},

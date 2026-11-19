@@ -42,7 +42,10 @@ func createNamed(service *anime.CreateService, name string) error {
 	return err
 }
 
-func TestCreateServiceRejectsANameAnotherAnimeAlreadyHolds(t *testing.T) {
+// TestCreateServiceNameGuard drives one catalogue through the name guard: a
+// held name is refused naming the holder, case and padding never make a new
+// name, a batch create respects stored names, and a distinct name still passes.
+func TestCreateServiceNameGuard(t *testing.T) {
 	service := namedCreateService(t, "first", "second")
 	if err := createNamed(service, "Comic Girls"); err != nil {
 		t.Fatalf("the first anime of a name must be accepted: %v", err)
@@ -58,42 +61,20 @@ func TestCreateServiceRejectsANameAnotherAnimeAlreadyHolds(t *testing.T) {
 	if !strings.Contains(err.Error(), "first") {
 		t.Errorf("the refusal must identify the record already holding it, got: %v", err)
 	}
-}
 
-func TestCreateServiceComparesNamesIgnoringCaseAndSurroundingSpace(t *testing.T) {
-	service := namedCreateService(t, "first", "second")
-	if err := createNamed(service, "Tensei Shitara Slime Datta Ken"); err != nil {
-		t.Fatalf("seed: %v", err)
+	if err := createNamed(service, "  comic girls  "); err == nil || !strings.Contains(err.Error(), `already exists as "first"`) {
+		t.Fatalf("names differing only by case or padding are the same name, got: %v", err)
 	}
 
-	if err := createNamed(service, "  tensei shitara slime datta ken  "); err == nil {
-		t.Fatal("names differing only by case or padding are the same name")
-	}
-}
-
-func TestCreateServiceStillAcceptsADistinctName(t *testing.T) {
-	service := namedCreateService(t, "series", "ova")
-	if err := createNamed(service, "Tensei Shitara Slime Datta Ken"); err != nil {
-		t.Fatalf("seed: %v", err)
+	_, err = service.CreateBatch(context.Background(), []api.AnimeCreate{
+		{Nombre: "Comic Girls", Pagina: "https://jkanime.net/comic-girls", Dias: []api.Placement{{Day: "Sin ver", Order: 1}}},
+	}, nil)
+	if err == nil || !strings.Contains(err.Error(), `already exists as "first"`) {
+		t.Fatalf("a batch create must respect names the catalogue already holds, got: %v", err)
 	}
 
-	if err := createNamed(service, "Tensei Shitara Slime Datta Ken OVA"); err != nil {
+	if err := createNamed(service, "Comic Girls OVA"); err != nil {
 		t.Fatalf("a different work must still be creatable: %v", err)
-	}
-}
-
-func TestCreateServiceRejectsANameAlreadyHeldByADeletedAnime(t *testing.T) {
-	service := namedCreateService(t, "first", "second")
-	if err := createNamed(service, "Sayonara Lara"); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-
-	// Deleting an anime is a lifecycle state, not a release of its name: the
-	// record is still there and can be restored, so re-creating it would be the
-	// duplicate this whole guard exists to prevent.
-	err := createNamed(service, "Sayonara Lara")
-	if err == nil {
-		t.Fatal("a name held by any stored record, deleted or not, is taken")
 	}
 }
 
@@ -110,21 +91,6 @@ func TestCreateBatchRejectsTwoCreatesThatWouldShareAName(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "Comic Girls") && !strings.Contains(err.Error(), "comic girls") {
 		t.Errorf("the refusal must name the collision, got: %v", err)
-	}
-}
-
-func TestCreateBatchRejectsACreateCollidingWithTheStoredCatalogue(t *testing.T) {
-	service := namedCreateService(t, "existing", "clash")
-	if err := createNamed(service, "Comic Girls"); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-
-	_, err := service.CreateBatch(context.Background(), []api.AnimeCreate{
-		{Nombre: "Comic Girls", Pagina: "https://jkanime.net/comic-girls", Dias: []api.Placement{{Day: "Sin ver", Order: 1}}},
-	}, nil)
-
-	if err == nil {
-		t.Fatal("a batch create must respect names the catalogue already holds")
 	}
 }
 

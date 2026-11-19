@@ -11,61 +11,10 @@ import (
 	"autoreas-bridge/internal/anime/cover"
 )
 
-func TestDiskCachePutThenGetRoundTripsBytes(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	c := cover.NewDiskCache(root)
-
-	const key = "https://cdn.example.com/anime-1/cover.jpg"
-	data := []byte("cover-bytes")
-	if err := c.Put(key, data); err != nil {
-		t.Fatalf("Put: %v", err)
-	}
-
-	got, ok := c.Get(key)
-	if !ok {
-		t.Fatal("expected Get to hit after Put")
-	}
-	if string(got) != string(data) {
-		t.Fatalf("expected round-tripped bytes %q, got %q", data, got)
-	}
-}
-
-func TestDiskCacheGetOnMissingKeyReturnsFalse(t *testing.T) {
-	t.Parallel()
-
-	c := cover.NewDiskCache(t.TempDir())
-
-	_, ok := c.Get("https://cdn.example.com/never-cached.jpg")
-	if ok {
-		t.Fatal("expected miss on an unwritten key")
-	}
-}
-
-func TestDiskCacheDistinctURLsForSameAnimeProduceDistinctFiles(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	c := cover.NewDiskCache(root)
-
-	if err := c.Put("https://cdn.example.com/a.jpg", []byte("a")); err != nil {
-		t.Fatalf("Put a: %v", err)
-	}
-	if err := c.Put("https://cdn.example.com/b.jpg", []byte("b")); err != nil {
-		t.Fatalf("Put b: %v", err)
-	}
-
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		t.Fatalf("read cache root: %v", err)
-	}
-	if len(entries) != 2 {
-		t.Fatalf("expected two distinct cache files, got %d entries", len(entries))
-	}
-}
-
-func TestDiskCacheChangedURLWritesNewKeyLeavingOldFileUntouched(t *testing.T) {
+// TestDiskCacheKeysEachURLAndWritesAtomically drives one cache through two
+// URLs: each Put leaves no temp file, each key reads back its exact bytes, the
+// old key survives a changed URL as its own file.
+func TestDiskCacheKeysEachURLAndWritesAtomically(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -78,36 +27,6 @@ func TestDiskCacheChangedURLWritesNewKeyLeavingOldFileUntouched(t *testing.T) {
 		t.Fatalf("Put new: %v", err)
 	}
 
-	oldData, ok := c.Get("https://cdn.example.com/old.jpg")
-	if !ok || string(oldData) != "old-bytes" {
-		t.Fatalf("expected old key untouched, got %q ok=%v", oldData, ok)
-	}
-	newData, ok := c.Get("https://cdn.example.com/new.jpg")
-	if !ok || string(newData) != "new-bytes" {
-		t.Fatalf("expected new key readable, got %q ok=%v", newData, ok)
-	}
-
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		t.Fatalf("read cache root: %v", err)
-	}
-	if len(entries) != 2 {
-		t.Fatalf("expected old and new keys to coexist as two files, got %d entries", len(entries))
-	}
-}
-
-func TestDiskCachePutWritesAtomicallyAndFinalContentMatches(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	c := cover.NewDiskCache(root)
-
-	const key = "https://cdn.example.com/atomic.jpg"
-	data := []byte("atomic-bytes")
-	if err := c.Put(key, data); err != nil {
-		t.Fatalf("Put: %v", err)
-	}
-
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		t.Fatalf("read cache root: %v", err)
@@ -117,10 +36,28 @@ func TestDiskCachePutWritesAtomicallyAndFinalContentMatches(t *testing.T) {
 			t.Fatalf("expected no leftover .tmp file after Put, found %q", entry.Name())
 		}
 	}
+	if len(entries) != 2 {
+		t.Fatalf("expected old and new keys to coexist as two files, got %d entries", len(entries))
+	}
 
-	got, ok := c.Get(key)
-	if !ok || string(got) != string(data) {
-		t.Fatalf("expected final content to match exactly after Put, got %q ok=%v", got, ok)
+	oldData, ok := c.Get("https://cdn.example.com/old.jpg")
+	if !ok || string(oldData) != "old-bytes" {
+		t.Fatalf("expected old key untouched, got %q ok=%v", oldData, ok)
+	}
+	newData, ok := c.Get("https://cdn.example.com/new.jpg")
+	if !ok || string(newData) != "new-bytes" {
+		t.Fatalf("expected new key readable, got %q ok=%v", newData, ok)
+	}
+}
+
+func TestDiskCacheGetOnMissingKeyReturnsFalse(t *testing.T) {
+	t.Parallel()
+
+	c := cover.NewDiskCache(t.TempDir())
+
+	_, ok := c.Get("https://cdn.example.com/never-cached.jpg")
+	if ok {
+		t.Fatal("expected miss on an unwritten key")
 	}
 }
 

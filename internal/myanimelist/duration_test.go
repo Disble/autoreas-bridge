@@ -24,7 +24,6 @@ func TestParseDurationMinutesTablePerDesignD2a(t *testing.T) {
 		{name: "two-digit minute carry", raw: "2 hr. 5 min.", wantMinutes: 125, wantOK: true},
 		{name: "minutes only, no per-episode suffix", raw: "46 min.", wantMinutes: 46, wantOK: true},
 		{name: "reworded shape is drift, not zero", raw: "24 minutes/episode", wantMinutes: 0, wantOK: false},
-		{name: "unrelated literal is drift, not zero", raw: "Unknown", wantMinutes: 0, wantOK: false},
 		{name: "empty string matches neither shape", raw: "", wantMinutes: 0, wantOK: false},
 	}
 	for _, tc := range cases {

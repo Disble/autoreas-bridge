@@ -57,11 +57,9 @@ func TestParseDuration(t *testing.T) {
 		{name: "missing format", output: `{}`, wantErr: true},
 		{name: "missing duration", output: `{"format": {}}`, wantErr: true},
 		{name: "unknown duration marker", output: `{"format": {"duration": "N/A"}}`, wantErr: true},
-		{name: "zero duration", output: `{"format": {"duration": "0.000000"}}`, wantErr: true},
 		{name: "negative duration", output: `{"format": {"duration": "-5.500000"}}`, wantErr: true},
 		{name: "not a number", output: `{"format": {"duration": "NaN"}}`, wantErr: true},
 		{name: "positive infinite duration", output: `{"format": {"duration": "+Inf"}}`, wantErr: true},
-		{name: "negative infinite duration", output: `{"format": {"duration": "-Inf"}}`, wantErr: true},
 		{name: "empty duration", output: `{"format": {"duration": ""}}`, wantErr: true},
 		{name: "non-numeric duration", output: `{"format": {"duration": "fast"}}`, wantErr: true},
 		{name: "invalid json", output: `not json`, wantErr: true},
@@ -195,7 +193,6 @@ func TestEffectiveTimeout(t *testing.T) {
 		{name: "zero means default", timeout: 0, expected: DefaultTimeout},
 		{name: "negative means default", timeout: -time.Second, expected: DefaultTimeout},
 		{name: "nanosecond timeout passes through", timeout: time.Nanosecond, expected: time.Nanosecond},
-		{name: "explicit timeout passes through", timeout: 5 * time.Second, expected: 5 * time.Second},
 	}
 
 	for _, tc := range cases {

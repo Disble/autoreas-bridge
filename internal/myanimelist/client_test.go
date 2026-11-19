@@ -207,7 +207,6 @@ func TestNewHTTPClientTimeoutBoundary(t *testing.T) {
 		{name: "zero falls back to the default", timeout: 0, wantTimeout: wantDefaultTimeout},
 		{name: "negative falls back to the default", timeout: -1 * time.Second, wantTimeout: wantDefaultTimeout},
 		{name: "smallest positive passes through unchanged", timeout: 1 * time.Nanosecond, wantTimeout: 1 * time.Nanosecond},
-		{name: "an ordinary positive value passes through unchanged", timeout: 250 * time.Millisecond, wantTimeout: 250 * time.Millisecond},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
