@@ -47,12 +47,15 @@ describe('AirisEmptyState', () => {
     expect(onPress).toHaveBeenCalledTimes(1);
   });
 
-  it('renders the supplied copy without an action button when no action is provided', () => {
-    render(<AirisEmptyState imageSrc="/airis-catalog.webp" title="Your catalog is empty" description="Create an anime to see it here." />);
+  it('renders the supplied copy in a card whose size container holds the split layout, with no action button', () => {
+    const { container } = render(<AirisEmptyState imageSrc="/airis-catalog.webp" title="Your catalog is empty" description="Create an anime to see it here." />);
 
     expect(screen.getByRole('heading', { level: 3, name: 'Your catalog is empty' })).toBeInTheDocument();
     expect(screen.getByText('Create an anime to see it here.')).toBeInTheDocument();
     expect(screen.queryByRole('button')).toBeNull();
+    expect(container.querySelector('[data-slot="card"]')).not.toBeNull();
+    expect(container.querySelector('.\\@container')).not.toBeNull();
+    expect(container.querySelector('.\\@container > div')).toHaveAttribute('class', AIRIS_SPLIT_CLASS);
   });
 });
 
@@ -77,14 +80,6 @@ describe('AirisEmptyState artwork failure', () => {
 });
 
 describe('AirisEmptyState layout', () => {
-  it('renders a card whose content is a size container holding the split layout', () => {
-    const { container } = render(<AirisEmptyState imageSrc="/today.webp" title="Nothing here" description="Create one." />);
-
-    expect(container.querySelector('[data-slot="card"]')).not.toBeNull();
-    expect(container.querySelector('.\\@container')).not.toBeNull();
-    expect(container.querySelector('.\\@container > div')).toHaveAttribute('class', AIRIS_SPLIT_CLASS);
-  });
-
   it('renders a section without a card, on the secondary surface, with the same split layout', () => {
     const { container } = render(<AirisEmptyState imageSrc="/editor.webp" title="No episodes yet" description="Add one." size="section" />);
 

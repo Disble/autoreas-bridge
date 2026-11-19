@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { COPY_CONFIRMATION_MS } from '../code-block.constants';
 import { useCodeBlock } from '../use-code-block';
 
+/** Replaces the navigator clipboard with one whose writeText is the given function. */
 function stubClipboard(writeText: (text: string) => Promise<void>): void {
   Object.defineProperty(globalThis.navigator, 'clipboard', {
     configurable: true,
@@ -15,7 +16,7 @@ describe('useCodeBlock', () => {
     vi.useRealTimers();
   });
 
-  it('copies the raw string while the pretty view is active, not the indented text', async () => {
+  it('copies the raw string in the pretty view, not the indented text, and again in the raw view', async () => {
     const writeTextMock = vi.fn().mockResolvedValue(undefined);
     stubClipboard(writeTextMock);
     const raw = '{"a":1,"b":2}';
@@ -30,14 +31,6 @@ describe('useCodeBlock', () => {
 
     expect(writeTextMock).toHaveBeenCalledWith(raw);
     expect(writeTextMock).not.toHaveBeenCalledWith(JSON.stringify(JSON.parse(raw), null, 2));
-  });
-
-  it('copies the raw string while the raw view is active', async () => {
-    const writeTextMock = vi.fn().mockResolvedValue(undefined);
-    stubClipboard(writeTextMock);
-    const raw = '{"a":1}';
-
-    const { result } = renderHook(() => useCodeBlock(raw));
 
     act(() => {
       result.current.onViewChange('raw');
@@ -47,7 +40,8 @@ describe('useCodeBlock', () => {
       await result.current.onCopy();
     });
 
-    expect(writeTextMock).toHaveBeenCalledWith(raw);
+    expect(writeTextMock).toHaveBeenCalledTimes(2);
+    expect(writeTextMock).toHaveBeenNthCalledWith(2, raw);
   });
 
   it('copies non-JSON text as-is', async () => {
@@ -64,32 +58,12 @@ describe('useCodeBlock', () => {
     expect(writeTextMock).toHaveBeenCalledWith(raw);
   });
 
-  it('flips isCopied true and back to false after the confirmation window', async () => {
+  it('flips isCopied on, restarts the window on a second copy inside it, and clears the timer on unmount', async () => {
     vi.useFakeTimers();
     const writeTextMock = vi.fn().mockResolvedValue(undefined);
     stubClipboard(writeTextMock);
 
-    const { result } = renderHook(() => useCodeBlock('{"a":1}'));
-
-    await act(async () => {
-      await result.current.onCopy();
-    });
-
-    expect(result.current.isCopied).toBe(true);
-
-    await act(async () => {
-      vi.advanceTimersByTime(COPY_CONFIRMATION_MS);
-    });
-
-    expect(result.current.isCopied).toBe(false);
-  });
-
-  it('keeps isCopied true and restarts the window on a second copy inside it', async () => {
-    vi.useFakeTimers();
-    const writeTextMock = vi.fn().mockResolvedValue(undefined);
-    stubClipboard(writeTextMock);
-
-    const { result } = renderHook(() => useCodeBlock('{"a":1}'));
+    const { result, unmount } = renderHook(() => useCodeBlock('{"a":1}'));
 
     await act(async () => {
       await result.current.onCopy();
@@ -116,19 +90,12 @@ describe('useCodeBlock', () => {
     });
 
     expect(result.current.isCopied).toBe(false);
-  });
-
-  it('clears the timer on unmount and produces no post-unmount state update', async () => {
-    vi.useFakeTimers();
-    const writeTextMock = vi.fn().mockResolvedValue(undefined);
-    stubClipboard(writeTextMock);
-
-    const { result, unmount } = renderHook(() => useCodeBlock('{"a":1}'));
 
     await act(async () => {
       await result.current.onCopy();
     });
 
+    expect(result.current.isCopied).toBe(true);
     expect(() => {
       unmount();
       vi.advanceTimersByTime(COPY_CONFIRMATION_MS);

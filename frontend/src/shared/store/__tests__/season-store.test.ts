@@ -82,7 +82,7 @@ describe('season store surface', () => {
    * field or action reappearing here would be a second source of truth for
    * server data, so the whole key set is asserted, not a sample of it.
    */
-  it('holds UI state only, with no server data and no fetch command', () => {
+  it('holds UI state only, starts live and writable, sequences discards, and resets back to live', () => {
     const keys = Object.keys(getSeasonStoreState()).sort();
 
     expect(keys).toEqual([
@@ -97,31 +97,21 @@ describe('season store surface', () => {
       'readOnly',
       'viewSeasonId',
     ]);
-  });
-
-  it('starts live and writable, and a reset returns it there', () => {
     expect(getSeasonStoreState()).toMatchObject({ viewSeasonId: null, readOnly: false, lastDiscard: null });
 
-    setSeasonStoreState({
-      viewSeasonId: 'past',
-      readOnly: true,
-      lastDiscard: { rowId: 'sa-1', rawName: 'Dr. Stone', sequence: 1 },
-    });
-    resetSeasonStore();
-
-    expect(getSeasonStoreState()).toMatchObject({ viewSeasonId: null, readOnly: false, lastDiscard: null });
-  });
-
-  it('numbers each successful discard through the sequence the toast keys on', () => {
     const first: SeasonDiscardNotice = { rowId: 'sa-1', rawName: 'Dr. Stone', sequence: 1 };
     const second: SeasonDiscardNotice = { rowId: 'sa-1', rawName: 'Dr. Stone', sequence: 2 };
 
-    setSeasonStoreState({ lastDiscard: first });
+    setSeasonStoreState({ viewSeasonId: 'past', readOnly: true, lastDiscard: first });
     expect(getSeasonStoreState().lastDiscard).toEqual(first);
 
     setSeasonStoreState({ lastDiscard: second });
     // Same row, same name, new sequence: the notification pipeline must still
     // read it as a new notice and push a second Undo toast.
     expect(getSeasonStoreState().lastDiscard).toEqual(second);
+
+    resetSeasonStore();
+
+    expect(getSeasonStoreState()).toMatchObject({ viewSeasonId: null, readOnly: false, lastDiscard: null });
   });
 });

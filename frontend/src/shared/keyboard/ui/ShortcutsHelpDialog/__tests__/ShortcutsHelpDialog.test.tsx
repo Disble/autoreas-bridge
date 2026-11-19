@@ -52,7 +52,7 @@ afterEach(() => {
 });
 
 describe('ShortcutsHelpDialog', () => {
-  it('renders every KEYBOARD_COMMANDS label under its own section while open', () => {
+  it('renders every KEYBOARD_COMMANDS label under its section while open, and Escape flips isHelpOpen off', () => {
     setKeyboardHelpOpen(true);
 
     render(
@@ -65,6 +65,11 @@ describe('ShortcutsHelpDialog', () => {
       const section = screen.getByRole('region', { name: command.section });
       expect(within(section).getByText(command.label)).toBeInTheDocument();
     }
+
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+
+    expect(getKeyboardState().isHelpOpen).toBe(false);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('renders nothing while isHelpOpen is false', () => {
@@ -137,24 +142,10 @@ describe('ShortcutsHelpDialog', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('flips isHelpOpen back to false in the store when the dialog is dismissed (Escape)', () => {
-    setKeyboardHelpOpen(true);
-
-    render(
-      <MemoryRouter>
-        <ShortcutsHelpDialog />
-      </MemoryRouter>,
-    );
-
-    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
-
-    expect(getKeyboardState().isHelpOpen).toBe(false);
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  });
-
-  it("displays an overridden command's new chord, not its declared one (spec: an overridden chord displays identically to what the dispatcher now answers to)", () => {
+  it('R-8: displays the overridden chord, not the declared one, and the dispatcher answers to it', () => {
     setKeyboardHelpOpen(true);
     setKeymapOverrides({ 'nav.today': 'ctrl+1' });
+    const navigate = vi.fn();
 
     render(
       <MemoryRouter>
@@ -165,18 +156,6 @@ describe('ShortcutsHelpDialog', () => {
     const section = screen.getByRole('region', { name: 'Navigation' });
     expect(within(section).getByText('Ctrl + 1')).toBeInTheDocument();
     expect(within(section).queryByText('Alt + 1')).not.toBeInTheDocument();
-  });
-
-  it('R-8: resolves and displays a rebind identically across the dispatcher and the overlay, in one test', () => {
-    setKeyboardHelpOpen(true);
-    setKeymapOverrides({ 'nav.today': 'ctrl+1' });
-    const navigate = vi.fn();
-
-    render(
-      <MemoryRouter>
-        <ShortcutsHelpDialog />
-      </MemoryRouter>,
-    );
 
     const overriddenEvent: KeyboardDispatchEvent = {
       key: '1',
@@ -196,7 +175,5 @@ describe('ShortcutsHelpDialog', () => {
     });
 
     expect(navigate).toHaveBeenCalledWith('/today');
-    const section = screen.getByRole('region', { name: 'Navigation' });
-    expect(within(section).getByText('Ctrl + 1')).toBeInTheDocument();
   });
 });

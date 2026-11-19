@@ -18,24 +18,16 @@ function renderMark(className?: string): SVGSVGElement {
 describe('BrandMark', () => {
   afterEach(cleanup);
 
-  it('inherits its colour from the surrounding text colour', () => {
+  it('inherits the text colour, cuts the A counter, keeps the traced aspect ratio, and stays decorative', () => {
+    const svg = renderMark();
+
     // The mark ships in one colour and is recoloured by its slot -- white on
     // the rail, brand blue on light chrome. A hardcoded fill would freeze it.
-    const svg = renderMark();
-
     expect(svg.getAttribute('fill')).toBe('currentColor');
-  });
 
-  it('fills the counter of the A with the background rather than ink', () => {
     // Without evenodd the traced hole renders solid and the glyph reads as a
     // filled triangle instead of an A.
-    const path = renderMark().querySelector('path');
-
-    expect(path?.getAttribute('fill-rule')).toBe('evenodd');
-  });
-
-  it('keeps the traced aspect ratio so a square slot cannot squash it', () => {
-    const svg = renderMark();
+    expect(svg.querySelector('path')?.getAttribute('fill-rule')).toBe('evenodd');
 
     const [minX, minY, width, height] = (svg.getAttribute('viewBox') ?? '').split(' ').map(Number);
     expect([minX, minY]).toEqual([0, 0]);
@@ -43,11 +35,8 @@ describe('BrandMark', () => {
     expect(height).toBeGreaterThan(width);
     // `meet` is the SVG default; `slice` would crop the tips off in a square box.
     expect(svg.getAttribute('preserveAspectRatio')).not.toBe('xMidYMid slice');
-  });
 
-  it('is decorative, because every slot already labels the app in text beside it', () => {
-    const svg = renderMark();
-
+    // Every slot already labels the app in text beside it.
     expect(svg.getAttribute('aria-hidden')).toBe('true');
     expect(svg.getAttribute('role')).toBeNull();
   });

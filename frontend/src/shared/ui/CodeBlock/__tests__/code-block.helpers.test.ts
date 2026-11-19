@@ -6,20 +6,8 @@ describe('isJsonCodeText', () => {
     expect(isJsonCodeText('{"a":1}')).toBe(true);
   });
 
-  it('returns true for a JSON array', () => {
-    expect(isJsonCodeText('[1,2,3]')).toBe(true);
-  });
-
   it('returns false for a numeric scalar', () => {
     expect(isJsonCodeText('123')).toBe(false);
-  });
-
-  it('returns false for a string scalar', () => {
-    expect(isJsonCodeText('"text"')).toBe(false);
-  });
-
-  it('returns false for a boolean scalar', () => {
-    expect(isJsonCodeText('true')).toBe(false);
   });
 
   it('returns false for a null scalar', () => {

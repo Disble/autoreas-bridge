@@ -6,11 +6,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { coerceLabeledSelectValue, coerceLabeledSelectValues } from '../LabeledSelect.helpers';
 import { LabeledSelect } from '../LabeledSelect';
 
+/** Single-select options: an "All" sentinel plus one real status. */
 const statusOptions = [
   { value: 'all', label: 'All' },
   { value: '1', label: 'Finalizado' },
 ];
 
+/** Multi-select options with two genres. */
 const genreOptions = [
   { value: 'action', label: 'Action' },
   { value: 'drama', label: 'Drama' },
@@ -21,7 +23,7 @@ afterEach(() => {
 });
 
 describe('LabeledSelect', () => {
-  it('renders the HeroUI select scaffold with a visible label and option text', () => {
+  it('renders the HeroUI select scaffold with label and option text, and opens the list from the trigger', () => {
     render(
       <LabeledSelect
         ariaLabel="Filter by status"
@@ -38,6 +40,10 @@ describe('LabeledSelect', () => {
     expect(screen.getByText('Status')).toBeInTheDocument();
     expect(screen.getAllByText('All').length).toBeGreaterThan(0);
     expect(screen.getByText('Finalizado')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /filter by status/i }));
+
+    expect(screen.getByRole('option', { name: 'Finalizado' })).toBeInTheDocument();
   });
 
   it('coerces an empty single selection back to the caller fallback', () => {
@@ -54,24 +60,6 @@ describe('LabeledSelect', () => {
 
   it('preserves the previous multiple-selection empty value contract', () => {
     expect(coerceLabeledSelectValues(null)).toEqual(['']);
-  });
-
-  it('opens the option list from the accessible trigger', () => {
-    render(
-      <LabeledSelect
-        ariaLabel="Filter by status"
-        fallbackValue="all"
-        label="Status"
-        options={statusOptions}
-        placeholder="Status"
-        value="all"
-        onChange={vi.fn()}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: /filter by status/i }));
-
-    expect(screen.getByRole('option', { name: 'Finalizado' })).toBeInTheDocument();
   });
 
   it('forwards single-select props to HeroUI while keeping the fallback change contract', () => {

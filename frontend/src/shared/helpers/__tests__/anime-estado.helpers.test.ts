@@ -21,10 +21,6 @@ describe('isScheduledAnime', () => {
     expect(isScheduledAnime({ active: 1, days: ['Domingo'] })).toBe(true);
   });
 
-  it('includes an active Viendo anime with a scheduled day', () => {
-    expect(isScheduledAnime({ active: 1, days: ['Lunes', 'Jueves'] })).toBe(true);
-  });
-
   it('excludes an active anime with no scheduled day (never reaches the Daily board)', () => {
     expect(isScheduledAnime({ active: 1, days: [] })).toBe(false);
   });

@@ -38,26 +38,18 @@ function buildKeyEvent(
 }
 
 describe('useChordCapture', () => {
-  it('starts disarmed with no candidate chord', () => {
+  it('captures one session: ignores keys until armed, skips modifiers and IME, records, re-arms, cancels', () => {
     const { result } = renderHook(() => useChordCapture());
+    const preventDefault = vi.fn();
 
     expect(result.current.isArmed).toBe(false);
     expect(result.current.candidateChord).toBeNull();
-  });
 
-  it('records the next pressed chord once armed, and stays armed afterward', () => {
-    const { result } = renderHook(() => useChordCapture());
+    act(() => result.current.onKeyDown(buildKeyEvent({ ctrlKey: true, preventDefault })));
 
-    act(() => result.current.arm());
-    act(() => result.current.onKeyDown(buildKeyEvent({ key: '1', code: 'Digit1', ctrlKey: true })));
-
-    expect(result.current.candidateChord).toBe('ctrl+1');
-    expect(result.current.isArmed).toBe(true);
-  });
-
-  it('calls preventDefault on every keydown while armed, including one that will not end up recorded', () => {
-    const { result } = renderHook(() => useChordCapture());
-    const preventDefault = vi.fn();
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(result.current.candidateChord).toBeNull();
+    expect(result.current.isArmed).toBe(false);
 
     act(() => result.current.arm());
     act(() => result.current.onKeyDown(buildKeyEvent({ key: 'Shift', code: 'ShiftLeft', shiftKey: true, preventDefault })));
@@ -65,96 +57,52 @@ describe('useChordCapture', () => {
     expect(preventDefault).toHaveBeenCalledTimes(1);
     expect(result.current.candidateChord).toBeNull();
     expect(result.current.isArmed).toBe(true);
-  });
 
-  it('is a no-op, and never calls preventDefault, for a keydown that arrives before the control is armed', () => {
-    const { result } = renderHook(() => useChordCapture());
-    const preventDefault = vi.fn();
+    act(() => result.current.onKeyDown(buildKeyEvent({ key: 'Control', code: 'ControlLeft', ctrlKey: true })));
 
-    act(() => result.current.onKeyDown(buildKeyEvent({ ctrlKey: true, preventDefault })));
-
-    expect(preventDefault).not.toHaveBeenCalled();
+    expect(result.current.isArmed).toBe(true);
     expect(result.current.candidateChord).toBeNull();
-    expect(result.current.isArmed).toBe(false);
-  });
 
-  it('cancels on Escape -- checked before normalization -- recording nothing and disarming', () => {
-    const { result } = renderHook(() => useChordCapture());
+    act(() => result.current.onKeyDown(buildKeyEvent({ key: 'a', code: 'KeyA', isComposing: true, preventDefault })));
+
+    expect(preventDefault).toHaveBeenCalledTimes(2);
+    expect(result.current.candidateChord).toBeNull();
+    expect(result.current.isArmed).toBe(true);
+
+    act(() => result.current.onKeyDown(buildKeyEvent({ key: '1', code: 'Digit1', ctrlKey: true })));
+
+    expect(result.current.candidateChord).toBe('ctrl+1');
+    expect(result.current.isArmed).toBe(true);
+
+    act(() => result.current.onKeyDown(buildKeyEvent({ key: 'Shift', code: 'ShiftLeft', shiftKey: true })));
+
+    expect(result.current.candidateChord).toBe('ctrl+1');
+    expect(result.current.isArmed).toBe(true);
 
     act(() => result.current.arm());
+
+    expect(result.current.candidateChord).toBeNull();
+    expect(result.current.isArmed).toBe(true);
+
     act(() => result.current.onKeyDown(buildKeyEvent({ key: 'Escape', code: 'Escape' })));
 
     expect(result.current.isArmed).toBe(false);
     expect(result.current.candidateChord).toBeNull();
   });
 
-  it('a bare modifier press keeps the control armed and records nothing', () => {
+  it('disarms on blur, and a later keydown is a no-op rather than closing over a stale isArmed', () => {
     const { result } = renderHook(() => useChordCapture());
-
-    act(() => result.current.arm());
-    act(() => result.current.onKeyDown(buildKeyEvent({ key: 'Control', code: 'ControlLeft', ctrlKey: true })));
-
-    expect(result.current.isArmed).toBe(true);
-    expect(result.current.candidateChord).toBeNull();
-  });
-
-  it('a bare modifier press leaves an already-recorded candidate untouched, rather than overwriting it with null', () => {
-    const { result } = renderHook(() => useChordCapture());
-
-    act(() => result.current.arm());
-    act(() => result.current.onKeyDown(buildKeyEvent({ ctrlKey: true })));
-    expect(result.current.candidateChord).toBe('ctrl+1');
-
-    act(() => result.current.onKeyDown(buildKeyEvent({ key: 'Shift', code: 'ShiftLeft', shiftKey: true })));
-
-    expect(result.current.candidateChord).toBe('ctrl+1');
-    expect(result.current.isArmed).toBe(true);
-  });
-
-  it('disarms on blur', () => {
-    const { result } = renderHook(() => useChordCapture());
+    const preventDefault = vi.fn();
 
     act(() => result.current.arm());
     act(() => result.current.onBlur());
 
     expect(result.current.isArmed).toBe(false);
-  });
 
-  it('ignores an IME composition keydown -- preventDefault still runs, but nothing is recorded and arming holds', () => {
-    const { result } = renderHook(() => useChordCapture());
-    const preventDefault = vi.fn();
-
-    act(() => result.current.arm());
-    act(() => result.current.onKeyDown(buildKeyEvent({ key: 'a', code: 'KeyA', isComposing: true, preventDefault })));
-
-    expect(preventDefault).toHaveBeenCalledTimes(1);
-    expect(result.current.candidateChord).toBeNull();
-    expect(result.current.isArmed).toBe(true);
-  });
-
-  it('a keydown after blur disarmed the control is a no-op, proving onKeyDown does not close over a stale isArmed', () => {
-    const { result } = renderHook(() => useChordCapture());
-    const preventDefault = vi.fn();
-
-    act(() => result.current.arm());
-    act(() => result.current.onBlur());
     act(() => result.current.onKeyDown(buildKeyEvent({ ctrlKey: true, preventDefault })));
 
     expect(preventDefault).not.toHaveBeenCalled();
     expect(result.current.candidateChord).toBeNull();
-  });
-
-  it('re-arming clears a previously recorded candidate chord', () => {
-    const { result } = renderHook(() => useChordCapture());
-
-    act(() => result.current.arm());
-    act(() => result.current.onKeyDown(buildKeyEvent({ ctrlKey: true })));
-    expect(result.current.candidateChord).toBe('ctrl+1');
-
-    act(() => result.current.arm());
-
-    expect(result.current.candidateChord).toBeNull();
-    expect(result.current.isArmed).toBe(true);
   });
 
   describe('onCaptured (Slice 62j: capture disarms once a captured chord is actually persisted)', () => {
@@ -169,25 +117,19 @@ describe('useChordCapture', () => {
       await waitFor(() => expect(result.current.isArmed).toBe(false));
     });
 
-    it('stays armed once an async onCaptured resolves false (a refusal discovered asynchronously)', async () => {
+    it('skips onCaptured for a bare modifier, then stays armed once a recorded chord resolves false', async () => {
       const onCaptured = vi.fn().mockResolvedValue(false);
-      const { result } = renderHook(() => useChordCapture(onCaptured));
-
-      act(() => result.current.arm());
-      act(() => result.current.onKeyDown(buildKeyEvent({ ctrlKey: true })));
-
-      await waitFor(() => expect(onCaptured).toHaveBeenCalledTimes(1));
-      expect(result.current.isArmed).toBe(true);
-    });
-
-    it('never calls onCaptured for a bare modifier press, since no chord was recorded', () => {
-      const onCaptured = vi.fn();
       const { result } = renderHook(() => useChordCapture(onCaptured));
 
       act(() => result.current.arm());
       act(() => result.current.onKeyDown(buildKeyEvent({ key: 'Control', code: 'ControlLeft', ctrlKey: true })));
 
       expect(onCaptured).not.toHaveBeenCalled();
+
+      act(() => result.current.onKeyDown(buildKeyEvent({ ctrlKey: true })));
+
+      await waitFor(() => expect(onCaptured).toHaveBeenCalledTimes(1));
+      expect(result.current.isArmed).toBe(true);
     });
   });
 });

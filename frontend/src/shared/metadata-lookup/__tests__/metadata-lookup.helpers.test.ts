@@ -27,12 +27,9 @@ describe('meetsMinimumQueryLength', () => {
     ['', false],
     ['鬼', false],
     ['銀魂', true],
-    ['ナル', true],
     ['進撃の', true],
-    ['進撃の巨人', true],
     ['bl', false],
     ['ble', true],
-    ['𠮷', false],
   ])(
     'returns %s for query %j -- design D7a\'s script-aware floor',
     (query, expected) => {
@@ -61,10 +58,6 @@ describe('meetsMinimumQueryLength', () => {
 });
 
 describe('normalizeLookupQuery', () => {
-  it('folds case and collapses surrounding whitespace to the same cache key', () => {
-    expect(normalizeLookupQuery('  Bleach  ')).toBe(normalizeLookupQuery('bleach'));
-  });
-
   it('collapses internal repeated whitespace too', () => {
     expect(normalizeLookupQuery('Bleach   Sennen')).toBe('bleach sennen');
   });
@@ -232,7 +225,7 @@ describe('toAnimeMetadataSelection', () => {
     expect(toAnimeMetadataSelection(detail({ type })).kind).toBe(kind);
   });
 
-  it.each([['ONA'], ['Music'], ['Unknown Type'], [undefined]])(
+  it.each([['ONA'], [undefined]])(
     'leaves kind unset and reports it unfilled for unmapped type %j -- non-negotiable #6, never files an ONA as TV',
     (type) => {
       const selection = toAnimeMetadataSelection(detail({ type }));

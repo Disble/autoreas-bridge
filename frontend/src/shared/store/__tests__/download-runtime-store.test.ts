@@ -7,7 +7,7 @@ describe('download-runtime-store', () => {
     resetDownloadRuntimeStore();
   });
 
-  it('starts with no missed-day decision hidden, no failure shown and no run selected', () => {
+  it('starts empty, hides and restores a decision, dedupes shown failures, and resets the session', () => {
     const state = getDownloadRuntimeStoreState();
 
     expect(state.selectedRunId).toBeUndefined();
@@ -16,10 +16,6 @@ describe('download-runtime-store', () => {
     expect(state.shownMissedFailureDates).toEqual([]);
     expect(state.missedNoticeActionMessage).toBeUndefined();
     expect(state.missedNoticeIsResolving).toBe(false);
-  });
-
-  it('restores a hidden missed-notice decision date when the controller clears it', () => {
-    const state = getDownloadRuntimeStoreState();
 
     state.hideMissedNoticeDecision('2026-07-26');
     expect(getDownloadRuntimeStoreState().hiddenMissedNoticeDate).toBe('2026-07-26');
@@ -27,22 +23,16 @@ describe('download-runtime-store', () => {
     getDownloadRuntimeStoreState().restoreMissedNoticeDecision();
 
     expect(getDownloadRuntimeStoreState().hiddenMissedNoticeDate).toBeUndefined();
-  });
 
-  it('deduplicates the shown global failure dates per renderer session', () => {
-    const state = getDownloadRuntimeStoreState();
-
-    state.showMissedScheduleFailure('2026-07-26');
-    state.showMissedScheduleFailure('2026-07-26');
-    state.showMissedScheduleFailure('2026-07-27');
+    getDownloadRuntimeStoreState().showMissedScheduleFailure('2026-07-26');
+    getDownloadRuntimeStoreState().showMissedScheduleFailure('2026-07-26');
+    getDownloadRuntimeStoreState().showMissedScheduleFailure('2026-07-27');
 
     expect(getDownloadRuntimeStoreState().activeMissedFailureDate).toBe('2026-07-27');
     expect(getDownloadRuntimeStoreState().shownMissedFailureDates).toEqual(['2026-07-26', '2026-07-27']);
-  });
 
-  it('resetDownloadRuntimeStore clears the selection and the session failure dates', () => {
     getDownloadRuntimeStoreState().selectRun('run-1');
-    getDownloadRuntimeStoreState().showMissedScheduleFailure('2026-07-26');
+    expect(getDownloadRuntimeStoreState().selectedRunId).toBe('run-1');
 
     resetDownloadRuntimeStore();
 
