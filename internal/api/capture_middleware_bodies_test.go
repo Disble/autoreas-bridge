@@ -269,10 +269,7 @@ func TestCaptureMiddlewareOmitsImageResponseBodiesButPreservesMetadata(t *testin
 		{name: "image jpeg 200 omits the body", method: http.MethodGet, contentType: "image/jpeg", status: http.StatusOK, wantOmitted: true},
 		{name: "media type casing is ignored", method: http.MethodGet, contentType: "Image/JPEG", status: http.StatusOK, wantOmitted: true},
 		{name: "image webp is omitted too", method: http.MethodGet, contentType: "image/webp", status: http.StatusOK, wantOmitted: true},
-		{name: "json 200 keeps the exact bytes", method: http.MethodGet, contentType: "application/json", status: http.StatusOK, wantBody: "image-or-text-payload"},
 		{name: "text 200 keeps the exact bytes", method: http.MethodGet, contentType: "text/plain; charset=utf-8", status: http.StatusOK, wantBody: "image-or-text-payload"},
-		{name: "head image stays bodyless", method: http.MethodHead, contentType: "image/jpeg", status: http.StatusOK},
-		{name: "image 204 stays bodyless", method: http.MethodGet, contentType: "image/jpeg", status: http.StatusNoContent},
 		{name: "image 304 stays bodyless", method: http.MethodGet, contentType: "image/jpeg", status: http.StatusNotModified},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -54,15 +54,17 @@ func notificationWithOneAction() notification.Notification {
 // TestServiceHandsTheDelivererWhatItJustPersisted is the whole point of the envelope. The record
 // id and the minted action ids existed all along -- InsertRecord returned one and toActions
 // minted the others -- and were discarded a line later, leaving every adapter structurally unable
-// to address a token (ADR-016).
+// to address a token (ADR-016). The envelope never becomes a place to quietly rewrite content:
+// only identity is added.
 func TestServiceHandsTheDelivererWhatItJustPersisted(t *testing.T) {
 	t.Parallel()
 
 	db := openBootstrappedTestDB(t)
 	sink := &spyDeliverer{}
 	svc := Wrap(sink, NewStore(db, StoreConfig{}))
+	want := notificationWithOneAction()
 
-	if err := svc.Notify(context.Background(), notificationWithOneAction()); err != nil {
+	if err := svc.Notify(context.Background(), want); err != nil {
 		t.Fatalf("Notify: %v", err)
 	}
 
@@ -79,23 +81,7 @@ func TestServiceHandsTheDelivererWhatItJustPersisted(t *testing.T) {
 	if sink.notifies != 0 {
 		t.Fatal("the wider door was available and the narrow one was used anyway")
 	}
-}
-
-// TestServiceDeliversTheProducersNotificationUnchanged guards the envelope from becoming a place
-// to quietly rewrite content: only identity is added.
-func TestServiceDeliversTheProducersNotificationUnchanged(t *testing.T) {
-	t.Parallel()
-
-	db := openBootstrappedTestDB(t)
-	sink := &spyDeliverer{}
-	want := notificationWithOneAction()
-
-	if err := Wrap(sink, NewStore(db, StoreConfig{})).Notify(context.Background(), want); err != nil {
-		t.Fatalf("Notify: %v", err)
-	}
-
-	got := sink.deliveries[0].Notification
-	if got.Title != want.Title || got.Kind != want.Kind || len(got.Actions) != len(want.Actions) {
+	if got := delivered.Notification; got.Title != want.Title || got.Kind != want.Kind || len(got.Actions) != len(want.Actions) {
 		t.Fatalf("delivered notification = %#v, want the producer's own %#v", got, want)
 	}
 }

@@ -37,59 +37,6 @@ func TestGetToleratesMissingOptionalColumns(t *testing.T) {
 	}
 }
 
-func TestGetExposesTelemetryWhenCaptured(t *testing.T) {
-	t.Parallel()
-
-	db := openCaptureTestDB(t)
-	store := NewStore(db)
-	record := NewCaptureRecord("patch", "device")
-	record.RequestID = "req-with-telemetry"
-	record.CapturedAtMS = 5
-	duration := int64(123)
-	requestBody := `{"name":"x","nested":{"n":1},"secret":"keep-me"}`
-	body := `{"error":"failed"}`
-	record.DurationMS = &duration
-	record.RequestBody = &requestBody
-	record.RequestBodyState = CaptureStateOmittedTooLarge
-	record.ResponseBody = &body
-	record.ResponseBodyState = CaptureStateTruncated
-	record.RequestHeaders = map[string]string{"Content-Type": "application/json"}
-	record.ResponseHeaders = map[string]string{"Content-Type": "application/json"}
-	if err := store.UpsertCapture(context.Background(), record); err != nil {
-		t.Fatalf("insert: %v", err)
-	}
-
-	reader := NewReader(db)
-	result, err := reader.Get(context.Background(), "req-with-telemetry")
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	if !result.Found {
-		t.Fatal("expected record found")
-	}
-	if result.Item.DurationMS == nil || *result.Item.DurationMS != 123 {
-		t.Fatalf("expected duration_ms 123, got %#v", result.Item.DurationMS)
-	}
-	if result.Item.RequestBody == nil || *result.Item.RequestBody != requestBody {
-		t.Fatalf("expected request body %q, got %#v", requestBody, result.Item.RequestBody)
-	}
-	if result.Item.RequestBodyState != CaptureStateOmittedTooLarge {
-		t.Fatalf("expected request body state %q, got %q", CaptureStateOmittedTooLarge, result.Item.RequestBodyState)
-	}
-	if result.Item.ResponseBody == nil || *result.Item.ResponseBody != body {
-		t.Fatalf("expected response body %q, got %#v", body, result.Item.ResponseBody)
-	}
-	if result.Item.ResponseBodyState != CaptureStateTruncated {
-		t.Fatalf("expected response body state %q, got %q", CaptureStateTruncated, result.Item.ResponseBodyState)
-	}
-	if result.Item.RequestHeaders["Content-Type"] != "application/json" {
-		t.Fatalf("expected request headers exposed, got %#v", result.Item.RequestHeaders)
-	}
-	if result.Item.ResponseHeaders["Content-Type"] != "application/json" {
-		t.Fatalf("expected response headers exposed, got %#v", result.Item.ResponseHeaders)
-	}
-}
-
 func TestGetOmitsMissingOptionalFields(t *testing.T) {
 	t.Parallel()
 

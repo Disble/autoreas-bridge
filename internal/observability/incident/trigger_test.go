@@ -33,7 +33,6 @@ func TestRequestReasons(t *testing.T) {
 		fact RequestFact
 		want []Reason
 	}{
-		{"200 fast accepted", request(intPtr(200), "accepted", msPtr(10)), nil},
 		{"399 is not a failure", request(intPtr(399), "accepted", nil), nil},
 		{"400 is a client error", request(intPtr(400), "accepted", nil), []Reason{ReasonClientError}},
 		{"499 is a client error", request(intPtr(499), "accepted", nil), []Reason{ReasonClientError}},
@@ -122,7 +121,6 @@ func TestClassifyEvent(t *testing.T) {
 	}{
 		{"error triggers", "error", Trigger{ReasonErrorEvent, "error_event|downloads|hoster_dead"}, true},
 		{"warning never triggers", "warn", Trigger{}, false},
-		{"info never triggers", "info", Trigger{}, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

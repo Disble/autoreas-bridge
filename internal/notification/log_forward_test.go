@@ -58,7 +58,9 @@ func (f *fakeForwardLogger) totalCalls() int {
 	return len(f.logCalls)
 }
 
-func TestLogForwardAdapterMapsErrorLevelToErrorLog(t *testing.T) {
+// TestLogForwardAdapterMapsErrorLevelAndBoundsItsMetadata forwards an error notification as
+// one error log in its source domain with its correlation, event type and metadata.
+func TestLogForwardAdapterMapsErrorLevelAndBoundsItsMetadata(t *testing.T) {
 	t.Parallel()
 
 	logger := &fakeForwardLogger{}
@@ -100,21 +102,20 @@ func TestLogForwardAdapterMapsErrorLevelToErrorLog(t *testing.T) {
 	if !reflect.DeepEqual(call.fields.Metadata, wantMetadata) {
 		t.Fatalf("expected metadata %#v, got %#v", wantMetadata, call.fields.Metadata)
 	}
+
+	assertForwardedMetadataOmitsAbsentFieldsAndBoundsRowRefIDs(t, adapter, logger)
 }
 
-// TestLogForwardAdapterMetadataOmitsAbsentFieldsAndBoundsRowRefIDs pins the edges of the
-// forwarded metadata: a notification with no kind and no rows carries none, a run that
-// touched more rows than the bound records only the first maxForwardedRowRefIDs ids, and a
+// assertForwardedMetadataOmitsAbsentFieldsAndBoundsRowRefIDs pins the edges of the forwarded
+// metadata after one earlier write: a notification with no kind and no rows carries none, a run
+// that touched more rows than the bound records only the first maxForwardedRowRefIDs ids, and a
 // single row is still recorded.
-func TestLogForwardAdapterMetadataOmitsAbsentFieldsAndBoundsRowRefIDs(t *testing.T) {
-	t.Parallel()
-
-	logger := &fakeForwardLogger{}
-	adapter := NewLogForwardAdapter(logger)
+func assertForwardedMetadataOmitsAbsentFieldsAndBoundsRowRefIDs(t *testing.T, adapter *logForwardAdapter, logger *fakeForwardLogger) {
+	t.Helper()
 	if err := adapter.Deliver(context.Background(), Delivery{Notification: Notification{Title: "t", Source: "sync"}}); err != nil {
 		t.Fatalf("Deliver: %v", err)
 	}
-	if got := logger.logCalls[0].fields.Metadata; got != nil {
+	if got := logger.logCalls[1].fields.Metadata; got != nil {
 		t.Fatalf("expected no metadata for a notification without kind or rows, got %#v", got)
 	}
 
@@ -131,7 +132,7 @@ func TestLogForwardAdapterMetadataOmitsAbsentFieldsAndBoundsRowRefIDs(t *testing
 		t.Fatalf("Deliver: %v", err)
 	}
 	wantMetadata := map[string]any{"rowRefIds": want}
-	if got := logger.logCalls[1].fields.Metadata; !reflect.DeepEqual(got, wantMetadata) {
+	if got := logger.logCalls[2].fields.Metadata; !reflect.DeepEqual(got, wantMetadata) {
 		t.Fatalf("expected metadata %#v, got %#v", wantMetadata, got)
 	}
 
@@ -140,7 +141,7 @@ func TestLogForwardAdapterMetadataOmitsAbsentFieldsAndBoundsRowRefIDs(t *testing
 		t.Fatalf("Deliver: %v", err)
 	}
 	wantSingle := map[string]any{"rowRefIds": []string{"only"}}
-	if got := logger.logCalls[2].fields.Metadata; !reflect.DeepEqual(got, wantSingle) {
+	if got := logger.logCalls[3].fields.Metadata; !reflect.DeepEqual(got, wantSingle) {
 		t.Fatalf("expected metadata %#v for a single row, got %#v", wantSingle, got)
 	}
 }
@@ -162,31 +163,10 @@ func TestLogForwardAdapterMapsNotificationLevels(t *testing.T) {
 			if got := logger.totalCalls(); got != 1 {
 				t.Fatalf("expected exactly 1 log write, got %d", got)
 			}
-			if call := logger.logCalls[0]; call.level != test.want {
-				t.Fatalf("expected level %q, got %q", test.want, call.level)
+			if call := logger.logCalls[0]; call.level != test.want || call.domain != test.source {
+				t.Fatalf("expected level %q in domain %q, got %q in %q", test.want, test.source, call.level, call.domain)
 			}
 		})
-	}
-}
-
-func TestLogForwardAdapterCarriesSourceAsDomainAndMessageFromTitleBody(t *testing.T) {
-	t.Parallel()
-
-	logger := &fakeForwardLogger{}
-	adapter := NewLogForwardAdapter(logger)
-
-	n := Notification{Title: "Pairing succeeded", Body: "device paired", Level: LevelSuccess, Source: "device"}
-
-	if err := adapter.Deliver(context.Background(), Delivery{Notification: n}); err != nil {
-		t.Fatalf("expected nil error, got %v", err)
-	}
-
-	call := logger.logCalls[0]
-	if call.domain != "device" {
-		t.Fatalf("expected domain %q, got %q", "device", call.domain)
-	}
-	if call.msg == "" {
-		t.Fatal("expected a non-empty formatted message carrying Title/Body")
 	}
 }
 

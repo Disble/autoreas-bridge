@@ -106,14 +106,15 @@ func TestSinkDropsAfterUnbindWithoutBuffering(t *testing.T) {
 	}
 }
 
-// TestSinkDropsDebugByDefault asserts debug entries are dropped when
-// PersistDebug is false (the default).
-func TestSinkDropsDebugByDefault(t *testing.T) {
+// TestSinkDropsDebugByDefaultButNeverOtherLevels asserts debug entries are
+// dropped when PersistDebug is false (the default), while info, warn and
+// error are never filtered.
+func TestSinkDropsDebugByDefaultButNeverOtherLevels(t *testing.T) {
 	t.Parallel()
 
 	sink := NewSink(SinkConfig{})
 	store := &recordingSinkStore{}
-	queue := NewQueue(store, QueueConfig{Capacity: 4})
+	queue := NewQueue(store, QueueConfig{Capacity: 8})
 	sink.Bind(queue, false)
 	defer func() { _ = queue.Stop(context.Background()) }()
 
@@ -122,6 +123,14 @@ func TestSinkDropsDebugByDefault(t *testing.T) {
 	if got := sink.FilteredDrops(); got != 1 {
 		t.Fatalf("expected FilteredDrops 1, got %d", got)
 	}
+
+	for _, level := range []string{sharedlogger.LevelInfo, sharedlogger.LevelWarn, sharedlogger.LevelError} {
+		sink.WriteEntry(sharedlogger.LogEntry{Domain: "sync", Level: level, Message: level, Timestamp: time.Now().UTC().Format(time.RFC3339)})
+	}
+	if got := sink.FilteredDrops(); got != 1 {
+		t.Fatalf("expected no non-debug entry filtered (FilteredDrops still 1), got %d", got)
+	}
+	waitForRecords(t, store, 3)
 }
 
 // TestSinkPersistsDebugWhenEnabled asserts debug entries enqueue when
@@ -143,29 +152,11 @@ func TestSinkPersistsDebugWhenEnabled(t *testing.T) {
 	waitForRecords(t, store, 1)
 }
 
-// TestSinkPersistsInfoWarnErrorAlways asserts non-debug levels are never
-// filtered regardless of PersistDebug.
-func TestSinkPersistsInfoWarnErrorAlways(t *testing.T) {
-	t.Parallel()
-
-	sink := NewSink(SinkConfig{})
-	store := &recordingSinkStore{}
-	queue := NewQueue(store, QueueConfig{Capacity: 8})
-	sink.Bind(queue, false)
-	defer func() { _ = queue.Stop(context.Background()) }()
-
-	for _, level := range []string{sharedlogger.LevelInfo, sharedlogger.LevelWarn, sharedlogger.LevelError} {
-		sink.WriteEntry(sharedlogger.LogEntry{Domain: "sync", Level: level, Message: level, Timestamp: time.Now().UTC().Format(time.RFC3339)})
-	}
-	if got := sink.FilteredDrops(); got != 0 {
-		t.Fatalf("expected FilteredDrops 0, got %d", got)
-	}
-	waitForRecords(t, store, 3)
-}
-
 // TestSinkConvertsRFC3339TimestampToEpochMillis asserts the sink parses the
 // entry's timestamp into OccurredAtMS, keeping the milliseconds the logger
-// writes (P2) and still accepting a second-resolution timestamp.
+// writes (P2) and still accepting a second-resolution timestamp, and passes a
+// zero DurationMs through unchanged, leaving the NULL-vs-zero decision to the
+// store.
 func TestSinkConvertsRFC3339TimestampToEpochMillis(t *testing.T) {
 	t.Parallel()
 
@@ -192,6 +183,9 @@ func TestSinkConvertsRFC3339TimestampToEpochMillis(t *testing.T) {
 		if record.OccurredAtMS != want[i] {
 			t.Fatalf("entry %d (%s): occurred_at_ms %d, want %d", i, stamps[i], record.OccurredAtMS, want[i])
 		}
+		if record.DurationMS != 0 {
+			t.Fatalf("entry %d: expected duration_ms 0 for a zero DurationMs, got %d", i, record.DurationMS)
+		}
 	}
 }
 
@@ -212,27 +206,6 @@ func TestSinkFallsBackToInjectedNowOnUnparsableTimestamp(t *testing.T) {
 	record := waitForRecords(t, store, 1)[0]
 	if record.OccurredAtMS != fixed {
 		t.Fatalf("expected fallback occurred_at_ms %d, got %d", fixed, record.OccurredAtMS)
-	}
-}
-
-// TestSinkBindsNullDurationForZero asserts a zero DurationMs is treated as
-// unset (0 is preserved in the EventRecord; the store binds it as NULL --
-// this test asserts the sink passes 0 through unchanged, leaving the
-// NULL-vs-zero decision to the store).
-func TestSinkBindsNullDurationForZero(t *testing.T) {
-	t.Parallel()
-
-	sink := NewSink(SinkConfig{})
-	store := &recordingSinkStore{}
-	queue := NewQueue(store, QueueConfig{Capacity: 4})
-	sink.Bind(queue, false)
-	defer func() { _ = queue.Stop(context.Background()) }()
-
-	sink.WriteEntry(sharedlogger.LogEntry{Domain: "sync", Level: sharedlogger.LevelInfo, Message: "hi", Timestamp: time.Now().UTC().Format(time.RFC3339), DurationMs: 0})
-
-	record := waitForRecords(t, store, 1)[0]
-	if record.DurationMS != 0 {
-		t.Fatalf("expected duration_ms 0, got %d", record.DurationMS)
 	}
 }
 

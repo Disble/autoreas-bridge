@@ -11,7 +11,7 @@ import (
 	toast "git.sr.ht/~jackmordaunt/go-toast/v2"
 )
 
-func TestWindowsDesktopAdapterSetsAppDataBeforePush(t *testing.T) {
+func TestWindowsDesktopAdapterSetsAppDataBeforePushAndNeverPushesWithout(t *testing.T) {
 	originalSetAppData := setDesktopToastAppData
 	originalPush := pushDesktopToast
 	t.Cleanup(func() {
@@ -49,33 +49,27 @@ func TestWindowsDesktopAdapterSetsAppDataBeforePush(t *testing.T) {
 	if got, want := strings.Join(calls, ","), "set-app-data,push"; got != want {
 		t.Fatalf("expected call order %q, got %q", want, got)
 	}
-}
 
-func TestWindowsDesktopAdapterDoesNotPushWhenAppDataFails(t *testing.T) {
-	originalSetAppData := setDesktopToastAppData
-	originalPush := pushDesktopToast
-	t.Cleanup(func() {
-		setDesktopToastAppData = originalSetAppData
-		pushDesktopToast = originalPush
-	})
+	// Windows desktop adapter does not push when app data fails.
+	{
+		setDesktopToastAppData = func(data toast.AppData) error {
+			return errors.New("registry unavailable")
+		}
+		pushDesktopToast = func(appID string, xml string) error {
+			t.Fatal("push must not be called when app data registration fails")
+			return nil
+		}
 
-	setDesktopToastAppData = func(data toast.AppData) error {
-		return errors.New("registry unavailable")
-	}
-	pushDesktopToast = func(appID string, xml string) error {
-		t.Fatal("push must not be called when app data registration fails")
-		return nil
-	}
-
-	adapter := NewDesktopToastAdapter()
-	err := adapter.Deliver(context.Background(), Delivery{Notification: Notification{Title: "Download run started"}})
-	if err == nil {
-		t.Fatal("expected deliver to return app data error")
-	}
-	if !strings.Contains(err.Error(), "desktop toast app data") {
-		t.Fatalf("expected app data error context, got %v", err)
-	}
-	if adapter.Delivered() {
-		t.Fatal("expected adapter to report not delivered")
+		adapter := NewDesktopToastAdapter()
+		err := adapter.Deliver(context.Background(), Delivery{Notification: Notification{Title: "Download run started"}})
+		if err == nil {
+			t.Fatal("expected deliver to return app data error")
+		}
+		if !strings.Contains(err.Error(), "desktop toast app data") {
+			t.Fatalf("expected app data error context, got %v", err)
+		}
+		if adapter.Delivered() {
+			t.Fatal("expected adapter to report not delivered")
+		}
 	}
 }

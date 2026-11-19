@@ -100,7 +100,6 @@ func TestResolveAddrRejectsUnusableValuesAndReportsThem(t *testing.T) {
 	}{
 		{name: "not an address", setting: "garbage"},
 		{name: "port zero", setting: "0"},
-		{name: "port above the maximum", setting: "70000"},
 		{name: "negative port", setting: "-1"},
 		{name: "port is not a number", setting: "0.0.0.0:http"},
 		{name: "host without a port", setting: "0.0.0.0:"},

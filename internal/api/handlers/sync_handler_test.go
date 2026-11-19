@@ -334,6 +334,9 @@ func TestSyncHandlerReturnsBadRequestWhenPendingOperationIsInvalid(t *testing.T)
 	}
 }
 
+// TestSyncHandlerReturnsServerErrorWhenApplyingPendingOperationFails asserts a
+// writer error that is not a conflict aborts the reconcile with a 500 naming
+// the failure, before the reconcile trigger runs.
 func TestSyncHandlerReturnsServerErrorWhenApplyingPendingOperationFails(t *testing.T) {
 	t.Parallel()
 
@@ -359,6 +362,9 @@ func TestSyncHandlerReturnsServerErrorWhenApplyingPendingOperationFails(t *testi
 	}
 	if stubs.triggerCalls != 0 {
 		t.Fatalf("expected reconcile trigger not to be called, got %d calls", stubs.triggerCalls)
+	}
+	if !strings.Contains(res.Body.String(), "apply pending operation failed") {
+		t.Fatalf("expected abort error message, got body=%s", res.Body.String())
 	}
 }
 

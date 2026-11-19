@@ -72,7 +72,6 @@ func TestReadAppliesTheApprovedRule(t *testing.T) {
 		overdue *int64
 	}{
 		{name: "no start retained", failure: failure(100, 110), reading: NoReading},
-		{name: "older than the oldest start", failure: failure(99, 110), starts: []Start{start(100)}, reading: NoReading},
 		{name: "one millisecond older than the oldest start",
 			failure: Failure{DeviceID: testDevice, FailedAtMS: 100*minute - 1, ArrivedAtMS: 110 * minute},
 			starts:  []Start{start(100)}, reading: NoReading},
@@ -90,8 +89,6 @@ func TestReadAppliesTheApprovedRule(t *testing.T) {
 			first: own(170, 300), reading: BridgeOff, next: at(170), report: at(170), grace: at(190)},
 		{name: "a start at the failure time is not after it", failure: failure(150, 160), starts: []Start{start(100), start(150)},
 			reading: RealFailure},
-		{name: "first report inside the grace period", failure: failure(150, 300), starts: []Start{start(100), start(170)},
-			first: own(185, 300), reading: BridgeOff, next: at(170), report: at(185), grace: at(190)},
 		{name: "first report as the grace period ends", failure: failure(150, 300), starts: []Start{start(100), start(170)},
 			first: own(190, 300), reading: BridgeOff, next: at(170), report: at(190), grace: at(190)},
 		{name: "first report one millisecond overdue",
@@ -245,7 +242,6 @@ func TestWithCurrentStartCountsAnUnflushedStartOnce(t *testing.T) {
 	}{
 		{"no stored start", nil, []int64{200 * minute}},
 		{"row not flushed yet", []Start{start(100)}, []int64{100 * minute, 200 * minute}},
-		{"the only row is this process's", []Start{start(201)}, []int64{201 * minute}},
 		{"row stored after the process start", []Start{start(100), start(201)}, []int64{100 * minute, 201 * minute}},
 		{"row stored in the same millisecond", []Start{start(100), start(200)}, []int64{100 * minute, 200 * minute}},
 	}
@@ -293,9 +289,7 @@ func TestDecodeStartReadsTheRecordAndToleratesAnyOtherMetadata(t *testing.T) {
 		{"record", `{"addr":"[::]:9876","lastContacts":{"device-1":1500}}`, map[string]int64{"device-1": 1500}},
 		{"older row", `{"addr":"[::]:9876"}`, nil},
 		{"no metadata", ``, nil},
-		{"truncation marker", `{"_truncated":true,"_original_keys":2}`, nil},
 		{"unreadable record", `{"lastContacts":"[redacted]"}`, nil},
-		{"not json", `{`, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

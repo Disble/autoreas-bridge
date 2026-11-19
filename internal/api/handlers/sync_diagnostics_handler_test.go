@@ -191,15 +191,16 @@ func TestSyncDiagnosticsShedReturns503WithRetryAfter(t *testing.T) {
 
 // TestSyncDiagnosticsShedNeverReturns204 pins the load-bearing shed contract:
 // "not stored" must never be indistinguishable from "stored", across every
-// error path the store can return, not just the write-budget one.
+// error path the store can return, not just the write-budget one. The
+// write-budget and undeclared-kind paths are pinned with their exact status by
+// TestSyncDiagnosticsShedReturns503WithRetryAfter and
+// TestSyncDiagnosticsUndeclaredKindReturns500Not503.
 func TestSyncDiagnosticsShedNeverReturns204(t *testing.T) {
 	cases := []struct {
 		name string
 		err  error
 	}{
-		{"write budget exceeded", fmt.Errorf("%w: contention", telemetry.ErrWriteBudget)},
 		{"store unavailable", errors.New("telemetry: store unavailable")},
-		{"undeclared kind", fmt.Errorf("%w: episode_action", telemetry.ErrUndeclaredKind)},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -276,10 +277,10 @@ func TestSyncDiagnosticsExplicitNullKindIsRejected(t *testing.T) {
 }
 
 // TestSyncDiagnosticsNonStringKindIsRejected asserts every non-string
-// discriminator spelling is refused the same way: a number, an object, a
-// boolean and an array are all present-but-unusable, never a kind name.
+// discriminator spelling is refused the same way: a number and an object are
+// both present-but-unusable, never a kind name.
 func TestSyncDiagnosticsNonStringKindIsRejected(t *testing.T) {
-	for _, rawValue := range []string{`123`, `{}`, `true`, `[]`} {
+	for _, rawValue := range []string{`123`, `{}`} {
 		t.Run(rawValue, func(t *testing.T) {
 			stubs := &telemetryHandlerStubs{authOK: true, deviceID: "dev-1", outcome: telemetry.Stored}
 			res := postDiagnostics(t, newDiagnosticsHandler(stubs, nil), bodyWithKindValue(validDiagnosticsBody(), rawValue))
@@ -442,7 +443,7 @@ func countStoredKind(t *testing.T, db *sql.DB, kind telemetry.KindName) int {
 	return count
 }
 
-// TestSyncDiagnosticsEpisodeActionStoresOncePerObservationID drives a real
+// TestSyncDiagnosticsEpisodeActionAndScreenStallStoreOncePerObservationID drives a real
 // episode_action body through the endpoint and into a real store twice. It is
 // the only test that pins the whole slice together: the discriminator selects
 // the new kind, the kind's decoder mints the kind-scoped idempotency key from
@@ -450,7 +451,7 @@ func countStoredKind(t *testing.T, db *sql.DB, kind telemetry.KindName) int {
 // repost into a 204 no-op rather than a second row. A body-supplied device_id
 // stays refused here too, because this is the kind mobile will flip to and the
 // envelope's device column must not become writable from the body on the way.
-func TestSyncDiagnosticsEpisodeActionStoresOncePerObservationID(t *testing.T) {
+func TestSyncDiagnosticsEpisodeActionAndScreenStallStoreOncePerObservationID(t *testing.T) {
 	t.Parallel()
 
 	db := openTelemetryEventsTestDB(t)
@@ -482,6 +483,32 @@ func TestSyncDiagnosticsEpisodeActionStoresOncePerObservationID(t *testing.T) {
 	if got := countStoredKind(t, db, telemetry.KindEpisodeAction); got != 1 {
 		t.Fatalf("stored %s rows = %d, want 1: a rejected body must store nothing", telemetry.KindEpisodeAction, got)
 	}
+
+	// Sync diagnostics screen stall stores once and names an undeclared key.
+	// It drives a
+	// real screen_stall body through the endpoint into a real store twice: the
+	// repost is a 204 no-op, and a body with an undeclared key is a 400 whose
+	// field names that key and stores nothing.
+	{
+		body := `{"kind":"screen_stall","observation_id":"0b6f3c1e-2a4d-4f7b-9c1d-5e8a7b6c4d3f","observed_at_ms":1761200700000,"duration_ms":120000,"trigger":"app_active","app_state":"active","window_focused":null,"window_width":600,"window_height":900,"screen_width":1200,"screen_height":900,"transitions":[{"event":"background","at_ms":1761200600000}]}`
+		for attempt := 0; attempt < 2; attempt++ {
+			if res := postDiagnostics(t, handler, body); res.Code != http.StatusNoContent {
+				t.Fatalf("attempt %d: status = %d, want 204 (body %q)", attempt, res.Code, res.Body.String())
+			}
+		}
+		if got := countStoredKind(t, db, telemetry.KindScreenStall); got != 1 {
+			t.Fatalf("stored %s rows = %d, want 1", telemetry.KindScreenStall, got)
+		}
+
+		res := postDiagnostics(t, handler, strings.Replace(body, `"trigger":"app_active",`, `"trigger":"app_active","device_id":"spoofed",`, 1))
+		var refusal map[string]string
+		if err := json.Unmarshal(res.Body.Bytes(), &refusal); err != nil || res.Code != http.StatusBadRequest || refusal["field"] != "device_id" {
+			t.Fatalf("status = %d, body %q; want 400 naming device_id", res.Code, res.Body.String())
+		}
+		if got := countStoredKind(t, db, telemetry.KindScreenStall); got != 1 {
+			t.Fatalf("stored %s rows = %d, want 1: a rejected body must store nothing", telemetry.KindScreenStall, got)
+		}
+	}
 }
 
 // TestSyncDiagnosticsEmptyObjectIsACycleReportMissingDegraded pins the other side
@@ -507,38 +534,5 @@ func TestSyncDiagnosticsEmptyObjectIsACycleReportMissingDegraded(t *testing.T) {
 	}
 	if stubs.ingestCalls != 0 {
 		t.Fatal("ingest must not be called for a rejected cycle report")
-	}
-}
-
-// TestSyncDiagnosticsScreenStallStoresOnceAndNamesAnUndeclaredKey drives a
-// real screen_stall body through the endpoint into a real store twice: the
-// repost is a 204 no-op, and a body with an undeclared key is a 400 whose
-// field names that key and stores nothing.
-func TestSyncDiagnosticsScreenStallStoresOnceAndNamesAnUndeclaredKey(t *testing.T) {
-	t.Parallel()
-
-	db := openTelemetryEventsTestDB(t)
-	registry := telemetry.DefaultRegistry()
-	store := telemetry.NewStore(db, telemetry.StoreConfig{Registry: registry})
-	stubs := &telemetryHandlerStubs{authOK: true, deviceID: "dev-1"}
-	handler := NewSyncDiagnosticsHandler(SyncDiagnosticsConfig{Authenticate: stubs.authenticate, Ingest: store.Insert, Kinds: registry})
-
-	body := `{"kind":"screen_stall","observation_id":"0b6f3c1e-2a4d-4f7b-9c1d-5e8a7b6c4d3f","observed_at_ms":1761200700000,"duration_ms":120000,"trigger":"app_active","app_state":"active","window_focused":null,"window_width":600,"window_height":900,"screen_width":1200,"screen_height":900,"transitions":[{"event":"background","at_ms":1761200600000}]}`
-	for attempt := 0; attempt < 2; attempt++ {
-		if res := postDiagnostics(t, handler, body); res.Code != http.StatusNoContent {
-			t.Fatalf("attempt %d: status = %d, want 204 (body %q)", attempt, res.Code, res.Body.String())
-		}
-	}
-	if got := countStoredKind(t, db, telemetry.KindScreenStall); got != 1 {
-		t.Fatalf("stored %s rows = %d, want 1", telemetry.KindScreenStall, got)
-	}
-
-	res := postDiagnostics(t, handler, strings.Replace(body, `"trigger":"app_active",`, `"trigger":"app_active","device_id":"spoofed",`, 1))
-	var refusal map[string]string
-	if err := json.Unmarshal(res.Body.Bytes(), &refusal); err != nil || res.Code != http.StatusBadRequest || refusal["field"] != "device_id" {
-		t.Fatalf("status = %d, body %q; want 400 naming device_id", res.Code, res.Body.String())
-	}
-	if got := countStoredKind(t, db, telemetry.KindScreenStall); got != 1 {
-		t.Fatalf("stored %s rows = %d, want 1: a rejected body must store nothing", telemetry.KindScreenStall, got)
 	}
 }

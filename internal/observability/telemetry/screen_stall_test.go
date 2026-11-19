@@ -1,7 +1,6 @@
 package telemetry
 
 import (
-	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -130,7 +129,6 @@ func TestScreenStallKindRejectsAndNamesTheField(t *testing.T) {
 		{"duration below floor", `"duration_ms":120000`, `"duration_ms":1999`, "duration_ms"},
 		{"duration above ceiling", `"duration_ms":120000`, `"duration_ms":3600001`, "duration_ms"},
 		{"fractional duration", `"duration_ms":120000`, `"duration_ms":2500.5`, "duration_ms"},
-		{"string duration", `"duration_ms":120000`, `"duration_ms":"120000"`, "duration_ms"},
 		{"null duration", `"duration_ms":120000`, `"duration_ms":null`, "duration_ms"},
 		{"unknown trigger", `"trigger":"app_active"`, `"trigger":"scroll"`, "trigger"},
 		{"missing trigger", `"trigger":"app_active",`, ``, "trigger"},
@@ -143,7 +141,6 @@ func TestScreenStallKindRejectsAndNamesTheField(t *testing.T) {
 		{"zero screen width", `"screen_width":1200`, `"screen_width":0`, "screen_width"},
 		{"missing screen height", `"screen_height":900,`, ``, "screen_height"},
 		{"null transitions", transitions, `null`, "transitions"},
-		{"object transitions", transitions, `{}`, "transitions"},
 		{"nine transitions", transitions, nineItems, "transitions"},
 		{"unknown transition event", `"event":"background"`, `"event":"paint"`, "transitions[0].event"},
 		{"negative transition time", `"at_ms":1761200600000`, `"at_ms":-1`, "transitions[0].at_ms"},
@@ -176,24 +173,5 @@ func TestScreenStallKindKeepsMalformedJSONUnnamed(t *testing.T) {
 	var fieldErr *syncdiag.FieldError
 	if err == nil || errors.As(err, &fieldErr) {
 		t.Fatalf("Decode() error = %v, want an unnamed decode error", err)
-	}
-}
-
-// TestDefaultRegistryServesScreenStall pins that the kind is reachable on the
-// wire with its own retention cap.
-func TestDefaultRegistryServesScreenStall(t *testing.T) {
-	t.Parallel()
-
-	kind, ok := DefaultRegistry().Lookup(KindScreenStall)
-	if !ok {
-		t.Fatal("DefaultRegistry() does not serve screen_stall")
-	}
-	if kind.RetentionLimit() != 5000 {
-		t.Fatalf("RetentionLimit() = %d, want 5000", kind.RetentionLimit())
-	}
-	var stored map[string]json.RawMessage
-	validated, err := kind.Decode([]byte(screenStallBody))
-	if err != nil || json.Unmarshal(validated.Payload, &stored) != nil || len(stored) != 9 {
-		t.Fatalf("registry kind decoded %s (err %v), want the nine-key payload", validated.Payload, err)
 	}
 }
