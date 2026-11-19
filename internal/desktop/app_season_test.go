@@ -138,16 +138,19 @@ func TestRunSeasonMatchingRefreshesAvailabilityForNewMatches(t *testing.T) {
 }
 
 // TestRunSeasonMatchingOrdersFinishedAfterBothPhases pins the S5 run order on
-// one chronological tape: every name-matching progress, then the availability
-// check progress, then the terminal signal. The companion boundary test
-// collects one slice per event type, so emitting finished before the
-// availability phase completes would still pass there; on this tape finished
-// would no longer be last, so that regression fails here.
+// one chronological tape: started once, every name-matching progress, then the
+// availability check progress, then exactly one terminal signal. Emitting
+// finished before the availability phase completes, or twice, fails here.
 func TestRunSeasonMatchingOrdersFinishedAfterBothPhases(t *testing.T) {
 	t.Parallel()
 
 	bus := events.NewBus()
 	var order []string
+	bus.Subscribe(events.EventNameSeasonMatchingStarted, func(e events.Event) {
+		if s, ok := e.(events.SeasonMatchingStartedEvent); ok {
+			order = append(order, fmt.Sprintf("started:%d", s.Total))
+		}
+	})
 	bus.Subscribe(events.EventNameSeasonMatchingProgress, func(e events.Event) {
 		if p, ok := e.(events.SeasonMatchingProgressEvent); ok {
 			order = append(order, "progress:"+p.Phase)
@@ -184,7 +187,10 @@ func TestRunSeasonMatchingOrdersFinishedAfterBothPhases(t *testing.T) {
 		t.Fatalf("RunSeasonMatching: %q", got)
 	}
 
+	// The service owns started and the per-row progress: Good Anime matches and is then probed,
+	// Typo Anime finds no candidate. The desktop owns finished, exactly once, after both phases.
 	want := []string{
+		"started:2",
 		"progress:" + events.SeasonMatchingPhaseMatching,
 		"progress:" + events.SeasonMatchingPhaseMatching,
 		"progress:" + events.SeasonMatchingPhaseAvailabilityCheck,

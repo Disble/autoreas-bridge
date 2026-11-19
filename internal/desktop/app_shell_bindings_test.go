@@ -58,13 +58,14 @@ var shellBindings = []struct {
 // depends on a module, so the always-ready shell handle serves them.
 func TestShellBindingsNeverWaitForAModule(t *testing.T) {
 	t.Parallel()
-	for _, state := range []lifecycle.State{lifecycle.StateStarting, lifecycle.StateFailed} {
-		for _, binding := range shellBindings {
-			t.Run(string(state)+"/"+binding.name, func(t *testing.T) {
-				t.Parallel()
-				binding.call(t, shellApp(`C:/covers/a.png`, nil, state))
-			})
-		}
+	for _, binding := range shellBindings {
+		t.Run(binding.name+"/starting then failed", func(t *testing.T) {
+			t.Parallel()
+			app := shellApp(`C:/covers/a.png`, nil, lifecycle.StateStarting)
+			binding.call(t, app)
+			app.moduleSet().writer.FailStarting(moduleFailureReason)
+			binding.call(t, app)
+		})
 	}
 }
 

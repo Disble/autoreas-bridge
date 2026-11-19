@@ -82,24 +82,17 @@ var backupBindings = []struct {
 // after it failed.
 func TestBackupBindingsFollowTheBackupModule(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		name     string
-		state    lifecycle.State
-		wantCode apperr.Code
-		wantMsg  string
-	}{
-		{"starting is unavailable", lifecycle.StateStarting, apperr.CodeUnavailable, "backup is starting"},
-		{"failed is a failed precondition", lifecycle.StateFailed, apperr.CodeFailedPrecondition, moduleFailureReason},
-		{"ready answers the value", lifecycle.StateReady, "", ""},
-	}
 	for _, binding := range backupBindings {
-		for _, tc := range cases {
-			t.Run(binding.name+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-				served, err := binding.call(t, backupApp(t, tc.state))
-				assertModuleAnswer(t, served, err, tc.wantCode, tc.wantMsg)
-			})
-		}
+		t.Run(binding.name+"/starting then failed", func(t *testing.T) {
+			t.Parallel()
+			call := func(a *App) (bool, error) { return binding.call(t, a) }
+			assertStartingThenFailed(t, backupApp(t, lifecycle.StateStarting), moduleBackup, "backup is starting", call)
+		})
+		t.Run(binding.name+"/ready answers the value", func(t *testing.T) {
+			t.Parallel()
+			served, err := binding.call(t, backupApp(t, lifecycle.StateReady))
+			assertModuleAnswer(t, served, err, "", "")
+		})
 	}
 }
 
@@ -107,23 +100,21 @@ func TestBackupBindingsFollowTheBackupModule(t *testing.T) {
 // nothing: no restore point, and the pending preview it never read stays as it was.
 func TestConfirmBackupImportNotReadyKeepsThePendingPreview(t *testing.T) {
 	t.Parallel()
+	app := backupApp(t, lifecycle.StateStarting)
+	dbPath, _ := app.resolveBridgeDBPath()
+	checksum := previewedBundle(t, app)
+	pending := app.pendingBackupImport
 	for _, state := range []lifecycle.State{lifecycle.StateStarting, lifecycle.StateFailed} {
-		t.Run(string(state), func(t *testing.T) {
-			t.Parallel()
-			app := backupApp(t, state)
-			dbPath, _ := app.resolveBridgeDBPath()
-			checksum := previewedBundle(t, app)
-			pending := app.pendingBackupImport
+		inModuleState(app, moduleBackup, state)
 
-			if _, err := app.ConfirmBackupImport(checksum); err == nil {
-				t.Fatal("a module that is not ready confirmed an import")
-			}
+		if _, err := app.ConfirmBackupImport(checksum); err == nil {
+			t.Fatalf("%s: a module that is not ready confirmed an import", state)
+		}
 
-			if app.pendingBackupImport != pending {
-				t.Fatalf("pending preview = %+v, want it untouched", app.pendingBackupImport)
-			}
-			assertNoRestorePoint(t, dbPath)
-		})
+		if app.pendingBackupImport != pending {
+			t.Fatalf("%s: pending preview = %+v, want it untouched", state, app.pendingBackupImport)
+		}
+		assertNoRestorePoint(t, dbPath)
 	}
 }
 

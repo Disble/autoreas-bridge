@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -155,6 +154,11 @@ func TestSeasonAnimeGatewayCreatePreservesAuthoritativeResult(t *testing.T) {
 	if creator.lastCreate.Tipo == nil || *creator.lastCreate.Tipo != 0 {
 		t.Fatalf("CreateAnime must forward tipo=0, got %#v", creator.lastCreate.Tipo)
 	}
+	// Without metadata the gateway sends exactly the create it sent before metadata existed.
+	if sent := creator.lastCreate; sent.TotalEpisodes != nil || sent.DurationMinutes != nil ||
+		sent.Origin != "" || sent.Genres != nil || sent.Studios != nil || sent.Cover != nil {
+		t.Fatalf("no optional field may be set without metadata: %#v", sent)
+	}
 	wantDias := []contracts.Placement{{Day: "Sin ver", Order: 1}}
 	if len(creator.lastCreate.Dias) != 1 || creator.lastCreate.Dias[0] != wantDias[0] {
 		t.Fatalf("CreateAnime must build Dias from the season default placement, got %#v", creator.lastCreate.Dias)
@@ -253,47 +257,6 @@ func TestSeasonAnimeGatewayCreateFailsBeforeCreatorWhenOrderCannotBeRead(t *test
 	}
 }
 
-// notifySeasonAvailable used to comma-join every name into one unbounded sentence that could
-// neither truncate nor be acted on individually. This proves the body still names every anime
-// when the batch is small, and collapses the remainder into a "(+N more)" suffix instead of
-// growing without bound when it is not.
-func TestNotifySeasonAvailableNamesAnimesAndTruncatesPastTheLimit(t *testing.T) {
-	t.Parallel()
-
-	t.Run("small batch names every anime", func(t *testing.T) {
-		t.Parallel()
-		notifier := &recordingAppNotifier{}
-		app := &App{notifier: notifier}
-
-		app.notifySeasonAvailable(context.Background(), []string{"Frieren", "Dandadan"})
-
-		if len(notifier.received) != 1 {
-			t.Fatalf("received %d notifications, want 1", len(notifier.received))
-		}
-		body := notifier.received[0].Body
-		if !strings.Contains(body, "Frieren") || !strings.Contains(body, "Dandadan") {
-			t.Fatalf("body = %q, want both anime named", body)
-		}
-	})
-
-	t.Run("large batch truncates instead of growing without bound", func(t *testing.T) {
-		t.Parallel()
-		notifier := &recordingAppNotifier{}
-		app := &App{notifier: notifier}
-		names := []string{"A", "B", "C", "D", "E", "F", "G"}
-
-		app.notifySeasonAvailable(context.Background(), names)
-
-		body := notifier.received[0].Body
-		if !strings.Contains(body, "(+2 more)") {
-			t.Fatalf("body = %q, want a \"(+2 more)\" suffix for the 2 names past the limit", body)
-		}
-		if strings.Contains(body, "F") || strings.Contains(body, "G") {
-			t.Fatalf("body = %q, want the collapsed names omitted, not spelled out", body)
-		}
-	})
-}
-
 // TestSeasonWatchedRuleMovesAWatchedVerHoyAnimeToVistoInTheSameSave pins the
 // Ver hoy -> Visto auto-transition end to end over real SQLite, the real bus,
 // the real changelog recorder and the production write deps: the first episode
@@ -375,6 +338,31 @@ func (s *outcomeDaysEpisodeService) SetAnimeDays(_ context.Context, cmd anime.Se
 	return anime.EpisodeCommandResult{AnimeID: cmd.AnimeID, Outcome: s.outcome, ModifiedAt: 7, ConflictID: "c-1"}, s.err
 }
 
+// assertVerHoyMovesNothingUntilEpisodesIsReady drives one App whose episodes module is starting,
+// then failed: each Ver hoy batch answers that module's state as the binding error, with no window
+// result, and no anime is moved.
+func assertVerHoyMovesNothingUntilEpisodesIsReady(t *testing.T) {
+	t.Parallel()
+	episode := &outcomeDaysEpisodeService{stubAppEpisodeService: &stubAppEpisodeService{}, outcome: anime.PatchOutcomeApplied}
+	app := episodesApp(episode, lifecycle.StateStarting)
+	for _, step := range []struct {
+		wantCode apperr.Code
+		wantMsg  string
+	}{
+		{apperr.CodeUnavailable, "episodes is starting"},
+		{apperr.CodeFailedPrecondition, "bridge database failed to open: locked"},
+	} {
+		got, err := app.SendSeasonAnimesToVerHoy([]string{"anime-1", "anime-2"})
+		if code, _ := apperr.CodeOf(err); code != step.wantCode || err.Error() != step.wantMsg || got != (SendToVerHoyDTO{}) {
+			t.Fatalf("got %+v, code %q (err %v), want code %q %q and no result", got, code, err, step.wantCode, step.wantMsg)
+		}
+		inModuleState(app, moduleEpisodes, lifecycle.StateFailed)
+	}
+	if episode.lastDays.AnimeID != "" {
+		t.Fatalf("last anime moved = %q, want none before the module is ready", episode.lastDays.AnimeID)
+	}
+}
+
 // TestSendSeasonAnimesToVerHoyFollowsTheEpisodesModule pins S1 for the Ver hoy batch: it moves no
 // anime while the episodes module starts or after it failed, and a move that fails or does not
 // apply stops the batch as the binding's error with no window result.
@@ -388,13 +376,12 @@ func TestSendSeasonAnimesToVerHoyFollowsTheEpisodesModule(t *testing.T) {
 		wantCode apperr.Code
 		wantMsg  string
 	}{
-		{"starting is unavailable", lifecycle.StateStarting, anime.PatchOutcomeApplied, nil, apperr.CodeUnavailable, "episodes is starting"},
-		{"failed is a failed precondition", lifecycle.StateFailed, anime.PatchOutcomeApplied, nil, apperr.CodeFailedPrecondition, "bridge database failed to open: locked"},
 		{"service error is internal", lifecycle.StateReady, "", errors.New("anime write failed"), apperr.CodeInternal, "anime write failed"},
 		{"conflict is internal", lifecycle.StateReady, anime.PatchOutcomeConflict, nil, apperr.CodeInternal, "anime mutation conflict: anime=anime-1 modifiedAt=7 conflictId=c-1"},
 		{"unknown outcome is internal", lifecycle.StateReady, "rewound", nil, apperr.CodeInternal, `unexpected anime mutation outcome "rewound"`},
 		{"no-op is staged", lifecycle.StateReady, anime.PatchOutcomeNoOp, nil, "", ""},
 	}
+	t.Run("starting then failed", assertVerHoyMovesNothingUntilEpisodesIsReady)
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

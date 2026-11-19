@@ -74,24 +74,17 @@ func TestAnimeReadsFollowTheAnimeModule(t *testing.T) {
 		watchHistory: &stubWatchHistoryQuery{},
 		covers:       stubCoverThumbnails{result: coverResult()},
 	}
-	cases := []struct {
-		name     string
-		state    lifecycle.State
-		wantCode apperr.Code
-		wantMsg  string
-	}{
-		{"starting is unavailable", lifecycle.StateStarting, apperr.CodeUnavailable, "anime is starting"},
-		{"failed is a failed precondition", lifecycle.StateFailed, apperr.CodeFailedPrecondition, "bridge database failed to open: locked"},
-	}
 	for _, read := range animeReads {
-		for _, tc := range cases {
-			t.Run(read.name+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-				value, err := read.call(animeApp(services, tc.state))
+		t.Run(read.name+"/starting then failed", func(t *testing.T) {
+			t.Parallel()
+			app := animeApp(services, lifecycle.StateStarting)
+			value, err := read.call(app)
+			assertAnimeFailure(t, value, err, apperr.CodeUnavailable, "anime is starting")
 
-				assertAnimeFailure(t, value, err, tc.wantCode, tc.wantMsg)
-			})
-		}
+			inModuleState(app, moduleAnime, lifecycle.StateFailed)
+			value, err = read.call(app)
+			assertAnimeFailure(t, value, err, apperr.CodeFailedPrecondition, "bridge database failed to open: locked")
+		})
 	}
 }
 

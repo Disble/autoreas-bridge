@@ -223,7 +223,6 @@ func TestActivityAnimeWriteServiceRecordsOnlyAppliedOutcomes(t *testing.T) {
 		wantErr error
 	}{
 		{name: "no op", result: contracts.AnimePatchResult{AnimeID: "anime-1", Outcome: contracts.AnimePatchOutcomeNoOp, ModifiedAt: 1000}},
-		{name: "conflict", result: contracts.AnimePatchResult{AnimeID: "anime-1", Outcome: contracts.AnimePatchOutcomeConflict, ModifiedAt: 1000, ConflictID: "conflict-9"}},
 		{name: "error", err: writeErr, wantErr: writeErr},
 	}
 

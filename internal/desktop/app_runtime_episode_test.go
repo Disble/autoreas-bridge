@@ -60,13 +60,22 @@ func TestEpisodeReadsFollowTheEpisodesModule(t *testing.T) {
 		wantCode apperr.Code
 		wantMsg  string
 	}{
-		{"starting is unavailable", rows, lifecycle.StateStarting, 0, apperr.CodeUnavailable, "episodes is starting"},
-		{"failed is a failed precondition", rows, lifecycle.StateFailed, 0, apperr.CodeFailedPrecondition, "bridge database failed to open: locked"},
 		{"service error is internal", stubAppEpisodeService{err: errors.New("snapshot read failed")}, lifecycle.StateReady, 0, apperr.CodeInternal, "snapshot read failed"},
 		{"ready answers the rows", rows, lifecycle.StateReady, 1, "", ""},
 		{"ready empty day is an empty list", stubAppEpisodeService{}, lifecycle.StateReady, 0, "", ""},
 	}
 	for _, read := range episodeReads {
+		t.Run(read.name+"/starting then failed", func(t *testing.T) {
+			t.Parallel()
+			service := rows
+			app := episodesApp(&service, lifecycle.StateStarting)
+			got, isNil, err := read.call(app)
+			assertEpisodeRead(t, got, isNil, err, 0, apperr.CodeUnavailable, "episodes is starting")
+
+			inModuleState(app, moduleEpisodes, lifecycle.StateFailed)
+			got, isNil, err = read.call(app)
+			assertEpisodeRead(t, got, isNil, err, 0, apperr.CodeFailedPrecondition, "bridge database failed to open: locked")
+		})
 		for _, tc := range cases {
 			t.Run(read.name+"/"+tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -198,12 +207,25 @@ func TestEpisodeCommandsFollowTheEpisodesModule(t *testing.T) {
 		wantCode apperr.Code
 		wantMsg  string
 	}{
-		{"starting is unavailable", stubAppEpisodeService{}, lifecycle.StateStarting, apperr.CodeUnavailable, "episodes is starting"},
-		{"failed is a failed precondition", stubAppEpisodeService{}, lifecycle.StateFailed, apperr.CodeFailedPrecondition, "bridge database failed to open: locked"},
 		{"service error is internal", stubAppEpisodeService{err: errors.New("anime write failed")}, lifecycle.StateReady, apperr.CodeInternal, "anime write failed"},
 		{"ready answers the outcome", stubAppEpisodeService{}, lifecycle.StateReady, "", ""},
 	}
 	for _, command := range episodeCommands {
+		t.Run(command.name+"/starting then failed", func(t *testing.T) {
+			t.Parallel()
+			service := stubAppEpisodeService{}
+			app := episodesApp(&service, lifecycle.StateStarting)
+			got, err := command.call(app)
+			assertEpisodeCommand(t, got, err, apperr.CodeUnavailable, "episodes is starting")
+
+			inModuleState(app, moduleEpisodes, lifecycle.StateFailed)
+			got, err = command.call(app)
+			assertEpisodeCommand(t, got, err, apperr.CodeFailedPrecondition, "bridge database failed to open: locked")
+
+			if delegated := command.delegated(&service); delegated == command.want {
+				t.Fatalf("service received %q before the module was ready", delegated)
+			}
+		})
 		for _, tc := range cases {
 			t.Run(command.name+"/"+tc.name, func(t *testing.T) {
 				t.Parallel()

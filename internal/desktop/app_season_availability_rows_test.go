@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -39,6 +40,18 @@ func TestNotifySeasonAvailableIndividuatesEachAnimeAsARow(t *testing.T) {
 	if rows[1].Name != "Dandadan" {
 		t.Fatalf("rows[1] = %#v, want the second available anime", rows[1])
 	}
+
+	sent := notifier.received[0]
+	if !strings.Contains(sent.Body, "Sousou no Frieren") || !strings.Contains(sent.Body, "Dandadan") {
+		t.Fatalf("body = %q, want both anime named", sent.Body)
+	}
+	// Source stays "season", the bounded context, while the kind names what happened in it.
+	if sent.Kind != "season.anime_available" || sent.Source != "season" {
+		t.Fatalf("Kind, Source = %q, %q, want %q, %q", sent.Kind, sent.Source, "season.anime_available", "season")
+	}
+	// Every available anime is created on the same screen, so the verb belongs to the
+	// notification and no row carries its own token (docs/notification-cta-policy.md).
+	assertNavigatesTo(t, singleWholeNotificationAction(t, sent), "Open Season", "/season")
 }
 
 // TestNotifySeasonAvailableCollapsesRowsPastTheBoundedLimit pins the bound. A batch of 40 must
@@ -69,6 +82,13 @@ func TestNotifySeasonAvailableCollapsesRowsPastTheBoundedLimit(t *testing.T) {
 		if row.CollapsedCount != 0 {
 			t.Fatalf("named row %#v must not carry a collapsed count", row)
 		}
+	}
+	body := notifier.received[0].Body
+	if !strings.Contains(body, "(+2 more)") {
+		t.Fatalf("body = %q, want a \"(+2 more)\" suffix for the 2 names past the limit", body)
+	}
+	if strings.Contains(body, "F") || strings.Contains(body, "G") {
+		t.Fatalf("body = %q, want the collapsed names omitted, not spelled out", body)
 	}
 }
 
@@ -127,25 +147,5 @@ func TestBuildSeasonAvailableRowsReturnsNilForAnEmptyBatch(t *testing.T) {
 	}
 	if rows := buildSeasonAvailableRows([]string{}); rows != nil {
 		t.Fatalf("buildSeasonAvailableRows([]) = %#v, want nil", rows)
-	}
-}
-
-// TestNotifySeasonAvailableCarriesTheSeasonAnimeAvailableKind pins the kind the Anatomy artboard
-// labels that example block with. Source stays "season" -- the bounded context -- while the kind
-// names what happened in it, so a producer reporting one in the other's place fails here.
-func TestNotifySeasonAvailableCarriesTheSeasonAnimeAvailableKind(t *testing.T) {
-	t.Parallel()
-
-	notifier := &recordingAppNotifier{}
-	app := &App{notifier: notifier}
-
-	app.notifySeasonAvailable(context.Background(), []string{"Sousou no Frieren"})
-
-	sent := notifier.received[0]
-	if sent.Kind != "season.anime_available" {
-		t.Fatalf("Kind = %q, want %q", sent.Kind, "season.anime_available")
-	}
-	if sent.Source != "season" {
-		t.Fatalf("Source = %q, want %q -- the kind must not overwrite it", sent.Source, "season")
 	}
 }

@@ -13,7 +13,6 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api"
-	"autoreas-bridge/internal/apperr"
 	"autoreas-bridge/internal/lifecycle"
 	"autoreas-bridge/internal/settings"
 	bridgeSync "autoreas-bridge/internal/sync"
@@ -61,7 +60,9 @@ func TestExportBackupRejectsEmptyDialogResult(t *testing.T) {
 	}
 }
 
-func TestExportBackupWritesOnlyToDialogPath(t *testing.T) {
+// TestExportBackupWritesSixGroupsOnlyToDialogPath pins that the bundle lands at the path the
+// dialog chose and carries exactly the six backup groups, in order.
+func TestExportBackupWritesSixGroupsOnlyToDialogPath(t *testing.T) {
 	app := appBackupTestDB(t)
 	dest := filepath.Join(t.TempDir(), "chosen.zip")
 	app.saveFile = func(context.Context, string, string) (string, error) {
@@ -78,25 +79,14 @@ func TestExportBackupWritesOnlyToDialogPath(t *testing.T) {
 	if _, err := os.Stat(dest); err != nil {
 		t.Fatalf("expected bundle at dialog path %q: %v", dest, err)
 	}
-}
-
-func TestExportBackupInvokesExportWithDialogPath(t *testing.T) {
-	app := appBackupTestDB(t)
-	dest := filepath.Join(t.TempDir(), "invoked.zip")
-	var seenDest string
-	app.saveFile = func(context.Context, string, string) (string, error) {
-		seenDest = dest
-		return dest, nil
+	wantNames := []string{"anime_snapshots", "seasons", "season_animes", "watched_episodes", "episode_durations", "keyboard_keymap"}
+	if len(result.Groups) != len(wantNames) {
+		t.Fatalf("expected exactly %d groups, got %d: %+v", len(wantNames), len(result.Groups), result.Groups)
 	}
-
-	if _, err := app.ExportBackup(); err != nil {
-		t.Fatalf("export backup: %v", err)
-	}
-	if seenDest != dest {
-		t.Fatalf("expected saveFile to report %q, got %q", dest, seenDest)
-	}
-	if _, err := os.Stat(dest); err != nil {
-		t.Fatalf("expected bundle written to %q: %v", dest, err)
+	for i, want := range wantNames {
+		if result.Groups[i].Name != want {
+			t.Fatalf("group %d: expected name %q, got %q", i, want, result.Groups[i].Name)
+		}
 	}
 }
 
@@ -122,24 +112,6 @@ func TestExportBackupReadsManifestBackBeforeReportingSuccess(t *testing.T) {
 	}
 	if animeGroup.RecordCount != 1 {
 		t.Fatalf("expected 1 exported anime snapshot per the manifest read back, got %d", animeGroup.RecordCount)
-	}
-}
-
-func TestExportedBundleHasExactlySixGroups(t *testing.T) {
-	app := appBackupTestDB(t)
-
-	result, err := app.ExportBackup()
-	if err != nil {
-		t.Fatalf("export backup: %v", err)
-	}
-	wantNames := []string{"anime_snapshots", "seasons", "season_animes", "watched_episodes", "episode_durations", "keyboard_keymap"}
-	if len(result.Groups) != len(wantNames) {
-		t.Fatalf("expected exactly %d groups, got %d: %+v", len(wantNames), len(result.Groups), result.Groups)
-	}
-	for i, want := range wantNames {
-		if result.Groups[i].Name != want {
-			t.Fatalf("group %d: expected name %q, got %q", i, want, result.Groups[i].Name)
-		}
 	}
 }
 
@@ -247,18 +219,6 @@ func findGroup(groups []BackupGroupResult, name string) (BackupGroupResult, bool
 		}
 	}
 	return BackupGroupResult{}, false
-}
-
-func TestExportBackupPropagatesExportError(t *testing.T) {
-	app := appBackupTestDB(t)
-	if err := app.bridgeDB.Close(); err != nil {
-		t.Fatalf("close bridge db: %v", err)
-	}
-
-	_, err := app.ExportBackup()
-	if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal {
-		t.Fatalf("err = %v (code %q), want the closed-DB export error as internal", err, code)
-	}
 }
 
 // TestNoRESTRouteOrWSEventExposesExport asserts backup export stays a

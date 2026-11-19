@@ -89,24 +89,17 @@ func countRows(db *sql.DB, query string) int {
 // or after it failed.
 func TestObservabilityBindingsFollowTheirModule(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		name     string
-		state    lifecycle.State
-		wantCode apperr.Code
-		wantMsg  string
-	}{
-		{"starting is unavailable", lifecycle.StateStarting, apperr.CodeUnavailable, "observability is starting"},
-		{"failed is a failed precondition", lifecycle.StateFailed, apperr.CodeFailedPrecondition, moduleFailureReason},
-		{"ready answers the value", lifecycle.StateReady, "", ""},
-	}
 	for _, binding := range observabilityBindings {
-		for _, tc := range cases {
-			t.Run(binding.name+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-				served, err := binding.call(observabilityApp(t, captureAppTestDB(t), tc.state))
-				assertModuleAnswer(t, served, err, tc.wantCode, tc.wantMsg)
-			})
-		}
+		t.Run(binding.name+"/starting then failed", func(t *testing.T) {
+			t.Parallel()
+			app := observabilityApp(t, captureAppTestDB(t), lifecycle.StateStarting)
+			assertStartingThenFailed(t, app, moduleObservability, "observability is starting", binding.call)
+		})
+		t.Run(binding.name+"/ready answers the value", func(t *testing.T) {
+			t.Parallel()
+			served, err := binding.call(observabilityApp(t, captureAppTestDB(t), lifecycle.StateReady))
+			assertModuleAnswer(t, served, err, "", "")
+		})
 	}
 }
 

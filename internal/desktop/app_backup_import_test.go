@@ -237,16 +237,6 @@ func TestPreviewBackupImportWritesNothing(t *testing.T) {
 	if hashFile(t, dbPath) != before {
 		t.Fatalf("expected bridge.db unchanged by a preview")
 	}
-}
-
-func TestPreviewBackupImportCreatesNoRestorePoint(t *testing.T) {
-	app, dbPath := appBackupImportTestApp(t)
-	bundlePath := buildTestBundle(t)
-	app.pickBundle = func(context.Context, string) (string, error) { return bundlePath, nil }
-
-	if _, err := app.PreviewBackupImport(); err != nil {
-		t.Fatalf("preview backup import: %v", err)
-	}
 	assertNoRestorePoint(t, dbPath)
 }
 
