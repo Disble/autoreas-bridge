@@ -31,14 +31,14 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
 | T7d | S2, S3 | delegated (parallel, worktree `tsd-fe-slow`) | done (37d38efa) | 13 of 14 cases faster (e.g. readiness 1115 → 119 ms, run-history 909 → 154 ms), test files only, 13 hand mutations; A: frontend tests >= 500 ms outside anime-editor and season (13 files, ~12 s cumulative) |
 | T7e | S2, S3 | delegated (parallel, worktree `tsd-go-slow`) | done (863a45c9) | verifier FAIL on 2 lost guards (dev asset retry default, AwaitState upper bound), one correction batch, recheck PASS; 11 tests into band (e.g. activityread bound 5840 → 100 ms, schedule tie-break 3540 → 150 ms, AwaitState 2000 → 20 ms), one desktop seam with a pinned 250 ms default, 11 hand mutations; template-DB copy (~7 ms vs ~45 ms bootstrap) noted as follow-up; A: Go tests >= 500 ms except webview2 and the T2 deadline tests (~15 packages, ~20 s cumulative) |
 | T8 | S2, S3 | inline | done (003e0fb9, 893253c9) | `ditto changed --since fe516e48` over the 6 changed Go production files: 18/18 killed (score 1.00, bar 0.80) after two 1 ns rows killed the only survivors; no frontend production logic in range |
-| T9 | S2 | inline | in progress | count reduction, owner target "min 20% sounds good for me to begin". Counted unit: executed leaf cases (Go leaf tests incl. subtests, Vitest cases), so table rows never count as a reduction. Baseline fe516e48: Go 4,641 + frontend 5,022 = 9,663; target <= 7,730 (Go <= 3,712, frontend <= 4,017) |
+| T9 | S2 | inline | in progress (68233410: 9,663 -> 8,595, -11.1%; owner ruling pending) | count reduction, owner target "min 20% sounds good for me to begin". Counted unit: executed leaf cases (Go leaf tests incl. subtests, Vitest cases), so table rows never count as a reduction. Baseline fe516e48: Go 4,641 + frontend 5,022 = 9,663; target <= 7,730 (Go <= 3,712, frontend <= 4,017) |
 | T9a | S2 | inline | done | maps in scratch: Go per-leaf own-package map (1,420 identical-path candidates of 4,525; too coarse: a path through another package looked identical), rerun with -coverpkg over the module; frontend per-test V8 map in one run (5,003 tests, 611 identical-path candidates). Deletes nothing |
-| T9b | S2, S3 | delegated (parallel, worktree `t9-fe-season`) | in progress | features/season, shared/ordering, shared/season: 1,112 tests, quota >= 223 fewer |
-| T9c | S2, S3 | delegated (parallel, worktree `t9-fe-notify`) | in progress | notifications, history, anime-detail, catalog, dashboard, devices, navigation, preferences: 1,081 tests, quota >= 217 |
-| T9d | S2, S3 | delegated (parallel, worktree `t9-fe-download`) | in progress | download, activity, episodes, backup: 1,052 tests, quota >= 211 |
-| T9e | S2, S3 | delegated (parallel, worktree `t9-fe-editor`) | in progress | anime-editor, anime-create, infrastructure, app, scripts: 966 tests, quota >= 194 |
-| T9f | S2, S3 | delegated (parallel, worktree `t9-fe-shared`) | pending | src/shared except ordering and season: 792 tests, quota >= 159 |
-| T9g+ | S2, S3 | delegated (parallel by package) | pending | Go units, split after the -coverpkg map |
+| T9b | S2, S3 | delegated (parallel, worktree `t9-fe-season`) | done f0e94647 | features/season, shared/ordering, shared/season: 1,112 -> 968 (-13%), quota >= 223 missed by 79: the rest are boundary rows of pure helpers. Verifier PASS, 9 hand mutations |
+| T9c | S2, S3 | delegated (parallel, worktree `t9-fe-notify`) | done 586974e6 | notifications, history, anime-detail, catalog, dashboard, devices, navigation, preferences: 1,081 -> 1,033 (-4%), merges only. Verifier FAIL fixed: a Back+Edit merge clicked both before asserting; now asserts after each click |
+| T9d | S2, S3 | delegated (parallel, worktree `t9-fe-download`) | done 661e8684 | download, activity, episodes, backup: 1,052 -> 928 (-12%). Verifier FAIL fixed: a schedule merge made setEnabled(false) vacuous after a refetch already returned false; now setEnabled(true) |
+| T9e | S2, S3 | delegated (parallel, worktree `t9-fe-editor`) | blocked on owner | anime-editor, anime-create, infrastructure, app, scripts: 966 -> 858 strict, 771 with 87 disputed (71 pure-helper case merges + 16 it.each folds). Verifier PASS. Uncommitted until the owner rules on folded cases |
+| T9f | S2, S3 | delegated (parallel, worktree `t9-fe-shared`) | done 6eb3d3f2 | src/shared except ordering and season: 792 -> 631 (-20%), quota met. Verifier PASS; restored the idle empty-array row; 15 cases are static-render merges (disputed) |
+| T9g-T9k | S2, S3 | delegated (parallel, one worktree per unit) | done | Go leaves: desktop 1,134 -> 973 (46ead607), anime 1,050 -> 987 (9cca2506), observe 1,131 -> 994 (f1d5c7f7), sync 1,110 -> 906 (219d129e), tools 186 -> 173 (afeec2d7). Verifiers: observe FAIL fixed (2 restored validator rows, route test decodes each payload); others PASS. Gate gocognit fixes by helper extraction, no limit change. Merged in 68233410 |
 | T9z | S2, S3 | inline | pending | ditto on CORE packages touched, final count against the target |
 
 ## Log
@@ -145,4 +145,17 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
   equivalence class (never a boundary value). Merge tests that share the same arrange into one test
   keeping every assertion. Converting tests to it.each / table rows is not a reduction. Writers run
   focused tests only, at most four at once, because memory pressure already killed gates in this run.
-- Next: frontend writers T9b-T9e, then T9f and the Go units when the Go map ends.
+- L26 (2026-11-18): writers collapsed pure-helper cases and table rows to reach quota; ruled not a
+  reduction until the owner decides (asked: does folding a simple function's cases into one test that keeps
+  every check count toward the 20%?). fe-notify and fe-season reverted theirs; fe-editor kept its 87 in an
+  uncommitted diff (final.patch in scratch).
+- L27 (2026-11-18): nine units verified independently (each with its own hand mutations) and merged in
+  68233410; three verifier FAILs fixed before commit (vacuous setEnabled after refetch, Back/Edit asserted only
+  after both clicks, two deleted validator rows plus a 200-only route merge). Counts at 68233410:
+  Go 4,641 -> 4,069 leaves (-12.3%, full suite exit 0, 0 fail events), frontend 5,022 -> 4,526 (-9.9%, merge
+  gate run), total 9,663 -> 8,595 (-11.1%). With fe-editor strict (858) the total is 8,487 (-12.2%); with
+  its folds (771), 8,400 (-13.1%). Target <= 7,730 is not met under the strict rule. Verifiers flagged about
+  215 committed cuts as merges of independent checks that share a fixture (desktop starting->failed 125,
+  sync 43, observe about 30, shared 15, tools 2); if the owner rules those out they would be split back.
+- Next: owner ruling on folded and independent-case merges; then fe-editor commit, T9z ditto on touched CORE
+  packages, final report.
