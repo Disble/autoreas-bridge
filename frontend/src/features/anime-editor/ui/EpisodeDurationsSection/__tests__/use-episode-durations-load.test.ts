@@ -63,9 +63,9 @@ function renderLoad(source: EpisodeDurationRuntimeSource, initial = options(), e
 }
 
 describe('useEpisodeDurationsLoad', () => {
-  it('reads the section for the draft, showing loading with no rows until it resolves', async () => {
+  it('reads the section for the draft, showing loading with no rows until it resolves, reloads after a save bumps the revision, and applies the draft edits to the rows it serves', async () => {
     const getSection = vi.fn().mockResolvedValue(SECTION);
-    const { result } = renderLoad(createSource(getSection));
+    const { result, rerender } = renderLoad(createSource(getSection));
 
     expect(result.current.load.status).toBe('loading');
     expect(result.current.rows).toEqual([]);
@@ -73,6 +73,16 @@ describe('useEpisodeDurationsLoad', () => {
     expect(result.current.rows.map((row) => row.episode)).toEqual([1]);
     expect(getSection).toHaveBeenCalledTimes(1);
     expect(getSection).toHaveBeenCalledWith({ animeId: 'anime-1', folder: 'D:/Anime/Frieren', totalEpisodes: 12, kind: 0 });
+
+    rerender(options({ revision: 1 }));
+
+    await waitFor(() => expect(getSection).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.load.status).toBe('ready'));
+
+    const edit = { episode: 2, durationMs: 1_500_000, source: 'manual' as const, clear: false };
+    rerender(options({ revision: 1, edits: [edit] }));
+
+    expect(result.current.rows.map((row) => [row.episode, row.isUnsaved])).toEqual([[1, false], [2, true]]);
   });
 
   it('reads nothing while no record is loaded, and starts no query', async () => {
@@ -181,28 +191,10 @@ describe('useEpisodeDurationsLoad', () => {
     }
   });
 
-  it('reloads after a save bumps the revision', async () => {
-    const getSection = vi.fn().mockResolvedValue(SECTION);
-    const { result, rerender } = renderLoad(createSource(getSection));
-    await waitFor(() => expect(result.current.load.status).toBe('ready'));
-
-    rerender(options({ revision: 1 }));
-
-    await waitFor(() => expect(getSection).toHaveBeenCalledTimes(2));
-  });
-
   it('fails with the rejection message and never keeps rows', async () => {
     const { result } = renderLoad(createSource(vi.fn().mockRejectedValue(createBridgeError('internal', 'read episode durations: disk gone'))));
 
     await waitFor(() => expect(result.current.load).toEqual({ status: 'failed', message: 'read episode durations: disk gone' }));
     expect(result.current.rows).toEqual([]);
-  });
-
-  it('applies the draft edits to the rows it serves', async () => {
-    const edit = { episode: 2, durationMs: 1_500_000, source: 'manual' as const, clear: false };
-    const { result } = renderLoad(createSource(vi.fn().mockResolvedValue(SECTION)), options({ edits: [edit] }));
-
-    await waitFor(() => expect(result.current.load.status).toBe('ready'));
-    expect(result.current.rows.map((row) => [row.episode, row.isUnsaved])).toEqual([[1, false], [2, true]]);
   });
 });
